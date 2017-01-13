@@ -15,6 +15,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -232,7 +234,10 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 	tconf.Proxy.WebAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortWeb())
 	tconf.Proxy.DisableWebUI = true
 	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.SSHAddr)
-	tconf.ConfigureBolt()
+	tconf.Auth.KeysBackend.BackendConf = &backend.Config{
+		Type:   boltbk.GetName(),
+		Params: backend.Params{"path": dataDir},
+	}
 	tconf.Keygen = testauthority.New()
 	i.Config = tconf
 	i.Process, err = service.NewTeleport(tconf)

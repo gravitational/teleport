@@ -28,7 +28,6 @@ import (
 	"net/url"
 	"os"
 	"os/user"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -120,7 +119,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 	s.freePorts, err = utils.GetFreeTCPPorts(3)
 	c.Assert(err, IsNil)
 
-	s.bk, err = boltbk.New(filepath.Join(s.dir, "db"))
+	s.bk, err = boltbk.New(backend.Params{"path": s.dir})
 	c.Assert(err, IsNil)
 
 	access := local.NewAccessService(s.bk)

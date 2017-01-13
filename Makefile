@@ -9,8 +9,7 @@ BUILDDIR ?= build
 BINDIR ?= /usr/local/bin
 DATADIR ?= /usr/local/share/teleport
 ADDFLAGS ?=
-
-PWD ?= $(shell pwd)
+PWD ?= `pwd`
 TELEPORT_DEBUG ?= no
 GITTAG=v$(VERSION)
 RELEASE := teleport-$(GITTAG)-`go env GOOS`-`go env GOARCH`-bin

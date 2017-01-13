@@ -68,6 +68,9 @@ func GetName() string {
 func New(params backend.Params) (backend.Backend, error) {
 	rootDir := params.GetString("path")
 	if rootDir == "" {
+		rootDir = params.GetString("data_dir")
+	}
+	if rootDir == "" {
 		return nil, trace.BadParameter("filesystem backend: 'path' is not set")
 	}
 
@@ -137,8 +140,7 @@ func (bk *Backend) CreateVal(bucket []string, key string, val []byte, ttl time.D
 	if err == nil && n < len(val) {
 		return trace.Wrap(io.ErrShortWrite)
 	}
-	bk.applyTTL(dirPath, key, ttl)
-	return nil
+	return trace.Wrap(bk.applyTTL(dirPath, key, ttl))
 }
 
 // UpsertVal updates or inserts value with a given TTL into a bucket
@@ -151,7 +153,11 @@ func (bk *Backend) UpsertVal(bucket []string, key string, val []byte, ttl time.D
 		return trace.Wrap(err)
 	}
 	// create the (or overwrite existing) file (AKA "key"):
-	return ioutil.WriteFile(path.Join(dirPath, key), val, defaultFileMode)
+	err = ioutil.WriteFile(path.Join(dirPath, key), val, defaultFileMode)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(bk.applyTTL(dirPath, key, ttl))
 }
 
 // GetVal return a value for a given key in the bucket

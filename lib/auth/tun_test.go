@@ -24,7 +24,7 @@ import (
 	"github.com/gravitational/teleport"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/boltbk"
+	"github.com/gravitational/teleport/lib/backend/dir"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -61,7 +61,7 @@ func (s *TunSuite) SetUpTest(c *C) {
 	s.dir = c.MkDir()
 
 	var err error
-	s.bk, err = boltbk.New(filepath.Join(s.dir, "db"))
+	s.bk, err = dir.New(backend.Params{"path": s.dir})
 	c.Assert(err, IsNil)
 
 	s.alog, err = events.NewAuditLog(s.dir)

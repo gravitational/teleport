@@ -318,10 +318,6 @@ func checkStaticConfig(c *check.C, conf *FileConfig) {
 	c.Assert(conf.Limits.Rates[1].Period.String(), check.Equals, "10m10s")
 
 	c.Assert(conf.SSH.Disabled(), check.Equals, true) // "ssh_service" has been explicitly set to "no"
-	c.Assert(conf.Storage.Peers, check.DeepEquals, []string{"one", "two"})
-	c.Assert(conf.Storage.TLSKeyFile, check.Equals, "/tls.key")
-	c.Assert(conf.Storage.TLSCertFile, check.Equals, "/tls.cert")
-	c.Assert(conf.Storage.TLSCAFile, check.Equals, "/tls.ca")
 	c.Assert(conf.SSH.Commands, check.HasLen, 2)
 	c.Assert(conf.SSH.Commands[0].Name, check.Equals, "hostname")
 	c.Assert(conf.SSH.Commands[0].Command, check.DeepEquals, []string{"/bin/hostname"})

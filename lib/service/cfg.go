@@ -203,8 +203,6 @@ type AuthConfig struct {
 	KeysBackend struct {
 		// Type is a backend type - etcd or boltdb
 		Type string
-		// Params is map with backend specific parameters
-		Params string
 		// BackendConf contains additional config data
 		BackendConf *backend.Config
 	}
