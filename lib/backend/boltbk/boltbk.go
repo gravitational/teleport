@@ -14,21 +14,35 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package boltbk implements BoltDB backed backend for standalone instances
-// and test mode, you should use Etcd in production
 package boltbk
 
 import (
 	"encoding/json"
-	"os"
+	"fmt"
 	"path/filepath"
 	"sort"
 	"sync"
 	"time"
 
 	"github.com/boltdb/bolt"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/mailgun/timetools"
+)
+
+const (
+	// keysBoltFile is the BoltDB database file, usually stored in data_dir
+	keysBoltFile = "keys.db"
+
+	// openTimeout determines for how long BoltDB will wait before giving up
+	// opening the locked DB file
+	openTimeout = 5 * time.Second
+
+	// openFileMode flag is passed to db.Open()
+	openFileMode = 0600
 )
 
 // BoltBackend is a boltdb-based backend used in tests and standalone mode
@@ -40,51 +54,46 @@ type BoltBackend struct {
 	locks map[string]time.Time
 }
 
-// Option sets functional options for the backend
-type Option func(b *BoltBackend) error
-
-// Clock sets clock for the backend, used in tests
-func Clock(clock timetools.TimeProvider) Option {
-	return func(b *BoltBackend) error {
-		b.clock = clock
-		return nil
-	}
+// GetName() is a part of the backend API and returns the name of this backend
+// as shown in 'storage/type' section of Teleport YAML config
+func GetName() string {
+	return "bolt"
 }
 
-// New returns a new isntance of bolt backend
-func New(path string, opts ...Option) (*BoltBackend, error) {
-	path, err := filepath.Abs(path)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to convert path")
+// New initializes and returns a fully created BoltDB backend. It's
+// a properly implemented Backend.NewFunc, part of a backend API
+func New(params backend.Params) (backend.Backend, error) {
+	// look at 'path' parameter, if it's missing use 'data_dir' (default):
+	path := params.GetString("path")
+	if len(path) == 0 {
+		path = params.GetString(teleport.DataDirParameterName)
 	}
-	dir := filepath.Dir(path)
-	s, err := os.Stat(dir)
+	// still nothing? return an error:
+	if path == "" {
+		return nil, trace.BadParameter("Bolt backend: 'path' is not set")
+	}
+	if !utils.IsDir(path) {
+		return nil, trace.BadParameter("%v is not a valid directory", path)
+	}
+	path, err := filepath.Abs(filepath.Join(path, keysBoltFile))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !s.IsDir() {
-		return nil, trace.BadParameter("path '%v' should be a valid directory", dir)
-	}
-	b := &BoltBackend{
-		locks: make(map[string]time.Time),
-	}
-	for _, option := range opts {
-		if err := option(b); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	if b.clock == nil {
-		b.clock = &timetools.RealTime{}
-	}
-	db, err := bolt.Open(path, 0600, &bolt.Options{Timeout: 5 * time.Second})
+
+	fmt.Printf("\n\n\nFULL PATH: %s\n\n", path)
+
+	db, err := bolt.Open(path, openFileMode, &bolt.Options{Timeout: openTimeout})
 	if err != nil {
 		if err == bolt.ErrTimeout {
 			return nil, trace.Errorf("Local storage is locked. Another instance is running? (%v)", path)
 		}
 		return nil, trace.Wrap(err)
 	}
-	b.db = db
-	return b, nil
+	return &BoltBackend{
+		locks: make(map[string]time.Time),
+		clock: &timetools.RealTime{},
+		db:    db,
+	}, nil
 }
 
 // Close closes the backend resources

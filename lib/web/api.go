@@ -1462,7 +1462,6 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 	})
 	cookie, err := r.Cookie("session")
 	if err != nil || (cookie != nil && cookie.Value == "") {
-		logger.Infof(missingCookieMsg)
 		if err != nil {
 			logger.Warn(err)
 		}

@@ -35,9 +35,9 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
+	"github.com/gravitational/teleport/lib/backend/dir"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
-	"github.com/gravitational/teleport/lib/backend/fs"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -795,23 +795,25 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 }
 
 // initAuthStorage initializes the storage backend for the auth. service
-func (process *TeleportProcess) initAuthStorage() (backend.Backend, error) {
-	cfg := &process.Config.Auth
-	var bk backend.Backend
-	var err error
+func (process *TeleportProcess) initAuthStorage() (bk backend.Backend, err error) {
+	bkConf := &process.Config.Auth.KeysBackend
+	// pass 'data_dir' setting to a backend:
+	bkConf.BackendConf.Params["data_dir"] = process.Config.DataDir
 
-	switch cfg.KeysBackend.Type {
+	switch bkConf.Type {
+	// legacy bolt backend:
+	case boltbk.GetName():
+		bk, err = boltbk.New(bkConf.BackendConf.Params)
 	// filesystem backend:
-	case fs.GetName():
-		bk, err = fs.New(cfg.KeysBackend.BackendConf.Params)
-	case teleport.ETCDBackendType:
-		bk, err = etcdbk.FromJSON(cfg.KeysBackend.Params)
-	case teleport.BoltBackendType:
-		bk, err = boltbk.FromJSON(cfg.KeysBackend.Params)
+	case dir.GetName():
+		bk, err = dir.New(bkConf.BackendConf.Params)
+	// DynamoDB bakcend:
 	case dynamo.BackendType:
-		bk, err = dynamo.New(cfg.KeysBackend.BackendConf)
+		bk, err = dynamo.New(bkConf.BackendConf)
+	case teleport.ETCDBackendType:
+		bk, err = etcdbk.FromJSON(bkConf.Params)
 	default:
-		err = trace.Errorf("unsupported backend type: %v", cfg.KeysBackend.Type)
+		err = trace.Errorf("unsupported backend type: %v", bkConf.Type)
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)

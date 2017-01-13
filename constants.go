@@ -8,9 +8,6 @@ import (
 const ForeverTTL time.Duration = 0
 
 const (
-	// BoltBackendType is a BoltDB backend
-	BoltBackendType = "bolt"
-
 	// ETCDBackendType is etcd backend
 	ETCDBackendType = "etcd"
 
@@ -57,4 +54,8 @@ const (
 
 	// ConnectorOIDC means connector type OIDC
 	ConnectorOIDC = "oidc"
+
+	// DataDirParameterName is the name of the data dir configuration parameter passed
+	// to all backends during initialization
+	DataDirParameterName = "data_dir"
 )

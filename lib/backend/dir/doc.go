@@ -19,9 +19,9 @@ compliant and support 'date modified' attribute on files.
 
 */
 
-// Package 'fs' implements the "filesystem backend". It uses a regular
-// filesystem (directories with files) to store Teleport auth server state.
+// Package 'dir' implements the "directory backend". It uses a regular
+// filesystem directories/files to store Teleport auth server state.
 //
 // Limitations:
 // 	- key names cannot start with '.' (dot)
-package fs
+package dir
