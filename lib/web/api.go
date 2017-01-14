@@ -99,10 +99,12 @@ type RewritingHandler struct {
 	handler *Handler
 }
 
-type Authenticator func(w http.ResponseWriter, r *http.Request, checkBearerToken bool) (*SessionContext, error)
+type Authenticator interface {
+	AuthenticateRequest(w http.ResponseWriter, r *http.Request, checkBearerToken bool) (*SessionContext, error)
+}
 
 func (r *RewritingHandler) GetAuthenticator() Authenticator {
-	return r.handler.AuthenticateRequest
+	return r.handler
 }
 
 func (r *RewritingHandler) Close() error {
