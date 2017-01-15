@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/boltbk"
+	"github.com/gravitational/teleport/lib/backend/dir"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -93,7 +93,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	s.freePorts, err = utils.GetFreeTCPPorts(10)
 	c.Assert(err, IsNil)
 
-	s.bk, err = boltbk.New(backend.Params{"path": s.dir})
+	s.bk, err = dir.New(backend.Params{"path": s.dir})
 	c.Assert(err, IsNil)
 
 	s.access = local.NewAccessService(s.bk)
@@ -489,6 +489,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		s.roleAuth,
 	)
 	c.Assert(err, IsNil)
+
 	c.Assert(reverseTunnelServer.Start(), IsNil)
 
 	proxy, err := New(
