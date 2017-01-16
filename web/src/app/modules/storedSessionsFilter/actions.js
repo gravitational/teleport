@@ -25,7 +25,7 @@ const { TLPT_STORED_SESSINS_FILTER_SET_RANGE }  = require('./actionTypes');
 
 const actions = {
 
-  fetchStoredSession(){
+  fetchSiteEventsWithinTimeRange(){
     let { start, end } = reactor.evaluate(filter);
     _fetch(start, end);
   },

@@ -25,8 +25,7 @@ var $ = require('jQuery');
 
 Term.colors[256] = '#252323';
 
-const DISCONNECT_TXT = '\x1b[31mdisconnected\x1b[m\r\n';
-const CONNECTED_TXT = 'Connected!\r\n';
+const DISCONNECT_TXT = 'disconnected';
 const GRV_CLASS = 'grv-terminal';
 const WINDOW_RESIZE_DEBOUNCE_DELAY = 100;
 
@@ -74,16 +73,15 @@ class TtyTerminal {
     this.term.on('data', (data) => this.tty.send(data));
 
     // subscribe to tty events
-    this.tty.on('resize', ({h, w})=> this.resize(w, h));
-    this.tty.on('reset', ()=> this.term.reset());
-    this.tty.on('open', ()=> this.term.write(CONNECTED_TXT));
-    this.tty.on('close', ()=> this.term.write(DISCONNECT_TXT));
+    this.tty.on('resize', ({h, w}) => this.resize(w, h));    
+    this.tty.on('reset', () => this.term.reset());    
+    this.tty.on('close', this._processClose.bind(this));
     this.tty.on('data', this._processData.bind(this));
 
     this.connect();
     window.addEventListener('resize', this.debouncedResize);
   }
-
+  
   connect(){
     this.tty.connect(this._getTtyConnStr());
     this.ttyEvents.connect(this._getTtyEventsConnStr());
@@ -133,6 +131,18 @@ class TtyTerminal {
       });
     }
   }
+    
+  _processClose(e) {
+    let { reason } = e;
+    let displayText = DISCONNECT_TXT;
+            
+    if (reason) {
+      displayText = `${displayText}: ${reason}`;
+    }
+                    
+    displayText = `\x1b[31m${displayText}\x1b[m\r\n`;
+    this.term.write(displayText)
+  }
 
   _ensureScreenSize(data){
     /**
@@ -160,7 +170,7 @@ class TtyTerminal {
     return data;
   }
 
-  _disconnect(){
+  _disconnect() {    
     if(this.tty !== null){
       this.tty.disconnect();
     }

@@ -20,10 +20,9 @@ import siteGetters from 'app/modules/sites/getters';
 import appGetters from 'app/modules/app/getters';
 import DropDown from './dropdown.jsx';
 import { setSiteId, refresh } from 'app/modules/app/actions';
+import { isUUID } from 'app/common/objectUtils';
 
-const YOUR_CSR_TEXT = 'Your cluster';
-
-var PageWithHeader = React.createClass({
+const ClusterSelector = React.createClass({
 
   mixins: [reactor.ReactMixin],
 
@@ -33,33 +32,38 @@ var PageWithHeader = React.createClass({
       siteId: appGetters.siteId
     }
   },
-
+  
   onChangeSite(value) {
     setSiteId(value);      
     refresh();
   },
 
   render() {
-    let { sites, siteId } = this.state;    
-    let siteOptions = sites.map((s, index) => ({
-      label: index === 0 ? YOUR_CSR_TEXT : s.name,
+    let { sites, siteId } = this.state;
+    
+    let siteOptions = sites.map(s => ({
+      label: s.name,
       value: s.name
     }));
+    
+    if (siteOptions.length === 1 && isUUID(siteOptions[0].value)){
+      siteOptions[0].label = location.hostname;
+    }
         
     return (                  
-      <div className="grv-page">        
+      <div className="grv-clusters-selector">   
+        <div className="m-r-sm">Cluster:</div>
         <DropDown
-          className="grv-page-header-clusters-selector m-t-sm"
+          className="m-r-sm"
           size="sm"      
           align="right"
           onChange={this.onChangeSite}
           value={siteId}
           options={siteOptions}
-          />
-        {this.props.children}
-      </div>
+          />                      
+      </div>                                                                              
     );
   }
 });
 
-export default PageWithHeader;
+export default ClusterSelector;

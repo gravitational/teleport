@@ -48,29 +48,36 @@ type SessionContext struct {
 	closers []io.Closer
 }
 
-func (c *SessionContext) getConnectHandler(sessionID session.ID) (*connectHandler, error) {
+// getTerminal finds and returns an active web terminal for a given session:
+func (c *SessionContext) getTerminal(sessionID session.ID) (*terminalHandler, error) {
 	c.Lock()
 	defer c.Unlock()
 
 	for _, closer := range c.closers {
-		handler, ok := closer.(*connectHandler)
-		if ok && handler.req.SessionID == sessionID {
-			return handler, nil
+		term, ok := closer.(*terminalHandler)
+		if ok && term.params.SessionID == sessionID {
+			return term, nil
 		}
 	}
 	return nil, trace.NotFound("no connected streams")
 }
 
-func (c *SessionContext) UpdateSessionTerminal(namespace string, sessionID session.ID, params session.TerminalParams) error {
-	err := c.clt.UpdateSession(session.UpdateRequest{ID: sessionID, TerminalParams: &params, Namespace: namespace})
+func (c *SessionContext) UpdateSessionTerminal(
+	namespace string, sessionID session.ID, params session.TerminalParams) error {
+
+	err := c.clt.UpdateSession(session.UpdateRequest{
+		ID:             sessionID,
+		TerminalParams: &params,
+		Namespace:      namespace,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	handler, err := c.getConnectHandler(sessionID)
+	term, err := c.getTerminal(sessionID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(handler.resizePTYWindow(params))
+	return trace.Wrap(term.resizePTYWindow(params))
 }
 
 func (c *SessionContext) AddClosers(closers ...io.Closer) {

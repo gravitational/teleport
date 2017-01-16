@@ -19,19 +19,20 @@ var session = require('./session');
 var cfg = require('app/config');
 var $ = require('jQuery');
 var logger = require('app/common/logger').create('services/auth');
+
 require('u2f-api-polyfill'); // This puts it in window.u2f
 
+const AUTH_IS_RENEWING = 'GRV_AUTH_IS_RENEWING';
 const PROVIDER_GOOGLE = 'google';
-
 const SECOND_FACTOR_TYPE_HOTP = 'hotp';
 const SECOND_FACTOR_TYPE_OIDC = 'oidc';
 const SECOND_FACTOR_TYPE_U2F = 'u2f';
 
-const CHECK_TOKEN_REFRESH_RATE = 10*1000; // 10 sec
+const CHECK_TOKEN_REFRESH_RATE = 10 * 1000; // 10 sec
 
-var refreshTokenTimerId = null;
+let refreshTokenTimerId = null;
 
-var auth = {
+const auth = {
 
   signUp(name, password, token, inviteToken){
     var data = {user: name, pass: password, second_factor_token: token, invite_token: inviteToken};
@@ -55,18 +56,21 @@ var auth = {
         }
 
         var response = {
-          user:                  name,
-          pass:                  password,
+          user: name,
+          pass: password,
           u2f_register_response: res,
-          invite_token:          inviteToken
+          invite_token: inviteToken
         };
-        api.post(cfg.api.u2fCreateUserPath, response, false).then(data=>{
-          session.setUserData(data);
-          auth._startTokenRefresher();
-          deferred.resolve(data);
-        }).fail(data=>{
-          deferred.reject(data);
-        })
+
+        api.post(cfg.api.u2fCreateUserPath, response, false)
+          .then(data => {
+            session.setUserData(data);
+            auth._startTokenRefresher();
+            deferred.resolve(data);
+          })
+          .fail(data => {
+            deferred.reject(data);
+          })
       });
 
       return deferred.promise();
@@ -129,18 +133,21 @@ var auth = {
   ensureUser(){
     this._stopTokenRefresher();
 
-    var userData = session.getUserData();
+    let userData = session.getUserData();
+
+    // ping the server to check if user signed out from another tab    
+    this._checkStatus();
 
     if(!userData.token){
       return $.Deferred().reject();
     }
-
+    
     if(this._shouldRefreshToken(userData)){
       return this._refreshToken().done(this._startTokenRefresher);
     }
 
     this._startTokenRefresher();
-    return $.Deferred().resolve(userData);
+    return $.Deferred().resolve(userData);    
   },
 
   logout(){
@@ -160,16 +167,13 @@ var auth = {
     if(!created || !expires_in){
       return true;
     }
-
-    if(expires_in < 0) {
-      expires_in = expires_in * -1;
-    }
-
+    
     expires_in = expires_in * 1000;
 
     var delta = created + expires_in - new Date().getTime();
 
-    return delta < expires_in * 0.33;
+    // give some extra time for slow connection  
+    return delta < CHECK_TOKEN_REFRESH_RATE * 3;
   },
 
   _startTokenRefresher(){
@@ -181,13 +185,34 @@ var auth = {
     refreshTokenTimerId = null;
   },
 
-  _refreshToken(){
-    return api.post(cfg.api.renewTokenPath).then(data=>{
-      session.setUserData(data);
-      return data;
-    }).fail(()=>{
-      auth.logout();
-    });
+  _checkStatus(){
+    // do not attemp to fetch the status with potentially invalid token
+    // as it will trigger logout action.
+    if(localStorage.getItem(AUTH_IS_RENEWING) !== null){
+      return;
+    }
+    
+    api.get(cfg.api.userStatus)          
+      .fail(err => {              
+        // indicates that user session is no longer valid
+        if(err.status == 403){
+          auth.logout();
+        }
+      });
+  },
+
+  _refreshToken() {
+    localStorage.setItem(AUTH_IS_RENEWING, true);
+    return api.post(cfg.api.renewTokenPath)
+      .then(data => {
+        session.setUserData(data);        
+      })
+      .fail(() => {
+        auth.logout();
+      })
+      .always(() => {
+        localStorage.removeItem(AUTH_IS_RENEWING);
+      });
   },
 
   _getU2fErr(errorCode){

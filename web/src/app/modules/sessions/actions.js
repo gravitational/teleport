@@ -22,7 +22,11 @@ var moment = require('moment');
 var appGetters = require('app/modules/app/getters')
 
 const logger = require('app/common/logger').create('Modules/Sessions');
-const { TLPT_SESSIONS_UPDATE, TLPT_SESSIONS_UPDATE_WITH_EVENTS, TLPT_SESSIONS_RECEIVE }  = require('./actionTypes');
+const {
+  TLPT_SESSIONS_ACTIVE_RECEIVE,
+  TLPT_SESSIONS_EVENTS_RECEIVE,
+  TLPT_SESSIONS_ACTIVE_UPDATE  
+} = require('./actionTypes');
 
 const actions = {
 
@@ -30,7 +34,7 @@ const actions = {
     let siteId = reactor.evaluate(appGetters.siteId);
     return api.get(cfg.api.getSessionEventsUrl({ siteId, sid })).then(json=>{
       if(json && json.events){
-        reactor.dispatch(TLPT_SESSIONS_UPDATE_WITH_EVENTS, { siteId, jsonEvents: json.events });
+        reactor.dispatch(TLPT_SESSIONS_EVENTS_RECEIVE, { siteId, json: json.events });
       }
     });
   },
@@ -47,10 +51,10 @@ const actions = {
     return api.get(cfg.api.getSiteEventsFilterUrl({ start, end, siteId }))
       .done( json => {
         if (json && json.events) {
-          reactor.dispatch(TLPT_SESSIONS_UPDATE_WITH_EVENTS, { siteId, jsonEvents: json.events });
+          reactor.dispatch(TLPT_SESSIONS_EVENTS_RECEIVE, { siteId, json: json.events });
         }  
       })
-      .fail((err)=>{
+      .fail( err => {
         showError('Unable to retrieve site events');
         logger.error('fetchSiteEvents', err);
       });
@@ -59,19 +63,18 @@ const actions = {
   fetchActiveSessions() {    
     let siteId = reactor.evaluate(appGetters.siteId);        
     return api.get(cfg.api.getFetchSessionsUrl(siteId))
-      .done((json) => {
-        let sessions = json.sessions || [];
-        sessions.forEach(s => s.siteId = siteId);        
-        reactor.dispatch(TLPT_SESSIONS_RECEIVE, sessions );
+      .done( json => {
+        let sessions = json.sessions || [];                        
+        reactor.dispatch(TLPT_SESSIONS_ACTIVE_RECEIVE, { siteId, json: sessions });        
       })
-      .fail((err)=>{
+      .fail( err => {
         showError('Unable to retrieve list of sessions');
         logger.error('fetchActiveSessions', err);
       });
   },
   
-  updateSession(json){
-    reactor.dispatch(TLPT_SESSIONS_UPDATE, json);
+  updateSession({ siteId, json }){
+    reactor.dispatch(TLPT_SESSIONS_ACTIVE_UPDATE, { siteId, json });
   }
 }
 

@@ -31,20 +31,15 @@ var InputSearch = React.createClass({
     this.setState({value: e.target.value});
     this.debouncedNotify();
   },
-
-  componentDidMount() {
-  },
-
-  componentWillUnmount() {
-  },
-
+  
   render() {
     let { className = ''} = this.props;
-    className = `grv-search ${className}`;
+    className = `grv-search input-group-sm ${className}`;
 
     return (
       <div className={className}>
-        <input placeholder="Search..." className="form-control input-sm"
+        <input placeholder="Search..." className="form-control"
+          autoFocus
           value={this.state.value}
           onChange={this.onChange} />
       </div>

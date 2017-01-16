@@ -20,15 +20,17 @@ var api = require('app/services/api');
 var session = require('app/services/session');
 var spyOn = expect.spyOn;
 var auth = require('app/services/auth');
+var cfg = require('app/config');
 
 describe('auth', function () {
-  var sample = { token: 'token', expires_in: -599, created: new Date().getTime() };
+  var sample = { token: 'token', expires_in: 599, created: new Date().getTime() };
 
   beforeEach(function () {
     spyOn(session, 'setUserData');
     spyOn(session, 'getUserData');
     spyOn(session, 'clear');
     spyOn(api, 'post');
+    spyOn(api, 'get');
     spyOn(api, 'delete').andReturn($.Deferred().resolve());
     spyOn(auth, '_startTokenRefresher');
     spyOn(auth, '_stopTokenRefresher');
@@ -64,10 +66,10 @@ describe('auth', function () {
 
     it('should successfully login and put user data in the session', function () {
       window.u2f = {
-	sign: function(appId, challenge, registeredKeys, callback) {
-	  u2fSample.errorCode = 0;
-	  callback(u2fSample);
-	}
+        sign(appId, challenge, registeredKeys, callback) {
+          u2fSample.errorCode = 0;
+          callback(u2fSample);
+        }
       };
 
       var token = null;
@@ -88,12 +90,12 @@ describe('auth', function () {
 
     it('should return rejected promise if u2f api throws an error', function() {
       window.u2f = {
-	sign: function(appId, challenge, registeredKeys, callback) {
-	  callback({errorCode: 1});
-	}
+	      sign(appId, challenge, registeredKeys, callback) {
+	        callback({errorCode: 1});
+	      }
       };
 
-      var wasCalled = false;-
+      var wasCalled = false;
       api.post.andReturn($.Deferred().resolve(u2fSample));
       auth.u2fLogin('user', 'password').fail(()=> { wasCalled = true });
       expect(wasCalled).toEqual(true);
@@ -102,12 +104,13 @@ describe('auth', function () {
 
   describe('ensureUser()', function () {
     describe('when token is valid', function () {
-      it('should be resolved', function () {
+      it('should be resolved', function () {        
         var wasCalled = false;
         session.getUserData.andReturn(sample);
         auth.ensureUser('user', 'password').done(()=> { wasCalled = true });
 
-        expect(wasCalled).toEqual(true);
+        expect(wasCalled).toEqual(true);        
+        expect(api.get).toHaveBeenCalledWith(cfg.api.userStatus);
         expect(auth._startTokenRefresher).toHaveBeenCalled();
         expect(auth._shouldRefreshToken).toHaveBeenCalled();
       });
@@ -125,16 +128,18 @@ describe('auth', function () {
         auth.ensureUser('user', 'password').done(()=> { wasCalled = true });
 
         expect(wasCalled).toEqual(true);
+        expect(api.get).toHaveBeenCalledWith(cfg.api.userStatus);
         expect(auth._startTokenRefresher).toHaveBeenCalled();
         expect(auth._shouldRefreshToken).toHaveBeenCalled();
       });
     });
-
+  
     describe('when token is missing', function () {
       it('should reject', function () {
         var wasCalled = false;
         session.getUserData.andReturn({});
-        auth.ensureUser('user', 'password').fail(()=> { wasCalled = true });
+        auth.ensureUser('user', 'password').fail(() => { wasCalled = true });
+        expect(api.get).toHaveBeenCalledWith(cfg.api.userStatus);
         expect(wasCalled).toEqual(true);
       });
     });
