@@ -44,6 +44,8 @@ import (
 var (
 	// all possible valid YAML config keys
 	validKeys = map[string]bool{
+		"aws":                true,
+		"inject_tags":        true,
 		"namespace":          true,
 		"seed_config":        true,
 		"cluster_name":       true,
@@ -356,6 +358,15 @@ type Global struct {
 	// its configuration file simply as a seed data on initial start-up.
 	// For OSS Teleport it should always be 'false' by default.
 	SeedConfig bool `yaml:"seed_config,omitempty"`
+
+	// AWS contains AWS specific integrations
+	AWS AWS `yaml:"aws"`
+}
+
+// AWS is AWS-specific integrations section
+type AWS struct {
+	// InjectTags means that tags will be injected as labels
+	InjectTags bool `yaml:"inject_tags"`
 }
 
 // Service is a common configuration of a teleport service

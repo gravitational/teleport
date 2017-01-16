@@ -27,6 +27,12 @@ type Server interface {
 	GetLabels() map[string]string
 	// GetCmdLabels returns command labels
 	GetCmdLabels() map[string]CommandLabel
+	// SetLabel sets server label
+	SetLabel(key, val string)
+	// DeleteLabel deletes server label
+	DeleteLabel(key string)
+	// GetLabel returns server label
+	GetLabel(key string) (string, bool)
 	// String returns string representation of the server
 	String() string
 	// SetAddr sets server address
@@ -120,6 +126,30 @@ func (s *ServerV2) GetHostname() string {
 // GetLabels returns server's static label key pairs
 func (s *ServerV2) GetLabels() map[string]string {
 	return s.Metadata.Labels
+}
+
+// DeleteLabel deletes server label
+func (s *ServerV2) DeleteLabel(key string) {
+	if s.Metadata.Labels != nil {
+		delete(s.Metadata.Labels, key)
+	}
+}
+
+// SetLabel sets server label
+func (s *ServerV2) SetLabel(key, val string) {
+	if s.Metadata.Labels == nil {
+		s.Metadata.Labels = map[string]string{}
+	}
+	s.Metadata.Labels[key] = val
+}
+
+// GetLabel returns server label
+func (s *ServerV2) GetLabel(key string) (string, bool) {
+	if s.Metadata.Labels == nil {
+		return "", false
+	}
+	val, ok := s.Metadata.Labels[key]
+	return val, ok
 }
 
 // GetCmdLabels returns command labels

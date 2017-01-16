@@ -113,6 +113,14 @@ type Config struct {
 	// SeedConfig tells teleport to treat its start-up configuration as initial
 	// "seed" configuration on 1st start.
 	SeedConfig bool
+
+	// AWS contains AWS specific integrations
+	AWS AWS
+}
+
+// AWS contains AWS-specific integrations
+type AWS struct {
+	InjectTags bool
 }
 
 // ApplyToken assigns a given token to all internal services but only if token
