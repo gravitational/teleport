@@ -99,6 +99,10 @@ type RewritingHandler struct {
 	handler *Handler
 }
 
+func (r *RewritingHandler) GetHandler() *Handler {
+	return r.handler
+}
+
 func (r *RewritingHandler) Close() error {
 	return r.handler.Close()
 }

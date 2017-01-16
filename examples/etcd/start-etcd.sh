@@ -4,7 +4,12 @@
 #   - server cert is checked by clients
 #   - client cert is checked by the server
 #
-mdkir -p data
+# NOTE: this file is also used to run etcd tests. 
+#       
+HERE=$(readlink -f $0)
+cd $(dirname $HERE)
+
+mkdir -p data
 etcd --name teleportstorage \
      --data-dir data/etcd \
      --initial-cluster-state new \

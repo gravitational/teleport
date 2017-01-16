@@ -17,9 +17,11 @@ limitations under the License.
 package etcdbk
 
 import (
-	"os"
+	"fmt"
+	"strings"
 	"testing"
 
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -32,51 +34,64 @@ import (
 func TestEtcd(t *testing.T) { TestingT(t) }
 
 type EtcdSuite struct {
-	bk           *bk
-	suite        test.BackendSuite
-	configString string
-	api          client.KeysAPI
-	changesC     chan interface{}
-	key          string
-	stopC        chan bool
+	bk       *bk
+	suite    test.BackendSuite
+	api      client.KeysAPI
+	changesC chan interface{}
+	key      string
+	stopC    chan bool
+	config   backend.Params
+	skip     bool
 }
 
 var _ = Suite(&EtcdSuite{})
 
 func (s *EtcdSuite) SetUpSuite(c *C) {
 	utils.InitLoggerForTests()
-	configString := os.Getenv("TELEPORT_TEST_ETCD_CONFIG")
-	if configString == "" {
-		// Skips the entire suite
-		c.Skip("This test requires etcd, provide comma separated nodes in TELEPORT_TEST_ETCD_CONFIG environment variable")
-		return
+
+	// this config must match examples/etcd/teleport.yaml
+	s.config = backend.Params{
+		"peers":         []string{"https://127.0.0.1:2379"},
+		"prefix":        "teleport.secrets",
+		"tls_key_file":  "../../../examples/etcd/certs/client-key.pem",
+		"tls_cert_file": "../../../examples/etcd/certs/client-cert.pem",
+		"tls_ca_file":   "../../../examples/etcd/certs/ca-cert.pem",
 	}
-	s.configString = configString
+	// Initiate a backend with a registry
+	b, err := New(s.config)
+	c.Assert(err, IsNil)
+	s.bk = b.(*bk)
+	s.suite.B = b
 }
 
 func (s *EtcdSuite) SetUpTest(c *C) {
-	// Initiate a backend with a registry
-
-	// TODO (ev) fix this:
-	b, err := New(nil)
-	c.Assert(err, IsNil)
-
-	s.bk = b.(*bk)
+	if s.skip {
+		c.Skip("etcd is not available")
+	}
 	s.api = client.NewKeysAPI(s.bk.client)
 
 	s.changesC = make(chan interface{})
 	s.stopC = make(chan bool)
 
 	// Delete all values under the given prefix
-	_, err = s.api.Delete(context.Background(), s.bk.cfg.Key, &client.DeleteOptions{Recursive: true, Dir: true})
+	_, err := s.api.Delete(context.Background(),
+		s.bk.cfg.Key,
+		&client.DeleteOptions{
+			Recursive: true,
+			Dir:       true,
+		})
 	err = convertErr(err)
 	if err != nil && !trace.IsNotFound(err) {
+		if strings.Contains(err.Error(), "cluster is unavailable") {
+			fmt.Println("WARNING: etcd cluster is not available. Start examples/etcd/start-etcd.sh")
+			s.skip = true
+			c.Skip(err.Error())
+		}
 		c.Assert(err, IsNil)
 	}
 
 	// Set up suite
 	s.suite.ChangesC = s.changesC
-	s.suite.B = b
 }
 
 func (s *EtcdSuite) TearDownTest(c *C) {
