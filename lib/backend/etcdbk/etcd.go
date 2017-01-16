@@ -51,6 +51,7 @@ type Config struct {
 	TLSKeyFile  string   `json:"tls_key_file,omitempty"`
 	TLSCertFile string   `json:"tls_cert_file,omitempty"`
 	TLSCAFile   string   `json:"tls_ca_file,omitempty"`
+	Insecure    bool     `json:"insecure,omitempty"`
 }
 
 // GetName returns the name of etcd backend as it appears in 'storage/type' section
@@ -95,11 +96,16 @@ func (cfg *Config) Validate() error {
 	if len(cfg.Nodes) == 0 {
 		return trace.BadParameter(`etcd: missing "peers" setting`)
 	}
-	if cfg.TLSKeyFile == "" {
-		return trace.BadParameter(`etcd: missing "tls_key_file" setting`)
-	}
-	if cfg.TLSCertFile == "" {
-		return trace.BadParameter(`etcd: missing "tls_cert_file" setting`)
+	if cfg.Insecure == false {
+		if cfg.TLSKeyFile == "" {
+			return trace.BadParameter(`etcd: missing "tls_key_file" setting`)
+		}
+		if cfg.TLSCertFile == "" {
+			return trace.BadParameter(`etcd: missing "tls_cert_file" setting`)
+		}
+		if cfg.TLSCAFile == "" {
+			return trace.BadParameter(`etcd: missing "tls_ca_file" setting`)
+		}
 	}
 	return nil
 }
