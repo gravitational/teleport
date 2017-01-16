@@ -32,8 +32,6 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -152,18 +150,13 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 
 	if fc.Global.DataDir != "" {
 		cfg.DataDir = fc.Global.DataDir
-	}
-	// use bolt by default:
-	if fc.Storage.Type == "" {
-		fc.Storage.Type = boltbk.GetName()
-	}
-	if fc.Storage.Params == nil {
-		fc.Storage.Params = make(backend.Params)
+		cfg.Auth.StorageConfig.Params["path"] = cfg.DataDir
 	}
 
-	// forward storage config to 'auth backend' config (same thing)
-	cfg.Auth.KeysBackend.BackendConf = &fc.Storage
-	cfg.Auth.KeysBackend.Type = fc.Storage.Type
+	// apply storage configuration, if present:
+	if fc.Storage.Type != "" {
+		cfg.Auth.StorageConfig = fc.Storage
+	}
 
 	// apply logger settings
 	switch fc.Logger.Output {

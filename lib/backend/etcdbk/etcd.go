@@ -62,6 +62,9 @@ func GetName() string {
 // New returns new instance of Etcd-powered backend
 func New(params backend.Params) (backend.Backend, error) {
 	var err error
+	if params == nil {
+		return nil, trace.BadParameter("missing etcd configuration")
+	}
 
 	// convert generic backend parameters structure to etcd config:
 	var cfg *Config
@@ -87,16 +90,16 @@ func New(params backend.Params) (backend.Backend, error) {
 // Validate checks if all the parameters are present/valid
 func (cfg *Config) Validate() error {
 	if len(cfg.Key) == 0 {
-		return trace.BadParameter(`Key: supply a valid root key for Teleport data`)
+		return trace.BadParameter(`etcd: missing "prefix" setting`)
 	}
 	if len(cfg.Nodes) == 0 {
-		return trace.BadParameter(`Nodes: please supply a valid dictionary, e.g. {"nodes": ["http://localhost:4001]}`)
+		return trace.BadParameter(`etcd: missing "peers" setting`)
 	}
 	if cfg.TLSKeyFile == "" {
-		return trace.BadParameter(`TLSKeyFile: please supply a path to TLS private key file`)
+		return trace.BadParameter(`etcd: missing "tls_key_file" setting`)
 	}
 	if cfg.TLSCertFile == "" {
-		return trace.BadParameter(`TLSCertFile: please supply a path to TLS certificate file`)
+		return trace.BadParameter(`etcd: missing "tls_cert_file" setting`)
 	}
 	return nil
 }

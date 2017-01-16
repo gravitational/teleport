@@ -234,7 +234,7 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 	tconf.Proxy.WebAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortWeb())
 	tconf.Proxy.DisableWebUI = true
 	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.SSHAddr)
-	tconf.Auth.KeysBackend.BackendConf = &backend.Config{
+	tconf.Auth.StorageConfig = backend.Config{
 		Type:   boltbk.GetName(),
 		Params: backend.Params{"path": dataDir},
 	}

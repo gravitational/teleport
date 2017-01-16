@@ -207,7 +207,6 @@ func MakeSampleFileConfig() (fc *FileConfig) {
 	g.Limits.MaxConnections = defaults.LimiterMaxConnections
 	g.Limits.MaxUsers = defaults.LimiterMaxConcurrentUsers
 	g.DataDir = defaults.DataDir
-	g.Storage.Type = conf.Auth.KeysBackend.Type
 	g.PIDFile = "/var/run/teleport.pid"
 
 	// sample SSH config:

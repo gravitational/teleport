@@ -176,11 +176,11 @@ func (s *Suite) TestLocking(c *check.C) {
 	}()
 	time.Sleep(time.Millisecond * 2)
 	// make sure i did not change (the modifying gorouting was locked)
-	c.Assert(i, check.Equals, int32(0))
+	c.Assert(atomic.LoadInt32(&i), check.Equals, int32(0))
 	s.clock.Advance(ttl + 1)
 
 	// release the lock, and the gorouting should unlock and advance i
 	s.bk.ReleaseLock(lock)
 	time.Sleep(time.Millisecond * 2)
-	c.Assert(i, check.Equals, int32(1))
+	c.Assert(atomic.LoadInt32(&i), check.Equals, int32(1))
 }

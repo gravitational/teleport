@@ -69,7 +69,7 @@ func New(params backend.Params) (backend.Backend, error) {
 	}
 	// still nothing? return an error:
 	if path == "" {
-		return nil, trace.BadParameter("Bolt backend: 'path' is not set")
+		return nil, trace.BadParameter("BoltDB backend: 'path' is not set")
 	}
 	if !utils.IsDir(path) {
 		return nil, trace.BadParameter("%v is not a valid directory", path)
