@@ -21,8 +21,6 @@ import (
 	"fmt"
 	"net/http/httptest"
 	"net/url"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/gravitational/roundtrip"

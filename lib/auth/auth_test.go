@@ -18,7 +18,6 @@ package auth
 
 import (
 	"net/url"
-	"path/filepath"
 	"testing"
 	"time"
 
