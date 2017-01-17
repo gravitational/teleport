@@ -342,16 +342,30 @@ func (a *AuthWithRoles) GenerateHostCert(
 	return a.authServer.GenerateHostCert(key, hostname, authDomain, roles, ttl)
 }
 
-func (a *AuthWithRoles) GenerateUserCert(key []byte, user string, ttl time.Duration) ([]byte, error) {
-	if err := a.currentUserAction(user); err != nil {
-		return nil, trace.AccessDenied("%v cannot request a certificate for %v", a.user, user)
+func (a *AuthWithRoles) GenerateUserCert(key []byte, username string, ttl time.Duration) ([]byte, error) {
+	if err := a.currentUserAction(username); err != nil {
+		return nil, trace.AccessDenied("%v cannot request a certificate for %v", a.user, username)
+	}
+	// notice that user requesting the certificate and the user currently
+	// authenticated may differ (e.g. admin generates certificate for the user scenario)
+	// so we fetch user's permissions
+	checker := a.checker
+	if a.user != username {
+		user, err := a.GetUser(username)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		checker, err = services.FetchRoles(user.GetRoles(), a.authServer)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	// check signing TTL and return a list of allowed logins
-	allowedLogins, err := a.checker.CheckLogins(ttl)
+	allowedLogins, err := checker.CheckLogins(ttl)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GenerateUserCert(key, user, allowedLogins, ttl)
+	return a.authServer.GenerateUserCert(key, username, allowedLogins, ttl)
 }
 
 func (a *AuthWithRoles) CreateSignupToken(user services.UserV1) (token string, e error) {
