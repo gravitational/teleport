@@ -117,7 +117,7 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	srv.GET("/:version/namespaces/:namespace/sessions/:id/stream", srv.withAuth(srv.getSessionChunk))
 	srv.GET("/:version/namespaces/:namespace/sessions/:id/events", srv.withAuth(srv.getSessionEvents))
 
-	// OIDC stuff
+	// OIDC
 	srv.POST("/:version/oidc/connectors", srv.withAuth(srv.upsertOIDCConnector))
 	srv.GET("/:version/oidc/connectors", srv.withAuth(srv.getOIDCConnectors))
 	srv.GET("/:version/oidc/connectors/:id", srv.withAuth(srv.getOIDCConnector))
@@ -137,7 +137,7 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	srv.GET("/:version/roles/:role", srv.withAuth(srv.getRole))
 	srv.DELETE("/:version/roles/:role", srv.withAuth(srv.deleteRole))
 
-	// U2F stuff
+	// U2F
 	srv.GET("/:version/u2f/signuptokens/:token", srv.withAuth(srv.getSignupU2FRegisterRequest))
 	srv.POST("/:version/u2f/users", srv.withAuth(srv.createUserWithU2FToken))
 	srv.POST("/:version/u2f/users/:user/sign", srv.withAuth(srv.u2fSignRequest))
@@ -393,11 +393,13 @@ func (s *APIServer) signIn(auth ClientI, w http.ResponseWriter, r *http.Request,
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	user := p.ByName("user")
 	sess, err := auth.SignIn(user, []byte(req.Password))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return sess, nil
 }
 
@@ -453,8 +455,8 @@ type upsertPasswordReq struct {
 }
 
 type upsertPasswordResponse struct {
-	HotpURL string `json:"hotp_url"`
-	HotpQR  []byte `json:"hotp_qr"`
+	OTPURL    string `json:"otp_url"`
+	OTPQRCode []byte `json:"otp_qr"`
 }
 
 func (s *APIServer) upsertPassword(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
@@ -462,12 +464,14 @@ func (s *APIServer) upsertPassword(auth ClientI, w http.ResponseWriter, r *http.
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	user := p.ByName("user")
-	hotpURL, hotpQR, err := auth.UpsertPassword(user, []byte(req.Password))
+	otpURL, otpQRCode, err := auth.UpsertPassword(user, []byte(req.Password))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &upsertPasswordResponse{HotpURL: hotpURL, HotpQR: hotpQR}, nil
+
+	return &upsertPasswordResponse{OTPURL: otpURL, OTPQRCode: otpQRCode}, nil
 }
 
 type upsertUserRawReq struct {
@@ -491,8 +495,8 @@ func (s *APIServer) upsertUser(auth ClientI, w http.ResponseWriter, r *http.Requ
 }
 
 type checkPasswordReq struct {
-	Password  string `json:"password"`
-	HOTPToken string `json:"hotp_token"`
+	Password string `json:"password"`
+	OTPToken string `json:"otp_token"`
 }
 
 func (s *APIServer) checkPassword(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
@@ -500,11 +504,13 @@ func (s *APIServer) checkPassword(auth ClientI, w http.ResponseWriter, r *http.R
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	user := p.ByName("user")
-	if err := auth.CheckPassword(user, []byte(req.Password), req.HOTPToken); err != nil {
+	if err := auth.CheckPassword(user, []byte(req.Password), req.OTPToken); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return message(fmt.Sprintf("'%v' user password matches", user)), nil
+
+	return message(fmt.Sprintf("%q user password matches", user)), nil
 }
 
 func (s *APIServer) getUser(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
@@ -796,24 +802,22 @@ func (s *APIServer) getSession(auth ClientI, w http.ResponseWriter, r *http.Requ
 }
 
 type getSignupTokenDataResponse struct {
-	User            string   `json:"user"`
-	QRImg           []byte   `json:"qrimg"`
-	HotpFirstValues []string `json:"hotp_first_values"`
+	User  string `json:"user"`
+	QRImg []byte `json:"qrimg"`
 }
 
-// getSignupTokenData auth API method creates a new sign-up token for adding a new user
+// getSignupTokenData returns the signup data for a token.
 func (s *APIServer) getSignupTokenData(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	token := p.ByName("token")
 
-	user, QRImg, hotpFirstValues, err := auth.GetSignupTokenData(token)
+	user, otpQRCode, err := auth.GetSignupTokenData(token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &getSignupTokenDataResponse{
-		User:            user,
-		QRImg:           QRImg,
-		HotpFirstValues: hotpFirstValues,
+		User:  user,
+		QRImg: otpQRCode,
 	}, nil
 }
 
@@ -832,23 +836,27 @@ type createSignupTokenReq struct {
 
 func (s *APIServer) createSignupToken(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req *createSignupTokenReq
+
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	if err := req.User.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	token, err := auth.CreateSignupToken(req.User)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return token, nil
 }
 
 type createUserWithTokenReq struct {
-	Token     string `json:"token"`
-	Password  string `json:"password"`
-	HOTPToken string `json:"hotp_token"`
+	Token    string `json:"token"`
+	Password string `json:"password"`
+	OTPToken string `json:"otp_token"`
 }
 
 func (s *APIServer) createUserWithToken(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
@@ -856,11 +864,13 @@ func (s *APIServer) createUserWithToken(auth ClientI, w http.ResponseWriter, r *
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess, err := auth.CreateUserWithToken(req.Token, req.Password, req.HOTPToken)
+
+	sess, err := auth.CreateUserWithToken(req.Token, req.Password, req.OTPToken)
 	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return nil, trace.Wrap(err)
 	}
+
 	return sess, nil
 }
 

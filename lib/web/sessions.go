@@ -216,19 +216,22 @@ func (s *sessionCache) clearExpiredSessions() {
 	}
 }
 
-func (s *sessionCache) Auth(user, pass string, hotpToken string) (*auth.Session, error) {
-	method, err := auth.NewWebPasswordAuth(user, []byte(pass), hotpToken)
+func (s *sessionCache) Auth(user, pass string, otpToken string) (*auth.Session, error) {
+	method, err := auth.NewWebPasswordAuth(user, []byte(pass), otpToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// the act of creating a tunnel performs authentication. since we are
+	// only using the tunnel for authentication, we close it right afterwards
+	// because we will not be using this connection (initiated using password
+	// based credentials) later.
 	clt, err := auth.NewTunClient("web.client", s.authServers, user, method)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// we are always closing this client, because we will not be using
-	// this connection initiated using password based credentials
-	// down the road, so it's a one call client
 	defer clt.Close()
+
 	session, err := clt.SignIn(user, []byte(pass))
 	if err != nil {
 		defer clt.Close()
@@ -276,16 +279,17 @@ func (s *sessionCache) AuthWithU2FSignResponse(user string, response *u2f.SignRe
 }
 
 func (s *sessionCache) GetCertificate(c createSSHCertReq) (*SSHLoginResponse, error) {
-	method, err := auth.NewWebPasswordAuth(c.User, []byte(c.Password),
-		c.HOTPToken)
+	method, err := auth.NewWebPasswordAuth(c.User, []byte(c.Password), c.OTPToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	clt, err := auth.NewTunClient("web.session", s.authServers, c.User, method)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer clt.Close()
+
 	return createCertificate(c.User, c.PubKey, c.TTL, clt)
 }
 
@@ -322,16 +326,15 @@ func (s *sessionCache) GetCertificateWithU2F(c createSSHCertWithU2FReq) (*SSHLog
 	return createCertificate(c.User, c.PubKey, c.TTL, clt)
 }
 
-func (s *sessionCache) GetUserInviteInfo(token string) (user string,
-	QRImg []byte, hotpFirstValues []string, e error) {
-
+func (s *sessionCache) GetUserInviteInfo(token string) (user string, otpQRCode []byte, err error) {
 	method, err := auth.NewSignupTokenAuth(token)
 	if err != nil {
-		return "", nil, nil, trace.Wrap(err)
+		return "", nil, trace.Wrap(err)
 	}
+
 	clt, err := auth.NewTunClient("web.get-user-invite", s.authServers, "tokenAuth", method)
 	if err != nil {
-		return "", nil, nil, trace.Wrap(err)
+		return "", nil, trace.Wrap(err)
 	}
 	defer clt.Close()
 
@@ -352,17 +355,19 @@ func (s *sessionCache) GetUserInviteU2FRegisterRequest(token string) (u2fRegiste
 	return clt.GetSignupU2FRegisterRequest(token)
 }
 
-func (s *sessionCache) CreateNewUser(token, password, hotpToken string) (*auth.Session, error) {
+func (s *sessionCache) CreateNewUser(token, password, otpToken string) (*auth.Session, error) {
 	method, err := auth.NewSignupTokenAuth(token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	clt, err := auth.NewTunClient("web.create-user", s.authServers, "tokenAuth", method)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer clt.Close()
-	sess, err := clt.CreateUserWithToken(token, password, hotpToken)
+
+	sess, err := clt.CreateUserWithToken(token, password, otpToken)
 	return sess, trace.Wrap(err)
 }
 

@@ -67,10 +67,29 @@ type Identity interface {
 	GetPasswordHash(user string) ([]byte, error)
 
 	// UpsertHOTP upserts HOTP state for user
+	// Deprecated: HOTP use is deprecated, use UpsertTOTP instead.
 	UpsertHOTP(user string, otp *hotp.HOTP) error
 
 	// GetHOTP gets HOTP token state for a user
+	// Deprecated: HOTP use is deprecated, use GetTOTP instead.
 	GetHOTP(user string) (*hotp.HOTP, error)
+
+	// UpsertTOTP upserts TOTP secret key for a user that can be used to generate and validate tokens.
+	UpsertTOTP(user string, secretKey string) error
+
+	// GetTOTP returns the secret key used by the TOTP algorithm to validate tokens.
+	GetTOTP(user string) (string, error)
+
+	// UpsertUsedTOTPToken upserts a TOTP token to the backend so it can't be used again
+	// during the 30 second window it's valid.
+	UpsertUsedTOTPToken(user string, otpToken string) error
+
+	// GetUsedTOTPToken returns the last successfully used TOTP token.
+	GetUsedTOTPToken(user string) (string, error)
+
+	// DeleteUsedTOTPToken removes the used token from the backend. This should only
+	// be used during tests.
+	DeleteUsedTOTPToken(user string) error
 
 	// UpsertWebSession updates or inserts a web session for a user and session id
 	UpsertWebSession(user, sid string, session WebSession, ttl time.Duration) error
@@ -81,11 +100,11 @@ type Identity interface {
 	// DeleteWebSession deletes web session from the storage
 	DeleteWebSession(user, sid string) error
 
-	// UpsertPassword upserts new password and HOTP token
-	UpsertPassword(user string, password []byte) (hotpURL string, hotpQR []byte, err error)
+	// UpsertPassword upserts new password and OTP token
+	UpsertPassword(user string, password []byte) (otpURL string, otpQRCode []byte, err error)
 
-	// CheckPassword is called on web user or tsh user login
-	CheckPassword(user string, password []byte, hotpToken string) error
+	// CheckPassword is called on web user or tsh user login using the password and otp token
+	CheckPassword(user string, password []byte, otpToken string) error
 
 	// CheckPasswordWOToken checks just password without checking HOTP tokens
 	// used in case of SSH authentication, when token has been validated
@@ -177,12 +196,11 @@ type WebSession struct {
 // SignupToken stores metadata about user signup token
 // is stored and generated when tctl add user is executed
 type SignupToken struct {
-	Token           string    `json:"token"`
-	User            UserV1    `json:"user"`
-	Hotp            []byte    `json:"hotp"`
-	HotpFirstValues []string  `json:"hotp_first_values"`
-	HotpQR          []byte    `json:"hotp_qr"`
-	Expires         time.Time `json:"expires"`
+	Token     string    `json:"token"`
+	User      UserV1    `json:"user"`
+	OTPKey    string    `json:"otp_key"`
+	OTPQRCode []byte    `json:"otp_qr_code"`
+	Expires   time.Time `json:"expires"`
 }
 
 // OIDCIdentity is OpenID Connect identity that is linked

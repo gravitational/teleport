@@ -17,8 +17,12 @@ limitations under the License.
 package auth
 
 import (
+	"encoding/base32"
 	"fmt"
 	"net/http/httptest"
+	"net/url"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/gravitational/roundtrip"
@@ -35,8 +39,9 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/gokyle/hotp"
 	"github.com/kylelemons/godebug/diff"
+	"github.com/pquerna/otp"
+	"github.com/pquerna/otp/totp"
 	"golang.org/x/crypto/ssh"
 	. "gopkg.in/check.v1"
 )
@@ -233,44 +238,45 @@ func (s *APISuite) TestUserCRUD(c *C) {
 	c.Assert(len(users), Equals, 0)
 }
 
+// TODO(rjones): Can this test be removed? It seems redundant see lib/services/suite/suite.go.
 func (s *APISuite) TestPasswordCRUD(c *C) {
 	pass := []byte("abc123")
 
 	err := s.clt.CheckPassword("user1", pass, "123456")
 	c.Assert(err, NotNil)
 
-	hotpURL, _, err := s.clt.UpsertPassword("user1", pass)
+	otpURL, _, err := s.clt.UpsertPassword("user1", pass)
 	c.Assert(err, IsNil)
 
-	otp, label, err := hotp.FromURL(hotpURL)
+	// make sure the otp url we get back is valid url issued to the correct user
+	u, err := url.Parse(otpURL)
 	c.Assert(err, IsNil)
-	c.Assert(label, Equals, "user1")
-	otp.Increment()
+	c.Assert(u.Path, Equals, "/user1")
 
-	token1 := otp.OTP()
-	c.Assert(s.clt.CheckPassword("user1", pass, "123456"), NotNil)
-	c.Assert(s.clt.CheckPassword("user1", pass, token1), IsNil)
-	c.Assert(s.clt.CheckPassword("user1", pass, token1), NotNil)
+	// extract otp secret key from url, we will use this to create
+	// tokens to make sure the url (and qr code) the user receives is
+	// the same as the one stored in the backend
+	otpKeyMeta, err := otp.NewKeyFromURL(u.String())
+	c.Assert(err, IsNil)
+	otpKey, err := base32.StdEncoding.DecodeString(otpKeyMeta.Secret())
+	c.Assert(err, IsNil)
 
-	token2 := otp.OTP()
-	c.Assert(s.clt.CheckPassword("user1", []byte("abc123123"), token2), NotNil)
-	c.Assert(s.clt.CheckPassword("user1", pass, "123456"), NotNil)
-	c.Assert(s.clt.CheckPassword("user1", pass, token2), IsNil)
-	c.Assert(s.clt.CheckPassword("user1", pass, token1), NotNil)
+	// a completely invalid token should return access denied
+	err = s.clt.CheckPassword("user1", pass, "123456")
+	c.Assert(err, NotNil)
 
-	_ = otp.OTP()
-	_ = otp.OTP()
-	_ = otp.OTP()
-	token6 := otp.OTP()
-	token7 := otp.OTP()
-	c.Assert(s.clt.CheckPassword("user1", pass, token7), NotNil)
-	c.Assert(s.clt.CheckPassword("user1", pass, token6), IsNil)
-	c.Assert(s.clt.CheckPassword("user1", pass, "123456"), NotNil)
-	c.Assert(s.clt.CheckPassword("user1", pass, token7), IsNil)
+	// a invalid token (made 1 minute in the future but from a valid key)
+	// should also return access denied
+	invalidToken, err := totp.GenerateCode(string(otpKey), time.Now().Add(1*time.Minute))
+	c.Assert(err, IsNil)
+	err = s.WebS.CheckPassword("user1", pass, invalidToken)
+	c.Assert(err, NotNil)
 
-	_ = otp.OTP()
-	token9 := otp.OTP()
-	c.Assert(s.clt.CheckPassword("user1", pass, token9), IsNil)
+	// a valid token (created right now and from a valid key) should return success
+	validToken, err := totp.GenerateCode(string(otpKey), time.Now())
+	c.Assert(err, IsNil)
+	err = s.WebS.CheckPassword("user1", pass, validToken)
+	c.Assert(err, IsNil)
 }
 
 func (s *APISuite) TestSessions(c *C) {
@@ -286,13 +292,7 @@ func (s *APISuite) TestSessions(c *C) {
 	c.Assert(err, NotNil)
 	c.Assert(ws, IsNil)
 
-	hotpURL, _, err := s.clt.UpsertPassword(user, pass)
-	c.Assert(err, IsNil)
-
-	otp, label, err := hotp.FromURL(hotpURL)
-	c.Assert(err, IsNil)
-	c.Assert(label, Equals, "user1")
-	otp.Increment()
+	_, _, err = s.clt.UpsertPassword(user, pass)
 
 	ws, err = s.clt.SignIn(user, pass)
 	c.Assert(err, IsNil)

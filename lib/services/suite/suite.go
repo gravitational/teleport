@@ -19,7 +19,9 @@ package suite
 import (
 	"crypto/ecdsa"
 	"crypto/x509"
+	"encoding/base32"
 	"encoding/base64"
+	"net/url"
 	"sort"
 	"time"
 
@@ -28,9 +30,10 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 
-	"github.com/gokyle/hotp"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/pquerna/otp"
+	"github.com/pquerna/otp/totp"
 	"github.com/tstranex/u2f"
 	"golang.org/x/crypto/ssh"
 
@@ -375,54 +378,43 @@ func (s *ServicesTestSuite) PasswordCRUD(c *C) {
 	err := s.WebS.CheckPassword("user1", pass, "123456")
 	c.Assert(err, NotNil)
 
-	hotpURL, _, err := s.WebS.UpsertPassword("user1", pass)
+	// upsert a password which will create a new source of totp tokens
+	otpURL, _, err := s.WebS.UpsertPassword("user1", pass)
 	c.Assert(err, IsNil)
 
-	otp, label, err := hotp.FromURL(hotpURL)
+	// make sure the otp url we get back is valid url issued to the correct user
+	u, err := url.Parse(otpURL)
 	c.Assert(err, IsNil)
-	c.Assert(label, Equals, "user1")
-	otp.Increment()
+	c.Assert(u.Path, Equals, "/user1")
 
-	token1 := otp.OTP()
+	// extract otp secret key from url, we will use this to create
+	// tokens to make sure the url (and qr code) the user receives is
+	// the same as the one stored in the backend
+	otpKeyMeta, err := otp.NewKeyFromURL(u.String())
+	c.Assert(err, IsNil)
+	otpKey, err := base32.StdEncoding.DecodeString(otpKeyMeta.Secret())
+	c.Assert(err, IsNil)
+
+	// a completely invalid token should return access denied
 	err = s.WebS.CheckPassword("user1", pass, "123456")
 	c.Assert(trace.IsAccessDenied(err), Equals, true, Commentf("%T", err))
 
-	c.Assert(s.WebS.CheckPassword("user1", pass, token1), IsNil)
-
-	err = s.WebS.CheckPassword("user1", pass, token1)
+	// a invalid token (made 1 minute in the future but from a valid key)
+	// should also return access denied
+	invalidToken, err := totp.GenerateCode(string(otpKey), time.Now().Add(1*time.Minute))
+	c.Assert(err, IsNil)
+	err = s.WebS.CheckPassword("user1", pass, invalidToken)
 	c.Assert(trace.IsAccessDenied(err), Equals, true, Commentf("%T", err))
 
-	token2 := otp.OTP()
-	err = s.WebS.CheckPassword("user1", []byte("abc123123"), token2)
-	c.Assert(trace.IsAccessDenied(err), Equals, true, Commentf("%T", err))
+	// a valid token (created right now and from a valid key) should return success
+	validToken, err := totp.GenerateCode(string(otpKey), time.Now())
+	c.Assert(err, IsNil)
+	err = s.WebS.CheckPassword("user1", pass, validToken)
+	c.Assert(err, IsNil)
 
-	err = s.WebS.CheckPassword("user1", pass, "123456")
-	c.Assert(trace.IsAccessDenied(err), Equals, true, Commentf("%T", err))
-
-	c.Assert(s.WebS.CheckPassword("user1", pass, token2), IsNil)
-	err = s.WebS.CheckPassword("user1", pass, token1)
-	c.Assert(trace.IsAccessDenied(err), Equals, true, Commentf("%T", err))
-
-	_ = otp.OTP()
-	_ = otp.OTP()
-	_ = otp.OTP()
-	token6 := otp.OTP()
-	token7 := otp.OTP()
-
-	err = s.WebS.CheckPassword("user1", pass, token7)
-	c.Assert(trace.IsAccessDenied(err), Equals, true, Commentf("%T", err))
-
-	c.Assert(s.WebS.CheckPassword("user1", pass, token6), IsNil)
-
-	err = s.WebS.CheckPassword("user1", pass, "123456")
-	c.Assert(trace.IsAccessDenied(err), Equals, true, Commentf("%T", err))
-
-	c.Assert(s.WebS.CheckPassword("user1", pass, token7), IsNil)
-
-	_ = otp.OTP()
-	token9 := otp.OTP()
-	c.Assert(s.WebS.CheckPassword("user1", pass, token9), IsNil)
-
+	// try the same valid token now it should fail because we don't allow re-use of tokens
+	err = s.WebS.CheckPassword("user1", pass, validToken)
+	c.Assert(err, NotNil)
 }
 
 func (s *ServicesTestSuite) RolesCRUD(c *C) {

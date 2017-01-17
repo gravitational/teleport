@@ -24,26 +24,29 @@ limitations under the License.
 package auth
 
 import (
+	"bytes"
+	"crypto/subtle"
+	"image/png"
+
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/gokyle/hotp"
 	"github.com/gravitational/trace"
+	"github.com/pquerna/otp/totp"
 
 	"github.com/tstranex/u2f"
 )
 
 // CreateSignupToken creates one time token for creating account for the user
-// For each token it creates username and hotp generator
-//
-// allowedLogins are linux user logins allowed for the new user to use
+// For each token it creates username and otp generator
 func (s *AuthServer) CreateSignupToken(userv1 services.UserV1) (string, error) {
 	user := userv1.V2()
 	if err := user.Check(); err != nil {
 		return "", trace.Wrap(err)
 	}
+
 	// make sure that connectors actually exist
 	for _, id := range user.GetIdentities() {
 		if err := id.Check(); err != nil {
@@ -53,10 +56,12 @@ func (s *AuthServer) CreateSignupToken(userv1 services.UserV1) (string, error) {
 			return "", trace.Wrap(err)
 		}
 	}
-	// check existing
+
+	// TODO(rjones): TOCTOU, instead try to create signup token for user and fail
+	// when unable to.
 	_, err := s.GetPasswordHash(user.GetName())
 	if err == nil {
-		return "", trace.BadParameter("user '%v' already exists", user)
+		return "", trace.BadParameter("user %q already exists", user)
 	}
 
 	token, err := utils.CryptoRandomHex(TokenLenBytes)
@@ -64,32 +69,18 @@ func (s *AuthServer) CreateSignupToken(userv1 services.UserV1) (string, error) {
 		return "", trace.Wrap(err)
 	}
 
-	otp, err := hotp.GenerateHOTP(defaults.HOTPTokenDigits, false)
-	if err != nil {
-		log.Errorf("[AUTH API] failed to generate HOTP: %v", err)
-		return "", trace.Wrap(err)
-	}
-	otpQR, err := otp.QR("Teleport: " + user.GetName() + "@" + s.AuthServiceName)
+	accountName := user.GetName() + "@" + s.AuthServiceName
+	otpKey, otpQRCode, err := s.initializeTOTP(accountName)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	otpMarshalled, err := hotp.Marshal(otp)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	otpFirstValues := make([]string, defaults.HOTPFirstTokensRange)
-	for i := 0; i < defaults.HOTPFirstTokensRange; i++ {
-		otpFirstValues[i] = otp.OTP()
-	}
-
+	// create and upsert signup token
 	tokenData := services.SignupToken{
-		Token:           token,
-		User:            userv1,
-		Hotp:            otpMarshalled,
-		HotpFirstValues: otpFirstValues,
-		HotpQR:          otpQR,
+		Token:     token,
+		User:      userv1,
+		OTPKey:    otpKey,
+		OTPQRCode: otpQRCode,
 	}
 
 	err = s.UpsertSignupToken(token, tokenData, defaults.MaxSignupTokenTTL)
@@ -97,25 +88,47 @@ func (s *AuthServer) CreateSignupToken(userv1 services.UserV1) (string, error) {
 		return "", trace.Wrap(err)
 	}
 
-	log.Infof("[AUTH API] created the signup token for %v as %v", user)
+	log.Infof("[AUTH API] created the signup token for %q", user)
 	return token, nil
 }
 
-// GetSignupTokenData returns token data for a valid token
-func (s *AuthServer) GetSignupTokenData(token string) (user string,
-	QRImg []byte, hotpFirstValues []string, e error) {
+// initializeTOTP creates TOTP algorithm and returns the key and QR code.
+func (s *AuthServer) initializeTOTP(accountName string) (key string, qr []byte, err error) {
+	// create totp key
+	otpKey, err := totp.Generate(totp.GenerateOpts{
+		Issuer:      "Teleport",
+		AccountName: accountName,
+	})
+	if err != nil {
+		return "", nil, trace.Wrap(err)
+	}
 
+	// create QR code
+	var otpQRBuf bytes.Buffer
+	otpImage, err := otpKey.Image(456, 456)
+	if err != nil {
+		return "", nil, trace.Wrap(err)
+	}
+	png.Encode(&otpQRBuf, otpImage)
+
+	return otpKey.Secret(), otpQRBuf.Bytes(), nil
+}
+
+// GetSignupTokenData returns token data for a valid token
+func (s *AuthServer) GetSignupTokenData(token string) (user string, qrCode []byte, err error) {
 	tokenData, err := s.GetSignupToken(token)
 	if err != nil {
-		return "", nil, nil, trace.Wrap(err)
+		return "", nil, trace.Wrap(err)
 	}
 
+	// TODO(rjones): Remove this check and use compare and swap in the Create* functions below.
+	// It's a TOCTOU bug in the making: https://en.wikipedia.org/wiki/Time_of_check_to_time_of_use
 	_, err = s.GetPasswordHash(tokenData.User.Name)
 	if err == nil {
-		return "", nil, nil, trace.Errorf("can't add user %v, user already exists", tokenData.User)
+		return "", nil, trace.Errorf("can't add user %q: user already exists", tokenData.User)
 	}
 
-	return tokenData.User.Name, tokenData.HotpQR, tokenData.HotpFirstValues, nil
+	return tokenData.User.Name, tokenData.OTPQRCode, nil
 }
 
 func (s *AuthServer) CreateSignupU2FRegisterRequest(token string) (u2fRegisterRequest *u2f.RegisterRequest, e error) {
@@ -152,23 +165,26 @@ func (s *AuthServer) CreateSignupU2FRegisterRequest(token string) (u2fRegisterRe
 // CreateUserWithToken creates account with provided token and password.
 // Account username and hotp generator are taken from token data.
 // Deletes token after account creation.
-func (s *AuthServer) CreateUserWithToken(token, password, hotpToken string) (*Session, error) {
+func (s *AuthServer) CreateUserWithToken(token string, password string, otpToken string) (*Session, error) {
 	tokenData, err := s.GetSignupToken(token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	otp, err := hotp.Unmarshal(tokenData.Hotp)
+	err = s.checkAndUpsertTOTP(tokenData.User.Name, otpToken, tokenData.OTPKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	ok := otp.Scan(hotpToken, defaults.HOTPFirstTokensRange)
-	if !ok {
-		return nil, trace.BadParameter("wrong HOTP token")
+	_, _, err = s.UpsertPassword(tokenData.User.Name, []byte(password))
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	_, _, err = s.UpsertPassword(tokenData.User.Name, []byte(password))
+	// TODO(rjones): We have to do this because UpsertPassword above wipes out the stored OTP secret.
+	// To fix this, we need to update UpsertPassword so it doesn't do that but we need to make sure
+	// that changing the behavior of UpsertPassword doesn't break things elsewhere.
+	err = s.UpsertTOTP(tokenData.User.Name, tokenData.OTPKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -184,11 +200,6 @@ func (s *AuthServer) CreateUserWithToken(token, password, hotpToken string) (*Se
 	tokenData.User.Roles = append(tokenData.User.Roles, role.GetName())
 	user := tokenData.User.V2()
 	if err = s.UpsertUser(user); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	err = s.UpsertHOTP(user.GetName(), otp)
-	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -210,6 +221,42 @@ func (s *AuthServer) CreateUserWithToken(token, password, hotpToken string) (*Se
 
 	sess.WS.Priv = nil
 	return sess, nil
+}
+
+// checkAndUpsertTOTP validates token and if valid, it upserts hotp key. This function
+// does not perform a security check but rather a usability check to ensure the
+// second factor works.
+func (s *AuthServer) checkAndUpsertTOTP(username string, otpToken string, otpKey string) error {
+	// make sure we have not seen this otp token before
+	usedToken, err := s.GetUsedTOTPToken(username)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if subtle.ConstantTimeCompare([]byte(otpToken), []byte(usedToken)) == 1 {
+		return trace.AccessDenied("previously used totp token")
+	}
+
+	// totp tokens are only valid during there time window t
+	valid := totp.Validate(otpToken, otpKey)
+	if !valid {
+		return trace.BadParameter("invalid TOTP token")
+	}
+
+	// if we have gotten here we were able to verify the otp token
+	// so go ahead and upsert it into the backend
+	err = s.UpsertTOTP(username, otpKey)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// we successfully validated this otp token, don't let it be used again for some time t
+	err = s.UpsertUsedTOTPToken(username, otpToken)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 func (s *AuthServer) CreateUserWithU2FToken(token string, password string, response u2f.RegisterResponse) (*Session, error) {

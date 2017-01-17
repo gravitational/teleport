@@ -55,4 +55,19 @@ const (
 	// DataDirParameterName is the name of the data dir configuration parameter passed
 	// to all backends during initialization
 	DataDirParameterName = "data_dir"
+
+	// OTP means One-time Password Algorithm.
+	OTP = "otp"
+
+	// TOTP means Time-based One-time Password Algorithm.
+	TOTP = "totp"
+
+	// HOTP means HMAC-based One-time Password Algorithm.
+	HOTP = "htop"
+
+	// U2F means Universal 2nd Factor.
+	U2F = "u2f"
+
+	// OIDC means OpenID Connect.
+	OIDC = "oidc"
 )

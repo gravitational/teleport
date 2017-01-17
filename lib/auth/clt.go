@@ -515,8 +515,7 @@ func (c *Client) GetU2FAppID() (string, error) {
 }
 
 // UpsertPassword updates web access password for the user
-func (c *Client) UpsertPassword(user string,
-	password []byte) (hotpURL string, hotpQR []byte, err error) {
+func (c *Client) UpsertPassword(user string, password []byte) (otpURL string, otpQRCode []byte, err error) {
 	out, err := c.PostJSON(
 		c.Endpoint("users", user, "web", "password"),
 		upsertPasswordReq{
@@ -525,11 +524,13 @@ func (c *Client) UpsertPassword(user string,
 	if err != nil {
 		return "", nil, trace.Wrap(err)
 	}
+
 	var re *upsertPasswordResponse
 	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
-		return "", nil, err
+		return "", nil, trace.Wrap(err)
 	}
-	return re.HotpURL, re.HotpQR, err
+
+	return re.OTPURL, re.OTPQRCode, err
 }
 
 // UpsertUser user updates or inserts user entry
@@ -543,12 +544,12 @@ func (c *Client) UpsertUser(user services.User) error {
 }
 
 // CheckPassword checks if the suplied web access password is valid.
-func (c *Client) CheckPassword(user string, password []byte, hotpToken string) error {
+func (c *Client) CheckPassword(user string, password []byte, otpToken string) error {
 	_, err := c.PostJSON(
 		c.Endpoint("users", user, "web", "password", "check"),
 		checkPasswordReq{
-			Password:  string(password),
-			HOTPToken: hotpToken,
+			Password: string(password),
+			OTPToken: otpToken,
 		})
 	return trace.Wrap(err)
 }
@@ -565,6 +566,7 @@ func (c *Client) SignIn(user string, password []byte) (*Session, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	var sess *Session
 	if err := json.Unmarshal(out.Bytes(), &sess); err != nil {
 		return nil, err
@@ -768,7 +770,7 @@ func (c *Client) GenerateUserCert(
 }
 
 // CreateSignupToken creates one time token for creating account for the user
-// For each token it creates username and hotp generator
+// For each token it creates username and otp generator
 func (c *Client) CreateSignupToken(user services.UserV1) (string, error) {
 	if err := user.Check(); err != nil {
 		return "", trace.Wrap(err)
@@ -787,18 +789,18 @@ func (c *Client) CreateSignupToken(user services.UserV1) (string, error) {
 }
 
 // GetSignupTokenData returns token data for a valid token
-func (c *Client) GetSignupTokenData(token string) (user string,
-	QRImg []byte, hotpFirstValues []string, e error) {
-
+func (c *Client) GetSignupTokenData(token string) (user string, otpQRCode []byte, e error) {
 	out, err := c.Get(c.Endpoint("signuptokens", token), url.Values{})
 	if err != nil {
-		return "", nil, nil, err
+		return "", nil, err
 	}
+
 	var tokenData getSignupTokenDataResponse
 	if err := json.Unmarshal(out.Bytes(), &tokenData); err != nil {
-		return "", nil, nil, err
+		return "", nil, err
 	}
-	return tokenData.User, tokenData.QRImg, tokenData.HotpFirstValues, nil
+
+	return tokenData.User, tokenData.QRImg, nil
 }
 
 // GetSignupU2FRegisterRequest generates sign request for user trying to sign up with invite tokenx
@@ -815,21 +817,23 @@ func (c *Client) GetSignupU2FRegisterRequest(token string) (u2fRegisterRequest *
 }
 
 // CreateUserWithToken creates account with provided token and password.
-// Account username and hotp generator are taken from token data.
+// Account username and OTP key are taken from token data.
 // Deletes token after account creation.
-func (c *Client) CreateUserWithToken(token, password, hotpToken string) (*Session, error) {
+func (c *Client) CreateUserWithToken(token, password, otpToken string) (*Session, error) {
 	out, err := c.PostJSON(c.Endpoint("signuptokens", "users"), createUserWithTokenReq{
-		Token:     token,
-		Password:  password,
-		HOTPToken: hotpToken,
+		Token:    token,
+		Password: password,
+		OTPToken: otpToken,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	var sess *Session
 	if err := json.Unmarshal(out.Bytes(), &sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return sess, nil
 }
 
@@ -1168,7 +1172,7 @@ type WebService interface {
 // IdentityService manages identities and userse
 type IdentityService interface {
 	// UpsertPassword updates web access password for the user
-	UpsertPassword(user string, password []byte) (hotpURL string, hotpQR []byte, err error)
+	UpsertPassword(user string, password []byte) (otpURL string, otpQRCode []byte, err error)
 
 	// UpsertOIDCConnector updates or creates OIDC connector
 	UpsertOIDCConnector(connector services.OIDCConnector, ttl time.Duration) error
@@ -1216,16 +1220,16 @@ type IdentityService interface {
 	GetUsers() ([]services.User, error)
 
 	// CheckPassword checks if the suplied web access password is valid.
-	CheckPassword(user string, password []byte, hotpToken string) error
+	CheckPassword(user string, password []byte, otpToken string) error
 
 	// SignIn checks if the web access password is valid, and if it is valid
 	// returns a secure web session id.
 	SignIn(user string, password []byte) (*Session, error)
 
 	// CreateUserWithToken creates account with provided token and password.
-	// Account username and hotp generator are taken from token data.
+	// Account username and OTP key are taken from token data.
 	// Deletes token after account creation.
-	CreateUserWithToken(token, password, hotpToken string) (*Session, error)
+	CreateUserWithToken(token, password, otpToken string) (*Session, error)
 
 	// GenerateToken creates a special provisioning token for a new SSH server
 	// that is valid for ttl period seconds.
@@ -1252,10 +1256,10 @@ type IdentityService interface {
 	GenerateUserCert(key []byte, user string, ttl time.Duration) ([]byte, error)
 
 	// GetSignupTokenData returns token data for a valid token
-	GetSignupTokenData(token string) (user string, QRImg []byte, hotpFirstValues []string, e error)
+	GetSignupTokenData(token string) (user string, otpQRCode []byte, e error)
 
 	// CreateSignupToken creates one time token for creating account for the user
-	// For each token it creates username and hotp generator
+	// For each token it creates username and OTP key
 	CreateSignupToken(user services.UserV1) (string, error)
 }
 
