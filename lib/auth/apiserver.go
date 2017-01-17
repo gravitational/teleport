@@ -454,11 +454,6 @@ type upsertPasswordReq struct {
 	Password string `json:"password"`
 }
 
-type upsertPasswordResponse struct {
-	OTPURL    string `json:"otp_url"`
-	OTPQRCode []byte `json:"otp_qr"`
-}
-
 func (s *APIServer) upsertPassword(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req *upsertPasswordReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -466,12 +461,12 @@ func (s *APIServer) upsertPassword(auth ClientI, w http.ResponseWriter, r *http.
 	}
 
 	user := p.ByName("user")
-	otpURL, otpQRCode, err := auth.UpsertPassword(user, []byte(req.Password))
+	err := auth.UpsertPassword(user, []byte(req.Password))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &upsertPasswordResponse{OTPURL: otpURL, OTPQRCode: otpQRCode}, nil
+	return message(fmt.Sprintf("password for for user %q upserted", user)), nil
 }
 
 type upsertUserRawReq struct {

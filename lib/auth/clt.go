@@ -515,22 +515,17 @@ func (c *Client) GetU2FAppID() (string, error) {
 }
 
 // UpsertPassword updates web access password for the user
-func (c *Client) UpsertPassword(user string, password []byte) (otpURL string, otpQRCode []byte, err error) {
-	out, err := c.PostJSON(
+func (c *Client) UpsertPassword(user string, password []byte) error {
+	_, err := c.PostJSON(
 		c.Endpoint("users", user, "web", "password"),
 		upsertPasswordReq{
 			Password: string(password),
 		})
 	if err != nil {
-		return "", nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
-	var re *upsertPasswordResponse
-	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
-		return "", nil, trace.Wrap(err)
-	}
-
-	return re.OTPURL, re.OTPQRCode, err
+	return nil
 }
 
 // UpsertUser user updates or inserts user entry
@@ -1172,7 +1167,7 @@ type WebService interface {
 // IdentityService manages identities and userse
 type IdentityService interface {
 	// UpsertPassword updates web access password for the user
-	UpsertPassword(user string, password []byte) (otpURL string, otpQRCode []byte, err error)
+	UpsertPassword(user string, password []byte) error
 
 	// UpsertOIDCConnector updates or creates OIDC connector
 	UpsertOIDCConnector(connector services.OIDCConnector, ttl time.Duration) error
