@@ -18,6 +18,7 @@ limitations under the License.
 package srv
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -299,15 +300,17 @@ func (t *proxySubsys) wait() error {
 // to an SSH server before establishing a bridge
 func doHandshake(clientAddr net.Addr, clientConn io.ReadWriter, serverConn io.ReadWriter) {
 	// on behalf of a client ask the server for it's version:
-	var bytes [sshutils.MaxVersionStringBytes]byte
-	n, err := serverConn.Read(bytes[:])
+	buff := make([]byte, sshutils.MaxVersionStringBytes)
+	n, err := serverConn.Read(buff)
 	if err != nil {
 		log.Error(err)
 		return
 	}
+	// chop off extra unused bytes at the end of the buffer:
+	buff = buff[:n]
+
 	// is that a Teleport server?
-	resp := bytes[:n]
-	if strings.HasPrefix(string(resp), sshutils.SSHVersionPrefix) {
+	if bytes.HasPrefix(buff, []byte(sshutils.SSHVersionPrefix)) {
 		// if we're connecting to a Teleport SSH server, send our own "handshake payload"
 		// message, along with a client's IP:
 		hp := &sshutils.HandshakePayload{
@@ -317,15 +320,16 @@ func doHandshake(clientAddr net.Addr, clientConn io.ReadWriter, serverConn io.Re
 		if err != nil {
 			log.Error(err)
 		} else {
-			n, err = serverConn.Write(
-				[]byte(fmt.Sprintf("%s\n%s", sshutils.ProxyHelloSignature, payloadJSON)))
+			// send a JSON payload sandwitched between 'teleport proxy signature' and 0x00:
+			payload := fmt.Sprintf("%s%s\x00", sshutils.ProxyHelloSignature, payloadJSON)
+			n, err = serverConn.Write([]byte(payload))
 			if err != nil {
 				log.Error(err)
 			}
 		}
 	}
 	// forwrd server's response to the client:
-	n, err = clientConn.Write(resp)
+	_, err = clientConn.Write(buff)
 	if err != nil {
 		log.Error(err)
 	}

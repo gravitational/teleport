@@ -17,7 +17,6 @@ limitations under the License.
 package auth
 
 import (
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -41,8 +40,6 @@ func TestAPI(t *testing.T) { TestingT(t) }
 type AuthSuite struct {
 	bk backend.Backend
 	a  *AuthServer
-
-	dir string
 }
 
 var _ = Suite(&AuthSuite{})
@@ -52,9 +49,8 @@ func (s *AuthSuite) SetUpSuite(c *C) {
 }
 
 func (s *AuthSuite) SetUpTest(c *C) {
-	s.dir = c.MkDir()
 	var err error
-	s.bk, err = boltbk.New(filepath.Join(s.dir, "db"))
+	s.bk, err = boltbk.New(backend.Params{"path": c.MkDir()})
 	c.Assert(err, IsNil)
 
 	authConfig := &InitConfig{

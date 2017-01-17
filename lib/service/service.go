@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
+	"github.com/gravitational/teleport/lib/backend/dir"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -794,25 +795,28 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 }
 
 // initAuthStorage initializes the storage backend for the auth. service
-func (process *TeleportProcess) initAuthStorage() (backend.Backend, error) {
-	cfg := &process.Config.Auth
-	var bk backend.Backend
-	var err error
+func (process *TeleportProcess) initAuthStorage() (bk backend.Backend, err error) {
+	bc := &process.Config.Auth.StorageConfig
 
-	switch cfg.KeysBackend.Type {
-	case teleport.ETCDBackendType:
-		bk, err = etcdbk.FromJSON(cfg.KeysBackend.Params)
-	case teleport.BoltBackendType:
-		bk, err = boltbk.FromJSON(cfg.KeysBackend.Params)
-	case dynamo.BackendType:
-		bk, err = dynamo.New(cfg.KeysBackend.BackendConf)
+	switch bc.Type {
+	// legacy bolt backend:
+	case boltbk.GetName():
+		bk, err = boltbk.New(bc.Params)
+	// filesystem backend:
+	case dir.GetName():
+		bk, err = dir.New(bc.Params)
+	// DynamoDB bakcend:
+	case dynamo.GetName():
+		bk, err = dynamo.New(bc.Params)
+	// etcd backend:
+	case etcdbk.GetName():
+		bk, err = etcdbk.New(bc.Params)
 	default:
-		return nil, trace.Errorf("unsupported backend type: %v", cfg.KeysBackend.Type)
+		err = trace.Errorf("unsupported secrets storage type: '%v'", bc.Type)
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	return bk, nil
 }
 

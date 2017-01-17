@@ -12,9 +12,9 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+
 */
 
-// Package backend represents interface for accessing local or remote storage
 package backend
 
 import (
@@ -58,29 +58,18 @@ type Backend interface {
 	Close() error
 }
 
-type EtcdConfig struct {
-	// Peers is a lsit of etcd peers,  valid only for etcd
-	Peers []string `yaml:"peers,omitempty"`
-	// Prefix is etcd key prefix, valid only for etcd
-	Prefix string `yaml:"prefix,omitempty"`
-	// TLSCertFile is a tls client cert file, used for etcd
-	TLSCertFile string `yaml:"tls_cert_file,omitempty"`
-	// TLSKeyFile is a file with TLS private key for client auth
-	TLSKeyFile string `yaml:"tls_key_file,omitempty"`
-	// TLSCAFile is a tls client trusted CA file, used for etcd
-	TLSCAFile string `yaml:"tls_ca_file,omitempty"`
-}
+// backend.Params type defines a flexible unified back-end configuration API.
+// It is just a map of key/value pairs which gets populated by `storage` section
+// in Teleport YAML config.
+type Params map[string]interface{}
 
-type DynamoConfig struct {
-	// Region is where DynamoDB Table will be used to store k/v
-	Region string `yaml:"region,omitempty"`
-	// AWS AccessKey used to authenticate DynamoDB queries (prefer IAM role instead of hardcoded value)
-	AccessKey string `yaml:"access_key,omitempty"`
-	// AWS SecretKey used to authenticate DynamoDB queries (prefer IAM role instead of hardcoded value)
-	SecretKey string `yaml:"secret_key,omitempty"`
-	// Tablename where to store K/V in DynamoDB
-	Tablename string `yaml:"table_name,omitempty"`
-}
+// NewFunc type defines a function type which every backend must implement to
+// instantiate itself
+type NewFunc func(Params) (Backend, error)
+
+// NameFunc type defines a function type which every backend must implement
+// to return its name
+type NameFunc func() string
 
 // Config is used for 'storage' config section. It's a combination of
 // values for various backends: 'boltdb', 'etcd', 'filesystem' and 'dynamodb'
@@ -88,8 +77,9 @@ type Config struct {
 	// Type can be "bolt" or "etcd" or "dynamodb"
 	Type string `yaml:"type,omitempty"`
 
-	EtcdConfig   `yaml:",inline"`
-	DynamoConfig `yaml:",inline"`
+	// Params is a generic key/value property bag which allows arbitrary
+	// falues to be passed to backend
+	Params Params `yaml:",inline"`
 }
 
 // ValidateLockTTL helper allows all backends to validate lock TTL parameter
@@ -98,4 +88,15 @@ func ValidateLockTTL(ttl time.Duration) error {
 		return trace.BadParameter("locks cannot exceed %v", MaxLockDuration)
 	}
 	return nil
+}
+
+// GetString returns a string value stored in Params map, or an empty string
+// if nothing is found
+func (p Params) GetString(key string) string {
+	v, ok := p[key]
+	if !ok {
+		return ""
+	}
+	s, _ := v.(string)
+	return s
 }

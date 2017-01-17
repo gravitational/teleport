@@ -2,6 +2,7 @@
 gitref.go
 .data
 debug*
+default.etcd
 
 # usually release tarballs get in the way
 *.gz

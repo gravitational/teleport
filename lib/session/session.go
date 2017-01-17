@@ -29,7 +29,6 @@ import (
 
 	"github.com/docker/docker/pkg/term"
 	"github.com/gravitational/trace"
-	"github.com/mailgun/timetools"
 	"github.com/pborman/uuid"
 )
 
@@ -240,43 +239,14 @@ type Service interface {
 
 type server struct {
 	bk               backend.JSONCodec
-	clock            timetools.TimeProvider
 	activeSessionTTL time.Duration
-}
-
-// Option is a functional option that can be given to a server
-type Option func(s *server) error
-
-// Clock sets up clock for this server, used in tests
-func Clock(c timetools.TimeProvider) Option {
-	return func(s *server) error {
-		s.clock = c
-		return nil
-	}
-}
-
-// ActiveSessionTTL specifies active session ttl
-func ActiveSessionTTL(ttl time.Duration) Option {
-	return func(s *server) error {
-		s.activeSessionTTL = ttl
-		return nil
-	}
 }
 
 // New returns new session server that uses sqlite to manage
 // active sessions
-func New(bk backend.Backend, opts ...Option) (Service, error) {
+func New(bk backend.Backend) (Service, error) {
 	s := &server{
 		bk: backend.JSONCodec{Backend: bk},
-	}
-
-	for _, o := range opts {
-		if err := o(s); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	if s.clock == nil {
-		s.clock = &timetools.RealTime{}
 	}
 	if s.activeSessionTTL == 0 {
 		s.activeSessionTTL = defaults.ActiveSessionTTL

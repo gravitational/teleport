@@ -357,11 +357,11 @@ func (s *ServicesTestSuite) TokenCRUD(c *C) {
 	c.Assert(s.ProvisioningS.UpsertToken("token", teleport.Roles{teleport.RoleAuth, teleport.RoleNode}, 0), IsNil)
 
 	token, err := s.ProvisioningS.GetToken("token")
+	c.Assert(err, IsNil)
 	c.Assert(token.Roles.Include(teleport.RoleAuth), Equals, true)
 	c.Assert(token.Roles.Include(teleport.RoleNode), Equals, true)
 	c.Assert(token.Roles.Include(teleport.RoleProxy), Equals, false)
 	c.Assert(token.Expires.Second(), Equals, time.Now().UTC().Add(defaults.ProvisioningTokenTTL).Second())
-	c.Assert(err, IsNil)
 
 	c.Assert(s.ProvisioningS.DeleteToken("token"), IsNil)
 

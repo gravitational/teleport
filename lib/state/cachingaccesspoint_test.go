@@ -20,12 +20,12 @@ package state
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -90,7 +90,7 @@ var (
 
 type ClusterSnapshotSuite struct {
 	dataDir    string
-	backend    *boltbk.BoltBackend
+	backend    backend.Backend
 	authServer *auth.AuthServer
 }
 
@@ -107,7 +107,7 @@ func (s *ClusterSnapshotSuite) SetUpTest(c *check.C) {
 	// create a new auth server:
 	s.dataDir = c.MkDir()
 	var err error
-	s.backend, err = boltbk.New(filepath.Join(s.dataDir, "db"))
+	s.backend, err = boltbk.New(backend.Params{"path": s.dataDir})
 	c.Assert(err, check.IsNil)
 	s.authServer = auth.NewAuthServer(&auth.InitConfig{
 		Backend:    s.backend,

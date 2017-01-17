@@ -14,6 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package 'config' provides facilities for configuring Teleport daemons
+// including
+//	- parsing YAML configuration
+//	- parsing CLI flags
 package config
 
 import (
@@ -28,9 +32,6 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/backend/dynamo"
-	"github.com/gravitational/teleport/lib/backend/etcdbk"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -149,44 +150,12 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 
 	if fc.Global.DataDir != "" {
 		cfg.DataDir = fc.Global.DataDir
-	}
-	if fc.Storage.Type == "" {
-		fc.Storage.Type = teleport.BoltBackendType
+		cfg.Auth.StorageConfig.Params["path"] = cfg.DataDir
 	}
 
-	// configure storage:
-	switch fc.Storage.Type {
-	// bolt backend (default):
-	case teleport.BoltBackendType:
-		cfg.ConfigureBolt()
-
-		// etcd backend (default):
-	case teleport.ETCDBackendType:
-		if err = cfg.ConfigureETCD(etcdbk.Config{
-			Nodes:       fc.Storage.Peers,
-			Key:         fc.Storage.Prefix,
-			TLSKeyFile:  fc.Storage.TLSKeyFile,
-			TLSCertFile: fc.Storage.TLSCertFile,
-			TLSCAFile:   fc.Storage.TLSCAFile,
-		}); err != nil {
-			return trace.Wrap(err)
-		}
-
-		// optionally-built-in DynamoDB back-end:
-	case dynamo.BackendType:
-		cfg.ConfigureBolt()
-		// dynamo only stores keys, not events/sessions, everything else
-		// is configured to use bolt:
-		a := &cfg.Auth
-		a.KeysBackend.Type = dynamo.BackendType
-		a.KeysBackend.BackendConf = &fc.Storage
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	case "":
-		break // not set
-	default:
-		return trace.BadParameter("unsupported storage type: '%v'", fc.Storage.Type)
+	// apply storage configuration, if present:
+	if fc.Storage.Type != "" {
+		cfg.Auth.StorageConfig = fc.Storage
 	}
 
 	// apply logger settings

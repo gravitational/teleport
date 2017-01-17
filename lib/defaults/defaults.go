@@ -55,12 +55,6 @@ const (
 	// Name of events bolt database file stored in DataDir
 	EventsBoltFile = "events.db"
 
-	// Name of keys bolt database file stored in DataDir
-	KeysBoltFile = "keys.db"
-
-	// Name of records bolt database file stored in DataDir
-	RecordsBoltFile = "records.db"
-
 	// By default SSH server (and SSH proxy) will bind to this IP
 	BindIP = "0.0.0.0"
 
@@ -146,11 +140,11 @@ var (
 	// Median sleep time between node pings is this value / 2 + random
 	// deviation added to this time to avoid lots of simultaneous
 	// heartbeats coming to auth server
-	ServerHeartbeatTTL = 10 * time.Second
+	ServerHeartbeatTTL = 90 * time.Second
 
 	// AuthServersRefreshPeriod is a period for clients to refresh their
 	// their stored list of auth servers
-	AuthServersRefreshPeriod = 5 * time.Second
+	AuthServersRefreshPeriod = 30 * time.Second
 
 	// SessionRefreshPeriod is how often tsh polls information about session
 	// TODO(klizhentas) all polling periods should go away once backend

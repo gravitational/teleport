@@ -13,9 +13,11 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 
-
-dynamo package (if compiled with '-tags dynamodb') allows Teleport
-to use DynamoDB storage back-end to store the auth server state.
-
 */
-package dynamo
+
+// backend package allows for pluggable back-ends for secrets storage.
+// To implement a new storage back-end you have to supply an object
+// which:
+//	 - implements backend.Backend interface
+//   - implements backend.NewFunc function
+package backend

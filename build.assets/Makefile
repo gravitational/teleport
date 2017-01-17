@@ -9,12 +9,12 @@ ADDFLAGS=-ldflags -w
 NOROOT=-u $$(id -u):$$(id -g)
 
 #
-# Build 'teleport' binaries
+# Build 'teleport' release inside a docker container
 #
 .PHONY:build
 build: bbox
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BBOX) \
-		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' all
+		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' release
 
 #
 # Builds a Docker container which is used for building official Teleport 
@@ -30,13 +30,14 @@ bbox:
 .PHONY:test
 test: integration
 	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BBOX) \
-		/bin/bash -c "$(MAKE) -C $(SRCDIR) TELEPORT_DEBUG=1 FLAGS='-cover -race' clean test"
-
+		/bin/bash -c \
+		"examples/etcd/start-etcd.sh & sleep 1; \
+		cd $(SRCDIR) && make TELEPORT_DEBUG=0 FLAGS='-cover -race' clean test"
 
 .PHONY:integration
 integration: bbox
 	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BBOX) \
- 		/bin/bash -c "$(MAKE) -C $(SRCDIR) FLAGS='-cover' integration"
+ 		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' integration"
 
 #
 # Builds docs

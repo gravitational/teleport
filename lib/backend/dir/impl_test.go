@@ -14,10 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package fs
+package dir
 
 import (
-	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -45,13 +45,14 @@ func TestFSBackend(t *testing.T) { check.TestingT(t) }
 
 func (s *Suite) SetUpSuite(c *check.C) {
 	dirName := c.MkDir()
-	bk, err := FromJSON(fmt.Sprintf(`{ "path": "%s" }`, dirName))
+	bk, err := New(backend.Params{"path": dirName})
+	bk.(*Backend).Clock = s.clock
 
 	c.Assert(err, check.IsNil)
-	c.Assert(bk.RootDir, check.Equals, dirName)
-	c.Assert(utils.IsDir(bk.RootDir), check.Equals, true)
 
-	bk.Clock = s.clock
+	// backend must create the dir:
+	c.Assert(utils.IsDir(dirName), check.Equals, true)
+
 	s.bk = bk
 	s.suite.B = s.bk
 }
@@ -113,9 +114,7 @@ func (s *Suite) TestListDelete(c *check.C) {
 	// list the root (should get 2 back):
 	kids, err = s.bk.GetKeys(root)
 	c.Assert(err, check.IsNil)
-	c.Assert(kids, check.HasLen, 2)
-	c.Assert(kids[0], check.Equals, "one")
-	c.Assert(kids[1], check.Equals, "two")
+	c.Assert(kids, check.DeepEquals, []string{"kid", "one", "two"})
 
 	// list the kid (should get 1)
 	kids, err = s.bk.GetKeys(kid)
@@ -156,6 +155,30 @@ func (s *Suite) TestTTL(c *check.C) {
 	c.Assert(v, check.IsNil)
 }
 
-func (s *Suite) TestBasicCRUD(c *check.C) {
-	s.suite.BasicCRUD(c)
+func (s *Suite) TestLocking(c *check.C) {
+	lock := "test_lock"
+	ttl := time.Second * 10
+
+	// acquire a lock, wait for TTL to expire, acquire again and succeed:
+	c.Assert(s.bk.AcquireLock(lock, ttl), check.IsNil)
+	s.clock.Advance(ttl + 1)
+	c.Assert(s.bk.AcquireLock(lock, ttl), check.IsNil)
+	c.Assert(s.bk.ReleaseLock(lock), check.IsNil)
+
+	// lets make sure locking actually works:
+	c.Assert(s.bk.AcquireLock(lock, ttl), check.IsNil)
+	i := int32(0)
+	go func() {
+		c.Assert(s.bk.AcquireLock(lock, ttl), check.IsNil)
+		atomic.AddInt32(&i, 1)
+	}()
+	time.Sleep(time.Millisecond * 2)
+	// make sure i did not change (the modifying gorouting was locked)
+	c.Assert(atomic.LoadInt32(&i), check.Equals, int32(0))
+	s.clock.Advance(ttl + 1)
+
+	// release the lock, and the gorouting should unlock and advance i
+	s.bk.ReleaseLock(lock)
+	time.Sleep(time.Millisecond * 5)
+	c.Assert(atomic.LoadInt32(&i), check.Equals, int32(1))
 }

@@ -17,54 +17,53 @@ limitations under the License.
 package session
 
 import (
-	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/backend/boltbk"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/dir"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/trace"
-	"github.com/mailgun/timetools"
 	. "gopkg.in/check.v1"
 )
 
 func TestSessions(t *testing.T) { TestingT(t) }
 
-type BoltSuite struct {
+type SessionSuite struct {
 	dir   string
 	srv   *server
-	bk    *boltbk.BoltBackend
-	clock *timetools.FreezedTime
+	bk    *dir.Backend
+	clock clockwork.FakeClock
 }
 
-var _ = Suite(&BoltSuite{})
+var _ = Suite(&SessionSuite{})
 
-func (s *BoltSuite) SetUpSuite(c *C) {
+func (s *SessionSuite) SetUpSuite(c *C) {
 	utils.InitLoggerForTests()
 }
 
-func (s *BoltSuite) SetUpTest(c *C) {
-	s.clock = &timetools.FreezedTime{
-		CurrentTime: time.Date(2016, 9, 8, 7, 6, 5, 0, time.UTC),
-	}
+func (s *SessionSuite) SetUpTest(c *C) {
+	s.clock = clockwork.NewFakeClockAt(time.Date(2016, 9, 8, 7, 6, 5, 0, time.UTC))
 	s.dir = c.MkDir()
 
-	var err error
-	s.bk, err = boltbk.New(filepath.Join(s.dir, "db"), boltbk.Clock(s.clock))
+	bk, err := dir.New(backend.Params{"path": s.dir})
 	c.Assert(err, IsNil)
+	s.bk = bk.(*dir.Backend)
+	s.bk.Clock = s.clock
 
-	srv, err := New(s.bk, Clock(s.clock))
+	srv, err := New(s.bk)
 	s.srv = srv.(*server)
 	c.Assert(err, IsNil)
 }
 
-func (s *BoltSuite) TearDownTest(c *C) {
+func (s *SessionSuite) TearDownTest(c *C) {
 	c.Assert(s.bk.Close(), IsNil)
 }
 
-func (s *BoltSuite) TestID(c *C) {
+func (s *SessionSuite) TestID(c *C) {
 	id := NewID()
 	id2, err := ParseID(id.String())
 	c.Assert(err, IsNil)
@@ -76,7 +75,7 @@ func (s *BoltSuite) TestID(c *C) {
 	}
 }
 
-func (s *BoltSuite) TestSessionsCRUD(c *C) {
+func (s *SessionSuite) TestSessionsCRUD(c *C) {
 	out, err := s.srv.GetSessions(defaults.Namespace)
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 0)
@@ -87,8 +86,8 @@ func (s *BoltSuite) TestSessionsCRUD(c *C) {
 		Active:         true,
 		TerminalParams: TerminalParams{W: 100, H: 100},
 		Login:          "bob",
-		LastActive:     s.clock.UtcNow(),
-		Created:        s.clock.UtcNow(),
+		LastActive:     s.clock.Now().UTC(),
+		Created:        s.clock.Now().UTC(),
 	}
 	c.Assert(s.srv.CreateSession(sess), IsNil)
 
@@ -129,28 +128,29 @@ func (s *BoltSuite) TestSessionsCRUD(c *C) {
 
 // TestSessionsInactivity makes sure that session will be marked
 // as inactive after period of inactivity
-func (s *BoltSuite) TestSessionsInactivity(c *C) {
+func (s *SessionSuite) TestSessionsInactivity(c *C) {
 	sess := Session{
 		ID:             NewID(),
 		Namespace:      defaults.Namespace,
 		Active:         true,
 		TerminalParams: TerminalParams{W: 100, H: 100},
 		Login:          "bob",
-		LastActive:     s.clock.UtcNow(),
-		Created:        s.clock.UtcNow(),
+		LastActive:     s.clock.Now().UTC(),
+		Created:        s.clock.Now().UTC(),
 	}
 	c.Assert(s.srv.CreateSession(sess), IsNil)
 
-	// sleep to let it expire:
-	s.clock.Sleep(defaults.ActiveSessionTTL + time.Second)
+	// move forward in time:
+	s.clock.Advance(defaults.ActiveSessionTTL + time.Second)
 
 	// should not be in active sessions:
 	s2, err := s.srv.GetSession(defaults.Namespace, sess.ID)
-	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%T", err))
+	c.Assert(err, NotNil)
+	c.Assert(trace.IsNotFound(err), Equals, true)
 	c.Assert(s2, IsNil)
 }
 
-func (s *BoltSuite) TestPartiesCRUD(c *C) {
+func (s *SessionSuite) TestPartiesCRUD(c *C) {
 	// create session:
 	sess := Session{
 		ID:             NewID(),
@@ -158,8 +158,8 @@ func (s *BoltSuite) TestPartiesCRUD(c *C) {
 		Active:         true,
 		TerminalParams: TerminalParams{W: 100, H: 100},
 		Login:          "vincent",
-		LastActive:     s.clock.UtcNow(),
-		Created:        s.clock.UtcNow(),
+		LastActive:     s.clock.Now().UTC(),
+		Created:        s.clock.Now().UTC(),
 	}
 	c.Assert(s.srv.CreateSession(sess), IsNil)
 	// add two people:
@@ -169,14 +169,14 @@ func (s *BoltSuite) TestPartiesCRUD(c *C) {
 			RemoteAddr: "1_remote_addr",
 			User:       "first",
 			ServerID:   "luna",
-			LastActive: s.clock.UtcNow(),
+			LastActive: s.clock.Now().UTC(),
 		},
 		{
 			ID:         NewID(),
 			RemoteAddr: "2_remote_addr",
 			User:       "second",
 			ServerID:   "luna",
-			LastActive: s.clock.UtcNow(),
+			LastActive: s.clock.Now().UTC(),
 		},
 	}
 	s.srv.UpdateSession(UpdateRequest{

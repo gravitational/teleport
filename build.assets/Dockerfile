@@ -50,13 +50,18 @@ RUN (mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/go1.
 RUN groupadd jenkins --gid=$GID -o && useradd jenkins --uid=$UID --gid=$GID --create-home --shell=/bin/sh
 RUN (mkdir -p /var/lib/teleport && chown -R jenkins /var/lib/teleport)
 
+# get etcd
+RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.0.16/etcd-v3.0.16-linux-amd64.tar.gz | tar -xz ;\
+     cp etcd-v3.0.16-linux-amd64/etcd* /bin/ ;\
+     apt-get install -y net-tools tree)
+
 ENV LANGUAGE="en_US.UTF-8" \
     LANG="en_US.UTF-8" \
     LC_ALL="en_US.UTF-8" \
     LC_CTYPE="en_US.UTF-8" \
     GOPATH="/gopath" \
     GOROOT="/opt/go" \
-    PATH="$PATH:/opt/go/bin:/gopath/bin"
+    PATH="$PATH:/opt/go/bin:/gopath/bin:/gopath/src/github.com/gravitational/teleport/build"
 
 VOLUME ["/gopath/src/github.com/gravitational/teleport"]
-EXPOSE 6600
+EXPOSE 6600 2379 2380

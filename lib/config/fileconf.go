@@ -66,7 +66,7 @@ var (
 		"auth_token":         true,
 		"auth_servers":       true,
 		"domain_name":        true,
-		"storage":            true,
+		"storage":            false,
 		"nodename":           true,
 		"log":                true,
 		"period":             true,
@@ -82,8 +82,6 @@ var (
 		"name":               true,
 		"type":               true,
 		"data_dir":           true,
-		"peers":              true,
-		"prefix":             true,
 		"web_listen_addr":    true,
 		"tunnel_listen_addr": true,
 		"ssh_listen_addr":    true,
@@ -91,9 +89,6 @@ var (
 		"https_key_file":     true,
 		"https_cert_file":    true,
 		"advertise_ip":       true,
-		"tls_key_file":       true,
-		"tls_cert_file":      true,
-		"tls_ca_file":        true,
 		"authorities":        true,
 		"keys":               true,
 		"reverse_tunnels":    true,
@@ -212,7 +207,6 @@ func MakeSampleFileConfig() (fc *FileConfig) {
 	g.Limits.MaxConnections = defaults.LimiterMaxConnections
 	g.Limits.MaxUsers = defaults.LimiterMaxConcurrentUsers
 	g.DataDir = defaults.DataDir
-	g.Storage.Type = conf.Auth.KeysBackend.Type
 	g.PIDFile = "/var/run/teleport.pid"
 
 	// sample SSH config:
@@ -260,45 +254,6 @@ func MakeSampleFileConfig() (fc *FileConfig) {
 		Proxy:  p,
 		SSH:    s,
 		Auth:   a,
-	}
-	return fc
-}
-
-// MakeAuthPeerFileConfig returns a sample configuration for auth
-// server peer that shares etcd backend
-func MakeAuthPeerFileConfig(domainName string, token string) (fc *FileConfig) {
-	conf := service.MakeDefaultConfig()
-
-	// sample global config:
-	var g Global
-	g.NodeName = conf.Hostname
-	g.AuthToken = token
-	g.Logger.Output = "stderr"
-	g.Logger.Severity = "INFO"
-	g.AuthServers = []string{"<insert auth server peer address here>"}
-	g.Limits.MaxConnections = defaults.LimiterMaxConnections
-	g.Limits.MaxUsers = defaults.LimiterMaxConcurrentUsers
-	g.Storage.Type = teleport.ETCDBackendType
-	g.Storage.Prefix = defaults.ETCDPrefix
-	g.Storage.Peers = []string{"insert ETCD peers addresses here"}
-
-	// sample Auth config:
-	var a Auth
-	a.ListenAddress = conf.Auth.SSHAddr.Addr
-	a.EnabledFlag = "yes"
-	a.DomainName = domainName
-
-	var p Proxy
-	p.EnabledFlag = "no"
-
-	var s SSH
-	s.EnabledFlag = "no"
-
-	fc = &FileConfig{
-		Global: g,
-		Auth:   a,
-		Proxy:  p,
-		SSH:    s,
 	}
 	return fc
 }

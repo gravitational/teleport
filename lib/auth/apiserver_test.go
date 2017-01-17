@@ -19,8 +19,6 @@ package auth
 import (
 	"fmt"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/gravitational/roundtrip"
@@ -48,7 +46,6 @@ type APISuite struct {
 	clt      *Client
 	bk       backend.Backend
 	a        *AuthServer
-	dir      string
 	alog     events.IAuditLog
 	sessions session.Service
 
@@ -67,13 +64,13 @@ func (s *APISuite) SetUpSuite(c *C) {
 }
 
 func (s *APISuite) SetUpTest(c *C) {
-	s.dir = c.MkDir()
+	dir := c.MkDir()
 	var err error
 
-	s.bk, err = boltbk.New(filepath.Join(s.dir, "db"))
+	s.bk, err = boltbk.New(backend.Params{"path": dir})
 	c.Assert(err, IsNil)
 
-	s.alog, err = events.NewAuditLog(s.dir)
+	s.alog, err = events.NewAuditLog(dir)
 	c.Assert(err, IsNil)
 
 	s.a = NewAuthServer(&InitConfig{
@@ -116,7 +113,6 @@ func (s *APISuite) TearDownTest(c *C) {
 		fileBasedLog.Close()
 	}
 	s.srv.Close()
-	os.RemoveAll(s.dir)
 }
 
 type clt interface {

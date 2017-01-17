@@ -16,9 +16,9 @@ limitations under the License.
 package boltbk
 
 import (
-	"path/filepath"
 	"testing"
 
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -30,7 +30,6 @@ func TestBolt(t *testing.T) { TestingT(t) }
 type BoltSuite struct {
 	bk    *BoltBackend
 	suite test.BackendSuite
-	dir   string
 }
 
 var _ = Suite(&BoltSuite{})
@@ -40,11 +39,14 @@ func (s *BoltSuite) SetUpSuite(c *C) {
 }
 
 func (s *BoltSuite) SetUpTest(c *C) {
-	s.dir = c.MkDir()
-
-	var err error
-	s.bk, err = New(filepath.Join(s.dir, "db"))
+	dir := c.MkDir()
+	bk, err := New(backend.Params{
+		"path": dir,
+	})
 	c.Assert(err, IsNil)
+	c.Assert(bk, NotNil)
+
+	s.bk, _ = bk.(*BoltBackend)
 
 	s.suite.ChangesC = make(chan interface{})
 	s.suite.B = s.bk

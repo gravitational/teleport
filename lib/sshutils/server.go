@@ -27,7 +27,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"strings"
 	"sync"
 	"time"
 
@@ -353,9 +352,11 @@ type HandshakePayload struct {
 }
 
 // connectionWrapper allows the SSH server to perform custom handshake which
-// allows teleport proxy servers to relay the remote IP address of the client
-// to the SSH server (otherwise connection.RemoteAddr would always point to
-// a proxy, which is useless for audit purposes)
+// lets teleport proxy servers to relay a true remote client IP address
+// to the SSH server.
+//
+// (otherwise connection.RemoteAddr (client IP) will always point to a proxy IP
+// instead of oa true client IP)
 type connectionWrapper struct {
 	net.Conn
 
@@ -373,9 +374,10 @@ func (c *connectionWrapper) RemoteAddr() net.Addr {
 	return c.clientAddr
 }
 
-// Read implements io.Read() part of net.Connection which allows the
-// connection wrapper to peek at the beginning of SSH handshake
+// Read implements io.Read() part of net.Connection which allows us
+// peek at the beginning of SSH handshake (that's why we're wrapping the connection)
 func (c *connectionWrapper) Read(b []byte) (int, error) {
+	// handshake already took place, forward upstream:
 	if c.upstreamReader != nil {
 		return c.upstreamReader.Read(b)
 	}
@@ -387,14 +389,18 @@ func (c *connectionWrapper) Read(b []byte) (int, error) {
 		log.Error(err)
 		return n, err
 	}
-	// teleport proxy handshake:
-	if strings.HasPrefix(string(buff), "Teleport-Proxy") {
-		c.upstreamReader = c.Conn
-		endOfLine := bytes.IndexByte(buff, '\n')
-		if endOfLine > 0 {
-			// custom payload starts after the newline:
+	// chop off extra unused bytes at the end of the buffer:
+	buff = buff[:n]
+	var skip = 0
+
+	// are we reading from a Teleport proxy?
+	if bytes.HasPrefix(buff, []byte(ProxyHelloSignature)) {
+		// the JSON paylaod ends with a binary zero:
+		payloadBoundary := bytes.IndexByte(buff, 0x00)
+		if payloadBoundary > 0 {
 			var hp HandshakePayload
-			if err = json.Unmarshal(buff[endOfLine+1:n], &hp); err != nil {
+			payload := buff[len(ProxyHelloSignature):payloadBoundary]
+			if err = json.Unmarshal(payload, &hp); err != nil {
 				log.Error(err)
 			} else {
 				ca, err := utils.ParseAddr(hp.ClientAddr)
@@ -406,11 +412,10 @@ func (c *connectionWrapper) Read(b []byte) (int, error) {
 					c.clientAddr = ca
 				}
 			}
+			skip = payloadBoundary + 1
 		}
-		// not a teleport proxy:
-	} else {
-		c.upstreamReader = io.MultiReader(bytes.NewBuffer(buff[:n]), c.Conn)
 	}
+	c.upstreamReader = io.MultiReader(bytes.NewBuffer(buff[skip:]), c.Conn)
 	return c.upstreamReader.Read(b)
 }
 

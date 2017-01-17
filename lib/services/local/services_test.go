@@ -17,9 +17,9 @@ limitations under the License.
 package local
 
 import (
-	"path/filepath"
 	"testing"
 
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/utils"
@@ -29,23 +29,23 @@ import (
 
 func TestServices(t *testing.T) { TestingT(t) }
 
-type BoltSuite struct {
-	bk    *boltbk.BoltBackend
+type ServicesSuite struct {
+	bk    backend.Backend
 	suite *suite.ServicesTestSuite
 	dir   string
 }
 
-var _ = Suite(&BoltSuite{})
+var _ = Suite(&ServicesSuite{})
 
-func (s *BoltSuite) SetUpSuite(c *C) {
+func (s *ServicesSuite) SetUpSuite(c *C) {
 	utils.InitLoggerForTests()
 }
 
-func (s *BoltSuite) SetUpTest(c *C) {
-	s.dir = c.MkDir()
-
+func (s *ServicesSuite) SetUpTest(c *C) {
 	var err error
-	s.bk, err = boltbk.New(filepath.Join(s.dir, "db"))
+
+	s.dir = c.MkDir()
+	s.bk, err = boltbk.New(backend.Params{"path": s.dir})
 	c.Assert(err, IsNil)
 
 	suite := &suite.ServicesTestSuite{}
@@ -58,54 +58,54 @@ func (s *BoltSuite) SetUpTest(c *C) {
 	s.suite = suite
 }
 
-func (s *BoltSuite) TearDownTest(c *C) {
+func (s *ServicesSuite) TearDownTest(c *C) {
 	c.Assert(s.bk.Close(), IsNil)
 }
 
-func (s *BoltSuite) TestUserCACRUD(c *C) {
+func (s *ServicesSuite) TestUserCACRUD(c *C) {
 	s.suite.CertAuthCRUD(c)
 }
 
-func (s *BoltSuite) TestServerCRUD(c *C) {
+func (s *ServicesSuite) TestServerCRUD(c *C) {
 	s.suite.ServerCRUD(c)
 }
 
-func (s *BoltSuite) TestReverseTunnelsCRUD(c *C) {
+func (s *ServicesSuite) TestReverseTunnelsCRUD(c *C) {
 	s.suite.ReverseTunnelsCRUD(c)
 }
 
-func (s *BoltSuite) TestUsersCRUD(c *C) {
+func (s *ServicesSuite) TestUsersCRUD(c *C) {
 	s.suite.UsersCRUD(c)
 }
 
-func (s *BoltSuite) TestLoginAttempts(c *C) {
+func (s *ServicesSuite) TestLoginAttempts(c *C) {
 	s.suite.LoginAttempts(c)
 }
 
-func (s *BoltSuite) TestPasswordHashCRUD(c *C) {
+func (s *ServicesSuite) TestPasswordHashCRUD(c *C) {
 	s.suite.PasswordHashCRUD(c)
 }
 
-func (s *BoltSuite) TestPasswordAndHotpCRUD(c *C) {
+func (s *ServicesSuite) TestPasswordAndHotpCRUD(c *C) {
 	s.suite.PasswordCRUD(c)
 }
 
-func (s *BoltSuite) TestPasswordGarbage(c *C) {
+func (s *ServicesSuite) TestPasswordGarbage(c *C) {
 	s.suite.PasswordGarbage(c)
 }
 
-func (s *BoltSuite) TestWebSessionCRUD(c *C) {
+func (s *ServicesSuite) TestWebSessionCRUD(c *C) {
 	s.suite.WebSessionCRUD(c)
 }
 
-func (s *BoltSuite) TestToken(c *C) {
+func (s *ServicesSuite) TestToken(c *C) {
 	s.suite.TokenCRUD(c)
 }
 
-func (s *BoltSuite) TestRoles(c *C) {
+func (s *ServicesSuite) TestRoles(c *C) {
 	s.suite.RolesCRUD(c)
 }
 
-func (s *BoltSuite) TestU2FCRUD(c *C) {
+func (s *ServicesSuite) TestU2FCRUD(c *C) {
 	s.suite.U2FCRUD(c)
 }

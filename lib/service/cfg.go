@@ -17,25 +17,21 @@ limitations under the License.
 package service
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"os"
-	"path/filepath"
 	"strings"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/etcdbk"
+	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v2"
 )
 
@@ -127,27 +123,6 @@ func (cfg *Config) ApplyToken(token string) bool {
 	return false
 }
 
-// ConfigureBolt configures Bolt back-ends with a data dir.
-func (cfg *Config) ConfigureBolt() {
-	a := &cfg.Auth
-	if a.KeysBackend.Type == teleport.BoltBackendType {
-		a.KeysBackend.Params = boltParams(cfg.DataDir, defaults.KeysBoltFile)
-	}
-}
-
-// ConfigureETCD configures ETCD backend (still uses BoltDB for some cases)
-func (cfg *Config) ConfigureETCD(etcdCfg etcdbk.Config) error {
-	a := &cfg.Auth
-
-	params, err := etcdParams(etcdCfg)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	a.KeysBackend.Type = teleport.ETCDBackendType
-	a.KeysBackend.Params = params
-	return nil
-}
-
 // RoleConfig is a config for particular Teleport role
 func (cfg *Config) RoleConfig() RoleConfig {
 	return RoleConfig{
@@ -225,15 +200,9 @@ type AuthConfig struct {
 	// environments where paranoid security is not needed
 	StaticTokens []services.ProvisionToken
 
-	// KeysBackend configures backend that stores auth keys, certificates, tokens ...
-	KeysBackend struct {
-		// Type is a backend type - etcd or boltdb
-		Type string
-		// Params is map with backend specific parameters
-		Params string
-		// BackendConf contains additional config data
-		BackendConf *backend.Config
-	}
+	// StorageConfig contains configuration settings for
+	// the secrets storage backend
+	StorageConfig backend.Config
 
 	Limiter limiter.LimiterConfig
 
@@ -270,14 +239,19 @@ func ApplyDefaults(cfg *Config) {
 	}
 	cfg.SeedConfig = false
 
+	// global defaults
+	cfg.Hostname = hostname
+	cfg.DataDir = defaults.DataDir
+	cfg.Console = os.Stdout
+
 	// defaults for the auth service:
 	cfg.Auth.Enabled = true
 	cfg.Auth.SSHAddr = *defaults.AuthListenAddr()
-	cfg.Auth.KeysBackend.Type = defaults.BackendType
-	cfg.Auth.KeysBackend.Params = boltParams(defaults.DataDir, defaults.KeysBoltFile)
 	cfg.Auth.U2F.Enabled = false
 	cfg.Auth.U2F.AppID = fmt.Sprintf("https://%s:%d", strings.ToLower(hostname), defaults.HTTPListenPort)
 	cfg.Auth.U2F.Facets = []string{cfg.Auth.U2F.AppID}
+	cfg.Auth.StorageConfig.Type = boltbk.GetName()
+	cfg.Auth.StorageConfig.Params = backend.Params{"path": cfg.DataDir}
 	defaults.ConfigureLimiter(&cfg.Auth.Limiter)
 
 	// defaults for the SSH proxy service:
@@ -292,24 +266,4 @@ func ApplyDefaults(cfg *Config) {
 	cfg.SSH.Addr = *defaults.SSHServerListenAddr()
 	cfg.SSH.Shell = defaults.DefaultShell
 	defaults.ConfigureLimiter(&cfg.SSH.Limiter)
-
-	// global defaults
-	cfg.Hostname = hostname
-	cfg.DataDir = defaults.DataDir
-	cfg.Console = os.Stdout
-}
-
-// Generates a string accepted by the BoltDB driver, like this:
-// `{"path": "/var/lib/teleport/records.db"}`
-func boltParams(storagePath, dbFile string) string {
-	return fmt.Sprintf(`{"path": "%s"}`, filepath.Join(storagePath, dbFile))
-}
-
-// etcdParams generates a string accepted by the ETCD driver, like this:
-func etcdParams(cfg etcdbk.Config) (string, error) {
-	out, err := json.Marshal(cfg)
-	if err != nil { // don't know what to do seriously
-		return "", trace.Wrap(err)
-	}
-	return string(out), nil
 }
