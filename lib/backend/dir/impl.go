@@ -79,12 +79,6 @@ func New(params backend.Params) (backend.Backend, error) {
 		Clock:   clockwork.NewRealClock(),
 	}
 
-	// did tests pass the fake (test) clock?
-	clockParam, ok := params["test_clock"]
-	if ok {
-		bk.Clock, _ = clockParam.(clockwork.Clock)
-	}
-
 	locksDir := path.Join(bk.RootDir, locksBucket)
 	if err := os.MkdirAll(locksDir, defaultDirMode); err != nil {
 		return nil, trace.ConvertSystemError(err)

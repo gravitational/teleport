@@ -45,10 +45,8 @@ func TestFSBackend(t *testing.T) { check.TestingT(t) }
 
 func (s *Suite) SetUpSuite(c *check.C) {
 	dirName := c.MkDir()
-	bk, err := New(backend.Params{
-		"path":       dirName,
-		"test_clock": s.clock,
-	})
+	bk, err := New(backend.Params{"path": dirName})
+	bk.(*Backend).Clock = s.clock
 
 	c.Assert(err, check.IsNil)
 

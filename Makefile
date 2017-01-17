@@ -27,7 +27,7 @@ all: setver $(BINARIES)
 $(BUILDDIR)/tctl: $(LIBS) $(TOOLS) tool/tctl/*.go
 	go build -o $(BUILDDIR)/tctl -i $(BUILDFLAGS) ./tool/tctl
 
-$(BUILDDIR)/teleport: $(LIBS) tool/teleport/*.go
+$(BUILDDIR)/teleport: $(LIBS) tool/teleport/*.go *.go
 	go build -o $(BUILDDIR)/teleport -i $(BUILDFLAGS) ./tool/teleport
 
 $(BUILDDIR)/tsh: $(LIBS) tool/tsh/*.go
