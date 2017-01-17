@@ -17,14 +17,11 @@ limitations under the License.
 package local
 
 import (
-	"bytes"
 	"crypto/ecdsa"
-	"crypto/subtle"
 	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"image/png"
 	"sort"
 	"time"
 
@@ -33,14 +30,12 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gokyle/hotp"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
-	"github.com/pquerna/otp/totp"
 	"github.com/tstranex/u2f"
 )
 
@@ -231,7 +226,7 @@ func (s *IdentityService) GetHOTP(user string) (*hotp.HOTP, error) {
 	return otp, nil
 }
 
-// UpsertTOTP upserts TOTP secret key for a user that can be used to generate and validate tokens
+// UpsertTOTP upserts TOTP secret key for a user that can be used to generate and validate tokens.
 func (s *IdentityService) UpsertTOTP(user string, secretKey string) error {
 	err := s.backend.UpsertVal([]string{"web", "users", user}, "totp", []byte(secretKey), 0)
 	if err != nil {
@@ -366,128 +361,23 @@ func (s *IdentityService) DeleteWebSession(user, sid string) error {
 	return err
 }
 
-// UpsertPassword upserts new password and OTP token and returns OTP url and QR code.
-func (s *IdentityService) UpsertPassword(user string, password []byte) (otpURL string, otpQRCode []byte, err error) {
-	if err := services.VerifyPassword(password); err != nil {
-		return "", nil, err
+// UpsertPassword upserts new password hash into a backend.
+func (s *IdentityService) UpsertPassword(user string, password []byte) error {
+	err := services.VerifyPassword(password)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	hash, err := bcrypt.GenerateFromPassword(password, bcrypt.DefaultCost)
 	if err != nil {
-		return "", nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	err = s.UpsertPasswordHash(user, hash)
 	if err != nil {
-		return "", nil, trace.Wrap(err)
-	}
-
-	otpURL, otpQRCode, err = s.createAndUpsertTOTP(user)
-	if err != nil {
-		return "", nil, trace.Wrap(err)
-	}
-
-	return otpURL, otpQRCode, nil
-}
-
-// CheckPassword is called on web user or tsh user login using the password and otp token
-func (s *IdentityService) CheckPassword(user string, password []byte, otpToken string) error {
-	var err error
-
-	hash, err := s.GetPasswordHash(user)
-	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := bcrypt.CompareHashAndPassword(hash, password); err != nil {
-		return trace.AccessDenied("passwords do not match")
-	}
-
-	return s.checkOTP(user, otpToken)
-}
-
-// checkOTP determines the type of OTP token used (for legacy HOTP support), fetches the
-// appropriate type from the backend, and checks the token.
-func (s *IdentityService) checkOTP(user string, otpToken string) error {
-	var err error
-
-	otpType, err := s.getOTPType(user)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	switch otpType {
-	case "hotp":
-		otp, err := s.GetHOTP(user)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		// look ahead n tokens to see if we can find a matching token
-		if !otp.Scan(otpToken, defaults.HOTPFirstTokensRange) {
-			return trace.AccessDenied("bad htop token")
-		}
-
-		// we need to upsert the hotp state again because the
-		// counter was incremented
-		if err := s.UpsertHOTP(user, otp); err != nil {
-			return trace.Wrap(err)
-		}
-	case "totp":
-		otpSecret, err := s.GetTOTP(user)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		usedToken, err := s.GetUsedTOTPToken(user)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if subtle.ConstantTimeCompare([]byte(otpToken), []byte(usedToken)) == 1 {
-			return trace.AccessDenied("previously used totp token")
-		}
-
-		valid := totp.Validate(otpToken, otpSecret)
-		if !valid {
-			return trace.AccessDenied("invalid totp token")
-		}
-
-		err = s.UpsertUsedTOTPToken(user, otpToken)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	return nil
-}
-
-// getOTPType returns the type of OTP token used, HOTP or TOTP.
-// Deprecated: Remove this method once HOTP support has been removed.
-func (s *IdentityService) getOTPType(user string) (string, error) {
-	_, err := s.GetHOTP(user)
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return "totp", nil
-		}
-		return "", trace.Wrap(err)
-	}
-	return "hotp", nil
-}
-
-// CheckPasswordWOToken checks just password without checking HOTP tokens
-// used in case of SSH authentication, when token has been validated
-func (s *IdentityService) CheckPasswordWOToken(user string, password []byte) error {
-	if err := services.VerifyPassword(password); err != nil {
-		return trace.Wrap(err)
-	}
-	hash, err := s.GetPasswordHash(user)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := bcrypt.CompareHashAndPassword(hash, password); err != nil {
-		return trace.BadParameter("passwords do not match")
-	}
 	return nil
 }
 
@@ -785,35 +675,4 @@ func (s *IdentityService) GetOIDCAuthRequest(stateToken string) (*services.OIDCA
 		return nil, trace.Wrap(err)
 	}
 	return req, nil
-}
-
-func (s *IdentityService) createAndUpsertTOTP(user string) (otpURI string, otpQRCode []byte, err error) {
-	// create totp key
-	otpKey, err := totp.Generate(totp.GenerateOpts{
-		Issuer:      "Teleport",
-		AccountName: user,
-	})
-	if err != nil {
-		return "", nil, trace.Wrap(err)
-	}
-
-	// create QR code
-	var otpQRBuf bytes.Buffer
-	otpImage, err := otpKey.Image(456, 456)
-	if err != nil {
-		return "", nil, trace.Wrap(err)
-	}
-	png.Encode(&otpQRBuf, otpImage)
-
-	// create otp url, only the key is needed
-	otpKeyBytes := []byte(otpKey.Secret())
-	otpURI = utils.GenerateOTPURL("totp", user, map[string][]byte{"secret": otpKeyBytes})
-
-	// upsert totp key into the backend
-	err = s.UpsertTOTP(user, otpKey.Secret())
-	if err != nil {
-		return "", nil, trace.Wrap(err)
-	}
-
-	return otpURI, otpQRBuf.Bytes(), nil
 }

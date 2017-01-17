@@ -38,7 +38,6 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/kylelemons/godebug/diff"
-	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
 	"golang.org/x/crypto/ssh"
 	. "gopkg.in/check.v1"
@@ -174,9 +173,9 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 
 	user1, _ := createUserAndRole(s.clt, "user1", []string{"user1"})
 	user2, _ := createUserAndRole(s.clt, "user2", []string{"user2"})
-	_, _, err = s.clt.UpsertPassword(user1.GetName(), []byte("abc1231"))
+	err = s.clt.UpsertPassword(user1.GetName(), []byte("abc1231"))
 	c.Assert(err, IsNil)
-	_, _, err = s.clt.UpsertPassword(user2.GetName(), []byte("abc1232"))
+	err = s.clt.UpsertPassword(user2.GetName(), []byte("abc1232"))
 	c.Assert(err, IsNil)
 
 	newChecker, err := NewAccessChecker(s.AccessS, s.WebS)
@@ -221,7 +220,7 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 }
 
 func (s *APISuite) TestUserCRUD(c *C) {
-	_, _, err := s.clt.UpsertPassword("user1", []byte("some pass"))
+	err := s.clt.UpsertPassword("user1", []byte("some pass"))
 	c.Assert(err, IsNil)
 
 	users, err := s.WebS.GetUsers()
@@ -236,28 +235,44 @@ func (s *APISuite) TestUserCRUD(c *C) {
 	c.Assert(len(users), Equals, 0)
 }
 
-// TODO(rjones): Can this test be removed? It seems redundant see lib/services/suite/suite.go.
 func (s *APISuite) TestPasswordCRUD(c *C) {
 	pass := []byte("abc123")
+	rawSecret := "def456"
+	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
 	err := s.clt.CheckPassword("user1", pass, "123456")
 	c.Assert(err, NotNil)
 
-	otpURL, _, err := s.clt.UpsertPassword("user1", pass)
+	err = s.clt.UpsertPassword("user1", pass)
+	c.Assert(err, IsNil)
+
+	err = s.a.UpsertTOTP("user1", otpSecret)
+	c.Assert(err, IsNil)
+	validToken, err := totp.GenerateCode(otpSecret, time.Now())
+	c.Assert(err, IsNil)
+
+	err = s.clt.CheckPassword("user1", pass, validToken)
+	c.Assert(err, IsNil)
+}
+
+func (s *APISuite) TestOTPCRUD(c *C) {
+	user := "user1"
+	pass := []byte("abc123")
+	rawSecret := "def456"
+	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
+
+	// upsert a password and totp secret
+	err := s.clt.UpsertPassword("user1", pass)
+	c.Assert(err, IsNil)
+	err = s.a.UpsertTOTP(user, otpSecret)
 	c.Assert(err, IsNil)
 
 	// make sure the otp url we get back is valid url issued to the correct user
+	otpURL, _, err := s.a.GetOTPData(user)
+	c.Assert(err, IsNil)
 	u, err := url.Parse(otpURL)
 	c.Assert(err, IsNil)
 	c.Assert(u.Path, Equals, "/user1")
-
-	// extract otp secret key from url, we will use this to create
-	// tokens to make sure the url (and qr code) the user receives is
-	// the same as the one stored in the backend
-	otpKeyMeta, err := otp.NewKeyFromURL(u.String())
-	c.Assert(err, IsNil)
-	otpKey, err := base32.StdEncoding.DecodeString(otpKeyMeta.Secret())
-	c.Assert(err, IsNil)
 
 	// a completely invalid token should return access denied
 	err = s.clt.CheckPassword("user1", pass, "123456")
@@ -265,16 +280,33 @@ func (s *APISuite) TestPasswordCRUD(c *C) {
 
 	// a invalid token (made 1 minute in the future but from a valid key)
 	// should also return access denied
-	invalidToken, err := totp.GenerateCode(string(otpKey), time.Now().Add(1*time.Minute))
+	invalidToken, err := totp.GenerateCode(otpSecret, time.Now().Add(1*time.Minute))
 	c.Assert(err, IsNil)
-	err = s.WebS.CheckPassword("user1", pass, invalidToken)
+	err = s.clt.CheckPassword("user1", pass, invalidToken)
 	c.Assert(err, NotNil)
 
 	// a valid token (created right now and from a valid key) should return success
-	validToken, err := totp.GenerateCode(string(otpKey), time.Now())
+	validToken, err := totp.GenerateCode(otpSecret, time.Now())
 	c.Assert(err, IsNil)
-	err = s.WebS.CheckPassword("user1", pass, validToken)
+
+	err = s.clt.CheckPassword("user1", pass, validToken)
 	c.Assert(err, IsNil)
+
+	// try the same valid token now it should fail because we don't allow re-use of tokens
+	err = s.clt.CheckPassword("user1", pass, validToken)
+	c.Assert(err, NotNil)
+}
+
+func (s *APISuite) PasswordGarbage(c *C) {
+	garbage := [][]byte{
+		nil,
+		make([]byte, defaults.MaxPasswordLength+1),
+		make([]byte, defaults.MinPasswordLength-1),
+	}
+	for _, g := range garbage {
+		err := s.clt.CheckPassword("user1", g, "123456")
+		c.Assert(err, NotNil)
+	}
 }
 
 func (s *APISuite) TestSessions(c *C) {
@@ -290,7 +322,7 @@ func (s *APISuite) TestSessions(c *C) {
 	c.Assert(err, NotNil)
 	c.Assert(ws, IsNil)
 
-	_, _, err = s.clt.UpsertPassword(user, pass)
+	err = s.clt.UpsertPassword(user, pass)
 
 	ws, err = s.clt.SignIn(user, pass)
 	c.Assert(err, IsNil)

@@ -25,7 +25,6 @@ package auth
 
 import (
 	"bytes"
-	"crypto/subtle"
 	"image/png"
 
 	"github.com/gravitational/teleport/lib/defaults"
@@ -171,20 +170,17 @@ func (s *AuthServer) CreateUserWithToken(token string, password string, otpToken
 		return nil, trace.Wrap(err)
 	}
 
-	err = s.checkAndUpsertTOTP(tokenData.User.Name, otpToken, tokenData.OTPKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	_, _, err = s.UpsertPassword(tokenData.User.Name, []byte(password))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// TODO(rjones): We have to do this because UpsertPassword above wipes out the stored OTP secret.
-	// To fix this, we need to update UpsertPassword so it doesn't do that but we need to make sure
-	// that changing the behavior of UpsertPassword doesn't break things elsewhere.
 	err = s.UpsertTOTP(tokenData.User.Name, tokenData.OTPKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = s.CheckOTP(tokenData.User.Name, otpToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = s.UpsertPassword(tokenData.User.Name, []byte(password))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -195,6 +191,7 @@ func (s *AuthServer) CreateUserWithToken(token string, password string, otpToken
 	if err := s.UpsertRole(role); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	// Allowed logins are not going to be used anymore
 	tokenData.User.AllowedLogins = nil
 	tokenData.User.Roles = append(tokenData.User.Roles, role.GetName())
@@ -221,42 +218,6 @@ func (s *AuthServer) CreateUserWithToken(token string, password string, otpToken
 
 	sess.WS.Priv = nil
 	return sess, nil
-}
-
-// checkAndUpsertTOTP validates token and if valid, it upserts hotp key. This function
-// does not perform a security check but rather a usability check to ensure the
-// second factor works.
-func (s *AuthServer) checkAndUpsertTOTP(username string, otpToken string, otpKey string) error {
-	// make sure we have not seen this otp token before
-	usedToken, err := s.GetUsedTOTPToken(username)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if subtle.ConstantTimeCompare([]byte(otpToken), []byte(usedToken)) == 1 {
-		return trace.AccessDenied("previously used totp token")
-	}
-
-	// totp tokens are only valid during there time window t
-	valid := totp.Validate(otpToken, otpKey)
-	if !valid {
-		return trace.BadParameter("invalid TOTP token")
-	}
-
-	// if we have gotten here we were able to verify the otp token
-	// so go ahead and upsert it into the backend
-	err = s.UpsertTOTP(username, otpKey)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// we successfully validated this otp token, don't let it be used again for some time t
-	err = s.UpsertUsedTOTPToken(username, otpToken)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
 }
 
 func (s *AuthServer) CreateUserWithU2FToken(token string, password string, response u2f.RegisterResponse) (*Session, error) {
@@ -290,15 +251,17 @@ func (s *AuthServer) CreateUserWithU2FToken(token string, password string, respo
 		return nil, trace.Wrap(err)
 	}
 
-	_, _, err = s.UpsertPassword(tokenData.User.Name, []byte(password))
+	err = s.UpsertPassword(tokenData.User.Name, []byte(password))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	role := services.RoleForUser(tokenData.User.V2())
 	role.SetLogins(tokenData.User.AllowedLogins)
 	if err := s.UpsertRole(role); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	// Allowed logins are not going to be used anymore
 	tokenData.User.AllowedLogins = nil
 	tokenData.User.Roles = append(tokenData.User.Roles, role.GetName())

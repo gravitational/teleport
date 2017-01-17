@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
 	"golang.org/x/crypto/ssh"
 	. "gopkg.in/check.v1"
@@ -135,13 +134,21 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 
 	userName := "test"
 	pass := []byte("pwd123")
+	rawSecret := "def456"
+	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
 	user, role := createUserAndRole(s.a, userName, []string{userName})
 	role.SetResource(services.KindNode, services.RW())
 	err = s.a.UpsertRole(role)
 	c.Assert(err, IsNil)
 
-	otpURL, _, err := s.a.UpsertPassword(user.GetName(), pass)
+	err = s.a.UpsertPassword(user.GetName(), pass)
+	c.Assert(err, IsNil)
+
+	err = s.a.UpsertTOTP(user.GetName(), otpSecret)
+	c.Assert(err, IsNil)
+
+	otpURL, _, err := s.a.GetOTPData(userName)
 	c.Assert(err, IsNil)
 
 	// make sure label in url is correct
@@ -149,14 +156,8 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(u.Path, Equals, "/test")
 
-	// extract otp key from signup url
-	otpKeyMeta, err := otp.NewKeyFromURL(otpURL)
-	c.Assert(err, IsNil)
-	otpKey, err := base32.StdEncoding.DecodeString(otpKeyMeta.Secret())
-	c.Assert(err, IsNil)
-
 	// create a valid otp token
-	validToken, err := totp.GenerateCode(string(otpKey), time.Now())
+	validToken, err := totp.GenerateCode(otpSecret, time.Now())
 	c.Assert(err, IsNil)
 
 	authMethod, err := NewWebPasswordAuth(user.GetName(), pass, validToken)
@@ -177,10 +178,18 @@ func (s *TunSuite) TestSessions(c *C) {
 
 	user := "ws-test"
 	pass := []byte("ws-abc123")
+	rawSecret := "def456"
+	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
 	createUserAndRole(s.a, user, []string{user})
 
-	otpURL, _, err := s.a.UpsertPassword(user, pass)
+	err := s.a.UpsertPassword(user, pass)
+	c.Assert(err, IsNil)
+
+	err = s.a.UpsertTOTP(user, otpSecret)
+	c.Assert(err, IsNil)
+
+	otpURL, _, err := s.a.GetOTPData(user)
 	c.Assert(err, IsNil)
 
 	// make sure label in url is correct
@@ -188,14 +197,8 @@ func (s *TunSuite) TestSessions(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(u.Path, Equals, "/ws-test")
 
-	// extract otp key from signup url
-	otpKeyMeta, err := otp.NewKeyFromURL(otpURL)
-	c.Assert(err, IsNil)
-	otpKey, err := base32.StdEncoding.DecodeString(otpKeyMeta.Secret())
-	c.Assert(err, IsNil)
-
 	// create a valid otp token
-	validToken, err := totp.GenerateCode(string(otpKey), time.Now())
+	validToken, err := totp.GenerateCode(otpSecret, time.Now())
 	c.Assert(err, IsNil)
 
 	authMethod, err := NewWebPasswordAuth(user, pass, validToken)
@@ -390,10 +393,18 @@ func (s *TunSuite) TestPermissions(c *C) {
 
 	userName := "ws-test2"
 	pass := []byte("ws-abc1234")
+	rawSecret := "def456"
+	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
 	user, _ := createUserAndRole(s.a, userName, []string{userName})
 
-	otpURL, _, err := s.a.UpsertPassword(user.GetName(), pass)
+	err := s.a.UpsertPassword(user.GetName(), pass)
+	c.Assert(err, IsNil)
+
+	err = s.a.UpsertTOTP(user.GetName(), otpSecret)
+	c.Assert(err, IsNil)
+
+	otpURL, _, err := s.a.GetOTPData(userName)
 	c.Assert(err, IsNil)
 
 	// make sure label in url is correct
@@ -401,14 +412,8 @@ func (s *TunSuite) TestPermissions(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(u.Path, Equals, "/ws-test2")
 
-	// extract otp key from signup url
-	otpKeyMeta, err := otp.NewKeyFromURL(otpURL)
-	c.Assert(err, IsNil)
-	otpKey, err := base32.StdEncoding.DecodeString(otpKeyMeta.Secret())
-	c.Assert(err, IsNil)
-
 	// create a valid otp token
-	validToken, err := totp.GenerateCode(string(otpKey), time.Now())
+	validToken, err := totp.GenerateCode(otpSecret, time.Now())
 	c.Assert(err, IsNil)
 
 	authMethod, err := NewWebPasswordAuth(user.GetName(), pass, validToken)
@@ -466,8 +471,16 @@ func (s *TunSuite) TestSessionsBadPassword(c *C) {
 
 	user := "system-test"
 	pass := []byte("system-abc123")
+	rawSecret := "def456"
+	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
-	otpURL, _, err := s.a.UpsertPassword(user, pass)
+	err := s.a.UpsertPassword(user, pass)
+	c.Assert(err, IsNil)
+
+	err = s.a.UpsertTOTP(user, otpSecret)
+	c.Assert(err, IsNil)
+
+	otpURL, _, err := s.a.GetOTPData(user)
 	c.Assert(err, IsNil)
 
 	// make sure label in url is correct
@@ -475,14 +488,8 @@ func (s *TunSuite) TestSessionsBadPassword(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(u.Path, Equals, "/system-test")
 
-	// extract otp key from signup url
-	otpKeyMeta, err := otp.NewKeyFromURL(otpURL)
-	c.Assert(err, IsNil)
-	otpKey, err := base32.StdEncoding.DecodeString(otpKeyMeta.Secret())
-	c.Assert(err, IsNil)
-
 	// create a valid otp token
-	validToken, err := totp.GenerateCode(string(otpKey), time.Now())
+	validToken, err := totp.GenerateCode(otpSecret, time.Now())
 	c.Assert(err, IsNil)
 
 	authMethod, err := NewWebPasswordAuth(user, pass, validToken)
