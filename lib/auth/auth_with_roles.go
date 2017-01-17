@@ -242,18 +242,32 @@ func (a *AuthWithRoles) UpsertToken(token string, roles teleport.Roles, ttl time
 	return a.authServer.UpsertToken(token, roles, ttl)
 }
 
-func (a *AuthWithRoles) UpsertPassword(user string, password []byte) (hotpURL string, hotpQR []byte, err error) {
+func (a *AuthWithRoles) UpsertPassword(user string, password []byte) error {
 	if err := a.currentUserAction(user); err != nil {
-		return "", nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	return a.authServer.UpsertPassword(user, password)
 }
 
-func (a *AuthWithRoles) CheckPassword(user string, password []byte, hotpToken string) error {
+func (a *AuthWithRoles) CheckPassword(user string, password []byte, otpToken string) error {
 	if err := a.currentUserAction(user); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.CheckPassword(user, password, hotpToken)
+	return a.authServer.CheckPassword(user, password, otpToken)
+}
+
+func (a *AuthWithRoles) UpsertTOTP(user string, otpSecret string) error {
+	if err := a.currentUserAction(user); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.UpsertTOTP(user, otpSecret)
+}
+
+func (a *AuthWithRoles) GetOTPData(user string) (string, []byte, error) {
+	if err := a.currentUserAction(user); err != nil {
+		return "", nil, trace.Wrap(err)
+	}
+	return a.authServer.GetOTPData(user)
 }
 
 func (a *AuthWithRoles) SignIn(user string, password []byte) (*Session, error) {

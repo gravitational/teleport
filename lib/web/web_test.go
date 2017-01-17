@@ -53,7 +53,6 @@ import (
 	"github.com/gokyle/hotp"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
-	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
 	"github.com/tstranex/u2f"
 	"golang.org/x/crypto/ssh"
@@ -374,6 +373,8 @@ func (s *WebSuite) authPackFromResponse(c *C, re *roundtrip.Response) *authPack 
 func (s *WebSuite) authPack(c *C) *authPack {
 	user := s.user
 	pass := "abc123"
+	rawSecret := "def456"
+	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
 	teleUser, err := services.NewUser(user)
 	c.Assert(err, IsNil)
@@ -386,17 +387,14 @@ func (s *WebSuite) authPack(c *C) *authPack {
 	err = s.roleAuth.UpsertUser(teleUser)
 	c.Assert(err, IsNil)
 
-	otpURL, _, err := s.roleAuth.UpsertPassword(user, []byte(pass))
+	err = s.roleAuth.UpsertPassword(user, []byte(pass))
 	c.Assert(err, IsNil)
 
-	// extract key from otp url
-	otpKeyMeta, err := otp.NewKeyFromURL(otpURL)
-	c.Assert(err, IsNil)
-	otpKey, err := base32.StdEncoding.DecodeString(otpKeyMeta.Secret())
+	err = s.roleAuth.UpsertTOTP(user, otpSecret)
 	c.Assert(err, IsNil)
 
 	// create a valid otp token
-	validToken, err := totp.GenerateCode(string(otpKey), time.Now())
+	validToken, err := totp.GenerateCode(otpSecret, time.Now())
 	c.Assert(err, IsNil)
 
 	clt := s.client()
@@ -488,18 +486,17 @@ func (s *WebSuite) TestWebSessionsRenew(c *C) {
 func (s *WebSuite) TestWebSessionsBadInput(c *C) {
 	user := "bob"
 	pass := "abc123"
+	rawSecret := "def456"
+	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
-	otpURL, _, err := s.roleAuth.UpsertPassword(user, []byte(pass))
+	err := s.roleAuth.UpsertPassword(user, []byte(pass))
 	c.Assert(err, IsNil)
 
-	// extract otp key from url
-	otpKeyObject, err := otp.NewKeyFromURL(otpURL)
-	c.Assert(err, IsNil)
-	otpKey, err := base32.StdEncoding.DecodeString(otpKeyObject.Secret())
+	err = s.roleAuth.UpsertTOTP(user, otpSecret)
 	c.Assert(err, IsNil)
 
 	// create valid token
-	validToken, err := totp.GenerateCode(string(otpKey), time.Now())
+	validToken, err := totp.GenerateCode(otpSecret, time.Now())
 	c.Assert(err, IsNil)
 
 	clt := s.client()

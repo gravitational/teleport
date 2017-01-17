@@ -17,7 +17,6 @@ limitations under the License.
 package auth
 
 import (
-	"net/url"
 	"testing"
 	"time"
 
@@ -73,13 +72,8 @@ func (s *AuthSuite) TestSessions(c *C) {
 
 	createUserAndRole(s.a, user, []string{user})
 
-	otpURL, _, err := s.a.UpsertPassword(user, pass)
+	err = s.a.UpsertPassword(user, pass)
 	c.Assert(err, IsNil)
-
-	// make sure label in url is correct
-	u, err := url.Parse(otpURL)
-	c.Assert(err, IsNil)
-	c.Assert(u.Path, Equals, "/user1")
 
 	ws, err = s.a.SignIn(user, pass)
 	c.Assert(err, IsNil)
@@ -108,13 +102,8 @@ func (s *AuthSuite) TestUserLock(c *C) {
 
 	createUserAndRole(s.a, user, []string{user})
 
-	otpURL, _, err := s.a.UpsertPassword(user, pass)
+	err = s.a.UpsertPassword(user, pass)
 	c.Assert(err, IsNil)
-
-	// make sure label in url is correct
-	u, err := url.Parse(otpURL)
-	c.Assert(err, IsNil)
-	c.Assert(u.Path, Equals, "/user1")
 
 	// successfull log in
 	ws, err = s.a.SignIn(user, pass)

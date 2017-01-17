@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package services implements API services exposed by Teleport:
-// * presence service that takes care of heratbeats
+// * presence service that takes care of heartbeats
 // * web service that takes care of web logins
 // * ca service - certificate authorities
 package services
@@ -101,14 +101,7 @@ type Identity interface {
 	DeleteWebSession(user, sid string) error
 
 	// UpsertPassword upserts new password and OTP token
-	UpsertPassword(user string, password []byte) (otpURL string, otpQRCode []byte, err error)
-
-	// CheckPassword is called on web user or tsh user login using the password and otp token
-	CheckPassword(user string, password []byte, otpToken string) error
-
-	// CheckPasswordWOToken checks just password without checking HOTP tokens
-	// used in case of SSH authentication, when token has been validated
-	CheckPasswordWOToken(user string, password []byte) error
+	UpsertPassword(user string, password []byte) error
 
 	// UpsertSignupToken upserts signup token - one time token that lets user to create a user account
 	UpsertSignupToken(token string, tokenData SignupToken, ttl time.Duration) error

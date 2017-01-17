@@ -86,14 +86,6 @@ func (s *ServicesSuite) TestPasswordHashCRUD(c *C) {
 	s.suite.PasswordHashCRUD(c)
 }
 
-func (s *ServicesSuite) TestPasswordAndHotpCRUD(c *C) {
-	s.suite.PasswordCRUD(c)
-}
-
-func (s *ServicesSuite) TestPasswordGarbage(c *C) {
-	s.suite.PasswordGarbage(c)
-}
-
 func (s *ServicesSuite) TestWebSessionCRUD(c *C) {
 	s.suite.WebSessionCRUD(c)
 }
