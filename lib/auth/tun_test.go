@@ -17,7 +17,9 @@ limitations under the License.
 package auth
 
 import (
+	"encoding/base32"
 	"fmt"
+	"net/url"
 	"path/filepath"
 	"time"
 
@@ -34,10 +36,13 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gokyle/hotp"
+	"github.com/pquerna/otp"
+	"github.com/pquerna/otp/totp"
 	"golang.org/x/crypto/ssh"
 	. "gopkg.in/check.v1"
 )
+
+var _ = fmt.Printf // for testing
 
 type TunSuite struct {
 	bk backend.Backend
@@ -136,15 +141,25 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 	err = s.a.UpsertRole(role)
 	c.Assert(err, IsNil)
 
-	hotpURL, _, err := s.a.UpsertPassword(user.GetName(), pass)
+	otpURL, _, err := s.a.UpsertPassword(user.GetName(), pass)
 	c.Assert(err, IsNil)
 
-	otp, label, err := hotp.FromURL(hotpURL)
+	// make sure label in url is correct
+	u, err := url.Parse(otpURL)
 	c.Assert(err, IsNil)
-	c.Assert(label, Equals, "test")
-	otp.Increment()
+	c.Assert(u.Path, Equals, "/test")
 
-	authMethod, err := NewWebPasswordAuth(user.GetName(), pass, otp.OTP())
+	// extract otp key from signup url
+	otpKeyMeta, err := otp.NewKeyFromURL(otpURL)
+	c.Assert(err, IsNil)
+	otpKey, err := base32.StdEncoding.DecodeString(otpKeyMeta.Secret())
+	c.Assert(err, IsNil)
+
+	// create a valid otp token
+	validToken, err := totp.GenerateCode(string(otpKey), time.Now())
+	c.Assert(err, IsNil)
+
+	authMethod, err := NewWebPasswordAuth(user.GetName(), pass, validToken)
 	c.Assert(err, IsNil)
 
 	clt, err := NewTunClient("test",
@@ -165,15 +180,25 @@ func (s *TunSuite) TestSessions(c *C) {
 
 	createUserAndRole(s.a, user, []string{user})
 
-	hotpURL, _, err := s.a.UpsertPassword(user, pass)
+	otpURL, _, err := s.a.UpsertPassword(user, pass)
 	c.Assert(err, IsNil)
 
-	otp, label, err := hotp.FromURL(hotpURL)
+	// make sure label in url is correct
+	u, err := url.Parse(otpURL)
 	c.Assert(err, IsNil)
-	c.Assert(label, Equals, "ws-test")
-	otp.Increment()
+	c.Assert(u.Path, Equals, "/ws-test")
 
-	authMethod, err := NewWebPasswordAuth(user, pass, otp.OTP())
+	// extract otp key from signup url
+	otpKeyMeta, err := otp.NewKeyFromURL(otpURL)
+	c.Assert(err, IsNil)
+	otpKey, err := base32.StdEncoding.DecodeString(otpKeyMeta.Secret())
+	c.Assert(err, IsNil)
+
+	// create a valid otp token
+	validToken, err := totp.GenerateCode(string(otpKey), time.Now())
+	c.Assert(err, IsNil)
+
+	authMethod, err := NewWebPasswordAuth(user, pass, validToken)
 	c.Assert(err, IsNil)
 
 	clt, err := NewTunClient("test",
@@ -205,37 +230,43 @@ func (s *TunSuite) TestSessions(c *C) {
 	c.Assert(err, NotNil)
 }
 
-func (s *TunSuite) TestWebCreatingNewUser(c *C) {
+// TestWebCreatingNewUserInvalidClientValidToken tries to connect to the auth server
+// using an invalid singup token but then tries to pull back signup token data
+// using a valid token. This should fail.
+func (s *TunSuite) TestWebCreatingNewUserInvalidClientValidToken(c *C) {
 	c.Assert(s.a.UpsertCertAuthority(
 		suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
 
-	user := "user456"
-	user2 := "zxzx"
-	user3 := "wrwr"
-
+	user := "foobar"
 	mappings := []string{"admin", "db"}
 
-	// Generate token
 	token, err := s.a.CreateSignupToken(services.UserV1{Name: user, AllowedLogins: mappings})
 	c.Assert(err, IsNil)
-	// Generate token2
-	token2, err := s.a.CreateSignupToken(services.UserV1{Name: user2, AllowedLogins: mappings})
-	c.Assert(err, IsNil)
-	// Generate token3
-	token3, err := s.a.CreateSignupToken(services.UserV1{Name: user3, AllowedLogins: mappings})
+
+	authMethod, err := NewSignupTokenAuth("invalid_signup_token")
 	c.Assert(err, IsNil)
 
-	// Connect to auth server using wrong token
-	authMethod0, err := NewSignupTokenAuth("some_wrong_token")
+	clt, err := NewTunClient("test",
+		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user, authMethod)
+	c.Assert(err, IsNil)
+	defer clt.Close()
+
+	_, _, err = clt.GetSignupTokenData(token)
+	c.Assert(err, NotNil)
+}
+
+// TestWebCreatingNewUserValidClientInvalidToken connects to the auth server using a
+// valid signup token but then tries to get invalid token data back. This should fail.
+func (s *TunSuite) TestWebCreatingNewUserValidClientInvalidToken(c *C) {
+	c.Assert(s.a.UpsertCertAuthority(
+		suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
+
+	user := "foobar"
+	mappings := []string{"admin", "db"}
+
+	token, err := s.a.CreateSignupToken(services.UserV1{Name: user, AllowedLogins: mappings})
 	c.Assert(err, IsNil)
 
-	clt0, err := NewTunClient("test",
-		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user, authMethod0)
-	c.Assert(err, IsNil)
-	_, _, _, err = clt0.GetSignupTokenData(token2)
-	c.Assert(err, NotNil) // valid token, but invalid client
-
-	// Connect to auth server using valid token
 	authMethod, err := NewSignupTokenAuth(token)
 	c.Assert(err, IsNil)
 
@@ -244,82 +275,113 @@ func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 	c.Assert(err, IsNil)
 	defer clt.Close()
 
-	// User will scan QRcode, here we just loads the OTP generator
-	// right from the backend
+	_, _, err = clt.GetSignupTokenData("invalid_signup_token")
+	c.Assert(err, NotNil)
+
+	// no permissions to do this
+	_, err = clt.GetUsers()
+	c.Assert(err, NotNil)
+}
+
+// TestWebCreatingNewUserValidClientValidToken connects to the auth server using a
+// valid signup token and then tries to get a valid token back. Then try and login
+// as the new user. This should all succeed.
+func (s *TunSuite) TestWebCreatingNewUserValidClientValidToken(c *C) {
+	c.Assert(s.a.UpsertCertAuthority(
+		suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
+
+	user := "foobar"
+	password := "bazqux"
+	mappings := []string{"admin", "db"}
+
+	token, err := s.a.CreateSignupToken(services.UserV1{Name: user, AllowedLogins: mappings})
+	c.Assert(err, IsNil)
+
+	authMethod, err := NewSignupTokenAuth(token)
+	c.Assert(err, IsNil)
+
+	clt, err := NewTunClient("test",
+		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user, authMethod)
+	c.Assert(err, IsNil)
+	defer clt.Close()
+
+	// check that the usernames are the same
+	userInToken, _, err := clt.GetSignupTokenData(token)
+	c.Assert(err, IsNil)
+	c.Assert(user, Equals, userInToken)
+
+	// get otp token
 	tokenData, err := s.a.Identity.GetSignupToken(token)
-	c.Assert(err, IsNil)
-	otp, err := hotp.Unmarshal(tokenData.Hotp)
-	c.Assert(err, IsNil)
-
-	hotpTokens := make([]string, defaults.HOTPFirstTokensRange)
-	for i := 0; i < defaults.HOTPFirstTokensRange; i++ {
-		hotpTokens[i] = otp.OTP()
-	}
-
-	tokenData3, err := s.a.Identity.GetSignupToken(token3)
-	c.Assert(err, IsNil)
-	otp3, err := hotp.Unmarshal(tokenData3.Hotp)
+	validToken, err := totp.GenerateCode(tokenData.OTPKey, time.Now())
 	c.Assert(err, IsNil)
 
-	hotpTokens3 := make([]string, defaults.HOTPFirstTokensRange+1)
-	for i := 0; i < defaults.HOTPFirstTokensRange+1; i++ {
-		hotpTokens3[i] = otp3.OTP()
-	}
-
-	// Loading what the web page loads (username and QR image)
-	_, _, _, err = clt.GetSignupTokenData("wrong_token")
-	c.Assert(err, NotNil)
-
-	_, err = clt.GetUsers() //no permissions
-	c.Assert(err, NotNil)
-
-	user1, _, _, err := clt.GetSignupTokenData(token)
+	// create a user
+	_, err = clt.CreateUserWithToken(token, password, validToken)
 	c.Assert(err, IsNil)
-	c.Assert(user, Equals, user1)
 
-	// Saving new password
-	clt2, err := NewTunClient("test",
+	// delete token so we can re-use it without messing with clocks
+	err = s.a.Identity.DeleteUsedTOTPToken(user)
+	c.Assert(err, IsNil)
+
+	// now login as the fresh new user
+	authMethod, err = NewWebPasswordAuth(user, []byte(password), validToken)
+	c.Assert(err, IsNil)
+
+	clt, err = NewTunClient("test",
 		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user, authMethod)
 	c.Assert(err, IsNil)
-	defer clt2.Close()
+	defer clt.Close()
 
-	password := "valid_password"
-
-	_, err = clt2.CreateUserWithToken(token, password, hotpTokens[0])
-	c.Assert(err, IsNil)
-
-	_, err = clt2.CreateUserWithToken(token, "another_user_signup_attempt", hotpTokens[0])
-	c.Assert(err, NotNil)
-
-	_, err = s.a.Identity.GetSignupToken(token)
-	c.Assert(err, NotNil) // token was deleted
-
-	// token out of scan range
-	_, err = clt2.CreateUserWithToken(token3, "newpassword123", hotpTokens3[defaults.HOTPFirstTokensRange])
-	c.Assert(err, NotNil)
-
-	_, err = clt2.CreateUserWithToken(token3, "newpassword45665", hotpTokens3[2])
-	c.Assert(err, IsNil)
-
-	// trying to connect to the auth server using used token
-	clt0, err = NewTunClient("test",
-		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user, authMethod)
-	c.Assert(err, IsNil) // shouldn't accept such connection twice
-	_, _, _, err = clt0.GetSignupTokenData(token2)
-	c.Assert(err, NotNil) // valid token, but invalid client
-
-	// User was created. Now trying to login
-	authMethod3, err := NewWebPasswordAuth(user, []byte(password), hotpTokens[1])
-	c.Assert(err, IsNil)
-
-	clt3, err := NewTunClient("test",
-		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user, authMethod3)
-	c.Assert(err, IsNil)
-	defer clt3.Close()
-
-	ws, err := clt3.SignIn(user, []byte(password))
+	ws, err := clt.SignIn(user, []byte(password))
 	c.Assert(err, IsNil)
 	c.Assert(ws, Not(Equals), "")
+}
+
+// TestWebCreatingNewUserValidClientValidTokenReuseToken connects to teh auth server
+// using a valid signup token and then uses a valid token to create a user. Then
+// try to create another user. This should fail.
+func (s *TunSuite) TestWebCreatingNewUserValidClientValidTokenReuseToken(c *C) {
+	c.Assert(s.a.UpsertCertAuthority(
+		suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
+
+	user := "foobar"
+	mappings := []string{"admin", "db"}
+
+	token, err := s.a.CreateSignupToken(services.UserV1{Name: user, AllowedLogins: mappings})
+	c.Assert(err, IsNil)
+
+	authMethod, err := NewSignupTokenAuth(token)
+	c.Assert(err, IsNil)
+
+	clt, err := NewTunClient("test",
+		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user, authMethod)
+	c.Assert(err, IsNil)
+	defer clt.Close()
+
+	validPassword := "valid_password"
+	tokenData, err := s.a.Identity.GetSignupToken(token)
+	validToken, err := totp.GenerateCode(tokenData.OTPKey, time.Now())
+	c.Assert(err, IsNil)
+
+	// first time we should be able to create a user
+	_, err = clt.CreateUserWithToken(token, validPassword, validToken)
+	c.Assert(err, IsNil)
+
+	// second time it should fail
+	_, err = clt.CreateUserWithToken(token, validPassword, validToken)
+	c.Assert(err, NotNil)
+
+	// signup token should be gone now
+	_, err = s.a.Identity.GetSignupToken(token)
+	c.Assert(err, NotNil)
+
+	// try and connect again this should fail as well
+	clt, err = NewTunClient("test",
+		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user, authMethod)
+	c.Assert(err, IsNil)
+
+	_, _, err = clt.GetSignupTokenData(token)
+	c.Assert(err, NotNil)
 }
 
 func (s *TunSuite) TestPermissions(c *C) {
@@ -331,15 +393,25 @@ func (s *TunSuite) TestPermissions(c *C) {
 
 	user, _ := createUserAndRole(s.a, userName, []string{userName})
 
-	hotpURL, _, err := s.a.UpsertPassword(user.GetName(), pass)
+	otpURL, _, err := s.a.UpsertPassword(user.GetName(), pass)
 	c.Assert(err, IsNil)
 
-	otp, label, err := hotp.FromURL(hotpURL)
+	// make sure label in url is correct
+	u, err := url.Parse(otpURL)
 	c.Assert(err, IsNil)
-	c.Assert(label, Equals, "ws-test2")
-	otp.Increment()
+	c.Assert(u.Path, Equals, "/ws-test2")
 
-	authMethod, err := NewWebPasswordAuth(user.GetName(), pass, otp.OTP())
+	// extract otp key from signup url
+	otpKeyMeta, err := otp.NewKeyFromURL(otpURL)
+	c.Assert(err, IsNil)
+	otpKey, err := base32.StdEncoding.DecodeString(otpKeyMeta.Secret())
+	c.Assert(err, IsNil)
+
+	// create a valid otp token
+	validToken, err := totp.GenerateCode(string(otpKey), time.Now())
+	c.Assert(err, IsNil)
+
+	authMethod, err := NewWebPasswordAuth(user.GetName(), pass, validToken)
 	c.Assert(err, IsNil)
 
 	clt, err := NewTunClient("test",
@@ -395,15 +467,25 @@ func (s *TunSuite) TestSessionsBadPassword(c *C) {
 	user := "system-test"
 	pass := []byte("system-abc123")
 
-	hotpURL, _, err := s.a.UpsertPassword(user, pass)
+	otpURL, _, err := s.a.UpsertPassword(user, pass)
 	c.Assert(err, IsNil)
 
-	otp, label, err := hotp.FromURL(hotpURL)
+	// make sure label in url is correct
+	u, err := url.Parse(otpURL)
 	c.Assert(err, IsNil)
-	c.Assert(label, Equals, "system-test")
-	otp.Increment()
+	c.Assert(u.Path, Equals, "/system-test")
 
-	authMethod, err := NewWebPasswordAuth(user, pass, otp.OTP())
+	// extract otp key from signup url
+	otpKeyMeta, err := otp.NewKeyFromURL(otpURL)
+	c.Assert(err, IsNil)
+	otpKey, err := base32.StdEncoding.DecodeString(otpKeyMeta.Secret())
+	c.Assert(err, IsNil)
+
+	// create a valid otp token
+	validToken, err := totp.GenerateCode(string(otpKey), time.Now())
+	c.Assert(err, IsNil)
+
+	authMethod, err := NewWebPasswordAuth(user, pass, validToken)
 	c.Assert(err, IsNil)
 
 	clt, err := NewTunClient("test",

@@ -1,11 +1,11 @@
 {
 	"ImportPath": "github.com/gravitational/teleport",
 	"GoVersion": "go1.6",
-	"GodepVersion": "v74",
+	"GodepVersion": "v77",
 	"Packages": [
 		"./lib/...",
-		"./integration/...",
-		"./tool/..."
+		"./tool/...",
+		"./integration/..."
 	],
 	"Deps": [
 		{
@@ -169,6 +169,18 @@
 			"ImportPath": "github.com/boltdb/bolt",
 			"Comment": "v1.0-111-g04a3e85",
 			"Rev": "04a3e85793043e76d41164037d0d7f9d53eecae3"
+		},
+		{
+			"ImportPath": "github.com/boombuler/barcode",
+			"Rev": "fe0f26ff6d26693948ee8189aa064ee8c54141fa"
+		},
+		{
+			"ImportPath": "github.com/boombuler/barcode/qr",
+			"Rev": "fe0f26ff6d26693948ee8189aa064ee8c54141fa"
+		},
+		{
+			"ImportPath": "github.com/boombuler/barcode/utils",
+			"Rev": "fe0f26ff6d26693948ee8189aa064ee8c54141fa"
 		},
 		{
 			"ImportPath": "github.com/buger/goterm",
@@ -370,6 +382,18 @@
 			"ImportPath": "github.com/pborman/uuid",
 			"Comment": "v1.0-11-gc55201b",
 			"Rev": "c55201b036063326c5b1b89ccfe45a184973d073"
+		},
+		{
+			"ImportPath": "github.com/pquerna/otp",
+			"Rev": "54653902c20e47f3417541d35435cb6d6162e28a"
+		},
+		{
+			"ImportPath": "github.com/pquerna/otp/hotp",
+			"Rev": "54653902c20e47f3417541d35435cb6d6162e28a"
+		},
+		{
+			"ImportPath": "github.com/pquerna/otp/totp",
+			"Rev": "54653902c20e47f3417541d35435cb6d6162e28a"
 		},
 		{
 			"ImportPath": "github.com/tstranex/u2f",

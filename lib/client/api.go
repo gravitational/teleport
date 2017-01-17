@@ -36,6 +36,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -142,7 +143,7 @@ type Config struct {
 	// that uses local cache to validate hosts
 	HostKeyCallback HostKeyCallback
 
-	// SecondFactorType indicates whether HOTP, OIDC or U2F should be used
+	// SecondFactorType indicates whether OTP, OIDC or U2F should be used
 	// for the second factor
 	SecondFactorType string
 
@@ -946,19 +947,20 @@ func (tc *TeleportClient) Login() error {
 
 	var response *web.SSHLoginResponse
 	switch tc.SecondFactorType {
-	case "hotp":
+	case teleport.OTP:
+	case teleport.HOTP: // htop is deprecated
 		response, err = tc.directLogin(key.Pub)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-	case "oidc":
+	case teleport.OIDC:
 		response, err = tc.oidcLogin(tc.ConnectorID, key.Pub)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		// in this case identity is returned by the proxy
 		tc.Username = response.Username
-	case "u2f":
+	case teleport.U2F:
 		response, err = tc.u2fLogin(key.Pub)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1020,7 +1022,7 @@ func (tc *TeleportClient) directLogin(pub []byte) (*web.SSHLoginResponse, error)
 		return nil, trace.Wrap(err)
 	}
 
-	password, hotpToken, err := tc.AskPasswordAndHOTP()
+	password, otpToken, err := tc.AskPasswordAndOTP()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1029,7 +1031,7 @@ func (tc *TeleportClient) directLogin(pub []byte) (*web.SSHLoginResponse, error)
 	response, err := web.SSHAgentLogin(httpsProxyHostPort,
 		tc.Config.Username,
 		password,
-		hotpToken,
+		otpToken,
 		pub,
 		tc.KeyTTL,
 		tc.InsecureSkipVerify,
@@ -1133,8 +1135,8 @@ func Username() string {
 	return u.Username
 }
 
-// AskPasswordAndHOTP prompts the user to enter the password + HTOP 2nd factor
-func (tc *TeleportClient) AskPasswordAndHOTP() (pwd string, token string, err error) {
+// AskPasswordAndOTP prompts the user to enter the password + OTP 2nd factor
+func (tc *TeleportClient) AskPasswordAndOTP() (pwd string, token string, err error) {
 	fmt.Printf("Enter password for Teleport user %v:\n", tc.Config.Username)
 	pwd, err = passwordFromConsole()
 	if err != nil {
@@ -1142,7 +1144,7 @@ func (tc *TeleportClient) AskPasswordAndHOTP() (pwd string, token string, err er
 		return "", "", trace.Wrap(err)
 	}
 
-	fmt.Printf("Enter your HOTP token:\n")
+	fmt.Printf("Enter your OTP token:\n")
 	token, err = lineFromConsole()
 	if err != nil {
 		fmt.Println(err)

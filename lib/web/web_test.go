@@ -18,6 +18,7 @@ package web
 
 import (
 	"crypto/tls"
+	"encoding/base32"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -52,6 +53,8 @@ import (
 	"github.com/gokyle/hotp"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	"github.com/pquerna/otp"
+	"github.com/pquerna/otp/totp"
 	"github.com/tstranex/u2f"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/net/websocket"
@@ -282,7 +285,10 @@ func (s *WebSuite) TestNewUser(c *C) {
 	c.Assert(out.User, Equals, "bob")
 	c.Assert(out.InviteToken, Equals, token)
 
-	_, _, hotpValues, err := s.roleAuth.GetSignupTokenData(token)
+	// TODO(rjones) replaced GetSignupTokenData with GetSignupToken
+	tokenData, err := s.roleAuth.GetSignupToken(token)
+	c.Assert(err, IsNil)
+	validToken, err := totp.GenerateCode(tokenData.OTPKey, time.Now())
 	c.Assert(err, IsNil)
 
 	tempPass := "abc123"
@@ -290,7 +296,7 @@ func (s *WebSuite) TestNewUser(c *C) {
 	re, err = clt.PostJSON(clt.Endpoint("webapi", "users"), createNewUserReq{
 		InviteToken:       token,
 		Pass:              tempPass,
-		SecondFactorToken: hotpValues[0],
+		SecondFactorToken: validToken,
 	})
 	c.Assert(err, IsNil)
 
@@ -380,18 +386,25 @@ func (s *WebSuite) authPack(c *C) *authPack {
 	err = s.roleAuth.UpsertUser(teleUser)
 	c.Assert(err, IsNil)
 
-	hotpURL, _, err := s.roleAuth.UpsertPassword(user, []byte(pass))
+	otpURL, _, err := s.roleAuth.UpsertPassword(user, []byte(pass))
 	c.Assert(err, IsNil)
-	otp, _, err := hotp.FromURL(hotpURL)
+
+	// extract key from otp url
+	otpKeyMeta, err := otp.NewKeyFromURL(otpURL)
 	c.Assert(err, IsNil)
-	otp.Increment()
+	otpKey, err := base32.StdEncoding.DecodeString(otpKeyMeta.Secret())
+	c.Assert(err, IsNil)
+
+	// create a valid otp token
+	validToken, err := totp.GenerateCode(string(otpKey), time.Now())
+	c.Assert(err, IsNil)
 
 	clt := s.client()
 
 	re, err := clt.PostJSON(clt.Endpoint("webapi", "sessions"), createSessionReq{
 		User:              user,
 		Pass:              pass,
-		SecondFactorToken: otp.OTP(),
+		SecondFactorToken: validToken,
 	})
 	c.Assert(err, IsNil)
 
@@ -476,15 +489,20 @@ func (s *WebSuite) TestWebSessionsBadInput(c *C) {
 	user := "bob"
 	pass := "abc123"
 
-	hotpURL, _, err := s.roleAuth.UpsertPassword(user, []byte(pass))
+	otpURL, _, err := s.roleAuth.UpsertPassword(user, []byte(pass))
 	c.Assert(err, IsNil)
-	otp, _, err := hotp.FromURL(hotpURL)
+
+	// extract otp key from url
+	otpKeyObject, err := otp.NewKeyFromURL(otpURL)
 	c.Assert(err, IsNil)
-	otp.Increment()
+	otpKey, err := base32.StdEncoding.DecodeString(otpKeyObject.Secret())
+	c.Assert(err, IsNil)
+
+	// create valid token
+	validToken, err := totp.GenerateCode(string(otpKey), time.Now())
+	c.Assert(err, IsNil)
 
 	clt := s.client()
-
-	token := otp.OTP()
 
 	reqs := []createSessionReq{
 		// emtpy request
@@ -492,18 +510,18 @@ func (s *WebSuite) TestWebSessionsBadInput(c *C) {
 		// missing user
 		{
 			Pass:              pass,
-			SecondFactorToken: token,
+			SecondFactorToken: validToken,
 		},
 		// missing pass
 		{
 			User:              user,
-			SecondFactorToken: token,
+			SecondFactorToken: validToken,
 		},
 		// bad pass
 		{
 			User:              user,
 			Pass:              "bla bla",
-			SecondFactorToken: token,
+			SecondFactorToken: validToken,
 		},
 		// bad hotp token
 		{

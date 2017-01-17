@@ -536,7 +536,7 @@ func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 //
 // POST /v1/webapi/sessions
 //
-// {"user": "alex", "pass": "abc123", "second_factor_token": "token"}
+// {"user": "alex", "pass": "abc123", "second_factor_token": "token", "second_factor_type": "totp"}
 //
 // Response
 //
@@ -547,17 +547,21 @@ func (m *Handler) createSession(w http.ResponseWriter, r *http.Request, p httpro
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	sess, err := m.auth.Auth(req.User, req.Pass, req.SecondFactorToken)
 	if err != nil {
 		return nil, trace.AccessDenied("bad auth credentials")
 	}
+
 	if err := SetSession(w, req.User, sess.ID); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	ctx, err := m.auth.ValidateSession(req.User, sess.ID)
 	if err != nil {
 		return nil, trace.AccessDenied("need auth")
 	}
+
 	return NewSessionResponse(ctx)
 }
 
@@ -625,7 +629,7 @@ type renderUserInviteResponse struct {
 //
 func (m *Handler) renderUserInvite(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	token := p[0].Value
-	user, QRCodeBytes, _, err := m.auth.GetUserInviteInfo(token)
+	user, qrCodeBytes, err := m.auth.GetUserInviteInfo(token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -633,7 +637,7 @@ func (m *Handler) renderUserInvite(w http.ResponseWriter, r *http.Request, p htt
 	return &renderUserInviteResponse{
 		InviteToken: token,
 		User:        user,
-		QR:          QRCodeBytes,
+		QR:          qrCodeBytes,
 	}, nil
 }
 
@@ -1321,7 +1325,10 @@ type createSSHCertReq struct {
 	// Password is user's pass
 	Password string `json:"password"`
 	// HOTPToken is second factor token
+	// Deprecated: HOTPToken is deprecated, use OTPToken.
 	HOTPToken string `json:"hotp_token"`
+	// OTPToken is second factor token
+	OTPToken string `json:"otp_token"`
 	// PubKey is a public key user wishes to sign
 	PubKey []byte `json:"pub_key"`
 	// TTL is a desired TTL for the cert (max is still capped by server,
@@ -1345,7 +1352,7 @@ type SSHLoginResponse struct {
 //
 // POST /v1/webapi/ssh/certs
 //
-// { "user": "bob", "password": "pass", "hotp_token": "tok", "pub_key": "key to sign", "ttl": 1000000000 }
+// { "user": "bob", "password": "pass", "otp_token": "tok", "pub_key": "key to sign", "ttl": 1000000000 }
 //
 // Success response
 //
@@ -1355,6 +1362,11 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 	var req *createSSHCertReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// convert legacy requests to new parameter here. remove once migration to TOTP is complete.
+	if req.HOTPToken != "" {
+		req.OTPToken = req.HOTPToken
 	}
 
 	cert, err := h.auth.GetCertificate(*req)

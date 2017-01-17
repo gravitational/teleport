@@ -17,6 +17,7 @@ limitations under the License.
 package auth
 
 import (
+	"net/url"
 	"testing"
 	"time"
 
@@ -30,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/gokyle/hotp"
 	"github.com/gravitational/trace"
 	. "gopkg.in/check.v1"
 )
@@ -73,12 +73,13 @@ func (s *AuthSuite) TestSessions(c *C) {
 
 	createUserAndRole(s.a, user, []string{user})
 
-	hotpURL, _, err := s.a.UpsertPassword(user, pass)
+	otpURL, _, err := s.a.UpsertPassword(user, pass)
 	c.Assert(err, IsNil)
-	otp, label, err := hotp.FromURL(hotpURL)
+
+	// make sure label in url is correct
+	u, err := url.Parse(otpURL)
 	c.Assert(err, IsNil)
-	c.Assert(label, Equals, "user1")
-	otp.Increment()
+	c.Assert(u.Path, Equals, "/user1")
 
 	ws, err = s.a.SignIn(user, pass)
 	c.Assert(err, IsNil)
@@ -107,12 +108,13 @@ func (s *AuthSuite) TestUserLock(c *C) {
 
 	createUserAndRole(s.a, user, []string{user})
 
-	hotpURL, _, err := s.a.UpsertPassword(user, pass)
+	otpURL, _, err := s.a.UpsertPassword(user, pass)
 	c.Assert(err, IsNil)
-	otp, label, err := hotp.FromURL(hotpURL)
+
+	// make sure label in url is correct
+	u, err := url.Parse(otpURL)
 	c.Assert(err, IsNil)
-	c.Assert(label, Equals, "user1")
-	otp.Increment()
+	c.Assert(u.Path, Equals, "/user1")
 
 	// successfull log in
 	ws, err = s.a.SignIn(user, pass)

@@ -47,7 +47,7 @@ import (
 const dialRetryInterval = 100 * time.Millisecond
 
 // AuthTunnel listens on TCP/IP socket and accepts SSH connections. It then establishes
-// an SSH tunnell which HTTP requests travel over. In other words, the Auth Service API
+// an SSH tunnel which HTTP requests travel over. In other words, the Auth Service API
 // runs on HTTP-via-SSH-tunnel.
 //
 // Use auth.TunClient to connect to AuthTunnel
@@ -435,11 +435,11 @@ func (s *AuthTunnel) passwordAuth(
 		return nil, err
 	}
 
-	log.Infof("[AUTH] login attempt: user '%v' type '%v'", conn.User(), ab.Type)
+	log.Infof("[AUTH] login attempt: user %q type %q", conn.User(), ab.Type)
 
 	switch ab.Type {
 	case AuthWebPassword:
-		if err := s.authServer.CheckPassword(conn.User(), ab.Pass, ab.HotpToken); err != nil {
+		if err := s.authServer.CheckPassword(conn.User(), ab.Pass, ab.OTPToken); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		perms := &ssh.Permissions{
@@ -448,7 +448,7 @@ func (s *AuthTunnel) passwordAuth(
 				utils.CertTeleportUser: conn.User(),
 			},
 		}
-		log.Infof("[AUTH] password authenticated user: '%v'", conn.User())
+		log.Infof("[AUTH] password authenticated user: %q", conn.User())
 		return perms, nil
 	case AuthWebU2FSign:
 		if err := s.authServer.CheckPasswordWOToken(conn.User(), ab.Pass); err != nil {
@@ -527,7 +527,8 @@ type authBucket struct {
 	User            string           `json:"user"`
 	Type            string           `json:"type"`
 	Pass            []byte           `json:"pass"`
-	HotpToken       string           `json:"hotpToken"`
+	HotpToken       string           `json:"hotpToken"` // HotpToken is deprecated, use OTPToken.
+	OTPToken        string           `json:"otp_token"`
 	U2FSignResponse u2f.SignResponse `json:"u2fSignResponse"`
 }
 
@@ -555,12 +556,13 @@ func NewWebSessionAuth(user string, session []byte) ([]ssh.AuthMethod, error) {
 	return []ssh.AuthMethod{ssh.Password(string(data))}, nil
 }
 
-func NewWebPasswordAuth(user string, password []byte, hotpToken string) ([]ssh.AuthMethod, error) {
+func NewWebPasswordAuth(user string, password []byte, otpToken string) ([]ssh.AuthMethod, error) {
 	data, err := json.Marshal(authBucket{
 		Type:      AuthWebPassword,
 		User:      user,
 		Pass:      password,
-		HotpToken: hotpToken,
+		HotpToken: otpToken, // HotpToken is deprecated, used OTPToken.
+		OTPToken:  otpToken,
 	})
 	if err != nil {
 		return nil, err

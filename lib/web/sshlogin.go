@@ -192,17 +192,17 @@ func Ping(proxyAddr string, insecure bool, pool *x509.CertPool) error {
 // if credentials are valid
 //
 // proxyAddr must be specified as host:port
-func SSHAgentLogin(proxyAddr, user, password, hotpToken string, pubKey []byte, ttl time.Duration, insecure bool, pool *x509.CertPool) (*SSHLoginResponse, error) {
+func SSHAgentLogin(proxyAddr, user, password, otpToken string, pubKey []byte, ttl time.Duration, insecure bool, pool *x509.CertPool) (*SSHLoginResponse, error) {
 	clt, _, err := initClient(proxyAddr, insecure, pool)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	re, err := clt.PostJSON(clt.Endpoint("webapi", "ssh", "certs"), createSSHCertReq{
-		User:      user,
-		Password:  password,
-		HOTPToken: hotpToken,
-		PubKey:    pubKey,
-		TTL:       ttl,
+		User:     user,
+		Password: password,
+		OTPToken: otpToken,
+		PubKey:   pubKey,
+		TTL:      ttl,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -361,9 +361,14 @@ func (a *AuthWithRoles) CreateSignupToken(user services.UserV1) (token string, e
 	return a.authServer.CreateSignupToken(user)
 }
 
-func (a *AuthWithRoles) GetSignupTokenData(token string) (user string, QRImg []byte, hotpFirstValues []string, e error) {
+func (a *AuthWithRoles) GetSignupTokenData(token string) (user string, otpQRCode []byte, err error) {
 	// signup token are their own authz resource
 	return a.authServer.GetSignupTokenData(token)
+}
+
+func (a *AuthWithRoles) GetSignupToken(token string) (*services.SignupToken, error) {
+	// signup token are their own authz resource
+	return a.authServer.GetSignupToken(token)
 }
 
 func (a *AuthWithRoles) GetSignupU2FRegisterRequest(token string) (u2fRegisterRequest *u2f.RegisterRequest, e error) {
