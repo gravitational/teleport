@@ -17,6 +17,14 @@ build: bbox
 		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' release
 
 #
+# Build 'teleport' release inside a docker container
+#
+.PHONY:build-binaries
+build-binaries: bbox
+	docker run $(DOCKERFLAGS) $(NOROOT) $(BBOX) \
+		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' all
+
+#
 # Builds a Docker container which is used for building official Teleport 
 # binaries and docs
 #
