@@ -11,7 +11,8 @@ DATADIR ?= /usr/local/share/teleport
 ADDFLAGS ?=
 PWD ?= `pwd`
 TELEPORT_DEBUG ?= no
-GITTAG=v$(VERSION) BUILDFLAGS := $(ADDFLAGS) -ldflags '-w -s'
+GITTAG=v$(VERSION)
+BUILDFLAGS := $(ADDFLAGS) -ldflags '-w -s'
 
 RELEASE=teleport-$(GITTAG)-`go env GOOS`-`go env GOARCH`-bin
 BINARIES=$(BUILDDIR)/tsh $(BUILDDIR)/teleport $(BUILDDIR)/tctl
