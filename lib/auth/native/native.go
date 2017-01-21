@@ -20,11 +20,12 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
@@ -133,35 +134,56 @@ func (n *nauth) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
 	return privPem, pubBytes, nil
 }
 
-func (n *nauth) GenerateHostCert(privateSigningKey, publicKey []byte, hostname, authDomain string, roles teleport.Roles, ttl time.Duration) ([]byte, error) {
-	if err := roles.Check(); err != nil {
+func (n *nauth) GenerateHostCert(c services.CertParams) ([]byte, error) {
+	if err := c.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(publicKey)
+
+	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(c.PublicHostKey)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
+
+	signer, err := ssh.ParsePrivateKey(c.PrivateCASigningKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// create a slice of principals to add to the certificate. the first
+	// is the hostID.clusterName and the second is nodeName.clusterName.
+	// The first is for tsh use internally while the second is for OpenSSH
+	// interoperability where people will be connecting by the dns name.
+	//
+	// Because older clients did not pass nodeName along, only add it if
+	// it's set for backward compatibility.
+	principals := []string{
+		fmt.Sprintf("%s.%s", c.HostID, c.ClusterName),
+	}
+	if c.NodeName != "" {
+		principals = append(principals, fmt.Sprintf("%s.%s", c.NodeName, c.ClusterName))
+	}
+
+	// create certificate
 	validBefore := uint64(ssh.CertTimeInfinity)
-	if ttl != 0 {
-		b := time.Now().Add(ttl)
+	if c.TTL != 0 {
+		b := time.Now().Add(c.TTL)
 		validBefore = uint64(b.Unix())
 	}
 	cert := &ssh.Certificate{
-		ValidPrincipals: []string{hostname},
+		ValidPrincipals: principals,
 		Key:             pubKey,
 		ValidBefore:     validBefore,
 		CertType:        ssh.HostCert,
 	}
 	cert.Permissions.Extensions = make(map[string]string)
-	cert.Permissions.Extensions[utils.CertExtensionRole] = roles.String()
-	cert.Permissions.Extensions[utils.CertExtensionAuthority] = string(authDomain)
-	signer, err := ssh.ParsePrivateKey(privateSigningKey)
-	if err != nil {
-		return nil, err
-	}
+	cert.Permissions.Extensions[utils.CertExtensionRole] = c.Roles.String()
+	cert.Permissions.Extensions[utils.CertExtensionAuthority] = string(c.ClusterName)
+
+	// sign host certificate with private signing key of certificate authority
 	if err := cert.SignCert(rand.Reader, signer); err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
+
 	return ssh.MarshalAuthorizedKey(cert), nil
 }
 

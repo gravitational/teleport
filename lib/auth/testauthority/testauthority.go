@@ -20,7 +20,7 @@ import (
 	random "math/rand"
 	"time"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"golang.org/x/crypto/ssh"
@@ -41,26 +41,26 @@ func (n *Keygen) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
 	return randomKey.Priv, randomKey.Pub, nil
 }
 
-func (n *Keygen) GenerateHostCert(pkey, key []byte, hostname, authDomain string, roles teleport.Roles, ttl time.Duration) ([]byte, error) {
-	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(key)
+func (n *Keygen) GenerateHostCert(c services.CertParams) ([]byte, error) {
+	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(c.PublicHostKey)
 	if err != nil {
 		return nil, err
 	}
 	validBefore := uint64(ssh.CertTimeInfinity)
-	if ttl != 0 {
-		b := time.Now().Add(ttl)
+	if c.TTL != 0 {
+		b := time.Now().Add(c.TTL)
 		validBefore = uint64(b.Unix())
 	}
 	cert := &ssh.Certificate{
-		ValidPrincipals: []string{hostname},
+		ValidPrincipals: []string{c.HostID, c.NodeName},
 		Key:             pubKey,
 		ValidBefore:     validBefore,
 		CertType:        ssh.HostCert,
 	}
 	cert.Permissions.Extensions = make(map[string]string)
-	cert.Permissions.Extensions[utils.CertExtensionRole] = roles.String()
-	cert.Permissions.Extensions[utils.CertExtensionAuthority] = authDomain
-	signer, err := ssh.ParsePrivateKey(pkey)
+	cert.Permissions.Extensions[utils.CertExtensionRole] = c.Roles.String()
+	cert.Permissions.Extensions[utils.CertExtensionAuthority] = c.ClusterName
+	signer, err := ssh.ParsePrivateKey(c.PrivateCASigningKey)
 	if err != nil {
 		return nil, err
 	}

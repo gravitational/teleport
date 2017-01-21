@@ -46,6 +46,9 @@ type InitConfig struct {
 	// HostUUID is a UUID of this host
 	HostUUID string
 
+	// NodeName is the DNS name of the node
+	NodeName string
+
 	// DomainName stores the FQDN of the signing CA (its certificate will have this
 	// name embedded). It is usually set to the GUID of the host the Auth service runs on
 	DomainName string
@@ -317,7 +320,7 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 	}
 
 	identity, err := initKeys(asrv, cfg.DataDir,
-		IdentityID{HostUUID: cfg.HostUUID, Role: teleport.RoleAdmin})
+		IdentityID{HostUUID: cfg.HostUUID, NodeName: cfg.NodeName, Role: teleport.RoleAdmin})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -367,7 +370,9 @@ func isFirstStart(authServer *AuthServer, cfg InitConfig) (bool, error) {
 	return false, nil
 }
 
-// initKeys initializes this node's host certificate signed by host authority
+// initKeys initializes a nodes host certificate. If the certificate does not exist, a request
+// is made to the certificate authority to generate a host certificate and it's written to disk.
+// If a certificate exists on disk, it is read in and returned.
 func initKeys(a *AuthServer, dataDir string, id IdentityID) (*Identity, error) {
 	kp, cp := keysPath(dataDir, id)
 
@@ -382,15 +387,13 @@ func initKeys(a *AuthServer, dataDir string, id IdentityID) (*Identity, error) {
 	}
 
 	if !keyExists || !certExists {
-		privateKey, publicKey, err := a.GenerateKeyPair("")
+		packedKeys, err := a.GenerateServerKeys(id.HostUUID, id.NodeName, teleport.Roles{id.Role})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cert, err := a.GenerateHostCert(publicKey, id.HostUUID, a.DomainName, teleport.Roles{id.Role}, 0)
+
+		err = writeKeys(dataDir, id, packedKeys.Key, packedKeys.Cert)
 		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if err := writeKeys(dataDir, id, privateKey, cert); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -426,10 +429,11 @@ type Identity struct {
 	AuthorityDomain string
 }
 
-// IdentityID is a combination of role and host UUID
+// IdentityID is a combination of role, host UUID, and node name.
 type IdentityID struct {
 	Role     teleport.Role
 	HostUUID string
+	NodeName string
 }
 
 // Equals returns true if two identities are equal
@@ -472,10 +476,18 @@ func ReadIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 	if err != nil {
 		return nil, trace.BadParameter("unsupported private key: %v", err)
 	}
-	if len(cert.ValidPrincipals) != 1 {
-		return nil, trace.BadParameter("valid principals: need exactly 1 valid principal: host uuid")
+
+	// check principals on certificate
+	if len(cert.ValidPrincipals) < 1 {
+		return nil, trace.BadParameter("valid principals: at least one valid principal is required")
+	}
+	for _, validPrincipal := range cert.ValidPrincipals {
+		if validPrincipal == "" {
+			return nil, trace.BadParameter("valid principal can not be empty: %q", cert.ValidPrincipals)
+		}
 	}
 
+	// check permissions on certificate
 	if len(cert.Permissions.Extensions) == 0 {
 		return nil, trace.BadParameter("extensions: misssing needed extensions for host roles")
 	}
@@ -498,12 +510,8 @@ func ReadIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 		return nil, trace.BadParameter("misssing cert extension %v", utils.CertExtensionAuthority)
 	}
 
-	if cert.ValidPrincipals[0] == "" {
-		return nil, trace.BadParameter("valid principal can not be empty")
-	}
-
 	return &Identity{
-		ID:              IdentityID{HostUUID: cert.ValidPrincipals[0], Role: role},
+		ID:              IdentityID{HostUUID: cert.ValidPrincipals[0], NodeName: cert.ValidPrincipals[1], Role: role},
 		AuthorityDomain: authorityDomain,
 		KeyBytes:        keyBytes,
 		CertBytes:       certBytes,

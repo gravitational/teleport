@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"golang.org/x/crypto/ssh"
 
@@ -44,20 +45,36 @@ func (s *AuthInitSuite) TestReadIdentity(c *C) {
 	priv, pub, err := t.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 
-	cert, err := t.GenerateHostCert(priv, pub, "id1", "example.com", teleport.Roles{teleport.RoleNode}, 0)
+	cert, err := t.GenerateHostCert(services.CertParams{
+		PrivateCASigningKey: priv,
+		PublicHostKey:       pub,
+		HostID:              "id1",
+		NodeName:            "node-name",
+		ClusterName:         "example.com",
+		Roles:               teleport.Roles{teleport.RoleNode},
+		TTL:                 0,
+	})
 	c.Assert(err, IsNil)
 
 	id, err := ReadIdentityFromKeyPair(priv, cert)
 	c.Assert(err, IsNil)
 	c.Assert(id.AuthorityDomain, Equals, "example.com")
-	c.Assert(id.ID, DeepEquals, IdentityID{HostUUID: "id1", Role: teleport.RoleNode})
+	c.Assert(id.ID, DeepEquals, IdentityID{HostUUID: "id1", NodeName: "node-name", Role: teleport.RoleNode})
 	c.Assert(id.CertBytes, DeepEquals, cert)
 	c.Assert(id.KeyBytes, DeepEquals, priv)
 
 	// test TTL by converting the generated cert to text -> back and making sure ExpireAfter is valid
 	ttl := time.Second * 10
 	expiryDate := time.Now().Add(ttl)
-	bytes, err := t.GenerateHostCert(priv, pub, "id1", "example.com", teleport.Roles{teleport.RoleNode}, ttl)
+	bytes, err := t.GenerateHostCert(services.CertParams{
+		PrivateCASigningKey: priv,
+		PublicHostKey:       pub,
+		HostID:              "id1",
+		NodeName:            "node-name",
+		ClusterName:         "example.com",
+		Roles:               teleport.Roles{teleport.RoleNode},
+		TTL:                 ttl,
+	})
 	c.Assert(err, IsNil)
 	pk, _, _, _, err := ssh.ParseAuthorizedKey(bytes)
 	c.Assert(err, IsNil)
@@ -76,21 +93,45 @@ func (s *AuthInitSuite) TestBadIdentity(c *C) {
 	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%#v", err))
 
 	// missing authority domain
-	cert, err := t.GenerateHostCert(priv, pub, "", "id2", teleport.Roles{teleport.RoleNode}, 0)
+	cert, err := t.GenerateHostCert(services.CertParams{
+		PrivateCASigningKey: priv,
+		PublicHostKey:       pub,
+		HostID:              "id2",
+		NodeName:            "",
+		ClusterName:         "",
+		Roles:               teleport.Roles{teleport.RoleNode},
+		TTL:                 0,
+	})
 	c.Assert(err, IsNil)
 
 	_, err = ReadIdentityFromKeyPair(priv, cert)
 	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%#v", err))
 
 	// missing host uuid
-	cert, err = t.GenerateHostCert(priv, pub, "example.com", "", teleport.Roles{teleport.RoleNode}, 0)
+	cert, err = t.GenerateHostCert(services.CertParams{
+		PrivateCASigningKey: priv,
+		PublicHostKey:       pub,
+		HostID:              "example.com",
+		NodeName:            "",
+		ClusterName:         "",
+		Roles:               teleport.Roles{teleport.RoleNode},
+		TTL:                 0,
+	})
 	c.Assert(err, IsNil)
 
 	_, err = ReadIdentityFromKeyPair(priv, cert)
 	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%#v", err))
 
 	// unrecognized role
-	cert, err = t.GenerateHostCert(priv, pub, "example.com", "id1", teleport.Roles{teleport.Role("bad role")}, 0)
+	cert, err = t.GenerateHostCert(services.CertParams{
+		PrivateCASigningKey: priv,
+		PublicHostKey:       pub,
+		HostID:              "example.com",
+		NodeName:            "",
+		ClusterName:         "id1",
+		Roles:               teleport.Roles{teleport.Role("bad role")},
+		TTL:                 0,
+	})
 	c.Assert(err, IsNil)
 
 	_, err = ReadIdentityFromKeyPair(priv, cert)

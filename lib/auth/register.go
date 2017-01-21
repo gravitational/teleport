@@ -26,28 +26,32 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// LocalRegister is used in standalone mode to register roles without
-// connecting to remote clients and provisioning tokens
+// LocalRegister is used to generate host keys when a node or proxy is running within the same process
+// as the auth server. This method does not need to use provisioning tokens.
 func LocalRegister(dataDir string, id IdentityID, authServer *AuthServer) error {
-	keys, err := authServer.GenerateServerKeys(id.HostUUID, teleport.Roles{id.Role})
+	keys, err := authServer.GenerateServerKeys(id.HostUUID, id.NodeName, teleport.Roles{id.Role})
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	return writeKeys(dataDir, id, keys.Key, keys.Cert)
 }
 
-// Register is used by auth service clients (other services, like proxy or SSH) when a new node
-// joins the cluster
+// Register is used to generate host keys when a node or proxy are running on different hosts
+// than the auth server. This method requires provisioning tokens to prove a valid auth server
+// was used to issue the joining request.
 func Register(dataDir, token string, id IdentityID, servers []utils.NetAddr) error {
 	tok, err := readToken(token)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	// connect to the auth server using a provisioning token. the auth server will
+	// only allow you to connect if it's a valid provisioning token it has generated
 	method, err := NewTokenAuth(id.HostUUID, tok)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	client, err := NewTunClient(
 		"auth.client.register",
 		servers,
@@ -58,10 +62,12 @@ func Register(dataDir, token string, id IdentityID, servers []utils.NetAddr) err
 	}
 	defer client.Close()
 
-	keys, err := client.RegisterUsingToken(tok, id.HostUUID, id.Role)
+	// create the host certificate and keys
+	keys, err := client.RegisterUsingToken(tok, id.HostUUID, id.NodeName, id.Role)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	return writeKeys(dataDir, id, keys.Key, keys.Cert)
 }
 

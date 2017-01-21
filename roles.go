@@ -86,7 +86,7 @@ func (roles Roles) Equals(other Roles) bool {
 	return true
 }
 
-// Check returns an erorr if the role set is incorrect (contains unknown roles)
+// Check returns an error if the role set is incorrect (contains unknown roles)
 func (roles Roles) Check() (err error) {
 	for _, role := range roles {
 		if err = role.Check(); err != nil {

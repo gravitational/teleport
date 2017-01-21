@@ -567,11 +567,12 @@ func (s *APIServer) generateKeyPair(auth ClientI, w http.ResponseWriter, r *http
 }
 
 type generateHostCertReq struct {
-	Key        []byte         `json:"key"`
-	Hostname   string         `json:"hostname"`
-	AuthDomain string         `json:"auth_domain"`
-	Roles      teleport.Roles `json:"roles"`
-	TTL        time.Duration  `json:"ttl"`
+	Key         []byte         `json:"key"`
+	HostID      string         `json:"hostname"`
+	NodeName    string         `json:"node_name"`
+	ClusterName string         `json:"auth_domain"`
+	Roles       teleport.Roles `json:"roles"`
+	TTL         time.Duration  `json:"ttl"`
 }
 
 func (s *APIServer) generateHostCert(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
@@ -579,10 +580,12 @@ func (s *APIServer) generateHostCert(auth ClientI, w http.ResponseWriter, r *htt
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cert, err := auth.GenerateHostCert(req.Key, req.Hostname, req.AuthDomain, req.Roles, req.TTL)
+
+	cert, err := auth.GenerateHostCert(req.Key, req.HostID, req.NodeName, req.ClusterName, req.Roles, req.TTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return string(cert), nil
 }
 
@@ -622,9 +625,10 @@ func (s *APIServer) generateToken(auth ClientI, w http.ResponseWriter, r *http.R
 }
 
 type registerUsingTokenReq struct {
-	HostID string        `json:"hostID"`
-	Role   teleport.Role `json:"role"`
-	Token  string        `json:"token"`
+	HostID   string        `json:"hostID"`
+	NodeName string        `json:"node_name"`
+	Role     teleport.Role `json:"role"`
+	Token    string        `json:"token"`
 }
 
 func (s *APIServer) registerUsingToken(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
@@ -632,10 +636,12 @@ func (s *APIServer) registerUsingToken(auth ClientI, w http.ResponseWriter, r *h
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keys, err := auth.RegisterUsingToken(req.Token, req.HostID, req.Role)
+
+	keys, err := auth.RegisterUsingToken(req.Token, req.HostID, req.NodeName, req.Role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return keys, nil
 }
 
