@@ -61,10 +61,10 @@ type proxySubsys struct {
 func parseProxySubsys(name string, srv *Server) (*proxySubsys, error) {
 	log.Debugf("parse_proxy_subsys(%s)", name)
 	var (
-		siteName   string
-		host       string
-		port       string
-		paramError = trace.BadParameter("invalid format for proxy request: '%v', expected 'proxy:host:port@site'", name)
+		clusterName string
+		host        string
+		port        string
+		paramError  = trace.BadParameter("invalid format for proxy request: '%v', expected 'proxy:host:port@site'", name)
 	)
 	const prefix = "proxy:"
 	// get rid of 'proxy:' prefix:
@@ -77,23 +77,23 @@ func parseProxySubsys(name string, srv *Server) (*proxySubsys, error) {
 	parts := strings.Split(name, "@")
 	switch len(parts) {
 	case 2:
-		siteName = strings.Join(parts[1:], "@")
+		clusterName = strings.Join(parts[1:], "@")
 		name = parts[0]
 	case 3:
-		siteName = strings.Join(parts[2:], "@")
+		clusterName = strings.Join(parts[2:], "@")
 		namespace = parts[1]
 		name = parts[0]
 	}
 	// find host & port in the arguments:
 	host, port, err := net.SplitHostPort(name)
-	if siteName == "" && err != nil {
+	if clusterName == "" && err != nil {
 		return nil, trace.Wrap(paramError)
 	}
-	// validate siteName
-	if siteName != "" && srv.proxyTun != nil {
-		_, err := srv.proxyTun.GetSite(siteName)
+	if clusterName != "" && srv.proxyTun != nil {
+		_, err := srv.proxyTun.GetSite(clusterName)
 		if err != nil {
-			return nil, trace.BadParameter("unknown site '%s'", siteName)
+			fmt.Printf("parts: %v\n", parts)
+			return nil, trace.BadParameter("unknown cluster '%s'", clusterName)
 		}
 	}
 
@@ -102,7 +102,7 @@ func parseProxySubsys(name string, srv *Server) (*proxySubsys, error) {
 		srv:       srv,
 		host:      host,
 		port:      port,
-		siteName:  siteName,
+		siteName:  clusterName,
 		closeC:    make(chan struct{}),
 	}, nil
 }

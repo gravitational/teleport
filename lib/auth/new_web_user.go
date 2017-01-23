@@ -124,7 +124,7 @@ func (s *AuthServer) GetSignupTokenData(token string) (user string, qrCode []byt
 	// It's a TOCTOU bug in the making: https://en.wikipedia.org/wiki/Time_of_check_to_time_of_use
 	_, err = s.GetPasswordHash(tokenData.User.Name)
 	if err == nil {
-		return "", nil, trace.Errorf("can't add user %q: user already exists", tokenData.User)
+		return "", nil, trace.Errorf("can't add user %v: user already exists", tokenData.User)
 	}
 
 	return tokenData.User.Name, tokenData.OTPQRCode, nil
