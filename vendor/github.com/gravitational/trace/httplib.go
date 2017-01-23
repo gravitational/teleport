@@ -65,7 +65,9 @@ func ReadError(statusCode int, re []byte) error {
 	var e error
 	switch statusCode {
 	case http.StatusNotFound:
-		e = &NotFoundError{}
+		e = &NotFoundError{
+			Message: string(re),
+		}
 	case http.StatusBadRequest:
 		e = &BadParameterError{}
 	case http.StatusPreconditionFailed:
