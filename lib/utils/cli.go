@@ -91,13 +91,15 @@ func FatalError(err error) {
 
 // UserMessageFromError returns user friendly error message from error
 func UserMessageFromError(err error) string {
-	err = trace.Unwrap(err)
 
 	// untrusted cert?
-	switch err.(interface{}).(type) {
+	switch trace.Unwrap(err).(interface{}).(type) {
 	case x509.UnknownAuthorityError, x509.CertificateInvalidError:
 		return "WARNING:\n The proxy you are connecting to uses the self-signed HTTPS certificate.\n" +
 			" Try --insecure flag if you know what you're doing.\n"
+	}
+	if log.GetLevel() == log.DebugLevel {
+		return trace.DebugReport(err)
 	}
 	return err.Error()
 }
