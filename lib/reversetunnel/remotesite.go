@@ -165,7 +165,6 @@ func (s *remoteSite) ConnectToServer(server, user string, auth []ssh.AuthMethod)
 	// ask remote channel to dial
 	dialed, err := ch.SendRequest(chanTransportDialReq, true, []byte(server))
 	if err != nil {
-		remoteConn.markInvalid(err)
 		return nil, trace.Wrap(err)
 	}
 	if !dialed {

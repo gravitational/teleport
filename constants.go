@@ -63,7 +63,7 @@ const (
 	TOTP = "totp"
 
 	// HOTP means HMAC-based One-time Password Algorithm.
-	HOTP = "htop"
+	HOTP = "hotp"
 
 	// U2F means Universal 2nd Factor.
 	U2F = "u2f"

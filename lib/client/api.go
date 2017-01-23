@@ -944,8 +944,10 @@ func (tc *TeleportClient) Login() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	log.Debugf("using 2nd factor type: '%v'", tc.SecondFactorType)
 
 	var response *web.SSHLoginResponse
+
 	switch tc.SecondFactorType {
 	case teleport.OTP:
 	case teleport.HOTP: // htop is deprecated
@@ -965,6 +967,8 @@ func (tc *TeleportClient) Login() error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+	default:
+		return trace.BadParameter("unsupported 2nd factor authentication type: '%s'", tc.SecondFactorType)
 	}
 	key.Cert = response.Cert
 	// save the key:
