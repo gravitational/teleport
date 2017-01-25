@@ -21,8 +21,8 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"io/ioutil"
 	"net"
-	"os"
 	"strings"
 	"time"
 
@@ -105,7 +105,7 @@ func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 		return nil, trace.ConnectionProblem(nil, "timeout")
 	}
 
-	log.Infof("[CLIENT] found clusters: %v", stdout.String())
+	log.Debugf("[CLIENT] found clusters: %v", stdout.String())
 
 	var sites []services.Site
 	if err := json.Unmarshal(stdout.Bytes(), &sites); err != nil {
@@ -209,22 +209,13 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress string,
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		printErrors := func() {
-			if quiet {
-				return
-			}
-			n, _ := io.Copy(os.Stderr, proxyErr)
-			if n > 0 {
-				os.Stderr.WriteString("\n")
-			}
-		}
 		err = proxySession.RequestSubsystem("proxy:" + nodeAddress)
 		if err != nil {
-			defer printErrors()
-
-			parts := strings.Split(nodeAddress, "@")
-			siteName := parts[len(parts)-1]
-			return nil, trace.Errorf("Failed connecting to cluster %v: %v", siteName, err)
+			// read the stderr output from the failed SSH session and append
+			// it to the end of our own message:
+			serverErrorMsg, _ := ioutil.ReadAll(proxyErr)
+			return nil, trace.Errorf("failed connecting to node %v. %s",
+				strings.Split(nodeAddress, "@")[0], serverErrorMsg)
 		}
 		pipeNetConn := utils.NewPipeNetConn(
 			proxyReader,
@@ -256,7 +247,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress string,
 	if utils.IsHandshakeFailedError(e) {
 		// remove the name of the site from the node address:
 		parts := strings.Split(nodeAddress, "@")
-		return nil, trace.Errorf(`access denied to login "%v" when connecting to %v: %v`, user, parts[0], e)
+		return nil, trace.Errorf(`access denied to "%v" when connecting to %v`, user, parts[0])
 	}
 	return nil, e
 }

@@ -296,11 +296,11 @@ func (ns *NodeSession) updateTerminalSize(s *ssh.Session) {
 				prevSess = sess
 				continue
 			}
-			log.Infof("[CLIENT] updating the session %v with %d parties", sess.ID, len(sess.Parties))
 			// nothing changed
 			if prevSess.TerminalParams.W == sess.TerminalParams.W && prevSess.TerminalParams.H == sess.TerminalParams.H {
 				continue
 			}
+			log.Infof("[CLIENT] updating the session %v with %d parties", sess.ID, len(sess.Parties))
 
 			newSize := sess.TerminalParams.Winsize()
 			currentSize, err = term.GetWinsize(0)

@@ -17,6 +17,7 @@ limitations under the License.
 package client
 
 import (
+	"bytes"
 	"fmt"
 	"net"
 	"os"
@@ -35,6 +36,9 @@ type LocalKeyAgent struct {
 	// implements ssh agent.Agent interface
 	agent.Agent
 	keyStore LocalKeyStore
+
+	// sshAgent is the external SSH agent
+	sshAgent agent.Agent
 }
 
 // NewLocalAgent loads all the saved teleport certificates and
@@ -47,9 +51,10 @@ func NewLocalAgent(keyDir, username string) (a *LocalKeyAgent, err error) {
 	a = &LocalKeyAgent{
 		Agent:    agent.NewKeyring(),
 		keyStore: keystore,
+		sshAgent: connectToSSHAgent(),
 	}
-	// add all stored keys into the agent:
-	keys, err := a.GetKeys(username)
+	// load all stored keys from disk (~/.tsh usually) and pass them into the agent:
+	keys, err := a.LoadKeys(username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -61,9 +66,9 @@ func NewLocalAgent(keyDir, username string) (a *LocalKeyAgent, err error) {
 	return a, nil
 }
 
-// GetKeys return the list of keys for the given user
+// loadKeys return the list of keys for the given user
 // from the local keystore (files in ~/.tsh)
-func (a *LocalKeyAgent) GetKeys(username string) ([]agent.AddedKey, error) {
+func (a *LocalKeyAgent) LoadKeys(username string) ([]agent.AddedKey, error) {
 	keys, err := a.keyStore.GetKeys(username)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -94,6 +99,7 @@ func (a *LocalKeyAgent) AddHostSignersToCache(hostSigners []services.CertAuthori
 			log.Error(err)
 			return trace.Wrap(err)
 		}
+		log.Debugf("[KEY AGENT] adding CA key for %s", hostSigner.DomainName)
 		a.keyStore.AddKnownHostKeys(hostSigner.DomainName, publicKeys)
 	}
 	return nil
@@ -102,14 +108,13 @@ func (a *LocalKeyAgent) AddHostSignersToCache(hostSigners []services.CertAuthori
 // CheckHostSignature checks if the given host key was signed by one of the trusted
 // certificaate authorities (CAs)
 func (a *LocalKeyAgent) CheckHostSignature(hostId string, remote net.Addr, key ssh.PublicKey) error {
-	log.Debugf("checking host key of %s\n", hostId)
-
 	cert, ok := key.(*ssh.Certificate)
 	if !ok {
 		// not a signed cert? perhaps we're given a host public key (happens when the host is running
 		// sshd instead of teleport daemon
 		keys, _ := a.keyStore.GetKnownHostKeys(hostId)
 		if len(keys) > 0 && sshutils.KeysEqual(key, keys[0]) {
+			log.Debugf("[KEY AGENT] verified host %s", hostId)
 			return nil
 		}
 		// ask the user if they want to trust this host
@@ -120,7 +125,9 @@ func (a *LocalKeyAgent) CheckHostSignature(hostId string, remote net.Addr, key s
 		bytes := make([]byte, 12)
 		os.Stdin.Read(bytes)
 		if strings.TrimSpace(strings.ToLower(string(bytes)))[0] != 'y' {
-			return trace.AccessDenied("Host key verification failed.")
+			err := trace.AccessDenied("untrusted host %v", hostId)
+			log.Error(err)
+			return err
 		}
 		// remember the host key (put it into 'known_hosts')
 		if err := a.keyStore.AddKnownHostKeys(hostId, []ssh.PublicKey{key}); err != nil {
@@ -129,20 +136,23 @@ func (a *LocalKeyAgent) CheckHostSignature(hostId string, remote net.Addr, key s
 		// success
 		return nil
 	}
+
 	// we are given a certificate. see if it was signed by any of the known_host keys:
 	keys, err := a.keyStore.GetKnownHostKeys("")
 	if err != nil {
 		log.Error(err)
 		return trace.Wrap(err)
 	}
+	log.Debugf("[KEY AGENT] got %d known hosts", len(keys))
 	for i := range keys {
 		if sshutils.KeysEqual(cert.SignatureKey, keys[i]) {
+			log.Debugf("[KEY AGENT] verified host %s", hostId)
 			return nil
 		}
 	}
-	err = trace.AccessDenied("could not find matching keys for %v at %v", hostId, remote)
+	err = trace.AccessDenied("untrusted host %v", hostId)
 	log.Error(err)
-	return trace.Wrap(err)
+	return err
 }
 
 func (a *LocalKeyAgent) AddKey(host string, username string, key *Key) error {
@@ -154,9 +164,45 @@ func (a *LocalKeyAgent) AddKey(host string, username string, key *Key) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	// add it to SSH agent as well:
+	if a.sshAgent != nil {
+		if err = a.sshAgent.Add(*agentKey); err != nil {
+			log.Warn(err)
+		}
+	}
 	return a.Agent.Add(*agentKey)
 }
 
-func (a *LocalKeyAgent) DeleteKey(host string, username string) error {
-	return trace.Wrap(a.keyStore.DeleteKey(host, username))
+// DeleteKey deletes the user key stored for a given proxy server
+func (a *LocalKeyAgent) DeleteKey(proxyHost string, username string) error {
+	// remove the same key from the SSH Agent:
+	if a.sshAgent != nil {
+		localKey, _ := a.keyStore.GetKey(proxyHost, username)
+		if localKey != nil {
+			pubKey, _, _, _, _ := ssh.ParseAuthorizedKey(localKey.Cert)
+			if pubKey != nil {
+				agentKeys, _ := a.sshAgent.List()
+				for _, agentKey := range agentKeys {
+					if bytes.Contains(pubKey.Marshal(), agentKey.Blob) {
+						a.sshAgent.Remove(agentKey)
+						break
+					}
+				}
+			}
+		}
+	}
+	// ... then remove it from the local storage:
+	return trace.Wrap(a.keyStore.DeleteKey(proxyHost, username))
+}
+
+// AuthMethods returns the list of differnt authentication methods this agent supports
+// It returns two:
+//	  1. First to try is the external SSH agent
+//    2. Itself (disk-based local agent)
+func (a *LocalKeyAgent) AuthMethods() (m []ssh.AuthMethod) {
+	m = append(m, authMethodFromAgent(a))
+	if a.sshAgent != nil {
+		m = append(m, authMethodFromAgent(a.sshAgent))
+	}
+	return m
 }

@@ -29,11 +29,11 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/teleagent"
+	//"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
 	"github.com/buger/goterm"
-	"github.com/pborman/uuid"
 )
 
 func main() {
@@ -342,25 +342,32 @@ func onSCP(cf *CLIConf) {
 
 // onAgentStart start ssh agent on a socket
 func onAgentStart(cf *CLIConf) {
-	tc, err := makeClient(cf, true)
-	if err != nil {
-		utils.FatalError(err)
-	}
 	socketAddr := utils.NetAddr(cf.AgentSocketAddr)
+	pid := os.Getpid()
 	if socketAddr.IsEmpty() {
-		socketAddr = utils.NetAddr{AddrNetwork: "unix", Addr: filepath.Join(os.TempDir(), fmt.Sprintf("%v.socket", uuid.New()))}
+		socketAddr = utils.NetAddr{
+			AddrNetwork: "unix",
+			Addr:        filepath.Join(os.TempDir(), fmt.Sprintf("teleport-%d.socket", pid)),
+		}
 	}
 	// This makes teleport agent behave exactly like ssh-agent command,
 	// the output and behavior matches the openssh behavior,
 	// so users can do 'eval $(tsh agent --proxy=<addr>&)
-	pid := os.Getpid()
-	fmt.Printf(`
-SSH_AUTH_SOCK=%v; export SSH_AUTH_SOCK;
-SSH_AGENT_PID=%v; export SSH_AGENT_PID;
-echo Agent pid %v;
-`, socketAddr.Addr, pid, pid)
+	fmt.Printf(`# Keep this agent process running in the background.
+# Set these environment variables:
+export SSH_AUTH_SOCK=%v;
+export SSH_AGENT_PID=%v
+
+# you can redirect this output into a file and call 'source' on it
+`, socketAddr.Addr, pid)
+
 	agentServer := teleagent.NewServer()
-	agentKeys, err := tc.GetKeys()
+	tc, err := makeClient(cf, true)
+	if err != nil {
+		utils.FatalError(err)
+	}
+
+	agentKeys, err := tc.LocalAgent().LoadKeys(tc.Username)
 	if err != nil {
 		utils.FatalError(err)
 	}

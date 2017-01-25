@@ -70,7 +70,6 @@ type FSLocalKeyStore struct {
 //
 // if dirPath is empty, sets it to ~/.tsh
 func NewFSLocalKeyStore(dirPath string) (s *FSLocalKeyStore, err error) {
-	log.Debugf("using FSLocalKeyStore")
 	dirPath, err = initKeysDir(dirPath)
 	if err != nil {
 		return nil, trace.Wrap(err)

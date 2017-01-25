@@ -257,7 +257,7 @@ func (t *proxySubsys) proxyToHost(
 		remoteAddr,
 		&utils.NetAddr{Addr: serverAddr, AddrNetwork: "tcp"})
 	if err != nil {
-		return trace.ConvertSystemError(err)
+		return trace.Wrap(err)
 	}
 
 	// this custom SSH handshake allows SSH proxy to relay the client's IP
