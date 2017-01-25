@@ -126,11 +126,7 @@ func (c *SessionContext) ExtendWebSession() (*auth.Session, error) {
 // GetAgent returns agent that can we used to answer challenges
 // for the web to ssh connection
 func (c *SessionContext) GetAgent() (auth.AgentCloser, error) {
-	a, err := c.clt.GetAgent()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a, nil
+	return c.clt.GetAgent()
 }
 
 // Close cleans up connections associated with requests

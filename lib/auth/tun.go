@@ -702,12 +702,17 @@ func (c *TunClient) GetDialer() AccessPointDialer {
 	}
 }
 
-// GetAgent returns SSH agent that uses ReqWebSessionAgent Auth server extension
+// GetAgent creates an SSH key agent (similar object to what CLI uses), this
+// key agent fetches user keys directly from the auth server using a custom channel
+// created via "ReqWebSessionAgent" reguest
 func (c *TunClient) GetAgent() (AgentCloser, error) {
 	client, err := c.getClient() // we need an established connection first
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// create a special SSH channel into the auth server, which will be used to
+	// serve user keys to a web-based terminal client (which will be using the
+	// returned SSH agent)
 	ch, _, err := client.OpenChannel(ReqWebSessionAgent, nil)
 	if err != nil {
 		return nil, trace.ConnectionProblem(err, "failed to connect to remote API")

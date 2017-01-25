@@ -46,7 +46,7 @@ func main() {
 func run(cmdlineArgs []string, testRun bool) (executedCommand string, conf *service.Config) {
 	var err error
 	// configure trace's errors to produce full stack traces
-	isDebug, _ := strconv.ParseBool(os.Getenv(teleport.DebugEnvVar))
+	isDebug, _ := strconv.ParseBool(os.Getenv(teleport.VerboseLogsEnvVar))
 	if isDebug {
 		trace.SetDebug(true)
 	}
