@@ -175,24 +175,30 @@ func (a *LocalKeyAgent) AddKey(host string, username string, key *Key) error {
 
 // DeleteKey deletes the user key stored for a given proxy server
 func (a *LocalKeyAgent) DeleteKey(proxyHost string, username string) error {
-	// remove the same key from the SSH Agent:
-	if a.sshAgent != nil {
-		localKey, _ := a.keyStore.GetKey(proxyHost, username)
-		if localKey != nil {
-			pubKey, _, _, _, _ := ssh.ParseAuthorizedKey(localKey.Cert)
-			if pubKey != nil {
-				agentKeys, _ := a.sshAgent.List()
-				for _, agentKey := range agentKeys {
-					if bytes.Contains(pubKey.Marshal(), agentKey.Blob) {
-						a.sshAgent.Remove(agentKey)
-						break
-					}
-				}
-			}
+	localKey, err := a.keyStore.GetKey(proxyHost, username)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// ... then remove it from the local storage:
+	err = trace.Wrap(a.keyStore.DeleteKey(proxyHost, username))
+
+	// FIRST, we need to remove the same key from the SSH Agent:
+	if a.sshAgent == nil {
+		return err
+	}
+	pubKey, _, _, _, _ := ssh.ParseAuthorizedKey(localKey.Cert)
+	if pubKey == nil {
+		return err
+	}
+	agentKeys, _ := a.sshAgent.List()
+	for _, agentKey := range agentKeys {
+		if bytes.Contains(pubKey.Marshal(), agentKey.Blob) {
+			a.sshAgent.Remove(agentKey)
+			break
 		}
 	}
-	// ... then remove it from the local storage:
-	return trace.Wrap(a.keyStore.DeleteKey(proxyHost, username))
+	return err
 }
 
 // AuthMethods returns the list of differnt authentication methods this agent supports
