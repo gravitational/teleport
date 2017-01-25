@@ -782,6 +782,7 @@ func (a *AuthServer) createOIDCUser(connector services.OIDCConnector, ident *oid
 	if len(roles) == 0 {
 		log.Warningf("[OIDC] could not find any of expected claims: %v in the set returned by provider %v: %v",
 			strings.Join(connector.GetClaims(), ","), connector.GetName(), strings.Join(services.GetClaimNames(claims), ","))
+		return trace.AccessDenied("access denied to %v", ident.Email)
 	}
 	log.Debugf("[IDENTITY] %v/%v is a dynamic identity, generating user with roles: %v", connector.GetName(), ident.Email, roles)
 	user, err := services.GetUserMarshaler().GenerateUser(&services.UserV2{
