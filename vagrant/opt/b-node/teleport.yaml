@@ -1,7 +1,8 @@
-# Node for cluster-A
+# Node for cluster-B
 teleport:
+  nodename: bear
   auth_token: hello
-  auth_servers: [a-auth]
+  auth_servers: ["b-auth:5025"] 
   log:
     output: stderr
     severity: INFO
