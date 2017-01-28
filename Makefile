@@ -20,6 +20,12 @@ BINARIES=$(BUILDDIR)/tsh $(BUILDDIR)/teleport $(BUILDDIR)/tctl
 VERSRC = version.go gitref.go
 LIBS = $(shell find lib -type f -name '*.go') *.go
 
+# TODO: REMOVE ME
+.PHONY: mac
+mac:
+	BUILDDIR=darwin $(MAKE) all
+
+
 #
 # Default target: builds all 3 executables and plaaces them in a current directory
 #
@@ -53,6 +59,7 @@ clean:
 	rm -rf $(BUILDDIR)
 	rm -rf teleport
 	rm -rf *.gz
+
 
 #
 # Builds docs using containerized mkdocs

@@ -155,14 +155,14 @@ func (a *LocalKeyAgent) CheckHostSignature(hostId string, remote net.Addr, key s
 	return err
 }
 
-func (a *LocalKeyAgent) AddKey(host string, username string, key *Key) error {
+func (a *LocalKeyAgent) AddKey(host string, username string, key *Key) (*CertAuthMethod, error) {
 	err := a.keyStore.AddKey(host, username, key)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	agentKey, err := key.AsAgentKey()
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	// add it to SSH agent as well:
 	if a.sshAgent != nil {
@@ -170,7 +170,17 @@ func (a *LocalKeyAgent) AddKey(host string, username string, key *Key) error {
 			log.Warn(err)
 		}
 	}
-	return a.Agent.Add(*agentKey)
+	if err = a.Agent.Add(*agentKey); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	signer, err := ssh.NewSignerFromKey(agentKey.PrivateKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if signer, err = ssh.NewCertSigner(agentKey.Certificate, signer); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return methodForCert(signer), nil
 }
 
 // DeleteKey deletes the user key stored for a given proxy server
@@ -205,10 +215,41 @@ func (a *LocalKeyAgent) DeleteKey(proxyHost string, username string) error {
 // It returns two:
 //	  1. First to try is the external SSH agent
 //    2. Itself (disk-based local agent)
-func (a *LocalKeyAgent) AuthMethods() (m []ssh.AuthMethod) {
-	m = append(m, authMethodFromAgent(a))
+func (a *LocalKeyAgent) AuthMethods() (m []*CertAuthMethod) {
+	// combine our certificates with external SSH agent's:
+	var certs []ssh.Signer
+	if ourCerts, _ := a.Signers(); ourCerts != nil {
+		certs = append(certs, ourCerts...)
+	}
 	if a.sshAgent != nil {
-		m = append(m, authMethodFromAgent(a.sshAgent))
+		if sshAgentCerts, _ := a.sshAgent.Signers(); sshAgentCerts != nil {
+			certs = append(certs, sshAgentCerts...)
+		}
+	}
+	// for every certificate create a new "auth method" and return them
+	m = make([]*CertAuthMethod, len(certs))
+	for i := range certs {
+		m[i] = methodForCert(certs[i])
 	}
 	return m
+}
+
+// CertAuthMethod is a wrapper around ssh.Signer (certificate signer) object.
+// CertAuthMethod then implements ssh.Authmethod interface around this one certificate signer.
+//
+// We need this wrapper because Golang's SSH library's unfortunate API design. It uses
+// callbacks with 'authMethod' interfaces and without this wrapper it is impossible to
+// tell which certificate an 'authMethod' passed via a callback had succeeded authenticating with.
+type CertAuthMethod struct {
+	ssh.AuthMethod
+	Cert ssh.Signer
+}
+
+func methodForCert(cert ssh.Signer) *CertAuthMethod {
+	return &CertAuthMethod{
+		Cert: cert,
+		AuthMethod: ssh.PublicKeysCallback(func() ([]ssh.Signer, error) {
+			return []ssh.Signer{cert}, nil
+		}),
+	}
 }
