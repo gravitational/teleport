@@ -163,18 +163,19 @@ func NewAPIServer(config *APIConfig) http.Handler {
 type HandlerWithAuthFunc func(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error)
 
 func (s *APIServer) withAuth(handler HandlerWithAuthFunc) httprouter.Handle {
+	const accessDeniedMsg = "auth API: access denied "
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 		// SSH-to-HTTP gateway (tun server) sets HTTP basic auth to SSH cert principal
 		// This allows us to make sure that users can only request new certificates
 		// only for themselves, except admin users
 		caller, _, ok := r.BasicAuth()
 		if !ok {
-			return nil, trace.AccessDenied("missing username or password")
+			return nil, trace.AccessDenied(accessDeniedMsg + "[00]")
 		}
 		checker, err := s.NewChecker(caller)
 		if err != nil {
-			log.Debugf("failed to create checker: %v for %v", err, caller)
-			return nil, trace.AccessDenied("missing username or password")
+			log.Warn(accessDeniedMsg + err.Error())
+			return nil, trace.AccessDenied(accessDeniedMsg + "[01]")
 		}
 		auth := &AuthWithRoles{
 			authServer: s.AuthServer,
