@@ -44,7 +44,7 @@ type ProxyClient struct {
 	hostLogin       string
 	proxyAddress    string
 	hostKeyCallback utils.HostKeyCallback
-	authMethod      *CertAuthMethod
+	authMethod      ssh.AuthMethod
 	siteName        string
 }
 
@@ -155,8 +155,11 @@ func (proxy *ProxyClient) ConnectToSite(ctx context.Context, quiet bool) (auth.C
 	// look at the certificate which we've received from the proxy and pick the 1st
 	// valid principal to pass to the auth server
 	authLogin := proxy.hostLogin
-	if cert, ok := proxy.authMethod.Cert.PublicKey().(*ssh.Certificate); ok && len(cert.ValidPrincipals) > 0 {
-		authLogin = cert.ValidPrincipals[0]
+	certMethod, ok := proxy.authMethod.(*CertAuthMethod)
+	if ok {
+		if cert, ok := certMethod.Cert.PublicKey().(*ssh.Certificate); ok && len(cert.ValidPrincipals) > 0 {
+			authLogin = cert.ValidPrincipals[0]
+		}
 	}
 
 	// this connects us to the node which is an auth server for this site

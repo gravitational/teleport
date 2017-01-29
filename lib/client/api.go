@@ -121,7 +121,7 @@ type Config struct {
 
 	// AuthMethods to use to login into cluster. If left empty, teleport will
 	// use its own session store,
-	AuthMethods []*CertAuthMethod
+	AuthMethods []ssh.AuthMethod
 
 	Stdout io.Writer
 	Stderr io.Writer
@@ -355,7 +355,6 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		}
 		return tc, nil
 	}
-	tc.Config.AuthMethods = append(tc.Config.AuthMethods, tc.LocalAgent().AuthMethods()...)
 	return tc, nil
 }
 
@@ -848,6 +847,16 @@ func (tc *TeleportClient) getProxyLogin() string {
 	return proxyLogin
 }
 
+// authMethods returns a list (slice) of all SSH auth methods this client
+// can use to try to authenticate
+func (tc *TeleportClient) authMethods() []ssh.AuthMethod {
+	// return the auth methods that we were configured with
+	// plus our local key agent (i.e. methods we've added during runtime
+	// by the means of .AddKey())
+	m := append([]ssh.AuthMethod(nil), tc.Config.AuthMethods...)
+	return append(m, tc.LocalAgent().AuthMethods()...)
+}
+
 // ConnectToProxy dials the proxy server and returns ProxyClient if successful
 func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 	proxyAddr := tc.Config.ProxySSHHostPort()
@@ -856,7 +865,7 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 		HostKeyCallback: tc.HostKeyCallback,
 	}
 	// helper to create a ProxyClient struct
-	makeProxyClient := func(sshClient *ssh.Client, m *CertAuthMethod) *ProxyClient {
+	makeProxyClient := func(sshClient *ssh.Client, m ssh.AuthMethod) *ProxyClient {
 		return &ProxyClient{
 			Client:          sshClient,
 			proxyAddress:    proxyAddr,
@@ -868,7 +877,7 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 	}
 	successMsg := fmt.Sprintf("[CLIENT] successful auth with proxy %v", proxyAddr)
 	// try to authenticate using every non interactive auth method we have:
-	for i, m := range tc.Config.AuthMethods {
+	for i, m := range tc.authMethods() {
 		log.Infof("[CLIENT] connecting proxy=%v login='%v' method=%d", proxyAddr, sshConfig.User, i)
 
 		sshConfig.Auth = []ssh.AuthMethod{m}

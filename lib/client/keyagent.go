@@ -100,7 +100,10 @@ func (a *LocalKeyAgent) AddHostSignersToCache(hostSigners []services.CertAuthori
 			return trace.Wrap(err)
 		}
 		log.Debugf("[KEY AGENT] adding CA key for %s", hostSigner.DomainName)
-		a.keyStore.AddKnownHostKeys(hostSigner.DomainName, publicKeys)
+		err = a.keyStore.AddKnownHostKeys(hostSigner.DomainName, publicKeys)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	return nil
 }
@@ -155,7 +158,13 @@ func (a *LocalKeyAgent) CheckHostSignature(hostId string, remote net.Addr, key s
 	return err
 }
 
+// AddKey stores a new signed session key for future use.
+//
+// It returns an implementation of ssh.Authmethod which can be passed to ssh.Config
+// to make new SSH connections authenticated by this key.
+//
 func (a *LocalKeyAgent) AddKey(host string, username string, key *Key) (*CertAuthMethod, error) {
+	// save it to disk (usually into ~/.tsh)
 	err := a.keyStore.AddKey(host, username, key)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -164,15 +173,18 @@ func (a *LocalKeyAgent) AddKey(host string, username string, key *Key) (*CertAut
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// add it to SSH agent as well:
+	// add it to the external SSH agent:
 	if a.sshAgent != nil {
 		if err = a.sshAgent.Add(*agentKey); err != nil {
 			log.Warn(err)
 		}
 	}
+	// add it to our own in-memory key agent:
 	if err = a.Agent.Add(*agentKey); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// generate SSH auth method based on the given signed key and return
+	// it to the caller:
 	signer, err := ssh.NewSignerFromKey(agentKey.PrivateKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -215,7 +227,7 @@ func (a *LocalKeyAgent) DeleteKey(proxyHost string, username string) error {
 // It returns two:
 //	  1. First to try is the external SSH agent
 //    2. Itself (disk-based local agent)
-func (a *LocalKeyAgent) AuthMethods() (m []*CertAuthMethod) {
+func (a *LocalKeyAgent) AuthMethods() (m []ssh.AuthMethod) {
 	// combine our certificates with external SSH agent's:
 	var certs []ssh.Signer
 	if ourCerts, _ := a.Signers(); ourCerts != nil {
@@ -227,7 +239,7 @@ func (a *LocalKeyAgent) AuthMethods() (m []*CertAuthMethod) {
 		}
 	}
 	// for every certificate create a new "auth method" and return them
-	m = make([]*CertAuthMethod, len(certs))
+	m = make([]ssh.AuthMethod, len(certs))
 	for i := range certs {
 		m[i] = methodForCert(certs[i])
 	}
