@@ -104,7 +104,6 @@ func (s *IntSuite) newTeleport(c *check.C, logins []string, enableSSH bool) *Tel
 	for _, login := range logins {
 		t.AddUser(login, []string{login})
 	}
-
 	if t.Create(nil, enableSSH, nil) != nil {
 		c.FailNow()
 	}

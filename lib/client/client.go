@@ -44,7 +44,7 @@ type ProxyClient struct {
 	hostLogin       string
 	proxyAddress    string
 	hostKeyCallback utils.HostKeyCallback
-	authMethods     []ssh.AuthMethod
+	authMethod      ssh.AuthMethod
 	siteName        string
 }
 
@@ -152,11 +152,21 @@ func (proxy *ProxyClient) ConnectToSite(ctx context.Context, quiet bool) (auth.C
 		return nil, trace.Wrap(err)
 	}
 
-	// this connects us to a node which is an auth server for this site
+	// look at the certificate which we've received from the proxy and pick the 1st
+	// valid principal to pass to the auth server
+	authLogin := proxy.hostLogin
+	certMethod, ok := proxy.authMethod.(*CertAuthMethod)
+	if ok {
+		if cert, ok := certMethod.Cert.PublicKey().(*ssh.Certificate); ok && len(cert.ValidPrincipals) > 0 {
+			authLogin = cert.ValidPrincipals[0]
+		}
+	}
+
+	// this connects us to the node which is an auth server for this site
 	// note the addres we're using: "@sitename", which in practice looks like "@{site-global-id}"
 	// the Teleport proxy interprets such address as a request to connec to the active auth server
 	// of the named site
-	nodeClient, err := proxy.ConnectToNode(ctx, "@"+site.Name, proxy.hostLogin, quiet)
+	nodeClient, err := proxy.ConnectToNode(ctx, "@"+site.Name, authLogin, quiet)
 	if err != nil {
 		log.Error(err)
 		return nil, trace.Wrap(err)
@@ -176,7 +186,6 @@ func (proxy *ProxyClient) ConnectToSite(ctx context.Context, quiet bool) (auth.C
 // It returns connected and authenticated NodeClient
 func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress string, user string, quiet bool) (*NodeClient, error) {
 	log.Infof("[CLIENT] connecting to node: %s", nodeAddress)
-	e := trace.Errorf("unknown Error")
 
 	// parse destination first:
 	localAddr, err := utils.ParseAddr("tcp://" + proxy.proxyAddress)
@@ -192,67 +201,68 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress string,
 	// because go SSH will try only one (fist) auth method
 	// of a given type, so if you have 2 different public keys
 	// you have to try each one differently
-	for _, authMethod := range proxy.authMethods {
-		proxySession, err := proxy.Client.NewSession()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		proxyWriter, err := proxySession.StdinPipe()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		proxyReader, err := proxySession.StdoutPipe()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		proxyErr, err := proxySession.StderrPipe()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		err = proxySession.RequestSubsystem("proxy:" + nodeAddress)
-		if err != nil {
-			// read the stderr output from the failed SSH session and append
-			// it to the end of our own message:
-			serverErrorMsg, _ := ioutil.ReadAll(proxyErr)
-			return nil, trace.Errorf("failed connecting to node %v. %s",
-				strings.Split(nodeAddress, "@")[0], serverErrorMsg)
-		}
-		pipeNetConn := utils.NewPipeNetConn(
-			proxyReader,
-			proxyWriter,
-			proxySession,
-			localAddr,
-			fakeAddr,
-		)
-		sshConfig := &ssh.ClientConfig{
-			User:            user,
-			Auth:            []ssh.AuthMethod{authMethod},
-			HostKeyCallback: proxy.hostKeyCallback,
-		}
-		conn, chans, reqs, err := newClientConn(ctx, pipeNetConn, nodeAddress, sshConfig)
-		if err != nil {
-			if utils.IsHandshakeFailedError(err) {
-				e = trace.Wrap(err)
-				proxySession.Close()
-				continue
+	proxySession, err := proxy.Client.NewSession()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	proxyWriter, err := proxySession.StdinPipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	proxyReader, err := proxySession.StdoutPipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	proxyErr, err := proxySession.StderrPipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = proxySession.RequestSubsystem("proxy:" + nodeAddress)
+	if err != nil {
+		// read the stderr output from the failed SSH session and append
+		// it to the end of our own message:
+		serverErrorMsg, _ := ioutil.ReadAll(proxyErr)
+		return nil, trace.Errorf("failed connecting to node %v. %s",
+			strings.Split(nodeAddress, "@")[0], serverErrorMsg)
+	}
+	pipeNetConn := utils.NewPipeNetConn(
+		proxyReader,
+		proxyWriter,
+		proxySession,
+		localAddr,
+		fakeAddr,
+	)
+	sshConfig := &ssh.ClientConfig{
+		User:            user,
+		Auth:            []ssh.AuthMethod{proxy.authMethod},
+		HostKeyCallback: proxy.hostKeyCallback,
+	}
+	conn, chans, reqs, err := newClientConn(ctx, pipeNetConn, nodeAddress, sshConfig)
+	if err != nil {
+		if utils.IsHandshakeFailedError(err) {
+			proxySession.Close()
+			parts := strings.Split(nodeAddress, "@")
+			hostname := parts[0]
+			if len(hostname) == 0 && len(parts) > 1 {
+				hostname = "cluster " + parts[1]
 			}
-			return nil, trace.Wrap(err)
+			return nil, trace.Errorf(`access denied to "%v" when connecting to %v`, user, hostname)
 		}
-		client := ssh.NewClient(conn, chans, reqs)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &NodeClient{Client: client, Proxy: proxy, Namespace: defaults.Namespace}, nil
+		return nil, trace.Wrap(err)
 	}
-	if utils.IsHandshakeFailedError(e) {
-		// remove the name of the site from the node address:
-		parts := strings.Split(nodeAddress, "@")
-		return nil, trace.Errorf(`access denied to "%v" when connecting to %v`, user, parts[0])
+	client := ssh.NewClient(conn, chans, reqs)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return nil, e
+	return &NodeClient{Client: client, Proxy: proxy, Namespace: defaults.Namespace}, nil
 }
 
-func newClientConn(ctx context.Context, conn net.Conn, nodeAddress string, config *ssh.ClientConfig) (ssh.Conn, <-chan ssh.NewChannel, <-chan *ssh.Request, error) {
+// newClientConn is a wrapper around ssh.NewClientConn
+func newClientConn(ctx context.Context,
+	conn net.Conn,
+	nodeAddress string,
+	config *ssh.ClientConfig) (ssh.Conn, <-chan ssh.NewChannel, <-chan *ssh.Request, error) {
+
 	type response struct {
 		conn   ssh.Conn
 		chanCh <-chan ssh.NewChannel
@@ -275,11 +285,10 @@ func newClientConn(ctx context.Context, conn net.Conn, nodeAddress string, confi
 	case <-ctx.Done():
 		errClose := conn.Close()
 		if errClose != nil {
-			log.Errorf("failed to close connection: %v", errClose)
+			log.Error(errClose)
 		}
 		// drain the channel
 		resp := <-respCh
-		log.Debugf("context closing")
 		return nil, nil, nil, trace.ConnectionProblem(resp.err, "failed to connect to %q", nodeAddress)
 	}
 }

@@ -354,7 +354,8 @@ func (i *TeleInstance) Start() (err error) {
 	return err
 }
 
-// NewClient returns a fully configured client (with server CAs and user keys)
+// NewClient returns a fully configured and pre-authenticated client
+// (pre-authenticated with server CAs and signed session key)
 func (i *TeleInstance) NewClient(login string, site string, host string, port int) (tc *client.TeleportClient, err error) {
 	keyDir, err := ioutil.TempDir(i.Config.DataDir, "tsh")
 	if err != nil {
@@ -394,7 +395,7 @@ func (i *TeleInstance) NewClient(login string, site string, host string, port in
 	if err != nil {
 		return nil, err
 	}
-	// tells the client to use user keys from 'secrets':
+	// confnigures the client authenticate using the keys from 'secrets':
 	user, ok := i.Secrets.Users[login]
 	if !ok {
 		return nil, trace.Errorf("unknown login '%v'", login)
@@ -402,11 +403,12 @@ func (i *TeleInstance) NewClient(login string, site string, host string, port in
 	if user.Key == nil {
 		return nil, trace.Errorf("user %v has no key", login)
 	}
-	err = tc.AddKey(host, user.Key)
+	_, err = tc.AddKey(host, user.Key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// tell the client to trust given CAs (from secrets)
+	// tell the client to trust given CAs (from secrets). this is the
+	// equivalent of 'known hosts' in openssh
 	cas := i.Secrets.GetCAs()
 	for i := range cas {
 		err = tc.AddTrustedCA(cas[i].V1())

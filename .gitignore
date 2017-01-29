@@ -3,6 +3,7 @@ gitref.go
 .data
 debug*
 default.etcd
+darwin
 
 # usually release tarballs get in the way
 *.gz
