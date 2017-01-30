@@ -27,7 +27,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"sync"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -248,39 +247,41 @@ func (s *Server) handleConnection(conn net.Conn) {
 	log.Infof("[SSH:%v] new connection %v -> %v vesion: %v",
 		s.component, sconn.RemoteAddr(), sconn.LocalAddr(), string(sconn.ClientVersion()))
 
-	wg := sync.WaitGroup{}
-	wg.Add(2)
-
-	go func() {
-		// Handle incoming out-of-band Requests
-		s.handleRequests(reqs)
-		wg.Done()
-	}()
-	go func() {
-		// Handle channel requests on this connections
-		s.handleChannels(conn, sconn, chans)
-		wg.Done()
-	}()
-
-	wg.Wait()
-}
-
-func (s *Server) handleRequests(reqs <-chan *ssh.Request) {
-	for req := range reqs {
-		log.Infof("[SSH:%v] recieved out-of-band request: %+v", s.component, req)
-		if s.reqHandler != nil {
-			s.reqHandler.HandleRequest(req)
-		}
+	// will be called when the connection is closed
+	connClosed := func() {
+		log.Infof("[SSH:%v] closed connection", s.component)
 	}
-}
 
-func (s *Server) handleChannels(conn net.Conn, sconn *ssh.ServerConn, chans <-chan ssh.NewChannel) {
-	for nch := range chans {
-		if nch == nil {
-			log.Warningf("nil channel: %v", nch)
-			continue
+	// The keepalive ticket will ensure that SSH keepalive requests are being sent
+	// to the client at an interval much shorter than idle connection kill switch
+	keepAliveTick := time.NewTicker(defaults.DefaultIdleConnectionDuration / 3)
+	defer keepAliveTick.Stop()
+	keepAlivePayload := [8]byte{0}
+
+	for {
+		select {
+		// handle out of band ssh requests
+		case req := <-reqs:
+			if req == nil {
+				connClosed()
+				return
+			}
+			log.Infof("[SSH:%v] recieved out-of-band request: %+v", s.component, req)
+			if s.reqHandler != nil {
+				go s.reqHandler.HandleRequest(req)
+			}
+			// handle channels:
+		case nch := <-chans:
+			if nch == nil {
+				connClosed()
+				return
+			}
+			go s.newChanHandler.HandleNewChan(conn, sconn, nch)
+			// send keepalive pings to the clients
+		case <-keepAliveTick.C:
+			const wantReply = true
+			sconn.SendRequest(teleport.KeepAliveReqType, wantReply, keepAlivePayload[:])
 		}
-		s.newChanHandler.HandleNewChan(conn, sconn, nch)
 	}
 }
 

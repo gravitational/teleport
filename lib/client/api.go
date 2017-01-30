@@ -822,7 +822,7 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessToJoin *session.S
 		return trace.Wrap(err)
 	}
 	if nodeSession.ExitMsg == "" {
-		fmt.Printf("Connection to %s closed from the remote side\n", tc.NodeHostPort())
+		fmt.Println("the connection was closed on the remote side", time.Now())
 	} else {
 		fmt.Println(nodeSession.ExitMsg)
 	}
