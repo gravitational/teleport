@@ -17,6 +17,7 @@ limitations under the License.
 package client
 
 import (
+	"bytes"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -29,6 +30,10 @@ type Key struct {
 	Priv []byte `json:"Priv,omitempty"`
 	Pub  []byte `json:"Pub,omitempty"`
 	Cert []byte `json:"Cert,omitempty"`
+
+	// ProxyHost (optionally) contains the hostname of the proxy server
+	// which issued this key
+	ProxyHost string
 }
 
 // LocalKeyStore interface allows for different storage back-ends for TSH to load/save its keys
@@ -62,6 +67,17 @@ func (k *Key) AsAgentKey() (*agent.AddedKey, error) {
 		LifetimeSecs:     0,
 		ConfirmBeforeUse: false,
 	}, nil
+}
+
+// EqualsTo returns true if this key is the same as the other.
+// Primarily used in tests
+func (k *Key) EqualsTo(other *Key) bool {
+	if k == other {
+		return true
+	}
+	return bytes.Equal(k.Cert, other.Cert) &&
+		bytes.Equal(k.Priv, other.Priv) &&
+		bytes.Equal(k.Pub, other.Pub)
 }
 
 // CertValidBefore returns the time of the cert expiration
