@@ -92,7 +92,6 @@ func parseProxySubsys(name string, srv *Server) (*proxySubsys, error) {
 	if clusterName != "" && srv.proxyTun != nil {
 		_, err := srv.proxyTun.GetSite(clusterName)
 		if err != nil {
-			fmt.Printf("parts: %v\n", parts)
 			return nil, trace.BadParameter("unknown cluster '%s'", clusterName)
 		}
 	}
@@ -232,23 +231,38 @@ func (t *proxySubsys) proxyToHost(
 			}
 		}
 	}
+
+	// if port is 0, it means the client wants us to figure out
+	// which port to use
+	useExactPort := len(t.port) > 0 && t.port != "0"
+
 	// enumerate and try to find a server with a matching name
-	serverAddr := net.JoinHostPort(t.host, t.port)
 	var server services.Server
 	for i := range servers {
 		ip, port, err := net.SplitHostPort(servers[i].GetAddr())
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		// match either by hostname of ip, based on the match
-		if (t.host == ip || t.host == servers[i].GetHostname()) && port == t.port {
+		if t.host == ip || t.host == servers[i].GetHostname() {
 			server = servers[i]
-			break
+			// found the server. see if we need to match the port
+			if useExactPort && t.port != port {
+				return trace.BadParameter("host %s is listening on port %s, not %s", t.host, port, t.port)
+			}
 		}
 	}
+
+	var serverAddr string
 	if server != nil {
 		serverAddr = server.GetAddr()
+	} else {
+		if !useExactPort {
+			// connecting to a server which wasn't found by it's hostname/IP?
+			// probaby that server is running OpenSSH and is not pinging into the cluster,
+			// default to port 22:
+			t.port = "22"
+		}
+		serverAddr = net.JoinHostPort(t.host, t.port)
 	}
 
 	// we must dial by server IP address because hostname

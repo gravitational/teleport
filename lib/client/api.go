@@ -403,6 +403,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	// which nodes are we executing this commands on?
 	nodeAddrs, err := tc.getTargetNodes(ctx, proxyClient)
 	if err != nil {

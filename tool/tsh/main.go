@@ -386,9 +386,6 @@ export SSH_AGENT_PID=%v
 // a fully configured TeleportClient object
 func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, err error) {
 	// apply defults
-	if cf.NodePort == 0 {
-		cf.NodePort = defaults.SSHServerListenPort
-	}
 	if cf.MinsToLive == 0 {
 		cf.MinsToLive = int32(defaults.CertDuration / time.Minute)
 	}
