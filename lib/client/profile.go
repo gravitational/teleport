@@ -40,8 +40,7 @@ type ClientProfile struct {
 	//
 	// auth/identity
 	//
-	Username  string `yaml:"user,omitempty"`
-	HostLogin string `yaml:"host_login,omitempty"`
+	Username string `yaml:"user,omitempty"`
 
 	// AuthType (like "google")
 	AuthType string `yaml:"auth_type,omitempty"`
