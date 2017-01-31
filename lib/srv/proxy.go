@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -235,20 +236,23 @@ func (t *proxySubsys) proxyToHost(
 	// if port is 0, it means the client wants us to figure out
 	// which port to use
 	useExactPort := len(t.port) > 0 && t.port != "0"
+	ips, _ := net.LookupHost(t.host)
 
-	// enumerate and try to find a server with a matching name
+	// enumerate and try to find a server with self-registered with a matching name/IP:
 	var server services.Server
 	for i := range servers {
 		ip, port, err := net.SplitHostPort(servers[i].GetAddr())
 		if err != nil {
-			return trace.Wrap(err)
+			log.Error(err)
+			continue
 		}
-		if t.host == ip || t.host == servers[i].GetHostname() {
+		if t.host == ip || t.host == servers[i].GetHostname() || utils.SliceContainsStr(ips, ip) {
 			server = servers[i]
 			// found the server. see if we need to match the port
 			if useExactPort && t.port != port {
 				return trace.BadParameter("host %s is listening on port %s, not %s", t.host, port, t.port)
 			}
+			break
 		}
 	}
 
@@ -257,10 +261,7 @@ func (t *proxySubsys) proxyToHost(
 		serverAddr = server.GetAddr()
 	} else {
 		if !useExactPort {
-			// connecting to a server which wasn't found by it's hostname/IP?
-			// probaby that server is running OpenSSH and is not pinging into the cluster,
-			// default to port 22:
-			t.port = "22"
+			t.port = strconv.Itoa(defaults.SSHServerListenPort)
 		}
 		serverAddr = net.JoinHostPort(t.host, t.port)
 	}

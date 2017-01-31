@@ -426,7 +426,7 @@ func (s *IntSuite) TestTwoSites(c *check.C) {
 	// Stop "site-A" and try to connect to it again via "site-A" (expect a connection error)
 	a.Stop(false)
 	err = tc.SSH(context.TODO(), cmd, false)
-	c.Assert(err, check.ErrorMatches, `failed connecting to node 127.0.0.1:\d+. site-A is offline`)
+	c.Assert(err, check.ErrorMatches, `failed connecting to node 127.0.0.1. site-A is offline`)
 
 	// Reset and start "Site-A" again
 	a.Reset()
