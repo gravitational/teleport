@@ -94,7 +94,7 @@ func (s *TunSuite) SetUpTest(c *C) {
 	hcert, err := s.a.GenerateHostCert(hpub, "localhost", "localhost", teleport.Roles{teleport.RoleNode}, 0)
 	c.Assert(err, IsNil)
 
-	newChecker, err := NewAccessChecker(s.a.Access, s.a.Identity)
+	authorizer, err := NewAuthorizer(s.a.Access, s.a.Identity, s.a.Trust)
 	c.Assert(err, IsNil)
 
 	signer, err := sshutils.NewSigner(hpriv, hcert)
@@ -102,7 +102,7 @@ func (s *TunSuite) SetUpTest(c *C) {
 	s.signer = signer
 	s.conf = &APIConfig{
 		AuthServer:     s.a,
-		NewChecker:     newChecker,
+		Authorizer:     authorizer,
 		SessionService: s.sessionServer,
 		AuditLog:       s.alog,
 	}
@@ -114,7 +114,7 @@ func (s *TunSuite) SetUpTest(c *C) {
 }
 
 func (s *TunSuite) TestUnixServerClient(c *C) {
-	newChecker, err := NewAccessChecker(s.a.Access, s.a.Identity)
+	authorizer, err := NewAuthorizer(s.a.Access, s.a.Identity, s.a.Trust)
 	c.Assert(err, IsNil)
 
 	tsrv, err := NewTunnel(
@@ -122,7 +122,7 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 		s.signer,
 		&APIConfig{
 			AuthServer:     s.a,
-			NewChecker:     newChecker,
+			Authorizer:     authorizer,
 			SessionService: s.sessionServer,
 			AuditLog:       s.alog,
 		},

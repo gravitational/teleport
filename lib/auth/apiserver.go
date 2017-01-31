@@ -167,14 +167,10 @@ func (s *APIServer) withAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 		// SSH-to-HTTP gateway (tun server) expects the auth
 		// context to be set by SSH server
-		context := r.Context()
-		if context == nil {
-			return nil, trace.AccessDenied(accessDeniedMsg + "[00]")
-		}
-		authContext, err := s.Authorizer.Authorize(context)
+		authContext, err := s.Authorizer.Authorize(r.Context())
 		if err != nil {
 			log.Warn(accessDeniedMsg + err.Error())
-			return nil, trace.AccessDenied(accessDeniedMsg + "[01]")
+			return nil, trace.AccessDenied(accessDeniedMsg + "[00]")
 		}
 		auth := &AuthWithRoles{
 			authServer: s.AuthServer,

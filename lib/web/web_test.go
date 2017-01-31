@@ -17,6 +17,7 @@ limitations under the License.
 package web
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/base32"
 	"encoding/json"
@@ -126,6 +127,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 
 	access := local.NewAccessService(s.bk)
 	identity := local.NewIdentityService(s.bk)
+	trust := local.NewCAService(s.bk)
 
 	s.domainName = "localhost"
 	authServer := auth.NewAuthServer(&auth.InitConfig{
@@ -153,7 +155,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 	err = authServer.UpsertUser(teleUser)
 	c.Assert(err, IsNil)
 
-	newChecker, err := auth.NewAccessChecker(access, identity)
+	authorizer, err := auth.NewAuthorizer(access, identity, trust)
 	c.Assert(err, IsNil)
 
 	c.Assert(authServer.UpsertCertAuthority(
@@ -164,10 +166,12 @@ func (s *WebSuite) SetUpTest(c *C) {
 	sessionServer, err := sess.New(s.bk)
 	c.Assert(err, IsNil)
 
-	checker, err := newChecker(s.user)
+	ctx := context.WithValue(context.TODO(), teleport.ContextUser, teleport.LocalUser{Username: s.user})
+	authContext, err := authorizer.Authorize(ctx)
+
 	c.Assert(err, IsNil)
 
-	s.roleAuth = auth.NewAuthWithRoles(authServer, checker, s.user, sessionServer, s.auditLog)
+	s.roleAuth = auth.NewAuthWithRoles(authServer, authContext.Checker, s.user, sessionServer, s.auditLog)
 
 	// set up host private key and certificate
 	hpriv, hpub, err := authServer.GenerateKeyPair("")
@@ -225,7 +229,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		&auth.APIConfig{
 			AuthServer:     authServer,
 			SessionService: sessionServer,
-			NewChecker:     newChecker,
+			Authorizer:     authorizer,
 			AuditLog:       s.auditLog,
 		})
 	c.Assert(err, IsNil)
