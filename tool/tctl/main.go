@@ -115,7 +115,7 @@ type GetCommand struct {
 	withSecrets bool
 }
 
-type UpsertCommand struct {
+type CreateCommand struct {
 	config   *service.Config
 	filename string
 }
@@ -137,7 +137,7 @@ func main() {
 	cmdReverseTunnel := ReverseTunnelCommand{config: cfg}
 	cmdTokens := TokenCommand{config: cfg}
 	cmdGet := GetCommand{config: cfg}
-	cmdUpsert := UpsertCommand{config: cfg}
+	cmdCreate := CreateCommand{config: cfg}
 	cmdDelete := DeleteCommand{config: cfg}
 
 	// define global flags:
@@ -181,8 +181,8 @@ func main() {
 	get.Flag("with-secrets", "Include secrets in resources like certificate authorities or OIDC connectors").Default("false").BoolVar(&cmdGet.withSecrets)
 
 	// upsert one or many resources
-	upsert := app.Command("upsert", "Update or insert one or many resources").Hidden()
-	upsert.Flag("filename", "Filename with resources").Short('f').StringVar(&cmdUpsert.filename)
+	create := app.Command("create", "Create or update a resource").Hidden()
+	create.Flag("filename", "resource definition file").Short('f').StringVar(&cmdCreate.filename)
 
 	// list users command
 	userList := users.Command("ls", "List all user accounts")
@@ -274,8 +274,8 @@ func main() {
 	switch command {
 	case get.FullCommand():
 		err = cmdGet.Get(client)
-	case upsert.FullCommand():
-		err = cmdUpsert.Upsert(client)
+	case create.FullCommand():
+		err = cmdCreate.Create(client)
 	case delete.FullCommand():
 		err = cmdDelete.Delete(client)
 	case userAdd.FullCommand():
@@ -877,8 +877,8 @@ func (g *GetCommand) Get(client *auth.TunClient) error {
 	return trace.BadParameter("unsupported format")
 }
 
-// Upsert updates or insterts one or many resources
-func (u *UpsertCommand) Upsert(client *auth.TunClient) error {
+// Create updates or insterts one or many resources
+func (u *CreateCommand) Create(client *auth.TunClient) error {
 	var reader io.ReadCloser
 	var err error
 	if u.filename != "" {

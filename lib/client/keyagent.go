@@ -59,7 +59,11 @@ func NewLocalAgent(keyDir, username string) (a *LocalKeyAgent, err error) {
 		return nil, trace.Wrap(err)
 	}
 	for i := range keys {
-		if err := a.Agent.Add(keys[i]); err != nil {
+		k, err := keys[i].AsAgentKey()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := a.Agent.Add(*k); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -68,20 +72,8 @@ func NewLocalAgent(keyDir, username string) (a *LocalKeyAgent, err error) {
 
 // loadKeys return the list of keys for the given user
 // from the local keystore (files in ~/.tsh)
-func (a *LocalKeyAgent) LoadKeys(username string) ([]agent.AddedKey, error) {
-	keys, err := a.keyStore.GetKeys(username)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	retval := make([]agent.AddedKey, len(keys))
-	for i, key := range keys {
-		ak, err := key.AsAgentKey()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		retval[i] = *ak
-	}
-	return retval, nil
+func (a *LocalKeyAgent) LoadKeys(username string) ([]Key, error) {
+	return a.keyStore.GetKeys(username)
 }
 
 // AddHostSignersToCache takes a list of CAs whom we trust. This list is added to a database

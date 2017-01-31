@@ -62,7 +62,9 @@ func (s *KeyStoreTestSuite) TestListKeys(c *check.C) {
 	keys := make([]Key, keyNum)
 	for i := 0; i < keyNum; i++ {
 		key := s.makeSignedKey(c, false)
-		s.store.AddKey(fmt.Sprintf("host-%v", i), "bob", key)
+		host := fmt.Sprintf("host-%v", i)
+		s.store.AddKey(host, "bob", key)
+		key.ProxyHost = host
 		keys[i] = *key
 	}
 	// add 1 key for "sam"
@@ -93,7 +95,7 @@ func (s *KeyStoreTestSuite) TestKeyCRUD(c *check.C) {
 	// load back and compare:
 	keyCopy, err := s.store.GetKey("host.a", "bob")
 	c.Assert(err, check.IsNil)
-	c.Assert(key, check.DeepEquals, keyCopy)
+	c.Assert(key.EqualsTo(keyCopy), check.Equals, true)
 
 	// Delete & verify that its' gone
 	err = s.store.DeleteKey("host.a", "bob")
@@ -119,7 +121,7 @@ func (s *KeyStoreTestSuite) TestKeyExpiration(c *check.C) {
 	// get all keys back. only "good" key should be returned:
 	keys, _ := s.store.GetKeys("sam")
 	c.Assert(keys, check.HasLen, 1)
-	c.Assert(keys[0], check.DeepEquals, *good)
+	c.Assert(keys[0].EqualsTo(good), check.Equals, true)
 }
 
 func (s *KeyStoreTestSuite) TestKnownHosts(c *check.C) {

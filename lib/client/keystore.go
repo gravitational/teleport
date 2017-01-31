@@ -176,7 +176,7 @@ func (fs *FSLocalKeyStore) GetKey(host, username string) (*Key, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	key := &Key{Pub: pub, Priv: priv, Cert: cert}
+	key := &Key{Pub: pub, Priv: priv, Cert: cert, ProxyHost: host}
 
 	// expired certificate? this key won't be accepted anymore, lets delete it:
 	certExpiration, err := key.CertValidBefore()
