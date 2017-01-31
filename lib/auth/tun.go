@@ -425,7 +425,7 @@ func (s *AuthTunnel) keyAuth(
 		return nil, trace.Wrap(err)
 	}
 
-	ca, err := s.findUserAuthority(cert)
+	ca, err := s.findUserAuthority(cert.SignatureKey)
 	if err != nil {
 		log.Warningf("conn(%v->%v, user=%v) ERROR: Failed to authorize user %v, err: %v",
 			conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
