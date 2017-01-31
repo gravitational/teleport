@@ -259,6 +259,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress string,
 		}
 		return nil, trace.Wrap(err)
 	}
+
 	client := ssh.NewClient(conn, chans, reqs)
 	if err != nil {
 		return nil, trace.Wrap(err)

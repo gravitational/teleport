@@ -179,6 +179,6 @@ func (s *Suite) TestLocking(c *check.C) {
 
 	// release the lock, and the gorouting should unlock and advance i
 	s.bk.ReleaseLock(lock)
-	time.Sleep(time.Millisecond * 5)
+	time.Sleep(time.Millisecond * 7)
 	c.Assert(atomic.LoadInt32(&i), check.Equals, int32(1))
 }

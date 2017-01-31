@@ -71,7 +71,7 @@ const (
 
 	// DefaultIdleConnectionDuration indicates for how long Teleport will hold
 	// the SSH connection open if there are no reads/writes happening over it.
-	DefaultIdleConnectionDuration = 10 * time.Minute
+	DefaultIdleConnectionDuration = 20 * time.Minute
 
 	// DefaultReadHeadersTimeout is a default TCP timeout when we wait
 	// for the response headers to arrive
