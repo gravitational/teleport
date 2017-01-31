@@ -186,7 +186,6 @@ func (c *Config) LoadProfile(profileDir string) error {
 	}
 	// apply the profile to the current configuration:
 	c.SetProxy(cp.ProxyHost, cp.ProxyWebPort, cp.ProxySSHPort)
-	c.HostLogin = cp.HostLogin
 	c.Username = cp.Username
 	c.SiteName = cp.SiteName
 	c.LocalForwardPorts, err = ParsePortForwardSpec(cp.ForwardedPorts)
@@ -207,7 +206,6 @@ func (c *Config) SaveProfile(profileDir string) error {
 
 	var cp ClientProfile
 	cp.ProxyHost = c.ProxyHost()
-	cp.HostLogin = c.HostLogin
 	cp.Username = c.Username
 	cp.ProxySSHPort = c.ProxySSHPort()
 	cp.ProxyWebPort = c.ProxyWebPort()
@@ -822,7 +820,7 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessToJoin *session.S
 		return trace.Wrap(err)
 	}
 	if nodeSession.ExitMsg == "" {
-		fmt.Printf("Connection to %s closed from the remote side\n", tc.NodeHostPort())
+		fmt.Println("the connection was closed on the remote side", time.Now())
 	} else {
 		fmt.Println(nodeSession.ExitMsg)
 	}

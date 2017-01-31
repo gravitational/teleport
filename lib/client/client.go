@@ -182,6 +182,15 @@ func (proxy *ProxyClient) ConnectToSite(ctx context.Context, quiet bool) (auth.C
 	return clt, nil
 }
 
+// nodeName removes the port number from the hostname, if present
+func nodeName(node string) string {
+	n, _, err := net.SplitHostPort(node)
+	if err != nil {
+		return node
+	}
+	return n
+}
+
 // ConnectToNode connects to the ssh server via Proxy.
 // It returns connected and authenticated NodeClient
 func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress string, user string, quiet bool) (*NodeClient, error) {
@@ -223,7 +232,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress string,
 		// it to the end of our own message:
 		serverErrorMsg, _ := ioutil.ReadAll(proxyErr)
 		return nil, trace.Errorf("failed connecting to node %v. %s",
-			strings.Split(nodeAddress, "@")[0], serverErrorMsg)
+			nodeName(strings.Split(nodeAddress, "@")[0]), serverErrorMsg)
 	}
 	pipeNetConn := utils.NewPipeNetConn(
 		proxyReader,
@@ -246,10 +255,11 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress string,
 			if len(hostname) == 0 && len(parts) > 1 {
 				hostname = "cluster " + parts[1]
 			}
-			return nil, trace.Errorf(`access denied to "%v" when connecting to %v`, user, hostname)
+			return nil, trace.Errorf(`access denied to %v connecting to %v`, user, nodeName(hostname))
 		}
 		return nil, trace.Wrap(err)
 	}
+
 	client := ssh.NewClient(conn, chans, reqs)
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -56,6 +56,10 @@ const (
 	// to all backends during initialization
 	DataDirParameterName = "data_dir"
 
+	// SSH request type to keep the connection alive. A client and a server keep
+	// pining each other with it:
+	KeepAliveReqType = "keepalive@openssh.com"
+
 	// OTP means One-time Password Algorithm.
 	OTP = "otp"
 

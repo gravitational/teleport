@@ -193,6 +193,16 @@ func Deduplicate(in []string) []string {
 	return out
 }
 
+// SliceContainsStr returns 'true' if the slice contains the given value
+func SliceContainsStr(slice []string, value string) bool {
+	for i := range slice {
+		if slice[i] == value {
+			return true
+		}
+	}
+	return false
+}
+
 const (
 	// HumanTimeFormatString is a human readable date formatting
 	HumanTimeFormatString = "Mon Jan _2 15:04 UTC"

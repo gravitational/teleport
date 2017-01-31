@@ -173,8 +173,10 @@ func run(args []string, underTest bool) {
 	case agent.FullCommand():
 		onAgentStart(&cf)
 	case login.FullCommand():
+		refuseArgs(login.FullCommand(), args)
 		onLogin(&cf)
 	case logout.FullCommand():
+		refuseArgs(logout.FullCommand(), args)
 		onLogout(&cf)
 	}
 }
@@ -211,18 +213,23 @@ func onLogin(cf *CLIConf) {
 // onLogout deletes a "session certificate" from ~/.tsh for a given proxy
 func onLogout(cf *CLIConf) {
 	client.UnlinkCurrentProfile()
-	tc, err := makeClient(cf, true)
-	if err != nil {
-		utils.FatalError(err)
-	}
-	if err = tc.Logout(); err != nil {
-		if trace.IsNotFound(err) {
-			fmt.Println("You are not logged in")
-			return
+
+	// logout from all
+	if cf.Proxy == "" {
+		client.LogoutFromEverywhere(cf.Username)
+	} else {
+		tc, err := makeClient(cf, true)
+		if err != nil {
+			utils.FatalError(err)
 		}
-		utils.FatalError(err)
+		if err = tc.Logout(); err != nil {
+			if trace.IsNotFound(err) {
+				utils.FatalError(trace.Errorf("you are not logged into proxy '%s'", cf.Proxy))
+			}
+			utils.FatalError(err)
+		}
+		fmt.Printf("%s has logged out of %s\n", tc.Username, cf.SiteName)
 	}
-	fmt.Printf("%s has logged out\n", tc.Username)
 }
 
 // onListNodes executes 'tsh ls' command
@@ -371,9 +378,12 @@ export SSH_AGENT_PID=%v
 		utils.FatalError(err)
 	}
 	// add existing keys to the running agent for ux purposes
-	for _, key := range agentKeys {
-		err := agentServer.Add(key)
+	for i := range agentKeys {
+		key, err := agentKeys[i].AsAgentKey()
 		if err != nil {
+			utils.FatalError(err)
+		}
+		if err = agentServer.Add(*key); err != nil {
 			utils.FatalError(err)
 		}
 	}
@@ -473,4 +483,16 @@ func printHeader(t *goterm.Table, cols []string) {
 	}
 	fmt.Fprint(t, strings.Join(cols, "\t")+"\n")
 	fmt.Fprint(t, strings.Join(dots, "\t")+"\n")
+}
+
+// refuseArgs helper makes sure that 'args' (list of CLI arguments)
+// does not contain anything other than command
+func refuseArgs(command string, args []string) {
+	if len(args) == 0 {
+		return
+	}
+	lastArg := args[len(args)-1]
+	if lastArg != command {
+		utils.FatalError(trace.BadParameter("%s does not expect arguments", command))
+	}
 }
