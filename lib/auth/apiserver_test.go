@@ -23,7 +23,6 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/teleport"
 	authority "github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
@@ -86,20 +85,18 @@ func (s *APISuite) SetUpTest(c *C) {
 	s.AccessS = local.NewAccessService(s.bk)
 	s.WebS = local.NewIdentityService(s.bk)
 
-	newChecker, err := NewAccessChecker(s.AccessS, s.WebS)
+	authorizer, err := NewRoleAuthorizer(teleport.RoleAdmin)
 	c.Assert(err, IsNil)
 
 	apiServer := NewAPIServer(&APIConfig{
 		AuthServer:     s.a,
-		NewChecker:     newChecker,
+		Authorizer:     authorizer,
 		SessionService: s.sessions,
 		AuditLog:       s.alog,
 	})
 	s.srv = httptest.NewServer(apiServer)
 
-	// apiserver receives authentication information passed by SSH,
-	// this is to pass auth info to auth user
-	clt, err := NewClient(s.srv.URL, nil, roundtrip.BasicAuth(teleport.RoleAdmin.User(), "<something>"))
+	clt, err := NewClient(s.srv.URL, nil)
 	c.Assert(err, IsNil)
 	s.clt = clt
 
@@ -178,45 +175,55 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 	err = s.clt.UpsertPassword(user2.GetName(), []byte("abc1232"))
 	c.Assert(err, IsNil)
 
-	newChecker, err := NewAccessChecker(s.AccessS, s.WebS)
+	// unauthenticated client should NOT be able to generate a user cert without auth
+	authorizer, err := NewAuthorizer(s.AccessS, s.WebS, s.CAS)
 	c.Assert(err, IsNil)
-
-	userServer := NewAPIServer(&APIConfig{
-		AuthServer:     s.a,
-		NewChecker:     newChecker,
-		SessionService: s.sessions,
-		AuditLog:       s.alog,
-	})
-	authServer := httptest.NewServer(userServer)
+	authServer, userClient := s.newServerWithAuthorizer(c, authorizer)
 	defer authServer.Close()
 
-	userClient, err := NewClient(authServer.URL, nil)
-	c.Assert(err, IsNil)
-
-	// should NOT be able to generate a user cert without basic HTTP auth
 	cert, err = userClient.GenerateUserCert(pub, "user1", time.Hour)
 	c.Assert(err, NotNil)
 	c.Assert(err.Error(), Equals, "auth API: access denied [00]")
 
 	// Users don't match
-	roundtrip.BasicAuth("user2", "two")(&userClient.Client)
-	cert, err = userClient.GenerateUserCert(pub, "user1", time.Hour)
+	authorizer, err = NewUserAuthorizer("user2", s.WebS, s.AccessS)
+	c.Assert(err, IsNil)
+	authServer2, userClient2 := s.newServerWithAuthorizer(c, authorizer)
+	defer authServer2.Close()
+
+	cert, err = userClient2.GenerateUserCert(pub, "user1", time.Hour)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, ".*cannot request a certificate for user1")
 
 	// should not be able to generate cert for longer than duration
-	roundtrip.BasicAuth("user1", "two")(&userClient.Client)
-	cert, err = userClient.GenerateUserCert(pub, "user1", 40*time.Hour)
+	authorizer, err = NewUserAuthorizer("user1", s.WebS, s.AccessS)
+	c.Assert(err, IsNil)
+	authServer3, userClient3 := s.newServerWithAuthorizer(c, authorizer)
+	defer authServer3.Close()
+
+	cert, err = userClient3.GenerateUserCert(pub, "user1", 40*time.Hour)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, ".*cannot request a certificate for 40h0m0s")
 
 	// apply HTTP Auth to generate user cert:
-	roundtrip.BasicAuth("user1", "two")(&userClient.Client)
-	cert, err = userClient.GenerateUserCert(pub, "user1", time.Hour)
+	cert, err = userClient3.GenerateUserCert(pub, "user1", time.Hour)
 	c.Assert(err, IsNil)
 
 	_, _, _, _, err = ssh.ParseAuthorizedKey(cert)
 	c.Assert(err, IsNil)
+}
+
+func (s *APISuite) newServerWithAuthorizer(c *C, authz Authorizer) (*httptest.Server, *Client) {
+	userServer := NewAPIServer(&APIConfig{
+		AuthServer:     s.a,
+		Authorizer:     authz,
+		SessionService: s.sessions,
+		AuditLog:       s.alog,
+	})
+	authServer := httptest.NewServer(userServer)
+	userClient, err := NewClient(authServer.URL, nil)
+	c.Assert(err, IsNil)
+	return authServer, userClient
 }
 
 func (s *APISuite) TestUserCRUD(c *C) {

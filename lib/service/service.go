@@ -345,14 +345,14 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	newChecker, err := auth.NewAccessChecker(authServer.Access, authServer.Identity)
+	authorizer, err := auth.NewAuthorizer(authServer.Access, authServer.Identity, authServer.Trust)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	apiConf := &auth.APIConfig{
 		AuthServer:     authServer,
 		SessionService: sessionService,
-		NewChecker:     newChecker,
+		Authorizer:     authorizer,
 		AuditLog:       auditLog,
 	}
 

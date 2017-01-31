@@ -208,6 +208,8 @@ const (
 	HumanTimeFormatString = "Mon Jan _2 15:04 UTC"
 	// CertTeleportUser specifies teleport user
 	CertTeleportUser = "x-teleport-user"
+	// CertTeleportUserCA specifies teleport certificate authority
+	CertTeleportUserCA = "x-teleport-user-ca"
 	// CertExtensionRole specifies teleport role
 	CertExtensionRole = "x-teleport-role"
 	// CertExtensionAuthority specifies teleport authority's name

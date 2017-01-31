@@ -42,7 +42,7 @@ type APIConfig struct {
 	AuthServer     *AuthServer
 	SessionService session.Service
 	AuditLog       events.IAuditLog
-	NewChecker     NewChecker
+	Authorizer     Authorizer
 }
 
 // APIServer implements http API server for AuthServer interface
@@ -165,22 +165,17 @@ type HandlerWithAuthFunc func(auth ClientI, w http.ResponseWriter, r *http.Reque
 func (s *APIServer) withAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 	const accessDeniedMsg = "auth API: access denied "
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-		// SSH-to-HTTP gateway (tun server) sets HTTP basic auth to SSH cert principal
-		// This allows us to make sure that users can only request new certificates
-		// only for themselves, except admin users
-		caller, _, ok := r.BasicAuth()
-		if !ok {
-			return nil, trace.AccessDenied(accessDeniedMsg + "[00]")
-		}
-		checker, err := s.NewChecker(caller)
+		// SSH-to-HTTP gateway (tun server) expects the auth
+		// context to be set by SSH server
+		authContext, err := s.Authorizer.Authorize(r.Context())
 		if err != nil {
 			log.Warn(accessDeniedMsg + err.Error())
-			return nil, trace.AccessDenied(accessDeniedMsg + "[01]")
+			return nil, trace.AccessDenied(accessDeniedMsg + "[00]")
 		}
 		auth := &AuthWithRoles{
 			authServer: s.AuthServer,
-			user:       caller,
-			checker:    checker,
+			user:       authContext.Username,
+			checker:    authContext.Checker,
 			sessions:   s.SessionService,
 			alog:       s.AuditLog,
 		}
