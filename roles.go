@@ -129,15 +129,26 @@ func (r *Role) Check() error {
 	return trace.BadParameter("role %v is not registered", *r)
 }
 
-// Role returns system username associated with it
-func (r Role) User() string {
-	return fmt.Sprintf("@%v", strings.ToLower(string(r)))
+// ContextUser is a user set in the context of the request
+const ContextUser = "teleport-user"
+
+// LocalUsername is a local username
+type LocalUser struct {
+	// Username is local username
+	Username string
 }
 
-// SystemUsernamePrefix is reserved for system users
-const SystemUsernamePrefix = "@"
+// BuiltinRole is monitoring
+type BuiltinRole struct {
+	// Role is the builtin role this username is associated with
+	Role Role
+}
 
-// IsSystemUsername returns true if given username is a reserved system username
-func IsSystemUsername(username string) bool {
-	return strings.HasPrefix(username, SystemUsernamePrefix)
+// RemoteUser defines encoded remote user
+type RemoteUser struct {
+	// Username is a name of the remote user
+	Username string `json:"username"`
+	// ClusterName is a name of the remote cluster
+	// of the user
+	ClusterName string `json:"cluster_name"`
 }

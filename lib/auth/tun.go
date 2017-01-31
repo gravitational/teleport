@@ -18,6 +18,7 @@ limitations under the License.
 package auth
 
 import (
+	"context/context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -235,36 +236,38 @@ func (s *AuthTunnel) isHostAuthority(auth ssh.PublicKey) bool {
 	return false
 }
 
-// isUserAuthority is called during checking the client key, to see if the signing
-// key is the real user CA authority key.
-func (s *AuthTunnel) isUserAuthority(auth ssh.PublicKey) bool {
-	keys, err := s.getTrustedCAKeys(services.UserCA)
+// findUserAuthority finds matching user CA based on its public key
+func (s *AuthTunnel) findUserAuthority(auth ssh.PublicKey) (services.CertAuthority, error) {
+	cas, err := s.authServer.GetCertAuthorities(services.UserCA, false)
 	if err != nil {
-		log.Errorf("failed to retrieve trusted keys, err: %v", err)
-		return false
+		return nil, trace.Wrap(err)
 	}
-	for _, k := range keys {
-		if sshutils.KeysEqual(k, auth) {
-			return true
-		}
-	}
-	return false
-}
-
-func (s *AuthTunnel) getTrustedCAKeys(CertType services.CertAuthType) ([]ssh.PublicKey, error) {
-	cas, err := s.authServer.GetCertAuthorities(CertType, false)
-	if err != nil {
-		return nil, err
-	}
-	out := []ssh.PublicKey{}
 	for _, ca := range cas {
 		checkers, err := ca.Checkers()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		out = append(out, checkers...)
+		for _, checker := range checkers {
+			if sshutils.KeysEqual(checker, auth) {
+				return ca, nil
+			}
+		}
 	}
-	return out, nil
+	return nil, trace.NotFound("no matching certificate authority found")
+}
+
+// isUserAuthority is called during checking the client key, to see if the signing
+// key is the real user CA authority key.
+func (s *AuthTunnel) isUserAuthority(auth ssh.PublicKey) bool {
+	_, err := s.findUserAuthority(auth)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			// something bad happened, need to log
+			log.Error(err)
+		}
+		return false
+	}
+	return true
 }
 
 func (s *AuthTunnel) haveExt(sconn *ssh.ServerConn, ext ...string) bool {
@@ -333,20 +336,25 @@ func (s *AuthTunnel) handleWebAgentRequest(sconn *ssh.ServerConn, ch ssh.Channel
 func (s *AuthTunnel) onAPIConnection(sconn *ssh.ServerConn, sshChan ssh.Channel, req *sshutils.DirectTCPIPReq) {
 	defer sconn.Close()
 
-	var username string
+	var username interface{} = nil
 	if extRole, ok := sconn.Permissions.Extensions[ExtRole]; ok {
 		// retreive the role from thsi connection's permissions (make sure it's a valid role)
 		systemRole := teleport.Role(extRole)
 		if err := systemRole.Check(); err != nil {
-			log.Errorf(err.Error())
+			log.Error(err.Error())
 			return
 		}
-		username = systemRole.User()
+		user = teleport.BuiltinRole{Role: systemRole}
+	} else if clusterName, ok := sconn.Permissions.Extensions[utils.CertTeleportUserCA]; ok {
+		// we got user signed by remote certificate authority
+		user = teleport.RemoteUser{
+			ClusterName: clusterName,
+			Username:    sconn.Permissions.Extensions[utils.CertTeleportUser],
+		}
 	} else if teleportUser, ok := sconn.Permissions.Extensions[utils.CertTeleportUser]; ok {
-		username = teleportUser
-		if teleport.IsSystemUsername(username) {
-			log.Errorf("%v is a system reserved username, but certificate does not verify", username)
-			return
+		// we got user signed by local certificate authority
+		user = teleport.LocalUser{
+			Username: teleportUser,
 		}
 	} else {
 		log.Errorf("expected %v or %v extensions for %v, found none in %v", ExtRole, utils.CertTeleportUser, sconn.User(), sconn.Permissions.Extensions)
@@ -377,7 +385,7 @@ func (s *AuthTunnel) onAPIConnection(sconn *ssh.ServerConn, sshChan ssh.Channel,
 	// serve HTTP API via this SSH connection until it gets closed:
 	http.Serve(&socket, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// take SSH client name and pass it to HTTP API via HTTP Auth
-		r.SetBasicAuth(username, "")
+		r.WithContext(context.WithValue(ctx.Background(), teleport.ContextUser, user))
 		api.ServeHTTP(w, r)
 	}))
 }
@@ -417,15 +425,40 @@ func (s *AuthTunnel) keyAuth(
 			conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
 		return nil, trace.Wrap(err)
 	}
-	// we are not using cert extensions for User certificates because of OpenSSH bug
-	// https://bugzilla.mindrot.org/show_bug.cgi?id=2387
-	perms := &ssh.Permissions{
-		Extensions: map[string]string{
-			ExtHost:                conn.User(),
-			utils.CertTeleportUser: cert.KeyId,
-		},
+
+	ca, err := s.findUserAuthority(cert)
+	if err != nil {
+		log.Warningf("conn(%v->%v, user=%v) ERROR: Failed to authorize user %v, err: %v",
+			conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
+		return nil, trace.Wrap(err)
 	}
-	return perms, nil
+
+	clusterName, err := s.authServer.GetDomainName()
+	if err != nil {
+		log.Warningf("conn(%v->%v, user=%v) ERROR: Failed to authorize user %v, err: %v",
+			conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
+		return nil, trace.Wrap(err)
+	}
+
+	// if this is local CA, we assume that local user exists
+	if clusterName == ca.GetClusterName() {
+		// we are not using cert extensions for User certificates because of OpenSSH bug
+		// https://bugzilla.mindrot.org/show_bug.cgi?id=2387
+		return &ssh.Permissions{
+			Extensions: map[string]string{
+				ExtHost:                conn.User(),
+				utils.CertTeleportUser: cert.KeyId,
+			},
+		}, nil
+	}
+	// otherwise we return this as a remote CA
+	return &ssh.Permissions{
+		Extensions: map[string]string{
+			ExtHost:                  conn.User(),
+			utils.CertTeleportUserCA: ca.GetID().DomainName,
+			utils.CertTeleportUser:   cert.KeyId,
+		},
+	}, nil
 }
 
 func (s *AuthTunnel) passwordAuth(

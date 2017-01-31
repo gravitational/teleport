@@ -17,6 +17,8 @@ limitations under the License.
 package auth
 
 import (
+	"context"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/services"
 
@@ -24,51 +26,102 @@ import (
 )
 
 // NewAccessChecker returns new access checker that's using roles and users
-func NewAccessChecker(access services.Access, identity services.Identity) (NewChecker, error) {
+func NewAccessChecker(access services.Access, identity services.Identity, trust services.Trust) (NewChecker, error) {
 	if access == nil {
 		return nil, trace.BadParameter("missing parameter access")
 	}
 	if identity == nil {
 		return nil, trace.BadParameter("missing parameter identity")
 	}
-	return (&AccessCheckers{Access: access, Identity: identity}).GetChecker, nil
+	return &AccessCheckers{Access: access, Identity: identity, Trust: trust}, nil
 }
 
-// NewChecker is a function that returns new access checker based on username
-type NewChecker func(username string) (services.AccessChecker, error)
+// Authorizer authorizes identity and returns auth context
+type Authorizer interface {
+	// Authorize authorizes user based on identity supplied via context
+	Authorize(ctx context.Context) (*AuthContext, error)
+}
 
 // AccessCheckers creates new checkers using Access services
 type AccessCheckers struct {
 	Access   services.Access
 	Identity services.Identity
+	Trust    services.Trust
 }
 
-// GetChecker returns access checker based on the username
-func (a *AccessCheckers) GetChecker(username string) (services.AccessChecker, error) {
-	checker, err := GetCheckerForSystemUsers(username)
-	if err == nil {
-		return checker, nil
+// AuthzContext is authorization context
+type AuthContext struct {
+	// Username is the user name
+	Username string
+	// Checker is access checker
+	Checker services.AccessChekcer
+}
+
+// Authorize authorizes user based on identity supplied via context
+func (a *AccessCheckers) Authorize(ctx context.Context) (*AuthContext, error) {
+	if ctx == nil {
+		return nil, trace.AccessDenied("missing authentication context")
 	}
-	user, err := a.Identity.GetUser(username)
+	userI := ctx.GetValue(teleport.ContextUser)
+	switch user := userI.(type) {
+	case teleport.LocalUser:
+		return a.authorizeForLocalUser(user)
+	case teleport.RemoteUser:
+		return a.authorizeRemoteUser(user)
+	case teleport.BuiltinRole:
+		return a.authorizeBuiltinRole(user)
+	default:
+		return nil, trace.AccessDenied("unsupported context type")
+	}
+}
+
+// authorizeLocalUser returns authz context based on the username
+func (a *AccessCheckers) authorizeLocalUser(u teleport.LocalUser) (*AuthContext, error) {
+	user, err := a.Identity.GetUser(u.Username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var roles services.RoleSet
-	for _, roleName := range user.GetRoles() {
-		role, err := a.Access.GetRole(roleName)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		roles = append(roles, role)
+	checker, err := services.FetchRoles(user.GetRoles(), a.Access)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return roles, nil
+	return &AuthContext{Username: username, Checker: checker}, nil
 }
 
-// GetCheckerForSystemUsers returns checkers for embedded system users
-// hardcoded in the system
-func GetCheckerForSystemUsers(username string) (services.AccessChecker, error) {
-	switch username {
-	case teleport.RoleAuth.User():
+// authorizeRemoteUser returns checker based on cert authority roles
+func (a *AccessCheckers) authorizeRemoteUser(u teleport.RemoteUser) (*AuthContext, error) {
+	ca, err := a.Trust.GetCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: u.ClusterName}, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	checker, err := services.FetchRoles(ca.GetRoles(), a.Access)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &AuthContext{
+		// this is done on purpose to make sure user does not match some real local user
+		Username: fmt.Sprintf("remote user %v from %v", u.Username, u.ClusterName),
+		Checker:  checker,
+	}, nil
+}
+
+// authorizeBuiltinRole authorizes builtin role
+func (a *AccessCheckers) authorizeRemoteUser(r teleport.BuiltinRole) (*AuthContext, error) {
+	checker, err := GetCheckerForBuiltinRole(r.Role)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &AuthContext{
+		// this is done on purpose to make sure user does not match some real local user
+		Username: fmt.Sprintf("user from builtin role %v", r.Role),
+		Checker:  checker,
+	}, nil
+}
+
+// GetCheckerForBuiltinRole returns checkers for embedded builtin role
+func GetCheckerForBuiltinRole(role teleport.Role) (*AuthContext, error) {
+	switch role {
+	case teleport.RoleAuth:
 		return services.FromSpec(
 			username,
 			services.RoleSpecV2{
@@ -76,9 +129,9 @@ func GetCheckerForSystemUsers(username string) (services.AccessChecker, error) {
 				Resources: map[string][]string{
 					services.KindAuthServer: services.RW()},
 			})
-	case teleport.RoleProvisionToken.User():
+	case teleport.RoleProvisionToken:
 		return services.FromSpec(username, services.RoleSpecV2{})
-	case teleport.RoleNode.User():
+	case teleport.RoleNode:
 		return services.FromSpec(
 			username,
 			services.RoleSpecV2{
@@ -95,7 +148,7 @@ func GetCheckerForSystemUsers(username string) (services.AccessChecker, error) {
 					services.KindAuthServer:    services.RO(),
 				},
 			})
-	case teleport.RoleProxy.User():
+	case teleport.RoleProxy:
 		return services.FromSpec(
 			username,
 			services.RoleSpecV2{
@@ -115,7 +168,7 @@ func GetCheckerForSystemUsers(username string) (services.AccessChecker, error) {
 					services.KindRole:          services.RO(),
 				},
 			})
-	case teleport.RoleWeb.User():
+	case teleport.RoleWeb:
 		return services.FromSpec(
 			username,
 			services.RoleSpecV2{
@@ -129,7 +182,7 @@ func GetCheckerForSystemUsers(username string) (services.AccessChecker, error) {
 					services.KindNamespace:  services.RO(),
 				},
 			})
-	case teleport.RoleSignup.User():
+	case teleport.RoleSignup:
 		return services.FromSpec(
 			username,
 			services.RoleSpecV2{
@@ -138,7 +191,7 @@ func GetCheckerForSystemUsers(username string) (services.AccessChecker, error) {
 					services.KindAuthServer: services.RO(),
 				},
 			})
-	case teleport.RoleAdmin.User():
+	case teleport.RoleAdmin:
 		return services.FromSpec(
 			username,
 			services.RoleSpecV2{
@@ -150,7 +203,7 @@ func GetCheckerForSystemUsers(username string) (services.AccessChecker, error) {
 					services.Wildcard: services.RW(),
 				},
 			})
-	case teleport.RoleNop.User():
+	case teleport.RoleNop:
 		return services.FromSpec(
 			username,
 			services.RoleSpecV2{
