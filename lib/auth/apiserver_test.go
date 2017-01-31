@@ -86,12 +86,12 @@ func (s *APISuite) SetUpTest(c *C) {
 	s.AccessS = local.NewAccessService(s.bk)
 	s.WebS = local.NewIdentityService(s.bk)
 
-	newChecker, err := NewAccessChecker(s.AccessS, s.WebS)
+	authorizer, err := NewAuthorizer(s.AccessS, s.WebS, s.CAS)
 	c.Assert(err, IsNil)
 
 	apiServer := NewAPIServer(&APIConfig{
 		AuthServer:     s.a,
-		NewChecker:     newChecker,
+		Authorizer:     authorizer,
 		SessionService: s.sessions,
 		AuditLog:       s.alog,
 	})

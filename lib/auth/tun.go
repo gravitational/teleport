@@ -18,7 +18,7 @@ limitations under the License.
 package auth
 
 import (
-	"context/context"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -336,7 +336,7 @@ func (s *AuthTunnel) handleWebAgentRequest(sconn *ssh.ServerConn, ch ssh.Channel
 func (s *AuthTunnel) onAPIConnection(sconn *ssh.ServerConn, sshChan ssh.Channel, req *sshutils.DirectTCPIPReq) {
 	defer sconn.Close()
 
-	var username interface{} = nil
+	var user interface{} = nil
 	if extRole, ok := sconn.Permissions.Extensions[ExtRole]; ok {
 		// retreive the role from thsi connection's permissions (make sure it's a valid role)
 		systemRole := teleport.Role(extRole)
@@ -385,8 +385,7 @@ func (s *AuthTunnel) onAPIConnection(sconn *ssh.ServerConn, sshChan ssh.Channel,
 	// serve HTTP API via this SSH connection until it gets closed:
 	http.Serve(&socket, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// take SSH client name and pass it to HTTP API via HTTP Auth
-		r.WithContext(context.WithValue(ctx.Background(), teleport.ContextUser, user))
-		api.ServeHTTP(w, r)
+		api.ServeHTTP(w, r.WithContext(context.WithValue(context.TODO(), teleport.ContextUser, user)))
 	}))
 }
 
