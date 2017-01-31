@@ -26,12 +26,6 @@ type UtilsSuite struct {
 
 var _ = check.Suite(&UtilsSuite{})
 
-func (s *UtilsSuite) TestDeduplicate(c *check.C) {
-	c.Assert(Deduplicate([]string{}), check.DeepEquals, []string{})
-	c.Assert(Deduplicate([]string{"a", "b"}), check.DeepEquals, []string{"a", "b"})
-	c.Assert(Deduplicate([]string{"a", "b", "b", "a", "c"}), check.DeepEquals, []string{"a", "b", "c"})
-}
-
 func (s *UtilsSuite) TestHostUUID(c *check.C) {
 	// call twice, get same result
 	dir := c.MkDir()
@@ -65,6 +59,18 @@ func (s *UtilsSuite) TestRandomDuration(c *check.C) {
 		c.Assert(dur >= expectedMin, check.Equals, true)
 		c.Assert(dur < expectedMax, check.Equals, true)
 	}
+}
+
+func (s *UtilsSuite) TestMiscFunctions(c *check.C) {
+	// SliceContainsStr
+	c.Assert(SliceContainsStr([]string{"two", "one"}, "one"), check.Equals, true)
+	c.Assert(SliceContainsStr([]string{"two", "one"}, "five"), check.Equals, false)
+	c.Assert(SliceContainsStr([]string(nil), "one"), check.Equals, false)
+
+	// Deduplicate
+	c.Assert(Deduplicate([]string{}), check.DeepEquals, []string{})
+	c.Assert(Deduplicate([]string{"a", "b"}), check.DeepEquals, []string{"a", "b"})
+	c.Assert(Deduplicate([]string{"a", "b", "b", "a", "c"}), check.DeepEquals, []string{"a", "b", "c"})
 }
 
 func (s *UtilsSuite) TestGetShell(c *check.C) {
