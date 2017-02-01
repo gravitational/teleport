@@ -240,6 +240,8 @@ func (c *Config) ProxyWebHostPort() string {
 	return net.JoinHostPort(c.ProxyHost(), strconv.Itoa(c.ProxyWebPort()))
 }
 
+// ProxyWebPort returns the port number of teleport HTTP proxy stored in the config
+// usually 3080 by default.
 func (c *Config) ProxyWebPort() (retval int) {
 	retval = defaults.HTTPListenPort
 	_, port, err := net.SplitHostPort(c.ProxyHostPort)
@@ -255,6 +257,8 @@ func (c *Config) ProxyWebPort() (retval int) {
 	return retval
 }
 
+// ProxySSHPort returns the port number of teleport SSH proxy stored in the config
+// usually 3023 by default.
 func (c *Config) ProxySSHPort() (retval int) {
 	retval = defaults.SSHProxyListenPort
 	_, port, err := net.SplitHostPort(c.ProxyHostPort)
@@ -397,7 +401,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 		return trace.Wrap(err)
 	}
 	defer proxyClient.Close()
-	siteInfo, err := proxyClient.getSite()
+	siteInfo, err := proxyClient.currentSite()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -654,7 +658,7 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, recu
 	// helper function connects to the src/target node:
 	connectToNode := func(addr string) (*NodeClient, error) {
 		// determine which cluster we're connecting to:
-		siteInfo, err := proxyClient.getSite()
+		siteInfo, err := proxyClient.currentSite()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -919,7 +923,7 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 	log.Debugf(successMsg)
 	proxyClient := makeProxyClient(sshClient, authMethod)
 	// get (and remember) the site info:
-	site, err := proxyClient.getSite()
+	site, err := proxyClient.currentSite()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -940,8 +944,6 @@ func (tc *TeleportClient) Login() (*CertAuthMethod, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Debugf("using 2nd factor type: '%v'", tc.SecondFactorType)
-
 	var response *web.SSHLoginResponse
 
 	switch tc.SecondFactorType {

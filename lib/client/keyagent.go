@@ -167,6 +167,12 @@ func (a *LocalKeyAgent) AddKey(host string, username string, key *Key) (*CertAut
 	}
 	// add it to the external SSH agent:
 	if a.sshAgent != nil {
+		for _, cert := range a.CertsFromSSHAgent() {
+			if cert.KeyId == username {
+				a.sshAgent.Remove(cert)
+			}
+		}
+
 		if err = a.sshAgent.Add(*agentKey); err != nil {
 			log.Warn(err)
 		}
@@ -236,6 +242,32 @@ func (a *LocalKeyAgent) AuthMethods() (m []ssh.AuthMethod) {
 		m[i] = methodForCert(certs[i])
 	}
 	return m
+}
+
+// CertsFromSSHAgent returns a lsit of certificates stored in the SSH agent
+// daemon. If the daemon is not running, it returns nil.
+func (a *LocalKeyAgent) CertsFromSSHAgent() []*ssh.Certificate {
+	if a.sshAgent == nil {
+		return nil
+	}
+	signers, err := a.sshAgent.List()
+	if err != nil {
+		log.Warn(err)
+		return nil
+	}
+	retval := make([]*ssh.Certificate, 0)
+	for _, s := range signers {
+		pk, _, _, _, err := ssh.ParseAuthorizedKey([]byte(s.String()))
+		if err != nil {
+			log.Warn(err)
+			continue
+		}
+		cert, ok := pk.(*ssh.Certificate)
+		if ok {
+			retval = append(retval, cert)
+		}
+	}
+	return retval
 }
 
 // CertAuthMethod is a wrapper around ssh.Signer (certificate signer) object.

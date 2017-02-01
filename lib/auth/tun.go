@@ -460,6 +460,10 @@ func (s *AuthTunnel) keyAuth(
 	}, nil
 }
 
+// passwordAuth is called to authenticate an incoming SSH connection
+// to the auth server. Such connections are usually created using a
+// TunClient object
+//
 func (s *AuthTunnel) passwordAuth(
 	conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
 	var ab *authBucket
@@ -470,6 +474,7 @@ func (s *AuthTunnel) passwordAuth(
 	log.Infof("[AUTH] login attempt: user %q type %q", conn.User(), ab.Type)
 
 	switch ab.Type {
+	// regular user is trying to get in using his password+OTP token:
 	case AuthWebPassword:
 		if err := s.authServer.CheckPassword(conn.User(), ab.Pass, ab.OTPToken); err != nil {
 			return nil, trace.Wrap(err)
