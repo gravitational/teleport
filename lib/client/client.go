@@ -56,25 +56,6 @@ type NodeClient struct {
 	Proxy     *ProxyClient
 }
 
-func (proxy *ProxyClient) getSite() (*services.Site, error) {
-	sites, err := proxy.GetSites()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if len(sites) == 0 {
-		return nil, trace.NotFound("no clusters registered")
-	}
-	if proxy.siteName == "" {
-		return &sites[0], nil
-	}
-	for _, site := range sites {
-		if site.Name == proxy.siteName {
-			return &site, nil
-		}
-	}
-	return nil, trace.NotFound("cluster %v not found", proxy.siteName)
-}
-
 // GetSites returns list of the "sites" (AKA teleport clusters) connected to the proxy
 // Each site is returned as an instance of its auth server
 //
@@ -147,7 +128,8 @@ func (proxy *ProxyClient) FindServersByLabels(ctx context.Context, namespace str
 // if 'quiet' is set to true, no errors will be printed to stdout, otherwise
 // any connection errors are visible to a user.
 func (proxy *ProxyClient) ConnectToSite(ctx context.Context, quiet bool) (auth.ClientI, error) {
-	site, err := proxy.getSite()
+	// get the current cluster:
+	site, err := proxy.currentSite()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -447,4 +429,24 @@ func (client *NodeClient) listenAndForward(socket net.Listener, remoteAddr strin
 
 func (client *NodeClient) Close() error {
 	return client.Client.Close()
+}
+
+// currentSite returns the connection to the API of the current cluster
+func (proxy *ProxyClient) currentSite() (*services.Site, error) {
+	sites, err := proxy.GetSites()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(sites) == 0 {
+		return nil, trace.NotFound("no clusters registered")
+	}
+	if proxy.siteName == "" {
+		return &sites[0], nil
+	}
+	for _, site := range sites {
+		if site.Name == proxy.siteName {
+			return &site, nil
+		}
+	}
+	return nil, trace.NotFound("cluster %v not found", proxy.siteName)
 }
