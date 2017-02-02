@@ -110,7 +110,7 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
 		Access:          cfg.Access,
 		DomainName:      cfg.DomainName,
 		AuthServiceName: cfg.AuthServiceName,
-		oidcClients:     make(map[string]*oidc.Client),
+		oidcClients:     make(map[string]*oidcClient),
 		StaticTokens:    cfg.StaticTokens,
 		U2F:             cfg.U2F,
 	}
@@ -132,7 +132,7 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
 //   - checks public keys to see if they're signed by it (can be trusted or not)
 type AuthServer struct {
 	lock        sync.Mutex
-	oidcClients map[string]*oidc.Client
+	oidcClients map[string]*oidcClient
 	clock       clockwork.Clock
 	bk          backend.Backend
 	Authority
@@ -697,21 +697,9 @@ func (s *AuthServer) DeleteWebSession(user string, id string) error {
 	return trace.Wrap(s.Identity.DeleteWebSession(user, id))
 }
 
-func (s *AuthServer) invalidateOIDCClient(connectorName string) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
-	delete(s.oidcClients, connectorName)
-}
-
 func (s *AuthServer) getOIDCClient(conn services.OIDCConnector) (*oidc.Client, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
-
-	client, ok := s.oidcClients[conn.GetName()]
-	if ok {
-		return client, nil
-	}
 
 	config := oidc.ClientConfig{
 		RedirectURL: conn.GetRedirectURL(),
@@ -723,6 +711,12 @@ func (s *AuthServer) getOIDCClient(conn services.OIDCConnector) (*oidc.Client, e
 		Scope: utils.Deduplicate(append([]string{"openid", "email"}, conn.GetScope()...)),
 	}
 
+	clientPack, ok := s.oidcClients[conn.GetName()]
+	if ok && oidcConfigsEqual(clientPack.config, config) {
+		return clientPack.client, nil
+	}
+	delete(s.oidcClients, conn.GetName())
+
 	client, err := oidc.NewClient(config)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -730,25 +724,17 @@ func (s *AuthServer) getOIDCClient(conn services.OIDCConnector) (*oidc.Client, e
 
 	client.SyncProviderConfig(conn.GetIssuerURL())
 
-	s.oidcClients[conn.GetName()] = client
+	s.oidcClients[conn.GetName()] = &oidcClient{client: client, config: config}
 
 	return client, nil
 }
 
 func (s *AuthServer) UpsertOIDCConnector(connector services.OIDCConnector, ttl time.Duration) error {
-	err := s.Identity.UpsertOIDCConnector(connector, ttl)
-	if err == nil {
-		s.invalidateOIDCClient(connector.GetName())
-	}
-	return trace.Wrap(err)
+	return s.Identity.UpsertOIDCConnector(connector, ttl)
 }
 
 func (s *AuthServer) DeleteOIDCConnector(connectorName string) error {
-	err := s.Identity.DeleteOIDCConnector(connectorName)
-	if err == nil {
-		s.invalidateOIDCClient(connectorName)
-	}
-	return trace.Wrap(err)
+	return s.Identity.DeleteOIDCConnector(connectorName)
 }
 
 func (s *AuthServer) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error) {
@@ -1033,4 +1019,33 @@ func toTTL(c clockwork.Clock, tm time.Time) time.Duration {
 		return 0
 	}
 	return tm.Sub(now)
+}
+
+// oidcClient is internal structure that stores client and it's config
+type oidcClient struct {
+	client *oidc.Client
+	config oidc.ClientConfig
+}
+
+// oidcConfigsEqual is a struct that helps us to verify that
+// two oidc configs are equal
+func oidcConfigsEqual(a, b oidc.ClientConfig) bool {
+	if a.RedirectURL != b.RedirectURL {
+		return false
+	}
+	if a.Credentials.ID != b.Credentials.ID {
+		return false
+	}
+	if a.Credentials.Secret != b.Credentials.Secret {
+		return false
+	}
+	if len(a.Scope) != len(b.Scope) {
+		return false
+	}
+	for i := range a.Scope {
+		if a.Scope[i] != b.Scope[i] {
+			return false
+		}
+	}
+	return true
 }
