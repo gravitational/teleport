@@ -41,6 +41,20 @@ type OIDCConnector interface {
 	Check() error
 	// SetClientSecret sets client secret to some value
 	SetClientSecret(secret string)
+	// SetClientID sets id for authentication client (in our case it's our Auth server)
+	SetClientID(string)
+	// SetName sets a provider name
+	SetName(string)
+	// SetIssuerURL sets the endpoint of the provider
+	SetIssuerURL(string)
+	// SetRedirectURL sets RedirectURL
+	SetRedirectURL(string)
+	// SetScope sets additional scopes set by provider
+	SetScope([]string)
+	// SetClaimsToRoles sets dynamic mapping from claims to roles
+	SetClaimsToRoles([]ClaimMapping)
+	// SetDisplay sets friendly name for this provider.
+	SetDisplay(string)
 }
 
 var connectorMarshaler OIDCConnectorMarshaler = &TeleportOIDCConnectorMarshaler{}
@@ -162,6 +176,41 @@ func (o *OIDCConnectorV2) V1() *OIDCConnectorV1 {
 		Scope:         o.Spec.Scope,
 		ClaimsToRoles: o.Spec.ClaimsToRoles,
 	}
+}
+
+// SetDisplay sets friendly name for this provider.
+func (o *OIDCConnectorV2) SetDisplay(display string) {
+	o.Spec.Display = display
+}
+
+// SetName sets client secret to some value
+func (o *OIDCConnectorV2) SetName(name string) {
+	o.Metadata.Name = name
+}
+
+// SetIssuerURL sets client secret to some value
+func (o *OIDCConnectorV2) SetIssuerURL(issuerURL string) {
+	o.Spec.IssuerURL = issuerURL
+}
+
+// SetRedirectURL sets client secret to some value
+func (o *OIDCConnectorV2) SetRedirectURL(redirectURL string) {
+	o.Spec.RedirectURL = redirectURL
+}
+
+// SetScope sets additional scopes set by provider
+func (o *OIDCConnectorV2) SetScope(scope []string) {
+	o.Spec.Scope = scope
+}
+
+// SetClaimsToRoles sets dynamic mapping from claims to roles
+func (o *OIDCConnectorV2) SetClaimsToRoles(claims []ClaimMapping) {
+	o.Spec.ClaimsToRoles = claims
+}
+
+// SetClientID sets id for authentication client (in our case it's our Auth server)
+func (o *OIDCConnectorV2) SetClientID(clintID string) {
+	o.Spec.ClientID = clintID
 }
 
 // SetClientSecret sets client secret to some value
