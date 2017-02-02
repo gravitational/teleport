@@ -697,6 +697,13 @@ func (s *AuthServer) DeleteWebSession(user string, id string) error {
 	return trace.Wrap(s.Identity.DeleteWebSession(user, id))
 }
 
+func (s *AuthServer) invalidateOIDCClient(connectorName string) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	delete(s.oidcClients, connectorName)
+}
+
 func (s *AuthServer) getOIDCClient(conn services.OIDCConnector) (*oidc.Client, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
@@ -726,6 +733,22 @@ func (s *AuthServer) getOIDCClient(conn services.OIDCConnector) (*oidc.Client, e
 	s.oidcClients[conn.GetName()] = client
 
 	return client, nil
+}
+
+func (s *AuthServer) UpsertOIDCConnector(connector services.OIDCConnector, ttl time.Duration) error {
+	err := s.Identity.UpsertOIDCConnector(connector, ttl)
+	if err == nil {
+		s.invalidateOIDCClient(connector.GetName())
+	}
+	return trace.Wrap(err)
+}
+
+func (s *AuthServer) DeleteOIDCConnector(connectorName string) error {
+	err := s.Identity.DeleteOIDCConnector(connectorName)
+	if err == nil {
+		s.invalidateOIDCClient(connectorName)
+	}
+	return trace.Wrap(err)
 }
 
 func (s *AuthServer) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error) {

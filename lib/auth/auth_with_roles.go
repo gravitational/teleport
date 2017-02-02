@@ -431,7 +431,7 @@ func (a *AuthWithRoles) UpsertOIDCConnector(connector services.OIDCConnector, tt
 	if err := a.action(defaults.Namespace, services.KindOIDC, services.ActionWrite); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.Identity.UpsertOIDCConnector(connector, ttl)
+	return a.authServer.UpsertOIDCConnector(connector, ttl)
 }
 
 func (a *AuthWithRoles) GetOIDCConnector(id string, withSecrets bool) (services.OIDCConnector, error) {
@@ -476,7 +476,7 @@ func (a *AuthWithRoles) DeleteOIDCConnector(connectorID string) error {
 	if err := a.action(defaults.Namespace, services.KindOIDC, services.ActionWrite); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.Identity.DeleteOIDCConnector(connectorID)
+	return a.authServer.DeleteOIDCConnector(connectorID)
 }
 
 func (a *AuthWithRoles) EmitAuditEvent(eventType string, fields events.EventFields) error {
