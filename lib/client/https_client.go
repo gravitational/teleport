@@ -15,7 +15,7 @@ limitations under the License.
 
 */
 
-package web
+package client
 
 import (
 	"crypto/tls"
@@ -29,7 +29,10 @@ import (
 	"github.com/gravitational/trace"
 )
 
-func newInsecureClient() *http.Client {
+// Version is a current webapi version
+const APIVersion = "v1"
+
+func NewInsecureWebClient() *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
@@ -45,34 +48,34 @@ func newClientWithPool(pool *x509.CertPool) *http.Client {
 	}
 }
 
-func newWebClient(url string, opts ...roundtrip.ClientParam) (*webClient, error) {
+func NewWebClient(url string, opts ...roundtrip.ClientParam) (*WebClient, error) {
 	clt, err := roundtrip.NewClient(url, APIVersion, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &webClient{clt}, nil
+	return &WebClient{clt}, nil
 }
 
-// webClient is a package local lightweight client used
+// WebClient is a package local lightweight client used
 // in tests and some functions to handle errors properly
-type webClient struct {
+type WebClient struct {
 	*roundtrip.Client
 }
 
-func (w *webClient) PostJSON(
+func (w *WebClient) PostJSON(
 	endpoint string, val interface{}) (*roundtrip.Response, error) {
 	return httplib.ConvertResponse(w.Client.PostJSON(endpoint, val))
 }
 
-func (w *webClient) PutJSON(
+func (w *WebClient) PutJSON(
 	endpoint string, val interface{}) (*roundtrip.Response, error) {
 	return httplib.ConvertResponse(w.Client.PutJSON(endpoint, val))
 }
 
-func (w *webClient) Get(endpoint string, val url.Values) (*roundtrip.Response, error) {
+func (w *WebClient) Get(endpoint string, val url.Values) (*roundtrip.Response, error) {
 	return httplib.ConvertResponse(w.Client.Get(endpoint, val))
 }
 
-func (w *webClient) Delete(endpoint string) (*roundtrip.Response, error) {
+func (w *WebClient) Delete(endpoint string) (*roundtrip.Response, error) {
 	return httplib.ConvertResponse(w.Client.Delete(endpoint))
 }

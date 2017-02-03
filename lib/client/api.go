@@ -43,7 +43,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/web"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/docker/docker/pkg/term"
@@ -944,7 +943,7 @@ func (tc *TeleportClient) Login() (*CertAuthMethod, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var response *web.SSHLoginResponse
+	var response *SSHLoginResponse
 
 	switch tc.SecondFactorType {
 	case teleport.OTP:
@@ -1003,12 +1002,12 @@ func (tc *TeleportClient) AddKey(host string, key *Key) (*CertAuthMethod, error)
 }
 
 // directLogin asks for a password + HOTP token, makes a request to CA via proxy
-func (tc *TeleportClient) directLogin(pub []byte) (*web.SSHLoginResponse, error) {
+func (tc *TeleportClient) directLogin(pub []byte) (*SSHLoginResponse, error) {
 	httpsProxyHostPort := tc.Config.ProxyWebHostPort()
 	certPool := loopbackPool(httpsProxyHostPort)
 
 	// ping the HTTPs endpoint first:
-	if err := web.Ping(httpsProxyHostPort, tc.InsecureSkipVerify, certPool); err != nil {
+	if err := Ping(httpsProxyHostPort, tc.InsecureSkipVerify, certPool); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1018,7 +1017,7 @@ func (tc *TeleportClient) directLogin(pub []byte) (*web.SSHLoginResponse, error)
 	}
 
 	// ask the CA (via proxy) to sign our public key:
-	response, err := web.SSHAgentLogin(httpsProxyHostPort,
+	response, err := SSHAgentLogin(httpsProxyHostPort,
 		tc.Config.Username,
 		password,
 		otpToken,
@@ -1031,17 +1030,17 @@ func (tc *TeleportClient) directLogin(pub []byte) (*web.SSHLoginResponse, error)
 }
 
 // oidcLogin opens browser window and uses OIDC redirect cycle with browser
-func (tc *TeleportClient) oidcLogin(connectorID string, pub []byte) (*web.SSHLoginResponse, error) {
+func (tc *TeleportClient) oidcLogin(connectorID string, pub []byte) (*SSHLoginResponse, error) {
 	log.Infof("oidcLogin start")
 	// ask the CA (via proxy) to sign our public key:
 	webProxyAddr := tc.Config.ProxyWebHostPort()
-	response, err := web.SSHAgentOIDCLogin(webProxyAddr,
+	response, err := SSHAgentOIDCLogin(webProxyAddr,
 		connectorID, pub, tc.KeyTTL, tc.InsecureSkipVerify, loopbackPool(webProxyAddr))
 	return response, trace.Wrap(err)
 }
 
 // directLogin asks for a password and performs the challenge-response authentication
-func (tc *TeleportClient) u2fLogin(pub []byte) (*web.SSHLoginResponse, error) {
+func (tc *TeleportClient) u2fLogin(pub []byte) (*SSHLoginResponse, error) {
 	// U2F login requires the official u2f-host executable
 	_, err := exec.LookPath("u2f-host")
 	if err != nil {
@@ -1056,7 +1055,7 @@ func (tc *TeleportClient) u2fLogin(pub []byte) (*web.SSHLoginResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	response, err := web.SSHAgentU2FLogin(httpsProxyHostPort,
+	response, err := SSHAgentU2FLogin(httpsProxyHostPort,
 		tc.Config.Username,
 		password,
 		pub,

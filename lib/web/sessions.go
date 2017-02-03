@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -274,7 +275,7 @@ func (s *sessionCache) AuthWithU2FSignResponse(user string, response *u2f.SignRe
 	return session, nil
 }
 
-func (s *sessionCache) GetCertificate(c createSSHCertReq) (*SSHLoginResponse, error) {
+func (s *sessionCache) GetCertificate(c client.CreateSSHCertReq) (*client.SSHLoginResponse, error) {
 	method, err := auth.NewWebPasswordAuth(c.User, []byte(c.Password), c.OTPToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -289,7 +290,7 @@ func (s *sessionCache) GetCertificate(c createSSHCertReq) (*SSHLoginResponse, er
 	return createCertificate(c.User, c.PubKey, c.TTL, clt)
 }
 
-func createCertificate(user string, pubkey []byte, ttl time.Duration, clt *auth.TunClient) (*SSHLoginResponse, error) {
+func createCertificate(user string, pubkey []byte, ttl time.Duration, clt *auth.TunClient) (*client.SSHLoginResponse, error) {
 	cert, err := clt.GenerateUserCert(pubkey, user, ttl)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -303,13 +304,13 @@ func createCertificate(user string, pubkey []byte, ttl time.Duration, clt *auth.
 		return nil, trace.Wrap(err)
 	}
 
-	return &SSHLoginResponse{
+	return &client.SSHLoginResponse{
 		Cert:        cert,
 		HostSigners: signers,
 	}, nil
 }
 
-func (s *sessionCache) GetCertificateWithU2F(c createSSHCertWithU2FReq) (*SSHLoginResponse, error) {
+func (s *sessionCache) GetCertificateWithU2F(c client.CreateSSHCertWithU2FReq) (*client.SSHLoginResponse, error) {
 	method, err := auth.NewWebU2FSignResponseAuth(c.User, &c.U2FSignResponse)
 	if err != nil {
 		return nil, trace.Wrap(err)

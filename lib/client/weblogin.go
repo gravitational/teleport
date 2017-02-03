@@ -15,7 +15,7 @@ limitations under the License.
 
 */
 
-package web
+package client
 
 import (
 	"crypto/x509"
@@ -31,6 +31,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/teleport/lib/services"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
@@ -45,6 +47,70 @@ const (
 	// WSS is secure web sockets prefix
 	WSS = "wss"
 )
+
+// SSHLoginResponse is a response returned by web proxy
+type SSHLoginResponse struct {
+	// User contains a logged in user informationn
+	Username string `json:"username"`
+	// Cert is a signed certificate
+	Cert []byte `json:"cert"`
+	// HostSigners is a list of signing host public keys
+	// trusted by proxy
+	HostSigners []services.CertAuthorityV1 `json:"host_signers"`
+}
+
+type OIDCLoginConsoleReq struct {
+	RedirectURL string        `json:"redirect_url"`
+	PublicKey   []byte        `json:"public_key"`
+	CertTTL     time.Duration `json:"cert_ttl"`
+	ConnectorID string        `json:"connector_id"`
+}
+
+type OIDCLoginConsoleResponse struct {
+	RedirectURL string `json:"redirect_url"`
+}
+
+// A request from the client for a U2F sign request from the server
+type U2fSignRequestReq struct {
+	User string `json:"user"`
+	Pass string `json:"pass"`
+}
+
+// CreateSSHCertReq are passed by web client
+// to authenticate against teleport server and receive
+// a temporary cert signed by auth server authority
+type CreateSSHCertReq struct {
+	// User is a teleport username
+	User string `json:"user"`
+	// Password is user's pass
+	Password string `json:"password"`
+	// HOTPToken is second factor token
+	// Deprecated: HOTPToken is deprecated, use OTPToken.
+	HOTPToken string `json:"hotp_token"`
+	// OTPToken is second factor token
+	OTPToken string `json:"otp_token"`
+	// PubKey is a public key user wishes to sign
+	PubKey []byte `json:"pub_key"`
+	// TTL is a desired TTL for the cert (max is still capped by server,
+	// however user can shorten the time)
+	TTL time.Duration `json:"ttl"`
+}
+
+// CreateSSHCertWithU2FReq are passed by web client
+// to authenticate against teleport server and receive
+// a temporary cert signed by auth server authority
+type CreateSSHCertWithU2FReq struct {
+	// User is a teleport username
+	User string `json:"user"`
+	// We only issue U2F sign requests after checking the password, so there's no need to check again.
+	// U2FSignResponse is the signature from the U2F device
+	U2FSignResponse u2f.SignResponse `json:"u2f_sign_response"`
+	// PubKey is a public key user wishes to sign
+	PubKey []byte `json:"pub_key"`
+	// TTL is a desired TTL for the cert (max is still capped by server,
+	// however user can shorten the time)
+	TTL time.Duration `json:"ttl"`
+}
 
 type sealData struct {
 	Value []byte `json:"value"`
@@ -131,7 +197,7 @@ func SSHAgentOIDCLogin(proxyAddr, connectorID string, pubKey []byte, ttl time.Du
 	query.Set("secret", secret.KeyToEncodedString(keyBytes))
 	u.RawQuery = query.Encode()
 
-	out, err := clt.PostJSON(clt.Endpoint("webapi", "oidc", "login", "console"), oidcLoginConsoleReq{
+	out, err := clt.PostJSON(clt.Endpoint("webapi", "oidc", "login", "console"), OIDCLoginConsoleReq{
 		RedirectURL: u.String(),
 		PublicKey:   pubKey,
 		CertTTL:     ttl,
@@ -141,7 +207,7 @@ func SSHAgentOIDCLogin(proxyAddr, connectorID string, pubKey []byte, ttl time.Du
 		return nil, trace.Wrap(err)
 	}
 
-	var re *oidcLoginConsoleResponse
+	var re *OIDCLoginConsoleResponse
 	err = json.Unmarshal(out.Bytes(), &re)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -197,7 +263,7 @@ func SSHAgentLogin(proxyAddr, user, password, otpToken string, pubKey []byte, tt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	re, err := clt.PostJSON(clt.Endpoint("webapi", "ssh", "certs"), createSSHCertReq{
+	re, err := clt.PostJSON(clt.Endpoint("webapi", "ssh", "certs"), CreateSSHCertReq{
 		User:     user,
 		Password: password,
 		OTPToken: otpToken,
@@ -227,7 +293,7 @@ func SSHAgentU2FLogin(proxyAddr, user, password string, pubKey []byte, ttl time.
 		return nil, trace.Wrap(err)
 	}
 
-	u2fSignRequest, err := clt.PostJSON(clt.Endpoint("webapi", "u2f", "signrequest"), u2fSignRequestReq{
+	u2fSignRequest, err := clt.PostJSON(clt.Endpoint("webapi", "u2f", "signrequest"), U2fSignRequestReq{
 		User: user,
 		Pass: password,
 	})
@@ -286,7 +352,7 @@ func SSHAgentU2FLogin(proxyAddr, user, password string, pubKey []byte, ttl time.
 		return nil, trace.Wrap(err)
 	}
 
-	re, err := clt.PostJSON(clt.Endpoint("webapi", "u2f", "certs"), createSSHCertWithU2FReq{
+	re, err := clt.PostJSON(clt.Endpoint("webapi", "u2f", "certs"), CreateSSHCertWithU2FReq{
 		User:            user,
 		U2FSignResponse: *u2fSignResponse,
 		PubKey:          pubKey,
@@ -307,7 +373,7 @@ func SSHAgentU2FLogin(proxyAddr, user, password string, pubKey []byte, ttl time.
 
 // initClient creates and initializes HTTPS client for talking to teleport proxy HTTPS
 // endpoint.
-func initClient(proxyAddr string, insecure bool, pool *x509.CertPool) (*webClient, *url.URL, error) {
+func initClient(proxyAddr string, insecure bool, pool *x509.CertPool) (*WebClient, *url.URL, error) {
 	log.Debugf("HTTPS client init(insecure=%v)", insecure)
 
 	// validate proxyAddr:
@@ -329,13 +395,13 @@ func initClient(proxyAddr string, insecure bool, pool *x509.CertPool) (*webClien
 	if insecure {
 		// skip https cert verification, oh no!
 		fmt.Printf("WARNING: You are using insecure connection to SSH proxy %v\n", proxyAddr)
-		opts = append(opts, roundtrip.HTTPClient(newInsecureClient()))
+		opts = append(opts, roundtrip.HTTPClient(NewInsecureWebClient()))
 	} else if pool != nil {
 		// use custom set of trusted CAs
 		opts = append(opts, roundtrip.HTTPClient(newClientWithPool(pool)))
 	}
 
-	clt, err := newWebClient(proxyAddr, opts...)
+	clt, err := NewWebClient(proxyAddr, opts...)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

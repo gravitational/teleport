@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/web"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
@@ -72,7 +72,7 @@ func (a *Client) Login(proxyAddr string,
 		return trace.Wrap(err)
 	}
 
-	login, err := web.SSHAgentLogin(proxyAddr, user, pass, hotpToken,
+	login, err := client.SSHAgentLogin(proxyAddr, user, pass, hotpToken,
 		pub, ttl, insecure, nil)
 	if err != nil {
 		return trace.Wrap(err)

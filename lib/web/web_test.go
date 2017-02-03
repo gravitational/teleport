@@ -34,12 +34,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -52,7 +54,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gokyle/hotp"
-	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/pquerna/otp/totp"
 	"github.com/tstranex/u2f"
@@ -105,6 +106,15 @@ func (s *WebSuite) SetUpSuite(c *C) {
 	s.mockU2F, err = mocku2f.Create()
 	c.Assert(err, IsNil)
 	c.Assert(s.mockU2F, NotNil)
+}
+
+func (s *WebSuite) client(opts ...roundtrip.ClientParam) *client.WebClient {
+	opts = append(opts, roundtrip.HTTPClient(client.NewInsecureWebClient()))
+	wc, err := client.NewWebClient(s.url().String(), opts...)
+	if err != nil {
+		panic(err)
+	}
+	return wc
 }
 
 func (s *WebSuite) TearDownSuite(c *C) {
@@ -255,15 +265,6 @@ func (s *WebSuite) url() *url.URL {
 	return u
 }
 
-func (s *WebSuite) client(opts ...roundtrip.ClientParam) *webClient {
-	opts = append(opts, roundtrip.HTTPClient(newInsecureClient()))
-	clt, err := newWebClient(s.url().String(), opts...)
-	if err != nil {
-		panic(err)
-	}
-	return clt
-}
-
 func (s *WebSuite) TearDownTest(c *C) {
 	c.Assert(s.node.Close(), IsNil)
 	c.Assert(s.tunServer.Close(), IsNil)
@@ -342,7 +343,7 @@ type authPack struct {
 	user    string
 	otp     *hotp.HOTP
 	session *CreateSessionResponse
-	clt     *webClient
+	clt     *client.WebClient
 	cookies []*http.Cookie
 }
 
@@ -572,7 +573,7 @@ func (s *WebSuite) makeTerminal(c *C, pack *authPack, opts ...session.ID) *webso
 	} else {
 		sessionID = opts[0]
 	}
-	u := url.URL{Host: s.url().Host, Scheme: WSS, Path: fmt.Sprintf("/v1/webapi/sites/%v/connect", currentSiteShortcut)}
+	u := url.URL{Host: s.url().Host, Scheme: client.WSS, Path: fmt.Sprintf("/v1/webapi/sites/%v/connect", currentSiteShortcut)}
 	data, err := json.Marshal(terminalRequest{
 		ServerID:  s.srvID,
 		Login:     s.user,
@@ -603,7 +604,7 @@ func (s *WebSuite) makeTerminal(c *C, pack *authPack, opts ...session.ID) *webso
 func (s *WebSuite) sessionStream(c *C, pack *authPack, sessionID session.ID, opts ...string) *websocket.Conn {
 	u := url.URL{
 		Host:   s.url().Host,
-		Scheme: WSS,
+		Scheme: client.WSS,
 		Path: fmt.Sprintf(
 			"/v1/webapi/sites/%v/sessions/%v/events/stream",
 			currentSiteShortcut,
@@ -894,7 +895,7 @@ func (s *WebSuite) TestU2FLogin(c *C) {
 	// normal login
 
 	clt := s.client()
-	re, err := clt.PostJSON(clt.Endpoint("webapi", "u2f", "signrequest"), u2fSignRequestReq{
+	re, err := clt.PostJSON(clt.Endpoint("webapi", "u2f", "signrequest"), client.U2fSignRequestReq{
 		User: "bob",
 		Pass: tempPass,
 	})
@@ -913,7 +914,7 @@ func (s *WebSuite) TestU2FLogin(c *C) {
 
 	// bad login: corrupted sign responses, should fail
 
-	re, err = clt.PostJSON(clt.Endpoint("webapi", "u2f", "signrequest"), u2fSignRequestReq{
+	re, err = clt.PostJSON(clt.Endpoint("webapi", "u2f", "signrequest"), client.U2fSignRequestReq{
 		User: "bob",
 		Pass: tempPass,
 	})
@@ -957,7 +958,7 @@ func (s *WebSuite) TestU2FLogin(c *C) {
 
 	s.mockU2F.SetCounter(0)
 
-	re, err = clt.PostJSON(clt.Endpoint("webapi", "u2f", "signrequest"), u2fSignRequestReq{
+	re, err = clt.PostJSON(clt.Endpoint("webapi", "u2f", "signrequest"), client.U2fSignRequestReq{
 		User: "bob",
 		Pass: tempPass,
 	})
