@@ -331,7 +331,7 @@ func (l *AuditLog) GetSessionEvents(namespace string, sid session.ID, afterN int
 		fields[EventCursor] = lineNo
 		retval = append(retval, fields)
 	}
-	log.Debugf("auditLog.GetSessionEvents() returned %d events", len(retval))
+	//log.Debugf("auditLog.GetSessionEvents() returned %d events", len(retval))
 	return retval, nil
 }
 

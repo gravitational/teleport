@@ -754,9 +754,9 @@ func (c *TunClient) GetAgent() (AgentCloser, error) {
 	if err != nil {
 		return nil, trace.ConnectionProblem(err, "failed to connect to remote API")
 	}
-	agentCloser := &tunAgent{client: client}
-	agentCloser.Agent = agent.NewClient(ch)
-	return agentCloser, nil
+	ta := &tunAgent{client: client}
+	ta.Agent = agent.NewClient(ch)
+	return ta, nil
 }
 
 // Dial dials to Auth server's HTTP API over SSH tunnel.
@@ -918,6 +918,9 @@ type AgentCloser interface {
 	agent.Agent
 }
 
+// tunAgent is an SSH key agent (as defined by golang lib) implemented on top
+// of the tun client. It allows secure retreival of user credentials from the
+// auth server API.
 type tunAgent struct {
 	agent.Agent
 	client *ssh.Client

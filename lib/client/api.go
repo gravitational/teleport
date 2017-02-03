@@ -119,9 +119,14 @@ type Config struct {
 	// against Teleport client and obtaining credentials from elsewhere.
 	SkipLocalAuth bool
 
-	// AuthMethods to use to login into cluster. If specified, the client will
-	// use these keys in addition to its own local agent.
+	// AuthMethods are used to login into the cluster. If specified, the client will
+	// use them in addition to certs stored in its local agent (from disk)
 	AuthMethods []ssh.AuthMethod
+
+	// DefaultPrincipal determines the default SSH username (principal) the client should be using
+	// when connecting to auth/proxy servers. Usually it's returned with a certificate,
+	// but this variables provides a default (used by the web-based terminal client)
+	DefaultPrincipal string
 
 	Stdout io.Writer
 	Stderr io.Writer
@@ -833,29 +838,27 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessToJoin *session.S
 
 // getProxyLogin determines which SSH principal to use when connecting to proxy.
 func (tc *TeleportClient) getProxySSHPrincipal() string {
-	// the default is to use whatever was passed via CLI flags
-	proxyLogin := tc.Config.HostLogin
-
+	proxyPrincipal := tc.Config.HostLogin
+	if tc.DefaultPrincipal != "" {
+		proxyPrincipal = tc.DefaultPrincipal
+	}
 	// see if we already have a signed key in the cache, we'll use that instead
 	if !tc.Config.SkipLocalAuth && tc.LocalAgent() != nil {
 		signers, err := tc.LocalAgent().Signers()
 		if err != nil || len(signers) == 0 {
-			return proxyLogin
+			return proxyPrincipal
 		}
 		cert, ok := signers[0].PublicKey().(*ssh.Certificate)
 		if ok && len(cert.ValidPrincipals) > 0 {
-			proxyLogin = cert.ValidPrincipals[0]
+			return cert.ValidPrincipals[0]
 		}
 	}
-	return proxyLogin
+	return proxyPrincipal
 }
 
 // authMethods returns a list (slice) of all SSH auth methods this client
 // can use to try to authenticate
 func (tc *TeleportClient) authMethods() []ssh.AuthMethod {
-	// return the auth methods that we were configured with
-	// plus our local key agent (i.e. methods we've added during runtime
-	// by the means of .AddKey())
 	m := append([]ssh.AuthMethod(nil), tc.Config.AuthMethods...)
 	if tc.LocalAgent() != nil {
 		m = append(m, tc.LocalAgent().AuthMethods()...)
@@ -865,16 +868,19 @@ func (tc *TeleportClient) authMethods() []ssh.AuthMethod {
 
 // ConnectToProxy dials the proxy server and returns ProxyClient if successful
 func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
+	proxyPrincipal := tc.getProxySSHPrincipal()
 	proxyAddr := tc.Config.ProxySSHHostPort()
 	sshConfig := &ssh.ClientConfig{
-		User:            tc.getProxySSHPrincipal(),
+		User:            proxyPrincipal,
 		HostKeyCallback: tc.HostKeyCallback,
 	}
+
 	// helper to create a ProxyClient struct
 	makeProxyClient := func(sshClient *ssh.Client, m ssh.AuthMethod) *ProxyClient {
 		return &ProxyClient{
 			Client:          sshClient,
 			proxyAddress:    proxyAddr,
+			proxyPrincipal:  proxyPrincipal,
 			hostKeyCallback: sshConfig.HostKeyCallback,
 			authMethod:      m,
 			hostLogin:       tc.Config.HostLogin,
@@ -918,7 +924,7 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 	// After successfull login we have local agent updated with latest
 	// and greatest auth information, try it now
 	sshConfig.Auth = []ssh.AuthMethod{authMethod}
-	sshConfig.User = tc.getProxySSHPrincipal()
+	sshConfig.User = proxyPrincipal
 	sshClient, err := ssh.Dial("tcp", proxyAddr, sshConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
