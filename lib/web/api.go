@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -91,9 +92,6 @@ type Config struct {
 	DisableUI bool
 }
 
-// Version is a current webapi version
-const APIVersion = "v1"
-
 type RewritingHandler struct {
 	http.Handler
 	handler *Handler
@@ -109,7 +107,7 @@ func (r *RewritingHandler) Close() error {
 
 // NewHandler returns a new instance of web proxy handler
 func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
-	const apiPrefix = "/" + APIVersion
+	const apiPrefix = "/" + client.APIVersion
 	lauth, err := newSessionCache([]utils.NetAddr{cfg.AuthServers})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -347,20 +345,9 @@ func (m *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprou
 	return nil, nil
 }
 
-type oidcLoginConsoleReq struct {
-	RedirectURL string        `json:"redirect_url"`
-	PublicKey   []byte        `json:"public_key"`
-	CertTTL     time.Duration `json:"cert_ttl"`
-	ConnectorID string        `json:"connector_id"`
-}
-
-type oidcLoginConsoleResponse struct {
-	RedirectURL string `json:"redirect_url"`
-}
-
 func (m *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	log.Infof("oidcLoginConsole start")
-	var req *oidcLoginConsoleReq
+	var req *client.OIDCLoginConsoleReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -384,7 +371,7 @@ func (m *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p htt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &oidcLoginConsoleResponse{RedirectURL: response.RedirectURL}, nil
+	return &client.OIDCLoginConsoleResponse{RedirectURL: response.RedirectURL}, nil
 }
 
 func (m *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -426,7 +413,7 @@ func ConstructSSHResponse(response *auth.OIDCAuthResponse) (*url.URL, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	consoleResponse := SSHLoginResponse{
+	consoleResponse := client.SSHLoginResponse{
 		Username:    response.Username,
 		Cert:        response.Cert,
 		HostSigners: signers,
@@ -659,12 +646,6 @@ func (m *Handler) u2fRegisterRequest(w http.ResponseWriter, r *http.Request, p h
 	return u2fRegisterRequest, nil
 }
 
-// A request from the client for a U2F sign request from the server
-type u2fSignRequestReq struct {
-	User string `json:"user"`
-	Pass string `json:"pass"`
-}
-
 // u2fSignRequest is called to get a U2F challenge for authenticating
 //
 // POST /webapi/u2f/signrequest
@@ -676,7 +657,7 @@ type u2fSignRequestReq struct {
 // {"version":"U2F_V2","challenge":"randombase64string","keyHandle":"longbase64string","appId":"https://mycorp.com:3080"}
 //
 func (m *Handler) u2fSignRequest(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req *u2fSignRequestReq
+	var req *client.U2fSignRequestReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1316,37 +1297,6 @@ func (m *Handler) siteSessionEventsGet(w http.ResponseWriter, r *http.Request, p
 	return eventsListGetResponse{Events: e}, nil
 }
 
-// createSSHCertReq are passed by web client
-// to authenticate against teleport server and receive
-// a temporary cert signed by auth server authority
-type createSSHCertReq struct {
-	// User is a teleport username
-	User string `json:"user"`
-	// Password is user's pass
-	Password string `json:"password"`
-	// HOTPToken is second factor token
-	// Deprecated: HOTPToken is deprecated, use OTPToken.
-	HOTPToken string `json:"hotp_token"`
-	// OTPToken is second factor token
-	OTPToken string `json:"otp_token"`
-	// PubKey is a public key user wishes to sign
-	PubKey []byte `json:"pub_key"`
-	// TTL is a desired TTL for the cert (max is still capped by server,
-	// however user can shorten the time)
-	TTL time.Duration `json:"ttl"`
-}
-
-// SSHLoginResponse is a response returned by web proxy
-type SSHLoginResponse struct {
-	// User contains a logged in user informationn
-	Username string `json:"username"`
-	// Cert is a signed certificate
-	Cert []byte `json:"cert"`
-	// HostSigners is a list of signing host public keys
-	// trusted by proxy
-	HostSigners []services.CertAuthorityV1 `json:"host_signers"`
-}
-
 // createSSHCert is a web call that generates new SSH certificate based
 // on user's name, password, 2nd factor token and public key user wishes to sign
 //
@@ -1359,7 +1309,7 @@ type SSHLoginResponse struct {
 // { "cert": "base64 encoded signed cert", "host_signers": [{"domain_name": "example.com", "checking_keys": ["base64 encoded public signing key"]}] }
 //
 func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req *createSSHCertReq
+	var req *client.CreateSSHCertReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1376,22 +1326,6 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 	return cert, nil
 }
 
-// createSSHCertWithU2FReq are passed by web client
-// to authenticate against teleport server and receive
-// a temporary cert signed by auth server authority
-type createSSHCertWithU2FReq struct {
-	// User is a teleport username
-	User string `json:"user"`
-	// We only issue U2F sign requests after checking the password, so there's no need to check again.
-	// U2FSignResponse is the signature from the U2F device
-	U2FSignResponse u2f.SignResponse `json:"u2f_sign_response"`
-	// PubKey is a public key user wishes to sign
-	PubKey []byte `json:"pub_key"`
-	// TTL is a desired TTL for the cert (max is still capped by server,
-	// however user can shorten the time)
-	TTL time.Duration `json:"ttl"`
-}
-
 // createSSHCertWithU2FSignResponse is a web call that generates new SSH certificate based
 // on user's name, password, U2F signature and public key user wishes to sign
 //
@@ -1404,7 +1338,7 @@ type createSSHCertWithU2FReq struct {
 // { "cert": "base64 encoded signed cert", "host_signers": [{"domain_name": "example.com", "checking_keys": ["base64 encoded public signing key"]}] }
 //
 func (h *Handler) createSSHCertWithU2FSignResponse(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req *createSSHCertWithU2FReq
+	var req *client.CreateSSHCertWithU2FReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
