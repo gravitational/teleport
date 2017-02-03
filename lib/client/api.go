@@ -114,12 +114,13 @@ type Config struct {
 	// InsecureSkipVerify is an option to skip HTTPS cert check
 	InsecureSkipVerify bool
 
-	// SkipLocalAuth will not try to connect to local SSH agent
-	// or use any local certs, and not use interactive logins
+	// SkipLocalAuth tells the client to use AuthMethods parameter for authentication and NOT
+	// use its own SSH agent or ask user for passwords. This is used by external programs linking
+	// against Teleport client and obtaining credentials from elsewhere.
 	SkipLocalAuth bool
 
-	// AuthMethods to use to login into cluster. If left empty, teleport will
-	// use its own session store,
+	// AuthMethods to use to login into cluster. If specified, the client will
+	// use these keys in addition to its own local agent.
 	AuthMethods []ssh.AuthMethod
 
 	Stdout io.Writer
@@ -304,7 +305,7 @@ type TeleportClient struct {
 // hasn't begun yet.
 //
 // It allows clients to cancel SSH action
-type ShellCreatedCallback func(shell io.ReadWriteCloser) (exit bool, err error)
+type ShellCreatedCallback func(ns *NodeSession, shell io.ReadWriteCloser) (exit bool, err error)
 
 // NewClient creates a TeleportClient object and fully configures it
 func NewClient(c *Config) (tc *TeleportClient, err error) {
@@ -329,12 +330,6 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 
 	tc = &TeleportClient{Config: *c}
 
-	// initialize the local agent (auth agent which uses local SSH keys signed by the CA):
-	tc.localAgent, err = NewLocalAgent(c.KeysDir, c.Username)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	if tc.Stdout == nil {
 		tc.Stdout = os.Stdout
 	}
@@ -344,9 +339,6 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	if tc.Stdin == nil {
 		tc.Stdin = os.Stdin
 	}
-	if tc.HostKeyCallback == nil {
-		tc.HostKeyCallback = tc.localAgent.CheckHostSignature
-	}
 
 	// sometimes we need to use external auth without using local auth
 	// methods, e.g. in automation daemons
@@ -354,8 +346,17 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		if len(c.AuthMethods) == 0 {
 			return nil, trace.BadParameter("SkipLocalAuth is true but no AuthMethods provided")
 		}
-		return tc, nil
+	} else {
+		// initialize the local agent (auth agent which uses local SSH keys signed by the CA):
+		tc.localAgent, err = NewLocalAgent(c.KeysDir, c.Username)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if tc.HostKeyCallback == nil {
+			tc.HostKeyCallback = tc.localAgent.CheckHostSignature
+		}
 	}
+
 	return tc, nil
 }
 
@@ -836,7 +837,7 @@ func (tc *TeleportClient) getProxySSHPrincipal() string {
 	proxyLogin := tc.Config.HostLogin
 
 	// see if we already have a signed key in the cache, we'll use that instead
-	if !tc.Config.SkipLocalAuth {
+	if !tc.Config.SkipLocalAuth && tc.LocalAgent() != nil {
 		signers, err := tc.LocalAgent().Signers()
 		if err != nil || len(signers) == 0 {
 			return proxyLogin
@@ -856,7 +857,10 @@ func (tc *TeleportClient) authMethods() []ssh.AuthMethod {
 	// plus our local key agent (i.e. methods we've added during runtime
 	// by the means of .AddKey())
 	m := append([]ssh.AuthMethod(nil), tc.Config.AuthMethods...)
-	return append(m, tc.LocalAgent().AuthMethods()...)
+	if tc.LocalAgent() != nil {
+		m = append(m, tc.LocalAgent().AuthMethods()...)
+	}
+	return m
 }
 
 // ConnectToProxy dials the proxy server and returns ProxyClient if successful

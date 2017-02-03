@@ -151,39 +151,6 @@ func (s *remoteSite) GetLastConnected() time.Time {
 	return s.lastActive
 }
 
-func (s *remoteSite) ConnectToServer(server, user string, auth []ssh.AuthMethod) (*ssh.Client, error) {
-	s.log.Infof("[TUNNEL] connect(server=%v, user=%v)", server, user)
-	remoteConn, err := s.nextConn()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	ch, _, err := remoteConn.sshConn.OpenChannel(chanTransport, nil)
-	if err != nil {
-		remoteConn.markInvalid(err)
-		return nil, trace.Wrap(err)
-	}
-	// ask remote channel to dial
-	dialed, err := ch.SendRequest(chanTransportDialReq, true, []byte(server))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if !dialed {
-		return nil, trace.Errorf("remote server %v is not available", server)
-	}
-	transportConn := utils.NewChConn(remoteConn.sshConn, ch)
-	conn, chans, reqs, err := ssh.NewClientConn(
-		transportConn, server,
-		&ssh.ClientConfig{
-			User: user,
-			Auth: auth,
-		})
-	if err != nil {
-		s.log.Errorf("[TUNNEL] connect(server=%v): %v", server, err)
-		return nil, trace.Wrap(err)
-	}
-	return ssh.NewClient(conn, chans, reqs), nil
-}
-
 // dialAccessPoint establishes a connection from the proxy (reverse tunnel server)
 // back into the client using previously established tunnel.
 func (s *remoteSite) dialAccessPoint(network, addr string) (net.Conn, error) {

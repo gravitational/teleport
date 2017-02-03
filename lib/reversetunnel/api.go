@@ -38,7 +38,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/auth"
-	"golang.org/x/crypto/ssh"
 )
 
 // RemoteSite represents remote teleport site that can be accessed via
@@ -46,8 +45,6 @@ import (
 //
 // There are two implementations of this interface: local and remote sites.
 type RemoteSite interface {
-	// ConnectToServer allows to SSH into remote teleport server
-	ConnectToServer(addr, user string, auth []ssh.AuthMethod) (*ssh.Client, error)
 	// Dial dials any address within the site network
 	Dial(fromAddr, toAddr net.Addr) (net.Conn, error)
 	// GetLastConnected returns last time the remote site was seen connected

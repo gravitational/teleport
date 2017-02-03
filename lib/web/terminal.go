@@ -100,8 +100,8 @@ type terminalHandler struct {
 	// ctx is a web session context for the currently logged in user
 	ctx *SessionContext
 
+	// ws is the websocket which is connected to stdin/out/err of the terminal shell
 	ws *websocket.Conn
-	up *sshutils.Upstream
 
 	// site/cluster we're connected to
 	site reversetunnel.RemoteSite
@@ -113,15 +113,14 @@ func (w *terminalHandler) Close() error {
 	if w.ws != nil {
 		w.ws.Close()
 	}
-	if w.up != nil {
-		return w.up.Close()
-	}
 	return nil
 }
 
 // resizePTYWindow is called when a brower resizes its window. Now the node
 // needs to be notified via SSH
 func (w *terminalHandler) resizePTYWindow(params session.TerminalParams) error {
+	log.Infof("------------> resizePTYWindow(%v, %v)", uint32(params.W), uint32(params.H))
+	/* TODO implement this
 	_, err := w.up.GetSession().SendRequest(
 		// send SSH "window resized" SSH request:
 		sshutils.WindowChangeReq, false,
@@ -130,54 +129,8 @@ func (w *terminalHandler) resizePTYWindow(params session.TerminalParams) error {
 			H: uint32(params.H),
 		}))
 	return trace.Wrap(err)
-}
-
-// connectUpstream establishes the SSH connection to a requested SSH server (node)
-func (t *terminalHandler) connectUpstream() (*sshutils.Upstream, error) {
-	agent, err := t.ctx.GetAgent()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer agent.Close()
-	signers, err := agent.Signers()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	client, err := t.site.ConnectToServer(
-		t.server.GetAddr(), t.params.Login, []ssh.AuthMethod{ssh.PublicKeys(signers...)})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	up, err := sshutils.NewUpstream(client)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// this goroutine receives terminal window size changes in real time
-	// and stores the last size (example: "100:25") as a special "prefix"
-	// which gets added to future SSH reads by web clients.
-	go func() {
-		buff := make([]byte, 16)
-		sshChan, _, err := up.GetClient().OpenChannel("x-teleport-request-resize-events", nil)
-		for err == nil {
-			n, err := sshChan.Read(buff)
-			if err != nil {
-				break
-			}
-			up.SetPrefix(buff[:n])
-		}
-		if err != nil {
-			log.Error(err)
-		}
-	}()
-
-	up.GetSession().SendRequest(
-		sshutils.SetEnvReq, false,
-		ssh.Marshal(sshutils.EnvReqParams{
-			Name:  sshutils.SessionEnvVar,
-			Value: string(t.params.SessionID),
-		}))
-	return up, nil
+	*/
+	return nil
 }
 
 // Run creates a new websocket connection to the SSH server and runs
@@ -189,27 +142,8 @@ func (t *terminalHandler) Run(w http.ResponseWriter, r *http.Request) {
 		log.Error(err)
 	}
 
-	webSocketLoop := func(ws *websocket.Conn) {
-		up, err := t.connectUpstream()
-		if err != nil {
-			errToTerm(err, ws)
-			return
-		}
-		t.up = up
-		t.ws = ws
-
-		// PipeShell will be piping inputs/output to/from SSH connection (to the node)
-		// and the websocket (to a browser)
-		err = t.up.PipeShell(utils.NewWebSockWrapper(ws, utils.WebSocketTextMode),
-			&sshutils.PTYReqParams{
-				W: uint32(t.params.Term.W),
-				H: uint32(t.params.Term.H),
-			})
-		log.Infof("pipe shell finished with: %v", err)
-	}
-
 	// second version
-	v2 := func(ws *websocket.Conn) {
+	webSocketLoop := func(ws *websocket.Conn) {
 		agent, err := t.ctx.GetAgent()
 		if err != nil {
 			errToTerm(err, ws)
@@ -228,14 +162,17 @@ func (t *terminalHandler) Run(w http.ResponseWriter, r *http.Request) {
 		}
 		output := utils.NewWebSockWrapper(ws, utils.WebSocketTextMode)
 		tc, err := client.NewClient(&client.Config{
-			AuthMethods:   []ssh.AuthMethod{ssh.PublicKeys(signers...)},
-			HostLogin:     t.params.Login,
-			Namespace:     t.params.Namespace,
-			Stdout:        output,
-			Stderr:        output,
-			Stdin:         ws,
-			ProxyHostPort: t.params.ProxyHostPort,
-			Host:          host,
+			SkipLocalAuth:   true,
+			AuthMethods:     []ssh.AuthMethod{ssh.PublicKeys(signers...)},
+			HostLogin:       t.params.Login,
+			Namespace:       t.params.Namespace,
+			Stdout:          output,
+			Stderr:          output,
+			Stdin:           ws,
+			ProxyHostPort:   t.params.ProxyHostPort,
+			Host:            host,
+			Env:             map[string]string{sshutils.SessionEnvVar: string(t.params.SessionID)},
+			HostKeyCallback: func(string, net.Addr, ssh.PublicKey) error { return nil },
 		})
 		if err != nil {
 			errToTerm(err, ws)
@@ -245,10 +182,6 @@ func (t *terminalHandler) Run(w http.ResponseWriter, r *http.Request) {
 			errToTerm(err, ws)
 			return
 		}
-	}
-
-	if true {
-		webSocketLoop = v2
 	}
 
 	// TODO(klizhentas)

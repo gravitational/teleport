@@ -1068,6 +1068,7 @@ func (m *Handler) siteSessionUpdate(w http.ResponseWriter, r *http.Request, p ht
 	}
 	err = ctx.UpdateSessionTerminal(p.ByName("namespace"), *sessionID, req.TerminalParams)
 	if err != nil {
+		log.Error(err)
 		return nil, trace.Wrap(err)
 	}
 	return ok(), nil

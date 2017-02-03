@@ -103,6 +103,10 @@ func newSession(client *NodeClient,
 	return ns, nil
 }
 
+func (ns *NodeSession) NodeClient() *NodeClient {
+	return ns.nodeClient
+}
+
 func (ns *NodeSession) regularSession(callback func(s *ssh.Session) error) error {
 	session, err := ns.createServerSession()
 	if err != nil {
@@ -339,7 +343,7 @@ func (ns *NodeSession) runShell(callback ShellCreatedCallback) error {
 		}
 		// call the client-supplied callback
 		if callback != nil {
-			exit, err := callback(shell)
+			exit, err := callback(ns, shell)
 			if exit {
 				return trace.Wrap(err)
 			}
@@ -366,7 +370,7 @@ func (ns *NodeSession) runCommand(cmd []string, callback ShellCreatedCallback, i
 				return trace.Wrap(err)
 			}
 			if callback != nil {
-				exit, err := callback(shell)
+				exit, err := callback(ns, shell)
 				if exit {
 					return trace.Wrap(err)
 				}
