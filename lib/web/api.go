@@ -26,6 +26,7 @@ import (
 	"html/template"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -35,6 +36,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -90,6 +92,9 @@ type Config struct {
 	ProxyClient auth.ClientI
 	// DisableUI allows to turn off serving web based UI
 	DisableUI bool
+	// TODO
+	ProxySSHAddr utils.NetAddr
+	ProxyWebAddr utils.NetAddr
 }
 
 type RewritingHandler struct {
@@ -950,6 +955,8 @@ func (m *Handler) siteNodeConnect(
 		req.Namespace, req.ServerID, req.Login)
 
 	req.Namespace = p.ByName("namespace")
+	req.ProxyHostPort = m.ProxyHostPort()
+
 	term, err := newTerminal(*req, ctx, site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1440,6 +1447,20 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 		}
 	}
 	return ctx, nil
+}
+
+// ProxyHostPort returns the address of the proxy server using --proxy
+// notation, i.e. "localhost:8030,8023"
+func (h *Handler) ProxyHostPort() string {
+	// addr equals to "localhost:8030" at this point
+	addr := h.cfg.ProxyWebAddr.String()
+	// add the SSH port number and return
+	_, sshPort, err := net.SplitHostPort(h.cfg.ProxySSHAddr.String())
+	if err != nil {
+		log.Error(err)
+		sshPort = strconv.Itoa(defaults.SSHProxyListenPort)
+	}
+	return fmt.Sprintf("%s,%s", addr, sshPort)
 }
 
 func message(msg string) interface{} {

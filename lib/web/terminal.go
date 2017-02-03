@@ -17,8 +17,13 @@ limitations under the License.
 package web
 
 import (
+	"context"
+	"fmt"
+	"io"
+	"net"
 	"net/http"
 
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -44,6 +49,8 @@ type terminalRequest struct {
 	SessionID session.ID `json:"sid"`
 	// Namespace is node namespace
 	Namespace string `json:"namespace"`
+	// Proxy server address
+	ProxyHostPort string `json:"-"`
 }
 
 // newTerminal creates a web-based terminal based on WebSockets and returns a new
@@ -177,10 +184,15 @@ func (t *terminalHandler) connectUpstream() (*sshutils.Upstream, error) {
 // the "loop" piping the input/output of the SSH session into the
 // js-based terminal.
 func (t *terminalHandler) Run(w http.ResponseWriter, r *http.Request) {
+	errToTerm := func(err error, w io.Writer) {
+		fmt.Fprintf(w, "%s\n\r", err.Error())
+		log.Error(err)
+	}
+
 	webSocketLoop := func(ws *websocket.Conn) {
 		up, err := t.connectUpstream()
 		if err != nil {
-			log.Error(err)
+			errToTerm(err, ws)
 			return
 		}
 		t.up = up
@@ -193,8 +205,50 @@ func (t *terminalHandler) Run(w http.ResponseWriter, r *http.Request) {
 				W: uint32(t.params.Term.W),
 				H: uint32(t.params.Term.H),
 			})
-
 		log.Infof("pipe shell finished with: %v", err)
+	}
+
+	// second version
+	v2 := func(ws *websocket.Conn) {
+		agent, err := t.ctx.GetAgent()
+		if err != nil {
+			errToTerm(err, ws)
+			return
+		}
+		defer agent.Close()
+		signers, err := agent.Signers()
+		if err != nil {
+			errToTerm(err, ws)
+			return
+		}
+		host, _, err := net.SplitHostPort(t.server.GetAddr())
+		if err != nil {
+			errToTerm(err, ws)
+			return
+		}
+		output := utils.NewWebSockWrapper(ws, utils.WebSocketTextMode)
+		tc, err := client.NewClient(&client.Config{
+			AuthMethods:   []ssh.AuthMethod{ssh.PublicKeys(signers...)},
+			HostLogin:     t.params.Login,
+			Namespace:     t.params.Namespace,
+			Stdout:        output,
+			Stderr:        output,
+			Stdin:         ws,
+			ProxyHostPort: t.params.ProxyHostPort,
+			Host:          host,
+		})
+		if err != nil {
+			errToTerm(err, ws)
+			return
+		}
+		if err = tc.SSH(context.TODO(), nil, false); err != nil {
+			errToTerm(err, ws)
+			return
+		}
+	}
+
+	if true {
+		webSocketLoop = v2
 	}
 
 	// TODO(klizhentas)
