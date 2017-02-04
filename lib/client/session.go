@@ -458,7 +458,7 @@ func (ns *NodeSession) pipeInOut(shell io.ReadWriteCloser) {
 		for {
 			n, err := ns.stdin.Read(buf)
 			if err != nil {
-				fmt.Println(trace.Wrap(err))
+				fmt.Fprintln(ns.stderr, trace.Wrap(err))
 				return
 			}
 			if n > 0 {

@@ -829,9 +829,9 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessToJoin *session.S
 		return trace.Wrap(err)
 	}
 	if nodeSession.ExitMsg == "" {
-		fmt.Println("the connection was closed on the remote side", time.Now())
+		fmt.Fprintln(tc.Stderr, "the connection was closed on the remote side on ", time.Now().Format(time.RFC822))
 	} else {
-		fmt.Println(nodeSession.ExitMsg)
+		fmt.Fprintln(tc.Stderr, nodeSession.ExitMsg)
 	}
 	return nil
 }
@@ -1139,14 +1139,14 @@ func (tc *TeleportClient) AskPasswordAndOTP() (pwd string, token string, err err
 	fmt.Printf("Enter password for Teleport user %v:\n", tc.Config.Username)
 	pwd, err = passwordFromConsole()
 	if err != nil {
-		fmt.Println(err)
+		fmt.Fprintln(tc.Stderr, err)
 		return "", "", trace.Wrap(err)
 	}
 
 	fmt.Printf("Enter your OTP token:\n")
 	token, err = lineFromConsole()
 	if err != nil {
-		fmt.Println(err)
+		fmt.Fprintln(tc.Stderr, err)
 		return "", "", trace.Wrap(err)
 	}
 	return pwd, token, nil
@@ -1157,7 +1157,7 @@ func (tc *TeleportClient) AskPassword() (pwd string, err error) {
 	fmt.Printf("Enter password for Teleport user %v:\n", tc.Config.Username)
 	pwd, err = passwordFromConsole()
 	if err != nil {
-		fmt.Println(err)
+		fmt.Fprintln(tc.Stderr, err)
 		return "", trace.Wrap(err)
 	}
 
