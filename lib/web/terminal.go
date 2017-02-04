@@ -113,9 +113,12 @@ type terminalHandler struct {
 	sshClient *ssh.Client
 }
 
-func (w *terminalHandler) Close() error {
-	if w.ws != nil {
-		w.ws.Close()
+func (t *terminalHandler) Close() error {
+	if t.ws != nil {
+		t.ws.Close()
+	}
+	if t.sshClient != nil {
+		t.sshClient.Close()
 	}
 	return nil
 }
@@ -194,6 +197,11 @@ func (t *terminalHandler) Run(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// this is to make sure we close web socket connections once
+	// sessionContext that owns them expires
+	t.ctx.AddClosers(t)
+	defer t.ctx.RemoveCloser(t)
+
 	// TODO(klizhentas)
 	// we instantiate a server explicitly here instead of using
 	// websocket.HandlerFunc to set empty origin checker

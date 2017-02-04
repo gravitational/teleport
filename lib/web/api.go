@@ -961,10 +961,6 @@ func (m *Handler) siteNodeConnect(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// this is to make sure we close web socket connections once
-	// sessionContext that owns them expires
-	ctx.AddClosers(term)
-	defer term.Close()
 
 	// start the websocket session with a web-based terminal:
 	log.Infof("[WEB] getting terminal to '%#v'", req)
@@ -1002,7 +998,11 @@ func (m *Handler) siteSessionStream(w http.ResponseWriter, r *http.Request, p ht
 	// this is to make sure we close web socket connections once
 	// sessionContext that owns them expires
 	ctx.AddClosers(connect)
-	defer connect.Close()
+	defer func() {
+		connect.Close()
+		ctx.RemoveCloser(connect)
+	}()
+
 	connect.Handler().ServeHTTP(w, r)
 	return nil, nil
 }

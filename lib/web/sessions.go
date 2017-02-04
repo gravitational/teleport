@@ -87,6 +87,17 @@ func (c *SessionContext) AddClosers(closers ...io.Closer) {
 	c.closers = append(c.closers, closers...)
 }
 
+func (c *SessionContext) RemoveCloser(closer io.Closer) {
+	c.Lock()
+	defer c.Unlock()
+	for i := range c.closers {
+		if c.closers[i] == closer {
+			c.closers = append(c.closers[:i], c.closers[i+1:]...)
+			return
+		}
+	}
+}
+
 func (c *SessionContext) TransferClosers() []io.Closer {
 	c.Lock()
 	defer c.Unlock()
