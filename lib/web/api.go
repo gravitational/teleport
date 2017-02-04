@@ -92,8 +92,9 @@ type Config struct {
 	ProxyClient auth.ClientI
 	// DisableUI allows to turn off serving web based UI
 	DisableUI bool
-	// TODO
+	// ProxySSHAddr points to the SSH address of the proxy
 	ProxySSHAddr utils.NetAddr
+	// ProxyWebAddr points to the web (HTTPS) address of the proxy
 	ProxyWebAddr utils.NetAddr
 }
 

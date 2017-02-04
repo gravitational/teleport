@@ -1126,7 +1126,6 @@ func (s *APIServer) getSessionEvents(auth ClientI, w http.ResponseWriter, r *htt
 	if err != nil {
 		afterN = 0
 	}
-	//log.Debugf("[AUTH] api.getSessionEvents(%v, after=%d)", *sid, afterN)
 	return auth.GetSessionEvents(namespace, *sid, afterN)
 }
 

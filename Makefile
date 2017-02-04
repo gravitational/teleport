@@ -31,7 +31,6 @@ $(BUILDDIR)/tctl: $(LIBS) $(TOOLS) tool/tctl/*.go
 
 $(BUILDDIR)/teleport: $(LIBS) tool/teleport/*.go
 	go build -o $(BUILDDIR)/teleport -i $(BUILDFLAGS) ./tool/teleport
-	kill `pidof teleport`
 
 $(BUILDDIR)/tsh: $(LIBS) tool/tsh/*.go
 	go build -o $(BUILDDIR)/tsh -i $(BUILDFLAGS) ./tool/tsh

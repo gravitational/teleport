@@ -363,7 +363,7 @@ func (ns *NodeSession) runShell(callback ShellCreatedCallback) error {
 		}
 		// call the client-supplied callback
 		if callback != nil {
-			exit, err := callback(ns, shell)
+			exit, err := callback(s, ns.NodeClient().Client, shell)
 			if exit {
 				return trace.Wrap(err)
 			}
@@ -384,13 +384,13 @@ func (ns *NodeSession) runCommand(cmd []string, callback ShellCreatedCallback, i
 
 	// interactive session:
 	if interactive {
-		return ns.interactiveSession(func(s *ssh.Session, shell io.ReadWriteCloser) error {
+		return ns.interactiveSession(func(s *ssh.Session, term io.ReadWriteCloser) error {
 			err := s.Start(strings.Join(cmd, " "))
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			if callback != nil {
-				exit, err := callback(ns, shell)
+				exit, err := callback(s, ns.NodeClient().Client, term)
 				if exit {
 					return trace.Wrap(err)
 				}

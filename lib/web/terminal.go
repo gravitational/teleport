@@ -110,15 +110,15 @@ type terminalHandler struct {
 	server services.Server
 
 	// sshClient is initialized after an SSH connection to a node is established
-	sshClient *ssh.Client
+	sshSession *ssh.Session
 }
 
 func (t *terminalHandler) Close() error {
 	if t.ws != nil {
 		t.ws.Close()
 	}
-	if t.sshClient != nil {
-		t.sshClient.Close()
+	if t.sshSession != nil {
+		t.sshSession.Close()
 	}
 	return nil
 }
@@ -126,11 +126,10 @@ func (t *terminalHandler) Close() error {
 // resizePTYWindow is called when a brower resizes its window. Now the node
 // needs to be notified via SSH
 func (t *terminalHandler) resizePTYWindow(params session.TerminalParams) error {
-	if t.sshClient == nil {
+	if t.sshSession == nil {
 		return nil
 	}
-	log.Infof("web_terminal.resizePTYWindow(%v, %v)", uint32(params.W), uint32(params.H))
-	_, _, err := t.sshClient.SendRequest(
+	_, err := t.sshSession.SendRequest(
 		// send SSH "window resized" SSH request:
 		sshutils.WindowChangeReq,
 		// no response needed
@@ -139,6 +138,9 @@ func (t *terminalHandler) resizePTYWindow(params session.TerminalParams) error {
 			W: uint32(params.W),
 			H: uint32(params.H),
 		}))
+	if err != nil {
+		log.Error(err)
+	}
 	return trace.Wrap(err)
 }
 
@@ -150,13 +152,6 @@ func (t *terminalHandler) Run(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "%s\n\r", err.Error())
 		log.Error(err)
 	}
-
-	// this callback is called right after shell is created
-	onShellCreated := func(ns *client.NodeSession, shell io.ReadWriteCloser) (exit bool, err error) {
-		t.sshClient = ns.NodeClient().Client
-		return false, nil
-	}
-
 	webSocketLoop := func(ws *websocket.Conn) {
 		// get user's credentials using the SSH agent implementation which
 		// retreives them directly from auth server API:
@@ -187,10 +182,17 @@ func (t *terminalHandler) Run(w http.ResponseWriter, r *http.Request) {
 			Env:              map[string]string{sshutils.SessionEnvVar: string(t.params.SessionID)},
 			HostKeyCallback:  func(string, net.Addr, ssh.PublicKey) error { return nil },
 		})
-		tc.OnShellCreated = onShellCreated
 		if err != nil {
 			errToTerm(err, ws)
 			return
+		}
+		// this callback will execute when a shell is created, it will give
+		// us a reference to ssh.Client object
+		tc.OnShellCreated = func(s *ssh.Session, c *ssh.Client, _ io.ReadWriteCloser) (bool, error) {
+			t.sshSession = s
+			t.resizePTYWindow(t.params.Term)
+			go t.pullServerTermsize(c, output)
+			return false, nil
 		}
 		if err = tc.SSH(context.TODO(), nil, false); err != nil {
 			errToTerm(err, ws)
@@ -244,4 +246,19 @@ func (t *terminalHandler) getUserCredentials(agent auth.AgentCloser) (string, ss
 		return "", nil, trace.Wrap(err)
 	}
 	return cert.ValidPrincipals[0], ssh.PublicKeys(signers...), nil
+}
+
+// this goroutine receives terminal window size changes in real time
+// and stores the last size (example: "100:25") as a special "prefix"
+// which gets added to future SSH reads by web clients.
+func (t *terminalHandler) pullServerTermsize(c *ssh.Client, ws *utils.WebSockWrapper) {
+	var buff [16]byte
+	sshChan, _, err := c.OpenChannel("x-teleport-request-resize-events", nil)
+	for err == nil {
+		n, err := sshChan.Read(buff[:])
+		if err != nil {
+			break
+		}
+		ws.SetPrefix(buff[:n])
+	}
 }
