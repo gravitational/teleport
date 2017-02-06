@@ -181,6 +181,7 @@ func (t *terminalHandler) Run(w http.ResponseWriter, r *http.Request) {
 			Host:             t.server.GetHostname(),
 			Env:              map[string]string{sshutils.SessionEnvVar: string(t.params.SessionID)},
 			HostKeyCallback:  func(string, net.Addr, ssh.PublicKey) error { return nil },
+			ClientAddr:       r.RemoteAddr,
 		})
 		if err != nil {
 			errToTerm(err, ws)

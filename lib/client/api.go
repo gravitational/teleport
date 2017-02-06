@@ -166,6 +166,11 @@ type Config struct {
 	// Interactive, when set to true, tells tsh to launch a remote command
 	// in interactive mode, i.e. attaching the temrinal to it
 	Interactive bool
+
+	// ClientAddr (if set) specifies the true client IP. Usually it's not needed (since the server
+	// can look at the connecting address to determine client's IP) but for cases when the
+	// client is web-based, this must be set to HTTP's remote addr
+	ClientAddr string
 }
 
 func MakeDefaultConfig() *Config {
@@ -885,6 +890,7 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 			authMethod:      m,
 			hostLogin:       tc.Config.HostLogin,
 			siteName:        tc.Config.SiteName,
+			clientAddr:      tc.ClientAddr,
 		}
 	}
 	successMsg := fmt.Sprintf("[CLIENT] successful auth with proxy %v", proxyAddr)
