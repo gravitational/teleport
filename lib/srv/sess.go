@@ -574,6 +574,8 @@ func (s *session) String() string {
 func (s *session) removeParty(p *party) error {
 	p.ctx.Infof("session.removeParty(%v)", p)
 
+	ns := s.getNamespace()
+
 	// in-memory locked remove:
 	lockedRemove := func() {
 		s.Lock()
@@ -585,7 +587,7 @@ func (s *session) removeParty(p *party) error {
 
 	// remove from the session server (asynchronously)
 	storageRemove := func(db rsession.Service) {
-		dbSession, err := db.GetSession(s.getNamespace(), s.id)
+		dbSession, err := db.GetSession(ns, s.id)
 		if err != nil {
 			log.Error(err)
 			return
@@ -594,7 +596,7 @@ func (s *session) removeParty(p *party) error {
 			db.UpdateSession(rsession.UpdateRequest{
 				ID:        dbSession.ID,
 				Parties:   &dbSession.Parties,
-				Namespace: s.getNamespace(),
+				Namespace: ns,
 			})
 		}
 	}
@@ -627,19 +629,21 @@ func (s *session) pollAndSync() {
 	log.Debugf("[session.registry] start pollAndSync()\b")
 	defer log.Debugf("[session.registry] end pollAndSync()\n")
 
+	ns := s.getNamespace()
+
 	sessionServer := s.registry.srv.sessionServer
 	if sessionServer == nil {
 		return
 	}
 	errCount := 0
 	sync := func() error {
-		sess, err := sessionServer.GetSession(s.getNamespace(), s.id)
+		sess, err := sessionServer.GetSession(ns, s.id)
 		if sess == nil {
 			return trace.Wrap(err)
 		}
 		var active = true
 		sessionServer.UpdateSession(rsession.UpdateRequest{
-			Namespace: s.getNamespace(),
+			Namespace: ns,
 			ID:        sess.ID,
 			Active:    &active,
 			Parties:   nil,
