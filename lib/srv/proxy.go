@@ -122,6 +122,17 @@ func (t *proxySubsys) start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Requ
 		tunnel     = t.srv.proxyTun
 		clientAddr = sconn.RemoteAddr()
 	)
+	// did the client pass us a true client IP ahead of time via an environment variable?
+	// (usually the web client would do that)
+	ctx.Lock()
+	trueClientIP, ok := ctx.env["TELEPORT_TRUE_CLIENT_IP"]
+	ctx.Unlock()
+	if ok {
+		a, err := utils.ParseAddr(trueClientIP)
+		if err == nil {
+			clientAddr = a
+		}
+	}
 	// get the site by name:
 	if t.siteName != "" {
 		site, err = tunnel.GetSite(t.siteName)

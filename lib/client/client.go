@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -47,6 +48,7 @@ type ProxyClient struct {
 	hostKeyCallback utils.HostKeyCallback
 	authMethod      ssh.AuthMethod
 	siteName        string
+	clientAddr      string
 }
 
 // NodeClient implements ssh client to a ssh node (teleport or any regular ssh node)
@@ -178,10 +180,6 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress string,
 		return nil, trace.Wrap(err)
 	}
 
-	// we have to try every auth method separatedly,
-	// because go SSH will try only one (fist) auth method
-	// of a given type, so if you have 2 different public keys
-	// you have to try each one differently
 	proxySession, err := proxy.Client.NewSession()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -198,6 +196,15 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress string,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// pass the true client IP (if specified) to the proxy so it could pass it into the
+	// SSH session for proper audit
+	if len(proxy.clientAddr) > 0 {
+		if err = proxySession.Setenv(sshutils.TrueClientAddrVar, proxy.clientAddr); err != nil {
+			log.Error(err)
+		}
+	}
+
 	err = proxySession.RequestSubsystem("proxy:" + nodeAddress)
 	if err != nil {
 		// read the stderr output from the failed SSH session and append
