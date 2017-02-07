@@ -114,13 +114,19 @@ type Config struct {
 	// InsecureSkipVerify is an option to skip HTTPS cert check
 	InsecureSkipVerify bool
 
-	// SkipLocalAuth will not try to connect to local SSH agent
-	// or use any local certs, and not use interactive logins
+	// SkipLocalAuth tells the client to use AuthMethods parameter for authentication and NOT
+	// use its own SSH agent or ask user for passwords. This is used by external programs linking
+	// against Teleport client and obtaining credentials from elsewhere.
 	SkipLocalAuth bool
 
-	// AuthMethods to use to login into cluster. If left empty, teleport will
-	// use its own session store,
+	// AuthMethods are used to login into the cluster. If specified, the client will
+	// use them in addition to certs stored in its local agent (from disk)
 	AuthMethods []ssh.AuthMethod
+
+	// DefaultPrincipal determines the default SSH username (principal) the client should be using
+	// when connecting to auth/proxy servers. Usually it's returned with a certificate,
+	// but this variables provides a default (used by the web-based terminal client)
+	DefaultPrincipal string
 
 	Stdout io.Writer
 	Stderr io.Writer
@@ -304,7 +310,7 @@ type TeleportClient struct {
 // hasn't begun yet.
 //
 // It allows clients to cancel SSH action
-type ShellCreatedCallback func(shell io.ReadWriteCloser) (exit bool, err error)
+type ShellCreatedCallback func(s *ssh.Session, c *ssh.Client, terminal io.ReadWriteCloser) (exit bool, err error)
 
 // NewClient creates a TeleportClient object and fully configures it
 func NewClient(c *Config) (tc *TeleportClient, err error) {
@@ -329,12 +335,6 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 
 	tc = &TeleportClient{Config: *c}
 
-	// initialize the local agent (auth agent which uses local SSH keys signed by the CA):
-	tc.localAgent, err = NewLocalAgent(c.KeysDir, c.Username)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	if tc.Stdout == nil {
 		tc.Stdout = os.Stdout
 	}
@@ -344,9 +344,6 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	if tc.Stdin == nil {
 		tc.Stdin = os.Stdin
 	}
-	if tc.HostKeyCallback == nil {
-		tc.HostKeyCallback = tc.localAgent.CheckHostSignature
-	}
 
 	// sometimes we need to use external auth without using local auth
 	// methods, e.g. in automation daemons
@@ -354,8 +351,17 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		if len(c.AuthMethods) == 0 {
 			return nil, trace.BadParameter("SkipLocalAuth is true but no AuthMethods provided")
 		}
-		return tc, nil
+	} else {
+		// initialize the local agent (auth agent which uses local SSH keys signed by the CA):
+		tc.localAgent, err = NewLocalAgent(c.KeysDir, c.Username)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if tc.HostKeyCallback == nil {
+			tc.HostKeyCallback = tc.localAgent.CheckHostSignature
+		}
 	}
+
 	return tc, nil
 }
 
@@ -823,54 +829,58 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessToJoin *session.S
 		return trace.Wrap(err)
 	}
 	if nodeSession.ExitMsg == "" {
-		fmt.Println("the connection was closed on the remote side", time.Now())
+		fmt.Fprintln(tc.Stderr, "the connection was closed on the remote side on ", time.Now().Format(time.RFC822))
 	} else {
-		fmt.Println(nodeSession.ExitMsg)
+		fmt.Fprintln(tc.Stderr, nodeSession.ExitMsg)
 	}
 	return nil
 }
 
 // getProxyLogin determines which SSH principal to use when connecting to proxy.
 func (tc *TeleportClient) getProxySSHPrincipal() string {
-	// the default is to use whatever was passed via CLI flags
-	proxyLogin := tc.Config.HostLogin
-
+	proxyPrincipal := tc.Config.HostLogin
+	if tc.DefaultPrincipal != "" {
+		proxyPrincipal = tc.DefaultPrincipal
+	}
 	// see if we already have a signed key in the cache, we'll use that instead
-	if !tc.Config.SkipLocalAuth {
+	if !tc.Config.SkipLocalAuth && tc.LocalAgent() != nil {
 		signers, err := tc.LocalAgent().Signers()
 		if err != nil || len(signers) == 0 {
-			return proxyLogin
+			return proxyPrincipal
 		}
 		cert, ok := signers[0].PublicKey().(*ssh.Certificate)
 		if ok && len(cert.ValidPrincipals) > 0 {
-			proxyLogin = cert.ValidPrincipals[0]
+			return cert.ValidPrincipals[0]
 		}
 	}
-	return proxyLogin
+	return proxyPrincipal
 }
 
 // authMethods returns a list (slice) of all SSH auth methods this client
 // can use to try to authenticate
 func (tc *TeleportClient) authMethods() []ssh.AuthMethod {
-	// return the auth methods that we were configured with
-	// plus our local key agent (i.e. methods we've added during runtime
-	// by the means of .AddKey())
 	m := append([]ssh.AuthMethod(nil), tc.Config.AuthMethods...)
-	return append(m, tc.LocalAgent().AuthMethods()...)
+	if tc.LocalAgent() != nil {
+		m = append(m, tc.LocalAgent().AuthMethods()...)
+	}
+	return m
 }
 
 // ConnectToProxy dials the proxy server and returns ProxyClient if successful
 func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
+	proxyPrincipal := tc.getProxySSHPrincipal()
 	proxyAddr := tc.Config.ProxySSHHostPort()
 	sshConfig := &ssh.ClientConfig{
-		User:            tc.getProxySSHPrincipal(),
+		User:            proxyPrincipal,
 		HostKeyCallback: tc.HostKeyCallback,
 	}
+
 	// helper to create a ProxyClient struct
 	makeProxyClient := func(sshClient *ssh.Client, m ssh.AuthMethod) *ProxyClient {
 		return &ProxyClient{
 			Client:          sshClient,
 			proxyAddress:    proxyAddr,
+			proxyPrincipal:  proxyPrincipal,
 			hostKeyCallback: sshConfig.HostKeyCallback,
 			authMethod:      m,
 			hostLogin:       tc.Config.HostLogin,
@@ -914,7 +924,7 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 	// After successfull login we have local agent updated with latest
 	// and greatest auth information, try it now
 	sshConfig.Auth = []ssh.AuthMethod{authMethod}
-	sshConfig.User = tc.getProxySSHPrincipal()
+	sshConfig.User = proxyPrincipal
 	sshClient, err := ssh.Dial("tcp", proxyAddr, sshConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1129,14 +1139,14 @@ func (tc *TeleportClient) AskPasswordAndOTP() (pwd string, token string, err err
 	fmt.Printf("Enter password for Teleport user %v:\n", tc.Config.Username)
 	pwd, err = passwordFromConsole()
 	if err != nil {
-		fmt.Println(err)
+		fmt.Fprintln(tc.Stderr, err)
 		return "", "", trace.Wrap(err)
 	}
 
 	fmt.Printf("Enter your OTP token:\n")
 	token, err = lineFromConsole()
 	if err != nil {
-		fmt.Println(err)
+		fmt.Fprintln(tc.Stderr, err)
 		return "", "", trace.Wrap(err)
 	}
 	return pwd, token, nil
@@ -1147,7 +1157,7 @@ func (tc *TeleportClient) AskPassword() (pwd string, err error) {
 	fmt.Printf("Enter password for Teleport user %v:\n", tc.Config.Username)
 	pwd, err = passwordFromConsole()
 	if err != nil {
-		fmt.Println(err)
+		fmt.Fprintln(tc.Stderr, err)
 		return "", trace.Wrap(err)
 	}
 

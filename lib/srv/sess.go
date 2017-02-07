@@ -197,7 +197,6 @@ func (s *sessionRegistry) notifyWinChange(params rsession.TerminalParams, ctx *c
 		return nil
 	}
 	sid := ctx.session.id
-
 	// report this to the event/audit log:
 	s.srv.EmitAuditEvent(events.ResizeEvent, events.EventFields{
 		events.EventNamespace: s.srv.getNamespace(),

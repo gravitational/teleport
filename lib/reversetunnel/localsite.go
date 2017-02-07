@@ -28,7 +28,6 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 )
 
 func newlocalSite(domainName string, client auth.ClientI) *localSite {
@@ -81,22 +80,6 @@ func (s *localSite) GetName() string {
 
 func (s *localSite) GetLastConnected() time.Time {
 	return time.Now()
-}
-
-func (s *localSite) ConnectToServer(server, user string, auth []ssh.AuthMethod) (*ssh.Client, error) {
-	s.log.Infof("ConnectToServer(server=%v, user=%v)", server, user)
-
-	client, err := ssh.Dial(
-		"tcp",
-		server,
-		&ssh.ClientConfig{
-			User: user,
-			Auth: auth,
-		})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return client, nil
 }
 
 // Dial dials a given host in this site (cluster).
