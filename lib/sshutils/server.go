@@ -78,6 +78,10 @@ const (
 	// SSH version string
 	// https://tools.ietf.org/html/rfc4253
 	MaxVersionStringBytes = 255
+
+	// TrueClientAddrVar environment variable is used by the web UI to pass
+	// the remote IP (user's IP) from the browser/HTTP session into an SSH session
+	TrueClientAddrVar = "TELEPORT_CLIENT_ADDR"
 )
 
 // ServerOption is a functional argument for server
