@@ -26,6 +26,7 @@ import (
 	"html/template"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -35,6 +36,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -90,6 +92,10 @@ type Config struct {
 	ProxyClient auth.ClientI
 	// DisableUI allows to turn off serving web based UI
 	DisableUI bool
+	// ProxySSHAddr points to the SSH address of the proxy
+	ProxySSHAddr utils.NetAddr
+	// ProxyWebAddr points to the web (HTTPS) address of the proxy
+	ProxyWebAddr utils.NetAddr
 }
 
 type RewritingHandler struct {
@@ -950,14 +956,12 @@ func (m *Handler) siteNodeConnect(
 		req.Namespace, req.ServerID, req.Login)
 
 	req.Namespace = p.ByName("namespace")
+	req.ProxyHostPort = m.ProxyHostPort()
+
 	term, err := newTerminal(*req, ctx, site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// this is to make sure we close web socket connections once
-	// sessionContext that owns them expires
-	ctx.AddClosers(term)
-	defer term.Close()
 
 	// start the websocket session with a web-based terminal:
 	log.Infof("[WEB] getting terminal to '%#v'", req)
@@ -995,7 +999,11 @@ func (m *Handler) siteSessionStream(w http.ResponseWriter, r *http.Request, p ht
 	// this is to make sure we close web socket connections once
 	// sessionContext that owns them expires
 	ctx.AddClosers(connect)
-	defer connect.Close()
+	defer func() {
+		connect.Close()
+		ctx.RemoveCloser(connect)
+	}()
+
 	connect.Handler().ServeHTTP(w, r)
 	return nil, nil
 }
@@ -1061,6 +1069,7 @@ func (m *Handler) siteSessionUpdate(w http.ResponseWriter, r *http.Request, p ht
 	}
 	err = ctx.UpdateSessionTerminal(p.ByName("namespace"), *sessionID, req.TerminalParams)
 	if err != nil {
+		log.Error(err)
 		return nil, trace.Wrap(err)
 	}
 	return ok(), nil
@@ -1440,6 +1449,20 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 		}
 	}
 	return ctx, nil
+}
+
+// ProxyHostPort returns the address of the proxy server using --proxy
+// notation, i.e. "localhost:8030,8023"
+func (h *Handler) ProxyHostPort() string {
+	// addr equals to "localhost:8030" at this point
+	addr := h.cfg.ProxyWebAddr.String()
+	// add the SSH port number and return
+	_, sshPort, err := net.SplitHostPort(h.cfg.ProxySSHAddr.String())
+	if err != nil {
+		log.Error(err)
+		sshPort = strconv.Itoa(defaults.SSHProxyListenPort)
+	}
+	return fmt.Sprintf("%s,%s", addr, sshPort)
 }
 
 func message(msg string) interface{} {

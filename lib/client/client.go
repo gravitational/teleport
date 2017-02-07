@@ -43,6 +43,7 @@ type ProxyClient struct {
 	Client          *ssh.Client
 	hostLogin       string
 	proxyAddress    string
+	proxyPrincipal  string
 	hostKeyCallback utils.HostKeyCallback
 	authMethod      ssh.AuthMethod
 	siteName        string
@@ -133,22 +134,11 @@ func (proxy *ProxyClient) ConnectToSite(ctx context.Context, quiet bool) (auth.C
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// look at the certificate which we've received from the proxy and pick the 1st
-	// valid principal to pass to the auth server
-	authLogin := proxy.hostLogin
-	certMethod, ok := proxy.authMethod.(*CertAuthMethod)
-	if ok {
-		if cert, ok := certMethod.Cert.PublicKey().(*ssh.Certificate); ok && len(cert.ValidPrincipals) > 0 {
-			authLogin = cert.ValidPrincipals[0]
-		}
-	}
-
 	// this connects us to the node which is an auth server for this site
 	// note the addres we're using: "@sitename", which in practice looks like "@{site-global-id}"
 	// the Teleport proxy interprets such address as a request to connec to the active auth server
 	// of the named site
-	nodeClient, err := proxy.ConnectToNode(ctx, "@"+site.Name, authLogin, quiet)
+	nodeClient, err := proxy.ConnectToNode(ctx, "@"+site.Name, proxy.proxyPrincipal, quiet)
 	if err != nil {
 		log.Error(err)
 		return nil, trace.Wrap(err)

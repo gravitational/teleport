@@ -1,3 +1,19 @@
+/*
+Copyright 2016 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package client
 
 import (
@@ -68,6 +84,9 @@ func newSession(client *NodeClient,
 	if stderr == nil {
 		stderr = os.Stderr
 	}
+	if env == nil {
+		env = make(map[string]string)
+	}
 
 	var err error
 	ns := &NodeSession{
@@ -94,13 +113,18 @@ func newSession(client *NodeClient,
 		}
 		// new session!
 	} else {
-		ns.id = session.NewID()
-	}
-	if ns.env == nil {
-		ns.env = make(map[string]string)
+		sid, ok := ns.env[sshutils.SessionEnvVar]
+		if !ok {
+			sid = string(session.NewID())
+		}
+		ns.id = session.ID(sid)
 	}
 	ns.env[sshutils.SessionEnvVar] = string(ns.id)
 	return ns, nil
+}
+
+func (ns *NodeSession) NodeClient() *NodeClient {
+	return ns.nodeClient
 }
 
 func (ns *NodeSession) regularSession(callback func(s *ssh.Session) error) error {
@@ -339,7 +363,7 @@ func (ns *NodeSession) runShell(callback ShellCreatedCallback) error {
 		}
 		// call the client-supplied callback
 		if callback != nil {
-			exit, err := callback(shell)
+			exit, err := callback(s, ns.NodeClient().Client, shell)
 			if exit {
 				return trace.Wrap(err)
 			}
@@ -360,13 +384,13 @@ func (ns *NodeSession) runCommand(cmd []string, callback ShellCreatedCallback, i
 
 	// interactive session:
 	if interactive {
-		return ns.interactiveSession(func(s *ssh.Session, shell io.ReadWriteCloser) error {
+		return ns.interactiveSession(func(s *ssh.Session, term io.ReadWriteCloser) error {
 			err := s.Start(strings.Join(cmd, " "))
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			if callback != nil {
-				exit, err := callback(shell)
+				exit, err := callback(s, ns.NodeClient().Client, term)
 				if exit {
 					return trace.Wrap(err)
 				}
@@ -434,7 +458,7 @@ func (ns *NodeSession) pipeInOut(shell io.ReadWriteCloser) {
 		for {
 			n, err := ns.stdin.Read(buf)
 			if err != nil {
-				fmt.Println(trace.Wrap(err))
+				fmt.Fprintln(ns.stderr, trace.Wrap(err))
 				return
 			}
 			if n > 0 {

@@ -68,6 +68,7 @@ func TestWeb(t *testing.T) {
 
 type WebSuite struct {
 	node        *srv.Server
+	proxy       *srv.Server
 	srvAddress  string
 	srvID       string
 	srvHostPort string
@@ -129,7 +130,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.user = u.Username
 
-	s.freePorts, err = utils.GetFreeTCPPorts(3)
+	s.freePorts, err = utils.GetFreeTCPPorts(6)
 	c.Assert(err, IsNil)
 
 	s.bk, err = boltbk.New(backend.Params{"path": s.dir})
@@ -199,6 +200,8 @@ func (s *WebSuite) SetUpTest(c *C) {
 	s.freePorts = s.freePorts[:len(s.freePorts)-1]
 
 	s.srvAddress = fmt.Sprintf("127.0.0.1:%v", nodePort)
+
+	// create SSH service:
 	node, err := srv.New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: s.srvAddress},
 		s.domainName,
@@ -216,6 +219,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 
 	c.Assert(s.node.Start(), IsNil)
 
+	// create reverse tunnel service:
 	revTunServer, err := reversetunnel.NewServer(
 		utils.NetAddr{
 			AddrNetwork: "tcp",
@@ -230,6 +234,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 	apiPort := s.freePorts[len(s.freePorts)-1]
 	s.freePorts = s.freePorts[:len(s.freePorts)-1]
 
+	// create Auth API server:
 	tunAddr := utils.NetAddr{
 		AddrNetwork: "tcp", Addr: fmt.Sprintf("127.0.0.1:%v", apiPort),
 	}
@@ -245,7 +250,24 @@ func (s *WebSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(s.tunServer.Start(), IsNil)
 
-	// start handler
+	// proxy server:
+	proxyPort := s.freePorts[len(s.freePorts)-1]
+	s.freePorts = s.freePorts[:len(s.freePorts)-1]
+	proxyAddr := utils.NetAddr{
+		AddrNetwork: "tcp", Addr: fmt.Sprintf("127.0.0.1:%v", proxyPort),
+	}
+	s.proxy, err = srv.New(proxyAddr,
+		s.domainName,
+		[]ssh.Signer{s.signer},
+		s.roleAuth,
+		s.dir,
+		nil,
+		srv.SetProxyMode(revTunServer),
+		srv.SetSessionServer(s.roleAuth),
+		srv.SetAuditLog(s.roleAuth),
+	)
+	c.Assert(err, IsNil)
+
 	handler, err := NewHandler(Config{
 		Proxy:       revTunServer,
 		AuthServers: tunAddr,
@@ -255,6 +277,12 @@ func (s *WebSuite) SetUpTest(c *C) {
 
 	s.webServer = httptest.NewUnstartedServer(handler)
 	s.webServer.StartTLS()
+	err = s.proxy.Start()
+	c.Assert(err, IsNil)
+
+	addr, _ := utils.ParseAddr(s.webServer.Listener.Addr().String())
+	handler.handler.cfg.ProxyWebAddr = *addr
+	handler.handler.cfg.ProxySSHAddr = proxyAddr
 }
 
 func (s *WebSuite) url() *url.URL {
@@ -269,6 +297,7 @@ func (s *WebSuite) TearDownTest(c *C) {
 	c.Assert(s.node.Close(), IsNil)
 	c.Assert(s.tunServer.Close(), IsNil)
 	s.webServer.Close()
+	s.proxy.Close()
 }
 
 func (s *WebSuite) TestNewUser(c *C) {

@@ -721,11 +721,13 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			utils.Consolef(cfg.Console, "[PROXY] Web proxy service is starting on %v", cfg.Proxy.WebAddr.Addr)
 			webHandler, err := web.NewHandler(
 				web.Config{
-					Proxy:       tsrv,
-					AuthServers: cfg.AuthServers[0],
-					DomainName:  cfg.Hostname,
-					ProxyClient: conn.Client,
-					DisableUI:   cfg.Proxy.DisableWebUI,
+					Proxy:        tsrv,
+					AuthServers:  cfg.AuthServers[0],
+					DomainName:   cfg.Hostname,
+					ProxyClient:  conn.Client,
+					DisableUI:    cfg.Proxy.DisableWebUI,
+					ProxySSHAddr: cfg.Proxy.SSHAddr,
+					ProxyWebAddr: cfg.Proxy.WebAddr,
 				})
 			if err != nil {
 				utils.Consolef(cfg.Console, "[PROXY] starting the web server: %v", err)
