@@ -40,6 +40,7 @@ test: integration
 	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BBOX) \
 		/bin/bash -c \
 		"examples/etcd/start-etcd.sh & sleep 1; \
+		ssh-agent > external.agent && source external.agent; \
 		cd $(SRCDIR) && make TELEPORT_DEBUG=0 FLAGS='-cover -race' clean test"
 
 .PHONY:integration

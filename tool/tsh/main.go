@@ -356,6 +356,7 @@ func onAgentStart(cf *CLIConf) {
 			Addr:        filepath.Join(os.TempDir(), fmt.Sprintf("teleport-%d.socket", pid)),
 		}
 	}
+
 	// This makes teleport agent behave exactly like ssh-agent command,
 	// the output and behavior matches the openssh behavior,
 	// so users can do 'eval $(tsh agent --proxy=<addr>&)
@@ -367,26 +368,16 @@ export SSH_AGENT_PID=%v
 # you can redirect this output into a file and call 'source' on it
 `, socketAddr.Addr, pid)
 
-	agentServer := teleagent.NewServer()
-	tc, err := makeClient(cf, true)
+	// making a client leads to the creation of a client.LocalAgent which
+	// has a side effect of loading all keys into said agent. so we don't
+	// actually need to manually load keys into memory here.
+	_, err := makeClient(cf, true)
 	if err != nil {
 		utils.FatalError(err)
 	}
 
-	agentKeys, err := tc.LocalAgent().LoadKeys(tc.Username)
-	if err != nil {
-		utils.FatalError(err)
-	}
-	// add existing keys to the running agent for ux purposes
-	for i := range agentKeys {
-		key, err := agentKeys[i].AsAgentKey()
-		if err != nil {
-			utils.FatalError(err)
-		}
-		if err = agentServer.Add(*key); err != nil {
-			utils.FatalError(err)
-		}
-	}
+	// create a new teleport agent and start listening
+	agentServer := teleagent.NewServer()
 	if err := agentServer.ListenAndServe(socketAddr); err != nil {
 		utils.FatalError(err)
 	}

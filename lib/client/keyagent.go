@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2017 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,62 +17,123 @@ limitations under the License.
 package client
 
 import (
-	"bytes"
 	"fmt"
 	"net"
 	"os"
 	"strings"
 
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/sshutils"
-
-	log "github.com/Sirupsen/logrus"
-	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/trace"
+
+	log "github.com/Sirupsen/logrus"
 )
 
 type LocalKeyAgent struct {
-	// implements ssh agent.Agent interface
-	agent.Agent
-	keyStore LocalKeyStore
-
-	// sshAgent is the external SSH agent
-	sshAgent agent.Agent
+	agent.Agent               // Agent is the teleport agent
+	keyStore    LocalKeyStore // keyStore is the storage backend for certificates and keys
+	sshAgent    agent.Agent   // sshAgent is the system ssh agent
 }
 
-// NewLocalAgent loads all the saved teleport certificates and
-// creates ssh agent with them
+// NewLocalAgent reads all Teleport certificates from disk (using FSLocalKeyStore),
+// creates a LocalKeyAgent, loads all certificates into it, and returns the agent.
 func NewLocalAgent(keyDir, username string) (a *LocalKeyAgent, err error) {
 	keystore, err := NewFSLocalKeyStore(keyDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	a = &LocalKeyAgent{
 		Agent:    agent.NewKeyring(),
 		keyStore: keystore,
 		sshAgent: connectToSSHAgent(),
 	}
-	// load all stored keys from disk (~/.tsh usually) and pass them into the agent:
-	keys, err := a.LoadKeys(username)
+
+	// read all keys from disk (~/.tsh usually)
+	keys, err := a.GetKeys(username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	for i := range keys {
-		k, err := keys[i].AsAgentKey()
+
+	// load all keys into the agent
+	for _, key := range keys {
+		_, err = a.LoadKey(username, key)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := a.Agent.Add(*k); err != nil {
-			return nil, trace.Wrap(err)
-		}
 	}
+
 	return a, nil
 }
 
-// loadKeys return the list of keys for the given user
-// from the local keystore (files in ~/.tsh)
-func (a *LocalKeyAgent) LoadKeys(username string) ([]Key, error) {
+// LoadKey adds a key into the teleport ssh agent as well as the system ssh agent.
+func (a *LocalKeyAgent) LoadKey(username string, key Key) (*agent.AddedKey, error) {
+	agents := []agent.Agent{a.Agent}
+	if a.sshAgent != nil {
+		agents = append(agents, a.sshAgent)
+	}
+
+	// convert keys into a format understood by the ssh agent
+	agentKeys, err := key.AsAgentKeys()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// remove any keys that the user may already have loaded
+	err = a.UnloadKey(username)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// iterate over all teleport and system agent and load key
+	for i, _ := range agents {
+		for _, agentKey := range agentKeys {
+			err = agents[i].Add(*agentKey)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+	}
+
+	// return the first key because it has the embedded private key in it.
+	// see docs for AsAgentKeys for more details.
+	return agentKeys[0], nil
+}
+
+// UnloadKey will unload a key from the teleport ssh agent as well as the system agent.
+func (a *LocalKeyAgent) UnloadKey(username string) error {
+	agents := []agent.Agent{a.Agent}
+	if a.sshAgent != nil {
+		agents = append(agents, a.sshAgent)
+	}
+
+	// iterate over all agents we have and unload keys for this user
+	for i, _ := range agents {
+		// get a list of all keys in the agent
+		keyList, err := agents[i].List()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// remove any teleport keys we currently have loaded in the agent for this user
+		for _, key := range keyList {
+			if key.Comment == fmt.Sprintf("teleport:%v", username) {
+				err = agents[i].Remove(key)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// GetKeys returns a slice of keys that it has read in from the local keystore (~/.tsh)
+func (a *LocalKeyAgent) GetKeys(username string) ([]Key, error) {
 	return a.keyStore.GetKeys(username)
 }
 
@@ -161,26 +222,13 @@ func (a *LocalKeyAgent) AddKey(host string, username string, key *Key) (*CertAut
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	agentKey, err := key.AsAgentKey()
+
+	// load key into the teleport agent and system agent
+	agentKey, err := a.LoadKey(username, *key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// add it to the external SSH agent:
-	if a.sshAgent != nil {
-		for _, cert := range a.CertsFromSSHAgent() {
-			if cert.KeyId == username {
-				a.sshAgent.Remove(cert)
-			}
-		}
 
-		if err = a.sshAgent.Add(*agentKey); err != nil {
-			log.Warn(err)
-		}
-	}
-	// add it to our own in-memory key agent:
-	if err = a.Agent.Add(*agentKey); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	// generate SSH auth method based on the given signed key and return
 	// it to the caller:
 	signer, err := ssh.NewSignerFromKey(agentKey.PrivateKey)
@@ -190,35 +238,25 @@ func (a *LocalKeyAgent) AddKey(host string, username string, key *Key) (*CertAut
 	if signer, err = ssh.NewCertSigner(agentKey.Certificate, signer); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return methodForCert(signer), nil
 }
 
-// DeleteKey deletes the user key stored for a given proxy server
+// DeleteKey removes the key from the key store as well as unloading the key from the agent.
 func (a *LocalKeyAgent) DeleteKey(proxyHost string, username string) error {
-	localKey, err := a.keyStore.GetKey(proxyHost, username)
+	// remove key from key store
+	err := a.keyStore.DeleteKey(proxyHost, username)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// ... then remove it from the local storage:
-	err = trace.Wrap(a.keyStore.DeleteKey(proxyHost, username))
+	// remove any keys that are loaded for this user from the teleport and system agents
+	err = a.UnloadKey(username)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
-	// FIRST, we need to remove the same key from the SSH Agent:
-	if a.sshAgent == nil {
-		return err
-	}
-	pubKey, _, _, _, _ := ssh.ParseAuthorizedKey(localKey.Cert)
-	if pubKey == nil {
-		return err
-	}
-	agentKeys, _ := a.sshAgent.List()
-	for _, agentKey := range agentKeys {
-		if bytes.Contains(pubKey.Marshal(), agentKey.Blob) {
-			a.sshAgent.Remove(agentKey)
-			break
-		}
-	}
-	return err
+	return nil
 }
 
 // AuthMethods returns the list of differnt authentication methods this agent supports
@@ -242,32 +280,6 @@ func (a *LocalKeyAgent) AuthMethods() (m []ssh.AuthMethod) {
 		m[i] = methodForCert(certs[i])
 	}
 	return m
-}
-
-// CertsFromSSHAgent returns a lsit of certificates stored in the SSH agent
-// daemon. If the daemon is not running, it returns nil.
-func (a *LocalKeyAgent) CertsFromSSHAgent() []*ssh.Certificate {
-	if a.sshAgent == nil {
-		return nil
-	}
-	signers, err := a.sshAgent.List()
-	if err != nil {
-		log.Warn(err)
-		return nil
-	}
-	retval := make([]*ssh.Certificate, 0)
-	for _, s := range signers {
-		pk, _, _, _, err := ssh.ParseAuthorizedKey([]byte(s.String()))
-		if err != nil {
-			log.Warn(err)
-			continue
-		}
-		cert, ok := pk.(*ssh.Certificate)
-		if ok {
-			retval = append(retval, cert)
-		}
-	}
-	return retval
 }
 
 // CertAuthMethod is a wrapper around ssh.Signer (certificate signer) object.
