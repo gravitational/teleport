@@ -363,6 +363,7 @@ var OIDCConnectorSpecV2Schema = fmt.Sprintf(`{
     "client_id": {"type": "string"},
     "client_secret": {"type": "string"},
     "redirect_url": {"type": "string"},
+		"display": {"type": "string"},
     "scope": {
       "type": "array",
       "items": {
