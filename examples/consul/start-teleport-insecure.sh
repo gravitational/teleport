@@ -1,7 +1,7 @@
 #!/bin/bash
 #
-# Example of how Teleport must be started to connect to etcd
+# Example of how Teleport must be started to connect to consul
 HERE=$(readlink -f $0)
 cd $(dirname $HERE)
 
-teleport start -c teleport-insecure-etcd.yaml -d
+teleport start -c teleport-insecure-consul.yaml -d

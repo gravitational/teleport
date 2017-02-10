@@ -1,4 +1,4 @@
-To generate self-signed certificates for secure connectivity to etcd run:
+To generate self-signed certificates for secure connectivity to consul run:
 
 $ make
 

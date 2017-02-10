@@ -20,7 +20,7 @@ client-cert.pem:
 	# sign it with CA:
 	@touch index.txt
 	@echo '03' > serial
-	openssl ca -extensions etcd_client \
+	openssl ca -extensions consul_client \
 		-config openssl.cnf \
 	    -keyfile ca-key.pem \
 	    -cert ca-cert.pem \
@@ -39,7 +39,7 @@ server-cert.pem:
 	# sign it with CA:
 	@touch index.txt
 	@echo '01' > serial
-	openssl ca -extensions etcd_server \
+	openssl ca -extensions consul_server \
 		-config openssl.cnf \
 	    -keyfile ca-key.pem \
 	    -cert ca-cert.pem \

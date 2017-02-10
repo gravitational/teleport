@@ -1,11 +1,11 @@
-# etcd OpenSSL configuration file.
+# consul OpenSSL configuration file.
 SAN = "IP:127.0.0.1"
 dir = .
 
 [ ca ]
-default_ca = etcd_ca
+default_ca = consul_ca
 
-[ etcd_ca ]
+[ consul_ca ]
 certs            = $dir
 certificate      = $dir/ca-cert.pem
 crl              = $dir/crl.pem
@@ -23,9 +23,9 @@ default_days     = 3650
 default_crl_days = 30
 default_md       = sha512
 preserve         = no
-policy           = policy_etcd
+policy           = policy_consul
 
-[ policy_etcd ]
+[ policy_consul ]
 organizationName = optional
 commonName       = supplied
 
@@ -36,7 +36,7 @@ distinguished_name = req_distinguished_name
 attributes         = req_attributes
 x509_extensions    = v3_ca
 string_mask        = utf8only
-req_extensions     = etcd_client
+req_extensions     = consul_client
 
 [ req_distinguished_name ]
 countryName                = Country Name (2 letter code)
@@ -45,7 +45,7 @@ countryName_min            = 2
 countryName_max            = 2
 commonName                 = Common Name (FQDN) 
 0.organizationName         = Organization Name (eg, company)
-0.organizationName_default = etcd-ca
+0.organizationName_default = consul-ca
 
 [ req_attributes ]
 
@@ -54,18 +54,18 @@ basicConstraints       = CA:true
 keyUsage               = keyCertSign,cRLSign
 subjectKeyIdentifier   = hash
 
-[ etcd_client ]
+[ consul_client ]
 basicConstraints       = CA:FALSE
 extendedKeyUsage       = clientAuth
 keyUsage               = digitalSignature, keyEncipherment
 
-[ etcd_peer ]
+[ consul_peer ]
 basicConstraints       = CA:FALSE
 extendedKeyUsage       = clientAuth, serverAuth
 keyUsage               = digitalSignature, keyEncipherment
 subjectAltName         = ${ENV::SAN}
 
-[ etcd_server ]
+[ consul_server ]
 basicConstraints       = CA:FALSE
 extendedKeyUsage       = clientAuth, serverAuth
 keyUsage               = digitalSignature, keyEncipherment
