@@ -641,26 +641,36 @@ to verify that host's certificates are signed by the trusted CA key:
 > cat cluster_node_keys >> ~/.ssh/known_hosts
 ```
 
-Configure OpenSSH client to use the Teleport proxy when connecting to nodes with matching
-names. Edit `/etc/ssh/ssh_config`:
-
-```
-# Tell OpenSSH client to use work.example.com as a jumphost (proxy) when logging
-# to any remote node whose name matches the pattern *.work.example.com
-# Beware of recursion here (when proxy name matches your pattern)
-Host *.work.example.com
-  ProxyCommand ssh -p 3023 %r@work.example.com -s proxy:%h:%p
-```
-
 Launch `tsh` in the SSH agent mode:
 
 ```bash
 > tsh --proxy=work.example.com agent
 ```
 
-`tsh agent` will print environment variables into the console. Configure your system
-to evaluate these variables: they tell `ssh` to use `tsh` to authenticate you against
-`work.example.com` cluster.
+`tsh agent` will print environment variables into the console. Copy and paste
+the output into the shell you will be using to connect to a Teleport node.
+The output exports the `SSH_AUTH_SOCK` and `SSH_AGENT_PID` environment variables
+that allow OpenSSH clients to find the SSH agent.
+
+Lastly, configure the OpenSSH client to use the Teleport proxy when connecting
+to nodes with matching names. Edit `~/.ssh/config` for your user or
+`/etc/ssh/ssh_config` for global changes:
+
+```
+# work.example.com is the jump host (proxy). credentials will be obtained from the
+# teleport agent.
+Host work.example.com
+    HostName 192.168.1.2
+    Port 3023
+
+# connect to nodes in the work.example.com cluster through the jump
+# host (proxy) using the same. credentials will be obtained from the
+# teleport agent.
+Host *.work.example.com
+    HostName %h
+    Port 3022
+    ProxyCommand ssh -p 3023 %r@work.example.com -s proxy:%h:%p
+```
 
 When everything is configured properly, you can use ssh to connect to any node 
 behind `work.example.com`:
