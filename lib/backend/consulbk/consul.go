@@ -16,6 +16,7 @@ limitations under the License.
 package consulbk
 
 import (
+	"encoding/json"
 	"net/http"
 	"sort"
 	"strings"
@@ -27,6 +28,7 @@ import (
 
 	"github.com/gravitational/trace"
 	consul "github.com/hashicorp/consul/api"
+	"github.com/mailgun/timetools"
 )
 
 type bk struct {
@@ -35,6 +37,7 @@ type bk struct {
 
 	kv    *consul.KV
 	locks map[string]*consul.Lock
+	clock timetools.TimeProvider
 }
 
 // Config represents JSON config for consul backend
@@ -72,7 +75,10 @@ func New(params backend.Params) (backend.Backend, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	b := &bk{cfg: cfg}
+	b := &bk{
+		cfg:   cfg,
+		clock: &timetools.RealTime{},
+	}
 	if err = b.reconnect(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -155,7 +161,6 @@ func (b *bk) GetKeys(bucket []string) ([]string, error) {
 	return keys, nil
 }
 
-// TODO: ttl is not implemented
 func (b *bk) CreateVal(bucket []string, key string, val []byte, ttl time.Duration) error {
 	_, err := b.GetVal(bucket, key)
 	if !trace.IsNotFound(err) {
@@ -165,13 +170,22 @@ func (b *bk) CreateVal(bucket []string, key string, val []byte, ttl time.Duratio
 }
 
 func (b *bk) UpsertVal(bucket []string, key string, val []byte, ttl time.Duration) error {
-	kvpair := &consul.KVPair{
-		Key:   b.key(append(bucket, key)...),
-		Value: val,
+	v := &value{
+		Created: b.clock.UtcNow(),
+		Value:   val,
+		TTL:     ttl,
+	}
+	bytes, err := json.Marshal(v)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	// TODO: ttl is not implemented
-	_, err := b.kv.Put(kvpair, nil)
+	kvpair := &consul.KVPair{
+		Key:   b.key(append(bucket, key)...),
+		Value: bytes,
+	}
+
+	_, err = b.kv.Put(kvpair, nil)
 	if err != nil {
 		return convertErr(err)
 	}
@@ -184,9 +198,21 @@ func (b *bk) GetVal(path []string, key string) ([]byte, error) {
 		return nil, convertErr(err)
 	}
 	if kvpair == nil {
-		return nil, trace.NotFound("KVPair not found.")
+		return nil, trace.NotFound("%v: %v not found", path, key)
 	}
-	return kvpair.Value, nil
+
+	var v *value
+	err = json.Unmarshal(kvpair.Value, &v)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if v.TTL != 0 && b.clock.UtcNow().Sub(v.Created) > v.TTL {
+		if err := b.DeleteKey(path, key); err != nil {
+			return nil, err
+		}
+		return nil, trace.NotFound("%v: %v not found", path, key)
+	}
+	return v.Value, nil
 }
 
 func (b *bk) DeleteKey(bucket []string, key string) error {
@@ -253,4 +279,10 @@ func convertErr(e error) error {
 	}
 
 	return e
+}
+
+type value struct {
+	Created time.Time     `json:"created"`
+	TTL     time.Duration `json:"ttl"`
+	Value   []byte        `json:"val"`
 }
