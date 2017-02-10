@@ -59,7 +59,7 @@ func (s *AuthInitSuite) TestReadIdentity(c *C) {
 	id, err := ReadIdentityFromKeyPair(priv, cert)
 	c.Assert(err, IsNil)
 	c.Assert(id.AuthorityDomain, Equals, "example.com")
-	c.Assert(id.ID, DeepEquals, IdentityID{HostUUID: "id1", NodeName: "node-name", Role: teleport.RoleNode})
+	c.Assert(id.ID, DeepEquals, IdentityID{HostUUID: "id1", Role: teleport.RoleNode})
 	c.Assert(id.CertBytes, DeepEquals, cert)
 	c.Assert(id.KeyBytes, DeepEquals, priv)
 

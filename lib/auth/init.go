@@ -511,7 +511,7 @@ func ReadIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 	}
 
 	return &Identity{
-		ID:              IdentityID{HostUUID: cert.ValidPrincipals[0], NodeName: cert.ValidPrincipals[1], Role: role},
+		ID:              IdentityID{HostUUID: cert.ValidPrincipals[0], Role: role},
 		AuthorityDomain: authorityDomain,
 		KeyBytes:        keyBytes,
 		CertBytes:       certBytes,

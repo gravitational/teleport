@@ -25,9 +25,9 @@ type CertParams struct {
 }
 
 func (c *CertParams) Check() error {
-	if c.HostID == "" || c.NodeName == "" || c.ClusterName == "" {
-		return trace.BadParameter("HostID [%q], NodeName [%q], and ClusterName [%q] are all required",
-			c.HostID, c.NodeName, c.ClusterName)
+	if c.HostID == "" || c.ClusterName == "" {
+		return trace.BadParameter("HostID [%q] and ClusterName [%q] are required",
+			c.HostID, c.ClusterName)
 	}
 
 	if err := c.Roles.Check(); err != nil {

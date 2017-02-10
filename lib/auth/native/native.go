@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -149,19 +150,7 @@ func (n *nauth) GenerateHostCert(c services.CertParams) ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// create a slice of principals to add to the certificate. the first
-	// is the hostID.clusterName and the second is nodeName.clusterName.
-	// The first is for tsh use internally while the second is for OpenSSH
-	// interoperability where people will be connecting by the dns name.
-	//
-	// Because older clients did not pass nodeName along, only add it if
-	// it's set for backward compatibility.
-	principals := []string{
-		fmt.Sprintf("%s.%s", c.HostID, c.ClusterName),
-	}
-	if c.NodeName != "" {
-		principals = append(principals, fmt.Sprintf("%s.%s", c.NodeName, c.ClusterName))
-	}
+	principals := buildPrincipals(c.HostID, c.NodeName, c.ClusterName, c.Roles)
 
 	// create certificate
 	validBefore := uint64(ssh.CertTimeInfinity)
@@ -226,4 +215,29 @@ func (n *nauth) GenerateUserCert(pkey, key []byte, teleportUsername string, allo
 		return nil, err
 	}
 	return ssh.MarshalAuthorizedKey(cert), nil
+}
+
+// buildPrincipals takes a hostID, nodeName, clusterName, and role and builds a list of
+// principals to insert into a certificate. This function is backward compatible with
+// older clients which means:
+//    * If RoleAdmin is in the list of roles, only a single principal is returned: hostID
+//    * If nodename is empty, it is not included in the list of principals.
+func buildPrincipals(hostID string, nodeName string, clusterName string, roles teleport.Roles) []string {
+	// TODO(russjones): This should probably be clusterName, but we need to
+	// verify changing this won't break older clients.
+	if roles.Include(teleport.RoleAdmin) {
+		return []string{hostID}
+	}
+
+	// always include the hostID, this is what teleport uses internally to find nodes
+	principals := []string{
+		fmt.Sprintf("%v.%v", hostID, clusterName),
+	}
+
+	// nodeName is the DNS name, this is for OpenSSH interoperability
+	if nodeName != "" {
+		principals = append(principals, fmt.Sprintf("%s.%s", nodeName, clusterName))
+	}
+
+	return principals
 }
