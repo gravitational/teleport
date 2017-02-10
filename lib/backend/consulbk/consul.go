@@ -54,7 +54,7 @@ type Config struct {
 	TLSKeyFile  string `json:"tls_key_file,omitempty"`
 }
 
-// GetName returns the name of etcd backend as it appears in 'storage/type' section
+// GetName returns the name of consul backend as it appears in 'storage/type' section
 // in Teleport YAML file. This function is a part of backend API
 func GetName() string {
 	return "consul"
