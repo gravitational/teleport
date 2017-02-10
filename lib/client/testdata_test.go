@@ -1,0 +1,69 @@
+/*
+Copyright 2017 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package client
+
+var caPrivateKey = []byte(`-----BEGIN RSA PRIVATE KEY-----
+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
+-----END RSA PRIVATE KEY-----`)
