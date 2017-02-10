@@ -55,9 +55,10 @@ type Authority interface {
 	// GetNewKeyPairFromPool returns new keypair from pre-generated in memory pool
 	GetNewKeyPairFromPool() (privKey []byte, pubKey []byte, err error)
 
-	// GenerateHostCert generates host certificate, it takes pkey as a signing
-	// private key (host certificate authority)
-	GenerateHostCert(pkey, key []byte, hostID, authDomain string, roles teleport.Roles, ttl time.Duration) ([]byte, error)
+	// GenerateHostCert takes the private key of the CA, public key of the new host,
+	// along with metadata (host ID, node name, cluster name, roles, and ttl) and generates
+	// a host certificate.
+	GenerateHostCert(certParams services.CertParams) ([]byte, error)
 
 	// GenerateUserCert generates user certificate, it takes pkey as a signing
 	// private key (user certificate authority)
@@ -187,9 +188,10 @@ func (a *AuthServer) CheckU2FEnabled() error {
 	return nil
 }
 
-// GenerateHostCert generates host certificate, it takes pkey as a signing
-// private key (host certificate authority)
-func (s *AuthServer) GenerateHostCert(key []byte, hostID, authDomain string, roles teleport.Roles, ttl time.Duration) ([]byte, error) {
+// GenerateHostCert uses the private key of the CA to sign the public key of the host
+// (along with meta data like host ID, node name, roles, and ttl) to generate a host certificate.
+func (s *AuthServer) GenerateHostCert(hostPublicKey []byte, hostID, nodeName, clusterName string, roles teleport.Roles, ttl time.Duration) ([]byte, error) {
+	// get the certificate authority that will be signing the public key of the host
 	ca, err := s.Trust.GetCertAuthority(services.CertAuthID{
 		Type:       services.HostCA,
 		DomainName: s.DomainName,
@@ -197,11 +199,23 @@ func (s *AuthServer) GenerateHostCert(key []byte, hostID, authDomain string, rol
 	if err != nil {
 		return nil, trace.BadParameter("failed to load host CA for '%s': %v", s.DomainName, err)
 	}
-	privateKey, err := ca.FirstSigningKey()
+
+	// get the private key of the certificate authority
+	caPrivateKey, err := ca.FirstSigningKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return s.Authority.GenerateHostCert(privateKey, key, hostID, authDomain, roles, ttl)
+
+	// create and sign!
+	return s.Authority.GenerateHostCert(services.CertParams{
+		PrivateCASigningKey: caPrivateKey,
+		PublicHostKey:       hostPublicKey,
+		HostID:              hostID,
+		NodeName:            nodeName,
+		ClusterName:         clusterName,
+		Roles:               roles,
+		TTL:                 ttl,
+	})
 }
 
 // GenerateUserCert generates user certificate, it takes pkey as a signing
@@ -424,20 +438,19 @@ func (s *AuthServer) GenerateToken(roles teleport.Roles, ttl time.Duration) (str
 	return token, nil
 }
 
-// GenerateServerKeys generates private key and certificate signed
-// by the host certificate authority, listing the role of this server
-func (s *AuthServer) GenerateServerKeys(hostID string, roles teleport.Roles) (*PackedKeys, error) {
+// GenerateServerKeys generates new host private keys and certificates (signed
+// by the host certificate authority) for a node.
+func (s *AuthServer) GenerateServerKeys(hostID string, nodeName string, roles teleport.Roles) (*PackedKeys, error) {
+	// generate private key
 	k, pub, err := s.GenerateKeyPair("")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// we always append authority's domain to resulting node name,
-	// that's how we make sure that nodes are uniquely identified/found
-	// in cases when we have multiple environments/organizations
-	fqdn := fmt.Sprintf("%s.%s", hostID, s.DomainName)
-	c, err := s.GenerateHostCert(pub, fqdn, s.DomainName, roles, 0)
+
+	// generate host certificate with an infinite ttl
+	c, err := s.GenerateHostCert(pub, hostID, nodeName, s.DomainName, roles, 0)
 	if err != nil {
-		log.Warningf("[AUTH] Node `%v` cannot join: cert generation error. %v", hostID, err)
+		log.Warningf("[AUTH] Node %q [%v] can not join: certificate generation error: %v", nodeName, hostID, err)
 		return nil, trace.Wrap(err)
 	}
 
@@ -492,36 +505,42 @@ func (s *AuthServer) checkTokenTTL(token string) bool {
 // If a token was generated with a TTL, it gets enforced (can't register new nodes after TTL expires)
 // If a token was generated with a TTL=0, it means it's a single-use token and it gets destroyed
 // after a successful registration.
-func (s *AuthServer) RegisterUsingToken(token, hostID string, role teleport.Role) (*PackedKeys, error) {
-	log.Infof("[AUTH] Node `%v` is trying to join as %v", hostID, role)
+func (s *AuthServer) RegisterUsingToken(token, hostID string, nodeName string, role teleport.Role) (*PackedKeys, error) {
+	log.Infof("[AUTH] Node %q [%v] trying to join with role: %v", nodeName, hostID, role)
 	if hostID == "" {
 		return nil, trace.BadParameter("HostID cannot be empty")
 	}
+
 	if err := role.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// make sure the token is valid:
+
+	// make sure the token is valid
 	roles, err := s.ValidateToken(token)
 	if err != nil {
-		msg := fmt.Sprintf("`%v` cannot join the cluster as %s. Token error: %v", hostID, role, err)
+		msg := fmt.Sprintf("%q [%v] can not join the cluster with role %s, token error: %v", nodeName, hostID, role, err)
 		log.Warnf("[AUTH] %s", msg)
 		return nil, trace.AccessDenied(msg)
 	}
-	// make sure the caller is requested wthe role allowed by the token:
+
+	// make sure the caller is requested wthe role allowed by the token
 	if !roles.Include(role) {
-		msg := fmt.Sprintf("'%v' cannot join the cluster, the token does not allow '%s' role", hostID, role)
+		msg := fmt.Sprintf("%q [%v] can not join the cluster, the token does not allow %q role", nodeName, hostID, role)
 		log.Warningf("[AUTH] %s", msg)
 		return nil, trace.BadParameter(msg)
 	}
 	if !s.checkTokenTTL(token) {
-		return nil, trace.AccessDenied("'%v' cannot join the cluster. The token has expired", hostID)
+		return nil, trace.AccessDenied("%q [%v] can not join the cluster. Token has expired", nodeName, hostID)
 	}
-	// generate & return the node cert:
-	keys, err := s.GenerateServerKeys(hostID, teleport.Roles{role})
+
+	// generate and return host certificate and keys
+	keys, err := s.GenerateServerKeys(hostID, nodeName, teleport.Roles{role})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Infof("[AUTH] Node `%v` joined the cluster", hostID)
+
+	log.Infof("[AUTH] Node %q [%v] joined the cluster", nodeName, hostID)
+
 	return keys, nil
 }
 

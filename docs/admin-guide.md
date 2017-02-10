@@ -357,7 +357,10 @@ Gravitational Teleport is a "clustered" SSH manager, meaning it only allows SSH
 access to nodes that had been previously granted cluster membership. 
 
 A cluster membership means that every node in a cluster has its own host
-certificate signed by the cluster's auth server. 
+certificate signed by the cluster's auth server. Note: if interoperability with
+OpenSSH is a concern, make sure the node name and DNS name match because OpenSSH
+clients validate the DNS name against the node name presented on the certificate
+when connecting to a Teleport node.
 
 A new Teleport node needs an "invite token" to join a cluster. An invitation token 
 also defines which role a new node can assume within a cluster: `auth`, `proxy` or 
@@ -665,6 +668,13 @@ behind `work.example.com`:
 ```bash
 > ssh root@database.work.example.com
 ```
+
+!!! tip "NOTE":
+    Teleport uses OpenSSH certificates instead of keys which means you can not connect
+    to a Teleport node by IP address you have to connect by DNS name. This is because
+    OpenSSH ensures the DNS name of the node you are connecting is listed listed under
+    the `Principals` section of the OpenSSH certificate to verify you are connecting
+    to the correct node.
 
 ### Integrating with OpenSSH Servers
 

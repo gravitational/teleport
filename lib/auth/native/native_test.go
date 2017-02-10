@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2017 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,8 +17,13 @@ package native
 
 import (
 	"testing"
+	"time"
 
+	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/test"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
 	. "gopkg.in/check.v1"
@@ -52,4 +57,69 @@ func (s *NativeSuite) TestGenerateHostCert(c *C) {
 
 func (s *NativeSuite) TestGenerateUserCert(c *C) {
 	s.suite.GenerateUserCert(c)
+}
+
+func (s *NativeSuite) TestBuildPrincipals(c *C) {
+	caPrivateKey, _, err := s.suite.A.GenerateKeyPair("")
+	c.Assert(err, IsNil)
+
+	_, hostPublicKey, err := s.suite.A.GenerateKeyPair("")
+	c.Assert(err, IsNil)
+
+	tests := []struct {
+		inHostID           string
+		inNodeName         string
+		inClusterName      string
+		inRoles            teleport.Roles
+		outValidPrincipals []string
+	}{
+		// 0 - admin role
+		{
+			"00000000-0000-0000-0000-000000000000",
+			"auth",
+			"example.com",
+			teleport.Roles{teleport.RoleAdmin},
+			[]string{"00000000-0000-0000-0000-000000000000"},
+		},
+		// 1 - backward compatibility
+		{
+			"11111111-1111-1111-1111-111111111111",
+			"",
+			"example.com",
+			teleport.Roles{teleport.RoleNode},
+			[]string{"11111111-1111-1111-1111-111111111111.example.com"},
+		},
+		// 2 - dual principals
+		{
+			"22222222-2222-2222-2222-222222222222",
+			"proxy",
+			"example.com",
+			teleport.Roles{teleport.RoleProxy},
+			[]string{"22222222-2222-2222-2222-222222222222.example.com", "proxy.example.com"},
+		},
+	}
+
+	// run tests
+	for _, tt := range tests {
+		hostCertificateBytes, err := s.suite.A.GenerateHostCert(
+			services.CertParams{
+				PrivateCASigningKey: caPrivateKey,
+				PublicHostKey:       hostPublicKey,
+				HostID:              tt.inHostID,
+				NodeName:            tt.inNodeName,
+				ClusterName:         tt.inClusterName,
+				Roles:               tt.inRoles,
+				TTL:                 time.Hour,
+			})
+		c.Assert(err, IsNil)
+
+		publicKey, _, _, _, err := ssh.ParseAuthorizedKey(hostCertificateBytes)
+		c.Assert(err, IsNil)
+
+		hostCertificate, ok := publicKey.(*ssh.Certificate)
+		c.Assert(ok, Equals, true)
+
+		c.Assert(hostCertificate.ValidPrincipals, HasLen, len(tt.outValidPrincipals))
+		c.Assert(hostCertificate.ValidPrincipals, DeepEquals, tt.outValidPrincipals)
+	}
 }

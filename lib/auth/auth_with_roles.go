@@ -141,9 +141,9 @@ func (a *AuthWithRoles) GenerateToken(roles teleport.Roles, ttl time.Duration) (
 	return a.authServer.GenerateToken(roles, ttl)
 }
 
-func (a *AuthWithRoles) RegisterUsingToken(token, hostID string, role teleport.Role) (*PackedKeys, error) {
+func (a *AuthWithRoles) RegisterUsingToken(token, hostID string, nodeName string, role teleport.Role) (*PackedKeys, error) {
 	// tokens have authz mechanism  on their own, no need to check
-	return a.authServer.RegisterUsingToken(token, hostID, role)
+	return a.authServer.RegisterUsingToken(token, hostID, nodeName, role)
 }
 
 func (a *AuthWithRoles) RegisterNewAuthServer(token string) error {
@@ -347,13 +347,13 @@ func (a *AuthWithRoles) GenerateKeyPair(pass string) ([]byte, []byte, error) {
 }
 
 func (a *AuthWithRoles) GenerateHostCert(
-	key []byte, hostname, authDomain string, roles teleport.Roles,
+	key []byte, hostID, nodeName, clusterName string, roles teleport.Roles,
 	ttl time.Duration) ([]byte, error) {
 
 	if err := a.action(defaults.Namespace, services.KindHostCert, services.ActionWrite); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GenerateHostCert(key, hostname, authDomain, roles, ttl)
+	return a.authServer.GenerateHostCert(key, hostID, nodeName, clusterName, roles, ttl)
 }
 
 func (a *AuthWithRoles) GenerateUserCert(key []byte, username string, ttl time.Duration) ([]byte, error) {
