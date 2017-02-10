@@ -1,0 +1,8 @@
+teleport:
+  data_dir: data/teleport
+  storage:
+      type: consul
+      prefix: teleport.secrets
+      tls_key_file: certs/client-key.pem
+      tls_cert_file: certs/client-cert.pem
+      tls_ca_file: certs/ca-cert.pem

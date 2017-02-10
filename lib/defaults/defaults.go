@@ -201,6 +201,9 @@ var (
 	// ETCDPrefix is default key in ETCD clustered configurations
 	ETCDPrefix = "/teleport"
 
+	// CONSULPrefix is default key in CONSUL clustered configurations
+	CONSULPrefix = "/teleport"
+
 	// ConfigEnvar is a name of teleport's configuration environment variable
 	ConfigEnvar = "TELEPORT_CONFIG"
 )

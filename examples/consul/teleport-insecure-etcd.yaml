@@ -1,0 +1,6 @@
+teleport:
+  data_dir: data/teleport
+  storage:
+      type: consul
+      prefix: teleport.secrets
+      insecure: true
