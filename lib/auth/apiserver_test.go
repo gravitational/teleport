@@ -286,9 +286,14 @@ func (s *APISuite) TestOTPCRUD(c *C) {
 	err = s.clt.CheckPassword("user1", pass, "123456")
 	c.Assert(err, NotNil)
 
-	// a invalid token (made 1 minute in the future but from a valid key)
-	// should also return access denied
-	invalidToken, err := totp.GenerateCode(otpSecret, time.Now().Add(1*time.Minute))
+	// an invalid token should return access denied
+	//
+	// this tests makes the token 61 seconds in the future (but from a valid key)
+	// even though the validity period is 30 seconds. this is because a token is
+	// valid for 30 seconds + 30 second skew before and after for a usability
+	// reasons. so a token made between seconds 31 and 60 is still valid, and
+	// invalidity starts at 61 seconds in the future.
+	invalidToken, err := totp.GenerateCode(otpSecret, time.Now().Add(61*time.Second))
 	c.Assert(err, IsNil)
 	err = s.clt.CheckPassword("user1", pass, invalidToken)
 	c.Assert(err, NotNil)
