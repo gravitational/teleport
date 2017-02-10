@@ -78,13 +78,13 @@ func (s *InstanceSecrets) String() string {
 }
 
 // NewInstance creates a new Teleport process instance
-func NewInstance(siteName string, hostName string, ports []int, priv, pub []byte) *TeleInstance {
+func NewInstance(clusterName string, hostID string, nodeName string, ports []int, priv, pub []byte) *TeleInstance {
 	var err error
 	if len(ports) < 5 {
 		fatalIf(fmt.Errorf("not enough free ports given: %v", ports))
 	}
-	if hostName == "" {
-		hostName, err = os.Hostname()
+	if nodeName == "" {
+		nodeName, err = os.Hostname()
 		fatalIf(err)
 	}
 	// generate instance secrets (keys):
@@ -92,21 +92,28 @@ func NewInstance(siteName string, hostName string, ports []int, priv, pub []byte
 	if priv == nil || pub == nil {
 		priv, pub, _ = keygen.GenerateKeyPair("")
 	}
-	cert, err := keygen.GenerateHostCert(priv, pub,
-		hostName, siteName, teleport.Roles{teleport.RoleAdmin}, time.Duration(time.Hour*24))
+	cert, err := keygen.GenerateHostCert(services.CertParams{
+		PrivateCASigningKey: priv,
+		PublicHostKey:       pub,
+		HostID:              hostID,
+		NodeName:            nodeName,
+		ClusterName:         clusterName,
+		Roles:               teleport.Roles{teleport.RoleAdmin},
+		TTL:                 time.Duration(time.Hour * 24),
+	})
 	fatalIf(err)
 	secrets := InstanceSecrets{
-		SiteName:   siteName,
+		SiteName:   clusterName,
 		PrivKey:    priv,
 		PubKey:     pub,
 		Cert:       cert,
-		ListenAddr: net.JoinHostPort(hostName, strconv.Itoa(ports[4])),
+		ListenAddr: net.JoinHostPort(nodeName, strconv.Itoa(ports[4])),
 		Users:      make(map[string]*User),
 	}
 	return &TeleInstance{
 		Secrets:  secrets,
 		Ports:    ports,
-		Hostname: hostName,
+		Hostname: nodeName,
 	}
 }
 

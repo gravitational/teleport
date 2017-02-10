@@ -39,8 +39,9 @@ import (
 )
 
 const (
-	Host = "127.0.0.1"
-	Site = "local-site"
+	Host   = "localhost"
+	HostID = "00000000-0000-0000-0000-000000000000"
+	Site   = "local-site"
 
 	AllocatePortsNum = 100
 )
@@ -96,7 +97,7 @@ func (s *IntSuite) SetUpSuite(c *check.C) {
 // newTeleport helper returns a running Teleport instance pre-configured
 // with the current user os.user.Current()
 func (s *IntSuite) newTeleport(c *check.C, logins []string, enableSSH bool) *TeleInstance {
-	t := NewInstance(Site, Host, s.getPorts(5), s.priv, s.pub)
+	t := NewInstance(Site, HostID, Host, s.getPorts(5), s.priv, s.pub)
 	// use passed logins, but use suite's default login if nothing was passed
 	if logins == nil || len(logins) == 0 {
 		logins = []string{s.me.Username}
@@ -377,8 +378,8 @@ func (s *IntSuite) TestInvalidLogins(c *check.C) {
 func (s *IntSuite) TestTwoSites(c *check.C) {
 	username := s.me.Username
 
-	a := NewInstance("site-A", Host, s.getPorts(5), s.priv, s.pub)
-	b := NewInstance("site-B", Host, s.getPorts(5), s.priv, s.pub)
+	a := NewInstance("site-A", HostID, Host, s.getPorts(5), s.priv, s.pub)
+	b := NewInstance("site-B", HostID, Host, s.getPorts(5), s.priv, s.pub)
 
 	a.AddUser(username, []string{username})
 	b.AddUser(username, []string{username})
@@ -426,7 +427,7 @@ func (s *IntSuite) TestTwoSites(c *check.C) {
 	// Stop "site-A" and try to connect to it again via "site-A" (expect a connection error)
 	a.Stop(false)
 	err = tc.SSH(context.TODO(), cmd, false)
-	c.Assert(err, check.ErrorMatches, `failed connecting to node 127.0.0.1. site-A is offline`)
+	c.Assert(err, check.ErrorMatches, `failed connecting to node localhost. site-A is offline`)
 
 	// Reset and start "Site-A" again
 	a.Reset()

@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/services"
 
 	"golang.org/x/crypto/ssh"
 	. "gopkg.in/check.v1"
@@ -59,8 +60,16 @@ func (s *AuthSuite) GenerateHostCert(c *C) {
 	priv, pub, err := s.A.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 
-	cert, err := s.A.GenerateHostCert(priv, pub, "auth.example.com",
-		"example.com", teleport.Roles{teleport.RoleAdmin}, time.Hour)
+	cert, err := s.A.GenerateHostCert(
+		services.CertParams{
+			PrivateCASigningKey: priv,
+			PublicHostKey:       pub,
+			HostID:              "00000000-0000-0000-0000-000000000000",
+			NodeName:            "auth.example.com",
+			ClusterName:         "example.com",
+			Roles:               teleport.Roles{teleport.RoleAdmin},
+			TTL:                 time.Hour,
+		})
 	c.Assert(err, IsNil)
 
 	_, _, _, _, err = ssh.ParseAuthorizedKey(cert)
