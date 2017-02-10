@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/jonboulle/clockwork"
 	"github.com/kylelemons/godebug/diff"
 	"github.com/pquerna/otp/totp"
 	"golang.org/x/crypto/ssh"
@@ -81,6 +82,9 @@ func (s *APISuite) SetUpTest(c *C) {
 	})
 	s.sessions, err = session.New(s.bk)
 	c.Assert(err, IsNil)
+
+	// use a fake clock during tests for stability
+	s.a.clock = clockwork.NewFakeClock()
 
 	s.AccessS = local.NewAccessService(s.bk)
 	s.WebS = local.NewIdentityService(s.bk)
@@ -256,7 +260,8 @@ func (s *APISuite) TestPasswordCRUD(c *C) {
 
 	err = s.a.UpsertTOTP("user1", otpSecret)
 	c.Assert(err, IsNil)
-	validToken, err := totp.GenerateCode(otpSecret, time.Now())
+
+	validToken, err := totp.GenerateCode(otpSecret, s.a.clock.Now())
 	c.Assert(err, IsNil)
 
 	err = s.clt.CheckPassword("user1", pass, validToken)
@@ -293,13 +298,13 @@ func (s *APISuite) TestOTPCRUD(c *C) {
 	// valid for 30 seconds + 30 second skew before and after for a usability
 	// reasons. so a token made between seconds 31 and 60 is still valid, and
 	// invalidity starts at 61 seconds in the future.
-	invalidToken, err := totp.GenerateCode(otpSecret, time.Now().Add(61*time.Second))
+	invalidToken, err := totp.GenerateCode(otpSecret, s.a.clock.Now().Add(61*time.Second))
 	c.Assert(err, IsNil)
 	err = s.clt.CheckPassword("user1", pass, invalidToken)
 	c.Assert(err, NotNil)
 
 	// a valid token (created right now and from a valid key) should return success
-	validToken, err := totp.GenerateCode(otpSecret, time.Now())
+	validToken, err := totp.GenerateCode(otpSecret, s.a.clock.Now())
 	c.Assert(err, IsNil)
 
 	err = s.clt.CheckPassword("user1", pass, validToken)
