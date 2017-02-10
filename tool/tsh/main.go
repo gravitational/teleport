@@ -368,16 +368,18 @@ export SSH_AGENT_PID=%v
 # you can redirect this output into a file and call 'source' on it
 `, socketAddr.Addr, pid)
 
-	// making a client leads to the creation of a client.LocalAgent which
-	// has a side effect of loading all keys into said agent. so we don't
-	// actually need to manually load keys into memory here.
-	_, err := makeClient(cf, true)
+	// create a client, a side effect of this is that it creates a
+	// client.LocalAgent that is an ssh agent with all keys from disk
+	// loaded in it
+	tc, err := makeClient(cf, true)
 	if err != nil {
 		utils.FatalError(err)
 	}
 
 	// create a new teleport agent and start listening
-	agentServer := teleagent.NewServer()
+	agentServer := teleagent.AgentServer{
+		tc.LocalAgent(),
+	}
 	if err := agentServer.ListenAndServe(socketAddr); err != nil {
 		utils.FatalError(err)
 	}
