@@ -5,11 +5,14 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
+	log "github.com/Sirupsen/logrus"
+	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
 )
 
@@ -92,7 +95,18 @@ func (s *AuthServer) CheckOTP(user string, otpToken string) error {
 			return trace.AccessDenied("previously used totp token")
 		}
 
-		valid := totp.Validate(otpToken, otpSecret)
+		// we use totp.ValidateCustom over totp.Validate so we can use
+		// a fake clock in tests to get reliable results
+		valid, err := totp.ValidateCustom(otpToken, otpSecret, s.clock.Now(), totp.ValidateOpts{
+			Period:    teleport.TOTPValidityPeriod,
+			Skew:      teleport.TOTPSkew,
+			Digits:    otp.DigitsSix,
+			Algorithm: otp.AlgorithmSHA1,
+		})
+		if err != nil {
+			log.Errorf("unable to validate token: %v", err)
+			return trace.AccessDenied("unable to validate token")
+		}
 		if !valid {
 			return trace.AccessDenied("invalid totp token")
 		}
