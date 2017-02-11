@@ -1043,7 +1043,7 @@ func (s *APIServer) validateOIDCAuthCallback(auth ClientI, w http.ResponseWriter
 		}
 		raw.HostSigners[i] = data
 	}
-	return raw, nil
+	return &raw, nil
 }
 
 // HTTP GET /:version/events?query
