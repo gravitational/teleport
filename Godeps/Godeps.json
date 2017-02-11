@@ -306,6 +306,20 @@
 			"Rev": "348cf76cace4d93fdacc38dfdaa2306f4f0e9c16"
 		},
 		{
+			"ImportPath": "github.com/hashicorp/consul/api",
+			"Comment": "v0.6.4-266-g0c5a487",
+			"Rev": "0c5a48783867f6eccefd72b734e28e7efa69d17b"
+		},
+		{
+			"ImportPath": "github.com/hashicorp/go-cleanhttp",
+			"Rev": "ad28ea4487f05916463e2423a55166280e8254b5"
+		},
+		{
+			"ImportPath": "github.com/hashicorp/serf/coordinate",
+			"Comment": "v0.7.0-56-ga876af0",
+			"Rev": "a876af06863abed3e31252a913bad976aeff61df"
+		},
+		{
 			"ImportPath": "github.com/jmespath/go-jmespath",
 			"Comment": "0.2.2-12-g0b12d6b",
 			"Rev": "0b12d6b521d83fc7f755e7cfc1b1fbdd35a01a74"
