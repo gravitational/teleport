@@ -128,7 +128,7 @@ func (c *SessionContext) GetWebSession() services.WebSession {
 // ExtendWebSession creates a new web session for this user
 // based on the previous session
 func (c *SessionContext) ExtendWebSession() (services.WebSession, error) {
-	sess, err := c.clt.ExtendWebSession(c.user, c.sess.ID)
+	sess, err := c.clt.ExtendWebSession(c.user, c.sess.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -395,14 +395,14 @@ func (s *sessionCache) CreateNewU2FUser(token string, password string, u2fRegist
 
 func (s *sessionCache) InvalidateSession(ctx *SessionContext) error {
 	defer ctx.Close()
-	if err := s.resetContext(ctx.GetUser(), ctx.GetWebSession().ID); err != nil {
+	if err := s.resetContext(ctx.GetUser(), ctx.GetWebSession().GetName()); err != nil {
 		return trace.Wrap(err)
 	}
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = clt.DeleteWebSession(ctx.GetUser(), ctx.GetWebSession().ID)
+	err = clt.DeleteWebSession(ctx.GetUser(), ctx.GetWebSession().GetName())
 	return trace.Wrap(err)
 }
 
@@ -468,7 +468,7 @@ func (s *sessionCache) ValidateSession(user, sid string) (*SessionContext, error
 	}
 	c.Entry = log.WithFields(log.Fields{
 		"user": user,
-		"sess": sess.ID[:4],
+		"sess": sess.GetName()[:4],
 	})
 
 	out, err := s.insertContext(user, sid, c, auth.WebSessionTTL)

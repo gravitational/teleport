@@ -73,7 +73,7 @@ type WebSessionSpecV2 struct {
 	// Pub is a public certificate signed by auth server
 	Pub []byte `json:"pub"`
 	// Priv is a private OpenSSH key used to auth with SSH nodes
-	Priv []byte `json:"priv"`
+	Priv []byte `json:"priv,omitempty"`
 	// BearerToken is a special bearer token used for additional
 	// bearer authentication
 	BearerToken string `json:"bearer_token"`
@@ -85,7 +85,7 @@ type WebSessionSpecV2 struct {
 func (ws *WebSessionV2) WithoutSecrets() WebSession {
 	v2 := ws.V2()
 	v2.Spec.Priv = nil
-	return nil
+	return v2
 }
 
 // SetName sets session name
@@ -154,7 +154,7 @@ func (ws *WebSessionV2) V1() *WebSessionV1 {
 const WebSessionSpecV2Schema = `{
   "type": "object",
   "additionalProperties": false,
-  "required": ["pub", "priv", "bearer_token", "expires", "user"],
+  "required": ["pub", "bearer_token", "expires", "user"],
   "properties": {
     "user": {"type": "string"},
     "pub": {"type": "string"},
@@ -174,7 +174,7 @@ type WebSessionV1 struct {
 	// Pub is a public certificate signed by auth server
 	Pub []byte `json:"pub"`
 	// Priv is a private OpenSSH key used to auth with SSH nodes
-	Priv []byte `json:"priv"`
+	Priv []byte `json:"priv,omitempty"`
 	// BearerToken is a special bearer token used for additional
 	// bearer authentication
 	BearerToken string `json:"bearer_token"`
@@ -340,7 +340,7 @@ func (*TeleportWebSessionMarshaler) UnmarshalWebSession(bytes []byte) (WebSessio
 }
 
 // MarshalWebSession marshals web session into on-disk representation
-func (*TeleportWebSessionMarshaler) MarshalWebSession(ca WebSession, opts ...MarshalOption) ([]byte, error) {
+func (*TeleportWebSessionMarshaler) MarshalWebSession(ws WebSession, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := collectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -354,15 +354,15 @@ func (*TeleportWebSessionMarshaler) MarshalWebSession(ca WebSession, opts ...Mar
 	version := cfg.GetVersion()
 	switch version {
 	case V1:
-		v, ok := ca.(ws1)
+		v, ok := ws.(ws1)
 		if !ok {
-			return nil, trace.BadParameter("don't know how to marshal %v", V1)
+			return nil, trace.BadParameter("don't know how to marshal session %v", V1)
 		}
 		return json.Marshal(v.V1())
 	case V2:
-		v, ok := ca.(ws2)
+		v, ok := ws.(ws2)
 		if !ok {
-			return nil, trace.BadParameter("don't know how to marshal %v", V2)
+			return nil, trace.BadParameter("don't know how to marshal session %v", V2)
 		}
 		return json.Marshal(v.V2())
 	default:
