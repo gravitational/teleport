@@ -42,7 +42,7 @@ import (
 type SessionContext struct {
 	sync.Mutex
 	*log.Entry
-	sess    *auth.Session
+	sess    services.WebSession
 	user    string
 	clt     *auth.TunClient
 	parent  *sessionCache
@@ -121,13 +121,13 @@ func (c *SessionContext) GetUser() string {
 }
 
 // GetWebSession returns a web session
-func (c *SessionContext) GetWebSession() *auth.Session {
+func (c *SessionContext) GetWebSession() services.WebSession {
 	return c.sess
 }
 
 // ExtendWebSession creates a new web session for this user
 // based on the previous session
-func (c *SessionContext) ExtendWebSession() (*auth.Session, error) {
+func (c *SessionContext) ExtendWebSession() (services.WebSession, error) {
 	sess, err := c.clt.ExtendWebSession(c.user, c.sess.ID)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -224,7 +224,7 @@ func (s *sessionCache) clearExpiredSessions() {
 	}
 }
 
-func (s *sessionCache) Auth(user, pass string, otpToken string) (*auth.Session, error) {
+func (s *sessionCache) Auth(user, pass string, otpToken string) (services.WebSession, error) {
 	method, err := auth.NewWebPasswordAuth(user, []byte(pass), otpToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -269,7 +269,7 @@ func (s *sessionCache) GetU2FSignRequest(user, pass string) (*u2f.SignRequest, e
 	return u2fSignReq, nil
 }
 
-func (s *sessionCache) AuthWithU2FSignResponse(user string, response *u2f.SignResponse) (*auth.Session, error) {
+func (s *sessionCache) AuthWithU2FSignResponse(user string, response *u2f.SignResponse) (services.WebSession, error) {
 	method, err := auth.NewWebU2FSignResponseAuth(user, response)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -363,7 +363,7 @@ func (s *sessionCache) GetUserInviteU2FRegisterRequest(token string) (u2fRegiste
 	return clt.GetSignupU2FRegisterRequest(token)
 }
 
-func (s *sessionCache) CreateNewUser(token, password, otpToken string) (*auth.Session, error) {
+func (s *sessionCache) CreateNewUser(token, password, otpToken string) (services.WebSession, error) {
 	method, err := auth.NewSignupTokenAuth(token)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -379,7 +379,7 @@ func (s *sessionCache) CreateNewUser(token, password, otpToken string) (*auth.Se
 	return sess, trace.Wrap(err)
 }
 
-func (s *sessionCache) CreateNewU2FUser(token string, password string, u2fRegisterResponse u2f.RegisterResponse) (*auth.Session, error) {
+func (s *sessionCache) CreateNewU2FUser(token string, password string, u2fRegisterResponse u2f.RegisterResponse) (services.WebSession, error) {
 	method, err := auth.NewSignupTokenAuth(token)
 	if err != nil {
 		return nil, trace.Wrap(err)

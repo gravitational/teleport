@@ -95,7 +95,7 @@ type Identity interface {
 	UpsertWebSession(user, sid string, session WebSession, ttl time.Duration) error
 
 	// GetWebSession returns a web session state for a given user and session id
-	GetWebSession(user, sid string) (*WebSession, error)
+	GetWebSession(user, sid string) (WebSession, error)
 
 	// DeleteWebSession deletes web session from the storage
 	DeleteWebSession(user, sid string) error
@@ -170,20 +170,6 @@ func VerifyPassword(password []byte) error {
 			"password is too long, max length is %v", defaults.MaxPasswordLength)
 	}
 	return nil
-}
-
-// WebSession stores key and value used to authenticate with SSH
-// notes on behalf of user
-type WebSession struct {
-	// Pub is a public certificate signed by auth server
-	Pub []byte `json:"pub"`
-	// Priv is a private OpenSSH key used to auth with SSH nodes
-	Priv []byte `json:"priv"`
-	// BearerToken is a special bearer token used for additional
-	// bearer authentication
-	BearerToken string `json:"bearer_token"`
-	// Expires - absolute time when token expires
-	Expires time.Time `json:"expires"`
 }
 
 // SignupToken stores metadata about user signup token

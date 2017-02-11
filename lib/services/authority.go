@@ -370,6 +370,10 @@ type CertAuthorityMarshaler interface {
 	UnmarshalCertAuthority(bytes []byte) (CertAuthority, error)
 	// MarshalCertAuthority to binary representation
 	MarshalCertAuthority(c CertAuthority, opts ...MarshalOption) ([]byte, error)
+	// GenerateCertAuthority is used to generate new cert authority
+	// based on standard teleport one and is used to add custom
+	// parameters and extend it in extensions of teleport
+	GenerateCertAuthority(CertAuthority) (CertAuthority, error)
 }
 
 // GetCertAuthoritySchema returns JSON Schema for cert authorities
@@ -378,6 +382,13 @@ func GetCertAuthoritySchema() string {
 }
 
 type TeleportCertAuthorityMarshaler struct{}
+
+// GenerateCertAuthority is used to generate new cert authority
+// based on standard teleport one and is used to add custom
+// parameters and extend it in extensions of teleport
+func (*TeleportCertAuthorityMarshaler) GenerateCertAuthority(ca CertAuthority) (CertAuthority, error) {
+	return ca, nil
+}
 
 // UnmarshalUser unmarshals user from JSON
 func (*TeleportCertAuthorityMarshaler) UnmarshalCertAuthority(bytes []byte) (CertAuthority, error) {

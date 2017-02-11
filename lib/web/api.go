@@ -519,9 +519,9 @@ func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 	}
 	return &CreateSessionResponse{
 		Type:      roundtrip.AuthBearer,
-		Token:     webSession.WS.BearerToken,
+		Token:     webSession.WS.GetBearerToken(),
 		User:      user.WebSessionInfo(allowedLogins),
-		ExpiresIn: int(webSession.WS.Expires.Sub(time.Now()) / time.Second),
+		ExpiresIn: int(webSession.WS.GetExpiryTime().Sub(time.Now()) / time.Second),
 	}, nil
 }
 
@@ -1443,7 +1443,7 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 			logger.Warningf("no auth headers %v", err)
 			return nil, trace.AccessDenied("need auth")
 		}
-		if creds.Password != ctx.GetWebSession().WS.BearerToken {
+		if creds.Password != ctx.GetWebSession().WS.GetBearerToken() {
 			logger.Warningf("bad bearer token")
 			return nil, trace.AccessDenied("bad bearer token")
 		}
