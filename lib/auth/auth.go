@@ -906,8 +906,8 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		sess.SetExpiryTime(ident.ExpiresAt.UTC())
 		sessionTTL := minTTL(toTTL(a.clock, ident.ExpiresAt), WebSessionTTL)
+		sess.SetExpiryTime(a.clock.Now().UTC().Add(sessionTTL))
 		if err := a.UpsertWebSession(user.GetName(), sess, sessionTTL); err != nil {
 			return nil, trace.Wrap(err)
 		}
