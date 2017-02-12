@@ -96,7 +96,8 @@ func run(args []string, underTest bool) {
 	// configure CLI argument parser:
 	app := utils.InitCLIParser("tsh", "TSH: Teleport SSH client").Interspersed(false)
 	app.Flag("login", "Remote host login").Short('l').Envar("TELEPORT_LOGIN").StringVar(&cf.NodeLogin)
-	app.Flag("user", fmt.Sprintf("SSH proxy user [%s]", client.Username())).Envar("TELEPORT_USER").StringVar(&cf.Username)
+	localUser, _ := client.Username()
+	app.Flag("user", fmt.Sprintf("SSH proxy user [%s]", localUser)).Envar("TELEPORT_USER").StringVar(&cf.Username)
 	app.Flag("auth", "[EXPERIMENTAL] Use external authentication, e.g. 'google'").Envar("TELEPORT_AUTH").Hidden().StringVar(&cf.ExternalAuth)
 	app.Flag("u2f", "Use U2F as second factor").Default("false").BoolVar(&cf.U2F)
 	app.Flag("cluster", "Specify the cluster to connect").Envar("TELEPORT_SITE").StringVar(&cf.SiteName)
@@ -378,7 +379,7 @@ export SSH_AGENT_PID=%v
 
 	// create a new teleport agent and start listening
 	agentServer := teleagent.AgentServer{
-		tc.LocalAgent(),
+		Agent: tc.LocalAgent(),
 	}
 	if err := agentServer.ListenAndServe(socketAddr); err != nil {
 		utils.FatalError(err)
