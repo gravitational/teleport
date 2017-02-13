@@ -19,14 +19,20 @@ package client
 import (
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
+	"path/filepath"
 	"time"
 
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 
+	log "github.com/Sirupsen/logrus"
 	"gopkg.in/check.v1"
 )
 
@@ -54,6 +60,10 @@ func (s *KeyAgentTestSuite) SetUpSuite(c *check.C) {
 
 	// temporary key to use during tests
 	s.key, err = makeKey(s.username, []string{s.username}, 1*time.Minute)
+	c.Assert(err, check.IsNil)
+
+	// start a debug agent that will be used in tests
+	err = startDebugAgent()
 	c.Assert(err, check.IsNil)
 }
 
@@ -209,4 +219,38 @@ func makeKey(username string, allowedLogins []string, ttl time.Duration) (*Key, 
 		Pub:  publicKey,
 		Cert: certificate,
 	}, nil
+}
+
+func startDebugAgent() error {
+	errorC := make(chan error)
+
+	go func() {
+		socketpath := filepath.Join(os.TempDir(), fmt.Sprintf("teleport-%d.socket", os.Getpid()))
+		systemAgent := agent.NewKeyring()
+
+		listener, err := net.Listen("unix", socketpath)
+		if err != nil {
+			errorC <- trace.Wrap(err)
+			return
+		}
+		defer listener.Close()
+
+		os.Setenv(teleport.SSHAuthSock, socketpath)
+
+		// agent is listeninging and environment variable is set unblock now
+		close(errorC)
+
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				log.Warnf("Unexpected response from listener.Accept: %v", err)
+				continue
+			}
+
+			go agent.ServeAgent(systemAgent, conn)
+		}
+	}()
+
+	// block until agent is started
+	return <-errorC
 }
