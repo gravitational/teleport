@@ -79,14 +79,14 @@ func (s *AuthSuite) TestSessions(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(ws, NotNil)
 
-	out, err := s.a.GetWebSessionInfo(user, ws.ID)
+	out, err := s.a.GetWebSessionInfo(user, ws.GetName())
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, ws)
 
-	err = s.a.DeleteWebSession(user, ws.ID)
+	err = s.a.DeleteWebSession(user, ws.GetName())
 	c.Assert(err, IsNil)
 
-	_, err = s.a.GetWebSession(user, ws.ID)
+	_, err = s.a.GetWebSession(user, ws.GetName())
 	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
 }
 
@@ -149,10 +149,10 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(roles.Include(teleport.RoleProxy), Equals, false)
 
 	// unsuccessful registration (wrong role)
-	keys, err := s.a.RegisterUsingToken(tok, "bad-host", teleport.RoleProxy)
+	keys, err := s.a.RegisterUsingToken(tok, "bad-host-id", "bad-node-name", teleport.RoleProxy)
 	c.Assert(keys, IsNil)
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, "'bad-host' cannot join the cluster, the token does not allow 'Proxy' role")
+	c.Assert(err, ErrorMatches, `"bad-node-name" \[bad-host-id\] can not join the cluster, the token does not allow "Proxy" role`)
 
 	roles, err = s.a.ValidateToken(tok)
 	c.Assert(err, IsNil)
@@ -164,15 +164,15 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(err, IsNil)
 
 	// use it twice:
-	_, err = s.a.RegisterUsingToken(multiUseToken, "once", teleport.RoleProxy)
+	_, err = s.a.RegisterUsingToken(multiUseToken, "once", "node-name", teleport.RoleProxy)
 	c.Assert(err, IsNil)
-	_, err = s.a.RegisterUsingToken(multiUseToken, "twice", teleport.RoleProxy)
+	_, err = s.a.RegisterUsingToken(multiUseToken, "twice", "node-name", teleport.RoleProxy)
 	c.Assert(err, IsNil)
 
 	// try to use after TTL:
 	s.a.clock = clockwork.NewFakeClockAt(time.Now().UTC().Add(time.Hour + 1))
-	_, err = s.a.RegisterUsingToken(multiUseToken, "late.bird", teleport.RoleProxy)
-	c.Assert(err, ErrorMatches, "'late.bird' cannot join the cluster. The token has expired")
+	_, err = s.a.RegisterUsingToken(multiUseToken, "late.bird", "node-name", teleport.RoleProxy)
+	c.Assert(err, ErrorMatches, `"node-name" \[late.bird\] can not join the cluster. Token has expired`)
 
 	// expired token should be gone now
 	err = s.a.DeleteToken(multiUseToken)
@@ -181,9 +181,9 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	// lets use static tokens now
 	roles = teleport.Roles{teleport.RoleProxy}
 	s.a.StaticTokens = append(s.a.StaticTokens, services.ProvisionToken{Token: "static-token-value", Roles: roles, Expires: time.Unix(0, 0)})
-	_, err = s.a.RegisterUsingToken("static-token-value", "static.host", teleport.RoleProxy)
+	_, err = s.a.RegisterUsingToken("static-token-value", "static.host", "node-name", teleport.RoleProxy)
 	c.Assert(err, IsNil)
-	_, err = s.a.RegisterUsingToken("static-token-value", "wrong.role", teleport.RoleAuth)
+	_, err = s.a.RegisterUsingToken("static-token-value", "wrong.role", "node-name", teleport.RoleAuth)
 	c.Assert(err, NotNil)
 	r, err := s.a.ValidateToken("static-token-value")
 	c.Assert(err, IsNil)

@@ -91,7 +91,7 @@ func (s *TunSuite) SetUpTest(c *C) {
 
 	hpriv, hpub, err := s.a.GenerateKeyPair("")
 	c.Assert(err, IsNil)
-	hcert, err := s.a.GenerateHostCert(hpub, "localhost", "localhost", teleport.Roles{teleport.RoleNode}, 0)
+	hcert, err := s.a.GenerateHostCert(hpub, "00000000-0000-0000-0000-000000000000", "localhost", "localhost", teleport.Roles{teleport.RoleNode}, 0)
 	c.Assert(err, IsNil)
 
 	authorizer, err := NewAuthorizer(s.a.Access, s.a.Identity, s.a.Trust)
@@ -214,7 +214,7 @@ func (s *TunSuite) TestSessions(c *C) {
 	c.Assert(ws, Not(Equals), "")
 
 	// Resume session via sesison id
-	authMethod, err = NewWebSessionAuth(user, []byte(ws.ID))
+	authMethod, err = NewWebSessionAuth(user, []byte(ws.GetName()))
 	c.Assert(err, IsNil)
 
 	cltw, err := NewTunClient("test",
@@ -222,14 +222,14 @@ func (s *TunSuite) TestSessions(c *C) {
 	c.Assert(err, IsNil)
 	defer cltw.Close()
 
-	out, err := cltw.GetWebSessionInfo(user, ws.ID)
+	out, err := cltw.GetWebSessionInfo(user, ws.GetName())
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, ws)
 
-	err = cltw.DeleteWebSession(user, ws.ID)
+	err = cltw.DeleteWebSession(user, ws.GetName())
 	c.Assert(err, IsNil)
 
-	_, err = clt.GetWebSessionInfo(user, ws.ID)
+	_, err = clt.GetWebSessionInfo(user, ws.GetName())
 	c.Assert(err, NotNil)
 }
 
@@ -434,11 +434,11 @@ func (s *TunSuite) TestPermissions(c *C) {
 	c.Assert(err, NotNil)
 
 	// Requesting forbidden for User action
-	_, err = clt.GetWebSessionInfo(user.GetName(), ws.ID)
+	_, err = clt.GetWebSessionInfo(user.GetName(), ws.GetName())
 	c.Assert(err, NotNil)
 
 	// Resume session via sesison id
-	authMethod, err = NewWebSessionAuth(user.GetName(), []byte(ws.ID))
+	authMethod, err = NewWebSessionAuth(user.GetName(), []byte(ws.GetName()))
 	c.Assert(err, IsNil)
 
 	cltw, err := NewTunClient("test",
@@ -454,14 +454,14 @@ func (s *TunSuite) TestPermissions(c *C) {
 	_, err = cltw.SignIn(user.GetName(), pass)
 	c.Assert(err, NotNil)
 
-	out, err := cltw.GetWebSessionInfo(user.GetName(), ws.ID)
+	out, err := cltw.GetWebSessionInfo(user.GetName(), ws.GetName())
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, ws)
 
-	err = cltw.DeleteWebSession(user.GetName(), ws.ID)
+	err = cltw.DeleteWebSession(user.GetName(), ws.GetName())
 	c.Assert(err, IsNil)
 
-	_, err = clt.GetWebSessionInfo(user.GetName(), ws.ID)
+	_, err = clt.GetWebSessionInfo(user.GetName(), ws.GetName())
 	c.Assert(err, NotNil)
 }
 

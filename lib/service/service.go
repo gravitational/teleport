@@ -321,6 +321,7 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 		AuthServiceName: cfg.Hostname,
 		DataDir:         cfg.DataDir,
 		HostUUID:        cfg.HostUUID,
+		NodeName:        cfg.Hostname,
 		Authorities:     cfg.Auth.Authorities,
 		ReverseTunnels:  cfg.ReverseTunnels,
 		OIDCConnectors:  cfg.OIDCConnectors,
@@ -552,7 +553,7 @@ func (process *TeleportProcess) initSSH() error {
 // certificate authority
 func (process *TeleportProcess) RegisterWithAuthServer(token string, role teleport.Role, eventName string) {
 	cfg := process.Config
-	identityID := auth.IdentityID{Role: role, HostUUID: cfg.HostUUID}
+	identityID := auth.IdentityID{Role: role, HostUUID: cfg.HostUUID, NodeName: cfg.Hostname}
 
 	// this means the server has not been initialized yet, we are starting
 	// the registering client that attempts to connect to the auth server

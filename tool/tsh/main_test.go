@@ -61,7 +61,9 @@ func (s *MainTestSuite) TestMakeClient(c *check.C) {
 	c.Assert(tc.Config.NodeHostPort(), check.Equals, "localhost:0") // SSH port must not be set to default!
 	c.Assert(tc.Config.ProxySSHHostPort(), check.Equals, "proxy:3023")
 	c.Assert(tc.Config.ProxyWebHostPort(), check.Equals, "proxy:3080")
-	c.Assert(tc.Config.HostLogin, check.Equals, client.Username())
+	localUser, err := client.Username()
+	c.Assert(err, check.IsNil)
+	c.Assert(tc.Config.HostLogin, check.Equals, localUser)
 	c.Assert(tc.Config.KeyTTL, check.Equals, defaults.CertDuration)
 
 	// specific configuration

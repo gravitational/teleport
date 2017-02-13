@@ -18,6 +18,7 @@ package client
 
 import (
 	"bytes"
+	"fmt"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -49,23 +50,49 @@ type LocalKeyStore interface {
 	GetKnownHostKeys(hostname string) ([]ssh.PublicKey, error)
 }
 
-// AsAgentKey converts our Key structure to ssh.Agent.Key
-func (k *Key) AsAgentKey() (*agent.AddedKey, error) {
-	// parse the returned&signed key:
-	pcert, _, _, _, err := ssh.ParseAuthorizedKey(k.Cert)
+// AsAgentKeys converts client.Key struct to a []*agent.AddedKey. All elements
+// of the []*agent.AddedKey slice need to be loaded into the agent!
+//
+// This is done because OpenSSH clients older than OpenSSH 7.3/7.3p1
+// (2016-08-01) have a bug in how they use certificates that have been loaded
+// in an agent. Specifically when you add a certificate to an agent, you can't
+// just embed the private key within the certificate, you have to add the
+// certificate and private key to the agent separately. Teleport works around
+// this behavior to ensure OpenSSH interoperability.
+//
+// For more details see the following: https://bugzilla.mindrot.org/show_bug.cgi?id=2550
+func (k *Key) AsAgentKeys() ([]*agent.AddedKey, error) {
+	// unmarshal certificate bytes into a ssh.PublicKey
+	publicKey, _, _, _, err := ssh.ParseAuthorizedKey(k.Cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	pk, err := ssh.ParseRawPrivateKey(k.Priv)
+
+	// unmarshal private key bytes into a *rsa.PrivateKey
+	privateKey, err := ssh.ParseRawPrivateKey(k.Priv)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &agent.AddedKey{
-		PrivateKey:       pk,
-		Certificate:      pcert.(*ssh.Certificate),
-		Comment:          "",
-		LifetimeSecs:     0,
-		ConfirmBeforeUse: false,
+
+	// put a teleport identifier along with the teleport user into the comment field
+	comment := fmt.Sprintf("teleport:%v", publicKey.(*ssh.Certificate).KeyId)
+
+	// return a certificate (with embeded private key) as well as a private key
+	return []*agent.AddedKey{
+		&agent.AddedKey{
+			PrivateKey:       privateKey,
+			Certificate:      publicKey.(*ssh.Certificate),
+			Comment:          comment,
+			LifetimeSecs:     0,
+			ConfirmBeforeUse: false,
+		},
+		&agent.AddedKey{
+			PrivateKey:       privateKey,
+			Certificate:      nil,
+			Comment:          comment,
+			LifetimeSecs:     0,
+			ConfirmBeforeUse: false,
+		},
 	}, nil
 }
 
