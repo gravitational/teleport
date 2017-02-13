@@ -59,6 +59,15 @@ func (s *NativeSuite) TestGenerateUserCert(c *C) {
 	s.suite.GenerateUserCert(c)
 }
 
+// TestBuildPrincipals makes sure that the list of principals for a host
+// certificate is correctly built.
+//   * If the node has role admin, then only the host ID should be listed
+//     in the principals field.
+//   * If only a host ID is provided, don't include a empty node name
+//     this is for backward compatibility.
+//   * If both host ID and node name are given, then both should be included
+//     on the certificate.
+//   * If the host ID and node name are the same, only list one.
 func (s *NativeSuite) TestBuildPrincipals(c *C) {
 	caPrivateKey, _, err := s.suite.A.GenerateKeyPair("")
 	c.Assert(err, IsNil)
@@ -96,6 +105,14 @@ func (s *NativeSuite) TestBuildPrincipals(c *C) {
 			"example.com",
 			teleport.Roles{teleport.RoleProxy},
 			[]string{"22222222-2222-2222-2222-222222222222.example.com", "proxy.example.com"},
+		},
+		// 3 - deduplicate principals
+		{
+			"33333333-3333-3333-3333-333333333333",
+			"33333333-3333-3333-3333-333333333333",
+			"example.com",
+			teleport.Roles{teleport.RoleProxy},
+			[]string{"33333333-3333-3333-3333-333333333333.example.com"},
 		},
 	}
 
