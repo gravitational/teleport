@@ -115,6 +115,18 @@ let cfg = {
     return cfg.auth.oidc_connectors;
   },
 
+  getAuthProvider() {
+    return 'github';
+  },
+
+  getAuthType() {
+    return 'oidc';
+  },
+
+  getAuth2faType() {
+    return 'utf'
+  },
+
   getU2fAppId(){
     return cfg.auth.u2f_appid;
   },

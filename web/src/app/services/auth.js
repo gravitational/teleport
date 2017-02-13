@@ -14,19 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var api = require('./api');
-var session = require('./session');
-var cfg = require('app/config');
-var $ = require('jQuery');
-var logger = require('app/common/logger').create('services/auth');
+import api from './api';
+import session from './session';
+import cfg from 'app/config';
+import $ from 'jQuery';
+import Logger from 'app/common/logger';
 
-require('u2f-api-polyfill'); // This puts it in window.u2f
+// This puts it in window.u2f
+import 'u2f-api-polyfill'; 
+
+const logger = Logger.create('services/auth');
 
 const AUTH_IS_RENEWING = 'GRV_AUTH_IS_RENEWING';
-const PROVIDER_GOOGLE = 'google';
-const SECOND_FACTOR_TYPE_HOTP = 'hotp';
-const SECOND_FACTOR_TYPE_OIDC = 'oidc';
-const SECOND_FACTOR_TYPE_U2F = 'u2f';
 
 const CHECK_TOKEN_REFRESH_RATE = 10 * 1000; // 10 sec
 
@@ -225,11 +224,7 @@ const auth = {
     }
     return {responseJSON:{message:"U2F Error: " + errorMsg}};
   }
-
 }
 
-module.exports = auth;
-module.exports.PROVIDER_GOOGLE = PROVIDER_GOOGLE;
-module.exports.SECOND_FACTOR_TYPE_HOTP = SECOND_FACTOR_TYPE_HOTP;
-module.exports.SECOND_FACTOR_TYPE_OIDC = SECOND_FACTOR_TYPE_OIDC;
-module.exports.SECOND_FACTOR_TYPE_U2F = SECOND_FACTOR_TYPE_U2F;
+export default auth;
+

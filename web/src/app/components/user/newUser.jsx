@@ -20,8 +20,8 @@ var reactor = require('app/reactor');
 var {actions, getters} = require('app/modules/user');
 var LinkedStateMixin = require('react-addons-linked-state-mixin');
 var GoogleAuthInfo = require('./googleAuthLogo');
-var {ErrorPage, ErrorTypes} = require('./msgPage');
-var {TeleportLogo} = require('./icons.jsx');
+var {ErrorPage, ErrorTypes} = require('./../msgPage');
+var {TeleportLogo} = require('./../icons.jsx');
 var {SECOND_FACTOR_TYPE_HOTP, SECOND_FACTOR_TYPE_U2F} = require('app/services/auth');
 var cfg = require('app/config');
 

@@ -15,8 +15,8 @@ limitations under the License.
 */
 
 module.exports.App = require('./app.jsx');
-module.exports.Login = require('./login.jsx');
-module.exports.NewUser = require('./newUser.jsx');
+module.exports.Login = require('./user/login.jsx');
+module.exports.NewUser = require('./user/newUser.jsx');
 module.exports.Nodes = require('./nodes/main.jsx');
 module.exports.Sessions = require('./sessions/main.jsx');
 module.exports.CurrentSessionHost = require('./currentSession/main.jsx');

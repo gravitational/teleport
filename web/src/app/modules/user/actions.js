@@ -22,7 +22,7 @@ var auth = require('app/services/auth');
 var session = require('app/services/session');
 var cfg = require('app/config');
 var api = require('app/services/api');
-var {SECOND_FACTOR_TYPE_OIDC, SECOND_FACTOR_TYPE_U2F} = require('app/services/auth');
+var { SECOND_FACTOR_TYPE_U2F} = require('app/services/auth');
 
 var actions = {
 
@@ -79,31 +79,33 @@ var actions = {
 
   },
 
-  login({user, password, token, provider, secondFactorType}, redirect){
-    if(secondFactorType == SECOND_FACTOR_TYPE_OIDC){
-      let fullPath = cfg.getFullUrl(redirect);
-      window.location = cfg.api.getSsoUrl(fullPath, provider);
-      return;
-    }
+  loginWithOidc(provider, redirect) {
+    let fullPath = cfg.getFullUrl(redirect);
+    window.location = cfg.api.getSsoUrl(fullPath, provider);    
+  },
 
+  loginWithU2f(user, password, redirect) {
+    let promise = auth.u2fLogin(user, password);
+    this._handleLoginPromise(promise, redirect);
+  },
+
+  login(user, password, token, redirect) {
+    let promise = auth.login(user, password, token);
+    this._handleLoginPromise(promise, redirect);              
+  },
+
+  _handleLoginPromise(promise, redirect) {
     restApiActions.start(TRYING_TO_LOGIN);
-
-    var onSuccess = function(sessionData){
-      restApiActions.success(TRYING_TO_LOGIN);
-      reactor.dispatch(TLPT_RECEIVE_USER, sessionData.user);
-      session.getHistory().push({pathname: redirect});
-    };
-
-    var onFailure = function(err){
-      var msg = err.responseJSON ? err.responseJSON.message : 'Error';
-      restApiActions.fail(TRYING_TO_LOGIN, msg);
-    };
-
-    if(secondFactorType == SECOND_FACTOR_TYPE_U2F){
-      auth.u2fLogin(user, password).done(onSuccess).fail(onFailure);
-    } else {
-      auth.login(user, password, token).done(onSuccess).fail(onFailure);
-    }
+    promise
+      .done(sessionData => {
+        restApiActions.success(TRYING_TO_LOGIN);
+        reactor.dispatch(TLPT_RECEIVE_USER, sessionData.user);
+        session.getHistory().push({pathname: redirect});
+      })
+      .fail(err => {
+        let msg = api.getErrorText(err);
+        restApiActions.fail(TRYING_TO_LOGIN, msg);
+      })
   }
 }
 

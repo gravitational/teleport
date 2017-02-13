@@ -58,46 +58,24 @@ limitations under the License.
   }
 }
 
-.rotating {
-  animation: rotating-function 4.00s linear infinite;
-}
-@-webkit-keyframes rotating-function {
-  from {
-    -webkit-transform: rotate(0deg);
+.grv-user-btn-sso{ 
+  &:not(:first-child){
+    margin-top: 15px;
   }
-  to {
-    -webkit-transform: rotate(360deg);
-  }
-}
-@-moz-keyframes rotating-function {
-  from {
-    -moz-transform: rotate(0deg);
-  }
-  to {
-    -moz-transform: rotate(360deg);
-  }
-}
-@-ms-keyframes rotating-function {
-  from {
-    -ms-transform: rotate(0deg);
-  }
-  to {
-    -ms-transform: rotate(360deg);
-  }
-}
-@-o-keyframes rotating-function {
-  from {
-    -o-transform: rotate(0deg);
-  }
-  to {
-    -o-transform: rotate(360deg);
-  }
-}
-@keyframes rotating-function {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+
+  max-width: 400px;  
+  text-align: center;
+  margin: 0 auto;  
+  position: relative;
+  
+  .--sso-icon{
+    position: absolute;        
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 32px;  
+    font-size: 1.6em;
+    text-align: center;
+    border-right: 1px solid rgba(0, 0, 0, 0.2);
+  }  
 }
