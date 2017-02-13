@@ -390,7 +390,7 @@ func (m *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 	// if we created web session, set session cookie and redirect to original url
 	if response.Req.CreateWebSession {
 		log.Infof("oidcCallback redirecting to web browser")
-		if err := SetSession(w, response.Username, response.Session.ID); err != nil {
+		if err := SetSession(w, response.Username, response.Session.GetName()); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		http.Redirect(w, r, response.Req.ClientRedirectURL, http.StatusFound)
@@ -501,7 +501,7 @@ func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 	webSession := ctx.GetWebSession()
-	user, err := clt.GetUser(webSession.Username)
+	user, err := clt.GetUser(webSession.GetUser())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -519,9 +519,9 @@ func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 	}
 	return &CreateSessionResponse{
 		Type:      roundtrip.AuthBearer,
-		Token:     webSession.WS.BearerToken,
+		Token:     webSession.GetBearerToken(),
 		User:      user.WebSessionInfo(allowedLogins),
-		ExpiresIn: int(webSession.WS.Expires.Sub(time.Now()) / time.Second),
+		ExpiresIn: int(webSession.GetExpiryTime().Sub(time.Now()) / time.Second),
 	}, nil
 }
 
@@ -546,11 +546,11 @@ func (m *Handler) createSession(w http.ResponseWriter, r *http.Request, p httpro
 		return nil, trace.AccessDenied("bad auth credentials")
 	}
 
-	if err := SetSession(w, req.User, sess.ID); err != nil {
+	if err := SetSession(w, req.User, sess.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	ctx, err := m.auth.ValidateSession(req.User, sess.ID)
+	ctx, err := m.auth.ValidateSession(req.User, sess.GetName())
 	if err != nil {
 		return nil, trace.AccessDenied("need auth")
 	}
@@ -594,12 +594,12 @@ func (m *Handler) renewSession(w http.ResponseWriter, r *http.Request, _ httprou
 	}
 	// transfer ownership over connections that were opened in the
 	// sessionContext
-	newContext, err := ctx.parent.ValidateSession(newSess.Username, newSess.ID)
+	newContext, err := ctx.parent.ValidateSession(newSess.GetUser(), newSess.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	newContext.AddClosers(ctx.TransferClosers()...)
-	if err := SetSession(w, newSess.Username, newSess.ID); err != nil {
+	if err := SetSession(w, newSess.GetUser(), newSess.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return NewSessionResponse(newContext)
@@ -701,10 +701,10 @@ func (m *Handler) createSessionWithU2FSignResponse(w http.ResponseWriter, r *htt
 	if err != nil {
 		return nil, trace.AccessDenied("bad auth credentials")
 	}
-	if err := SetSession(w, req.User, sess.ID); err != nil {
+	if err := SetSession(w, req.User, sess.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ctx, err := m.auth.ValidateSession(req.User, sess.ID)
+	ctx, err := m.auth.ValidateSession(req.User, sess.GetName())
 	if err != nil {
 		return nil, trace.AccessDenied("need auth")
 	}
@@ -736,11 +736,11 @@ func (m *Handler) createNewUser(w http.ResponseWriter, r *http.Request, p httpro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ctx, err := m.auth.ValidateSession(sess.Username, sess.ID)
+	ctx, err := m.auth.ValidateSession(sess.GetUser(), sess.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := SetSession(w, sess.Username, sess.ID); err != nil {
+	if err := SetSession(w, sess.GetUser(), sess.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return NewSessionResponse(ctx)
@@ -771,11 +771,11 @@ func (m *Handler) createNewU2FUser(w http.ResponseWriter, r *http.Request, p htt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ctx, err := m.auth.ValidateSession(sess.Username, sess.ID)
+	ctx, err := m.auth.ValidateSession(sess.GetUser(), sess.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := SetSession(w, sess.Username, sess.ID); err != nil {
+	if err := SetSession(w, sess.GetUser(), sess.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return NewSessionResponse(ctx)
@@ -1443,7 +1443,7 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 			logger.Warningf("no auth headers %v", err)
 			return nil, trace.AccessDenied("need auth")
 		}
-		if creds.Password != ctx.GetWebSession().WS.BearerToken {
+		if creds.Password != ctx.GetWebSession().GetBearerToken() {
 			logger.Warningf("bad bearer token")
 			return nil, trace.AccessDenied("bad bearer token")
 		}

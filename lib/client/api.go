@@ -321,14 +321,20 @@ type ShellCreatedCallback func(s *ssh.Session, c *ssh.Client, terminal io.ReadWr
 func NewClient(c *Config) (tc *TeleportClient, err error) {
 	// validate configuration
 	if c.Username == "" {
-		c.Username = Username()
+		c.Username, err = Username()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		log.Infof("no teleport login given. defaulting to %s", c.Username)
 	}
 	if c.ProxyHostPort == "" {
 		return nil, trace.Errorf("No proxy address specified, missed --proxy flag?")
 	}
 	if c.HostLogin == "" {
-		c.HostLogin = Username()
+		c.HostLogin, err = Username()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		log.Infof("no host login given. defaulting to %s", c.HostLogin)
 	}
 	if c.KeyTTL == 0 {
@@ -1132,12 +1138,12 @@ func connectToSSHAgent() agent.Agent {
 }
 
 // Username returns the current user's username
-func Username() string {
+func Username() (string, error) {
 	u, err := user.Current()
 	if err != nil {
-		utils.FatalError(err)
+		return "", trace.Wrap(err)
 	}
-	return u.Username
+	return u.Username, nil
 }
 
 // AskPasswordAndOTP prompts the user to enter the password + OTP 2nd factor

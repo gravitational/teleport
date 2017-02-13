@@ -270,14 +270,14 @@ func (a *AuthWithRoles) GetOTPData(user string) (string, []byte, error) {
 	return a.authServer.GetOTPData(user)
 }
 
-func (a *AuthWithRoles) SignIn(user string, password []byte) (*Session, error) {
+func (a *AuthWithRoles) SignIn(user string, password []byte) (services.WebSession, error) {
 	if err := a.currentUserAction(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.SignIn(user, password)
 }
 
-func (a *AuthWithRoles) PreAuthenticatedSignIn(user string) (*Session, error) {
+func (a *AuthWithRoles) PreAuthenticatedSignIn(user string) (services.WebSession, error) {
 	if err := a.currentUserAction(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -290,21 +290,21 @@ func (a *AuthWithRoles) GetU2FSignRequest(user string, password []byte) (*u2f.Si
 	return a.authServer.U2FSignRequest(user, password)
 }
 
-func (a *AuthWithRoles) CreateWebSession(user string) (*Session, error) {
+func (a *AuthWithRoles) CreateWebSession(user string) (services.WebSession, error) {
 	if err := a.currentUserAction(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.CreateWebSession(user)
 }
 
-func (a *AuthWithRoles) ExtendWebSession(user, prevSessionID string) (*Session, error) {
+func (a *AuthWithRoles) ExtendWebSession(user, prevSessionID string) (services.WebSession, error) {
 	if err := a.action(defaults.Namespace, services.KindWebSession, services.ActionWrite); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.ExtendWebSession(user, prevSessionID)
 }
 
-func (a *AuthWithRoles) GetWebSessionInfo(user string, sid string) (*Session, error) {
+func (a *AuthWithRoles) GetWebSessionInfo(user string, sid string) (services.WebSession, error) {
 	if err := a.action(defaults.Namespace, services.KindWebSession, services.ActionRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -404,12 +404,12 @@ func (a *AuthWithRoles) GetSignupU2FRegisterRequest(token string) (u2fRegisterRe
 	return a.authServer.CreateSignupU2FRegisterRequest(token)
 }
 
-func (a *AuthWithRoles) CreateUserWithToken(token, password, hotpToken string) (*Session, error) {
+func (a *AuthWithRoles) CreateUserWithToken(token, password, hotpToken string) (services.WebSession, error) {
 	// tokens are their own authz mechanism, no need to double check
 	return a.authServer.CreateUserWithToken(token, password, hotpToken)
 }
 
-func (a *AuthWithRoles) CreateUserWithU2FToken(token string, password string, u2fRegisterResponse u2f.RegisterResponse) (*Session, error) {
+func (a *AuthWithRoles) CreateUserWithU2FToken(token string, password string, u2fRegisterResponse u2f.RegisterResponse) (services.WebSession, error) {
 	// signup tokens are their own authz resource
 	return a.authServer.CreateUserWithU2FToken(token, password, u2fRegisterResponse)
 }

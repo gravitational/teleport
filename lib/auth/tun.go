@@ -297,13 +297,13 @@ func (s *AuthTunnel) handleWebAgentRequest(sconn *ssh.ServerConn, ch ssh.Channel
 		return
 	}
 
-	priv, err := ssh.ParseRawPrivateKey(ws.WS.Priv)
+	priv, err := ssh.ParseRawPrivateKey(ws.GetPriv())
 	if err != nil {
 		log.Errorf("session error: %v", trace.DebugReport(err))
 		return
 	}
 
-	pub, _, _, _, err := ssh.ParseAuthorizedKey(ws.WS.Pub)
+	pub, _, _, _, err := ssh.ParseAuthorizedKey(ws.GetPub())
 	if err != nil {
 		log.Errorf("session error: %v", trace.DebugReport(err))
 		return
