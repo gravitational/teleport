@@ -8,6 +8,11 @@ import (
 const ForeverTTL time.Duration = 0
 
 const (
+	TOTPValidityPeriod uint = 30 // TOTPValidityPeriod is the number of seconds a TOTP token is valid.
+	TOTPSkew           uint = 1  // TOTPSkew adds that many periods before and after to the validity window.
+)
+
+const (
 	// Component indicates a component of teleport, used for logging
 	Component = "component"
 

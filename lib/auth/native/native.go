@@ -20,11 +20,13 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
@@ -133,35 +135,44 @@ func (n *nauth) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
 	return privPem, pubBytes, nil
 }
 
-func (n *nauth) GenerateHostCert(privateSigningKey, publicKey []byte, hostname, authDomain string, roles teleport.Roles, ttl time.Duration) ([]byte, error) {
-	if err := roles.Check(); err != nil {
+func (n *nauth) GenerateHostCert(c services.CertParams) ([]byte, error) {
+	if err := c.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(publicKey)
+
+	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(c.PublicHostKey)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
+
+	signer, err := ssh.ParsePrivateKey(c.PrivateCASigningKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	principals := buildPrincipals(c.HostID, c.NodeName, c.ClusterName, c.Roles)
+
+	// create certificate
 	validBefore := uint64(ssh.CertTimeInfinity)
-	if ttl != 0 {
-		b := time.Now().Add(ttl)
+	if c.TTL != 0 {
+		b := time.Now().Add(c.TTL)
 		validBefore = uint64(b.Unix())
 	}
 	cert := &ssh.Certificate{
-		ValidPrincipals: []string{hostname},
+		ValidPrincipals: principals,
 		Key:             pubKey,
 		ValidBefore:     validBefore,
 		CertType:        ssh.HostCert,
 	}
 	cert.Permissions.Extensions = make(map[string]string)
-	cert.Permissions.Extensions[utils.CertExtensionRole] = roles.String()
-	cert.Permissions.Extensions[utils.CertExtensionAuthority] = string(authDomain)
-	signer, err := ssh.ParsePrivateKey(privateSigningKey)
-	if err != nil {
-		return nil, err
-	}
+	cert.Permissions.Extensions[utils.CertExtensionRole] = c.Roles.String()
+	cert.Permissions.Extensions[utils.CertExtensionAuthority] = string(c.ClusterName)
+
+	// sign host certificate with private signing key of certificate authority
 	if err := cert.SignCert(rand.Reader, signer); err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
+
 	return ssh.MarshalAuthorizedKey(cert), nil
 }
 
@@ -204,4 +215,29 @@ func (n *nauth) GenerateUserCert(pkey, key []byte, teleportUsername string, allo
 		return nil, err
 	}
 	return ssh.MarshalAuthorizedKey(cert), nil
+}
+
+// buildPrincipals takes a hostID, nodeName, clusterName, and role and builds a list of
+// principals to insert into a certificate. This function is backward compatible with
+// older clients which means:
+//    * If RoleAdmin is in the list of roles, only a single principal is returned: hostID
+//    * If nodename is empty, it is not included in the list of principals.
+func buildPrincipals(hostID string, nodeName string, clusterName string, roles teleport.Roles) []string {
+	// TODO(russjones): This should probably be clusterName, but we need to
+	// verify changing this won't break older clients.
+	if roles.Include(teleport.RoleAdmin) {
+		return []string{hostID}
+	}
+
+	// always include the hostID, this is what teleport uses internally to find nodes
+	principals := []string{
+		fmt.Sprintf("%v.%v", hostID, clusterName),
+	}
+
+	// nodeName is the DNS name, this is for OpenSSH interoperability
+	if nodeName != "" {
+		principals = append(principals, fmt.Sprintf("%s.%s", nodeName, clusterName))
+	}
+
+	return principals
 }

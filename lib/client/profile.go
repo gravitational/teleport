@@ -131,7 +131,7 @@ func LogoutFromEverywhere(username string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	keys, err := agent.LoadKeys(username)
+	keys, err := agent.GetKeys(username)
 	if err != nil {
 		return trace.Wrap(err)
 	}

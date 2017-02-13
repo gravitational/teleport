@@ -371,13 +371,37 @@ func (s *APIServer) deleteWebSession(auth ClientI, w http.ResponseWriter, r *htt
 	return message(fmt.Sprintf("session '%v' for user '%v' deleted", sid, user)), nil
 }
 
+// sessionV1 is a V1 style web session, used in legacy v1 API
+type sessionV1 struct {
+	// ID is a session ID
+	ID string `json:"id"`
+	// Username is a user this session belongs to
+	Username string `json:"username"`
+	// ExpiresAt is an optional expiry time, if set
+	// that means this web session and all derived web sessions
+	// can not continue after this time, used in OIDC use case
+	// when expiry is set by external identity provider, so user
+	// has to relogin (or later on we'd need to refresh the token)
+	ExpiresAt time.Time `json:"expires_at"`
+	// WS is a private keypair used for signing requests
+	WS services.WebSessionV1 `json:"web"`
+}
+
 func (s *APIServer) getWebSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	user, sid := p.ByName("user"), p.ByName("sid")
 	sess, err := auth.GetWebSessionInfo(user, sid)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return sess, nil
+	if version == services.V1 {
+		return &sessionV1{
+			ID:        sess.GetName(),
+			Username:  sess.GetUser(),
+			ExpiresAt: sess.GetExpiryTime(),
+			WS:        *(sess.V1()),
+		}, nil
+	}
+	return rawMessage(services.GetWebSessionMarshaler().MarshalWebSession(sess, services.WithVersion(version)))
 }
 
 type signInReq struct {
@@ -395,8 +419,7 @@ func (s *APIServer) signIn(auth ClientI, w http.ResponseWriter, r *http.Request,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	return sess, nil
+	return rawMessage(services.GetWebSessionMarshaler().MarshalWebSession(sess, services.WithVersion(version)))
 }
 
 func (s *APIServer) preAuthenticatedSignIn(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
@@ -405,7 +428,7 @@ func (s *APIServer) preAuthenticatedSignIn(auth ClientI, w http.ResponseWriter, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return sess, nil
+	return rawMessage(services.GetWebSessionMarshaler().MarshalWebSession(sess, services.WithVersion(version)))
 }
 
 func (s *APIServer) u2fSignRequest(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
@@ -443,7 +466,7 @@ func (s *APIServer) createWebSession(auth ClientI, w http.ResponseWriter, r *htt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return sess, nil
+	return rawMessage(services.GetWebSessionMarshaler().MarshalWebSession(sess, services.WithVersion(version)))
 }
 
 type upsertPasswordReq struct {
@@ -567,11 +590,12 @@ func (s *APIServer) generateKeyPair(auth ClientI, w http.ResponseWriter, r *http
 }
 
 type generateHostCertReq struct {
-	Key        []byte         `json:"key"`
-	Hostname   string         `json:"hostname"`
-	AuthDomain string         `json:"auth_domain"`
-	Roles      teleport.Roles `json:"roles"`
-	TTL        time.Duration  `json:"ttl"`
+	Key         []byte         `json:"key"`
+	HostID      string         `json:"hostname"`
+	NodeName    string         `json:"node_name"`
+	ClusterName string         `json:"auth_domain"`
+	Roles       teleport.Roles `json:"roles"`
+	TTL         time.Duration  `json:"ttl"`
 }
 
 func (s *APIServer) generateHostCert(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
@@ -579,10 +603,12 @@ func (s *APIServer) generateHostCert(auth ClientI, w http.ResponseWriter, r *htt
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cert, err := auth.GenerateHostCert(req.Key, req.Hostname, req.AuthDomain, req.Roles, req.TTL)
+
+	cert, err := auth.GenerateHostCert(req.Key, req.HostID, req.NodeName, req.ClusterName, req.Roles, req.TTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return string(cert), nil
 }
 
@@ -622,9 +648,10 @@ func (s *APIServer) generateToken(auth ClientI, w http.ResponseWriter, r *http.R
 }
 
 type registerUsingTokenReq struct {
-	HostID string        `json:"hostID"`
-	Role   teleport.Role `json:"role"`
-	Token  string        `json:"token"`
+	HostID   string        `json:"hostID"`
+	NodeName string        `json:"node_name"`
+	Role     teleport.Role `json:"role"`
+	Token    string        `json:"token"`
 }
 
 func (s *APIServer) registerUsingToken(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
@@ -632,10 +659,12 @@ func (s *APIServer) registerUsingToken(auth ClientI, w http.ResponseWriter, r *h
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keys, err := auth.RegisterUsingToken(req.Token, req.HostID, req.Role)
+
+	keys, err := auth.RegisterUsingToken(req.Token, req.HostID, req.NodeName, req.Role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return keys, nil
 }
 
@@ -862,7 +891,7 @@ func (s *APIServer) createUserWithToken(auth ClientI, w http.ResponseWriter, r *
 		return nil, trace.Wrap(err)
 	}
 
-	return sess, nil
+	return rawMessage(services.GetWebSessionMarshaler().MarshalWebSession(sess, services.WithVersion(version)))
 }
 
 type createUserWithU2FTokenReq struct {
@@ -882,7 +911,7 @@ func (s *APIServer) createUserWithU2FToken(auth ClientI, w http.ResponseWriter, 
 		log.Error(err)
 		return nil, trace.Wrap(err)
 	}
-	return sess, nil
+	return rawMessage(services.GetWebSessionMarshaler().MarshalWebSession(sess, services.WithVersion(version)))
 }
 
 type upsertOIDCConnectorRawReq struct {
@@ -974,7 +1003,7 @@ type oidcAuthRawResponse struct {
 	// Identity contains validated OIDC identity
 	Identity services.OIDCIdentity `json:"identity"`
 	// Web session will be generated by auth server if requested in OIDCAuthRequest
-	Session *Session `json:"session,omitempty"`
+	Session json.RawMessage `json:"session,omitempty"`
 	// Cert will be generated by certificate authority
 	Cert []byte `json:"cert,omitempty"`
 	// Req is original oidc auth request
@@ -996,9 +1025,15 @@ func (s *APIServer) validateOIDCAuthCallback(auth ClientI, w http.ResponseWriter
 	raw := oidcAuthRawResponse{
 		Username: response.Username,
 		Identity: response.Identity,
-		Session:  response.Session,
 		Cert:     response.Cert,
 		Req:      response.Req,
+	}
+	if response.Session != nil {
+		rawSession, err := services.GetWebSessionMarshaler().MarshalWebSession(response.Session, services.WithVersion(version))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		raw.Session = rawSession
 	}
 	raw.HostSigners = make([]json.RawMessage, len(response.HostSigners))
 	for i, ca := range response.HostSigners {
@@ -1008,7 +1043,7 @@ func (s *APIServer) validateOIDCAuthCallback(auth ClientI, w http.ResponseWriter
 		}
 		raw.HostSigners[i] = data
 	}
-	return raw, nil
+	return &raw, nil
 }
 
 // HTTP GET /:version/events?query

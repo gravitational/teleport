@@ -55,29 +55,14 @@ type Authority interface {
 	// GetNewKeyPairFromPool returns new keypair from pre-generated in memory pool
 	GetNewKeyPairFromPool() (privKey []byte, pubKey []byte, err error)
 
-	// GenerateHostCert generates host certificate, it takes pkey as a signing
-	// private key (host certificate authority)
-	GenerateHostCert(pkey, key []byte, hostID, authDomain string, roles teleport.Roles, ttl time.Duration) ([]byte, error)
+	// GenerateHostCert takes the private key of the CA, public key of the new host,
+	// along with metadata (host ID, node name, cluster name, roles, and ttl) and generates
+	// a host certificate.
+	GenerateHostCert(certParams services.CertParams) ([]byte, error)
 
 	// GenerateUserCert generates user certificate, it takes pkey as a signing
 	// private key (user certificate authority)
 	GenerateUserCert(pkey, key []byte, teleportUsername string, allowedLogins []string, ttl time.Duration) ([]byte, error)
-}
-
-// Session is a web session context, stores temporary key-value pair and session id
-type Session struct {
-	// ID is a session ID
-	ID string `json:"id"`
-	// Username is a user this session belongs to
-	Username string `json:"username"`
-	// ExpiresAt is an optional expiry time, if set
-	// that means this web session and all derived web sessions
-	// can not continue after this time, used in OIDC use case
-	// when expiry is set by external identity provider, so user
-	// has to relogin (or later on we'd need to refresh the token)
-	ExpiresAt time.Time `json:"expires_at"`
-	// WS is a private keypair used for signing requests
-	WS services.WebSession `json:"web"`
 }
 
 // AuthServerOption allows setting options as functional arguments to AuthServer
@@ -187,9 +172,10 @@ func (a *AuthServer) CheckU2FEnabled() error {
 	return nil
 }
 
-// GenerateHostCert generates host certificate, it takes pkey as a signing
-// private key (host certificate authority)
-func (s *AuthServer) GenerateHostCert(key []byte, hostID, authDomain string, roles teleport.Roles, ttl time.Duration) ([]byte, error) {
+// GenerateHostCert uses the private key of the CA to sign the public key of the host
+// (along with meta data like host ID, node name, roles, and ttl) to generate a host certificate.
+func (s *AuthServer) GenerateHostCert(hostPublicKey []byte, hostID, nodeName, clusterName string, roles teleport.Roles, ttl time.Duration) ([]byte, error) {
+	// get the certificate authority that will be signing the public key of the host
 	ca, err := s.Trust.GetCertAuthority(services.CertAuthID{
 		Type:       services.HostCA,
 		DomainName: s.DomainName,
@@ -197,11 +183,23 @@ func (s *AuthServer) GenerateHostCert(key []byte, hostID, authDomain string, rol
 	if err != nil {
 		return nil, trace.BadParameter("failed to load host CA for '%s': %v", s.DomainName, err)
 	}
-	privateKey, err := ca.FirstSigningKey()
+
+	// get the private key of the certificate authority
+	caPrivateKey, err := ca.FirstSigningKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return s.Authority.GenerateHostCert(privateKey, key, hostID, authDomain, roles, ttl)
+
+	// create and sign!
+	return s.Authority.GenerateHostCert(services.CertParams{
+		PrivateCASigningKey: caPrivateKey,
+		PublicHostKey:       hostPublicKey,
+		HostID:              hostID,
+		NodeName:            nodeName,
+		ClusterName:         clusterName,
+		Roles:               roles,
+		TTL:                 ttl,
+	})
 }
 
 // GenerateUserCert generates user certificate, it takes pkey as a signing
@@ -274,7 +272,7 @@ func (s *AuthServer) withUserLock(username string, authenticateFn func() error) 
 	return trace.AccessDenied(message)
 }
 
-func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
+func (s *AuthServer) SignIn(user string, password []byte) (services.WebSession, error) {
 	err := s.withUserLock(user, func() error {
 		return s.CheckPasswordWOToken(user, password)
 	})
@@ -286,7 +284,7 @@ func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
 
 // PreAuthenticatedSignIn is for 2-way authentication methods like U2F where the password is
 // already checked before issueing the second factor challenge
-func (s *AuthServer) PreAuthenticatedSignIn(user string) (*Session, error) {
+func (s *AuthServer) PreAuthenticatedSignIn(user string) (services.WebSession, error) {
 	sess, err := s.NewWebSession(user)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -294,8 +292,7 @@ func (s *AuthServer) PreAuthenticatedSignIn(user string) (*Session, error) {
 	if err := s.UpsertWebSession(user, sess, WebSessionTTL); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess.WS.Priv = nil
-	return sess, nil
+	return sess.WithoutSecrets(), nil
 }
 
 func (s *AuthServer) U2FSignRequest(user string, password []byte) (*u2f.SignRequest, error) {
@@ -367,7 +364,7 @@ func (s *AuthServer) CheckU2FSignResponse(user string, response *u2f.SignRespons
 
 // ExtendWebSession creates a new web session for a user based on a valid previous sessionID,
 // method is used to renew the web session for a user
-func (s *AuthServer) ExtendWebSession(user string, prevSessionID string) (*Session, error) {
+func (s *AuthServer) ExtendWebSession(user string, prevSessionID string) (services.WebSession, error) {
 	prevSession, err := s.GetWebSession(user, prevSessionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -376,7 +373,7 @@ func (s *AuthServer) ExtendWebSession(user string, prevSessionID string) (*Sessi
 	// consider absolute expiry time that may be set for this session
 	// by some external identity serivce, so we can not renew this session
 	// any more without extra logic for renewal with external OIDC provider
-	expiresAt := prevSession.ExpiresAt
+	expiresAt := prevSession.GetExpiryTime()
 	if !expiresAt.IsZero() && expiresAt.Before(s.clock.Now().UTC()) {
 		return nil, trace.NotFound("web session has expired")
 	}
@@ -386,17 +383,20 @@ func (s *AuthServer) ExtendWebSession(user string, prevSessionID string) (*Sessi
 		return nil, trace.Wrap(err)
 	}
 	sessionTTL := minTTL(toTTL(s.clock, expiresAt), WebSessionTTL)
-	sess.ExpiresAt = expiresAt
+	sess.SetExpiryTime(expiresAt)
 	if err := s.UpsertWebSession(user, sess, sessionTTL); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess.WS.Priv = nil
+	sess, err = services.GetWebSessionMarshaler().ExtendWebSession(sess)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return sess, nil
 }
 
 // CreateWebSession creates a new web session for user without any
 // checks, is used by admins
-func (s *AuthServer) CreateWebSession(user string) (*Session, error) {
+func (s *AuthServer) CreateWebSession(user string) (services.WebSession, error) {
 	sess, err := s.NewWebSession(user)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -404,7 +404,10 @@ func (s *AuthServer) CreateWebSession(user string) (*Session, error) {
 	if err := s.UpsertWebSession(user, sess, WebSessionTTL); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess.WS.Priv = nil
+	sess, err = services.GetWebSessionMarshaler().GenerateWebSession(sess)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return sess, nil
 }
 
@@ -424,20 +427,19 @@ func (s *AuthServer) GenerateToken(roles teleport.Roles, ttl time.Duration) (str
 	return token, nil
 }
 
-// GenerateServerKeys generates private key and certificate signed
-// by the host certificate authority, listing the role of this server
-func (s *AuthServer) GenerateServerKeys(hostID string, roles teleport.Roles) (*PackedKeys, error) {
+// GenerateServerKeys generates new host private keys and certificates (signed
+// by the host certificate authority) for a node.
+func (s *AuthServer) GenerateServerKeys(hostID string, nodeName string, roles teleport.Roles) (*PackedKeys, error) {
+	// generate private key
 	k, pub, err := s.GenerateKeyPair("")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// we always append authority's domain to resulting node name,
-	// that's how we make sure that nodes are uniquely identified/found
-	// in cases when we have multiple environments/organizations
-	fqdn := fmt.Sprintf("%s.%s", hostID, s.DomainName)
-	c, err := s.GenerateHostCert(pub, fqdn, s.DomainName, roles, 0)
+
+	// generate host certificate with an infinite ttl
+	c, err := s.GenerateHostCert(pub, hostID, nodeName, s.DomainName, roles, 0)
 	if err != nil {
-		log.Warningf("[AUTH] Node `%v` cannot join: cert generation error. %v", hostID, err)
+		log.Warningf("[AUTH] Node %q [%v] can not join: certificate generation error: %v", nodeName, hostID, err)
 		return nil, trace.Wrap(err)
 	}
 
@@ -492,36 +494,42 @@ func (s *AuthServer) checkTokenTTL(token string) bool {
 // If a token was generated with a TTL, it gets enforced (can't register new nodes after TTL expires)
 // If a token was generated with a TTL=0, it means it's a single-use token and it gets destroyed
 // after a successful registration.
-func (s *AuthServer) RegisterUsingToken(token, hostID string, role teleport.Role) (*PackedKeys, error) {
-	log.Infof("[AUTH] Node `%v` is trying to join as %v", hostID, role)
+func (s *AuthServer) RegisterUsingToken(token, hostID string, nodeName string, role teleport.Role) (*PackedKeys, error) {
+	log.Infof("[AUTH] Node %q [%v] trying to join with role: %v", nodeName, hostID, role)
 	if hostID == "" {
 		return nil, trace.BadParameter("HostID cannot be empty")
 	}
+
 	if err := role.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// make sure the token is valid:
+
+	// make sure the token is valid
 	roles, err := s.ValidateToken(token)
 	if err != nil {
-		msg := fmt.Sprintf("`%v` cannot join the cluster as %s. Token error: %v", hostID, role, err)
+		msg := fmt.Sprintf("%q [%v] can not join the cluster with role %s, token error: %v", nodeName, hostID, role, err)
 		log.Warnf("[AUTH] %s", msg)
 		return nil, trace.AccessDenied(msg)
 	}
-	// make sure the caller is requested wthe role allowed by the token:
+
+	// make sure the caller is requested wthe role allowed by the token
 	if !roles.Include(role) {
-		msg := fmt.Sprintf("'%v' cannot join the cluster, the token does not allow '%s' role", hostID, role)
+		msg := fmt.Sprintf("%q [%v] can not join the cluster, the token does not allow %q role", nodeName, hostID, role)
 		log.Warningf("[AUTH] %s", msg)
 		return nil, trace.BadParameter(msg)
 	}
 	if !s.checkTokenTTL(token) {
-		return nil, trace.AccessDenied("'%v' cannot join the cluster. The token has expired", hostID)
+		return nil, trace.AccessDenied("%q [%v] can not join the cluster. Token has expired", nodeName, hostID)
 	}
-	// generate & return the node cert:
-	keys, err := s.GenerateServerKeys(hostID, teleport.Roles{role})
+
+	// generate and return host certificate and keys
+	keys, err := s.GenerateServerKeys(hostID, nodeName, teleport.Roles{role})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Infof("[AUTH] Node `%v` joined the cluster", hostID)
+
+	log.Infof("[AUTH] Node %q [%v] joined the cluster", nodeName, hostID)
+
 	return keys, nil
 }
 
@@ -584,7 +592,7 @@ func (s *AuthServer) GetTokens() (tokens []services.ProvisionToken, err error) {
 	return tokens, nil
 }
 
-func (s *AuthServer) NewWebSession(userName string) (*Session, error) {
+func (s *AuthServer) NewWebSession(userName string) (services.WebSession, error) {
 	token, err := utils.CryptoRandomHex(TokenLenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -629,54 +637,29 @@ func (s *AuthServer) NewWebSession(userName string) (*Session, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess := &Session{
-		ID:       token,
-		Username: user.GetName(),
-		WS: services.WebSession{
-			Priv:        priv,
-			Pub:         cert,
-			Expires:     s.clock.Now().UTC().Add(WebSessionTTL),
-			BearerToken: bearerToken,
-		},
-	}
-	return sess, nil
+	return services.NewWebSession(token, services.WebSessionSpecV2{
+		User:        user.GetName(),
+		Priv:        priv,
+		Pub:         cert,
+		Expires:     s.clock.Now().UTC().Add(WebSessionTTL),
+		BearerToken: bearerToken,
+	}), nil
 }
 
-func (s *AuthServer) UpsertWebSession(user string, sess *Session, ttl time.Duration) error {
-	return s.Identity.UpsertWebSession(user, sess.ID, sess.WS, ttl)
+func (s *AuthServer) UpsertWebSession(user string, sess services.WebSession, ttl time.Duration) error {
+	return s.Identity.UpsertWebSession(user, sess.GetName(), sess, ttl)
 }
 
-func (s *AuthServer) GetWebSession(userName string, id string) (*Session, error) {
-	ws, err := s.Identity.GetWebSession(userName, id)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	user, err := s.GetUser(userName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &Session{
-		ID:       id,
-		Username: user.GetName(),
-		WS:       *ws,
-	}, nil
+func (s *AuthServer) GetWebSession(userName string, id string) (services.WebSession, error) {
+	return s.Identity.GetWebSession(userName, id)
 }
 
-func (s *AuthServer) GetWebSessionInfo(userName string, id string) (*Session, error) {
+func (s *AuthServer) GetWebSessionInfo(userName string, id string) (services.WebSession, error) {
 	sess, err := s.Identity.GetWebSession(userName, id)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user, err := s.GetUser(userName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sess.Priv = nil
-	return &Session{
-		ID:       id,
-		Username: user.GetName(),
-		WS:       *sess,
-	}, nil
+	return sess.WithoutSecrets(), nil
 }
 
 func (s *AuthServer) DeleteNamespace(namespace string) error {
@@ -776,7 +759,7 @@ type OIDCAuthResponse struct {
 	// Identity contains validated OIDC identity
 	Identity services.OIDCIdentity `json:"identity"`
 	// Web session will be generated by auth server if requested in OIDCAuthRequest
-	Session *Session `json:"session,omitempty"`
+	Session services.WebSession `json:"session,omitempty"`
 	// Cert will be generated by certificate authority
 	Cert []byte `json:"cert,omitempty"`
 	// Req is original oidc auth request
@@ -923,8 +906,8 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		sess.ExpiresAt = ident.ExpiresAt.UTC()
 		sessionTTL := minTTL(toTTL(a.clock, ident.ExpiresAt), WebSessionTTL)
+		sess.SetExpiryTime(a.clock.Now().UTC().Add(sessionTTL))
 		if err := a.UpsertWebSession(user.GetName(), sess, sessionTTL); err != nil {
 			return nil, trace.Wrap(err)
 		}

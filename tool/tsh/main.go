@@ -96,7 +96,8 @@ func run(args []string, underTest bool) {
 	// configure CLI argument parser:
 	app := utils.InitCLIParser("tsh", "TSH: Teleport SSH client").Interspersed(false)
 	app.Flag("login", "Remote host login").Short('l').Envar("TELEPORT_LOGIN").StringVar(&cf.NodeLogin)
-	app.Flag("user", fmt.Sprintf("SSH proxy user [%s]", client.Username())).Envar("TELEPORT_USER").StringVar(&cf.Username)
+	localUser, _ := client.Username()
+	app.Flag("user", fmt.Sprintf("SSH proxy user [%s]", localUser)).Envar("TELEPORT_USER").StringVar(&cf.Username)
 	app.Flag("auth", "[EXPERIMENTAL] Use external authentication, e.g. 'google'").Envar("TELEPORT_AUTH").Hidden().StringVar(&cf.ExternalAuth)
 	app.Flag("u2f", "Use U2F as second factor").Default("false").BoolVar(&cf.U2F)
 	app.Flag("cluster", "Specify the cluster to connect").Envar("TELEPORT_SITE").StringVar(&cf.SiteName)
@@ -356,6 +357,7 @@ func onAgentStart(cf *CLIConf) {
 			Addr:        filepath.Join(os.TempDir(), fmt.Sprintf("teleport-%d.socket", pid)),
 		}
 	}
+
 	// This makes teleport agent behave exactly like ssh-agent command,
 	// the output and behavior matches the openssh behavior,
 	// so users can do 'eval $(tsh agent --proxy=<addr>&)
@@ -367,25 +369,17 @@ export SSH_AGENT_PID=%v
 # you can redirect this output into a file and call 'source' on it
 `, socketAddr.Addr, pid)
 
-	agentServer := teleagent.NewServer()
+	// create a client, a side effect of this is that it creates a
+	// client.LocalAgent that is an ssh agent with all keys from disk
+	// loaded in it
 	tc, err := makeClient(cf, true)
 	if err != nil {
 		utils.FatalError(err)
 	}
 
-	agentKeys, err := tc.LocalAgent().LoadKeys(tc.Username)
-	if err != nil {
-		utils.FatalError(err)
-	}
-	// add existing keys to the running agent for ux purposes
-	for i := range agentKeys {
-		key, err := agentKeys[i].AsAgentKey()
-		if err != nil {
-			utils.FatalError(err)
-		}
-		if err = agentServer.Add(*key); err != nil {
-			utils.FatalError(err)
-		}
+	// create a new teleport agent and start listening
+	agentServer := teleagent.AgentServer{
+		Agent: tc.LocalAgent(),
 	}
 	if err := agentServer.ListenAndServe(socketAddr); err != nil {
 		utils.FatalError(err)
