@@ -117,14 +117,6 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	srv.GET("/:version/namespaces/:namespace/sessions/:id/stream", srv.withAuth(srv.getSessionChunk))
 	srv.GET("/:version/namespaces/:namespace/sessions/:id/events", srv.withAuth(srv.getSessionEvents))
 
-	// OIDC
-	srv.POST("/:version/oidc/connectors", srv.withAuth(srv.upsertOIDCConnector))
-	srv.GET("/:version/oidc/connectors", srv.withAuth(srv.getOIDCConnectors))
-	srv.GET("/:version/oidc/connectors/:id", srv.withAuth(srv.getOIDCConnector))
-	srv.DELETE("/:version/oidc/connectors/:id", srv.withAuth(srv.deleteOIDCConnector))
-	srv.POST("/:version/oidc/requests/create", srv.withAuth(srv.createOIDCAuthRequest))
-	srv.POST("/:version/oidc/requests/validate", srv.withAuth(srv.validateOIDCAuthCallback))
-
 	// Namespaces
 	srv.POST("/:version/namespaces", srv.withAuth(srv.upsertNamespace))
 	srv.GET("/:version/namespaces", srv.withAuth(srv.getNamespaces))
@@ -136,6 +128,20 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	srv.GET("/:version/roles", srv.withAuth(srv.getRoles))
 	srv.GET("/:version/roles/:role", srv.withAuth(srv.getRole))
 	srv.DELETE("/:version/roles/:role", srv.withAuth(srv.deleteRole))
+
+	// cluster authentication preferences
+	srv.GET("/:version/authentication/preference", srv.withAuth(srv.getClusterAuthPreference))
+	srv.POST("/:version/authentication/preference", srv.withAuth(srv.setClusterAuthPreference))
+	srv.GET("/:version/authentication/preference/u2f", srv.withAuth(srv.getUniversalSecondFactor))
+	srv.POST("/:version/authentication/preference/u2f", srv.withAuth(srv.setUniversalSecondFactor))
+
+	// OIDC
+	srv.POST("/:version/oidc/connectors", srv.withAuth(srv.upsertOIDCConnector))
+	srv.GET("/:version/oidc/connectors", srv.withAuth(srv.getOIDCConnectors))
+	srv.GET("/:version/oidc/connectors/:id", srv.withAuth(srv.getOIDCConnector))
+	srv.DELETE("/:version/oidc/connectors/:id", srv.withAuth(srv.deleteOIDCConnector))
+	srv.POST("/:version/oidc/requests/create", srv.withAuth(srv.createOIDCAuthRequest))
+	srv.POST("/:version/oidc/requests/validate", srv.withAuth(srv.validateOIDCAuthCallback))
 
 	// U2F
 	srv.GET("/:version/u2f/signuptokens/:token", srv.withAuth(srv.getSignupU2FRegisterRequest))
@@ -750,12 +756,13 @@ func (s *APIServer) getDomainName(auth ClientI, w http.ResponseWriter, r *http.R
 
 // getU2FAppID returns the U2F AppID in the auth configuration
 func (s *APIServer) getU2FAppID(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	appID, err := auth.GetU2FAppID()
+	universalSecondFactor, err := auth.GetUniversalSecondFactor()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	w.Header().Set("Content-Type", "application/fido.trusted-apps+json")
-	return appID, nil
+	return universalSecondFactor.GetAppID(), nil
 }
 
 func (s *APIServer) deleteCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
@@ -1255,6 +1262,74 @@ func (s *APIServer) deleteRole(auth ClientI, w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 	return message(fmt.Sprintf("role '%v' deleted", role)), nil
+}
+
+func (s *APIServer) getClusterAuthPreference(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	cap, err := auth.GetClusterAuthPreference()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rawMessage(services.GetAuthPreferenceMarshaler().Marshal(cap, services.WithVersion(version)))
+}
+
+type setClusterAuthPreferenceReq struct {
+	ClusterAuthPreference json.RawMessage `json:"cluster_auth_prerference"`
+}
+
+func (s *APIServer) setClusterAuthPreference(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	var req *setClusterAuthPreferenceReq
+
+	err := httplib.ReadJSON(r, &req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cap, err := services.GetAuthPreferenceMarshaler().Unmarshal(req.ClusterAuthPreference)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = auth.SetClusterAuthPreference(cap)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return message(fmt.Sprintf("cluster authenticaton preference set: %+v", cap)), nil
+}
+
+func (s *APIServer) getUniversalSecondFactor(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	universalSecondFactor, err := auth.GetUniversalSecondFactor()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rawMessage(services.GetUniversalSecondFactorMarshaler().Marshal(universalSecondFactor, services.WithVersion(version)))
+}
+
+type setUniversalSecondFactorReq struct {
+	UniversalSecondFactor json.RawMessage `json:"universal_second_factor"`
+}
+
+func (s *APIServer) setUniversalSecondFactor(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	var req *setUniversalSecondFactorReq
+
+	err := httplib.ReadJSON(r, &req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	universalSecondFactor, err := services.GetUniversalSecondFactorMarshaler().Unmarshal(req.UniversalSecondFactor)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = auth.SetUniversalSecondFactor(universalSecondFactor)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return message(fmt.Sprintf("universal second factor set: %+v", universalSecondFactor)), nil
 }
 
 func message(msg string) map[string]interface{} {

@@ -1131,6 +1131,62 @@ func (c *Client) DeleteRole(name string) error {
 	return trace.Wrap(err)
 }
 
+func (c *Client) GetClusterAuthPreference() (services.AuthPreference, error) {
+	out, err := c.Get(c.Endpoint("authentication", "preferences"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cap, err := services.GetAuthPreferenceMarshaler().Unmarshal(out.Bytes())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return cap, nil
+}
+
+func (c *Client) SetClusterAuthPreference(cap services.AuthPreference) error {
+	data, err := services.GetAuthPreferenceMarshaler().Marshal(cap)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = c.PostJSON(c.Endpoint("authentication", "preferences"), &setClusterAuthPreferenceReq{ClusterAuthPreference: data})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (c *Client) GetUniversalSecondFactor() (services.UniversalSecondFactor, error) {
+	out, err := c.Get(c.Endpoint("authentication", "preferences", "u2f"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	universalSecondFactor, err := services.GetUniversalSecondFactorMarshaler().Unmarshal(out.Bytes())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return universalSecondFactor, nil
+}
+
+func (c *Client) SetUniversalSecondFactor(universalSecondFactor services.UniversalSecondFactor) error {
+	data, err := services.GetUniversalSecondFactorMarshaler().Marshal(universalSecondFactor)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = c.PostJSON(c.Endpoint("authentication", "preferences", "u2f"), &setUniversalSecondFactorReq{UniversalSecondFactor: data})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
@@ -1145,7 +1201,7 @@ type WebService interface {
 	DeleteWebSession(user string, sid string) error
 }
 
-// IdentityService manages identities and userse
+// IdentityService manages identities and users
 type IdentityService interface {
 	// UpsertPassword updates web access password for the user
 	UpsertPassword(user string, password []byte) error
@@ -1179,9 +1235,6 @@ type IdentityService interface {
 
 	// PreAuthenticatedSignIn is used get web session for a user that is already authenticated
 	PreAuthenticatedSignIn(user string) (services.WebSession, error)
-
-	// GetU2FAppID returns U2F settings, like App ID and Facets
-	GetU2FAppID() (string, error)
 
 	// GetUser returns user by name
 	GetUser(name string) (services.User, error)
@@ -1270,6 +1323,8 @@ type ClientI interface {
 	services.Access
 	WebService
 	session.Service
+	services.ClusterAuthPreference
+	services.UniversalSecondFactorSettings
 
 	GetDomainName() (string, error)
 }

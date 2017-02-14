@@ -87,6 +87,12 @@ type InitConfig struct {
 	// Access is service controlling access to resources
 	Access services.Access
 
+	// ClusterAuthPreferenceService is a service to get and set authentication preferences.
+	ClusterAuthPreferenceService services.ClusterAuthPreference
+
+	// UniversalSecondFactorService is a service to get and set universal second factor settings.
+	UniversalSecondFactorService services.UniversalSecondFactorSettings
+
 	// Roles is a set of roles to create
 	Roles []services.Role
 
@@ -94,8 +100,12 @@ type InitConfig struct {
 	// environments where paranoid security is not needed
 	StaticTokens []services.ProvisionToken
 
-	// U2F is the configuration of the U2F 2 factor authentication
-	U2F services.U2F
+	// AuthPreference defines the authentication type (local, oidc) and second
+	// factor (off, otp, u2f) passed in from a configuration file.
+	AuthPreference services.AuthPreference
+
+	// U2F defines U2F application ID and any facets passed in from a configuration file.
+	U2F services.UniversalSecondFactor
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -125,6 +135,43 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 	// we skip certain configuration if 'seed_config' is set to true
 	// and this is NOT the first time teleport starts on this machine
 	skipConfig := seedConfig && !firstStart
+
+	// set the cluster auth prerference, the first time read them from the config
+	// and create a resource on the backend, after that always read from the backend
+	if !skipConfig {
+		log.Infof("Initializing Cluster Authentication Preference: %+v", cfg.AuthPreference)
+		err = asrv.SetClusterAuthPreference(cfg.AuthPreference)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		log.Infof("Initializing Universal Second Factor Settings: %+v", cfg.U2F)
+		if cfg.U2F != nil {
+			err = asrv.SetUniversalSecondFactor(cfg.U2F)
+			if err != nil {
+				return nil, nil, trace.Wrap(err)
+			}
+		}
+	}
+
+	// migrate: if U2F is set, but we don't have anything set on the backend, do a migration
+	// because the old configuration file format is probably being used.
+	if cfg.U2F != nil {
+		// check if we already have something set on the backend
+		_, err = asrv.GetUniversalSecondFactor()
+		if err != nil {
+			// if we have an error other than IsNotFound return it right away
+			if !trace.IsNotFound(err) {
+				return nil, nil, trace.Wrap(err)
+			}
+
+			// if the error was not found, then try and set it on the backend
+			err = asrv.SetUniversalSecondFactor(cfg.U2F)
+			if err != nil {
+				return nil, nil, trace.Wrap(err)
+			}
+		}
+	}
 
 	// add trusted authorities from the configuration into the trust backend:
 	keepMap := make(map[string]int, 0)

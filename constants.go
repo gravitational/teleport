@@ -72,18 +72,24 @@ const (
 	// pining each other with it:
 	KeepAliveReqType = "keepalive@openssh.com"
 
-	// OTP means One-time Password Algorithm.
+	// OTP means One-time Password Algorithm for Two-Factor Authentication.
 	OTP = "otp"
 
-	// TOTP means Time-based One-time Password Algorithm.
+	// TOTP means Time-based One-time Password Algorithm. for Two-Factor Authentication.
 	TOTP = "totp"
 
-	// HOTP means HMAC-based One-time Password Algorithm.
+	// HOTP means HMAC-based One-time Password Algorithm.for Two-Factor Authentication.
 	HOTP = "hotp"
 
-	// U2F means Universal 2nd Factor.
+	// U2F means Universal 2nd Factor.for Two-Factor Authentication.
 	U2F = "u2f"
 
-	// OIDC means OpenID Connect.
+	// OFF means no second factor.for Two-Factor Authentication.
+	OFF = "off"
+
+	// Local means authentication will happen locally within the Teleport cluster.
+	Local = "local"
+
+	// OIDC means authentication will happen remotly using an OIDC connector.
 	OIDC = "oidc"
 )
