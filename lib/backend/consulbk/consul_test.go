@@ -17,17 +17,16 @@ limitations under the License.
 package consulbk
 
 import (
-	"net/http"
-	"sort"
+	"fmt"
 	"strings"
-	"time"
+	"testing"
 
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	consul "github.com/hashicorp/consul/api"
+	. "gopkg.in/check.v1"
 )
 
 func TestConsul(t *testing.T) { TestingT(t) }
@@ -64,7 +63,7 @@ func (s *ConsulSuite) SetUpTest(c *C) {
 	}
 
 	// Delete all values under the given prefix
-	_, err := b.kv.DeleteTree(b.cfg.Key, nil)
+	_, err := s.bk.kv.DeleteTree(s.bk.cfg.Key, nil)
 	err = convertErr(err)
 	if err != nil && !trace.IsNotFound(err) {
 		if strings.Contains(err.Error(), "cluster is unavailable") {
@@ -74,13 +73,9 @@ func (s *ConsulSuite) SetUpTest(c *C) {
 		}
 		c.Assert(err, IsNil)
 	}
-
-	// Set up suite
-	s.suite.ChangesC = s.changesC
 }
 
 func (s *ConsulSuite) TearDownTest(c *C) {
-	close(s.stopC)
 	c.Assert(s.bk.Close(), IsNil)
 }
 
