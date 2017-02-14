@@ -29,7 +29,7 @@ func IdentityFromClaims(claims jose.Claims) (*Identity, error) {
 		return nil, errors.New("missing required claim: sub")
 	}
 
-	if ident.Email, _, err = claims.StringClaim("email"); err != nil {
+	if ident.Email, _, err = claims.StringClaim("upn"); err != nil {
 		return nil, err
 	}
 
