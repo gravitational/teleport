@@ -554,7 +554,7 @@ func (c *Client) CheckPassword(user string, password []byte, otpToken string) er
 
 // SignIn checks if the web access password is valid, and if it is valid
 // returns a secure web session id.
-func (c *Client) SignIn(user string, password []byte) (*Session, error) {
+func (c *Client) SignIn(user string, password []byte) (services.WebSession, error) {
 	out, err := c.PostJSON(
 		c.Endpoint("users", user, "web", "signin"),
 		signInReq{
@@ -564,17 +564,12 @@ func (c *Client) SignIn(user string, password []byte) (*Session, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	var sess *Session
-	if err := json.Unmarshal(out.Bytes(), &sess); err != nil {
-		return nil, err
-	}
-	return sess, nil
+	return services.GetWebSessionMarshaler().UnmarshalWebSession(out.Bytes())
 }
 
 // PreAuthenticatedSignIn is for 2-way authentication methods like U2F where the password is
 // already checked before issueing the second factor challenge
-func (c *Client) PreAuthenticatedSignIn(user string) (*Session, error) {
+func (c *Client) PreAuthenticatedSignIn(user string) (services.WebSession, error) {
 	out, err := c.Get(
 		c.Endpoint("users", user, "web", "signin", "preauth"),
 		url.Values{},
@@ -582,11 +577,7 @@ func (c *Client) PreAuthenticatedSignIn(user string) (*Session, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var sess *Session
-	if err := json.Unmarshal(out.Bytes(), &sess); err != nil {
-		return nil, err
-	}
-	return sess, nil
+	return services.GetWebSessionMarshaler().UnmarshalWebSession(out.Bytes())
 }
 
 // GetU2FSignRequest generates request for user trying to authenticate with U2F token
@@ -609,7 +600,7 @@ func (c *Client) GetU2FSignRequest(user string, password []byte) (*u2f.SignReque
 
 // ExtendWebSession creates a new web session for a user based on another
 // valid web session
-func (c *Client) ExtendWebSession(user string, prevSessionID string) (*Session, error) {
+func (c *Client) ExtendWebSession(user string, prevSessionID string) (services.WebSession, error) {
 	out, err := c.PostJSON(
 		c.Endpoint("users", user, "web", "sessions"),
 		createWebSessionReq{
@@ -619,15 +610,11 @@ func (c *Client) ExtendWebSession(user string, prevSessionID string) (*Session, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var sess *Session
-	if err := json.Unmarshal(out.Bytes(), &sess); err != nil {
-		return nil, err
-	}
-	return sess, nil
+	return services.GetWebSessionMarshaler().UnmarshalWebSession(out.Bytes())
 }
 
 // CreateWebSession creates a new web session for a user
-func (c *Client) CreateWebSession(user string) (*Session, error) {
+func (c *Client) CreateWebSession(user string) (services.WebSession, error) {
 	out, err := c.PostJSON(
 		c.Endpoint("users", user, "web", "sessions"),
 		createWebSessionReq{},
@@ -635,26 +622,18 @@ func (c *Client) CreateWebSession(user string) (*Session, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var sess *Session
-	if err := json.Unmarshal(out.Bytes(), &sess); err != nil {
-		return nil, err
-	}
-	return sess, nil
+	return services.GetWebSessionMarshaler().UnmarshalWebSession(out.Bytes())
 }
 
 // GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
 // it is valid, or error otherwise.
-func (c *Client) GetWebSessionInfo(user string, sid string) (*Session, error) {
+func (c *Client) GetWebSessionInfo(user string, sid string) (services.WebSession, error) {
 	out, err := c.Get(
 		c.Endpoint("users", user, "web", "sessions", sid), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var sess *Session
-	if err := json.Unmarshal(out.Bytes(), &sess); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return sess, nil
+	return services.GetWebSessionMarshaler().UnmarshalWebSession(out.Bytes())
 }
 
 // DeleteWebSession deletes a web session for this user by id
@@ -820,7 +799,7 @@ func (c *Client) GetSignupU2FRegisterRequest(token string) (u2fRegisterRequest *
 // CreateUserWithToken creates account with provided token and password.
 // Account username and OTP key are taken from token data.
 // Deletes token after account creation.
-func (c *Client) CreateUserWithToken(token, password, otpToken string) (*Session, error) {
+func (c *Client) CreateUserWithToken(token, password, otpToken string) (services.WebSession, error) {
 	out, err := c.PostJSON(c.Endpoint("signuptokens", "users"), createUserWithTokenReq{
 		Token:    token,
 		Password: password,
@@ -829,17 +808,11 @@ func (c *Client) CreateUserWithToken(token, password, otpToken string) (*Session
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	var sess *Session
-	if err := json.Unmarshal(out.Bytes(), &sess); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return sess, nil
+	return services.GetWebSessionMarshaler().UnmarshalWebSession(out.Bytes())
 }
 
 // CreateUserWithU2FToken creates user account with provided token and U2F sign response
-func (c *Client) CreateUserWithU2FToken(token string, password string, u2fRegisterResponse u2f.RegisterResponse) (*Session, error) {
+func (c *Client) CreateUserWithU2FToken(token string, password string, u2fRegisterResponse u2f.RegisterResponse) (services.WebSession, error) {
 	out, err := c.PostJSON(c.Endpoint("u2f", "users"), createUserWithU2FTokenReq{
 		Token:               token,
 		Password:            password,
@@ -848,11 +821,7 @@ func (c *Client) CreateUserWithU2FToken(token string, password string, u2fRegist
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var sess *Session
-	if err := json.Unmarshal(out.Bytes(), &sess); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return sess, nil
+	return services.GetWebSessionMarshaler().UnmarshalWebSession(out.Bytes())
 }
 
 // UpsertOIDCConnector updates or creates OIDC connector
@@ -945,9 +914,15 @@ func (c *Client) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, erro
 	response := OIDCAuthResponse{
 		Username: rawResponse.Username,
 		Identity: rawResponse.Identity,
-		Session:  rawResponse.Session,
 		Cert:     rawResponse.Cert,
 		Req:      rawResponse.Req,
+	}
+	if len(rawResponse.Session) != 0 {
+		session, err := services.GetWebSessionMarshaler().UnmarshalWebSession(rawResponse.Session)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		response.Session = session
 	}
 	response.HostSigners = make([]services.CertAuthority, len(rawResponse.HostSigners))
 	for i, raw := range rawResponse.HostSigners {
@@ -1160,12 +1135,12 @@ func (c *Client) DeleteRole(name string) error {
 type WebService interface {
 	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
 	// it is valid, or error otherwise.
-	GetWebSessionInfo(user string, sid string) (*Session, error)
+	GetWebSessionInfo(user string, sid string) (services.WebSession, error)
 	// ExtendWebSession creates a new web session for a user based on another
 	// valid web session
-	ExtendWebSession(user string, prevSessionID string) (*Session, error)
+	ExtendWebSession(user string, prevSessionID string) (services.WebSession, error)
 	// CreateWebSession creates a new web session for a user
-	CreateWebSession(user string) (*Session, error)
+	CreateWebSession(user string) (services.WebSession, error)
 	// DeleteWebSession deletes a web session for this user by id
 	DeleteWebSession(user string, sid string) error
 }
@@ -1200,10 +1175,10 @@ type IdentityService interface {
 	GetSignupU2FRegisterRequest(token string) (*u2f.RegisterRequest, error)
 
 	// CreateUserWithU2FToken creates user account with provided token and U2F sign response
-	CreateUserWithU2FToken(token string, password string, u2fRegisterResponse u2f.RegisterResponse) (*Session, error)
+	CreateUserWithU2FToken(token string, password string, u2fRegisterResponse u2f.RegisterResponse) (services.WebSession, error)
 
 	// PreAuthenticatedSignIn is used get web session for a user that is already authenticated
-	PreAuthenticatedSignIn(user string) (*Session, error)
+	PreAuthenticatedSignIn(user string) (services.WebSession, error)
 
 	// GetU2FAppID returns U2F settings, like App ID and Facets
 	GetU2FAppID() (string, error)
@@ -1225,12 +1200,12 @@ type IdentityService interface {
 
 	// SignIn checks if the web access password is valid, and if it is valid
 	// returns a secure web session id.
-	SignIn(user string, password []byte) (*Session, error)
+	SignIn(user string, password []byte) (services.WebSession, error)
 
 	// CreateUserWithToken creates account with provided token and password.
 	// Account username and OTP key are taken from token data.
 	// Deletes token after account creation.
-	CreateUserWithToken(token, password, otpToken string) (*Session, error)
+	CreateUserWithToken(token, password, otpToken string) (services.WebSession, error)
 
 	// GenerateToken creates a special provisioning token for a new SSH server
 	// that is valid for ttl period seconds.

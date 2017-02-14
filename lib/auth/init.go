@@ -129,7 +129,6 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 	// add trusted authorities from the configuration into the trust backend:
 	keepMap := make(map[string]int, 0)
 	if !skipConfig {
-
 		log.Infof("Initializing roles")
 		for _, role := range cfg.Roles {
 			if err := asrv.UpsertRole(role); err != nil {
@@ -138,7 +137,12 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 		}
 
 		log.Infof("Initializing cert authorities")
-		for _, ca := range cfg.Authorities {
+		for i := range cfg.Authorities {
+			ca := cfg.Authorities[i]
+			ca, err = services.GetCertAuthorityMarshaler().GenerateCertAuthority(ca)
+			if err != nil {
+				return nil, nil, trace.Wrap(err)
+			}
 			if err := asrv.Trust.UpsertCertAuthority(ca, backend.Forever); err != nil {
 				return nil, nil, trace.Wrap(err)
 			}

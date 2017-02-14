@@ -79,14 +79,14 @@ func (s *AuthSuite) TestSessions(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(ws, NotNil)
 
-	out, err := s.a.GetWebSessionInfo(user, ws.ID)
+	out, err := s.a.GetWebSessionInfo(user, ws.GetName())
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, ws)
 
-	err = s.a.DeleteWebSession(user, ws.ID)
+	err = s.a.DeleteWebSession(user, ws.GetName())
 	c.Assert(err, IsNil)
 
-	_, err = s.a.GetWebSession(user, ws.ID)
+	_, err = s.a.GetWebSession(user, ws.GetName())
 	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
 }
 

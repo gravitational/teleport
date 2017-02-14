@@ -65,22 +65,6 @@ type Authority interface {
 	GenerateUserCert(pkey, key []byte, teleportUsername string, allowedLogins []string, ttl time.Duration) ([]byte, error)
 }
 
-// Session is a web session context, stores temporary key-value pair and session id
-type Session struct {
-	// ID is a session ID
-	ID string `json:"id"`
-	// Username is a user this session belongs to
-	Username string `json:"username"`
-	// ExpiresAt is an optional expiry time, if set
-	// that means this web session and all derived web sessions
-	// can not continue after this time, used in OIDC use case
-	// when expiry is set by external identity provider, so user
-	// has to relogin (or later on we'd need to refresh the token)
-	ExpiresAt time.Time `json:"expires_at"`
-	// WS is a private keypair used for signing requests
-	WS services.WebSession `json:"web"`
-}
-
 // AuthServerOption allows setting options as functional arguments to AuthServer
 type AuthServerOption func(*AuthServer)
 
@@ -288,7 +272,7 @@ func (s *AuthServer) withUserLock(username string, authenticateFn func() error) 
 	return trace.AccessDenied(message)
 }
 
-func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
+func (s *AuthServer) SignIn(user string, password []byte) (services.WebSession, error) {
 	err := s.withUserLock(user, func() error {
 		return s.CheckPasswordWOToken(user, password)
 	})
@@ -300,7 +284,7 @@ func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
 
 // PreAuthenticatedSignIn is for 2-way authentication methods like U2F where the password is
 // already checked before issueing the second factor challenge
-func (s *AuthServer) PreAuthenticatedSignIn(user string) (*Session, error) {
+func (s *AuthServer) PreAuthenticatedSignIn(user string) (services.WebSession, error) {
 	sess, err := s.NewWebSession(user)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -308,8 +292,7 @@ func (s *AuthServer) PreAuthenticatedSignIn(user string) (*Session, error) {
 	if err := s.UpsertWebSession(user, sess, WebSessionTTL); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess.WS.Priv = nil
-	return sess, nil
+	return sess.WithoutSecrets(), nil
 }
 
 func (s *AuthServer) U2FSignRequest(user string, password []byte) (*u2f.SignRequest, error) {
@@ -381,7 +364,7 @@ func (s *AuthServer) CheckU2FSignResponse(user string, response *u2f.SignRespons
 
 // ExtendWebSession creates a new web session for a user based on a valid previous sessionID,
 // method is used to renew the web session for a user
-func (s *AuthServer) ExtendWebSession(user string, prevSessionID string) (*Session, error) {
+func (s *AuthServer) ExtendWebSession(user string, prevSessionID string) (services.WebSession, error) {
 	prevSession, err := s.GetWebSession(user, prevSessionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -390,7 +373,7 @@ func (s *AuthServer) ExtendWebSession(user string, prevSessionID string) (*Sessi
 	// consider absolute expiry time that may be set for this session
 	// by some external identity serivce, so we can not renew this session
 	// any more without extra logic for renewal with external OIDC provider
-	expiresAt := prevSession.ExpiresAt
+	expiresAt := prevSession.GetExpiryTime()
 	if !expiresAt.IsZero() && expiresAt.Before(s.clock.Now().UTC()) {
 		return nil, trace.NotFound("web session has expired")
 	}
@@ -400,17 +383,20 @@ func (s *AuthServer) ExtendWebSession(user string, prevSessionID string) (*Sessi
 		return nil, trace.Wrap(err)
 	}
 	sessionTTL := minTTL(toTTL(s.clock, expiresAt), WebSessionTTL)
-	sess.ExpiresAt = expiresAt
+	sess.SetExpiryTime(expiresAt)
 	if err := s.UpsertWebSession(user, sess, sessionTTL); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess.WS.Priv = nil
+	sess, err = services.GetWebSessionMarshaler().ExtendWebSession(sess)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return sess, nil
 }
 
 // CreateWebSession creates a new web session for user without any
 // checks, is used by admins
-func (s *AuthServer) CreateWebSession(user string) (*Session, error) {
+func (s *AuthServer) CreateWebSession(user string) (services.WebSession, error) {
 	sess, err := s.NewWebSession(user)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -418,7 +404,10 @@ func (s *AuthServer) CreateWebSession(user string) (*Session, error) {
 	if err := s.UpsertWebSession(user, sess, WebSessionTTL); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess.WS.Priv = nil
+	sess, err = services.GetWebSessionMarshaler().GenerateWebSession(sess)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return sess, nil
 }
 
@@ -603,7 +592,7 @@ func (s *AuthServer) GetTokens() (tokens []services.ProvisionToken, err error) {
 	return tokens, nil
 }
 
-func (s *AuthServer) NewWebSession(userName string) (*Session, error) {
+func (s *AuthServer) NewWebSession(userName string) (services.WebSession, error) {
 	token, err := utils.CryptoRandomHex(TokenLenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -648,54 +637,29 @@ func (s *AuthServer) NewWebSession(userName string) (*Session, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess := &Session{
-		ID:       token,
-		Username: user.GetName(),
-		WS: services.WebSession{
-			Priv:        priv,
-			Pub:         cert,
-			Expires:     s.clock.Now().UTC().Add(WebSessionTTL),
-			BearerToken: bearerToken,
-		},
-	}
-	return sess, nil
+	return services.NewWebSession(token, services.WebSessionSpecV2{
+		User:        user.GetName(),
+		Priv:        priv,
+		Pub:         cert,
+		Expires:     s.clock.Now().UTC().Add(WebSessionTTL),
+		BearerToken: bearerToken,
+	}), nil
 }
 
-func (s *AuthServer) UpsertWebSession(user string, sess *Session, ttl time.Duration) error {
-	return s.Identity.UpsertWebSession(user, sess.ID, sess.WS, ttl)
+func (s *AuthServer) UpsertWebSession(user string, sess services.WebSession, ttl time.Duration) error {
+	return s.Identity.UpsertWebSession(user, sess.GetName(), sess, ttl)
 }
 
-func (s *AuthServer) GetWebSession(userName string, id string) (*Session, error) {
-	ws, err := s.Identity.GetWebSession(userName, id)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	user, err := s.GetUser(userName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &Session{
-		ID:       id,
-		Username: user.GetName(),
-		WS:       *ws,
-	}, nil
+func (s *AuthServer) GetWebSession(userName string, id string) (services.WebSession, error) {
+	return s.Identity.GetWebSession(userName, id)
 }
 
-func (s *AuthServer) GetWebSessionInfo(userName string, id string) (*Session, error) {
+func (s *AuthServer) GetWebSessionInfo(userName string, id string) (services.WebSession, error) {
 	sess, err := s.Identity.GetWebSession(userName, id)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user, err := s.GetUser(userName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sess.Priv = nil
-	return &Session{
-		ID:       id,
-		Username: user.GetName(),
-		WS:       *sess,
-	}, nil
+	return sess.WithoutSecrets(), nil
 }
 
 func (s *AuthServer) DeleteNamespace(namespace string) error {
@@ -795,7 +759,7 @@ type OIDCAuthResponse struct {
 	// Identity contains validated OIDC identity
 	Identity services.OIDCIdentity `json:"identity"`
 	// Web session will be generated by auth server if requested in OIDCAuthRequest
-	Session *Session `json:"session,omitempty"`
+	Session services.WebSession `json:"session,omitempty"`
 	// Cert will be generated by certificate authority
 	Cert []byte `json:"cert,omitempty"`
 	// Req is original oidc auth request
@@ -942,8 +906,8 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		sess.ExpiresAt = ident.ExpiresAt.UTC()
 		sessionTTL := minTTL(toTTL(a.clock, ident.ExpiresAt), WebSessionTTL)
+		sess.SetExpiryTime(a.clock.Now().UTC().Add(sessionTTL))
 		if err := a.UpsertWebSession(user.GetName(), sess, sessionTTL); err != nil {
 			return nil, trace.Wrap(err)
 		}

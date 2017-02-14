@@ -279,7 +279,9 @@ func (s *IdentityService) DeleteUsedTOTPToken(user string) error {
 
 // UpsertWebSession updates or inserts a web session for a user and session id
 func (s *IdentityService) UpsertWebSession(user, sid string, session services.WebSession, ttl time.Duration) error {
-	bytes, err := json.Marshal(session)
+	session.SetUser(user)
+	session.SetName(sid)
+	bytes, err := services.GetWebSessionMarshaler().MarshalWebSession(session)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -334,7 +336,7 @@ func (s *IdentityService) GetUserLoginAttempts(user string) ([]services.LoginAtt
 }
 
 // GetWebSession returns a web session state for a given user and session id
-func (s *IdentityService) GetWebSession(user, sid string) (*services.WebSession, error) {
+func (s *IdentityService) GetWebSession(user, sid string) (services.WebSession, error) {
 	val, err := s.backend.GetVal(
 		[]string{"web", "users", user, "sessions"},
 		sid,
@@ -343,13 +345,15 @@ func (s *IdentityService) GetWebSession(user, sid string) (*services.WebSession,
 		return nil, trace.Wrap(err)
 	}
 
-	var session services.WebSession
-	err = json.Unmarshal(val, &session)
+	session, err := services.GetWebSessionMarshaler().UnmarshalWebSession(val)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	return &session, nil
+	// this is for backwards compatibility to ensure we
+	// always have these values
+	session.SetUser(user)
+	session.SetName(sid)
+	return session, nil
 }
 
 // DeleteWebSession deletes web session from the storage

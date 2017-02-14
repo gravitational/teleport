@@ -346,21 +346,21 @@ func (s *APISuite) TestSessions(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(ws, Not(Equals), "")
 
-	out, err := s.clt.GetWebSessionInfo(user, ws.ID)
+	out, err := s.clt.GetWebSessionInfo(user, ws.GetName())
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, ws)
 
-	new, err := s.clt.ExtendWebSession(user, ws.ID)
+	new, err := s.clt.ExtendWebSession(user, ws.GetName())
 	c.Assert(err, IsNil)
 	c.Assert(new, NotNil)
 
-	err = s.clt.DeleteWebSession(user, ws.ID)
+	err = s.clt.DeleteWebSession(user, ws.GetName())
 	c.Assert(err, IsNil)
 
-	_, err = s.clt.GetWebSessionInfo(user, ws.ID)
+	_, err = s.clt.GetWebSessionInfo(user, ws.GetName())
 	c.Assert(err, NotNil)
 
-	_, err = s.clt.ExtendWebSession(user, ws.ID)
+	_, err = s.clt.ExtendWebSession(user, ws.GetName())
 	c.Assert(err, NotNil)
 }
 

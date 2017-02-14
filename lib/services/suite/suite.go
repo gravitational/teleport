@@ -323,25 +323,26 @@ func (s *ServicesTestSuite) WebSessionCRUD(c *C) {
 	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
 
 	dt := time.Date(2015, 6, 5, 4, 3, 2, 1, time.UTC).UTC()
-	ws := services.WebSession{
+	ws := services.NewWebSession("sid1", services.WebSessionSpecV2{
 		Pub:     []byte("pub123"),
 		Priv:    []byte("priv123"),
 		Expires: dt,
-	}
+	})
 	err = s.WebS.UpsertWebSession("user1", "sid1", ws, 0)
 	c.Assert(err, IsNil)
 
 	out, err := s.WebS.GetWebSession("user1", "sid1")
 	c.Assert(err, IsNil)
-	c.Assert(out, DeepEquals, &ws)
+	c.Assert(out, DeepEquals, ws)
 
-	ws1 := services.WebSession{Pub: []byte("pub321"), Priv: []byte("priv321"), Expires: dt}
+	ws1 := services.NewWebSession(
+		"sid1", services.WebSessionSpecV2{Pub: []byte("pub321"), Priv: []byte("priv321"), Expires: dt})
 	err = s.WebS.UpsertWebSession("user1", "sid1", ws1, 0)
 	c.Assert(err, IsNil)
 
 	out2, err := s.WebS.GetWebSession("user1", "sid1")
 	c.Assert(err, IsNil)
-	c.Assert(out2, DeepEquals, &ws1)
+	c.Assert(out2, DeepEquals, ws1)
 
 	c.Assert(s.WebS.DeleteWebSession("user1", "sid1"), IsNil)
 

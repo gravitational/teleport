@@ -239,5 +239,6 @@ func buildPrincipals(hostID string, nodeName string, clusterName string, roles t
 		principals = append(principals, fmt.Sprintf("%s.%s", nodeName, clusterName))
 	}
 
-	return principals
+	// deduplicate (in-case hostID and nodeName are the same) and return
+	return utils.Deduplicate(principals)
 }
