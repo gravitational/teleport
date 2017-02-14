@@ -35,9 +35,10 @@ type bk struct {
 	cfg    *Config
 	client *consul.Client
 
-	kv    *consul.KV
-	locks map[string]*consul.Lock
-	clock timetools.TimeProvider
+	kv      *consul.KV
+	session *consul.Session
+	locks   map[string]*consul.Lock
+	clock   timetools.TimeProvider
 }
 
 // Config represents JSON config for consul backend
@@ -143,7 +144,9 @@ func (b *bk) reconnect() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	b.kv = b.client.KV()
+	b.session = b.client.Session()
 
 	return nil
 }
@@ -170,24 +173,29 @@ func (b *bk) CreateVal(bucket []string, key string, val []byte, ttl time.Duratio
 }
 
 func (b *bk) UpsertVal(bucket []string, key string, val []byte, ttl time.Duration) error {
-	v := &value{
-		Created: b.clock.UtcNow(),
-		Value:   val,
-		TTL:     ttl,
-	}
+	v := &value{Value: val}
 	bytes, err := json.Marshal(v)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	sessionStr, _, err := b.session.Create(&consul.SessionEntry{
+		Behavior: "delete",
+		TTL:      ttl.String(),
+	}, nil)
+	if err != nil {
+		return trace.Wrap(convertErr(err))
+	}
+
 	kvpair := &consul.KVPair{
-		Key:   b.key(append(bucket, key)...),
-		Value: bytes,
+		Key:     b.key(append(bucket, key)...),
+		Value:   bytes,
+		Session: sessionStr,
 	}
 
 	_, err = b.kv.Put(kvpair, nil)
 	if err != nil {
-		return convertErr(err)
+		return trace.Wrap(convertErr(err))
 	}
 	return nil
 }
@@ -205,12 +213,6 @@ func (b *bk) GetVal(path []string, key string) ([]byte, error) {
 	err = json.Unmarshal(kvpair.Value, &v)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-	if v.TTL != 0 && b.clock.UtcNow().Sub(v.Created) > v.TTL {
-		if err := b.DeleteKey(path, key); err != nil {
-			return nil, err
-		}
-		return nil, trace.NotFound("%v: %v not found", path, key)
 	}
 	return v.Value, nil
 }
@@ -282,7 +284,5 @@ func convertErr(e error) error {
 }
 
 type value struct {
-	Created time.Time     `json:"created"`
-	TTL     time.Duration `json:"ttl"`
-	Value   []byte        `json:"val"`
+	Value []byte `json:"val"`
 }
