@@ -93,7 +93,7 @@ func (a *LocalKeyAgent) LoadKey(username string, key Key) (*agent.AddedKey, erro
 		for _, agentKey := range agentKeys {
 			err = agents[i].Add(*agentKey)
 			if err != nil {
-				return nil, trace.Wrap(err)
+				log.Warnf("Unable to communicate with agent and add key: %v", err)
 			}
 		}
 	}
@@ -115,7 +115,7 @@ func (a *LocalKeyAgent) UnloadKey(username string) error {
 		// get a list of all keys in the agent
 		keyList, err := agents[i].List()
 		if err != nil {
-			return trace.Wrap(err)
+			log.Warnf("Unable to communicate with agent and list keys: %v", err)
 		}
 
 		// remove any teleport keys we currently have loaded in the agent for this user
@@ -123,7 +123,7 @@ func (a *LocalKeyAgent) UnloadKey(username string) error {
 			if key.Comment == fmt.Sprintf("teleport:%v", username) {
 				err = agents[i].Remove(key)
 				if err != nil {
-					return trace.Wrap(err)
+					log.Warnf("Unable to communicate with agent and remove key: %v", err)
 				}
 			}
 		}
