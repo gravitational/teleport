@@ -29,7 +29,7 @@ let cfg = {
 
   auth: {
     oidc_connectors: [],
-    u2f_appid: ""
+    u2f_appid: "22"
   },
 
   routes: {
@@ -49,6 +49,7 @@ let cfg = {
     sessionPath: '/v1/webapi/sessions',
     userStatus: '/v1/webapi/user/status',
     invitePath: '/v1/webapi/users/invites/:inviteToken',
+    inviteWithOidcPath: '/v1/webapi/users/invites/oidc/validate?redirect_url=:redirect&connector_id=:provider&token=:inviteToken',
     createUserPath: '/v1/webapi/users',
     u2fCreateUserChallengePath: '/webapi/u2f/signuptokens/:inviteToken',
     u2fCreateUserPath: '/webapi/u2f/users',
@@ -98,9 +99,16 @@ let cfg = {
       return formatPattern(cfg.api.invitePath, {inviteToken});
     },
 
+    getInviteWithOidcUrl(inviteToken, provider, redirect){
+      return cfg.baseUrl + formatPattern(cfg.api.inviteWithOidcPath, {
+        redirect, provider, inviteToken
+      });
+    },
+
     getU2fCreateUserChallengeUrl(inviteToken){
       return formatPattern(cfg.api.u2fCreateUserChallengePath, {inviteToken});
     }
+
   },
 
   getFullUrl(url){
@@ -124,7 +132,7 @@ let cfg = {
   },
 
   getAuth2faType() {
-    return 'utf'
+    return 'off'
   },
 
   getU2fAppId(){

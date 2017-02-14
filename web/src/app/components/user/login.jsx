@@ -16,13 +16,14 @@ limitations under the License.
 
 import React from 'react';
 import $ from 'jQuery';
+import 'app/../assets/js/jquery-validate';
 import reactor from 'app/reactor';
 import {actions, getters} from 'app/modules/user';
 import GoogleAuthInfo from './googleAuthLogo';
 import cfg from 'app/config';
 import { TeleportLogo } from './../icons.jsx';
 import { SsoBtnList } from './ssoBtnList';
-import { Auth2faType, AuthType } from 'app/services/enums';
+import { Auth2faTypeEnum, AuthTypeEnum } from 'app/services/enums';
 
 const Login = React.createClass({
 
@@ -98,9 +99,8 @@ const LoginInputForm = React.createClass({
     }
   },
 
-  onLogin(e) {
-    e.preventDefault();
-    this.state.secondFactorType = Auth2faType.OTP;        
+  onLogin(e) {    
+    e.preventDefault();    
     if (this.isValid()) {
       let { user, password, token } = this.state;
       this.props.onLogin(user, password, token);
@@ -126,15 +126,15 @@ const LoginInputForm = React.createClass({
   },
 
   needsCredentials() {
-    return this.props.authType === AuthType.LOCAL || this.needs2fa();
+    return this.props.authType === AuthTypeEnum.LOCAL || this.needs2fa();
   },
 
   needs2fa() {
-    return !!this.props.auth2faType && this.props.auth2faType !== Auth2faType.DISABLED;
+    return !!this.props.auth2faType && this.props.auth2faType !== Auth2faTypeEnum.DISABLED;
   },
 
   render2faFields() {
-    if (!this.needs2fa() || this.props.auth2faType !== Auth2faType.OTP) {
+    if (!this.needs2fa() || this.props.auth2faType !== Auth2faTypeEnum.OTP) {
       return null;
     }
         
@@ -192,14 +192,14 @@ const LoginInputForm = React.createClass({
       return null;
     }
 
-    let $helpBlock = isProcessing && this.props.auth2faType === Auth2faType.UTF ? (
+    let $helpBlock = isProcessing && this.props.auth2faType === Auth2faTypeEnum.UTF ? (
       <div className="help-block">
         Insert your U2F key and press the button on the key
         </div>
     ) : null;
 
 
-    let onClick = this.props.auth2faType === Auth2faType.UTF ?
+    let onClick = this.props.auth2faType === Auth2faTypeEnum.UTF ?
       this.onLoginWithU2f : this.onLogin;
 
     return (
@@ -219,7 +219,7 @@ const LoginInputForm = React.createClass({
   renderSsoBtns() {    
     let { authType, authProvider, attemp } = this.props;
 
-    if (authType !== AuthType.OIDC) {
+    if (authType !== AuthTypeEnum.OIDC) {
       return null;
     }
     
@@ -271,7 +271,7 @@ LoginInputForm.propTypes = {
 }
 
 const LoginFooter = ({auth2faType}) => {
-  let $googleHint = auth2faType === Auth2faType.OTP ? <GoogleAuthInfo /> : null;
+  let $googleHint = auth2faType === Auth2faTypeEnum.OTP ? <GoogleAuthInfo /> : null;
   return (
     <div>
       {$googleHint}
@@ -285,3 +285,6 @@ const LoginFooter = ({auth2faType}) => {
 }
 
 export default Login;
+export {
+  LoginInputForm
+}

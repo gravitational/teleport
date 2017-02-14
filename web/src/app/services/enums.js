@@ -5,13 +5,13 @@ export default {
     END: 'session.end'
   },
 
-  AuthType: {
+  AuthTypeEnum: {
     LOCAL: 'local',
     OIDC: 'oidc',
     LDAP: 'ldap'
   },
 
-  Auth2faType: {
+  Auth2faTypeEnum: {
     UTF: 'utf',
     OTP: 'otp',
     DISABLED: 'off'

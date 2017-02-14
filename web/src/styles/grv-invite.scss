@@ -27,17 +27,21 @@ limitations under the License.
     height: 75px;
   }
 
-  .grv-content{
+  .grv-invite-content{
     padding: 10px;
-    width: 600px;
+    max-width: 350px;
     z-index: 100;
     margin: 0 auto;
     margin-top: 10px;
     border-radius: 6px;
     background-color: #ffffff;
 
-    .grv-invite-input-form{
-      margin-bottom: 35px;
+    &.---with-2fa-data{
+      max-width: 600px;
+    }
+
+    .grv-invite-input-form{      
+      margin-bottom: 15px;
       h3{
         margin-bottom: 20px;
       }

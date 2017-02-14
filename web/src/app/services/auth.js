@@ -43,18 +43,19 @@ const auth = {
       });
   },
 
-  u2fSignUp(name, password, inviteToken){
-    return api.get(cfg.api.getU2fCreateUserChallengeUrl(inviteToken)).then(data=>{
-      var deferred = $.Deferred();
+  signUpWithU2f(name, password, inviteToken){
+    return api.get(cfg.api.getU2fCreateUserChallengeUrl(inviteToken))
+      .then(data => {
+        let deferred = $.Deferred();
 
-      window.u2f.register(data.appId, [data], [], function(res){
-        if(res.errorCode){
-          var err = auth._getU2fErr(res.errorCode);
-          deferred.reject(err);
-          return;
+        window.u2f.register(data.appId, [data], [], function(res){        
+          if (res.errorCode) {
+            let err = auth._getU2fErr(res.errorCode);
+            deferred.reject(err);
+            return;
         }
 
-        var response = {
+        let response = {
           user: name,
           pass: password,
           u2f_register_response: res,
@@ -67,12 +68,12 @@ const auth = {
             auth._startTokenRefresher();
             deferred.resolve(data);
           })
-          .fail(data => {
-            deferred.reject(data);
+          .fail(err => {
+            deferred.reject(err);
           })
-      });
+        });
 
-      return deferred.promise();
+        return deferred.promise();        
     });
   },
 
@@ -93,7 +94,7 @@ const auth = {
     });
   },
 
-  u2fLogin(name, password){
+  loginWithU2f(name, password){
     auth._stopTokenRefresher();
     session.clear();
 
@@ -152,14 +153,16 @@ const auth = {
   logout(){
     logger.info('logout()');
     api.delete(cfg.api.sessionPath).always(()=>{
-      auth._redirect();
+      auth.redirect();
     });
     session.clear();
     auth._stopTokenRefresher();
   },
 
-  _redirect(){
-    window.location = cfg.routes.login;
+  redirect(url) {
+    // default URL to redirect
+    url = url || cfg.routes.login;
+    window.location = url;
   },
 
   _shouldRefreshToken({ expires_in, created } ){

@@ -17,7 +17,7 @@ limitations under the License.
 var {TRYING_TO_LOGIN, TRYING_TO_SIGN_UP, FETCHING_INVITE} = require('app/modules/restApi/constants');
 var {requestStatus} = require('app/modules/restApi/getters');
 
-const invite = [ ['tlpt_user_invite'], (invite) => invite ];
+const invite = [ ['tlpt_user_invite'], invite => invite ];
 
 const user = [ ['tlpt_user'], (currentUser) => {
     if(!currentUser){

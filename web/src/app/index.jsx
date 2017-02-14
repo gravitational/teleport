@@ -14,17 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var React = require('react');
-var render = require('react-dom').render;
-var { Router, Route, Redirect } = require('react-router');
-var { App, Login, Nodes, Sessions, NewUser, CurrentSessionHost, MessagePage, NotFound } = require('./components');
-var { ensureUser } = require('./modules/user/actions');
-var { initApp } = require('app/modules/app/actions');
-var { openSession } = require('./modules/currentSession/actions');
-var session = require('./services/session');
-var cfg = require('./config');
+import React from 'react';
+import { render } from 'react-dom';
+import { Router, Route, Redirect } from 'react-router';
+import { App, Login, Nodes, Sessions, Signup, CurrentSessionHost, MessagePage, NotFound } from './components';
+import { ensureUser } from './modules/user/actions';
+import { initApp } from 'app/modules/app/actions';
+import { openSession } from './modules/currentSession/actions';
+import session from './services/session';
+import cfg from './config';
 
-require('./modules');
+import './modules';
 
 // init session
 session.init();
@@ -35,7 +35,7 @@ render((
   <Router history={session.getHistory()}>
     <Route path={cfg.routes.msgs} component={MessagePage}/>
     <Route path={cfg.routes.login} component={Login}/>
-    <Route path={cfg.routes.newUser} component={NewUser}/>
+    <Route path={cfg.routes.newUser} component={Signup}/>
     <Redirect from={cfg.routes.app} to={cfg.routes.nodes}/>
     <Route path={cfg.routes.app} onEnter={ensureUser} component={App} >
       <Route path={cfg.routes.app} onEnter={initApp} >        
