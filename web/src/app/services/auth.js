@@ -117,6 +117,7 @@ const auth = {
           user:              name,
           u2f_sign_response: res
         };
+
         api.post(cfg.api.u2fSessionPath, response, false).then(data=>{
           session.setUserData(data);
           auth._startTokenRefresher();
@@ -124,6 +125,7 @@ const auth = {
         }).fail(data=>{
           deferred.reject(data);
         });
+        
       });
 
       return deferred.promise();
