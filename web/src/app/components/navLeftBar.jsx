@@ -13,20 +13,20 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-var React = require('react');
-var reactor = require('app/reactor');
-var cfg = require('app/config');
-var userGetters = require('app/modules/user/getters');
-var { IndexLink } = require('react-router');
-var { logoutUser } = require('app/modules/app/actions');
-var { UserIcon } = require('./icons.jsx');
+import React from 'react';
+import reactor from 'app/reactor';
+import cfg from 'app/config';
+import userGetters from 'app/modules/user/getters';
+import { IndexLink } from 'react-router';
+import { logoutUser } from 'app/modules/app/actions';
+import { UserIcon } from './icons.jsx';
 
-var menuItems = [
+const menuItems = [
   {icon: 'fa fa-share-alt', to: cfg.routes.nodes, title: 'Nodes'},
   {icon: 'fa  fa-group', to: cfg.routes.sessions, title: 'Sessions'}
 ];
 
-var NavLeftBar = React.createClass({
+const NavLeftBar = React.createClass({
   render(){
     var {name} = reactor.evaluate(userGetters.user);
     var items = menuItems.map((i, index)=>{
@@ -72,4 +72,4 @@ NavLeftBar.contextTypes = {
   router: React.PropTypes.object.isRequired
 }
 
-module.exports = NavLeftBar;
+export default NavLeftBar;

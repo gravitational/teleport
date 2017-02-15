@@ -14,15 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var React = require('react');
-var NavLeftBar = require('./navLeftBar');
-var reactor = require('app/reactor');
-var { getters } = require('app/modules/app');
-var { refresh } = require('app/modules/app/actions');
-var NotificationHost = require('./notificationHost.jsx');
-var Timer = require('./timer.jsx');
+import React from 'react';
+import NavLeftBar from './navLeftBar';
+import reactor from 'app/reactor';
+import { getters } from 'app/modules/app';
+import { refresh } from 'app/modules/app/actions';
+import NotificationHost from './notificationHost.jsx';
+import Timer from './timer.jsx';
 
-var App = React.createClass({
+const App = React.createClass({
 
   mixins: [reactor.ReactMixin],
 
@@ -33,7 +33,6 @@ var App = React.createClass({
   },
     
   render() {
-
     let {
       isInitializing      
     } = this.state.appStatus;
@@ -54,4 +53,4 @@ var App = React.createClass({
   }
 })
 
-module.exports = App;
+export default App;

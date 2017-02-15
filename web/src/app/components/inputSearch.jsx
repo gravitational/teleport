@@ -14,10 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var React = require('react');
-var {debounce} = require('_');
+import React from 'react';
+import {debounce} from '_';
 
-var InputSearch = React.createClass({
+const InputSearch = React.createClass({
 
   getInitialState(){
     this.debouncedNotify = debounce(()=>{        
@@ -47,4 +47,4 @@ var InputSearch = React.createClass({
   }
 });
 
-module.exports = InputSearch;
+export default InputSearch;

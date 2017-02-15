@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-let {formatPattern} = require('app/common/patternUtils');
-let $ = require('jQuery');
+import { formatPattern } from 'app/common/patternUtils';
+import $ from 'jQuery';
 
 let cfg = {
 
@@ -128,11 +128,11 @@ let cfg = {
   },
 
   getAuthType() {
-    return 'oidc';
+    return 'local';
   },
 
   getAuth2faType() {
-    return 'off'
+    return 'otp'
   },
 
   getU2fAppId(){

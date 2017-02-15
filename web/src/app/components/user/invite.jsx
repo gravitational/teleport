@@ -65,7 +65,7 @@ const Invite = React.createClass({
     let provider = cfg.getAuthProvider();
     let authType = cfg.getAuthType();
     let auth2faType = cfg.getAuth2faType();
-
+            
     if(fetchingInvite.isFailed){
       return <ErrorPage type={ErrorTypes.EXPIRED_INVITE}/>
     }

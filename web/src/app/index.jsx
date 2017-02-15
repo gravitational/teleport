@@ -17,12 +17,18 @@ limitations under the License.
 import React from 'react';
 import { render } from 'react-dom';
 import { Router, Route, Redirect } from 'react-router';
-import { App, Login, Nodes, Sessions, Signup, CurrentSessionHost, MessagePage, NotFound } from './components';
+import session from './services/session';
+import cfg from './config';
+import App from './components/app.jsx';
+import Login from './components/user/login.jsx';
+import Signup from './components/user/invite.jsx';
+import Nodes from './components/nodes/main.jsx';
+import Sessions from './components/sessions/main.jsx';
+import CurrentSessionHost from './components/currentSession/main.jsx';
+import { MessagePage, NotFound } from './components/msgPage.jsx';
 import { ensureUser } from './modules/user/actions';
 import { initApp } from 'app/modules/app/actions';
 import { openSession } from './modules/currentSession/actions';
-import session from './services/session';
-import cfg from './config';
 
 import './modules';
 

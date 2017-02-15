@@ -26,7 +26,7 @@ var cfg = {
   output: output,    
   cache: true,
 
-  devtool: 'source-map',
+  //devtool: 'source-map',
   
   module: {
     loaders: [
