@@ -307,8 +307,8 @@
 		},
 		{
 			"ImportPath": "github.com/hashicorp/consul/api",
-			"Comment": "v0.6.4-266-g0c5a487",
-			"Rev": "0c5a48783867f6eccefd72b734e28e7efa69d17b"
+			"Comment": "v0.7.4-86-g9103e77",
+			"Rev": "9103e77f574254016406ee512d601ad6de6e1efd"
 		},
 		{
 			"ImportPath": "github.com/hashicorp/go-cleanhttp",
@@ -533,6 +533,16 @@
 		{
 			"ImportPath": "golang.org/x/crypto/ed25519/internal/edwards25519",
 			"Rev": "453249f01cfeb54c3d549ddb75ff152ca243f9d8"
+		},
+		{
+			"ImportPath": "github.com/hashicorp/consul/vendor/github.com/hashicorp/go-cleanhttp",
+			"Comment": "v0.7.4-86-g9103e77",
+			"Rev": "9103e77f574254016406ee512d601ad6de6e1efd"
+		},
+		{
+			"ImportPath": "github.com/hashicorp/consul/vendor/github.com/hashicorp/serf/coordinate",
+			"Comment": "v0.7.4-86-g9103e77",
+			"Rev": "9103e77f574254016406ee512d601ad6de6e1efd"
 		}
 	]
 }
