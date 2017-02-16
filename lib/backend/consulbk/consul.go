@@ -156,12 +156,17 @@ func (b *bk) key(keys ...string) string {
 }
 
 func (b *bk) GetKeys(bucket []string) ([]string, error) {
-	keys, _, err := b.kv.Keys(b.key(bucket...), "", nil)
+	key := b.key(bucket...)
+	keys, _, err := b.kv.Keys(key, "", nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sort.Sort(sort.StringSlice(keys))
-	return keys, nil
+	cleanedKeys := []string{}
+	for _, v := range keys {
+		cleanedKeys = append(cleanedKeys, strings.Replace(v, key+"/", "", 1))
+	}
+	sort.Sort(sort.StringSlice(cleanedKeys))
+	return cleanedKeys, nil
 }
 
 func (b *bk) CreateVal(bucket []string, key string, val []byte, ttl time.Duration) error {
@@ -179,12 +184,15 @@ func (b *bk) UpsertVal(bucket []string, key string, val []byte, ttl time.Duratio
 		return trace.Wrap(err)
 	}
 
-	sessionStr, _, err := b.session.Create(&consul.SessionEntry{
-		Behavior: "delete",
-		TTL:      ttl.String(),
-	}, nil)
-	if err != nil {
-		return trace.Wrap(convertErr(err))
+	var sessionStr string
+	if ttl >= 10*time.Second {
+		sessionStr, _, err = b.session.Create(&consul.SessionEntry{
+			Behavior: "delete",
+			TTL:      ttl.String(),
+		}, nil)
+		if err != nil {
+			return trace.Wrap(convertErr(err))
+		}
 	}
 
 	kvpair := &consul.KVPair{
@@ -240,6 +248,10 @@ func (b *bk) AcquireLock(token string, ttl time.Duration) error {
 	lockOptions := &consul.LockOptions{
 		Key:        key,
 		SessionTTL: ttl.String(),
+	}
+
+	if ttl == 0 {
+		lockOptions.SessionTTL = ""
 	}
 
 	lock, err := b.client.LockOpts(lockOptions)
