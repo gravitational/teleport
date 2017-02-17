@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package common
 
 import (
 	"io/ioutil"
@@ -66,7 +66,7 @@ func (s *MainTestSuite) SetUpSuite(c *check.C) {
 }
 
 func (s *MainTestSuite) TestDefault(c *check.C) {
-	cmd, conf := run([]string{"start"}, true)
+	cmd, conf := Run([]string{"start"}, true)
 	c.Assert(cmd, check.Equals, "start")
 	c.Assert(conf.Hostname, check.Equals, s.hostname)
 	c.Assert(conf.DataDir, check.Equals, "/tmp/teleport/var/lib/teleport")
@@ -78,17 +78,17 @@ func (s *MainTestSuite) TestDefault(c *check.C) {
 }
 
 func (s *MainTestSuite) TestRolesFlag(c *check.C) {
-	cmd, conf := run([]string{"start", "--roles=node"}, true)
+	cmd, conf := Run([]string{"start", "--roles=node"}, true)
 	c.Assert(conf.SSH.Enabled, check.Equals, true)
 	c.Assert(conf.Auth.Enabled, check.Equals, false)
 	c.Assert(conf.Proxy.Enabled, check.Equals, false)
 
-	cmd, conf = run([]string{"start", "--roles=proxy"}, true)
+	cmd, conf = Run([]string{"start", "--roles=proxy"}, true)
 	c.Assert(conf.SSH.Enabled, check.Equals, false)
 	c.Assert(conf.Auth.Enabled, check.Equals, false)
 	c.Assert(conf.Proxy.Enabled, check.Equals, true)
 
-	cmd, conf = run([]string{"start", "--roles=auth"}, true)
+	cmd, conf = Run([]string{"start", "--roles=auth"}, true)
 	c.Assert(conf.SSH.Enabled, check.Equals, false)
 	c.Assert(conf.Auth.Enabled, check.Equals, true)
 	c.Assert(conf.Proxy.Enabled, check.Equals, false)
@@ -96,7 +96,7 @@ func (s *MainTestSuite) TestRolesFlag(c *check.C) {
 }
 
 func (s *MainTestSuite) TestConfigFile(c *check.C) {
-	cmd, conf := run([]string{"start", "--roles=node", "--labels=a=a1,b=b1", "--config=" + s.configFile}, true)
+	cmd, conf := Run([]string{"start", "--roles=node", "--labels=a=a1,b=b1", "--config=" + s.configFile}, true)
 	c.Assert(cmd, check.Equals, "start")
 	c.Assert(conf.SSH.Enabled, check.Equals, true)
 	c.Assert(conf.Auth.Enabled, check.Equals, false)
