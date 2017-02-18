@@ -72,17 +72,6 @@ func (s *IdentityService) GetUsers() ([]services.User, error) {
 	return out, nil
 }
 
-func ttl(clock clockwork.Clock, t time.Time) time.Duration {
-	if t.IsZero() {
-		return backend.Forever
-	}
-	diff := t.UTC().Sub(clock.Now().UTC())
-	if diff < 0 {
-		return backend.Forever
-	}
-	return diff
-}
-
 // CreateUser creates user if it does not exist
 func (s *IdentityService) CreateUser(user services.User) error {
 	if err := user.Check(); err != nil {
@@ -92,7 +81,7 @@ func (s *IdentityService) CreateUser(user services.User) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.backend.CreateVal([]string{"web", "users", user.GetName()}, "params", []byte(data), ttl(clockwork.NewRealClock(), user.GetExpiry()))
+	err = s.backend.CreateVal([]string{"web", "users", user.GetName()}, "params", []byte(data), backend.TTL(clockwork.NewRealClock(), user.GetExpiry()))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -108,7 +97,7 @@ func (s *IdentityService) UpsertUser(user services.User) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.backend.UpsertVal([]string{"web", "users", user.GetName()}, "params", []byte(data), ttl(clockwork.NewRealClock(), user.GetExpiry()))
+	err = s.backend.UpsertVal([]string{"web", "users", user.GetName()}, "params", []byte(data), backend.TTL(clockwork.NewRealClock(), user.GetExpiry()))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -278,13 +267,16 @@ func (s *IdentityService) DeleteUsedTOTPToken(user string) error {
 }
 
 // UpsertWebSession updates or inserts a web session for a user and session id
-func (s *IdentityService) UpsertWebSession(user, sid string, session services.WebSession, ttl time.Duration) error {
+// the session will be created with bearer token expiry time TTL, because
+// it is expected to be extended by the client before then
+func (s *IdentityService) UpsertWebSession(user, sid string, session services.WebSession) error {
 	session.SetUser(user)
 	session.SetName(sid)
 	bytes, err := services.GetWebSessionMarshaler().MarshalWebSession(session)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	ttl := backend.TTL(clockwork.NewRealClock(), session.GetBearerTokenExpiryTime())
 	err = s.backend.UpsertVal([]string{"web", "users", user, "sessions"},
 		sid, bytes, ttl)
 	if trace.IsNotFound(err) {
