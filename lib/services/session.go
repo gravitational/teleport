@@ -14,6 +14,8 @@ import (
 // WebSession stores key and value used to authenticate with SSH
 // notes on behalf of user
 type WebSession interface {
+	// GetShortName returns visible short name used in logging
+	GetShortName() string
 	// GetName returns session name
 	GetName() string
 	// GetUser returns the user this session is associated with
@@ -29,9 +31,13 @@ type WebSession interface {
 	// BearerToken is a special bearer token used for additional
 	// bearer authentication
 	GetBearerToken() string
+	// SetBearerTokenExpiryTime sets bearer token expiry time
+	SetBearerTokenExpiryTime(time.Time)
 	// SetExpiryTime sets session expiry time
 	SetExpiryTime(time.Time)
-	// Expires - absolute time when token expires
+	// GetBearerTokenExpiryTime - absolute time when token expires
+	GetBearerTokenExpiryTime() time.Time
+	// GetExpiryTime - absolute time when web session expires
 	GetExpiryTime() time.Time
 	// V1 returns V1 version of the resource
 	V1() *WebSessionV1
@@ -77,7 +83,9 @@ type WebSessionSpecV2 struct {
 	// BearerToken is a special bearer token used for additional
 	// bearer authentication
 	BearerToken string `json:"bearer_token"`
-	// Expires - absolute time when token expires
+	// BearerTokenExpires - absolute time when token expires
+	BearerTokenExpires time.Time `json:"bearer_token_expires"`
+	// Expires - absolute time when session expires
 	Expires time.Time `json:"expires"`
 }
 
@@ -103,6 +111,14 @@ func (ws *WebSessionV2) GetUser() string {
 	return ws.Spec.User
 }
 
+// GetShortName returns visible short name used in logging
+func (ws *WebSessionV2) GetShortName() string {
+	if len(ws.Metadata.Name) < 4 {
+		return "<undefined>"
+	}
+	return ws.Metadata.Name[:4]
+}
+
 // GetName returns session name
 func (ws *WebSessionV2) GetName() string {
 	return ws.Metadata.Name
@@ -124,14 +140,24 @@ func (ws *WebSessionV2) GetBearerToken() string {
 	return ws.Spec.BearerToken
 }
 
-// Expires - absolute time when token expires
-func (ws *WebSessionV2) GetExpiryTime() time.Time {
-	return ws.Spec.Expires
+// SetBearerTokenExpiryTime sets bearer token expiry time
+func (ws *WebSessionV2) SetBearerTokenExpiryTime(tm time.Time) {
+	ws.Spec.BearerTokenExpires = tm
 }
 
 // SetExpiryTime sets session expiry time
 func (ws *WebSessionV2) SetExpiryTime(tm time.Time) {
 	ws.Spec.Expires = tm
+}
+
+// GetBearerTokenExpiryTime - absolute time when token expires
+func (ws *WebSessionV2) GetBearerTokenExpiryTime() time.Time {
+	return ws.Spec.BearerTokenExpires
+}
+
+// GetExpiryTime - absolute time when web session expires
+func (ws *WebSessionV2) GetExpiryTime() time.Time {
+	return ws.Spec.Expires
 }
 
 // V2 returns V2 version of the resource
@@ -154,12 +180,13 @@ func (ws *WebSessionV2) V1() *WebSessionV1 {
 const WebSessionSpecV2Schema = `{
   "type": "object",
   "additionalProperties": false,
-  "required": ["pub", "bearer_token", "expires", "user"],
+  "required": ["pub", "bearer_token", "bearer_token_expires", "expires", "user"],
   "properties": {
     "user": {"type": "string"},
     "pub": {"type": "string"},
     "priv": {"type": "string"},
     "bearer_token": {"type": "string"},
+    "bearer_token_expires": {"type": "string"},
     "expires": {"type": "string"}%v
   }
 }`
@@ -197,10 +224,11 @@ func (s *WebSessionV1) V2() *WebSessionV2 {
 			Namespace: defaults.Namespace,
 		},
 		Spec: WebSessionSpecV2{
-			Pub:         s.Pub,
-			Priv:        s.Priv,
-			BearerToken: s.BearerToken,
-			Expires:     s.Expires,
+			Pub:                s.Pub,
+			Priv:               s.Priv,
+			BearerToken:        s.BearerToken,
+			Expires:            s.Expires,
+			BearerTokenExpires: s.Expires,
 		},
 	}
 }
@@ -225,6 +253,14 @@ func (ws *WebSessionV1) SetUser(u string) {
 // GetUser returns the user this session is associated with
 func (ws *WebSessionV1) GetUser() string {
 	return ws.User
+}
+
+// GetShortName returns visible short name used in logging
+func (ws *WebSessionV1) GetShortName() string {
+	if len(ws.ID) < 4 {
+		return "<undefined>"
+	}
+	return ws.ID[:4]
 }
 
 // GetName returns session name
@@ -255,6 +291,16 @@ func (ws *WebSessionV1) GetExpiryTime() time.Time {
 
 // SetExpiryTime sets session expiry time
 func (ws *WebSessionV1) SetExpiryTime(tm time.Time) {
+	ws.Expires = tm
+}
+
+// GetBearerRoken - absolute time when token expires
+func (ws *WebSessionV1) GetBearerTokenExpiryTime() time.Time {
+	return ws.Expires
+}
+
+// SetBearerTokenExpiryTime sets session expiry time
+func (ws *WebSessionV1) SetBearerTokenExpiryTime(tm time.Time) {
 	ws.Expires = tm
 }
 
@@ -327,12 +373,15 @@ func (*TeleportWebSessionMarshaler) UnmarshalWebSession(bytes []byte) (WebSessio
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		utils.UTC(&ws.Expires)
 		return ws.V2(), nil
 	case V2:
 		var ws WebSessionV2
 		if err := utils.UnmarshalWithSchema(GetWebSessionSchema(), &ws, bytes); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
+		utils.UTC(&ws.Spec.BearerTokenExpires)
+		utils.UTC(&ws.Spec.Expires)
 		return &ws, nil
 	}
 
