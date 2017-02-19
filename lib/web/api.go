@@ -130,11 +130,11 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.sp = saml.ServiceProviderSettings{
 		PublicCertPath:              "/etc/teleport/server.crt",
 		PrivateKeyPath:              "/etc/teleport/server.key",
-		IDPSSOURL:                   "https://srv-par-adfs3.dashlane.com/adfs/ls",
-		IDPSSODescriptorURL:         "http://srv-par-adfs3.dashlane.com/FederationMetadata/2007-06/FederationMetadata.xml",
+		IDPSSOURL:                   "http://srv-par-adfs3.dashlane.com/adfs/services/trust",
+		IDPSSODescriptorURL:         "https://srv-par-adfs3.dashlane.com/FederationMetadata/2007-06/FederationMetadata.xml",
 		IDPPublicCertPath:           "/etc/teleport/samlidp.crt",
 		SPSignRequest:               true,
-		AssertionConsumerServiceURL: "http://ssh.dashlane.com:3080/v1/webclient/saml/consume",
+		AssertionConsumerServiceURL: "https://ssh.dashlane.com:3080/v1/webclient/saml/consume",
 	}
 	h.sp.Init()
 	for _, o := range opts {
@@ -195,7 +195,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 
 	// SAML related callback handlers
 	h.GET("/webapi/saml/metadata", httplib.MakeHandler(h.samlMetadata))
-
+	h.POST("/webapi/saml/consume", httplib.MakeHandler(h.samlConsume))
 	// U2F related APIs
 	h.GET("/webapi/u2f/signuptokens/:token", httplib.MakeHandler(h.u2fRegisterRequest))
 	h.POST("/webapi/u2f/users", httplib.MakeHandler(h.createNewU2FUser))
@@ -425,6 +425,33 @@ func (m *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 }
 
 // send saml sp metadata
+func (m *Handler) samlConsume(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	encodedXML := r.FormValue("SAMLResponse")
+
+	if encodedXML == "" {
+		message("SAMLResponse form value missing")
+		return nil, nil
+	}
+
+	response, err := saml.ParseEncodedResponse(encodedXML)
+	if err != nil {
+		message("SAMLResponse parse: " + err.Error())
+		return nil, nil
+	}
+
+	err = response.Validate(&m.sp)
+	if err != nil {
+		message("SAMLResponse validation: " + err.Error())
+		return nil, nil
+	}
+
+	samlID := response.GetAttribute("uid")
+	if samlID == "" {
+		message("SAML attribute identifier uid missing")
+		return nil, nil
+	}
+
+}
 func (m *Handler) samlMetadata(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	md, err := m.sp.GetEntityDescriptor()
 	if err != nil {
