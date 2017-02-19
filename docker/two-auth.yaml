@@ -1,0 +1,25 @@
+# Auth server for cluster "two". Also runs "node" role
+teleport:
+  nodename: two-auth
+  log:
+    output: /var/lib/teleport/teleport.log
+    severity: INFO
+
+auth_service:
+  enabled: yes
+  cluster_name: two
+  tokens: 
+       - "node,auth,proxy:xxx"
+
+ssh_service:
+  enabled: yes
+  labels:
+      cluster: two
+      role: auth+node
+  commands:
+      - name: kernel
+        command: [/bin/uname, -r]
+        period: 5m
+
+proxy_service:
+  enabled: no

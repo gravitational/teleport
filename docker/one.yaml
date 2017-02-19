@@ -1,0 +1,24 @@
+# Single-node Teleport cluster called "one" (runs all 3 roles: proxy, auth and node)
+teleport:
+  nodename: one
+  log:
+    output: /var/lib/teleport/teleport.log
+    severity: INFO
+
+auth_service:
+  enabled: yes
+  cluster_name: one
+  tokens: 
+       - "node,auth,proxy:xxx"
+
+ssh_service:
+  enabled: yes
+  labels:
+      cluster: one
+  commands:
+      - name: kernel
+        command: [/bin/uname, -r]
+        period: 5m
+
+proxy_service:
+  enabled: yes

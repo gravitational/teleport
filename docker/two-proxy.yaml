@@ -1,0 +1,26 @@
+# Proxy server for cluster "two". Also runs "node" role
+teleport:
+  nodename: two-proxy
+  auth_servers: ["two-auth"]
+  auth_token: xxx
+  log:
+    output: /var/lib/teleport/teleport.log
+    severity: INFO
+
+auth_service:
+  enabled: no
+
+ssh_service:
+  enabled: yes
+  labels:
+      cluster: two
+      role: proxy+node
+  commands:
+      - name: kernel
+        command: [/bin/uname, -r]
+        period: 5m
+
+proxy_service:
+   enabled: yes
+   listen_addr: 0.0.0.0:5023
+   web_listen_addr: 0.0.0.0:5080
