@@ -33,6 +33,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+
 	"github.com/RobotsAndPencils/go-saml"
 
 	"github.com/gravitational/teleport/lib/auth"
@@ -117,6 +118,7 @@ func (r *RewritingHandler) Close() error {
 func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	const apiPrefix = "/" + client.APIVersion
 	lauth, err := newSessionCache([]utils.NetAddr{cfg.AuthServers})
+
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -128,14 +130,13 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.sp = saml.ServiceProviderSettings{
 		PublicCertPath:              "/etc/teleport/server.crt",
 		PrivateKeyPath:              "/etc/teleport/server.key",
-		IDPSSOURL:                   "https://srv-par-adfs3/saml2",
-		IDPSSODescriptorURL:         "http://idp/issuer",
-		IDPPublicCertPath:           "/etc/teleport/server.crt",
+		IDPSSOURL:                   "https://srv-par-adfs3.dashlane.com/adfs/ls",
+		IDPSSODescriptorURL:         "http://srv-par-adfs3.dashlane.com/FederationMetadata/2007-06/FederationMetadata.xml",
+		IDPPublicCertPath:           "/etc/teleport/samlidp.crt",
 		SPSignRequest:               true,
-		AssertionConsumerServiceURL: "http://localhost:8000/saml_consume",
+		AssertionConsumerServiceURL: "http://ssh.dashlane.com:3080/v1/webclient/saml/consume",
 	}
 	h.sp.Init()
-
 	for _, o := range opts {
 		if err := o(h); err != nil {
 			return nil, trace.Wrap(err)
@@ -423,17 +424,18 @@ func (m *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 	return nil, nil
 }
 
+// send saml sp metadata
 func (m *Handler) samlMetadata(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-       md, err := m.sp.GetEntityDescriptor()
-       if err != nil {
-               w.WriteHeader(500)
-               w.Write([]byte("Error: " + err.Error()))
-               return nil, nil
-       }
+	md, err := m.sp.GetEntityDescriptor()
+	if err != nil {
+		w.WriteHeader(500)
+		w.Write([]byte("Error: " + err.Error()))
+		return nil, nil
+	}
 
-       w.Header().Set("Content-Type", "application/xml")
-       w.Write([]byte(md))
-       return nil, nil
+	w.Header().Set("Content-Type", "application/xml")
+	w.Write([]byte(md))
+	return nil, nil
 }
 
 // ConstructSSHResponse creates a special SSH response for SSH login method
