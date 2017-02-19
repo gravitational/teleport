@@ -429,28 +429,31 @@ func (m *Handler) samlConsume(w http.ResponseWriter, r *http.Request, p httprout
 	encodedXML := r.FormValue("SAMLResponse")
 
 	if encodedXML == "" {
+		log.Infof("SAMLResponse form value missing")
 		message("SAMLResponse form value missing")
 		return nil, nil
 	}
 
 	response, err := saml.ParseEncodedResponse(encodedXML)
 	if err != nil {
+		log.Infof("SAMLResponse parse: " + err.Error())
 		message("SAMLResponse parse: " + err.Error())
 		return nil, nil
 	}
 
 	err = response.Validate(&m.sp)
 	if err != nil {
+		log.Infof("SAMLResponse validation: " + err.Error())
 		message("SAMLResponse validation: " + err.Error())
 		return nil, nil
 	}
 
 	samlID := response.GetAttribute("uid")
 	if samlID == "" {
-		message("SAML attribute identifier uid missing")
+		log.Infof("SAML attribute identifier uid missing")
 		return nil, nil
 	}
-	message("coucou" + samlID)
+	log.Infof("coucou" + samlID)
 	return nil, nil
 }
 func (m *Handler) samlMetadata(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
