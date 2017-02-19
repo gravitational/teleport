@@ -159,7 +159,7 @@ func (cmd *Command) sendFile(r *reader, ch io.ReadWriter, fi os.FileInfo, path s
 
 	// report progress:
 	if cmd.Terminal != nil {
-		defer fmt.Fprintf(cmd.Terminal, "-> %s/%s (%d)\n", path, fi.Name(), fi.Size())
+		defer fmt.Fprintf(cmd.Terminal, "-> %s (%d)\n", path, fi.Size())
 	}
 
 	_, err := io.WriteString(ch, out)
