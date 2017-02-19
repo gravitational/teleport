@@ -211,7 +211,7 @@ func (s *AuthServer) CreateUserWithToken(token string, password string, otpToken
 		return nil, trace.Wrap(err)
 	}
 
-	err = s.UpsertWebSession(user.GetName(), sess, WebSessionTTL)
+	err = s.UpsertWebSession(user.GetName(), sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -280,7 +280,7 @@ func (s *AuthServer) CreateUserWithU2FToken(token string, password string, respo
 		return nil, trace.Wrap(err)
 	}
 
-	err = s.UpsertWebSession(user.GetName(), sess, WebSessionTTL)
+	err = s.UpsertWebSession(user.GetName(), sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/jonboulle/clockwork"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
@@ -468,10 +469,11 @@ func (s *sessionCache) ValidateSession(user, sid string) (*SessionContext, error
 	}
 	c.Entry = log.WithFields(log.Fields{
 		"user": user,
-		"sess": sess.GetName()[:4],
+		"sess": sess.GetShortName(),
 	})
 
-	out, err := s.insertContext(user, sid, c, auth.WebSessionTTL)
+	ttl := utils.ToTTL(clockwork.NewRealClock(), sess.GetBearerTokenExpiryTime())
+	out, err := s.insertContext(user, sid, c, ttl)
 	if err != nil {
 		// this means that someone has just inserted the context, so
 		// close our extra context and return

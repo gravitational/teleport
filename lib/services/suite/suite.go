@@ -328,7 +328,7 @@ func (s *ServicesTestSuite) WebSessionCRUD(c *C) {
 		Priv:    []byte("priv123"),
 		Expires: dt,
 	})
-	err = s.WebS.UpsertWebSession("user1", "sid1", ws, 0)
+	err = s.WebS.UpsertWebSession("user1", "sid1", ws)
 	c.Assert(err, IsNil)
 
 	out, err := s.WebS.GetWebSession("user1", "sid1")
@@ -337,7 +337,7 @@ func (s *ServicesTestSuite) WebSessionCRUD(c *C) {
 
 	ws1 := services.NewWebSession(
 		"sid1", services.WebSessionSpecV2{Pub: []byte("pub321"), Priv: []byte("priv321"), Expires: dt})
-	err = s.WebS.UpsertWebSession("user1", "sid1", ws1, 0)
+	err = s.WebS.UpsertWebSession("user1", "sid1", ws1)
 	c.Assert(err, IsNil)
 
 	out2, err := s.WebS.GetWebSession("user1", "sid1")

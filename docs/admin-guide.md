@@ -392,7 +392,7 @@ flag to "xxxxxx". This node will join the cluster as a regular node but also
 as a proxy server:
 
 ```bash
-teleport start --roles=node,auth --token=xxxxx --auth-server=10.0.10.5
+teleport start --roles=node,proxy --token=xxxxx --auth-server=10.0.10.5
 ```
 
 ### Short-lived Tokens

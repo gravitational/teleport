@@ -91,8 +91,8 @@ type Identity interface {
 	// be used during tests.
 	DeleteUsedTOTPToken(user string) error
 
-	// UpsertWebSession updates or inserts a web session for a user and session id
-	UpsertWebSession(user, sid string, session WebSession, ttl time.Duration) error
+	// UpsertWebSession updates or inserts a web session for a user and session
+	UpsertWebSession(user, sid string, session WebSession) error
 
 	// GetWebSession returns a web session state for a given user and session id
 	GetWebSession(user, sid string) (WebSession, error)
