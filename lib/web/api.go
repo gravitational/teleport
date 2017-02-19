@@ -450,6 +450,7 @@ func (m *Handler) samlConsume(w http.ResponseWriter, r *http.Request, p httprout
 		message("SAML attribute identifier uid missing")
 		return nil, nil
 	}
+	message("coucou" + samlID)
 	return nil, nil
 }
 func (m *Handler) samlMetadata(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
