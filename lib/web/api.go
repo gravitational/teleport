@@ -33,6 +33,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"github.com/RobotsAndPencils/go-saml"
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
@@ -62,6 +63,7 @@ type Handler struct {
 	auth                    *sessionCache
 	sites                   *ttlmap.TtlMap
 	sessionStreamPollPeriod time.Duration
+	sp                      saml.ServiceProviderSettings
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -123,6 +125,16 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		cfg:  cfg,
 		auth: lauth,
 	}
+	h.sp = saml.ServiceProviderSettings{
+		PublicCertPath:              "/etc/teleport/server.crt",
+		PrivateKeyPath:              "/etc/teleport/server.key",
+		IDPSSOURL:                   "https://srv-par-adfs3/saml2",
+		IDPSSODescriptorURL:         "http://idp/issuer",
+		IDPPublicCertPath:           "/etc/teleport/server.crt",
+		SPSignRequest:               true,
+		AssertionConsumerServiceURL: "http://localhost:8000/saml_consume",
+	}
+	h.sp.Init()
 
 	for _, o := range opts {
 		if err := o(h); err != nil {
@@ -179,6 +191,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.GET("/webapi/oidc/login/web", httplib.MakeHandler(h.oidcLoginWeb))
 	h.POST("/webapi/oidc/login/console", httplib.MakeHandler(h.oidcLoginConsole))
 	h.GET("/webapi/oidc/callback", httplib.MakeHandler(h.oidcCallback))
+
+	// SAML related callback handlers
+	h.GET("/webapi/saml/metadata", httplib.MakeHandler(h.samlMetadata))
 
 	// U2F related APIs
 	h.GET("/webapi/u2f/signuptokens/:token", httplib.MakeHandler(h.u2fRegisterRequest))
@@ -406,6 +421,19 @@ func (m *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 	}
 	http.Redirect(w, r, redirectURL.String(), http.StatusFound)
 	return nil, nil
+}
+
+func (m *Handler) samlMetadata(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+       md, err := m.sp.GetEntityDescriptor()
+       if err != nil {
+               w.WriteHeader(500)
+               w.Write([]byte("Error: " + err.Error()))
+               return nil, nil
+       }
+
+       w.Header().Set("Content-Type", "application/xml")
+       w.Write([]byte(md))
+       return nil, nil
 }
 
 // ConstructSSHResponse creates a special SSH response for SSH login method
