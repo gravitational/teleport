@@ -427,6 +427,7 @@ func (m *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 // send saml sp metadata
 func (m *Handler) samlConsume(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	encodedXML := r.FormValue("SAMLResponse")
+	log.Infof("in samlConsume")
 
 	if encodedXML == "" {
 		log.Infof("SAMLResponse form value missing")
