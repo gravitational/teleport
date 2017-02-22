@@ -1,5 +1,5 @@
 /*
-Copyright 2015-16 Gravitational, Inc.
+Copyright 2015 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -107,6 +107,12 @@ var (
 		"u2f":                true,
 		"app_id":             true,
 		"facets":             true,
+		"authentication":     true,
+		"second_factor":      false,
+		"oidc":               true,
+		"display":            false,
+		"scope":              false,
+		"claims_to_roles":    true,
 	}
 )
 
@@ -236,10 +242,6 @@ func MakeSampleFileConfig() (fc *FileConfig) {
 	a.EnabledFlag = "yes"
 	a.StaticTokens = []StaticToken{"proxy,node:cluster-join-token"}
 
-	a.U2F.EnabledFlag = "yes"
-	a.U2F.AppID = conf.Auth.U2F.AppID
-	a.U2F.Facets = conf.Auth.U2F.Facets
-
 	// sample proxy config:
 	var p Proxy
 	p.EnabledFlag = "yes"
@@ -341,6 +343,7 @@ func (s *Service) Disabled() bool {
 // Auth is 'auth_service' section of the config file
 type Auth struct {
 	Service `yaml:",inline"`
+
 	// DomainName is the name of the CA who manages this cluster
 	DomainName string `yaml:"cluster_name,omitempty"`
 
@@ -357,9 +360,6 @@ type Auth struct {
 	// to 3rd party auth servers we trust)
 	ReverseTunnels []ReverseTunnel `yaml:"reverse_tunnels,omitempty"`
 
-	// OIDCConnectors is a list of trusted OpenID Connect Identity providers
-	OIDCConnectors []OIDCConnector `yaml:"oidc_connectors"`
-
 	// StaticTokens are pre-defined host provisioning tokens supplied via config file for
 	// environments where paranoid security is not needed
 	//
@@ -367,7 +367,16 @@ type Auth struct {
 	// for exmple: "auth,proxy,node:MTIzNGlvemRmOWE4MjNoaQo"
 	StaticTokens []StaticToken `yaml:"tokens,omitempty"`
 
+	// Authentication holds authentication configuration information like authentication
+	// type, second factor type, specific connector information, etc.
+	Authentication *AuthenticationConfig `yaml:"authentication,omitempty"`
+
+	// OIDCConnectors is a list of trusted OpenID Connect Identity providers
+	// Deprecated: Use OIDC section in Authentication section instead.
+	OIDCConnectors []OIDCConnector `yaml:"oidc_connectors"`
+
 	// Configuration for "universal 2nd factor"
+	// Deprecated: Use U2F section in Authentication section instead.
 	U2F U2F `yaml:"u2f,omitempty"`
 }
 
@@ -383,6 +392,74 @@ type TrustedCluster struct {
 }
 
 type StaticToken string
+
+// Parse is applied to a string in "role,role,role:token" format. It breaks it
+// apart into a slice of roles, token and optional error
+func (t StaticToken) Parse() (roles teleport.Roles, token string, err error) {
+	parts := strings.Split(string(t), ":")
+	if len(parts) != 2 {
+		return nil, "", trace.BadParameter("invalid static token spec: %q", t)
+	}
+	roles, err = teleport.ParseRoles(parts[0])
+	return roles, parts[1], trace.Wrap(err)
+}
+
+type AuthenticationConfig struct {
+	Type         string                 `yaml:"type"`
+	SecondFactor string                 `yaml:"second_factor,omitempty"`
+	U2F          *UniversalSecondFactor `yaml:"u2f,omitempty"`
+	OIDC         *OIDCConnector         `yaml:"oidc,omitempty"`
+}
+
+// Parse returns the Authentication Configuration in three parts, the AuthPreference (type and second factor) as well
+// as OIDCConnector and UniversalSecondFactor that define how those two are configured (if provided).
+func (a *AuthenticationConfig) Parse() (services.AuthPreference, services.OIDCConnector, services.UniversalSecondFactor, error) {
+	var err error
+
+	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+		Type:         a.Type,
+		SecondFactor: a.SecondFactor,
+	})
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
+	}
+
+	// check to make sure the configuration is valid
+	err = ap.Check()
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
+	}
+
+	var oidcConnector services.OIDCConnector
+	if a.OIDC != nil {
+		oidcConnector, err = a.OIDC.Parse()
+		if err != nil {
+			return nil, nil, nil, trace.Wrap(err)
+		}
+	}
+
+	var universalSecondFactor services.UniversalSecondFactor
+	if a.U2F != nil {
+		universalSecondFactor, err = a.U2F.Parse()
+		if err != nil {
+			return nil, nil, nil, trace.Wrap(err)
+		}
+	}
+
+	return ap, oidcConnector, universalSecondFactor, nil
+}
+
+type UniversalSecondFactor struct {
+	AppID  string   `yaml:"app_id"`
+	Facets []string `yaml:"facets"`
+}
+
+func (u *UniversalSecondFactor) Parse() (services.UniversalSecondFactor, error) {
+	return services.NewUniversalSecondFactor(services.UniversalSecondFactorSpecV2{
+		AppID:  u.AppID,
+		Facets: u.Facets,
+	})
+}
 
 // SSH is 'ssh_service' section of the config file
 type SSH struct {
@@ -595,17 +672,6 @@ func (o *OIDCConnector) Parse() (services.OIDCConnector, error) {
 		return nil, trace.Wrap(err)
 	}
 	return v2, nil
-}
-
-// Parse() is applied to a string in "role,role,role:token" format. It breaks it
-// apart into a slice of roles, token and optional error
-func (t StaticToken) Parse() (roles teleport.Roles, token string, err error) {
-	parts := strings.Split(string(t), ":")
-	if len(parts) != 2 {
-		return nil, "", trace.Errorf("invalid static token spec: '%s'", t)
-	}
-	roles, err = teleport.ParseRoles(parts[0])
-	return roles, parts[1], trace.Wrap(err)
 }
 
 type U2F struct {
