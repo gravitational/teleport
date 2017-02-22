@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
 // Forever means that object TTL will not expire unless deleted
@@ -99,4 +100,17 @@ func (p Params) GetString(key string) string {
 	}
 	s, _ := v.(string)
 	return s
+}
+
+// TTL converts time to TTL from current time supplied
+// by provider, if t is zero, returns forever
+func TTL(clock clockwork.Clock, t time.Time) time.Duration {
+	if t.IsZero() {
+		return Forever
+	}
+	diff := t.UTC().Sub(clock.Now().UTC())
+	if diff < 0 {
+		return Forever
+	}
+	return diff
 }

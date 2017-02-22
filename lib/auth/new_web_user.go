@@ -131,7 +131,7 @@ func (s *AuthServer) GetSignupTokenData(token string) (user string, qrCode []byt
 }
 
 func (s *AuthServer) CreateSignupU2FRegisterRequest(token string) (u2fRegisterRequest *u2f.RegisterRequest, e error) {
-	err := s.CheckU2FEnabled()
+	universalSecondFactor, err := s.GetUniversalSecondFactor()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -143,10 +143,10 @@ func (s *AuthServer) CreateSignupU2FRegisterRequest(token string) (u2fRegisterRe
 
 	_, err = s.GetPasswordHash(tokenData.User.Name)
 	if err == nil {
-		return nil, trace.AlreadyExists("can't add user %v, user already exists", tokenData.User)
+		return nil, trace.AlreadyExists("can't add user %q, user already exists", tokenData.User)
 	}
 
-	c, err := u2f.NewChallenge(s.U2F.AppID, s.U2F.Facets)
+	c, err := u2f.NewChallenge(universalSecondFactor.GetAppID(), universalSecondFactor.GetFacets())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -211,7 +211,7 @@ func (s *AuthServer) CreateUserWithToken(token string, password string, otpToken
 		return nil, trace.Wrap(err)
 	}
 
-	err = s.UpsertWebSession(user.GetName(), sess, WebSessionTTL)
+	err = s.UpsertWebSession(user.GetName(), sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -220,9 +220,10 @@ func (s *AuthServer) CreateUserWithToken(token string, password string, otpToken
 }
 
 func (s *AuthServer) CreateUserWithU2FToken(token string, password string, response u2f.RegisterResponse) (services.WebSession, error) {
-	err := s.CheckU2FEnabled()
+	// before trying to create a user, see U2F is actually setup on the backend
+	_, err := s.GetUniversalSecondFactor()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, err
 	}
 
 	tokenData, err := s.GetSignupToken(token)
@@ -280,7 +281,7 @@ func (s *AuthServer) CreateUserWithU2FToken(token string, password string, respo
 		return nil, trace.Wrap(err)
 	}
 
-	err = s.UpsertWebSession(user.GetName(), sess, WebSessionTTL)
+	err = s.UpsertWebSession(user.GetName(), sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

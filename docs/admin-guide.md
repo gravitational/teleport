@@ -197,6 +197,13 @@ auth_service:
     # Turns 'auth' role on. Default is 'yes'
     enabled: yes
 
+    # defines the types and second factors the auth server supports
+    authentication:
+        # type can be local or oidc
+        type: local
+        # second_factor can be off, otp, or u2f
+        second_factor: otp
+
     # IP and the port to bind to. Other Teleport nodes will be connecting to
     # this port (AKA "Auth API" or "Cluster API") to validate client 
     # certificates 
@@ -747,14 +754,20 @@ OIDC integration with applications like Teleport.
 
 ```
 auth_service:
-  enabled: true
-  cluster_name: magadan
-  oidc_connectors:    
-    - id: google
-      redirect_url: https://localhost:3080/v1/webapi/oidc/callback
-      client_id: id-from-google.apps.googleusercontent.com
-      client_secret: secret-key-from-google
-      issuer_url: https://accounts.google.com
+    authentication:
+        type: oidc
+        oidc:
+            id: google
+            redirect_url: https://localhost:3080/v1/webapi/oidc/callback
+            client_id: id-from-google.apps.googleusercontent.com
+            client_secret: secret-key-from-google
+            issuer_url: https://accounts.google.com
+            display: "whaterver"
+            scope: ["ssh_permissions", "roles"]
+            claims_to_roles: 
+                - claim: role
+                  value: admin
+                  roles: ["dba", "backup", "root"]
 ```
 
 Now you should be able to create Teleport users whose identity is managed by Google.
@@ -817,17 +830,17 @@ service configuration in `teleport.yaml`:
 
 ```bash
 auth_service:
-  u2f:
-    # Must be set to 'yes' to enable and 'no' to disable:
-    enabled: yes
+    authentication:
+        type: local
+        second_factor: u2f 
+        u2f:
+            # Only matters when multiple proxy servers are used:
+            app_id: https://mycorp.com/appid.js
 
-    # Only matters when multiple proxy servers are used:
-    app_id: https://mycorp.com/appid.js
-
-    # U2F facets must be set to Teleport proxy servers:
-    facets:
-    - https://proxy1.mycorp.com:3080
-    - https://proxy2.mycorp.com:3080
+            # U2F facets must be set to Teleport proxy servers:
+            facets:
+            - https://proxy1.mycorp.com:3080
+            - https://proxy2.mycorp.com:3080
 ```
 
 If your Teleport is deployed with the same `teleport` process running as a proxy

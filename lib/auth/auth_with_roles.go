@@ -122,11 +122,6 @@ func (a *AuthWithRoles) GetDomainName() (string, error) {
 	return a.authServer.GetDomainName()
 }
 
-func (a *AuthWithRoles) GetU2FAppID() (string, error) {
-	// authenticated users can all read this
-	return a.authServer.GetU2FAppID()
-}
-
 func (a *AuthWithRoles) DeleteCertAuthority(id services.CertAuthID) error {
 	if err := a.action(defaults.Namespace, services.KindCertAuthority, services.ActionWrite); err != nil {
 		return trace.Wrap(err)
@@ -576,6 +571,42 @@ func (a *AuthWithRoles) DeleteRole(name string) error {
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteRole(name)
+}
+
+func (a *AuthWithRoles) GetClusterAuthPreference() (services.AuthPreference, error) {
+	err := a.action(defaults.Namespace, services.KindClusterAuthPreference, services.ActionRead)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.GetClusterAuthPreference()
+}
+
+func (a *AuthWithRoles) SetClusterAuthPreference(cap services.AuthPreference) error {
+	err := a.action(defaults.Namespace, services.KindClusterAuthPreference, services.ActionWrite)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.SetClusterAuthPreference(cap)
+}
+
+func (a *AuthWithRoles) GetUniversalSecondFactor() (services.UniversalSecondFactor, error) {
+	err := a.action(defaults.Namespace, services.KindUniversalSecondFactor, services.ActionRead)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.GetUniversalSecondFactor()
+}
+
+func (a *AuthWithRoles) SetUniversalSecondFactor(u2f services.UniversalSecondFactor) error {
+	err := a.action(defaults.Namespace, services.KindUniversalSecondFactor, services.ActionWrite)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.SetUniversalSecondFactor(u2f)
 }
 
 // NewAuthWithRoles creates new auth server with access control

@@ -17,15 +17,20 @@ limitations under the License.
 package auth
 
 import (
+	"io/ioutil"
 	"time"
+
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/trace"
+
 	. "gopkg.in/check.v1"
 )
 
@@ -136,4 +141,37 @@ func (s *AuthInitSuite) TestBadIdentity(c *C) {
 
 	_, err = ReadIdentityFromKeyPair(priv, cert)
 	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%#v", err))
+}
+
+// TestAuthPreference ensures that the act of creating an AuthServer sets
+// the AuthPreference (type and second factor) on the backend.
+func (s *AuthInitSuite) TestAuthPreference(c *C) {
+	tempDir, err := ioutil.TempDir("", "auth-test-")
+	c.Assert(err, IsNil)
+
+	bk, err := boltbk.New(backend.Params{"path": tempDir})
+	c.Assert(err, IsNil)
+
+	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+		Type:         "local",
+		SecondFactor: "u2f",
+	})
+	c.Assert(err, IsNil)
+
+	ac := InitConfig{
+		DataDir:        tempDir,
+		HostUUID:       "00000000-0000-0000-0000-000000000000",
+		NodeName:       "foo",
+		Backend:        bk,
+		Authority:      testauthority.New(),
+		DomainName:     "me.localhost",
+		AuthPreference: ap,
+	}
+	as, _, err := Init(ac, true)
+	c.Assert(err, IsNil)
+
+	cap, err := as.GetClusterAuthPreference()
+	c.Assert(err, IsNil)
+	c.Assert(cap.GetType(), Equals, "local")
+	c.Assert(cap.GetSecondFactor(), Equals, "u2f")
 }

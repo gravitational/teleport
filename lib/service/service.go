@@ -324,15 +324,16 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 		NodeName:        cfg.Hostname,
 		Authorities:     cfg.Auth.Authorities,
 		ReverseTunnels:  cfg.ReverseTunnels,
-		OIDCConnectors:  cfg.OIDCConnectors,
 		Trust:           cfg.Trust,
 		Presence:        cfg.Presence,
 		Provisioner:     cfg.Provisioner,
 		Identity:        cfg.Identity,
 		Access:          cfg.Access,
 		StaticTokens:    cfg.Auth.StaticTokens,
-		U2F:             cfg.Auth.U2F,
 		Roles:           cfg.Auth.Roles,
+		AuthPreference:  cfg.Auth.Preference,
+		OIDCConnectors:  cfg.OIDCConnectors,
+		U2F:             cfg.Auth.U2F,
 	}, cfg.SeedConfig)
 	if err != nil {
 		return trace.Wrap(err)

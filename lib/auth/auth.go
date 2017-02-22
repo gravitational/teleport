@@ -85,19 +85,27 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
 	if cfg.Access == nil {
 		cfg.Access = local.NewAccessService(cfg.Backend)
 	}
+	if cfg.ClusterAuthPreferenceService == nil {
+		cfg.ClusterAuthPreferenceService = local.NewClusterAuthPreferenceService(cfg.Backend)
+	}
+	if cfg.UniversalSecondFactorService == nil {
+		cfg.UniversalSecondFactorService = local.NewUniversalSecondFactorService(cfg.Backend)
+	}
+
 	as := AuthServer{
-		bk:              cfg.Backend,
-		Authority:       cfg.Authority,
-		Trust:           cfg.Trust,
-		Presence:        cfg.Presence,
-		Provisioner:     cfg.Provisioner,
-		Identity:        cfg.Identity,
-		Access:          cfg.Access,
-		DomainName:      cfg.DomainName,
-		AuthServiceName: cfg.AuthServiceName,
-		oidcClients:     make(map[string]*oidcClient),
-		StaticTokens:    cfg.StaticTokens,
-		U2F:             cfg.U2F,
+		bk:                            cfg.Backend,
+		Authority:                     cfg.Authority,
+		Trust:                         cfg.Trust,
+		Presence:                      cfg.Presence,
+		Provisioner:                   cfg.Provisioner,
+		Identity:                      cfg.Identity,
+		Access:                        cfg.Access,
+		DomainName:                    cfg.DomainName,
+		AuthServiceName:               cfg.AuthServiceName,
+		StaticTokens:                  cfg.StaticTokens,
+		ClusterAuthPreference:         cfg.ClusterAuthPreferenceService,
+		UniversalSecondFactorSettings: cfg.UniversalSecondFactorService,
+		oidcClients:                   make(map[string]*oidcClient),
 	}
 	for _, o := range opts {
 		o(&as)
@@ -135,14 +143,13 @@ type AuthServer struct {
 	// environments where paranoid security is not needed
 	StaticTokens []services.ProvisionToken
 
-	// U2F is the configuration of the U2F 2 factor authentication
-	U2F services.U2F
-
 	services.Trust
 	services.Presence
 	services.Provisioner
 	services.Identity
 	services.Access
+	services.ClusterAuthPreference
+	services.UniversalSecondFactorSettings
 }
 
 func (a *AuthServer) Close() error {
@@ -156,20 +163,6 @@ func (a *AuthServer) Close() error {
 // Also known as "cluster name"
 func (a *AuthServer) GetDomainName() (string, error) {
 	return a.DomainName, nil
-}
-
-func (a *AuthServer) GetU2FAppID() (string, error) {
-	if err := a.CheckU2FEnabled(); err != nil {
-		return "", trace.Wrap(err)
-	}
-	return a.U2F.AppID, nil
-}
-
-func (a *AuthServer) CheckU2FEnabled() error {
-	if !a.U2F.Enabled {
-		return trace.AccessDenied("U2F is disabled")
-	}
-	return nil
 }
 
 // GenerateHostCert uses the private key of the CA to sign the public key of the host
@@ -289,14 +282,14 @@ func (s *AuthServer) PreAuthenticatedSignIn(user string) (services.WebSession, e
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := s.UpsertWebSession(user, sess, WebSessionTTL); err != nil {
+	if err := s.UpsertWebSession(user, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return sess.WithoutSecrets(), nil
 }
 
 func (s *AuthServer) U2FSignRequest(user string, password []byte) (*u2f.SignRequest, error) {
-	err := s.CheckU2FEnabled()
+	universalSecondFactor, err := s.GetUniversalSecondFactor()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -313,7 +306,7 @@ func (s *AuthServer) U2FSignRequest(user string, password []byte) (*u2f.SignRequ
 		return nil, trace.Wrap(err)
 	}
 
-	challenge, err := u2f.NewChallenge(s.U2F.AppID, s.U2F.Facets)
+	challenge, err := u2f.NewChallenge(universalSecondFactor.GetAppID(), universalSecondFactor.GetFacets())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -329,7 +322,8 @@ func (s *AuthServer) U2FSignRequest(user string, password []byte) (*u2f.SignRequ
 }
 
 func (s *AuthServer) CheckU2FSignResponse(user string, response *u2f.SignResponse) error {
-	err := s.CheckU2FEnabled()
+	// before trying to register a user, see U2F is actually setup on the backend
+	_, err := s.GetUniversalSecondFactor()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -382,9 +376,10 @@ func (s *AuthServer) ExtendWebSession(user string, prevSessionID string) (servic
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sessionTTL := minTTL(toTTL(s.clock, expiresAt), WebSessionTTL)
 	sess.SetExpiryTime(expiresAt)
-	if err := s.UpsertWebSession(user, sess, sessionTTL); err != nil {
+	bearerTokenTTL := utils.MinTTL(utils.ToTTL(s.clock, expiresAt), BearerTokenTTL)
+	sess.SetBearerTokenExpiryTime(s.clock.Now().UTC().Add(bearerTokenTTL))
+	if err := s.UpsertWebSession(user, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	sess, err = services.GetWebSessionMarshaler().ExtendWebSession(sess)
@@ -401,7 +396,7 @@ func (s *AuthServer) CreateWebSession(user string) (services.WebSession, error) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := s.UpsertWebSession(user, sess, WebSessionTTL); err != nil {
+	if err := s.UpsertWebSession(user, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	sess, err = services.GetWebSessionMarshaler().GenerateWebSession(sess)
@@ -628,26 +623,32 @@ func (s *AuthServer) NewWebSession(userName string) (services.WebSession, error)
 		}
 		roles = append(roles, role)
 	}
-	allowedLogins, err := roles.CheckLogins(WebSessionTTL)
+	sessionTTL := roles.AdjustSessionTTL(defaults.CertDuration)
+	bearerTokenTTL := utils.MinTTL(sessionTTL, BearerTokenTTL)
+
+	allowedLogins, err := roles.CheckLogins(sessionTTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	cert, err := s.Authority.GenerateUserCert(privateKey, pub, user.GetName(), allowedLogins, WebSessionTTL)
+	// cert TTL is set to bearer token TTL as we expect active session to renew
+	// the token every BearerTokenTTL period
+	cert, err := s.Authority.GenerateUserCert(privateKey, pub, user.GetName(), allowedLogins, bearerTokenTTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return services.NewWebSession(token, services.WebSessionSpecV2{
-		User:        user.GetName(),
-		Priv:        priv,
-		Pub:         cert,
-		Expires:     s.clock.Now().UTC().Add(WebSessionTTL),
-		BearerToken: bearerToken,
+		User:               user.GetName(),
+		Priv:               priv,
+		Pub:                cert,
+		Expires:            s.clock.Now().UTC().Add(sessionTTL),
+		BearerToken:        bearerToken,
+		BearerTokenExpires: s.clock.Now().UTC().Add(bearerTokenTTL),
 	}), nil
 }
 
-func (s *AuthServer) UpsertWebSession(user string, sess services.WebSession, ttl time.Duration) error {
-	return s.Identity.UpsertWebSession(user, sess.GetName(), sess, ttl)
+func (s *AuthServer) UpsertWebSession(user string, sess services.WebSession) error {
+	return s.Identity.UpsertWebSession(user, sess.GetName(), sess)
 }
 
 func (s *AuthServer) GetWebSession(userName string, id string) (services.WebSession, error) {
@@ -901,26 +902,31 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 	}
 	response.Username = user.GetName()
 
+	var roles services.RoleSet
+	roles, err = services.FetchRoles(user.GetRoles(), a.Access)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sessionTTL := roles.AdjustSessionTTL(utils.ToTTL(a.clock, ident.ExpiresAt))
+	bearerTokenTTL := utils.MinTTL(BearerTokenTTL, sessionTTL)
+
 	if req.CreateWebSession {
 		sess, err := a.NewWebSession(user.GetName())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		sessionTTL := minTTL(toTTL(a.clock, ident.ExpiresAt), WebSessionTTL)
+		// session will expire based on identity TTL and allowed session TTL
 		sess.SetExpiryTime(a.clock.Now().UTC().Add(sessionTTL))
-		if err := a.UpsertWebSession(user.GetName(), sess, sessionTTL); err != nil {
+		// bearer token will expire based on the expected session renewal
+		sess.SetBearerTokenExpiryTime(a.clock.Now().UTC().Add(bearerTokenTTL))
+		if err := a.UpsertWebSession(user.GetName(), sess); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		response.Session = sess
 	}
 
-	var roles services.RoleSet
 	if len(req.PublicKey) != 0 {
-		certTTL := minTTL(toTTL(a.clock, ident.ExpiresAt), req.CertTTL)
-		roles, err = services.FetchRoles(user.GetRoles(), a.Access)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		certTTL := utils.MinTTL(utils.ToTTL(a.clock, ident.ExpiresAt), req.CertTTL)
 		allowedLogins, err := roles.CheckLogins(certTTL)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -973,36 +979,12 @@ func (a *AuthServer) DeleteRole(name string) error {
 }
 
 const (
-	// WebSessionTTL specifies standard web session time to live
-	WebSessionTTL = 10 * time.Minute
+	// BearerTokenTTL specifies standard bearer token to exist before
+	// it has to be renewed by the client
+	BearerTokenTTL = 10 * time.Minute
 	// TokenLenBytes is len in bytes of the invite token
 	TokenLenBytes = 16
 )
-
-// minTTL finds min non 0 TTL duration,
-// if both durations are 0, fails
-func minTTL(a, b time.Duration) time.Duration {
-	if a == 0 {
-		return b
-	}
-	if b == 0 {
-		return a
-	}
-	if a < b {
-		return a
-	}
-	return b
-}
-
-// toTTL converts expiration time to TTL duration
-// relative to current time as provided by clock
-func toTTL(c clockwork.Clock, tm time.Time) time.Duration {
-	now := c.Now().UTC()
-	if tm.IsZero() || tm.Before(now) {
-		return 0
-	}
-	return tm.Sub(now)
-}
 
 // oidcClient is internal structure that stores client and it's config
 type oidcClient struct {
