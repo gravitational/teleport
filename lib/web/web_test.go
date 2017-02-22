@@ -145,14 +145,18 @@ func (s *WebSuite) SetUpTest(c *C) {
 		Backend:    s.bk,
 		Authority:  authority.New(),
 		DomainName: s.domainName,
-		U2F: services.U2F{
-			Enabled: true,
-			AppID:   "https://" + s.domainName,
-			Facets:  []string{"https://" + s.domainName},
-		},
-		Identity: identity,
-		Access:   access,
+		Identity:   identity,
+		Access:     access,
 	})
+
+	// configure u2f
+	universalSecondFactor, err := services.NewUniversalSecondFactor(services.UniversalSecondFactorSpecV2{
+		AppID:  "https://" + s.domainName,
+		Facets: []string{"https://" + s.domainName},
+	})
+	c.Assert(err, IsNil)
+	err = authServer.SetUniversalSecondFactor(universalSecondFactor)
+	c.Assert(err, IsNil)
 
 	teleUser, err := services.NewUser(s.user)
 	c.Assert(err, IsNil)

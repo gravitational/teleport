@@ -282,6 +282,7 @@ func (i *OIDCAuthRequest) Check() error {
 }
 
 // U2F is a configuration of the U2F two factor authentication
+// Deprecated: Use services.UniversalSecondFactor instead.
 type U2F struct {
 	Enabled bool
 	// AppID identifies the website to the U2F keys. It should not be changed once a U2F

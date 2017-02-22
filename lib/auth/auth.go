@@ -85,19 +85,27 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
 	if cfg.Access == nil {
 		cfg.Access = local.NewAccessService(cfg.Backend)
 	}
+	if cfg.ClusterAuthPreferenceService == nil {
+		cfg.ClusterAuthPreferenceService = local.NewClusterAuthPreferenceService(cfg.Backend)
+	}
+	if cfg.UniversalSecondFactorService == nil {
+		cfg.UniversalSecondFactorService = local.NewUniversalSecondFactorService(cfg.Backend)
+	}
+
 	as := AuthServer{
-		bk:              cfg.Backend,
-		Authority:       cfg.Authority,
-		Trust:           cfg.Trust,
-		Presence:        cfg.Presence,
-		Provisioner:     cfg.Provisioner,
-		Identity:        cfg.Identity,
-		Access:          cfg.Access,
-		DomainName:      cfg.DomainName,
-		AuthServiceName: cfg.AuthServiceName,
-		oidcClients:     make(map[string]*oidcClient),
-		StaticTokens:    cfg.StaticTokens,
-		U2F:             cfg.U2F,
+		bk:                            cfg.Backend,
+		Authority:                     cfg.Authority,
+		Trust:                         cfg.Trust,
+		Presence:                      cfg.Presence,
+		Provisioner:                   cfg.Provisioner,
+		Identity:                      cfg.Identity,
+		Access:                        cfg.Access,
+		DomainName:                    cfg.DomainName,
+		AuthServiceName:               cfg.AuthServiceName,
+		StaticTokens:                  cfg.StaticTokens,
+		ClusterAuthPreference:         cfg.ClusterAuthPreferenceService,
+		UniversalSecondFactorSettings: cfg.UniversalSecondFactorService,
+		oidcClients:                   make(map[string]*oidcClient),
 	}
 	for _, o := range opts {
 		o(&as)
@@ -135,14 +143,13 @@ type AuthServer struct {
 	// environments where paranoid security is not needed
 	StaticTokens []services.ProvisionToken
 
-	// U2F is the configuration of the U2F 2 factor authentication
-	U2F services.U2F
-
 	services.Trust
 	services.Presence
 	services.Provisioner
 	services.Identity
 	services.Access
+	services.ClusterAuthPreference
+	services.UniversalSecondFactorSettings
 }
 
 func (a *AuthServer) Close() error {
@@ -156,20 +163,6 @@ func (a *AuthServer) Close() error {
 // Also known as "cluster name"
 func (a *AuthServer) GetDomainName() (string, error) {
 	return a.DomainName, nil
-}
-
-func (a *AuthServer) GetU2FAppID() (string, error) {
-	if err := a.CheckU2FEnabled(); err != nil {
-		return "", trace.Wrap(err)
-	}
-	return a.U2F.AppID, nil
-}
-
-func (a *AuthServer) CheckU2FEnabled() error {
-	if !a.U2F.Enabled {
-		return trace.AccessDenied("U2F is disabled")
-	}
-	return nil
 }
 
 // GenerateHostCert uses the private key of the CA to sign the public key of the host
@@ -296,7 +289,7 @@ func (s *AuthServer) PreAuthenticatedSignIn(user string) (services.WebSession, e
 }
 
 func (s *AuthServer) U2FSignRequest(user string, password []byte) (*u2f.SignRequest, error) {
-	err := s.CheckU2FEnabled()
+	universalSecondFactor, err := s.GetUniversalSecondFactor()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -313,7 +306,7 @@ func (s *AuthServer) U2FSignRequest(user string, password []byte) (*u2f.SignRequ
 		return nil, trace.Wrap(err)
 	}
 
-	challenge, err := u2f.NewChallenge(s.U2F.AppID, s.U2F.Facets)
+	challenge, err := u2f.NewChallenge(universalSecondFactor.GetAppID(), universalSecondFactor.GetFacets())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -329,7 +322,8 @@ func (s *AuthServer) U2FSignRequest(user string, password []byte) (*u2f.SignRequ
 }
 
 func (s *AuthServer) CheckU2FSignResponse(user string, response *u2f.SignResponse) error {
-	err := s.CheckU2FEnabled()
+	// before trying to register a user, see U2F is actually setup on the backend
+	_, err := s.GetUniversalSecondFactor()
 	if err != nil {
 		return trace.Wrap(err)
 	}

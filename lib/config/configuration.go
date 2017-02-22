@@ -1,5 +1,5 @@
 /*
-Copyright 2015-16 Gravitational, Inc.
+Copyright 2015 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -93,7 +93,7 @@ func ReadConfigFile(cliConfigPath string) (*FileConfig, error) {
 	return ReadFromFile(configFilePath)
 }
 
-// ApplyFileConfig applies confniguration from a YAML file to Teleport
+// ApplyFileConfig applies configuration from a YAML file to Teleport
 // runtime config
 func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	// no config file? no problem
@@ -140,13 +140,6 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	cfg.ApplyToken(fc.AuthToken)
 	cfg.Auth.DomainName = fc.Auth.DomainName
-
-	// U2F (universal 2nd factor auth) configuration:
-	u2f, err := fc.Auth.U2F.Parse()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	cfg.Auth.U2F = *u2f
 
 	if fc.Global.DataDir != "" {
 		cfg.DataDir = fc.Global.DataDir
@@ -229,15 +222,6 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.ReverseTunnels = append(cfg.ReverseTunnels, tun)
 	}
 
-	// add oidc connectors supplied from configs
-	for _, c := range fc.Auth.OIDCConnectors {
-		conn, err := c.Parse()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		cfg.OIDCConnectors = append(cfg.OIDCConnectors, conn)
-	}
-
 	// apply "proxy_service" section
 	if fc.Proxy.ListenAddress != "" {
 		addr, err := utils.ParseHostPortAddr(fc.Proxy.ListenAddress, int(defaults.SSHProxyListenPort))
@@ -271,6 +255,63 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Errorf("https cert does not exist: %s", fc.Proxy.CertFile)
 		}
 		cfg.Proxy.TLSCert = fc.Proxy.CertFile
+	}
+
+	// Deprecated: Use U2F section in Authentication section instead.
+	u2f, err := fc.Auth.U2F.Parse()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if u2f.Enabled {
+		log.Warnf("Configuration of U2F settings under auth_server.u2f has been deprecated.")
+		log.Warnf("Configuration of U2F has moved under the auth_server.authentication section.")
+		log.Warnf("See the Admin Guide for more details.\n")
+	}
+	// If the old config format is still being used, convert it to the new format,
+	// and still allow it to be used.
+	cfg.Auth.U2F, err = services.NewUniversalSecondFactor(services.UniversalSecondFactorSpecV2{
+		AppID:  u2f.AppID,
+		Facets: u2f.Facets,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Deprecated: Use OIDC section in Authentication section instead.
+	// If the old config format is still being used, allow it to be used.
+	if len(fc.Auth.OIDCConnectors) > 0 {
+		log.Warnf("Configuration for OIDC connectors under auth_server.oidc_connectors has been deprecated.")
+		log.Warnf("Configuration for OIDC connectors has moved under the auth_server.authentication section.")
+		log.Warnf("See the Admin Guide for more details.\n")
+	}
+	for _, c := range fc.Auth.OIDCConnectors {
+		conn, err := c.Parse()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.OIDCConnectors = append(cfg.OIDCConnectors, conn)
+	}
+
+	// if authentication section exists on the auth_server, then use it to extract
+	// the cluster authentication preferences and override u2f and oidc settings set
+	// in the above two blocks
+	if fc.Auth.Authentication != nil {
+		authPreference, oidcConnector, universalSecondFactor, err := fc.Auth.Authentication.Parse()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Auth.Preference = authPreference
+
+		// we now only always allow a single oidc connector, note this will
+		// override anything set with the old format
+		if oidcConnector != nil {
+			cfg.OIDCConnectors = []services.OIDCConnector{oidcConnector}
+		}
+
+		// set u2f settings, note this will override anything set with the old format
+		if universalSecondFactor != nil {
+			cfg.Auth.U2F = universalSecondFactor
+		}
 	}
 
 	// apply "auth_service" section
