@@ -136,36 +136,17 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 	// and this is NOT the first time teleport starts on this machine
 	skipConfig := seedConfig && !firstStart
 
-	// set the cluster auth prerference, the first time read them from the config
+	// upon first start, set the cluster auth prerference from the configuration file
 	// and create a resource on the backend, after that always read from the backend
-	if !skipConfig {
-		log.Infof("Initializing Cluster Authentication Preference: %+v", cfg.AuthPreference)
+	if firstStart {
+		log.Infof("Initializing Cluster Authentication Preference: %v", cfg.AuthPreference)
 		err = asrv.SetClusterAuthPreference(cfg.AuthPreference)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 
-		log.Infof("Initializing Universal Second Factor Settings: %+v", cfg.U2F)
 		if cfg.U2F != nil {
-			err = asrv.SetUniversalSecondFactor(cfg.U2F)
-			if err != nil {
-				return nil, nil, trace.Wrap(err)
-			}
-		}
-	}
-
-	// migrate: if U2F is set, but we don't have anything set on the backend, do a migration
-	// because the old configuration file format is probably being used.
-	if cfg.U2F != nil {
-		// check if we already have something set on the backend
-		_, err = asrv.GetUniversalSecondFactor()
-		if err != nil {
-			// if we have an error other than IsNotFound return it right away
-			if !trace.IsNotFound(err) {
-				return nil, nil, trace.Wrap(err)
-			}
-
-			// if the error was not found, then try and set it on the backend
+			log.Infof("Initializing Universal Second Factor Settings: %v", cfg.U2F)
 			err = asrv.SetUniversalSecondFactor(cfg.U2F)
 			if err != nil {
 				return nil, nil, trace.Wrap(err)
@@ -307,7 +288,10 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 			}
 		}
 	}
-	// add OIDC connectors to the back-end:
+
+	// add OIDC connectors to the back-end. we always add connectors to the backend
+	// because settings can come from legacy configuration so we keep doing this
+	// until we remove support for legacy formats.
 	keepMap = make(map[string]int, 0)
 	if !skipConfig {
 		log.Infof("Initializing OIDC connectors")
@@ -331,6 +315,15 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 				}
 				log.Infof("removed OIDC connector '%s'", connector.GetName())
 			}
+		}
+	}
+
+	// migrate u2f settings to the backend. we do this because settings can come from legacy
+	// configuration so always push to the backend until we remove support for the legacy format.
+	if cfg.U2F != nil {
+		err = asrv.SetUniversalSecondFactor(cfg.U2F)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
 		}
 	}
 

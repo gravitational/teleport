@@ -149,6 +149,15 @@ func (s *WebSuite) SetUpTest(c *C) {
 		Access:     access,
 	})
 
+	// configure cluster authentication preferences
+	cap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+		Type:         "local",
+		SecondFactor: "u2f",
+	})
+	c.Assert(err, IsNil)
+	err = authServer.SetClusterAuthPreference(cap)
+	c.Assert(err, IsNil)
+
 	// configure u2f
 	universalSecondFactor, err := services.NewUniversalSecondFactor(services.UniversalSecondFactorSpecV2{
 		AppID:  "https://" + s.domainName,
@@ -254,6 +263,11 @@ func (s *WebSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(s.tunServer.Start(), IsNil)
 
+	// create a tun client
+	tunClient, err := auth.NewTunClient("test", []utils.NetAddr{tunAddr},
+		s.domainName, []ssh.AuthMethod{ssh.PublicKeys(s.signer)})
+	c.Assert(err, IsNil)
+
 	// proxy server:
 	proxyPort := s.freePorts[len(s.freePorts)-1]
 	s.freePorts = s.freePorts[:len(s.freePorts)-1]
@@ -276,6 +290,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		Proxy:       revTunServer,
 		AuthServers: tunAddr,
 		DomainName:  s.domainName,
+		ProxyClient: tunClient,
 	}, SetSessionStreamPollPeriod(200*time.Millisecond))
 	c.Assert(err, IsNil)
 
@@ -1006,4 +1021,20 @@ func (s *WebSuite) TestU2FLogin(c *C) {
 		U2FSignResponse: *u2fSignResp,
 	})
 	c.Assert(err, NotNil)
+}
+
+// TestPing ensures that a response is returned by /webapi/ping
+// and that that response body contains authentication information.
+func (s *WebSuite) TestPing(c *C) {
+	wc := s.client()
+
+	re, err := wc.Get(wc.Endpoint("webapi", "ping"), url.Values{})
+	c.Assert(err, IsNil)
+
+	var out *client.PingResponse
+	c.Assert(json.Unmarshal(re.Bytes(), &out), IsNil)
+
+	c.Assert(out.Auth.Type, Equals, "local")
+	c.Assert(out.Auth.SecondFactor, Equals, "u2f")
+	c.Assert(out.Auth.U2F.AppID, Equals, "https://"+s.domainName)
 }

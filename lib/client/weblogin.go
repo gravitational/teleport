@@ -237,21 +237,66 @@ func SSHAgentOIDCLogin(proxyAddr, connectorID string, pubKey []byte, ttl time.Du
 		log.Debugf("got timeout waiting for callback")
 		return nil, trace.Wrap(trace.Errorf("timeout waiting for callback"))
 	}
-
 }
 
-// Ping is used to validate HTTPS endpoing of Teleport proxy. This leads to better
-// user experience: they get connection errors before being asked for passwords
-func Ping(proxyAddr string, insecure bool, pool *x509.CertPool) error {
+// PingResponse contains data about the Teleport server like supported authentication
+// types, server version, etc.
+type PingResponse struct {
+	// Auth contains the forms of authentication the auth server supports.
+	Auth *AuthenticationSettings `json:"auth"`
+	// ServerVersion is the version of Teleport that is running.
+	ServerVersion string `json:"server_version"`
+}
+
+// PingResponse contains the form of authentication the auth server supports.
+type AuthenticationSettings struct {
+	// Type is the type of authentication, can be either local or oidc.
+	Type string `json:"type"`
+	// SecondFactor is the type of second factor to use in authentication.
+	// Supported options are: off, otp, and u2f.
+	SecondFactor string `json:"second_factor"`
+	// U2F contains the Universal Second Factor settings needed for authentication.
+	U2F *U2FSettings `json:"u2f,omitempty"`
+	// OIDC contains the OIDC Connector settings needed for authentication.
+	OIDC *OIDCSettings `json:"oidc,omitempty"`
+}
+
+// U2FSettings contains the AppID for Universal Second Factor.
+type U2FSettings struct {
+	// AppID is the U2F AppID.
+	AppID string `json:"app_id"`
+}
+
+// OIDCSettings contains the Name and Display string for OIDC.
+type OIDCSettings struct {
+	// Name is the internal name of the connector.
+	Name string `json:"name"`
+	// Display is the display name for the connector.
+	Display string `json:"display"`
+}
+
+// Ping serves two purposes. The first is to validate the HTTP endpoint of a Teleport proxy. This leads
+// to better user experience: users get connection errors before being asked for passwords. The second
+// is to return the form of authentication that the server supports. This also leads to better user
+// experience: users only get prompted for the type of authentication the server supports.
+func Ping(proxyAddr string, insecure bool, pool *x509.CertPool) (*PingResponse, error) {
 	clt, _, err := initClient(proxyAddr, insecure, pool)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	_, err = clt.Get(clt.Endpoint("webapi"), url.Values{})
+
+	response, err := clt.Get(clt.Endpoint("webapi", "ping"), url.Values{})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return nil
+
+	var pr *PingResponse
+	err = json.Unmarshal(response.Bytes(), &pr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return pr, nil
 }
 
 // SSHAgentLogin issues call to web proxy and receives temp certificate
