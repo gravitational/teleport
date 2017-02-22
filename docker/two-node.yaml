@@ -1,0 +1,20 @@
+# Dumb SSH node for cluster "two"
+teleport:
+  nodename: two-node
+  auth_servers: ["two-auth"]
+  auth_token: xxx
+  log:
+    output: /var/lib/teleport/teleport.log
+    severity: INFO
+
+ssh_service:
+  enabled: yes
+  labels:
+      cluster: two
+      role: dumb_node
+
+proxy_service:
+   enabled: no
+
+auth_service:
+  enabled: no
