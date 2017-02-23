@@ -288,8 +288,47 @@ func (m *Handler) getUserStatus(w http.ResponseWriter, r *http.Request, _ httpro
 	return ok(), nil
 }
 
+func buildUniversalSecondFactorSettings(authClient auth.ClientI) *client.U2FSettings {
+	universalSecondFactor, err := authClient.GetUniversalSecondFactor()
+	if err != nil {
+		// if we have nothing set on the backend, return we have nothing
+		if trace.IsNotFound(err) {
+			return nil
+		}
+
+		log.Debugf("Unable to get U2F Settings: %v", err)
+		return nil
+	}
+
+	return &client.U2FSettings{AppID: universalSecondFactor.GetAppID()}
+}
+
+func buildOIDCConnectorSettings(authClient auth.ClientI) *client.OIDCSettings {
+	oidcConnectors, err := authClient.GetOIDCConnectors(false)
+	if err != nil {
+		// if we have nothing set on the backend, return we have nothing
+		if trace.IsNotFound(err) {
+			return nil
+		}
+
+		log.Debugf("Unable to get OIDC Connectors: %v", err)
+		return nil
+	}
+
+	if len(oidcConnectors) < 1 {
+		log.Debugf("No OIDC Connectors found")
+		return nil
+	}
+
+	// always use the first one as only allow a single oidc connector now
+	return &client.OIDCSettings{
+		Name:    oidcConnectors[0].GetName(),
+		Display: oidcConnectors[0].GetDisplay(),
+	}
+}
+
 func buildAuthenticationSettings(authClient auth.ClientI) (*client.PingResponse, error) {
-	as := &client.AuthenticationSettings{}
+	as := client.AuthenticationSettings{}
 
 	cap, err := authClient.GetClusterAuthPreference()
 	if err != nil {
@@ -299,36 +338,14 @@ func buildAuthenticationSettings(authClient auth.ClientI) (*client.PingResponse,
 	as.Type = cap.GetType()
 	as.SecondFactor = cap.GetSecondFactor()
 
-	if cap.GetSecondFactor() == "u2f" {
-		universalSecondFactor, err := authClient.GetUniversalSecondFactor()
-		if err != nil {
-			if !trace.IsNotFound(err) {
-				log.Infof("Unable to get U2F Settings: %v", err)
-				goto oidc
-			}
-		}
-
-		as.U2F = &client.U2FSettings{AppID: universalSecondFactor.GetAppID()}
+	// if we have u2f or oidc settings, build those as well
+	if cap.GetSecondFactor() == teleport.U2F {
+		as.U2F = buildUniversalSecondFactorSettings(authClient)
+	}
+	if cap.GetType() == teleport.OIDC {
+		as.OIDC = buildOIDCConnectorSettings(authClient)
 	}
 
-oidc:
-	if cap.GetType() == "oidc" {
-		oidcConnectors, err := authClient.GetOIDCConnectors(false)
-		if err != nil {
-			if !trace.IsNotFound(err) {
-				log.Infof("Unable to get U2F Settings: %v", err)
-				goto end
-			}
-		}
-
-		// always use the first one as only allow a single oidc connector now
-		as.OIDC = &client.OIDCSettings{
-			Name:    oidcConnectors[0].GetName(),
-			Display: oidcConnectors[0].GetDisplay(),
-		}
-	}
-
-end:
 	return &client.PingResponse{
 		Auth:          as,
 		ServerVersion: teleport.Version,

@@ -151,8 +151,8 @@ func (s *WebSuite) SetUpTest(c *C) {
 
 	// configure cluster authentication preferences
 	cap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
-		Type:         "local",
-		SecondFactor: "u2f",
+		Type:         teleport.Local,
+		SecondFactor: teleport.U2F,
 	})
 	c.Assert(err, IsNil)
 	err = authServer.SetClusterAuthPreference(cap)
@@ -1034,7 +1034,7 @@ func (s *WebSuite) TestPing(c *C) {
 	var out *client.PingResponse
 	c.Assert(json.Unmarshal(re.Bytes(), &out), IsNil)
 
-	c.Assert(out.Auth.Type, Equals, "local")
-	c.Assert(out.Auth.SecondFactor, Equals, "u2f")
+	c.Assert(out.Auth.Type, Equals, teleport.Local)
+	c.Assert(out.Auth.SecondFactor, Equals, teleport.U2F)
 	c.Assert(out.Auth.U2F.AppID, Equals, "https://"+s.domainName)
 }

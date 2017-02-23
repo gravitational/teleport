@@ -243,7 +243,7 @@ func SSHAgentOIDCLogin(proxyAddr, connectorID string, pubKey []byte, ttl time.Du
 // types, server version, etc.
 type PingResponse struct {
 	// Auth contains the forms of authentication the auth server supports.
-	Auth *AuthenticationSettings `json:"auth"`
+	Auth AuthenticationSettings `json:"auth"`
 	// ServerVersion is the version of Teleport that is running.
 	ServerVersion string `json:"server_version"`
 }

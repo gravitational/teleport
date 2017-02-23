@@ -32,6 +32,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -281,7 +282,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 			}
 			cfg.OIDCConnectors = []services.OIDCConnector{oidcConnector}
 
-			cfg.Auth.Preference.SetType("oidc")
+			cfg.Auth.Preference.SetType(teleport.OIDC)
 		}
 
 		// parse the configuration to see if we have defined u2f
@@ -300,7 +301,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 				return trace.Wrap(err)
 			}
 
-			cfg.Auth.Preference.SetSecondFactor("u2f")
+			cfg.Auth.Preference.SetSecondFactor(teleport.U2F)
 		}
 	}
 
