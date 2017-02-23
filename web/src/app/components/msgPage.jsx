@@ -44,25 +44,27 @@ const InfoTypes = {
 const MessagePage = ({params}) => {
   let {type, subType} = params;
   if (type === MsgType.ERROR) {
-    return <ErrorPage type={subType} />
+    return <ErrorPage type={subType}/>
   }
 
   if (type === MsgType.INFO) {
-    return <InfoPage type={subType} />
+    return <InfoPage type={subType}/>
   }
 
   return null;
 }
-  
-const ErrorPage = ({type}) => {
 
+const ErrorPage = ({ type, message='' }) => {      
   let msgBody = (
     <div>
       <h1>{MSG_ERROR_DEFAULT}</h1>
+      <div className="m-t text-muted" style={{ wordBreak: "break-all" }}>
+        <small>{message}</small>
+      </div>
     </div>
   );
 
-  if (type === ErrorTypes.FAILED_TO_LOGIN) {
+  if(type === ErrorTypes.FAILED_TO_LOGIN){
     msgBody = (
       <div>
         <h1>{MSG_ERROR_LOGIN_FAILED}</h1>
@@ -70,7 +72,7 @@ const ErrorPage = ({type}) => {
     )
   }
 
-  if (type === ErrorTypes.EXPIRED_INVITE) {
+  if(type === ErrorTypes.EXPIRED_INVITE){
     msgBody = (
       <div>
         <h1>{MSG_ERROR_EXPIRED_INVITE}</h1>
@@ -79,7 +81,7 @@ const ErrorPage = ({type}) => {
     )
   }
 
-  if (type === ErrorTypes.NOT_FOUND) {
+  if( type === ErrorTypes.NOT_FOUND){
     msgBody = (
       <div>
         <h1>{MSG_ERROR_NOT_FOUND}</h1>
@@ -97,9 +99,8 @@ const ErrorPage = ({type}) => {
   );
 }
 
-const InfoPage = ({ type }) => {   
+const InfoPage = ({type}) => {
   let msgBody = null;
-
   if (type === InfoTypes.LOGIN_SUCCESS) {
     msgBody = (
       <div>
@@ -110,20 +111,27 @@ const InfoPage = ({ type }) => {
 
   return (
     <div className="grv-msg-page">
-      <div className="grv-header"><i className="fa fa-smile-o"></i> </div>
+      <div className="grv-header">
+        <i className="fa fa-smile-o"></i>
+      </div>
       {msgBody}
     </div>
   );
 }
-  
-const NotFound = () => (
+
+var NotFound = () => (
   <ErrorPage type={ErrorTypes.NOT_FOUND}/>
+)
+
+var Failed = ({ message }) => (
+  <ErrorPage message={message}/>
 )
 
 export {
   ErrorPage,
   InfoPage,
   NotFound,
+  Failed,
   ErrorTypes,
   MessagePage
 };

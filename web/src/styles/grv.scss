@@ -112,6 +112,13 @@ limitations under the License.
   }
 }
 
+.grv-spinner.sk-spinner-three-bounce {
+  z-index: 1;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+}
+
 .input-daterange .input-group-addon {
   width: auto;
   min-width: 16px;

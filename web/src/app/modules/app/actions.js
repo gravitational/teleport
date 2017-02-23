@@ -17,10 +17,12 @@ limitations under the License.
 import reactor from 'app/reactor';
 import auth from 'app/services/auth';
 import { showError } from 'app/modules/notifications/actions';
-import { TLPT_APP_INIT, TLPT_APP_FAILED, TLPT_APP_READY, TLPT_APP_SET_SITE_ID } from './actionTypes';
+import { TLPT_APP_SET_SITE_ID } from './actionTypes';
+import { TLPT_TRYING_TO_INIT_APP } from 'app/modules/restApi/constants';
 import { TLPT_SITES_RECEIVE } from './../sites/actionTypes';
 import api from 'app/services/api';
 import cfg from 'app/config';
+import restApiActions from 'app/modules/restApi/actions';
 import { fetchNodes } from './../nodes/actions';
 import { fetchActiveSessions } from 'app/modules/sessions/actions';
 import $ from 'jQuery';
@@ -35,7 +37,7 @@ const actions = {
 
   initApp(nextState, replace, cb) {
     let { siteId } = nextState.params;        
-    reactor.dispatch(TLPT_APP_INIT);
+    restApiActions.start(TLPT_TRYING_TO_INIT_APP);
     // get the list of available clusters
     actions.fetchSites()      
       .then( masterSiteId => {
@@ -44,12 +46,13 @@ const actions = {
         // fetch nodes and active sessions 
         return $.when(fetchNodes(), fetchActiveSessions())
           .done(() => {
-            reactor.dispatch(TLPT_APP_READY);
+            restApiActions.success(TLPT_TRYING_TO_INIT_APP);            
             cb();
         })                
       })
-      .fail(() => {
-        reactor.dispatch(TLPT_APP_FAILED)
+      .fail(err => {        
+        let msg = api.getErrorText(err);                
+        restApiActions.fail(TLPT_TRYING_TO_INIT_APP, msg);        
         cb();
       });
   },
@@ -79,9 +82,7 @@ const actions = {
     })    
   },
 
-  resetApp() {
-    // set to 'loading state' to notify subscribers
-    reactor.dispatch(TLPT_APP_INIT);
+  resetApp() {    
     // reset  reactor
     reactor.reset();
   },

@@ -21,24 +21,32 @@ import { getters } from 'app/modules/app';
 import { refresh } from 'app/modules/app/actions';
 import NotificationHost from './notificationHost.jsx';
 import Timer from './timer.jsx';
+import { Failed } from 'app/components/msgPage.jsx';
+import Indicator from 'app/components/indicator.jsx';
 
-const App = React.createClass({
+var App = React.createClass({
 
   mixins: [reactor.ReactMixin],
 
   getDataBindings() {
     return {
-      appStatus: getters.appStatus      
+      initAttemp: getters.initAttemp      
     }
   },
     
   render() {
-    let {
-      isInitializing      
-    } = this.state.appStatus;
+    let { isProcessing, isFailed, message } = this.state.initAttemp;
+    
+    if (isProcessing) {      
+      return (
+        <div>
+          <Indicator enabled={true} type={'bounce'} />
+        </div>
+      )
+    }
 
-    if(isInitializing){
-      return null;
+    if (isFailed) {
+      return <Failed message={message}/>
     }
     
     return (
@@ -53,4 +61,4 @@ const App = React.createClass({
   }
 })
 
-export default App;
+module.exports = App;

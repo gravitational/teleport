@@ -124,7 +124,7 @@ let cfg = {
   },
 
   getAuthProvider() {
-    return 'github';
+    return 'microsoft';
   },
 
   getAuthType() {
