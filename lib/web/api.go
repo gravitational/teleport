@@ -22,6 +22,8 @@ import (
 	"compress/gzip"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
+	"encoding/xml"
 	"fmt"
 	"html/template"
 	"io"
@@ -34,7 +36,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/RobotsAndPencils/go-saml"
+	"github.com/crewjam/saml/samlsp"
+	jwt "github.com/dgrijalva/jwt-go"
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
@@ -64,8 +67,12 @@ type Handler struct {
 	auth                    *sessionCache
 	sites                   *ttlmap.TtlMap
 	sessionStreamPollPeriod time.Duration
-	sp                      saml.ServiceProviderSettings
+	sp                      *samlsp.Middleware
 }
+
+
+
+
 
 // HandlerOption is a functional argument - an option that can be passed
 // to NewHandler function
@@ -114,6 +121,14 @@ func (r *RewritingHandler) Close() error {
 	return r.handler.Close()
 }
 
+func randomBytes(n int) []byte {
+ 	rv := make([]byte, n)
+ 	if _, err := saml.RandReader.Read(rv); err != nil {
+ 		panic(err)
+ 	}
+ 	return rv
+ }
+
 // NewHandler returns a new instance of web proxy handler
 func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	const apiPrefix = "/" + client.APIVersion
@@ -122,21 +137,23 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	
+	key, _ := ioutil.ReadFile("/etc/teleport/sp.key")
+ 	cert, _ := ioutil.ReadFile("/etc/teleport/sp.cert")
+ 	tmpsp, _ := samlsp.New(samlsp.Options{
+ 		IDPMetadataURL: "https://fs.dashlane.com/FederationMetadata/2007-06/FederationMetadata.xml",
+ 		URL:            "https://auth2.dashlane.com:3080/v1/webapi",
+ 		Key:            string(key),
+ 		Certificate:    string(cert),
+ 	})
 
 	h := &Handler{
 		cfg:  cfg,
 		auth: lauth,
+		sp:   tmpsp,
 	}
-	h.sp = saml.ServiceProviderSettings{
-		PublicCertPath:              "/etc/teleport/server.crt",
-		PrivateKeyPath:              "/etc/teleport/server.key",
-		IDPSSOURL:                   "http://srv-par-adfs3.dashlane.com/adfs/services/trust",
-		IDPSSODescriptorURL:         "https://srv-par-adfs3.dashlane.com/FederationMetadata/2007-06/FederationMetadata.xml",
-		IDPPublicCertPath:           "/etc/teleport/samlidp.crt",
-		SPSignRequest:               true,
-		AssertionConsumerServiceURL: "https://ssh.dashlane.com:3080/v1/webclient/saml/consume",
-	}
-	h.sp.Init()
+
+
 	for _, o := range opts {
 		if err := o(h); err != nil {
 			return nil, trace.Wrap(err)
@@ -195,7 +212,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 
 	// SAML related callback handlers
 	h.GET("/webapi/saml/metadata", httplib.MakeHandler(h.samlMetadata))
-	h.POST("/webapi/saml/consume", httplib.MakeHandler(h.samlConsume))
+	h.GET("/webapi/saml/auth", httplib.MakeHandler(h.samlAuth))
+	h.POST("/webapi/saml/acs", httplib.MakeHandler(h.samlConsume))
+
 	// U2F related APIs
 	h.GET("/webapi/u2f/signuptokens/:token", httplib.MakeHandler(h.u2fRegisterRequest))
 	h.POST("/webapi/u2f/users", httplib.MakeHandler(h.createNewU2FUser))
@@ -424,51 +443,211 @@ func (m *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 	return nil, nil
 }
 
-// send saml sp metadata
+func (m *Handler) getPossibleRequestIDs(r *http.Request) []string {
+	rv := []string{}
+	for _, cookie := range r.Cookies() {
+		if !strings.HasPrefix(cookie.Name, "saml_") {
+			continue
+		}
+		log.Printf("getPossibleRequestIDs: cookie: %s", cookie.String())
+		token, err := jwt.Parse(cookie.Value, func(t *jwt.Token) (interface{}, error) {
+			secretBlock, _ := pem.Decode([]byte(m.sp.ServiceProvider.Key))
+			return secretBlock.Bytes, nil
+		})
+		if err != nil || !token.Valid {
+			log.Printf("... invalid token %s", err)
+			continue
+		}
+		claims := token.Claims.(jwt.MapClaims)
+		rv = append(rv, claims["id"].(string))
+	}
+
+	// If IDP initiated requests are allowed, then we can expect an empty response ID.
+	//if m.sp.ServiceProvider.AllowIDPInitiated {
+	rv = append(rv, "")
+	// }
+
+	return rv
+}
+
+type TokenClaims struct {
+	jwt.StandardClaims
+	Attributes map[string][]string `json:"attr"`
+}
+
+// Authorize is cool
+func (m *Handler) Authorize(w http.ResponseWriter, r *http.Request, assertion *saml.Assertion) {
+
+	CookieMaxAge := time.Hour
+	CookieName := "token"
+	secretBlock, _ := pem.Decode([]byte(m.sp.ServiceProvider.Key))
+
+	redirectURI := "/"
+	if r.Form.Get("RelayState") != "" {
+		stateCookie, err := r.Cookie(fmt.Sprintf("saml_%s", r.Form.Get("RelayState")))
+		if err != nil {
+			log.Printf("cannot find corresponding cookie: %s", fmt.Sprintf("saml_%s", r.Form.Get("RelayState")))
+			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+			return
+		}
+
+		state, err := jwt.Parse(stateCookie.Value, func(t *jwt.Token) (interface{}, error) {
+			return secretBlock.Bytes, nil
+		})
+		if err != nil || !state.Valid {
+			log.Printf("Cannot decode state JWT: %s (%s)", err, stateCookie.Value)
+			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+			return
+		}
+		claims := state.Claims.(jwt.MapClaims)
+		redirectURI = claims["uri"].(string)
+
+		// delete the cookie
+		stateCookie.Value = ""
+		stateCookie.Expires = time.Time{}
+		http.SetCookie(w, stateCookie)
+	}
+
+	now := saml.TimeNow()
+	claims := TokenClaims{}
+	claims.Audience = m.sp.ServiceProvider.Metadata().EntityID
+	claims.IssuedAt = assertion.IssueInstant.Unix()
+	claims.ExpiresAt = now.Add(CookieMaxAge).Unix()
+	claims.NotBefore = now.Unix()
+	if sub := assertion.Subject; sub != nil {
+		if nameID := sub.NameID; nameID != nil {
+			claims.StandardClaims.Subject = nameID.Value
+		}
+	}
+	if assertion.AttributeStatement != nil {
+		claims.Attributes = map[string][]string{}
+		for _, attr := range assertion.AttributeStatement.Attributes {
+			claimName := attr.FriendlyName
+			if claimName == "" {
+				claimName = attr.Name
+			}
+			for _, value := range attr.Values {
+				claims.Attributes[claimName] = append(claims.Attributes[claimName], value.Value)
+				fmt.InfoF("%s", value.Value)
+			}
+		}
+	}
+	signedToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256,
+		claims).SignedString(secretBlock.Bytes)
+	if err != nil {
+		panic(err)
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     CookieName,
+		Value:    signedToken,
+		MaxAge:   int(CookieMaxAge.Seconds()),
+		HttpOnly: false,
+		Path:     "/",
+	})
+
+	http.Redirect(w, r, redirectURI, http.StatusFound)
+}
+
+// samlConsume is used to validate saml assertions
 func (m *Handler) samlConsume(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	encodedXML := r.FormValue("SAMLResponse")
-	log.Infof("in samlConsume")
-
-	if encodedXML == "" {
-		log.Infof("SAMLResponse form value missing")
-		message("SAMLResponse form value missing")
+	r.ParseForm()
+ 	assertion, err := m.sp.ServiceProvider.ParseResponse(r, m.getPossibleRequestIDs(r))
+ 	if err != nil {
+ 		if parseErr, ok := err.(*saml.InvalidResponseError); ok {
+ 			log.Printf("RESPONSE: ===\n%s\n===\nNOW: %s\nERROR: %s",
+ 				parseErr.Response, parseErr.Now, parseErr.PrivateErr)
+ 		}
+ 		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)	
 		return nil, nil
 	}
-
-	response, err := saml.ParseEncodedResponse(encodedXML)
-	if err != nil {
-		log.Infof("SAMLResponse parse: " + err.Error())
-		message("SAMLResponse parse: " + err.Error())
-		return nil, nil
-	}
-
-	err = response.Validate(&m.sp)
-	if err != nil {
-		log.Infof("SAMLResponse validation: " + err.Error())
-		message("SAMLResponse validation: " + err.Error())
-		return nil, nil
-	}
-
-	samlID := response.GetAttribute("uid")
-	if samlID == "" {
-		log.Infof("SAML attribute identifier uid missing")
-		return nil, nil
-	}
-	log.Infof("coucou" + samlID)
-	return nil, nil
+	m.Authorize(w, r, assertion)
+	return nil,nil
 }
+
 func (m *Handler) samlMetadata(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	md, err := m.sp.GetEntityDescriptor()
+ 	buf, _ := xml.MarshalIndent(m.sp.ServiceProvider.Metadata(), "", "  ")
+ 	w.Header().Set("Content-Type", "application/samlmetadata+xml")
+ 	w.Write(buf)
+ 	return nil, nil
+}
+
+func (m *Handler) samlAuth(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	log.Infof("in samlAuth")
+
+	if m.sp.IsAuthorized(r) {
+		message("kapou")
+		fmt.Fprintf(w, "Hello, %s!\nGroups:", r.Header.Get("X-Saml-Cn"))
+		// groups := r.Header["X-Saml-Blahgroup"]
+		for _, group := range r.Header["X-Saml-Blahgroup"] {
+			fmt.Fprintf(w, "%s,", group)
+			return nil, nil
+		}
+	}
+	// If we try to redirect when the original request is the ACS URL we'll
+	// end up in a loop. This is a programming error, so we panic here. In
+	// general this means a 500 to the user, which is preferable to a
+	// redirect loop.
+
+	binding := saml.HTTPRedirectBinding
+	bindingLocation := m.sp.ServiceProvider.GetSSOBindingLocation(binding)
+	if bindingLocation == "" {
+		binding = saml.HTTPPostBinding
+		bindingLocation = m.sp.ServiceProvider.GetSSOBindingLocation(binding)
+	}
+
+	req, err := m.sp.ServiceProvider.MakeAuthenticationRequest(bindingLocation)
 	if err != nil {
-		w.WriteHeader(500)
-		w.Write([]byte("Error: " + err.Error()))
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return nil, nil
 	}
 
-	w.Header().Set("Content-Type", "application/xml")
-	w.Write([]byte(md))
-	return nil, nil
+	// relayState is limited to 80 bytes but also must be integrety protected.
+	// this means that we cannot use a JWT because it is way to long. Instead
+	// we set a cookie that corresponds to the state
+	relayState := base64.URLEncoding.EncodeToString(randomBytes(42))
+
+	secretBlock, _ := pem.Decode([]byte(m.sp.ServiceProvider.Key))
+	state := jwt.New(jwt.GetSigningMethod("HS256"))
+	claims := state.Claims.(jwt.MapClaims)
+	claims["id"] = req.ID
+	claims["uri"] = r.URL.String()
+	signedState, err := state.SignedString(secretBlock.Bytes)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return nil, nil
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     fmt.Sprintf("saml_%s", relayState),
+		Value:    signedState,
+		MaxAge:   int(saml.MaxIssueDelay.Seconds()),
+		HttpOnly: false,
+		Path:     "/v1/webapi/saml/acs",
+	})
+
+	if binding == saml.HTTPRedirectBinding {
+		redirectURL := req.Redirect(relayState)
+		w.Header().Add("Location", redirectURL.String())
+		w.WriteHeader(http.StatusFound)
+		return nil, nil
+	}
+	if binding == saml.HTTPPostBinding {
+		w.Header().Set("Content-Security-Policy", ""+
+			"default-src; "+
+			"script-src 'sha256-D8xB+y+rJ90RmLdP72xBqEEc0NUatn7yuCND0orkrgk='; "+
+			"reflected-xss block; "+
+			"referrer no-referrer;")
+		w.Header().Add("Content-type", "text/html")
+		w.Write([]byte(`<!DOCTYPE html><html><body>`))
+		w.Write(req.Post(relayState))
+		w.Write([]byte(`</body></html>`))
+		return nil, nil
+	}
+	panic("not reached")
 }
+
+
 
 // ConstructSSHResponse creates a special SSH response for SSH login method
 // that encodes everything using the client's secret key
