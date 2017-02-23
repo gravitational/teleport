@@ -37,6 +37,7 @@ import (
 	"time"
 
 	"github.com/crewjam/saml/samlsp"
+	"github.com/crewjam/saml"
 	jwt "github.com/dgrijalva/jwt-go"
 
 	"github.com/gravitational/teleport/lib/auth"
@@ -528,7 +529,6 @@ func (m *Handler) Authorize(w http.ResponseWriter, r *http.Request, assertion *s
 			}
 			for _, value := range attr.Values {
 				claims.Attributes[claimName] = append(claims.Attributes[claimName], value.Value)
-				fmt.InfoF("%s", value.Value)
 			}
 		}
 	}
