@@ -75,28 +75,37 @@ func (cmd *Command) Execute(ch io.ReadWriter) (err error) {
 func (cmd *Command) serveSource(ch io.ReadWriter) error {
 	log.Debug("SCP: serving source")
 
+	paths, err := filepath.Glob(cmd.Target)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	files := make([]os.FileInfo, len(paths))
+	for i := range paths {
+		f, err := os.Stat(paths[i])
+		if err != nil {
+			return trace.Wrap(sendError(ch, err))
+		}
+		if f.IsDir() && !cmd.Recursive {
+			err := trace.Errorf("%v is a directory, perhaps try -r flag?", f.Name())
+			return trace.Wrap(sendError(ch, err))
+		}
+		files[i] = f
+	}
+
 	r := newReader(ch)
 	if err := r.read(); err != nil {
 		return trace.Wrap(err)
 	}
 
-	f, err := os.Stat(cmd.Target)
-	if err != nil {
-		return trace.Wrap(sendError(ch, err))
-	}
-
-	if f.IsDir() && !cmd.Recursive {
-		err := trace.Errorf("%v is not a file, turn recursive mode to copy dirs", cmd.Target)
-		return trace.Wrap(sendError(ch, err))
-	}
-
-	if f.IsDir() {
-		if err := cmd.sendDir(r, ch, f, cmd.Target); err != nil {
-			return trace.Wrap(sendError(ch, err))
-		}
-	} else {
-		if err := cmd.sendFile(r, ch, f, cmd.Target); err != nil {
-			return trace.Wrap(sendError(ch, err))
+	for i, f := range files {
+		if f.IsDir() {
+			if err := cmd.sendDir(r, ch, f, paths[i]); err != nil {
+				return trace.Wrap(sendError(ch, err))
+			}
+		} else {
+			if err := cmd.sendFile(r, ch, f, paths[i]); err != nil {
+				return trace.Wrap(sendError(ch, err))
+			}
 		}
 	}
 
@@ -199,13 +208,14 @@ func (cmd *Command) serveSink(ch io.ReadWriter) error {
 		return trace.Wrap(err)
 	}
 	var st state
+	st.path = []string{"."}
 	var b = make([]byte, 1)
 	scanner := bufio.NewScanner(ch)
 	for {
 		n, err := ch.Read(b)
 		if err != nil {
 			if err == io.EOF {
-				log.Debug("<- EOF")
+				//log.Debug("<- EOF")
 				return nil
 			}
 			return trace.Wrap(err)
@@ -215,7 +225,7 @@ func (cmd *Command) serveSink(ch io.ReadWriter) error {
 		}
 
 		if b[0] == OKByte {
-			log.Debug("<- OK")
+			//log.Debug("<- OK")
 			continue
 		}
 
@@ -229,12 +239,12 @@ func (cmd *Command) serveSink(ch io.ReadWriter) error {
 		if err := sendOK(ch); err != nil {
 			return trace.Wrap(err)
 		}
-		log.Debug("-> OK")
+		//log.Debug("-> OK")
 	}
 }
 
 func (cmd *Command) processCommand(ch io.ReadWriter, st *state, b byte, line string) error {
-	log.Debugf("<- %v %v", string(b), line)
+	//log.Debugf("<- %v %v", string(b), line)
 	switch b {
 	case WarnByte:
 		return trace.Errorf(line)
@@ -271,7 +281,7 @@ func (cmd *Command) processCommand(ch io.ReadWriter, st *state, b byte, line str
 }
 
 func (cmd *Command) receiveFile(st *state, fc NewFileCmd, ch io.ReadWriter) error {
-	log.Debugf("scp.receiveFile(%v)", cmd.Target)
+	//log.Debugf("scp.receiveFile(%v)", cmd.Target)
 
 	// if the dest path is a folder, we should save the file to that folder, but
 	// only if is 'recursive' is set
@@ -325,16 +335,24 @@ func (cmd *Command) receiveFile(st *state, fc NewFileCmd, ch io.ReadWriter) erro
 }
 
 func (cmd *Command) receiveDir(st *state, fc NewFileCmd, ch io.ReadWriter) error {
-	path := st.makePath(cmd.Target, fc.Name)
-	st.push(fc.Name)
+	isRoot := len(st.path) == 1 && st.path[0] == "."
 
-	st.notRoot = true // future calls of receiveDir within this command will be for subfolders
+	log.Debugf("----> receiveDir(cmd.Target=%v, st.path=%v, fc.Name=%v). isRoot=%v",
+		cmd.Target, st.path, fc.Name, isRoot)
+
+	targetDir := cmd.Target
+
+	// copying into an exising directory? append to it:
+	if utils.IsDir(targetDir) {
+		targetDir = st.makePath(targetDir, fc.Name)
+		st.push(fc.Name)
+	}
+
 	mode := os.FileMode(int(fc.Mode) & int(os.ModePerm))
-	err := os.MkdirAll(path, mode)
+	err := os.MkdirAll(targetDir, mode)
 	if err != nil && !os.IsExist(err) {
 		return trace.Wrap(err)
 	}
-	log.Debugf("dir %v(%v) created", fc.Name, path)
 	return nil
 }
 
@@ -415,7 +433,6 @@ func sendError(ch io.ReadWriter, err error) error {
 }
 
 type state struct {
-	notRoot  bool
 	path     []string
 	finished bool
 }
