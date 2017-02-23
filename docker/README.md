@@ -74,3 +74,17 @@ $ make enter-two
 
 ... and then you can use stuff like `tctl users add`, etc. Make sure to pass 
 the YAML file to `tctl` via `-c` flag.
+
+### Interactive Usage
+
+Also you can start an empty container from which you can manually invoke `teleport start`. 
+This is similar to launching an empty Linux VM with a Teleport binary.
+
+Do:
+
+```bash
+$ make shell
+```
+
+if you get "network already exists" error, do `make stop` first.
+

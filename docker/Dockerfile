@@ -4,10 +4,11 @@ FROM teleport-buildbox:latest
 
 # DEBUG=1 is needed for the Web UI to be loaded from static assets instead 
 # of the binary
-ENV DEBUG=1
+ENV DEBUG=1 GOPATH=/root/go
 
 # htop is useful for testing terminal resizing
-RUN apt-get install -y htop
+RUN apt-get install -y htop screen; \
+    mkdir -p /root/go/src/github.com/gravitational/teleport 
 
 VOLUME ["/teleport", "/var/lib/teleport"]
 COPY .bashrc /root/.bashrc
