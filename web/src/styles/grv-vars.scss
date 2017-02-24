@@ -14,8 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-$fa-font-path: "~font-awesome/fonts";
 $gray-base:#1a1a1a;
+$input-color-placeholder: #AAA;
+$gray-lighter:    lighten($gray-base, 85.0%) !default; // #eee
+$input-bg-disabled: $gray-lighter;
+$fa-font-path: "~font-awesome/fonts";
 
 $grv-color-bg-term: #252323;   // Background color for terminal screen
 $grv-color-bg-inactive: #0D5849;
