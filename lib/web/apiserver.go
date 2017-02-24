@@ -34,6 +34,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -134,6 +135,11 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		h.sessionStreamPollPeriod = sessionStreamPollPeriod
 	}
 
+	// a response indicates if the server is up and the response data
+	// indicates the type of authentication methods that are supported
+	// TODO(russjones): Where is /webapi, that was the old /ping?
+	h.GET("/webapi/ping", httplib.MakeHandler(h.getAuthenticationSettings))
+
 	// Web sessions
 	h.POST("/webapi/sessions", httplib.MakeHandler(h.createSession))
 	h.DELETE("/webapi/sessions", h.withAuth(h.deleteSession))
@@ -190,7 +196,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	// User Status (used by client to check if user session is valid)
 	h.GET("/webapi/user/status", h.withAuth(h.getUserStatus))
 
-	// if Web UI is enabled, chekc the assets dir:
+	// if Web UI is enabled, check the assets dir:
 	var (
 		writeSettings http.HandlerFunc
 		indexPage     *template.Template
@@ -215,7 +221,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		if err != nil {
 			return nil, trace.BadParameter("failed parsing index.html template: %v", err)
 		}
-		writeSettings = httplib.MakeStdHandler(h.getSettings)
+		writeSettings = httplib.MakeStdHandler(h.getConfigurationSettings)
 	}
 
 	routingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -278,54 +284,95 @@ func (m *Handler) Close() error {
 	return m.auth.Close()
 }
 
-type oidcConnector struct {
-	ID      string `json:"id"`
-	Display string `json:"display"`
-}
-
-type webSettings struct {
-	Auth struct {
-		OIDCConnectors []oidcConnector `json:"oidc_connectors"`
-		U2FAppID       string          `json:"u2f_appid"`
-	} `json:"auth"`
-}
-
 func (m *Handler) getUserStatus(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext) (interface{}, error) {
 	return ok(), nil
 }
 
-func (m *Handler) getSettings(w http.ResponseWriter, r *http.Request) (interface{}, error) {
-	settings := &webSettings{}
-	connectors, err := m.cfg.ProxyClient.GetOIDCConnectors(false)
+func buildUniversalSecondFactorSettings(authClient auth.ClientI) *client.U2FSettings {
+	universalSecondFactor, err := authClient.GetUniversalSecondFactor()
+	if err != nil {
+		// if we have nothing set on the backend, return we have nothing
+		if trace.IsNotFound(err) {
+			return nil
+		}
+
+		log.Debugf("Unable to get U2F Settings: %v", err)
+		return nil
+	}
+
+	return &client.U2FSettings{AppID: universalSecondFactor.GetAppID()}
+}
+
+func buildOIDCConnectorSettings(authClient auth.ClientI) *client.OIDCSettings {
+	oidcConnectors, err := authClient.GetOIDCConnectors(false)
+	if err != nil {
+		// if we have nothing set on the backend, return we have nothing
+		if trace.IsNotFound(err) {
+			return nil
+		}
+
+		log.Debugf("Unable to get OIDC Connectors: %v", err)
+		return nil
+	}
+
+	if len(oidcConnectors) < 1 {
+		log.Debugf("No OIDC Connectors found")
+		return nil
+	}
+
+	// always use the first one as only allow a single oidc connector now
+	return &client.OIDCSettings{
+		Name:    oidcConnectors[0].GetName(),
+		Display: oidcConnectors[0].GetDisplay(),
+	}
+}
+
+func buildAuthenticationSettings(authClient auth.ClientI) (*client.PingResponse, error) {
+	as := client.AuthenticationSettings{}
+
+	cap, err := authClient.GetClusterAuthPreference()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	for _, connector := range connectors {
-		fmt.Printf("%v\n", connectors)
-		settings.Auth.OIDCConnectors = append(settings.Auth.OIDCConnectors, oidcConnector{
-			ID:      connector.GetName(),
-			Display: connector.GetDisplay(),
-		})
+	as.Type = cap.GetType()
+	as.SecondFactor = cap.GetSecondFactor()
+
+	// if we have u2f or oidc settings, build those as well
+	if cap.GetSecondFactor() == teleport.U2F {
+		as.U2F = buildUniversalSecondFactorSettings(authClient)
+	}
+	if cap.GetType() == teleport.OIDC {
+		as.OIDC = buildOIDCConnectorSettings(authClient)
 	}
 
-	if len(settings.Auth.OIDCConnectors) == 0 {
-		settings.Auth.OIDCConnectors = make([]oidcConnector, 0)
-	}
+	return &client.PingResponse{
+		Auth:          as,
+		ServerVersion: teleport.Version,
+	}, nil
+}
 
-	universalSecondFactor, err := m.cfg.ProxyClient.GetUniversalSecondFactor()
+func (m *Handler) getAuthenticationSettings(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	pr, err := buildAuthenticationSettings(m.cfg.ProxyClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err != nil {
-		settings.Auth.U2FAppID = ""
-	} else {
-		settings.Auth.U2FAppID = universalSecondFactor.GetAppID()
-	}
-	out, err := json.Marshal(settings)
+
+	return pr, nil
+}
+
+// getConfigurationSettings returns configuration for the web application.
+func (m *Handler) getConfigurationSettings(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	pr, err := buildAuthenticationSettings(m.cfg.ProxyClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	out, err := json.Marshal(pr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	fmt.Fprintf(w, "var GRV_CONFIG = %v;", string(out))
 	return nil, nil
 }
