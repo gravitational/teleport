@@ -1,6 +1,6 @@
 # Dumb SSH node for cluster "two"
 teleport:
-  nodename: two-node
+  nodename: node-on-second-cluster
   auth_servers: ["two-auth"]
   auth_token: xxx
   log:

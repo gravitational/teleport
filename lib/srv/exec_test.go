@@ -81,8 +81,8 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 	cmd, err = prepareCommand(s.ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(cmd, check.NotNil)
-	c.Assert(cmd.Path, check.Equals, "/bin/sh")
-	c.Assert(cmd.Args, check.DeepEquals, []string{"/bin/sh", "-c", "ls -lh /etc"})
+	c.Assert(cmd.Path, check.Equals, "/bin/ls")
+	c.Assert(cmd.Args, check.DeepEquals, []string{"ls", "-lh", "/etc"})
 	c.Assert(cmd.Dir, check.Equals, s.usr.HomeDir)
 	c.Assert(cmd.Env, check.DeepEquals, expectedEnv)
 

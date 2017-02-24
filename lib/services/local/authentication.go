@@ -37,7 +37,7 @@ func NewClusterAuthPreferenceService(backend backend.Backend) *ClusterAuthPrefer
 // GetClusterAuthPreference fetches the cluster authentication preferences
 // from the backend and return them.
 func (s *ClusterAuthPreferenceService) GetClusterAuthPreference() (services.AuthPreference, error) {
-	data, err := s.GetVal([]string{"authentication"}, "preference")
+	data, err := s.GetVal([]string{"authentication", "preference"}, "general")
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("authentication preference not found")
@@ -56,7 +56,7 @@ func (s *ClusterAuthPreferenceService) SetClusterAuthPreference(preferences serv
 		return trace.Wrap(err)
 	}
 
-	err = s.UpsertVal([]string{"authentication"}, "preference", []byte(data), backend.Forever)
+	err = s.UpsertVal([]string{"authentication", "preference"}, "general", []byte(data), backend.Forever)
 	if err != nil {
 		return trace.Wrap(err)
 	}

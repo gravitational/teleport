@@ -1132,7 +1132,7 @@ func (c *Client) DeleteRole(name string) error {
 }
 
 func (c *Client) GetClusterAuthPreference() (services.AuthPreference, error) {
-	out, err := c.Get(c.Endpoint("authentication", "preferences"), url.Values{})
+	out, err := c.Get(c.Endpoint("authentication", "preference"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1151,7 +1151,7 @@ func (c *Client) SetClusterAuthPreference(cap services.AuthPreference) error {
 		return trace.Wrap(err)
 	}
 
-	_, err = c.PostJSON(c.Endpoint("authentication", "preferences"), &setClusterAuthPreferenceReq{ClusterAuthPreference: data})
+	_, err = c.PostJSON(c.Endpoint("authentication", "preference"), &setClusterAuthPreferenceReq{ClusterAuthPreference: data})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1160,7 +1160,7 @@ func (c *Client) SetClusterAuthPreference(cap services.AuthPreference) error {
 }
 
 func (c *Client) GetUniversalSecondFactor() (services.UniversalSecondFactor, error) {
-	out, err := c.Get(c.Endpoint("authentication", "preferences", "u2f"), url.Values{})
+	out, err := c.Get(c.Endpoint("authentication", "preference", "u2f"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1179,7 +1179,7 @@ func (c *Client) SetUniversalSecondFactor(universalSecondFactor services.Univers
 		return trace.Wrap(err)
 	}
 
-	_, err = c.PostJSON(c.Endpoint("authentication", "preferences", "u2f"), &setUniversalSecondFactorReq{UniversalSecondFactor: data})
+	_, err = c.PostJSON(c.Endpoint("authentication", "preference", "u2f"), &setUniversalSecondFactorReq{UniversalSecondFactor: data})
 	if err != nil {
 		return trace.Wrap(err)
 	}
