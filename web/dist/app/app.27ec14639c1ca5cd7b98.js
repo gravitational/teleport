@@ -1158,10 +1158,7 @@ webpackJsonp([0],[
 
 	  displayDateFormat: 'DD/MM/YYYY HH:mm:ss',
 
-	  auth: {
-	    oidc_connectors: [],
-	    u2f_appid: "22"
-	  },
+	  auth: {},
 
 	  routes: {
 	    app: '/web',
@@ -4906,6 +4903,8 @@ webpackJsonp([0],[
 	      message
 	    ) : null;
 
+	    var hasAnyAuth = !!_config2.default.auth;
+
 	    return _react2.default.createElement(
 	      'div',
 	      null,
@@ -4917,7 +4916,11 @@ webpackJsonp([0],[
 	          null,
 	          ' Welcome to Teleport '
 	        ),
-	        _react2.default.createElement(
+	        !hasAnyAuth ? _react2.default.createElement(
+	          'div',
+	          null,
+	          ' You have no authentication options configured '
+	        ) : _react2.default.createElement(
 	          'div',
 	          null,
 	          this.renderNameAndPassFields(),
