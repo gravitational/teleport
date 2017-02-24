@@ -253,6 +253,10 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Auth.StorageConfig.Type = boltbk.GetName()
 	cfg.Auth.StorageConfig.Params = backend.Params{"path": cfg.DataDir}
 	defaults.ConfigureLimiter(&cfg.Auth.Limiter)
+	// set new style default auth preferences
+	ap := &services.AuthPreferenceV2{}
+	ap.CheckAndSetDefaults()
+	cfg.Auth.Preference = ap
 
 	// defaults for the SSH proxy service:
 	cfg.Proxy.Enabled = true
