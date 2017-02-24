@@ -27,9 +27,7 @@ let cfg = {
 
   displayDateFormat: 'DD/MM/YYYY HH:mm:ss',
 
-  auth: {
-    oidc_connectors: [],
-    u2f_appid: "22"
+  auth: {        
   },
 
   routes: {

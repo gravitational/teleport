@@ -236,18 +236,23 @@ const LoginInputForm = React.createClass({
     let $error = isFailed ? (
       <label className="error">{message}</label>
     ) : null;
-                  
+
+    let hasAnyAuth = !!cfg.auth;
+    
     return (
       <div>
         <form ref="form" className="grv-login-input-form">
           <h3> Welcome to Teleport </h3>
-          <div>
-            {this.renderNameAndPassFields()}    
-            {this.render2faFields()}
-            {this.renderLoginBtn()}
-            {this.renderSsoBtns()}                                       
-            {$error}
-          </div>
+          {!hasAnyAuth ? <div> You have no authentication options configured </div>
+            :
+            <div>
+              {this.renderNameAndPassFields()}
+              {this.render2faFields()}
+              {this.renderLoginBtn()}
+              {this.renderSsoBtns()}
+              {$error}
+            </div>
+          }
         </form>        
       </div>
     );
