@@ -32,6 +32,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -96,6 +97,8 @@ func ReadConfigFile(cliConfigPath string) (*FileConfig, error) {
 // ApplyFileConfig applies configuration from a YAML file to Teleport
 // runtime config
 func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
+	var err error
+
 	// no config file? no problem
 	if fc == nil {
 		return nil
@@ -257,39 +260,49 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Proxy.TLSCert = fc.Proxy.CertFile
 	}
 
-	// Deprecated: Use U2F section in Authentication section instead.
-	u2f, err := fc.Auth.U2F.Parse()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if u2f.Enabled {
-		log.Warnf("Configuration of U2F settings under auth_server.u2f has been deprecated.")
-		log.Warnf("Configuration of U2F has moved under the auth_server.authentication section.")
-		log.Warnf("See the Admin Guide for more details.\n")
-	}
-	// If the old config format is still being used, convert it to the new format,
-	// and still allow it to be used.
-	cfg.Auth.U2F, err = services.NewUniversalSecondFactor(services.UniversalSecondFactorSpecV2{
-		AppID:  u2f.AppID,
-		Facets: u2f.Facets,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Deprecated: Use OIDC section in Authentication section instead.
-	// If the old config format is still being used, allow it to be used.
-	if len(fc.Auth.OIDCConnectors) > 0 {
-		log.Warnf("Configuration for OIDC connectors under auth_server.oidc_connectors has been deprecated.")
-		log.Warnf("Configuration for OIDC connectors has moved under the auth_server.authentication section.")
-		log.Warnf("See the Admin Guide for more details.\n")
-	}
-	for _, c := range fc.Auth.OIDCConnectors {
-		conn, err := c.Parse()
+	// if no authentication section exists, we need to transform the old config into the new one
+	if fc.Auth.Authentication == nil {
+		// create an empty authentication preferences resource
+		cfg.Auth.Preference, err = services.NewAuthPreference(services.AuthPreferenceSpecV2{})
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		cfg.OIDCConnectors = append(cfg.OIDCConnectors, conn)
+
+		// set the defaults in-case no oidc connector or u2f settings are defined
+		err = cfg.Auth.Preference.CheckAndSetDefaults()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// if we have defined a oidc connector update the authentication type
+		if len(fc.Auth.OIDCConnectors) > 0 {
+			oidcConnector, err := fc.Auth.OIDCConnectors[0].Parse()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			cfg.OIDCConnectors = []services.OIDCConnector{oidcConnector}
+
+			cfg.Auth.Preference.SetType(teleport.OIDC)
+		}
+
+		// parse the configuration to see if we have defined u2f
+		u, err := fc.Auth.U2F.Parse()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// if we have defined u2f configuration update the second factor settings
+		if u.Enabled {
+			cfg.Auth.U2F, err = services.NewUniversalSecondFactor(services.UniversalSecondFactorSpecV2{
+				AppID:  u.AppID,
+				Facets: u.Facets,
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			cfg.Auth.Preference.SetSecondFactor(teleport.U2F)
+		}
 	}
 
 	// if authentication section exists on the auth_server, then use it to extract

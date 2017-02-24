@@ -425,7 +425,7 @@ func (a *AuthenticationConfig) Parse() (services.AuthPreference, services.OIDCCo
 	}
 
 	// check to make sure the configuration is valid
-	err = ap.Check()
+	err = ap.CheckAndSetDefaults()
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}

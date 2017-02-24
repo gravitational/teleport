@@ -148,14 +148,6 @@ type Config struct {
 	// that uses local cache to validate hosts
 	HostKeyCallback HostKeyCallback
 
-	// SecondFactorType indicates whether OTP, OIDC or U2F should be used
-	// for the second factor
-	SecondFactorType string
-
-	// ConnectorID is used to authenticate user via OpenID Connect
-	// registered connector
-	ConnectorID string
-
 	// KeyDir defines where temporary session keys will be stored.
 	// if empty, they'll go to ~/.tsh
 	KeysDir string
@@ -960,35 +952,42 @@ func (tc *TeleportClient) Logout() error {
 // Login logs the user into a Teleport cluster by talking to a Teleport proxy.
 // If successful, saves the received session keys into the local keystore for future use.
 func (tc *TeleportClient) Login() (*CertAuthMethod, error) {
+	httpsProxyHostPort := tc.Config.ProxyWebHostPort()
+	certPool := loopbackPool(httpsProxyHostPort)
+
+	// ping the endpoint to see if it's up and find the type of authentication supported
+	pr, err := Ping(httpsProxyHostPort, tc.InsecureSkipVerify, certPool)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// generate a new keypair. the public key will be signed via proxy if our password+HOTP  are legit
 	key, err := tc.MakeKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	var response *SSHLoginResponse
 
-	switch tc.SecondFactorType {
-	case teleport.OTP:
-	case teleport.HOTP: // htop is deprecated
-		response, err = tc.directLogin(key.Pub)
+	switch pr.Auth.Type {
+	case teleport.Local:
+		response, err = tc.localLogin(pr.Auth.SecondFactor, key.Pub)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case teleport.OIDC:
-		response, err = tc.oidcLogin(tc.ConnectorID, key.Pub)
+		response, err = tc.oidcLogin(pr.Auth.OIDC.Name, key.Pub)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
 		// in this case identity is returned by the proxy
 		tc.Username = response.Username
-	case teleport.U2F:
-		response, err = tc.u2fLogin(key.Pub)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 	default:
-		return nil, trace.BadParameter("unsupported 2nd factor authentication type: '%s'", tc.SecondFactorType)
+		return nil, trace.BadParameter("unsupported authentication type: %q", pr.Auth.Type)
 	}
+
+	// extract the new certificate out of the response
 	key.Cert = response.Cert
 
 	// save the list of CAs we trust to the cache file
@@ -999,6 +998,28 @@ func (tc *TeleportClient) Login() (*CertAuthMethod, error) {
 
 	// save the key:
 	return tc.localAgent.AddKey(tc.ProxyHost(), tc.Config.Username, key)
+}
+
+func (tc *TeleportClient) localLogin(secondFactor string, pub []byte) (*SSHLoginResponse, error) {
+	var err error
+	var response *SSHLoginResponse
+
+	switch secondFactor {
+	case teleport.OTP, teleport.TOTP, teleport.HOTP:
+		response, err = tc.directLogin(pub)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	case teleport.U2F:
+		response, err = tc.u2fLogin(pub)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	default:
+		return nil, trace.BadParameter("unsupported second factor type: %q", secondFactor)
+	}
+
+	return response, nil
 }
 
 // Adds a new CA as trusted CA for this client
@@ -1027,11 +1048,6 @@ func (tc *TeleportClient) AddKey(host string, key *Key) (*CertAuthMethod, error)
 func (tc *TeleportClient) directLogin(pub []byte) (*SSHLoginResponse, error) {
 	httpsProxyHostPort := tc.Config.ProxyWebHostPort()
 	certPool := loopbackPool(httpsProxyHostPort)
-
-	// ping the HTTPs endpoint first:
-	if err := Ping(httpsProxyHostPort, tc.InsecureSkipVerify, certPool); err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	password, otpToken, err := tc.AskPasswordAndOTP()
 	if err != nil {
