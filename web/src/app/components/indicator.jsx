@@ -1,18 +1,27 @@
 import React from 'react';
 
-const Indicator = ({enabled, type }) => {      
-  if(!enabled){
-    return null;
-  }
+class Indicator extends React.Component {
 
-  if(type === 'bounce'){
-    return <ThreeBounce/>
+  constructor(props) {
+    super(props);    
   }
+  
+  render() {    
+    let { enabled = true, type } = this.props;
 
-  if(type === 'circle'){
-    return <Circle/>
+    if (!enabled) {
+      return null;
+    }
+
+    if (type === 'bounce') {
+      return <ThreeBounce />
+    }
+
+    if (type === 'circle') {
+      return <Circle />
+    }
   }
-};
+}
 
 const ThreeBounce = () => (
   <div className="grv-spinner sk-spinner sk-spinner-three-bounce">

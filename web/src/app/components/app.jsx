@@ -14,33 +14,35 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
-import NavLeftBar from './navLeftBar';
-import reactor from 'app/reactor';
+import React, { Component } from 'react';
+import { connect } from 'nuclear-js-react-addons';
+import cfg from 'app/config'
 import { getters } from 'app/modules/app';
 import { refresh } from 'app/modules/app/actions';
+import NavLeftBar from './navLeftBar';
 import NotificationHost from './notificationHost.jsx';
 import Timer from './timer.jsx';
-import { Failed } from 'app/components/msgPage.jsx';
-import Indicator from 'app/components/indicator.jsx';
+import { Failed } from './msgPage.jsx';
+import Indicator from './indicator.jsx';
 
-var App = React.createClass({
+const menuItems = [        
+  { icon: 'fa fa-share-alt', to: cfg.routes.nodes, title: 'Nodes' },
+  { icon: 'fa  fa-group', to: cfg.routes.sessions, title: 'Sessions'}  
+]
 
-  mixins: [reactor.ReactMixin],
+class App extends Component {
+      
+  getMenuItems() {    
+    return menuItems;
+  }
 
-  getDataBindings() {
-    return {
-      initAttemp: getters.initAttemp      
-    }
-  },
-    
-  render() {
-    let { isProcessing, isFailed, message } = this.state.initAttemp;
-    
+  render() {    
+    const { isProcessing, isSuccess, isFailed, message } = this.props.initAttemp;
+        
     if (isProcessing) {      
       return (
         <div>
-          <Indicator enabled={true} type={'bounce'} />
+          <Indicator type={'bounce'} />
         </div>
       )
     }
@@ -49,16 +51,34 @@ var App = React.createClass({
       return <Failed message={message}/>
     }
     
-    return (
-      <div className="grv-tlpt grv-flex grv-flex-row">      
-        <Timer onTimeout={refresh} interval={4000} />
-        <NotificationHost/>
-        {this.props.CurrentSessionHost}
-        <NavLeftBar/>
-        {this.props.children}
-      </div>
-    );
-  }
-})
+    if (isSuccess) {
+      return (
+        <div className="grv-tlpt grv-flex grv-flex-row">
+          <Timer onTimeout={refresh} interval={4000}/>
+          <NotificationHost />
+          {this.props.CurrentSessionHost}
+          <NavLeftBar items={this.getMenuItems()} />
+          {this.props.children}
+        </div>
+      );
+    }
 
-module.exports = App;
+    return null;
+  }
+
+}
+
+function mapStateToProps() {
+  return {    
+    initAttemp: getters.initAttemp      
+  }
+}
+
+const Connector = connect(mapStateToProps);
+
+export default Connector(App);
+
+export {
+  App,
+  Connector
+}

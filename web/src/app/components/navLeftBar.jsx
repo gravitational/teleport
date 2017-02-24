@@ -21,15 +21,11 @@ import { IndexLink } from 'react-router';
 import { logoutUser } from 'app/modules/app/actions';
 import { UserIcon } from './icons.jsx';
 
-const menuItems = [
-  {icon: 'fa fa-share-alt', to: cfg.routes.nodes, title: 'Nodes'},
-  {icon: 'fa  fa-group', to: cfg.routes.sessions, title: 'Sessions'}
-];
-
 const NavLeftBar = React.createClass({
-  render(){
-    var {name} = reactor.evaluate(userGetters.user);
-    var items = menuItems.map((i, index)=>{
+  render() {
+    let { items=[] } = this.props;        
+    let { name } = reactor.evaluate(userGetters.user);
+    let $items = items.map((i, index)=>{
       var className = this.context.router.isActive(i.to) ? 'active' : '';
       return (
         <li key={index} className={className} title={i.title}>
@@ -40,15 +36,15 @@ const NavLeftBar = React.createClass({
       );
     });
 
-    items.push((
-      <li key={items.length} title="help">
+    $items.push((
+      <li key={$items.length} title="help">
         <a href={cfg.helpUrl} target="_blank">
           <i className="fa fa-question" />
         </a>
       </li>));
 
-    items.push((
-      <li key={items.length} title="logout">
+    $items.push((
+      <li key={$items.length} title="logout">
         <a href="#" onClick={logoutUser} >
           <i className="fa fa-sign-out" style={{marginRight: 0}}></i>
         </a>
@@ -61,7 +57,7 @@ const NavLeftBar = React.createClass({
           <li>
             <UserIcon name={name} />
           </li>
-          {items}
+          {$items}
         </ul>
       </nav>
     );

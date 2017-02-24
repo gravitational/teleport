@@ -19,6 +19,5 @@ import keyMirror from 'keymirror'
 export default keyMirror({
   TLPT_REST_API_START: null,
   TLPT_REST_API_SUCCESS: null,
-  TLPT_REST_API_FAIL: null,
-  TLPT_TRYING_TO_INIT_APP: null
+  TLPT_REST_API_FAIL: null  
 })
