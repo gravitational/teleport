@@ -328,10 +328,10 @@ func (s *SrvSuite) testClient(c *C, proxyAddr, targetAddr, remoteAddr string, ss
 	c.Assert(err, IsNil)
 	defer se2.Close()
 
-	out, err := se2.Output("echo $((2+3))")
+	out, err := se2.Output("echo hello")
 	c.Assert(err, IsNil)
 
-	c.Assert(strings.Trim(string(out), " \n"), Equals, "5")
+	c.Assert(string(out), Equals, "hello\n")
 }
 
 func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
