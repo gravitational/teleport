@@ -62,7 +62,7 @@ const Invite = React.createClass({
   render() {
     let {fetchingInvite, invite, attemp} = this.state;    
     
-    let provider = cfg.getAuthProvider();
+    let providers = cfg.getAuthProviders();
     let authType = cfg.getAuthType();
     let auth2faType = cfg.getAuth2faType();
             
@@ -84,7 +84,7 @@ const Invite = React.createClass({
         <div className={containerClass}>
           <div className="grv-flex-column">
             <InviteInputForm
-              authProvider={provider}  
+              authProviders={providers}  
               auth2faType={auth2faType}
               authType={authType}                
               attemp={attemp}
@@ -155,9 +155,8 @@ const InviteInputForm = React.createClass({
     }
   },
       
-  onSignupWithOidc(e) {
-    e.preventDefault();    
-    this.props.onSignupWithOidc(this.props.authProvider);
+  onSignupWithOidc(providerName) {    
+    this.props.onSignupWithOidc(providerName);
   },
 
   isValid() {
@@ -264,22 +263,17 @@ const InviteInputForm = React.createClass({
   },
   
   renderSsoBtns() {    
-    let { authType, authProvider, attemp } = this.props;
+    let { authType, authProviders, attemp } = this.props;
 
     if (authType !== AuthTypeEnum.OIDC) {
       return null;
     }
-    
-    let ssoProvider = {
-      name: authProvider,
-      displayName: authProvider
-    }
-
+        
     return (
       <SsoBtnList
         prefixText="Sign up with "
         isDisabled={attemp.isProcessing}
-        providers={[ssoProvider]}
+        providers={authProviders}
         onClick={this.onSignupWithOidc} />
     )    
   },

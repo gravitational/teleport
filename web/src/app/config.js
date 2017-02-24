@@ -119,24 +119,20 @@ let cfg = {
     return formatPattern(cfg.routes.currentSession, {sid, siteId});
   },
 
-  getAuthProviders(){
-    return cfg.auth.oidc_connectors;
+  getAuthProviders() {
+    return cfg.auth ? [cfg.auth.oidc] : [];    
   },
-
-  getAuthProvider() {
-    return 'microsoft';
-  },
-
+  
   getAuthType() {
-    return 'local';
+    return cfg.auth ? cfg.auth.type : null;
   },
 
   getAuth2faType() {
-    return 'otp'
+    return cfg.auth ? cfg.auth.second_factor : null; 
   },
 
-  getU2fAppId(){
-    return cfg.auth.u2f_appid;
+  getU2fAppId(){    
+    return cfg.auth && cfg.auth.u2f ? cfg.auth.u2f.app_id : null;    
   },
 
   init(config={}){

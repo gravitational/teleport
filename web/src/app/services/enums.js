@@ -12,7 +12,7 @@ export default {
   },
 
   Auth2faTypeEnum: {
-    UTF: 'utf',
+    UTF: 'u2f',
     OTP: 'otp',
     DISABLED: 'off'
   },
