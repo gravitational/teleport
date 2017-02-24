@@ -14,23 +14,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var React = require('react');
-var reactor = require('app/reactor');
-var PureRenderMixin = require('react-addons-pure-render-mixin');
-var {lastMessage} = require('app/modules/notifications/getters');
-var {ToastContainer, ToastMessage} = require("react-toastr");
-var ToastMessageFactory = React.createFactory(ToastMessage.animation);
+import React from 'react';
+import reactor from 'app/reactor';
+import { lastMessage } from 'app/modules/notifications/getters';
+import { ToastContainer, ToastMessage } from "react-toastr";
+
+const ToastMessageFactory = React.createFactory(ToastMessage.animation);
 
 const animationOptions = {
   showAnimation: 'animated fadeIn',
   hideAnimation: 'animated fadeOut'
 }
 
-var NotificationHost = React.createClass({
+const NotificationHost = React.createClass({
 
-  mixins: [
-    reactor.ReactMixin, PureRenderMixin
-  ],
+  mixins: [ reactor.ReactMixin ],
 
   getDataBindings() {
     return {msg: lastMessage}
@@ -58,12 +56,15 @@ var NotificationHost = React.createClass({
     reactor.unobserve(lastMessage, this.update);
   },
 
-  render: function() {
+  render() {
     return (
-        <ToastContainer
-          ref="container" toastMessageFactory={ToastMessageFactory} className="toast-top-right"/>
+      <ToastContainer
+        className="toast-top-right"  
+        ref="container"
+        toastMessageFactory={ToastMessageFactory} />
     );
   }
+
 });
 
-module.exports = NotificationHost;
+export default NotificationHost;

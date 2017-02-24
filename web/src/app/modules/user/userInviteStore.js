@@ -14,8 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var { Store, toImmutable } = require('nuclear-js');
-var  { TLPT_RECEIVE_USER_INVITE } = require('./actionTypes');
+import { Store, toImmutable } from 'nuclear-js';
+import { TLPT_RECEIVE_USER_INVITE } from './actionTypes';
+import { Record } from 'immutable';
+
+const Invite = new Record({
+  invite_token: '',
+  user: '',
+  qr: ''
+});
 
 export default Store({
   getInitialState() {
@@ -27,6 +34,6 @@ export default Store({
   }
 })
 
-function receiveInvite(state, invite){
-  return toImmutable(invite);
+function receiveInvite(state, json){
+  return new Invite(json);
 }

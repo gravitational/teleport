@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var React = require('react');
+import React from 'react';
 
 const MSG_INFO_LOGIN_SUCCESS = 'Login was successful, you can close this window and continue using tsh.';
 const MSG_ERROR_LOGIN_FAILED = 'Login unsuccessful. Please try again, if the problem persists, contact your system administator.';
@@ -41,90 +41,97 @@ const InfoTypes = {
   LOGIN_SUCCESS: 'login_success'
 };
 
-var MessagePage = React.createClass({
-  render(){
-    let {type, subType} = this.props.params;
-    if(type === MsgType.ERROR){
-      return <ErrorPage type={subType}/>
-    }
-
-    if(type === MsgType.INFO){
-      return <InfoPage type={subType}/>
-    }
-
-    return null;
+const MessagePage = ({params}) => {
+  let {type, subType} = params;
+  if (type === MsgType.ERROR) {
+    return <ErrorPage type={subType}/>
   }
-});
 
-var ErrorPage = React.createClass({
-  render() {
-    let {type} = this.props;
-    let msgBody = (
+  if (type === MsgType.INFO) {
+    return <InfoPage type={subType}/>
+  }
+
+  return null;
+}
+
+const ErrorPage = ({ type, message='' }) => {      
+  let msgBody = (
+    <div>
+      <h1>{MSG_ERROR_DEFAULT}</h1>
+      <div className="m-t text-muted" style={{ wordBreak: "break-all" }}>
+        <small>{message}</small>
+      </div>
+    </div>
+  );
+
+  if(type === ErrorTypes.FAILED_TO_LOGIN){
+    msgBody = (
       <div>
-        <h1>{MSG_ERROR_DEFAULT}</h1>
+        <h1>{MSG_ERROR_LOGIN_FAILED}</h1>
       </div>
-    );
+    )
+  }
 
-    if(type === ErrorTypes.FAILED_TO_LOGIN){
-      msgBody = (
-        <div>
-          <h1>{MSG_ERROR_LOGIN_FAILED}</h1>
-        </div>
-      )
-    }
+  if(type === ErrorTypes.EXPIRED_INVITE){
+    msgBody = (
+      <div>
+        <h1>{MSG_ERROR_EXPIRED_INVITE}</h1>
+        <div>{MSG_ERROR_EXPIRED_INVITE_DETAILS}</div>
+      </div>
+    )
+  }
 
-    if(type === ErrorTypes.EXPIRED_INVITE){
-      msgBody = (
-        <div>
-          <h1>{MSG_ERROR_EXPIRED_INVITE}</h1>
-          <div>{MSG_ERROR_EXPIRED_INVITE_DETAILS}</div>
-        </div>
-      )
-    }
-
-    if( type === ErrorTypes.NOT_FOUND){
-      msgBody = (
-        <div>
-          <h1>{MSG_ERROR_NOT_FOUND}</h1>
-          <div>{MSG_ERROR_NOT_FOUND_DETAILS}</div>
-        </div>
-      );
-    }
-
-    return (
-      <div className="grv-msg-page">
-        <div className="grv-header"><i className="fa fa-frown-o"></i> </div>
-        {msgBody}
-        <div className="contact-section">If you believe this is an issue with Teleport, please <a href="https://github.com/gravitational/teleport/issues/new">create a GitHub issue.</a></div>
+  if( type === ErrorTypes.NOT_FOUND){
+    msgBody = (
+      <div>
+        <h1>{MSG_ERROR_NOT_FOUND}</h1>
+        <div>{MSG_ERROR_NOT_FOUND_DETAILS}</div>
       </div>
     );
   }
-})
 
-var InfoPage = React.createClass({
-  render() {
-    let {type} = this.props;
-    let msgBody = null;
+  return (
+    <div className="grv-msg-page">
+      <div className="grv-header"><i className="fa fa-frown-o"></i> </div>
+      {msgBody}
+      <div className="contact-section">If you believe this is an issue with Teleport, please <a href="https://github.com/gravitational/teleport/issues/new">create a GitHub issue.</a></div>
+    </div>
+  );
+}
 
-    if(type === InfoTypes.LOGIN_SUCCESS){
-      msgBody = (
-        <div>
-          <h1>{MSG_INFO_LOGIN_SUCCESS}</h1>
-        </div>
-      );
-    }
-
-    return (
-      <div className="grv-msg-page">
-        <div className="grv-header"><i className="fa fa-smile-o"></i> </div>
-        {msgBody}
+const InfoPage = ({type}) => {
+  let msgBody = null;
+  if (type === InfoTypes.LOGIN_SUCCESS) {
+    msgBody = (
+      <div>
+        <h1>{MSG_INFO_LOGIN_SUCCESS}</h1>
       </div>
     );
   }
-})
+
+  return (
+    <div className="grv-msg-page">
+      <div className="grv-header">
+        <i className="fa fa-smile-o"></i>
+      </div>
+      {msgBody}
+    </div>
+  );
+}
 
 var NotFound = () => (
   <ErrorPage type={ErrorTypes.NOT_FOUND}/>
 )
 
-export {ErrorPage, InfoPage, NotFound, ErrorTypes, MessagePage};
+var Failed = ({ message }) => (
+  <ErrorPage message={message}/>
+)
+
+export {
+  ErrorPage,
+  InfoPage,
+  NotFound,
+  Failed,
+  ErrorTypes,
+  MessagePage
+};

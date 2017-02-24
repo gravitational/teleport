@@ -123,7 +123,7 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	if c.Spec.Type == "" {
 		c.Spec.Type = teleport.Local
 	}
-	if c.Spec.SecondFactor == "" {
+	if c.Spec.SecondFactor == "" && c.Spec.Type == teleport.Local {
 		c.Spec.SecondFactor = teleport.OTP
 	}
 

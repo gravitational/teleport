@@ -14,12 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var React = require('react');
-var $ = require('jQuery');
-var moment = require('moment');
-var {debounce} = require('_');
+import React from 'react';
+import $ from 'jQuery';
+import moment from 'moment';
+import {debounce} from '_';
 
-var DateRangePicker = React.createClass({
+const DateRangePicker = React.createClass({
 
   getDates(){
     var startDate = $(this.refs.dpPicker1).datepicker('getDate');
@@ -95,7 +95,7 @@ function isSame(date1, date2){
 /**
 * Calendar Nav
 */
-var CalendarNav = React.createClass({
+const CalendarNav = React.createClass({
 
   render() {
     let {value} = this.props;
@@ -124,4 +124,5 @@ CalendarNav.getweekRange = function(value){
 }
 
 export default DateRangePicker;
-export {CalendarNav, DateRangePicker};
+
+export { CalendarNav, DateRangePicker };

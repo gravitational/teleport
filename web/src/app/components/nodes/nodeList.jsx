@@ -14,14 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var React = require('react');
-var InputSearch = require('./../inputSearch.jsx');
-var {Table, Column, Cell, SortHeaderCell, SortTypes, EmptyIndicator} = require('app/components/table.jsx');
-var {createNewSession} = require('app/modules/currentSession/actions');
-var ClusterSelector = require('./../clusterSelector.jsx');
-
-var _ = require('_');
-var {isMatch} = require('app/common/objectUtils');
+import React from 'react';
+import _ from '_';
+import { isMatch } from 'app/common/objectUtils';
+import InputSearch from './../inputSearch.jsx';
+import { Table, Column, Cell, SortHeaderCell, SortTypes, EmptyIndicator } from 'app/components/table.jsx';
+import {createNewSession} from 'app/modules/currentSession/actions';
+import ClusterSelector from './../clusterSelector.jsx';
 
 const TextCell = ({rowIndex, data, columnKey, ...props}) => (
   <Cell {...props}>
@@ -45,8 +44,8 @@ const LoginCell = ({logins, onLoginClick, rowIndex, data, ...props}) => {
     return <Cell {...props} />;
   }
 
-  var { id, siteId } = data[rowIndex];
-  var $lis = [];
+  let { id, siteId } = data[rowIndex];
+  let $lis = [];
 
   function onClick(i){
     var login = logins[i];
@@ -82,7 +81,7 @@ const LoginCell = ({logins, onLoginClick, rowIndex, data, ...props}) => {
   )
 };
 
-var NodeList = React.createClass({
+const NodeList = React.createClass({
 
   getInitialState() {                            
     this.searchableProps = ['addr', 'hostname', 'tags'];

@@ -21,7 +21,8 @@ var config = {
   resolve: baseCfg.resolve,
   module: {
     loaders: [
-      { test: /\.(js|jsx)$/, exclude: /node_modules/, loader: 'babel' }
+      { test: /\.(js|jsx)$/, exclude: /node_modules/, loader: 'babel' },
+      { test: /\.(svg|scss)$/, exclude: /node_modules/, loader: 'ignore-loader' }
     ]
   },
   plugins: [ baseCfg.plugins.testBuild ]

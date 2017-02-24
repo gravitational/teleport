@@ -14,14 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var React = require('react');
-var reactor = require('app/reactor');
-var { getters } = require('app/modules/currentSession/');
-var SessionPlayer = require('./sessionPlayer.jsx');
-var ActiveSession = require('./activeSession.jsx');
-var cfg = require('app/config');
+import React from 'react';
+import reactor from 'app/reactor';
+import { getters } from 'app/modules/currentSession/';
+import SessionPlayer from './sessionPlayer.jsx';
+import ActiveSession from './activeSession.jsx';
+import cfg from 'app/config';
+import { initSession } from 'app/modules/currentSession/actions';
 
-var CurrentSessionHost = React.createClass({
+const CurrentSessionHost = React.createClass({
 
   mixins: [reactor.ReactMixin],
 
@@ -29,6 +30,10 @@ var CurrentSessionHost = React.createClass({
     return {
       currentSession: getters.currentSession
     }
+  },
+
+  componentDidMount() {    
+    setTimeout(() => initSession(this.props.params.sid), 0);    
   },
 
   render() {
@@ -46,6 +51,7 @@ var CurrentSessionHost = React.createClass({
     
     return <SessionPlayer url={url}/>;
   }
+
 });
 
-module.exports = CurrentSessionHost;
+export default CurrentSessionHost;

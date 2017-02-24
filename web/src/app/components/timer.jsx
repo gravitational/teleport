@@ -14,9 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var React = require('react');
+import React from 'react';
 
-let Timer = React.createClass({
+const Timer = React.createClass({
 
   shouldComponentUpdate(){
     return false;
@@ -38,4 +38,4 @@ let Timer = React.createClass({
 
 });
 
-module.exports = Timer;
+export default Timer;

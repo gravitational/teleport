@@ -15,27 +15,17 @@ limitations under the License.
 */
 var { Store, toImmutable } = require('nuclear-js');
 
-var { TLPT_APP_INIT, TLPT_APP_FAILED, TLPT_APP_READY, TLPT_APP_SET_SITE_ID } = require('./actionTypes');
-
-var defaultStatus = toImmutable({
-  isReady: false,
-  isInitializing: false,
-  isFailed: false  
-});
+var { TLPT_APP_SET_SITE_ID } = require('./actionTypes');
 
 export default Store({
 
   getInitialState() {    
     return toImmutable({
-      siteId: undefined,
-      status: defaultStatus
+      siteId: undefined      
     });
   },
 
-  initialize() {
-    this.on(TLPT_APP_INIT, state => state.set('status', defaultStatus.set('isInitializing', true)));
-    this.on(TLPT_APP_READY, state => state.set('status', defaultStatus.set('isReady', true)));
-    this.on(TLPT_APP_FAILED, state => state.set('status', defaultStatus.set('isFailed', true)));
+  initialize() {    
     this.on(TLPT_APP_SET_SITE_ID, (state, siteId) => state.set('siteId', siteId) );        
   }
 })

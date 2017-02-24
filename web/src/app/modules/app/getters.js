@@ -14,9 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-const appStatus = [['tlpt', 'status' ], app=> app.toJS()];
+import { TRYING_TO_INIT_APP } from 'app/modules/restApi/constants';
+import { requestStatus } from 'app/modules/restApi/getters';
 
 export default {
-  appStatus,
+  initAttemp: requestStatus(TRYING_TO_INIT_APP),
   siteId: ['tlpt', 'siteId']
 }

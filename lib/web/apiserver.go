@@ -361,14 +361,38 @@ func (m *Handler) getAuthenticationSettings(w http.ResponseWriter, r *http.Reque
 	return pr, nil
 }
 
+type webConfig struct {
+	Auth interface{} `json:"auth"`
+	// ServerVersion is the version of Teleport that is running.
+	ServerVersion string `json:"serverVersion"`
+}
+
 // getConfigurationSettings returns configuration for the web application.
 func (m *Handler) getConfigurationSettings(w http.ResponseWriter, r *http.Request) (interface{}, error) {
-	pr, err := buildAuthenticationSettings(m.cfg.ProxyClient)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	webCfg := webConfig{ServerVersion: teleport.Version}
+	as := client.AuthenticationSettings{}
+	cap, err := m.cfg.ProxyClient.GetClusterAuthPreference()
+
+	if err == nil {
+		as.Type = cap.GetType()
+		as.SecondFactor = cap.GetSecondFactor()
+
+		// if we have u2f or oidc settings, build those as well
+		if cap.GetSecondFactor() == teleport.U2F {
+			as.U2F = buildUniversalSecondFactorSettings(m.cfg.ProxyClient)
+		}
+
+		if cap.GetType() == teleport.OIDC {
+			as.OIDC = buildOIDCConnectorSettings(m.cfg.ProxyClient)
+		}
+
+		webCfg.Auth = as
+
+	} else {
+		log.Infof("Cannot retrieve cluster auth preferences: %v", err)
 	}
 
-	out, err := json.Marshal(pr)
+	out, err := json.Marshal(webCfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

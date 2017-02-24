@@ -14,14 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var React = require('react');
-var reactor = require('app/reactor');
-var userGetters = require('app/modules/user/getters');
-var nodeGetters = require('app/modules/nodes/getters');
-var NodeList = require('./nodeList.jsx');
+import React from 'react';
+import reactor from 'app/reactor';
+import userGetters from 'app/modules/user/getters';
+import nodeGetters from 'app/modules/nodes/getters';
+import NodeList from './nodeList.jsx';
 
-
-var Nodes = React.createClass({
+const Nodes = React.createClass({
 
   mixins: [reactor.ReactMixin],
 
@@ -45,7 +44,7 @@ var Nodes = React.createClass({
         />
       </div>
     );
-  }
+  }  
 });
 
-module.exports = Nodes;
+export default Nodes;

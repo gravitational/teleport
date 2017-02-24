@@ -13,23 +13,19 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-var React = require('react');
-var reactor = require('app/reactor');
-var cfg = require('app/config');
-var userGetters = require('app/modules/user/getters');
-var { IndexLink } = require('react-router');
-var { logoutUser } = require('app/modules/app/actions');
-var { UserIcon } = require('./icons.jsx');
+import React from 'react';
+import reactor from 'app/reactor';
+import cfg from 'app/config';
+import userGetters from 'app/modules/user/getters';
+import { IndexLink } from 'react-router';
+import { logoutUser } from 'app/modules/app/actions';
+import { UserIcon } from './icons.jsx';
 
-var menuItems = [
-  {icon: 'fa fa-share-alt', to: cfg.routes.nodes, title: 'Nodes'},
-  {icon: 'fa  fa-group', to: cfg.routes.sessions, title: 'Sessions'}
-];
-
-var NavLeftBar = React.createClass({
-  render(){
-    var {name} = reactor.evaluate(userGetters.user);
-    var items = menuItems.map((i, index)=>{
+const NavLeftBar = React.createClass({
+  render() {
+    let { items=[] } = this.props;        
+    let { name } = reactor.evaluate(userGetters.user);
+    let $items = items.map((i, index)=>{
       var className = this.context.router.isActive(i.to) ? 'active' : '';
       return (
         <li key={index} className={className} title={i.title}>
@@ -40,15 +36,15 @@ var NavLeftBar = React.createClass({
       );
     });
 
-    items.push((
-      <li key={items.length} title="help">
+    $items.push((
+      <li key={$items.length} title="help">
         <a href={cfg.helpUrl} target="_blank">
           <i className="fa fa-question" />
         </a>
       </li>));
 
-    items.push((
-      <li key={items.length} title="logout">
+    $items.push((
+      <li key={$items.length} title="logout">
         <a href="#" onClick={logoutUser} >
           <i className="fa fa-sign-out" style={{marginRight: 0}}></i>
         </a>
@@ -61,7 +57,7 @@ var NavLeftBar = React.createClass({
           <li>
             <UserIcon name={name} />
           </li>
-          {items}
+          {$items}
         </ul>
       </nav>
     );
@@ -72,4 +68,4 @@ NavLeftBar.contextTypes = {
   router: React.PropTypes.object.isRequired
 }
 
-module.exports = NavLeftBar;
+export default NavLeftBar;

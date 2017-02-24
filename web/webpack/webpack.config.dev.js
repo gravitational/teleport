@@ -15,12 +15,20 @@ limitations under the License.
 */
 
 var baseCfg = require('./webpack.base');
-var config = require('./webpack.config');
 
-config.devtool = 'source-map';
-config.output.filename = '[name].js';
-config.cache = true;
-config.module = {
+var output = Object.assign({}, baseCfg.output, {
+  filename: '[name].js'
+});
+
+var cfg = {
+  entry: baseCfg.entry,
+  resolve: baseCfg.resolve,
+  output: output,    
+  cache: true,
+
+  //devtool: 'source-map',
+  
+  module: {
     loaders: [
       baseCfg.loaders.fonts,
       baseCfg.loaders.svg,
@@ -28,13 +36,15 @@ config.module = {
       baseCfg.loaders.js({withHot: true}),
       baseCfg.loaders.scss
     ]
-  };
+  },
 
-config.plugins =  [
-  baseCfg.plugins.devBuild,
-  baseCfg.plugins.hotReplacement,
-  baseCfg.plugins.createIndexHtml,
-  baseCfg.plugins.vendorBundle
-];
+  plugins:  [
+    baseCfg.plugins.devBuild,
+    baseCfg.plugins.hotReplacement,
+    baseCfg.plugins.createIndexHtml,
+    baseCfg.plugins.vendorBundle
+  ]
+  
+};
 
-module.exports = config;
+module.exports = cfg;

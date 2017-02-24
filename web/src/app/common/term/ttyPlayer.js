@@ -106,24 +106,7 @@ class EventProvider{
       return new Buffer(response);
     });
   }
-
-  _formatDisplayTime(ms){
-    if(ms < 0){
-      return '0:0';
-    }
-
-    let totalSec = Math.floor(ms / 1000);
-    let h = Math.floor(((totalSec % 31536000) % 86400) / 3600);
-    let m = Math.floor((((totalSec % 31536000) % 86400) % 3600) / 60);
-    let s = (((totalSec % 31536000) % 86400) % 3600) % 60;
-
-    m = m > 9 ? m : '0' + m;
-    s = s > 9 ? s : '0' + s;
-    h = h > 0 ? h + ':' : '';
-
-    return `${h}${m}:${s}`;
-  }
-
+  
   _createPrintEvents(json){
     let w, h;
     let events = [];
@@ -199,6 +182,25 @@ class EventProvider{
 
     this.events = tmp;
   }
+
+  _formatDisplayTime(ms){
+    if(ms < 0){
+      return '00:00';
+    }
+
+    let totalSec = Math.floor(ms / 1000);
+    let totalDays = (totalSec % 31536000) % 86400;
+    let h = Math.floor(totalDays / 3600);
+    let m = Math.floor((totalDays % 3600) / 60);
+    let s = (totalDays % 3600) % 60;
+
+    m = m > 9 ? m : '0' + m;
+    s = s > 9 ? s : '0' + s;
+    h = h > 0 ? h + ':' : '';
+
+    return `${h}${m}:${s}`;
+  }
+
 }
 
 class TtyPlayer extends Tty {

@@ -14,12 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var React = require('react');
-var $ = require('jQuery');
-var {isObject} = require('_');
-var classnames = require('classnames');
+import React from 'react';
+import $ from 'jQuery';
+import { isObject } from '_';
+import classnames from 'classnames';
 
-var DropDown = React.createClass({
+const DropDown = React.createClass({
 
   onClick(event){
     event.preventDefault();
@@ -101,4 +101,4 @@ var DropDown = React.createClass({
   }
 });
 
-module.exports = DropDown;
+export default DropDown;
