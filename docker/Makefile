@@ -68,10 +68,10 @@ enter-two:
 .PHONY:shell
 shell: 
 	docker build -t $(TELEBOX) .
-	docker network create --subnet=172.10.0.0/16 $(NETNAME)
-	docker run --name=teleport-shell --rm=true -ti \
-		--hostname two-node \
-		--ip 172.10.1.4 \
-		--volume $(THISDIR)/data/two/node:/var/lib/teleport \
+	-docker network create --subnet=172.10.0.0/16 $(NETNAME)
+	-docker run --name=one --rm=true -ti \
+		--hostname one \
+		--ip 172.10.1.1 \
+		--volume $(THISDIR)/data/one:/var/lib/teleport \
 		$(DOCKEROPS) $(TELEBOX) /bin/bash
-	-@docker network rm $(NETNAME)
+	-docker network rm $(NETNAME)

@@ -80,11 +80,16 @@ the YAML file to `tctl` via `-c` flag.
 Also you can start an empty container from which you can manually invoke `teleport start`. 
 This is similar to launching an empty Linux VM with a Teleport binary.
 
-Do:
+To get shell inside the same "one" (single-node cluster) container without 
+Teleport running:
 
 ```bash
 $ make shell
 ```
 
-if you get "network already exists" error, do `make stop` first.
+NOTE: If you get "network already exists" error, do `make stop` first.
+
+Once inside, you'll get the same `/var/lib/teleport` as "one", so you 
+can start (and even build) `teleport` daemon manually. This container also
+comes with a fully configured `screen` so you can treat it as a real VM.
 
