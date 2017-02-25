@@ -65,18 +65,19 @@ func (c *SessionContext) getTerminal(sessionID session.ID) (*terminalHandler, er
 }
 
 func (c *SessionContext) UpdateSessionTerminal(
-	namespace string, sessionID session.ID, params session.TerminalParams) error {
+	siteAPI auth.ClientI, namespace string, sessionID session.ID, params session.TerminalParams) error {
 
-	err := c.clt.UpdateSession(session.UpdateRequest{
+	err := siteAPI.UpdateSession(session.UpdateRequest{
 		ID:             sessionID,
 		TerminalParams: &params,
 		Namespace:      namespace,
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		log.Error(err)
 	}
 	term, err := c.getTerminal(sessionID)
 	if err != nil {
+		log.Error(err)
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(term.resizePTYWindow(params))
