@@ -60,10 +60,9 @@ const actions = {
     });
   },
 
-  openSession(nextState) {
+  initSession(sid) {
     logger.info('attempt to open session', { sid });
-    let { sid } = nextState.params;
-      
+    
     // check if terminal is already open
     let currentSession = reactor.evaluate(getters.currentSession);
     if (currentSession) {

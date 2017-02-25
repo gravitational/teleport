@@ -1,340 +1,817 @@
-webpackJsonp([0],{
-
-/***/ 0:
+webpackJsonp([0],[
+/* 0 */
 /***/ function(module, exports, __webpack_require__) {
 
 	module.exports = __webpack_require__(1);
 
 
 /***/ },
-
-/***/ 1:
+/* 1 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
-	/*
-	Copyright 2015 Gravitational, Inc.
+	var _react = __webpack_require__(2);
 
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
+	var _react2 = _interopRequireDefault(_react);
 
-	    http://www.apache.org/licenses/LICENSE-2.0
+	var _reactDom = __webpack_require__(31);
 
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
+	var _reactRouter = __webpack_require__(164);
 
-	var React = __webpack_require__(2);
-	var render = __webpack_require__(154).render;
+	var _nuclearJsReactAddons = __webpack_require__(219);
 
-	var _require = __webpack_require__(155),
-	    Router = _require.Router,
-	    Route = _require.Route,
-	    Redirect = _require.Redirect;
+	var _session = __webpack_require__(226);
 
-	var _require2 = __webpack_require__(212),
-	    App = _require2.App,
-	    Login = _require2.Login,
-	    Nodes = _require2.Nodes,
-	    Sessions = _require2.Sessions,
-	    NewUser = _require2.NewUser,
-	    CurrentSessionHost = _require2.CurrentSessionHost,
-	    MessagePage = _require2.MessagePage,
-	    NotFound = _require2.NotFound;
+	var _session2 = _interopRequireDefault(_session);
 
-	var _require3 = __webpack_require__(371),
-	    ensureUser = _require3.ensureUser;
+	var _app = __webpack_require__(231);
 
-	var _require4 = __webpack_require__(226),
-	    initApp = _require4.initApp;
+	var _app2 = _interopRequireDefault(_app);
 
-	var _require5 = __webpack_require__(386),
-	    openSession = _require5.openSession;
+	var _login = __webpack_require__(379);
 
-	var session = __webpack_require__(229);
-	var cfg = __webpack_require__(217);
+	var _login2 = _interopRequireDefault(_login);
 
-	__webpack_require__(451);
+	var _invite = __webpack_require__(389);
+
+	var _invite2 = _interopRequireDefault(_invite);
+
+	var _main = __webpack_require__(394);
+
+	var _main2 = _interopRequireDefault(_main);
+
+	var _main3 = __webpack_require__(409);
+
+	var _main4 = _interopRequireDefault(_main3);
+
+	var _main5 = __webpack_require__(417);
+
+	var _main6 = _interopRequireDefault(_main5);
+
+	var _msgPage = __webpack_require__(377);
+
+	var _actions = __webpack_require__(383);
+
+	var _actions2 = __webpack_require__(239);
+
+	var _config = __webpack_require__(232);
+
+	var _config2 = _interopRequireDefault(_config);
+
+	var _reactor = __webpack_require__(240);
+
+	var _reactor2 = _interopRequireDefault(_reactor);
+
+	__webpack_require__(465);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 	// init session
-	session.init();
+	_session2.default.init(); /*
+	                          Copyright 2015 Gravitational, Inc.
+	                          
+	                          Licensed under the Apache License, Version 2.0 (the "License");
+	                          you may not use this file except in compliance with the License.
+	                          You may obtain a copy of the License at
+	                          
+	                              http://www.apache.org/licenses/LICENSE-2.0
+	                          
+	                          Unless required by applicable law or agreed to in writing, software
+	                          distributed under the License is distributed on an "AS IS" BASIS,
+	                          WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	                          See the License for the specific language governing permissions and
+	                          limitations under the License.
+	                          */
 
-	cfg.init(window.GRV_CONFIG);
+	_config2.default.init(window.GRV_CONFIG);
 
-	render(React.createElement(
-	  Router,
-	  { history: session.getHistory() },
-	  React.createElement(Route, { path: cfg.routes.msgs, component: MessagePage }),
-	  React.createElement(Route, { path: cfg.routes.login, component: Login }),
-	  React.createElement(Route, { path: cfg.routes.newUser, component: NewUser }),
-	  React.createElement(Redirect, { from: cfg.routes.app, to: cfg.routes.nodes }),
-	  React.createElement(
-	    Route,
-	    { path: cfg.routes.app, onEnter: ensureUser, component: App },
-	    React.createElement(
-	      Route,
-	      { path: cfg.routes.app, onEnter: initApp },
-	      React.createElement(Route, { path: cfg.routes.sessions, component: Sessions }),
-	      React.createElement(Route, { path: cfg.routes.nodes, component: Nodes }),
-	      React.createElement(Route, { path: cfg.routes.currentSession, onEnter: openSession, components: { CurrentSessionHost: CurrentSessionHost } })
-	    )
-	  ),
-	  React.createElement(Route, { path: '*', component: NotFound })
+	(0, _reactDom.render)(_react2.default.createElement(
+	  _nuclearJsReactAddons.Provider,
+	  { reactor: _reactor2.default },
+	  _react2.default.createElement(
+	    _reactRouter.Router,
+	    { history: _session2.default.getHistory() },
+	    _react2.default.createElement(_reactRouter.Route, { path: _config2.default.routes.msgs, component: _msgPage.MessagePage }),
+	    _react2.default.createElement(_reactRouter.Route, { path: _config2.default.routes.login, component: _login2.default }),
+	    _react2.default.createElement(_reactRouter.Route, { path: _config2.default.routes.newUser, component: _invite2.default }),
+	    _react2.default.createElement(_reactRouter.Redirect, { from: _config2.default.routes.app, to: _config2.default.routes.nodes }),
+	    _react2.default.createElement(
+	      _reactRouter.Route,
+	      { path: _config2.default.routes.app, onEnter: _actions.ensureUser, component: _app2.default },
+	      _react2.default.createElement(
+	        _reactRouter.Route,
+	        { path: _config2.default.routes.app, onEnter: _actions2.initApp },
+	        _react2.default.createElement(_reactRouter.Route, { path: _config2.default.routes.sessions, component: _main4.default }),
+	        _react2.default.createElement(_reactRouter.Route, { path: _config2.default.routes.nodes, component: _main2.default }),
+	        _react2.default.createElement(_reactRouter.Route, { path: _config2.default.routes.currentSession, components: { CurrentSessionHost: _main6.default } })
+	      )
+	    ),
+	    _react2.default.createElement(_reactRouter.Route, { path: '*', component: _msgPage.NotFound })
+	  )
 	), document.getElementById("app"));
 
 /***/ },
-
-/***/ 212:
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	module.exports.App = __webpack_require__(213);
-	module.exports.Login = __webpack_require__(365);
-	module.exports.NewUser = __webpack_require__(377);
-	module.exports.Nodes = __webpack_require__(379);
-	module.exports.Sessions = __webpack_require__(395);
-	module.exports.CurrentSessionHost = __webpack_require__(403);
-	module.exports.ErrorPage = __webpack_require__(378).ErrorPage;
-	module.exports.NotFound = __webpack_require__(378).NotFound;
-	module.exports.MessagePage = __webpack_require__(378).MessagePage;
-
-/***/ },
-
-/***/ 213:
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	var React = __webpack_require__(2);
-	var NavLeftBar = __webpack_require__(214);
-	var reactor = __webpack_require__(215);
-
-	var _require = __webpack_require__(347),
-	    getters = _require.getters;
-
-	var _require2 = __webpack_require__(226),
-	    refresh = _require2.refresh;
-
-	var NotificationHost = __webpack_require__(349);
-	var Timer = __webpack_require__(364);
-
-	var App = React.createClass({
-	  displayName: 'App',
-
-
-	  mixins: [reactor.ReactMixin],
-
-	  getDataBindings: function getDataBindings() {
-	    return {
-	      appStatus: getters.appStatus
-	    };
-	  },
-	  render: function render() {
-	    var isInitializing = this.state.appStatus.isInitializing;
-
-
-	    if (isInitializing) {
-	      return null;
-	    }
-
-	    return React.createElement(
-	      'div',
-	      { className: 'grv-tlpt grv-flex grv-flex-row' },
-	      React.createElement(Timer, { onTimeout: refresh, interval: 4000 }),
-	      React.createElement(NotificationHost, null),
-	      this.props.CurrentSessionHost,
-	      React.createElement(NavLeftBar, null),
-	      this.props.children
-	    );
-	  }
-	});
-
-	module.exports = App;
-
-/***/ },
-
-/***/ 214:
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-	var React = __webpack_require__(2);
-	var reactor = __webpack_require__(215);
-	var cfg = __webpack_require__(217);
-	var userGetters = __webpack_require__(222);
-
-	var _require = __webpack_require__(155),
-	    IndexLink = _require.IndexLink;
-
-	var _require2 = __webpack_require__(226),
-	    logoutUser = _require2.logoutUser;
-
-	var _require3 = __webpack_require__(341),
-	    UserIcon = _require3.UserIcon;
-
-	var menuItems = [{ icon: 'fa fa-share-alt', to: cfg.routes.nodes, title: 'Nodes' }, { icon: 'fa  fa-group', to: cfg.routes.sessions, title: 'Sessions' }];
-
-	var NavLeftBar = React.createClass({
-	  displayName: 'NavLeftBar',
-	  render: function render() {
-	    var _this = this;
-
-	    var _reactor$evaluate = reactor.evaluate(userGetters.user),
-	        name = _reactor$evaluate.name;
-
-	    var items = menuItems.map(function (i, index) {
-	      var className = _this.context.router.isActive(i.to) ? 'active' : '';
-	      return React.createElement(
-	        'li',
-	        { key: index, className: className, title: i.title },
-	        React.createElement(
-	          IndexLink,
-	          { to: i.to },
-	          React.createElement('i', { className: i.icon })
-	        )
-	      );
-	    });
-
-	    items.push(React.createElement(
-	      'li',
-	      { key: items.length, title: 'help' },
-	      React.createElement(
-	        'a',
-	        { href: cfg.helpUrl, target: '_blank' },
-	        React.createElement('i', { className: 'fa fa-question' })
-	      )
-	    ));
-
-	    items.push(React.createElement(
-	      'li',
-	      { key: items.length, title: 'logout' },
-	      React.createElement(
-	        'a',
-	        { href: '#', onClick: logoutUser },
-	        React.createElement('i', { className: 'fa fa-sign-out', style: { marginRight: 0 } })
-	      )
-	    ));
-
-	    return React.createElement(
-	      'nav',
-	      { className: 'grv-nav navbar-default', role: 'navigation' },
-	      React.createElement(
-	        'ul',
-	        { className: 'nav text-center', id: 'side-menu' },
-	        React.createElement(
-	          'li',
-	          null,
-	          React.createElement(UserIcon, { name: name })
-	        ),
-	        items
-	      )
-	    );
-	  }
-	});
-
-	NavLeftBar.contextTypes = {
-	  router: React.PropTypes.object.isRequired
-	};
-
-	module.exports = NavLeftBar;
-
-/***/ },
-
-/***/ 215:
+/* 2 */,
+/* 3 */,
+/* 4 */,
+/* 5 */,
+/* 6 */,
+/* 7 */,
+/* 8 */,
+/* 9 */,
+/* 10 */,
+/* 11 */,
+/* 12 */,
+/* 13 */,
+/* 14 */,
+/* 15 */,
+/* 16 */,
+/* 17 */,
+/* 18 */,
+/* 19 */,
+/* 20 */,
+/* 21 */,
+/* 22 */,
+/* 23 */,
+/* 24 */,
+/* 25 */,
+/* 26 */,
+/* 27 */,
+/* 28 */,
+/* 29 */,
+/* 30 */,
+/* 31 */,
+/* 32 */,
+/* 33 */,
+/* 34 */,
+/* 35 */,
+/* 36 */,
+/* 37 */,
+/* 38 */,
+/* 39 */,
+/* 40 */,
+/* 41 */,
+/* 42 */,
+/* 43 */,
+/* 44 */,
+/* 45 */,
+/* 46 */,
+/* 47 */,
+/* 48 */,
+/* 49 */,
+/* 50 */,
+/* 51 */,
+/* 52 */,
+/* 53 */,
+/* 54 */,
+/* 55 */,
+/* 56 */,
+/* 57 */,
+/* 58 */,
+/* 59 */,
+/* 60 */,
+/* 61 */,
+/* 62 */,
+/* 63 */,
+/* 64 */,
+/* 65 */,
+/* 66 */,
+/* 67 */,
+/* 68 */,
+/* 69 */,
+/* 70 */,
+/* 71 */,
+/* 72 */,
+/* 73 */,
+/* 74 */,
+/* 75 */,
+/* 76 */,
+/* 77 */,
+/* 78 */,
+/* 79 */,
+/* 80 */,
+/* 81 */,
+/* 82 */,
+/* 83 */,
+/* 84 */,
+/* 85 */,
+/* 86 */,
+/* 87 */,
+/* 88 */,
+/* 89 */,
+/* 90 */,
+/* 91 */,
+/* 92 */,
+/* 93 */,
+/* 94 */,
+/* 95 */,
+/* 96 */,
+/* 97 */,
+/* 98 */,
+/* 99 */,
+/* 100 */,
+/* 101 */,
+/* 102 */,
+/* 103 */,
+/* 104 */,
+/* 105 */,
+/* 106 */,
+/* 107 */,
+/* 108 */,
+/* 109 */,
+/* 110 */,
+/* 111 */,
+/* 112 */,
+/* 113 */,
+/* 114 */,
+/* 115 */,
+/* 116 */,
+/* 117 */,
+/* 118 */,
+/* 119 */,
+/* 120 */,
+/* 121 */,
+/* 122 */,
+/* 123 */,
+/* 124 */,
+/* 125 */,
+/* 126 */,
+/* 127 */,
+/* 128 */,
+/* 129 */,
+/* 130 */,
+/* 131 */,
+/* 132 */,
+/* 133 */,
+/* 134 */,
+/* 135 */,
+/* 136 */,
+/* 137 */,
+/* 138 */,
+/* 139 */,
+/* 140 */,
+/* 141 */,
+/* 142 */,
+/* 143 */,
+/* 144 */,
+/* 145 */,
+/* 146 */,
+/* 147 */,
+/* 148 */,
+/* 149 */,
+/* 150 */,
+/* 151 */,
+/* 152 */,
+/* 153 */,
+/* 154 */,
+/* 155 */,
+/* 156 */,
+/* 157 */,
+/* 158 */,
+/* 159 */,
+/* 160 */,
+/* 161 */,
+/* 162 */,
+/* 163 */,
+/* 164 */,
+/* 165 */,
+/* 166 */,
+/* 167 */,
+/* 168 */,
+/* 169 */,
+/* 170 */,
+/* 171 */,
+/* 172 */,
+/* 173 */,
+/* 174 */,
+/* 175 */,
+/* 176 */,
+/* 177 */,
+/* 178 */,
+/* 179 */,
+/* 180 */,
+/* 181 */,
+/* 182 */,
+/* 183 */,
+/* 184 */,
+/* 185 */,
+/* 186 */,
+/* 187 */,
+/* 188 */,
+/* 189 */,
+/* 190 */,
+/* 191 */,
+/* 192 */,
+/* 193 */,
+/* 194 */,
+/* 195 */,
+/* 196 */,
+/* 197 */,
+/* 198 */,
+/* 199 */,
+/* 200 */,
+/* 201 */,
+/* 202 */,
+/* 203 */,
+/* 204 */,
+/* 205 */,
+/* 206 */,
+/* 207 */,
+/* 208 */,
+/* 209 */,
+/* 210 */,
+/* 211 */,
+/* 212 */,
+/* 213 */,
+/* 214 */,
+/* 215 */,
+/* 216 */,
+/* 217 */,
+/* 218 */,
+/* 219 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _nuclearJs = __webpack_require__(216);
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-	var __DEV__ = ("production") === 'development'; /*
-	                                                      Copyright 2015 Gravitational, Inc.
-	                                                      
-	                                                      Licensed under the Apache License, Version 2.0 (the "License");
-	                                                      you may not use this file except in compliance with the License.
-	                                                      You may obtain a copy of the License at
-	                                                      
-	                                                          http://www.apache.org/licenses/LICENSE-2.0
-	                                                      
-	                                                      Unless required by applicable law or agreed to in writing, software
-	                                                      distributed under the License is distributed on an "AS IS" BASIS,
-	                                                      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	                                                      See the License for the specific language governing permissions and
-	                                                      limitations under the License.
-	                                                      */
+	var _connect = __webpack_require__(220);
 
-	var reactor = new _nuclearJs.Reactor({
-	  debug: __DEV__
-	});
+	var _connect2 = _interopRequireDefault(_connect);
 
-	window.reactor = reactor;
+	var _Provider = __webpack_require__(222);
 
-	exports.default = reactor;
+	var _Provider2 = _interopRequireDefault(_Provider);
+
+	var _nuclearMixin = __webpack_require__(223);
+
+	var _nuclearMixin2 = _interopRequireDefault(_nuclearMixin);
+
+	var _provideReactor = __webpack_require__(224);
+
+	var _provideReactor2 = _interopRequireDefault(_provideReactor);
+
+	var _nuclearComponent = __webpack_require__(225);
+
+	var _nuclearComponent2 = _interopRequireDefault(_nuclearComponent);
+
+	exports.connect = _connect2['default'];
+	exports.Provider = _Provider2['default'];
+	exports.nuclearMixin = _nuclearMixin2['default'];
+	exports.provideReactor = _provideReactor2['default'];
+	exports.nuclearComponent = _nuclearComponent2['default'];
+
+/***/ },
+/* 220 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	exports.__esModule = true;
+
+	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
+	exports['default'] = connect;
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
+
+	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError('Cannot call a class as a function'); } }
+
+	function _inherits(subClass, superClass) { if (typeof superClass !== 'function' && superClass !== null) { throw new TypeError('Super expression must either be null or a function, not ' + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+	var _react = __webpack_require__(2);
+
+	var _reactorShape = __webpack_require__(221);
+
+	var _reactorShape2 = _interopRequireDefault(_reactorShape);
+
+	var _hoistNonReactStatics = __webpack_require__(188);
+
+	var _hoistNonReactStatics2 = _interopRequireDefault(_hoistNonReactStatics);
+
+	function getDisplayName(WrappedComponent) {
+	  return WrappedComponent.displayName || WrappedComponent.name || 'Component';
+	}
+
+	function connect(mapStateToProps) {
+	  return function wrapWithConnect(WrappedComponent) {
+	    var Connect = (function (_Component) {
+	      _inherits(Connect, _Component);
+
+	      function Connect(props, context) {
+	        _classCallCheck(this, Connect);
+
+	        _Component.call(this, props, context);
+	        this.reactor = props.reactor || context.reactor;
+	        this.unsubscribeFns = [];
+	        this.updatePropMap(props);
+	      }
+
+	      Connect.prototype.resubscribe = function resubscribe(props) {
+	        this.unsubscribe();
+	        this.updatePropMap(props);
+	        this.updateState();
+	        this.subscribe();
+	      };
+
+	      Connect.prototype.componentWillMount = function componentWillMount() {
+	        this.updateState();
+	      };
+
+	      Connect.prototype.componentDidMount = function componentDidMount() {
+	        this.subscribe(this.props);
+	      };
+
+	      Connect.prototype.componentWillUnmount = function componentWillUnmount() {
+	        this.unsubscribe();
+	      };
+
+	      Connect.prototype.updatePropMap = function updatePropMap(props) {
+	        this.propMap = mapStateToProps ? mapStateToProps(props) : {};
+	      };
+
+	      Connect.prototype.updateState = function updateState() {
+	        var propMap = this.propMap;
+	        var stateToSet = {};
+
+	        for (var key in propMap) {
+	          var getter = propMap[key];
+	          stateToSet[key] = this.reactor.evaluate(getter);
+	        }
+
+	        this.setState(stateToSet);
+	      };
+
+	      Connect.prototype.subscribe = function subscribe() {
+	        var _this = this;
+
+	        var propMap = this.propMap;
+
+	        var _loop = function (key) {
+	          var getter = propMap[key];
+	          var unsubscribeFn = _this.reactor.observe(getter, function (val) {
+	            var _setState;
+
+	            _this.setState((_setState = {}, _setState[key] = val, _setState));
+	          });
+
+	          _this.unsubscribeFns.push(unsubscribeFn);
+	        };
+
+	        for (var key in propMap) {
+	          _loop(key);
+	        }
+	      };
+
+	      Connect.prototype.unsubscribe = function unsubscribe() {
+	        if (this.unsubscribeFns.length === 0) {
+	          return;
+	        }
+
+	        while (this.unsubscribeFns.length > 0) {
+	          this.unsubscribeFns.shift()();
+	        }
+	      };
+
+	      Connect.prototype.render = function render() {
+	        return _react.createElement(WrappedComponent, _extends({
+	          reactor: this.reactor
+	        }, this.props, this.state));
+	      };
+
+	      return Connect;
+	    })(_react.Component);
+
+	    Connect.displayName = 'Connect(' + getDisplayName(WrappedComponent) + ')';
+	    Connect.WrappedComponent = WrappedComponent;
+	    Connect.contextTypes = {
+	      reactor: _reactorShape2['default']
+	    };
+	    Connect.propTypes = {
+	      reactor: _reactorShape2['default']
+	    };
+
+	    return _hoistNonReactStatics2['default'](Connect, WrappedComponent);
+	  };
+	}
+
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 217:
+/* 221 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
+
+	var _react = __webpack_require__(2);
+
+	exports['default'] = _react.PropTypes.shape({
+	  dispatch: _react.PropTypes.func.isRequired,
+	  evaluate: _react.PropTypes.func.isRequired,
+	  evaluateToJS: _react.PropTypes.func.isRequired,
+	  observe: _react.PropTypes.func.isRequired
+	});
+	module.exports = exports['default'];
+
+/***/ },
+/* 222 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	exports.__esModule = true;
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
+
+	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError('Cannot call a class as a function'); } }
+
+	function _inherits(subClass, superClass) { if (typeof superClass !== 'function' && superClass !== null) { throw new TypeError('Super expression must either be null or a function, not ' + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+	var _react = __webpack_require__(2);
+
+	var _reactorShape = __webpack_require__(221);
+
+	var _reactorShape2 = _interopRequireDefault(_reactorShape);
+
+	var Provider = (function (_Component) {
+	  _inherits(Provider, _Component);
+
+	  Provider.prototype.getChildContext = function getChildContext() {
+	    return {
+	      reactor: this.reactor
+	    };
+	  };
+
+	  function Provider(props, context) {
+	    _classCallCheck(this, Provider);
+
+	    _Component.call(this, props, context);
+	    this.reactor = props.reactor;
+	  }
+
+	  Provider.prototype.render = function render() {
+	    return _react.Children.only(this.props.children);
+	  };
+
+	  return Provider;
+	})(_react.Component);
+
+	exports['default'] = Provider;
+
+	Provider.propTypes = {
+	  reactor: _reactorShape2['default'].isRequired,
+	  children: _react.PropTypes.element.isRequired
+	};
+
+	Provider.childContextTypes = {
+	  reactor: _reactorShape2['default'].isRequired
+	};
+	module.exports = exports['default'];
+
+/***/ },
+/* 223 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	exports.__esModule = true;
+
+	var _react = __webpack_require__(2);
+
+	/**
+	 * Iterate on an object
+	 */
+	function each(obj, fn) {
+	  for (var key in obj) {
+	    if (obj.hasOwnProperty(key)) {
+	      fn(obj[key], key);
+	    }
+	  }
+	}
+
+	/**
+	 * Returns a mapping of the getDataBinding keys to
+	 * the reactor values
+	 */
+	function getState(reactor, data) {
+	  var state = {};
+	  each(data, function (value, key) {
+	    state[key] = reactor.evaluate(value);
+	  });
+	  return state;
+	}
+
+	/**
+	 * Mixin expecting a context.reactor on the component
+	 *
+	 * Should be used if a higher level component has been
+	 * wrapped with provideReactor
+	 * @type {Object}
+	 */
+	exports['default'] = {
+	  contextTypes: {
+	    reactor: _react.PropTypes.object.isRequired
+	  },
+
+	  getInitialState: function getInitialState() {
+	    if (!this.getDataBindings) {
+	      return null;
+	    }
+	    return getState(this.context.reactor, this.getDataBindings());
+	  },
+
+	  componentDidMount: function componentDidMount() {
+	    if (!this.getDataBindings) {
+	      return;
+	    }
+	    var component = this;
+	    component.__nuclearUnwatchFns = [];
+	    each(this.getDataBindings(), function (getter, key) {
+	      var unwatchFn = component.context.reactor.observe(getter, function (val) {
+	        var newState = {};
+	        newState[key] = val;
+	        component.setState(newState);
+	      });
+
+	      component.__nuclearUnwatchFns.push(unwatchFn);
+	    });
+	  },
+
+	  componentWillUnmount: function componentWillUnmount() {
+	    if (!this.__nuclearUnwatchFns) {
+	      return;
+	    }
+	    while (this.__nuclearUnwatchFns.length) {
+	      this.__nuclearUnwatchFns.shift()();
+	    }
+	  }
+	};
+	module.exports = exports['default'];
+
+/***/ },
+/* 224 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	exports.__esModule = true;
+	exports['default'] = provideReactor;
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
+
+	var _react = __webpack_require__(2);
+
+	var _react2 = _interopRequireDefault(_react);
+
+	var _hoistNonReactStatics = __webpack_require__(188);
+
+	var _hoistNonReactStatics2 = _interopRequireDefault(_hoistNonReactStatics);
+
+	var _objectAssign = __webpack_require__(4);
+
+	var _objectAssign2 = _interopRequireDefault(_objectAssign);
+
+	function createComponent(Component, additionalContextTypes) {
+	  var componentName = Component.displayName || Component.name;
+	  var childContextTypes = _objectAssign2['default']({
+	    reactor: _react2['default'].PropTypes.object.isRequired
+	  }, additionalContextTypes || {});
+
+	  var ReactorProvider = _react2['default'].createClass({
+	    displayName: 'ReactorProvider(' + componentName + ')',
+
+	    propTypes: {
+	      reactor: _react2['default'].PropTypes.object.isRequired
+	    },
+
+	    childContextTypes: childContextTypes,
+
+	    getChildContext: function getChildContext() {
+	      var childContext = {
+	        reactor: this.props.reactor
+	      };
+	      if (additionalContextTypes) {
+	        Object.keys(additionalContextTypes).forEach(function (key) {
+	          childContext[key] = this.props[key];
+	        }, this);
+	      }
+	      return childContext;
+	    },
+
+	    render: function render() {
+	      return _react2['default'].createElement(Component, this.props);
+	    }
+	  });
+
+	  _hoistNonReactStatics2['default'](ReactorProvider, Component);
+
+	  return ReactorProvider;
+	}
+
+	/**
+	 * Provides reactor prop to all children as React context
+	 *
+	 * Example:
+	 *   var WrappedComponent = provideReactor(Component, {
+	 *     foo: React.PropTypes.string
+	 *   });
+	 *
+	 * Also supports the decorator pattern:
+	 *   @provideReactor({
+	 *     foo: React.PropTypes.string
+	 *   })
+	 *   class BaseComponent extends React.Component {
+	 *     render() {
+	 *       return <div/>;
+	 *     }
+	 *   }
+	 *
+	 * @method provideReactor
+	 * @param {React.Component} [Component] component to wrap
+	 * @param {object} additionalContextTypes Additional contextTypes to add
+	 * @returns {React.Component|Function} returns function if using decorator pattern
+	 */
+
+	function provideReactor(Component, additionalContextTypes) {
+	  console.warn('`provideReactor` is deprecated, use `<Provider reactor={reactor} />` instead');
+	  // support decorator pattern
+	  if (arguments.length === 0 || typeof arguments[0] !== 'function') {
+	    additionalContextTypes = arguments[0];
+	    return function connectToReactorDecorator(ComponentToDecorate) {
+	      return createComponent(ComponentToDecorate, additionalContextTypes);
+	    };
+	  }
+
+	  return createComponent.apply(null, arguments);
+	}
+
+	module.exports = exports['default'];
+
+/***/ },
+/* 225 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	exports.__esModule = true;
+	exports['default'] = nuclearComponent;
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
+
+	var _connect = __webpack_require__(220);
+
+	var _connect2 = _interopRequireDefault(_connect);
+
+	/**
+	 * Provides dataBindings + reactor
+	 * as props to wrapped component
+	 *
+	 * Example:
+	 *   var WrappedComponent = nuclearComponent(Component, function(props) {
+	 *     return { counter: 'counter' };
+	 *   );
+	 *
+	 * Also supports the decorator pattern:
+	 *   @nuclearComponent((props) => {
+	 *     return { counter: 'counter' }
+	 *   })
+	 *   class BaseComponent extends React.Component {
+	 *     render() {
+	 *       const { counter, reactor } = this.props;
+	 *       return <div/>;
+	 *     }
+	 *   }
+	 *
+	 * @method nuclearComponent
+	 * @param {React.Component} [Component] component to wrap
+	 * @param {Function} getDataBindings function which returns dataBindings to listen for data change
+	 * @returns {React.Component|Function} returns function if using decorator pattern
+	 */
+
+	function nuclearComponent(Component, getDataBindings) {
+	  console.warn('nuclearComponent is deprecated, use `connect()` instead');
+	  // support decorator pattern
+	  // detect all React Components because they have a render method
+	  if (arguments.length === 0 || !Component.prototype.render) {
+	    // Component here is the getDataBindings Function
+	    return _connect2['default'](Component);
+	  }
+
+	  return _connect2['default'](getDataBindings)(Component);
+	}
+
+	module.exports = exports['default'];
+
+/***/ },
+/* 226 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
 
 	/*
 	Copyright 2015 Gravitational, Inc.
@@ -352,10 +829,324 @@ webpackJsonp([0],{
 	limitations under the License.
 	*/
 
-	var _require = __webpack_require__(218),
-	    formatPattern = _require.formatPattern;
+	var _require = __webpack_require__(164),
+	    browserHistory = _require.browserHistory,
+	    createMemoryHistory = _require.createMemoryHistory;
 
-	var $ = __webpack_require__(219);
+	var $ = __webpack_require__(227);
+
+	var logger = __webpack_require__(230).create('services/sessions');
+	var AUTH_KEY_DATA = 'authData';
+
+	var _history = createMemoryHistory();
+
+	var UserData = function UserData(json) {
+	  $.extend(this, json);
+	  this.created = new Date().getTime();
+	};
+
+	var session = {
+	  init: function init() {
+	    var history = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : browserHistory;
+
+	    _history = history;
+	  },
+	  getHistory: function getHistory() {
+	    return _history;
+	  },
+	  setUserData: function setUserData(data) {
+	    var userData = new UserData(data);
+	    localStorage.setItem(AUTH_KEY_DATA, JSON.stringify(userData));
+	    return userData;
+	  },
+	  getUserData: function getUserData() {
+	    try {
+	      var item = localStorage.getItem(AUTH_KEY_DATA);
+	      if (item) {
+	        return JSON.parse(item);
+	      }
+
+	      // for sso use-cases, try to grab the token from HTML
+	      var hiddenDiv = document.getElementById("bearer_token");
+	      if (hiddenDiv !== null) {
+	        var json = window.atob(hiddenDiv.textContent);
+	        var data = JSON.parse(json);
+	        if (data.token) {
+	          // put it into the session
+	          var userData = this.setUserData(data);
+	          // remove the element
+	          hiddenDiv.remove();
+	          return userData;
+	        }
+	      }
+	    } catch (err) {
+	      logger.error('error trying to read user auth data:', err);
+	    }
+
+	    return {};
+	  },
+	  clear: function clear() {
+	    localStorage.clear();
+	  }
+	};
+
+	module.exports = session;
+
+/***/ },
+/* 227 */,
+/* 228 */,
+/* 229 */,
+/* 230 */
+/***/ function(module, exports) {
+
+	'use strict';
+
+	exports.__esModule = true;
+
+	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+	/*
+	Copyright 2015 Gravitational, Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	    http://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+	*/
+
+	var Logger = function () {
+	  function Logger() {
+	    var name = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 'default';
+
+	    _classCallCheck(this, Logger);
+
+	    this.name = name;
+	  }
+
+	  Logger.prototype.log = function log() {
+	    var _console;
+
+	    var level = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 'log';
+
+	    for (var _len = arguments.length, args = Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
+	      args[_key - 1] = arguments[_key];
+	    }
+
+	    (_console = console)[level].apply(_console, ['%c[' + this.name + ']', 'color: blue;'].concat(args));
+	  };
+
+	  Logger.prototype.trace = function trace() {
+	    for (var _len2 = arguments.length, args = Array(_len2), _key2 = 0; _key2 < _len2; _key2++) {
+	      args[_key2] = arguments[_key2];
+	    }
+
+	    this.log.apply(this, ['trace'].concat(args));
+	  };
+
+	  Logger.prototype.warn = function warn() {
+	    for (var _len3 = arguments.length, args = Array(_len3), _key3 = 0; _key3 < _len3; _key3++) {
+	      args[_key3] = arguments[_key3];
+	    }
+
+	    this.log.apply(this, ['warn'].concat(args));
+	  };
+
+	  Logger.prototype.info = function info() {
+	    for (var _len4 = arguments.length, args = Array(_len4), _key4 = 0; _key4 < _len4; _key4++) {
+	      args[_key4] = arguments[_key4];
+	    }
+
+	    this.log.apply(this, ['info'].concat(args));
+	  };
+
+	  Logger.prototype.error = function error() {
+	    for (var _len5 = arguments.length, args = Array(_len5), _key5 = 0; _key5 < _len5; _key5++) {
+	      args[_key5] = arguments[_key5];
+	    }
+
+	    this.log.apply(this, ['error'].concat(args));
+	  };
+
+	  return Logger;
+	}();
+
+	exports.default = {
+	  create: function create() {
+	    for (var _len6 = arguments.length, args = Array(_len6), _key6 = 0; _key6 < _len6; _key6++) {
+	      args[_key6] = arguments[_key6];
+	    }
+
+	    return new (Function.prototype.bind.apply(Logger, [null].concat(args)))();
+	  }
+	};
+	module.exports = exports['default'];
+
+/***/ },
+/* 231 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	exports.__esModule = true;
+	exports.Connector = exports.App = undefined;
+
+	var _react = __webpack_require__(2);
+
+	var _react2 = _interopRequireDefault(_react);
+
+	var _nuclearJsReactAddons = __webpack_require__(219);
+
+	var _config = __webpack_require__(232);
+
+	var _config2 = _interopRequireDefault(_config);
+
+	var _app = __webpack_require__(234);
+
+	var _actions = __webpack_require__(239);
+
+	var _navLeftBar = __webpack_require__(356);
+
+	var _navLeftBar2 = _interopRequireDefault(_navLeftBar);
+
+	var _notificationHost = __webpack_require__(364);
+
+	var _notificationHost2 = _interopRequireDefault(_notificationHost);
+
+	var _timer = __webpack_require__(376);
+
+	var _timer2 = _interopRequireDefault(_timer);
+
+	var _msgPage = __webpack_require__(377);
+
+	var _indicator = __webpack_require__(378);
+
+	var _indicator2 = _interopRequireDefault(_indicator);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; } /*
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Copyright 2015 Gravitational, Inc.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Licensed under the Apache License, Version 2.0 (the "License");
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               you may not use this file except in compliance with the License.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               You may obtain a copy of the License at
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   http://www.apache.org/licenses/LICENSE-2.0
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Unless required by applicable law or agreed to in writing, software
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               distributed under the License is distributed on an "AS IS" BASIS,
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               See the License for the specific language governing permissions and
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               limitations under the License.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               */
+
+	var menuItems = [{ icon: 'fa fa-share-alt', to: _config2.default.routes.nodes, title: 'Nodes' }, { icon: 'fa  fa-group', to: _config2.default.routes.sessions, title: 'Sessions' }];
+
+	var App = function (_Component) {
+	  _inherits(App, _Component);
+
+	  function App() {
+	    _classCallCheck(this, App);
+
+	    return _possibleConstructorReturn(this, _Component.apply(this, arguments));
+	  }
+
+	  App.prototype.getMenuItems = function getMenuItems() {
+	    return menuItems;
+	  };
+
+	  App.prototype.render = function render() {
+	    var _props$initAttemp = this.props.initAttemp,
+	        isProcessing = _props$initAttemp.isProcessing,
+	        isSuccess = _props$initAttemp.isSuccess,
+	        isFailed = _props$initAttemp.isFailed,
+	        message = _props$initAttemp.message;
+
+
+	    if (isProcessing) {
+	      return _react2.default.createElement(
+	        'div',
+	        null,
+	        _react2.default.createElement(_indicator2.default, { type: 'bounce' })
+	      );
+	    }
+
+	    if (isFailed) {
+	      return _react2.default.createElement(_msgPage.Failed, { message: message });
+	    }
+
+	    if (isSuccess) {
+	      return _react2.default.createElement(
+	        'div',
+	        { className: 'grv-tlpt grv-flex grv-flex-row' },
+	        _react2.default.createElement(_timer2.default, { onTimeout: _actions.refresh, interval: 4000 }),
+	        _react2.default.createElement(_notificationHost2.default, null),
+	        this.props.CurrentSessionHost,
+	        _react2.default.createElement(_navLeftBar2.default, { items: this.getMenuItems() }),
+	        this.props.children
+	      );
+	    }
+
+	    return null;
+	  };
+
+	  return App;
+	}(_react.Component);
+
+	function mapStateToProps() {
+	  return {
+	    initAttemp: _app.getters.initAttemp
+	  };
+	}
+
+	var Connector = (0, _nuclearJsReactAddons.connect)(mapStateToProps);
+
+	exports.default = Connector(App);
+	exports.App = App;
+	exports.Connector = Connector;
+
+/***/ },
+/* 232 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	exports.__esModule = true;
+
+	var _patternUtils = __webpack_require__(233);
+
+	var _jQuery = __webpack_require__(227);
+
+	var _jQuery2 = _interopRequireDefault(_jQuery);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	/*
+	Copyright 2015 Gravitational, Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	    http://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+	*/
 
 	var cfg = {
 
@@ -367,10 +1158,7 @@ webpackJsonp([0],{
 
 	  displayDateFormat: 'DD/MM/YYYY HH:mm:ss',
 
-	  auth: {
-	    oidc_connectors: [],
-	    u2f_appid: ""
-	  },
+	  auth: {},
 
 	  routes: {
 	    app: '/web',
@@ -389,6 +1177,7 @@ webpackJsonp([0],{
 	    sessionPath: '/v1/webapi/sessions',
 	    userStatus: '/v1/webapi/user/status',
 	    invitePath: '/v1/webapi/users/invites/:inviteToken',
+	    inviteWithOidcPath: '/v1/webapi/users/invites/oidc/validate?redirect_url=:redirect&connector_id=:provider&token=:inviteToken',
 	    createUserPath: '/v1/webapi/users',
 	    u2fCreateUserChallengePath: '/webapi/u2f/signuptokens/:inviteToken',
 	    u2fCreateUserPath: '/webapi/u2f/users',
@@ -403,48 +1192,53 @@ webpackJsonp([0],{
 	    siteEventsFilterPath: '/v1/webapi/sites/:siteId/events?event=session.start&event=session.end&from=:start&to=:end',
 
 	    getSiteUrl: function getSiteUrl(siteId) {
-	      return formatPattern(cfg.api.sitePath, { siteId: siteId });
+	      return (0, _patternUtils.formatPattern)(cfg.api.sitePath, { siteId: siteId });
 	    },
 	    getSiteNodesUrl: function getSiteNodesUrl() {
 	      var siteId = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : '-current-';
 
-	      return formatPattern(cfg.api.nodesPath, { siteId: siteId });
+	      return (0, _patternUtils.formatPattern)(cfg.api.nodesPath, { siteId: siteId });
 	    },
 	    getSiteSessionUrl: function getSiteSessionUrl() {
 	      var siteId = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : '-current-';
 
-	      return formatPattern(cfg.api.siteSessionPath, { siteId: siteId });
+	      return (0, _patternUtils.formatPattern)(cfg.api.siteSessionPath, { siteId: siteId });
 	    },
 	    getSsoUrl: function getSsoUrl(redirect, provider) {
-	      return cfg.baseUrl + formatPattern(cfg.api.sso, { redirect: redirect, provider: provider });
+	      return cfg.baseUrl + (0, _patternUtils.formatPattern)(cfg.api.sso, { redirect: redirect, provider: provider });
 	    },
 	    getSiteEventsFilterUrl: function getSiteEventsFilterUrl(_ref) {
 	      var start = _ref.start,
 	          end = _ref.end,
 	          siteId = _ref.siteId;
 
-	      return formatPattern(cfg.api.siteEventsFilterPath, { start: start, end: end, siteId: siteId });
+	      return (0, _patternUtils.formatPattern)(cfg.api.siteEventsFilterPath, { start: start, end: end, siteId: siteId });
 	    },
 	    getSessionEventsUrl: function getSessionEventsUrl(_ref2) {
 	      var sid = _ref2.sid,
 	          siteId = _ref2.siteId;
 
-	      return formatPattern(cfg.api.sessionEventsPath, { sid: sid, siteId: siteId });
+	      return (0, _patternUtils.formatPattern)(cfg.api.sessionEventsPath, { sid: sid, siteId: siteId });
 	    },
 	    getFetchSessionsUrl: function getFetchSessionsUrl(siteId) {
-	      return formatPattern(cfg.api.siteEventSessionFilterPath, { siteId: siteId });
+	      return (0, _patternUtils.formatPattern)(cfg.api.siteEventSessionFilterPath, { siteId: siteId });
 	    },
 	    getFetchSessionUrl: function getFetchSessionUrl(_ref3) {
 	      var sid = _ref3.sid,
 	          siteId = _ref3.siteId;
 
-	      return formatPattern(cfg.api.siteSessionPath + '/:sid', { sid: sid, siteId: siteId });
+	      return (0, _patternUtils.formatPattern)(cfg.api.siteSessionPath + '/:sid', { sid: sid, siteId: siteId });
 	    },
 	    getInviteUrl: function getInviteUrl(inviteToken) {
-	      return formatPattern(cfg.api.invitePath, { inviteToken: inviteToken });
+	      return (0, _patternUtils.formatPattern)(cfg.api.invitePath, { inviteToken: inviteToken });
+	    },
+	    getInviteWithOidcUrl: function getInviteWithOidcUrl(inviteToken, provider, redirect) {
+	      return cfg.baseUrl + (0, _patternUtils.formatPattern)(cfg.api.inviteWithOidcPath, {
+	        redirect: redirect, provider: provider, inviteToken: inviteToken
+	      });
 	    },
 	    getU2fCreateUserChallengeUrl: function getU2fCreateUserChallengeUrl(inviteToken) {
-	      return formatPattern(cfg.api.u2fCreateUserChallengePath, { inviteToken: inviteToken });
+	      return (0, _patternUtils.formatPattern)(cfg.api.u2fCreateUserChallengePath, { inviteToken: inviteToken });
 	    }
 	  },
 
@@ -455,18 +1249,24 @@ webpackJsonp([0],{
 	    var sid = _ref4.sid,
 	        siteId = _ref4.siteId;
 
-	    return formatPattern(cfg.routes.currentSession, { sid: sid, siteId: siteId });
+	    return (0, _patternUtils.formatPattern)(cfg.routes.currentSession, { sid: sid, siteId: siteId });
 	  },
 	  getAuthProviders: function getAuthProviders() {
-	    return cfg.auth.oidc_connectors;
+	    return cfg.auth ? [cfg.auth.oidc] : [];
+	  },
+	  getAuthType: function getAuthType() {
+	    return cfg.auth ? cfg.auth.type : null;
+	  },
+	  getAuth2faType: function getAuth2faType() {
+	    return cfg.auth ? cfg.auth.second_factor : null;
 	  },
 	  getU2fAppId: function getU2fAppId() {
-	    return cfg.auth.u2f_appid;
+	    return cfg.auth && cfg.auth.u2f ? cfg.auth.u2f.app_id : null;
 	  },
 	  init: function init() {
 	    var config = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
 
-	    $.extend(true, this, config);
+	    _jQuery2.default.extend(true, this, config);
 	  }
 	};
 
@@ -474,8 +1274,7 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 218:
+/* 233 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -487,7 +1286,7 @@ webpackJsonp([0],{
 	exports.getParams = getParams;
 	exports.formatPattern = formatPattern;
 
-	var _invariant = __webpack_require__(159);
+	var _invariant = __webpack_require__(168);
 
 	var _invariant2 = _interopRequireDefault(_invariant);
 
@@ -709,13 +1508,41 @@ webpackJsonp([0],{
 	}
 
 /***/ },
+/* 234 */
+/***/ function(module, exports, __webpack_require__) {
 
-/***/ 222:
+	'use strict';
+
+	/*
+	Copyright 2015 Gravitational, Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	    http://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+	*/
+	module.exports.getters = __webpack_require__(235);
+	module.exports.actions = __webpack_require__(239);
+	module.exports.appStore = __webpack_require__(355);
+
+/***/ },
+/* 235 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
+
+	var _constants = __webpack_require__(236);
+
+	var _getters = __webpack_require__(238);
 
 	/*
 	Copyright 2015 Gravitational, Inc.
@@ -733,52 +1560,21 @@ webpackJsonp([0],{
 	limitations under the License.
 	*/
 
-	var _require = __webpack_require__(223),
-	    TRYING_TO_LOGIN = _require.TRYING_TO_LOGIN,
-	    TRYING_TO_SIGN_UP = _require.TRYING_TO_SIGN_UP,
-	    FETCHING_INVITE = _require.FETCHING_INVITE;
-
-	var _require2 = __webpack_require__(225),
-	    requestStatus = _require2.requestStatus;
-
-	var invite = [['tlpt_user_invite'], function (invite) {
-	  return invite;
-	}];
-
-	var user = [['tlpt_user'], function (currentUser) {
-	  if (!currentUser) {
-	    return null;
-	  }
-
-	  var name = currentUser.get('name') || '';
-	  var shortDisplayName = name[0] || '';
-
-	  return {
-	    name: name,
-	    shortDisplayName: shortDisplayName,
-	    logins: currentUser.get('allowed_logins').toJS()
-	  };
-	}];
-
 	exports.default = {
-	  user: user,
-	  invite: invite,
-	  loginAttemp: requestStatus(TRYING_TO_LOGIN),
-	  attemp: requestStatus(TRYING_TO_SIGN_UP),
-	  fetchingInvite: requestStatus(FETCHING_INVITE)
+	  initAttemp: (0, _getters.requestStatus)(_constants.TRYING_TO_INIT_APP),
+	  siteId: ['tlpt', 'siteId']
 	};
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 223:
+/* 236 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _keymirror = __webpack_require__(224);
+	var _keymirror = __webpack_require__(237);
 
 	var _keymirror2 = _interopRequireDefault(_keymirror);
 
@@ -787,7 +1583,8 @@ webpackJsonp([0],{
 	exports.default = (0, _keymirror2.default)({
 	  TRYING_TO_SIGN_UP: null,
 	  TRYING_TO_LOGIN: null,
-	  FETCHING_INVITE: null
+	  FETCHING_INVITE: null,
+	  TRYING_TO_INIT_APP: null
 	}); /*
 	    Copyright 2015 Gravitational, Inc.
 	    
@@ -807,8 +1604,8 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 225:
+/* 237 */,
+/* 238 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -847,41 +1644,46 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 226:
+/* 239 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _reactor = __webpack_require__(215);
+	var _reactor = __webpack_require__(240);
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _auth = __webpack_require__(227);
+	var _auth = __webpack_require__(242);
 
 	var _auth2 = _interopRequireDefault(_auth);
 
-	var _actions = __webpack_require__(232);
+	var _actions = __webpack_require__(245);
 
-	var _actionTypes = __webpack_require__(234);
+	var _actionTypes = __webpack_require__(247);
 
-	var _actionTypes2 = __webpack_require__(235);
+	var _constants = __webpack_require__(236);
 
-	var _api = __webpack_require__(228);
+	var _actionTypes2 = __webpack_require__(248);
+
+	var _api = __webpack_require__(243);
 
 	var _api2 = _interopRequireDefault(_api);
 
-	var _config = __webpack_require__(217);
+	var _config = __webpack_require__(232);
 
 	var _config2 = _interopRequireDefault(_config);
 
-	var _actions2 = __webpack_require__(236);
+	var _actions2 = __webpack_require__(249);
 
-	var _actions3 = __webpack_require__(239);
+	var _actions3 = _interopRequireDefault(_actions2);
 
-	var _jQuery = __webpack_require__(219);
+	var _actions4 = __webpack_require__(251);
+
+	var _actions5 = __webpack_require__(253);
+
+	var _jQuery = __webpack_require__(227);
 
 	var _jQuery2 = _interopRequireDefault(_jQuery);
 
@@ -909,28 +1711,28 @@ webpackJsonp([0],{
 	  setSiteId: function setSiteId(siteId) {
 	    _reactor2.default.dispatch(_actionTypes.TLPT_APP_SET_SITE_ID, siteId);
 	  },
-	  initApp: function initApp(nextState, replace, cb) {
+	  initApp: function initApp(nextState) {
 	    var siteId = nextState.params.siteId;
 
-	    _reactor2.default.dispatch(_actionTypes.TLPT_APP_INIT);
-	    // get the list of available clusters
+	    _actions3.default.start(_constants.TRYING_TO_INIT_APP);
+
+	    // get the list of available clusters        
 	    actions.fetchSites().then(function (masterSiteId) {
 	      siteId = siteId || masterSiteId;
 	      _reactor2.default.dispatch(_actionTypes.TLPT_APP_SET_SITE_ID, siteId);
 	      // fetch nodes and active sessions 
-	      return _jQuery2.default.when((0, _actions2.fetchNodes)(), (0, _actions3.fetchActiveSessions)()).done(function () {
-	        _reactor2.default.dispatch(_actionTypes.TLPT_APP_READY);
-	        cb();
+	      return _jQuery2.default.when((0, _actions4.fetchNodes)(), (0, _actions5.fetchActiveSessions)()).done(function () {
+	        _actions3.default.success(_constants.TRYING_TO_INIT_APP);
 	      });
-	    }).fail(function () {
-	      _reactor2.default.dispatch(_actionTypes.TLPT_APP_FAILED);
-	      cb();
+	    }).fail(function (err) {
+	      var msg = _api2.default.getErrorText(err);
+	      _actions3.default.fail(_constants.TRYING_TO_INIT_APP, msg);
 	    });
 	  },
 	  refresh: function refresh() {
 	    actions.fetchSites();
-	    (0, _actions3.fetchActiveSessions)();
-	    (0, _actions2.fetchNodes)();
+	    (0, _actions5.fetchActiveSessions)();
+	    (0, _actions4.fetchNodes)();
 	  },
 	  fetchSites: function fetchSites() {
 	    return _api2.default.get(_config2.default.api.sitesBasePath).then(function (json) {
@@ -949,8 +1751,6 @@ webpackJsonp([0],{
 	    });
 	  },
 	  resetApp: function resetApp() {
-	    // set to 'loading state' to notify subscribers
-	    _reactor2.default.dispatch(_actionTypes.TLPT_APP_INIT);
 	    // reset  reactor
 	    _reactor2.default.reset();
 	  },
@@ -964,11 +1764,72 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 227:
+/* 240 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
+
+	exports.__esModule = true;
+
+	var _nuclearJs = __webpack_require__(241);
+
+	var __DEV__ = ("production") === 'development'; /*
+	                                                      Copyright 2015 Gravitational, Inc.
+	                                                      
+	                                                      Licensed under the Apache License, Version 2.0 (the "License");
+	                                                      you may not use this file except in compliance with the License.
+	                                                      You may obtain a copy of the License at
+	                                                      
+	                                                          http://www.apache.org/licenses/LICENSE-2.0
+	                                                      
+	                                                      Unless required by applicable law or agreed to in writing, software
+	                                                      distributed under the License is distributed on an "AS IS" BASIS,
+	                                                      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	                                                      See the License for the specific language governing permissions and
+	                                                      limitations under the License.
+	                                                      */
+
+	var reactor = new _nuclearJs.Reactor({
+	  debug: __DEV__
+	});
+
+	window.reactor = reactor;
+
+	exports.default = reactor;
+	module.exports = exports['default'];
+
+/***/ },
+/* 241 */,
+/* 242 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	exports.__esModule = true;
+
+	var _api = __webpack_require__(243);
+
+	var _api2 = _interopRequireDefault(_api);
+
+	var _session = __webpack_require__(226);
+
+	var _session2 = _interopRequireDefault(_session);
+
+	var _config = __webpack_require__(232);
+
+	var _config2 = _interopRequireDefault(_config);
+
+	var _jQuery = __webpack_require__(227);
+
+	var _jQuery2 = _interopRequireDefault(_jQuery);
+
+	var _logger = __webpack_require__(230);
+
+	var _logger2 = _interopRequireDefault(_logger);
+
+	__webpack_require__(244);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 	/*
 	Copyright 2015 Gravitational, Inc.
@@ -986,19 +1847,12 @@ webpackJsonp([0],{
 	limitations under the License.
 	*/
 
-	var api = __webpack_require__(228);
-	var session = __webpack_require__(229);
-	var cfg = __webpack_require__(217);
-	var $ = __webpack_require__(219);
-	var logger = __webpack_require__(230).create('services/auth');
+	var logger = _logger2.default.create('services/auth');
 
-	__webpack_require__(231); // This puts it in window.u2f
+	// This puts it in window.u2f
+
 
 	var AUTH_IS_RENEWING = 'GRV_AUTH_IS_RENEWING';
-	var PROVIDER_GOOGLE = 'google';
-	var SECOND_FACTOR_TYPE_HOTP = 'hotp';
-	var SECOND_FACTOR_TYPE_OIDC = 'oidc';
-	var SECOND_FACTOR_TYPE_U2F = 'u2f';
 
 	var CHECK_TOKEN_REFRESH_RATE = 10 * 1000; // 10 sec
 
@@ -1007,15 +1861,15 @@ webpackJsonp([0],{
 	var auth = {
 	  signUp: function signUp(name, password, token, inviteToken) {
 	    var data = { user: name, pass: password, second_factor_token: token, invite_token: inviteToken };
-	    return api.post(cfg.api.createUserPath, data).then(function (data) {
-	      session.setUserData(data);
+	    return _api2.default.post(_config2.default.api.createUserPath, data).then(function (data) {
+	      _session2.default.setUserData(data);
 	      auth._startTokenRefresher();
 	      return data;
 	    });
 	  },
-	  u2fSignUp: function u2fSignUp(name, password, inviteToken) {
-	    return api.get(cfg.api.getU2fCreateUserChallengeUrl(inviteToken)).then(function (data) {
-	      var deferred = $.Deferred();
+	  signUpWithU2f: function signUpWithU2f(name, password, inviteToken) {
+	    return _api2.default.get(_config2.default.api.getU2fCreateUserChallengeUrl(inviteToken)).then(function (data) {
+	      var deferred = _jQuery2.default.Deferred();
 
 	      window.u2f.register(data.appId, [data], [], function (res) {
 	        if (res.errorCode) {
@@ -1031,12 +1885,12 @@ webpackJsonp([0],{
 	          invite_token: inviteToken
 	        };
 
-	        api.post(cfg.api.u2fCreateUserPath, response, false).then(function (data) {
-	          session.setUserData(data);
+	        _api2.default.post(_config2.default.api.u2fCreateUserPath, response, false).then(function (data) {
+	          _session2.default.setUserData(data);
 	          auth._startTokenRefresher();
 	          deferred.resolve(data);
-	        }).fail(function (data) {
-	          deferred.reject(data);
+	        }).fail(function (err) {
+	          deferred.reject(err);
 	        });
 	      });
 
@@ -1047,7 +1901,7 @@ webpackJsonp([0],{
 	    var _this = this;
 
 	    auth._stopTokenRefresher();
-	    session.clear();
+	    _session2.default.clear();
 
 	    var data = {
 	      user: name,
@@ -1055,23 +1909,23 @@ webpackJsonp([0],{
 	      second_factor_token: token
 	    };
 
-	    return api.post(cfg.api.sessionPath, data, false).then(function (data) {
-	      session.setUserData(data);
+	    return _api2.default.post(_config2.default.api.sessionPath, data, false).then(function (data) {
+	      _session2.default.setUserData(data);
 	      _this._startTokenRefresher();
 	      return data;
 	    });
 	  },
-	  u2fLogin: function u2fLogin(name, password) {
+	  loginWithU2f: function loginWithU2f(name, password) {
 	    auth._stopTokenRefresher();
-	    session.clear();
+	    _session2.default.clear();
 
 	    var data = {
 	      user: name,
 	      pass: password
 	    };
 
-	    return api.post(cfg.api.u2fSessionChallengePath, data, false).then(function (data) {
-	      var deferred = $.Deferred();
+	    return _api2.default.post(_config2.default.api.u2fSessionChallengePath, data, false).then(function (data) {
+	      var deferred = _jQuery2.default.Deferred();
 
 	      window.u2f.sign(data.appId, data.challenge, [data], function (res) {
 	        if (res.errorCode) {
@@ -1084,8 +1938,9 @@ webpackJsonp([0],{
 	          user: name,
 	          u2f_sign_response: res
 	        };
-	        api.post(cfg.api.u2fSessionPath, response, false).then(function (data) {
-	          session.setUserData(data);
+
+	        _api2.default.post(_config2.default.api.u2fSessionPath, response, false).then(function (data) {
+	          _session2.default.setUserData(data);
 	          auth._startTokenRefresher();
 	          deferred.resolve(data);
 	        }).fail(function (data) {
@@ -1099,13 +1954,13 @@ webpackJsonp([0],{
 	  ensureUser: function ensureUser() {
 	    this._stopTokenRefresher();
 
-	    var userData = session.getUserData();
+	    var userData = _session2.default.getUserData();
 
 	    // ping the server to check if user signed out from another tab    
 	    this._checkStatus();
 
 	    if (!userData.token) {
-	      return $.Deferred().reject();
+	      return _jQuery2.default.Deferred().reject();
 	    }
 
 	    if (this._shouldRefreshToken(userData)) {
@@ -1113,18 +1968,20 @@ webpackJsonp([0],{
 	    }
 
 	    this._startTokenRefresher();
-	    return $.Deferred().resolve(userData);
+	    return _jQuery2.default.Deferred().resolve(userData);
 	  },
 	  logout: function logout() {
 	    logger.info('logout()');
-	    api.delete(cfg.api.sessionPath).always(function () {
-	      auth._redirect();
+	    _api2.default.delete(_config2.default.api.sessionPath).always(function () {
+	      auth.redirect();
 	    });
-	    session.clear();
+	    _session2.default.clear();
 	    auth._stopTokenRefresher();
 	  },
-	  _redirect: function _redirect() {
-	    window.location = cfg.routes.login;
+	  redirect: function redirect(url) {
+	    // default URL to redirect
+	    url = url || _config2.default.routes.login;
+	    window.location = url;
 	  },
 	  _shouldRefreshToken: function _shouldRefreshToken(_ref) {
 	    var expires_in = _ref.expires_in,
@@ -1155,7 +2012,7 @@ webpackJsonp([0],{
 	      return;
 	    }
 
-	    api.get(cfg.api.userStatus).fail(function (err) {
+	    _api2.default.get(_config2.default.api.userStatus).fail(function (err) {
 	      // indicates that user session is no longer valid
 	      if (err.status == 403) {
 	        auth.logout();
@@ -1164,8 +2021,8 @@ webpackJsonp([0],{
 	  },
 	  _refreshToken: function _refreshToken() {
 	    localStorage.setItem(AUTH_IS_RENEWING, true);
-	    return api.post(cfg.api.renewTokenPath).then(function (data) {
-	      session.setUserData(data);
+	    return _api2.default.post(_config2.default.api.renewTokenPath).then(function (data) {
+	      _session2.default.setUserData(data);
 	    }).fail(function () {
 	      auth.logout();
 	    }).always(function () {
@@ -1184,18 +2041,26 @@ webpackJsonp([0],{
 	  }
 	};
 
-	module.exports = auth;
-	module.exports.PROVIDER_GOOGLE = PROVIDER_GOOGLE;
-	module.exports.SECOND_FACTOR_TYPE_HOTP = SECOND_FACTOR_TYPE_HOTP;
-	module.exports.SECOND_FACTOR_TYPE_OIDC = SECOND_FACTOR_TYPE_OIDC;
-	module.exports.SECOND_FACTOR_TYPE_U2F = SECOND_FACTOR_TYPE_U2F;
+	exports.default = auth;
+	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 228:
+/* 243 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
+
+	exports.__esModule = true;
+
+	var _jQuery = __webpack_require__(227);
+
+	var _jQuery2 = _interopRequireDefault(_jQuery);
+
+	var _session = __webpack_require__(226);
+
+	var _session2 = _interopRequireDefault(_session);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 	/*
 	Copyright 2015 Gravitational, Inc.
@@ -1212,9 +2077,6 @@ webpackJsonp([0],{
 	See the License for the specific language governing permissions and
 	limitations under the License.
 	*/
-
-	var $ = __webpack_require__(219);
-	var session = __webpack_require__(229);
 
 	var api = {
 	  put: function put(path, data, withToken) {
@@ -1240,7 +2102,7 @@ webpackJsonp([0],{
 	      dataType: "json",
 	      beforeSend: function beforeSend(xhr) {
 	        if (withToken) {
-	          var _session$getUserData = session.getUserData(),
+	          var _session$getUserData = _session2.default.getUserData(),
 	              token = _session$getUserData.token;
 
 	          xhr.setRequestHeader('Authorization', 'Bearer ' + token);
@@ -1248,195 +2110,32 @@ webpackJsonp([0],{
 	      }
 	    };
 
-	    return $.ajax($.extend({}, defaultCfg, cfg));
+	    return _jQuery2.default.ajax(_jQuery2.default.extend({}, defaultCfg, cfg));
+	  },
+	  getErrorText: function getErrorText(err) {
+	    var msg = 'Unknown error';
+
+	    if (err instanceof Error) {
+	      return err.message || msg;
+	    }
+
+	    if (err.responseJSON && err.responseJSON.message) {
+	      return err.responseJSON.message;
+	    }
+
+	    if (err.responseJSON && err.responseJSON.error) {
+	      return err.responseJSON.error.message || msg;
+	    }
+
+	    return msg;
 	  }
 	};
 
-	module.exports = api;
-
-/***/ },
-
-/***/ 229:
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	var _require = __webpack_require__(155),
-	    browserHistory = _require.browserHistory,
-	    createMemoryHistory = _require.createMemoryHistory;
-
-	var $ = __webpack_require__(219);
-
-	var logger = __webpack_require__(230).create('services/sessions');
-	var AUTH_KEY_DATA = 'authData';
-
-	var _history = createMemoryHistory();
-
-	var UserData = function UserData(json) {
-	  $.extend(this, json);
-	  this.created = new Date().getTime();
-	};
-
-	var session = {
-	  init: function init() {
-	    var history = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : browserHistory;
-
-	    _history = history;
-	  },
-	  getHistory: function getHistory() {
-	    return _history;
-	  },
-	  setUserData: function setUserData(data) {
-	    var userData = new UserData(data);
-	    localStorage.setItem(AUTH_KEY_DATA, JSON.stringify(userData));
-	    return userData;
-	  },
-	  getUserData: function getUserData() {
-	    try {
-	      var item = localStorage.getItem(AUTH_KEY_DATA);
-	      if (item) {
-	        return JSON.parse(item);
-	      }
-
-	      // for sso use-cases, try to grab the token from HTML
-	      var hiddenDiv = document.getElementById("bearer_token");
-	      if (hiddenDiv !== null) {
-	        var json = window.atob(hiddenDiv.textContent);
-	        var data = JSON.parse(json);
-	        if (data.token) {
-	          // put it into the session
-	          var userData = this.setUserData(data);
-	          // remove the element
-	          hiddenDiv.remove();
-	          return userData;
-	        }
-	      }
-	    } catch (err) {
-	      logger.error('error trying to read user auth data:', err);
-	    }
-
-	    return {};
-	  },
-	  clear: function clear() {
-	    localStorage.clear();
-	  }
-	};
-
-	module.exports = session;
-
-/***/ },
-
-/***/ 230:
-/***/ function(module, exports) {
-
-	'use strict';
-
-	exports.__esModule = true;
-
-	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	var Logger = function () {
-	  function Logger() {
-	    var name = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 'default';
-
-	    _classCallCheck(this, Logger);
-
-	    this.name = name;
-	  }
-
-	  Logger.prototype.log = function log() {
-	    var _console;
-
-	    var level = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 'log';
-
-	    for (var _len = arguments.length, args = Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
-	      args[_key - 1] = arguments[_key];
-	    }
-
-	    (_console = console)[level].apply(_console, ['%c[' + this.name + ']', 'color: blue;'].concat(args));
-	  };
-
-	  Logger.prototype.trace = function trace() {
-	    for (var _len2 = arguments.length, args = Array(_len2), _key2 = 0; _key2 < _len2; _key2++) {
-	      args[_key2] = arguments[_key2];
-	    }
-
-	    this.log.apply(this, ['trace'].concat(args));
-	  };
-
-	  Logger.prototype.warn = function warn() {
-	    for (var _len3 = arguments.length, args = Array(_len3), _key3 = 0; _key3 < _len3; _key3++) {
-	      args[_key3] = arguments[_key3];
-	    }
-
-	    this.log.apply(this, ['warn'].concat(args));
-	  };
-
-	  Logger.prototype.info = function info() {
-	    for (var _len4 = arguments.length, args = Array(_len4), _key4 = 0; _key4 < _len4; _key4++) {
-	      args[_key4] = arguments[_key4];
-	    }
-
-	    this.log.apply(this, ['info'].concat(args));
-	  };
-
-	  Logger.prototype.error = function error() {
-	    for (var _len5 = arguments.length, args = Array(_len5), _key5 = 0; _key5 < _len5; _key5++) {
-	      args[_key5] = arguments[_key5];
-	    }
-
-	    this.log.apply(this, ['error'].concat(args));
-	  };
-
-	  return Logger;
-	}();
-
-	exports.default = {
-	  create: function create() {
-	    for (var _len6 = arguments.length, args = Array(_len6), _key6 = 0; _key6 < _len6; _key6++) {
-	      args[_key6] = arguments[_key6];
-	    }
-
-	    return new (Function.prototype.bind.apply(Logger, [null].concat(args)))();
-	  }
-	};
+	exports.default = api;
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 231:
+/* 244 */
 /***/ function(module, exports) {
 
 	
@@ -2196,8 +2895,7 @@ webpackJsonp([0],{
 
 
 /***/ },
-
-/***/ 232:
+/* 245 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -2219,9 +2917,9 @@ webpackJsonp([0],{
 	limitations under the License.
 	*/
 
-	var reactor = __webpack_require__(215);
+	var reactor = __webpack_require__(240);
 
-	var _require = __webpack_require__(233),
+	var _require = __webpack_require__(246),
 	    TLPT_NOTIFICATIONS_ADD = _require.TLPT_NOTIFICATIONS_ADD;
 
 	exports.default = {
@@ -2255,15 +2953,14 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 233:
+/* 246 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _keymirror = __webpack_require__(224);
+	var _keymirror = __webpack_require__(237);
 
 	var _keymirror2 = _interopRequireDefault(_keymirror);
 
@@ -2290,15 +2987,14 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 234:
+/* 247 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _keymirror = __webpack_require__(224);
+	var _keymirror = __webpack_require__(237);
 
 	var _keymirror2 = _interopRequireDefault(_keymirror);
 
@@ -2328,15 +3024,14 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 235:
+/* 248 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _keymirror = __webpack_require__(224);
+	var _keymirror = __webpack_require__(237);
 
 	var _keymirror2 = _interopRequireDefault(_keymirror);
 
@@ -2363,31 +3058,112 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ },
+/* 249 */
+/***/ function(module, exports, __webpack_require__) {
 
-/***/ 236:
+	'use strict';
+
+	exports.__esModule = true;
+	/*
+	Copyright 2015 Gravitational, Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	    http://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+	*/
+
+	var reactor = __webpack_require__(240);
+
+	var _require = __webpack_require__(250),
+	    TLPT_REST_API_START = _require.TLPT_REST_API_START,
+	    TLPT_REST_API_SUCCESS = _require.TLPT_REST_API_SUCCESS,
+	    TLPT_REST_API_FAIL = _require.TLPT_REST_API_FAIL;
+
+	exports.default = {
+	  start: function start(reqType) {
+	    reactor.dispatch(TLPT_REST_API_START, { type: reqType });
+	  },
+	  fail: function fail(reqType, message) {
+	    reactor.dispatch(TLPT_REST_API_FAIL, { type: reqType, message: message });
+	  },
+	  success: function success(reqType) {
+	    reactor.dispatch(TLPT_REST_API_SUCCESS, { type: reqType });
+	  },
+	  clear: function clear(reqType) {
+	    reactor.dispatch(TLPT_REST_API_SUCCESS, { type: reqType });
+	  }
+	};
+	module.exports = exports['default'];
+
+/***/ },
+/* 250 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _reactor = __webpack_require__(215);
+	var _keymirror = __webpack_require__(237);
+
+	var _keymirror2 = _interopRequireDefault(_keymirror);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	exports.default = (0, _keymirror2.default)({
+	  TLPT_REST_API_START: null,
+	  TLPT_REST_API_SUCCESS: null,
+	  TLPT_REST_API_FAIL: null
+	}); /*
+	    Copyright 2015 Gravitational, Inc.
+	    
+	    Licensed under the Apache License, Version 2.0 (the "License");
+	    you may not use this file except in compliance with the License.
+	    You may obtain a copy of the License at
+	    
+	        http://www.apache.org/licenses/LICENSE-2.0
+	    
+	    Unless required by applicable law or agreed to in writing, software
+	    distributed under the License is distributed on an "AS IS" BASIS,
+	    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	    See the License for the specific language governing permissions and
+	    limitations under the License.
+	    */
+
+	module.exports = exports['default'];
+
+/***/ },
+/* 251 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	exports.__esModule = true;
+
+	var _reactor = __webpack_require__(240);
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _actionTypes = __webpack_require__(237);
+	var _actionTypes = __webpack_require__(252);
 
-	var _api = __webpack_require__(228);
+	var _api = __webpack_require__(243);
 
 	var _api2 = _interopRequireDefault(_api);
 
-	var _config = __webpack_require__(217);
+	var _config = __webpack_require__(232);
 
 	var _config2 = _interopRequireDefault(_config);
 
-	var _actions = __webpack_require__(232);
+	var _actions = __webpack_require__(245);
 
-	var _getters = __webpack_require__(238);
+	var _getters = __webpack_require__(235);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
@@ -2418,15 +3194,14 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 237:
+/* 252 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _keymirror = __webpack_require__(224);
+	var _keymirror = __webpack_require__(237);
 
 	var _keymirror2 = _interopRequireDefault(_keymirror);
 
@@ -2453,42 +3228,7 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 238:
-/***/ function(module, exports) {
-
-	'use strict';
-
-	exports.__esModule = true;
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	var appStatus = [['tlpt', 'status'], function (app) {
-	  return app.toJS();
-	}];
-
-	exports.default = {
-	  appStatus: appStatus,
-	  siteId: ['tlpt', 'siteId']
-	};
-	module.exports = exports['default'];
-
-/***/ },
-
-/***/ 239:
+/* 253 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -2510,19 +3250,19 @@ webpackJsonp([0],{
 	limitations under the License.
 	*/
 
-	var reactor = __webpack_require__(215);
-	var api = __webpack_require__(228);
-	var cfg = __webpack_require__(217);
+	var reactor = __webpack_require__(240);
+	var api = __webpack_require__(243);
+	var cfg = __webpack_require__(232);
 
-	var _require = __webpack_require__(232),
+	var _require = __webpack_require__(245),
 	    showError = _require.showError;
 
-	var moment = __webpack_require__(240);
-	var appGetters = __webpack_require__(238);
+	var moment = __webpack_require__(254);
+	var appGetters = __webpack_require__(235);
 
 	var logger = __webpack_require__(230).create('Modules/Sessions');
 
-	var _require2 = __webpack_require__(340),
+	var _require2 = __webpack_require__(354),
 	    TLPT_SESSIONS_ACTIVE_RECEIVE = _require2.TLPT_SESSIONS_ACTIVE_RECEIVE,
 	    TLPT_SESSIONS_EVENTS_RECEIVE = _require2.TLPT_SESSIONS_EVENTS_RECEIVE,
 	    TLPT_SESSIONS_ACTIVE_UPDATE = _require2.TLPT_SESSIONS_ACTIVE_UPDATE;
@@ -2576,15 +3316,114 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 340:
+/* 254 */,
+/* 255 */,
+/* 256 */,
+/* 257 */,
+/* 258 */,
+/* 259 */,
+/* 260 */,
+/* 261 */,
+/* 262 */,
+/* 263 */,
+/* 264 */,
+/* 265 */,
+/* 266 */,
+/* 267 */,
+/* 268 */,
+/* 269 */,
+/* 270 */,
+/* 271 */,
+/* 272 */,
+/* 273 */,
+/* 274 */,
+/* 275 */,
+/* 276 */,
+/* 277 */,
+/* 278 */,
+/* 279 */,
+/* 280 */,
+/* 281 */,
+/* 282 */,
+/* 283 */,
+/* 284 */,
+/* 285 */,
+/* 286 */,
+/* 287 */,
+/* 288 */,
+/* 289 */,
+/* 290 */,
+/* 291 */,
+/* 292 */,
+/* 293 */,
+/* 294 */,
+/* 295 */,
+/* 296 */,
+/* 297 */,
+/* 298 */,
+/* 299 */,
+/* 300 */,
+/* 301 */,
+/* 302 */,
+/* 303 */,
+/* 304 */,
+/* 305 */,
+/* 306 */,
+/* 307 */,
+/* 308 */,
+/* 309 */,
+/* 310 */,
+/* 311 */,
+/* 312 */,
+/* 313 */,
+/* 314 */,
+/* 315 */,
+/* 316 */,
+/* 317 */,
+/* 318 */,
+/* 319 */,
+/* 320 */,
+/* 321 */,
+/* 322 */,
+/* 323 */,
+/* 324 */,
+/* 325 */,
+/* 326 */,
+/* 327 */,
+/* 328 */,
+/* 329 */,
+/* 330 */,
+/* 331 */,
+/* 332 */,
+/* 333 */,
+/* 334 */,
+/* 335 */,
+/* 336 */,
+/* 337 */,
+/* 338 */,
+/* 339 */,
+/* 340 */,
+/* 341 */,
+/* 342 */,
+/* 343 */,
+/* 344 */,
+/* 345 */,
+/* 346 */,
+/* 347 */,
+/* 348 */,
+/* 349 */,
+/* 350 */,
+/* 351 */,
+/* 352 */,
+/* 353 */,
+/* 354 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _keymirror = __webpack_require__(224);
+	var _keymirror = __webpack_require__(237);
 
 	var _keymirror2 = _interopRequireDefault(_keymirror);
 
@@ -2613,13 +3452,172 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 341:
+/* 355 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
+
+	/*
+	Copyright 2015 Gravitational, Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	    http://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+	*/
+	var _require = __webpack_require__(241),
+	    Store = _require.Store,
+	    toImmutable = _require.toImmutable;
+
+	var _require2 = __webpack_require__(247),
+	    TLPT_APP_SET_SITE_ID = _require2.TLPT_APP_SET_SITE_ID;
+
+	exports.default = Store({
+	  getInitialState: function getInitialState() {
+	    return toImmutable({
+	      siteId: undefined
+	    });
+	  },
+	  initialize: function initialize() {
+	    this.on(TLPT_APP_SET_SITE_ID, function (state, siteId) {
+	      return state.set('siteId', siteId);
+	    });
+	  }
+	});
+	module.exports = exports['default'];
+
+/***/ },
+/* 356 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	exports.__esModule = true;
+
+	var _react = __webpack_require__(2);
+
+	var _react2 = _interopRequireDefault(_react);
+
+	var _reactor = __webpack_require__(240);
+
+	var _reactor2 = _interopRequireDefault(_reactor);
+
+	var _config = __webpack_require__(232);
+
+	var _config2 = _interopRequireDefault(_config);
+
+	var _getters = __webpack_require__(357);
+
+	var _getters2 = _interopRequireDefault(_getters);
+
+	var _reactRouter = __webpack_require__(164);
+
+	var _actions = __webpack_require__(239);
+
+	var _icons = __webpack_require__(358);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	var NavLeftBar = _react2.default.createClass({
+	  displayName: 'NavLeftBar',
+	  render: function render() {
+	    var _this = this;
+
+	    var _props$items = this.props.items,
+	        items = _props$items === undefined ? [] : _props$items;
+
+	    var _reactor$evaluate = _reactor2.default.evaluate(_getters2.default.user),
+	        name = _reactor$evaluate.name;
+
+	    var $items = items.map(function (i, index) {
+	      var className = _this.context.router.isActive(i.to) ? 'active' : '';
+	      return _react2.default.createElement(
+	        'li',
+	        { key: index, className: className, title: i.title },
+	        _react2.default.createElement(
+	          _reactRouter.IndexLink,
+	          { to: i.to },
+	          _react2.default.createElement('i', { className: i.icon })
+	        )
+	      );
+	    });
+
+	    $items.push(_react2.default.createElement(
+	      'li',
+	      { key: $items.length, title: 'help' },
+	      _react2.default.createElement(
+	        'a',
+	        { href: _config2.default.helpUrl, target: '_blank' },
+	        _react2.default.createElement('i', { className: 'fa fa-question' })
+	      )
+	    ));
+
+	    $items.push(_react2.default.createElement(
+	      'li',
+	      { key: $items.length, title: 'logout' },
+	      _react2.default.createElement(
+	        'a',
+	        { href: '#', onClick: _actions.logoutUser },
+	        _react2.default.createElement('i', { className: 'fa fa-sign-out', style: { marginRight: 0 } })
+	      )
+	    ));
+
+	    return _react2.default.createElement(
+	      'nav',
+	      { className: 'grv-nav navbar-default', role: 'navigation' },
+	      _react2.default.createElement(
+	        'ul',
+	        { className: 'nav text-center', id: 'side-menu' },
+	        _react2.default.createElement(
+	          'li',
+	          null,
+	          _react2.default.createElement(_icons.UserIcon, { name: name })
+	        ),
+	        $items
+	      )
+	    );
+	  }
+	}); /*
+	    Copyright 2015 Gravitational, Inc.
+	    
+	    Licensed under the Apache License, Version 2.0 (the "License");
+	    you may not use this file except in compliance with the License.
+	    You may obtain a copy of the License at
+	    
+	        http://www.apache.org/licenses/LICENSE-2.0
+	    
+	    Unless required by applicable law or agreed to in writing, software
+	    distributed under the License is distributed on an "AS IS" BASIS,
+	    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	    See the License for the specific language governing permissions and
+	    limitations under the License.
+	    */
+
+
+	NavLeftBar.contextTypes = {
+	  router: _react2.default.PropTypes.object.isRequired
+	};
+
+	exports.default = NavLeftBar;
+	module.exports = exports['default'];
+
+/***/ },
+/* 357 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	exports.__esModule = true;
+
 	/*
 	Copyright 2015 Gravitational, Inc.
 
@@ -2636,15 +3634,84 @@ webpackJsonp([0],{
 	limitations under the License.
 	*/
 
-	var React = __webpack_require__(2);
-	var logoSvg = __webpack_require__(342);
-	var classnames = __webpack_require__(346);
+	var _require = __webpack_require__(236),
+	    TRYING_TO_LOGIN = _require.TRYING_TO_LOGIN,
+	    TRYING_TO_SIGN_UP = _require.TRYING_TO_SIGN_UP,
+	    FETCHING_INVITE = _require.FETCHING_INVITE;
+
+	var _require2 = __webpack_require__(238),
+	    requestStatus = _require2.requestStatus;
+
+	var invite = [['tlpt_user_invite'], function (invite) {
+	  return invite;
+	}];
+
+	var user = [['tlpt_user'], function (currentUser) {
+	  if (!currentUser) {
+	    return null;
+	  }
+
+	  var name = currentUser.get('name') || '';
+	  var shortDisplayName = name[0] || '';
+
+	  return {
+	    name: name,
+	    shortDisplayName: shortDisplayName,
+	    logins: currentUser.get('allowed_logins').toJS()
+	  };
+	}];
+
+	exports.default = {
+	  user: user,
+	  invite: invite,
+	  loginAttemp: requestStatus(TRYING_TO_LOGIN),
+	  attemp: requestStatus(TRYING_TO_SIGN_UP),
+	  fetchingInvite: requestStatus(FETCHING_INVITE)
+	};
+	module.exports = exports['default'];
+
+/***/ },
+/* 358 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	exports.__esModule = true;
+	exports.UserIcon = exports.TeleportLogo = undefined;
+
+	var _react = __webpack_require__(2);
+
+	var _react2 = _interopRequireDefault(_react);
+
+	var _classnames = __webpack_require__(359);
+
+	var _classnames2 = _interopRequireDefault(_classnames);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	/*
+	Copyright 2015 Gravitational, Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	    http://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+	*/
+
+	var logoSvg = __webpack_require__(360);
 
 	var TeleportLogo = function TeleportLogo() {
-	  return React.createElement(
+	  return _react2.default.createElement(
 	    'svg',
 	    { className: 'grv-icon-logo-tlpt' },
-	    React.createElement('use', { xlinkHref: logoSvg })
+	    _react2.default.createElement('use', { xlinkHref: logoSvg })
 	  );
 	};
 
@@ -2653,17 +3720,17 @@ webpackJsonp([0],{
 	      name = _ref$name === undefined ? '' : _ref$name,
 	      isDark = _ref.isDark;
 
-	  var iconClass = classnames('grv-icon-user', {
+	  var iconClass = (0, _classnames2.default)('grv-icon-user', {
 	    '--dark': isDark
 	  });
 
-	  return React.createElement(
+	  return _react2.default.createElement(
 	    'div',
 	    { title: name, className: iconClass },
-	    React.createElement(
+	    _react2.default.createElement(
 	      'span',
 	      null,
-	      React.createElement(
+	      _react2.default.createElement(
 	        'strong',
 	        null,
 	        name[0]
@@ -2676,21 +3743,20 @@ webpackJsonp([0],{
 	exports.UserIcon = UserIcon;
 
 /***/ },
-
-/***/ 342:
+/* 359 */,
+/* 360 */
 /***/ function(module, exports, __webpack_require__) {
 
 	;
-	var sprite = __webpack_require__(343);;
+	var sprite = __webpack_require__(361);;
 	var image = "<symbol viewBox=\"0 0 340 100\" id=\"grv-tlpt-logo-full\" xmlns:xlink=\"http://www.w3.org/1999/xlink\"> <g> <g id=\"grv-tlpt-logo-full_Layer_2\"> <g> <g> <path d=\"m47.671001,21.444c-7.396,0 -14.102001,3.007999 -18.960003,7.866001c-4.856998,4.856998 -7.865999,11.563 -7.865999,18.959999c0,7.396 3.008001,14.101002 7.865999,18.957996s11.564003,7.865005 18.960003,7.865005s14.102001,-3.008003 18.958996,-7.865005s7.865005,-11.561996 7.865005,-18.957996s-3.008003,-14.104 -7.865005,-18.959999c-4.857994,-4.858002 -11.562996,-7.866001 -18.958996,-7.866001zm11.386997,19.509998h-8.213997v23.180004h-6.344002v-23.180004h-8.215v-5.612h22.772999v5.612l0,0z\"/> </g> <g> <path d=\"m92.782997,63.357002c-0.098999,-0.371002 -0.320999,-0.709 -0.646996,-0.942001l-4.562004,-3.958l-4.561996,-3.957001c0.163002,-0.887001 0.267998,-1.805 0.331001,-2.736c0.063995,-0.931 0.086998,-1.874001 0.086998,-2.805c0,-0.932999 -0.022003,-1.875 -0.086998,-2.806999c-0.063004,-0.931999 -0.167999,-1.851002 -0.331001,-2.736l4.561996,-3.957001l4.562004,-3.958c0.325996,-0.232998 0.548996,-0.57 0.646996,-0.942001c0.099007,-0.372997 0.075005,-0.778999 -0.087997,-1.153c-0.931999,-2.862 -2.199997,-5.655998 -3.731003,-8.299c-1.530998,-2.641998 -3.321999,-5.132998 -5.301994,-7.390999c-0.278999,-0.326 -0.617004,-0.548 -0.978004,-0.646c-0.360001,-0.098999 -0.744995,-0.074999 -1.116997,0.087l-5.750999,2.002001l-5.749001,2.000999c-1.419998,-1.164 -2.933998,-2.211 -4.522003,-3.136999c-1.589996,-0.925001 -3.253998,-1.728001 -4.977997,-2.404001l-1.139999,-5.959l-1.140999,-5.959c-0.069,-0.373 -0.268005,-0.733 -0.547005,-1.013c-0.278999,-0.28 -0.640999,-0.478 -1.036995,-0.524c-2.980003,-0.605 -6.007004,-0.908 -9.033005,-0.908s-6.052998,0.302 -9.032997,0.908c-0.396,0.046 -0.756001,0.245001 -1.036003,0.524c-0.278999,0.279 -0.477997,0.64 -0.546997,1.013l-1.141003,5.959l-1.140999,5.960001c-1.723,0.675999 -3.410999,1.479 -5.012001,2.403999c-1.599998,0.924999 -3.112999,1.973 -4.487,3.136999l-5.75,-2.000999l-5.75,-2.001999c-0.372,-0.164001 -0.755999,-0.187 -1.116999,-0.088001c-0.361,0.1 -0.699001,0.32 -0.978001,0.646c-1.979,2.259001 -3.771,4.75 -5.302,7.392002c-1.53,2.641998 -2.799,5.436996 -3.73,8.299c-0.163,0.372997 -0.187,0.780998 -0.087001,1.151997c0.099,0.372002 0.320001,0.710003 0.646001,0.943001l4.563,3.957001l4.562,3.958c-0.163,0.884998 -0.268,1.804001 -0.331001,2.735001c-0.063999,0.931999 -0.087999,1.875 -0.087999,2.806s0.023001,1.875 0.087,2.806c0.064001,0.931999 0.168001,1.851002 0.332001,2.735001l-4.562,3.957001l-4.562,3.959c-0.325,0.231003 -0.547,0.569 -0.646,0.942001c-0.099,0.370995 -0.076,0.778999 0.087,1.150002c0.931,2.864998 2.2,5.657997 3.73,8.300995c1.531,2.642998 3.323,5.133003 5.302,7.391998c0.280001,0.325005 0.618,0.548004 0.978001,0.646004c0.361,0.099998 0.744999,0.074997 1.118,-0.087997l5.75,-2.003006l5.749998,-2.000999c1.373001,1.164001 2.886002,2.213005 4.487003,3.139c1.600998,0.924004 3.288998,1.728004 5.010998,2.401001l1.140999,5.961998l1.141003,5.959c0.07,0.372002 0.267998,0.733002 0.547001,1.014c0.278999,0.279007 0.640999,0.479004 1.035999,0.522003c1.489998,0.278 2.979,0.500999 4.480999,0.651001c1.500999,0.152 3.014999,0.232002 4.551998,0.232002s3.049004,-0.080002 4.551003,-0.232002c1.501999,-0.150002 2.990997,-0.373001 4.479996,-0.651001c0.396004,-0.044998 0.757004,-0.243996 1.037003,-0.522003c0.279999,-0.278999 0.476997,-0.641998 0.547005,-1.014l1.140999,-5.959l1.140999,-5.961998c1.723,-0.674995 3.387001,-1.477997 4.976997,-2.401001c1.588005,-0.925995 3.103004,-1.974998 4.522003,-3.139l5.75,2.000999l5.75,2.003006c0.373001,0.162994 0.756996,0.185997 1.117996,0.087997c0.360001,-0.098999 0.698006,-0.32 0.978004,-0.646004c1.978996,-2.258995 3.770996,-4.749001 5.301994,-7.391998c1.531006,-2.642998 2.800003,-5.436996 3.731003,-8.300995c0.164001,-0.368004 0.188004,-0.778008 0.087997,-1.150002zm-24.237999,5.787994c-5.348,5.349007 -12.731995,8.660004 -20.875,8.660004c-8.143997,0 -15.526997,-3.312004 -20.875,-8.660004s-8.659998,-12.730995 -8.659998,-20.874996c0,-8.144001 3.312,-15.527 8.661001,-20.875999c5.348,-5.348001 12.731998,-8.661001 20.875999,-8.661001c8.143002,0 15.525997,3.312 20.874996,8.661001c5.348,5.348999 8.661003,12.731998 8.661003,20.875999c-0.000999,8.141998 -3.314003,15.525997 -8.663002,20.874996z\"/> </g> </g> </g> <g> <path d=\"m119.773003,30.861h-13.020004v-6.841h33.599998v6.841h-13.020004v35.639999h-7.55999v-35.639999l0,0z\"/> <path d=\"m143.953003,54.620998c0.23999,2.16 1.080002,3.84 2.520004,5.039997s3.179993,1.800003 5.219986,1.800003c1.800003,0 3.309006,-0.368996 4.530014,-1.110001c1.219986,-0.738998 2.289993,-1.668999 3.209991,-2.790001l5.160004,3.900002c-1.680008,2.080002 -3.561005,3.561005 -5.639999,4.440002c-2.080002,0.878998 -4.26001,1.319 -6.540009,1.319c-2.159988,0 -4.199997,-0.359001 -6.119995,-1.080002c-1.919998,-0.720001 -3.580994,-1.738998 -4.979996,-3.059998c-1.401001,-1.320007 -2.511002,-2.910004 -3.330002,-4.771004c-0.820007,-1.858997 -1.229996,-3.929996 -1.229996,-6.209999c0,-2.278999 0.409988,-4.349998 1.229996,-6.209999c0.819,-1.859001 1.929001,-3.449001 3.330002,-4.77c1.399002,-1.32 3.059998,-2.34 4.979996,-3.061001c1.919998,-0.719997 3.960007,-1.078999 6.119995,-1.078999c2,0 3.830002,0.351002 5.490005,1.049999c1.658997,0.700001 3.080002,1.709999 4.259995,3.028999c1.180008,1.32 2.100006,2.951 2.76001,4.891003c0.659988,1.939999 0.98999,4.169998 0.98999,6.688999v1.98h-21.959991l0,0.002998zm14.759995,-5.399998c-0.041,-2.118999 -0.699997,-3.789001 -1.979996,-5.010002c-1.281006,-1.219997 -3.059998,-1.829998 -5.339996,-1.829998c-2.160004,0 -3.87001,0.620998 -5.130005,1.860001c-1.259995,1.239998 -2.031006,2.899998 -2.309998,4.979h14.759995l0,0.000999z\"/> <path d=\"m172.753006,21.141001h7.199997v45.359999h-7.199997v-45.359999l0,0z\"/> <path d=\"m193.992004,54.620998c0.23999,2.16 1.080002,3.84 2.519989,5.039997c1.440002,1.200005 3.181,1.800003 5.221008,1.800003c1.800003,0 3.309006,-0.368996 4.528992,-1.110001c1.221008,-0.738998 2.290009,-1.668999 3.211014,-2.790001l5.159988,3.900002c-1.681,2.080002 -3.560989,3.561005 -5.640991,4.440002c-2.080002,0.878998 -4.26001,1.319 -6.540009,1.319c-2.158997,0 -4.199997,-0.359001 -6.119995,-1.080002c-1.919998,-0.720001 -3.580002,-1.738998 -4.979004,-3.059998c-1.401001,-1.320007 -2.511002,-2.910004 -3.330002,-4.771004c-0.819992,-1.858997 -1.228989,-3.929996 -1.228989,-6.209999c0,-2.278999 0.408997,-4.349998 1.228989,-6.209999c0.819,-1.859001 1.929001,-3.449001 3.330002,-4.77c1.399002,-1.32 3.059998,-2.34 4.979004,-3.061001c1.919998,-0.719997 3.960999,-1.078999 6.119995,-1.078999c2,0 3.830002,0.351002 5.490005,1.049999c1.658997,0.700001 3.078995,1.709999 4.259995,3.028999c1.180008,1.32 2.100998,2.951 2.761002,4.891003c0.660004,1.939999 0.988998,4.169998 0.988998,6.688999v1.98h-21.959991l0,0.002998zm14.759995,-5.399998c-0.039993,-2.118999 -0.699005,-3.789001 -1.979004,-5.010002c-1.279999,-1.219997 -3.059998,-1.829998 -5.340988,-1.829998c-2.159012,0 -3.869003,0.620998 -5.129013,1.860001c-1.259995,1.239998 -2.030991,2.899998 -2.310989,4.979h14.759995l0,0.000999z\"/> <path d=\"m222.671997,37.701h6.839996v4.319h0.12001c1.039993,-1.758999 2.438995,-3.039001 4.199997,-3.84c1.759995,-0.799999 3.660004,-1.199001 5.699005,-1.199001c2.19899,0 4.179993,0.389999 5.939987,1.170002c1.76001,0.778999 3.260025,1.850998 4.500015,3.209999c1.239014,1.360001 2.179993,2.959999 2.820007,4.799999c0.639984,1.84 0.959991,3.82 0.959991,5.938999c0,2.121002 -0.339996,4.101002 -1.019989,5.940002c-0.682007,1.840004 -1.631012,3.440002 -2.851013,4.800003c-1.221008,1.359993 -2.690002,2.43 -4.410004,3.209999s-3.600998,1.169998 -5.639999,1.169998c-1.360001,0 -2.561005,-0.140999 -3.600006,-0.420006c-1.041,-0.279991 -1.960999,-0.639992 -2.761002,-1.079994c-0.799988,-0.439003 -1.478989,-0.909004 -2.039993,-1.410004c-0.561005,-0.499001 -1.020004,-0.988998 -1.380005,-1.469994h-0.181v17.339996h-7.19899v-42.479l0.002991,0zm23.880005,14.400002c0,-1.119003 -0.190002,-2.199001 -0.569,-3.239002c-0.380997,-1.040001 -0.940994,-1.959999 -1.681,-2.760998c-0.740997,-0.799004 -1.630005,-1.439003 -2.669998,-1.920002c-1.040009,-0.479 -2.220001,-0.720001 -3.540009,-0.720001s-2.5,0.240002 -3.539993,0.720001c-1.040009,0.48 -1.931,1.120998 -2.669998,1.920002c-0.740997,0.800999 -1.300003,1.720997 -1.681,2.760998c-0.380005,1.040001 -0.569,2.119999 -0.569,3.239002c0,1.120998 0.188995,2.200996 0.569,3.239998c0.380997,1.041 0.938995,1.960995 1.681,2.759998c0.738998,0.801003 1.62999,1.440002 2.669998,1.919998c1.039993,0.480003 2.220001,0.721001 3.539993,0.721001s2.5,-0.239998 3.540009,-0.721001c1.039993,-0.478996 1.929001,-1.118996 2.669998,-1.919998c0.738998,-0.799004 1.300003,-1.718998 1.681,-2.759998c0.377991,-1.039001 0.569,-2.118999 0.569,-3.239998z\"/> <path d=\"m259.031006,52.101002c0,-2.279003 0.410004,-4.350002 1.230011,-6.210003c0.817993,-1.858997 1.928986,-3.448997 3.329987,-4.77c1.39801,-1.32 3.059021,-2.34 4.979004,-3.060997c1.920013,-0.720001 3.959991,-1.079002 6.119995,-1.079002s4.199005,0.359001 6.119019,1.079002c1.919983,0.720997 3.579987,1.739998 4.97998,3.060997s2.51001,2.91 3.330017,4.77c0.819977,1.860001 1.22998,3.931 1.22998,6.210003c0,2.279999 -0.410004,4.350998 -1.22998,6.210003c-0.820007,1.860001 -1.930023,3.449997 -3.330017,4.770996s-3.061005,2.340004 -4.97998,3.059998c-1.920013,0.721001 -3.959015,1.080002 -6.119019,1.080002s-4.199982,-0.359001 -6.119995,-1.080002c-1.92099,-0.719994 -3.580994,-1.738998 -4.979004,-3.059998c-1.401001,-1.32 -2.511993,-2.909996 -3.329987,-4.770996c-0.820007,-1.860004 -1.230011,-3.930004 -1.230011,-6.210003zm7.199005,0c0,1.120998 0.188995,2.200996 0.570007,3.239998c0.380005,1.041 0.938995,1.960995 1.679993,2.759998c0.73999,0.801003 1.630005,1.440002 2.670013,1.919998c1.040985,0.480003 2.220978,0.721001 3.540985,0.721001s2.498993,-0.239998 3.539001,-0.721001c1.040985,-0.478996 1.929993,-1.118996 2.670013,-1.919998c0.73999,-0.799004 1.300995,-1.718998 1.681976,-2.759998c0.378998,-1.039001 0.568024,-2.118999 0.568024,-3.239998c0,-1.119003 -0.189026,-2.199001 -0.568024,-3.239002c-0.380981,-1.040001 -0.940979,-1.959999 -1.681976,-2.760998c-0.740021,-0.799004 -1.629028,-1.439003 -2.670013,-1.920002c-1.040009,-0.479 -2.218994,-0.720001 -3.539001,-0.720001s-2.5,0.240002 -3.540985,0.720001c-1.040009,0.48 -1.930023,1.120998 -2.670013,1.920002c-0.73999,0.800999 -1.299988,1.720997 -1.679993,2.760998c-0.380005,1.039001 -0.570007,2.118999 -0.570007,3.239002z\"/> <path d=\"m297.070007,37.701h7.200989v4.560001h0.119019c0.798981,-1.68 1.938995,-2.979 3.419983,-3.899002s3.179993,-1.380001 5.100006,-1.380001c0.438995,0 0.871002,0.040001 1.290985,0.119003c0.420013,0.080997 0.850006,0.181 1.289001,0.300999v6.959999c-0.599976,-0.16 -1.188995,-0.290001 -1.769989,-0.390999c-0.579987,-0.098999 -1.149994,-0.149002 -1.710999,-0.149002c-1.679993,0 -3.028992,0.310001 -4.049011,0.93c-1.019989,0.621002 -1.800995,1.330002 -2.339996,2.130001c-0.540985,0.800999 -0.899994,1.601002 -1.079987,2.400002c-0.180023,0.800999 -0.27002,1.399998 -0.27002,1.799999v15.419998h-7.200989v-28.800999l0.001007,0z\"/> <path d=\"m317.049011,43.820999v-6.119999h5.940979v-8.34h7.199005v8.34h7.920013v6.119999h-7.920013v12.600002c0,1.439999 0.27002,2.579998 0.811005,3.420002c0.539001,0.839996 1.609009,1.259995 3.209015,1.259995c0.640991,0 1.339996,-0.069 2.10199,-0.209999c0.757996,-0.139999 1.359009,-0.369003 1.798981,-0.689003v6.060005c-0.759979,0.360001 -1.688995,0.608994 -2.788971,0.75c-1.10202,0.139999 -2.070007,0.209999 -2.910004,0.209999c-1.920013,0 -3.490021,-0.209999 -4.710999,-0.630005s-2.180023,-1.059998 -2.878998,-1.919998c-0.701019,-0.859001 -1.182007,-1.93 -1.44101,-3.209991c-0.26001,-1.279007 -0.389008,-2.76001 -0.389008,-4.440002v-13.201004h-5.941986l0,0z\"/> </g> <g> <path d=\"m119.194,86.295998h3.587997c0.346001,0 0.689003,0.041 1.027,0.124001c0.338005,0.082001 0.639,0.217003 0.903,0.402c0.264,0.187004 0.479004,0.427002 0.644005,0.722s0.246994,0.650002 0.246994,1.066002c0,0.519997 -0.146996,0.947998 -0.441994,1.287003c-0.295006,0.337997 -0.681,0.579994 -1.157005,0.727997v0.026001c0.286003,0.033997 0.553001,0.113998 0.800003,0.239998c0.247002,0.125999 0.457001,0.286003 0.629997,0.480003c0.173004,0.195 0.310005,0.420998 0.409004,0.676994s0.149994,0.530006 0.149994,0.825005c0,0.502998 -0.099998,0.920998 -0.298996,1.254997c-0.198997,0.333 -0.460999,0.603004 -0.786003,0.806c-0.324997,0.204002 -0.697998,0.348999 -1.117996,0.436005s-0.848,0.129997 -1.280998,0.129997h-3.315002v-9.204002l0,0zm1.638,3.744003h1.495003c0.545998,0 0.955994,-0.106003 1.228996,-0.318001c0.273003,-0.212997 0.408997,-0.491997 0.408997,-0.838997c0,-0.398003 -0.140999,-0.695 -0.421997,-0.891006c-0.281998,-0.194 -0.734001,-0.292 -1.358002,-0.292h-1.351997v2.340004l-0.000999,0zm0,4.056h1.507996c0.208,0 0.431007,-0.013 0.669006,-0.039001c0.237999,-0.025002 0.457001,-0.085999 0.656998,-0.181999c0.198997,-0.096001 0.363998,-0.231003 0.494003,-0.408997c0.129997,-0.178001 0.195,-0.418007 0.195,-0.722c0,-0.485001 -0.158005,-0.823006 -0.475006,-1.014c-0.315994,-0.191002 -0.807999,-0.286003 -1.475998,-0.286003h-1.572998v2.652l0.000999,0z\"/> <path d=\"m130.854996,91.560997l-3.457993,-5.264999h2.054001l2.261993,3.666l2.28801,-3.666h1.949997l-3.458008,5.264999v3.939003h-1.638v-3.939003l0,0z\"/> <path d=\"m150.796997,94.823997c-1.136002,0.606003 -2.404999,0.910004 -3.80899,0.910004c-0.711014,0 -1.363007,-0.114998 -1.957001,-0.345001s-1.105011,-0.555 -1.534012,-0.975998c-0.429001,-0.420006 -0.764999,-0.925003 -1.006989,-1.514c-0.243011,-0.590004 -0.363998,-1.244003 -0.363998,-1.964005c0,-0.736 0.120987,-1.404999 0.363998,-2.007996s0.578995,-1.116005 1.006989,-1.541c0.429001,-0.424004 0.940002,-0.750999 1.534012,-0.981003c0.593994,-0.228996 1.245987,-0.345001 1.957001,-0.345001c0.701996,0 1.360001,0.084999 1.975998,0.254005c0.61499,0.168999 1.166,0.471001 1.651001,0.903l-1.209,1.223c-0.295013,-0.286003 -0.652008,-0.508003 -1.072006,-0.663002c-0.421005,-0.155998 -0.865005,-0.234001 -1.332993,-0.234001c-0.477005,0 -0.908005,0.084999 -1.294006,0.253998c-0.384995,0.169006 -0.716995,0.402 -0.994003,0.701004c-0.276993,0.299995 -0.492004,0.648003 -0.643997,1.046997c-0.151993,0.398003 -0.227997,0.828003 -0.227997,1.287003c0,0.493996 0.076004,0.948997 0.227997,1.364998c0.151001,0.416 0.365997,0.775002 0.643997,1.079002c0.277008,0.303001 0.609009,0.541 0.994003,0.714996c0.386002,0.173004 0.817001,0.260002 1.294006,0.260002c0.416,0 0.807999,-0.039001 1.175995,-0.116997c0.367996,-0.078003 0.694992,-0.199005 0.981003,-0.362999v-2.171005h-1.88501v-1.480995h3.52301v4.704994l0.000992,0z\"/> <path d=\"m153.722,86.295998h3.197998c0.442001,0 0.869003,0.041 1.279999,0.124001c0.412003,0.082001 0.778,0.223 1.098999,0.422005c0.320007,0.198997 0.576004,0.467995 0.766998,0.806999c0.190002,0.337997 0.286011,0.766998 0.286011,1.285995c0,0.667999 -0.184998,1.227005 -0.553009,1.678001c-0.369003,0.450005 -0.894989,0.723999 -1.580002,0.818001l2.445007,4.069h-1.975998l-2.132004,-3.900002h-1.195999v3.900002h-1.638v-9.204002l0,0zm2.912003,3.900002c0.233994,0 0.468002,-0.011002 0.701996,-0.032997c0.234009,-0.021004 0.447998,-0.073006 0.643997,-0.154999c0.195007,-0.083 0.352997,-0.208 0.473999,-0.377007c0.122009,-0.168999 0.182007,-0.404999 0.182007,-0.709c0,-0.268997 -0.056,-0.485001 -0.169006,-0.648994c-0.112991,-0.165001 -0.259995,-0.288002 -0.442001,-0.371002c-0.181992,-0.082001 -0.383987,-0.137001 -0.603989,-0.162003c-0.221008,-0.026001 -0.436005,-0.039001 -0.644012,-0.039001h-1.416992v2.496002h1.274002l0,-0.000999z\"/> <path d=\"m165.876007,86.295998h1.416992l3.966003,9.204002h-1.872009l-0.857986,-2.106003h-3.991013l-0.832001,2.106003h-1.832993l4.003006,-9.204002zm2.080994,5.694l-1.417007,-3.743996l-1.442993,3.743996h2.860001l0,0z\"/> <path d=\"m171.401001,86.295998h1.884995l2.509003,6.955002l2.587006,-6.955002h1.76799l-3.716995,9.204002h-1.416992l-3.615005,-9.204002z\"/> <path d=\"m182.087006,86.295998h1.638v9.204002h-1.638v-9.204002l0,0z\"/> <path d=\"m188.613007,87.778h-2.820999v-1.482002h7.279999v1.482002h-2.820999v7.722h-1.638v-7.722l0,0z\"/> <path d=\"m196.959,86.295998h1.417007l3.965988,9.204002h-1.873001l-0.856995,-2.106003h-3.990997l-0.833008,2.106003h-1.832993l4.003998,-9.204002zm2.080002,5.694l-1.417007,-3.743996l-1.442001,3.743996h2.859009l0,0z\"/> <path d=\"m205.044998,87.778h-2.819992v-1.482002h7.278992v1.482002h-2.819992v7.722h-1.639008v-7.722l0,0z\"/> <path d=\"m211.570007,86.295998h1.638992v9.204002h-1.638992v-9.204002l0,0z\"/> <path d=\"m215.718994,90.936996c0,-0.736 0.121002,-1.404999 0.362991,-2.007996s0.578003,-1.115997 1.008011,-1.541c0.429001,-0.424004 0.938995,-0.750999 1.53299,-0.981003c0.594009,-0.228996 1.246002,-0.345001 1.957001,-0.345001c0.719009,-0.007996 1.378006,0.098007 1.977005,0.319c0.597992,0.221001 1.112991,0.544006 1.546997,0.968002c0.432999,0.425003 0.770996,0.937004 1.014008,1.534004c0.241989,0.598999 0.362991,1.265999 0.362991,2.001999c0,0.720001 -0.121002,1.374001 -0.362991,1.962997c-0.242004,0.590004 -0.581009,1.097 -1.014008,1.521004c-0.434006,0.424995 -0.949005,0.755997 -1.546997,0.993996c-0.598999,0.237999 -1.257996,0.362 -1.977005,0.371002c-0.710999,0 -1.362991,-0.114998 -1.957001,-0.345001s-1.103989,-0.555 -1.53299,-0.975998c-0.430008,-0.420006 -0.766006,-0.925003 -1.008011,-1.514c-0.241989,-0.588005 -0.362991,-1.243004 -0.362991,-1.962006zm1.715012,-0.103996c0,0.494003 0.076004,0.948997 0.229004,1.364998c0.149994,0.416 0.365005,0.775002 0.643005,1.079002c0.276993,0.303001 0.608994,0.541 0.993988,0.714996c0.387009,0.173004 0.817001,0.260002 1.295013,0.260002c0.47699,0 0.908997,-0.086998 1.298996,-0.260002c0.390991,-0.173996 0.724991,-0.411995 1.001999,-0.714996c0.276993,-0.304001 0.490997,-0.663002 0.643005,-1.079002c0.151993,-0.416 0.228989,-0.870995 0.228989,-1.364998c0,-0.459 -0.075989,-0.889 -0.228989,-1.287003c-0.151001,-0.397995 -0.365005,-0.746994 -0.643005,-1.046997c-0.277008,-0.299004 -0.611008,-0.531998 -1.001999,-0.701004c-0.389999,-0.168999 -0.822006,-0.253998 -1.298996,-0.253998c-0.478012,0 -0.908005,0.084999 -1.295013,0.253998c-0.384995,0.169006 -0.716995,0.402 -0.993988,0.701004c-0.277008,0.300003 -0.492004,0.648003 -0.643005,1.046997c-0.153015,0.398003 -0.229004,0.828003 -0.229004,1.287003z\"/> <path d=\"m228.029007,86.295998h2.17099l4.459,6.838005h0.026001v-6.838005h1.637009v9.204002h-2.07901l-4.550003,-7.058998h-0.025986v7.058998h-1.638v-9.204002l0,0z\"/> <path d=\"m242.341995,86.295998h1.417007l3.966003,9.204002h-1.873001l-0.85701,-2.106003h-3.990997l-0.832993,2.106003h-1.833008l4.003998,-9.204002zm2.080002,5.694l-1.416992,-3.743996l-1.442001,3.743996h2.858994l0,0z\"/> <path d=\"m249.738007,86.295998h1.638992v7.722h3.912003v1.482002h-5.550995v-9.204002l0,0z\"/> </g> </g> </symbol>";
 	module.exports = sprite.add(image, "grv-tlpt-logo-full");
 
 /***/ },
-
-/***/ 343:
+/* 361 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var Sprite = __webpack_require__(344);
+	var Sprite = __webpack_require__(362);
 	var globalSprite = new Sprite();
 
 	if (document.body) {
@@ -2705,11 +3771,10 @@ webpackJsonp([0],{
 
 
 /***/ },
-
-/***/ 344:
+/* 362 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var Sniffr = __webpack_require__(345);
+	var Sniffr = __webpack_require__(363);
 
 	/**
 	 * List of SVG attributes to fix url target in them
@@ -2961,8 +4026,7 @@ webpackJsonp([0],{
 
 
 /***/ },
-
-/***/ 345:
+/* 363 */
 /***/ function(module, exports) {
 
 	(function(host) {
@@ -3086,101 +4150,26 @@ webpackJsonp([0],{
 
 
 /***/ },
-
-/***/ 347:
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-	module.exports.getters = __webpack_require__(238);
-	module.exports.actions = __webpack_require__(226);
-	module.exports.appStore = __webpack_require__(348);
-
-/***/ },
-
-/***/ 348:
+/* 364 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	/*
-	Copyright 2015 Gravitational, Inc.
+	var _react = __webpack_require__(2);
 
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
+	var _react2 = _interopRequireDefault(_react);
 
-	    http://www.apache.org/licenses/LICENSE-2.0
+	var _reactor = __webpack_require__(240);
 
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-	var _require = __webpack_require__(216),
-	    Store = _require.Store,
-	    toImmutable = _require.toImmutable;
+	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _require2 = __webpack_require__(234),
-	    TLPT_APP_INIT = _require2.TLPT_APP_INIT,
-	    TLPT_APP_FAILED = _require2.TLPT_APP_FAILED,
-	    TLPT_APP_READY = _require2.TLPT_APP_READY,
-	    TLPT_APP_SET_SITE_ID = _require2.TLPT_APP_SET_SITE_ID;
+	var _getters = __webpack_require__(365);
 
-	var defaultStatus = toImmutable({
-	  isReady: false,
-	  isInitializing: false,
-	  isFailed: false
-	});
+	var _reactToastr = __webpack_require__(366);
 
-	exports.default = Store({
-	  getInitialState: function getInitialState() {
-	    return toImmutable({
-	      siteId: undefined,
-	      status: defaultStatus
-	    });
-	  },
-	  initialize: function initialize() {
-	    this.on(TLPT_APP_INIT, function (state) {
-	      return state.set('status', defaultStatus.set('isInitializing', true));
-	    });
-	    this.on(TLPT_APP_READY, function (state) {
-	      return state.set('status', defaultStatus.set('isReady', true));
-	    });
-	    this.on(TLPT_APP_FAILED, function (state) {
-	      return state.set('status', defaultStatus.set('isFailed', true));
-	    });
-	    this.on(TLPT_APP_SET_SITE_ID, function (state, siteId) {
-	      return state.set('siteId', siteId);
-	    });
-	  }
-	});
-	module.exports = exports['default'];
-
-/***/ },
-
-/***/ 349:
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 	/*
 	Copyright 2015 Gravitational, Inc.
@@ -3198,32 +4187,21 @@ webpackJsonp([0],{
 	limitations under the License.
 	*/
 
-	var React = __webpack_require__(2);
-	var reactor = __webpack_require__(215);
-	var PureRenderMixin = __webpack_require__(350);
-
-	var _require = __webpack_require__(353),
-	    lastMessage = _require.lastMessage;
-
-	var _require2 = __webpack_require__(354),
-	    ToastContainer = _require2.ToastContainer,
-	    ToastMessage = _require2.ToastMessage;
-
-	var ToastMessageFactory = React.createFactory(ToastMessage.animation);
+	var ToastMessageFactory = _react2.default.createFactory(_reactToastr.ToastMessage.animation);
 
 	var animationOptions = {
 	  showAnimation: 'animated fadeIn',
 	  hideAnimation: 'animated fadeOut'
 	};
 
-	var NotificationHost = React.createClass({
+	var NotificationHost = _react2.default.createClass({
 	  displayName: 'NotificationHost',
 
 
-	  mixins: [reactor.ReactMixin, PureRenderMixin],
+	  mixins: [_reactor2.default.ReactMixin],
 
 	  getDataBindings: function getDataBindings() {
-	    return { msg: lastMessage };
+	    return { msg: _getters.lastMessage };
 	  },
 	  update: function update(msg) {
 	    if (msg) {
@@ -3239,24 +4217,24 @@ webpackJsonp([0],{
 	    }
 	  },
 	  componentDidMount: function componentDidMount() {
-	    reactor.observe(lastMessage, this.update);
+	    _reactor2.default.observe(_getters.lastMessage, this.update);
 	  },
 	  componentWillUnmount: function componentWillUnmount() {
-	    reactor.unobserve(lastMessage, this.update);
+	    _reactor2.default.unobserve(_getters.lastMessage, this.update);
 	  },
-
-
 	  render: function render() {
-	    return React.createElement(ToastContainer, {
-	      ref: 'container', toastMessageFactory: ToastMessageFactory, className: 'toast-top-right' });
+	    return _react2.default.createElement(_reactToastr.ToastContainer, {
+	      className: 'toast-top-right',
+	      ref: 'container',
+	      toastMessageFactory: ToastMessageFactory });
 	  }
 	});
 
-	module.exports = NotificationHost;
+	exports.default = NotificationHost;
+	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 353:
+/* 365 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -3283,31 +4261,30 @@ webpackJsonp([0],{
 	}];
 
 /***/ },
-
-/***/ 364:
+/* 366 */,
+/* 367 */,
+/* 368 */,
+/* 369 */,
+/* 370 */,
+/* 371 */,
+/* 372 */,
+/* 373 */,
+/* 374 */,
+/* 375 */,
+/* 376 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
-	/*
-	Copyright 2015 Gravitational, Inc.
+	exports.__esModule = true;
 
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
+	var _react = __webpack_require__(2);
 
-	    http://www.apache.org/licenses/LICENSE-2.0
+	var _react2 = _interopRequireDefault(_react);
 
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-	var React = __webpack_require__(2);
-
-	var Timer = React.createClass({
+	var Timer = _react2.default.createClass({
 	  displayName: 'Timer',
 	  shouldComponentUpdate: function shouldComponentUpdate() {
 	    return false;
@@ -3327,16 +4304,357 @@ webpackJsonp([0],{
 	  render: function render() {
 	    return null;
 	  }
-	});
+	}); /*
+	    Copyright 2015 Gravitational, Inc.
+	    
+	    Licensed under the Apache License, Version 2.0 (the "License");
+	    you may not use this file except in compliance with the License.
+	    You may obtain a copy of the License at
+	    
+	        http://www.apache.org/licenses/LICENSE-2.0
+	    
+	    Unless required by applicable law or agreed to in writing, software
+	    distributed under the License is distributed on an "AS IS" BASIS,
+	    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	    See the License for the specific language governing permissions and
+	    limitations under the License.
+	    */
 
-	module.exports = Timer;
+	exports.default = Timer;
+	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 365:
+/* 377 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
+
+	exports.__esModule = true;
+	exports.MessagePage = exports.ErrorTypes = exports.Failed = exports.NotFound = exports.InfoPage = exports.ErrorPage = undefined;
+
+	var _react = __webpack_require__(2);
+
+	var _react2 = _interopRequireDefault(_react);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	var MSG_INFO_LOGIN_SUCCESS = 'Login was successful, you can close this window and continue using tsh.'; /*
+	                                                                                                        Copyright 2015 Gravitational, Inc.
+	                                                                                                        
+	                                                                                                        Licensed under the Apache License, Version 2.0 (the "License");
+	                                                                                                        you may not use this file except in compliance with the License.
+	                                                                                                        You may obtain a copy of the License at
+	                                                                                                        
+	                                                                                                            http://www.apache.org/licenses/LICENSE-2.0
+	                                                                                                        
+	                                                                                                        Unless required by applicable law or agreed to in writing, software
+	                                                                                                        distributed under the License is distributed on an "AS IS" BASIS,
+	                                                                                                        WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	                                                                                                        See the License for the specific language governing permissions and
+	                                                                                                        limitations under the License.
+	                                                                                                        */
+
+	var MSG_ERROR_LOGIN_FAILED = 'Login unsuccessful. Please try again, if the problem persists, contact your system administator.';
+	var MSG_ERROR_DEFAULT = 'Whoops, something went wrong.';
+
+	var MSG_ERROR_NOT_FOUND = 'Whoops, we cannot find that.';
+	var MSG_ERROR_NOT_FOUND_DETAILS = 'Looks like the page you are looking for isn\'t here any longer.';
+
+	var MSG_ERROR_EXPIRED_INVITE = 'Invite code has expired.';
+	var MSG_ERROR_EXPIRED_INVITE_DETAILS = 'Looks like your invite code isn\'t valid anymore.';
+
+	var MsgType = {
+	  INFO: 'info',
+	  ERROR: 'error'
+	};
+
+	var ErrorTypes = {
+	  FAILED_TO_LOGIN: 'login_failed',
+	  EXPIRED_INVITE: 'expired_invite',
+	  NOT_FOUND: 'not_found'
+	};
+
+	var InfoTypes = {
+	  LOGIN_SUCCESS: 'login_success'
+	};
+
+	var MessagePage = function MessagePage(_ref) {
+	  var params = _ref.params;
+	  var type = params.type,
+	      subType = params.subType;
+
+	  if (type === MsgType.ERROR) {
+	    return _react2.default.createElement(ErrorPage, { type: subType });
+	  }
+
+	  if (type === MsgType.INFO) {
+	    return _react2.default.createElement(InfoPage, { type: subType });
+	  }
+
+	  return null;
+	};
+
+	var ErrorPage = function ErrorPage(_ref2) {
+	  var type = _ref2.type,
+	      _ref2$message = _ref2.message,
+	      message = _ref2$message === undefined ? '' : _ref2$message;
+
+	  var msgBody = _react2.default.createElement(
+	    'div',
+	    null,
+	    _react2.default.createElement(
+	      'h1',
+	      null,
+	      MSG_ERROR_DEFAULT
+	    ),
+	    _react2.default.createElement(
+	      'div',
+	      { className: 'm-t text-muted', style: { wordBreak: "break-all" } },
+	      _react2.default.createElement(
+	        'small',
+	        null,
+	        message
+	      )
+	    )
+	  );
+
+	  if (type === ErrorTypes.FAILED_TO_LOGIN) {
+	    msgBody = _react2.default.createElement(
+	      'div',
+	      null,
+	      _react2.default.createElement(
+	        'h1',
+	        null,
+	        MSG_ERROR_LOGIN_FAILED
+	      )
+	    );
+	  }
+
+	  if (type === ErrorTypes.EXPIRED_INVITE) {
+	    msgBody = _react2.default.createElement(
+	      'div',
+	      null,
+	      _react2.default.createElement(
+	        'h1',
+	        null,
+	        MSG_ERROR_EXPIRED_INVITE
+	      ),
+	      _react2.default.createElement(
+	        'div',
+	        null,
+	        MSG_ERROR_EXPIRED_INVITE_DETAILS
+	      )
+	    );
+	  }
+
+	  if (type === ErrorTypes.NOT_FOUND) {
+	    msgBody = _react2.default.createElement(
+	      'div',
+	      null,
+	      _react2.default.createElement(
+	        'h1',
+	        null,
+	        MSG_ERROR_NOT_FOUND
+	      ),
+	      _react2.default.createElement(
+	        'div',
+	        null,
+	        MSG_ERROR_NOT_FOUND_DETAILS
+	      )
+	    );
+	  }
+
+	  return _react2.default.createElement(
+	    'div',
+	    { className: 'grv-msg-page' },
+	    _react2.default.createElement(
+	      'div',
+	      { className: 'grv-header' },
+	      _react2.default.createElement('i', { className: 'fa fa-frown-o' }),
+	      ' '
+	    ),
+	    msgBody,
+	    _react2.default.createElement(
+	      'div',
+	      { className: 'contact-section' },
+	      'If you believe this is an issue with Teleport, please ',
+	      _react2.default.createElement(
+	        'a',
+	        { href: 'https://github.com/gravitational/teleport/issues/new' },
+	        'create a GitHub issue.'
+	      )
+	    )
+	  );
+	};
+
+	var InfoPage = function InfoPage(_ref3) {
+	  var type = _ref3.type;
+
+	  var msgBody = null;
+	  if (type === InfoTypes.LOGIN_SUCCESS) {
+	    msgBody = _react2.default.createElement(
+	      'div',
+	      null,
+	      _react2.default.createElement(
+	        'h1',
+	        null,
+	        MSG_INFO_LOGIN_SUCCESS
+	      )
+	    );
+	  }
+
+	  return _react2.default.createElement(
+	    'div',
+	    { className: 'grv-msg-page' },
+	    _react2.default.createElement(
+	      'div',
+	      { className: 'grv-header' },
+	      _react2.default.createElement('i', { className: 'fa fa-smile-o' })
+	    ),
+	    msgBody
+	  );
+	};
+
+	var NotFound = function NotFound() {
+	  return _react2.default.createElement(ErrorPage, { type: ErrorTypes.NOT_FOUND });
+	};
+
+	var Failed = function Failed(_ref4) {
+	  var message = _ref4.message;
+	  return _react2.default.createElement(ErrorPage, { message: message });
+	};
+
+	exports.ErrorPage = ErrorPage;
+	exports.InfoPage = InfoPage;
+	exports.NotFound = NotFound;
+	exports.Failed = Failed;
+	exports.ErrorTypes = ErrorTypes;
+	exports.MessagePage = MessagePage;
+
+/***/ },
+/* 378 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	exports.__esModule = true;
+
+	var _react = __webpack_require__(2);
+
+	var _react2 = _interopRequireDefault(_react);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+	var Indicator = function (_React$Component) {
+	  _inherits(Indicator, _React$Component);
+
+	  function Indicator(props) {
+	    _classCallCheck(this, Indicator);
+
+	    return _possibleConstructorReturn(this, _React$Component.call(this, props));
+	  }
+
+	  Indicator.prototype.render = function render() {
+	    var _props = this.props,
+	        _props$enabled = _props.enabled,
+	        enabled = _props$enabled === undefined ? true : _props$enabled,
+	        type = _props.type;
+
+
+	    if (!enabled) {
+	      return null;
+	    }
+
+	    if (type === 'bounce') {
+	      return _react2.default.createElement(ThreeBounce, null);
+	    }
+
+	    if (type === 'circle') {
+	      return _react2.default.createElement(Circle, null);
+	    }
+	  };
+
+	  return Indicator;
+	}(_react2.default.Component);
+
+	var ThreeBounce = function ThreeBounce() {
+	  return _react2.default.createElement(
+	    'div',
+	    { className: 'grv-spinner sk-spinner sk-spinner-three-bounce' },
+	    _react2.default.createElement('div', { className: 'sk-bounce1' }),
+	    _react2.default.createElement('div', { className: 'sk-bounce2' }),
+	    _react2.default.createElement('div', { className: 'sk-bounce3' })
+	  );
+	};
+
+	var Circle = function Circle() {
+	  return _react2.default.createElement(
+	    'div',
+	    { className: 'sk-spinner sk-spinner-circle' },
+	    _react2.default.createElement('div', { className: 'sk-circle1 sk-circle' }),
+	    _react2.default.createElement('div', { className: 'sk-circle2 sk-circle' }),
+	    _react2.default.createElement('div', { className: 'sk-circle3 sk-circle' }),
+	    _react2.default.createElement('div', { className: 'sk-circle4 sk-circle' }),
+	    _react2.default.createElement('div', { className: 'sk-circle5 sk-circle' }),
+	    _react2.default.createElement('div', { className: 'sk-circle6 sk-circle' }),
+	    _react2.default.createElement('div', { className: 'sk-circle7 sk-circle' }),
+	    _react2.default.createElement('div', { className: 'sk-circle8 sk-circle' }),
+	    _react2.default.createElement('div', { className: 'sk-circle9 sk-circle' }),
+	    _react2.default.createElement('div', { className: 'sk-circle10 sk-circle' }),
+	    _react2.default.createElement('div', { className: 'sk-circle11 sk-circle' }),
+	    _react2.default.createElement('div', { className: 'sk-circle12 sk-circle' })
+	  );
+	};
+
+	exports.default = Indicator;
+	module.exports = exports['default'];
+
+/***/ },
+/* 379 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	exports.__esModule = true;
+	exports.LoginInputForm = undefined;
+
+	var _react = __webpack_require__(2);
+
+	var _react2 = _interopRequireDefault(_react);
+
+	var _jQuery = __webpack_require__(227);
+
+	var _jQuery2 = _interopRequireDefault(_jQuery);
+
+	__webpack_require__(380);
+
+	var _reactor = __webpack_require__(240);
+
+	var _reactor2 = _interopRequireDefault(_reactor);
+
+	var _user = __webpack_require__(382);
+
+	var _googleAuthLogo = __webpack_require__(386);
+
+	var _googleAuthLogo2 = _interopRequireDefault(_googleAuthLogo);
+
+	var _config = __webpack_require__(232);
+
+	var _config2 = _interopRequireDefault(_config);
+
+	var _icons = __webpack_require__(358);
+
+	var _ssoBtnList = __webpack_require__(387);
+
+	var _enums = __webpack_require__(388);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 	/*
 	Copyright 2015 Gravitational, Inc.
@@ -3354,207 +4672,311 @@ webpackJsonp([0],{
 	limitations under the License.
 	*/
 
-	var React = __webpack_require__(2);
-	var $ = __webpack_require__(219);
-	var reactor = __webpack_require__(215);
-	var LinkedStateMixin = __webpack_require__(366);
-
-	var _require = __webpack_require__(370),
-	    actions = _require.actions,
-	    getters = _require.getters;
-
-	var GoogleAuthInfo = __webpack_require__(376);
-	var cfg = __webpack_require__(217);
-
-	var _require2 = __webpack_require__(341),
-	    TeleportLogo = _require2.TeleportLogo;
-
-	var _require3 = __webpack_require__(227),
-	    SECOND_FACTOR_TYPE_HOTP = _require3.SECOND_FACTOR_TYPE_HOTP,
-	    SECOND_FACTOR_TYPE_OIDC = _require3.SECOND_FACTOR_TYPE_OIDC,
-	    SECOND_FACTOR_TYPE_U2F = _require3.SECOND_FACTOR_TYPE_U2F;
-
-	var LoginInputForm = React.createClass({
-	  displayName: 'LoginInputForm',
-
-
-	  mixins: [LinkedStateMixin],
-
-	  getInitialState: function getInitialState() {
-	    return {
-	      user: '',
-	      password: '',
-	      token: '',
-	      provider: null,
-	      secondFactorType: SECOND_FACTOR_TYPE_HOTP
-	    };
-	  },
-	  onLogin: function onLogin(e) {
-	    e.preventDefault();
-	    this.state.secondFactorType = SECOND_FACTOR_TYPE_HOTP;
-	    // token field is required for Google Authenticator
-	    $('input[name=token]').addClass("required");
-	    if (this.isValid()) {
-	      this.props.onClick(this.state);
-	    }
-	  },
-
-
-	  providerLogin: function providerLogin(provider) {
-	    var self = this;
-	    return function (e) {
-	      e.preventDefault();
-	      self.state.secondFactorType = SECOND_FACTOR_TYPE_OIDC;
-	      self.state.provider = provider.id;
-	      self.props.onClick(self.state);
-	    };
-	  },
-
-	  onLoginWithU2f: function onLoginWithU2f(e) {
-	    e.preventDefault();
-	    this.state.secondFactorType = SECOND_FACTOR_TYPE_U2F;
-	    // token field not required for U2F
-	    $('input[name=token]').removeClass("required");
-	    if (this.isValid()) {
-	      this.props.onClick(this.state);
-	    }
-	  },
-
-	  isValid: function isValid() {
-	    var $form = $(this.refs.form);
-	    return $form.length === 0 || $form.valid();
-	  },
-
-	  render: function render() {
-	    var _this = this;
-
-	    var _props$attemp = this.props.attemp,
-	        isProcessing = _props$attemp.isProcessing,
-	        isFailed = _props$attemp.isFailed,
-	        message = _props$attemp.message;
-
-	    var providers = cfg.getAuthProviders();
-	    var useU2f = !!cfg.getU2fAppId();
-
-	    return React.createElement(
-	      'form',
-	      { ref: 'form', className: 'grv-login-input-form' },
-	      React.createElement(
-	        'h3',
-	        null,
-	        ' Welcome to Teleport '
-	      ),
-	      React.createElement(
-	        'div',
-	        { className: '' },
-	        React.createElement(
-	          'div',
-	          { className: 'form-group' },
-	          React.createElement('input', { autoFocus: true, valueLink: this.linkState('user'), className: 'form-control required', placeholder: 'User name', name: 'userName' })
-	        ),
-	        React.createElement(
-	          'div',
-	          { className: 'form-group' },
-	          React.createElement('input', { valueLink: this.linkState('password'), type: 'password', name: 'password', className: 'form-control required', placeholder: 'Password' })
-	        ),
-	        React.createElement(
-	          'div',
-	          { className: 'form-group' },
-	          React.createElement('input', { autoComplete: 'off', valueLink: this.linkState('token'), className: 'form-control required', name: 'token', placeholder: 'Two factor token (Google Authenticator)' })
-	        ),
-	        React.createElement(
-	          'button',
-	          { onClick: this.onLogin, disabled: isProcessing, type: 'submit', className: 'btn btn-primary block full-width m-b' },
-	          'Login'
-	        ),
-	        useU2f ? React.createElement(
-	          'button',
-	          { onClick: this.onLoginWithU2f, disabled: isProcessing, type: 'submit', className: 'btn btn-primary block full-width m-b' },
-	          'Login with U2F'
-	        ) : null,
-	        providers.map(function (provider) {
-	          return React.createElement(
-	            'button',
-	            { onClick: _this.providerLogin(provider), type: 'submit', className: 'btn btn-danger block full-width m-b' },
-	            'With ',
-	            provider.display
-	          );
-	        }),
-	        isProcessing && this.state.secondFactorType == SECOND_FACTOR_TYPE_U2F ? React.createElement(
-	          'label',
-	          { className: 'help-block' },
-	          'Insert your U2F key and press the button on the key'
-	        ) : null,
-	        isFailed ? React.createElement(
-	          'label',
-	          { className: 'error' },
-	          message
-	        ) : null
-	      )
-	    );
-	  }
-	});
-
-	var Login = React.createClass({
+	var Login = _react2.default.createClass({
 	  displayName: 'Login',
 
 
-	  mixins: [reactor.ReactMixin],
+	  mixins: [_reactor2.default.ReactMixin],
 
 	  getDataBindings: function getDataBindings() {
 	    return {
-	      attemp: getters.loginAttemp
+	      attemp: _user.getters.loginAttemp
 	    };
 	  },
-	  onClick: function onClick(inputData) {
+	  onLoginWithOidc: function onLoginWithOidc(providerName) {
+	    var redirect = this.getRedirectUrl();
+	    _user.actions.loginWithOidc(providerName, redirect);
+	  },
+	  onLoginWithU2f: function onLoginWithU2f(username, password) {
+	    var redirect = this.getRedirectUrl();
+	    _user.actions.loginWithU2f(username, password, redirect);
+	  },
+	  onLogin: function onLogin(username, password, token) {
+	    var redirect = this.getRedirectUrl();
+	    _user.actions.login(username, password, token, redirect);
+	  },
+	  getRedirectUrl: function getRedirectUrl() {
 	    var loc = this.props.location;
-	    var redirect = cfg.routes.app;
+	    var redirect = _config2.default.routes.app;
 
 	    if (loc.state && loc.state.redirectTo) {
 	      redirect = loc.state.redirectTo;
 	    }
 
-	    actions.login(inputData, redirect);
+	    return redirect;
 	  },
 	  render: function render() {
-	    return React.createElement(
+	    var attemp = this.state.attemp;
+
+	    var authProviders = _config2.default.getAuthProviders();
+	    var authType = _config2.default.getAuthType();
+	    var auth2faType = _config2.default.getAuth2faType();
+
+	    return _react2.default.createElement(
 	      'div',
 	      { className: 'grv-login text-center' },
-	      React.createElement(TeleportLogo, null),
-	      React.createElement(
+	      _react2.default.createElement(_icons.TeleportLogo, null),
+	      _react2.default.createElement(
 	        'div',
 	        { className: 'grv-content grv-flex' },
-	        React.createElement(
+	        _react2.default.createElement(
 	          'div',
 	          { className: 'grv-flex-column' },
-	          React.createElement(LoginInputForm, { attemp: this.state.attemp, onClick: this.onClick }),
-	          React.createElement(GoogleAuthInfo, null),
-	          React.createElement(
-	            'div',
-	            { className: 'grv-login-info' },
-	            React.createElement('i', { className: 'fa fa-question' }),
-	            React.createElement(
-	              'strong',
-	              null,
-	              'New Account or forgot password?'
-	            ),
-	            React.createElement(
-	              'div',
-	              null,
-	              'Ask for assistance from your Company administrator'
-	            )
-	          )
+	          _react2.default.createElement(LoginInputForm, {
+	            authProviders: authProviders,
+	            auth2faType: auth2faType,
+	            authType: authType,
+	            onLoginWithOidc: this.onLoginWithOidc,
+	            onLoginWithU2f: this.onLoginWithU2f,
+	            onLogin: this.onLogin,
+	            attemp: attemp
+	          }),
+	          _react2.default.createElement(LoginFooter, { auth2faType: auth2faType })
 	        )
 	      )
 	    );
 	  }
 	});
 
-	module.exports = Login;
+	var LoginInputForm = _react2.default.createClass({
+	  displayName: 'LoginInputForm',
+	  getInitialState: function getInitialState() {
+	    return {
+	      user: '',
+	      password: '',
+	      token: ''
+	    };
+	  },
+	  onLogin: function onLogin(e) {
+	    e.preventDefault();
+	    if (this.isValid()) {
+	      var _state = this.state,
+	          user = _state.user,
+	          password = _state.password,
+	          token = _state.token;
+
+	      this.props.onLogin(user, password, token);
+	    }
+	  },
+	  onLoginWithU2f: function onLoginWithU2f(e) {
+	    e.preventDefault();
+	    if (this.isValid()) {
+	      var _state2 = this.state,
+	          user = _state2.user,
+	          password = _state2.password;
+
+	      this.props.onLoginWithU2f(user, password);
+	    }
+	  },
+	  onLoginWithOidc: function onLoginWithOidc(providerName) {
+	    this.props.onLoginWithOidc(providerName);
+	  },
+	  isValid: function isValid() {
+	    var $form = (0, _jQuery2.default)(this.refs.form);
+	    return $form.length === 0 || $form.valid();
+	  },
+	  needsCredentials: function needsCredentials() {
+	    return this.props.authType === _enums.AuthTypeEnum.LOCAL || this.needs2fa();
+	  },
+	  needs2fa: function needs2fa() {
+	    return !!this.props.auth2faType && this.props.auth2faType !== _enums.Auth2faTypeEnum.DISABLED;
+	  },
+	  render2faFields: function render2faFields() {
+	    var _this = this;
+
+	    if (!this.needs2fa() || this.props.auth2faType !== _enums.Auth2faTypeEnum.OTP) {
+	      return null;
+	    }
+
+	    return _react2.default.createElement(
+	      'div',
+	      { className: 'form-group' },
+	      _react2.default.createElement('input', {
+	        autoComplete: 'off',
+	        value: this.state.token,
+	        onChange: function onChange(e) {
+	          return _this.onChangeState('token', e.target.value);
+	        },
+	        className: 'form-control required',
+	        name: 'token',
+	        placeholder: 'Two factor token (Google Authenticator)' })
+	    );
+	  },
+	  onChangeState: function onChangeState(propName, value) {
+	    var _setState;
+
+	    this.setState((_setState = {}, _setState[propName] = value, _setState));
+	  },
+	  renderNameAndPassFields: function renderNameAndPassFields() {
+	    var _this2 = this;
+
+	    if (!this.needsCredentials()) {
+	      return null;
+	    }
+
+	    return _react2.default.createElement(
+	      'div',
+	      null,
+	      _react2.default.createElement(
+	        'div',
+	        { className: 'form-group' },
+	        _react2.default.createElement('input', {
+	          autoFocus: true,
+	          value: this.state.user,
+	          onChange: function onChange(e) {
+	            return _this2.onChangeState('user', e.target.value);
+	          },
+	          className: 'form-control required',
+	          placeholder: 'User name',
+	          name: 'userName' })
+	      ),
+	      _react2.default.createElement(
+	        'div',
+	        { className: 'form-group' },
+	        _react2.default.createElement('input', {
+	          value: this.state.password,
+	          onChange: function onChange(e) {
+	            return _this2.onChangeState('password', e.target.value);
+	          },
+	          type: 'password',
+	          name: 'password',
+	          className: 'form-control required',
+	          placeholder: 'Password' })
+	      )
+	    );
+	  },
+	  renderLoginBtn: function renderLoginBtn() {
+	    var isProcessing = this.props.attemp.isProcessing;
+
+	    if (!this.needsCredentials()) {
+	      return null;
+	    }
+
+	    var $helpBlock = isProcessing && this.props.auth2faType === _enums.Auth2faTypeEnum.UTF ? _react2.default.createElement(
+	      'div',
+	      { className: 'help-block' },
+	      'Insert your U2F key and press the button on the key'
+	    ) : null;
+
+	    var onClick = this.props.auth2faType === _enums.Auth2faTypeEnum.UTF ? this.onLoginWithU2f : this.onLogin;
+
+	    return _react2.default.createElement(
+	      'div',
+	      null,
+	      _react2.default.createElement(
+	        'button',
+	        {
+	          onClick: onClick,
+	          disabled: isProcessing,
+	          type: 'submit',
+	          className: 'btn btn-primary block full-width m-b' },
+	        'Login'
+	      ),
+	      $helpBlock
+	    );
+	  },
+	  renderSsoBtns: function renderSsoBtns() {
+	    var _props = this.props,
+	        authType = _props.authType,
+	        authProviders = _props.authProviders,
+	        attemp = _props.attemp;
+
+
+	    if (authType !== _enums.AuthTypeEnum.OIDC) {
+	      return null;
+	    }
+
+	    return _react2.default.createElement(_ssoBtnList.SsoBtnList, {
+	      prefixText: 'Login with ',
+	      isDisabled: attemp.isProcessing,
+	      providers: authProviders,
+	      onClick: this.onLoginWithOidc });
+	  },
+	  render: function render() {
+	    var _props$attemp = this.props.attemp,
+	        isFailed = _props$attemp.isFailed,
+	        message = _props$attemp.message;
+
+	    var $error = isFailed ? _react2.default.createElement(
+	      'label',
+	      { className: 'error' },
+	      message
+	    ) : null;
+
+	    var hasAnyAuth = !!_config2.default.auth;
+
+	    return _react2.default.createElement(
+	      'div',
+	      null,
+	      _react2.default.createElement(
+	        'form',
+	        { ref: 'form', className: 'grv-login-input-form' },
+	        _react2.default.createElement(
+	          'h3',
+	          null,
+	          ' Welcome to Teleport '
+	        ),
+	        !hasAnyAuth ? _react2.default.createElement(
+	          'div',
+	          null,
+	          ' You have no authentication options configured '
+	        ) : _react2.default.createElement(
+	          'div',
+	          null,
+	          this.renderNameAndPassFields(),
+	          this.render2faFields(),
+	          this.renderLoginBtn(),
+	          this.renderSsoBtns(),
+	          $error
+	        )
+	      )
+	    );
+	  }
+	});
+
+	LoginInputForm.propTypes = {
+	  authProvider: _react2.default.PropTypes.string,
+	  auth2faType: _react2.default.PropTypes.string,
+	  authType: _react2.default.PropTypes.string,
+	  onLoginWithOidc: _react2.default.PropTypes.func.isRequired,
+	  onLoginWithU2f: _react2.default.PropTypes.func.isRequired,
+	  onLogin: _react2.default.PropTypes.func.isRequired,
+	  attemp: _react2.default.PropTypes.object.isRequired
+	};
+
+	var LoginFooter = function LoginFooter(_ref) {
+	  var auth2faType = _ref.auth2faType;
+
+	  var $googleHint = auth2faType === _enums.Auth2faTypeEnum.OTP ? _react2.default.createElement(_googleAuthLogo2.default, null) : null;
+	  return _react2.default.createElement(
+	    'div',
+	    null,
+	    $googleHint,
+	    _react2.default.createElement(
+	      'div',
+	      { className: 'grv-login-info' },
+	      _react2.default.createElement('i', { className: 'fa fa-question' }),
+	      _react2.default.createElement(
+	        'strong',
+	        null,
+	        'New Account or forgot password?'
+	      ),
+	      _react2.default.createElement(
+	        'div',
+	        null,
+	        'Ask for assistance from your Company administrator'
+	      )
+	    )
+	  );
+	};
+
+	exports.default = Login;
+	exports.LoginInputForm = LoginInputForm;
 
 /***/ },
-
-/***/ 370:
+/* 380 */,
+/* 381 */,
+/* 382 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -3575,73 +4997,63 @@ webpackJsonp([0],{
 	limitations under the License.
 	*/
 
-	module.exports.getters = __webpack_require__(222);
-	module.exports.actions = __webpack_require__(371);
-	module.exports.nodeStore = __webpack_require__(375);
+	module.exports.getters = __webpack_require__(357);
+	module.exports.actions = __webpack_require__(383);
+	module.exports.nodeStore = __webpack_require__(385);
 
 /***/ },
-
-/***/ 371:
+/* 383 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
-	/*
-	Copyright 2015 Gravitational, Inc.
 
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
+	var _reactor = __webpack_require__(240);
 
-	    http://www.apache.org/licenses/LICENSE-2.0
+	var _reactor2 = _interopRequireDefault(_reactor);
 
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
+	var _actionTypes = __webpack_require__(384);
 
-	var reactor = __webpack_require__(215);
+	var _constants = __webpack_require__(236);
 
-	var _require = __webpack_require__(372),
-	    TLPT_RECEIVE_USER = _require.TLPT_RECEIVE_USER,
-	    TLPT_RECEIVE_USER_INVITE = _require.TLPT_RECEIVE_USER_INVITE;
+	var _actions = __webpack_require__(249);
 
-	var _require2 = __webpack_require__(223),
-	    TRYING_TO_SIGN_UP = _require2.TRYING_TO_SIGN_UP,
-	    TRYING_TO_LOGIN = _require2.TRYING_TO_LOGIN,
-	    FETCHING_INVITE = _require2.FETCHING_INVITE;
+	var _actions2 = _interopRequireDefault(_actions);
 
-	var restApiActions = __webpack_require__(373);
-	var auth = __webpack_require__(227);
-	var session = __webpack_require__(229);
-	var cfg = __webpack_require__(217);
-	var api = __webpack_require__(228);
+	var _auth = __webpack_require__(242);
 
-	var _require3 = __webpack_require__(227),
-	    SECOND_FACTOR_TYPE_OIDC = _require3.SECOND_FACTOR_TYPE_OIDC,
-	    SECOND_FACTOR_TYPE_U2F = _require3.SECOND_FACTOR_TYPE_U2F;
+	var _auth2 = _interopRequireDefault(_auth);
+
+	var _config = __webpack_require__(232);
+
+	var _config2 = _interopRequireDefault(_config);
+
+	var _api = __webpack_require__(243);
+
+	var _api2 = _interopRequireDefault(_api);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 	var actions = {
 	  fetchInvite: function fetchInvite(inviteToken) {
-	    var path = cfg.api.getInviteUrl(inviteToken);
-	    restApiActions.start(FETCHING_INVITE);
-	    api.get(path).done(function (invite) {
-	      restApiActions.success(FETCHING_INVITE);
-	      reactor.dispatch(TLPT_RECEIVE_USER_INVITE, invite);
+	    var path = _config2.default.api.getInviteUrl(inviteToken);
+	    _actions2.default.start(_constants.FETCHING_INVITE);
+	    _api2.default.get(path).done(function (invite) {
+	      _actions2.default.success(_constants.FETCHING_INVITE);
+	      _reactor2.default.dispatch(_actionTypes.TLPT_RECEIVE_USER_INVITE, invite);
 	    }).fail(function (err) {
-	      restApiActions.fail(FETCHING_INVITE, err.responseJSON.message);
+	      var msg = _api2.default.getErrorText(err);
+	      _actions2.default.fail(_constants.FETCHING_INVITE, msg);
 	    });
 	  },
 	  ensureUser: function ensureUser(nextState, replace, cb) {
-	    auth.ensureUser().done(function (userData) {
-	      reactor.dispatch(TLPT_RECEIVE_USER, userData.user);
+	    _auth2.default.ensureUser().done(function (userData) {
+	      _reactor2.default.dispatch(_actionTypes.TLPT_RECEIVE_USER, userData.user);
 	      cb();
 	    }).fail(function () {
 	      var newLocation = {
-	        pathname: cfg.routes.login,
+	        pathname: _config2.default.routes.login,
 	        state: {
 	          redirectTo: nextState.location.pathname
 	        }
@@ -3651,79 +5063,77 @@ webpackJsonp([0],{
 	      cb();
 	    });
 	  },
-	  signUp: function signUp(_ref) {
-	    var name = _ref.name,
-	        psw = _ref.psw,
-	        token = _ref.token,
-	        inviteToken = _ref.inviteToken,
-	        secondFactorType = _ref.secondFactorType;
-
-	    restApiActions.start(TRYING_TO_SIGN_UP);
-
-	    var onSuccess = function onSuccess(sessionData) {
-	      reactor.dispatch(TLPT_RECEIVE_USER, sessionData.user);
-	      restApiActions.success(TRYING_TO_SIGN_UP);
-	      session.getHistory().push({ pathname: cfg.routes.app });
-	    };
-
-	    var onFailure = function onFailure(err) {
-	      var msg = err.responseJSON ? err.responseJSON.message : 'Failed to sign up';
-	      restApiActions.fail(TRYING_TO_SIGN_UP, msg);
-	    };
-
-	    if (secondFactorType == SECOND_FACTOR_TYPE_U2F) {
-	      auth.u2fSignUp(name, psw, inviteToken).done(onSuccess).fail(onFailure);
-	    } else {
-	      auth.signUp(name, psw, token, inviteToken).done(onSuccess).fail(onFailure);
-	    }
+	  signup: function signup(name, psw, token, inviteToken) {
+	    var promise = _auth2.default.signUp(name, psw, token, inviteToken);
+	    actions._handleSignupPromise(promise);
 	  },
-	  login: function login(_ref2, redirect) {
-	    var user = _ref2.user,
-	        password = _ref2.password,
-	        token = _ref2.token,
-	        provider = _ref2.provider,
-	        secondFactorType = _ref2.secondFactorType;
-
-	    if (secondFactorType == SECOND_FACTOR_TYPE_OIDC) {
-	      var fullPath = cfg.getFullUrl(redirect);
-	      window.location = cfg.api.getSsoUrl(fullPath, provider);
-	      return;
-	    }
-
-	    restApiActions.start(TRYING_TO_LOGIN);
-
-	    var onSuccess = function onSuccess(sessionData) {
-	      restApiActions.success(TRYING_TO_LOGIN);
-	      reactor.dispatch(TLPT_RECEIVE_USER, sessionData.user);
-	      session.getHistory().push({ pathname: redirect });
-	    };
-
-	    var onFailure = function onFailure(err) {
-	      var msg = err.responseJSON ? err.responseJSON.message : 'Error';
-	      restApiActions.fail(TRYING_TO_LOGIN, msg);
-	    };
-
-	    if (secondFactorType == SECOND_FACTOR_TYPE_U2F) {
-	      auth.u2fLogin(user, password).done(onSuccess).fail(onFailure);
-	    } else {
-	      auth.login(user, password, token).done(onSuccess).fail(onFailure);
-	    }
+	  signupWithU2f: function signupWithU2f(name, psw, inviteToken) {
+	    var promise = _auth2.default.signUpWithU2f(name, psw, inviteToken);
+	    actions._handleSignupPromise(promise);
+	  },
+	  signupWithOidc: function signupWithOidc(provider, token) {
+	    var redirectUrl = _config2.default.getFullUrl(_config2.default.routes.app);
+	    var url = _config2.default.api.getInviteWithOidcUrl(token, provider, redirectUrl);
+	    _auth2.default.redirect(url);
+	  },
+	  loginWithOidc: function loginWithOidc(provider, redirect) {
+	    var fullPath = _config2.default.getFullUrl(redirect);
+	    _auth2.default.redirect(_config2.default.api.getSsoUrl(fullPath, provider));
+	  },
+	  loginWithU2f: function loginWithU2f(user, password, redirect) {
+	    var promise = _auth2.default.loginWithU2f(user, password);
+	    actions._handleLoginPromise(promise, redirect);
+	  },
+	  login: function login(user, password, token, redirect) {
+	    var promise = _auth2.default.login(user, password, token);
+	    actions._handleLoginPromise(promise, redirect);
+	  },
+	  _handleSignupPromise: function _handleSignupPromise(promise) {
+	    _actions2.default.start(_constants.TRYING_TO_SIGN_UP);
+	    promise.done(function () {
+	      _auth2.default.redirect(_config2.default.routes.app);
+	    }).fail(function (err) {
+	      var msg = _api2.default.getErrorText(err);
+	      _actions2.default.fail(_constants.TRYING_TO_SIGN_UP, msg);
+	    });
+	  },
+	  _handleLoginPromise: function _handleLoginPromise(promise, redirect) {
+	    _actions2.default.start(_constants.TRYING_TO_LOGIN);
+	    promise.done(function () {
+	      _auth2.default.redirect(redirect);
+	    }).fail(function (err) {
+	      var msg = _api2.default.getErrorText(err);
+	      _actions2.default.fail(_constants.TRYING_TO_LOGIN, msg);
+	    });
 	  }
-	};
+	}; /*
+	   Copyright 2015 Gravitational, Inc.
+	   
+	   Licensed under the Apache License, Version 2.0 (the "License");
+	   you may not use this file except in compliance with the License.
+	   You may obtain a copy of the License at
+	   
+	       http://www.apache.org/licenses/LICENSE-2.0
+	   
+	   Unless required by applicable law or agreed to in writing, software
+	   distributed under the License is distributed on an "AS IS" BASIS,
+	   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	   See the License for the specific language governing permissions and
+	   limitations under the License.
+	   */
 
 	exports.default = actions;
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 372:
+/* 384 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _keymirror = __webpack_require__(224);
+	var _keymirror = __webpack_require__(237);
 
 	var _keymirror2 = _interopRequireDefault(_keymirror);
 
@@ -3751,89 +5161,7 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 373:
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-
-	exports.__esModule = true;
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	var reactor = __webpack_require__(215);
-
-	var _require = __webpack_require__(374),
-	    TLPT_REST_API_START = _require.TLPT_REST_API_START,
-	    TLPT_REST_API_SUCCESS = _require.TLPT_REST_API_SUCCESS,
-	    TLPT_REST_API_FAIL = _require.TLPT_REST_API_FAIL;
-
-	exports.default = {
-	  start: function start(reqType) {
-	    reactor.dispatch(TLPT_REST_API_START, { type: reqType });
-	  },
-	  fail: function fail(reqType, message) {
-	    reactor.dispatch(TLPT_REST_API_FAIL, { type: reqType, message: message });
-	  },
-	  success: function success(reqType) {
-	    reactor.dispatch(TLPT_REST_API_SUCCESS, { type: reqType });
-	  }
-	};
-	module.exports = exports['default'];
-
-/***/ },
-
-/***/ 374:
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-
-	exports.__esModule = true;
-
-	var _keymirror = __webpack_require__(224);
-
-	var _keymirror2 = _interopRequireDefault(_keymirror);
-
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-	exports.default = (0, _keymirror2.default)({
-	  TLPT_REST_API_START: null,
-	  TLPT_REST_API_SUCCESS: null,
-	  TLPT_REST_API_FAIL: null
-	}); /*
-	    Copyright 2015 Gravitational, Inc.
-	    
-	    Licensed under the Apache License, Version 2.0 (the "License");
-	    you may not use this file except in compliance with the License.
-	    You may obtain a copy of the License at
-	    
-	        http://www.apache.org/licenses/LICENSE-2.0
-	    
-	    Unless required by applicable law or agreed to in writing, software
-	    distributed under the License is distributed on an "AS IS" BASIS,
-	    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	    See the License for the specific language governing permissions and
-	    limitations under the License.
-	    */
-
-	module.exports = exports['default'];
-
-/***/ },
-
-/***/ 375:
+/* 385 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -3856,11 +5184,11 @@ webpackJsonp([0],{
 	limitations under the License.
 	*/
 
-	var _require = __webpack_require__(216),
+	var _require = __webpack_require__(241),
 	    Store = _require.Store,
 	    toImmutable = _require.toImmutable;
 
-	var _require2 = __webpack_require__(372),
+	var _require2 = __webpack_require__(384),
 	    TLPT_RECEIVE_USER = _require2.TLPT_RECEIVE_USER;
 
 	exports.default = Store({
@@ -3879,11 +5207,256 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 376:
+/* 386 */
 /***/ function(module, exports, __webpack_require__) {
 
 	"use strict";
+
+	exports.__esModule = true;
+
+	var _react = __webpack_require__(2);
+
+	var _react2 = _interopRequireDefault(_react);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	var GoogleAuthInfo = function GoogleAuthInfo() {
+	  return _react2.default.createElement(
+	    "div",
+	    { className: "grv-google-auth text-left" },
+	    _react2.default.createElement("div", { className: "grv-icon-google-auth" }),
+	    _react2.default.createElement(
+	      "strong",
+	      null,
+	      "Google Authenticator"
+	    ),
+	    _react2.default.createElement(
+	      "div",
+	      null,
+	      "Download",
+	      _react2.default.createElement(
+	        "a",
+	        { href: "https://support.google.com/accounts/answer/1066447?hl=en" },
+	        _react2.default.createElement(
+	          "span",
+	          null,
+	          " Google Authenticator "
+	        )
+	      ),
+	      "on your phone to access your two factor token"
+	    )
+	  );
+	}; /*
+	   Copyright 2015 Gravitational, Inc.
+	   
+	   Licensed under the Apache License, Version 2.0 (the "License");
+	   you may not use this file except in compliance with the License.
+	   You may obtain a copy of the License at
+	   
+	       http://www.apache.org/licenses/LICENSE-2.0
+	   
+	   Unless required by applicable law or agreed to in writing, software
+	   distributed under the License is distributed on an "AS IS" BASIS,
+	   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	   See the License for the specific language governing permissions and
+	   limitations under the License.
+	   */
+
+	exports.default = GoogleAuthInfo;
+	module.exports = exports['default'];
+
+/***/ },
+/* 387 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	exports.__esModule = true;
+	exports.SsoBtnList = undefined;
+
+	var _react = __webpack_require__(2);
+
+	var _react2 = _interopRequireDefault(_react);
+
+	var _classnames = __webpack_require__(359);
+
+	var _classnames2 = _interopRequireDefault(_classnames);
+
+	var _enums = __webpack_require__(388);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	var ProviderIcon = function ProviderIcon(_ref) {
+	  var type = _ref.type;
+
+
+	  var iconClass = (0, _classnames2.default)('fa', {
+	    'fa-google': type === _enums.AuthProviderEnum.GOOGLE,
+	    'fa-windows': type === _enums.AuthProviderEnum.MS,
+	    'fa-github': type === _enums.AuthProviderEnum.GITHUB,
+	    'fa-bitbucket': type === _enums.AuthProviderEnum.BITBUCKET
+	  });
+
+	  if (iconClass === 'fa') {
+	    iconClass = iconClass + ' fa-openid';
+	  }
+
+	  return _react2.default.createElement(
+	    'div',
+	    { className: '--sso-icon' },
+	    _react2.default.createElement('span', { className: iconClass })
+	  );
+	};
+
+	var getProviderBtnClass = function getProviderBtnClass(type) {
+	  switch (type) {
+	    case _enums.AuthProviderEnum.BITBUCKET:
+	      return 'btn-bitbucket';
+	    case _enums.AuthProviderEnum.GITHUB:
+	      return 'btn-github';
+	    case _enums.AuthProviderEnum.MS:
+	      return 'btn-microsoft';
+	    case _enums.AuthProviderEnum.GOOGLE:
+	      return 'btn-google';
+	    default:
+	      return 'btn-openid';
+	  }
+	};
+
+	var SsoBtnList = function SsoBtnList(_ref2) {
+	  var providers = _ref2.providers,
+	      prefixText = _ref2.prefixText,
+	      isDisabled = _ref2.isDisabled,
+	      _onClick = _ref2.onClick;
+
+	  var $btns = providers.map(function (item, index) {
+	    var name = item.name,
+	        display = item.display;
+
+	    display = display || name;
+	    var title = prefixText + ' ' + display;
+	    var providerBtnClass = getProviderBtnClass(name);
+	    var btnClass = 'btn grv-user-btn-sso full-width ' + providerBtnClass;
+	    return _react2.default.createElement(
+	      'button',
+	      { key: index,
+	        disabled: isDisabled,
+	        className: btnClass,
+	        onClick: function onClick(e) {
+	          e.preventDefault();_onClick(name);
+	        } },
+	      _react2.default.createElement(ProviderIcon, { type: name }),
+	      _react2.default.createElement(
+	        'span',
+	        null,
+	        title
+	      )
+	    );
+	  });
+
+	  if ($btns.length === 0) {
+	    return _react2.default.createElement(
+	      'h4',
+	      null,
+	      ' You have no configured OIDC providers '
+	    );
+	  }
+
+	  return _react2.default.createElement(
+	    'div',
+	    null,
+	    ' ',
+	    $btns,
+	    ' '
+	  );
+	};
+
+	exports.SsoBtnList = SsoBtnList;
+
+/***/ },
+/* 388 */
+/***/ function(module, exports) {
+
+	'use strict';
+
+	exports.__esModule = true;
+	exports.default = {
+
+	  EventTypeEnum: {
+	    START: 'session.start',
+	    END: 'session.end'
+	  },
+
+	  AuthTypeEnum: {
+	    LOCAL: 'local',
+	    OIDC: 'oidc',
+	    LDAP: 'ldap'
+	  },
+
+	  Auth2faTypeEnum: {
+	    UTF: 'u2f',
+	    OTP: 'otp',
+	    DISABLED: 'off'
+	  },
+
+	  AuthProviderEnum: {
+	    GOOGLE: 'google',
+	    MS: 'microsoft',
+	    GITHUB: 'github',
+	    BITBUCKET: 'bitbucket'
+	  }
+
+	};
+	module.exports = exports['default'];
+
+/***/ },
+/* 389 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	exports.__esModule = true;
+	exports.InviteInputForm = undefined;
+
+	var _react = __webpack_require__(2);
+
+	var _react2 = _interopRequireDefault(_react);
+
+	var _jQuery = __webpack_require__(227);
+
+	var _jQuery2 = _interopRequireDefault(_jQuery);
+
+	var _classnames = __webpack_require__(359);
+
+	var _classnames2 = _interopRequireDefault(_classnames);
+
+	var _reactor = __webpack_require__(240);
+
+	var _reactor2 = _interopRequireDefault(_reactor);
+
+	var _config = __webpack_require__(232);
+
+	var _config2 = _interopRequireDefault(_config);
+
+	var _user = __webpack_require__(382);
+
+	var _reactAddonsLinkedStateMixin = __webpack_require__(390);
+
+	var _reactAddonsLinkedStateMixin2 = _interopRequireDefault(_reactAddonsLinkedStateMixin);
+
+	var _enums = __webpack_require__(388);
+
+	var _msgPage = __webpack_require__(377);
+
+	var _icons = __webpack_require__(358);
+
+	var _ssoBtnList = __webpack_require__(387);
+
+	var _googleAuthLogo = __webpack_require__(386);
+
+	var _googleAuthLogo2 = _interopRequireDefault(_googleAuthLogo);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 	/*
 	Copyright 2015 Gravitational, Inc.
@@ -3901,92 +5474,98 @@ webpackJsonp([0],{
 	limitations under the License.
 	*/
 
-	var React = __webpack_require__(2);
+	var U2F_HELP_URL = 'https://support.google.com/accounts/answer/6103523?hl=en';
 
-	var GoogleAuthInfo = React.createClass({
-	  displayName: "GoogleAuthInfo",
+	var needs2fa = function needs2fa(auth2faType) {
+	  return !!auth2faType && auth2faType !== _enums.Auth2faTypeEnum.DISABLED;
+	};
+
+	var Invite = _react2.default.createClass({
+	  displayName: 'Invite',
+
+
+	  mixins: [_reactor2.default.ReactMixin],
+
+	  getDataBindings: function getDataBindings() {
+	    return {
+	      invite: _user.getters.invite,
+	      attemp: _user.getters.attemp,
+	      fetchingInvite: _user.getters.fetchingInvite
+	    };
+	  },
+	  componentDidMount: function componentDidMount() {
+	    _user.actions.fetchInvite(this.props.params.inviteToken);
+	  },
+	  onSignupWithOidc: function onSignupWithOidc(providerName) {
+	    _user.actions.signupWithOidc(providerName, this.props.params.inviteToken);
+	  },
+	  onSignupWithU2f: function onSignupWithU2f(username, password) {
+	    _user.actions.signupWithU2F(username, password, this.props.params.inviteToken);
+	  },
+	  onSignup: function onSignup(username, password, token) {
+	    _user.actions.signup(username, password, token, this.props.params.inviteToken);
+	  },
 	  render: function render() {
-	    return React.createElement(
-	      "div",
-	      { className: "grv-google-auth text-left" },
-	      React.createElement("div", { className: "grv-icon-google-auth" }),
-	      React.createElement(
-	        "strong",
-	        null,
-	        "Google Authenticator"
-	      ),
-	      React.createElement(
-	        "div",
-	        null,
-	        "Download ",
-	        React.createElement(
-	          "a",
-	          { href: "https://support.google.com/accounts/answer/1066447?hl=en" },
-	          "Google Authenticator"
+	    var _state = this.state,
+	        fetchingInvite = _state.fetchingInvite,
+	        invite = _state.invite,
+	        attemp = _state.attemp;
+
+
+	    var providers = _config2.default.getAuthProviders();
+	    var authType = _config2.default.getAuthType();
+	    var auth2faType = _config2.default.getAuth2faType();
+
+	    if (fetchingInvite.isFailed) {
+	      return _react2.default.createElement(_msgPage.ErrorPage, { type: _msgPage.ErrorTypes.EXPIRED_INVITE });
+	    }
+
+	    if (!invite) {
+	      return null;
+	    }
+
+	    var containerClass = (0, _classnames2.default)('grv-invite-content grv-flex', {
+	      '---with-2fa-data': needs2fa(auth2faType)
+	    });
+
+	    return _react2.default.createElement(
+	      'div',
+	      { className: 'grv-invite text-center' },
+	      _react2.default.createElement(_icons.TeleportLogo, null),
+	      _react2.default.createElement(
+	        'div',
+	        { className: containerClass },
+	        _react2.default.createElement(
+	          'div',
+	          { className: 'grv-flex-column' },
+	          _react2.default.createElement(InviteInputForm, {
+	            authProviders: providers,
+	            auth2faType: auth2faType,
+	            authType: authType,
+	            attemp: attemp,
+	            invite: invite,
+	            onSignupWithOidc: this.onSignupWithOidc,
+	            onSignupWithU2f: this.onSignupWithU2f,
+	            onSignup: this.onSignup
+	          }),
+	          _react2.default.createElement(InviteFooter, { auth2faType: auth2faType })
 	        ),
-	        " on your phone to access your two factor token"
+	        _react2.default.createElement(Invite2faData, {
+	          auth2faType: auth2faType,
+	          qr: invite.qr })
 	      )
 	    );
 	  }
 	});
 
-	module.exports = GoogleAuthInfo;
-
-/***/ },
-
-/***/ 377:
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	var React = __webpack_require__(2);
-	var $ = __webpack_require__(219);
-	var reactor = __webpack_require__(215);
-
-	var _require = __webpack_require__(370),
-	    actions = _require.actions,
-	    getters = _require.getters;
-
-	var LinkedStateMixin = __webpack_require__(366);
-	var GoogleAuthInfo = __webpack_require__(376);
-
-	var _require2 = __webpack_require__(378),
-	    ErrorPage = _require2.ErrorPage,
-	    ErrorTypes = _require2.ErrorTypes;
-
-	var _require3 = __webpack_require__(341),
-	    TeleportLogo = _require3.TeleportLogo;
-
-	var _require4 = __webpack_require__(227),
-	    SECOND_FACTOR_TYPE_HOTP = _require4.SECOND_FACTOR_TYPE_HOTP,
-	    SECOND_FACTOR_TYPE_U2F = _require4.SECOND_FACTOR_TYPE_U2F;
-
-	var cfg = __webpack_require__(217);
-
-	var InviteInputForm = React.createClass({
+	var InviteInputForm = _react2.default.createClass({
 	  displayName: 'InviteInputForm',
 
 
-	  mixins: [LinkedStateMixin],
+	  mixins: [_reactAddonsLinkedStateMixin2.default],
 
 	  componentDidMount: function componentDidMount() {
-	    $(this.refs.form).validate({
+	    (0, _jQuery2.default)(this.refs.form).validate({
 	      rules: {
 	        password: {
 	          minlength: 6,
@@ -4000,7 +5579,7 @@ webpackJsonp([0],{
 
 	      messages: {
 	        passwordConfirmed: {
-	          minlength: $.validator.format('Enter at least {0} characters'),
+	          minlength: _jQuery2.default.validator.format('Enter at least {0} characters'),
 	          equalTo: 'Enter the same password as above'
 	        }
 	      }
@@ -4008,458 +5587,328 @@ webpackJsonp([0],{
 	  },
 	  getInitialState: function getInitialState() {
 	    return {
-	      name: this.props.invite.user,
-	      psw: '',
-	      pswConfirmed: '',
-	      token: '',
-	      secondFactorType: SECOND_FACTOR_TYPE_HOTP
+	      userName: this.props.invite.user,
+	      password: '',
+	      passwordConfirmed: '',
+	      token: ''
 	    };
 	  },
-	  onClick: function onClick(e) {
+	  onSignup: function onSignup(e) {
 	    e.preventDefault();
 	    if (this.isValid()) {
-	      actions.signUp({
-	        name: this.state.name,
-	        psw: this.state.psw,
-	        token: this.state.token,
-	        inviteToken: this.props.invite.invite_token,
-	        secondFactorType: this.state.secondFactorType });
+	      var _state2 = this.state,
+	          userName = _state2.userName,
+	          password = _state2.password,
+	          token = _state2.token;
+
+	      this.props.onSignup(userName, password, token);
 	    }
 	  },
+	  onSignupWithU2f: function onSignupWithU2f(e) {
+	    e.preventDefault();
+	    if (this.isValid()) {
+	      var _state3 = this.state,
+	          userName = _state3.userName,
+	          password = _state3.password;
+
+	      this.props.onSignupWithU2f(userName, password);
+	    }
+	  },
+	  onSignupWithOidc: function onSignupWithOidc(providerName) {
+	    this.props.onSignupWithOidc(providerName);
+	  },
 	  isValid: function isValid() {
-	    var $form = $(this.refs.form);
+	    var $form = (0, _jQuery2.default)(this.refs.form);
 	    return $form.length === 0 || $form.valid();
 	  },
-	  onSecondFactorTypeChanged: function onSecondFactorTypeChanged(e) {
-	    var type = e.currentTarget.value;
-	    this.setState({
-	      secondFactorType: type
-	    });
-	    this.props.set2FType(type);
+	  onChangeState: function onChangeState(propName, value) {
+	    var _setState;
+
+	    this.setState((_setState = {}, _setState[propName] = value, _setState));
+	  },
+	  needsCredentials: function needsCredentials() {
+	    return this.props.authType === _enums.AuthTypeEnum.LOCAL || needs2fa(this.props.auth2faType);
+	  },
+	  renderNameAndPassFields: function renderNameAndPassFields() {
+	    var _this = this;
+
+	    if (!this.needsCredentials()) {
+	      return null;
+	    }
+
+	    return _react2.default.createElement(
+	      'div',
+	      null,
+	      _react2.default.createElement(
+	        'div',
+	        { className: 'form-group' },
+	        _react2.default.createElement('input', {
+	          disabled: true,
+	          autoFocus: true,
+	          value: this.state.userName,
+	          onChange: function onChange(e) {
+	            return _this.onChangeState('userName', e.target.value);
+	          },
+	          className: 'form-control required',
+	          placeholder: 'User name',
+	          name: 'userName' })
+	      ),
+	      _react2.default.createElement(
+	        'div',
+	        { className: 'form-group' },
+	        _react2.default.createElement('input', {
+	          value: this.state.password,
+	          onChange: function onChange(e) {
+	            return _this.onChangeState('password', e.target.value);
+	          },
+	          type: 'password',
+	          name: 'password',
+	          className: 'form-control required',
+	          placeholder: 'Password' })
+	      ),
+	      _react2.default.createElement(
+	        'div',
+	        { className: 'form-group' },
+	        _react2.default.createElement('input', {
+	          value: this.state.passwordConfirmed,
+	          onChange: function onChange(e) {
+	            return _this.onChangeState('passwordConfirmed', e.target.value);
+	          },
+	          type: 'password',
+	          name: 'passwordConfirmed',
+	          className: 'form-control',
+	          placeholder: 'Password confirm' })
+	      )
+	    );
+	  },
+	  render2faFields: function render2faFields() {
+	    var _this2 = this;
+
+	    var auth2faType = this.props.auth2faType;
+
+	    if (!needs2fa(auth2faType) || auth2faType !== _enums.Auth2faTypeEnum.OTP) {
+	      return null;
+	    }
+
+	    return _react2.default.createElement(
+	      'div',
+	      { className: 'form-group' },
+	      _react2.default.createElement('input', {
+	        autoComplete: 'off',
+	        value: this.state.token,
+	        onChange: function onChange(e) {
+	          return _this2.onChangeState('token', e.target.value);
+	        },
+	        className: 'form-control required',
+	        name: 'token',
+	        placeholder: 'Two factor token (Google Authenticator)' })
+	    );
+	  },
+	  renderSignupBtn: function renderSignupBtn() {
+	    var isProcessing = this.props.attemp.isProcessing;
+
+	    if (!this.needsCredentials()) {
+	      return null;
+	    }
+
+	    var $helpBlock = isProcessing && this.props.auth2faType === _enums.Auth2faTypeEnum.UTF ? _react2.default.createElement(
+	      'div',
+	      { className: 'help-block' },
+	      'Insert your U2F key and press the button on the key'
+	    ) : null;
+
+	    var onClick = this.props.auth2faType === _enums.Auth2faTypeEnum.UTF ? this.onSignupWithU2f : this.onSignup;
+
+	    return _react2.default.createElement(
+	      'div',
+	      null,
+	      _react2.default.createElement(
+	        'button',
+	        {
+	          onClick: onClick,
+	          disabled: isProcessing,
+	          type: 'submit',
+	          className: 'btn btn-primary block full-width m-b' },
+	        'Sign up'
+	      ),
+	      $helpBlock
+	    );
+	  },
+	  renderSsoBtns: function renderSsoBtns() {
+	    var _props = this.props,
+	        authType = _props.authType,
+	        authProviders = _props.authProviders,
+	        attemp = _props.attemp;
+
+
+	    if (authType !== _enums.AuthTypeEnum.OIDC) {
+	      return null;
+	    }
+
+	    return _react2.default.createElement(_ssoBtnList.SsoBtnList, {
+	      prefixText: 'Sign up with ',
+	      isDisabled: attemp.isProcessing,
+	      providers: authProviders,
+	      onClick: this.onSignupWithOidc });
 	  },
 	  render: function render() {
 	    var _props$attemp = this.props.attemp,
-	        isProcessing = _props$attemp.isProcessing,
 	        isFailed = _props$attemp.isFailed,
 	        message = _props$attemp.message;
 
-	    var useU2f = !!cfg.getU2fAppId();
-	    return React.createElement(
+	    var $error = isFailed ? _react2.default.createElement(
+	      'label',
+	      { className: 'error' },
+	      message
+	    ) : null;
+
+	    return _react2.default.createElement(
 	      'form',
 	      { ref: 'form', className: 'grv-invite-input-form' },
-	      React.createElement(
+	      _react2.default.createElement(
 	        'h3',
 	        null,
 	        ' Get started with Teleport '
 	      ),
-	      React.createElement(
-	        'div',
-	        { className: '' },
-	        React.createElement(
-	          'div',
-	          { className: 'form-group' },
-	          React.createElement('input', {
-	            disabled: true,
-	            valueLink: this.linkState('name'),
-	            name: 'userName',
-	            className: 'form-control required',
-	            placeholder: 'User name' })
-	        ),
-	        React.createElement(
-	          'div',
-	          { className: 'form-group' },
-	          React.createElement('input', {
-	            autoFocus: true,
-	            valueLink: this.linkState('psw'),
-	            ref: 'password',
-	            type: 'password',
-	            name: 'password',
-	            className: 'form-control',
-	            placeholder: 'Password' })
-	        ),
-	        React.createElement(
-	          'div',
-	          { className: 'form-group' },
-	          React.createElement('input', {
-	            valueLink: this.linkState('pswConfirmed'),
-	            type: 'password',
-	            name: 'passwordConfirmed',
-	            className: 'form-control',
-	            placeholder: 'Password confirm' })
-	        ),
-	        useU2f ? React.createElement(
-	          'div',
-	          { className: 'form-group' },
-	          React.createElement('input', {
-	            type: 'radio',
-	            value: SECOND_FACTOR_TYPE_HOTP,
-	            checked: this.state.secondFactorType == SECOND_FACTOR_TYPE_HOTP,
-	            onChange: this.onSecondFactorTypeChanged }),
-	          'Google Authenticator',
-	          React.createElement('input', {
-	            type: 'radio',
-	            value: SECOND_FACTOR_TYPE_U2F,
-	            checked: this.state.secondFactorType == SECOND_FACTOR_TYPE_U2F,
-	            onChange: this.onSecondFactorTypeChanged }),
-	          'U2F'
-	        ) : null,
-	        this.state.secondFactorType == SECOND_FACTOR_TYPE_HOTP ? React.createElement(
-	          'div',
-	          { className: 'form-group' },
-	          React.createElement('input', {
-	            autoComplete: 'off',
-	            name: 'token',
-	            valueLink: this.linkState('token'),
-	            className: 'form-control required',
-	            placeholder: 'Two factor token (Google Authenticator)' })
-	        ) : null,
-	        React.createElement(
-	          'button',
-	          { type: 'submit', disabled: isProcessing, className: 'btn btn-primary block full-width m-b', onClick: this.onClick },
-	          'Sign up'
-	        ),
-	        isFailed ? React.createElement(
-	          'label',
-	          { className: 'error' },
-	          message
-	        ) : null
-	      )
+	      this.renderNameAndPassFields(),
+	      this.render2faFields(),
+	      this.renderSignupBtn(),
+	      this.renderSsoBtns(),
+	      $error
 	    );
 	  }
 	});
 
-	var Invite = React.createClass({
-	  displayName: 'Invite',
+	var Invite2faData = function Invite2faData(_ref) {
+	  var auth2faType = _ref.auth2faType,
+	      qr = _ref.qr;
 
+	  if (!needs2fa(auth2faType)) {
+	    return null;
+	  }
 
-	  mixins: [reactor.ReactMixin],
-
-	  getDataBindings: function getDataBindings() {
-	    return {
-	      invite: getters.invite,
-	      attemp: getters.attemp,
-	      fetchingInvite: getters.fetchingInvite
-	    };
-	  },
-	  componentDidMount: function componentDidMount() {
-	    actions.fetchInvite(this.props.params.inviteToken);
-	  },
-	  getInitialState: function getInitialState() {
-	    return {
-	      secondFactorType: SECOND_FACTOR_TYPE_HOTP
-	    };
-	  },
-	  setSecondFactorType: function setSecondFactorType(type) {
-	    this.setState({
-	      secondFactorType: type
-	    });
-	  },
-
-
-	  render: function render() {
-	    var _state = this.state,
-	        fetchingInvite = _state.fetchingInvite,
-	        invite = _state.invite,
-	        attemp = _state.attemp;
-
-
-	    if (fetchingInvite.isFailed) {
-	      return React.createElement(ErrorPage, { type: ErrorTypes.EXPIRED_INVITE });
-	    }
-
-	    if (!invite) {
-	      return null;
-	    }
-
-	    return React.createElement(
+	  if (auth2faType === _enums.Auth2faTypeEnum.OTP) {
+	    return _react2.default.createElement(
 	      'div',
-	      { className: 'grv-invite text-center' },
-	      React.createElement(TeleportLogo, null),
-	      React.createElement(
+	      { className: 'grv-flex-column grv-invite-barcode' },
+	      _react2.default.createElement(
+	        'h4',
+	        null,
+	        'Scan bar code for auth token ',
+	        _react2.default.createElement('br', null),
+	        _react2.default.createElement(
+	          'small',
+	          null,
+	          'Scan below to generate your two factor token'
+	        )
+	      ),
+	      _react2.default.createElement('img', { className: 'img-thumbnail', src: 'data:image/png;base64,' + qr })
+	    );
+	  }
+
+	  if (auth2faType === _enums.Auth2faTypeEnum.UTF) {
+	    return _react2.default.createElement(
+	      'div',
+	      { className: 'grv-flex-column' },
+	      _react2.default.createElement(
+	        'h3',
+	        null,
+	        'Insert your U2F key '
+	      ),
+	      _react2.default.createElement(
 	        'div',
-	        { className: 'grv-content grv-flex' },
-	        React.createElement(
-	          'div',
-	          { className: 'grv-flex-column' },
-	          React.createElement(InviteInputForm, { attemp: attemp, invite: invite.toJS(), set2FType: this.setSecondFactorType }),
-	          React.createElement(GoogleAuthInfo, null)
-	        ),
-	        this.state.secondFactorType == SECOND_FACTOR_TYPE_HOTP ? React.createElement(
-	          'div',
-	          { className: 'grv-flex-column grv-invite-barcode' },
-	          React.createElement(
-	            'h4',
-	            null,
-	            'Scan bar code for auth token ',
-	            React.createElement('br', null),
-	            ' ',
-	            React.createElement(
-	              'small',
-	              null,
-	              'Scan below to generate your two factor token'
-	            )
+	        { className: 'm-t-md' },
+	        'Press the button on the U2F key after you press the sign up button'
+	      ),
+	      _react2.default.createElement(
+	        'div',
+	        { className: 'm-t text-muted' },
+	        _react2.default.createElement(
+	          'small',
+	          null,
+	          'Click',
+	          _react2.default.createElement(
+	            'a',
+	            { href: U2F_HELP_URL },
+	            ' here '
 	          ),
-	          React.createElement('img', { className: 'img-thumbnail', src: 'data:image/png;base64,' + invite.get('qr') })
-	        ) : React.createElement(
-	          'div',
-	          { className: 'grv-flex-column' },
-	          React.createElement(
-	            'h4',
-	            null,
-	            'Insert your U2F key ',
-	            React.createElement('br', null),
-	            ' ',
-	            React.createElement(
-	              'small',
-	              null,
-	              'Press the button on the U2F key after you press the sign up button'
-	            )
-	          )
+	          'to learn more about U2F 2-Step Verification.'
 	        )
 	      )
 	    );
 	  }
-	});
 
-	module.exports = Invite;
+	  return null;
+	};
+
+	InviteInputForm.propTypes = {
+	  authProvider: _react2.default.PropTypes.string,
+	  auth2faType: _react2.default.PropTypes.string,
+	  authType: _react2.default.PropTypes.string,
+	  onSignupWithOidc: _react2.default.PropTypes.func.isRequired,
+	  onSignupWithU2f: _react2.default.PropTypes.func.isRequired,
+	  onSignup: _react2.default.PropTypes.func.isRequired,
+	  attemp: _react2.default.PropTypes.object.isRequired
+	};
+
+	var InviteFooter = function InviteFooter(_ref2) {
+	  var auth2faType = _ref2.auth2faType;
+
+	  var $googleHint = auth2faType === _enums.Auth2faTypeEnum.OTP ? _react2.default.createElement(_googleAuthLogo2.default, null) : null;
+	  return _react2.default.createElement(
+	    'div',
+	    null,
+	    $googleHint
+	  );
+	};
+
+	exports.default = Invite;
+	exports.InviteInputForm = InviteInputForm;
 
 /***/ },
-
-/***/ 378:
+/* 390 */,
+/* 391 */,
+/* 392 */,
+/* 393 */,
+/* 394 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
-	/*
-	Copyright 2015 Gravitational, Inc.
 
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
+	var _react = __webpack_require__(2);
 
-	    http://www.apache.org/licenses/LICENSE-2.0
+	var _react2 = _interopRequireDefault(_react);
 
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
+	var _reactor = __webpack_require__(240);
 
-	var React = __webpack_require__(2);
+	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var MSG_INFO_LOGIN_SUCCESS = 'Login was successful, you can close this window and continue using tsh.';
-	var MSG_ERROR_LOGIN_FAILED = 'Login unsuccessful. Please try again, if the problem persists, contact your system administator.';
-	var MSG_ERROR_DEFAULT = 'Whoops, something went wrong.';
+	var _getters = __webpack_require__(357);
 
-	var MSG_ERROR_NOT_FOUND = 'Whoops, we cannot find that.';
-	var MSG_ERROR_NOT_FOUND_DETAILS = 'Looks like the page you are looking for isn\'t here any longer.';
+	var _getters2 = _interopRequireDefault(_getters);
 
-	var MSG_ERROR_EXPIRED_INVITE = 'Invite code has expired.';
-	var MSG_ERROR_EXPIRED_INVITE_DETAILS = 'Looks like your invite code isn\'t valid anymore.';
+	var _getters3 = __webpack_require__(395);
 
-	var MsgType = {
-	  INFO: 'info',
-	  ERROR: 'error'
-	};
+	var _getters4 = _interopRequireDefault(_getters3);
 
-	var ErrorTypes = {
-	  FAILED_TO_LOGIN: 'login_failed',
-	  EXPIRED_INVITE: 'expired_invite',
-	  NOT_FOUND: 'not_found'
-	};
+	var _nodeList = __webpack_require__(396);
 
-	var InfoTypes = {
-	  LOGIN_SUCCESS: 'login_success'
-	};
+	var _nodeList2 = _interopRequireDefault(_nodeList);
 
-	var MessagePage = React.createClass({
-	  displayName: 'MessagePage',
-	  render: function render() {
-	    var _props$params = this.props.params,
-	        type = _props$params.type,
-	        subType = _props$params.subType;
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-	    if (type === MsgType.ERROR) {
-	      return React.createElement(ErrorPage, { type: subType });
-	    }
-
-	    if (type === MsgType.INFO) {
-	      return React.createElement(InfoPage, { type: subType });
-	    }
-
-	    return null;
-	  }
-	});
-
-	var ErrorPage = React.createClass({
-	  displayName: 'ErrorPage',
-	  render: function render() {
-	    var type = this.props.type;
-
-	    var msgBody = React.createElement(
-	      'div',
-	      null,
-	      React.createElement(
-	        'h1',
-	        null,
-	        MSG_ERROR_DEFAULT
-	      )
-	    );
-
-	    if (type === ErrorTypes.FAILED_TO_LOGIN) {
-	      msgBody = React.createElement(
-	        'div',
-	        null,
-	        React.createElement(
-	          'h1',
-	          null,
-	          MSG_ERROR_LOGIN_FAILED
-	        )
-	      );
-	    }
-
-	    if (type === ErrorTypes.EXPIRED_INVITE) {
-	      msgBody = React.createElement(
-	        'div',
-	        null,
-	        React.createElement(
-	          'h1',
-	          null,
-	          MSG_ERROR_EXPIRED_INVITE
-	        ),
-	        React.createElement(
-	          'div',
-	          null,
-	          MSG_ERROR_EXPIRED_INVITE_DETAILS
-	        )
-	      );
-	    }
-
-	    if (type === ErrorTypes.NOT_FOUND) {
-	      msgBody = React.createElement(
-	        'div',
-	        null,
-	        React.createElement(
-	          'h1',
-	          null,
-	          MSG_ERROR_NOT_FOUND
-	        ),
-	        React.createElement(
-	          'div',
-	          null,
-	          MSG_ERROR_NOT_FOUND_DETAILS
-	        )
-	      );
-	    }
-
-	    return React.createElement(
-	      'div',
-	      { className: 'grv-msg-page' },
-	      React.createElement(
-	        'div',
-	        { className: 'grv-header' },
-	        React.createElement('i', { className: 'fa fa-frown-o' }),
-	        ' '
-	      ),
-	      msgBody,
-	      React.createElement(
-	        'div',
-	        { className: 'contact-section' },
-	        'If you believe this is an issue with Teleport, please ',
-	        React.createElement(
-	          'a',
-	          { href: 'https://github.com/gravitational/teleport/issues/new' },
-	          'create a GitHub issue.'
-	        )
-	      )
-	    );
-	  }
-	});
-
-	var InfoPage = React.createClass({
-	  displayName: 'InfoPage',
-	  render: function render() {
-	    var type = this.props.type;
-
-	    var msgBody = null;
-
-	    if (type === InfoTypes.LOGIN_SUCCESS) {
-	      msgBody = React.createElement(
-	        'div',
-	        null,
-	        React.createElement(
-	          'h1',
-	          null,
-	          MSG_INFO_LOGIN_SUCCESS
-	        )
-	      );
-	    }
-
-	    return React.createElement(
-	      'div',
-	      { className: 'grv-msg-page' },
-	      React.createElement(
-	        'div',
-	        { className: 'grv-header' },
-	        React.createElement('i', { className: 'fa fa-smile-o' }),
-	        ' '
-	      ),
-	      msgBody
-	    );
-	  }
-	});
-
-	var NotFound = function NotFound() {
-	  return React.createElement(ErrorPage, { type: ErrorTypes.NOT_FOUND });
-	};
-
-	exports.ErrorPage = ErrorPage;
-	exports.InfoPage = InfoPage;
-	exports.NotFound = NotFound;
-	exports.ErrorTypes = ErrorTypes;
-	exports.MessagePage = MessagePage;
-
-/***/ },
-
-/***/ 379:
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	var React = __webpack_require__(2);
-	var reactor = __webpack_require__(215);
-	var userGetters = __webpack_require__(222);
-	var nodeGetters = __webpack_require__(380);
-	var NodeList = __webpack_require__(381);
-
-	var Nodes = React.createClass({
+	var Nodes = _react2.default.createClass({
 	  displayName: 'Nodes',
 
 
-	  mixins: [reactor.ReactMixin],
+	  mixins: [_reactor2.default.ReactMixin],
 
 	  getDataBindings: function getDataBindings() {
 	    return {
-	      nodeRecords: nodeGetters.nodeListView,
-	      user: userGetters.user
+	      nodeRecords: _getters4.default.nodeListView,
+	      user: _getters2.default.user
 	    };
 	  },
 	  render: function render() {
@@ -4470,10 +5919,10 @@ webpackJsonp([0],{
 	        siteId = _state.siteId;
 	    var logins = user.logins;
 
-	    return React.createElement(
+	    return _react2.default.createElement(
 	      'div',
 	      { className: 'grv-page' },
-	      React.createElement(NodeList, {
+	      _react2.default.createElement(_nodeList2.default, {
 	        siteId: siteId,
 	        sites: sites,
 	        nodeRecords: nodeRecords,
@@ -4481,13 +5930,27 @@ webpackJsonp([0],{
 	      })
 	    );
 	  }
-	});
+	}); /*
+	    Copyright 2015 Gravitational, Inc.
+	    
+	    Licensed under the Apache License, Version 2.0 (the "License");
+	    you may not use this file except in compliance with the License.
+	    You may obtain a copy of the License at
+	    
+	        http://www.apache.org/licenses/LICENSE-2.0
+	    
+	    Unless required by applicable law or agreed to in writing, software
+	    distributed under the License is distributed on an "AS IS" BASIS,
+	    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	    See the License for the specific language governing permissions and
+	    limitations under the License.
+	    */
 
-	module.exports = Nodes;
+	exports.default = Nodes;
+	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 380:
+/* 395 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -4573,52 +6036,52 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 381:
+/* 396 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	function _objectWithoutProperties(obj, keys) { var target = {}; for (var i in obj) { if (keys.indexOf(i) >= 0) continue; if (!Object.prototype.hasOwnProperty.call(obj, i)) continue; target[i] = obj[i]; } return target; }
+	var _react = __webpack_require__(2);
 
-	/*
-	Copyright 2015 Gravitational, Inc.
+	var _react2 = _interopRequireDefault(_react);
 
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
+	var _2 = __webpack_require__(397);
 
-	    http://www.apache.org/licenses/LICENSE-2.0
+	var _3 = _interopRequireDefault(_2);
 
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
+	var _objectUtils = __webpack_require__(399);
 
-	var React = __webpack_require__(2);
-	var InputSearch = __webpack_require__(382);
+	var _inputSearch = __webpack_require__(400);
 
-	var _require = __webpack_require__(385),
-	    Table = _require.Table,
-	    Column = _require.Column,
-	    Cell = _require.Cell,
-	    SortHeaderCell = _require.SortHeaderCell,
-	    SortTypes = _require.SortTypes,
-	    EmptyIndicator = _require.EmptyIndicator;
+	var _inputSearch2 = _interopRequireDefault(_inputSearch);
 
-	var _require2 = __webpack_require__(386),
-	    createNewSession = _require2.createNewSession;
+	var _table = __webpack_require__(401);
 
-	var ClusterSelector = __webpack_require__(392);
+	var _actions = __webpack_require__(402);
 
-	var _ = __webpack_require__(383);
+	var _clusterSelector = __webpack_require__(406);
 
-	var _require3 = __webpack_require__(390),
-	    isMatch = _require3.isMatch;
+	var _clusterSelector2 = _interopRequireDefault(_clusterSelector);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	function _objectWithoutProperties(obj, keys) { var target = {}; for (var i in obj) { if (keys.indexOf(i) >= 0) continue; if (!Object.prototype.hasOwnProperty.call(obj, i)) continue; target[i] = obj[i]; } return target; } /*
+	                                                                                                                                                                                                                             Copyright 2015 Gravitational, Inc.
+	                                                                                                                                                                                                                             
+	                                                                                                                                                                                                                             Licensed under the Apache License, Version 2.0 (the "License");
+	                                                                                                                                                                                                                             you may not use this file except in compliance with the License.
+	                                                                                                                                                                                                                             You may obtain a copy of the License at
+	                                                                                                                                                                                                                             
+	                                                                                                                                                                                                                                 http://www.apache.org/licenses/LICENSE-2.0
+	                                                                                                                                                                                                                             
+	                                                                                                                                                                                                                             Unless required by applicable law or agreed to in writing, software
+	                                                                                                                                                                                                                             distributed under the License is distributed on an "AS IS" BASIS,
+	                                                                                                                                                                                                                             WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	                                                                                                                                                                                                                             See the License for the specific language governing permissions and
+	                                                                                                                                                                                                                             limitations under the License.
+	                                                                                                                                                                                                                             */
 
 	var TextCell = function TextCell(_ref) {
 	  var rowIndex = _ref.rowIndex,
@@ -4626,8 +6089,8 @@ webpackJsonp([0],{
 	      columnKey = _ref.columnKey,
 	      props = _objectWithoutProperties(_ref, ['rowIndex', 'data', 'columnKey']);
 
-	  return React.createElement(
-	    Cell,
+	  return _react2.default.createElement(
+	    _table.Cell,
 	    props,
 	    data[rowIndex][columnKey]
 	  );
@@ -4638,16 +6101,16 @@ webpackJsonp([0],{
 	      data = _ref2.data,
 	      props = _objectWithoutProperties(_ref2, ['rowIndex', 'data']);
 
-	  return React.createElement(
-	    Cell,
+	  return _react2.default.createElement(
+	    _table.Cell,
 	    props,
 	    data[rowIndex].tags.map(function (item, index) {
-	      return React.createElement(
+	      return _react2.default.createElement(
 	        'span',
 	        { key: index, className: 'label label-default' },
 	        item.role,
 	        ' ',
-	        React.createElement('li', { className: 'fa fa-long-arrow-right' }),
+	        _react2.default.createElement('li', { className: 'fa fa-long-arrow-right' }),
 	        item.value
 	      );
 	    })
@@ -4662,7 +6125,7 @@ webpackJsonp([0],{
 	      props = _objectWithoutProperties(_ref3, ['logins', 'onLoginClick', 'rowIndex', 'data']);
 
 	  if (!logins || logins.length === 0) {
-	    return React.createElement(Cell, props);
+	    return _react2.default.createElement(_table.Cell, props);
 	  }
 
 	  var _data$rowIndex = data[rowIndex],
@@ -4679,16 +6142,16 @@ webpackJsonp([0],{
 	      };
 	    } else {
 	      return function () {
-	        return createNewSession(siteId, id, login);
+	        return (0, _actions.createNewSession)(siteId, id, login);
 	      };
 	    }
 	  }
 
 	  for (var i = 0; i < logins.length; i++) {
-	    $lis.push(React.createElement(
+	    $lis.push(_react2.default.createElement(
 	      'li',
 	      { key: i },
-	      React.createElement(
+	      _react2.default.createElement(
 	        'a',
 	        { onClick: onClick(i) },
 	        logins[i]
@@ -4696,22 +6159,22 @@ webpackJsonp([0],{
 	    ));
 	  }
 
-	  return React.createElement(
-	    Cell,
+	  return _react2.default.createElement(
+	    _table.Cell,
 	    props,
-	    React.createElement(
+	    _react2.default.createElement(
 	      'div',
 	      { className: 'btn-group' },
-	      React.createElement(
+	      _react2.default.createElement(
 	        'button',
 	        { type: 'button', onClick: onClick(0), className: 'btn btn-xs btn-primary' },
 	        logins[0]
 	      ),
-	      $lis.length > 1 ? [React.createElement(
+	      $lis.length > 1 ? [_react2.default.createElement(
 	        'button',
 	        { key: 0, 'data-toggle': 'dropdown', className: 'btn btn-default btn-xs dropdown-toggle', 'aria-expanded': 'true' },
-	        React.createElement('span', { className: 'caret' })
-	      ), React.createElement(
+	        _react2.default.createElement('span', { className: 'caret' })
+	      ), _react2.default.createElement(
 	        'ul',
 	        { key: 1, className: 'dropdown-menu' },
 	        $lis
@@ -4720,13 +6183,13 @@ webpackJsonp([0],{
 	  );
 	};
 
-	var NodeList = React.createClass({
+	var NodeList = _react2.default.createClass({
 	  displayName: 'NodeList',
 	  getInitialState: function getInitialState() {
 	    this.searchableProps = ['addr', 'hostname', 'tags'];
 	    return {
 	      filter: '',
-	      colSortDirs: { hostname: SortTypes.DESC }
+	      colSortDirs: { hostname: _table.SortTypes.DESC }
 	    };
 	  },
 	  onSortChange: function onSortChange(columnKey, sortDir) {
@@ -4755,7 +6218,7 @@ webpackJsonp([0],{
 	    var colSortDirs = this.state.colSortDirs;
 
 	    var filtered = data.filter(function (obj) {
-	      return isMatch(obj, _this.state.filter, {
+	      return (0, _objectUtils.isMatch)(obj, _this.state.filter, {
 	        searchableProps: _this.searchableProps,
 	        cb: _this.searchAndFilterCb
 	      });
@@ -4763,8 +6226,8 @@ webpackJsonp([0],{
 
 	    var columnKey = Object.getOwnPropertyNames(colSortDirs)[0];
 	    var sortDir = colSortDirs[columnKey];
-	    var sorted = _.sortBy(filtered, columnKey);
-	    if (sortDir === SortTypes.ASC) {
+	    var sorted = _3.default.sortBy(filtered, columnKey);
+	    if (sortDir === _table.SortTypes.ASC) {
 	      sorted = sorted.reverse();
 	    }
 
@@ -4777,62 +6240,62 @@ webpackJsonp([0],{
 	        onLoginClick = _props.onLoginClick;
 
 	    var data = this.sortAndFilter(nodeRecords);
-	    return React.createElement(
+	    return _react2.default.createElement(
 	      'div',
 	      { className: 'grv-nodes' },
-	      React.createElement(
+	      _react2.default.createElement(
 	        'div',
 	        { className: 'grv-flex grv-header m-t', style: { justifyContent: "space-between" } },
-	        React.createElement(
+	        _react2.default.createElement(
 	          'h2',
 	          { className: 'text-center no-margins' },
 	          ' Nodes '
 	        ),
-	        React.createElement(
+	        _react2.default.createElement(
 	          'div',
 	          { className: 'grv-flex' },
-	          React.createElement(ClusterSelector, null),
-	          React.createElement(InputSearch, { value: this.filter, onChange: this.onFilterChange })
+	          _react2.default.createElement(_clusterSelector2.default, null),
+	          _react2.default.createElement(_inputSearch2.default, { value: this.filter, onChange: this.onFilterChange })
 	        )
 	      ),
-	      React.createElement(
+	      _react2.default.createElement(
 	        'div',
 	        { className: 'm-t' },
-	        data.length === 0 && this.state.filter.length > 0 ? React.createElement(EmptyIndicator, { text: 'No matching nodes found' }) : React.createElement(
-	          Table,
+	        data.length === 0 && this.state.filter.length > 0 ? _react2.default.createElement(_table.EmptyIndicator, { text: 'No matching nodes found' }) : _react2.default.createElement(
+	          _table.Table,
 	          { rowCount: data.length, className: 'table-striped grv-nodes-table' },
-	          React.createElement(Column, {
+	          _react2.default.createElement(_table.Column, {
 	            columnKey: 'hostname',
-	            header: React.createElement(SortHeaderCell, {
+	            header: _react2.default.createElement(_table.SortHeaderCell, {
 	              sortDir: this.state.colSortDirs.hostname,
 	              onSortChange: this.onSortChange,
 	              title: 'Hostname'
 	            }),
-	            cell: React.createElement(TextCell, { data: data })
+	            cell: _react2.default.createElement(TextCell, { data: data })
 	          }),
-	          React.createElement(Column, {
+	          _react2.default.createElement(_table.Column, {
 	            columnKey: 'addr',
-	            header: React.createElement(SortHeaderCell, {
+	            header: _react2.default.createElement(_table.SortHeaderCell, {
 	              sortDir: this.state.colSortDirs.addr,
 	              onSortChange: this.onSortChange,
 	              title: 'Address'
 	            }),
-	            cell: React.createElement(TextCell, { data: data })
+	            cell: _react2.default.createElement(TextCell, { data: data })
 	          }),
-	          React.createElement(Column, {
+	          _react2.default.createElement(_table.Column, {
 	            columnKey: 'tags',
-	            header: React.createElement(Cell, null),
-	            cell: React.createElement(TagCell, { data: data })
+	            header: _react2.default.createElement(_table.Cell, null),
+	            cell: _react2.default.createElement(TagCell, { data: data })
 	          }),
-	          React.createElement(Column, {
+	          _react2.default.createElement(_table.Column, {
 	            columnKey: 'roles',
 	            onLoginClick: onLoginClick,
-	            header: React.createElement(
-	              Cell,
+	            header: _react2.default.createElement(
+	              _table.Cell,
 	              null,
 	              'Login as'
 	            ),
-	            cell: React.createElement(LoginCell, { data: data, logins: logins })
+	            cell: _react2.default.createElement(LoginCell, { data: data, logins: logins })
 	          })
 	        )
 	      )
@@ -4844,11 +6307,94 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ },
+/* 397 */,
+/* 398 */,
+/* 399 */
+/***/ function(module, exports) {
 
-/***/ 382:
+	'use strict';
+
+	exports.__esModule = true;
+	exports.parseIp = parseIp;
+	exports.isMatch = isMatch;
+	exports.isUUID = isUUID;
+	/*
+	Copyright 2015 Gravitational, Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	    http://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+	*/
+
+	var uuid = {
+	  3: /^[0-9A-F]{8}-[0-9A-F]{4}-3[0-9A-F]{3}-[0-9A-F]{4}-[0-9A-F]{12}$/i,
+	  4: /^[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i,
+	  5: /^[0-9A-F]{8}-[0-9A-F]{4}-5[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i,
+	  all: /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i
+	};
+
+	var PORT_REGEX = /:\d+$/;
+
+	function parseIp(addr) {
+	  addr = addr || '';
+	  return addr.replace(PORT_REGEX, '');
+	}
+
+	function isMatch(obj, searchValue, _ref) {
+	  var searchableProps = _ref.searchableProps,
+	      cb = _ref.cb;
+
+	  searchValue = searchValue.toLocaleUpperCase();
+	  var propNames = searchableProps || Object.getOwnPropertyNames(obj);
+	  for (var i = 0; i < propNames.length; i++) {
+	    var targetValue = obj[propNames[i]];
+	    if (targetValue) {
+	      if (typeof cb === 'function') {
+	        var result = cb(targetValue, searchValue, propNames[i]);
+	        if (result === true) {
+	          return result;
+	        }
+	      }
+
+	      if (targetValue.toString().toLocaleUpperCase().indexOf(searchValue) !== -1) {
+	        return true;
+	      }
+	    }
+	  }
+
+	  return false;
+	}
+
+	function isUUID(str) {
+	  var version = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 'all';
+
+	  var pattern = uuid[version];
+	  return pattern && pattern.test(str);
+	}
+
+/***/ },
+/* 400 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
+
+	exports.__esModule = true;
+
+	var _react = __webpack_require__(2);
+
+	var _react2 = _interopRequireDefault(_react);
+
+	var _ = __webpack_require__(397);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 	/*
 	Copyright 2015 Gravitational, Inc.
@@ -4866,17 +6412,12 @@ webpackJsonp([0],{
 	limitations under the License.
 	*/
 
-	var React = __webpack_require__(2);
-
-	var _require = __webpack_require__(383),
-	    debounce = _require.debounce;
-
-	var InputSearch = React.createClass({
+	var InputSearch = _react2.default.createClass({
 	  displayName: 'InputSearch',
 	  getInitialState: function getInitialState() {
 	    var _this = this;
 
-	    this.debouncedNotify = debounce(function () {
+	    this.debouncedNotify = (0, _.debounce)(function () {
 	      _this.props.onChange(_this.state.value);
 	    }, 200);
 
@@ -4892,10 +6433,10 @@ webpackJsonp([0],{
 
 	    className = 'grv-search input-group-sm ' + className;
 
-	    return React.createElement(
+	    return _react2.default.createElement(
 	      'div',
 	      { className: className },
-	      React.createElement('input', { placeholder: 'Search...', className: 'form-control',
+	      _react2.default.createElement('input', { placeholder: 'Search...', className: 'form-control',
 	        autoFocus: true,
 	        value: this.state.value,
 	        onChange: this.onChange })
@@ -4903,11 +6444,11 @@ webpackJsonp([0],{
 	  }
 	});
 
-	module.exports = InputSearch;
+	exports.default = InputSearch;
+	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 385:
+/* 401 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -5144,41 +6685,40 @@ webpackJsonp([0],{
 	exports.EmptyIndicator = EmptyIndicator;
 
 /***/ },
-
-/***/ 386:
+/* 402 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _reactor = __webpack_require__(215);
+	var _reactor = __webpack_require__(240);
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _session = __webpack_require__(229);
+	var _session = __webpack_require__(226);
 
 	var _session2 = _interopRequireDefault(_session);
 
-	var _api = __webpack_require__(228);
+	var _api = __webpack_require__(243);
 
 	var _api2 = _interopRequireDefault(_api);
 
-	var _config = __webpack_require__(217);
+	var _config = __webpack_require__(232);
 
 	var _config2 = _interopRequireDefault(_config);
 
-	var _getters = __webpack_require__(387);
+	var _getters = __webpack_require__(403);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
-	var _actions = __webpack_require__(239);
+	var _actions = __webpack_require__(253);
 
-	var _getters3 = __webpack_require__(388);
+	var _getters3 = __webpack_require__(404);
 
 	var _getters4 = _interopRequireDefault(_getters3);
 
-	var _actions2 = __webpack_require__(232);
+	var _actions2 = __webpack_require__(245);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -5199,7 +6739,7 @@ webpackJsonp([0],{
 	*/
 	var logger = __webpack_require__(230).create('Current Session');
 
-	var _require = __webpack_require__(391),
+	var _require = __webpack_require__(405),
 	    TLPT_CURRENT_SESSION_OPEN = _require.TLPT_CURRENT_SESSION_OPEN,
 	    TLPT_CURRENT_SESSION_CLOSE = _require.TLPT_CURRENT_SESSION_CLOSE;
 
@@ -5235,12 +6775,10 @@ webpackJsonp([0],{
 	      history.push(routeUrl);
 	    });
 	  },
-	  openSession: function openSession(nextState) {
+	  initSession: function initSession(sid) {
 	    logger.info('attempt to open session', { sid: sid });
-	    var sid = nextState.params.sid;
 
 	    // check if terminal is already open
-
 	    var currentSession = _reactor2.default.evaluate(_getters2.default.currentSession);
 	    if (currentSession) {
 	      return;
@@ -5318,8 +6856,7 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 387:
+/* 403 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -5363,31 +6900,30 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 388:
+/* 404 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _moment = __webpack_require__(240);
+	var _moment = __webpack_require__(254);
 
 	var _moment2 = _interopRequireDefault(_moment);
 
-	var _config = __webpack_require__(217);
+	var _config = __webpack_require__(232);
 
 	var _config2 = _interopRequireDefault(_config);
 
-	var _enums = __webpack_require__(389);
+	var _enums = __webpack_require__(388);
 
-	var _reactor = __webpack_require__(215);
+	var _reactor = __webpack_require__(240);
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _getters = __webpack_require__(380);
+	var _getters = __webpack_require__(395);
 
-	var _objectUtils = __webpack_require__(390);
+	var _objectUtils = __webpack_require__(399);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -5533,102 +7069,14 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 389:
-/***/ function(module, exports) {
-
-	'use strict';
-
-	module.exports = {
-	  EventTypeEnum: {
-	    START: 'session.start',
-	    END: 'session.end'
-	  }
-	};
-
-/***/ },
-
-/***/ 390:
-/***/ function(module, exports) {
-
-	'use strict';
-
-	exports.__esModule = true;
-	exports.parseIp = parseIp;
-	exports.isMatch = isMatch;
-	exports.isUUID = isUUID;
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	var uuid = {
-	  3: /^[0-9A-F]{8}-[0-9A-F]{4}-3[0-9A-F]{3}-[0-9A-F]{4}-[0-9A-F]{12}$/i,
-	  4: /^[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i,
-	  5: /^[0-9A-F]{8}-[0-9A-F]{4}-5[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i,
-	  all: /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i
-	};
-
-	var PORT_REGEX = /:\d+$/;
-
-	function parseIp(addr) {
-	  addr = addr || '';
-	  return addr.replace(PORT_REGEX, '');
-	}
-
-	function isMatch(obj, searchValue, _ref) {
-	  var searchableProps = _ref.searchableProps,
-	      cb = _ref.cb;
-
-	  searchValue = searchValue.toLocaleUpperCase();
-	  var propNames = searchableProps || Object.getOwnPropertyNames(obj);
-	  for (var i = 0; i < propNames.length; i++) {
-	    var targetValue = obj[propNames[i]];
-	    if (targetValue) {
-	      if (typeof cb === 'function') {
-	        var result = cb(targetValue, searchValue, propNames[i]);
-	        if (result === true) {
-	          return result;
-	        }
-	      }
-
-	      if (targetValue.toString().toLocaleUpperCase().indexOf(searchValue) !== -1) {
-	        return true;
-	      }
-	    }
-	  }
-
-	  return false;
-	}
-
-	function isUUID(str) {
-	  var version = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 'all';
-
-	  var pattern = uuid[version];
-	  return pattern && pattern.test(str);
-	}
-
-/***/ },
-
-/***/ 391:
+/* 405 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _keymirror = __webpack_require__(224);
+	var _keymirror = __webpack_require__(237);
 
 	var _keymirror2 = _interopRequireDefault(_keymirror);
 
@@ -5656,8 +7104,7 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 392:
+/* 406 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -5668,25 +7115,25 @@ webpackJsonp([0],{
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _reactor = __webpack_require__(215);
+	var _reactor = __webpack_require__(240);
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _getters = __webpack_require__(393);
+	var _getters = __webpack_require__(407);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
-	var _getters3 = __webpack_require__(238);
+	var _getters3 = __webpack_require__(235);
 
 	var _getters4 = _interopRequireDefault(_getters3);
 
-	var _dropdown = __webpack_require__(394);
+	var _dropdown = __webpack_require__(408);
 
 	var _dropdown2 = _interopRequireDefault(_dropdown);
 
-	var _actions = __webpack_require__(226);
+	var _actions = __webpack_require__(239);
 
-	var _objectUtils = __webpack_require__(390);
+	var _objectUtils = __webpack_require__(399);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -5761,8 +7208,7 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 393:
+/* 407 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -5803,11 +7249,28 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 394:
+/* 408 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
+
+	exports.__esModule = true;
+
+	var _react = __webpack_require__(2);
+
+	var _react2 = _interopRequireDefault(_react);
+
+	var _jQuery = __webpack_require__(227);
+
+	var _jQuery2 = _interopRequireDefault(_jQuery);
+
+	var _ = __webpack_require__(397);
+
+	var _classnames = __webpack_require__(359);
+
+	var _classnames2 = _interopRequireDefault(_classnames);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 	/*
 	Copyright 2015 Gravitational, Inc.
@@ -5825,32 +7288,24 @@ webpackJsonp([0],{
 	limitations under the License.
 	*/
 
-	var React = __webpack_require__(2);
-	var $ = __webpack_require__(219);
-
-	var _require = __webpack_require__(383),
-	    isObject = _require.isObject;
-
-	var classnames = __webpack_require__(346);
-
-	var DropDown = React.createClass({
+	var DropDown = _react2.default.createClass({
 	  displayName: 'DropDown',
 	  onClick: function onClick(event) {
 	    event.preventDefault();
 	    var options = this.props.options;
 
-	    var index = $(event.target).parent().index();
+	    var index = (0, _jQuery2.default)(event.target).parent().index();
 	    var option = options[index];
-	    var value = isObject(option) ? option.value : option;
+	    var value = (0, _.isObject)(option) ? option.value : option;
 
 	    this.props.onChange(value);
 	  },
 	  renderOption: function renderOption(option, index) {
-	    var displayValue = isObject(option) ? option.label : option;
-	    return React.createElement(
+	    var displayValue = (0, _.isObject)(option) ? option.label : option;
+	    return _react2.default.createElement(
 	      'li',
 	      { key: index },
-	      React.createElement(
+	      _react2.default.createElement(
 	        'a',
 	        { href: '#' },
 	        displayValue
@@ -5863,7 +7318,7 @@ webpackJsonp([0],{
 
 	    for (var i = 0; i < options.length; i++) {
 	      var op = options[i];
-	      if (isObject(op) && op.value === value) {
+	      if ((0, _.isObject)(op) && op.value === value) {
 	        return op.label;
 	      }
 
@@ -5893,58 +7348,58 @@ webpackJsonp([0],{
 
 	    displayValue = displayValue || 'Select...';
 
-	    var valueClass = classnames('grv-dropdown-value', {
+	    var valueClass = (0, _classnames2.default)('grv-dropdown-value', {
 	      'text-muted': !hiddenValue
 	    });
 
 	    var mainClass = 'grv-dropdown ' + className;
 
-	    var btnClass = classnames('btn btn-default full-width dropdown-toggle', {
+	    var btnClass = (0, _classnames2.default)('btn btn-default full-width dropdown-toggle', {
 	      'btn-sm': size === 'sm'
 	    });
 
-	    var menuClass = classnames('dropdown-menu', {
+	    var menuClass = (0, _classnames2.default)('dropdown-menu', {
 	      'pull-right': align === 'right'
 	    });
 
-	    var $menu = options.length > 0 ? React.createElement(
+	    var $menu = options.length > 0 ? _react2.default.createElement(
 	      'ul',
 	      { onClick: this.onClick, className: menuClass },
 	      $options
 	    ) : null;
 
-	    return React.createElement(
+	    return _react2.default.createElement(
 	      'div',
 	      { className: mainClass },
-	      React.createElement(
+	      _react2.default.createElement(
 	        'div',
 	        { className: 'dropdown' },
-	        React.createElement(
+	        _react2.default.createElement(
 	          'div',
 	          { className: btnClass, type: 'button', 'data-toggle': 'dropdown', 'aria-haspopup': 'true', 'aria-expanded': 'true' },
-	          React.createElement(
+	          _react2.default.createElement(
 	            'div',
 	            { className: valueClass },
-	            React.createElement(
+	            _react2.default.createElement(
 	              'span',
 	              { style: { textOverflow: "ellipsis", overflow: "hidden" } },
 	              displayValue
 	            ),
-	            React.createElement('span', { className: 'caret m-l-sm' })
+	            _react2.default.createElement('span', { className: 'caret m-l-sm' })
 	          )
 	        ),
 	        $menu
 	      ),
-	      React.createElement('input', { className: classRules, value: hiddenValue, type: 'hidden', ref: 'input', name: name })
+	      _react2.default.createElement('input', { className: classRules, value: hiddenValue, type: 'hidden', ref: 'input', name: name })
 	    );
 	  }
 	});
 
-	module.exports = DropDown;
+	exports.default = DropDown;
+	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 395:
+/* 409 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -5955,21 +7410,21 @@ webpackJsonp([0],{
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _reactor = __webpack_require__(215);
+	var _reactor = __webpack_require__(240);
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _actions = __webpack_require__(396);
+	var _actions = __webpack_require__(410);
 
-	var _getters = __webpack_require__(388);
+	var _getters = __webpack_require__(404);
 
-	var _getters2 = __webpack_require__(397);
+	var _getters2 = __webpack_require__(411);
 
-	var _timer = __webpack_require__(364);
+	var _timer = __webpack_require__(376);
 
 	var _timer2 = _interopRequireDefault(_timer);
 
-	var _sessionList = __webpack_require__(399);
+	var _sessionList = __webpack_require__(413);
 
 	var _sessionList2 = _interopRequireDefault(_sessionList);
 
@@ -6028,8 +7483,7 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 396:
+/* 410 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -6051,20 +7505,20 @@ webpackJsonp([0],{
 	limitations under the License.
 	*/
 
-	var reactor = __webpack_require__(215);
+	var reactor = __webpack_require__(240);
 
-	var _require = __webpack_require__(397),
+	var _require = __webpack_require__(411),
 	    filter = _require.filter;
 
-	var _require2 = __webpack_require__(239),
+	var _require2 = __webpack_require__(253),
 	    fetchSiteEvents = _require2.fetchSiteEvents;
 
-	var _require3 = __webpack_require__(232),
+	var _require3 = __webpack_require__(245),
 	    showError = _require3.showError;
 
 	var logger = __webpack_require__(230).create('Modules/Sessions');
 
-	var _require4 = __webpack_require__(398),
+	var _require4 = __webpack_require__(412),
 	    TLPT_STORED_SESSINS_FILTER_SET_RANGE = _require4.TLPT_STORED_SESSINS_FILTER_SET_RANGE;
 
 	var actions = {
@@ -6094,8 +7548,7 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 397:
+/* 411 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -6127,15 +7580,14 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 398:
+/* 412 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _keymirror = __webpack_require__(224);
+	var _keymirror = __webpack_require__(237);
 
 	var _keymirror2 = _interopRequireDefault(_keymirror);
 
@@ -6164,15 +7616,14 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 399:
+/* 413 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _2 = __webpack_require__(383);
+	var _2 = __webpack_require__(397);
 
 	var _3 = _interopRequireDefault(_2);
 
@@ -6180,25 +7631,25 @@ webpackJsonp([0],{
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _moment = __webpack_require__(240);
+	var _moment = __webpack_require__(254);
 
 	var _moment2 = _interopRequireDefault(_moment);
 
-	var _inputSearch = __webpack_require__(382);
+	var _inputSearch = __webpack_require__(400);
 
 	var _inputSearch2 = _interopRequireDefault(_inputSearch);
 
-	var _objectUtils = __webpack_require__(390);
+	var _objectUtils = __webpack_require__(399);
 
-	var _storedSessionsFilter = __webpack_require__(400);
+	var _storedSessionsFilter = __webpack_require__(414);
 
-	var _table = __webpack_require__(385);
+	var _table = __webpack_require__(401);
 
-	var _listItems = __webpack_require__(401);
+	var _listItems = __webpack_require__(415);
 
-	var _datePicker = __webpack_require__(402);
+	var _datePicker = __webpack_require__(416);
 
-	var _clusterSelector = __webpack_require__(392);
+	var _clusterSelector = __webpack_require__(406);
 
 	var _clusterSelector2 = _interopRequireDefault(_clusterSelector);
 
@@ -6386,8 +7837,7 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 400:
+/* 414 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -6407,12 +7857,11 @@ webpackJsonp([0],{
 	See the License for the specific language governing permissions and
 	limitations under the License.
 	*/
-	module.exports.getters = __webpack_require__(397);
-	module.exports.actions = __webpack_require__(396);
+	module.exports.getters = __webpack_require__(411);
+	module.exports.actions = __webpack_require__(410);
 
 /***/ },
-
-/***/ 401:
+/* 415 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -6424,11 +7873,11 @@ webpackJsonp([0],{
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _reactRouter = __webpack_require__(155);
+	var _reactRouter = __webpack_require__(164);
 
-	var _table = __webpack_require__(385);
+	var _table = __webpack_require__(401);
 
-	var _moment = __webpack_require__(240);
+	var _moment = __webpack_require__(254);
 
 	var _moment2 = _interopRequireDefault(_moment);
 
@@ -6590,13 +8039,30 @@ webpackJsonp([0],{
 	exports.NodeCell = NodeCell;
 
 /***/ },
-
-/***/ 402:
+/* 416 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
+	exports.DateRangePicker = exports.CalendarNav = undefined;
+
+	var _react = __webpack_require__(2);
+
+	var _react2 = _interopRequireDefault(_react);
+
+	var _jQuery = __webpack_require__(227);
+
+	var _jQuery2 = _interopRequireDefault(_jQuery);
+
+	var _moment = __webpack_require__(254);
+
+	var _moment2 = _interopRequireDefault(_moment);
+
+	var _ = __webpack_require__(397);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
 	/*
 	Copyright 2015 Gravitational, Inc.
 
@@ -6613,36 +8079,29 @@ webpackJsonp([0],{
 	limitations under the License.
 	*/
 
-	var React = __webpack_require__(2);
-	var $ = __webpack_require__(219);
-	var moment = __webpack_require__(240);
-
-	var _require = __webpack_require__(383),
-	    debounce = _require.debounce;
-
-	var DateRangePicker = React.createClass({
+	var DateRangePicker = _react2.default.createClass({
 	  displayName: 'DateRangePicker',
 	  getDates: function getDates() {
-	    var startDate = $(this.refs.dpPicker1).datepicker('getDate');
-	    var endDate = $(this.refs.dpPicker2).datepicker('getDate');
-	    return [startDate, moment(endDate).endOf('day').toDate()];
+	    var startDate = (0, _jQuery2.default)(this.refs.dpPicker1).datepicker('getDate');
+	    var endDate = (0, _jQuery2.default)(this.refs.dpPicker2).datepicker('getDate');
+	    return [startDate, (0, _moment2.default)(endDate).endOf('day').toDate()];
 	  },
 	  setDates: function setDates(_ref) {
 	    var startDate = _ref.startDate,
 	        endDate = _ref.endDate;
 
-	    $(this.refs.dpPicker1).datepicker('setDate', startDate);
-	    $(this.refs.dpPicker2).datepicker('setDate', endDate);
+	    (0, _jQuery2.default)(this.refs.dpPicker1).datepicker('setDate', startDate);
+	    (0, _jQuery2.default)(this.refs.dpPicker2).datepicker('setDate', endDate);
 	  },
 	  getDefaultProps: function getDefaultProps() {
 	    return {
-	      startDate: moment().startOf('month').toDate(),
-	      endDate: moment().endOf('month').toDate(),
+	      startDate: (0, _moment2.default)().startOf('month').toDate(),
+	      endDate: (0, _moment2.default)().endOf('month').toDate(),
 	      onChange: function onChange() {}
 	    };
 	  },
 	  componentWillUnmount: function componentWillUnmount() {
-	    $(this.refs.dp).datepicker('destroy');
+	    (0, _jQuery2.default)(this.refs.dp).datepicker('destroy');
 	  },
 	  componentWillReceiveProps: function componentWillReceiveProps(newProps) {
 	    var _getDates = this.getDates(),
@@ -6657,8 +8116,8 @@ webpackJsonp([0],{
 	    return false;
 	  },
 	  componentDidMount: function componentDidMount() {
-	    this.onChange = debounce(this.onChange, 1);
-	    $(this.refs.rangePicker).datepicker({
+	    this.onChange = (0, _.debounce)(this.onChange, 1);
+	    (0, _jQuery2.default)(this.refs.rangePicker).datepicker({
 	      todayBtn: 'linked',
 	      keyboardNavigation: false,
 	      forceParse: false,
@@ -6678,65 +8137,65 @@ webpackJsonp([0],{
 	    }
 	  },
 	  render: function render() {
-	    return React.createElement(
+	    return _react2.default.createElement(
 	      'div',
 	      { className: 'grv-datepicker input-group input-group-sm input-daterange', ref: 'rangePicker' },
-	      React.createElement('input', { ref: 'dpPicker1', type: 'text', className: 'input-sm form-control', name: 'start' }),
-	      React.createElement(
+	      _react2.default.createElement('input', { ref: 'dpPicker1', type: 'text', className: 'input-sm form-control', name: 'start' }),
+	      _react2.default.createElement(
 	        'span',
 	        { className: 'input-group-addon' },
 	        'to'
 	      ),
-	      React.createElement('input', { ref: 'dpPicker2', type: 'text', className: 'input-sm form-control', name: 'end' })
+	      _react2.default.createElement('input', { ref: 'dpPicker2', type: 'text', className: 'input-sm form-control', name: 'end' })
 	    );
 	  }
 	});
 
 	function isSame(date1, date2) {
-	  return moment(date1).isSame(date2, 'day');
+	  return (0, _moment2.default)(date1).isSame(date2, 'day');
 	}
 
 	/**
 	* Calendar Nav
 	*/
-	var CalendarNav = React.createClass({
+	var CalendarNav = _react2.default.createClass({
 	  displayName: 'CalendarNav',
 	  render: function render() {
 	    var value = this.props.value;
 
-	    var displayValue = moment(value).format('MMM Do, YYYY');
+	    var displayValue = (0, _moment2.default)(value).format('MMM Do, YYYY');
 
-	    return React.createElement(
+	    return _react2.default.createElement(
 	      'div',
 	      { className: "grv-calendar-nav " + this.props.className },
-	      React.createElement(
+	      _react2.default.createElement(
 	        'button',
 	        { onClick: this.move.bind(this, -1), className: 'btn btn-outline btn-link' },
-	        React.createElement('i', { className: 'fa fa-chevron-left' })
+	        _react2.default.createElement('i', { className: 'fa fa-chevron-left' })
 	      ),
-	      React.createElement(
+	      _react2.default.createElement(
 	        'span',
 	        { className: 'text-muted' },
 	        displayValue
 	      ),
-	      React.createElement(
+	      _react2.default.createElement(
 	        'button',
 	        { onClick: this.move.bind(this, 1), className: 'btn btn-outline btn-link' },
-	        React.createElement('i', { className: 'fa fa-chevron-right' })
+	        _react2.default.createElement('i', { className: 'fa fa-chevron-right' })
 	      )
 	    );
 	  },
 	  move: function move(at) {
 	    var value = this.props.value;
 
-	    var newValue = moment(value).add(at, 'week').toDate();
+	    var newValue = (0, _moment2.default)(value).add(at, 'week').toDate();
 	    this.props.onValueChange(newValue);
 	  }
 	});
 
 	CalendarNav.getweekRange = function (value) {
-	  var startDate = moment(value).startOf('month').toDate();
-	  var endDate = moment(value).endOf('month').toDate();
+	  var startDate = (0, _moment2.default)(value).startOf('month').toDate();
+	  var endDate = (0, _moment2.default)(value).endOf('month').toDate();
 	  return [startDate, endDate];
 	};
 
@@ -6745,48 +8204,56 @@ webpackJsonp([0],{
 	exports.DateRangePicker = DateRangePicker;
 
 /***/ },
-
-/***/ 403:
+/* 417 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
-	/*
-	Copyright 2015 Gravitational, Inc.
+	exports.__esModule = true;
 
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
+	var _react = __webpack_require__(2);
 
-	    http://www.apache.org/licenses/LICENSE-2.0
+	var _react2 = _interopRequireDefault(_react);
 
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
+	var _reactor = __webpack_require__(240);
 
-	var React = __webpack_require__(2);
-	var reactor = __webpack_require__(215);
+	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _require = __webpack_require__(404),
-	    getters = _require.getters;
+	var _currentSession = __webpack_require__(418);
 
-	var SessionPlayer = __webpack_require__(406);
-	var ActiveSession = __webpack_require__(450);
-	var cfg = __webpack_require__(217);
+	var _sessionPlayer = __webpack_require__(420);
 
-	var CurrentSessionHost = React.createClass({
+	var _sessionPlayer2 = _interopRequireDefault(_sessionPlayer);
+
+	var _activeSession = __webpack_require__(464);
+
+	var _activeSession2 = _interopRequireDefault(_activeSession);
+
+	var _config = __webpack_require__(232);
+
+	var _config2 = _interopRequireDefault(_config);
+
+	var _actions = __webpack_require__(402);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	var CurrentSessionHost = _react2.default.createClass({
 	  displayName: 'CurrentSessionHost',
 
 
-	  mixins: [reactor.ReactMixin],
+	  mixins: [_reactor2.default.ReactMixin],
 
 	  getDataBindings: function getDataBindings() {
 	    return {
-	      currentSession: getters.currentSession
+	      currentSession: _currentSession.getters.currentSession
 	    };
+	  },
+	  componentDidMount: function componentDidMount() {
+	    var _this = this;
+
+	    setTimeout(function () {
+	      return (0, _actions.initSession)(_this.props.params.sid);
+	    }, 0);
 	  },
 	  render: function render() {
 	    var currentSession = this.state.currentSession;
@@ -6796,23 +8263,37 @@ webpackJsonp([0],{
 	    }
 
 	    if (currentSession.active) {
-	      return React.createElement(ActiveSession, currentSession);
+	      return _react2.default.createElement(_activeSession2.default, currentSession);
 	    }
 
 	    var sid = currentSession.sid,
 	        siteId = currentSession.siteId;
 
-	    var url = cfg.api.getFetchSessionUrl({ siteId: siteId, sid: sid });
+	    var url = _config2.default.api.getFetchSessionUrl({ siteId: siteId, sid: sid });
 
-	    return React.createElement(SessionPlayer, { url: url });
+	    return _react2.default.createElement(_sessionPlayer2.default, { url: url });
 	  }
-	});
+	}); /*
+	    Copyright 2015 Gravitational, Inc.
+	    
+	    Licensed under the Apache License, Version 2.0 (the "License");
+	    you may not use this file except in compliance with the License.
+	    You may obtain a copy of the License at
+	    
+	        http://www.apache.org/licenses/LICENSE-2.0
+	    
+	    Unless required by applicable law or agreed to in writing, software
+	    distributed under the License is distributed on an "AS IS" BASIS,
+	    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	    See the License for the specific language governing permissions and
+	    limitations under the License.
+	    */
 
-	module.exports = CurrentSessionHost;
+	exports.default = CurrentSessionHost;
+	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 404:
+/* 418 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -6832,13 +8313,12 @@ webpackJsonp([0],{
 	See the License for the specific language governing permissions and
 	limitations under the License.
 	*/
-	module.exports.getters = __webpack_require__(387);
-	module.exports.actions = __webpack_require__(386);
-	module.exports.activeTermStore = __webpack_require__(405);
+	module.exports.getters = __webpack_require__(403);
+	module.exports.actions = __webpack_require__(402);
+	module.exports.activeTermStore = __webpack_require__(419);
 
 /***/ },
-
-/***/ 405:
+/* 419 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -6861,11 +8341,11 @@ webpackJsonp([0],{
 	limitations under the License.
 	*/
 
-	var _require = __webpack_require__(216),
+	var _require = __webpack_require__(241),
 	    Store = _require.Store,
 	    toImmutable = _require.toImmutable;
 
-	var _require2 = __webpack_require__(391),
+	var _require2 = __webpack_require__(405),
 	    TLPT_CURRENT_SESSION_OPEN = _require2.TLPT_CURRENT_SESSION_OPEN,
 	    TLPT_CURRENT_SESSION_CLOSE = _require2.TLPT_CURRENT_SESSION_CLOSE;
 
@@ -6904,8 +8384,7 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 406:
+/* 420 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -6935,15 +8414,15 @@ webpackJsonp([0],{
 	*/
 
 	var React = __webpack_require__(2);
-	var ReactSlider = __webpack_require__(407);
+	var ReactSlider = __webpack_require__(421);
 
-	var _require = __webpack_require__(408),
+	var _require = __webpack_require__(422),
 	    TtyPlayer = _require.TtyPlayer;
 
-	var Terminal = __webpack_require__(417);
-	var SessionLeftPanel = __webpack_require__(421);
-	var $ = __webpack_require__(219);
-	__webpack_require__(428)($);
+	var Terminal = __webpack_require__(431);
+	var SessionLeftPanel = __webpack_require__(435);
+	var $ = __webpack_require__(227);
+	__webpack_require__(442)($);
 
 	var Term = function (_Terminal) {
 	  _inherits(Term, _Terminal);
@@ -7081,8 +8560,8 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 408:
+/* 421 */,
+/* 422 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -7111,14 +8590,14 @@ webpackJsonp([0],{
 	limitations under the License.
 	*/
 
-	var Tty = __webpack_require__(409);
-	var api = __webpack_require__(228);
+	var Tty = __webpack_require__(423);
+	var api = __webpack_require__(243);
 
-	var _require = __webpack_require__(232),
+	var _require = __webpack_require__(245),
 	    showError = _require.showError;
 
-	var $ = __webpack_require__(219);
-	var Buffer = __webpack_require__(412).Buffer;
+	var $ = __webpack_require__(227);
+	var Buffer = __webpack_require__(426).Buffer;
 
 	var logger = __webpack_require__(230).create('TtyPlayer');
 	var STREAM_START_INDEX = 0;
@@ -7214,23 +8693,6 @@ webpackJsonp([0],{
 	    });
 	  };
 
-	  EventProvider.prototype._formatDisplayTime = function _formatDisplayTime(ms) {
-	    if (ms < 0) {
-	      return '0:0';
-	    }
-
-	    var totalSec = Math.floor(ms / 1000);
-	    var h = Math.floor(totalSec % 31536000 % 86400 / 3600);
-	    var m = Math.floor(totalSec % 31536000 % 86400 % 3600 / 60);
-	    var s = totalSec % 31536000 % 86400 % 3600 % 60;
-
-	    m = m > 9 ? m : '0' + m;
-	    s = s > 9 ? s : '0' + s;
-	    h = h > 0 ? h + ':' : '';
-
-	    return '' + h + m + ':' + s;
-	  };
-
 	  EventProvider.prototype._createPrintEvents = function _createPrintEvents(json) {
 	    var w = void 0,
 	        h = void 0;
@@ -7314,6 +8776,24 @@ webpackJsonp([0],{
 	    }
 
 	    this.events = tmp;
+	  };
+
+	  EventProvider.prototype._formatDisplayTime = function _formatDisplayTime(ms) {
+	    if (ms < 0) {
+	      return '00:00';
+	    }
+
+	    var totalSec = Math.floor(ms / 1000);
+	    var totalDays = totalSec % 31536000 % 86400;
+	    var h = Math.floor(totalDays / 3600);
+	    var m = Math.floor(totalDays % 3600 / 60);
+	    var s = totalDays % 3600 % 60;
+
+	    m = m > 9 ? m : '0' + m;
+	    s = s > 9 ? s : '0' + s;
+	    h = h > 0 ? h + ':' : '';
+
+	    return '' + h + m + ':' + s;
 	  };
 
 	  return EventProvider;
@@ -7538,17 +9018,16 @@ webpackJsonp([0],{
 	exports.Buffer = Buffer;
 
 /***/ },
-
-/***/ 409:
+/* 423 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _events = __webpack_require__(410);
+	var _events = __webpack_require__(424);
 
-	var _ttyEnums = __webpack_require__(411);
+	var _ttyEnums = __webpack_require__(425);
 
 	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
@@ -7626,8 +9105,7 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 410:
+/* 424 */
 /***/ function(module, exports) {
 
 	// Copyright Joyent, Inc. and other Node contributors.
@@ -7934,8 +9412,7 @@ webpackJsonp([0],{
 
 
 /***/ },
-
-/***/ 411:
+/* 425 */
 /***/ function(module, exports) {
 
 	"use strict";
@@ -7964,8 +9441,12 @@ webpackJsonp([0],{
 	exports.StatusCodeEnum = StatusCodeEnum;
 
 /***/ },
-
-/***/ 417:
+/* 426 */,
+/* 427 */,
+/* 428 */,
+/* 429 */,
+/* 430 */,
+/* 431 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -7988,17 +9469,17 @@ webpackJsonp([0],{
 	limitations under the License.
 	*/
 
-	var Term = __webpack_require__(418);
-	var Tty = __webpack_require__(409);
-	var TtyEvents = __webpack_require__(420);
+	var Term = __webpack_require__(432);
+	var Tty = __webpack_require__(423);
+	var TtyEvents = __webpack_require__(434);
 
-	var _require = __webpack_require__(383),
+	var _require = __webpack_require__(397),
 	    debounce = _require.debounce,
 	    isNumber = _require.isNumber;
 
-	var api = __webpack_require__(228);
+	var api = __webpack_require__(243);
 	var logger = __webpack_require__(230).create('terminal');
-	var $ = __webpack_require__(219);
+	var $ = __webpack_require__(227);
 
 	Term.colors[256] = '#252323';
 
@@ -8267,17 +9748,18 @@ webpackJsonp([0],{
 	module.exports = TtyTerminal;
 
 /***/ },
-
-/***/ 420:
+/* 432 */,
+/* 433 */,
+/* 434 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _events = __webpack_require__(410);
+	var _events = __webpack_require__(424);
 
-	var _ttyEnums = __webpack_require__(411);
+	var _ttyEnums = __webpack_require__(425);
 
 	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
@@ -8349,8 +9831,7 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 421:
+/* 435 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -8373,13 +9854,13 @@ webpackJsonp([0],{
 
 	var React = __webpack_require__(2);
 
-	var _require = __webpack_require__(404),
+	var _require = __webpack_require__(418),
 	    actions = _require.actions;
 
-	var _require2 = __webpack_require__(341),
+	var _require2 = __webpack_require__(358),
 	    UserIcon = _require2.UserIcon;
 
-	var ReactCSSTransitionGroup = __webpack_require__(422);
+	var ReactCSSTransitionGroup = __webpack_require__(436);
 
 	var SessionLeftPanel = function SessionLeftPanel(_ref) {
 	  var parties = _ref.parties;
@@ -8431,8 +9912,35 @@ webpackJsonp([0],{
 	module.exports = SessionLeftPanel;
 
 /***/ },
-
-/***/ 450:
+/* 436 */,
+/* 437 */,
+/* 438 */,
+/* 439 */,
+/* 440 */,
+/* 441 */,
+/* 442 */,
+/* 443 */,
+/* 444 */,
+/* 445 */,
+/* 446 */,
+/* 447 */,
+/* 448 */,
+/* 449 */,
+/* 450 */,
+/* 451 */,
+/* 452 */,
+/* 453 */,
+/* 454 */,
+/* 455 */,
+/* 456 */,
+/* 457 */,
+/* 458 */,
+/* 459 */,
+/* 460 */,
+/* 461 */,
+/* 462 */,
+/* 463 */,
+/* 464 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -8456,17 +9964,17 @@ webpackJsonp([0],{
 	*/
 
 	var React = __webpack_require__(2);
-	var reactor = __webpack_require__(215);
+	var reactor = __webpack_require__(240);
 
-	var _require = __webpack_require__(380),
+	var _require = __webpack_require__(395),
 	    nodeHostNameByServerId = _require.nodeHostNameByServerId;
 
-	var SessionLeftPanel = __webpack_require__(421);
-	var cfg = __webpack_require__(217);
-	var session = __webpack_require__(229);
-	var Terminal = __webpack_require__(417);
+	var SessionLeftPanel = __webpack_require__(435);
+	var cfg = __webpack_require__(232);
+	var session = __webpack_require__(226);
+	var Terminal = __webpack_require__(431);
 
-	var _require2 = __webpack_require__(386),
+	var _require2 = __webpack_require__(402),
 	    updateSessionFromEventStream = _require2.updateSessionFromEventStream;
 
 	var ActiveSession = React.createClass({
@@ -8544,31 +10052,30 @@ webpackJsonp([0],{
 	module.exports = ActiveSession;
 
 /***/ },
-
-/***/ 451:
+/* 465 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
-	var _reactor = __webpack_require__(215);
+	var _reactor = __webpack_require__(240);
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 	_reactor2.default.registerStores({
-	  'tlpt': __webpack_require__(348),
-	  'tlpt_current_session': __webpack_require__(405),
-	  'tlpt_user': __webpack_require__(375),
-	  'tlpt_sites': __webpack_require__(452),
-	  'tlpt_user_invite': __webpack_require__(454),
-	  'tlpt_nodes': __webpack_require__(455),
-	  'tlpt_rest_api': __webpack_require__(456),
-	  'tlpt_sessions_events': __webpack_require__(457),
-	  'tlpt_sessions_archived': __webpack_require__(458),
-	  'tlpt_sessions_active': __webpack_require__(459),
-	  'tlpt_sessions_filter': __webpack_require__(460),
-	  'tlpt_notifications': __webpack_require__(461)
+	  'tlpt': __webpack_require__(355),
+	  'tlpt_current_session': __webpack_require__(419),
+	  'tlpt_user': __webpack_require__(385),
+	  'tlpt_sites': __webpack_require__(466),
+	  'tlpt_user_invite': __webpack_require__(468),
+	  'tlpt_nodes': __webpack_require__(469),
+	  'tlpt_rest_api': __webpack_require__(470),
+	  'tlpt_sessions_events': __webpack_require__(471),
+	  'tlpt_sessions_archived': __webpack_require__(472),
+	  'tlpt_sessions_active': __webpack_require__(473),
+	  'tlpt_sessions_filter': __webpack_require__(474),
+	  'tlpt_notifications': __webpack_require__(475)
 	}); /*
 	    Copyright 2015 Gravitational, Inc.
 	    
@@ -8586,19 +10093,18 @@ webpackJsonp([0],{
 	    */
 
 /***/ },
-
-/***/ 452:
+/* 466 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _nuclearJs = __webpack_require__(216);
+	var _nuclearJs = __webpack_require__(241);
 
-	var _actionTypes = __webpack_require__(235);
+	var _actionTypes = __webpack_require__(248);
 
-	var _immutable = __webpack_require__(453);
+	var _immutable = __webpack_require__(467);
 
 	var Site = (0, _immutable.Record)({
 	  name: null,
@@ -8637,8 +10143,7 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 453:
+/* 467 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/**
@@ -13622,55 +15127,56 @@ webpackJsonp([0],{
 	}));
 
 /***/ },
-
-/***/ 454:
+/* 468 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	/*
-	Copyright 2015 Gravitational, Inc.
+	var _nuclearJs = __webpack_require__(241);
 
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
+	var _actionTypes = __webpack_require__(384);
 
-	    http://www.apache.org/licenses/LICENSE-2.0
+	var _immutable = __webpack_require__(467);
 
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
+	var Invite = new _immutable.Record({
+	  invite_token: '',
+	  user: '',
+	  qr: ''
+	}); /*
+	    Copyright 2015 Gravitational, Inc.
+	    
+	    Licensed under the Apache License, Version 2.0 (the "License");
+	    you may not use this file except in compliance with the License.
+	    You may obtain a copy of the License at
+	    
+	        http://www.apache.org/licenses/LICENSE-2.0
+	    
+	    Unless required by applicable law or agreed to in writing, software
+	    distributed under the License is distributed on an "AS IS" BASIS,
+	    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	    See the License for the specific language governing permissions and
+	    limitations under the License.
+	    */
 
-	var _require = __webpack_require__(216),
-	    Store = _require.Store,
-	    toImmutable = _require.toImmutable;
-
-	var _require2 = __webpack_require__(372),
-	    TLPT_RECEIVE_USER_INVITE = _require2.TLPT_RECEIVE_USER_INVITE;
-
-	exports.default = Store({
+	exports.default = (0, _nuclearJs.Store)({
 	  getInitialState: function getInitialState() {
-	    return toImmutable(null);
+	    return (0, _nuclearJs.toImmutable)(null);
 	  },
 	  initialize: function initialize() {
-	    this.on(TLPT_RECEIVE_USER_INVITE, receiveInvite);
+	    this.on(_actionTypes.TLPT_RECEIVE_USER_INVITE, receiveInvite);
 	  }
 	});
 
 
-	function receiveInvite(state, invite) {
-	  return toImmutable(invite);
+	function receiveInvite(state, json) {
+	  return new Invite(json);
 	}
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 455:
+/* 469 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -13693,11 +15199,11 @@ webpackJsonp([0],{
 	limitations under the License.
 	*/
 
-	var _require = __webpack_require__(216),
+	var _require = __webpack_require__(241),
 	    Store = _require.Store,
 	    toImmutable = _require.toImmutable;
 
-	var _require2 = __webpack_require__(237),
+	var _require2 = __webpack_require__(252),
 	    TLPT_NODES_RECEIVE = _require2.TLPT_NODES_RECEIVE;
 
 	exports.default = Store({
@@ -13725,8 +15231,7 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 456:
+/* 470 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -13749,11 +15254,11 @@ webpackJsonp([0],{
 	limitations under the License.
 	*/
 
-	var _require = __webpack_require__(216),
+	var _require = __webpack_require__(241),
 	    Store = _require.Store,
 	    toImmutable = _require.toImmutable;
 
-	var _require2 = __webpack_require__(374),
+	var _require2 = __webpack_require__(250),
 	    TLPT_REST_API_START = _require2.TLPT_REST_API_START,
 	    TLPT_REST_API_SUCCESS = _require2.TLPT_REST_API_SUCCESS,
 	    TLPT_REST_API_FAIL = _require2.TLPT_REST_API_FAIL;
@@ -13784,17 +15289,16 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 457:
+/* 471 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _nuclearJs = __webpack_require__(216);
+	var _nuclearJs = __webpack_require__(241);
 
-	var _actionTypes = __webpack_require__(340);
+	var _actionTypes = __webpack_require__(354);
 
 	/*
 	Copyright 2015 Gravitational, Inc.
@@ -13843,21 +15347,20 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 458:
+/* 472 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _nuclearJs = __webpack_require__(216);
+	var _nuclearJs = __webpack_require__(241);
 
-	var _immutable = __webpack_require__(453);
+	var _immutable = __webpack_require__(467);
 
-	var _actionTypes = __webpack_require__(340);
+	var _actionTypes = __webpack_require__(354);
 
-	var _enums = __webpack_require__(389);
+	var _enums = __webpack_require__(388);
 
 	/*
 	Copyright 2015 Gravitational, Inc.
@@ -13940,8 +15443,7 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 459:
+/* 473 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -13964,11 +15466,11 @@ webpackJsonp([0],{
 	                                                                                                                                                                                                                                                                  limitations under the License.
 	                                                                                                                                                                                                                                                                  */
 
-	var _nuclearJs = __webpack_require__(216);
+	var _nuclearJs = __webpack_require__(241);
 
-	var _immutable = __webpack_require__(453);
+	var _immutable = __webpack_require__(467);
 
-	var _actionTypes = __webpack_require__(340);
+	var _actionTypes = __webpack_require__(354);
 
 	var ActiveSessionRec = (0, _immutable.Record)({
 	  id: undefined,
@@ -14050,8 +15552,7 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 460:
+/* 474 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -14074,13 +15575,13 @@ webpackJsonp([0],{
 	limitations under the License.
 	*/
 
-	var _require = __webpack_require__(216),
+	var _require = __webpack_require__(241),
 	    Store = _require.Store,
 	    toImmutable = _require.toImmutable;
 
-	var moment = __webpack_require__(240);
+	var moment = __webpack_require__(254);
 
-	var _require2 = __webpack_require__(398),
+	var _require2 = __webpack_require__(412),
 	    TLPT_STORED_SESSINS_FILTER_SET_RANGE = _require2.TLPT_STORED_SESSINS_FILTER_SET_RANGE;
 
 	exports.default = Store({
@@ -14107,17 +15608,16 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ },
-
-/***/ 461:
+/* 475 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _nuclearJs = __webpack_require__(216);
+	var _nuclearJs = __webpack_require__(241);
 
-	var _actionTypes = __webpack_require__(233);
+	var _actionTypes = __webpack_require__(246);
 
 	/*
 	Copyright 2015 Gravitational, Inc.
@@ -14151,5 +15651,4 @@ webpackJsonp([0],{
 	module.exports = exports['default'];
 
 /***/ }
-
-});
+]);

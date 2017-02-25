@@ -14,9 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var React = require('react');
-var logoSvg = require('assets/img/svg/grv-tlpt-logo-full.svg');
-var classnames = require('classnames');
+import React from 'react';
+import classnames from 'classnames';
+const logoSvg = require('assets/img/svg/grv-tlpt-logo-full.svg');
 
 const TeleportLogo = () => (
   <svg className="grv-icon-logo-tlpt"><use xlinkHref={logoSvg}/></svg>

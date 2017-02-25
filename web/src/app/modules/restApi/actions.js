@@ -33,6 +33,9 @@ export default {
 
   success(reqType){
     reactor.dispatch(TLPT_REST_API_SUCCESS, {type: reqType});
-  }
+  },
 
+  clear(reqType){
+    reactor.dispatch(TLPT_REST_API_SUCCESS, {type: reqType});
+  }
 }

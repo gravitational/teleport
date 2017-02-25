@@ -32,9 +32,9 @@ describe('auth', function () {
     spyOn(api, 'post');
     spyOn(api, 'get');
     spyOn(api, 'delete').andReturn($.Deferred().resolve());
+    spyOn(auth, 'redirect');
     spyOn(auth, '_startTokenRefresher');
-    spyOn(auth, '_stopTokenRefresher');
-    spyOn(auth, '_redirect');
+    spyOn(auth, '_stopTokenRefresher');    
     spyOn(auth, '_shouldRefreshToken').andCallThrough();
   });
 
@@ -61,7 +61,7 @@ describe('auth', function () {
     });
   });
 
-  describe('u2flogin(name, password)', function () {
+  describe('loginWithU2f(name, password)', function () {
     var u2fSample = { type: 2, signRequests: -2, timeoutSeconds: -599, requestId: 2 };
 
     it('should successfully login and put user data in the session', function () {
@@ -74,7 +74,7 @@ describe('auth', function () {
 
       var token = null;
       api.post.andReturn($.Deferred().resolve(u2fSample));
-      auth.u2fLogin('user', 'password').done(()=>{ token = u2fSample; });
+      auth.loginWithU2f('user', 'password').done(()=>{ token = u2fSample; });
 
       expect(token).toEqual(u2fSample);
       expect(auth._startTokenRefresher.calls.length).toEqual(1);
@@ -84,7 +84,7 @@ describe('auth', function () {
     it('should return rejected promise if failed to log in', function () {
       var wasCalled = false;
       api.post.andReturn($.Deferred().reject());
-      auth.u2fLogin('user', 'password').fail(()=> { wasCalled = true });
+      auth.loginWithU2f('user', 'password').fail(()=> { wasCalled = true });
       expect(wasCalled).toEqual(true);
     });
 
@@ -97,16 +97,18 @@ describe('auth', function () {
 
       var wasCalled = false;
       api.post.andReturn($.Deferred().resolve(u2fSample));
-      auth.u2fLogin('user', 'password').fail(()=> { wasCalled = true });
+      auth.loginWithU2f('user', 'password').fail(()=> { wasCalled = true });
       expect(wasCalled).toEqual(true);
     });
   });
 
   describe('ensureUser()', function () {
     describe('when token is valid', function () {
-      it('should be resolved', function () {        
-        var wasCalled = false;
-        session.getUserData.andReturn(sample);
+      it('should be resolved', function () {                
+        session.getUserData.andReturn(sample);                
+        api.get.andReturn($.Deferred());
+
+        var wasCalled = false;        
         auth.ensureUser('user', 'password').done(()=> { wasCalled = true });
 
         expect(wasCalled).toEqual(true);        
@@ -117,14 +119,15 @@ describe('auth', function () {
     });
 
     describe('when token is about to be expired', function () {
-      it('should renew the token', function () {
-        var wasCalled = false;
+      it('should renew the token', function () {        
+        api.get.andReturn($.Deferred());
         api.post.andReturn($.Deferred().resolve(sample));
         session.getUserData.andReturn({
            ...sample,
            created: new Date('12/12/2000').getTime()
          });
 
+        var wasCalled = false;        
         auth.ensureUser('user', 'password').done(()=> { wasCalled = true });
 
         expect(wasCalled).toEqual(true);
@@ -135,10 +138,13 @@ describe('auth', function () {
     });
   
     describe('when token is missing', function () {
-      it('should reject', function () {
-        var wasCalled = false;
+      it('should reject', function () {        
+        api.get.andReturn($.Deferred());
         session.getUserData.andReturn({});
+        
+        var wasCalled = false;
         auth.ensureUser('user', 'password').fail(() => { wasCalled = true });
+
         expect(api.get).toHaveBeenCalledWith(cfg.api.userStatus);
         expect(wasCalled).toEqual(true);
       });

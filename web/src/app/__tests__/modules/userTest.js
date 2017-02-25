@@ -47,7 +47,7 @@ describe('modules/user', function () {
 
     describe('fetchInvite', function() {
       it('should handle loading state', function() {
-        api.get.andReturn(Dfd());
+        api.get.andReturn(Dfd());        
         actions.fetchInvite(inviteToken)
         expect(reactor.evaluate(getters.fetchingInvite)).toEqual({
           isProcessing: true

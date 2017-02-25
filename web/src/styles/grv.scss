@@ -20,6 +20,7 @@ limitations under the License.
 @import "~assets/css/toastr-2.1.2.css";
 @import "~perfect-scrollbar/dist/css/perfect-scrollbar.css";
 @import "bootstrap/bootstrap";
+@import "bootstrap/bootstrap-social";
 @import 'inspinia/style';
 
 @import "grv-invite";
@@ -37,10 +38,6 @@ limitations under the License.
 @import "grv-dialog-select-node";
 @import "grv-notifications";
 @import "grv-fonts";
-
-h1{
-  font-weight: 500;
-}
 
 .grv {
   background-color: white;
@@ -113,6 +110,13 @@ h1{
   .grv-dropdown{
     min-width: 120px;
   }
+}
+
+.grv-spinner.sk-spinner-three-bounce {
+  z-index: 1;
+  position: absolute;
+  top: 50%;
+  left: 50%;
 }
 
 .input-daterange .input-group-addon {

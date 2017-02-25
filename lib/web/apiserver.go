@@ -327,8 +327,8 @@ func buildOIDCConnectorSettings(authClient auth.ClientI) *client.OIDCSettings {
 	}
 }
 
-func buildAuthenticationSettings(authClient auth.ClientI) (*client.PingResponse, error) {
-	as := client.AuthenticationSettings{}
+func buildAuthenticationSettings(authClient auth.ClientI) (*client.AuthenticationSettings, error) {
+	as := &client.AuthenticationSettings{}
 
 	cap, err := authClient.GetClusterAuthPreference()
 	if err != nil {
@@ -346,29 +346,42 @@ func buildAuthenticationSettings(authClient auth.ClientI) (*client.PingResponse,
 		as.OIDC = buildOIDCConnectorSettings(authClient)
 	}
 
+	return as, nil
+}
+
+func (m *Handler) getAuthenticationSettings(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	as, err := buildAuthenticationSettings(m.cfg.ProxyClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &client.PingResponse{
-		Auth:          as,
+		Auth:          *as,
 		ServerVersion: teleport.Version,
 	}, nil
 }
 
-func (m *Handler) getAuthenticationSettings(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	pr, err := buildAuthenticationSettings(m.cfg.ProxyClient)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+type webConfig struct {
+	// Auth contains the forms of authentication the auth server supports.
+	Auth *client.AuthenticationSettings `json:"auth,omitempty"`
 
-	return pr, nil
+	// ServerVersion is the version of Teleport that is running.
+	ServerVersion string `json:"serverVersion"`
 }
 
 // getConfigurationSettings returns configuration for the web application.
 func (m *Handler) getConfigurationSettings(w http.ResponseWriter, r *http.Request) (interface{}, error) {
-	pr, err := buildAuthenticationSettings(m.cfg.ProxyClient)
+	var as, err = buildAuthenticationSettings(m.cfg.ProxyClient)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		log.Infof("Cannot retrieve cluster auth preferences: %v", err)
 	}
 
-	out, err := json.Marshal(pr)
+	webCfg := webConfig{
+		Auth:          as,
+		ServerVersion: teleport.Version,
+	}
+
+	out, err := json.Marshal(webCfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

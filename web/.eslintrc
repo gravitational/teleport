@@ -1,5 +1,4 @@
 {
-  "extends": "eslint:recommended",
   "parser": "babel-eslint",
   "parserOptions": {
     "ecmaVersion": 6,
@@ -12,39 +11,50 @@
   "env": {
     "es6": true,
     "browser": true,
-    "node": true,
-    "worker": true,
+    "node": true,    
     "mocha": true
   },
+  "extends": [
+    "eslint:recommended",
+    "plugin:import/errors",
+    "plugin:import/warnings"                
+  ],
   "plugins": [
-    "react"
+    "react",
+    "babel",
+    "import"
   ],
   "rules": {
-    "no-mixed-spaces-and-tabs": 0,
-    //"quotes": [1, "single"],
+    "comma-dangle": 0,
+    "no-mixed-spaces-and-tabs": 0,        
     "no-alert": 0,
+    "import/default": 0,
+    "import/named": 0,
     "no-underscore-dangle": 0,
     "no-case-declarations": 0,
     "strict": 0,
     "no-console": 0,
-    "no-trailing-spaces": 0,
-    //"jsx-quotes": 1,
-    //"object-curly-spacing": [2, "always"],
-    "react/display-name": 0,
-    //"react/jsx-boolean-value": 1,
-    "react/jsx-no-undef": 1,
+    "no-trailing-spaces": 0,    
+    "react/display-name": 0,        
+    "react/jsx-no-undef": 2,
     "react/jsx-sort-prop-types": 0,
     "react/jsx-sort-props": 0,
     "react/jsx-uses-react": 1,
     "react/jsx-uses-vars": 1,
     "react/no-did-mount-set-state": 1,
-    "react/no-did-update-set-state": 1,
-    //"react/no-multi-comp": 1,
+    "react/no-did-update-set-state": 1,    
     "react/no-unknown-property": 1,
     "react/prop-types": 0,
     "react/react-in-jsx-scope": 1,
-    "react/self-closing-comp": 1,
+    "react/self-closing-comp": 0,
     "react/sort-comp": 0,
     "react/wrap-multilines": 1
+  },
+  "settings": {
+    "import/resolver": {
+      "webpack": {
+        "config": "webpack/webpack.config.dev.js"
+      }
+    }
   }
 }

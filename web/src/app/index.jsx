@@ -14,17 +14,23 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var React = require('react');
-var render = require('react-dom').render;
-var { Router, Route, Redirect } = require('react-router');
-var { App, Login, Nodes, Sessions, NewUser, CurrentSessionHost, MessagePage, NotFound } = require('./components');
-var { ensureUser } = require('./modules/user/actions');
-var { initApp } = require('app/modules/app/actions');
-var { openSession } = require('./modules/currentSession/actions');
-var session = require('./services/session');
-var cfg = require('./config');
-
-require('./modules');
+import React from 'react';
+import { render } from 'react-dom';
+import { Router, Route, Redirect } from 'react-router';
+import { Provider } from 'nuclear-js-react-addons';
+import session from './services/session';
+import AppContainer from './components/app.jsx';
+import Login from './components/user/login.jsx';
+import Signup from './components/user/invite.jsx';
+import Nodes from './components/nodes/main.jsx';
+import Sessions from './components/sessions/main.jsx';
+import CurrentSessionHost from './components/currentSession/main.jsx';
+import { MessagePage, NotFound } from './components/msgPage.jsx';
+import { ensureUser } from './modules/user/actions';
+import { initApp } from './modules/app/actions';
+import cfg from './config';
+import reactor from './reactor';
+import './modules';
 
 // init session
 session.init();
@@ -32,18 +38,20 @@ session.init();
 cfg.init(window.GRV_CONFIG);
 
 render((
-  <Router history={session.getHistory()}>
-    <Route path={cfg.routes.msgs} component={MessagePage}/>
-    <Route path={cfg.routes.login} component={Login}/>
-    <Route path={cfg.routes.newUser} component={NewUser}/>
-    <Redirect from={cfg.routes.app} to={cfg.routes.nodes}/>
-    <Route path={cfg.routes.app} onEnter={ensureUser} component={App} >
-      <Route path={cfg.routes.app} onEnter={initApp} >        
-        <Route path={cfg.routes.sessions} component={Sessions}/>
-        <Route path={cfg.routes.nodes} component={Nodes}/>
-        <Route path={cfg.routes.currentSession} onEnter={openSession} components={{ CurrentSessionHost: CurrentSessionHost }} />
-      </Route>  
-    </Route>
-    <Route path="*" component={NotFound} />
-  </Router>
+  <Provider reactor={reactor}>        
+    <Router history={session.getHistory()}>
+      <Route path={cfg.routes.msgs} component={MessagePage}/>
+      <Route path={cfg.routes.login} component={Login}/>
+      <Route path={cfg.routes.newUser} component={Signup}/>
+      <Redirect from={cfg.routes.app} to={cfg.routes.nodes}/>
+      <Route path={cfg.routes.app} onEnter={ensureUser} component={AppContainer} >
+        <Route path={cfg.routes.app} onEnter={initApp} >        
+          <Route path={cfg.routes.sessions} component={Sessions}/>
+          <Route path={cfg.routes.nodes} component={Nodes}/>
+          <Route path={cfg.routes.currentSession} components={{ CurrentSessionHost: CurrentSessionHost }} />
+        </Route>  
+      </Route>
+      <Route path="*" component={NotFound} />
+    </Router>
+  </Provider>  
 ), document.getElementById("app"));

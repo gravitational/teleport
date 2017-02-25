@@ -14,19 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var api = require('./api');
-var session = require('./session');
-var cfg = require('app/config');
-var $ = require('jQuery');
-var logger = require('app/common/logger').create('services/auth');
+import api from './api';
+import session from './session';
+import cfg from 'app/config';
+import $ from 'jQuery';
+import Logger from 'app/common/logger';
 
-require('u2f-api-polyfill'); // This puts it in window.u2f
+// This puts it in window.u2f
+import 'u2f-api-polyfill'; 
+
+const logger = Logger.create('services/auth');
 
 const AUTH_IS_RENEWING = 'GRV_AUTH_IS_RENEWING';
-const PROVIDER_GOOGLE = 'google';
-const SECOND_FACTOR_TYPE_HOTP = 'hotp';
-const SECOND_FACTOR_TYPE_OIDC = 'oidc';
-const SECOND_FACTOR_TYPE_U2F = 'u2f';
 
 const CHECK_TOKEN_REFRESH_RATE = 10 * 1000; // 10 sec
 
@@ -44,18 +43,19 @@ const auth = {
       });
   },
 
-  u2fSignUp(name, password, inviteToken){
-    return api.get(cfg.api.getU2fCreateUserChallengeUrl(inviteToken)).then(data=>{
-      var deferred = $.Deferred();
+  signUpWithU2f(name, password, inviteToken){
+    return api.get(cfg.api.getU2fCreateUserChallengeUrl(inviteToken))
+      .then(data => {
+        let deferred = $.Deferred();
 
-      window.u2f.register(data.appId, [data], [], function(res){
-        if(res.errorCode){
-          var err = auth._getU2fErr(res.errorCode);
-          deferred.reject(err);
-          return;
+        window.u2f.register(data.appId, [data], [], function(res){        
+          if (res.errorCode) {
+            let err = auth._getU2fErr(res.errorCode);
+            deferred.reject(err);
+            return;
         }
 
-        var response = {
+        let response = {
           user: name,
           pass: password,
           u2f_register_response: res,
@@ -68,12 +68,12 @@ const auth = {
             auth._startTokenRefresher();
             deferred.resolve(data);
           })
-          .fail(data => {
-            deferred.reject(data);
+          .fail(err => {
+            deferred.reject(err);
           })
-      });
+        });
 
-      return deferred.promise();
+        return deferred.promise();        
     });
   },
 
@@ -94,7 +94,7 @@ const auth = {
     });
   },
 
-  u2fLogin(name, password){
+  loginWithU2f(name, password){
     auth._stopTokenRefresher();
     session.clear();
 
@@ -117,6 +117,7 @@ const auth = {
           user:              name,
           u2f_sign_response: res
         };
+
         api.post(cfg.api.u2fSessionPath, response, false).then(data=>{
           session.setUserData(data);
           auth._startTokenRefresher();
@@ -124,6 +125,7 @@ const auth = {
         }).fail(data=>{
           deferred.reject(data);
         });
+        
       });
 
       return deferred.promise();
@@ -153,14 +155,16 @@ const auth = {
   logout(){
     logger.info('logout()');
     api.delete(cfg.api.sessionPath).always(()=>{
-      auth._redirect();
+      auth.redirect();
     });
     session.clear();
     auth._stopTokenRefresher();
   },
 
-  _redirect(){
-    window.location = cfg.routes.login;
+  redirect(url) {
+    // default URL to redirect
+    url = url || cfg.routes.login;
+    window.location = url;
   },
 
   _shouldRefreshToken({ expires_in, created } ){
@@ -225,11 +229,7 @@ const auth = {
     }
     return {responseJSON:{message:"U2F Error: " + errorMsg}};
   }
-
 }
 
-module.exports = auth;
-module.exports.PROVIDER_GOOGLE = PROVIDER_GOOGLE;
-module.exports.SECOND_FACTOR_TYPE_HOTP = SECOND_FACTOR_TYPE_HOTP;
-module.exports.SECOND_FACTOR_TYPE_OIDC = SECOND_FACTOR_TYPE_OIDC;
-module.exports.SECOND_FACTOR_TYPE_U2F = SECOND_FACTOR_TYPE_U2F;
+export default auth;
+

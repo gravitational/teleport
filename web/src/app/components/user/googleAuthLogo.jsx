@@ -14,12 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-module.exports.App = require('./app.jsx');
-module.exports.Login = require('./login.jsx');
-module.exports.NewUser = require('./newUser.jsx');
-module.exports.Nodes = require('./nodes/main.jsx');
-module.exports.Sessions = require('./sessions/main.jsx');
-module.exports.CurrentSessionHost = require('./currentSession/main.jsx');
-module.exports.ErrorPage = require('./msgPage.jsx').ErrorPage;
-module.exports.NotFound = require('./msgPage.jsx').NotFound;
-module.exports.MessagePage = require('./msgPage.jsx').MessagePage;
+import React from 'react';
+
+const GoogleAuthInfo = () => {
+  return (
+    <div className="grv-google-auth text-left">
+      <div className="grv-icon-google-auth"/>
+      <strong>Google Authenticator</strong>
+      <div>Download 
+        <a href="https://support.google.com/accounts/answer/1066447?hl=en">
+          <span> Google Authenticator </span>
+        </a>
+        on your phone to access your two factor token</div>
+    </div>
+  );
+}
+
+export default GoogleAuthInfo;

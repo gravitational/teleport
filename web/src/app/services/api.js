@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var $ = require("jQuery");
-var session = require('./session');
+import $ from 'jQuery';
+import session from './session';
 
 const api = {
 
@@ -51,7 +51,25 @@ const api = {
     }
 
     return $.ajax($.extend({}, defaultCfg, cfg));
-  }
+  },
+
+  getErrorText(err){
+    let msg = 'Unknown error';                  
+    
+    if (err instanceof Error) {
+      return err.message || msg;
+    }
+      
+    if(err.responseJSON && err.responseJSON.message){
+      return err.responseJSON.message;
+    }
+      
+    if (err.responseJSON && err.responseJSON.error) {
+      return err.responseJSON.error.message || msg;
+    }
+    
+    return msg;
+  }    
 }
 
-module.exports = api;
+export default api;

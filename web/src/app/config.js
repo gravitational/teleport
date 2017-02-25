@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-let {formatPattern} = require('app/common/patternUtils');
-let $ = require('jQuery');
+import { formatPattern } from 'app/common/patternUtils';
+import $ from 'jQuery';
 
 let cfg = {
 
@@ -27,9 +27,7 @@ let cfg = {
 
   displayDateFormat: 'DD/MM/YYYY HH:mm:ss',
 
-  auth: {
-    oidc_connectors: [],
-    u2f_appid: ""
+  auth: {        
   },
 
   routes: {
@@ -49,6 +47,7 @@ let cfg = {
     sessionPath: '/v1/webapi/sessions',
     userStatus: '/v1/webapi/user/status',
     invitePath: '/v1/webapi/users/invites/:inviteToken',
+    inviteWithOidcPath: '/v1/webapi/users/invites/oidc/validate?redirect_url=:redirect&connector_id=:provider&token=:inviteToken',
     createUserPath: '/v1/webapi/users',
     u2fCreateUserChallengePath: '/webapi/u2f/signuptokens/:inviteToken',
     u2fCreateUserPath: '/webapi/u2f/users',
@@ -98,9 +97,16 @@ let cfg = {
       return formatPattern(cfg.api.invitePath, {inviteToken});
     },
 
+    getInviteWithOidcUrl(inviteToken, provider, redirect){
+      return cfg.baseUrl + formatPattern(cfg.api.inviteWithOidcPath, {
+        redirect, provider, inviteToken
+      });
+    },
+
     getU2fCreateUserChallengeUrl(inviteToken){
       return formatPattern(cfg.api.u2fCreateUserChallengePath, {inviteToken});
     }
+
   },
 
   getFullUrl(url){
@@ -111,12 +117,20 @@ let cfg = {
     return formatPattern(cfg.routes.currentSession, {sid, siteId});
   },
 
-  getAuthProviders(){
-    return cfg.auth.oidc_connectors;
+  getAuthProviders() {
+    return cfg.auth ? [cfg.auth.oidc] : [];    
+  },
+  
+  getAuthType() {
+    return cfg.auth ? cfg.auth.type : null;
   },
 
-  getU2fAppId(){
-    return cfg.auth.u2f_appid;
+  getAuth2faType() {
+    return cfg.auth ? cfg.auth.second_factor : null; 
+  },
+
+  getU2fAppId(){    
+    return cfg.auth && cfg.auth.u2f ? cfg.auth.u2f.app_id : null;    
   },
 
   init(config={}){

@@ -64,9 +64,12 @@ func (c *SessionContext) getTerminal(sessionID session.ID) (*terminalHandler, er
 	return nil, trace.NotFound("no connected streams")
 }
 
+// UpdateSessionTerminal is called when a browser window is resized and
+// we need to update PTY on the server side
 func (c *SessionContext) UpdateSessionTerminal(
 	siteAPI auth.ClientI, namespace string, sessionID session.ID, params session.TerminalParams) error {
 
+	// update the session size on the auth server's side
 	err := siteAPI.UpdateSession(session.UpdateRequest{
 		ID:             sessionID,
 		TerminalParams: &params,
@@ -75,6 +78,7 @@ func (c *SessionContext) UpdateSessionTerminal(
 	if err != nil {
 		log.Error(err)
 	}
+	// update the server-side PTY to match the browser window size
 	term, err := c.getTerminal(sessionID)
 	if err != nil {
 		log.Error(err)

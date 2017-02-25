@@ -17,10 +17,12 @@ limitations under the License.
 import reactor from 'app/reactor';
 import auth from 'app/services/auth';
 import { showError } from 'app/modules/notifications/actions';
-import { TLPT_APP_INIT, TLPT_APP_FAILED, TLPT_APP_READY, TLPT_APP_SET_SITE_ID } from './actionTypes';
+import { TLPT_APP_SET_SITE_ID } from './actionTypes';
+import { TRYING_TO_INIT_APP } from 'app/modules/restApi/constants';
 import { TLPT_SITES_RECEIVE } from './../sites/actionTypes';
 import api from 'app/services/api';
 import cfg from 'app/config';
+import restApiActions from 'app/modules/restApi/actions';
 import { fetchNodes } from './../nodes/actions';
 import { fetchActiveSessions } from 'app/modules/sessions/actions';
 import $ from 'jQuery';
@@ -33,24 +35,23 @@ const actions = {
     reactor.dispatch(TLPT_APP_SET_SITE_ID, siteId);    
   },
 
-  initApp(nextState, replace, cb) {
+  initApp(nextState) {
     let { siteId } = nextState.params;        
-    reactor.dispatch(TLPT_APP_INIT);
-    // get the list of available clusters
+    restApiActions.start(TRYING_TO_INIT_APP);    
+    
+    // get the list of available clusters        
     actions.fetchSites()      
-      .then( masterSiteId => {
+      .then(masterSiteId => {         
         siteId = siteId || masterSiteId;
         reactor.dispatch(TLPT_APP_SET_SITE_ID, siteId);
         // fetch nodes and active sessions 
-        return $.when(fetchNodes(), fetchActiveSessions())
-          .done(() => {
-            reactor.dispatch(TLPT_APP_READY);
-            cb();
+        return $.when(fetchNodes(), fetchActiveSessions()).done(() => {
+          restApiActions.success(TRYING_TO_INIT_APP);                                  
         })                
       })
-      .fail(() => {
-        reactor.dispatch(TLPT_APP_FAILED)
-        cb();
+      .fail(err => {        
+        let msg = api.getErrorText(err);                
+        restApiActions.fail(TRYING_TO_INIT_APP, msg);                        
       });
   },
   
@@ -79,9 +80,7 @@ const actions = {
     })    
   },
 
-  resetApp() {
-    // set to 'loading state' to notify subscribers
-    reactor.dispatch(TLPT_APP_INIT);
+  resetApp() {    
     // reset  reactor
     reactor.reset();
   },
