@@ -93,7 +93,7 @@ const SessionList = React.createClass({
     let data = [...active, ...stored];
   
     return (
-      <div className="grv-sessions-stored">
+      <div className="grv-sessions-stored m-t">
         <div className="grv-header">
           <div className="grv-flex m-b-md" style={{ justifyContent: "space-between" }}>
             <div className="grv-flex">  
