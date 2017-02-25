@@ -168,7 +168,7 @@ func nodeName(node string) string {
 // ConnectToNode connects to the ssh server via Proxy.
 // It returns connected and authenticated NodeClient
 func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress string, user string, quiet bool) (*NodeClient, error) {
-	log.Infof("[CLIENT] connecting to node: %s", nodeAddress)
+	log.Infof("[CLIENT] client=%v connecting to node=%s", proxy.clientAddr, nodeAddress)
 
 	// parse destination first:
 	localAddr, err := utils.ParseAddr("tcp://" + proxy.proxyAddress)
