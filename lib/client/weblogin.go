@@ -254,7 +254,7 @@ type AuthenticationSettings struct {
 	Type string `json:"type"`
 	// SecondFactor is the type of second factor to use in authentication.
 	// Supported options are: off, otp, and u2f.
-	SecondFactor string `json:"second_factor"`
+	SecondFactor string `json:"second_factor,omitempty"`
 	// U2F contains the Universal Second Factor settings needed for authentication.
 	U2F *U2FSettings `json:"u2f,omitempty"`
 	// OIDC contains the OIDC Connector settings needed for authentication.
