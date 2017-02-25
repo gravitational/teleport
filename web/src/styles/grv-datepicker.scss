@@ -1,0 +1,34 @@
+.grv-datepicker{
+  &.input-daterange{
+    max-width: 250px;
+  }
+}
+
+.datepicker {
+  table tr {
+    td.disabled,
+    td.disabled:hover {
+      color: #ccc;
+      cursor: default;
+    }
+    td.active.selected {
+      background-color: #3276b1;
+      border-color: #285e8e;
+    }
+  }
+}
+
+.input-daterange .input-group-addon {
+  width: auto;
+  min-width: 16px;
+  padding: 4px 5px;
+  font-weight: normal;
+  line-height: 1.428571429;
+  text-align: center;
+  text-shadow: 0 1px 0 #fff;
+  vertical-align: middle;
+  background-color: #eeeeee;
+  border-width: 1px 0;
+  margin-left: -5px;
+  margin-right: -5px;
+}

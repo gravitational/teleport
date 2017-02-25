@@ -40,7 +40,7 @@ const actions = {
     restApiActions.start(TRYING_TO_INIT_APP);    
     
     // get the list of available clusters        
-    actions.fetchSites()      
+    return actions.fetchSites()      
       .then(masterSiteId => {         
         siteId = siteId || masterSiteId;
         reactor.dispatch(TLPT_APP_SET_SITE_ID, siteId);

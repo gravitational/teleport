@@ -133,8 +133,8 @@ const NodeList = React.createClass({
     let { nodeRecords, logins, onLoginClick } = this.props;       
     let data = this.sortAndFilter(nodeRecords);                                     
     return (
-      <div className="grv-nodes">                
-        <div className="grv-flex grv-header m-t" style={{ justifyContent: "space-between" }}>                    
+      <div className="grv-nodes m-t">                
+        <div className="grv-flex grv-header" style={{ justifyContent: "space-between" }}>                    
           <h2 className="text-center no-margins"> Nodes </h2>          
           <div className="grv-flex">
             <ClusterSelector/>  
