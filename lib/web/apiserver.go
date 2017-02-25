@@ -327,8 +327,8 @@ func buildOIDCConnectorSettings(authClient auth.ClientI) *client.OIDCSettings {
 	}
 }
 
-func buildAuthenticationSettings(authClient auth.ClientI) (*client.PingResponse, error) {
-	as := client.AuthenticationSettings{}
+func buildAuthenticationSettings(authClient auth.ClientI) (*client.AuthenticationSettings, error) {
+	as := &client.AuthenticationSettings{}
 
 	cap, err := authClient.GetClusterAuthPreference()
 	if err != nil {
@@ -346,50 +346,39 @@ func buildAuthenticationSettings(authClient auth.ClientI) (*client.PingResponse,
 		as.OIDC = buildOIDCConnectorSettings(authClient)
 	}
 
-	return &client.PingResponse{
-		Auth:          as,
-		ServerVersion: teleport.Version,
-	}, nil
+	return as, nil
 }
 
 func (m *Handler) getAuthenticationSettings(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	pr, err := buildAuthenticationSettings(m.cfg.ProxyClient)
+	as, err := buildAuthenticationSettings(m.cfg.ProxyClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return pr, nil
+	return &client.PingResponse{
+		Auth:          *as,
+		ServerVersion: teleport.Version,
+	}, nil
 }
 
 type webConfig struct {
-	Auth interface{} `json:"auth"`
+	// Auth contains the forms of authentication the auth server supports.
+	Auth *client.AuthenticationSettings `json:"auth,omitempty"`
+
 	// ServerVersion is the version of Teleport that is running.
 	ServerVersion string `json:"serverVersion"`
 }
 
 // getConfigurationSettings returns configuration for the web application.
 func (m *Handler) getConfigurationSettings(w http.ResponseWriter, r *http.Request) (interface{}, error) {
-	webCfg := webConfig{ServerVersion: teleport.Version}
-	as := client.AuthenticationSettings{}
-	cap, err := m.cfg.ProxyClient.GetClusterAuthPreference()
-
-	if err == nil {
-		as.Type = cap.GetType()
-		as.SecondFactor = cap.GetSecondFactor()
-
-		// if we have u2f or oidc settings, build those as well
-		if cap.GetSecondFactor() == teleport.U2F {
-			as.U2F = buildUniversalSecondFactorSettings(m.cfg.ProxyClient)
-		}
-
-		if cap.GetType() == teleport.OIDC {
-			as.OIDC = buildOIDCConnectorSettings(m.cfg.ProxyClient)
-		}
-
-		webCfg.Auth = as
-
-	} else {
+	var as, err = buildAuthenticationSettings(m.cfg.ProxyClient)
+	if err != nil {
 		log.Infof("Cannot retrieve cluster auth preferences: %v", err)
+	}
+
+	webCfg := webConfig{
+		Auth:          as,
+		ServerVersion: teleport.Version,
 	}
 
 	out, err := json.Marshal(webCfg)
@@ -1142,7 +1131,14 @@ func (m *Handler) siteSessionUpdate(w http.ResponseWriter, r *http.Request, p ht
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = ctx.UpdateSessionTerminal(p.ByName("namespace"), *sessionID, req.TerminalParams)
+
+	siteAPI, err := site.GetClient()
+	if err != nil {
+		log.Error(err)
+		return nil, trace.Wrap(err)
+	}
+
+	err = ctx.UpdateSessionTerminal(siteAPI, p.ByName("namespace"), *sessionID, req.TerminalParams)
 	if err != nil {
 		log.Error(err)
 		return nil, trace.Wrap(err)

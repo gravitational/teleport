@@ -125,7 +125,7 @@ func (t *proxySubsys) start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Requ
 	// did the client pass us a true client IP ahead of time via an environment variable?
 	// (usually the web client would do that)
 	ctx.Lock()
-	trueClientIP, ok := ctx.env["TELEPORT_TRUE_CLIENT_IP"]
+	trueClientIP, ok := ctx.env[sshutils.TrueClientAddrVar]
 	ctx.Unlock()
 	if ok {
 		a, err := utils.ParseAddr(trueClientIP)

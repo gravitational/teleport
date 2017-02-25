@@ -283,6 +283,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 			cfg.OIDCConnectors = []services.OIDCConnector{oidcConnector}
 
 			cfg.Auth.Preference.SetType(teleport.OIDC)
+			cfg.Auth.Preference.SetSecondFactor("")
 		}
 
 		// parse the configuration to see if we have defined u2f
