@@ -142,8 +142,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 
 	// Web sessions
 	h.POST("/webapi/sessions", httplib.MakeHandler(h.createSession))
-	h.DELETE("/webapi/sessions", h.withAuth(h.deleteSession))
-	h.POST("/webapi/sessions/renew", h.withAuth(h.renewSession))
+	h.DELETE("/webapi/sessions", h.WithAuth(h.deleteSession))
+	h.POST("/webapi/sessions/renew", h.WithAuth(h.renewSession))
 
 	// Users
 	h.GET("/webapi/users/invites/:token", httplib.MakeHandler(h.renderUserInvite))
@@ -153,33 +153,33 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.POST("/webapi/ssh/certs", httplib.MakeHandler(h.createSSHCert))
 
 	// list available sites
-	h.GET("/webapi/sites", h.withAuth(h.getSites))
+	h.GET("/webapi/sites", h.WithAuth(h.getSites))
 
 	// Site specific API
 
 	// get namespaces
-	h.GET("/webapi/sites/:site/namespaces", h.withSiteAuth(h.getSiteNamespaces))
+	h.GET("/webapi/sites/:site/namespaces", h.WithClusterAuth(h.getSiteNamespaces))
 
 	// get nodes
-	h.GET("/webapi/sites/:site/namespaces/:namespace/nodes", h.withSiteAuth(h.getSiteNodes))
+	h.GET("/webapi/sites/:site/namespaces/:namespace/nodes", h.WithClusterAuth(h.getSiteNodes))
 	// connect to node via websocket (that's why it's a GET method)
-	h.GET("/webapi/sites/:site/namespaces/:namespace/connect", h.withSiteAuth(h.siteNodeConnect))
+	h.GET("/webapi/sites/:site/namespaces/:namespace/connect", h.WithClusterAuth(h.siteNodeConnect))
 	// get session event stream
-	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/events/stream", h.withSiteAuth(h.siteSessionStream))
+	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/events/stream", h.WithClusterAuth(h.siteSessionStream))
 	// generate a new session
-	h.POST("/webapi/sites/:site/namespaces/:namespace/sessions", h.withSiteAuth(h.siteSessionGenerate))
+	h.POST("/webapi/sites/:site/namespaces/:namespace/sessions", h.WithClusterAuth(h.siteSessionGenerate))
 	// update session parameters
-	h.PUT("/webapi/sites/:site/namespaces/:namespace/sessions/:sid", h.withSiteAuth(h.siteSessionUpdate))
+	h.PUT("/webapi/sites/:site/namespaces/:namespace/sessions/:sid", h.WithClusterAuth(h.siteSessionUpdate))
 	// get the session list
-	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions", h.withSiteAuth(h.siteSessionsGet))
+	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions", h.WithClusterAuth(h.siteSessionsGet))
 	// get a session
-	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid", h.withSiteAuth(h.siteSessionGet))
+	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid", h.WithClusterAuth(h.siteSessionGet))
 	// get session's events
-	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/events", h.withSiteAuth(h.siteSessionEventsGet))
+	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/events", h.WithClusterAuth(h.siteSessionEventsGet))
 	// get session's bytestream
 	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/stream", h.siteSessionStreamGet)
 	// search site events
-	h.GET("/webapi/sites/:site/events", h.withSiteAuth(h.siteEventsGet))
+	h.GET("/webapi/sites/:site/events", h.WithClusterAuth(h.siteEventsGet))
 
 	// OIDC related callback handlers
 	h.GET("/webapi/oidc/login/web", httplib.MakeHandler(h.oidcLoginWeb))
@@ -194,7 +194,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.POST("/webapi/u2f/certs", httplib.MakeHandler(h.createSSHCertWithU2FSignResponse))
 
 	// User Status (used by client to check if user session is valid)
-	h.GET("/webapi/user/status", h.withAuth(h.getUserStatus))
+	h.GET("/webapi/user/status", h.WithAuth(h.getUserStatus))
 
 	// if Web UI is enabled, check the assets dir:
 	var (
@@ -268,6 +268,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		}
 	})
 	h.NotFound = routingHandler
+	plugin := GetPlugin()
+	if plugin != nil {
+		plugin.AddHandlers(h)
+	}
 	return &RewritingHandler{
 		Handler: httplib.RewritePaths(h,
 			httplib.Rewrite("/webapi/sites/([^/]+)/sessions/(.*)", "/webapi/sites/$1/namespaces/default/sessions/$2"),
@@ -1439,14 +1443,14 @@ func (h *Handler) String() string {
 // the amount of requests
 const currentSiteShortcut = "-current-"
 
-// contextHandler is a handler called with the auth context, what means it is authenticated and ready to work
-type contextHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (interface{}, error)
+// ContextHandler is a handler called with the auth context, what means it is authenticated and ready to work
+type ContextHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (interface{}, error)
 
-// siteHandler is a authenticated handler that is called for some existing remote site
-type siteHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error)
+// ClusterHandler is a authenticated handler that is called for some existing remote cluster
+type ClusterHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error)
 
-// withSiteAuth ensures that request is authenticated and is issued for existing site
-func (h *Handler) withSiteAuth(fn siteHandler) httprouter.Handle {
+// WithClusterAuth ensures that request is authenticated and is issued for existing cluster
+func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 		ctx, err := h.AuthenticateRequest(w, r, true)
 		if err != nil {
@@ -1472,8 +1476,8 @@ func (h *Handler) withSiteAuth(fn siteHandler) httprouter.Handle {
 	})
 }
 
-// withAuth ensures that request is authenticated
-func (h *Handler) withAuth(fn contextHandler) httprouter.Handle {
+// WithAuth ensures that request is authenticated
+func (h *Handler) WithAuth(fn ContextHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 		ctx, err := h.AuthenticateRequest(w, r, true)
 		if err != nil {
