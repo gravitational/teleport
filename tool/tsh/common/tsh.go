@@ -67,8 +67,6 @@ type CLIConf struct {
 	LocalForwardPorts []string
 	// --local flag for ssh
 	LocalExec bool
-	// ExternalAuth is used to authenticate using external OIDC method
-	ExternalAuth string
 	// SiteName specifies remote site go login to
 	SiteName string
 	// Interactive, when set to true, launches remote command with the terminal attached
