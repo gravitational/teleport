@@ -103,7 +103,6 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc == nil {
 		return nil
 	}
-	cfg.SeedConfig = fc.SeedConfig
 	// merge file-based config with defaults in 'cfg'
 	if fc.Auth.Disabled() {
 		cfg.Auth.Enabled = false
@@ -149,9 +148,15 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Auth.StorageConfig.Params["path"] = cfg.DataDir
 	}
 
-	// apply storage configuration, if present:
+	// if a backend is specified, override the defaults
 	if fc.Storage.Type != "" {
+		cfg.Auth.DynamicConfig = true
 		cfg.Auth.StorageConfig = fc.Storage
+	}
+
+	// if dynamic_config is specified, override the default
+	if fc.Auth.DynamicConfig != nil {
+		cfg.Auth.DynamicConfig = *fc.Auth.DynamicConfig
 	}
 
 	// apply logger settings
