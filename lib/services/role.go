@@ -131,6 +131,12 @@ type Role interface {
 	GetResources() map[string][]string
 	// SetResource sets resource rule
 	SetResource(kind string, actions []string)
+	// SetNodeLabels sets node labels for this rule
+	SetNodeLabels(labels map[string]string)
+	// SetMaxSessionTTL sets a maximum TTL for SSH or Web session
+	SetMaxSessionTTL(duration time.Duration)
+	// SetNamespaces sets a list of namespaces this role has access to
+	SetNamespaces(namespaces []string)
 }
 
 // RoleV2 represents role resource specification
@@ -156,6 +162,16 @@ func (r *RoleV2) SetResource(kind string, actions []string) {
 // SetLogins sets logins for role
 func (r *RoleV2) SetLogins(logins []string) {
 	r.Spec.Logins = logins
+}
+
+// SetNodeLabels sets node labels for role
+func (r *RoleV2) SetNodeLabels(labels map[string]string) {
+	r.Spec.NodeLabels = labels
+}
+
+// SetMaxSessionTTL sets a maximum TTL for SSH or Web session
+func (r *RoleV2) SetMaxSessionTTL(duration time.Duration) {
+	r.Spec.MaxSessionTTL.Duration = duration
 }
 
 // GetName returns role name and is a shortcut for GetMetadata().Name
@@ -186,6 +202,11 @@ func (r *RoleV2) GetNodeLabels() map[string]string {
 // GetNamespaces returns a list of namespaces this role has access to
 func (r *RoleV2) GetNamespaces() []string {
 	return r.Spec.Namespaces
+}
+
+// SetNamespaces sets a list of namespaces this role has access to
+func (r *RoleV2) SetNamespaces(namespaces []string) {
+	r.Spec.Namespaces = namespaces
 }
 
 // GetResources returns access to resources
