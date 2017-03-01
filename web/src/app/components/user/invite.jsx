@@ -334,7 +334,7 @@ const Invite2faData = ({auth2faType, qr}) => {
 }
 
 InviteInputForm.propTypes = {  
-  authProvider: React.PropTypes.string,
+  authProviders: React.PropTypes.array,
   auth2faType: React.PropTypes.string,
   authType: React.PropTypes.string,
   onSignupWithOidc: React.PropTypes.func.isRequired,

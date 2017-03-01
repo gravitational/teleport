@@ -26,6 +26,8 @@ const MSG_ERROR_NOT_FOUND_DETAILS = `Looks like the page you are looking for isn
 const MSG_ERROR_EXPIRED_INVITE = 'Invite code has expired.';
 const MSG_ERROR_EXPIRED_INVITE_DETAILS = `Looks like your invite code isn't valid anymore.`;
 
+const MSG_ERROR_ACCESS_DENIED = 'Access denied';
+
 const MsgType = {
   INFO: 'info',
   ERROR: 'error'
@@ -34,7 +36,8 @@ const MsgType = {
 const ErrorTypes = {
   FAILED_TO_LOGIN: 'login_failed',
   EXPIRED_INVITE: 'expired_invite',
-  NOT_FOUND: 'not_found'
+  NOT_FOUND: 'not_found',
+  ACCESS_DENIED: 'access_denied'
 };
 
 const InfoTypes = {
@@ -54,16 +57,20 @@ const MessagePage = ({params}) => {
   return null;
 }
 
+const ErrorMessage = props => (
+  <div className="m-t" style={{ wordBreak: "break-all" }}>
+    <small>{props.children}</small>
+  </div>
+)
+
 const ErrorPage = ({ type, message='' }) => {      
   let msgBody = (
     <div>
       <h1>{MSG_ERROR_DEFAULT}</h1>
-      <div className="m-t text-muted" style={{ wordBreak: "break-all" }}>
-        <small>{message}</small>
-      </div>
+      <ErrorMessage>{message}</ErrorMessage>      
     </div>
   );
-
+  
   if(type === ErrorTypes.FAILED_TO_LOGIN){
     msgBody = (
       <div>
@@ -90,11 +97,20 @@ const ErrorPage = ({ type, message='' }) => {
     );
   }
 
+  if (type === ErrorTypes.ACCESS_DENIED) {
+    msgBody = (
+      <div>
+        <h1>{MSG_ERROR_ACCESS_DENIED}</h1>
+        <ErrorMessage>{message}</ErrorMessage>              
+      </div>
+    );    
+  }
+
   return (
     <div className="grv-msg-page">
       <div className="grv-header"><i className="fa fa-frown-o"></i> </div>
       {msgBody}
-      <div className="contact-section">If you believe this is an issue with Teleport, please <a href="https://github.com/gravitational/teleport/issues/new">create a GitHub issue.</a></div>
+      <small className="contact-section">If you believe this is an issue with Teleport, please <a href="https://github.com/gravitational/teleport/issues/new">create a GitHub issue.</a></small>
     </div>
   );
 }
@@ -127,11 +143,16 @@ var Failed = ({ message }) => (
   <ErrorPage message={message}/>
 )
 
+var AccessDenied = ({ message }) => (
+  <ErrorPage type={ErrorTypes.ACCESS_DENIED} message={message}/>
+)
+    
 export {
   ErrorPage,
   InfoPage,
   NotFound,
   Failed,
+  AccessDenied,
   ErrorTypes,
   MessagePage
 };

@@ -15,9 +15,13 @@ limitations under the License.
 */
 
 .grv-msg-page{
-  margin: 0 auto;
+  margin: 25px auto;
   max-width: 600px;
   text-align: center;
+
+  h1{
+    margin: 0;
+  }
 
   .grv-icon-logo-tlpt{
     fill: #293846;

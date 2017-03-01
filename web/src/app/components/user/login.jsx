@@ -260,7 +260,7 @@ const LoginInputForm = React.createClass({
 })
 
 LoginInputForm.propTypes = {  
-  authProvider: React.PropTypes.string,
+  authProviders: React.PropTypes.array,
   auth2faType: React.PropTypes.string,
   authType: React.PropTypes.string,
   onLoginWithOidc: React.PropTypes.func.isRequired,
