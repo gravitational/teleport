@@ -106,6 +106,21 @@ limitations under the License.
   }
 }
 
+.grv-btn-details{
+  display: inline-block;
+  height: 12px;
+  padding: 0 4px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 5px;
+  color: #444d56;
+  text-decoration: none;
+  vertical-align: middle;
+  background: #dfe2e5;
+  border: 0;
+  border-radius: 1px;
+}
+
 .grv-spinner.sk-spinner-three-bounce {
   z-index: 1;
   position: absolute;
