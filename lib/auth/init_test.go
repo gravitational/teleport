@@ -17,7 +17,9 @@ limitations under the License.
 package auth
 
 import (
+	"fmt"
 	"io/ioutil"
+	"os"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -35,12 +37,29 @@ import (
 )
 
 type AuthInitSuite struct {
+	tempDir string
 }
 
 var _ = Suite(&AuthInitSuite{})
+var _ = fmt.Printf
 
 func (s *AuthInitSuite) SetUpSuite(c *C) {
 	utils.InitLoggerForTests()
+}
+
+func (s *AuthInitSuite) TearDownSuite(c *C) {
+}
+
+func (s *AuthInitSuite) SetUpTest(c *C) {
+	var err error
+	s.tempDir, err = ioutil.TempDir("", "auth-init-test-")
+	c.Assert(err, IsNil)
+}
+
+func (s *AuthInitSuite) TearDownTest(c *C) {
+	var err error
+	err = os.RemoveAll(s.tempDir)
+	c.Assert(err, IsNil)
 }
 
 // TestReadIdentity makes parses identity from private key and certificate
@@ -146,10 +165,7 @@ func (s *AuthInitSuite) TestBadIdentity(c *C) {
 // TestAuthPreference ensures that the act of creating an AuthServer sets
 // the AuthPreference (type and second factor) on the backend.
 func (s *AuthInitSuite) TestAuthPreference(c *C) {
-	tempDir, err := ioutil.TempDir("", "auth-test-")
-	c.Assert(err, IsNil)
-
-	bk, err := boltbk.New(backend.Params{"path": tempDir})
+	bk, err := boltbk.New(backend.Params{"path": s.tempDir})
 	c.Assert(err, IsNil)
 
 	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
@@ -159,7 +175,37 @@ func (s *AuthInitSuite) TestAuthPreference(c *C) {
 	c.Assert(err, IsNil)
 
 	ac := InitConfig{
-		DataDir:        tempDir,
+		DataDir:        s.tempDir,
+		HostUUID:       "00000000-0000-0000-0000-000000000000",
+		NodeName:       "foo",
+		Backend:        bk,
+		Authority:      testauthority.New(),
+		DomainName:     "me.localhost",
+		AuthPreference: ap,
+	}
+	as, _, err := Init(ac, false)
+	c.Assert(err, IsNil)
+
+	cap, err := as.GetClusterAuthPreference()
+	c.Assert(err, IsNil)
+	c.Assert(cap.GetType(), Equals, "local")
+	c.Assert(cap.GetSecondFactor(), Equals, "u2f")
+}
+
+// TestDynamicConfigTrue makes sure that if dynamicConfig is true, changing the
+// configuration does not result in the changes being uploaded to the backend.
+func (s *AuthInitSuite) TestDynamicConfigTrue(c *C) {
+	bk, err := boltbk.New(backend.Params{"path": s.tempDir})
+	c.Assert(err, IsNil)
+
+	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+		Type:         "local",
+		SecondFactor: "u2f",
+	})
+	c.Assert(err, IsNil)
+
+	ac := InitConfig{
+		DataDir:        s.tempDir,
 		HostUUID:       "00000000-0000-0000-0000-000000000000",
 		NodeName:       "foo",
 		Backend:        bk,
@@ -170,8 +216,96 @@ func (s *AuthInitSuite) TestAuthPreference(c *C) {
 	as, _, err := Init(ac, true)
 	c.Assert(err, IsNil)
 
+	// the first time resources should be uploaded and we should see
+	// local/u2f as the authentication preferences
 	cap, err := as.GetClusterAuthPreference()
 	c.Assert(err, IsNil)
 	c.Assert(cap.GetType(), Equals, "local")
 	c.Assert(cap.GetSecondFactor(), Equals, "u2f")
+
+	// create new authentication preferences, even though we define
+	// these, because we are in dynamic config mode they should not
+	// be uploaded to the backend
+	nap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+		Type:         "local",
+		SecondFactor: "otp",
+	})
+	c.Assert(err, IsNil)
+
+	ac = InitConfig{
+		DataDir:        s.tempDir,
+		HostUUID:       "00000000-0000-0000-0000-000000000000",
+		NodeName:       "foo",
+		Backend:        bk,
+		Authority:      testauthority.New(),
+		DomainName:     "me.localhost",
+		AuthPreference: nap,
+	}
+	as, _, err = Init(ac, true)
+	c.Assert(err, IsNil)
+
+	// check and make sure we still have original settings
+	cap, err = as.GetClusterAuthPreference()
+	c.Assert(err, IsNil)
+	c.Assert(cap.GetType(), Equals, "local")
+	c.Assert(cap.GetSecondFactor(), Equals, "u2f")
+}
+
+// TestDynamicConfigFalse makes sure that if dynamicConfig is false, changing the
+// configuration results in the changes being uploaded to the backend.
+func (s *AuthInitSuite) TestDynamicConfigFalse(c *C) {
+	bk, err := boltbk.New(backend.Params{"path": s.tempDir})
+	c.Assert(err, IsNil)
+
+	// create the resource we will be checking, we start with
+	// authentication preferences being local/u2f
+	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+		Type:         "local",
+		SecondFactor: "u2f",
+	})
+	c.Assert(err, IsNil)
+
+	ac := InitConfig{
+		DataDir:        s.tempDir,
+		HostUUID:       "00000000-0000-0000-0000-000000000000",
+		NodeName:       "foo",
+		Backend:        bk,
+		Authority:      testauthority.New(),
+		DomainName:     "me.localhost",
+		AuthPreference: ap,
+	}
+	as, _, err := Init(ac, false)
+	c.Assert(err, IsNil)
+
+	// check the backend for the authentication preferences.
+	cap, err := as.GetClusterAuthPreference()
+	c.Assert(err, IsNil)
+	c.Assert(cap.GetType(), Equals, "local")
+	c.Assert(cap.GetSecondFactor(), Equals, "u2f")
+
+	// create new authentication preferences, since dynamic config
+	// is off, we will upload these to the backend as well
+	nap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+		Type:         "local",
+		SecondFactor: "otp",
+	})
+	c.Assert(err, IsNil)
+
+	ac = InitConfig{
+		DataDir:        s.tempDir,
+		HostUUID:       "00000000-0000-0000-0000-000000000000",
+		NodeName:       "foo",
+		Backend:        bk,
+		Authority:      testauthority.New(),
+		DomainName:     "me.localhost",
+		AuthPreference: nap,
+	}
+	as, _, err = Init(ac, false)
+	c.Assert(err, IsNil)
+
+	// check that the new settings were pushed to the backend
+	cap, err = as.GetClusterAuthPreference()
+	c.Assert(err, IsNil)
+	c.Assert(cap.GetType(), Equals, "local")
+	c.Assert(cap.GetSecondFactor(), Equals, "otp")
 }

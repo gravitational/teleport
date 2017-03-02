@@ -241,6 +241,11 @@ func (r *RoleV2) CheckAndSetDefaults() error {
 	return nil
 }
 
+func (r *RoleV2) String() string {
+	return fmt.Sprintf("Role(Name=%v,MaxSessionTTL=%v,Logins=%v,NodeLabels=%v,Namespaces=%v,Resources=%v)",
+		r.GetName(), r.GetMaxSessionTTL(), r.GetLogins(), r.GetNodeLabels(), r.GetNamespaces(), r.GetResources())
+}
+
 // RoleSpecV2 is role specification for RoleV2
 type RoleSpecV2 struct {
 	// MaxSessionTTL is a maximum SSH or Web session TTL

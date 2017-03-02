@@ -103,10 +103,6 @@ type Config struct {
 
 	// Access is a service that controls access
 	Access services.Access
-
-	// SeedConfig tells teleport to treat its start-up configuration as initial
-	// "seed" configuration on 1st start.
-	SeedConfig bool
 }
 
 // ApplyToken assigns a given token to all internal services but only if token
@@ -198,8 +194,11 @@ type AuthConfig struct {
 	// environments where paranoid security is not needed
 	StaticTokens []services.ProvisionToken
 
-	// StorageConfig contains configuration settings for
-	// the secrets storage backend
+	// DynamicConfig determines the source of configuration truth for Teleport. File
+	// configuration or configuration that is in the backend.
+	DynamicConfig bool
+
+	// StorageConfig contains configuration settings for the storage backend.
 	StorageConfig backend.Config
 
 	Limiter limiter.LimiterConfig
@@ -240,7 +239,6 @@ func ApplyDefaults(cfg *Config) {
 		hostname = "localhost"
 		log.Errorf("Failed to determine hostname: %v", err)
 	}
-	cfg.SeedConfig = false
 
 	// global defaults
 	cfg.Hostname = hostname
@@ -250,6 +248,7 @@ func ApplyDefaults(cfg *Config) {
 	// defaults for the auth service:
 	cfg.Auth.Enabled = true
 	cfg.Auth.SSHAddr = *defaults.AuthListenAddr()
+	cfg.Auth.DynamicConfig = false
 	cfg.Auth.StorageConfig.Type = boltbk.GetName()
 	cfg.Auth.StorageConfig.Params = backend.Params{"path": cfg.DataDir}
 	defaults.ConfigureLimiter(&cfg.Auth.Limiter)

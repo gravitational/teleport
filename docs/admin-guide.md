@@ -197,6 +197,12 @@ auth_service:
     # Turns 'auth' role on. Default is 'yes'
     enabled: yes
 
+    # Turns on dynamic configuration. Dynamic configuration defines the source
+    # for configuration information, configuration files on disk or what's
+    # stored in the backend. Default is false if no backend is specified,
+    # otherwise if backend is specified, it is assumed to be true.
+    dynamic_config: false
+
     # defines the types and second factors the auth server supports
     authentication:
         # type can be local or oidc
