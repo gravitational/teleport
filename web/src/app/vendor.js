@@ -36,3 +36,4 @@ require('react-dom');
 require('react-router');
 require('react-slider');
 require('react-toastr');
+require('react-overlays');

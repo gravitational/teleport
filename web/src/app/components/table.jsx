@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var React = require('react');
+import React from 'react';
 
 const GrvTableTextCell = ({rowIndex, data, columnKey, ...props}) => (
   <GrvTableCell {...props}>
@@ -147,7 +147,7 @@ var GrvTable = React.createClass({
   }
 })
 
-var GrvTableColumn = React.createClass({
+const GrvTableColumn = React.createClass({
   render: function() {
     throw new Error('Component <GrvTableColumn /> should never render');
   }

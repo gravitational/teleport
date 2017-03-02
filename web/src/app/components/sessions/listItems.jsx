@@ -18,6 +18,9 @@ import React from 'react';
 import { Link } from  'react-router';
 import {Cell} from  'app/components/table.jsx';
 import moment from 'moment';
+import Layout from 'app/components/layout';
+import MoreButton from 'app/components/moreButton';
+import Popover from 'app/components/popover';
 
 const DateCreatedCell = ({ rowIndex, data, ...props }) => {
   let { createdDisplayText } = data[rowIndex];  
@@ -68,18 +71,32 @@ const UsersCell = ({ rowIndex, data, ...props }) => {
   )
 };
 
-const SessionIdCell = ({ rowIndex, data, ...props }) => {
+const sessionInfo = sid => (
+  <Popover className="grv-sessions-stored-details">
+    <div>{sid}</div>
+  </Popover>
+);
+
+const SessionIdCell = ({ rowIndex, data, container, ...props }) => {
   let { sessionUrl, active, sid } = data[rowIndex];
   let [actionText, actionClass] = active ? ['join', 'btn-warning'] : ['play', 'btn-primary'];
+  let sidShort = sid.slice(0, 8);
   return (
     <Cell {...props}>
-      <Link 
-        to={sessionUrl}
-        className={"btn " + actionClass + " btn-xs m-r-sm"}
-        type="button">
-          {actionText}
-      </Link>
-      <span> {sid} </span>
+      <Layout.Flex dir="row" align="center">
+        <Link 
+          to={sessionUrl}
+          className={"btn " + actionClass + " btn-xs m-r-sm"}
+          type="button">
+            {actionText}
+        </Link>
+        <span style={{ width: "75px" }}>{sidShort}</span>        
+        <MoreButton.WithOverlay
+          trigger="click"
+          placement="bottom"
+          container={container}
+          overlay={sessionInfo(sid)} />                  
+      </Layout.Flex>  
     </Cell>
   )
 }

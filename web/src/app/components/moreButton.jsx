@@ -14,28 +14,24 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-.grv-nav{
-  background-color: #2f4050;
-  max-width: 70px;
-  overflow: hidden;
+import React from 'react';
+import classNames from 'classnames';
+import OverlayTrigger from 'app/components/overlay';
 
-  .nav {
-
-    > li.active{
-      border: none;
-      background-color: #293846;
-    }
-
-    li:hover{
-    }
-
-    li:first-child{
-      margin: 20px 0 15px 0;
-    }
-
-    .fa{
-      font-size: 20px;
-    }
-  }
-
+const classes = {
+ 'btn grv-btn-details': true
 }
+
+const MoreButton = props => (
+  <button className={classNames(props.className, classes)} >
+    <span>…</span>
+  </button>
+)
+
+MoreButton.WithOverlay = props => (
+  <OverlayTrigger {...props}>
+    <MoreButton/>          
+  </OverlayTrigger>
+)
+
+export default MoreButton;
