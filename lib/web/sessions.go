@@ -399,6 +399,26 @@ func (s *sessionCache) CreateNewU2FUser(token string, password string, u2fRegist
 	return sess, trace.Wrap(err)
 }
 
+func (s *sessionCache) ValidateTrustedCluster(validateRequest *auth.ValidateTrustedClusterRequest) (*auth.ValidateTrustedClusterResponse, error) {
+	method, err := auth.NewValidateTrustedClusterAuth(validateRequest.Token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := auth.NewTunClient("web.validate-trusted-cluster", s.authServers, "tokenAuth", method)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer clt.Close()
+
+	validateResponse, err := clt.ValidateTrustedCluster(validateRequest)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return validateResponse, nil
+}
+
 func (s *sessionCache) InvalidateSession(ctx *SessionContext) error {
 	defer ctx.Close()
 	if err := s.resetContext(ctx.GetUser(), ctx.GetWebSession().GetName()); err != nil {

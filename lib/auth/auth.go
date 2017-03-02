@@ -106,6 +106,7 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
 		ClusterAuthPreference:         cfg.ClusterAuthPreferenceService,
 		UniversalSecondFactorSettings: cfg.UniversalSecondFactorService,
 		oidcClients:                   make(map[string]*oidcClient),
+		DeveloperMode:                 cfg.DeveloperMode,
 	}
 	for _, o := range opts {
 		o(&as)
@@ -128,6 +129,12 @@ type AuthServer struct {
 	oidcClients map[string]*oidcClient
 	clock       clockwork.Clock
 	bk          backend.Backend
+
+	// DeveloperMode should only be used during development as it does several
+	// unsafe things like log sensitive information to console as well as
+	// not verify certificates.
+	DeveloperMode bool
+
 	Authority
 
 	// DomainName stores the FQDN of the signing CA (its certificate will have this
@@ -444,11 +451,11 @@ func (s *AuthServer) GenerateServerKeys(hostID string, nodeName string, roles te
 	}, nil
 }
 
-// ValidteToken takes a provisioning token value and finds if it's valid. Returns
+// ValidateToken takes a provisioning token value and finds if it's valid. Returns
 // a list of roles this token allows its owner to assume, or an error if the token
 // cannot be found
 func (s *AuthServer) ValidateToken(token string) (roles teleport.Roles, e error) {
-	// look at static tokesn first:
+	// look at static tokens first:
 	for _, st := range s.StaticTokens {
 		if st.Token == token {
 			return st.Roles, nil

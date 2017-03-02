@@ -609,6 +609,63 @@ func (a *AuthWithRoles) SetUniversalSecondFactor(u2f services.UniversalSecondFac
 	return a.authServer.SetUniversalSecondFactor(u2f)
 }
 
+func (a *AuthWithRoles) GetTrustedCluster(name string) (services.TrustedCluster, error) {
+	err := a.action(defaults.Namespace, services.KindTrustedCluster, services.ActionRead)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.getTrustedCluster(name)
+}
+
+func (a *AuthWithRoles) GetTrustedClusters() ([]services.TrustedCluster, error) {
+	err := a.action(defaults.Namespace, services.KindTrustedCluster, services.ActionRead)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.getTrustedClusters()
+}
+
+func (a *AuthWithRoles) UpsertTrustedCluster(tc services.TrustedCluster) error {
+	err := a.action(defaults.Namespace, services.KindTrustedCluster, services.ActionWrite)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = a.action(defaults.Namespace, services.KindCertAuthority, services.ActionWrite)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = a.action(defaults.Namespace, services.KindReverseTunnel, services.ActionWrite)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.upsertTrustedCluster(tc)
+}
+
+func (a *AuthWithRoles) ValidateTrustedCluster(validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
+	// the token provides it's own authorization and authentication
+	return a.authServer.validateTrustedCluster(validateRequest)
+}
+
+func (a *AuthWithRoles) DeleteTrustedCluster(name string) error {
+	err := a.action(defaults.Namespace, services.KindTrustedCluster, services.ActionWrite)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = a.action(defaults.Namespace, services.KindCertAuthority, services.ActionWrite)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = a.action(defaults.Namespace, services.KindReverseTunnel, services.ActionWrite)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.deleteTrustedCluster(name)
+}
+
 // NewAuthWithRoles creates new auth server with access control
 func NewAuthWithRoles(authServer *AuthServer,
 	checker services.AccessChecker,

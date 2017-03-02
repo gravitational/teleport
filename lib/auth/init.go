@@ -106,6 +106,11 @@ type InitConfig struct {
 
 	// U2F defines U2F application ID and any facets passed in from a configuration file.
 	U2F services.UniversalSecondFactor
+
+	// DeveloperMode should only be used during development as it does several
+	// unsafe things like log sensitive information to console as well as
+	// not verify certificates.
+	DeveloperMode bool
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -262,6 +267,10 @@ func Init(cfg InitConfig, dynamicConfig bool) (*AuthServer, *Identity, error) {
 		if err := asrv.Trust.UpsertCertAuthority(hostCA, backend.Forever); err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
+	}
+
+	if cfg.DeveloperMode {
+		log.Warn("[INIT] Starting Teleport in developer mode. This is dangerous! Sensitive information will be logged to console and certificates will not be verified. Proceed with caution!")
 	}
 
 	// read host keys from disk or create them if they don't exist

@@ -23,14 +23,12 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/httplib"
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 )
-
-// Version is a current webapi version
-const APIVersion = "v1"
 
 func NewInsecureWebClient() *http.Client {
 	return &http.Client{
@@ -49,7 +47,7 @@ func newClientWithPool(pool *x509.CertPool) *http.Client {
 }
 
 func NewWebClient(url string, opts ...roundtrip.ClientParam) (*WebClient, error) {
-	clt, err := roundtrip.NewClient(url, APIVersion, opts...)
+	clt, err := roundtrip.NewClient(url, teleport.WebAPIVersion, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
