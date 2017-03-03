@@ -19,7 +19,7 @@ var webpack = require('webpack');
 var HtmlWebPackPlugin = require('html-webpack-plugin');
 var ExtractTextPlugin = require('extract-text-webpack-plugin');
 var ROOT_PATH = path.join(__dirname, '../');
-
+var FlowBabelWebpackPlugin = require('flow-babel-webpack-plugin');
 var favIconPath = path.join(ROOT_PATH, 'src/assets/img/favicon.ico');
 var extractCss = new ExtractTextPlugin('vendor.[contenthash].css');
 
@@ -84,6 +84,8 @@ module.exports = {
   },
 
   plugins: {
+  
+    flowType: new FlowBabelWebpackPlugin(),
 
     extractCss: extractCss,
 

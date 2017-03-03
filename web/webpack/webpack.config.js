@@ -34,6 +34,7 @@ var cfg = {
   },
 
   plugins:  [
+    baseCfg.plugins.flowType,
     baseCfg.plugins.releaseBuild,
     baseCfg.plugins.extractCss,
     baseCfg.plugins.createIndexHtml,
