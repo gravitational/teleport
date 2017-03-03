@@ -212,10 +212,10 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		}
 		if len(cfg.Identities) != 0 {
 			cfg.HostUUID = cfg.Identities[0].ID.HostUUID
-			log.Infof("[INIT] taking host uuid from first identity: %v", cfg.HostUUID)
+			log.Infof("[INIT] Taking host UUID from first identity: %v", cfg.HostUUID)
 		} else {
 			cfg.HostUUID = uuid.New()
-			log.Infof("[INIT] generating new host UUID: %v", cfg.HostUUID)
+			log.Infof("[INIT] Generating new host UUID: %v", cfg.HostUUID)
 		}
 		if err := utils.WriteHostUUID(cfg.DataDir, cfg.HostUUID); err != nil {
 			return nil, trace.Wrap(err)
@@ -294,6 +294,7 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 		err         error
 	)
 	cfg := process.Config
+
 	// Initialize the storage back-ends for keys, events and records
 	b, err := process.initAuthStorage()
 	if err != nil {
@@ -334,7 +335,7 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 		AuthPreference:  cfg.Auth.Preference,
 		OIDCConnectors:  cfg.OIDCConnectors,
 		U2F:             cfg.Auth.U2F,
-	}, cfg.SeedConfig)
+	}, cfg.Auth.DynamicConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -798,7 +799,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	return nil
 }
 
-// initAuthStorage initializes the storage backend for the auth. service
+// initAuthStorage initializes the storage backend for the auth service.
 func (process *TeleportProcess) initAuthStorage() (bk backend.Backend, err error) {
 	bc := &process.Config.Auth.StorageConfig
 

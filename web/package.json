@@ -16,7 +16,7 @@
     "perfect-scrollbar": "^0.6.13",
     "font-awesome": "4.5.0",
     "buffer": "4.5.0",
-    "classnames": "2.2.3",
+    "classnames": "^2.2.3",
     "keymirror": "0.1.1",
     "moment": "2.12.0",
     "nuclear-js": "1.3.0",
@@ -30,6 +30,7 @@
     "react-addons-css-transition-group": "15.3.0",
     "react-slider": "0.6.1",
     "react-toastr": "2.4.0",
+    "react-overlays": "^0.6.11",
     "u2f-api-polyfill": "^0.4.3"
   },
   "devDependencies": {

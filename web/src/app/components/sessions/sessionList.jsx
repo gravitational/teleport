@@ -114,7 +114,7 @@ const SessionList = React.createClass({
               <Column
                 header={<Cell className="grv-sessions-col-sid"> Session ID </Cell> }
                 cell={
-                  <SessionIdCell data={data} />
+                  <SessionIdCell data={data} container={this} />
                 }
               />                                
               <Column

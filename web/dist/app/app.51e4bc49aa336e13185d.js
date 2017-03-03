@@ -1,12 +1,14 @@
-webpackJsonp([0],[
-/* 0 */
+webpackJsonp([0],{
+
+/***/ 0:
 /***/ function(module, exports, __webpack_require__) {
 
 	module.exports = __webpack_require__(1);
 
 
 /***/ },
-/* 1 */
+
+/***/ 1:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -45,7 +47,7 @@ webpackJsonp([0],[
 
 	var _main4 = _interopRequireDefault(_main3);
 
-	var _main5 = __webpack_require__(417);
+	var _main5 = __webpack_require__(472);
 
 	var _main6 = _interopRequireDefault(_main5);
 
@@ -63,7 +65,7 @@ webpackJsonp([0],[
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	__webpack_require__(465);
+	__webpack_require__(520);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -112,224 +114,8 @@ webpackJsonp([0],[
 	), document.getElementById("app"));
 
 /***/ },
-/* 2 */,
-/* 3 */,
-/* 4 */,
-/* 5 */,
-/* 6 */,
-/* 7 */,
-/* 8 */,
-/* 9 */,
-/* 10 */,
-/* 11 */,
-/* 12 */,
-/* 13 */,
-/* 14 */,
-/* 15 */,
-/* 16 */,
-/* 17 */,
-/* 18 */,
-/* 19 */,
-/* 20 */,
-/* 21 */,
-/* 22 */,
-/* 23 */,
-/* 24 */,
-/* 25 */,
-/* 26 */,
-/* 27 */,
-/* 28 */,
-/* 29 */,
-/* 30 */,
-/* 31 */,
-/* 32 */,
-/* 33 */,
-/* 34 */,
-/* 35 */,
-/* 36 */,
-/* 37 */,
-/* 38 */,
-/* 39 */,
-/* 40 */,
-/* 41 */,
-/* 42 */,
-/* 43 */,
-/* 44 */,
-/* 45 */,
-/* 46 */,
-/* 47 */,
-/* 48 */,
-/* 49 */,
-/* 50 */,
-/* 51 */,
-/* 52 */,
-/* 53 */,
-/* 54 */,
-/* 55 */,
-/* 56 */,
-/* 57 */,
-/* 58 */,
-/* 59 */,
-/* 60 */,
-/* 61 */,
-/* 62 */,
-/* 63 */,
-/* 64 */,
-/* 65 */,
-/* 66 */,
-/* 67 */,
-/* 68 */,
-/* 69 */,
-/* 70 */,
-/* 71 */,
-/* 72 */,
-/* 73 */,
-/* 74 */,
-/* 75 */,
-/* 76 */,
-/* 77 */,
-/* 78 */,
-/* 79 */,
-/* 80 */,
-/* 81 */,
-/* 82 */,
-/* 83 */,
-/* 84 */,
-/* 85 */,
-/* 86 */,
-/* 87 */,
-/* 88 */,
-/* 89 */,
-/* 90 */,
-/* 91 */,
-/* 92 */,
-/* 93 */,
-/* 94 */,
-/* 95 */,
-/* 96 */,
-/* 97 */,
-/* 98 */,
-/* 99 */,
-/* 100 */,
-/* 101 */,
-/* 102 */,
-/* 103 */,
-/* 104 */,
-/* 105 */,
-/* 106 */,
-/* 107 */,
-/* 108 */,
-/* 109 */,
-/* 110 */,
-/* 111 */,
-/* 112 */,
-/* 113 */,
-/* 114 */,
-/* 115 */,
-/* 116 */,
-/* 117 */,
-/* 118 */,
-/* 119 */,
-/* 120 */,
-/* 121 */,
-/* 122 */,
-/* 123 */,
-/* 124 */,
-/* 125 */,
-/* 126 */,
-/* 127 */,
-/* 128 */,
-/* 129 */,
-/* 130 */,
-/* 131 */,
-/* 132 */,
-/* 133 */,
-/* 134 */,
-/* 135 */,
-/* 136 */,
-/* 137 */,
-/* 138 */,
-/* 139 */,
-/* 140 */,
-/* 141 */,
-/* 142 */,
-/* 143 */,
-/* 144 */,
-/* 145 */,
-/* 146 */,
-/* 147 */,
-/* 148 */,
-/* 149 */,
-/* 150 */,
-/* 151 */,
-/* 152 */,
-/* 153 */,
-/* 154 */,
-/* 155 */,
-/* 156 */,
-/* 157 */,
-/* 158 */,
-/* 159 */,
-/* 160 */,
-/* 161 */,
-/* 162 */,
-/* 163 */,
-/* 164 */,
-/* 165 */,
-/* 166 */,
-/* 167 */,
-/* 168 */,
-/* 169 */,
-/* 170 */,
-/* 171 */,
-/* 172 */,
-/* 173 */,
-/* 174 */,
-/* 175 */,
-/* 176 */,
-/* 177 */,
-/* 178 */,
-/* 179 */,
-/* 180 */,
-/* 181 */,
-/* 182 */,
-/* 183 */,
-/* 184 */,
-/* 185 */,
-/* 186 */,
-/* 187 */,
-/* 188 */,
-/* 189 */,
-/* 190 */,
-/* 191 */,
-/* 192 */,
-/* 193 */,
-/* 194 */,
-/* 195 */,
-/* 196 */,
-/* 197 */,
-/* 198 */,
-/* 199 */,
-/* 200 */,
-/* 201 */,
-/* 202 */,
-/* 203 */,
-/* 204 */,
-/* 205 */,
-/* 206 */,
-/* 207 */,
-/* 208 */,
-/* 209 */,
-/* 210 */,
-/* 211 */,
-/* 212 */,
-/* 213 */,
-/* 214 */,
-/* 215 */,
-/* 216 */,
-/* 217 */,
-/* 218 */,
-/* 219 */
+
+/***/ 219:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -365,7 +151,8 @@ webpackJsonp([0],[
 	exports.nuclearComponent = _nuclearComponent2['default'];
 
 /***/ },
-/* 220 */
+
+/***/ 220:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -501,7 +288,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 221 */
+
+/***/ 221:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -519,7 +307,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 222 */
+
+/***/ 222:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -574,7 +363,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 223 */
+
+/***/ 223:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -654,7 +444,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 224 */
+
+/***/ 224:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -753,7 +544,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 225 */
+
+/***/ 225:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -808,7 +600,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 226 */
+
+/***/ 226:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -893,10 +686,8 @@ webpackJsonp([0],[
 	module.exports = session;
 
 /***/ },
-/* 227 */,
-/* 228 */,
-/* 229 */,
-/* 230 */
+
+/***/ 230:
 /***/ function(module, exports) {
 
 	'use strict';
@@ -989,7 +780,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 231 */
+
+/***/ 231:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -1117,7 +909,8 @@ webpackJsonp([0],[
 	exports.Connector = Connector;
 
 /***/ },
-/* 232 */
+
+/***/ 232:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -1274,7 +1067,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 233 */
+
+/***/ 233:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -1508,7 +1302,8 @@ webpackJsonp([0],[
 	}
 
 /***/ },
-/* 234 */
+
+/***/ 234:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -1533,7 +1328,8 @@ webpackJsonp([0],[
 	module.exports.appStore = __webpack_require__(355);
 
 /***/ },
-/* 235 */
+
+/***/ 235:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -1567,7 +1363,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 236 */
+
+/***/ 236:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -1604,8 +1401,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 237 */,
-/* 238 */
+
+/***/ 238:
 /***/ function(module, exports) {
 
 	'use strict';
@@ -1644,7 +1441,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 239 */
+
+/***/ 239:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -1717,7 +1515,7 @@ webpackJsonp([0],[
 	    _actions3.default.start(_constants.TRYING_TO_INIT_APP);
 
 	    // get the list of available clusters        
-	    actions.fetchSites().then(function (masterSiteId) {
+	    return actions.fetchSites().then(function (masterSiteId) {
 	      siteId = siteId || masterSiteId;
 	      _reactor2.default.dispatch(_actionTypes.TLPT_APP_SET_SITE_ID, siteId);
 	      // fetch nodes and active sessions 
@@ -1764,7 +1562,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 240 */
+
+/***/ 240:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -1799,8 +1598,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 241 */,
-/* 242 */
+
+/***/ 242:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -2045,7 +1844,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 243 */
+
+/***/ 243:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -2135,7 +1935,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 244 */
+
+/***/ 244:
 /***/ function(module, exports) {
 
 	
@@ -2895,7 +2696,8 @@ webpackJsonp([0],[
 
 
 /***/ },
-/* 245 */
+
+/***/ 245:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -2953,7 +2755,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 246 */
+
+/***/ 246:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -2987,7 +2790,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 247 */
+
+/***/ 247:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -3024,7 +2828,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 248 */
+
+/***/ 248:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -3058,7 +2863,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 249 */
+
+/***/ 249:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -3104,7 +2910,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 250 */
+
+/***/ 250:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -3140,7 +2947,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 251 */
+
+/***/ 251:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -3194,7 +3002,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 252 */
+
+/***/ 252:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -3228,7 +3037,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 253 */
+
+/***/ 253:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -3316,107 +3126,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 254 */,
-/* 255 */,
-/* 256 */,
-/* 257 */,
-/* 258 */,
-/* 259 */,
-/* 260 */,
-/* 261 */,
-/* 262 */,
-/* 263 */,
-/* 264 */,
-/* 265 */,
-/* 266 */,
-/* 267 */,
-/* 268 */,
-/* 269 */,
-/* 270 */,
-/* 271 */,
-/* 272 */,
-/* 273 */,
-/* 274 */,
-/* 275 */,
-/* 276 */,
-/* 277 */,
-/* 278 */,
-/* 279 */,
-/* 280 */,
-/* 281 */,
-/* 282 */,
-/* 283 */,
-/* 284 */,
-/* 285 */,
-/* 286 */,
-/* 287 */,
-/* 288 */,
-/* 289 */,
-/* 290 */,
-/* 291 */,
-/* 292 */,
-/* 293 */,
-/* 294 */,
-/* 295 */,
-/* 296 */,
-/* 297 */,
-/* 298 */,
-/* 299 */,
-/* 300 */,
-/* 301 */,
-/* 302 */,
-/* 303 */,
-/* 304 */,
-/* 305 */,
-/* 306 */,
-/* 307 */,
-/* 308 */,
-/* 309 */,
-/* 310 */,
-/* 311 */,
-/* 312 */,
-/* 313 */,
-/* 314 */,
-/* 315 */,
-/* 316 */,
-/* 317 */,
-/* 318 */,
-/* 319 */,
-/* 320 */,
-/* 321 */,
-/* 322 */,
-/* 323 */,
-/* 324 */,
-/* 325 */,
-/* 326 */,
-/* 327 */,
-/* 328 */,
-/* 329 */,
-/* 330 */,
-/* 331 */,
-/* 332 */,
-/* 333 */,
-/* 334 */,
-/* 335 */,
-/* 336 */,
-/* 337 */,
-/* 338 */,
-/* 339 */,
-/* 340 */,
-/* 341 */,
-/* 342 */,
-/* 343 */,
-/* 344 */,
-/* 345 */,
-/* 346 */,
-/* 347 */,
-/* 348 */,
-/* 349 */,
-/* 350 */,
-/* 351 */,
-/* 352 */,
-/* 353 */,
-/* 354 */
+
+/***/ 354:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -3452,7 +3163,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 355 */
+
+/***/ 355:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -3496,7 +3208,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 356 */
+
+/***/ 356:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -3611,7 +3324,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 357 */
+
+/***/ 357:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -3671,7 +3385,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 358 */
+
+/***/ 358:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -3743,8 +3458,8 @@ webpackJsonp([0],[
 	exports.UserIcon = UserIcon;
 
 /***/ },
-/* 359 */,
-/* 360 */
+
+/***/ 360:
 /***/ function(module, exports, __webpack_require__) {
 
 	;
@@ -3753,7 +3468,8 @@ webpackJsonp([0],[
 	module.exports = sprite.add(image, "grv-tlpt-logo-full");
 
 /***/ },
-/* 361 */
+
+/***/ 361:
 /***/ function(module, exports, __webpack_require__) {
 
 	var Sprite = __webpack_require__(362);
@@ -3771,7 +3487,8 @@ webpackJsonp([0],[
 
 
 /***/ },
-/* 362 */
+
+/***/ 362:
 /***/ function(module, exports, __webpack_require__) {
 
 	var Sniffr = __webpack_require__(363);
@@ -4026,7 +3743,8 @@ webpackJsonp([0],[
 
 
 /***/ },
-/* 363 */
+
+/***/ 363:
 /***/ function(module, exports) {
 
 	(function(host) {
@@ -4150,7 +3868,8 @@ webpackJsonp([0],[
 
 
 /***/ },
-/* 364 */
+
+/***/ 364:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -4234,7 +3953,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 365 */
+
+/***/ 365:
 /***/ function(module, exports) {
 
 	'use strict';
@@ -4261,17 +3981,8 @@ webpackJsonp([0],[
 	}];
 
 /***/ },
-/* 366 */,
-/* 367 */,
-/* 368 */,
-/* 369 */,
-/* 370 */,
-/* 371 */,
-/* 372 */,
-/* 373 */,
-/* 374 */,
-/* 375 */,
-/* 376 */
+
+/***/ 376:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -4324,13 +4035,14 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 377 */
+
+/***/ 377:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
-	exports.MessagePage = exports.ErrorTypes = exports.Failed = exports.NotFound = exports.InfoPage = exports.ErrorPage = undefined;
+	exports.MessagePage = exports.ErrorTypes = exports.AccessDenied = exports.Failed = exports.NotFound = exports.InfoPage = exports.ErrorPage = undefined;
 
 	var _react = __webpack_require__(2);
 
@@ -4363,6 +4075,8 @@ webpackJsonp([0],[
 	var MSG_ERROR_EXPIRED_INVITE = 'Invite code has expired.';
 	var MSG_ERROR_EXPIRED_INVITE_DETAILS = 'Looks like your invite code isn\'t valid anymore.';
 
+	var MSG_ERROR_ACCESS_DENIED = 'Access denied';
+
 	var MsgType = {
 	  INFO: 'info',
 	  ERROR: 'error'
@@ -4371,7 +4085,8 @@ webpackJsonp([0],[
 	var ErrorTypes = {
 	  FAILED_TO_LOGIN: 'login_failed',
 	  EXPIRED_INVITE: 'expired_invite',
-	  NOT_FOUND: 'not_found'
+	  NOT_FOUND: 'not_found',
+	  ACCESS_DENIED: 'access_denied'
 	};
 
 	var InfoTypes = {
@@ -4394,6 +4109,18 @@ webpackJsonp([0],[
 	  return null;
 	};
 
+	var ErrorMessage = function ErrorMessage(props) {
+	  return _react2.default.createElement(
+	    'div',
+	    { className: 'm-t', style: { wordBreak: "break-all" } },
+	    _react2.default.createElement(
+	      'small',
+	      null,
+	      props.children
+	    )
+	  );
+	};
+
 	var ErrorPage = function ErrorPage(_ref2) {
 	  var type = _ref2.type,
 	      _ref2$message = _ref2.message,
@@ -4408,13 +4135,9 @@ webpackJsonp([0],[
 	      MSG_ERROR_DEFAULT
 	    ),
 	    _react2.default.createElement(
-	      'div',
-	      { className: 'm-t text-muted', style: { wordBreak: "break-all" } },
-	      _react2.default.createElement(
-	        'small',
-	        null,
-	        message
-	      )
+	      ErrorMessage,
+	      null,
+	      message
 	    )
 	  );
 
@@ -4464,6 +4187,23 @@ webpackJsonp([0],[
 	    );
 	  }
 
+	  if (type === ErrorTypes.ACCESS_DENIED) {
+	    msgBody = _react2.default.createElement(
+	      'div',
+	      null,
+	      _react2.default.createElement(
+	        'h1',
+	        null,
+	        MSG_ERROR_ACCESS_DENIED
+	      ),
+	      _react2.default.createElement(
+	        ErrorMessage,
+	        null,
+	        message
+	      )
+	    );
+	  }
+
 	  return _react2.default.createElement(
 	    'div',
 	    { className: 'grv-msg-page' },
@@ -4475,7 +4215,7 @@ webpackJsonp([0],[
 	    ),
 	    msgBody,
 	    _react2.default.createElement(
-	      'div',
+	      'small',
 	      { className: 'contact-section' },
 	      'If you believe this is an issue with Teleport, please ',
 	      _react2.default.createElement(
@@ -4524,15 +4264,22 @@ webpackJsonp([0],[
 	  return _react2.default.createElement(ErrorPage, { message: message });
 	};
 
+	var AccessDenied = function AccessDenied(_ref5) {
+	  var message = _ref5.message;
+	  return _react2.default.createElement(ErrorPage, { type: ErrorTypes.ACCESS_DENIED, message: message });
+	};
+
 	exports.ErrorPage = ErrorPage;
 	exports.InfoPage = InfoPage;
 	exports.NotFound = NotFound;
 	exports.Failed = Failed;
+	exports.AccessDenied = AccessDenied;
 	exports.ErrorTypes = ErrorTypes;
 	exports.MessagePage = MessagePage;
 
 /***/ },
-/* 378 */
+
+/***/ 378:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -4616,7 +4363,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 379 */
+
+/***/ 379:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -4935,7 +4683,7 @@ webpackJsonp([0],[
 	});
 
 	LoginInputForm.propTypes = {
-	  authProvider: _react2.default.PropTypes.string,
+	  authProviders: _react2.default.PropTypes.array,
 	  auth2faType: _react2.default.PropTypes.string,
 	  authType: _react2.default.PropTypes.string,
 	  onLoginWithOidc: _react2.default.PropTypes.func.isRequired,
@@ -4974,9 +4722,8 @@ webpackJsonp([0],[
 	exports.LoginInputForm = LoginInputForm;
 
 /***/ },
-/* 380 */,
-/* 381 */,
-/* 382 */
+
+/***/ 382:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -5002,7 +4749,8 @@ webpackJsonp([0],[
 	module.exports.nodeStore = __webpack_require__(385);
 
 /***/ },
-/* 383 */
+
+/***/ 383:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -5126,7 +4874,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 384 */
+
+/***/ 384:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -5161,7 +4910,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 385 */
+
+/***/ 385:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -5207,7 +4957,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 386 */
+
+/***/ 386:
 /***/ function(module, exports, __webpack_require__) {
 
 	"use strict";
@@ -5266,7 +5017,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 387 */
+
+/***/ 387:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -5374,7 +5126,8 @@ webpackJsonp([0],[
 	exports.SsoBtnList = SsoBtnList;
 
 /***/ },
-/* 388 */
+
+/***/ 388:
 /***/ function(module, exports) {
 
 	'use strict';
@@ -5410,7 +5163,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 389 */
+
+/***/ 389:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -5842,7 +5596,7 @@ webpackJsonp([0],[
 	};
 
 	InviteInputForm.propTypes = {
-	  authProvider: _react2.default.PropTypes.string,
+	  authProviders: _react2.default.PropTypes.array,
 	  auth2faType: _react2.default.PropTypes.string,
 	  authType: _react2.default.PropTypes.string,
 	  onSignupWithOidc: _react2.default.PropTypes.func.isRequired,
@@ -5866,11 +5620,8 @@ webpackJsonp([0],[
 	exports.InviteInputForm = InviteInputForm;
 
 /***/ },
-/* 390 */,
-/* 391 */,
-/* 392 */,
-/* 393 */,
-/* 394 */
+
+/***/ 394:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -5950,7 +5701,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 395 */
+
+/***/ 395:
 /***/ function(module, exports) {
 
 	'use strict';
@@ -6036,7 +5788,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 396 */
+
+/***/ 396:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -6242,10 +5995,10 @@ webpackJsonp([0],[
 	    var data = this.sortAndFilter(nodeRecords);
 	    return _react2.default.createElement(
 	      'div',
-	      { className: 'grv-nodes' },
+	      { className: 'grv-nodes m-t' },
 	      _react2.default.createElement(
 	        'div',
-	        { className: 'grv-flex grv-header m-t', style: { justifyContent: "space-between" } },
+	        { className: 'grv-flex grv-header', style: { justifyContent: "space-between" } },
 	        _react2.default.createElement(
 	          'h2',
 	          { className: 'text-center no-margins' },
@@ -6307,9 +6060,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 397 */,
-/* 398 */,
-/* 399 */
+
+/***/ 399:
 /***/ function(module, exports) {
 
 	'use strict';
@@ -6381,7 +6133,8 @@ webpackJsonp([0],[
 	}
 
 /***/ },
-/* 400 */
+
+/***/ 400:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -6448,34 +6201,38 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 401 */
+
+/***/ 401:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
+	exports.EmptyIndicator = exports.SortTypes = exports.SortIndicator = exports.SortHeaderCell = exports.TextCell = exports.Cell = exports.Table = exports.Column = undefined;
 
 	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
-	function _objectWithoutProperties(obj, keys) { var target = {}; for (var i in obj) { if (keys.indexOf(i) >= 0) continue; if (!Object.prototype.hasOwnProperty.call(obj, i)) continue; target[i] = obj[i]; } return target; }
+	var _react = __webpack_require__(2);
 
-	/*
-	Copyright 2015 Gravitational, Inc.
+	var _react2 = _interopRequireDefault(_react);
 
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	var React = __webpack_require__(2);
+	function _objectWithoutProperties(obj, keys) { var target = {}; for (var i in obj) { if (keys.indexOf(i) >= 0) continue; if (!Object.prototype.hasOwnProperty.call(obj, i)) continue; target[i] = obj[i]; } return target; } /*
+	                                                                                                                                                                                                                             Copyright 2015 Gravitational, Inc.
+	                                                                                                                                                                                                                             
+	                                                                                                                                                                                                                             Licensed under the Apache License, Version 2.0 (the "License");
+	                                                                                                                                                                                                                             you may not use this file except in compliance with the License.
+	                                                                                                                                                                                                                             You may obtain a copy of the License at
+	                                                                                                                                                                                                                             
+	                                                                                                                                                                                                                                 http://www.apache.org/licenses/LICENSE-2.0
+	                                                                                                                                                                                                                             
+	                                                                                                                                                                                                                             Unless required by applicable law or agreed to in writing, software
+	                                                                                                                                                                                                                             distributed under the License is distributed on an "AS IS" BASIS,
+	                                                                                                                                                                                                                             WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	                                                                                                                                                                                                                             See the License for the specific language governing permissions and
+	                                                                                                                                                                                                                             limitations under the License.
+	                                                                                                                                                                                                                             */
 
 	var GrvTableTextCell = function GrvTableTextCell(_ref) {
 	  var rowIndex = _ref.rowIndex,
@@ -6483,7 +6240,7 @@ webpackJsonp([0],[
 	      columnKey = _ref.columnKey,
 	      props = _objectWithoutProperties(_ref, ['rowIndex', 'data', 'columnKey']);
 
-	  return React.createElement(
+	  return _react2.default.createElement(
 	    GrvTableCell,
 	    props,
 	    data[rowIndex][columnKey]
@@ -6510,13 +6267,13 @@ webpackJsonp([0],[
 	    cls += '-asc';
 	  }
 
-	  return React.createElement('i', { className: cls });
+	  return _react2.default.createElement('i', { className: cls });
 	};
 
 	/**
 	* Sort Header Cell
 	*/
-	var SortHeaderCell = React.createClass({
+	var SortHeaderCell = _react2.default.createClass({
 	  displayName: 'SortHeaderCell',
 	  render: function render() {
 	    var _props = this.props,
@@ -6524,15 +6281,15 @@ webpackJsonp([0],[
 	        title = _props.title,
 	        props = _objectWithoutProperties(_props, ['sortDir', 'title']);
 
-	    return React.createElement(
+	    return _react2.default.createElement(
 	      GrvTableCell,
 	      props,
-	      React.createElement(
+	      _react2.default.createElement(
 	        'a',
 	        { onClick: this.onSortChange },
 	        title
 	      ),
-	      React.createElement(SortIndicator, { sortDir: sortDir })
+	      _react2.default.createElement(SortIndicator, { sortDir: sortDir })
 	    );
 	  },
 	  onSortChange: function onSortChange(e) {
@@ -6551,7 +6308,7 @@ webpackJsonp([0],[
 	/**
 	* Default Cell
 	*/
-	var GrvTableCell = React.createClass({
+	var GrvTableCell = _react2.default.createClass({
 	  displayName: 'GrvTableCell',
 	  render: function render() {
 	    var _props2 = this.props,
@@ -6561,11 +6318,11 @@ webpackJsonp([0],[
 	        className = _props2$className === undefined ? '' : _props2$className;
 
 	    className = 'grv-table-cell ' + className;
-	    return isHeader ? React.createElement(
+	    return isHeader ? _react2.default.createElement(
 	      'th',
 	      { className: className },
 	      children
-	    ) : React.createElement(
+	    ) : _react2.default.createElement(
 	      'td',
 	      null,
 	      children
@@ -6576,7 +6333,7 @@ webpackJsonp([0],[
 	/**
 	* Table
 	*/
-	var GrvTable = React.createClass({
+	var GrvTable = _react2.default.createClass({
 	  displayName: 'GrvTable',
 	  renderHeader: function renderHeader(children) {
 	    var _this = this;
@@ -6585,10 +6342,10 @@ webpackJsonp([0],[
 	      return _this.renderCell(item.props.header, _extends({ index: index, key: index, isHeader: true }, item.props));
 	    });
 
-	    return React.createElement(
+	    return _react2.default.createElement(
 	      'thead',
 	      { className: 'grv-table-header' },
-	      React.createElement(
+	      _react2.default.createElement(
 	        'tr',
 	        null,
 	        cells
@@ -6605,14 +6362,14 @@ webpackJsonp([0],[
 	        return _this2.renderCell(item.props.cell, _extends({ rowIndex: i, key: index, isHeader: false }, item.props));
 	      });
 
-	      rows.push(React.createElement(
+	      rows.push(_react2.default.createElement(
 	        'tr',
 	        { key: i },
 	        cells
 	      ));
 	    }
 
-	    return React.createElement(
+	    return _react2.default.createElement(
 	      'tbody',
 	      null,
 	      rows
@@ -6620,8 +6377,8 @@ webpackJsonp([0],[
 	  },
 	  renderCell: function renderCell(cell, cellProps) {
 	    var content = null;
-	    if (React.isValidElement(cell)) {
-	      content = React.cloneElement(cell, cellProps);
+	    if (_react2.default.isValidElement(cell)) {
+	      content = _react2.default.cloneElement(cell, cellProps);
 	    } else if (typeof cell === 'function') {
 	      content = cell(cellProps);
 	    }
@@ -6630,7 +6387,7 @@ webpackJsonp([0],[
 	  },
 	  render: function render() {
 	    var children = [];
-	    React.Children.forEach(this.props.children, function (child) {
+	    _react2.default.Children.forEach(this.props.children, function (child) {
 	      if (child == null) {
 	        return;
 	      }
@@ -6644,7 +6401,7 @@ webpackJsonp([0],[
 
 	    var tableClass = 'table grv-table ' + this.props.className;
 
-	    return React.createElement(
+	    return _react2.default.createElement(
 	      'table',
 	      { className: tableClass },
 	      this.renderHeader(children),
@@ -6653,7 +6410,7 @@ webpackJsonp([0],[
 	  }
 	});
 
-	var GrvTableColumn = React.createClass({
+	var GrvTableColumn = _react2.default.createClass({
 	  displayName: 'GrvTableColumn',
 
 	  render: function render() {
@@ -6663,10 +6420,10 @@ webpackJsonp([0],[
 
 	var EmptyIndicator = function EmptyIndicator(_ref3) {
 	  var text = _ref3.text;
-	  return React.createElement(
+	  return _react2.default.createElement(
 	    'div',
 	    { className: 'grv-table-indicator-empty text-muted' },
-	    React.createElement(
+	    _react2.default.createElement(
 	      'span',
 	      null,
 	      text
@@ -6685,7 +6442,8 @@ webpackJsonp([0],[
 	exports.EmptyIndicator = EmptyIndicator;
 
 /***/ },
-/* 402 */
+
+/***/ 402:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -6856,7 +6614,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 403 */
+
+/***/ 403:
 /***/ function(module, exports) {
 
 	'use strict';
@@ -6900,7 +6659,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 404 */
+
+/***/ 404:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -7069,7 +6829,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 405 */
+
+/***/ 405:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -7104,7 +6865,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 406 */
+
+/***/ 406:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -7208,7 +6970,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 407 */
+
+/***/ 407:
 /***/ function(module, exports) {
 
 	'use strict';
@@ -7249,7 +7012,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 408 */
+
+/***/ 408:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -7399,7 +7163,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 409 */
+
+/***/ 409:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -7483,7 +7248,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 410 */
+
+/***/ 410:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -7548,7 +7314,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 411 */
+
+/***/ 411:
 /***/ function(module, exports) {
 
 	'use strict';
@@ -7580,7 +7347,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 412 */
+
+/***/ 412:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -7616,7 +7384,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 413 */
+
+/***/ 413:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -7647,7 +7416,7 @@ webpackJsonp([0],[
 
 	var _listItems = __webpack_require__(415);
 
-	var _datePicker = __webpack_require__(416);
+	var _datePicker = __webpack_require__(471);
 
 	var _clusterSelector = __webpack_require__(406);
 
@@ -7749,7 +7518,7 @@ webpackJsonp([0],[
 
 	    return _react2.default.createElement(
 	      'div',
-	      { className: 'grv-sessions-stored' },
+	      { className: 'grv-sessions-stored m-t' },
 	      _react2.default.createElement(
 	        'div',
 	        { className: 'grv-header' },
@@ -7790,7 +7559,7 @@ webpackJsonp([0],[
 	              { className: 'grv-sessions-col-sid' },
 	              ' Session ID '
 	            ),
-	            cell: _react2.default.createElement(_listItems.SessionIdCell, { data: data })
+	            cell: _react2.default.createElement(_listItems.SessionIdCell, { data: data, container: this })
 	          }),
 	          _react2.default.createElement(_table.Column, {
 	            header: _react2.default.createElement(
@@ -7837,7 +7606,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 414 */
+
+/***/ 414:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -7861,7 +7631,8 @@ webpackJsonp([0],[
 	module.exports.actions = __webpack_require__(410);
 
 /***/ },
-/* 415 */
+
+/***/ 415:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -7880,6 +7651,18 @@ webpackJsonp([0],[
 	var _moment = __webpack_require__(254);
 
 	var _moment2 = _interopRequireDefault(_moment);
+
+	var _layout = __webpack_require__(416);
+
+	var _layout2 = _interopRequireDefault(_layout);
+
+	var _moreButton = __webpack_require__(417);
+
+	var _moreButton2 = _interopRequireDefault(_moreButton);
+
+	var _popover = __webpack_require__(470);
+
+	var _popover2 = _interopRequireDefault(_popover);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -7982,10 +7765,23 @@ webpackJsonp([0],[
 	  );
 	};
 
+	var sessionInfo = function sessionInfo(sid) {
+	  return _react2.default.createElement(
+	    _popover2.default,
+	    { className: 'grv-sessions-stored-details' },
+	    _react2.default.createElement(
+	      'div',
+	      null,
+	      sid
+	    )
+	  );
+	};
+
 	var SessionIdCell = function SessionIdCell(_ref5) {
 	  var rowIndex = _ref5.rowIndex,
 	      data = _ref5.data,
-	      props = _objectWithoutProperties(_ref5, ['rowIndex', 'data']);
+	      container = _ref5.container,
+	      props = _objectWithoutProperties(_ref5, ['rowIndex', 'data', 'container']);
 
 	  var _data$rowIndex2 = data[rowIndex],
 	      sessionUrl = _data$rowIndex2.sessionUrl,
@@ -7996,23 +7792,31 @@ webpackJsonp([0],[
 	      actionText = _ref6[0],
 	      actionClass = _ref6[1];
 
+	  var sidShort = sid.slice(0, 8);
 	  return _react2.default.createElement(
 	    _table.Cell,
 	    props,
 	    _react2.default.createElement(
-	      _reactRouter.Link,
-	      {
-	        to: sessionUrl,
-	        className: "btn " + actionClass + " btn-xs m-r-sm",
-	        type: 'button' },
-	      actionText
-	    ),
-	    _react2.default.createElement(
-	      'span',
-	      null,
-	      ' ',
-	      sid,
-	      ' '
+	      _layout2.default.Flex,
+	      { dir: 'row', align: 'center' },
+	      _react2.default.createElement(
+	        _reactRouter.Link,
+	        {
+	          to: sessionUrl,
+	          className: "btn " + actionClass + " btn-xs m-r-sm",
+	          type: 'button' },
+	        actionText
+	      ),
+	      _react2.default.createElement(
+	        'span',
+	        { style: { width: "75px" } },
+	        sidShort
+	      ),
+	      _react2.default.createElement(_moreButton2.default.WithOverlay, {
+	        trigger: 'click',
+	        placement: 'bottom',
+	        container: container,
+	        overlay: sessionInfo(sid) })
 	    )
 	  );
 	};
@@ -8039,7 +7843,465 @@ webpackJsonp([0],[
 	exports.NodeCell = NodeCell;
 
 /***/ },
-/* 416 */
+
+/***/ 416:
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	exports.__esModule = true;
+
+	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; /*
+	                                                                                                                                                                                                                                                                  Copyright 2015 Gravitational, Inc.
+	                                                                                                                                                                                                                                                                  
+	                                                                                                                                                                                                                                                                  Licensed under the Apache License, Version 2.0 (the "License");
+	                                                                                                                                                                                                                                                                  you may not use this file except in compliance with the License.
+	                                                                                                                                                                                                                                                                  You may obtain a copy of the License at
+	                                                                                                                                                                                                                                                                  
+	                                                                                                                                                                                                                                                                      http://www.apache.org/licenses/LICENSE-2.0
+	                                                                                                                                                                                                                                                                  
+	                                                                                                                                                                                                                                                                  Unless required by applicable law or agreed to in writing, software
+	                                                                                                                                                                                                                                                                  distributed under the License is distributed on an "AS IS" BASIS,
+	                                                                                                                                                                                                                                                                  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	                                                                                                                                                                                                                                                                  See the License for the specific language governing permissions and
+	                                                                                                                                                                                                                                                                  limitations under the License.
+	                                                                                                                                                                                                                                                                  */
+
+	var _react = __webpack_require__(2);
+
+	var _react2 = _interopRequireDefault(_react);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	function _objectWithoutProperties(obj, keys) { var target = {}; for (var i in obj) { if (keys.indexOf(i) >= 0) continue; if (!Object.prototype.hasOwnProperty.call(obj, i)) continue; target[i] = obj[i]; } return target; }
+
+	var styles = {
+	  flex: {
+	    display: 'flex'
+	  },
+
+	  justify: {
+	    start: {
+	      justifyContent: 'flex-start'
+	    },
+
+	    end: {
+	      justifyContent: 'flex-end'
+	    },
+
+	    between: {
+	      justifyContent: 'space-between'
+	    }
+	  },
+
+	  align: {
+	    center: {
+	      alignItems: 'center'
+	    },
+
+	    start: {
+	      alignItems: 'flex-start'
+	    },
+
+	    end: {
+	      alignItems: 'flex-end'
+	    },
+
+	    baseline: {
+	      alignItems: 'baseline'
+	    }
+	  },
+
+	  dir: {
+
+	    row: {
+	      flexDirection: 'row'
+	    },
+
+	    col: {
+	      flexDirection: 'column'
+	    }
+	  }
+	};
+
+	var getStyle = function getStyle(_ref) {
+	  var _ref$dir = _ref.dir,
+	      dir = _ref$dir === undefined ? 'col' : _ref$dir,
+	      _ref$align = _ref.align,
+	      align = _ref$align === undefined ? 'start' : _ref$align,
+	      _ref$justify = _ref.justify,
+	      justify = _ref$justify === undefined ? 'start' : _ref$justify,
+	      _ref$style = _ref.style,
+	      style = _ref$style === undefined ? {} : _ref$style;
+
+	  return _extends({}, style, styles.flex, styles.dir[dir], styles.justify[justify], styles.align[align]);
+	};
+
+	var Flex = function Flex(_ref2) {
+	  var _ref2$className = _ref2.className,
+	      className = _ref2$className === undefined ? '' : _ref2$className,
+	      children = _ref2.children,
+	      props = _objectWithoutProperties(_ref2, ['className', 'children']);
+
+	  return _react2.default.createElement(
+	    'div',
+	    { className: className, style: getStyle(props) },
+	    children
+	  );
+	};
+
+	exports.default = {
+	  Flex: Flex
+	};
+	module.exports = exports['default'];
+
+/***/ },
+
+/***/ 417:
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	exports.__esModule = true;
+
+	var _react = __webpack_require__(2);
+
+	var _react2 = _interopRequireDefault(_react);
+
+	var _classnames = __webpack_require__(359);
+
+	var _classnames2 = _interopRequireDefault(_classnames);
+
+	var _overlay = __webpack_require__(418);
+
+	var _overlay2 = _interopRequireDefault(_overlay);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	var classes = {
+	  'btn grv-btn-details': true
+	}; /*
+	   Copyright 2015 Gravitational, Inc.
+	   
+	   Licensed under the Apache License, Version 2.0 (the "License");
+	   you may not use this file except in compliance with the License.
+	   You may obtain a copy of the License at
+	   
+	       http://www.apache.org/licenses/LICENSE-2.0
+	   
+	   Unless required by applicable law or agreed to in writing, software
+	   distributed under the License is distributed on an "AS IS" BASIS,
+	   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	   See the License for the specific language governing permissions and
+	   limitations under the License.
+	   */
+
+	var MoreButton = function MoreButton(props) {
+	  return _react2.default.createElement(
+	    'button',
+	    { className: (0, _classnames2.default)(props.className, classes) },
+	    _react2.default.createElement(
+	      'span',
+	      null,
+	      '\u2026'
+	    )
+	  );
+	};
+
+	MoreButton.WithOverlay = function (props) {
+	  return _react2.default.createElement(
+	    _overlay2.default,
+	    props,
+	    _react2.default.createElement(MoreButton, null)
+	  );
+	};
+
+	exports.default = MoreButton;
+	module.exports = exports['default'];
+
+/***/ },
+
+/***/ 418:
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	exports.__esModule = true;
+
+	var _react = __webpack_require__(2);
+
+	var _react2 = _interopRequireDefault(_react);
+
+	var _reactDom = __webpack_require__(31);
+
+	var _reactDom2 = _interopRequireDefault(_reactDom);
+
+	var _reactOverlays = __webpack_require__(419);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; } /*
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Copyright 2015 Gravitational, Inc.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Licensed under the Apache License, Version 2.0 (the "License");
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               you may not use this file except in compliance with the License.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               You may obtain a copy of the License at
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   http://www.apache.org/licenses/LICENSE-2.0
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Unless required by applicable law or agreed to in writing, software
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               distributed under the License is distributed on an "AS IS" BASIS,
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               See the License for the specific language governing permissions and
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               limitations under the License.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               */
+
+	var triggerType = _react2.default.PropTypes.oneOf(['click', 'hover', 'focus']);
+
+	var propTypes = {
+
+	  trigger: _react2.default.PropTypes.oneOfType([triggerType, _react2.default.PropTypes.arrayOf(triggerType)]),
+
+	  delay: _react2.default.PropTypes.number,
+
+	  delayShow: _react2.default.PropTypes.number,
+
+	  delayHide: _react2.default.PropTypes.number,
+
+	  defaultOverlayShown: _react2.default.PropTypes.bool,
+
+	  overlay: _react2.default.PropTypes.node.isRequired,
+
+	  onBlur: _react2.default.PropTypes.func,
+
+	  onClick: _react2.default.PropTypes.func,
+
+	  onFocus: _react2.default.PropTypes.func,
+
+	  onMouseOut: _react2.default.PropTypes.func,
+
+	  onMouseOver: _react2.default.PropTypes.func,
+
+	  target: _react2.default.PropTypes.oneOf([null]),
+
+	  onHide: _react2.default.PropTypes.oneOf([null]),
+
+	  show: _react2.default.PropTypes.oneOf([null])
+	};
+
+	var defaultProps = {
+	  defaultOverlayShown: false,
+	  trigger: ['hover', 'focus']
+	};
+
+	var OverlayTrigger = function (_React$Component) {
+	  _inherits(OverlayTrigger, _React$Component);
+
+	  function OverlayTrigger(props, context) {
+	    _classCallCheck(this, OverlayTrigger);
+
+	    var _this = _possibleConstructorReturn(this, _React$Component.call(this, props, context));
+
+	    _this.getElement = _this.getElement.bind(_this);
+	    _this.handleToggle = _this.handleToggle.bind(_this);
+	    _this.handleHide = _this.handleHide.bind(_this);
+	    _this.state = {
+	      show: props.defaultOverlayShown
+	    };
+	    return _this;
+	  }
+
+	  OverlayTrigger.prototype.handleToggle = function handleToggle() {
+	    if (this.state.show) {
+	      this.hide();
+	    } else {
+	      this.show();
+	    }
+	  };
+
+	  OverlayTrigger.prototype.handleHide = function handleHide() {
+	    this.hide();
+	  };
+
+	  OverlayTrigger.prototype.show = function show() {
+	    this.setState({ show: true });
+	  };
+
+	  OverlayTrigger.prototype.hide = function hide() {
+	    this.setState({ show: false });
+	  };
+
+	  OverlayTrigger.prototype.getElement = function getElement() {
+	    return _reactDom2.default.findDOMNode(this);
+	  };
+
+	  OverlayTrigger.prototype.render = function render() {
+	    var _this2 = this;
+
+	    var _props = this.props,
+	        _props$container = _props.container,
+	        container = _props$container === undefined ? this : _props$container,
+	        placement = _props.placement,
+	        overlay = _props.overlay;
+
+	    return _react2.default.createElement(
+	      'div',
+	      { onClick: this.handleToggle },
+	      this.props.children,
+	      _react2.default.createElement(
+	        _reactOverlays.Overlay,
+	        {
+	          rootClose: true,
+	          placement: placement,
+	          show: this.state.show,
+	          onHide: this.handleHide,
+	          target: function target() {
+	            return _this2.getElement();
+	          },
+	          container: container },
+	        overlay
+	      )
+	    );
+	  };
+
+	  return OverlayTrigger;
+	}(_react2.default.Component);
+
+	OverlayTrigger.propTypes = propTypes;
+	OverlayTrigger.defaultProps = defaultProps;
+
+	exports.default = OverlayTrigger;
+	module.exports = exports['default'];
+
+/***/ },
+
+/***/ 470:
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	exports.__esModule = true;
+
+	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
+	var _classnames = __webpack_require__(359);
+
+	var _classnames2 = _interopRequireDefault(_classnames);
+
+	var _react = __webpack_require__(2);
+
+	var _react2 = _interopRequireDefault(_react);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; } /*
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Copyright 2015 Gravitational, Inc.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Licensed under the Apache License, Version 2.0 (the "License");
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               you may not use this file except in compliance with the License.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               You may obtain a copy of the License at
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   http://www.apache.org/licenses/LICENSE-2.0
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Unless required by applicable law or agreed to in writing, software
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               distributed under the License is distributed on an "AS IS" BASIS,
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               See the License for the specific language governing permissions and
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               limitations under the License.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               */
+
+	var propTypes = {
+	  placement: _react2.default.PropTypes.oneOf(['top', 'right', 'bottom', 'left']),
+	  positionTop: _react2.default.PropTypes.oneOfType([_react2.default.PropTypes.number, _react2.default.PropTypes.string]),
+	  positionLeft: _react2.default.PropTypes.oneOfType([_react2.default.PropTypes.number, _react2.default.PropTypes.string]),
+	  arrowOffsetTop: _react2.default.PropTypes.oneOfType([_react2.default.PropTypes.number, _react2.default.PropTypes.string]),
+	  arrowOffsetLeft: _react2.default.PropTypes.oneOfType([_react2.default.PropTypes.number, _react2.default.PropTypes.string]),
+	  title: _react2.default.PropTypes.node
+	};
+
+	var defaultProps = {
+	  placement: 'right'
+	};
+
+	var Popover = function (_React$Component) {
+	  _inherits(Popover, _React$Component);
+
+	  function Popover() {
+	    _classCallCheck(this, Popover);
+
+	    return _possibleConstructorReturn(this, _React$Component.apply(this, arguments));
+	  }
+
+	  Popover.prototype.render = function render() {
+	    var _classes;
+
+	    var _props = this.props,
+	        placement = _props.placement,
+	        positionTop = _props.positionTop,
+	        positionLeft = _props.positionLeft,
+	        arrowOffsetTop = _props.arrowOffsetTop,
+	        arrowOffsetLeft = _props.arrowOffsetLeft,
+	        title = _props.title,
+	        className = _props.className,
+	        style = _props.style,
+	        children = _props.children;
+
+
+	    var classes = (_classes = {
+	      'popover': true
+	    }, _classes[placement] = true, _classes);
+
+	    var outerStyle = _extends({
+	      display: 'block',
+	      top: positionTop,
+	      left: positionLeft
+	    }, style);
+
+	    var arrowStyle = {
+	      top: arrowOffsetTop,
+	      left: arrowOffsetLeft
+	    };
+
+	    return _react2.default.createElement(
+	      'div',
+	      {
+	        role: 'tooltip',
+	        className: (0, _classnames2.default)(className, classes),
+	        style: outerStyle },
+	      _react2.default.createElement('div', { className: 'arrow', style: arrowStyle }),
+	      title && _react2.default.createElement(
+	        'h3',
+	        { className: 'popover-title' },
+	        title
+	      ),
+	      _react2.default.createElement(
+	        'div',
+	        { className: 'popover-content' },
+	        children
+	      )
+	    );
+	  };
+
+	  return Popover;
+	}(_react2.default.Component);
+
+	Popover.propTypes = propTypes;
+	Popover.defaultProps = defaultProps;
+
+	exports.default = Popover;
+	module.exports = exports['default'];
+
+/***/ },
+
+/***/ 471:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -8204,7 +8466,8 @@ webpackJsonp([0],[
 	exports.DateRangePicker = DateRangePicker;
 
 /***/ },
-/* 417 */
+
+/***/ 472:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -8219,13 +8482,13 @@ webpackJsonp([0],[
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _currentSession = __webpack_require__(418);
+	var _currentSession = __webpack_require__(473);
 
-	var _sessionPlayer = __webpack_require__(420);
+	var _sessionPlayer = __webpack_require__(475);
 
 	var _sessionPlayer2 = _interopRequireDefault(_sessionPlayer);
 
-	var _activeSession = __webpack_require__(464);
+	var _activeSession = __webpack_require__(519);
 
 	var _activeSession2 = _interopRequireDefault(_activeSession);
 
@@ -8293,7 +8556,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 418 */
+
+/***/ 473:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -8315,10 +8579,11 @@ webpackJsonp([0],[
 	*/
 	module.exports.getters = __webpack_require__(403);
 	module.exports.actions = __webpack_require__(402);
-	module.exports.activeTermStore = __webpack_require__(419);
+	module.exports.activeTermStore = __webpack_require__(474);
 
 /***/ },
-/* 419 */
+
+/***/ 474:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -8384,7 +8649,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 420 */
+
+/***/ 475:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -8414,15 +8680,15 @@ webpackJsonp([0],[
 	*/
 
 	var React = __webpack_require__(2);
-	var ReactSlider = __webpack_require__(421);
+	var ReactSlider = __webpack_require__(476);
 
-	var _require = __webpack_require__(422),
+	var _require = __webpack_require__(477),
 	    TtyPlayer = _require.TtyPlayer;
 
-	var Terminal = __webpack_require__(431);
-	var SessionLeftPanel = __webpack_require__(435);
+	var Terminal = __webpack_require__(486);
+	var SessionLeftPanel = __webpack_require__(490);
 	var $ = __webpack_require__(227);
-	__webpack_require__(442)($);
+	__webpack_require__(497)($);
 
 	var Term = function (_Terminal) {
 	  _inherits(Term, _Terminal);
@@ -8560,8 +8826,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 421 */,
-/* 422 */
+
+/***/ 477:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -8590,14 +8856,14 @@ webpackJsonp([0],[
 	limitations under the License.
 	*/
 
-	var Tty = __webpack_require__(423);
+	var Tty = __webpack_require__(478);
 	var api = __webpack_require__(243);
 
 	var _require = __webpack_require__(245),
 	    showError = _require.showError;
 
 	var $ = __webpack_require__(227);
-	var Buffer = __webpack_require__(426).Buffer;
+	var Buffer = __webpack_require__(481).Buffer;
 
 	var logger = __webpack_require__(230).create('TtyPlayer');
 	var STREAM_START_INDEX = 0;
@@ -9018,16 +9284,17 @@ webpackJsonp([0],[
 	exports.Buffer = Buffer;
 
 /***/ },
-/* 423 */
+
+/***/ 478:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _events = __webpack_require__(424);
+	var _events = __webpack_require__(479);
 
-	var _ttyEnums = __webpack_require__(425);
+	var _ttyEnums = __webpack_require__(480);
 
 	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
@@ -9105,7 +9372,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 424 */
+
+/***/ 479:
 /***/ function(module, exports) {
 
 	// Copyright Joyent, Inc. and other Node contributors.
@@ -9412,7 +9680,8 @@ webpackJsonp([0],[
 
 
 /***/ },
-/* 425 */
+
+/***/ 480:
 /***/ function(module, exports) {
 
 	"use strict";
@@ -9441,12 +9710,8 @@ webpackJsonp([0],[
 	exports.StatusCodeEnum = StatusCodeEnum;
 
 /***/ },
-/* 426 */,
-/* 427 */,
-/* 428 */,
-/* 429 */,
-/* 430 */,
-/* 431 */
+
+/***/ 486:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -9469,9 +9734,9 @@ webpackJsonp([0],[
 	limitations under the License.
 	*/
 
-	var Term = __webpack_require__(432);
-	var Tty = __webpack_require__(423);
-	var TtyEvents = __webpack_require__(434);
+	var Term = __webpack_require__(487);
+	var Tty = __webpack_require__(478);
+	var TtyEvents = __webpack_require__(489);
 
 	var _require = __webpack_require__(397),
 	    debounce = _require.debounce,
@@ -9748,18 +10013,17 @@ webpackJsonp([0],[
 	module.exports = TtyTerminal;
 
 /***/ },
-/* 432 */,
-/* 433 */,
-/* 434 */
+
+/***/ 489:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _events = __webpack_require__(424);
+	var _events = __webpack_require__(479);
 
-	var _ttyEnums = __webpack_require__(425);
+	var _ttyEnums = __webpack_require__(480);
 
 	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
@@ -9831,7 +10095,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 435 */
+
+/***/ 490:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -9854,13 +10119,13 @@ webpackJsonp([0],[
 
 	var React = __webpack_require__(2);
 
-	var _require = __webpack_require__(418),
+	var _require = __webpack_require__(473),
 	    actions = _require.actions;
 
 	var _require2 = __webpack_require__(358),
 	    UserIcon = _require2.UserIcon;
 
-	var ReactCSSTransitionGroup = __webpack_require__(436);
+	var ReactCSSTransitionGroup = __webpack_require__(491);
 
 	var SessionLeftPanel = function SessionLeftPanel(_ref) {
 	  var parties = _ref.parties;
@@ -9912,35 +10177,8 @@ webpackJsonp([0],[
 	module.exports = SessionLeftPanel;
 
 /***/ },
-/* 436 */,
-/* 437 */,
-/* 438 */,
-/* 439 */,
-/* 440 */,
-/* 441 */,
-/* 442 */,
-/* 443 */,
-/* 444 */,
-/* 445 */,
-/* 446 */,
-/* 447 */,
-/* 448 */,
-/* 449 */,
-/* 450 */,
-/* 451 */,
-/* 452 */,
-/* 453 */,
-/* 454 */,
-/* 455 */,
-/* 456 */,
-/* 457 */,
-/* 458 */,
-/* 459 */,
-/* 460 */,
-/* 461 */,
-/* 462 */,
-/* 463 */,
-/* 464 */
+
+/***/ 519:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -9969,10 +10207,10 @@ webpackJsonp([0],[
 	var _require = __webpack_require__(395),
 	    nodeHostNameByServerId = _require.nodeHostNameByServerId;
 
-	var SessionLeftPanel = __webpack_require__(435);
+	var SessionLeftPanel = __webpack_require__(490);
 	var cfg = __webpack_require__(232);
 	var session = __webpack_require__(226);
-	var Terminal = __webpack_require__(431);
+	var Terminal = __webpack_require__(486);
 
 	var _require2 = __webpack_require__(402),
 	    updateSessionFromEventStream = _require2.updateSessionFromEventStream;
@@ -10052,7 +10290,8 @@ webpackJsonp([0],[
 	module.exports = ActiveSession;
 
 /***/ },
-/* 465 */
+
+/***/ 520:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -10065,17 +10304,17 @@ webpackJsonp([0],[
 
 	_reactor2.default.registerStores({
 	  'tlpt': __webpack_require__(355),
-	  'tlpt_current_session': __webpack_require__(419),
+	  'tlpt_current_session': __webpack_require__(474),
 	  'tlpt_user': __webpack_require__(385),
-	  'tlpt_sites': __webpack_require__(466),
-	  'tlpt_user_invite': __webpack_require__(468),
-	  'tlpt_nodes': __webpack_require__(469),
-	  'tlpt_rest_api': __webpack_require__(470),
-	  'tlpt_sessions_events': __webpack_require__(471),
-	  'tlpt_sessions_archived': __webpack_require__(472),
-	  'tlpt_sessions_active': __webpack_require__(473),
-	  'tlpt_sessions_filter': __webpack_require__(474),
-	  'tlpt_notifications': __webpack_require__(475)
+	  'tlpt_sites': __webpack_require__(521),
+	  'tlpt_user_invite': __webpack_require__(523),
+	  'tlpt_nodes': __webpack_require__(524),
+	  'tlpt_rest_api': __webpack_require__(525),
+	  'tlpt_sessions_events': __webpack_require__(526),
+	  'tlpt_sessions_archived': __webpack_require__(527),
+	  'tlpt_sessions_active': __webpack_require__(528),
+	  'tlpt_sessions_filter': __webpack_require__(529),
+	  'tlpt_notifications': __webpack_require__(530)
 	}); /*
 	    Copyright 2015 Gravitational, Inc.
 	    
@@ -10093,7 +10332,8 @@ webpackJsonp([0],[
 	    */
 
 /***/ },
-/* 466 */
+
+/***/ 521:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -10104,7 +10344,7 @@ webpackJsonp([0],[
 
 	var _actionTypes = __webpack_require__(248);
 
-	var _immutable = __webpack_require__(467);
+	var _immutable = __webpack_require__(522);
 
 	var Site = (0, _immutable.Record)({
 	  name: null,
@@ -10143,7 +10383,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 467 */
+
+/***/ 522:
 /***/ function(module, exports, __webpack_require__) {
 
 	/**
@@ -15127,7 +15368,8 @@ webpackJsonp([0],[
 	}));
 
 /***/ },
-/* 468 */
+
+/***/ 523:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15138,7 +15380,7 @@ webpackJsonp([0],[
 
 	var _actionTypes = __webpack_require__(384);
 
-	var _immutable = __webpack_require__(467);
+	var _immutable = __webpack_require__(522);
 
 	var Invite = new _immutable.Record({
 	  invite_token: '',
@@ -15176,7 +15418,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 469 */
+
+/***/ 524:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15231,7 +15474,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 470 */
+
+/***/ 525:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15289,7 +15533,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 471 */
+
+/***/ 526:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15347,7 +15592,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 472 */
+
+/***/ 527:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15356,7 +15602,7 @@ webpackJsonp([0],[
 
 	var _nuclearJs = __webpack_require__(241);
 
-	var _immutable = __webpack_require__(467);
+	var _immutable = __webpack_require__(522);
 
 	var _actionTypes = __webpack_require__(354);
 
@@ -15443,7 +15689,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 473 */
+
+/***/ 528:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15468,7 +15715,7 @@ webpackJsonp([0],[
 
 	var _nuclearJs = __webpack_require__(241);
 
-	var _immutable = __webpack_require__(467);
+	var _immutable = __webpack_require__(522);
 
 	var _actionTypes = __webpack_require__(354);
 
@@ -15552,7 +15799,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 474 */
+
+/***/ 529:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15608,7 +15856,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 475 */
+
+/***/ 530:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15651,4 +15900,5 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }
-]);
+
+});

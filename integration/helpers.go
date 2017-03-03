@@ -218,7 +218,6 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 	if tconf == nil {
 		tconf = service.MakeDefaultConfig()
 	}
-	tconf.SeedConfig = true
 	tconf.DataDir = dataDir
 	tconf.Auth.DomainName = i.Secrets.SiteName
 	tconf.Auth.Authorities = append(tconf.Auth.Authorities, i.Secrets.GetCAs()...)

@@ -14,24 +14,24 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-.grv-msg-page{
-  margin: 25px auto;
-  max-width: 600px;
-  text-align: center;
+import React from 'react';
+import classNames from 'classnames';
+import OverlayTrigger from 'app/components/overlay';
 
-  h1{
-    margin: 0;
-  }
-
-  .grv-icon-logo-tlpt{
-    fill: #293846;
-  }
-
-  .grv-header{
-    font-size: 60px;
-  }
-
-  .contact-section{
-    margin-top: 20px;
-  }
+const classes = {
+ 'btn grv-btn-details': true
 }
+
+const MoreButton = props => (
+  <button className={classNames(props.className, classes)} >
+    <span>…</span>
+  </button>
+)
+
+MoreButton.WithOverlay = props => (
+  <OverlayTrigger {...props}>
+    <MoreButton/>          
+  </OverlayTrigger>
+)
+
+export default MoreButton;

@@ -253,20 +253,74 @@ func (s *ConfigTestSuite) TestTrustedClusters(c *check.C) {
 	c.Assert(len(conf.ReverseTunnels), check.Equals, 0)
 }
 
-func (s *ConfigTestSuite) TestSeedConfig(c *check.C) {
-	config := `teleport:
-  nodename: cat.example.com
-  seed_config: true
-`
-	fc, err := ReadConfig(bytes.NewBufferString(config))
-	c.Assert(err, check.IsNil)
-	c.Assert(fc.SeedConfig, check.Equals, true)
+func (s *ConfigTestSuite) TestDynamicConfig(c *check.C) {
+	falseBool := false
 
-	conf := service.MakeDefaultConfig()
-	c.Assert(conf.SeedConfig, check.Equals, false)
+	tests := []struct {
+		inConfigString   string
+		outFileConfig    *bool // DynamicConfig set in config.FileConfig
+		outDefaultConfig bool  // DynamicConfig set in default service.Config
+		outConfig        bool  // DynamicConfig set in service.Config
+	}{
 
-	ApplyFileConfig(fc, conf)
-	c.Assert(conf.SeedConfig, check.Equals, true)
+		// 0 - nothing defined, final DynamicConfig should be false
+		{
+			`
+teleport:
+`,
+			nil,
+			false,
+			false,
+		},
+		// 1 - define a backend, final DynamicConfig should be true
+		{
+			`
+teleport:
+  storage:
+    type: bolt
+`,
+			nil,
+			false,
+			true,
+		},
+		// 2 - define a backend and override, final DynamicConfig should be false
+		{
+			`
+teleport:
+  storage:
+    type: bolt
+
+auth_service:
+  dynamic_config: false
+`,
+			&falseBool,
+			false,
+			false,
+		},
+	}
+
+	// run tests
+	for i, tt := range tests {
+		comment := check.Commentf("Test %v", i)
+
+		// read in the file configuration
+		fc, err := ReadConfig(bytes.NewBufferString(tt.inConfigString))
+		c.Assert(err, check.IsNil, comment)
+		if fc.Auth.DynamicConfig != nil {
+			c.Assert(*fc.Auth.DynamicConfig, check.Equals, *tt.outFileConfig, comment)
+		} else {
+			c.Assert(fc.Auth.DynamicConfig, check.Equals, tt.outFileConfig, comment)
+		}
+
+		// create a default configuration
+		conf := service.MakeDefaultConfig()
+		c.Assert(conf.Auth.DynamicConfig, check.Equals, tt.outDefaultConfig, comment)
+
+		// apply the file configuration to the default configuration
+		err = ApplyFileConfig(fc, conf)
+		c.Assert(err, check.IsNil)
+		c.Assert(conf.Auth.DynamicConfig, check.Equals, tt.outConfig, comment)
+	}
 }
 
 func (s *ConfigTestSuite) TestApplyConfig(c *check.C) {
