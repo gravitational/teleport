@@ -34,6 +34,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -134,10 +135,15 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		h.sessionStreamPollPeriod = sessionStreamPollPeriod
 	}
 
+	// a response indicates if the server is up and the response data
+	// indicates the type of authentication methods that are supported
+	// TODO(russjones): Where is /webapi, that was the old /ping?
+	h.GET("/webapi/ping", httplib.MakeHandler(h.getAuthenticationSettings))
+
 	// Web sessions
 	h.POST("/webapi/sessions", httplib.MakeHandler(h.createSession))
-	h.DELETE("/webapi/sessions", h.withAuth(h.deleteSession))
-	h.POST("/webapi/sessions/renew", h.withAuth(h.renewSession))
+	h.DELETE("/webapi/sessions", h.WithAuth(h.deleteSession))
+	h.POST("/webapi/sessions/renew", h.WithAuth(h.renewSession))
 
 	// Users
 	h.GET("/webapi/users/invites/:token", httplib.MakeHandler(h.renderUserInvite))
@@ -147,33 +153,33 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.POST("/webapi/ssh/certs", httplib.MakeHandler(h.createSSHCert))
 
 	// list available sites
-	h.GET("/webapi/sites", h.withAuth(h.getSites))
+	h.GET("/webapi/sites", h.WithAuth(h.getSites))
 
 	// Site specific API
 
 	// get namespaces
-	h.GET("/webapi/sites/:site/namespaces", h.withSiteAuth(h.getSiteNamespaces))
+	h.GET("/webapi/sites/:site/namespaces", h.WithClusterAuth(h.getSiteNamespaces))
 
 	// get nodes
-	h.GET("/webapi/sites/:site/namespaces/:namespace/nodes", h.withSiteAuth(h.getSiteNodes))
+	h.GET("/webapi/sites/:site/namespaces/:namespace/nodes", h.WithClusterAuth(h.getSiteNodes))
 	// connect to node via websocket (that's why it's a GET method)
-	h.GET("/webapi/sites/:site/namespaces/:namespace/connect", h.withSiteAuth(h.siteNodeConnect))
+	h.GET("/webapi/sites/:site/namespaces/:namespace/connect", h.WithClusterAuth(h.siteNodeConnect))
 	// get session event stream
-	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/events/stream", h.withSiteAuth(h.siteSessionStream))
+	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/events/stream", h.WithClusterAuth(h.siteSessionStream))
 	// generate a new session
-	h.POST("/webapi/sites/:site/namespaces/:namespace/sessions", h.withSiteAuth(h.siteSessionGenerate))
+	h.POST("/webapi/sites/:site/namespaces/:namespace/sessions", h.WithClusterAuth(h.siteSessionGenerate))
 	// update session parameters
-	h.PUT("/webapi/sites/:site/namespaces/:namespace/sessions/:sid", h.withSiteAuth(h.siteSessionUpdate))
+	h.PUT("/webapi/sites/:site/namespaces/:namespace/sessions/:sid", h.WithClusterAuth(h.siteSessionUpdate))
 	// get the session list
-	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions", h.withSiteAuth(h.siteSessionsGet))
+	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions", h.WithClusterAuth(h.siteSessionsGet))
 	// get a session
-	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid", h.withSiteAuth(h.siteSessionGet))
+	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid", h.WithClusterAuth(h.siteSessionGet))
 	// get session's events
-	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/events", h.withSiteAuth(h.siteSessionEventsGet))
+	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/events", h.WithClusterAuth(h.siteSessionEventsGet))
 	// get session's bytestream
 	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/stream", h.siteSessionStreamGet)
 	// search site events
-	h.GET("/webapi/sites/:site/events", h.withSiteAuth(h.siteEventsGet))
+	h.GET("/webapi/sites/:site/events", h.WithClusterAuth(h.siteEventsGet))
 
 	// OIDC related callback handlers
 	h.GET("/webapi/oidc/login/web", httplib.MakeHandler(h.oidcLoginWeb))
@@ -188,9 +194,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.POST("/webapi/u2f/certs", httplib.MakeHandler(h.createSSHCertWithU2FSignResponse))
 
 	// User Status (used by client to check if user session is valid)
-	h.GET("/webapi/user/status", h.withAuth(h.getUserStatus))
+	h.GET("/webapi/user/status", h.WithAuth(h.getUserStatus))
 
-	// if Web UI is enabled, chekc the assets dir:
+	// if Web UI is enabled, check the assets dir:
 	var (
 		writeSettings http.HandlerFunc
 		indexPage     *template.Template
@@ -215,7 +221,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		if err != nil {
 			return nil, trace.BadParameter("failed parsing index.html template: %v", err)
 		}
-		writeSettings = httplib.MakeStdHandler(h.getSettings)
+		writeSettings = httplib.MakeStdHandler(h.getConfigurationSettings)
 	}
 
 	routingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -262,6 +268,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		}
 	})
 	h.NotFound = routingHandler
+	plugin := GetPlugin()
+	if plugin != nil {
+		plugin.AddHandlers(h)
+	}
 	return &RewritingHandler{
 		Handler: httplib.RewritePaths(h,
 			httplib.Rewrite("/webapi/sites/([^/]+)/sessions/(.*)", "/webapi/sites/$1/namespaces/default/sessions/$2"),
@@ -278,54 +288,108 @@ func (m *Handler) Close() error {
 	return m.auth.Close()
 }
 
-type oidcConnector struct {
-	ID      string `json:"id"`
-	Display string `json:"display"`
-}
-
-type webSettings struct {
-	Auth struct {
-		OIDCConnectors []oidcConnector `json:"oidc_connectors"`
-		U2FAppID       string          `json:"u2f_appid"`
-	} `json:"auth"`
-}
-
 func (m *Handler) getUserStatus(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext) (interface{}, error) {
 	return ok(), nil
 }
 
-func (m *Handler) getSettings(w http.ResponseWriter, r *http.Request) (interface{}, error) {
-	settings := &webSettings{}
-	connectors, err := m.cfg.ProxyClient.GetOIDCConnectors(false)
+func buildUniversalSecondFactorSettings(authClient auth.ClientI) *client.U2FSettings {
+	universalSecondFactor, err := authClient.GetUniversalSecondFactor()
+	if err != nil {
+		// if we have nothing set on the backend, return we have nothing
+		if trace.IsNotFound(err) {
+			return nil
+		}
+
+		log.Debugf("Unable to get U2F Settings: %v", err)
+		return nil
+	}
+
+	return &client.U2FSettings{AppID: universalSecondFactor.GetAppID()}
+}
+
+func buildOIDCConnectorSettings(authClient auth.ClientI) *client.OIDCSettings {
+	oidcConnectors, err := authClient.GetOIDCConnectors(false)
+	if err != nil {
+		// if we have nothing set on the backend, return we have nothing
+		if trace.IsNotFound(err) {
+			return nil
+		}
+
+		log.Debugf("Unable to get OIDC Connectors: %v", err)
+		return nil
+	}
+
+	if len(oidcConnectors) < 1 {
+		log.Debugf("No OIDC Connectors found")
+		return nil
+	}
+
+	// always use the first one as only allow a single oidc connector now
+	return &client.OIDCSettings{
+		Name:    oidcConnectors[0].GetName(),
+		Display: oidcConnectors[0].GetDisplay(),
+	}
+}
+
+func buildAuthenticationSettings(authClient auth.ClientI) (*client.AuthenticationSettings, error) {
+	as := &client.AuthenticationSettings{}
+
+	cap, err := authClient.GetClusterAuthPreference()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	for _, connector := range connectors {
-		fmt.Printf("%v\n", connectors)
-		settings.Auth.OIDCConnectors = append(settings.Auth.OIDCConnectors, oidcConnector{
-			ID:      connector.GetName(),
-			Display: connector.GetDisplay(),
-		})
+	as.Type = cap.GetType()
+	as.SecondFactor = cap.GetSecondFactor()
+
+	// if we have u2f or oidc settings, build those as well
+	if cap.GetSecondFactor() == teleport.U2F {
+		as.U2F = buildUniversalSecondFactorSettings(authClient)
+	}
+	if cap.GetType() == teleport.OIDC {
+		as.OIDC = buildOIDCConnectorSettings(authClient)
 	}
 
-	if len(settings.Auth.OIDCConnectors) == 0 {
-		settings.Auth.OIDCConnectors = make([]oidcConnector, 0)
-	}
+	return as, nil
+}
 
-	universalSecondFactor, err := m.cfg.ProxyClient.GetUniversalSecondFactor()
+func (m *Handler) getAuthenticationSettings(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	as, err := buildAuthenticationSettings(m.cfg.ProxyClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	return &client.PingResponse{
+		Auth:          *as,
+		ServerVersion: teleport.Version,
+	}, nil
+}
+
+type webConfig struct {
+	// Auth contains the forms of authentication the auth server supports.
+	Auth *client.AuthenticationSettings `json:"auth,omitempty"`
+
+	// ServerVersion is the version of Teleport that is running.
+	ServerVersion string `json:"serverVersion"`
+}
+
+// getConfigurationSettings returns configuration for the web application.
+func (m *Handler) getConfigurationSettings(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	var as, err = buildAuthenticationSettings(m.cfg.ProxyClient)
 	if err != nil {
-		settings.Auth.U2FAppID = ""
-	} else {
-		settings.Auth.U2FAppID = universalSecondFactor.GetAppID()
+		log.Infof("Cannot retrieve cluster auth preferences: %v", err)
 	}
-	out, err := json.Marshal(settings)
+
+	webCfg := webConfig{
+		Auth:          as,
+		ServerVersion: teleport.Version,
+	}
+
+	out, err := json.Marshal(webCfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	fmt.Fprintf(w, "var GRV_CONFIG = %v;", string(out))
 	return nil, nil
 }
@@ -1071,7 +1135,14 @@ func (m *Handler) siteSessionUpdate(w http.ResponseWriter, r *http.Request, p ht
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = ctx.UpdateSessionTerminal(p.ByName("namespace"), *sessionID, req.TerminalParams)
+
+	siteAPI, err := site.GetClient()
+	if err != nil {
+		log.Error(err)
+		return nil, trace.Wrap(err)
+	}
+
+	err = ctx.UpdateSessionTerminal(siteAPI, p.ByName("namespace"), *sessionID, req.TerminalParams)
 	if err != nil {
 		log.Error(err)
 		return nil, trace.Wrap(err)
@@ -1372,14 +1443,14 @@ func (h *Handler) String() string {
 // the amount of requests
 const currentSiteShortcut = "-current-"
 
-// contextHandler is a handler called with the auth context, what means it is authenticated and ready to work
-type contextHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (interface{}, error)
+// ContextHandler is a handler called with the auth context, what means it is authenticated and ready to work
+type ContextHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (interface{}, error)
 
-// siteHandler is a authenticated handler that is called for some existing remote site
-type siteHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error)
+// ClusterHandler is a authenticated handler that is called for some existing remote cluster
+type ClusterHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error)
 
-// withSiteAuth ensures that request is authenticated and is issued for existing site
-func (h *Handler) withSiteAuth(fn siteHandler) httprouter.Handle {
+// WithClusterAuth ensures that request is authenticated and is issued for existing cluster
+func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 		ctx, err := h.AuthenticateRequest(w, r, true)
 		if err != nil {
@@ -1405,8 +1476,8 @@ func (h *Handler) withSiteAuth(fn siteHandler) httprouter.Handle {
 	})
 }
 
-// withAuth ensures that request is authenticated
-func (h *Handler) withAuth(fn contextHandler) httprouter.Handle {
+// WithAuth ensures that request is authenticated
+func (h *Handler) WithAuth(fn ContextHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 		ctx, err := h.AuthenticateRequest(w, r, true)
 		if err != nil {

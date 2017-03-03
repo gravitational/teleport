@@ -37,23 +37,29 @@ const getProviderBtnClass = type => {
   }    
 }
 
-const SsoBtnList = ({providers, prefixText, isDisabled, onClick}) => {
+const SsoBtnList = ({providers, prefixText, isDisabled, onClick}) => {      
   let $btns = providers.map((item, index) => {
-    let { name, displayName } = item;    
-    displayName = displayName || name;
-    let title = `${prefixText} ${displayName}`
+    let { name, display } = item;    
+    display = display || name;
+    let title = `${prefixText} ${display}`
     let providerBtnClass = getProviderBtnClass(name);
     let btnClass = `btn grv-user-btn-sso full-width ${providerBtnClass}`;
     return (
       <button key={index}
         disabled={isDisabled}
         className={btnClass}
-        onClick={onClick}>      
+        onClick={e => { e.preventDefault(); onClick(name) }}>      
         <ProviderIcon type={name}/>
         <span>{title}</span>      
       </button>              
     )
   })
+  
+  if ($btns.length === 0) {
+    return (
+      <h4> You have no configured OIDC providers </h4>
+    )
+  }
 
   return (
     <div> {$btns} </div>

@@ -109,7 +109,7 @@ type InitConfig struct {
 }
 
 // Init instantiates and configures an instance of AuthServer
-func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
+func Init(cfg InitConfig, dynamicConfig bool) (*AuthServer, *Identity, error) {
 	if cfg.DataDir == "" {
 		return nil, nil, trace.BadParameter("DataDir: data dir can not be empty")
 	}
@@ -119,7 +119,7 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 
 	err := cfg.Backend.AcquireLock(cfg.DomainName, 30*time.Second)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, trace.Wrap(err)
 	}
 	defer cfg.Backend.ReleaseLock(cfg.DomainName)
 
@@ -132,134 +132,86 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	// we skip certain configuration if 'seed_config' is set to true
-	// and this is NOT the first time teleport starts on this machine
-	skipConfig := seedConfig && !firstStart
+	// the logic for when to upload resources to the backend is as follows:
+	//
+	// if dynamicConfig is false:                   upload resources
+	// if dynamicConfig is true AND firstStart:     upload resources
+	// if dynamicConfig is true AND NOT firstStart: don't upload resources
+	uploadResources := true
+	if dynamicConfig == true && firstStart == false {
+		uploadResources = false
+	}
 
-	// set the cluster auth prerference, the first time read them from the config
-	// and create a resource on the backend, after that always read from the backend
-	if !skipConfig {
-		log.Infof("Initializing Cluster Authentication Preference: %+v", cfg.AuthPreference)
+	if uploadResources {
 		err = asrv.SetClusterAuthPreference(cfg.AuthPreference)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
+		log.Infof("[INIT] Set Cluster Authentication Preference: %v", cfg.AuthPreference)
 
-		log.Infof("Initializing Universal Second Factor Settings: %+v", cfg.U2F)
 		if cfg.U2F != nil {
 			err = asrv.SetUniversalSecondFactor(cfg.U2F)
 			if err != nil {
 				return nil, nil, trace.Wrap(err)
 			}
+			log.Infof("[INIT] Set Universal Second Factor Settings: %v", cfg.U2F)
 		}
-	}
 
-	// migrate: if U2F is set, but we don't have anything set on the backend, do a migration
-	// because the old configuration file format is probably being used.
-	if cfg.U2F != nil {
-		// check if we already have something set on the backend
-		_, err = asrv.GetUniversalSecondFactor()
-		if err != nil {
-			// if we have an error other than IsNotFound return it right away
-			if !trace.IsNotFound(err) {
-				return nil, nil, trace.Wrap(err)
-			}
-
-			// if the error was not found, then try and set it on the backend
-			err = asrv.SetUniversalSecondFactor(cfg.U2F)
-			if err != nil {
-				return nil, nil, trace.Wrap(err)
+		if cfg.OIDCConnectors != nil && len(cfg.OIDCConnectors) > 0 {
+			for _, connector := range cfg.OIDCConnectors {
+				if err := asrv.UpsertOIDCConnector(connector, 0); err != nil {
+					return nil, nil, trace.Wrap(err)
+				}
+				log.Infof("[INIT] Created ODIC Connector: %q", connector.GetName())
 			}
 		}
-	}
 
-	// add trusted authorities from the configuration into the trust backend:
-	keepMap := make(map[string]int, 0)
-	if !skipConfig {
-		log.Infof("Initializing roles")
 		for _, role := range cfg.Roles {
 			if err := asrv.UpsertRole(role); err != nil {
 				return nil, nil, trace.Wrap(err)
 			}
+			log.Infof("[INIT] Created Role: %v", role)
 		}
 
-		log.Infof("Initializing cert authorities")
 		for i := range cfg.Authorities {
 			ca := cfg.Authorities[i]
 			ca, err = services.GetCertAuthorityMarshaler().GenerateCertAuthority(ca)
 			if err != nil {
 				return nil, nil, trace.Wrap(err)
 			}
+
 			if err := asrv.Trust.UpsertCertAuthority(ca, backend.Forever); err != nil {
 				return nil, nil, trace.Wrap(err)
 			}
-			keepMap[ca.GetClusterName()] = 1
+			log.Infof("[INIT] Created Trusted Certificate Authority: %v", ca)
 		}
-	}
-	// delete trusted authorities from the trust back-end if they're not
-	// in the configuration:
-	if !seedConfig {
-		hostCAs, err := asrv.Trust.GetCertAuthorities(services.HostCA, false)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-		userCAs, err := asrv.Trust.GetCertAuthorities(services.UserCA, false)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-		for _, ca := range append(hostCAs, userCAs...) {
-			_, configured := keepMap[ca.GetClusterName()]
-			if ca.GetClusterName() != cfg.DomainName && !configured {
-				if err = asrv.Trust.DeleteCertAuthority(ca.GetID()); err != nil {
-					return nil, nil, trace.Wrap(err)
-				}
-				log.Infof("removed old trusted CA: '%s'", ca.GetClusterName())
+
+		for _, tunnel := range cfg.ReverseTunnels {
+			if err := asrv.UpsertReverseTunnel(tunnel, 0); err != nil {
+				return nil, nil, trace.Wrap(err)
 			}
+			log.Infof("[INIT] Created Reverse Tunnel: %v", tunnel)
 		}
-	}
-	// this block will generate user CA authority on first start if it's
-	// not currently present, it will also use optional passed user ca keypair
-	// that can be supplied in configuration
-	if _, err := asrv.GetCertAuthority(services.CertAuthID{DomainName: cfg.DomainName, Type: services.HostCA}, false); err != nil {
-		if !trace.IsNotFound(err) {
-			return nil, nil, trace.Wrap(err)
-		}
-		log.Infof("FIRST START: Generating host CA on first start")
-		priv, pub, err := asrv.GenerateKeyPair("")
+
+		err = asrv.UpsertNamespace(services.NewNamespace(defaults.Namespace))
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		hostCA := &services.CertAuthorityV2{
-			Kind:    services.KindCertAuthority,
-			Version: services.V2,
-			Metadata: services.Metadata{
-				Name:      cfg.DomainName,
-				Namespace: defaults.Namespace,
-			},
-			Spec: services.CertAuthoritySpecV2{
-				ClusterName:  cfg.DomainName,
-				Type:         services.HostCA,
-				SigningKeys:  [][]byte{priv},
-				CheckingKeys: [][]byte{pub},
-			},
-		}
-		if err := asrv.Trust.UpsertCertAuthority(hostCA, backend.Forever); err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
+		log.Infof("[INIT] Created Namespace: %q", defaults.Namespace)
 	}
-	// this block will generate user CA authority on first start if it's
-	// not currently present, it will also use optional passed user ca keypair
-	// that can be supplied in configuration
+
+	// generate a user certificate authority if it doesn't exist
 	if _, err := asrv.GetCertAuthority(services.CertAuthID{DomainName: cfg.DomainName, Type: services.UserCA}, false); err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, nil, trace.Wrap(err)
 		}
 
-		log.Infof("FIRST START: Generating user CA on first start")
+		log.Infof("[FIRST START]: Generating user certificate authority (CA)")
 		priv, pub, err := asrv.GenerateKeyPair("")
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
+
 		userCA := &services.CertAuthorityV2{
 			Kind:    services.KindCertAuthority,
 			Version: services.V2,
@@ -274,131 +226,146 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 				CheckingKeys: [][]byte{pub},
 			},
 		}
+
 		if err := asrv.Trust.UpsertCertAuthority(userCA, backend.Forever); err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 	}
-	// add reverse runnels from the configuration into the backend
-	keepMap = make(map[string]int, 0)
-	if !skipConfig {
-		log.Infof("Initializing reverse tunnels")
-		for _, tunnel := range cfg.ReverseTunnels {
-			if err := asrv.UpsertReverseTunnel(tunnel, 0); err != nil {
-				return nil, nil, trace.Wrap(err)
-			}
-			keepMap[tunnel.GetClusterName()] = 1
-		}
-	}
 
-	// remove the reverse tunnels from the backend if they're not
-	// present in the configuration
-	if !seedConfig {
-		tunnels, err := asrv.GetReverseTunnels()
+	// generate a host certificate authority if it doesn't exist
+	if _, err := asrv.GetCertAuthority(services.CertAuthID{DomainName: cfg.DomainName, Type: services.HostCA}, false); err != nil {
+		if !trace.IsNotFound(err) {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		log.Infof("[FIRST START]: Generating host certificate authority (CA)")
+		priv, pub, err := asrv.GenerateKeyPair("")
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		for _, tunnel := range tunnels {
-			_, configured := keepMap[tunnel.GetClusterName()]
-			if !configured {
-				if err = asrv.DeleteReverseTunnel(tunnel.GetClusterName()); err != nil {
-					return nil, nil, trace.Wrap(err)
-				}
-				log.Infof("removed reverse tunnel: '%s'", tunnel.GetClusterName())
-			}
+
+		hostCA := &services.CertAuthorityV2{
+			Kind:    services.KindCertAuthority,
+			Version: services.V2,
+			Metadata: services.Metadata{
+				Name:      cfg.DomainName,
+				Namespace: defaults.Namespace,
+			},
+			Spec: services.CertAuthoritySpecV2{
+				ClusterName:  cfg.DomainName,
+				Type:         services.HostCA,
+				SigningKeys:  [][]byte{priv},
+				CheckingKeys: [][]byte{pub},
+			},
 		}
-	}
-	// add OIDC connectors to the back-end:
-	keepMap = make(map[string]int, 0)
-	if !skipConfig {
-		log.Infof("Initializing OIDC connectors")
-		for _, connector := range cfg.OIDCConnectors {
-			if err := asrv.UpsertOIDCConnector(connector, 0); err != nil {
-				return nil, nil, trace.Wrap(err)
-			}
-			log.Infof("created ODIC connector '%s'", connector.GetName())
-			keepMap[connector.GetName()] = 1
-		}
-	}
-	// remove OIDC connectors from the backend if they're not
-	// present in the configuration
-	if !seedConfig {
-		connectors, _ := asrv.GetOIDCConnectors(false)
-		for _, connector := range connectors {
-			_, configured := keepMap[connector.GetName()]
-			if !configured {
-				if err = asrv.DeleteOIDCConnector(connector.GetName()); err != nil {
-					return nil, nil, trace.Wrap(err)
-				}
-				log.Infof("removed OIDC connector '%s'", connector.GetName())
-			}
+
+		if err := asrv.Trust.UpsertCertAuthority(hostCA, backend.Forever); err != nil {
+			return nil, nil, trace.Wrap(err)
 		}
 	}
 
-	// create default namespace
-	err = asrv.UpsertNamespace(services.NewNamespace(defaults.Namespace))
+	// read host keys from disk or create them if they don't exist
+	iid := IdentityID{
+		HostUUID: cfg.HostUUID,
+		NodeName: cfg.NodeName,
+		Role:     teleport.RoleAdmin,
+	}
+	identity, err := initKeys(asrv, cfg.DataDir, iid)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	// migrate old users to new format
+	// migrate any legacy resources to new format
+	err = migrateLegacyResources(asrv)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return asrv, identity, nil
+}
+
+func migrateLegacyResources(asrv *AuthServer) error {
+	err := migrateUsers(asrv)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = migrateCertAuthority(asrv)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func migrateUsers(asrv *AuthServer) error {
 	users, err := asrv.GetUsers()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	for i := range users {
 		user := users[i]
 		raw, ok := (user.GetRawObject()).(services.UserV1)
 		if !ok {
 			continue
 		}
-		log.Infof("migrating legacy user %v", user.GetName())
+		log.Infof("[MIGRATION] Legacy User: %v", user.GetName())
+
+		// create role for user and upsert to backend
 		role := services.RoleForUser(user)
 		role.SetLogins(raw.AllowedLogins)
 		err = asrv.UpsertRole(role)
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
+
+		// upsert new user to backend
 		user.AddRole(role.GetName())
 		if err := asrv.UpsertUser(user); err != nil {
-			return nil, nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 	}
 
-	// migrate old cert authorities
-	cas, err := asrv.GetCertAuthorities(services.UserCA, true)
-	for i := range cas {
-		ca := cas[i]
-		if err := migrateCertAuthority(asrv, ca); err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-	}
-
-	identity, err := initKeys(asrv, cfg.DataDir,
-		IdentityID{HostUUID: cfg.HostUUID, NodeName: cfg.NodeName, Role: teleport.RoleAdmin})
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	return asrv, identity, nil
+	return nil
 }
 
-func migrateCertAuthority(asrv *AuthServer, in services.CertAuthority) error {
-	raw, ok := (in.GetRawObject()).(services.CertAuthorityV1)
-	if !ok {
-		return nil
-	}
-	_, err := asrv.GetRole(services.RoleNameForCertAuthority(in.GetClusterName()))
-	if err == nil {
-		return nil
-	}
-	if !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	ca, role := services.ConvertV1CertAuthority(&raw)
-	log.Infof("migrating legacy cert authority %v", in.GetName())
-	err = asrv.UpsertRole(role)
+func migrateCertAuthority(asrv *AuthServer) error {
+	cas, err := asrv.GetCertAuthorities(services.UserCA, true)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := asrv.UpsertCertAuthority(ca, 0); err != nil {
-		return trace.Wrap(err)
+
+	for i := range cas {
+		ca := cas[i]
+		raw, ok := (ca.GetRawObject()).(services.CertAuthorityV1)
+		if !ok {
+			continue
+		}
+
+		_, err := asrv.GetRole(services.RoleNameForCertAuthority(ca.GetClusterName()))
+		if err == nil {
+			continue
+		}
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+
+		log.Infof("[MIGRATION] Legacy Certificate Authority: %v", ca.GetName())
+
+		// create role for certificate authority and upsert to backend
+		newCA, role := services.ConvertV1CertAuthority(&raw)
+		err = asrv.UpsertRole(role)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// upsert new certificate authority to backend
+		if err := asrv.UpsertCertAuthority(newCA, 0); err != nil {
+			return trace.Wrap(err)
+		}
 	}
+
 	return nil
 }
 
@@ -459,7 +426,7 @@ func initKeys(a *AuthServer, dataDir string, id IdentityID) (*Identity, error) {
 // domain trusts us (signed our public key)
 func writeKeys(dataDir string, id IdentityID, key []byte, cert []byte) error {
 	kp, cp := keysPath(dataDir, id)
-	log.Debugf("write key to %v, cert from %v", kp, cp)
+	log.Debugf("[INIT] Writing keys to disk: Key: %q, Cert: %q", kp, cp)
 
 	if err := ioutil.WriteFile(kp, key, 0600); err != nil {
 		return err
@@ -575,7 +542,7 @@ func ReadIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 // key storage (dataDir).
 func ReadIdentity(dataDir string, id IdentityID) (i *Identity, err error) {
 	kp, cp := keysPath(dataDir, id)
-	log.Debugf("host identity: [key: %v, cert: %v]", kp, cp)
+	log.Debugf("[INIT] Reading keys from disk: Key: %q, Cert: %q", kp, cp)
 
 	keyBytes, err := utils.ReadPath(kp)
 	if err != nil {

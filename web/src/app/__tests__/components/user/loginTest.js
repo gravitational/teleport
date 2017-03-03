@@ -39,7 +39,7 @@ describe('components/user/login', () => {
   it('should handle AuthTypeEnum.LOCAL with Auth2faTypeEnum.UTF', () => {                    
     let props = getProps({
       authType: enums.AuthTypeEnum.OIDC,
-      authProvider: enums.AuthProviderEnum.MS,
+      authProviders: [{ name: enums.AuthProviderEnum.MS }],
       auth2faType: enums.Auth2faTypeEnum.UTF      
     });
     
@@ -72,7 +72,7 @@ describe('components/user/login', () => {
   it('should handle AuthTypeEnum.OIDC', () => {        
     let props = getProps({
       authType: enums.AuthTypeEnum.OIDC,
-      authProvider: enums.AuthProviderEnum.MS
+      authProviders: [{ name: enums.AuthProviderEnum.MS }]
     });
 
     render(<LoginInputForm { ...props } />);    
@@ -85,7 +85,7 @@ describe('components/user/login', () => {
   it('should handle AuthTypeEnum.OIDC with Auth2faTypeEnum.OTP', () => {                
     let props = getProps({
       authType: enums.AuthTypeEnum.OIDC,
-      authProvider: enums.AuthProviderEnum.MS,
+      authProviders: [{ name: enums.AuthProviderEnum.MS }],
       auth2faType: enums.Auth2faTypeEnum.OTP      
     });
       
@@ -104,7 +104,7 @@ describe('components/user/login', () => {
   it('should handle AuthTypeEnum.OIDC with Auth2faTypeEnum.UTF', () => {                
     let props = getProps({
       authType: enums.AuthTypeEnum.OIDC,
-      authProvider: enums.AuthProviderEnum.MS,
+      authProviders: [{ name: enums.AuthProviderEnum.MS }],
       auth2faType: enums.Auth2faTypeEnum.UTF      
     });
 
@@ -138,7 +138,7 @@ const expectNInputs = n => {
 
 const getProps = customProps => {
   let props = {
-    authProvider: '',    
+    authProviders: [],    
     auth2faType: '',    
     authType: '',    
     onLoginWithOidc(/*providerName*/) { },

@@ -43,9 +43,10 @@ import (
 
 var (
 	// all possible valid YAML config keys
+	// true  = non-scalar
+	// false = scalar
 	validKeys = map[string]bool{
 		"namespace":          true,
-		"seed_config":        true,
 		"cluster_name":       true,
 		"trusted_clusters":   true,
 		"pid_file":           true,
@@ -113,6 +114,7 @@ var (
 		"display":            false,
 		"scope":              false,
 		"claims_to_roles":    true,
+		"dynamic_config":     false,
 	}
 )
 
@@ -308,11 +310,6 @@ type Global struct {
 	// Each service (like proxy, auth, node) can find the key it needs
 	// by looking into certificate
 	Keys []KeyPair `yaml:"keys,omitempty"`
-
-	// SeedConfig [GRAVITATIONAL USE] when set to true, Teleport treats
-	// its configuration file simply as a seed data on initial start-up.
-	// For OSS Teleport it should always be 'false' by default.
-	SeedConfig bool `yaml:"seed_config,omitempty"`
 }
 
 // Service is a common configuration of a teleport service
@@ -378,6 +375,10 @@ type Auth struct {
 	// Configuration for "universal 2nd factor"
 	// Deprecated: Use U2F section in Authentication section instead.
 	U2F U2F `yaml:"u2f,omitempty"`
+
+	// DynamicConfig determines when file configuration is pushed to the backend. Setting
+	// it here overrides defaults.
+	DynamicConfig *bool `yaml:"dynamic_config,omitempty"`
 }
 
 // TrustedCluster struct holds configuration values under "trusted_clusters" key
@@ -425,7 +426,7 @@ func (a *AuthenticationConfig) Parse() (services.AuthPreference, services.OIDCCo
 	}
 
 	// check to make sure the configuration is valid
-	err = ap.Check()
+	err = ap.CheckAndSetDefaults()
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}

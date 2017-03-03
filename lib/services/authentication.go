@@ -52,8 +52,12 @@ type AuthPreference interface {
 	// SetSecondFactor sets the type of second factor.
 	SetSecondFactor(string)
 
-	// Check verifies the constraints for AuthPreference.
-	Check() error
+	// CheckAndSetDefaults sets and default values and then
+	// verifies the constraints for AuthPreference.
+	CheckAndSetDefaults() error
+
+	// String represents a human readable version of authentication settings.
+	String() string
 }
 
 // NewAuthPreference is a convenience method to to create AuthPreferenceV2.
@@ -113,8 +117,17 @@ func (c *AuthPreferenceV2) SetSecondFactor(s string) {
 	c.Spec.SecondFactor = s
 }
 
-// Check verifies the constraints for AuthPreference.
-func (c *AuthPreferenceV2) Check() error {
+// CheckAndSetDefaults verifies the constraints for AuthPreference.
+func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
+	// if nothing is passed in, set defaults
+	if c.Spec.Type == "" {
+		c.Spec.Type = teleport.Local
+	}
+	if c.Spec.SecondFactor == "" && c.Spec.Type == teleport.Local {
+		c.Spec.SecondFactor = teleport.OTP
+	}
+
+	// make sure whatever was passed in was sane
 	switch c.Spec.Type {
 	case teleport.Local:
 		if c.Spec.SecondFactor != teleport.OFF && c.Spec.SecondFactor != teleport.OTP && c.Spec.SecondFactor != teleport.U2F {
@@ -122,13 +135,18 @@ func (c *AuthPreferenceV2) Check() error {
 		}
 	case teleport.OIDC:
 		if c.Spec.SecondFactor != "" {
-			return trace.BadParameter("second factor not supported with oidc connector")
+			return trace.BadParameter("second factor [%q] not supported with oidc connector")
 		}
 	default:
 		return trace.BadParameter("unsupported type %q", c.Spec.Type)
 	}
 
 	return nil
+}
+
+// String represents a human readable version of authentication settings.
+func (c *AuthPreferenceV2) String() string {
+	return fmt.Sprintf("AuthPreference(Type=%q,SecondFactor=%q)", c.Spec.Type, c.Spec.SecondFactor)
 }
 
 const AuthPreferenceSpecSchemaTemplate = `{

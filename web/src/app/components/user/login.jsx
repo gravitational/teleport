@@ -63,7 +63,7 @@ const Login = React.createClass({
 
   render() {  
     let {attemp} = this.state;
-    let provider = cfg.getAuthProvider();
+    let authProviders = cfg.getAuthProviders();
     let authType = cfg.getAuthType();
     let auth2faType = cfg.getAuth2faType();
         
@@ -73,7 +73,7 @@ const Login = React.createClass({
         <div className="grv-content grv-flex">
           <div className="grv-flex-column">            
             <LoginInputForm
-              authProvider={provider}  
+              authProviders={authProviders}  
               auth2faType={auth2faType}
               authType={authType}              
               onLoginWithOidc={this.onLoginWithOidc}
@@ -115,9 +115,8 @@ const LoginInputForm = React.createClass({
     }
   },
       
-  onLoginWithOidc(e) {
-    e.preventDefault();    
-    this.props.onLoginWithOidc(this.props.authProvider);
+  onLoginWithOidc(providerName) {    
+    this.props.onLoginWithOidc(providerName);
   },
 
   isValid() {
@@ -217,22 +216,17 @@ const LoginInputForm = React.createClass({
   },
 
   renderSsoBtns() {    
-    let { authType, authProvider, attemp } = this.props;
+    let { authType, authProviders, attemp } = this.props;
 
     if (authType !== AuthTypeEnum.OIDC) {
       return null;
     }
-    
-    let ssoProvider = {
-      name: authProvider,
-      displayName: authProvider
-    }
-
+        
     return (
       <SsoBtnList
         prefixText="Login with "
         isDisabled={attemp.isProcessing}
-        providers={[ssoProvider]}
+        providers={authProviders}
         onClick={this.onLoginWithOidc} />
     )    
   },
@@ -242,18 +236,23 @@ const LoginInputForm = React.createClass({
     let $error = isFailed ? (
       <label className="error">{message}</label>
     ) : null;
-                  
+
+    let hasAnyAuth = !!cfg.auth;
+    
     return (
       <div>
         <form ref="form" className="grv-login-input-form">
           <h3> Welcome to Teleport </h3>
-          <div>
-            {this.renderNameAndPassFields()}    
-            {this.render2faFields()}
-            {this.renderLoginBtn()}
-            {this.renderSsoBtns()}                                       
-            {$error}
-          </div>
+          {!hasAnyAuth ? <div> You have no authentication options configured </div>
+            :
+            <div>
+              {this.renderNameAndPassFields()}
+              {this.render2faFields()}
+              {this.renderLoginBtn()}
+              {this.renderSsoBtns()}
+              {$error}
+            </div>
+          }
         </form>        
       </div>
     );
@@ -261,7 +260,7 @@ const LoginInputForm = React.createClass({
 })
 
 LoginInputForm.propTypes = {  
-  authProvider: React.PropTypes.string,
+  authProviders: React.PropTypes.array,
   auth2faType: React.PropTypes.string,
   authType: React.PropTypes.string,
   onLoginWithOidc: React.PropTypes.func.isRequired,

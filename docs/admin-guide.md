@@ -197,6 +197,12 @@ auth_service:
     # Turns 'auth' role on. Default is 'yes'
     enabled: yes
 
+    # Turns on dynamic configuration. Dynamic configuration defines the source
+    # for configuration information, configuration files on disk or what's
+    # stored in the backend. Default is false if no backend is specified,
+    # otherwise if backend is specified, it is assumed to be true.
+    dynamic_config: false
+
     # defines the types and second factors the auth server supports
     authentication:
         # type can be local or oidc
@@ -757,46 +763,42 @@ auth_service:
     authentication:
         type: oidc
         oidc:
-            id: google
+            id: auth0
             redirect_url: https://localhost:3080/v1/webapi/oidc/callback
-            client_id: id-from-google.apps.googleusercontent.com
-            client_secret: secret-key-from-google
-            issuer_url: https://accounts.google.com
-            display: "whaterver"
-            scope: ["ssh_permissions", "roles"]
+            client_id: id-from-auth0
+            client_secret: secret-key-from-auth0
+            issuer_url: https://example.auth0.com
+            display: "Login with Auth0"
+            scope: ["roles"]
             claims_to_roles: 
-                - claim: role
-                  value: admin
+                - claim: "roles"
+                  value: "admin"
                   roles: ["dba", "backup", "root"]
 ```
 
-Now you should be able to create Teleport users whose identity is managed by Google.
-Assuming your company domain is `example.com` and it's hosted on Google Apps, let's
-create a new Teleport user "sasha" with an email address `sasha@example.com` and allow
-him to login as `root` to Teleport nodes:
-
-```
-tctl users add sasha root,sasha --identity google:sasha@example.com
-```
+That's it. No need to create a users, Teleport with communicate with the OIDC provider for
+authentication and authorization and create a temporary user on the backend for the duration of the
+session for you when you login.
 
 ### Logging in via OpenID Connect
 
 #### Web UI
 
-Now, if everything is set up correctly, you will see "Login with Google" button on the login screen:
+Now, if everything is set up correctly, you will see "Login with Auth0" button on the login screen:
 
 ![OIDC Login](img/oidc-login.png)
 
 #### CLI
 
-You have to tell `tsh` to authenticate via Google by providing an `--auth` flag: 
+As long as you have OIDC set as your authentication method, nothing else needs to be passed into
+`tsh` to login, simply type:
 
 ```
-tsh --proxy <proxy-addr> ssh --auth=google <server-addr>
+tsh --proxy <proxy-addr> ssh <server-addr>
 ```
 
 You should get a browser open a login window for you, where you will have to enter
-your Google credentials. Teleport will keep you logged in for the next 23 hours.
+your credentials. Teleport will keep you logged in for the next 23 hours.
 
 !!! tip "Other Providers?": 
     We have already received the requests to add support for other OpenID/OAuth2 providers 
@@ -812,7 +814,6 @@ To start using U2F:
 
 * Purchase a U2F hardware key: looks like a tiny USB drive.
 * Enable U2F in Teleport configuration.
-* Use `--u2f` CLI flag when connecting via `tsh ssh`.
 * For CLI-based logins you have to install [u2f-host](https://developers.yubico.com/libu2f-host/) utility. 
 * For web-based logins you have to use Google Chrome, as the only browser supporting U2F at this moment.
 
@@ -882,10 +883,10 @@ $ brew install libu2f-host
 $ apt-get install u2f-host
 ```
 
-Then invoke `tsh ssh` to authenticate using U2F with the `--u2f` switch:
+Then simply type:
 
 ```
-tsh --proxy <proxy-addr> ssh --u2f <hostname>
+tsh --proxy <proxy-addr> ssh <server-addr>
 ```
 
 ## High Availability and Clustering

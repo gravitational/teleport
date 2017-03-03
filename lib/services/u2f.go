@@ -49,6 +49,9 @@ type UniversalSecondFactor interface {
 
 	// SetFacets sets the facets for universal second factor.
 	SetFacets([]string)
+
+	// String represents a human readable version of U2F settings.
+	String() string
 }
 
 // NewUniversalSecondFactor is a convenience method to to create UniversalSecondFactorV2.
@@ -106,6 +109,11 @@ func (c *UniversalSecondFactorV2) GetFacets() []string {
 // SetFacets sets the facets for universal second factor.
 func (c *UniversalSecondFactorV2) SetFacets(s []string) {
 	c.Spec.Facets = s
+}
+
+// String represents a human readable version of U2F settings.
+func (c *UniversalSecondFactorV2) String() string {
+	return fmt.Sprintf("UniversalSecondFactor(AppID=%q,Facets=%q)", c.Spec.AppID, c.Spec.Facets)
 }
 
 const UniversalSecondFactorSpecSchemaTemplate = `{

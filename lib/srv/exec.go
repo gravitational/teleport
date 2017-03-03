@@ -140,8 +140,7 @@ func prepInteractiveCommand(ctx *ctx) (*exec.Cmd, error) {
 // If 'cmd' does not have any spaces in it, it gets executed directly, otherwise
 // it is passed to user's shell for interpretation
 func prepareCommand(ctx *ctx) (*exec.Cmd, error) {
-	cmd := ctx.exec.cmdName
-	args := strings.Split(cmd, " ")
+	args := strings.Split(ctx.exec.cmdName, " ")
 
 	osUserName := ctx.login
 	// configure UID & GID of the requested OS user:
@@ -179,11 +178,13 @@ func prepareCommand(ctx *ctx) (*exec.Cmd, error) {
 		}
 	}
 	var c *exec.Cmd
+
 	if len(args) == 1 {
 		c = exec.Command(args[0])
 	} else {
-		c = exec.Command(shell, append([]string{"-c", cmd})...)
+		c = exec.Command(args[0], args[1:]...)
 	}
+
 	c.Env = []string{
 		"LANG=en_US.UTF-8",
 		getDefaultEnvPath(""),

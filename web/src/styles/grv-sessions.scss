@@ -36,7 +36,6 @@ limitations under the License.
   }
   
   .grv-header{
-    margin-top: 20px;
     margin-bottom: 20px;
 
     h2{
@@ -58,10 +57,19 @@ limitations under the License.
   margin-left: 5px;
 }
 
+.grv-sessions-stored{
+  position: relative;
+
+  .grv-sessions-stored-details{
+    max-width: 300px;
+  }
+
+}
+
 .grv-sessions-stored-col-ip{
   min-width: 90px;  
 }
 
 .grv-sessions-col-sid{
-  min-width: 320px;  
+  min-width: 100px;  
 }

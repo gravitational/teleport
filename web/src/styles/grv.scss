@@ -37,6 +37,7 @@ limitations under the License.
 @import "grv-terminal";
 @import "grv-dialog-select-node";
 @import "grv-notifications";
+@import "grv-datepicker";
 @import "grv-fonts";
 
 .grv {
@@ -50,8 +51,7 @@ limitations under the License.
   }
 
   .grv-page {
-    padding: 0 5%;
-    margin-top: 5px;
+    padding: 0 5%;    
     display: flex;
     overflow: auto;
     width: 100%;
@@ -94,12 +94,6 @@ limitations under the License.
   float: right;
 }
 
-.grv-datepicker{
-  &.input-daterange{
-    max-width: 250px;
-  }
-}
-
 .grv-clusters-selector{
   min-width: 220px;
   align-self: flex-end;
@@ -112,26 +106,26 @@ limitations under the License.
   }
 }
 
+.grv-btn-details{
+  display: inline-block;
+  height: 12px;
+  padding: 0 4px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 5px;
+  color: #444d56;
+  text-decoration: none;
+  vertical-align: middle;
+  background: #dfe2e5;
+  border: 0;
+  border-radius: 1px;
+}
+
 .grv-spinner.sk-spinner-three-bounce {
   z-index: 1;
   position: absolute;
   top: 50%;
   left: 50%;
-}
-
-.input-daterange .input-group-addon {
-  width: auto;
-  min-width: 16px;
-  padding: 4px 5px;
-  font-weight: normal;
-  line-height: 1.428571429;
-  text-align: center;
-  text-shadow: 0 1px 0 #fff;
-  vertical-align: middle;
-  background-color: #eeeeee;
-  border-width: 1px 0;
-  margin-left: -5px;
-  margin-right: -5px;
 }
 
 .grv-divider{

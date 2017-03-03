@@ -267,7 +267,7 @@ func (b *BoltBackend) getKey(buckets []string, key string, val *[]byte) error {
 		if bytes == nil {
 			_, err := GetBucket(tx, append(buckets, key))
 			if err == nil {
-				return trace.BadParameter("key '%v 'is a bucket", key)
+				return trace.BadParameter("key %q is a bucket", key)
 			}
 			return trace.NotFound("%v %v not found", buckets, key)
 		}
