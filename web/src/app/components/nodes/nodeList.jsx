@@ -15,13 +15,14 @@ limitations under the License.
 */
 
 import React from 'react';
+import { Link } from  'react-router';
 import _ from '_';
 import { isMatch } from 'app/common/objectUtils';
 import InputSearch from './../inputSearch.jsx';
 import { Table, Column, Cell, SortHeaderCell, SortTypes, EmptyIndicator } from 'app/components/table.jsx';
-import {createNewSession} from 'app/modules/currentSession/actions';
 import ClusterSelector from './../clusterSelector.jsx';
-
+import cfg from 'app/config';
+  
 const TextCell = ({rowIndex, data, columnKey, ...props}) => (
   <Cell {...props}>
     {data[rowIndex][columnKey]}
@@ -39,31 +40,42 @@ const TagCell = ({rowIndex, data, ...props}) => (
   </Cell>
 );
 
-const LoginCell = ({logins, onLoginClick, rowIndex, data, ...props}) => {
+const LoginCell = ({logins, rowIndex, data, ...props}) => {
   if(!logins ||logins.length === 0){
     return <Cell {...props} />;
   }
 
   let { id, siteId } = data[rowIndex];
   let $lis = [];
+    
+  for (var i = 0; i < logins.length; i++){
+    let termUrl = cfg.getTerminalLoginUrl({
+      siteId: siteId,
+      serverId: id,
+      login: logins[i]
+    })
+      
+    $lis.push(
+      <li key={i}>        
+        <Link to={termUrl}>
+          {logins[i]}
+        </Link>
+      </li>        
+    );
+  } 
 
-  function onClick(i){
-    var login = logins[i];
-    if(onLoginClick){
-      return () => onLoginClick(id, login);
-    }else{
-      return () => createNewSession(siteId, id, login);
-    }
-  }
-
-  for(var i = 0; i < logins.length; i++){
-    $lis.push(<li key={i}><a onClick={onClick(i)}>{logins[i]}</a></li>);
-  }
+  let defaultTermUrl = cfg.getTerminalLoginUrl({
+      siteId: siteId,
+      serverId: id,
+      login: logins[0]
+    })
 
   return (
     <Cell {...props}>
-      <div className="btn-group">
-        <button type="button" onClick={onClick(0)} className="btn btn-xs btn-primary">{logins[0]}</button>
+      <div className="btn-group">        
+         <Link className="btn btn-xs btn-primary" to={defaultTermUrl}>
+          {logins[0]}
+        </Link>
         {
           $lis.length > 1 ? (
               [

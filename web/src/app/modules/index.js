@@ -15,10 +15,13 @@ limitations under the License.
 */
 
 import reactor from 'app/reactor';
+import termStore from './terminal/store';
+
 
 reactor.registerStores({
   'tlpt': require('./app/appStore'),  
   'tlpt_current_session': require('./currentSession/currentSessionStore'),
+  'tlpt_terminal': termStore,
   'tlpt_user': require('./user/userStore'),
   'tlpt_sites': require('./sites/siteStore'),
   'tlpt_user_invite': require('./user/userInviteStore'),
