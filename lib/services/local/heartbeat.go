@@ -38,6 +38,25 @@ func NewPresenceService(backend backend.Backend) *PresenceService {
 	return &PresenceService{backend}
 }
 
+// UpsertLocalClusterName upserts local domain
+func (s *PresenceService) UpsertLocalClusterName(name string) error {
+	return s.backend.UpsertVal([]string{localClusterPrefix}, "val", []byte(name), backend.Forever)
+}
+
+// GetLocalClusterName upserts local domain
+func (s *PresenceService) GetLocalClusterName() (string, error) {
+	data, err := s.backend.GetVal([]string{localClusterPrefix}, "val")
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return string(data), nil
+}
+
+// DeleteAllNamespaces deletes all namespaces
+func (s *PresenceService) DeleteAllNamespaces() error {
+	return s.backend.DeleteBucket([]string{}, namespacesPrefix)
+}
+
 // GetNamespaces returns a list of namespaces
 func (s *PresenceService) GetNamespaces() ([]services.Namespace, error) {
 	keys, err := s.backend.GetKeys([]string{namespacesPrefix})
@@ -129,6 +148,11 @@ func (s *PresenceService) upsertServer(prefix string, server services.Server, tt
 	return trace.Wrap(err)
 }
 
+// DeleteAllNodes deletes all nodes in a namespace
+func (s *PresenceService) DeleteAllNodes(namespace string) error {
+	return s.backend.DeleteBucket([]string{namespacesPrefix, namespace}, nodesPrefix)
+}
+
 // GetNodes returns a list of registered servers
 func (s *PresenceService) GetNodes(namespace string) ([]services.Server, error) {
 	if namespace == "" {
@@ -191,6 +215,11 @@ func (s *PresenceService) GetProxies() ([]services.Server, error) {
 	return s.getServers(services.KindProxy, proxiesPrefix)
 }
 
+// DeleteAllProxies deletes all proxies
+func (s *PresenceService) DeleteAllProxies() error {
+	return s.backend.DeleteBucket([]string{}, proxiesPrefix)
+}
+
 // UpsertReverseTunnel upserts reverse tunnel entry temporarily or permanently
 func (s *PresenceService) UpsertReverseTunnel(tunnel services.ReverseTunnel, ttl time.Duration) error {
 	if err := tunnel.Check(); err != nil {
@@ -234,6 +263,7 @@ func (s *PresenceService) DeleteReverseTunnel(domainName string) error {
 }
 
 const (
+	localClusterPrefix   = "localCluster"
 	reverseTunnelsPrefix = "reverseTunnels"
 	nodesPrefix          = "nodes"
 	namespacesPrefix     = "namespaces"

@@ -102,6 +102,9 @@ type TeleportProcess struct {
 
 	// identities of this process (credentials to auth sever, basically)
 	Identities map[teleport.Role]*auth.Identity
+
+	// cacheBackend is a caching backend
+	cacheBackend backend.Backend
 }
 
 func (process *TeleportProcess) GetAuthServer() *auth.AuthServer {
@@ -233,13 +236,16 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		cfg.Auth.DomainName = cfg.HostUUID
 	}
 
-	// try to login into the auth service:
+	cacheBackend, err := dir.New(backend.Params{"path": filepath.Join(cfg.DataDir, "cache")})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	// if there are no certificates, use self signed
 	process := &TeleportProcess{
-		Supervisor: NewSupervisor(),
-		Config:     cfg,
-		Identities: make(map[teleport.Role]*auth.Identity),
+		Supervisor:   NewSupervisor(),
+		Config:       cfg,
+		Identities:   make(map[teleport.Role]*auth.Identity),
+		cacheBackend: cacheBackend,
 	}
 
 	serviceStarted := false
@@ -498,7 +504,7 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 
-		authClient, err := state.NewCachingAuthClient(conn.Client)
+		authClient, err := state.NewCachingAuthClient(conn.Client, process.cacheBackend)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -658,7 +664,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	// make a caching auth client for the auth server:
-	authClient, err := state.NewCachingAuthClient(conn.Client)
+	authClient, err := state.NewCachingAuthClient(conn.Client, process.cacheBackend)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -122,6 +122,18 @@ func (a *AuthWithRoles) GetDomainName() (string, error) {
 	return a.authServer.GetDomainName()
 }
 
+func (a *AuthWithRoles) GetLocalClusterName() (string, error) {
+	// anyone can read it, no harm in that
+	return a.authServer.GetLocalClusterName()
+}
+
+func (a *AuthWithRoles) UpsertLocalClusterName(clusterName string) error {
+	if err := a.action(defaults.Namespace, services.KindAuthServer, services.ActionWrite); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.UpsertLocalClusterName(clusterName)
+}
+
 func (a *AuthWithRoles) DeleteCertAuthority(id services.CertAuthID) error {
 	if err := a.action(defaults.Namespace, services.KindCertAuthority, services.ActionWrite); err != nil {
 		return trace.Wrap(err)
@@ -607,6 +619,36 @@ func (a *AuthWithRoles) SetUniversalSecondFactor(u2f services.UniversalSecondFac
 	}
 
 	return a.authServer.SetUniversalSecondFactor(u2f)
+}
+
+// DeleteAllCertAuthorities deletes all certificate authorities of a certain type
+func (a *AuthWithRoles) DeleteAllCertAuthorities(caType services.CertAuthType) error {
+	return trace.BadParameter("not implemented")
+}
+
+// DeleteAllCertNamespaces deletes all namespaces
+func (a *AuthWithRoles) DeleteAllNamespaces() error {
+	return trace.BadParameter("not implemented")
+}
+
+// DeleteAllProxies deletes all proxies
+func (a *AuthWithRoles) DeleteAllProxies() error {
+	return trace.BadParameter("not implemented")
+}
+
+// DeleteAllNodes deletes all nodes in a given namespace
+func (a *AuthWithRoles) DeleteAllNodes(namespace string) error {
+	return trace.BadParameter("not implemented")
+}
+
+// DeleteAllRoles deletes all roles
+func (a *AuthWithRoles) DeleteAllRoles() error {
+	return trace.BadParameter("not implemented")
+}
+
+// DeleteAllUsers deletes all users
+func (a *AuthWithRoles) DeleteAllUsers() error {
+	return trace.BadParameter("not implemented")
 }
 
 // NewAuthWithRoles creates new auth server with access control

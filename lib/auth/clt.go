@@ -1187,6 +1187,46 @@ func (c *Client) SetUniversalSecondFactor(universalSecondFactor services.Univers
 	return nil
 }
 
+// GetLocalClusterName returns local cluster name
+func (c *Client) GetLocalClusterName() (string, error) {
+	return c.GetDomainName()
+}
+
+// UpsertLocalClusterName upserts local cluster name
+func (c *Client) UpsertLocalClusterName(string) error {
+	return trace.BadParameter("not implemented")
+}
+
+// DeleteAllCertAuthorities deletes all certificate authorities of a certain type
+func (c *Client) DeleteAllCertAuthorities(caType services.CertAuthType) error {
+	return trace.BadParameter("not implemented")
+}
+
+// DeleteAllCertNamespaces deletes all namespaces
+func (c *Client) DeleteAllNamespaces() error {
+	return trace.BadParameter("not implemented")
+}
+
+// DeleteAllProxies deletes all proxies
+func (c *Client) DeleteAllProxies() error {
+	return trace.BadParameter("not implemented")
+}
+
+// DeleteAllNodes deletes all nodes in a given namespace
+func (c *Client) DeleteAllNodes(namespace string) error {
+	return trace.BadParameter("not implemented")
+}
+
+// DeleteAllRoles deletes all roles
+func (c *Client) DeleteAllRoles() error {
+	return trace.BadParameter("not implemented")
+}
+
+// DeleteAllUsers deletes all users
+func (c *Client) DeleteAllUsers() error {
+	return trace.BadParameter("not implemented")
+}
+
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if

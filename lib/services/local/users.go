@@ -52,6 +52,11 @@ func NewIdentityService(backend backend.Backend) *IdentityService {
 	}
 }
 
+// DeleteAllUsers deletes all users
+func (s *IdentityService) DeleteAllUsers() error {
+	return s.backend.DeleteBucket([]string{"web"}, "users")
+}
+
 // GetUsers returns a list of users registered with the local auth server
 func (s *IdentityService) GetUsers() ([]services.User, error) {
 	keys, err := s.backend.GetKeys([]string{"web", "users"})

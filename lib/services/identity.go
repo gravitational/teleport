@@ -38,6 +38,9 @@ type Identity interface {
 	// GetUsers returns a list of users registered with the local auth server
 	GetUsers() ([]User, error)
 
+	// DeleteAllUsers deletes all users
+	DeleteAllUsers() error
+
 	// AddUserLoginAttempt logs user login attempt
 	AddUserLoginAttempt(user string, attempt LoginAttempt, ttl time.Duration) error
 

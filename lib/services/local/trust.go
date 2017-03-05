@@ -20,6 +20,11 @@ func NewCAService(backend backend.Backend) *CA {
 	return &CA{backend: backend}
 }
 
+// DeleteAllCertAuthorities deletes all certificate authorities of a certain type
+func (s *CA) DeleteAllCertAuthorities(caType services.CertAuthType) error {
+	return s.backend.DeleteBucket([]string{"authorities"}, string(caType))
+}
+
 // UpsertCertAuthority updates or inserts a new certificate authority
 func (s *CA) UpsertCertAuthority(ca services.CertAuthority, ttl time.Duration) error {
 	if err := ca.Check(); err != nil {

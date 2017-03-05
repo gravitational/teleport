@@ -35,6 +35,11 @@ func NewAccessService(backend backend.Backend) *AccessService {
 	return &AccessService{Backend: backend}
 }
 
+// DeleteAllRoles deletes all roles
+func (s *AccessService) DeleteAllRoles() error {
+	return s.DeleteBucket([]string{}, "roles")
+}
+
 // GetRoles returns a list of roles registered with the local auth server
 func (s *AccessService) GetRoles() ([]services.Role, error) {
 	keys, err := s.GetKeys([]string{"roles"})

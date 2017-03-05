@@ -104,6 +104,9 @@ type Access interface {
 	// UpsertRole creates or updates role
 	UpsertRole(role Role) error
 
+	// DeleteAllRoles deletes all roles
+	DeleteAllRoles() error
+
 	// GetRole returns role by name
 	GetRole(name string) (Role, error)
 

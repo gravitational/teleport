@@ -41,6 +41,9 @@ type Trust interface {
 	// DeleteCertAuthority deletes particular certificate authority
 	DeleteCertAuthority(id CertAuthID) error
 
+	// DeleteAllCertAuthorities deletes cert authorities of a certain type
+	DeleteAllCertAuthorities(caType CertAuthType) error
+
 	// GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 	// controls if signing keys are loaded
 	GetCertAuthority(id CertAuthID, loadSigningKeys bool) (CertAuthority, error)

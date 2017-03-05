@@ -23,8 +23,18 @@ import (
 // Presence records and reports the presence of all components
 // of the cluster - Nodes, Proxies and SSH nodes
 type Presence interface {
+
+	// UpsertLocalClusterName upserts local domain
+	UpsertLocalClusterName(name string) error
+
+	// GetLocalClusterName upserts local domain
+	GetLocalClusterName() (string, error)
+
 	// GetNodes returns a list of registered servers
 	GetNodes(namespace string) ([]Server, error)
+
+	// DeleteAllNodes deletes all nodes in a namespace
+	DeleteAllNodes(namespace string) error
 
 	// UpsertNode registers node presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
@@ -44,6 +54,9 @@ type Presence interface {
 	// GetProxies returns a list of registered proxies
 	GetProxies() ([]Server, error)
 
+	// DeleteAllProxies deletes all proxies
+	DeleteAllProxies() error
+
 	// UpsertReverseTunnel upserts reverse tunnel entry temporarily or permanently
 	UpsertReverseTunnel(tunnel ReverseTunnel, ttl time.Duration) error
 
@@ -58,6 +71,9 @@ type Presence interface {
 
 	// GetNamespace returns namespace by name
 	GetNamespace(name string) (*Namespace, error)
+
+	// DeleteAllNamespaces deletes all namespaces
+	DeleteAllNamespaces() error
 
 	// UpsertNamespace upserts namespace
 	UpsertNamespace(Namespace) error
