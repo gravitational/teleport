@@ -386,6 +386,7 @@ func (s *Server) getCommandLabels() map[string]services.CommandLabel {
 func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser string) error {
 	// enumerate all known CAs and see if any of them signed the
 	// supplied certificate
+	log.Debugf("[HA SSH NODE] checkPermsissionToLogin(%v, %v)", teleportUser, osUser)
 	cas, err := s.authService.GetCertAuthorities(services.UserCA, false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -450,6 +451,7 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 func (s *Server) isAuthority(cert ssh.PublicKey) bool {
 	// find cert authority by it's key
 	cas, err := s.authService.GetCertAuthorities(services.UserCA, false)
+	log.Debugf("[SSH NODE HA] %v %v", cas, err)
 	if err != nil {
 		log.Warningf("%v", err)
 		return false
@@ -520,7 +522,9 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 			})
 		}
 	}
+	log.Debugf("[SSH NODE DEBUG 1]")
 	permissions, err := s.certChecker.Authenticate(conn, key)
+	log.Debugf("[SSH NODE DEBUG 2]", permissions, err)
 	if err != nil {
 		logAuditEvent(err)
 		return nil, trace.Wrap(err)

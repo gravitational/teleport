@@ -480,6 +480,16 @@ func (process *TeleportProcess) onExit(callback func(interface{})) {
 	}()
 }
 
+// newLocalCache returns new local cache access point
+func (process *TeleportProcess) newLocalCache(clt auth.ClientI, cacheName []string) (auth.AccessPoint, error) {
+	path := filepath.Join(append([]string{process.Config.DataDir, "cache"}, cacheName...)...)
+	cacheBackend, err := dir.New(backend.Params{"path": path})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return state.NewCachingAuthClient(clt, cacheBackend)
+}
+
 // initSSH initializes the "node" role, i.e. a simple SSH server connected to the auth server.
 func (process *TeleportProcess) initSSH() error {
 	process.RegisterWithAuthServer(
@@ -673,6 +683,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		cfg.Proxy.ReverseTunnelListenAddr,
 		[]ssh.Signer{conn.Identity.KeySigner},
 		authClient,
+		process.newLocalCache,
 		reversetunnel.SetLimiter(reverseTunnelLimiter),
 		reversetunnel.DirectSite(conn.Identity.Cert.Extensions[utils.CertExtensionAuthority],
 			conn.Client),
@@ -700,6 +711,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	agentPool, err := reversetunnel.NewAgentPool(reversetunnel.AgentPoolConfig{
 		HostUUID:    conn.Identity.ID.HostUUID,
 		Client:      conn.Client,
+		AccessPoint: authClient,
 		HostSigners: []ssh.Signer{conn.Identity.KeySigner},
 	})
 	if err != nil {

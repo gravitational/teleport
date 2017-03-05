@@ -4,8 +4,7 @@ teleport:
   auth_servers: ["two-auth"]
   auth_token: xxx
   log:
-    output: /var/lib/teleport/teleport.log
-    severity: INFO
+    severity: DEBUG
 
 ssh_service:
   enabled: yes

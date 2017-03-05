@@ -61,6 +61,12 @@ func NewCachingAuthClient(ap auth.AccessPoint, b backend.Backend) (*CachingAuthC
 		access:   local.NewAccessService(b),
 		presence: local.NewPresenceService(b),
 	}
+	go func() {
+		err := cs.fetchAll()
+		if err != nil {
+			log.Warningf("failed to fetch cached results %v", err)
+		}
+	}()
 	return cs, nil
 }
 
@@ -71,17 +77,41 @@ func CacheProblem(err error) error {
 	}, "failed to update local cache")
 }
 
+func (cs *CachingAuthClient) fetchAll() error {
+	var errors []error
+	_, err := cs.GetDomainName()
+	errors = append(errors, err)
+	_, err = cs.GetRoles()
+	errors = append(errors, err)
+	ns, err := cs.GetNamespaces()
+	errors = append(errors, err)
+	if err == nil {
+		for _, n := range ns {
+			cs.GetNodes(n.Metadata.Name)
+		}
+	}
+	_, err = cs.GetProxies()
+	errors = append(errors, err)
+	_, err = cs.GetCertAuthorities(services.UserCA, false)
+	errors = append(errors, err)
+	_, err = cs.GetCertAuthorities(services.HostCA, false)
+	errors = append(errors, err)
+	_, err = cs.GetUsers()
+	errors = append(errors, err)
+	return trace.NewAggregate(errors...)
+}
+
 // GetDomainName is a part of auth.AccessPoint implementation
 func (cs *CachingAuthClient) GetDomainName() (clusterName string, err error) {
 	err = cs.try(func() error {
 		clusterName, err = cs.ap.GetDomainName()
-		if err == nil {
-			cs.presence.UpsertLocalClusterName(clusterName)
-		}
 		return err
 	})
 	if !trace.IsConnectionProblem(err) {
 		return clusterName, err
+	}
+	if err == nil {
+		cs.presence.UpsertLocalClusterName(clusterName)
 	}
 	return cs.presence.GetLocalClusterName()
 }
@@ -90,23 +120,23 @@ func (cs *CachingAuthClient) GetDomainName() (clusterName string, err error) {
 func (cs *CachingAuthClient) GetRoles() (roles []services.Role, err error) {
 	err = cs.try(func() error {
 		roles, err = cs.ap.GetRoles()
-		if err != nil {
-			return err
-		}
+		return err
+	})
+	if !trace.IsConnectionProblem(err) {
+		return roles, err
+	}
+	// update cache if we got results
+	if err == nil {
 		if err := cs.access.DeleteAllRoles(); err != nil {
 			if !trace.IsNotFound(err) {
-				return CacheProblem(err)
+				return nil, CacheProblem(err)
 			}
 		}
 		for _, role := range roles {
 			if err := cs.access.UpsertRole(role); err != nil {
-				return CacheProblem(err)
+				return nil, CacheProblem(err)
 			}
 		}
-		return nil
-	})
-	if !trace.IsConnectionProblem(err) {
-		return roles, err
 	}
 	return cs.access.GetRoles()
 }
@@ -115,22 +145,20 @@ func (cs *CachingAuthClient) GetRoles() (roles []services.Role, err error) {
 func (cs *CachingAuthClient) GetRole(name string) (role services.Role, err error) {
 	err = cs.try(func() error {
 		role, err = cs.ap.GetRole(name)
-		if err != nil {
-			return err
-		}
-		err = cs.access.DeleteRole(name)
-		if err != nil {
-			if !trace.IsNotFound(err) {
-				return CacheProblem(err)
-			}
-		}
-		if err := cs.access.UpsertRole(role); err != nil {
-			return CacheProblem(err)
-		}
-		return nil
+		return err
 	})
 	if !trace.IsConnectionProblem(err) {
 		return role, err
+	}
+	if err == nil {
+		if err := cs.access.DeleteRole(name); err != nil {
+			if !trace.IsNotFound(err) {
+				return nil, CacheProblem(err)
+			}
+		}
+		if err := cs.access.UpsertRole(role); err != nil {
+			return nil, CacheProblem(err)
+		}
 	}
 	return cs.access.GetRole(name)
 }
@@ -139,23 +167,22 @@ func (cs *CachingAuthClient) GetRole(name string) (role services.Role, err error
 func (cs *CachingAuthClient) GetNamespaces() (namespaces []services.Namespace, err error) {
 	err = cs.try(func() error {
 		namespaces, err = cs.ap.GetNamespaces()
-		if err != nil {
-			return err
-		}
+		return err
+	})
+	if !trace.IsConnectionProblem(err) {
+		return namespaces, err
+	}
+	if err == nil {
 		if err := cs.presence.DeleteAllNamespaces(); err != nil {
 			if !trace.IsNotFound(err) {
-				return CacheProblem(err)
+				return nil, CacheProblem(err)
 			}
 		}
 		for _, ns := range namespaces {
 			if err := cs.presence.UpsertNamespace(ns); err != nil {
-				return CacheProblem(err)
+				return nil, CacheProblem(err)
 			}
 		}
-		return nil
-	})
-	if !trace.IsConnectionProblem(err) {
-		return namespaces, err
 	}
 	return cs.presence.GetNamespaces()
 }
@@ -164,23 +191,23 @@ func (cs *CachingAuthClient) GetNamespaces() (namespaces []services.Namespace, e
 func (cs *CachingAuthClient) GetNodes(namespace string) (nodes []services.Server, err error) {
 	err = cs.try(func() error {
 		nodes, err = cs.ap.GetNodes(namespace)
-		if err != nil {
-			return err
-		}
+		return err
+
+	})
+	if !trace.IsConnectionProblem(err) {
+		return nodes, err
+	}
+	if err == nil {
 		if err := cs.presence.DeleteAllNodes(namespace); err != nil {
 			if !trace.IsNotFound(err) {
-				return CacheProblem(err)
+				return nil, CacheProblem(err)
 			}
 		}
 		for _, node := range nodes {
 			if err := cs.presence.UpsertNode(node, backend.Forever); err != nil {
-				return CacheProblem(err)
+				return nil, CacheProblem(err)
 			}
 		}
-		return nil
-	})
-	if !trace.IsConnectionProblem(err) {
-		return nodes, err
 	}
 	return cs.presence.GetNodes(namespace)
 }
@@ -189,23 +216,22 @@ func (cs *CachingAuthClient) GetNodes(namespace string) (nodes []services.Server
 func (cs *CachingAuthClient) GetProxies() (proxies []services.Server, err error) {
 	err = cs.try(func() error {
 		proxies, err = cs.ap.GetProxies()
-		if err != nil {
-			return err
-		}
+		return err
+	})
+	if !trace.IsConnectionProblem(err) {
+		return proxies, err
+	}
+	if err == nil {
 		if err := cs.presence.DeleteAllProxies(); err != nil {
 			if !trace.IsNotFound(err) {
-				return CacheProblem(err)
+				return nil, CacheProblem(err)
 			}
 		}
 		for _, proxy := range proxies {
 			if err := cs.presence.UpsertProxy(proxy, backend.Forever); err != nil {
-				return CacheProblem(err)
+				return nil, CacheProblem(err)
 			}
 		}
-		return nil
-	})
-	if !trace.IsConnectionProblem(err) {
-		return proxies, err
 	}
 	return cs.presence.GetProxies()
 }
@@ -214,23 +240,22 @@ func (cs *CachingAuthClient) GetProxies() (proxies []services.Server, err error)
 func (cs *CachingAuthClient) GetCertAuthorities(ct services.CertAuthType, loadKeys bool) (cas []services.CertAuthority, err error) {
 	err = cs.try(func() error {
 		cas, err = cs.ap.GetCertAuthorities(ct, loadKeys)
-		if err != nil {
-			return err
-		}
+		return err
+	})
+	if !trace.IsConnectionProblem(err) {
+		return cas, err
+	}
+	if err == nil {
 		if err := cs.trust.DeleteAllCertAuthorities(ct); err != nil {
 			if !trace.IsNotFound(err) {
-				return CacheProblem(err)
+				return nil, CacheProblem(err)
 			}
 		}
 		for _, ca := range cas {
 			if err := cs.trust.UpsertCertAuthority(ca, backend.Forever); err != nil {
-				return CacheProblem(err)
+				return nil, CacheProblem(err)
 			}
 		}
-		return nil
-	})
-	if !trace.IsConnectionProblem(err) {
-		return cas, err
 	}
 	return cs.trust.GetCertAuthorities(ct, loadKeys)
 }
@@ -239,23 +264,22 @@ func (cs *CachingAuthClient) GetCertAuthorities(ct services.CertAuthType, loadKe
 func (cs *CachingAuthClient) GetUsers() (users []services.User, err error) {
 	err = cs.try(func() error {
 		users, err = cs.ap.GetUsers()
-		if err != nil {
-			return err
-		}
+		return err
+	})
+	if !trace.IsConnectionProblem(err) {
+		return users, err
+	}
+	if err == nil {
 		if err := cs.identity.DeleteAllUsers(); err != nil {
 			if !trace.IsNotFound(err) {
-				return CacheProblem(err)
+				return nil, CacheProblem(err)
 			}
 		}
 		for _, user := range users {
 			if err := cs.identity.UpsertUser(user); err != nil {
-				return CacheProblem(err)
+				return nil, CacheProblem(err)
 			}
 		}
-		return nil
-	})
-	if !trace.IsConnectionProblem(err) {
-		return users, err
 	}
 	return cs.identity.GetUsers()
 }
@@ -279,12 +303,11 @@ func (cs *CachingAuthClient) try(f func() error) error {
 		log.Warnf("Not calling auth access point due to recent errors. Using cached value instead")
 		return trace.ConnectionProblem(fmt.Errorf("backoff"), "backing off due to recent errors")
 	}
-	err := f()
+	err := trace.ConvertSystemError(f())
+	log.Errorf("probs: %v", err)
 	if trace.IsConnectionProblem(err) {
-		log.Warningf("failed connecto to the auth servers, using local cache")
-	}
-	if err != nil {
 		cs.lastErrorTime = time.Now()
+		log.Warningf("failed connecto to the auth servers, using local cache")
 	}
 	return err
 }

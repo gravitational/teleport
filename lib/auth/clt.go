@@ -63,7 +63,10 @@ func NewClient(addr string, dialer Dialer, params ...roundtrip.ClientParam) (*Cl
 	if dialer == nil {
 		dialer = net.Dial
 	}
-	transport := &http.Transport{Dial: dialer}
+	transport := &http.Transport{
+		Dial: dialer,
+		ResponseHeaderTimeout: time.Second,
+	}
 	params = append(params, roundtrip.HTTPClient(&http.Client{
 		Transport: transport,
 	}))

@@ -2,8 +2,7 @@
 teleport:
   nodename: one
   log:
-    output: /var/lib/teleport/teleport.log
-    severity: INFO
+    severity: DEBUG
 
 auth_service:
   enabled: yes
@@ -14,7 +13,7 @@ auth_service:
   # to enable trusted clusters, execute `tctl auth export > data/two/two.ca` inside container "two-auth"
   # and then uncomment this and restart container "one"
   trusted_clusters:
-      - key_file: /root/go/src/github.com/gravitational/teleport/docker/data/two/two.ca
+    - key_file: /root/go/src/github.com/gravitational/teleport/docker/data/one/two.ca
 
 ssh_service:
   enabled: yes

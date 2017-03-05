@@ -53,6 +53,7 @@ type Agent struct {
 	disconnectC     chan bool
 	hostKeyCallback utils.HostKeyCallback
 	authMethods     []ssh.AuthMethod
+	accessPoint     auth.AccessPoint
 }
 
 // AgentOption specifies parameter that could be passed to Agents
@@ -68,7 +69,8 @@ func NewAgent(
 	remoteDomainName string,
 	clientName string,
 	signers []ssh.Signer,
-	clt *auth.TunClient) (*Agent, error) {
+	clt *auth.TunClient,
+	accessPoint auth.AccessPoint) (*Agent, error) {
 
 	log.Debugf("reversetunnel.NewAgent %s -> %s", clientName, remoteDomainName)
 
@@ -88,6 +90,7 @@ func NewAgent(
 		broadcastClose:   utils.NewCloseBroadcaster(),
 		disconnectC:      make(chan bool, 10),
 		authMethods:      []ssh.AuthMethod{ssh.PublicKeys(signers...)},
+		accessPoint:      accessPoint,
 	}
 	a.hostKeyCallback = a.checkHostSignature
 	return a, nil
@@ -125,7 +128,7 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 	if !ok {
 		return trace.Errorf("expected certificate")
 	}
-	cas, err := a.clt.GetCertAuthorities(services.HostCA, false)
+	cas, err := a.accessPoint.GetCertAuthorities(services.HostCA, false)
 	if err != nil {
 		return trace.Wrap(err, "failed to fetch remote certs")
 	}
@@ -163,6 +166,7 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 }
 
 func (a *Agent) proxyAccessPoint(ch ssh.Channel, req <-chan *ssh.Request) {
+	log.Debugf("[HA Agent] proxyAccessPoint")
 	defer ch.Close()
 
 	conn, err := a.clt.GetDialer()()
@@ -203,6 +207,7 @@ func (a *Agent) proxyAccessPoint(ch ssh.Channel, req <-chan *ssh.Request) {
 // ch   : SSH channel which received "teleport-transport" out-of-band request
 // reqC : request payload
 func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
+	log.Debugf("[HA Agent] proxyTransport")
 	defer ch.Close()
 
 	// always push space into stderr to make sure the caller can always

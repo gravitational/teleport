@@ -223,7 +223,9 @@ func (t *proxySubsys) proxyToHost(
 		servers []services.Server
 		err     error
 	)
+	log.Debugf("SASHA 1")
 	localDomain, _ := t.srv.authService.GetDomainName()
+	log.Debugf("SASHA 2")
 	// going to "local" CA? lets use the caching 'auth service' directly and avoid
 	// hitting the reverse tunnel link (it can be offline if the CA is down)
 	if site.GetName() == localDomain {
@@ -233,7 +235,7 @@ func (t *proxySubsys) proxyToHost(
 		}
 	} else {
 		// "remote" CA? use a reverse tunnel to talk to it:
-		siteClient, err := site.GetClient()
+		siteClient, err := site.CachingAccessPoint()
 		if err != nil {
 			log.Warn(err)
 		} else {
@@ -277,6 +279,7 @@ func (t *proxySubsys) proxyToHost(
 		serverAddr = net.JoinHostPort(t.host, t.port)
 	}
 
+	log.Debugf("SASHA 3")
 	// we must dial by server IP address because hostname
 	// may not be actually DNS resolvable
 	conn, err := site.Dial(
@@ -285,7 +288,7 @@ func (t *proxySubsys) proxyToHost(
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
+	log.Debugf("SASHA 4")
 	// this custom SSH handshake allows SSH proxy to relay the client's IP
 	// address to the SSH erver:
 	doHandshake(remoteAddr, ch, conn)

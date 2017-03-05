@@ -724,7 +724,7 @@ func (c *TunClient) Close() error {
 // GetDialer returns dialer that will connect to auth server API
 func (c *TunClient) GetDialer() AccessPointDialer {
 	addrNetwork := c.staticAuthServers[0].AddrNetwork
-	const dialRetryTimes = 5
+	const dialRetryTimes = 1
 
 	return func() (conn net.Conn, err error) {
 		for attempt := 0; attempt < dialRetryTimes; attempt++ {
@@ -897,7 +897,7 @@ func (c *TunClient) dialAuthServer(authServer utils.NetAddr) (sshClient *ssh.Cli
 		Auth:    c.authMethods,
 		Timeout: defaults.DefaultDialTimeout,
 	}
-	const dialRetryTimes = 3
+	const dialRetryTimes = 1
 	for attempt := 0; attempt < dialRetryTimes; attempt++ {
 		log.Debugf("tunClient.Dial(to=%v, attempt=%d)", authServer.Addr, attempt+1)
 		sshClient, err = ssh.Dial(authServer.AddrNetwork, authServer.Addr, config)

@@ -55,6 +55,9 @@ type RemoteSite interface {
 	GetStatus() string
 	// GetClient returns client connected to remote auth server
 	GetClient() (auth.ClientI, error)
+	// CachingAccessPoint returns access point that is lightweight
+	// but is resilient to auth server crashes
+	CachingAccessPoint() (auth.AccessPoint, error)
 }
 
 // Server is a TCP/IP SSH server which listens on an SSH endpoint and remote/local
@@ -72,4 +75,13 @@ type Server interface {
 	Close() error
 	// Wait waits for server to close all outstanding operations
 	Wait()
+}
+
+// NewCachingAcessPoint returns new caching access point using
+// access point policy
+type NewCachingAccessPoint func(clt auth.ClientI, cacheName []string) (auth.AccessPoint, error)
+
+// NoCache is a no cache used for access point
+func NoCache(clt auth.ClientI, cacheName []string) (auth.AccessPoint, error) {
+	return clt, nil
 }
