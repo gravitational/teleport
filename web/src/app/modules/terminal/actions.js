@@ -26,8 +26,23 @@ const logger = require('app/common/logger').create('Current Session');
 
 const { TLPT_TERMINAL_OPEN, TLPT_TERMINAL_CLOSE, TLPT_TERMINAL_SET_STATUS } = require('./actionTypes');
 
+const changeBrowserUrl = newRouteParams => {
+  let routeUrl = cfg.getTerminalLoginUrl(newRouteParams);                                    
+  session.getHistory().push(routeUrl);      
+}
+
 const actions = {
 
+  startNew(routeParams) {
+    let newRouteParams = {
+      ...routeParams,
+      sid: undefined
+    }      
+    
+    changeBrowserUrl(newRouteParams);    
+    actions.initTerminal(newRouteParams);
+  },
+  
   createNewSession(routeParams) {
     let { login, siteId } = routeParams;
     let data = {
@@ -43,15 +58,14 @@ const actions = {
     return api.post(cfg.api.getSiteSessionUrl(siteId), data)
       .then(json => {
         let sid = json.session.id;
-        let newRoutParams = {
+        let newRouteParams = {
           ...routeParams,
           sid
         };
-
-        let routeUrl = cfg.getTerminalLoginUrl(newRoutParams);                                    
-        reactor.dispatch(TLPT_TERMINAL_OPEN, newRoutParams);
+    
+        reactor.dispatch(TLPT_TERMINAL_OPEN, newRouteParams);
         reactor.dispatch(TLPT_TERMINAL_SET_STATUS, { isReady: true });
-        session.getHistory().push(routeUrl);
+        changeBrowserUrl(newRouteParams);                    
       })
       .fail(err => {
         let errorText = api.getErrorText(err);

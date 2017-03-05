@@ -36,12 +36,19 @@ export class TermRec extends Record({
   status: TermStatusRec(),
   login: undefined,
   siteId: undefined,
-  serverId: undefined
+  serverId: undefined,
+  sid: undefined
 }) {
   
   getServerLabel() {
     let hostname = reactor.evaluate(nodeHostNameByServerId(this.serverId));
-    return `${this.login} @${hostname}`;
+
+    if (hostname && this.login) {
+      return `${this.login}@${hostname}`;  
+    }
+
+    return ''
+    
   }
 }
 export default Store({

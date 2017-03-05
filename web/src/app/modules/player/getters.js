@@ -14,24 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-const currentSession = [ ['tlpt_current_session'], ['tlpt_sessions_active'],
-(current, sessions) => {
-    if(!current){
-      return null;
-    }
-    
-    let curSession = current.toJS();
-    
-    // get the list of participants     
-    if(sessions.has(curSession.sid)){
-      let activeSessionRec = sessions.get(curSession.sid);        
-      curSession.parties = activeSessionRec.parties.toJS();                      
-    }
-
-    return curSession;
-  }
-];
-
 export default {
-  currentSession
+  store: ['tlpt_player']
 }

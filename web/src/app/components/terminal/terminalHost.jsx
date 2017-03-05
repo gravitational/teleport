@@ -17,21 +17,24 @@ limitations under the License.
 import React from 'react';
 import reactor from 'app/reactor';
 import cfg from 'app/config';
-import SessionLeftPanel from './terminalHostPanel';
+import PartyListPanel from './../partyListPanel';
 import session from 'app/services/session';
 import Terminal from 'app/common/term/terminal';
-import getters from 'app/modules/terminal/getters';
-import { updateSessionFromEventStream } from 'app/modules/terminal/actions';
+import termGetters from 'app/modules/terminal/getters';
+import sessionGetters from 'app/modules/sessions/getters';
 import Indicator from './../indicator.jsx';
-import { initTerminal } from 'app/modules/terminal/actions';
+import { initTerminal, startNew, close, updateSessionFromEventStream } from 'app/modules/terminal/actions';
+import { openPlayer } from 'app/modules/player/actions';
 
 const TerminalHost = React.createClass({
 
   mixins: [reactor.ReactMixin],
 
   getDataBindings() {
+    let { sid } = this.props.routeParams;
     return {
-      store: getters.store
+      store: termGetters.store,
+      parties: sessionGetters.activePartiesById(sid)
     }
   },
 
@@ -39,10 +42,18 @@ const TerminalHost = React.createClass({
     setTimeout(() => initTerminal(this.props.routeParams), 0);    
   },  
 
+  startNew() {
+    startNew(this.props.routeParams);        
+  },
+
+  replay() {
+    openPlayer(this.props.routeParams);
+  },
+
   render() {
-    let { store } = this.state;        
+    let { store, parties } = this.state;        
     let serverLabel = store.getServerLabel();
-    let { parties = [], status, ...props } = store.toJS();
+    let { status, ...props } = store.toJS();
     
     let $content = null;
     
@@ -59,16 +70,19 @@ const TerminalHost = React.createClass({
     }
 
     if (status.isNotFound) {
-      $content = (<SidNotFoundError />);
+      $content = (
+        <SidNotFoundError
+          onReplay={this.replay}
+          onNew={this.startNew} />);
     }
             
     return (
-     <div className="grv-current-session">
-       <SessionLeftPanel parties={parties}/>
-       <div className="grv-current-session-server-info">
-         <h3>{serverLabel}</h3>
-      </div>
-      {$content}               
+      <div className="grv-terminalhost">
+        <PartyListPanel parties={parties} onClose={close}/>
+        <div className="grv-terminalhost-server-info">
+           <h3>{serverLabel}</h3>
+        </div>
+        {$content}               
      </div>
     );
   }
@@ -77,7 +91,7 @@ const TerminalHost = React.createClass({
 const TtyTerminal = React.createClass({
   componentDidMount() {
     let { serverId, siteId, login, sid } = this.props;
-    let {token} = session.getUserData();
+    let { token } = session.getUserData();
     let url = cfg.api.getSiteUrl(siteId);
 
     let options = {
@@ -115,13 +129,13 @@ const ErrorIndicator = ({ text }) => (
   </div>
 )
 
-const SidNotFoundError = () => (
+const SidNotFoundError = ({onNew, onReplay}) => (
   <div className="grv-terminalhost-indicator-error">    
     <div className="text-center">
       <strong>The session is no longer active</strong>    
       <div className="m-t">
-        <button className="btn btn-sm btn-primary m-r"> Start New </button>        
-        <button className="btn btn-sm btn-primary"> Replay </button>
+        <button onClick={onNew} className="btn btn-sm btn-primary m-r"> Start New </button>        
+        <button onClick={onReplay} className="btn btn-sm btn-primary"> Replay </button>
       </div>
     </div>
   </div>

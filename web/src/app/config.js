@@ -39,7 +39,8 @@ let cfg = {
     newUser: '/web/newuser/:inviteToken',    
     msgs: '/web/msg/:type(/:subType)',
     pageNotFound: '/web/notfound',
-    terminal: '/web/cluster/:siteId/node/:serverId/:login(/:sid)'    
+    terminal: '/web/cluster/:siteId/node/:serverId/:login(/:sid)',
+    player: '/web/player/node/:siteId/sid/:sid'
   },
 
   api: {    
@@ -107,7 +108,10 @@ let cfg = {
     getU2fCreateUserChallengeUrl(inviteToken){
       return formatPattern(cfg.api.u2fCreateUserChallengePath, {inviteToken});
     }
+  },
 
+  getPlayerUrl({siteId, serverId, sid}) {
+    return formatPattern(cfg.routes.player, { siteId, serverId, sid });  
   },
 
   getTerminalLoginUrl({siteId, serverId, login, sid}) {
