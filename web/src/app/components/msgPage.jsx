@@ -82,8 +82,8 @@ const ErrorPage = ({ type, message='' }) => {
   if(type === ErrorTypes.EXPIRED_INVITE){
     msgBody = (
       <div>
-        <h1>{MSG_ERROR_EXPIRED_INVITE}</h1>
-        <div>{MSG_ERROR_EXPIRED_INVITE_DETAILS}</div>
+        <h1>{MSG_ERROR_EXPIRED_INVITE}</h1>        
+        <ErrorMessage>{MSG_ERROR_EXPIRED_INVITE_DETAILS}</ErrorMessage>              
       </div>
     )
   }
@@ -91,8 +91,8 @@ const ErrorPage = ({ type, message='' }) => {
   if( type === ErrorTypes.NOT_FOUND){
     msgBody = (
       <div>
-        <h1>{MSG_ERROR_NOT_FOUND}</h1>
-        <div>{MSG_ERROR_NOT_FOUND_DETAILS}</div>
+        <h1>{MSG_ERROR_NOT_FOUND}</h1>        
+        <ErrorMessage>{MSG_ERROR_NOT_FOUND_DETAILS}</ErrorMessage>              
       </div>
     );
   }

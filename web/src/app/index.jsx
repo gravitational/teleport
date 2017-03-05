@@ -24,7 +24,8 @@ import Login from './components/user/login.jsx';
 import Signup from './components/user/invite.jsx';
 import Nodes from './components/nodes/main.jsx';
 import Sessions from './components/sessions/main.jsx';
-import CurrentSessionHost from './components/currentSession/main.jsx';
+import TerminalHost from './components/terminal/terminalHost.jsx';
+import PlayerHost from './components/player/playerHost.jsx';
 import { MessagePage, NotFound } from './components/msgPage.jsx';
 import { ensureUser } from './modules/user/actions';
 import { initApp } from './modules/app/actions';
@@ -48,7 +49,8 @@ render((
         <Route path={cfg.routes.app} onEnter={initApp} >        
           <Route path={cfg.routes.sessions} component={Sessions}/>
           <Route path={cfg.routes.nodes} component={Nodes}/>
-          <Route path={cfg.routes.currentSession} components={{ CurrentSessionHost: CurrentSessionHost }} />
+          <Route path={cfg.routes.terminal} components={{ CurrentSessionHost: TerminalHost }} />
+          <Route path={cfg.routes.player} components={{ CurrentSessionHost: PlayerHost }} />
         </Route>  
       </Route>
       <Route path="*" component={NotFound} />

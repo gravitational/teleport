@@ -13,25 +13,10 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+import keyMirror from 'keymirror'
 
-const currentSession = [ ['tlpt_current_session'], ['tlpt_sessions_active'],
-(current, sessions) => {
-    if(!current){
-      return null;
-    }
-    
-    let curSession = current.toJS();
-    
-    // get the list of participants     
-    if(sessions.has(curSession.sid)){
-      let activeSessionRec = sessions.get(curSession.sid);        
-      curSession.parties = activeSessionRec.parties.toJS();                      
-    }
-
-    return curSession;
-  }
-];
-
-export default {
-  currentSession
-}
+export default keyMirror({
+  TLPT_TERMINAL_OPEN: null,
+  TLPT_TERMINAL_CLOSE: null,
+  TLPT_TERMINAL_SET_STATUS: null
+})
