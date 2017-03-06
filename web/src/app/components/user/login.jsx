@@ -50,12 +50,11 @@ const Login = React.createClass({
     actions.login(username, password, token, redirect);
   },
 
-  getRedirectUrl() {
+  getRedirectUrl() {    
     let loc = this.props.location;
     let redirect = cfg.routes.app;
-
-    if (loc.state && loc.state.redirectTo) {
-      redirect = loc.state.redirectTo;
+    if (loc.query && loc.query.redirect_uri) {
+      redirect = loc.query.redirect_uri;
     }
 
     return redirect;    

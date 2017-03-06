@@ -43,15 +43,19 @@ const actions = {
         reactor.dispatch(TLPT_RECEIVE_USER, userData.user );
         cb();
       })
-      .fail(()=>{
-        let newLocation = {
-          pathname: cfg.routes.login,
-          state: {
-            redirectTo: nextState.location.pathname
-          }
-        };
+      .fail(()=>{        
+        let search;
+        if(nextState.location.pathname){
+          // store original URL for redirect
+          search = `?redirect_uri=${nextState.location.pathname}`;
+        }
 
-        replace(newLocation);
+        // navigate to login
+        replace({
+          pathname: cfg.routes.login,
+          search
+        });
+        
         cb();
       });
   },

@@ -39,7 +39,7 @@ const TerminalHost = React.createClass({
   },
 
   componentDidMount() {    
-    setTimeout(() => initTerminal(this.props.routeParams), 0);    
+    setTimeout(() => initTerminal(this.props.routeParams), 0);        
   },  
 
   startNew() {
@@ -58,6 +58,7 @@ const TerminalHost = React.createClass({
     let $content = null;
     
     if (status.isReady) {
+      document.title = serverLabel;
       $content = (<TtyTerminal {...props}/>)
     } 
     
@@ -100,7 +101,7 @@ const TtyTerminal = React.createClass({
       },     
      el: this.refs.container
     }
-
+    
     this.terminal = new Terminal(options);
     this.terminal.ttyEvents.on('data', updateSessionFromEventStream(siteId));
     this.terminal.open();

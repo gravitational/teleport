@@ -31,6 +31,7 @@ import { ensureUser } from './modules/user/actions';
 import { initApp } from './modules/app/actions';
 import cfg from './config';
 import reactor from './reactor';
+import DocumentTitle from './components/documentTitle';
 import './modules';
 
 // init session
@@ -40,20 +41,22 @@ cfg.init(window.GRV_CONFIG);
 
 render((
   <Provider reactor={reactor}>        
-    <Router history={session.getHistory()}>
-      <Route path={cfg.routes.msgs} component={MessagePage}/>
-      <Route path={cfg.routes.login} component={Login}/>
-      <Route path={cfg.routes.newUser} component={Signup}/>
-      <Redirect from={cfg.routes.app} to={cfg.routes.nodes}/>
-      <Route path={cfg.routes.app} onEnter={ensureUser} component={AppContainer} >
-        <Route path={cfg.routes.app} onEnter={initApp} >        
-          <Route path={cfg.routes.sessions} component={Sessions}/>
-          <Route path={cfg.routes.nodes} component={Nodes}/>
-          <Route path={cfg.routes.terminal} components={{ CurrentSessionHost: TerminalHost }} />
-          <Route path={cfg.routes.player} components={{ CurrentSessionHost: PlayerHost }} />
-        </Route>  
+    <Router history={session.getHistory()}>      
+      <Route component={DocumentTitle}>
+        <Route path={cfg.routes.msgs} title="Whoops" component={MessagePage}/>
+        <Route path={cfg.routes.login} title="Login" component={Login}/>
+        <Route path={cfg.routes.newUser} component={Signup}/>
+        <Redirect from={cfg.routes.app} to={cfg.routes.nodes}/>
+        <Route path={cfg.routes.app} onEnter={ensureUser} component={AppContainer} >
+          <Route path={cfg.routes.app} onEnter={initApp} >        
+            <Route path={cfg.routes.sessions} title="Stored Sessions" component={Sessions}/>
+            <Route path={cfg.routes.nodes} title="Nodes" component={Nodes}/>
+            <Route path={cfg.routes.terminal} title="Terminal" components={{ CurrentSessionHost: TerminalHost }} />
+            <Route path={cfg.routes.player} title="Player" components={{ CurrentSessionHost: PlayerHost }} />
+          </Route>  
+        </Route>
+        <Route path="*" component={NotFound} />
       </Route>
-      <Route path="*" component={NotFound} />
     </Router>
   </Provider>  
 ), document.getElementById("app"));

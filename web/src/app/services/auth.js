@@ -136,10 +136,7 @@ const auth = {
     this._stopTokenRefresher();
 
     let userData = session.getUserData();
-
-    // ping the server to check if user signed out from another tab    
-    this._checkStatus();
-
+    
     if(!userData.token){
       return $.Deferred().reject();
     }
@@ -181,7 +178,12 @@ const auth = {
   },
 
   _startTokenRefresher(){
-    refreshTokenTimerId = setInterval(auth.ensureUser.bind(auth), CHECK_TOKEN_REFRESH_RATE);
+    refreshTokenTimerId = setInterval(() => {      
+      // check if barer-token needs to be renewed
+      auth.ensureUser.bind(auth);
+      // extra ping to a server to see of logout was triggered from another tab
+      auth._checkStatus();
+    }, CHECK_TOKEN_REFRESH_RATE);        
   },
 
   _stopTokenRefresher(){
