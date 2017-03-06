@@ -33,6 +33,16 @@ const storedSessionList = [['tlpt_sessions_archived'], ['tlpt', 'siteId'], (sess
 
 const activeSessionById = sid => ['tlpt_sessions_active', sid];
 const storedSessionById = sid => ['tlpt_sessions_archived', sid];
+
+
+const activePartiesById = sid => [['tlpt_sessions_active', sid, 'parties'], parties => {
+  if (parties) {
+    return parties.toJS();
+  }
+
+  return [];
+}];
+
 const nodeIpById = sid => ['tlpt_sessions_events', sid, EventTypeEnum.START, 'addr.local'];
 
 function createStoredListItem(session){
@@ -42,7 +52,7 @@ function createStoredListItem(session){
   let nodeDisplayText = getNodeIpDisplayText(server_id, nodeIp);
   let createdDisplayText = getCreatedDisplayText(created);
 
-  let sessionUrl = cfg.getCurrentSessionRouteUrl({
+  let sessionUrl = cfg.getPlayerUrl({
     sid,
     siteId
   });
@@ -65,15 +75,17 @@ function createActiveListItem(session){
   let sid = session.get('id');  
   let parties = createParties(session.parties);
   
-  let { siteId, created, last_active, server_id } = session;    
+  let { siteId, created, login, last_active, server_id } = session;    
   let duration = moment(last_active).diff(created);
   let nodeIp = reactor.evaluate(nodeIpById(sid));
   let nodeDisplayText = getNodeIpDisplayText(server_id, nodeIp);
   let createdDisplayText = getCreatedDisplayText(created);
     
-  let sessionUrl = cfg.getCurrentSessionRouteUrl({
+  let sessionUrl = cfg.getTerminalLoginUrl({
     sid,
-    siteId
+    siteId,
+    login,
+    serverId: server_id    
   });
     
   return {
@@ -121,6 +133,7 @@ export default {
   storedSessionList,
   activeSessionList,
   activeSessionById,
+  activePartiesById,
   storedSessionById,  
   createStoredListItem
 }

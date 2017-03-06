@@ -400,7 +400,7 @@ func MatchLabels(selector map[string]string, target map[string]string) bool {
 	return true
 }
 
-// AdjustSessionTTL will reduce the requested ttl to lowes max allowed TTL
+// AdjustSessionTTL will reduce the requested ttl to lowest max allowed TTL
 // for this role set, otherwise it returns ttl unchanges
 func (set RoleSet) AdjustSessionTTL(ttl time.Duration) time.Duration {
 	for _, role := range set {
@@ -417,7 +417,7 @@ func (set RoleSet) CheckLogins(ttl time.Duration) ([]string, error) {
 	logins := make(map[string]bool)
 	var matchedTTL bool
 	for _, role := range set {
-		if ttl < role.GetMaxSessionTTL().Duration && role.GetMaxSessionTTL().Duration != 0 {
+		if ttl <= role.GetMaxSessionTTL().Duration && role.GetMaxSessionTTL().Duration != 0 {
 			matchedTTL = true
 		}
 		for _, login := range role.GetLogins() {

@@ -30,8 +30,8 @@ const {
 
 const actions = {
 
-  fetchStoredSession(sid) {
-    let siteId = reactor.evaluate(appGetters.siteId);
+  fetchStoredSession(sid, siteId) {
+    siteId = siteId || reactor.evaluate(appGetters.siteId);
     return api.get(cfg.api.getSessionEventsUrl({ siteId, sid })).then(json=>{
       if(json && json.events){
         reactor.dispatch(TLPT_SESSIONS_EVENTS_RECEIVE, { siteId, json: json.events });

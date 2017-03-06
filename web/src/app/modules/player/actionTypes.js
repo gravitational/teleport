@@ -15,7 +15,8 @@ limitations under the License.
 */
 import keyMirror from 'keymirror'
 
-export default keyMirror({
-  TLPT_CURRENT_SESSION_OPEN: null,
-  TLPT_CURRENT_SESSION_CLOSE: null  
+export default keyMirror({  
+  TLPT_PLAYER_INIT: null,
+  TLPT_PLAYER_CLOSE: null,
+  TLPT_PLAYER_SET_STATUS: null
 })

@@ -14,12 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var React = require('react');
-var {actions} = require('app/modules/currentSession/');
-var {UserIcon} = require('./../icons.jsx');
-var ReactCSSTransitionGroup = require('react-addons-css-transition-group');
+import React from 'react';
+import {UserIcon} from './icons.jsx';
+import ReactCSSTransitionGroup from 'react-addons-css-transition-group';
 
-const SessionLeftPanel = ({parties}) => {
+const PartyListPanel = ({parties, onClose}) => {
   parties = parties || [];
   let userIcons = parties.map((item, index)=>(
     <li key={index} className="animated"><UserIcon colorIndex={index} isDark={true} name={item.user}/></li>
@@ -29,7 +28,7 @@ const SessionLeftPanel = ({parties}) => {
     <div className="grv-terminal-participans">
       <ul className="nav">
         <li title="Close">
-          <button onClick={actions.close} className="btn btn-danger btn-circle" type="button">
+          <button onClick={onClose} className="btn btn-danger btn-circle" type="button">
             <span>✖</span>
           </button>
         </li>
@@ -48,4 +47,4 @@ const SessionLeftPanel = ({parties}) => {
   )
 };
 
-module.exports = SessionLeftPanel;
+export default PartyListPanel;
