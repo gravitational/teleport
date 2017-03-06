@@ -69,28 +69,30 @@ webpackJsonp([0],{
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	__webpack_require__(520);
+	var _documentTitle = __webpack_require__(520);
+
+	var _documentTitle2 = _interopRequireDefault(_documentTitle);
+
+	__webpack_require__(521);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 	// init session
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	_session2.default.init();
+	_session2.default.init(); /*
+	                          Copyright 2015 Gravitational, Inc.
+	                          
+	                          Licensed under the Apache License, Version 2.0 (the "License");
+	                          you may not use this file except in compliance with the License.
+	                          You may obtain a copy of the License at
+	                          
+	                              http://www.apache.org/licenses/LICENSE-2.0
+	                          
+	                          Unless required by applicable law or agreed to in writing, software
+	                          distributed under the License is distributed on an "AS IS" BASIS,
+	                          WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	                          See the License for the specific language governing permissions and
+	                          limitations under the License.
+	                          */
 
 	_config2.default.init(window.GRV_CONFIG);
 
@@ -100,23 +102,27 @@ webpackJsonp([0],{
 	  _react2.default.createElement(
 	    _reactRouter.Router,
 	    { history: _session2.default.getHistory() },
-	    _react2.default.createElement(_reactRouter.Route, { path: _config2.default.routes.msgs, component: _msgPage.MessagePage }),
-	    _react2.default.createElement(_reactRouter.Route, { path: _config2.default.routes.login, component: _login2.default }),
-	    _react2.default.createElement(_reactRouter.Route, { path: _config2.default.routes.newUser, component: _invite2.default }),
-	    _react2.default.createElement(_reactRouter.Redirect, { from: _config2.default.routes.app, to: _config2.default.routes.nodes }),
 	    _react2.default.createElement(
 	      _reactRouter.Route,
-	      { path: _config2.default.routes.app, onEnter: _actions.ensureUser, component: _app2.default },
+	      { component: _documentTitle2.default },
+	      _react2.default.createElement(_reactRouter.Route, { path: _config2.default.routes.msgs, title: 'Whoops', component: _msgPage.MessagePage }),
+	      _react2.default.createElement(_reactRouter.Route, { path: _config2.default.routes.login, title: 'Login', component: _login2.default }),
+	      _react2.default.createElement(_reactRouter.Route, { path: _config2.default.routes.newUser, component: _invite2.default }),
+	      _react2.default.createElement(_reactRouter.Redirect, { from: _config2.default.routes.app, to: _config2.default.routes.nodes }),
 	      _react2.default.createElement(
 	        _reactRouter.Route,
-	        { path: _config2.default.routes.app, onEnter: _actions2.initApp },
-	        _react2.default.createElement(_reactRouter.Route, { path: _config2.default.routes.sessions, component: _main4.default }),
-	        _react2.default.createElement(_reactRouter.Route, { path: _config2.default.routes.nodes, component: _main2.default }),
-	        _react2.default.createElement(_reactRouter.Route, { path: _config2.default.routes.terminal, components: { CurrentSessionHost: _terminalHost2.default } }),
-	        _react2.default.createElement(_reactRouter.Route, { path: _config2.default.routes.player, components: { CurrentSessionHost: _playerHost2.default } })
-	      )
-	    ),
-	    _react2.default.createElement(_reactRouter.Route, { path: '*', component: _msgPage.NotFound })
+	        { path: _config2.default.routes.app, onEnter: _actions.ensureUser, component: _app2.default },
+	        _react2.default.createElement(
+	          _reactRouter.Route,
+	          { path: _config2.default.routes.app, onEnter: _actions2.initApp },
+	          _react2.default.createElement(_reactRouter.Route, { path: _config2.default.routes.sessions, title: 'Stored Sessions', component: _main4.default }),
+	          _react2.default.createElement(_reactRouter.Route, { path: _config2.default.routes.nodes, title: 'Nodes', component: _main2.default }),
+	          _react2.default.createElement(_reactRouter.Route, { path: _config2.default.routes.terminal, title: 'Terminal', components: { CurrentSessionHost: _terminalHost2.default } }),
+	          _react2.default.createElement(_reactRouter.Route, { path: _config2.default.routes.player, title: 'Player', components: { CurrentSessionHost: _playerHost2.default } })
+	        )
+	      ),
+	      _react2.default.createElement(_reactRouter.Route, { path: '*', component: _msgPage.NotFound })
+	    )
 	  )
 	), document.getElementById("app"));
 
@@ -1787,9 +1793,6 @@ webpackJsonp([0],{
 
 	    var userData = _session2.default.getUserData();
 
-	    // ping the server to check if user signed out from another tab    
-	    this._checkStatus();
-
 	    if (!userData.token) {
 	      return _jQuery2.default.Deferred().reject();
 	    }
@@ -1830,7 +1833,12 @@ webpackJsonp([0],{
 	    return delta < CHECK_TOKEN_REFRESH_RATE * 3;
 	  },
 	  _startTokenRefresher: function _startTokenRefresher() {
-	    refreshTokenTimerId = setInterval(auth.ensureUser.bind(auth), CHECK_TOKEN_REFRESH_RATE);
+	    refreshTokenTimerId = setInterval(function () {
+	      // check if barer-token needs to be renewed
+	      auth.ensureUser.bind(auth);
+	      // extra ping to a server to see of logout was triggered from another tab
+	      auth._checkStatus();
+	    }, CHECK_TOKEN_REFRESH_RATE);
 	  },
 	  _stopTokenRefresher: function _stopTokenRefresher() {
 	    clearInterval(refreshTokenTimerId);
@@ -4497,9 +4505,8 @@ webpackJsonp([0],{
 	  getRedirectUrl: function getRedirectUrl() {
 	    var loc = this.props.location;
 	    var redirect = _config2.default.routes.app;
-
-	    if (loc.state && loc.state.redirectTo) {
-	      redirect = loc.state.redirectTo;
+	    if (loc.query && loc.query.redirect_uri) {
+	      redirect = loc.query.redirect_uri;
 	    }
 
 	    return redirect;
@@ -4851,14 +4858,18 @@ webpackJsonp([0],{
 	      _reactor2.default.dispatch(_actionTypes.TLPT_RECEIVE_USER, userData.user);
 	      cb();
 	    }).fail(function () {
-	      var newLocation = {
-	        pathname: _config2.default.routes.login,
-	        state: {
-	          redirectTo: nextState.location.pathname
-	        }
-	      };
+	      var search = void 0;
+	      if (nextState.location.pathname) {
+	        // store original URL for redirect
+	        search = '?redirect_uri=' + nextState.location.pathname;
+	      }
 
-	      replace(newLocation);
+	      // navigate to login
+	      replace({
+	        pathname: _config2.default.routes.login,
+	        search: search
+	      });
+
 	      cb();
 	    });
 	  },
@@ -8388,6 +8399,7 @@ webpackJsonp([0],{
 	    var $content = null;
 
 	    if (status.isReady) {
+	      document.title = serverLabel;
 	      $content = _react2.default.createElement(TtyTerminal, props);
 	    }
 
@@ -9499,7 +9511,7 @@ webpackJsonp([0],{
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-	//import {showError} from 'app/modules/notifications/actions';
+	//import {showError} from 'app/flux/notifications/actions';
 
 	var logger = __webpack_require__(230).create('Current Session');
 
@@ -10540,6 +10552,50 @@ webpackJsonp([0],{
 /***/ },
 
 /***/ 520:
+/***/ function(module, exports) {
+
+	'use strict';
+
+	exports.__esModule = true;
+	/*
+	Copyright 2015 Gravitational, Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	    http://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+	*/
+
+	var DEFAULT_TITLE = 'Teleport by Gravitational';
+
+	var DocumentTitle = function DocumentTitle(props) {
+	  var title = DEFAULT_TITLE;
+	  var routes = props.routes || [];
+	  for (var i = routes.length - 1; i > 0; i--) {
+	    if (routes[i].title) {
+	      title = routes[i].title;
+	      break;
+	    }
+	  }
+
+	  document.title = title;
+
+	  return props.children;
+	};
+
+	exports.default = DocumentTitle;
+	module.exports = exports['default'];
+
+/***/ },
+
+/***/ 521:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -10548,11 +10604,11 @@ webpackJsonp([0],{
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _store = __webpack_require__(521);
+	var _store = __webpack_require__(522);
 
 	var _store2 = _interopRequireDefault(_store);
 
-	var _store3 = __webpack_require__(523);
+	var _store3 = __webpack_require__(524);
 
 	var _store4 = _interopRequireDefault(_store3);
 
@@ -10563,15 +10619,15 @@ webpackJsonp([0],{
 	  'tlpt_terminal': _store2.default,
 	  'tlpt_player': _store4.default,
 	  'tlpt_user': __webpack_require__(385),
-	  'tlpt_sites': __webpack_require__(524),
-	  'tlpt_user_invite': __webpack_require__(525),
-	  'tlpt_nodes': __webpack_require__(526),
-	  'tlpt_rest_api': __webpack_require__(527),
-	  'tlpt_sessions_events': __webpack_require__(528),
-	  'tlpt_sessions_archived': __webpack_require__(529),
-	  'tlpt_sessions_active': __webpack_require__(530),
-	  'tlpt_sessions_filter': __webpack_require__(531),
-	  'tlpt_notifications': __webpack_require__(532)
+	  'tlpt_sites': __webpack_require__(525),
+	  'tlpt_user_invite': __webpack_require__(526),
+	  'tlpt_nodes': __webpack_require__(527),
+	  'tlpt_rest_api': __webpack_require__(528),
+	  'tlpt_sessions_events': __webpack_require__(529),
+	  'tlpt_sessions_archived': __webpack_require__(530),
+	  'tlpt_sessions_active': __webpack_require__(531),
+	  'tlpt_sessions_filter': __webpack_require__(532),
+	  'tlpt_notifications': __webpack_require__(533)
 	}); /*
 	    Copyright 2015 Gravitational, Inc.
 	    
@@ -10590,7 +10646,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 521:
+/***/ 522:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -10600,7 +10656,7 @@ webpackJsonp([0],{
 
 	var _nuclearJs = __webpack_require__(241);
 
-	var _immutable = __webpack_require__(522);
+	var _immutable = __webpack_require__(523);
 
 	var _reactor = __webpack_require__(240);
 
@@ -10695,7 +10751,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 522:
+/***/ 523:
 /***/ function(module, exports, __webpack_require__) {
 
 	/**
@@ -15680,7 +15736,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 523:
+/***/ 524:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15690,7 +15746,7 @@ webpackJsonp([0],{
 
 	var _nuclearJs = __webpack_require__(241);
 
-	var _immutable = __webpack_require__(522);
+	var _immutable = __webpack_require__(523);
 
 	var _config = __webpack_require__(232);
 
@@ -15798,7 +15854,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 524:
+/***/ 525:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15809,7 +15865,7 @@ webpackJsonp([0],{
 
 	var _actionTypes = __webpack_require__(248);
 
-	var _immutable = __webpack_require__(522);
+	var _immutable = __webpack_require__(523);
 
 	var Site = (0, _immutable.Record)({
 	  name: null,
@@ -15849,7 +15905,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 525:
+/***/ 526:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15860,7 +15916,7 @@ webpackJsonp([0],{
 
 	var _actionTypes = __webpack_require__(384);
 
-	var _immutable = __webpack_require__(522);
+	var _immutable = __webpack_require__(523);
 
 	var Invite = new _immutable.Record({
 	  invite_token: '',
@@ -15899,7 +15955,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 526:
+/***/ 527:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15955,7 +16011,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 527:
+/***/ 528:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16014,7 +16070,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 528:
+/***/ 529:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16073,7 +16129,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 529:
+/***/ 530:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16082,7 +16138,7 @@ webpackJsonp([0],{
 
 	var _nuclearJs = __webpack_require__(241);
 
-	var _immutable = __webpack_require__(522);
+	var _immutable = __webpack_require__(523);
 
 	var _actionTypes = __webpack_require__(354);
 
@@ -16170,7 +16226,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 530:
+/***/ 531:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16195,7 +16251,7 @@ webpackJsonp([0],{
 
 	var _nuclearJs = __webpack_require__(241);
 
-	var _immutable = __webpack_require__(522);
+	var _immutable = __webpack_require__(523);
 
 	var _actionTypes = __webpack_require__(354);
 
@@ -16280,7 +16336,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 531:
+/***/ 532:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16337,7 +16393,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 532:
+/***/ 533:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
