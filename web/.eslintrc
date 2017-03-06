@@ -1,4 +1,4 @@
-{
+  {
   "parser": "babel-eslint",
   "parserOptions": {
     "ecmaVersion": 6,
@@ -22,9 +22,11 @@
   "plugins": [
     "react",
     "babel",
-    "import"
+    "import",
+    "flowtype-errors"
   ],
   "rules": {
+    "flowtype-errors/show-errors": 2,
     "comma-dangle": 0,
     "no-mixed-spaces-and-tabs": 0,        
     "no-alert": 0,

@@ -1,0 +1,9 @@
+[ignore]
+
+[include]
+
+[libs]
+
+[options]
+module.system=haste
+module.name_mapper='^app/\(.*\)' -> '<PROJECT_ROOT>/src/app/\1'

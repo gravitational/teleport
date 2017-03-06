@@ -18,7 +18,7 @@ import React from 'react';
 import $ from 'jQuery';
 import 'app/../assets/js/jquery-validate';
 import reactor from 'app/reactor';
-import {actions, getters} from 'app/modules/user';
+import {actions, getters} from 'app/flux/user';
 import GoogleAuthInfo from './googleAuthLogo';
 import cfg from 'app/config';
 import { TeleportLogo } from './../icons.jsx';
@@ -50,12 +50,11 @@ const Login = React.createClass({
     actions.login(username, password, token, redirect);
   },
 
-  getRedirectUrl() {
+  getRedirectUrl() {    
     let loc = this.props.location;
     let redirect = cfg.routes.app;
-
-    if (loc.state && loc.state.redirectTo) {
-      redirect = loc.state.redirectTo;
+    if (loc.query && loc.query.redirect_uri) {
+      redirect = loc.query.redirect_uri;
     }
 
     return redirect;    

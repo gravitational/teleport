@@ -19,12 +19,12 @@ import reactor from 'app/reactor';
 import cfg from 'app/config';
 import PartyListPanel from './../partyListPanel';
 import session from 'app/services/session';
-import Terminal from 'app/common/term/terminal';
-import termGetters from 'app/modules/terminal/getters';
-import sessionGetters from 'app/modules/sessions/getters';
+import Terminal from 'app/lib/term/terminal';
+import termGetters from 'app/flux/terminal/getters';
+import sessionGetters from 'app/flux/sessions/getters';
 import Indicator from './../indicator.jsx';
-import { initTerminal, startNew, close, updateSessionFromEventStream } from 'app/modules/terminal/actions';
-import { openPlayer } from 'app/modules/player/actions';
+import { initTerminal, startNew, close, updateSessionFromEventStream } from 'app/flux/terminal/actions';
+import { openPlayer } from 'app/flux/player/actions';
 
 const TerminalHost = React.createClass({
 
@@ -39,7 +39,7 @@ const TerminalHost = React.createClass({
   },
 
   componentDidMount() {    
-    setTimeout(() => initTerminal(this.props.routeParams), 0);    
+    setTimeout(() => initTerminal(this.props.routeParams), 0);        
   },  
 
   startNew() {
@@ -58,6 +58,7 @@ const TerminalHost = React.createClass({
     let $content = null;
     
     if (status.isReady) {
+      document.title = serverLabel;
       $content = (<TtyTerminal {...props}/>)
     } 
     
@@ -100,7 +101,7 @@ const TtyTerminal = React.createClass({
       },     
      el: this.refs.container
     }
-
+    
     this.terminal = new Terminal(options);
     this.terminal.ttyEvents.on('data', updateSessionFromEventStream(siteId));
     this.terminal.open();

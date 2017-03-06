@@ -17,7 +17,7 @@ limitations under the License.
 var { browserHistory, createMemoryHistory } = require('react-router');
 var $ = require('jQuery');
 
-const logger = require('app/common/logger').create('services/sessions');
+const logger = require('app/lib/logger').create('services/sessions');
 const AUTH_KEY_DATA = 'authData';
 
 var _history = createMemoryHistory();
