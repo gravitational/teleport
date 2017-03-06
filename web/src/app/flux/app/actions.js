@@ -16,18 +16,18 @@ limitations under the License.
 
 import reactor from 'app/reactor';
 import auth from 'app/services/auth';
-import { showError } from 'app/modules/notifications/actions';
+import { showError } from 'app/flux/notifications/actions';
 import { TLPT_APP_SET_SITE_ID } from './actionTypes';
-import { TRYING_TO_INIT_APP } from 'app/modules/restApi/constants';
+import { TRYING_TO_INIT_APP } from 'app/flux/restApi/constants';
 import { TLPT_SITES_RECEIVE } from './../sites/actionTypes';
 import api from 'app/services/api';
 import cfg from 'app/config';
-import restApiActions from 'app/modules/restApi/actions';
+import restApiActions from 'app/flux/restApi/actions';
 import { fetchNodes } from './../nodes/actions';
-import { fetchActiveSessions } from 'app/modules/sessions/actions';
+import { fetchActiveSessions } from 'app/flux/sessions/actions';
 import $ from 'jQuery';
 
-const logger = require('app/common/logger').create('flux/app');
+const logger = require('app/lib/logger').create('flux/app');
 
 const actions = {
 

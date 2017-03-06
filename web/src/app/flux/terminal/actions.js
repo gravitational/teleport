@@ -20,9 +20,9 @@ import cfg from 'app/config';
 //import getters from './getters';
 import { updateSession } from './../sessions/actions';
 import sessionGetters from './../sessions/getters';
-//import {showError} from 'app/modules/notifications/actions';
+//import {showError} from 'app/flux/notifications/actions';
 
-const logger = require('app/common/logger').create('Current Session');
+const logger = require('app/lib/logger').create('Current Session');
 
 const { TLPT_TERMINAL_OPEN, TLPT_TERMINAL_CLOSE, TLPT_TERMINAL_SET_STATUS } = require('./actionTypes');
 

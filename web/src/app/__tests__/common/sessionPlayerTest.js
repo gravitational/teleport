@@ -15,10 +15,10 @@ limitations under the License.
 */
 
 var { expect, $, spyOn, api, Dfd } = require('./..');
-var {EventProvider, TtyPlayer, Buffer} = require('app/common/term/ttyPlayer');
+var {EventProvider, TtyPlayer, Buffer} = require('app/lib/term/ttyPlayer');
 var sample = require('./streamData')
 
-describe('common/lib/term/ttyPlayer/eventProvider', function(){
+describe('lib/lib/term/ttyPlayer/eventProvider', function(){
 
   afterEach(function () {
     expect.restoreSpies();
@@ -126,7 +126,7 @@ describe('common/lib/term/ttyPlayer/eventProvider', function(){
   });
 });
 
-describe('common/lib/ttyPlayer', function () {
+describe('lib/lib/ttyPlayer', function () {
 
   afterEach(function () {
     expect.restoreSpies();

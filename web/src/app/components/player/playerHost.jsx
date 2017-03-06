@@ -18,10 +18,10 @@ import initScroll from 'perfect-scrollbar/jquery';
 import React from 'react';
 import { connect } from 'nuclear-js-react-addons';
 import ReactSlider from 'react-slider';
-import getters from 'app/modules/player/getters';
-import Terminal from 'app/common/term/terminal';
-import { TtyPlayer } from 'app/common/term/ttyPlayer';
-import { initPlayer, close } from 'app/modules/player/actions';
+import getters from 'app/flux/player/getters';
+import Terminal from 'app/lib/term/terminal';
+import { TtyPlayer } from 'app/lib/term/ttyPlayer';
+import { initPlayer, close } from 'app/flux/player/actions';
 import Indicator from './../indicator.jsx';
 import PartyListPanel from './../partyListPanel';
 

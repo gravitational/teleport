@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { formatPattern } from 'app/common/patternUtils';
+import { formatPattern } from 'app/lib/patternUtils';
 import $ from 'jQuery';
 
 let cfg = {

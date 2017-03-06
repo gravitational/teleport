@@ -16,8 +16,8 @@ limitations under the License.
 
 import reactor from 'app/reactor';
 import { TLPT_RECEIVE_USER, TLPT_RECEIVE_USER_INVITE } from './actionTypes';
-import { TRYING_TO_SIGN_UP, TRYING_TO_LOGIN, FETCHING_INVITE} from 'app/modules/restApi/constants';
-import restApiActions from 'app/modules/restApi/actions';
+import { TRYING_TO_SIGN_UP, TRYING_TO_LOGIN, FETCHING_INVITE} from 'app/flux/restApi/constants';
+import restApiActions from 'app/flux/restApi/actions';
 import auth from 'app/services/auth';
 import cfg from 'app/config';
 import api from 'app/services/api';

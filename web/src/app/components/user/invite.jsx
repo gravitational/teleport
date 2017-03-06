@@ -19,7 +19,7 @@ import $ from 'jQuery';
 import classnames from 'classnames';
 import reactor from 'app/reactor';
 import cfg from 'app/config';
-import {actions, getters} from 'app/modules/user';
+import {actions, getters} from 'app/flux/user';
 import LinkedStateMixin from 'react-addons-linked-state-mixin';
 import { Auth2faTypeEnum, AuthTypeEnum } from 'app/services/enums';
 import { ErrorPage, ErrorTypes } from './../msgPage';

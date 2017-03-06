@@ -20,7 +20,7 @@ import cfg from 'app/config';
 import { fetchStoredSession } from './../sessions/actions';
 import sessionGetters from './../sessions/getters';
 
-const logger = require('app/common/logger').create('app/flux/player');
+const logger = require('app/lib/logger').create('app/flux/player');
 
 import {  
   TLPT_PLAYER_INIT,

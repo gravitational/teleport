@@ -16,11 +16,11 @@ limitations under the License.
 
 import React from 'react';
 import reactor from 'app/reactor';
-import siteGetters from 'app/modules/sites/getters';
-import appGetters from 'app/modules/app/getters';
+import siteGetters from 'app/flux/sites/getters';
+import appGetters from 'app/flux/app/getters';
 import DropDown from './dropdown.jsx';
-import { setSiteId, refresh } from 'app/modules/app/actions';
-import { isUUID } from 'app/common/objectUtils';
+import { setSiteId, refresh } from 'app/flux/app/actions';
+import { isUUID } from 'app/lib/objectUtils';
 
 const ClusterSelector = React.createClass({
 

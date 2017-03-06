@@ -14,10 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var moment = require('moment');
+import { TRYING_TO_INIT_APP } from 'app/flux/restApi/constants';
+import { requestStatus } from 'app/flux/restApi/getters';
 
-module.exports.weekRange = function(value = new Date()){
-  let startDate = moment(value).startOf('week').toDate();
-  let endDate = moment(value).endOf('week').toDate();
-  return [startDate, endDate];
+export default {
+  initAttemp: requestStatus(TRYING_TO_INIT_APP),
+  siteId: ['tlpt', 'siteId']
 }

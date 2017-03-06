@@ -18,7 +18,7 @@ import React from 'react';
 import $ from 'jQuery';
 import 'app/../assets/js/jquery-validate';
 import reactor from 'app/reactor';
-import {actions, getters} from 'app/modules/user';
+import {actions, getters} from 'app/flux/user';
 import GoogleAuthInfo from './googleAuthLogo';
 import cfg from 'app/config';
 import { TeleportLogo } from './../icons.jsx';

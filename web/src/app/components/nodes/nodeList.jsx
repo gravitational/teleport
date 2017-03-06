@@ -17,7 +17,7 @@ limitations under the License.
 import React from 'react';
 import { Link } from  'react-router';
 import _ from '_';
-import { isMatch } from 'app/common/objectUtils';
+import { isMatch } from 'app/lib/objectUtils';
 import InputSearch from './../inputSearch.jsx';
 import { Table, Column, Cell, SortHeaderCell, SortTypes, EmptyIndicator } from 'app/components/table.jsx';
 import ClusterSelector from './../clusterSelector.jsx';

@@ -19,12 +19,12 @@ import reactor from 'app/reactor';
 import cfg from 'app/config';
 import PartyListPanel from './../partyListPanel';
 import session from 'app/services/session';
-import Terminal from 'app/common/term/terminal';
-import termGetters from 'app/modules/terminal/getters';
-import sessionGetters from 'app/modules/sessions/getters';
+import Terminal from 'app/lib/term/terminal';
+import termGetters from 'app/flux/terminal/getters';
+import sessionGetters from 'app/flux/sessions/getters';
 import Indicator from './../indicator.jsx';
-import { initTerminal, startNew, close, updateSessionFromEventStream } from 'app/modules/terminal/actions';
-import { openPlayer } from 'app/modules/player/actions';
+import { initTerminal, startNew, close, updateSessionFromEventStream } from 'app/flux/terminal/actions';
+import { openPlayer } from 'app/flux/player/actions';
 
 const TerminalHost = React.createClass({
 

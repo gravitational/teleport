@@ -16,11 +16,11 @@ limitations under the License.
 
 var Tty = require('./tty');
 var api = require('app/services/api');
-var {showError} = require('app/modules/notifications/actions');
+var {showError} = require('app/flux/notifications/actions');
 var $ = require('jQuery');
 var Buffer = require('buffer/').Buffer;
 
-const logger = require('app/common/logger').create('TtyPlayer');
+const logger = require('app/lib/logger').create('TtyPlayer');
 const STREAM_START_INDEX = 0;
 const PRE_FETCH_BUF_SIZE = 150;
 const URL_PREFIX_EVENTS = '/events';

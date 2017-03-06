@@ -18,8 +18,8 @@ import moment from 'moment';
 import cfg from 'app/config';
 import { EventTypeEnum } from 'app/services/enums';
 import reactor from 'app/reactor';
-import { nodeHostNameByServerId } from 'app/modules/nodes/getters';
-import { parseIp } from 'app/common/objectUtils';
+import { nodeHostNameByServerId } from 'app/flux/nodes/getters';
+import { parseIp } from 'app/lib/objectUtils';
 
 const activeSessionList = [['tlpt_sessions_active'], ['tlpt', 'siteId'], (sessionList, siteId) => {  
   sessionList = sessionList.filter(n => n.get('siteId') === siteId);    

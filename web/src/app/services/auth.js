@@ -18,7 +18,7 @@ import api from './api';
 import session from './session';
 import cfg from 'app/config';
 import $ from 'jQuery';
-import Logger from 'app/common/logger';
+import Logger from 'app/lib/logger';
 
 // This puts it in window.u2f
 import 'u2f-api-polyfill'; 

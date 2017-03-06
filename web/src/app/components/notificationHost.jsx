@@ -16,7 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import reactor from 'app/reactor';
-import { lastMessage } from 'app/modules/notifications/getters';
+import { lastMessage } from 'app/flux/notifications/getters';
 import { ToastContainer, ToastMessage } from "react-toastr";
 
 const ToastMessageFactory = React.createFactory(ToastMessage.animation);

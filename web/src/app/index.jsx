@@ -27,12 +27,12 @@ import Sessions from './components/sessions/main.jsx';
 import TerminalHost from './components/terminal/terminalHost.jsx';
 import PlayerHost from './components/player/playerHost.jsx';
 import { MessagePage, NotFound } from './components/msgPage.jsx';
-import { ensureUser } from './modules/user/actions';
-import { initApp } from './modules/app/actions';
+import { ensureUser } from './flux/user/actions';
+import { initApp } from './flux/app/actions';
 import cfg from './config';
 import reactor from './reactor';
 import DocumentTitle from './components/documentTitle';
-import './modules';
+import './flux';
 
 // init session
 session.init();

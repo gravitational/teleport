@@ -16,7 +16,7 @@ limitations under the License.
 import { Store } from 'nuclear-js';
 import { Record } from 'immutable';
 import reactor from 'app/reactor';
-import { nodeHostNameByServerId } from 'app/modules/nodes/getters';
+import { nodeHostNameByServerId } from 'app/flux/nodes/getters';
 import {
   TLPT_TERMINAL_OPEN,
   TLPT_TERMINAL_CLOSE,

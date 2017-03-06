@@ -17,9 +17,9 @@ limitations under the License.
 var reactor = require('app/reactor');
 var {filter} = require('./getters');
 var {fetchSiteEvents} = require('./../sessions/actions');
-var {showError} = require('app/modules/notifications/actions');
+var {showError} = require('app/flux/notifications/actions');
 
-const logger = require('app/common/logger').create('Modules/Sessions');
+const logger = require('app/lib/logger').create('Modules/Sessions');
 
 const { TLPT_STORED_SESSINS_FILTER_SET_RANGE }  = require('./actionTypes');
 

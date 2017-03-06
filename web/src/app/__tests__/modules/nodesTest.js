@@ -15,8 +15,8 @@ limitations under the License.
 */
 
 var { sampleData, reactor, expect, Dfd, spyOn, api } = require('./../');
-var { getters, actions } = require('app/modules/nodes');
-var { setSiteId } = require('app/modules/app/actions');
+var { getters, actions } = require('app/flux/nodes');
+var { setSiteId } = require('app/flux/app/actions');
 
 describe('modules/nodes', function () {
   let siteid = 'siteid123';

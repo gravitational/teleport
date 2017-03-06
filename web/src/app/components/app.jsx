@@ -17,8 +17,8 @@ limitations under the License.
 import React, { Component } from 'react';
 import { connect } from 'nuclear-js-react-addons';
 import cfg from 'app/config'
-import { getters } from 'app/modules/app';
-import { refresh } from 'app/modules/app/actions';
+import { getters } from 'app/flux/app';
+import { refresh } from 'app/flux/app/actions';
 import NavLeftBar from './navLeftBar';
 import NotificationHost from './notificationHost.jsx';
 import Timer from './timer.jsx';

@@ -20,7 +20,7 @@ var TtyEvents = require('./ttyEvents');
 var {debounce, isNumber} = require('_');
 
 var api = require('app/services/api');
-var logger = require('app/common/logger').create('terminal');
+var logger = require('app/lib/logger').create('terminal');
 var $ = require('jQuery');
 
 Term.colors[256] = '#252323';

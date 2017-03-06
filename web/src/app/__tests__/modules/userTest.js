@@ -15,8 +15,8 @@ limitations under the License.
 */
 
 var { reactor, sampleData, expect, api, Dfd, spyOn } = require('./../');
-var {actions, getters} = require('app/modules/user');
-var {TLPT_RECEIVE_USER} =  require('app/modules/user/actionTypes');
+var {actions, getters} = require('app/flux/user');
+var {TLPT_RECEIVE_USER} =  require('app/flux/user/actionTypes');
 
 describe('modules/user', function () {
 

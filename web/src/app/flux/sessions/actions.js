@@ -17,11 +17,11 @@ limitations under the License.
 var reactor = require('app/reactor');
 var api = require('app/services/api');
 var cfg = require('app/config');
-var {showError} = require('app/modules/notifications/actions');
+var {showError} = require('app/flux/notifications/actions');
 var moment = require('moment');
-var appGetters = require('app/modules/app/getters')
+var appGetters = require('app/flux/app/getters')
 
-const logger = require('app/common/logger').create('Modules/Sessions');
+const logger = require('app/lib/logger').create('Modules/Sessions');
 const {
   TLPT_SESSIONS_ACTIVE_RECEIVE,
   TLPT_SESSIONS_EVENTS_RECEIVE,

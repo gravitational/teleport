@@ -16,8 +16,8 @@ limitations under the License.
 
 import React from 'react';
 import reactor from 'app/reactor';
-import userGetters from 'app/modules/user/getters';
-import nodeGetters from 'app/modules/nodes/getters';
+import userGetters from 'app/flux/user/getters';
+import nodeGetters from 'app/flux/nodes/getters';
 import NodeList from './nodeList.jsx';
 
 const Nodes = React.createClass({

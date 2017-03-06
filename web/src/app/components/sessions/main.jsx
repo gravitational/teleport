@@ -16,9 +16,9 @@ limitations under the License.
 
 import React from 'react';
 import reactor from 'app/reactor';
-import { fetchSiteEventsWithinTimeRange } from 'app/modules/storedSessionsFilter/actions';
-import { storedSessionList, activeSessionList } from 'app/modules/sessions/getters';
-import { filter } from 'app/modules/storedSessionsFilter/getters';
+import { fetchSiteEventsWithinTimeRange } from 'app/flux/storedSessionsFilter/actions';
+import { storedSessionList, activeSessionList } from 'app/flux/sessions/getters';
+import { filter } from 'app/flux/storedSessionsFilter/getters';
 import Timer from './../timer.jsx';
 import SessionList from './sessionList.jsx';
 

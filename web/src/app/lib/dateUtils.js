@@ -14,10 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { TRYING_TO_INIT_APP } from 'app/modules/restApi/constants';
-import { requestStatus } from 'app/modules/restApi/getters';
+import moment from 'moment';
 
-export default {
-  initAttemp: requestStatus(TRYING_TO_INIT_APP),
-  siteId: ['tlpt', 'siteId']
+module.exports.weekRange = function(value = new Date()){
+  let startDate = moment(value).startOf('week').toDate();
+  let endDate = moment(value).endOf('week').toDate();
+  return [startDate, endDate];
 }
