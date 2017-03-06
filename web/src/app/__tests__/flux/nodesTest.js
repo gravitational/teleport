@@ -18,7 +18,7 @@ var { sampleData, reactor, expect, Dfd, spyOn, api } = require('./../');
 var { getters, actions } = require('app/flux/nodes');
 var { setSiteId } = require('app/flux/app/actions');
 
-describe('modules/nodes', function () {
+describe('flux/nodes', function () {
   let siteid = 'siteid123';
   
   beforeEach(() => {

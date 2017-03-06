@@ -18,7 +18,7 @@ var { reactor, sampleData, expect, api, Dfd, spyOn } = require('./../');
 var {actions, getters} = require('app/flux/user');
 var {TLPT_RECEIVE_USER} =  require('app/flux/user/actionTypes');
 
-describe('modules/user', function () {
+describe('flux/user', function () {
 
   afterEach(function () {
     reactor.reset()

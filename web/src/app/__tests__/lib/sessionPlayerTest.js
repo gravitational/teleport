@@ -18,7 +18,7 @@ var { expect, $, spyOn, api, Dfd } = require('./..');
 var {EventProvider, TtyPlayer, Buffer} = require('app/lib/term/ttyPlayer');
 var sample = require('./streamData')
 
-describe('lib/lib/term/ttyPlayer/eventProvider', function(){
+describe('lib/term/ttyPlayer/eventProvider', function(){
 
   afterEach(function () {
     expect.restoreSpies();
@@ -126,7 +126,7 @@ describe('lib/lib/term/ttyPlayer/eventProvider', function(){
   });
 });
 
-describe('lib/lib/ttyPlayer', function () {
+describe('lib/ttyPlayer', function () {
 
   afterEach(function () {
     expect.restoreSpies();

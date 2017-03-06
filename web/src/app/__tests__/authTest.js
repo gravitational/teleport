@@ -34,7 +34,7 @@ describe('auth', function () {
     spyOn(api, 'delete').andReturn($.Deferred().resolve());
     spyOn(auth, 'redirect');
     spyOn(auth, '_startTokenRefresher');
-    spyOn(auth, '_stopTokenRefresher');    
+    spyOn(auth, '_stopTokenRefresher');                
     spyOn(auth, '_shouldRefreshToken').andCallThrough();
   });
 
@@ -102,25 +102,29 @@ describe('auth', function () {
     });
   });
 
-  describe('ensureUser()', function () {
+  describe('_checkStatus()', function () {
+    it('should ping the server', function () {
+      api.get.andReturn($.Deferred());                  
+      auth._checkStatus();      
+      expect(api.get).toHaveBeenCalledWith(cfg.api.userStatus);            
+    });
+  })
+
+  describe('ensureUser()', function () {            
     describe('when token is valid', function () {
       it('should be resolved', function () {                
-        session.getUserData.andReturn(sample);                
-        api.get.andReturn($.Deferred());
-
         var wasCalled = false;        
+        session.getUserData.andReturn(sample);                                
         auth.ensureUser('user', 'password').done(()=> { wasCalled = true });
 
-        expect(wasCalled).toEqual(true);        
-        expect(api.get).toHaveBeenCalledWith(cfg.api.userStatus);
+        expect(wasCalled).toEqual(true);                
         expect(auth._startTokenRefresher).toHaveBeenCalled();
         expect(auth._shouldRefreshToken).toHaveBeenCalled();
       });
     });
 
     describe('when token is about to be expired', function () {
-      it('should renew the token', function () {        
-        api.get.andReturn($.Deferred());
+      it('should renew the token', function () {                
         api.post.andReturn($.Deferred().resolve(sample));
         session.getUserData.andReturn({
            ...sample,
@@ -130,22 +134,18 @@ describe('auth', function () {
         var wasCalled = false;        
         auth.ensureUser('user', 'password').done(()=> { wasCalled = true });
 
-        expect(wasCalled).toEqual(true);
-        expect(api.get).toHaveBeenCalledWith(cfg.api.userStatus);
+        expect(wasCalled).toEqual(true);        
         expect(auth._startTokenRefresher).toHaveBeenCalled();
         expect(auth._shouldRefreshToken).toHaveBeenCalled();
       });
     });
   
     describe('when token is missing', function () {
-      it('should reject', function () {        
-        api.get.andReturn($.Deferred());
+      it('should reject', function () {                
         session.getUserData.andReturn({});
         
         var wasCalled = false;
         auth.ensureUser('user', 'password').fail(() => { wasCalled = true });
-
-        expect(api.get).toHaveBeenCalledWith(cfg.api.userStatus);
         expect(wasCalled).toEqual(true);
       });
     });
@@ -165,3 +165,4 @@ describe('auth', function () {
     return spy.getLastCall().arguments[0];
   }
 })
+
