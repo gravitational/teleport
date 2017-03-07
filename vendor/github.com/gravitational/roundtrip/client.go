@@ -194,7 +194,8 @@ func (c *Client) PostForm(endpoint string, vals url.Values, files ...File) (*Res
 // c.PostJSON(c.Endpoint("users"), map[string]string{"name": "alice@example.com"})
 //
 func (c *Client) PostJSON(endpoint string, data interface{}) (*Response, error) {
-	return c.RoundTrip(func() (*http.Response, error) {
+	tracer := NewTracer()
+	return tracer.Done(c.RoundTrip(func() (*http.Response, error) {
 		data, err := json.Marshal(data)
 		req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(data))
 		if err != nil {
@@ -202,9 +203,9 @@ func (c *Client) PostJSON(endpoint string, data interface{}) (*Response, error) 
 		}
 		req.Header.Set("Content-Type", "application/json")
 		c.addAuth(req)
-
+		tracer.Start(req)
 		return c.client.Do(req)
-	})
+	}))
 }
 
 // PutJSON posts JSON "application/json" encoded request body and "PUT" method
@@ -212,7 +213,8 @@ func (c *Client) PostJSON(endpoint string, data interface{}) (*Response, error) 
 // c.PutJSON(c.Endpoint("users"), map[string]string{"name": "alice@example.com"})
 //
 func (c *Client) PutJSON(endpoint string, data interface{}) (*Response, error) {
-	return c.RoundTrip(func() (*http.Response, error) {
+	tracer := NewTracer()
+	return tracer.Done(c.RoundTrip(func() (*http.Response, error) {
 		data, err := json.Marshal(data)
 		req, err := http.NewRequest("PUT", endpoint, bytes.NewBuffer(data))
 		if err != nil {
@@ -220,8 +222,9 @@ func (c *Client) PutJSON(endpoint string, data interface{}) (*Response, error) {
 		}
 		req.Header.Set("Content-Type", "application/json")
 		c.addAuth(req)
+		tracer.Start(req)
 		return c.client.Do(req)
-	})
+	}))
 }
 
 // Delete executes DELETE request to the endpoint with no body
@@ -229,14 +232,16 @@ func (c *Client) PutJSON(endpoint string, data interface{}) (*Response, error) {
 // re, err := c.Delete(c.Endpoint("users", "id1"))
 //
 func (c *Client) Delete(endpoint string) (*Response, error) {
-	return c.RoundTrip(func() (*http.Response, error) {
+	tracer := NewTracer()
+	return tracer.Done(c.RoundTrip(func() (*http.Response, error) {
 		req, err := http.NewRequest("DELETE", endpoint, nil)
 		if err != nil {
 			return nil, err
 		}
 		c.addAuth(req)
+		tracer.Start(req)
 		return c.client.Do(req)
-	})
+	}))
 }
 
 // Get executes GET request to the server endpoint with optional query arguments passed in params
@@ -249,14 +254,16 @@ func (c *Client) Get(u string, params url.Values) (*Response, error) {
 		return nil, err
 	}
 	baseUrl.RawQuery = params.Encode()
-	return c.RoundTrip(func() (*http.Response, error) {
+	tracer := NewTracer()
+	return tracer.Done(c.RoundTrip(func() (*http.Response, error) {
 		req, err := http.NewRequest("GET", baseUrl.String(), nil)
 		if err != nil {
 			return nil, err
 		}
 		c.addAuth(req)
+		tracer.Start(req)
 		return c.client.Do(req)
-	})
+	}))
 }
 
 // GetFile executes get request and returns a file like object
@@ -274,10 +281,13 @@ func (c *Client) GetFile(u string, params url.Values) (*FileResponse, error) {
 		return nil, err
 	}
 	c.addAuth(req)
+	tracer := NewTracer()
+	tracer.Start(req)
 	re, err := c.client.Do(req)
 	if err != nil {
 		return nil, err
 	}
+	tracer.Done(&Response{code: re.StatusCode}, err)
 	return &FileResponse{
 		code:    re.StatusCode,
 		headers: re.Header,
