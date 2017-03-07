@@ -15,15 +15,8 @@ limitations under the License.
 */
 
 import React from 'react';
-import {UserIcon} from './icons.jsx';
-import ReactCSSTransitionGroup from 'react-addons-css-transition-group';
 
-const PartyListPanel = ({parties, onClose}) => {
-  parties = parties || [];
-  let userIcons = parties.map((item, index)=>(
-    <li key={index} className="animated"><UserIcon colorIndex={index} isDark={true} name={item.user}/></li>
-  ));
-
+const PartyListPanel = ({onClose, children}) => {      
   return (
     <div className="grv-terminal-participans">
       <ul className="nav">
@@ -33,16 +26,8 @@ const PartyListPanel = ({parties, onClose}) => {
           </button>
         </li>
       </ul>
-      { userIcons.length > 0 ? <hr className="grv-divider"/> : null }
-      <ReactCSSTransitionGroup className="nav" component='ul'
-        transitionEnterTimeout={500}
-        transitionLeaveTimeout={500}
-        transitionName={{
-          enter: "fadeIn",
-          leave: "fadeOut"
-        }}>
-        {userIcons}
-      </ReactCSSTransitionGroup>
+      { children ? <hr className="grv-divider" /> : null }
+      { children }      
     </div>
   )
 };

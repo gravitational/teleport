@@ -51,7 +51,7 @@ webpackJsonp([0],{
 
 	var _terminalHost2 = _interopRequireDefault(_terminalHost);
 
-	var _playerHost = __webpack_require__(489);
+	var _playerHost = __webpack_require__(490);
 
 	var _playerHost2 = _interopRequireDefault(_playerHost);
 
@@ -69,11 +69,11 @@ webpackJsonp([0],{
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _documentTitle = __webpack_require__(520);
+	var _documentTitle = __webpack_require__(521);
 
 	var _documentTitle2 = _interopRequireDefault(_documentTitle);
 
-	__webpack_require__(521);
+	__webpack_require__(522);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -1835,7 +1835,7 @@ webpackJsonp([0],{
 	  _startTokenRefresher: function _startTokenRefresher() {
 	    refreshTokenTimerId = setInterval(function () {
 	      // check if barer-token needs to be renewed
-	      auth.ensureUser.bind(auth);
+	      auth.ensureUser();
 	      // extra ping to a server to see of logout was triggered from another tab
 	      auth._checkStatus();
 	    }, CHECK_TOKEN_REFRESH_RATE);
@@ -8320,25 +8320,25 @@ webpackJsonp([0],{
 
 	var _session2 = _interopRequireDefault(_session);
 
-	var _terminal = __webpack_require__(477);
+	var _terminal = __webpack_require__(471);
 
 	var _terminal2 = _interopRequireDefault(_terminal);
 
-	var _getters = __webpack_require__(484);
+	var _getters = __webpack_require__(478);
 
 	var _getters2 = _interopRequireDefault(_getters);
-
-	var _getters3 = __webpack_require__(409);
-
-	var _getters4 = _interopRequireDefault(_getters3);
 
 	var _indicator = __webpack_require__(378);
 
 	var _indicator2 = _interopRequireDefault(_indicator);
 
-	var _actions = __webpack_require__(485);
+	var _actions = __webpack_require__(479);
 
-	var _actions2 = __webpack_require__(487);
+	var _actions2 = __webpack_require__(481);
+
+	var _terminalPartyList = __webpack_require__(483);
+
+	var _terminalPartyList2 = _interopRequireDefault(_terminalPartyList);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -8365,11 +8365,8 @@ webpackJsonp([0],{
 	  mixins: [_reactor2.default.ReactMixin],
 
 	  getDataBindings: function getDataBindings() {
-	    var sid = this.props.routeParams.sid;
-
 	    return {
-	      store: _getters2.default.store,
-	      parties: _getters4.default.activePartiesById(sid)
+	      store: _getters2.default.store
 	    };
 	  },
 	  componentDidMount: function componentDidMount() {
@@ -8386,22 +8383,16 @@ webpackJsonp([0],{
 	    (0, _actions2.openPlayer)(this.props.routeParams);
 	  },
 	  render: function render() {
-	    var _state = this.state,
-	        store = _state.store,
-	        parties = _state.parties;
-
-	    var serverLabel = store.getServerLabel();
+	    var store = this.state.store;
 
 	    var _store$toJS = store.toJS(),
 	        status = _store$toJS.status,
 	        props = _objectWithoutProperties(_store$toJS, ['status']);
 
-	    var $content = null;
+	    var serverLabel = store.getServerLabel();
 
-	    if (status.isReady) {
-	      document.title = serverLabel;
-	      $content = _react2.default.createElement(TtyTerminal, props);
-	    }
+	    var $content = null;
+	    var $leftPanelContent = null;
 
 	    if (status.isLoading) {
 	      $content = _react2.default.createElement(_indicator2.default, { type: 'bounce' });
@@ -8417,10 +8408,20 @@ webpackJsonp([0],{
 	        onNew: this.startNew });
 	    }
 
+	    if (status.isReady) {
+	      document.title = serverLabel;
+	      $content = _react2.default.createElement(TtyTerminal, props);
+	      $leftPanelContent = _react2.default.createElement(_terminalPartyList2.default, { sid: store.sid });
+	    }
+
 	    return _react2.default.createElement(
 	      'div',
 	      { className: 'grv-terminalhost' },
-	      _react2.default.createElement(_partyListPanel2.default, { parties: parties, onClose: _actions.close }),
+	      _react2.default.createElement(
+	        _partyListPanel2.default,
+	        { onClose: _actions.close },
+	        $leftPanelContent
+	      ),
 	      _react2.default.createElement(
 	        'div',
 	        { className: 'grv-terminalhost-server-info' },
@@ -8538,7 +8539,7 @@ webpackJsonp([0],{
 /***/ 470:
 /***/ function(module, exports, __webpack_require__) {
 
-	'use strict';
+	"use strict";
 
 	exports.__esModule = true;
 
@@ -8546,59 +8547,34 @@ webpackJsonp([0],{
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _icons = __webpack_require__(358);
-
-	var _reactAddonsCssTransitionGroup = __webpack_require__(471);
-
-	var _reactAddonsCssTransitionGroup2 = _interopRequireDefault(_reactAddonsCssTransitionGroup);
-
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 	var PartyListPanel = function PartyListPanel(_ref) {
-	  var parties = _ref.parties,
-	      onClose = _ref.onClose;
-
-	  parties = parties || [];
-	  var userIcons = parties.map(function (item, index) {
-	    return _react2.default.createElement(
-	      'li',
-	      { key: index, className: 'animated' },
-	      _react2.default.createElement(_icons.UserIcon, { colorIndex: index, isDark: true, name: item.user })
-	    );
-	  });
+	  var onClose = _ref.onClose,
+	      children = _ref.children;
 
 	  return _react2.default.createElement(
-	    'div',
-	    { className: 'grv-terminal-participans' },
+	    "div",
+	    { className: "grv-terminal-participans" },
 	    _react2.default.createElement(
-	      'ul',
-	      { className: 'nav' },
+	      "ul",
+	      { className: "nav" },
 	      _react2.default.createElement(
-	        'li',
-	        { title: 'Close' },
+	        "li",
+	        { title: "Close" },
 	        _react2.default.createElement(
-	          'button',
-	          { onClick: onClose, className: 'btn btn-danger btn-circle', type: 'button' },
+	          "button",
+	          { onClick: onClose, className: "btn btn-danger btn-circle", type: "button" },
 	          _react2.default.createElement(
-	            'span',
+	            "span",
 	            null,
-	            '\u2716'
+	            "\u2716"
 	          )
 	        )
 	      )
 	    ),
-	    userIcons.length > 0 ? _react2.default.createElement('hr', { className: 'grv-divider' }) : null,
-	    _react2.default.createElement(
-	      _reactAddonsCssTransitionGroup2.default,
-	      { className: 'nav', component: 'ul',
-	        transitionEnterTimeout: 500,
-	        transitionLeaveTimeout: 500,
-	        transitionName: {
-	          enter: "fadeIn",
-	          leave: "fadeOut"
-	        } },
-	      userIcons
-	    )
+	    children ? _react2.default.createElement("hr", { className: "grv-divider" }) : null,
+	    children
 	  );
 	}; /*
 	   Copyright 2015 Gravitational, Inc.
@@ -8621,7 +8597,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 477:
+/***/ 471:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -8644,9 +8620,9 @@ webpackJsonp([0],{
 	limitations under the License.
 	*/
 
-	var Term = __webpack_require__(478);
-	var Tty = __webpack_require__(480);
-	var TtyEvents = __webpack_require__(483);
+	var Term = __webpack_require__(472);
+	var Tty = __webpack_require__(474);
+	var TtyEvents = __webpack_require__(477);
 
 	var _require = __webpack_require__(397),
 	    debounce = _require.debounce,
@@ -8924,16 +8900,16 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 480:
+/***/ 474:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _events = __webpack_require__(481);
+	var _events = __webpack_require__(475);
 
-	var _ttyEnums = __webpack_require__(482);
+	var _ttyEnums = __webpack_require__(476);
 
 	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
@@ -9012,7 +8988,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 481:
+/***/ 475:
 /***/ function(module, exports) {
 
 	// Copyright Joyent, Inc. and other Node contributors.
@@ -9320,7 +9296,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 482:
+/***/ 476:
 /***/ function(module, exports) {
 
 	"use strict";
@@ -9350,16 +9326,16 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 483:
+/***/ 477:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _events = __webpack_require__(481);
+	var _events = __webpack_require__(475);
 
-	var _ttyEnums = __webpack_require__(482);
+	var _ttyEnums = __webpack_require__(476);
 
 	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
@@ -9432,7 +9408,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 484:
+/***/ 478:
 /***/ function(module, exports) {
 
 	'use strict';
@@ -9461,7 +9437,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 485:
+/***/ 479:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -9515,7 +9491,7 @@ webpackJsonp([0],{
 
 	var logger = __webpack_require__(230).create('Current Session');
 
-	var _require = __webpack_require__(486),
+	var _require = __webpack_require__(480),
 	    TLPT_TERMINAL_OPEN = _require.TLPT_TERMINAL_OPEN,
 	    TLPT_TERMINAL_CLOSE = _require.TLPT_TERMINAL_CLOSE,
 	    TLPT_TERMINAL_SET_STATUS = _require.TLPT_TERMINAL_SET_STATUS;
@@ -9610,7 +9586,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 486:
+/***/ 480:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -9647,7 +9623,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 487:
+/***/ 481:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -9676,7 +9652,7 @@ webpackJsonp([0],{
 
 	var _getters2 = _interopRequireDefault(_getters);
 
-	var _actionTypes = __webpack_require__(488);
+	var _actionTypes = __webpack_require__(482);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -9743,7 +9719,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 488:
+/***/ 482:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -9780,7 +9756,82 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 489:
+/***/ 483:
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	exports.__esModule = true;
+
+	var _react = __webpack_require__(2);
+
+	var _react2 = _interopRequireDefault(_react);
+
+	var _reactAddonsCssTransitionGroup = __webpack_require__(484);
+
+	var _reactAddonsCssTransitionGroup2 = _interopRequireDefault(_reactAddonsCssTransitionGroup);
+
+	var _nuclearJsReactAddons = __webpack_require__(219);
+
+	var _getters = __webpack_require__(409);
+
+	var _getters2 = _interopRequireDefault(_getters);
+
+	var _icons = __webpack_require__(358);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	var PartyList = function PartyList(props) {
+	  var parties = props.parties || [];
+	  var userIcons = parties.map(function (item, index) {
+	    return _react2.default.createElement(
+	      'li',
+	      { key: index, className: 'animated' },
+	      _react2.default.createElement(_icons.UserIcon, { colorIndex: index,
+	        isDark: true,
+	        name: item.user })
+	    );
+	  });
+
+	  return _react2.default.createElement(
+	    _reactAddonsCssTransitionGroup2.default,
+	    { className: 'nav', component: 'ul',
+	      transitionEnterTimeout: 500,
+	      transitionLeaveTimeout: 500,
+	      transitionName: {
+	        enter: "fadeIn",
+	        leave: "fadeOut"
+	      } },
+	    userIcons
+	  );
+	}; /*
+	   Copyright 2015 Gravitational, Inc.
+	   
+	   Licensed under the Apache License, Version 2.0 (the "License");
+	   you may not use this file except in compliance with the License.
+	   You may obtain a copy of the License at
+	   
+	       http://www.apache.org/licenses/LICENSE-2.0
+	   
+	   Unless required by applicable law or agreed to in writing, software
+	   distributed under the License is distributed on an "AS IS" BASIS,
+	   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	   See the License for the specific language governing permissions and
+	   limitations under the License.
+	   */
+
+	function mapStateToProps(props) {
+	  return {
+	    parties: _getters2.default.activePartiesById(props.sid)
+	  };
+	}
+
+	exports.default = (0, _nuclearJsReactAddons.connect)(mapStateToProps)(PartyList);
+	module.exports = exports['default'];
+
+/***/ },
+
+/***/ 490:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -9791,7 +9842,7 @@ webpackJsonp([0],{
 
 	var _jQuery2 = _interopRequireDefault(_jQuery);
 
-	var _jquery = __webpack_require__(490);
+	var _jquery = __webpack_require__(491);
 
 	var _jquery2 = _interopRequireDefault(_jquery);
 
@@ -9801,21 +9852,21 @@ webpackJsonp([0],{
 
 	var _nuclearJsReactAddons = __webpack_require__(219);
 
-	var _reactSlider = __webpack_require__(512);
+	var _reactSlider = __webpack_require__(513);
 
 	var _reactSlider2 = _interopRequireDefault(_reactSlider);
 
-	var _getters = __webpack_require__(513);
+	var _getters = __webpack_require__(514);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
-	var _terminal = __webpack_require__(477);
+	var _terminal = __webpack_require__(471);
 
 	var _terminal2 = _interopRequireDefault(_terminal);
 
-	var _ttyPlayer = __webpack_require__(514);
+	var _ttyPlayer = __webpack_require__(515);
 
-	var _actions = __webpack_require__(487);
+	var _actions = __webpack_require__(481);
 
 	var _indicator = __webpack_require__(378);
 
@@ -10064,7 +10115,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 513:
+/***/ 514:
 /***/ function(module, exports) {
 
 	'use strict';
@@ -10093,7 +10144,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 514:
+/***/ 515:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -10122,14 +10173,14 @@ webpackJsonp([0],{
 	limitations under the License.
 	*/
 
-	var Tty = __webpack_require__(480);
+	var Tty = __webpack_require__(474);
 	var api = __webpack_require__(243);
 
 	var _require = __webpack_require__(245),
 	    showError = _require.showError;
 
 	var $ = __webpack_require__(227);
-	var Buffer = __webpack_require__(515).Buffer;
+	var Buffer = __webpack_require__(516).Buffer;
 
 	var logger = __webpack_require__(230).create('TtyPlayer');
 	var STREAM_START_INDEX = 0;
@@ -10551,7 +10602,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 520:
+/***/ 521:
 /***/ function(module, exports) {
 
 	'use strict';
@@ -10595,7 +10646,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 521:
+/***/ 522:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -10604,11 +10655,11 @@ webpackJsonp([0],{
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _store = __webpack_require__(522);
+	var _store = __webpack_require__(523);
 
 	var _store2 = _interopRequireDefault(_store);
 
-	var _store3 = __webpack_require__(524);
+	var _store3 = __webpack_require__(525);
 
 	var _store4 = _interopRequireDefault(_store3);
 
@@ -10619,15 +10670,15 @@ webpackJsonp([0],{
 	  'tlpt_terminal': _store2.default,
 	  'tlpt_player': _store4.default,
 	  'tlpt_user': __webpack_require__(385),
-	  'tlpt_sites': __webpack_require__(525),
-	  'tlpt_user_invite': __webpack_require__(526),
-	  'tlpt_nodes': __webpack_require__(527),
-	  'tlpt_rest_api': __webpack_require__(528),
-	  'tlpt_sessions_events': __webpack_require__(529),
-	  'tlpt_sessions_archived': __webpack_require__(530),
-	  'tlpt_sessions_active': __webpack_require__(531),
-	  'tlpt_sessions_filter': __webpack_require__(532),
-	  'tlpt_notifications': __webpack_require__(533)
+	  'tlpt_sites': __webpack_require__(526),
+	  'tlpt_user_invite': __webpack_require__(527),
+	  'tlpt_nodes': __webpack_require__(528),
+	  'tlpt_rest_api': __webpack_require__(529),
+	  'tlpt_sessions_events': __webpack_require__(530),
+	  'tlpt_sessions_archived': __webpack_require__(531),
+	  'tlpt_sessions_active': __webpack_require__(532),
+	  'tlpt_sessions_filter': __webpack_require__(533),
+	  'tlpt_notifications': __webpack_require__(534)
 	}); /*
 	    Copyright 2015 Gravitational, Inc.
 	    
@@ -10646,7 +10697,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 522:
+/***/ 523:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -10656,7 +10707,7 @@ webpackJsonp([0],{
 
 	var _nuclearJs = __webpack_require__(241);
 
-	var _immutable = __webpack_require__(523);
+	var _immutable = __webpack_require__(524);
 
 	var _reactor = __webpack_require__(240);
 
@@ -10664,7 +10715,7 @@ webpackJsonp([0],{
 
 	var _getters = __webpack_require__(395);
 
-	var _actionTypes = __webpack_require__(486);
+	var _actionTypes = __webpack_require__(480);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -10751,7 +10802,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 523:
+/***/ 524:
 /***/ function(module, exports, __webpack_require__) {
 
 	/**
@@ -15736,7 +15787,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 524:
+/***/ 525:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15746,13 +15797,13 @@ webpackJsonp([0],{
 
 	var _nuclearJs = __webpack_require__(241);
 
-	var _immutable = __webpack_require__(523);
+	var _immutable = __webpack_require__(524);
 
 	var _config = __webpack_require__(232);
 
 	var _config2 = _interopRequireDefault(_config);
 
-	var _actionTypes = __webpack_require__(488);
+	var _actionTypes = __webpack_require__(482);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -15854,7 +15905,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 525:
+/***/ 526:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15865,7 +15916,7 @@ webpackJsonp([0],{
 
 	var _actionTypes = __webpack_require__(248);
 
-	var _immutable = __webpack_require__(523);
+	var _immutable = __webpack_require__(524);
 
 	var Site = (0, _immutable.Record)({
 	  name: null,
@@ -15905,7 +15956,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 526:
+/***/ 527:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15916,7 +15967,7 @@ webpackJsonp([0],{
 
 	var _actionTypes = __webpack_require__(384);
 
-	var _immutable = __webpack_require__(523);
+	var _immutable = __webpack_require__(524);
 
 	var Invite = new _immutable.Record({
 	  invite_token: '',
@@ -15955,7 +16006,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 527:
+/***/ 528:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16011,7 +16062,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 528:
+/***/ 529:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16070,7 +16121,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 529:
+/***/ 530:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16129,7 +16180,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 530:
+/***/ 531:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16138,7 +16189,7 @@ webpackJsonp([0],{
 
 	var _nuclearJs = __webpack_require__(241);
 
-	var _immutable = __webpack_require__(523);
+	var _immutable = __webpack_require__(524);
 
 	var _actionTypes = __webpack_require__(354);
 
@@ -16226,7 +16277,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 531:
+/***/ 532:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16251,7 +16302,7 @@ webpackJsonp([0],{
 
 	var _nuclearJs = __webpack_require__(241);
 
-	var _immutable = __webpack_require__(523);
+	var _immutable = __webpack_require__(524);
 
 	var _actionTypes = __webpack_require__(354);
 
@@ -16336,7 +16387,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 532:
+/***/ 533:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16393,7 +16444,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 533:
+/***/ 534:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
