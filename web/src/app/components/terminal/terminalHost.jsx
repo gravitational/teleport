@@ -21,20 +21,18 @@ import PartyListPanel from './../partyListPanel';
 import session from 'app/services/session';
 import Terminal from 'app/lib/term/terminal';
 import termGetters from 'app/flux/terminal/getters';
-import sessionGetters from 'app/flux/sessions/getters';
 import Indicator from './../indicator.jsx';
 import { initTerminal, startNew, close, updateSessionFromEventStream } from 'app/flux/terminal/actions';
 import { openPlayer } from 'app/flux/player/actions';
+import PartyList from './terminalPartyList';
 
 const TerminalHost = React.createClass({
 
   mixins: [reactor.ReactMixin],
 
-  getDataBindings() {
-    let { sid } = this.props.routeParams;
+  getDataBindings() {    
     return {
-      store: termGetters.store,
-      parties: sessionGetters.activePartiesById(sid)
+      store: termGetters.store      
     }
   },
 
@@ -50,18 +48,14 @@ const TerminalHost = React.createClass({
     openPlayer(this.props.routeParams);
   },
 
-  render() {
-    let { store, parties } = this.state;        
-    let serverLabel = store.getServerLabel();
+  render() {        
+    let { store } = this.state;            
     let { status, ...props } = store.toJS();
+    let serverLabel = store.getServerLabel();
     
     let $content = null;
-    
-    if (status.isReady) {
-      document.title = serverLabel;
-      $content = (<TtyTerminal {...props}/>)
-    } 
-    
+    let $leftPanelContent = null;
+            
     if (status.isLoading) {
       $content = (<Indicator type="bounce" />);
     }
@@ -76,10 +70,18 @@ const TerminalHost = React.createClass({
           onReplay={this.replay}
           onNew={this.startNew} />);
     }
+
+    if (status.isReady) {      
+      document.title = serverLabel;
+      $content = (<TtyTerminal {...props} />)
+      $leftPanelContent = (<PartyList sid={store.sid} />);
+    } 
             
     return (
       <div className="grv-terminalhost">
-        <PartyListPanel parties={parties} onClose={close}/>
+        <PartyListPanel onClose={close}>
+          {$leftPanelContent}
+        </PartyListPanel>
         <div className="grv-terminalhost-server-info">
            <h3>{serverLabel}</h3>
         </div>

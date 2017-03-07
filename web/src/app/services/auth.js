@@ -180,7 +180,7 @@ const auth = {
   _startTokenRefresher(){
     refreshTokenTimerId = setInterval(() => {      
       // check if barer-token needs to be renewed
-      auth.ensureUser.bind(auth);
+      auth.ensureUser();
       // extra ping to a server to see of logout was triggered from another tab
       auth._checkStatus();
     }, CHECK_TOKEN_REFRESH_RATE);        
