@@ -220,6 +220,11 @@ func (s *PresenceService) DeleteAllProxies() error {
 	return s.backend.DeleteBucket([]string{}, proxiesPrefix)
 }
 
+// DeleteAllReverseTunnels deletes all reverse tunnels
+func (s *PresenceService) DeleteAllReverseTunnels() error {
+	return s.backend.DeleteBucket([]string{}, reverseTunnelsPrefix)
+}
+
 // UpsertReverseTunnel upserts reverse tunnel entry temporarily or permanently
 func (s *PresenceService) UpsertReverseTunnel(tunnel services.ReverseTunnel, ttl time.Duration) error {
 	if err := tunnel.Check(); err != nil {

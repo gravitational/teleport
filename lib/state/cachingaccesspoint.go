@@ -61,20 +61,11 @@ func NewCachingAuthClient(ap auth.AccessPoint, b backend.Backend) (*CachingAuthC
 		access:   local.NewAccessService(b),
 		presence: local.NewPresenceService(b),
 	}
-	go func() {
-		err := cs.fetchAll()
-		if err != nil {
-			log.Warningf("failed to fetch cached results %v", err)
-		}
-	}()
+	err := cs.fetchAll()
+	if err != nil {
+		log.Warningf("failed to fetch results for cache %v", err)
+	}
 	return cs, nil
-}
-
-// CacheProblem indicates failure to update local cache
-func CacheProblem(err error) error {
-	return trace.WrapWithMessage(&trace.BadParameterError{
-		Message: err.Error(),
-	}, "failed to update local cache")
 }
 
 func (cs *CachingAuthClient) fetchAll() error {
@@ -83,14 +74,17 @@ func (cs *CachingAuthClient) fetchAll() error {
 	errors = append(errors, err)
 	_, err = cs.GetRoles()
 	errors = append(errors, err)
-	ns, err := cs.GetNamespaces()
+	namespaces, err := cs.GetNamespaces()
 	errors = append(errors, err)
 	if err == nil {
-		for _, n := range ns {
-			cs.GetNodes(n.Metadata.Name)
+		for _, ns := range namespaces {
+			_, err = cs.GetNodes(ns.Metadata.Name)
+			errors = append(errors, err)
 		}
 	}
 	_, err = cs.GetProxies()
+	errors = append(errors, err)
+	_, err = cs.GetReverseTunnels()
 	errors = append(errors, err)
 	_, err = cs.GetCertAuthorities(services.UserCA, false)
 	errors = append(errors, err)
@@ -107,13 +101,16 @@ func (cs *CachingAuthClient) GetDomainName() (clusterName string, err error) {
 		clusterName, err = cs.ap.GetDomainName()
 		return err
 	})
-	if !trace.IsConnectionProblem(err) {
+	if err != nil {
+		if trace.IsConnectionProblem(err) {
+			return cs.presence.GetLocalClusterName()
+		}
 		return clusterName, err
 	}
-	if err == nil {
-		cs.presence.UpsertLocalClusterName(clusterName)
+	if err = cs.presence.UpsertLocalClusterName(clusterName); err != nil {
+		return "", trace.Wrap(err)
 	}
-	return cs.presence.GetLocalClusterName()
+	return clusterName, err
 }
 
 // GetRoles is a part of auth.AccessPoint implementation
@@ -122,45 +119,69 @@ func (cs *CachingAuthClient) GetRoles() (roles []services.Role, err error) {
 		roles, err = cs.ap.GetRoles()
 		return err
 	})
-	if !trace.IsConnectionProblem(err) {
+	if err != nil {
+		if trace.IsConnectionProblem(err) {
+			return cs.access.GetRoles()
+		}
 		return roles, err
 	}
-	// update cache if we got results
-	if err == nil {
-		if err := cs.access.DeleteAllRoles(); err != nil {
-			if !trace.IsNotFound(err) {
-				return nil, CacheProblem(err)
-			}
-		}
-		for _, role := range roles {
-			if err := cs.access.UpsertRole(role); err != nil {
-				return nil, CacheProblem(err)
-			}
+	if err := cs.access.DeleteAllRoles(); err != nil {
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
 		}
 	}
-	return cs.access.GetRoles()
+	for _, role := range roles {
+		if err := cs.access.UpsertRole(role); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return roles, err
 }
 
-// GetRoles is a part of auth.AccessPoint implementation
+// GetRole is a part of auth.AccessPoint implementation
 func (cs *CachingAuthClient) GetRole(name string) (role services.Role, err error) {
 	err = cs.try(func() error {
 		role, err = cs.ap.GetRole(name)
 		return err
 	})
-	if !trace.IsConnectionProblem(err) {
+	if err != nil {
+		if trace.IsConnectionProblem(err) {
+			return cs.access.GetRole(name)
+		}
 		return role, err
 	}
-	if err == nil {
-		if err := cs.access.DeleteRole(name); err != nil {
-			if !trace.IsNotFound(err) {
-				return nil, CacheProblem(err)
-			}
-		}
-		if err := cs.access.UpsertRole(role); err != nil {
-			return nil, CacheProblem(err)
+	if err := cs.access.DeleteRole(name); err != nil {
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
 		}
 	}
-	return cs.access.GetRole(name)
+	if err := cs.access.UpsertRole(role); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return role, nil
+}
+
+// GetNamespace returns namespace
+func (cs *CachingAuthClient) GetNamespace(name string) (namespace *services.Namespace, err error) {
+	err = cs.try(func() error {
+		namespace, err = cs.ap.GetNamespace(name)
+		return err
+	})
+	if err != nil {
+		if trace.IsConnectionProblem(err) {
+			return cs.presence.GetNamespace(name)
+		}
+		return namespace, err
+	}
+	if err := cs.presence.DeleteNamespace(name); err != nil {
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+	}
+	if err := cs.presence.UpsertNamespace(*namespace); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return namespace, err
 }
 
 // GetNamespaces is a part of auth.AccessPoint implementation
@@ -169,22 +190,24 @@ func (cs *CachingAuthClient) GetNamespaces() (namespaces []services.Namespace, e
 		namespaces, err = cs.ap.GetNamespaces()
 		return err
 	})
-	if !trace.IsConnectionProblem(err) {
+
+	if err != nil {
+		if trace.IsConnectionProblem(err) {
+			return cs.presence.GetNamespaces()
+		}
 		return namespaces, err
 	}
-	if err == nil {
-		if err := cs.presence.DeleteAllNamespaces(); err != nil {
-			if !trace.IsNotFound(err) {
-				return nil, CacheProblem(err)
-			}
-		}
-		for _, ns := range namespaces {
-			if err := cs.presence.UpsertNamespace(ns); err != nil {
-				return nil, CacheProblem(err)
-			}
+	if err := cs.presence.DeleteAllNamespaces(); err != nil {
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
 		}
 	}
-	return cs.presence.GetNamespaces()
+	for _, ns := range namespaces {
+		if err := cs.presence.UpsertNamespace(ns); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return namespaces, err
 }
 
 // GetNodes is a part of auth.AccessPoint implementation
@@ -194,22 +217,47 @@ func (cs *CachingAuthClient) GetNodes(namespace string) (nodes []services.Server
 		return err
 
 	})
-	if !trace.IsConnectionProblem(err) {
+	if err != nil {
+		if trace.IsConnectionProblem(err) {
+			return cs.presence.GetNodes(namespace)
+		}
 		return nodes, err
 	}
-	if err == nil {
-		if err := cs.presence.DeleteAllNodes(namespace); err != nil {
-			if !trace.IsNotFound(err) {
-				return nil, CacheProblem(err)
-			}
-		}
-		for _, node := range nodes {
-			if err := cs.presence.UpsertNode(node, backend.Forever); err != nil {
-				return nil, CacheProblem(err)
-			}
+	if err := cs.presence.DeleteAllNodes(namespace); err != nil {
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
 		}
 	}
-	return cs.presence.GetNodes(namespace)
+	for _, node := range nodes {
+		if err := cs.presence.UpsertNode(node, backend.Forever); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return nodes, err
+}
+
+func (cs *CachingAuthClient) GetReverseTunnels() (tunnels []services.ReverseTunnel, err error) {
+	err = cs.try(func() error {
+		tunnels, err = cs.ap.GetReverseTunnels()
+		return err
+	})
+	if err != nil {
+		if trace.IsConnectionProblem(err) {
+			return cs.presence.GetReverseTunnels()
+		}
+		return tunnels, err
+	}
+	if err := cs.presence.DeleteAllReverseTunnels(); err != nil {
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+	}
+	for _, tunnel := range tunnels {
+		if err := cs.presence.UpsertReverseTunnel(tunnel, backend.Forever); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return tunnels, err
 }
 
 // GetProxies is a part of auth.AccessPoint implementation
@@ -218,22 +266,24 @@ func (cs *CachingAuthClient) GetProxies() (proxies []services.Server, err error)
 		proxies, err = cs.ap.GetProxies()
 		return err
 	})
-	if !trace.IsConnectionProblem(err) {
+
+	if err != nil {
+		if trace.IsConnectionProblem(err) {
+			return cs.presence.GetProxies()
+		}
 		return proxies, err
 	}
-	if err == nil {
-		if err := cs.presence.DeleteAllProxies(); err != nil {
-			if !trace.IsNotFound(err) {
-				return nil, CacheProblem(err)
-			}
-		}
-		for _, proxy := range proxies {
-			if err := cs.presence.UpsertProxy(proxy, backend.Forever); err != nil {
-				return nil, CacheProblem(err)
-			}
+	if err := cs.presence.DeleteAllProxies(); err != nil {
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
 		}
 	}
-	return cs.presence.GetProxies()
+	for _, proxy := range proxies {
+		if err := cs.presence.UpsertProxy(proxy, backend.Forever); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return proxies, err
 }
 
 // GetCertAuthorities is a part of auth.AccessPoint implementation
@@ -242,22 +292,23 @@ func (cs *CachingAuthClient) GetCertAuthorities(ct services.CertAuthType, loadKe
 		cas, err = cs.ap.GetCertAuthorities(ct, loadKeys)
 		return err
 	})
-	if !trace.IsConnectionProblem(err) {
+	if err != nil {
+		if trace.IsConnectionProblem(err) {
+			return cs.trust.GetCertAuthorities(ct, loadKeys)
+		}
 		return cas, err
 	}
-	if err == nil {
-		if err := cs.trust.DeleteAllCertAuthorities(ct); err != nil {
-			if !trace.IsNotFound(err) {
-				return nil, CacheProblem(err)
-			}
-		}
-		for _, ca := range cas {
-			if err := cs.trust.UpsertCertAuthority(ca, backend.Forever); err != nil {
-				return nil, CacheProblem(err)
-			}
+	if err := cs.trust.DeleteAllCertAuthorities(ct); err != nil {
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
 		}
 	}
-	return cs.trust.GetCertAuthorities(ct, loadKeys)
+	for _, ca := range cas {
+		if err := cs.trust.UpsertCertAuthority(ca, backend.Forever); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return cas, err
 }
 
 // GetUsers is a part of auth.AccessPoint implementation
@@ -266,22 +317,23 @@ func (cs *CachingAuthClient) GetUsers() (users []services.User, err error) {
 		users, err = cs.ap.GetUsers()
 		return err
 	})
-	if !trace.IsConnectionProblem(err) {
+	if err != nil {
+		if trace.IsConnectionProblem(err) {
+			return cs.identity.GetUsers()
+		}
 		return users, err
 	}
-	if err == nil {
-		if err := cs.identity.DeleteAllUsers(); err != nil {
-			if !trace.IsNotFound(err) {
-				return nil, CacheProblem(err)
-			}
-		}
-		for _, user := range users {
-			if err := cs.identity.UpsertUser(user); err != nil {
-				return nil, CacheProblem(err)
-			}
+	if err := cs.identity.DeleteAllUsers(); err != nil {
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
 		}
 	}
-	return cs.identity.GetUsers()
+	for _, user := range users {
+		if err := cs.identity.UpsertUser(user); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return users, err
 }
 
 // UpsertNode is part of auth.AccessPoint implementation
@@ -304,10 +356,9 @@ func (cs *CachingAuthClient) try(f func() error) error {
 		return trace.ConnectionProblem(fmt.Errorf("backoff"), "backing off due to recent errors")
 	}
 	err := trace.ConvertSystemError(f())
-	log.Errorf("probs: %v", err)
 	if trace.IsConnectionProblem(err) {
 		cs.lastErrorTime = time.Now()
-		log.Warningf("failed connecto to the auth servers, using local cache")
+		log.Warningf("failed connect to the auth servers, using local cache")
 	}
 	return err
 }

@@ -178,15 +178,8 @@ func (process *TeleportProcess) connectToAuthService(role teleport.Role) (*Conne
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// try calling a test method via auth api:
-	//
-	// ??? in case of failure it never gets back here!!!
-	dn, err := authClient.GetDomainName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	// success ? we're logged in!
-	log.Infof("[Node] %s connected to the cluster '%s'", authUser, dn)
+	log.Infof("[Node] %s connected to the cluster", authUser)
 	return &Connector{Client: authClient, Identity: identity}, nil
 }
 
@@ -521,7 +514,7 @@ func (process *TeleportProcess) initSSH() error {
 
 		// make sure the namespace exists
 		namespace := services.ProcessNamespace(cfg.SSH.Namespace)
-		_, err = conn.Client.GetNamespace(namespace)
+		_, err = authClient.GetNamespace(namespace)
 		if err != nil {
 			if trace.IsNotFound(err) {
 				return trace.NotFound(

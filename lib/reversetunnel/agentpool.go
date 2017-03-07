@@ -94,7 +94,7 @@ func (m *AgentPool) Wait() error {
 // FetchAndSyncAgents executes one time fetch and sync request
 // (used in tests instead of polling)
 func (m *AgentPool) FetchAndSyncAgents() error {
-	tunnels, err := m.cfg.Client.GetReverseTunnels()
+	tunnels, err := m.cfg.AccessPoint.GetReverseTunnels()
 	if err != nil {
 		return trace.Wrap(err)
 	}

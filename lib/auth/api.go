@@ -24,12 +24,18 @@ import (
 
 // AccessPoint is an API interface implemented by a certificate authority (CA)
 type AccessPoint interface {
+	// GetReverseTunnels returns  a list of reverse tunnels
+	GetReverseTunnels() ([]services.ReverseTunnel, error)
+
 	// GetDomainName returns domain name AKA ("cluster name") of the auth
 	// server / certificate authority (CA)
 	GetDomainName() (string, error)
 
 	// GetNamespaces returns a list of namespaces
 	GetNamespaces() ([]services.Namespace, error)
+
+	// GetNamespace returns namespace by name
+	GetNamespace(name string) (*services.Namespace, error)
 
 	// GetServers returns a list of registered servers
 	GetNodes(namespace string) ([]services.Server, error)

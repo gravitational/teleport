@@ -631,6 +631,11 @@ func (a *AuthWithRoles) DeleteAllNamespaces() error {
 	return trace.BadParameter("not implemented")
 }
 
+// DeleteAllReverseTunnels deletes all reverse tunnels
+func (a *AuthWithRoles) DeleteAllReverseTunnels() error {
+	return trace.BadParameter("not implemented")
+}
+
 // DeleteAllProxies deletes all proxies
 func (a *AuthWithRoles) DeleteAllProxies() error {
 	return trace.BadParameter("not implemented")

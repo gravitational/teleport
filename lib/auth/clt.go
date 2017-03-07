@@ -1205,6 +1205,11 @@ func (c *Client) DeleteAllCertAuthorities(caType services.CertAuthType) error {
 	return trace.BadParameter("not implemented")
 }
 
+// DeleteAllReverseTunnels deletes all reverse tunnels
+func (c *Client) DeleteAllReverseTunnels() error {
+	return trace.BadParameter("not implemented")
+}
+
 // DeleteAllCertNamespaces deletes all namespaces
 func (c *Client) DeleteAllNamespaces() error {
 	return trace.BadParameter("not implemented")

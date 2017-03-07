@@ -66,6 +66,9 @@ type Presence interface {
 	// DeleteReverseTunnel deletes reverse tunnel by it's domain name
 	DeleteReverseTunnel(domainName string) error
 
+	// DeleteAllReverseTunnels deletes all reverse tunnels
+	DeleteAllReverseTunnels() error
+
 	// GetNamespaces returns a list of namespaces
 	GetNamespaces() ([]Namespace, error)
 
