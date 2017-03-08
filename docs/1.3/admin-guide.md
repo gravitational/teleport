@@ -770,6 +770,68 @@ your Google credentials. Teleport will keep you logged in for the next 23 hours.
     like Github. Teleport is an open source project and adding providers is not hard, your 
     contributions are welcome, just search the code for OIDC! :-)
 
+## SAML
+
+Teleport supports [SAMLv2](https://en.wikipedia.org/wiki/SAML_2.0) to 
+provide external authentication using SAML indentity providers like MS ADFS, Shibboleth, etc...
+
+### Using SAML with Microsoft ADFS
+
+On the Teleport side:
+  - create a x509 key and self signed certificate that will be used by teleport to sign/decrypt requests/responses
+
+  - add this to your teleport.yaml (or use tctl get/create) 
+```
+auth_service:
+    authentication:
+        type: saml
+        saml:
+        id: adfs
+        issuer_url: https://adfs.example.com/FederationMetadata/2007-06/FederationMetadata.xml
+        redirect_url: https://teleport.example.com:3080/v1/webapi
+        path_cert: /etc/teleport/sp.cert
+        path_key: /etc/teleport/sp.key
+        display:  "Login with Example ADFS"
+        claims_to_roles:
+           - claim: "roles"
+             value: "teleport_admins"
+             roles: ["admins"]
+```
+
+on the ADFS side : 
+  First, you need to install the component Active Directory Federation Service (adfs) and setup the 
+  certificates (add documentation)
+
+  You can add the relaying party using the metadata available using this teleport url : 
+  https://teleport.example.com:3080/v1/webapi/saml/metadata
+
+  Then you need to configure claims, it's tested with "E-Mail-Addresses" to "email" and "Token-Groups - Unqualified Names" to "roles"
+
+  When your installation is working you'll be able to retrieve the idp xml configuration at this address:
+  https://adfs.example.com/FederationMetadata/2007-06/FederationMetadata.xml
+
+That's it. No need to create a users neither, Teleport with communicate with the saml IDP for
+authentication and authorization and create a temporary user on the backend for the duration of the
+session for you when you login.
+
+### Logging in via Saml
+
+#### Web UI
+
+Now, if everything is set up correctly, you will see "Login with Example ADFS" button on the login screen.
+
+#### CLI
+
+As long as you have SAML set as your authentication method, nothing else needs to be passed into
+`tsh` to login, simply type:
+
+```
+tsh --proxy <proxy-addr> ssh <server-addr>
+```
+
+You should get a browser open a login window for you, where you will have to enter
+your credentials. Teleport will keep you logged in for the next 23 hours.
+
 ## FIDO U2F
 
 Teleport supports [FIDO U2F](https://www.yubico.com/about/background/fido/) 
