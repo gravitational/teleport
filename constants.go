@@ -7,9 +7,14 @@ import (
 // ForeverTTL means that object TTL will not expire unless deleted
 const ForeverTTL time.Duration = 0
 
-// SSHAuthSock is the environment variable pointing to the
-// Unix socket the SSH agent is running on.
-const SSHAuthSock = "SSH_AUTH_SOCK"
+const (
+	// SSHAuthSock is the environment variable pointing to the
+	// Unix socket the SSH agent is running on.
+	SSHAuthSock = "SSH_AUTH_SOCK"
+	// SSHAgentPID is the environment variable pointing to the agent
+	// process ID
+	SSHAgentPID = "SSH_AGENT_PID"
+)
 
 const (
 	// TOTPValidityPeriod is the number of seconds a TOTP token is valid.

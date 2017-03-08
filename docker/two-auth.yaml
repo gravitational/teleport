@@ -15,9 +15,9 @@ auth_service:
   # to enable trusted clusters, execute `tctl auth export > data/one.ca` inside container "one"
   # and then restart container "two-auth"
   trusted_clusters:
-       - key_file: /root/go/src/github.com/gravitational/teleport/docker/data/one/one.ca
-         allow_logins: root
-         tunnel_addr: one
+  #     - key_file: /root/go/src/github.com/gravitational/teleport/docker/data/one/one.ca
+  #       allow_logins: root
+  #       tunnel_addr: one
 
 ssh_service:
   enabled: yes

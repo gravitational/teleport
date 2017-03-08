@@ -25,6 +25,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -38,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
@@ -800,7 +802,21 @@ func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *ctx) 
 		return err
 	}
 	ctx.Debugf("[SSH] opened agent channel")
-	ctx.setAgent(agent.NewClient(authChan), authChan)
+	clientAgent := agent.NewClient(authChan)
+	ctx.setAgent(clientAgent, authChan)
+
+	pid := os.Getpid()
+	socketPath := filepath.Join(os.TempDir(), fmt.Sprintf("teleport-%d.socket", pid))
+	socketAddr := utils.NetAddr{
+		AddrNetwork: "unix",
+		Addr:        socketPath,
+	}
+
+	agentServer := teleagent.AgentServer{Agent: clientAgent}
+	go agentServer.ListenAndServe(socketAddr)
+	ctx.setEnv(teleport.SSHAuthSock, socketPath)
+	ctx.setEnv(teleport.SSHAgentPID, fmt.Sprintf("%v", pid))
+
 	return nil
 }
 
