@@ -326,7 +326,8 @@ func (r *reverseTunnelCollection) writeYAML(w io.Writer) error {
 }
 
 type connectorCollection struct {
-	connectors []services.OIDCConnector
+	connectors     []services.OIDCConnector
+	connectorsSAML []services.SAMLConnector
 }
 
 func (c *connectorCollection) writeText(w io.Writer) error {
@@ -335,17 +336,29 @@ func (c *connectorCollection) writeText(w io.Writer) error {
 	for _, conn := range c.connectors {
 		fmt.Fprintf(t, "%v\t%v\t%v\n", conn.GetName(), conn.GetIssuerURL(), strings.Join(conn.GetScope(), ","))
 	}
+	for _, conn := range c.connectorsSAML {
+		fmt.Fprintf(t, "%v\t%v\t%v\n", conn.GetName(), conn.GetIssuerURL(), strings.Join(conn.GetScope(), ","))
+	}
 	_, err := io.WriteString(w, t.String())
 	return trace.Wrap(err)
 }
 
 func (c *connectorCollection) writeJSON(w io.Writer) error {
-	data, err := json.MarshalIndent(c.toMarshal(), "", "    ")
+	data, err := json.MarshalIndent(c.connectors, "", "    ")
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = w.Write(data)
-	return trace.Wrap(err)
+	data2, err := json.MarshalIndent(c.connectorsSAML, "", "    ")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(data) > len(data2) {
+		_, err = w.Write(data)
+		return trace.Wrap(err)
+	} else {
+		_, err = w.Write(data2)
+		return trace.Wrap(err)
+	}
 }
 
 func (c *connectorCollection) toMarshal() interface{} {
@@ -356,12 +369,21 @@ func (c *connectorCollection) toMarshal() interface{} {
 }
 
 func (c *connectorCollection) writeYAML(w io.Writer) error {
-	data, err := yaml.Marshal(c.toMarshal())
+	data, err := yaml.Marshal(c.connectors)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = w.Write(data)
-	return trace.Wrap(err)
+	data2, err := yaml.Marshal(c.connectorsSAML)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(data) > len(data2) {
+		_, err = w.Write(data)
+		return trace.Wrap(err)
+	} else {
+		_, err = w.Write(data2)
+		return trace.Wrap(err)
+	}
 }
 
 type trustedClusterCollection struct {

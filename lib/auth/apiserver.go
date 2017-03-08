@@ -154,6 +154,15 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	srv.POST("/:version/oidc/requests/create", srv.withAuth(srv.createOIDCAuthRequest))
 	srv.POST("/:version/oidc/requests/validate", srv.withAuth(srv.validateOIDCAuthCallback))
 
+	// SAML
+	srv.POST("/:version/saml/connectors", srv.withAuth(srv.upsertSAMLConnector))
+	srv.GET("/:version/saml/connectors", srv.withAuth(srv.getSAMLConnectors))
+	srv.GET("/:version/saml/metadata", srv.withAuth(srv.sendSAMLMetadata))
+	srv.GET("/:version/saml/connectors/:id", srv.withAuth(srv.getSAMLConnector))
+	srv.DELETE("/:version/saml/connectors/:id", srv.withAuth(srv.deleteSAMLConnector))
+	srv.POST("/:version/saml/requests/create", srv.withAuth(srv.createSAMLAuthRequest))
+	srv.POST("/:version/saml/requests/validate", srv.withAuth(srv.validateSAMLAuthCallback))
+
 	// U2F
 	srv.GET("/:version/u2f/signuptokens/:token", srv.withAuth(srv.getSignupU2FRegisterRequest))
 	srv.POST("/:version/u2f/users", srv.withAuth(srv.createUserWithU2FToken))
@@ -470,7 +479,7 @@ type sessionV1 struct {
 	Username string `json:"username"`
 	// ExpiresAt is an optional expiry time, if set
 	// that means this web session and all derived web sessions
-	// can not continue after this time, used in OIDC use case
+	// can not continue after this time, used in OIDC or SAML use case
 	// when expiry is set by external identity provider, so user
 	// has to relogin (or later on we'd need to refresh the token)
 	ExpiresAt time.Time `json:"expires_at"`
@@ -1036,6 +1045,142 @@ func (s *APIServer) createUserWithU2FToken(auth ClientI, w http.ResponseWriter, 
 		return nil, trace.Wrap(err)
 	}
 	return rawMessage(services.GetWebSessionMarshaler().MarshalWebSession(sess, services.WithVersion(version)))
+}
+
+type upsertSAMLConnectorRawReq struct {
+	Connector json.RawMessage `json:"connector"`
+	TTL       time.Duration   `json:"ttl"`
+}
+
+func (s *APIServer) upsertSAMLConnector(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	var req *upsertSAMLConnectorRawReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	connector, err := services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(req.Connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = auth.UpsertSAMLConnector(connector, req.TTL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message("ok"), nil
+}
+
+func (s *APIServer) getSAMLConnector(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	withSecrets, _, err := httplib.ParseBool(r.URL.Query(), "with_secrets")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	connector, err := auth.GetSAMLConnector(p.ByName("id"), withSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rawMessage(services.GetSAMLConnectorMarshaler().MarshalSAMLConnector(connector, services.WithVersion(version)))
+}
+
+func (s *APIServer) deleteSAMLConnector(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	err := auth.DeleteSAMLConnector(p.ByName("id"))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message("ok"), nil
+}
+
+func (s *APIServer) getSAMLConnectors(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	withSecrets, _, err := httplib.ParseBool(r.URL.Query(), "with_secrets")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	connectors, err := auth.GetSAMLConnectors(withSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	items := make([]json.RawMessage, len(connectors))
+	for i, connector := range connectors {
+		data, err := services.GetSAMLConnectorMarshaler().MarshalSAMLConnector(connector, services.WithVersion(version))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		items[i] = data
+	}
+	return items, nil
+}
+
+type createSAMLAuthRequestReq struct {
+	Req services.SAMLAuthRequest `json:"req"`
+}
+
+func (s *APIServer) sendSAMLMetadata(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	samlclient, _ := auth.SendSAMLMetadata()
+	w.Write([]byte(samlclient))
+	return nil, nil
+}
+
+func (s *APIServer) createSAMLAuthRequest(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	var req *createSAMLAuthRequestReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	response, err := auth.CreateSAMLAuthRequest(req.Req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return response, nil
+}
+
+type validateSAMLAuthCallbackReq struct {
+	Query url.Values `json:"query"`
+}
+
+// samlAuthRawResponse is returned when auth server validated callback parameters
+// returned from SAML provider
+type samlAuthRawResponse struct {
+	// Username is authenticated teleport username
+	Username string `json:"username"`
+	// Identity contains validated SAML identity
+	Identity services.SAMLIdentity `json:"identity"`
+	// Web session will be generated by auth server if requested in SAMLAuthRequest
+	Session json.RawMessage `json:"session,omitempty"`
+	// Cert will be generated by certificate authority
+	Cert []byte `json:"cert,omitempty"`
+	// Req is original saml auth request
+	Req services.SAMLAuthRequest `json:"req"`
+	// HostSigners is a list of signing host public keys
+	// trusted by proxy, used in console login
+	HostSigners []json.RawMessage `json:"host_signers"`
+}
+
+func (s *APIServer) validateSAMLAuthCallback(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	r.ParseForm()
+	response, err := auth.ValidateSAMLAuthCallback(r.Form)
+	if err != nil {
+		log.Info("authvalidate failed:(")
+		return nil, trace.Wrap(err)
+	}
+	raw := samlAuthRawResponse{
+		Username: response.Username,
+		Identity: response.Identity,
+		Cert:     response.Cert,
+		Req:      response.Req,
+	}
+	if response.Session != nil {
+		rawSession, err := services.GetWebSessionMarshaler().MarshalWebSession(response.Session, services.WithVersion(version))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		raw.Session = rawSession
+	}
+	raw.HostSigners = make([]json.RawMessage, len(response.HostSigners))
+	for i, ca := range response.HostSigners {
+		data, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(ca, services.WithVersion(version))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		raw.HostSigners[i] = data
+	}
+	return &raw, nil
 }
 
 type upsertOIDCConnectorRawReq struct {

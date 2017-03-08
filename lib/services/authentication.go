@@ -38,7 +38,7 @@ type ClusterAuthPreference interface {
 }
 
 // AuthPreference defines the authentication preferences for a specific
-// cluster. It defines the type (local, oidc) and second factor (off, otp, oidc).
+// cluster. It defines the type (local, oidc, saml) and second factor (off, otp, oidc).
 type AuthPreference interface {
 	// GetType returns the type of authentication.
 	GetType() string
@@ -136,6 +136,10 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	case teleport.OIDC:
 		if c.Spec.SecondFactor != "" {
 			return trace.BadParameter("second factor [%q] not supported with oidc connector")
+		}
+	case teleport.SAML:
+		if c.Spec.SecondFactor != "" {
+			return trace.BadParameter("second factor [%q] not supported with saml connector")
 		}
 	default:
 		return trace.BadParameter("unsupported type %q", c.Spec.Type)

@@ -1017,6 +1017,15 @@ func (tc *TeleportClient) Login() (*CertAuthMethod, error) {
 
 		// in this case identity is returned by the proxy
 		tc.Username = response.Username
+	case teleport.SAML:
+		response, err = tc.samlLogin(pr.Auth.SAML.Name, key.Pub)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// in this case identity is returned by the proxy
+		tc.Username = response.Username
+
 	default:
 		return nil, trace.BadParameter("unsupported authentication type: %q", pr.Auth.Type)
 	}
@@ -1120,6 +1129,16 @@ func (tc *TeleportClient) oidcLogin(connectorID string, pub []byte) (*SSHLoginRe
 	// ask the CA (via proxy) to sign our public key:
 	webProxyAddr := tc.Config.ProxyWebHostPort()
 	response, err := SSHAgentOIDCLogin(webProxyAddr,
+		connectorID, pub, tc.KeyTTL, tc.InsecureSkipVerify, loopbackPool(webProxyAddr))
+	return response, trace.Wrap(err)
+}
+
+// samlLogin opens browser window and uses SAML redirect cycle with browser
+func (tc *TeleportClient) samlLogin(connectorID string, pub []byte) (*SSHLoginResponse, error) {
+	log.Infof("samlLogin start")
+	// ask the CA (via proxy) to sign our public key:
+	webProxyAddr := tc.Config.ProxyWebHostPort()
+	response, err := SSHAgentSAMLLogin(webProxyAddr,
 		connectorID, pub, tc.KeyTTL, tc.InsecureSkipVerify, loopbackPool(webProxyAddr))
 	return response, trace.Wrap(err)
 }

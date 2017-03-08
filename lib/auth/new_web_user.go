@@ -53,7 +53,9 @@ func (s *AuthServer) CreateSignupToken(userv1 services.UserV1) (string, error) {
 			return "", trace.Wrap(err)
 		}
 		if _, err := s.GetOIDCConnector(id.ConnectorID, false); err != nil {
-			return "", trace.Wrap(err)
+			if _, err := s.GetSAMLConnector(id.ConnectorID, false); err != nil {
+				return "", trace.Wrap(err)
+			}
 		}
 	}
 

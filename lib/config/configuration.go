@@ -318,6 +318,18 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 			cfg.Auth.Preference.SetSecondFactor("")
 		}
 
+		// if we have defined a saml connector update the authentication type
+		if len(fc.Auth.SAMLConnectors) > 0 {
+			samlConnector, err := fc.Auth.SAMLConnectors[0].Parse()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			cfg.SAMLConnectors = []services.SAMLConnector{samlConnector}
+
+			cfg.Auth.Preference.SetType(teleport.SAML)
+			cfg.Auth.Preference.SetSecondFactor("")
+		}
+
 		// parse the configuration to see if we have defined u2f
 		u, err := fc.Auth.U2F.Parse()
 		if err != nil {
@@ -342,7 +354,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	// the cluster authentication preferences and override u2f and oidc settings set
 	// in the above two blocks
 	if fc.Auth.Authentication != nil {
-		authPreference, oidcConnector, universalSecondFactor, err := fc.Auth.Authentication.Parse()
+		authPreference, oidcConnector, samlConnector, universalSecondFactor, err := fc.Auth.Authentication.Parse()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -352,6 +364,10 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		// override anything set with the old format
 		if oidcConnector != nil {
 			cfg.OIDCConnectors = []services.OIDCConnector{oidcConnector}
+		}
+
+		if samlConnector != nil {
+			cfg.SAMLConnectors = []services.SAMLConnector{samlConnector}
 		}
 
 		// set u2f settings, note this will override anything set with the old format
