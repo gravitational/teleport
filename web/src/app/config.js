@@ -47,6 +47,7 @@ let cfg = {
 
   api: {    
     sso: '/v1/webapi/oidc/login/web?redirect_url=:redirect&connector_id=:provider',    
+    ssoSaml: '/v1/webapi/saml/login/web?redirect_url=:redirect&connector_id=:provider',
     renewTokenPath:'/v1/webapi/sessions/renew',
     sessionPath: '/v1/webapi/sessions',
     userStatus: '/v1/webapi/user/status',
@@ -80,6 +81,10 @@ let cfg = {
 
     getSsoUrl(redirect, provider){
       return cfg.baseUrl + formatPattern(cfg.api.sso, {redirect, provider});
+    },
+
+    getSsoSamlUrl(redirect, provider){
+      return cfg.baseUrl + formatPattern(cfg.api.ssoSaml, {redirect, provider});
     },
 
     getSiteEventsFilterUrl({start, end, siteId}){
@@ -131,7 +136,12 @@ let cfg = {
   },
 
   getAuthProviders() {
-    return cfg.auth && cfg.auth.oidc ? [cfg.auth.oidc] : [];    
+    if (cfg.auth.oidc)
+      return [cfg.auth.oidc];
+    else if (cfg.auth.saml)
+           return [cfg.auth.saml];
+         else
+           return [];
   },
   
   getAuthType() {
