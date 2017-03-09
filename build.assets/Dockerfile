@@ -42,10 +42,10 @@ RUN apt-get install -q -y \
 RUN pip install click==4.1 recommonmark mkdocs markdown-include
 
 # Install Golang:
-RUN (mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/go1.7.linux-amd64.tar.gz | tar xz;\
-     mkdir -p /gopath/src/github.com/gravitational/teleport;\
-     chmod a+w /gopath;\
-     chmod a+w /var/lib
+RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/go1.7.linux-amd64.tar.gz | tar xz;\
+    mkdir -p /gopath/src/github.com/gravitational/teleport;\
+    chmod a+w /gopath;\
+    chmod a+w /var/lib
 
 RUN (groupadd jenkins --gid=$GID -o && useradd jenkins --uid=$UID --gid=$GID --create-home --shell=/bin/sh ;\
      mkdir -p /var/lib/teleport && chown -R jenkins /var/lib/teleport)
