@@ -784,7 +784,7 @@ func (s *Server) dispatch(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 		return s.handleSubsystem(ch, req, ctx)
 	case sshutils.WindowChangeReq:
 		return s.handleWinChange(ch, req, ctx)
-	case "auth-agent-req@openssh.com":
+	case sshutils.AgentReq:
 		// This happens when SSH client has agent forwarding enabled, in this case
 		// client sends a special request, in return SSH server opens new channel
 		// that uses SSH protocol for agent drafted here:
@@ -816,7 +816,6 @@ func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *ctx) 
 	if err != nil {
 		return err
 	}
-	ctx.Debugf("[SSH] opened agent channel")
 	clientAgent := agent.NewClient(authChan)
 	ctx.setAgent(clientAgent, authChan)
 
@@ -828,11 +827,13 @@ func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *ctx) 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
+	if req.WantReply {
+		req.Reply(true, nil)
+	}
 	ctx.setEnv(teleport.SSHAuthSock, socketPath)
 	ctx.setEnv(teleport.SSHAgentPID, fmt.Sprintf("%v", pid))
 	ctx.addCloser(agentServer)
-
+	ctx.Debugf("[SSH:node] opened agent channel for teleport user %v and socket %v", ctx.teleportUser, socketPath)
 	go agentServer.Serve()
 
 	return nil

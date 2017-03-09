@@ -101,6 +101,7 @@ func (a *AgentServer) ListenAndServe(addr utils.NetAddr) error {
 func (a *AgentServer) Close() error {
 	var errors []error
 	if a.listener != nil {
+		log.Debugf("AgentServer(%v) is closing", a.listener.Addr())
 		if err := a.listener.Close(); err != nil {
 			errors = append(errors, trace.ConvertSystemError(err))
 		}

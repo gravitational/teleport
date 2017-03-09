@@ -25,6 +25,7 @@ import (
 	"io"
 	"net"
 	"os/user"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -198,17 +199,68 @@ func (s *SrvSuite) TestAdvertiseAddr(c *C) {
 	s.srv.setAdvertiseIP(nil)
 }
 
-// TestExec executes a command on a remote server
-func (s *SrvSuite) TestExec(c *C) {
-	c.Skip("disabled")
-
+// TestAgentForward tests agent forwarding via unix sockets
+func (s *SrvSuite) TestAgentForward(c *C) {
 	se, err := s.clt.NewSession()
 	c.Assert(err, IsNil)
 	defer se.Close()
 
-	out, err := se.Output("echo $((2 + 3))")
+	err = agent.RequestAgentForwarding(se)
 	c.Assert(err, IsNil)
-	c.Assert(strings.Trim(string(out), " \n"), Equals, "5")
+
+	writer, err := se.StdinPipe()
+	c.Assert(err, IsNil)
+
+	stdoutPipe, err := se.StdoutPipe()
+	c.Assert(err, IsNil)
+	reader := bufio.NewReader(stdoutPipe)
+	log.Infof("HERE 0 ")
+	c.Assert(se.Shell(), IsNil)
+	log.Infof("HERE 1")
+	// send a few "keyboard inputs" into the session:
+	_, err = io.WriteString(writer, fmt.Sprintf("printenv %v\n\r", teleport.SSHAuthSock))
+	c.Assert(err, IsNil)
+
+	re := regexp.MustCompile(`/tmp/[^\s]+`)
+	buf := make([]byte, 4096)
+	var matches []string
+	for i := 0; i < 3; i++ {
+		_, err = reader.Read(buf)
+		c.Assert(err, IsNil)
+		matches = re.FindStringSubmatch(string(buf))
+		if len(matches) != 0 {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	socketPath := matches[0]
+	file, err := net.Dial("unix", socketPath)
+	c.Assert(err, IsNil)
+	clientAgent := agent.NewClient(file)
+
+	signers, err := clientAgent.Signers()
+	c.Assert(err, IsNil)
+
+	sshConfig := &ssh.ClientConfig{
+		User: s.user,
+		Auth: []ssh.AuthMethod{ssh.PublicKeys(signers...)},
+	}
+
+	client, err := ssh.Dial("tcp", s.srv.Addr(), sshConfig)
+	c.Assert(err, IsNil)
+	err = client.Close()
+	c.Assert(err, IsNil)
+
+	// make sure the socket is gone after we closed the session
+	se.Close()
+	for i := 0; i < 4; i++ {
+		_, err = net.Dial("unix", socketPath)
+		if err != nil {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	c.Fatalf("expected socket to be closed, still could dial after 150 ms")
 }
 
 // TestShell launches interactive shell session and executes a command

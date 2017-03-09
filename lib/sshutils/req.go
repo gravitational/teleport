@@ -16,11 +16,13 @@ limitations under the License.
 
 package sshutils
 
+// EnvReqParams are parameters for env request
 type EnvReqParams struct {
 	Name  string
 	Value string
 }
 
+// WinChangeReqParams specifies parameters for window changes
 type WinChangeReqParams struct {
 	W     uint32
 	H     uint32
@@ -29,6 +31,7 @@ type WinChangeReqParams struct {
 	Modes string
 }
 
+// PTYReqParams specifies parameters for pty change window
 type PTYReqParams struct {
 	Env   string
 	W     uint32
@@ -39,8 +42,14 @@ type PTYReqParams struct {
 }
 
 const (
-	SessionEnvVar   = "TELEPORT_SESSION"
-	SetEnvReq       = "env"
+	// SessionEnvVar is environment variable for SSH session
+	SessionEnvVar = "TELEPORT_SESSION"
+	// SetEnvReq sets environment requests
+	SetEnvReq = "env"
+	// WindowChangeReq is a request to change window
 	WindowChangeReq = "window-change"
-	PTYReq          = "pty-req"
+	// PTYReq is a request for PTY
+	PTYReq = "pty-req"
+	// AgentReq is ssh agent requesst
+	AgentReq = "auth-agent-req@openssh.com"
 )
