@@ -17,9 +17,9 @@ RUN (apt-get clean; \
 	 apt-get install -q -y apt-utils less locales)
 
 # Set locale to en_US.UTF-8
-RUN (locale-gen \
-	&& locale-gen en_US.UTF-8 \
-	&& dpkg-reconfigure locales)
+RUN locale-gen; \
+	locale-gen en_US.UTF-8 ;\
+	dpkg-reconfigure locales
 
 RUN (apt-get install -q -y \
          libsqlite3-0 \
@@ -35,8 +35,8 @@ RUN (apt-get install -q -y \
          libyaml-dev \
          python-dev \
          nginx \
-         zip 
-      && apt-get -y autoclean; apt-get -y clean)
+         zip; \
+      apt-get -y autoclean; apt-get -y clean
 
 # Install mkDocs
 RUN pip install click==4.1 recommonmark mkdocs markdown-include
