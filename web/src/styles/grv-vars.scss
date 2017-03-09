@@ -17,7 +17,7 @@ limitations under the License.
 $gray-base:#1a1a1a;
 $headings-font-weight: normal;
 $input-color-placeholder: #AAA;
-$gray-lighter:    lighten($gray-base, 85.0%) !default; // #eee
+$gray-lighter: lighten($gray-base, 85.0%) !default; // #eee
 $input-bg-disabled: $gray-lighter;
 $fa-font-path: "~font-awesome/fonts";
 
@@ -26,6 +26,7 @@ $grv-color-bg-inactive: #0D5849;
 $grv-color-bg-active: #1AB394;
 $grv-color-border-active: #8AD8C5;
 $grv-color-inactive: #A1A3A5;
+$grv-color-bg-label: #d1dade;
 
 $grv-icon-user-size: 30px;
 $grv-icon-user-def-color: $grv-color-bg-active;
