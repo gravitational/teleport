@@ -1,0 +1,12 @@
+kind: trusted_cluster
+version: v1
+metadata:
+   description: ""
+   name: "one"
+   namespace: "default"
+spec:
+   enabled: true
+   roles: ["admin"]
+   token: "bar"
+   tunnel_addr: one:3024
+   web_proxy_addr: one:3080

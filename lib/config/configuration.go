@@ -26,6 +26,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -529,6 +530,13 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 
 	// apply --debug flag:
 	if clf.Debug {
+		// to enable debug mode, you have to set the environment variable and the -d flag
+		// we can ignore the error here because if an error occurs, debugFlag = false which is okay
+		debugFlag, _ := strconv.ParseBool(os.Getenv(teleport.DebugEnvVar))
+		if debugFlag {
+			cfg.DeveloperMode = true
+		}
+
 		cfg.Console = ioutil.Discard
 		utils.InitLoggerDebug()
 	}

@@ -102,6 +102,9 @@ const (
 	// MetaNameUniversalSecondFactor is a type of second factor authentication.
 	MetaNameUniversalSecondFactor = "universal-second-factor"
 
+	// KindTrustedCluster is a resource that contains trusted cluster configuration.
+	KindTrustedCluster = "trusted_cluster"
+
 	// V2 is our current version
 	V2 = "v2"
 
@@ -258,6 +261,8 @@ func ParseShortcut(in string) (string, error) {
 		return KindCertAuthority, nil
 	case "reverse_tunnels", "rts":
 		return KindReverseTunnel, nil
+	case "trusted_cluster", "tc":
+		return KindTrustedCluster, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %v", in)
 }

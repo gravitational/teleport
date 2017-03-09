@@ -233,6 +233,66 @@ func (s *PresenceService) DeleteReverseTunnel(domainName string) error {
 	return trace.Wrap(err)
 }
 
+// UpsertTrustedCluster creates or updates a TrustedCluster in the backend.
+func (s *PresenceService) UpsertTrustedCluster(trustedCluster services.TrustedCluster) error {
+	data, err := services.GetTrustedClusterMarshaler().Marshal(trustedCluster)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = s.backend.UpsertVal([]string{"trustedclusters"}, trustedCluster.GetName(), []byte(data), backend.Forever)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// GetTrustedCluster returns a single TrustedCluster by name.
+func (s *PresenceService) GetTrustedCluster(name string) (services.TrustedCluster, error) {
+	data, err := s.backend.GetVal([]string{"trustedclusters"}, name)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("trusted cluster not found")
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	return services.GetTrustedClusterMarshaler().Unmarshal(data)
+}
+
+// GetTrustedClusters returns all TrustedClusters in the backend.
+func (s *PresenceService) GetTrustedClusters() ([]services.TrustedCluster, error) {
+	keys, err := s.backend.GetKeys([]string{"trustedclusters"})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out := make([]services.TrustedCluster, len(keys))
+	for i, name := range keys {
+		tc, err := s.GetTrustedCluster(name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out[i] = tc
+	}
+
+	sort.Sort(services.SortedTrustedCluster(out))
+	return out, nil
+}
+
+// DeleteTrustedCluster removes a TrustedCluster from the backend by name.
+func (s *PresenceService) DeleteTrustedCluster(name string) error {
+	err := s.backend.DeleteKey([]string{"trustedclusters"}, name)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.NotFound("trusted cluster %q not found", name)
+		}
+	}
+
+	return trace.Wrap(err)
+}
+
 const (
 	reverseTunnelsPrefix = "reverseTunnels"
 	nodesPrefix          = "nodes"

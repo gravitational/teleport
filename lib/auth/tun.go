@@ -553,6 +553,18 @@ func (s *AuthTunnel) passwordAuth(
 			}}
 		log.Infof("[AUTH] session authenticated prov. token: '%v'", conn.User())
 		return perms, nil
+	case AuthValidateTrustedCluster:
+		err := s.authServer.validateTrustedClusterToken(string(ab.Pass))
+		if err != nil {
+			return nil, trace.AccessDenied("trusted cluster token validation error: %v", err)
+		}
+		perms := &ssh.Permissions{
+			Extensions: map[string]string{
+				ExtToken: string(password),
+				ExtRole:  string(teleport.RoleNop),
+			}}
+		log.Debugf("[AUTH] session authenticated validate trusted cluster; token: %q", conn.User())
+		return perms, nil
 	default:
 		return nil, trace.AccessDenied("unsupported auth method: '%v'", ab.Type)
 	}
@@ -636,6 +648,17 @@ func NewWebU2FSignResponseAuth(user string, u2fSignResponse *u2f.SignResponse) (
 func NewSignupTokenAuth(token string) ([]ssh.AuthMethod, error) {
 	data, err := json.Marshal(authBucket{
 		Type: AuthSignupToken,
+		Pass: []byte(token),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return []ssh.AuthMethod{ssh.Password(string(data))}, nil
+}
+
+func NewValidateTrustedClusterAuth(token string) ([]ssh.AuthMethod, error) {
+	data, err := json.Marshal(authBucket{
+		Type: AuthValidateTrustedCluster,
 		Pass: []byte(token),
 	})
 	if err != nil {
@@ -963,12 +986,13 @@ const (
 	ExtHost        = "host@teleport"
 	ExtRole        = "role@teleport"
 
-	AuthWebPassword = "password"
-	AuthWebU2FSign  = "u2f-sign"
-	AuthWebU2F      = "u2f"
-	AuthWebSession  = "session"
-	AuthToken       = "provision-token"
-	AuthSignupToken = "signup-token"
+	AuthWebPassword            = "password"
+	AuthWebU2FSign             = "u2f-sign"
+	AuthWebU2F                 = "u2f"
+	AuthWebSession             = "session"
+	AuthToken                  = "provision-token"
+	AuthSignupToken            = "signup-token"
+	AuthValidateTrustedCluster = "trusted-cluster"
 )
 
 // AccessPointDialer dials to auth access point  remote HTTP api
