@@ -26,6 +26,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -41,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/pborman/uuid"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
@@ -797,6 +799,19 @@ func (s *Server) dispatch(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 }
 
 func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
+	systemUser, err := user.Lookup(ctx.login)
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	uid, err := strconv.Atoi(systemUser.Uid)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	gid, err := strconv.Atoi(systemUser.Gid)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	authChan, _, err := ctx.conn.OpenChannel("auth-agent@openssh.com", nil)
 	if err != nil {
 		return err
@@ -806,16 +821,19 @@ func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *ctx) 
 	ctx.setAgent(clientAgent, authChan)
 
 	pid := os.Getpid()
-	socketPath := filepath.Join(os.TempDir(), fmt.Sprintf("teleport-%d.socket", pid))
-	socketAddr := utils.NetAddr{
-		AddrNetwork: "unix",
-		Addr:        socketPath,
+	socketPath := filepath.Join(os.TempDir(), fmt.Sprintf("teleport-agent-%v.socket", uuid.New()))
+
+	agentServer := &teleagent.AgentServer{Agent: clientAgent}
+	err = agentServer.ListenUnixSocket(socketPath, uid, gid, 0700)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	agentServer := teleagent.AgentServer{Agent: clientAgent}
-	go agentServer.ListenAndServe(socketAddr)
 	ctx.setEnv(teleport.SSHAuthSock, socketPath)
 	ctx.setEnv(teleport.SSHAgentPID, fmt.Sprintf("%v", pid))
+	ctx.addCloser(agentServer)
+
+	go agentServer.Serve()
 
 	return nil
 }
