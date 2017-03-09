@@ -21,7 +21,7 @@ RUN locale-gen; \
 	locale-gen en_US.UTF-8 ;\
 	dpkg-reconfigure locales
 
-RUN (apt-get install -q -y \
+RUN apt-get install -q -y \
          libsqlite3-0 \
          curl \
          make \
