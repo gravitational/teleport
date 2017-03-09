@@ -232,9 +232,7 @@ func (s *SrvSuite) TestAgentForward(c *C) {
 	stdoutPipe, err := se.StdoutPipe()
 	c.Assert(err, IsNil)
 	reader := bufio.NewReader(stdoutPipe)
-	log.Infof("HERE 0 ")
 	c.Assert(se.Shell(), IsNil)
-	log.Infof("HERE 1")
 	// send a few "keyboard inputs" into the session:
 	_, err = io.WriteString(writer, fmt.Sprintf("printenv %v\n\r", teleport.SSHAuthSock))
 	c.Assert(err, IsNil)
