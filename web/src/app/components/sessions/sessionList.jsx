@@ -83,8 +83,9 @@ const SessionList = React.createClass({
     let stored = storedSessions.filter(
       item => moment(item.created).isBetween(start, end));
 
-    let active = activeSessions.filter(
-      item => moment(item.created).isBetween(start, end));    
+    let active = activeSessions
+      .filter( item => item.parties.length > 0)
+      .filter( item => moment(item.created).isBetween(start, end));    
 
     stored = this.sortAndFilter(stored);
     active = this.sortAndFilter(active);

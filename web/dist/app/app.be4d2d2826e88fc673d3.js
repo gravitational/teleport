@@ -5902,11 +5902,25 @@ webpackJsonp([0],{
 	                                                                                                                                                                                                                             limitations under the License.
 	                                                                                                                                                                                                                             */
 
-	var TextCell = function TextCell(_ref) {
-	  var rowIndex = _ref.rowIndex,
-	      data = _ref.data,
-	      columnKey = _ref.columnKey,
-	      props = _objectWithoutProperties(_ref, ['rowIndex', 'data', 'columnKey']);
+	var EmptyValue = function EmptyValue(_ref) {
+	  var _ref$text = _ref.text,
+	      text = _ref$text === undefined ? 'Empty' : _ref$text;
+	  return _react2.default.createElement(
+	    'small',
+	    { className: 'text-muted' },
+	    _react2.default.createElement(
+	      'span',
+	      null,
+	      text
+	    )
+	  );
+	};
+
+	var TextCell = function TextCell(_ref2) {
+	  var rowIndex = _ref2.rowIndex,
+	      data = _ref2.data,
+	      columnKey = _ref2.columnKey,
+	      props = _objectWithoutProperties(_ref2, ['rowIndex', 'data', 'columnKey']);
 
 	  return _react2.default.createElement(
 	    _table.Cell,
@@ -5915,32 +5929,40 @@ webpackJsonp([0],{
 	  );
 	};
 
-	var TagCell = function TagCell(_ref2) {
-	  var rowIndex = _ref2.rowIndex,
-	      data = _ref2.data,
-	      props = _objectWithoutProperties(_ref2, ['rowIndex', 'data']);
+	var TagCell = function TagCell(_ref3) {
+	  var rowIndex = _ref3.rowIndex,
+	      data = _ref3.data,
+	      props = _objectWithoutProperties(_ref3, ['rowIndex', 'data']);
+
+	  var tags = data[rowIndex].tags;
+
+	  var $content = tags.map(function (item, index) {
+	    return _react2.default.createElement(
+	      'span',
+	      { key: index, title: item.role + ':' + item.value, className: 'label label-default grv-nodes-table-label' },
+	      item.role,
+	      ' ',
+	      _react2.default.createElement('li', { className: 'fa fa-long-arrow-right m-r-xs' }),
+	      item.value
+	    );
+	  });
+
+	  if ($content.length === 0) {
+	    $content = _react2.default.createElement(EmptyValue, { text: 'No assigned labels' });
+	  }
 
 	  return _react2.default.createElement(
 	    _table.Cell,
 	    props,
-	    data[rowIndex].tags.map(function (item, index) {
-	      return _react2.default.createElement(
-	        'span',
-	        { key: index, className: 'label label-default' },
-	        item.role,
-	        ' ',
-	        _react2.default.createElement('li', { className: 'fa fa-long-arrow-right' }),
-	        item.value
-	      );
-	    })
+	    $content
 	  );
 	};
 
-	var LoginCell = function LoginCell(_ref3) {
-	  var logins = _ref3.logins,
-	      rowIndex = _ref3.rowIndex,
-	      data = _ref3.data,
-	      props = _objectWithoutProperties(_ref3, ['logins', 'rowIndex', 'data']);
+	var LoginCell = function LoginCell(_ref4) {
+	  var logins = _ref4.logins,
+	      rowIndex = _ref4.rowIndex,
+	      data = _ref4.data,
+	      props = _objectWithoutProperties(_ref4, ['logins', 'rowIndex', 'data']);
 
 	  if (!logins || logins.length === 0) {
 	    return _react2.default.createElement(_table.Cell, props);
@@ -5981,21 +6003,25 @@ webpackJsonp([0],{
 	    props,
 	    _react2.default.createElement(
 	      'div',
-	      { className: 'btn-group' },
+	      { style: { display: "flex" } },
 	      _react2.default.createElement(
-	        _reactRouter.Link,
-	        { className: 'btn btn-xs btn-primary', to: defaultTermUrl },
-	        logins[0]
-	      ),
-	      $lis.length > 1 ? [_react2.default.createElement(
-	        'button',
-	        { key: 0, 'data-toggle': 'dropdown', className: 'btn btn-default btn-xs dropdown-toggle', 'aria-expanded': 'true' },
-	        _react2.default.createElement('span', { className: 'caret' })
-	      ), _react2.default.createElement(
-	        'ul',
-	        { key: 1, className: 'dropdown-menu' },
-	        $lis
-	      )] : null
+	        'div',
+	        { style: { display: "flex" }, className: 'btn-group' },
+	        _react2.default.createElement(
+	          _reactRouter.Link,
+	          { className: 'btn btn-xs btn-primary', to: defaultTermUrl },
+	          logins[0]
+	        ),
+	        $lis.length > 1 ? [_react2.default.createElement(
+	          'button',
+	          { key: 0, 'data-toggle': 'dropdown', className: 'btn btn-default btn-xs dropdown-toggle', 'aria-expanded': 'true' },
+	          _react2.default.createElement('span', { className: 'caret' })
+	        ), _react2.default.createElement(
+	          'ul',
+	          { key: 1, className: 'dropdown-menu pull-right' },
+	          $lis
+	        )] : null
+	      )
 	    )
 	  );
 	};
@@ -6101,7 +6127,11 @@ webpackJsonp([0],{
 	          }),
 	          _react2.default.createElement(_table.Column, {
 	            columnKey: 'tags',
-	            header: _react2.default.createElement(_table.Cell, null),
+	            header: _react2.default.createElement(
+	              _table.Cell,
+	              null,
+	              'Labels'
+	            ),
 	            cell: _react2.default.createElement(TagCell, { data: data })
 	          }),
 	          _react2.default.createElement(_table.Column, {
@@ -7333,6 +7363,8 @@ webpackJsonp([0],{
 	    });
 
 	    var active = activeSessions.filter(function (item) {
+	      return item.parties.length > 0;
+	    }).filter(function (item) {
 	      return (0, _moment2.default)(item.created).isBetween(start, end);
 	    });
 
