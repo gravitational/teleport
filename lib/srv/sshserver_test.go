@@ -199,11 +199,29 @@ func (s *SrvSuite) TestAdvertiseAddr(c *C) {
 	s.srv.setAdvertiseIP(nil)
 }
 
+// TestAgentForwardPermission tests agent forwarding via unix sockets
+func (s *SrvSuite) TestAgentForwardPermission(c *C) {
+	se, err := s.clt.NewSession()
+	c.Assert(err, IsNil)
+	defer se.Close()
+
+	// by default user does not have agent forwarding set up
+	err = agent.RequestAgentForwarding(se)
+	c.Assert(err, NotNil)
+}
+
 // TestAgentForward tests agent forwarding via unix sockets
 func (s *SrvSuite) TestAgentForward(c *C) {
 	se, err := s.clt.NewSession()
 	c.Assert(err, IsNil)
 	defer se.Close()
+
+	roleName := services.RoleNameForUser(s.user)
+	role, err := s.a.GetRole(roleName)
+	c.Assert(err, IsNil)
+	role.SetForwardAgent(true)
+	err = s.a.UpsertRole(role)
+	c.Assert(err, IsNil)
 
 	err = agent.RequestAgentForwarding(se)
 	c.Assert(err, IsNil)
