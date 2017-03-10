@@ -43,6 +43,13 @@ enter-two:
 enter-two-proxy:
 	docker exec -ti two-proxy /bin/bash
 
+# `make enter-two-node` gives you shell inside a node
+# of cluster "two"
+#
+.PHONY:enter-two-node
+enter-two-node:
+	docker exec -ti two-node /bin/bash
+
 # `make shell` drops you into a bash shell inside an empty container, 
 # without Teleport running. Useful if you want to start it manually 
 # from the inside
