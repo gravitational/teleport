@@ -137,7 +137,8 @@ type Role interface {
 	SetMaxSessionTTL(duration time.Duration)
 	// SetNamespaces sets a list of namespaces this role has access to
 	SetNamespaces(namespaces []string)
-	// CanForwardAgent returns is this role is allowed
+	// CanForwardAgent returns true if this role is allowed
+	// to request agent forwarding
 	CanForwardAgent() bool
 	// SetForwardAgent sets forward agent property
 	SetForwardAgent(forwardAgent bool)
@@ -218,7 +219,8 @@ func (r *RoleV2) GetResources() map[string][]string {
 	return r.Spec.Resources
 }
 
-// CanForwardAgent returns is this role is allowed
+// CanForwardAgent returns true if this role is allowed
+// to request agent forwarding
 func (r *RoleV2) CanForwardAgent() bool {
 	return r.Spec.ForwardAgent
 }
