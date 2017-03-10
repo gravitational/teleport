@@ -518,6 +518,7 @@ func (s *AuthTunnel) passwordAuth(
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
 				ExtWebSession:          string(ab.Pass),
+				ExtRole:                string(teleport.RoleWeb),
 				utils.CertTeleportUser: conn.User(),
 			},
 		}

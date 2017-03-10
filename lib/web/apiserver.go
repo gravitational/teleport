@@ -625,7 +625,6 @@ func (m *Handler) createSession(w http.ResponseWriter, r *http.Request, p httpro
 	if err != nil {
 		return nil, trace.AccessDenied("need auth")
 	}
-
 	return NewSessionResponse(ctx)
 }
 

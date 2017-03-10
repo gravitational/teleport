@@ -54,6 +54,7 @@ func RoleForUser(u User) Role {
 			Namespaces:    []string{defaults.Namespace},
 			Resources: map[string][]string{
 				KindSession:       RO(),
+				KindRole:          RO(),
 				KindNode:          RO(),
 				KindAuthServer:    RO(),
 				KindReverseTunnel: RO(),
@@ -77,6 +78,7 @@ func RoleForCertAuthority(ca CertAuthority) Role {
 			NodeLabels:    map[string]string{Wildcard: Wildcard},
 			Namespaces:    []string{defaults.Namespace},
 			Resources: map[string][]string{
+				KindRole:          RO(),
 				KindSession:       RO(),
 				KindNode:          RO(),
 				KindAuthServer:    RO(),
