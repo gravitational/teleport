@@ -43,6 +43,8 @@ const (
 	RoleAdmin Role = "Admin"
 	// RoleProvisionToken is a role for nodes authenticated using provisioning tokens
 	RoleProvisionToken Role = "ProvisionToken"
+	// RoleTrustedCluster is a role needed for tokens used to add trusted clusters.
+	RoleTrustedCluster Role = "Trustedcluster"
 	// RoleSignup is for first time signing up users
 	RoleSignup Role = "Signup"
 	// RoleNop is used for actions that already using external authz mechanisms
@@ -123,7 +125,7 @@ func (r *Role) String() string {
 // if it's ok, false otherwise
 func (r *Role) Check() error {
 	switch *r {
-	case RoleAuth, RoleWeb, RoleNode, RoleAdmin, RoleProvisionToken, RoleSignup, RoleProxy, RoleNop:
+	case RoleAuth, RoleWeb, RoleNode, RoleAdmin, RoleProvisionToken, RoleTrustedCluster, RoleSignup, RoleProxy, RoleNop:
 		return nil
 	}
 	return trace.BadParameter("role %v is not registered", *r)

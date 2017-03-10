@@ -193,12 +193,13 @@ func GetCheckerForBuiltinRole(role teleport.Role) (services.AccessChecker, error
 			services.RoleSpecV2{
 				Namespaces: []string{services.Wildcard},
 				Resources: map[string][]string{
-					services.KindWebSession: services.RW(),
-					services.KindSession:    services.RW(),
-					services.KindAuthServer: services.RO(),
-					services.KindUser:       services.RO(),
-					services.KindRole:       services.RO(),
-					services.KindNamespace:  services.RO(),
+					services.KindWebSession:     services.RW(),
+					services.KindSession:        services.RW(),
+					services.KindAuthServer:     services.RO(),
+					services.KindUser:           services.RO(),
+					services.KindRole:           services.RO(),
+					services.KindNamespace:      services.RO(),
+					services.KindTrustedCluster: services.RO(),
 				},
 			})
 	case teleport.RoleSignup:

@@ -1187,6 +1187,88 @@ func (c *Client) SetUniversalSecondFactor(universalSecondFactor services.Univers
 	return nil
 }
 
+func (c *Client) GetTrustedCluster(name string) (services.TrustedCluster, error) {
+	out, err := c.Get(c.Endpoint("trustedclusters", name), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	trustedCluster, err := services.GetTrustedClusterMarshaler().Unmarshal(out.Bytes())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return trustedCluster, nil
+}
+
+func (c *Client) GetTrustedClusters() ([]services.TrustedCluster, error) {
+	out, err := c.Get(c.Endpoint("trustedclusters"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var items []json.RawMessage
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	trustedClusters := make([]services.TrustedCluster, len(items))
+	for i, bytes := range items {
+		trustedCluster, err := services.GetTrustedClusterMarshaler().Unmarshal(bytes)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		trustedClusters[i] = trustedCluster
+	}
+
+	return trustedClusters, nil
+}
+
+func (c *Client) UpsertTrustedCluster(trustedCluster services.TrustedCluster) error {
+	trustedClusterBytes, err := services.GetTrustedClusterMarshaler().Marshal(trustedCluster)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = c.PostJSON(c.Endpoint("trustedclusters"), &upsertTrustedClusterReq{
+		TrustedCluster: trustedClusterBytes,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (c *Client) ValidateTrustedCluster(validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
+	validateRequestRaw, err := validateRequest.ToRaw()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out, err := c.PostJSON(c.Endpoint("trustedclusters", "validate"), validateRequestRaw)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var validateResponseRaw ValidateTrustedClusterResponseRaw
+	err = json.Unmarshal(out.Bytes(), &validateResponseRaw)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	validateResponse, err := validateResponseRaw.ToNative()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return validateResponse, nil
+}
+
+func (c *Client) DeleteTrustedCluster(name string) error {
+	_, err := c.Delete(c.Endpoint("trustedclusters", name))
+	return trace.Wrap(err)
+}
+
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
@@ -1326,5 +1408,6 @@ type ClientI interface {
 	services.ClusterAuthPreference
 	services.UniversalSecondFactorSettings
 
+	ValidateTrustedCluster(*ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error)
 	GetDomainName() (string, error)
 }

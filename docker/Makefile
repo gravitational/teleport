@@ -36,6 +36,12 @@ enter-one:
 enter-two:
 	docker exec -ti two-auth /bin/bash
 
+# `make enter-two-proxy` gives you shell inside proxy server
+# of cluster "two"
+#
+.PHONY:enter-two-proxy
+enter-two-proxy:
+	docker exec -ti two-proxy /bin/bash
 
 # `make shell` drops you into a bash shell inside an empty container, 
 # without Teleport running. Useful if you want to start it manually 
@@ -57,7 +63,8 @@ one:
 		--ip 172.10.1.1 \
 		--publish 3080:3080 -p 3023:3023 -p 4025:3025 \
 		--volume $(THISDIR)/data/one:/var/lib/teleport \
-		$(DOCKEROPS) $(TELEBOX) build/teleport start -c $(CONTAINERHOME)/docker/one.yaml
+		-e DEBUG=1 \
+		$(DOCKEROPS) $(TELEBOX) build/teleport start -d -c $(CONTAINERHOME)/docker/one.yaml
 
 # 'make two' starts the three-node cluster in a container named "two"
 .PHONY:two
@@ -66,18 +73,21 @@ two:
 		--hostname two-auth \
 		--ip 172.10.1.2 \
 		--volume $(THISDIR)/data/two/auth:/var/lib/teleport \
-		$(DOCKEROPS) $(TELEBOX) build/teleport start -c $(CONTAINERHOME)/docker/two-auth.yaml
+		-e DEBUG=1 \
+		$(DOCKEROPS) $(TELEBOX) build/teleport start -d -c $(CONTAINERHOME)/docker/two-auth.yaml
 	docker run --name=two-proxy --detach=true \
 		--hostname two-proxy \
 		--ip 172.10.1.3 \
 		--publish 5080:5080 -p 5023:5023 \
 		--volume $(THISDIR)/data/two/proxy:/var/lib/teleport \
-		$(DOCKEROPS) $(TELEBOX) build/teleport start -c $(CONTAINERHOME)/docker/two-proxy.yaml
+		-e DEBUG=1 \
+		$(DOCKEROPS) $(TELEBOX) build/teleport start -d -c $(CONTAINERHOME)/docker/two-proxy.yaml
 	docker run --name=two-node --detach=true \
 		--hostname two-node \
 		--ip 172.10.1.4 \
 		--volume $(THISDIR)/data/two/node:/var/lib/teleport \
-		$(DOCKEROPS) $(TELEBOX) build/teleport start -c $(CONTAINERHOME)/docker/two-node.yaml
+		-e DEBUG=1 \
+		$(DOCKEROPS) $(TELEBOX) build/teleport start -d -c $(CONTAINERHOME)/docker/two-node.yaml
 
 
 # prepare is a sub-target: it creates a container image and a network

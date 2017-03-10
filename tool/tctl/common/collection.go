@@ -363,3 +363,42 @@ func (c *connectorCollection) writeYAML(w io.Writer) error {
 	_, err = w.Write(data)
 	return trace.Wrap(err)
 }
+
+type trustedClusterCollection struct {
+	trustedClusters []services.TrustedCluster
+}
+
+func (c *trustedClusterCollection) writeText(w io.Writer) error {
+	t := goterm.NewTable(0, 10, 5, ' ', 0)
+	printHeader(t, []string{"Name", "Enabled", "Token", "Proxy Address", "Reverse Tunnel Address", "Roles"})
+	for _, tc := range c.trustedClusters {
+		fmt.Fprintf(t, "%v\t%v\t%v\t%v\t%v\t%v\n", tc.GetName(), tc.GetEnabled(), tc.GetToken(), tc.GetProxyAddress(), tc.GetReverseTunnelAddress(), tc.GetRoles())
+	}
+	_, err := io.WriteString(w, t.String())
+	return trace.Wrap(err)
+}
+
+func (c *trustedClusterCollection) writeJSON(w io.Writer) error {
+	data, err := json.MarshalIndent(c.toMarshal(), "", "    ")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = w.Write(data)
+	return trace.Wrap(err)
+}
+
+func (c *trustedClusterCollection) toMarshal() interface{} {
+	if len(c.trustedClusters) == 1 {
+		return c.trustedClusters[0]
+	}
+	return c.trustedClusters
+}
+
+func (c *trustedClusterCollection) writeYAML(w io.Writer) error {
+	data, err := yaml.Marshal(c.toMarshal())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = w.Write(data)
+	return trace.Wrap(err)
+}

@@ -5,19 +5,18 @@ teleport:
     output: /var/lib/teleport/teleport.log
     severity: INFO
 
+  data_dir: /root/go/src/github.com/gravitational/teleport/docker/data/two
+  storage:
+      path: /root/go/src/github.com/gravitational/teleport/docker/data/two/backend
+      type: dir
+
 auth_service:
   enabled: yes
   cluster_name: two
   tokens: 
-    - "node,auth,proxy:xxx"
-  listen_addr: 172.10.1.2:3025
+       - "node,auth,proxy:foo"
 
-  # to enable trusted clusters, execute `tctl auth export > data/one.ca` inside container "one"
-  # and then restart container "two-auth"
-  trusted_clusters:
-    - key_file: /root/go/src/github.com/gravitational/teleport/docker/data/one/one.ca
-      allow_logins: root
-      tunnel_addr: one
+  listen_addr: 172.10.1.2:3025
 
 ssh_service:
   enabled: yes
