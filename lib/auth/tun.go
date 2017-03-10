@@ -517,8 +517,8 @@ func (s *AuthTunnel) passwordAuth(
 		// after authorization, in this case the session
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
-				ExtWebSession: string(ab.Pass),
-				ExtRole:       string(teleport.RoleWeb),
+				ExtWebSession:          string(ab.Pass),
+				utils.CertTeleportUser: conn.User(),
 			},
 		}
 		if _, err := s.authServer.GetWebSession(conn.User(), string(ab.Pass)); err != nil {
