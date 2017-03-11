@@ -574,7 +574,6 @@ func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 	webSession := ctx.GetWebSession()
 	user, err := clt.GetUser(webSession.GetUser())
 	if err != nil {
-		log.Infof("here: %v", err)
 		return nil, trace.Wrap(err)
 	}
 	var roles services.RoleSet
