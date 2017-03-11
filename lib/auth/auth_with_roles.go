@@ -293,21 +293,21 @@ func (a *AuthWithRoles) CreateWebSession(user string) (services.WebSession, erro
 }
 
 func (a *AuthWithRoles) ExtendWebSession(user, prevSessionID string) (services.WebSession, error) {
-	if err := a.action(defaults.Namespace, services.KindWebSession, services.ActionWrite); err != nil {
+	if err := a.currentUserAction(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.ExtendWebSession(user, prevSessionID)
 }
 
 func (a *AuthWithRoles) GetWebSessionInfo(user string, sid string) (services.WebSession, error) {
-	if err := a.action(defaults.Namespace, services.KindWebSession, services.ActionRead); err != nil {
+	if err := a.currentUserAction(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.GetWebSessionInfo(user, sid)
 }
 
 func (a *AuthWithRoles) DeleteWebSession(user string, sid string) error {
-	if err := a.action(defaults.Namespace, services.KindWebSession, services.ActionWrite); err != nil {
+	if err := a.currentUserAction(user); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteWebSession(user, sid)
@@ -321,7 +321,7 @@ func (a *AuthWithRoles) GetUsers() ([]services.User, error) {
 }
 
 func (a *AuthWithRoles) GetUser(name string) (services.User, error) {
-	if err := a.action(defaults.Namespace, services.KindUser, services.ActionRead); err != nil {
+	if err := a.currentUserAction(name); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.Identity.GetUser(name)

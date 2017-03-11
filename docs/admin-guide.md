@@ -418,7 +418,7 @@ Use `tctl` tool to invite a new node into the cluster with `node` and `auth`
 roles:
 
 ```bash
-tctl nodes --ttl=5m --roles=node,proxy add
+tctl nodes add --ttl=5m --roles=node,proxy
 ```
 
 As new nodes come online, they start sending ping requests every few seconds

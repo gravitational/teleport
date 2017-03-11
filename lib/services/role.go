@@ -54,6 +54,7 @@ func RoleForUser(u User) Role {
 			Namespaces:    []string{defaults.Namespace},
 			Resources: map[string][]string{
 				KindSession:       RO(),
+				KindRole:          RO(),
 				KindNode:          RO(),
 				KindAuthServer:    RO(),
 				KindReverseTunnel: RO(),
