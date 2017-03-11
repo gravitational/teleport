@@ -8,6 +8,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/roundtrip"
@@ -231,7 +232,7 @@ func (s *AuthServer) sendValidateRequestToProxy(host string, validateRequest *Va
 		return nil, trace.Wrap(err)
 	}
 
-	out, err := clt.PostJSON(clt.Endpoint("webapi", "trustedclusters", "validate"), validateRequestRaw)
+	out, err := httplib.ConvertResponse(clt.PostJSON(clt.Endpoint("webapi", "trustedclusters", "validate"), validateRequestRaw))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
