@@ -434,7 +434,7 @@ func (s *TunSuite) TestPermissions(c *C) {
 	c.Assert(err, NotNil)
 
 	// Requesting forbidden for User action
-	_, err = clt.GetWebSessionInfo(user.GetName(), ws.GetName())
+	err = clt.DeleteUser(user.GetName())
 	c.Assert(err, NotNil)
 
 	// Resume session via sesison id
@@ -447,11 +447,7 @@ func (s *TunSuite) TestPermissions(c *C) {
 	defer cltw.Close()
 
 	// Requesting forbidden for Web action
-	_, err = cltw.GetNodes(defaults.Namespace)
-	c.Assert(err, NotNil)
-
-	// Requesting sign in forbidden for Web action
-	_, err = cltw.SignIn(user.GetName(), pass)
+	err = cltw.DeleteUser(user.GetName())
 	c.Assert(err, NotNil)
 
 	out, err := cltw.GetWebSessionInfo(user.GetName(), ws.GetName())
