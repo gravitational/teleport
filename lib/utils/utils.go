@@ -217,4 +217,6 @@ const (
 	CertExtensionAuthority = "x-teleport-authority"
 	// HostUUIDFile is the file name where the host UUID file is stored
 	HostUUIDFile = "host_uuid"
+	// CertTeleportClusterName  is a name of the teleport cluster
+	CertTeleportClusterName = "x-teleport-cluster-name"
 )

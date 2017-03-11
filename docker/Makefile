@@ -61,7 +61,7 @@ one:
 	docker run --name=one --detach=true \
 		--hostname one \
 		--ip 172.10.1.1 \
-		--publish 3080:3080 -p 3023:3023 \
+		--publish 3080:3080 -p 3023:3023 -p 4025:3025 \
 		--volume $(THISDIR)/data/one:/var/lib/teleport \
 		-e DEBUG=1 \
 		$(DOCKEROPS) $(TELEBOX) build/teleport start -d -c $(CONTAINERHOME)/docker/one.yaml
