@@ -46,12 +46,21 @@ func (a *AuthWithRoles) action(namespace string, resourceKind, action string) er
 // currentUserAction is a special checker that allows certain actions for users
 // even if they are not admins, e.g. update their own passwords,
 // or generate certificates, otherwise it will require admin privileges
-func (a *AuthWithRoles) currentUserAction(username string) error {
+func (a *AuthWithRoles) currentUserAction(username string, action string) error {
 	if username == a.user {
 		return nil
 	}
 	return a.checker.CheckResourceAction(
-		defaults.Namespace, services.KindUser, services.ActionWrite)
+		defaults.Namespace, services.KindUser, action)
+}
+
+// webSessionAction lets user or web proxy create web sessoins
+func (a *AuthWithRoles) webSessionAction(username string, action string) error {
+	if username == a.user {
+		return nil
+	}
+	return a.checker.CheckResourceAction(
+		defaults.Namespace, services.KindWebSession, action)
 }
 
 func (a *AuthWithRoles) GetSessions(namespace string) ([]session.Session, error) {
@@ -238,42 +247,42 @@ func (a *AuthWithRoles) UpsertToken(token string, roles teleport.Roles, ttl time
 }
 
 func (a *AuthWithRoles) UpsertPassword(user string, password []byte) error {
-	if err := a.currentUserAction(user); err != nil {
+	if err := a.currentUserAction(user, services.ActionWrite); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.UpsertPassword(user, password)
 }
 
 func (a *AuthWithRoles) CheckPassword(user string, password []byte, otpToken string) error {
-	if err := a.currentUserAction(user); err != nil {
+	if err := a.currentUserAction(user, services.ActionRead); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.CheckPassword(user, password, otpToken)
 }
 
 func (a *AuthWithRoles) UpsertTOTP(user string, otpSecret string) error {
-	if err := a.currentUserAction(user); err != nil {
+	if err := a.currentUserAction(user, services.ActionWrite); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.UpsertTOTP(user, otpSecret)
 }
 
 func (a *AuthWithRoles) GetOTPData(user string) (string, []byte, error) {
-	if err := a.currentUserAction(user); err != nil {
+	if err := a.currentUserAction(user, services.ActionWrite); err != nil {
 		return "", nil, trace.Wrap(err)
 	}
 	return a.authServer.GetOTPData(user)
 }
 
 func (a *AuthWithRoles) SignIn(user string, password []byte) (services.WebSession, error) {
-	if err := a.currentUserAction(user); err != nil {
+	if err := a.webSessionAction(user, services.ActionWrite); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.SignIn(user, password)
 }
 
 func (a *AuthWithRoles) PreAuthenticatedSignIn(user string) (services.WebSession, error) {
-	if err := a.currentUserAction(user); err != nil {
+	if err := a.webSessionAction(user, services.ActionWrite); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.PreAuthenticatedSignIn(user)
@@ -286,30 +295,34 @@ func (a *AuthWithRoles) GetU2FSignRequest(user string, password []byte) (*u2f.Si
 }
 
 func (a *AuthWithRoles) CreateWebSession(user string) (services.WebSession, error) {
-	if err := a.currentUserAction(user); err != nil {
+	if err := a.webSessionAction(user, services.ActionWrite); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.CreateWebSession(user)
 }
 
 func (a *AuthWithRoles) ExtendWebSession(user, prevSessionID string) (services.WebSession, error) {
-	if err := a.action(defaults.Namespace, services.KindWebSession, services.ActionWrite); err != nil {
+	// prevSessionID is it's own authz for current user,
+	// no extra ACL is necessary
+	if err := a.webSessionAction(user, services.ActionWrite); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.ExtendWebSession(user, prevSessionID)
 }
 
 func (a *AuthWithRoles) GetWebSessionInfo(user string, sid string) (services.WebSession, error) {
-	if err := a.action(defaults.Namespace, services.KindWebSession, services.ActionRead); err != nil {
+	if err := a.webSessionAction(user, services.ActionRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// sid is a unique session ID is it's own ACL no extra authz is necessary
 	return a.authServer.GetWebSessionInfo(user, sid)
 }
 
 func (a *AuthWithRoles) DeleteWebSession(user string, sid string) error {
-	if err := a.action(defaults.Namespace, services.KindWebSession, services.ActionWrite); err != nil {
+	if err := a.webSessionAction(user, services.ActionWrite); err != nil {
 		return trace.Wrap(err)
 	}
+	// sid is a unique session ID is it's own ACL no extra authz is necessary
 	return a.authServer.DeleteWebSession(user, sid)
 }
 
@@ -321,7 +334,7 @@ func (a *AuthWithRoles) GetUsers() ([]services.User, error) {
 }
 
 func (a *AuthWithRoles) GetUser(name string) (services.User, error) {
-	if err := a.action(defaults.Namespace, services.KindUser, services.ActionRead); err != nil {
+	if err := a.currentUserAction(name, services.ActionRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.Identity.GetUser(name)
@@ -352,7 +365,7 @@ func (a *AuthWithRoles) GenerateHostCert(
 }
 
 func (a *AuthWithRoles) GenerateUserCert(key []byte, username string, ttl time.Duration) ([]byte, error) {
-	if err := a.currentUserAction(username); err != nil {
+	if err := a.currentUserAction(username, services.ActionWrite); err != nil {
 		return nil, trace.AccessDenied("%v cannot request a certificate for %v", a.user, username)
 	}
 	// notice that user requesting the certificate and the user currently
