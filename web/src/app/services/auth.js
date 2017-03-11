@@ -212,6 +212,7 @@ const auth = {
     return api.post(cfg.api.renewTokenPath)
       .then(data => {
         session.setUserData(data);        
+        return data;
       })
       .fail(() => {
         auth.logout();
