@@ -285,9 +285,9 @@ func (s *AuthTunnel) haveExt(sconn *ssh.ServerConn, ext ...string) bool {
 func (s *AuthTunnel) handleWebAgentRequest(sconn *ssh.ServerConn, ch ssh.Channel) {
 	defer ch.Close()
 
-	if sconn.Permissions.Extensions[ExtRole] != string(teleport.RoleWeb) {
+	if sconn.Permissions.Extensions[ExtOrigin] != string(teleport.RoleWeb) {
 		log.Errorf("role %v doesn't have permission to request agent",
-			sconn.Permissions.Extensions[ExtRole])
+			sconn.Permissions.Extensions[ExtOrigin])
 		return
 	}
 
@@ -518,7 +518,12 @@ func (s *AuthTunnel) passwordAuth(
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
 				ExtWebSession: string(ab.Pass),
-				ExtRole:       string(teleport.RoleWeb),
+				// Origin is used to mark this connection as
+				// originated with web, as some features
+				// like agent request are only available
+				// for web users
+				ExtOrigin:              string(teleport.RoleWeb),
+				utils.CertTeleportUser: conn.User(),
 			},
 		}
 		if _, err := s.authServer.GetWebSession(conn.User(), string(ab.Pass)); err != nil {
@@ -985,6 +990,7 @@ const (
 	ExtToken       = "provision@teleport"
 	ExtHost        = "host@teleport"
 	ExtRole        = "role@teleport"
+	ExtOrigin      = "origin@teleport"
 
 	AuthWebPassword            = "password"
 	AuthWebU2FSign             = "u2f-sign"
