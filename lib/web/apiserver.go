@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/web/ui"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/roundtrip"
@@ -198,6 +199,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 
 	// User Status (used by client to check if user session is valid)
 	h.GET("/webapi/user/status", h.WithAuth(h.getUserStatus))
+	h.GET("/webapi/user/acl", h.WithAuth(h.getUserACL))
 
 	// if Web UI is enabled, check the assets dir:
 	var (
@@ -293,6 +295,47 @@ func (m *Handler) Close() error {
 
 func (m *Handler) getUserStatus(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext) (interface{}, error) {
 	return ok(), nil
+}
+
+// getUserACL returns currently signed-in user permissions
+//
+// GET /webapi/user/acl
+//
+// { "admin": { "enabled": false }, "kubernetes": { "groups": null }, "license": { "enabled": false }, "applications": { "fullAccess": false }, "cluster": { "enabled": false }, "ssh": { "logins": null } }
+//
+func (m *Handler) getUserACL(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext) (interface{}, error) {
+	clt, err := c.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	allTeleRoles, err := clt.GetRoles()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	user, err := clt.GetUser(c.GetUser())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	userTeleRoles := user.GetRoles()
+	roleNamesMap := map[string]bool{}
+	for _, name := range userTeleRoles {
+		roleNamesMap[name] = true
+	}
+
+	accessSet := []*ui.RoleAccess{}
+	for _, item := range allTeleRoles {
+		if roleNamesMap[item.GetName()] {
+			uiRole := ui.NewRole(item)
+			accessSet = append(accessSet, &uiRole.Access)
+		}
+	}
+
+	uiaccess := ui.MergeAccessSet(accessSet)
+
+	return uiaccess, nil
 }
 
 func buildUniversalSecondFactorSettings(authClient auth.ClientI) *client.U2FSettings {
