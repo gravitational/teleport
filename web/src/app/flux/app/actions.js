@@ -24,7 +24,9 @@ import api from 'app/services/api';
 import cfg from 'app/config';
 import restApiActions from 'app/flux/restApi/actions';
 import { fetchNodes } from './../nodes/actions';
+import { fetchAcl } from './../userAcl/actions'
 import { fetchActiveSessions } from 'app/flux/sessions/actions';
+
 import $ from 'jQuery';
 
 const logger = require('app/lib/logger').create('flux/app');
@@ -40,7 +42,7 @@ const actions = {
     restApiActions.start(TRYING_TO_INIT_APP);    
     
     // get the list of available clusters        
-    return actions.fetchSites()      
+    return $.when(actions.fetchSites(), fetchAcl())
       .then(masterSiteId => {         
         siteId = siteId || masterSiteId;
         reactor.dispatch(TLPT_APP_SET_SITE_ID, siteId);
