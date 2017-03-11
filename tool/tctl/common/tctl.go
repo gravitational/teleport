@@ -452,6 +452,7 @@ func (u *NodeCommand) Invite(client *auth.TunClient) error {
 		}
 		fmt.Printf("  - This invitation token will expire in %d minutes\n", int(u.ttl.Minutes()))
 		fmt.Printf("  - %v must be reachable from the new node, see --advertise-ip server flag\n", authServers[0].GetAddr())
+		fmt.Printf(`  - For tokens of type "trustedcluster", tctl needs to be used to create a TrustedCluster resource. See the Admin Guide for more details.`)
 	} else {
 		out, err := json.Marshal(tokens)
 		if err != nil {
