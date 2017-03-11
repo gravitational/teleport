@@ -16,7 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import reactor from 'app/reactor';
-import userGetters from 'app/flux/user/getters';
+import userAclGetters from 'app/flux/userAcl/getters';
 import nodeGetters from 'app/flux/nodes/getters';
 import NodeList from './nodeList.jsx';
 
@@ -27,13 +27,13 @@ const Nodes = React.createClass({
   getDataBindings() {
     return {      
       nodeRecords: nodeGetters.nodeListView,
-      user: userGetters.user            
+      aclStore: userAclGetters.userAcl            
     }
   },
 
   render() {
-    let { nodeRecords, user, sites, siteId } = this.state;
-    let { logins } = user;
+    let { nodeRecords, aclStore, sites, siteId } = this.state;
+    let logins = aclStore.getSshLogins();
     return (   
       <div className="grv-page">
         <NodeList

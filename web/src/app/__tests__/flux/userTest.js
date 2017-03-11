@@ -32,7 +32,7 @@ describe('flux/user', function () {
     });
 
     it('should return "user"', function () {
-      var expected = {"name":"alex","logins":["admin","bob"], "shortDisplayName": "a"};
+      var expected = {"name":"alex", "shortDisplayName": "a"};
       expect(reactor.evaluateToJS(getters.user)).toEqual(expected);
     });
   });

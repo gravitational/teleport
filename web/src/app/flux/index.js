@@ -17,14 +17,16 @@ limitations under the License.
 import reactor from 'app/reactor';
 import termStore from './terminal/store';
 import playerStore from './player/store';
+import userAcl from './userAcl/store';
 
 reactor.registerStores({
   'tlpt': require('./app/appStore'),    
   'tlpt_terminal': termStore,
-  'tlpt_player': playerStore,  
-  'tlpt_user': require('./user/userStore'),
-  'tlpt_sites': require('./sites/siteStore'),
+  'tlpt_player': playerStore,    
+  'tlpt_user': require('./user/userStore'),  
   'tlpt_user_invite': require('./user/userInviteStore'),
+  'tlpt_user_acl': userAcl,
+  'tlpt_sites': require('./sites/siteStore'),  
   'tlpt_nodes': require('./nodes/nodeStore'),
   'tlpt_rest_api': require('./restApi/restApiStore'),
   'tlpt_sessions_events': require('./sessions/eventStore'),

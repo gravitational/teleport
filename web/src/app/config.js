@@ -48,6 +48,7 @@ let cfg = {
     renewTokenPath:'/v1/webapi/sessions/renew',
     sessionPath: '/v1/webapi/sessions',
     userStatus: '/v1/webapi/user/status',
+    userAclPath: '/v1/webapi/user/acl',    
     invitePath: '/v1/webapi/users/invites/:inviteToken',
     inviteWithOidcPath: '/v1/webapi/users/invites/oidc/validate?redirect_url=:redirect&connector_id=:provider&token=:inviteToken',
     createUserPath: '/v1/webapi/users',

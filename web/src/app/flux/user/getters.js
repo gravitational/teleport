@@ -29,8 +29,7 @@ const user = [ ['tlpt_user'], (currentUser) => {
 
     return {
       name,
-      shortDisplayName,
-      logins: currentUser.get('allowed_logins').toJS()
+      shortDisplayName      
     }
   }
 ];

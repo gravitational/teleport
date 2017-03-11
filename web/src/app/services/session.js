@@ -16,7 +16,7 @@ limitations under the License.
 
 var { browserHistory, createMemoryHistory } = require('react-router');
 var $ = require('jQuery');
-
+const EMPTY_TOKEN_CONTENT_LENGTH = 20;
 const logger = require('app/lib/logger').create('services/sessions');
 const AUTH_KEY_DATA = 'authData';
 
@@ -44,36 +44,53 @@ var session = {
   },
 
   getUserData(){
+    let userData = null;
     try{
-      var item = localStorage.getItem(AUTH_KEY_DATA);
-      if(item){
-        return JSON.parse(item);
+      // first check if user data (with barer token) is embedded in HTML
+      userData = this._getUserDataFromHtml();
+
+      // then lookup in the browser local storage
+      if(!userData){
+        userData = this._getUserDataFromLocalStorage();
       }
 
-      // for sso use-cases, try to grab the token from HTML
-      var hiddenDiv = document.getElementById("bearer_token");
-      if(hiddenDiv !== null ){
-          let json = window.atob(hiddenDiv.textContent);
-          let data = JSON.parse(json);
-          if(data.token){
-            // put it into the session
-            var userData = this.setUserData(data);
-            // remove the element
-            hiddenDiv.remove();
-            return userData;
-          }
-      }
     }catch(err){
-      logger.error('error trying to read user auth data:', err);
+      logger.error('Cannot retrieve user data', err);
     }
 
-    return {};
+    return userData || {};
   },
 
   clear(){
     localStorage.clear()
-  }
+  },
 
+  _getUserDataFromHtml(){
+    let $el = $('#bearer_token');
+    let userData = null;
+    if($el.length !== 0){
+      let encodedToken = $el.text() || '';
+      if(encodedToken.length > EMPTY_TOKEN_CONTENT_LENGTH){
+        let decoded = window.atob(encodedToken);
+        let json = JSON.parse(decoded);
+        userData = this.setUserData(json);
+      }
+
+      // remove initial data from HTML as it will be renewed with a time
+      $el.remove();
+    }
+
+    return userData;
+  },
+
+  _getUserDataFromLocalStorage(){
+    let item = localStorage.getItem(AUTH_KEY_DATA);
+    if(item){
+      return JSON.parse(item);
+    }
+
+    return null;
+  }
 }
 
 module.exports = session;
