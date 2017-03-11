@@ -1467,7 +1467,7 @@ func (h *Handler) validateTrustedCluster(w http.ResponseWriter, r *http.Request,
 
 	validateResponse, err := h.auth.ValidateTrustedCluster(validateRequest)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.AccessDenied("invalid token")
 	}
 
 	validateResponseRaw, err := validateResponse.ToRaw()
