@@ -877,7 +877,7 @@ func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *ctx) 
 	socketPath := filepath.Join(os.TempDir(), fmt.Sprintf("teleport-agent-%v.socket", uuid.New()))
 
 	agentServer := &teleagent.AgentServer{Agent: clientAgent}
-	err = agentServer.ListenUnixSocket(socketPath, uid, gid, 0700)
+	err = agentServer.ListenUnixSocket(socketPath, uid, gid, 0600)
 	if err != nil {
 		return trace.Wrap(err)
 	}
