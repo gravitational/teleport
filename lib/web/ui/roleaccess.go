@@ -98,7 +98,7 @@ func (a *RoleAccess) applyAdmin(teleRole teleservices.Role) {
 		applyResourceAccess(teleRole, adminResources, teleservices.RW())
 	} else {
 		teleRole.SetResource(teleservices.Wildcard, none())
-		applyResourceAccess(teleRole, adminResources, none())
+		applyResourceAccess(teleRole, adminResources, teleservices.RO())
 	}
 }
 
