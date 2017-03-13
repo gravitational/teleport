@@ -169,9 +169,7 @@ func (r *RoleV2) SetResource(kind string, actions []string) {
 
 // RemoveResource deletes resource entry
 func (r *RoleV2) RemoveResource(kind string) {
-	if r.Spec.Resources != nil {
-		delete(r.Spec.Resources, kind)
-	}
+	delete(r.Spec.Resources, kind)
 }
 
 // SetLogins sets logins for role
