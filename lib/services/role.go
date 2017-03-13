@@ -132,6 +132,8 @@ type Role interface {
 	GetResources() map[string][]string
 	// SetResource sets resource rule
 	SetResource(kind string, actions []string)
+	// RemoveResource deletes resource entry
+	RemoveResource(kind string)
 	// SetNodeLabels sets node labels for this rule
 	SetNodeLabels(labels map[string]string)
 	// SetMaxSessionTTL sets a maximum TTL for SSH or Web session
@@ -163,6 +165,13 @@ func (r *RoleV2) SetResource(kind string, actions []string) {
 		r.Spec.Resources = make(map[string][]string)
 	}
 	r.Spec.Resources[kind] = actions
+}
+
+// RemoveResource deletes resource entry
+func (r *RoleV2) RemoveResource(kind string) {
+	if r.Spec.Resources != nil {
+		delete(r.Spec.Resources, kind)
+	}
 }
 
 // SetLogins sets logins for role

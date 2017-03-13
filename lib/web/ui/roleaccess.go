@@ -97,7 +97,7 @@ func (a *RoleAccess) applyAdmin(teleRole teleservices.Role) {
 		allowAllNamespaces(teleRole)
 		applyResourceAccess(teleRole, adminResources, teleservices.RW())
 	} else {
-		teleRole.SetResource(teleservices.Wildcard, none())
+		teleRole.RemoveResource(teleservices.Wildcard)
 		applyResourceAccess(teleRole, adminResources, teleservices.RO())
 	}
 }
