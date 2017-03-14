@@ -369,12 +369,17 @@ func (a *AuthWithRoles) GenerateUserCert(key []byte, username string, ttl time.D
 			return nil, trace.Wrap(err)
 		}
 	}
+
+	// adjust session ttl to the smaller of two values: the session
+	// ttl requested in tsh or the session ttl for the role.
+	sessionTTL := checker.AdjustSessionTTL(ttl)
+
 	// check signing TTL and return a list of allowed logins
-	allowedLogins, err := checker.CheckLogins(ttl)
+	allowedLogins, err := checker.CheckLogins(sessionTTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GenerateUserCert(key, username, allowedLogins, ttl)
+	return a.authServer.GenerateUserCert(key, username, allowedLogins, sessionTTL)
 }
 
 func (a *AuthWithRoles) CreateSignupToken(user services.UserV1) (token string, e error) {
