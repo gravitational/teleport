@@ -23,7 +23,7 @@ func (t *LogTracer) Done(re *Response, err error) (*Response, error) {
 		log.Infof("[TRACE] %v %v %v -> ERR: %v", t.EndTime.Sub(t.StartTime), t.Request.Method, t.Request.URL, err)
 		return re, err
 	}
-	log.Infof("[TRACE] %v %v %v -> STATUS %v", t.EndTime.Sub(t.StartTime), t.Request.Method, t.Request.URL, re.Code)
+	log.Infof("[TRACE] %v %v %v -> STATUS %v", t.EndTime.Sub(t.StartTime), t.Request.Method, t.Request.URL, re.Code())
 	return re, err
 }
 

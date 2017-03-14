@@ -67,7 +67,10 @@ const (
 
 	// DefaultDialTimeout is a default TCP dial timeout we set for our
 	// connection attempts
-	DefaultDialTimeout = 10 * time.Second
+	DefaultDialTimeout = 3 * time.Second
+
+	// DefaultThrottleTimeout is a timemout used to throttle failed auth servers
+	DefaultThrottleTimeout = 10 * time.Second
 
 	// DefaultIdleConnectionDuration indicates for how long Teleport will hold
 	// the SSH connection open if there are no reads/writes happening over it.

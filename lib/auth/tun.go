@@ -37,6 +37,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
+	"github.com/mailgun/ttlmap"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
@@ -90,6 +91,9 @@ type TunClient struct {
 	// purpose is used for more informative logging. it explains _why_ this
 	// client was created
 	purpose string
+	// throttler is used to throttle auth servers that we have failed to dial
+	// for some period of time
+	throttler *ttlmap.TtlMap
 }
 
 // ServerOption is the functional argument passed to the server
@@ -705,12 +709,17 @@ func NewTunClient(purpose string,
 	if user == "" {
 		return nil, trace.BadParameter("SSH connection requires a valid username")
 	}
+	throttler, err := ttlmap.NewMap(16)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	tc := &TunClient{
 		purpose:           purpose,
 		user:              user,
 		staticAuthServers: authServers,
 		authMethods:       authMethods,
 		closeC:            make(chan struct{}),
+		throttler:         throttler,
 	}
 	for _, o := range opts {
 		o(tc)
@@ -735,6 +744,19 @@ func NewTunClient(purpose string,
 		}
 	}
 	return tc, nil
+}
+
+func (c *TunClient) throttleAuthServer(addr string) {
+	c.Lock()
+	defer c.Unlock()
+	c.throttler.Set(addr, "ok", int(defaults.DefaultThrottleTimeout/time.Second))
+}
+
+func (c *TunClient) isAuthServerThrottled(addr string) bool {
+	c.Lock()
+	defer c.Unlock()
+	_, ok := c.throttler.Get(addr)
+	return ok
 }
 
 // Close releases all the resources allocated for this client
@@ -905,7 +927,7 @@ func (c *TunClient) getClient() (client *ssh.Client, err error) {
 	// see if we have any auth servers online:
 	authServers := c.getAuthServers()
 	if len(authServers) == 0 {
-		return nil, trace.Errorf("all auth servers are offline")
+		return nil, trace.ConnectionProblem(nil, "all auth servers are offline")
 	}
 	log.Debugf("tunClient(%s).authServers: %v", c.purpose, authServers)
 
