@@ -452,6 +452,7 @@ func (u *NodeCommand) Invite(client *auth.TunClient) error {
 		}
 		fmt.Printf("  - This invitation token will expire in %d minutes\n", int(u.ttl.Minutes()))
 		fmt.Printf("  - %v must be reachable from the new node, see --advertise-ip server flag\n", authServers[0].GetAddr())
+		fmt.Printf(`  - For tokens of type "trustedcluster", tctl needs to be used to create a TrustedCluster resource. See the Admin Guide for more details.`)
 	} else {
 		out, err := json.Marshal(tokens)
 		if err != nil {
@@ -949,10 +950,19 @@ func (u *CreateCommand) Create(client *auth.TunClient) error {
 				return trace.Wrap(err)
 			}
 			fmt.Printf("namespace %v upserted\n", ns.Metadata.Name)
+		case services.KindTrustedCluster:
+			tc, err := services.GetTrustedClusterMarshaler().Unmarshal(raw.Raw)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if err := client.UpsertTrustedCluster(tc); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("trusted cluster %q upserted\n", tc.GetName())
 		case "":
 			return trace.BadParameter("missing resource kind")
 		default:
-			return trace.BadParameter("%v is not supported", raw.Kind)
+			return trace.BadParameter("%q is not supported", raw.Kind)
 		}
 	}
 }
@@ -966,39 +976,44 @@ func (d *DeleteCommand) Delete(client *auth.TunClient) error {
 		return trace.BadParameter("provide full resource name to delete e.g. roles/example")
 	}
 
-	for {
-		switch d.ref.Kind {
-		case services.KindUser:
-			if err := client.DeleteUser(d.ref.Name); err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Printf("user %v has been deleted\n", d.ref.Name)
-		case services.KindOIDCConnector:
-			if err := client.DeleteOIDCConnector(d.ref.Name); err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Printf("OIDC Connector %v has been deleted\n", d.ref.Name)
-		case services.KindReverseTunnel:
-			if err := client.DeleteReverseTunnel(d.ref.Name); err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Printf("reverse tunnel %v has been deleted\n", d.ref.Name)
-		case services.KindRole:
-			if err := client.DeleteRole(d.ref.Name); err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Printf("role %v has been deleted\n", d.ref.Name)
-		case services.KindNamespace:
-			if err := client.DeleteNamespace(d.ref.Name); err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Printf("namespace %v has been deleted\n", d.ref.Name)
-		case "":
-			return trace.BadParameter("missing resource kind")
-		default:
-			return trace.BadParameter("%v is not supported", d.ref.Kind)
+	switch d.ref.Kind {
+	case services.KindUser:
+		if err := client.DeleteUser(d.ref.Name); err != nil {
+			return trace.Wrap(err)
 		}
+		fmt.Printf("user %v has been deleted\n", d.ref.Name)
+	case services.KindOIDCConnector:
+		if err := client.DeleteOIDCConnector(d.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("OIDC Connector %v has been deleted\n", d.ref.Name)
+	case services.KindReverseTunnel:
+		if err := client.DeleteReverseTunnel(d.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("reverse tunnel %v has been deleted\n", d.ref.Name)
+	case services.KindRole:
+		if err := client.DeleteRole(d.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("role %v has been deleted\n", d.ref.Name)
+	case services.KindNamespace:
+		if err := client.DeleteNamespace(d.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("namespace %v has been deleted\n", d.ref.Name)
+	case services.KindTrustedCluster:
+		if err := client.DeleteTrustedCluster(d.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("trusted cluster %q has been deleted\n", d.ref.Name)
+	case "":
+		return trace.BadParameter("missing resource kind")
+	default:
+		return trace.BadParameter("%q is not supported", d.ref.Kind)
 	}
+
+	return nil
 }
 
 func (g *GetCommand) getCollection(client auth.ClientI) (collection, error) {
@@ -1079,7 +1094,21 @@ func (g *GetCommand) getCollection(client auth.ClientI) (collection, error) {
 			return nil, trace.Wrap(err)
 		}
 		return &namespaceCollection{namespaces: []services.Namespace{*ns}}, nil
+	case services.KindTrustedCluster:
+		if g.ref.Name == "" {
+			trustedClusters, err := client.GetTrustedClusters()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &trustedClusterCollection{trustedClusters: trustedClusters}, nil
+		}
+		trustedCluster, err := client.GetTrustedCluster(g.ref.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &trustedClusterCollection{trustedClusters: []services.TrustedCluster{trustedCluster}}, nil
 	}
+
 	return nil, trace.BadParameter("'%v' is not supported", g.ref.Kind)
 }
 

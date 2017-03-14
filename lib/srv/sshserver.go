@@ -25,6 +25,8 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -38,7 +40,9 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/pborman/uuid"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
@@ -383,19 +387,19 @@ func (s *Server) getCommandLabels() map[string]services.CommandLabel {
 
 // checkPermissionToLogin checks the given certificate (supplied by a connected client)
 // to see if this certificate can be allowed to login as user:login pair
-func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser string) error {
+func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser string) (string, error) {
 	// enumerate all known CAs and see if any of them signed the
 	// supplied certificate
 	log.Debugf("[HA SSH NODE] checkPermsissionToLogin(%v, %v)", teleportUser, osUser)
 	cas, err := s.authService.GetCertAuthorities(services.UserCA, false)
 	if err != nil {
-		return trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 	var ca services.CertAuthority
 	for i := range cas {
 		checkers, err := cas[i].Checkers()
 		if err != nil {
-			return trace.Wrap(err)
+			return "", trace.Wrap(err)
 		}
 		for _, checker := range checkers {
 			if sshutils.KeysEqual(cert, checker) {
@@ -406,14 +410,14 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 	}
 	// the certificate was signed by unknown authority
 	if ca == nil {
-		return trace.AccessDenied(
+		return "", trace.AccessDenied(
 			"the certificate for user '%v' is signed by untrusted CA",
 			teleportUser)
 	}
 
 	domainName, err := s.authService.GetDomainName()
 	if err != nil {
-		return trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 
 	// for local users, go and check their individual permissions
@@ -421,29 +425,75 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 	if domainName == ca.GetClusterName() {
 		users, err := s.authService.GetUsers()
 		if err != nil {
-			return trace.Wrap(err)
+			return "", trace.Wrap(err)
 		}
 		for _, u := range users {
 			if u.GetName() == teleportUser {
 				roles, err = services.FetchRoles(u.GetRoles(), s.authService)
 				if err != nil {
-					return trace.Wrap(err)
+					return "", trace.Wrap(err)
 				}
 			}
 		}
 	} else {
 		roles, err = services.FetchRoles(ca.GetRoles(), s.authService)
 		if err != nil {
-			return trace.Wrap(err)
+			return "", trace.Wrap(err)
 		}
 	}
 
 	if err := roles.CheckAccessToServer(osUser, s.getInfo()); err != nil {
-		return trace.AccessDenied("user %s@%s is not authorized to login as %v@%s",
+		return "", trace.AccessDenied("user %s@%s is not authorized to login as %v@%s",
 			teleportUser, ca.GetClusterName(), osUser, domainName)
 	}
 
-	return nil
+	return domainName, nil
+}
+
+// fetchRoleSet fretches role set for a given user
+func (s *Server) fetchRoleSet(teleportUser string, clusterName string) (services.RoleSet, error) {
+	localClusterName, err := s.authService.GetDomainName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cas, err := s.authService.GetCertAuthorities(services.UserCA, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var ca services.CertAuthority
+	for i := range cas {
+		if cas[i].GetClusterName() == clusterName {
+			ca = cas[i]
+			break
+		}
+	}
+	if ca == nil {
+		return nil, trace.NotFound("could not find certificate authority for cluster %v and user %v", clusterName, teleportUser)
+	}
+
+	var roles services.RoleSet
+	if localClusterName == clusterName {
+		users, err := s.authService.GetUsers()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for _, u := range users {
+			if u.GetName() == teleportUser {
+				roles, err = services.FetchRoles(u.GetRoles(), s.authService)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
+		}
+	} else {
+		roles, err = services.FetchRoles(ca.GetRoles(), s.authService)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return roles, err
 }
 
 // isAuthority is called during checking the client key, to see if the signing
@@ -553,13 +603,13 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 	if s.proxyMode {
 		return permissions, nil
 	}
-
-	err = s.checkPermissionToLogin(cert.SignatureKey, teleportUser, conn.User())
+	clusterName, err := s.checkPermissionToLogin(cert.SignatureKey, teleportUser, conn.User())
 	if err != nil {
 		logger.Error(err)
 		logAuditEvent(err)
 		return nil, trace.Wrap(err)
 	}
+	permissions.Extensions[utils.CertTeleportClusterName] = clusterName
 	return permissions, nil
 }
 
@@ -784,7 +834,7 @@ func (s *Server) dispatch(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 		return s.handleSubsystem(ch, req, ctx)
 	case sshutils.WindowChangeReq:
 		return s.handleWinChange(ch, req, ctx)
-	case "auth-agent-req@openssh.com":
+	case sshutils.AgentReq:
 		// This happens when SSH client has agent forwarding enabled, in this case
 		// client sends a special request, in return SSH server opens new channel
 		// that uses SSH protocol for agent drafted here:
@@ -799,12 +849,51 @@ func (s *Server) dispatch(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 }
 
 func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
+	roles, err := s.fetchRoleSet(ctx.teleportUser, ctx.clusterName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := roles.CheckAgentForward(ctx.login); err != nil {
+		log.Warningf("[SSH:node] denied forward agent %v", err)
+		return trace.Wrap(err)
+	}
+	systemUser, err := user.Lookup(ctx.login)
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	uid, err := strconv.Atoi(systemUser.Uid)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	gid, err := strconv.Atoi(systemUser.Gid)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	authChan, _, err := ctx.conn.OpenChannel("auth-agent@openssh.com", nil)
 	if err != nil {
 		return err
 	}
-	ctx.Debugf("[SSH] opened agent channel")
-	ctx.setAgent(agent.NewClient(authChan), authChan)
+	clientAgent := agent.NewClient(authChan)
+	ctx.setAgent(clientAgent, authChan)
+
+	pid := os.Getpid()
+	socketPath := filepath.Join(os.TempDir(), fmt.Sprintf("teleport-agent-%v.socket", uuid.New()))
+
+	agentServer := &teleagent.AgentServer{Agent: clientAgent}
+	err = agentServer.ListenUnixSocket(socketPath, uid, gid, 0600)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if req.WantReply {
+		req.Reply(true, nil)
+	}
+	ctx.setEnv(teleport.SSHAuthSock, socketPath)
+	ctx.setEnv(teleport.SSHAgentPID, fmt.Sprintf("%v", pid))
+	ctx.addCloser(agentServer)
+	ctx.Debugf("[SSH:node] opened agent channel for teleport user %v and socket %v", ctx.teleportUser, socketPath)
+	go agentServer.Serve()
+
 	return nil
 }
 

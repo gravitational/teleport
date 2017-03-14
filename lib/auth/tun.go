@@ -285,9 +285,9 @@ func (s *AuthTunnel) haveExt(sconn *ssh.ServerConn, ext ...string) bool {
 func (s *AuthTunnel) handleWebAgentRequest(sconn *ssh.ServerConn, ch ssh.Channel) {
 	defer ch.Close()
 
-	if sconn.Permissions.Extensions[ExtRole] != string(teleport.RoleWeb) {
+	if sconn.Permissions.Extensions[ExtOrigin] != string(teleport.RoleWeb) {
 		log.Errorf("role %v doesn't have permission to request agent",
-			sconn.Permissions.Extensions[ExtRole])
+			sconn.Permissions.Extensions[ExtOrigin])
 		return
 	}
 
@@ -518,7 +518,12 @@ func (s *AuthTunnel) passwordAuth(
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
 				ExtWebSession: string(ab.Pass),
-				ExtRole:       string(teleport.RoleWeb),
+				// Origin is used to mark this connection as
+				// originated with web, as some features
+				// like agent request are only available
+				// for web users
+				ExtOrigin:              string(teleport.RoleWeb),
+				utils.CertTeleportUser: conn.User(),
 			},
 		}
 		if _, err := s.authServer.GetWebSession(conn.User(), string(ab.Pass)); err != nil {
@@ -552,6 +557,18 @@ func (s *AuthTunnel) passwordAuth(
 				ExtRole:  string(teleport.RoleSignup),
 			}}
 		log.Infof("[AUTH] session authenticated prov. token: '%v'", conn.User())
+		return perms, nil
+	case AuthValidateTrustedCluster:
+		err := s.authServer.validateTrustedClusterToken(string(ab.Pass))
+		if err != nil {
+			return nil, trace.AccessDenied("trusted cluster token validation error: %v", err)
+		}
+		perms := &ssh.Permissions{
+			Extensions: map[string]string{
+				ExtToken: string(password),
+				ExtRole:  string(teleport.RoleNop),
+			}}
+		log.Debugf("[AUTH] session authenticated validate trusted cluster; token: %q", conn.User())
 		return perms, nil
 	default:
 		return nil, trace.AccessDenied("unsupported auth method: '%v'", ab.Type)
@@ -636,6 +653,17 @@ func NewWebU2FSignResponseAuth(user string, u2fSignResponse *u2f.SignResponse) (
 func NewSignupTokenAuth(token string) ([]ssh.AuthMethod, error) {
 	data, err := json.Marshal(authBucket{
 		Type: AuthSignupToken,
+		Pass: []byte(token),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return []ssh.AuthMethod{ssh.Password(string(data))}, nil
+}
+
+func NewValidateTrustedClusterAuth(token string) ([]ssh.AuthMethod, error) {
+	data, err := json.Marshal(authBucket{
+		Type: AuthValidateTrustedCluster,
 		Pass: []byte(token),
 	})
 	if err != nil {
@@ -962,13 +990,15 @@ const (
 	ExtToken       = "provision@teleport"
 	ExtHost        = "host@teleport"
 	ExtRole        = "role@teleport"
+	ExtOrigin      = "origin@teleport"
 
-	AuthWebPassword = "password"
-	AuthWebU2FSign  = "u2f-sign"
-	AuthWebU2F      = "u2f"
-	AuthWebSession  = "session"
-	AuthToken       = "provision-token"
-	AuthSignupToken = "signup-token"
+	AuthWebPassword            = "password"
+	AuthWebU2FSign             = "u2f-sign"
+	AuthWebU2F                 = "u2f"
+	AuthWebSession             = "session"
+	AuthToken                  = "provision-token"
+	AuthSignupToken            = "signup-token"
+	AuthValidateTrustedCluster = "trusted-cluster"
 )
 
 // AccessPointDialer dials to auth access point  remote HTTP api

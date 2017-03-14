@@ -15,68 +15,97 @@ limitations under the License.
 */
 
 import React from 'react';
+import { Link } from  'react-router';
 import _ from '_';
-import { isMatch } from 'app/common/objectUtils';
+import { isMatch } from 'app/lib/objectUtils';
 import InputSearch from './../inputSearch.jsx';
 import { Table, Column, Cell, SortHeaderCell, SortTypes, EmptyIndicator } from 'app/components/table.jsx';
-import {createNewSession} from 'app/modules/currentSession/actions';
 import ClusterSelector from './../clusterSelector.jsx';
+import cfg from 'app/config';
 
+const EmptyValue = ({ text='Empty' }) => (    
+  <small className="text-muted">
+    <span>{text}</span>
+  </small>
+);
+    
 const TextCell = ({rowIndex, data, columnKey, ...props}) => (
   <Cell {...props}>
     {data[rowIndex][columnKey]}
   </Cell>
 );
 
-const TagCell = ({rowIndex, data, ...props}) => (
-  <Cell {...props}>
-    { data[rowIndex].tags.map((item, index) =>
-      (<span key={index} className="label label-default">
-        {item.role} <li className="fa fa-long-arrow-right"></li>
-        {item.value}
-      </span>)
-    ) }
-  </Cell>
-);
+const TagCell = ({rowIndex, data, ...props}) => {
+  let { tags } = data[rowIndex];    
+  let $content = tags.map((item, index) => (
+    <span key={index} title={`${item.role}:${item.value}`} className="label label-default grv-nodes-table-label">
+      {item.role} <li className="fa fa-long-arrow-right m-r-xs"/> 
+      {item.value}
+    </span>
+  ));
 
-const LoginCell = ({logins, onLoginClick, rowIndex, data, ...props}) => {
+  if ($content.length === 0) {
+    $content = <EmptyValue text="No assigned labels"/>
+  }
+  
+  return (
+    <Cell {...props}>
+      {$content}
+    </Cell>
+  )  
+}
+
+const LoginCell = ({logins, rowIndex, data, ...props}) => {
   if(!logins ||logins.length === 0){
     return <Cell {...props} />;
   }
 
   let { id, siteId } = data[rowIndex];
   let $lis = [];
+    
+  for (var i = 0; i < logins.length; i++){
+    let termUrl = cfg.getTerminalLoginUrl({
+      siteId: siteId,
+      serverId: id,
+      login: logins[i]
+    })
+      
+    $lis.push(
+      <li key={i}>        
+        <Link to={termUrl}>
+          {logins[i]}
+        </Link>
+      </li>        
+    );
+  } 
 
-  function onClick(i){
-    var login = logins[i];
-    if(onLoginClick){
-      return () => onLoginClick(id, login);
-    }else{
-      return () => createNewSession(siteId, id, login);
-    }
-  }
-
-  for(var i = 0; i < logins.length; i++){
-    $lis.push(<li key={i}><a onClick={onClick(i)}>{logins[i]}</a></li>);
-  }
+  let defaultTermUrl = cfg.getTerminalLoginUrl({
+    siteId: siteId,
+    serverId: id,
+    login: logins[0]
+  })
 
   return (
     <Cell {...props}>
-      <div className="btn-group">
-        <button type="button" onClick={onClick(0)} className="btn btn-xs btn-primary">{logins[0]}</button>
-        {
-          $lis.length > 1 ? (
+      <div style={{display: "flex"}}>
+        <div style={{display: "flex"}} className="btn-group">        
+          <Link className="btn btn-xs btn-primary" to={defaultTermUrl}>
+            {logins[0]}
+          </Link>
+          {
+            $lis.length > 1 ? (
               [
                 <button key={0} data-toggle="dropdown" className="btn btn-default btn-xs dropdown-toggle" aria-expanded="true">
                   <span className="caret"></span>
                 </button>,
-                <ul key={1} className="dropdown-menu">
+                <ul key={1} className="dropdown-menu pull-right">
                   {$lis}
                 </ul>
               ] )
             : null
-        }
-      </div>
+          }
+        </div>
+      </div>  
     </Cell>
   )
 };
@@ -170,7 +199,7 @@ const NodeList = React.createClass({
               />
               <Column
                 columnKey="tags"
-                header={<Cell /> }
+                header={<Cell>Labels</Cell> }
                 cell={<TagCell data={data}/> }
               />
               <Column

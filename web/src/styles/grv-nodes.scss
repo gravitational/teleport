@@ -21,8 +21,34 @@ limitations under the License.
   }
 
   .grv-nodes-table{
-    .label {
+     tbody > tr > td{
+        vertical-align: middle;
+     }
+          
+    .grv-nodes-table-label{
       margin-right: 5px;
+      max-width: 100%;
+      font-size: 12px;
+      font-weight: 100;
+      padding: 3px 6px;
+      text-shadow: none;
+      color: $text-color;
+      background-color: $grv-color-bg-label;
+      display: inline;
+      line-height: 1;
+      text-align: center;
+      white-space: nowrap;
+      vertical-align: baseline;
+      border-radius: 3px;
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+
+      .fa-long-arrow-right{
+        font-size: 10px;
+      }
+
     }
+
   }  
 }

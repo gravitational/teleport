@@ -16,9 +16,9 @@ limitations under the License.
 import React from 'react';
 import reactor from 'app/reactor';
 import cfg from 'app/config';
-import userGetters from 'app/modules/user/getters';
+import userGetters from 'app/flux/user/getters';
 import { IndexLink } from 'react-router';
-import { logoutUser } from 'app/modules/app/actions';
+import { logoutUser } from 'app/flux/app/actions';
 import { UserIcon } from './icons.jsx';
 
 const NavLeftBar = React.createClass({

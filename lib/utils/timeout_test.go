@@ -62,7 +62,7 @@ func (s *TimeoutSuite) TearDownSuite(c *check.C) {
 
 func (s *TimeoutSuite) TestSlowOperation(c *check.C) {
 	client := newClient(time.Millisecond * 5)
-	_, err := client.Get(s.server.URL + "/slow?delay=10ms")
+	_, err := client.Get(s.server.URL + "/slow?delay=20ms")
 	// must fail with I/O timeout
 	c.Assert(err, check.NotNil)
 	c.Assert(err.Error(), check.Matches, "^.*i/o timeout$")

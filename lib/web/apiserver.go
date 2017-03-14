@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/web/ui"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/roundtrip"
@@ -114,7 +115,7 @@ func (r *RewritingHandler) Close() error {
 
 // NewHandler returns a new instance of web proxy handler
 func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
-	const apiPrefix = "/" + client.APIVersion
+	const apiPrefix = "/" + teleport.WebAPIVersion
 	lauth, err := newSessionCache([]utils.NetAddr{cfg.AuthServers})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -193,8 +194,12 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.POST("/webapi/u2f/sessions", httplib.MakeHandler(h.createSessionWithU2FSignResponse))
 	h.POST("/webapi/u2f/certs", httplib.MakeHandler(h.createSSHCertWithU2FSignResponse))
 
+	// trusted clusters
+	h.POST("/webapi/trustedclusters/validate", httplib.MakeHandler(h.validateTrustedCluster))
+
 	// User Status (used by client to check if user session is valid)
 	h.GET("/webapi/user/status", h.WithAuth(h.getUserStatus))
+	h.GET("/webapi/user/acl", h.WithAuth(h.getUserACL))
 
 	// if Web UI is enabled, check the assets dir:
 	var (
@@ -290,6 +295,47 @@ func (m *Handler) Close() error {
 
 func (m *Handler) getUserStatus(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext) (interface{}, error) {
 	return ok(), nil
+}
+
+// getUserACL returns currently signed-in user permissions
+//
+// GET /webapi/user/acl
+//
+// { "admin": { "enabled": false }, "kubernetes": { "groups": null }, "license": { "enabled": false }, "applications": { "fullAccess": false }, "cluster": { "enabled": false }, "ssh": { "logins": null } }
+//
+func (m *Handler) getUserACL(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext) (interface{}, error) {
+	clt, err := c.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	allTeleRoles, err := clt.GetRoles()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	user, err := clt.GetUser(c.GetUser())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	userTeleRoles := user.GetRoles()
+	roleNamesMap := map[string]bool{}
+	for _, name := range userTeleRoles {
+		roleNamesMap[name] = true
+	}
+
+	accessSet := []*ui.RoleAccess{}
+	for _, item := range allTeleRoles {
+		if roleNamesMap[item.GetName()] {
+			uiRole := ui.NewRole(item)
+			accessSet = append(accessSet, &uiRole.Access)
+		}
+	}
+
+	uiaccess := ui.MergeAccessSet(accessSet)
+
+	return uiaccess, nil
 }
 
 func buildUniversalSecondFactorSettings(authClient auth.ClientI) *client.U2FSettings {
@@ -1432,6 +1478,46 @@ func (h *Handler) createSSHCertWithU2FSignResponse(w http.ResponseWriter, r *htt
 		return nil, trace.Wrap(err)
 	}
 	return cert, nil
+}
+
+// validateTrustedCluster validates the token for a trusted cluster and returns it's own host and user certificate authority.
+//
+// POST /webapi/trustedclusters/validate
+//
+// * Request body:
+//
+// {
+//     "token": "foo",
+//     "certificate_authorities": ["AQ==", "Ag=="]
+// }
+//
+// * Response:
+//
+// {
+//     "certificate_authorities": ["AQ==", "Ag=="]
+// }
+func (h *Handler) validateTrustedCluster(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var validateRequestRaw auth.ValidateTrustedClusterRequestRaw
+	if err := httplib.ReadJSON(r, &validateRequestRaw); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	validateRequest, err := validateRequestRaw.ToNative()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	validateResponse, err := h.auth.ValidateTrustedCluster(validateRequest)
+	if err != nil {
+		return nil, trace.AccessDenied("invalid token")
+	}
+
+	validateResponseRaw, err := validateResponse.ToRaw()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return validateResponseRaw, nil
 }
 
 func (h *Handler) String() string {

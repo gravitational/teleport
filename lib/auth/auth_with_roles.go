@@ -305,21 +305,21 @@ func (a *AuthWithRoles) CreateWebSession(user string) (services.WebSession, erro
 }
 
 func (a *AuthWithRoles) ExtendWebSession(user, prevSessionID string) (services.WebSession, error) {
-	if err := a.action(defaults.Namespace, services.KindWebSession, services.ActionWrite); err != nil {
+	if err := a.currentUserAction(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.ExtendWebSession(user, prevSessionID)
 }
 
 func (a *AuthWithRoles) GetWebSessionInfo(user string, sid string) (services.WebSession, error) {
-	if err := a.action(defaults.Namespace, services.KindWebSession, services.ActionRead); err != nil {
+	if err := a.currentUserAction(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.GetWebSessionInfo(user, sid)
 }
 
 func (a *AuthWithRoles) DeleteWebSession(user string, sid string) error {
-	if err := a.action(defaults.Namespace, services.KindWebSession, services.ActionWrite); err != nil {
+	if err := a.currentUserAction(user); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteWebSession(user, sid)
@@ -333,7 +333,7 @@ func (a *AuthWithRoles) GetUsers() ([]services.User, error) {
 }
 
 func (a *AuthWithRoles) GetUser(name string) (services.User, error) {
-	if err := a.action(defaults.Namespace, services.KindUser, services.ActionRead); err != nil {
+	if err := a.currentUserAction(name); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.Identity.GetUser(name)
@@ -654,6 +654,63 @@ func (a *AuthWithRoles) DeleteAllRoles() error {
 // DeleteAllUsers deletes all users
 func (a *AuthWithRoles) DeleteAllUsers() error {
 	return trace.BadParameter("not implemented")
+}
+
+func (a *AuthWithRoles) GetTrustedCluster(name string) (services.TrustedCluster, error) {
+	err := a.action(defaults.Namespace, services.KindTrustedCluster, services.ActionRead)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.getTrustedCluster(name)
+}
+
+func (a *AuthWithRoles) GetTrustedClusters() ([]services.TrustedCluster, error) {
+	err := a.action(defaults.Namespace, services.KindTrustedCluster, services.ActionRead)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.getTrustedClusters()
+}
+
+func (a *AuthWithRoles) UpsertTrustedCluster(tc services.TrustedCluster) error {
+	err := a.action(defaults.Namespace, services.KindTrustedCluster, services.ActionWrite)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = a.action(defaults.Namespace, services.KindCertAuthority, services.ActionWrite)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = a.action(defaults.Namespace, services.KindReverseTunnel, services.ActionWrite)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.upsertTrustedCluster(tc)
+}
+
+func (a *AuthWithRoles) ValidateTrustedCluster(validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
+	// the token provides it's own authorization and authentication
+	return a.authServer.validateTrustedCluster(validateRequest)
+}
+
+func (a *AuthWithRoles) DeleteTrustedCluster(name string) error {
+	err := a.action(defaults.Namespace, services.KindTrustedCluster, services.ActionWrite)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = a.action(defaults.Namespace, services.KindCertAuthority, services.ActionWrite)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = a.action(defaults.Namespace, services.KindReverseTunnel, services.ActionWrite)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.deleteTrustedCluster(name)
 }
 
 // NewAuthWithRoles creates new auth server with access control

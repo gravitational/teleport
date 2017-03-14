@@ -2,7 +2,7 @@
 teleport:
   nodename: two-proxy
   auth_servers: ["two-auth"]
-  auth_token: xxx
+  auth_token: foo
   log:
     severity: DEBUG
 

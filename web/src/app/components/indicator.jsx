@@ -1,15 +1,33 @@
 import React from 'react';
 
+const WHEN_TO_DISPLAY = 100; // 0.2s;
+
 class Indicator extends React.Component {
 
   constructor(props) {
     super(props);    
+    this._timer = null;
+    this.state = {
+      canDisplay: false
+    }
+  }
+
+  componentDidMount() {
+    this._timer = setTimeout(() => {
+      this.setState({
+        canDisplay: true
+      })
+    }, WHEN_TO_DISPLAY);
+  }
+  
+  componentWillUnmount() {
+    clearTimeout(this._timer);
   }
   
   render() {    
-    let { enabled = true, type } = this.props;
-
-    if (!enabled) {
+    let { type } = this.props;
+    
+    if (!this.state.canDisplay) {
       return null;
     }
 

@@ -54,6 +54,7 @@ func RoleForUser(u User) Role {
 			Namespaces:    []string{defaults.Namespace},
 			Resources: map[string][]string{
 				KindSession:       RO(),
+				KindRole:          RO(),
 				KindNode:          RO(),
 				KindAuthServer:    RO(),
 				KindReverseTunnel: RO(),
@@ -134,12 +135,19 @@ type Role interface {
 	GetResources() map[string][]string
 	// SetResource sets resource rule
 	SetResource(kind string, actions []string)
+	// RemoveResource deletes resource entry
+	RemoveResource(kind string)
 	// SetNodeLabels sets node labels for this rule
 	SetNodeLabels(labels map[string]string)
 	// SetMaxSessionTTL sets a maximum TTL for SSH or Web session
 	SetMaxSessionTTL(duration time.Duration)
 	// SetNamespaces sets a list of namespaces this role has access to
 	SetNamespaces(namespaces []string)
+	// CanForwardAgent returns true if this role is allowed
+	// to request agent forwarding
+	CanForwardAgent() bool
+	// SetForwardAgent sets forward agent property
+	SetForwardAgent(forwardAgent bool)
 }
 
 // RoleV2 represents role resource specification
@@ -160,6 +168,11 @@ func (r *RoleV2) SetResource(kind string, actions []string) {
 		r.Spec.Resources = make(map[string][]string)
 	}
 	r.Spec.Resources[kind] = actions
+}
+
+// RemoveResource deletes resource entry
+func (r *RoleV2) RemoveResource(kind string) {
+	delete(r.Spec.Resources, kind)
 }
 
 // SetLogins sets logins for role
@@ -217,6 +230,17 @@ func (r *RoleV2) GetResources() map[string][]string {
 	return r.Spec.Resources
 }
 
+// CanForwardAgent returns true if this role is allowed
+// to request agent forwarding
+func (r *RoleV2) CanForwardAgent() bool {
+	return r.Spec.ForwardAgent
+}
+
+// SetForwardAgent sets forward agent property
+func (r *RoleV2) SetForwardAgent(forwardAgent bool) {
+	r.Spec.ForwardAgent = forwardAgent
+}
+
 // Check checks validity of all parameters and sets defaults
 func (r *RoleV2) CheckAndSetDefaults() error {
 	if r.Metadata.Name == "" {
@@ -262,6 +286,8 @@ type RoleSpecV2 struct {
 	Namespaces []string `json:"namespaces,omitempty"`
 	// Resources limits access to resources
 	Resources map[string][]string `json:"resources,omitempty"`
+	// ForwardAgent permits SSH agent forwarding if requested by the client
+	ForwardAgent bool `json:"forward_agent"`
 }
 
 // AccessChecker interface implements access checks for given role
@@ -276,6 +302,8 @@ type AccessChecker interface {
 	// AdjustSessionTTL will reduce the requested ttl to lowes max allowed TTL
 	// for this role set, otherwise it returns ttl unchanges
 	AdjustSessionTTL(ttl time.Duration) time.Duration
+	// CheckAgentForward checks if the role can request agent forward for this user
+	CheckAgentForward(login string) error
 }
 
 // FromSpec returns new RoleSet created from spec
@@ -454,6 +482,18 @@ func (set RoleSet) CheckAccessToServer(login string, s Server) error {
 	return trace.AccessDenied("access to server is denied for %v", set)
 }
 
+// CheckAgentForward checks if the role can request agent forward for this user
+func (set RoleSet) CheckAgentForward(login string) error {
+	for _, role := range set {
+		for _, l := range role.GetLogins() {
+			if role.CanForwardAgent() && l == login {
+				return nil
+			}
+		}
+	}
+	return trace.AccessDenied("%v can not forward agent for %v", set, login)
+}
+
 func (set RoleSet) String() string {
 	if len(set) == 0 {
 		return "user without assigned roles"
@@ -528,6 +568,7 @@ const RoleSpecSchemaTemplate = `{
   "additionalProperties": false,
   "properties": {
     "max_session_ttl": {"type": "string"},
+    "forward_agent": {"type": "boolean"},
     "node_labels": {
       "type": "object",
       "patternProperties": {

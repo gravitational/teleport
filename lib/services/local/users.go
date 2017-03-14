@@ -642,7 +642,11 @@ func (s *IdentityService) GetOIDCConnectors(withSecrets bool) ([]services.OIDCCo
 	for _, id := range connectorIDs {
 		connector, err := s.GetOIDCConnector(id, withSecrets)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			if !trace.IsNotFound(err) {
+				return nil, trace.Wrap(err)
+			}
+			// the record has expired
+			continue
 		}
 		connectors = append(connectors, connector)
 	}

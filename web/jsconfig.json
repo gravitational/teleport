@@ -1,0 +1,8 @@
+{
+    "compilerOptions": {
+        "baseUrl": "./src/app", // all paths are relative to the baseUrl
+        "paths": {
+        "app/*" : ["*"]         // resolve any `app/bar` to `<baseUrl>/app/bar`
+        }
+    }
+}

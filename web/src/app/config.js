@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { formatPattern } from 'app/common/patternUtils';
+import { formatPattern } from 'app/lib/patternUtils';
 import $ from 'jQuery';
 
 let cfg = {
@@ -38,7 +38,9 @@ let cfg = {
     sessions: '/web/sessions',
     newUser: '/web/newuser/:inviteToken',    
     msgs: '/web/msg/:type(/:subType)',
-    pageNotFound: '/web/notfound'
+    pageNotFound: '/web/notfound',
+    terminal: '/web/cluster/:siteId/node/:serverId/:login(/:sid)',
+    player: '/web/player/node/:siteId/sid/:sid'
   },
 
   api: {    
@@ -46,6 +48,7 @@ let cfg = {
     renewTokenPath:'/v1/webapi/sessions/renew',
     sessionPath: '/v1/webapi/sessions',
     userStatus: '/v1/webapi/user/status',
+    userAclPath: '/v1/webapi/user/acl',    
     invitePath: '/v1/webapi/users/invites/:inviteToken',
     inviteWithOidcPath: '/v1/webapi/users/invites/oidc/validate?redirect_url=:redirect&connector_id=:provider&token=:inviteToken',
     createUserPath: '/v1/webapi/users',
@@ -106,7 +109,19 @@ let cfg = {
     getU2fCreateUserChallengeUrl(inviteToken){
       return formatPattern(cfg.api.u2fCreateUserChallengePath, {inviteToken});
     }
+  },
 
+  getPlayerUrl({siteId, serverId, sid}) {
+    return formatPattern(cfg.routes.player, { siteId, serverId, sid });  
+  },
+
+  getTerminalLoginUrl({siteId, serverId, login, sid}) {
+    if (!sid) {
+      let url = this.stripOptionalParams(cfg.routes.terminal);
+      return formatPattern(url, {siteId, serverId, login });      
+    }
+
+    return formatPattern(cfg.routes.terminal, { siteId, serverId, login, sid });  
   },
 
   getFullUrl(url){
@@ -135,7 +150,11 @@ let cfg = {
 
   init(config={}){
     $.extend(true, this, config);
-  }
+  },
+
+  stripOptionalParams(pattern) {
+    return pattern.replace(/\(.*\)/, '');
+  } 
 }
 
 export default cfg;

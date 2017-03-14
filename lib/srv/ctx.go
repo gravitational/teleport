@@ -91,6 +91,10 @@ type ctx struct {
 
 	// full command asked to be executed in this context
 	exec *execResponse
+
+	// clusterName is the name of the cluster current user
+	// is authenticated with
+	clusterName string
 }
 
 // addCloser adds any closer in ctx that will be called
@@ -193,6 +197,7 @@ func newCtx(srv *Server, conn *ssh.ServerConn) *ctx {
 		subsystemResultC: make(chan subsystemResult, 10),
 		srv:              srv,
 		teleportUser:     conn.Permissions.Extensions[utils.CertTeleportUser],
+		clusterName:      conn.Permissions.Extensions[utils.CertTeleportClusterName],
 		login:            conn.User(),
 	}
 	ctx.Entry = log.WithFields(srv.logFields(log.Fields{

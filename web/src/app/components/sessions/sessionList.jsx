@@ -18,8 +18,8 @@ import _ from '_';
 import React from 'react';
 import moment from 'moment';
 import InputSearch from './../inputSearch.jsx';
-import { isMatch } from 'app/common/objectUtils';
-import { actions } from 'app/modules/storedSessionsFilter';
+import { isMatch } from 'app/lib/objectUtils';
+import { actions } from 'app/flux/storedSessionsFilter';
 import { Table, Column, Cell, SortHeaderCell, SortTypes, EmptyIndicator } from 'app/components/table.jsx';
 import { SessionIdCell, NodeCell, UsersCell, DateCreatedCell, DurationCell } from './listItems';
 import { DateRangePicker } from './../datePicker.jsx';
@@ -83,8 +83,9 @@ const SessionList = React.createClass({
     let stored = storedSessions.filter(
       item => moment(item.created).isBetween(start, end));
 
-    let active = activeSessions.filter(
-      item => moment(item.created).isBetween(start, end));    
+    let active = activeSessions
+      .filter( item => item.parties.length > 0)
+      .filter( item => moment(item.created).isBetween(start, end));    
 
     stored = this.sortAndFilter(stored);
     active = this.sortAndFilter(active);

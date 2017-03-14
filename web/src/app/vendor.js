@@ -14,26 +14,25 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-require('jQuery');
-require('perfect-scrollbar/jquery');
-require('Terminal');
-require('_');
-require('bootstrap-sass/assets/javascripts/bootstrap');
-require('./../assets/js/jquery-validate');
-require('./../assets/js/datepicker');
-
-require('buffer');
-require('classnames');
-require('keymirror');
-require('moment');
-require('nuclear-js');
-require('react');
-require('react-addons-linked-state-mixin');
-require('react-addons-pure-render-mixin');
-require('react-addons-transition-group');
-require('react-addons-css-transition-group');
-require('react-dom');
-require('react-router');
-require('react-slider');
-require('react-toastr');
-require('react-overlays');
+import 'jQuery';
+import 'perfect-scrollbar/jquery';
+import 'Terminal';
+import '_';
+import 'bootstrap-sass/assets/javascripts/bootstrap';
+import './../assets/js/jquery-validate';
+import './../assets/js/datepicker';
+import 'buffer';
+import 'classnames';
+import 'keymirror';
+import 'moment';
+import 'nuclear-js';
+import 'react';
+import 'react-addons-linked-state-mixin';
+import 'react-addons-pure-render-mixin';
+import 'react-addons-transition-group';
+import 'react-addons-css-transition-group';
+import 'react-dom';
+import 'react-router';
+import 'react-slider';
+import 'react-toastr';
+import 'react-overlays';

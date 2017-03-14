@@ -83,6 +83,18 @@ type Presence interface {
 
 	// DeleteNamespace deletes namespace by name
 	DeleteNamespace(name string) error
+
+	// UpsertTrustedCluster creates or updates a TrustedCluster in the backend.
+	UpsertTrustedCluster(TrustedCluster) error
+
+	// GetTrustedCluster returns a single TrustedCluster by name.
+	GetTrustedCluster(string) (TrustedCluster, error)
+
+	// GetTrustedClusters returns all TrustedClusters in the backend.
+	GetTrustedClusters() ([]TrustedCluster, error)
+
+	// DeleteTrustedCluster removes a TrustedCluster from the backend by name.
+	DeleteTrustedCluster(string) error
 }
 
 // NewNamespace returns new namespace
