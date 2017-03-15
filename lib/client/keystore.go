@@ -183,9 +183,9 @@ func (fs *FSLocalKeyStore) GetKey(host, username string) (*Key, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Debugf("returning cert %v valid until %v", certFile, certExpiration)
+	log.Debugf("[KEYSTORE] Returning certificate %q valid until %q", certFile, certExpiration)
 	if certExpiration.Before(time.Now()) {
-		log.Infof("TTL expired (%v) for session key %v", certExpiration, dirPath)
+		log.Infof("[KEYSTORE] TTL expired (%v) for session key %v", certExpiration, dirPath)
 		os.RemoveAll(dirPath)
 		return nil, trace.NotFound("session keys for %s are not found", host)
 	}

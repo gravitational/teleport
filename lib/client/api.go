@@ -1142,14 +1142,17 @@ func loopbackPool(proxyAddr string) *x509.CertPool {
 func connectToSSHAgent() agent.Agent {
 	socketPath := os.Getenv(teleport.SSHAuthSock)
 	if socketPath == "" {
-		log.Infof("%v is not set. Is local SSH agent running?", teleport.SSHAuthSock)
+		log.Infof("[KEY AGENT] %v is not set. Try running eval `ssh-agent` and trying again.", teleport.SSHAuthSock)
 		return nil
 	}
+
 	conn, err := net.Dial("unix", socketPath)
 	if err != nil {
-		log.Errorf("cant connect to SSH agent on %s", socketPath)
+		log.Errorf("[KEY AGENT] Unable to connect to SSH agent on socket: %q.", socketPath)
 		return nil
 	}
+
+	log.Infof("[KEY AGENT] Conneced to System Agent: %q", socketPath)
 	return agent.NewClient(conn)
 }
 

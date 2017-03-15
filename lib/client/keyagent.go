@@ -58,6 +58,8 @@ func NewLocalAgent(keyDir, username string) (a *LocalKeyAgent, err error) {
 		return nil, trace.Wrap(err)
 	}
 
+	log.Infof("[KEY AGENT] Loading %v keys for %q", len(keys), username)
+
 	// load all keys into the agent
 	for _, key := range keys {
 		_, err = a.LoadKey(username, key)
@@ -93,7 +95,7 @@ func (a *LocalKeyAgent) LoadKey(username string, key Key) (*agent.AddedKey, erro
 		for _, agentKey := range agentKeys {
 			err = agents[i].Add(*agentKey)
 			if err != nil {
-				log.Warnf("Unable to communicate with agent and add key: %v", err)
+				log.Warnf("[KEY AGENT] Unable to communicate with agent and add key: %v", err)
 			}
 		}
 	}
