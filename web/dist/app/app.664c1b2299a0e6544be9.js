@@ -5664,7 +5664,7 @@ webpackJsonp([0],[
 	    _user.actions.signupWithOidc(providerName, this.props.params.inviteToken);
 	  },
 	  onSignupWithU2f: function onSignupWithU2f(username, password) {
-	    _user.actions.signupWithU2F(username, password, this.props.params.inviteToken);
+	    _user.actions.signupWithU2f(username, password, this.props.params.inviteToken);
 	  },
 	  onSignup: function onSignup(username, password, token) {
 	    _user.actions.signup(username, password, token, this.props.params.inviteToken);
