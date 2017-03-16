@@ -724,7 +724,7 @@ func NewTunClient(purpose string,
 	for _, o := range opts {
 		o(tc)
 	}
-	log.Debugf("newTunClient(%s) with auth: %v", purpose, authServers)
+	log.Debugf("NewTunClient(%v) with auth: %v", purpose, authServers)
 
 	clt, err := NewClient("http://stub:0", tc.Dial)
 	if err != nil {
@@ -759,10 +759,14 @@ func (c *TunClient) isAuthServerThrottled(addr string) bool {
 	return ok
 }
 
+func (c *TunClient) String() string {
+	return fmt.Sprintf("TunClient[%s]", c.purpose)
+}
+
 // Close releases all the resources allocated for this client
 func (c *TunClient) Close() error {
 	if c != nil {
-		log.Debugf("TunClient[%s].Close()", c.purpose)
+		log.Debugf("%v.Close()", c)
 		c.GetTransport().CloseIdleConnections()
 		c.closeOnce.Do(func() {
 			close(c.closeC)
@@ -784,7 +788,7 @@ func (c *TunClient) GetDialer() AccessPointDialer {
 			}
 			time.Sleep(4 * time.Duration(attempt) * dialRetryInterval)
 		}
-		log.Error(err)
+		log.Errorf("%v: ", err)
 		return nil, trace.Wrap(err)
 	}
 }
@@ -852,7 +856,7 @@ func (c *TunClient) fetchAndSync() error {
 // authServersSyncLoop continuously refreshes the list of available auth servers
 // for this client
 func (c *TunClient) authServersSyncLoop() {
-	log.Debugf("TunClient[%s]: authServersSyncLoop() started", c.purpose)
+	log.Debugf("%v: authServersSyncLoop() started", c)
 	defer c.refreshTicker.Stop()
 
 	// initial fetch for quick start-ups
@@ -864,7 +868,7 @@ func (c *TunClient) authServersSyncLoop() {
 			c.fetchAndSync()
 		// received a signal to quit?
 		case <-c.closeC:
-			log.Debugf("TunClient[%s]: authServersSyncLoop() exited", c.purpose)
+			log.Debugf("%v: authServersSyncLoop() exited", c)
 			return
 		}
 	}
@@ -929,16 +933,21 @@ func (c *TunClient) getClient() (client *ssh.Client, err error) {
 	if len(authServers) == 0 {
 		return nil, trace.ConnectionProblem(nil, "all auth servers are offline")
 	}
-	log.Debugf("tunClient(%s).authServers: %v", c.purpose, authServers)
+	log.Debugf("%v.authServers: %v", c, authServers)
 
 	// try to connect to the 1st one who will pick up:
 	for _, authServer := range authServers {
+		if c.isAuthServerThrottled(authServer.String()) {
+			continue
+		}
 		client, err = c.dialAuthServer(authServer)
 		if err == nil {
 			return client, nil
 		}
+		log.Debugf("%v.getClient() throttle auth server %v: %v", c, authServer, err)
+		c.throttleAuthServer(authServer.String())
 	}
-	return nil, trace.Wrap(err)
+	return nil, trace.ConnectionProblem(nil, "all auth servers are offline")
 }
 
 func (c *TunClient) dialAuthServer(authServer utils.NetAddr) (sshClient *ssh.Client, err error) {
@@ -949,7 +958,7 @@ func (c *TunClient) dialAuthServer(authServer utils.NetAddr) (sshClient *ssh.Cli
 	}
 	const dialRetryTimes = 1
 	for attempt := 0; attempt < dialRetryTimes; attempt++ {
-		log.Debugf("tunClient.Dial(to=%v, attempt=%d)", authServer.Addr, attempt+1)
+		log.Debugf("%v.Dial(to=%v, attempt=%d)", c, authServer.Addr, attempt+1)
 		sshClient, err = ssh.Dial(authServer.AddrNetwork, authServer.Addr, config)
 		// success -> get out of here
 		if err == nil {

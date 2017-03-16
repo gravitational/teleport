@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
 )
@@ -179,6 +180,7 @@ const MetadataSchema = `{
     "name": {"type": "string"},
     "namespace": {"type": "string", "default": "default"},
     "description": {"type": "string"},
+    "expires": {"type": "string"},
     "labels": {
       "type": "object",
       "patternProperties": {
@@ -227,6 +229,9 @@ type Metadata struct {
 	Description string `json:"description,omitempty"`
 	// Labels is a set of labels
 	Labels map[string]string `json:"labels,omitempty"`
+	// Expires is a global expiry time header
+	// can be set on any resource in the system
+	Expires time.Time `json:"expires,omitempty"`
 }
 
 // Check checks validity of all parameters and sets defaults
