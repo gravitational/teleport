@@ -611,28 +611,61 @@ func (a *AuthCommand) ExportAuthorities(client *auth.TunClient) error {
 				if a.exportAuthorityFingerprint != "" && fingerprint != a.exportAuthorityFingerprint {
 					continue
 				}
-				options := url.Values{
-					"type": []string{string(ca.GetType())},
+
+				// export certificate authority in user or host ca format
+				var castr string
+				switch ca.GetType() {
+				case services.UserCA:
+					castr, err = userCAFormat(ca, keyBytes)
+				case services.HostCA:
+					castr, err = hostCAFormat(ca, keyBytes, client)
+				default:
+					return trace.BadParameter("unknown user type: %q", ca.GetType())
 				}
-				roles, err := services.FetchRoles(ca.GetRoles(), client)
 				if err != nil {
 					return trace.Wrap(err)
 				}
-				allowedLogins, _ := roles.CheckLogins(defaults.MinCertDuration + time.Second)
-				if len(allowedLogins) > 0 {
-					options["logins"] = allowedLogins
-				}
-				// Every auth public key is exported as a single line adhering to man sshd (8)
-				// authorized_hosts format, a space-separated list of: makrer, hosts, key, and comment
-				// example:
-				// 		@cert-authority *.cluster-a ssh-rsa AAA... type=user
-				// We use URL encoding to pass the CA type and allowed logins into the comment field
-				fmt.Fprintf(os.Stdout, "@cert-authority *.%s %s %s\n",
-					ca.GetClusterName(), strings.TrimSpace(string(keyBytes)), options.Encode())
+
+				// print the export friendly string
+				fmt.Println(castr)
 			}
 		}
 	}
 	return nil
+}
+
+// userCAFormat returns the certificate authority public key exported as a single
+// line that can be placed in ~/.ssh/authorized_keys file. For example:
+//
+// cert-authority AAA...
+func userCAFormat(ca services.CertAuthority, keyBytes []byte) (string, error) {
+	return fmt.Sprintf("cert-authority %s", keyBytes), nil
+}
+
+// hostCAFormat returns the certificate authority public key exported as a single line
+// that can be placed in ~/.ssh/authorized_hosts. The format adheres to the man sshd (8)
+// authorized_hosts format, a space-separated list of: makrer, hosts, key, and comment.
+// For example:
+//
+// 		@cert-authority *.cluster-a ssh-rsa AAA... type=user
+//
+// URL encoding is used to pass the CA type and allowed logins into the comment field.
+func hostCAFormat(ca services.CertAuthority, keyBytes []byte, client *auth.TunClient) (string, error) {
+	options := url.Values{
+		"type": []string{string(services.HostCA)},
+	}
+
+	roles, err := services.FetchRoles(ca.GetRoles(), client)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	allowedLogins, _ := roles.CheckLogins(defaults.MinCertDuration + time.Second)
+	if len(allowedLogins) > 0 {
+		options["logins"] = allowedLogins
+	}
+
+	return fmt.Sprintf("@cert-authority *.%s %s %s",
+		ca.GetClusterName(), strings.TrimSpace(string(keyBytes)), options.Encode()), nil
 }
 
 // GenerateKeys generates a new keypair
