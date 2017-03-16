@@ -721,15 +721,20 @@ have to configure `sshd` to trust Teleport CA.
 Export the Teleport CA certificate into a file:
 
 ```bash
-> tctl auth --type=user export > cluster-ca.pub
+> tctl auth --type=user export > teleport-user-ca.pub
 ```
 
-Copy this file to every node running `sshd`, for example into `/etc/ssh/teleport-ca.pub`
-Then update the `sshd` configuration, usually `/etc/ssh/sshd_config`:
+* To allow access per-user, append the contents of `teleport-user-ca.pub` to
+  `~/.ssh/authorized_keys`.
+* To allow access for all users:
+  * Edit `teleport-user-ca.pub` and remove `cert-authority` from the start of line.
+  * Copy `teleport-user-ca.pub` to `/etc/ssh/teleport-user-ca.pub`
+  * Update `sshd` configuration (usually `/etc/ssh/sshd_config`) to point to this
+  file:
 
-```
-TrustedUserCAKeys /etc/ssh/user-ca.pub
-```
+    ```
+    TrustedUserCAKeys /etc/ssh/teleport-user-ca.pub
+    ```
 
 ### Integrating with Ansible
 
