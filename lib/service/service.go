@@ -524,6 +524,7 @@ func (process *TeleportProcess) initSSH() error {
 			authClient,
 			cfg.DataDir,
 			cfg.AdvertiseIP,
+			cfg.Proxy.PublicAddr,
 			srv.SetLimiter(limiter),
 			srv.SetShell(cfg.SSH.Shell),
 			srv.SetAuditLog(alog),
@@ -614,7 +615,7 @@ func (process *TeleportProcess) RegisterWithAuthServer(token string, role telepo
 // this means it will do two things:
 //    1. serve a web UI
 //    2. proxy SSH connections to nodes running with 'node' role
-//    3. take care of revse tunnels
+//    3. take care of reverse tunnels
 func (process *TeleportProcess) initProxy() error {
 	// if no TLS key was provided for the web UI, generate a self signed cert
 	if process.Config.Proxy.TLSKey == "" && !process.Config.Proxy.DisableWebUI {
@@ -682,6 +683,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		authClient,
 		cfg.DataDir,
 		nil,
+		cfg.Proxy.PublicAddr,
 		srv.SetLimiter(proxyLimiter),
 		srv.SetProxyMode(tsrv),
 		srv.SetSessionServer(conn.Client),

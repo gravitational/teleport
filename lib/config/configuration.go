@@ -253,6 +253,13 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		cfg.Proxy.ReverseTunnelListenAddr = *addr
 	}
+	if fc.Proxy.PublicAddr != "" {
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.PublicAddr, int(defaults.HTTPListenPort))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.PublicAddr = *addr
+	}
 	if fc.Proxy.KeyFile != "" {
 		if !fileExists(fc.Proxy.KeyFile) {
 			return trace.Errorf("https key does not exist: %s", fc.Proxy.KeyFile)

@@ -27,10 +27,14 @@ type Server interface {
 	GetLabels() map[string]string
 	// GetCmdLabels returns command labels
 	GetCmdLabels() map[string]CommandLabel
+	// GetPublicAddr is an optional field that returns the public address this cluster can be reached at.
+	GetPublicAddr() string
 	// String returns string representation of the server
 	String() string
 	// SetAddr sets server address
 	SetAddr(addr string)
+	// SetPublicAddr sets the public address this cluster can be reached at.
+	SetPublicAddr(string)
 	// SetNamespace sets server namespace
 	SetNamespace(namespace string)
 	// V1 returns V1 version for backwards compatibility
@@ -102,6 +106,11 @@ func (s *ServerV2) SetAddr(addr string) {
 	s.Spec.Addr = addr
 }
 
+// SetPublicAddr sets the public address this cluster can be reached at.
+func (s *ServerV2) SetPublicAddr(addr string) {
+	s.Spec.PublicAddr = addr
+}
+
 // GetName returns server name
 func (s *ServerV2) GetName() string {
 	return s.Metadata.Name
@@ -110,6 +119,11 @@ func (s *ServerV2) GetName() string {
 // GetAddr return server address
 func (s *ServerV2) GetAddr() string {
 	return s.Spec.Addr
+}
+
+// GetPublicAddr is an optional field that returns the public address this cluster can be reached at.
+func (s *ServerV2) GetPublicAddr() string {
+	return s.Spec.PublicAddr
 }
 
 // GetHostname returns server hostname
@@ -190,6 +204,8 @@ func (s *ServerV2) LabelsString() string {
 type ServerSpecV2 struct {
 	// Addr is server host:port address
 	Addr string `json:"addr"`
+	// PublicAddr is the public address this cluster can be reached at.
+	PublicAddr string `json:"public_addr,omitempty"`
 	// Hostname is server hostname
 	Hostname string `json:"hostname"`
 	// CmdLabels is server dynamic labels
@@ -202,6 +218,7 @@ const ServerSpecV2Schema = `{
   "additionalProperties": false,
   "properties": {
     "addr": {"type": "string"},
+    "public_addr": {"type": "string"},
     "hostname": {"type": "string"},
     "labels": {
       "type": "object",

@@ -29,13 +29,16 @@ import (
 	"strings"
 	"syscall"
 
+	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
-	"github.com/kardianos/osext"
 
 	log "github.com/Sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
+	"github.com/kardianos/osext"
 )
 
 const (
@@ -165,20 +168,26 @@ func prepareCommand(ctx *ctx) (*exec.Cmd, error) {
 	if ctx.isTestStub {
 		shell = "/bin/sh"
 	}
-	// try to determine the host name of the 1st available proxy to set a nicer
-	// session URL. fall back to <proxyhost> placeholder
-	proxyHost := "<proxyhost>"
+
+	// try and get the public address from the first available proxy. if public_address
+	// is not set, fall back to the hostname of the first proxy we get back.
+	proxyHost := "<proxyhost>:3080"
 	if ctx.srv != nil {
 		proxies, err := ctx.srv.authService.GetProxies()
 		if err != nil {
-			log.Error(err)
+			log.Errorf("Unexpected response from authService.GetProxies(): %v", err)
 		}
+
 		if len(proxies) > 0 {
-			proxyHost = proxies[0].GetHostname()
+			proxyHost = proxies[0].GetPublicAddr()
+			if proxyHost == "" {
+				proxyHost = fmt.Sprintf("%v:%v", proxies[0].GetHostname(), defaults.HTTPListenPort)
+				log.Debugf("public_address not set for proxy, returning proxyHost: %q", proxyHost)
+			}
 		}
 	}
-	var c *exec.Cmd
 
+	var c *exec.Cmd
 	if len(args) == 1 {
 		c = exec.Command(args[0])
 	} else {
@@ -192,7 +201,7 @@ func prepareCommand(ctx *ctx) (*exec.Cmd, error) {
 		"USER=" + osUserName,
 		"SHELL=" + shell,
 		"SSH_TELEPORT_USER=" + ctx.teleportUser,
-		fmt.Sprintf("SSH_SESSION_WEBPROXY_ADDR=%s:3080", proxyHost),
+		fmt.Sprintf("SSH_SESSION_WEBPROXY_ADDR=%s", proxyHost),
 	}
 	c.Dir = osUser.HomeDir
 	c.SysProcAttr = &syscall.SysProcAttr{}
