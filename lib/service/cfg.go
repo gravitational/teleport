@@ -172,6 +172,9 @@ type ProxyConfig struct {
 	TLSCert string
 
 	Limiter limiter.LimiterConfig
+
+	// PublicAddr is the public address the Teleport UI can be accessed at.
+	PublicAddr utils.NetAddr
 }
 
 // AuthConfig is a configuration of the auth server
