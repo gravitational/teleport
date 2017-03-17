@@ -52,6 +52,13 @@ func NewLocalAgent(keyDir, username string) (a *LocalKeyAgent, err error) {
 		sshAgent: connectToSSHAgent(),
 	}
 
+	// unload all teleport keys from the agent first to ensure
+	// we don't leave stale keys in the agent
+	err = a.UnloadKeys()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// read all keys from disk (~/.tsh usually)
 	keys, err := a.GetKeys(username)
 	if err != nil {
@@ -123,6 +130,35 @@ func (a *LocalKeyAgent) UnloadKey(username string) error {
 		// remove any teleport keys we currently have loaded in the agent for this user
 		for _, key := range keyList {
 			if key.Comment == fmt.Sprintf("teleport:%v", username) {
+				err = agents[i].Remove(key)
+				if err != nil {
+					log.Warnf("Unable to communicate with agent and remove key: %v", err)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// UnloadKeys will unload all Teleport keys from the teleport agent as well as the system agent.
+func (a *LocalKeyAgent) UnloadKeys() error {
+	agents := []agent.Agent{a.Agent}
+	if a.sshAgent != nil {
+		agents = append(agents, a.sshAgent)
+	}
+
+	// iterate over all agents we have
+	for i, _ := range agents {
+		// get a list of all keys in the agent
+		keyList, err := agents[i].List()
+		if err != nil {
+			log.Warnf("Unable to communicate with agent and list keys: %v", err)
+		}
+
+		// remove any teleport keys we currently have loaded in the agent
+		for _, key := range keyList {
+			if strings.HasPrefix(key.Comment, "teleport:") {
 				err = agents[i].Remove(key)
 				if err != nil {
 					log.Warnf("Unable to communicate with agent and remove key: %v", err)
