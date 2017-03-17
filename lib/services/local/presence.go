@@ -19,34 +19,32 @@ package local
 import (
 	"encoding/json"
 	"sort"
-	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // PresenceService records and reports the presence of all components
 // of the cluster - Nodes, Proxies and SSH nodes
 type PresenceService struct {
-	backend backend.Backend
+	backend.Backend
 }
 
 // NewPresenceService returns new presence service instance
 func NewPresenceService(backend backend.Backend) *PresenceService {
-	return &PresenceService{backend}
+	return &PresenceService{Backend: backend}
 }
 
 // UpsertLocalClusterName upserts local domain
 func (s *PresenceService) UpsertLocalClusterName(name string) error {
-	return s.backend.UpsertVal([]string{localClusterPrefix}, "val", []byte(name), backend.Forever)
+	return s.UpsertVal([]string{localClusterPrefix}, "val", []byte(name), backend.Forever)
 }
 
 // GetLocalClusterName upserts local domain
 func (s *PresenceService) GetLocalClusterName() (string, error) {
-	data, err := s.backend.GetVal([]string{localClusterPrefix}, "val")
+	data, err := s.GetVal([]string{localClusterPrefix}, "val")
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -55,12 +53,12 @@ func (s *PresenceService) GetLocalClusterName() (string, error) {
 
 // DeleteAllNamespaces deletes all namespaces
 func (s *PresenceService) DeleteAllNamespaces() error {
-	return s.backend.DeleteBucket([]string{}, namespacesPrefix)
+	return s.DeleteBucket([]string{}, namespacesPrefix)
 }
 
 // GetNamespaces returns a list of namespaces
 func (s *PresenceService) GetNamespaces() ([]services.Namespace, error) {
-	keys, err := s.backend.GetKeys([]string{namespacesPrefix})
+	keys, err := s.GetKeys([]string{namespacesPrefix})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -83,7 +81,7 @@ func (s *PresenceService) UpsertNamespace(n services.Namespace) error {
 		return trace.Wrap(err)
 	}
 	ttl := backend.TTL(s.Clock(), n.Metadata.Expires)
-	err = s.backend.UpsertVal([]string{namespacesPrefix, n.Metadata.Name}, "params", []byte(data), ttl)
+	err = s.UpsertVal([]string{namespacesPrefix, n.Metadata.Name}, "params", []byte(data), ttl)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -95,7 +93,7 @@ func (s *PresenceService) GetNamespace(name string) (*services.Namespace, error)
 	if name == "" {
 		return nil, trace.BadParameter("missing namespace name")
 	}
-	data, err := s.backend.GetVal([]string{namespacesPrefix, name}, "params")
+	data, err := s.GetVal([]string{namespacesPrefix, name}, "params")
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("namespace %v is not found", name)
@@ -110,7 +108,7 @@ func (s *PresenceService) DeleteNamespace(namespace string) error {
 	if namespace == "" {
 		return trace.BadParameter("missing namespace name")
 	}
-	err := s.backend.DeleteBucket([]string{namespacesPrefix}, namespace)
+	err := s.DeleteBucket([]string{namespacesPrefix}, namespace)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("namespace '%v' is not found", namespace)
@@ -120,13 +118,13 @@ func (s *PresenceService) DeleteNamespace(namespace string) error {
 }
 
 func (s *PresenceService) getServers(kind, prefix string) ([]services.Server, error) {
-	keys, err := s.backend.GetKeys([]string{prefix})
+	keys, err := s.GetKeys([]string{prefix})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	servers := make([]services.Server, len(keys))
 	for i, key := range keys {
-		data, err := s.backend.GetVal([]string{prefix}, key)
+		data, err := s.GetVal([]string{prefix}, key)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -142,19 +140,18 @@ func (s *PresenceService) getServers(kind, prefix string) ([]services.Server, er
 }
 
 func (s *PresenceService) upsertServer(prefix string, server services.Server) error {
-
-	ttl := backend.s.Clock()
+	ttl := backend.TTL(s.Clock(), server.GetMetadata().Expires)
 	data, err := services.GetServerMarshaler().MarshalServer(server)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.backend.UpsertVal([]string{prefix}, server.GetName(), data, ttl)
+	err = s.UpsertVal([]string{prefix}, server.GetName(), data, ttl)
 	return trace.Wrap(err)
 }
 
 // DeleteAllNodes deletes all nodes in a namespace
 func (s *PresenceService) DeleteAllNodes(namespace string) error {
-	return s.backend.DeleteBucket([]string{namespacesPrefix, namespace}, nodesPrefix)
+	return s.DeleteBucket([]string{namespacesPrefix, namespace}, nodesPrefix)
 }
 
 // GetNodes returns a list of registered servers
@@ -162,13 +159,13 @@ func (s *PresenceService) GetNodes(namespace string) ([]services.Server, error) 
 	if namespace == "" {
 		return nil, trace.BadParameter("missing namespace value")
 	}
-	keys, err := s.backend.GetKeys([]string{namespacesPrefix, namespace, nodesPrefix})
+	keys, err := s.GetKeys([]string{namespacesPrefix, namespace, nodesPrefix})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	servers := make([]services.Server, len(keys))
 	for i, key := range keys {
-		data, err := s.backend.GetVal([]string{namespacesPrefix, namespace, nodesPrefix}, key)
+		data, err := s.GetVal([]string{namespacesPrefix, namespace, nodesPrefix}, key)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -194,7 +191,7 @@ func (s *PresenceService) UpsertNode(server services.Server) error {
 		return trace.Wrap(err)
 	}
 	ttl := backend.TTL(s.Clock(), server.GetMetadata().Expires)
-	err = s.backend.UpsertVal([]string{namespacesPrefix, server.GetNamespace(), nodesPrefix}, server.GetName(), data, ttl)
+	err = s.UpsertVal([]string{namespacesPrefix, server.GetNamespace(), nodesPrefix}, server.GetName(), data, ttl)
 	return trace.Wrap(err)
 }
 
@@ -222,12 +219,12 @@ func (s *PresenceService) GetProxies() ([]services.Server, error) {
 
 // DeleteAllProxies deletes all proxies
 func (s *PresenceService) DeleteAllProxies() error {
-	return s.backend.DeleteBucket([]string{}, proxiesPrefix)
+	return s.DeleteBucket([]string{}, proxiesPrefix)
 }
 
 // DeleteAllReverseTunnels deletes all reverse tunnels
 func (s *PresenceService) DeleteAllReverseTunnels() error {
-	return s.backend.DeleteBucket([]string{}, reverseTunnelsPrefix)
+	return s.DeleteBucket([]string{}, reverseTunnelsPrefix)
 }
 
 // UpsertReverseTunnel upserts reverse tunnel entry temporarily or permanently
@@ -240,19 +237,19 @@ func (s *PresenceService) UpsertReverseTunnel(tunnel services.ReverseTunnel) err
 		return trace.Wrap(err)
 	}
 	ttl := backend.TTL(s.Clock(), tunnel.GetMetadata().Expires)
-	err = s.backend.UpsertVal([]string{reverseTunnelsPrefix}, tunnel.GetName(), data, ttl)
+	err = s.UpsertVal([]string{reverseTunnelsPrefix}, tunnel.GetName(), data, ttl)
 	return trace.Wrap(err)
 }
 
 // GetReverseTunnels returns a list of registered servers
 func (s *PresenceService) GetReverseTunnels() ([]services.ReverseTunnel, error) {
-	keys, err := s.backend.GetKeys([]string{reverseTunnelsPrefix})
+	keys, err := s.GetKeys([]string{reverseTunnelsPrefix})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	tunnels := make([]services.ReverseTunnel, len(keys))
 	for i, key := range keys {
-		data, err := s.backend.GetVal([]string{reverseTunnelsPrefix}, key)
+		data, err := s.GetVal([]string{reverseTunnelsPrefix}, key)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -269,7 +266,7 @@ func (s *PresenceService) GetReverseTunnels() ([]services.ReverseTunnel, error) 
 
 // DeleteReverseTunnel deletes reverse tunnel by it's domain name
 func (s *PresenceService) DeleteReverseTunnel(domainName string) error {
-	err := s.backend.DeleteKey([]string{reverseTunnelsPrefix}, domainName)
+	err := s.DeleteKey([]string{reverseTunnelsPrefix}, domainName)
 	return trace.Wrap(err)
 }
 
@@ -280,7 +277,7 @@ func (s *PresenceService) UpsertTrustedCluster(trustedCluster services.TrustedCl
 		return trace.Wrap(err)
 	}
 	ttl := backend.TTL(s.Clock(), trustedCluster.GetMetadata().Expires)
-	err = s.backend.UpsertVal([]string{"trustedclusters"}, trustedCluster.GetName(), []byte(data), ttl)
+	err = s.UpsertVal([]string{"trustedclusters"}, trustedCluster.GetName(), []byte(data), ttl)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -290,7 +287,7 @@ func (s *PresenceService) UpsertTrustedCluster(trustedCluster services.TrustedCl
 
 // GetTrustedCluster returns a single TrustedCluster by name.
 func (s *PresenceService) GetTrustedCluster(name string) (services.TrustedCluster, error) {
-	data, err := s.backend.GetVal([]string{"trustedclusters"}, name)
+	data, err := s.GetVal([]string{"trustedclusters"}, name)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("trusted cluster not found")
@@ -303,7 +300,7 @@ func (s *PresenceService) GetTrustedCluster(name string) (services.TrustedCluste
 
 // GetTrustedClusters returns all TrustedClusters in the backend.
 func (s *PresenceService) GetTrustedClusters() ([]services.TrustedCluster, error) {
-	keys, err := s.backend.GetKeys([]string{"trustedclusters"})
+	keys, err := s.GetKeys([]string{"trustedclusters"})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -323,7 +320,7 @@ func (s *PresenceService) GetTrustedClusters() ([]services.TrustedCluster, error
 
 // DeleteTrustedCluster removes a TrustedCluster from the backend by name.
 func (s *PresenceService) DeleteTrustedCluster(name string) error {
-	err := s.backend.DeleteKey([]string{"trustedclusters"}, name)
+	err := s.DeleteKey([]string{"trustedclusters"}, name)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("trusted cluster %q not found", name)

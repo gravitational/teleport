@@ -19,7 +19,6 @@ package services
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/gravitational/trace"
 )

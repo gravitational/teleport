@@ -42,8 +42,11 @@ type Server interface {
 	MatchAgainst(labels map[string]string) bool
 	// LabelsString returns a comma separated string with all node's labels
 	LabelsString() string
-	// GetMetadata returns metadata
-	GetMetadata() Metadata
+	// Expires retuns object expiry setting
+	Expires() time.Time
+	SetExpires(time.Time)
+	// SetTTL sets Expires header using current clock
+	SetTTL(ttl time.Duration)
 }
 
 // ServersToV1 converts list of servers to slice of V1 style ones

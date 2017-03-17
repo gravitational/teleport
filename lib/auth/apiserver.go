@@ -227,19 +227,19 @@ func (s *APIServer) upsertServer(auth ClientI, role teleport.Role, w http.Respon
 	// if server sent "local" IP address to us, replace the ip/host part with the remote address we see
 	// on the socket, but keep the original port:
 	server.SetAddr(utils.ReplaceLocalhost(server.GetAddr(), r.RemoteAddr))
-
+	server.SetTTL(req.TTL)
 	switch role {
 	case teleport.RoleNode:
 		server.SetNamespace(p.ByName("namespace"))
-		if err := auth.UpsertNode(server, req.TTL); err != nil {
+		if err := auth.UpsertNode(server); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case teleport.RoleAuth:
-		if err := auth.UpsertAuthServer(server, req.TTL); err != nil {
+		if err := auth.UpsertAuthServer(server); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case teleport.RoleProxy:
-		if err := auth.UpsertProxy(server, req.TTL); err != nil {
+		if err := auth.UpsertProxy(server); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

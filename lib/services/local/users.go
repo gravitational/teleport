@@ -42,24 +42,24 @@ import (
 // IdentityService is responsible for managing web users and currently
 // user accounts as well
 type IdentityService struct {
-	backend backend.Backend
+	backend.Backend
 }
 
 // NewIdentityService returns a new instance of IdentityService object
 func NewIdentityService(backend backend.Backend) *IdentityService {
 	return &IdentityService{
-		backend: backend,
+		Backend: backend,
 	}
 }
 
 // DeleteAllUsers deletes all users
 func (s *IdentityService) DeleteAllUsers() error {
-	return s.backend.DeleteBucket([]string{"web"}, "users")
+	return s.DeleteBucket([]string{"web"}, "users")
 }
 
 // GetUsers returns a list of users registered with the local auth server
 func (s *IdentityService) GetUsers() ([]services.User, error) {
-	keys, err := s.backend.GetKeys([]string{"web", "users"})
+	keys, err := s.GetKeys([]string{"web", "users"})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -86,7 +86,7 @@ func (s *IdentityService) CreateUser(user services.User) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.backend.CreateVal([]string{"web", "users", user.GetName()}, "params", []byte(data), backend.TTL(clockwork.NewRealClock(), user.GetExpiry()))
+	err = s.CreateVal([]string{"web", "users", user.GetName()}, "params", []byte(data), backend.TTL(clockwork.NewRealClock(), user.GetExpiry()))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -103,7 +103,7 @@ func (s *IdentityService) UpsertUser(user services.User) error {
 		return trace.Wrap(err)
 	}
 	ttl := backend.AnyTTL(s.Clock(), user.GetExpiry(), user.GetMetadata().Expires)
-	err = s.backend.UpsertVal([]string{"web", "users", user.GetName()}, "params", []byte(data), ttl)
+	err = s.UpsertVal([]string{"web", "users", user.GetName()}, "params", []byte(data), ttl)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -112,7 +112,7 @@ func (s *IdentityService) UpsertUser(user services.User) error {
 
 // GetUser returns a user by name
 func (s *IdentityService) GetUser(user string) (services.User, error) {
-	data, err := s.backend.GetVal([]string{"web", "users", user}, "params")
+	data, err := s.GetVal([]string{"web", "users", user}, "params")
 	if err != nil {
 		return nil, trace.NotFound("user %v is not found", user)
 	}
@@ -142,7 +142,7 @@ func (s *IdentityService) GetUserByOIDCIdentity(id services.OIDCIdentity) (servi
 
 // DeleteUser deletes a user with all the keys from the backend
 func (s *IdentityService) DeleteUser(user string) error {
-	err := s.backend.DeleteBucket([]string{"web", "users"}, user)
+	err := s.DeleteBucket([]string{"web", "users"}, user)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound(fmt.Sprintf("user '%v' is not found", user))
@@ -167,7 +167,7 @@ func (s *IdentityService) UpsertPasswordHash(username string, hash []byte) error
 			return trace.Wrap(err)
 		}
 	}
-	err = s.backend.UpsertVal([]string{"web", "users", username}, "pwd", hash, 0)
+	err = s.UpsertVal([]string{"web", "users", username}, "pwd", hash, 0)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -176,7 +176,7 @@ func (s *IdentityService) UpsertPasswordHash(username string, hash []byte) error
 
 // GetPasswordHash returns the password hash for a given user
 func (s *IdentityService) GetPasswordHash(user string) ([]byte, error) {
-	hash, err := s.backend.GetVal([]string{"web", "users", user}, "pwd")
+	hash, err := s.GetVal([]string{"web", "users", user}, "pwd")
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("user '%v' is not found", user)
@@ -194,7 +194,7 @@ func (s *IdentityService) UpsertHOTP(user string, otp *hotp.HOTP) error {
 		return trace.Wrap(err)
 	}
 
-	err = s.backend.UpsertVal([]string{"web", "users", user}, "hotp", bytes, 0)
+	err = s.UpsertVal([]string{"web", "users", user}, "hotp", bytes, 0)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -205,7 +205,7 @@ func (s *IdentityService) UpsertHOTP(user string, otp *hotp.HOTP) error {
 // GetHOTP gets HOTP token state for a user
 // Deprecated: HOTP use is deprecated, use GetTOTP instead.
 func (s *IdentityService) GetHOTP(user string) (*hotp.HOTP, error) {
-	bytes, err := s.backend.GetVal([]string{"web", "users", user}, "hotp")
+	bytes, err := s.GetVal([]string{"web", "users", user}, "hotp")
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("user %q is not found", user)
@@ -223,7 +223,7 @@ func (s *IdentityService) GetHOTP(user string) (*hotp.HOTP, error) {
 
 // UpsertTOTP upserts TOTP secret key for a user that can be used to generate and validate tokens.
 func (s *IdentityService) UpsertTOTP(user string, secretKey string) error {
-	err := s.backend.UpsertVal([]string{"web", "users", user}, "totp", []byte(secretKey), 0)
+	err := s.UpsertVal([]string{"web", "users", user}, "totp", []byte(secretKey), 0)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -232,7 +232,7 @@ func (s *IdentityService) UpsertTOTP(user string, secretKey string) error {
 
 // GetTOTP returns the secret key used by the TOTP algorithm to validate tokens
 func (s *IdentityService) GetTOTP(user string) (string, error) {
-	bytes, err := s.backend.GetVal([]string{"web", "users", user}, "totp")
+	bytes, err := s.GetVal([]string{"web", "users", user}, "totp")
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return "", trace.NotFound("user %q not found", user)
@@ -246,7 +246,7 @@ func (s *IdentityService) GetTOTP(user string) (string, error) {
 // UpsertUsedTOTPToken upserts a TOTP token to the backend so it can't be used again
 // during the 30 second window it's valid.
 func (s *IdentityService) UpsertUsedTOTPToken(user string, otpToken string) error {
-	err := s.backend.UpsertVal([]string{"web", "users", user}, "used_totp", []byte(otpToken), 30*time.Second)
+	err := s.UpsertVal([]string{"web", "users", user}, "used_totp", []byte(otpToken), 30*time.Second)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -255,7 +255,7 @@ func (s *IdentityService) UpsertUsedTOTPToken(user string, otpToken string) erro
 
 // GetUsedTOTPToken returns the last successfully used TOTP token. If no token is found zero is returned.
 func (s *IdentityService) GetUsedTOTPToken(user string) (string, error) {
-	bytes, err := s.backend.GetVal([]string{"web", "users", user}, "used_totp")
+	bytes, err := s.GetVal([]string{"web", "users", user}, "used_totp")
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return "0", nil
@@ -269,7 +269,7 @@ func (s *IdentityService) GetUsedTOTPToken(user string) (string, error) {
 // DeleteUsedTOTPToken removes the used token from the backend. This should only
 // be used during tests.
 func (s *IdentityService) DeleteUsedTOTPToken(user string) error {
-	return s.backend.DeleteKey([]string{"web", "users", user}, "used_totp")
+	return s.DeleteKey([]string{"web", "users", user}, "used_totp")
 }
 
 // UpsertWebSession updates or inserts a web session for a user and session id
@@ -283,7 +283,7 @@ func (s *IdentityService) UpsertWebSession(user, sid string, session services.We
 		return trace.Wrap(err)
 	}
 	ttl := backend.AnyTTL(clockwork.NewRealClock(), session.GetBearerTokenExpiryTime(), session.GetMetadata().Expires)
-	err = s.backend.UpsertVal([]string{"web", "users", user, "sessions"},
+	err = s.UpsertVal([]string{"web", "users", user, "sessions"},
 		sid, bytes, ttl)
 	if trace.IsNotFound(err) {
 		return trace.NotFound("user '%v' is not found", user)
@@ -300,7 +300,7 @@ func (s *IdentityService) AddUserLoginAttempt(user string, attempt services.Logi
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.backend.UpsertVal([]string{"web", "users", user, "attempts"},
+	err = s.UpsertVal([]string{"web", "users", user, "attempts"},
 		uuid.New(), bytes, ttl)
 	if trace.IsNotFound(err) {
 		return trace.NotFound("user '%v' is not found", user)
@@ -310,13 +310,13 @@ func (s *IdentityService) AddUserLoginAttempt(user string, attempt services.Logi
 
 // GetUserLoginAttempts returns user login attempts
 func (s *IdentityService) GetUserLoginAttempts(user string) ([]services.LoginAttempt, error) {
-	keys, err := s.backend.GetKeys([]string{"web", "users", user, "attempts"})
+	keys, err := s.GetKeys([]string{"web", "users", user, "attempts"})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	out := make([]services.LoginAttempt, 0, len(keys))
 	for _, id := range keys {
-		data, err := s.backend.GetVal([]string{"web", "users", user, "attempts"}, id)
+		data, err := s.GetVal([]string{"web", "users", user, "attempts"}, id)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return nil, trace.Wrap(err)
@@ -335,10 +335,7 @@ func (s *IdentityService) GetUserLoginAttempts(user string) ([]services.LoginAtt
 
 // GetWebSession returns a web session state for a given user and session id
 func (s *IdentityService) GetWebSession(user, sid string) (services.WebSession, error) {
-	val, err := s.backend.GetVal(
-		[]string{"web", "users", user, "sessions"},
-		sid,
-	)
+	val, err := s.GetVal([]string{"web", "users", user, "sessions"}, sid)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -356,7 +353,7 @@ func (s *IdentityService) GetWebSession(user, sid string) (services.WebSession, 
 
 // DeleteWebSession deletes web session from the storage
 func (s *IdentityService) DeleteWebSession(user, sid string) error {
-	err := s.backend.DeleteKey(
+	err := s.DeleteKey(
 		[]string{"web", "users", user, "sessions"},
 		sid,
 	)
@@ -401,7 +398,7 @@ func (s *IdentityService) UpsertSignupToken(token string, tokenData services.Sig
 		return trace.Wrap(err)
 	}
 
-	err = s.backend.UpsertVal(userTokensPath, token, out, ttl)
+	err = s.UpsertVal(userTokensPath, token, out, ttl)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -411,7 +408,7 @@ func (s *IdentityService) UpsertSignupToken(token string, tokenData services.Sig
 
 // GetSignupToken returns signup token data
 func (s *IdentityService) GetSignupToken(token string) (*services.SignupToken, error) {
-	out, err := s.backend.GetVal(userTokensPath, token)
+	out, err := s.GetVal(userTokensPath, token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -425,7 +422,7 @@ func (s *IdentityService) GetSignupToken(token string) (*services.SignupToken, e
 
 // GetSignupTokens returns all non-expired user tokens
 func (s *IdentityService) GetSignupTokens() (tokens []services.SignupToken, err error) {
-	keys, err := s.backend.GetKeys(userTokensPath)
+	keys, err := s.GetKeys(userTokensPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -441,7 +438,7 @@ func (s *IdentityService) GetSignupTokens() (tokens []services.SignupToken, err 
 
 // DeleteSignupToken deletes signup token from the storage
 func (s *IdentityService) DeleteSignupToken(token string) error {
-	err := s.backend.DeleteKey(userTokensPath, token)
+	err := s.DeleteKey(userTokensPath, token)
 	return trace.Wrap(err)
 }
 
@@ -450,7 +447,7 @@ func (s *IdentityService) UpsertU2FRegisterChallenge(token string, u2fChallenge 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.backend.UpsertVal(u2fRegChalPath, token, data, defaults.U2FChallengeTimeout)
+	err = s.UpsertVal(u2fRegChalPath, token, data, defaults.U2FChallengeTimeout)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -458,7 +455,7 @@ func (s *IdentityService) UpsertU2FRegisterChallenge(token string, u2fChallenge 
 }
 
 func (s *IdentityService) GetU2FRegisterChallenge(token string) (*u2f.Challenge, error) {
-	data, err := s.backend.GetVal(u2fRegChalPath, token)
+	data, err := s.GetVal(u2fRegChalPath, token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -496,7 +493,7 @@ func (s *IdentityService) UpsertU2FRegistration(user string, u2fReg *u2f.Registr
 		return trace.Wrap(err)
 	}
 
-	err = s.backend.UpsertVal([]string{"web", "users", user}, "u2fregistration", data, backend.Forever)
+	err = s.UpsertVal([]string{"web", "users", user}, "u2fregistration", data, backend.Forever)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -504,7 +501,7 @@ func (s *IdentityService) UpsertU2FRegistration(user string, u2fReg *u2f.Registr
 }
 
 func (s *IdentityService) GetU2FRegistration(user string) (*u2f.Registration, error) {
-	data, err := s.backend.GetVal([]string{"web", "users", user}, "u2fregistration")
+	data, err := s.GetVal([]string{"web", "users", user}, "u2fregistration")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -545,7 +542,7 @@ func (s *IdentityService) UpsertU2FRegistrationCounter(user string, counter uint
 		return trace.Wrap(err)
 	}
 
-	err = s.backend.UpsertVal([]string{"web", "users", user}, "u2fregistrationcounter", data, backend.Forever)
+	err = s.UpsertVal([]string{"web", "users", user}, "u2fregistrationcounter", data, backend.Forever)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -553,7 +550,7 @@ func (s *IdentityService) UpsertU2FRegistrationCounter(user string, counter uint
 }
 
 func (s *IdentityService) GetU2FRegistrationCounter(user string) (counter uint32, e error) {
-	data, err := s.backend.GetVal([]string{"web", "users", user}, "u2fregistrationcounter")
+	data, err := s.GetVal([]string{"web", "users", user}, "u2fregistrationcounter")
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
@@ -572,7 +569,7 @@ func (s *IdentityService) UpsertU2FSignChallenge(user string, u2fChallenge *u2f.
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.backend.UpsertVal([]string{"web", "users", user}, "u2fsignchallenge", data, defaults.U2FChallengeTimeout)
+	err = s.UpsertVal([]string{"web", "users", user}, "u2fsignchallenge", data, defaults.U2FChallengeTimeout)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -580,7 +577,7 @@ func (s *IdentityService) UpsertU2FSignChallenge(user string, u2fChallenge *u2f.
 }
 
 func (s *IdentityService) GetU2FSignChallenge(user string) (*u2f.Challenge, error) {
-	data, err := s.backend.GetVal([]string{"web", "users", user}, "u2fsignchallenge")
+	data, err := s.GetVal([]string{"web", "users", user}, "u2fsignchallenge")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -601,7 +598,7 @@ func (s *IdentityService) UpsertOIDCConnector(connector services.OIDCConnector, 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.backend.UpsertVal(connectorsPath, connector.GetName(), data, ttl)
+	err = s.UpsertVal(connectorsPath, connector.GetName(), data, ttl)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -610,13 +607,13 @@ func (s *IdentityService) UpsertOIDCConnector(connector services.OIDCConnector, 
 
 // DeleteOIDCConnector deletes OIDC Connector
 func (s *IdentityService) DeleteOIDCConnector(connectorID string) error {
-	err := s.backend.DeleteKey(connectorsPath, connectorID)
+	err := s.DeleteKey(connectorsPath, connectorID)
 	return trace.Wrap(err)
 }
 
 // GetOIDCConnector returns OIDC connector data, , withSecrets adds or removes client secret from return results
 func (s *IdentityService) GetOIDCConnector(id string, withSecrets bool) (services.OIDCConnector, error) {
-	data, err := s.backend.GetVal(connectorsPath, id)
+	data, err := s.GetVal(connectorsPath, id)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("OpenID connector '%v' is not configured", id)
@@ -635,7 +632,7 @@ func (s *IdentityService) GetOIDCConnector(id string, withSecrets bool) (service
 
 // GetOIDCConnectors returns registered connectors, withSecrets adds or removes client secret from return results
 func (s *IdentityService) GetOIDCConnectors(withSecrets bool) ([]services.OIDCConnector, error) {
-	connectorIDs, err := s.backend.GetKeys(connectorsPath)
+	connectorIDs, err := s.GetKeys(connectorsPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -663,7 +660,7 @@ func (s *IdentityService) CreateOIDCAuthRequest(req services.OIDCAuthRequest, tt
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.backend.CreateVal(authRequestsPath, req.StateToken, data, ttl)
+	err = s.CreateVal(authRequestsPath, req.StateToken, data, ttl)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -672,7 +669,7 @@ func (s *IdentityService) CreateOIDCAuthRequest(req services.OIDCAuthRequest, tt
 
 // GetOIDCAuthRequest returns OIDC auth request if found
 func (s *IdentityService) GetOIDCAuthRequest(stateToken string) (*services.OIDCAuthRequest, error) {
-	data, err := s.backend.GetVal(authRequestsPath, stateToken)
+	data, err := s.GetVal(authRequestsPath, stateToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

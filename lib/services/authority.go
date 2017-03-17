@@ -56,6 +56,8 @@ type CertAuthority interface {
 	GetSigningKeys() [][]byte
 	// GetRoles returns a list of roles assumed by users signed by this CA
 	GetRoles() []string
+	// GetMetadata returns CA metadata
+	GetMetadata() Metadata
 	// FirstSigningKey returns first signing key or returns error if it's not here
 	// The first key is returned because multiple keys can exist during key rotation.
 	FirstSigningKey() ([]byte, error)
@@ -125,6 +127,11 @@ type CertAuthorityV2 struct {
 	// rawObject is object that is raw object stored in DB
 	// without any conversions applied, used in migrations
 	rawObject interface{}
+}
+
+// GetMetadata returns CA metadata
+func (c *CertAuthorityV2) GetMetadata() Metadata {
+	return c.Metadata
 }
 
 // V2 returns V2 version of the resouirce - itself

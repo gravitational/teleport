@@ -16,6 +16,8 @@ import (
 type User interface {
 	// GetName returns user name
 	GetName() string
+	// GetMetadata returns user metadata
+	GetMetadata() Metadata
 	// GetIdentities returns a list of connected OIDCIdentities
 	GetIdentities() []OIDCIdentity
 	// GetRoles returns a list of roles assigned to user
@@ -178,6 +180,11 @@ type UserV2 struct {
 	Spec UserSpecV2 `json:"spec"`
 	// rawObject contains raw object representation
 	rawObject interface{}
+}
+
+// GetMetadata returns user metadata
+func (u *UserV2) GetMetadata() Metadata {
+	return u.Metadata
 }
 
 // WebSessionInfo returns web session information about user
