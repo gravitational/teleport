@@ -234,6 +234,11 @@ type Metadata struct {
 	Expires time.Time `json:"expires,omitempty"`
 }
 
+// SetExpiry sets expiry time for the object
+func (m *Metadata) SetExpiry(expires time.Time) {
+	m.Expires = expires
+}
+
 // Check checks validity of all parameters and sets defaults
 func (m *Metadata) Check() error {
 	if m.Name == "" {

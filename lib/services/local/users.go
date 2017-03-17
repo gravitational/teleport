@@ -102,7 +102,8 @@ func (s *IdentityService) UpsertUser(user services.User) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.backend.UpsertVal([]string{"web", "users", user.GetName()}, "params", []byte(data), backend.TTL(clockwork.NewRealClock(), user.GetExpiry()))
+	ttl := backend.AnyTTL(s.Clock(), user.GetExpiry(), user.GetMetadata().Expires)
+	err = s.backend.UpsertVal([]string{"web", "users", user.GetName()}, "params", []byte(data), ttl)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -281,7 +282,7 @@ func (s *IdentityService) UpsertWebSession(user, sid string, session services.We
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ttl := backend.TTL(clockwork.NewRealClock(), session.GetBearerTokenExpiryTime())
+	ttl := backend.AnyTTL(clockwork.NewRealClock(), session.GetBearerTokenExpiryTime(), session.GetMetadata().Expires)
 	err = s.backend.UpsertVal([]string{"web", "users", user, "sessions"},
 		sid, bytes, ttl)
 	if trace.IsNotFound(err) {

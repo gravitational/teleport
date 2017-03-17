@@ -143,7 +143,7 @@ type Identity interface {
 	GetU2FRegistrationCounter(user string) (uint32, error)
 
 	// UpsertOIDCConnector upserts OIDC Connector
-	UpsertOIDCConnector(connector OIDCConnector, ttl time.Duration) error
+	UpsertOIDCConnector(connector OIDCConnector) error
 
 	// DeleteOIDCConnector deletes OIDC Connector
 	DeleteOIDCConnector(connectorID string) error
@@ -155,7 +155,7 @@ type Identity interface {
 	GetOIDCConnectors(withSecrets bool) ([]OIDCConnector, error)
 
 	// CreateOIDCAuthRequest creates new auth request
-	CreateOIDCAuthRequest(req OIDCAuthRequest, ttl time.Duration) error
+	CreateOIDCAuthRequest(req OIDCAuthRequest) error
 
 	// GetOIDCAuthRequest returns OIDC auth request if found
 	GetOIDCAuthRequest(stateToken string) (*OIDCAuthRequest, error)

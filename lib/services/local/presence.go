@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
 // PresenceService records and reports the presence of all components
@@ -81,7 +82,8 @@ func (s *PresenceService) UpsertNamespace(n services.Namespace) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.backend.UpsertVal([]string{namespacesPrefix, n.Metadata.Name}, "params", []byte(data), backend.Forever)
+	ttl := backend.TTL(s.Clock(), n.Metadata.Expires)
+	err = s.backend.UpsertVal([]string{namespacesPrefix, n.Metadata.Name}, "params", []byte(data), ttl)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -139,7 +141,9 @@ func (s *PresenceService) getServers(kind, prefix string) ([]services.Server, er
 	return servers, nil
 }
 
-func (s *PresenceService) upsertServer(prefix string, server services.Server, ttl time.Duration) error {
+func (s *PresenceService) upsertServer(prefix string, server services.Server) error {
+
+	ttl := backend.s.Clock()
 	data, err := services.GetServerMarshaler().MarshalServer(server)
 	if err != nil {
 		return trace.Wrap(err)
@@ -181,7 +185,7 @@ func (s *PresenceService) GetNodes(namespace string) ([]services.Server, error) 
 
 // UpsertNode registers node presence, permanently if ttl is 0 or
 // for the specified duration with second resolution if it's >= 1 second
-func (s *PresenceService) UpsertNode(server services.Server, ttl time.Duration) error {
+func (s *PresenceService) UpsertNode(server services.Server) error {
 	if server.GetNamespace() == "" {
 		return trace.BadParameter("missing node namespace")
 	}
@@ -189,6 +193,7 @@ func (s *PresenceService) UpsertNode(server services.Server, ttl time.Duration) 
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	ttl := backend.TTL(s.Clock(), server.GetMetadata().Expires)
 	err = s.backend.UpsertVal([]string{namespacesPrefix, server.GetNamespace(), nodesPrefix}, server.GetName(), data, ttl)
 	return trace.Wrap(err)
 }
@@ -200,14 +205,14 @@ func (s *PresenceService) GetAuthServers() ([]services.Server, error) {
 
 // UpsertAuthServer registers auth server presence, permanently if ttl is 0 or
 // for the specified duration with second resolution if it's >= 1 second
-func (s *PresenceService) UpsertAuthServer(server services.Server, ttl time.Duration) error {
-	return s.upsertServer(authServersPrefix, server, ttl)
+func (s *PresenceService) UpsertAuthServer(server services.Server) error {
+	return s.upsertServer(authServersPrefix, server)
 }
 
 // UpsertProxy registers proxy server presence, permanently if ttl is 0 or
 // for the specified duration with second resolution if it's >= 1 second
-func (s *PresenceService) UpsertProxy(server services.Server, ttl time.Duration) error {
-	return s.upsertServer(proxiesPrefix, server, ttl)
+func (s *PresenceService) UpsertProxy(server services.Server) error {
+	return s.upsertServer(proxiesPrefix, server)
 }
 
 // GetProxies returns a list of registered proxies
@@ -226,7 +231,7 @@ func (s *PresenceService) DeleteAllReverseTunnels() error {
 }
 
 // UpsertReverseTunnel upserts reverse tunnel entry temporarily or permanently
-func (s *PresenceService) UpsertReverseTunnel(tunnel services.ReverseTunnel, ttl time.Duration) error {
+func (s *PresenceService) UpsertReverseTunnel(tunnel services.ReverseTunnel) error {
 	if err := tunnel.Check(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -234,6 +239,7 @@ func (s *PresenceService) UpsertReverseTunnel(tunnel services.ReverseTunnel, ttl
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	ttl := backend.TTL(s.Clock(), tunnel.GetMetadata().Expires)
 	err = s.backend.UpsertVal([]string{reverseTunnelsPrefix}, tunnel.GetName(), data, ttl)
 	return trace.Wrap(err)
 }
@@ -273,8 +279,8 @@ func (s *PresenceService) UpsertTrustedCluster(trustedCluster services.TrustedCl
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	err = s.backend.UpsertVal([]string{"trustedclusters"}, trustedCluster.GetName(), []byte(data), backend.Forever)
+	ttl := backend.TTL(s.Clock(), trustedCluster.GetMetadata().Expires)
+	err = s.backend.UpsertVal([]string{"trustedclusters"}, trustedCluster.GetName(), []byte(data), ttl)
 	if err != nil {
 		return trace.Wrap(err)
 	}

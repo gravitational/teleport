@@ -337,12 +337,12 @@ func (cs *CachingAuthClient) GetUsers() (users []services.User, err error) {
 }
 
 // UpsertNode is part of auth.AccessPoint implementation
-func (cs *CachingAuthClient) UpsertNode(s services.Server, ttl time.Duration) error {
+func (cs *CachingAuthClient) UpsertNode(s services.Server) error {
 	return cs.ap.UpsertNode(s, ttl)
 }
 
 // UpsertProxy is part of auth.AccessPoint implementation
-func (cs *CachingAuthClient) UpsertProxy(s services.Server, ttl time.Duration) error {
+func (cs *CachingAuthClient) UpsertProxy(s services.Server) error {
 	return cs.ap.UpsertProxy(s, ttl)
 }
 

@@ -42,6 +42,8 @@ type Server interface {
 	MatchAgainst(labels map[string]string) bool
 	// LabelsString returns a comma separated string with all node's labels
 	LabelsString() string
+	// GetMetadata returns metadata
+	GetMetadata() Metadata
 }
 
 // ServersToV1 converts list of servers to slice of V1 style ones
@@ -63,6 +65,11 @@ type ServerV2 struct {
 	Metadata Metadata `json:"metadata"`
 	// Spec contains user specification
 	Spec ServerSpecV2 `json:"spec"`
+}
+
+// GetMetadata returns metadata
+func (s *ServerV2) GetMetadata() Metadata {
+	return s.Metadata
 }
 
 // V2 returns version 2 of the resource, itself

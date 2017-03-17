@@ -57,6 +57,8 @@ type Backend interface {
 	ReleaseLock(token string) error
 	// Close releases the resources taken up by this backend
 	Close() error
+	// Clock returns clock used by this backend
+	Clock() clockwork.Clock
 }
 
 // backend.Params type defines a flexible unified back-end configuration API.
@@ -113,4 +115,15 @@ func TTL(clock clockwork.Clock, t time.Time) time.Duration {
 		return Forever
 	}
 	return diff
+}
+
+// AnyTTL returns TTL if any of the suplied times pass expiry time
+// otherwise returns forever
+func AnyTTL(clock clockwork.Clock, times ...time.Time) time.Duration {
+	for _, t := range times {
+		if !t.IsZero() {
+			return TTL(clock, t)
+		}
+	}
+	return Forever
 }

@@ -23,6 +23,8 @@ type ReverseTunnel interface {
 	GetDialAddrs() []string
 	// Check checks tunnel for errors
 	Check() error
+	// GetMetadata returns metadata
+	GetMetadata() Metadata
 }
 
 // NewReverseTunnel returns new version of reverse tunnel
@@ -51,6 +53,11 @@ type ReverseTunnelV2 struct {
 	Metadata Metadata `json:"metadata"`
 	// Spec contains user specification
 	Spec ReverseTunnelSpecV2 `json:"spec"`
+}
+
+// GetMetadata returns metadata
+func (r *ReverseTunnelV2) GetMetadata() Metadata {
+	return r.Metadata
 }
 
 // V2 returns V2 version of the resource

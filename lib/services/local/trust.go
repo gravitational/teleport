@@ -7,17 +7,26 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
 // CA is local implementation of Trust service that
 // is using local backend
 type CA struct {
 	backend backend.Backend
+	clock   clockwork.Clock
 }
 
 // NewCAService returns new instance of CAService
 func NewCAService(backend backend.Backend) *CA {
-	return &CA{backend: backend}
+	return &CA{
+		backend: backend,
+	}
+}
+
+// clock returns clock for this service
+func (s *CA) clock() clockwork.Clock {
+	return clockwork.NewRealClock()
 }
 
 // DeleteAllCertAuthorities deletes all certificate authorities of a certain type

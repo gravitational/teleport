@@ -38,7 +38,7 @@ type Presence interface {
 
 	// UpsertNode registers node presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
-	UpsertNode(server Server, ttl time.Duration) error
+	UpsertNode(server Server) error
 
 	// GetAuthServers returns a list of registered servers
 	GetAuthServers() ([]Server, error)
@@ -58,7 +58,7 @@ type Presence interface {
 	DeleteAllProxies() error
 
 	// UpsertReverseTunnel upserts reverse tunnel entry temporarily or permanently
-	UpsertReverseTunnel(tunnel ReverseTunnel, ttl time.Duration) error
+	UpsertReverseTunnel(tunnel ReverseTunnel) error
 
 	// GetReverseTunnels returns a list of registered servers
 	GetReverseTunnels() ([]ReverseTunnel, error)

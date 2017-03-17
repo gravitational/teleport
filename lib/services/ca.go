@@ -34,9 +34,8 @@ import (
 // Remote authorities have only public keys available, so they can
 // be only used to validate
 type Trust interface {
-
 	// UpsertCertAuthority updates or inserts a new certificate authority
-	UpsertCertAuthority(ca CertAuthority, ttl time.Duration) error
+	UpsertCertAuthority(ca CertAuthority) error
 
 	// DeleteCertAuthority deletes particular certificate authority
 	DeleteCertAuthority(id CertAuthID) error

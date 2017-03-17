@@ -53,6 +53,8 @@ type TrustedCluster interface {
 	GetReverseTunnelAddress() string
 	// SetReverseTunnelAddress sets the address of the reverse tunnel.
 	SetReverseTunnelAddress(string)
+	// GetMetadata returns metadata
+	GetMetadata() Metadata
 }
 
 // NewTrustedCluster is a convenience wa to create a TrustedCluster resource.
@@ -104,6 +106,11 @@ type TrustedClusterSpecV2 struct {
 	// ReverseTunnelAddress is the address of the SSH proxy server of the cluster to join. If
 	// not set, it is derived from <metadata.name>:<default reverse tunnel port>.
 	ReverseTunnelAddress string `json:"tunnel_addr"`
+}
+
+// GetMetadata returns cluster Metadata
+func (c *TrustedClusterV2) GetMetadata() Metadata {
+	return c.Metadata
 }
 
 // GetName returns the name of the TrustedCluster.
