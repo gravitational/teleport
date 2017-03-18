@@ -155,7 +155,7 @@ type Identity interface {
 	GetOIDCConnectors(withSecrets bool) ([]OIDCConnector, error)
 
 	// CreateOIDCAuthRequest creates new auth request
-	CreateOIDCAuthRequest(req OIDCAuthRequest) error
+	CreateOIDCAuthRequest(req OIDCAuthRequest, ttl time.Duration) error
 
 	// GetOIDCAuthRequest returns OIDC auth request if found
 	GetOIDCAuthRequest(stateToken string) (*OIDCAuthRequest, error)

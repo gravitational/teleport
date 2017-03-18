@@ -29,7 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
-	"github.com/mailgun/timetools"
+	"github.com/jonboulle/clockwork"
 )
 
 const (
@@ -49,7 +49,7 @@ type BoltBackend struct {
 	sync.Mutex
 
 	db    *bolt.DB
-	clock timetools.TimeProvider
+	clock clockwork.Clock
 	locks map[string]time.Time
 }
 
@@ -88,9 +88,14 @@ func New(params backend.Params) (backend.Backend, error) {
 	}
 	return &BoltBackend{
 		locks: make(map[string]time.Time),
-		clock: &timetools.RealTime{},
+		clock: clockwork.NewRealClock(),
 		db:    db,
 	}, nil
+}
+
+// Clock returns clock assigned to the backend
+func (b *BoltBackend) Clock() clockwork.Clock {
+	return b.clock
 }
 
 // Close closes the backend resources
@@ -124,7 +129,7 @@ func (b *BoltBackend) UpsertVal(path []string, key string, val []byte, ttl time.
 
 func (b *BoltBackend) CreateVal(bucket []string, key string, val []byte, ttl time.Duration) error {
 	v := &kv{
-		Created: b.clock.UtcNow(),
+		Created: b.clock.Now().UTC(),
 		Value:   val,
 		TTL:     ttl,
 	}
@@ -138,7 +143,7 @@ func (b *BoltBackend) CreateVal(bucket []string, key string, val []byte, ttl tim
 
 func (b *BoltBackend) upsertVal(path []string, key string, val []byte, ttl time.Duration) error {
 	v := &kv{
-		Created: b.clock.UtcNow(),
+		Created: b.clock.Now().UTC(),
 		Value:   val,
 		TTL:     ttl,
 	}
@@ -158,7 +163,7 @@ func (b *BoltBackend) GetVal(path []string, key string) ([]byte, error) {
 	if err := json.Unmarshal(val, &k); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if k.TTL != 0 && b.clock.UtcNow().Sub(k.Created) > k.TTL {
+	if k.TTL != 0 && b.clock.Now().UTC().Sub(k.Created) > k.TTL {
 		if err := b.deleteKey(path, key); err != nil {
 			return nil, err
 		}
@@ -328,14 +333,14 @@ func (b *BoltBackend) AcquireLock(token string, ttl time.Duration) error {
 	for {
 		b.Lock()
 		expires, ok := b.locks[token]
-		if ok && (expires.IsZero() || expires.After(b.clock.UtcNow())) {
+		if ok && (expires.IsZero() || expires.After(b.clock.Now().UTC())) {
 			b.Unlock()
 			b.clock.Sleep(100 * time.Millisecond)
 		} else {
 			if ttl == 0 {
 				b.locks[token] = time.Time{}
 			} else {
-				b.locks[token] = b.clock.UtcNow().Add(ttl)
+				b.locks[token] = b.clock.Now().UTC().Add(ttl)
 			}
 			b.Unlock()
 			return nil
@@ -348,7 +353,7 @@ func (b *BoltBackend) ReleaseLock(token string) error {
 	defer b.Unlock()
 
 	expires, ok := b.locks[token]
-	if !ok || (!expires.IsZero() && expires.Before(b.clock.UtcNow())) {
+	if !ok || (!expires.IsZero() && expires.Before(b.clock.Now().UTC())) {
 		return trace.NotFound("lock %v is deleted or expired", token)
 	}
 	delete(b.locks, token)

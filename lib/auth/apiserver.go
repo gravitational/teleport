@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/tstranex/u2f"
 )
 
@@ -49,12 +50,14 @@ type APIConfig struct {
 type APIServer struct {
 	APIConfig
 	httprouter.Router
+	clockwork.Clock
 }
 
 // NewAPIServer returns a new instance of APIServer HTTP handler
 func NewAPIServer(config *APIConfig) http.Handler {
 	srv := APIServer{
 		APIConfig: *config,
+		Clock:     clockwork.NewRealClock(),
 	}
 	srv.Router = *httprouter.New()
 
@@ -227,7 +230,7 @@ func (s *APIServer) upsertServer(auth ClientI, role teleport.Role, w http.Respon
 	// if server sent "local" IP address to us, replace the ip/host part with the remote address we see
 	// on the socket, but keep the original port:
 	server.SetAddr(utils.ReplaceLocalhost(server.GetAddr(), r.RemoteAddr))
-	server.SetTTL(req.TTL)
+	server.SetTTL(s, req.TTL)
 	switch role {
 	case teleport.RoleNode:
 		server.SetNamespace(p.ByName("namespace"))
@@ -315,7 +318,8 @@ func (s *APIServer) upsertReverseTunnel(auth ClientI, w http.ResponseWriter, r *
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := auth.UpsertReverseTunnel(tun, req.TTL); err != nil {
+	tun.SetTTL(s, req.TTL)
+	if err := auth.UpsertReverseTunnel(tun); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
@@ -774,7 +778,10 @@ func (s *APIServer) upsertCertAuthority(auth ClientI, w http.ResponseWriter, r *
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := auth.UpsertCertAuthority(ca, req.TTL); err != nil {
+	if req.TTL != 0 {
+		ca.SetTTL(s, req.TTL)
+	}
+	if err := auth.UpsertCertAuthority(ca); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
@@ -1006,7 +1013,10 @@ func (s *APIServer) upsertOIDCConnector(auth ClientI, w http.ResponseWriter, r *
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = auth.UpsertOIDCConnector(connector, req.TTL)
+	if req.TTL != 0 {
+		connector.SetTTL(s, req.TTL)
+	}
+	err = auth.UpsertOIDCConnector(connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

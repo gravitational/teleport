@@ -49,7 +49,7 @@ type Presence interface {
 
 	// UpsertProxy registers proxy server presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
-	UpsertProxy(server Server, ttl time.Duration) error
+	UpsertProxy(server Server) error
 
 	// GetProxies returns a list of registered proxies
 	GetProxies() ([]Server, error)

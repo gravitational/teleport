@@ -8,13 +8,15 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
 // Server represents a Node, Proxy or Auth server in a Teleport cluster
 type Server interface {
-	// GetName returns server name
-	GetName() string
+	// Resource provides common resource headers
+	Resource
 	// GetAddr return server address
 	GetAddr() string
 	// GetHostname returns server hostname
@@ -42,11 +44,6 @@ type Server interface {
 	MatchAgainst(labels map[string]string) bool
 	// LabelsString returns a comma separated string with all node's labels
 	LabelsString() string
-	// Expires retuns object expiry setting
-	Expires() time.Time
-	SetExpires(time.Time)
-	// SetTTL sets Expires header using current clock
-	SetTTL(ttl time.Duration)
 }
 
 // ServersToV1 converts list of servers to slice of V1 style ones
@@ -112,9 +109,29 @@ func (s *ServerV2) SetAddr(addr string) {
 	s.Spec.Addr = addr
 }
 
-// GetName returns server name
+// SetExpiry sets expiry time for the object
+func (s *ServerV2) SetExpiry(expires time.Time) {
+	s.Metadata.SetExpiry(expires)
+}
+
+// Expires retuns object expiry setting
+func (s *ServerV2) Expiry() time.Time {
+	return s.Metadata.Expiry()
+}
+
+// SetTTL sets Expires header using realtime clock
+func (s *ServerV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+	s.Metadata.SetTTL(clock, ttl)
+}
+
+// GetName returns the name of the TrustedCluster.
 func (s *ServerV2) GetName() string {
 	return s.Metadata.Name
+}
+
+// SetName sets the name of the TrustedCluster.
+func (s *ServerV2) SetName(e string) {
+	s.Metadata.Name = e
 }
 
 // GetAddr return server address

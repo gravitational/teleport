@@ -40,6 +40,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
 // DynamoConfig structure represents DynamoDB confniguration as appears in `storage` section
@@ -60,6 +61,7 @@ type DynamoDBBackend struct {
 	tableName string
 	region    string
 	svc       *dynamodb.DynamoDB
+	clock     clockwork.Clock
 }
 
 type record struct {
@@ -118,6 +120,7 @@ func New(params backend.Params) (backend.Backend, error) {
 	b := &DynamoDBBackend{
 		tableName: cfg.Tablename,
 		region:    cfg.Region,
+		clock:     clockwork.NewRealClock(),
 	}
 	// create an AWS session using default SDK behavior, i.e. it will interpret
 	// the environment and ~/.aws directory just like an AWS CLI tool would:
@@ -167,6 +170,11 @@ const (
 	tableStatusNeedsMigration
 	tableStatusOK
 )
+
+// Clock returns wall clock
+func (b *DynamoDBBackend) Clock() clockwork.Clock {
+	return b.clock
+}
 
 // getTableStatus checks if a given table exists
 func (b *DynamoDBBackend) getTableStatus(tableName string) (tableStatus, error) {

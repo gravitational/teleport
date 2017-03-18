@@ -20,18 +20,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"time"
 
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/coreos/go-oidc/jose"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
 // OIDCConnector specifies configuration for Open ID Connect compatible external
 // identity provider, e.g. google in some organisation
 type OIDCConnector interface {
-	// Name is a provider name, 'e.g.' google, used internally
-	GetName() string
+	// Resource provides common methods for objects
+	Resource
 	// Issuer URL is the endpoint of the provider, e.g. https://accounts.google.com
 	GetIssuerURL() string
 	// ClientID is id for authentication client (in our case it's our Auth server)
@@ -59,8 +61,6 @@ type OIDCConnector interface {
 	SetClientSecret(secret string)
 	// SetClientID sets id for authentication client (in our case it's our Auth server)
 	SetClientID(string)
-	// SetName sets a provider name
-	SetName(string)
 	// SetIssuerURL sets the endpoint of the provider
 	SetIssuerURL(string)
 	// SetRedirectURL sets RedirectURL
@@ -199,9 +199,34 @@ func (o *OIDCConnectorV2) SetDisplay(display string) {
 	o.Spec.Display = display
 }
 
+// GetMetadata returns object metadata
+func (o *OIDCConnectorV2) GetMetadata() Metadata {
+	return o.Metadata
+}
+
+// SetExpiry sets expiry time for the object
+func (o *OIDCConnectorV2) SetExpiry(expires time.Time) {
+	o.Metadata.SetExpiry(expires)
+}
+
+// Expires retuns object expiry setting
+func (o *OIDCConnectorV2) Expiry() time.Time {
+	return o.Metadata.Expiry()
+}
+
+// SetTTL sets Expires header using realtime clock
+func (o *OIDCConnectorV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+	o.Metadata.SetTTL(clock, ttl)
+}
+
+// GetName returns the name of the connector
+func (o *OIDCConnectorV2) GetName() string {
+	return o.Metadata.GetName()
+}
+
 // SetName sets client secret to some value
 func (o *OIDCConnectorV2) SetName(name string) {
-	o.Metadata.Name = name
+	o.Metadata.SetName(name)
 }
 
 // SetIssuerURL sets client secret to some value
@@ -232,11 +257,6 @@ func (o *OIDCConnectorV2) SetClientID(clintID string) {
 // SetClientSecret sets client secret to some value
 func (o *OIDCConnectorV2) SetClientSecret(secret string) {
 	o.Spec.ClientSecret = secret
-}
-
-// ID is a provider id, 'e.g.' google, used internally
-func (o *OIDCConnectorV2) GetName() string {
-	return o.Metadata.Name
 }
 
 // Issuer URL is the endpoint of the provider, e.g. https://accounts.google.com

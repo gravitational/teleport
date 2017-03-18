@@ -61,6 +61,9 @@ const (
 	// By default all users use /bin/bash
 	DefaultShell = "/bin/bash"
 
+	// CacheTTL is a default cache TTL for persistent node cache
+	CacheTTL = 20 * time.Hour
+
 	// InviteTokenTTL sets the lifespan of tokens used for adding nodes and users
 	// to a cluster
 	InviteTokenTTL = 15 * time.Minute

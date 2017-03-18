@@ -7,7 +7,6 @@ import (
 	"net/url"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
 
@@ -76,7 +75,7 @@ func (a *AuthServer) enableTrustedCluster(trustedCluster services.TrustedCluster
 			}
 		}
 
-		err = a.UpsertCertAuthority(remoteCertAuthority, backend.Forever)
+		err = a.UpsertCertAuthority(remoteCertAuthority)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -88,7 +87,7 @@ func (a *AuthServer) enableTrustedCluster(trustedCluster services.TrustedCluster
 		trustedCluster.GetName(),
 		[]string{trustedCluster.GetReverseTunnelAddress()},
 	)
-	err = a.UpsertReverseTunnel(reverseTunnel, backend.Forever)
+	err = a.UpsertReverseTunnel(reverseTunnel)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -130,7 +129,7 @@ func (a *AuthServer) validateTrustedCluster(validateRequest *ValidateTrustedClus
 
 	// token has been validated, upsert the given certificate authority
 	for _, certAuthority := range validateRequest.CAs {
-		err = a.UpsertCertAuthority(certAuthority, backend.Forever)
+		err = a.UpsertCertAuthority(certAuthority)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

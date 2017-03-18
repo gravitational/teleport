@@ -4,27 +4,27 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
 // ReverseTunnel is SSH reverse tunnel established between a local Proxy
 // and a remote Proxy. It helps to bypass firewall restrictions, so local
 // clusters don't need to have the cluster involved
 type ReverseTunnel interface {
-	// GetName returns tunnel object name
-	GetName() string
+	// Resource provides common methods for resource objects
+	Resource
 	// GetClusterName returns name of the cluster
 	GetClusterName() string
 	// GetDialAddrs returns list of dial addresses for this cluster
 	GetDialAddrs() []string
 	// Check checks tunnel for errors
 	Check() error
-	// GetMetadata returns metadata
-	GetMetadata() Metadata
 }
 
 // NewReverseTunnel returns new version of reverse tunnel
@@ -55,9 +55,34 @@ type ReverseTunnelV2 struct {
 	Spec ReverseTunnelSpecV2 `json:"spec"`
 }
 
-// GetMetadata returns metadata
+// GetMetadata returns object metadata
 func (r *ReverseTunnelV2) GetMetadata() Metadata {
 	return r.Metadata
+}
+
+// SetExpiry sets expiry time for the object
+func (r *ReverseTunnelV2) SetExpiry(expires time.Time) {
+	r.Metadata.SetExpiry(expires)
+}
+
+// Expires retuns object expiry setting
+func (r *ReverseTunnelV2) Expiry() time.Time {
+	return r.Metadata.Expiry()
+}
+
+// SetTTL sets Expires header using realtime clock
+func (r *ReverseTunnelV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+	r.Metadata.SetTTL(clock, ttl)
+}
+
+// GetName returns the name of the User
+func (r *ReverseTunnelV2) GetName() string {
+	return r.Metadata.Name
+}
+
+// SetName sets the name of the User
+func (r *ReverseTunnelV2) SetName(e string) {
+	r.Metadata.Name = e
 }
 
 // V2 returns V2 version of the resource
@@ -71,11 +96,6 @@ func (r *ReverseTunnelV2) V1() *ReverseTunnelV1 {
 		DomainName: r.Spec.ClusterName,
 		DialAddrs:  r.Spec.DialAddrs,
 	}
-}
-
-// GetName returns tunnel object name
-func (r *ReverseTunnelV2) GetName() string {
-	return r.Metadata.Name
 }
 
 // GetClusterName returns name of the cluster

@@ -82,11 +82,11 @@ func (a *AuthWithRoles) UpdateSession(req session.UpdateRequest) error {
 	return a.sessions.UpdateSession(req)
 }
 
-func (a *AuthWithRoles) UpsertCertAuthority(ca services.CertAuthority, ttl time.Duration) error {
+func (a *AuthWithRoles) UpsertCertAuthority(ca services.CertAuthority) error {
 	if err := a.action(defaults.Namespace, services.KindCertAuthority, services.ActionWrite); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpsertCertAuthority(ca, ttl)
+	return a.authServer.UpsertCertAuthority(ca)
 }
 
 func (a *AuthWithRoles) GetCertAuthorities(caType services.CertAuthType, loadKeys bool) ([]services.CertAuthority, error) {
@@ -158,11 +158,11 @@ func (a *AuthWithRoles) RegisterNewAuthServer(token string) error {
 	return a.authServer.RegisterNewAuthServer(token)
 }
 
-func (a *AuthWithRoles) UpsertNode(s services.Server, ttl time.Duration) error {
+func (a *AuthWithRoles) UpsertNode(s services.Server) error {
 	if err := a.action(s.GetNamespace(), services.KindNode, services.ActionWrite); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpsertNode(s, ttl)
+	return a.authServer.UpsertNode(s)
 }
 
 func (a *AuthWithRoles) GetNodes(namespace string) ([]services.Server, error) {
@@ -172,11 +172,11 @@ func (a *AuthWithRoles) GetNodes(namespace string) ([]services.Server, error) {
 	return a.authServer.GetNodes(namespace)
 }
 
-func (a *AuthWithRoles) UpsertAuthServer(s services.Server, ttl time.Duration) error {
+func (a *AuthWithRoles) UpsertAuthServer(s services.Server) error {
 	if err := a.action(defaults.Namespace, services.KindAuthServer, services.ActionWrite); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpsertAuthServer(s, ttl)
+	return a.authServer.UpsertAuthServer(s)
 }
 
 func (a *AuthWithRoles) GetAuthServers() ([]services.Server, error) {
@@ -186,11 +186,11 @@ func (a *AuthWithRoles) GetAuthServers() ([]services.Server, error) {
 	return a.authServer.GetAuthServers()
 }
 
-func (a *AuthWithRoles) UpsertProxy(s services.Server, ttl time.Duration) error {
+func (a *AuthWithRoles) UpsertProxy(s services.Server) error {
 	if err := a.action(defaults.Namespace, services.KindProxy, services.ActionWrite); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpsertProxy(s, ttl)
+	return a.authServer.UpsertProxy(s)
 }
 
 func (a *AuthWithRoles) GetProxies() ([]services.Server, error) {
@@ -200,11 +200,11 @@ func (a *AuthWithRoles) GetProxies() ([]services.Server, error) {
 	return a.authServer.GetProxies()
 }
 
-func (a *AuthWithRoles) UpsertReverseTunnel(r services.ReverseTunnel, ttl time.Duration) error {
+func (a *AuthWithRoles) UpsertReverseTunnel(r services.ReverseTunnel) error {
 	if err := a.action(defaults.Namespace, services.KindReverseTunnel, services.ActionWrite); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpsertReverseTunnel(r, ttl)
+	return a.authServer.UpsertReverseTunnel(r)
 }
 
 func (a *AuthWithRoles) GetReverseTunnels() ([]services.ReverseTunnel, error) {
@@ -434,11 +434,11 @@ func (a *AuthWithRoles) UpsertUser(u services.User) error {
 	return a.authServer.UpsertUser(u)
 }
 
-func (a *AuthWithRoles) UpsertOIDCConnector(connector services.OIDCConnector, ttl time.Duration) error {
+func (a *AuthWithRoles) UpsertOIDCConnector(connector services.OIDCConnector) error {
 	if err := a.action(defaults.Namespace, services.KindOIDC, services.ActionWrite); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpsertOIDCConnector(connector, ttl)
+	return a.authServer.UpsertOIDCConnector(connector)
 }
 
 func (a *AuthWithRoles) GetOIDCConnector(id string, withSecrets bool) (services.OIDCConnector, error) {

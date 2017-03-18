@@ -86,7 +86,7 @@ func (s *IdentityService) CreateUser(user services.User) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.CreateVal([]string{"web", "users", user.GetName()}, "params", []byte(data), backend.TTL(clockwork.NewRealClock(), user.GetExpiry()))
+	err = s.CreateVal([]string{"web", "users", user.GetName()}, "params", []byte(data), backend.TTL(s.Clock(), user.Expiry()))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -102,7 +102,7 @@ func (s *IdentityService) UpsertUser(user services.User) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ttl := backend.AnyTTL(s.Clock(), user.GetExpiry(), user.GetMetadata().Expires)
+	ttl := backend.TTL(s.Clock(), user.Expiry())
 	err = s.UpsertVal([]string{"web", "users", user.GetName()}, "params", []byte(data), ttl)
 	if err != nil {
 		return trace.Wrap(err)
@@ -590,7 +590,7 @@ func (s *IdentityService) GetU2FSignChallenge(user string) (*u2f.Challenge, erro
 }
 
 // UpsertOIDCConnector upserts OIDC Connector
-func (s *IdentityService) UpsertOIDCConnector(connector services.OIDCConnector, ttl time.Duration) error {
+func (s *IdentityService) UpsertOIDCConnector(connector services.OIDCConnector) error {
 	if err := connector.Check(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -598,6 +598,7 @@ func (s *IdentityService) UpsertOIDCConnector(connector services.OIDCConnector, 
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	ttl := backend.TTL(s.Clock(), connector.Expiry())
 	err = s.UpsertVal(connectorsPath, connector.GetName(), data, ttl)
 	if err != nil {
 		return trace.Wrap(err)

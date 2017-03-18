@@ -21,13 +21,15 @@ import (
 	"fmt"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+
+	log "github.com/Sirupsen/logrus"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
 const (
@@ -39,6 +41,7 @@ const (
 //
 // This which can be used if the upstream AccessPoint goes offline
 type CachingAuthClient struct {
+	Config
 	// ap points to the access ponit we're caching access to:
 	ap auth.AccessPoint
 
@@ -51,15 +54,50 @@ type CachingAuthClient struct {
 	presence services.Presence
 }
 
+// Config is CachingAuthClient config
+type Config struct {
+	// CacheTTL sets maximum TTL the cache keeps the value
+	CacheTTL time.Duration
+	// NeverExpire if set, never expires cache values
+	NeverExpire bool
+	// AccessPoint is access point for this
+	AccessPoint auth.AccessPoint
+	// Backend is cache backend
+	Backend backend.Backend
+	// Clock can be set to control time
+	Clock clockwork.Clock
+}
+
+// CheckAndSetDefaults checks parameters and sets default values
+func (c *Config) CheckAndSetDefaults() error {
+	if !c.NeverExpire && c.CacheTTL == 0 {
+		c.CacheTTL = defaults.CacheTTL
+	}
+	if c.AccessPoint == nil {
+		return trace.BadParameter("missing AccessPoint parameter")
+	}
+	if c.Backend == nil {
+		return trace.BadParameter("missing Backend parameter")
+	}
+	if c.Clock == nil {
+		c.Clock = clockwork.NewRealClock()
+	}
+	return nil
+}
+
 // NewCachingAuthClient creates a new instance of CachingAuthClient using a
 // live connection to the auth server (ap)
-func NewCachingAuthClient(ap auth.AccessPoint, b backend.Backend) (*CachingAuthClient, error) {
+func NewCachingAuthClient(config Config) (*CachingAuthClient, error) {
+	if err := config.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	cs := &CachingAuthClient{
-		ap:       ap,
-		identity: local.NewIdentityService(b),
-		trust:    local.NewCAService(b),
-		access:   local.NewAccessService(b),
-		presence: local.NewPresenceService(b),
+		Config:   config,
+		ap:       config.AccessPoint,
+		identity: local.NewIdentityService(config.Backend),
+		trust:    local.NewCAService(config.Backend),
+		access:   local.NewAccessService(config.Backend),
+		presence: local.NewPresenceService(config.Backend),
 	}
 	err := cs.fetchAll()
 	if err != nil {
@@ -138,6 +176,18 @@ func (cs *CachingAuthClient) GetRoles() (roles []services.Role, err error) {
 	return roles, err
 }
 
+func (cs *CachingAuthClient) setTTL(r services.Resource) {
+	if cs.NeverExpire {
+		return
+	}
+	// honor expiry set by user
+	if !r.Expiry().IsZero() {
+		return
+	}
+	// set TTL as a global setting
+	r.SetTTL(cs.Clock, cs.CacheTTL)
+}
+
 // GetRole is a part of auth.AccessPoint implementation
 func (cs *CachingAuthClient) GetRole(name string) (role services.Role, err error) {
 	err = cs.try(func() error {
@@ -155,6 +205,7 @@ func (cs *CachingAuthClient) GetRole(name string) (role services.Role, err error
 			return nil, trace.Wrap(err)
 		}
 	}
+	cs.setTTL(role)
 	if err := cs.access.UpsertRole(role); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -229,7 +280,8 @@ func (cs *CachingAuthClient) GetNodes(namespace string) (nodes []services.Server
 		}
 	}
 	for _, node := range nodes {
-		if err := cs.presence.UpsertNode(node, backend.Forever); err != nil {
+		cs.setTTL(node)
+		if err := cs.presence.UpsertNode(node); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -253,7 +305,8 @@ func (cs *CachingAuthClient) GetReverseTunnels() (tunnels []services.ReverseTunn
 		}
 	}
 	for _, tunnel := range tunnels {
-		if err := cs.presence.UpsertReverseTunnel(tunnel, backend.Forever); err != nil {
+		cs.setTTL(tunnel)
+		if err := cs.presence.UpsertReverseTunnel(tunnel); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -279,7 +332,8 @@ func (cs *CachingAuthClient) GetProxies() (proxies []services.Server, err error)
 		}
 	}
 	for _, proxy := range proxies {
-		if err := cs.presence.UpsertProxy(proxy, backend.Forever); err != nil {
+		cs.setTTL(proxy)
+		if err := cs.presence.UpsertProxy(proxy); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -304,7 +358,8 @@ func (cs *CachingAuthClient) GetCertAuthorities(ct services.CertAuthType, loadKe
 		}
 	}
 	for _, ca := range cas {
-		if err := cs.trust.UpsertCertAuthority(ca, backend.Forever); err != nil {
+		cs.setTTL(ca)
+		if err := cs.trust.UpsertCertAuthority(ca); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -329,6 +384,7 @@ func (cs *CachingAuthClient) GetUsers() (users []services.User, err error) {
 		}
 	}
 	for _, user := range users {
+		cs.setTTL(user)
 		if err := cs.identity.UpsertUser(user); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -338,12 +394,14 @@ func (cs *CachingAuthClient) GetUsers() (users []services.User, err error) {
 
 // UpsertNode is part of auth.AccessPoint implementation
 func (cs *CachingAuthClient) UpsertNode(s services.Server) error {
-	return cs.ap.UpsertNode(s, ttl)
+	cs.setTTL(s)
+	return cs.ap.UpsertNode(s)
 }
 
 // UpsertProxy is part of auth.AccessPoint implementation
 func (cs *CachingAuthClient) UpsertProxy(s services.Server) error {
-	return cs.ap.UpsertProxy(s, ttl)
+	cs.setTTL(s)
+	return cs.ap.UpsertProxy(s)
 }
 
 // try calls a given function f and checks for errors. If f() fails, the current

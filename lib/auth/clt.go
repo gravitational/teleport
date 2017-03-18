@@ -198,7 +198,7 @@ func (c *Client) Close() error {
 }
 
 // UpsertCertAuthority updates or inserts new cert authority
-func (c *Client) UpsertCertAuthority(ca services.CertAuthority, ttl time.Duration) error {
+func (c *Client) UpsertCertAuthority(ca services.CertAuthority) error {
 	if err := ca.Check(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -207,7 +207,7 @@ func (c *Client) UpsertCertAuthority(ca services.CertAuthority, ttl time.Duratio
 		return trace.Wrap(err)
 	}
 	_, err = c.PostJSON(c.Endpoint("authorities", string(ca.GetType())),
-		&upsertCertAuthorityRawReq{CA: data, TTL: ttl})
+		&upsertCertAuthorityRawReq{CA: data})
 	return trace.Wrap(err)
 }
 
@@ -347,7 +347,7 @@ func (c *Client) RegisterNewAuthServer(token string) error {
 
 // UpsertNode is used by SSH servers to reprt their presense
 // to the auth servers in form of hearbeat expiring after ttl period.
-func (c *Client) UpsertNode(s services.Server, ttl time.Duration) error {
+func (c *Client) UpsertNode(s services.Server) error {
 	if s.GetNamespace() == "" {
 		return trace.BadParameter("missing node namespace")
 	}
@@ -357,7 +357,6 @@ func (c *Client) UpsertNode(s services.Server, ttl time.Duration) error {
 	}
 	args := &upsertServerRawReq{
 		Server: data,
-		TTL:    ttl,
 	}
 	_, err = c.PostJSON(c.Endpoint("namespaces", s.GetNamespace(), "nodes"), args)
 	return trace.Wrap(err)
@@ -389,14 +388,13 @@ func (c *Client) GetNodes(namespace string) ([]services.Server, error) {
 
 // UpsertReverseTunnel is used by admins to create a new reverse tunnel
 // to the remote proxy to bypass firewall restrictions
-func (c *Client) UpsertReverseTunnel(tunnel services.ReverseTunnel, ttl time.Duration) error {
+func (c *Client) UpsertReverseTunnel(tunnel services.ReverseTunnel) error {
 	data, err := services.GetReverseTunnelMarshaler().MarshalReverseTunnel(tunnel)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	args := &upsertReverseTunnelRawReq{
 		ReverseTunnel: data,
-		TTL:           ttl,
 	}
 	_, err = c.PostJSON(c.Endpoint("reversetunnels"), args)
 	return trace.Wrap(err)
@@ -437,14 +435,13 @@ func (c *Client) DeleteReverseTunnel(domainName string) error {
 
 // UpsertAuthServer is used by auth servers to report their presense
 // to other auth servers in form of hearbeat expiring after ttl period.
-func (c *Client) UpsertAuthServer(s services.Server, ttl time.Duration) error {
+func (c *Client) UpsertAuthServer(s services.Server) error {
 	data, err := services.GetServerMarshaler().MarshalServer(s)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	args := &upsertServerRawReq{
 		Server: data,
-		TTL:    ttl,
 	}
 	_, err = c.PostJSON(c.Endpoint("authservers"), args)
 	return trace.Wrap(err)
@@ -473,14 +470,13 @@ func (c *Client) GetAuthServers() ([]services.Server, error) {
 
 // UpsertProxy is used by proxies to report their presense
 // to other auth servers in form of hearbeat expiring after ttl period.
-func (c *Client) UpsertProxy(s services.Server, ttl time.Duration) error {
+func (c *Client) UpsertProxy(s services.Server) error {
 	data, err := services.GetServerMarshaler().MarshalServer(s)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	args := &upsertServerRawReq{
 		Server: data,
-		TTL:    ttl,
 	}
 	_, err = c.PostJSON(c.Endpoint("proxies"), args)
 	return trace.Wrap(err)
@@ -828,14 +824,13 @@ func (c *Client) CreateUserWithU2FToken(token string, password string, u2fRegist
 }
 
 // UpsertOIDCConnector updates or creates OIDC connector
-func (c *Client) UpsertOIDCConnector(connector services.OIDCConnector, ttl time.Duration) error {
+func (c *Client) UpsertOIDCConnector(connector services.OIDCConnector) error {
 	data, err := services.GetOIDCConnectorMarshaler().MarshalOIDCConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	_, err = c.PostJSON(c.Endpoint("oidc", "connectors"), &upsertOIDCConnectorRawReq{
 		Connector: data,
-		TTL:       ttl,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1337,7 +1332,7 @@ type IdentityService interface {
 	UpsertPassword(user string, password []byte) error
 
 	// UpsertOIDCConnector updates or creates OIDC connector
-	UpsertOIDCConnector(connector services.OIDCConnector, ttl time.Duration) error
+	UpsertOIDCConnector(connector services.OIDCConnector) error
 
 	// GetOIDCConnector returns OIDC connector information by id
 	GetOIDCConnector(id string, withSecrets bool) (services.OIDCConnector, error)

@@ -51,6 +51,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
 	"golang.org/x/crypto/ssh"
 )
@@ -93,6 +94,7 @@ type Connector struct {
 // TeleportProcess structure holds the state of the Teleport daemon, controlling
 // execution and configuration of the teleport services: ssh, auth and proxy.
 type TeleportProcess struct {
+	clockwork.Clock
 	sync.Mutex
 	Supervisor
 	Config *Config
@@ -235,6 +237,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	}
 
 	process := &TeleportProcess{
+		Clock:        clockwork.NewRealClock(),
 		Supervisor:   NewSupervisor(),
 		Config:       cfg,
 		Identities:   make(map[teleport.Role]*auth.Identity),
@@ -440,7 +443,8 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 		}
 		// immediately register, and then keep repeating in a loop:
 		for !askedToExit {
-			err := authServer.UpsertAuthServer(&srv, defaults.ServerHeartbeatTTL)
+			srv.SetTTL(process, defaults.ServerHeartbeatTTL)
+			err := authServer.UpsertAuthServer(&srv)
 			if err != nil {
 				log.Warningf("failed to announce presence: %v", err)
 			}
@@ -481,7 +485,7 @@ func (process *TeleportProcess) newLocalCache(clt auth.ClientI, cacheName []stri
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return state.NewCachingAuthClient(clt, cacheBackend)
+	return state.NewCachingAuthClient(state.Config{AccessPoint: clt, Backend: cacheBackend})
 }
 
 // initSSH initializes the "node" role, i.e. a simple SSH server connected to the auth server.
@@ -508,7 +512,10 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 
-		authClient, err := state.NewCachingAuthClient(conn.Client, process.cacheBackend)
+		authClient, err := state.NewCachingAuthClient(state.Config{
+			AccessPoint: conn.Client,
+			Backend:     process.cacheBackend,
+		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -668,7 +675,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	// make a caching auth client for the auth server:
-	authClient, err := state.NewCachingAuthClient(conn.Client, process.cacheBackend)
+	authClient, err := state.NewCachingAuthClient(state.Config{
+		AccessPoint: conn.Client,
+		Backend:     process.cacheBackend,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
