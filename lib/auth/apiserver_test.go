@@ -207,8 +207,13 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 	defer authServer3.Close()
 
 	cert, err = userClient3.GenerateUserCert(pub, "user1", 40*time.Hour)
-	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, ".*cannot request a certificate for 40h0m0s")
+	c.Assert(err, IsNil)
+	parsedKey, _, _, _, err := ssh.ParseAuthorizedKey(cert)
+	c.Assert(err, IsNil)
+	parsedCert, _ := parsedKey.(*ssh.Certificate)
+	validBefore := time.Unix(int64(parsedCert.ValidBefore), 0)
+	diff := validBefore.Sub(time.Now())
+	c.Assert(diff < defaults.MaxCertDuration, Equals, true, Commentf("expected %v < %v", diff, defaults.CertDuration))
 
 	// apply HTTP Auth to generate user cert:
 	cert, err = userClient3.GenerateUserCert(pub, "user1", time.Hour)

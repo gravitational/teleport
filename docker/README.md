@@ -40,9 +40,8 @@ Look at the [Makefile](Makefile): the containers are started with their
 The configuration is passed via YAML files located in `/teleport/docker/xxx.yaml` 
 inside each container.
 
-The cluster data is preserved between restarts, so you can link these two
-clusters (make them "trusted") by placing certificates within `data` and 
-updating the config files.
+Since the cluster data is preserved between restarts, so you can edit the configuration
+and restart if you want to change configuration changes.
 
 ### Using TCTL
 
@@ -75,6 +74,19 @@ $ make enter-two
 ... and then you can use stuff like `tctl users add`, etc. Make sure to pass 
 the YAML file to `tctl` via `-c` flag.
 
+### Trusted Clusters
+
+To setup Trusted Clusters:
+
+1. Update `two-role.yaml` and replace `username_goes_here` with your username.
+1. Create a `Role` and `TrustedCluster` resource on Cluster Two.
+
+    ```bash
+    make enter-two
+    tctl -c /root/go/src/github.com/gravitational/teleport/docker/two-auth.yaml create -f docker/two-role-admin.yaml
+    tctl -c /root/go/src/github.com/gravitational/teleport/docker/two-auth.yaml create -f docker/two-tc.yaml
+    ```
+    
 ### Interactive Usage
 
 Also you can start an empty container from which you can manually invoke `teleport start`. 

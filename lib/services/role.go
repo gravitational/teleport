@@ -318,8 +318,8 @@ type AccessChecker interface {
 	// CheckLogins checks if role set can login up to given duration
 	// and returns a combined list of allowed logins
 	CheckLogins(ttl time.Duration) ([]string, error)
-	// AdjustSessionTTL will reduce the requested ttl to lowes max allowed TTL
-	// for this role set, otherwise it returns ttl unchanges
+	// AdjustSessionTTL will reduce the requested ttl to lowest max allowed TTL
+	// for this role set, otherwise it returns ttl unchanged
 	AdjustSessionTTL(ttl time.Duration) time.Duration
 	// CheckAgentForward checks if the role can request agent forward for this user
 	CheckAgentForward(login string) error

@@ -52,7 +52,7 @@ const Invite = React.createClass({
   },
 
   onSignupWithU2f(username, password) {    
-    actions.signupWithU2F(username, password, this.props.params.inviteToken);
+    actions.signupWithU2f(username, password, this.props.params.inviteToken);
   },
 
   onSignup(username, password, token) {    

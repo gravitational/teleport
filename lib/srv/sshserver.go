@@ -75,7 +75,8 @@ type Server struct {
 	proxyMode bool
 	proxyTun  reversetunnel.Server
 
-	advertiseIP net.IP
+	advertiseIP     net.IP
+	proxyPublicAddr utils.NetAddr
 
 	// server UUID gets generated once on the first start and never changes
 	// usually stored in a file inside the data dir
@@ -194,6 +195,7 @@ func New(addr utils.NetAddr,
 	authService auth.AccessPoint,
 	dataDir string,
 	advertiseIP net.IP,
+	proxyPublicAddr utils.NetAddr,
 	options ...ServerOption) (*Server, error) {
 
 	// read the host UUID:
@@ -203,14 +205,15 @@ func New(addr utils.NetAddr,
 	}
 
 	s := &Server{
-		addr:        addr,
-		authService: authService,
-		hostname:    hostname,
-		labelsMutex: &sync.Mutex{},
-		advertiseIP: advertiseIP,
-		uuid:        uuid,
-		closer:      utils.NewCloseBroadcaster(),
-		clock:       clockwork.NewRealClock(),
+		addr:            addr,
+		authService:     authService,
+		hostname:        hostname,
+		labelsMutex:     &sync.Mutex{},
+		advertiseIP:     advertiseIP,
+		proxyPublicAddr: proxyPublicAddr,
+		uuid:            uuid,
+		closer:          utils.NewCloseBroadcaster(),
+		clock:           clockwork.NewRealClock(),
 	}
 	s.limiter, err = limiter.NewLimiter(limiter.LimiterConfig{})
 	if err != nil {
@@ -287,7 +290,7 @@ func (s *Server) getAdvertiseIP() net.IP {
 // AdvertiseAddr returns an address this server should be publicly accessible
 // as, in "ip:host" form
 func (s *Server) AdvertiseAddr() string {
-	// se if we have explicit --advertise-ip option
+	// set if we have explicit --advertise-ip option
 	if s.getAdvertiseIP() == nil {
 		return s.addr.Addr
 	}
@@ -319,6 +322,7 @@ func (s *Server) registerServer() error {
 	if !s.proxyMode {
 		return trace.Wrap(s.authService.UpsertNode(srv))
 	}
+	srv.SetPublicAddr(s.proxyPublicAddr.String())
 	return trace.Wrap(s.authService.UpsertProxy(srv))
 }
 

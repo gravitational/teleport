@@ -77,6 +77,10 @@ type CLIConf struct {
 	Namespace string
 	// NoCache is used to turn off client cache for nodes discovery
 	NoCache bool
+	// LoadSystemAgentOnly when set to true will cause tsh agent to load keys into the system agent and
+	// then exit. This is useful when calling tsh agent from a script (for example ~/.bash_profile)
+	// to load keys into your system agent.
+	LoadSystemAgentOnly bool
 }
 
 // Run executes TSH client. same as main() but easier to test
@@ -130,6 +134,7 @@ func Run(args []string, underTest bool) {
 	// agent (SSH agent listening on unix socket)
 	agent := app.Command("agent", "Start SSH agent on unix socket")
 	agent.Flag("socket", "SSH agent listening socket address, e.g. unix:///tmp/teleport.agent.sock").SetValue(&cf.AgentSocketAddr)
+	agent.Flag("load", "When set to true, the tsh agent will load the external system agent and then exit.").BoolVar(&cf.LoadSystemAgentOnly)
 
 	// login logs in with remote proxy and obtains a "session certificate" which gets
 	// stored in ~/.tsh directory
@@ -342,6 +347,21 @@ func onSCP(cf *CLIConf) {
 
 // onAgentStart start ssh agent on a socket
 func onAgentStart(cf *CLIConf) {
+	// create a client, a side effect of this is that it creates a client.LocalAgent.
+	// creation of a client.LocalAgent has a side effect of loading all keys into
+	// client.LocalAgent and the system agent.
+	tc, err := makeClient(cf, true)
+	if err != nil {
+		utils.FatalError(err)
+	}
+
+	// check if we are only loading keys and exiting. this is useful
+	// when calling tsh agent from a script like ~/.bash_profile.
+	if cf.LoadSystemAgentOnly {
+		return
+	}
+
+	// we're starting tsh agent, build the socket address
 	socketAddr := utils.NetAddr(cf.AgentSocketAddr)
 	pid := os.Getpid()
 	if socketAddr.IsEmpty() {
@@ -361,14 +381,6 @@ export SSH_AGENT_PID=%v
 
 # you can redirect this output into a file and call 'source' on it
 `, socketAddr.Addr, pid)
-
-	// create a client, a side effect of this is that it creates a
-	// client.LocalAgent that is an ssh agent with all keys from disk
-	// loaded in it
-	tc, err := makeClient(cf, true)
-	if err != nil {
-		utils.FatalError(err)
-	}
 
 	// create a new teleport agent and start listening
 	agentServer := teleagent.AgentServer{

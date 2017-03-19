@@ -24,11 +24,10 @@ type EnvReqParams struct {
 
 // WinChangeReqParams specifies parameters for window changes
 type WinChangeReqParams struct {
-	W     uint32
-	H     uint32
-	Wpx   uint32
-	Hpx   uint32
-	Modes string
+	W   uint32
+	H   uint32
+	Wpx uint32
+	Hpx uint32
 }
 
 // PTYReqParams specifies parameters for pty change window

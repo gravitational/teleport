@@ -154,6 +154,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 		s.roleAuth,
 		s.dir,
 		nil,
+		utils.NetAddr{},
 		SetShell("/bin/sh"),
 		SetSessionServer(sessionServer),
 	)
@@ -423,6 +424,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		s.roleAuth,
 		s.dir,
 		nil,
+		utils.NetAddr{},
 		SetProxyMode(reverseTunnelServer),
 		SetSessionServer(s.sessionServer),
 	)
@@ -484,6 +486,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		s.roleAuth,
 		c.MkDir(),
 		nil,
+		utils.NetAddr{},
 		SetShell("/bin/sh"),
 		SetLabels(
 			map[string]string{"label1": "value1"},
@@ -571,6 +574,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		s.roleAuth,
 		s.dir,
 		nil,
+		utils.NetAddr{},
 		SetProxyMode(reverseTunnelServer),
 		SetSessionServer(s.sessionServer),
 	)
@@ -648,6 +652,7 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 		s.roleAuth,
 		s.dir,
 		nil,
+		utils.NetAddr{},
 		SetProxyMode(reverseTunnelServer),
 		SetSessionServer(s.sessionServer),
 	)
@@ -753,6 +758,7 @@ func (s *SrvSuite) TestLimiter(c *C) {
 		s.roleAuth,
 		s.dir,
 		nil,
+		utils.NetAddr{},
 		SetLimiter(limiter),
 		SetShell("/bin/sh"),
 		SetSessionServer(s.sessionServer),
