@@ -181,7 +181,7 @@ func (cs *CachingAuthClient) GetRoles() (roles []services.Role, err error) {
 }
 
 func (cs *CachingAuthClient) setTTL(r services.Resource) {
-	if cs.NeverExpire {
+	if cs.NeverExpires {
 		return
 	}
 	// honor expiry set by user

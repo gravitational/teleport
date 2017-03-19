@@ -17,6 +17,7 @@ limitations under the License.
 package service
 
 import (
+	"fmt"
 	"io"
 	"net"
 	"os"
@@ -155,9 +156,28 @@ func (cfg *Config) DebugDumpToYAML() string {
 
 // CachePolicy sets caching policy for proxies and nodes
 type CachePolicy struct {
-	Enabled      bool
-	TTL          time.Duration
+	// Enabled enables or disables caching
+	Enabled bool
+	// TTL sets maximum TTL for the cached values
+	// without explicit TTL set
+	TTL time.Duration
+	// NeverExpires means that cache values without TTL
+	// set by the auth server won't expire
 	NeverExpires bool
+}
+
+// String returns human-friendly representation of the policy
+func (c CachePolicy) String() string {
+	if !c.Enabled {
+		return "no cache policy"
+	}
+	if c.NeverExpires {
+		return "never expiring cache policy"
+	}
+	if c.TTL == 0 {
+		return fmt.Sprintf("cache policy with %v TTL", defaults.CacheTTL)
+	}
+	return fmt.Sprintf("cache policy with %v TTL", c.TTL)
 }
 
 // ProxyConfig configures proy service

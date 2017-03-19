@@ -104,9 +104,6 @@ type TeleportProcess struct {
 
 	// identities of this process (credentials to auth sever, basically)
 	Identities map[teleport.Role]*auth.Identity
-
-	// cacheBackend is a caching backend
-	cacheBackend backend.Backend
 }
 
 func (process *TeleportProcess) GetAuthServer() *auth.AuthServer {
@@ -231,17 +228,11 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		cfg.Auth.DomainName = cfg.HostUUID
 	}
 
-	cacheBackend, err := dir.New(backend.Params{"path": filepath.Join(cfg.DataDir, "cache")})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	process := &TeleportProcess{
-		Clock:        clockwork.NewRealClock(),
-		Supervisor:   NewSupervisor(),
-		Config:       cfg,
-		Identities:   make(map[teleport.Role]*auth.Identity),
-		cacheBackend: cacheBackend,
+		Clock:      clockwork.NewRealClock(),
+		Supervisor: NewSupervisor(),
+		Config:     cfg,
+		Identities: make(map[teleport.Role]*auth.Identity),
 	}
 
 	serviceStarted := false
@@ -522,7 +513,7 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 
-		authClient, err := process.newLocalCache(clt)
+		authClient, err := process.newLocalCache(conn.Client, []string{"node"})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -559,7 +550,7 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 
-		utils.Consolef(cfg.Console, "[SSH]   Service is starting on %v", cfg.SSH.Addr.Addr)
+		utils.Consolef(cfg.Console, "[SSH]   Service is starting on %v using %v", cfg.SSH.Addr.Addr, process.Config.CachePolicy)
 		if err := s.Start(); err != nil {
 			utils.Consolef(cfg.Console, "[SSH]   Error: %v", err)
 			return trace.Wrap(err)
@@ -683,7 +674,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	// make a caching auth client for the auth server:
-	authClient, err := process.newLocalCache(conn.Client)
+	authClient, err := process.newLocalCache(conn.Client, []string{"proxy"})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -731,7 +722,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	// register SSH reverse tunnel server that accepts connections
 	// from remote teleport nodes
 	process.RegisterFunc(func() error {
-		utils.Consolef(cfg.Console, "[PROXY] Reverse tunnel service is starting on %v", cfg.Proxy.ReverseTunnelListenAddr.Addr)
+		utils.Consolef(cfg.Console, "[PROXY] Reverse tunnel service is starting on %v using %v", cfg.Proxy.ReverseTunnelListenAddr.Addr, process.Config.CachePolicy)
 		if err := tsrv.Start(); err != nil {
 			utils.Consolef(cfg.Console, "[PROXY] Error: %v", err)
 			return trace.Wrap(err)

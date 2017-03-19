@@ -178,7 +178,7 @@ type CachePolicy struct {
 	// CacheTTL defines cache TTL
 	CacheTTL time.Duration
 	// NeverExpire never expires local cache information
-	NeverExpire bool
+	NeverExpires bool
 }
 
 func MakeDefaultConfig() *Config {
@@ -402,11 +402,11 @@ func (tc *TeleportClient) accessPoint(clt auth.AccessPoint, clusterName string) 
 	}
 	// make a caching auth client for the auth server:
 	return state.NewCachingAuthClient(state.Config{
-		SkipPreload: true,
-		AccessPoint: clt,
-		Backend:     cacheBackend,
-		CacheTTL:    tc.CachePolicy.CacheTTL,
-		NeverExpire: tc.CachePolicy.NeverExpire,
+		SkipPreload:  true,
+		AccessPoint:  clt,
+		Backend:      cacheBackend,
+		CacheTTL:     tc.CachePolicy.CacheTTL,
+		NeverExpires: tc.CachePolicy.NeverExpires,
 	})
 }
 
