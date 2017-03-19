@@ -76,12 +76,3 @@ type Server interface {
 	// Wait waits for server to close all outstanding operations
 	Wait()
 }
-
-// NewCachingAcessPoint returns new caching access point using
-// access point policy
-type NewCachingAccessPoint func(clt auth.ClientI, cacheName []string) (auth.AccessPoint, error)
-
-// NoCache is a no cache used for access point
-func NoCache(clt auth.ClientI, cacheName []string) (auth.AccessPoint, error) {
-	return clt, nil
-}

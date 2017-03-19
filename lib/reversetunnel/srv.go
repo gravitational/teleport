@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/state"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
@@ -61,7 +62,7 @@ type server struct {
 	localSites []*localSite
 
 	// newAccessPoint returns new caching access point
-	newAccessPoint NewCachingAccessPoint
+	newAccessPoint state.NewCachingAccessPoint
 }
 
 // ServerOption sets reverse tunnel server options
@@ -91,7 +92,7 @@ func SetLimiter(limiter *limiter.Limiter) ServerOption {
 // NewServer creates and returns a reverse tunnel server which is fully
 // initialized but hasn't been started yet
 func NewServer(addr utils.NetAddr, hostSigners []ssh.Signer,
-	authAPI auth.AccessPoint, fn NewCachingAccessPoint, opts ...ServerOption) (Server, error) {
+	authAPI auth.AccessPoint, fn state.NewCachingAccessPoint, opts ...ServerOption) (Server, error) {
 
 	srv := &server{
 		localSites:     []*localSite{},

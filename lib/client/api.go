@@ -37,11 +37,15 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/dir"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/state"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
@@ -163,6 +167,18 @@ type Config struct {
 	// can look at the connecting address to determine client's IP) but for cases when the
 	// client is web-based, this must be set to HTTP's remote addr
 	ClientAddr string
+
+	// CachePolicy defines local caching policy in case if discovery goes down
+	// by default does not use caching
+	CachePolicy *CachePolicy
+}
+
+// CachePolicy defines cache policy for local clients
+type CachePolicy struct {
+	// CacheTTL defines cache TTL
+	CacheTTL time.Duration
+	// NeverExpire never expires local cache information
+	NeverExpire bool
 }
 
 func MakeDefaultConfig() *Config {
@@ -368,6 +384,32 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	return tc, nil
 }
 
+// accessPoint returns access point based on the cache policy
+func (tc *TeleportClient) accessPoint(clt auth.AccessPoint, clusterName string) (auth.AccessPoint, error) {
+	if tc.CachePolicy == nil {
+		log.Debugf("not using caching access point")
+		return clt, nil
+	}
+	dirPath, err := initKeysDir(tc.KeysDir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	path := filepath.Join(dirPath, "cache", clusterName)
+	log.Debugf("using caching access point %v", path)
+	cacheBackend, err := dir.New(backend.Params{"path": path})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// make a caching auth client for the auth server:
+	return state.NewCachingAuthClient(state.Config{
+		SkipPreload: true,
+		AccessPoint: clt,
+		Backend:     cacheBackend,
+		CacheTTL:    tc.CachePolicy.CacheTTL,
+		NeverExpire: tc.CachePolicy.NeverExpire,
+	})
+}
+
 func (tc *TeleportClient) LocalAgent() *LocalKeyAgent {
 	return tc.localAgent
 }
@@ -409,7 +451,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 		return trace.Wrap(err)
 	}
 	defer proxyClient.Close()
-	siteInfo, err := proxyClient.currentSite()
+	siteInfo, err := proxyClient.currentCluster()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -666,7 +708,7 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, recu
 	// helper function connects to the src/target node:
 	connectToNode := func(addr string) (*NodeClient, error) {
 		// determine which cluster we're connecting to:
-		siteInfo, err := proxyClient.currentSite()
+		siteInfo, err := proxyClient.currentCluster()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -881,6 +923,7 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 	// helper to create a ProxyClient struct
 	makeProxyClient := func(sshClient *ssh.Client, m ssh.AuthMethod) *ProxyClient {
 		return &ProxyClient{
+			teleportClient:  tc,
 			Client:          sshClient,
 			proxyAddress:    proxyAddr,
 			proxyPrincipal:  proxyPrincipal,
@@ -936,7 +979,7 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 	log.Debugf(successMsg)
 	proxyClient := makeProxyClient(sshClient, authMethod)
 	// get (and remember) the site info:
-	site, err := proxyClient.currentSite()
+	site, err := proxyClient.currentCluster()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

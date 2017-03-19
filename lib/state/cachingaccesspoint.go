@@ -66,6 +66,8 @@ type Config struct {
 	Backend backend.Backend
 	// Clock can be set to control time
 	Clock clockwork.Clock
+	// SkipPreload turns off preloading on start
+	SkipPreload bool
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -99,9 +101,11 @@ func NewCachingAuthClient(config Config) (*CachingAuthClient, error) {
 		access:   local.NewAccessService(config.Backend),
 		presence: local.NewPresenceService(config.Backend),
 	}
-	err := cs.fetchAll()
-	if err != nil {
-		log.Warningf("failed to fetch results for cache %v", err)
+	if !cs.SkipPreload {
+		err := cs.fetchAll()
+		if err != nil {
+			log.Warningf("failed to fetch results for cache %v", err)
+		}
 	}
 	return cs, nil
 }
