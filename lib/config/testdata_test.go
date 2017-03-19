@@ -51,6 +51,10 @@ teleport:
     private_key: !!binary cHJpdmF0ZSBrZXk=
   - cert_file: /proxy.cert.file
     private_key_file: /proxy.key.file
+  cache:
+    enabled: yes
+    never_expires: no
+    ttl: 20h
 
 auth_service:
   enabled: yes

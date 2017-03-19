@@ -20,6 +20,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"time"
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
@@ -58,6 +59,10 @@ type Config struct {
 	// AdvertiseIP is used to "publish" an alternative IP address this node
 	// can be reached on, if running behind NAT
 	AdvertiseIP net.IP
+
+	// CachePolicy sets caching policy for nodes and proxies
+	// in case if they loose connection to auth servers
+	CachePolicy CachePolicy
 
 	// SSH role an SSH endpoint server
 	SSH SSHConfig
@@ -146,6 +151,13 @@ func (cfg *Config) DebugDumpToYAML() string {
 		return err.Error()
 	}
 	return string(out)
+}
+
+// CachePolicy sets caching policy for proxies and nodes
+type CachePolicy struct {
+	Enabled      bool
+	TTL          time.Duration
+	NeverExpires bool
 }
 
 // ProxyConfig configures proy service

@@ -480,12 +480,22 @@ func (process *TeleportProcess) onExit(callback func(interface{})) {
 
 // newLocalCache returns new local cache access point
 func (process *TeleportProcess) newLocalCache(clt auth.ClientI, cacheName []string) (auth.AccessPoint, error) {
+	// if caching is disabled, return access point
+	if !process.Config.CachePolicy.Enabled {
+		return clt, nil
+	}
+
 	path := filepath.Join(append([]string{process.Config.DataDir, "cache"}, cacheName...)...)
 	cacheBackend, err := dir.New(backend.Params{"path": path})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return state.NewCachingAuthClient(state.Config{AccessPoint: clt, Backend: cacheBackend})
+	return state.NewCachingAuthClient(state.Config{
+		AccessPoint:  clt,
+		Backend:      cacheBackend,
+		NeverExpires: process.Config.CachePolicy.NeverExpires,
+		CacheTTL:     process.Config.CachePolicy.TTL,
+	})
 }
 
 // initSSH initializes the "node" role, i.e. a simple SSH server connected to the auth server.
@@ -512,10 +522,7 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 
-		authClient, err := state.NewCachingAuthClient(state.Config{
-			AccessPoint: conn.Client,
-			Backend:     process.cacheBackend,
-		})
+		authClient, err := process.newLocalCache(clt)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -676,10 +683,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	// make a caching auth client for the auth server:
-	authClient, err := state.NewCachingAuthClient(state.Config{
-		AccessPoint: conn.Client,
-		Backend:     process.cacheBackend,
-	})
+	authClient, err := process.newLocalCache(conn.Client)
 	if err != nil {
 		return trace.Wrap(err)
 	}

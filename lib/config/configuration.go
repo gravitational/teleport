@@ -188,8 +188,15 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	case "warn", "warning":
 		log.SetLevel(log.WarnLevel)
 	default:
-		return trace.Errorf("unsupported logger severity: '%v'", fc.Logger.Severity)
+		return trace.BadParameter("unsupported logger severity: '%v'", fc.Logger.Severity)
 	}
+
+	// apply cache policy for node and proxy
+	cachePolicy, err := fc.CachePolicy.Parse()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cfg.CachePolicy = *cachePolicy
 
 	// apply connection throttling:
 	limiters := []limiter.LimiterConfig{

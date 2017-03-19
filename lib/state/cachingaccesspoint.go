@@ -58,8 +58,8 @@ type CachingAuthClient struct {
 type Config struct {
 	// CacheTTL sets maximum TTL the cache keeps the value
 	CacheTTL time.Duration
-	// NeverExpire if set, never expires cache values
-	NeverExpire bool
+	// NeverExpires if set, never expires cache values
+	NeverExpires bool
 	// AccessPoint is access point for this
 	AccessPoint auth.AccessPoint
 	// Backend is cache backend
@@ -72,7 +72,7 @@ type Config struct {
 
 // CheckAndSetDefaults checks parameters and sets default values
 func (c *Config) CheckAndSetDefaults() error {
-	if !c.NeverExpire && c.CacheTTL == 0 {
+	if !c.NeverExpires && c.CacheTTL == 0 {
 		c.CacheTTL = defaults.CacheTTL
 	}
 	if c.AccessPoint == nil {
@@ -421,6 +421,8 @@ func (cs *CachingAuthClient) try(f func() error) error {
 	if trace.IsConnectionProblem(err) {
 		cs.lastErrorTime = time.Now()
 		log.Warningf("failed connect to the auth servers, using local cache")
+	} else {
+		log.Warningf("SASHA: not a connectoin problem %v %T", trace.Unwrap(err), trace.Unwrap(err))
 	}
 	return err
 }
