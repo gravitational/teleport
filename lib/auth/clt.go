@@ -60,9 +60,9 @@ type Client struct {
 // NewTracer returns request tracer based on the logging level
 func NewTracer() roundtrip.RequestTracer {
 	if log.GetLevel() >= log.DebugLevel {
-		return roundtrip.NewNopTracer()
+		return roundtrip.NewWriterTracer(log.StandardLogger().Writer())
 	}
-	return roundtrip.NewWriterTracer(log.StandardLogger().Writer())
+	return roundtrip.NewNopTracer()
 }
 
 // NewAuthClient returns a new instance of the client which talks to
