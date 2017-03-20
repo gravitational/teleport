@@ -51,6 +51,14 @@ import (
 // ClientParam specifies functional argument for client
 type ClientParam func(c *Client) error
 
+// Tracer sets request tracer
+func Tracer(newTracer NewTracer) ClientParam {
+	return func(c *Client) error {
+		c.newTracer = newTracer
+		return nil
+	}
+}
+
 // HTTPClient is a functional parameter that sets the internal
 // HTTPClient of the roundtrip client wrapper
 func HTTPClient(h *http.Client) ClientParam {
@@ -97,6 +105,8 @@ type Client struct {
 	auth fmt.Stringer
 	// jar is a set of cookies passed with requests
 	jar http.CookieJar
+	// newTracer creates new request tracer
+	newTracer NewTracer
 }
 
 // NewClient returns a new instance of roundtrip.Client, or nil and error
@@ -119,6 +129,9 @@ func NewClient(addr, v string, params ...ClientParam) (*Client, error) {
 	}
 	if c.jar != nil {
 		c.client.Jar = c.jar
+	}
+	if c.newTracer == nil {
+		c.newTracer = NewNopTracer
 	}
 	return c, nil
 }
@@ -194,7 +207,7 @@ func (c *Client) PostForm(endpoint string, vals url.Values, files ...File) (*Res
 // c.PostJSON(c.Endpoint("users"), map[string]string{"name": "alice@example.com"})
 //
 func (c *Client) PostJSON(endpoint string, data interface{}) (*Response, error) {
-	tracer := NewTracer()
+	tracer := c.newTracer()
 	return tracer.Done(c.RoundTrip(func() (*http.Response, error) {
 		data, err := json.Marshal(data)
 		req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(data))
@@ -213,7 +226,7 @@ func (c *Client) PostJSON(endpoint string, data interface{}) (*Response, error) 
 // c.PutJSON(c.Endpoint("users"), map[string]string{"name": "alice@example.com"})
 //
 func (c *Client) PutJSON(endpoint string, data interface{}) (*Response, error) {
-	tracer := NewTracer()
+	tracer := c.newTracer()
 	return tracer.Done(c.RoundTrip(func() (*http.Response, error) {
 		data, err := json.Marshal(data)
 		req, err := http.NewRequest("PUT", endpoint, bytes.NewBuffer(data))
@@ -232,7 +245,7 @@ func (c *Client) PutJSON(endpoint string, data interface{}) (*Response, error) {
 // re, err := c.Delete(c.Endpoint("users", "id1"))
 //
 func (c *Client) Delete(endpoint string) (*Response, error) {
-	tracer := NewTracer()
+	tracer := c.newTracer()
 	return tracer.Done(c.RoundTrip(func() (*http.Response, error) {
 		req, err := http.NewRequest("DELETE", endpoint, nil)
 		if err != nil {
@@ -254,7 +267,7 @@ func (c *Client) Get(u string, params url.Values) (*Response, error) {
 		return nil, err
 	}
 	baseUrl.RawQuery = params.Encode()
-	tracer := NewTracer()
+	tracer := c.newTracer()
 	return tracer.Done(c.RoundTrip(func() (*http.Response, error) {
 		req, err := http.NewRequest("GET", baseUrl.String(), nil)
 		if err != nil {
@@ -281,7 +294,7 @@ func (c *Client) GetFile(u string, params url.Values) (*FileResponse, error) {
 		return nil, err
 	}
 	c.addAuth(req)
-	tracer := NewTracer()
+	tracer := c.newTracer()
 	tracer.Start(req)
 	re, err := c.client.Do(req)
 	if err != nil {

@@ -57,6 +57,14 @@ type Client struct {
 	transport *http.Transport
 }
 
+// NewTracer returns request tracer based on the logging level
+func NewTracer() roundtrip.RequestTracer {
+	if log.GetLevel() >= log.DebugLevel {
+		return roundtrip.NewNopTracer()
+	}
+	return roundtrip.NewWriterTracer(log.StandardLogger().Writer())
+}
+
 // NewAuthClient returns a new instance of the client which talks to
 // an Auth server API (aka "site API") via HTTP-over-SSH
 func NewClient(addr string, dialer Dialer, params ...roundtrip.ClientParam) (*Client, error) {
@@ -67,9 +75,12 @@ func NewClient(addr string, dialer Dialer, params ...roundtrip.ClientParam) (*Cl
 		Dial: dialer,
 		ResponseHeaderTimeout: time.Second,
 	}
-	params = append(params, roundtrip.HTTPClient(&http.Client{
-		Transport: transport,
-	}))
+	params = append(params,
+		roundtrip.HTTPClient(&http.Client{
+			Transport: transport,
+		}),
+		roundtrip.Tracer(NewTracer),
+	)
 
 	c, err := roundtrip.NewClient(addr, CurrentVersion, params...)
 	if err != nil {
