@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2015-2017 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -51,7 +51,7 @@ import (
 // ClientParam specifies functional argument for client
 type ClientParam func(c *Client) error
 
-// Tracer sets request tracer
+// Tracer sets a request tracer constructor
 func Tracer(newTracer NewTracer) ClientParam {
 	return func(c *Client) error {
 		c.newTracer = newTracer
@@ -146,7 +146,10 @@ func (c *Client) HTTPClient() *http.Client {
 // c.Endpoint("user", "john") // returns "/v1/users/john"
 //
 func (c *Client) Endpoint(params ...string) string {
-	return fmt.Sprintf("%s/%s/%s", c.addr, c.v, strings.Join(params, "/"))
+	if c.v != "" {
+		return fmt.Sprintf("%s/%s/%s", c.addr, c.v, strings.Join(params, "/"))
+	}
+	return fmt.Sprintf("%s/%s", c.addr, strings.Join(params, "/"))
 }
 
 // PostForm posts urlencoded form with values and returns the result
@@ -257,6 +260,19 @@ func (c *Client) Delete(endpoint string) (*Response, error) {
 	}))
 }
 
+// DeleteWithParams executes DELETE request to the endpoint with optional query arguments
+//
+// re, err := c.DeleteWithParams(c.Endpoint("users", "id1"), url.Values{"force": []string{"true"}})
+//
+func (c *Client) DeleteWithParams(endpoint string, params url.Values) (*Response, error) {
+	baseURL, err := url.Parse(endpoint)
+	if err != nil {
+		return nil, err
+	}
+	baseURL.RawQuery = params.Encode()
+	return c.Delete(baseURL.String())
+}
+
 // Get executes GET request to the server endpoint with optional query arguments passed in params
 //
 // re, err := c.Get(c.Endpoint("users"), url.Values{"name": []string{"John"}})
@@ -298,6 +314,7 @@ func (c *Client) GetFile(u string, params url.Values) (*FileResponse, error) {
 	tracer.Start(req)
 	re, err := c.client.Do(req)
 	if err != nil {
+		tracer.Done(nil, err)
 		return nil, err
 	}
 	tracer.Done(&Response{code: re.StatusCode}, err)
@@ -306,6 +323,24 @@ func (c *Client) GetFile(u string, params url.Values) (*FileResponse, error) {
 		headers: re.Header,
 		body:    re.Body,
 	}, nil
+}
+
+// ReadSeekCloser implements all three of Seeker, Closer and Reader interfaces
+type ReadSeekCloser interface {
+	io.ReadSeeker
+	io.Closer
+}
+
+// OpenFile opens file using HTTP protocol and uses `Range` headers
+// to seek to various positions in the file, this means that server
+// has to support the flags `Range` and `Content-Range`
+func (c *Client) OpenFile(u string, params url.Values) (ReadSeekCloser, error) {
+	endpoint, err := url.Parse(u)
+	if err != nil {
+		return nil, err
+	}
+	endpoint.RawQuery = params.Encode()
+	return newSeeker(c, endpoint.String())
 }
 
 // RoundTripFn inidicates any function that can be passed to RoundTrip

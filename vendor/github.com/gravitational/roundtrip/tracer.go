@@ -23,19 +23,30 @@ import (
 	"time"
 )
 
-// NewTracer specifies function that creates request tracer
+// NewTracer is a constructor function to create new instances of RequestTracer.
 type NewTracer func() RequestTracer
 
-// RequestTracer traces request parameters
-// and is used for debugging
+// RequestTracer defines an interface to trace HTTP requests for debugging or collecting metrics.
+//
+// Here's an example tracing a request by wrapping a handler between tracer's Start/Done methods:
+//
+//  func Handler(args ...) (*Response, error) {
+//	  req := NewRequestTracer()
+//	  return req.Done(func(*Response, error) {
+//		  // Handler implementation
+//    })
+//  }
 type RequestTracer interface {
-	// Start is called on start of a request
+	// Start starts tracing the specified request and is usually called
+	// before any request handling takes place.
 	Start(r *http.Request)
-	// Done is called on a completed request
+	// Done is called to complete tracing of the request previously started with Start.
+	// It is designed to match the result of calling RoundTrip API for convenience
+	// and does not modify the response argument.
 	Done(re *Response, err error) (*Response, error)
 }
 
-// NopTracer is a no-op tracer
+// NopTracer is a request tracer that does nothing
 type NopTracer struct {
 }
 
@@ -81,7 +92,8 @@ func (t *WriterTracer) Done(re *Response, err error) (*Response, error) {
 	return re, err
 }
 
-// WriterTracer is a tracer using Writer to output info
+// WriteTracer is a request tracer that outputs collected stats
+// into the specified io.Writer
 type WriterTracer struct {
 	// Writer is io.Writer
 	io.Writer
@@ -100,7 +112,7 @@ type WriterTracer struct {
 // RequestInfo contains request information
 type RequestInfo struct {
 	// Method is request method
-	Method string `json:"method"` // Method - request method
+	Method string `json:"method"`
 	// URL is request URL
-	URL string `json:"url"` // URL - Request URL
+	URL string `json:"url"`
 }
