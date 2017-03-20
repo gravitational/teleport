@@ -436,6 +436,7 @@ func (*TeleportCertAuthorityMarshaler) UnmarshalCertAuthority(bytes []byte) (Cer
 		if err := utils.UnmarshalWithSchema(GetCertAuthoritySchema(), &ca, bytes); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
+		utils.UTC(&ca.Metadata.Expires)
 		return &ca, nil
 	}
 

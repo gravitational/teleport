@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 
@@ -186,7 +185,7 @@ func (s *ServicesTestSuite) LoginAttempts(c *C) {
 
 func (s *ServicesTestSuite) CertAuthCRUD(c *C) {
 	ca := NewTestCA(services.UserCA, "example.com")
-	c.Assert(s.CAS.UpsertCertAuthority(ca, backend.Forever), IsNil)
+	c.Assert(s.CAS.UpsertCertAuthority(ca), IsNil)
 
 	out, err := s.CAS.GetCertAuthority(ca.GetID(), true)
 	c.Assert(err, IsNil)
@@ -226,7 +225,7 @@ func (s *ServicesTestSuite) ServerCRUD(c *C) {
 	c.Assert(len(out), Equals, 0)
 
 	srv := newServer(services.KindNode, "srv1", "localhost:2022", defaults.Namespace)
-	c.Assert(s.PresenceS.UpsertNode(srv, 0), IsNil)
+	c.Assert(s.PresenceS.UpsertNode(srv), IsNil)
 
 	out, err = s.PresenceS.GetNodes(srv.Metadata.Namespace)
 	c.Assert(err, IsNil)
@@ -237,7 +236,7 @@ func (s *ServicesTestSuite) ServerCRUD(c *C) {
 	c.Assert(len(out), Equals, 0)
 
 	proxy := newServer(services.KindProxy, "proxy1", "localhost:2023", defaults.Namespace)
-	c.Assert(s.PresenceS.UpsertProxy(proxy, 0), IsNil)
+	c.Assert(s.PresenceS.UpsertProxy(proxy), IsNil)
 
 	out, err = s.PresenceS.GetProxies()
 	c.Assert(err, IsNil)
@@ -248,7 +247,7 @@ func (s *ServicesTestSuite) ServerCRUD(c *C) {
 	c.Assert(len(out), Equals, 0)
 
 	auth := newServer(services.KindAuthServer, "auth1", "localhost:2025", defaults.Namespace)
-	c.Assert(s.PresenceS.UpsertAuthServer(auth, 0), IsNil)
+	c.Assert(s.PresenceS.UpsertAuthServer(auth), IsNil)
 
 	out, err = s.PresenceS.GetAuthServers()
 	c.Assert(err, IsNil)
@@ -276,7 +275,7 @@ func (s *ServicesTestSuite) ReverseTunnelsCRUD(c *C) {
 	c.Assert(len(out), Equals, 0)
 
 	tunnel := newReverseTunnel("example.com", []string{"example.com:2023"})
-	c.Assert(s.PresenceS.UpsertReverseTunnel(tunnel, 0), IsNil)
+	c.Assert(s.PresenceS.UpsertReverseTunnel(tunnel), IsNil)
 
 	out, err = s.PresenceS.GetReverseTunnels()
 	c.Assert(err, IsNil)
@@ -289,13 +288,13 @@ func (s *ServicesTestSuite) ReverseTunnelsCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 0)
 
-	err = s.PresenceS.UpsertReverseTunnel(newReverseTunnel("", []string{"127.0.0.1:1234"}), 0)
+	err = s.PresenceS.UpsertReverseTunnel(newReverseTunnel("", []string{"127.0.0.1:1234"}))
 	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%#v", err))
 
-	err = s.PresenceS.UpsertReverseTunnel(newReverseTunnel("example.com", []string{"bad address"}), 0)
+	err = s.PresenceS.UpsertReverseTunnel(newReverseTunnel("example.com", []string{"bad address"}))
 	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%#v", err))
 
-	err = s.PresenceS.UpsertReverseTunnel(newReverseTunnel("example.com", []string{}), 0)
+	err = s.PresenceS.UpsertReverseTunnel(newReverseTunnel("example.com", []string{}))
 	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%#v", err))
 }
 

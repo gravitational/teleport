@@ -230,7 +230,9 @@ func (s *APIServer) upsertServer(auth ClientI, role teleport.Role, w http.Respon
 	// if server sent "local" IP address to us, replace the ip/host part with the remote address we see
 	// on the socket, but keep the original port:
 	server.SetAddr(utils.ReplaceLocalhost(server.GetAddr(), r.RemoteAddr))
-	server.SetTTL(s, req.TTL)
+	if req.TTL != 0 {
+		server.SetTTL(s, req.TTL)
+	}
 	switch role {
 	case teleport.RoleNode:
 		server.SetNamespace(p.ByName("namespace"))

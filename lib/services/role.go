@@ -637,6 +637,7 @@ func UnmarshalRole(data []byte) (*RoleV2, error) {
 	if err := utils.UnmarshalWithSchema(GetRoleSchema(""), &role, data); err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
+	utils.UTC(&role.Metadata.Expires)
 	return &role, nil
 }
 

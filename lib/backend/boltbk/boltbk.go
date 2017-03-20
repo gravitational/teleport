@@ -193,7 +193,7 @@ func (b *BoltBackend) deleteBucket(buckets []string, bucket string) error {
 		if bkt.Bucket([]byte(bucket)) == nil {
 			return trace.NotFound("%v not found", bucket)
 		}
-		return bkt.DeleteBucket([]byte(bucket))
+		return boltErr(bkt.DeleteBucket([]byte(bucket)))
 	})
 }
 
@@ -206,7 +206,7 @@ func (b *BoltBackend) deleteKey(buckets []string, key string) error {
 		if bkt.Get([]byte(key)) == nil {
 			return trace.NotFound("%v is not found", key)
 		}
-		return bkt.Delete([]byte(key))
+		return boltErr(bkt.Delete([]byte(key)))
 	})
 }
 
@@ -216,7 +216,7 @@ func (b *BoltBackend) upsertKey(buckets []string, key string, bytes []byte) erro
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		return bkt.Put([]byte(key), bytes)
+		return boltErr(bkt.Put([]byte(key), bytes))
 	})
 }
 
@@ -230,7 +230,7 @@ func (b *BoltBackend) createKey(buckets []string, key string, bytes []byte) erro
 		if val != nil {
 			return trace.AlreadyExists("'%v' already exists", key)
 		}
-		return bkt.Put([]byte(key), bytes)
+		return boltErr(bkt.Put([]byte(key), bytes))
 	})
 }
 
@@ -244,7 +244,7 @@ func (b *BoltBackend) upsertJSONKey(buckets []string, key string, val interface{
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		return bkt.Put([]byte(key), bytes)
+		return boltErr(bkt.Put([]byte(key), bytes))
 	})
 }
 
@@ -296,7 +296,7 @@ func (b *BoltBackend) getKeys(buckets []string) ([]string, error) {
 		return nil
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(boltErr(err))
 	}
 	return out, nil
 }
@@ -364,4 +364,17 @@ type kv struct {
 	Created time.Time     `json:"created"`
 	TTL     time.Duration `json:"ttl"`
 	Value   []byte        `json:"val"`
+}
+
+func boltErr(err error) error {
+	if err == bolt.ErrBucketNotFound {
+		return trace.NotFound(err.Error())
+	}
+	if err == bolt.ErrBucketExists {
+		return trace.AlreadyExists(err.Error())
+	}
+	if err == bolt.ErrDatabaseNotOpen {
+		return trace.ConnectionProblem(err, "database is not open")
+	}
+	return err
 }

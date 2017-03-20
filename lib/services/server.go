@@ -439,6 +439,7 @@ func UnmarshalServerResource(data []byte, kind string) (Server, error) {
 		if err := utils.UnmarshalWithSchema(GetServerSchema(), &s, data); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
+		utils.UTC(&s.Metadata.Expires)
 		return &s, nil
 	}
 	return nil, trace.BadParameter("server resource version %v is not supported", h.Version)

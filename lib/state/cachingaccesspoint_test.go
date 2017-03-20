@@ -18,7 +18,6 @@ limitations under the License.
 package state
 
 import (
-	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -27,10 +26,13 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
+	"github.com/gravitational/teleport/lib/backend/dir"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"gopkg.in/check.v1"
 )
 
@@ -92,6 +94,7 @@ type ClusterSnapshotSuite struct {
 	dataDir    string
 	backend    backend.Backend
 	authServer *auth.AuthServer
+	clock      clockwork.Clock
 }
 
 var _ = check.Suite(&ClusterSnapshotSuite{})
@@ -101,6 +104,7 @@ func TestState(t *testing.T) { check.TestingT(t) }
 
 func (s *ClusterSnapshotSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests()
+	s.clock = clockwork.NewRealClock()
 }
 
 func (s *ClusterSnapshotSuite) SetUpTest(c *check.C) {
@@ -119,17 +123,22 @@ func (s *ClusterSnapshotSuite) SetUpTest(c *check.C) {
 	c.Assert(err, check.IsNil)
 	// add some nodes to it:
 	for _, n := range Nodes {
-		err = s.authServer.UpsertNode(n.V2(), defaults.ServerHeartbeatTTL)
+		v2 := n.V2()
+		v2.SetTTL(s.clock, defaults.ServerHeartbeatTTL)
+		err = s.authServer.UpsertNode(v2)
 		c.Assert(err, check.IsNil)
 	}
 	// add some proxies to it:
 	for _, p := range Proxies {
-		err = s.authServer.UpsertProxy(p.V2(), defaults.ServerHeartbeatTTL)
+		v2 := p.V2()
+		v2.SetTTL(s.clock, defaults.ServerHeartbeatTTL)
+		err = s.authServer.UpsertProxy(v2)
 		c.Assert(err, check.IsNil)
 	}
 	// add some users to it:
 	for _, u := range Users {
-		err = s.authServer.UpsertUser(u.V2())
+		v2 := u.V2()
+		err = s.authServer.UpsertUser(v2)
 		c.Assert(err, check.IsNil)
 	}
 }
@@ -141,7 +150,13 @@ func (s *ClusterSnapshotSuite) TearDownTest(c *check.C) {
 }
 
 func (s *ClusterSnapshotSuite) TestEverything(c *check.C) {
-	snap, err := NewCachingAuthClient(s.authServer)
+	cacheBackend, err := dir.New(backend.Params{"path": c.MkDir()})
+	c.Assert(err, check.IsNil)
+	snap, err := NewCachingAuthClient(Config{
+		AccessPoint: s.authServer,
+		Clock:       s.clock,
+		Backend:     cacheBackend,
+	})
 	c.Assert(err, check.IsNil)
 	c.Assert(snap, check.NotNil)
 
@@ -167,9 +182,15 @@ func (s *ClusterSnapshotSuite) TestTry(c *check.C) {
 		failedCalls      int
 	)
 	success := func() error { successfullCalls++; return nil }
-	failure := func() error { failedCalls++; return fmt.Errorf("eror") }
+	failure := func() error { failedCalls++; return trace.ConnectionProblem(nil, "lost uplink") }
 
-	ap, err := NewCachingAuthClient(s.authServer)
+	cacheBackend, err := dir.New(backend.Params{"path": c.MkDir()})
+	c.Assert(err, check.IsNil)
+	ap, err := NewCachingAuthClient(Config{
+		AccessPoint: s.authServer,
+		Clock:       s.clock,
+		Backend:     cacheBackend,
+	})
 	c.Assert(err, check.IsNil)
 
 	ap.try(success)

@@ -55,12 +55,12 @@ type Backend struct {
 	// stores all the data.
 	RootDir string
 
-	// Clock is a test-friendly source of current time
-	clock clockwork.Clock
+	// InternalClock is a test-friendly source of current time
+	InternalClock clockwork.Clock
 }
 
 func (b *Backend) Clock() clockwork.Clock {
-	return b.clock
+	return b.InternalClock
 }
 
 // GetName
@@ -79,8 +79,8 @@ func New(params backend.Params) (backend.Backend, error) {
 	}
 
 	bk := &Backend{
-		RootDir: rootDir,
-		clock:   clockwork.NewRealClock(),
+		RootDir:       rootDir,
+		InternalClock: clockwork.NewRealClock(),
 	}
 
 	locksDir := path.Join(bk.RootDir, locksBucket)
@@ -218,7 +218,7 @@ func (bk *Backend) AcquireLock(token string, ttl time.Duration) (err error) {
 			break // success
 		}
 		if trace.IsAlreadyExists(err) { // locked? wait and repeat:
-			bk.clock.Sleep(time.Millisecond * 250)
+			bk.Clock().Sleep(time.Millisecond * 250)
 			continue
 		}
 		return trace.ConvertSystemError(err)
@@ -248,7 +248,7 @@ func (bk *Backend) applyTTL(dirPath string, key string, ttl time.Duration) error
 	if ttl == backend.Forever {
 		return nil
 	}
-	expiryTime := bk.clock.Now().Add(ttl)
+	expiryTime := bk.Clock().Now().Add(ttl)
 	bytes, _ := expiryTime.MarshalText()
 	return trace.ConvertSystemError(
 		ioutil.WriteFile(bk.ttlFile(dirPath, key), bytes, defaultFileMode))
@@ -267,7 +267,7 @@ func (bk *Backend) checkTTL(dirPath string, key string) (expired bool, err error
 	if err = expiryTime.UnmarshalText(bytes); err != nil {
 		return false, trace.Wrap(err)
 	}
-	return bk.clock.Now().After(expiryTime), nil
+	return bk.Clock().Now().After(expiryTime), nil
 }
 
 // ttlFile returns the full path of the "TTL file" where the TTL is

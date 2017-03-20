@@ -388,6 +388,7 @@ func (*TeleportWebSessionMarshaler) UnmarshalWebSession(bytes []byte) (WebSessio
 		}
 		utils.UTC(&ws.Spec.BearerTokenExpires)
 		utils.UTC(&ws.Spec.Expires)
+		utils.UTC(&ws.Metadata.Expires)
 		return &ws, nil
 	}
 

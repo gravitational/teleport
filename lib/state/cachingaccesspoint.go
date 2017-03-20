@@ -414,15 +414,13 @@ func (cs *CachingAuthClient) UpsertProxy(s services.Server) error {
 func (cs *CachingAuthClient) try(f func() error) error {
 	tooSoon := cs.lastErrorTime.Add(backoffDuration).After(time.Now())
 	if tooSoon {
-		log.Warnf("Not calling auth access point due to recent errors. Using cached value instead")
+		log.Warnf("Backoff: using cached value due to recent errors")
 		return trace.ConnectionProblem(fmt.Errorf("backoff"), "backing off due to recent errors")
 	}
 	err := trace.ConvertSystemError(f())
 	if trace.IsConnectionProblem(err) {
 		cs.lastErrorTime = time.Now()
-		log.Warningf("failed connect to the auth servers, using local cache")
-	} else {
-		log.Warningf("SASHA: not a connectoin problem %v %T", trace.Unwrap(err), trace.Unwrap(err))
+		log.Warningf("Connection Problem: failed connect to the auth servers, using local cache")
 	}
 	return err
 }

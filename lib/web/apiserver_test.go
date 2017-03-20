@@ -51,6 +51,7 @@ import (
 	sess "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/state"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gokyle/hotp"
@@ -183,9 +184,9 @@ func (s *WebSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(authServer.UpsertCertAuthority(
-		suite.NewTestCA(services.UserCA, s.domainName), backend.Forever), IsNil)
+		suite.NewTestCA(services.UserCA, s.domainName)), IsNil)
 	c.Assert(authServer.UpsertCertAuthority(
-		suite.NewTestCA(services.HostCA, s.domainName), backend.Forever), IsNil)
+		suite.NewTestCA(services.HostCA, s.domainName)), IsNil)
 
 	sessionServer, err := sess.New(s.bk)
 	c.Assert(err, IsNil)
@@ -241,6 +242,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		},
 		[]ssh.Signer{s.signer},
 		s.roleAuth,
+		state.NoCache,
 		reversetunnel.DirectSite(s.domainName, s.roleAuth),
 	)
 	c.Assert(err, IsNil)

@@ -216,6 +216,7 @@ func UnmarshalReverseTunnel(data []byte) (ReverseTunnel, error) {
 		if err := utils.UnmarshalWithSchema(GetReverseTunnelSchema(), &r, data); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
+		utils.UTC(&r.Metadata.Expires)
 		return &r, nil
 	}
 	return nil, trace.BadParameter("reverse tunnel version %v is not supported", h.Version)
