@@ -53,8 +53,8 @@ teleport:
     private_key_file: /proxy.key.file
   cache:
     enabled: yes
-    never_expires: no
     ttl: 20h
+    never_expires: no
 
 auth_service:
   enabled: yes
