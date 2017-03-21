@@ -39,6 +39,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/kardianos/osext"
+	"github.com/mattn/go-shellwords"
 )
 
 const (
@@ -74,12 +75,19 @@ type execResponse struct {
 func parseExecRequest(req *ssh.Request, ctx *ctx) (*execResponse, error) {
 	var e execReq
 	if err := ssh.Unmarshal(req.Payload, &e); err != nil {
-		return nil, fmt.Errorf("failed to parse exec request, error: %v", err)
+		return nil, trace.BadParameter("failed to parse exec request, error: %v", err)
 	}
-	// is this scp request?
-	args := strings.Split(e.Command, " ")
+
+	// split up command like a shell would do for us
+	args, err := shellwords.Parse(e.Command)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if len(args) > 0 {
 		_, f := filepath.Split(args[0])
+
+		// is this scp request?
 		if f == "scp" {
 			// for 'scp' requests, we'll fork ourselves with scp parameters:
 			teleportBin, err := osext.Executable()
@@ -143,7 +151,11 @@ func prepInteractiveCommand(ctx *ctx) (*exec.Cmd, error) {
 // If 'cmd' does not have any spaces in it, it gets executed directly, otherwise
 // it is passed to user's shell for interpretation
 func prepareCommand(ctx *ctx) (*exec.Cmd, error) {
-	args := strings.Split(ctx.exec.cmdName, " ")
+	// split up command like a shell would do for us
+	args, err := shellwords.Parse(ctx.exec.cmdName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	osUserName := ctx.login
 	// configure UID & GID of the requested OS user:
