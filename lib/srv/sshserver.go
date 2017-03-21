@@ -511,7 +511,6 @@ func (s *Server) fetchRoleSet(teleportUser string, clusterName string) (services
 func (s *Server) isAuthority(cert ssh.PublicKey) bool {
 	// find cert authority by it's key
 	cas, err := s.authService.GetCertAuthorities(services.UserCA, false)
-	log.Debugf("[SSH NODE HA] %v %v", cas, err)
 	if err != nil {
 		log.Warningf("%v", err)
 		return false
@@ -582,9 +581,7 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 			})
 		}
 	}
-	log.Debugf("[SSH NODE DEBUG 1]")
 	permissions, err := s.certChecker.Authenticate(conn, key)
-	log.Debugf("[SSH NODE DEBUG 2]", permissions, err)
 	if err != nil {
 		logAuditEvent(err)
 		return nil, trace.Wrap(err)

@@ -778,7 +778,7 @@ func (c *TunClient) Close() error {
 // GetDialer returns dialer that will connect to auth server API
 func (c *TunClient) GetDialer() AccessPointDialer {
 	addrNetwork := c.staticAuthServers[0].AddrNetwork
-	const dialRetryTimes = 1
+	const dialRetryTimes = 3
 
 	return func() (conn net.Conn, err error) {
 		for attempt := 0; attempt < dialRetryTimes; attempt++ {

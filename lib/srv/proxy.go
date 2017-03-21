@@ -232,15 +232,12 @@ func (t *proxySubsys) proxyToHost(
 			log.Warn(err)
 		}
 	} else {
-
 		// "remote" CA? use a reverse tunnel to talk to it:
 		siteClient, err := site.CachingAccessPoint()
-		log.Debugf("SASHA using cacing access point: %v", err)
 		if err != nil {
 			log.Warn(err)
 		} else {
 			servers, err = siteClient.GetNodes(t.namespace)
-			log.Debugf("SASHA got servers: %#v", servers, err)
 			if err != nil {
 				log.Warn(err)
 			}
@@ -261,12 +258,11 @@ func (t *proxySubsys) proxyToHost(
 			continue
 		}
 		if t.host == ip || t.host == servers[i].GetHostname() || utils.SliceContainsStr(ips, ip) {
-			server = servers[i]
 			// found the server. see if we need to match the port
-			if useExactPort && t.port != port {
-				return trace.BadParameter("host %s is listening on port %s, not %s", t.host, port, t.port)
+			if t.port == port {
+				server = servers[i]
+				break
 			}
-			break
 		}
 	}
 
@@ -280,7 +276,6 @@ func (t *proxySubsys) proxyToHost(
 		serverAddr = net.JoinHostPort(t.host, t.port)
 	}
 
-	log.Debugf("SASHA dial %v", serverAddr)
 	// we must dial by server IP address because hostname
 	// may not be actually DNS resolvable
 	conn, err := site.Dial(

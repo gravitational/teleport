@@ -561,7 +561,9 @@ func (process *TeleportProcess) initSSH() error {
 	})
 	// execute this when process is asked to exit:
 	process.onExit(func(payload interface{}) {
-		s.Close()
+		if s != nil {
+			s.Close()
+		}
 	})
 	return nil
 }
@@ -846,7 +848,11 @@ func (process *TeleportProcess) initAuthStorage() (bk backend.Backend, err error
 
 func (process *TeleportProcess) Close() error {
 	process.BroadcastEvent(Event{Name: TeleportExitEvent})
-	return trace.Wrap(process.localAuth.Close())
+	localAuth := process.getLocalAuth()
+	if localAuth != nil {
+		return trace.Wrap(process.localAuth.Close())
+	}
+	return nil
 }
 
 func validateConfig(cfg *Config) error {
