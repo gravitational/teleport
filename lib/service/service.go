@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
+	"github.com/gravitational/teleport/lib/backend/consulbk"
 	"github.com/gravitational/teleport/lib/backend/dir"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
@@ -819,6 +820,9 @@ func (process *TeleportProcess) initAuthStorage() (bk backend.Backend, err error
 	// etcd backend:
 	case etcdbk.GetName():
 		bk, err = etcdbk.New(bc.Params)
+	// consul backend:
+	case consulbk.GetName():
+		bk, err = consulbk.New(bc.Params)
 	default:
 		err = trace.Errorf("unsupported secrets storage type: '%v'", bc.Type)
 	}

@@ -1,0 +1,1 @@
+{"ca_file":"certs/ca-cert.pem", "key_file":"certs/server-key.pem", "cert_file": "certs/server-cert.pem"}
