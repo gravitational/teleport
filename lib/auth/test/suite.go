@@ -80,18 +80,18 @@ func (s *AuthSuite) GenerateUserCert(c *C) {
 	priv, pub, err := s.A.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 
-	cert, err := s.A.GenerateUserCert(priv, pub, "user", []string{"centos", "root"}, time.Hour)
+	cert, err := s.A.GenerateUserCert(priv, pub, "user", []string{"centos", "root"}, time.Hour, true)
 	c.Assert(err, IsNil)
 
 	_, _, _, _, err = ssh.ParseAuthorizedKey(cert)
 	c.Assert(err, IsNil)
 
-	_, err = s.A.GenerateUserCert(priv, pub, "user", []string{"root"}, -20)
+	_, err = s.A.GenerateUserCert(priv, pub, "user", []string{"root"}, -20, true)
 	c.Assert(err, NotNil)
 
-	_, err = s.A.GenerateUserCert(priv, pub, "user", []string{"root"}, 0)
+	_, err = s.A.GenerateUserCert(priv, pub, "user", []string{"root"}, 0, true)
 	c.Assert(err, NotNil)
 
-	_, err = s.A.GenerateUserCert(priv, pub, "user", []string{"root"}, time.Hour)
+	_, err = s.A.GenerateUserCert(priv, pub, "user", []string{"root"}, time.Hour, true)
 	c.Assert(err, IsNil)
 }

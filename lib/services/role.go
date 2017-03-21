@@ -301,6 +301,8 @@ type AccessChecker interface {
 	AdjustSessionTTL(ttl time.Duration) time.Duration
 	// CheckAgentForward checks if the role can request agent forward for this user
 	CheckAgentForward(login string) error
+	// CanForwardAgents returns true if this role set offers capability to forward agents
+	CanForwardAgents() bool
 }
 
 // FromSpec returns new RoleSet created from spec
@@ -477,6 +479,16 @@ func (set RoleSet) CheckAccessToServer(login string, s Server) error {
 		}
 	}
 	return trace.AccessDenied("access to server is denied for %v", set)
+}
+
+// CanForwardAgents returns true if role set allows forwarding agents
+func (set RoleSet) CanForwardAgents() bool {
+	for _, role := range set {
+		if role.CanForwardAgent() {
+			return true
+		}
+	}
+	return false
 }
 
 // CheckAgentForward checks if the role can request agent forward for this user
