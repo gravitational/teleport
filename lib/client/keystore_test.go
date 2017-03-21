@@ -172,7 +172,7 @@ func (s *KeyStoreTestSuite) makeSignedKey(c *check.C, makeExpired bool) *Key {
 	if makeExpired {
 		ttl = -ttl
 	}
-	cert, err = s.keygen.GenerateUserCert(CAPriv, pub, username, allowedLogins, ttl)
+	cert, err = s.keygen.GenerateUserCert(CAPriv, pub, username, allowedLogins, ttl, false)
 	c.Assert(err, check.IsNil)
 	return &Key{
 		Priv: priv,

@@ -870,7 +870,7 @@ func newUpack(username string, allowedLogins []string, a *auth.AuthServer) (*upa
 		return nil, trace.Wrap(err)
 	}
 
-	ucert, err := a.GenerateUserCert(upub, username, allowedLogins, 0)
+	ucert, err := a.GenerateUserCert(upub, username, allowedLogins, 0, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

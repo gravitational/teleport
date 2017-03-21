@@ -176,7 +176,7 @@ func (n *nauth) GenerateHostCert(c services.CertParams) ([]byte, error) {
 	return ssh.MarshalAuthorizedKey(cert), nil
 }
 
-func (n *nauth) GenerateUserCert(pkey, key []byte, teleportUsername string, allowedLogins []string, ttl time.Duration) ([]byte, error) {
+func (n *nauth) GenerateUserCert(pkey, key []byte, teleportUsername string, allowedLogins []string, ttl time.Duration, permitAgentForwarding bool) ([]byte, error) {
 	if ttl < defaults.MinCertDuration {
 		return nil, trace.BadParameter("wrong certificate TTL")
 	}
@@ -203,10 +203,12 @@ func (n *nauth) GenerateUserCert(pkey, key []byte, teleportUsername string, allo
 		CertType:        ssh.UserCert,
 	}
 	cert.Permissions.Extensions = map[string]string{
-		"permit-pty":             "",
-		"permit-port-forwarding": "",
+		teleport.CertExtensionPermitPTY:            "",
+		teleport.CertExtensionPermitPortForwarding: "",
 	}
-
+	if permitAgentForwarding {
+		cert.Permissions.Extensions[teleport.CertExtensionPermitAgentForwarding] = ""
+	}
 	signer, err := ssh.ParsePrivateKey(pkey)
 	if err != nil {
 		return nil, err
