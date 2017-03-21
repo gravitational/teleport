@@ -62,7 +62,7 @@ type Authority interface {
 
 	// GenerateUserCert generates user certificate, it takes pkey as a signing
 	// private key (user certificate authority)
-	GenerateUserCert(pkey, key []byte, teleportUsername string, allowedLogins []string, ttl time.Duration) ([]byte, error)
+	GenerateUserCert(pkey, key []byte, teleportUsername string, allowedLogins []string, ttl time.Duration, permitAgentForwarding bool) ([]byte, error)
 }
 
 // AuthServerOption allows setting options as functional arguments to AuthServer
@@ -204,7 +204,7 @@ func (s *AuthServer) GenerateHostCert(hostPublicKey []byte, hostID, nodeName, cl
 
 // GenerateUserCert generates user certificate, it takes pkey as a signing
 // private key (user certificate authority)
-func (s *AuthServer) GenerateUserCert(key []byte, username string, allowedLogins []string, ttl time.Duration) ([]byte, error) {
+func (s *AuthServer) GenerateUserCert(key []byte, username string, allowedLogins []string, ttl time.Duration, canForwardAgents bool) ([]byte, error) {
 	ca, err := s.Trust.GetCertAuthority(services.CertAuthID{
 		Type:       services.UserCA,
 		DomainName: s.DomainName,
@@ -216,7 +216,7 @@ func (s *AuthServer) GenerateUserCert(key []byte, username string, allowedLogins
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return s.Authority.GenerateUserCert(privateKey, key, username, allowedLogins, ttl)
+	return s.Authority.GenerateUserCert(privateKey, key, username, allowedLogins, ttl, canForwardAgents)
 }
 
 // withUserLock executes function authenticateFn that perorms user authenticaton
@@ -640,7 +640,7 @@ func (s *AuthServer) NewWebSession(userName string) (services.WebSession, error)
 
 	// cert TTL is set to bearer token TTL as we expect active session to renew
 	// the token every BearerTokenTTL period
-	cert, err := s.Authority.GenerateUserCert(privateKey, pub, user.GetName(), allowedLogins, bearerTokenTTL)
+	cert, err := s.Authority.GenerateUserCert(privateKey, pub, user.GetName(), allowedLogins, bearerTokenTTL, roles.CanForwardAgents())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -938,7 +938,7 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cert, err := a.GenerateUserCert(req.PublicKey, user.GetName(), allowedLogins, certTTL)
+		cert, err := a.GenerateUserCert(req.PublicKey, user.GetName(), allowedLogins, certTTL, roles.CanForwardAgents())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

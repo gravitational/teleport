@@ -173,7 +173,7 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 	_, pub, err = s.clt.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 
-	user1, _ := createUserAndRole(s.clt, "user1", []string{"user1"})
+	user1, userRole := createUserAndRole(s.clt, "user1", []string{"user1"})
 	user2, _ := createUserAndRole(s.clt, "user2", []string{"user2"})
 	err = s.clt.UpsertPassword(user1.GetName(), []byte("abc1231"))
 	c.Assert(err, IsNil)
@@ -214,6 +214,30 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 	validBefore := time.Unix(int64(parsedCert.ValidBefore), 0)
 	diff := validBefore.Sub(time.Now())
 	c.Assert(diff < defaults.MaxCertDuration, Equals, true, Commentf("expected %v < %v", diff, defaults.CertDuration))
+
+	// user should not have agent forwarding
+	_, exists := parsedCert.Extensions[teleport.CertExtensionPermitAgentForwarding]
+	c.Assert(exists, Equals, false)
+
+	// now update role to permit agent forwarding
+	userRole.SetForwardAgent(true)
+	err = s.clt.UpsertRole(userRole)
+	c.Assert(err, IsNil)
+
+	authorizer, err = NewUserAuthorizer("user1", s.WebS, s.AccessS)
+	c.Assert(err, IsNil)
+	authServer4, userClient4 := s.newServerWithAuthorizer(c, authorizer)
+	defer authServer4.Close()
+
+	cert, err = userClient4.GenerateUserCert(pub, "user1", 1*time.Hour)
+	c.Assert(err, IsNil)
+	parsedKey, _, _, _, err = ssh.ParseAuthorizedKey(cert)
+	c.Assert(err, IsNil)
+	parsedCert, _ = parsedKey.(*ssh.Certificate)
+
+	// user should get agent forwarding
+	_, exists = parsedCert.Extensions[teleport.CertExtensionPermitAgentForwarding]
+	c.Assert(exists, Equals, true)
 
 	// apply HTTP Auth to generate user cert:
 	cert, err = userClient3.GenerateUserCert(pub, "user1", time.Hour)

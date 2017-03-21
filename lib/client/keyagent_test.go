@@ -209,7 +209,7 @@ func makeKey(username string, allowedLogins []string, ttl time.Duration) (*Key, 
 		return nil, err
 	}
 
-	certificate, err := keygen.GenerateUserCert(caPrivateKey, publicKey, username, allowedLogins, ttl)
+	certificate, err := keygen.GenerateUserCert(caPrivateKey, publicKey, username, allowedLogins, ttl, true)
 	if err != nil {
 		return nil, err
 	}

@@ -101,3 +101,12 @@ const (
 	// OIDC means authentication will happen remotly using an OIDC connector.
 	OIDC = "oidc"
 )
+
+const (
+	// CertExtensionPermitAgentForwarding allows agent forwarding for certificate
+	CertExtensionPermitAgentForwarding = "permit-agent-forwarding"
+	// CertExtensionPermitPTY allows user to request PTY
+	CertExtensionPermitPTY = "permit-pty"
+	// CertExtensionPermitPortForwarding allows user to request port forwarding
+	CertExtensionPermitPortForwarding = "permit-port-forwarding"
+)
