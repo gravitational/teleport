@@ -959,6 +959,14 @@ func (s *Server) handlePTYReq(ch ssh.Channel, req *ssh.Request, ctx *ctx) error 
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	// if the caller asked for an invalid sized pty (like ansible
+	// which asks for a 0x0 size) update the request with defaults
+	err = r.CheckAndSetDefaults()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	params, err = rsession.NewTerminalParamsFromUint32(r.W, r.H)
 	if err != nil {
 		return trace.Wrap(err)
