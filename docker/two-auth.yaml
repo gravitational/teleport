@@ -2,7 +2,8 @@
 teleport:
   nodename: two-auth
   log:
-    severity: DEBUG
+    output: /var/lib/teleport/teleport.log
+    severity: INFO
 
   data_dir: /root/go/src/github.com/gravitational/teleport/docker/data/two
   storage:
