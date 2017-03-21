@@ -481,6 +481,8 @@ func (s *IntSuite) TestHA(c *check.C) {
 		}
 	}
 
+	time.Sleep(time.Second)
+
 	cmd := []string{"echo", "hello world"}
 	tc, err := b.NewClient(username, "cluster-a", "127.0.0.1", sshPort)
 	c.Assert(err, check.IsNil)
