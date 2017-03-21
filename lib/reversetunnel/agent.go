@@ -126,7 +126,7 @@ func (a *Agent) String() string {
 func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.PublicKey) error {
 	cert, ok := key.(*ssh.Certificate)
 	if !ok {
-		return trace.Errorf("expected certificate")
+		return trace.BadParameter("expected certificate")
 	}
 	cas, err := a.accessPoint.GetCertAuthorities(services.HostCA, false)
 	if err != nil {
