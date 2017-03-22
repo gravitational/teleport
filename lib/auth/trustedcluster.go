@@ -53,7 +53,7 @@ func (a *AuthServer) enableTrustedCluster(trustedCluster services.TrustedCluster
 		return trace.Wrap(err)
 	}
 
-	// create a reques to validate a trusted cluster (token and local certificate authorities)
+	// create a request to validate a trusted cluster (token and local certificate authorities)
 	validateRequest := ValidateTrustedClusterRequest{
 		Token: trustedCluster.GetToken(),
 		CAs:   localCertAuthorities,
@@ -147,7 +147,9 @@ func (a *AuthServer) validateTrustedCluster(validateRequest *ValidateTrustedClus
 		}
 
 		for _, certAuthority := range certAuthorities {
-			validateResponse.CAs = append(validateResponse.CAs, certAuthority)
+			if certAuthority.GetClusterName() == a.DomainName {
+				validateResponse.CAs = append(validateResponse.CAs, certAuthority)
+			}
 		}
 	}
 
