@@ -474,11 +474,26 @@ func (s *AuthTunnel) passwordAuth(
 	log.Infof("[AUTH] login attempt: user %q type %q", conn.User(), ab.Type)
 
 	switch ab.Type {
-	// regular user is trying to get in using his password+OTP token:
+	// user is trying to get in using their password+otp
 	case AuthWebPassword:
 		if err := s.authServer.CheckPassword(conn.User(), ab.Pass, ab.OTPToken); err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		perms := &ssh.Permissions{
+			Extensions: map[string]string{
+				ExtWebPassword:         "<password>",
+				utils.CertTeleportUser: conn.User(),
+			},
+		}
+		log.Infof("[AUTH] password+otp authenticated user: %q", conn.User())
+		return perms, nil
+	// user is trying to get in using their password only
+	case AuthWebPasswordWithoutOTP:
+		if err := s.authServer.CheckPasswordWOToken(conn.User(), ab.Pass); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
 				ExtWebPassword:         "<password>",
@@ -617,6 +632,18 @@ func NewWebPasswordAuth(user string, password []byte, otpToken string) ([]ssh.Au
 		Pass:      password,
 		HotpToken: otpToken, // HotpToken is deprecated, used OTPToken.
 		OTPToken:  otpToken,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return []ssh.AuthMethod{ssh.Password(string(data))}, nil
+}
+
+func NewWebPasswordWithoutOTPAuth(user string, password []byte) ([]ssh.AuthMethod, error) {
+	data, err := json.Marshal(authBucket{
+		Type: AuthWebPasswordWithoutOTP,
+		User: user,
+		Pass: password,
 	})
 	if err != nil {
 		return nil, err
@@ -993,6 +1020,7 @@ const (
 	ExtOrigin      = "origin@teleport"
 
 	AuthWebPassword            = "password"
+	AuthWebPasswordWithoutOTP  = "password-without-otp"
 	AuthWebU2FSign             = "u2f-sign"
 	AuthWebU2F                 = "u2f"
 	AuthWebSession             = "session"

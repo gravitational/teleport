@@ -290,6 +290,14 @@ func (s *TunSuite) TestWebCreatingNewUserValidClientInvalidToken(c *C) {
 // valid signup token and then tries to get a valid token back. Then try and login
 // as the new user. This should all succeed.
 func (s *TunSuite) TestWebCreatingNewUserValidClientValidToken(c *C) {
+	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+		Type:         "local",
+		SecondFactor: "otp",
+	})
+	c.Assert(err, IsNil)
+	err = s.a.SetClusterAuthPreference(ap)
+	c.Assert(err, IsNil)
+
 	c.Assert(s.a.UpsertCertAuthority(
 		suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
 
@@ -319,7 +327,7 @@ func (s *TunSuite) TestWebCreatingNewUserValidClientValidToken(c *C) {
 	c.Assert(err, IsNil)
 
 	// create a user
-	_, err = clt.CreateUserWithToken(token, password, validToken)
+	_, err = clt.CreateUserWithOTP(token, password, validToken)
 	c.Assert(err, IsNil)
 
 	// delete token so we can re-use it without messing with clocks
@@ -344,6 +352,14 @@ func (s *TunSuite) TestWebCreatingNewUserValidClientValidToken(c *C) {
 // using a valid signup token and then uses a valid token to create a user. Then
 // try to create another user. This should fail.
 func (s *TunSuite) TestWebCreatingNewUserValidClientValidTokenReuseToken(c *C) {
+	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+		Type:         "local",
+		SecondFactor: "otp",
+	})
+	c.Assert(err, IsNil)
+	err = s.a.SetClusterAuthPreference(ap)
+	c.Assert(err, IsNil)
+
 	c.Assert(s.a.UpsertCertAuthority(
 		suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
 
@@ -367,11 +383,11 @@ func (s *TunSuite) TestWebCreatingNewUserValidClientValidTokenReuseToken(c *C) {
 	c.Assert(err, IsNil)
 
 	// first time we should be able to create a user
-	_, err = clt.CreateUserWithToken(token, validPassword, validToken)
+	_, err = clt.CreateUserWithOTP(token, validPassword, validToken)
 	c.Assert(err, IsNil)
 
 	// second time it should fail
-	_, err = clt.CreateUserWithToken(token, validPassword, validToken)
+	_, err = clt.CreateUserWithOTP(token, validPassword, validToken)
 	c.Assert(err, NotNil)
 
 	// signup token should be gone now

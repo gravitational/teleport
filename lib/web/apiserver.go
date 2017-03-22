@@ -655,16 +655,33 @@ func (m *Handler) createSession(w http.ResponseWriter, r *http.Request, p httpro
 		return nil, trace.Wrap(err)
 	}
 
-	sess, err := m.auth.Auth(req.User, req.Pass, req.SecondFactorToken)
+	// get cluster preferences to see if we should login
+	// with password or password+otp
+	authClient := m.cfg.ProxyClient
+	cap, err := authClient.GetClusterAuthPreference()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var webSession services.WebSession
+
+	switch cap.GetSecondFactor() {
+	case teleport.OFF:
+		webSession, err = m.auth.AuthWithoutOTP(req.User, req.Pass)
+	case teleport.OTP, teleport.HOTP, teleport.TOTP:
+		webSession, err = m.auth.AuthWithOTP(req.User, req.Pass, req.SecondFactorToken)
+	default:
+		return nil, trace.AccessDenied("unknown second factor type: %q", cap.GetSecondFactor())
+	}
 	if err != nil {
 		return nil, trace.AccessDenied("bad auth credentials")
 	}
 
-	if err := SetSession(w, req.User, sess.GetName()); err != nil {
+	if err := SetSession(w, req.User, webSession.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	ctx, err := m.auth.ValidateSession(req.User, sess.GetName())
+	ctx, err := m.auth.ValidateSession(req.User, webSession.GetName())
 	if err != nil {
 		return nil, trace.AccessDenied("need auth")
 	}
@@ -829,7 +846,7 @@ func (m *Handler) createSessionWithU2FSignResponse(w http.ResponseWriter, r *htt
 type createNewUserReq struct {
 	InviteToken       string `json:"invite_token"`
 	Pass              string `json:"pass"`
-	SecondFactorToken string `json:"second_factor_token"`
+	SecondFactorToken string `json:"second_factor_token,omitempty"`
 }
 
 // createNewUser creates new user entry based on the invite token
@@ -1444,15 +1461,30 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 		return nil, trace.Wrap(err)
 	}
 
-	// convert legacy requests to new parameter here. remove once migration to TOTP is complete.
-	if req.HOTPToken != "" {
-		req.OTPToken = req.HOTPToken
-	}
-
-	cert, err := h.auth.GetCertificate(*req)
+	authClient := h.cfg.ProxyClient
+	cap, err := authClient.GetClusterAuthPreference()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	var cert *client.SSHLoginResponse
+
+	switch cap.GetSecondFactor() {
+	case teleport.OFF:
+		cert, err = h.auth.GetCertificateWithoutOTP(*req)
+	case teleport.OTP, teleport.HOTP, teleport.TOTP:
+		// convert legacy requests to new parameter here. remove once migration to TOTP is complete.
+		if req.HOTPToken != "" {
+			req.OTPToken = req.HOTPToken
+		}
+		cert, err = h.auth.GetCertificateWithOTP(*req)
+	default:
+		return nil, trace.AccessDenied("unknown second factor type: %q", cap.GetSecondFactor())
+	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return cert, nil
 }
 

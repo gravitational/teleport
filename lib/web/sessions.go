@@ -22,6 +22,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/services"
@@ -230,7 +231,7 @@ func (s *sessionCache) clearExpiredSessions() {
 	}
 }
 
-func (s *sessionCache) Auth(user, pass string, otpToken string) (services.WebSession, error) {
+func (s *sessionCache) AuthWithOTP(user, pass string, otpToken string) (services.WebSession, error) {
 	method, err := auth.NewWebPasswordAuth(user, []byte(pass), otpToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -240,7 +241,27 @@ func (s *sessionCache) Auth(user, pass string, otpToken string) (services.WebSes
 	// only using the tunnel for authentication, we close it right afterwards
 	// because we will not be using this connection (initiated using password
 	// based credentials) later.
-	clt, err := auth.NewTunClient("web.client", s.authServers, user, method)
+	clt, err := auth.NewTunClient("web.client.password-and-otp", s.authServers, user, method)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer clt.Close()
+
+	session, err := clt.SignIn(user, []byte(pass))
+	if err != nil {
+		defer clt.Close()
+		return nil, trace.Wrap(err)
+	}
+	return session, nil
+}
+
+func (s *sessionCache) AuthWithoutOTP(user, pass string) (services.WebSession, error) {
+	method, err := auth.NewWebPasswordWithoutOTPAuth(user, []byte(pass))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := auth.NewTunClient("web.client.password-only", s.authServers, user, method)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -292,13 +313,28 @@ func (s *sessionCache) AuthWithU2FSignResponse(user string, response *u2f.SignRe
 	return session, nil
 }
 
-func (s *sessionCache) GetCertificate(c client.CreateSSHCertReq) (*client.SSHLoginResponse, error) {
+func (s *sessionCache) GetCertificateWithoutOTP(c client.CreateSSHCertReq) (*client.SSHLoginResponse, error) {
+	method, err := auth.NewWebPasswordWithoutOTPAuth(c.User, []byte(c.Password))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := auth.NewTunClient("web.session.password-only", s.authServers, c.User, method)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer clt.Close()
+
+	return createCertificate(c.User, c.PubKey, c.TTL, clt)
+}
+
+func (s *sessionCache) GetCertificateWithOTP(c client.CreateSSHCertReq) (*client.SSHLoginResponse, error) {
 	method, err := auth.NewWebPasswordAuth(c.User, []byte(c.Password), c.OTPToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := auth.NewTunClient("web.session", s.authServers, c.User, method)
+	clt, err := auth.NewTunClient("web.session.password+otp", s.authServers, c.User, method)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -381,8 +417,24 @@ func (s *sessionCache) CreateNewUser(token, password, otpToken string) (services
 	}
 	defer clt.Close()
 
-	sess, err := clt.CreateUserWithToken(token, password, otpToken)
-	return sess, trace.Wrap(err)
+	cap, err := clt.GetClusterAuthPreference()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var webSession services.WebSession
+
+	switch cap.GetSecondFactor() {
+	case teleport.OFF:
+		webSession, err = clt.CreateUserWithoutOTP(token, password)
+	case teleport.OTP, teleport.TOTP, teleport.HOTP:
+		webSession, err = clt.CreateUserWithOTP(token, password, otpToken)
+	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return webSession, nil
 }
 
 func (s *sessionCache) CreateNewU2FUser(token string, password string, u2fRegisterResponse u2f.RegisterResponse) (services.WebSession, error) {

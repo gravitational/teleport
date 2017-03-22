@@ -404,9 +404,14 @@ func (a *AuthWithRoles) GetSignupU2FRegisterRequest(token string) (u2fRegisterRe
 	return a.authServer.CreateSignupU2FRegisterRequest(token)
 }
 
-func (a *AuthWithRoles) CreateUserWithToken(token, password, hotpToken string) (services.WebSession, error) {
+func (a *AuthWithRoles) CreateUserWithOTP(token, password, otpToken string) (services.WebSession, error) {
 	// tokens are their own authz mechanism, no need to double check
-	return a.authServer.CreateUserWithToken(token, password, hotpToken)
+	return a.authServer.CreateUserWithOTP(token, password, otpToken)
+}
+
+func (a *AuthWithRoles) CreateUserWithoutOTP(token string, password string) (services.WebSession, error) {
+	// tokens are their own authz mechanism, no need to double check
+	return a.authServer.CreateUserWithoutOTP(token, password)
 }
 
 func (a *AuthWithRoles) CreateUserWithU2FToken(token string, password string, u2fRegisterResponse u2f.RegisterResponse) (services.WebSession, error) {
