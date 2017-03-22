@@ -208,7 +208,8 @@ func GetCheckerForBuiltinRole(role teleport.Role) (services.AccessChecker, error
 			services.RoleSpecV2{
 				Namespaces: []string{services.Wildcard},
 				Resources: map[string][]string{
-					services.KindAuthServer: services.RO(),
+					services.KindAuthServer:            services.RO(),
+					services.KindClusterAuthPreference: services.RO(),
 				},
 			})
 	case teleport.RoleAdmin:

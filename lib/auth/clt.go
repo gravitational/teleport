@@ -796,14 +796,27 @@ func (c *Client) GetSignupU2FRegisterRequest(token string) (u2fRegisterRequest *
 	return &u2fRegReq, nil
 }
 
-// CreateUserWithToken creates account with provided token and password.
+// CreateUserWithOTP creates account with provided token and password.
 // Account username and OTP key are taken from token data.
 // Deletes token after account creation.
-func (c *Client) CreateUserWithToken(token, password, otpToken string) (services.WebSession, error) {
+func (c *Client) CreateUserWithOTP(token, password, otpToken string) (services.WebSession, error) {
 	out, err := c.PostJSON(c.Endpoint("signuptokens", "users"), createUserWithTokenReq{
 		Token:    token,
 		Password: password,
 		OTPToken: otpToken,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return services.GetWebSessionMarshaler().UnmarshalWebSession(out.Bytes())
+}
+
+// CreateUserWithoutOTP validates a given token creates a user
+// with the given password and deletes the token afterwards.
+func (c *Client) CreateUserWithoutOTP(token string, password string) (services.WebSession, error) {
+	out, err := c.PostJSON(c.Endpoint("signuptokens", "users"), createUserWithTokenReq{
+		Token:    token,
+		Password: password,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1337,10 +1350,14 @@ type IdentityService interface {
 	// returns a secure web session id.
 	SignIn(user string, password []byte) (services.WebSession, error)
 
-	// CreateUserWithToken creates account with provided token and password.
+	// CreateUserWithOTP creates account with provided token and password.
 	// Account username and OTP key are taken from token data.
 	// Deletes token after account creation.
-	CreateUserWithToken(token, password, otpToken string) (services.WebSession, error)
+	CreateUserWithOTP(token, password, otpToken string) (services.WebSession, error)
+
+	// CreateUserWithoutOTP validates a given token creates a user
+	// with the given password and deletes the token afterwards.
+	CreateUserWithoutOTP(token string, password string) (services.WebSession, error)
 
 	// GenerateToken creates a special provisioning token for a new SSH server
 	// that is valid for ttl period seconds.

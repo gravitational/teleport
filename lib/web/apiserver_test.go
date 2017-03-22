@@ -73,6 +73,7 @@ type WebSuite struct {
 	srvID       string
 	srvHostPort string
 	bk          backend.Backend
+	authServer  *auth.AuthServer
 	roleAuth    *auth.AuthWithRoles
 	dir         string
 	user        string
@@ -141,7 +142,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 	trust := local.NewCAService(s.bk)
 
 	s.domainName = "localhost"
-	authServer := auth.NewAuthServer(&auth.InitConfig{
+	s.authServer = auth.NewAuthServer(&auth.InitConfig{
 		Backend:    s.bk,
 		Authority:  authority.New(),
 		DomainName: s.domainName,
@@ -155,7 +156,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		SecondFactor: teleport.U2F,
 	})
 	c.Assert(err, IsNil)
-	err = authServer.SetClusterAuthPreference(cap)
+	err = s.authServer.SetClusterAuthPreference(cap)
 	c.Assert(err, IsNil)
 
 	// configure u2f
@@ -164,7 +165,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		Facets: []string{"https://" + s.domainName},
 	})
 	c.Assert(err, IsNil)
-	err = authServer.SetUniversalSecondFactor(universalSecondFactor)
+	err = s.authServer.SetUniversalSecondFactor(universalSecondFactor)
 	c.Assert(err, IsNil)
 
 	teleUser, err := services.NewUser(s.user)
@@ -172,19 +173,19 @@ func (s *WebSuite) SetUpTest(c *C) {
 	role := services.RoleForUser(teleUser)
 	role.SetLogins([]string{s.user})
 	role.SetResource(services.Wildcard, services.RW())
-	err = authServer.UpsertRole(role)
+	err = s.authServer.UpsertRole(role)
 	c.Assert(err, IsNil)
 
 	teleUser.AddRole(role.GetName())
-	err = authServer.UpsertUser(teleUser)
+	err = s.authServer.UpsertUser(teleUser)
 	c.Assert(err, IsNil)
 
 	authorizer, err := auth.NewAuthorizer(access, identity, trust)
 	c.Assert(err, IsNil)
 
-	c.Assert(authServer.UpsertCertAuthority(
+	c.Assert(s.authServer.UpsertCertAuthority(
 		suite.NewTestCA(services.UserCA, s.domainName), backend.Forever), IsNil)
-	c.Assert(authServer.UpsertCertAuthority(
+	c.Assert(s.authServer.UpsertCertAuthority(
 		suite.NewTestCA(services.HostCA, s.domainName), backend.Forever), IsNil)
 
 	sessionServer, err := sess.New(s.bk)
@@ -195,12 +196,12 @@ func (s *WebSuite) SetUpTest(c *C) {
 
 	c.Assert(err, IsNil)
 
-	s.roleAuth = auth.NewAuthWithRoles(authServer, authContext.Checker, s.user, sessionServer, s.auditLog)
+	s.roleAuth = auth.NewAuthWithRoles(s.authServer, authContext.Checker, s.user, sessionServer, s.auditLog)
 
 	// set up host private key and certificate
-	hpriv, hpub, err := authServer.GenerateKeyPair("")
+	hpriv, hpub, err := s.authServer.GenerateKeyPair("")
 	c.Assert(err, IsNil)
-	hcert, err := authServer.GenerateHostCert(
+	hcert, err := s.authServer.GenerateHostCert(
 		hpub, "00000000-0000-0000-0000-000000000000", s.domainName, s.domainName, teleport.Roles{teleport.RoleAdmin}, 0)
 	c.Assert(err, IsNil)
 
@@ -256,7 +257,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		tunAddr,
 		s.signer,
 		&auth.APIConfig{
-			AuthServer:     authServer,
+			AuthServer:     s.authServer,
 			SessionService: sessionServer,
 			Authorizer:     authorizer,
 			AuditLog:       s.auditLog,
@@ -304,6 +305,15 @@ func (s *WebSuite) SetUpTest(c *C) {
 	addr, _ := utils.ParseAddr(s.webServer.Listener.Addr().String())
 	handler.handler.cfg.ProxyWebAddr = *addr
 	handler.handler.cfg.ProxySSHAddr = proxyAddr
+
+	// reset back to otp
+	cap, err = services.NewAuthPreference(services.AuthPreferenceSpecV2{
+		Type:         teleport.Local,
+		SecondFactor: teleport.OTP,
+	})
+	c.Assert(err, IsNil)
+	err = s.authServer.SetClusterAuthPreference(cap)
+	c.Assert(err, IsNil)
 }
 
 func (s *WebSuite) url() *url.URL {
@@ -1037,6 +1047,5 @@ func (s *WebSuite) TestPing(c *C) {
 	c.Assert(json.Unmarshal(re.Bytes(), &out), IsNil)
 
 	c.Assert(out.Auth.Type, Equals, teleport.Local)
-	c.Assert(out.Auth.SecondFactor, Equals, teleport.U2F)
-	c.Assert(out.Auth.U2F.AppID, Equals, "https://"+s.domainName)
+	c.Assert(out.Auth.SecondFactor, Equals, teleport.OTP)
 }

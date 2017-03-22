@@ -161,10 +161,10 @@ func (s *AuthServer) CreateSignupU2FRegisterRequest(token string) (u2fRegisterRe
 	return request, nil
 }
 
-// CreateUserWithToken creates account with provided token and password.
+// CreateUserWithOTP creates account with provided token and password.
 // Account username and hotp generator are taken from token data.
 // Deletes token after account creation.
-func (s *AuthServer) CreateUserWithToken(token string, password string, otpToken string) (services.WebSession, error) {
+func (s *AuthServer) CreateUserWithOTP(token string, password string, otpToken string) (services.WebSession, error) {
 	tokenData, err := s.GetSignupToken(token)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -201,6 +201,52 @@ func (s *AuthServer) CreateUserWithToken(token string, password string, otpToken
 	}
 
 	log.Infof("[AUTH] created new user: %v", &tokenData.User)
+
+	if err = s.DeleteSignupToken(token); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sess, err := s.NewWebSession(user.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = s.UpsertWebSession(user.GetName(), sess)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return sess.WithoutSecrets(), nil
+}
+
+// CreateUserWithoutOTP creates an account with the provided password and deletes the token afterwards.
+func (s *AuthServer) CreateUserWithoutOTP(token string, password string) (services.WebSession, error) {
+	tokenData, err := s.GetSignupToken(token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = s.UpsertPassword(tokenData.User.Name, []byte(password))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// apply user allowed logins
+	role := services.RoleForUser(tokenData.User.V2())
+	role.SetLogins(tokenData.User.AllowedLogins)
+	if err := s.UpsertRole(role); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// allowed logins are not going to be used anymore
+	tokenData.User.AllowedLogins = nil
+	tokenData.User.Roles = append(tokenData.User.Roles, role.GetName())
+	user := tokenData.User.V2()
+	if err = s.UpsertUser(user); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	log.Infof("[AUTH] Created new user: %v", &tokenData.User)
 
 	if err = s.DeleteSignupToken(token); err != nil {
 		return nil, trace.Wrap(err)

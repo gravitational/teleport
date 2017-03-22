@@ -963,13 +963,25 @@ func (s *APIServer) createUserWithToken(auth ClientI, w http.ResponseWriter, r *
 		return nil, trace.Wrap(err)
 	}
 
-	sess, err := auth.CreateUserWithToken(req.Token, req.Password, req.OTPToken)
+	cap, err := auth.GetClusterAuthPreference()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var webSession services.WebSession
+
+	switch cap.GetSecondFactor() {
+	case teleport.OFF:
+		webSession, err = auth.CreateUserWithoutOTP(req.Token, req.Password)
+	case teleport.OTP, teleport.TOTP, teleport.HOTP:
+		webSession, err = auth.CreateUserWithOTP(req.Token, req.Password, req.OTPToken)
+	}
 	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return nil, trace.Wrap(err)
 	}
 
-	return rawMessage(services.GetWebSessionMarshaler().MarshalWebSession(sess, services.WithVersion(version)))
+	return rawMessage(services.GetWebSessionMarshaler().MarshalWebSession(webSession, services.WithVersion(version)))
 }
 
 type createUserWithU2FTokenReq struct {
