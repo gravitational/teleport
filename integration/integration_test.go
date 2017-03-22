@@ -481,18 +481,24 @@ func (s *IntSuite) TestHA(c *check.C) {
 		}
 	}
 
-	time.Sleep(time.Second)
-
 	cmd := []string{"echo", "hello world"}
 	tc, err := b.NewClient(username, "cluster-a", "127.0.0.1", sshPort)
 	c.Assert(err, check.IsNil)
 	output := &bytes.Buffer{}
 	tc.Stdout = output
 	c.Assert(err, check.IsNil)
-	err = tc.SSH(context.TODO(), cmd, false)
+	// try to execute an SSH command using the same old client  to Site-B
+	// "site-A" and "site-B" reverse tunnels are supposed to reconnect,
+	// and 'tc' (client) is also supposed to reconnect
+	for i := 0; i < 10; i++ {
+		time.Sleep(time.Millisecond * 50)
+		err = tc.SSH(context.TODO(), cmd, false)
+		if err == nil {
+			break
+		}
+	}
 	c.Assert(err, check.IsNil)
 	c.Assert(output.String(), check.Equals, "hello world\n")
-
 	// stop auth server a now
 	c.Assert(a.Stop(true), check.IsNil)
 

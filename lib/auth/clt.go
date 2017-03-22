@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/roundtrip"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
@@ -73,7 +74,7 @@ func NewClient(addr string, dialer Dialer, params ...roundtrip.ClientParam) (*Cl
 	}
 	transport := &http.Transport{
 		Dial: dialer,
-		ResponseHeaderTimeout: time.Second,
+		ResponseHeaderTimeout: defaults.DefaultDialTimeout,
 	}
 	params = append(params,
 		roundtrip.HTTPClient(&http.Client{
