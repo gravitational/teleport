@@ -246,7 +246,7 @@ func (t *proxySubsys) proxyToHost(
 
 	// if port is 0, it means the client wants us to figure out
 	// which port to use
-	useExactPort := len(t.port) > 0 && t.port != "0"
+	specifiedPort := len(t.port) > 0 && t.port != "0"
 	ips, _ := net.LookupHost(t.host)
 
 	// enumerate and try to find a server with self-registered with a matching name/IP:
@@ -258,8 +258,7 @@ func (t *proxySubsys) proxyToHost(
 			continue
 		}
 		if t.host == ip || t.host == servers[i].GetHostname() || utils.SliceContainsStr(ips, ip) {
-			// found the server. see if we need to match the port
-			if t.port == port {
+			if !specifiedPort || t.port == port {
 				server = servers[i]
 				break
 			}
@@ -270,7 +269,7 @@ func (t *proxySubsys) proxyToHost(
 	if server != nil {
 		serverAddr = server.GetAddr()
 	} else {
-		if !useExactPort {
+		if !specifiedPort {
 			t.port = strconv.Itoa(defaults.SSHServerListenPort)
 		}
 		serverAddr = net.JoinHostPort(t.host, t.port)
