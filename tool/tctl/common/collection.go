@@ -402,3 +402,71 @@ func (c *trustedClusterCollection) writeYAML(w io.Writer) error {
 	_, err = w.Write(data)
 	return trace.Wrap(err)
 }
+
+type authPreferenceCollection struct {
+	services.AuthPreference
+}
+
+func (c *authPreferenceCollection) writeText(w io.Writer) error {
+	t := goterm.NewTable(0, 10, 5, ' ', 0)
+	printHeader(t, []string{"Type", "Second Factor"})
+	fmt.Fprintf(t, "%v\t%v\n", c.GetType(), c.GetSecondFactor())
+	_, err := io.WriteString(w, t.String())
+	return trace.Wrap(err)
+}
+
+func (c *authPreferenceCollection) writeJSON(w io.Writer) error {
+	data, err := json.MarshalIndent(c.toMarshal(), "", "    ")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = w.Write(data)
+	return trace.Wrap(err)
+}
+
+func (c *authPreferenceCollection) toMarshal() interface{} {
+	return c
+}
+
+func (c *authPreferenceCollection) writeYAML(w io.Writer) error {
+	data, err := yaml.Marshal(c.toMarshal())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = w.Write(data)
+	return trace.Wrap(err)
+}
+
+type universalSecondFactorCollection struct {
+	services.UniversalSecondFactor
+}
+
+func (c *universalSecondFactorCollection) writeText(w io.Writer) error {
+	t := goterm.NewTable(0, 10, 5, ' ', 0)
+	printHeader(t, []string{"App ID", "Facets"})
+	fmt.Fprintf(t, "%v\t%q\n", c.GetAppID(), c.GetFacets())
+	_, err := io.WriteString(w, t.String())
+	return trace.Wrap(err)
+}
+
+func (c *universalSecondFactorCollection) writeJSON(w io.Writer) error {
+	data, err := json.MarshalIndent(c.toMarshal(), "", "    ")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = w.Write(data)
+	return trace.Wrap(err)
+}
+
+func (c *universalSecondFactorCollection) toMarshal() interface{} {
+	return c
+}
+
+func (c *universalSecondFactorCollection) writeYAML(w io.Writer) error {
+	data, err := yaml.Marshal(c.toMarshal())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = w.Write(data)
+	return trace.Wrap(err)
+}

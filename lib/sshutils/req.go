@@ -16,6 +16,12 @@ limitations under the License.
 
 package sshutils
 
+import (
+	"github.com/gravitational/teleport"
+
+	"github.com/gravitational/trace"
+)
+
 // EnvReqParams are parameters for env request
 type EnvReqParams struct {
 	Name  string
@@ -40,6 +46,31 @@ type PTYReqParams struct {
 	Modes string
 }
 
+// Check validates PTY parameters.
+func (p *PTYReqParams) Check() error {
+	if p.W > maxSize || p.W < minSize {
+		return trace.BadParameter("bad width: %v", p.W)
+	}
+	if p.H > maxSize || p.H < minSize {
+		return trace.BadParameter("bad height: %v", p.H)
+	}
+
+	return nil
+}
+
+// CheckAndSetDefaults validates PTY parameters and ensures parameters
+// are within default values.
+func (p *PTYReqParams) CheckAndSetDefaults() error {
+	if p.W > maxSize || p.W < minSize {
+		p.W = teleport.DefaultTerminalWidth
+	}
+	if p.H > maxSize || p.H < minSize {
+		p.H = teleport.DefaultTerminalHeight
+	}
+
+	return nil
+}
+
 const (
 	// SessionEnvVar is environment variable for SSH session
 	SessionEnvVar = "TELEPORT_SESSION"
@@ -51,4 +82,9 @@ const (
 	PTYReq = "pty-req"
 	// AgentReq is ssh agent requesst
 	AgentReq = "auth-agent-req@openssh.com"
+)
+
+const (
+	minSize = 1
+	maxSize = 4096
 )

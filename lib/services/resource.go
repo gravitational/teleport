@@ -315,6 +315,10 @@ func ParseShortcut(in string) (string, error) {
 		return KindReverseTunnel, nil
 	case "trusted_cluster", "tc":
 		return KindTrustedCluster, nil
+	case "cluster_authentication_preferences", "cap":
+		return KindClusterAuthPreference, nil
+	case "universal_second_factor", "u2f":
+		return KindUniversalSecondFactor, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %v", in)
 }
