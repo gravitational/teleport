@@ -197,13 +197,14 @@ func Init(cfg InitConfig, dynamicConfig bool) (*AuthServer, *Identity, error) {
 			}
 			log.Infof("[INIT] Created Reverse Tunnel: %v", tunnel)
 		}
-
-		err = asrv.UpsertNamespace(services.NewNamespace(defaults.Namespace))
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-		log.Infof("[INIT] Created Namespace: %q", defaults.Namespace)
 	}
+
+	// always create the default namespace
+	err = asrv.UpsertNamespace(services.NewNamespace(defaults.Namespace))
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	log.Infof("[INIT] Created Namespace: %q", defaults.Namespace)
 
 	// generate a user certificate authority if it doesn't exist
 	if _, err := asrv.GetCertAuthority(services.CertAuthID{DomainName: cfg.DomainName, Type: services.UserCA}, false); err != nil {
