@@ -13,13 +13,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 
-dynamo package implements the DynamoDB storage back-end for the
-auth server. Originally contributed by https://github.com/apestel
-
-limitations:
-
-- Paging is not implemented, hence all range operations are limited
-  to 1MB result set
 */
 
 package dynamo
