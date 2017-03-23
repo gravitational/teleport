@@ -286,7 +286,7 @@ func Init(cfg InitConfig, dynamicConfig bool) (*AuthServer, *Identity, error) {
 	}
 
 	// migrate any legacy resources to new format
-	err = migrateLegacyResources(asrv)
+	err = migrateLegacyResources(cfg, asrv)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -294,13 +294,18 @@ func Init(cfg InitConfig, dynamicConfig bool) (*AuthServer, *Identity, error) {
 	return asrv, identity, nil
 }
 
-func migrateLegacyResources(asrv *AuthServer) error {
+func migrateLegacyResources(cfg InitConfig, asrv *AuthServer) error {
 	err := migrateUsers(asrv)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	err = migrateCertAuthority(asrv)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = migrateAuthPreference(cfg, asrv)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -373,6 +378,40 @@ func migrateCertAuthority(asrv *AuthServer) error {
 		// upsert new certificate authority to backend
 		if err := asrv.UpsertCertAuthority(newCA, 0); err != nil {
 			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+func migrateAuthPreference(cfg InitConfig, asrv *AuthServer) error {
+	// if no cluster auth preferences exist, upload them from file config
+	_, err := asrv.GetClusterAuthPreference()
+	if err != nil {
+		if trace.IsNotFound(err) {
+			err = asrv.SetClusterAuthPreference(cfg.AuthPreference)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			log.Infof("[MIGRATION] Set Cluster Authentication Preference: %v", cfg.AuthPreference)
+		} else {
+			return trace.Wrap(err)
+		}
+	}
+
+	// if no u2f settings exist, upload from file config
+	if cfg.U2F != nil {
+		_, err = asrv.GetUniversalSecondFactor()
+		if err != nil {
+			if trace.IsNotFound(err) {
+				err = asrv.SetUniversalSecondFactor(cfg.U2F)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				log.Infof("[MIGRATION] Set Universal Second Factor Settings: %v", cfg.U2F)
+			} else {
+				return trace.Wrap(err)
+			}
 		}
 	}
 
