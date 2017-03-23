@@ -14,6 +14,11 @@ This is a major new release of Teleport.
 * Experimental simple file-based secret storage back-end.
 * SSH agent forwarding.
 
+## Improvements
+
+* Friendlier CLI error messages.
+* `tsh login` is now compatible with SSH agents.
+
 ## Enterprise Features
 
 * Role-based access control (RBAC)
