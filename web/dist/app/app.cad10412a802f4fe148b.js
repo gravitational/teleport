@@ -103,7 +103,7 @@ webpackJsonp([0],[
 	    _react2.default.createElement(
 	      _reactRouter.Route,
 	      { component: _documentTitle2.default },
-	      _react2.default.createElement(_reactRouter.Route, { path: _config2.default.routes.msgs, title: 'Whoops', component: _msgPage.MessagePage }),
+	      _react2.default.createElement(_reactRouter.Route, { path: _config2.default.routes.msgs, component: _msgPage.MessagePage }),
 	      _react2.default.createElement(_reactRouter.Route, { path: _config2.default.routes.login, title: 'Login', component: _login2.default }),
 	      _react2.default.createElement(_reactRouter.Route, { path: _config2.default.routes.newUser, component: _invite2.default }),
 	      _react2.default.createElement(_reactRouter.Redirect, { from: _config2.default.routes.app, to: _config2.default.routes.nodes }),
@@ -9098,7 +9098,7 @@ webpackJsonp([0],[
 	      scrollback: this.scrollBack,
 	      useStyle: true,
 	      screenKeys: true,
-	      cursorBlink: true
+	      cursorBlink: false
 	    });
 
 	    this.term.open(this._el);
