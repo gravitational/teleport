@@ -61,7 +61,7 @@ class TtyTerminal {
       scrollback: this.scrollBack,
       useStyle: true,
       screenKeys: true,
-      cursorBlink: true
+      cursorBlink: false
     });
 
     this.term.open(this._el);
