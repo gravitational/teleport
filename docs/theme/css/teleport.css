@@ -366,3 +366,18 @@ div[role=contentinfo] li.contact {
 	background: url(../img/bridge.svg) no-repeat center;
 	background-size: 180px 180px;
 }
+
+.grv-nav-versions .grv-ver{
+    padding-left: 5px;
+}
+.grv-nav-versions .grv-current-ver{
+    color: #ffa258;    
+    display: inline-block;
+    padding: 5px;
+}
+.rst-content blockquote {
+    border-left: 1px solid #ffa258;
+    padding-left: 5px;
+    padding-right: 20px;
+}
+.rst-content blockquote p { color: #888 }

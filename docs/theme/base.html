@@ -5,16 +5,13 @@
   <meta charset="utf-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  {% if page_description %}<meta name="description" content="{{ page_description }}">{% endif %}
-  {% if site_author %}<meta name="author" content="{{ site_author }}">{% endif %}
+  {% if config.site_description %}<meta name="description" content="{{ config.site_description }}">{% endif %}
+  {% if config.site_author %}<meta name="author" content="{{ config.site_author }}">{% endif %}
   {% block htmltitle %}
-  <title>{% if page_title %}{{ page_title }} - {% endif %}{{ site_name }}</title>
+  <title>{% if page.title %}{{ page.title }} - {% endif %}{{ config.site_name }}</title>
   {% endblock %}
 
-
-
-  {% if favicon %}<link rel="shortcut icon" href="{{ favicon }}">
-  {% else %}<link rel="shortcut icon" href="https://gravitational.com/favicon.ico" type="image/x-icon" />{% endif %}
+  <link rel="shortcut icon" href="https://gravitational.com/favicon.ico" type="image/x-icon" />
 
   {# CSS #}
   <link href='https://fonts.googleapis.com/css?family=Lato:400,700|Roboto+Slab:400,700|Inconsolata:400,700' rel='stylesheet' type='text/css'>
@@ -29,12 +26,14 @@
   <link href="{{ path }}" rel="stylesheet">
   {%- endfor %}
 
-  {% if current_page %}
+  {% if page %}
   <script>
     // Current page data
-    var mkdocs_page_name = "{{ page_title }}";
-    var mkdocs_page_input_path = "{{ current_page.input_path }}";
-    var mkdocs_page_url = "{{ current_page.abs_url }}";
+    var mkdocs_page_name = "{{ page.title }}";
+    var mkdocs_page_input_path = "{{ page.input_path }}";
+    var mkdocs_page_url = "{{ page.abs_url }}";        
+    // Teleport documentation version
+    {% include "versions.js" %}
   </script>
   {% endif %}
   <script src="{{ base_url }}/js/jquery-2.1.1.min.js"></script>
@@ -48,14 +47,14 @@
   <script src="{{ path }}"></script>
   {%- endfor %}
 
-  {% if google_analytics %}
+  {% if config.google_analytics %}
   <script>
       (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
       (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
       m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
       })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
 
-      ga('create', '{{ google_analytics[0] }}', '{{ google_analytics[1] }}');
+      ga('create', '{{ config.google_analytics[0] }}', '{{ config.google_analytics[1] }}');
       ga('send', 'pageview');
   </script>
   {% endif %}
@@ -95,17 +94,17 @@
       {# MOBILE NAV, TRIGGLES SIDE NAV ON TOGGLE #}
       <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
         <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-        <a href="{{ homepage_url }}">{{ site_name }}</a>
+        <a href="{{ nav.homepage.url }}">{{ config.site_name }}</a>
       </nav>
 
       {# PAGE CONTENT #}
       <div class="wy-nav-content">
         <div class="rst-content">
-          {% include "breadcrumbs.html" %}
+          {% include "breadcrumbsWithVersions.html" %}
           <div role="main">
             <div class="section">
               {% block content %}
-                {{ content }}
+                {{ page.content }}
               {% endblock %}
             </div>
           </div>
@@ -153,7 +152,7 @@
 
 </body>
 </html>
-{% if current_page and current_page.is_homepage %}
+{% if page and page.is_homepage %}
 <!--
 MkDocs version : {{ mkdocs_version }}
 Build Date UTC : {{ build_date_utc }}

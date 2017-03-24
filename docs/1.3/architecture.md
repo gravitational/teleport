@@ -80,13 +80,12 @@ node.
       The password + 2nd factor are submitted to a proxy via HTTPS, therefore it is critical for 
       a secure configuration of Teleport to install a proper HTTPS certificate on a proxy.
      
-      !!! danger "IMPORTANT": 
-            Do not use the self-signed certificate installed by default in production.
-   
-      If the credentials are correct, the auth server generates and signs a new certificate and returns
-      it to a client via the proxy. The client stores this key and will use it for subsequent 
-      logins. The key will automatically expire after 23 hours by default. This TTL can be configured
-   to a maximum of 30 hours and a minimum of 1 minute.
+    **WARNING:** Do not use a self-signed certificate in production!
+  
+    If the credentials are correct, the auth server generates and signs a new certificate and returns
+    it to a client via the proxy. The client stores this key and will use it for subsequent 
+    logins. The key will automatically expire after 23 hours by default. This TTL can be configured
+    to a maximum of 30 hours and a minimum of 1 minute.
 
 3. At this step, the proxy tries to locate the requested node in a cluster. There are three
    lookup mechanisms a proxy uses to find the node's IP address:
@@ -121,57 +120,66 @@ Lets explore each of the Teleport services in detail.
 
 ### The Auth Service
 
-The `auth server` is the core of the Teleport cluster. It acts as a user and host OpenSSH certificate authority (CA).
-of the cluster.
+The `auth server` acts as a certificate authority (CA) of the cluster. Teleport security is 
+based on SSH certificates and every certificate must be signed by the cluster auth server.
 
-On an initial connection the auth server generates a public / private keypair and stores it in the 
+There are two types of certificates the auth server can sign:
+
+* **Host certificates** are used to add new nodes to a cluster.
+* **User certificates** are used to authenticate users when they try to login into a cluster node.
+
+Upon initialization the auth server generates a public / private keypair and stores it in the 
 configurable key storage. The auth server also keeps the records of what has been happening
 inside the cluster: it stores recordings of all SSH sessions in the configurable events 
 storage.
 
 ![Teleport Auth](img/auth-server.svg)
 
-#### Auth API
+When a new node joins the cluster, the auth server generates a new public / private keypair for 
+the node and signs its certificate.
 
-When a new node (server) joins the cluster, a new public / private keypair is generated for that node, 
-and the certificate is signed by the auth server's host CA.
-To invite a node, the auth server generates a disposable one-time token which
-the new node must submit when requesting its certificate for the first time.
+To join a cluster for the first time, a node must present a "join token" to the auth server.
+The token can be static (configured via a config file) or a dynamic, single-use token.
 
 !!! tip "NOTE": 
-    Token default TTL is 15 minutes, but can be reduced (not increased) if requested by tctl.
+    When using dynamic tokens, their default time to live (TTL) is 15 minutes, but it can be 
+    reduced (not increased) via `tctl` flag.
 
-Teleport cluster members (servers) can interact with the auth server using the auth API. The API is 
-implemented as an HTTP REST service running over the SSH tunnel, authenticated using host or user
-certificates previously signed by the auth server's CA.
+Nodes that are members of a Teleport cluster can interact with the auth server using the auth API. 
+The API is implemented as an HTTP REST service running over the SSH tunnel, authenticated using host 
+or user certificates previously signed by the auth server which acts as a certificate authority for 
+the cluster.
 
-All node-members of the cluster send periodic ping messages to the auth server, reporting their
-IP addresses, values of their assigned labels. The list of connected cluster nodes is accessible
+All nodes of the cluster send periodic ping messages to the auth server, reporting their
+IP addresses and values of their assigned labels. The list of connected cluster nodes is accessible
 to all members of the cluster via the API.
 
-Clients can also connect to the auth API through Teleport proxy to use a limited subset of the API to discover
-nodes in the cluster.
+Clients can also connect to the auth API through Teleport proxy to use a limited subset of the API to 
+discover the member nodes of the cluster.
 
 Cluster administration is performed using `tctl` command line tool.
 
 !!! tip "NOTE": 
-    For high availability in production, a Teleport cluster can be serviced by multiple auth servers running in sync. Check [HA configuration](admin-guide.md#high-availability-and-clustering) in the Admin Guide.
+    For high availability in production, a Teleport cluster can be serviced by multiple auth servers 
+    running in sync. Check [HA configuration](admin-guide.md#high-availability-and-clustering) in the 
+    Admin Guide.
 
-### Storage Backends
+### Cluster State
 
-The persistent state of a Teleport cluster is stored by the auth server. There are three kinds
-of data the auth server stores:
+Each cluster node is completely stateless and holds no secrets such as keys, passwords, etc. 
+The persistent state of a Teleport cluster is kept by the auth server. There are three types
+of data stored by the auth server:
 
 * **Key storage**. As described above, a Teleport cluster is a set of machines whose public keys are 
   signed by the same certificate authority (CA), with the auth server acting as the CA of a cluster.
-  The auth server stores its own keys in a key storage. Currently there are two storage backends
-  for keys: [BoltDB](https://github.com/boltdb/bolt) for single-node auth server, and 
-  [etcd](https://github.com/coreos/etcd) for HA configurations. Implementing another key storage 
-  backend is simple, see `lib/backend` directory in Teleport source code.
+  The auth server stores its own keys in a key storage. Teleport supports multiple storage back-ends
+  to store secrets, including the file-based storage or databases like [BoltDB](https://github.com/boltdb/bolt), 
+  [DynamoDB](https://aws.amazon.com/dynamodb/) or [etcd](https://github.com/coreos/etcd).  
+  Implementing another key storage backend is simple, see `lib/backend` directory in Teleport source code.
 
-* **Event storage**. As users login into a Teleport cluster, execute remote commands and logout,
-  all that activity is recorded as a live event stream. Teleport uses its Events Storage backend
-  for storing it. Currently only BoltDB backend is supported for storing events.
+* **Audit Log**. As users login into a Teleport cluster, execute remote commands and logout,
+  all that activity is recorded in the audit log. See [Audit Log](admin-guide.md#audit-log) 
+  for more details.
   
 * **Recorded Sessions**. When Teleport users launch remote shells via `tsh ssh` command, their 
   interactive sessions are recorded and stored by the auth server in a session storage. Each recorded 
