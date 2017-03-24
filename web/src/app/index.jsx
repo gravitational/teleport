@@ -43,7 +43,7 @@ render((
   <Provider reactor={reactor}>        
     <Router history={session.getHistory()}>      
       <Route component={DocumentTitle}>
-        <Route path={cfg.routes.msgs} title="Whoops" component={MessagePage}/>
+        <Route path={cfg.routes.msgs} component={MessagePage}/>
         <Route path={cfg.routes.login} title="Login" component={Login}/>
         <Route path={cfg.routes.newUser} component={Signup}/>
         <Redirect from={cfg.routes.app} to={cfg.routes.nodes}/>
