@@ -153,8 +153,8 @@ const Player = React.createClass({
 
 class Term extends Terminal{
   constructor(tty, el){
-    super({el, scrollBack: 0});
-    this.tty = tty;
+    super({ el, scrollBack: 1000 });    
+    this.tty = tty;        
   }
 
   connect(){
@@ -162,7 +162,7 @@ class Term extends Terminal{
   }
 
   open() {
-    super.open();
+    super.open();              
     $(this._el).perfectScrollbar();
   }
 
@@ -170,8 +170,9 @@ class Term extends Terminal{
     if(cols === this.cols && rows === this.rows){
       return;
     }
-
-    super.resize(cols, rows);
+        
+    super.reset();
+    super.resize(cols, rows);    
     $(this._el).perfectScrollbar('update');
   }
 

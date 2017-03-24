@@ -16,7 +16,7 @@ limitations under the License.
 
 import 'jQuery';
 import 'perfect-scrollbar/jquery';
-import 'Terminal';
+import 'xterm/dist/xterm';
 import '_';
 import 'bootstrap-sass/assets/javascripts/bootstrap';
 import './../assets/js/jquery-validate';

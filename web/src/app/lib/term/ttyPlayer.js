@@ -356,9 +356,9 @@ class TtyPlayer extends Tty {
     for(i = 0; i < tmp.length; i ++){
       let str = tmp[i].data.join('');
       let {h, w} = tmp[i];
-      if(str.length > 0){
-        this.emit('resize', {h, w});
-        this.emit('data', str);
+      if(str.length > 0){                
+        this.emit('resize', { h, w });                
+        this.emit('data', str);        
       }
     }
   }
