@@ -39,7 +39,7 @@ RUN apt-get install -q -y \
       apt-get -y autoclean; apt-get -y clean
 
 # Install mkDocs
-RUN pip install click==4.1 recommonmark mkdocs markdown-include
+RUN pip install click==6.1 recommonmark==0.4.0 markdown-include==0.5.1 mkdocs==0.16.1
 
 # Install Golang:
 RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/go1.7.linux-amd64.tar.gz | tar xz;\
