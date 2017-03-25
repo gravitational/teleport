@@ -105,11 +105,11 @@ within multiple organizations.
 
 ## More Information
 
-* [Quick Start Guide](docs/quickstart.md)
-* [Teleport Architecture](docs/architecture.md)
-* [Admin Manual](docs/admin-guide.md)
-* [User Manual](docs/user-manual.md)
-* [FAQ](docs/faq.md)
+* [Quick Start Guide](http://gravitational.com/teleport/docs/quickstart)
+* [Teleport Architecture](http://gravitational.com/teleport/docs/architecture)
+* [Admin Manual](http://gravitational.com/teleport/docs/admin-guide)
+* [User Manual](http://gravitational.com/teleport/docs/user-manual)
+* [FAQ](http://gravitational.com/teleport/docs/faq)
 
 ## Contributing
 
