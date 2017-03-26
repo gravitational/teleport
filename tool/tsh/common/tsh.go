@@ -391,7 +391,7 @@ export SSH_AGENT_PID=%v
 // makeClient takes the command-line configuration and constructs & returns
 // a fully configured TeleportClient object
 func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, err error) {
-	// apply defults
+	// apply defaults
 	if cf.MinsToLive == 0 {
 		cf.MinsToLive = int32(defaults.CertDuration / time.Minute)
 	}
