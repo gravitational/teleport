@@ -191,6 +191,10 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		return trace.Errorf("unsupported logger severity: '%v'", fc.Logger.Severity)
 	}
 
+	if strings.ToLower(fc.Logger.Output) == "syslog" {
+		utils.SwitchLoggingtoSyslog()
+	}
+
 	// apply connection throttling:
 	limiters := []limiter.LimiterConfig{
 		cfg.SSH.Limiter,
@@ -545,7 +549,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		}
 
 		cfg.Console = ioutil.Discard
-		utils.InitLoggerDebug()
+		utils.InitLogger(utils.LoggingForDaemon, log.DebugLevel)
 	}
 
 	// apply --roles flag:

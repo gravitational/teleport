@@ -19,7 +19,10 @@ package srv
 import (
 	"fmt"
 	"net"
+	"os"
 	"os/user"
+	"path"
+	"path/filepath"
 
 	"gopkg.in/check.v1"
 
@@ -81,7 +84,7 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 	cmd, err = prepareCommand(s.ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(cmd, check.NotNil)
-	c.Assert(cmd.Path, check.Equals, "/bin/ls")
+	c.Assert(cmd.Path, check.Equals, findExecutable("ls"))
 	c.Assert(cmd.Args, check.DeepEquals, []string{"ls", "-lh", "/etc"})
 	c.Assert(cmd.Dir, check.Equals, s.usr.HomeDir)
 	c.Assert(cmd.Env, check.DeepEquals, expectedEnv)
@@ -112,3 +115,15 @@ func (s *ExecSuite) OpenChannel(string, []byte) (ssh.Channel, <-chan *ssh.Reques
 	return nil, nil, nil
 }
 func (s *ExecSuite) Wait() error { return nil }
+
+// findExecutable helper finds a given executable name (like 'ls') in $PATH
+// and returns the full path
+func findExecutable(execName string) string {
+	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
+		fp := path.Join(dir, execName)
+		if utils.IsFile(fp) {
+			return fp
+		}
+	}
+	return "not found in $PATH: " + execName
+}
