@@ -34,6 +34,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -611,6 +612,12 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	if len(cfg.AuthServers) == 0 && cfg.Auth.Enabled {
 		cfg.AuthServers = append(cfg.AuthServers, cfg.Auth.SSHAddr)
 	}
+
+	// add data_dir to the backend config:
+	if cfg.Auth.StorageConfig.Params == nil {
+		cfg.Auth.StorageConfig.Params = backend.Params{}
+	}
+	cfg.Auth.StorageConfig.Params["data_dir"] = cfg.DataDir
 
 	return nil
 }
