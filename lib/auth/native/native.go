@@ -239,6 +239,7 @@ func buildPrincipals(hostID string, nodeName string, clusterName string, roles t
 	// nodeName is the DNS name, this is for OpenSSH interoperability
 	if nodeName != "" {
 		principals = append(principals, fmt.Sprintf("%s.%s", nodeName, clusterName))
+		principals = append(principals, nodeName)
 	}
 
 	// deduplicate (in-case hostID and nodeName are the same) and return
