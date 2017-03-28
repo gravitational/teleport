@@ -5,15 +5,14 @@ Welcome to the Teleport Quick Start Guide!
 The goal of this document is to show off the basic capabilities of Teleport. 
 There are three types of services Teleport nodes can run: `nodes`, `proxies` and `auth servers`.
 
-- An auth server is the core of a cluster. Auth servers store user accounts and offer  
-  authentication and authorization service for every node and every user in a cluster.
-- Nodes are regular SSH nodes, similar to the `sshd` daemon you are probably used to. When a node receives
+- Auth servers are the core of a cluster. Auth servers store user accounts and provide authentication and authorization services for every node and every user in a cluster.
+- Nodes are regular SSH nodes, similar to the `sshd` daemon you may be familiar with. When a node receives
   a connection request, it authenticates it via the cluster's auth server.
 - Proxies route client connection requests to the appropriate node and serve a Web UI 
-  which can also be used to login into SSH nodes. Every client-to-node connection in 
+  which can also be used to log into SSH nodes. Every client-to-node connection in 
   Teleport must be routed via a proxy.
 
-The `teleport` daemon runs all 3 of these services by default. This Quick Start Guide will
+The `teleport` daemon runs all three of these services by default. This Quick Start Guide will
 be using this default behavior to create a cluster and interact with it
 using Teleport's client-side tools:
 
@@ -32,8 +31,8 @@ or you can [build it from source](https://github.com/gravitational/teleport).
 After downloading the binary tarball, run:
 
 ```
-tar -xzf teleport-binary-release.tar.gz
-sudo make install
+$ tar -xzf teleport-binary-release.tar.gz
+$ sudo make install
 ```
 
 This will copy Teleport binaries to `/usr/local/bin`.
@@ -42,12 +41,19 @@ Let's start Teleport on a single-node. First, create a directory for Teleport
 to keep its data. By default it's `/var/lib/teleport`. Then start `teleport` daemon:
 
 ```bash
-mkdir -p /var/lib/teleport
-sudo teleport start
+$ mkdir -p /var/lib/teleport
+$ sudo teleport start
+
+[AUTH]  Auth service is starting on 0.0.0.0:3025
+[PROXY] Reverse tunnel service is starting on 0.0.0.0:3024
+[PROXY] Web proxy service is starting on 0.0.0.0:3080
+[PROXY] SSH proxy service is starting on 0.0.0.0:3023
+[SSH]   Service is starting on 0.0.0.0:3022
 ```
 
 At this point you should see Teleport print listening IPs of all 3 services into the console.
-Congratulations - You are running Teleport! 
+
+Congratulations - you are now running Teleport! 
 
 ## Creating Users
 
@@ -59,30 +65,38 @@ If you do not specify the mappings, the new Teleport user will be assigned a map
 the same name. Let's create a Teleport user with the same name as the OS user:
 
 ```bash
-> tctl users add $USER
+$ sudo tctl users add $USER
 
 Signup token has been created. Share this URL with the user:
 https://localhost:3080/web/newuser/96c85ed60b47ad345525f03e1524ac95d78d94ffd2d0fb3c683ff9d6221747c2
 ```
 
-`tctl` prints a sign-up URL for you to visit and complete registration. Open this link in a 
-browser, install Google Authenticator on your phone, set up 2nd factor authentication and 
-pick a password. The default TTL for a login is 12 hours but this can be configured to a
-maximum of 30 hours and a minimum of 1 minute.
+`tctl` prints a sign-up URL for you to open in your browser and complete registration: 
 
-Having done that, you will be presented with a Web UI where you will see your machine and 
-will be able to log into it using web-based terminal.
+![teleport login](/img/login.png)
 
-## Logging In
+Teleport enforces two-factor authentication. If you do not already have Google Authenticator, you will have to install it on your smart phone. Then you can scan the bar code on the Teleport login web page, pick a password and enter in the two factor token.
+ 
+The default TTL for a login is 12 hours but this can be configured to a maximum of 30 hours and a minimum of 1 minute.
+
+Having done that, you will be presented with a Web UI where you will see your machine and will be able to log in to it using web-based terminal.
+
+![teleport ui](/img/firstpage.png)
+
+## Logging In Through CLI
 
 Let's login using the `tsh` command line tool:
 
 ```bash
-tsh --proxy=localhost ssh localhost
+$ tsh --proxy=localhost --insecure ssh localhost
 ```
 
 Notice that `tsh` client always needs `--proxy` flag because all client connections
 in Teleport have to go via a proxy sometimes called an "SSH bastion".
+
+!!! warning "Warning":
+    For the purposes of this quickstart we are using the `-- insecure` flag however this should not be used in production. See [Admin Manual](admin-guide.md) for more information on setting up Teleport in production.
+
 
 !!! tip "Tip":
     You can use `tsh --proxy=localhost login` to create a client profile in `~/.tsh`
@@ -91,11 +105,11 @@ in Teleport have to go via a proxy sometimes called an "SSH bastion".
 
 ## Adding Nodes to Cluster
 
-Let's add another node to your cluster. `tctl` command below will create a single-use 
+Let's add another node to the cluster. The `tctl` command below will create a single-use 
 token for a node to join and will print instructions for you to follow:
 
 ```bash
-> tctl nodes add
+$ sudo tctl nodes add
 
 The invite token: n92bb958ce97f761da978d08c35c54a5c
 Run this on the new node to join the cluster:
@@ -108,7 +122,7 @@ Start `teleport` daemon on a new node as shown above, but make sure to use the p
 Once you do that, verify that the new node has joined the cluster:
 
 ```bash
-> tsh --proxy=localhost ls
+$ tsh --proxy=localhost ls
 
 Node Name     Node ID                     Address            Labels
 ---------     -------                     -------            ------
@@ -125,10 +139,10 @@ Notice the "Labels" column in the output above. It is currently not populated. T
 you apply static or dynamic labels to your nodes. As the cluster grows and nodes assume different 
 roles, labels will help to find the right node quickly.
 
-Let's see labels in action. Stop `teleport` on the new node and restart it with the following command:
+Let's see labels in action. Stop Teleport `ctrl-c` on the node we just added and restart it with the following command:
 
 ```bash
-teleport start --roles=node --auth-server=10.0.10.1 --nodename=db --labels "location=virginia,arch=[1h:/bin/uname -m]"
+$ sudo teleport start --roles=node --auth-server=10.0.10.1 --nodename=db --labels "location=virginia,arch=[1h:/bin/uname -m]"
 ```
 
 Notice a few things here:
@@ -141,7 +155,7 @@ Notice a few things here:
 Let's take a look at our cluster now:
 
 ```bash
-> tsh --proxy=localhost ls
+$ tsh --proxy=localhost ls
 
 Node Name     Node ID                     Address            Labels
 ---------     -------                     -------            ------
@@ -153,7 +167,7 @@ Let's use the newly created labels to filter the output of `tsh ls` and ask to s
 nodes located in Virginia:
 
 ```bash
-> tsh --proxy=localhost ls location=virginia
+$ tsh --proxy=localhost ls location=virginia
 
 Node Name     Node ID                     Address            Labels
 ---------     -------                     -------            ------
@@ -164,7 +178,7 @@ Labels can be used with the regular `ssh` command too. This will execute `ls -l 
 on all servers located in Virginia:
 
 ```
-> tsh --proxy=localhost ssh location=virginia ls -l /
+$ tsh --proxy=localhost ssh location=virginia ls -l /
 ```
 
 ## Sharing SSH Sessions 
@@ -178,7 +192,7 @@ Teleport makes this a bit more convenient. Let's login into "db" and ask Telepor
 current session status:
 
 ```bash
-> tsh --proxy=teleport.example.com ssh db
+$ tsh --proxy=teleport.example.com ssh db
 db > teleport status
 
 User ID    : joe, logged in as joe from 10.0.10.1 43026 3022
@@ -191,49 +205,19 @@ You can share the Session URL with a colleague in your organization. Assuming th
 Also, people can join your session via terminal assuming they have Teleport installed and running. They just have to run:
 
 ```bash
-> tsh --proxy=teleport.example.com join 7645d523-60cb-436d-b732-99c5df14b7c4
+$ tsh --proxy=teleport.example.com join 7645d523-60cb-436d-b732-99c5df14b7c4
 ```
 
 !!! tip "NOTE": 
     For this to work, both of you must have proper user mappings allowing you access `db` under the same OS user.
 
-## Sharing Localhost
+## Hosted Teleport (Teleconsole)
 
-Sometimes you may want to temporarily share the terminal on your own laptop (if you
-trust your guests, of course). First, you will have to start teleport with `--roles=node` in
-a separate Terminal:
-
-```bash
-> teleport start --roles=node --proxy=teleport.example.com
-```
-
-... then you will need to start a local SSH session by logging into localhost and
-asking for a session ID:
-
-```bash
-> tsh --proxy=teleport.example.com ssh localhost
-localhost> teleport status
-```
-
-Now you can invite someone into your localhost session. They will need to have a proper
-user mapping, of course, to be allowed to join your session. To disconnect, shut down 
-`teleport` daemon or simply exit the `tsh` session.
-
-!!! tip "NOTE": 
-    For this to work, your laptop has to join the SSH cluster first. See [adding nodes](admin-guide.md#adding-nodes-to-the-cluster) for more information.
-
-
-## Firewalls
-
-Teleport allows to connect to behind-the-firewall clusters of servers even if the firewall
-does not have any ports open for inbound connections. To learn more about this, visit 
-[Trusted Clusters](admin-guide/#trusted-clusters) section of the Admin Manual.
-
+We run a hosted example of Teleport at [teleconsole.com](https://www.teleconsole.com/). You can use it to see how Teleport might work without having to set it up for yourself. It's just an easy way to share your terminal with your friends to show Teleport in action.
 
 ## Running in Production
 
-We hope this Guide helped you to quickly set up Teleport to play with on
-localhost. For production environments we strongly recommend the following:
+We hope this quickstart guide has helped you to quickly set up and play with Teleport. For production environments we strongly recommend the following:
 
 - Install HTTPS certificates for every Teleport proxy.
 - Run Teleport `auth` on isolated servers. The auth service can run in a 
