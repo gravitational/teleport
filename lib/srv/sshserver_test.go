@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"os/user"
 	"regexp"
 	"strings"
@@ -238,7 +239,8 @@ func (s *SrvSuite) TestAgentForward(c *C) {
 	_, err = io.WriteString(writer, fmt.Sprintf("printenv %v\n\r", teleport.SSHAuthSock))
 	c.Assert(err, IsNil)
 
-	re := regexp.MustCompile(`/tmp/[^\s]+`)
+	pattern := fmt.Sprintf(`%v[^\s]+`, os.TempDir())
+	re := regexp.MustCompile(pattern)
 	buf := make([]byte, 4096)
 	var matches []string
 	for i := 0; i < 3; i++ {
