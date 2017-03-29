@@ -239,7 +239,7 @@ func (s *SrvSuite) TestAgentForward(c *C) {
 	_, err = io.WriteString(writer, fmt.Sprintf("printenv %v\n\r", teleport.SSHAuthSock))
 	c.Assert(err, IsNil)
 
-	pattern := fmt.Sprintf(`%v[^\s]+`, os.TempDir())
+	pattern := fmt.Sprintf(`%vteleport-[0-9]+[^\s]+`, os.TempDir())
 	re := regexp.MustCompile(pattern)
 	buf := make([]byte, 4096)
 	var matches []string
