@@ -26,6 +26,7 @@ import (
 	"net"
 	"os"
 	"os/user"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -239,14 +240,16 @@ func (s *SrvSuite) TestAgentForward(c *C) {
 	_, err = io.WriteString(writer, fmt.Sprintf("printenv %v\n\r", teleport.SSHAuthSock))
 	c.Assert(err, IsNil)
 
-	pattern := fmt.Sprintf(`%vteleport-[0-9]+[^\s]+`, os.TempDir())
+	pattern := filepath.Join(os.TempDir(), `teleport-[0-9]+`, `teleport-[0-9]+.socket`)
 	re := regexp.MustCompile(pattern)
 	buf := make([]byte, 4096)
+	result := make([]byte, 0)
 	var matches []string
 	for i := 0; i < 3; i++ {
-		_, err = reader.Read(buf)
+		n, err := reader.Read(buf)
 		c.Assert(err, IsNil)
-		matches = re.FindStringSubmatch(string(buf))
+		result = append(result, buf[0:n]...)
+		matches = re.FindStringSubmatch(string(result))
 		if len(matches) != 0 {
 			break
 		}
