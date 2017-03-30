@@ -693,8 +693,11 @@ func (s *SrvSuite) TestPTY(c *C) {
 	c.Assert(err, IsNil)
 	defer se.Close()
 
-	// request PTY
+	// request PTY with valid size
 	c.Assert(se.RequestPty("xterm", 30, 30, ssh.TerminalModes{}), IsNil)
+
+	// request PTY with invalid size, should still work (selects defaults)
+	c.Assert(se.RequestPty("xterm", 0, 0, ssh.TerminalModes{}), IsNil)
 }
 
 // TestEnv requests setting environment variables. (We are currently ignoring these requests)

@@ -86,6 +86,55 @@ To setup Trusted Clusters:
     tctl -c /root/go/src/github.com/gravitational/teleport/docker/two-auth.yaml create -f docker/two-role-admin.yaml
     tctl -c /root/go/src/github.com/gravitational/teleport/docker/two-auth.yaml create -f docker/two-tc.yaml
     ```
+
+### Ansible
+
+To setup Ansible:
+
+1. Follow steps in Trusted Cluster section to setup Trusted Clusters.
+1. Use `tctl` to issue create user command and follow link on screen to create user.
+
+    ```bash
+    tctl users add {username} root
+    ```
+1. Configure Ansible.
+
+    ```bash
+    # add two-node to ansible hosts file
+    echo "172.10.1.2:3022" >> /etc/ansible/hosts
+
+    # setup ssh_args that ansible will use to access trusted cluster nodes
+    sed -i '/ssh_args = -o ControlMaster=auto -o ControlPersist=60s/assh_args = -o "ProxyCommand ssh -p 3023 one -s proxy:%h:%p@two"' /etc/ansible/ansible.cfg
+
+    # use scp over sftp
+    sed -i '/scp_if_ssh/s/^#//g' /etc/ansible/ansible.cfg
+    ```
+
+1. Start and load OpenSSH agent with keys.
+
+    ```bash
+    # create directory for ssh config
+    mkdir ~/.ssh && chmod 700 ~/.ssh
+
+    # start ssh-agent
+    eval `ssh-agent`
+
+    # log in with the user created before
+    tsh --proxy=localhost --user=rjones login
+
+    # load keys into ssh-agent
+    tsh --proxy=localhost --user=rjones agent --load
+    ```
+
+1. Verify Ansible works:
+
+    ```bash
+    $ ansible all -m ping
+    172.10.1.2 | success >> {
+        "changed": false, 
+        "ping": "pong"
+    }
+    ```
     
 ### Interactive Usage
 
