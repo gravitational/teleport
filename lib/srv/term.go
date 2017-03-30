@@ -68,7 +68,12 @@ func requestPTY(req *ssh.Request) (*terminal, *rsession.TerminalParams, error) {
 		log.Warnf("failed to parse PTY request: %v", err)
 		return nil, nil, trace.Wrap(err)
 	}
-	log.Debugf("Parsed pty request pty(enn=%v, w=%v, h=%v)", r.Env, r.W, r.H)
+	err := r.CheckAndSetDefaults()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	log.Debugf("Parsed pty request pty(env=%v, w=%v, h=%v)", r.Env, r.W, r.H)
+
 	t, err := newTerminal()
 	if err != nil {
 		log.Warnf("failed to create term: %v", err)

@@ -101,7 +101,8 @@ type Config struct {
 	// HostLogin is a user login on a remote host
 	HostLogin string
 
-	// HostPort is a remote host port to connect to
+	// HostPort is a remote host port to connect to. This is used for **explicit**
+	// port setting via -p flag, otherwise '0' is passed which means "use server default"
 	HostPort int
 
 	// ProxyHostPort is a host or IP of the proxy (with optional ":ssh_port,https_port").
@@ -274,16 +275,6 @@ func (c *Config) ProxySSHPort() (retval int) {
 		}
 	}
 	return retval
-}
-
-// NodeHostPort returns host:port string based on user supplied data
-// either if user has set host:port in the connection string,
-// or supplied the -p flag. If user has set both, -p flag data is ignored
-func (c *Config) NodeHostPort() string {
-	if strings.Contains(c.Host, ":") {
-		return c.Host
-	}
-	return net.JoinHostPort(c.Host, strconv.Itoa(c.HostPort))
 }
 
 // ProxySpecified returns true if proxy has been specified

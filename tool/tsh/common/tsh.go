@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/buger/goterm"
 )
 
@@ -87,7 +88,7 @@ func Run(args []string, underTest bool) {
 		cf CLIConf
 	)
 	cf.IsUnderTest = underTest
-	utils.InitLoggerCLI()
+	utils.InitLogger(utils.LoggingForCLI, logrus.WarnLevel)
 
 	// configure CLI argument parser:
 	app := utils.InitCLIParser("tsh", "TSH: Teleport SSH client").Interspersed(false)
@@ -148,7 +149,7 @@ func Run(args []string, underTest bool) {
 
 	// apply -d flag:
 	if *debugMode {
-		utils.InitLoggerDebug()
+		utils.InitLogger(utils.LoggingForCLI, logrus.DebugLevel)
 	}
 
 	switch command {
@@ -391,7 +392,7 @@ export SSH_AGENT_PID=%v
 // makeClient takes the command-line configuration and constructs & returns
 // a fully configured TeleportClient object
 func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, err error) {
-	// apply defults
+	// apply defaults
 	if cf.MinsToLive == 0 {
 		cf.MinsToLive = int32(defaults.CertDuration / time.Minute)
 	}

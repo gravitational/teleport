@@ -126,7 +126,7 @@ type DeleteCommand struct {
 }
 
 func Run() {
-	utils.InitLoggerCLI()
+	utils.InitLogger(utils.LoggingForCLI, logrus.WarnLevel)
 	app := utils.InitCLIParser("tctl", GlobalHelpString)
 
 	// generate default tctl configuration:
@@ -840,7 +840,7 @@ func applyConfig(ccf *CLIConfig, cfg *service.Config) error {
 	}
 	// --debug flag
 	if ccf.Debug {
-		utils.InitLoggerDebug()
+		utils.InitLogger(utils.LoggingForCLI, logrus.DebugLevel)
 		logrus.Debugf("DEBUG loggign enabled")
 	}
 	return nil

@@ -34,6 +34,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -189,6 +190,10 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		log.SetLevel(log.WarnLevel)
 	default:
 		return trace.Errorf("unsupported logger severity: '%v'", fc.Logger.Severity)
+	}
+
+	if strings.ToLower(fc.Logger.Output) == "syslog" {
+		utils.SwitchLoggingtoSyslog()
 	}
 
 	// apply connection throttling:
@@ -545,7 +550,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		}
 
 		cfg.Console = ioutil.Discard
-		utils.InitLoggerDebug()
+		utils.InitLogger(utils.LoggingForDaemon, log.DebugLevel)
 	}
 
 	// apply --roles flag:
@@ -607,6 +612,12 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	if len(cfg.AuthServers) == 0 && cfg.Auth.Enabled {
 		cfg.AuthServers = append(cfg.AuthServers, cfg.Auth.SSHAddr)
 	}
+
+	// add data_dir to the backend config:
+	if cfg.Auth.StorageConfig.Params == nil {
+		cfg.Auth.StorageConfig.Params = backend.Params{}
+	}
+	cfg.Auth.StorageConfig.Params["data_dir"] = cfg.DataDir
 
 	return nil
 }

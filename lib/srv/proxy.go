@@ -247,7 +247,9 @@ func (t *proxySubsys) proxyToHost(
 	// if port is 0, it means the client wants us to figure out
 	// which port to use
 	useExactPort := len(t.port) > 0 && t.port != "0"
-	ips, _ := net.LookupHost(t.host)
+	log.Debugf("proxy connecting to host=%v port=%v, exact port=%v\n", t.host, t.port, useExactPort)
+
+	ips, err := net.LookupHost(t.host)
 
 	// enumerate and try to find a server with self-registered with a matching name/IP:
 	var server services.Server
@@ -257,6 +259,7 @@ func (t *proxySubsys) proxyToHost(
 			log.Error(err)
 			continue
 		}
+
 		if t.host == ip || t.host == servers[i].GetHostname() || utils.SliceContainsStr(ips, ip) {
 			server = servers[i]
 			// found the server. see if we need to match the port
@@ -275,6 +278,7 @@ func (t *proxySubsys) proxyToHost(
 			t.port = strconv.Itoa(defaults.SSHServerListenPort)
 		}
 		serverAddr = net.JoinHostPort(t.host, t.port)
+		log.Warnf("server lookup failed: using default=%v", serverAddr)
 	}
 
 	// we must dial by server IP address because hostname
