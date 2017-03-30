@@ -135,6 +135,16 @@ To setup Ansible:
         "ping": "pong"
     }
     ```
+
+1. Run an simple playbook:
+
+    ```bash
+    # cd to directory that contains playbook
+    cd /root/go/src/github.com/gravitational/teleport/docker/ansible
+
+    # run playbook
+    ansible-playbook playbook.yaml
+    ```
     
 ### Interactive Usage
 
