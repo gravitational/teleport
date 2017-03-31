@@ -28,7 +28,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
 	"sync"
 	"time"
 
@@ -779,13 +778,38 @@ type OIDCAuthResponse struct {
 	HostSigners []services.CertAuthority `json:"host_signers"`
 }
 
-func (a *AuthServer) createOIDCUser(connector services.OIDCConnector, ident *oidc.Identity, claims jose.Claims) error {
+// buildRoles takes a connector and claims and returns a slice of roles. If the claims
+// match a concrete roles in the connector, those roles are returned directly. If the
+// claims match a template role in the connector, then that role is first created from
+// the template, then returned.
+func (a *AuthServer) buildRoles(connector services.OIDCConnector, claims jose.Claims) ([]string, error) {
 	roles := connector.MapClaims(claims)
 	if len(roles) == 0 {
-		log.Warningf("[OIDC] could not find any of expected claims: %v in the set returned by provider %v: %v",
-			strings.Join(connector.GetClaims(), ","), connector.GetName(), strings.Join(services.GetClaimNames(claims), ","))
-		return trace.AccessDenied("access denied to %v", ident.Email)
+		role, err := connector.RoleFromTemplate(claims)
+		if err != nil {
+			log.Warningf("[OIDC] Unable to map claims to roles or role templates for %q", connector.GetName())
+			return nil, trace.AccessDenied("unable to map claims to roles or role templates for %q", connector.GetName())
+		}
+
+		// upsert templated role
+		err = a.Access.UpsertRole(role)
+		if err != nil {
+			log.Warningf("[OIDC] Unable to upsert templated role for connector: %q", connector.GetName())
+			return nil, trace.AccessDenied("unable to upsert templated role: %q", connector.GetName())
+		}
+
+		roles = []string{role.GetName()}
 	}
+
+	return roles, nil
+}
+
+func (a *AuthServer) createOIDCUser(connector services.OIDCConnector, ident *oidc.Identity, claims jose.Claims) error {
+	roles, err := a.buildRoles(connector, claims)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	log.Debugf("[IDENTITY] %v/%v is a dynamic identity, generating user with roles: %v", connector.GetName(), ident.Email, roles)
 	user, err := services.GetUserMarshaler().GenerateUser(&services.UserV2{
 		Kind:    services.KindUser,

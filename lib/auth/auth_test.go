@@ -17,6 +17,7 @@ limitations under the License.
 package auth
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -28,9 +29,11 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/trace"
+
+	"github.com/coreos/go-oidc/jose"
+	"github.com/jonboulle/clockwork"
 	. "gopkg.in/check.v1"
 )
 
@@ -42,6 +45,7 @@ type AuthSuite struct {
 }
 
 var _ = Suite(&AuthSuite{})
+var _ = fmt.Printf
 
 func (s *AuthSuite) SetUpSuite(c *C) {
 	utils.InitLoggerForTests()
@@ -211,4 +215,110 @@ func (s *AuthSuite) TestBadTokens(c *C) {
 	tampered := string(tok[0]+1) + tok[1:]
 	_, err = s.a.ValidateToken(tampered)
 	c.Assert(err, NotNil)
+}
+
+func (s *AuthSuite) TestBuildRolesInvalid(c *C) {
+	// create a connector
+	oidcConnector := services.NewOIDCConnector("example", services.OIDCConnectorSpecV2{
+		IssuerURL:    "https://www.exmaple.com",
+		ClientID:     "example-client-id",
+		ClientSecret: "example-client-secret",
+		RedirectURL:  "https://localhost:3080/v1/webapi/oidc/callback",
+		Display:      "sign in with example.com",
+		Scope:        []string{"foo", "bar"},
+	})
+
+	// create some claims
+	var claims = make(jose.Claims)
+	claims.Add("roles", "teleport-user")
+	claims.Add("email", "foo@example.com")
+	claims.Add("nickname", "foo")
+	claims.Add("full_name", "foo bar")
+
+	// try and build roles should be invalid since we have no mappings
+	_, err := s.a.buildRoles(oidcConnector, claims)
+	c.Assert(err, NotNil)
+}
+
+func (s *AuthSuite) TestBuildRolesStatic(c *C) {
+	// create a connector
+	oidcConnector := services.NewOIDCConnector("example", services.OIDCConnectorSpecV2{
+		IssuerURL:    "https://www.exmaple.com",
+		ClientID:     "example-client-id",
+		ClientSecret: "example-client-secret",
+		RedirectURL:  "https://localhost:3080/v1/webapi/oidc/callback",
+		Display:      "sign in with example.com",
+		Scope:        []string{"foo", "bar"},
+		ClaimsToRoles: []services.ClaimMapping{
+			services.ClaimMapping{
+				Claim: "roles",
+				Value: "teleport-user",
+				Roles: []string{"user"},
+			},
+		},
+	})
+
+	// create some claims
+	var claims = make(jose.Claims)
+	claims.Add("roles", "teleport-user")
+	claims.Add("email", "foo@example.com")
+	claims.Add("nickname", "foo")
+	claims.Add("full_name", "foo bar")
+
+	// build roles and check that we mapped to "user" role
+	roles, err := s.a.buildRoles(oidcConnector, claims)
+	c.Assert(err, IsNil)
+	c.Assert(roles, HasLen, 1)
+	c.Assert(roles[0], Equals, "user")
+}
+
+func (s *AuthSuite) TestBuildRolesTemplate(c *C) {
+	// create a connector
+	oidcConnector := services.NewOIDCConnector("example", services.OIDCConnectorSpecV2{
+		IssuerURL:    "https://www.exmaple.com",
+		ClientID:     "example-client-id",
+		ClientSecret: "example-client-secret",
+		RedirectURL:  "https://localhost:3080/v1/webapi/oidc/callback",
+		Display:      "sign in with example.com",
+		Scope:        []string{"foo", "bar"},
+		ClaimsToRoles: []services.ClaimMapping{
+			services.ClaimMapping{
+				Claim: "roles",
+				Value: "teleport-user",
+				RoleTemplate: &services.RoleV2{
+					Kind:    services.KindRole,
+					Version: services.V2,
+					Metadata: services.Metadata{
+						Name:      `{{index . "email"}}`,
+						Namespace: defaults.Namespace,
+					},
+					Spec: services.RoleSpecV2{
+						MaxSessionTTL: services.NewDuration(90 * 60 * time.Minute),
+						Logins:        []string{`{{index . "nickname"}}`, `root`},
+						NodeLabels:    map[string]string{"*": "*"},
+						Namespaces:    []string{"*"},
+					},
+				},
+			},
+		},
+	})
+
+	// create some claims
+	var claims = make(jose.Claims)
+	claims.Add("roles", "teleport-user")
+	claims.Add("email", "foo@example.com")
+	claims.Add("nickname", "foo")
+	claims.Add("full_name", "foo bar")
+
+	// build roles
+	roles, err := s.a.buildRoles(oidcConnector, claims)
+	c.Assert(err, IsNil)
+
+	// check that the newly created role was both returned and upserted into the backend
+	r, err := s.a.GetRoles()
+	c.Assert(err, IsNil)
+	c.Assert(r, HasLen, 1)
+	c.Assert(r[0].GetName(), Equals, "foo@example.com")
+	c.Assert(roles, HasLen, 1)
+	c.Assert(roles[0], Equals, "foo@example.com")
 }
