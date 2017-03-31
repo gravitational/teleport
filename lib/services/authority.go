@@ -56,6 +56,8 @@ type CertAuthority interface {
 	GetSigningKeys() [][]byte
 	// GetRoles returns a list of roles assumed by users signed by this CA
 	GetRoles() []string
+	// SetRoles sets assigned roles for this certificate authority
+	SetRoles(roles []string)
 	// FirstSigningKey returns first signing key or returns error if it's not here
 	// The first key is returned because multiple keys can exist during key rotation.
 	FirstSigningKey() ([]byte, error)
@@ -193,6 +195,11 @@ func (ca *CertAuthorityV2) GetCheckingKeys() [][]byte {
 // GetRoles returns a list of roles assumed by users signed by this CA
 func (ca *CertAuthorityV2) GetRoles() []string {
 	return ca.Spec.Roles
+}
+
+// SetRoles sets assigned roles for this certificate authority
+func (ca *CertAuthorityV2) SetRoles(roles []string) {
+	ca.Spec.Roles = roles
 }
 
 // GetRawObject returns raw object data, used for migrations

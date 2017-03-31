@@ -647,7 +647,7 @@ func userCAFormat(ca services.CertAuthority, keyBytes []byte) (string, error) {
 // authorized_hosts format, a space-separated list of: makrer, hosts, key, and comment.
 // For example:
 //
-// 		@cert-authority *.cluster-a ssh-rsa AAA... type=user
+// 		@cert-authority *.cluster-a ssh-rsa AAA... type=host
 //
 // URL encoding is used to pass the CA type and allowed logins into the comment field.
 func hostCAFormat(ca services.CertAuthority, keyBytes []byte, client *auth.TunClient) (string, error) {
