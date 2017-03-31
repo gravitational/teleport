@@ -24,7 +24,9 @@ limitations under the License.
 package auth
 
 import (
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 	"sync"
@@ -831,6 +833,150 @@ func (a *AuthServer) createOIDCUser(connector services.OIDCConnector, ident *oid
 	return a.UpsertUser(user)
 }
 
+// claimsFromIDToken extracts claims from the ID token.
+func claimsFromIDToken(oidcClient *oidc.Client, idToken string) (jose.Claims, error) {
+	jwt, err := jose.ParseJWT(idToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = oidcClient.VerifyJWT(jwt)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	log.Debugf("[OIDC] Extracting claims from ID token")
+
+	claims, err := jwt.Claims()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return claims, nil
+}
+
+// claimsFromUserInfo finds the UserInfo endpoint from the provider config and then extracts claims from it.
+//
+// Note: We don't request signed JWT responses for UserInfo, instead we force the provider config and
+// the issuer to be HTTPS and leave integrity and confidentiality to TLS. Authenticity is taken care of
+// during the token exchange.
+func claimsFromUserInfo(oidcClient *oidc.Client, issuerURL string, accessToken string) (jose.Claims, error) {
+	err := isHTTPS(issuerURL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	oac, err := oidcClient.OAuthClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	hc := oac.HttpClient()
+
+	// go get the provider config so we can find out where the UserInfo endpoint is
+	pc, err := oidc.FetchProviderConfig(oac.HttpClient(), issuerURL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	endpoint := pc.UserInfoEndpoint.String()
+	err = isHTTPS(endpoint)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	log.Debugf("[OIDC] Fetching claims from UserInfo endpoint: %q", endpoint)
+
+	req, err := http.NewRequest("GET", endpoint, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", accessToken))
+
+	resp, err := hc.Do(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return nil, trace.AccessDenied("bad status code: %v", resp.StatusCode)
+	}
+
+	var claims jose.Claims
+	err = json.NewDecoder(resp.Body).Decode(&claims)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return claims, nil
+}
+
+// mergeClaims merges b into a.
+func mergeClaims(a jose.Claims, b jose.Claims) (jose.Claims, error) {
+	for k, v := range b {
+		_, ok := a[k]
+		if !ok {
+			a[k] = v
+		}
+	}
+
+	return a, nil
+}
+
+// getClaims gets claims from ID token and UserInfo and returns UserInfo claims merged into ID token claims.
+func (a *AuthServer) getClaims(oidcClient *oidc.Client, issuerURL string, code string) (jose.Claims, error) {
+	var err error
+
+	oac, err := oidcClient.OAuthClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	t, err := oac.RequestToken(oauth2.GrantTypeAuthCode, code)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	idTokenClaims, err := claimsFromIDToken(oidcClient, t.IDToken)
+	if err != nil {
+		log.Debugf("[OIDC] Unable to fetch ID token claims: %v", err)
+		return nil, trace.Wrap(err)
+	}
+	log.Debugf("[OIDC] ID Token claims: %v", idTokenClaims)
+
+	userInfoClaims, err := claimsFromUserInfo(oidcClient, issuerURL, t.AccessToken)
+	if err != nil {
+		log.Debugf("[OIDC] Unable to fetch UserInfo claims: %v", err)
+		return nil, trace.Wrap(err)
+	}
+	log.Debugf("[OIDC] UserInfo claims: %v", userInfoClaims)
+
+	// make sure that the subject in the userinfo claim matches the subject in
+	// the id token otherwise there is the possibility of a token substitution attack.
+	// see section 16.11 of the oidc spec for more details.
+	var idsub string
+	var uisub string
+	var exists bool
+	if idsub, exists, err = idTokenClaims.StringClaim("sub"); err != nil || !exists {
+		log.Debugf("[OIDC] unable to extract sub from ID token")
+		return nil, trace.Wrap(err)
+	}
+	if uisub, exists, err = userInfoClaims.StringClaim("sub"); err != nil || !exists {
+		log.Debugf("[OIDC] unable to extract sub from UserInfo")
+		return nil, trace.Wrap(err)
+	}
+	if idsub != uisub {
+		log.Debugf("[OIDC] Claim subjects don't match %q != %q", idsub, uisub)
+		return nil, trace.BadParameter("invalid subject in UserInfo")
+	}
+
+	claims, err := mergeClaims(idTokenClaims, userInfoClaims)
+	if err != nil {
+		log.Debugf("[OIDC] Unable to merge claims: %v", err)
+		return nil, trace.Wrap(err)
+	}
+
+	return claims, nil
+}
+
 // ValidateOIDCAuthCallback is called by the proxy to check OIDC query parameters
 // returned by OIDC Provider, if everything checks out, auth server
 // will respond with OIDCAuthResponse, otherwise it will return error
@@ -866,32 +1012,27 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 		return nil, trace.Wrap(err)
 	}
 
-	tok, err := oidcClient.ExchangeAuthCode(code)
-	if err != nil {
-		return nil, trace.OAuth2(
-			oauth2.ErrorUnsupportedResponseType,
-			"unable to verify auth code with issuer", q)
-	}
-
-	claims, err := tok.Claims()
+	// extract claims from both the id token and the userinfo endpoint and merge them
+	claims, err := a.getClaims(oidcClient, connector.GetIssuerURL(), code)
 	if err != nil {
 		return nil, trace.OAuth2(
 			oauth2.ErrorUnsupportedResponseType, "unable to construct claims", q)
 	}
+	log.Debugf("[OIDC] Claims: %v", claims)
 
 	ident, err := oidc.IdentityFromClaims(claims)
 	if err != nil {
 		return nil, trace.OAuth2(
 			oauth2.ErrorUnsupportedResponseType, "unable to convert claims to identity", q)
 	}
-
-	log.Debugf("[IDENTITY] %v expires at: %v", ident.Email, ident.ExpiresAt)
+	log.Debugf("[IDENTITY] %q expires at: %v", ident.Email, ident.ExpiresAt)
 
 	response := &OIDCAuthResponse{
 		Identity: services.OIDCIdentity{ConnectorID: connector.GetName(), Email: ident.Email},
 		Req:      *req,
 	}
 
+	log.Debugf("[OIDC] Applying %v claims to roles mappings", len(connector.GetClaimsToRoles()))
 	if len(connector.GetClaimsToRoles()) != 0 {
 		if err := a.createOIDCUser(connector, ident, claims); err != nil {
 			return nil, trace.Wrap(err)
@@ -1020,4 +1161,17 @@ func oidcConfigsEqual(a, b oidc.ClientConfig) bool {
 		}
 	}
 	return true
+}
+
+// isHTTPS checks if the scheme for a URL is https or not.
+func isHTTPS(u string) error {
+	earl, err := url.Parse(u)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if earl.Scheme != "https" {
+		return trace.BadParameter("expected scheme https, got %q", earl.Scheme)
+	}
+
+	return nil
 }
