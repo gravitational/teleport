@@ -1303,7 +1303,7 @@ webpackJsonp([0],[
 	    return (0, _patternUtils.formatPattern)(cfg.routes.currentSession, { sid: sid, siteId: siteId });
 	  },
 	  getAuthProviders: function getAuthProviders() {
-	    return cfg.auth ? [cfg.auth.oidc] : [];
+	    return cfg.auth && cfg.auth.oidc ? [cfg.auth.oidc] : [];
 	  },
 	  getAuthType: function getAuthType() {
 	    return cfg.auth ? cfg.auth.type : null;
