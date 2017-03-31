@@ -133,7 +133,7 @@ let cfg = {
   },
 
   getAuthProviders() {
-    return cfg.auth ? [cfg.auth.oidc] : [];    
+    return cfg.auth && cfg.auth.oidc ? [cfg.auth.oidc] : [];    
   },
   
   getAuthType() {
