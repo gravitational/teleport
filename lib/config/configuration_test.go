@@ -297,6 +297,16 @@ auth_service:
 			false,
 			false,
 		},
+		// 3 - test legacy setting
+		{
+			`
+teleport:
+  seed_config: true
+`,
+			nil,
+			false,
+			true,
+		},
 	}
 
 	// run tests
