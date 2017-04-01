@@ -115,6 +115,7 @@ var (
 		"scope":              false,
 		"claims_to_roles":    true,
 		"dynamic_config":     false,
+		"seed_config":        false,
 		"public_addr":        false,
 	}
 )
@@ -306,6 +307,7 @@ type Global struct {
 	Logger      Log              `yaml:"log,omitempty"`
 	Storage     backend.Config   `yaml:"storage,omitempty"`
 	AdvertiseIP net.IP           `yaml:"advertise_ip,omitempty"`
+	SeedConfig  *bool            `yaml:"seed_config,omitempty"`
 
 	// Keys holds the list of SSH key/cert pairs used by all services
 	// Each service (like proxy, auth, node) can find the key it needs

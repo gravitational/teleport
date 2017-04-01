@@ -196,6 +196,12 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		utils.SwitchLoggingtoSyslog()
 	}
 
+	// log warning if someone is using seed config
+	if fc.SeedConfig != nil {
+		log.Warningf("DEPRECATED: seed_config setting is deprecated and will be removed in future versions")
+		cfg.Auth.DynamicConfig = *fc.SeedConfig
+	}
+
 	// apply connection throttling:
 	limiters := []limiter.LimiterConfig{
 		cfg.SSH.Limiter,
