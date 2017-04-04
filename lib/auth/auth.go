@@ -839,25 +839,30 @@ func (a *AuthServer) createOIDCUser(connector services.OIDCConnector, ident *oid
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = a.CreateUser(user)
-	if err == nil {
-		return trace.Wrap(err)
-	}
-	if !trace.IsAlreadyExists(err) {
-		return trace.Wrap(err)
-	}
+
+	// check if a user exists already
 	existingUser, err := a.GetUser(ident.Email)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
-	} else {
+	}
+
+	// check if any exisiting user is a non-oidc user, dont override their
+	if existingUser != nil {
 		connectorRef := existingUser.GetCreatedBy().Connector
 		if connectorRef == nil || connectorRef.Type != teleport.ConnectorOIDC || connectorRef.ID != connector.GetName() {
-			return trace.AlreadyExists("user %v already exists and is not OIDC user", existingUser.GetName())
+			return trace.AlreadyExists("user %q already exists and is not OIDC user", existingUser.GetName())
 		}
 	}
-	return a.UpsertUser(user)
+
+	// no non-oidc user exists, create or update the exisiting oidc user
+	err = a.UpsertUser(user)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // claimsFromIDToken extracts claims from the ID token.
