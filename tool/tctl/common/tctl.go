@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
@@ -970,7 +971,7 @@ func (u *CreateCommand) Create(client *auth.TunClient) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			if err := client.UpsertRole(role); err != nil {
+			if err := client.UpsertRole(role, backend.Forever); err != nil {
 				return trace.Wrap(err)
 			}
 			fmt.Printf("role %v upserted\n", role.GetName())

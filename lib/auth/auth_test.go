@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/coreos/go-oidc/jose"
+	"github.com/coreos/go-oidc/oidc"
 	"github.com/jonboulle/clockwork"
 	. "gopkg.in/check.v1"
 )
@@ -235,8 +236,13 @@ func (s *AuthSuite) TestBuildRolesInvalid(c *C) {
 	claims.Add("nickname", "foo")
 	claims.Add("full_name", "foo bar")
 
+	// create an identity for the ttl
+	ident := &oidc.Identity{
+		ExpiresAt: time.Now().Add(1 * time.Minute),
+	}
+
 	// try and build roles should be invalid since we have no mappings
-	_, err := s.a.buildRoles(oidcConnector, claims)
+	_, err := s.a.buildRoles(oidcConnector, ident, claims)
 	c.Assert(err, NotNil)
 }
 
@@ -265,8 +271,13 @@ func (s *AuthSuite) TestBuildRolesStatic(c *C) {
 	claims.Add("nickname", "foo")
 	claims.Add("full_name", "foo bar")
 
+	// create an identity for the ttl
+	ident := &oidc.Identity{
+		ExpiresAt: time.Now().Add(1 * time.Minute),
+	}
+
 	// build roles and check that we mapped to "user" role
-	roles, err := s.a.buildRoles(oidcConnector, claims)
+	roles, err := s.a.buildRoles(oidcConnector, ident, claims)
 	c.Assert(err, IsNil)
 	c.Assert(roles, HasLen, 1)
 	c.Assert(roles[0], Equals, "user")
@@ -310,8 +321,13 @@ func (s *AuthSuite) TestBuildRolesTemplate(c *C) {
 	claims.Add("nickname", "foo")
 	claims.Add("full_name", "foo bar")
 
+	// create an identity for the ttl
+	ident := &oidc.Identity{
+		ExpiresAt: time.Now().Add(1 * time.Minute),
+	}
+
 	// build roles
-	roles, err := s.a.buildRoles(oidcConnector, claims)
+	roles, err := s.a.buildRoles(oidcConnector, ident, claims)
 	c.Assert(err, IsNil)
 
 	// check that the newly created role was both returned and upserted into the backend

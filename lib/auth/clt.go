@@ -1113,7 +1113,7 @@ func (c *Client) GetRoles() ([]services.Role, error) {
 }
 
 // UpsertRole creates or updates role
-func (c *Client) UpsertRole(role services.Role) error {
+func (c *Client) UpsertRole(role services.Role, ttl time.Duration) error {
 	data, err := services.GetRoleMarshaler().MarshalRole(role)
 	if err != nil {
 		return trace.Wrap(err)

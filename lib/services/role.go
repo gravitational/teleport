@@ -103,7 +103,7 @@ type Access interface {
 	GetRoles() ([]Role, error)
 
 	// UpsertRole creates or updates role
-	UpsertRole(role Role) error
+	UpsertRole(role Role, ttl time.Duration) error
 
 	// GetRole returns role by name
 	GetRole(name string) (Role, error)
