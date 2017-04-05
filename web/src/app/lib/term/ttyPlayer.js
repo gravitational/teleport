@@ -19,6 +19,7 @@ var api = require('app/services/api');
 var {showError} = require('app/flux/notifications/actions');
 var $ = require('jQuery');
 var Buffer = require('buffer/').Buffer;
+var { EventTypeEnum } = require('./enums');
 
 const logger = require('app/lib/logger').create('TtyPlayer');
 const STREAM_START_INDEX = 0;
@@ -102,7 +103,7 @@ class EventProvider{
     let offset = this.events[0].offset;
     let bytes = this.events[end].offset - offset + this.events[end].bytes;
     let url = `${this.url}/stream?offset=${offset}&bytes=${bytes}`;
-    return api.ajax({url, processData: true, dataType: 'text' }).then((response)=>{
+    return api.ajax({ url, processData: true, dataType: 'text' }).then(response => {                  
       return new Buffer(response);
     });
   }
@@ -117,11 +118,17 @@ class EventProvider{
       let { ms, event, offset, time, bytes } = json[i];
 
       // grab new screen size for the next events
-      if(event === 'resize' || event === 'session.start'){
+      if(event === EventTypeEnum.RESIZE || event === EventTypeEnum.START){
         [w, h] = json[i].size.split(':');
       }
+      
+      // session has ended, stop here
+      if (event === EventTypeEnum.END) {
+        break;
+      }
 
-      if(event !== 'print'){
+      // process only PRINT events      
+      if(event !== EventTypeEnum.PRINT){
         continue;
       }
 
@@ -140,7 +147,7 @@ class EventProvider{
         w: Number(w),
         h: Number(h),
         time: new Date(time)
-      });
+      });      
     }
 
     this.events = events;

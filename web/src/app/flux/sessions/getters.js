@@ -16,7 +16,7 @@ limitations under the License.
 
 import moment from 'moment';
 import cfg from 'app/config';
-import { EventTypeEnum } from 'app/services/enums';
+import { EventTypeEnum } from 'app/lib/term/enums';
 import reactor from 'app/reactor';
 import { nodeHostNameByServerId } from 'app/flux/nodes/getters';
 import { parseIp } from 'app/lib/objectUtils';

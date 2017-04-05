@@ -17,7 +17,7 @@ limitations under the License.
 import { Store, toImmutable } from 'nuclear-js';
 import { Record, List } from 'immutable';
 import { TLPT_SESSIONS_EVENTS_RECEIVE } from './actionTypes';
-import { EventTypeEnum } from 'app/services/enums';
+import { EventTypeEnum } from 'app/lib/term/enums';
 
 const StoredSessionRec = Record({
   id: undefined,
