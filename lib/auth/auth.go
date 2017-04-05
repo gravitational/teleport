@@ -792,7 +792,7 @@ func (a *AuthServer) buildRoles(connector services.OIDCConnector, ident *oidc.Id
 		}
 
 		// figure out ttl for role. expires = now + ttl  =>  ttl = expires - now
-		ttl := ident.ExpiresAt.Sub(time.Now())
+		ttl := ident.ExpiresAt.Sub(a.clock.Now())
 
 		// upsert templated role
 		err = a.Access.UpsertRole(role, ttl)
@@ -848,7 +848,7 @@ func (a *AuthServer) createOIDCUser(connector services.OIDCConnector, ident *oid
 		}
 	}
 
-	// check if any exisiting user is a non-oidc user, dont override their
+	// check if exisiting user is a non-oidc user, if so, return an error
 	if existingUser != nil {
 		connectorRef := existingUser.GetCreatedBy().Connector
 		if connectorRef == nil || connectorRef.Type != teleport.ConnectorOIDC || connectorRef.ID != connector.GetName() {
