@@ -22,7 +22,7 @@ let cfg = {
   baseUrl: window.location.origin,
 
   helpUrl: 'https://gravitational.com/teleport/docs/quickstart/',
-
+  
   maxSessionLoadSize: 50,
 
   displayDateFormat: 'DD/MM/YYYY HH:mm:ss',
@@ -52,10 +52,10 @@ let cfg = {
     invitePath: '/v1/webapi/users/invites/:inviteToken',
     inviteWithOidcPath: '/v1/webapi/users/invites/oidc/validate?redirect_url=:redirect&connector_id=:provider&token=:inviteToken',
     createUserPath: '/v1/webapi/users',
-    u2fCreateUserChallengePath: '/webapi/u2f/signuptokens/:inviteToken',
-    u2fCreateUserPath: '/webapi/u2f/users',
-    u2fSessionChallengePath: '/webapi/u2f/signrequest',
-    u2fSessionPath: '/webapi/u2f/sessions',
+    u2fCreateUserChallengePath: '/v1/webapi/u2f/signuptokens/:inviteToken',
+    u2fCreateUserPath: '/v1/webapi/u2f/users',
+    u2fSessionChallengePath: '/v1/webapi/u2f/signrequest',
+    u2fSessionPath: '/v1/webapi/u2f/sessions',
     sitesBasePath: '/v1/webapi/sites',
     sitePath: '/v1/webapi/sites/:siteId',  
     nodesPath: '/v1/webapi/sites/:siteId/nodes',

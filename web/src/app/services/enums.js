@@ -1,10 +1,4 @@
 export default {
-
-  EventTypeEnum: {
-    START: 'session.start',
-    END: 'session.end'
-  },
-
   AuthTypeEnum: {
     LOCAL: 'local',
     OIDC: 'oidc',
@@ -23,7 +17,4 @@ export default {
     GITHUB: 'github',
     BITBUCKET: 'bitbucket'
   }
-
 }
-  
-

@@ -22,11 +22,9 @@
   "plugins": [
     "react",
     "babel",
-    "import",
-    "flowtype-errors"
+    "import"    
   ],
-  "rules": {
-    "flowtype-errors/show-errors": 2,
+  "rules": {    
     "comma-dangle": 0,
     "no-mixed-spaces-and-tabs": 0,        
     "no-alert": 0,
