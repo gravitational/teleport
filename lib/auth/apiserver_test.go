@@ -119,7 +119,7 @@ func (s *APISuite) TearDownTest(c *C) {
 }
 
 type clt interface {
-	UpsertRole(services.Role) error
+	UpsertRole(services.Role, time.Duration) error
 	UpsertUser(services.User) error
 }
 
@@ -130,7 +130,7 @@ func createUserAndRole(clt clt, username string, allowedLogins []string) (servic
 	}
 	role := services.RoleForUser(user)
 	role.SetLogins([]string{user.GetName()})
-	err = clt.UpsertRole(role)
+	err = clt.UpsertRole(role, backend.Forever)
 	if err != nil {
 		panic(err)
 	}
@@ -221,7 +221,7 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 
 	// now update role to permit agent forwarding
 	userRole.SetForwardAgent(true)
-	err = s.clt.UpsertRole(userRole)
+	err = s.clt.UpsertRole(userRole, backend.Forever)
 	c.Assert(err, IsNil)
 
 	authorizer, err = NewUserAuthorizer("user1", s.WebS, s.AccessS)

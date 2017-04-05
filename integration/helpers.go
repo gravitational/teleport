@@ -260,7 +260,7 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 		}
 		role := services.RoleForUser(teleUser)
 		role.SetLogins(user.AllowedLogins)
-		err = auth.UpsertRole(role)
+		err = auth.UpsertRole(role, backend.Forever)
 		if err != nil {
 			return trace.Wrap(err)
 		}

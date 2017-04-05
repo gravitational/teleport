@@ -173,7 +173,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 	role := services.RoleForUser(teleUser)
 	role.SetLogins([]string{s.user})
 	role.SetResource(services.Wildcard, services.RW())
-	err = s.authServer.UpsertRole(role)
+	err = s.authServer.UpsertRole(role, backend.Forever)
 	c.Assert(err, IsNil)
 
 	teleUser.AddRole(role.GetName())
@@ -445,7 +445,7 @@ func (s *WebSuite) authPack(c *C) *authPack {
 	c.Assert(err, IsNil)
 	role := services.RoleForUser(teleUser)
 	role.SetLogins([]string{s.user})
-	err = s.roleAuth.UpsertRole(role)
+	err = s.roleAuth.UpsertRole(role, backend.Forever)
 	c.Assert(err, IsNil)
 	teleUser.AddRole(role.GetName())
 

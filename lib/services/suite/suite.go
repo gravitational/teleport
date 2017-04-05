@@ -389,14 +389,14 @@ func (s *ServicesTestSuite) RolesCRUD(c *C) {
 			Resources:     map[string][]string{services.KindRole: []string{services.ActionRead}},
 		},
 	}
-	err = s.Access.UpsertRole(&role)
+	err = s.Access.UpsertRole(&role, backend.Forever)
 	c.Assert(err, IsNil)
 	rout, err := s.Access.GetRole(role.Metadata.Name)
 	c.Assert(err, IsNil)
 	c.Assert(rout, DeepEquals, &role)
 
 	role.Spec.Logins = []string{"bob"}
-	err = s.Access.UpsertRole(&role)
+	err = s.Access.UpsertRole(&role, backend.Forever)
 	c.Assert(err, IsNil)
 	rout, err = s.Access.GetRole(role.Metadata.Name)
 	c.Assert(err, IsNil)

@@ -18,6 +18,7 @@ package local
 
 import (
 	"sort"
+	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -54,12 +55,12 @@ func (s *AccessService) GetRoles() ([]services.Role, error) {
 }
 
 // UpsertRole updates parameters about role
-func (s *AccessService) UpsertRole(role services.Role) error {
+func (s *AccessService) UpsertRole(role services.Role, ttl time.Duration) error {
 	data, err := services.GetRoleMarshaler().MarshalRole(role)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.UpsertVal([]string{"roles", role.GetName()}, "params", []byte(data), backend.Forever)
+	err = s.UpsertVal([]string{"roles", role.GetName()}, "params", []byte(data), ttl)
 	if err != nil {
 		return trace.Wrap(err)
 	}

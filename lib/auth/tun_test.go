@@ -139,7 +139,7 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 
 	user, role := createUserAndRole(s.a, userName, []string{userName})
 	role.SetResource(services.KindNode, services.RW())
-	err = s.a.UpsertRole(role)
+	err = s.a.UpsertRole(role, backend.Forever)
 	c.Assert(err, IsNil)
 
 	err = s.a.UpsertPassword(user.GetName(), pass)

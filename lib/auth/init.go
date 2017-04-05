@@ -172,7 +172,7 @@ func Init(cfg InitConfig, dynamicConfig bool) (*AuthServer, *Identity, error) {
 		}
 
 		for _, role := range cfg.Roles {
-			if err := asrv.UpsertRole(role); err != nil {
+			if err := asrv.UpsertRole(role, backend.Forever); err != nil {
 				return nil, nil, trace.Wrap(err)
 			}
 			log.Infof("[INIT] Created Role: %v", role)
@@ -330,7 +330,7 @@ func migrateUsers(asrv *AuthServer) error {
 		// create role for user and upsert to backend
 		role := services.RoleForUser(user)
 		role.SetLogins(raw.AllowedLogins)
-		err = asrv.UpsertRole(role)
+		err = asrv.UpsertRole(role, backend.Forever)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -370,7 +370,7 @@ func migrateCertAuthority(asrv *AuthServer) error {
 
 		// create role for certificate authority and upsert to backend
 		newCA, role := services.ConvertV1CertAuthority(&raw)
-		err = asrv.UpsertRole(role)
+		err = asrv.UpsertRole(role, backend.Forever)
 		if err != nil {
 			return trace.Wrap(err)
 		}

@@ -560,11 +560,11 @@ func (a *AuthWithRoles) GetRoles() ([]services.Role, error) {
 }
 
 // UpsertRole creates or updates role
-func (a *AuthWithRoles) UpsertRole(role services.Role) error {
+func (a *AuthWithRoles) UpsertRole(role services.Role, ttl time.Duration) error {
 	if err := a.action(defaults.Namespace, services.KindRole, services.ActionWrite); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpsertRole(role)
+	return a.authServer.UpsertRole(role, ttl)
 }
 
 // GetRole returns role by name

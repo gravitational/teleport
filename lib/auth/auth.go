@@ -28,7 +28,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
 	"sync"
 	"time"
 
@@ -779,13 +778,41 @@ type OIDCAuthResponse struct {
 	HostSigners []services.CertAuthority `json:"host_signers"`
 }
 
-func (a *AuthServer) createOIDCUser(connector services.OIDCConnector, ident *oidc.Identity, claims jose.Claims) error {
+// buildRoles takes a connector and claims and returns a slice of roles. If the claims
+// match a concrete roles in the connector, those roles are returned directly. If the
+// claims match a template role in the connector, then that role is first created from
+// the template, then returned.
+func (a *AuthServer) buildRoles(connector services.OIDCConnector, ident *oidc.Identity, claims jose.Claims) ([]string, error) {
 	roles := connector.MapClaims(claims)
 	if len(roles) == 0 {
-		log.Warningf("[OIDC] could not find any of expected claims: %v in the set returned by provider %v: %v",
-			strings.Join(connector.GetClaims(), ","), connector.GetName(), strings.Join(services.GetClaimNames(claims), ","))
-		return trace.AccessDenied("access denied to %v", ident.Email)
+		role, err := connector.RoleFromTemplate(claims)
+		if err != nil {
+			log.Warningf("[OIDC] Unable to map claims to roles or role templates for %q", connector.GetName())
+			return nil, trace.AccessDenied("unable to map claims to roles or role templates for %q", connector.GetName())
+		}
+
+		// figure out ttl for role. expires = now + ttl  =>  ttl = expires - now
+		ttl := ident.ExpiresAt.Sub(a.clock.Now())
+
+		// upsert templated role
+		err = a.Access.UpsertRole(role, ttl)
+		if err != nil {
+			log.Warningf("[OIDC] Unable to upsert templated role for connector: %q", connector.GetName())
+			return nil, trace.AccessDenied("unable to upsert templated role: %q", connector.GetName())
+		}
+
+		roles = []string{role.GetName()}
 	}
+
+	return roles, nil
+}
+
+func (a *AuthServer) createOIDCUser(connector services.OIDCConnector, ident *oidc.Identity, claims jose.Claims) error {
+	roles, err := a.buildRoles(connector, ident, claims)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	log.Debugf("[IDENTITY] %v/%v is a dynamic identity, generating user with roles: %v", connector.GetName(), ident.Email, roles)
 	user, err := services.GetUserMarshaler().GenerateUser(&services.UserV2{
 		Kind:    services.KindUser,
@@ -812,25 +839,30 @@ func (a *AuthServer) createOIDCUser(connector services.OIDCConnector, ident *oid
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = a.CreateUser(user)
-	if err == nil {
-		return trace.Wrap(err)
-	}
-	if !trace.IsAlreadyExists(err) {
-		return trace.Wrap(err)
-	}
+
+	// check if a user exists already
 	existingUser, err := a.GetUser(ident.Email)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
-	} else {
+	}
+
+	// check if exisiting user is a non-oidc user, if so, return an error
+	if existingUser != nil {
 		connectorRef := existingUser.GetCreatedBy().Connector
 		if connectorRef == nil || connectorRef.Type != teleport.ConnectorOIDC || connectorRef.ID != connector.GetName() {
-			return trace.AlreadyExists("user %v already exists and is not OIDC user", existingUser.GetName())
+			return trace.AlreadyExists("user %q already exists and is not OIDC user", existingUser.GetName())
 		}
 	}
-	return a.UpsertUser(user)
+
+	// no non-oidc user exists, create or update the exisiting oidc user
+	err = a.UpsertUser(user)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // claimsFromIDToken extracts claims from the ID token.

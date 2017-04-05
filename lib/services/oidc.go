@@ -17,10 +17,13 @@ limitations under the License.
 package services
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"text/template"
 
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/coreos/go-oidc/jose"
@@ -53,6 +56,8 @@ type OIDCConnector interface {
 	GetClaims() []string
 	// MapClaims maps claims to roles
 	MapClaims(claims jose.Claims) []string
+	// RoleFromTemplate creates a role from a template and claims.
+	RoleFromTemplate(claims jose.Claims) (Role, error)
 	// Check checks OIDC connector for errors
 	Check() error
 	// SetClientSecret sets client secret to some value
@@ -71,6 +76,19 @@ type OIDCConnector interface {
 	SetClaimsToRoles([]ClaimMapping)
 	// SetDisplay sets friendly name for this provider.
 	SetDisplay(string)
+}
+
+// NewOIDCConnector returns a new OIDCConnector based off a name and OIDCConnectorSpecV2.
+func NewOIDCConnector(name string, spec OIDCConnectorSpecV2) OIDCConnector {
+	return &OIDCConnectorV2{
+		Kind:    KindOIDCConnector,
+		Version: V2,
+		Metadata: Metadata{
+			Name:      name,
+			Namespace: defaults.Namespace,
+		},
+		Spec: spec,
+	}
 }
 
 var connectorMarshaler OIDCConnectorMarshaler = &TeleportOIDCConnectorMarshaler{}
@@ -314,6 +332,79 @@ func (o *OIDCConnectorV2) MapClaims(claims jose.Claims) []string {
 	return utils.Deduplicate(roles)
 }
 
+func executeStringTemplate(raw string, claims jose.Claims) (string, error) {
+	tmpl, err := template.New("dynamic-roles").Parse(raw)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	var buf bytes.Buffer
+	err = tmpl.Execute(&buf, claims)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return buf.String(), nil
+}
+
+func executeSliceTemplate(raw []string, claims jose.Claims) ([]string, error) {
+	var sl []string
+
+	for _, v := range raw {
+		tmpl, err := template.New("dynamic-roles").Parse(v)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		var buf bytes.Buffer
+		err = tmpl.Execute(&buf, claims)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		sl = append(sl, buf.String())
+	}
+
+	return sl, nil
+}
+
+// RoleFromTemplate creates a role from a template and claims.
+func (o *OIDCConnectorV2) RoleFromTemplate(claims jose.Claims) (Role, error) {
+	for _, mapping := range o.Spec.ClaimsToRoles {
+		for claimName := range claims {
+			// claim name doesn't match
+			if claimName != mapping.Claim {
+				continue
+			}
+
+			// claim value doesn't match
+			claimValue, ok, _ := claims.StringClaim(claimName)
+			if ok && claimValue != mapping.Value {
+				continue
+			}
+
+			// claim name and value match, if a role template exists, execute template
+			roleTemplate := mapping.RoleTemplate
+			if roleTemplate != nil {
+				// at the moment, only allow templating for role name and logins
+				executedName, err := executeStringTemplate(roleTemplate.GetName(), claims)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				executedLogins, err := executeSliceTemplate(roleTemplate.GetLogins(), claims)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				roleTemplate.SetName(executedName)
+				roleTemplate.SetLogins(executedLogins)
+
+				return roleTemplate, nil
+			}
+		}
+	}
+
+	return nil, trace.Errorf("unable to create role from template")
+}
+
 // Check returns nil if all parameters are great, err otherwise
 func (o *OIDCConnectorV2) Check() error {
 	if o.Metadata.Name == "" {
@@ -331,6 +422,25 @@ func (o *OIDCConnectorV2) Check() error {
 	if o.Spec.ClientSecret == "" {
 		return trace.BadParameter("ClientSecret: missing client secret")
 	}
+
+	// make sure claim mappings have either roles or a role template
+	for _, v := range o.Spec.ClaimsToRoles {
+		hasRoles := false
+		if len(v.Roles) > 0 {
+			hasRoles = true
+		}
+		hasRoleTemplate := false
+		if v.RoleTemplate != nil {
+			hasRoleTemplate = true
+		}
+
+		// we either need to have roles or role templates not both or neither
+		// ! ( hasRoles XOR hasRoleTemplate )
+		if hasRoles == hasRoleTemplate {
+			return trace.BadParameter("need roles or role template (not both or none)")
+		}
+	}
+
 	return nil
 }
 
@@ -409,26 +519,29 @@ type ClaimMapping struct {
 	Claim string `json:"claim"`
 	// Value is claim value to match
 	Value string `json:"value"`
-	// Roles is a list of teleport roles to match
-	Roles []string `json:"roles"`
+	// Roles is a list of static teleport roles to match.
+	Roles []string `json:"roles,omitempty"`
+	// RoleTemplate a template role that will be filled out with claims.
+	RoleTemplate *RoleV2 `json:"role_template,omitempty"`
 }
 
 // ClaimMappingSchema is JSON schema for claim mapping
-const ClaimMappingSchema = `{
+var ClaimMappingSchema = fmt.Sprintf(`{
   "type": "object",
   "additionalProperties": false,
-  "required": ["claim", "value", "roles"],
+  "required": ["claim", "value" ],
   "properties": {
-     "claim": {"type": "string"}, 
-     "value": {"type": "string"},
-     "roles": {
-        "type": "array",
-        "items": {
-          "type": "string"
-        }
+    "claim": {"type": "string"},
+    "value": {"type": "string"},
+    "roles": {
+      "type": "array",
+      "items": {
+        "type": "string"
       }
-   }
-}`
+    },
+    "role_template": %v
+  }
+}`, GetRoleSchema(""))
 
 // OIDCConnectorV1 specifies configuration for Open ID Connect compatible external
 // identity provider, e.g. google in some organisation
