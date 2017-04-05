@@ -103,6 +103,13 @@ const (
 )
 
 const (
+	// AuthorizedKeys are public keys that check against User CAs.
+	AuthorizedKeys = "authorized_keys"
+	// KnownHosts are public keys that check against Host CAs.
+	KnownHosts = "known_hosts"
+)
+
+const (
 	// CertExtensionPermitAgentForwarding allows agent forwarding for certificate
 	CertExtensionPermitAgentForwarding = "permit-agent-forwarding"
 	// CertExtensionPermitPTY allows user to request PTY

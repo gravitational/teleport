@@ -188,7 +188,7 @@ func Init(cfg InitConfig, dynamicConfig bool) (*AuthServer, *Identity, error) {
 			if err := asrv.Trust.UpsertCertAuthority(ca, backend.Forever); err != nil {
 				return nil, nil, trace.Wrap(err)
 			}
-			log.Infof("[INIT] Created Trusted Certificate Authority: %v", ca)
+			log.Infof("[INIT] Created Trusted Certificate Authority: %q, type: %q", ca.GetName(), ca.GetType())
 		}
 
 		for _, tunnel := range cfg.ReverseTunnels {
