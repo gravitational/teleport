@@ -19,6 +19,7 @@ package config
 import (
 	"bytes"
 	"encoding/base64"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"os"
@@ -48,6 +49,7 @@ type ConfigTestSuite struct {
 }
 
 var _ = check.Suite(&ConfigTestSuite{})
+var _ = fmt.Printf
 
 func (s *ConfigTestSuite) SetUpSuite(c *check.C) {
 	var err error
@@ -374,6 +376,45 @@ func (s *ConfigTestSuite) TestLegacyU2FTransformation(c *check.C) {
 
 	c.Assert(cfg.Auth.U2F.GetAppID(), check.Equals, "https://graviton:3080")
 	c.Assert(cfg.Auth.U2F.GetFacets(), check.DeepEquals, []string{"https://graviton:3080"})
+}
+
+// TestParseKey ensures that keys are parsed correctly if they are in
+// authorized_keys format or known_hosts format.
+func (s *ConfigTestSuite) TestParseKey(c *check.C) {
+	tests := []struct {
+		inCABytes      []byte
+		outType        services.CertAuthType
+		outClusterName string
+	}{
+		// 0 - host ca in known_hosts format
+		{
+			[]byte(`@cert-authority *.foo ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCz+PzY6z2Xa1cMeiJqOH5BRpwY+PlS3Q6C4e3Yj8xjLW1zD3Cehm71zjsYmrpuFTmdylbcKB6CcM6Ft4YbKLG3PTLSKvCPTgfSBk8RCYX02PtOV5ixwa7xl5Gfhc1GRIheXgFO9IT+W9w9ube9r002AGpkMnRRtWAWiZHMGeJoaUoCsjDLDbWsQHj06pr7fD98c7PVcVzCKPTQpadXEP6sF8w417DvypHY1bYsvhRqHw9Njx6T3b9BM3bJ4QXgy18XuO5fCpLjKLsngLwSbqe/1IP4Q0zlUaNOTph3WnjeKJZO9yQeVX1cWDwY4Iz5lSHhsJnQD99hBDdw2RklHU0j type=host`),
+			services.HostCA,
+			"foo",
+		},
+		// 1 - user ca in known_hosts format (legacy)
+		{
+			[]byte(`@cert-authority *.bar ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCfhrvzbHAHrukeDhLSzoXtpctiumao1MQElwhOeuzFRYwrGV/1L2gsx4OJk4ztXKOCpon1FB+dy2aJN0WIr/9qXg37D6K/XJhgDaSfW8cjpl72Lw8kknDpmgSSA3cTvzFNmXfw4DNT/klRwEw6MMrDmfT9QvaV2d35lSoMMeTZ1ilFeJqXdUkY+bgijLBQU5MUjZUfQfS3jpSxVD0DD9D1VbAE1nGSNyFqf34JxJmqJ3R5hfZqNfb9CWouv+uFF99tzOr7tnKM/sQMPGmJ5G+zjTaErNSSLiIU1iCwVKUpNFcGiR1lpOEET+neJVnEeqEqKv2ookkXaIdKjk1UKZEn type=user`),
+			services.UserCA,
+			"bar",
+		},
+		// 2 - user ca in authorized_keys format
+		{
+			[]byte(`cert-authority ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCiIxyz0ctsyQbKLpWVYNF+ZIOrF150Wma2GqkrOWZaOzu5NSnt9Hmp7DaIa2Gn8fh8+8vjP02qp3i43SDOlLyYSn05nJjEXaz7QGysgeppN8ayojl5dkOhA00ROpCl5HhS9cmga7fy1Uwy4jhxenNpfQ5ap0COQi3UrXPepaq8z+I4XQK//qFWnkgyD1VXCnRKXXiajOf3dShYJqLCgwYiViuFmzi2p3lysoYS5eRwTCKiyyBtlkUtpTAse455yGf3QCpe+UOBiJ/4AElxacDndtMkjjctHSPCiztnph1xej64vSy8C2nGsnPIK7RfiOzSEdd5hwva+wPLgNTcKXZz type=user&clustername=baz`),
+			services.UserCA,
+			"baz",
+		},
+	}
+
+	// run tests
+	for i, tt := range tests {
+		comment := check.Commentf("Test %v", i)
+
+		ca, _, err := parseCAKey(tt.inCABytes, []string{"foo"})
+		c.Assert(err, check.IsNil, comment)
+		c.Assert(ca.GetType(), check.Equals, tt.outType)
+		c.Assert(ca.GetClusterName(), check.Equals, tt.outClusterName)
+	}
 }
 
 func checkStaticConfig(c *check.C, conf *FileConfig) {

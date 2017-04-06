@@ -413,9 +413,42 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	return nil
 }
 
-// parseCAKey() gets called for every line in a "CA key file" which is
-// the same as 'known_hosts' format for openssh
-func parseCAKey(bytes []byte, allowedLogins []string) (services.CertAuthority, services.Role, error) {
+// parseAuthorizedKeys parses keys in the authorized_keys format and
+// returns a services.CertAuthority.
+func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (services.CertAuthority, services.Role, error) {
+	pubkey, comment, _, _, err := ssh.ParseAuthorizedKey(bytes)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	comments, err := url.ParseQuery(comment)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	clusterName := comments.Get("clustername")
+	if clusterName == "" {
+		return nil, nil, trace.BadParameter("not clustername provided")
+	}
+
+	// create a new certificate authority
+	ca := services.NewCertAuthority(
+		services.UserCA,
+		clusterName,
+		nil,
+		[][]byte{ssh.MarshalAuthorizedKey(pubkey)},
+		allowedLogins)
+
+	// transform old allowed logins into roles
+	role := services.RoleForCertAuthority(ca)
+	role.SetLogins(allowedLogins)
+	ca.AddRole(role.GetName())
+
+	return ca, role, nil
+}
+
+// parseKnownHosts parses keys in known_hosts format and returns a
+// services.CertAuthority.
+func parseKnownHosts(bytes []byte, allowedLogins []string) (services.CertAuthority, services.Role, error) {
 	marker, options, pubKey, comment, _, err := ssh.ParseKnownHosts(bytes)
 	if marker != "cert-authority" {
 		return nil, nil, trace.BadParameter("invalid file format. expected '@cert-authority` marker")
@@ -445,6 +478,34 @@ func parseCAKey(bytes []byte, allowedLogins []string) (services.CertAuthority, s
 	}
 	ca, role := services.ConvertV1CertAuthority(v1)
 	return ca, role, nil
+}
+
+// certificateAuthorityFormat parses bytes and determines if they are in
+// known_hosts format or authorized_keys format.
+func certificateAuthorityFormat(bytes []byte) (string, error) {
+	_, _, _, _, err := ssh.ParseAuthorizedKey(bytes)
+	if err != nil {
+		_, _, _, _, _, err := ssh.ParseKnownHosts(bytes)
+		if err != nil {
+			return "", trace.BadParameter("unknown ca format")
+		}
+		return teleport.KnownHosts, nil
+	}
+	return teleport.AuthorizedKeys, nil
+}
+
+// parseCAKey parses bytes either in known_hosts or authorized_keys format
+// and returns a services.CertAuthority.
+func parseCAKey(bytes []byte, allowedLogins []string) (services.CertAuthority, services.Role, error) {
+	caFormat, err := certificateAuthorityFormat(bytes)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	if caFormat == teleport.AuthorizedKeys {
+		return parseAuthorizedKeys(bytes, allowedLogins)
+	}
+	return parseKnownHosts(bytes, allowedLogins)
 }
 
 // readTrustedClusters parses the content of "trusted_clusters" YAML structure
@@ -489,7 +550,9 @@ func readTrustedClusters(clusters []TrustedCluster, conf *service.Config) error 
 					ca.GetClusterName())
 			}
 			authorities = append(authorities, ca)
-			roles = append(roles, role)
+			if role != nil {
+				roles = append(roles, role)
+			}
 		}
 		conf.Auth.Authorities = append(conf.Auth.Authorities, authorities...)
 		conf.Auth.Roles = append(conf.Auth.Roles, roles...)

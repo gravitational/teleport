@@ -89,6 +89,7 @@ type AuthCommand struct {
 	exportAuthorityFingerprint string
 	exportPrivateKeys          bool
 	outDir                     string
+	compatVersion              string
 }
 
 type AuthServerCommand struct {
@@ -217,6 +218,7 @@ func Run() {
 	authExport := auth.Command("export", "Export CA keys to standard output")
 	authExport.Flag("keys", "if set, will print private keys").BoolVar(&cmdAuth.exportPrivateKeys)
 	authExport.Flag("fingerprint", "filter authority by fingerprint").StringVar(&cmdAuth.exportAuthorityFingerprint)
+	authExport.Flag("compat", "export cerfiticates compatible with specific version of Teleport").StringVar(&cmdAuth.compatVersion)
 
 	authGenerate := auth.Command("gen", "Generate a new SSH keypair")
 	authGenerate.Flag("pub-key", "path to the public key").Required().StringVar(&cmdAuth.genPubPath)
@@ -613,6 +615,18 @@ func (a *AuthCommand) ExportAuthorities(client *auth.TunClient) error {
 					continue
 				}
 
+				// export certificates in the old 1.0 format where host and user
+				// certificate authorities were exported in the known_hosts format.
+				if a.compatVersion == "1.0" {
+					castr, err := hostCAFormat(ca, keyBytes, client)
+					if err != nil {
+						return trace.Wrap(err)
+					}
+
+					fmt.Println(castr)
+					continue
+				}
+
 				// export certificate authority in user or host ca format
 				var castr string
 				switch ca.GetType() {
@@ -636,24 +650,34 @@ func (a *AuthCommand) ExportAuthorities(client *auth.TunClient) error {
 }
 
 // userCAFormat returns the certificate authority public key exported as a single
-// line that can be placed in ~/.ssh/authorized_keys file. For example:
+// line that can be placed in ~/.ssh/authorized_keys file. The format adheres to the
+// man sshd (8) authorized_keys format, a space-separated list of: options, keytype,
+// base64-encoded key, comment.
+// For example:
 //
-// cert-authority AAA...
+//    cert-authority AAA... type=user&clustername=cluster-a
+//
+// URL encoding is used to pass the CA type and cluster name into the comment field.
 func userCAFormat(ca services.CertAuthority, keyBytes []byte) (string, error) {
-	return fmt.Sprintf("cert-authority %s", keyBytes), nil
+	comment := url.Values{
+		"type":        []string{string(services.UserCA)},
+		"clustername": []string{ca.GetClusterName()},
+	}
+
+	return fmt.Sprintf("cert-authority %s %s", keyBytes, comment.Encode()), nil
 }
 
 // hostCAFormat returns the certificate authority public key exported as a single line
 // that can be placed in ~/.ssh/authorized_hosts. The format adheres to the man sshd (8)
-// authorized_hosts format, a space-separated list of: makrer, hosts, key, and comment.
+// authorized_hosts format, a space-separated list of: marker, hosts, key, and comment.
 // For example:
 //
-// 		@cert-authority *.cluster-a ssh-rsa AAA... type=host
+//    @cert-authority *.cluster-a ssh-rsa AAA... type=host
 //
 // URL encoding is used to pass the CA type and allowed logins into the comment field.
 func hostCAFormat(ca services.CertAuthority, keyBytes []byte, client *auth.TunClient) (string, error) {
-	options := url.Values{
-		"type": []string{string(services.HostCA)},
+	comment := url.Values{
+		"type": []string{string(ca.GetType())},
 	}
 
 	roles, err := services.FetchRoles(ca.GetRoles(), client)
@@ -662,11 +686,11 @@ func hostCAFormat(ca services.CertAuthority, keyBytes []byte, client *auth.TunCl
 	}
 	allowedLogins, _ := roles.CheckLogins(defaults.MinCertDuration + time.Second)
 	if len(allowedLogins) > 0 {
-		options["logins"] = allowedLogins
+		comment["logins"] = allowedLogins
 	}
 
 	return fmt.Sprintf("@cert-authority *.%s %s %s",
-		ca.GetClusterName(), strings.TrimSpace(string(keyBytes)), options.Encode()), nil
+		ca.GetClusterName(), strings.TrimSpace(string(keyBytes)), comment.Encode()), nil
 }
 
 // GenerateKeys generates a new keypair
