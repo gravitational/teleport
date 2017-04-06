@@ -42,13 +42,16 @@ func (s *AccessService) GetRoles() ([]services.Role, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	out := make([]services.Role, len(keys))
-	for i, name := range keys {
+	var out []services.Role
+	for _, name := range keys {
 		u, err := s.GetRole(name)
 		if err != nil {
+			if trace.IsNotFound(err) {
+				continue
+			}
 			return nil, trace.Wrap(err)
 		}
-		out[i] = u
+		out = append(out, u)
 	}
 	sort.Sort(services.SortedRoles(out))
 	return out, nil
