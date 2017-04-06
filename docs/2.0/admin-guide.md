@@ -662,6 +662,15 @@ On "cluster-b":
 $ tctl auth export > b-cluster.ca
 ```
 
+!!! tip "NOTE":
+    In Teleport 2.0 the format used when exporting Certificate Authorities (CAs)
+    has changed to better support interoperability with OpenSSH. In Teleport
+    1.0, all CAs were exported in the `known_hosts` format. Starting in Teleport
+    2.0 we export host CAs in `known_hosts` format and user CAs in
+    `authorized_keys` format. For compatibility with Teleport 1.0, you can still
+    export user CAs in the `known_hosts` format with the following command:
+    `tctl auth export --compat=1.0 > cluster.ca`.
+
 Update the YAML configuration of both clusters to connect them. 
 
 On `main`:
