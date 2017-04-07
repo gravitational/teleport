@@ -115,6 +115,7 @@ var (
 		"scope":              false,
 		"claims_to_roles":    true,
 		"dynamic_config":     false,
+		"seed_config":        false,
 		"public_addr":        false,
 		"cache":              true,
 		"never_expires":      false,
@@ -170,7 +171,7 @@ func ReadConfig(reader io.Reader) (*FileConfig, error) {
 	}
 	var fc FileConfig
 	if err = yaml.Unmarshal(bytes, &fc); err != nil {
-		return nil, trace.Wrap(err, "failed to parse Teleport configuration")
+		return nil, trace.BadParameter("failed to parse Teleport configuration: %v", err)
 	}
 	// now check for unknown (misspelled) config keys:
 	var validateKeys func(m YAMLMap) error
@@ -310,6 +311,7 @@ type Global struct {
 	Storage     backend.Config   `yaml:"storage,omitempty"`
 	AdvertiseIP net.IP           `yaml:"advertise_ip,omitempty"`
 	CachePolicy CachePolicy      `yaml:"cache,omitempty"`
+	SeedConfig  *bool            `yaml:"seed_config,omitempty"`
 
 	// Keys holds the list of SSH key/cert pairs used by all services
 	// Each service (like proxy, auth, node) can find the key it needs
@@ -666,7 +668,10 @@ type ClaimMapping struct {
 	// Value is claim value to match
 	Value string `yaml:"value"`
 	// Roles is a list of teleport roles to match
-	Roles []string `yaml:"roles"`
+	Roles []string `yaml:"roles,omitempty"`
+	// RoleTemplate is a template for a role that will be filled
+	// with data from claims.
+	RoleTemplate *services.RoleV2 `yaml:"role_template,omitempty"`
 }
 
 // OIDCConnector specifies configuration fo Open ID Connect compatible external
@@ -702,12 +707,16 @@ func (o *OIDCConnector) Parse() (services.OIDCConnector, error) {
 
 	var mappings []services.ClaimMapping
 	for _, c := range o.ClaimsToRoles {
-		roles := make([]string, len(c.Roles))
-		copy(roles, c.Roles)
+		var roles []string
+		if len(c.Roles) > 0 {
+			roles = append(roles, c.Roles...)
+		}
+
 		mappings = append(mappings, services.ClaimMapping{
-			Claim: c.Claim,
-			Value: c.Value,
-			Roles: roles,
+			Claim:        c.Claim,
+			Value:        c.Value,
+			Roles:        roles,
+			RoleTemplate: c.RoleTemplate,
 		})
 	}
 

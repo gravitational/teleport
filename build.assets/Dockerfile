@@ -10,20 +10,17 @@ ENV DEBIAN_FRONTEND noninteractive
 ADD locale.gen /etc/locale.gen
 ADD profile /etc/profile
 
-RUN (apt-get clean \
-    && apt-key update \
-	&& apt-get -q -y update --fix-missing \
-    && apt-get -q -y update \
-	&& apt-get install -q -y apt-utils \
-	&& apt-get install -q -y less \
-	&& apt-get install -q -y locales) ; 
+RUN (apt-get clean; \
+	 apt-get -q -y update --fix-missing; \
+     apt-get -q -y update; \
+     apt-get -q -y upgrade; \
+	 apt-get install -q -y apt-utils less locales)
 
 # Set locale to en_US.UTF-8
-RUN (locale-gen \
-	&& locale-gen en_US.UTF-8 \
-	&& dpkg-reconfigure locales)
+RUN locale-gen; \
+	locale-gen en_US.UTF-8 ;\
+	dpkg-reconfigure locales
 
-RUN apt-get -y update && apt-get -y upgrade 
 RUN apt-get install -q -y \
          libsqlite3-0 \
          curl \
@@ -36,19 +33,22 @@ RUN apt-get install -q -y \
          python \
          python-pip \
          libyaml-dev \
-         python-dev 
-RUN (pip install click==4.1 recommonmark mkdocs  markdown-include ;\
-     apt-get -y autoclean; apt-get -y clean)
+         python-dev \
+         nginx \
+         zip; \
+      apt-get -y autoclean; apt-get -y clean
+
+# Install mkDocs
+RUN pip install click==6.1 recommonmark==0.4.0 markdown-include==0.5.1 mkdocs==0.16.1
 
 # Install Golang:
-RUN (mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/go1.7.linux-amd64.tar.gz | tar xz;\
-     mkdir -p /gopath/src/github.com/gravitational/teleport;\
-     chmod a+w /gopath;\
-     chmod a+w /var/lib;\
-     apt-get install -y zip)
+RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/go1.7.linux-amd64.tar.gz | tar xz;\
+    mkdir -p /gopath/src/github.com/gravitational/teleport;\
+    chmod a+w /gopath;\
+    chmod a+w /var/lib
 
-RUN groupadd jenkins --gid=$GID -o && useradd jenkins --uid=$UID --gid=$GID --create-home --shell=/bin/sh
-RUN (mkdir -p /var/lib/teleport && chown -R jenkins /var/lib/teleport)
+RUN (groupadd jenkins --gid=$GID -o && useradd jenkins --uid=$UID --gid=$GID --create-home --shell=/bin/sh ;\
+     mkdir -p /var/lib/teleport && chown -R jenkins /var/lib/teleport)
 
 # get etcd
 RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.0.16/etcd-v3.0.16-linux-amd64.tar.gz | tar -xz ;\

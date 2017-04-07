@@ -38,8 +38,7 @@ var cfg = {
     ]
   },
 
-  plugins:  [
-    baseCfg.plugins.flowType,
+  plugins:  [    
     baseCfg.plugins.devBuild,
     baseCfg.plugins.hotReplacement,
     baseCfg.plugins.createIndexHtml,

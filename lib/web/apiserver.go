@@ -49,6 +49,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	"github.com/mailgun/lemma/secret"
 	"github.com/mailgun/ttlmap"
@@ -64,6 +65,7 @@ type Handler struct {
 	auth                    *sessionCache
 	sites                   *ttlmap.TtlMap
 	sessionStreamPollPeriod time.Duration
+	clock                   clockwork.Clock
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -134,6 +136,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 
 	if h.sessionStreamPollPeriod == 0 {
 		h.sessionStreamPollPeriod = sessionStreamPollPeriod
+	}
+
+	if h.clock == nil {
+		h.clock = clockwork.NewRealClock()
 	}
 
 	// a response indicates if the server is up and the response data
@@ -442,6 +448,7 @@ func (m *Handler) getConfigurationSettings(w http.ResponseWriter, r *http.Reques
 
 func (m *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	log.Infof("oidcLoginWeb start")
+
 	query := r.URL.Query()
 	clientRedirectURL := query.Get("redirect_url")
 	if clientRedirectURL == "" {
@@ -496,10 +503,18 @@ func (m *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p htt
 
 func (m *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	log.Infof("oidcCallback start")
+
 	response, err := m.cfg.ProxyClient.ValidateOIDCAuthCallback(r.URL.Query())
 	if err != nil {
-		log.Infof("VALIDATE error: %v", err)
-		return nil, trace.Wrap(err)
+		log.Infof("[OIDC] Error while processing callback: %v", err)
+
+		// redirect to an error page
+		pathToError := url.URL{
+			Path:     "/web/msg/error/login_failed",
+			RawQuery: url.Values{"details": []string{"Unable to process callback from OIDC provider."}}.Encode(),
+		}
+		http.Redirect(w, r, pathToError.String(), http.StatusFound)
+		return nil, nil
 	}
 	// if we created web session, set session cookie and redirect to original url
 	if response.Req.CreateWebSession {
@@ -655,16 +670,33 @@ func (m *Handler) createSession(w http.ResponseWriter, r *http.Request, p httpro
 		return nil, trace.Wrap(err)
 	}
 
-	sess, err := m.auth.Auth(req.User, req.Pass, req.SecondFactorToken)
+	// get cluster preferences to see if we should login
+	// with password or password+otp
+	authClient := m.cfg.ProxyClient
+	cap, err := authClient.GetClusterAuthPreference()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var webSession services.WebSession
+
+	switch cap.GetSecondFactor() {
+	case teleport.OFF:
+		webSession, err = m.auth.AuthWithoutOTP(req.User, req.Pass)
+	case teleport.OTP, teleport.HOTP, teleport.TOTP:
+		webSession, err = m.auth.AuthWithOTP(req.User, req.Pass, req.SecondFactorToken)
+	default:
+		return nil, trace.AccessDenied("unknown second factor type: %q", cap.GetSecondFactor())
+	}
 	if err != nil {
 		return nil, trace.AccessDenied("bad auth credentials")
 	}
 
-	if err := SetSession(w, req.User, sess.GetName()); err != nil {
+	if err := SetSession(w, req.User, webSession.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	ctx, err := m.auth.ValidateSession(req.User, sess.GetName())
+	ctx, err := m.auth.ValidateSession(req.User, webSession.GetName())
 	if err != nil {
 		return nil, trace.AccessDenied("need auth")
 	}
@@ -829,7 +861,7 @@ func (m *Handler) createSessionWithU2FSignResponse(w http.ResponseWriter, r *htt
 type createNewUserReq struct {
 	InviteToken       string `json:"invite_token"`
 	Pass              string `json:"pass"`
-	SecondFactorToken string `json:"second_factor_token"`
+	SecondFactorToken string `json:"second_factor_token,omitempty"`
 }
 
 // createNewUser creates new user entry based on the invite token
@@ -1444,15 +1476,30 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 		return nil, trace.Wrap(err)
 	}
 
-	// convert legacy requests to new parameter here. remove once migration to TOTP is complete.
-	if req.HOTPToken != "" {
-		req.OTPToken = req.HOTPToken
-	}
-
-	cert, err := h.auth.GetCertificate(*req)
+	authClient := h.cfg.ProxyClient
+	cap, err := authClient.GetClusterAuthPreference()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	var cert *client.SSHLoginResponse
+
+	switch cap.GetSecondFactor() {
+	case teleport.OFF:
+		cert, err = h.auth.GetCertificateWithoutOTP(*req)
+	case teleport.OTP, teleport.HOTP, teleport.TOTP:
+		// convert legacy requests to new parameter here. remove once migration to TOTP is complete.
+		if req.HOTPToken != "" {
+			req.OTPToken = req.HOTPToken
+		}
+		cert, err = h.auth.GetCertificateWithOTP(*req)
+	default:
+		return nil, trace.AccessDenied("unknown second factor type: %q", cap.GetSecondFactor())
+	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return cert, nil
 }
 

@@ -26,6 +26,7 @@ import { ErrorPage, ErrorTypes } from './../msgPage';
 import { TeleportLogo } from './../icons.jsx';
 import { SsoBtnList } from './ssoBtnList';
 import GoogleAuthInfo from './googleAuthLogo';
+import { ErrorMessage } from './items';
 
 const U2F_HELP_URL = 'https://support.google.com/accounts/answer/6103523?hl=en';
 
@@ -277,13 +278,10 @@ const InviteInputForm = React.createClass({
         onClick={this.onSignupWithOidc} />
     )    
   },
-
-  render() {
+  
+  render() {            
     let { isFailed, message } = this.props.attemp;        
-    let $error = isFailed ? (
-      <label className="error">{message}</label>
-    ) : null;
-
+    let $error = isFailed ? <ErrorMessage message={message} /> : null;
     return (
       <form ref="form" className="grv-invite-input-form">
         <h3> Get started with Teleport </h3>
@@ -321,7 +319,7 @@ const Invite2faData = ({auth2faType, qr}) => {
 
         <div className="m-t text-muted">
           <small>Click
-            <a href={U2F_HELP_URL}> here </a>
+            <a a target="_blank" href={U2F_HELP_URL}> here </a>
             to learn more about U2F 2-Step Verification.
           </small>
         </div>

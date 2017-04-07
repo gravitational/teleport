@@ -19,12 +19,19 @@ package srv
 import (
 	"fmt"
 	"net"
+	"os"
 	"os/user"
+	"path"
+	"path/filepath"
 
 	"gopkg.in/check.v1"
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/lib/auth"
+	authority "github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -39,6 +46,15 @@ type ExecSuite struct {
 var _ = check.Suite(&ExecSuite{})
 
 func (s *ExecSuite) SetUpSuite(c *check.C) {
+	bk, err := boltbk.New(backend.Params{"path": c.MkDir()})
+	c.Assert(err, check.IsNil)
+
+	a := auth.NewAuthServer(&auth.InitConfig{
+		Backend:    bk,
+		Authority:  authority.New(),
+		DomainName: "localhost",
+	})
+
 	utils.InitLoggerForTests()
 	s.usr, _ = user.Current()
 	s.ctx = &ctx{isTestStub: true}
@@ -47,6 +63,7 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 	s.ctx.teleportUser = "galt"
 	s.ctx.conn = &ssh.ServerConn{Conn: s}
 	s.ctx.exec = &execResponse{ctx: s.ctx}
+	s.ctx.srv = &Server{authService: a, uuid: "00000000-0000-0000-0000-000000000000"}
 	s.localAddr, _ = utils.ParseAddr("127.0.0.1:3022")
 	s.remoteAddr, _ = utils.ParseAddr("10.0.0.5:4817")
 }
@@ -60,6 +77,8 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 		"SHELL=/bin/sh",
 		"SSH_TELEPORT_USER=galt",
 		"SSH_SESSION_WEBPROXY_ADDR=<proxyhost>:3080",
+		"SSH_TELEPORT_HOST_UUID=00000000-0000-0000-0000-000000000000",
+		"SSH_TELEPORT_CLUSTER_NAME=localhost",
 		"TERM=xterm",
 		"SSH_CLIENT=10.0.0.5 4817 3022",
 		"SSH_CONNECTION=10.0.0.5 4817 127.0.0.1 3022",
@@ -81,7 +100,7 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 	cmd, err = prepareCommand(s.ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(cmd, check.NotNil)
-	c.Assert(cmd.Path, check.Equals, "/bin/ls")
+	c.Assert(cmd.Path, check.Equals, findExecutable("ls"))
 	c.Assert(cmd.Args, check.DeepEquals, []string{"ls", "-lh", "/etc"})
 	c.Assert(cmd.Dir, check.Equals, s.usr.HomeDir)
 	c.Assert(cmd.Env, check.DeepEquals, expectedEnv)
@@ -112,3 +131,15 @@ func (s *ExecSuite) OpenChannel(string, []byte) (ssh.Channel, <-chan *ssh.Reques
 	return nil, nil, nil
 }
 func (s *ExecSuite) Wait() error { return nil }
+
+// findExecutable helper finds a given executable name (like 'ls') in $PATH
+// and returns the full path
+func findExecutable(execName string) string {
+	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
+		fp := path.Join(dir, execName)
+		if utils.IsFile(fp) {
+			return fp
+		}
+	}
+	return "not found in $PATH: " + execName
+}

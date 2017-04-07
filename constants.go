@@ -17,6 +17,21 @@ const (
 	// SSHAgentPID is the environment variable pointing to the agent
 	// process ID
 	SSHAgentPID = "SSH_AGENT_PID"
+
+	// SSHTeleportUser is the current Teleport user that is logged in.
+	SSHTeleportUser = "SSH_TELEPORT_USER"
+
+	// SSHSessionWebproxyAddr is the address the web proxy.
+	SSHSessionWebproxyAddr = "SSH_SESSION_WEBPROXY_ADDR"
+
+	// SSHTeleportClusterName is the name of the cluster this node belongs to.
+	SSHTeleportClusterName = "SSH_TELEPORT_CLUSTER_NAME"
+
+	// SSHTeleportHostUUID is the UUID of the host.
+	SSHTeleportHostUUID = "SSH_TELEPORT_HOST_UUID"
+
+	// SSHSessionID is the UUID of the current session.
+	SSHSessionID = "SSH_SESSION_ID"
 )
 
 const (
@@ -100,6 +115,13 @@ const (
 
 	// OIDC means authentication will happen remotly using an OIDC connector.
 	OIDC = "oidc"
+)
+
+const (
+	// AuthorizedKeys are public keys that check against User CAs.
+	AuthorizedKeys = "authorized_keys"
+	// KnownHosts are public keys that check against Host CAs.
+	KnownHosts = "known_hosts"
 )
 
 const (

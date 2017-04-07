@@ -118,7 +118,7 @@ const (
 	ActivePartyTTL = 30 * time.Second
 
 	// OIDCAuthRequestTTL is TTL of internally stored auth request created by client
-	OIDCAuthRequestTTL = 60 * time.Second
+	OIDCAuthRequestTTL = 10 * 60 * time.Second
 
 	// LogRotationPeriod defines how frequently to rotate the audit log file
 	LogRotationPeriod = (time.Hour * 24)

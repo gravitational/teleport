@@ -104,7 +104,7 @@ type Access interface {
 	GetRoles() ([]Role, error)
 
 	// UpsertRole creates or updates role
-	UpsertRole(role Role) error
+	UpsertRole(role Role, ttl time.Duration) error
 
 	// DeleteAllRoles deletes all roles
 	DeleteAllRoles() error
@@ -132,6 +132,8 @@ type Role interface {
 	GetNamespaces() []string
 	// GetResources returns access to resources
 	GetResources() map[string][]string
+	// SetName is a shortcut for SetMetadata().Name
+	SetName(string)
 	// SetResource sets resource rule
 	SetResource(kind string, actions []string)
 	// RemoveResource deletes resource entry
@@ -204,7 +206,12 @@ func (r *RoleV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
 	r.Metadata.SetTTL(clock, ttl)
 }
 
-// GetName returns the name of the Role
+// SetName is a shortcut for SetMetadata().Name
+func (r *RoleV2) SetName(s string) {
+	r.Metadata.Name = s
+}
+
+// GetName returns role name and is a shortcut for GetMetadata().Name
 func (r *RoleV2) GetName() string {
 	return r.Metadata.Name
 }
@@ -288,25 +295,25 @@ func (r *RoleV2) CheckAndSetDefaults() error {
 }
 
 func (r *RoleV2) String() string {
-	return fmt.Sprintf("Role(Name=%v,MaxSessionTTL=%v,Logins=%v,NodeLabels=%v,Namespaces=%v,Resources=%v)",
-		r.GetName(), r.GetMaxSessionTTL(), r.GetLogins(), r.GetNodeLabels(), r.GetNamespaces(), r.GetResources())
+	return fmt.Sprintf("Role(Name=%v,MaxSessionTTL=%v,Logins=%v,NodeLabels=%v,Namespaces=%v,Resources=%v,CanForwardAgent=%v)",
+		r.GetName(), r.GetMaxSessionTTL(), r.GetLogins(), r.GetNodeLabels(), r.GetNamespaces(), r.GetResources(), r.CanForwardAgent())
 }
 
 // RoleSpecV2 is role specification for RoleV2
 type RoleSpecV2 struct {
 	// MaxSessionTTL is a maximum SSH or Web session TTL
-	MaxSessionTTL Duration `json:"max_session_ttl"`
+	MaxSessionTTL Duration `json:"max_session_ttl" yaml:"max_session_ttl"`
 	// Logins is a list of linux logins allowed for this role
-	Logins []string `json:"logins,omitempty"`
+	Logins []string `json:"logins,omitempty" yaml:"logins,omitempty"`
 	// NodeLabels is a set of matching labels that users of this role
 	// will be allowed to access
-	NodeLabels map[string]string `json:"node_labels,omitempty"`
+	NodeLabels map[string]string `json:"node_labels,omitempty" yaml:"node_labels,omitempty"`
 	// Namespaces is a list of namespaces, guarding accesss to resources
-	Namespaces []string `json:"namespaces,omitempty"`
+	Namespaces []string `json:"namespaces,omitempty" yaml:"namespaces,omitempty"`
 	// Resources limits access to resources
-	Resources map[string][]string `json:"resources,omitempty"`
+	Resources map[string][]string `json:"resources,omitempty" yaml:"resources,omitempty"`
 	// ForwardAgent permits SSH agent forwarding if requested by the client
-	ForwardAgent bool `json:"forward_agent"`
+	ForwardAgent bool `json:"forward_agent" yaml:"forward_agent"`
 }
 
 // AccessChecker interface implements access checks for given role
@@ -584,6 +591,19 @@ func (d *Duration) UnmarshalJSON(data []byte) error {
 	}
 	var stringVar string
 	if err := json.Unmarshal(data, &stringVar); err != nil {
+		return trace.Wrap(err)
+	}
+	out, err := time.ParseDuration(stringVar)
+	if err != nil {
+		return trace.BadParameter(err.Error())
+	}
+	d.Duration = out
+	return nil
+}
+
+func (d *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var stringVar string
+	if err := unmarshal(&stringVar); err != nil {
 		return trace.Wrap(err)
 	}
 	out, err := time.ParseDuration(stringVar)

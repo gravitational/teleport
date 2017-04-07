@@ -2,7 +2,7 @@
 # Naming convention:
 #	for stable releases we use "1.0.0" format
 #   for pre-releases, we use   "1.0.0-beta.2" format
-VERSION=2.0.0-rc.2
+VERSION=2.0.0-rc.4
 
 # These are standard autotools variables, don't change them please
 BUILDDIR ?= build
@@ -29,7 +29,7 @@ all: $(VERSRC) $(BINARIES)
 $(BUILDDIR)/tctl: $(LIBS) $(TOOLS) tool/tctl/*.go
 	go build -o $(BUILDDIR)/tctl -i $(BUILDFLAGS) ./tool/tctl
 
-$(BUILDDIR)/teleport: $(LIBS) tool/teleport/*.go
+$(BUILDDIR)/teleport: $(LIBS) tool/teleport/*.go tool/teleport/common/*.go
 	go build -o $(BUILDDIR)/teleport -i $(BUILDFLAGS) ./tool/teleport
 
 $(BUILDDIR)/tsh: $(LIBS) tool/tsh/*.go

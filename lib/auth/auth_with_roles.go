@@ -416,9 +416,14 @@ func (a *AuthWithRoles) GetSignupU2FRegisterRequest(token string) (u2fRegisterRe
 	return a.authServer.CreateSignupU2FRegisterRequest(token)
 }
 
-func (a *AuthWithRoles) CreateUserWithToken(token, password, hotpToken string) (services.WebSession, error) {
+func (a *AuthWithRoles) CreateUserWithOTP(token, password, otpToken string) (services.WebSession, error) {
 	// tokens are their own authz mechanism, no need to double check
-	return a.authServer.CreateUserWithToken(token, password, hotpToken)
+	return a.authServer.CreateUserWithOTP(token, password, otpToken)
+}
+
+func (a *AuthWithRoles) CreateUserWithoutOTP(token string, password string) (services.WebSession, error) {
+	// tokens are their own authz mechanism, no need to double check
+	return a.authServer.CreateUserWithoutOTP(token, password)
 }
 
 func (a *AuthWithRoles) CreateUserWithU2FToken(token string, password string, u2fRegisterResponse u2f.RegisterResponse) (services.WebSession, error) {
@@ -567,11 +572,11 @@ func (a *AuthWithRoles) GetRoles() ([]services.Role, error) {
 }
 
 // UpsertRole creates or updates role
-func (a *AuthWithRoles) UpsertRole(role services.Role) error {
+func (a *AuthWithRoles) UpsertRole(role services.Role, ttl time.Duration) error {
 	if err := a.action(defaults.Namespace, services.KindRole, services.ActionWrite); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpsertRole(role)
+	return a.authServer.UpsertRole(role, ttl)
 }
 
 // GetRole returns role by name

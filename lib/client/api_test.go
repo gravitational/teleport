@@ -72,7 +72,6 @@ func (s *APITestSuite) TestNew(c *check.C) {
 
 	la := tc.LocalAgent()
 	c.Assert(la, check.NotNil)
-	c.Assert(tc.NodeHostPort(), check.Equals, "localhost:22")
 }
 
 func (s *APITestSuite) TestParseLabels(c *check.C) {

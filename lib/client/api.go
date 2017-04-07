@@ -105,7 +105,8 @@ type Config struct {
 	// HostLogin is a user login on a remote host
 	HostLogin string
 
-	// HostPort is a remote host port to connect to
+	// HostPort is a remote host port to connect to. This is used for **explicit**
+	// port setting via -p flag, otherwise '0' is passed which means "use server default"
 	HostPort int
 
 	// ProxyHostPort is a host or IP of the proxy (with optional ":ssh_port,https_port").
@@ -290,16 +291,6 @@ func (c *Config) ProxySSHPort() (retval int) {
 		}
 	}
 	return retval
-}
-
-// NodeHostPort returns host:port string based on user supplied data
-// either if user has set host:port in the connection string,
-// or supplied the -p flag. If user has set both, -p flag data is ignored
-func (c *Config) NodeHostPort() string {
-	if strings.Contains(c.Host, ":") {
-		return c.Host
-	}
-	return net.JoinHostPort(c.Host, strconv.Itoa(c.HostPort))
 }
 
 // ProxySpecified returns true if proxy has been specified
@@ -1048,8 +1039,8 @@ func (tc *TeleportClient) localLogin(secondFactor string, pub []byte) (*SSHLogin
 	var response *SSHLoginResponse
 
 	switch secondFactor {
-	case teleport.OTP, teleport.TOTP, teleport.HOTP:
-		response, err = tc.directLogin(pub)
+	case teleport.OFF, teleport.OTP, teleport.TOTP, teleport.HOTP:
+		response, err = tc.directLogin(secondFactor, pub)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1088,13 +1079,26 @@ func (tc *TeleportClient) AddKey(host string, key *Key) (*CertAuthMethod, error)
 }
 
 // directLogin asks for a password + HOTP token, makes a request to CA via proxy
-func (tc *TeleportClient) directLogin(pub []byte) (*SSHLoginResponse, error) {
+func (tc *TeleportClient) directLogin(secondFactorType string, pub []byte) (*SSHLoginResponse, error) {
+	var err error
+
 	httpsProxyHostPort := tc.Config.ProxyWebHostPort()
 	certPool := loopbackPool(httpsProxyHostPort)
 
-	password, otpToken, err := tc.AskPasswordAndOTP()
+	var password string
+	var otpToken string
+
+	password, err = tc.AskPassword()
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// only ask for a second factor if it's enabled
+	if secondFactorType != teleport.OFF {
+		otpToken, err = tc.AskOTP()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// ask the CA (via proxy) to sign our public key:
@@ -1208,22 +1212,15 @@ func Username() (string, error) {
 	return u.Username, nil
 }
 
-// AskPasswordAndOTP prompts the user to enter the password + OTP 2nd factor
-func (tc *TeleportClient) AskPasswordAndOTP() (pwd string, token string, err error) {
-	fmt.Printf("Enter password for Teleport user %v:\n", tc.Config.Username)
-	pwd, err = passwordFromConsole()
-	if err != nil {
-		fmt.Fprintln(tc.Stderr, err)
-		return "", "", trace.Wrap(err)
-	}
-
+// AskOTP prompts the user to enter the OTP token.
+func (tc *TeleportClient) AskOTP() (token string, err error) {
 	fmt.Printf("Enter your OTP token:\n")
 	token, err = lineFromConsole()
 	if err != nil {
 		fmt.Fprintln(tc.Stderr, err)
-		return "", "", trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
-	return pwd, token, nil
+	return token, nil
 }
 
 // AskPassword prompts the user to enter the password

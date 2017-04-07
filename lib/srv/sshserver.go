@@ -21,6 +21,7 @@ package srv
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"os"
 	"os/exec"
@@ -42,7 +43,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/pborman/uuid"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
@@ -879,13 +879,17 @@ func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *ctx) 
 
 	authChan, _, err := ctx.conn.OpenChannel("auth-agent@openssh.com", nil)
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 	clientAgent := agent.NewClient(authChan)
 	ctx.setAgent(clientAgent, authChan)
 
 	pid := os.Getpid()
-	socketPath := filepath.Join(os.TempDir(), fmt.Sprintf("teleport-agent-%v.socket", uuid.New()))
+	socketDir, err := ioutil.TempDir(os.TempDir(), "teleport-")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	socketPath := filepath.Join(socketDir, fmt.Sprintf("teleport-%v.socket", pid))
 
 	agentServer := &teleagent.AgentServer{Agent: clientAgent}
 	err = agentServer.ListenUnixSocket(socketPath, uid, gid, 0600)

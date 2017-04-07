@@ -223,14 +223,21 @@ const auth = {
   },
 
   _getU2fErr(errorCode){
-    var errorMsg = "";
+    let errorMsg = "";
     // lookup error message...
     for(var msg in window.u2f.ErrorCodes){
       if(window.u2f.ErrorCodes[msg] == errorCode){
         errorMsg = msg;
       }
     }
-    return {responseJSON:{message:"U2F Error: " + errorMsg}};
+
+    let message = `Please check your U2F settings, make sure it is plugged in and you are using the supported browser.\nU2F error: ${errorMsg}`
+
+    return {
+      responseJSON: {
+        message
+      }
+    };
   }
 }
 

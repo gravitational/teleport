@@ -24,7 +24,9 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"os/user"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -222,7 +224,7 @@ func (s *SrvSuite) TestAgentForward(c *C) {
 	role, err := s.a.GetRole(roleName)
 	c.Assert(err, IsNil)
 	role.SetForwardAgent(true)
-	err = s.a.UpsertRole(role)
+	err = s.a.UpsertRole(role, backend.Forever)
 	c.Assert(err, IsNil)
 
 	err = agent.RequestAgentForwarding(se)
@@ -239,13 +241,16 @@ func (s *SrvSuite) TestAgentForward(c *C) {
 	_, err = io.WriteString(writer, fmt.Sprintf("printenv %v\n\r", teleport.SSHAuthSock))
 	c.Assert(err, IsNil)
 
-	re := regexp.MustCompile(`/tmp/[^\s]+`)
+	pattern := filepath.Join(os.TempDir(), `teleport-[0-9]+`, `teleport-[0-9]+.socket`)
+	re := regexp.MustCompile(pattern)
 	buf := make([]byte, 4096)
+	result := make([]byte, 0)
 	var matches []string
 	for i := 0; i < 3; i++ {
-		_, err = reader.Read(buf)
+		n, err := reader.Read(buf)
 		c.Assert(err, IsNil)
-		matches = re.FindStringSubmatch(string(buf))
+		result = append(result, buf[0:n]...)
+		matches = re.FindStringSubmatch(string(result))
 		if len(matches) != 0 {
 			break
 		}
@@ -693,8 +698,11 @@ func (s *SrvSuite) TestPTY(c *C) {
 	c.Assert(err, IsNil)
 	defer se.Close()
 
-	// request PTY
+	// request PTY with valid size
 	c.Assert(se.RequestPty("xterm", 30, 30, ssh.TerminalModes{}), IsNil)
+
+	// request PTY with invalid size, should still work (selects defaults)
+	c.Assert(se.RequestPty("xterm", 0, 0, ssh.TerminalModes{}), IsNil)
 }
 
 // TestEnv requests setting environment variables. (We are currently ignoring these requests)
@@ -865,7 +873,7 @@ func newUpack(username string, allowedLogins []string, a *auth.AuthServer) (*upa
 	role := services.RoleForUser(user)
 	role.SetResource(services.Wildcard, services.RW())
 	role.SetLogins(allowedLogins)
-	err = a.UpsertRole(role)
+	err = a.UpsertRole(role, backend.Forever)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -53,7 +53,8 @@ integration: bbox
 #
 .PHONY:docs
 docs: bbox
-	docker run $(DOCKERFLAGS) -ti $(NOROOT) -e HOME=$(SRCDIR)/build.assets $(BBOX) mkdocs build
+	docker run $(DOCKERFLAGS) -ti $(NOROOT) -e HOME=$(SRCDIR)/build.assets $(BBOX) \
+		./docs/build.sh
 	@echo "\nSUCCESS: Teleport docs ----> build/docs\n"
 
 #
@@ -76,4 +77,4 @@ enter: bbox
 #
 .PHONY:release
 release: 
-	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BBOX) /usr/bin/make release -e VERSION="$(VERSION)" -e ADDFLAGS="$(ADDFLAGS)"
+	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BBOX) /usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)"
