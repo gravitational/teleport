@@ -49,6 +49,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	"github.com/mailgun/lemma/secret"
 	"github.com/mailgun/ttlmap"
@@ -64,6 +65,7 @@ type Handler struct {
 	auth                    *sessionCache
 	sites                   *ttlmap.TtlMap
 	sessionStreamPollPeriod time.Duration
+	clock                   clockwork.Clock
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -134,6 +136,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 
 	if h.sessionStreamPollPeriod == 0 {
 		h.sessionStreamPollPeriod = sessionStreamPollPeriod
+	}
+
+	if h.clock == nil {
+		h.clock = clockwork.NewRealClock()
 	}
 
 	// a response indicates if the server is up and the response data
@@ -442,6 +448,7 @@ func (m *Handler) getConfigurationSettings(w http.ResponseWriter, r *http.Reques
 
 func (m *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	log.Infof("oidcLoginWeb start")
+
 	query := r.URL.Query()
 	clientRedirectURL := query.Get("redirect_url")
 	if clientRedirectURL == "" {
@@ -496,10 +503,18 @@ func (m *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p htt
 
 func (m *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	log.Infof("oidcCallback start")
+
 	response, err := m.cfg.ProxyClient.ValidateOIDCAuthCallback(r.URL.Query())
 	if err != nil {
-		log.Infof("VALIDATE error: %v", err)
-		return nil, trace.Wrap(err)
+		log.Infof("[OIDC] Error while processing callback: %v", err)
+
+		// redirect to an error page
+		pathToError := url.URL{
+			Path:     "/web/msg/error/login_failed",
+			RawQuery: url.Values{"details": []string{"Unable to process callback from OIDC provider."}}.Encode(),
+		}
+		http.Redirect(w, r, pathToError.String(), http.StatusFound)
+		return nil, nil
 	}
 	// if we created web session, set session cookie and redirect to original url
 	if response.Req.CreateWebSession {
