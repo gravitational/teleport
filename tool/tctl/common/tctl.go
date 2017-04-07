@@ -664,7 +664,7 @@ func userCAFormat(ca services.CertAuthority, keyBytes []byte) (string, error) {
 		"clustername": []string{ca.GetClusterName()},
 	}
 
-	return fmt.Sprintf("cert-authority %s %s", keyBytes, comment.Encode()), nil
+	return fmt.Sprintf("cert-authority %s %s", strings.TrimSpace(string(keyBytes)), comment.Encode()), nil
 }
 
 // hostCAFormat returns the certificate authority public key exported as a single line
