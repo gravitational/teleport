@@ -50,14 +50,37 @@ This section covers the process of defining user roles.
 A role in Teleport defines the following restrictions for the users who are 
 assigned to it:
 
-* **OS logins**: The typical OS logins traditionally used. For example, you may not want your interns
-  to login as "root".
+* **OS logins**: The typical OS logins traditionally used. For example, you may
+  not want your interns to login as "root".
 * **Allowed Labels**: A user will be allowed to only log in to the
   nodes with these labels. Perhaps you want to label your staging nodes 
   with the "staging" label and update the `intern` role such that the interns
   won't be able to SSH into a production machine by accident.
 * **Session Duration**: Also known as "Session TTL" - a period of time a user
   is allowed to be logged in.
+* **Resources**: Resources defines access levels to resources on the backend of
+  Teleport. Access is either `read` or `write`. Typically you will not set this
+  for users and simply take the default values. For admins, you often want to
+  give them full read/write access and you can set `resources` to
+  `"*": ["read", "write"]`. Currently supported resources are:
+   * `oidc`: OIDC Connector.
+   * `cert_authority`: Certificate Authority.
+   * `tunnel`: Reverse Tunnel (used with trusted clusters).
+   * `user`: Teleport users.
+   * `node`: Teleport nodes.
+   * `auth_server`: Auth server.
+   * `proxy`: Proxy server.
+   * `role`: Teleport roles.
+   * `namespace`: Teleport namespaces.
+   * `trusted_cluster`: Trusted Clusters (creates `cert_authority` and `tunnel`).
+   * `cluster_auth_preference`: Authentication preferences.
+   * `universal_second_factor`: Universal Second Factor (U2F) settings.
+* **Namespaces**: Namespaces allow you to partition nodes within a single
+  cluster to restrict access to a set of nodes. To use namespaces, first you
+  need to create a `namespace` resource on the backend then set `namespace`
+  under `ssh_service` in `teleport.yaml` for each node which you want to be
+  part of said namespace. For admins, you might want to give them access to
+  all namespaces and you can set `namespaces` to `["*"]`.
 
 The roles are managed as any other resource using [dynamic configuration](#dynamic-configuration) 
 commands. For example, let's create a role `intern`.
