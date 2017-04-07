@@ -180,15 +180,25 @@ func onStart(config *service.Config) error {
 
 // onStatus is the handler for "status" CLI command
 func onStatus() error {
-	sid := os.Getenv("SSH_SESSION_ID")
-	proxyHost := os.Getenv("SSH_SESSION_WEBPROXY_ADDR")
-	tuser := os.Getenv("SSH_TELEPORT_USER")
+	sshClient := os.Getenv("SSH_CLIENT")
+	systemUser := os.Getenv("USER")
+	teleportUser := os.Getenv(teleport.SSHTeleportUser)
+	proxyHost := os.Getenv(teleport.SSHSessionWebproxyAddr)
+	clusterName := os.Getenv(teleport.SSHTeleportClusterName)
+	hostUUID := os.Getenv(teleport.SSHTeleportHostUUID)
+	sid := os.Getenv(teleport.SSHSessionID)
+
 	if sid == "" || proxyHost == "" {
 		fmt.Println("You are not inside of a Teleport SSH session")
 		return nil
 	}
-	fmt.Printf("User ID    : %s, logged in as %s from %s\n", tuser, os.Getenv("USER"), os.Getenv("SSH_CLIENT"))
-	fmt.Printf("Session ID : %s\nSession URL: https://%s/web/sessions/%s\n", sid, proxyHost, sid)
+
+	fmt.Printf("User ID     : %s, logged in as %s from %s\n", teleportUser, systemUser, sshClient)
+	fmt.Printf("Cluster Name: %s\n", clusterName)
+	fmt.Printf("Host UUID   : %s\n", hostUUID)
+	fmt.Printf("Session ID  : %s\n", sid)
+	fmt.Printf("Session URL : https://%s/web/cluster/%v/node/%v/%v/%v\n", proxyHost, clusterName, hostUUID, systemUser, sid)
+
 	return nil
 }
 

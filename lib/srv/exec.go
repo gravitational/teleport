@@ -31,6 +31,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
@@ -206,14 +207,21 @@ func prepareCommand(ctx *ctx) (*exec.Cmd, error) {
 		c = exec.Command(args[0], args[1:]...)
 	}
 
+	clusterName, err := ctx.srv.authService.GetDomainName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	c.Env = []string{
 		"LANG=en_US.UTF-8",
 		getDefaultEnvPath(""),
 		"HOME=" + osUser.HomeDir,
 		"USER=" + osUserName,
 		"SHELL=" + shell,
-		"SSH_TELEPORT_USER=" + ctx.teleportUser,
-		fmt.Sprintf("SSH_SESSION_WEBPROXY_ADDR=%s", proxyHost),
+		teleport.SSHTeleportUser + "=" + ctx.teleportUser,
+		teleport.SSHSessionWebproxyAddr + "=" + proxyHost,
+		teleport.SSHTeleportHostUUID + "=" + ctx.srv.ID(),
+		teleport.SSHTeleportClusterName + "=" + clusterName,
 	}
 	c.Dir = osUser.HomeDir
 	c.SysProcAttr = &syscall.SysProcAttr{}
@@ -274,7 +282,7 @@ func prepareCommand(ctx *ctx) (*exec.Cmd, error) {
 			c.Env = append(c.Env, fmt.Sprintf("SSH_TTY=%s", ctx.session.term.tty.Name()))
 		}
 		if ctx.session.id != "" {
-			c.Env = append(c.Env, fmt.Sprintf("SSH_SESSION_ID=%s", ctx.session.id))
+			c.Env = append(c.Env, fmt.Sprintf("%s=%s", teleport.SSHSessionID, ctx.session.id))
 		}
 	}
 	return c, nil
