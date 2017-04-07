@@ -370,12 +370,12 @@ func (s *IntSuite) TestInvalidLogins(c *check.C) {
 	c.Assert(err, check.ErrorMatches, "cluster wrong-site not found")
 }
 
-// TestTwoSites creates two teleport sites: "a" and "b" and
+// TestTwoClusters creates two teleport clusters: "a" and "b" and
 // creates a tunnel from A to B.
 //
 // Then it executes an SSH command on A by connecting directly
 // to A and by connecting to B via B<->A tunnel
-func (s *IntSuite) TestTwoSites(c *check.C) {
+func (s *IntSuite) TestTwoClusters(c *check.C) {
 	username := s.me.Username
 
 	a := NewInstance("site-A", HostID, Host, s.getPorts(5), s.priv, s.pub)
@@ -449,6 +449,74 @@ func (s *IntSuite) TestTwoSites(c *check.C) {
 	// stop both sites for realZ
 	c.Assert(b.Stop(true), check.IsNil)
 	c.Assert(a.Stop(true), check.IsNil)
+}
+
+// TestHA tests scenario when auth server for the cluster goes down
+// and we switch to local persistent caches
+func (s *IntSuite) TestHA(c *check.C) {
+	username := s.me.Username
+
+	a := NewInstance("cluster-a", HostID, Host, s.getPorts(5), s.priv, s.pub)
+	b := NewInstance("cluster-b", HostID, Host, s.getPorts(5), s.priv, s.pub)
+
+	a.AddUser(username, []string{username})
+	b.AddUser(username, []string{username})
+
+	c.Assert(b.Create(a.Secrets.AsSlice(), false, nil), check.IsNil)
+	c.Assert(a.Create(b.Secrets.AsSlice(), true, nil), check.IsNil)
+
+	c.Assert(b.Start(), check.IsNil)
+	c.Assert(a.Start(), check.IsNil)
+
+	nodePorts := s.getPorts(3)
+	sshPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
+	c.Assert(a.StartNode("cluster-a-node", sshPort, proxyWebPort, proxySSHPort), check.IsNil)
+
+	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
+	abortTime := time.Now().Add(time.Second * 10)
+	for len(b.Tunnel.GetSites()) < 2 && len(b.Tunnel.GetSites()) < 2 {
+		time.Sleep(time.Millisecond * 2000)
+		if time.Now().After(abortTime) {
+			c.Fatalf("two sites do not see each other: tunnels are not working")
+		}
+	}
+
+	cmd := []string{"echo", "hello world"}
+	tc, err := b.NewClient(username, "cluster-a", "127.0.0.1", sshPort)
+	c.Assert(err, check.IsNil)
+	output := &bytes.Buffer{}
+	tc.Stdout = output
+	c.Assert(err, check.IsNil)
+	// try to execute an SSH command using the same old client  to Site-B
+	// "site-A" and "site-B" reverse tunnels are supposed to reconnect,
+	// and 'tc' (client) is also supposed to reconnect
+	for i := 0; i < 10; i++ {
+		time.Sleep(time.Millisecond * 50)
+		err = tc.SSH(context.TODO(), cmd, false)
+		if err == nil {
+			break
+		}
+	}
+	c.Assert(err, check.IsNil)
+	c.Assert(output.String(), check.Equals, "hello world\n")
+	// stop auth server a now
+	c.Assert(a.Stop(true), check.IsNil)
+
+	// try to execute an SSH command using the same old client  to Site-B
+	// "site-A" and "site-B" reverse tunnels are supposed to reconnect,
+	// and 'tc' (client) is also supposed to reconnect
+	for i := 0; i < 10; i++ {
+		time.Sleep(time.Millisecond * 50)
+		err = tc.SSH(context.TODO(), cmd, false)
+		if err == nil {
+			break
+		}
+	}
+	c.Assert(err, check.IsNil)
+
+	// stop cluster and remaining nodes
+	c.Assert(b.Stop(true), check.IsNil)
+	c.Assert(b.StopNodes(), check.IsNil)
 }
 
 // getPorts helper returns a range of unallocated ports available for litening on

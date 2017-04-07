@@ -233,7 +233,7 @@ func (t *proxySubsys) proxyToHost(
 		}
 	} else {
 		// "remote" CA? use a reverse tunnel to talk to it:
-		siteClient, err := site.GetClient()
+		siteClient, err := site.CachingAccessPoint()
 		if err != nil {
 			log.Warn(err)
 		} else {
@@ -246,10 +246,9 @@ func (t *proxySubsys) proxyToHost(
 
 	// if port is 0, it means the client wants us to figure out
 	// which port to use
-	useExactPort := len(t.port) > 0 && t.port != "0"
-	log.Debugf("proxy connecting to host=%v port=%v, exact port=%v\n", t.host, t.port, useExactPort)
-
-	ips, err := net.LookupHost(t.host)
+	specifiedPort := len(t.port) > 0 && t.port != "0"
+	ips, _ := net.LookupHost(t.host)
+	log.Debugf("proxy connecting to host=%v port=%v, exact port=%v\n", t.host, t.port, specifiedPort)
 
 	// enumerate and try to find a server with self-registered with a matching name/IP:
 	var server services.Server
@@ -261,12 +260,10 @@ func (t *proxySubsys) proxyToHost(
 		}
 
 		if t.host == ip || t.host == servers[i].GetHostname() || utils.SliceContainsStr(ips, ip) {
-			server = servers[i]
-			// found the server. see if we need to match the port
-			if useExactPort && t.port != port {
-				return trace.BadParameter("host %s is listening on port %s, not %s", t.host, port, t.port)
+			if !specifiedPort || t.port == port {
+				server = servers[i]
+				break
 			}
-			break
 		}
 	}
 
@@ -274,7 +271,7 @@ func (t *proxySubsys) proxyToHost(
 	if server != nil {
 		serverAddr = server.GetAddr()
 	} else {
-		if !useExactPort {
+		if !specifiedPort {
 			t.port = strconv.Itoa(defaults.SSHServerListenPort)
 		}
 		serverAddr = net.JoinHostPort(t.host, t.port)
@@ -289,7 +286,6 @@ func (t *proxySubsys) proxyToHost(
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	// this custom SSH handshake allows SSH proxy to relay the client's IP
 	// address to the SSH erver:
 	doHandshake(remoteAddr, ch, conn)

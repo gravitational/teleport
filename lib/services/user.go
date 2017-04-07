@@ -10,12 +10,13 @@ import (
 
 	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
 // User represents teleport embedded user or external user
 type User interface {
-	// GetName returns user name
-	GetName() string
+	// Resource provides common resource properties
+	Resource
 	// GetIdentities returns a list of connected OIDCIdentities
 	GetIdentities() []OIDCIdentity
 	// GetRoles returns a list of roles assigned to user
@@ -32,8 +33,6 @@ type User interface {
 	SetRoles(roles []string)
 	// AddRole adds role to the users' role list
 	AddRole(name string)
-	// GetExpiry returns ttl of the user
-	GetExpiry() time.Time
 	// GetCreatedBy returns information about user
 	GetCreatedBy() CreatedBy
 	// SetCreatedBy sets created by information
@@ -180,6 +179,31 @@ type UserV2 struct {
 	rawObject interface{}
 }
 
+// GetMetadata returns object metadata
+func (u *UserV2) GetMetadata() Metadata {
+	return u.Metadata
+}
+
+// SetExpiry sets expiry time for the object
+func (u *UserV2) SetExpiry(expires time.Time) {
+	u.Metadata.SetExpiry(expires)
+}
+
+// SetTTL sets Expires header using realtime clock
+func (u *UserV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+	u.Metadata.SetTTL(clock, ttl)
+}
+
+// GetName returns the name of the User
+func (u *UserV2) GetName() string {
+	return u.Metadata.Name
+}
+
+// SetName sets the name of the User
+func (u *UserV2) SetName(e string) {
+	u.Metadata.Name = e
+}
+
 // WebSessionInfo returns web session information about user
 func (u *UserV2) WebSessionInfo(allowedLogins []string) interface{} {
 	out := u.V1()
@@ -275,8 +299,11 @@ func (u *UserV2) Equals(other User) bool {
 	return true
 }
 
-// GetExpiry returns expiry time for temporary users
-func (u *UserV2) GetExpiry() time.Time {
+// Expiry returns expiry time for temporary users
+func (u *UserV2) Expiry() time.Time {
+	if !u.Metadata.Expires.IsZero() {
+		return u.Metadata.Expires
+	}
 	return u.Spec.Expires
 }
 
@@ -308,11 +335,6 @@ func (u *UserV2) AddRole(name string) {
 		}
 	}
 	u.Spec.Roles = append(u.Spec.Roles, name)
-}
-
-// GetName returns user name
-func (u *UserV2) GetName() string {
-	return u.Metadata.Name
 }
 
 func (u *UserV2) String() string {
@@ -471,6 +493,7 @@ func (*TeleportUserMarshaler) UnmarshalUser(bytes []byte) (User, error) {
 		if err := utils.UnmarshalWithSchema(GetUserSchema(""), &u, bytes); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
+		utils.UTC(&u.Metadata.Expires)
 		u.rawObject = u
 		return &u, nil
 	}

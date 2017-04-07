@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/suite"
 	sess "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/state"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
@@ -121,8 +122,8 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	authorizer, err := auth.NewAuthorizer(s.access, s.identity, s.trust)
 	c.Assert(err, IsNil)
 
-	c.Assert(s.a.UpsertCertAuthority(suite.NewTestCA(services.UserCA, s.domainName), backend.Forever), IsNil)
-	c.Assert(s.a.UpsertCertAuthority(suite.NewTestCA(services.HostCA, s.domainName), backend.Forever), IsNil)
+	c.Assert(s.a.UpsertCertAuthority(suite.NewTestCA(services.UserCA, s.domainName)), IsNil)
+	c.Assert(s.a.UpsertCertAuthority(suite.NewTestCA(services.HostCA, s.domainName)), IsNil)
 
 	// set up SSH client using the user private key for signing
 	up, err := newUpack(s.user, []string{s.user}, s.a)
@@ -418,6 +419,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		reverseTunnelAddress,
 		[]ssh.Signer{s.signer},
 		s.roleAuth,
+		state.NoCache,
 	)
 	c.Assert(err, IsNil)
 	c.Assert(reverseTunnelServer.Start(), IsNil)
@@ -452,11 +454,12 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		Client:      tunClt,
 		HostSigners: []ssh.Signer{s.signer},
 		HostUUID:    s.domainName,
+		AccessPoint: tunClt,
 	})
 	c.Assert(err, IsNil)
 
 	err = tunClt.UpsertReverseTunnel(
-		services.NewReverseTunnel(s.domainName, []string{reverseTunnelAddress.String()}), 0)
+		services.NewReverseTunnel(s.domainName, []string{reverseTunnelAddress.String()}))
 	c.Assert(err, IsNil)
 
 	err = agentPool.FetchAndSyncAgents()
@@ -466,7 +469,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		reverseTunnelAddress,
 		"remote",
 		"localhost",
-		[]ssh.Signer{s.signer}, tunClt)
+		[]ssh.Signer{s.signer}, tunClt, tunClt)
 	c.Assert(err, IsNil)
 	c.Assert(rsAgent.Start(), IsNil)
 
@@ -567,6 +570,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		reverseTunnelAddress,
 		[]ssh.Signer{s.signer},
 		s.roleAuth,
+		state.NoCache,
 	)
 	c.Assert(err, IsNil)
 
@@ -603,7 +607,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		reverseTunnelAddress,
 		"remote",
 		"localhost",
-		[]ssh.Signer{s.signer}, tunClt)
+		[]ssh.Signer{s.signer}, tunClt, tunClt)
 	c.Assert(err, IsNil)
 	c.Assert(rsAgent.Start(), IsNil)
 
@@ -611,7 +615,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		reverseTunnelAddress,
 		"remote",
 		"localhost",
-		[]ssh.Signer{s.signer}, tunClt)
+		[]ssh.Signer{s.signer}, tunClt, tunClt)
 	c.Assert(err, IsNil)
 	c.Assert(rsAgent2.Start(), IsNil)
 	defer rsAgent2.Close()
@@ -646,6 +650,7 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 		reverseTunnelAddress,
 		[]ssh.Signer{s.signer},
 		s.roleAuth,
+		state.NoCache,
 		reversetunnel.DirectSite(s.domainName, s.roleAuth),
 	)
 	c.Assert(err, IsNil)

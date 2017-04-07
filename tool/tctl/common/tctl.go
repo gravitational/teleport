@@ -45,6 +45,7 @@ import (
 	"github.com/buger/goterm"
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
 	kyaml "k8s.io/client-go/1.4/pkg/util/yaml"
 )
@@ -778,7 +779,9 @@ func (r *ReverseTunnelCommand) ListActive(client *auth.TunClient) error {
 
 // Upsert updates or inserts new reverse tunnel
 func (r *ReverseTunnelCommand) Upsert(client *auth.TunClient) error {
-	err := client.UpsertReverseTunnel(services.NewReverseTunnel(r.domainNames, r.dialAddrs.Addresses()), r.ttl)
+	tunnel := services.NewReverseTunnel(r.domainNames, r.dialAddrs.Addresses())
+	tunnel.SetTTL(clockwork.NewRealClock(), r.ttl)
+	err := client.UpsertReverseTunnel(tunnel)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -959,7 +962,7 @@ func (u *CreateCommand) Create(client *auth.TunClient) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			if err := client.UpsertOIDCConnector(conn, 0); err != nil {
+			if err := client.UpsertOIDCConnector(conn); err != nil {
 				return trace.Wrap(err)
 			}
 			fmt.Printf("OIDC connector %v upserted\n", conn.GetName())
@@ -968,7 +971,7 @@ func (u *CreateCommand) Create(client *auth.TunClient) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			if err := client.UpsertReverseTunnel(tun, 0); err != nil {
+			if err := client.UpsertReverseTunnel(tun); err != nil {
 				return trace.Wrap(err)
 			}
 			fmt.Printf("reverse tunnel %v upserted\n", tun.GetName())
@@ -977,7 +980,7 @@ func (u *CreateCommand) Create(client *auth.TunClient) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			if err := client.UpsertCertAuthority(ca, 0); err != nil {
+			if err := client.UpsertCertAuthority(ca); err != nil {
 				return trace.Wrap(err)
 			}
 			fmt.Printf("cert authority %v upserted\n", ca.GetName())

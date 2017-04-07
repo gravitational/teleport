@@ -67,7 +67,7 @@ func (s *AuthSuite) SetUpTest(c *C) {
 
 func (s *AuthSuite) TestSessions(c *C) {
 	c.Assert(s.a.UpsertCertAuthority(
-		suite.NewTestCA(services.UserCA, "me.localhost"), backend.Forever), IsNil)
+		suite.NewTestCA(services.UserCA, "me.localhost")), IsNil)
 
 	user := "user1"
 	pass := []byte("abc123")
@@ -97,7 +97,7 @@ func (s *AuthSuite) TestSessions(c *C) {
 
 func (s *AuthSuite) TestUserLock(c *C) {
 	c.Assert(s.a.UpsertCertAuthority(
-		suite.NewTestCA(services.UserCA, "me.localhost"), backend.Forever), IsNil)
+		suite.NewTestCA(services.UserCA, "me.localhost")), IsNil)
 
 	user := "user1"
 	pass := []byte("abc123")
@@ -136,7 +136,7 @@ func (s *AuthSuite) TestUserLock(c *C) {
 
 func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(s.a.UpsertCertAuthority(
-		suite.NewTestCA(services.HostCA, "me.localhost"), backend.Forever), IsNil)
+		suite.NewTestCA(services.HostCA, "me.localhost")), IsNil)
 
 	// generate single-use token (TTL is 0)
 	tok, err := s.a.GenerateToken(teleport.Roles{teleport.RoleNode}, 0)

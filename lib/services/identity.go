@@ -38,6 +38,9 @@ type Identity interface {
 	// GetUsers returns a list of users registered with the local auth server
 	GetUsers() ([]User, error)
 
+	// DeleteAllUsers deletes all users
+	DeleteAllUsers() error
+
 	// AddUserLoginAttempt logs user login attempt
 	AddUserLoginAttempt(user string, attempt LoginAttempt, ttl time.Duration) error
 
@@ -140,7 +143,7 @@ type Identity interface {
 	GetU2FRegistrationCounter(user string) (uint32, error)
 
 	// UpsertOIDCConnector upserts OIDC Connector
-	UpsertOIDCConnector(connector OIDCConnector, ttl time.Duration) error
+	UpsertOIDCConnector(connector OIDCConnector) error
 
 	// DeleteOIDCConnector deletes OIDC Connector
 	DeleteOIDCConnector(connectorID string) error

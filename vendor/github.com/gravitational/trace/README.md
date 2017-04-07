@@ -1,10 +1,13 @@
 # Trace
 
+[![GoDoc](https://godoc.org/github.com/gravitational/trace?status.png)](https://godoc.org/github.com/gravitational/trace)
+
+
 Package for error handling and error reporting
 
 Read more here:
 
-http://blog.gravitational.com/thoughts-on-error-handling-in-go-programs/
+http://gravitational.com/blog/golang_error_handling/
 
 ### Capture file, line and function
 
@@ -13,7 +16,7 @@ http://blog.gravitational.com/thoughts-on-error-handling-in-go-programs/
 import (
      "github.com/gravitational/trace"
 )
-     
+
 func someFunc() error {
    return trace.Wrap(err)
 }
@@ -36,7 +39,7 @@ curl -XPUT 'http://localhost:9200/_template/trace' -d@udbbeat/template.json
 **Start udpbeat UDP logs collector and emitter**
 
 ```shell
-go get github.com/gravitational/trace/udpbeat
+go get github.com/gravitational/udpbeat
 udpbeat
 ```
 
@@ -50,12 +53,12 @@ import (
    "github.com/gravitational/trace"
    log "github.com/Sirupsen/logrus"
 )
-   
+
 func main() {
    hook, err := trace.NewUDPHook()
    if err != nil {
        log.Fatalf(err)
-   }  
+   }
    log.SetHook(hook)
 }
 ```

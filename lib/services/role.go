@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
 // RoleNameForUser returns role name associated with user
@@ -105,6 +106,9 @@ type Access interface {
 	// UpsertRole creates or updates role
 	UpsertRole(role Role, ttl time.Duration) error
 
+	// DeleteAllRoles deletes all roles
+	DeleteAllRoles() error
+
 	// GetRole returns role by name
 	GetRole(name string) (Role, error)
 
@@ -114,10 +118,8 @@ type Access interface {
 
 // Role contains a set of permissions or settings
 type Role interface {
-	// GetMetadata returns role metadata
-	GetMetadata() Metadata
-	// GetName returns role name and is a shortcut for GetMetadata().Name
-	GetName() string
+	// Resource provides common resource methods
+	Resource
 	// GetMaxSessionTTL is a maximum SSH or Web session TTL
 	GetMaxSessionTTL() Duration
 	// SetLogins sets logins for role
@@ -130,8 +132,6 @@ type Role interface {
 	GetNamespaces() []string
 	// GetResources returns access to resources
 	GetResources() map[string][]string
-	// SetName is a shortcut for SetMetadata().Name
-	SetName(string)
 	// SetResource sets resource rule
 	SetResource(kind string, actions []string)
 	// RemoveResource deletes resource entry
@@ -187,6 +187,21 @@ func (r *RoleV2) SetNodeLabels(labels map[string]string) {
 // SetMaxSessionTTL sets a maximum TTL for SSH or Web session
 func (r *RoleV2) SetMaxSessionTTL(duration time.Duration) {
 	r.Spec.MaxSessionTTL.Duration = duration
+}
+
+// SetExpiry sets expiry time for the object
+func (r *RoleV2) SetExpiry(expires time.Time) {
+	r.Metadata.SetExpiry(expires)
+}
+
+// Expires retuns object expiry setting
+func (r *RoleV2) Expiry() time.Time {
+	return r.Metadata.Expiry()
+}
+
+// SetTTL sets Expires header using realtime clock
+func (r *RoleV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+	r.Metadata.SetTTL(clock, ttl)
 }
 
 // SetName is a shortcut for SetMetadata().Name
@@ -647,6 +662,7 @@ func UnmarshalRole(data []byte) (*RoleV2, error) {
 	if err := utils.UnmarshalWithSchema(GetRoleSchema(""), &role, data); err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
+	utils.UTC(&role.Metadata.Expires)
 	return &role, nil
 }
 

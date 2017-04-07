@@ -8,13 +8,15 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
 // Server represents a Node, Proxy or Auth server in a Teleport cluster
 type Server interface {
-	// GetName returns server name
-	GetName() string
+	// Resource provides common resource headers
+	Resource
 	// GetAddr return server address
 	GetAddr() string
 	// GetHostname returns server hostname
@@ -69,6 +71,11 @@ type ServerV2 struct {
 	Spec ServerSpecV2 `json:"spec"`
 }
 
+// GetMetadata returns metadata
+func (s *ServerV2) GetMetadata() Metadata {
+	return s.Metadata
+}
+
 // V2 returns version 2 of the resource, itself
 func (s *ServerV2) V2() *ServerV2 {
 	return s
@@ -106,6 +113,21 @@ func (s *ServerV2) SetAddr(addr string) {
 	s.Spec.Addr = addr
 }
 
+// SetExpiry sets expiry time for the object
+func (s *ServerV2) SetExpiry(expires time.Time) {
+	s.Metadata.SetExpiry(expires)
+}
+
+// Expires retuns object expiry setting
+func (s *ServerV2) Expiry() time.Time {
+	return s.Metadata.Expiry()
+}
+
+// SetTTL sets Expires header using realtime clock
+func (s *ServerV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+	s.Metadata.SetTTL(clock, ttl)
+}
+
 // SetPublicAddr sets the public address this cluster can be reached at.
 func (s *ServerV2) SetPublicAddr(addr string) {
 	s.Spec.PublicAddr = addr
@@ -114,6 +136,11 @@ func (s *ServerV2) SetPublicAddr(addr string) {
 // GetName returns server name
 func (s *ServerV2) GetName() string {
 	return s.Metadata.Name
+}
+
+// SetName sets the name of the TrustedCluster.
+func (s *ServerV2) SetName(e string) {
+	s.Metadata.Name = e
 }
 
 // GetAddr return server address
@@ -412,6 +439,7 @@ func UnmarshalServerResource(data []byte, kind string) (Server, error) {
 		if err := utils.UnmarshalWithSchema(GetServerSchema(), &s, data); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
+		utils.UTC(&s.Metadata.Expires)
 		return &s, nil
 	}
 	return nil, trace.BadParameter("server resource version %v is not supported", h.Version)

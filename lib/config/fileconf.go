@@ -117,6 +117,8 @@ var (
 		"dynamic_config":     false,
 		"seed_config":        false,
 		"public_addr":        false,
+		"cache":              true,
+		"ttl":                false,
 	}
 )
 
@@ -307,12 +309,66 @@ type Global struct {
 	Logger      Log              `yaml:"log,omitempty"`
 	Storage     backend.Config   `yaml:"storage,omitempty"`
 	AdvertiseIP net.IP           `yaml:"advertise_ip,omitempty"`
+	CachePolicy CachePolicy      `yaml:"cache,omitempty"`
 	SeedConfig  *bool            `yaml:"seed_config,omitempty"`
 
 	// Keys holds the list of SSH key/cert pairs used by all services
 	// Each service (like proxy, auth, node) can find the key it needs
 	// by looking into certificate
 	Keys []KeyPair `yaml:"keys,omitempty"`
+}
+
+// CachePolicy is used to control  local cache
+type CachePolicy struct {
+	// EnabledFlag enables or disables cache
+	EnabledFlag string `yaml:"enabled,omitempty"`
+	// TTL sets maximum TTL for the cached values
+	TTL string `yaml:"ttl,omitempty"`
+}
+
+func isTrue(v string) bool {
+	switch v {
+	case "yes", "yeah", "y", "true", "1":
+		return true
+	}
+	return false
+}
+
+func isNever(v string) bool {
+	switch v {
+	case "never", "no", "0":
+		return true
+	}
+	return false
+}
+
+// Enabled determines if a given "_service" section has been set to 'true'
+func (c *CachePolicy) Enabled() bool {
+	return c.EnabledFlag == "" || isTrue(c.EnabledFlag)
+}
+
+// NeverExpires returns if cache never expires by itself
+func (c *CachePolicy) NeverExpires() bool {
+	if isNever(c.TTL) {
+		return true
+	}
+	return false
+}
+
+// Parse parses cache policy from Teleport config
+func (c *CachePolicy) Parse() (*service.CachePolicy, error) {
+	out := service.CachePolicy{
+		Enabled:      c.Enabled(),
+		NeverExpires: c.NeverExpires(),
+	}
+	var err error
+	if c.TTL != "" {
+		out.TTL, err = time.ParseDuration(c.TTL)
+		if err != nil {
+			return nil, trace.BadParameter("cache.ttl invalid duration: %v, accepted format '10h'", c.TTL)
+		}
+	}
+	return &out, nil
 }
 
 // Service is a common configuration of a teleport service

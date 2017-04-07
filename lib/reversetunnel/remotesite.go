@@ -50,8 +50,13 @@ type remoteSite struct {
 	lastActive  time.Time
 	srv         *server
 
-	transport *http.Transport
-	clt       *auth.Client
+	transport   *http.Transport
+	clt         *auth.Client
+	accessPoint auth.AccessPoint
+}
+
+func (s *remoteSite) CachingAccessPoint() (auth.AccessPoint, error) {
+	return s.accessPoint, nil
 }
 
 func (s *remoteSite) GetClient() (auth.ClientI, error) {

@@ -153,7 +153,7 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(s.clt.UpsertCertAuthority(
-		suite.NewTestCA(services.HostCA, "localhost"), backend.Forever), IsNil)
+		suite.NewTestCA(services.HostCA, "localhost")), IsNil)
 
 	_, pub, err = s.clt.GenerateKeyPair("")
 	c.Assert(err, IsNil)
@@ -168,7 +168,7 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(s.clt.UpsertCertAuthority(
-		suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
+		suite.NewTestCA(services.UserCA, "localhost")), IsNil)
 
 	_, pub, err = s.clt.GenerateKeyPair("")
 	c.Assert(err, IsNil)
@@ -361,7 +361,7 @@ func (s *APISuite) TestSessions(c *C) {
 	pass := []byte("abc123")
 
 	c.Assert(s.a.UpsertCertAuthority(
-		suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
+		suite.NewTestCA(services.UserCA, "localhost")), IsNil)
 
 	createUserAndRole(s.clt, user, []string{user})
 
@@ -414,24 +414,26 @@ func (s *APISuite) TestServers(c *C) {
 	c.Assert(len(out), Equals, 0)
 
 	srv := newServer(services.KindNode, "id1", "host:1233", "host1", defaults.Namespace)
-	c.Assert(s.clt.UpsertNode(srv, 0), IsNil)
+	c.Assert(s.clt.UpsertNode(srv), IsNil)
 
 	srv1 := newServer(services.KindNode, "id2", "host:1234", "host2", defaults.Namespace)
-	c.Assert(s.clt.UpsertNode(srv1, 0), IsNil)
+	c.Assert(s.clt.UpsertNode(srv1), IsNil)
 
 	out, err = s.clt.GetNodes(defaults.Namespace)
 	c.Assert(err, IsNil)
-	c.Assert(out, DeepEquals, []services.Server{srv, srv1})
+	c.Assert(len(out), Equals, 2)
+	c.Assert(out[0], DeepEquals, srv)
+	c.Assert(out[1], DeepEquals, srv1)
 
 	out, err = s.clt.GetProxies()
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 0)
 
 	srv = newServer(services.KindProxy, "proxy1", "host:1233", "host1", defaults.Namespace)
-	c.Assert(s.clt.UpsertProxy(srv, 0), IsNil)
+	c.Assert(s.clt.UpsertProxy(srv), IsNil)
 
 	srv1 = newServer(services.KindProxy, "proxy2", "host:1234", "host2", defaults.Namespace)
-	c.Assert(s.clt.UpsertProxy(srv1, 0), IsNil)
+	c.Assert(s.clt.UpsertProxy(srv1), IsNil)
 
 	out, err = s.clt.GetProxies()
 	c.Assert(err, IsNil)
@@ -442,10 +444,10 @@ func (s *APISuite) TestServers(c *C) {
 	c.Assert(len(out), Equals, 0)
 
 	srv = newServer(services.KindAuthServer, "auth1", "host:1233", "host1", defaults.Namespace)
-	c.Assert(s.clt.UpsertAuthServer(srv, 0), IsNil)
+	c.Assert(s.clt.UpsertAuthServer(srv), IsNil)
 
 	srv1 = newServer(services.KindAuthServer, "auth2", "host:1234", "host2", defaults.Namespace)
-	c.Assert(s.clt.UpsertAuthServer(srv1, 0), IsNil)
+	c.Assert(s.clt.UpsertAuthServer(srv1), IsNil)
 
 	out, err = s.clt.GetAuthServers()
 	c.Assert(err, IsNil)
@@ -466,7 +468,7 @@ func (s *APISuite) TestReverseTunnels(c *C) {
 			DialAddrs:   []string{"example.com:2023"},
 		},
 	}
-	c.Assert(s.PresenceS.UpsertReverseTunnel(tunnel, 0), IsNil)
+	c.Assert(s.PresenceS.UpsertReverseTunnel(tunnel), IsNil)
 
 	d := &spew.ConfigState{Indent: " ", DisableMethods: true, DisablePointerMethods: true, DisablePointerAddresses: true}
 	out, err = s.clt.GetReverseTunnels()

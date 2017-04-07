@@ -82,6 +82,7 @@ func UnmarshalNamespace(data []byte) (*Namespace, error) {
 	if err := utils.UnmarshalWithSchema(GetNamespaceSchema(), &namespace, data); err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
+	utils.UTC(&namespace.Metadata.Expires)
 	return &namespace, nil
 }
 

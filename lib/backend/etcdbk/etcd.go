@@ -30,6 +30,7 @@ import (
 	"github.com/coreos/etcd/client"
 	"github.com/coreos/etcd/pkg/transport"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"golang.org/x/net/context"
 )
 
@@ -42,6 +43,7 @@ type bk struct {
 	api     client.KeysAPI
 	cancelC chan bool
 	stopC   chan bool
+	clock   clockwork.Clock
 }
 
 // Config represents JSON config for etcd backend
@@ -81,6 +83,7 @@ func New(params backend.Params) (backend.Backend, error) {
 		etcdKey: cfg.Key,
 		cancelC: make(chan bool, 1),
 		stopC:   make(chan bool, 1),
+		clock:   clockwork.NewRealClock(),
 	}
 	if err = b.reconnect(); err != nil {
 		return nil, trace.Wrap(err)
@@ -108,6 +111,10 @@ func (cfg *Config) Validate() error {
 		}
 	}
 	return nil
+}
+
+func (b *bk) Clock() clockwork.Clock {
+	return b.clock
 }
 
 func (b *bk) Close() error {

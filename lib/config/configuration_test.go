@@ -467,6 +467,12 @@ func checkStaticConfig(c *check.C, conf *FileConfig) {
 	})
 	c.Assert(conf.Auth.StaticTokens, check.DeepEquals,
 		[]StaticToken{"proxy,node:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "auth:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
+
+	policy, err := conf.CachePolicy.Parse()
+	c.Assert(err, check.IsNil)
+	c.Assert(policy.Enabled, check.Equals, true)
+	c.Assert(policy.NeverExpires, check.Equals, false)
+	c.Assert(policy.TTL, check.Equals, 20*time.Hour)
 }
 
 var (

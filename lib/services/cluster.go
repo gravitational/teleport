@@ -19,20 +19,20 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
 // TrustedCluster holds information needed for a cluster that can not be directly
 // accessed (maybe be behind firewall without any open ports) to join a parent cluster.
 type TrustedCluster interface {
-	// GetName returns the name of the TrustedCluster.
-	GetName() string
-	// SetName sets the name of the TrustedCluster.
-	SetName(string)
+	// Resource provides common resource properties
+	Resource
 	// GetEnabled returns the state of the TrustedCluster.
 	GetEnabled() bool
 	// SetEnabled enables (handshake and add ca+reverse tunnel) or disables TrustedCluster.
@@ -104,6 +104,26 @@ type TrustedClusterSpecV2 struct {
 	// ReverseTunnelAddress is the address of the SSH proxy server of the cluster to join. If
 	// not set, it is derived from <metadata.name>:<default reverse tunnel port>.
 	ReverseTunnelAddress string `json:"tunnel_addr"`
+}
+
+// GetMetadata returns object metadata
+func (c *TrustedClusterV2) GetMetadata() Metadata {
+	return c.Metadata
+}
+
+// SetExpiry sets expiry time for the object
+func (c *TrustedClusterV2) SetExpiry(expires time.Time) {
+	c.Metadata.SetExpiry(expires)
+}
+
+// Expires retuns object expiry setting
+func (c *TrustedClusterV2) Expiry() time.Time {
+	return c.Metadata.Expiry()
+}
+
+// SetTTL sets Expires header using realtime clock
+func (c *TrustedClusterV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+	c.Metadata.SetTTL(clock, ttl)
 }
 
 // GetName returns the name of the TrustedCluster.
@@ -236,7 +256,7 @@ func (t *TeleportTrustedClusterMarshaler) Unmarshal(bytes []byte) (TrustedCluste
 	if err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
-
+	utils.UTC(&trustedCluster.Metadata.Expires)
 	return &trustedCluster, nil
 }
 

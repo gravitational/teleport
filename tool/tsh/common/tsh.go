@@ -76,6 +76,8 @@ type CLIConf struct {
 	Quiet bool
 	// Namespace is used to select cluster namespace
 	Namespace string
+	// NoCache is used to turn off client cache for nodes discovery
+	NoCache bool
 	// LoadSystemAgentOnly when set to true will cause tsh agent to load keys into the system agent and
 	// then exit. This is useful when calling tsh agent from a script (for example ~/.bash_profile)
 	// to load keys into your system agent.
@@ -94,6 +96,7 @@ func Run(args []string, underTest bool) {
 	app := utils.InitCLIParser("tsh", "TSH: Teleport SSH client").Interspersed(false)
 	app.Flag("login", "Remote host login").Short('l').Envar("TELEPORT_LOGIN").StringVar(&cf.NodeLogin)
 	localUser, _ := client.Username()
+	app.Flag("nocache", "do not cache cluster discovery locally").Hidden().BoolVar(&cf.NoCache)
 	app.Flag("user", fmt.Sprintf("SSH proxy user [%s]", localUser)).Envar("TELEPORT_USER").StringVar(&cf.Username)
 	app.Flag("cluster", "Specify the cluster to connect").Envar("TELEPORT_SITE").StringVar(&cf.SiteName)
 	app.Flag("proxy", "SSH proxy host or IP address").Envar("TELEPORT_PROXY").StringVar(&cf.Proxy)
@@ -458,6 +461,9 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 	c.KeyTTL = time.Minute * time.Duration(cf.MinsToLive)
 	c.InsecureSkipVerify = cf.InsecureSkipVerify
 	c.Interactive = cf.Interactive
+	if !cf.NoCache {
+		c.CachePolicy = &client.CachePolicy{}
+	}
 	return client.NewClient(c)
 }
 
