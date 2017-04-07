@@ -132,8 +132,6 @@ type Role interface {
 	GetNamespaces() []string
 	// GetResources returns access to resources
 	GetResources() map[string][]string
-	// SetName is a shortcut for SetMetadata().Name
-	SetName(string)
 	// SetResource sets resource rule
 	SetResource(kind string, actions []string)
 	// RemoveResource deletes resource entry
@@ -214,11 +212,6 @@ func (r *RoleV2) SetName(s string) {
 // GetName returns role name and is a shortcut for GetMetadata().Name
 func (r *RoleV2) GetName() string {
 	return r.Metadata.Name
-}
-
-// SetName sets the name of the Role
-func (r *RoleV2) SetName(e string) {
-	r.Metadata.Name = e
 }
 
 // GetMetadata returns role metadata

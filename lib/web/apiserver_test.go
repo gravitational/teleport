@@ -184,9 +184,9 @@ func (s *WebSuite) SetUpTest(c *C) {
 	authorizer, err := auth.NewAuthorizer(access, identity, trust)
 	c.Assert(err, IsNil)
 
-	c.Assert(authServer.UpsertCertAuthority(
+	c.Assert(s.authServer.UpsertCertAuthority(
 		suite.NewTestCA(services.UserCA, s.domainName)), IsNil)
-	c.Assert(authServer.UpsertCertAuthority(
+	c.Assert(s.authServer.UpsertCertAuthority(
 		suite.NewTestCA(services.HostCA, s.domainName)), IsNil)
 
 	sessionServer, err := sess.New(s.bk)

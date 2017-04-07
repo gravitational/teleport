@@ -118,7 +118,6 @@ var (
 		"seed_config":        false,
 		"public_addr":        false,
 		"cache":              true,
-		"never_expires":      false,
 		"ttl":                false,
 	}
 )
@@ -325,13 +324,19 @@ type CachePolicy struct {
 	EnabledFlag string `yaml:"enabled,omitempty"`
 	// TTL sets maximum TTL for the cached values
 	TTL string `yaml:"ttl,omitempty"`
-	// NeverExpires means that cache will never expire
-	NeverExpiresFlag string `yaml:"never_expires,omitempty"`
 }
 
 func isTrue(v string) bool {
 	switch v {
 	case "yes", "yeah", "y", "true", "1":
+		return true
+	}
+	return false
+}
+
+func isNever(v string) bool {
+	switch v {
+	case "never", "no", "0":
 		return true
 	}
 	return false
@@ -344,10 +349,10 @@ func (c *CachePolicy) Enabled() bool {
 
 // NeverExpires returns if cache never expires by itself
 func (c *CachePolicy) NeverExpires() bool {
-	if c.NeverExpiresFlag == "" {
-		return false
+	if isNever(c.TTL) {
+		return true
 	}
-	return isTrue(c.NeverExpiresFlag)
+	return false
 }
 
 // Parse parses cache policy from Teleport config

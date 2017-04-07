@@ -173,7 +173,7 @@ func (cs *CachingAuthClient) GetRoles() (roles []services.Role, err error) {
 		}
 	}
 	for _, role := range roles {
-		if err := cs.access.UpsertRole(role); err != nil {
+		if err := cs.access.UpsertRole(role, backend.Forever); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -210,7 +210,7 @@ func (cs *CachingAuthClient) GetRole(name string) (role services.Role, err error
 		}
 	}
 	cs.setTTL(role)
-	if err := cs.access.UpsertRole(role); err != nil {
+	if err := cs.access.UpsertRole(role, backend.Forever); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return role, nil

@@ -54,7 +54,6 @@ teleport:
   cache:
     enabled: yes
     ttl: 20h
-    never_expires: no
 
 auth_service:
   enabled: yes
