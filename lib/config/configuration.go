@@ -435,7 +435,7 @@ func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (services.CertAut
 	}
 	clusterName := comments.Get("clustername")
 	if clusterName == "" {
-		return nil, nil, trace.BadParameter("not clustername provided")
+		return nil, nil, trace.BadParameter("no clustername provided")
 	}
 
 	// create a new certificate authority
