@@ -909,6 +909,10 @@ func claimsFromUserInfo(oidcClient *oidc.Client, issuerURL string, accessToken s
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// If the provider doesn't offer a UserInfo endpoint don't err.
+	if pc.UserInfoEndpoint == nil {
+		return nil, nil
+	}
 	endpoint := pc.UserInfoEndpoint.String()
 	err = isHTTPS(endpoint)
 	if err != nil {
@@ -979,6 +983,11 @@ func (a *AuthServer) getClaims(oidcClient *oidc.Client, issuerURL string, code s
 		log.Debugf("[OIDC] Unable to fetch UserInfo claims: %v", err)
 		return nil, trace.Wrap(err)
 	}
+	if userInfoClaims == nil {
+		log.Warn("[OIDC] Provider doesn't offer UserInfo endpoint. Only token claims will be used.")
+		return idTokenClaims, nil
+	}
+
 	log.Debugf("[OIDC] UserInfo claims: %v", userInfoClaims)
 
 	// make sure that the subject in the userinfo claim matches the subject in
