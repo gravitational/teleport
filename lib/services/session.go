@@ -14,6 +14,7 @@ import (
 // WebSession stores key and value used to authenticate with SSH
 // notes on behalf of user
 type WebSession interface {
+	GetMetadata() Metadata
 	// GetShortName returns visible short name used in logging
 	GetShortName() string
 	// GetName returns session name
@@ -87,6 +88,11 @@ type WebSessionSpecV2 struct {
 	BearerTokenExpires time.Time `json:"bearer_token_expires"`
 	// Expires - absolute time when session expires
 	Expires time.Time `json:"expires"`
+}
+
+// GetMetadata returns metadata
+func (ws *WebSessionV2) GetMetadata() Metadata {
+	return ws.Metadata
 }
 
 // WithoutSecrets returns copy of the object but without secrets
@@ -382,6 +388,7 @@ func (*TeleportWebSessionMarshaler) UnmarshalWebSession(bytes []byte) (WebSessio
 		}
 		utils.UTC(&ws.Spec.BearerTokenExpires)
 		utils.UTC(&ws.Spec.Expires)
+		utils.UTC(&ws.Metadata.Expires)
 		return &ws, nil
 	}
 

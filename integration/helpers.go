@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
 
@@ -49,6 +50,10 @@ type TeleInstance struct {
 	Process *service.TeleportProcess
 	Config  *service.Config
 	Tunnel  reversetunnel.Server
+
+	// Nodes is a list of additional nodes
+	// started with this instance
+	Nodes []*service.TeleportProcess
 }
 
 type User struct {
@@ -245,6 +250,13 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 		Params: backend.Params{"path": dataDir},
 	}
 	tconf.Keygen = testauthority.New()
+	tconf.Auth.StaticTokens = []services.ProvisionToken{
+		{
+			Roles: []teleport.Role{teleport.RoleNode, teleport.RoleProxy},
+			Token: "token",
+		},
+	}
+
 	i.Config = tconf
 	i.Process, err = service.NewTeleport(tconf)
 	if err != nil {
@@ -285,6 +297,37 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 		}
 	}
 	return nil
+}
+
+// StartNode starts SSH node and connects it to the cluster
+func (i *TeleInstance) StartNode(name string, sshPort, proxyWebPort, proxySSHPort int) error {
+	dataDir, err := ioutil.TempDir("", "cluster-"+i.Secrets.SiteName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	tconf := service.MakeDefaultConfig()
+	tconf.HostUUID = name
+	tconf.Hostname = name
+	tconf.DataDir = dataDir
+	tconf.Auth.Enabled = false
+	tconf.Proxy.Enabled = true
+	tconf.SSH.Enabled = true
+	tconf.SSH.Addr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", sshPort))
+	authServer := utils.MustParseAddr(net.JoinHostPort(i.Hostname, i.GetPortAuth()))
+	tconf.AuthServers = append(tconf.AuthServers, *authServer)
+	tconf.Token = "token"
+	tconf.Proxy.SSHAddr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", proxySSHPort))
+	tconf.Proxy.WebAddr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", proxyWebPort))
+	tconf.Proxy.DisableWebUI = true
+	// Enable cachingx
+	tconf.CachePolicy = service.CachePolicy{Enabled: true}
+
+	process, err := service.NewTeleport(tconf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	i.Nodes = append(i.Nodes, process)
+	return process.Start()
 }
 
 // Reset re-creates the teleport instance based on the same configuration
@@ -425,6 +468,22 @@ func (i *TeleInstance) NewClient(login string, site string, host string, port in
 	return tc, nil
 }
 
+// StopNodes stops additional nodes
+func (i *TeleInstance) StopNodes() error {
+	var errors []error
+	for _, node := range i.Nodes {
+		if err := node.Close(); err != nil {
+			errors = append(errors, err)
+			log.Errorf("failed closing extra node %v", err)
+		}
+		if err := node.Wait(); err != nil {
+			errors = append(errors, err)
+			log.Errorf("failed stopping extra node %v", err)
+		}
+	}
+	return trace.NewAggregate(errors...)
+}
+
 func (i *TeleInstance) Stop(removeData bool) error {
 	if i.Config != nil && removeData {
 		err := os.RemoveAll(i.Config.DataDir)
@@ -432,6 +491,7 @@ func (i *TeleInstance) Stop(removeData bool) error {
 			log.Error("failed removing temporary local Teleport directory", err)
 		}
 	}
+
 	log.Infof("Asking Teleport to stop")
 	err := i.Process.Close()
 	if err != nil {

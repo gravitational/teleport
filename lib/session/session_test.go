@@ -52,7 +52,7 @@ func (s *SessionSuite) SetUpTest(c *C) {
 	bk, err := dir.New(backend.Params{"path": s.dir})
 	c.Assert(err, IsNil)
 	s.bk = bk.(*dir.Backend)
-	s.bk.Clock = s.clock
+	s.bk.InternalClock = s.clock
 
 	srv, err := New(s.bk)
 	s.srv = srv.(*server)

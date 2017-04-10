@@ -73,7 +73,7 @@ https://localhost:3080/web/newuser/96c85ed60b47ad345525f03e1524ac95d78d94ffd2d0f
 
 `tctl` prints a sign-up URL for you to open in your browser and complete registration: 
 
-![teleport login](/img/login.png)
+![teleport login](/img/login.png?style=grv-image-center-md)
 
 Teleport enforces two-factor authentication. If you do not already have Google Authenticator, you will have to install it on your smart phone. Then you can scan the bar code on the Teleport login web page, pick a password and enter in the two factor token.
  
@@ -81,7 +81,7 @@ The default TTL for a login is 12 hours but this can be configured to a maximum 
 
 Having done that, you will be presented with a Web UI where you will see your machine and will be able to log in to it using web-based terminal.
 
-![teleport ui](/img/firstpage.png)
+![teleport ui](/img/firstpage.png?style=grv-image-center-md)
 
 ## Logging In Through CLI
 

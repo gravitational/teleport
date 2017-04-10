@@ -201,6 +201,16 @@ auth_service:
         # second_factor can be off, otp, or u2f
         second_factor: otp
 
+        # this section is only used if using u2f
+        u2f:
+            # app_id should point to the Web UI.
+            app_id: https://localhost:3080
+
+            # facets should list all proxy servers.
+            facets:
+            - https://localhost
+            - https://localhost:3080
+
     # IP and the port to bind to. Other Teleport nodes will be connecting to
     # this port (AKA "Auth API" or "Cluster API") to validate client 
     # certificates 
@@ -289,6 +299,82 @@ Teleport supports two types of user accounts:
 * **External users** are users stored elsewhere else within an organization. Examples include
   Github, Active Directory (AD), LDAP server, OpenID/OAuth2 endpoint or behind SAML. 
 
+## FIDO U2F
+
+Teleport supports [FIDO U2F](https://www.yubico.com/about/background/fido/) 
+hardware keys as a second authentication factor.
+
+To start using U2F:
+
+* Purchase a U2F hardware key: looks like a tiny USB drive.
+* Enable U2F in Teleport configuration `teleport.yaml`.
+* For CLI-based logins you have to install [u2f-host](https://developers.yubico.com/libu2f-host/) utility. 
+* For web-based logins you have to use Google Chrome, as the only browser supporting U2F at this moment.
+
+Lets look into each of these steps in detail.
+
+### Getting U2F Keys
+
+The following hardware keys have been tested with Teleport:
+   * [Yubikey](https://www.yubico.com/products/yubikey-hardware)
+
+### Enabling U2F
+
+By default U2F is disabled. To enable U2F, add the following to the auth 
+service configuration in `teleport.yaml`:
+
+```yaml
+authentication:
+   type: local
+   second_factor: u2f
+
+   u2f:
+      # app_id should point to the Web UI.
+      app_id: https://localhost:3080
+
+      # facets should list all proxy servers.
+      facets:
+         - https://localhost
+         - https://localhost:3080
+```
+
+For single-proxy setups, the App ID can be equal to the domain name of the
+proxy, but this will prevent you from adding more proxies without changing the
+App ID.  For multi-proxy setups, the App ID should be an HTTPS URL pointing to
+a JSON file that mirrors `facets` in the auth config.
+
+The JSON file should be hosted on a domain you control and it should be
+accessible anonymously. See the [official U2F specification](https://fidoallian
+ce.org/specs/fido-u2f-v1.0-ps-20141009/fido-appid-and-facets-ps-20141009.html#p
+rocessing-rules-for-appid-and-facetid-assertions) for the exact format of the
+JSON file.
+
+!!! warning "Warning": 
+    The App ID must never change in the lifetime of the cluster. If the App ID
+    changes, all existing U2F key registrations will become invalid and all users
+    who use U2F as the second factor will need to re-register.
+
+    When adding a new proxy server, make sure to add it to the list of "facets" 
+    in the configuration file, but also to the JSON file referenced by `app_id`
+
+### Logging in with U2F
+
+For logging in via the CLI, you must first install [u2f-host](https://developers.yubico.com/libu2f-host/). 
+Installing: 
+
+```bash
+# OSX:
+$ brew install libu2f-host
+
+# Ubuntu 16.04 LTS:
+$ apt-get install u2f-host
+```
+
+Then invoke `tsh ssh` as usual to authenticate:
+
+```
+tsh --proxy <proxy-addr> ssh <hostname>
+```
 
 !!! tip "Version Warning": 
     External user identities are only supported in [Teleport Enterprise](/enterprise/). Please reach

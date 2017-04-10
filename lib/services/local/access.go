@@ -36,6 +36,11 @@ func NewAccessService(backend backend.Backend) *AccessService {
 	return &AccessService{Backend: backend}
 }
 
+// DeleteAllRoles deletes all roles
+func (s *AccessService) DeleteAllRoles() error {
+	return s.DeleteBucket([]string{}, "roles")
+}
+
 // GetRoles returns a list of roles registered with the local auth server
 func (s *AccessService) GetRoles() ([]services.Role, error) {
 	keys, err := s.GetKeys([]string{"roles"})
@@ -63,6 +68,13 @@ func (s *AccessService) UpsertRole(role services.Role, ttl time.Duration) error 
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	// TODO(klizhentas): Picking smaller of the two ttls
+	backendTTL := backend.TTL(s.Clock(), role.GetMetadata().Expires)
+	if backendTTL < ttl {
+		ttl = backendTTL
+	}
+
 	err = s.UpsertVal([]string{"roles", role.GetName()}, "params", []byte(data), ttl)
 	if err != nil {
 		return trace.Wrap(err)

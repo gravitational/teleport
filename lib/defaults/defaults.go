@@ -61,6 +61,9 @@ const (
 	// By default all users use /bin/bash
 	DefaultShell = "/bin/bash"
 
+	// CacheTTL is a default cache TTL for persistent node cache
+	CacheTTL = 20 * time.Hour
+
 	// InviteTokenTTL sets the lifespan of tokens used for adding nodes and users
 	// to a cluster
 	InviteTokenTTL = 15 * time.Minute
@@ -68,6 +71,9 @@ const (
 	// DefaultDialTimeout is a default TCP dial timeout we set for our
 	// connection attempts
 	DefaultDialTimeout = 10 * time.Second
+
+	// DefaultThrottleTimeout is a timemout used to throttle failed auth servers
+	DefaultThrottleTimeout = 10 * time.Second
 
 	// DefaultIdleConnectionDuration indicates for how long Teleport will hold
 	// the SSH connection open if there are no reads/writes happening over it.
@@ -112,7 +118,7 @@ const (
 	ActivePartyTTL = 30 * time.Second
 
 	// OIDCAuthRequestTTL is TTL of internally stored auth request created by client
-	OIDCAuthRequestTTL = 60 * time.Second
+	OIDCAuthRequestTTL = 10 * 60 * time.Second
 
 	// LogRotationPeriod defines how frequently to rotate the audit log file
 	LogRotationPeriod = (time.Hour * 24)

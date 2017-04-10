@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/state"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
@@ -59,34 +60,45 @@ type server struct {
 	// localSites is the list of local (our own cluster) tunnel clients,
 	// usually each of them is a local proxy.
 	localSites []*localSite
+
+	// newAccessPoint returns new caching access point
+	newAccessPoint state.NewCachingAccessPoint
 }
 
 // ServerOption sets reverse tunnel server options
-type ServerOption func(s *server)
+type ServerOption func(s *server) error
 
 // DirectSite instructs server to proxy access to this site not using
 // reverse tunnel
 func DirectSite(domainName string, clt auth.ClientI) ServerOption {
-	return func(s *server) {
-		s.localSites = append(s.localSites, newlocalSite(domainName, clt))
+	return func(s *server) error {
+		site, err := newlocalSite(s, domainName, clt)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		s.localSites = append(s.localSites, site)
+		return nil
 	}
 }
 
+// SetLimiter sets rate limiter for reverse tunnel
 func SetLimiter(limiter *limiter.Limiter) ServerOption {
-	return func(s *server) {
+	return func(s *server) error {
 		s.limiter = limiter
+		return nil
 	}
 }
 
 // NewServer creates and returns a reverse tunnel server which is fully
 // initialized but hasn't been started yet
 func NewServer(addr utils.NetAddr, hostSigners []ssh.Signer,
-	authAPI auth.AccessPoint, opts ...ServerOption) (Server, error) {
+	authAPI auth.AccessPoint, fn state.NewCachingAccessPoint, opts ...ServerOption) (Server, error) {
 
 	srv := &server{
-		localSites:  []*localSite{},
-		remoteSites: []*remoteSite{},
-		localAuth:   authAPI,
+		localSites:     []*localSite{},
+		remoteSites:    []*remoteSite{},
+		localAuth:      authAPI,
+		newAccessPoint: fn,
 	}
 	var err error
 	srv.limiter, err = limiter.NewLimiter(limiter.LimiterConfig{})
@@ -95,7 +107,9 @@ func NewServer(addr utils.NetAddr, hostSigners []ssh.Signer,
 	}
 
 	for _, o := range opts {
-		o(srv)
+		if err := o(srv); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	s, err := sshutils.NewServer(
@@ -437,6 +451,14 @@ func newRemoteSite(srv *server, domainName string) (*remoteSite, error) {
 		return nil, trace.Wrap(err)
 	}
 	remoteSite.clt = clt
+
+	accessPoint, err := srv.newAccessPoint(clt, []string{"reverse", domainName})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	remoteSite.accessPoint = accessPoint
+
 	return remoteSite, nil
 }
 

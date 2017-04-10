@@ -17,9 +17,11 @@ limitations under the License.
 package service
 
 import (
+	"fmt"
 	"io"
 	"net"
 	"os"
+	"time"
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
@@ -58,6 +60,10 @@ type Config struct {
 	// AdvertiseIP is used to "publish" an alternative IP address this node
 	// can be reached on, if running behind NAT
 	AdvertiseIP net.IP
+
+	// CachePolicy sets caching policy for nodes and proxies
+	// in case if they loose connection to auth servers
+	CachePolicy CachePolicy
 
 	// SSH role an SSH endpoint server
 	SSH SSHConfig
@@ -146,6 +152,32 @@ func (cfg *Config) DebugDumpToYAML() string {
 		return err.Error()
 	}
 	return string(out)
+}
+
+// CachePolicy sets caching policy for proxies and nodes
+type CachePolicy struct {
+	// Enabled enables or disables caching
+	Enabled bool
+	// TTL sets maximum TTL for the cached values
+	// without explicit TTL set
+	TTL time.Duration
+	// NeverExpires means that cache values without TTL
+	// set by the auth server won't expire
+	NeverExpires bool
+}
+
+// String returns human-friendly representation of the policy
+func (c CachePolicy) String() string {
+	if !c.Enabled {
+		return "no cache policy"
+	}
+	if c.NeverExpires {
+		return "never expiring cache policy"
+	}
+	if c.TTL == 0 {
+		return fmt.Sprintf("cache policy with %v TTL", defaults.CacheTTL)
+	}
+	return fmt.Sprintf("cache policy with %v TTL", c.TTL)
 }
 
 // ProxyConfig configures proy service

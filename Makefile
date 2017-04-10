@@ -35,6 +35,12 @@ $(BUILDDIR)/teleport: $(LIBS) tool/teleport/*.go tool/teleport/common/*.go
 $(BUILDDIR)/tsh: $(LIBS) tool/tsh/*.go
 	go build -o $(BUILDDIR)/tsh -i $(BUILDFLAGS) ./tool/tsh
 
+.PHONY: goinstall
+goinstall:
+	go install github.com/gravitational/teleport/tool/tsh
+	go install github.com/gravitational/teleport/tool/teleport
+	go install github.com/gravitational/teleport/tool/tctl
+
 #
 # make install will installs system-wide teleport 
 # 

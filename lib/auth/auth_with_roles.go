@@ -82,11 +82,11 @@ func (a *AuthWithRoles) UpdateSession(req session.UpdateRequest) error {
 	return a.sessions.UpdateSession(req)
 }
 
-func (a *AuthWithRoles) UpsertCertAuthority(ca services.CertAuthority, ttl time.Duration) error {
+func (a *AuthWithRoles) UpsertCertAuthority(ca services.CertAuthority) error {
 	if err := a.action(defaults.Namespace, services.KindCertAuthority, services.ActionWrite); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpsertCertAuthority(ca, ttl)
+	return a.authServer.UpsertCertAuthority(ca)
 }
 
 func (a *AuthWithRoles) GetCertAuthorities(caType services.CertAuthType, loadKeys bool) ([]services.CertAuthority, error) {
@@ -122,6 +122,18 @@ func (a *AuthWithRoles) GetDomainName() (string, error) {
 	return a.authServer.GetDomainName()
 }
 
+func (a *AuthWithRoles) GetLocalClusterName() (string, error) {
+	// anyone can read it, no harm in that
+	return a.authServer.GetLocalClusterName()
+}
+
+func (a *AuthWithRoles) UpsertLocalClusterName(clusterName string) error {
+	if err := a.action(defaults.Namespace, services.KindAuthServer, services.ActionWrite); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.UpsertLocalClusterName(clusterName)
+}
+
 func (a *AuthWithRoles) DeleteCertAuthority(id services.CertAuthID) error {
 	if err := a.action(defaults.Namespace, services.KindCertAuthority, services.ActionWrite); err != nil {
 		return trace.Wrap(err)
@@ -146,11 +158,11 @@ func (a *AuthWithRoles) RegisterNewAuthServer(token string) error {
 	return a.authServer.RegisterNewAuthServer(token)
 }
 
-func (a *AuthWithRoles) UpsertNode(s services.Server, ttl time.Duration) error {
+func (a *AuthWithRoles) UpsertNode(s services.Server) error {
 	if err := a.action(s.GetNamespace(), services.KindNode, services.ActionWrite); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpsertNode(s, ttl)
+	return a.authServer.UpsertNode(s)
 }
 
 func (a *AuthWithRoles) GetNodes(namespace string) ([]services.Server, error) {
@@ -160,11 +172,11 @@ func (a *AuthWithRoles) GetNodes(namespace string) ([]services.Server, error) {
 	return a.authServer.GetNodes(namespace)
 }
 
-func (a *AuthWithRoles) UpsertAuthServer(s services.Server, ttl time.Duration) error {
+func (a *AuthWithRoles) UpsertAuthServer(s services.Server) error {
 	if err := a.action(defaults.Namespace, services.KindAuthServer, services.ActionWrite); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpsertAuthServer(s, ttl)
+	return a.authServer.UpsertAuthServer(s)
 }
 
 func (a *AuthWithRoles) GetAuthServers() ([]services.Server, error) {
@@ -174,11 +186,11 @@ func (a *AuthWithRoles) GetAuthServers() ([]services.Server, error) {
 	return a.authServer.GetAuthServers()
 }
 
-func (a *AuthWithRoles) UpsertProxy(s services.Server, ttl time.Duration) error {
+func (a *AuthWithRoles) UpsertProxy(s services.Server) error {
 	if err := a.action(defaults.Namespace, services.KindProxy, services.ActionWrite); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpsertProxy(s, ttl)
+	return a.authServer.UpsertProxy(s)
 }
 
 func (a *AuthWithRoles) GetProxies() ([]services.Server, error) {
@@ -188,11 +200,11 @@ func (a *AuthWithRoles) GetProxies() ([]services.Server, error) {
 	return a.authServer.GetProxies()
 }
 
-func (a *AuthWithRoles) UpsertReverseTunnel(r services.ReverseTunnel, ttl time.Duration) error {
+func (a *AuthWithRoles) UpsertReverseTunnel(r services.ReverseTunnel) error {
 	if err := a.action(defaults.Namespace, services.KindReverseTunnel, services.ActionWrite); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpsertReverseTunnel(r, ttl)
+	return a.authServer.UpsertReverseTunnel(r)
 }
 
 func (a *AuthWithRoles) GetReverseTunnels() ([]services.ReverseTunnel, error) {
@@ -432,11 +444,11 @@ func (a *AuthWithRoles) UpsertUser(u services.User) error {
 	return a.authServer.UpsertUser(u)
 }
 
-func (a *AuthWithRoles) UpsertOIDCConnector(connector services.OIDCConnector, ttl time.Duration) error {
+func (a *AuthWithRoles) UpsertOIDCConnector(connector services.OIDCConnector) error {
 	if err := a.action(defaults.Namespace, services.KindOIDC, services.ActionWrite); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpsertOIDCConnector(connector, ttl)
+	return a.authServer.UpsertOIDCConnector(connector)
 }
 
 func (a *AuthWithRoles) GetOIDCConnector(id string, withSecrets bool) (services.OIDCConnector, error) {
@@ -617,6 +629,41 @@ func (a *AuthWithRoles) SetUniversalSecondFactor(u2f services.UniversalSecondFac
 	}
 
 	return a.authServer.SetUniversalSecondFactor(u2f)
+}
+
+// DeleteAllCertAuthorities deletes all certificate authorities of a certain type
+func (a *AuthWithRoles) DeleteAllCertAuthorities(caType services.CertAuthType) error {
+	return trace.BadParameter("not implemented")
+}
+
+// DeleteAllCertNamespaces deletes all namespaces
+func (a *AuthWithRoles) DeleteAllNamespaces() error {
+	return trace.BadParameter("not implemented")
+}
+
+// DeleteAllReverseTunnels deletes all reverse tunnels
+func (a *AuthWithRoles) DeleteAllReverseTunnels() error {
+	return trace.BadParameter("not implemented")
+}
+
+// DeleteAllProxies deletes all proxies
+func (a *AuthWithRoles) DeleteAllProxies() error {
+	return trace.BadParameter("not implemented")
+}
+
+// DeleteAllNodes deletes all nodes in a given namespace
+func (a *AuthWithRoles) DeleteAllNodes(namespace string) error {
+	return trace.BadParameter("not implemented")
+}
+
+// DeleteAllRoles deletes all roles
+func (a *AuthWithRoles) DeleteAllRoles() error {
+	return trace.BadParameter("not implemented")
+}
+
+// DeleteAllUsers deletes all users
+func (a *AuthWithRoles) DeleteAllUsers() error {
+	return trace.BadParameter("not implemented")
 }
 
 func (a *AuthWithRoles) GetTrustedCluster(name string) (services.TrustedCluster, error) {
