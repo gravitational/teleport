@@ -116,6 +116,9 @@ tag:
 release: clean all $(BUILDDIR)/webassets.zip
 	cp -f build.assets/release.mk $(BUILDDIR)/Makefile
 	cat $(BUILDDIR)/webassets.zip >> $(BUILDDIR)/teleport
+	rm -fr $(BUILDDIR)/webassets.zip
+	cp README.md $(BUILDDIR)
+	cp CHANGELOG.md $(BUILDDIR)
 	zip -q -A $(BUILDDIR)/teleport
 	cp -rf $(BUILDDIR) teleport
 	@echo $(GITTAG) > teleport/VERSION
