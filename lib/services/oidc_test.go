@@ -162,6 +162,8 @@ func (s *OIDCSuite) TestUnmarshalInvalid(c *check.C) {
 	c.Assert(err, check.NotNil)
 }
 
+// TestRoleFromTemplate checks that we can create a valid role from a template. Also
+// makes sure missing fields are filled in.
 func (s *OIDCSuite) TestRoleFromTemplate(c *check.C) {
 	oidcConnector := OIDCConnectorV2{
 		Kind:    KindOIDCConnector,
@@ -189,7 +191,6 @@ func (s *OIDCSuite) TestRoleFromTemplate(c *check.C) {
 							Namespace: defaults.Namespace,
 						},
 						Spec: RoleSpecV2{
-							Namespaces:    []string{"default"},
 							MaxSessionTTL: NewDuration(30 * 60 * time.Minute),
 							Logins:        []string{`{{index . "nickname"}}`, `root`},
 							NodeLabels:    map[string]string{"*": "*"},

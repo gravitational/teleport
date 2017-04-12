@@ -417,6 +417,12 @@ func (o *OIDCConnectorV2) RoleFromTemplate(claims jose.Claims) (Role, error) {
 				roleTemplate.SetName(executedName)
 				roleTemplate.SetLogins(executedLogins)
 
+				// check all fields and make sure we have have a valid role
+				err = roleTemplate.CheckAndSetDefaults()
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
 				return roleTemplate, nil
 			}
 		}
