@@ -262,8 +262,12 @@ func (r *RoleV2) SetForwardAgent(forwardAgent bool) {
 
 // Check checks validity of all parameters and sets defaults
 func (r *RoleV2) CheckAndSetDefaults() error {
+	// make sure we have defaults for all fields
 	if r.Metadata.Name == "" {
 		return trace.BadParameter("missing parameter Name")
+	}
+	if r.Metadata.Namespace == "" {
+		r.Metadata.Namespace = defaults.Namespace
 	}
 	if r.Spec.MaxSessionTTL.Duration == 0 {
 		r.Spec.MaxSessionTTL.Duration = defaults.MaxCertDuration
@@ -271,9 +275,27 @@ func (r *RoleV2) CheckAndSetDefaults() error {
 	if r.Spec.MaxSessionTTL.Duration < defaults.MinCertDuration {
 		return trace.BadParameter("maximum session TTL can not be less than")
 	}
+	if r.Spec.Namespaces == nil {
+		r.Spec.Namespaces = []string{defaults.Namespace}
+	}
+	if r.Spec.NodeLabels == nil {
+		r.Spec.NodeLabels = map[string]string{Wildcard: Wildcard}
+	}
+	if r.Spec.Resources == nil {
+		r.Spec.Resources = map[string][]string{
+			KindSession:       RO(),
+			KindRole:          RO(),
+			KindNode:          RO(),
+			KindAuthServer:    RO(),
+			KindReverseTunnel: RO(),
+			KindCertAuthority: RO(),
+		}
+	}
+
+	// restrict wildcards
 	for _, login := range r.Spec.Logins {
 		if login == Wildcard {
-			return trace.BadParameter("wilcard matcher is not allowed in logins")
+			return trace.BadParameter("wildcard matcher is not allowed in logins")
 		}
 		if !cstrings.IsValidUnixUser(login) {
 			return trace.BadParameter("'%v' is not a valid user name", login)
@@ -284,6 +306,7 @@ func (r *RoleV2) CheckAndSetDefaults() error {
 			return trace.BadParameter("selector *:<val> is not supported")
 		}
 	}
+
 	return nil
 }
 

@@ -76,7 +76,7 @@ the YAML file to `tctl` via `-c` flag.
 
 ### Trusted Clusters
 
-To setup Trusted Clusters:
+#### Trusted Clusters with Resources
 
 1. Update `two-role.yaml` and replace `username_goes_here` with your username.
 1. Create a `Role` and `TrustedCluster` resource on Cluster Two.
@@ -86,6 +86,41 @@ To setup Trusted Clusters:
     tctl -c /root/go/src/github.com/gravitational/teleport/docker/two-auth.yaml create -f docker/two-role-admin.yaml
     tctl -c /root/go/src/github.com/gravitational/teleport/docker/two-auth.yaml create -f docker/two-tc.yaml
     ```
+
+#### Trusted Clusters with File Configuration
+
+##### Export CAs
+
+Run the following commands to export your CAs.
+
+```bash
+# enter cluster two and export ca
+make enter-two
+tctl -c /root/go/src/github.com/gravitational/teleport/docker/two-auth.yaml auth export > docker/data/two/two.ca
+exit
+
+# enter cluster one and export ca
+make enter-one
+tctl auth export > docker/data/one/one.ca
+exit
+```
+
+##### Upate Configuration
+
+Stop both clusters with `make stop`, update the file configuration for both clusters, and start again with `make`.
+
+```bash
+# update docker/one.yaml with the following under "auth_service"
+trusted_clusters:
+  - key_file: /root/go/src/github.com/gravitational/teleport/docker/data/two/two.ca
+```
+```bash
+# update docker/two-auth.yaml with the following under "auth_service"
+trusted_clusters:
+  - key_file: /root/go/src/github.com/gravitational/teleport/docker/data/one/one.ca
+    allow_logins: root
+    tunnel_addr: one
+```
 
 ### Ansible
 
