@@ -17,6 +17,7 @@ limitations under the License.
 package auth
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -337,4 +338,105 @@ func (s *AuthSuite) TestBuildRolesTemplate(c *C) {
 	c.Assert(r[0].GetName(), Equals, "foo@example.com")
 	c.Assert(roles, HasLen, 1)
 	c.Assert(roles[0], Equals, "foo@example.com")
+}
+
+func (s *AuthSuite) TestValidateACRValues(c *C) {
+
+	var tests = []struct {
+		inIDToken     string
+		inACRValue    string
+		inACRProvider string
+		outIsValid    bool
+	}{
+		// 0 - default, acr values match
+		{
+			`
+{
+	"acr": "foo",
+	"aud": "00000000-0000-0000-0000-000000000000",
+    "exp": 1111111111
+}
+			`,
+			"foo",
+			"",
+			true,
+		},
+		// 1 - default, acr values do not match
+		{
+			`
+{
+	"acr": "foo",
+	"aud": "00000000-0000-0000-0000-000000000000",
+    "exp": 1111111111
+}
+			`,
+			"bar",
+			"",
+			false,
+		},
+		// 2 - netiq, acr values match
+		{
+			`
+{
+    "acr": {
+        "values": [
+            "foo/bar/baz"
+        ]
+    },
+    "aud": "00000000-0000-0000-0000-000000000000",
+    "exp": 1111111111
+}
+			`,
+			"foo/bar/baz",
+			"netiq",
+			true,
+		},
+		// 3 - netiq, invalid format
+		{
+			`
+{
+    "acr": {
+        "values": "foo/bar/baz"
+    },
+    "aud": "00000000-0000-0000-0000-000000000000",
+    "exp": 1111111111
+}
+			`,
+			"foo/bar/baz",
+			"netiq",
+			false,
+		},
+		// 4 - netiq, invalid value
+		{
+			`
+{
+    "acr": {
+        "values": [
+            "foo/bar/baz/qux"
+        ]
+    },
+    "aud": "00000000-0000-0000-0000-000000000000",
+    "exp": 1111111111
+}
+			`,
+			"foo/bar/baz",
+			"netiq",
+			false,
+		},
+	}
+
+	for i, tt := range tests {
+		comment := Commentf("Test %v", i)
+
+		var claims jose.Claims
+		err := json.Unmarshal([]byte(tt.inIDToken), &claims)
+		c.Assert(err, IsNil, comment)
+
+		err = s.a.validateACRValues(tt.inACRValue, tt.inACRProvider, claims)
+		if tt.outIsValid {
+			c.Assert(err, IsNil, comment)
+		} else {
+			c.Assert(err, NotNil, comment)
+		}
+	}
 }
