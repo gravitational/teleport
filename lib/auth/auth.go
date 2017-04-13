@@ -1130,7 +1130,7 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 	// if we are sending acr values, make sure we also validate them
 	acrValue := connector.GetACR()
 	if acrValue != "" {
-		err := a.validateACRValues(acrValue, connector.GetIdentityProvider(), claims)
+		err := a.validateACRValues(acrValue, connector.GetProvider(), claims)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
