@@ -749,9 +749,25 @@ func (s *AuthServer) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*servi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	// online is OIDC online scope, "select_account" forces user to always select account
-	redirectURL := oauthClient.AuthCodeURL(req.StateToken, "online", "select_account")
-	req.RedirectURL = redirectURL
+	req.RedirectURL = oauthClient.AuthCodeURL(req.StateToken, "online", "select_account")
+
+	// if the connector has an Authentication Context Class Reference (ACR) value set,
+	// update redirect url and add it as a query value.
+	acrValue := connector.GetACR()
+	if acrValue != "" {
+		u, err := url.Parse(req.RedirectURL)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		q := u.Query()
+		q.Set("acr_values", acrValue)
+		u.RawQuery = q.Encode()
+		req.RedirectURL = u.String()
+	}
+
+	log.Debugf("[OIDC] Redirect URL: %v", req.RedirectURL)
 
 	err = s.Identity.CreateOIDCAuthRequest(req, defaults.OIDCAuthRequestTTL)
 	if err != nil {
@@ -1018,6 +1034,56 @@ func (a *AuthServer) getClaims(oidcClient *oidc.Client, issuerURL string, code s
 	return claims, nil
 }
 
+// validateACRValues validates that we get an appropriate response for acr values. By default
+// we expect the same value we send, but this function also handles Identity Provider specific
+// forms of validation.
+func (a *AuthServer) validateACRValues(acrValue string, identityProvider string, claims jose.Claims) error {
+	switch identityProvider {
+	case teleport.NetIQ:
+		log.Debugf("[OIDC] Validating ACR values with %q rules", identityProvider)
+
+		tokenAcr, ok := claims["acr"]
+		if !ok {
+			return trace.BadParameter("acr claim does not exist")
+		}
+		tokenAcrMap, ok := tokenAcr.(map[string][]string)
+		if !ok {
+			return trace.BadParameter("acr unknown type: %T", tokenAcr)
+		}
+		tokenAcrValues, ok := tokenAcrMap["values"]
+		if !ok {
+			return trace.BadParameter("acr.values not found in claims")
+		}
+		acrValueMatched := false
+		for _, v := range tokenAcrValues {
+			if acrValue == v {
+				acrValueMatched = true
+				break
+			}
+		}
+		if !acrValueMatched {
+			log.Debugf("[OIDC] No ACR match found for %q in %q", acrValue, tokenAcrValues)
+			return trace.BadParameter("acr claim does not match")
+		}
+	default:
+		log.Debugf("[OIDC] Validating ACR values with default rules")
+
+		claimValue, exists, err := claims.StringClaim("acr")
+		if !exists {
+			return trace.BadParameter("acr claim does not exist")
+		}
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if claimValue != acrValue {
+			log.Debugf("[OIDC] No ACR match found %q != %q", acrValue, claimValue)
+			return trace.BadParameter("acr claim does not match")
+		}
+	}
+
+	return nil
+}
+
 // ValidateOIDCAuthCallback is called by the proxy to check OIDC query parameters
 // returned by OIDC Provider, if everything checks out, auth server
 // will respond with OIDCAuthResponse, otherwise it will return error
@@ -1060,6 +1126,15 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 			oauth2.ErrorUnsupportedResponseType, "unable to construct claims", q)
 	}
 	log.Debugf("[OIDC] Claims: %v", claims)
+
+	// if we are sending acr values, make sure we also validate them
+	acrValue := connector.GetACR()
+	if acrValue != "" {
+		err := a.validateACRValues(acrValue, connector.GetIdentityProvider(), claims)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 
 	ident, err := oidc.IdentityFromClaims(claims)
 	if err != nil {

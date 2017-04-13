@@ -100,6 +100,8 @@ var (
 		"client_id":          true,
 		"client_secret":      true,
 		"redirect_url":       true,
+		"acr_values":         true,
+		"identity_provider":  true,
 		"tokens":             true,
 		"region":             true,
 		"table_name":         true,
@@ -695,6 +697,11 @@ type OIDCConnector struct {
 	// client's browser back to it after successfull authentication
 	// Should match the URL on Provider's side
 	RedirectURL string `yaml:"redirect_url"`
+	// ACR is the acr_values parameter to be sent with an authorization request.
+	ACR string `yaml:"acr_values,omitempty"`
+	// IdentityProvider is the Identity Provider we connect to. This field is
+	// only required if using acr_values.
+	IdentityProvider string `yaml:"identity_provider,omitempty"`
 	// Display controls how this connector is displayed
 	Display string `yaml:"display"`
 	// Scope is a list of additional scopes to request from OIDC
@@ -736,6 +743,8 @@ func (o *OIDCConnector) Parse() (services.OIDCConnector, error) {
 		ClaimsToRoles: mappings,
 	}
 	v2 := other.V2()
+	v2.SetACR(o.ACR)
+	v2.SetIdentityProvider(o.IdentityProvider)
 	if err := v2.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
