@@ -48,8 +48,8 @@ type OIDCConnector interface {
 	GetRedirectURL() string
 	// GetACR returns the Authentication Context Class Reference (ACR) value.
 	GetACR() string
-	// GetIdentityProvider returns the Identity Provider.
-	GetIdentityProvider() string
+	// GetProvider returns the identity provider.
+	GetProvider() string
 	// Display - Friendly name for this provider.
 	GetDisplay() string
 	// Scope is additional scopes set by provder
@@ -76,8 +76,8 @@ type OIDCConnector interface {
 	SetRedirectURL(string)
 	// SetACR sets the Authentication Context Class Reference (ACR) value.
 	SetACR(string)
-	// SetIdentityProvider sets the Identity Provider.
-	SetIdentityProvider(string)
+	// SetProvider sets the identity provider.
+	SetProvider(string)
 	// SetScope sets additional scopes set by provider
 	SetScope([]string)
 	// SetClaimsToRoles sets dynamic mapping from claims to roles
@@ -245,9 +245,9 @@ func (o *OIDCConnectorV2) SetACR(acrValue string) {
 	o.Spec.ACR = acrValue
 }
 
-// SetIdentityProvider sets the Identity Provider.
-func (o *OIDCConnectorV2) SetIdentityProvider(identityProvider string) {
-	o.Spec.IdentityProvider = identityProvider
+// SetProvider sets the identity provider.
+func (o *OIDCConnectorV2) SetProvider(identityProvider string) {
+	o.Spec.Provider = identityProvider
 }
 
 // SetScope sets additional scopes set by provider
@@ -303,9 +303,9 @@ func (o *OIDCConnectorV2) GetACR() string {
 	return o.Spec.ACR
 }
 
-// GetIdentityProvider returns the Identity Provider.
-func (o *OIDCConnectorV2) GetIdentityProvider() string {
-	return o.Spec.IdentityProvider
+// GetProvider returns the identity provider.
+func (o *OIDCConnectorV2) GetProvider() string {
+	return o.Spec.Provider
 }
 
 // Display - Friendly name for this provider.
@@ -508,8 +508,8 @@ type OIDCConnectorSpecV2 struct {
 	// ACR is an Authentication Context Class Reference value. The meaning of the ACR
 	// value is context-specific and varies for identity providers.
 	ACR string `json:"acr_values,omitempty"`
-	// IdentityProvider is the external identity provider.
-	IdentityProvider string `json:"identity_provider,omitempty"`
+	// Provider is the external identity provider.
+	Provider string `json:"provider,omitempty"`
 	// Display - Friendly name for this provider.
 	Display string `json:"display,omitempty"`
 	// Scope is additional scopes set by provder
@@ -529,7 +529,7 @@ var OIDCConnectorSpecV2Schema = fmt.Sprintf(`{
     "client_secret": {"type": "string"},
     "redirect_url": {"type": "string"},
     "acr_values": {"type": "string"},
-    "identity_provider": {"type": "string"},
+    "provider": {"type": "string"},
     "display": {"type": "string"},
     "scope": {
       "type": "array",
