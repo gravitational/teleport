@@ -1134,6 +1134,7 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		log.Debugf("[OIDC] ACR values %q successfully validated", acrValue)
 	}
 
 	ident, err := oidc.IdentityFromClaims(claims)
