@@ -132,3 +132,8 @@ const (
 	// CertExtensionPermitPortForwarding allows user to request port forwarding
 	CertExtensionPermitPortForwarding = "permit-port-forwarding"
 )
+
+const (
+	// NetIQ is an identity provider.
+	NetIQ = "netiq"
+)
