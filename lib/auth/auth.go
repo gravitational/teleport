@@ -1044,19 +1044,28 @@ func (a *AuthServer) validateACRValues(acrValue string, identityProvider string,
 
 		tokenAcr, ok := claims["acr"]
 		if !ok {
-			return trace.BadParameter("acr claim does not exist")
+			return trace.BadParameter("acr not found in claims")
 		}
-		tokenAcrMap, ok := tokenAcr.(map[string][]string)
+		tokenAcrMap, ok := tokenAcr.(map[string]interface{})
 		if !ok {
-			return trace.BadParameter("acr unknown type: %T", tokenAcr)
+			return trace.BadParameter("acr unexpected type: %T", tokenAcr)
 		}
 		tokenAcrValues, ok := tokenAcrMap["values"]
 		if !ok {
 			return trace.BadParameter("acr.values not found in claims")
 		}
+		tokenAcrValuesSlice, ok := tokenAcrValues.([]interface{})
+		if !ok {
+			return trace.BadParameter("acr.values unexpected type: %T", tokenAcr)
+		}
+
 		acrValueMatched := false
-		for _, v := range tokenAcrValues {
-			if acrValue == v {
+		for _, v := range tokenAcrValuesSlice {
+			vv, ok := v.(string)
+			if !ok {
+				continue
+			}
+			if acrValue == vv {
 				acrValueMatched = true
 				break
 			}
