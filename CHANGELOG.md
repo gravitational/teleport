@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.2
+
+### Bugfixes
+
+* Agent socket had wrong permissions. [#936](https://github.com/gravitational/teleport/pull/936)
+
 ## 2.0.1
 
 ### Features
