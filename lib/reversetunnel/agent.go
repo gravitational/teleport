@@ -338,7 +338,9 @@ func (a *Agent) runHeartbeat(conn *ssh.Client) {
 	// when this happens, this is #1 issue we have right now with Teleport. So I'm making
 	// it EASY to see in the logs. This condition should never be permanent (like repeates
 	// every XX seconds)
-	log.Warn(err)
+	if err != nil {
+		log.Warn(err)
+	}
 
 	if err != nil || conn == nil {
 		select {

@@ -882,7 +882,14 @@ func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *ctx) 
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	dirCloser := &utils.RemoveDirCloser{Path: socketDir}
 	socketPath := filepath.Join(socketDir, fmt.Sprintf("teleport-%v.socket", pid))
+	if err := os.Chown(socketDir, uid, gid); err != nil {
+		if err := dirCloser.Close(); err != nil {
+			log.Warn("failed to remove directory: %v", err)
+		}
+		return trace.ConvertSystemError(err)
+	}
 
 	agentServer := &teleagent.AgentServer{Agent: clientAgent}
 	err = agentServer.ListenUnixSocket(socketPath, uid, gid, 0600)
@@ -895,6 +902,7 @@ func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *ctx) 
 	ctx.setEnv(teleport.SSHAuthSock, socketPath)
 	ctx.setEnv(teleport.SSHAgentPID, fmt.Sprintf("%v", pid))
 	ctx.addCloser(agentServer)
+	ctx.addCloser(dirCloser)
 	ctx.Debugf("[SSH:node] opened agent channel for teleport user %v and socket %v", ctx.teleportUser, socketPath)
 	go agentServer.Serve()
 
