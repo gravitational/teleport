@@ -142,6 +142,55 @@ func createUserAndRole(clt clt, username string, allowedLogins []string) (servic
 	return user, role
 }
 
+func createUserAndRoleWithoutRoles(clt clt, username string, allowedLogins []string) (services.User, services.Role) {
+	user, err := services.NewUser(username)
+	if err != nil {
+		panic(err)
+	}
+	role := services.RoleForUser(user)
+	role.RemoveResource(services.KindRole)
+	role.SetLogins([]string{user.GetName()})
+	err = clt.UpsertRole(role, backend.Forever)
+	if err != nil {
+		panic(err)
+	}
+	user.AddRole(role.GetName())
+	err = clt.UpsertUser(user)
+	if err != nil {
+		panic(err)
+	}
+	return user, role
+}
+
+// TestOwnRole tests that user can read roles assigned to them
+func (s *APISuite) TestReadOwnRole(c *C) {
+
+	user1, userRole := createUserAndRoleWithoutRoles(s.clt, "user1", []string{"user1"})
+	user2, _ := createUserAndRoleWithoutRoles(s.clt, "user2", []string{"user2"})
+	err := s.clt.UpsertPassword(user1.GetName(), []byte("abc1231"))
+	c.Assert(err, IsNil)
+	err = s.clt.UpsertPassword(user2.GetName(), []byte("abc1232"))
+	c.Assert(err, IsNil)
+
+	// user should be able to read their own roles
+	authorizer, err := NewUserAuthorizer("user1", s.WebS, s.AccessS)
+	c.Assert(err, IsNil)
+	authServer, userClient := s.newServerWithAuthorizer(c, authorizer)
+	defer authServer.Close()
+
+	_, err = userClient.GetRole(userRole.GetName())
+	c.Assert(err, IsNil)
+
+	// user2 can't read user1 role
+	authorizer, err = NewUserAuthorizer("user2", s.WebS, s.AccessS)
+	c.Assert(err, IsNil)
+	authServer2, userClient2 := s.newServerWithAuthorizer(c, authorizer)
+	defer authServer2.Close()
+
+	_, err = userClient2.GetRole(userRole.GetName())
+	c.Assert(err, NotNil)
+}
+
 func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 	priv, pub, err := s.clt.GenerateKeyPair("")
 	c.Assert(err, IsNil)
