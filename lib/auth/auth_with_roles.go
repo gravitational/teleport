@@ -26,7 +26,9 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
 	"github.com/tstranex/u2f"
 )
@@ -570,7 +572,15 @@ func (a *AuthWithRoles) UpsertRole(role services.Role, ttl time.Duration) error 
 // GetRole returns role by name
 func (a *AuthWithRoles) GetRole(name string) (services.Role, error) {
 	if err := a.action(defaults.Namespace, services.KindRole, services.ActionRead); err != nil {
-		return nil, trace.Wrap(err)
+		// allow user to read roles assigned to them
+		user, err := a.authServer.Identity.GetUser(a.user)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		log.Infof("%v %v %v", user, user.GetRoles(), name)
+		if !utils.SliceContainsStr(user.GetRoles(), name) {
+			return nil, trace.Wrap(err)
+		}
 	}
 	return a.authServer.GetRole(name)
 }
