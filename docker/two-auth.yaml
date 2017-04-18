@@ -12,6 +12,11 @@ teleport:
 
 auth_service:
   enabled: yes
+
+  authentication:
+    type: local
+    second_factor: off
+
   cluster_name: two
   tokens: 
        - "node,auth,proxy:foo"
