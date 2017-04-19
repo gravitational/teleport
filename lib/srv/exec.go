@@ -40,7 +40,6 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/kardianos/osext"
-	"github.com/mattn/go-shellwords"
 )
 
 const (
@@ -79,11 +78,8 @@ func parseExecRequest(req *ssh.Request, ctx *ctx) (*execResponse, error) {
 		return nil, trace.BadParameter("failed to parse exec request, error: %v", err)
 	}
 
-	// split up command like a shell would do for us
-	args, err := shellwords.Parse(e.Command)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	// split up command by space to grab the first word
+	args := strings.Split(e.Command, " ")
 
 	if len(args) > 0 {
 		_, f := filepath.Split(args[0])
@@ -137,9 +133,13 @@ func prepInteractiveCommand(ctx *ctx) (*exec.Cmd, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// this configures shell to run in 'login' mode
+	// this configures shell to run in 'login' mode. from openssh source:
+	// "If we have no command, execute the shell.  In this case, the shell
+	// name to be passed in argv[0] is preceded by '-' to indicate that
+	// this is a login shell."
+	// https://github.com/openssh/openssh-portable/blob/master/session.c
 	if runShell {
-		c.Args[0] = "-" + filepath.Base(ctx.exec.cmdName)
+		c.Args = []string{"-" + filepath.Base(ctx.exec.cmdName)}
 	}
 	return c, nil
 }
@@ -152,12 +152,6 @@ func prepInteractiveCommand(ctx *ctx) (*exec.Cmd, error) {
 // If 'cmd' does not have any spaces in it, it gets executed directly, otherwise
 // it is passed to user's shell for interpretation
 func prepareCommand(ctx *ctx) (*exec.Cmd, error) {
-	// split up command like a shell would do for us
-	args, err := shellwords.Parse(ctx.exec.cmdName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	osUserName := ctx.login
 	// configure UID & GID of the requested OS user:
 	osUser, err := user.Lookup(osUserName)
@@ -200,12 +194,9 @@ func prepareCommand(ctx *ctx) (*exec.Cmd, error) {
 		}
 	}
 
-	var c *exec.Cmd
-	if len(args) == 1 {
-		c = exec.Command(args[0])
-	} else {
-		c = exec.Command(args[0], args[1:]...)
-	}
+	// execute command using user's shell like openssh does:
+	// https://github.com/openssh/openssh-portable/blob/master/session.c
+	c := exec.Command(shell, "-c", ctx.exec.cmdName)
 
 	clusterName, err := ctx.srv.authService.GetDomainName()
 	if err != nil {

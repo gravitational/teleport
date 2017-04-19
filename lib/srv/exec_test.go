@@ -44,6 +44,7 @@ type ExecSuite struct {
 }
 
 var _ = check.Suite(&ExecSuite{})
+var _ = fmt.Printf
 
 func (s *ExecSuite) SetUpSuite(c *check.C) {
 	bk, err := boltbk.New(backend.Params{"path": c.MkDir()})
@@ -100,8 +101,8 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 	cmd, err = prepareCommand(s.ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(cmd, check.NotNil)
-	c.Assert(cmd.Path, check.Equals, findExecutable("ls"))
-	c.Assert(cmd.Args, check.DeepEquals, []string{"ls", "-lh", "/etc"})
+	c.Assert(cmd.Path, check.Equals, "/bin/sh")
+	c.Assert(cmd.Args, check.DeepEquals, []string{"/bin/sh", "-c", "ls -lh /etc"})
 	c.Assert(cmd.Dir, check.Equals, s.usr.HomeDir)
 	c.Assert(cmd.Env, check.DeepEquals, expectedEnv)
 
@@ -109,8 +110,8 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 	s.ctx.exec.cmdName = "top"
 	cmd, err = prepareCommand(s.ctx)
 	c.Assert(err, check.IsNil)
-	c.Assert(cmd.Path, check.Equals, "/usr/bin/top")
-	c.Assert(cmd.Args, check.DeepEquals, []string{"top"})
+	c.Assert(cmd.Path, check.Equals, "/bin/sh")
+	c.Assert(cmd.Args, check.DeepEquals, []string{"/bin/sh", "-c", "top"})
 }
 
 func (s *ExecSuite) TestLoginDefsParser(c *check.C) {
