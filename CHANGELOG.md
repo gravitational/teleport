@@ -1,5 +1,36 @@
 # Changelog
 
+## 2.0.3
+
+### Bugfixes
+
+* Execute commands using user's shell.  [#943](https://github.com/gravitational/teleport/pull/943)
+* Allow users to read their own roles. [#941](https://github.com/gravitational/teleport/pull/941)
+* Fix User CA import. [#919](https://github.com/gravitational/teleport/pull/919)
+* Role template defaults. [#916](https://github.com/gravitational/teleport/pull/916)
+* Skip UserInfo if not provided. [#915](https://github.com/gravitational/teleport/pull/915)
+
+## 2.0.2
+
+### Bugfixes
+
+* Agent socket had wrong permissions. [#936](https://github.com/gravitational/teleport/pull/936)
+
+## 2.0.1
+
+### Features
+
+* Introduced Dynamic Roles. [#897](https://github.com/gravitational/teleport/pull/897)
+
+### Improvements
+
+* Improved OpenSSH interoperability. [#902](https://github.com/gravitational/teleport/pull/902), [#911](https://github.com/gravitational/teleport/pull/911)
+* Enhanced OIDC Functionality. [#882](https://github.com/gravitational/teleport/pull/882)
+
+### Bugfixes
+
+* Fixed Regressions. [#874](https://github.com/gravitational/teleport/pull/874), [#876](https://github.com/gravitational/teleport/pull/876), [#883](https://github.com/gravitational/teleport/pull/883), [#892](https://github.com/gravitational/teleport/pull/892), and [#906](https://github.com/gravitational/teleport/pull/906)
+
 ## 2.0
 
 This is a major new release of Teleport.
