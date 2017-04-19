@@ -40,7 +40,6 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/kardianos/osext"
-	"github.com/mattn/go-shellwords"
 )
 
 const (
@@ -79,11 +78,8 @@ func parseExecRequest(req *ssh.Request, ctx *ctx) (*execResponse, error) {
 		return nil, trace.BadParameter("failed to parse exec request, error: %v", err)
 	}
 
-	// split up command like a shell would do for us
-	args, err := shellwords.Parse(e.Command)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	// split up command by space to grab the first word
+	args := strings.Split(e.Command, " ")
 
 	if len(args) > 0 {
 		_, f := filepath.Split(args[0])
