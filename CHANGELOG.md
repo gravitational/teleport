@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.4
+
+### Bugfixes
+
+* Roles created the the Web UI now have `node` resource. [#949](https://github.com/gravitational/teleport/pull/949)
+
 ## 2.0.3
 
 ### Bugfixes
