@@ -147,6 +147,8 @@ type Role interface {
 	CanForwardAgent() bool
 	// SetForwardAgent sets forward agent property
 	SetForwardAgent(forwardAgent bool)
+	// CheckAndSetDefaults checks and set default values for missing fields.
+	CheckAndSetDefaults() error
 }
 
 // RoleV2 represents role resource specification
