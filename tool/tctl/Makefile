@@ -1,3 +1,8 @@
+OUT=../../build/tctl
+
+$(OUT): *.go common/*.go
+	go build -o $(OUT) -i
+
 test: clean
 	go test -v ./command -cover
 
