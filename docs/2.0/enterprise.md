@@ -348,6 +348,81 @@ That's it. To verify that the trusted cluster is online:
 $ tsh --proxy=main.proxy clusters
 ```
 
+### Authentication Preferences
+
+Using dynamic configuration you can also view and change the type of cluster authentication Teleport supports at runtime.
+
+#### Viewing Authentication Preferences
+
+You can query the Cluster Authentication Preferences (abbreviated `cap`) resource using `tctl` to find out what your current authentication preferences are.
+
+```
+$ tctl get cap
+Type      Second Factor
+----      -------------
+local     u2f
+```
+
+In the above example we are using local accounts and the Second Factor used is Universal Second Factor (U2F, abbreviated `u2f`), once again to drill down and get more details you can use `tctl`:
+
+```
+$ tctl get u2f
+App ID                     Facets
+------                     ------
+https://localhost:3080     ["https://localhost" "https://localhost:3080"]
+```
+
+#### Updating Authentication Preferences
+
+To update Cluster Authentication Preferences, you'll need to update the resources you viewed before. You can do that creating the following file on disk and then update the backend with `tctl create -f {filename}`.
+
+```yaml
+kind: cluster_auth_preference
+version: v2
+metadata:
+  description: ""
+  name: "cluster-auth-preference"
+  namespace: "default"
+spec:
+  type: local         # allowable types are local or oidc
+  second_factor: otp  # allowable second factors are none, otp, or u2f.
+```
+
+If your Second Factor Authentication type is U2F, you'll need to create an additional resource:
+
+
+```yaml
+kind: universal_second_factor
+version: v2
+metadata:
+  description: ""
+  name: "universal-second-factor"
+  namespace: "default"
+spec:
+  app_id: "https://localhost:3080"
+  facets: ["https://localhost", "https://localhost:3080"]
+```
+
+If you are not using local accounts but rather an external identity provider like OIDC, you'll need to create an OIDC resource like below.
+
+```yaml
+kind: oidc
+version: v2
+metadata:
+  description: ""
+  name: "example"
+  namespace: "default"
+spec:
+  issuer_url: https://accounts.example.com
+  client_id: 00000000000000000.example.com
+  client_secret: 00000000-0000-0000-0000-000000000000
+  redirect_url: https://localhost:3080/v1/webapi/oidc/callback
+  display: "Welcome to Example.com"
+  scope: ["email"]
+  claims_to_roles: 
+    - {claim: "email", value: "foo@example.com", roles: ["admin"]}
+```
+
 ## Integration With Kubernetes
 
 Gravitational maintains a [Kubernetes](https://kubernetes.io/) distribution
