@@ -755,7 +755,11 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in
 		}
 		// update ctx with a session ID
 		ctx.session, _ = findSession()
-		log.Debugf("[SSH] loaded session %v for SSH connection %v", ctx.session, sconn)
+		if ctx.session == nil {
+			log.Debugf("[SSH] will create new session for SSH connection %v", sconn.RemoteAddr())
+		} else {
+			log.Debugf("[SSH] will join session %v for SSH connection %v", ctx.session, sconn.RemoteAddr())
+		}
 	}
 
 	for {
