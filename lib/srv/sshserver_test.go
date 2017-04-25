@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"os"
 	"os/user"
@@ -284,6 +285,214 @@ func (s *SrvSuite) TestAgentForward(c *C) {
 		time.Sleep(50 * time.Millisecond)
 	}
 	c.Fatalf("expected socket to be closed, still could dial after 150 ms")
+}
+
+// TestExecCommandLocalPtyAndRemotePty tests executing a command where you have
+// a local and remote PTY.
+func (s *SrvSuite) TestExecCommandLocalPtyAndRemotePty(c *C) {
+	// expected output: success. top has a remote and local pty.
+	term, err := newTerminal()
+	c.Assert(err, IsNil)
+
+	session, err := s.clt.NewSession()
+	c.Assert(err, IsNil)
+
+	session.Stdin = term.tty
+	session.Stdout = term.tty
+	session.Stderr = term.tty
+
+	modes := ssh.TerminalModes{
+		ssh.ECHO:          0,
+		ssh.TTY_OP_ISPEED: 14400,
+		ssh.TTY_OP_OSPEED: 14400,
+	}
+	err = session.RequestPty("term", 40, 80, modes)
+	c.Assert(err, IsNil)
+
+	// run top, wait 500 ms for top to start, send ^C
+	go func() {
+		err := session.Run("top")
+		c.Assert(err, NotNil)
+	}()
+	time.Sleep(500 * time.Millisecond)
+	_, err = term.tty.Write([]byte("\x03"))
+	c.Assert(err, IsNil)
+
+	output := make([]byte, 2048)
+	_, err = term.pty.Read(output)
+	c.Assert(err, IsNil)
+	outputContains := strings.Contains(string(output), "%CPU")
+	c.Assert(outputContains, Equals, true, Commentf("Output does not contain %CPU expected from top"))
+
+	// 2 - ssh -tt locahost '/bin/sh -c "mkdir -p /tmp && echo a > /tmp/file.txt"'
+	// expected output: success. this mirrors how ansible runs commands.
+	term, err = newTerminal()
+	c.Assert(err, IsNil)
+
+	session, err = s.clt.NewSession()
+	c.Assert(err, IsNil)
+
+	session.Stdin = term.tty
+	session.Stdout = term.tty
+	session.Stderr = term.tty
+
+	modes = ssh.TerminalModes{
+		ssh.ECHO:          0,
+		ssh.TTY_OP_ISPEED: 14400,
+		ssh.TTY_OP_OSPEED: 14400,
+	}
+	err = session.RequestPty("term", 40, 80, modes)
+	c.Assert(err, IsNil)
+
+	tempdir, err := ioutil.TempDir("", "teleport-")
+	c.Assert(err, IsNil)
+	os.RemoveAll(tempdir)
+	tempfile := tempdir + "/file.txt"
+
+	command := fmt.Sprintf(`/bin/sh -c "mkdir -p %v && echo a > %v"`, tempdir, tempfile)
+	err = session.Run(command)
+	c.Assert(err, IsNil)
+	time.Sleep(100 * time.Millisecond)
+
+	bytes, err := ioutil.ReadFile(tempfile)
+	c.Assert(err, IsNil)
+	c.Assert(string(bytes), Equals, "a\n")
+}
+
+// TestExecCommandLocalPtyAndNoRemotePty tests executing a command where you a
+// local PTY but no remote PTY.
+func (s *SrvSuite) TestExecCommandLocalPtyAndNoRemotePty(c *C) {
+	// 1 - command: ssh localhost top
+	// expected output: failure. no remote pty exists so top will not start.
+	term, err := newTerminal()
+	c.Assert(err, IsNil)
+
+	session, err := s.clt.NewSession()
+	c.Assert(err, IsNil)
+
+	session.Stdin = term.tty
+	session.Stdout = term.tty
+	session.Stderr = term.tty
+
+	err = session.Run("top")
+	c.Assert(err, NotNil)
+
+	output := make([]byte, 21)
+	_, err = term.pty.Read(output)
+	c.Assert(err, IsNil)
+	c.Assert(string(output), Equals, "top: failed tty get\r\n")
+
+	// 2 - command: ssh localhost seq 2
+	// expected output: success. because we have a local pty attached
+	// to stdout, the pty transforms 1\n2\n to 1\r\n2\r\n.
+	term, err = newTerminal()
+	c.Assert(err, IsNil)
+
+	session, err = s.clt.NewSession()
+	c.Assert(err, IsNil)
+
+	session.Stdin = term.tty
+	session.Stdout = term.tty
+	session.Stderr = term.tty
+
+	err = session.Run("seq 2")
+	c.Assert(err, IsNil)
+
+	output = make([]byte, 6)
+	_, err = term.pty.Read(output)
+	c.Assert(err, IsNil)
+	c.Assert(string(output), Equals, "1\r\n2\r\n")
+}
+
+// TestExecCommandNoLocalAndPtyRemotePty tests executing a command where you
+// have no local PTY but have a remote PTY.
+func (s *SrvSuite) TestExecCommandNoLocalPtyAndRemotePty(c *C) {
+	// 1 - command: seq 2 | ssh -tt localhost 'stty -opost; echo'
+	// expected output: pipe stdin to ssh and turn off post-processing
+	// and echo stdin. we should see "1\r\n2\r\n\n"
+	session, err := s.clt.NewSession()
+	c.Assert(err, IsNil)
+
+	stdinPipe, err := session.StdinPipe()
+	c.Assert(err, IsNil)
+	stdoutPipe, err := session.StdoutPipe()
+	c.Assert(err, IsNil)
+
+	modes := ssh.TerminalModes{
+		ssh.ECHO:          0,
+		ssh.TTY_OP_ISPEED: 14400,
+		ssh.TTY_OP_OSPEED: 14400,
+	}
+	err = session.RequestPty("term", 40, 80, modes)
+	c.Assert(err, IsNil)
+
+	_, err = stdinPipe.Write([]byte("1\n2\n"))
+	c.Assert(err, IsNil)
+	stdinPipe.Close()
+
+	err = session.Run("stty -opost; echo")
+	c.Assert(err, IsNil)
+
+	stdout, err := ioutil.ReadAll(stdoutPipe)
+	c.Assert(err, IsNil)
+	outputContains := strings.Contains(string(stdout), "1\r\n2\r\n\n")
+	c.Assert(outputContains, Equals, true, Commentf("Output [%# x] does not match expected output: [%# x]", string(stdout), "1\r\n2\r\n\n"))
+}
+
+// TestExecCommandNoLocalPtyAndNoRemotePty tests executing a command where
+// you have no local PTY and no remote PTY. This is like running ssh
+// with the -T flag.
+func (s *SrvSuite) TestExecCommandNoLocalPtyAndNoRemotePty(c *C) {
+	// 1 - command: echo "1\n2\n" | ssh -T localhost "cat -"
+	// expected output: since no pty exists, cat takes stdin
+	// from the pipe and prints it out as-is: "1\n2\n"
+	session, err := s.clt.NewSession()
+	c.Assert(err, IsNil)
+
+	stdinPipe, err := session.StdinPipe()
+	c.Assert(err, IsNil)
+	stdoutPipe, err := session.StdoutPipe()
+	c.Assert(err, IsNil)
+
+	_, err = stdinPipe.Write([]byte("1\n2\n"))
+	c.Assert(err, IsNil)
+	stdinPipe.Close()
+
+	err = session.Run("cat -")
+	c.Assert(err, IsNil)
+
+	stdout, err := ioutil.ReadAll(stdoutPipe)
+	c.Assert(err, IsNil)
+	c.Assert(string(stdout), Equals, "1\n2\n")
+
+	// 2 - command: echo "1\n2\n" | ssh -T localhost "cat - > /tmp/file"
+	// expected output: this is like using ssh to copy a file from one
+	// machine to another. since no pty exists, cat takes stdin from the pipe
+	// and writes it to disk as-is: "1\n2\n"
+	session, err = s.clt.NewSession()
+	c.Assert(err, IsNil)
+
+	stdinPipe, err = session.StdinPipe()
+	c.Assert(err, IsNil)
+	stdoutPipe, err = session.StdoutPipe()
+	c.Assert(err, IsNil)
+
+	tmpfile, err := ioutil.TempFile("", "teleport-")
+	c.Assert(err, IsNil)
+
+	_, err = stdinPipe.Write([]byte("1\n2\n"))
+	c.Assert(err, IsNil)
+	stdinPipe.Close()
+
+	cmd := fmt.Sprintf("cat - > %v", tmpfile.Name())
+	err = session.Run(cmd)
+	c.Assert(err, IsNil)
+
+	bytes, err := ioutil.ReadFile(tmpfile.Name())
+	c.Assert(err, IsNil)
+	c.Assert(string(bytes), Equals, "1\n2\n")
+
+	c.Assert(os.Remove(tmpfile.Name()), IsNil)
 }
 
 // TestShell launches interactive shell session and executes a command

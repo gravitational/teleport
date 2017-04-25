@@ -48,6 +48,10 @@ type OIDCConnector interface {
 	// client's browser back to it after successfull authentication
 	// Should match the URL on Provider's side
 	GetRedirectURL() string
+	// GetACR returns the Authentication Context Class Reference (ACR) value.
+	GetACR() string
+	// GetProvider returns the identity provider.
+	GetProvider() string
 	// Display - Friendly name for this provider.
 	GetDisplay() string
 	// Scope is additional scopes set by provder
@@ -70,6 +74,10 @@ type OIDCConnector interface {
 	SetIssuerURL(string)
 	// SetRedirectURL sets RedirectURL
 	SetRedirectURL(string)
+	// SetACR sets the Authentication Context Class Reference (ACR) value.
+	SetACR(string)
+	// SetProvider sets the identity provider.
+	SetProvider(string)
 	// SetScope sets additional scopes set by provider
 	SetScope([]string)
 	// SetClaimsToRoles sets dynamic mapping from claims to roles
@@ -257,6 +265,16 @@ func (o *OIDCConnectorV2) SetRedirectURL(redirectURL string) {
 	o.Spec.RedirectURL = redirectURL
 }
 
+// SetACR sets the Authentication Context Class Reference (ACR) value.
+func (o *OIDCConnectorV2) SetACR(acrValue string) {
+	o.Spec.ACR = acrValue
+}
+
+// SetProvider sets the identity provider.
+func (o *OIDCConnectorV2) SetProvider(identityProvider string) {
+	o.Spec.Provider = identityProvider
+}
+
 // SetScope sets additional scopes set by provider
 func (o *OIDCConnectorV2) SetScope(scope []string) {
 	o.Spec.Scope = scope
@@ -298,6 +316,16 @@ func (o *OIDCConnectorV2) GetClientSecret() string {
 // Should match the URL on Provider's side
 func (o *OIDCConnectorV2) GetRedirectURL() string {
 	return o.Spec.RedirectURL
+}
+
+// GetACR returns the Authentication Context Class Reference (ACR) value.
+func (o *OIDCConnectorV2) GetACR() string {
+	return o.Spec.ACR
+}
+
+// GetProvider returns the identity provider.
+func (o *OIDCConnectorV2) GetProvider() string {
+	return o.Spec.Provider
 }
 
 // Display - Friendly name for this provider.
@@ -497,6 +525,11 @@ type OIDCConnectorSpecV2 struct {
 	// client's browser back to it after successfull authentication
 	// Should match the URL on Provider's side
 	RedirectURL string `json:"redirect_url"`
+	// ACR is an Authentication Context Class Reference value. The meaning of the ACR
+	// value is context-specific and varies for identity providers.
+	ACR string `json:"acr_values,omitempty"`
+	// Provider is the external identity provider.
+	Provider string `json:"provider,omitempty"`
 	// Display - Friendly name for this provider.
 	Display string `json:"display,omitempty"`
 	// Scope is additional scopes set by provder
@@ -515,6 +548,8 @@ var OIDCConnectorSpecV2Schema = fmt.Sprintf(`{
     "client_id": {"type": "string"},
     "client_secret": {"type": "string"},
     "redirect_url": {"type": "string"},
+    "acr_values": {"type": "string"},
+    "provider": {"type": "string"},
     "display": {"type": "string"},
     "scope": {
       "type": "array",

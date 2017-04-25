@@ -1,5 +1,27 @@
 # Changelog
 
+## 2.0.4
+
+### Bugfixes
+
+* Roles created the the Web UI now have `node` resource. [#949](https://github.com/gravitational/teleport/pull/949)
+
+## 2.0.3
+
+### Bugfixes
+
+* Execute commands using user's shell.  [#943](https://github.com/gravitational/teleport/pull/943)
+* Allow users to read their own roles. [#941](https://github.com/gravitational/teleport/pull/941)
+* Fix User CA import. [#919](https://github.com/gravitational/teleport/pull/919)
+* Role template defaults. [#916](https://github.com/gravitational/teleport/pull/916)
+* Skip UserInfo if not provided. [#915](https://github.com/gravitational/teleport/pull/915)
+
+## 2.0.2
+
+### Bugfixes
+
+* Agent socket had wrong permissions. [#936](https://github.com/gravitational/teleport/pull/936)
+
 ## 2.0.1
 
 ### Features

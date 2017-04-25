@@ -45,42 +45,53 @@ enterprise deployment you would:
 
 This section covers the process of defining user roles. 
 
-### Teleport Role
+### Roles
 
 A role in Teleport defines the following restrictions for the users who are 
 assigned to it:
 
-* **OS logins**: The typical OS logins traditionally used. For example, you may
-  not want your interns to login as "root".
-* **Allowed Labels**: A user will be allowed to only log in to the
-  nodes with these labels. Perhaps you want to label your staging nodes 
-  with the "staging" label and update the `intern` role such that the interns
-  won't be able to SSH into a production machine by accident.
-* **Session Duration**: Also known as "Session TTL" - a period of time a user
-  is allowed to be logged in.
-* **Resources**: Resources defines access levels to resources on the backend of
-  Teleport. Access is either `read` or `write`. Typically you will not set this
-  for users and simply take the default values. For admins, you often want to
-  give them full read/write access and you can set `resources` to
-  `"*": ["read", "write"]`. Currently supported resources are:
-   * `oidc`: OIDC Connector.
-   * `cert_authority`: Certificate Authority.
-   * `tunnel`: Reverse Tunnel (used with trusted clusters).
-   * `user`: Teleport users.
-   * `node`: Teleport nodes.
-   * `auth_server`: Auth server.
-   * `proxy`: Proxy server.
-   * `role`: Teleport roles.
-   * `namespace`: Teleport namespaces.
-   * `trusted_cluster`: Trusted Clusters (creates `cert_authority` and `tunnel`).
-   * `cluster_auth_preference`: Authentication preferences.
-   * `universal_second_factor`: Universal Second Factor (U2F) settings.
-* **Namespaces**: Namespaces allow you to partition nodes within a single
-  cluster to restrict access to a set of nodes. To use namespaces, first you
-  need to create a `namespace` resource on the backend then set `namespace`
-  under `ssh_service` in `teleport.yaml` for each node which you want to be
-  part of said namespace. For admins, you might want to give them access to
-  all namespaces and you can set `namespaces` to `["*"]`.
+**OS logins**
+
+The typical OS logins traditionally used. For example, you may not want your interns to login as "root".
+
+**Allowed Labels**
+
+A user will be allowed to only log in to the
+nodes with these labels. Perhaps you want to label your staging nodes
+with the "staging" label and update the `intern` role such that the interns
+won't be able to SSH into a production machine by accident.
+
+**Session Duration**
+Also known as "Session TTL" - a period of time a user is allowed to be logged in.
+
+**Resources**
+
+Resources defines access levels to resources on the backend of Teleport.
+
+Access is either `read` or `write`. Typically you will not set this for users and simply take the default values.
+For admins, you often want to give them full read/write access and you can set `resources` to `"*": ["read", "write"]`.
+
+Currently supported resources are:
+
+  * `oidc` - OIDC Connector
+  * `cert_authority` - Certificate Authority
+  * `tunnel` - Reverse Tunnel (used with trusted clusters)
+  * `user` - Teleport users
+  * `node` - Teleport nodes
+  * `auth_server` - Auth server
+  * `proxy` - Proxy server
+  * `role` - Teleport roles
+  * `namespace` - Teleport namespaces
+  * `trusted_cluster` - Trusted Clusters (creates `cert_authority` and `tunnel`).
+  * `cluster_auth_preference` - Authentication preferences.
+  * `universal_second_factor` - Universal Second Factor (U2F) settings.
+
+**Namespaces**
+
+Namespaces allow you to partition nodes within a single cluster to restrict access to a set of nodes.
+To use namespaces, first you need to create a `namespace` resource on the backend then set `namespace`
+under `ssh_service` in `teleport.yaml` for each node which you want to be part of said namespace.
+For admins, you might want to give them access to all namespaces and you can set `namespaces` to `["*"]`.
 
 The roles are managed as any other resource using [dynamic configuration](#dynamic-configuration) 
 commands. For example, let's create a role `intern`.
@@ -133,13 +144,19 @@ like [Auth0](https://auth0.com) as well as open source identity managers like
 
 #### Configuration
 
-1. OIDC relies on re-directs to return control back to Teleport after
+OIDC relies on re-directs to return control back to Teleport after
 authentication is complete. Decide on the redirect URL you will be using and
 know it in advance before you register Teleport with an external identity
-provider. For development purposes we recommend the following `redirect_url`:
+provider.
+
+**Development mode**
+
+For development purposes we recommend the following `redirect_url`:
 `https://localhost:3080/v1/webapi/oidc/callback`.
 
-1. Register Teleport with the external identity provider you will be using and
+**Identity Providers**
+
+Register Teleport with the external identity provider you will be using and
 obtain your `client_id` and `client_secret`. This information should be
 documented on the identity providers website. Here are a few links:
 
@@ -147,73 +164,77 @@ documented on the identity providers website. Here are a few links:
    * [Google Identity Platform](https://developers.google.com/identity/protocols/OpenIDConnect)
    * [Keycloak Client Registration](http://www.keycloak.org/docs/2.0/securing_apps_guide/topics/client-registration.html)
 
-1. Add your OIDC connector information to `teleport.yaml`. Here are a few
-   examples:
 
-   * **OIDC with pre-defined roles.** In the configuration below, we are
-     requesting the scope `group` from the identity provider then mapping the
-     value to either to `admin` role or the `user` role depending on the value
-     returned for `group` within the claims.
+Add your OIDC connector information to `teleport.yaml`. Here are a few examples:
 
-        ```yaml
-        authentication:
-           type: oidc
-           oidc:
-              id: example.com
-              redirect_url: https://localhost:3080/v1/webapi/oidc/callback
-              redirect_timeout: 90s
-              client_id: 000000000000-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com
-              client_secret: AAAAAAAAAAAAAAAAAAAAAAAA
-              issuer_url: https://oidc.example.com
-              display: "Login with Example"
-              scope: [ "group" ]
-              claims_to_roles:
-                 - claim: "group"
-                   value: "admin"
-                   roles: [ "admin" ]
-                 - claim: "group"
-                   value: "user"
-                   roles: [ "user" ]
-        ```
+**OIDC with pre-defined roles**
 
-   * **OIDC with role templates.** If you have individual system logins using
-     pre-defined roles can be cumbersome because you need to create a new role
-     every time you add a new member to your team. In this situation you can
-     use role templates to dynamically create roles based off information
-     passed in the claims. In the configuration below, if the claims have a
-     `group` with value `admin` we dynamically create a role with the name
-     extracted from the value of `email` in the claim and login `username`.
+In the configuration below, we are
+requesting the scope `group` from the identity provider then mapping the
+value to either to `admin` role or the `user` role depending on the value
+returned for `group` within the claims.
 
-        ```yaml
-        authentication:
-           type: oidc
-           oidc:
-              id: google
-              redirect_url: https://localhost:3080/v1/webapi/oidc/callback
-              redirect_timeout: 90s
-              client_id: 000000000000-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com
-              client_secret: AAAAAAAAAAAAAAAAAAAAAAAA
-              issuer_url: https://oidc.example.com
-              display: "Login with Example"
-              scope: [ "group", "username", "email" ]
-              claims_to_roles:
-                 - claim: "group"
-                   value: "admin"
-                   role_template:
-                      kind: role
-                      version: v2
-                      metadata:
-                         name: '{{index . "email"}}'
-                         namespace: "default"
-                      spec:
-                         namespaces: [ "*" ]
-                         max_session_ttl: 90h0m0s
-                         logins: [ '{{index . "username"}}', root ]
-                         node_labels:
-                            "*": "*"
-                         resources:
-                            "*": [ "read", "write" ]
-        ```
+```yaml
+authentication:
+   type: oidc
+   oidc:
+      id: example.com
+      redirect_url: https://localhost:3080/v1/webapi/oidc/callback
+      redirect_timeout: 90s
+      client_id: 000000000000-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com
+      client_secret: AAAAAAAAAAAAAAAAAAAAAAAA
+      issuer_url: https://oidc.example.com
+      display: "Login with Example"
+      scope: [ "group" ]
+      claims_to_roles:
+         - claim: "group"
+           value: "admin"
+           roles: [ "admin" ]
+         - claim: "group"
+           value: "user"
+           roles: [ "user" ]
+```
+
+**OIDC with role templates**
+
+If you have individual system logins using
+pre-defined roles can be cumbersome because you need to create a new role
+every time you add a new member to your team. In this situation you can
+use role templates to dynamically create roles based off information
+passed in the claims. In the configuration below, if the claims have a
+`group` with value `admin` we dynamically create a role with the name
+extracted from the value of `email` in the claim and login `username`.
+
+```yaml
+authentication:
+   type: oidc
+   oidc:
+      id: google
+      redirect_url: https://localhost:3080/v1/webapi/oidc/callback
+      redirect_timeout: 90s
+      client_id: 000000000000-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com
+      client_secret: AAAAAAAAAAAAAAAAAAAAAAAA
+      issuer_url: https://oidc.example.com
+      display: "Login with Example"
+      scope: [ "group", "username", "email" ]
+      claims_to_roles:
+         - claim: "group"
+           value: "admin"
+           role_template:
+              kind: role
+              version: v2
+              metadata:
+                 name: '{{index . "email"}}'
+                 namespace: "default"
+              spec:
+                 namespaces: [ "*" ]
+                 max_session_ttl: 90h0m0s
+                 logins: [ '{{index . "username"}}', root ]
+                 node_labels:
+                    "*": "*"
+                 resources:
+                    "*": [ "read", "write" ]
+```
 
 #### Login
 

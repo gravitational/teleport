@@ -12,7 +12,7 @@
     - name: recursive copy
       copy:
         src: /root/go/src/github.com/gravitational/teleport/docker/ansible/rdir
-        dest: /tmp"
+        dest: /tmp
         owner: root
         group: root
         mode: 0644

@@ -21,6 +21,7 @@ var adminResources = []string{
 	teleservices.KindCertAuthority,
 	teleservices.KindReverseTunnel,
 	teleservices.KindTrustedCluster,
+	teleservices.KindNode,
 }
 
 // AdminAccess describes admin access

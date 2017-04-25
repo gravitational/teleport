@@ -998,6 +998,10 @@ func (u *CreateCommand) Create(client *auth.TunClient) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
+			err = role.CheckAndSetDefaults()
+			if err != nil {
+				return trace.Wrap(err)
+			}
 			if err := client.UpsertRole(role, backend.Forever); err != nil {
 				return trace.Wrap(err)
 			}
