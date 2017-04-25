@@ -638,7 +638,12 @@ func (s *WebSuite) TestGetSiteNodes(c *C) {
 	c.Assert(nodes2, DeepEquals, nodes)
 }
 
-func (s *WebSuite) makeTerminal(c *C, pack *authPack, opts ...session.ID) *websocket.Conn {
+func (s *WebSuite) TestSiteNodeConnectInvalidSessionID(c *C) {
+	_, err := s.makeTerminal(s.authPack(c), session.ID("/../../../foo"))
+	c.Assert(err, NotNil)
+}
+
+func (s *WebSuite) makeTerminal(pack *authPack, opts ...session.ID) (*websocket.Conn, error) {
 	var sessionID session.ID
 	if len(opts) == 0 {
 		sessionID = session.NewID()
@@ -652,7 +657,9 @@ func (s *WebSuite) makeTerminal(c *C, pack *authPack, opts ...session.ID) *webso
 		Term:      session.TerminalParams{W: 100, H: 100},
 		SessionID: sessionID,
 	})
-	c.Assert(err, IsNil)
+	if err != nil {
+		return nil, err
+	}
 
 	q := u.Query()
 	q.Set("params", string(data))
@@ -663,14 +670,15 @@ func (s *WebSuite) makeTerminal(c *C, pack *authPack, opts ...session.ID) *webso
 	wscfg.TlsConfig = &tls.Config{
 		InsecureSkipVerify: true,
 	}
-	c.Assert(err, IsNil)
+	if err != nil {
+		return nil, err
+	}
+
 	for _, cookie := range pack.cookies {
 		wscfg.Header.Add("Cookie", cookie.String())
 	}
-	clt, err := websocket.DialConfig(wscfg)
-	c.Assert(err, IsNil)
 
-	return clt
+	return websocket.DialConfig(wscfg)
 }
 
 func (s *WebSuite) sessionStream(c *C, pack *authPack, sessionID session.ID, opts ...string) *websocket.Conn {
@@ -700,10 +708,11 @@ func (s *WebSuite) sessionStream(c *C, pack *authPack, sessionID session.ID, opt
 }
 
 func (s *WebSuite) TestTerminal(c *C) {
-	term := s.makeTerminal(c, s.authPack(c))
+	term, err := s.makeTerminal(s.authPack(c))
+	c.Assert(err, IsNil)
 	defer term.Close()
 
-	_, err := io.WriteString(term, "echo vinsong\r\n")
+	_, err = io.WriteString(term, "echo vinsong\r\n")
 	c.Assert(err, IsNil)
 
 	resultC := make(chan struct{})
@@ -733,11 +742,12 @@ func (s *WebSuite) TestTerminal(c *C) {
 func (s *WebSuite) TestNodesWithSessions(c *C) {
 	sid := session.NewID()
 	pack := s.authPack(c)
-	clt := s.makeTerminal(c, pack, sid)
+	clt, err := s.makeTerminal(pack, sid)
+	c.Assert(err, IsNil)
 	defer clt.Close()
 
 	// to make sure we have a session
-	_, err := io.WriteString(clt, "echo vinsong\r\n")
+	_, err = io.WriteString(clt, "echo vinsong\r\n")
 	c.Assert(err, IsNil)
 
 	// make sure server has replied
@@ -788,11 +798,12 @@ func (s *WebSuite) TestNodesWithSessions(c *C) {
 func (s *WebSuite) TestCloseConnectionsOnLogout(c *C) {
 	sid := session.NewID()
 	pack := s.authPack(c)
-	clt := s.makeTerminal(c, pack, sid)
+	clt, err := s.makeTerminal(pack, sid)
+	c.Assert(err, IsNil)
 	defer clt.Close()
 
 	// to make sure we have a session
-	_, err := io.WriteString(clt, "expr 137 + 39\r\n")
+	_, err = io.WriteString(clt, "expr 137 + 39\r\n")
 	c.Assert(err, IsNil)
 
 	// make sure server has replied
@@ -845,11 +856,12 @@ func (s *WebSuite) TestCreateSession(c *C) {
 func (s *WebSuite) TestResizeTerminal(c *C) {
 	sid := session.NewID()
 	pack := s.authPack(c)
-	term := s.makeTerminal(c, pack, sid)
+	term, err := s.makeTerminal(pack, sid)
+	c.Assert(err, IsNil)
 	defer term.Close()
 
 	// to make sure we have a session
-	_, err := io.WriteString(term, "expr 137 + 39\r\n")
+	_, err = io.WriteString(term, "expr 137 + 39\r\n")
 	c.Assert(err, IsNil)
 
 	// make sure server has replied
@@ -875,7 +887,8 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 func (s *WebSuite) TestPlayback(c *C) {
 	pack := s.authPack(c)
 	sid := session.NewID()
-	term := s.makeTerminal(c, pack, sid)
+	term, err := s.makeTerminal(pack, sid)
+	c.Assert(err, IsNil)
 	defer term.Close()
 }
 

@@ -84,6 +84,11 @@ func newTerminal(req terminalRequest,
 	if req.Term.W <= 0 || req.Term.H <= 0 {
 		return nil, trace.BadParameter("term: bad term dimensions")
 	}
+	// make sure whatever session is requested is a valid session
+	_, err = session.ParseID(string(req.SessionID))
+	if err != nil {
+		return nil, trace.BadParameter("sid: invalid session id")
+	}
 	return &terminalHandler{
 		params: req,
 		ctx:    ctx,

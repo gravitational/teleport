@@ -137,3 +137,11 @@ const (
 	// NetIQ is an identity provider.
 	NetIQ = "netiq"
 )
+
+const (
+	// RemoteCommandSuccess is returned when a command has successfully executed.
+	RemoteCommandSuccess = 0
+	// RemoteCommandFailure is returned when a command has failed to execute and
+	// we don't have another status code for it.
+	RemoteCommandFailure = 255
+)
