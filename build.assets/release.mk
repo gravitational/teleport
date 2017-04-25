@@ -1,6 +1,6 @@
 # This file is distributed with every binary Teleport tarball
-BINDIR=/usr/local/bin
-VARDIR=/var/lib/teleport
+BINDIR ?= /usr/local/bin
+VARDIR ?= /var/lib/teleport
 
 #
 # sudo make install: installs Teleport into a UNIX-like OS

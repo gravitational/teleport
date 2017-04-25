@@ -436,7 +436,7 @@ func (s *SrvSuite) TestExecCommandNoLocalPtyAndRemotePty(c *C) {
 	stdout, err := ioutil.ReadAll(stdoutPipe)
 	c.Assert(err, IsNil)
 	outputContains := strings.Contains(string(stdout), "1\r\n2\r\n\n")
-	c.Assert(outputContains, Equals, true, Commentf("Output does not contain [%# x]", "1\r\n2\r\n\n"))
+	c.Assert(outputContains, Equals, true, Commentf("Output [%# x] does not match expected output: [%# x]", string(stdout), "1\r\n2\r\n\n"))
 }
 
 // TestExecCommandNoLocalPtyAndNoRemotePty tests executing a command where
