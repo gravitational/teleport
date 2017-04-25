@@ -14,25 +14,27 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var expect = require('expect');
-var $ = require('jQuery');
-var api = require('app/services/api');
-var session = require('app/services/session');
-var spyOn = expect.spyOn;
-var auth = require('app/services/auth');
-var cfg = require('app/config');
+import expect from 'expect';
+import $ from 'jQuery';
+import api from 'app/services/api';
+import session from 'app/services/session';
+import auth from 'app/services/auth';
+import history from 'app/services/history';
+import cfg from 'app/config';
+
+let spyOn = expect.spyOn;
 
 describe('auth', function () {
-  var sample = { token: 'token', expires_in: 599, created: new Date().getTime() };
+  let sample = { token: 'token', expires_in: 599, created: new Date().getTime() };
 
   beforeEach(function () {
     spyOn(session, 'setUserData');
     spyOn(session, 'getUserData');
     spyOn(session, 'clear');
+    spyOn(history, 'push');
     spyOn(api, 'post');
     spyOn(api, 'get');
-    spyOn(api, 'delete').andReturn($.Deferred().resolve());
-    spyOn(auth, 'redirect');
+    spyOn(api, 'delete').andReturn($.Deferred().resolve());    
     spyOn(auth, '_startTokenRefresher');
     spyOn(auth, '_stopTokenRefresher');                
     spyOn(auth, '_shouldRefreshToken').andCallThrough();
@@ -44,7 +46,7 @@ describe('auth', function () {
 
   describe('login(username, password, token)', function () {
     it('should successfully login and put user data in the session', function () {
-      var token = null;
+      let token = null;
       api.post.andReturn($.Deferred().resolve(sample));
       auth.login('user', 'password').done(()=>{ token = sample.token; });
 
@@ -54,7 +56,7 @@ describe('auth', function () {
     });
 
     it('should return rejected promise if failed to log in', function () {
-      var wasCalled = false;
+      let wasCalled = false;
       api.post.andReturn($.Deferred().reject());
       auth.login('user', 'password').fail(()=> { wasCalled = true });
       expect(wasCalled).toEqual(true);
@@ -62,7 +64,7 @@ describe('auth', function () {
   });
 
   describe('loginWithU2f(name, password)', function () {
-    var u2fSample = { type: 2, signRequests: -2, timeoutSeconds: -599, requestId: 2 };
+    let u2fSample = { type: 2, signRequests: -2, timeoutSeconds: -599, requestId: 2 };
 
     it('should successfully login and put user data in the session', function () {
       window.u2f = {
@@ -72,7 +74,7 @@ describe('auth', function () {
         }
       };
 
-      var token = null;
+      let token = null;
       api.post.andReturn($.Deferred().resolve(u2fSample));
       auth.loginWithU2f('user', 'password').done(()=>{ token = u2fSample; });
 
@@ -81,8 +83,8 @@ describe('auth', function () {
       expect(getCallArgs(session.setUserData).token, u2fSample);
     });
 
-    it('should return rejected promise if failed to log in', function () {
-      var wasCalled = false;
+    it('should return rejected promise if failed to login', function () {
+      let wasCalled = false;
       api.post.andReturn($.Deferred().reject());
       auth.loginWithU2f('user', 'password').fail(()=> { wasCalled = true });
       expect(wasCalled).toEqual(true);
@@ -95,7 +97,7 @@ describe('auth', function () {
 	      }
       };
 
-      var wasCalled = false;
+      let wasCalled = false;
       api.post.andReturn($.Deferred().resolve(u2fSample));
       auth.loginWithU2f('user', 'password').fail(()=> { wasCalled = true });
       expect(wasCalled).toEqual(true);
@@ -113,7 +115,7 @@ describe('auth', function () {
   describe('ensureUser()', function () {            
     describe('when token is valid', function () {
       it('should be resolved', function () {                
-        var wasCalled = false;        
+        let wasCalled = false;        
         session.getUserData.andReturn(sample);                                
         auth.ensureUser('user', 'password').done(()=> { wasCalled = true });
 
@@ -131,7 +133,7 @@ describe('auth', function () {
            created: new Date('12/12/2000').getTime()
          });
 
-        var wasCalled = false;        
+        let wasCalled = false;        
         auth.ensureUser('user', 'password').done(()=> { wasCalled = true });
 
         expect(wasCalled).toEqual(true);        
@@ -144,7 +146,7 @@ describe('auth', function () {
       it('should reject', function () {                
         session.getUserData.andReturn({});
         
-        var wasCalled = false;
+        let wasCalled = false;
         auth.ensureUser('user', 'password').fail(() => { wasCalled = true });
         expect(wasCalled).toEqual(true);
       });
@@ -165,4 +167,3 @@ describe('auth', function () {
     return spy.getLastCall().arguments[0];
   }
 })
-

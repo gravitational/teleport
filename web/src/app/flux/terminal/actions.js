@@ -14,21 +14,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 import reactor from 'app/reactor';
-import session from 'app/services/session';
+import history from 'app/services/history';
 import api from 'app/services/api';
 import cfg from 'app/config';
-//import getters from './getters';
 import { updateSession } from './../sessions/actions';
 import sessionGetters from './../sessions/getters';
-//import {showError} from 'app/flux/notifications/actions';
 
 const logger = require('app/lib/logger').create('Current Session');
 
 const { TLPT_TERMINAL_OPEN, TLPT_TERMINAL_CLOSE, TLPT_TERMINAL_SET_STATUS } = require('./actionTypes');
 
-const changeBrowserUrl = newRouteParams => {
+const startSession = newRouteParams => {
   let routeUrl = cfg.getTerminalLoginUrl(newRouteParams);                                    
-  session.getHistory().push(routeUrl);      
+  history.push(routeUrl);      
 }
 
 const actions = {
@@ -39,7 +37,7 @@ const actions = {
       sid: undefined
     }      
     
-    changeBrowserUrl(newRouteParams);    
+    startSession(newRouteParams);    
     actions.initTerminal(newRouteParams);
   },
   
@@ -65,7 +63,7 @@ const actions = {
     
         reactor.dispatch(TLPT_TERMINAL_OPEN, newRouteParams);
         reactor.dispatch(TLPT_TERMINAL_SET_STATUS, { isReady: true });
-        changeBrowserUrl(newRouteParams);                    
+        startSession(newRouteParams);                    
       })
       .fail(err => {
         let errorText = api.getErrorText(err);
@@ -99,7 +97,7 @@ const actions = {
 
   close() {    
     reactor.dispatch(TLPT_TERMINAL_CLOSE);    
-    session.getHistory().push(cfg.routes.nodes);    
+    history.push(cfg.routes.nodes);
   },
 
   updateSessionFromEventStream(siteId) {
