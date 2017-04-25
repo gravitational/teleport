@@ -1106,14 +1106,15 @@ func (m *Handler) siteNodeConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	log.Debugf("[WEB] new terminal request for ns=%s, server=%s, login=%s",
-		req.Namespace, req.ServerID, req.Login)
+	log.Debugf("[WEB] new terminal request for ns=%s, server=%s, login=%s, sid=%s",
+		req.Namespace, req.ServerID, req.Login, req.SessionID)
 
 	req.Namespace = namespace
 	req.ProxyHostPort = m.ProxyHostPort()
 
 	term, err := newTerminal(*req, ctx, site)
 	if err != nil {
+		log.Errorf("[WEB] Unable to create terminal: %v", err)
 		return nil, trace.Wrap(err)
 	}
 

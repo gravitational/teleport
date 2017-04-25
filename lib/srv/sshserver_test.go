@@ -565,6 +565,17 @@ func (s *SrvSuite) TestAllowedUsers(c *C) {
 	c.Assert(err, NotNil)
 }
 
+func (s *SrvSuite) TestInvalidSessionID(c *C) {
+	session, err := s.clt.NewSession()
+	c.Assert(err, IsNil)
+
+	err = session.Setenv(sshutils.SessionEnvVar, "foo")
+	c.Assert(err, IsNil)
+
+	err = session.Shell()
+	c.Assert(err, NotNil)
+}
+
 func (s *SrvSuite) TestSessionHijack(c *C) {
 	_, err := user.Lookup(teleportTestUser)
 	if err != nil {
@@ -592,7 +603,8 @@ func (s *SrvSuite) TestSessionHijack(c *C) {
 	c.Assert(err, IsNil)
 	defer se.Close()
 
-	err = se.Setenv(sshutils.SessionEnvVar, "session1")
+	firstSessionID := string(sess.NewID())
+	err = se.Setenv(sshutils.SessionEnvVar, firstSessionID)
 	c.Assert(err, IsNil)
 
 	err = se.Shell()
@@ -618,7 +630,7 @@ func (s *SrvSuite) TestSessionHijack(c *C) {
 	c.Assert(err, IsNil)
 	defer se2.Close()
 
-	err = se2.Setenv(sshutils.SessionEnvVar, "session1")
+	err = se2.Setenv(sshutils.SessionEnvVar, firstSessionID)
 	c.Assert(err, IsNil)
 
 	// attempt to hijack, should return error
