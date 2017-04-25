@@ -14,7 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 import reactor from 'app/reactor';
-import session from 'app/services/session';
 import api from 'app/services/api';
 import cfg from 'app/config';
 import Logger from 'app/lib/logger'; 
@@ -80,11 +79,11 @@ export const initTerminal = routeParams => {
 }
     
 export const close = () => {    
-  reactor.dispatch(TLPT_TERMINAL_CLOSE);    
-  session.getHistory().push(cfg.routes.nodes);    
+  reactor.dispatch(TLPT_TERMINAL_CLOSE);      
+  history.push(cfg.routes.nodes);      
 }
 
-export const updateRoute = newRouteParams => {
+export const updateRoute = newRouteParams => {    
   let routeUrl = cfg.getTerminalLoginUrl(newRouteParams);                                    
-  session.getHistory().push(routeUrl);      
+  history.push(routeUrl);      
 }  

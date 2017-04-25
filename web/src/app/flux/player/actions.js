@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 import reactor from 'app/reactor';
-import session from 'app/services/session';
+import history from 'app/services/history';
 import api from 'app/services/api';
 import cfg from 'app/config';
 import { fetchStoredSession } from './../sessions/actions';
@@ -32,7 +32,7 @@ const actions = {
 
   openPlayer(routeParams) {
     let routeUrl = cfg.getPlayerUrl(routeParams);
-    session.getHistory().push(routeUrl);      
+    history.push(routeUrl);      
   },
 
   initPlayer(routeParams) {
@@ -67,9 +67,8 @@ const actions = {
 
   close() {    
     reactor.dispatch(TLPT_PLAYER_CLOSE);    
-    session.getHistory().push(cfg.routes.sessions);    
+    history.push(cfg.routes.sessions);    
   }
-
 }
 
 export default actions;

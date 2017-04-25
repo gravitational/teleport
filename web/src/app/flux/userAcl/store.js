@@ -2,6 +2,16 @@ import { Store, toImmutable } from 'nuclear-js';
 import { Record, Map, List } from 'immutable';
 import { USERACL_RECEIVE } from './actionTypes';
 
+const sortLogins = loginList => {
+  let index = loginList.indexOf('root');
+  if (index !== -1) {
+    loginList = loginList.remove(index);
+    return loginList.sort().unshift('root')
+  }
+
+  return loginList;
+}
+
 class AccessRec extends Record({  
   admin: Map({
     enabled: false
@@ -11,8 +21,8 @@ class AccessRec extends Record({
     logins: List()
   })
 }){
-  constructor(params){
-    super(params);            
+  constructor(params) {    
+    super(params);                
   }
   
   isAdminEnabled() {
@@ -30,7 +40,7 @@ class AccessRec extends Record({
       return []
     }
 
-    return logins.toJS();
+    return logins.toJS()    
   }
 }
 
@@ -45,8 +55,12 @@ export default Store({
 })
 
 function receiveAcl(state, json) {
-  json = json || {};    
-  return new AccessRec(toImmutable(json));    
+  json = json || {};   
+  let aclMap = toImmutable(json);
+  let loginList = aclMap.getIn(['ssh', 'logins']);
+  if (loginList) {
+    aclMap = aclMap.setIn(['ssh', 'logins'], sortLogins(loginList));
+  }
+
+  return new AccessRec(aclMap);    
 }
-
-
