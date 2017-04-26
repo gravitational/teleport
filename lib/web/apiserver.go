@@ -1039,6 +1039,9 @@ func (m *Handler) getSiteNodes(w http.ResponseWriter, r *http.Request, p httprou
 		return nil, trace.Wrap(err)
 	}
 	namespace := p.ByName("namespace")
+	if !services.IsValidNamespace(namespace) {
+		return nil, trace.BadParameter("invalid namespace %q", namespace)
+	}
 	servers, err := clt.GetNodes(namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1088,6 +1091,11 @@ func (m *Handler) siteNodeConnect(
 	ctx *SessionContext,
 	site reversetunnel.RemoteSite) (interface{}, error) {
 
+	namespace := p.ByName("namespace")
+	if !services.IsValidNamespace(namespace) {
+		return nil, trace.BadParameter("invalid namespace %q", namespace)
+	}
+
 	q := r.URL.Query()
 	params := q.Get("params")
 	if params == "" {
@@ -1101,7 +1109,7 @@ func (m *Handler) siteNodeConnect(
 	log.Debugf("[WEB] new terminal request for ns=%s, server=%s, login=%s",
 		req.Namespace, req.ServerID, req.Login)
 
-	req.Namespace = p.ByName("namespace")
+	req.Namespace = namespace
 	req.ProxyHostPort = m.ProxyHostPort()
 
 	term, err := newTerminal(*req, ctx, site)
@@ -1137,7 +1145,12 @@ func (m *Handler) siteSessionStream(w http.ResponseWriter, r *http.Request, p ht
 		return nil, trace.Wrap(err)
 	}
 
-	connect, err := newSessionStreamHandler(p.ByName("namespace"),
+	namespace := p.ByName("namespace")
+	if !services.IsValidNamespace(namespace) {
+		return nil, trace.BadParameter("invalid namespace %q", namespace)
+	}
+
+	connect, err := newSessionStreamHandler(namespace,
 		*sessionID, ctx, site, m.sessionStreamPollPeriod)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1175,6 +1188,11 @@ type siteSessionGenerateResponse struct {
 // {"session": {"id": "session-id", "terminal_params": {"w": 100, "h": 100}, "login": "centos"}}
 //
 func (m *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	namespace := p.ByName("namespace")
+	if !services.IsValidNamespace(namespace) {
+		return nil, trace.BadParameter("invalid namespace %q", namespace)
+	}
+
 	var req *siteSessionGenerateReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -1182,7 +1200,7 @@ func (m *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p 
 	req.Session.ID = session.NewID()
 	req.Session.Created = time.Now().UTC()
 	req.Session.LastActive = time.Now().UTC()
-	req.Session.Namespace = p.ByName("namespace")
+	req.Session.Namespace = namespace
 	log.Infof("Generated session: %#v", req.Session)
 	return siteSessionGenerateResponse{Session: req.Session}, nil
 }
@@ -1220,7 +1238,12 @@ func (m *Handler) siteSessionUpdate(w http.ResponseWriter, r *http.Request, p ht
 		return nil, trace.Wrap(err)
 	}
 
-	err = ctx.UpdateSessionTerminal(siteAPI, p.ByName("namespace"), *sessionID, req.TerminalParams)
+	namespace := p.ByName("namespace")
+	if !services.IsValidNamespace(namespace) {
+		return nil, trace.BadParameter("invalid namespace %q", namespace)
+	}
+
+	err = ctx.UpdateSessionTerminal(siteAPI, namespace, *sessionID, req.TerminalParams)
 	if err != nil {
 		log.Error(err)
 		return nil, trace.Wrap(err)
@@ -1245,7 +1268,13 @@ func (m *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sessions, err := clt.GetSessions(p.ByName("namespace"))
+
+	namespace := p.ByName("namespace")
+	if !services.IsValidNamespace(namespace) {
+		return nil, trace.BadParameter("invalid namespace %q", namespace)
+	}
+
+	sessions, err := clt.GetSessions(namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1270,7 +1299,13 @@ func (m *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httpr
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess, err := clt.GetSession(p.ByName("namespace"), *sessionID)
+
+	namespace := p.ByName("namespace")
+	if !services.IsValidNamespace(namespace) {
+		return nil, trace.BadParameter("invalid namespace %q", namespace)
+	}
+
+	sess, err := clt.GetSession(namespace, *sessionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1399,8 +1434,13 @@ func (m *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 	if max > maxStreamBytes {
 		max = maxStreamBytes
 	}
+	namespace := p.ByName("namespace")
+	if !services.IsValidNamespace(namespace) {
+		onError(trace.BadParameter("invalid namespace %q", namespace))
+		return
+	}
 	// call the site API to get the chunk:
-	bytes, err := clt.GetSessionChunk(p.ByName("namespace"), *sid, offset, max)
+	bytes, err := clt.GetSessionChunk(namespace, *sid, offset, max)
 	if err != nil {
 		onError(trace.Wrap(err))
 		return
@@ -1452,7 +1492,11 @@ func (m *Handler) siteSessionEventsGet(w http.ResponseWriter, r *http.Request, p
 	if err != nil {
 		afterN = 0
 	}
-	e, err := clt.GetSessionEvents(p.ByName("namespace"), *sessionID, afterN)
+	namespace := p.ByName("namespace")
+	if !services.IsValidNamespace(namespace) {
+		return nil, trace.BadParameter("invalid namespace %q", namespace)
+	}
+	e, err := clt.GetSessionEvents(namespace, *sessionID, afterN)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
