@@ -514,6 +514,16 @@ func (s *WebSuite) TestWebSessionsCRUD(c *C) {
 	c.Assert(trace.IsAccessDenied(err), Equals, true)
 }
 
+func (s *WebSuite) TestNamespace(c *C) {
+	pack := s.authPack(c)
+
+	_, err := pack.clt.Get(pack.clt.Endpoint("webapi", "sites", s.domainName, "namespaces", "..%252fevents%3f", "nodes"), url.Values{})
+	c.Assert(err, NotNil)
+
+	_, err = pack.clt.Get(pack.clt.Endpoint("webapi", "sites", s.domainName, "namespaces", "default", "nodes"), url.Values{})
+	c.Assert(err, IsNil)
+}
+
 func (s *WebSuite) TestWebSessionsRenew(c *C) {
 	pack := s.authPack(c)
 

@@ -236,7 +236,11 @@ func (s *APIServer) upsertServer(auth ClientI, role teleport.Role, w http.Respon
 	}
 	switch role {
 	case teleport.RoleNode:
-		server.SetNamespace(p.ByName("namespace"))
+		namespace := p.ByName("namespace")
+		if !services.IsValidNamespace(namespace) {
+			return nil, trace.BadParameter("invalid namespace %q", namespace)
+		}
+		server.SetNamespace(namespace)
 		if err := auth.UpsertNode(server); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -259,7 +263,11 @@ func (s *APIServer) upsertNode(auth ClientI, w http.ResponseWriter, r *http.Requ
 
 // getNodes returns registered SSH nodes
 func (s *APIServer) getNodes(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	servers, err := auth.GetNodes(p.ByName("namespace"))
+	namespace := p.ByName("namespace")
+	if !services.IsValidNamespace(namespace) {
+		return nil, trace.BadParameter("invalid namespace %q", namespace)
+	}
+	servers, err := auth.GetNodes(namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -866,7 +874,11 @@ func (s *APIServer) createSession(auth ClientI, w http.ResponseWriter, r *http.R
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	req.Session.Namespace = p.ByName("namespace")
+	namespace := p.ByName("namespace")
+	if !services.IsValidNamespace(namespace) {
+		return nil, trace.BadParameter("invalid namespace %q", namespace)
+	}
+	req.Session.Namespace = namespace
 	if err := auth.CreateSession(req.Session); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -882,7 +894,11 @@ func (s *APIServer) updateSession(auth ClientI, w http.ResponseWriter, r *http.R
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	req.Update.Namespace = p.ByName("namespace")
+	namespace := p.ByName("namespace")
+	if !services.IsValidNamespace(namespace) {
+		return nil, trace.BadParameter("invalid namespace %q", namespace)
+	}
+	req.Update.Namespace = namespace
 	if err := auth.UpdateSession(req.Update); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -890,7 +906,11 @@ func (s *APIServer) updateSession(auth ClientI, w http.ResponseWriter, r *http.R
 }
 
 func (s *APIServer) getSessions(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	sessions, err := auth.GetSessions(p.ByName("namespace"))
+	namespace := p.ByName("namespace")
+	if !services.IsValidNamespace(namespace) {
+		return nil, trace.BadParameter("invalid namespace %q", namespace)
+	}
+	sessions, err := auth.GetSessions(namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -902,7 +922,11 @@ func (s *APIServer) getSession(auth ClientI, w http.ResponseWriter, r *http.Requ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	se, err := auth.GetSession(p.ByName("namespace"), *sid)
+	namespace := p.ByName("namespace")
+	if !services.IsValidNamespace(namespace) {
+		return nil, trace.BadParameter("invalid namespace %q", namespace)
+	}
+	se, err := auth.GetSession(namespace, *sid)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1210,6 +1234,9 @@ func (s *APIServer) postSessionChunk(auth ClientI, w http.ResponseWriter, r *htt
 		return nil, trace.Wrap(err)
 	}
 	namespace := p.ByName("namespace")
+	if !services.IsValidNamespace(namespace) {
+		return nil, trace.BadParameter("invalid namespace %q", namespace)
+	}
 	if err = auth.PostSessionChunk(namespace, *sid, r.Body); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1226,6 +1253,9 @@ func (s *APIServer) getSessionChunk(auth ClientI, w http.ResponseWriter, r *http
 		return nil, trace.BadParameter("missing parameter id")
 	}
 	namespace := p.ByName("namespace")
+	if !services.IsValidNamespace(namespace) {
+		return nil, trace.BadParameter("invalid namespace %q", namespace)
+	}
 
 	// "offset bytes" query param
 	offsetBytes, err := strconv.Atoi(r.URL.Query().Get("offset"))
@@ -1260,6 +1290,9 @@ func (s *APIServer) getSessionEvents(auth ClientI, w http.ResponseWriter, r *htt
 		return nil, trace.Wrap(err)
 	}
 	namespace := p.ByName("namespace")
+	if !services.IsValidNamespace(namespace) {
+		return nil, trace.BadParameter("invalid namespace %q", namespace)
+	}
 	afterN, err := strconv.Atoi(r.URL.Query().Get("after"))
 	if err != nil {
 		afterN = 0
@@ -1292,6 +1325,10 @@ func (s *APIServer) getNamespaces(auth ClientI, w http.ResponseWriter, r *http.R
 
 func (s *APIServer) getNamespace(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	name := p.ByName("namespace")
+	if !services.IsValidNamespace(name) {
+		return nil, trace.BadParameter("invalid namespace %q", name)
+	}
+
 	namespace, err := auth.GetNamespace(name)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1301,6 +1338,10 @@ func (s *APIServer) getNamespace(auth ClientI, w http.ResponseWriter, r *http.Re
 
 func (s *APIServer) deleteNamespace(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	name := p.ByName("namespace")
+	if !services.IsValidNamespace(name) {
+		return nil, trace.BadParameter("invalid namespace %q", name)
+	}
+
 	err := auth.DeleteNamespace(name)
 	if err != nil {
 		return nil, trace.Wrap(err)

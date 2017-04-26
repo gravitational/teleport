@@ -18,6 +18,7 @@ package services
 
 import (
 	"fmt"
+	"regexp"
 
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -41,6 +42,11 @@ func (n *Namespace) CheckAndSetDefaults() error {
 	if err := n.Metadata.Check(); err != nil {
 		return trace.Wrap(err)
 	}
+	isValid := IsValidNamespace(n.Metadata.Name)
+	if !isValid {
+		return trace.BadParameter("namespace %q is invalid", n.Metadata.Name)
+	}
+
 	return nil
 }
 
@@ -103,3 +109,9 @@ func (s SortedNamespaces) Less(i, j int) bool {
 func (s SortedNamespaces) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
+
+func IsValidNamespace(s string) bool {
+	return validNamespace.MatchString(s)
+}
+
+var validNamespace = regexp.MustCompile(`[A-Za-z0-9]+`)
