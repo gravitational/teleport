@@ -17,6 +17,8 @@ limitations under the License.
 package auth
 
 import (
+	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -28,9 +30,12 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/trace"
+
+	"github.com/coreos/go-oidc/jose"
+	"github.com/coreos/go-oidc/oidc"
+	"github.com/jonboulle/clockwork"
 	. "gopkg.in/check.v1"
 )
 
@@ -42,6 +47,7 @@ type AuthSuite struct {
 }
 
 var _ = Suite(&AuthSuite{})
+var _ = fmt.Printf
 
 func (s *AuthSuite) SetUpSuite(c *C) {
 	utils.InitLoggerForTests()
@@ -62,7 +68,7 @@ func (s *AuthSuite) SetUpTest(c *C) {
 
 func (s *AuthSuite) TestSessions(c *C) {
 	c.Assert(s.a.UpsertCertAuthority(
-		suite.NewTestCA(services.UserCA, "me.localhost"), backend.Forever), IsNil)
+		suite.NewTestCA(services.UserCA, "me.localhost")), IsNil)
 
 	user := "user1"
 	pass := []byte("abc123")
@@ -92,7 +98,7 @@ func (s *AuthSuite) TestSessions(c *C) {
 
 func (s *AuthSuite) TestUserLock(c *C) {
 	c.Assert(s.a.UpsertCertAuthority(
-		suite.NewTestCA(services.UserCA, "me.localhost"), backend.Forever), IsNil)
+		suite.NewTestCA(services.UserCA, "me.localhost")), IsNil)
 
 	user := "user1"
 	pass := []byte("abc123")
@@ -131,7 +137,7 @@ func (s *AuthSuite) TestUserLock(c *C) {
 
 func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(s.a.UpsertCertAuthority(
-		suite.NewTestCA(services.HostCA, "me.localhost"), backend.Forever), IsNil)
+		suite.NewTestCA(services.HostCA, "me.localhost")), IsNil)
 
 	// generate single-use token (TTL is 0)
 	tok, err := s.a.GenerateToken(teleport.Roles{teleport.RoleNode}, 0)
@@ -211,4 +217,226 @@ func (s *AuthSuite) TestBadTokens(c *C) {
 	tampered := string(tok[0]+1) + tok[1:]
 	_, err = s.a.ValidateToken(tampered)
 	c.Assert(err, NotNil)
+}
+
+func (s *AuthSuite) TestBuildRolesInvalid(c *C) {
+	// create a connector
+	oidcConnector := services.NewOIDCConnector("example", services.OIDCConnectorSpecV2{
+		IssuerURL:    "https://www.exmaple.com",
+		ClientID:     "example-client-id",
+		ClientSecret: "example-client-secret",
+		RedirectURL:  "https://localhost:3080/v1/webapi/oidc/callback",
+		Display:      "sign in with example.com",
+		Scope:        []string{"foo", "bar"},
+	})
+
+	// create some claims
+	var claims = make(jose.Claims)
+	claims.Add("roles", "teleport-user")
+	claims.Add("email", "foo@example.com")
+	claims.Add("nickname", "foo")
+	claims.Add("full_name", "foo bar")
+
+	// create an identity for the ttl
+	ident := &oidc.Identity{
+		ExpiresAt: time.Now().Add(1 * time.Minute),
+	}
+
+	// try and build roles should be invalid since we have no mappings
+	_, err := s.a.buildRoles(oidcConnector, ident, claims)
+	c.Assert(err, NotNil)
+}
+
+func (s *AuthSuite) TestBuildRolesStatic(c *C) {
+	// create a connector
+	oidcConnector := services.NewOIDCConnector("example", services.OIDCConnectorSpecV2{
+		IssuerURL:    "https://www.exmaple.com",
+		ClientID:     "example-client-id",
+		ClientSecret: "example-client-secret",
+		RedirectURL:  "https://localhost:3080/v1/webapi/oidc/callback",
+		Display:      "sign in with example.com",
+		Scope:        []string{"foo", "bar"},
+		ClaimsToRoles: []services.ClaimMapping{
+			services.ClaimMapping{
+				Claim: "roles",
+				Value: "teleport-user",
+				Roles: []string{"user"},
+			},
+		},
+	})
+
+	// create some claims
+	var claims = make(jose.Claims)
+	claims.Add("roles", "teleport-user")
+	claims.Add("email", "foo@example.com")
+	claims.Add("nickname", "foo")
+	claims.Add("full_name", "foo bar")
+
+	// create an identity for the ttl
+	ident := &oidc.Identity{
+		ExpiresAt: time.Now().Add(1 * time.Minute),
+	}
+
+	// build roles and check that we mapped to "user" role
+	roles, err := s.a.buildRoles(oidcConnector, ident, claims)
+	c.Assert(err, IsNil)
+	c.Assert(roles, HasLen, 1)
+	c.Assert(roles[0], Equals, "user")
+}
+
+func (s *AuthSuite) TestBuildRolesTemplate(c *C) {
+	// create a connector
+	oidcConnector := services.NewOIDCConnector("example", services.OIDCConnectorSpecV2{
+		IssuerURL:    "https://www.exmaple.com",
+		ClientID:     "example-client-id",
+		ClientSecret: "example-client-secret",
+		RedirectURL:  "https://localhost:3080/v1/webapi/oidc/callback",
+		Display:      "sign in with example.com",
+		Scope:        []string{"foo", "bar"},
+		ClaimsToRoles: []services.ClaimMapping{
+			services.ClaimMapping{
+				Claim: "roles",
+				Value: "teleport-user",
+				RoleTemplate: &services.RoleV2{
+					Kind:    services.KindRole,
+					Version: services.V2,
+					Metadata: services.Metadata{
+						Name:      `{{index . "email"}}`,
+						Namespace: defaults.Namespace,
+					},
+					Spec: services.RoleSpecV2{
+						MaxSessionTTL: services.NewDuration(90 * 60 * time.Minute),
+						Logins:        []string{`{{index . "nickname"}}`, `root`},
+						NodeLabels:    map[string]string{"*": "*"},
+						Namespaces:    []string{"*"},
+					},
+				},
+			},
+		},
+	})
+
+	// create some claims
+	var claims = make(jose.Claims)
+	claims.Add("roles", "teleport-user")
+	claims.Add("email", "foo@example.com")
+	claims.Add("nickname", "foo")
+	claims.Add("full_name", "foo bar")
+
+	// create an identity for the ttl
+	ident := &oidc.Identity{
+		ExpiresAt: time.Now().Add(1 * time.Minute),
+	}
+
+	// build roles
+	roles, err := s.a.buildRoles(oidcConnector, ident, claims)
+	c.Assert(err, IsNil)
+
+	// check that the newly created role was both returned and upserted into the backend
+	r, err := s.a.GetRoles()
+	c.Assert(err, IsNil)
+	c.Assert(r, HasLen, 1)
+	c.Assert(r[0].GetName(), Equals, "foo@example.com")
+	c.Assert(roles, HasLen, 1)
+	c.Assert(roles[0], Equals, "foo@example.com")
+}
+
+func (s *AuthSuite) TestValidateACRValues(c *C) {
+
+	var tests = []struct {
+		inIDToken     string
+		inACRValue    string
+		inACRProvider string
+		outIsValid    bool
+	}{
+		// 0 - default, acr values match
+		{
+			`
+{
+	"acr": "foo",
+	"aud": "00000000-0000-0000-0000-000000000000",
+    "exp": 1111111111
+}
+			`,
+			"foo",
+			"",
+			true,
+		},
+		// 1 - default, acr values do not match
+		{
+			`
+{
+	"acr": "foo",
+	"aud": "00000000-0000-0000-0000-000000000000",
+    "exp": 1111111111
+}
+			`,
+			"bar",
+			"",
+			false,
+		},
+		// 2 - netiq, acr values match
+		{
+			`
+{
+    "acr": {
+        "values": [
+            "foo/bar/baz"
+        ]
+    },
+    "aud": "00000000-0000-0000-0000-000000000000",
+    "exp": 1111111111
+}
+			`,
+			"foo/bar/baz",
+			"netiq",
+			true,
+		},
+		// 3 - netiq, invalid format
+		{
+			`
+{
+    "acr": {
+        "values": "foo/bar/baz"
+    },
+    "aud": "00000000-0000-0000-0000-000000000000",
+    "exp": 1111111111
+}
+			`,
+			"foo/bar/baz",
+			"netiq",
+			false,
+		},
+		// 4 - netiq, invalid value
+		{
+			`
+{
+    "acr": {
+        "values": [
+            "foo/bar/baz/qux"
+        ]
+    },
+    "aud": "00000000-0000-0000-0000-000000000000",
+    "exp": 1111111111
+}
+			`,
+			"foo/bar/baz",
+			"netiq",
+			false,
+		},
+	}
+
+	for i, tt := range tests {
+		comment := Commentf("Test %v", i)
+
+		var claims jose.Claims
+		err := json.Unmarshal([]byte(tt.inIDToken), &claims)
+		c.Assert(err, IsNil, comment)
+
+		err = s.a.validateACRValues(tt.inACRValue, tt.inACRProvider, claims)
+		if tt.outIsValid {
+			c.Assert(err, IsNil, comment)
+		} else {
+			c.Assert(err, NotNil, comment)
+		}
+	}
 }

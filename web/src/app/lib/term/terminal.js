@@ -57,7 +57,7 @@ class TtyTerminal {
     this.term = new Term({    
       cols: 15,
       rows: 5,
-      scrollback: this.scrollBack,            
+      scrollback: this.scrollBack,                  
       cursorBlink: false
     });
     

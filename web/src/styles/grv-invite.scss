@@ -14,6 +14,22 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+
+.grv-invite-login-error{
+  @extend .error;  
+  white-space: pre-wrap;
+
+  a{
+    font-weight: normal;
+  }
+
+  .grv-invite-login-error-u2f-codes{
+    @extend .m-t-sm;
+    @extend .text-muted;
+    font-weight: normal;
+  }
+}
+
 .grv-invite{
 
   background-color: #2f4050;
@@ -44,7 +60,7 @@ limitations under the License.
       margin-bottom: 15px;
       h3{
         margin-bottom: 20px;
-      }      
+      }            
     }
 
     .grv-invite-barcode{

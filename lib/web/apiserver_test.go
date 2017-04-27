@@ -51,6 +51,7 @@ import (
 	sess "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/state"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gokyle/hotp"
@@ -173,7 +174,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 	role := services.RoleForUser(teleUser)
 	role.SetLogins([]string{s.user})
 	role.SetResource(services.Wildcard, services.RW())
-	err = s.authServer.UpsertRole(role)
+	err = s.authServer.UpsertRole(role, backend.Forever)
 	c.Assert(err, IsNil)
 
 	teleUser.AddRole(role.GetName())
@@ -184,9 +185,9 @@ func (s *WebSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(s.authServer.UpsertCertAuthority(
-		suite.NewTestCA(services.UserCA, s.domainName), backend.Forever), IsNil)
+		suite.NewTestCA(services.UserCA, s.domainName)), IsNil)
 	c.Assert(s.authServer.UpsertCertAuthority(
-		suite.NewTestCA(services.HostCA, s.domainName), backend.Forever), IsNil)
+		suite.NewTestCA(services.HostCA, s.domainName)), IsNil)
 
 	sessionServer, err := sess.New(s.bk)
 	c.Assert(err, IsNil)
@@ -242,6 +243,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		},
 		[]ssh.Signer{s.signer},
 		s.roleAuth,
+		state.NoCache,
 		reversetunnel.DirectSite(s.domainName, s.roleAuth),
 	)
 	c.Assert(err, IsNil)
@@ -445,7 +447,7 @@ func (s *WebSuite) authPack(c *C) *authPack {
 	c.Assert(err, IsNil)
 	role := services.RoleForUser(teleUser)
 	role.SetLogins([]string{s.user})
-	err = s.roleAuth.UpsertRole(role)
+	err = s.roleAuth.UpsertRole(role, backend.Forever)
 	c.Assert(err, IsNil)
 	teleUser.AddRole(role.GetName())
 

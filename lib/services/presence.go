@@ -23,29 +23,42 @@ import (
 // Presence records and reports the presence of all components
 // of the cluster - Nodes, Proxies and SSH nodes
 type Presence interface {
+
+	// UpsertLocalClusterName upserts local domain
+	UpsertLocalClusterName(name string) error
+
+	// GetLocalClusterName upserts local domain
+	GetLocalClusterName() (string, error)
+
 	// GetNodes returns a list of registered servers
 	GetNodes(namespace string) ([]Server, error)
 
+	// DeleteAllNodes deletes all nodes in a namespace
+	DeleteAllNodes(namespace string) error
+
 	// UpsertNode registers node presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
-	UpsertNode(server Server, ttl time.Duration) error
+	UpsertNode(server Server) error
 
 	// GetAuthServers returns a list of registered servers
 	GetAuthServers() ([]Server, error)
 
 	// UpsertAuthServer registers auth server presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
-	UpsertAuthServer(server Server, ttl time.Duration) error
+	UpsertAuthServer(server Server) error
 
 	// UpsertProxy registers proxy server presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
-	UpsertProxy(server Server, ttl time.Duration) error
+	UpsertProxy(server Server) error
 
 	// GetProxies returns a list of registered proxies
 	GetProxies() ([]Server, error)
 
+	// DeleteAllProxies deletes all proxies
+	DeleteAllProxies() error
+
 	// UpsertReverseTunnel upserts reverse tunnel entry temporarily or permanently
-	UpsertReverseTunnel(tunnel ReverseTunnel, ttl time.Duration) error
+	UpsertReverseTunnel(tunnel ReverseTunnel) error
 
 	// GetReverseTunnels returns a list of registered servers
 	GetReverseTunnels() ([]ReverseTunnel, error)
@@ -53,11 +66,17 @@ type Presence interface {
 	// DeleteReverseTunnel deletes reverse tunnel by it's domain name
 	DeleteReverseTunnel(domainName string) error
 
+	// DeleteAllReverseTunnels deletes all reverse tunnels
+	DeleteAllReverseTunnels() error
+
 	// GetNamespaces returns a list of namespaces
 	GetNamespaces() ([]Namespace, error)
 
 	// GetNamespace returns namespace by name
 	GetNamespace(name string) (*Namespace, error)
+
+	// DeleteAllNamespaces deletes all namespaces
+	DeleteAllNamespaces() error
 
 	// UpsertNamespace upserts namespace
 	UpsertNamespace(Namespace) error

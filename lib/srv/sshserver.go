@@ -21,6 +21,7 @@ package srv
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"os"
 	"os/exec"
@@ -42,10 +43,10 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/pborman/uuid"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 )
@@ -90,6 +91,9 @@ type Server struct {
 	// alog points to the AuditLog this server uses to report
 	// auditable events
 	alog events.IAuditLog
+
+	// clock is a system clock
+	clock clockwork.Clock
 }
 
 // ServerOption is a functional option passed to the server
@@ -209,6 +213,7 @@ func New(addr utils.NetAddr,
 		proxyPublicAddr: proxyPublicAddr,
 		uuid:            uuid,
 		closer:          utils.NewCloseBroadcaster(),
+		clock:           clockwork.NewRealClock(),
 	}
 	s.limiter, err = limiter.NewLimiter(limiter.LimiterConfig{})
 	if err != nil {
@@ -313,11 +318,12 @@ func (s *Server) getInfo() services.Server {
 // registerServer attempts to register server in the cluster
 func (s *Server) registerServer() error {
 	srv := s.getInfo()
+	srv.SetTTL(s.clock, defaults.ServerHeartbeatTTL)
 	if !s.proxyMode {
-		return trace.Wrap(s.authService.UpsertNode(srv, defaults.ServerHeartbeatTTL))
+		return trace.Wrap(s.authService.UpsertNode(srv))
 	}
 	srv.SetPublicAddr(s.proxyPublicAddr.String())
-	return trace.Wrap(s.authService.UpsertProxy(srv, defaults.ServerHeartbeatTTL))
+	return trace.Wrap(s.authService.UpsertProxy(srv))
 }
 
 // heartbeatPresence periodically calls into the auth server to let everyone
@@ -394,6 +400,7 @@ func (s *Server) getCommandLabels() map[string]services.CommandLabel {
 func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser string) (string, error) {
 	// enumerate all known CAs and see if any of them signed the
 	// supplied certificate
+	log.Debugf("[HA SSH NODE] checkPermsissionToLogin(%v, %v)", teleportUser, osUser)
 	cas, err := s.authService.GetCertAuthorities(services.UserCA, false)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -872,13 +879,24 @@ func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *ctx) 
 
 	authChan, _, err := ctx.conn.OpenChannel("auth-agent@openssh.com", nil)
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 	clientAgent := agent.NewClient(authChan)
 	ctx.setAgent(clientAgent, authChan)
 
 	pid := os.Getpid()
-	socketPath := filepath.Join(os.TempDir(), fmt.Sprintf("teleport-agent-%v.socket", uuid.New()))
+	socketDir, err := ioutil.TempDir(os.TempDir(), "teleport-")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	dirCloser := &utils.RemoveDirCloser{Path: socketDir}
+	socketPath := filepath.Join(socketDir, fmt.Sprintf("teleport-%v.socket", pid))
+	if err := os.Chown(socketDir, uid, gid); err != nil {
+		if err := dirCloser.Close(); err != nil {
+			log.Warn("failed to remove directory: %v", err)
+		}
+		return trace.ConvertSystemError(err)
+	}
 
 	agentServer := &teleagent.AgentServer{Agent: clientAgent}
 	err = agentServer.ListenUnixSocket(socketPath, uid, gid, 0600)
@@ -891,6 +909,7 @@ func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *ctx) 
 	ctx.setEnv(teleport.SSHAuthSock, socketPath)
 	ctx.setEnv(teleport.SSHAgentPID, fmt.Sprintf("%v", pid))
 	ctx.addCloser(agentServer)
+	ctx.addCloser(dirCloser)
 	ctx.Debugf("[SSH:node] opened agent channel for teleport user %v and socket %v", ctx.teleportUser, socketPath)
 	go agentServer.Serve()
 

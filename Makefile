@@ -2,7 +2,7 @@
 # Naming convention:
 #	for stable releases we use "1.0.0" format
 #   for pre-releases, we use   "1.0.0-beta.2" format
-VERSION=2.0.0
+VERSION=2.1.0-alpha.3
 
 # These are standard autotools variables, don't change them please
 BUILDDIR ?= build
@@ -29,11 +29,17 @@ all: $(VERSRC) $(BINARIES)
 $(BUILDDIR)/tctl: $(LIBS) $(TOOLS) tool/tctl/*.go
 	go build -o $(BUILDDIR)/tctl -i $(BUILDFLAGS) ./tool/tctl
 
-$(BUILDDIR)/teleport: $(LIBS) tool/teleport/*.go
+$(BUILDDIR)/teleport: $(LIBS) tool/teleport/*.go tool/teleport/common/*.go
 	go build -o $(BUILDDIR)/teleport -i $(BUILDFLAGS) ./tool/teleport
 
 $(BUILDDIR)/tsh: $(LIBS) tool/tsh/*.go
 	go build -o $(BUILDDIR)/tsh -i $(BUILDFLAGS) ./tool/tsh
+
+.PHONY: goinstall
+goinstall:
+	go install github.com/gravitational/teleport/tool/tsh
+	go install github.com/gravitational/teleport/tool/teleport
+	go install github.com/gravitational/teleport/tool/tctl
 
 #
 # make install will installs system-wide teleport 
@@ -110,6 +116,9 @@ tag:
 release: clean all $(BUILDDIR)/webassets.zip
 	cp -f build.assets/release.mk $(BUILDDIR)/Makefile
 	cat $(BUILDDIR)/webassets.zip >> $(BUILDDIR)/teleport
+	rm -fr $(BUILDDIR)/webassets.zip
+	cp README.md $(BUILDDIR)
+	cp CHANGELOG.md $(BUILDDIR)
 	zip -q -A $(BUILDDIR)/teleport
 	cp -rf $(BUILDDIR) teleport
 	@echo $(GITTAG) > teleport/VERSION

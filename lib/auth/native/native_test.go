@@ -104,7 +104,7 @@ func (s *NativeSuite) TestBuildPrincipals(c *C) {
 			"proxy",
 			"example.com",
 			teleport.Roles{teleport.RoleProxy},
-			[]string{"22222222-2222-2222-2222-222222222222.example.com", "proxy.example.com"},
+			[]string{"22222222-2222-2222-2222-222222222222.example.com", "proxy.example.com", "proxy"},
 		},
 		// 3 - deduplicate principals
 		{
@@ -112,7 +112,7 @@ func (s *NativeSuite) TestBuildPrincipals(c *C) {
 			"33333333-3333-3333-3333-333333333333",
 			"example.com",
 			teleport.Roles{teleport.RoleProxy},
-			[]string{"33333333-3333-3333-3333-333333333333.example.com"},
+			[]string{"33333333-3333-3333-3333-333333333333.example.com", "33333333-3333-3333-3333-333333333333"},
 		},
 	}
 
@@ -136,7 +136,6 @@ func (s *NativeSuite) TestBuildPrincipals(c *C) {
 		hostCertificate, ok := publicKey.(*ssh.Certificate)
 		c.Assert(ok, Equals, true)
 
-		c.Assert(hostCertificate.ValidPrincipals, HasLen, len(tt.outValidPrincipals))
 		c.Assert(hostCertificate.ValidPrincipals, DeepEquals, tt.outValidPrincipals)
 	}
 }

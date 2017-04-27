@@ -21,6 +21,7 @@ import reactor from 'app/reactor';
 import {actions, getters} from 'app/flux/user';
 import GoogleAuthInfo from './googleAuthLogo';
 import cfg from 'app/config';
+import { ErrorMessage } from './items';
 import { TeleportLogo } from './../icons.jsx';
 import { SsoBtnList } from './ssoBtnList';
 import { Auth2faTypeEnum, AuthTypeEnum } from 'app/services/enums';
@@ -233,7 +234,7 @@ const LoginInputForm = React.createClass({
   render() {
     let { isFailed, message } = this.props.attemp;                    
     let $error = isFailed ? (
-      <label className="error">{message}</label>
+      <ErrorMessage message={message}/>      
     ) : null;
 
     let hasAnyAuth = !!cfg.auth;

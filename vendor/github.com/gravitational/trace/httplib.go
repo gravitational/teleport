@@ -65,21 +65,19 @@ func ReadError(statusCode int, re []byte) error {
 	var e error
 	switch statusCode {
 	case http.StatusNotFound:
-		e = &NotFoundError{
-			Message: string(re),
-		}
+		e = &NotFoundError{Message: string(re)}
 	case http.StatusBadRequest:
-		e = &BadParameterError{}
+		e = &BadParameterError{Message: string(re)}
 	case http.StatusPreconditionFailed:
-		e = &CompareFailedError{}
+		e = &CompareFailedError{Message: string(re)}
 	case http.StatusForbidden:
-		e = &AccessDeniedError{}
+		e = &AccessDeniedError{Message: string(re)}
 	case http.StatusConflict:
-		e = &AlreadyExistsError{}
+		e = &AlreadyExistsError{Message: string(re)}
 	case statusTooManyRequests:
-		e = &LimitExceededError{}
+		e = &LimitExceededError{Message: string(re)}
 	case http.StatusGatewayTimeout:
-		e = &ConnectionProblemError{}
+		e = &ConnectionProblemError{Message: string(re)}
 	default:
 		if statusCode < 200 || statusCode > 299 {
 			return Errorf(string(re))

@@ -17,6 +17,21 @@ const (
 	// SSHAgentPID is the environment variable pointing to the agent
 	// process ID
 	SSHAgentPID = "SSH_AGENT_PID"
+
+	// SSHTeleportUser is the current Teleport user that is logged in.
+	SSHTeleportUser = "SSH_TELEPORT_USER"
+
+	// SSHSessionWebproxyAddr is the address the web proxy.
+	SSHSessionWebproxyAddr = "SSH_SESSION_WEBPROXY_ADDR"
+
+	// SSHTeleportClusterName is the name of the cluster this node belongs to.
+	SSHTeleportClusterName = "SSH_TELEPORT_CLUSTER_NAME"
+
+	// SSHTeleportHostUUID is the UUID of the host.
+	SSHTeleportHostUUID = "SSH_TELEPORT_HOST_UUID"
+
+	// SSHSessionID is the UUID of the current session.
+	SSHSessionID = "SSH_SESSION_ID"
 )
 
 const (
@@ -103,10 +118,22 @@ const (
 )
 
 const (
+	// AuthorizedKeys are public keys that check against User CAs.
+	AuthorizedKeys = "authorized_keys"
+	// KnownHosts are public keys that check against Host CAs.
+	KnownHosts = "known_hosts"
+)
+
+const (
 	// CertExtensionPermitAgentForwarding allows agent forwarding for certificate
 	CertExtensionPermitAgentForwarding = "permit-agent-forwarding"
 	// CertExtensionPermitPTY allows user to request PTY
 	CertExtensionPermitPTY = "permit-pty"
 	// CertExtensionPermitPortForwarding allows user to request port forwarding
 	CertExtensionPermitPortForwarding = "permit-port-forwarding"
+)
+
+const (
+	// NetIQ is an identity provider.
+	NetIQ = "netiq"
 )

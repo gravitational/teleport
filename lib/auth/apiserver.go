@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
@@ -35,6 +36,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/tstranex/u2f"
 )
 
@@ -49,12 +51,14 @@ type APIConfig struct {
 type APIServer struct {
 	APIConfig
 	httprouter.Router
+	clockwork.Clock
 }
 
 // NewAPIServer returns a new instance of APIServer HTTP handler
 func NewAPIServer(config *APIConfig) http.Handler {
 	srv := APIServer{
 		APIConfig: *config,
+		Clock:     clockwork.NewRealClock(),
 	}
 	srv.Router = *httprouter.New()
 
@@ -227,19 +231,21 @@ func (s *APIServer) upsertServer(auth ClientI, role teleport.Role, w http.Respon
 	// if server sent "local" IP address to us, replace the ip/host part with the remote address we see
 	// on the socket, but keep the original port:
 	server.SetAddr(utils.ReplaceLocalhost(server.GetAddr(), r.RemoteAddr))
-
+	if req.TTL != 0 {
+		server.SetTTL(s, req.TTL)
+	}
 	switch role {
 	case teleport.RoleNode:
 		server.SetNamespace(p.ByName("namespace"))
-		if err := auth.UpsertNode(server, req.TTL); err != nil {
+		if err := auth.UpsertNode(server); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case teleport.RoleAuth:
-		if err := auth.UpsertAuthServer(server, req.TTL); err != nil {
+		if err := auth.UpsertAuthServer(server); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case teleport.RoleProxy:
-		if err := auth.UpsertProxy(server, req.TTL); err != nil {
+		if err := auth.UpsertProxy(server); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -315,7 +321,8 @@ func (s *APIServer) upsertReverseTunnel(auth ClientI, w http.ResponseWriter, r *
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := auth.UpsertReverseTunnel(tun, req.TTL); err != nil {
+	tun.SetTTL(s, req.TTL)
+	if err := auth.UpsertReverseTunnel(tun); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
@@ -774,7 +781,10 @@ func (s *APIServer) upsertCertAuthority(auth ClientI, w http.ResponseWriter, r *
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := auth.UpsertCertAuthority(ca, req.TTL); err != nil {
+	if req.TTL != 0 {
+		ca.SetTTL(s, req.TTL)
+	}
+	if err := auth.UpsertCertAuthority(ca); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
@@ -1018,7 +1028,10 @@ func (s *APIServer) upsertOIDCConnector(auth ClientI, w http.ResponseWriter, r *
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = auth.UpsertOIDCConnector(connector, req.TTL)
+	if req.TTL != 0 {
+		connector.SetTTL(s, req.TTL)
+	}
+	err = auth.UpsertOIDCConnector(connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1308,7 +1321,7 @@ func (s *APIServer) upsertRole(auth ClientI, w http.ResponseWriter, r *http.Requ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = auth.UpsertRole(role)
+	err = auth.UpsertRole(role, backend.Forever)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

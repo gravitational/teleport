@@ -63,10 +63,8 @@ type Command struct {
 // Execute implements SSH file copy (SCP)
 func (cmd *Command) Execute(ch io.ReadWriter) (err error) {
 	if cmd.Source {
-		// download
 		err = cmd.serveSource(ch)
 	} else {
-		// upload
 		err = cmd.serveSink(ch)
 	}
 	return trace.Wrap(err)
@@ -77,6 +75,12 @@ func (cmd *Command) serveSource(ch io.ReadWriter) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if len(paths) == 0 {
+		err = trace.NotFound("no such file or directory: %s", cmd.Target)
+		sendError(ch, err)
+		return err
+	}
+
 	files := make([]os.FileInfo, len(paths))
 	for i := range paths {
 		f, err := os.Stat(paths[i])
@@ -161,15 +165,20 @@ func (cmd *Command) sendFile(r *reader, ch io.ReadWriter, fi os.FileInfo, path s
 			events.SCPAction:  "read",
 		})
 	}
+	f, err := os.Open(path)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer f.Close()
+
 	out := fmt.Sprintf("C%04o %d %s\n", fi.Mode()&os.ModePerm, fi.Size(), fi.Name())
-	log.Debugf("sendFile: %v", out)
 
 	// report progress:
 	if cmd.Terminal != nil {
 		defer fmt.Fprintf(cmd.Terminal, "-> %s (%d)\n", path, fi.Size())
 	}
 
-	_, err := io.WriteString(ch, out)
+	_, err = io.WriteString(ch, out)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -178,11 +187,6 @@ func (cmd *Command) sendFile(r *reader, ch io.ReadWriter, fi os.FileInfo, path s
 		return trace.Wrap(err)
 	}
 
-	f, err := os.Open(path)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer f.Close()
 	n, err := io.Copy(ch, f)
 	if err != nil {
 		return trace.Wrap(err)
@@ -215,6 +219,7 @@ func (cmd *Command) serveSink(ch io.ReadWriter) error {
 			}
 			return trace.Wrap(err)
 		}
+
 		if n < 1 {
 			return trace.Errorf("unexpected error, read 0 bytes")
 		}
@@ -402,13 +407,13 @@ func sendOK(ch io.ReadWriter) error {
 	}
 }
 
-// sendError gets called during all errors during SCP transmission. It does
-// logs the error into Teleport log and also writes it back to the SCP client
+// sendError gets called during all errors during SCP transmission.
+// It writes it back to the SCP client
 func sendError(ch io.ReadWriter, err error) error {
-	log.Error(err)
 	if err == nil {
 		return nil
 	}
+	log.Error(err)
 	message := err.Error()
 	bytes := make([]byte, 0, len(message)+2)
 	bytes = append(bytes, ErrByte)

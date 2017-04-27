@@ -1,8 +1,6 @@
 package local
 
 import (
-	"time"
-
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 
@@ -12,16 +10,23 @@ import (
 // CA is local implementation of Trust service that
 // is using local backend
 type CA struct {
-	backend backend.Backend
+	backend.Backend
 }
 
 // NewCAService returns new instance of CAService
 func NewCAService(backend backend.Backend) *CA {
-	return &CA{backend: backend}
+	return &CA{
+		Backend: backend,
+	}
+}
+
+// DeleteAllCertAuthorities deletes all certificate authorities of a certain type
+func (s *CA) DeleteAllCertAuthorities(caType services.CertAuthType) error {
+	return s.DeleteBucket([]string{"authorities"}, string(caType))
 }
 
 // UpsertCertAuthority updates or inserts a new certificate authority
-func (s *CA) UpsertCertAuthority(ca services.CertAuthority, ttl time.Duration) error {
+func (s *CA) UpsertCertAuthority(ca services.CertAuthority) error {
 	if err := ca.Check(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -29,7 +34,8 @@ func (s *CA) UpsertCertAuthority(ca services.CertAuthority, ttl time.Duration) e
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.backend.UpsertVal([]string{"authorities", string(ca.GetType())}, ca.GetName(), data, ttl)
+	ttl := backend.TTL(s.Clock(), ca.GetMetadata().Expires)
+	err = s.UpsertVal([]string{"authorities", string(ca.GetType())}, ca.GetName(), data, ttl)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -41,7 +47,7 @@ func (s *CA) DeleteCertAuthority(id services.CertAuthID) error {
 	if err := id.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	err := s.backend.DeleteKey([]string{"authorities", string(id.Type)}, id.DomainName)
+	err := s.DeleteKey([]string{"authorities", string(id.Type)}, id.DomainName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -54,7 +60,7 @@ func (s *CA) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool) (ser
 	if err := id.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	data, err := s.backend.GetVal([]string{"authorities", string(id.Type)}, id.DomainName)
+	data, err := s.GetVal([]string{"authorities", string(id.Type)}, id.DomainName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -78,7 +84,7 @@ func (s *CA) GetCertAuthorities(caType services.CertAuthType, loadSigningKeys bo
 	if err := caType.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	domains, err := s.backend.GetKeys([]string{"authorities", string(caType)})
+	domains, err := s.GetKeys([]string{"authorities", string(caType)})
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return cas, nil

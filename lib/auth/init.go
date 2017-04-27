@@ -164,7 +164,7 @@ func Init(cfg InitConfig, dynamicConfig bool) (*AuthServer, *Identity, error) {
 
 		if cfg.OIDCConnectors != nil && len(cfg.OIDCConnectors) > 0 {
 			for _, connector := range cfg.OIDCConnectors {
-				if err := asrv.UpsertOIDCConnector(connector, 0); err != nil {
+				if err := asrv.UpsertOIDCConnector(connector); err != nil {
 					return nil, nil, trace.Wrap(err)
 				}
 				log.Infof("[INIT] Created ODIC Connector: %q", connector.GetName())
@@ -172,7 +172,7 @@ func Init(cfg InitConfig, dynamicConfig bool) (*AuthServer, *Identity, error) {
 		}
 
 		for _, role := range cfg.Roles {
-			if err := asrv.UpsertRole(role); err != nil {
+			if err := asrv.UpsertRole(role, backend.Forever); err != nil {
 				return nil, nil, trace.Wrap(err)
 			}
 			log.Infof("[INIT] Created Role: %v", role)
@@ -185,14 +185,14 @@ func Init(cfg InitConfig, dynamicConfig bool) (*AuthServer, *Identity, error) {
 				return nil, nil, trace.Wrap(err)
 			}
 
-			if err := asrv.Trust.UpsertCertAuthority(ca, backend.Forever); err != nil {
+			if err := asrv.Trust.UpsertCertAuthority(ca); err != nil {
 				return nil, nil, trace.Wrap(err)
 			}
-			log.Infof("[INIT] Created Trusted Certificate Authority: %v", ca)
+			log.Infof("[INIT] Created Trusted Certificate Authority: %q, type: %q", ca.GetName(), ca.GetType())
 		}
 
 		for _, tunnel := range cfg.ReverseTunnels {
-			if err := asrv.UpsertReverseTunnel(tunnel, 0); err != nil {
+			if err := asrv.UpsertReverseTunnel(tunnel); err != nil {
 				return nil, nil, trace.Wrap(err)
 			}
 			log.Infof("[INIT] Created Reverse Tunnel: %v", tunnel)
@@ -233,7 +233,7 @@ func Init(cfg InitConfig, dynamicConfig bool) (*AuthServer, *Identity, error) {
 			},
 		}
 
-		if err := asrv.Trust.UpsertCertAuthority(userCA, backend.Forever); err != nil {
+		if err := asrv.Trust.UpsertCertAuthority(userCA); err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 	}
@@ -265,7 +265,7 @@ func Init(cfg InitConfig, dynamicConfig bool) (*AuthServer, *Identity, error) {
 			},
 		}
 
-		if err := asrv.Trust.UpsertCertAuthority(hostCA, backend.Forever); err != nil {
+		if err := asrv.Trust.UpsertCertAuthority(hostCA); err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 	}
@@ -330,7 +330,7 @@ func migrateUsers(asrv *AuthServer) error {
 		// create role for user and upsert to backend
 		role := services.RoleForUser(user)
 		role.SetLogins(raw.AllowedLogins)
-		err = asrv.UpsertRole(role)
+		err = asrv.UpsertRole(role, backend.Forever)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -370,13 +370,13 @@ func migrateCertAuthority(asrv *AuthServer) error {
 
 		// create role for certificate authority and upsert to backend
 		newCA, role := services.ConvertV1CertAuthority(&raw)
-		err = asrv.UpsertRole(role)
+		err = asrv.UpsertRole(role, backend.Forever)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		// upsert new certificate authority to backend
-		if err := asrv.UpsertCertAuthority(newCA, 0); err != nil {
+		if err := asrv.UpsertCertAuthority(newCA); err != nil {
 			return trace.Wrap(err)
 		}
 	}

@@ -77,4 +77,4 @@ enter: bbox
 #
 .PHONY:release
 release: 
-	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BBOX) /usr/bin/make release -e VERSION="$(VERSION)" -e ADDFLAGS="$(ADDFLAGS)"
+	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BBOX) /usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)"

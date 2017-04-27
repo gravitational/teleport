@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
 // RoleNameForUser returns role name associated with user
@@ -103,7 +104,10 @@ type Access interface {
 	GetRoles() ([]Role, error)
 
 	// UpsertRole creates or updates role
-	UpsertRole(role Role) error
+	UpsertRole(role Role, ttl time.Duration) error
+
+	// DeleteAllRoles deletes all roles
+	DeleteAllRoles() error
 
 	// GetRole returns role by name
 	GetRole(name string) (Role, error)
@@ -114,10 +118,8 @@ type Access interface {
 
 // Role contains a set of permissions or settings
 type Role interface {
-	// GetMetadata returns role metadata
-	GetMetadata() Metadata
-	// GetName returns role name and is a shortcut for GetMetadata().Name
-	GetName() string
+	// Resource provides common resource methods
+	Resource
 	// GetMaxSessionTTL is a maximum SSH or Web session TTL
 	GetMaxSessionTTL() Duration
 	// SetLogins sets logins for role
@@ -145,6 +147,8 @@ type Role interface {
 	CanForwardAgent() bool
 	// SetForwardAgent sets forward agent property
 	SetForwardAgent(forwardAgent bool)
+	// CheckAndSetDefaults checks and set default values for missing fields.
+	CheckAndSetDefaults() error
 }
 
 // RoleV2 represents role resource specification
@@ -185,6 +189,26 @@ func (r *RoleV2) SetNodeLabels(labels map[string]string) {
 // SetMaxSessionTTL sets a maximum TTL for SSH or Web session
 func (r *RoleV2) SetMaxSessionTTL(duration time.Duration) {
 	r.Spec.MaxSessionTTL.Duration = duration
+}
+
+// SetExpiry sets expiry time for the object
+func (r *RoleV2) SetExpiry(expires time.Time) {
+	r.Metadata.SetExpiry(expires)
+}
+
+// Expires retuns object expiry setting
+func (r *RoleV2) Expiry() time.Time {
+	return r.Metadata.Expiry()
+}
+
+// SetTTL sets Expires header using realtime clock
+func (r *RoleV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+	r.Metadata.SetTTL(clock, ttl)
+}
+
+// SetName is a shortcut for SetMetadata().Name
+func (r *RoleV2) SetName(s string) {
+	r.Metadata.Name = s
 }
 
 // GetName returns role name and is a shortcut for GetMetadata().Name
@@ -240,8 +264,12 @@ func (r *RoleV2) SetForwardAgent(forwardAgent bool) {
 
 // Check checks validity of all parameters and sets defaults
 func (r *RoleV2) CheckAndSetDefaults() error {
+	// make sure we have defaults for all fields
 	if r.Metadata.Name == "" {
 		return trace.BadParameter("missing parameter Name")
+	}
+	if r.Metadata.Namespace == "" {
+		r.Metadata.Namespace = defaults.Namespace
 	}
 	if r.Spec.MaxSessionTTL.Duration == 0 {
 		r.Spec.MaxSessionTTL.Duration = defaults.MaxCertDuration
@@ -249,9 +277,27 @@ func (r *RoleV2) CheckAndSetDefaults() error {
 	if r.Spec.MaxSessionTTL.Duration < defaults.MinCertDuration {
 		return trace.BadParameter("maximum session TTL can not be less than")
 	}
+	if r.Spec.Namespaces == nil {
+		r.Spec.Namespaces = []string{defaults.Namespace}
+	}
+	if r.Spec.NodeLabels == nil {
+		r.Spec.NodeLabels = map[string]string{Wildcard: Wildcard}
+	}
+	if r.Spec.Resources == nil {
+		r.Spec.Resources = map[string][]string{
+			KindSession:       RO(),
+			KindRole:          RO(),
+			KindNode:          RO(),
+			KindAuthServer:    RO(),
+			KindReverseTunnel: RO(),
+			KindCertAuthority: RO(),
+		}
+	}
+
+	// restrict wildcards
 	for _, login := range r.Spec.Logins {
 		if login == Wildcard {
-			return trace.BadParameter("wilcard matcher is not allowed in logins")
+			return trace.BadParameter("wildcard matcher is not allowed in logins")
 		}
 		if !cstrings.IsValidUnixUser(login) {
 			return trace.BadParameter("'%v' is not a valid user name", login)
@@ -262,29 +308,30 @@ func (r *RoleV2) CheckAndSetDefaults() error {
 			return trace.BadParameter("selector *:<val> is not supported")
 		}
 	}
+
 	return nil
 }
 
 func (r *RoleV2) String() string {
-	return fmt.Sprintf("Role(Name=%v,MaxSessionTTL=%v,Logins=%v,NodeLabels=%v,Namespaces=%v,Resources=%v)",
-		r.GetName(), r.GetMaxSessionTTL(), r.GetLogins(), r.GetNodeLabels(), r.GetNamespaces(), r.GetResources())
+	return fmt.Sprintf("Role(Name=%v,MaxSessionTTL=%v,Logins=%v,NodeLabels=%v,Namespaces=%v,Resources=%v,CanForwardAgent=%v)",
+		r.GetName(), r.GetMaxSessionTTL(), r.GetLogins(), r.GetNodeLabels(), r.GetNamespaces(), r.GetResources(), r.CanForwardAgent())
 }
 
 // RoleSpecV2 is role specification for RoleV2
 type RoleSpecV2 struct {
 	// MaxSessionTTL is a maximum SSH or Web session TTL
-	MaxSessionTTL Duration `json:"max_session_ttl"`
+	MaxSessionTTL Duration `json:"max_session_ttl" yaml:"max_session_ttl"`
 	// Logins is a list of linux logins allowed for this role
-	Logins []string `json:"logins,omitempty"`
+	Logins []string `json:"logins,omitempty" yaml:"logins,omitempty"`
 	// NodeLabels is a set of matching labels that users of this role
 	// will be allowed to access
-	NodeLabels map[string]string `json:"node_labels,omitempty"`
+	NodeLabels map[string]string `json:"node_labels,omitempty" yaml:"node_labels,omitempty"`
 	// Namespaces is a list of namespaces, guarding accesss to resources
-	Namespaces []string `json:"namespaces,omitempty"`
+	Namespaces []string `json:"namespaces,omitempty" yaml:"namespaces,omitempty"`
 	// Resources limits access to resources
-	Resources map[string][]string `json:"resources,omitempty"`
+	Resources map[string][]string `json:"resources,omitempty" yaml:"resources,omitempty"`
 	// ForwardAgent permits SSH agent forwarding if requested by the client
-	ForwardAgent bool `json:"forward_agent"`
+	ForwardAgent bool `json:"forward_agent" yaml:"forward_agent"`
 }
 
 // AccessChecker interface implements access checks for given role
@@ -572,6 +619,19 @@ func (d *Duration) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func (d *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var stringVar string
+	if err := unmarshal(&stringVar); err != nil {
+		return trace.Wrap(err)
+	}
+	out, err := time.ParseDuration(stringVar)
+	if err != nil {
+		return trace.BadParameter(err.Error())
+	}
+	d.Duration = out
+	return nil
+}
+
 const RoleSpecSchemaTemplate = `{
   "type": "object",
   "additionalProperties": false,
@@ -627,6 +687,7 @@ func UnmarshalRole(data []byte) (*RoleV2, error) {
 	if err := utils.UnmarshalWithSchema(GetRoleSchema(""), &role, data); err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
+	utils.UTC(&role.Metadata.Expires)
 	return &role, nil
 }
 

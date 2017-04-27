@@ -119,7 +119,7 @@ func (s *APISuite) TearDownTest(c *C) {
 }
 
 type clt interface {
-	UpsertRole(services.Role) error
+	UpsertRole(services.Role, time.Duration) error
 	UpsertUser(services.User) error
 }
 
@@ -130,7 +130,7 @@ func createUserAndRole(clt clt, username string, allowedLogins []string) (servic
 	}
 	role := services.RoleForUser(user)
 	role.SetLogins([]string{user.GetName()})
-	err = clt.UpsertRole(role)
+	err = clt.UpsertRole(role, backend.Forever)
 	if err != nil {
 		panic(err)
 	}
@@ -140,6 +140,55 @@ func createUserAndRole(clt clt, username string, allowedLogins []string) (servic
 		panic(err)
 	}
 	return user, role
+}
+
+func createUserAndRoleWithoutRoles(clt clt, username string, allowedLogins []string) (services.User, services.Role) {
+	user, err := services.NewUser(username)
+	if err != nil {
+		panic(err)
+	}
+	role := services.RoleForUser(user)
+	role.RemoveResource(services.KindRole)
+	role.SetLogins([]string{user.GetName()})
+	err = clt.UpsertRole(role, backend.Forever)
+	if err != nil {
+		panic(err)
+	}
+	user.AddRole(role.GetName())
+	err = clt.UpsertUser(user)
+	if err != nil {
+		panic(err)
+	}
+	return user, role
+}
+
+// TestOwnRole tests that user can read roles assigned to them
+func (s *APISuite) TestReadOwnRole(c *C) {
+
+	user1, userRole := createUserAndRoleWithoutRoles(s.clt, "user1", []string{"user1"})
+	user2, _ := createUserAndRoleWithoutRoles(s.clt, "user2", []string{"user2"})
+	err := s.clt.UpsertPassword(user1.GetName(), []byte("abc1231"))
+	c.Assert(err, IsNil)
+	err = s.clt.UpsertPassword(user2.GetName(), []byte("abc1232"))
+	c.Assert(err, IsNil)
+
+	// user should be able to read their own roles
+	authorizer, err := NewUserAuthorizer("user1", s.WebS, s.AccessS)
+	c.Assert(err, IsNil)
+	authServer, userClient := s.newServerWithAuthorizer(c, authorizer)
+	defer authServer.Close()
+
+	_, err = userClient.GetRole(userRole.GetName())
+	c.Assert(err, IsNil)
+
+	// user2 can't read user1 role
+	authorizer, err = NewUserAuthorizer("user2", s.WebS, s.AccessS)
+	c.Assert(err, IsNil)
+	authServer2, userClient2 := s.newServerWithAuthorizer(c, authorizer)
+	defer authServer2.Close()
+
+	_, err = userClient2.GetRole(userRole.GetName())
+	c.Assert(err, NotNil)
 }
 
 func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
@@ -153,7 +202,7 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(s.clt.UpsertCertAuthority(
-		suite.NewTestCA(services.HostCA, "localhost"), backend.Forever), IsNil)
+		suite.NewTestCA(services.HostCA, "localhost")), IsNil)
 
 	_, pub, err = s.clt.GenerateKeyPair("")
 	c.Assert(err, IsNil)
@@ -168,7 +217,7 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(s.clt.UpsertCertAuthority(
-		suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
+		suite.NewTestCA(services.UserCA, "localhost")), IsNil)
 
 	_, pub, err = s.clt.GenerateKeyPair("")
 	c.Assert(err, IsNil)
@@ -221,7 +270,7 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 
 	// now update role to permit agent forwarding
 	userRole.SetForwardAgent(true)
-	err = s.clt.UpsertRole(userRole)
+	err = s.clt.UpsertRole(userRole, backend.Forever)
 	c.Assert(err, IsNil)
 
 	authorizer, err = NewUserAuthorizer("user1", s.WebS, s.AccessS)
@@ -361,7 +410,7 @@ func (s *APISuite) TestSessions(c *C) {
 	pass := []byte("abc123")
 
 	c.Assert(s.a.UpsertCertAuthority(
-		suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
+		suite.NewTestCA(services.UserCA, "localhost")), IsNil)
 
 	createUserAndRole(s.clt, user, []string{user})
 
@@ -414,24 +463,26 @@ func (s *APISuite) TestServers(c *C) {
 	c.Assert(len(out), Equals, 0)
 
 	srv := newServer(services.KindNode, "id1", "host:1233", "host1", defaults.Namespace)
-	c.Assert(s.clt.UpsertNode(srv, 0), IsNil)
+	c.Assert(s.clt.UpsertNode(srv), IsNil)
 
 	srv1 := newServer(services.KindNode, "id2", "host:1234", "host2", defaults.Namespace)
-	c.Assert(s.clt.UpsertNode(srv1, 0), IsNil)
+	c.Assert(s.clt.UpsertNode(srv1), IsNil)
 
 	out, err = s.clt.GetNodes(defaults.Namespace)
 	c.Assert(err, IsNil)
-	c.Assert(out, DeepEquals, []services.Server{srv, srv1})
+	c.Assert(len(out), Equals, 2)
+	c.Assert(out[0], DeepEquals, srv)
+	c.Assert(out[1], DeepEquals, srv1)
 
 	out, err = s.clt.GetProxies()
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 0)
 
 	srv = newServer(services.KindProxy, "proxy1", "host:1233", "host1", defaults.Namespace)
-	c.Assert(s.clt.UpsertProxy(srv, 0), IsNil)
+	c.Assert(s.clt.UpsertProxy(srv), IsNil)
 
 	srv1 = newServer(services.KindProxy, "proxy2", "host:1234", "host2", defaults.Namespace)
-	c.Assert(s.clt.UpsertProxy(srv1, 0), IsNil)
+	c.Assert(s.clt.UpsertProxy(srv1), IsNil)
 
 	out, err = s.clt.GetProxies()
 	c.Assert(err, IsNil)
@@ -442,10 +493,10 @@ func (s *APISuite) TestServers(c *C) {
 	c.Assert(len(out), Equals, 0)
 
 	srv = newServer(services.KindAuthServer, "auth1", "host:1233", "host1", defaults.Namespace)
-	c.Assert(s.clt.UpsertAuthServer(srv, 0), IsNil)
+	c.Assert(s.clt.UpsertAuthServer(srv), IsNil)
 
 	srv1 = newServer(services.KindAuthServer, "auth2", "host:1234", "host2", defaults.Namespace)
-	c.Assert(s.clt.UpsertAuthServer(srv1, 0), IsNil)
+	c.Assert(s.clt.UpsertAuthServer(srv1), IsNil)
 
 	out, err = s.clt.GetAuthServers()
 	c.Assert(err, IsNil)
@@ -466,7 +517,7 @@ func (s *APISuite) TestReverseTunnels(c *C) {
 			DialAddrs:   []string{"example.com:2023"},
 		},
 	}
-	c.Assert(s.PresenceS.UpsertReverseTunnel(tunnel, 0), IsNil)
+	c.Assert(s.PresenceS.UpsertReverseTunnel(tunnel), IsNil)
 
 	d := &spew.ConfigState{Indent: " ", DisableMethods: true, DisablePointerMethods: true, DisablePointerAddresses: true}
 	out, err = s.clt.GetReverseTunnels()

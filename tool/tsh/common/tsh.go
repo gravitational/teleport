@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/buger/goterm"
 )
 
@@ -75,6 +76,8 @@ type CLIConf struct {
 	Quiet bool
 	// Namespace is used to select cluster namespace
 	Namespace string
+	// NoCache is used to turn off client cache for nodes discovery
+	NoCache bool
 	// LoadSystemAgentOnly when set to true will cause tsh agent to load keys into the system agent and
 	// then exit. This is useful when calling tsh agent from a script (for example ~/.bash_profile)
 	// to load keys into your system agent.
@@ -87,12 +90,13 @@ func Run(args []string, underTest bool) {
 		cf CLIConf
 	)
 	cf.IsUnderTest = underTest
-	utils.InitLoggerCLI()
+	utils.InitLogger(utils.LoggingForCLI, logrus.WarnLevel)
 
 	// configure CLI argument parser:
 	app := utils.InitCLIParser("tsh", "TSH: Teleport SSH client").Interspersed(false)
 	app.Flag("login", "Remote host login").Short('l').Envar("TELEPORT_LOGIN").StringVar(&cf.NodeLogin)
 	localUser, _ := client.Username()
+	app.Flag("nocache", "do not cache cluster discovery locally").Hidden().BoolVar(&cf.NoCache)
 	app.Flag("user", fmt.Sprintf("SSH proxy user [%s]", localUser)).Envar("TELEPORT_USER").StringVar(&cf.Username)
 	app.Flag("cluster", "Specify the cluster to connect").Envar("TELEPORT_SITE").StringVar(&cf.SiteName)
 	app.Flag("proxy", "SSH proxy host or IP address").Envar("TELEPORT_PROXY").StringVar(&cf.Proxy)
@@ -148,7 +152,7 @@ func Run(args []string, underTest bool) {
 
 	// apply -d flag:
 	if *debugMode {
-		utils.InitLoggerDebug()
+		utils.InitLogger(utils.LoggingForCLI, logrus.DebugLevel)
 	}
 
 	switch command {
@@ -391,7 +395,7 @@ export SSH_AGENT_PID=%v
 // makeClient takes the command-line configuration and constructs & returns
 // a fully configured TeleportClient object
 func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, err error) {
-	// apply defults
+	// apply defaults
 	if cf.MinsToLive == 0 {
 		cf.MinsToLive = int32(defaults.CertDuration / time.Minute)
 	}
@@ -457,6 +461,9 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 	c.KeyTTL = time.Minute * time.Duration(cf.MinsToLive)
 	c.InsecureSkipVerify = cf.InsecureSkipVerify
 	c.Interactive = cf.Interactive
+	if !cf.NoCache {
+		c.CachePolicy = &client.CachePolicy{}
+	}
 	return client.NewClient(c)
 }
 

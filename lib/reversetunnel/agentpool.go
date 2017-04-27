@@ -33,6 +33,9 @@ type AgentPoolConfig struct {
 	// Client is client to the auth server this agent connects to recieve
 	// a list of pools
 	Client *auth.TunClient
+	// AccessPoint is a lightweight access point
+	// that can optionally cache some values
+	AccessPoint auth.AccessPoint
 	// HostSigners is a list of host signers this agent presents itself as
 	HostSigners []ssh.Signer
 	// HostUUID is a unique ID of this host
@@ -43,6 +46,9 @@ type AgentPoolConfig struct {
 func NewAgentPool(cfg AgentPoolConfig) (*AgentPool, error) {
 	if cfg.Client == nil {
 		return nil, trace.BadParameter("missing 'Client' parameter")
+	}
+	if cfg.AccessPoint == nil {
+		return nil, trace.BadParameter("missing 'AccessPoint' parameter")
 	}
 	if len(cfg.HostSigners) == 0 {
 		return nil, trace.BadParameter("missing 'HostSigners' parameter")
@@ -88,7 +94,7 @@ func (m *AgentPool) Wait() error {
 // FetchAndSyncAgents executes one time fetch and sync request
 // (used in tests instead of polling)
 func (m *AgentPool) FetchAndSyncAgents() error {
-	tunnels, err := m.cfg.Client.GetReverseTunnels()
+	tunnels, err := m.cfg.AccessPoint.GetReverseTunnels()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -140,7 +146,7 @@ func (m *AgentPool) syncAgents(tunnels []services.ReverseTunnel) error {
 
 	for _, key := range agentsToAdd {
 		m.Debugf("adding %v", &key)
-		agent, err := NewAgent(key.addr, key.domainName, m.cfg.HostUUID, m.cfg.HostSigners, m.cfg.Client)
+		agent, err := NewAgent(key.addr, key.domainName, m.cfg.HostUUID, m.cfg.HostSigners, m.cfg.Client, m.cfg.AccessPoint)
 		if err != nil {
 			return trace.Wrap(err)
 		}

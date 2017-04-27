@@ -100,6 +100,8 @@ var (
 		"client_id":          true,
 		"client_secret":      true,
 		"redirect_url":       true,
+		"acr_values":         true,
+		"provider":           true,
 		"tokens":             true,
 		"region":             true,
 		"table_name":         true,
@@ -115,7 +117,10 @@ var (
 		"scope":              false,
 		"claims_to_roles":    true,
 		"dynamic_config":     false,
+		"seed_config":        false,
 		"public_addr":        false,
+		"cache":              true,
+		"ttl":                false,
 	}
 )
 
@@ -167,7 +172,7 @@ func ReadConfig(reader io.Reader) (*FileConfig, error) {
 	}
 	var fc FileConfig
 	if err = yaml.Unmarshal(bytes, &fc); err != nil {
-		return nil, trace.Wrap(err, "failed to parse Teleport configuration")
+		return nil, trace.BadParameter("failed to parse Teleport configuration: %v", err)
 	}
 	// now check for unknown (misspelled) config keys:
 	var validateKeys func(m YAMLMap) error
@@ -306,11 +311,66 @@ type Global struct {
 	Logger      Log              `yaml:"log,omitempty"`
 	Storage     backend.Config   `yaml:"storage,omitempty"`
 	AdvertiseIP net.IP           `yaml:"advertise_ip,omitempty"`
+	CachePolicy CachePolicy      `yaml:"cache,omitempty"`
+	SeedConfig  *bool            `yaml:"seed_config,omitempty"`
 
 	// Keys holds the list of SSH key/cert pairs used by all services
 	// Each service (like proxy, auth, node) can find the key it needs
 	// by looking into certificate
 	Keys []KeyPair `yaml:"keys,omitempty"`
+}
+
+// CachePolicy is used to control  local cache
+type CachePolicy struct {
+	// EnabledFlag enables or disables cache
+	EnabledFlag string `yaml:"enabled,omitempty"`
+	// TTL sets maximum TTL for the cached values
+	TTL string `yaml:"ttl,omitempty"`
+}
+
+func isTrue(v string) bool {
+	switch v {
+	case "yes", "yeah", "y", "true", "1":
+		return true
+	}
+	return false
+}
+
+func isNever(v string) bool {
+	switch v {
+	case "never", "no", "0":
+		return true
+	}
+	return false
+}
+
+// Enabled determines if a given "_service" section has been set to 'true'
+func (c *CachePolicy) Enabled() bool {
+	return c.EnabledFlag == "" || isTrue(c.EnabledFlag)
+}
+
+// NeverExpires returns if cache never expires by itself
+func (c *CachePolicy) NeverExpires() bool {
+	if isNever(c.TTL) {
+		return true
+	}
+	return false
+}
+
+// Parse parses cache policy from Teleport config
+func (c *CachePolicy) Parse() (*service.CachePolicy, error) {
+	out := service.CachePolicy{
+		Enabled:      c.Enabled(),
+		NeverExpires: c.NeverExpires(),
+	}
+	var err error
+	if c.TTL != "" {
+		out.TTL, err = time.ParseDuration(c.TTL)
+		if err != nil {
+			return nil, trace.BadParameter("cache.ttl invalid duration: %v, accepted format '10h'", c.TTL)
+		}
+	}
+	return &out, nil
 }
 
 // Service is a common configuration of a teleport service
@@ -615,7 +675,10 @@ type ClaimMapping struct {
 	// Value is claim value to match
 	Value string `yaml:"value"`
 	// Roles is a list of teleport roles to match
-	Roles []string `yaml:"roles"`
+	Roles []string `yaml:"roles,omitempty"`
+	// RoleTemplate is a template for a role that will be filled
+	// with data from claims.
+	RoleTemplate *services.RoleV2 `yaml:"role_template,omitempty"`
 }
 
 // OIDCConnector specifies configuration fo Open ID Connect compatible external
@@ -634,6 +697,11 @@ type OIDCConnector struct {
 	// client's browser back to it after successfull authentication
 	// Should match the URL on Provider's side
 	RedirectURL string `yaml:"redirect_url"`
+	// ACR is the acr_values parameter to be sent with an authorization request.
+	ACR string `yaml:"acr_values,omitempty"`
+	// Provider is the identity provider we connect to. This field is
+	// only required if using acr_values.
+	Provider string `yaml:"provider,omitempty"`
 	// Display controls how this connector is displayed
 	Display string `yaml:"display"`
 	// Scope is a list of additional scopes to request from OIDC
@@ -651,12 +719,16 @@ func (o *OIDCConnector) Parse() (services.OIDCConnector, error) {
 
 	var mappings []services.ClaimMapping
 	for _, c := range o.ClaimsToRoles {
-		roles := make([]string, len(c.Roles))
-		copy(roles, c.Roles)
+		var roles []string
+		if len(c.Roles) > 0 {
+			roles = append(roles, c.Roles...)
+		}
+
 		mappings = append(mappings, services.ClaimMapping{
-			Claim: c.Claim,
-			Value: c.Value,
-			Roles: roles,
+			Claim:        c.Claim,
+			Value:        c.Value,
+			Roles:        roles,
+			RoleTemplate: c.RoleTemplate,
 		})
 	}
 
@@ -671,6 +743,8 @@ func (o *OIDCConnector) Parse() (services.OIDCConnector, error) {
 		ClaimsToRoles: mappings,
 	}
 	v2 := other.V2()
+	v2.SetACR(o.ACR)
+	v2.SetProvider(o.Provider)
 	if err := v2.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}

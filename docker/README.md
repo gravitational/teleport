@@ -76,7 +76,7 @@ the YAML file to `tctl` via `-c` flag.
 
 ### Trusted Clusters
 
-To setup Trusted Clusters:
+#### Trusted Clusters with Resources
 
 1. Update `two-role.yaml` and replace `username_goes_here` with your username.
 1. Create a `Role` and `TrustedCluster` resource on Cluster Two.
@@ -85,6 +85,100 @@ To setup Trusted Clusters:
     make enter-two
     tctl -c /root/go/src/github.com/gravitational/teleport/docker/two-auth.yaml create -f docker/two-role-admin.yaml
     tctl -c /root/go/src/github.com/gravitational/teleport/docker/two-auth.yaml create -f docker/two-tc.yaml
+    ```
+
+#### Trusted Clusters with File Configuration
+
+##### Export CAs
+
+Run the following commands to export your CAs.
+
+```bash
+# enter cluster two and export ca
+make enter-two
+tctl -c /root/go/src/github.com/gravitational/teleport/docker/two-auth.yaml auth export > docker/data/two/two.ca
+exit
+
+# enter cluster one and export ca
+make enter-one
+tctl auth export > docker/data/one/one.ca
+exit
+```
+
+##### Upate Configuration
+
+Stop both clusters with `make stop`, update the file configuration for both clusters, and start again with `make`.
+
+```bash
+# update docker/one.yaml with the following under "auth_service"
+trusted_clusters:
+  - key_file: /root/go/src/github.com/gravitational/teleport/docker/data/two/two.ca
+```
+```bash
+# update docker/two-auth.yaml with the following under "auth_service"
+trusted_clusters:
+  - key_file: /root/go/src/github.com/gravitational/teleport/docker/data/one/one.ca
+    allow_logins: root
+    tunnel_addr: one
+```
+
+### Ansible
+
+To setup Ansible:
+
+1. Follow steps in Trusted Cluster section to setup Trusted Clusters.
+1. Use `tctl` to issue create user command and follow link on screen to create user.
+
+    ```bash
+    tctl users add {username} root
+    ```
+1. Configure Ansible.
+
+    ```bash
+    # add two-node to ansible hosts file
+    echo "172.10.1.2:3022" >> /etc/ansible/hosts
+
+    # setup ssh_args that ansible will use to access trusted cluster nodes
+    sed -i '/ssh_args = -o ControlMaster=auto -o ControlPersist=60s/assh_args = -o "ProxyCommand ssh -p 3023 one -s proxy:%h:%p@two"' /etc/ansible/ansible.cfg
+
+    # use scp over sftp
+    sed -i '/scp_if_ssh/s/^#//g' /etc/ansible/ansible.cfg
+    ```
+
+1. Start and load OpenSSH agent with keys.
+
+    ```bash
+    # create directory for ssh config
+    mkdir ~/.ssh && chmod 700 ~/.ssh
+
+    # start ssh-agent
+    eval `ssh-agent`
+
+    # log in with the user created before
+    tsh --proxy=localhost --user=rjones login
+
+    # load keys into ssh-agent
+    tsh --proxy=localhost --user=rjones agent --load
+    ```
+
+1. Verify Ansible works:
+
+    ```bash
+    $ ansible all -m ping
+    172.10.1.2 | success >> {
+        "changed": false, 
+        "ping": "pong"
+    }
+    ```
+
+1. Run an simple playbook:
+
+    ```bash
+    # cd to directory that contains playbook
+    cd /root/go/src/github.com/gravitational/teleport/docker/ansible
+
+    # run playbook
+    ansible-playbook playbook.yaml
     ```
     
 ### Interactive Usage

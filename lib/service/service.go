@@ -51,6 +51,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
 	"golang.org/x/crypto/ssh"
 )
@@ -93,6 +94,7 @@ type Connector struct {
 // TeleportProcess structure holds the state of the Teleport daemon, controlling
 // execution and configuration of the teleport services: ssh, auth and proxy.
 type TeleportProcess struct {
+	clockwork.Clock
 	sync.Mutex
 	Supervisor
 	Config *Config
@@ -175,15 +177,8 @@ func (process *TeleportProcess) connectToAuthService(role teleport.Role) (*Conne
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// try calling a test method via auth api:
-	//
-	// ??? in case of failure it never gets back here!!!
-	dn, err := authClient.GetDomainName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	// success ? we're logged in!
-	log.Infof("[Node] %s connected to the cluster '%s'", authUser, dn)
+	log.Infof("[Node] %s connected to the cluster", authUser)
 	return &Connector{Client: authClient, Identity: identity}, nil
 }
 
@@ -233,10 +228,8 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		cfg.Auth.DomainName = cfg.HostUUID
 	}
 
-	// try to login into the auth service:
-
-	// if there are no certificates, use self signed
 	process := &TeleportProcess{
+		Clock:      clockwork.NewRealClock(),
 		Supervisor: NewSupervisor(),
 		Config:     cfg,
 		Identities: make(map[teleport.Role]*auth.Identity),
@@ -441,7 +434,8 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 		}
 		// immediately register, and then keep repeating in a loop:
 		for !askedToExit {
-			err := authServer.UpsertAuthServer(&srv, defaults.ServerHeartbeatTTL)
+			srv.SetTTL(process, defaults.ServerHeartbeatTTL)
+			err := authServer.UpsertAuthServer(&srv)
 			if err != nil {
 				log.Warningf("failed to announce presence: %v", err)
 			}
@@ -475,6 +469,26 @@ func (process *TeleportProcess) onExit(callback func(interface{})) {
 	}()
 }
 
+// newLocalCache returns new local cache access point
+func (process *TeleportProcess) newLocalCache(clt auth.ClientI, cacheName []string) (auth.AccessPoint, error) {
+	// if caching is disabled, return access point
+	if !process.Config.CachePolicy.Enabled {
+		return clt, nil
+	}
+
+	path := filepath.Join(append([]string{process.Config.DataDir, "cache"}, cacheName...)...)
+	cacheBackend, err := dir.New(backend.Params{"path": path})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return state.NewCachingAuthClient(state.Config{
+		AccessPoint:  clt,
+		Backend:      cacheBackend,
+		NeverExpires: process.Config.CachePolicy.NeverExpires,
+		CacheTTL:     process.Config.CachePolicy.TTL,
+	})
+}
+
 // initSSH initializes the "node" role, i.e. a simple SSH server connected to the auth server.
 func (process *TeleportProcess) initSSH() error {
 	process.RegisterWithAuthServer(
@@ -499,14 +513,14 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 
-		authClient, err := state.NewCachingAuthClient(conn.Client)
+		authClient, err := process.newLocalCache(conn.Client, []string{"node"})
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		// make sure the namespace exists
 		namespace := services.ProcessNamespace(cfg.SSH.Namespace)
-		_, err = conn.Client.GetNamespace(namespace)
+		_, err = authClient.GetNamespace(namespace)
 		if err != nil {
 			if trace.IsNotFound(err) {
 				return trace.NotFound(
@@ -536,7 +550,7 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 
-		utils.Consolef(cfg.Console, "[SSH]   Service is starting on %v", cfg.SSH.Addr.Addr)
+		utils.Consolef(cfg.Console, "[SSH]   Service is starting on %v using %v", cfg.SSH.Addr.Addr, process.Config.CachePolicy)
 		if err := s.Start(); err != nil {
 			utils.Consolef(cfg.Console, "[SSH]   Error: %v", err)
 			return trace.Wrap(err)
@@ -547,7 +561,9 @@ func (process *TeleportProcess) initSSH() error {
 	})
 	// execute this when process is asked to exit:
 	process.onExit(func(payload interface{}) {
-		s.Close()
+		if s != nil {
+			s.Close()
+		}
 	})
 	return nil
 }
@@ -660,7 +676,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	// make a caching auth client for the auth server:
-	authClient, err := state.NewCachingAuthClient(conn.Client)
+	authClient, err := process.newLocalCache(conn.Client, []string{"proxy"})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -669,6 +685,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		cfg.Proxy.ReverseTunnelListenAddr,
 		[]ssh.Signer{conn.Identity.KeySigner},
 		authClient,
+		process.newLocalCache,
 		reversetunnel.SetLimiter(reverseTunnelLimiter),
 		reversetunnel.DirectSite(conn.Identity.Cert.Extensions[utils.CertExtensionAuthority],
 			conn.Client),
@@ -697,6 +714,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	agentPool, err := reversetunnel.NewAgentPool(reversetunnel.AgentPoolConfig{
 		HostUUID:    conn.Identity.ID.HostUUID,
 		Client:      conn.Client,
+		AccessPoint: authClient,
 		HostSigners: []ssh.Signer{conn.Identity.KeySigner},
 	})
 	if err != nil {
@@ -706,7 +724,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	// register SSH reverse tunnel server that accepts connections
 	// from remote teleport nodes
 	process.RegisterFunc(func() error {
-		utils.Consolef(cfg.Console, "[PROXY] Reverse tunnel service is starting on %v", cfg.Proxy.ReverseTunnelListenAddr.Addr)
+		utils.Consolef(cfg.Console, "[PROXY] Reverse tunnel service is starting on %v using %v", cfg.Proxy.ReverseTunnelListenAddr.Addr, process.Config.CachePolicy)
 		if err := tsrv.Start(); err != nil {
 			utils.Consolef(cfg.Console, "[PROXY] Error: %v", err)
 			return trace.Wrap(err)
@@ -830,7 +848,11 @@ func (process *TeleportProcess) initAuthStorage() (bk backend.Backend, err error
 
 func (process *TeleportProcess) Close() error {
 	process.BroadcastEvent(Event{Name: TeleportExitEvent})
-	return trace.Wrap(process.localAuth.Close())
+	localAuth := process.getLocalAuth()
+	if localAuth != nil {
+		return trace.Wrap(process.localAuth.Close())
+	}
+	return nil
 }
 
 func validateConfig(cfg *Config) error {

@@ -21,8 +21,10 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
 const (
@@ -179,6 +181,7 @@ const MetadataSchema = `{
     "name": {"type": "string"},
     "namespace": {"type": "string", "default": "default"},
     "description": {"type": "string"},
+    "expires": {"type": "string"},
     "labels": {
       "type": "object",
       "patternProperties": {
@@ -227,6 +230,55 @@ type Metadata struct {
 	Description string `json:"description,omitempty"`
 	// Labels is a set of labels
 	Labels map[string]string `json:"labels,omitempty"`
+	// Expires is a global expiry time header
+	// can be set on any resource in the system
+	Expires time.Time `json:"expires,omitempty"`
+}
+
+// Resource represents common properties for resources
+type Resource interface {
+	// GetName returns the name of the resource
+	GetName() string
+	// SetName sets the name of the resource
+	SetName(string)
+	// Expiry retuns object expiry setting
+	Expiry() time.Time
+	// SetExpiry sets object expiry
+	SetExpiry(time.Time)
+	// SetTTL sets Expires header using current clock
+	SetTTL(clock clockwork.Clock, ttl time.Duration)
+	// GetMetadata returns object metadata
+	GetMetadata() Metadata
+}
+
+// GetMetadata returns object metadata
+func (m *Metadata) GetMetadata() Metadata {
+	return *m
+}
+
+// GetName returns the name of the resource
+func (m *Metadata) GetName() string {
+	return m.Name
+}
+
+// SetName sets the name of the resource
+func (m *Metadata) SetName(name string) {
+	m.Name = name
+}
+
+// SetExpiry sets expiry time for the object
+func (m *Metadata) SetExpiry(expires time.Time) {
+	m.Expires = expires
+}
+
+// Expires retuns object expiry setting
+func (m *Metadata) Expiry() time.Time {
+	return m.Expires
+}
+
+// SetTTL sets Expires header using realtime clock
+func (m *Metadata) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+	m.Expires = clock.Now().UTC().Add(ttl)
 }
 
 // Check checks validity of all parameters and sets defaults
