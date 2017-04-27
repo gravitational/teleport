@@ -16,6 +16,8 @@ import (
 	"github.com/pquerna/otp/totp"
 )
 
+var fakePasswordHash = []byte(`$2a$10$Yy.e6BmS2SrGbBDsyDLVkOANZmvjjMR890nUGSXFJHBXWzxe7T44m`)
+
 // CheckPasswordWOToken checks just password without checking OTP tokens
 // used in case of SSH authentication, when token has been validated.
 func (s *AuthServer) CheckPasswordWOToken(user string, password []byte) error {
@@ -25,12 +27,17 @@ func (s *AuthServer) CheckPasswordWOToken(user string, password []byte) error {
 	}
 
 	hash, err := s.GetPasswordHash(user)
-	if err != nil {
+	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
+	}
+	if trace.IsNotFound(err) {
+		log.Debugf("Username %q not found, using fake hash to mitigate timing attacks.", user)
+		hash = fakePasswordHash
 	}
 
 	if err = bcrypt.CompareHashAndPassword(hash, password); err != nil {
-		return trace.BadParameter("passwords do not match")
+		log.Debugf("Password for %q does not match", user)
+		return trace.BadParameter("invalid username or password")
 	}
 
 	return nil
