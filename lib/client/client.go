@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
@@ -344,7 +345,8 @@ func (client *NodeClient) Upload(srcPath, rDestPath string, recursive bool, stde
 	if recursive {
 		shellCmd += " -r"
 	}
-	shellCmd += " " + rDestPath
+	// quote path to mitigate shell injection
+	shellCmd += fmt.Sprintf(" %q", rDestPath)
 	return client.scp(scpConf, shellCmd, stderr)
 }
 
@@ -362,7 +364,8 @@ func (client *NodeClient) Download(remoteSourcePath, localDestinationPath string
 	if recursive {
 		shellCmd += " -r"
 	}
-	shellCmd += " " + remoteSourcePath
+	// quote path to mitigate shell injection
+	shellCmd += fmt.Sprintf(" %q", remoteSourcePath)
 	return client.scp(scpConf, shellCmd, stderr)
 }
 
