@@ -1,5 +1,5 @@
 /*
-Copyright 2016 Gravitational, Inc.
+Copyright 2016-2017 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"path/filepath"
 	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
@@ -195,8 +196,43 @@ func (bk *Backend) DeleteKey(bucket []string, key string) error {
 
 // DeleteBucket deletes the bucket by a given path
 func (bk *Backend) DeleteBucket(parent []string, bucket string) error {
-	return trace.ConvertSystemError(os.RemoveAll(
-		path.Join(path.Join(bk.RootDir, path.Join(parent...)), bucket)))
+	return removeFiles(path.Join(path.Join(bk.RootDir, path.Join(parent...)), bucket))
+}
+
+// removeFiles removes files from the directory non-recursively
+// we need this function because os.RemoveAll does not work
+// on concurrent requests - can produce directory not empty
+// error, because someone could create a new file in the directory
+func removeFiles(dir string) error {
+	d, err := os.Open(dir)
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	defer d.Close()
+	names, err := d.Readdirnames(-1)
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	for _, name := range names {
+		path := filepath.Join(dir, name)
+		fi, err := os.Stat(path)
+		if err != nil {
+			err = trace.ConvertSystemError(err)
+			if !trace.IsNotFound(err) {
+				return err
+			}
+		}
+		if !fi.IsDir() {
+			err = os.Remove(path)
+			if err != nil {
+				err = trace.ConvertSystemError(err)
+				if !trace.IsNotFound(err) {
+					return err
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // AcquireLock grabs a lock that will be released automatically in TTL
