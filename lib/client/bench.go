@@ -47,6 +47,9 @@ type BenchmarkResult struct {
 	Histogram *hdrhistogram.Histogram
 }
 
+// Benchmark connects to remote server and executes requests in parallel according
+// to benchmark spec. It returns benchmark result when completed.
+// This is a blocking function that can be cancelled via context argument.
 func (tc *TeleportClient) Benchmark(ctx context.Context, bench Benchmark) (*BenchmarkResult, error) {
 	tc.Stdout = ioutil.Discard
 	tc.Stderr = ioutil.Discard
@@ -62,7 +65,7 @@ func (tc *TeleportClient) Benchmark(ctx context.Context, bench Benchmark) (*Benc
 		go benchmarkThread(i, ctx, tc, bench.Command, requestC, responseC)
 	}
 
-	// producer thread
+	// producer goroutine
 	go func() {
 		interval := time.Duration(float64(1) / float64(bench.Rate) * float64(time.Second))
 		ticker := time.NewTicker(interval)
@@ -70,8 +73,9 @@ func (tc *TeleportClient) Benchmark(ctx context.Context, bench Benchmark) (*Benc
 		for {
 			select {
 			case <-ticker.C:
-				// notice how we star the timer regardless of whether thread can process it
-				// this is to account for coordinated omission
+				// notice how we start the timer regardless of whether any goroutine can process it
+				// this is to account for coordinated omission,
+				// http://psy-lob-saw.blogspot.com/2015/03/fixing-ycsb-coordinated-omission.html
 				measure := &benchMeasure{
 					Start: time.Now(),
 				}
@@ -87,7 +91,7 @@ func (tc *TeleportClient) Benchmark(ctx context.Context, bench Benchmark) (*Benc
 	}()
 
 	var result BenchmarkResult
-	// from one millisecond to 60000 milliseconds (minute)
+	// from one millisecond to 60000 milliseconds (minute) with 3 digits precision
 	result.Histogram = hdrhistogram.New(1, 60000, 3)
 
 	var doneThreads int
