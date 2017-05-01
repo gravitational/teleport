@@ -187,6 +187,10 @@
 			"Rev": "d281585cd7365cff9edfed1a5115fc624a012bdc"
 		},
 		{
+			"ImportPath": "github.com/codahale/hdrhistogram",
+			"Rev": "954f16e8b9ef0e5d5189456aa4c1202758e04f17"
+		},
+		{
 			"ImportPath": "github.com/coreos/etcd/Godeps/_workspace/src/github.com/ugorji/go/codec",
 			"Comment": "v2.3.0-alpha.1-249-g0c41371",
 			"Rev": "0c41371064666ad159761e0fb12c7f240b3977cb"
