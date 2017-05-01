@@ -512,7 +512,7 @@ func (s *Server) isAuthority(cert ssh.PublicKey) bool {
 	// find cert authority by it's key
 	cas, err := s.authService.GetCertAuthorities(services.UserCA, false)
 	if err != nil {
-		log.Warningf("%v", err)
+		log.Warningf("%v", trace.DebugReport(err))
 		return false
 	}
 
