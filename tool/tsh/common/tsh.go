@@ -155,7 +155,7 @@ func Run(args []string, underTest bool) {
 	logout := app.Command("logout", "Delete a cluster certificate")
 
 	// bench
-	bench := app.Command("bench", "Run shell or execute a command on a remote SSH node")
+	bench := app.Command("bench", "Run shell or execute a command on a remote SSH node").Hidden()
 	bench.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	bench.Arg("command", "Command to execute on a remote host").Required().StringsVar(&cf.RemoteCommand)
 	bench.Flag("port", "SSH port on a remote host").Short('p').Int16Var(&cf.NodePort)
