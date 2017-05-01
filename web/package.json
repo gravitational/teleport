@@ -13,6 +13,7 @@
   "author": "",
   "license": "",
   "dependencies": {
+    "lodash": "4.8.2",
     "buffer": "4.5.0",
     "classnames": "^2.2.3",
     "font-awesome": "4.5.0",

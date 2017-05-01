@@ -13,10 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-import keyMirror from 'keymirror'
+export const TLPT_TERMINAL_INIT = 'TLPT_TERMINAL_INIT'
+export const TLPT_TERMINAL_CLOSE = 'TLPT_TERMINAL_CLOSE';
+export const TLPT_TERMINAL_SET_STATUS = 'TLPT_TERMINAL_SET_STATUS';
 
-export default keyMirror({
-  TLPT_TERMINAL_OPEN: null,
-  TLPT_TERMINAL_CLOSE: null,
-  TLPT_TERMINAL_SET_STATUS: null
-})
