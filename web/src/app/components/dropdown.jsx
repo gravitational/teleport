@@ -16,12 +16,12 @@ limitations under the License.
 
 import React from 'react';
 import $ from 'jQuery';
-import { isObject } from '_';
+import { isObject } from 'lodash';
 import classnames from 'classnames';
 
-const DropDown = React.createClass({
+class DropDown extends React.Component {
 
-  onClick(event){
+  onClick = event => {
     event.preventDefault();
     let {options} = this.props;
     let index = $(event.target).parent().index();
@@ -29,7 +29,7 @@ const DropDown = React.createClass({
     let value = isObject(option) ? option.value : option;
 
     this.props.onChange(value);
-  },
+  }
 
   renderOption(option, index){
     let displayValue = isObject(option) ? option.label : option;
@@ -38,7 +38,7 @@ const DropDown = React.createClass({
         <a href="#">{displayValue}</a>
       </li>
     )
-  },
+  }
 
   getDisplayValue(value){
     let {options=[]} = this.props;
@@ -54,7 +54,7 @@ const DropDown = React.createClass({
     }
 
     return null;
-  },
+  }
 
   render(){
     let {options, value, classRules, className='', name, size='default', align='left'} = this.props;
@@ -99,6 +99,6 @@ const DropDown = React.createClass({
       </div>
     )
   }
-});
+}
 
 export default DropDown;

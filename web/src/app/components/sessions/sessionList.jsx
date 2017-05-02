@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import _ from '_';
+import { sortBy } from 'lodash';
 import React from 'react';
 import moment from 'moment';
 import InputSearch from './../inputSearch.jsx';
@@ -22,27 +22,29 @@ import { isMatch } from 'app/lib/objectUtils';
 import { actions } from 'app/flux/storedSessionsFilter';
 import { Table, Column, Cell, SortHeaderCell, SortTypes, EmptyIndicator } from 'app/components/table.jsx';
 import { SessionIdCell, NodeCell, UsersCell, DateCreatedCell, DurationCell } from './listItems';
-import { DateRangePicker } from './../datePicker.jsx';
+import DateRangePicker from './../datePicker';
 import ClusterSelector from './../clusterSelector.jsx';
 
-const SessionList = React.createClass({
+class SessionList extends React.Component {
 
-  getInitialState(){
-    this.searchableProps = ['nodeDisplayText', 'createdDisplayText', 'sid', 'parties'];
-    return { filter: '', colSortDirs: {created: 'ASC'}};
-  },
+  searchableProps = ['nodeDisplayText', 'createdDisplayText', 'sid', 'parties'];
 
-  onFilterChange(value){
+  constructor(props) {
+    super(props);    
+    this.state = { filter: '', colSortDirs: {created: 'ASC'}};
+  }
+
+  onFilterChange = value => {
     this.state.filter = value;
     this.setState(this.state);
-  },
+  }
 
-  onSortChange(columnKey, sortDir) {
+  onSortChange = (columnKey, sortDir) => {
     this.state.colSortDirs = { [columnKey]: sortDir };
     this.setState(this.state);
-  },
+  }
 
-  onRangePickerChange({startDate, endDate}){
+  onRangePickerChange = ({startDate, endDate}) => {
     /**
     * as date picker uses timeouts its important to ensure that
     * component is still mounted when data picker triggers an update
@@ -50,14 +52,14 @@ const SessionList = React.createClass({
     if(this.isMounted()){
       actions.setTimeRange(startDate, endDate);
     }
-  },
+  }
 
   searchAndFilterCb(targetValue, searchValue, propName){    
     if (propName === 'parties') {
       targetValue = targetValue || [];
       return targetValue.join('').toLocaleUpperCase().indexOf(searchValue) !== -1;
     }
-  },
+  }
 
   sortAndFilter(data){
     var filtered = data.filter(obj=>
@@ -68,13 +70,13 @@ const SessionList = React.createClass({
 
     var columnKey = Object.getOwnPropertyNames(this.state.colSortDirs)[0];
     var sortDir = this.state.colSortDirs[columnKey];
-    var sorted = _.sortBy(filtered, columnKey);
+    var sorted = sortBy(filtered, columnKey);
     if(sortDir === SortTypes.ASC){
       sorted = sorted.reverse();
     }
 
     return sorted;
-  },
+  }
 
   render() {
     let { filter, storedSessions, activeSessions } = this.props;
@@ -102,7 +104,7 @@ const SessionList = React.createClass({
             </div>            
             <div className="grv-flex">              
               <ClusterSelector/>
-              <InputSearch value={this.filter} onChange={this.onFilterChange} />
+              <InputSearch onChange={this.onFilterChange} />
               <div className="m-l-sm">
                 <DateRangePicker startDate={start} endDate={end} onChange={this.onRangePickerChange} />
               </div>
@@ -157,6 +159,6 @@ const SessionList = React.createClass({
       </div>
     )
   }
-});
+}
 
 export default SessionList;

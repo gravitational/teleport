@@ -194,7 +194,6 @@ func (t *terminalHandler) Run(w http.ResponseWriter, r *http.Request) {
 		tc.OnShellCreated = func(s *ssh.Session, c *ssh.Client, _ io.ReadWriteCloser) (bool, error) {
 			t.sshSession = s
 			t.resizePTYWindow(t.params.Term)
-			go t.pullServerTermsize(c, output)
 			return false, nil
 		}
 		if err = tc.SSH(context.TODO(), nil, false); err != nil {
@@ -249,19 +248,4 @@ func (t *terminalHandler) getUserCredentials(agent auth.AgentCloser) (string, ss
 		return "", nil, trace.Wrap(err)
 	}
 	return cert.ValidPrincipals[0], ssh.PublicKeys(signers...), nil
-}
-
-// this goroutine receives terminal window size changes in real time
-// and stores the last size (example: "100:25") as a special "prefix"
-// which gets added to future SSH reads by web clients.
-func (t *terminalHandler) pullServerTermsize(c *ssh.Client, ws *utils.WebSockWrapper) {
-	var buff [16]byte
-	sshChan, _, err := c.OpenChannel("x-teleport-request-resize-events", nil)
-	for err == nil {
-		n, err := sshChan.Read(buff[:])
-		if err != nil {
-			break
-		}
-		ws.SetPrefix(buff[:n])
-	}
 }
