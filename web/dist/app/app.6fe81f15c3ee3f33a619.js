@@ -41,15 +41,15 @@ webpackJsonp([0],[
 
 	var _main2 = _interopRequireDefault(_main);
 
-	var _main3 = __webpack_require__(409);
+	var _main3 = __webpack_require__(408);
 
 	var _main4 = _interopRequireDefault(_main3);
 
-	var _terminalHost = __webpack_require__(474);
+	var _terminalHost = __webpack_require__(473);
 
 	var _terminalHost2 = _interopRequireDefault(_terminalHost);
 
-	var _playerHost = __webpack_require__(495);
+	var _playerHost = __webpack_require__(492);
 
 	var _playerHost2 = _interopRequireDefault(_playerHost);
 
@@ -67,11 +67,11 @@ webpackJsonp([0],[
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _documentTitle = __webpack_require__(526);
+	var _documentTitle = __webpack_require__(523);
 
 	var _documentTitle2 = _interopRequireDefault(_documentTitle);
 
-	__webpack_require__(527);
+	__webpack_require__(524);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -6271,19 +6271,17 @@ webpackJsonp([0],[
 
 	var _reactRouter = __webpack_require__(164);
 
-	var _2 = __webpack_require__(401);
+	var _lodash = __webpack_require__(401);
 
-	var _3 = _interopRequireDefault(_2);
+	var _objectUtils = __webpack_require__(402);
 
-	var _objectUtils = __webpack_require__(403);
-
-	var _inputSearch = __webpack_require__(404);
+	var _inputSearch = __webpack_require__(403);
 
 	var _inputSearch2 = _interopRequireDefault(_inputSearch);
 
-	var _table = __webpack_require__(405);
+	var _table = __webpack_require__(404);
 
-	var _clusterSelector = __webpack_require__(406);
+	var _clusterSelector = __webpack_require__(405);
 
 	var _clusterSelector2 = _interopRequireDefault(_clusterSelector);
 
@@ -6292,6 +6290,12 @@ webpackJsonp([0],[
 	var _config2 = _interopRequireDefault(_config);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 
 	function _objectWithoutProperties(obj, keys) { var target = {}; for (var i in obj) { if (keys.indexOf(i) >= 0) continue; if (!Object.prototype.hasOwnProperty.call(obj, i)) continue; target[i] = obj[i]; } return target; } /*
 	                                                                                                                                                                                                                             Copyright 2015 Gravitational, Inc.
@@ -6433,26 +6437,36 @@ webpackJsonp([0],[
 	  );
 	};
 
-	var NodeList = _react2.default.createClass({
-	  displayName: 'NodeList',
-	  getInitialState: function getInitialState() {
-	    this.searchableProps = ['addr', 'hostname', 'tags'];
-	    return {
+	var NodeList = function (_React$Component) {
+	  _inherits(NodeList, _React$Component);
+
+	  function NodeList(props) {
+	    _classCallCheck(this, NodeList);
+
+	    var _this = _possibleConstructorReturn(this, _React$Component.call(this, props));
+
+	    _this.searchableProps = ['addr', 'hostname', 'tags'];
+
+	    _this.onSortChange = function (columnKey, sortDir) {
+	      var _this$state$colSortDi;
+
+	      _this.state.colSortDirs = (_this$state$colSortDi = {}, _this$state$colSortDi[columnKey] = sortDir, _this$state$colSortDi);
+	      _this.setState(_this.state);
+	    };
+
+	    _this.onFilterChange = function (value) {
+	      _this.state.filter = value;
+	      _this.setState(_this.state);
+	    };
+
+	    _this.state = {
 	      filter: '',
 	      colSortDirs: { hostname: _table.SortTypes.DESC }
 	    };
-	  },
-	  onSortChange: function onSortChange(columnKey, sortDir) {
-	    var _state$colSortDirs;
+	    return _this;
+	  }
 
-	    this.state.colSortDirs = (_state$colSortDirs = {}, _state$colSortDirs[columnKey] = sortDir, _state$colSortDirs);
-	    this.setState(this.state);
-	  },
-	  onFilterChange: function onFilterChange(value) {
-	    this.state.filter = value;
-	    this.setState(this.state);
-	  },
-	  searchAndFilterCb: function searchAndFilterCb(targetValue, searchValue, propName) {
+	  NodeList.prototype.searchAndFilterCb = function searchAndFilterCb(targetValue, searchValue, propName) {
 	    if (propName === 'tags') {
 	      return targetValue.some(function (item) {
 	        var role = item.role,
@@ -6461,29 +6475,31 @@ webpackJsonp([0],[
 	        return role.toLocaleUpperCase().indexOf(searchValue) !== -1 || value.toLocaleUpperCase().indexOf(searchValue) !== -1;
 	      });
 	    }
-	  },
-	  sortAndFilter: function sortAndFilter(data) {
-	    var _this = this;
+	  };
+
+	  NodeList.prototype.sortAndFilter = function sortAndFilter(data) {
+	    var _this2 = this;
 
 	    var colSortDirs = this.state.colSortDirs;
 
 	    var filtered = data.filter(function (obj) {
-	      return (0, _objectUtils.isMatch)(obj, _this.state.filter, {
-	        searchableProps: _this.searchableProps,
-	        cb: _this.searchAndFilterCb
+	      return (0, _objectUtils.isMatch)(obj, _this2.state.filter, {
+	        searchableProps: _this2.searchableProps,
+	        cb: _this2.searchAndFilterCb
 	      });
 	    });
 
 	    var columnKey = Object.getOwnPropertyNames(colSortDirs)[0];
 	    var sortDir = colSortDirs[columnKey];
-	    var sorted = _3.default.sortBy(filtered, columnKey);
+	    var sorted = (0, _lodash.sortBy)(filtered, columnKey);
 	    if (sortDir === _table.SortTypes.ASC) {
 	      sorted = sorted.reverse();
 	    }
 
 	    return sorted;
-	  },
-	  render: function render() {
+	  };
+
+	  NodeList.prototype.render = function render() {
 	    var _props = this.props,
 	        nodeRecords = _props.nodeRecords,
 	        logins = _props.logins,
@@ -6505,7 +6521,7 @@ webpackJsonp([0],[
 	          'div',
 	          { className: 'grv-flex' },
 	          _react2.default.createElement(_clusterSelector2.default, null),
-	          _react2.default.createElement(_inputSearch2.default, { value: this.filter, onChange: this.onFilterChange })
+	          _react2.default.createElement(_inputSearch2.default, { onChange: this.onFilterChange })
 	        )
 	      ),
 	      _react2.default.createElement(
@@ -6554,16 +6570,17 @@ webpackJsonp([0],[
 	        )
 	      )
 	    );
-	  }
-	});
+	  };
+
+	  return NodeList;
+	}(_react2.default.Component);
 
 	exports.default = NodeList;
 	module.exports = exports['default'];
 
 /***/ },
 /* 401 */,
-/* 402 */,
-/* 403 */
+/* 402 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -6635,7 +6652,7 @@ webpackJsonp([0],[
 	}
 
 /***/ },
-/* 404 */
+/* 403 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -6646,42 +6663,56 @@ webpackJsonp([0],[
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _ = __webpack_require__(401);
+	var _lodash = __webpack_require__(401);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-	/*
-	Copyright 2015 Gravitational, Inc.
+	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
+	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
 
-	    http://www.apache.org/licenses/LICENSE-2.0
+	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; } /*
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Copyright 2015 Gravitational, Inc.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Licensed under the Apache License, Version 2.0 (the "License");
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               you may not use this file except in compliance with the License.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               You may obtain a copy of the License at
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   http://www.apache.org/licenses/LICENSE-2.0
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Unless required by applicable law or agreed to in writing, software
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               distributed under the License is distributed on an "AS IS" BASIS,
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               See the License for the specific language governing permissions and
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               limitations under the License.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               */
 
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
+	var InputSearch = function (_React$Component) {
+	  _inherits(InputSearch, _React$Component);
 
-	var InputSearch = _react2.default.createClass({
-	  displayName: 'InputSearch',
-	  getInitialState: function getInitialState() {
-	    var _this = this;
+	  function InputSearch(props) {
+	    _classCallCheck(this, InputSearch);
 
-	    this.debouncedNotify = (0, _.debounce)(function () {
+	    var _this = _possibleConstructorReturn(this, _React$Component.call(this, props));
+
+	    _this.onChange = function (e) {
+	      _this.setState({ value: e.target.value });
+	      _this.debouncedNotify();
+	    };
+
+	    _this.debouncedNotify = (0, _lodash.debounce)(function () {
 	      _this.props.onChange(_this.state.value);
 	    }, 200);
 
-	    return { value: this.props.value };
-	  },
-	  onChange: function onChange(e) {
-	    this.setState({ value: e.target.value });
-	    this.debouncedNotify();
-	  },
-	  render: function render() {
+	    var value = props.value || '';
+
+	    _this.state = {
+	      value: value
+	    };
+	    return _this;
+	  }
+
+	  InputSearch.prototype.render = function render() {
 	    var _props$className = this.props.className,
 	        className = _props$className === undefined ? '' : _props$className;
 
@@ -6695,14 +6726,16 @@ webpackJsonp([0],[
 	        value: this.state.value,
 	        onChange: this.onChange })
 	    );
-	  }
-	});
+	  };
+
+	  return InputSearch;
+	}(_react2.default.Component);
 
 	exports.default = InputSearch;
 	module.exports = exports['default'];
 
 /***/ },
-/* 405 */
+/* 404 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -6942,7 +6975,7 @@ webpackJsonp([0],[
 	exports.EmptyIndicator = EmptyIndicator;
 
 /***/ },
-/* 406 */
+/* 405 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -6957,7 +6990,7 @@ webpackJsonp([0],[
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _getters = __webpack_require__(407);
+	var _getters = __webpack_require__(406);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
@@ -6965,13 +6998,13 @@ webpackJsonp([0],[
 
 	var _getters4 = _interopRequireDefault(_getters3);
 
-	var _dropdown = __webpack_require__(408);
+	var _dropdown = __webpack_require__(407);
 
 	var _dropdown2 = _interopRequireDefault(_dropdown);
 
 	var _actions = __webpack_require__(239);
 
-	var _objectUtils = __webpack_require__(403);
+	var _objectUtils = __webpack_require__(402);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -7046,7 +7079,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 407 */
+/* 406 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -7087,7 +7120,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 408 */
+/* 407 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -7102,7 +7135,7 @@ webpackJsonp([0],[
 
 	var _jQuery2 = _interopRequireDefault(_jQuery);
 
-	var _ = __webpack_require__(401);
+	var _lodash = __webpack_require__(401);
 
 	var _classnames = __webpack_require__(361);
 
@@ -7110,36 +7143,52 @@ webpackJsonp([0],[
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-	/*
-	Copyright 2015 Gravitational, Inc.
+	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
+	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
 
-	    http://www.apache.org/licenses/LICENSE-2.0
+	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; } /*
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Copyright 2015 Gravitational, Inc.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Licensed under the Apache License, Version 2.0 (the "License");
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               you may not use this file except in compliance with the License.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               You may obtain a copy of the License at
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   http://www.apache.org/licenses/LICENSE-2.0
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Unless required by applicable law or agreed to in writing, software
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               distributed under the License is distributed on an "AS IS" BASIS,
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               See the License for the specific language governing permissions and
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               limitations under the License.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               */
 
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
+	var DropDown = function (_React$Component) {
+	  _inherits(DropDown, _React$Component);
 
-	var DropDown = _react2.default.createClass({
-	  displayName: 'DropDown',
-	  onClick: function onClick(event) {
-	    event.preventDefault();
-	    var options = this.props.options;
+	  function DropDown() {
+	    var _temp, _this, _ret;
 
-	    var index = (0, _jQuery2.default)(event.target).parent().index();
-	    var option = options[index];
-	    var value = (0, _.isObject)(option) ? option.value : option;
+	    _classCallCheck(this, DropDown);
 
-	    this.props.onChange(value);
-	  },
-	  renderOption: function renderOption(option, index) {
-	    var displayValue = (0, _.isObject)(option) ? option.label : option;
+	    for (var _len = arguments.length, args = Array(_len), _key = 0; _key < _len; _key++) {
+	      args[_key] = arguments[_key];
+	    }
+
+	    return _ret = (_temp = (_this = _possibleConstructorReturn(this, _React$Component.call.apply(_React$Component, [this].concat(args))), _this), _this.onClick = function (event) {
+	      event.preventDefault();
+	      var options = _this.props.options;
+
+	      var index = (0, _jQuery2.default)(event.target).parent().index();
+	      var option = options[index];
+	      var value = (0, _lodash.isObject)(option) ? option.value : option;
+
+	      _this.props.onChange(value);
+	    }, _temp), _possibleConstructorReturn(_this, _ret);
+	  }
+
+	  DropDown.prototype.renderOption = function renderOption(option, index) {
+	    var displayValue = (0, _lodash.isObject)(option) ? option.label : option;
 	    return _react2.default.createElement(
 	      'li',
 	      { key: index },
@@ -7149,14 +7198,15 @@ webpackJsonp([0],[
 	        displayValue
 	      )
 	    );
-	  },
-	  getDisplayValue: function getDisplayValue(value) {
+	  };
+
+	  DropDown.prototype.getDisplayValue = function getDisplayValue(value) {
 	    var _props$options = this.props.options,
 	        options = _props$options === undefined ? [] : _props$options;
 
 	    for (var i = 0; i < options.length; i++) {
 	      var op = options[i];
-	      if ((0, _.isObject)(op) && op.value === value) {
+	      if ((0, _lodash.isObject)(op) && op.value === value) {
 	        return op.label;
 	      }
 
@@ -7166,8 +7216,9 @@ webpackJsonp([0],[
 	    }
 
 	    return null;
-	  },
-	  render: function render() {
+	  };
+
+	  DropDown.prototype.render = function render() {
 	    var _props = this.props,
 	        options = _props.options,
 	        value = _props.value,
@@ -7230,14 +7281,16 @@ webpackJsonp([0],[
 	      ),
 	      _react2.default.createElement('input', { className: classRules, value: hiddenValue, type: 'hidden', ref: 'input', name: name })
 	    );
-	  }
-	});
+	  };
+
+	  return DropDown;
+	}(_react2.default.Component);
 
 	exports.default = DropDown;
 	module.exports = exports['default'];
 
 /***/ },
-/* 409 */
+/* 408 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -7252,17 +7305,17 @@ webpackJsonp([0],[
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _actions = __webpack_require__(410);
+	var _actions = __webpack_require__(409);
 
-	var _getters = __webpack_require__(413);
+	var _getters = __webpack_require__(412);
 
-	var _getters2 = __webpack_require__(411);
+	var _getters2 = __webpack_require__(410);
 
 	var _timer = __webpack_require__(378);
 
 	var _timer2 = _interopRequireDefault(_timer);
 
-	var _sessionList = __webpack_require__(415);
+	var _sessionList = __webpack_require__(414);
 
 	var _sessionList2 = _interopRequireDefault(_sessionList);
 
@@ -7321,7 +7374,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 410 */
+/* 409 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -7345,7 +7398,7 @@ webpackJsonp([0],[
 
 	var reactor = __webpack_require__(240);
 
-	var _require = __webpack_require__(411),
+	var _require = __webpack_require__(410),
 	    filter = _require.filter;
 
 	var _require2 = __webpack_require__(255),
@@ -7356,7 +7409,7 @@ webpackJsonp([0],[
 
 	var logger = __webpack_require__(230).create('Modules/Sessions');
 
-	var _require4 = __webpack_require__(412),
+	var _require4 = __webpack_require__(411),
 	    TLPT_STORED_SESSINS_FILTER_SET_RANGE = _require4.TLPT_STORED_SESSINS_FILTER_SET_RANGE;
 
 	var actions = {
@@ -7386,7 +7439,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 411 */
+/* 410 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -7418,7 +7471,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 412 */
+/* 411 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -7454,7 +7507,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 413 */
+/* 412 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -7469,7 +7522,7 @@ webpackJsonp([0],[
 
 	var _config2 = _interopRequireDefault(_config);
 
-	var _enums = __webpack_require__(414);
+	var _enums = __webpack_require__(413);
 
 	var _reactor = __webpack_require__(240);
 
@@ -7477,7 +7530,7 @@ webpackJsonp([0],[
 
 	var _getters = __webpack_require__(399);
 
-	var _objectUtils = __webpack_require__(403);
+	var _objectUtils = __webpack_require__(402);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -7638,59 +7691,12 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 414 */
+/* 413 */
 /***/ function(module, exports) {
 
 	'use strict';
 
 	exports.__esModule = true;
-	var EventTypeEnum = exports.EventTypeEnum = {
-	  START: 'session.start',
-	  END: 'session.end',
-	  PRINT: 'print',
-	  RESIZE: 'resize'
-	};
-
-/***/ },
-/* 415 */
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-
-	exports.__esModule = true;
-
-	var _2 = __webpack_require__(401);
-
-	var _3 = _interopRequireDefault(_2);
-
-	var _react = __webpack_require__(2);
-
-	var _react2 = _interopRequireDefault(_react);
-
-	var _moment = __webpack_require__(256);
-
-	var _moment2 = _interopRequireDefault(_moment);
-
-	var _inputSearch = __webpack_require__(404);
-
-	var _inputSearch2 = _interopRequireDefault(_inputSearch);
-
-	var _objectUtils = __webpack_require__(403);
-
-	var _storedSessionsFilter = __webpack_require__(416);
-
-	var _table = __webpack_require__(405);
-
-	var _listItems = __webpack_require__(417);
-
-	var _datePicker = __webpack_require__(473);
-
-	var _clusterSelector = __webpack_require__(406);
-
-	var _clusterSelector2 = _interopRequireDefault(_clusterSelector);
-
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
 	/*
 	Copyright 2015 Gravitational, Inc.
 
@@ -7707,60 +7713,144 @@ webpackJsonp([0],[
 	limitations under the License.
 	*/
 
-	var SessionList = _react2.default.createClass({
-	  displayName: 'SessionList',
-	  getInitialState: function getInitialState() {
-	    this.searchableProps = ['nodeDisplayText', 'createdDisplayText', 'sid', 'parties'];
-	    return { filter: '', colSortDirs: { created: 'ASC' } };
-	  },
-	  onFilterChange: function onFilterChange(value) {
-	    this.state.filter = value;
-	    this.setState(this.state);
-	  },
-	  onSortChange: function onSortChange(columnKey, sortDir) {
-	    var _state$colSortDirs;
+	var EventTypeEnum = exports.EventTypeEnum = {
+	  START: 'session.start',
+	  END: 'session.end',
+	  PRINT: 'print',
+	  RESIZE: 'resize'
+	};
 
-	    this.state.colSortDirs = (_state$colSortDirs = {}, _state$colSortDirs[columnKey] = sortDir, _state$colSortDirs);
-	    this.setState(this.state);
-	  },
-	  onRangePickerChange: function onRangePickerChange(_ref) {
-	    var startDate = _ref.startDate,
-	        endDate = _ref.endDate;
+	var StatusCodeEnum = exports.StatusCodeEnum = {
+	  NORMAL: 1000
+	};
 
-	    /**
-	    * as date picker uses timeouts its important to ensure that
-	    * component is still mounted when data picker triggers an update
-	    */
-	    if (this.isMounted()) {
-	      _storedSessionsFilter.actions.setTimeRange(startDate, endDate);
-	    }
-	  },
-	  searchAndFilterCb: function searchAndFilterCb(targetValue, searchValue, propName) {
+/***/ },
+/* 414 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	exports.__esModule = true;
+
+	var _lodash = __webpack_require__(401);
+
+	var _react = __webpack_require__(2);
+
+	var _react2 = _interopRequireDefault(_react);
+
+	var _moment = __webpack_require__(256);
+
+	var _moment2 = _interopRequireDefault(_moment);
+
+	var _inputSearch = __webpack_require__(403);
+
+	var _inputSearch2 = _interopRequireDefault(_inputSearch);
+
+	var _objectUtils = __webpack_require__(402);
+
+	var _storedSessionsFilter = __webpack_require__(415);
+
+	var _table = __webpack_require__(404);
+
+	var _listItems = __webpack_require__(416);
+
+	var _datePicker = __webpack_require__(472);
+
+	var _datePicker2 = _interopRequireDefault(_datePicker);
+
+	var _clusterSelector = __webpack_require__(405);
+
+	var _clusterSelector2 = _interopRequireDefault(_clusterSelector);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; } /*
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Copyright 2015 Gravitational, Inc.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Licensed under the Apache License, Version 2.0 (the "License");
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               you may not use this file except in compliance with the License.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               You may obtain a copy of the License at
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   http://www.apache.org/licenses/LICENSE-2.0
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Unless required by applicable law or agreed to in writing, software
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               distributed under the License is distributed on an "AS IS" BASIS,
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               See the License for the specific language governing permissions and
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               limitations under the License.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               */
+
+	var SessionList = function (_React$Component) {
+	  _inherits(SessionList, _React$Component);
+
+	  function SessionList(props) {
+	    _classCallCheck(this, SessionList);
+
+	    var _this = _possibleConstructorReturn(this, _React$Component.call(this, props));
+
+	    _this.searchableProps = ['nodeDisplayText', 'createdDisplayText', 'sid', 'parties'];
+
+	    _this.onFilterChange = function (value) {
+	      _this.state.filter = value;
+	      _this.setState(_this.state);
+	    };
+
+	    _this.onSortChange = function (columnKey, sortDir) {
+	      var _this$state$colSortDi;
+
+	      _this.state.colSortDirs = (_this$state$colSortDi = {}, _this$state$colSortDi[columnKey] = sortDir, _this$state$colSortDi);
+	      _this.setState(_this.state);
+	    };
+
+	    _this.onRangePickerChange = function (_ref) {
+	      var startDate = _ref.startDate,
+	          endDate = _ref.endDate;
+
+	      /**
+	      * as date picker uses timeouts its important to ensure that
+	      * component is still mounted when data picker triggers an update
+	      */
+	      if (_this.isMounted()) {
+	        _storedSessionsFilter.actions.setTimeRange(startDate, endDate);
+	      }
+	    };
+
+	    _this.state = { filter: '', colSortDirs: { created: 'ASC' } };
+	    return _this;
+	  }
+
+	  SessionList.prototype.searchAndFilterCb = function searchAndFilterCb(targetValue, searchValue, propName) {
 	    if (propName === 'parties') {
 	      targetValue = targetValue || [];
 	      return targetValue.join('').toLocaleUpperCase().indexOf(searchValue) !== -1;
 	    }
-	  },
-	  sortAndFilter: function sortAndFilter(data) {
-	    var _this = this;
+	  };
+
+	  SessionList.prototype.sortAndFilter = function sortAndFilter(data) {
+	    var _this2 = this;
 
 	    var filtered = data.filter(function (obj) {
-	      return (0, _objectUtils.isMatch)(obj, _this.state.filter, {
-	        searchableProps: _this.searchableProps,
-	        cb: _this.searchAndFilterCb
+	      return (0, _objectUtils.isMatch)(obj, _this2.state.filter, {
+	        searchableProps: _this2.searchableProps,
+	        cb: _this2.searchAndFilterCb
 	      });
 	    });
 
 	    var columnKey = Object.getOwnPropertyNames(this.state.colSortDirs)[0];
 	    var sortDir = this.state.colSortDirs[columnKey];
-	    var sorted = _3.default.sortBy(filtered, columnKey);
+	    var sorted = (0, _lodash.sortBy)(filtered, columnKey);
 	    if (sortDir === _table.SortTypes.ASC) {
 	      sorted = sorted.reverse();
 	    }
 
 	    return sorted;
-	  },
-	  render: function render() {
+	  };
+
+	  SessionList.prototype.render = function render() {
 	    var _props = this.props,
 	        filter = _props.filter,
 	        storedSessions = _props.storedSessions,
@@ -7807,11 +7897,11 @@ webpackJsonp([0],[
 	            'div',
 	            { className: 'grv-flex' },
 	            _react2.default.createElement(_clusterSelector2.default, null),
-	            _react2.default.createElement(_inputSearch2.default, { value: this.filter, onChange: this.onFilterChange }),
+	            _react2.default.createElement(_inputSearch2.default, { onChange: this.onFilterChange }),
 	            _react2.default.createElement(
 	              'div',
 	              { className: 'm-l-sm' },
-	              _react2.default.createElement(_datePicker.DateRangePicker, { startDate: start, endDate: end, onChange: this.onRangePickerChange })
+	              _react2.default.createElement(_datePicker2.default, { startDate: start, endDate: end, onChange: this.onRangePickerChange })
 	            )
 	          )
 	        )
@@ -7868,14 +7958,16 @@ webpackJsonp([0],[
 	        )
 	      )
 	    );
-	  }
-	});
+	  };
+
+	  return SessionList;
+	}(_react2.default.Component);
 
 	exports.default = SessionList;
 	module.exports = exports['default'];
 
 /***/ },
-/* 416 */
+/* 415 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -7895,11 +7987,11 @@ webpackJsonp([0],[
 	See the License for the specific language governing permissions and
 	limitations under the License.
 	*/
-	module.exports.getters = __webpack_require__(411);
-	module.exports.actions = __webpack_require__(410);
+	module.exports.getters = __webpack_require__(410);
+	module.exports.actions = __webpack_require__(409);
 
 /***/ },
-/* 417 */
+/* 416 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -7913,21 +8005,21 @@ webpackJsonp([0],[
 
 	var _reactRouter = __webpack_require__(164);
 
-	var _table = __webpack_require__(405);
+	var _table = __webpack_require__(404);
 
 	var _moment = __webpack_require__(256);
 
 	var _moment2 = _interopRequireDefault(_moment);
 
-	var _layout = __webpack_require__(418);
+	var _layout = __webpack_require__(417);
 
 	var _layout2 = _interopRequireDefault(_layout);
 
-	var _moreButton = __webpack_require__(419);
+	var _moreButton = __webpack_require__(418);
 
 	var _moreButton2 = _interopRequireDefault(_moreButton);
 
-	var _popover = __webpack_require__(472);
+	var _popover = __webpack_require__(471);
 
 	var _popover2 = _interopRequireDefault(_popover);
 
@@ -8110,7 +8202,7 @@ webpackJsonp([0],[
 	exports.NodeCell = NodeCell;
 
 /***/ },
-/* 418 */
+/* 417 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -8222,7 +8314,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 419 */
+/* 418 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -8237,9 +8329,9 @@ webpackJsonp([0],[
 
 	var _classnames2 = _interopRequireDefault(_classnames);
 
-	var _overlay = __webpack_require__(420);
+	var _overlayTrigger = __webpack_require__(419);
 
-	var _overlay2 = _interopRequireDefault(_overlay);
+	var _overlayTrigger2 = _interopRequireDefault(_overlayTrigger);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -8275,7 +8367,7 @@ webpackJsonp([0],[
 
 	MoreButton.WithOverlay = function (props) {
 	  return _react2.default.createElement(
-	    _overlay2.default,
+	    _overlayTrigger2.default,
 	    props,
 	    _react2.default.createElement(MoreButton, null)
 	  );
@@ -8285,7 +8377,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 420 */
+/* 419 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -8300,7 +8392,7 @@ webpackJsonp([0],[
 
 	var _reactDom2 = _interopRequireDefault(_reactDom);
 
-	var _reactOverlays = __webpack_require__(421);
+	var _reactOverlays = __webpack_require__(420);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -8442,6 +8534,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
+/* 420 */,
 /* 421 */,
 /* 422 */,
 /* 423 */,
@@ -8492,8 +8585,7 @@ webpackJsonp([0],[
 /* 468 */,
 /* 469 */,
 /* 470 */,
-/* 471 */,
-/* 472 */
+/* 471 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -8614,13 +8706,12 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 473 */
+/* 472 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
-	exports.DateRangePicker = exports.CalendarNav = undefined;
 
 	var _react = __webpack_require__(2);
 
@@ -8634,7 +8725,7 @@ webpackJsonp([0],[
 
 	var _moment2 = _interopRequireDefault(_moment);
 
-	var _ = __webpack_require__(401);
+	var _lodash = __webpack_require__(401);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -8691,16 +8782,18 @@ webpackJsonp([0],[
 	    return false;
 	  },
 	  componentDidMount: function componentDidMount() {
-	    this.onChange = (0, _.debounce)(this.onChange, 1);
+	    this.onChange = (0, _lodash.debounce)(this.onChange, 1);
 	    (0, _jQuery2.default)(this.refs.rangePicker).datepicker({
 	      todayBtn: 'linked',
 	      keyboardNavigation: false,
 	      forceParse: false,
 	      calendarWeeks: true,
 	      autoclose: true
-	    }).on('changeDate', this.onChange);
+	    });
 
 	    this.setDates(this.props);
+
+	    (0, _jQuery2.default)(this.refs.rangePicker).datepicker().on('changeDate', this.onChange);
 	  },
 	  onChange: function onChange() {
 	    var _getDates2 = this.getDates(),
@@ -8730,150 +8823,111 @@ webpackJsonp([0],[
 	  return (0, _moment2.default)(date1).isSame(date2, 'day');
 	}
 
-	/**
-	* Calendar Nav
-	*/
-	var CalendarNav = _react2.default.createClass({
-	  displayName: 'CalendarNav',
-	  render: function render() {
-	    var value = this.props.value;
-
-	    var displayValue = (0, _moment2.default)(value).format('MMM Do, YYYY');
-
-	    return _react2.default.createElement(
-	      'div',
-	      { className: "grv-calendar-nav " + this.props.className },
-	      _react2.default.createElement(
-	        'button',
-	        { onClick: this.move.bind(this, -1), className: 'btn btn-outline btn-link' },
-	        _react2.default.createElement('i', { className: 'fa fa-chevron-left' })
-	      ),
-	      _react2.default.createElement(
-	        'span',
-	        { className: 'text-muted' },
-	        displayValue
-	      ),
-	      _react2.default.createElement(
-	        'button',
-	        { onClick: this.move.bind(this, 1), className: 'btn btn-outline btn-link' },
-	        _react2.default.createElement('i', { className: 'fa fa-chevron-right' })
-	      )
-	    );
-	  },
-	  move: function move(at) {
-	    var value = this.props.value;
-
-	    var newValue = (0, _moment2.default)(value).add(at, 'week').toDate();
-	    this.props.onValueChange(newValue);
-	  }
-	});
-
-	CalendarNav.getweekRange = function (value) {
-	  var startDate = (0, _moment2.default)(value).startOf('month').toDate();
-	  var endDate = (0, _moment2.default)(value).endOf('month').toDate();
-	  return [startDate, endDate];
-	};
-
 	exports.default = DateRangePicker;
-	exports.CalendarNav = CalendarNav;
-	exports.DateRangePicker = DateRangePicker;
+	module.exports = exports['default'];
 
 /***/ },
-/* 474 */
+/* 473 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
+	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
 	var _react = __webpack_require__(2);
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _reactor = __webpack_require__(240);
+	var _nuclearJsReactAddons = __webpack_require__(219);
 
-	var _reactor2 = _interopRequireDefault(_reactor);
+	var _enums = __webpack_require__(413);
 
-	var _config = __webpack_require__(232);
-
-	var _config2 = _interopRequireDefault(_config);
-
-	var _partyListPanel = __webpack_require__(475);
-
-	var _partyListPanel2 = _interopRequireDefault(_partyListPanel);
-
-	var _session = __webpack_require__(226);
-
-	var _session2 = _interopRequireDefault(_session);
-
-	var _terminal = __webpack_require__(476);
+	var _terminal = __webpack_require__(474);
 
 	var _terminal2 = _interopRequireDefault(_terminal);
 
-	var _getters = __webpack_require__(483);
+	var _getters = __webpack_require__(479);
 
 	var _getters2 = _interopRequireDefault(_getters);
+
+	var _actions = __webpack_require__(480);
+
+	var _actions2 = __webpack_require__(255);
+
+	var _actions3 = __webpack_require__(482);
+
+	var _partyListPanel = __webpack_require__(484);
+
+	var _partyListPanel2 = _interopRequireDefault(_partyListPanel);
 
 	var _indicator = __webpack_require__(380);
 
 	var _indicator2 = _interopRequireDefault(_indicator);
 
-	var _actions = __webpack_require__(484);
-
-	var _actions2 = __webpack_require__(486);
-
-	var _terminalPartyList = __webpack_require__(488);
+	var _terminalPartyList = __webpack_require__(485);
 
 	var _terminalPartyList2 = _interopRequireDefault(_terminalPartyList);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-	function _objectWithoutProperties(obj, keys) { var target = {}; for (var i in obj) { if (keys.indexOf(i) >= 0) continue; if (!Object.prototype.hasOwnProperty.call(obj, i)) continue; target[i] = obj[i]; } return target; } /*
-	                                                                                                                                                                                                                             Copyright 2015 Gravitational, Inc.
-	                                                                                                                                                                                                                             
-	                                                                                                                                                                                                                             Licensed under the Apache License, Version 2.0 (the "License");
-	                                                                                                                                                                                                                             you may not use this file except in compliance with the License.
-	                                                                                                                                                                                                                             You may obtain a copy of the License at
-	                                                                                                                                                                                                                             
-	                                                                                                                                                                                                                                 http://www.apache.org/licenses/LICENSE-2.0
-	                                                                                                                                                                                                                             
-	                                                                                                                                                                                                                             Unless required by applicable law or agreed to in writing, software
-	                                                                                                                                                                                                                             distributed under the License is distributed on an "AS IS" BASIS,
-	                                                                                                                                                                                                                             WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	                                                                                                                                                                                                                             See the License for the specific language governing permissions and
-	                                                                                                                                                                                                                             limitations under the License.
-	                                                                                                                                                                                                                             */
+	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
-	var TerminalHost = _react2.default.createClass({
-	  displayName: 'TerminalHost',
+	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
 
+	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; } /*
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Copyright 2015 Gravitational, Inc.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Licensed under the Apache License, Version 2.0 (the "License");
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               you may not use this file except in compliance with the License.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               You may obtain a copy of the License at
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   http://www.apache.org/licenses/LICENSE-2.0
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Unless required by applicable law or agreed to in writing, software
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               distributed under the License is distributed on an "AS IS" BASIS,
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               See the License for the specific language governing permissions and
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               limitations under the License.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               */
 
-	  mixins: [_reactor2.default.ReactMixin],
+	var TerminalHost = function (_React$Component) {
+	  _inherits(TerminalHost, _React$Component);
 
-	  getDataBindings: function getDataBindings() {
-	    return {
-	      store: _getters2.default.store
+	  function TerminalHost(props) {
+	    _classCallCheck(this, TerminalHost);
+
+	    var _this = _possibleConstructorReturn(this, _React$Component.call(this, props));
+
+	    _this.startNew = function () {
+	      var newRouteParams = _extends({}, _this.props.routeParams, {
+	        sid: undefined
+	      });
+
+	      (0, _actions.updateRoute)(newRouteParams);
+	      (0, _actions.initTerminal)(newRouteParams);
 	    };
-	  },
-	  componentDidMount: function componentDidMount() {
-	    var _this = this;
+
+	    _this.replay = function () {
+	      (0, _actions3.openPlayer)(_this.props.routeParams);
+	    };
+
+	    return _this;
+	  }
+
+	  TerminalHost.prototype.componentDidMount = function componentDidMount() {
+	    var _this2 = this;
 
 	    setTimeout(function () {
-	      return (0, _actions.initTerminal)(_this.props.routeParams);
+	      return (0, _actions.initTerminal)(_this2.props.routeParams);
 	    }, 0);
-	  },
-	  startNew: function startNew() {
-	    (0, _actions.startNew)(this.props.routeParams);
-	  },
-	  replay: function replay() {
-	    (0, _actions2.openPlayer)(this.props.routeParams);
-	  },
-	  render: function render() {
-	    var store = this.state.store;
+	  };
 
-	    var _store$toJS = store.toJS(),
-	        status = _store$toJS.status,
-	        props = _objectWithoutProperties(_store$toJS, ['status']);
+	  TerminalHost.prototype.render = function render() {
+	    var store = this.props.store;
+	    var status = store.status,
+	        sid = store.sid;
 
 	    var serverLabel = store.getServerLabel();
 
@@ -8896,8 +8950,8 @@ webpackJsonp([0],[
 
 	    if (status.isReady) {
 	      document.title = serverLabel;
-	      $content = _react2.default.createElement(TtyTerminal, props);
-	      $leftPanelContent = _react2.default.createElement(_terminalPartyList2.default, { sid: store.sid });
+	      $content = _react2.default.createElement(TerminalContainer, { store: store });
+	      $leftPanelContent = _react2.default.createElement(_terminalPartyList2.default, { sid: sid });
 	    }
 
 	    return _react2.default.createElement(
@@ -8919,44 +8973,59 @@ webpackJsonp([0],[
 	      ),
 	      $content
 	    );
+	  };
+
+	  return TerminalHost;
+	}(_react2.default.Component);
+
+	var TerminalContainer = function (_React$Component2) {
+	  _inherits(TerminalContainer, _React$Component2);
+
+	  function TerminalContainer() {
+	    _classCallCheck(this, TerminalContainer);
+
+	    return _possibleConstructorReturn(this, _React$Component2.apply(this, arguments));
 	  }
-	});
 
-	var TtyTerminal = _react2.default.createClass({
-	  displayName: 'TtyTerminal',
-	  componentDidMount: function componentDidMount() {
-	    var _props = this.props,
-	        serverId = _props.serverId,
-	        siteId = _props.siteId,
-	        login = _props.login,
-	        sid = _props.sid;
-
-	    var _session$getUserData = _session2.default.getUserData(),
-	        token = _session$getUserData.token;
-
-	    var url = _config2.default.api.getSiteUrl(siteId);
-
+	  TerminalContainer.prototype.componentDidMount = function componentDidMount() {
 	    var options = {
-	      tty: {
-	        serverId: serverId, login: login, sid: sid, token: token, url: url
-	      },
+	      tty: this.props.store.getTtyParams(),
 	      el: this.refs.container
 	    };
-
 	    this.terminal = new _terminal2.default(options);
-	    this.terminal.ttyEvents.on('data', (0, _actions.updateSessionFromEventStream)(siteId));
+	    this.terminal.ttyEvents.on('data', this.receiveEvents.bind(this));
 	    this.terminal.open();
-	  },
-	  componentWillUnmount: function componentWillUnmount() {
+	  };
+
+	  TerminalContainer.prototype.componentWillUnmount = function componentWillUnmount() {
 	    this.terminal.destroy();
-	  },
-	  shouldComponentUpdate: function shouldComponentUpdate() {
+	  };
+
+	  TerminalContainer.prototype.shouldComponentUpdate = function shouldComponentUpdate() {
 	    return false;
-	  },
-	  render: function render() {
+	  };
+
+	  TerminalContainer.prototype.render = function render() {
 	    return _react2.default.createElement('div', { ref: 'container' });
-	  }
-	});
+	  };
+
+	  TerminalContainer.prototype.receiveEvents = function receiveEvents(data) {
+	    var hasEnded = data.events.some(function (item) {
+	      return item.event === _enums.EventTypeEnum.END;
+	    });
+	    if (hasEnded) {
+	      (0, _actions.close)();
+	    }
+
+	    // updates active sessin participant list
+	    (0, _actions2.updateSession)({
+	      siteId: this.props.siteId,
+	      json: data.session
+	    });
+	  };
+
+	  return TerminalContainer;
+	}(_react2.default.Component);
 
 	var ErrorIndicator = function ErrorIndicator(_ref) {
 	  var text = _ref.text;
@@ -9017,110 +9086,79 @@ webpackJsonp([0],[
 	  );
 	};
 
-	exports.default = TerminalHost;
+	function mapStateToProps() {
+	  return {
+	    store: _getters2.default.store
+	  };
+	}
+
+	exports.default = (0, _nuclearJsReactAddons.connect)(mapStateToProps)(TerminalHost);
 	module.exports = exports['default'];
 
 /***/ },
-/* 475 */
-/***/ function(module, exports, __webpack_require__) {
-
-	"use strict";
-
-	exports.__esModule = true;
-
-	var _react = __webpack_require__(2);
-
-	var _react2 = _interopRequireDefault(_react);
-
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-	var PartyListPanel = function PartyListPanel(_ref) {
-	  var onClose = _ref.onClose,
-	      children = _ref.children;
-
-	  return _react2.default.createElement(
-	    "div",
-	    { className: "grv-terminal-participans" },
-	    _react2.default.createElement(
-	      "ul",
-	      { className: "nav" },
-	      _react2.default.createElement(
-	        "li",
-	        { title: "Close" },
-	        _react2.default.createElement(
-	          "button",
-	          { onClick: onClose, className: "btn btn-danger btn-circle", type: "button" },
-	          _react2.default.createElement(
-	            "span",
-	            null,
-	            "\u2716"
-	          )
-	        )
-	      )
-	    ),
-	    children ? _react2.default.createElement("hr", { className: "grv-divider" }) : null,
-	    children
-	  );
-	}; /*
-	   Copyright 2015 Gravitational, Inc.
-	   
-	   Licensed under the Apache License, Version 2.0 (the "License");
-	   you may not use this file except in compliance with the License.
-	   You may obtain a copy of the License at
-	   
-	       http://www.apache.org/licenses/LICENSE-2.0
-	   
-	   Unless required by applicable law or agreed to in writing, software
-	   distributed under the License is distributed on an "AS IS" BASIS,
-	   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	   See the License for the specific language governing permissions and
-	   limitations under the License.
-	   */
-
-	exports.default = PartyListPanel;
-	module.exports = exports['default'];
-
-/***/ },
-/* 476 */
+/* 474 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
-	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+	exports.__esModule = true;
 
-	/*
-	Copyright 2015 Gravitational, Inc.
+	var _xterm = __webpack_require__(475);
 
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
+	var _xterm2 = _interopRequireDefault(_xterm);
 
-	    http://www.apache.org/licenses/LICENSE-2.0
+	var _tty = __webpack_require__(476);
 
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
+	var _tty2 = _interopRequireDefault(_tty);
 
-	var Term = __webpack_require__(477);
-	var Tty = __webpack_require__(479);
-	var TtyEvents = __webpack_require__(482);
+	var _ttyEvents = __webpack_require__(478);
 
-	var _require = __webpack_require__(401),
-	    debounce = _require.debounce,
-	    isNumber = _require.isNumber;
+	var _ttyEvents2 = _interopRequireDefault(_ttyEvents);
 
-	var api = __webpack_require__(243);
-	var logger = __webpack_require__(230).create('terminal');
-	var $ = __webpack_require__(227);
+	var _lodash = __webpack_require__(401);
 
-	Term.colors[256] = '#252323';
+	var _api = __webpack_require__(243);
 
+	var _api2 = _interopRequireDefault(_api);
+
+	var _logger = __webpack_require__(230);
+
+	var _logger2 = _interopRequireDefault(_logger);
+
+	var _jQuery = __webpack_require__(227);
+
+	var _jQuery2 = _interopRequireDefault(_jQuery);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } } /*
+	                                                                                                                                                          Copyright 2015 Gravitational, Inc.
+	                                                                                                                                                          
+	                                                                                                                                                          Licensed under the Apache License, Version 2.0 (the "License");
+	                                                                                                                                                          you may not use this file except in compliance with the License.
+	                                                                                                                                                          You may obtain a copy of the License at
+	                                                                                                                                                          
+	                                                                                                                                                              http://www.apache.org/licenses/LICENSE-2.0
+	                                                                                                                                                          
+	                                                                                                                                                          Unless required by applicable law or agreed to in writing, software
+	                                                                                                                                                          distributed under the License is distributed on an "AS IS" BASIS,
+	                                                                                                                                                          WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	                                                                                                                                                          See the License for the specific language governing permissions and
+	                                                                                                                                                          limitations under the License.
+	                                                                                                                                                          */
+
+
+	_xterm2.default.colors[256] = '#252323';
+
+	var logger = _logger2.default.create('lib/term/terminal');
 	var DISCONNECT_TXT = 'disconnected';
 	var GRV_CLASS = 'grv-terminal';
-	var WINDOW_RESIZE_DEBOUNCE_DELAY = 100;
+	var WINDOW_RESIZE_DEBOUNCE_DELAY = 200;
+
+	/**
+	 * TtyTerminal is a wrapper on top of xtermjs that handles connections
+	 * and resize events
+	 */
 
 	var TtyTerminal = function () {
 	  function TtyTerminal(options) {
@@ -9132,8 +9170,8 @@ webpackJsonp([0],[
 
 
 	    this.ttyParams = tty;
-	    this.tty = new Tty();
-	    this.ttyEvents = new TtyEvents();
+	    this.tty = new _tty2.default();
+	    this.ttyEvents = new _ttyEvents2.default();
 
 	    this.scrollBack = scrollBack;
 	    this.rows = undefined;
@@ -9141,48 +9179,53 @@ webpackJsonp([0],[
 	    this.term = null;
 	    this._el = options.el;
 
-	    this.debouncedResize = debounce(this._requestResize.bind(this), WINDOW_RESIZE_DEBOUNCE_DELAY);
+	    this.debouncedResize = (0, _lodash.debounce)(this._requestResize.bind(this), WINDOW_RESIZE_DEBOUNCE_DELAY);
 	  }
 
 	  TtyTerminal.prototype.open = function open() {
 	    var _this = this;
 
-	    $(this._el).addClass(GRV_CLASS);
+	    (0, _jQuery2.default)(this._el).addClass(GRV_CLASS);
 
-	    // render termjs with default values (will be used to calculate the character size)
-	    this.term = new Term({
+	    // render xtermjs with default values
+	    this.term = new _xterm2.default({
 	      cols: 15,
 	      rows: 5,
 	      scrollback: this.scrollBack,
-	      useStyle: true,
-	      screenKeys: true,
 	      cursorBlink: false
 	    });
 
 	    this.term.open(this._el);
 
-	    // resize to available space (by given container)
+	    // resize xterm to available space
 	    this.resize(this.cols, this.rows);
 
-	    // subscribe termjs events
+	    // subscribe to xtermjs output
 	    this.term.on('data', function (data) {
 	      return _this.tty.send(data);
 	    });
 
-	    // subscribe to tty events
+	    // subscribe to tty
+	    this.tty.on('reset', this.reset.bind(this));
+	    this.tty.on('close', this._processClose.bind(this));
+	    this.tty.on('data', this._processData.bind(this));
+
+	    // subscribe tty resize event (used by session player)
 	    this.tty.on('resize', function (_ref) {
 	      var h = _ref.h,
 	          w = _ref.w;
 	      return _this.resize(w, h);
 	    });
-	    this.tty.on('reset', function () {
-	      return _this.term.reset();
+	    // subscribe to window resize events
+	    window.addEventListener('resize', this.debouncedResize);
+	    // subscribe to session resize events (triggered by other participants)
+	    this.ttyEvents.on('resize', function (_ref2) {
+	      var h = _ref2.h,
+	          w = _ref2.w;
+	      return _this.resize(w, h);
 	    });
-	    this.tty.on('close', this._processClose.bind(this));
-	    this.tty.on('data', this._processData.bind(this));
 
 	    this.connect();
-	    window.addEventListener('resize', this.debouncedResize);
 	  };
 
 	  TtyTerminal.prototype.connect = function connect() {
@@ -9191,47 +9234,50 @@ webpackJsonp([0],[
 	  };
 
 	  TtyTerminal.prototype.destroy = function destroy() {
+	    window.removeEventListener('resize', this.debouncedResize);
 	    this._disconnect();
-
 	    if (this.term !== null) {
 	      this.term.destroy();
 	      this.term.removeAllListeners();
 	    }
 
-	    $(this._el).empty().removeClass(GRV_CLASS);
+	    (0, _jQuery2.default)(this._el).empty().removeClass(GRV_CLASS);
+	  };
 
-	    window.removeEventListener('resize', this.debouncedResize);
+	  TtyTerminal.prototype.reset = function reset() {
+	    this.term.reset();
 	  };
 
 	  TtyTerminal.prototype.resize = function resize(cols, rows) {
-	    // if not defined, use the size of the container
-	    if (!isNumber(cols) || !isNumber(rows)) {
-	      var dim = this._getDimensions();
-	      cols = dim.cols;
-	      rows = dim.rows;
-	    }
+	    try {
+	      // if not defined, use the size of the container
+	      if (!(0, _lodash.isNumber)(cols) || !(0, _lodash.isNumber)(rows)) {
+	        var dim = this._getDimensions();
+	        cols = dim.cols;
+	        rows = dim.rows;
+	      }
 
-	    if (cols === this.cols && rows === this.rows) {
-	      return;
-	    }
+	      if (cols === this.cols && rows === this.rows) {
+	        return;
+	      }
 
-	    this.cols = cols;
-	    this.rows = rows;
-	    this.term.resize(this.cols, this.rows);
+	      this.cols = cols;
+	      this.rows = rows;
+
+	      this.term.resize(cols, rows);
+	    } catch (err) {
+	      logger.error('resize', { w: cols, h: rows }, err);
+	      this.term.reset();
+	    }
 	  };
 
 	  TtyTerminal.prototype._processData = function _processData(data) {
 	    try {
-	      data = this._ensureScreenSize(data);
 	      this.term.write(data);
 	    } catch (err) {
-	      logger.error({
-	        w: this.cols,
-	        h: this.rows,
-	        text: 'failed to resize termjs',
-	        data: data,
-	        err: err
-	      });
+	      logger.error('xterm.write', data, err);
+	      // reset xtermjs so it can recover
+	      this.term.reset();
 	    }
 	  };
 
@@ -9248,45 +9294,11 @@ webpackJsonp([0],[
 	    this.term.write(displayText);
 	  };
 
-	  TtyTerminal.prototype._ensureScreenSize = function _ensureScreenSize(data) {
-	    /**
-	    * for better sync purposes, the screen values are inserted to the end of the chunk
-	    * with the following format: '\0NUMBER:NUMBER'
-	    */
-	    var pos = data.lastIndexOf('\0');
-	    if (pos !== -1) {
-	      var length = data.length - pos;
-	      if (length > 2 && length < 10) {
-	        var tmp = data.substr(pos + 1);
-
-	        var _tmp$split = tmp.split(':'),
-	            w = _tmp$split[0],
-	            h = _tmp$split[1];
-
-	        if ($.isNumeric(w) && $.isNumeric(h)) {
-	          w = Number(w);
-	          h = Number(h);
-
-	          if (w < 500 && h < 500) {
-	            data = data.slice(0, pos);
-	            this.resize(w, h);
-	          }
-	        }
-	      }
-	    }
-
-	    return data;
-	  };
-
 	  TtyTerminal.prototype._disconnect = function _disconnect() {
-	    if (this.tty !== null) {
-	      this.tty.disconnect();
-	    }
-
-	    if (this.ttyEvents !== null) {
-	      this.ttyEvents.disconnect();
-	      this.ttyEvents.removeAllListeners();
-	    }
+	    this.tty.disconnect();
+	    this.tty.removeAllListeners();
+	    this.ttyEvents.disconnect();
+	    this.ttyEvents.removeAllListeners();
 	  };
 
 	  TtyTerminal.prototype._requestResize = function _requestResize() {
@@ -9307,18 +9319,16 @@ webpackJsonp([0],[
 
 	    var reqData = { terminal_params: { w: w, h: h } };
 
-	    logger.info('request new screen size', 'w:' + w + ' and h:' + h);
-
-	    api.put(url + '/sessions/' + sid, reqData).done(function () {
-	      return logger.info('new screen size requested');
-	    }).fail(function (err) {
+	    logger.info('requesting new screen size', 'w:' + w + ' and h:' + h);
+	    this.resize(w, h);
+	    _api2.default.put(url + '/sessions/' + sid, reqData).fail(function (err) {
 	      return logger.error('request new screen size', err);
 	    });
 	  };
 
 	  TtyTerminal.prototype._getDimensions = function _getDimensions() {
-	    var $container = $(this._el);
-	    var fakeRow = $('<div><span>&nbsp;</span></div>');
+	    var $container = (0, _jQuery2.default)(this._el);
+	    var fakeRow = (0, _jQuery2.default)('<div><span>&nbsp;</span></div>');
 
 	    $container.find('.terminal').append(fakeRow);
 	    // get div height
@@ -9380,21 +9390,29 @@ webpackJsonp([0],[
 	  return '' + prefix + hostport;
 	}
 
-	module.exports = TtyTerminal;
+	exports.default = TtyTerminal;
+	module.exports = exports['default'];
 
 /***/ },
-/* 477 */,
-/* 478 */,
-/* 479 */
+/* 475 */,
+/* 476 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _events = __webpack_require__(480);
+	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
-	var _ttyEnums = __webpack_require__(481);
+	var _events = __webpack_require__(477);
+
+	var _enums = __webpack_require__(413);
+
+	var _logger = __webpack_require__(230);
+
+	var _logger2 = _interopRequireDefault(_logger);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
@@ -9416,53 +9434,90 @@ webpackJsonp([0],[
 	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               limitations under the License.
 	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               */
 
+	var logger = _logger2.default.create('Tty');
+
+	var defaultOptions = {
+	  buffered: true
+	};
+
 	var Tty = function (_EventEmitter) {
 	  _inherits(Tty, _EventEmitter);
 
 	  function Tty() {
+	    var props = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
+
 	    _classCallCheck(this, Tty);
+
+	    var options = _extends({}, defaultOptions, props);
 
 	    var _this = _possibleConstructorReturn(this, _EventEmitter.call(this));
 
+	    _this._buffered = true;
+
+
 	    _this.socket = null;
+	    _this._buffered = options.buffered;
+	    _this._onOpenConnection = _this._onOpenConnection.bind(_this);
+	    _this._onCloseConnection = _this._onCloseConnection.bind(_this);
+	    _this._onReceiveData = _this._onReceiveData.bind(_this);
 	    return _this;
 	  }
 
 	  Tty.prototype.disconnect = function disconnect() {
-	    var reasonCode = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : _ttyEnums.StatusCodeEnum.NORMAL;
+	    var reasonCode = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : _enums.StatusCodeEnum.NORMAL;
 
-	    this.socket.close(reasonCode);
-	  };
-
-	  Tty.prototype.reconnect = function reconnect(options) {
-	    this.disconnect();
-	    this.socket.onopen = null;
-	    this.socket.onmessage = null;
-	    this.socket.onclose = null;
-
-	    this.connect(options);
+	    if (this.socket !== null) {
+	      this.socket.close(reasonCode);
+	    }
 	  };
 
 	  Tty.prototype.connect = function connect(connStr) {
-	    var _this2 = this;
-
 	    this.socket = new WebSocket(connStr);
-
-	    this.socket.onopen = function () {
-	      _this2.emit('open');
-	    };
-
-	    this.socket.onmessage = function (e) {
-	      _this2.emit('data', e.data);
-	    };
-
-	    this.socket.onclose = function (e) {
-	      _this2.emit('close', e);
-	    };
+	    this.socket.onopen = this._onOpenConnection;
+	    this.socket.onmessage = this._onReceiveData;
+	    this.socket.onclose = this._onCloseConnection;
 	  };
 
 	  Tty.prototype.send = function send(data) {
 	    this.socket.send(data);
+	  };
+
+	  Tty.prototype._flushBuffer = function _flushBuffer() {
+	    this.emit('data', this._attachSocketBuffer);
+	    this._attachSocketBuffer = null;
+	    clearTimeout(this._attachSocketBufferTimer);
+	    this._attachSocketBufferTimer = null;
+	  };
+
+	  Tty.prototype._pushToBuffer = function _pushToBuffer(data) {
+	    if (this._attachSocketBuffer) {
+	      this._attachSocketBuffer += data;
+	    } else {
+	      this._attachSocketBuffer = data;
+	      setTimeout(this._flushBuffer.bind(this), 10);
+	    }
+	  };
+
+	  Tty.prototype._onOpenConnection = function _onOpenConnection() {
+	    this.emit('open');
+	    logger.info('websocket is open');
+	  };
+
+	  Tty.prototype._onCloseConnection = function _onCloseConnection(e) {
+	    this.socket.onopen = null;
+	    this.socket.onmessage = null;
+	    this.socket.onclose = null;
+	    this.socket = null;
+	    this.emit('close', e);
+	    logger.info('websocket is closed');
+	  };
+
+	  Tty.prototype._onReceiveData = function _onReceiveData(ev) {
+	    if (this._buffered) {
+	      this._pushToBuffer(ev.data);
+	    } else {
+	      this.emit('data', ev.data);
+	    }
 	  };
 
 	  return Tty;
@@ -9472,7 +9527,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 480 */
+/* 477 */
 /***/ function(module, exports) {
 
 	// Copyright Joyent, Inc. and other Node contributors.
@@ -9779,45 +9834,24 @@ webpackJsonp([0],[
 
 
 /***/ },
-/* 481 */
-/***/ function(module, exports) {
-
-	"use strict";
-
-	exports.__esModule = true;
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	var StatusCodeEnum = {
-	  NORMAL: 1000
-	};
-
-	exports.StatusCodeEnum = StatusCodeEnum;
-
-/***/ },
-/* 482 */
+/* 478 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _events = __webpack_require__(480);
+	var _events = __webpack_require__(477);
 
-	var _ttyEnums = __webpack_require__(481);
+	var _enums = __webpack_require__(413);
+
+	var _lodash = __webpack_require__(401);
+
+	var _logger = __webpack_require__(230);
+
+	var _logger2 = _interopRequireDefault(_logger);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
@@ -9839,7 +9873,7 @@ webpackJsonp([0],[
 	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               limitations under the License.
 	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               */
 
-	var logger = __webpack_require__(230).create('TtyEvents');
+	var logger = _logger2.default.create('TtyEvents');
 
 	var TtyEvents = function (_EventEmitter) {
 	  _inherits(TtyEvents, _EventEmitter);
@@ -9854,32 +9888,59 @@ webpackJsonp([0],[
 	  }
 
 	  TtyEvents.prototype.connect = function connect(connStr) {
-	    var _this2 = this;
-
 	    this.socket = new WebSocket(connStr);
-
+	    this.socket.onmessage = this._onReceiveMessage.bind(this);
+	    this.socket.onclose = this._onCloseConnection.bind(this);
 	    this.socket.onopen = function () {
-	      logger.info('Tty event stream is open');
-	    };
-
-	    this.socket.onmessage = function (event) {
-	      try {
-	        var json = JSON.parse(event.data);
-	        _this2.emit('data', json);
-	      } catch (err) {
-	        logger.error('failed to parse event stream data', err);
-	      }
-	    };
-
-	    this.socket.onclose = function () {
-	      logger.info('Tty event stream is closed');
+	      logger.info('websocket is open');
 	    };
 	  };
 
 	  TtyEvents.prototype.disconnect = function disconnect() {
-	    var reasonCode = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : _ttyEnums.StatusCodeEnum.NORMAL;
+	    var reasonCode = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : _enums.StatusCodeEnum.NORMAL;
 
-	    this.socket.close(reasonCode);
+	    if (this.socket !== null) {
+	      this.socket.close(reasonCode);
+	    }
+	  };
+
+	  TtyEvents.prototype._onCloseConnection = function _onCloseConnection(e) {
+	    this.socket.onmessage = null;
+	    this.socket.onopen = null;
+	    this.socket.onclose = null;
+	    this.emit('close', e);
+	    logger.info('websocket is closed');
+	  };
+
+	  TtyEvents.prototype._onReceiveMessage = function _onReceiveMessage(message) {
+	    try {
+	      var json = JSON.parse(message.data);
+	      this._processResize(json.events);
+	      this.emit('data', json);
+	    } catch (err) {
+	      logger.error('failed to parse event stream data', err);
+	    }
+	  };
+
+	  TtyEvents.prototype._processResize = function _processResize(events) {
+	    events = events || [];
+	    // filter resize events 
+	    var resizes = events.filter(function (item) {
+	      return item.event === _enums.EventTypeEnum.RESIZE;
+	    });
+
+	    (0, _lodash.sortBy)(resizes, ['ms']);
+
+	    if (resizes.length > 0) {
+	      // get values from the last resize event
+	      var _resizes$size$split = resizes[resizes.length - 1].size.split(':'),
+	          w = _resizes$size$split[0],
+	          h = _resizes$size$split[1];
+
+	      w = Number(w);
+	      h = Number(h);
+	      this.emit('resize', { w: w, h: h });
+	    }
 	  };
 
 	  return TtyEvents;
@@ -9889,7 +9950,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 483 */
+/* 479 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -9917,12 +9978,13 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 484 */
+/* 480 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
+	exports.updateRoute = exports.close = exports.initTerminal = undefined;
 
 	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; /*
 	                                                                                                                                                                                                                                                                  Copyright 2015 Gravitational, Inc.
@@ -9940,8 +10002,6 @@ webpackJsonp([0],[
 	                                                                                                                                                                                                                                                                  limitations under the License.
 	                                                                                                                                                                                                                                                                  */
 
-	//import getters from './getters';
-
 
 	var _reactor = __webpack_require__(240);
 
@@ -9959,149 +10019,118 @@ webpackJsonp([0],[
 
 	var _config2 = _interopRequireDefault(_config);
 
-	var _actions = __webpack_require__(255);
+	var _logger = __webpack_require__(230);
 
-	var _getters = __webpack_require__(413);
+	var _logger2 = _interopRequireDefault(_logger);
+
+	var _getters = __webpack_require__(412);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
+	var _actionTypes = __webpack_require__(481);
+
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-	//import {showError} from 'app/flux/notifications/actions';
+	var logger = _logger2.default.create('flux/terminal');
 
-	var logger = __webpack_require__(230).create('Current Session');
+	var setStatus = function setStatus(json) {
+	  return _reactor2.default.dispatch(_actionTypes.TLPT_TERMINAL_SET_STATUS, json);
+	};
 
-	var _require = __webpack_require__(485),
-	    TLPT_TERMINAL_OPEN = _require.TLPT_TERMINAL_OPEN,
-	    TLPT_TERMINAL_CLOSE = _require.TLPT_TERMINAL_CLOSE,
-	    TLPT_TERMINAL_SET_STATUS = _require.TLPT_TERMINAL_SET_STATUS;
+	var initStore = function initStore(json) {
+	  return _reactor2.default.dispatch(_actionTypes.TLPT_TERMINAL_INIT, json);
+	};
 
-	var changeBrowserUrl = function changeBrowserUrl(newRouteParams) {
+	var createSid = function createSid(routeParams) {
+	  var login = routeParams.login,
+	      siteId = routeParams.siteId;
+
+	  var data = {
+	    session: {
+	      terminal_params: {
+	        w: 45,
+	        h: 5
+	      },
+	      login: login
+	    }
+	  };
+
+	  return _api2.default.post(_config2.default.api.getSiteSessionUrl(siteId), data);
+	};
+
+	var initTerminal = exports.initTerminal = function initTerminal(routeParams) {
+	  logger.info('attempt to open a terminal', routeParams);
+
+	  var sid = routeParams.sid;
+
+
+	  setStatus({ isLoading: true });
+
+	  if (sid) {
+	    var activeSession = _reactor2.default.evaluate(_getters2.default.activeSessionById(sid));
+	    if (activeSession) {
+	      // init store with existing sid
+	      initStore(routeParams);
+	      setStatus({ isReady: true });
+	    } else {
+	      setStatus({ isNotFound: true });
+	    }
+
+	    return;
+	  }
+
+	  createSid(routeParams).done(function (json) {
+	    var sid = json.session.id;
+	    var newRouteParams = _extends({}, routeParams, {
+	      sid: sid
+	    });
+	    initStore(newRouteParams);
+	    setStatus({ isReady: true });
+	    updateRoute(newRouteParams);
+	  }).fail(function (err) {
+	    var errorText = _api2.default.getErrorText(err);
+	    setStatus({ isError: true, errorText: errorText });
+	  });
+	};
+
+	var close = exports.close = function close() {
+	  _reactor2.default.dispatch(_actionTypes.TLPT_TERMINAL_CLOSE);
+	  _session2.default.getHistory().push(_config2.default.routes.nodes);
+	};
+
+	var updateRoute = exports.updateRoute = function updateRoute(newRouteParams) {
 	  var routeUrl = _config2.default.getTerminalLoginUrl(newRouteParams);
 	  _session2.default.getHistory().push(routeUrl);
 	};
 
-	var actions = {
-	  startNew: function startNew(routeParams) {
-	    var newRouteParams = _extends({}, routeParams, {
-	      sid: undefined
-	    });
-
-	    changeBrowserUrl(newRouteParams);
-	    actions.initTerminal(newRouteParams);
-	  },
-	  createNewSession: function createNewSession(routeParams) {
-	    var login = routeParams.login,
-	        siteId = routeParams.siteId;
-
-	    var data = {
-	      session: {
-	        terminal_params: {
-	          w: 45,
-	          h: 5
-	        },
-	        login: login
-	      }
-	    };
-
-	    return _api2.default.post(_config2.default.api.getSiteSessionUrl(siteId), data).then(function (json) {
-	      var sid = json.session.id;
-	      var newRouteParams = _extends({}, routeParams, {
-	        sid: sid
-	      });
-
-	      _reactor2.default.dispatch(TLPT_TERMINAL_OPEN, newRouteParams);
-	      _reactor2.default.dispatch(TLPT_TERMINAL_SET_STATUS, { isReady: true });
-	      changeBrowserUrl(newRouteParams);
-	    }).fail(function (err) {
-	      var errorText = _api2.default.getErrorText(err);
-	      _reactor2.default.dispatch(TLPT_TERMINAL_SET_STATUS, {
-	        isError: true,
-	        errorText: errorText
-	      });
-	    });
-	  },
-	  initTerminal: function initTerminal(routeParams) {
-	    logger.info('attempt to open a terminal', routeParams);
-	    var sid = routeParams.sid;
-
-
-	    _reactor2.default.dispatch(TLPT_TERMINAL_SET_STATUS, { isLoading: true });
-
-	    if (sid) {
-	      // look up active session matching given sid      
-	      var activeSession = _reactor2.default.evaluate(_getters2.default.activeSessionById(sid));
-	      if (activeSession) {
-	        _reactor2.default.dispatch(TLPT_TERMINAL_OPEN, routeParams);
-	        _reactor2.default.dispatch(TLPT_TERMINAL_SET_STATUS, { isReady: true });
-	      } else {
-	        _reactor2.default.dispatch(TLPT_TERMINAL_SET_STATUS, { isNotFound: true });
-	      }
-	    } else {
-	      actions.createNewSession(routeParams);
-	    }
-	  },
-	  close: function close() {
-	    _reactor2.default.dispatch(TLPT_TERMINAL_CLOSE);
-	    _session2.default.getHistory().push(_config2.default.routes.nodes);
-	  },
-	  updateSessionFromEventStream: function updateSessionFromEventStream(siteId) {
-	    return function (data) {
-	      data.events.forEach(function (item) {
-	        if (item.event === 'session.end') {
-	          actions.close();
-	        }
-	      });
-
-	      (0, _actions.updateSession)({
-	        siteId: siteId,
-	        json: data.session
-	      });
-	    };
-	  }
-	};
-
-	exports.default = actions;
-	module.exports = exports['default'];
-
 /***/ },
-/* 485 */
-/***/ function(module, exports, __webpack_require__) {
+/* 481 */
+/***/ function(module, exports) {
 
 	'use strict';
 
 	exports.__esModule = true;
+	/*
+	Copyright 2015 Gravitational, Inc.
 
-	var _keymirror = __webpack_require__(237);
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
 
-	var _keymirror2 = _interopRequireDefault(_keymirror);
+	    http://www.apache.org/licenses/LICENSE-2.0
 
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-	exports.default = (0, _keymirror2.default)({
-	  TLPT_TERMINAL_OPEN: null,
-	  TLPT_TERMINAL_CLOSE: null,
-	  TLPT_TERMINAL_SET_STATUS: null
-	}); /*
-	    Copyright 2015 Gravitational, Inc.
-	    
-	    Licensed under the Apache License, Version 2.0 (the "License");
-	    you may not use this file except in compliance with the License.
-	    You may obtain a copy of the License at
-	    
-	        http://www.apache.org/licenses/LICENSE-2.0
-	    
-	    Unless required by applicable law or agreed to in writing, software
-	    distributed under the License is distributed on an "AS IS" BASIS,
-	    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	    See the License for the specific language governing permissions and
-	    limitations under the License.
-	    */
-
-	module.exports = exports['default'];
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+	*/
+	var TLPT_TERMINAL_INIT = exports.TLPT_TERMINAL_INIT = 'TLPT_TERMINAL_INIT';
+	var TLPT_TERMINAL_CLOSE = exports.TLPT_TERMINAL_CLOSE = 'TLPT_TERMINAL_CLOSE';
+	var TLPT_TERMINAL_SET_STATUS = exports.TLPT_TERMINAL_SET_STATUS = 'TLPT_TERMINAL_SET_STATUS';
 
 /***/ },
-/* 486 */
+/* 482 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -10126,11 +10155,11 @@ webpackJsonp([0],[
 
 	var _actions = __webpack_require__(255);
 
-	var _getters = __webpack_require__(413);
+	var _getters = __webpack_require__(412);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
-	var _actionTypes = __webpack_require__(487);
+	var _actionTypes = __webpack_require__(483);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -10196,7 +10225,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 487 */
+/* 483 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -10232,7 +10261,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 488 */
+/* 484 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -10243,13 +10272,79 @@ webpackJsonp([0],[
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _reactAddonsCssTransitionGroup = __webpack_require__(489);
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	var closeTextStyle = {
+	  lineHeight: '0px',
+	  margin: '0px',
+	  fontSize: '14px'
+	}; /*
+	   Copyright 2015 Gravitational, Inc.
+	   
+	   Licensed under the Apache License, Version 2.0 (the "License");
+	   you may not use this file except in compliance with the License.
+	   You may obtain a copy of the License at
+	   
+	       http://www.apache.org/licenses/LICENSE-2.0
+	   
+	   Unless required by applicable law or agreed to in writing, software
+	   distributed under the License is distributed on an "AS IS" BASIS,
+	   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	   See the License for the specific language governing permissions and
+	   limitations under the License.
+	   */
+
+	var PartyListPanel = function PartyListPanel(_ref) {
+	  var onClose = _ref.onClose,
+	      children = _ref.children;
+
+	  return _react2.default.createElement(
+	    'div',
+	    { className: 'grv-terminal-participans' },
+	    _react2.default.createElement(
+	      'ul',
+	      { className: 'nav' },
+	      _react2.default.createElement(
+	        'li',
+	        { title: 'Close' },
+	        _react2.default.createElement(
+	          'button',
+	          { onClick: onClose, className: 'btn btn-danger btn-circle', type: 'button' },
+	          _react2.default.createElement(
+	            'div',
+	            { style: closeTextStyle },
+	            '\u2715'
+	          )
+	        )
+	      )
+	    ),
+	    children ? _react2.default.createElement('hr', { className: 'grv-divider' }) : null,
+	    children
+	  );
+	};
+
+	exports.default = PartyListPanel;
+	module.exports = exports['default'];
+
+/***/ },
+/* 485 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	exports.__esModule = true;
+
+	var _react = __webpack_require__(2);
+
+	var _react2 = _interopRequireDefault(_react);
+
+	var _reactAddonsCssTransitionGroup = __webpack_require__(486);
 
 	var _reactAddonsCssTransitionGroup2 = _interopRequireDefault(_reactAddonsCssTransitionGroup);
 
 	var _nuclearJsReactAddons = __webpack_require__(219);
 
-	var _getters = __webpack_require__(413);
+	var _getters = __webpack_require__(412);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
@@ -10306,13 +10401,13 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
+/* 486 */,
+/* 487 */,
+/* 488 */,
 /* 489 */,
 /* 490 */,
 /* 491 */,
-/* 492 */,
-/* 493 */,
-/* 494 */,
-/* 495 */
+/* 492 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -10323,7 +10418,7 @@ webpackJsonp([0],[
 
 	var _jQuery2 = _interopRequireDefault(_jQuery);
 
-	var _jquery = __webpack_require__(496);
+	var _jquery = __webpack_require__(493);
 
 	var _jquery2 = _interopRequireDefault(_jquery);
 
@@ -10333,27 +10428,27 @@ webpackJsonp([0],[
 
 	var _nuclearJsReactAddons = __webpack_require__(219);
 
-	var _reactSlider = __webpack_require__(518);
+	var _reactSlider = __webpack_require__(515);
 
 	var _reactSlider2 = _interopRequireDefault(_reactSlider);
 
-	var _getters = __webpack_require__(519);
+	var _getters = __webpack_require__(516);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
-	var _terminal = __webpack_require__(476);
+	var _terminal = __webpack_require__(474);
 
 	var _terminal2 = _interopRequireDefault(_terminal);
 
-	var _ttyPlayer = __webpack_require__(520);
+	var _ttyPlayer = __webpack_require__(517);
 
-	var _actions = __webpack_require__(486);
+	var _actions = __webpack_require__(482);
 
 	var _indicator = __webpack_require__(380);
 
 	var _indicator2 = _interopRequireDefault(_indicator);
 
-	var _partyListPanel = __webpack_require__(475);
+	var _partyListPanel = __webpack_require__(484);
 
 	var _partyListPanel2 = _interopRequireDefault(_partyListPanel);
 
@@ -10382,16 +10477,24 @@ webpackJsonp([0],[
 
 	(0, _jquery2.default)(_jQuery2.default);
 
-	var PlayerHost = _react2.default.createClass({
-	  displayName: 'PlayerHost',
-	  componentDidMount: function componentDidMount() {
-	    var _this = this;
+	var PlayerHost = function (_React$Component) {
+	  _inherits(PlayerHost, _React$Component);
+
+	  function PlayerHost() {
+	    _classCallCheck(this, PlayerHost);
+
+	    return _possibleConstructorReturn(this, _React$Component.apply(this, arguments));
+	  }
+
+	  PlayerHost.prototype.componentDidMount = function componentDidMount() {
+	    var _this2 = this;
 
 	    setTimeout(function () {
-	      return (0, _actions.initPlayer)(_this.props.params);
+	      return (0, _actions.initPlayer)(_this2.props.params);
 	    }, 0);
-	  },
-	  render: function render() {
+	  };
+
+	  PlayerHost.prototype.render = function render() {
 	    var store = this.props.store;
 
 	    if (store.isReady()) {
@@ -10414,8 +10517,10 @@ webpackJsonp([0],[
 	      null,
 	      $indicator
 	    );
-	  }
-	});
+	  };
+
+	  return PlayerHost;
+	}(_react2.default.Component);
 
 	function mapStateToProps() {
 	  return {
@@ -10478,8 +10583,6 @@ webpackJsonp([0],[
 	    this.tty.play();
 	    this.tty.move(value);
 	  },
-
-
 	  render: function render() {
 	    var _state = this.state,
 	        isPlaying = _state.isPlaying,
@@ -10526,10 +10629,10 @@ webpackJsonp([0],[
 	  function Term(tty, el) {
 	    _classCallCheck(this, Term);
 
-	    var _this2 = _possibleConstructorReturn(this, _Terminal.call(this, { el: el, scrollBack: 0 }));
+	    var _this3 = _possibleConstructorReturn(this, _Terminal.call(this, { el: el, scrollBack: 1000 }));
 
-	    _this2.tty = tty;
-	    return _this2;
+	    _this3.tty = tty;
+	    return _this3;
 	  }
 
 	  Term.prototype.connect = function connect() {
@@ -10542,10 +10645,6 @@ webpackJsonp([0],[
 	  };
 
 	  Term.prototype.resize = function resize(cols, rows) {
-	    if (cols === this.cols && rows === this.rows) {
-	      return;
-	    }
-
 	    _Terminal.prototype.resize.call(this, cols, rows);
 	    (0, _jQuery2.default)(this._el).perfectScrollbar('update');
 	  };
@@ -10595,6 +10694,9 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
+/* 493 */,
+/* 494 */,
+/* 495 */,
 /* 496 */,
 /* 497 */,
 /* 498 */,
@@ -10615,10 +10717,7 @@ webpackJsonp([0],[
 /* 513 */,
 /* 514 */,
 /* 515 */,
-/* 516 */,
-/* 517 */,
-/* 518 */,
-/* 519 */
+/* 516 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -10646,7 +10745,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 520 */
+/* 517 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -10675,16 +10774,16 @@ webpackJsonp([0],[
 	limitations under the License.
 	*/
 
-	var Tty = __webpack_require__(479);
+	var Tty = __webpack_require__(476);
 	var api = __webpack_require__(243);
 
 	var _require = __webpack_require__(245),
 	    showError = _require.showError;
 
 	var $ = __webpack_require__(227);
-	var Buffer = __webpack_require__(521).Buffer;
+	var Buffer = __webpack_require__(518).Buffer;
 
-	var _require2 = __webpack_require__(414),
+	var _require2 = __webpack_require__(413),
 	    EventTypeEnum = _require2.EventTypeEnum;
 
 	var logger = __webpack_require__(230).create('TtyPlayer');
@@ -11112,12 +11211,12 @@ webpackJsonp([0],[
 	exports.Buffer = Buffer;
 
 /***/ },
+/* 518 */,
+/* 519 */,
+/* 520 */,
 /* 521 */,
 /* 522 */,
-/* 523 */,
-/* 524 */,
-/* 525 */,
-/* 526 */
+/* 523 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -11160,7 +11259,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 527 */
+/* 524 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -11169,15 +11268,15 @@ webpackJsonp([0],[
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _store = __webpack_require__(528);
+	var _store = __webpack_require__(525);
 
 	var _store2 = _interopRequireDefault(_store);
 
-	var _store3 = __webpack_require__(530);
+	var _store3 = __webpack_require__(527);
 
 	var _store4 = _interopRequireDefault(_store3);
 
-	var _store5 = __webpack_require__(531);
+	var _store5 = __webpack_require__(528);
 
 	var _store6 = _interopRequireDefault(_store5);
 
@@ -11204,20 +11303,20 @@ webpackJsonp([0],[
 	  'tlpt_terminal': _store2.default,
 	  'tlpt_player': _store4.default,
 	  'tlpt_user': __webpack_require__(387),
-	  'tlpt_user_invite': __webpack_require__(532),
+	  'tlpt_user_invite': __webpack_require__(529),
 	  'tlpt_user_acl': _store6.default,
-	  'tlpt_sites': __webpack_require__(533),
-	  'tlpt_nodes': __webpack_require__(534),
-	  'tlpt_rest_api': __webpack_require__(535),
-	  'tlpt_sessions_events': __webpack_require__(536),
-	  'tlpt_sessions_archived': __webpack_require__(537),
-	  'tlpt_sessions_active': __webpack_require__(538),
-	  'tlpt_sessions_filter': __webpack_require__(539),
-	  'tlpt_notifications': __webpack_require__(540)
+	  'tlpt_sites': __webpack_require__(530),
+	  'tlpt_nodes': __webpack_require__(531),
+	  'tlpt_rest_api': __webpack_require__(532),
+	  'tlpt_sessions_events': __webpack_require__(533),
+	  'tlpt_sessions_archived': __webpack_require__(534),
+	  'tlpt_sessions_active': __webpack_require__(535),
+	  'tlpt_sessions_filter': __webpack_require__(536),
+	  'tlpt_notifications': __webpack_require__(537)
 	});
 
 /***/ },
-/* 528 */
+/* 525 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -11227,7 +11326,15 @@ webpackJsonp([0],[
 
 	var _nuclearJs = __webpack_require__(241);
 
-	var _immutable = __webpack_require__(529);
+	var _immutable = __webpack_require__(526);
+
+	var _config = __webpack_require__(232);
+
+	var _config2 = _interopRequireDefault(_config);
+
+	var _session = __webpack_require__(226);
+
+	var _session2 = _interopRequireDefault(_session);
 
 	var _reactor = __webpack_require__(240);
 
@@ -11235,7 +11342,7 @@ webpackJsonp([0],[
 
 	var _getters = __webpack_require__(399);
 
-	var _actionTypes = __webpack_require__(485);
+	var _actionTypes = __webpack_require__(481);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -11277,6 +11384,21 @@ webpackJsonp([0],[
 	    return _possibleConstructorReturn(this, _Record.apply(this, arguments));
 	  }
 
+	  TermRec.prototype.getTtyParams = function getTtyParams() {
+	    var _session$getUserData = _session2.default.getUserData(),
+	        token = _session$getUserData.token;
+
+	    var ttyParams = {
+	      serverId: this.serverId,
+	      login: this.login,
+	      sid: this.sid,
+	      url: _config2.default.api.getSiteUrl(this.siteId),
+	      token: token
+	    };
+
+	    return ttyParams;
+	  };
+
 	  TermRec.prototype.getServerLabel = function getServerLabel() {
 	    var hostname = _reactor2.default.evaluate((0, _getters.nodeHostNameByServerId)(this.serverId));
 
@@ -11301,7 +11423,7 @@ webpackJsonp([0],[
 	    return new TermRec();
 	  },
 	  initialize: function initialize() {
-	    this.on(_actionTypes.TLPT_TERMINAL_OPEN, init);
+	    this.on(_actionTypes.TLPT_TERMINAL_INIT, init);
 	    this.on(_actionTypes.TLPT_TERMINAL_CLOSE, close);
 	    this.on(_actionTypes.TLPT_TERMINAL_SET_STATUS, changeStatus);
 	  }
@@ -11321,7 +11443,7 @@ webpackJsonp([0],[
 	}
 
 /***/ },
-/* 529 */
+/* 526 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/**
@@ -16305,7 +16427,7 @@ webpackJsonp([0],[
 	}));
 
 /***/ },
-/* 530 */
+/* 527 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16315,13 +16437,13 @@ webpackJsonp([0],[
 
 	var _nuclearJs = __webpack_require__(241);
 
-	var _immutable = __webpack_require__(529);
+	var _immutable = __webpack_require__(526);
 
 	var _config = __webpack_require__(232);
 
 	var _config2 = _interopRequireDefault(_config);
 
-	var _actionTypes = __webpack_require__(487);
+	var _actionTypes = __webpack_require__(483);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -16422,7 +16544,7 @@ webpackJsonp([0],[
 	}
 
 /***/ },
-/* 531 */
+/* 528 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16431,7 +16553,7 @@ webpackJsonp([0],[
 
 	var _nuclearJs = __webpack_require__(241);
 
-	var _immutable = __webpack_require__(529);
+	var _immutable = __webpack_require__(526);
 
 	var _actionTypes = __webpack_require__(254);
 
@@ -16496,7 +16618,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 532 */
+/* 529 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16507,7 +16629,7 @@ webpackJsonp([0],[
 
 	var _actionTypes = __webpack_require__(386);
 
-	var _immutable = __webpack_require__(529);
+	var _immutable = __webpack_require__(526);
 
 	var Invite = new _immutable.Record({
 	  invite_token: '',
@@ -16545,7 +16667,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 533 */
+/* 530 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16556,7 +16678,7 @@ webpackJsonp([0],[
 
 	var _actionTypes = __webpack_require__(248);
 
-	var _immutable = __webpack_require__(529);
+	var _immutable = __webpack_require__(526);
 
 	var Site = (0, _immutable.Record)({
 	  name: null,
@@ -16595,7 +16717,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 534 */
+/* 531 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16650,7 +16772,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 535 */
+/* 532 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16708,7 +16830,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 536 */
+/* 533 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16766,7 +16888,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 537 */
+/* 534 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16775,11 +16897,11 @@ webpackJsonp([0],[
 
 	var _nuclearJs = __webpack_require__(241);
 
-	var _immutable = __webpack_require__(529);
+	var _immutable = __webpack_require__(526);
 
 	var _actionTypes = __webpack_require__(356);
 
-	var _enums = __webpack_require__(414);
+	var _enums = __webpack_require__(413);
 
 	/*
 	Copyright 2015 Gravitational, Inc.
@@ -16862,7 +16984,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 538 */
+/* 535 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16887,7 +17009,7 @@ webpackJsonp([0],[
 
 	var _nuclearJs = __webpack_require__(241);
 
-	var _immutable = __webpack_require__(529);
+	var _immutable = __webpack_require__(526);
 
 	var _actionTypes = __webpack_require__(356);
 
@@ -16971,7 +17093,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 539 */
+/* 536 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -17000,7 +17122,7 @@ webpackJsonp([0],[
 
 	var moment = __webpack_require__(256);
 
-	var _require2 = __webpack_require__(412),
+	var _require2 = __webpack_require__(411),
 	    TLPT_STORED_SESSINS_FILTER_SET_RANGE = _require2.TLPT_STORED_SESSINS_FILTER_SET_RANGE;
 
 	exports.default = Store({
@@ -17027,7 +17149,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 540 */
+/* 537 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
