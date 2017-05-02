@@ -15,42 +15,70 @@ limitations under the License.
 */
 
 import { EventEmitter } from 'events';
-import { StatusCodeEnum } from './ttyEnums';
+import { StatusCodeEnum, EventTypeEnum } from './enums';
+import { sortBy } from 'lodash';
 
-const logger = require('./../logger').create('TtyEvents');
+import Logger from './../logger';
+
+const logger = Logger.create('TtyEvents');
 
 class TtyEvents extends EventEmitter {
 
   constructor(){
-    super();
+    super();        
     this.socket = null;
   }
 
   connect(connStr){
     this.socket = new WebSocket(connStr);
-
+    this.socket.onmessage = this._onReceiveMessage.bind(this);
+    this.socket.onclose = this._onCloseConnection.bind(this);
     this.socket.onopen = () => {
-      logger.info('Tty event stream is open');
-    }
-
-    this.socket.onmessage = (event) => {
-      try
-      {
-        let json = JSON.parse(event.data);
-        this.emit('data', json);
-      }
-      catch(err){
-        logger.error('failed to parse event stream data', err);
-      }
-    };
-
-    this.socket.onclose = () => {
-      logger.info('Tty event stream is closed');
-    };
+      logger.info('websocket is open');
+    }        
   }
 
-  disconnect(reasonCode = StatusCodeEnum.NORMAL){
-    this.socket.close(reasonCode);
+  disconnect(reasonCode = StatusCodeEnum.NORMAL) {
+    if (this.socket !== null) {
+      this.socket.close(reasonCode);
+    }  
+  }
+
+ _onCloseConnection(e) {
+    this.socket.onmessage = null;
+    this.socket.onopen = null;
+    this.socket.onclose = null;
+    this.emit('close', e);      
+    logger.info('websocket is closed');
+  }
+
+  _onReceiveMessage(message) {
+    try
+    {
+      let json = JSON.parse(message.data);          
+      this._processResize(json.events)
+      this.emit('data', json);
+    }
+    catch(err){
+      logger.error('failed to parse event stream data', err);
+    }      
+  }
+
+  _processResize(events){    
+    events = events || [];
+    // filter resize events 
+    let resizes = events.filter(
+      item => item.event === EventTypeEnum.RESIZE);
+    
+    sortBy(resizes, ['ms']);
+    
+    if(resizes.length > 0){
+      // get values from the last resize event
+      let [w, h] = resizes[resizes.length-1].size.split(':');                    
+      w = Number(w);
+      h = Number(h);            
+      this.emit('resize', { w, h });                              
+    }    
   }
 }
 

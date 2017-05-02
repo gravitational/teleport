@@ -15,16 +15,16 @@ limitations under the License.
 */
 
 import React from 'react';
-import PartyListPanel from './../partyListPanel';
+import { connect } from 'nuclear-js-react-addons';
+import { EventTypeEnum } from 'app/lib/term/enums';
 import Terminal from 'app/lib/term/terminal';
 import termGetters from 'app/flux/terminal/getters';
-import Indicator from './../indicator.jsx';
 import { initTerminal, updateRoute, close } from 'app/flux/terminal/actions';
 import { updateSession } from 'app/flux/sessions/actions';
 import { openPlayer } from 'app/flux/player/actions';
+import PartyListPanel from './../partyListPanel';
+import Indicator from './../indicator.jsx';
 import PartyList from './terminalPartyList';
-import { EventTypeEnum } from 'app/lib/term/enums';
-import { connect } from 'nuclear-js-react-addons';
 
 class TerminalHost extends React.Component {
     
@@ -117,25 +117,13 @@ class TerminalContainer extends React.Component {
     return ( <div ref="container"/> );
   }
 
-  receiveEvents(data) {        
-    // loop through events in reverse order to find the last resize event to sync the screen size.    
-    data.events.reverse().every(item => {
-      let { event, size } = item;
+  receiveEvents(data) {            
+    let hasEnded = data.events.some(item => item.event === EventTypeEnum.END);    
+    if (hasEnded) {
+      close();
+    }
 
-      // exit terminal if session is ended
-      if (event === EventTypeEnum.END) {
-        close();
-      }
-
-      if (event === EventTypeEnum.RESIZE) {
-        let [w, h] = size.split(':');        
-        this.terminal.resize(Number(w), Number(h));
-        return false;
-      }
-
-      return true;
-    });
-
+    // updates active sessin participant list
     updateSession({      
       siteId: this.props.siteId,
       json: data.session      

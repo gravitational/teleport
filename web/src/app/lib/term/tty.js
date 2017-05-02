@@ -15,7 +15,10 @@ limitations under the License.
 */
 
 import { EventEmitter } from 'events';
-import { StatusCodeEnum } from './ttyEnums';
+import { StatusCodeEnum } from './enums';
+import Logger from './../logger';
+
+const logger = Logger.create('Tty');
 
 const defaultOptions = {
   buffered: true
@@ -41,19 +44,12 @@ class Tty extends EventEmitter {
     this._onReceiveData = this._onReceiveData.bind(this);
   }
 
-  disconnect(reasonCode = StatusCodeEnum.NORMAL){
-    this.socket.close(reasonCode);
+  disconnect(reasonCode = StatusCodeEnum.NORMAL) {
+    if (this.socket !== null) {
+      this.socket.close(reasonCode);
+    }  
   }
-
-  reconnect(options){
-    this.disconnect();
-    this.socket.onopen = null;
-    this.socket.onmessage = null;
-    this.socket.onclose = null;
-    this.socket = null;
-    this.connect(options);
-  }
-
+  
   connect(connStr) {
     this.socket = new WebSocket(connStr);
     this.socket.onopen = this._onOpenConnection;
@@ -83,10 +79,16 @@ class Tty extends EventEmitter {
 
   _onOpenConnection() {
     this.emit('open');
+    logger.info('websocket is open');
   }
 
   _onCloseConnection(e) {
+    this.socket.onopen = null;
+    this.socket.onmessage = null;
+    this.socket.onclose = null;
+    this.socket = null;
     this.emit('close', e);      
+    logger.info('websocket is closed');
   }
 
   _onReceiveData(ev) {

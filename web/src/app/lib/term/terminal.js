@@ -58,7 +58,7 @@ class TtyTerminal {
   open() {
     $(this._el).addClass(GRV_CLASS);
 
-    // render xtermjs with default values (will be used to calculate the character size)
+    // render xtermjs with default values
     this.term = new Term({    
       cols: 15,
       rows: 5,
@@ -68,20 +68,25 @@ class TtyTerminal {
     
     this.term.open(this._el);
 
-    // resize to available space (by given container)
+    // resize xterm to available space
     this.resize(this.cols, this.rows);
 
-    // subscribe xtermjs output
+    // subscribe to xtermjs output
     this.term.on('data', data => this.tty.send(data));
-
-    // subscribe to tty events
-    this.tty.on('resize', ({h, w}) => this.resize(w, h));    
+    
+    // subscribe to tty
     this.tty.on('reset', this.reset.bind(this));    
     this.tty.on('close', this._processClose.bind(this));
-    this.tty.on('data', this._processData.bind(this));
-
-    this.connect();
+    this.tty.on('data', this._processData.bind(this));    
+    
+    // subscribe tty resize event (used by session player)
+    this.tty.on('resize', ({h, w}) => this.resize(w, h));    
+    // subscribe to window resize events
     window.addEventListener('resize', this.debouncedResize);
+    // subscribe to session resize events (triggered by other participants)
+    this.ttyEvents.on('resize', ({h, w}) => this.resize(w, h));    
+
+    this.connect();    
   }
   
   connect(){
@@ -113,7 +118,7 @@ class TtyTerminal {
         rows = dim.rows;
       }
 
-      if( cols === this.cols && rows === this.rows){
+      if(cols === this.cols && rows === this.rows){
         return;
       }
 
@@ -122,7 +127,7 @@ class TtyTerminal {
 
       this.term.resize(cols, rows);  
     } catch (err) {            
-      logger.info('resize', { w: cols, h: rows }, err);     
+      logger.error('resize', { w: cols, h: rows }, err);     
       this.term.reset();  
     }       
   }
@@ -149,15 +154,11 @@ class TtyTerminal {
     this.term.write(displayText)
   }
 
-  _disconnect() {    
-    if(this.tty !== null){
-      this.tty.disconnect();
-    }
-
-    if(this.ttyEvents !== null){
-      this.ttyEvents.disconnect();
-      this.ttyEvents.removeAllListeners();
-    }
+  _disconnect() {        
+    this.tty.disconnect();
+    this.tty.removeAllListeners();    
+    this.ttyEvents.disconnect();
+    this.ttyEvents.removeAllListeners();    
   }
 
   _requestResize(){
@@ -174,7 +175,7 @@ class TtyTerminal {
     
     logger.info('requesting new screen size', `w:${w} and h:${h}`);    
     this.resize(w, h);
-    api.put(`${url}/sessions/${sid}`, reqData)
+    api.put(`${url}/sessions/${sid}`, reqData)      
       .fail(err => logger.error('request new screen size', err));
   }
 
@@ -221,10 +222,8 @@ class TtyTerminal {
     let urlPrefix = getWsHostName();
 
     return `${urlPrefix}${url}/connect?access_token=${token}&params=${jsonEncoded}`;
-  }
-
+  }  
 }
-
 
 function getWsHostName(){
   var prefix = location.protocol == "https:"?"wss://":"ws://";
