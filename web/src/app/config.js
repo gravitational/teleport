@@ -25,7 +25,7 @@ let cfg = {
   
   maxSessionLoadSize: 50,
 
-  displayDateFormat: 'DD/MM/YYYY HH:mm:ss',
+  displayDateFormat: 'MM/DD/YYYY HH:mm:ss',
 
   auth: {        
   },
