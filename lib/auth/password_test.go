@@ -16,7 +16,6 @@ limitations under the License.
 package auth
 
 import (
-	"encoding/base32"
 	"fmt"
 	"time"
 
@@ -25,7 +24,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/pquerna/otp/totp"
 	"gopkg.in/check.v1"
 )
 
