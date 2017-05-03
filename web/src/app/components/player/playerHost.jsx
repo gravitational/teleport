@@ -154,6 +154,7 @@ class Term extends Terminal{
   constructor(tty, el){
     super({ el, scrollBack: 1000 });    
     this.tty = tty;        
+    this.el = el;
   }
 
   connect(){
@@ -165,8 +166,10 @@ class Term extends Terminal{
     $(this._el).perfectScrollbar();
   }
 
-  resize(cols, rows) {                
-    super.resize(cols, rows);    
+  resize(cols, rows) {           
+    // ensure cursor is visible as xterm hides it on blur event
+    this.term.cursorState = 1;
+    super.resize(cols, rows);        
     $(this._el).perfectScrollbar('update');
   }
 
