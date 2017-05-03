@@ -5,6 +5,7 @@
 	"Packages": [
 		"./lib/...",
 		"./tool/...",
+		"./lib/web/...",
 		"./integration/..."
 	],
 	"Deps": [
@@ -29,6 +30,11 @@
 		{
 			"ImportPath": "github.com/alecthomas/units",
 			"Rev": "6b4e7dc5e3143b85ea77909c72caf89416fc2915"
+		},
+		{
+			"ImportPath": "github.com/alessio/shellescape",
+			"Comment": "v1.2",
+			"Rev": "52074bc9df61e0d2af85c160b3a325403955d7fb"
 		},
 		{
 			"ImportPath": "github.com/aws/aws-sdk-go/aws",
