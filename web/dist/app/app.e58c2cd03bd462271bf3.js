@@ -1211,7 +1211,7 @@ webpackJsonp([0],[
 
 	  maxSessionLoadSize: 50,
 
-	  displayDateFormat: 'DD/MM/YYYY HH:mm:ss',
+	  displayDateFormat: 'MM/DD/YYYY HH:mm:ss',
 
 	  auth: {},
 
@@ -5367,7 +5367,7 @@ webpackJsonp([0],[
 	  },
 	  loginWithU2f: function loginWithU2f(user, password) {
 	    var promise = _auth2.default.loginWithU2f(user, password);
-	    _history2.default._handleLoginPromise(promise);
+	    actions._handleLoginPromise(promise);
 	  },
 	  login: function login(user, password, token) {
 	    var promise = _auth2.default.login(user, password, token);
@@ -7900,6 +7900,7 @@ webpackJsonp([0],[
 	    var _this = _possibleConstructorReturn(this, _React$Component.call(this, props));
 
 	    _this.searchableProps = ['nodeDisplayText', 'createdDisplayText', 'sid', 'parties'];
+	    _this._mounted = false;
 
 	    _this.onFilterChange = function (value) {
 	      _this.state.filter = value;
@@ -7921,7 +7922,7 @@ webpackJsonp([0],[
 	      * as date picker uses timeouts its important to ensure that
 	      * component is still mounted when data picker triggers an update
 	      */
-	      if (_this.isMounted()) {
+	      if (_this._mounted) {
 	        _storedSessionsFilter.actions.setTimeRange(startDate, endDate);
 	      }
 	    };
@@ -7929,6 +7930,14 @@ webpackJsonp([0],[
 	    _this.state = { filter: '', colSortDirs: { created: 'ASC' } };
 	    return _this;
 	  }
+
+	  SessionList.prototype.componentDidMount = function componentDidMount() {
+	    this._mounted = true;
+	  };
+
+	  SessionList.prototype.componentWillUnmount = function componentWillUnmount() {
+	    this._mounted = false;
+	  };
 
 	  SessionList.prototype.searchAndFilterCb = function searchAndFilterCb(targetValue, searchValue, propName) {
 	    if (propName === 'parties') {
@@ -10114,6 +10123,10 @@ webpackJsonp([0],[
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
+	var _history = __webpack_require__(226);
+
+	var _history2 = _interopRequireDefault(_history);
+
 	var _api = __webpack_require__(242);
 
 	var _api2 = _interopRequireDefault(_api);
@@ -10198,12 +10211,12 @@ webpackJsonp([0],[
 
 	var close = exports.close = function close() {
 	  _reactor2.default.dispatch(_actionTypes.TLPT_TERMINAL_CLOSE);
-	  history.push(_config2.default.routes.nodes);
+	  _history2.default.push(_config2.default.routes.nodes);
 	};
 
 	var updateRoute = exports.updateRoute = function updateRoute(newRouteParams) {
 	  var routeUrl = _config2.default.getTerminalLoginUrl(newRouteParams);
-	  history.push(routeUrl);
+	  _history2.default.push(routeUrl);
 	};
 
 /***/ },

@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 import reactor from 'app/reactor';
+import history from 'app/services/history';
 import api from 'app/services/api';
 import cfg from 'app/config';
 import Logger from 'app/lib/logger'; 

@@ -29,9 +29,19 @@ class SessionList extends React.Component {
 
   searchableProps = ['nodeDisplayText', 'createdDisplayText', 'sid', 'parties'];
 
+  _mounted = false;
+
   constructor(props) {
     super(props);    
     this.state = { filter: '', colSortDirs: {created: 'ASC'}};
+  }
+
+  componentDidMount() { 
+    this._mounted = true;
+  }
+
+  componentWillUnmount() {
+    this._mounted = false;
   }
 
   onFilterChange = value => {
@@ -49,7 +59,7 @@ class SessionList extends React.Component {
     * as date picker uses timeouts its important to ensure that
     * component is still mounted when data picker triggers an update
     */
-    if(this.isMounted()){
+    if(this._mounted){
       actions.setTimeRange(startDate, endDate);
     }
   }

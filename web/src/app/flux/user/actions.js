@@ -84,7 +84,7 @@ const actions = {
 
   loginWithU2f(user, password) {
     let promise = auth.loginWithU2f(user, password);
-    history._handleLoginPromise(promise);
+    actions._handleLoginPromise(promise);
   },
 
   login(user, password, token) {
