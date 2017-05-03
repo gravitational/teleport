@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.0.5
+
+Teleport 2.0.5 contains a variety of security fixes. We strongly encourage anyone running Teleport 2.0.0 and above to upgrade to 2.0.5.
+
+The most pressing issues (a phishing attack which can potentially be used to extract plaintext credentials and an attack where an already authenticated user can escalate privileges) can be resolved by upgrading the web proxy. However, however all nodes need to be upgraded to mitigate all vulnerabilities. 
+
+### Bugfixes
+
+* Patch for TLP-01-001 and TLP-01-003: Check redirect.
+* Patch for TLP-01-004: Always check is namespace is valid.
+* Patch for TLP-01-005: Check user principal when joining session.
+* Patch for TLP-01-006 and TLP-01-007: Validate Session ID.
+* Patch for TLP-01-008: Use a fake hash for password authentication if user does not exist.
+* Patch for TLP-01-009: Command injection in scp.
+
 ## 2.0.4
 
 ### Bugfixes
