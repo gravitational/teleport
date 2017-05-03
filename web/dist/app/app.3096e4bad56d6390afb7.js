@@ -10645,6 +10645,8 @@ webpackJsonp([0],[
 	  };
 
 	  Term.prototype.resize = function resize(cols, rows) {
+	    // ensure cursor is visible as xterm hides it on blur event
+	    this.term.cursorState = 1;
 	    _Terminal.prototype.resize.call(this, cols, rows);
 	    (0, _jQuery2.default)(this._el).perfectScrollbar('update');
 	  };
