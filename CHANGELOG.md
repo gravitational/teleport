@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.6
+
+### Bugfixes
+
+* Fixed regression in TLP-01-009.
+
 ## 2.0.5
 
 Teleport 2.0.5 contains a variety of security fixes. We strongly encourage anyone running Teleport 2.0.0 and above to upgrade to 2.0.5.
