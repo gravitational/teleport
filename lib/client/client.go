@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/alessio/shellescape"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
@@ -345,8 +346,8 @@ func (client *NodeClient) Upload(srcPath, rDestPath string, recursive bool, stde
 	if recursive {
 		shellCmd += " -r"
 	}
-	// quote path to mitigate shell injection
-	shellCmd += fmt.Sprintf(" %q", rDestPath)
+	// mitigate shell injection
+	shellCmd += fmt.Sprintf(" %v", shellescape.Quote(rDestPath))
 	return client.scp(scpConf, shellCmd, stderr)
 }
 
@@ -364,8 +365,8 @@ func (client *NodeClient) Download(remoteSourcePath, localDestinationPath string
 	if recursive {
 		shellCmd += " -r"
 	}
-	// quote path to mitigate shell injection
-	shellCmd += fmt.Sprintf(" %q", remoteSourcePath)
+	// mitigate shell injection
+	shellCmd += fmt.Sprintf(" %v", shellescape.Quote(remoteSourcePath))
 	return client.scp(scpConf, shellCmd, stderr)
 }
 
