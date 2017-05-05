@@ -121,6 +121,7 @@ var (
 		"public_addr":        false,
 		"cache":              true,
 		"ttl":                false,
+		"issuer":             false,
 	}
 )
 

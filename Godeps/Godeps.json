@@ -1,7 +1,7 @@
 {
 	"ImportPath": "github.com/gravitational/teleport",
 	"GoVersion": "go1.6",
-	"GodepVersion": "v76",
+	"GodepVersion": "v74",
 	"Packages": [
 		"./lib/...",
 		"./tool/...",
@@ -172,6 +172,10 @@
 			"Rev": "918c42e2bcdb277aa821401c906e88254501bdf4"
 		},
 		{
+			"ImportPath": "github.com/beevik/etree",
+			"Rev": "cda1c0026246bd095961ef9a3c430e50d0e80fba"
+		},
+		{
 			"ImportPath": "github.com/boltdb/bolt",
 			"Comment": "v1.0-111-g04a3e85",
 			"Rev": "04a3e85793043e76d41164037d0d7f9d53eecae3"
@@ -299,6 +303,10 @@
 			"Rev": "1db4b84fe9dbbbaf40827aa714dcca17b368de2c"
 		},
 		{
+			"ImportPath": "github.com/gravitational/form",
+			"Rev": "c4048f792f70d207e6d8b9c1bf52319247f202b8"
+		},
+		{
 			"ImportPath": "github.com/gravitational/kingpin",
 			"Comment": "v2.1.10-6-g7856865",
 			"Rev": "785686550a08e8e2e77641c91714280a6dfb08ee"
@@ -404,6 +412,31 @@
 		{
 			"ImportPath": "github.com/pquerna/otp/totp",
 			"Rev": "54653902c20e47f3417541d35435cb6d6162e28a"
+		},
+		{
+			"ImportPath": "github.com/russellhaering/gosaml2",
+			"Rev": "1a1c11a8ec20d23bddff71f425ee124c426f08f2"
+		},
+		{
+			"ImportPath": "github.com/russellhaering/gosaml2/types",
+			"Rev": "1a1c11a8ec20d23bddff71f425ee124c426f08f2"
+		},
+		{
+			"ImportPath": "github.com/russellhaering/goxmldsig",
+			"Rev": "eaac44c63fe007124f8f6255b09febc906784981"
+		},
+		{
+			"ImportPath": "github.com/russellhaering/goxmldsig/etreeutils",
+			"Rev": "eaac44c63fe007124f8f6255b09febc906784981"
+		},
+		{
+			"ImportPath": "github.com/russellhaering/goxmldsig/types",
+			"Rev": "eaac44c63fe007124f8f6255b09febc906784981"
+		},
+		{
+			"ImportPath": "github.com/satori/go.uuid",
+			"Comment": "v1.1.0-8-g5bf94b6",
+			"Rev": "5bf94b69c6b68ee1b541973bb8e1144db23a194b"
 		},
 		{
 			"ImportPath": "github.com/tstranex/u2f",

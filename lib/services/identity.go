@@ -58,7 +58,11 @@ type Identity interface {
 
 	// GetUserByOIDCIdentity returns a user by it's specified OIDC Identity, returns first
 	// user specified with this identity
-	GetUserByOIDCIdentity(id OIDCIdentity) (User, error)
+	GetUserByOIDCIdentity(id ExternalIdentity) (User, error)
+
+	// GetUserBySAMLIdentity returns a user by it's specified OIDC Identity, returns first
+	// user specified with this identity
+	GetUserBySAMLIdentity(id ExternalIdentity) (User, error)
 
 	// DeleteUser deletes a user with all the keys from the backend
 	DeleteUser(user string) error
@@ -159,6 +163,27 @@ type Identity interface {
 
 	// GetOIDCAuthRequest returns OIDC auth request if found
 	GetOIDCAuthRequest(stateToken string) (*OIDCAuthRequest, error)
+
+	// CreateSAMLConnector creates SAML Connector
+	CreateSAMLConnector(connector SAMLConnector) error
+
+	// UpsertSAMLConnector upserts SAML Connector
+	UpsertSAMLConnector(connector SAMLConnector) error
+
+	// DeleteSAMLConnector deletes OIDC Connector
+	DeleteSAMLConnector(connectorID string) error
+
+	// GetSAMLConnector returns OIDC connector data, withSecrets adds or removes secrets from return results
+	GetSAMLConnector(id string, withSecrets bool) (SAMLConnector, error)
+
+	// GetSAMLConnectors returns registered connectors, withSecrets adds or removes secret from return results
+	GetSAMLConnectors(withSecrets bool) ([]SAMLConnector, error)
+
+	// CreateSAMLAuthRequest creates new auth request
+	CreateSAMLAuthRequest(req SAMLAuthRequest, ttl time.Duration) error
+
+	// GetSAMLAuthRequest returns OSAML auth request if found
+	GetSAMLAuthRequest(id string) (*SAMLAuthRequest, error)
 }
 
 // VerifyPassword makes sure password satisfies our requirements (relaxed),
@@ -188,16 +213,15 @@ type SignupToken struct {
 // OIDCIdentity is OpenID Connect identity that is linked
 // to particular user and connector and lets user to log in using external
 // credentials, e.g. google
-type OIDCIdentity struct {
+type ExternalIdentity struct {
 	// ConnectorID is id of registered OIDC connector, e.g. 'google-example.com'
 	ConnectorID string `json:"connector_id"`
 
-	// Email is OIDC verified email claim
-	// e.g. bob@example.com
-	Email string `json:"username"`
+	// Username is username supplied by external identity provider
+	Username string `json:"username"`
 }
 
-const OIDCIDentitySchema = `{
+const ExternalIdentitySchema = `{
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -207,22 +231,22 @@ const OIDCIDentitySchema = `{
 }`
 
 // String returns debug friendly representation of this identity
-func (i *OIDCIdentity) String() string {
-	return fmt.Sprintf("OIDCIdentity(connectorID=%v, email=%v)", i.ConnectorID, i.Email)
+func (i *ExternalIdentity) String() string {
+	return fmt.Sprintf("OIDCIdentity(connectorID=%v, username=%v)", i.ConnectorID, i.Username)
 }
 
 // Equals returns true if this identity equals to passed one
-func (i *OIDCIdentity) Equals(other *OIDCIdentity) bool {
-	return i.ConnectorID == other.ConnectorID && i.Email == other.Email
+func (i *ExternalIdentity) Equals(other *ExternalIdentity) bool {
+	return i.ConnectorID == other.ConnectorID && i.Username == other.Username
 }
 
 // Check returns nil if all parameters are great, err otherwise
-func (i *OIDCIdentity) Check() error {
+func (i *ExternalIdentity) Check() error {
 	if i.ConnectorID == "" {
 		return trace.BadParameter("ConnectorID: missing value")
 	}
-	if i.Email == "" {
-		return trace.BadParameter("Email: missing email")
+	if i.Username == "" {
+		return trace.BadParameter("Username: missing username")
 	}
 	return nil
 }
@@ -270,6 +294,59 @@ func (i *OIDCAuthRequest) Check() error {
 	}
 	if i.StateToken == "" {
 		return trace.BadParameter("StateToken: missing value")
+	}
+	if len(i.PublicKey) != 0 {
+		_, _, _, _, err := ssh.ParseAuthorizedKey(i.PublicKey)
+		if err != nil {
+			return trace.BadParameter("PublicKey: bad key: %v", err)
+		}
+		if (i.CertTTL > defaults.MaxCertDuration) || (i.CertTTL < defaults.MinCertDuration) {
+			return trace.BadParameter("CertTTL: wrong certificate TTL")
+		}
+	}
+
+	return nil
+}
+
+// SAMLAuthRequest is a request to authenticate with OIDC
+// provider, the state about request is managed by auth server
+type SAMLAuthRequest struct {
+	// ID is a unique request ID
+	ID string `json:"id"`
+
+	// ConnectorID is ID of OIDC connector this request uses
+	ConnectorID string `json:"connector_id"`
+
+	// Type is opaque string that helps callbacks identify the request type
+	Type string `json:"type"`
+
+	// CheckUser tells validator if it should expect and check user
+	CheckUser bool `json:"check_user"`
+
+	// RedirectURL will be used by browser
+	RedirectURL string `json:"redirect_url"`
+
+	// PublicKey is an optional public key, users want these
+	// keys to be signed by auth servers user CA in case
+	// of successfull auth
+	PublicKey []byte `json:"public_key"`
+
+	// CertTTL is the TTL of the certificate user wants to get
+	CertTTL time.Duration `json:"cert_ttl"`
+
+	// CreateWebSession indicates if user wants to generate a web
+	// session after successful authentication
+	CreateWebSession bool `json:"create_web_session"`
+
+	// ClientRedirectURL is a URL client wants to be redirected
+	// after successfull authentication
+	ClientRedirectURL string `json:"client_redirect_url"`
+}
+
+// Check returns nil if all parameters are great, err otherwise
+func (i *SAMLAuthRequest) Check() error {
+	if i.ConnectorID == "" {
+		return trace.BadParameter("ConnectorID: missing value")
 	}
 	if len(i.PublicKey) != 0 {
 		_, _, _, _, err := ssh.ParseAuthorizedKey(i.PublicKey)
