@@ -119,13 +119,30 @@ func (s *IdentityService) GetUser(user string) (services.User, error) {
 
 // GetUserByOIDCIdentity returns a user by it's specified OIDC Identity, returns first
 // user specified with this identity
-func (s *IdentityService) GetUserByOIDCIdentity(id services.OIDCIdentity) (services.User, error) {
+func (s *IdentityService) GetUserByOIDCIdentity(id services.ExternalIdentity) (services.User, error) {
 	users, err := s.GetUsers()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	for _, u := range users {
-		for _, uid := range u.GetIdentities() {
+		for _, uid := range u.GetOIDCIdentities() {
+			if uid.Equals(&id) {
+				return u, nil
+			}
+		}
+	}
+	return nil, trace.NotFound("user with identity %v not found", &id)
+}
+
+// GetUserBySAMLCIdentity returns a user by it's specified OIDC Identity, returns first
+// user specified with this identity
+func (s *IdentityService) GetUserBySAMLIdentity(id services.ExternalIdentity) (services.User, error) {
+	users, err := s.GetUsers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, u := range users {
+		for _, uid := range u.GetSAMLIdentities() {
 			if uid.Equals(&id) {
 				return u, nil
 			}
@@ -378,10 +395,12 @@ func (s *IdentityService) UpsertPassword(user string, password []byte) error {
 }
 
 var (
-	userTokensPath   = []string{"addusertokens"}
-	u2fRegChalPath   = []string{"adduseru2fchallenges"}
-	connectorsPath   = []string{"web", "connectors", "oidc", "connectors"}
-	authRequestsPath = []string{"web", "connectors", "oidc", "requests"}
+	userTokensPath       = []string{"addusertokens"}
+	u2fRegChalPath       = []string{"adduseru2fchallenges"}
+	oidcConnectorsPath   = []string{"web", "connectors", "oidc", "connectors"}
+	oidcAuthRequestsPath = []string{"web", "connectors", "oidc", "requests"}
+	samlConnectorsPath   = []string{"web", "connectors", "saml", "connectors"}
+	samlAuthRequestsPath = []string{"web", "connectors", "saml", "requests"}
 )
 
 // UpsertSignupToken upserts signup token - one time token that lets user to create a user account
@@ -595,7 +614,8 @@ func (s *IdentityService) UpsertOIDCConnector(connector services.OIDCConnector, 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.backend.UpsertVal(connectorsPath, connector.GetName(), data, ttl)
+	ttl := backend.TTL(s.Clock(), connector.Expiry())
+	err = s.backend.UpsertVal(oidcConnectorsPath, connector.GetName(), data, ttl)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -604,13 +624,13 @@ func (s *IdentityService) UpsertOIDCConnector(connector services.OIDCConnector, 
 
 // DeleteOIDCConnector deletes OIDC Connector
 func (s *IdentityService) DeleteOIDCConnector(connectorID string) error {
-	err := s.backend.DeleteKey(connectorsPath, connectorID)
+	err := s.backend.DeleteKey(oidcConnectorsPath, connectorID)
 	return trace.Wrap(err)
 }
 
 // GetOIDCConnector returns OIDC connector data, , withSecrets adds or removes client secret from return results
 func (s *IdentityService) GetOIDCConnector(id string, withSecrets bool) (services.OIDCConnector, error) {
-	data, err := s.backend.GetVal(connectorsPath, id)
+	data, err := s.backend.GetVal(oidcConnectorsPath, id)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("OpenID connector '%v' is not configured", id)
@@ -629,7 +649,7 @@ func (s *IdentityService) GetOIDCConnector(id string, withSecrets bool) (service
 
 // GetOIDCConnectors returns registered connectors, withSecrets adds or removes client secret from return results
 func (s *IdentityService) GetOIDCConnectors(withSecrets bool) ([]services.OIDCConnector, error) {
-	connectorIDs, err := s.backend.GetKeys(connectorsPath)
+	connectorIDs, err := s.backend.GetKeys(oidcConnectorsPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -657,7 +677,7 @@ func (s *IdentityService) CreateOIDCAuthRequest(req services.OIDCAuthRequest, tt
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.backend.CreateVal(authRequestsPath, req.StateToken, data, ttl)
+	err = s.backend.CreateVal(oidcAuthRequestsPath, req.StateToken, data, ttl)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -666,11 +686,124 @@ func (s *IdentityService) CreateOIDCAuthRequest(req services.OIDCAuthRequest, tt
 
 // GetOIDCAuthRequest returns OIDC auth request if found
 func (s *IdentityService) GetOIDCAuthRequest(stateToken string) (*services.OIDCAuthRequest, error) {
-	data, err := s.backend.GetVal(authRequestsPath, stateToken)
+	data, err := s.backend.GetVal(oidcAuthRequestsPath, stateToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	var req *services.OIDCAuthRequest
+	if err := json.Unmarshal(data, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return req, nil
+}
+
+// CreateSAMLConnector creates SAML Connector
+func (s *IdentityService) CreateSAMLConnector(connector services.SAMLConnector) error {
+	if err := connector.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	data, err := services.GetSAMLConnectorMarshaler().MarshalSAMLConnector(connector)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	ttl := backend.TTL(s.Clock(), connector.Expiry())
+	err = s.CreateVal(samlConnectorsPath, connector.GetName(), data, ttl)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// UpsertSAMLConnector upserts SAML Connector
+func (s *IdentityService) UpsertSAMLConnector(connector services.SAMLConnector) error {
+	if err := connector.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	data, err := services.GetSAMLConnectorMarshaler().MarshalSAMLConnector(connector)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	ttl := backend.TTL(s.Clock(), connector.Expiry())
+	err = s.UpsertVal(samlConnectorsPath, connector.GetName(), data, ttl)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// DeleteSAMLConnector deletes OIDC Connector
+func (s *IdentityService) DeleteSAMLConnector(connectorID string) error {
+	err := s.DeleteKey(samlConnectorsPath, connectorID)
+	return trace.Wrap(err)
+}
+
+// GetSAMLConnector returns OIDC connector data, withSecrets adds or removes secrets from return results
+func (s *IdentityService) GetSAMLConnector(id string, withSecrets bool) (services.SAMLConnector, error) {
+	data, err := s.GetVal(samlConnectorsPath, id)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("SAML connector '%v' is not configured", id)
+		}
+		return nil, trace.Wrap(err)
+	}
+	conn, err := services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(data)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !withSecrets {
+		keyPair := conn.GetSigningKeyPair()
+		if keyPair != nil {
+			keyPair.PrivateKey = ""
+			conn.SetSigningKeyPair(keyPair)
+		}
+	}
+	return conn, nil
+}
+
+// GetSAMLConnectors returns registered connectors, withSecrets adds or removes secret from return results
+func (s *IdentityService) GetSAMLConnectors(withSecrets bool) ([]services.SAMLConnector, error) {
+	connectorIDs, err := s.GetKeys(samlConnectorsPath)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	connectors := make([]services.SAMLConnector, 0, len(connectorIDs))
+	for _, id := range connectorIDs {
+		connector, err := s.GetSAMLConnector(id, withSecrets)
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				return nil, trace.Wrap(err)
+			}
+			// the record has expired
+			continue
+		}
+		connectors = append(connectors, connector)
+	}
+	return connectors, nil
+}
+
+// CreateSAMLAuthRequest creates new auth request
+func (s *IdentityService) CreateSAMLAuthRequest(req services.SAMLAuthRequest, ttl time.Duration) error {
+	if err := req.Check(); err != nil {
+		return trace.Wrap(err)
+	}
+	data, err := json.Marshal(req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = s.CreateVal(samlAuthRequestsPath, req.ID, data, ttl)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// GetSAMLAuthRequest returns OSAML auth request if found
+func (s *IdentityService) GetSAMLAuthRequest(id string) (*services.SAMLAuthRequest, error) {
+	data, err := s.GetVal(samlAuthRequestsPath, id)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var req *services.SAMLAuthRequest
 	if err := json.Unmarshal(data, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}

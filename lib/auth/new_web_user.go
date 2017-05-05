@@ -48,11 +48,20 @@ func (s *AuthServer) CreateSignupToken(userv1 services.UserV1) (string, error) {
 	}
 
 	// make sure that connectors actually exist
-	for _, id := range user.GetIdentities() {
+	for _, id := range user.GetOIDCIdentities() {
 		if err := id.Check(); err != nil {
 			return "", trace.Wrap(err)
 		}
 		if _, err := s.GetOIDCConnector(id.ConnectorID, false); err != nil {
+			return "", trace.Wrap(err)
+		}
+	}
+
+	for _, id := range user.GetSAMLIdentities() {
+		if err := id.Check(); err != nil {
+			return "", trace.Wrap(err)
+		}
+		if _, err := s.GetSAMLConnector(id.ConnectorID, false); err != nil {
 			return "", trace.Wrap(err)
 		}
 	}

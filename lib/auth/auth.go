@@ -24,8 +24,12 @@ limitations under the License.
 package auth
 
 import (
+	"bytes"
+	"compress/flate"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"sync"
@@ -39,11 +43,13 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/beevik/etree"
 	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	saml2 "github.com/russellhaering/gosaml2"
 	"github.com/tstranex/u2f"
 )
 
@@ -107,6 +113,7 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
 		ClusterAuthPreference:         cfg.ClusterAuthPreferenceService,
 		UniversalSecondFactorSettings: cfg.UniversalSecondFactorService,
 		oidcClients:                   make(map[string]*oidcClient),
+		samlProviders:                 make(map[string]*samlProvider),
 		DeveloperMode:                 cfg.DeveloperMode,
 	}
 	for _, o := range opts {
@@ -126,10 +133,11 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
 //   - same for users and their sessions
 //   - checks public keys to see if they're signed by it (can be trusted or not)
 type AuthServer struct {
-	lock        sync.Mutex
-	oidcClients map[string]*oidcClient
-	clock       clockwork.Clock
-	bk          backend.Backend
+	lock          sync.Mutex
+	oidcClients   map[string]*oidcClient
+	samlProviders map[string]*samlProvider
+	clock         clockwork.Clock
+	bk            backend.Backend
 
 	// DeveloperMode should only be used during development as it does several
 	// unsafe things like log sensitive information to console as well as
@@ -721,7 +729,27 @@ func (s *AuthServer) getOIDCClient(conn services.OIDCConnector) (*oidc.Client, e
 	return client, nil
 }
 
-func (s *AuthServer) UpsertOIDCConnector(connector services.OIDCConnector, ttl time.Duration) error {
+func (s *AuthServer) getSAMLProvider(conn services.SAMLConnector) (*saml2.SAMLServiceProvider, error) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	providerPack, ok := s.samlProviders[conn.GetName()]
+	if ok && providerPack.connector.Equals(conn) {
+		return providerPack.provider, nil
+	}
+	delete(s.samlProviders, conn.GetName())
+
+	serviceProvider, err := conn.GetServiceProvider()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	s.samlProviders[conn.GetName()] = &samlProvider{connector: conn, provider: serviceProvider}
+
+	return serviceProvider, nil
+}
+
+func (s *AuthServer) UpsertOIDCConnector(connector services.OIDCConnector) error {
 	return s.Identity.UpsertOIDCConnector(connector, ttl)
 }
 
@@ -760,13 +788,202 @@ func (s *AuthServer) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*servi
 	return &req, nil
 }
 
+func (s *AuthServer) UpsertSAMLConnector(connector services.SAMLConnector) error {
+	return s.Identity.UpsertSAMLConnector(connector)
+}
+
+func (s *AuthServer) DeleteSAMLConnector(connectorName string) error {
+	return s.Identity.DeleteSAMLConnector(connectorName)
+}
+
+func (s *AuthServer) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.SAMLAuthRequest, error) {
+	connector, err := s.Identity.GetSAMLConnector(req.ConnectorID, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	provider, err := s.getSAMLProvider(connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	doc, err := provider.BuildAuthRequestDocument()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	attr := doc.Root().SelectAttr("ID")
+	if attr == nil || attr.Value == "" {
+		return nil, trace.BadParameter("missing auth request ID")
+	}
+
+	req.ID = attr.Value
+	req.RedirectURL, err = provider.BuildAuthURLFromDocument("", doc)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = s.Identity.CreateSAMLAuthRequest(req, defaults.SAMLAuthRequestTTL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &req, nil
+}
+
+// ValidateOIDCAuthCallback is called by the proxy to check OIDC query parameters
+// returned by OIDC Provider, if everything checks out, auth server
+// will respond with OIDCAuthResponse, otherwise it will return error
+func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error) {
+	if error := q.Get("error"); error != "" {
+		return nil, trace.OAuth2(oauth2.ErrorInvalidRequest, error, q)
+	}
+
+	code := q.Get("code")
+	if code == "" {
+		return nil, trace.OAuth2(
+			oauth2.ErrorInvalidRequest, "code query param must be set", q)
+	}
+
+	stateToken := q.Get("state")
+	if stateToken == "" {
+		return nil, trace.OAuth2(
+			oauth2.ErrorInvalidRequest, "missing state query param", q)
+	}
+
+	req, err := a.Identity.GetOIDCAuthRequest(stateToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	connector, err := a.Identity.GetOIDCConnector(req.ConnectorID, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	oidcClient, err := a.getOIDCClient(connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// extract claims from both the id token and the userinfo endpoint and merge them
+	claims, err := a.getClaims(oidcClient, connector.GetIssuerURL(), code)
+	if err != nil {
+		return nil, trace.OAuth2(
+			oauth2.ErrorUnsupportedResponseType, "unable to construct claims", q)
+	}
+	log.Debugf("[OIDC] Claims: %v", claims)
+
+	// if we are sending acr values, make sure we also validate them
+	acrValue := connector.GetACR()
+	if acrValue != "" {
+		err := a.validateACRValues(acrValue, connector.GetProvider(), claims)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		log.Debugf("[OIDC] ACR values %q successfully validated", acrValue)
+	}
+
+	ident, err := oidc.IdentityFromClaims(claims)
+	if err != nil {
+		return nil, trace.OAuth2(
+			oauth2.ErrorUnsupportedResponseType, "unable to convert claims to identity", q)
+	}
+	log.Debugf("[IDENTITY] %q expires at: %v", ident.Email, ident.ExpiresAt)
+
+	response := &OIDCAuthResponse{
+		Identity: services.ExternalIdentity{ConnectorID: connector.GetName(), Username: ident.Email},
+		Req:      *req,
+	}
+
+	log.Debugf("[OIDC] Applying %v claims to roles mappings", len(connector.GetClaimsToRoles()))
+	if len(connector.GetClaimsToRoles()) != 0 {
+		if err := a.createOIDCUser(connector, ident, claims); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	if !req.CheckUser {
+		return response, nil
+	}
+
+	user, err := a.Identity.GetUserByOIDCIdentity(services.ExternalIdentity{
+		ConnectorID: req.ConnectorID, Username: ident.Email})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	response.Username = user.GetName()
+
+	var roles services.RoleSet
+	roles, err = services.FetchRoles(user.GetRoles(), a.Access)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sessionTTL := roles.AdjustSessionTTL(utils.ToTTL(a.clock, ident.ExpiresAt))
+	bearerTokenTTL := utils.MinTTL(BearerTokenTTL, sessionTTL)
+
+	if req.CreateWebSession {
+		sess, err := a.NewWebSession(user.GetName())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// session will expire based on identity TTL and allowed session TTL
+		sess.SetExpiryTime(a.clock.Now().UTC().Add(sessionTTL))
+		// bearer token will expire based on the expected session renewal
+		sess.SetBearerTokenExpiryTime(a.clock.Now().UTC().Add(bearerTokenTTL))
+		if err := a.UpsertWebSession(user.GetName(), sess); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		response.Session = sess
+	}
+
+	if len(req.PublicKey) != 0 {
+		certTTL := utils.MinTTL(utils.ToTTL(a.clock, ident.ExpiresAt), req.CertTTL)
+		allowedLogins, err := roles.CheckLogins(certTTL)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cert, err := a.GenerateUserCert(req.PublicKey, user.GetName(), allowedLogins, certTTL, roles.CanForwardAgents())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		response.Cert = cert
+
+		authorities, err := a.GetCertAuthorities(services.HostCA, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for _, authority := range authorities {
+			response.HostSigners = append(response.HostSigners, authority)
+		}
+	}
+
+	return response, nil
+}
+
+// SAMLAuthResponse is returned when auth server validated callback parameters
+// returned from SAML identity provider
+type SAMLAuthResponse struct {
+	// Username is authenticated teleport username
+	Username string `json:"username"`
+	// Identity contains validated OIDC identity
+	Identity services.ExternalIdentity `json:"identity"`
+	// Web session will be generated by auth server if requested in OIDCAuthRequest
+	Session services.WebSession `json:"session,omitempty"`
+	// Cert will be generated by certificate authority
+	Cert []byte `json:"cert,omitempty"`
+	// Req is original oidc auth request
+	Req services.SAMLAuthRequest `json:"req"`
+	// HostSigners is a list of signing host public keys
+	// trusted by proxy, used in console login
+	HostSigners []services.CertAuthority `json:"host_signers"`
+}
+
 // OIDCAuthResponse is returned when auth server validated callback parameters
 // returned from OIDC provider
 type OIDCAuthResponse struct {
 	// Username is authenticated teleport username
 	Username string `json:"username"`
 	// Identity contains validated OIDC identity
-	Identity services.OIDCIdentity `json:"identity"`
+	Identity services.ExternalIdentity `json:"identity"`
 	// Web session will be generated by auth server if requested in OIDCAuthRequest
 	Session services.WebSession `json:"session,omitempty"`
 	// Cert will be generated by certificate authority
@@ -807,6 +1024,93 @@ func (a *AuthServer) buildRoles(connector services.OIDCConnector, ident *oidc.Id
 	return roles, nil
 }
 
+// buildSAMLRoles takes a connector and claims and returns a slice of roles. If the claims
+// match a concrete roles in the connector, those roles are returned directly. If the
+// claims match a template role in the connector, then that role is first created from
+// the template, then returned.
+func (a *AuthServer) buildSAMLRoles(connector services.SAMLConnector, assertionInfo saml2.AssertionInfo, expiresAt time.Time) ([]string, error) {
+	roles := connector.MapAttributes(assertionInfo)
+	if len(roles) == 0 {
+		role, err := connector.RoleFromTemplate(assertionInfo)
+		if err != nil {
+			log.Warningf("[SAML] Unable to map claims to roles or role templates for %q", connector.GetName())
+			return nil, trace.AccessDenied("unable to map claims to roles or role templates for %q", connector.GetName())
+		}
+
+		// figure out ttl for role. expires = now + ttl  =>  ttl = expires - now
+		ttl := expiresAt.Sub(a.clock.Now())
+
+		// upsert templated role
+		err = a.Access.UpsertRole(role, ttl)
+		if err != nil {
+			log.Warningf("[OIDC] Unable to upsert templated role for connector: %q", connector.GetName())
+			return nil, trace.AccessDenied("unable to upsert templated role: %q", connector.GetName())
+		}
+
+		roles = []string{role.GetName()}
+	}
+
+	return roles, nil
+}
+
+func (a *AuthServer) createSAMLUser(connector services.SAMLConnector, assertionInfo saml2.AssertionInfo, expiresAt time.Time) error {
+	roles, err := a.buildSAMLRoles(connector, assertionInfo, expiresAt)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	log.Debugf("[IDENTITY] %v/%v is a dynamic identity, generating user with roles: %v", connector.GetName(), assertionInfo.NameID, roles)
+	user, err := services.GetUserMarshaler().GenerateUser(&services.UserV2{
+		Kind:    services.KindUser,
+		Version: services.V2,
+		Metadata: services.Metadata{
+			Name:      assertionInfo.NameID,
+			Namespace: defaults.Namespace,
+		},
+		Spec: services.UserSpecV2{
+			Roles:          roles,
+			Expires:        expiresAt,
+			SAMLIdentities: []services.ExternalIdentity{{ConnectorID: connector.GetName(), Username: assertionInfo.NameID}},
+			CreatedBy: services.CreatedBy{
+				User: services.UserRef{Name: "system"},
+				Time: time.Now().UTC(),
+				Connector: &services.ConnectorRef{
+					Type:     teleport.ConnectorSAML,
+					ID:       connector.GetName(),
+					Identity: assertionInfo.NameID,
+				},
+			},
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// check if a user exists already
+	existingUser, err := a.GetUser(assertionInfo.NameID)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+
+	// check if exisiting user is a non-oidc user, if so, return an error
+	if existingUser != nil {
+		connectorRef := existingUser.GetCreatedBy().Connector
+		if connectorRef == nil || connectorRef.Type != teleport.ConnectorSAML || connectorRef.ID != connector.GetName() {
+			return trace.AlreadyExists("user %q already exists and is not SAML user", existingUser.GetName())
+		}
+	}
+
+	// no non-oidc user exists, create or update the exisiting oidc user
+	err = a.UpsertUser(user)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 func (a *AuthServer) createOIDCUser(connector services.OIDCConnector, ident *oidc.Identity, claims jose.Claims) error {
 	roles, err := a.buildRoles(connector, ident, claims)
 	if err != nil {
@@ -824,7 +1128,7 @@ func (a *AuthServer) createOIDCUser(connector services.OIDCConnector, ident *oid
 		Spec: services.UserSpecV2{
 			Roles:          roles,
 			Expires:        ident.ExpiresAt,
-			OIDCIdentities: []services.OIDCIdentity{{ConnectorID: connector.GetName(), Email: ident.Email}},
+			OIDCIdentities: []services.ExternalIdentity{{ConnectorID: connector.GetName(), Username: ident.Email}},
 			CreatedBy: services.CreatedBy{
 				User: services.UserRef{Name: "system"},
 				Time: time.Now().UTC(),
@@ -1018,88 +1322,174 @@ func (a *AuthServer) getClaims(oidcClient *oidc.Client, issuerURL string, code s
 	return claims, nil
 }
 
-// ValidateOIDCAuthCallback is called by the proxy to check OIDC query parameters
-// returned by OIDC Provider, if everything checks out, auth server
-// will respond with OIDCAuthResponse, otherwise it will return error
-func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error) {
-	if error := q.Get("error"); error != "" {
-		return nil, trace.OAuth2(oauth2.ErrorInvalidRequest, error, q)
-	}
+// validateACRValues validates that we get an appropriate response for acr values. By default
+// we expect the same value we send, but this function also handles Identity Provider specific
+// forms of validation.
+func (a *AuthServer) validateACRValues(acrValue string, identityProvider string, claims jose.Claims) error {
+	switch identityProvider {
+	case teleport.NetIQ:
+		log.Debugf("[OIDC] Validating ACR values with %q rules", identityProvider)
 
-	code := q.Get("code")
-	if code == "" {
-		return nil, trace.OAuth2(
-			oauth2.ErrorInvalidRequest, "code query param must be set", q)
-	}
+		tokenAcr, ok := claims["acr"]
+		if !ok {
+			return trace.BadParameter("acr not found in claims")
+		}
+		tokenAcrMap, ok := tokenAcr.(map[string]interface{})
+		if !ok {
+			return trace.BadParameter("acr unexpected type: %T", tokenAcr)
+		}
+		tokenAcrValues, ok := tokenAcrMap["values"]
+		if !ok {
+			return trace.BadParameter("acr.values not found in claims")
+		}
+		tokenAcrValuesSlice, ok := tokenAcrValues.([]interface{})
+		if !ok {
+			return trace.BadParameter("acr.values unexpected type: %T", tokenAcr)
+		}
 
-	stateToken := q.Get("state")
-	if stateToken == "" {
-		return nil, trace.OAuth2(
-			oauth2.ErrorInvalidRequest, "missing state query param", q)
-	}
+		acrValueMatched := false
+		for _, v := range tokenAcrValuesSlice {
+			vv, ok := v.(string)
+			if !ok {
+				continue
+			}
+			if acrValue == vv {
+				acrValueMatched = true
+				break
+			}
+		}
+		if !acrValueMatched {
+			log.Debugf("[OIDC] No ACR match found for %q in %q", acrValue, tokenAcrValues)
+			return trace.BadParameter("acr claim does not match")
+		}
+	default:
+		log.Debugf("[OIDC] Validating ACR values with default rules")
 
-	req, err := a.Identity.GetOIDCAuthRequest(stateToken)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	connector, err := a.Identity.GetOIDCConnector(req.ConnectorID, true)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	oidcClient, err := a.getOIDCClient(connector)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// extract claims from both the id token and the userinfo endpoint and merge them
-	claims, err := a.getClaims(oidcClient, connector.GetIssuerURL(), code)
-	if err != nil {
-		return nil, trace.OAuth2(
-			oauth2.ErrorUnsupportedResponseType, "unable to construct claims", q)
-	}
-	log.Debugf("[OIDC] Claims: %v", claims)
-
-	ident, err := oidc.IdentityFromClaims(claims)
-	if err != nil {
-		return nil, trace.OAuth2(
-			oauth2.ErrorUnsupportedResponseType, "unable to convert claims to identity", q)
-	}
-	log.Debugf("[IDENTITY] %q expires at: %v", ident.Email, ident.ExpiresAt)
-
-	response := &OIDCAuthResponse{
-		Identity: services.OIDCIdentity{ConnectorID: connector.GetName(), Email: ident.Email},
-		Req:      *req,
-	}
-
-	log.Debugf("[OIDC] Applying %v claims to roles mappings", len(connector.GetClaimsToRoles()))
-	if len(connector.GetClaimsToRoles()) != 0 {
-		if err := a.createOIDCUser(connector, ident, claims); err != nil {
-			return nil, trace.Wrap(err)
+		claimValue, exists, err := claims.StringClaim("acr")
+		if !exists {
+			return trace.BadParameter("acr claim does not exist")
+		}
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if claimValue != acrValue {
+			log.Debugf("[OIDC] No ACR match found %q != %q", acrValue, claimValue)
+			return trace.BadParameter("acr claim does not match")
 		}
 	}
 
-	if !req.CheckUser {
-		return response, nil
+	return nil
+}
+
+func parseSAMLInResponseTo(response string) (string, error) {
+	raw, _ := base64.StdEncoding.DecodeString(response)
+	log.Debugf("SAML response:\n %v\n", string(raw))
+
+	doc := etree.NewDocument()
+	err := doc.ReadFromBytes(raw)
+	if err != nil {
+		// Attempt to inflate the response in case it happens to be compressed (as with one case at saml.oktadev.com)
+		buf, err := ioutil.ReadAll(flate.NewReader(bytes.NewReader(raw)))
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		doc = etree.NewDocument()
+		err = doc.ReadFromBytes(buf)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
 	}
 
-	user, err := a.Identity.GetUserByOIDCIdentity(services.OIDCIdentity{
-		ConnectorID: req.ConnectorID, Email: ident.Email})
+	if doc.Root() == nil {
+		return "", trace.BadParameter("unable to parse response")
+	}
+
+	el := doc.Root()
+	responseTo := el.SelectAttr("InResponseTo")
+	if responseTo == nil {
+		return "", trace.BadParameter("identity provider initiated flows are not supported")
+	}
+	if responseTo.Value == "" {
+		return "", trace.BadParameter("InResponseTo can not be empty")
+	}
+	return responseTo.Value, nil
+}
+
+// ValidateSAMLResponse consumes attribute statements from SAML identity provider
+func (a *AuthServer) ValidateSAMLResponse(samlResponse string) (*SAMLAuthResponse, error) {
+	requestID, err := parseSAMLInResponseTo(samlResponse)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	response.Username = user.GetName()
+	request, err := a.Identity.GetSAMLAuthRequest(requestID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	connector, err := a.Identity.GetSAMLConnector(request.ConnectorID, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	provider, err := a.getSAMLProvider(connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	assertionInfo, err := provider.RetrieveAssertionInfo(samlResponse)
+	if err != nil {
+		log.Warningf("SAML error: %v", err)
+		return nil, trace.AccessDenied("bad SAML response")
+	}
+
+	if assertionInfo.WarningInfo.InvalidTime {
+		log.Warningf("SAML error, invalid time")
+		return nil, trace.AccessDenied("bad SAML response")
+	}
+
+	if assertionInfo.WarningInfo.NotInAudience {
+		log.Warningf("SAML error, not in audience")
+		return nil, trace.AccessDenied("bad SAML response")
+	}
+
+	log.Debugf("Assertion Info: %#v\n", assertionInfo)
+	for key, val := range assertionInfo.Values {
+		log.Debugf("assertion:  %s: %+v\n", key, val)
+	}
+
+	log.Debugf("warnings %+v\n", assertionInfo.WarningInfo)
+
+	log.Debugf("[OIDC] Applying %v claims to roles mappings", len(connector.GetAttributesToRoles()))
+	if len(connector.GetAttributesToRoles()) == 0 {
+		return nil, trace.BadParameter("SAML does not support binding to local users")
+	}
+	// TODO(klizhentas) use SessionNotOnOrAfter to calculate expiration time
+	expiresAt := a.clock.Now().Add(defaults.CertDuration)
+	if err := a.createSAMLUser(connector, *assertionInfo, expiresAt); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	identity := services.ExternalIdentity{
+		ConnectorID: request.ConnectorID,
+		Username:    assertionInfo.NameID,
+	}
+	user, err := a.Identity.GetUserBySAMLIdentity(identity)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	response := &SAMLAuthResponse{
+		Req:      *request,
+		Identity: identity,
+		Username: user.GetName(),
+	}
 
 	var roles services.RoleSet
 	roles, err = services.FetchRoles(user.GetRoles(), a.Access)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sessionTTL := roles.AdjustSessionTTL(utils.ToTTL(a.clock, ident.ExpiresAt))
+	sessionTTL := roles.AdjustSessionTTL(utils.ToTTL(a.clock, expiresAt))
 	bearerTokenTTL := utils.MinTTL(BearerTokenTTL, sessionTTL)
 
-	if req.CreateWebSession {
+	if request.CreateWebSession {
 		sess, err := a.NewWebSession(user.GetName())
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1114,13 +1504,13 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 		response.Session = sess
 	}
 
-	if len(req.PublicKey) != 0 {
-		certTTL := utils.MinTTL(utils.ToTTL(a.clock, ident.ExpiresAt), req.CertTTL)
+	if len(request.PublicKey) != 0 {
+		certTTL := utils.MinTTL(utils.ToTTL(a.clock, expiresAt), request.CertTTL)
 		allowedLogins, err := roles.CheckLogins(certTTL)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cert, err := a.GenerateUserCert(req.PublicKey, user.GetName(), allowedLogins, certTTL, roles.CanForwardAgents())
+		cert, err := a.GenerateUserCert(request.PublicKey, user.GetName(), allowedLogins, certTTL, roles.CanForwardAgents())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1179,6 +1569,11 @@ const (
 type oidcClient struct {
 	client *oidc.Client
 	config oidc.ClientConfig
+}
+
+type samlProvider struct {
+	provider  *saml2.SAMLServiceProvider
+	connector services.SAMLConnector
 }
 
 // oidcConfigsEqual is a struct that helps us to verify that

@@ -162,7 +162,7 @@ func Init(cfg InitConfig, dynamicConfig bool) (*AuthServer, *Identity, error) {
 			log.Infof("[INIT] Set Universal Second Factor Settings: %v", cfg.U2F)
 		}
 
-		if cfg.OIDCConnectors != nil && len(cfg.OIDCConnectors) > 0 {
+		if len(cfg.OIDCConnectors) > 0 {
 			for _, connector := range cfg.OIDCConnectors {
 				if err := asrv.UpsertOIDCConnector(connector, 0); err != nil {
 					return nil, nil, trace.Wrap(err)

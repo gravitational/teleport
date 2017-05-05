@@ -325,11 +325,11 @@ func (r *reverseTunnelCollection) writeYAML(w io.Writer) error {
 	return trace.Wrap(err)
 }
 
-type connectorCollection struct {
+type oidcCollection struct {
 	connectors []services.OIDCConnector
 }
 
-func (c *connectorCollection) writeText(w io.Writer) error {
+func (c *oidcCollection) writeText(w io.Writer) error {
 	t := goterm.NewTable(0, 10, 5, ' ', 0)
 	printHeader(t, []string{"Name", "Issuer URL", "Additional Scope"})
 	for _, conn := range c.connectors {
@@ -339,7 +339,7 @@ func (c *connectorCollection) writeText(w io.Writer) error {
 	return trace.Wrap(err)
 }
 
-func (c *connectorCollection) writeJSON(w io.Writer) error {
+func (c *oidcCollection) writeJSON(w io.Writer) error {
 	data, err := json.MarshalIndent(c.toMarshal(), "", "    ")
 	if err != nil {
 		return trace.Wrap(err)
@@ -348,14 +348,53 @@ func (c *connectorCollection) writeJSON(w io.Writer) error {
 	return trace.Wrap(err)
 }
 
-func (c *connectorCollection) toMarshal() interface{} {
+func (c *oidcCollection) toMarshal() interface{} {
 	if len(c.connectors) == 1 {
 		return c.connectors[0]
 	}
 	return c.connectors
 }
 
-func (c *connectorCollection) writeYAML(w io.Writer) error {
+func (c *oidcCollection) writeYAML(w io.Writer) error {
+	data, err := yaml.Marshal(c.toMarshal())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = w.Write(data)
+	return trace.Wrap(err)
+}
+
+type samlCollection struct {
+	connectors []services.SAMLConnector
+}
+
+func (c *samlCollection) writeText(w io.Writer) error {
+	t := goterm.NewTable(0, 10, 5, ' ', 0)
+	printHeader(t, []string{"Name", "SSO URL"})
+	for _, conn := range c.connectors {
+		fmt.Fprintf(t, "%v\t%v\n", conn.GetName(), conn.GetSSO())
+	}
+	_, err := io.WriteString(w, t.String())
+	return trace.Wrap(err)
+}
+
+func (c *samlCollection) writeJSON(w io.Writer) error {
+	data, err := json.MarshalIndent(c.toMarshal(), "", "    ")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = w.Write(data)
+	return trace.Wrap(err)
+}
+
+func (c *samlCollection) toMarshal() interface{} {
+	if len(c.connectors) == 1 {
+		return c.connectors[0]
+	}
+	return c.connectors
+}
+
+func (c *samlCollection) writeYAML(w io.Writer) error {
 	data, err := yaml.Marshal(c.toMarshal())
 	if err != nil {
 		return trace.Wrap(err)

@@ -59,14 +59,16 @@ type SSHLoginResponse struct {
 	HostSigners []services.CertAuthorityV1 `json:"host_signers"`
 }
 
-type OIDCLoginConsoleReq struct {
+// SSOLoginConsoleReq is used to SSO for tsh
+type SSOLoginConsoleReq struct {
 	RedirectURL string        `json:"redirect_url"`
 	PublicKey   []byte        `json:"public_key"`
 	CertTTL     time.Duration `json:"cert_ttl"`
 	ConnectorID string        `json:"connector_id"`
 }
 
-type OIDCLoginConsoleResponse struct {
+// SSOLoginConsoleResponse is a response to SSO console request
+type SSOLoginConsoleResponse struct {
 	RedirectURL string `json:"redirect_url"`
 }
 
@@ -117,8 +119,8 @@ type sealData struct {
 	Nonce []byte `json:"nonce"`
 }
 
-// SSHAgentOIDCLogin is used by SSH Agent (tsh) to login using OpenID connect
-func SSHAgentOIDCLogin(proxyAddr, connectorID string, pubKey []byte, ttl time.Duration, insecure bool, pool *x509.CertPool) (*SSHLoginResponse, error) {
+// SSHAgentSSOLogin is used by SSH Agent (tsh) to login using OpenID connect
+func SSHAgentSSOLogin(proxyAddr, connectorID string, pubKey []byte, ttl time.Duration, insecure bool, pool *x509.CertPool, protocol string) (*SSHLoginResponse, error) {
 	clt, proxyURL, err := initClient(proxyAddr, insecure, pool)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -197,7 +199,7 @@ func SSHAgentOIDCLogin(proxyAddr, connectorID string, pubKey []byte, ttl time.Du
 	query.Set("secret", secret.KeyToEncodedString(keyBytes))
 	u.RawQuery = query.Encode()
 
-	out, err := clt.PostJSON(clt.Endpoint("webapi", "oidc", "login", "console"), OIDCLoginConsoleReq{
+	out, err := clt.PostJSON(clt.Endpoint("webapi", protocol, "login", "console"), SSOLoginConsoleReq{
 		RedirectURL: u.String(),
 		PublicKey:   pubKey,
 		CertTTL:     ttl,
@@ -207,7 +209,7 @@ func SSHAgentOIDCLogin(proxyAddr, connectorID string, pubKey []byte, ttl time.Du
 		return nil, trace.Wrap(err)
 	}
 
-	var re *OIDCLoginConsoleResponse
+	var re *SSOLoginConsoleResponse
 	err = json.Unmarshal(out.Bytes(), &re)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -259,12 +261,22 @@ type AuthenticationSettings struct {
 	U2F *U2FSettings `json:"u2f,omitempty"`
 	// OIDC contains the OIDC Connector settings needed for authentication.
 	OIDC *OIDCSettings `json:"oidc,omitempty"`
+	// SAML contains the SAML Connector settings needed for authentication.
+	SAML *SAMLSettings `json:"saml,omitempty"`
 }
 
 // U2FSettings contains the AppID for Universal Second Factor.
 type U2FSettings struct {
 	// AppID is the U2F AppID.
 	AppID string `json:"app_id"`
+}
+
+// SAMLSettings contains the Name and Display string for SAML
+type SAMLSettings struct {
+	// Name is the internal name of the connector.
+	Name string `json:"name"`
+	// Display is the display name for the connector.
+	Display string `json:"display"`
 }
 
 // OIDCSettings contains the Name and Display string for OIDC.

@@ -117,6 +117,9 @@ var (
 		"dynamic_config":     false,
 		"seed_config":        false,
 		"public_addr":        false,
+		"cache":              true,
+		"ttl":                false,
+		"issuer":             false,
 	}
 )
 

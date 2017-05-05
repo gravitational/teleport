@@ -14,10 +14,12 @@ import (
 
 // User represents teleport embedded user or external user
 type User interface {
-	// GetName returns user name
-	GetName() string
-	// GetIdentities returns a list of connected OIDCIdentities
-	GetIdentities() []OIDCIdentity
+	// Resource provides common resource properties
+	Resource
+	// GetOIDCIdentities returns a list of connected OIDCIdentities
+	GetOIDCIdentities() []ExternalIdentity
+	// GetSAMLIdentities returns a list of connected OIDCIdentities
+	GetSAMLIdentities() []ExternalIdentity
 	// GetRoles returns a list of roles assigned to user
 	GetRoles() []string
 	// String returns user
@@ -191,7 +193,11 @@ func (u *UserV2) WebSessionInfo(allowedLogins []string) interface{} {
 type UserSpecV2 struct {
 	// OIDCIdentities lists associated OpenID Connect identities
 	// that let user log in using externally verified identity
-	OIDCIdentities []OIDCIdentity `json:"oidc_identities,omitempty"`
+	OIDCIdentities []ExternalIdentity `json:"oidc_identities,omitempty"`
+
+	// SAMLIdentities lists associated SAML identities
+	// that let user log in using externally verified identity
+	SAMLIdentities []ExternalIdentity `json:"saml_identities,omitempty"`
 
 	// Roles is a list of roles assigned to user
 	Roles []string `json:"roles,omitempty"`
@@ -238,6 +244,10 @@ const UserSpecV2SchemaTemplate = `{
       "type": "array",
       "items": %v
     },
+    "saml_identities": {
+      "type": "array",
+      "items": %v
+    },
     "status": %v,
     "created_by": %v%v
   }
@@ -263,12 +273,21 @@ func (u *UserV2) Equals(other User) bool {
 	if u.Metadata.Name != other.GetName() {
 		return false
 	}
-	otherIdentities := other.GetIdentities()
+	otherIdentities := other.GetOIDCIdentities()
 	if len(u.Spec.OIDCIdentities) != len(otherIdentities) {
 		return false
 	}
 	for i := range u.Spec.OIDCIdentities {
 		if !u.Spec.OIDCIdentities[i].Equals(&otherIdentities[i]) {
+			return false
+		}
+	}
+	otherSAMLIdentities := other.GetSAMLIdentities()
+	if len(u.Spec.SAMLIdentities) != len(otherSAMLIdentities) {
+		return false
+	}
+	for i := range u.Spec.SAMLIdentities {
+		if !u.Spec.SAMLIdentities[i].Equals(&otherSAMLIdentities[i]) {
 			return false
 		}
 	}
@@ -290,9 +309,14 @@ func (u *UserV2) GetStatus() LoginStatus {
 	return u.Spec.Status
 }
 
-// GetIdentities returns a list of connected OIDCIdentities
-func (u *UserV2) GetIdentities() []OIDCIdentity {
+// GetOIDCIdentities returns a list of connected OIDCIdentities
+func (u *UserV2) GetOIDCIdentities() []ExternalIdentity {
 	return u.Spec.OIDCIdentities
+}
+
+// GetSAMLIdentities returns a list of connected SAMLIdentities
+func (u *UserV2) GetSAMLIdentities() []ExternalIdentity {
+	return u.Spec.SAMLIdentities
 }
 
 // GetRoles returns a list of roles assigned to user
@@ -355,7 +379,7 @@ type UserV1 struct {
 
 	// OIDCIdentities lists associated OpenID Connect identities
 	// that let user log in using externally verified identity
-	OIDCIdentities []OIDCIdentity `json:"oidc_identities"`
+	OIDCIdentities []ExternalIdentity `json:"oidc_identities"`
 
 	// Status is a login status of the user
 	Status LoginStatus `json:"status"`
@@ -442,9 +466,9 @@ type UserMarshaler interface {
 func GetUserSchema(extensionSchema string) string {
 	var userSchema string
 	if extensionSchema == "" {
-		userSchema = fmt.Sprintf(UserSpecV2SchemaTemplate, OIDCIDentitySchema, LoginStatusSchema, CreatedBySchema, ``)
+		userSchema = fmt.Sprintf(UserSpecV2SchemaTemplate, ExternalIdentitySchema, ExternalIdentitySchema, LoginStatusSchema, CreatedBySchema, ``)
 	} else {
-		userSchema = fmt.Sprintf(UserSpecV2SchemaTemplate, OIDCIDentitySchema, LoginStatusSchema, CreatedBySchema, ", "+extensionSchema)
+		userSchema = fmt.Sprintf(UserSpecV2SchemaTemplate, ExternalIdentitySchema, ExternalIdentitySchema, LoginStatusSchema, CreatedBySchema, ", "+extensionSchema)
 	}
 	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, userSchema)
 }

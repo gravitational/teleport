@@ -954,6 +954,18 @@ func (u *CreateCommand) Create(client *auth.TunClient) error {
 		}
 		count += 1
 		switch raw.Kind {
+		case services.KindSAMLConnector:
+			conn, err := services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(raw.Raw)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if err := conn.CheckAndSetDefaults(); err != nil {
+				return trace.Wrap(err)
+			}
+			if err := client.UpsertSAMLConnector(conn); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("SAML connector %v upserted\n", conn.GetName())
 		case services.KindOIDCConnector:
 			conn, err := services.GetOIDCConnectorMarshaler().UnmarshalOIDCConnector(raw.Raw)
 			if err != nil {
@@ -1062,6 +1074,11 @@ func (d *DeleteCommand) Delete(client *auth.TunClient) error {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("user %v has been deleted\n", d.ref.Name)
+	case services.KindSAMLConnector:
+		if err := client.DeleteSAMLConnector(d.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("SAML Connector %v has been deleted\n", d.ref.Name)
 	case services.KindOIDCConnector:
 		if err := client.DeleteOIDCConnector(d.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -1101,12 +1118,18 @@ func (g *GetCommand) getCollection(client auth.ClientI) (collection, error) {
 		return nil, trace.BadParameter("specify resource to list, e.g. 'tctl get roles'")
 	}
 	switch g.ref.Kind {
+	case services.KindSAMLConnector:
+		connectors, err := client.GetSAMLConnectors(g.withSecrets)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &samlCollection{connectors: connectors}, nil
 	case services.KindOIDCConnector:
 		connectors, err := client.GetOIDCConnectors(g.withSecrets)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &connectorCollection{connectors: connectors}, nil
+		return &oidcCollection{connectors: connectors}, nil
 	case services.KindReverseTunnel:
 		tunnels, err := client.GetReverseTunnels()
 		if err != nil {
