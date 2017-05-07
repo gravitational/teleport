@@ -114,10 +114,6 @@ type Config struct {
 
 	// Access is a service that controls access
 	Access services.Access
-
-	// Hide SSH banner information
-
-	HideBanner bool
 }
 
 // ApplyToken assigns a given token to all internal services but only if token

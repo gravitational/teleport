@@ -74,8 +74,6 @@ type CommandLineFlags struct {
 	HTTPProfileEndpoint bool
 	// --pid-file flag
 	PIDFile string
-	// --HideBanner flag
-	HideBanner bool
 }
 
 // readConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -618,8 +616,6 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	if err = ApplyFileConfig(fileConf, cfg); err != nil {
 		return trace.Wrap(err)
 	}
-
-	cfg.HideBanner = clf.HideBanner
 
 	// apply --debug flag:
 	if clf.Debug {
