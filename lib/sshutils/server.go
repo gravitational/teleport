@@ -67,7 +67,11 @@ const (
 	// SSHVersionPrefix is the prefix of "server version" string which begins
 	// every SSH handshake. It MUST start with "SSH-2.0" according to
 	// https://tools.ietf.org/html/rfc4253#page-4
-	SSHVersionPrefix = "SSH-2.0-Teleport"
+	if cfg.HideBanner {
+		SSHVersionPrefix = "SSH-2.0"
+	} else {
+		SSHVersionPrefix = "SSH-2.0-Teleport"
+	}
 
 	// ProxyHelloSignature is a string which Teleport proxy will send
 	// right after the initial SSH "handshake/version" message if it detects
