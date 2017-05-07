@@ -67,11 +67,7 @@ const (
 	// SSHVersionPrefix is the prefix of "server version" string which begins
 	// every SSH handshake. It MUST start with "SSH-2.0" according to
 	// https://tools.ietf.org/html/rfc4253#page-4
-	if cfg.HideBanner {
-		SSHVersionPrefix = "SSH-2.0"
-	} else {
-		SSHVersionPrefix = "SSH-2.0-Teleport"
-	}
+	SSHVersionPrefix = "SSH-2.0-Teleport"
 
 	// ProxyHelloSignature is a string which Teleport proxy will send
 	// right after the initial SSH "handshake/version" message if it detects
@@ -135,7 +131,11 @@ func NewServer(
 
 	// Teleport SSH server will be sending the following "version string" during
 	// SSH handshake (example): "SSH-2.0-T eleport 1.5.1-beta" (space is important!)
-	s.cfg.ServerVersion = fmt.Sprintf("%s %s", SSHVersionPrefix, teleport.Version)
+	if cfg.HideBanner {
+		s.cfg.ServerVersion = fmt.Sprintf("SSH-2.0")
+	} else {
+		s.cfg.ServerVersion = fmt.Sprintf("%s %s", SSHVersionPrefix, teleport.Version)
+	}
 	return s, nil
 }
 
