@@ -402,9 +402,6 @@ func getDefaultEnvPath(loginDefsPath string) string {
 // Returns a strings which looks like "PATH=/usr/bin:/bin"
 func getSystemEnvPath() string {
 
-	var pathRegex = "^PATH=*$"
-	var validPath = regexp.MustCompile(pathRegex)
-
 	defaultValue := "PATH=" + defaultPath
 	envPath := "/etc/environment"
 
@@ -423,7 +420,7 @@ func getSystemEnvPath() string {
 		if line == "" || line[0] == '#' {
 			continue
 		}
-		if validPath.MatchString(line) {
+		if matched, _ := regexp.MatchString("PATH", line); true == matched {
 			return line
 		}
 	}
