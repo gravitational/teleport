@@ -206,12 +206,20 @@ func (bk *Backend) DeleteBucket(parent []string, bucket string) error {
 func removeFiles(dir string) error {
 	d, err := os.Open(dir)
 	if err != nil {
-		return trace.ConvertSystemError(err)
+		err = trace.ConvertSystemError(err)
+		if !trace.IsNotFound(err) {
+			return err
+		}
+		return nil
 	}
 	defer d.Close()
 	names, err := d.Readdirnames(-1)
 	if err != nil {
-		return trace.ConvertSystemError(err)
+		err = trace.ConvertSystemError(err)
+		if !trace.IsNotFound(err) {
+			return err
+		}
+		return nil
 	}
 	for _, name := range names {
 		path := filepath.Join(dir, name)
@@ -221,8 +229,7 @@ func removeFiles(dir string) error {
 			if !trace.IsNotFound(err) {
 				return err
 			}
-		}
-		if !fi.IsDir() {
+		} else if !fi.IsDir() {
 			err = os.Remove(path)
 			if err != nil {
 				err = trace.ConvertSystemError(err)
