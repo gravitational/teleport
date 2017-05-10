@@ -15,10 +15,12 @@ limitations under the License.
 */
 import { Store } from 'nuclear-js';
 import { Record } from 'immutable';
+import cfg from 'app/config';
+import session from 'app/services/session';
 import reactor from 'app/reactor';
 import { nodeHostNameByServerId } from 'app/flux/nodes/getters';
 import {
-  TLPT_TERMINAL_OPEN,
+  TLPT_TERMINAL_INIT,
   TLPT_TERMINAL_CLOSE,
   TLPT_TERMINAL_SET_STATUS
 } from './actionTypes';
@@ -40,6 +42,19 @@ export class TermRec extends Record({
   sid: undefined
 }) {
   
+  getTtyParams(){            
+    let { token } = session.getUserData();  
+    let ttyParams = {
+      serverId: this.serverId,
+      login: this.login,
+      sid: this.sid,
+      url: cfg.api.getSiteUrl(this.siteId),
+      token,      
+    }
+    
+    return ttyParams;
+  }
+
   getServerLabel() {
     let hostname = reactor.evaluate(nodeHostNameByServerId(this.serverId));
 
@@ -47,17 +62,17 @@ export class TermRec extends Record({
       return `${this.login}@${hostname}`;  
     }
 
-    return ''
-    
+    return ''    
   }
 }
+
 export default Store({
   getInitialState() {
     return new TermRec();
   },
 
   initialize() {
-    this.on(TLPT_TERMINAL_OPEN, init);
+    this.on(TLPT_TERMINAL_INIT, init);
     this.on(TLPT_TERMINAL_CLOSE, close);
     this.on(TLPT_TERMINAL_SET_STATUS, changeStatus);
   }

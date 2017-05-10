@@ -73,12 +73,16 @@ type SrvSuite struct {
 	signer        ssh.Signer
 	dir           string
 	user          string
+	testUser      string
 	domainName    string
 	freePorts     utils.PortList
 	access        services.Access
 	identity      services.Identity
 	trust         services.Trust
 }
+
+// teleportTestUser is additional user used for tests
+const teleportTestUser = "teleport-test"
 
 var _ = Suite(&SrvSuite{})
 
@@ -436,7 +440,7 @@ func (s *SrvSuite) TestExecCommandNoLocalPtyAndRemotePty(c *C) {
 	stdout, err := ioutil.ReadAll(stdoutPipe)
 	c.Assert(err, IsNil)
 	outputContains := strings.Contains(string(stdout), "1\r\n2\r\n\n")
-	c.Assert(outputContains, Equals, true, Commentf("Output does not contain [%# x]", "1\r\n2\r\n\n"))
+	c.Assert(outputContains, Equals, true, Commentf("Output [%# x] does not match expected output: [%# x]", string(stdout), "1\r\n2\r\n\n"))
 }
 
 // TestExecCommandNoLocalPtyAndNoRemotePty tests executing a command where
@@ -559,6 +563,79 @@ func (s *SrvSuite) TestAllowedUsers(c *C) {
 	}
 
 	client, err = ssh.Dial("tcp", s.srv.Addr(), sshConfig)
+	c.Assert(err, NotNil)
+}
+
+func (s *SrvSuite) TestInvalidSessionID(c *C) {
+	session, err := s.clt.NewSession()
+	c.Assert(err, IsNil)
+
+	err = session.Setenv(sshutils.SessionEnvVar, "foo")
+	c.Assert(err, IsNil)
+
+	err = session.Shell()
+	c.Assert(err, NotNil)
+}
+
+func (s *SrvSuite) TestSessionHijack(c *C) {
+	_, err := user.Lookup(teleportTestUser)
+	if err != nil {
+		c.Skip(fmt.Sprintf("user %v is not found, skipping test", teleportTestUser))
+	}
+
+	// user 1 has access to the server
+	up, err := newUpack(s.user, []string{s.user}, s.a)
+	c.Assert(err, IsNil)
+
+	// login with first user
+	sshConfig := &ssh.ClientConfig{
+		User: s.user,
+		Auth: []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
+	}
+
+	client, err := ssh.Dial("tcp", s.srv.Addr(), sshConfig)
+	c.Assert(err, IsNil)
+	defer func() {
+		err := client.Close()
+		c.Assert(err, IsNil)
+	}()
+
+	se, err := client.NewSession()
+	c.Assert(err, IsNil)
+	defer se.Close()
+
+	firstSessionID := string(sess.NewID())
+	err = se.Setenv(sshutils.SessionEnvVar, firstSessionID)
+	c.Assert(err, IsNil)
+
+	err = se.Shell()
+	c.Assert(err, IsNil)
+
+	// user 2 does not have s.user as a listed principal
+	up2, err := newUpack(teleportTestUser, []string{teleportTestUser}, s.a)
+	c.Assert(err, IsNil)
+
+	sshConfig2 := &ssh.ClientConfig{
+		User: teleportTestUser,
+		Auth: []ssh.AuthMethod{ssh.PublicKeys(up2.certSigner)},
+	}
+
+	client2, err := ssh.Dial("tcp", s.srv.Addr(), sshConfig2)
+	c.Assert(err, IsNil)
+	defer func() {
+		err := client2.Close()
+		c.Assert(err, IsNil)
+	}()
+
+	se2, err := client2.NewSession()
+	c.Assert(err, IsNil)
+	defer se2.Close()
+
+	err = se2.Setenv(sshutils.SessionEnvVar, firstSessionID)
+	c.Assert(err, IsNil)
+
+	// attempt to hijack, should return error
+	err = se2.Shell()
 	c.Assert(err, NotNil)
 }
 

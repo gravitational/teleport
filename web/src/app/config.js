@@ -25,7 +25,7 @@ let cfg = {
   
   maxSessionLoadSize: 50,
 
-  displayDateFormat: 'DD/MM/YYYY HH:mm:ss',
+  displayDateFormat: 'MM/DD/YYYY HH:mm:ss',
 
   auth: {        
   },
@@ -40,7 +40,9 @@ let cfg = {
     msgs: '/web/msg/:type(/:subType)',
     pageNotFound: '/web/notfound',
     terminal: '/web/cluster/:siteId/node/:serverId/:login(/:sid)',
-    player: '/web/player/node/:siteId/sid/:sid'
+    player: '/web/player/node/:siteId/sid/:sid',
+    sso: '/v1/webapi/oidc/login/*',    
+    ssoInvite: '/v1/webapi/users/invites/oidc/*'
   },
 
   api: {    
@@ -123,11 +125,7 @@ let cfg = {
 
     return formatPattern(cfg.routes.terminal, { siteId, serverId, login, sid });  
   },
-
-  getFullUrl(url){
-    return cfg.baseUrl + url;
-  },
-
+  
   getCurrentSessionRouteUrl({sid, siteId}){
     return formatPattern(cfg.routes.currentSession, {sid, siteId});
   },
@@ -151,7 +149,7 @@ let cfg = {
   init(config={}){
     $.extend(true, this, config);
   },
-
+    
   stripOptionalParams(pattern) {
     return pattern.replace(/\(.*\)/, '');
   } 

@@ -13,23 +13,27 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
-var Term = require('Terminal');
-var Tty = require('./tty');
-var TtyEvents = require('./ttyEvents');
-var {debounce, isNumber} = require('_');
-
-var api = require('app/services/api');
-var logger = require('app/lib/logger').create('terminal');
-var $ = require('jQuery');
+import Term from 'xterm/dist/xterm';
+import Tty from './tty';
+import TtyEvents from './ttyEvents';
+import {debounce, isNumber} from 'lodash';
+import api from 'app/services/api';
+import Logger from 'app/lib/logger';
+import $ from 'jQuery';
 
 Term.colors[256] = '#252323';
 
+const logger = Logger.create('lib/term/terminal');
 const DISCONNECT_TXT = 'disconnected';
 const GRV_CLASS = 'grv-terminal';
-const WINDOW_RESIZE_DEBOUNCE_DELAY = 100;
+const WINDOW_RESIZE_DEBOUNCE_DELAY = 200;
 
+/**
+ * TtyTerminal is a wrapper on top of xtermjs that handles connections
+ * and resize events
+ */
 class TtyTerminal {
+
   constructor(options){
     let {
       tty,
@@ -54,32 +58,35 @@ class TtyTerminal {
   open() {
     $(this._el).addClass(GRV_CLASS);
 
-    // render termjs with default values (will be used to calculate the character size)
-    this.term = new Term({
+    // render xtermjs with default values
+    this.term = new Term({    
       cols: 15,
       rows: 5,
-      scrollback: this.scrollBack,
-      useStyle: true,
-      screenKeys: true,
+      scrollback: this.scrollBack,                  
       cursorBlink: false
     });
-
+    
     this.term.open(this._el);
 
-    // resize to available space (by given container)
+    // resize xterm to available space
     this.resize(this.cols, this.rows);
 
-    // subscribe termjs events
-    this.term.on('data', (data) => this.tty.send(data));
-
-    // subscribe to tty events
-    this.tty.on('resize', ({h, w}) => this.resize(w, h));    
-    this.tty.on('reset', () => this.term.reset());    
+    // subscribe to xtermjs output
+    this.term.on('data', data => this.tty.send(data));
+    
+    // subscribe to tty
+    this.tty.on('reset', this.reset.bind(this));    
     this.tty.on('close', this._processClose.bind(this));
-    this.tty.on('data', this._processData.bind(this));
-
-    this.connect();
+    this.tty.on('data', this._processData.bind(this));    
+    
+    // subscribe tty resize event (used by session player)
+    this.tty.on('resize', ({h, w}) => this.resize(w, h));    
+    // subscribe to window resize events
     window.addEventListener('resize', this.debouncedResize);
+    // subscribe to session resize events (triggered by other participants)
+    this.ttyEvents.on('resize', ({h, w}) => this.resize(w, h));    
+
+    this.connect();    
   }
   
   connect(){
@@ -88,47 +95,50 @@ class TtyTerminal {
   }
 
   destroy() {
+    window.removeEventListener('resize', this.debouncedResize);
     this._disconnect();
-
     if(this.term !== null){
       this.term.destroy();
       this.term.removeAllListeners();
     }
 
-    $(this._el).empty().removeClass(GRV_CLASS);
-
-    window.removeEventListener('resize', this.debouncedResize);
+    $(this._el).empty().removeClass(GRV_CLASS);    
   }
 
-  resize(cols, rows) {
-    // if not defined, use the size of the container
-    if(!isNumber(cols) || !isNumber(rows)){
-      let dim = this._getDimensions();
-      cols = dim.cols;
-      rows = dim.rows;
-    }
+  reset() {        
+    this.term.reset()
+  }
 
-    if( cols === this.cols && rows === this.rows){
-      return;
-    }
+  resize(cols, rows) {        
+    try {      
+      // if not defined, use the size of the container
+      if(!isNumber(cols) || !isNumber(rows)){
+        let dim = this._getDimensions();
+        cols = dim.cols;
+        rows = dim.rows;
+      }
 
-    this.cols = cols;
-    this.rows = rows;
-    this.term.resize(this.cols, this.rows);
+      if(cols === this.cols && rows === this.rows){
+        return;
+      }
+
+      this.cols = cols;
+      this.rows = rows;    
+
+      this.term.resize(cols, rows);  
+    } catch (err) {            
+      logger.error('resize', { w: cols, h: rows }, err);     
+      this.term.reset();  
+    }       
   }
 
   _processData(data){
-    try{
-      data = this._ensureScreenSize(data);
-      this.term.write(data);
-    }catch(err){
-      logger.error({
-        w: this.cols,
-        h: this.rows,
-        text: 'failed to resize termjs',
-        data: data,
-        err
-      });
+    try {                  
+      this.term.write(data);                    
+    } catch (err) {            
+      logger.error('xterm.write', data, err);
+      // reset xtermjs so it can recover
+      this.term.reset();  
     }
   }
     
@@ -144,41 +154,11 @@ class TtyTerminal {
     this.term.write(displayText)
   }
 
-  _ensureScreenSize(data){
-    /**
-    * for better sync purposes, the screen values are inserted to the end of the chunk
-    * with the following format: '\0NUMBER:NUMBER'
-    */
-    let pos = data.lastIndexOf('\0');
-    if(pos !==-1){
-      let length = data.length - pos;
-      if(length  > 2 && length < 10){
-        let tmp = data.substr(pos+1);
-        let [w, h] = tmp.split(':');
-        if($.isNumeric(w) && $.isNumeric(h)){
-          w = Number(w);
-          h = Number(h);
-
-          if(w < 500 && h < 500){
-            data = data.slice(0, pos);
-            this.resize(w, h)
-          }
-        }
-      }
-    }
-
-    return data;
-  }
-
-  _disconnect() {    
-    if(this.tty !== null){
-      this.tty.disconnect();
-    }
-
-    if(this.ttyEvents !== null){
-      this.ttyEvents.disconnect();
-      this.ttyEvents.removeAllListeners();
-    }
+  _disconnect() {        
+    this.tty.disconnect();
+    this.tty.removeAllListeners();    
+    this.ttyEvents.disconnect();
+    this.ttyEvents.removeAllListeners();    
   }
 
   _requestResize(){
@@ -192,12 +172,11 @@ class TtyTerminal {
 
     let { sid, url } = this.ttyParams;
     let reqData = { terminal_params: { w, h } };
-
-    logger.info('request new screen size', `w:${w} and h:${h}`);
     
-    api.put(`${url}/sessions/${sid}`, reqData)
-      .done(()=> logger.info('new screen size requested'))
-      .fail((err)=> logger.error('request new screen size', err));
+    logger.info('requesting new screen size', `w:${w} and h:${h}`);    
+    this.resize(w, h);
+    api.put(`${url}/sessions/${sid}`, reqData)      
+      .fail(err => logger.error('request new screen size', err));
   }
 
   _getDimensions(){
@@ -243,10 +222,8 @@ class TtyTerminal {
     let urlPrefix = getWsHostName();
 
     return `${urlPrefix}${url}/connect?access_token=${token}&params=${jsonEncoded}`;
-  }
-
+  }  
 }
-
 
 function getWsHostName(){
   var prefix = location.protocol == "https:"?"wss://":"ws://";
@@ -254,4 +231,4 @@ function getWsHostName(){
   return `${prefix}${hostport}`;
 }
 
-module.exports = TtyTerminal;
+export default TtyTerminal;

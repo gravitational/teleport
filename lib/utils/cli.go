@@ -66,7 +66,7 @@ func InitLogger(purpose LoggingPurpose, level log.Level) {
 }
 
 func InitLoggerForTests() {
-	InitLogger(LoggingForTests, log.WarnLevel)
+	InitLogger(LoggingForTests, log.DebugLevel)
 }
 
 // SwitchLoggingtoSyslog tells the logger to send the output to syslog

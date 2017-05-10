@@ -15,42 +15,44 @@ limitations under the License.
 */
 
 import React from 'react';
-import reactor from 'app/reactor';
-import cfg from 'app/config';
-import PartyListPanel from './../partyListPanel';
-import session from 'app/services/session';
+import { connect } from 'nuclear-js-react-addons';
+import { EventTypeEnum } from 'app/lib/term/enums';
 import Terminal from 'app/lib/term/terminal';
 import termGetters from 'app/flux/terminal/getters';
-import Indicator from './../indicator.jsx';
-import { initTerminal, startNew, close, updateSessionFromEventStream } from 'app/flux/terminal/actions';
+import { initTerminal, updateRoute, close } from 'app/flux/terminal/actions';
+import { updateSession } from 'app/flux/sessions/actions';
 import { openPlayer } from 'app/flux/player/actions';
+import PartyListPanel from './../partyListPanel';
+import Indicator from './../indicator.jsx';
 import PartyList from './terminalPartyList';
 
-const TerminalHost = React.createClass({
-
-  mixins: [reactor.ReactMixin],
-
-  getDataBindings() {    
-    return {
-      store: termGetters.store      
-    }
-  },
+class TerminalHost extends React.Component {
+    
+  constructor(props){
+    super(props)        
+  }
 
   componentDidMount() {    
     setTimeout(() => initTerminal(this.props.routeParams), 0);        
-  },  
+  }  
 
-  startNew() {
-    startNew(this.props.routeParams);        
-  },
+  startNew = () => {
+    let newRouteParams = {
+      ...this.props.routeParams,
+      sid: undefined
+    }      
+  
+    updateRoute(newRouteParams);    
+    initTerminal(newRouteParams);    
+  }
 
-  replay() {
+  replay = () => {
     openPlayer(this.props.routeParams);
-  },
+  }
 
   render() {        
-    let { store } = this.state;            
-    let { status, ...props } = store.toJS();
+    let { store } = this.props;            
+    let { status, sid } = store;
     let serverLabel = store.getServerLabel();
     
     let $content = null;
@@ -73,8 +75,8 @@ const TerminalHost = React.createClass({
 
     if (status.isReady) {      
       document.title = serverLabel;
-      $content = (<TtyTerminal {...props} />)
-      $leftPanelContent = (<PartyList sid={store.sid} />);
+      $content = (<TerminalContainer store={store}/>)
+      $leftPanelContent = (<PartyList sid={sid} />);
     } 
             
     return (
@@ -89,38 +91,45 @@ const TerminalHost = React.createClass({
      </div>
     );
   }
-});
+}
 
-const TtyTerminal = React.createClass({
-  componentDidMount() {
-    let { serverId, siteId, login, sid } = this.props;
-    let { token } = session.getUserData();
-    let url = cfg.api.getSiteUrl(siteId);
-
+class TerminalContainer extends React.Component {
+  
+  componentDidMount() {            
     let options = {
-      tty: {
-        serverId, login, sid, token, url
-      },     
-     el: this.refs.container
-    }
-    
+      tty: this.props.store.getTtyParams(),  
+      el: this.refs.container
+    }    
     this.terminal = new Terminal(options);
-    this.terminal.ttyEvents.on('data', updateSessionFromEventStream(siteId));
+    this.terminal.ttyEvents.on('data', this.receiveEvents.bind(this));
     this.terminal.open();
-  },
-
+  }
+  
   componentWillUnmount() {
     this.terminal.destroy();
-  },
+  }
 
   shouldComponentUpdate() {
     return false;
-  },
+  }
 
   render() {
     return ( <div ref="container"/> );
   }
-});
+
+  receiveEvents(data) {            
+    let hasEnded = data.events.some(item => item.event === EventTypeEnum.END);    
+    if (hasEnded) {
+      close();
+    }
+
+    // updates active sessin participant list
+    updateSession({      
+      siteId: this.props.siteId,
+      json: data.session      
+    })                                  
+  }
+}
 
 const ErrorIndicator = ({ text }) => (
   <div className="grv-terminalhost-indicator-error">
@@ -144,4 +153,10 @@ const SidNotFoundError = ({onNew, onReplay}) => (
   </div>
 )
 
-export default TerminalHost;
+function mapStateToProps() {
+  return {    
+    store: termGetters.store      
+  }
+}
+
+export default connect(mapStateToProps)(TerminalHost);

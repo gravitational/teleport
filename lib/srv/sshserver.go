@@ -512,7 +512,7 @@ func (s *Server) isAuthority(cert ssh.PublicKey) bool {
 	// find cert authority by it's key
 	cas, err := s.authService.GetCertAuthorities(services.UserCA, false)
 	if err != nil {
-		log.Warningf("%v", err)
+		log.Warningf("%v", trace.DebugReport(err))
 		return false
 	}
 
@@ -743,10 +743,15 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in
 
 	// As SSH conversation progresses, at some point a session will be created and
 	// its ID will be added to the environment
-	updateContext := func() {
+	updateContext := func() error {
 		ssid, found := ctx.getEnv(sshutils.SessionEnvVar)
 		if !found {
-			return
+			return nil
+		}
+		// make sure whatever session is requested is a valid session
+		_, err := rsession.ParseID(ssid)
+		if err != nil {
+			return trace.BadParameter("invalid session id")
 		}
 		findSession := func() (*session, bool) {
 			s.reg.Lock()
@@ -755,13 +760,31 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in
 		}
 		// update ctx with a session ID
 		ctx.session, _ = findSession()
-		log.Debugf("[SSH] loaded session %v for SSH connection %v", ctx.session, sconn)
+		if ctx.session == nil {
+			log.Debugf("[SSH] will create new session for SSH connection %v", sconn.RemoteAddr())
+		} else {
+			log.Debugf("[SSH] will join session %v for SSH connection %v", ctx.session, sconn.RemoteAddr())
+		}
+
+		return nil
 	}
 
 	for {
 		// update ctx with the session ID:
 		if !s.proxyMode {
-			updateContext()
+			err := updateContext()
+			if err != nil {
+				errorMessage := fmt.Sprintf("unable to update context: %v", err)
+				ctx.Errorf("[SSH] %v", errorMessage)
+
+				// write the error to channel and close it
+				ch.Stderr().Write([]byte(errorMessage))
+				_, err := ch.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: teleport.RemoteCommandFailure}))
+				if err != nil {
+					ctx.Errorf("[SSH] failed to send exit status %v", errorMessage)
+				}
+				return
+			}
 		}
 		select {
 		case creq := <-ctx.subsystemResultC:

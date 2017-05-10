@@ -38,13 +38,13 @@ module.exports = {
     sourceMapFilename: '[name].map'
   },
 
+  noParse: [ /xterm.js$/ ],
+  
   resolve: {
 
-    alias: {
-      '_': path.join(ROOT_PATH, 'src/assets/js/underscore'),
+    alias: {      
       jquery: path.join(ROOT_PATH, 'src/assets/js/jquery'),
-      jQuery: path.join(ROOT_PATH, 'src/assets/js/jquery'),
-      Terminal: path.join(ROOT_PATH, 'src/assets/js/terminal')
+      jQuery: path.join(ROOT_PATH, 'src/assets/js/jquery')      
     },
 
     root: [ path.join(ROOT_PATH, 'src') ],

@@ -14,109 +14,77 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 import reactor from 'app/reactor';
-import session from 'app/services/session';
+import history from 'app/services/history';
 import api from 'app/services/api';
 import cfg from 'app/config';
-//import getters from './getters';
-import { updateSession } from './../sessions/actions';
+import Logger from 'app/lib/logger'; 
 import sessionGetters from './../sessions/getters';
-//import {showError} from 'app/flux/notifications/actions';
+import { TLPT_TERMINAL_INIT, TLPT_TERMINAL_CLOSE, TLPT_TERMINAL_SET_STATUS } from './actionTypes';
 
-const logger = require('app/lib/logger').create('Current Session');
+const logger = Logger.create('flux/terminal');
 
-const { TLPT_TERMINAL_OPEN, TLPT_TERMINAL_CLOSE, TLPT_TERMINAL_SET_STATUS } = require('./actionTypes');
+const setStatus = json => reactor.dispatch(TLPT_TERMINAL_SET_STATUS, json);    
 
-const changeBrowserUrl = newRouteParams => {
-  let routeUrl = cfg.getTerminalLoginUrl(newRouteParams);                                    
-  session.getHistory().push(routeUrl);      
+const initStore = json => reactor.dispatch(TLPT_TERMINAL_INIT, json );    
+
+const createSid = routeParams => {
+  let { login, siteId } = routeParams;
+  let data = {
+    session: {
+      terminal_params: {
+        w: 45,
+        h: 5
+      },
+      login
+    }
+  };
+
+  return api.post(cfg.api.getSiteSessionUrl(siteId), data);    
 }
-
-const actions = {
-
-  startNew(routeParams) {
-    let newRouteParams = {
-      ...routeParams,
-      sid: undefined
-    }      
     
-    changeBrowserUrl(newRouteParams);    
-    actions.initTerminal(newRouteParams);
-  },
+export const initTerminal = routeParams => {
+  logger.info('attempt to open a terminal', routeParams);    
   
-  createNewSession(routeParams) {
-    let { login, siteId } = routeParams;
-    let data = {
-      session: {
-        terminal_params: {
-          w: 45,
-          h: 5
-        },
-        login
-      }
-    };
-
-    return api.post(cfg.api.getSiteSessionUrl(siteId), data)
-      .then(json => {
-        let sid = json.session.id;
-        let newRouteParams = {
-          ...routeParams,
-          sid
-        };
-    
-        reactor.dispatch(TLPT_TERMINAL_OPEN, newRouteParams);
-        reactor.dispatch(TLPT_TERMINAL_SET_STATUS, { isReady: true });
-        changeBrowserUrl(newRouteParams);                    
-      })
-      .fail(err => {
-        let errorText = api.getErrorText(err);
-        reactor.dispatch(TLPT_TERMINAL_SET_STATUS, {
-          isError: true,
-          errorText,
-        });
-      });
-  },
-
-  initTerminal(routeParams) {
-    logger.info('attempt to open a terminal', routeParams);    
-    let { sid } = routeParams;
-
-    reactor.dispatch(TLPT_TERMINAL_SET_STATUS, { isLoading: true });
-    
-    if (sid) {                  
-      // look up active session matching given sid      
-      let activeSession = reactor.evaluate(sessionGetters.activeSessionById(sid));
-      if (activeSession) {        
-        reactor.dispatch(TLPT_TERMINAL_OPEN, routeParams);        
-        reactor.dispatch(TLPT_TERMINAL_SET_STATUS, { isReady: true });        
-      } else {
-        reactor.dispatch(TLPT_TERMINAL_SET_STATUS, { isNotFound: true });        
-      }
+  let { sid } = routeParams;
+  
+  setStatus({ isLoading: true });
+  
+  if (sid) {                  
+    let activeSession = reactor.evaluate(sessionGetters.activeSessionById(sid));
+    if (activeSession) {      
+      // init store with existing sid
+      initStore(routeParams);
+      setStatus({ isReady: true });
     } else {
-      actions.createNewSession(routeParams);      
-    }
+      setStatus({ isNotFound: true });              
+    }   
+
+    return;
+  } 
+  
+  createSid(routeParams)
+    .done(json => {
+      let sid = json.session.id;
+      let newRouteParams = {
+        ...routeParams,
+        sid
+      };        
+      initStore(newRouteParams)
+      setStatus({ isReady: true });
+      updateRoute(newRouteParams);                    
+    })
+    .fail(err => {
+      let errorText = api.getErrorText(err);
+      setStatus({ isError: true, errorText });
+    });  
+}
     
-  },
-
-  close() {    
-    reactor.dispatch(TLPT_TERMINAL_CLOSE);    
-    session.getHistory().push(cfg.routes.nodes);    
-  },
-
-  updateSessionFromEventStream(siteId) {
-    return data => {
-      data.events.forEach(item => {
-        if (item.event === 'session.end') {
-          actions.close();
-        }
-      })
-      
-      updateSession({
-        siteId: siteId,
-        json: data.session
-      });
-    }
-  }
-
+export const close = () => {    
+  reactor.dispatch(TLPT_TERMINAL_CLOSE);      
+  history.push(cfg.routes.nodes);      
 }
 
-export default actions;
+export const updateRoute = newRouteParams => {    
+  let routeUrl = cfg.getTerminalLoginUrl(newRouteParams);                                    
+  history.push(routeUrl);      
+}  

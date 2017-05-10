@@ -15,25 +15,30 @@ limitations under the License.
 */
 
 import React from 'react';
-import {debounce} from '_';
+import { debounce } from 'lodash';
 
-const InputSearch = React.createClass({
+class InputSearch extends React.Component {
 
-  getInitialState(){
-    this.debouncedNotify = debounce(()=>{        
-        this.props.onChange(this.state.value);
+  constructor(props) {
+    super(props);    
+    this.debouncedNotify = debounce(() => {
+      this.props.onChange(this.state.value);
     }, 200);
 
-    return {value: this.props.value};
-  },
+    let value = props.value || '';
 
-  onChange(e){
-    this.setState({value: e.target.value});
+    this.state = {
+      value
+    };
+  }
+
+  onChange = e => {
+    this.setState({ value: e.target.value });
     this.debouncedNotify();
-  },
-  
+  }
+        
   render() {
-    let { className = ''} = this.props;
+    let { className = '' } = this.props;
     className = `grv-search input-group-sm ${className}`;
 
     return (
@@ -45,6 +50,6 @@ const InputSearch = React.createClass({
       </div>
     );
   }
-});
+}
 
 export default InputSearch;
