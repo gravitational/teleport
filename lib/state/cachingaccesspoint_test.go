@@ -69,19 +69,19 @@ var (
 		{
 			Name:           "elliot",
 			AllowedLogins:  []string{"elliot", "root"},
-			OIDCIdentities: []services.OIDCIdentity{},
+			OIDCIdentities: []services.ExternalIdentity{},
 		},
 		{
 			Name:          "bob",
 			AllowedLogins: []string{"bob"},
-			OIDCIdentities: []services.OIDCIdentity{
+			OIDCIdentities: []services.ExternalIdentity{
 				{
 					ConnectorID: "example.com",
-					Email:       "bob@example.com",
+					Username:    "bob@example.com",
 				},
 				{
 					ConnectorID: "example.net",
-					Email:       "bob@example.net",
+					Username:    "bob@example.net",
 				},
 			},
 		},
