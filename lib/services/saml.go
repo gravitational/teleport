@@ -90,6 +90,10 @@ type SAMLConnector interface {
 	SetAudience(v string)
 	// GetServiceProvider initialises service provider spec from settings
 	GetServiceProvider() (*saml2.SAMLServiceProvider, error)
+	// GetAssertionConsumerService returns assertion consumer service URL
+	GetAssertionConsumerService() string
+	// SetAssertionConsumerService sets assertion consumer service URL
+	SetAssertionConsumerService(v string)
 }
 
 // NewSAMLConnector returns a new SAMLConnector based off a name and SAMLConnectorSpecV2.
@@ -238,6 +242,16 @@ func (o *SAMLConnectorV2) GetEntityDescriptor() string {
 // SetEntityDescriptor sets entity descritor of the service
 func (o *SAMLConnectorV2) SetEntityDescriptor(v string) {
 	o.Spec.EntityDescriptor = v
+}
+
+// GetAssertionConsumerService returns assertion consumer service URL
+func (o *SAMLConnectorV2) GetAssertionConsumerService() string {
+	return o.Spec.AssertionConsumerService
+}
+
+// SetAssertionConsumerService sets assertion consumer service URL
+func (o *SAMLConnectorV2) SetAssertionConsumerService(v string) {
+	o.Spec.AssertionConsumerService = v
 }
 
 // Equals returns true if the connectors are identical
