@@ -486,7 +486,7 @@ func (s *ServicesTestSuite) U2FCRUD(c *C) {
 }
 
 func (s *ServicesTestSuite) SAMLCRUD(c *C) {
-	connector := services.SAMLConnectorV2{
+	connector := &services.SAMLConnectorV2{
 		Kind:    services.KindSAML,
 		Version: services.V2,
 		Metadata: services.Metadata{
@@ -503,7 +503,40 @@ func (s *ServicesTestSuite) SAMLCRUD(c *C) {
 				{Name: "groups", Value: "admin", Roles: []string{"admin"}},
 			},
 			Cert: fixtures.SigningCertPEM,
+			SigningKeyPair: &services.SigningKeyPair{
+				PrivateKey: fixtures.SigningKeyPEM,
+				Cert:       fixtures.SigningCertPEM,
+			},
 		},
 	}
-	c.Assert(connector, NotNil)
+	err := connector.CheckAndSetDefaults()
+	c.Assert(err, IsNil)
+	err = s.WebS.UpsertSAMLConnector(connector)
+	c.Assert(err, IsNil)
+	out, err := s.WebS.GetSAMLConnector(connector.GetName(), true)
+	c.Assert(err, IsNil)
+	fixtures.DeepCompare(c, out, connector)
+
+	connectors, err := s.WebS.GetSAMLConnectors(true)
+	c.Assert(err, IsNil)
+	fixtures.DeepCompare(c, []services.SAMLConnector{connector}, connectors)
+
+	out2, err := s.WebS.GetSAMLConnector(connector.GetName(), false)
+	c.Assert(err, IsNil)
+	connectorNoSecrets := *connector
+	connectorNoSecrets.Spec.SigningKeyPair.PrivateKey = ""
+	fixtures.DeepCompare(c, out2, &connectorNoSecrets)
+
+	connectorsNoSecrets, err := s.WebS.GetSAMLConnectors(false)
+	c.Assert(err, IsNil)
+	fixtures.DeepCompare(c, []services.SAMLConnector{&connectorNoSecrets}, connectorsNoSecrets)
+
+	err = s.WebS.DeleteSAMLConnector(connector.GetName())
+	c.Assert(err, IsNil)
+
+	err = s.WebS.DeleteSAMLConnector(connector.GetName())
+	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("expected not found, got %T", err))
+
+	_, err = s.WebS.GetSAMLConnector(connector.GetName(), true)
+	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("expected not found, got %T", err))
 }

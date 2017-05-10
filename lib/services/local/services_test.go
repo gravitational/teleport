@@ -101,3 +101,7 @@ func (s *ServicesSuite) TestRoles(c *C) {
 func (s *ServicesSuite) TestU2FCRUD(c *C) {
 	s.suite.U2FCRUD(c)
 }
+
+func (s *ServicesSuite) TestSAMLCRUD(c *C) {
+	s.suite.SAMLCRUD(c)
+}

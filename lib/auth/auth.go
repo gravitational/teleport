@@ -175,6 +175,11 @@ func (a *AuthServer) Close() error {
 	return nil
 }
 
+// SetClock sets clock, used in tests
+func (a *AuthServer) SetClock(clock clockwork.Clock) {
+	a.clock = clock
+}
+
 // GetDomainName returns the domain name that identifies this authority server.
 // Also known as "cluster name"
 func (a *AuthServer) GetDomainName() (string, error) {
@@ -739,7 +744,7 @@ func (s *AuthServer) getSAMLProvider(conn services.SAMLConnector) (*saml2.SAMLSe
 	}
 	delete(s.samlProviders, conn.GetName())
 
-	serviceProvider, err := conn.GetServiceProvider()
+	serviceProvider, err := conn.GetServiceProvider(s.clock)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1059,7 +1064,7 @@ func (a *AuthServer) buildSAMLRoles(connector services.SAMLConnector, assertionI
 		// upsert templated role
 		err = a.Access.UpsertRole(role, ttl)
 		if err != nil {
-			log.Warningf("[OIDC] Unable to upsert templated role for connector: %q", connector.GetName())
+			log.Warningf("[SAML] Unable to upsert templated role for connector: %q", connector.GetName())
 			return nil, trace.AccessDenied("unable to upsert templated role: %q", connector.GetName())
 		}
 
@@ -1399,7 +1404,6 @@ func (a *AuthServer) validateACRValues(acrValue string, identityProvider string,
 
 func parseSAMLInResponseTo(response string) (string, error) {
 	raw, _ := base64.StdEncoding.DecodeString(response)
-	log.Debugf("SAML response:\n %v\n", string(raw))
 
 	doc := etree.NewDocument()
 	err := doc.ReadFromBytes(raw)
@@ -1473,7 +1477,7 @@ func (a *AuthServer) ValidateSAMLResponse(samlResponse string) (*SAMLAuthRespons
 
 	log.Debugf("warnings %+v\n", assertionInfo.WarningInfo)
 
-	log.Debugf("[OIDC] Applying %v claims to roles mappings", len(connector.GetAttributesToRoles()))
+	log.Debugf("[SAML] Applying %v claims to roles mappings", len(connector.GetAttributesToRoles()))
 	if len(connector.GetAttributesToRoles()) == 0 {
 		return nil, trace.BadParameter("SAML does not support binding to local users")
 	}

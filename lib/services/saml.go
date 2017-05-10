@@ -89,7 +89,7 @@ type SAMLConnector interface {
 	// SetAudience sets audience
 	SetAudience(v string)
 	// GetServiceProvider initialises service provider spec from settings
-	GetServiceProvider() (*saml2.SAMLServiceProvider, error)
+	GetServiceProvider(clock clockwork.Clock) (*saml2.SAMLServiceProvider, error)
 	// GetAssertionConsumerService returns assertion consumer service URL
 	GetAssertionConsumerService() string
 	// SetAssertionConsumerService sets assertion consumer service URL
@@ -154,6 +154,7 @@ func (*TeleportSAMLConnectorMarshaler) UnmarshalSAMLConnector(bytes []byte) (SAM
 		if err := utils.UnmarshalWithSchema(GetSAMLConnectorSchema(), &c, bytes); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
+		utils.UTC(&c.Metadata.Expires)
 		return &c, nil
 	}
 
@@ -487,7 +488,7 @@ func (o *SAMLConnectorV2) RoleFromTemplate(assertionInfo saml2.AssertionInfo) (R
 }
 
 // GetServiceProvider initialises service provider spec from settings
-func (o *SAMLConnectorV2) GetServiceProvider() (*saml2.SAMLServiceProvider, error) {
+func (o *SAMLConnectorV2) GetServiceProvider(clock clockwork.Clock) (*saml2.SAMLServiceProvider, error) {
 	if o.Metadata.Name == "" {
 		return nil, trace.BadParameter("ID: missing connector name, name your connector to refer to internally e.g. okta1")
 	}
@@ -585,6 +586,7 @@ func (o *SAMLConnectorV2) GetServiceProvider() (*saml2.SAMLServiceProvider, erro
 		AudienceURI:                 o.Spec.Audience,
 		IDPCertificateStore:         &certStore,
 		SPKeyStore:                  keyStore,
+		Clock:                       dsig.NewFakeClock(clock),
 	}
 	return sp, nil
 }
@@ -600,7 +602,7 @@ func (o *SAMLConnectorV2) SetSigningKeyPair(k *SigningKeyPair) {
 }
 
 func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
-	_, err := o.GetServiceProvider()
+	_, err := o.GetServiceProvider(clockwork.NewRealClock())
 	return err
 }
 
