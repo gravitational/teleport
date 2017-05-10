@@ -57,6 +57,34 @@ func (s *Suite) SetUpSuite(c *check.C) {
 	s.suite.B = s.bk
 }
 
+func (s *Suite) TestConcurrentDeleteBucket(c *check.C) {
+	bucket := []string{"concurrent", "bucket"}
+
+	const attempts = 50
+	resultsC := make(chan struct{}, attempts*2)
+	for i := 0; i < attempts; i++ {
+		go func(cnt int) {
+			err := s.bk.UpsertVal(bucket, "key", []byte("new-value"), backend.Forever)
+			resultsC <- struct{}{}
+			c.Assert(err, check.IsNil)
+		}(i)
+
+		go func(cnt int) {
+			err := s.bk.DeleteBucket([]string{"concurrent"}, "bucket")
+			resultsC <- struct{}{}
+			c.Assert(err, check.IsNil)
+		}(i)
+	}
+	timeoutC := time.After(3 * time.Second)
+	for i := 0; i < attempts*2; i++ {
+		select {
+		case <-resultsC:
+		case <-timeoutC:
+			c.Fatalf("timeout waiting for goroutines to finish")
+		}
+	}
+}
+
 func (s *Suite) TestCreateAndRead(c *check.C) {
 	bucket := []string{"one", "two"}
 
