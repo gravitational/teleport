@@ -5,6 +5,7 @@
 	"Packages": [
 		"./lib/...",
 		"./tool/...",
+		"./lib/web/...",
 		"./integration/..."
 	],
 	"Deps": [
@@ -29,6 +30,11 @@
 		{
 			"ImportPath": "github.com/alecthomas/units",
 			"Rev": "6b4e7dc5e3143b85ea77909c72caf89416fc2915"
+		},
+		{
+			"ImportPath": "github.com/alessio/shellescape",
+			"Comment": "v1.2",
+			"Rev": "52074bc9df61e0d2af85c160b3a325403955d7fb"
 		},
 		{
 			"ImportPath": "github.com/aws/aws-sdk-go/aws",
@@ -187,6 +193,10 @@
 			"Rev": "d281585cd7365cff9edfed1a5115fc624a012bdc"
 		},
 		{
+			"ImportPath": "github.com/codahale/hdrhistogram",
+			"Rev": "954f16e8b9ef0e5d5189456aa4c1202758e04f17"
+		},
+		{
 			"ImportPath": "github.com/coreos/etcd/Godeps/_workspace/src/github.com/ugorji/go/codec",
 			"Comment": "v2.3.0-alpha.1-249-g0c41371",
 			"Rev": "0c41371064666ad159761e0fb12c7f240b3977cb"
@@ -295,11 +305,11 @@
 		},
 		{
 			"ImportPath": "github.com/gravitational/roundtrip",
-			"Rev": "60edbab084e6bd08a32204f04b4b80c73674cab0"
+			"Rev": "4162b978cd8cbec3f35dea84aae8d5fc696363c7"
 		},
 		{
 			"ImportPath": "github.com/gravitational/trace",
-			"Rev": "6e153c7add15eb07e311f892779fb294373c4cfa"
+			"Rev": "d991fd2b77899e184df73f0fe9b6f420880fb73b"
 		},
 		{
 			"ImportPath": "github.com/gravitational/ttlmap",
@@ -365,11 +375,6 @@
 		{
 			"ImportPath": "github.com/mailgun/ttlmap",
 			"Rev": "16b258d86efc53ac5cf3e550604f566c32624fab"
-		},
-		{
-			"ImportPath": "github.com/mattn/go-shellwords",
-			"Comment": "v1.0.2",
-			"Rev": "005a0944d84452842197c2108bd9168ced206f78"
 		},
 		{
 			"ImportPath": "github.com/mdp/rsc/gf256",

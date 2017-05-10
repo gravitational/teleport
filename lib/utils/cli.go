@@ -33,53 +33,55 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// InitLoggerCLI tools by default log into syslog, not stderr
-func InitLoggerCLI() {
-	log.SetLevel(log.WarnLevel)
-	// clear existing hooks:
-	log.StandardLogger().Hooks = make(log.LevelHooks)
-	log.SetFormatter(&trace.TextFormatter{})
+type LoggingPurpose int
 
+const (
+	LoggingForDaemon LoggingPurpose = iota
+	LoggingForCLI
+	LoggingForTests
+)
+
+// InitLogger configures the global logger for a given purpose / verbosity level
+func InitLogger(purpose LoggingPurpose, level log.Level) {
+	log.StandardLogger().Hooks = make(log.LevelHooks)
+	formatter := &trace.TextFormatter{}
+	formatter.DisableTimestamp = true
+	log.SetFormatter(formatter)
+	log.SetLevel(level)
+
+	switch purpose {
+	case LoggingForCLI:
+		SwitchLoggingtoSyslog()
+	case LoggingForDaemon:
+		log.SetOutput(os.Stderr)
+	case LoggingForTests:
+		log.SetLevel(level)
+		val, _ := strconv.ParseBool(os.Getenv(teleport.VerboseLogsEnvVar))
+		if val {
+			return
+		}
+		log.SetLevel(log.WarnLevel)
+		log.SetOutput(ioutil.Discard)
+	}
+}
+
+func InitLoggerForTests() {
+	InitLogger(LoggingForTests, log.DebugLevel)
+}
+
+// SwitchLoggingtoSyslog tells the logger to send the output to syslog
+func SwitchLoggingtoSyslog() {
+	log.StandardLogger().Hooks = make(log.LevelHooks)
 	hook, err := logrusSyslog.NewSyslogHook("", "", syslog.LOG_WARNING, "")
 	if err != nil {
 		// syslog not available
+		log.SetOutput(os.Stderr)
 		log.Warn("syslog not available. reverting to stderr")
 	} else {
 		// ... and disable stderr:
 		log.AddHook(hook)
 		log.SetOutput(ioutil.Discard)
 	}
-}
-
-// InitLoggerDebug configures the logger to dump everything to stderr
-func InitLoggerDebug() {
-	InitDebugLogger(log.DebugLevel)
-}
-
-// InitLoggerVerbose is a less chatty version of debug logger above
-func InitLoggerVerbose() {
-	InitDebugLogger(log.InfoLevel)
-}
-
-func InitDebugLogger(level log.Level) {
-	// clear existing hooks:
-	log.StandardLogger().Hooks = make(log.LevelHooks)
-	log.SetFormatter(&trace.TextFormatter{})
-	log.SetOutput(os.Stderr)
-	log.SetLevel(level)
-}
-
-// InitLoggerForTests inits logger to discard ouput in tests unless
-// DEBUG is set to "1"
-func InitLoggerForTests() {
-	val, _ := strconv.ParseBool(os.Getenv(teleport.VerboseLogsEnvVar))
-	if val {
-		InitLoggerDebug()
-		return
-	}
-	log.SetLevel(log.WarnLevel)
-	log.StandardLogger().Hooks = make(log.LevelHooks)
-	log.SetOutput(ioutil.Discard)
 }
 
 // FatalError is for CLI front-ends: it detects gravitational/trace debugging

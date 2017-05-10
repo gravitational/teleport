@@ -17,6 +17,8 @@ limitations under the License.
 package roundtrip
 
 import (
+	"net/url"
+
 	"github.com/gravitational/trace"
 )
 
@@ -53,4 +55,16 @@ func (a *ParameterError) Error() string {
 // to class of errors related to bad parameters
 func (a *ParameterError) IsParameterError() bool {
 	return true
+}
+
+// ConvertResponse converts http error to internal error type
+// based on HTTP response code and HTTP body contents
+func ConvertResponse(re *Response, err error) (*Response, error) {
+	if err != nil {
+		if uerr, ok := err.(*url.Error); ok && uerr != nil && uerr.Err != nil {
+			return nil, trace.Wrap(uerr.Err)
+		}
+		return nil, trace.Wrap(err)
+	}
+	return re, trace.ReadError(re.Code(), re.Bytes())
 }

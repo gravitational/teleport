@@ -1,5 +1,63 @@
 # Changelog
 
+## 2.0.6
+
+### Bugfixes
+
+* Fixed regression in TLP-01-009.
+
+## 2.0.5
+
+Teleport 2.0.5 contains a variety of security fixes. We strongly encourage anyone running Teleport 2.0.0 and above to upgrade to 2.0.5.
+
+The most pressing issues (a phishing attack which can potentially be used to extract plaintext credentials and an attack where an already authenticated user can escalate privileges) can be resolved by upgrading the web proxy. However, however all nodes need to be upgraded to mitigate all vulnerabilities. 
+
+### Bugfixes
+
+* Patch for TLP-01-001 and TLP-01-003: Check redirect.
+* Patch for TLP-01-004: Always check is namespace is valid.
+* Patch for TLP-01-005: Check user principal when joining session.
+* Patch for TLP-01-006 and TLP-01-007: Validate Session ID.
+* Patch for TLP-01-008: Use a fake hash for password authentication if user does not exist.
+* Patch for TLP-01-009: Command injection in scp.
+
+## 2.0.4
+
+### Bugfixes
+
+* Roles created the the Web UI now have `node` resource. [#949](https://github.com/gravitational/teleport/pull/949)
+
+## 2.0.3
+
+### Bugfixes
+
+* Execute commands using user's shell.  [#943](https://github.com/gravitational/teleport/pull/943)
+* Allow users to read their own roles. [#941](https://github.com/gravitational/teleport/pull/941)
+* Fix User CA import. [#919](https://github.com/gravitational/teleport/pull/919)
+* Role template defaults. [#916](https://github.com/gravitational/teleport/pull/916)
+* Skip UserInfo if not provided. [#915](https://github.com/gravitational/teleport/pull/915)
+
+## 2.0.2
+
+### Bugfixes
+
+* Agent socket had wrong permissions. [#936](https://github.com/gravitational/teleport/pull/936)
+
+## 2.0.1
+
+### Features
+
+* Introduced Dynamic Roles. [#897](https://github.com/gravitational/teleport/pull/897)
+
+### Improvements
+
+* Improved OpenSSH interoperability. [#902](https://github.com/gravitational/teleport/pull/902), [#911](https://github.com/gravitational/teleport/pull/911)
+* Enhanced OIDC Functionality. [#882](https://github.com/gravitational/teleport/pull/882)
+
+### Bugfixes
+
+* Fixed Regressions. [#874](https://github.com/gravitational/teleport/pull/874), [#876](https://github.com/gravitational/teleport/pull/876), [#883](https://github.com/gravitational/teleport/pull/883), [#892](https://github.com/gravitational/teleport/pull/892), and [#906](https://github.com/gravitational/teleport/pull/906)
+
 ## 2.0
 
 This is a major new release of Teleport.

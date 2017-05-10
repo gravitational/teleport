@@ -22,10 +22,10 @@ let cfg = {
   baseUrl: window.location.origin,
 
   helpUrl: 'https://gravitational.com/teleport/docs/quickstart/',
-
+  
   maxSessionLoadSize: 50,
 
-  displayDateFormat: 'DD/MM/YYYY HH:mm:ss',
+  displayDateFormat: 'MM/DD/YYYY HH:mm:ss',
 
   auth: {        
   },
@@ -40,7 +40,9 @@ let cfg = {
     msgs: '/web/msg/:type(/:subType)',
     pageNotFound: '/web/notfound',
     terminal: '/web/cluster/:siteId/node/:serverId/:login(/:sid)',
-    player: '/web/player/node/:siteId/sid/:sid'
+    player: '/web/player/node/:siteId/sid/:sid',
+    sso: '/v1/webapi/oidc/login/*',    
+    ssoInvite: '/v1/webapi/users/invites/oidc/*'
   },
 
   api: {    
@@ -52,10 +54,10 @@ let cfg = {
     invitePath: '/v1/webapi/users/invites/:inviteToken',
     inviteWithOidcPath: '/v1/webapi/users/invites/oidc/validate?redirect_url=:redirect&connector_id=:provider&token=:inviteToken',
     createUserPath: '/v1/webapi/users',
-    u2fCreateUserChallengePath: '/webapi/u2f/signuptokens/:inviteToken',
-    u2fCreateUserPath: '/webapi/u2f/users',
-    u2fSessionChallengePath: '/webapi/u2f/signrequest',
-    u2fSessionPath: '/webapi/u2f/sessions',
+    u2fCreateUserChallengePath: '/v1/webapi/u2f/signuptokens/:inviteToken',
+    u2fCreateUserPath: '/v1/webapi/u2f/users',
+    u2fSessionChallengePath: '/v1/webapi/u2f/signrequest',
+    u2fSessionPath: '/v1/webapi/u2f/sessions',
     sitesBasePath: '/v1/webapi/sites',
     sitePath: '/v1/webapi/sites/:siteId',  
     nodesPath: '/v1/webapi/sites/:siteId/nodes',
@@ -123,17 +125,13 @@ let cfg = {
 
     return formatPattern(cfg.routes.terminal, { siteId, serverId, login, sid });  
   },
-
-  getFullUrl(url){
-    return cfg.baseUrl + url;
-  },
-
+  
   getCurrentSessionRouteUrl({sid, siteId}){
     return formatPattern(cfg.routes.currentSession, {sid, siteId});
   },
 
   getAuthProviders() {
-    return cfg.auth ? [cfg.auth.oidc] : [];    
+    return cfg.auth && cfg.auth.oidc ? [cfg.auth.oidc] : [];    
   },
   
   getAuthType() {
@@ -151,7 +149,7 @@ let cfg = {
   init(config={}){
     $.extend(true, this, config);
   },
-
+    
   stripOptionalParams(pattern) {
     return pattern.replace(/\(.*\)/, '');
   } 

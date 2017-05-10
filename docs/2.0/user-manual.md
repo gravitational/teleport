@@ -3,17 +3,17 @@
 This User Manual covers usage of the Teleport client tool `tsh`. In this 
 document you will learn how to:
 
-* Securely login into interactive shell on remote cluster nodes.
-* Securely copy files to and from cluster nodes.
+* Log into interactive shell on remote cluster nodes.
+* Copy files to and from cluster nodes.
 * Connect to SSH clusters behind firewalls without any open ports using SSH reverse tunnels.
 * Explore a cluster and execute commands on those nodes in a cluster that match your criteria.
 * Share interactive shell sessions with colleagues or join someone else's session.
 * Replay recorded interactive sessions.
-* Use Teleport with OpenSSH client: `ssh` or with other tools that use SSH under the hood like Chef and Ansible.
+* Use Teleport with OpenSSH or with other tools that use SSH like Chef and Ansible.
 
 In addition to this document, you can always type `tsh` into your terminal for the CLI reference.
 ```bash
-> tsh
+$ tsh
 usage: tsh [<flags>] <command> [<command-args> ...]
 
 Gravitational Teleport SSH tool
@@ -42,24 +42,24 @@ Notes:
 There are a few differences between Teleport's `tsh` and OpenSSH's `ssh` but the 
 most noticeable ones are:
 
-* Teleport only uses certificate-based authentication. Teleport is about clusters
-  centered around a certificate authority (CA). The concept of "cluster membership" 
+* Teleport only uses certificate-based authentication. Teleport is designed for clusters
+  using a central certificate authority (CA). The concept of "cluster membership" is
   essential in Teleport.
 
 * `tsh` always requires `--proxy` flag because `tsh` needs to know which cluster
   you are connecting to. 
 
 * `tsh` needs _two_ usernames: one for the cluster and another for the node you
-  are trying to login into. See "Teleport Identity" section below. For convenience, 
+  are trying to login into. See [User Identities](#user-identities) section below. For convenience, 
   `tsh` assumes `$USER` for both logins by default.
 
 While it may appear less convenient than `ssh`, we hope that the default behavior
 and techniques like bash aliases will help to minimize the amount of typing.
 
-On the other hand, Teleport is built using solely standard SSH constructus: keys,
+On the other hand, Teleport is built using standard SSH constructs: keys,
 certificates, protocols. This means that Teleport is 100% compatible with OpenSSH
-clients and servers. See [Using Teleport with OpenSSH](admin-guide#using-teleport-with-openssh) 
-chapter in the Admin Guide for more information.
+clients and servers. See the [Using Teleport with OpenSSH](admin-guide#using-teleport-with-openssh) 
+section in the Admin Guide for more information.
 
 ## User Identities
 
@@ -76,17 +76,17 @@ These examples assume your localhost username is 'joe':
 ```bash
 # Authenticate against cluster 'work' as 'joe' and then login into 'node'
 # as root:
-> tsh ssh --proxy=work.example.com --user=joe root@node
+$ tsh ssh --proxy=work.example.com --user=joe root@node
 
 # Authenticate against cluster 'work' as 'joe' and then login into 'node'
 # as joe (by default tsh uses $USER for both):
-> tsh ssh --proxy=work.example.com node
+$ tsh ssh --proxy=work.example.com node
 ```
 
-`tsh` allows you to login into the cluster without connecting to any master nodes:
+`tsh login` allows you to log in to the cluster without connecting to any master nodes:
 
 ```
-> tsh login --proxy=work.example.com
+$ tsh login --proxy=work.example.com
 ```
 
 This allows you to supply your password and the 2nd factor authentication
@@ -96,12 +96,12 @@ asking for your credentials until the temporary certificate expires (by default 
 ## Exploring the Cluster
 
 In a Teleport cluster all nodes periodically ping the cluster's auth server and
-update their statuses. This allows Teleport users to see which nodes are online:
+update their status. This allows Teleport users to see which nodes are online with the `tsh ls` command:
 
 ```bash
 # Connect to cluster 'work' as $USER and list all nodes in 
 # a cluster:
-> tsh --proxy=work ls
+$ tsh --proxy=work ls
 
 # Output:
 Node Name     Node ID                Address            Labels
@@ -114,7 +114,7 @@ graviton      33333333-aaaa-1284     10.1.0.7:3022     os:osx
 You can filter out nodes based on their labels. Let's only list OSX machines:
 
 ```
-> tsh --proxy=work ls os=osx
+$ tsh --proxy=work ls os=osx
 
 Node Name     Node ID                Address            Labels
 ---------     -------                -------            ------
@@ -127,7 +127,7 @@ To launch an interactive shell on a remote node or to execute a command, use `ts
 command:
 
 ```bash
-> tsh ssh --help
+$ tsh ssh --help
 
 usage: t ssh [<flags>] <[user@]host> [<command>...]
 Run shell or execute a command on a remote SSH node.
@@ -148,17 +148,17 @@ Args:
   [<command>]    Command to execute on a remote host
 ```
 
-`tsh` tries to mimic `ssh` experience as much as possible, so it supports the most popular `ssh`
+`tsh` tries to mimic the `ssh` experience as much as possible, so it supports the most popular `ssh`
 flags like `-p`, `-l` or `-L`. For example if you have the following alias defined in your 
 `~/.bashrc`: `alias ssh="tsh --proxy=work.example.com --user=myname"` then you can continue
 using familiar SSH syntax:
 
 ```bash
-> ssh root@host
-> ssh -p 6122 root@host ls
+$ ssh root@host
+$ ssh -p 6122 root@host ls
 ```
 
-### Note about Proxies
+### Proxy Ports
 
 A Teleport proxy uses two ports: `3080` for HTTPS and `3023` for proxying SSH connections.
 The HTTPS port is used to serve Web UI and also to implement 2nd factor auth for `tsh` client.
@@ -185,7 +185,7 @@ where "bind_interface" defaults to `127.0.0.1`.
 
 Example:
 ```
-> tsh --proxy=work ssh -L 5000:web.remote:80 -d node
+$ tsh --proxy=work ssh -L 5000:web.remote:80 -d node
 ```
 
 Will connect to remote server `node` via `work` proxy, then it will open a listening socket on
@@ -197,7 +197,7 @@ connection and disconnect. Yon can do this via `--local` flag.
 
 Example:
 ```
-> tsh --proxy=work ssh -L 5000:google.com:80 --local node curl http://localhost:5000
+$ tsh --proxy=work ssh -L 5000:google.com:80 --local node curl http://localhost:5000
 ```
 
 This forwards just one curl request for `localhost:5000` to `google:80` via "node" server located
@@ -215,7 +215,7 @@ In the example above, we have two nodes with `os:linux` label and one node with 
 Lets login into the OSX node:
 
 ```bash
-> tsh --proxy=work ssh os=osx
+$ tsh --proxy=work ssh os=osx
 ```
 
 This only works if there is only one remote node with `os:osx` label, but you can still execute
@@ -223,13 +223,13 @@ commands via SSH on multiple nodes using labels as a selector. This command will
 system packages on machines that run Linux:
 
 ```bash
-> tsh --proxy=work ssh os=linux apt-get update -y
+$ tsh --proxy=work ssh os=linux apt-get update -y
 ```
 
 ### Temporary Logins
 
 Suppose you are borrowing someone else's computer to login into a cluster. You probably don't 
-want to stay authenticated on this computer for 23 hours (Teleport default). This is where `--ttl`
+want to stay authenticated on this computer for 23 hours (Teleport default). This is where the `--ttl`
 flag can help.
 
 This command logs you into the cluster with a very short-lived (1 minute) temporary certificate:
@@ -251,7 +251,7 @@ To securely copy files to and from cluster nodes use `tsh scp` command. It is de
 traditional `scp` as much as possible:
 
 ```bash
-> tsh scp --help
+$ tsh scp --help
 
 usage: tsh scp [<flags>] <from, to>...
 Secure file copy
@@ -272,14 +272,14 @@ Args:
 Examples:
 
 ```bash
-> tsh --proxy=work scp example.txt root@node:/path/to/dest
+$ tsh --proxy=work scp example.txt root@node:/path/to/dest
 ```
 
 Again, you may want to create a bash alias like `alias scp="tsh --proxy=work scp"` and use
 the familiar sytanx:
 
 ```bash
-> scp -P 61122 -r files root@node:/path/to/dest
+$ scp -P 61122 -r files root@node:/path/to/dest
 ```
 
 ## Sharing Sessions
@@ -289,12 +289,12 @@ to ask another team member for help. Traditionally this could be done by letting
 node you're on, having them SSH in, start a terminal multiplexer like `screen` and join a 
 session there.
 
-Teleport makes this a bit more convenient. Let's login into "luna" and ask Teleport for your 
+Teleport makes this a bit more convenient. Let's log in to "luna" and ask Teleport for your 
 current session status:
 
 ```bash
-> tsh --proxy=work ssh luna
-luna > teleport status
+$ tsh --proxy=work ssh luna
+luna $ teleport status
 
 User ID    : joe, logged in as joe from 10.0.10.1 43026 3022
 Session ID : 7645d523-60cb-436d-b732-99c5df14b7c4
@@ -305,7 +305,7 @@ Now you can invite another user account in the "work" cluster. You can share the
 Or you can share the session ID and she can join you through her terminal by typing:
 
 ```bash
-> tsh --proxy=work join 7645d523-60cb-436d-b732-99c5df14b7c4
+$ tsh --proxy=work join 7645d523-60cb-436d-b732-99c5df14b7c4
 ```
 
 ## Connecting to SSH Clusters behind Firewalls
@@ -318,7 +318,7 @@ Assuming your "work" Teleport server is configured with a few trusted clusters, 
 see a list of them:
 
 ```bash
-> tsh --proxy=work clusters
+$ tsh --proxy=work clusters
 
 Cluster Name     Status
 ------------     ------
@@ -330,7 +330,7 @@ Now you can use `--cluster` flag with any `tsh` command. For example, to list SS
 are members of "production" cluster, simply do:
 
 ```bash
-> tsh --proxy=work --cluster=production ls
+$ tsh --proxy=work --cluster=production ls
 Node Name     Node ID       Address            Labels
 ---------     -------       -------            ------
 db-1          xxxxxxxxx     10.0.20.31:3022    kernel:4.4
@@ -340,7 +340,7 @@ db-2          xxxxxxxxx     10.0.20.41:3022    kernel:4.2
 Similarly, if you want to SSH into `db-1` inside "production" cluster:
 
 ```bash
-> tsh --proxy=work --cluster=production ssh db-1
+$ tsh --proxy=work --cluster=production ssh db-1
 ```
 
 This is possible even if nodes of the "production" cluster are located behind a firewall
@@ -356,13 +356,12 @@ Teleport proxy serves the web UI on `https://proxyhost:3080`. The UI allows you 
 online nodes in a cluster, open web-based Terminal to them, see recorded sessions and replay them.
 You can also join other users via active sessions.
 
-You can copy&paste using the mouse. For working with a keyboard, Teleport employs `tmux`-like
+You can copy & paste using the mouse. For working with a keyboard, Teleport employs `tmux`-like
 "prefix" mode. To enter prefix mode, press `Ctrl+A`.
 
 While in prefix mode, you can press `Ctrl+V` to paste, or enter text selection mode by pressing `[`.
 When in text selection mode, move around using `hjkl`, select text by toggling `space` and copy
 it via `Ctrl+C`.
-Troubleshooting
 
 ## Troubleshooting
 
@@ -377,5 +376,5 @@ other data from `~/.tsh`
 Please open an [issue on Github](https://github.com/gravitational/teleport/issues).
 Alternatively, you can reach through the contact form on our [website](https://gravitational.com/).
 
-For commercial support, custom features or to try our multi-cluster edition of Teleport,
+For commercial support, custom features or to try our [Enterprise edition of Teleport](/enterprise/),
 please reach out to us: `sales@gravitational.com`.  

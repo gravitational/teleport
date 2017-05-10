@@ -24,6 +24,17 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// RemoveDirCloser removes directory and all it's contents
+// when Close is called
+type RemoveDirCloser struct {
+	Path string
+}
+
+// Close removes directory and all it's contents
+func (r *RemoveDirCloser) Close() error {
+	return trace.ConvertSystemError(os.RemoveAll(r.Path))
+}
+
 // IsFile returns true if a given file path points to an existing file
 func IsFile(fp string) bool {
 	fi, err := os.Stat(fp)

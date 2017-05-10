@@ -10,6 +10,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -40,11 +41,11 @@ func (c *CertParams) Check() error {
 // CertAuthority is a host or user certificate authority that
 // can check and if it has private key stored as well, sign it too
 type CertAuthority interface {
+	// Resource sets common resource properties
+	Resource
 	// GetID returns certificate authority ID -
 	// combined type and name
 	GetID() CertAuthID
-	// GetName returns cert authority name
-	GetName() string
 	// GetType returns user or host certificate authority
 	GetType() CertAuthType
 	// GetClusterName returns cluster name this cert authority
@@ -56,6 +57,8 @@ type CertAuthority interface {
 	GetSigningKeys() [][]byte
 	// GetRoles returns a list of roles assumed by users signed by this CA
 	GetRoles() []string
+	// SetRoles sets assigned roles for this certificate authority
+	SetRoles(roles []string)
 	// FirstSigningKey returns first signing key or returns error if it's not here
 	// The first key is returned because multiple keys can exist during key rotation.
 	FirstSigningKey() ([]byte, error)
@@ -127,6 +130,26 @@ type CertAuthorityV2 struct {
 	rawObject interface{}
 }
 
+// GetMetadata returns object metadata
+func (c *CertAuthorityV2) GetMetadata() Metadata {
+	return c.Metadata
+}
+
+// SetExpiry sets expiry time for the object
+func (c *CertAuthorityV2) SetExpiry(expires time.Time) {
+	c.Metadata.SetExpiry(expires)
+}
+
+// Expires retuns object expiry setting
+func (c *CertAuthorityV2) Expiry() time.Time {
+	return c.Metadata.Expiry()
+}
+
+// SetTTL sets Expires header using realtime clock
+func (c *CertAuthorityV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+	c.Metadata.SetTTL(clock, ttl)
+}
+
 // V2 returns V2 version of the resouirce - itself
 func (c *CertAuthorityV2) V2() *CertAuthorityV2 {
 	return c
@@ -169,6 +192,11 @@ func (ca *CertAuthorityV2) GetID() CertAuthID {
 	return CertAuthID{Type: ca.Spec.Type, DomainName: ca.Metadata.Name}
 }
 
+// SetName sets cert authority name
+func (ca *CertAuthorityV2) SetName(name string) {
+	ca.Metadata.SetName(name)
+}
+
 // GetName returns cert authority name
 func (ca *CertAuthorityV2) GetName() string {
 	return ca.Metadata.Name
@@ -193,6 +221,11 @@ func (ca *CertAuthorityV2) GetCheckingKeys() [][]byte {
 // GetRoles returns a list of roles assumed by users signed by this CA
 func (ca *CertAuthorityV2) GetRoles() []string {
 	return ca.Spec.Roles
+}
+
+// SetRoles sets assigned roles for this certificate authority
+func (ca *CertAuthorityV2) SetRoles(roles []string) {
+	ca.Spec.Roles = roles
 }
 
 // GetRawObject returns raw object data, used for migrations
@@ -410,6 +443,7 @@ func (*TeleportCertAuthorityMarshaler) UnmarshalCertAuthority(bytes []byte) (Cer
 		if err := utils.UnmarshalWithSchema(GetCertAuthoritySchema(), &ca, bytes); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
+		utils.UTC(&ca.Metadata.Expires)
 		return &ca, nil
 	}
 

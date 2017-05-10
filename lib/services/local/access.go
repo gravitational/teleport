@@ -18,6 +18,7 @@ package local
 
 import (
 	"sort"
+	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -35,31 +36,46 @@ func NewAccessService(backend backend.Backend) *AccessService {
 	return &AccessService{Backend: backend}
 }
 
+// DeleteAllRoles deletes all roles
+func (s *AccessService) DeleteAllRoles() error {
+	return s.DeleteBucket([]string{}, "roles")
+}
+
 // GetRoles returns a list of roles registered with the local auth server
 func (s *AccessService) GetRoles() ([]services.Role, error) {
 	keys, err := s.GetKeys([]string{"roles"})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	out := make([]services.Role, len(keys))
-	for i, name := range keys {
+	var out []services.Role
+	for _, name := range keys {
 		u, err := s.GetRole(name)
 		if err != nil {
+			if trace.IsNotFound(err) {
+				continue
+			}
 			return nil, trace.Wrap(err)
 		}
-		out[i] = u
+		out = append(out, u)
 	}
 	sort.Sort(services.SortedRoles(out))
 	return out, nil
 }
 
 // UpsertRole updates parameters about role
-func (s *AccessService) UpsertRole(role services.Role) error {
+func (s *AccessService) UpsertRole(role services.Role, ttl time.Duration) error {
 	data, err := services.GetRoleMarshaler().MarshalRole(role)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.UpsertVal([]string{"roles", role.GetName()}, "params", []byte(data), backend.Forever)
+
+	// TODO(klizhentas): Picking smaller of the two ttls
+	backendTTL := backend.TTL(s.Clock(), role.GetMetadata().Expires)
+	if backendTTL < ttl {
+		ttl = backendTTL
+	}
+
+	err = s.UpsertVal([]string{"roles", role.GetName()}, "params", []byte(data), ttl)
 	if err != nil {
 		return trace.Wrap(err)
 	}

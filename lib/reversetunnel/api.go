@@ -55,6 +55,9 @@ type RemoteSite interface {
 	GetStatus() string
 	// GetClient returns client connected to remote auth server
 	GetClient() (auth.ClientI, error)
+	// CachingAccessPoint returns access point that is lightweight
+	// but is resilient to auth server crashes
+	CachingAccessPoint() (auth.AccessPoint, error)
 }
 
 // Server is a TCP/IP SSH server which listens on an SSH endpoint and remote/local

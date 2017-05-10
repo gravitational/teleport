@@ -49,6 +49,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	"github.com/mailgun/lemma/secret"
 	"github.com/mailgun/ttlmap"
@@ -64,6 +65,7 @@ type Handler struct {
 	auth                    *sessionCache
 	sites                   *ttlmap.TtlMap
 	sessionStreamPollPeriod time.Duration
+	clock                   clockwork.Clock
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -134,6 +136,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 
 	if h.sessionStreamPollPeriod == 0 {
 		h.sessionStreamPollPeriod = sessionStreamPollPeriod
+	}
+
+	if h.clock == nil {
+		h.clock = clockwork.NewRealClock()
 	}
 
 	// a response indicates if the server is up and the response data
@@ -442,6 +448,7 @@ func (m *Handler) getConfigurationSettings(w http.ResponseWriter, r *http.Reques
 
 func (m *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	log.Infof("oidcLoginWeb start")
+
 	query := r.URL.Query()
 	clientRedirectURL := query.Get("redirect_url")
 	if clientRedirectURL == "" {
@@ -496,10 +503,18 @@ func (m *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p htt
 
 func (m *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	log.Infof("oidcCallback start")
+
 	response, err := m.cfg.ProxyClient.ValidateOIDCAuthCallback(r.URL.Query())
 	if err != nil {
-		log.Infof("VALIDATE error: %v", err)
-		return nil, trace.Wrap(err)
+		log.Infof("[OIDC] Error while processing callback: %v", err)
+
+		// redirect to an error page
+		pathToError := url.URL{
+			Path:     "/web/msg/error/login_failed",
+			RawQuery: url.Values{"details": []string{"Unable to process callback from OIDC provider."}}.Encode(),
+		}
+		http.Redirect(w, r, pathToError.String(), http.StatusFound)
+		return nil, nil
 	}
 	// if we created web session, set session cookie and redirect to original url
 	if response.Req.CreateWebSession {
@@ -1024,6 +1039,9 @@ func (m *Handler) getSiteNodes(w http.ResponseWriter, r *http.Request, p httprou
 		return nil, trace.Wrap(err)
 	}
 	namespace := p.ByName("namespace")
+	if !services.IsValidNamespace(namespace) {
+		return nil, trace.BadParameter("invalid namespace %q", namespace)
+	}
 	servers, err := clt.GetNodes(namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1073,6 +1091,11 @@ func (m *Handler) siteNodeConnect(
 	ctx *SessionContext,
 	site reversetunnel.RemoteSite) (interface{}, error) {
 
+	namespace := p.ByName("namespace")
+	if !services.IsValidNamespace(namespace) {
+		return nil, trace.BadParameter("invalid namespace %q", namespace)
+	}
+
 	q := r.URL.Query()
 	params := q.Get("params")
 	if params == "" {
@@ -1083,14 +1106,15 @@ func (m *Handler) siteNodeConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	log.Debugf("[WEB] new terminal request for ns=%s, server=%s, login=%s",
-		req.Namespace, req.ServerID, req.Login)
+	log.Debugf("[WEB] new terminal request for ns=%s, server=%s, login=%s, sid=%s",
+		req.Namespace, req.ServerID, req.Login, req.SessionID)
 
-	req.Namespace = p.ByName("namespace")
+	req.Namespace = namespace
 	req.ProxyHostPort = m.ProxyHostPort()
 
 	term, err := newTerminal(*req, ctx, site)
 	if err != nil {
+		log.Errorf("[WEB] Unable to create terminal: %v", err)
 		return nil, trace.Wrap(err)
 	}
 
@@ -1122,7 +1146,12 @@ func (m *Handler) siteSessionStream(w http.ResponseWriter, r *http.Request, p ht
 		return nil, trace.Wrap(err)
 	}
 
-	connect, err := newSessionStreamHandler(p.ByName("namespace"),
+	namespace := p.ByName("namespace")
+	if !services.IsValidNamespace(namespace) {
+		return nil, trace.BadParameter("invalid namespace %q", namespace)
+	}
+
+	connect, err := newSessionStreamHandler(namespace,
 		*sessionID, ctx, site, m.sessionStreamPollPeriod)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1160,6 +1189,11 @@ type siteSessionGenerateResponse struct {
 // {"session": {"id": "session-id", "terminal_params": {"w": 100, "h": 100}, "login": "centos"}}
 //
 func (m *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	namespace := p.ByName("namespace")
+	if !services.IsValidNamespace(namespace) {
+		return nil, trace.BadParameter("invalid namespace %q", namespace)
+	}
+
 	var req *siteSessionGenerateReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -1167,7 +1201,7 @@ func (m *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p 
 	req.Session.ID = session.NewID()
 	req.Session.Created = time.Now().UTC()
 	req.Session.LastActive = time.Now().UTC()
-	req.Session.Namespace = p.ByName("namespace")
+	req.Session.Namespace = namespace
 	log.Infof("Generated session: %#v", req.Session)
 	return siteSessionGenerateResponse{Session: req.Session}, nil
 }
@@ -1205,7 +1239,12 @@ func (m *Handler) siteSessionUpdate(w http.ResponseWriter, r *http.Request, p ht
 		return nil, trace.Wrap(err)
 	}
 
-	err = ctx.UpdateSessionTerminal(siteAPI, p.ByName("namespace"), *sessionID, req.TerminalParams)
+	namespace := p.ByName("namespace")
+	if !services.IsValidNamespace(namespace) {
+		return nil, trace.BadParameter("invalid namespace %q", namespace)
+	}
+
+	err = ctx.UpdateSessionTerminal(siteAPI, namespace, *sessionID, req.TerminalParams)
 	if err != nil {
 		log.Error(err)
 		return nil, trace.Wrap(err)
@@ -1230,7 +1269,13 @@ func (m *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sessions, err := clt.GetSessions(p.ByName("namespace"))
+
+	namespace := p.ByName("namespace")
+	if !services.IsValidNamespace(namespace) {
+		return nil, trace.BadParameter("invalid namespace %q", namespace)
+	}
+
+	sessions, err := clt.GetSessions(namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1255,7 +1300,13 @@ func (m *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httpr
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess, err := clt.GetSession(p.ByName("namespace"), *sessionID)
+
+	namespace := p.ByName("namespace")
+	if !services.IsValidNamespace(namespace) {
+		return nil, trace.BadParameter("invalid namespace %q", namespace)
+	}
+
+	sess, err := clt.GetSession(namespace, *sessionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1384,8 +1435,13 @@ func (m *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 	if max > maxStreamBytes {
 		max = maxStreamBytes
 	}
+	namespace := p.ByName("namespace")
+	if !services.IsValidNamespace(namespace) {
+		onError(trace.BadParameter("invalid namespace %q", namespace))
+		return
+	}
 	// call the site API to get the chunk:
-	bytes, err := clt.GetSessionChunk(p.ByName("namespace"), *sid, offset, max)
+	bytes, err := clt.GetSessionChunk(namespace, *sid, offset, max)
 	if err != nil {
 		onError(trace.Wrap(err))
 		return
@@ -1437,7 +1493,11 @@ func (m *Handler) siteSessionEventsGet(w http.ResponseWriter, r *http.Request, p
 	if err != nil {
 		afterN = 0
 	}
-	e, err := clt.GetSessionEvents(p.ByName("namespace"), *sessionID, afterN)
+	namespace := p.ByName("namespace")
+	if !services.IsValidNamespace(namespace) {
+		return nil, trace.BadParameter("invalid namespace %q", namespace)
+	}
+	e, err := clt.GetSessionEvents(namespace, *sessionID, afterN)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

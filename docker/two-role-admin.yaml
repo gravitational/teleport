@@ -5,7 +5,7 @@ metadata:
   name: "admin"
   namespace: "default"
 spec:
-  logins: [ "username_goes_here", "root" ]
+  logins: [ "root" ]
   max_session_ttl: 90h0m0s
   namespaces: ["*"]
   node_labels:

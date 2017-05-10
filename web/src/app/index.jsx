@@ -18,7 +18,7 @@ import React from 'react';
 import { render } from 'react-dom';
 import { Router, Route, Redirect } from 'react-router';
 import { Provider } from 'nuclear-js-react-addons';
-import session from './services/session';
+import history from './services/history';
 import AppContainer from './components/app.jsx';
 import Login from './components/user/login.jsx';
 import Signup from './components/user/invite.jsx';
@@ -27,24 +27,23 @@ import Sessions from './components/sessions/main.jsx';
 import TerminalHost from './components/terminal/terminalHost.jsx';
 import PlayerHost from './components/player/playerHost.jsx';
 import { MessagePage, NotFound } from './components/msgPage.jsx';
-import { ensureUser } from './flux/user/actions';
+import { ensureUser, initLogin } from './flux/user/actions';
 import { initApp } from './flux/app/actions';
 import cfg from './config';
 import reactor from './reactor';
 import DocumentTitle from './components/documentTitle';
 import './flux';
 
-// init session
-session.init();
+history.init();
 
 cfg.init(window.GRV_CONFIG);
 
 render((
   <Provider reactor={reactor}>        
-    <Router history={session.getHistory()}>      
+    <Router history={history.original()}>      
       <Route component={DocumentTitle}>
         <Route path={cfg.routes.msgs} component={MessagePage}/>
-        <Route path={cfg.routes.login} title="Login" component={Login}/>
+        <Route path={cfg.routes.login} onEnter={initLogin} title="Login" component={Login}/>
         <Route path={cfg.routes.newUser} component={Signup}/>
         <Redirect from={cfg.routes.app} to={cfg.routes.nodes}/>
         <Route path={cfg.routes.app} onEnter={ensureUser} component={AppContainer} >

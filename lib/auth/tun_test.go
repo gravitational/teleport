@@ -87,7 +87,7 @@ func (s *TunSuite) SetUpTest(c *C) {
 
 	// set up host private key and certificate
 	c.Assert(s.a.UpsertCertAuthority(
-		suite.NewTestCA(services.HostCA, "localhost"), backend.Forever), IsNil)
+		suite.NewTestCA(services.HostCA, "localhost")), IsNil)
 
 	hpriv, hpub, err := s.a.GenerateKeyPair("")
 	c.Assert(err, IsNil)
@@ -139,7 +139,7 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 
 	user, role := createUserAndRole(s.a, userName, []string{userName})
 	role.SetResource(services.KindNode, services.RW())
-	err = s.a.UpsertRole(role)
+	err = s.a.UpsertRole(role, backend.Forever)
 	c.Assert(err, IsNil)
 
 	err = s.a.UpsertPassword(user.GetName(), pass)
@@ -168,13 +168,13 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 		"test", authMethod)
 	c.Assert(err, IsNil)
 
-	err = clt.UpsertNode(newServer(services.KindNode, "a.example.com", "hello", "hello", defaults.Namespace), backend.Forever)
+	err = clt.UpsertNode(newServer(services.KindNode, "a.example.com", "hello", "hello", defaults.Namespace))
 	c.Assert(err, IsNil)
 }
 
 func (s *TunSuite) TestSessions(c *C) {
 	c.Assert(s.a.UpsertCertAuthority(
-		suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
+		suite.NewTestCA(services.UserCA, "localhost")), IsNil)
 
 	user := "ws-test"
 	pass := []byte("ws-abc123")
@@ -238,7 +238,7 @@ func (s *TunSuite) TestSessions(c *C) {
 // using a valid token. This should fail.
 func (s *TunSuite) TestWebCreatingNewUserInvalidClientValidToken(c *C) {
 	c.Assert(s.a.UpsertCertAuthority(
-		suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
+		suite.NewTestCA(services.UserCA, "localhost")), IsNil)
 
 	user := "foobar"
 	mappings := []string{"admin", "db"}
@@ -262,7 +262,7 @@ func (s *TunSuite) TestWebCreatingNewUserInvalidClientValidToken(c *C) {
 // valid signup token but then tries to get invalid token data back. This should fail.
 func (s *TunSuite) TestWebCreatingNewUserValidClientInvalidToken(c *C) {
 	c.Assert(s.a.UpsertCertAuthority(
-		suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
+		suite.NewTestCA(services.UserCA, "localhost")), IsNil)
 
 	user := "foobar"
 	mappings := []string{"admin", "db"}
@@ -299,7 +299,7 @@ func (s *TunSuite) TestWebCreatingNewUserValidClientValidToken(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(s.a.UpsertCertAuthority(
-		suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
+		suite.NewTestCA(services.UserCA, "localhost")), IsNil)
 
 	user := "foobar"
 	password := "bazqux"
@@ -361,7 +361,7 @@ func (s *TunSuite) TestWebCreatingNewUserValidClientValidTokenReuseToken(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(s.a.UpsertCertAuthority(
-		suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
+		suite.NewTestCA(services.UserCA, "localhost")), IsNil)
 
 	user := "foobar"
 	mappings := []string{"admin", "db"}
@@ -405,7 +405,7 @@ func (s *TunSuite) TestWebCreatingNewUserValidClientValidTokenReuseToken(c *C) {
 
 func (s *TunSuite) TestPermissions(c *C) {
 	c.Assert(s.a.UpsertCertAuthority(
-		suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
+		suite.NewTestCA(services.UserCA, "localhost")), IsNil)
 
 	userName := "ws-test2"
 	pass := []byte("ws-abc1234")
@@ -446,7 +446,7 @@ func (s *TunSuite) TestPermissions(c *C) {
 
 	// Requesting forbidden for User action
 	server := newServer(services.KindNode, "name", "host", "host", defaults.Namespace)
-	err = clt.UpsertNode(server, time.Second)
+	err = clt.UpsertNode(server)
 	c.Assert(err, NotNil)
 
 	// Requesting forbidden for User action
@@ -479,7 +479,7 @@ func (s *TunSuite) TestPermissions(c *C) {
 
 func (s *TunSuite) TestSessionsBadPassword(c *C) {
 	c.Assert(s.a.UpsertCertAuthority(
-		suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
+		suite.NewTestCA(services.UserCA, "localhost")), IsNil)
 
 	user := "system-test"
 	pass := []byte("system-abc123")
@@ -529,7 +529,7 @@ func (s *TunSuite) TestFailover(c *C) {
 		"node.example.com",
 		defaults.Namespace,
 	)
-	c.Assert(s.a.UpsertNode(node, backend.Forever), IsNil)
+	c.Assert(s.a.UpsertNode(node), IsNil)
 
 	ports, err := utils.GetFreeTCPPorts(1)
 	c.Assert(err, IsNil)
@@ -555,7 +555,7 @@ func (s *TunSuite) TestSync(c *C) {
 		"node.example.com",
 		defaults.Namespace,
 	)
-	c.Assert(s.a.UpsertAuthServer(authServer, backend.Forever), IsNil)
+	c.Assert(s.a.UpsertAuthServer(authServer), IsNil)
 
 	storage := utils.NewFileAddrStorage(filepath.Join(c.MkDir(), "addr.json"))
 

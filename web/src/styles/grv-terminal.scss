@@ -17,7 +17,7 @@ limitations under the License.
 .grv-terminal {
  height: 100%;
  width: 100%;
- font-size: 14px;
+ //font-size: 14px;
 
  .terminal{
    font-family: "DejaVu Sans Mono", "Liberation Mono", "Andale Mono", Consolas, monospace;
@@ -25,24 +25,13 @@ limitations under the License.
    font-size: inherit;
    line-height: 1.13;
 
-   display: flex;
-   flex-direction: column;
-   align-content: flex-end;
-   width: 100%;
+  .xterm-viewport {
+    overflow-y: hidden;
+    background-color: #252323;       
+  }
 
-   /**
-   *  Safari renders bold text too fat which distrups terminal screen
-   */
    * {
      font-weight: normal!important;
-   }
-
-   > div {
-    flex: 1;
-    flex-shrink: 0;
-    flex-basis: auto;
-    white-space: nowrap;
-    font-size: inherit;
-   }
+   } 
  }
 }

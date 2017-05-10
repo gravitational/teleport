@@ -22,13 +22,13 @@ var output = Object.assign({}, baseCfg.output, {
 
 var cfg = {
   entry: baseCfg.entry,
-  resolve: baseCfg.resolve,
+  resolve: baseCfg.resolve,  
   output: output,    
-  cache: true,
-
+  cache: true,  
   //devtool: 'source-map',
   
   module: {
+    noParse: baseCfg.noParse,
     loaders: [
       baseCfg.loaders.fonts,
       baseCfg.loaders.svg,
@@ -38,8 +38,7 @@ var cfg = {
     ]
   },
 
-  plugins:  [
-    baseCfg.plugins.flowType,
+  plugins:  [    
     baseCfg.plugins.devBuild,
     baseCfg.plugins.hotReplacement,
     baseCfg.plugins.createIndexHtml,

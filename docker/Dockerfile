@@ -7,8 +7,11 @@ FROM teleport-buildbox:latest
 ENV DEBUG=1 GOPATH=/root/go PATH=$PATH:/root/go/src/github.com/gravitational/teleport/build
 
 # htop is useful for testing terminal resizing
-RUN apt-get install -y htop screen; \
+RUN apt-get install -y htop vim screen; \
     mkdir -p /root/go/src/github.com/gravitational/teleport 
+
+# allows ansible testing
+RUN apt-get install -y ansible
 
 VOLUME ["/teleport", "/var/lib/teleport"]
 COPY .bashrc /root/.bashrc

@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
@@ -34,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/alessio/shellescape"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
@@ -41,6 +43,7 @@ import (
 // ProxyClient implements ssh client to a teleport proxy
 // It can provide list of nodes or connect to nodes
 type ProxyClient struct {
+	teleportClient  *TeleportClient
 	Client          *ssh.Client
 	hostLogin       string
 	proxyAddress    string
@@ -108,7 +111,7 @@ func (proxy *ProxyClient) FindServersByLabels(ctx context.Context, namespace str
 		return nil, trace.BadParameter("missing parameter namespace")
 	}
 	nodes := make([]services.Server, 0)
-	site, err := proxy.ConnectToSite(ctx, false)
+	site, err := proxy.ClusterAccessPoint(ctx, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -125,6 +128,21 @@ func (proxy *ProxyClient) FindServersByLabels(ctx context.Context, namespace str
 	return nodes, nil
 }
 
+// ClusterAccessPoint returns cluster access point used for discovery
+// and could be cached based on the access policy
+func (proxy *ProxyClient) ClusterAccessPoint(ctx context.Context, quiet bool) (auth.AccessPoint, error) {
+	// get the current cluster:
+	clusterName, err := proxy.currentCluster()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clt, err := proxy.ConnectToSite(ctx, quiet)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return proxy.teleportClient.accessPoint(clt, clusterName.Name)
+}
+
 // ConnectToSite connects to the auth server of the given site via proxy.
 // It returns connected and authenticated auth server client
 //
@@ -132,28 +150,56 @@ func (proxy *ProxyClient) FindServersByLabels(ctx context.Context, namespace str
 // any connection errors are visible to a user.
 func (proxy *ProxyClient) ConnectToSite(ctx context.Context, quiet bool) (auth.ClientI, error) {
 	// get the current cluster:
-	site, err := proxy.currentSite()
+	site, err := proxy.currentCluster()
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// this connects us to the node which is an auth server for this site
-	// note the addres we're using: "@sitename", which in practice looks like "@{site-global-id}"
-	// the Teleport proxy interprets such address as a request to connec to the active auth server
-	// of the named site
-	nodeClient, err := proxy.ConnectToNode(ctx, "@"+site.Name, proxy.proxyPrincipal, quiet)
-	if err != nil {
-		log.Error(err)
 		return nil, trace.Wrap(err)
 	}
 	// crate HTTP client to Auth API over SSH connection:
 	sshDialer := func(network, addr string) (net.Conn, error) {
-		return nodeClient.Client.Dial(network, addr)
+		// this connects us to the node which is an auth server for this site
+		// note the addres we're using: "@sitename", which in practice looks like "@{site-global-id}"
+		// the Teleport proxy interprets such address as a request to connec to the active auth server
+		// of the named site
+		nodeClient, err := proxy.ConnectToNode(ctx, "@"+site.Name, proxy.proxyPrincipal, quiet)
+		if err != nil {
+			log.Error(err)
+			return nil, trace.Wrap(err)
+		}
+		conn, err := nodeClient.Client.Dial(network, addr)
+		if err != nil {
+			if err := nodeClient.Close(); err != nil {
+				log.Error(err)
+			}
+			return nil, trace.Wrap(err)
+		}
+		return &closerConn{Conn: conn, closers: []io.Closer{nodeClient}}, nil
 	}
 	clt, err := auth.NewClient("http://stub:0", sshDialer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return clt, nil
+}
+
+// closerConn wraps connection and attaches additional closers to it
+type closerConn struct {
+	net.Conn
+	closers []io.Closer
+}
+
+// addCloser adds any closer in ctx that will be called
+// whenever server closes session channel
+func (c *closerConn) addCloser(closer io.Closer) {
+	c.closers = append(c.closers, closer)
+}
+
+func (c *closerConn) Close() error {
+	var errors []error
+	for _, closer := range c.closers {
+		errors = append(errors, closer.Close())
+	}
+	errors = append(errors, c.Conn.Close())
+	return trace.NewAggregate(errors...)
 }
 
 // nodeName removes the port number from the hostname, if present
@@ -210,7 +256,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress string,
 		// read the stderr output from the failed SSH session and append
 		// it to the end of our own message:
 		serverErrorMsg, _ := ioutil.ReadAll(proxyErr)
-		return nil, trace.Errorf("failed connecting to node %v. %s",
+		return nil, trace.ConnectionProblem(err, "failed connecting to node %v. %s",
 			nodeName(strings.Split(nodeAddress, "@")[0]), serverErrorMsg)
 	}
 	pipeNetConn := utils.NewPipeNetConn(
@@ -300,7 +346,8 @@ func (client *NodeClient) Upload(srcPath, rDestPath string, recursive bool, stde
 	if recursive {
 		shellCmd += " -r"
 	}
-	shellCmd += " " + rDestPath
+	// mitigate shell injection
+	shellCmd += fmt.Sprintf(" %v", shellescape.Quote(rDestPath))
 	return client.scp(scpConf, shellCmd, stderr)
 }
 
@@ -318,7 +365,8 @@ func (client *NodeClient) Download(remoteSourcePath, localDestinationPath string
 	if recursive {
 		shellCmd += " -r"
 	}
-	shellCmd += " " + remoteSourcePath
+	// mitigate shell injection
+	shellCmd += fmt.Sprintf(" %v", shellescape.Quote(remoteSourcePath))
 	return client.scp(scpConf, shellCmd, stderr)
 }
 
@@ -428,8 +476,8 @@ func (client *NodeClient) Close() error {
 	return client.Client.Close()
 }
 
-// currentSite returns the connection to the API of the current cluster
-func (proxy *ProxyClient) currentSite() (*services.Site, error) {
+// currentCluster returns the connection to the API of the current cluster
+func (proxy *ProxyClient) currentCluster() (*services.Site, error) {
 	sites, err := proxy.GetSites()
 	if err != nil {
 		return nil, trace.Wrap(err)

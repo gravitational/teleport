@@ -24,6 +24,7 @@ var cfg = {
   externals: baseCfg.externals,
 
   module: {
+    noParse: baseCfg.noParse,
     loaders: [
       baseCfg.loaders.fonts,
       baseCfg.loaders.svg,
@@ -34,7 +35,6 @@ var cfg = {
   },
 
   plugins:  [
-    baseCfg.plugins.flowType,
     baseCfg.plugins.releaseBuild,
     baseCfg.plugins.extractCss,
     baseCfg.plugins.createIndexHtml,

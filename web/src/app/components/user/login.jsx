@@ -21,6 +21,7 @@ import reactor from 'app/reactor';
 import {actions, getters} from 'app/flux/user';
 import GoogleAuthInfo from './googleAuthLogo';
 import cfg from 'app/config';
+import { ErrorMessage } from './items';
 import { TeleportLogo } from './../icons.jsx';
 import { SsoBtnList } from './ssoBtnList';
 import { Auth2faTypeEnum, AuthTypeEnum } from 'app/services/enums';
@@ -35,31 +36,18 @@ const Login = React.createClass({
     }
   },
 
-  onLoginWithOidc(providerName){
-    let redirect = this.getRedirectUrl();            
-    actions.loginWithOidc(providerName, redirect);
+  onLoginWithOidc(providerName){    
+    actions.loginWithOidc(providerName);
   },
 
-  onLoginWithU2f(username, password) {
-    let redirect = this.getRedirectUrl();            
-    actions.loginWithU2f(username, password, redirect);
+  onLoginWithU2f(username, password) {              
+    actions.loginWithU2f(username, password);
   },
 
-  onLogin(username, password, token) {
-    let redirect = this.getRedirectUrl();            
-    actions.login(username, password, token, redirect);
+  onLogin(username, password, token) {    
+    actions.login(username, password, token);
   },
-
-  getRedirectUrl() {    
-    let loc = this.props.location;
-    let redirect = cfg.routes.app;
-    if (loc.query && loc.query.redirect_uri) {
-      redirect = loc.query.redirect_uri;
-    }
-
-    return redirect;    
-  },
-
+  
   render() {  
     let {attemp} = this.state;
     let authProviders = cfg.getAuthProviders();
@@ -233,7 +221,7 @@ const LoginInputForm = React.createClass({
   render() {
     let { isFailed, message } = this.props.attemp;                    
     let $error = isFailed ? (
-      <label className="error">{message}</label>
+      <ErrorMessage message={message}/>      
     ) : null;
 
     let hasAnyAuth = !!cfg.auth;

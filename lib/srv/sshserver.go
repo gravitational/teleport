@@ -21,6 +21,7 @@ package srv
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"os"
 	"os/exec"
@@ -42,10 +43,10 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/pborman/uuid"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 )
@@ -90,6 +91,9 @@ type Server struct {
 	// alog points to the AuditLog this server uses to report
 	// auditable events
 	alog events.IAuditLog
+
+	// clock is a system clock
+	clock clockwork.Clock
 }
 
 // ServerOption is a functional option passed to the server
@@ -209,6 +213,7 @@ func New(addr utils.NetAddr,
 		proxyPublicAddr: proxyPublicAddr,
 		uuid:            uuid,
 		closer:          utils.NewCloseBroadcaster(),
+		clock:           clockwork.NewRealClock(),
 	}
 	s.limiter, err = limiter.NewLimiter(limiter.LimiterConfig{})
 	if err != nil {
@@ -313,11 +318,12 @@ func (s *Server) getInfo() services.Server {
 // registerServer attempts to register server in the cluster
 func (s *Server) registerServer() error {
 	srv := s.getInfo()
+	srv.SetTTL(s.clock, defaults.ServerHeartbeatTTL)
 	if !s.proxyMode {
-		return trace.Wrap(s.authService.UpsertNode(srv, defaults.ServerHeartbeatTTL))
+		return trace.Wrap(s.authService.UpsertNode(srv))
 	}
 	srv.SetPublicAddr(s.proxyPublicAddr.String())
-	return trace.Wrap(s.authService.UpsertProxy(srv, defaults.ServerHeartbeatTTL))
+	return trace.Wrap(s.authService.UpsertProxy(srv))
 }
 
 // heartbeatPresence periodically calls into the auth server to let everyone
@@ -394,6 +400,7 @@ func (s *Server) getCommandLabels() map[string]services.CommandLabel {
 func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser string) (string, error) {
 	// enumerate all known CAs and see if any of them signed the
 	// supplied certificate
+	log.Debugf("[HA SSH NODE] checkPermsissionToLogin(%v, %v)", teleportUser, osUser)
 	cas, err := s.authService.GetCertAuthorities(services.UserCA, false)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -505,7 +512,7 @@ func (s *Server) isAuthority(cert ssh.PublicKey) bool {
 	// find cert authority by it's key
 	cas, err := s.authService.GetCertAuthorities(services.UserCA, false)
 	if err != nil {
-		log.Warningf("%v", err)
+		log.Warningf("%v", trace.DebugReport(err))
 		return false
 	}
 
@@ -736,10 +743,15 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in
 
 	// As SSH conversation progresses, at some point a session will be created and
 	// its ID will be added to the environment
-	updateContext := func() {
+	updateContext := func() error {
 		ssid, found := ctx.getEnv(sshutils.SessionEnvVar)
 		if !found {
-			return
+			return nil
+		}
+		// make sure whatever session is requested is a valid session
+		_, err := rsession.ParseID(ssid)
+		if err != nil {
+			return trace.BadParameter("invalid session id")
 		}
 		findSession := func() (*session, bool) {
 			s.reg.Lock()
@@ -748,13 +760,31 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in
 		}
 		// update ctx with a session ID
 		ctx.session, _ = findSession()
-		log.Debugf("[SSH] loaded session %v for SSH connection %v", ctx.session, sconn)
+		if ctx.session == nil {
+			log.Debugf("[SSH] will create new session for SSH connection %v", sconn.RemoteAddr())
+		} else {
+			log.Debugf("[SSH] will join session %v for SSH connection %v", ctx.session, sconn.RemoteAddr())
+		}
+
+		return nil
 	}
 
 	for {
 		// update ctx with the session ID:
 		if !s.proxyMode {
-			updateContext()
+			err := updateContext()
+			if err != nil {
+				errorMessage := fmt.Sprintf("unable to update context: %v", err)
+				ctx.Errorf("[SSH] %v", errorMessage)
+
+				// write the error to channel and close it
+				ch.Stderr().Write([]byte(errorMessage))
+				_, err := ch.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: teleport.RemoteCommandFailure}))
+				if err != nil {
+					ctx.Errorf("[SSH] failed to send exit status %v", errorMessage)
+				}
+				return
+			}
 		}
 		select {
 		case creq := <-ctx.subsystemResultC:
@@ -872,13 +902,24 @@ func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *ctx) 
 
 	authChan, _, err := ctx.conn.OpenChannel("auth-agent@openssh.com", nil)
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 	clientAgent := agent.NewClient(authChan)
 	ctx.setAgent(clientAgent, authChan)
 
 	pid := os.Getpid()
-	socketPath := filepath.Join(os.TempDir(), fmt.Sprintf("teleport-agent-%v.socket", uuid.New()))
+	socketDir, err := ioutil.TempDir(os.TempDir(), "teleport-")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	dirCloser := &utils.RemoveDirCloser{Path: socketDir}
+	socketPath := filepath.Join(socketDir, fmt.Sprintf("teleport-%v.socket", pid))
+	if err := os.Chown(socketDir, uid, gid); err != nil {
+		if err := dirCloser.Close(); err != nil {
+			log.Warn("failed to remove directory: %v", err)
+		}
+		return trace.ConvertSystemError(err)
+	}
 
 	agentServer := &teleagent.AgentServer{Agent: clientAgent}
 	err = agentServer.ListenUnixSocket(socketPath, uid, gid, 0600)
@@ -891,6 +932,7 @@ func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *ctx) 
 	ctx.setEnv(teleport.SSHAuthSock, socketPath)
 	ctx.setEnv(teleport.SSHAgentPID, fmt.Sprintf("%v", pid))
 	ctx.addCloser(agentServer)
+	ctx.addCloser(dirCloser)
 	ctx.Debugf("[SSH:node] opened agent channel for teleport user %v and socket %v", ctx.teleportUser, socketPath)
 	go agentServer.Serve()
 

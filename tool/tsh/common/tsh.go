@@ -20,8 +20,10 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/gravitational/teleport/lib/client"
@@ -32,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/buger/goterm"
 )
 
@@ -75,10 +78,20 @@ type CLIConf struct {
 	Quiet bool
 	// Namespace is used to select cluster namespace
 	Namespace string
+	// NoCache is used to turn off client cache for nodes discovery
+	NoCache bool
 	// LoadSystemAgentOnly when set to true will cause tsh agent to load keys into the system agent and
 	// then exit. This is useful when calling tsh agent from a script (for example ~/.bash_profile)
 	// to load keys into your system agent.
 	LoadSystemAgentOnly bool
+	// BenchThreads is amount of concurrent threads to run
+	BenchThreads int
+	// BenchDuration is a duration for the benchmark
+	BenchDuration time.Duration
+	// BenchRate is a requests per second rate to mantain
+	BenchRate int
+	// Context is a context to control execution
+	Context context.Context
 }
 
 // Run executes TSH client. same as main() but easier to test
@@ -87,12 +100,13 @@ func Run(args []string, underTest bool) {
 		cf CLIConf
 	)
 	cf.IsUnderTest = underTest
-	utils.InitLoggerCLI()
+	utils.InitLogger(utils.LoggingForCLI, logrus.WarnLevel)
 
 	// configure CLI argument parser:
 	app := utils.InitCLIParser("tsh", "TSH: Teleport SSH client").Interspersed(false)
 	app.Flag("login", "Remote host login").Short('l').Envar("TELEPORT_LOGIN").StringVar(&cf.NodeLogin)
 	localUser, _ := client.Username()
+	app.Flag("nocache", "do not cache cluster discovery locally").Hidden().BoolVar(&cf.NoCache)
 	app.Flag("user", fmt.Sprintf("SSH proxy user [%s]", localUser)).Envar("TELEPORT_USER").StringVar(&cf.Username)
 	app.Flag("cluster", "Specify the cluster to connect").Envar("TELEPORT_SITE").StringVar(&cf.SiteName)
 	app.Flag("proxy", "SSH proxy host or IP address").Envar("TELEPORT_PROXY").StringVar(&cf.Proxy)
@@ -140,6 +154,15 @@ func Run(args []string, underTest bool) {
 	// logout deletes obtained session certificates in ~/.tsh
 	logout := app.Command("logout", "Delete a cluster certificate")
 
+	// bench
+	bench := app.Command("bench", "Run shell or execute a command on a remote SSH node").Hidden()
+	bench.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
+	bench.Arg("command", "Command to execute on a remote host").Required().StringsVar(&cf.RemoteCommand)
+	bench.Flag("port", "SSH port on a remote host").Short('p').Int16Var(&cf.NodePort)
+	bench.Flag("threads", "Concurrent threads to run").Default("10").IntVar(&cf.BenchThreads)
+	bench.Flag("duration", "Test duration").Default("1s").DurationVar(&cf.BenchDuration)
+	bench.Flag("rate", "Requests per second rate").Default("10").IntVar(&cf.BenchRate)
+
 	// parse CLI commands+flags:
 	command, err := app.Parse(args)
 	if err != nil {
@@ -148,14 +171,29 @@ func Run(args []string, underTest bool) {
 
 	// apply -d flag:
 	if *debugMode {
-		utils.InitLoggerDebug()
+		utils.InitLogger(utils.LoggingForCLI, logrus.DebugLevel)
 	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		exitSignals := make(chan os.Signal, 1)
+		signal.Notify(exitSignals, syscall.SIGTERM, syscall.SIGINT)
+
+		select {
+		case sig := <-exitSignals:
+			logrus.Debugf("signal: %v", sig)
+			cancel()
+		}
+	}()
+	cf.Context = ctx
 
 	switch command {
 	case ver.FullCommand():
 		onVersion()
 	case ssh.FullCommand():
 		onSSH(&cf)
+	case bench.FullCommand():
+		onBenchmark(&cf)
 	case join.FullCommand():
 		onJoin(&cf)
 	case scp.FullCommand():
@@ -311,6 +349,35 @@ func onSSH(cf *CLIConf) {
 	}
 }
 
+// onBenchmark executes benchmark
+func onBenchmark(cf *CLIConf) {
+	tc, err := makeClient(cf, false)
+	if err != nil {
+		utils.FatalError(err)
+	}
+	result, err := tc.Benchmark(cf.Context, client.Benchmark{
+		Command:  cf.RemoteCommand,
+		Threads:  cf.BenchThreads,
+		Duration: cf.BenchDuration,
+		Rate:     cf.BenchRate,
+	})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
+		os.Exit(255)
+	}
+	fmt.Printf("\n")
+	fmt.Printf("* Requests originated: %v\n", result.RequestsOriginated)
+	fmt.Printf("* Requests failed: %v\n", result.RequestsFailed)
+	fmt.Printf("\nHistogram\n\n")
+	t := goterm.NewTable(0, 10, 5, ' ', 0)
+	printHeader(t, []string{"Percentile", "Duration"})
+	for _, quantile := range []float64{25, 50, 75, 90, 95, 99, 100} {
+		fmt.Fprintf(t, "%v\t%v ms\n", quantile, result.Histogram.ValueAtQuantile(quantile))
+	}
+	fmt.Fprintf(os.Stdout, t.String())
+	fmt.Printf("\n")
+}
+
 // onJoin executes 'ssh join' command
 func onJoin(cf *CLIConf) {
 	tc, err := makeClient(cf, true)
@@ -391,7 +458,7 @@ export SSH_AGENT_PID=%v
 // makeClient takes the command-line configuration and constructs & returns
 // a fully configured TeleportClient object
 func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, err error) {
-	// apply defults
+	// apply defaults
 	if cf.MinsToLive == 0 {
 		cf.MinsToLive = int32(defaults.CertDuration / time.Minute)
 	}
@@ -457,6 +524,9 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 	c.KeyTTL = time.Minute * time.Duration(cf.MinsToLive)
 	c.InsecureSkipVerify = cf.InsecureSkipVerify
 	c.Interactive = cf.Interactive
+	if !cf.NoCache {
+		c.CachePolicy = &client.CachePolicy{}
+	}
 	return client.NewClient(c)
 }
 

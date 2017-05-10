@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2017 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -12,13 +12,20 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+
 */
 
+package state
 
-const StatusCodeEnum = {
-  NORMAL: 1000
-}
+import (
+	"github.com/gravitational/teleport/lib/auth"
+)
 
-export {
-  StatusCodeEnum
+// NewCachingAcessPoint returns new caching access point using
+// access point policy
+type NewCachingAccessPoint func(clt auth.ClientI, cacheName []string) (auth.AccessPoint, error)
+
+// NoCache is a no cache used for access point
+func NoCache(clt auth.ClientI, cacheName []string) (auth.AccessPoint, error) {
+	return clt, nil
 }

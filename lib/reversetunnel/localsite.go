@@ -30,10 +30,15 @@ import (
 	"github.com/gravitational/trace"
 )
 
-func newlocalSite(domainName string, client auth.ClientI) *localSite {
+func newlocalSite(srv *server, domainName string, client auth.ClientI) (*localSite, error) {
+	accessPoint, err := srv.newAccessPoint(client, []string{"reverse", domainName})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &localSite{
-		client:     client,
-		domainName: domainName,
+		client:      client,
+		accessPoint: accessPoint,
+		domainName:  domainName,
 		log: log.WithFields(log.Fields{
 			teleport.Component: teleport.ComponentReverseTunnel,
 			teleport.ComponentFields: map[string]string{
@@ -42,7 +47,7 @@ func newlocalSite(domainName string, client auth.ClientI) *localSite {
 				"type":       "localSite",
 			},
 		}),
-	}
+	}, nil
 }
 
 // localSite allows to directly access the remote servers
@@ -60,6 +65,11 @@ type localSite struct {
 	lastUsed    int
 	lastActive  time.Time
 	srv         *server
+	accessPoint auth.AccessPoint
+}
+
+func (s *localSite) CachingAccessPoint() (auth.AccessPoint, error) {
+	return s.accessPoint, nil
 }
 
 func (s *localSite) GetClient() (auth.ClientI, error) {

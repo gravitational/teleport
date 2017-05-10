@@ -40,8 +40,9 @@ const api = {
       // to avoid caching in IE browsers
       // (implicitly disabling caching adds a timestamp to each ajax requestStatus)
       cache: false,
-      type: "GET",
-      dataType: "json",
+      type: 'GET',
+      contentType: 'application/json; charset=utf-8',
+      dataType: 'json',
       beforeSend: function(xhr) {
         if(withToken){
           var { token } = session.getUserData();
