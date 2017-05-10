@@ -25,6 +25,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
@@ -203,9 +204,13 @@ func prepareCommand(ctx *ctx) (*exec.Cmd, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	var _path = getSystemEnvPath()
+	if len(_path) == 0 {
+		_path = getDefaultEnvPath("")
+	}
 	c.Env = []string{
 		"LANG=en_US.UTF-8",
-		getDefaultEnvPath(""),
+		_path,
 		"HOME=" + osUser.HomeDir,
 		"USER=" + osUserName,
 		"SHELL=" + shell,
@@ -386,6 +391,40 @@ func getDefaultEnvPath(loginDefsPath string) string {
 		fields := strings.Fields(line)
 		if len(fields) > 1 && fields[0] == "ENV_PATH" {
 			return strings.TrimSpace(fields[1])
+		}
+	}
+	return defaultValue
+}
+
+// getSystemEnvPath returns the default value of PATH environment variable for
+// new logins (prior to shell) which specified by the /etc/environment file
+//
+// Returns a strings which looks like "PATH=/usr/bin:/bin"
+func getSystemEnvPath() string {
+
+	var pathRegex = "^PATH=*$"
+	var validPath = regexp.MustCompile(pathRegex)
+
+	defaultValue := "PATH=" + defaultPath
+	envPath := "/etc/environment"
+
+	f, err := os.Open(envPath)
+	if err != nil {
+		log.Warn(err)
+		return defaultValue
+	}
+	defer f.Close()
+
+	// read /etc/environment line by line:
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		// skip comments and empty lines:
+		if line == "" || line[0] == '#' {
+			continue
+		}
+		if validPath.MatchString(line) {
+			return line
 		}
 	}
 	return defaultValue
