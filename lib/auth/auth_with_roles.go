@@ -498,6 +498,67 @@ func (a *AuthWithRoles) DeleteOIDCConnector(connectorID string) error {
 	return a.authServer.DeleteOIDCConnector(connectorID)
 }
 
+func (a *AuthWithRoles) UpsertSAMLConnector(connector services.SAMLConnector, ttl time.Duration) error {
+	if err := a.action(defaults.Namespace, services.KindSAML, services.ActionWrite); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.UpsertSAMLConnector(connector, ttl)
+}
+
+func (a *AuthWithRoles) GetSAMLConnector(id string, withSecrets bool) (services.SAMLConnector, error) {
+	if withSecrets {
+		if err := a.action(defaults.Namespace, services.KindSAML, services.ActionWrite); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		if err := a.action(defaults.Namespace, services.KindSAML, services.ActionRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return a.authServer.Identity.GetSAMLConnector(id, withSecrets)
+}
+
+func (a *AuthWithRoles) GetSAMLConnectors(withSecrets bool) ([]services.SAMLConnector, error) {
+	if withSecrets {
+		if err := a.action(defaults.Namespace, services.KindSAML, services.ActionWrite); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		if err := a.action(defaults.Namespace, services.KindSAML, services.ActionRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return a.authServer.Identity.GetSAMLConnectors(withSecrets)
+}
+
+func (a *AuthWithRoles) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.SAMLAuthRequest, error) {
+	if err := a.action(defaults.Namespace, services.KindSAMLRequest, services.ActionWrite); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.CreateSAMLAuthRequest(req)
+}
+
+func (a *AuthWithRoles) SendSAMLMetadata() ([]byte, error) {
+	conns, err := a.authServer.Identity.GetSAMLConnectors(false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// use the first connector for metadata
+	return a.authServer.SendSAMLMetadata(conns[0])
+}
+
+func (a *AuthWithRoles) ValidateSAMLAuthCallback(q url.Values) (*SAMLAuthResponse, error) {
+	// auth callback is it's own authz, no need to check extra permissions
+	return a.authServer.ValidateSAMLAuthCallback(q)
+}
+
+func (a *AuthWithRoles) DeleteSAMLConnector(connectorID string) error {
+	if err := a.action(defaults.Namespace, services.KindSAML, services.ActionWrite); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteSAMLConnector(connectorID)
+}
+
 func (a *AuthWithRoles) EmitAuditEvent(eventType string, fields events.EventFields) error {
 	if err := a.action(defaults.Namespace, services.KindEvent, services.ActionWrite); err != nil {
 		return trace.Wrap(err)

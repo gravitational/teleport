@@ -18,6 +18,7 @@ package utils
 
 import (
 	"fmt"
+	jwt "github.com/dgrijalva/jwt-go"
 	"io"
 	"io/ioutil"
 	"net"
@@ -32,6 +33,11 @@ import (
 	"github.com/pborman/uuid"
 	"golang.org/x/crypto/ssh"
 )
+
+type TokenClaims struct {
+	jwt.StandardClaims
+	Attributes map[string][]string `json:"attr"`
+}
 
 func CopyStrings(in []string) []string {
 	if in == nil {

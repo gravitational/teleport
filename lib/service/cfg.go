@@ -92,6 +92,9 @@ type Config struct {
 	// OIDCConnectors is a list of trusted OpenID Connect identity providers
 	OIDCConnectors []services.OIDCConnector
 
+	// SAMLConnectors is a list of trusted SAML identity providers
+	SAMLConnectors []services.SAMLConnector
+
 	// PidFile is a full path of the PID file for teleport daemon
 	PIDFile string
 

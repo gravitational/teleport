@@ -82,6 +82,11 @@ const actions = {
     history.push(cfg.api.getSsoUrl(redirectUrl, provider), true);
   },
 
+  loginWithSaml(provider, redirect) {
+    let fullPath = cfg.getFullUrl(redirect);
+    auth.redirect(cfg.api.getSsoSamlUrl(fullPath, provider));
+  },
+
   loginWithU2f(user, password) {
     let promise = auth.loginWithU2f(user, password);
     actions._handleLoginPromise(promise);

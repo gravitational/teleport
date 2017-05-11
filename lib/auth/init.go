@@ -71,6 +71,7 @@ type InitConfig struct {
 	// OIDCConnectors is a list of trusted OpenID Connect identity providers
 	// in configuration, so auth server will init the tunnels on the first start
 	OIDCConnectors []services.OIDCConnector
+	SAMLConnectors []services.SAMLConnector
 
 	// Trust is a service that manages users and credentials
 	Trust services.Trust
@@ -100,7 +101,7 @@ type InitConfig struct {
 	// environments where paranoid security is not needed
 	StaticTokens []services.ProvisionToken
 
-	// AuthPreference defines the authentication type (local, oidc) and second
+	// AuthPreference defines the authentication type (local, oidc, saml) and second
 	// factor (off, otp, u2f) passed in from a configuration file.
 	AuthPreference services.AuthPreference
 
@@ -165,6 +166,15 @@ func Init(cfg InitConfig, dynamicConfig bool) (*AuthServer, *Identity, error) {
 		if cfg.OIDCConnectors != nil && len(cfg.OIDCConnectors) > 0 {
 			for _, connector := range cfg.OIDCConnectors {
 				if err := asrv.UpsertOIDCConnector(connector); err != nil {
+					return nil, nil, trace.Wrap(err)
+				}
+				log.Infof("[INIT] Created ODIC Connector: %q", connector.GetName())
+			}
+		}
+
+		if cfg.SAMLConnectors != nil && len(cfg.SAMLConnectors) > 0 {
+			for _, connector := range cfg.SAMLConnectors {
+				if err := asrv.UpsertSAMLConnector(connector, 0); err != nil {
 					return nil, nil, trace.Wrap(err)
 				}
 				log.Infof("[INIT] Created ODIC Connector: %q", connector.GetName())

@@ -180,7 +180,7 @@ func Run() {
 	get.Arg("resource", "Resource type and name").SetValue(&cmdGet.ref)
 	get.Flag("format", "Format output type, one of 'yaml', 'json' or 'text'").Default(formatText).StringVar(&cmdGet.format)
 	get.Flag("namespace", "Namespace of the resources").Default(defaults.Namespace).StringVar(&cmdGet.namespace)
-	get.Flag("with-secrets", "Include secrets in resources like certificate authorities or OIDC connectors").Default("false").BoolVar(&cmdGet.withSecrets)
+	get.Flag("with-secrets", "Include secrets in resources like certificate authorities or OIDC/SAML connectors").Default("false").BoolVar(&cmdGet.withSecrets)
 
 	// upsert one or many resources
 	create := app.Command("create", "Create or update a resource").Hidden()
@@ -957,6 +957,15 @@ func (u *CreateCommand) Create(client *auth.TunClient) error {
 		}
 		count += 1
 		switch raw.Kind {
+		case services.KindSAMLConnector:
+			conn, err := services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(raw.Raw)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if err := client.UpsertSAMLConnector(conn, 0); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("SAML connector %v upserted\n", conn.GetName())
 		case services.KindOIDCConnector:
 			conn, err := services.GetOIDCConnectorMarshaler().UnmarshalOIDCConnector(raw.Raw)
 			if err != nil {
@@ -1070,6 +1079,11 @@ func (d *DeleteCommand) Delete(client *auth.TunClient) error {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("OIDC Connector %v has been deleted\n", d.ref.Name)
+	case services.KindSAMLConnector:
+		if err := client.DeleteSAMLConnector(d.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("SAML Connector %v has been deleted\n", d.ref.Name)
 	case services.KindReverseTunnel:
 		if err := client.DeleteReverseTunnel(d.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -1110,6 +1124,12 @@ func (g *GetCommand) getCollection(client auth.ClientI) (collection, error) {
 			return nil, trace.Wrap(err)
 		}
 		return &connectorCollection{connectors: connectors}, nil
+	case services.KindSAMLConnector:
+		connectors, err := client.GetSAMLConnectors(g.withSecrets)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &connectorCollection{connectorsSAML: connectors}, nil
 	case services.KindReverseTunnel:
 		tunnels, err := client.GetReverseTunnels()
 		if err != nil {

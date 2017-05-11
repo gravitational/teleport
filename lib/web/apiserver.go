@@ -119,6 +119,7 @@ func (r *RewritingHandler) Close() error {
 func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	const apiPrefix = "/" + teleport.WebAPIVersion
 	lauth, err := newSessionCache([]utils.NetAddr{cfg.AuthServers})
+
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -192,6 +193,12 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.GET("/webapi/oidc/login/web", httplib.MakeHandler(h.oidcLoginWeb))
 	h.POST("/webapi/oidc/login/console", httplib.MakeHandler(h.oidcLoginConsole))
 	h.GET("/webapi/oidc/callback", httplib.MakeHandler(h.oidcCallback))
+
+	// SAML related callback handlers
+	h.GET("/webapi/saml/login/web", httplib.MakeHandler(h.samlLoginWeb))
+	h.POST("/webapi/saml/login/console", httplib.MakeHandler(h.samlLoginConsole))
+	h.POST("/webapi/saml/callback", httplib.MakeHandler(h.samlCallback))
+	h.GET("/webapi/saml/metadata", httplib.MakeHandler(h.samlMetadata))
 
 	// U2F related APIs
 	h.GET("/webapi/u2f/signuptokens/:token", httplib.MakeHandler(h.u2fRegisterRequest))
@@ -359,6 +366,30 @@ func buildUniversalSecondFactorSettings(authClient auth.ClientI) *client.U2FSett
 	return &client.U2FSettings{AppID: universalSecondFactor.GetAppID()}
 }
 
+func buildSAMLConnectorSettings(authClient auth.ClientI) *client.SAMLSettings {
+	samlConnectors, err := authClient.GetSAMLConnectors(false)
+	if err != nil {
+		// if we have nothing set on the backend, return we have nothing
+		if trace.IsNotFound(err) {
+			return nil
+		}
+
+		log.Debugf("Unable to get SAML Connectors: %v", err)
+		return nil
+	}
+
+	if len(samlConnectors) < 1 {
+		log.Debugf("No SAML Connectors found")
+		return nil
+	}
+
+	// always use the first one as only allow a single saml connector now
+	return &client.SAMLSettings{
+		Name:    samlConnectors[0].GetName(),
+		Display: samlConnectors[0].GetDisplay(),
+	}
+}
+
 func buildOIDCConnectorSettings(authClient auth.ClientI) *client.OIDCSettings {
 	oidcConnectors, err := authClient.GetOIDCConnectors(false)
 	if err != nil {
@@ -400,6 +431,9 @@ func buildAuthenticationSettings(authClient auth.ClientI) (*client.Authenticatio
 	}
 	if cap.GetType() == teleport.OIDC {
 		as.OIDC = buildOIDCConnectorSettings(authClient)
+	}
+	if cap.GetType() == teleport.SAML {
+		as.SAML = buildSAMLConnectorSettings(authClient)
 	}
 
 	return as, nil
@@ -443,6 +477,88 @@ func (m *Handler) getConfigurationSettings(w http.ResponseWriter, r *http.Reques
 	}
 
 	fmt.Fprintf(w, "var GRV_CONFIG = %v;", string(out))
+	return nil, nil
+}
+
+func (m *Handler) samlLoginWeb(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	log.Infof("samlLoginWeb start")
+	query := r.URL.Query()
+	clientRedirectURL := query.Get("redirect_url")
+	if clientRedirectURL == "" {
+		return nil, trace.BadParameter("missing redirect_url query parameter")
+	}
+	connectorID := query.Get("connector_id")
+	if connectorID == "" {
+		return nil, trace.BadParameter("missing connector_id query parameter")
+	}
+	response, err := m.cfg.ProxyClient.CreateSAMLAuthRequest(
+		services.SAMLAuthRequest{
+			ConnectorID:       connectorID,
+			CreateWebSession:  true,
+			ClientRedirectURL: clientRedirectURL,
+			CheckUser:         true,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	http.Redirect(w, r, response.RedirectURL, http.StatusFound)
+	return nil, nil
+}
+
+func (m *Handler) samlLoginConsole(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var req *client.SAMLLoginConsoleReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if req.RedirectURL == "" {
+		return nil, trace.BadParameter("missing RedirectURL")
+	}
+	if len(req.PublicKey) == 0 {
+		return nil, trace.BadParameter("missing PublicKey")
+	}
+	if req.ConnectorID == "" {
+		return nil, trace.BadParameter("missing ConnectorID")
+	}
+	response, err := m.cfg.ProxyClient.CreateSAMLAuthRequest(
+		services.SAMLAuthRequest{
+			ConnectorID:       req.ConnectorID,
+			ClientRedirectURL: req.RedirectURL,
+			PublicKey:         req.PublicKey,
+			CertTTL:           req.CertTTL,
+			CheckUser:         true,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &client.SAMLLoginConsoleResponse{RedirectURL: response.RedirectURL}, nil
+}
+
+func (m *Handler) samlCallback(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	r.ParseForm()
+	response, err := m.cfg.ProxyClient.ValidateSAMLAuthCallback(r.Form)
+	if err != nil {
+		log.Infof("VALIDATE error: %v", err)
+		return nil, trace.Wrap(err)
+	}
+	// if we created web session, set session cookie and redirect to original url
+	if response.Req.CreateWebSession {
+		log.Infof("samlCallback redirecting to web browser")
+		if err := SetSession(w, response.Username, response.Session.GetName()); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		http.Redirect(w, r, response.Req.ClientRedirectURL, http.StatusFound)
+		return nil, nil
+	}
+	log.Infof("samlCallback redirecting to console login")
+	if len(response.Req.PublicKey) == 0 {
+		//http.Redirect(w, r, "/", http.StatusFound)
+		return nil, trace.BadParameter("not a web or console saml login request")
+	}
+	redirectURL, err := ConstructSSHResponseSAML(response)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	http.Redirect(w, r, redirectURL.String(), http.StatusFound)
 	return nil, nil
 }
 
@@ -535,6 +651,66 @@ func (m *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 	}
 	http.Redirect(w, r, redirectURL.String(), http.StatusFound)
 	return nil, nil
+}
+
+// samlMetadata sends SAML SP metadata
+func (m *Handler) samlMetadata(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	log.Infof("samlMetadata start")
+	response, err := m.cfg.ProxyClient.SendSAMLMetadata()
+	if err != nil {
+		log.Infof("can't send metadata %v", err)
+		return nil, trace.Wrap(err)
+	}
+	w.Header().Set("Content-Type", "text/xml")
+	w.Write(response)
+	return nil, nil
+}
+
+// ConstructSSHResponseSAML creates a special SSH response for SSH login method
+// that encodes everything using the client's secret key
+func ConstructSSHResponseSAML(response *auth.SAMLAuthResponse) (*url.URL, error) {
+	u, err := url.Parse(response.Req.ClientRedirectURL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	signers, err := services.CertAuthoritiesToV1(response.HostSigners)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	consoleResponse := client.SSHLoginResponse{
+		Username:    response.Username,
+		Cert:        response.Cert,
+		HostSigners: signers,
+	}
+	out, err := json.Marshal(consoleResponse)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	values := u.Query()
+	secretKey := values.Get("secret")
+	if secretKey == "" {
+		return nil, trace.BadParameter("missing secret")
+	}
+	values.Set("secret", "") // remove secret so others can't see it
+	secretKeyBytes, err := secret.EncodedStringToKey(secretKey)
+	if err != nil {
+		return nil, trace.BadParameter("bad secret")
+	}
+	encryptor, err := secret.New(&secret.Config{KeyBytes: secretKeyBytes})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sealedBytes, err := encryptor.Seal(out)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sealedBytesData, err := json.Marshal(sealedBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	values.Set("response", string(sealedBytesData))
+	u.RawQuery = values.Encode()
+	return u, nil
 }
 
 // ConstructSSHResponse creates a special SSH response for SSH login method
