@@ -117,7 +117,7 @@ func (ctx *SigningContext) constructSignedInfo(el *etree.Element, enveloped bool
 	return signedInfo, nil
 }
 
-func (ctx *SigningContext) constructSignature(el *etree.Element, enveloped bool) (*etree.Element, error) {
+func (ctx *SigningContext) ConstructSignature(el *etree.Element, enveloped bool) (*etree.Element, error) {
 	signedInfo, err := ctx.constructSignedInfo(el, enveloped)
 	if err != nil {
 		return nil, err
@@ -199,7 +199,7 @@ func (ctx *SigningContext) createNamespacedElement(el *etree.Element, tag string
 }
 
 func (ctx *SigningContext) SignEnveloped(el *etree.Element) (*etree.Element, error) {
-	sig, err := ctx.constructSignature(el, true)
+	sig, err := ctx.ConstructSignature(el, true)
 	if err != nil {
 		return nil, err
 	}

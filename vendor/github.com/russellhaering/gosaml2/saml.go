@@ -14,8 +14,9 @@ type SAMLServiceProvider struct {
 	AssertionConsumerServiceURL string
 	ServiceProviderIssuer       string
 
-	SignAuthnRequests          bool
-	SignAuthnRequestsAlgorithm string
+	SignAuthnRequests              bool
+	SignAuthnRequestsAlgorithm     string
+	SignAuthnRequestsCanonicalizer dsig.Canonicalizer
 
 	// RequestedAuthnContext allows service providers to require that the identity
 	// provider use specific authentication mechanisms. Leaving this unset will
@@ -63,6 +64,10 @@ func (sp *SAMLServiceProvider) SigningContext() *dsig.SigningContext {
 
 	sp.signingContext = dsig.NewDefaultSigningContext(sp.SPKeyStore)
 	sp.signingContext.SetSignatureMethod(sp.SignAuthnRequestsAlgorithm)
+	if sp.SignAuthnRequestsCanonicalizer != nil {
+		sp.signingContext.Canonicalizer = sp.SignAuthnRequestsCanonicalizer
+	}
+
 	return sp.signingContext
 }
 

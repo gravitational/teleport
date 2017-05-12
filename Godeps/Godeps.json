@@ -1,7 +1,7 @@
 {
 	"ImportPath": "github.com/gravitational/teleport",
 	"GoVersion": "go1.6",
-	"GodepVersion": "v74",
+	"GodepVersion": "v76",
 	"Packages": [
 		"./lib/...",
 		"./tool/...",
@@ -411,23 +411,23 @@
 		},
 		{
 			"ImportPath": "github.com/russellhaering/gosaml2",
-			"Rev": "1a1c11a8ec20d23bddff71f425ee124c426f08f2"
+			"Rev": "82a6e6132741c96a25969cec66912b6c24fcbd5f"
 		},
 		{
 			"ImportPath": "github.com/russellhaering/gosaml2/types",
-			"Rev": "1a1c11a8ec20d23bddff71f425ee124c426f08f2"
+			"Rev": "82a6e6132741c96a25969cec66912b6c24fcbd5f"
 		},
 		{
 			"ImportPath": "github.com/russellhaering/goxmldsig",
-			"Rev": "eaac44c63fe007124f8f6255b09febc906784981"
+			"Rev": "de86854e601fc0dd797fe7b28bb4aca12284ede3"
 		},
 		{
 			"ImportPath": "github.com/russellhaering/goxmldsig/etreeutils",
-			"Rev": "eaac44c63fe007124f8f6255b09febc906784981"
+			"Rev": "de86854e601fc0dd797fe7b28bb4aca12284ede3"
 		},
 		{
 			"ImportPath": "github.com/russellhaering/goxmldsig/types",
-			"Rev": "eaac44c63fe007124f8f6255b09febc906784981"
+			"Rev": "de86854e601fc0dd797fe7b28bb4aca12284ede3"
 		},
 		{
 			"ImportPath": "github.com/satori/go.uuid",
