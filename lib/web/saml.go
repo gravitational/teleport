@@ -35,7 +35,7 @@ func (m *Handler) samlSSO(w http.ResponseWriter, r *http.Request, p httprouter.P
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Debugf("samlSSO redirect: %v", response.RedirectURL)
+
 	http.Redirect(w, r, response.RedirectURL, http.StatusFound)
 	return nil, nil
 }

@@ -140,6 +140,13 @@ const (
 )
 
 const (
+	// NetIQ is an identity provider.
+	NetIQ = "netiq"
+	// ADFS is Microsoft Active Directory Federation Services
+	ADFS = "adfs"
+)
+
+const (
 	// RemoteCommandSuccess is returned when a command has successfully executed.
 	RemoteCommandSuccess = 0
 	// RemoteCommandFailure is returned when a command has failed to execute and
