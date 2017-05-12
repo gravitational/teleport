@@ -56,8 +56,7 @@ func (sp *SAMLServiceProvider) BuildAuthRequestDocument() (*etree.Document, erro
 	doc := etree.NewDocument()
 
 	if sp.SignAuthnRequests {
-		ctx := sp.SigningContext()
-		signed, err := ctx.SignEnveloped(authnRequest)
+		signed, err := sp.SignAuthnRequest(authnRequest)
 		if err != nil {
 			return nil, err
 		}
@@ -67,6 +66,30 @@ func (sp *SAMLServiceProvider) BuildAuthRequestDocument() (*etree.Document, erro
 		doc.SetRoot(authnRequest)
 	}
 	return doc, nil
+}
+
+// SignAuthnRequest takes a document, builds a signature, creates another document
+// and inserts the signature in it. According to the schema, the position of the
+// signature is right after the Issuer [1] then all other children.
+//
+// [1] https://docs.oasis-open.org/security/saml/v2.0/saml-schema-protocol-2.0.xsd
+func (sp *SAMLServiceProvider) SignAuthnRequest(el *etree.Element) (*etree.Element, error) {
+	ctx := sp.SigningContext()
+
+	sig, err := ctx.ConstructSignature(el, true)
+	if err != nil {
+		return nil, err
+	}
+
+	ret := el.Copy()
+
+	var children []etree.Token
+	children = append(children, ret.Child[0])     // issuer is always first
+	children = append(children, sig)              // next is the signature
+	children = append(children, ret.Child[1:]...) // then all other children
+	ret.Child = children
+
+	return ret, nil
 }
 
 // BuildAuthRequest builds <AuthnRequest> for identity provider
