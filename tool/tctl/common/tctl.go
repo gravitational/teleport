@@ -93,6 +93,11 @@ type AuthCommand struct {
 	compatVersion              string
 }
 
+type SAMLCommand struct {
+	config *service.Config
+	name   string
+}
+
 type AuthServerCommand struct {
 	config *service.Config
 }
@@ -137,6 +142,7 @@ func Run() {
 	cmdUsers := UserCommand{config: cfg}
 	cmdNodes := NodeCommand{config: cfg}
 	cmdAuth := AuthCommand{config: cfg}
+	cmdSAML := SAMLCommand{config: cfg}
 	cmdReverseTunnel := ReverseTunnelCommand{config: cfg}
 	cmdTokens := TokenCommand{config: cfg}
 	cmdGet := GetCommand{config: cfg}
@@ -211,6 +217,11 @@ func Run() {
 	tokenList := tokens.Command("ls", "List node and user invitation tokens")
 	tokenDel := tokens.Command("del", "Delete/revoke an invitation token")
 	tokenDel.Arg("token", "Token to delete").StringVar(&cmdTokens.token)
+
+	// saml
+	saml := app.Command("saml", "Operations on SAML provider")
+	samlExport := saml.Command("export", "export saml signing key in crt format")
+	samlExport.Flag("name", "name of the connector to export").StringVar(&cmdSAML.name)
 
 	// operations with authorities
 	auth := app.Command("auth", "Operations with user and host certificate authorities").Hidden()
@@ -295,6 +306,8 @@ func Run() {
 		err = cmdNodes.ListActive(client)
 	case authList.FullCommand():
 		err = cmdAuth.ListAuthorities(client)
+	case samlExport.FullCommand():
+		err = cmdSAML.ExportSAML(client)
 	case authExport.FullCommand():
 		err = cmdAuth.ExportAuthorities(client)
 	case reverseTunnelsList.FullCommand():
@@ -553,6 +566,18 @@ func (a *AuthCommand) ListAuthorities(client *auth.TunClient) error {
 	if len(trustedCAs) > 0 {
 		fmt.Printf(trustedCAsView())
 	}
+	return nil
+}
+
+// ExportSAML outputs a certificate in CRT format to be used by an idP (identity
+// provider) to validate an AuthnRequest.
+func (s *SAMLCommand) ExportSAML(client *auth.TunClient) error {
+	sc, err := client.GetSAMLConnector(s.name, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("%v", sc.GetSigningKeyPair().Cert)
 	return nil
 }
 

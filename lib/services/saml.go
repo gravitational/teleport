@@ -24,18 +24,22 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"text/template"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
+
+	saml2 "github.com/russellhaering/gosaml2"
+	"github.com/russellhaering/gosaml2/types"
+	dsig "github.com/russellhaering/goxmldsig"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	saml2 "github.com/russellhaering/gosaml2"
-	"github.com/russellhaering/gosaml2/types"
-	dsig "github.com/russellhaering/goxmldsig"
 )
 
 // SAMLConnector specifies configuration for SAML 2.0 dentity providers
@@ -76,6 +80,10 @@ type SAMLConnector interface {
 	GetEntityDescriptor() string
 	// SetEntityDescriptor sets entity descritor of the service
 	SetEntityDescriptor(v string)
+	// GetEntityDescriptorURL returns the URL to obtain the entity descriptor.
+	GetEntityDescriptorURL() string
+	// SetEntityDescriptorURL sets the entity descriptor url.
+	SetEntityDescriptorURL(string)
 	// GetCert returns identity provider checking x509 certificate
 	GetCert() string
 	// SetCert sets identity provider checking certificate
@@ -94,6 +102,10 @@ type SAMLConnector interface {
 	GetAssertionConsumerService() string
 	// SetAssertionConsumerService sets assertion consumer service URL
 	SetAssertionConsumerService(v string)
+	// GetProvider returns the identity provider.
+	GetProvider() string
+	// SetProvider sets the identity provider.
+	SetProvider(string)
 }
 
 // NewSAMLConnector returns a new SAMLConnector based off a name and SAMLConnectorSpecV2.
@@ -245,6 +257,16 @@ func (o *SAMLConnectorV2) SetEntityDescriptor(v string) {
 	o.Spec.EntityDescriptor = v
 }
 
+// GetEntityDescriptorURL returns the URL to obtain the entity descriptor.
+func (o *SAMLConnectorV2) GetEntityDescriptorURL() string {
+	return o.Spec.EntityDescriptorURL
+}
+
+// SetEntityDescriptorURL sets the entity descriptor url.
+func (o *SAMLConnectorV2) SetEntityDescriptorURL(v string) {
+	o.Spec.EntityDescriptorURL = v
+}
+
 // GetAssertionConsumerService returns assertion consumer service URL
 func (o *SAMLConnectorV2) GetAssertionConsumerService() string {
 	return o.Spec.AssertionConsumerService
@@ -373,6 +395,16 @@ func (o *SAMLConnectorV2) GetAttributesToRoles() []AttributeMapping {
 // SetAttributesToRoles sets attributes to roles mapping
 func (o *SAMLConnectorV2) SetAttributesToRoles(mapping []AttributeMapping) {
 	o.Spec.AttributesToRoles = mapping
+}
+
+// SetProvider sets the identity provider.
+func (o *SAMLConnectorV2) SetProvider(identityProvider string) {
+	o.Spec.Provider = identityProvider
+}
+
+// GetProvider returns the identity provider.
+func (o *SAMLConnectorV2) GetProvider() string {
+	return o.Spec.Provider
 }
 
 // GetAttributes returns list of attributes expected by mappings
@@ -504,6 +536,23 @@ func (o *SAMLConnectorV2) GetServiceProvider(clock clockwork.Clock) (*saml2.SAML
 	certStore := dsig.MemoryX509CertificateStore{
 		Roots: []*x509.Certificate{},
 	}
+	// if we have a entity descriptor url, fetch it first
+	if o.Spec.EntityDescriptorURL != "" {
+		resp, err := http.Get(o.Spec.EntityDescriptorURL)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			return nil, trace.BadParameter("status code %v when fetching from %q", resp.StatusCode, o.Spec.EntityDescriptorURL)
+		}
+		defer resp.Body.Close()
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		o.Spec.EntityDescriptor = string(body)
+		log.Debugf("[SAML] Successfully fetched entity descriptor from %q", o.Spec.EntityDescriptorURL)
+	}
 	if o.Spec.EntityDescriptor != "" {
 		metadata := &types.EntityDescriptor{}
 		err := xml.Unmarshal([]byte(o.Spec.EntityDescriptor), metadata)
@@ -576,18 +625,37 @@ func (o *SAMLConnectorV2) GetServiceProvider(clock clockwork.Clock) (*saml2.SAML
 			return nil, trace.BadParameter("need roles or role template (not both or none)")
 		}
 	}
-	log.Debugf("SSO: %v\nIssuer:%v,acs:%v", o.Spec.SSO, o.Spec.Issuer, o.Spec.AssertionConsumerService)
+	log.Debugf("[SAML] SSO: %v", o.Spec.SSO)
+	log.Debugf("[SAML] Issuer: %v", o.Spec.Issuer)
+	log.Debugf("[SAML] ACS: %v", o.Spec.AssertionConsumerService)
+
 	sp := &saml2.SAMLServiceProvider{
-		IdentityProviderSSOURL:      o.Spec.SSO,
-		IdentityProviderIssuer:      o.Spec.Issuer,
-		ServiceProviderIssuer:       o.Spec.ServiceProviderIssuer,
-		AssertionConsumerServiceURL: o.Spec.AssertionConsumerService,
-		SignAuthnRequests:           true,
-		AudienceURI:                 o.Spec.Audience,
-		IDPCertificateStore:         &certStore,
-		SPKeyStore:                  keyStore,
-		Clock:                       dsig.NewFakeClock(clock),
+		IdentityProviderSSOURL:         o.Spec.SSO,
+		IdentityProviderIssuer:         o.Spec.Issuer,
+		ServiceProviderIssuer:          o.Spec.ServiceProviderIssuer,
+		AssertionConsumerServiceURL:    o.Spec.AssertionConsumerService,
+		SignAuthnRequests:              true,
+		SignAuthnRequestsCanonicalizer: dsig.MakeC14N11Canonicalizer(),
+		AudienceURI:                    o.Spec.Audience,
+		IDPCertificateStore:            &certStore,
+		SPKeyStore:                     keyStore,
+		Clock:                          dsig.NewFakeClock(clock),
 	}
+
+	// adfs specific settings
+	if o.Spec.Provider == teleport.ADFS {
+		if sp.SignAuthnRequests {
+			// adfs does not support C14N11, we have to use the C14N10 canonicalizer
+			sp.SignAuthnRequestsCanonicalizer = dsig.MakeC14N10ExclusiveCanonicalizerWithPrefixList(dsig.DefaultPrefix)
+
+			// at a minimum we require password protected transport
+			sp.RequestedAuthnContext = &saml2.RequestedAuthnContext{
+				Comparison: "minimum",
+				Contexts:   []string{"urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport"},
+			}
+		}
+	}
+
 	return sp, nil
 }
 
@@ -641,10 +709,14 @@ type SAMLConnectorSpecV2 struct {
 	// EntityDescriptor is XML with descriptor, can be used to supply configuration
 	// parameters in one XML files vs supplying them in the individual elelemtns
 	EntityDescriptor string `json:"entity_descriptor"`
+	// EntityDescriptor points to a URL that supplies a configuration XML.
+	EntityDescriptorURL string `json:"entity_descriptor_url"`
 	// AttriburesToRoles is a list of mappings of attribute statements to roles
 	AttributesToRoles []AttributeMapping `json:"attributes_to_roles"`
 	// SigningKeyPair is x509 key pair used to sign AuthnRequest
 	SigningKeyPair *SigningKeyPair `json:"signing_key_pair,omitempty"`
+	// Provider is the external identity provider.
+	Provider string `json:"provider,omitempty"`
 }
 
 // SAMLConnectorSpecV2Schema is a JSON Schema for SAML Connector
@@ -656,11 +728,13 @@ var SAMLConnectorSpecV2Schema = fmt.Sprintf(`{
     "issuer": {"type": "string"},
     "sso": {"type": "string"},
     "cert": {"type": "string"},
+    "provider": {"type": "string"},
     "display": {"type": "string"},
     "acs": {"type": "string"},
     "audience": {"type": "string"},
     "service_provider_issuer": {"type": "string"},
     "entity_descriptor": {"type": "string"},
+    "entity_descriptor_url": {"type": "string"},
     "attributes_to_roles": {
       "type": "array",
       "items": %v

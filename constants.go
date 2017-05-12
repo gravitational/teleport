@@ -142,6 +142,8 @@ const (
 const (
 	// NetIQ is an identity provider.
 	NetIQ = "netiq"
+	// ADFS is Microsoft Active Directory Federation Services
+	ADFS = "adfs"
 )
 
 const (
