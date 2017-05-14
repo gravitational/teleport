@@ -553,7 +553,9 @@ func (s *session) start(ch ssh.Channel, ctx *ctx) error {
 		<-s.closeC
 		if cmd.Process != nil {
 			if err := cmd.Process.Kill(); err != nil {
-				log.Error(err)
+				if err.Error() != "os: process already finished" {
+					log.Error(trace.DebugReport(err))
+				}
 			}
 		}
 	}()

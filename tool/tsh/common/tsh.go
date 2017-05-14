@@ -368,12 +368,16 @@ func onBenchmark(cf *CLIConf) {
 	fmt.Printf("\n")
 	fmt.Printf("* Requests originated: %v\n", result.RequestsOriginated)
 	fmt.Printf("* Requests failed: %v\n", result.RequestsFailed)
+	if result.LastError != nil {
+		fmt.Printf("* Last error: %v\n", result.LastError)
+	}
 	fmt.Printf("\nHistogram\n\n")
 	t := goterm.NewTable(0, 10, 5, ' ', 0)
 	printHeader(t, []string{"Percentile", "Duration"})
 	for _, quantile := range []float64{25, 50, 75, 90, 95, 99, 100} {
 		fmt.Fprintf(t, "%v\t%v ms\n", quantile, result.Histogram.ValueAtQuantile(quantile))
 	}
+
 	fmt.Fprintf(os.Stdout, t.String())
 	fmt.Printf("\n")
 }

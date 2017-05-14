@@ -19,7 +19,6 @@ package common
 import (
 	"fmt"
 	"net/http"
-	_ "net/http/pprof"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -34,7 +33,10 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/google/gops/agent"
+	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 // same as main() but has a testing switch
@@ -96,7 +98,13 @@ func Run(cmdlineArgs []string, testRun bool) (executedCommand string, conf *serv
 		StringVar(&ccf.ConfigString)
 	start.Flag("labels", "List of labels for this node").StringVar(&ccf.Labels)
 	start.Flag("httpprofile",
-		"Start profiling endpoint on localhost:6060").Hidden().BoolVar(&ccf.HTTPProfileEndpoint)
+		"[DEPRECATED] Start profiling endpoint on localhost:6060").Hidden().BoolVar(&ccf.HTTPProfileEndpoint)
+	start.Flag("gops",
+		"Start gops endpoint on a given address").Hidden().BoolVar(&ccf.Gops)
+	start.Flag("gops-addr",
+		"Specify gops addr to listen on").Hidden().StringVar(&ccf.GopsAddr)
+	start.Flag("diag-addr",
+		"Start diangonstic endpoint on this address").Hidden().StringVar(&ccf.DiagnosticAddr)
 
 	// define start's usage info (we use kingpin's "alias" field for this)
 	start.Alias(usageNotes + usageExamples)
@@ -131,9 +139,27 @@ func Run(cmdlineArgs []string, testRun bool) (executedCommand string, conf *serv
 			log.Info(conf.DebugDumpToYAML())
 		}
 		if ccf.HTTPProfileEndpoint {
-			log.Infof("starting http profile endpoint")
+			log.Warningf("http profile endpoint is deprecated, use gops instead")
+		}
+		if ccf.Gops {
+			log.Debugf("starting gops agent")
+			err := agent.Listen(&agent.Options{Addr: ccf.GopsAddr})
+			if err != nil {
+				log.Warningf("failed to start gops agent %v", err)
+			}
+		}
+		// collect and expose diagnostic endpoint
+		if ccf.DiagnosticAddr != "" {
+			mux := http.NewServeMux()
+			mux.Handle("/metrics", prometheus.Handler())
+			mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+				roundtrip.ReplyJSON(w, http.StatusOK, map[string]interface{}{"status": "ok"})
+			})
 			go func() {
-				log.Println(http.ListenAndServe("localhost:6060", nil))
+				err := http.ListenAndServe(ccf.DiagnosticAddr, mux)
+				if err != nil {
+					log.Warningf("diagnostic endpoint exited %v", err)
+				}
 			}()
 		}
 		if !testRun {

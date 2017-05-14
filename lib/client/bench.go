@@ -45,6 +45,8 @@ type BenchmarkResult struct {
 	RequestsFailed int
 	// Histogram is a duration histogram
 	Histogram *hdrhistogram.Histogram
+	// LastError contains last recorded error
+	LastError error
 }
 
 // Benchmark connects to remote server and executes requests in parallel according
@@ -108,6 +110,7 @@ func (tc *TeleportClient) Benchmark(ctx context.Context, bench Benchmark) (*Benc
 			} else {
 				if measure.Error != nil {
 					result.RequestsFailed += 1
+					result.LastError = measure.Error
 				}
 				result.RequestsOriginated += 1
 				result.Histogram.RecordValue(int64(measure.End.Sub(measure.Start) / time.Millisecond))
