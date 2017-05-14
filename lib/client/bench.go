@@ -17,6 +17,7 @@ limitations under the License.
 package client
 
 import (
+	"bytes"
 	"context"
 	"io/ioutil"
 	"time"
@@ -55,6 +56,7 @@ type BenchmarkResult struct {
 func (tc *TeleportClient) Benchmark(ctx context.Context, bench Benchmark) (*BenchmarkResult, error) {
 	tc.Stdout = ioutil.Discard
 	tc.Stderr = ioutil.Discard
+	tc.Stdin = &bytes.Buffer{}
 
 	ctx, cancel := context.WithTimeout(ctx, bench.Duration)
 	defer cancel()
