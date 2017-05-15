@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import { formatPattern } from 'app/lib/patternUtils';
+import { AuthTypeEnum } from './services/enums';
 import $ from 'jQuery';
 
 let cfg = {
@@ -41,18 +42,18 @@ let cfg = {
     pageNotFound: '/web/notfound',
     terminal: '/web/cluster/:siteId/node/:serverId/:login(/:sid)',
     player: '/web/player/node/:siteId/sid/:sid',
-    sso: '/v1/webapi/oidc/login/*',    
-    ssoInvite: '/v1/webapi/users/invites/oidc/*'
+    ssoOidc: '/v1/webapi/oidc/*',        
+    ssoSaml: '/v1/webapi/saml/*',    
   },
 
   api: {    
-    sso: '/v1/webapi/oidc/login/web?redirect_url=:redirect&connector_id=:provider',    
+    ssoOidc: '/v1/webapi/oidc/login/web?redirect_url=:redirect&connector_id=:providerName',    
+    ssoSaml: '/v1/webapi/saml/sso?redirect_url=:redirect&connector_id=:providerName',        
     renewTokenPath:'/v1/webapi/sessions/renew',
     sessionPath: '/v1/webapi/sessions',
     userStatus: '/v1/webapi/user/status',
     userAclPath: '/v1/webapi/user/acl',    
-    invitePath: '/v1/webapi/users/invites/:inviteToken',
-    inviteWithOidcPath: '/v1/webapi/users/invites/oidc/validate?redirect_url=:redirect&connector_id=:provider&token=:inviteToken',
+    invitePath: '/v1/webapi/users/invites/:inviteToken',        
     createUserPath: '/v1/webapi/users',
     u2fCreateUserChallengePath: '/v1/webapi/u2f/signuptokens/:inviteToken',
     u2fCreateUserPath: '/v1/webapi/u2f/users',
@@ -75,13 +76,21 @@ let cfg = {
     },
 
     getSiteSessionUrl(siteId='-current-') {
-        return formatPattern(cfg.api.siteSessionPath, { siteId });  
+      return formatPattern(cfg.api.siteSessionPath, { siteId });  
     },
 
-    getSsoUrl(redirect, provider){
-      return cfg.baseUrl + formatPattern(cfg.api.sso, {redirect, provider});
-    },
+    getSsoUrl(redirect, providerName, providerType) {            
+      if (providerType === AuthTypeEnum.OIDC) {
+        return cfg.baseUrl + formatPattern(cfg.api.ssoOidc, {redirect, providerName});  
+      }
 
+      if (providerType === AuthTypeEnum.SAML) {
+        return cfg.baseUrl + formatPattern(cfg.api.ssoSaml, {redirect, providerName});  
+      }          
+
+      throw 'Unknown sso provider type';
+    },
+    
     getSiteEventsFilterUrl({start, end, siteId}){
       return formatPattern(cfg.api.siteEventsFilterPath, {start, end, siteId});
     },
@@ -101,13 +110,7 @@ let cfg = {
     getInviteUrl(inviteToken){
       return formatPattern(cfg.api.invitePath, {inviteToken});
     },
-
-    getInviteWithOidcUrl(inviteToken, provider, redirect){
-      return cfg.baseUrl + formatPattern(cfg.api.inviteWithOidcPath, {
-        redirect, provider, inviteToken
-      });
-    },
-
+    
     getU2fCreateUserChallengeUrl(inviteToken){
       return formatPattern(cfg.api.u2fCreateUserChallengePath, {inviteToken});
     }
@@ -130,8 +133,16 @@ let cfg = {
     return formatPattern(cfg.routes.currentSession, {sid, siteId});
   },
 
-  getAuthProviders() {
-    return cfg.auth && cfg.auth.oidc ? [cfg.auth.oidc] : [];    
+  getAuthProviders() {        
+    let oidc = cfg.auth.oidc || [];
+    let saml = cfg.auth.saml || [];
+    // create provider objects
+    let providers = [
+      ...oidc.map(createProvider(AuthTypeEnum.OIDC)),
+      ...saml.map(createProvider(AuthTypeEnum.SAML))
+    ];
+
+    return providers;
   },
   
   getAuthType() {
@@ -154,5 +165,11 @@ let cfg = {
     return pattern.replace(/\(.*\)/, '');
   } 
 }
+
+const createProvider = type => item => ({
+  name: item.name,
+  display: item.display,
+  type
+})
 
 export default cfg;
