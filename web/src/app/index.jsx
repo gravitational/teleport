@@ -20,7 +20,7 @@ import { Router, Route, Redirect } from 'react-router';
 import { Provider } from 'nuclear-js-react-addons';
 import history from './services/history';
 import AppContainer from './components/app.jsx';
-import Login from './components/user/login.jsx';
+import LoginContainer from './components/user/login.jsx';
 import Signup from './components/user/invite.jsx';
 import Nodes from './components/nodes/main.jsx';
 import Sessions from './components/sessions/main.jsx';
@@ -43,7 +43,7 @@ render((
     <Router history={history.original()}>      
       <Route component={DocumentTitle}>
         <Route path={cfg.routes.msgs} component={MessagePage}/>
-        <Route path={cfg.routes.login} onEnter={initLogin} title="Login" component={Login}/>
+        <Route path={cfg.routes.login} onEnter={initLogin} title="Login" component={LoginContainer}/>
         <Route path={cfg.routes.newUser} component={Signup}/>
         <Redirect from={cfg.routes.app} to={cfg.routes.nodes}/>
         <Route path={cfg.routes.app} onEnter={ensureUser} component={AppContainer} >
