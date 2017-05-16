@@ -133,9 +133,9 @@ let cfg = {
     return formatPattern(cfg.routes.currentSession, {sid, siteId});
   },
 
-  getAuthProviders() {        
-    let oidc = cfg.auth.oidc || [];
-    let saml = cfg.auth.saml || [];
+  getAuthProviders() {            
+    let oidc = cfg.auth && cfg.auth.oidc ? [cfg.auth.oidc] : [];  
+    let saml = cfg.auth && cfg.auth.saml ? [cfg.auth.saml] : [];  
     // create provider objects
     let providers = [
       ...oidc.map(createProvider(AuthTypeEnum.OIDC)),

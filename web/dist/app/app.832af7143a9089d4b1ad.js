@@ -1318,8 +1318,8 @@ webpackJsonp([0],[
 	    return (0, _patternUtils.formatPattern)(cfg.routes.currentSession, { sid: sid, siteId: siteId });
 	  },
 	  getAuthProviders: function getAuthProviders() {
-	    var oidc = cfg.auth.oidc || [];
-	    var saml = cfg.auth.saml || [];
+	    var oidc = cfg.auth && cfg.auth.oidc ? [cfg.auth.oidc] : [];
+	    var saml = cfg.auth && cfg.auth.saml ? [cfg.auth.saml] : [];
 	    // create provider objects
 	    var providers = [].concat(oidc.map(createProvider(_enums.AuthTypeEnum.OIDC)), saml.map(createProvider(_enums.AuthTypeEnum.SAML)));
 
