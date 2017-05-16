@@ -17,14 +17,12 @@ limitations under the License.
 import React from 'react';
 import $ from 'jQuery';
 import classnames from 'classnames';
-import reactor from 'app/reactor';
+import { connect } from 'nuclear-js-react-addons';
 import cfg from 'app/config';
 import {actions, getters} from 'app/flux/user';
-import LinkedStateMixin from 'react-addons-linked-state-mixin';
 import { Auth2faTypeEnum, AuthTypeEnum } from 'app/services/enums';
 import { ErrorPage, ErrorTypes } from './../msgPage';
 import { TeleportLogo } from './../icons.jsx';
-import { SsoBtnList } from './ssoBtnList';
 import GoogleAuthInfo from './googleAuthLogo';
 import { ErrorMessage } from './items';
 
@@ -32,38 +30,22 @@ const U2F_HELP_URL = 'https://support.google.com/accounts/answer/6103523?hl=en';
 
 const needs2fa = auth2faType => !!auth2faType && auth2faType !== Auth2faTypeEnum.DISABLED;
 
-const Invite = React.createClass({
-
-  mixins: [reactor.ReactMixin],
-
-  getDataBindings() {
-    return {
-      invite: getters.invite,
-      attemp: getters.attemp,
-      fetchingInvite: getters.fetchingInvite
-    }
-  },
+export class Invite extends React.Component {
 
   componentDidMount(){
     actions.fetchInvite(this.props.params.inviteToken);
-  },
-    
-  onSignupWithOidc(providerName){    
-    actions.signupWithOidc(providerName, this.props.params.inviteToken);
-  },
-
-  onSignupWithU2f(username, password) {    
+  }
+      
+  onSignupWithU2f = (username, password) => {    
     actions.signupWithU2f(username, password, this.props.params.inviteToken);
-  },
+  }
 
-  onSignup(username, password, token) {    
+  onSignup = (username, password, token) => {    
     actions.signup(username, password, token, this.props.params.inviteToken);
-  },
+  }
 
   render() {
-    let {fetchingInvite, invite, attemp} = this.state;    
-    
-    let providers = cfg.getAuthProviders();
+    let {fetchingInvite, invite, attemp} = this.props;            
     let authType = cfg.getAuthType();
     let auth2faType = cfg.getAuth2faType();
             
@@ -84,13 +66,11 @@ const Invite = React.createClass({
         <TeleportLogo />                
         <div className={containerClass}>
           <div className="grv-flex-column">
-            <InviteInputForm
-              authProviders={providers}  
+            <InviteInputForm              
               auth2faType={auth2faType}
               authType={authType}                
               attemp={attemp}
-              invite={invite}
-              onSignupWithOidc={this.onSignupWithOidc}
+              invite={invite}              
               onSignupWithU2f={this.onSignupWithU2f}
               onSignup={this.onSignup}                          
             />
@@ -103,12 +83,10 @@ const Invite = React.createClass({
       </div>
     );
   }
-});
+}
 
-const InviteInputForm = React.createClass({
-
-  mixins: [LinkedStateMixin],
-
+export class InviteInputForm extends React.Component {
+  
   componentDidMount(){
     $(this.refs.form).validate({
       rules:{
@@ -129,51 +107,48 @@ const InviteInputForm = React.createClass({
   			}
       }
     })
-  },
+  }
 
-  getInitialState() {
-    return {
+  constructor(props) {
+    super(props);
+    this.state = {
       userName: this.props.invite.user,
       password: '',
       passwordConfirmed: '',
       token: ''  
     }
-  },
-
-  onSignup(e) {
+  }
+  
+  onSignup = e => {
     e.preventDefault();    
     if (this.isValid()) {
       let { userName, password, token } = this.state;
       this.props.onSignup(userName, password, token);
     }
-  },
+  }
 
-  onSignupWithU2f(e) {    
+  onSignupWithU2f = e => {    
     e.preventDefault();    
     if (this.isValid()) {
       let { userName, password } = this.state;
       this.props.onSignupWithU2f(userName, password);
     }
-  },
-      
-  onSignupWithOidc(providerName) {    
-    this.props.onSignupWithOidc(providerName);
-  },
+  }
 
-  isValid() {
-    var $form = $(this.refs.form);
-    return $form.length === 0 || $form.valid();
-  },
-
-  onChangeState(propName, value) {
+  onChangeState = (propName, value) => {
     this.setState({
       [propName]: value
     });
-  },
-
+  }
+        
+  isValid() {
+    var $form = $(this.refs.form);
+    return $form.length === 0 || $form.valid();
+  }
+  
   needsCredentials() {
     return this.props.authType === AuthTypeEnum.LOCAL || needs2fa(this.props.auth2faType);
-  },
+  }
   
   renderNameAndPassFields() {
     if (!this.needsCredentials()) {
@@ -212,15 +187,12 @@ const InviteInputForm = React.createClass({
           </div>          
       </div>
     )
-  },
+  }
 
   render2faFields() {
     let { auth2faType } = this.props;
-    if (!needs2fa(auth2faType) || auth2faType !== Auth2faTypeEnum.OTP) {
-      return null;
-    }
-        
-    return (
+    if (needs2fa(auth2faType) && auth2faType === Auth2faTypeEnum.OTP) {
+      return (
       <div className="form-group">
         <input
           autoComplete="off"
@@ -230,8 +202,11 @@ const InviteInputForm = React.createClass({
           name="token"
           placeholder="Two factor token (Google Authenticator)"/>
       </div>
-    )
-  },
+      )
+    }
+
+    return null;            
+  }
 
   renderSignupBtn() {    
     let { isProcessing } = this.props.attemp;    
@@ -261,24 +236,8 @@ const InviteInputForm = React.createClass({
         {$helpBlock}        
       </div>
     );        
-  },
-  
-  renderSsoBtns() {    
-    let { authType, authProviders, attemp } = this.props;
-
-    if (authType !== AuthTypeEnum.OIDC) {
-      return null;
-    }
-        
-    return (
-      <SsoBtnList
-        prefixText="Sign up with "
-        isDisabled={attemp.isProcessing}
-        providers={authProviders}
-        onClick={this.onSignupWithOidc} />
-    )    
-  },
-  
+  }
+      
   render() {            
     let { isFailed, message } = this.props.attemp;        
     let $error = isFailed ? <ErrorMessage message={message} /> : null;
@@ -287,13 +246,12 @@ const InviteInputForm = React.createClass({
         <h3> Get started with Teleport </h3>
         {this.renderNameAndPassFields()}    
         {this.render2faFields()}
-        {this.renderSignupBtn()}                          
-        {this.renderSsoBtns()} 
+        {this.renderSignupBtn()}                                  
         {$error}
       </form>
     );
   }
-})
+}
 
 const Invite2faData = ({auth2faType, qr}) => {
   if (!needs2fa(auth2faType)) {
@@ -331,11 +289,9 @@ const Invite2faData = ({auth2faType, qr}) => {
   return null;
 }
 
-InviteInputForm.propTypes = {  
-  authProviders: React.PropTypes.array,
+InviteInputForm.propTypes = {    
   auth2faType: React.PropTypes.string,
-  authType: React.PropTypes.string,
-  onSignupWithOidc: React.PropTypes.func.isRequired,
+  authType: React.PropTypes.string,  
   onSignupWithU2f: React.PropTypes.func.isRequired,
   onSignup: React.PropTypes.func.isRequired,
   attemp: React.PropTypes.object.isRequired
@@ -350,7 +306,12 @@ const InviteFooter = ({auth2faType}) => {
   )
 }
 
-export default Invite;
-export {
-  InviteInputForm
+function mapStateToProps() {
+  return {
+      invite: getters.invite,
+      attemp: getters.attemp,
+      fetchingInvite: getters.fetchingInvite
+    }  
 }
+
+export default connect(mapStateToProps)(Invite);
