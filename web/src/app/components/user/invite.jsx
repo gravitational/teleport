@@ -119,7 +119,7 @@ export class InviteInputForm extends React.Component {
     }
   }
   
-  onSignup = e => {
+  onSignup = e => {    
     e.preventDefault();    
     if (this.isValid()) {
       let { userName, password, token } = this.state;
@@ -160,7 +160,7 @@ export class InviteInputForm extends React.Component {
         <div className="form-group">
           <input
             disabled  
-            autoFocus            
+            autoFocus                        
             value={this.state.userName}
             onChange={e => this.onChangeState('userName', e.target.value)}
             className="form-control required"
@@ -171,6 +171,7 @@ export class InviteInputForm extends React.Component {
           <input
             value={this.state.password}
             onChange={e => this.onChangeState('password', e.target.value)}
+            ref="password"
             type="password"
             name="password"
             className="form-control required"
