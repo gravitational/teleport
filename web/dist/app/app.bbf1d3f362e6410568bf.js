@@ -6035,6 +6035,7 @@ webpackJsonp([0],[
 	          onChange: function onChange(e) {
 	            return _this3.onChangeState('password', e.target.value);
 	          },
+	          ref: 'password',
 	          type: 'password',
 	          name: 'password',
 	          className: 'form-control required',
