@@ -92,7 +92,7 @@ func (s *MigrationsSuite) TestMigrateUsers(c *C) {
 	in := &UserV1{
 		Name:           "alice",
 		AllowedLogins:  []string{"admin", "centos"},
-		OIDCIdentities: []OIDCIdentity{{Email: "alice@example.com", ConnectorID: "example"}},
+		OIDCIdentities: []ExternalIdentity{{Username: "alice@example.com", ConnectorID: "example"}},
 		Status: LoginStatus{
 			IsLocked:    true,
 			LockedTime:  time.Date(2015, 12, 10, 1, 1, 3, 0, time.UTC),

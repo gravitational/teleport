@@ -135,7 +135,11 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		}
 	case teleport.OIDC:
 		if c.Spec.SecondFactor != "" {
-			return trace.BadParameter("second factor [%q] not supported with oidc connector")
+			return trace.BadParameter("second factor [%q] not supported with OIDC connector")
+		}
+	case teleport.SAML:
+		if c.Spec.SecondFactor != "" {
+			return trace.BadParameter("second factor [%q] not supported with SAML connector")
 		}
 	default:
 		return trace.BadParameter("unsupported type %q", c.Spec.Type)

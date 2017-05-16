@@ -69,19 +69,13 @@ const actions = {
     let promise = auth.signUpWithU2f(name, psw, inviteToken);
     actions._handleSignupPromise(promise);
   },
-
-  signupWithOidc(provider, token) {
-    let redirectUrl = history.createRedirect(cfg.routes.app);
-    let url = cfg.api.getInviteWithOidcUrl(token, provider, redirectUrl);
-    history.push(url, true);
-  },
-
-  loginWithOidc(provider) {
+  
+  loginWithSso(providerName, providerType) {
     let redirectUrl = history.extractRedirect();
     redirectUrl = history.ensureBaseUrl(redirectUrl);
-    history.push(cfg.api.getSsoUrl(redirectUrl, provider), true);
+    history.push(cfg.api.getSsoUrl(redirectUrl, providerName, providerType), true);
   },
-
+  
   loginWithU2f(user, password) {
     let promise = auth.loginWithU2f(user, password);
     actions._handleLoginPromise(promise);

@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
@@ -482,4 +483,60 @@ func (s *ServicesTestSuite) U2FCRUD(c *C) {
 	registrationOut, err := s.WebS.GetU2FRegistration(user1)
 	c.Assert(err, IsNil)
 	c.Assert(&registration, DeepEquals, registrationOut)
+}
+
+func (s *ServicesTestSuite) SAMLCRUD(c *C) {
+	connector := &services.SAMLConnectorV2{
+		Kind:    services.KindSAML,
+		Version: services.V2,
+		Metadata: services.Metadata{
+			Name:      "saml1",
+			Namespace: defaults.Namespace,
+		},
+		Spec: services.SAMLConnectorSpecV2{
+			Issuer: "http://example.com",
+			SSO:    "https://example.com/saml/sso",
+			AssertionConsumerService: "https://localhost/acs",
+			Audience:                 "https://localhost/aud",
+			ServiceProviderIssuer:    "https://localhost/iss",
+			AttributesToRoles: []services.AttributeMapping{
+				{Name: "groups", Value: "admin", Roles: []string{"admin"}},
+			},
+			Cert: fixtures.SigningCertPEM,
+			SigningKeyPair: &services.SigningKeyPair{
+				PrivateKey: fixtures.SigningKeyPEM,
+				Cert:       fixtures.SigningCertPEM,
+			},
+		},
+	}
+	err := connector.CheckAndSetDefaults()
+	c.Assert(err, IsNil)
+	err = s.WebS.UpsertSAMLConnector(connector)
+	c.Assert(err, IsNil)
+	out, err := s.WebS.GetSAMLConnector(connector.GetName(), true)
+	c.Assert(err, IsNil)
+	fixtures.DeepCompare(c, out, connector)
+
+	connectors, err := s.WebS.GetSAMLConnectors(true)
+	c.Assert(err, IsNil)
+	fixtures.DeepCompare(c, []services.SAMLConnector{connector}, connectors)
+
+	out2, err := s.WebS.GetSAMLConnector(connector.GetName(), false)
+	c.Assert(err, IsNil)
+	connectorNoSecrets := *connector
+	connectorNoSecrets.Spec.SigningKeyPair.PrivateKey = ""
+	fixtures.DeepCompare(c, out2, &connectorNoSecrets)
+
+	connectorsNoSecrets, err := s.WebS.GetSAMLConnectors(false)
+	c.Assert(err, IsNil)
+	fixtures.DeepCompare(c, []services.SAMLConnector{&connectorNoSecrets}, connectorsNoSecrets)
+
+	err = s.WebS.DeleteSAMLConnector(connector.GetName())
+	c.Assert(err, IsNil)
+
+	err = s.WebS.DeleteSAMLConnector(connector.GetName())
+	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("expected not found, got %T", err))
+
+	_, err = s.WebS.GetSAMLConnector(connector.GetName(), true)
+	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("expected not found, got %T", err))
 }
