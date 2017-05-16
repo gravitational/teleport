@@ -640,6 +640,7 @@ func (o *SAMLConnectorV2) GetServiceProvider(clock clockwork.Clock) (*saml2.SAML
 		IDPCertificateStore:            &certStore,
 		SPKeyStore:                     keyStore,
 		Clock:                          dsig.NewFakeClock(clock),
+		NameIdFormat:                   "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified",
 	}
 
 	// adfs specific settings
