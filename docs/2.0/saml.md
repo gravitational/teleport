@@ -18,12 +18,15 @@ mapping of the LDAP Attribute `E-Mail-Addresses` to `Name ID`. A group
 membership claim should be used to map users to roles (for example to
 separate normal users and admins).
 
-![Name ID Configuration](https://github.com/gravitational/teleport/tree/master/docs/2.0/img/adfs-1.png)
-![Group Configuration](https://github.com/gravitational/teleport/tree/master/docs/2.0/img/adfs-1.png)
+![Name ID Configuration](https://github.com/gravitational/teleport/tree/master/docs/2.0/img/adfs-1.png?raw=true)
+![Group Configuration](https://github.com/gravitational/teleport/tree/master/docs/2.0/img/adfs-2.png?raw=true)
 
 In addition if you are using dynamic roles (see below), it may be useful to map
 the LDAP Attribute `SAM-Account-Name` to `Windows account name` and create
 another mapping of `E-Mail-Addresses` to `UPN`.
+
+![WAN Configuration](https://github.com/gravitational/teleport/tree/master/docs/2.0/img/adfs-3.png?raw=true)
+![UPN Configuration](https://github.com/gravitational/teleport/tree/master/docs/2.0/img/adfs-4.png?raw=true)
 
 You'll also need to create a Relying Party Trust, use the below information to
 help guide you through the Wizard. Note, for development purposes we recommend
@@ -198,7 +201,7 @@ of the signature verification certificates.
 ### Login
 
 For the Web UI, if the above configuration were real, you would see a button
-that says `Login with Example`. Simply click on that and you will be
+that says `Login with adfs`. Simply click on that and you will be
 re-directed to a login page for your identity provider and if successful,
 redirected back to Teleport.
 
