@@ -2,6 +2,7 @@ export default {
   AuthTypeEnum: {
     LOCAL: 'local',
     OIDC: 'oidc',
+    SAML: 'saml',
     LDAP: 'ldap'
   },
 
@@ -10,7 +11,7 @@ export default {
     OTP: 'otp',
     DISABLED: 'off'
   },
-
+  
   AuthProviderEnum: {
     GOOGLE: 'google',
     MS: 'microsoft',
