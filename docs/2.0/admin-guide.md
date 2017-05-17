@@ -909,6 +909,27 @@ $ ssh-keygen -L -f ~/.tsh/keys/localhost/jsmith.cert
                 permit-pty
 ```
 
+### HTTP CONNECT Tunneling
+
+Some networks funnel all connections through a proxy server where they can be
+audited and access control rules applied. For these scenarios Teleport supports
+HTTP CONNECT tunneling.
+
+To use HTTP CONNECT tunneling, simply set either the `HTTPS_PROXY` or
+`HTTP_PROXY` environment variables and when Teleport builds and establishes the
+reverse tunnel to the main cluster, it will funnel all traffic though the proxy.
+Specifically Teleport will tunnel ports `3024` (SSH, reverse tunnel) and `3080`
+(HTTPS, establishing trust) through the proxy.
+
+The value of `HTTPS_PROXY` or `HTTP_PROXY` should be in the format
+`scheme://host:port` where scheme is either `https` or `http`. If the
+value is `host:port`, Teleport will prepend `http`.
+
+!!! tip "Note":
+    `localhost` and `127.0.0.1` are invalid values for the proxy host. If for
+    some reason your proxy runs locally, you'll need to provide some other DNS
+    name or a private IP address for it.
+
 ## Using Teleport with OpenSSH
 
 Teleport is a standards-compliant SSH proxy and it can work in environments with 
