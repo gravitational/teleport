@@ -14,18 +14,25 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// CertParams defines all parameters needed to generate a host certificate.
-type CertParams struct {
-	PrivateCASigningKey []byte         // PrivateCASigningKey is the private key of the CA that will sign the public key of the host.
-	PublicHostKey       []byte         // PublicHostKey is the public key of the host.
-	HostID              string         // HostID is used by Teleport to uniquely identify a node within a cluster.
-	NodeName            string         // NodeName is the DNS name of the node.
-	ClusterName         string         // ClusterName is the name of the cluster within which a node lives.
-	Roles               teleport.Roles // Roles identifies the roles of a Teleport instance.
-	TTL                 time.Duration  // TTL defines how long a certificate is valid for.
+// HostCertParams defines all parameters needed to generate a host certificate
+type HostCertParams struct {
+	// PrivateCASigningKey is the private key of the CA that will sign the public key of the host
+	PrivateCASigningKey []byte
+	// PublicHostKey is the public key of the host
+	PublicHostKey []byte
+	// HostID is used by Teleport to uniquely identify a node within a cluster
+	HostID string
+	// NodeName is the DNS name of the node
+	NodeName string
+	// ClusterName is the name of the cluster within which a node lives
+	ClusterName string
+	// Roles identifies the roles of a Teleport instance
+	Roles teleport.Roles
+	// TTL defines how long a certificate is valid for
+	TTL time.Duration
 }
 
-func (c *CertParams) Check() error {
+func (c *HostCertParams) Check() error {
 	if c.HostID == "" || c.ClusterName == "" {
 		return trace.BadParameter("HostID [%q] and ClusterName [%q] are required",
 			c.HostID, c.ClusterName)
@@ -36,6 +43,44 @@ func (c *CertParams) Check() error {
 	}
 
 	return nil
+}
+
+// UserCertParams defines OpenSSH user certificate parameters
+type UserCertParams struct {
+	// PrivateCASigningKey is the private key of the CA that will sign the public key of the user
+	PrivateCASigningKey []byte
+	// PublicUserKey is the public key of the user
+	PublicUserKey []byte
+	// TTL defines how long a certificate is valid for
+	TTL time.Duration
+	// Username is teleport username
+	Username string
+	// AllowedLogins is a list of SSH principals
+	AllowedLogins []string
+	// PermitAgentForwarding permits agent forwarding for this cert
+	PermitAgentForwarding bool
+	// Roles is a list of roles assigned to this user
+	Roles []string
+}
+
+// CertRoles defines certificate roles
+type CertRoles struct {
+	// Version is current version of the roles
+	Version string `json:"version"`
+	// Roles is a list of roles
+	Roles []string `json:"roles"`
+}
+
+// MarshalCertRoles marshal roles list to OpenSSH
+func MarshalCertRoles(roles []string) (string, error) {
+	out, err := json.Marshal(roles)
+	return string(out), err
+}
+
+// UnmarshalCertRoles marshal roles list to OpenSSH
+func UnmarshalCertRoles(in []string) (string, error) {
+	out, err := json.Marshal(in)
+	return string(out), err
 }
 
 // CertAuthority is a host or user certificate authority that

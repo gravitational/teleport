@@ -19,6 +19,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"sync"
@@ -135,7 +136,7 @@ func (n *nauth) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
 	return privPem, pubBytes, nil
 }
 
-func (n *nauth) GenerateHostCert(c services.CertParams) ([]byte, error) {
+func (n *nauth) GenerateHostCert(c services.HostCertParams) ([]byte, error) {
 	if err := c.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -176,28 +177,26 @@ func (n *nauth) GenerateHostCert(c services.CertParams) ([]byte, error) {
 	return ssh.MarshalAuthorizedKey(cert), nil
 }
 
-func (n *nauth) GenerateUserCert(pkey, key []byte, teleportUsername string, allowedLogins []string, ttl time.Duration, permitAgentForwarding bool) ([]byte, error) {
-	if ttl < defaults.MinCertDuration {
+func (n *nauth) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
+	if c.TTL < defaults.MinCertDuration {
 		return nil, trace.BadParameter("wrong certificate TTL")
 	}
-	if len(allowedLogins) == 0 {
+	if len(c.AllowedLogins) == 0 {
 		return nil, trace.BadParameter("allowedLogins: need allowed OS logins")
 	}
-	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(key)
+	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(c.PublicUserKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	validBefore := uint64(ssh.CertTimeInfinity)
-	if ttl != 0 {
-		b := time.Now().Add(ttl)
+	if c.TTL != 0 {
+		b := time.Now().Add(c.TTL)
 		validBefore = uint64(b.Unix())
-		log.Infof("generated user key for %v with expiry on (%v) %v", allowedLogins, validBefore, b)
+		log.Debugf("generated user key for %v with expiry on (%v) %v", c.AllowedLogins, validBefore, b)
 	}
-	// we do not use any extensions in users certs because of this:
-	// https://bugzilla.mindrot.org/show_bug.cgi?id=2387
 	cert := &ssh.Certificate{
-		KeyId:           teleportUsername, // we have to use key id to identify teleport user
-		ValidPrincipals: allowedLogins,
+		KeyId:           c.Username, // we have to use key id to identify teleport user
+		ValidPrincipals: c.AllowedLogins,
 		Key:             pubKey,
 		ValidBefore:     validBefore,
 		CertType:        ssh.UserCert,
@@ -206,10 +205,13 @@ func (n *nauth) GenerateUserCert(pkey, key []byte, teleportUsername string, allo
 		teleport.CertExtensionPermitPTY:            "",
 		teleport.CertExtensionPermitPortForwarding: "",
 	}
-	if permitAgentForwarding {
+	if c.PermitAgentForwarding {
 		cert.Permissions.Extensions[teleport.CertExtensionPermitAgentForwarding] = ""
 	}
-	signer, err := ssh.ParsePrivateKey(pkey)
+	if len(c.Roles) != 0 {
+
+	}
+	signer, err := ssh.ParsePrivateKey(c.PrivateCASigningKey)
 	if err != nil {
 		return nil, err
 	}

@@ -137,6 +137,8 @@ const (
 	CertExtensionPermitPTY = "permit-pty"
 	// CertExtensionPermitPortForwarding allows user to request port forwarding
 	CertExtensionPermitPortForwarding = "permit-port-forwarding"
+	// CertExtensionTeleportRoles is used to propagate teleport roles
+	CertExtensionTeleportRoles = "teleport-roles"
 )
 
 const (
