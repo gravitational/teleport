@@ -88,7 +88,12 @@ const (
 	ConnectorOIDC = "oidc"
 
 	// ConnectorSAML means connector type SAML
-	ConnectorSAML = "oidc"
+	ConnectorSAML = "saml"
+
+	// SAMLPostBinding specifies the POST SAML binding to use
+	SAMLPOSTBinding = "post"
+	// SAMLRedirectBinding specifies SAML redirect binding to use
+	SAMLRedirectBinding = "redirect"
 
 	// DataDirParameterName is the name of the data dir configuration parameter passed
 	// to all backends during initialization

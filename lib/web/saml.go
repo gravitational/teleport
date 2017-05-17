@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
@@ -34,6 +35,17 @@ func (m *Handler) samlSSO(w http.ResponseWriter, r *http.Request, p httprouter.P
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if response.Binding == teleport.SAMLPOSTBinding && false {
+		w.Header().Set("Content-Type", "text/html")
+		w.Header().Set("Cache-Control", "no-cache, no-store")
+		w.Header().Set("Pragma", "no-cache")
+		_, err := w.Write(response.AuthnRequestForm)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return nil, nil
 	}
 
 	http.Redirect(w, r, response.RedirectURL, http.StatusFound)

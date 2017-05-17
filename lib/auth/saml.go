@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/flate"
 	"encoding/base64"
+	"html/template"
 	"io/ioutil"
 	"time"
 
@@ -17,6 +18,20 @@ import (
 	"github.com/beevik/etree"
 	saml2 "github.com/russellhaering/gosaml2"
 )
+
+const samlTemplate = `<html>
+<body onload="document.forms[0].submit()">
+  <form name="saml" method="post" action="{{.SSOPostURL}}">
+    <input type="hidden" name="SAMLRequest" value="{{.AuthnRequest}}"/>
+   </form>
+</body>
+</html>
+`
+
+type samlTemplateParams struct {
+	SSOPostURL   string
+	AuthnRequest string
+}
 
 func (s *AuthServer) UpsertSAMLConnector(connector services.SAMLConnector) error {
 	return s.Identity.UpsertSAMLConnector(connector)
@@ -45,7 +60,19 @@ func (s *AuthServer) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*servi
 	if attr == nil || attr.Value == "" {
 		return nil, trace.BadParameter("missing auth request ID")
 	}
+	authnRequest, err := doc.WriteToBytes()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tpl := template.Must(template.New("name").Parse(samlTemplate))
+	out := &bytes.Buffer{}
+	tpl.Execute(out, &samlTemplateParams{
+		AuthnRequest: base64.StdEncoding.EncodeToString(authnRequest),
+		SSOPostURL:   connector.GetSSO(),
+	})
 
+	req.Binding = teleport.SAMLPOSTBinding
+	req.AuthnRequestForm = out.Bytes()
 	req.ID = attr.Value
 	req.RedirectURL, err = provider.BuildAuthURLFromDocument("", doc)
 	if err != nil {
