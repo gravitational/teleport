@@ -120,6 +120,9 @@ const (
 	// OIDCAuthRequestTTL is TTL of internally stored auth request created by client
 	OIDCAuthRequestTTL = 10 * 60 * time.Second
 
+	// SAMLAuthRequestTTL is TTL of internally stored auth request created by client
+	SAMLAuthRequestTTL = 10 * 60 * time.Second
+
 	// LogRotationPeriod defines how frequently to rotate the audit log file
 	LogRotationPeriod = (time.Hour * 24)
 

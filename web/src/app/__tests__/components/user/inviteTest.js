@@ -21,7 +21,7 @@ describe('components/user/invite', () => {
     reactor.reset();
   })
   
-  it('should handle AuthTypeEnum.LOCAL', () => {        
+  it('should sign-up with AuthTypeEnum.LOCAL (basic)', () => {        
     let props = getProps({
       authType: enums.AuthTypeEnum.LOCAL
     });
@@ -35,7 +35,7 @@ describe('components/user/invite', () => {
     expect(props.onSignup).toHaveBeenCalledWith(props.invite.user, ...expected);    
   });    
 
-  it('should handle AuthTypeEnum.LOCAL with Auth2faTypeEnum.UTF', () => {                            
+  it('should sign-up with Auth2faTypeEnum.UTF', () => {                            
     let props = getProps({
       authType: enums.AuthTypeEnum.LOCAL,      
       auth2faType: enums.Auth2faTypeEnum.UTF      
@@ -51,7 +51,7 @@ describe('components/user/invite', () => {
     expect(props.onSignupWithU2f).toHaveBeenCalledWith(props.invite.user, expected[0]);    
   });    
 
-  it('should handle AuthTypeEnum.LOCAL with Auth2faTypeEnum.OTP', () => {                    
+  it('should sign-up with Auth2faTypeEnum.OTP', () => {                    
     let props = getProps({
       authType: enums.AuthTypeEnum.LOCAL,      
       auth2faType: enums.Auth2faTypeEnum.OTP      
@@ -66,50 +66,7 @@ describe('components/user/invite', () => {
     expectNInputs(5);            
     expect(props.onSignup).toHaveBeenCalledWith(props.invite.user, ...expected);    
   });    
-
-  it('should handle AuthTypeEnum.OIDC', () => {        
-    let props = getProps({
-      authType: enums.AuthTypeEnum.OIDC,
-      authProviders: [{ name: enums.AuthProviderEnum.MS }]
-    });
-
-    render(props);    
-                
-    $node.find(".btn-microsoft").click();    
-    expectNInputs(1);
-    expect(props.onSignupWithOidc).toHaveBeenCalledWith(enums.AuthProviderEnum.MS);    
-  });    
-  
-  it('should handle AuthTypeEnum.OIDC with Auth2faTypeEnum.OTP', () => {                
-    let props = getProps({
-      authType: enums.AuthTypeEnum.OIDC,
-      authProviders: [{ name: enums.AuthProviderEnum.MS }],
-      auth2faType: enums.Auth2faTypeEnum.OTP      
-    });
-          
-    render(props);    
-    expectNInputs(6);        
-
-    $node.find(".btn-microsoft").click();    
-    expect(props.onSignupWithOidc).toHaveBeenCalledWith(enums.AuthProviderEnum.MS);    
-
-    let expected = ['psw123', 'token'];        
-    setValues(...expected);        
-    clickLogin();
-    expect(props.onSignup).toHaveBeenCalledWith(props.invite.user, ...expected);    
-  });    
-
-  it('should handle AuthTypeEnum.OIDC with Auth2faTypeEnum.UTF', () => {                
-    let props = getProps({
-      authType: enums.AuthTypeEnum.OIDC,
-      authProviders: [{ name: enums.AuthProviderEnum.MS }],
-      auth2faType: enums.Auth2faTypeEnum.UTF      
-    });
-
-    render(props);    
-    expectNInputs(5);        
-  });    
-
+        
 });
 
 const setValues = (password, token) => {  
@@ -132,11 +89,9 @@ const expectNInputs = n => {
 }
 
 const getProps = customProps => {
-  let props = {
-    authProviders: [],    
+  let props = {    
     auth2faType: '',    
-    authType: '',    
-    onSignupWithOidc(/*providerName*/) { },
+    authType: '',        
     onSignupWithU2f(/*username, password*/) { },
     onSignup(/*username, password, token*/) { },    
     invite: {
@@ -145,8 +100,7 @@ const getProps = customProps => {
     attemp: { },
     ...customProps
   };
-
-  expect.spyOn(props, 'onSignupWithOidc');
+  
   expect.spyOn(props, 'onSignupWithU2f');
   expect.spyOn(props, 'onSignup');
 

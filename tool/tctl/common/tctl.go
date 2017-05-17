@@ -93,6 +93,11 @@ type AuthCommand struct {
 	compatVersion              string
 }
 
+type SAMLCommand struct {
+	config *service.Config
+	name   string
+}
+
 type AuthServerCommand struct {
 	config *service.Config
 }
@@ -137,6 +142,7 @@ func Run() {
 	cmdUsers := UserCommand{config: cfg}
 	cmdNodes := NodeCommand{config: cfg}
 	cmdAuth := AuthCommand{config: cfg}
+	cmdSAML := SAMLCommand{config: cfg}
 	cmdReverseTunnel := ReverseTunnelCommand{config: cfg}
 	cmdTokens := TokenCommand{config: cfg}
 	cmdGet := GetCommand{config: cfg}
@@ -211,6 +217,11 @@ func Run() {
 	tokenList := tokens.Command("ls", "List node and user invitation tokens")
 	tokenDel := tokens.Command("del", "Delete/revoke an invitation token")
 	tokenDel.Arg("token", "Token to delete").StringVar(&cmdTokens.token)
+
+	// saml
+	saml := app.Command("saml", "Operations on SAML provider")
+	samlExport := saml.Command("export", "export saml signing key in crt format")
+	samlExport.Flag("name", "name of the connector to export").StringVar(&cmdSAML.name)
 
 	// operations with authorities
 	auth := app.Command("auth", "Operations with user and host certificate authorities").Hidden()
@@ -295,6 +306,8 @@ func Run() {
 		err = cmdNodes.ListActive(client)
 	case authList.FullCommand():
 		err = cmdAuth.ListAuthorities(client)
+	case samlExport.FullCommand():
+		err = cmdSAML.ExportSAML(client)
 	case authExport.FullCommand():
 		err = cmdAuth.ExportAuthorities(client)
 	case reverseTunnelsList.FullCommand():
@@ -553,6 +566,18 @@ func (a *AuthCommand) ListAuthorities(client *auth.TunClient) error {
 	if len(trustedCAs) > 0 {
 		fmt.Printf(trustedCAsView())
 	}
+	return nil
+}
+
+// ExportSAML outputs a certificate in CRT format to be used by an idP (identity
+// provider) to validate an AuthnRequest.
+func (s *SAMLCommand) ExportSAML(client *auth.TunClient) error {
+	sc, err := client.GetSAMLConnector(s.name, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("%v", sc.GetSigningKeyPair().Cert)
 	return nil
 }
 
@@ -957,6 +982,18 @@ func (u *CreateCommand) Create(client *auth.TunClient) error {
 		}
 		count += 1
 		switch raw.Kind {
+		case services.KindSAMLConnector:
+			conn, err := services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(raw.Raw)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if err := conn.CheckAndSetDefaults(); err != nil {
+				return trace.Wrap(err)
+			}
+			if err := client.UpsertSAMLConnector(conn); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("SAML connector %v upserted\n", conn.GetName())
 		case services.KindOIDCConnector:
 			conn, err := services.GetOIDCConnectorMarshaler().UnmarshalOIDCConnector(raw.Raw)
 			if err != nil {
@@ -1065,6 +1102,11 @@ func (d *DeleteCommand) Delete(client *auth.TunClient) error {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("user %v has been deleted\n", d.ref.Name)
+	case services.KindSAMLConnector:
+		if err := client.DeleteSAMLConnector(d.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("SAML Connector %v has been deleted\n", d.ref.Name)
 	case services.KindOIDCConnector:
 		if err := client.DeleteOIDCConnector(d.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -1104,12 +1146,18 @@ func (g *GetCommand) getCollection(client auth.ClientI) (collection, error) {
 		return nil, trace.BadParameter("specify resource to list, e.g. 'tctl get roles'")
 	}
 	switch g.ref.Kind {
+	case services.KindSAMLConnector:
+		connectors, err := client.GetSAMLConnectors(g.withSecrets)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &samlCollection{connectors: connectors}, nil
 	case services.KindOIDCConnector:
 		connectors, err := client.GetOIDCConnectors(g.withSecrets)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &connectorCollection{connectors: connectors}, nil
+		return &oidcCollection{connectors: connectors}, nil
 	case services.KindReverseTunnel:
 		tunnels, err := client.GetReverseTunnels()
 		if err != nil {

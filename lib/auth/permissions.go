@@ -174,6 +174,8 @@ func GetCheckerForBuiltinRole(role teleport.Role) (services.AccessChecker, error
 					services.KindProxy:                 services.RW(),
 					services.KindOIDCRequest:           services.RW(),
 					services.KindOIDC:                  services.RO(),
+					services.KindSAMLRequest:           services.RW(),
+					services.KindSAML:                  services.RO(),
 					services.KindNamespace:             services.RO(),
 					services.KindEvent:                 services.RW(),
 					services.KindSession:               services.RW(),
