@@ -19,7 +19,6 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
-	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"sync"
@@ -195,7 +194,8 @@ func (n *nauth) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
 		log.Debugf("generated user key for %v with expiry on (%v) %v", c.AllowedLogins, validBefore, b)
 	}
 	cert := &ssh.Certificate{
-		KeyId:           c.Username, // we have to use key id to identify teleport user
+		// we have to use key id to identify teleport user
+		KeyId:           c.Username,
 		ValidPrincipals: c.AllowedLogins,
 		Key:             pubKey,
 		ValidBefore:     validBefore,
@@ -209,7 +209,11 @@ func (n *nauth) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
 		cert.Permissions.Extensions[teleport.CertExtensionPermitAgentForwarding] = ""
 	}
 	if len(c.Roles) != 0 {
-
+		roles, err := services.MarshalCertRoles(c.Roles)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cert.Permissions.Extensions[teleport.CertExtensionTeleportRoles] = roles
 	}
 	signer, err := ssh.ParsePrivateKey(c.PrivateCASigningKey)
 	if err != nil {

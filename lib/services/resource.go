@@ -295,6 +295,9 @@ func (m *Metadata) Check() error {
 	if m.Name == "" {
 		return trace.BadParameter("missing parameter Name")
 	}
+	if m.Namespace == "" {
+		m.Namespace = defaults.Namespace
+	}
 	return nil
 }
 
