@@ -614,7 +614,6 @@ func (s *IdentityService) UpsertOIDCConnector(connector services.OIDCConnector, 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ttl := backend.TTL(s.Clock(), connector.Expiry())
 	err = s.backend.UpsertVal(oidcConnectorsPath, connector.GetName(), data, ttl)
 	if err != nil {
 		return trace.Wrap(err)
@@ -706,8 +705,7 @@ func (s *IdentityService) CreateSAMLConnector(connector services.SAMLConnector) 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ttl := backend.TTL(s.Clock(), connector.Expiry())
-	err = s.CreateVal(samlConnectorsPath, connector.GetName(), data, ttl)
+	err = s.backend.CreateVal(samlConnectorsPath, connector.GetName(), data, backend.Forever)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -723,8 +721,7 @@ func (s *IdentityService) UpsertSAMLConnector(connector services.SAMLConnector) 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ttl := backend.TTL(s.Clock(), connector.Expiry())
-	err = s.UpsertVal(samlConnectorsPath, connector.GetName(), data, ttl)
+	err = s.backend.UpsertVal(samlConnectorsPath, connector.GetName(), data, backend.Forever)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -733,13 +730,13 @@ func (s *IdentityService) UpsertSAMLConnector(connector services.SAMLConnector) 
 
 // DeleteSAMLConnector deletes OIDC Connector
 func (s *IdentityService) DeleteSAMLConnector(connectorID string) error {
-	err := s.DeleteKey(samlConnectorsPath, connectorID)
+	err := s.backend.DeleteKey(samlConnectorsPath, connectorID)
 	return trace.Wrap(err)
 }
 
 // GetSAMLConnector returns OIDC connector data, withSecrets adds or removes secrets from return results
 func (s *IdentityService) GetSAMLConnector(id string, withSecrets bool) (services.SAMLConnector, error) {
-	data, err := s.GetVal(samlConnectorsPath, id)
+	data, err := s.backend.GetVal(samlConnectorsPath, id)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("SAML connector '%v' is not configured", id)
@@ -762,7 +759,7 @@ func (s *IdentityService) GetSAMLConnector(id string, withSecrets bool) (service
 
 // GetSAMLConnectors returns registered connectors, withSecrets adds or removes secret from return results
 func (s *IdentityService) GetSAMLConnectors(withSecrets bool) ([]services.SAMLConnector, error) {
-	connectorIDs, err := s.GetKeys(samlConnectorsPath)
+	connectorIDs, err := s.backend.GetKeys(samlConnectorsPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -790,7 +787,7 @@ func (s *IdentityService) CreateSAMLAuthRequest(req services.SAMLAuthRequest, tt
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.CreateVal(samlAuthRequestsPath, req.ID, data, ttl)
+	err = s.backend.CreateVal(samlAuthRequestsPath, req.ID, data, ttl)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -799,7 +796,7 @@ func (s *IdentityService) CreateSAMLAuthRequest(req services.SAMLAuthRequest, tt
 
 // GetSAMLAuthRequest returns OSAML auth request if found
 func (s *IdentityService) GetSAMLAuthRequest(id string) (*services.SAMLAuthRequest, error) {
-	data, err := s.GetVal(samlAuthRequestsPath, id)
+	data, err := s.backend.GetVal(samlAuthRequestsPath, id)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -164,7 +164,7 @@ func Init(cfg InitConfig, dynamicConfig bool) (*AuthServer, *Identity, error) {
 
 		if len(cfg.OIDCConnectors) > 0 {
 			for _, connector := range cfg.OIDCConnectors {
-				if err := asrv.UpsertOIDCConnector(connector, 0); err != nil {
+				if err := asrv.UpsertOIDCConnector(connector, backend.Forever); err != nil {
 					return nil, nil, trace.Wrap(err)
 				}
 				log.Infof("[INIT] Created ODIC Connector: %q", connector.GetName())

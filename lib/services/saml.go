@@ -44,8 +44,8 @@ import (
 
 // SAMLConnector specifies configuration for SAML 2.0 dentity providers
 type SAMLConnector interface {
-	// Resource provides common methods for objects
-	Resource
+	// GetName returns the resource name.
+	GetName() string
 	// GetDisplay returns display - friendly name for this provider.
 	GetDisplay() string
 	// SetDisplay sets friendly name for this provider.
@@ -166,7 +166,6 @@ func (*TeleportSAMLConnectorMarshaler) UnmarshalSAMLConnector(bytes []byte) (SAM
 		if err := utils.UnmarshalWithSchema(GetSAMLConnectorSchema(), &c, bytes); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
-		utils.UTC(&c.Metadata.Expires)
 		return &c, nil
 	}
 
@@ -291,9 +290,6 @@ func (o *SAMLConnectorV2) Equals(other SAMLConnector) bool {
 	if o.GetEntityDescriptor() != other.GetEntityDescriptor() {
 		return false
 	}
-	if o.Expiry() != other.Expiry() {
-		return false
-	}
 	if o.GetIssuer() != other.GetIssuer() {
 		return false
 	}
@@ -344,29 +340,14 @@ func (o *SAMLConnectorV2) GetMetadata() Metadata {
 	return o.Metadata
 }
 
-// SetExpiry sets expiry time for the object
-func (o *SAMLConnectorV2) SetExpiry(expires time.Time) {
-	o.Metadata.SetExpiry(expires)
-}
-
-// Expires retuns object expiry setting
-func (o *SAMLConnectorV2) Expiry() time.Time {
-	return o.Metadata.Expiry()
-}
-
-// SetTTL sets Expires header using realtime clock
-func (o *SAMLConnectorV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
-	o.Metadata.SetTTL(clock, ttl)
-}
-
 // GetName returns the name of the connector
 func (o *SAMLConnectorV2) GetName() string {
-	return o.Metadata.GetName()
+	return o.Metadata.Name
 }
 
 // SetName sets client secret to some value
 func (o *SAMLConnectorV2) SetName(name string) {
-	o.Metadata.SetName(name)
+	o.Metadata.Name = name
 }
 
 // SetIssuer sets issuer

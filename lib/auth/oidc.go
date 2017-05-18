@@ -51,8 +51,8 @@ func (s *AuthServer) getOIDCClient(conn services.OIDCConnector) (*oidc.Client, e
 	return client, nil
 }
 
-func (s *AuthServer) UpsertOIDCConnector(connector services.OIDCConnector) error {
-	return s.Identity.UpsertOIDCConnector(connector)
+func (s *AuthServer) UpsertOIDCConnector(connector services.OIDCConnector, ttl time.Duration) error {
+	return s.Identity.UpsertOIDCConnector(connector, ttl)
 }
 
 func (s *AuthServer) DeleteOIDCConnector(connectorName string) error {

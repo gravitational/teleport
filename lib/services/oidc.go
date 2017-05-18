@@ -33,7 +33,7 @@ import (
 // OIDCConnector specifies configuration for Open ID Connect compatible external
 // identity provider, e.g. google in some organisation
 type OIDCConnector interface {
-	// Name is a provider name, 'e.g.' google, used internally
+	// GetName returns the resource name.
 	GetName() string
 	// Issuer URL is the endpoint of the provider, e.g. https://accounts.google.com
 	GetIssuerURL() string

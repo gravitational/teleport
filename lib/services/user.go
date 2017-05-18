@@ -14,8 +14,8 @@ import (
 
 // User represents teleport embedded user or external user
 type User interface {
-	// Resource provides common resource properties
-	Resource
+	// GetName returns the resource name.
+	GetName() string
 	// GetOIDCIdentities returns a list of connected OIDCIdentities
 	GetOIDCIdentities() []ExternalIdentity
 	// GetSAMLIdentities returns a list of connected OIDCIdentities
