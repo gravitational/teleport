@@ -15,13 +15,16 @@ let $node = $('<div>').appendTo("body");
 
 describe('components/user/login', () => {
 
+  const oidcSsoProvider = { name: enums.AuthProviderEnum.MS, type: enums.AuthTypeEnum.OIDC };
+  const samlSsoProvider = { name: enums.AuthProviderEnum.MS, type: enums.AuthTypeEnum.SAML };
+
   afterEach(function () {
     ReactDOM.unmountComponentAtNode($node[0]);
     expect.restoreSpies();
     reactor.reset();
   })
   
-  it('should handle AuthTypeEnum.LOCAL', () => {        
+  it('should login using AuthTypeEnum.LOCAL', () => {        
     let props = getProps({
       authType: enums.AuthTypeEnum.LOCAL
     });
@@ -36,10 +39,9 @@ describe('components/user/login', () => {
     expect(props.onLogin).toHaveBeenCalledWith(...expected);    
   });    
 
-  it('should handle AuthTypeEnum.LOCAL with Auth2faTypeEnum.UTF', () => {                    
+  it('should login with Auth2faTypeEnum.UTF', () => {                        
     let props = getProps({
-      authType: enums.AuthTypeEnum.OIDC,
-      authProviders: [{ name: enums.AuthProviderEnum.MS }],
+      authType: enums.AuthTypeEnum.OIDC,      
       auth2faType: enums.Auth2faTypeEnum.UTF      
     });
     
@@ -49,11 +51,11 @@ describe('components/user/login', () => {
 
     setValues(...expected);        
     clickLogin();
-    expectNInputs(4);            
+    expectNInputs(3);            
     expect(props.onLoginWithU2f).toHaveBeenCalledWith(...expected);    
   });    
 
-  it('should handle AuthTypeEnum.LOCAL with Auth2faTypeEnum.OTP', () => {                    
+  it('should login with Auth2faTypeEnum.OTP', () => {                    
     let props = getProps({
       authType: enums.AuthTypeEnum.LOCAL,      
       auth2faType: enums.Auth2faTypeEnum.OTP      
@@ -69,23 +71,36 @@ describe('components/user/login', () => {
     expect(props.onLogin).toHaveBeenCalledWith(...expected);    
   });    
 
-  it('should handle AuthTypeEnum.OIDC', () => {        
+  it('should login with AuthTypeEnum.OIDC', () => {                
     let props = getProps({
       authType: enums.AuthTypeEnum.OIDC,
-      authProviders: [{ name: enums.AuthProviderEnum.MS }]
+      authProviders: [oidcSsoProvider]
     });
 
     render(<LoginInputForm { ...props } />);    
                 
     $node.find(".btn-microsoft").click();    
     expectNInputs(1);
-    expect(props.onLoginWithOidc).toHaveBeenCalledWith(enums.AuthProviderEnum.MS);    
+    expect(props.onLoginWithSso).toHaveBeenCalledWith(oidcSsoProvider);    
+  });    
+
+  it('should login with AuthTypeEnum.SAML', () => {                
+    let props = getProps({
+      authType: enums.AuthTypeEnum.SAML,
+      authProviders: [samlSsoProvider]
+    });
+
+    render(<LoginInputForm { ...props } />);    
+                
+    $node.find(".btn-microsoft").click();    
+    expectNInputs(1);
+    expect(props.onLoginWithSso).toHaveBeenCalledWith(samlSsoProvider);    
   });    
   
-  it('should handle AuthTypeEnum.OIDC with Auth2faTypeEnum.OTP', () => {                
+  it('should render AuthTypeEnum.OIDC and Auth2faTypeEnum.OTP', () => {                    
     let props = getProps({
       authType: enums.AuthTypeEnum.OIDC,
-      authProviders: [{ name: enums.AuthProviderEnum.MS }],
+      authProviders: [oidcSsoProvider],
       auth2faType: enums.Auth2faTypeEnum.OTP      
     });
       
@@ -93,7 +108,7 @@ describe('components/user/login', () => {
     expectNInputs(5);        
 
     $node.find(".btn-microsoft").click();    
-    expect(props.onLoginWithOidc).toHaveBeenCalledWith(enums.AuthProviderEnum.MS);    
+    expect(props.onLoginWithSso).toHaveBeenCalledWith(oidcSsoProvider);    
 
     let expected = ['email@email', '123456', 'token'];        
     setValues(...expected);        
@@ -101,10 +116,10 @@ describe('components/user/login', () => {
     expect(props.onLogin).toHaveBeenCalledWith(...expected);    
   });    
 
-  it('should handle AuthTypeEnum.OIDC with Auth2faTypeEnum.UTF', () => {                
+  it('should render AuthTypeEnum.SAML and Auth2faTypeEnum.UTF', () => {                    
     let props = getProps({
-      authType: enums.AuthTypeEnum.OIDC,
-      authProviders: [{ name: enums.AuthProviderEnum.MS }],
+      authType: enums.AuthTypeEnum.SAML,
+      authProviders: [samlSsoProvider],
       auth2faType: enums.Auth2faTypeEnum.UTF      
     });
 
@@ -141,14 +156,14 @@ const getProps = customProps => {
     authProviders: [],    
     auth2faType: '',    
     authType: '',    
-    onLoginWithOidc(/*providerName*/) { },
+    onLoginWithSso(/*providerName*/) { },
     onLoginWithU2f(/*username, password*/) { },
     onLogin(/*username, password, token*/) { },    
     attemp: { },
     ...customProps
   };
 
-  expect.spyOn(props, 'onLoginWithOidc');
+  expect.spyOn(props, 'onLoginWithSso');
   expect.spyOn(props, 'onLoginWithU2f');
   expect.spyOn(props, 'onLogin');
 
