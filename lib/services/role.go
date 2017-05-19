@@ -149,6 +149,8 @@ type Role interface {
 	SetForwardAgent(forwardAgent bool)
 	// CheckAndSetDefaults checks and set default values for missing fields.
 	CheckAndSetDefaults() error
+	// Equals returns true if roles are equal
+	Equals(other Role) bool
 }
 
 // RoleV2 represents role resource specification
@@ -161,6 +163,29 @@ type RoleV2 struct {
 	Metadata Metadata `json:"metadata"`
 	// Spec contains role specification
 	Spec RoleSpecV2 `json:"spec"`
+}
+
+// Equals returns true if roles are equal
+func (r *RoleV2) Equals(other Role) bool {
+	if !utils.StringSlicesEqual(r.GetLogins(), other.GetLogins()) {
+		return false
+	}
+	if !utils.StringSlicesEqual(r.GetNamespaces(), other.GetNamespaces()) {
+		return false
+	}
+	if !utils.StringMapsEqual(r.GetNodeLabels(), other.GetNodeLabels()) {
+		return false
+	}
+	if !utils.StringMapSlicesEqual(r.GetResources(), other.GetResources()) {
+		return false
+	}
+	if r.CanForwardAgent() != other.CanForwardAgent() {
+		return false
+	}
+	if r.GetMaxSessionTTL() != other.GetMaxSessionTTL() {
+		return false
+	}
+	return true
 }
 
 // SetResource sets resource rule
