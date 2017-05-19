@@ -204,7 +204,7 @@ func prepareCommand(ctx *ctx) (*exec.Cmd, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	var _path = getDefaultEnvPath()
+	var _path = getDefaultEnvPath("")
 	if len(_path) == 0 {
 		_path = getEnvPath(_path)
 
@@ -436,5 +436,5 @@ func getEnvPath(oriPath string) string {
 	paths = strings.Split(env2Path, ":")
 	newPaths = append(newPaths, paths...)
 
-	return "PATH=" + newPaths
+	return "PATH=" + strings.Join(newPaths, ":")
 }
