@@ -74,6 +74,13 @@ type CommandLineFlags struct {
 	HTTPProfileEndpoint bool
 	// --pid-file flag
 	PIDFile string
+	// Gops starts gops agent on a specified address
+	// if not specified, gops won't start
+	Gops bool
+	// GopsAddr specifies to gops addr to listen on
+	GopsAddr string
+	// DiagnosticAddr is listen address for diagnostic endpoint
+	DiagnosticAddr string
 }
 
 // readConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)

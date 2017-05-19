@@ -36,6 +36,7 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/buger/goterm"
+	gops "github.com/google/gops/agent"
 )
 
 // CLIConf stores command line arguments and flags:
@@ -92,6 +93,11 @@ type CLIConf struct {
 	BenchRate int
 	// Context is a context to control execution
 	Context context.Context
+	// Gops starts gops agent on a specified address
+	// if not specified, gops won't start
+	Gops bool
+	// GopsAddr specifies to gops addr to listen on
+	GopsAddr string
 }
 
 // Run executes TSH client. same as main() but easier to test
@@ -113,6 +119,8 @@ func Run(args []string, underTest bool) {
 	app.Flag("ttl", "Minutes to live for a SSH session").Int32Var(&cf.MinsToLive)
 	app.Flag("insecure", "Do not verify server's certificate and host name. Use only in test environments").Default("false").BoolVar(&cf.InsecureSkipVerify)
 	app.Flag("namespace", "Namespace of the cluster").Default(defaults.Namespace).StringVar(&cf.Namespace)
+	app.Flag("gops", "Start gops endpoint on a given address").Hidden().BoolVar(&cf.Gops)
+	app.Flag("gops-addr", "Specify gops addr to listen on").Hidden().StringVar(&cf.GopsAddr)
 	debugMode := app.Flag("debug", "Verbose logging to stdout").Short('d').Bool()
 	app.HelpFlag.Short('h')
 	ver := app.Command("version", "Print the version")
@@ -186,6 +194,14 @@ func Run(args []string, underTest bool) {
 		}
 	}()
 	cf.Context = ctx
+
+	if cf.Gops {
+		logrus.Debugf("starting gops agent")
+		err = gops.Listen(&gops.Options{Addr: cf.GopsAddr})
+		if err != nil {
+			logrus.Warningf("failed to start gops agent %v", err)
+		}
+	}
 
 	switch command {
 	case ver.FullCommand():
@@ -368,12 +384,16 @@ func onBenchmark(cf *CLIConf) {
 	fmt.Printf("\n")
 	fmt.Printf("* Requests originated: %v\n", result.RequestsOriginated)
 	fmt.Printf("* Requests failed: %v\n", result.RequestsFailed)
+	if result.LastError != nil {
+		fmt.Printf("* Last error: %v\n", result.LastError)
+	}
 	fmt.Printf("\nHistogram\n\n")
 	t := goterm.NewTable(0, 10, 5, ' ', 0)
 	printHeader(t, []string{"Percentile", "Duration"})
 	for _, quantile := range []float64{25, 50, 75, 90, 95, 99, 100} {
 		fmt.Fprintf(t, "%v\t%v ms\n", quantile, result.Histogram.ValueAtQuantile(quantile))
 	}
+
 	fmt.Fprintf(os.Stdout, t.String())
 	fmt.Printf("\n")
 }
