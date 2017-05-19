@@ -23,6 +23,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport/lib/defaults"
+
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 )

@@ -97,7 +97,7 @@ func NewInstance(clusterName string, hostID string, nodeName string, ports []int
 	if priv == nil || pub == nil {
 		priv, pub, _ = keygen.GenerateKeyPair("")
 	}
-	cert, err := keygen.GenerateHostCert(services.CertParams{
+	cert, err := keygen.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: priv,
 		PublicHostKey:       pub,
 		HostID:              hostID,
@@ -291,7 +291,7 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 		}
 		// sign user's keys:
 		ttl := time.Duration(time.Hour * 24)
-		user.Key.Cert, err = auth.GenerateUserCert(user.Key.Pub, user.Username, user.AllowedLogins, ttl, true)
+		user.Key.Cert, err = auth.GenerateUserCert(user.Key.Pub, teleUser, user.AllowedLogins, ttl, true)
 		if err != nil {
 			return err
 		}

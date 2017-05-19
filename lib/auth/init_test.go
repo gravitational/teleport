@@ -69,7 +69,7 @@ func (s *AuthInitSuite) TestReadIdentity(c *C) {
 	priv, pub, err := t.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 
-	cert, err := t.GenerateHostCert(services.CertParams{
+	cert, err := t.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: priv,
 		PublicHostKey:       pub,
 		HostID:              "id1",
@@ -90,7 +90,7 @@ func (s *AuthInitSuite) TestReadIdentity(c *C) {
 	// test TTL by converting the generated cert to text -> back and making sure ExpireAfter is valid
 	ttl := time.Second * 10
 	expiryDate := time.Now().Add(ttl)
-	bytes, err := t.GenerateHostCert(services.CertParams{
+	bytes, err := t.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: priv,
 		PublicHostKey:       pub,
 		HostID:              "id1",
@@ -117,7 +117,7 @@ func (s *AuthInitSuite) TestBadIdentity(c *C) {
 	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%#v", err))
 
 	// missing authority domain
-	cert, err := t.GenerateHostCert(services.CertParams{
+	cert, err := t.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: priv,
 		PublicHostKey:       pub,
 		HostID:              "id2",
@@ -132,7 +132,7 @@ func (s *AuthInitSuite) TestBadIdentity(c *C) {
 	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%#v", err))
 
 	// missing host uuid
-	cert, err = t.GenerateHostCert(services.CertParams{
+	cert, err = t.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: priv,
 		PublicHostKey:       pub,
 		HostID:              "example.com",
@@ -147,7 +147,7 @@ func (s *AuthInitSuite) TestBadIdentity(c *C) {
 	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%#v", err))
 
 	// unrecognized role
-	cert, err = t.GenerateHostCert(services.CertParams{
+	cert, err = t.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: priv,
 		PublicHostKey:       pub,
 		HostID:              "example.com",

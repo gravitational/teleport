@@ -84,8 +84,8 @@ type authorizer struct {
 
 // AuthzContext is authorization context
 type AuthContext struct {
-	// Username is the user name
-	Username string
+	// User is the user name
+	User services.User
 	// Checker is access checker
 	Checker services.AccessChecker
 }
@@ -123,10 +123,14 @@ func (a *authorizer) authorizeRemoteUser(u teleport.RemoteUser) (*AuthContext, e
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	user, err := services.NewUser(fmt.Sprintf("remote-%v-%v", u.Username, u.ClusterName))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &AuthContext{
 		// this is done on purpose to make sure user does not match some real local user
-		Username: fmt.Sprintf("remote user %v from %v", u.Username, u.ClusterName),
-		Checker:  checker,
+		User:    user,
+		Checker: checker,
 	}, nil
 }
 
@@ -243,9 +247,13 @@ func contextForBuiltinRole(r teleport.Role) (*AuthContext, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	user, err := services.NewUser(fmt.Sprintf("builtin-%v", r))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &AuthContext{
-		Username: fmt.Sprintf("user from builtin role %v", r),
-		Checker:  checker,
+		User:    user,
+		Checker: checker,
 	}, nil
 }
 
@@ -259,7 +267,7 @@ func contextForLocalUser(username string, identity services.Identity, access ser
 		return nil, trace.Wrap(err)
 	}
 	return &AuthContext{
-		Username: username,
-		Checker:  checker,
+		User:    user,
+		Checker: checker,
 	}, nil
 }

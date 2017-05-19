@@ -56,11 +56,11 @@ type Authority interface {
 	// GenerateHostCert takes the private key of the CA, public key of the new host,
 	// along with metadata (host ID, node name, cluster name, roles, and ttl) and generates
 	// a host certificate.
-	GenerateHostCert(certParams services.CertParams) ([]byte, error)
+	GenerateHostCert(certParams services.HostCertParams) ([]byte, error)
 
 	// GenerateUserCert generates user certificate, it takes pkey as a signing
 	// private key (user certificate authority)
-	GenerateUserCert(pkey, key []byte, teleportUsername string, allowedLogins []string, ttl time.Duration, permitAgentForwarding bool) ([]byte, error)
+	GenerateUserCert(certParams services.UserCertParams) ([]byte, error)
 }
 
 // AuthServerOption allows setting options as functional arguments to AuthServer
@@ -180,7 +180,7 @@ func (a *AuthServer) GetDomainName() (string, error) {
 // GenerateHostCert uses the private key of the CA to sign the public key of the host
 // (along with meta data like host ID, node name, roles, and ttl) to generate a host certificate.
 func (s *AuthServer) GenerateHostCert(hostPublicKey []byte, hostID, nodeName, clusterName string, roles teleport.Roles, ttl time.Duration) ([]byte, error) {
-	// get the certificate authority that will be signing the public key of the host
+	// get the certificate authority that will be signing the public key of the hostL
 	ca, err := s.Trust.GetCertAuthority(services.CertAuthID{
 		Type:       services.HostCA,
 		DomainName: s.DomainName,
@@ -196,7 +196,7 @@ func (s *AuthServer) GenerateHostCert(hostPublicKey []byte, hostID, nodeName, cl
 	}
 
 	// create and sign!
-	return s.Authority.GenerateHostCert(services.CertParams{
+	return s.Authority.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: caPrivateKey,
 		PublicHostKey:       hostPublicKey,
 		HostID:              hostID,
@@ -209,7 +209,7 @@ func (s *AuthServer) GenerateHostCert(hostPublicKey []byte, hostID, nodeName, cl
 
 // GenerateUserCert generates user certificate, it takes pkey as a signing
 // private key (user certificate authority)
-func (s *AuthServer) GenerateUserCert(key []byte, username string, allowedLogins []string, ttl time.Duration, canForwardAgents bool) ([]byte, error) {
+func (s *AuthServer) GenerateUserCert(key []byte, user services.User, allowedLogins []string, ttl time.Duration, canForwardAgents bool) ([]byte, error) {
 	ca, err := s.Trust.GetCertAuthority(services.CertAuthID{
 		Type:       services.UserCA,
 		DomainName: s.DomainName,
@@ -221,7 +221,15 @@ func (s *AuthServer) GenerateUserCert(key []byte, username string, allowedLogins
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return s.Authority.GenerateUserCert(privateKey, key, username, allowedLogins, ttl, canForwardAgents)
+	return s.Authority.GenerateUserCert(services.UserCertParams{
+		PrivateCASigningKey: privateKey,
+		PublicUserKey:       key,
+		Username:            user.GetName(),
+		AllowedLogins:       allowedLogins,
+		TTL:                 ttl,
+		PermitAgentForwarding: canForwardAgents,
+		Roles: user.GetRoles(),
+	})
 }
 
 // withUserLock executes function authenticateFn that perorms user authenticaton
@@ -645,7 +653,15 @@ func (s *AuthServer) NewWebSession(userName string) (services.WebSession, error)
 
 	// cert TTL is set to bearer token TTL as we expect active session to renew
 	// the token every BearerTokenTTL period
-	cert, err := s.Authority.GenerateUserCert(privateKey, pub, user.GetName(), allowedLogins, bearerTokenTTL, roles.CanForwardAgents())
+	cert, err := s.Authority.GenerateUserCert(services.UserCertParams{
+		PrivateCASigningKey: privateKey,
+		PublicUserKey:       pub,
+		Username:            user.GetName(),
+		AllowedLogins:       allowedLogins,
+		TTL:                 bearerTokenTTL,
+		PermitAgentForwarding: roles.CanForwardAgents(),
+		Roles: user.GetRoles(),
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

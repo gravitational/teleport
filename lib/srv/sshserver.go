@@ -400,7 +400,7 @@ func (s *Server) extractRolesFromCert(cert *ssh.Certificate) ([]string, error) {
 	data, ok := cert.Extensions[teleport.CertExtensionTeleportRoles]
 	if !ok {
 		// it's ok to not have any roles in the metadata
-		return ni, nil
+		return nil, nil
 	}
 	return services.UnmarshalCertRoles(data)
 }
@@ -461,12 +461,12 @@ func (s *Server) checkPermissionToLogin(cert *ssh.Certificate, teleportUser, osU
 			log.Errorf("failed to extract roles from cert: %v", err)
 			return "", trace.AccessDenied("failed to parse certificate roles")
 		}
-		rolesNames, err := ca.CombinedMapping().Map(certRoles)
+		roleNames, err := ca.CombinedMapping().Map(certRoles)
 		if err != nil {
 			log.Errorf("failed to map roles %v", err)
 			return "", trace.AccessDenied("failed to map roles")
 		}
-		roles, err = services.FetchRoles(ca.GetRoles(), s.authService)
+		roles, err = services.FetchRoles(roleNames, s.authService)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}

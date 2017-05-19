@@ -88,7 +88,7 @@ const CertRolesSchema = `{
 
 // MarshalCertRoles marshal roles list to OpenSSH
 func MarshalCertRoles(roles []string) (string, error) {
-	out, err := json.Marshal(CertRoles{Roles: roles})
+	out, err := json.Marshal(CertRoles{Version: V1, Roles: roles})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 )
@@ -146,6 +147,10 @@ func (r RoleMap) parse() (map[string][]string, []string, error) {
 			}
 			wildcardMatch = roleMap.Local
 		} else {
+			_, ok := directMatch[roleMap.Remote]
+			if ok {
+				return nil, nil, trace.BadParameter("remote role '%v' match is already specified", roleMap.Remote)
+			}
 			directMatch[roleMap.Remote] = roleMap.Local
 		}
 	}
@@ -159,11 +164,17 @@ func (r RoleMap) Map(remoteRoles []string) ([]string, error) {
 		return nil, trace.Wrap(err)
 	}
 	var outRoles []string
+	if len(remoteRoles) == 0 && len(wildcardMatch) != 0 {
+		outRoles = append(outRoles, wildcardMatch...)
+		return outRoles, nil
+	}
+	log.Debugf("%v %v", directMatch, wildcardMatch)
 	for _, remoteRole := range remoteRoles {
 		match, ok := directMatch[remoteRole]
 		if ok {
 			outRoles = append(outRoles, match...)
-		} else if wildcardMatch != nil { //wildcard match takes lower priority
+		}
+		if wildcardMatch != nil {
 			outRoles = append(outRoles, wildcardMatch...)
 		}
 	}
