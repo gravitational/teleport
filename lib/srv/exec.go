@@ -204,9 +204,10 @@ func prepareCommand(ctx *ctx) (*exec.Cmd, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	var _path = getSystemEnvPath()
+	var _path = getDefaultEnvPath()
 	if len(_path) == 0 {
-		_path = getDefaultEnvPath("")
+		_path = getEnvPath(_path)
+
 	}
 	c.Env = []string{
 		"LANG=en_US.UTF-8",
@@ -396,14 +397,15 @@ func getDefaultEnvPath(loginDefsPath string) string {
 	return defaultValue
 }
 
-// getSystemEnvPath returns the default value of PATH environment variable for
-// new logins (prior to shell) which specified by the /etc/environment file
+// getEnvPath returns the value of PATH environment variable for
+// new logins (prior to shell) combine oriPath with the path variable in
+// /etc/environment file
 //
 // Returns a strings which looks like "PATH=/usr/bin:/bin"
-func getSystemEnvPath() string {
+func getEnvPath(oriPath string) string {
 
-	defaultValue := "PATH=" + defaultPath
 	envPath := "/etc/environment"
+	var envPathV string
 
 	f, err := os.Open(envPath)
 	if err != nil {
@@ -421,8 +423,18 @@ func getSystemEnvPath() string {
 			continue
 		}
 		if matched, _ := regexp.MatchString("PATH", line); true == matched {
-			return line
+			envPathV = line
 		}
 	}
-	return defaultValue
+
+	env1Path := strings.Split(oriPath, "=")[1]
+	env2Path := strings.Split(envPathV, "=")[1]
+
+	newPaths := []string{}
+	paths := strings.Split(env1Path, ":")
+	newPaths = append(newPaths, paths...)
+	paths = strings.Split(env2Path, ":")
+	newPaths = append(newPaths, paths...)
+
+	return "PATH=" + newPath
 }
