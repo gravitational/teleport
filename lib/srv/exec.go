@@ -388,7 +388,7 @@ func getDefaultEnvPath(osUser string, loginDefsPath string) string {
 			continue
 		}
 		fields := strings.Fields(line)
-		if len(fields) > 1 && fields[0] == "ENV_PATH" {
+		if len(fields) > 1 && fields[0] == variableName {
 			return strings.TrimSpace(fields[1])
 		}
 	}
