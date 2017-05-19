@@ -365,10 +365,10 @@ func collectStatus(cmd *exec.Cmd, err error) (*execResult, error) {
 // Returns a strings which looks like "PATH=/usr/bin:/bin"
 func getDefaultEnvPath(osUser string, loginDefsPath string) string {
 	defaultValue := "PATH=" + defaultPath
-    variableName := "ENV_PATH"
-    if osUser == "root" {
-        variableName = "ENV_SUPATH"
-    }
+	variableName := "ENV_PATH"
+	if osUser == "root" {
+		variableName = "ENV_SUPATH"
+	}
 	if loginDefsPath == "" {
 		loginDefsPath = "/etc/login.defs"
 	}
