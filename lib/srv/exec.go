@@ -410,7 +410,7 @@ func getEnvPath(oriPath string) string {
 	f, err := os.Open(envPath)
 	if err != nil {
 		log.Warn(err)
-		return defaultValue
+		return oriPath
 	}
 	defer f.Close()
 
@@ -436,5 +436,5 @@ func getEnvPath(oriPath string) string {
 	paths = strings.Split(env2Path, ":")
 	newPaths = append(newPaths, paths...)
 
-	return "PATH=" + newPath
+	return "PATH=" + newPaths
 }
