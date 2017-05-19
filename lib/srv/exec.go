@@ -205,7 +205,7 @@ func prepareCommand(ctx *ctx) (*exec.Cmd, error) {
 
 	c.Env = []string{
 		"LANG=en_US.UTF-8",
-		getDefaultEnvPath(""),
+		getDefaultEnvPath(osUser, ""),
 		"HOME=" + osUser.HomeDir,
 		"USER=" + osUserName,
 		"SHELL=" + shell,
@@ -363,8 +363,12 @@ func collectStatus(cmd *exec.Cmd, err error) (*execResult, error) {
 // but for unit testing it takes any file
 //
 // Returns a strings which looks like "PATH=/usr/bin:/bin"
-func getDefaultEnvPath(loginDefsPath string) string {
+func getDefaultEnvPath(osUser string, loginDefsPath string) string {
 	defaultValue := "PATH=" + defaultPath
+    variableName := "ENV_PATH"
+    if osUser == "root" {
+        variableName = "ENV_SUPATH"
+    }
 	if loginDefsPath == "" {
 		loginDefsPath = "/etc/login.defs"
 	}
