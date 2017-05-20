@@ -580,13 +580,17 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 	})
 
 	cert, ok := key.(*ssh.Certificate)
+	log.Debugf("[SSH] %v auth attempt with key %v, %#v", cid, fingerprint, cert)
 	if !ok {
+		log.Debugf("[SSH] auth attempt, unsupported key type for %v", fingerprint)
 		return nil, trace.BadParameter("unsupported key type: %v", fingerprint)
 	}
 	if len(cert.ValidPrincipals) == 0 {
+		log.Debugf("[SSH] need a valid principal for key %v", fingerprint)
 		return nil, trace.BadParameter("need a valid principal for key %v", fingerprint)
 	}
 	if len(cert.KeyId) == 0 {
+		log.Debugf("[SSH] need a valid key ID for key %v", fingerprint)
 		return nil, trace.BadParameter("need a valid key for key %v", fingerprint)
 	}
 	teleportUser := cert.KeyId
@@ -594,11 +598,13 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 	logAuditEvent := func(err error) {
 		// only failed attempts are logged right now
 		if err != nil {
-			s.EmitAuditEvent(events.AuthAttemptEvent, events.EventFields{
+			fields := events.EventFields{
 				events.EventUser:          teleportUser,
 				events.AuthAttemptSuccess: false,
 				events.AuthAttemptErr:     err.Error(),
-			})
+			}
+			log.Warningf("[SSH] failed login attempt %#v", fields)
+			s.EmitAuditEvent(events.AuthAttemptEvent, fields)
 		}
 	}
 	permissions, err := s.certChecker.Authenticate(conn, key)

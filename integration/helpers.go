@@ -223,22 +223,15 @@ func (i *TeleInstance) GetSiteAPI(siteName string) auth.ClientI {
 	return siteAPI
 }
 
-// CreateDemode creates a new instance of Teleport which trusts a lsit of other clusters (other
-// instances)
-func (i *TeleInstance) CreateDevmode(trustedSecrets []*InstanceSecrets, enableSSH bool, console io.Writer) error {
-	tconf := service.MakeDefaultConfig()
-	tconf.SSH.Enabled = enableSSH
-	tconf.Console = console
-	tconf.DeveloperMode = true
-	return i.CreateEx(trustedSecrets, tconf)
-}
-
 // Create creates a new instance of Teleport which trusts a lsit of other clusters (other
 // instances)
 func (i *TeleInstance) Create(trustedSecrets []*InstanceSecrets, enableSSH bool, console io.Writer) error {
 	tconf := service.MakeDefaultConfig()
 	tconf.SSH.Enabled = enableSSH
 	tconf.Console = console
+	tconf.Proxy.DisableWebService = true
+	tconf.Proxy.DisableWebInterface = true
+	tconf.DeveloperMode = false
 	return i.CreateEx(trustedSecrets, tconf)
 }
 
@@ -275,7 +268,6 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 	tconf.Auth.SSHAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortAuth())
 	tconf.Proxy.SSHAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortProxy())
 	tconf.Proxy.WebAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortWeb())
-	tconf.Proxy.DisableWebUI = false
 	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.SSHAddr)
 	tconf.Auth.StorageConfig = backend.Config{
 		Type:   boltbk.GetName(),
@@ -302,6 +294,7 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		var roles []services.Role
 		if len(user.Roles) == 0 {
 			role := services.RoleForUser(teleUser)
 			role.SetLogins(user.AllowedLogins)
@@ -310,7 +303,9 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 				return trace.Wrap(err)
 			}
 			teleUser.AddRole(role.GetMetadata().Name)
+			roles = append(roles, role)
 		} else {
+			roles = user.Roles
 			for _, role := range user.Roles {
 				err := auth.UpsertRole(role, backend.Forever)
 				if err != nil {
@@ -333,8 +328,12 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 			}
 		}
 		// sign user's keys:
-		ttl := time.Duration(time.Hour * 24)
-		user.Key.Cert, err = auth.GenerateUserCert(user.Key.Pub, teleUser, user.AllowedLogins, ttl, true)
+		ttl := 24 * time.Hour
+		logins, err := services.RoleSet(roles).CheckLogins(ttl)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		user.Key.Cert, err = auth.GenerateUserCert(user.Key.Pub, teleUser, logins, ttl, true)
 		if err != nil {
 			return err
 		}
@@ -359,9 +358,11 @@ func (i *TeleInstance) StartNode(name string, sshPort, proxyWebPort, proxySSHPor
 	authServer := utils.MustParseAddr(net.JoinHostPort(i.Hostname, i.GetPortAuth()))
 	tconf.AuthServers = append(tconf.AuthServers, *authServer)
 	tconf.Token = "token"
+	tconf.Proxy.Enabled = true
 	tconf.Proxy.SSHAddr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", proxySSHPort))
 	tconf.Proxy.WebAddr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", proxyWebPort))
-	tconf.Proxy.DisableWebUI = true
+	tconf.Proxy.DisableReverseTunnel = true
+	tconf.Proxy.DisableWebService = true
 	// Enable caching
 	tconf.CachePolicy = service.CachePolicy{Enabled: true}
 

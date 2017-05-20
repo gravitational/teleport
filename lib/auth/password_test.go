@@ -82,7 +82,7 @@ func (s *PasswordSuite) TestTiming(c *check.C) {
 	}
 
 	// elapsedDifference must be less than 20 ms
-	comment := check.Commentf("elapsed difference greater than 20 ms")
 	elapsedDifference := elapsedExists/10 - elapsedNotExists/10
+	comment := check.Commentf("elapsed difference (%v) greater than 20 ms", elapsedDifference)
 	c.Assert(elapsedDifference.Seconds() < 0.020, check.Equals, true, comment)
 }

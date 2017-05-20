@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -541,8 +542,20 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 	c.Assert(err, check.IsNil)
 	main.AddUserWithRole(username, role)
 
-	c.Assert(main.CreateDevmode(nil, false, nil), check.IsNil)
-	c.Assert(aux.CreateDevmode(nil, true, nil), check.IsNil)
+	// for role mapping test we turn on Web API on the main cluster
+	// as it's used
+	makeConfig := func(enableSSH bool) ([]*InstanceSecrets, *service.Config) {
+		tconf := service.MakeDefaultConfig()
+		tconf.SSH.Enabled = enableSSH
+		tconf.Console = nil
+		tconf.Proxy.DisableWebService = false
+		tconf.Proxy.DisableWebInterface = true
+		tconf.DeveloperMode = true
+		return nil, tconf
+	}
+
+	c.Assert(main.CreateEx(makeConfig(false)), check.IsNil)
+	c.Assert(aux.CreateEx(makeConfig(true)), check.IsNil)
 
 	// auxillary cluster has a role aux-devs
 	// connect aux cluster to main cluster
