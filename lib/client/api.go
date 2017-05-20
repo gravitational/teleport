@@ -31,6 +31,7 @@ import (
 	"os/user"
 	"path"
 	"path/filepath"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"syscall"
@@ -1233,6 +1234,7 @@ func (tc *TeleportClient) AskOTP() (token string, err error) {
 
 // AskPassword prompts the user to enter the password
 func (tc *TeleportClient) AskPassword() (pwd string, err error) {
+	debug.PrintStack()
 	fmt.Printf("Enter password for Teleport user %v:\n", tc.Config.Username)
 	pwd, err = passwordFromConsole()
 	if err != nil {

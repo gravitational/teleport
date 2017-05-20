@@ -28,13 +28,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
+	log "github.com/Sirupsen/logrus"
+	"github.com/gravitational/trace"
 	"gopkg.in/check.v1"
 )
 
@@ -517,6 +522,103 @@ func (s *IntSuite) TestHA(c *check.C) {
 	// stop cluster and remaining nodes
 	c.Assert(b.Stop(true), check.IsNil)
 	c.Assert(b.StopNodes(), check.IsNil)
+}
+
+// TestMapRoles tests local to remote role mapping and access patterns
+func (s *IntSuite) TestMapRoles(c *check.C) {
+	username := s.me.Username
+
+	clusterMain := "cluster-main"
+	clusterAux := "cluster-aux"
+	main := NewInstance(clusterMain, HostID, Host, s.getPorts(5), s.priv, s.pub)
+	aux := NewInstance(clusterAux, HostID, Host, s.getPorts(5), s.priv, s.pub)
+
+	// main cluster has a local user and belongs to role "main-devs"
+	mainDevs := "main-devs"
+	role, err := services.NewRole(mainDevs, services.RoleSpecV2{
+		Logins: []string{username},
+	})
+	c.Assert(err, check.IsNil)
+	main.AddUserWithRole(username, role)
+
+	c.Assert(main.CreateDevmode(nil, false, nil), check.IsNil)
+	c.Assert(aux.CreateDevmode(nil, true, nil), check.IsNil)
+
+	// auxillary cluster has a role aux-devs
+	// connect aux cluster to main cluster
+	// using trusted clusters, so remote user will be allowed to assume
+	// role specified by mapping remote role "devs" to local role "local-devs"
+	auxDevs := "aux-devs"
+	role, err = services.NewRole(auxDevs, services.RoleSpecV2{
+		Logins: []string{username},
+	})
+	c.Assert(err, check.IsNil)
+	err = aux.Process.GetAuthServer().UpsertRole(role, backend.Forever)
+	c.Assert(err, check.IsNil)
+	trustedClusterToken := "trusted-clsuter-token"
+	err = main.Process.GetAuthServer().UpsertToken(trustedClusterToken, []teleport.Role{teleport.RoleTrustedCluster}, backend.Forever)
+	c.Assert(err, check.IsNil)
+	trustedCluster := main.Secrets.AsTrustedCluster(trustedClusterToken, services.RoleMap{
+		{Remote: mainDevs, Local: []string{auxDevs}},
+	})
+
+	c.Assert(main.Start(), check.IsNil)
+	c.Assert(aux.Start(), check.IsNil)
+
+	err = trustedCluster.CheckAndSetDefaults()
+	c.Assert(err, check.IsNil)
+	abortTime := time.Now().Add(2 * time.Second)
+	for {
+		log.Debugf("Will create trusted cluster %v", trustedCluster)
+		err = aux.Process.GetAuthServer().UpsertTrustedCluster(trustedCluster)
+		if err == nil {
+			break
+		}
+		if trace.IsConnectionProblem(err) {
+			log.Debugf("retrying on connection problem: %v", err)
+		} else {
+			c.Fatalf("got non connection problem %v", err)
+		}
+		time.Sleep(time.Millisecond * 300)
+		if time.Now().After(abortTime) {
+			c.Fatalf("failed to add trusted cluster")
+		}
+	}
+	nodePorts := s.getPorts(3)
+	sshPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
+	c.Assert(aux.StartNode("aux-node", sshPort, proxyWebPort, proxySSHPort), check.IsNil)
+
+	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
+	abortTime = time.Now().Add(time.Second * 10)
+	for len(main.Tunnel.GetSites()) < 2 && len(main.Tunnel.GetSites()) < 2 {
+		time.Sleep(time.Millisecond * 2000)
+		if time.Now().After(abortTime) {
+			c.Fatalf("two clusters do not see each other: tunnels are not working")
+		}
+	}
+
+	cmd := []string{"echo", "hello world"}
+	tc, err := main.NewClient(username, clusterAux, "127.0.0.1", sshPort)
+	c.Assert(err, check.IsNil)
+	output := &bytes.Buffer{}
+	tc.Stdout = output
+	c.Assert(err, check.IsNil)
+	// try to execute an SSH command using the same old client  to Site-B
+	// "site-A" and "site-B" reverse tunnels are supposed to reconnect,
+	// and 'tc' (client) is also supposed to reconnect
+	for i := 0; i < 10; i++ {
+		time.Sleep(time.Millisecond * 50)
+		err = tc.SSH(context.TODO(), cmd, false)
+		if err == nil {
+			break
+		}
+	}
+	c.Assert(err, check.IsNil)
+	c.Assert(output.String(), check.Equals, "hello world\n")
+
+	// stop clusters and remaining nodes
+	c.Assert(main.Stop(true), check.IsNil)
+	c.Assert(aux.Stop(true), check.IsNil)
 }
 
 // getPorts helper returns a range of unallocated ports available for litening on

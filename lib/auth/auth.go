@@ -24,6 +24,7 @@ limitations under the License.
 package auth
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"sync"
@@ -89,7 +90,7 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
 	if cfg.UniversalSecondFactorService == nil {
 		cfg.UniversalSecondFactorService = local.NewUniversalSecondFactorService(cfg.Backend)
 	}
-
+	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	as := AuthServer{
 		bk:                            cfg.Backend,
 		Authority:                     cfg.Authority,
@@ -106,6 +107,8 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
 		oidcClients:                   make(map[string]*oidcClient),
 		samlProviders:                 make(map[string]*samlProvider),
 		DeveloperMode:                 cfg.DeveloperMode,
+		cancelFunc:                    cancelFunc,
+		closeCtx:                      closeCtx,
 	}
 	for _, o := range opts {
 		o(&as)
@@ -129,6 +132,8 @@ type AuthServer struct {
 	samlProviders map[string]*samlProvider
 	clock         clockwork.Clock
 	bk            backend.Backend
+	closeCtx      context.Context
+	cancelFunc    context.CancelFunc
 
 	// DeveloperMode should only be used during development as it does several
 	// unsafe things like log sensitive information to console as well as
@@ -160,6 +165,7 @@ type AuthServer struct {
 }
 
 func (a *AuthServer) Close() error {
+	a.cancelFunc()
 	if a.bk != nil {
 		return trace.Wrap(a.bk.Close())
 	}
