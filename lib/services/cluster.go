@@ -122,6 +122,21 @@ type TrustedClusterSpecV2 struct {
 // RoleMap is a list of mappings
 type RoleMap []RoleMapping
 
+// String prints user friendly representation of role mapping
+func (r RoleMap) String() string {
+	directMatch, wildcardMatch, err := r.parse()
+	if err != nil {
+		return fmt.Sprintf("<failed to parse: %v", err)
+	}
+	if len(wildcardMatch) != 0 {
+		directMatch[Wildcard] = wildcardMatch
+	}
+	if len(directMatch) != 0 {
+		return fmt.Sprintf("%v", directMatch)
+	}
+	return "<empty>"
+}
+
 func (r RoleMap) parse() (map[string][]string, []string, error) {
 	var wildcardMatch []string
 	directMatch := make(map[string][]string)
