@@ -1,0 +1,13 @@
+[Unit]
+Description=Teleport SSH Service
+After=network.target
+
+[Service]
+Type=simple
+Restart=always
+User=ubuntu
+LimitNOFILE=32000
+ExecStart=/home/ubuntu/go/src/github.com/gravitational/teleport/build/teleport start --config=/etc/teleport/teleport.yaml  --gops --gops-addr=127.0.0.1:4321 --diag-addr=127.0.0.1:3434
+
+[Install]
+WantedBy=multi-user.target

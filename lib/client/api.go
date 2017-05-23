@@ -829,6 +829,7 @@ func (tc *TeleportClient) runCommand(
 				log.Error(err)
 				return
 			}
+			defer nodeSession.Close()
 			if err = nodeSession.runCommand(command, tc.OnShellCreated, tc.Config.Interactive); err != nil {
 				originErr := trace.Unwrap(err)
 				exitErr, ok := originErr.(*ssh.ExitError)
