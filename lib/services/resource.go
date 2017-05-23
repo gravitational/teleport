@@ -292,8 +292,8 @@ func (m *Metadata) SetTTL(clock clockwork.Clock, ttl time.Duration) {
 	m.Expires = clock.Now().UTC().Add(ttl)
 }
 
-// Check checks validity of all parameters and sets defaults
-func (m *Metadata) Check() error {
+// CheckAndSetDefaults checks validity of all parameters and sets defaults
+func (m *Metadata) CheckAndSetDefaults() error {
 	if m.Name == "" {
 		return trace.BadParameter("missing parameter Name")
 	}

@@ -214,7 +214,7 @@ type RoleMapping struct {
 // Check checks validity of all parameters and sets defaults
 func (c *TrustedClusterV2) CheckAndSetDefaults() error {
 	// make sure we have defaults for all fields
-	if err := c.Metadata.Check(); err != nil {
+	if err := c.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 	// This is to force users to migrate
