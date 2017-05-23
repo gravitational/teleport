@@ -79,7 +79,6 @@ kind: saml
 version: v2
 metadata:
   name: OktaSAML
-  namespace: default
 spec:
   acs: https://localhost:3080/v1/webapi/saml/acs
   attributes_to_roles:
@@ -101,9 +100,7 @@ Create file `preference.yaml` that will configure teleport to use SAML as primar
 kind: cluster_auth_preference
 version: v2
 metadata:
-  description: ""
   name: "cluster-auth-preference"
-  namespace: "default"
 spec:
   type: saml
 ```
@@ -119,9 +116,8 @@ of administrating the cluster and non-privileged dev who is only allowed to view
 
 ```yaml
 kind: role
-version: v1
+version: v2
 metadata:
-  description: ""
   name: admin
   namespace: default
 spec:
@@ -138,11 +134,9 @@ Devs are only allowed to login to nodes labelled with `access: relaxed` teleport
 
 ```yaml
 kind: role
-version: v1
+version: v2
 metadata:
-  description: ""
   name: stage-devops
-  namespace: default
 spec:
   logins: [ubuntu]
   max_session_ttl: 90h0m0s
@@ -150,11 +144,7 @@ spec:
   node_labels:
     access: relaxed
   resources:
-    session: [read]
-    role: [read]
-    auth_server: [read]
-    tunnel: [read]
-    cert_authority: [read]
+    '*': [read]
 ```
     
 
