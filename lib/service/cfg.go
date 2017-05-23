@@ -185,8 +185,14 @@ type ProxyConfig struct {
 	// Enabled turns proxy role on or off for this process
 	Enabled bool
 
-	// DisableWebUI allows to turn off serving the Web UI
-	DisableWebUI bool
+	// DisableWebInterface allows to turn off serving the Web UI interface
+	DisableWebInterface bool
+
+	// DisableWebService turnes off serving web service completely, including web UI
+	DisableWebService bool
+
+	// DisableReverseTunnel disables reverse tunnel on the proxy
+	DisableReverseTunnel bool
 
 	// ReverseTunnelListenAddr is address where reverse tunnel dialers connect to
 	ReverseTunnelListenAddr utils.NetAddr

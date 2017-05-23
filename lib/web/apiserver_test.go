@@ -219,7 +219,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 
 	c.Assert(err, IsNil)
 
-	s.roleAuth = auth.NewAuthWithRoles(s.authServer, authContext.Checker, s.user, sessionServer, s.auditLog)
+	s.roleAuth = auth.NewAuthWithRoles(s.authServer, authContext.Checker, teleUser, sessionServer, s.auditLog)
 
 	// set up host private key and certificate
 	hpriv, hpub, err := s.authServer.GenerateKeyPair("")

@@ -275,6 +275,9 @@ func (s *PresenceService) DeleteReverseTunnel(domainName string) error {
 
 // UpsertTrustedCluster creates or updates a TrustedCluster in the backend.
 func (s *PresenceService) UpsertTrustedCluster(trustedCluster services.TrustedCluster) error {
+	if err := trustedCluster.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
 	data, err := services.GetTrustedClusterMarshaler().Marshal(trustedCluster)
 	if err != nil {
 		return trace.Wrap(err)

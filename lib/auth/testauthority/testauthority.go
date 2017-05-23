@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package testauthority
 
 import (
@@ -20,9 +21,11 @@ import (
 	random "math/rand"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -41,7 +44,7 @@ func (n *Keygen) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
 	return randomKey.Priv, randomKey.Pub, nil
 }
 
-func (n *Keygen) GenerateHostCert(c services.CertParams) ([]byte, error) {
+func (n *Keygen) GenerateHostCert(c services.HostCertParams) ([]byte, error) {
 	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(c.PublicHostKey)
 	if err != nil {
 		return nil, err
@@ -70,26 +73,40 @@ func (n *Keygen) GenerateHostCert(c services.CertParams) ([]byte, error) {
 	return ssh.MarshalAuthorizedKey(cert), nil
 }
 
-func (n *Keygen) GenerateUserCert(pkey, key []byte, teleportUsername string, allowedLogins []string, ttl time.Duration, canForwardAgents bool) ([]byte, error) {
-	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(key)
+func (n *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
+	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(c.PublicUserKey)
 	if err != nil {
 		return nil, err
 	}
 	validBefore := uint64(ssh.CertTimeInfinity)
-	if ttl != 0 {
-		b := time.Now().Add(ttl)
+	if c.TTL != 0 {
+		b := time.Now().Add(c.TTL)
 		validBefore = uint64(b.Unix())
 	}
 	cert := &ssh.Certificate{
-		KeyId:           teleportUsername,
-		ValidPrincipals: allowedLogins,
+		KeyId:           c.Username,
+		ValidPrincipals: c.AllowedLogins,
 		Key:             pubKey,
 		ValidBefore:     validBefore,
 		CertType:        ssh.UserCert,
 	}
-	signer, err := ssh.ParsePrivateKey(pkey)
+	signer, err := ssh.ParsePrivateKey(c.PrivateCASigningKey)
 	if err != nil {
 		return nil, err
+	}
+	cert.Permissions.Extensions = map[string]string{
+		teleport.CertExtensionPermitPTY:            "",
+		teleport.CertExtensionPermitPortForwarding: "",
+	}
+	if c.PermitAgentForwarding {
+		cert.Permissions.Extensions[teleport.CertExtensionPermitAgentForwarding] = ""
+	}
+	if len(c.Roles) != 0 {
+		roles, err := services.MarshalCertRoles(c.Roles)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cert.Permissions.Extensions[teleport.CertExtensionTeleportRoles] = roles
 	}
 	if err := cert.SignCert(rand.Reader, signer); err != nil {
 		return nil, err

@@ -72,6 +72,9 @@ const (
 	// connection attempts
 	DefaultDialTimeout = 10 * time.Second
 
+	// HTTPIdleTimeout is a default timeout for idle HTTP connections
+	HTTPIdleTimeout = 30 * time.Second
+
 	// DefaultThrottleTimeout is a timemout used to throttle failed auth servers
 	DefaultThrottleTimeout = 10 * time.Second
 

@@ -200,7 +200,7 @@ func (s *APIServer) withAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 		}
 		auth := &AuthWithRoles{
 			authServer: s.AuthServer,
-			user:       authContext.Username,
+			user:       authContext.User,
 			checker:    authContext.Checker,
 			sessions:   s.SessionService,
 			alog:       s.AuditLog,

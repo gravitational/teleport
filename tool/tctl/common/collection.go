@@ -241,7 +241,7 @@ type authorityCollection struct {
 
 func (a *authorityCollection) writeText(w io.Writer) error {
 	t := goterm.NewTable(0, 10, 5, ' ', 0)
-	printHeader(t, []string{"Cluster Name", "CA Type", "Fingerprint", "Roles"})
+	printHeader(t, []string{"Cluster Name", "CA Type", "Fingerprint", "Role Map"})
 	for _, a := range a.cas {
 		for _, keyBytes := range a.GetCheckingKeys() {
 			fingerprint, err := sshutils.AuthorizedKeyFingerprint(keyBytes)
@@ -252,7 +252,7 @@ func (a *authorityCollection) writeText(w io.Writer) error {
 			if a.GetType() == services.HostCA {
 				roles = "N/A"
 			} else {
-				roles = strings.Join(a.GetRoles(), ",")
+				roles = fmt.Sprintf("%v", a.CombinedMapping())
 			}
 			fmt.Fprintf(t, "%v\t%v\t%v\t%v\n", a.GetClusterName(), a.GetType(), fingerprint, roles)
 		}
@@ -409,9 +409,9 @@ type trustedClusterCollection struct {
 
 func (c *trustedClusterCollection) writeText(w io.Writer) error {
 	t := goterm.NewTable(0, 10, 5, ' ', 0)
-	printHeader(t, []string{"Name", "Enabled", "Token", "Proxy Address", "Reverse Tunnel Address", "Roles"})
+	printHeader(t, []string{"Name", "Enabled", "Token", "Proxy Address", "Reverse Tunnel Address", "Role Map"})
 	for _, tc := range c.trustedClusters {
-		fmt.Fprintf(t, "%v\t%v\t%v\t%v\t%v\t%v\n", tc.GetName(), tc.GetEnabled(), tc.GetToken(), tc.GetProxyAddress(), tc.GetReverseTunnelAddress(), tc.GetRoles())
+		fmt.Fprintf(t, "%v\t%v\t%v\t%v\t%v\t%v\n", tc.GetName(), tc.GetEnabled(), tc.GetToken(), tc.GetProxyAddress(), tc.GetReverseTunnelAddress(), tc.CombinedMapping())
 	}
 	_, err := io.WriteString(w, t.String())
 	return trace.Wrap(err)

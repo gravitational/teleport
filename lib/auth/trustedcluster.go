@@ -7,6 +7,7 @@ import (
 	"net/url"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
 
@@ -24,7 +25,7 @@ func (a *AuthServer) getTrustedClusters() ([]services.TrustedCluster, error) {
 	return a.GetTrustedClusters()
 }
 
-func (a *AuthServer) upsertTrustedCluster(trustedCluster services.TrustedCluster) error {
+func (a *AuthServer) UpsertTrustedCluster(trustedCluster services.TrustedCluster) error {
 	if trustedCluster.GetEnabled() {
 		err := a.enableTrustedCluster(trustedCluster)
 		if err != nil {
@@ -37,7 +38,7 @@ func (a *AuthServer) upsertTrustedCluster(trustedCluster services.TrustedCluster
 		}
 	}
 
-	err := a.UpsertTrustedCluster(trustedCluster)
+	err := a.Presence.UpsertTrustedCluster(trustedCluster)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -69,10 +70,13 @@ func (a *AuthServer) enableTrustedCluster(trustedCluster services.TrustedCluster
 	for _, remoteCertAuthority := range validateResponse.CAs {
 
 		// add roles into user certificates
+		// ignore roles set locally by the cert authority
+		remoteCertAuthority.SetRoles(nil)
 		if remoteCertAuthority.GetType() == services.UserCA {
 			for _, r := range trustedCluster.GetRoles() {
 				remoteCertAuthority.AddRole(r)
 			}
+			remoteCertAuthority.SetRoleMap(trustedCluster.GetRoleMap())
 		}
 
 		err = a.UpsertCertAuthority(remoteCertAuthority)
@@ -218,6 +222,10 @@ func (s *AuthServer) sendValidateRequestToProxy(host string, validateRequest *Va
 		insecureWebClient := &http.Client{
 			Transport: &http.Transport{
 				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+				// IdleConnTimeout defines the maximum amount of time before idle connections
+				// are closed. Leaving this unset will lead to connections open forever and
+				// will cause memory leaks in a long running process
+				IdleConnTimeout: defaults.HTTPIdleTimeout,
 			},
 		}
 		opts = append(opts, roundtrip.HTTPClient(insecureWebClient))

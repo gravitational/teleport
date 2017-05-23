@@ -395,9 +395,19 @@ func (s *Server) getCommandLabels() map[string]services.CommandLabel {
 	return out
 }
 
+// extractRolesFromCert extracts roles from certificate metadata extensions
+func (s *Server) extractRolesFromCert(cert *ssh.Certificate) ([]string, error) {
+	data, ok := cert.Extensions[teleport.CertExtensionTeleportRoles]
+	if !ok {
+		// it's ok to not have any roles in the metadata
+		return nil, nil
+	}
+	return services.UnmarshalCertRoles(data)
+}
+
 // checkPermissionToLogin checks the given certificate (supplied by a connected client)
 // to see if this certificate can be allowed to login as user:login pair
-func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser string) (string, error) {
+func (s *Server) checkPermissionToLogin(cert *ssh.Certificate, teleportUser, osUser string) (string, error) {
 	// enumerate all known CAs and see if any of them signed the
 	// supplied certificate
 	log.Debugf("[HA SSH NODE] checkPermsissionToLogin(%v, %v)", teleportUser, osUser)
@@ -412,7 +422,7 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 			return "", trace.Wrap(err)
 		}
 		for _, checker := range checkers {
-			if sshutils.KeysEqual(cert, checker) {
+			if sshutils.KeysEqual(cert.SignatureKey, checker) {
 				ca = cas[i]
 				break
 			}
@@ -446,7 +456,17 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 			}
 		}
 	} else {
-		roles, err = services.FetchRoles(ca.GetRoles(), s.authService)
+		certRoles, err := s.extractRolesFromCert(cert)
+		if err != nil {
+			log.Errorf("failed to extract roles from cert: %v", err)
+			return "", trace.AccessDenied("failed to parse certificate roles")
+		}
+		roleNames, err := ca.CombinedMapping().Map(certRoles)
+		if err != nil {
+			log.Errorf("failed to map roles %v", err)
+			return "", trace.AccessDenied("failed to map roles")
+		}
+		roles, err = services.FetchRoles(roleNames, s.authService)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
@@ -560,13 +580,17 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 	})
 
 	cert, ok := key.(*ssh.Certificate)
+	log.Debugf("[SSH] %v auth attempt with key %v, %#v", cid, fingerprint, cert)
 	if !ok {
+		log.Debugf("[SSH] auth attempt, unsupported key type for %v", fingerprint)
 		return nil, trace.BadParameter("unsupported key type: %v", fingerprint)
 	}
 	if len(cert.ValidPrincipals) == 0 {
+		log.Debugf("[SSH] need a valid principal for key %v", fingerprint)
 		return nil, trace.BadParameter("need a valid principal for key %v", fingerprint)
 	}
 	if len(cert.KeyId) == 0 {
+		log.Debugf("[SSH] need a valid key ID for key %v", fingerprint)
 		return nil, trace.BadParameter("need a valid key for key %v", fingerprint)
 	}
 	teleportUser := cert.KeyId
@@ -574,11 +598,13 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 	logAuditEvent := func(err error) {
 		// only failed attempts are logged right now
 		if err != nil {
-			s.EmitAuditEvent(events.AuthAttemptEvent, events.EventFields{
+			fields := events.EventFields{
 				events.EventUser:          teleportUser,
 				events.AuthAttemptSuccess: false,
 				events.AuthAttemptErr:     err.Error(),
-			})
+			}
+			log.Warningf("[SSH] failed login attempt %#v", fields)
+			s.EmitAuditEvent(events.AuthAttemptEvent, fields)
 		}
 	}
 	permissions, err := s.certChecker.Authenticate(conn, key)
@@ -610,7 +636,7 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 	if s.proxyMode {
 		return permissions, nil
 	}
-	clusterName, err := s.checkPermissionToLogin(cert.SignatureKey, teleportUser, conn.User())
+	clusterName, err := s.checkPermissionToLogin(cert, teleportUser, conn.User())
 	if err != nil {
 		logger.Error(err)
 		logAuditEvent(err)

@@ -119,7 +119,7 @@ func (s *NativeSuite) TestBuildPrincipals(c *C) {
 	// run tests
 	for _, tt := range tests {
 		hostCertificateBytes, err := s.suite.A.GenerateHostCert(
-			services.CertParams{
+			services.HostCertParams{
 				PrivateCASigningKey: caPrivateKey,
 				PublicHostKey:       hostPublicKey,
 				HostID:              tt.inHostID,
