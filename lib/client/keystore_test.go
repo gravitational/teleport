@@ -22,8 +22,10 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"gopkg.in/check.v1"
@@ -172,7 +174,14 @@ func (s *KeyStoreTestSuite) makeSignedKey(c *check.C, makeExpired bool) *Key {
 	if makeExpired {
 		ttl = -ttl
 	}
-	cert, err = s.keygen.GenerateUserCert(CAPriv, pub, username, allowedLogins, ttl, false)
+	cert, err = s.keygen.GenerateUserCert(services.UserCertParams{
+		PrivateCASigningKey: CAPriv,
+		PublicUserKey:       pub,
+		Username:            username,
+		AllowedLogins:       allowedLogins,
+		TTL:                 ttl,
+		PermitAgentForwarding: false,
+	})
 	c.Assert(err, check.IsNil)
 	return &Key{
 		Priv: priv,

@@ -39,7 +39,7 @@ type Namespace struct {
 
 // Check checks validity of all parameters and sets defaults
 func (n *Namespace) CheckAndSetDefaults() error {
-	if err := n.Metadata.Check(); err != nil {
+	if err := n.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 	isValid := IsValidNamespace(n.Metadata.Name)

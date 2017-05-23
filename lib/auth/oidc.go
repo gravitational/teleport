@@ -218,7 +218,7 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cert, err := a.GenerateUserCert(req.PublicKey, user.GetName(), allowedLogins, certTTL, roles.CanForwardAgents())
+		cert, err := a.GenerateUserCert(req.PublicKey, user, allowedLogins, certTTL, roles.CanForwardAgents())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

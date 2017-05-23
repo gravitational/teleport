@@ -138,7 +138,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	authContext, err := authorizer.Authorize(ctx)
 	c.Assert(err, IsNil)
 
-	s.roleAuth = auth.NewAuthWithRoles(s.a, authContext.Checker, s.user, sessionServer, nil)
+	s.roleAuth = auth.NewAuthWithRoles(s.a, authContext.Checker, authContext.User, sessionServer, nil)
 
 	// set up host private key and certificate
 	hpriv, hpub, err := s.a.GenerateKeyPair("")
@@ -1171,7 +1171,7 @@ func newUpack(username string, allowedLogins []string, a *auth.AuthServer) (*upa
 		return nil, trace.Wrap(err)
 	}
 
-	ucert, err := a.GenerateUserCert(upub, username, allowedLogins, 0, true)
+	ucert, err := a.GenerateUserCert(upub, user, allowedLogins, 0, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
