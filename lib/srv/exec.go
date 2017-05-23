@@ -204,11 +204,7 @@ func prepareCommand(ctx *ctx) (*exec.Cmd, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	var _path = getDefaultEnvPath("")
-	if len(_path) == 0 {
-		_path = getEnvPath(_path)
-
-	}
+	_path := getEnvPath(getDefaultEnvPath(""))
 	c.Env = []string{
 		"LANG=en_US.UTF-8",
 		_path,
@@ -429,12 +425,28 @@ func getEnvPath(oriPath string) string {
 
 	env1Path := strings.Split(oriPath, "=")[1]
 	env2Path := strings.Split(envPathV, "=")[1]
-
-	newPaths := []string{}
-	paths := strings.Split(env1Path, ":")
-	newPaths = append(newPaths, paths...)
-	paths = strings.Split(env2Path, ":")
-	newPaths = append(newPaths, paths...)
+	env1SlicePath := strings.Split(env1Path, ":")
+	env2SlicePath := strings.Split(env2Path, ":")
+	newPaths := make([]string, len(env1SlicePath))
+	copy(newPaths, env1SlicePath)
+	for _, path := range env2SlicePath {
+		if !isInSlice(newPaths, path) {
+			newPaths = append(newPaths, path)
+		}
+	}
 
 	return "PATH=" + strings.Join(newPaths, ":")
+}
+
+// isInSlice returns the bool value whether the slices contains element
+// or not
+//
+// Returns true of false
+func isInSlice(slices []string, element string) bool {
+	for _, key := range slices {
+		if strings.EqualFold(key, element) {
+			return true
+		}
+	}
+	return false
 }
