@@ -153,4 +153,6 @@ type RemoteUser struct {
 	// ClusterName is a name of the remote cluster
 	// of the user
 	ClusterName string `json:"cluster_name"`
+	// RemoteRoles is optional list of remote roles
+	RemoteRoles []string `json:"remote_roles"`
 }
