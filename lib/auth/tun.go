@@ -351,9 +351,20 @@ func (s *AuthTunnel) onAPIConnection(sconn *ssh.ServerConn, sshChan ssh.Channel,
 		user = teleport.BuiltinRole{Role: systemRole}
 	} else if clusterName, ok := sconn.Permissions.Extensions[utils.CertTeleportUserCA]; ok {
 		// we got user signed by remote certificate authority
+		var remoteRoles []string
+		var err error
+		data, ok := sconn.Permissions.Extensions[teleport.CertExtensionTeleportRoles]
+		if ok {
+			remoteRoles, err = services.UnmarshalCertRoles(data)
+			if err != nil {
+				log.Error(err.Error())
+				return
+			}
+		}
 		user = teleport.RemoteUser{
 			ClusterName: clusterName,
 			Username:    sconn.Permissions.Extensions[utils.CertTeleportUser],
+			RemoteRoles: remoteRoles,
 		}
 	} else if teleportUser, ok := sconn.Permissions.Extensions[utils.CertTeleportUser]; ok {
 		// we got user signed by local certificate authority
@@ -455,13 +466,18 @@ func (s *AuthTunnel) keyAuth(
 		}, nil
 	}
 	// otherwise we return this as a remote CA
-	return &ssh.Permissions{
+	permissions := &ssh.Permissions{
 		Extensions: map[string]string{
 			ExtHost:                  conn.User(),
 			utils.CertTeleportUserCA: ca.GetID().DomainName,
 			utils.CertTeleportUser:   cert.KeyId,
 		},
-	}, nil
+	}
+	extensions, ok := cert.Permissions.Extensions[teleport.CertExtensionTeleportRoles]
+	if ok {
+		permissions.Extensions[teleport.CertExtensionTeleportRoles] = extensions
+	}
+	return permissions, nil
 }
 
 // passwordAuth is called to authenticate an incoming SSH connection

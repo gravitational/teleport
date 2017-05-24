@@ -315,7 +315,7 @@ func (a *AuthServer) ValidateSAMLResponse(samlResponse string) (*SAMLAuthRespons
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cert, err := a.GenerateUserCert(request.PublicKey, user.GetName(), allowedLogins, certTTL, roles.CanForwardAgents())
+		cert, err := a.GenerateUserCert(request.PublicKey, user, allowedLogins, certTTL, roles.CanForwardAgents())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
@@ -209,7 +210,14 @@ func makeKey(username string, allowedLogins []string, ttl time.Duration) (*Key, 
 		return nil, err
 	}
 
-	certificate, err := keygen.GenerateUserCert(caPrivateKey, publicKey, username, allowedLogins, ttl, true)
+	certificate, err := keygen.GenerateUserCert(services.UserCertParams{
+		PrivateCASigningKey: caPrivateKey,
+		PublicUserKey:       publicKey,
+		Username:            username,
+		AllowedLogins:       allowedLogins,
+		TTL:                 ttl,
+		PermitAgentForwarding: true,
+	})
 	if err != nil {
 		return nil, err
 	}

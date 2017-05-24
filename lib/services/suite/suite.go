@@ -362,7 +362,10 @@ func (s *ServicesTestSuite) TokenCRUD(c *C) {
 	c.Assert(token.Roles.Include(teleport.RoleAuth), Equals, true)
 	c.Assert(token.Roles.Include(teleport.RoleNode), Equals, true)
 	c.Assert(token.Roles.Include(teleport.RoleProxy), Equals, false)
-	c.Assert(token.Expires.Second(), Equals, time.Now().UTC().Add(defaults.ProvisioningTokenTTL).Second())
+	diff := time.Now().UTC().Add(defaults.ProvisioningTokenTTL).Second() - token.Expires.Second()
+	if diff > 1 {
+		c.Fatalf("expected diff to be within one second, got %v instead", diff)
+	}
 
 	c.Assert(s.ProvisioningS.DeleteToken("token"), IsNil)
 

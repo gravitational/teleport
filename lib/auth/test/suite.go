@@ -61,7 +61,7 @@ func (s *AuthSuite) GenerateHostCert(c *C) {
 	c.Assert(err, IsNil)
 
 	cert, err := s.A.GenerateHostCert(
-		services.CertParams{
+		services.HostCertParams{
 			PrivateCASigningKey: priv,
 			PublicHostKey:       pub,
 			HostID:              "00000000-0000-0000-0000-000000000000",
@@ -80,18 +80,64 @@ func (s *AuthSuite) GenerateUserCert(c *C) {
 	priv, pub, err := s.A.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 
-	cert, err := s.A.GenerateUserCert(priv, pub, "user", []string{"centos", "root"}, time.Hour, true)
+	cert, err := s.A.GenerateUserCert(services.UserCertParams{
+		PrivateCASigningKey: priv,
+		PublicUserKey:       pub,
+		Username:            "user",
+		AllowedLogins:       []string{"centos", "root"},
+		TTL:                 time.Hour,
+		PermitAgentForwarding: true,
+	})
 	c.Assert(err, IsNil)
 
 	_, _, _, _, err = ssh.ParseAuthorizedKey(cert)
 	c.Assert(err, IsNil)
 
-	_, err = s.A.GenerateUserCert(priv, pub, "user", []string{"root"}, -20, true)
+	_, err = s.A.GenerateUserCert(services.UserCertParams{
+		PrivateCASigningKey: priv,
+		PublicUserKey:       pub,
+		Username:            "user",
+		AllowedLogins:       []string{"root"},
+		TTL:                 -20,
+		PermitAgentForwarding: true,
+	})
 	c.Assert(err, NotNil)
 
-	_, err = s.A.GenerateUserCert(priv, pub, "user", []string{"root"}, 0, true)
+	_, err = s.A.GenerateUserCert(services.UserCertParams{
+		PrivateCASigningKey: priv,
+		PublicUserKey:       pub,
+		Username:            "user",
+		AllowedLogins:       []string{"root"},
+		TTL:                 0,
+		PermitAgentForwarding: true})
 	c.Assert(err, NotNil)
 
-	_, err = s.A.GenerateUserCert(priv, pub, "user", []string{"root"}, time.Hour, true)
+	_, err = s.A.GenerateUserCert(services.UserCertParams{
+		PrivateCASigningKey: priv,
+		PublicUserKey:       pub,
+		Username:            "user",
+		AllowedLogins:       []string{"root"},
+		TTL:                 time.Hour,
+		PermitAgentForwarding: true,
+	})
 	c.Assert(err, IsNil)
+
+	inRoles := []string{"role-1", "role-2"}
+	cert, err = s.A.GenerateUserCert(services.UserCertParams{
+		PrivateCASigningKey: priv,
+		PublicUserKey:       pub,
+		Username:            "user",
+		AllowedLogins:       []string{"root"},
+		TTL:                 time.Hour,
+		PermitAgentForwarding: true,
+		Roles: inRoles,
+	})
+	c.Assert(err, IsNil)
+	parsedKey, _, _, _, err := ssh.ParseAuthorizedKey(cert)
+	c.Assert(err, IsNil)
+	parsedCert, ok := parsedKey.(*ssh.Certificate)
+	c.Assert(ok, Equals, true)
+	outRoles, err := services.UnmarshalCertRoles(parsedCert.Extensions[teleport.CertExtensionTeleportRoles])
+	c.Assert(err, IsNil)
+	c.Assert(outRoles, DeepEquals, inRoles)
 }
