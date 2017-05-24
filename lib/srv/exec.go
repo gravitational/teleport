@@ -425,6 +425,8 @@ func getEnvPath(oriPath string) string {
 
 	env1Path := strings.Split(oriPath, "=")[1]
 	env2Path := strings.Split(envPathV, "=")[1]
+	env1Path = strings.Trim(env1Path, "\"")
+	env2Path = strings.Trim(env2Path, "\"")
 	env1SlicePath := strings.Split(env1Path, ":")
 	env2SlicePath := strings.Split(env2Path, ":")
 	newPaths := make([]string, len(env1SlicePath))
