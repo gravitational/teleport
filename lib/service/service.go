@@ -185,6 +185,9 @@ func (process *TeleportProcess) connectToAuthService(role teleport.Role) (*Conne
 // NewTeleport takes the daemon configuration, instantiates all required services
 // and starts them under a supervisor, returning the supervisor object
 func NewTeleport(cfg *Config) (*TeleportProcess, error) {
+	// before we do anything reset the SIGINT handler back to the default
+	utils.ResetInterruptSignalHandler()
+
 	if err := validateConfig(cfg); err != nil {
 		return nil, trace.Wrap(err, "Configuration error")
 	}
