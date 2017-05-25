@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/proxy"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
@@ -153,7 +154,9 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 		return nil, trace.BadParameter("reverse tunnel cannot be created: target address is empty")
 	}
 	for _, authMethod := range a.authMethods {
-		conn, err = ssh.Dial(a.addr.AddrNetwork, a.addr.Addr, &ssh.ClientConfig{
+		// if http_proxy is set, dial through the proxy
+		dialer := proxy.DialerFromEnvironment()
+		conn, err = dialer.Dial(a.addr.AddrNetwork, a.addr.Addr, &ssh.ClientConfig{
 			User:            a.clientName,
 			Auth:            []ssh.AuthMethod{authMethod},
 			HostKeyCallback: a.hostKeyCallback,
