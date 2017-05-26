@@ -138,6 +138,11 @@ type SessionLogger struct {
 
 // LogEvent logs an event associated with this session
 func (sl *SessionLogger) LogEvent(fields EventFields) {
+	sl.logEvent(fields, time.Time{})
+}
+
+// LogEvent logs an event associated with this session
+func (sl *SessionLogger) logEvent(fields EventFields, start time.Time) {
 	sl.Lock()
 	defer sl.Unlock()
 
@@ -145,7 +150,13 @@ func (sl *SessionLogger) LogEvent(fields EventFields) {
 	fields[SessionByteOffset] = atomic.LoadInt64(&sl.writtenBytes)
 
 	// add "milliseconds since" timestamp:
-	now := sl.timeSource().In(time.UTC).Round(time.Millisecond)
+	var now time.Time
+	if start.IsZero() {
+		now = sl.timeSource().In(time.UTC).Round(time.Millisecond)
+	} else {
+		now = start.In(time.UTC).Round(time.Millisecond)
+	}
+
 	fields[SessionEventTimestamp] = int(now.Sub(sl.createdTime).Nanoseconds() / 1000000)
 	fields[EventTime] = now
 
@@ -182,24 +193,25 @@ func (sl *SessionLogger) Finalize() error {
 	return nil
 }
 
-// Write takes a stream of bytes (usually the output from a session terminal)
+// WriteChunk takes a stream of bytes (usually the output from a session terminal)
 // and writes it into a "stream file", for future replay of interactive sessions.
-func (sl *SessionLogger) Write(bytes []byte) (written int, err error) {
+func (sl *SessionLogger) WriteChunk(chunk SessionChunk) (written int, err error) {
 	if sl.streamFile == nil {
 		err := trace.Errorf("session %v error: attempt to write to a closed file", sl.sid)
 		return 0, trace.Wrap(err)
 	}
-	if written, err = sl.streamFile.Write(bytes); err != nil {
+	if written, err = sl.streamFile.Write(chunk.Data); err != nil {
 		log.Error(err)
 		return written, trace.Wrap(err)
 	}
 	// log this as a session event (but not more often than once a sec)
-	sl.LogEvent(EventFields{
+	sl.logEvent(EventFields{
 		EventType:              SessionPrintEvent,
-		SessionPrintEventBytes: len(bytes)})
+		SessionPrintEventBytes: len(chunk.Data),
+	}, chunk.Time)
 
 	// increase the total lengh of the stream
-	atomic.AddInt64(&sl.writtenBytes, int64(len(bytes)))
+	atomic.AddInt64(&sl.writtenBytes, int64(len(chunk.Data)))
 	return written, nil
 }
 
@@ -249,22 +261,43 @@ func (l *AuditLog) migrateSessions() error {
 	return nil
 }
 
+// PostSessionChunks writes a new chunk of session stream into the audit log
+func (l *AuditLog) PostSessionChunks(chunks []SessionChunk) error {
+	if len(chunks) == 0 {
+		return trace.BadParameter("missing session chunks")
+	}
+	namespace := chunks[0].Namespace
+	sessionID := chunks[0].SessionID
+	sl, err := l.LoggerFor(namespace, session.ID(sessionID))
+	if err != nil {
+		return trace.BadParameter("audit.log: no session writer for %s", sessionID)
+	}
+	for i := range chunks {
+		if chunks[i].Namespace != namespace || chunks[i].SessionID != sessionID {
+			return trace.BadParameter("all chunks should be in the same namespace")
+		}
+		_, err := sl.WriteChunk(chunks[i])
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
 // PostSessionChunk writes a new chunk of session stream into the audit log
 func (l *AuditLog) PostSessionChunk(namespace string, sid session.ID, reader io.Reader) error {
-	if namespace == "" {
-		return trace.BadParameter("missing parameter Namespace")
-	}
-	sl, err := l.LoggerFor(namespace, sid)
-	if err != nil {
-		log.Warnf("audit.log: no session writer for %s", sid)
-		return nil
-	}
 	tmp, err := utils.ReadAll(reader, 16*1024)
-	_, err = sl.Write(tmp)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return nil
+	return l.PostSessionChunks([]SessionChunk{
+		{
+			Namespace: namespace,
+			SessionID: string(sid),
+			Time:      l.TimeSource().In(time.UTC),
+			Data:      tmp,
+		},
+	})
 }
 
 // GetSessionChunk returns a reader which console and web clients request

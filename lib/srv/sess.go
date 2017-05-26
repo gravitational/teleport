@@ -17,7 +17,6 @@ limitations under the License.
 package srv
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"sync"
@@ -28,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/state"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
@@ -438,13 +438,16 @@ type sessionRecorder struct {
 	sid rsession.ID
 	// namespace is session namespace
 	namespace string
+	// start is a start of the session
+	start time.Time
 }
 
 func newSessionRecorder(alog events.IAuditLog, namespace string, sid rsession.ID) *sessionRecorder {
 	sr := &sessionRecorder{
-		alog:      alog,
+		alog:      state.NewCachingAuditLog(alog),
 		sid:       sid,
 		namespace: namespace,
+		start:     time.Now().UTC(),
 	}
 	return sr
 }
@@ -459,7 +462,12 @@ func (r *sessionRecorder) Write(data []byte) (int, error) {
 	dataCopy := make([]byte, len(data))
 	copy(dataCopy, data)
 	// post the chunk of bytes to the audit log:
-	if err := r.alog.PostSessionChunk(r.namespace, r.sid, bytes.NewReader(dataCopy)); err != nil {
+	if err := r.alog.PostSessionChunks([]events.SessionChunk{{
+		Namespace: r.namespace,
+		SessionID: string(r.sid),
+		Data:      dataCopy,
+		Time:      time.Now().UTC(),
+	}}); err != nil {
 		log.Error(trace.DebugReport(err))
 	}
 	return len(data), nil

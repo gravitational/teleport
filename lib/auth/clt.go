@@ -1121,6 +1121,19 @@ func (c *Client) PostSessionChunk(namespace string, sid session.ID, reader io.Re
 	return trace.ReadError(re.StatusCode, responseBytes)
 }
 
+// PostSessionChunk allows clients to submit session stream chunks to the audit log
+// (part of evets.IAuditLog interface)
+//
+// The data is POSTed to HTTP server as a simple binary body (no encodings of any
+// kind are needed)
+func (c *Client) PostSessionChunks(chunks []events.SessionChunk) error {
+	if len(chunks) == 0 {
+		return trace.BadParameter("empty chunks")
+	}
+	_, err := c.PostJSON(c.Endpoint("namespaces", chunks[0].Namespace, "sessions", chunks[0].SessionID, "chunks"), chunks)
+	return trace.Wrap(err)
+}
+
 // GetSessionChunk allows clients to receive a byte array (chunk) from a recorded
 // session stream, starting from 'offset', up to 'max' in length. The upper bound
 // of 'max' is set to events.MaxChunkBytes

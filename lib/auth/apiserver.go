@@ -124,6 +124,7 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	srv.PUT("/:version/namespaces/:namespace/sessions/:id", srv.withAuth(srv.updateSession))
 	srv.GET("/:version/namespaces/:namespace/sessions", srv.withAuth(srv.getSessions))
 	srv.GET("/:version/namespaces/:namespace/sessions/:id", srv.withAuth(srv.getSession))
+	srv.POST("/:version/namespaces/:namespace/sessions/:id/chunks", srv.withAuth(srv.postSessionChunks))
 	srv.POST("/:version/namespaces/:namespace/sessions/:id/stream", srv.withAuth(srv.postSessionChunk))
 	srv.GET("/:version/namespaces/:namespace/sessions/:id/stream", srv.withAuth(srv.getSessionChunk))
 	srv.GET("/:version/namespaces/:namespace/sessions/:id/events", srv.withAuth(srv.getSessionEvents))
@@ -1382,6 +1383,18 @@ func (s *APIServer) emitAuditEvent(auth ClientI, w http.ResponseWriter, r *http.
 		return nil, trace.Wrap(err)
 	}
 	if err := auth.EmitAuditEvent(req.Type, req.Fields); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message("ok"), nil
+}
+
+// HTTP POST /:version/chunks
+func (s *APIServer) postSessionChunks(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	var chunks []events.SessionChunk
+	if err := httplib.ReadJSON(r, &chunks); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.PostSessionChunks(chunks); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
