@@ -7,7 +7,6 @@ import (
 	"net/url"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
 
@@ -219,14 +218,16 @@ func (s *AuthServer) sendValidateRequestToProxy(host string, validateRequest *Va
 		log.Warn("InsecureSkipVerify used to communicate with proxy.")
 		log.Warn("Make sure you intend to run Teleport in debug mode.")
 
+		// get the default transport (so we can get the proxy from environment)
+		// but disable tls certificate checking.
+		tr, ok := http.DefaultTransport.(*http.Transport)
+		if !ok {
+			return nil, trace.BadParameter("unable to get default transport")
+		}
+		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+
 		insecureWebClient := &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-				// IdleConnTimeout defines the maximum amount of time before idle connections
-				// are closed. Leaving this unset will lead to connections open forever and
-				// will cause memory leaks in a long running process
-				IdleConnTimeout: defaults.HTTPIdleTimeout,
-			},
+			Transport: tr,
 		}
 		opts = append(opts, roundtrip.HTTPClient(insecureWebClient))
 	}

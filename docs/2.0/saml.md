@@ -1,10 +1,174 @@
-# Security Assertion Markup Language 2.0 (SAML 2.0)
+# SAML 2.0 Features
 
-Enterprise supports SAML 2.0 as an external identity provider and has been
+Teleport Enterprise supports SAML 2.0 as an external identity provider and has been
 tested to work with Okta and Active Directory Federation Services (ADFS)
 2016.
 
-## ADFS Integration
+## Okta
+
+This guide configures Okta map groups via SAML to Teleport roles.
+
+### Start Teleport
+
+Start Teleport with this samle config, notice how we set `dynamic_config: true` to indicate that we will use dynamic configuration
+as opposed to static file config.
+
+```yaml
+# Simple config file with just a few customizations (with comments)
+teleport:
+  nodename: localhost
+  log:
+    output: stderr
+    severity: DEBUG
+  dynamic_config: true
+auth_service:
+  enabled: yes
+  cluster_name: teleport.local
+ssh_service:
+  enabled: yes
+```
+
+### Confiugre Okta
+
+#### Create App
+
+Create SAML 2.0 Web App in Okta config section
+
+![Create APP](img/okta-saml-1.png?raw=true)
+![Create APP name](img/okta-saml-2.png?raw=true)
+
+#### Configure Okta App
+
+**Create Groups**
+
+We are going to create groups `okta-dev` and `okta-admin`:
+
+**Devs**
+
+![Create Group Devs](img/okta-saml-2.1.png)
+
+**Admins**
+
+![Create Group Devs](img/okta-saml-2.2.png)
+
+**Configure APP**
+
+We are going to map these Okta groups to SAML Attribute statements (special signed metadata
+exposed via SAML XML response).
+
+![Configure APP](img/okta-saml-3.png)
+
+**Notice:** We have set NameID to email format and mappped groups with wildcard regex in Group Attribute statements.
+We have also set Audience and SSO url to be the same thing.
+
+**Assign Groups**
+
+Assign groups and people to your SAML app:
+
+![Configure APP](img/okta-saml-3.1.png)
+
+
+#### Configure Teleport SAML 
+
+![Download metadata](img/okta-saml-4.png?raw=true)
+
+Download metadata in the form of XML doc, we will use it to configure Teleport.
+
+```
+kind: saml
+version: v2
+metadata:
+  name: OktaSAML
+spec:
+  acs: https://localhost:3080/v1/webapi/saml/acs
+  attributes_to_roles:
+    - {name: "groups", value: "okta-admin", roles: ["admin"]}
+    - {name: "groups", value: "okta-dev", roles: ["dev"]}
+  entity_descriptor: |
+    <paste SAML XML contents here>
+```
+
+Configure the SAML by creating configuration resource in teleport using `tctl` command:
+
+```bash
+tctl create -f saml.yaml
+```
+
+Create file `preference.yaml` that will configure teleport to use SAML as primary configuration method:
+
+```saml
+kind: cluster_auth_preference
+version: v2
+metadata:
+  name: "cluster-auth-preference"
+spec:
+  type: saml
+```
+
+```bash
+tctl create -f preference.yaml
+```
+
+#### Create Teleport Roles
+
+We are going to create 2 roles, privileged role admin who is able to login as root and is capable
+of administrating the cluster and non-privileged dev who is only allowed to view sessions and login as non-privileged user.
+
+```yaml
+kind: role
+version: v2
+metadata:
+  name: admin
+  namespace: default
+spec:
+  logins: [root]
+  max_session_ttl: 90h0m0s
+  namespaces: ['*']
+  node_labels:
+    '*': '*'
+  resources:
+    '*': [read, write]
+```
+
+Devs are only allowed to login to nodes labelled with `access: relaxed` teleport label.
+
+```yaml
+kind: role
+version: v2
+metadata:
+  name: stage-devops
+spec:
+  logins: [ubuntu]
+  max_session_ttl: 90h0m0s
+  namespaces: ['*']
+  node_labels:
+    access: relaxed
+  resources:
+    '*': [read]
+```
+    
+
+**Notice:** Replace `ubuntu` with linux login available on your servers!
+
+```bash
+tctl create -f admin.yaml
+tctl create -f dev.yaml
+```
+
+### Login
+
+For the Web UI, if the above configuration were real, you would see a button
+that says `Login with adfs`. Simply click on that and you will be
+re-directed to a login page for your identity provider and if successful,
+redirected back to Teleport.
+
+For console login, you simple type `tsh --proxy <proxy-addr> ssh <server-addr>`
+and a browser window should automatically open taking you to the login page for
+your identity provider. `tsh` will also output a link the login page of the
+identity provider if you are not automatically redirected.
+
+
+## ADFS
 
 ### ADFS Configuration
 
@@ -18,15 +182,15 @@ mapping of the LDAP Attribute `E-Mail-Addresses` to `Name ID`. A group
 membership claim should be used to map users to roles (for example to
 separate normal users and admins).
 
-![Name ID Configuration](/docs/2.0/img/adfs-1.png?raw=true)
-![Group Configuration](/docs/2.0/img/adfs-2.png?raw=true)
+![Name ID Configuration](img/adfs-1.png?raw=true)
+![Group Configuration](img/adfs-2.png?raw=true)
 
 In addition if you are using dynamic roles (see below), it may be useful to map
 the LDAP Attribute `SAM-Account-Name` to `Windows account name` and create
 another mapping of `E-Mail-Addresses` to `UPN`.
 
-![WAN Configuration](/docs/2.0/img/adfs-3.png?raw=true)
-![UPN Configuration](/docs/2.0/img/adfs-4.png?raw=true)
+![WAN Configuration](img/adfs-3.png?raw=true)
+![UPN Configuration](img/adfs-4.png?raw=true)
 
 You'll also need to create a Relying Party Trust, use the below information to
 help guide you through the Wizard. Note, for development purposes we recommend
