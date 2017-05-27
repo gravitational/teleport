@@ -803,6 +803,10 @@ func (a *AuthWithRoles) DeleteTrustedCluster(name string) error {
 	return a.authServer.deleteTrustedCluster(name)
 }
 
+func (a *AuthWithRoles) Close() error {
+	return a.authServer.Close()
+}
+
 // NewAuthWithRoles creates new auth server with access control
 func NewAuthWithRoles(authServer *AuthServer,
 	checker services.AccessChecker,

@@ -438,18 +438,29 @@ type sessionRecorder struct {
 	sid rsession.ID
 	// namespace is session namespace
 	namespace string
-	// start is a start of the session
-	start time.Time
 }
 
-func newSessionRecorder(alog events.IAuditLog, namespace string, sid rsession.ID) *sessionRecorder {
+func newSessionRecorder(alog events.IAuditLog, namespace string, sid rsession.ID) (*sessionRecorder, error) {
+	var auditLog events.IAuditLog
+	var err error
+	if alog == nil {
+		auditLog = &events.DiscardAuditLog{}
+	} else {
+		auditLog, err = state.NewCachingAuditLog(state.CachingAuditLogConfig{
+			Namespace: namespace,
+			SessionID: string(sid),
+			Server:    alog,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	sr := &sessionRecorder{
-		alog:      state.NewCachingAuditLog(namespace, string(sid), alog),
+		alog:      auditLog,
 		sid:       sid,
 		namespace: namespace,
-		start:     time.Now().UTC(),
 	}
-	return sr
+	return sr, nil
 }
 
 // Write takes a chunk and writes it into the audit log
@@ -476,9 +487,9 @@ func (r *sessionRecorder) Write(data []byte) (int, error) {
 	return len(data), nil
 }
 
-// Close() does nothing for session recorder (audit log cannot be closed)
+// Close() closes audit log caching forwarder
 func (r *sessionRecorder) Close() error {
-	return nil
+	return r.alog.Close()
 }
 
 // start starts a new interactive process (or a shell) in the current session
@@ -526,9 +537,11 @@ func (s *session) start(ch ssh.Channel, ctx *ctx) error {
 	// start recording this session
 	auditLog := s.registry.srv.alog
 	if auditLog != nil {
-		s.writer.addWriter("session-recorder",
-			newSessionRecorder(auditLog, ctx.srv.getNamespace(), s.id),
-			true)
+		recorder, err := newSessionRecorder(auditLog, ctx.srv.getNamespace(), s.id)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		s.writer.addWriter("session-recorder", recorder, true)
 	}
 
 	// start asynchronous loop of synchronizing session state with

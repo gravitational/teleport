@@ -12,6 +12,10 @@ import (
 type DiscardAuditLog struct {
 }
 
+func (d *DiscardAuditLog) Close() error {
+	return nil
+}
+
 func (d *DiscardAuditLog) EmitAuditEvent(eventType string, fields EventFields) error {
 	return nil
 }

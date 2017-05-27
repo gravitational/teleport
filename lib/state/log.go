@@ -21,7 +21,6 @@ import (
 	"context"
 	"io"
 	"io/ioutil"
-	"sync"
 	"time"
 
 	"github.com/gravitational/teleport/lib/events"
@@ -34,24 +33,24 @@ import (
 )
 
 const (
-	// MaxQueueSize determines how many logging events to queue in-memory
+	// DefaultQueueLen determines how many logging events to queue in-memory
 	// before start dropping them (probably because logging server is down)
-	MaxQueueSize = 200
-	// FlushAfterPeriod is a period to flush after no other events have been received
-	FlushAfterPeriod = time.Second
-	// FlushMaxChunks is a max chunks accumulated over period to flush
-	FlushMaxChunks = 150
-	// FlushMaxBytes is a max bytes of the chunks before the flush will be triggered
-	FlushMaxBytes = 100000
-	// ThrottleLatency is a latency after we will
-	ThrottleLatency = 500 * time.Millisecond
-	// ThrottleDuration is a period that we will throttle the slow network for
+	DefaultQueueLen = 200
+	// DefaultFlushTimeout is a period to flush after no other events have been received
+	DefaultFlushTimeout = time.Second
+	// DefaultFlushChunks is a max chunks accumulated over period to flush
+	DefaultFlushChunks = 150
+	// DefaultFlushBytes is a max bytes of the chunks before the flush will be triggered
+	DefaultFlushBytes = 100000
+	// DefaultThrottleTimeout is a latency after we will
+	DefaultThrottleTimeout = 500 * time.Millisecond
+	// DefaultThrottleDuration is a period that we will throttle the slow network for
 	// before trying to send again
-	ThrottleDuration = 10 * time.Second
-	// BackoffInitialInterval is initial interval for backoff
-	BackoffInitialInterval = 100 * time.Millisecond
-	// BackoffMaxInterval is initial interval for backoff
-	BackoffMaxInterval = ThrottleDuration
+	DefaultThrottleDuration = 10 * time.Second
+	// DefaultBackoffInitialInterval is initial interval for backoff
+	DefaultBackoffInitialInterval = 100 * time.Millisecond
+	// DefaultBackoffMaxInterval is maximum interval for backoff
+	DefaultBackoffMaxInterval = DefaultThrottleDuration
 )
 
 var (
@@ -106,13 +105,84 @@ func init() {
 	prometheus.MustRegister(auditRequests)
 }
 
+// CachingAuditLogConifig sets configuration for caching audit log
+type CachingAuditLogConfig struct {
+	// Namespace is session namespace
+	Namespace string
+	// SessionID is session ID this log forwards for
+	SessionID string
+	// Server is the server receiving audit events
+	Server events.IAuditLog
+	// QueueLen is length of the caching queue
+	QueueLen int
+	// FlushChunks controls how many chunks to aggregate before submit
+	FlushChunks int
+	// Context is an optional context
+	Context context.Context
+	// ThrottleTimeout is a timeout that triggers throttling
+	ThrottleTimeout time.Duration
+	// ThrottleDuration is a duration for throttling
+	ThrottleDuration time.Duration
+	// FlushTimeout is a period to flush buffered chunks if the queue
+	// has not filled up yet
+	FlushTimeout time.Duration
+	// FlushBytes sets amount of bytes per slice that triggers
+	// the flush to the server
+	FlushBytes int64
+	// BackoffInitialInterval is initial interval for backoff
+	BackoffInitialInterval time.Duration
+	// BackoffMaxInterval is maximum interval for backoff
+	BackoffMaxInterval time.Duration
+}
+
+// CheckAndSetDefaults checks and sets defaults
+func (c *CachingAuditLogConfig) CheckAndSetDefaults() error {
+	if c.Namespace == "" {
+		return trace.BadParameter("missing parameter Namespace")
+	}
+	if c.SessionID == "" {
+		return trace.BadParameter("missing parameter SessionID")
+	}
+	if c.Server == nil {
+		return trace.BadParameter("missing parameter Server")
+	}
+	if c.QueueLen == 0 {
+		c.QueueLen = DefaultQueueLen
+	}
+	if c.FlushChunks == 0 {
+		c.FlushChunks = DefaultFlushChunks
+	}
+	if c.Context == nil {
+		c.Context = context.TODO()
+	}
+	if c.ThrottleTimeout == 0 {
+		c.ThrottleTimeout = DefaultThrottleTimeout
+	}
+	if c.ThrottleTimeout == 0 {
+		c.ThrottleTimeout = DefaultThrottleTimeout
+	}
+	if c.ThrottleDuration == 0 {
+		c.ThrottleDuration = DefaultThrottleDuration
+	}
+	if c.FlushTimeout == 0 {
+		c.FlushTimeout = DefaultFlushTimeout
+	}
+	if c.FlushBytes == 0 {
+		c.FlushBytes = DefaultFlushBytes
+	}
+	if c.BackoffInitialInterval == 0 {
+		c.BackoffInitialInterval = DefaultBackoffInitialInterval
+	}
+	if c.BackoffMaxInterval == 0 {
+		c.BackoffMaxInterval = DefaultBackoffMaxInterval
+	}
+	return nil
+}
+
 // CachingAuditLog implements events.IAuditLog on the recording machine (SSH server)
 // It captures the local recording and forwards it to the AuditLog network server
 type CachingAuditLog struct {
-	sync.Mutex
-	namespace     string
-	sessionID     string
-	server        events.IAuditLog
+	CachingAuditLogConfig
 	queue         chan []*events.SessionChunk
 	cancel        context.CancelFunc
 	ctx           context.Context
@@ -130,33 +200,31 @@ func (ll *CachingAuditLog) add(chunks []*events.SessionChunk) {
 
 func (ll *CachingAuditLog) reset() []*events.SessionChunk {
 	out := ll.chunks
-	ll.chunks = make([]*events.SessionChunk, 0, FlushMaxChunks)
+	ll.chunks = make([]*events.SessionChunk, 0, ll.FlushChunks)
 	ll.bytes = 0
 	return out
 }
 
 // NewCachingAuditLog creaets a new & fully initialized instance of the alog
-func NewCachingAuditLog(namespace, sessionID string, logServer events.IAuditLog) *CachingAuditLog {
+func NewCachingAuditLog(cfg CachingAuditLogConfig) (*CachingAuditLog, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	ctx, cancel := context.WithCancel(context.TODO())
 	ll := &CachingAuditLog{
-		namespace: namespace,
-		sessionID: sessionID,
-		server:    logServer,
-		cancel:    cancel,
-		ctx:       ctx,
+		CachingAuditLogConfig: cfg,
+		cancel:                cancel,
+		ctx:                   ctx,
 	}
-	// start the queue:
-	if logServer != nil {
-		ll.queue = make(chan []*events.SessionChunk, MaxQueueSize+1)
-		go ll.run()
-	}
-	return ll
+	ll.queue = make(chan []*events.SessionChunk, ll.QueueLen)
+	go ll.run()
+	return ll, nil
 }
 
 // run thread is picking up logging events and tries to forward them
 // to the logging server
 func (ll *CachingAuditLog) run() {
-	ticker := time.NewTicker(FlushAfterPeriod)
+	ticker := time.NewTicker(ll.FlushTimeout)
 	defer ticker.Stop()
 	var tickerC <-chan time.Time
 	for {
@@ -177,12 +245,12 @@ func (ll *CachingAuditLog) run() {
 	}
 }
 
-func newExponentialBackoff() *backoff.ExponentialBackOff {
+func (ll *CachingAuditLog) newExponentialBackoff() *backoff.ExponentialBackOff {
 	b := &backoff.ExponentialBackOff{
-		InitialInterval:     BackoffInitialInterval,
+		InitialInterval:     ll.BackoffInitialInterval,
 		RandomizationFactor: backoff.DefaultRandomizationFactor,
 		Multiplier:          backoff.DefaultMultiplier,
-		MaxInterval:         BackoffMaxInterval,
+		MaxInterval:         ll.BackoffMaxInterval,
 		Clock:               backoff.SystemClock,
 	}
 	b.Reset()
@@ -194,14 +262,14 @@ func (ll *CachingAuditLog) flush(force bool) {
 		return
 	}
 	if !force {
-		if len(ll.chunks) < FlushMaxChunks && ll.bytes < FlushMaxBytes {
+		if len(ll.chunks) < ll.FlushChunks && ll.bytes < ll.FlushBytes {
 			return
 		}
 	}
 	chunks := ll.reset()
 	slice := events.SessionSlice{
-		Namespace: ll.namespace,
-		SessionID: ll.sessionID,
+		Namespace: ll.Namespace,
+		SessionID: ll.SessionID,
 		Chunks:    chunks,
 	}
 	err := ll.postSlice(slice)
@@ -209,7 +277,7 @@ func (ll *CachingAuditLog) flush(force bool) {
 		return
 	}
 	log.Warningf("lost connection: %v", err)
-	ticker := backoff.NewTicker(newExponentialBackoff())
+	ticker := backoff.NewTicker(ll.newExponentialBackoff())
 	defer ticker.Stop()
 	for {
 		select {
@@ -228,7 +296,7 @@ func (ll *CachingAuditLog) flush(force bool) {
 
 func (ll *CachingAuditLog) postSlice(slice events.SessionSlice) error {
 	start := time.Now()
-	err := ll.server.PostSessionSlice(slice)
+	err := ll.Server.PostSessionSlice(slice)
 	auditRequests.WithLabelValues("total").Inc()
 	if err != nil {
 		auditRequests.WithLabelValues("fail").Inc()
@@ -258,13 +326,13 @@ func (ll *CachingAuditLog) post(chunks []*events.SessionChunk) error {
 		// the queue is blocked, now we will create a timer
 		// to detect the timeout
 	}
-	timer := time.NewTimer(ThrottleLatency)
+	timer := time.NewTimer(ll.ThrottleTimeout)
 	defer timer.Stop()
 	select {
 	case ll.queue <- chunks:
 	case <-timer.C:
-		ll.throttleStart = time.Now().Add(ThrottleDuration)
-		log.Warningf("latency spiked over %v, will throttle audit log forward until %v", ThrottleLatency, ll.throttleStart)
+		ll.throttleStart = time.Now().Add(ll.ThrottleDuration)
+		log.Warningf("latency spiked over %v, will throttle audit log forward until %v", ll.ThrottleTimeout, ll.throttleStart)
 	}
 	return nil
 }
@@ -275,7 +343,7 @@ func (ll *CachingAuditLog) Close() error {
 }
 
 func (ll *CachingAuditLog) EmitAuditEvent(eventType string, fields events.EventFields) error {
-	return ll.server.EmitAuditEvent(eventType, fields)
+	return ll.Server.EmitAuditEvent(eventType, fields)
 }
 
 func (ll *CachingAuditLog) PostSessionChunk(namespace string, sid session.ID, reader io.Reader) error {
