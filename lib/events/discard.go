@@ -18,7 +18,7 @@ func (d *DiscardAuditLog) EmitAuditEvent(eventType string, fields EventFields) e
 func (d *DiscardAuditLog) PostSessionChunk(namespace string, sid session.ID, reader io.Reader) error {
 	return nil
 }
-func (d *DiscardAuditLog) PostSessionChunks([]SessionChunk) error {
+func (d *DiscardAuditLog) PostSessionSlice(SessionSlice) error {
 	return nil
 }
 func (d *DiscardAuditLog) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {

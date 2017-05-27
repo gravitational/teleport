@@ -570,13 +570,11 @@ func (a *AuthWithRoles) EmitAuditEvent(eventType string, fields events.EventFiel
 	return a.alog.EmitAuditEvent(eventType, fields)
 }
 
-func (a *AuthWithRoles) PostSessionChunks(chunks []events.SessionChunk) error {
-	for _, chunk := range chunks {
-		if err := a.action(chunk.Namespace, services.KindSession, services.ActionWrite); err != nil {
-			return trace.Wrap(err)
-		}
+func (a *AuthWithRoles) PostSessionSlice(slice events.SessionSlice) error {
+	if err := a.action(slice.Namespace, services.KindSession, services.ActionWrite); err != nil {
+		return trace.Wrap(err)
 	}
-	return a.alog.PostSessionChunks(chunks)
+	return a.alog.PostSessionSlice(slice)
 }
 
 func (a *AuthWithRoles) PostSessionChunk(namespace string, sid session.ID, reader io.Reader) error {

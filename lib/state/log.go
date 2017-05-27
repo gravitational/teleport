@@ -105,41 +105,44 @@ func init() {
 // It captures the local recording and forwards it to the AuditLog network server
 type CachingAuditLog struct {
 	sync.Mutex
-	server           events.IAuditLog
-	queue            chan []events.SessionChunk
-	cancel           context.CancelFunc
-	ctx              context.Context
-	chunks           []events.SessionChunk
-	bytes            int64
-	throttleStart    time.Time
-	withBackPressure bool
+	namespace     string
+	sessionID     string
+	server        events.IAuditLog
+	queue         chan []*events.SessionChunk
+	cancel        context.CancelFunc
+	ctx           context.Context
+	chunks        []*events.SessionChunk
+	bytes         int64
+	throttleStart time.Time
 }
 
-func (ll *CachingAuditLog) add(chunks []events.SessionChunk) {
+func (ll *CachingAuditLog) add(chunks []*events.SessionChunk) {
 	ll.chunks = append(ll.chunks, chunks...)
 	for i := range chunks {
 		ll.bytes += int64(len(chunks[i].Data))
 	}
 }
 
-func (ll *CachingAuditLog) reset() []events.SessionChunk {
+func (ll *CachingAuditLog) reset() []*events.SessionChunk {
 	out := ll.chunks
-	ll.chunks = make([]events.SessionChunk, 0, FlushMaxChunks)
+	ll.chunks = make([]*events.SessionChunk, 0, FlushMaxChunks)
 	ll.bytes = 0
 	return out
 }
 
 // NewCachingAuditLog creaets a new & fully initialized instance of the alog
-func NewCachingAuditLog(logServer events.IAuditLog) *CachingAuditLog {
+func NewCachingAuditLog(namespace, sessionID string, logServer events.IAuditLog) *CachingAuditLog {
 	ctx, cancel := context.WithCancel(context.TODO())
 	ll := &CachingAuditLog{
-		server: logServer,
-		cancel: cancel,
-		ctx:    ctx,
+		namespace: namespace,
+		sessionID: sessionID,
+		server:    logServer,
+		cancel:    cancel,
+		ctx:       ctx,
 	}
 	// start the queue:
 	if logServer != nil {
-		ll.queue = make(chan []events.SessionChunk, MaxQueueSize+1)
+		ll.queue = make(chan []*events.SessionChunk, MaxQueueSize+1)
 		go ll.run()
 	}
 	return ll
@@ -180,10 +183,17 @@ func (ll *CachingAuditLog) flush(force bool) {
 	}
 	chunks := ll.reset()
 	start := time.Now()
-	err := ll.server.PostSessionChunks(chunks)
+	err := ll.server.PostSessionSlice(events.SessionSlice{
+		Namespace: ll.namespace,
+		SessionID: ll.sessionID,
+		Chunks:    chunks,
+	})
 	auditRequests.WithLabelValues("total").Inc()
 	if err != nil {
-		auditRequests.WithLabelValues("failure").Inc()
+		auditRequests.WithLabelValues("fail").Inc()
+		log.Warningf("lost audit log: %v", err)
+	} else {
+		auditRequests.WithLabelValues("ok").Inc()
 	}
 	auditLatencies.Observe(float64(time.Now().Sub(start) / time.Microsecond))
 	auditChunks.Observe(float64(len(chunks)))
@@ -196,7 +206,7 @@ func (ll *CachingAuditLog) flush(force bool) {
 	auditBytesPerSlice.Observe(float64(bytes))
 }
 
-func (ll *CachingAuditLog) post(chunks []events.SessionChunk) error {
+func (ll *CachingAuditLog) post(chunks []*events.SessionChunk) error {
 	if time.Now().Before(ll.throttleStart) {
 		return nil
 	}
@@ -232,19 +242,17 @@ func (ll *CachingAuditLog) PostSessionChunk(namespace string, sid session.ID, re
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	chunks := []events.SessionChunk{
+	chunks := []*events.SessionChunk{
 		{
-			Namespace: namespace,
-			SessionID: string(sid),
-			Data:      data,
-			Time:      time.Now().UTC(),
+			Data: data,
+			Time: time.Now().UTC().UnixNano(),
 		},
 	}
 	return ll.post(chunks)
 }
 
-func (ll *CachingAuditLog) PostSessionChunks(chunks []events.SessionChunk) error {
-	return ll.post(chunks)
+func (ll *CachingAuditLog) PostSessionSlice(slice events.SessionSlice) error {
+	return ll.post(slice.Chunks)
 }
 
 func (ll *CachingAuditLog) GetSessionChunk(string, session.ID, int, int) ([]byte, error) {

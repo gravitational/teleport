@@ -100,22 +100,14 @@ const (
 	MaxChunkBytes = 1024 * 1024 * 5
 )
 
-// SessionChunk is a session chunk
-type SessionChunk struct {
-	Namespace string    `json:"ns"`
-	SessionID string    `json:"id"`
-	Time      time.Time `json:"time"`
-	Data      []byte    `json:"data"`
-}
-
 // IAuditLog is the primary (and the only external-facing) interface for AUditLogger.
 // If you wish to implement a different kind of logger (not filesystem-based), you
 // have to implement this interface
 type IAuditLog interface {
 	EmitAuditEvent(eventType string, fields EventFields) error
 
-	// PostSessionChunks is a better version of this
-	PostSessionChunks([]SessionChunk) error
+	// PostSessionSlice sends chunks of recorded session to the event log
+	PostSessionSlice(SessionSlice) error
 
 	// PostSessionChunk returns a writer which SSH nodes use to submit
 	// their live sessions into the session log

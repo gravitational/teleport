@@ -195,7 +195,7 @@ func (sl *SessionLogger) Finalize() error {
 
 // WriteChunk takes a stream of bytes (usually the output from a session terminal)
 // and writes it into a "stream file", for future replay of interactive sessions.
-func (sl *SessionLogger) WriteChunk(chunk SessionChunk) (written int, err error) {
+func (sl *SessionLogger) WriteChunk(chunk *SessionChunk) (written int, err error) {
 	if sl.streamFile == nil {
 		err := trace.Errorf("session %v error: attempt to write to a closed file", sl.sid)
 		return 0, trace.Wrap(err)
@@ -204,11 +204,12 @@ func (sl *SessionLogger) WriteChunk(chunk SessionChunk) (written int, err error)
 		log.Error(err)
 		return written, trace.Wrap(err)
 	}
+
 	// log this as a session event (but not more often than once a sec)
 	sl.logEvent(EventFields{
 		EventType:              SessionPrintEvent,
 		SessionPrintEventBytes: len(chunk.Data),
-	}, chunk.Time)
+	}, time.Unix(0, chunk.Time))
 
 	// increase the total lengh of the stream
 	atomic.AddInt64(&sl.writtenBytes, int64(len(chunk.Data)))
@@ -262,21 +263,19 @@ func (l *AuditLog) migrateSessions() error {
 }
 
 // PostSessionChunks writes a new chunk of session stream into the audit log
-func (l *AuditLog) PostSessionChunks(chunks []SessionChunk) error {
-	if len(chunks) == 0 {
+func (l *AuditLog) PostSessionSlice(slice SessionSlice) error {
+	if slice.Namespace == "" {
+		return trace.BadParameter("missing parameter Namespace")
+	}
+	if len(slice.Chunks) == 0 {
 		return trace.BadParameter("missing session chunks")
 	}
-	namespace := chunks[0].Namespace
-	sessionID := chunks[0].SessionID
-	sl, err := l.LoggerFor(namespace, session.ID(sessionID))
+	sl, err := l.LoggerFor(slice.Namespace, session.ID(slice.SessionID))
 	if err != nil {
-		return trace.BadParameter("audit.log: no session writer for %s", sessionID)
+		return trace.BadParameter("audit.log: no session writer for %s", slice.SessionID)
 	}
-	for i := range chunks {
-		if chunks[i].Namespace != namespace || chunks[i].SessionID != sessionID {
-			return trace.BadParameter("all chunks should be in the same namespace")
-		}
-		_, err := sl.WriteChunk(chunks[i])
+	for i := range slice.Chunks {
+		_, err := sl.WriteChunk(slice.Chunks[i])
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -290,13 +289,14 @@ func (l *AuditLog) PostSessionChunk(namespace string, sid session.ID, reader io.
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return l.PostSessionChunks([]SessionChunk{
-		{
-			Namespace: namespace,
-			SessionID: string(sid),
-			Time:      l.TimeSource().In(time.UTC),
-			Data:      tmp,
-		},
+	chunk := &SessionChunk{
+		Time: l.TimeSource().In(time.UTC).UnixNano(),
+		Data: tmp,
+	}
+	return l.PostSessionSlice(SessionSlice{
+		Namespace: namespace,
+		SessionID: string(sid),
+		Chunks:    []*SessionChunk{chunk},
 	})
 }
 

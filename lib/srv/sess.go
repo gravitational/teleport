@@ -444,7 +444,7 @@ type sessionRecorder struct {
 
 func newSessionRecorder(alog events.IAuditLog, namespace string, sid rsession.ID) *sessionRecorder {
 	sr := &sessionRecorder{
-		alog:      state.NewCachingAuditLog(alog),
+		alog:      state.NewCachingAuditLog(namespace, string(sid), alog),
 		sid:       sid,
 		namespace: namespace,
 		start:     time.Now().UTC(),
@@ -462,12 +462,15 @@ func (r *sessionRecorder) Write(data []byte) (int, error) {
 	dataCopy := make([]byte, len(data))
 	copy(dataCopy, data)
 	// post the chunk of bytes to the audit log:
-	if err := r.alog.PostSessionChunks([]events.SessionChunk{{
+	chunk := &events.SessionChunk{
+		Data: dataCopy,
+		Time: time.Now().UTC().UnixNano(),
+	}
+	if err := r.alog.PostSessionSlice(events.SessionSlice{
 		Namespace: r.namespace,
 		SessionID: string(r.sid),
-		Data:      dataCopy,
-		Time:      time.Now().UTC(),
-	}}); err != nil {
+		Chunks:    []*events.SessionChunk{chunk},
+	}); err != nil {
 		log.Error(trace.DebugReport(err))
 	}
 	return len(data), nil
