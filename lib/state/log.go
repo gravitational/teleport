@@ -181,6 +181,20 @@ func (c *CachingAuditLogConfig) CheckAndSetDefaults() error {
 
 // CachingAuditLog implements events.IAuditLog on the recording machine (SSH server)
 // It captures the local recording and forwards it to the AuditLog network server
+// Some important properties of this implementation:
+//
+// * Without back pressure on posting session chunks, audit log was loosing events
+//   because produce was much faster than consume and buffer was oveflowing
+//
+// * Throttle is important to continue the session in case if audit log
+//   slowness, as the session output will block and timeout on every request
+//
+// * It is important to pack chunnks, because ls -laR / would otherwise
+//   generate about 10K requests per second. With this packing approach
+//   we reduced this number to about 40-50 requests per second,
+//   we can now tweak this parameter now by setting queue size and flush buffers.
+//
+// * Current implementation attaches audit log forwarder per session
 type CachingAuditLog struct {
 	CachingAuditLogConfig
 	queue         chan []*events.SessionChunk
