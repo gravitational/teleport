@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/cenkalti/backoff"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -47,6 +48,10 @@ const (
 	// ThrottleDuration is a period that we will throttle the slow network for
 	// before trying to send again
 	ThrottleDuration = 10 * time.Second
+	// BackoffInitialInterval is initial interval for backoff
+	BackoffInitialInterval = 100 * time.Millisecond
+	// BackoffMaxInterval is initial interval for backoff
+	BackoffMaxInterval = ThrottleDuration
 )
 
 var (
@@ -172,6 +177,18 @@ func (ll *CachingAuditLog) run() {
 	}
 }
 
+func newExponentialBackoff() *backoff.ExponentialBackOff {
+	b := &backoff.ExponentialBackOff{
+		InitialInterval:     BackoffInitialInterval,
+		RandomizationFactor: backoff.DefaultRandomizationFactor,
+		Multiplier:          backoff.DefaultMultiplier,
+		MaxInterval:         BackoffMaxInterval,
+		Clock:               backoff.SystemClock,
+	}
+	b.Reset()
+	return b
+}
+
 func (ll *CachingAuditLog) flush(force bool) {
 	if len(ll.chunks) == 0 {
 		return
@@ -182,28 +199,52 @@ func (ll *CachingAuditLog) flush(force bool) {
 		}
 	}
 	chunks := ll.reset()
-	start := time.Now()
-	err := ll.server.PostSessionSlice(events.SessionSlice{
+	slice := events.SessionSlice{
 		Namespace: ll.namespace,
 		SessionID: ll.sessionID,
 		Chunks:    chunks,
-	})
+	}
+	err := ll.postSlice(slice)
+	if err == nil {
+		return
+	}
+	log.Warningf("lost connection: %v", err)
+	ticker := backoff.NewTicker(newExponentialBackoff())
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ll.ctx.Done():
+			return
+		case <-ticker.C:
+			err := ll.postSlice(slice)
+			if err == nil {
+				return
+			} else {
+				log.Warningf("lost connection, retried with error: %v", err)
+			}
+		}
+	}
+}
+
+func (ll *CachingAuditLog) postSlice(slice events.SessionSlice) error {
+	start := time.Now()
+	err := ll.server.PostSessionSlice(slice)
 	auditRequests.WithLabelValues("total").Inc()
 	if err != nil {
 		auditRequests.WithLabelValues("fail").Inc()
-		log.Warningf("lost audit log: %v", err)
 	} else {
 		auditRequests.WithLabelValues("ok").Inc()
 	}
 	auditLatencies.Observe(float64(time.Now().Sub(start) / time.Microsecond))
-	auditChunks.Observe(float64(len(chunks)))
+	auditChunks.Observe(float64(len(slice.Chunks)))
 
 	var bytes int64
-	for _, c := range chunks {
+	for _, c := range slice.Chunks {
 		bytes += int64(len(c.Data))
 		auditBytesPerChunk.Observe(float64(len(c.Data)))
 	}
 	auditBytesPerSlice.Observe(float64(bytes))
+	return err
 }
 
 func (ll *CachingAuditLog) post(chunks []*events.SessionChunk) error {
@@ -223,7 +264,7 @@ func (ll *CachingAuditLog) post(chunks []*events.SessionChunk) error {
 	case ll.queue <- chunks:
 	case <-timer.C:
 		ll.throttleStart = time.Now().Add(ThrottleDuration)
-		log.Warningf("will throttle audit log forward until %v", ll.throttleStart)
+		log.Warningf("latency spiked over %v, will throttle audit log forward until %v", ThrottleLatency, ll.throttleStart)
 	}
 	return nil
 }
