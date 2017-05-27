@@ -94,6 +94,10 @@ type Server struct {
 
 	// clock is a system clock
 	clock clockwork.Clock
+
+	// permitUserEnvironment controls if this server will read ~/.tsh/environment
+	// before creating a new session.
+	permitUserEnvironment bool
 }
 
 // ServerOption is a functional option passed to the server
@@ -188,6 +192,14 @@ func SetNamespace(namespace string) ServerOption {
 	}
 }
 
+// SetPermitUserEnvironment allows you to set the value of permitUserEnvironment.
+func SetPermitUserEnvironment(permitUserEnvironment bool) ServerOption {
+	return func(s *Server) error {
+		s.permitUserEnvironment = permitUserEnvironment
+		return nil
+	}
+}
+
 // New returns an unstarted server
 func New(addr utils.NetAddr,
 	hostname string,
@@ -273,6 +285,12 @@ func (s *Server) Addr() string {
 // ID returns server ID
 func (s *Server) ID() string {
 	return s.uuid
+}
+
+// PermitUserEnvironment returns if ~/.tsh/environment will be read before a
+// session is created by this server.
+func (s *Server) PermitUserEnvironment() bool {
+	return s.permitUserEnvironment
 }
 
 func (s *Server) setAdvertiseIP(ip net.IP) {
