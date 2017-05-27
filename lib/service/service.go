@@ -545,6 +545,7 @@ func (process *TeleportProcess) initSSH() error {
 			srv.SetSessionServer(conn.Client),
 			srv.SetLabels(cfg.SSH.Labels, cfg.SSH.CmdLabels),
 			srv.SetNamespace(namespace),
+			srv.SetPermitUserEnvironment(cfg.SSH.PermitUserEnvironment),
 		)
 		if err != nil {
 			return trace.Wrap(err)

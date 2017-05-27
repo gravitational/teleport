@@ -35,6 +35,14 @@ const (
 )
 
 const (
+	// HTTPSProxy is an environment variable pointing to a HTTPS proxy.
+	HTTPSProxy = "HTTPS_PROXY"
+
+	// HTTPProxy is an environment variable pointing to a HTTP proxy.
+	HTTPProxy = "HTTP_PROXY"
+)
+
+const (
 	// TOTPValidityPeriod is the number of seconds a TOTP token is valid.
 	TOTPValidityPeriod uint = 30
 
@@ -155,3 +163,6 @@ const (
 	// we don't have another status code for it.
 	RemoteCommandFailure = 255
 )
+
+// MaxEnvironmentFileLines is the maximum number of lines in a environment file.
+const MaxEnvironmentFileLines = 1000

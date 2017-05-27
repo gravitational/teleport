@@ -262,13 +262,14 @@ type AuthConfig struct {
 
 // SSHConfig configures SSH server node role
 type SSHConfig struct {
-	Enabled   bool
-	Addr      utils.NetAddr
-	Namespace string
-	Shell     string
-	Limiter   limiter.LimiterConfig
-	Labels    map[string]string
-	CmdLabels services.CommandLabels
+	Enabled               bool
+	Addr                  utils.NetAddr
+	Namespace             string
+	Shell                 string
+	Limiter               limiter.LimiterConfig
+	Labels                map[string]string
+	CmdLabels             services.CommandLabels
+	PermitUserEnvironment bool
 }
 
 // MakeDefaultConfig creates a new Config structure and populates it with defaults

@@ -544,3 +544,49 @@ func makeConfigFixture() string {
 
 	return conf.DebugDumpToYAML()
 }
+
+func (s *ConfigTestSuite) TestPermitUserEnvironment(c *check.C) {
+	tests := []struct {
+		inConfigString           string
+		inPermitUserEnvironment  bool
+		outPermitUserEnvironment bool
+	}{
+		// 0 - set on the command line, expect PermitUserEnvironment to be true
+		{
+			``,
+			true,
+			true,
+		},
+		// 1 - set in config file, expect PermitUserEnvironment to be true
+		{
+			`
+ssh_service:
+  permit_user_env: true
+`,
+			false,
+			true,
+		},
+		// 2 - not set anywhere, expect PermitUserEnvironment to be false
+		{
+			``,
+			false,
+			false,
+		},
+	}
+
+	// run tests
+	for i, tt := range tests {
+		comment := check.Commentf("Test %v", i)
+
+		clf := CommandLineFlags{
+			ConfigString:          base64.StdEncoding.EncodeToString([]byte(tt.inConfigString)),
+			PermitUserEnvironment: tt.inPermitUserEnvironment,
+		}
+		cfg := service.MakeDefaultConfig()
+
+		err := Configure(&clf, cfg)
+		c.Assert(err, check.IsNil, comment)
+
+		c.Assert(cfg.SSH.PermitUserEnvironment, check.Equals, tt.outPermitUserEnvironment, comment)
+	}
+}

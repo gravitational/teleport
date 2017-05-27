@@ -276,6 +276,17 @@ func prepareCommand(ctx *ctx) (*exec.Cmd, error) {
 			c.Env = append(c.Env, fmt.Sprintf("%s=%s", teleport.SSHSessionID, ctx.session.id))
 		}
 	}
+
+	// if the server allows reading in of ~/.tsh/environment read it in
+	// and pass environment variables along to new session
+	if ctx.srv.PermitUserEnvironment() {
+		filename := filepath.Join(osUser.HomeDir, ".tsh", "environment")
+		userEnvs, err := utils.ReadEnvironmentFile(filename)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		c.Env = append(c.Env, userEnvs...)
+	}
 	return c, nil
 }
 
