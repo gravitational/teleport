@@ -35,11 +35,11 @@ import (
 const (
 	// DefaultQueueLen determines how many logging events to queue in-memory
 	// before start dropping them (probably because logging server is down)
-	DefaultQueueLen = 200
+	DefaultQueueLen = 300
 	// DefaultFlushTimeout is a period to flush after no other events have been received
 	DefaultFlushTimeout = time.Second
 	// DefaultFlushChunks is a max chunks accumulated over period to flush
-	DefaultFlushChunks = 150
+	DefaultFlushChunks = 250
 	// DefaultFlushBytes is a max bytes of the chunks before the flush will be triggered
 	DefaultFlushBytes = 100000
 	// DefaultThrottleTimeout is a latency after we will
@@ -244,17 +244,18 @@ func (ll *CachingAuditLog) run() {
 	for {
 		select {
 		case <-ll.ctx.Done():
+			ll.flush(flushOpts{force: true, noRetry: true})
 			return
 		case <-tickerC:
 			// tick received to force flush after time passed
 			tickerC = nil
-			ll.flush(true)
+			ll.flush(flushOpts{force: true})
 		case chunks := <-ll.queue:
 			ll.add(chunks)
 			// we have received, set the timer
 			// if no other chunks will not arrive to flush it
 			tickerC = ticker.C
-			ll.flush(false)
+			ll.flush(flushOpts{force: false})
 		}
 	}
 }
@@ -271,11 +272,16 @@ func (ll *CachingAuditLog) newExponentialBackoff() *backoff.ExponentialBackOff {
 	return b
 }
 
-func (ll *CachingAuditLog) flush(force bool) {
+type flushOpts struct {
+	force   bool
+	noRetry bool
+}
+
+func (ll *CachingAuditLog) flush(opts flushOpts) {
 	if len(ll.chunks) == 0 {
 		return
 	}
-	if !force {
+	if !opts.force {
 		if len(ll.chunks) < ll.FlushChunks && ll.bytes < ll.FlushBytes {
 			return
 		}
@@ -291,6 +297,9 @@ func (ll *CachingAuditLog) flush(force bool) {
 		return
 	}
 	log.Warningf("lost connection: %v", err)
+	if opts.noRetry {
+		return
+	}
 	ticker := backoff.NewTicker(ll.newExponentialBackoff())
 	defer ticker.Stop()
 	for {
@@ -334,6 +343,7 @@ func (ll *CachingAuditLog) post(chunks []*events.SessionChunk) error {
 	if time.Now().Before(ll.throttleStart) {
 		return nil
 	}
+
 	select {
 	case <-ll.ctx.Done():
 		return nil

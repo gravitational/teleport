@@ -69,6 +69,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -87,6 +88,20 @@ const (
 	// that's where interactive PTY I/O is saved.
 	SessionStreamPrefix = ".session.bytes"
 )
+
+var (
+	auditOpenFiles = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "audit_server_open_files",
+			Help: "Number of open audit files",
+		},
+	)
+)
+
+func init() {
+	// Metrics have to be registered to be exposed:
+	prometheus.MustRegister(auditOpenFiles)
+}
 
 type TimeSourceFunc func() time.Time
 
@@ -184,6 +199,7 @@ func (sl *SessionLogger) Finalize() error {
 	sl.Lock()
 	defer sl.Unlock()
 	if sl.streamFile != nil {
+		auditOpenFiles.Dec()
 		log.Infof("sessionLogger.Finalize(sid=%s)", sl.sid)
 		sl.streamFile.Close()
 		sl.eventsFile.Close()
@@ -392,7 +408,7 @@ func (l *AuditLog) EmitAuditEvent(eventType string, fields EventFields) error {
 
 			// Session ended? Get rid of the session logger then:
 			if eventType == SessionEndEvent {
-				log.Infof("audit log: removing session logger for SID=%v", sessionID)
+				log.Debugf("audit log: removing session logger for SID=%v", sessionID)
 				l.Lock()
 				delete(l.loggers, session.ID(sessionID))
 				l.Unlock()
@@ -627,6 +643,7 @@ func (l *AuditLog) LoggerFor(namespace string, sid session.ID) (sl *SessionLogge
 		createdTime: l.TimeSource().In(time.UTC).Round(time.Second),
 	}
 	l.loggers[sid] = sl
+	auditOpenFiles.Inc()
 	return sl, nil
 }
 

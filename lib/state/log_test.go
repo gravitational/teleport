@@ -84,6 +84,30 @@ func (s *CacheLogSuite) TestFlushTail(c *check.C) {
 	fixtures.DeepCompare(c, out, slice)
 }
 
+// TestFlushOnClose tests that log forwarder flushes
+// on log close and we don't loose any events
+func (s *CacheLogSuite) TestFlushOnClose(c *check.C) {
+	mock := events.NewMockAuditLog(0)
+	log := newLog(CachingAuditLogConfig{
+		FlushTimeout: 10 * time.Second,
+		FlushChunks:  100,
+		QueueLen:     200,
+		Server:       mock,
+	})
+	slice := s.newSlice("hello")
+	err := log.PostSessionSlice(*slice)
+	c.Assert(err, check.IsNil)
+	err = log.Close()
+	c.Assert(err, check.IsNil)
+	var out *events.SessionSlice
+	select {
+	case out = <-mock.SlicesC:
+	case <-time.After(time.Second):
+		c.Fatalf("timeout")
+	}
+	fixtures.DeepCompare(c, out, slice)
+}
+
 // TestThrottleTimeout tests that we throttle and timeout
 func (s *CacheLogSuite) TestThrottleTimeout(c *check.C) {
 	mock := events.NewMockAuditLog(0)
