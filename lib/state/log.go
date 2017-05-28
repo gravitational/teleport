@@ -290,7 +290,6 @@ type flushOpts struct {
 }
 
 func (ll *CachingAuditLog) flush(opts flushOpts) {
-	log.Debugf("flush %#v, chunks %v", opts, ll.chunks)
 	if len(ll.chunks) == 0 {
 		return
 	}
