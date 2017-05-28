@@ -31,6 +31,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -45,6 +46,20 @@ const (
 	// term size
 	maxTermSyncErrorCount = 5
 )
+
+var (
+	serverSessions = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "server_interactive_sessions_total",
+			Help: "Number of active sessions",
+		},
+	)
+)
+
+func init() {
+	// Metrics have to be registered to be exposed:
+	prometheus.MustRegister(serverSessions)
+}
 
 // sessionRegistry holds a map of all active sessions on a given
 // SSH server
@@ -294,6 +309,7 @@ type session struct {
 
 // newSession creates a new session with a given ID within a given context.
 func newSession(id rsession.ID, r *sessionRegistry, context *ctx) (*session, error) {
+	serverSessions.Inc()
 	rsess := rsession.Session{
 		ID: id,
 		TerminalParams: rsession.TerminalParams{
@@ -403,6 +419,7 @@ func (s *session) isLingering() bool {
 
 // Close ends the active session forcing all clients to disconnect and freeing all resources
 func (s *session) Close() error {
+	serverSessions.Dec()
 	s.closeOnce.Do(func() {
 		// closing needs to happen asynchronously because the last client
 		// (session writer) will try to close this session, causing a deadlock

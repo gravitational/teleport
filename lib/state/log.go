@@ -296,6 +296,7 @@ func (ll *CachingAuditLog) flush(force bool) {
 	for {
 		select {
 		case <-ll.ctx.Done():
+			log.Warningf("flush has returned")
 			return
 		case <-ticker.C:
 			err := ll.postSlice(slice)
@@ -334,6 +335,8 @@ func (ll *CachingAuditLog) post(chunks []*events.SessionChunk) error {
 		return nil
 	}
 	select {
+	case <-ll.ctx.Done():
+		return nil
 	case ll.queue <- chunks:
 		return nil
 	default:
@@ -344,6 +347,8 @@ func (ll *CachingAuditLog) post(chunks []*events.SessionChunk) error {
 	defer timer.Stop()
 	select {
 	case ll.queue <- chunks:
+	case <-ll.ctx.Done():
+		return nil
 	case <-timer.C:
 		ll.throttleStart = time.Now().Add(ll.ThrottleDuration)
 		log.Warningf("latency spiked over %v, will throttle audit log forward until %v", ll.ThrottleTimeout, ll.throttleStart)
