@@ -235,6 +235,17 @@ func NewCachingAuditLog(cfg CachingAuditLogConfig) (*CachingAuditLog, error) {
 	return ll, nil
 }
 
+func (ll *CachingAuditLog) collectRemainingChunks() {
+	for {
+		select {
+		case chunks := <-ll.queue:
+			ll.add(chunks)
+		default:
+			return
+		}
+	}
+}
+
 // run thread is picking up logging events and tries to forward them
 // to the logging server
 func (ll *CachingAuditLog) run() {
@@ -244,6 +255,7 @@ func (ll *CachingAuditLog) run() {
 	for {
 		select {
 		case <-ll.ctx.Done():
+			ll.collectRemainingChunks()
 			ll.flush(flushOpts{force: true, noRetry: true})
 			return
 		case <-tickerC:
@@ -278,6 +290,7 @@ type flushOpts struct {
 }
 
 func (ll *CachingAuditLog) flush(opts flushOpts) {
+	log.Debugf("flush %#v, chunks %v", opts, ll.chunks)
 	if len(ll.chunks) == 0 {
 		return
 	}
@@ -305,7 +318,6 @@ func (ll *CachingAuditLog) flush(opts flushOpts) {
 	for {
 		select {
 		case <-ll.ctx.Done():
-			log.Warningf("flush has returned")
 			return
 		case <-ticker.C:
 			err := ll.postSlice(slice)
