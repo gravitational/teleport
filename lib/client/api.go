@@ -960,6 +960,12 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// update current profile
+	err = tc.SaveProfile("")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// After successfull login we have local agent updated with latest
 	// and greatest auth information, try it now
 	sshConfig.Auth = []ssh.AuthMethod{authMethod}
