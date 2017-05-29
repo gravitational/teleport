@@ -754,8 +754,8 @@ func (a *AuthCommand) GenerateAndSignKeys(client *auth.TunClient) error {
 		return trace.Wrap(err)
 	}
 
-	certPath := a.genUser + ".cert"
-	keyPath := a.genUser + ".key"
+	certPath := a.genUser + "-cert.pub"
+	keyPath := a.genUser
 	pubPath := a.genUser + ".pub"
 
 	// --out flag
