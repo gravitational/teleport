@@ -57,9 +57,10 @@ type TeleInstance struct {
 }
 
 type User struct {
-	Username      string      `json:"username"`
-	AllowedLogins []string    `json:"logins"`
-	Key           *client.Key `json:"key"`
+	Username      string          `json:"username"`
+	AllowedLogins []string        `json:"logins"`
+	Key           *client.Key     `json:"key"`
+	Roles         []services.Role `json:"-"`
 }
 
 type InstanceSecrets struct {
@@ -69,10 +70,12 @@ type InstanceSecrets struct {
 	PubKey  []byte `json:"pub"`
 	PrivKey []byte `json:"priv"`
 	Cert    []byte `json:"cert"`
-	// ListenPort is a reverse tunnel listening port, allowing
+	// ListenAddr is a reverse tunnel listening port, allowing
 	// other sites to connect to i instance. Set to empty
 	// string if i instance is not allowing incoming tunnels
 	ListenAddr string `json:"tunnel_addr"`
+	// WebProxyAddr is address for web proxy
+	WebProxyAddr string `json:"web_proxy_addr"`
 	// list of users i instance trusts (key in the map is username)
 	Users map[string]*User `json:"users"`
 }
@@ -97,7 +100,7 @@ func NewInstance(clusterName string, hostID string, nodeName string, ports []int
 	if priv == nil || pub == nil {
 		priv, pub, _ = keygen.GenerateKeyPair("")
 	}
-	cert, err := keygen.GenerateHostCert(services.CertParams{
+	cert, err := keygen.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: priv,
 		PublicHostKey:       pub,
 		HostID:              hostID,
@@ -107,19 +110,21 @@ func NewInstance(clusterName string, hostID string, nodeName string, ports []int
 		TTL:                 time.Duration(time.Hour * 24),
 	})
 	fatalIf(err)
-	secrets := InstanceSecrets{
-		SiteName:   clusterName,
-		PrivKey:    priv,
-		PubKey:     pub,
-		Cert:       cert,
-		ListenAddr: net.JoinHostPort(nodeName, strconv.Itoa(ports[4])),
-		Users:      make(map[string]*User),
-	}
-	return &TeleInstance{
-		Secrets:  secrets,
+	i := &TeleInstance{
 		Ports:    ports,
 		Hostname: nodeName,
 	}
+	secrets := InstanceSecrets{
+		SiteName:     clusterName,
+		PrivKey:      priv,
+		PubKey:       pub,
+		Cert:         cert,
+		ListenAddr:   net.JoinHostPort(nodeName, strconv.Itoa(ports[4])),
+		WebProxyAddr: net.JoinHostPort(nodeName, i.GetPortWeb()),
+		Users:        make(map[string]*User),
+	}
+	i.Secrets = secrets
+	return i
 }
 
 // GetRoles returns a list of roles to initiate for this secret
@@ -152,6 +157,23 @@ func (s *InstanceSecrets) AllowedLogins() []string {
 		logins = append(logins, s.Users[i].AllowedLogins...)
 	}
 	return logins
+}
+
+func (s *InstanceSecrets) AsTrustedCluster(token string, roleMap services.RoleMap) services.TrustedCluster {
+	return &services.TrustedClusterV2{
+		Kind:    services.KindTrustedCluster,
+		Version: services.V2,
+		Metadata: services.Metadata{
+			Name: s.SiteName,
+		},
+		Spec: services.TrustedClusterSpecV2{
+			Token:                token,
+			Enabled:              true,
+			ProxyAddress:         s.WebProxyAddr,
+			ReverseTunnelAddress: s.ListenAddr,
+			RoleMap:              roleMap,
+		},
+	}
 }
 
 func (s *InstanceSecrets) AsSlice() []*InstanceSecrets {
@@ -207,6 +229,9 @@ func (i *TeleInstance) Create(trustedSecrets []*InstanceSecrets, enableSSH bool,
 	tconf := service.MakeDefaultConfig()
 	tconf.SSH.Enabled = enableSSH
 	tconf.Console = console
+	tconf.Proxy.DisableWebService = true
+	tconf.Proxy.DisableWebInterface = true
+	tconf.DeveloperMode = false
 	return i.CreateEx(trustedSecrets, tconf)
 }
 
@@ -243,7 +268,6 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 	tconf.Auth.SSHAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortAuth())
 	tconf.Proxy.SSHAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortProxy())
 	tconf.Proxy.WebAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortWeb())
-	tconf.Proxy.DisableWebUI = true
 	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.SSHAddr)
 	tconf.Auth.StorageConfig = backend.Config{
 		Type:   boltbk.GetName(),
@@ -252,7 +276,7 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 	tconf.Keygen = testauthority.New()
 	tconf.Auth.StaticTokens = []services.ProvisionToken{
 		{
-			Roles: []teleport.Role{teleport.RoleNode, teleport.RoleProxy},
+			Roles: []teleport.Role{teleport.RoleNode, teleport.RoleProxy, teleport.RoleTrustedCluster},
 			Token: "token",
 		},
 	}
@@ -270,13 +294,27 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		role := services.RoleForUser(teleUser)
-		role.SetLogins(user.AllowedLogins)
-		err = auth.UpsertRole(role, backend.Forever)
-		if err != nil {
-			return trace.Wrap(err)
+		var roles []services.Role
+		if len(user.Roles) == 0 {
+			role := services.RoleForUser(teleUser)
+			role.SetLogins(user.AllowedLogins)
+			err = auth.UpsertRole(role, backend.Forever)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			teleUser.AddRole(role.GetMetadata().Name)
+			roles = append(roles, role)
+		} else {
+			roles = user.Roles
+			for _, role := range user.Roles {
+				err := auth.UpsertRole(role, backend.Forever)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				teleUser.AddRole(role.GetName())
+			}
 		}
-		teleUser.AddRole(role.GetMetadata().Name)
+
 		err = auth.UpsertUser(teleUser)
 		if err != nil {
 			return trace.Wrap(err)
@@ -290,8 +328,12 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 			}
 		}
 		// sign user's keys:
-		ttl := time.Duration(time.Hour * 24)
-		user.Key.Cert, err = auth.GenerateUserCert(user.Key.Pub, user.Username, user.AllowedLogins, ttl, true)
+		ttl := 24 * time.Hour
+		logins, err := services.RoleSet(roles).CheckLogins(ttl)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		user.Key.Cert, err = auth.GenerateUserCert(user.Key.Pub, teleUser, logins, ttl, true)
 		if err != nil {
 			return err
 		}
@@ -316,10 +358,12 @@ func (i *TeleInstance) StartNode(name string, sshPort, proxyWebPort, proxySSHPor
 	authServer := utils.MustParseAddr(net.JoinHostPort(i.Hostname, i.GetPortAuth()))
 	tconf.AuthServers = append(tconf.AuthServers, *authServer)
 	tconf.Token = "token"
+	tconf.Proxy.Enabled = true
 	tconf.Proxy.SSHAddr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", proxySSHPort))
 	tconf.Proxy.WebAddr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", proxyWebPort))
-	tconf.Proxy.DisableWebUI = true
-	// Enable cachingx
+	tconf.Proxy.DisableReverseTunnel = true
+	tconf.Proxy.DisableWebService = true
+	// Enable caching
 	tconf.CachePolicy = service.CachePolicy{Enabled: true}
 
 	process, err := service.NewTeleport(tconf)
@@ -338,6 +382,16 @@ func (i *TeleInstance) Reset() (err error) {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// AddUserUserWithRole adds user with assigned role
+func (i *TeleInstance) AddUserWithRole(username string, role services.Role) *User {
+	user := &User{
+		Username: username,
+		Roles:    []services.Role{role},
+	}
+	i.Secrets.Users[username] = user
+	return user
 }
 
 // Adds a new user into i Teleport instance. 'mappings' is a comma-separated

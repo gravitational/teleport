@@ -91,15 +91,17 @@ But for simpler experimentation you can use command line flags to
 $ teleport start --help
 usage: teleport start [<flags>]
 Flags:
-  -d, --debug         Enable verbose logging to stderr
-  -r, --roles         Comma-separated list of roles to start with [proxy,node,auth]
-      --advertise-ip  IP to advertise to clients if running behind NAT
-  -l, --listen-ip     IP address to bind to [0.0.0.0]
-      --auth-server   Address of the auth server [127.0.0.1:3025]
-      --token         One-time token to register with an auth server [none]
-      --nodename      Name of this node, defaults to hostname
-  -c, --config        Path to a configuration file [/etc/teleport.yaml]
-      --labels        List of labels for this node
+  -d, --debug            Enable verbose logging to stderr
+  -r, --roles            Comma-separated list of roles to start with [proxy,node,auth]
+      --pid-file         Full path to the PID file. By default no PID file will be created
+      --advertise-ip     IP to advertise to clients if running behind NAT
+  -l, --listen-ip        IP address to bind to [0.0.0.0]
+      --auth-server      Address of the auth server [127.0.0.1:3025]
+      --token            One-time token to register with an auth server [none]
+      --nodename         Name of this node, defaults to hostname
+  -c, --config           Path to a configuration file [/etc/teleport.yaml]
+      --labels           List of labels for this node
+      --permit-user-env  Enables reading of ~/.tsh/environment when creating a session
 ```
 
 ### Configuration Flags
@@ -128,6 +130,11 @@ Let's cover some of these flags in more detail:
 
 * `--labels` flag allows to assign a set of labels to a node. See the explanation
   of labeling mechanism in the [Labeling Nodes](#labeling-nodes) section below.
+
+* `--pid-file` flag creates a PID file if a path is given.
+
+* `--permit-user-env` flag reads in environment variables from `~/.tsh/environment`
+  when creating a session.
   
 ### Configuration File
 
@@ -258,6 +265,10 @@ ssh_service:
     - name: arch
       command: [/usr/bin/uname, -p]
       period: 1h0m0s
+
+    # enables reading ~/.tsh/environment before creating a session. by default
+    # set to false, can be set true here or as a command line flag.
+    permit_user_env: false
 
 # This section configures the 'proxy servie'
 proxy_service:
@@ -908,6 +919,27 @@ $ ssh-keygen -L -f ~/.tsh/keys/localhost/jsmith.cert
                 permit-port-forwarding
                 permit-pty
 ```
+
+### HTTP CONNECT Tunneling
+
+Some networks funnel all connections through a proxy server where they can be
+audited and access control rules applied. For these scenarios Teleport supports
+HTTP CONNECT tunneling.
+
+To use HTTP CONNECT tunneling, simply set either the `HTTPS_PROXY` or
+`HTTP_PROXY` environment variables and when Teleport builds and establishes the
+reverse tunnel to the main cluster, it will funnel all traffic though the proxy.
+Specifically Teleport will tunnel ports `3024` (SSH, reverse tunnel) and `3080`
+(HTTPS, establishing trust) through the proxy.
+
+The value of `HTTPS_PROXY` or `HTTP_PROXY` should be in the format
+`scheme://host:port` where scheme is either `https` or `http`. If the
+value is `host:port`, Teleport will prepend `http`.
+
+!!! tip "Note":
+    `localhost` and `127.0.0.1` are invalid values for the proxy host. If for
+    some reason your proxy runs locally, you'll need to provide some other DNS
+    name or a private IP address for it.
 
 ## Using Teleport with OpenSSH
 

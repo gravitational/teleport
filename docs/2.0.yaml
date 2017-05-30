@@ -26,4 +26,6 @@ pages:
     - User Manual: user-manual.md
     - Admin Manual: admin-guide.md
     - Teleport Enterprise: enterprise.md
+    - Teleport Enterprise - SAML: saml.md
+    - Teleport Enterprise- OIDC: oidc.md
     - FAQ: faq.md

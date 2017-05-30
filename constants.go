@@ -35,6 +35,14 @@ const (
 )
 
 const (
+	// HTTPSProxy is an environment variable pointing to a HTTPS proxy.
+	HTTPSProxy = "HTTPS_PROXY"
+
+	// HTTPProxy is an environment variable pointing to a HTTP proxy.
+	HTTPProxy = "HTTP_PROXY"
+)
+
+const (
 	// TOTPValidityPeriod is the number of seconds a TOTP token is valid.
 	TOTPValidityPeriod uint = 30
 
@@ -137,6 +145,8 @@ const (
 	CertExtensionPermitPTY = "permit-pty"
 	// CertExtensionPermitPortForwarding allows user to request port forwarding
 	CertExtensionPermitPortForwarding = "permit-port-forwarding"
+	// CertExtensionTeleportRoles is used to propagate teleport roles
+	CertExtensionTeleportRoles = "teleport-roles"
 )
 
 const (
@@ -153,3 +163,6 @@ const (
 	// we don't have another status code for it.
 	RemoteCommandFailure = 255
 )
+
+// MaxEnvironmentFileLines is the maximum number of lines in a environment file.
+const MaxEnvironmentFileLines = 1000

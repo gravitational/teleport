@@ -185,6 +185,9 @@ func (process *TeleportProcess) connectToAuthService(role teleport.Role) (*Conne
 // NewTeleport takes the daemon configuration, instantiates all required services
 // and starts them under a supervisor, returning the supervisor object
 func NewTeleport(cfg *Config) (*TeleportProcess, error) {
+	// before we do anything reset the SIGINT handler back to the default
+	utils.ResetInterruptSignalHandler()
+
 	if err := validateConfig(cfg); err != nil {
 		return nil, trace.Wrap(err, "Configuration error")
 	}
@@ -545,6 +548,7 @@ func (process *TeleportProcess) initSSH() error {
 			srv.SetSessionServer(conn.Client),
 			srv.SetLabels(cfg.SSH.Labels, cfg.SSH.CmdLabels),
 			srv.SetNamespace(namespace),
+			srv.SetPermitUserEnvironment(cfg.SSH.PermitUserEnvironment),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -634,7 +638,7 @@ func (process *TeleportProcess) RegisterWithAuthServer(token string, role telepo
 //    3. take care of reverse tunnels
 func (process *TeleportProcess) initProxy() error {
 	// if no TLS key was provided for the web UI, generate a self signed cert
-	if process.Config.Proxy.TLSKey == "" && !process.Config.Proxy.DisableWebUI {
+	if process.Config.Proxy.TLSKey == "" && !process.Config.Proxy.DisableWebService {
 		err := initSelfSignedHTTPSCert(process.Config)
 		if err != nil {
 			return trace.Wrap(err)
@@ -723,24 +727,26 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	// register SSH reverse tunnel server that accepts connections
 	// from remote teleport nodes
-	process.RegisterFunc(func() error {
-		utils.Consolef(cfg.Console, "[PROXY] Reverse tunnel service is starting on %v using %v", cfg.Proxy.ReverseTunnelListenAddr.Addr, process.Config.CachePolicy)
-		if err := tsrv.Start(); err != nil {
-			utils.Consolef(cfg.Console, "[PROXY] Error: %v", err)
-			return trace.Wrap(err)
-		}
-		// notify parties that we've started reverse tunnel server
-		process.BroadcastEvent(Event{Name: ProxyReverseTunnelServerEvent, Payload: tsrv})
-		tsrv.Wait()
-		if askedToExit {
-			log.Infof("[PROXY] Reverse tunnel exited")
-		}
-		return nil
-	})
+	if !process.Config.Proxy.DisableReverseTunnel {
+		process.RegisterFunc(func() error {
+			utils.Consolef(cfg.Console, "[PROXY] Reverse tunnel service is starting on %v using %v", cfg.Proxy.ReverseTunnelListenAddr.Addr, process.Config.CachePolicy)
+			if err := tsrv.Start(); err != nil {
+				utils.Consolef(cfg.Console, "[PROXY] Error: %v", err)
+				return trace.Wrap(err)
+			}
+			// notify parties that we've started reverse tunnel server
+			process.BroadcastEvent(Event{Name: ProxyReverseTunnelServerEvent, Payload: tsrv})
+			tsrv.Wait()
+			if askedToExit {
+				log.Infof("[PROXY] Reverse tunnel exited")
+			}
+			return nil
+		})
+	}
 
 	// Register web proxy server
 	var webListener net.Listener
-	if !process.Config.Proxy.DisableWebUI {
+	if !process.Config.Proxy.DisableWebService {
 		process.RegisterFunc(func() error {
 			utils.Consolef(cfg.Console, "[PROXY] Web proxy service is starting on %v", cfg.Proxy.WebAddr.Addr)
 			webHandler, err := web.NewHandler(
@@ -749,7 +755,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 					AuthServers:  cfg.AuthServers[0],
 					DomainName:   cfg.Hostname,
 					ProxyClient:  conn.Client,
-					DisableUI:    cfg.Proxy.DisableWebUI,
+					DisableUI:    process.Config.Proxy.DisableWebInterface,
 					ProxySSHAddr: cfg.Proxy.SSHAddr,
 					ProxyWebAddr: cfg.Proxy.WebAddr,
 				})
