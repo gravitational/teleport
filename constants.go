@@ -163,3 +163,6 @@ const (
 	// we don't have another status code for it.
 	RemoteCommandFailure = 255
 )
+
+// MaxEnvironmentFileLines is the maximum number of lines in a environment file.
+const MaxEnvironmentFileLines = 1000

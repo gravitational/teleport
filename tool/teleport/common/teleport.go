@@ -105,6 +105,8 @@ func Run(cmdlineArgs []string, testRun bool) (executedCommand string, conf *serv
 		"Specify gops addr to listen on").Hidden().StringVar(&ccf.GopsAddr)
 	start.Flag("diag-addr",
 		"Start diangonstic endpoint on this address").Hidden().StringVar(&ccf.DiagnosticAddr)
+	start.Flag("permit-user-env",
+		"Enables reading of ~/.tsh/environment when creating a session").BoolVar(&ccf.PermitUserEnvironment)
 
 	// define start's usage info (we use kingpin's "alias" field for this)
 	start.Alias(usageNotes + usageExamples)
