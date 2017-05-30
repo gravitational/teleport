@@ -1125,6 +1125,15 @@ func (s *SrvSuite) TestLimiter(c *C) {
 	clt.Close()
 }
 
+// TestServerAliveInterval simulates ServerAliveInterval and OpenSSH
+// interoperability by sending a keepalive@openssh.com global request to the
+// server and expecting a response in return.
+func (s *SrvSuite) TestServerAliveInterval(c *C) {
+	ok, _, err := s.clt.SendRequest(teleport.KeepAliveReqType, true, nil)
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
+}
+
 // upack holds all ssh signing artefacts needed for signing and checking user keys
 type upack struct {
 	// key is a raw private user key
