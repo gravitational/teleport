@@ -19,7 +19,9 @@ package client
 import (
 	"bytes"
 	"context"
+	"io"
 	"io/ioutil"
+	"strings"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -149,10 +151,29 @@ func benchmarkThread(threadID int, ctx context.Context, tc *TeleportClient, comm
 	for {
 		select {
 		case measure := <-receiveC:
-			err := tc.SSH(ctx, command, false)
-			measure.Error = err
-			measure.End = time.Now()
-			sendMeasure(measure)
+			config := tc.Config
+			client, err := NewClient(&config)
+			reader, writer := io.Pipe()
+			client.Stdin = reader
+			out := &bytes.Buffer{}
+			client.Stdout = out
+			client.Stderr = out
+			if err != nil {
+				measure.Error = err
+				measure.End = time.Now()
+				sendMeasure(measure)
+			} else {
+				done := make(chan bool)
+				go func() {
+					measure.Error = client.SSH(ctx, nil, false)
+					measure.End = time.Now()
+					sendMeasure(measure)
+					close(done)
+				}()
+				writer.Write([]byte(strings.Join(command, " ") + "\r\nexit\r\n"))
+				<-done
+			}
+
 		case <-ctx.Done():
 			sendMeasure(&benchMeasure{
 				ThreadCompleted: true,

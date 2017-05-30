@@ -30,7 +30,22 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 )
+
+var (
+	accessPointRequests = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "access_point_requests",
+			Help: "Number of access point requests",
+		},
+	)
+)
+
+func init() {
+	// Metrics have to be registered to be exposed:
+	prometheus.MustRegister(accessPointRequests)
+}
 
 const (
 	backoffDuration = time.Second * 10
@@ -417,6 +432,7 @@ func (cs *CachingAuthClient) try(f func() error) error {
 		log.Warnf("Backoff: using cached value due to recent errors")
 		return trace.ConnectionProblem(fmt.Errorf("backoff"), "backing off due to recent errors")
 	}
+	accessPointRequests.Inc()
 	err := trace.ConvertSystemError(f())
 	if trace.IsConnectionProblem(err) {
 		cs.lastErrorTime = time.Now()

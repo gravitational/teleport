@@ -17,7 +17,6 @@ limitations under the License.
 package srv
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"sync"
@@ -28,9 +27,11 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/state"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -45,6 +46,20 @@ const (
 	// term size
 	maxTermSyncErrorCount = 5
 )
+
+var (
+	serverSessions = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "server_interactive_sessions_total",
+			Help: "Number of active sessions",
+		},
+	)
+)
+
+func init() {
+	// Metrics have to be registered to be exposed:
+	prometheus.MustRegister(serverSessions)
+}
 
 // sessionRegistry holds a map of all active sessions on a given
 // SSH server
@@ -294,6 +309,7 @@ type session struct {
 
 // newSession creates a new session with a given ID within a given context.
 func newSession(id rsession.ID, r *sessionRegistry, context *ctx) (*session, error) {
+	serverSessions.Inc()
 	rsess := rsession.Session{
 		ID: id,
 		TerminalParams: rsession.TerminalParams{
@@ -403,6 +419,7 @@ func (s *session) isLingering() bool {
 
 // Close ends the active session forcing all clients to disconnect and freeing all resources
 func (s *session) Close() error {
+	serverSessions.Dec()
 	s.closeOnce.Do(func() {
 		// closing needs to happen asynchronously because the last client
 		// (session writer) will try to close this session, causing a deadlock
@@ -440,13 +457,27 @@ type sessionRecorder struct {
 	namespace string
 }
 
-func newSessionRecorder(alog events.IAuditLog, namespace string, sid rsession.ID) *sessionRecorder {
+func newSessionRecorder(alog events.IAuditLog, namespace string, sid rsession.ID) (*sessionRecorder, error) {
+	var auditLog events.IAuditLog
+	var err error
+	if alog == nil {
+		auditLog = &events.DiscardAuditLog{}
+	} else {
+		auditLog, err = state.NewCachingAuditLog(state.CachingAuditLogConfig{
+			Namespace: namespace,
+			SessionID: string(sid),
+			Server:    alog,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	sr := &sessionRecorder{
-		alog:      alog,
+		alog:      auditLog,
 		sid:       sid,
 		namespace: namespace,
 	}
-	return sr
+	return sr, nil
 }
 
 // Write takes a chunk and writes it into the audit log
@@ -459,15 +490,23 @@ func (r *sessionRecorder) Write(data []byte) (int, error) {
 	dataCopy := make([]byte, len(data))
 	copy(dataCopy, data)
 	// post the chunk of bytes to the audit log:
-	if err := r.alog.PostSessionChunk(r.namespace, r.sid, bytes.NewReader(dataCopy)); err != nil {
+	chunk := &events.SessionChunk{
+		Data: dataCopy,
+		Time: time.Now().UTC().UnixNano(),
+	}
+	if err := r.alog.PostSessionSlice(events.SessionSlice{
+		Namespace: r.namespace,
+		SessionID: string(r.sid),
+		Chunks:    []*events.SessionChunk{chunk},
+	}); err != nil {
 		log.Error(trace.DebugReport(err))
 	}
 	return len(data), nil
 }
 
-// Close() does nothing for session recorder (audit log cannot be closed)
+// Close() closes audit log caching forwarder
 func (r *sessionRecorder) Close() error {
-	return nil
+	return r.alog.Close()
 }
 
 // start starts a new interactive process (or a shell) in the current session
@@ -515,9 +554,11 @@ func (s *session) start(ch ssh.Channel, ctx *ctx) error {
 	// start recording this session
 	auditLog := s.registry.srv.alog
 	if auditLog != nil {
-		s.writer.addWriter("session-recorder",
-			newSessionRecorder(auditLog, ctx.srv.getNamespace(), s.id),
-			true)
+		recorder, err := newSessionRecorder(auditLog, ctx.srv.getNamespace(), s.id)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		s.writer.addWriter("session-recorder", recorder, true)
 	}
 
 	// start asynchronous loop of synchronizing session state with

@@ -570,6 +570,13 @@ func (a *AuthWithRoles) EmitAuditEvent(eventType string, fields events.EventFiel
 	return a.alog.EmitAuditEvent(eventType, fields)
 }
 
+func (a *AuthWithRoles) PostSessionSlice(slice events.SessionSlice) error {
+	if err := a.action(slice.Namespace, services.KindSession, services.ActionWrite); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.alog.PostSessionSlice(slice)
+}
+
 func (a *AuthWithRoles) PostSessionChunk(namespace string, sid session.ID, reader io.Reader) error {
 	if err := a.action(namespace, services.KindSession, services.ActionWrite); err != nil {
 		return trace.Wrap(err)
@@ -794,6 +801,10 @@ func (a *AuthWithRoles) DeleteTrustedCluster(name string) error {
 	}
 
 	return a.authServer.deleteTrustedCluster(name)
+}
+
+func (a *AuthWithRoles) Close() error {
+	return a.authServer.Close()
 }
 
 // NewAuthWithRoles creates new auth server with access control
