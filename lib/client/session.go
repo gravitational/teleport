@@ -471,3 +471,10 @@ func (ns *NodeSession) pipeInOut(shell io.ReadWriteCloser) {
 		}
 	}()
 }
+
+func (ns *NodeSession) Close() error {
+	if ns.closer != nil {
+		ns.closer.Close()
+	}
+	return nil
+}

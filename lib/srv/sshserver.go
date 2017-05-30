@@ -94,6 +94,10 @@ type Server struct {
 
 	// clock is a system clock
 	clock clockwork.Clock
+
+	// permitUserEnvironment controls if this server will read ~/.tsh/environment
+	// before creating a new session.
+	permitUserEnvironment bool
 }
 
 // ServerOption is a functional option passed to the server
@@ -188,6 +192,14 @@ func SetNamespace(namespace string) ServerOption {
 	}
 }
 
+// SetPermitUserEnvironment allows you to set the value of permitUserEnvironment.
+func SetPermitUserEnvironment(permitUserEnvironment bool) ServerOption {
+	return func(s *Server) error {
+		s.permitUserEnvironment = permitUserEnvironment
+		return nil
+	}
+}
+
 // New returns an unstarted server
 func New(addr utils.NetAddr,
 	hostname string,
@@ -273,6 +285,12 @@ func (s *Server) Addr() string {
 // ID returns server ID
 func (s *Server) ID() string {
 	return s.uuid
+}
+
+// PermitUserEnvironment returns if ~/.tsh/environment will be read before a
+// session is created by this server.
+func (s *Server) PermitUserEnvironment() bool {
+	return s.permitUserEnvironment
 }
 
 func (s *Server) setAdvertiseIP(ip net.IP) {
@@ -395,9 +413,19 @@ func (s *Server) getCommandLabels() map[string]services.CommandLabel {
 	return out
 }
 
+// extractRolesFromCert extracts roles from certificate metadata extensions
+func (s *Server) extractRolesFromCert(cert *ssh.Certificate) ([]string, error) {
+	data, ok := cert.Extensions[teleport.CertExtensionTeleportRoles]
+	if !ok {
+		// it's ok to not have any roles in the metadata
+		return nil, nil
+	}
+	return services.UnmarshalCertRoles(data)
+}
+
 // checkPermissionToLogin checks the given certificate (supplied by a connected client)
 // to see if this certificate can be allowed to login as user:login pair
-func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser string) (string, error) {
+func (s *Server) checkPermissionToLogin(cert *ssh.Certificate, teleportUser, osUser string) (string, error) {
 	// enumerate all known CAs and see if any of them signed the
 	// supplied certificate
 	log.Debugf("[HA SSH NODE] checkPermsissionToLogin(%v, %v)", teleportUser, osUser)
@@ -412,7 +440,7 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 			return "", trace.Wrap(err)
 		}
 		for _, checker := range checkers {
-			if sshutils.KeysEqual(cert, checker) {
+			if sshutils.KeysEqual(cert.SignatureKey, checker) {
 				ca = cas[i]
 				break
 			}
@@ -446,7 +474,17 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 			}
 		}
 	} else {
-		roles, err = services.FetchRoles(ca.GetRoles(), s.authService)
+		certRoles, err := s.extractRolesFromCert(cert)
+		if err != nil {
+			log.Errorf("failed to extract roles from cert: %v", err)
+			return "", trace.AccessDenied("failed to parse certificate roles")
+		}
+		roleNames, err := ca.CombinedMapping().Map(certRoles)
+		if err != nil {
+			log.Errorf("failed to map roles %v", err)
+			return "", trace.AccessDenied("failed to map roles")
+		}
+		roles, err = services.FetchRoles(roleNames, s.authService)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
@@ -512,7 +550,7 @@ func (s *Server) isAuthority(cert ssh.PublicKey) bool {
 	// find cert authority by it's key
 	cas, err := s.authService.GetCertAuthorities(services.UserCA, false)
 	if err != nil {
-		log.Warningf("%v", err)
+		log.Warningf("%v", trace.DebugReport(err))
 		return false
 	}
 
@@ -560,13 +598,17 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 	})
 
 	cert, ok := key.(*ssh.Certificate)
+	log.Debugf("[SSH] %v auth attempt with key %v, %#v", cid, fingerprint, cert)
 	if !ok {
+		log.Debugf("[SSH] auth attempt, unsupported key type for %v", fingerprint)
 		return nil, trace.BadParameter("unsupported key type: %v", fingerprint)
 	}
 	if len(cert.ValidPrincipals) == 0 {
+		log.Debugf("[SSH] need a valid principal for key %v", fingerprint)
 		return nil, trace.BadParameter("need a valid principal for key %v", fingerprint)
 	}
 	if len(cert.KeyId) == 0 {
+		log.Debugf("[SSH] need a valid key ID for key %v", fingerprint)
 		return nil, trace.BadParameter("need a valid key for key %v", fingerprint)
 	}
 	teleportUser := cert.KeyId
@@ -574,11 +616,13 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 	logAuditEvent := func(err error) {
 		// only failed attempts are logged right now
 		if err != nil {
-			s.EmitAuditEvent(events.AuthAttemptEvent, events.EventFields{
+			fields := events.EventFields{
 				events.EventUser:          teleportUser,
 				events.AuthAttemptSuccess: false,
 				events.AuthAttemptErr:     err.Error(),
-			})
+			}
+			log.Warningf("[SSH] failed login attempt %#v", fields)
+			s.EmitAuditEvent(events.AuthAttemptEvent, fields)
 		}
 	}
 	permissions, err := s.certChecker.Authenticate(conn, key)
@@ -610,7 +654,7 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 	if s.proxyMode {
 		return permissions, nil
 	}
-	clusterName, err := s.checkPermissionToLogin(cert.SignatureKey, teleportUser, conn.User())
+	clusterName, err := s.checkPermissionToLogin(cert, teleportUser, conn.User())
 	if err != nil {
 		logger.Error(err)
 		logAuditEvent(err)
@@ -743,10 +787,15 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in
 
 	// As SSH conversation progresses, at some point a session will be created and
 	// its ID will be added to the environment
-	updateContext := func() {
+	updateContext := func() error {
 		ssid, found := ctx.getEnv(sshutils.SessionEnvVar)
 		if !found {
-			return
+			return nil
+		}
+		// make sure whatever session is requested is a valid session
+		_, err := rsession.ParseID(ssid)
+		if err != nil {
+			return trace.BadParameter("invalid session id")
 		}
 		findSession := func() (*session, bool) {
 			s.reg.Lock()
@@ -755,13 +804,31 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in
 		}
 		// update ctx with a session ID
 		ctx.session, _ = findSession()
-		log.Debugf("[SSH] loaded session %v for SSH connection %v", ctx.session, sconn)
+		if ctx.session == nil {
+			log.Debugf("[SSH] will create new session for SSH connection %v", sconn.RemoteAddr())
+		} else {
+			log.Debugf("[SSH] will join session %v for SSH connection %v", ctx.session, sconn.RemoteAddr())
+		}
+
+		return nil
 	}
 
 	for {
 		// update ctx with the session ID:
 		if !s.proxyMode {
-			updateContext()
+			err := updateContext()
+			if err != nil {
+				errorMessage := fmt.Sprintf("unable to update context: %v", err)
+				ctx.Errorf("[SSH] %v", errorMessage)
+
+				// write the error to channel and close it
+				ch.Stderr().Write([]byte(errorMessage))
+				_, err := ch.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: teleport.RemoteCommandFailure}))
+				if err != nil {
+					ctx.Errorf("[SSH] failed to send exit status %v", errorMessage)
+				}
+				return
+			}
 		}
 		select {
 		case creq := <-ctx.subsystemResultC:

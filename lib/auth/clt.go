@@ -958,6 +958,131 @@ func (c *Client) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, erro
 	return &response, nil
 }
 
+// CreateOIDCConnector creates SAML connector
+func (c *Client) CreateSAMLConnector(connector services.SAMLConnector) error {
+	data, err := services.GetSAMLConnectorMarshaler().MarshalSAMLConnector(connector)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = c.PostJSON(c.Endpoint("saml", "connectors"), &createSAMLConnectorRawReq{
+		Connector: data,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// UpsertSAMLConnector updates or creates OIDC connector
+func (c *Client) UpsertSAMLConnector(connector services.SAMLConnector) error {
+	data, err := services.GetSAMLConnectorMarshaler().MarshalSAMLConnector(connector)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = c.PostJSON(c.Endpoint("saml", "connectors"), &upsertSAMLConnectorRawReq{
+		Connector: data,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// GetOIDCConnector returns SAML connector information by id
+func (c *Client) GetSAMLConnector(id string, withSecrets bool) (services.SAMLConnector, error) {
+	if id == "" {
+		return nil, trace.BadParameter("missing connector id")
+	}
+	out, err := c.Get(c.Endpoint("saml", "connectors", id),
+		url.Values{"with_secrets": []string{fmt.Sprintf("%t", withSecrets)}})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(out.Bytes())
+}
+
+// GetSAMLConnectors gets SAML connectors list
+func (c *Client) GetSAMLConnectors(withSecrets bool) ([]services.SAMLConnector, error) {
+	out, err := c.Get(c.Endpoint("saml", "connectors"),
+		url.Values{"with_secrets": []string{fmt.Sprintf("%t", withSecrets)}})
+	if err != nil {
+		return nil, err
+	}
+	var items []json.RawMessage
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	connectors := make([]services.SAMLConnector, len(items))
+	for i, raw := range items {
+		connector, err := services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(raw)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		connectors[i] = connector
+	}
+	return connectors, nil
+}
+
+// DeleteSAMLConnector deletes SAML connector by ID
+func (c *Client) DeleteSAMLConnector(connectorID string) error {
+	if connectorID == "" {
+		return trace.BadParameter("missing connector id")
+	}
+	_, err := c.Delete(c.Endpoint("saml", "connectors", connectorID))
+	return trace.Wrap(err)
+}
+
+// CreateSAMLAuthRequest creates SAML AuthnRequest
+func (c *Client) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.SAMLAuthRequest, error) {
+	out, err := c.PostJSON(c.Endpoint("saml", "requests", "create"), createSAMLAuthRequestReq{
+		Req: req,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var response *services.SAMLAuthRequest
+	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return response, nil
+}
+
+// ValidateSAMLResponse validates response returned by SAML identity provider
+func (c *Client) ValidateSAMLResponse(re string) (*SAMLAuthResponse, error) {
+	out, err := c.PostJSON(c.Endpoint("saml", "requests", "validate"), validateSAMLResponseReq{
+		Response: re,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var rawResponse *samlAuthRawResponse
+	if err := json.Unmarshal(out.Bytes(), &rawResponse); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	response := SAMLAuthResponse{
+		Username: rawResponse.Username,
+		Identity: rawResponse.Identity,
+		Cert:     rawResponse.Cert,
+		Req:      rawResponse.Req,
+	}
+	if len(rawResponse.Session) != 0 {
+		session, err := services.GetWebSessionMarshaler().UnmarshalWebSession(rawResponse.Session)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		response.Session = session
+	}
+	response.HostSigners = make([]services.CertAuthority, len(rawResponse.HostSigners))
+	for i, raw := range rawResponse.HostSigners {
+		ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(raw)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		response.HostSigners[i] = ca
+	}
+	return &response, nil
+}
+
 // EmitAuditEvent sends an auditable event to the auth server (part of evets.IAuditLog interface)
 func (c *Client) EmitAuditEvent(eventType string, fields events.EventFields) error {
 	_, err := c.PostJSON(c.Endpoint("events"), &auditEventReq{
@@ -1373,6 +1498,27 @@ type IdentityService interface {
 
 	// ValidateOIDCAuthCallback validates OIDC auth callback returned from redirect
 	ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error)
+
+	// CreateSAMLConnector creates SAML connector
+	CreateSAMLConnector(connector services.SAMLConnector) error
+
+	// UpsertSAMLConnector updates or creates SAML connector
+	UpsertSAMLConnector(connector services.SAMLConnector) error
+
+	// GetSAMLConnector returns SAML connector information by id
+	GetSAMLConnector(id string, withSecrets bool) (services.SAMLConnector, error)
+
+	// GetSAMLConnector gets SAML connectors list
+	GetSAMLConnectors(withSecrets bool) ([]services.SAMLConnector, error)
+
+	// DeleteSAMLConnector deletes SAML connector by ID
+	DeleteSAMLConnector(connectorID string) error
+
+	// CreateSAMLAuthRequest creates SAML AuthnRequest
+	CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.SAMLAuthRequest, error)
+
+	// ValidateSAMLResponse validates SAML auth response
+	ValidateSAMLResponse(re string) (*SAMLAuthResponse, error)
 
 	// GetU2FSignRequest generates request for user trying to authenticate with U2F token
 	GetU2FSignRequest(user string, password []byte) (*u2f.SignRequest, error)

@@ -121,6 +121,8 @@ var (
 		"public_addr":        false,
 		"cache":              true,
 		"ttl":                false,
+		"issuer":             false,
+		"permit_user_env":    false,
 	}
 )
 
@@ -525,10 +527,11 @@ func (u *UniversalSecondFactor) Parse() (services.UniversalSecondFactor, error) 
 
 // SSH is 'ssh_service' section of the config file
 type SSH struct {
-	Service   `yaml:",inline"`
-	Namespace string            `yaml:"namespace,omitempty"`
-	Labels    map[string]string `yaml:"labels,omitempty"`
-	Commands  []CommandLabel    `yaml:"commands,omitempty"`
+	Service               `yaml:",inline"`
+	Namespace             string            `yaml:"namespace,omitempty"`
+	Labels                map[string]string `yaml:"labels,omitempty"`
+	Commands              []CommandLabel    `yaml:"commands,omitempty"`
+	PermitUserEnvironment bool              `yaml:"permit_user_env,omitempty"`
 }
 
 // CommandLabel is `command` section of `ssh_service` in the config file

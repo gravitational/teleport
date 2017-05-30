@@ -829,6 +829,7 @@ func (tc *TeleportClient) runCommand(
 				log.Error(err)
 				return
 			}
+			defer nodeSession.Close()
 			if err = nodeSession.runCommand(command, tc.OnShellCreated, tc.Config.Interactive); err != nil {
 				originErr := trace.Unwrap(err)
 				exitErr, ok := originErr.(*ssh.ExitError)
@@ -1010,11 +1011,18 @@ func (tc *TeleportClient) Login() (*CertAuthMethod, error) {
 			return nil, trace.Wrap(err)
 		}
 	case teleport.OIDC:
-		response, err = tc.oidcLogin(pr.Auth.OIDC.Name, key.Pub)
+		response, err = tc.ssoLogin(pr.Auth.OIDC.Name, key.Pub, teleport.OIDC)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
+		// in this case identity is returned by the proxy
+		tc.Username = response.Username
+	case teleport.SAML:
+		response, err = tc.ssoLogin(pr.Auth.SAML.Name, key.Pub, teleport.SAML)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		// in this case identity is returned by the proxy
 		tc.Username = response.Username
 	default:
@@ -1114,13 +1122,13 @@ func (tc *TeleportClient) directLogin(secondFactorType string, pub []byte) (*SSH
 	return response, trace.Wrap(err)
 }
 
-// oidcLogin opens browser window and uses OIDC redirect cycle with browser
-func (tc *TeleportClient) oidcLogin(connectorID string, pub []byte) (*SSHLoginResponse, error) {
-	log.Infof("oidcLogin start")
+// samlLogin opens browser window and uses OIDC or SAML redirect cycle with browser
+func (tc *TeleportClient) ssoLogin(connectorID string, pub []byte, protocol string) (*SSHLoginResponse, error) {
+	log.Debugf("samlLogin start")
 	// ask the CA (via proxy) to sign our public key:
 	webProxyAddr := tc.Config.ProxyWebHostPort()
-	response, err := SSHAgentOIDCLogin(webProxyAddr,
-		connectorID, pub, tc.KeyTTL, tc.InsecureSkipVerify, loopbackPool(webProxyAddr))
+	response, err := SSHAgentSSOLogin(webProxyAddr,
+		connectorID, pub, tc.KeyTTL, tc.InsecureSkipVerify, loopbackPool(webProxyAddr), protocol)
 	return response, trace.Wrap(err)
 }
 

@@ -16,7 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import classNames from 'classnames';
-import OverlayTrigger from 'app/components/overlay';
+import OverlayTrigger from 'app/components/overlayTrigger';
 
 const classes = {
  'btn grv-btn-details': true

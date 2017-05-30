@@ -185,8 +185,14 @@ type ProxyConfig struct {
 	// Enabled turns proxy role on or off for this process
 	Enabled bool
 
-	// DisableWebUI allows to turn off serving the Web UI
-	DisableWebUI bool
+	// DisableWebInterface allows to turn off serving the Web UI interface
+	DisableWebInterface bool
+
+	// DisableWebService turnes off serving web service completely, including web UI
+	DisableWebService bool
+
+	// DisableReverseTunnel disables reverse tunnel on the proxy
+	DisableReverseTunnel bool
 
 	// ReverseTunnelListenAddr is address where reverse tunnel dialers connect to
 	ReverseTunnelListenAddr utils.NetAddr
@@ -256,13 +262,14 @@ type AuthConfig struct {
 
 // SSHConfig configures SSH server node role
 type SSHConfig struct {
-	Enabled   bool
-	Addr      utils.NetAddr
-	Namespace string
-	Shell     string
-	Limiter   limiter.LimiterConfig
-	Labels    map[string]string
-	CmdLabels services.CommandLabels
+	Enabled               bool
+	Addr                  utils.NetAddr
+	Namespace             string
+	Shell                 string
+	Limiter               limiter.LimiterConfig
+	Labels                map[string]string
+	CmdLabels             services.CommandLabels
+	PermitUserEnvironment bool
 }
 
 // MakeDefaultConfig creates a new Config structure and populates it with defaults

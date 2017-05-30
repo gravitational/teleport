@@ -36,7 +36,7 @@ import (
 type AuthWithRoles struct {
 	authServer *AuthServer
 	checker    services.AccessChecker
-	user       string
+	user       services.User
 	sessions   session.Service
 	alog       events.IAuditLog
 }
@@ -49,7 +49,7 @@ func (a *AuthWithRoles) action(namespace string, resourceKind, action string) er
 // even if they are not admins, e.g. update their own passwords,
 // or generate certificates, otherwise it will require admin privileges
 func (a *AuthWithRoles) currentUserAction(username string) error {
-	if username == a.user {
+	if username == a.user.GetName() {
 		return nil
 	}
 	return a.checker.CheckResourceAction(
@@ -367,14 +367,16 @@ func (a *AuthWithRoles) GenerateHostCert(
 
 func (a *AuthWithRoles) GenerateUserCert(key []byte, username string, ttl time.Duration) ([]byte, error) {
 	if err := a.currentUserAction(username); err != nil {
-		return nil, trace.AccessDenied("%v cannot request a certificate for %v", a.user, username)
+		return nil, trace.AccessDenied("%v cannot request a certificate for %v", a.user.GetName(), username)
 	}
 	// notice that user requesting the certificate and the user currently
 	// authenticated may differ (e.g. admin generates certificate for the user scenario)
 	// so we fetch user's permissions
 	checker := a.checker
-	if a.user != username {
-		user, err := a.GetUser(username)
+	var user services.User
+	var err error
+	if a.user.GetName() != username {
+		user, err = a.GetUser(username)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -382,6 +384,8 @@ func (a *AuthWithRoles) GenerateUserCert(key []byte, username string, ttl time.D
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	} else {
+		user = a.user
 	}
 
 	// adjust session ttl to the smaller of two values: the session
@@ -393,7 +397,8 @@ func (a *AuthWithRoles) GenerateUserCert(key []byte, username string, ttl time.D
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GenerateUserCert(key, username, allowedLogins, sessionTTL, checker.CanForwardAgents())
+	return a.authServer.GenerateUserCert(
+		key, user, allowedLogins, sessionTTL, checker.CanForwardAgents())
 }
 
 func (a *AuthWithRoles) CreateSignupToken(user services.UserV1) (token string, e error) {
@@ -440,7 +445,7 @@ func (a *AuthWithRoles) UpsertUser(u services.User) error {
 	createdBy := u.GetCreatedBy()
 	if createdBy.IsEmpty() {
 		u.SetCreatedBy(services.CreatedBy{
-			User: services.UserRef{Name: a.user},
+			User: services.UserRef{Name: a.user.GetName()},
 		})
 	}
 	return a.authServer.UpsertUser(u)
@@ -496,6 +501,66 @@ func (a *AuthWithRoles) DeleteOIDCConnector(connectorID string) error {
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteOIDCConnector(connectorID)
+}
+
+//
+func (a *AuthWithRoles) CreateSAMLConnector(connector services.SAMLConnector) error {
+	if err := a.action(defaults.Namespace, services.KindSAML, services.ActionWrite); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.UpsertSAMLConnector(connector)
+}
+
+func (a *AuthWithRoles) UpsertSAMLConnector(connector services.SAMLConnector) error {
+	if err := a.action(defaults.Namespace, services.KindSAML, services.ActionWrite); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.UpsertSAMLConnector(connector)
+}
+
+func (a *AuthWithRoles) GetSAMLConnector(id string, withSecrets bool) (services.SAMLConnector, error) {
+	if withSecrets {
+		if err := a.action(defaults.Namespace, services.KindSAML, services.ActionWrite); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		if err := a.action(defaults.Namespace, services.KindSAML, services.ActionRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return a.authServer.Identity.GetSAMLConnector(id, withSecrets)
+}
+
+func (a *AuthWithRoles) GetSAMLConnectors(withSecrets bool) ([]services.SAMLConnector, error) {
+	if withSecrets {
+		if err := a.action(defaults.Namespace, services.KindSAML, services.ActionWrite); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		if err := a.action(defaults.Namespace, services.KindSAML, services.ActionRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return a.authServer.Identity.GetSAMLConnectors(withSecrets)
+}
+
+func (a *AuthWithRoles) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.SAMLAuthRequest, error) {
+	if err := a.action(defaults.Namespace, services.KindSAMLRequest, services.ActionWrite); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.CreateSAMLAuthRequest(req)
+}
+
+func (a *AuthWithRoles) ValidateSAMLResponse(re string) (*SAMLAuthResponse, error) {
+	// auth callback is it's own authz, no need to check extra permissions
+	return a.authServer.ValidateSAMLResponse(re)
+}
+
+func (a *AuthWithRoles) DeleteSAMLConnector(connectorID string) error {
+	if err := a.action(defaults.Namespace, services.KindSAML, services.ActionWrite); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteSAMLConnector(connectorID)
 }
 
 func (a *AuthWithRoles) EmitAuditEvent(eventType string, fields events.EventFields) error {
@@ -585,12 +650,9 @@ func (a *AuthWithRoles) UpsertRole(role services.Role, ttl time.Duration) error 
 func (a *AuthWithRoles) GetRole(name string) (services.Role, error) {
 	if err := a.action(defaults.Namespace, services.KindRole, services.ActionRead); err != nil {
 		// allow user to read roles assigned to them
-		user, err := a.authServer.Identity.GetUser(a.user)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		log.Infof("%v %v %v", user, user.GetRoles(), name)
-		if !utils.SliceContainsStr(user.GetRoles(), name) {
+
+		log.Infof("%v %v %v", a.user, a.user.GetRoles(), name)
+		if !utils.SliceContainsStr(a.user.GetRoles(), name) {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -695,6 +757,7 @@ func (a *AuthWithRoles) GetTrustedClusters() ([]services.TrustedCluster, error) 
 }
 
 func (a *AuthWithRoles) UpsertTrustedCluster(tc services.TrustedCluster) error {
+	log.Debugf("UpsertTrustedCluster %v", tc)
 	err := a.action(defaults.Namespace, services.KindTrustedCluster, services.ActionWrite)
 	if err != nil {
 		return trace.Wrap(err)
@@ -708,7 +771,7 @@ func (a *AuthWithRoles) UpsertTrustedCluster(tc services.TrustedCluster) error {
 		return trace.Wrap(err)
 	}
 
-	return a.authServer.upsertTrustedCluster(tc)
+	return a.authServer.UpsertTrustedCluster(tc)
 }
 
 func (a *AuthWithRoles) ValidateTrustedCluster(validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
@@ -736,7 +799,7 @@ func (a *AuthWithRoles) DeleteTrustedCluster(name string) error {
 // NewAuthWithRoles creates new auth server with access control
 func NewAuthWithRoles(authServer *AuthServer,
 	checker services.AccessChecker,
-	user string,
+	user services.User,
 	sessions session.Service,
 	alog events.IAuditLog) *AuthWithRoles {
 	return &AuthWithRoles{

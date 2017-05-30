@@ -5,6 +5,7 @@
 	"Packages": [
 		"./lib/...",
 		"./tool/...",
+		"./lib/web/...",
 		"./integration/..."
 	],
 	"Deps": [
@@ -29,6 +30,11 @@
 		{
 			"ImportPath": "github.com/alecthomas/units",
 			"Rev": "6b4e7dc5e3143b85ea77909c72caf89416fc2915"
+		},
+		{
+			"ImportPath": "github.com/alessio/shellescape",
+			"Comment": "v1.2",
+			"Rev": "52074bc9df61e0d2af85c160b3a325403955d7fb"
 		},
 		{
 			"ImportPath": "github.com/aws/aws-sdk-go/aws",
@@ -166,6 +172,14 @@
 			"Rev": "918c42e2bcdb277aa821401c906e88254501bdf4"
 		},
 		{
+			"ImportPath": "github.com/beevik/etree",
+			"Rev": "cda1c0026246bd095961ef9a3c430e50d0e80fba"
+		},
+		{
+			"ImportPath": "github.com/beorn7/perks/quantile",
+			"Rev": "b965b613227fddccbfffe13eae360ed3fa822f8d"
+		},
+		{
 			"ImportPath": "github.com/boltdb/bolt",
 			"Comment": "v1.0-111-g04a3e85",
 			"Rev": "04a3e85793043e76d41164037d0d7f9d53eecae3"
@@ -185,6 +199,10 @@
 		{
 			"ImportPath": "github.com/buger/goterm",
 			"Rev": "d281585cd7365cff9edfed1a5115fc624a012bdc"
+		},
+		{
+			"ImportPath": "github.com/codahale/hdrhistogram",
+			"Rev": "954f16e8b9ef0e5d5189456aa4c1202758e04f17"
 		},
 		{
 			"ImportPath": "github.com/coreos/etcd/Godeps/_workspace/src/github.com/ugorji/go/codec",
@@ -281,12 +299,35 @@
 			"Rev": "fca8c8854093a154ff1eb580aae10276ad6b1b5f"
 		},
 		{
+			"ImportPath": "github.com/golang/protobuf/proto",
+			"Rev": "8ee79997227bf9b34611aee7946ae64735e6fd93"
+		},
+		{
+			"ImportPath": "github.com/google/gops/agent",
+			"Comment": "v0.3.1-12-gccfb39d",
+			"Rev": "ccfb39d8547edb85b3e950d2f3c30662a5881fe8"
+		},
+		{
+			"ImportPath": "github.com/google/gops/internal",
+			"Comment": "v0.3.1-12-gccfb39d",
+			"Rev": "ccfb39d8547edb85b3e950d2f3c30662a5881fe8"
+		},
+		{
+			"ImportPath": "github.com/google/gops/signal",
+			"Comment": "v0.3.1-12-gccfb39d",
+			"Rev": "ccfb39d8547edb85b3e950d2f3c30662a5881fe8"
+		},
+		{
 			"ImportPath": "github.com/gravitational/configure/cstrings",
 			"Rev": "1db4b84fe9dbbbaf40827aa714dcca17b368de2c"
 		},
 		{
 			"ImportPath": "github.com/gravitational/configure/jsonschema",
 			"Rev": "1db4b84fe9dbbbaf40827aa714dcca17b368de2c"
+		},
+		{
+			"ImportPath": "github.com/gravitational/form",
+			"Rev": "c4048f792f70d207e6d8b9c1bf52319247f202b8"
 		},
 		{
 			"ImportPath": "github.com/gravitational/kingpin",
@@ -367,6 +408,10 @@
 			"Rev": "16b258d86efc53ac5cf3e550604f566c32624fab"
 		},
 		{
+			"ImportPath": "github.com/matttproud/golang_protobuf_extensions/pbutil",
+			"Rev": "d0c3fe89de86839aecf2e0579c40ba3bb336a453"
+		},
+		{
 			"ImportPath": "github.com/mdp/rsc/gf256",
 			"Rev": "90f07065088deccf50b28eb37c93dad3078c0f3c"
 		},
@@ -394,6 +439,57 @@
 		{
 			"ImportPath": "github.com/pquerna/otp/totp",
 			"Rev": "54653902c20e47f3417541d35435cb6d6162e28a"
+		},
+		{
+			"ImportPath": "github.com/prometheus/client_golang/prometheus",
+			"Comment": "0.7.0-64-g275368f",
+			"Rev": "275368fd9eb02bca5e452faad68e4411f8782842"
+		},
+		{
+			"ImportPath": "github.com/prometheus/client_model/go",
+			"Comment": "model-0.0.2-12-gfa8ad6f",
+			"Rev": "fa8ad6fec33561be4280a8f0514318c79d7f6cb6"
+		},
+		{
+			"ImportPath": "github.com/prometheus/common/expfmt",
+			"Rev": "50022896a67062a54a54f268fb6fe4bf90b34859"
+		},
+		{
+			"ImportPath": "github.com/prometheus/common/internal/bitbucket.org/ww/goautoneg",
+			"Rev": "50022896a67062a54a54f268fb6fe4bf90b34859"
+		},
+		{
+			"ImportPath": "github.com/prometheus/common/model",
+			"Rev": "50022896a67062a54a54f268fb6fe4bf90b34859"
+		},
+		{
+			"ImportPath": "github.com/prometheus/procfs",
+			"Rev": "406e5b7bfd8201a36e2bb5f7bdae0b03380c2ce8"
+		},
+		{
+			"ImportPath": "github.com/russellhaering/gosaml2",
+			"Rev": "82a6e6132741c96a25969cec66912b6c24fcbd5f"
+		},
+		{
+			"ImportPath": "github.com/russellhaering/gosaml2/types",
+			"Rev": "82a6e6132741c96a25969cec66912b6c24fcbd5f"
+		},
+		{
+			"ImportPath": "github.com/russellhaering/goxmldsig",
+			"Rev": "de86854e601fc0dd797fe7b28bb4aca12284ede3"
+		},
+		{
+			"ImportPath": "github.com/russellhaering/goxmldsig/etreeutils",
+			"Rev": "de86854e601fc0dd797fe7b28bb4aca12284ede3"
+		},
+		{
+			"ImportPath": "github.com/russellhaering/goxmldsig/types",
+			"Rev": "de86854e601fc0dd797fe7b28bb4aca12284ede3"
+		},
+		{
+			"ImportPath": "github.com/satori/go.uuid",
+			"Comment": "v1.1.0-8-g5bf94b6",
+			"Rev": "5bf94b69c6b68ee1b541973bb8e1144db23a194b"
 		},
 		{
 			"ImportPath": "github.com/tstranex/u2f",

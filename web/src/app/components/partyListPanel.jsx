@@ -16,13 +16,19 @@ limitations under the License.
 
 import React from 'react';
 
+const closeTextStyle = {
+  lineHeight: '0px',
+  margin: '0px',  
+  fontSize: '14px'
+}
+
 const PartyListPanel = ({onClose, children}) => {      
   return (
     <div className="grv-terminal-participans">
       <ul className="nav">
         <li title="Close">
           <button onClick={onClose} className="btn btn-danger btn-circle" type="button">
-            <span>✖</span>
+            <div style={closeTextStyle} >&#10005;</div>
           </button>
         </li>
       </ul>

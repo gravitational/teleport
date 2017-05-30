@@ -14,35 +14,26 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var { browserHistory, createMemoryHistory } = require('react-router');
-var $ = require('jQuery');
+import $ from 'jQuery';
+import Logger from 'app/lib/logger';
+
 const EMPTY_TOKEN_CONTENT_LENGTH = 20;
-const logger = require('app/lib/logger').create('services/sessions');
+const logger = Logger.create('services/sessions');
 const AUTH_KEY_DATA = 'authData';
 
-var _history = createMemoryHistory();
-
-var UserData = function(json){
+let UserData = function(json){
   $.extend(this, json);
   this.created = new Date().getTime();
 }
 
-var session = {
-
-  init(history=browserHistory){
-    _history = history;
-  },
-
-  getHistory(){
-    return _history;
-  },
+const session = {      
 
   setUserData(data){
     var userData = new UserData(data);
     localStorage.setItem(AUTH_KEY_DATA, JSON.stringify(userData));
     return userData;
   },
-
+  
   getUserData(){
     let userData = null;
     try{

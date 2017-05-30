@@ -24,7 +24,7 @@ func (a *AuthServer) getTrustedClusters() ([]services.TrustedCluster, error) {
 	return a.GetTrustedClusters()
 }
 
-func (a *AuthServer) upsertTrustedCluster(trustedCluster services.TrustedCluster) error {
+func (a *AuthServer) UpsertTrustedCluster(trustedCluster services.TrustedCluster) error {
 	if trustedCluster.GetEnabled() {
 		err := a.enableTrustedCluster(trustedCluster)
 		if err != nil {
@@ -37,7 +37,7 @@ func (a *AuthServer) upsertTrustedCluster(trustedCluster services.TrustedCluster
 		}
 	}
 
-	err := a.UpsertTrustedCluster(trustedCluster)
+	err := a.Presence.UpsertTrustedCluster(trustedCluster)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -69,10 +69,13 @@ func (a *AuthServer) enableTrustedCluster(trustedCluster services.TrustedCluster
 	for _, remoteCertAuthority := range validateResponse.CAs {
 
 		// add roles into user certificates
+		// ignore roles set locally by the cert authority
+		remoteCertAuthority.SetRoles(nil)
 		if remoteCertAuthority.GetType() == services.UserCA {
 			for _, r := range trustedCluster.GetRoles() {
 				remoteCertAuthority.AddRole(r)
 			}
+			remoteCertAuthority.SetRoleMap(trustedCluster.GetRoleMap())
 		}
 
 		err = a.UpsertCertAuthority(remoteCertAuthority)
@@ -215,10 +218,16 @@ func (s *AuthServer) sendValidateRequestToProxy(host string, validateRequest *Va
 		log.Warn("InsecureSkipVerify used to communicate with proxy.")
 		log.Warn("Make sure you intend to run Teleport in debug mode.")
 
+		// get the default transport (so we can get the proxy from environment)
+		// but disable tls certificate checking.
+		tr, ok := http.DefaultTransport.(*http.Transport)
+		if !ok {
+			return nil, trace.BadParameter("unable to get default transport")
+		}
+		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+
 		insecureWebClient := &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-			},
+			Transport: tr,
 		}
 		opts = append(opts, roundtrip.HTTPClient(insecureWebClient))
 	}

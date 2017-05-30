@@ -27,11 +27,11 @@ import PartyListPanel from './../partyListPanel';
 
 initScroll($);
 
-const PlayerHost = React.createClass({
+class PlayerHost extends React.Component {
     
   componentDidMount() {    
     setTimeout(() => initPlayer(this.props.params), 0);    
-  },
+  }
 
   render() {
     let { store } = this.props;    
@@ -53,9 +53,8 @@ const PlayerHost = React.createClass({
     return (
       <Box>{$indicator}</Box>
     );
-  }
-
-});
+  }  
+}
 
 function mapStateToProps() {
   return {    
@@ -124,8 +123,8 @@ const Player = React.createClass({
     this.tty.move(value);
   },
 
-  render: function() {
-    var {isPlaying, time} = this.state;
+  render() {
+    let {isPlaying, time} = this.state;
 
     return (
       <Box>
@@ -153,8 +152,8 @@ const Player = React.createClass({
 
 class Term extends Terminal{
   constructor(tty, el){
-    super({el, scrollBack: 0});
-    this.tty = tty;
+    super({ el, scrollBack: 1000 });    
+    this.tty = tty;            
   }
 
   connect(){
@@ -162,16 +161,14 @@ class Term extends Terminal{
   }
 
   open() {
-    super.open();
+    super.open();              
     $(this._el).perfectScrollbar();
   }
 
-  resize(cols, rows) {
-    if(cols === this.cols && rows === this.rows){
-      return;
-    }
-
-    super.resize(cols, rows);
+  resize(cols, rows) {           
+    // ensure cursor is visible as xterm hides it on blur event
+    this.term.cursorState = 1;
+    super.resize(cols, rows);        
     $(this._el).perfectScrollbar('update');
   }
 

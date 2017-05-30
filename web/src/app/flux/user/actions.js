@@ -19,11 +19,15 @@ import { TLPT_RECEIVE_USER, TLPT_RECEIVE_USER_INVITE } from './actionTypes';
 import { TRYING_TO_SIGN_UP, TRYING_TO_LOGIN, FETCHING_INVITE} from 'app/flux/restApi/constants';
 import restApiActions from 'app/flux/restApi/actions';
 import auth from 'app/services/auth';
+import history from 'app/services/history';
 import cfg from 'app/config';
 import api from 'app/services/api';
+import Logger from 'app/lib/logger';
+
+const logger = Logger.create('flux/user/actions');
 
 const actions = {
-
+  
   fetchInvite(inviteToken){
     let path = cfg.api.getInviteUrl(inviteToken);
     restApiActions.start(FETCHING_INVITE);    
@@ -37,19 +41,15 @@ const actions = {
     });
   },
 
-  ensureUser(nextState, replace, cb){
+  ensureUser(nextState, replace, cb) {        
     auth.ensureUser()
-      .done((userData)=> {
-        reactor.dispatch(TLPT_RECEIVE_USER, userData.user );
+      .done(userData => {
+        reactor.dispatch(TLPT_RECEIVE_USER, userData.user);
         cb();
       })
-      .fail(()=>{        
-        let search;
-        if(nextState.location.pathname){
-          // store original URL for redirect
-          search = `?redirect_uri=${nextState.location.pathname}`;
-        }
-
+      .fail(() => {                          
+        let redirectUrl = history.createRedirect(nextState.location);
+        let search = `?redirect_uri=${redirectUrl}`;        
         // navigate to login
         replace({
           pathname: cfg.routes.login,
@@ -69,51 +69,49 @@ const actions = {
     let promise = auth.signUpWithU2f(name, psw, inviteToken);
     actions._handleSignupPromise(promise);
   },
-
-  signupWithOidc(provider, token) {
-    let redirectUrl = cfg.getFullUrl(cfg.routes.app);
-    let url = cfg.api.getInviteWithOidcUrl(token, provider, redirectUrl);
-    auth.redirect(url);
+  
+  loginWithSso(providerName, providerType) {
+    let redirectUrl = history.extractRedirect();
+    redirectUrl = history.ensureBaseUrl(redirectUrl);
+    history.push(cfg.api.getSsoUrl(redirectUrl, providerName, providerType), true);
   },
-
-  loginWithOidc(provider, redirect) {
-    let fullPath = cfg.getFullUrl(redirect);
-    auth.redirect(cfg.api.getSsoUrl(fullPath, provider));    
-  },
-
-  loginWithU2f(user, password, redirect) {
+  
+  loginWithU2f(user, password) {
     let promise = auth.loginWithU2f(user, password);
-    actions._handleLoginPromise(promise, redirect);
+    actions._handleLoginPromise(promise);
   },
 
-  login(user, password, token, redirect) {
+  login(user, password, token) {
     let promise = auth.login(user, password, token);
-    actions._handleLoginPromise(promise, redirect);              
+    actions._handleLoginPromise(promise);              
   },
-
+  
   _handleSignupPromise(promise) {
     restApiActions.start(TRYING_TO_SIGN_UP);    
     promise
       .done(() => {                
-        auth.redirect(cfg.routes.app);        
+        history.push(cfg.routes.app, true);        
       })
       .fail(err => {
         let msg = api.getErrorText(err);        
+        logger.error('signup', err);
         restApiActions.fail(TRYING_TO_SIGN_UP, msg);
       })        
   },
 
-  _handleLoginPromise(promise, redirect) {
+  _handleLoginPromise(promise) {
     restApiActions.start(TRYING_TO_LOGIN);
     promise
       .done(() => {        
-        auth.redirect(redirect);        
+        let url = history.extractRedirect();
+        history.push(url, true);        
       })
       .fail(err => {
         let msg = api.getErrorText(err);
+        logger.error('login', err);
         restApiActions.fail(TRYING_TO_LOGIN, msg);
       })
   }
 }
-
+  
 export default actions;

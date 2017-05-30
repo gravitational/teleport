@@ -241,7 +241,7 @@ type authorityCollection struct {
 
 func (a *authorityCollection) writeText(w io.Writer) error {
 	t := goterm.NewTable(0, 10, 5, ' ', 0)
-	printHeader(t, []string{"Cluster Name", "CA Type", "Fingerprint", "Roles"})
+	printHeader(t, []string{"Cluster Name", "CA Type", "Fingerprint", "Role Map"})
 	for _, a := range a.cas {
 		for _, keyBytes := range a.GetCheckingKeys() {
 			fingerprint, err := sshutils.AuthorizedKeyFingerprint(keyBytes)
@@ -252,7 +252,7 @@ func (a *authorityCollection) writeText(w io.Writer) error {
 			if a.GetType() == services.HostCA {
 				roles = "N/A"
 			} else {
-				roles = strings.Join(a.GetRoles(), ",")
+				roles = fmt.Sprintf("%v", a.CombinedMapping())
 			}
 			fmt.Fprintf(t, "%v\t%v\t%v\t%v\n", a.GetClusterName(), a.GetType(), fingerprint, roles)
 		}
@@ -325,11 +325,11 @@ func (r *reverseTunnelCollection) writeYAML(w io.Writer) error {
 	return trace.Wrap(err)
 }
 
-type connectorCollection struct {
+type oidcCollection struct {
 	connectors []services.OIDCConnector
 }
 
-func (c *connectorCollection) writeText(w io.Writer) error {
+func (c *oidcCollection) writeText(w io.Writer) error {
 	t := goterm.NewTable(0, 10, 5, ' ', 0)
 	printHeader(t, []string{"Name", "Issuer URL", "Additional Scope"})
 	for _, conn := range c.connectors {
@@ -339,7 +339,7 @@ func (c *connectorCollection) writeText(w io.Writer) error {
 	return trace.Wrap(err)
 }
 
-func (c *connectorCollection) writeJSON(w io.Writer) error {
+func (c *oidcCollection) writeJSON(w io.Writer) error {
 	data, err := json.MarshalIndent(c.toMarshal(), "", "    ")
 	if err != nil {
 		return trace.Wrap(err)
@@ -348,14 +348,53 @@ func (c *connectorCollection) writeJSON(w io.Writer) error {
 	return trace.Wrap(err)
 }
 
-func (c *connectorCollection) toMarshal() interface{} {
+func (c *oidcCollection) toMarshal() interface{} {
 	if len(c.connectors) == 1 {
 		return c.connectors[0]
 	}
 	return c.connectors
 }
 
-func (c *connectorCollection) writeYAML(w io.Writer) error {
+func (c *oidcCollection) writeYAML(w io.Writer) error {
+	data, err := yaml.Marshal(c.toMarshal())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = w.Write(data)
+	return trace.Wrap(err)
+}
+
+type samlCollection struct {
+	connectors []services.SAMLConnector
+}
+
+func (c *samlCollection) writeText(w io.Writer) error {
+	t := goterm.NewTable(0, 10, 5, ' ', 0)
+	printHeader(t, []string{"Name", "SSO URL"})
+	for _, conn := range c.connectors {
+		fmt.Fprintf(t, "%v\t%v\n", conn.GetName(), conn.GetSSO())
+	}
+	_, err := io.WriteString(w, t.String())
+	return trace.Wrap(err)
+}
+
+func (c *samlCollection) writeJSON(w io.Writer) error {
+	data, err := json.MarshalIndent(c.toMarshal(), "", "    ")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = w.Write(data)
+	return trace.Wrap(err)
+}
+
+func (c *samlCollection) toMarshal() interface{} {
+	if len(c.connectors) == 1 {
+		return c.connectors[0]
+	}
+	return c.connectors
+}
+
+func (c *samlCollection) writeYAML(w io.Writer) error {
 	data, err := yaml.Marshal(c.toMarshal())
 	if err != nil {
 		return trace.Wrap(err)
@@ -370,9 +409,9 @@ type trustedClusterCollection struct {
 
 func (c *trustedClusterCollection) writeText(w io.Writer) error {
 	t := goterm.NewTable(0, 10, 5, ' ', 0)
-	printHeader(t, []string{"Name", "Enabled", "Token", "Proxy Address", "Reverse Tunnel Address", "Roles"})
+	printHeader(t, []string{"Name", "Enabled", "Token", "Proxy Address", "Reverse Tunnel Address", "Role Map"})
 	for _, tc := range c.trustedClusters {
-		fmt.Fprintf(t, "%v\t%v\t%v\t%v\t%v\t%v\n", tc.GetName(), tc.GetEnabled(), tc.GetToken(), tc.GetProxyAddress(), tc.GetReverseTunnelAddress(), tc.GetRoles())
+		fmt.Fprintf(t, "%v\t%v\t%v\t%v\t%v\t%v\n", tc.GetName(), tc.GetEnabled(), tc.GetToken(), tc.GetProxyAddress(), tc.GetReverseTunnelAddress(), tc.CombinedMapping())
 	}
 	_, err := io.WriteString(w, t.String())
 	return trace.Wrap(err)

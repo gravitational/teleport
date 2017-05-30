@@ -16,6 +16,7 @@ limitations under the License.
 
 import api from './api';
 import session from './session';
+import history from './history';
 import cfg from 'app/config';
 import $ from 'jQuery';
 import Logger from 'app/lib/logger';
@@ -114,7 +115,7 @@ const auth = {
         }
 
         var response = {
-          user:              name,
+          user: name,
           u2f_sign_response: res
         };
 
@@ -152,18 +153,12 @@ const auth = {
   logout(){
     logger.info('logout()');
     api.delete(cfg.api.sessionPath).always(()=>{
-      auth.redirect();
+      history.push(cfg.routes.login, true);    
     });
     session.clear();
     auth._stopTokenRefresher();
   },
-
-  redirect(url) {
-    // default URL to redirect
-    url = url || cfg.routes.login;
-    window.location = url;
-  },
-
+  
   _shouldRefreshToken({ expires_in, created } ){
     if(!created || !expires_in){
       return true;

@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 )
@@ -37,6 +38,13 @@ type TrustedCluster interface {
 	GetEnabled() bool
 	// SetEnabled enables (handshake and add ca+reverse tunnel) or disables TrustedCluster.
 	SetEnabled(bool)
+	// CombinedMapping is used to specify combined mapping from legacy property Roles
+	// and new property RoleMap
+	CombinedMapping() RoleMap
+	// GetRoleMap returns role map property
+	GetRoleMap() RoleMap
+	// SetRoleMap sets role map
+	SetRoleMap(m RoleMap)
 	// GetRoles returns the roles for the certificate authority.
 	GetRoles() []string
 	// SetRoles sets the roles for the certificate authority.
@@ -53,6 +61,8 @@ type TrustedCluster interface {
 	GetReverseTunnelAddress() string
 	// SetReverseTunnelAddress sets the address of the reverse tunnel.
 	SetReverseTunnelAddress(string)
+	// CheckAndSetDefaults checks and set default values for missing fields.
+	CheckAndSetDefaults() error
 }
 
 // NewTrustedCluster is a convenience wa to create a TrustedCluster resource.
@@ -91,7 +101,7 @@ type TrustedClusterSpecV2 struct {
 	Enabled bool `json:"enabled"`
 
 	// Roles is a list of roles that users will be assuming when connecting to this cluster.
-	Roles []string `json:"roles"`
+	Roles []string `json:"roles,omitempty"`
 
 	// Token is the authorization token provided by another cluster needed by
 	// this cluster to join.
@@ -104,6 +114,140 @@ type TrustedClusterSpecV2 struct {
 	// ReverseTunnelAddress is the address of the SSH proxy server of the cluster to join. If
 	// not set, it is derived from <metadata.name>:<default reverse tunnel port>.
 	ReverseTunnelAddress string `json:"tunnel_addr"`
+
+	// RoleMap specifies role mappings to remote roles
+	RoleMap RoleMap `json:"role_map,omitempty"`
+}
+
+// RoleMap is a list of mappings
+type RoleMap []RoleMapping
+
+// String prints user friendly representation of role mapping
+func (r RoleMap) String() string {
+	directMatch, wildcardMatch, err := r.parse()
+	if err != nil {
+		return fmt.Sprintf("<failed to parse: %v", err)
+	}
+	if len(wildcardMatch) != 0 {
+		directMatch[Wildcard] = wildcardMatch
+	}
+	if len(directMatch) != 0 {
+		return fmt.Sprintf("%v", directMatch)
+	}
+	return "<empty>"
+}
+
+func (r RoleMap) parse() (map[string][]string, []string, error) {
+	var wildcardMatch []string
+	directMatch := make(map[string][]string)
+	for i := range r {
+		roleMap := r[i]
+		if roleMap.Remote == "" {
+			return nil, nil, trace.BadParameter("missing 'remote' parameter for role_map")
+		}
+		if len(roleMap.Local) == 0 {
+			return nil, nil, trace.BadParameter("missing 'local' paramter for 'role_map'")
+		}
+		for _, local := range roleMap.Local {
+			if local == "" {
+				return nil, nil, trace.BadParameter("missing 'local' property of 'role_map' entry")
+			}
+			if local == Wildcard {
+				return nil, nil, trace.BadParameter("wilcard value is not supported for 'local' property of 'role_map' entry")
+			}
+		}
+		if roleMap.Remote == Wildcard {
+			if wildcardMatch != nil {
+				return nil, nil, trace.BadParameter("only one wildcard local role matcher is allowed")
+			}
+			wildcardMatch = roleMap.Local
+		} else {
+			_, ok := directMatch[roleMap.Remote]
+			if ok {
+				return nil, nil, trace.BadParameter("remote role '%v' match is already specified", roleMap.Remote)
+			}
+			directMatch[roleMap.Remote] = roleMap.Local
+		}
+	}
+	return directMatch, wildcardMatch, nil
+}
+
+// Map maps local roles to remote roles
+func (r RoleMap) Map(remoteRoles []string) ([]string, error) {
+	directMatch, wildcardMatch, err := r.parse()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var outRoles []string
+	if len(remoteRoles) == 0 && len(wildcardMatch) != 0 {
+		outRoles = append(outRoles, wildcardMatch...)
+		return outRoles, nil
+	}
+	log.Debugf("%v: direct match: %v wildcard match: %v", r, directMatch, wildcardMatch)
+	for _, remoteRole := range remoteRoles {
+		match, ok := directMatch[remoteRole]
+		if ok {
+			outRoles = append(outRoles, match...)
+		}
+		if wildcardMatch != nil {
+			outRoles = append(outRoles, wildcardMatch...)
+		}
+	}
+	return outRoles, nil
+}
+
+// Check checks RoleMap for errors
+func (r RoleMap) Check() error {
+	_, _, err := r.parse()
+	return trace.Wrap(err)
+}
+
+// RoleMappping provides mapping of remote roles to local roles
+// for trusted clusters
+type RoleMapping struct {
+	// Remote specifies remote role name to map from
+	Remote string `json:"remote"`
+	// Local specifies local roles to map to
+	Local []string `json:"local"`
+}
+
+// Check checks validity of all parameters and sets defaults
+func (c *TrustedClusterV2) CheckAndSetDefaults() error {
+	// make sure we have defaults for all fields
+	if err := c.Metadata.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	// This is to force users to migrate
+	if len(c.Spec.Roles) != 0 && len(c.Spec.RoleMap) != 0 {
+		return trace.BadParameter("should set either 'roles' or 'role_map', not both")
+	}
+	// we are not mentioning Roles parameter because we are deprecating it
+	if len(c.Spec.Roles) == 0 && len(c.Spec.RoleMap) == 0 {
+		return trace.BadParameter("missing 'role_map' parameter")
+	}
+	if err := c.Spec.RoleMap.Check(); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// CombinedMapping is used to specify combined mapping from legacy property Roles
+// and new property RoleMap
+func (c *TrustedClusterV2) CombinedMapping() RoleMap {
+	if len(c.Spec.Roles) != 0 {
+		return []RoleMapping{{Remote: Wildcard, Local: c.Spec.Roles}}
+	}
+	return c.Spec.RoleMap
+}
+
+// GetRoleMap returns role map property
+func (c *TrustedClusterV2) GetRoleMap() RoleMap {
+	return c.Spec.RoleMap
+}
+
+// SetRoleMap sets role map
+func (c *TrustedClusterV2) SetRoleMap(m RoleMap) {
+	c.Spec.RoleMap = m
 }
 
 // GetMetadata returns object metadata
@@ -192,6 +336,7 @@ func (c *TrustedClusterV2) String() string {
 		c.Spec.Enabled, c.Spec.Roles, c.Spec.Token, c.Spec.ProxyAddress, c.Spec.ReverseTunnelAddress)
 }
 
+// TrustedClusterSpecSchemaTemplate is a template for trusted cluster schema
 const TrustedClusterSpecSchemaTemplate = `{
   "type": "object",
   "additionalProperties": false,
@@ -203,9 +348,28 @@ const TrustedClusterSpecSchemaTemplate = `{
         "type": "string"
       }
     },
+    "role_map": %v,
     "token": {"type": "string"},
     "web_proxy_addr": {"type": "string"},
     "tunnel_addr": {"type": "string"}%v
+  }
+}`
+
+// RoleMapSchema is a schema for role mappings of trusted clusters
+const RoleMapSchema = `{
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {    
+      "local": {
+        "type": "array", 
+        "items": {
+           "type": "string"
+        }
+      },
+      "remote": {"type": "string"}
+    }
   }
 }`
 
@@ -214,9 +378,9 @@ const TrustedClusterSpecSchemaTemplate = `{
 func GetTrustedClusterSchema(extensionSchema string) string {
 	var trustedClusterSchema string
 	if trustedClusterSchema == "" {
-		trustedClusterSchema = fmt.Sprintf(TrustedClusterSpecSchemaTemplate, "")
+		trustedClusterSchema = fmt.Sprintf(TrustedClusterSpecSchemaTemplate, RoleMapSchema, "")
 	} else {
-		trustedClusterSchema = fmt.Sprintf(TrustedClusterSpecSchemaTemplate, ","+extensionSchema)
+		trustedClusterSchema = fmt.Sprintf(TrustedClusterSpecSchemaTemplate, RoleMapSchema, ","+extensionSchema)
 	}
 	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, trustedClusterSchema)
 }

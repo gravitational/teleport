@@ -24,6 +24,7 @@ var cfg = {
   externals: baseCfg.externals,
 
   module: {
+    noParse: baseCfg.noParse,
     loaders: [
       baseCfg.loaders.fonts,
       baseCfg.loaders.svg,

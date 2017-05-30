@@ -74,6 +74,16 @@ type CommandLineFlags struct {
 	HTTPProfileEndpoint bool
 	// --pid-file flag
 	PIDFile string
+	// Gops starts gops agent on a specified address
+	// if not specified, gops won't start
+	Gops bool
+	// GopsAddr specifies to gops addr to listen on
+	GopsAddr string
+	// DiagnosticAddr is listen address for diagnostic endpoint
+	DiagnosticAddr string
+	// PermitUserEnvironment enables reading of ~/.tsh/environment
+	// when creating a new session.
+	PermitUserEnvironment bool
 }
 
 // readConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -412,6 +422,10 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.SSH.Namespace != "" {
 		cfg.SSH.Namespace = fc.SSH.Namespace
 	}
+	if fc.SSH.PermitUserEnvironment {
+		cfg.SSH.PermitUserEnvironment = true
+	}
+
 	// read 'trusted_clusters' section:
 	if fc.Auth.Enabled() && len(fc.Auth.TrustedClusters) > 0 {
 		if err := readTrustedClusters(fc.Auth.TrustedClusters, cfg); err != nil {
@@ -695,6 +709,11 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		cfg.Auth.StorageConfig.Params = backend.Params{}
 	}
 	cfg.Auth.StorageConfig.Params["data_dir"] = cfg.DataDir
+
+	// command line flag takes precedence over file config
+	if clf.PermitUserEnvironment {
+		cfg.SSH.PermitUserEnvironment = true
+	}
 
 	return nil
 }

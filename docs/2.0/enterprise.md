@@ -130,123 +130,14 @@ back-end, typically on a file system or using a highly available database like `
 
 Teleport Enterprise allows the administrators to integrate Teleport clusters
 with existing user identities like Active Directory or Google Apps using protocols
-like LDAP, OpenID/OAuth2 or SAML.
+like LDAP, OpenID/OAuth2 or SAML. Refer to the following links for additional
+additional integration documentation:
+
+* [OpenID Connect (OIDC)](oidc.md)
+* [Security Assertion Markup Language 2.0 (SAML 2.0)](saml.md)
 
 In addition, Teleport Enterprise can query for users' group membership and assign different
 roles to different groups, see the [RBAC section](#rbac) for more details.
-
-### OpenID Connect (OIDC)
-
-Teleport supports [OpenID Connect](http://openid.net/connect/) (also known as
-`OIDC`) to provide external authentication using commercial OpenID providers
-like [Auth0](https://auth0.com) as well as open source identity managers like
-[Keycloak](http://www.keycloak.org).
-
-#### Configuration
-
-OIDC relies on re-directs to return control back to Teleport after
-authentication is complete. Decide on the redirect URL you will be using and
-know it in advance before you register Teleport with an external identity
-provider.
-
-**Development mode**
-
-For development purposes we recommend the following `redirect_url`:
-`https://localhost:3080/v1/webapi/oidc/callback`.
-
-**Identity Providers**
-
-Register Teleport with the external identity provider you will be using and
-obtain your `client_id` and `client_secret`. This information should be
-documented on the identity providers website. Here are a few links:
-
-   * [Auth0 Client Configuration](https://auth0.com/docs/clients)
-   * [Google Identity Platform](https://developers.google.com/identity/protocols/OpenIDConnect)
-   * [Keycloak Client Registration](http://www.keycloak.org/docs/2.0/securing_apps_guide/topics/client-registration.html)
-
-
-Add your OIDC connector information to `teleport.yaml`. Here are a few examples:
-
-**OIDC with pre-defined roles**
-
-In the configuration below, we are
-requesting the scope `group` from the identity provider then mapping the
-value to either to `admin` role or the `user` role depending on the value
-returned for `group` within the claims.
-
-```yaml
-authentication:
-   type: oidc
-   oidc:
-      id: example.com
-      redirect_url: https://localhost:3080/v1/webapi/oidc/callback
-      redirect_timeout: 90s
-      client_id: 000000000000-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com
-      client_secret: AAAAAAAAAAAAAAAAAAAAAAAA
-      issuer_url: https://oidc.example.com
-      display: "Login with Example"
-      scope: [ "group" ]
-      claims_to_roles:
-         - claim: "group"
-           value: "admin"
-           roles: [ "admin" ]
-         - claim: "group"
-           value: "user"
-           roles: [ "user" ]
-```
-
-**OIDC with role templates**
-
-If you have individual system logins using
-pre-defined roles can be cumbersome because you need to create a new role
-every time you add a new member to your team. In this situation you can
-use role templates to dynamically create roles based off information
-passed in the claims. In the configuration below, if the claims have a
-`group` with value `admin` we dynamically create a role with the name
-extracted from the value of `email` in the claim and login `username`.
-
-```yaml
-authentication:
-   type: oidc
-   oidc:
-      id: google
-      redirect_url: https://localhost:3080/v1/webapi/oidc/callback
-      redirect_timeout: 90s
-      client_id: 000000000000-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com
-      client_secret: AAAAAAAAAAAAAAAAAAAAAAAA
-      issuer_url: https://oidc.example.com
-      display: "Login with Example"
-      scope: [ "group", "username", "email" ]
-      claims_to_roles:
-         - claim: "group"
-           value: "admin"
-           role_template:
-              kind: role
-              version: v2
-              metadata:
-                 name: '{{index . "email"}}'
-                 namespace: "default"
-              spec:
-                 namespaces: [ "*" ]
-                 max_session_ttl: 90h0m0s
-                 logins: [ '{{index . "username"}}', root ]
-                 node_labels:
-                    "*": "*"
-                 resources:
-                    "*": [ "read", "write" ]
-```
-
-#### Login
-
-For the Web UI, if the above configuration were real, you would see a button
-that says `Login with Example`. Simply click on that and you will be
-re-directed to a login page for your identity provider and if successful,
-redirected back to Teleport.
-
-For console login, you simple type `tsh --proxy <proxy-addr> ssh <server-addr>`
-and a browser window should automatically open taking you to the login page for
-your identity provider. `tsh` will also output a link the login page of the
-identity provider if you are not automatically redirected.
 
 ## Dynamic Configuration
 
@@ -275,77 +166,81 @@ Two resources are supported currently:
 
 ### Dynamic Trusted Clusters
 
-The section below will re-create the example configuration
-from the [Trusted Clusters section](admin-guide.md#trusted-clusters) in the admin manual using dynamic resources.
-If you have not already, it will be helpful to review this section first.
+See the [Dynamic Trusted Clusters](trustedclusters.md) more more details and examples.
 
-To add behind-the-firewall machines and restrict access so only users with role
-"admin" can access them, do the following:
+### Authentication Preferences
 
-First, create a static or dynamic token on `main` that will be used by `cluster-b`
-to join `main`. A dynamic token can be generated by running:
-`tctl nodes add --ttl=5m --roles=trustedcluster` and a static token can be
-generated out-of-band and added to your configuration file like so:
+Using dynamic configuration you can also view and change the type of cluster authentication Teleport supports at runtime.
 
-```yaml
-auth_service:
-  enabled: yes
-  cluster_name: main
-  tokens:
-    # generate a large random number for your token, we recommend
-    # using a tool like `pwgen` to generate sufficiently random
-    # tokens of length greater than 32 bytes
-    - "trustedcluster:fake-token"
+#### Viewing Authentication Preferences
+
+You can query the Cluster Authentication Preferences (abbreviated `cap`) resource using `tctl` to find out what your current authentication preferences are.
+
+```
+$ tctl get cap
+Type      Second Factor
+----      -------------
+local     u2f
 ```
 
-Then, create a `TrustedCluster` resource on `cluster-b` that tells `cluster-b`
-how to connect to main and the token created in the previous step for
-authorization and authentication. To do that, copy the resource below
-to a file called `trusted-cluster.yaml`.
+In the above example we are using local accounts and the Second Factor used is Universal Second Factor (U2F, abbreviated `u2f`), once again to drill down and get more details you can use `tctl`:
+
+```
+$ tctl get u2f
+App ID                     Facets
+------                     ------
+https://localhost:3080     ["https://localhost" "https://localhost:3080"]
+```
+
+#### Updating Authentication Preferences
+
+To update Cluster Authentication Preferences, you'll need to update the resources you viewed before. You can do that creating the following file on disk and then update the backend with `tctl create -f {filename}`.
 
 ```yaml
-kind: trusted_cluster
-version: v1
+kind: cluster_auth_preference
+version: v2
 metadata:
-  description: "Trusted Cluster B"
-  name: "Cluster B"
+  description: ""
+  name: "cluster-auth-preference"
   namespace: "default"
 spec:
-  enabled: true
-  roles: [ "admin" ]
-  token: "fake-token"
-  tunnel_addr: <main-addr>:3024
-  web_proxy_addr: <main-addr>:3080
+  type: local         # allowable types are local or oidc
+  second_factor: otp  # allowable second factors are none, otp, or u2f.
 ```
 
-Notice how we defined `roles` in the `TrustedCluster` resource. This is
-the role assumed by any user when they connect from `main` to `cluster-b`.
-That means we need to make sure the `admin` role exists in Teleport and we
-need it associate it with a user (let's say the user is named "john"). To do
-that, copy the resource below to a file called`admin-role.yaml`.
+If your Second Factor Authentication type is U2F, you'll need to create an additional resource:
+
 
 ```yaml
-kind: role
-version: v1
+kind: universal_second_factor
+version: v2
 metadata:
-  description: "Admin Role"
-  name: "admin"
+  description: ""
+  name: "universal-second-factor"
+  namespace: "default"
 spec:
-  logins: [ "john", "root" ]
-  max_session_ttl: 90h0m0s
+  app_id: "https://localhost:3080"
+  facets: ["https://localhost", "https://localhost:3080"]
 ```
 
-Now inject both roles into the Teleport "auth service" on `cluster-b` using `tctl`:
+If you are not using local accounts but rather an external identity provider like OIDC, you'll need to create an OIDC resource like below.
 
-```bash
-$ tctl create -f  trusted-cluster.yaml
-$ tctl create -f  admin-role.yaml
-```
-
-That's it. To verify that the trusted cluster is online:
-
-```bash
-$ tsh --proxy=main.proxy clusters
+```yaml
+kind: oidc
+version: v2
+metadata:
+  description: ""
+  name: "example"
+  namespace: "default"
+spec:
+  issuer_url: https://accounts.example.com
+  client_id: 00000000000000000.example.com
+  client_secret: 00000000-0000-0000-0000-000000000000
+  redirect_url: https://localhost:3080/v1/webapi/oidc/callback
+  display: "Welcome to Example.com"
+  scope: ["email"]
+  claims_to_roles: 
+    - {claim: "email", value: "foo@example.com", roles: ["admin"]}
 ```
 
 ## Integration With Kubernetes

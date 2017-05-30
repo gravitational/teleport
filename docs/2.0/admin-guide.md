@@ -91,15 +91,17 @@ But for simpler experimentation you can use command line flags to
 $ teleport start --help
 usage: teleport start [<flags>]
 Flags:
-  -d, --debug         Enable verbose logging to stderr
-  -r, --roles         Comma-separated list of roles to start with [proxy,node,auth]
-      --advertise-ip  IP to advertise to clients if running behind NAT
-  -l, --listen-ip     IP address to bind to [0.0.0.0]
-      --auth-server   Address of the auth server [127.0.0.1:3025]
-      --token         One-time token to register with an auth server [none]
-      --nodename      Name of this node, defaults to hostname
-  -c, --config        Path to a configuration file [/etc/teleport.yaml]
-      --labels        List of labels for this node
+  -d, --debug            Enable verbose logging to stderr
+  -r, --roles            Comma-separated list of roles to start with [proxy,node,auth]
+      --pid-file         Full path to the PID file. By default no PID file will be created
+      --advertise-ip     IP to advertise to clients if running behind NAT
+  -l, --listen-ip        IP address to bind to [0.0.0.0]
+      --auth-server      Address of the auth server [127.0.0.1:3025]
+      --token            One-time token to register with an auth server [none]
+      --nodename         Name of this node, defaults to hostname
+  -c, --config           Path to a configuration file [/etc/teleport.yaml]
+      --labels           List of labels for this node
+      --permit-user-env  Enables reading of ~/.tsh/environment when creating a session
 ```
 
 ### Configuration Flags
@@ -128,6 +130,11 @@ Let's cover some of these flags in more detail:
 
 * `--labels` flag allows to assign a set of labels to a node. See the explanation
   of labeling mechanism in the [Labeling Nodes](#labeling-nodes) section below.
+
+* `--pid-file` flag creates a PID file if a path is given.
+
+* `--permit-user-env` flag reads in environment variables from `~/.tsh/environment`
+  when creating a session.
   
 ### Configuration File
 
@@ -258,6 +265,10 @@ ssh_service:
     - name: arch
       command: [/usr/bin/uname, -p]
       period: 1h0m0s
+
+    # enables reading ~/.tsh/environment before creating a session. by default
+    # set to false, can be set true here or as a command line flag.
+    permit_user_env: false
 
 # This section configures the 'proxy servie'
 proxy_service:
@@ -825,6 +836,110 @@ Similarly, by passing `--cluster=cluster-b` to `tsh` John can login into cluster
 !!! tip "Note":
     Teleport Enterprise also supports adding and removing trusted clusters dynamically
     at runtime. See [this section](enterprise.md#dynamic-trusted-clusters) to learn more.
+
+
+### Permissions with Trusted Clusters
+
+As illustrated in the above example, when you make changes to the Trusted Cluster
+configuration, you need to restart Teleport. In addition if you specify your
+backend, you need to set `dynamic_config: false` to make sure your changes are
+propagated to the Auth Server.
+
+In the example below we are starting with just allowing `root` to login to
+`cluster-b` then also allowing `jsmith`.
+
+First update `teleport.yaml` to so that `dynamic_config: false` set under
+`auth_service` for both clusters and `allowed_logins` has your new user.
+Something like this:
+
+```
+auth_service:
+  dynamic_config: false
+  trusted_clusters:
+    - key_file: /path/to/one.ca
+      allow_logins: root, jsmith
+      tunnel_addr: one
+```
+
+You’ll need to restart the Auth Server in `cluster-b`.
+
+If you look at the roles on `cluster-b`, you will see that you are allowed to
+login as `root` or `jsmith`.
+
+```
+$ tctl get roles
+Role          Allowed to login as     Namespaces     Node Labels     Access to resources
+----          -------------------     ----------     -----------     -------------------
+ca:cluster-b  root,jsmith             default        <all nodes>     node:read,session:read,tunnel:read,auth_server:read,cert_authority:read
+```
+
+Now back on the main cluster, you need to make sure you are issued a certificate
+that allows you to login as `root` or `jsmith`. The easiest way to do this would be to
+delete the existing `jsmith` user and create them again but you can do the same
+by creating a new role with `logins` set and assigning `jsmith` that role.
+
+```
+$ tctl users del jsmith
+User 'jsmith' has been deleted
+```
+```
+$ tctl users add jsmith root,jsmith
+Signup token has been created and is valid for 3600 seconds. Share this URL with the user:
+https://localhost:3080/web/newuser/20ca3354800bdd50f6df0b19818e9c0e
+```
+
+Now take a look at at the allowed logins on your main cluster:
+
+```
+$ tctl get roles
+Role            Allowed to login as     Namespaces     Node Labels     Access to resources
+----            -------------------     ----------     -----------     -------------------
+ca:cluster-b                            default        <all nodes>     auth_server:read,cert_authority:read,node:read,session:read,tunnel:read
+user:jsmith     root,jsmith             default        <all nodes>     auth_server:read,cert_authority:read,node:read,role:read,session:read,tunnel:read
+```
+
+You can now login as both `root` and `jsmith`. Login again and you will be able to see the same in the issued SSH certificate:
+
+```
+$ tsh --proxy=localhost --user=jsmith login
+[...]
+$ ssh-keygen -L -f ~/.tsh/keys/localhost/jsmith.cert 
+/root/.tsh/keys/localhost/jsmith.cert:
+        Type: ssh-rsa-cert-v01@openssh.com user certificate
+        Public key: RSA-CERT 00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00
+        Signing CA: RSA 00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00
+        Key ID: "jsmith"
+        Serial: 0
+        Valid: before 2017-05-09T12:04:36
+        Principals: 
+                root
+                jsmith
+        Critical Options: (none)
+        Extensions: 
+                permit-port-forwarding
+                permit-pty
+```
+
+### HTTP CONNECT Tunneling
+
+Some networks funnel all connections through a proxy server where they can be
+audited and access control rules applied. For these scenarios Teleport supports
+HTTP CONNECT tunneling.
+
+To use HTTP CONNECT tunneling, simply set either the `HTTPS_PROXY` or
+`HTTP_PROXY` environment variables and when Teleport builds and establishes the
+reverse tunnel to the main cluster, it will funnel all traffic though the proxy.
+Specifically Teleport will tunnel ports `3024` (SSH, reverse tunnel) and `3080`
+(HTTPS, establishing trust) through the proxy.
+
+The value of `HTTPS_PROXY` or `HTTP_PROXY` should be in the format
+`scheme://host:port` where scheme is either `https` or `http`. If the
+value is `host:port`, Teleport will prepend `http`.
+
+!!! tip "Note":
+    `localhost` and `127.0.0.1` are invalid values for the proxy host. If for
+    some reason your proxy runs locally, you'll need to provide some other DNS
+    name or a private IP address for it.
 
 ## Using Teleport with OpenSSH
 

@@ -17,7 +17,7 @@ limitations under the License.
 import React from 'react';
 import $ from 'jQuery';
 import moment from 'moment';
-import {debounce} from '_';
+import {debounce} from 'lodash';
 
 const DateRangePicker = React.createClass({
 
@@ -56,17 +56,20 @@ const DateRangePicker = React.createClass({
     return false;
   },
 
-  componentDidMount(){
+  componentDidMount(){        
     this.onChange = debounce(this.onChange, 1);
     $(this.refs.rangePicker).datepicker({
       todayBtn: 'linked',
       keyboardNavigation: false,
       forceParse: false,
       calendarWeeks: true,
-      autoclose: true
-    }).on('changeDate', this.onChange);
-
+      autoclose: true,      
+    });
+        
     this.setDates(this.props);
+
+    $(this.refs.rangePicker).datepicker()
+      .on('changeDate', this.onChange);    
   },
 
   onChange(){    
@@ -92,37 +95,4 @@ function isSame(date1, date2){
   return moment(date1).isSame(date2, 'day');
 }
 
-/**
-* Calendar Nav
-*/
-const CalendarNav = React.createClass({
-
-  render() {
-    let {value} = this.props;
-    let displayValue = moment(value).format('MMM Do, YYYY');
-
-    return (
-      <div className={"grv-calendar-nav " + this.props.className} >
-        <button onClick={this.move.bind(this, -1)} className="btn btn-outline btn-link"><i className="fa fa-chevron-left"></i></button>
-        <span className="text-muted">{displayValue}</span>
-        <button onClick={this.move.bind(this, 1)} className="btn btn-outline btn-link"><i className="fa fa-chevron-right"></i></button>
-      </div>
-    );
-  },
-
-  move(at){
-    let {value} = this.props;
-    let newValue = moment(value).add(at, 'week').toDate();
-    this.props.onValueChange(newValue);
-  }
-});
-
-CalendarNav.getweekRange = function(value){
-  let startDate = moment(value).startOf('month').toDate();
-  let endDate = moment(value).endOf('month').toDate();
-  return [startDate, endDate];
-}
-
 export default DateRangePicker;
-
-export { CalendarNav, DateRangePicker };

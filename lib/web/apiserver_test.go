@@ -17,12 +17,16 @@ limitations under the License.
 package web
 
 import (
+	"bytes"
+	"compress/flate"
 	"context"
 	"crypto/tls"
 	"encoding/base32"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
@@ -42,7 +46,9 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -54,13 +60,16 @@ import (
 	"github.com/gravitational/teleport/lib/state"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/beevik/etree"
 	"github.com/gokyle/hotp"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
 	"github.com/tstranex/u2f"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/net/websocket"
 	. "gopkg.in/check.v1"
+	kyaml "k8s.io/client-go/1.4/pkg/util/yaml"
 )
 
 func TestWeb(t *testing.T) {
@@ -109,6 +118,19 @@ func (s *WebSuite) SetUpSuite(c *C) {
 	s.mockU2F, err = mocku2f.Create()
 	c.Assert(err, IsNil)
 	c.Assert(s.mockU2F, NotNil)
+}
+
+func (s *WebSuite) clientNoRedirects(opts ...roundtrip.ClientParam) *client.WebClient {
+	hclient := client.NewInsecureWebClient()
+	hclient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	opts = append(opts, roundtrip.HTTPClient(hclient))
+	wc, err := client.NewWebClient(s.url().String(), opts...)
+	if err != nil {
+		panic(err)
+	}
+	return wc
 }
 
 func (s *WebSuite) client(opts ...roundtrip.ClientParam) *client.WebClient {
@@ -197,7 +219,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 
 	c.Assert(err, IsNil)
 
-	s.roleAuth = auth.NewAuthWithRoles(s.authServer, authContext.Checker, s.user, sessionServer, s.auditLog)
+	s.roleAuth = auth.NewAuthWithRoles(s.authServer, authContext.Checker, teleUser, sessionServer, s.auditLog)
 
 	// set up host private key and certificate
 	hpriv, hpub, err := s.authServer.GenerateKeyPair("")
@@ -401,6 +423,89 @@ func (s *WebSuite) TestNewUser(c *C) {
 	c.Assert(trace.IsAccessDenied(err), Equals, true)
 }
 
+func (s *WebSuite) TestSAMLSuccess(c *C) {
+	input := fixtures.SAMLOktaConnectorV2
+
+	decoder := kyaml.NewYAMLOrJSONDecoder(strings.NewReader(input), 32*1024)
+	var raw services.UnknownResource
+	err := decoder.Decode(&raw)
+	c.Assert(err, IsNil)
+
+	connector, err := services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(raw.Raw)
+	c.Assert(err, IsNil)
+	err = connector.CheckAndSetDefaults()
+
+	role, err := services.NewRole(connector.GetAttributesToRoles()[0].Roles[0], services.RoleSpecV2{
+		MaxSessionTTL: services.NewDuration(defaults.MaxCertDuration),
+		NodeLabels:    map[string]string{services.Wildcard: services.Wildcard},
+		Namespaces:    []string{defaults.Namespace},
+		Resources: map[string][]string{
+			services.Wildcard: services.RW(),
+		},
+	})
+	c.Assert(err, IsNil)
+	role.SetLogins([]string{s.user})
+	err = s.roleAuth.UpsertRole(role, backend.Forever)
+	c.Assert(err, IsNil)
+
+	err = s.roleAuth.CreateSAMLConnector(connector)
+	c.Assert(err, IsNil)
+	s.authServer.SetClock(clockwork.NewFakeClockAt(time.Date(2017, 05, 10, 18, 53, 0, 0, time.UTC)))
+	clt := s.clientNoRedirects()
+	re, err := clt.Get(clt.Endpoint("webapi", "saml", "sso"),
+		url.Values{"redirect_url": []string{"http://localhost/after"}, "connector_id": []string{connector.GetName()}})
+	// we got a redirect
+	locationURL := re.Headers().Get("Location")
+	u, err := url.Parse(locationURL)
+	c.Assert(err, IsNil)
+	c.Assert(u.Scheme+"://"+u.Host+u.Path, Equals, fixtures.SAMLOktaSSO)
+	data, err := base64.StdEncoding.DecodeString(u.Query().Get("SAMLRequest"))
+	c.Assert(err, IsNil)
+	buf, err := ioutil.ReadAll(flate.NewReader(bytes.NewReader(data)))
+	c.Assert(err, IsNil)
+	doc := etree.NewDocument()
+	err = doc.ReadFromBytes(buf)
+	c.Assert(err, IsNil)
+	id := doc.Root().SelectAttr("ID")
+	c.Assert(id, NotNil)
+
+	identity := local.NewIdentityService(s.bk)
+	authRequest, err := identity.GetSAMLAuthRequest(id.Value)
+	c.Assert(err, IsNil)
+	// now swap the request id to the hardcoded one in fixtures
+	authRequest.ID = fixtures.SAMLOktaAuthRequestID
+	identity.CreateSAMLAuthRequest(*authRequest, backend.Forever)
+
+	// now respond with pre-recorded request to the POST url
+	in := &bytes.Buffer{}
+	fw, err := flate.NewWriter(in, flate.DefaultCompression)
+	c.Assert(err, IsNil)
+
+	_, err = fw.Write([]byte(fixtures.SAMLOktaAuthnResponseXML))
+	c.Assert(err, IsNil)
+	err = fw.Close()
+	c.Assert(err, IsNil)
+	encodedResponse := base64.StdEncoding.EncodeToString(in.Bytes())
+	c.Assert(encodedResponse, NotNil)
+
+	// now send the response to the server to exchange it for auth session
+	form := url.Values{}
+	form.Add("SAMLResponse", encodedResponse)
+	req, err := http.NewRequest("POST", clt.Endpoint("webapi", "saml", "acs"), strings.NewReader(form.Encode()))
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	c.Assert(err, IsNil)
+	authRe, err := clt.Client.RoundTrip(func() (*http.Response, error) {
+		return clt.Client.HTTPClient().Do(req)
+	})
+	c.Assert(err, IsNil)
+	comment := Commentf("Response: %v", string(authRe.Bytes()))
+	c.Assert(authRe.Code(), Equals, http.StatusFound, comment)
+	// we have got valid session
+	c.Assert(authRe.Headers().Get("Set-Cookie"), Not(Equals), "")
+	// we are being redirected to orignal URL
+	c.Assert(authRe.Headers().Get("Location"), Equals, "http://localhost/after")
+}
+
 type authPack struct {
 	user    string
 	otp     *hotp.HOTP
@@ -512,6 +617,16 @@ func (s *WebSuite) TestWebSessionsCRUD(c *C) {
 	re, err = pack.clt.Get(pack.clt.Endpoint("webapi", "sites"), url.Values{})
 	c.Assert(err, NotNil)
 	c.Assert(trace.IsAccessDenied(err), Equals, true)
+}
+
+func (s *WebSuite) TestNamespace(c *C) {
+	pack := s.authPack(c)
+
+	_, err := pack.clt.Get(pack.clt.Endpoint("webapi", "sites", s.domainName, "namespaces", "..%252fevents%3f", "nodes"), url.Values{})
+	c.Assert(err, NotNil)
+
+	_, err = pack.clt.Get(pack.clt.Endpoint("webapi", "sites", s.domainName, "namespaces", "default", "nodes"), url.Values{})
+	c.Assert(err, IsNil)
 }
 
 func (s *WebSuite) TestWebSessionsRenew(c *C) {
@@ -628,7 +743,12 @@ func (s *WebSuite) TestGetSiteNodes(c *C) {
 	c.Assert(nodes2, DeepEquals, nodes)
 }
 
-func (s *WebSuite) makeTerminal(c *C, pack *authPack, opts ...session.ID) *websocket.Conn {
+func (s *WebSuite) TestSiteNodeConnectInvalidSessionID(c *C) {
+	_, err := s.makeTerminal(s.authPack(c), session.ID("/../../../foo"))
+	c.Assert(err, NotNil)
+}
+
+func (s *WebSuite) makeTerminal(pack *authPack, opts ...session.ID) (*websocket.Conn, error) {
 	var sessionID session.ID
 	if len(opts) == 0 {
 		sessionID = session.NewID()
@@ -642,7 +762,9 @@ func (s *WebSuite) makeTerminal(c *C, pack *authPack, opts ...session.ID) *webso
 		Term:      session.TerminalParams{W: 100, H: 100},
 		SessionID: sessionID,
 	})
-	c.Assert(err, IsNil)
+	if err != nil {
+		return nil, err
+	}
 
 	q := u.Query()
 	q.Set("params", string(data))
@@ -653,14 +775,15 @@ func (s *WebSuite) makeTerminal(c *C, pack *authPack, opts ...session.ID) *webso
 	wscfg.TlsConfig = &tls.Config{
 		InsecureSkipVerify: true,
 	}
-	c.Assert(err, IsNil)
+	if err != nil {
+		return nil, err
+	}
+
 	for _, cookie := range pack.cookies {
 		wscfg.Header.Add("Cookie", cookie.String())
 	}
-	clt, err := websocket.DialConfig(wscfg)
-	c.Assert(err, IsNil)
 
-	return clt
+	return websocket.DialConfig(wscfg)
 }
 
 func (s *WebSuite) sessionStream(c *C, pack *authPack, sessionID session.ID, opts ...string) *websocket.Conn {
@@ -690,10 +813,11 @@ func (s *WebSuite) sessionStream(c *C, pack *authPack, sessionID session.ID, opt
 }
 
 func (s *WebSuite) TestTerminal(c *C) {
-	term := s.makeTerminal(c, s.authPack(c))
+	term, err := s.makeTerminal(s.authPack(c))
+	c.Assert(err, IsNil)
 	defer term.Close()
 
-	_, err := io.WriteString(term, "echo vinsong\r\n")
+	_, err = io.WriteString(term, "echo vinsong\r\n")
 	c.Assert(err, IsNil)
 
 	resultC := make(chan struct{})
@@ -723,11 +847,12 @@ func (s *WebSuite) TestTerminal(c *C) {
 func (s *WebSuite) TestNodesWithSessions(c *C) {
 	sid := session.NewID()
 	pack := s.authPack(c)
-	clt := s.makeTerminal(c, pack, sid)
+	clt, err := s.makeTerminal(pack, sid)
+	c.Assert(err, IsNil)
 	defer clt.Close()
 
 	// to make sure we have a session
-	_, err := io.WriteString(clt, "echo vinsong\r\n")
+	_, err = io.WriteString(clt, "echo vinsong\r\n")
 	c.Assert(err, IsNil)
 
 	// make sure server has replied
@@ -778,11 +903,12 @@ func (s *WebSuite) TestNodesWithSessions(c *C) {
 func (s *WebSuite) TestCloseConnectionsOnLogout(c *C) {
 	sid := session.NewID()
 	pack := s.authPack(c)
-	clt := s.makeTerminal(c, pack, sid)
+	clt, err := s.makeTerminal(pack, sid)
+	c.Assert(err, IsNil)
 	defer clt.Close()
 
 	// to make sure we have a session
-	_, err := io.WriteString(clt, "expr 137 + 39\r\n")
+	_, err = io.WriteString(clt, "expr 137 + 39\r\n")
 	c.Assert(err, IsNil)
 
 	// make sure server has replied
@@ -835,11 +961,12 @@ func (s *WebSuite) TestCreateSession(c *C) {
 func (s *WebSuite) TestResizeTerminal(c *C) {
 	sid := session.NewID()
 	pack := s.authPack(c)
-	term := s.makeTerminal(c, pack, sid)
+	term, err := s.makeTerminal(pack, sid)
+	c.Assert(err, IsNil)
 	defer term.Close()
 
 	// to make sure we have a session
-	_, err := io.WriteString(term, "expr 137 + 39\r\n")
+	_, err = io.WriteString(term, "expr 137 + 39\r\n")
 	c.Assert(err, IsNil)
 
 	// make sure server has replied
@@ -865,7 +992,8 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 func (s *WebSuite) TestPlayback(c *C) {
 	pack := s.authPack(c)
 	sid := session.NewID()
-	term := s.makeTerminal(c, pack, sid)
+	term, err := s.makeTerminal(pack, sid)
+	c.Assert(err, IsNil)
 	defer term.Close()
 }
 

@@ -16,9 +16,9 @@ limitations under the License.
 
 import React from 'react';
 import { Link } from  'react-router';
-import _ from '_';
+import { sortBy } from 'lodash';
 import { isMatch } from 'app/lib/objectUtils';
-import InputSearch from './../inputSearch.jsx';
+import InputSearch from './../inputSearch';
 import { Table, Column, Cell, SortHeaderCell, SortTypes, EmptyIndicator } from 'app/components/table.jsx';
 import ClusterSelector from './../clusterSelector.jsx';
 import cfg from 'app/config';
@@ -110,25 +110,27 @@ const LoginCell = ({logins, rowIndex, data, ...props}) => {
   )
 };
 
-const NodeList = React.createClass({
+class NodeList extends React.Component {
 
-  getInitialState() {                            
-    this.searchableProps = ['addr', 'hostname', 'tags'];
-    return {        
+  searchableProps = ['addr', 'hostname', 'tags'];
+
+  constructor(props) {
+    super(props);
+    this.state = {        
         filter: '',
         colSortDirs: { hostname: SortTypes.DESC }
     };
-  },
-
-  onSortChange(columnKey, sortDir) {
+  }
+  
+  onSortChange = (columnKey, sortDir) => {
     this.state.colSortDirs = { [columnKey]: sortDir };
     this.setState(this.state);
-  },
+  }
 
-  onFilterChange(value){
+  onFilterChange = value => {
     this.state.filter = value;
     this.setState(this.state);
-  },
+  }
   
   searchAndFilterCb(targetValue, searchValue, propName){
     if(propName === 'tags'){
@@ -138,25 +140,25 @@ const NodeList = React.createClass({
           value.toLocaleUpperCase().indexOf(searchValue) !==-1;
       });
     }
-  },
+  }
 
   sortAndFilter(data) {
     let { colSortDirs } = this.state;    
     let filtered = data      
-      .filter(obj=> isMatch(obj, this.state.filter, {
+      .filter(obj => isMatch(obj, this.state.filter, {
         searchableProps: this.searchableProps,
         cb: this.searchAndFilterCb
       }));
         
     let columnKey = Object.getOwnPropertyNames(colSortDirs)[0];
     let sortDir = colSortDirs[columnKey];
-    let sorted = _.sortBy(filtered, columnKey);
+    let sorted = sortBy(filtered, columnKey);
     if(sortDir === SortTypes.ASC){
       sorted = sorted.reverse();
     }
 
     return sorted;
-  },
+  }
 
   render() {      
     let { nodeRecords, logins, onLoginClick } = this.props;       
@@ -167,7 +169,7 @@ const NodeList = React.createClass({
           <h2 className="text-center no-margins"> Nodes </h2>          
           <div className="grv-flex">
             <ClusterSelector/>  
-            <InputSearch value={this.filter} onChange={this.onFilterChange} />                        
+            <InputSearch onChange={this.onFilterChange} />                        
           </div>
         </div>
         <div className="m-t">
@@ -214,6 +216,6 @@ const NodeList = React.createClass({
       </div>
     )
   }
-});
+}
 
 export default NodeList;

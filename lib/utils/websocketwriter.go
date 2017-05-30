@@ -45,9 +45,6 @@ type WebSockWrapper struct {
 
 	encoder *encoding.Encoder
 	decoder *encoding.Decoder
-
-	// prefix (if set) will be prepended to every write
-	prefix []byte
 }
 
 // WebSocketMode allows to create WebSocket wrappers working in text
@@ -76,17 +73,6 @@ func NewWebSockWrapper(ws *websocket.Conn, m WebSocketMode) *WebSockWrapper {
 //
 // It replaces raw Write() with "Message.Send()"
 func (w *WebSockWrapper) Write(data []byte) (n int, err error) {
-	p := w.GetPrefix()
-	if len(p) > 0 {
-		if w.mode == WebSocketBinaryMode {
-			websocket.Message.Send(w.ws, p)
-		} else {
-			var utf8 string
-			utf8, _ = w.encoder.String(string(p))
-			websocket.Message.Send(w.ws, utf8)
-		}
-	}
-
 	n = len(data)
 	if w.mode == WebSocketBinaryMode {
 		// binary send:
@@ -135,16 +121,4 @@ func (w *WebSockWrapper) Read(out []byte) (n int, err error) {
 
 func (w *WebSockWrapper) Close() error {
 	return w.ws.Close()
-}
-
-func (w *WebSockWrapper) GetPrefix() []byte {
-	w.Lock()
-	defer w.Unlock()
-	return w.prefix
-}
-
-func (w *WebSockWrapper) SetPrefix(p []byte) {
-	w.Lock()
-	w.prefix = p[:]
-	w.Unlock()
 }

@@ -15,9 +15,9 @@ limitations under the License.
 */
 
 import React from 'react';
+import { connect } from 'nuclear-js-react-addons';
 import $ from 'jQuery';
 import 'app/../assets/js/jquery-validate';
-import reactor from 'app/reactor';
 import {actions, getters} from 'app/flux/user';
 import GoogleAuthInfo from './googleAuthLogo';
 import cfg from 'app/config';
@@ -26,43 +26,22 @@ import { TeleportLogo } from './../icons.jsx';
 import { SsoBtnList } from './ssoBtnList';
 import { Auth2faTypeEnum, AuthTypeEnum } from 'app/services/enums';
 
-const Login = React.createClass({
+export class Login extends React.Component {
+  
+  onLoginWithSso = ssoProvider => {            
+    actions.loginWithSso(ssoProvider.name, ssoProvider.type);      
+  }
 
-  mixins: [reactor.ReactMixin],
+  onLoginWithU2f = (username, password) => {              
+    actions.loginWithU2f(username, password);
+  }
 
-  getDataBindings() {
-    return {
-      attemp: getters.loginAttemp
-    }
-  },
-
-  onLoginWithOidc(providerName){
-    let redirect = this.getRedirectUrl();            
-    actions.loginWithOidc(providerName, redirect);
-  },
-
-  onLoginWithU2f(username, password) {
-    let redirect = this.getRedirectUrl();            
-    actions.loginWithU2f(username, password, redirect);
-  },
-
-  onLogin(username, password, token) {
-    let redirect = this.getRedirectUrl();            
-    actions.login(username, password, token, redirect);
-  },
-
-  getRedirectUrl() {    
-    let loc = this.props.location;
-    let redirect = cfg.routes.app;
-    if (loc.query && loc.query.redirect_uri) {
-      redirect = loc.query.redirect_uri;
-    }
-
-    return redirect;    
-  },
-
+  onLogin = (username, password, token) => {    
+    actions.login(username, password, token);
+  }
+  
   render() {  
-    let {attemp} = this.state;
+    let {attemp} = this.props;
     let authProviders = cfg.getAuthProviders();
     let authType = cfg.getAuthType();
     let auth2faType = cfg.getAuth2faType();
@@ -76,7 +55,7 @@ const Login = React.createClass({
               authProviders={authProviders}  
               auth2faType={auth2faType}
               authType={authType}              
-              onLoginWithOidc={this.onLoginWithOidc}
+              onLoginWithSso={this.onLoginWithSso}
               onLoginWithU2f={this.onLoginWithU2f}
               onLogin={this.onLogin}              
               attemp={attemp}
@@ -87,50 +66,56 @@ const Login = React.createClass({
       </div>
     );
   }
-});
+}
 
-const LoginInputForm = React.createClass({
-  
-  getInitialState() {    
-    return {      
+export class LoginInputForm extends React.Component {
+  constructor(props) {
+    super(props)
+    this.state = {      
       user: '',
       password: '',
       token: ''      
-    }
-  },
-
-  onLogin(e) {    
+    }    
+  }
+  
+  onLogin = e =>  {    
     e.preventDefault();    
     if (this.isValid()) {
       let { user, password, token } = this.state;
       this.props.onLogin(user, password, token);
     }
-  },
+  }
 
-  onLoginWithU2f(e) {    
+  onLoginWithU2f = e => {    
     e.preventDefault();    
     if (this.isValid()) {
       let { user, password } = this.state;
       this.props.onLoginWithU2f(user, password);
     }
-  },
+  }
       
-  onLoginWithOidc(providerName) {    
-    this.props.onLoginWithOidc(providerName);
-  },
+  onLoginWithSso = ssoProvider => {     
+    this.props.onLoginWithSso(ssoProvider);
+  }
+
+  onChangeState = (propName, value) => {
+    this.setState({
+      [propName]: value
+    });
+  }
 
   isValid() {
     var $form = $(this.refs.form);
     return $form.length === 0 || $form.valid();
-  },
+  }
 
   needsCredentials() {
     return this.props.authType === AuthTypeEnum.LOCAL || this.needs2fa();
-  },
+  }
 
   needs2fa() {
     return !!this.props.auth2faType && this.props.auth2faType !== Auth2faTypeEnum.DISABLED;
-  },
+  }
 
   render2faFields() {
     if (!this.needs2fa() || this.props.auth2faType !== Auth2faTypeEnum.OTP) {
@@ -148,14 +133,8 @@ const LoginInputForm = React.createClass({
           placeholder="Two factor token (Google Authenticator)"/>
       </div>
     )
-  },
-
-  onChangeState(propName, value) {
-    this.setState({
-      [propName]: value
-    });
-  },
-
+  }
+  
   renderNameAndPassFields() {
     if (!this.needsCredentials()) {
       return null;
@@ -183,7 +162,7 @@ const LoginInputForm = React.createClass({
         </div>
       </div>
     )
-  },
+  }
 
   renderLoginBtn() {    
     let { isProcessing } = this.props.attemp;    
@@ -213,12 +192,12 @@ const LoginInputForm = React.createClass({
         {$helpBlock}        
       </div>
     );        
-  },
+  }
 
   renderSsoBtns() {    
     let { authType, authProviders, attemp } = this.props;
 
-    if (authType !== AuthTypeEnum.OIDC) {
+    if (authType !== AuthTypeEnum.OIDC && authType !== AuthTypeEnum.SAML) {
       return null;
     }
         
@@ -227,9 +206,9 @@ const LoginInputForm = React.createClass({
         prefixText="Login with "
         isDisabled={attemp.isProcessing}
         providers={authProviders}
-        onClick={this.onLoginWithOidc} />
+        onClick={this.onLoginWithSso} />
     )    
-  },
+  }
 
   render() {
     let { isFailed, message } = this.props.attemp;                    
@@ -257,13 +236,13 @@ const LoginInputForm = React.createClass({
       </div>
     );
   }
-})
+}
 
 LoginInputForm.propTypes = {  
   authProviders: React.PropTypes.array,
   auth2faType: React.PropTypes.string,
   authType: React.PropTypes.string,
-  onLoginWithOidc: React.PropTypes.func.isRequired,
+  onLoginWithSso: React.PropTypes.func.isRequired,
   onLoginWithU2f: React.PropTypes.func.isRequired,
   onLogin: React.PropTypes.func.isRequired,
   attemp: React.PropTypes.object.isRequired
@@ -283,7 +262,10 @@ const LoginFooter = ({auth2faType}) => {
   )
 }
 
-export default Login;
-export {
-  LoginInputForm
+function mapStateToProps() {  
+  return {        
+    attemp: getters.loginAttemp 
+  }
 }
+
+export default connect(mapStateToProps)(Login);

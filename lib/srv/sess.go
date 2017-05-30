@@ -496,7 +496,9 @@ func (s *session) start(ch ssh.Channel, ctx *ctx) error {
 		ctx.Errorf("shell command failed: %v", err)
 		return trace.ConvertSystemError(err)
 	}
-	s.addParty(p)
+	if err := s.addParty(p); err != nil {
+		return trace.Wrap(err)
+	}
 
 	// emit "new session created" event:
 	s.registry.srv.EmitAuditEvent(events.SessionStartEvent, events.EventFields{
@@ -551,7 +553,9 @@ func (s *session) start(ch ssh.Channel, ctx *ctx) error {
 		<-s.closeC
 		if cmd.Process != nil {
 			if err := cmd.Process.Kill(); err != nil {
-				log.Error(err)
+				if err.Error() != "os: process already finished" {
+					log.Error(trace.DebugReport(err))
+				}
 			}
 		}
 	}()
@@ -685,7 +689,13 @@ func (s *session) pollAndSync() {
 }
 
 // addParty is called when a new party joins the session.
-func (s *session) addParty(p *party) {
+func (s *session) addParty(p *party) error {
+	if s.login != p.login {
+		return trace.AccessDenied(
+			"can't switch users from %v to %v for session %v",
+			s.login, p.login, s.id)
+	}
+
 	s.parties[p.id] = p
 	// write last chunk (so the newly joined parties won't stare
 	// at a blank screen)
@@ -742,11 +752,14 @@ func (s *session) addParty(p *party) {
 			log.Error(err)
 		}
 	}()
+	return nil
 }
 
 func (s *session) join(ch ssh.Channel, req *ssh.Request, ctx *ctx) (*party, error) {
 	p := newParty(s, ch, ctx)
-	s.addParty(p)
+	if err := s.addParty(p); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return p, nil
 }
 
@@ -826,6 +839,7 @@ func (m *multiWriter) Write(p []byte) (n int, err error) {
 func newParty(s *session, ch ssh.Channel, ctx *ctx) *party {
 	return &party{
 		user:      ctx.teleportUser,
+		login:     ctx.login,
 		serverID:  s.registry.srv.ID(),
 		site:      ctx.conn.RemoteAddr().String(),
 		id:        rsession.NewID(),
@@ -841,6 +855,7 @@ func newParty(s *session, ch ssh.Channel, ctx *ctx) *party {
 type party struct {
 	sync.Mutex
 
+	login      string
 	user       string
 	serverID   string
 	site       string

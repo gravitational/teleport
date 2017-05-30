@@ -14,18 +14,25 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// CertParams defines all parameters needed to generate a host certificate.
-type CertParams struct {
-	PrivateCASigningKey []byte         // PrivateCASigningKey is the private key of the CA that will sign the public key of the host.
-	PublicHostKey       []byte         // PublicHostKey is the public key of the host.
-	HostID              string         // HostID is used by Teleport to uniquely identify a node within a cluster.
-	NodeName            string         // NodeName is the DNS name of the node.
-	ClusterName         string         // ClusterName is the name of the cluster within which a node lives.
-	Roles               teleport.Roles // Roles identifies the roles of a Teleport instance.
-	TTL                 time.Duration  // TTL defines how long a certificate is valid for.
+// HostCertParams defines all parameters needed to generate a host certificate
+type HostCertParams struct {
+	// PrivateCASigningKey is the private key of the CA that will sign the public key of the host
+	PrivateCASigningKey []byte
+	// PublicHostKey is the public key of the host
+	PublicHostKey []byte
+	// HostID is used by Teleport to uniquely identify a node within a cluster
+	HostID string
+	// NodeName is the DNS name of the node
+	NodeName string
+	// ClusterName is the name of the cluster within which a node lives
+	ClusterName string
+	// Roles identifies the roles of a Teleport instance
+	Roles teleport.Roles
+	// TTL defines how long a certificate is valid for
+	TTL time.Duration
 }
 
-func (c *CertParams) Check() error {
+func (c *HostCertParams) Check() error {
 	if c.HostID == "" || c.ClusterName == "" {
 		return trace.BadParameter("HostID [%q] and ClusterName [%q] are required",
 			c.HostID, c.ClusterName)
@@ -36,6 +43,65 @@ func (c *CertParams) Check() error {
 	}
 
 	return nil
+}
+
+// UserCertParams defines OpenSSH user certificate parameters
+type UserCertParams struct {
+	// PrivateCASigningKey is the private key of the CA that will sign the public key of the user
+	PrivateCASigningKey []byte
+	// PublicUserKey is the public key of the user
+	PublicUserKey []byte
+	// TTL defines how long a certificate is valid for
+	TTL time.Duration
+	// Username is teleport username
+	Username string
+	// AllowedLogins is a list of SSH principals
+	AllowedLogins []string
+	// PermitAgentForwarding permits agent forwarding for this cert
+	PermitAgentForwarding bool
+	// Roles is a list of roles assigned to this user
+	Roles []string
+}
+
+// CertRoles defines certificate roles
+type CertRoles struct {
+	// Version is current version of the roles
+	Version string `json:"version"`
+	// Roles is a list of roles
+	Roles []string `json:"roles"`
+}
+
+// CertRolesSchema defines cert roles schema
+const CertRolesSchema = `{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "version": {"type": "string"},
+    "roles": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}`
+
+// MarshalCertRoles marshal roles list to OpenSSH
+func MarshalCertRoles(roles []string) (string, error) {
+	out, err := json.Marshal(CertRoles{Version: V1, Roles: roles})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return string(out), err
+}
+
+// UnmarshalCertRoles marshals roles list to OpenSSH
+func UnmarshalCertRoles(data string) ([]string, error) {
+	var certRoles CertRoles
+	if err := utils.UnmarshalWithSchema(CertRolesSchema, &certRoles, []byte(data)); err != nil {
+		return nil, trace.BadParameter(err.Error())
+	}
+	return certRoles.Roles, nil
 }
 
 // CertAuthority is a host or user certificate authority that
@@ -55,6 +121,13 @@ type CertAuthority interface {
 	GetCheckingKeys() [][]byte
 	// GetSigning keys returns signing keys
 	GetSigningKeys() [][]byte
+	// CombinedMapping is used to specify combined mapping from legacy property Roles
+	// and new property RoleMap
+	CombinedMapping() RoleMap
+	// GetRoleMap returns role map property
+	GetRoleMap() RoleMap
+	// SetRoleMap sets role map
+	SetRoleMap(m RoleMap)
 	// GetRoles returns a list of roles assumed by users signed by this CA
 	GetRoles() []string
 	// SetRoles sets assigned roles for this certificate authority
@@ -228,6 +301,25 @@ func (ca *CertAuthorityV2) SetRoles(roles []string) {
 	ca.Spec.Roles = roles
 }
 
+// CombinedMapping is used to specify combined mapping from legacy property Roles
+// and new property RoleMap
+func (ca *CertAuthorityV2) CombinedMapping() RoleMap {
+	if len(ca.Spec.Roles) != 0 {
+		return []RoleMapping{{Remote: Wildcard, Local: ca.Spec.Roles}}
+	}
+	return ca.Spec.RoleMap
+}
+
+// GetRoleMap returns role map property
+func (ca *CertAuthorityV2) GetRoleMap() RoleMap {
+	return ca.Spec.RoleMap
+}
+
+// SetRoleMap sets role map
+func (c *CertAuthorityV2) SetRoleMap(m RoleMap) {
+	c.Spec.RoleMap = m
+}
+
 // GetRawObject returns raw object data, used for migrations
 func (ca *CertAuthorityV2) GetRawObject() interface{} {
 	return ca.rawObject
@@ -287,6 +379,13 @@ func (ca *CertAuthorityV2) Check() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	// This is to force users to migrate
+	if len(ca.Spec.Roles) != 0 && len(ca.Spec.RoleMap) != 0 {
+		return trace.BadParameter("should set either 'roles' or 'role_map', not both")
+	}
+	if err := ca.Spec.RoleMap.Check(); err != nil {
+		return trace.Wrap(err)
+	}
 	return nil
 }
 
@@ -306,6 +405,8 @@ type CertAuthoritySpecV2 struct {
 	SigningKeys [][]byte `json:"signing_keys,omitempty"`
 	// Roles is a list of roles assumed by users signed by this CA
 	Roles []string `json:"roles,omitempty"`
+	// RoleMap specifies role mappings to remote roles
+	RoleMap RoleMap `json:"role_map,omitempty"`
 }
 
 // CertAuthoritySpecV2Schema is JSON schema for cert authority V2
@@ -333,7 +434,8 @@ const CertAuthoritySpecV2Schema = `{
       "items": {
         "type": "string"
       }
-    }
+    },
+    "role_map": %v
   }
 }`
 
@@ -354,6 +456,21 @@ type CertAuthorityV1 struct {
 	// AllowedLogins is a list of allowed logins for users within
 	// this certificate authority
 	AllowedLogins []string `json:"allowed_logins"`
+}
+
+// CombinedMapping is used to specify combined mapping from legacy property Roles
+// and new property RoleMap
+func (ca *CertAuthorityV1) CombinedMapping() RoleMap {
+	return []RoleMapping{}
+}
+
+// GetRoleMap returns role map property
+func (ca *CertAuthorityV1) GetRoleMap() RoleMap {
+	return nil
+}
+
+// SetRoleMap sets role map
+func (c *CertAuthorityV1) SetRoleMap(m RoleMap) {
 }
 
 // V1 returns V1 version of the resource
@@ -411,7 +528,7 @@ type CertAuthorityMarshaler interface {
 
 // GetCertAuthoritySchema returns JSON Schema for cert authorities
 func GetCertAuthoritySchema() string {
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, CertAuthoritySpecV2Schema)
+	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, fmt.Sprintf(CertAuthoritySpecV2Schema, RoleMapSchema))
 }
 
 type TeleportCertAuthorityMarshaler struct{}
