@@ -664,9 +664,14 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 	return permissions, nil
 }
 
-// HandleRequest is a callback for out of band requests
+// HandleRequest is a callback for handling global out-of-band requests.
 func (s *Server) HandleRequest(r *ssh.Request) {
-	log.Debugf("recieved out-of-band request: %+v", r)
+	switch r.Type {
+	case teleport.KeepAliveReqType:
+		s.handleKeepAlive(r)
+	default:
+		log.Debugf("[SSH] Discarding %q global request: %+v", r.Type, r)
+	}
 }
 
 // HandleNewChan is called when new channel is opened
@@ -1120,6 +1125,22 @@ func (s *Server) handleExec(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 		}
 	}()
 	return nil
+}
+
+// handleKeepAlive accepts and replies to keepalive@openssh.com requests.
+func (s *Server) handleKeepAlive(req *ssh.Request) {
+	log.Debugf("[KEEP ALIVE] Received %q: WantReply: %v", req.Type, req.WantReply)
+
+	// only reply if the sender actually wants a response
+	if req.WantReply {
+		err := req.Reply(true, nil)
+		if err != nil {
+			log.Warnf("[KEEP ALIVE] Unable to reply to %q request: %v", req.Type, err)
+			return
+		}
+	}
+
+	log.Debugf("[KEEP ALIVE] Replied to %q", req.Type)
 }
 
 func replyError(ch ssh.Channel, req *ssh.Request, err error) {
