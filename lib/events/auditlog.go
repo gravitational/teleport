@@ -278,7 +278,8 @@ func (l *AuditLog) migrateSessions() error {
 	return nil
 }
 
-// PostSessionChunks writes a new chunk of session stream into the audit log
+// PostSessionSlice submits slice of session chunks
+// to the audit log server
 func (l *AuditLog) PostSessionSlice(slice SessionSlice) error {
 	if slice.Namespace == "" {
 		return trace.BadParameter("missing parameter Namespace")

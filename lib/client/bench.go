@@ -165,8 +165,7 @@ func benchmarkThread(threadID int, ctx context.Context, tc *TeleportClient, comm
 			} else {
 				done := make(chan bool)
 				go func() {
-					err := client.SSH(ctx, nil, false)
-					measure.Error = err
+					measure.Error = client.SSH(ctx, nil, false)
 					measure.End = time.Now()
 					sendMeasure(measure)
 					close(done)
