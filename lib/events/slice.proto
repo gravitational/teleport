@@ -1,0 +1,25 @@
+syntax = "proto3";
+package events;
+
+import "github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis/google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+
+// SessionSlice is a slice of submitted chunks
+message SessionSlice {
+    string Namespace = 1;
+    string SessionID = 2;
+    repeated SessionChunk Chunks = 3;
+}
+
+// SessionChunk is a chunk to be posted in the context of the session
+message SessionChunk {
+    // Time is the occurence of this event
+	int64 Time = 2;
+    // Data is captured data
+    bytes Data = 3;
+}
+
+service AuditLog {
+    rpc SubmitSessionSlice(stream SessionSlice) returns (google.protobuf.Empty) {
+    }
+}

@@ -69,6 +69,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -87,6 +88,20 @@ const (
 	// that's where interactive PTY I/O is saved.
 	SessionStreamPrefix = ".session.bytes"
 )
+
+var (
+	auditOpenFiles = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "audit_server_open_files",
+			Help: "Number of open audit files",
+		},
+	)
+)
+
+func init() {
+	// Metrics have to be registered to be exposed:
+	prometheus.MustRegister(auditOpenFiles)
+}
 
 type TimeSourceFunc func() time.Time
 
@@ -138,6 +153,11 @@ type SessionLogger struct {
 
 // LogEvent logs an event associated with this session
 func (sl *SessionLogger) LogEvent(fields EventFields) {
+	sl.logEvent(fields, time.Time{})
+}
+
+// LogEvent logs an event associated with this session
+func (sl *SessionLogger) logEvent(fields EventFields, start time.Time) {
 	sl.Lock()
 	defer sl.Unlock()
 
@@ -145,7 +165,13 @@ func (sl *SessionLogger) LogEvent(fields EventFields) {
 	fields[SessionByteOffset] = atomic.LoadInt64(&sl.writtenBytes)
 
 	// add "milliseconds since" timestamp:
-	now := sl.timeSource().In(time.UTC).Round(time.Millisecond)
+	var now time.Time
+	if start.IsZero() {
+		now = sl.timeSource().In(time.UTC).Round(time.Millisecond)
+	} else {
+		now = start.In(time.UTC).Round(time.Millisecond)
+	}
+
 	fields[SessionEventTimestamp] = int(now.Sub(sl.createdTime).Nanoseconds() / 1000000)
 	fields[EventTime] = now
 
@@ -173,6 +199,7 @@ func (sl *SessionLogger) Finalize() error {
 	sl.Lock()
 	defer sl.Unlock()
 	if sl.streamFile != nil {
+		auditOpenFiles.Dec()
 		log.Infof("sessionLogger.Finalize(sid=%s)", sl.sid)
 		sl.streamFile.Close()
 		sl.eventsFile.Close()
@@ -182,24 +209,26 @@ func (sl *SessionLogger) Finalize() error {
 	return nil
 }
 
-// Write takes a stream of bytes (usually the output from a session terminal)
+// WriteChunk takes a stream of bytes (usually the output from a session terminal)
 // and writes it into a "stream file", for future replay of interactive sessions.
-func (sl *SessionLogger) Write(bytes []byte) (written int, err error) {
+func (sl *SessionLogger) WriteChunk(chunk *SessionChunk) (written int, err error) {
 	if sl.streamFile == nil {
 		err := trace.Errorf("session %v error: attempt to write to a closed file", sl.sid)
 		return 0, trace.Wrap(err)
 	}
-	if written, err = sl.streamFile.Write(bytes); err != nil {
+	if written, err = sl.streamFile.Write(chunk.Data); err != nil {
 		log.Error(err)
 		return written, trace.Wrap(err)
 	}
+
 	// log this as a session event (but not more often than once a sec)
-	sl.LogEvent(EventFields{
+	sl.logEvent(EventFields{
 		EventType:              SessionPrintEvent,
-		SessionPrintEventBytes: len(bytes)})
+		SessionPrintEventBytes: len(chunk.Data),
+	}, time.Unix(0, chunk.Time))
 
 	// increase the total lengh of the stream
-	atomic.AddInt64(&sl.writtenBytes, int64(len(bytes)))
+	atomic.AddInt64(&sl.writtenBytes, int64(len(chunk.Data)))
 	return written, nil
 }
 
@@ -249,22 +278,43 @@ func (l *AuditLog) migrateSessions() error {
 	return nil
 }
 
-// PostSessionChunk writes a new chunk of session stream into the audit log
-func (l *AuditLog) PostSessionChunk(namespace string, sid session.ID, reader io.Reader) error {
-	if namespace == "" {
+// PostSessionSlice submits slice of session chunks
+// to the audit log server
+func (l *AuditLog) PostSessionSlice(slice SessionSlice) error {
+	if slice.Namespace == "" {
 		return trace.BadParameter("missing parameter Namespace")
 	}
-	sl, err := l.LoggerFor(namespace, sid)
-	if err != nil {
-		log.Warnf("audit.log: no session writer for %s", sid)
-		return nil
+	if len(slice.Chunks) == 0 {
+		return trace.BadParameter("missing session chunks")
 	}
+	sl, err := l.LoggerFor(slice.Namespace, session.ID(slice.SessionID))
+	if err != nil {
+		return trace.BadParameter("audit.log: no session writer for %s", slice.SessionID)
+	}
+	for i := range slice.Chunks {
+		_, err := sl.WriteChunk(slice.Chunks[i])
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+// PostSessionChunk writes a new chunk of session stream into the audit log
+func (l *AuditLog) PostSessionChunk(namespace string, sid session.ID, reader io.Reader) error {
 	tmp, err := utils.ReadAll(reader, 16*1024)
-	_, err = sl.Write(tmp)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return nil
+	chunk := &SessionChunk{
+		Time: l.TimeSource().In(time.UTC).UnixNano(),
+		Data: tmp,
+	}
+	return l.PostSessionSlice(SessionSlice{
+		Namespace: namespace,
+		SessionID: string(sid),
+		Chunks:    []*SessionChunk{chunk},
+	})
 }
 
 // GetSessionChunk returns a reader which console and web clients request
@@ -359,7 +409,7 @@ func (l *AuditLog) EmitAuditEvent(eventType string, fields EventFields) error {
 
 			// Session ended? Get rid of the session logger then:
 			if eventType == SessionEndEvent {
-				log.Infof("audit log: removing session logger for SID=%v", sessionID)
+				log.Debugf("audit log: removing session logger for SID=%v", sessionID)
 				l.Lock()
 				delete(l.loggers, session.ID(sessionID))
 				l.Unlock()
@@ -594,6 +644,7 @@ func (l *AuditLog) LoggerFor(namespace string, sid session.ID) (sl *SessionLogge
 		createdTime: l.TimeSource().In(time.UTC).Round(time.Second),
 	}
 	l.loggers[sid] = sl
+	auditOpenFiles.Inc()
 	return sl, nil
 }
 

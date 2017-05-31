@@ -2,7 +2,7 @@
 # Naming convention:
 #	for stable releases we use "1.0.0" format
 #   for pre-releases, we use   "1.0.0-beta.2" format
-VERSION=2.1.0-alpha.8
+VERSION=2.2.0-alpha.9
 
 # These are standard autotools variables, don't change them please
 BUILDDIR ?= build
@@ -169,3 +169,35 @@ docker:
 .PHONY:enter
 enter:
 	make -C build.assets enter
+
+PROTOC_VER ?= 3.0.0
+GOGO_PROTO_TAG ?= v0.3
+GRPC_GATEWAY_TAG ?= v1.1.0
+PLATFORM := linux-x86_64
+GRPC_API := lib/events
+BUILDBOX_TAG := teleport-grpc-buildbox:0.0.1
+
+# buildbox builds docker buildbox image used to compile binaries and generate GRPc stuff
+.PHONY: buildbox
+buildbox:
+	cd build.assets/grpc && docker build \
+          --build-arg PROTOC_VER=$(PROTOC_VER) \
+          --build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
+          --build-arg GRPC_GATEWAY_TAG=$(GRPC_GATEWAY_TAG) \
+          --build-arg PLATFORM=$(PLATFORM) \
+          -t $(BUILDBOX_TAG) .
+
+# proto generates GRPC defs from service definitions
+.PHONY: grpc
+grpc: buildbox
+	docker run -v $(shell pwd):/go/src/github.com/gravitational/teleport $(BUILDBOX_TAG) make -C /go/src/github.com/gravitational/teleport buildbox-grpc
+
+# proto generates GRPC stuff inside buildbox
+.PHONY: buildbox-grpc
+buildbox-grpc:
+# standard GRPC output
+	echo $$PROTO_INCLUDE
+	cd $(GRPC_API) && protoc -I=.:$$PROTO_INCLUDE \
+      --gofast_out=plugins=grpc:.\
+    *.proto
+

@@ -104,7 +104,13 @@ const (
 // If you wish to implement a different kind of logger (not filesystem-based), you
 // have to implement this interface
 type IAuditLog interface {
+	// Closer releases connection and resources associated with log if any
+	io.Closer
+
 	EmitAuditEvent(eventType string, fields EventFields) error
+
+	// PostSessionSlice sends chunks of recorded session to the event log
+	PostSessionSlice(SessionSlice) error
 
 	// PostSessionChunk returns a writer which SSH nodes use to submit
 	// their live sessions into the session log

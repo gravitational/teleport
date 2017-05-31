@@ -532,9 +532,6 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 
-		alog := state.MakeCachingAuditLog(conn.Client)
-		defer alog.Close()
-
 		s, err = srv.New(cfg.SSH.Addr,
 			cfg.Hostname,
 			[]ssh.Signer{conn.Identity.KeySigner},
@@ -544,7 +541,7 @@ func (process *TeleportProcess) initSSH() error {
 			cfg.Proxy.PublicAddr,
 			srv.SetLimiter(limiter),
 			srv.SetShell(cfg.SSH.Shell),
-			srv.SetAuditLog(alog),
+			srv.SetAuditLog(conn.Client),
 			srv.SetSessionServer(conn.Client),
 			srv.SetLabels(cfg.SSH.Labels, cfg.SSH.CmdLabels),
 			srv.SetNamespace(namespace),
