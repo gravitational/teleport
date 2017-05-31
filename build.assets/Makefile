@@ -4,7 +4,7 @@
 BBOX=teleport-buildbox:latest
 HOSTNAME=buildbox
 SRCDIR=/gopath/src/github.com/gravitational/teleport
-DOCKERFLAGS=--rm=true -v "$$(pwd)/../":$(SRCDIR) -w $(SRCDIR) -h $(HOSTNAME)
+DOCKERFLAGS=--rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME)
 ADDFLAGS=-ldflags -w
 NOROOT=-u $$(id -u):$$(id -g)
 
@@ -40,7 +40,7 @@ test: integration
 	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BBOX) \
 		/bin/bash -c \
 		"examples/etcd/start-etcd.sh & sleep 1; \
-		ssh-agent > external.agent && source external.agent; \
+		ssh-agent > external.agent.tmp && source external.agent.tmp; \
 		cd $(SRCDIR) && make TELEPORT_DEBUG=0 FLAGS='-cover -race' clean test"
 
 .PHONY:integration
