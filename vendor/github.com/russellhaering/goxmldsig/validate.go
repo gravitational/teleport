@@ -189,7 +189,7 @@ func (ctx *ValidationContext) verifySignedInfo(sig *types.Signature, canonicaliz
 }
 
 func (ctx *ValidationContext) validateSignature(el *etree.Element, sig *types.Signature, cert *x509.Certificate) (*etree.Element, error) {
-	idAttr := el.SelectAttr(DefaultIdAttr)
+	idAttr := el.SelectAttr(ctx.IdAttribute)
 	if idAttr == nil || idAttr.Value == "" {
 		return nil, errors.New("Missing ID attribute")
 	}
@@ -254,7 +254,7 @@ func contains(roots []*x509.Certificate, cert *x509.Certificate) bool {
 
 // findSignature searches for a Signature element referencing the passed root element.
 func (ctx *ValidationContext) findSignature(el *etree.Element) (*types.Signature, error) {
-	idAttr := el.SelectAttr(DefaultIdAttr)
+	idAttr := el.SelectAttr(ctx.IdAttribute)
 	if idAttr == nil || idAttr.Value == "" {
 		return nil, errors.New("Missing ID attribute")
 	}
