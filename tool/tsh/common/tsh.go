@@ -91,6 +91,8 @@ type CLIConf struct {
 	BenchDuration time.Duration
 	// BenchRate is a requests per second rate to mantain
 	BenchRate int
+	// BenchInteractive indicates that we should create interactive session
+	BenchInteractive bool
 	// Context is a context to control execution
 	Context context.Context
 	// Gops starts gops agent on a specified address
@@ -170,6 +172,7 @@ func Run(args []string, underTest bool) {
 	bench.Flag("threads", "Concurrent threads to run").Default("10").IntVar(&cf.BenchThreads)
 	bench.Flag("duration", "Test duration").Default("1s").DurationVar(&cf.BenchDuration)
 	bench.Flag("rate", "Requests per second rate").Default("10").IntVar(&cf.BenchRate)
+	bench.Flag("interactive", "Create interactive SSH session").BoolVar(&cf.BenchInteractive)
 
 	// parse CLI commands+flags:
 	command, err := app.Parse(args)

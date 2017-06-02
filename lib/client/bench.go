@@ -26,6 +26,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/codahale/hdrhistogram"
+	"github.com/gravitational/trace"
 )
 
 // Benchmark specifies benchmark requests to run
@@ -38,6 +39,8 @@ type Benchmark struct {
 	Duration time.Duration
 	// Command is a command to run
 	Command []string
+	// Interactive turns on interactive sessions
+	Interactive bool
 }
 
 // BenchmarkResult is a result of the benchmark
@@ -68,7 +71,16 @@ func (tc *TeleportClient) Benchmark(ctx context.Context, bench Benchmark) (*Benc
 
 	// create goroutines for concurrency
 	for i := 0; i < bench.Threads; i++ {
-		go benchmarkThread(i, ctx, tc, bench.Command, requestC, responseC)
+		thread := &benchmarkThread{
+			id:          i,
+			ctx:         ctx,
+			client:      tc,
+			command:     bench.Command,
+			interactive: bench.Interactive,
+			receiveC:    requestC,
+			sendC:       responseC,
+		}
+		go thread.run()
 	}
 
 	// producer goroutine
@@ -101,10 +113,21 @@ func (tc *TeleportClient) Benchmark(ctx context.Context, bench Benchmark) (*Benc
 	result.Histogram = hdrhistogram.New(1, 60000, 3)
 
 	var doneThreads int
+	var timeoutC <-chan time.Time
+	doneC := ctx.Done()
 	for {
 		select {
-		case <-ctx.Done():
+		case <-timeoutC:
+			result.LastError = trace.BadParameter("several requests hang: timeout waiting for %v threads to finish", bench.Threads-doneThreads)
 			return &result, nil
+		case <-doneC:
+			// give it a couple of seconds to wrap up the goroutines,
+			// set up the timer that will fire up if the all goroutines were not finished
+			doneC = nil
+			waitTime := time.Duration(result.Histogram.Max()) * time.Millisecond
+			// going to wait latency + buffer to give requests in flight to wrap up
+			waitTime = time.Duration(1.2 * float64(waitTime))
+			timeoutC = time.After(waitTime)
 		case measure := <-responseC:
 			if measure.ThreadCompleted {
 				doneThreads += 1
@@ -132,50 +155,70 @@ type benchMeasure struct {
 	Error           error
 }
 
-func benchmarkThread(threadID int, ctx context.Context, tc *TeleportClient, command []string, receiveC chan *benchMeasure, sendC chan *benchMeasure) {
-	sendMeasure := func(measure *benchMeasure) {
-		measure.ThreadID = threadID
-		select {
-		case sendC <- measure:
-		default:
-			log.Warningf("blocked on measure send\n")
-		}
+type benchmarkThread struct {
+	id          int
+	ctx         context.Context
+	client      *TeleportClient
+	command     []string
+	interactive bool
+	receiveC    chan *benchMeasure
+	sendC       chan *benchMeasure
+}
+
+func (b *benchmarkThread) execute(measure *benchMeasure) {
+	if !b.interactive {
+		measure.Error = b.client.SSH(b.ctx, nil, false)
+		measure.End = time.Now()
+		b.sendMeasure(measure)
+		return
 	}
+	config := b.client.Config
+	client, err := NewClient(&config)
+	reader, writer := io.Pipe()
+	client.Stdin = reader
+	out := &bytes.Buffer{}
+	client.Stdout = out
+	client.Stderr = out
+	if err != nil {
+		measure.Error = err
+		measure.End = time.Now()
+		b.sendMeasure(measure)
+		return
+	}
+	done := make(chan bool)
+	go func() {
+		measure.Error = b.client.SSH(b.ctx, nil, false)
+		measure.End = time.Now()
+		b.sendMeasure(measure)
+		close(done)
+	}()
+	writer.Write([]byte(strings.Join(b.command, " ") + "\r\nexit\r\n"))
+	<-done
+}
+
+func (b *benchmarkThread) sendMeasure(measure *benchMeasure) {
+	measure.ThreadID = b.id
+	select {
+	case b.sendC <- measure:
+	default:
+		log.Warningf("blocked on measure send\n")
+	}
+}
+
+func (b *benchmarkThread) run() {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Warningf("recover from panic: %v", r)
-			sendMeasure(&benchMeasure{ThreadCompleted: true})
+			b.sendMeasure(&benchMeasure{ThreadCompleted: true})
 		}
 	}()
 
 	for {
 		select {
-		case measure := <-receiveC:
-			config := tc.Config
-			client, err := NewClient(&config)
-			reader, writer := io.Pipe()
-			client.Stdin = reader
-			out := &bytes.Buffer{}
-			client.Stdout = out
-			client.Stderr = out
-			if err != nil {
-				measure.Error = err
-				measure.End = time.Now()
-				sendMeasure(measure)
-			} else {
-				done := make(chan bool)
-				go func() {
-					measure.Error = client.SSH(ctx, nil, false)
-					measure.End = time.Now()
-					sendMeasure(measure)
-					close(done)
-				}()
-				writer.Write([]byte(strings.Join(command, " ") + "\r\nexit\r\n"))
-				<-done
-			}
-
-		case <-ctx.Done():
-			sendMeasure(&benchMeasure{
+		case measure := <-b.receiveC:
+			b.execute(measure)
+		case <-b.ctx.Done():
+			b.sendMeasure(&benchMeasure{
 				ThreadCompleted: true,
 			})
 			return

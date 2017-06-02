@@ -186,6 +186,9 @@ func (b *BoltBackend) DeleteBucket(path []string, bucket string) error {
 
 func (b *BoltBackend) deleteBucket(buckets []string, bucket string) error {
 	return b.db.Update(func(tx *bolt.Tx) error {
+		if len(buckets) == 0 {
+			return boltErr(tx.DeleteBucket([]byte(bucket)))
+		}
 		bkt, err := GetBucket(tx, buckets)
 		if err != nil {
 			return trace.Wrap(err)
