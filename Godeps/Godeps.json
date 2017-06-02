@@ -380,7 +380,7 @@
 		},
 		{
 			"ImportPath": "github.com/kardianos/osext",
-			"Rev": "10da29423eb9a6269092eebdc2be32209612d9d2"
+			"Rev": "ae77be60afb1dcacde03767a8c37337fad28ac14"
 		},
 		{
 			"ImportPath": "github.com/kr/pty",
