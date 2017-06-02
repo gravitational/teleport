@@ -21,8 +21,12 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"os/user"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -275,6 +279,86 @@ func (s *IntSuite) TestAudit(c *check.C) {
 	}
 }
 
+// TestInteroperability checks if Teleport and OpenSSH behave in the same way
+// when executing commands.
+func (s *IntSuite) TestInteroperability(c *check.C) {
+	tempdir, err := ioutil.TempDir("", "teleport-")
+	c.Assert(err, check.IsNil)
+	defer os.RemoveAll(tempdir)
+	tempfile := filepath.Join(tempdir, "file.txt")
+
+	// create new teleport server that will be used by all tests
+	t := s.newTeleport(c, nil, true)
+	defer t.Stop(true)
+
+	var tests = []struct {
+		inCommand   string
+		inStdin     string
+		outContains string
+		outFile     bool
+	}{
+		// 0 - echo "1\n2\n" | ssh localhost "cat -"
+		// this command can be used to copy files by piping stdout to stdin over ssh.
+		{
+			"cat -",
+			"1\n2\n",
+			"1\n2\n",
+			false,
+		},
+		// 1 - ssh -tt locahost '/bin/sh -c "mkdir -p /tmp && echo a > /tmp/file.txt"'
+		// programs like ansible execute commands like this
+		{
+			fmt.Sprintf(`/bin/sh -c "mkdir -p /tmp && echo a > %v"`, tempfile),
+			"",
+			"a",
+			true,
+		},
+		// 2 - ssh localhost tty
+		// should print "not a tty"
+		{
+			"tty",
+			"",
+			"not a tty",
+			false,
+		},
+	}
+
+	for i, tt := range tests {
+		// create new teleport client
+		cl, err := t.NewClient(s.me.Username, Site, Host, t.GetPortSSHInt())
+		c.Assert(err, check.IsNil)
+
+		// hook up stdin and stdout to a buffer for reading and writing
+		inbuf := bytes.NewReader([]byte(tt.inStdin))
+		outbuf := &bytes.Buffer{}
+		cl.Stdin = inbuf
+		cl.Stdout = outbuf
+		cl.Stderr = outbuf
+
+		// run command and wait a maximum of 10 seconds for it to complete
+		sessionEndC := make(chan interface{}, 0)
+		go func() {
+			// don't check for err, because sometimes this process should fail
+			// with an error and that's what the test is checking for.
+			cl.SSH(context.TODO(), []string{tt.inCommand}, false)
+			sessionEndC <- true
+		}()
+		waitFor(sessionEndC, time.Second*10)
+
+		// if we are looking for the output in a file, look in the file
+		// otherwise check stdout and stderr for the expected output
+		if tt.outFile {
+			bytes, err := ioutil.ReadFile(tempfile)
+			c.Assert(err, check.IsNil)
+			comment := check.Commentf("Test %v: %q does not contain: %q", i, string(bytes), tt.outContains)
+			c.Assert(strings.Contains(string(bytes), tt.outContains), check.Equals, true, comment)
+		} else {
+			comment := check.Commentf("Test %v: %q does not contain: %q", i, outbuf.String(), tt.outContains)
+			c.Assert(strings.Contains(outbuf.String(), tt.outContains), check.Equals, true, comment)
+		}
+	}
+}
+
 // TestInteractive covers SSH into shell and joining the same session from another client
 func (s *IntSuite) TestInteractive(c *check.C) {
 	t := s.newTeleport(c, nil, true)
@@ -382,6 +466,16 @@ func (s *IntSuite) TestInvalidLogins(c *check.C) {
 // Then it executes an SSH command on A by connecting directly
 // to A and by connecting to B via B<->A tunnel
 func (s *IntSuite) TestTwoClusters(c *check.C) {
+	// start the http proxy, we need to make sure this was not used
+	ps := &proxyServer{}
+	ts := httptest.NewServer(ps)
+	defer ts.Close()
+
+	// clear out any proxy environment variables
+	for _, v := range []string{"http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"} {
+		os.Setenv(v, "")
+	}
+
 	username := s.me.Username
 
 	a := NewInstance("site-A", HostID, Host, s.getPorts(5), s.priv, s.pub)
@@ -409,6 +503,9 @@ func (s *IntSuite) TestTwoClusters(c *check.C) {
 		outputA bytes.Buffer
 		outputB bytes.Buffer
 	)
+
+	// make sure the direct dialer was used and not the proxy dialer
+	c.Assert(ps.Count(), check.Equals, 0)
 
 	// if we got here, it means two sites are cross-connected. lets execute SSH commands
 	sshPort := a.GetPortSSHInt()
@@ -453,6 +550,51 @@ func (s *IntSuite) TestTwoClusters(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// stop both sites for realZ
+	c.Assert(b.Stop(true), check.IsNil)
+	c.Assert(a.Stop(true), check.IsNil)
+}
+
+// TestTwoClustersProxy checks if the reverse tunnel uses a HTTP PROXY to
+// establish a connection.
+func (s *IntSuite) TestTwoClustersProxy(c *check.C) {
+	// start the http proxy
+	ps := &proxyServer{}
+	ts := httptest.NewServer(ps)
+	defer ts.Close()
+
+	// set the http_proxy environment variable
+	u, err := url.Parse(ts.URL)
+	c.Assert(err, check.IsNil)
+	os.Setenv("http_proxy", u.Host)
+	defer os.Setenv("http_proxy", "")
+
+	username := s.me.Username
+
+	a := NewInstance("site-A", HostID, Host, s.getPorts(5), s.priv, s.pub)
+	b := NewInstance("site-B", HostID, Host, s.getPorts(5), s.priv, s.pub)
+
+	a.AddUser(username, []string{username})
+	b.AddUser(username, []string{username})
+
+	c.Assert(b.Create(a.Secrets.AsSlice(), false, nil), check.IsNil)
+	c.Assert(a.Create(b.Secrets.AsSlice(), true, nil), check.IsNil)
+
+	c.Assert(b.Start(), check.IsNil)
+	c.Assert(a.Start(), check.IsNil)
+
+	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
+	abortTime := time.Now().Add(time.Second * 10)
+	for len(b.Tunnel.GetSites()) < 2 && len(b.Tunnel.GetSites()) < 2 {
+		time.Sleep(time.Millisecond * 200)
+		if time.Now().After(abortTime) {
+			c.Fatalf("two sites do not see each other: tunnels are not working")
+		}
+	}
+
+	// make sure the reverse tunnel went through the proxy
+	c.Assert(ps.Count() > 0, check.Equals, true, check.Commentf("proxy did not intercept any connection"))
+
+	// stop both sites for real
 	c.Assert(b.Stop(true), check.IsNil)
 	c.Assert(a.Stop(true), check.IsNil)
 }

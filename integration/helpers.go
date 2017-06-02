@@ -6,11 +6,12 @@ import (
 	"io"
 	"io/ioutil"
 	"net"
+	"net/http"
 	"os"
 	"strconv"
+	"sync"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -23,7 +24,10 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
+
+	log "github.com/Sirupsen/logrus"
 )
 
 // SetTestTimeouts affects global timeouts inside Teleport, making connections
@@ -556,6 +560,88 @@ func (i *TeleInstance) Stop(removeData bool) error {
 		log.Infof("Teleport instance '%v' stopped!", i.Secrets.SiteName)
 	}()
 	return i.Process.Wait()
+}
+
+type proxyServer struct {
+	sync.Mutex
+	count int
+}
+
+// ServeHTTP only accepts the CONNECT verb and will tunnel your connection to
+// the specified host. Also tracks the number of connections that it proxies for
+// debugging purposes.
+func (p *proxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// validate http connect parameters
+	if r.Method != http.MethodConnect {
+		trace.WriteError(w, trace.BadParameter("%v not supported", r.Method))
+		return
+	}
+	if r.Host == "" {
+		trace.WriteError(w, trace.BadParameter("host not set"))
+		return
+	}
+
+	// hijack request so we can get underlying connection
+	hj, ok := w.(http.Hijacker)
+	if !ok {
+		trace.WriteError(w, trace.AccessDenied("unable to hijack connection"))
+		return
+	}
+	sconn, _, err := hj.Hijack()
+	if err != nil {
+		trace.WriteError(w, err)
+		return
+	}
+	defer sconn.Close()
+
+	// dial to host we want to proxy connection to
+	dconn, err := net.Dial("tcp", r.Host)
+	if err != nil {
+		trace.WriteError(w, err)
+		return
+	}
+	defer dconn.Close()
+
+	// write 200 OK to the source, but don't close the connection
+	resp := &http.Response{
+		Status:     "OK",
+		StatusCode: 200,
+		Proto:      "HTTP/1.1",
+		ProtoMajor: 1,
+		ProtoMinor: 0,
+	}
+	err = resp.Write(sconn)
+	if err != nil {
+		trace.WriteError(w, err)
+		return
+	}
+
+	// success, we're proxying data now
+	p.Lock()
+	p.count = p.count + 1
+	p.Unlock()
+
+	// copy from src to dst and dst to src
+	errc := make(chan error, 2)
+	replicate := func(dst io.Writer, src io.Reader) {
+		_, err := io.Copy(dst, src)
+		errc <- err
+	}
+	go replicate(sconn, dconn)
+	go replicate(dconn, sconn)
+
+	// wait until done, error, or 10 second
+	select {
+	case <-time.After(10 * time.Second):
+	case <-errc:
+	}
+}
+
+// Count returns the number of connections that have been proxied.
+func (p *proxyServer) Count() int {
+	p.Lock()
+	defer p.Unlock()
+	return p.count
 }
 
 func fatalIf(err error) {
