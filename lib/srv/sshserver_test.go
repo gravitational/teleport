@@ -17,17 +17,15 @@ limitations under the License.
 package srv
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"os"
 	"os/user"
-	"path/filepath"
-	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -234,33 +232,33 @@ func (s *SrvSuite) TestAgentForward(c *C) {
 	err = agent.RequestAgentForwarding(se)
 	c.Assert(err, IsNil)
 
-	writer, err := se.StdinPipe()
+	// prepare to send virtual "keyboard input" into the shell:
+	keyboard, err := se.StdinPipe()
 	c.Assert(err, IsNil)
 
-	stdoutPipe, err := se.StdoutPipe()
-	c.Assert(err, IsNil)
-	reader := bufio.NewReader(stdoutPipe)
-	c.Assert(se.Shell(), IsNil)
-	// send a few "keyboard inputs" into the session:
-	_, err = io.WriteString(writer, fmt.Sprintf("printenv %v\n\r", teleport.SSHAuthSock))
+	// start interactive SSH session (new shell):
+	err = se.Shell()
 	c.Assert(err, IsNil)
 
-	pattern := filepath.Join(os.TempDir(), `teleport-[0-9]+`, `teleport-[0-9]+.socket`)
-	re := regexp.MustCompile(pattern)
-	buf := make([]byte, 4096)
-	result := make([]byte, 0)
-	var matches []string
-	for i := 0; i < 3; i++ {
-		n, err := reader.Read(buf)
-		c.Assert(err, IsNil)
-		result = append(result, buf[0:n]...)
-		matches = re.FindStringSubmatch(string(result))
-		if len(matches) != 0 {
-			break
-		}
-		time.Sleep(50 * time.Millisecond)
+	// create a temp file to collect the shell output into:
+	tmpFile, err := ioutil.TempFile(os.TempDir(), "teleport-agent-forward-test")
+	c.Assert(err, IsNil)
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	// type 'printenv SSH_AUTH_SOCK > /path/to/tmp/file' into the session (dumping the value of SSH_AUTH_STOCK into the temp file)
+	_, err = keyboard.Write([]byte(fmt.Sprintf("printenv %v > %s\n\r", teleport.SSHAuthSock, tmpFile.Name())))
+	c.Assert(err, IsNil)
+
+	// wait for the output
+	var output []byte
+	for i := 0; i < 100 && len(output) == 0; i++ {
+		time.Sleep(10 * time.Millisecond)
+		output, _ = ioutil.ReadFile(tmpFile.Name())
 	}
-	socketPath := matches[0]
+	socketPath := strings.TrimSpace(string(output))
+
+	// try dialing the ssh agent socket:
 	file, err := net.Dial("unix", socketPath)
 	c.Assert(err, IsNil)
 	clientAgent := agent.NewClient(file)
