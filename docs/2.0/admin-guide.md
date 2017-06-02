@@ -929,8 +929,9 @@ HTTP CONNECT tunneling.
 To use HTTP CONNECT tunneling, simply set either the `HTTPS_PROXY` or
 `HTTP_PROXY` environment variables and when Teleport builds and establishes the
 reverse tunnel to the main cluster, it will funnel all traffic though the proxy.
-Specifically Teleport will tunnel ports `3024` (SSH, reverse tunnel) and `3080`
-(HTTPS, establishing trust) through the proxy.
+Specifically, if using the default configuration, Teleport will tunnel ports
+`3024` (SSH, reverse tunnel) and `3080` (HTTPS, establishing trust) through the
+proxy.
 
 The value of `HTTPS_PROXY` or `HTTP_PROXY` should be in the format
 `scheme://host:port` where scheme is either `https` or `http`. If the
