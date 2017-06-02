@@ -37,10 +37,10 @@ func (s *UtilsSuite) TestHostUUID(c *check.C) {
 	c.Assert(uuid, check.Equals, uuidCopy)
 
 	// call with a read-only dir, make sure to get an error
-	uuid, err = ReadOrMakeHostUUID("/")
+	uuid, err = ReadOrMakeHostUUID("/bad-location")
 	c.Assert(err, check.NotNil)
 	c.Assert(uuid, check.Equals, "")
-	c.Assert(err.Error(), check.Matches, "^.*permission denied.*$")
+	c.Assert(err.Error(), check.Matches, "^.*no such file or directory.*$")
 }
 
 func (s *UtilsSuite) TestSelfSignedCert(c *check.C) {

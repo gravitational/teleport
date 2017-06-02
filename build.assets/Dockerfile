@@ -41,12 +41,6 @@ RUN apt-get install -q -y \
 # Install mkDocs
 RUN pip install click==6.1 recommonmark==0.4.0 markdown-include==0.5.1 mkdocs==0.16.1
 
-# Install Golang:
-RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/go1.7.linux-amd64.tar.gz | tar xz;\
-    mkdir -p /gopath/src/github.com/gravitational/teleport;\
-    chmod a+w /gopath;\
-    chmod a+w /var/lib
-
 RUN (groupadd jenkins --gid=$GID -o && useradd jenkins --uid=$UID --gid=$GID --create-home --shell=/bin/sh ;\
      mkdir -p /var/lib/teleport && chown -R jenkins /var/lib/teleport)
 
@@ -54,6 +48,13 @@ RUN (groupadd jenkins --gid=$GID -o && useradd jenkins --uid=$UID --gid=$GID --c
 RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.0.16/etcd-v3.0.16-linux-amd64.tar.gz | tar -xz ;\
      cp etcd-v3.0.16-linux-amd64/etcd* /bin/ ;\
      apt-get install -y net-tools tree)
+
+# Install Golang:
+RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/go1.8.3.linux-amd64.tar.gz | tar xz;\
+    mkdir -p /gopath/src/github.com/gravitational/teleport;\
+    chmod a+w /gopath;\
+    chmod a+w /var/lib;\
+    chmod a-w /
 
 ENV LANGUAGE="en_US.UTF-8" \
     LANG="en_US.UTF-8" \
