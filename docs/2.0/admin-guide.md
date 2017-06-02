@@ -929,8 +929,9 @@ HTTP CONNECT tunneling.
 To use HTTP CONNECT tunneling, simply set either the `HTTPS_PROXY` or
 `HTTP_PROXY` environment variables and when Teleport builds and establishes the
 reverse tunnel to the main cluster, it will funnel all traffic though the proxy.
-Specifically Teleport will tunnel ports `3024` (SSH, reverse tunnel) and `3080`
-(HTTPS, establishing trust) through the proxy.
+Specifically, if using the default configuration, Teleport will tunnel ports
+`3024` (SSH, reverse tunnel) and `3080` (HTTPS, establishing trust) through the
+proxy.
 
 The value of `HTTPS_PROXY` or `HTTP_PROXY` should be in the format
 `scheme://host:port` where scheme is either `https` or `http`. If the
@@ -1065,6 +1066,7 @@ you're running Teleport on a bare metal cluster), you can configure Teleport
 to run in a highly available fashion. 
 
 #### Run multiple instances of Teleport Auth Server 
+
   For this to work you must switch to a highly available secrets back-end first. 
   Also, you must tell each node in a cluster that there are
   more than one auth server available. The are two ways to do this:
@@ -1076,7 +1078,17 @@ to run in a highly available fashion.
     auth server in `auth_servers` section of Teleport configuration.
 
 #### Run multiple instances of Teleport Proxy 
-  In this case, if one of the proxies becomes unavailalbe, you can use another one. The proxies are stateless so it's trivial to do.
+
+The Teleport Proxy is stateless which makes running multiple instances trivial.
+If using the [default configuration](#ports) configure your load balancer to
+forward ports `3023` and `3080` to the servers that run the Teleport proxy. If
+you have configured your proxy to use non-default ports, you will need to
+configure your load balancer to forward the ports you specified for
+`listen_addr` and `web_listen_addr` in `teleport.yaml`.
+
+If your load balancer supports health checks, configure it to hit the
+`/webapi/ping` endpoint on the proxy. This endpoint will reply `200 OK` if the
+proxy is running without problems.
 
 !!! tip "NOTE": 
     As the new auth servers get added to the cluster and the old servers get 
