@@ -189,6 +189,7 @@ teleport:
     # backend if you want to run Teleport in HA configuration.
     storage:
         type: bolt
+        path: /var/lib/teleport
 
 # This section configures the 'auth service':
 auth_service:
