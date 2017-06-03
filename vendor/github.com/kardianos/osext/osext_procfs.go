@@ -16,7 +16,8 @@ import (
 
 func executable() (string, error) {
 	switch runtime.GOOS {
-	case "linux":
+	//android uses the same /proc filesystem as linux, and is equivalent here.
+	case "linux","android":
 		const deletedTag = " (deleted)"
 		execpath, err := os.Readlink("/proc/self/exe")
 		if err != nil {
