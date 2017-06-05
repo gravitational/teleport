@@ -8,16 +8,18 @@ import (
 	"github.com/gravitational/teleport"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/gravitational/trace"
 )
 
 // ReadEnvironmentFile will read environment variables from a passed in location.
 // Lines that start with "#" or empty lines are ignored. Assignments are in the
 // form name=value and no variable expansion occurs.
 func ReadEnvironmentFile(filename string) ([]string, error) {
+	// open the users environment file. if we don't find a file, move on as
+	// having this file for the user is optional.
 	file, err := os.Open(filename)
 	if err != nil {
-		return nil, trace.ConvertSystemError(err)
+		log.Warnf("Unable to open environment file %v: %v, skipping", filename, err)
+		return []string{}, nil
 	}
 	defer file.Close()
 
@@ -32,7 +34,8 @@ func ReadEnvironmentFile(filename string) ([]string, error) {
 		// https://github.com/openssh/openssh-portable/blob/master/session.c#L873-L874
 		lineno = lineno + 1
 		if lineno > teleport.MaxEnvironmentFileLines {
-			return nil, trace.BadParameter("too many lines in environment file %v", filename)
+			log.Warnf("Too many lines in environment file %v, returning first %v lines", filename, teleport.MaxEnvironmentFileLines)
+			return envs, nil
 		}
 
 		// empty lines or lines that start with # are ignored
@@ -60,7 +63,8 @@ func ReadEnvironmentFile(filename string) ([]string, error) {
 
 	err = scanner.Err()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		log.Warnf("Unable to read environment file %v: %v, skipping", filename, err)
+		return []string{}, nil
 	}
 
 	return envs, nil
