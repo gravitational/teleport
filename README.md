@@ -20,7 +20,7 @@ Teleport enables teams to easily adopt the best SSH practices like:
 - Record and replay SSH sessions for knowledge sharing and auditing purposes.
 - Collaboratively troubleshoot issues through session sharing.
 - Connect to clusters located behind firewalls without direct Internet access via SSH bastions.
-- Ability to integrate SSH credentials with your organization identities via OAuth (Google Apps, Github).
+- Ability to integrate SSH credentials with your organization identities via OpenID Connect or SAML with endpoints like Okta or Active Directory.
 - Keep the full audit log of all SSH sessions within a cluster.
 
 Teleport is built on top of the high-quality [Golang SSH](https://godoc.org/golang.org/x/crypto/ssh) 
