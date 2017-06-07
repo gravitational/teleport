@@ -60,8 +60,13 @@ func (s *ProfileTestSuite) TestEverything(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(stat.Size() > 10, check.Equals, true)
 
-	// load and verify:
-	clone, err := ProfileFromDir(home)
+	// load and verify from symlink
+	clone, err := ProfileFromDir(home, "")
+	c.Assert(err, check.IsNil)
+	c.Assert(*clone, check.DeepEquals, *p)
+
+	// load and verify directly
+	clone, err = ProfileFromDir(home, "test")
 	c.Assert(err, check.IsNil)
 	c.Assert(*clone, check.DeepEquals, *p)
 }
