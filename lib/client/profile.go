@@ -5,9 +5,10 @@ import (
 	"io/ioutil"
 	"os"
 	"os/user"
-	"path"
+	"path/filepath"
 
 	"github.com/gravitational/trace"
+
 	"gopkg.in/yaml.v2"
 )
 
@@ -68,20 +69,26 @@ func FullProfilePath(pDir string) string {
 	if err == nil {
 		home = u.HomeDir
 	}
-	return path.Join(home, ProfileDir)
+	return filepath.Join(home, ProfileDir)
 
 }
 
 // If there's a current profile symlink, remove it
 func UnlinkCurrentProfile() error {
-	return trace.Wrap(os.Remove(path.Join(FullProfilePath(""), CurrentProfileSymlink)))
+	return trace.Wrap(os.Remove(filepath.Join(FullProfilePath(""), CurrentProfileSymlink)))
 }
 
-// ProfileFromDir reads the user profile from a given directory. It works
-// by looking for a "profile" symlink in that directory pointing to the
-// profile's YAML file.
-func ProfileFromDir(dirPath string) (*ClientProfile, error) {
-	return ProfileFromFile(path.Join(dirPath, CurrentProfileSymlink))
+// ProfileFromDir reads the user (yaml) profile from a given directory. The
+// default is to use the ~/<dir-path>/profile symlink unless another profile
+// is explicitly asked for. It works by looking for a "profile" symlink in
+// that directory pointing to the profile's YAML file first.
+func ProfileFromDir(dirPath string, proxyName string) (*ClientProfile, error) {
+	profilePath := filepath.Join(dirPath, CurrentProfileSymlink)
+	if proxyName != "" {
+		profilePath = filepath.Join(dirPath, proxyName+".yaml")
+	}
+
+	return ProfileFromFile(profilePath)
 }
 
 // ProfileFromFile loads the profile from a YAML file
@@ -108,9 +115,9 @@ func (cp *ClientProfile) SaveTo(filePath string, opts ProfileOptions) error {
 	}
 	// set 'current' symlink:
 	if opts&ProfileMakeCurrent != 0 {
-		symlink := path.Join(path.Dir(filePath), CurrentProfileSymlink)
+		symlink := filepath.Join(filepath.Dir(filePath), CurrentProfileSymlink)
 		os.Remove(symlink)
-		err = os.Symlink(path.Base(filePath), symlink)
+		err = os.Symlink(filepath.Base(filePath), symlink)
 	}
 	return trace.Wrap(err)
 }

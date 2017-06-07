@@ -192,11 +192,11 @@ func MakeDefaultConfig() *Config {
 
 // LoadProfile populates Config with the values stored in the given
 // profiles directory. If profileDir is an empty string, the default profile
-// directory ~/.tsh is used
-func (c *Config) LoadProfile(profileDir string) error {
+// directory ~/.tsh is used.
+func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 	profileDir = FullProfilePath(profileDir)
 	// read the profile:
-	cp, err := ProfileFromDir(profileDir)
+	cp, err := ProfileFromDir(profileDir, proxyName)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil
