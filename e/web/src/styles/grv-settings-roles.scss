@@ -1,0 +1,97 @@
+.grv-settings-roles {
+  max-width: 1400px;
+  margin: 15px auto;
+  
+  .grv-settings-role-details {
+    width: 100%;
+    max-width: 900px;
+    background-color: white;
+    padding: 0 15px;
+    
+    .grv-settings-roles-max-input-width{
+      max-width: 700px;
+    }
+
+    .grv-settings-role-details-name{
+      font-size: 24px;
+      margin-top: -5px;
+    }
+
+    .grv-settings-role-details-name-input {
+      border-radius: 0;
+    }
+  }
+}
+
+.grv-settings-roles-groups {
+  height: 100%;
+  .grv-settings-roles-group {
+    margin-bottom: 15px;
+  }
+}
+
+.grv-settings-roles-group {
+  width: 220px;  
+  list-style: none;
+  .grv-settings-roles-group-header {
+    display: block;
+    padding: 10px;    
+    border-bottom: 1px solid #eee;
+  }
+
+  .grv-settings-roles-group-menu {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+
+    li.active {      
+      border-left: 2px solid #4b9185;
+      margin-left: -2px;
+    }
+
+    .grv-settings-roles-group-menu-item {
+      border-bottom: 1px solid #eee;
+      display: block;
+      
+      &.active {
+        background-color: #e2e2e2;
+
+        a {
+          font-weight: bold;
+          color: #5b5d5f;
+        }
+      }
+
+      &:hover:not(.active) {        
+        color: #5b5d5f;
+        background-color: #f9f9f9
+      }
+
+      .fa {
+        margin-right: 10px;
+      }
+
+      a {
+        color: #676a6c;
+        display: block;
+        padding: 5px 10px;
+        text-decoration: none;
+        position: relative;
+        word-break: break-all;
+      }
+    }
+  }
+}
+
+.grv-settings-roles-dlg-confirm{  
+  .grv-settings-roles-dlg-confirm-header {
+    padding: 5px 5px;
+    display: flex;
+    text-align: left;
+
+    h3{
+      line-height: initial;
+      margin-top: 2px;
+    }
+  }
+}

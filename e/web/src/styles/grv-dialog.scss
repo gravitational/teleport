@@ -1,0 +1,36 @@
+.grv-dialog{
+  .grv-dialog-content-header{
+    padding: 10px;
+  }
+}
+
+.grv-dialog-md{
+  .modal-dialog{
+    max-width: 550px;
+  }
+}
+
+.grv-dialog-sm{
+  .modal-dialog{
+    max-width: 450px;
+  }
+}
+
+.grv-dialog-no-body{
+  .modal-header {
+    border: none;
+  }
+}
+
+.grv-dialog-confirm{  
+  .grv-dialog-confirm-header {
+    padding: 5px 5px;
+    display: flex;
+    text-align: left;
+
+    h3{
+      line-height: initial;
+      margin-top: 2px;
+    }
+  }
+}

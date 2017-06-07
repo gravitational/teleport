@@ -1,0 +1,29 @@
+.grv-settings-cluster {
+  max-width: 1400px;
+  margin: 0 auto;
+
+  .grv-settings-auth-connector-item:first-of-type{    
+    .grv-line-solid{
+      display: none;    
+    }
+  }  
+
+  .grv-settings-cluster-role-label {
+    max-width: 100%;
+    font-size: .9em;
+    font-weight: 100;
+    padding: 5px 6px;
+    text-shadow: none;
+    color: #4d4d4d;
+    background-color: #d1dade;
+    display: inline;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: baseline;
+    border-radius: 3px;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}

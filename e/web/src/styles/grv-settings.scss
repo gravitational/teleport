@@ -1,0 +1,157 @@
+@import "grv-settings-separators";
+@import "grv-settings-auth";
+@import "grv-settings-roles";
+@import "grv-settings-cluster";
+
+.grv-settings {
+  padding: 0 15px;
+  width: 100%;
+  height: 100%;    
+  margin: 0 auto; 
+    
+  .grv-line-solid {
+    border-bottom: 1px solid #e7eaec;
+    background-color: transparent;    
+  }
+
+  .grv-settings-table {
+    tr td {
+      border-bottom: 1px solid #e7eaec;
+      vertical-align: middle;
+    }
+  }
+
+  .grv-settings-form-table {
+    width: 100%;
+    tr td {
+      border: none;
+      padding: 5px 0;
+      vertical-align: baseline;
+    }
+  }
+
+  .grv-settings-label-selector {
+    &.Select{
+
+      &.is-focused:not(.is-open) {
+        .Select-control {
+          border-color: $navy;
+          box-shadow: none;
+        }
+      }
+
+      &.is-disabled {
+        .Select-input{
+          display: inline-block;                 
+        }      
+      }
+      
+      .Select-option{
+        padding: 5px 10px;
+        &.is-focused{
+          background-color: $grv-hover-bg-color!important;
+        }
+      }
+
+      .Select-item {
+        border: none;
+        color: #5E5E5E;
+        background-color: $grv-settings-label-bg;
+        margin-top: 7px;
+        .Select-item-label {
+          word-break: break-all;
+        }
+        .Select-item-icon {
+          &:hover,
+          &:focus {
+            background-color: $grv-settings-label-bg;
+            color: black;
+          }
+          padding: 1px 0px 1px 5px;
+          border: none;
+        }
+      }
+
+      .Select-item:last-of-type{
+        margin-bottom: 4px;
+      }
+      
+      .Select-control {
+        padding-right: 2px;
+        border-radius: 0;
+        overflow: visible;      
+        border: 1px solid $grv-settings-input-border;
+      }
+
+      .Select-arrow-zone {
+        display: none;
+      }
+
+      .Select-menu-outer {
+        display: none;
+      }    
+    }
+  }
+
+  .grv-settings-label-selector-with-options {
+    
+    @extend .grv-settings-label-selector;    
+    
+    &.Select{
+      .Select-control {
+        border-radius: 0;
+        overflow: visible;
+        border-collapse: initial;
+      }
+      
+      .Select-arrow-zone {
+        display: none;
+      }
+      .Select-menu-outer {
+        display: block;
+      }
+    }
+  }
+
+
+  // NEW
+  .grv-settings-header-menu {
+    padding-left: 0;
+    margin-bottom: 0;
+    list-style: none;
+    h2 {
+      margin: 0;
+      padding: 0 20px;
+    }
+    a {
+      color: $gray-light;
+      &:hover {
+        color: $gray-darker;
+      }
+    }
+    li {
+      display: inline-block;
+      position: relative;
+      
+      .grv-settings-header-line-solid {
+        display: none;
+        position: absolute;
+        width: 100%;
+      }
+
+      &.active {
+        .grv-settings-header-line-solid {
+          display: block;
+          top: 100%;
+          border-bottom: 2px solid $navy;
+        }
+        a {
+          color: $gray-darker;
+        }
+      }
+    }
+    li:not(:first-child) {
+      margin-left: 20px;
+    }
+  }
+}

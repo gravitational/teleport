@@ -1,0 +1,5 @@
+node_modules
+telebase/**/__tests__
+*.log
+/**/_tmp
+.vscode

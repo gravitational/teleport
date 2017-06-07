@@ -1,0 +1,10 @@
+{
+	"ImportPath": "github.com/gravitational/enterprise/web",
+	"GoVersion": "go1.7",
+	"GodepVersion": "v79",
+	"Packages": [
+		"./lib/...",
+		"./tool/..."
+	],
+	"Deps": []
+}
