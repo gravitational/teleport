@@ -44,7 +44,7 @@ Read these two articles and you'll be fine:
 * [Introduction to Submodules](https://git-scm.com/book/en/v2/Git-Tools-Submodules)
 * [Submodules Reference](https://git-scm.com/docs/git-submodule)
 
-## Branching
+## Working with Submodules
 
 The parent OSS repository always "knows" which branch of the `e` submodule is
 current.  Say, you want to introduce a new feature which spans across both
@@ -64,7 +64,7 @@ Here's the sequence of steps:
 Now, if you type `git status` in the Teleport root directory, you will see
 something like this:
 
-```
+```bash
 $ git status
     modified:   README.md
     modified:   e (modified content)
@@ -72,4 +72,30 @@ $ git status
 
 It is telling you that you've changed README.md in the OSS branch and something
 else inside of `e` submodule.
-   
+
+Now you can independenly commit & push your changes in both repositories via
+usual sequence of `git add`, `git commit` and `git push`. There is even a helper
+to push everything at once:
+
+```bash
+$ git push --recurse-submodules=on-demand
+```
+
+Remember, when you commit to the OSS repo, it "remembers" the current gitref of
+the `e` submodule, so it is a good idea to commit your changes of the submodule
+first.
+
+Now, if someone else wants to play with `ev/foo`, here's what they need to do:
+
+```bash
+# inside of Teleport repo root:
+$ git checkout ev/foo
+$ git submodule update --remote
+```
+
+... and this would switch both repositories to `ev/foo`.
+
+**PRO TIP:** think of a submodule as one file. I.e. when you change _anything_
+in the enterprise submodule, you have to `git add e && git commit` the OSS
+repo.
+

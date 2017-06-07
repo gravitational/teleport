@@ -1,0 +1,21 @@
+build
+
+# usually release tarballs get in the way
+*.gz
+
+# Compiled binaries, Object files, Static and Dynamic libs (Shared Objects)
+out
+build
+*.o#
+*.a
+*.so
+
+# Temp stuff
+_obj
+_test
+tmp
+.tmp
+.test
+
+# editors
+.vscode

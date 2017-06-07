@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/gravitational/enterprise/lib/web"
+	"github.com/gravitational/teleport/e/lib/web"
 	teleweb "github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/teleport/tool/teleport/common"
 )

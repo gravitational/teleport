@@ -3,7 +3,7 @@ package web
 import (
 	"net/http"
 
-	"github.com/gravitational/enterprise/lib/web/ui"
+	"github.com/gravitational/teleport/e/lib/web/ui"
 
 	telebackend "github.com/gravitational/teleport/lib/backend"
 	telehttplib "github.com/gravitational/teleport/lib/httplib"
