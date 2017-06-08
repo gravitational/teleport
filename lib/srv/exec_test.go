@@ -72,7 +72,7 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 	expectedEnv := []string{
 		"LANG=en_US.UTF-8",
-		getDefaultEnvPath(""),
+		getDefaultEnvPath(s.usr.Username, ""),
 		fmt.Sprintf("HOME=%s", s.usr.HomeDir),
 		fmt.Sprintf("USER=%s", s.usr.Username),
 		"SHELL=/bin/sh",
@@ -115,8 +115,10 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 }
 
 func (s *ExecSuite) TestLoginDefsParser(c *check.C) {
-	c.Assert(getDefaultEnvPath("../../fixtures/login.defs"), check.Equals, "PATH=/usr/local/bin:/usr/bin:/bin:/foo")
-	c.Assert(getDefaultEnvPath("bad/file"), check.Equals, "PATH="+defaultPath)
+	c.Assert(getDefaultEnvPath("johns", "../../fixtures/login.defs"), check.Equals, "PATH=/usr/local/bin:/usr/bin:/bin:/foo")
+	c.Assert(getDefaultEnvPath("johns", "bad/file"), check.Equals, "PATH="+defaultPath)
+	c.Assert(getDefaultEnvPath("root", "../../fixtures/login.defs"), check.Equals, "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+	c.Assert(getDefaultEnvPath("root", "bad/file"), check.Equals, "PATH="+defaultPath)
 }
 
 // implementation of ssh.Conn interface
