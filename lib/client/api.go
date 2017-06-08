@@ -307,6 +307,10 @@ type TeleportClient struct {
 	// OnShellCreated gets called when the shell is created. It's
 	// safe to keep it nil
 	OnShellCreated ShellCreatedCallback
+
+	// OnAuthentication gets called after authentication has been attempted and
+	// contains the result. It's safe for it to be nil.
+	OnAuthentication AuthenticationCallback
 }
 
 // ShellCreatedCallback can be supplied for every teleport client. It will
@@ -315,6 +319,10 @@ type TeleportClient struct {
 //
 // It allows clients to cancel SSH action
 type ShellCreatedCallback func(s *ssh.Session, c *ssh.Client, terminal io.ReadWriteCloser) (exit bool, err error)
+
+// AuthenticationCallback can be supplied to every Teleport client. It get's
+// called after a authentication attempt and contains the result.
+type AuthenticationCallback func(ok bool)
 
 // NewClient creates a TeleportClient object and fully configures it
 func NewClient(c *Config) (tc *TeleportClient, err error) {
@@ -433,18 +441,29 @@ func (tc *TeleportClient) getTargetNodes(ctx context.Context, proxy *ProxyClient
 //
 // Returns nil if successful, or (possibly) *exec.ExitError
 func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally bool) error {
-	// connect to proxy first:
-	if !tc.Config.ProxySpecified() {
-		return trace.BadParameter("proxy server is not specified")
-	}
+	// connect to the proxy and authenticate. will try non-interactive
+	// and interactive methods to authenticate.
 	proxyClient, err := tc.ConnectToProxy()
 	if err != nil {
+		// authentication failed, if we have a callback, call it
+		// with the failed result
+		if tc.OnAuthentication != nil {
+			tc.OnAuthentication(false)
+		}
 		return trace.Wrap(err)
 	}
 	defer proxyClient.Close()
+
+	// get information about the cluster we connected to from the proxy
 	siteInfo, err := proxyClient.currentCluster()
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	// authentication was successful, if we have a callback, call it
+	// with the success result
+	if tc.OnAuthentication != nil {
+		tc.OnAuthentication(true)
 	}
 
 	// which nodes are we executing this commands on?
@@ -905,6 +924,11 @@ func (tc *TeleportClient) authMethods() []ssh.AuthMethod {
 
 // ConnectToProxy dials the proxy server and returns ProxyClient if successful
 func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
+	// make sure we specified a proxy before we try connecting to it
+	if !tc.Config.ProxySpecified() {
+		return nil, trace.BadParameter("proxy server is not specified")
+	}
+
 	proxyPrincipal := tc.getProxySSHPrincipal()
 	proxyAddr := tc.Config.ProxySSHHostPort()
 	sshConfig := &ssh.ClientConfig{

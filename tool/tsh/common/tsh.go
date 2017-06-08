@@ -356,6 +356,17 @@ func onSSH(cf *CLIConf) {
 		utils.FatalError(err)
 	}
 
+	// set the OnAuthentication callback which gets called with the authentication
+	// result. if the user has successfully authenticated, save their profile.
+	tc.OnAuthentication = func(ok bool) {
+		if ok {
+			err := tc.SaveProfile("")
+			if err != nil {
+				utils.FatalError(err)
+			}
+		}
+	}
+
 	tc.Stdin = os.Stdin
 	if err = tc.SSH(context.TODO(), cf.RemoteCommand, cf.LocalExec); err != nil {
 		// exit with the same exit status as the failed command:
