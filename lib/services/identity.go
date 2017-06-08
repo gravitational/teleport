@@ -326,6 +326,14 @@ type SAMLAuthRequest struct {
 	// RedirectURL will be used by browser
 	RedirectURL string `json:"redirect_url"`
 
+	// AuthnRequestForm is HTML form response that
+	// can be used in HTTP POST binding that uses
+	// self-submitting HTTP POST Form button
+	AuthnRequestForm []byte `json:"authn_request_form"`
+
+	// Binding specifies POST/REDIRECT
+	Binding string `json:"binding"`
+
 	// PublicKey is an optional public key, users want these
 	// keys to be signed by auth servers user CA in case
 	// of successfull auth
