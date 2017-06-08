@@ -25,6 +25,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
@@ -203,9 +204,10 @@ func prepareCommand(ctx *ctx) (*exec.Cmd, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	_path := getEnvPath(getDefaultEnvPath(""))
 	c.Env = []string{
 		"LANG=en_US.UTF-8",
-		getDefaultEnvPath(""),
+		_path,
 		"HOME=" + osUser.HomeDir,
 		"USER=" + osUserName,
 		"SHELL=" + shell,
@@ -400,4 +402,64 @@ func getDefaultEnvPath(loginDefsPath string) string {
 		}
 	}
 	return defaultValue
+}
+
+// getEnvPath returns the value of PATH environment variable for
+// new logins (prior to shell) combine oriPath with the path variable in
+// /etc/environment file
+//
+// Returns a strings which looks like "PATH=/usr/bin:/bin"
+func getEnvPath(oriPath string) string {
+
+	envPath := "/etc/environment"
+	var envPathV string
+
+	f, err := os.Open(envPath)
+	if err != nil {
+		log.Warn(err)
+		return oriPath
+	}
+	defer f.Close()
+
+	// read /etc/environment line by line:
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		// skip comments and empty lines:
+		if line == "" || line[0] == '#' {
+			continue
+		}
+		if matched, _ := regexp.MatchString("PATH", line); true == matched {
+			envPathV = line
+		}
+	}
+
+	env1Path := strings.Split(oriPath, "=")[1]
+	env2Path := strings.Split(envPathV, "=")[1]
+	env1Path = strings.Trim(env1Path, "\"")
+	env2Path = strings.Trim(env2Path, "\"")
+	env1SlicePath := strings.Split(env1Path, ":")
+	env2SlicePath := strings.Split(env2Path, ":")
+	newPaths := make([]string, len(env1SlicePath))
+	copy(newPaths, env1SlicePath)
+	for _, path := range env2SlicePath {
+		if !isInSlice(newPaths, path) {
+			newPaths = append(newPaths, path)
+		}
+	}
+
+	return "PATH=" + strings.Join(newPaths, ":")
+}
+
+// isInSlice returns the bool value whether the slices contains element
+// or not
+//
+// Returns true of false
+func isInSlice(slices []string, element string) bool {
+	for _, key := range slices {
+		if strings.EqualFold(key, element) {
+			return true
+		}
+	}
+	return false
 }

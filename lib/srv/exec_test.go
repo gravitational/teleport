@@ -24,8 +24,6 @@ import (
 	"path"
 	"path/filepath"
 
-	"gopkg.in/check.v1"
-
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/lib/auth"
@@ -72,7 +70,7 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 	expectedEnv := []string{
 		"LANG=en_US.UTF-8",
-		getDefaultEnvPath(""),
+		getEnvPath(getDefaultEnvPath("")),
 		fmt.Sprintf("HOME=%s", s.usr.HomeDir),
 		fmt.Sprintf("USER=%s", s.usr.Username),
 		"SHELL=/bin/sh",
