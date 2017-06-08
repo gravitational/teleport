@@ -23,6 +23,7 @@ import (
 	"os/user"
 	"path"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/check.v1"
 
@@ -117,6 +118,18 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 func (s *ExecSuite) TestLoginDefsParser(c *check.C) {
 	c.Assert(getDefaultEnvPath("../../fixtures/login.defs"), check.Equals, "PATH=/usr/local/bin:/usr/bin:/bin:/foo")
 	c.Assert(getDefaultEnvPath("bad/file"), check.Equals, "PATH="+defaultPath)
+}
+
+func (s *ExecSuite) TestShellEscaping(c *check.C) {
+	c.Assert(strings.Join(quoteShellWildcards([]string{"one", "two"}), " "),
+		check.Equals,
+		"one two")
+	c.Assert(strings.Join(quoteShellWildcards([]string{"o*ne", "two?"}), " "),
+		check.Equals,
+		"'o*ne' 'two?'")
+	c.Assert(strings.Join(quoteShellWildcards([]string{"'o*ne'", "'two?"}), " "),
+		check.Equals,
+		"'o*ne' ''two?'")
 }
 
 // implementation of ssh.Conn interface

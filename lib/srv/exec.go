@@ -71,6 +71,25 @@ type execResponse struct {
 	ctx     *ctx
 }
 
+// quoteShellWildcards takes a slice of strings and wraps some of them
+// into single quotes if they contain bash wildcard expansion characters like
+// '*' or '?'
+func quoteShellWildcards(args []string) []string {
+	retval := make([]string, len(args))
+	for i := range args {
+		a := args[i]
+		// check each arg for 2 things:
+		//    - contains wildcards?
+		//    - already wrapped in "'"?
+		if strings.ContainsAny(a, "*?") && !(strings.HasPrefix(a, "'") && strings.HasSuffix(a, "'")) {
+			retval[i] = fmt.Sprintf("'%s'", a)
+		} else {
+			retval[i] = a
+		}
+	}
+	return retval
+}
+
 // parseExecRequest parses SSH exec request
 func parseExecRequest(req *ssh.Request, ctx *ctx) (*execResponse, error) {
 	var e execReq
@@ -86,7 +105,7 @@ func parseExecRequest(req *ssh.Request, ctx *ctx) (*execResponse, error) {
 
 		// is this scp request?
 		if f == "scp" {
-			// for 'scp' requests, we'll fork ourselves with scp parameters:
+			// for 'scp' requests, we'll launch ourselves with scp parameters:
 			teleportBin, err := osext.Executable()
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -95,7 +114,7 @@ func parseExecRequest(req *ssh.Request, ctx *ctx) (*execResponse, error) {
 				teleportBin,
 				ctx.conn.RemoteAddr().String(),
 				ctx.conn.LocalAddr().String(),
-				strings.Join(args[1:], " "))
+				strings.Join(quoteShellWildcards(args[1:]), " "))
 		}
 	}
 	ctx.exec = &execResponse{
@@ -194,7 +213,7 @@ func prepareCommand(ctx *ctx) (*exec.Cmd, error) {
 		}
 	}
 
-	// execute command using user's shell like openssh does:
+	// by default, execute command using user's shell like openssh does:
 	// https://github.com/openssh/openssh-portable/blob/master/session.c
 	c := exec.Command(shell, "-c", ctx.exec.cmdName)
 

@@ -50,7 +50,7 @@ func Run(cmdlineArgs []string, testRun bool) (executedCommand string, conf *serv
 	// configure logger for a typical CLI scenario until configuration file is
 	// parsed
 	utils.InitLogger(utils.LoggingForDaemon, log.WarnLevel)
-	app := utils.InitCLIParser("teleport", "Clustered SSH service. Learn more at http://teleport.gravitational.com")
+	app := utils.InitCLIParser("teleport", "Clustered SSH service. Learn more at https://gravitational.com/teleport")
 
 	// define global flags:
 	var ccf config.CommandLineFlags
