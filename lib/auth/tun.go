@@ -987,6 +987,11 @@ func (c *TunClient) getClient() (client *ssh.Client, err error) {
 		if err == nil {
 			return client, nil
 		}
+		// if it's an auth failure, fail right away because all auth servers are backed
+		// by the same data store and result does not depend on which auth server you hit.
+		if trace.IsAccessDenied(err) {
+			return nil, trace.Wrap(err)
+		}
 		log.Debugf("%v.getClient() throttle auth server %v: %v", c, authServer, err)
 		c.throttleAuthServer(authServer.String())
 	}
