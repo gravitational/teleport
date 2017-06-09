@@ -23,7 +23,6 @@ import (
 	"os/user"
 	"path"
 	"path/filepath"
-	"strings"
 
 	"gopkg.in/check.v1"
 

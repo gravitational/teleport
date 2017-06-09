@@ -344,7 +344,6 @@ func (client *NodeClient) Upload(srcPath, rDestPath string, recursive bool, stde
 	if recursive {
 		shellCmd += " -r"
 	}
-	// mitigate shell injection
 	shellCmd += (" " + rDestPath)
 	return client.scp(scpConf, shellCmd, stderr)
 }
@@ -363,7 +362,6 @@ func (client *NodeClient) Download(remoteSourcePath, localDestinationPath string
 	if recursive {
 		shellCmd += " -r"
 	}
-	// mitigate shell injection
 	shellCmd += (" " + remoteSourcePath)
 	return client.scp(scpConf, shellCmd, stderr)
 }

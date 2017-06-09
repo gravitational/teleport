@@ -50,7 +50,7 @@ func (s *SCPSuite) TestSendFile(c *C) {
 	err := ioutil.WriteFile(target, contents, 0666)
 	c.Assert(err, IsNil)
 
-	srv := &Command{Source: true, Target: target}
+	srv := &Command{Source: true, Target: []string{target}}
 
 	outDir := c.MkDir()
 	cmd, in, out, _ := command("scp", "-v", "-t", outDir)
@@ -96,7 +96,7 @@ func (s *SCPSuite) TestReceiveFile(c *C) {
 
 	outDir := c.MkDir() + "/"
 
-	srv := &Command{Sink: true, Target: outDir}
+	srv := &Command{Sink: true, Target: []string{outDir}}
 
 	cmd, in, out, _ := command("scp", "-v", "-f", source)
 
@@ -149,7 +149,7 @@ func (s *SCPSuite) TestSendDir(c *C) {
 		filepath.Join(dir, "target2"), []byte("file 2"), 0666)
 	c.Assert(err, IsNil)
 
-	srv := &Command{Source: true, Target: dir, Recursive: true}
+	srv := &Command{Source: true, Target: []string{dir}, Recursive: true}
 
 	outDir := c.MkDir()
 
@@ -207,7 +207,7 @@ func (s *SCPSuite) TestReceiveDir(c *C) {
 
 	outDir := c.MkDir() + "/"
 
-	srv := &Command{Sink: true, Target: outDir, Recursive: true}
+	srv := &Command{Sink: true, Target: []string{outDir}, Recursive: true}
 
 	cmd, in, out, _ := command("scp", "-v", "-r", "-f", dir)
 

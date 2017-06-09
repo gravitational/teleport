@@ -54,9 +54,6 @@ type execResult struct {
 
 	// returned exec code
 	code int
-
-	// stderr output
-	stderr []byte
 }
 
 type execReq struct {

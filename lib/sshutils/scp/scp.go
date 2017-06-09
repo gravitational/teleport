@@ -60,14 +60,29 @@ type Command struct {
 	Terminal io.Writer
 }
 
-// Execute implements SSH file copy (SCP)
+// Execute() implements SSH file copy (SCP). It is called on both tsh (client)
+// and teleport (server) side.
 func (cmd *Command) Execute(ch io.ReadWriter) (err error) {
 	if cmd.Source {
 		err = cmd.serveSource(ch)
 	} else {
 		err = cmd.serveSink(ch)
 	}
-	return trace.Wrap(err)
+	if err != nil {
+		if cmd.runningOnClient() {
+			return trace.Wrap(err)
+		} else {
+			// when 'teleport scp' encounters an error, it SHOULD NOT be logged
+			// to stderr (i.e. we should not return an error here) and instead
+			// it should be sent back to scp client using scp protocol
+			sendError(ch, err)
+		}
+	}
+	return nil
+}
+
+func (cmd *Command) runningOnClient() bool {
+	return cmd.Terminal != nil
 }
 
 func (cmd *Command) serveSource(ch io.ReadWriter) error {
@@ -75,11 +90,11 @@ func (cmd *Command) serveSource(ch io.ReadWriter) error {
 	for i := range cmd.Target {
 		f, err := os.Stat(cmd.Target[i])
 		if err != nil {
-			return trace.Wrap(sendError(ch, err))
+			return trace.Wrap(err)
 		}
 		if f.IsDir() && !cmd.Recursive {
 			err := trace.Errorf("%v is a directory, perhaps try -r flag?", f.Name())
-			return trace.Wrap(sendError(ch, err))
+			return trace.Wrap(err)
 		}
 		files[i] = f
 	}
@@ -92,11 +107,11 @@ func (cmd *Command) serveSource(ch io.ReadWriter) error {
 	for i, f := range files {
 		if f.IsDir() {
 			if err := cmd.sendDir(r, ch, f, cmd.Target[i]); err != nil {
-				return trace.Wrap(sendError(ch, err))
+				return trace.Wrap(err)
 			}
 		} else {
 			if err := cmd.sendFile(r, ch, f, cmd.Target[i]); err != nil {
-				return trace.Wrap(sendError(ch, err))
+				return trace.Wrap(err)
 			}
 		}
 	}
@@ -223,7 +238,7 @@ func (cmd *Command) serveSink(ch io.ReadWriter) error {
 			return trace.Wrap(err)
 		}
 		if err := cmd.processCommand(ch, &st, b[0], scanner.Text()); err != nil {
-			return sendError(ch, err)
+			return trace.Wrap(err)
 		}
 		if err := sendOK(ch); err != nil {
 			return trace.Wrap(err)
