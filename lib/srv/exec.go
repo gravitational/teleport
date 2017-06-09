@@ -71,25 +71,6 @@ type execResponse struct {
 	ctx     *ctx
 }
 
-// quoteShellWildcards takes a slice of strings and wraps some of them
-// into single quotes if they contain bash wildcard expansion characters like
-// '*' or '?'
-func quoteShellWildcards(args []string) []string {
-	retval := make([]string, len(args))
-	for i := range args {
-		a := args[i]
-		// check each arg for 2 things:
-		//    - contains wildcards?
-		//    - already wrapped in "'"?
-		if strings.ContainsAny(a, "*?") && !(strings.HasPrefix(a, "'") && strings.HasSuffix(a, "'")) {
-			retval[i] = fmt.Sprintf("'%s'", a)
-		} else {
-			retval[i] = a
-		}
-	}
-	return retval
-}
-
 // parseExecRequest parses SSH exec request
 func parseExecRequest(req *ssh.Request, ctx *ctx) (*execResponse, error) {
 	var e execReq
@@ -114,7 +95,7 @@ func parseExecRequest(req *ssh.Request, ctx *ctx) (*execResponse, error) {
 				teleportBin,
 				ctx.conn.RemoteAddr().String(),
 				ctx.conn.LocalAddr().String(),
-				strings.Join(quoteShellWildcards(args[1:]), " "))
+				strings.Join(args[1:], " "))
 		}
 	}
 	ctx.exec = &execResponse{

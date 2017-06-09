@@ -120,18 +120,6 @@ func (s *ExecSuite) TestLoginDefsParser(c *check.C) {
 	c.Assert(getDefaultEnvPath("bad/file"), check.Equals, "PATH="+defaultPath)
 }
 
-func (s *ExecSuite) TestShellEscaping(c *check.C) {
-	c.Assert(strings.Join(quoteShellWildcards([]string{"one", "two"}), " "),
-		check.Equals,
-		"one two")
-	c.Assert(strings.Join(quoteShellWildcards([]string{"o*ne", "two?"}), " "),
-		check.Equals,
-		"'o*ne' 'two?'")
-	c.Assert(strings.Join(quoteShellWildcards([]string{"'o*ne'", "'two?"}), " "),
-		check.Equals,
-		"'o*ne' ''two?'")
-}
-
 // implementation of ssh.Conn interface
 func (s *ExecSuite) User() string                                           { return s.usr.Username }
 func (s *ExecSuite) SessionID() []byte                                      { return []byte{1, 2, 3} }
