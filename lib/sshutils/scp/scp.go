@@ -49,7 +49,7 @@ type Command struct {
 	Source     bool // data producer
 	Sink       bool // data consumer
 	Verbose    bool // verbose
-	Target     string
+	Target     []string
 	Recursive  bool
 	User       *user.User
 	AuditLog   events.IAuditLog
@@ -71,19 +71,9 @@ func (cmd *Command) Execute(ch io.ReadWriter) (err error) {
 }
 
 func (cmd *Command) serveSource(ch io.ReadWriter) error {
-	paths, err := filepath.Glob(cmd.Target)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if len(paths) == 0 {
-		err = trace.NotFound("no such file or directory: %s", cmd.Target)
-		sendError(ch, err)
-		return err
-	}
-
-	files := make([]os.FileInfo, len(paths))
-	for i := range paths {
-		f, err := os.Stat(paths[i])
+	files := make([]os.FileInfo, len(cmd.Target))
+	for i := range cmd.Target {
+		f, err := os.Stat(cmd.Target[i])
 		if err != nil {
 			return trace.Wrap(sendError(ch, err))
 		}
@@ -101,11 +91,11 @@ func (cmd *Command) serveSource(ch io.ReadWriter) error {
 
 	for i, f := range files {
 		if f.IsDir() {
-			if err := cmd.sendDir(r, ch, f, paths[i]); err != nil {
+			if err := cmd.sendDir(r, ch, f, cmd.Target[i]); err != nil {
 				return trace.Wrap(sendError(ch, err))
 			}
 		} else {
-			if err := cmd.sendFile(r, ch, f, paths[i]); err != nil {
+			if err := cmd.sendFile(r, ch, f, cmd.Target[i]); err != nil {
 				return trace.Wrap(sendError(ch, err))
 			}
 		}
@@ -283,7 +273,7 @@ func (cmd *Command) receiveFile(st *state, fc NewFileCmd, ch io.ReadWriter) erro
 
 	// if the dest path is a folder, we should save the file to that folder, but
 	// only if is 'recursive' is set
-	path := cmd.Target
+	path := cmd.Target[0]
 	if cmd.Recursive || utils.IsDir(path) {
 		path = st.makePath(path, fc.Name)
 	}
@@ -333,7 +323,7 @@ func (cmd *Command) receiveFile(st *state, fc NewFileCmd, ch io.ReadWriter) erro
 }
 
 func (cmd *Command) receiveDir(st *state, fc NewFileCmd, ch io.ReadWriter) error {
-	targetDir := cmd.Target
+	targetDir := cmd.Target[0]
 
 	// copying into an exising directory? append to it:
 	if utils.IsDir(targetDir) {
