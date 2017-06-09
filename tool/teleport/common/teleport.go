@@ -242,6 +242,10 @@ func onConfigDump() {
 //
 // This is the entry point of "teleport scp" call (the parent process is the teleport daemon)
 func onSCP(cmd *scp.Command) (err error) {
+	// when 'teleport scp' is executed, it cannot write logs to stderr (because
+	// they're automatically replayed by the scp client)
+	utils.SwitchLoggingtoSyslog()
+
 	// get user's home dir (it serves as a default destination)
 	cmd.User, err = user.Current()
 	if err != nil {
