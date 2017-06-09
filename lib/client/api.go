@@ -764,13 +764,22 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, recu
 // to download/upload, like "user@host:/path/to/resource.txt" and returns
 // 3 components of it
 func parseSCPDestination(s string) (login, host, dest string) {
-	i := strings.IndexRune(s, '@')
-	if i > 0 && i < len(s) {
-		login = s[:i]
-		s = s[i+1:]
+	parts := strings.SplitN(s, "@", 2)
+	if len(parts) > 1 {
+		login = parts[0]
+		host = parts[1]
+	} else {
+		host = parts[0]
 	}
-	parts := strings.Split(s, ":")
-	return login, parts[0], strings.Join(parts[1:], ":")
+	parts = strings.SplitN(host, ":", 2)
+	if len(parts) > 1 {
+		host = parts[0]
+		dest = parts[1]
+	}
+	if len(dest) == 0 {
+		dest = "."
+	}
+	return login, host, dest
 }
 
 func isRemoteDest(name string) bool {

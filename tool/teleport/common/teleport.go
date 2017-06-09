@@ -50,7 +50,7 @@ func Run(cmdlineArgs []string, testRun bool) (executedCommand string, conf *serv
 	// configure logger for a typical CLI scenario until configuration file is
 	// parsed
 	utils.InitLogger(utils.LoggingForDaemon, log.WarnLevel)
-	app := utils.InitCLIParser("teleport", "Clustered SSH service. Learn more at http://teleport.gravitational.com")
+	app := utils.InitCLIParser("teleport", "Clustered SSH service. Learn more at https://gravitational.com/teleport")
 
 	// define global flags:
 	var ccf config.CommandLineFlags
@@ -117,9 +117,10 @@ func Run(cmdlineArgs []string, testRun bool) (executedCommand string, conf *serv
 	scpc.Flag("f", "source mode (data producer)").Short('f').Default("false").BoolVar(&scpCommand.Source)
 	scpc.Flag("v", "verbose mode").Default("false").Short('v').BoolVar(&scpCommand.Verbose)
 	scpc.Flag("r", "recursive mode").Default("false").Short('r').BoolVar(&scpCommand.Recursive)
+	scpc.Flag("d", "directory mode").Short('d').Hidden().Bool()
 	scpc.Flag("remote-addr", "address of the remote client").StringVar(&scpCommand.RemoteAddr)
 	scpc.Flag("local-addr", "local address which accepted the request").StringVar(&scpCommand.LocalAddr)
-	scpc.Arg("target", "").StringVar(&scpCommand.Target)
+	scpc.Arg("target", "").StringsVar(&scpCommand.Target)
 
 	// parse CLI commands+flags:
 	command, err := app.Parse(cmdlineArgs)
@@ -242,6 +243,13 @@ func onConfigDump() {
 //
 // This is the entry point of "teleport scp" call (the parent process is the teleport daemon)
 func onSCP(cmd *scp.Command) (err error) {
+	// when 'teleport scp' is executed, it cannot write logs to stderr (because
+	// they're automatically replayed by the scp client)
+	utils.SwitchLoggingtoSyslog()
+	if len(cmd.Target) == 0 {
+		return trace.BadParameter("teleport scp: missing an argument")
+	}
+
 	// get user's home dir (it serves as a default destination)
 	cmd.User, err = user.Current()
 	if err != nil {
@@ -249,17 +257,13 @@ func onSCP(cmd *scp.Command) (err error) {
 	}
 	// see if the target is absolute. if not, use user's homedir to make
 	// it absolute (and if the user doesn't have a homedir, use "/")
-	slash := string(filepath.Separator)
-	withSlash := strings.HasSuffix(cmd.Target, slash)
-	if !filepath.IsAbs(cmd.Target) {
-		rootDir := cmd.User.HomeDir
-		if !utils.IsDir(rootDir) {
-			cmd.Target = slash + cmd.Target
+	target := cmd.Target[0]
+	if !filepath.IsAbs(target) {
+		if !utils.IsDir(cmd.User.HomeDir) {
+			slash := string(filepath.Separator)
+			cmd.Target[0] = slash + target
 		} else {
-			cmd.Target = filepath.Join(rootDir, cmd.Target)
-			if withSlash {
-				cmd.Target = cmd.Target + slash
-			}
+			cmd.Target[0] = filepath.Join(cmd.User.HomeDir, target)
 		}
 	}
 	if !cmd.Source && !cmd.Sink {

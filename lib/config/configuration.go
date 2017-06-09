@@ -210,6 +210,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.CachePolicy = *cachePolicy
 
 	// TODO(klizhentas): Removed on sasha/ha?
+	// TODO(ekontsevoy): I would advise against it. syslog is the only logger which works with scp
 	if strings.ToLower(fc.Logger.Output) == "syslog" {
 		utils.SwitchLoggingtoSyslog()
 	}

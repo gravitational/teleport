@@ -81,7 +81,10 @@ func NewClient(addr string, dialer Dialer, params ...roundtrip.ClientParam) (*Cl
 		roundtrip.HTTPClient(&http.Client{
 			Transport: transport,
 		}),
-		roundtrip.Tracer(NewTracer),
+		// TODO (ekontsevoy) this tracer pollutes the logs making it harder to work
+		// on issues that have nothing to do with the auth API, consider activating it
+		// via special environment variable?
+		// roundtrip.Tracer(NewTracer),
 	)
 
 	c, err := roundtrip.NewClient(addr, CurrentVersion, params...)

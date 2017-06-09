@@ -84,7 +84,6 @@ func (w *WebSockWrapper) Write(data []byte) (n int, err error) {
 		err = websocket.Message.Send(w.ws, utf8)
 	}
 	if err != nil {
-		log.Error(err)
 		n = 0
 	}
 	return n, err

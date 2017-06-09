@@ -856,10 +856,6 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in
 			}
 		case result := <-ctx.result:
 			ctx.Debugf("[SSH] ctx.result = %v", result)
-			// pass back stderr output
-			if len(result.stderr) != 0 {
-				ch.Stderr().Write(result.stderr)
-			}
 			// this means that exec process has finished and delivered the execution result,
 			// we send it back and close the session
 			_, err := ch.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: uint32(result.code)}))
@@ -1113,10 +1109,11 @@ func (s *Server) handleExec(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	// in case if result is nil and no error, this means that program is
 	// running in the background
 	go func() {
-		result, err := execResponse.wait()
+		result, err = execResponse.wait()
 		if err != nil {
 			ctx.Errorf("%v wait failed: %v", execResponse, err)
 		}

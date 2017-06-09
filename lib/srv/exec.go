@@ -54,9 +54,6 @@ type execResult struct {
 
 	// returned exec code
 	code int
-
-	// stderr output
-	stderr []byte
 }
 
 type execReq struct {
@@ -86,7 +83,7 @@ func parseExecRequest(req *ssh.Request, ctx *ctx) (*execResponse, error) {
 
 		// is this scp request?
 		if f == "scp" {
-			// for 'scp' requests, we'll fork ourselves with scp parameters:
+			// for 'scp' requests, we'll launch ourselves with scp parameters:
 			teleportBin, err := osext.Executable()
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -194,7 +191,7 @@ func prepareCommand(ctx *ctx) (*exec.Cmd, error) {
 		}
 	}
 
-	// execute command using user's shell like openssh does:
+	// by default, execute command using user's shell like openssh does:
 	// https://github.com/openssh/openssh-portable/blob/master/session.c
 	c := exec.Command(shell, "-c", ctx.exec.cmdName)
 

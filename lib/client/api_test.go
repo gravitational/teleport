@@ -105,10 +105,15 @@ func (s *APITestSuite) TestSCPParsing(c *check.C) {
 	c.Assert(host, check.Equals, "remote.host")
 	c.Assert(dest, check.Equals, "/etc/nginx.conf")
 
-	user, host, dest = parseSCPDestination("remote.host:/etc/nginx.conf")
+	user, host, dest = parseSCPDestination("remote.host:/etc/nginx.co:nf")
 	c.Assert(user, check.Equals, "")
 	c.Assert(host, check.Equals, "remote.host")
-	c.Assert(dest, check.Equals, "/etc/nginx.conf")
+	c.Assert(dest, check.Equals, "/etc/nginx.co:nf")
+
+	user, host, dest = parseSCPDestination("remote.host:")
+	c.Assert(user, check.Equals, "")
+	c.Assert(host, check.Equals, "remote.host")
+	c.Assert(dest, check.Equals, ".")
 }
 
 func (s *APITestSuite) TestPortsParsing(c *check.C) {
