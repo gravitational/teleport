@@ -683,7 +683,7 @@ func (s *session) pollAndSync() {
 	errCount := 0
 	sync := func() error {
 		sess, err := sessionServer.GetSession(ns, s.id)
-		if sess == nil {
+		if err != nil || sess == nil {
 			return trace.Wrap(err)
 		}
 		var active = true

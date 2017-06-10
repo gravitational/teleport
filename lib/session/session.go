@@ -271,15 +271,19 @@ func (s *server) GetSessions(namespace string) ([]Session, error) {
 	keys, err := s.bk.GetKeys(bucket)
 	if err != nil {
 		log.Error(err)
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	for i, sid := range keys {
 		if i > MaxSessionSliceLength {
 			break
 		}
 		se, err := s.GetSession(namespace, ID(sid))
-		if trace.IsNotFound(err) {
-			continue
+		if err != nil {
+			if trace.IsNotFound(err) {
+				continue
+			}
+			log.Errorf("Unable to retrieve session: %v", err)
+			return nil, trace.Wrap(err)
 		}
 		out = append(out, *se)
 	}
@@ -317,6 +321,7 @@ func (s *server) GetSession(namespace string, id ID) (*Session, error) {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("session(%v, %v) is not found", namespace, id)
 		}
+		return nil, trace.Wrap(err)
 	}
 	return sess, nil
 }
