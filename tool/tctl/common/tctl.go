@@ -89,7 +89,7 @@ type AuthCommand struct {
 	genTTL                     time.Duration
 	exportAuthorityFingerprint string
 	exportPrivateKeys          bool
-	outDir                     string
+	output                     string
 	compatVersion              string
 }
 
@@ -224,21 +224,22 @@ func Run() {
 	samlExport.Flag("name", "name of the connector to export").StringVar(&cmdSAML.name)
 
 	// operations with authorities
-	auth := app.Command("auth", "Operations with user and host certificate authorities").Hidden()
-	auth.Flag("type", "authority type, 'user' or 'host'").StringVar(&cmdAuth.authType)
+	auth := app.Command("auth", "Operations with user and host certificate authorities (CAs)").Hidden()
 	authList := auth.Command("ls", "List trusted certificate authorities (CAs)")
+	authList.Flag("type", "certificate type: 'user' or 'host'").StringVar(&cmdAuth.authType)
 	authExport := auth.Command("export", "Export CA keys to standard output")
 	authExport.Flag("keys", "if set, will print private keys").BoolVar(&cmdAuth.exportPrivateKeys)
 	authExport.Flag("fingerprint", "filter authority by fingerprint").StringVar(&cmdAuth.exportAuthorityFingerprint)
 	authExport.Flag("compat", "export cerfiticates compatible with specific version of Teleport").StringVar(&cmdAuth.compatVersion)
+	authExport.Flag("type", "certificate type: 'user' or 'host'").StringVar(&cmdAuth.authType)
 
 	authGenerate := auth.Command("gen", "Generate a new SSH keypair")
 	authGenerate.Flag("pub-key", "path to the public key").Required().StringVar(&cmdAuth.genPubPath)
 	authGenerate.Flag("priv-key", "path to the private key").Required().StringVar(&cmdAuth.genPrivPath)
 
-	authSign := auth.Command("sign", "Create a signed user session cerfiticate")
+	authSign := auth.Command("sign", "Create a signed cerfiticate")
 	authSign.Flag("user", "Teleport user name").Required().StringVar(&cmdAuth.genUser)
-	authSign.Flag("out", "Output directory [defaults to current]").Short('o').StringVar(&cmdAuth.outDir)
+	authSign.Flag("out", "Output directory [defaults to current]").Short('o').StringVar(&cmdAuth.output)
 	authSign.Flag("ttl", "TTL (time to live) for the generated certificate").Default(fmt.Sprintf("%v", defaults.CertDuration)).DurationVar(&cmdAuth.genTTL)
 
 	// operations with reverse tunnels
@@ -322,14 +323,9 @@ func Run() {
 		err = cmdTokens.Del(client)
 	case authSign.FullCommand():
 		err = cmdAuth.GenerateAndSignKeys(client)
-		if err != nil {
-			utils.FatalError(err)
-		}
-		return
 	}
-
 	if err != nil {
-		logrus.Error(trace.DebugReport(err))
+		logrus.Error(err)
 		utils.FatalError(err)
 	}
 }
@@ -759,15 +755,15 @@ func (a *AuthCommand) GenerateAndSignKeys(client *auth.TunClient) error {
 	pubPath := a.genUser + ".pub"
 
 	// --out flag
-	if a.outDir != "" {
-		if !utils.IsDir(a.outDir) {
-			if err = os.MkdirAll(a.outDir, 0770); err != nil {
+	if a.output != "" {
+		if !utils.IsDir(a.output) {
+			if err = os.MkdirAll(a.output, 0770); err != nil {
 				return trace.Wrap(err)
 			}
 		}
-		certPath = filepath.Join(a.outDir, certPath)
-		keyPath = filepath.Join(a.outDir, keyPath)
-		pubPath = filepath.Join(a.outDir, pubPath)
+		certPath = filepath.Join(a.output, certPath)
+		keyPath = filepath.Join(a.output, keyPath)
+		pubPath = filepath.Join(a.output, pubPath)
 	}
 
 	err = ioutil.WriteFile(certPath, cert, 0600)
