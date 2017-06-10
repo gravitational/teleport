@@ -992,7 +992,7 @@ func (c *TunClient) getClient() (client *ssh.Client, err error) {
 		if trace.IsAccessDenied(err) {
 			return nil, trace.Wrap(err)
 		}
-		log.Debugf("%v.getClient() throttle auth server %v: %v", c, authServer, err)
+		log.Errorf("%v.getClient() error while connecting to auth server %v: %v: throttling", c, authServer, err)
 		c.throttleAuthServer(authServer.String())
 	}
 	return nil, trace.ConnectionProblem(nil, "all auth servers are offline")
