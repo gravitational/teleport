@@ -546,6 +546,9 @@ func (process *TeleportProcess) initSSH() error {
 			srv.SetLabels(cfg.SSH.Labels, cfg.SSH.CmdLabels),
 			srv.SetNamespace(namespace),
 			srv.SetPermitUserEnvironment(cfg.SSH.PermitUserEnvironment),
+			srv.SetCiphers(cfg.Ciphers),
+			srv.SetKEXAlgorithms(cfg.KEXAlgorithms),
+			srv.SetMACAlgorithms(cfg.MACAlgorithms),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -706,6 +709,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		srv.SetProxyMode(tsrv),
 		srv.SetSessionServer(conn.Client),
 		srv.SetAuditLog(conn.Client),
+		srv.SetCiphers(cfg.Ciphers),
+		srv.SetKEXAlgorithms(cfg.KEXAlgorithms),
+		srv.SetMACAlgorithms(cfg.MACAlgorithms),
 	)
 	if err != nil {
 		return trace.Wrap(err)

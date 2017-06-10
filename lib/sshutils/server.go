@@ -149,6 +149,36 @@ func SetRequestHandler(req RequestHandler) ServerOption {
 	}
 }
 
+func SetCiphers(ciphers []string) ServerOption {
+	return func(s *Server) error {
+		log.Debugf("[SSH:%v] Supported Ciphers: %q", s.component, ciphers)
+		if ciphers != nil {
+			s.cfg.Ciphers = ciphers
+		}
+		return nil
+	}
+}
+
+func SetKEXAlgorithms(kexAlgorithms []string) ServerOption {
+	return func(s *Server) error {
+		log.Debugf("[SSH:%v] Supported KEX algorithms: %q", s.component, kexAlgorithms)
+		if kexAlgorithms != nil {
+			s.cfg.KeyExchanges = kexAlgorithms
+		}
+		return nil
+	}
+}
+
+func SetMACAlgorithms(macAlgorithms []string) ServerOption {
+	return func(s *Server) error {
+		log.Debugf("[SSH:%v] Supported MAC algorithms: %q", s.component, macAlgorithms)
+		if macAlgorithms != nil {
+			s.cfg.MACs = macAlgorithms
+		}
+		return nil
+	}
+}
+
 func (s *Server) Addr() string {
 	return s.listener.Addr().String()
 }
