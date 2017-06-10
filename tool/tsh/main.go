@@ -22,8 +22,19 @@ import (
 
 import (
 	"os"
+	"path"
 )
 
 func main() {
-	common.Run(os.Args[1:], false)
+	cmd_line_orig := os.Args[1:]
+	cmd_line := []string{}
+	switch path.Base(os.Args[0]) {
+	case "ssh":
+		cmd_line = append([]string{"ssh"}, cmd_line_orig...)
+	case "scp":
+		cmd_line = append([]string{"scp"}, cmd_line_orig...)
+	default:
+		cmd_line = cmd_line_orig
+	}
+	common.Run(cmd_line, false)
 }
