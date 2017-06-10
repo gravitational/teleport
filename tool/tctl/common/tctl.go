@@ -989,7 +989,7 @@ func (u *CreateCommand) Create(client *auth.TunClient) error {
 			if err := client.UpsertSAMLConnector(conn); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Printf("SAML connector %v upserted\n", conn.GetName())
+			fmt.Printf("created SAML connector: %v\n", conn.GetName())
 		case services.KindOIDCConnector:
 			conn, err := services.GetOIDCConnectorMarshaler().UnmarshalOIDCConnector(raw.Raw)
 			if err != nil {
@@ -998,7 +998,7 @@ func (u *CreateCommand) Create(client *auth.TunClient) error {
 			if err := client.UpsertOIDCConnector(conn); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Printf("OIDC connector %v upserted\n", conn.GetName())
+			fmt.Printf("created OIDC connector: %v\n", conn.GetName())
 		case services.KindReverseTunnel:
 			tun, err := services.GetReverseTunnelMarshaler().UnmarshalReverseTunnel(raw.Raw)
 			if err != nil {
@@ -1007,7 +1007,7 @@ func (u *CreateCommand) Create(client *auth.TunClient) error {
 			if err := client.UpsertReverseTunnel(tun); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Printf("reverse tunnel %v upserted\n", tun.GetName())
+			fmt.Printf("created reverse tunnel: %v\n", tun.GetName())
 		case services.KindCertAuthority:
 			ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(raw.Raw)
 			if err != nil {
@@ -1016,7 +1016,7 @@ func (u *CreateCommand) Create(client *auth.TunClient) error {
 			if err := client.UpsertCertAuthority(ca); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Printf("cert authority %v upserted\n", ca.GetName())
+			fmt.Printf("created cert authority: %v \n", ca.GetName())
 		case services.KindUser:
 			user, err := services.GetUserMarshaler().UnmarshalUser(raw.Raw)
 			if err != nil {
@@ -1025,7 +1025,7 @@ func (u *CreateCommand) Create(client *auth.TunClient) error {
 			if err := client.UpsertUser(user); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Printf("user %v upserted\n", user.GetName())
+			fmt.Printf("created user: %v\n", user.GetName())
 		case services.KindRole:
 			role, err := services.GetRoleMarshaler().UnmarshalRole(raw.Raw)
 			if err != nil {
@@ -1038,7 +1038,7 @@ func (u *CreateCommand) Create(client *auth.TunClient) error {
 			if err := client.UpsertRole(role, backend.Forever); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Printf("role %v upserted\n", role.GetName())
+			fmt.Printf("created role: %v\n", role.GetName())
 		case services.KindNamespace:
 			ns, err := services.UnmarshalNamespace(raw.Raw)
 			if err != nil {
@@ -1047,7 +1047,7 @@ func (u *CreateCommand) Create(client *auth.TunClient) error {
 			if err := client.UpsertNamespace(*ns); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Printf("namespace %v upserted\n", ns.Metadata.Name)
+			fmt.Printf("created namespace: %v\n", ns.Metadata.Name)
 		case services.KindTrustedCluster:
 			tc, err := services.GetTrustedClusterMarshaler().Unmarshal(raw.Raw)
 			if err != nil {
@@ -1056,7 +1056,7 @@ func (u *CreateCommand) Create(client *auth.TunClient) error {
 			if err := client.UpsertTrustedCluster(tc); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Printf("trusted cluster %q upserted\n", tc.GetName())
+			fmt.Printf("created trusted cluster: %q\n", tc.GetName())
 		case services.KindClusterAuthPreference:
 			cap, err := services.GetAuthPreferenceMarshaler().Unmarshal(raw.Raw)
 			if err != nil {
@@ -1065,7 +1065,7 @@ func (u *CreateCommand) Create(client *auth.TunClient) error {
 			if err := client.SetClusterAuthPreference(cap); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Printf("cluster auth preference upserted\n")
+			fmt.Printf("updated cluster auth preferences\n")
 		case services.KindUniversalSecondFactor:
 			universalSecondFactor, err := services.GetUniversalSecondFactorMarshaler().Unmarshal(raw.Raw)
 			if err != nil {
@@ -1074,7 +1074,7 @@ func (u *CreateCommand) Create(client *auth.TunClient) error {
 			if err := client.SetUniversalSecondFactor(universalSecondFactor); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Printf("universal second factor upserted\n")
+			fmt.Printf("updated utf settings\n")
 		case "":
 			return trace.BadParameter("missing resource kind")
 		default:
