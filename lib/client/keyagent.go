@@ -277,7 +277,7 @@ func (a *LocalKeyAgent) AddKey(host string, username string, key *Key) (*CertAut
 		return nil, trace.Wrap(err)
 	}
 
-	return methodForCert(signer), nil
+	return NewAuthMethodForCert(signer), nil
 }
 
 // DeleteKey removes the key from the key store as well as unloading the key from the agent.
@@ -315,7 +315,7 @@ func (a *LocalKeyAgent) AuthMethods() (m []ssh.AuthMethod) {
 	// for every certificate create a new "auth method" and return them
 	m = make([]ssh.AuthMethod, len(certs))
 	for i := range certs {
-		m[i] = methodForCert(certs[i])
+		m[i] = NewAuthMethodForCert(certs[i])
 	}
 	return m
 }
@@ -331,7 +331,7 @@ type CertAuthMethod struct {
 	Cert ssh.Signer
 }
 
-func methodForCert(cert ssh.Signer) *CertAuthMethod {
+func NewAuthMethodForCert(cert ssh.Signer) *CertAuthMethod {
 	return &CertAuthMethod{
 		Cert: cert,
 		AuthMethod: ssh.PublicKeysCallback(func() ([]ssh.Signer, error) {

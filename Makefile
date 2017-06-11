@@ -32,7 +32,7 @@ $(BUILDDIR)/tctl: $(LIBS) $(TOOLS) tool/tctl/common/*.go tool/tctl/*go
 $(BUILDDIR)/teleport: $(LIBS) tool/teleport/*.go tool/teleport/common/*.go
 	go build -o $(BUILDDIR)/teleport -i $(BUILDFLAGS) ./tool/teleport
 
-$(BUILDDIR)/tsh: $(LIBS) tool/tsh/*.go
+$(BUILDDIR)/tsh: $(LIBS) tool/tsh/*.go tool/tsh/common/*go
 	go build -o $(BUILDDIR)/tsh -i $(BUILDFLAGS) ./tool/tsh
 
 .PHONY: goinstall

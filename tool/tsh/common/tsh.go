@@ -17,8 +17,11 @@ limitations under the License.
 package common
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -26,10 +29,13 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
@@ -100,13 +106,13 @@ type CLIConf struct {
 	Gops bool
 	// GopsAddr specifies to gops addr to listen on
 	GopsAddr string
+	// IdentityFile is an argument to -i flag (path to the private key+cert file)
+	IdentityFile string
 }
 
 // Run executes TSH client. same as main() but easier to test
 func Run(args []string, underTest bool) {
-	var (
-		cf CLIConf
-	)
+	var cf CLIConf
 	cf.IsUnderTest = underTest
 	utils.InitLogger(utils.LoggingForCLI, logrus.WarnLevel)
 
@@ -114,13 +120,15 @@ func Run(args []string, underTest bool) {
 	app := utils.InitCLIParser("tsh", "TSH: Teleport SSH client").Interspersed(false)
 	app.Flag("login", "Remote host login").Short('l').Envar("TELEPORT_LOGIN").StringVar(&cf.NodeLogin)
 	localUser, _ := client.Username()
+	app.Flag("proxy", "SSH proxy host or IP address").Envar("TELEPORT_PROXY").StringVar(&cf.Proxy)
 	app.Flag("nocache", "do not cache cluster discovery locally").Hidden().BoolVar(&cf.NoCache)
 	app.Flag("user", fmt.Sprintf("SSH proxy user [%s]", localUser)).Envar("TELEPORT_USER").StringVar(&cf.Username)
 	app.Flag("cluster", "Specify the cluster to connect").Envar("TELEPORT_SITE").StringVar(&cf.SiteName)
-	app.Flag("proxy", "SSH proxy host or IP address").Envar("TELEPORT_PROXY").StringVar(&cf.Proxy)
 	app.Flag("ttl", "Minutes to live for a SSH session").Int32Var(&cf.MinsToLive)
+	app.Flag("identity", "Identity file").Short('i').StringVar(&cf.IdentityFile)
+
 	app.Flag("insecure", "Do not verify server's certificate and host name. Use only in test environments").Default("false").BoolVar(&cf.InsecureSkipVerify)
-	app.Flag("namespace", "Namespace of the cluster").Default(defaults.Namespace).StringVar(&cf.Namespace)
+	app.Flag("namespace", "Namespace of the cluster").Default(defaults.Namespace).Hidden().StringVar(&cf.Namespace)
 	app.Flag("gops", "Start gops endpoint on a given address").Hidden().BoolVar(&cf.Gops)
 	app.Flag("gops-addr", "Specify gops addr to listen on").Hidden().StringVar(&cf.GopsAddr)
 	debugMode := app.Flag("debug", "Verbose logging to stdout").Short('d').Bool()
@@ -511,11 +519,39 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 	// 1: start with the defaults
 	c := client.MakeDefaultConfig()
 
-	// 2: load profile. if no --proxy is given use ~/.tsh/profile symlink otherwise
-	// fetch profile for exact proxy we are trying to connect to.
-	err = c.LoadProfile("", cf.Proxy)
-	if err != nil {
-		fmt.Printf("WARNING: Failed to load tsh profile for %q: %v\n", cf.Proxy, err)
+	// Look if a user identity was given via -i flag
+	if cf.IdentityFile != "" {
+		var (
+			key          *client.Key
+			identityAuth ssh.AuthMethod
+			expiryDate   time.Time
+		)
+		// do not try to login interactively if identity file fails:
+		c.SkipLocalAuth = true
+
+		// read the ID file and create an "auth method" from it:
+		key, err = loadIdentity(cf.IdentityFile)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		identityAuth, err = authFromIdentity(key)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		c.AuthMethods = []ssh.AuthMethod{identityAuth}
+
+		// check the expiration date
+		expiryDate, _ = key.CertValidBefore()
+		if expiryDate.Before(time.Now()) {
+			fmt.Fprintf(os.Stderr, "WARNING: the certificate has expired on %v\n", expiryDate)
+		}
+	} else {
+		// load profile. if no --proxy is given use ~/.tsh/profile symlink otherwise
+		// fetch profile for exact proxy we are trying to connect to.
+		err = c.LoadProfile("", cf.Proxy)
+		if err != nil {
+			fmt.Printf("WARNING: Failed to load tsh profile for %q: %v\n", cf.Proxy, err)
+		}
 	}
 
 	// 3: override with the CLI flags
@@ -576,4 +612,79 @@ func refuseArgs(command string, args []string) {
 	if lastArg != command {
 		utils.FatalError(trace.BadParameter("%s does not expect arguments", command))
 	}
+}
+
+// loadIdentity loads the private key + certificate from a file
+func loadIdentity(idFn string) (*client.Key, error) {
+	logrus.Infof("Reading identity file: ", idFn)
+
+	f, err := os.Open(idFn)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer f.Close()
+	var (
+		keyBuf bytes.Buffer
+		state  int // 0: not found, 1: found beginning, 2: found ending
+		cert   []byte
+	)
+	// read the identity file line by line:
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if state != 1 {
+			if strings.HasPrefix(line, "ssh") {
+				cert = []byte(line)
+				continue
+			}
+		}
+		if state == 0 && strings.HasPrefix(line, "-----BEGIN") {
+			state = 1
+			keyBuf.WriteString(line)
+			keyBuf.WriteRune('\n')
+			continue
+		}
+		if state == 1 {
+			keyBuf.WriteString(line)
+			if strings.HasPrefix(line, "-----END") {
+				state = 2
+			} else {
+				keyBuf.WriteRune('\n')
+			}
+		}
+	}
+	// did not find the certificate in the file? look in a separate file with
+	// -cert.pub prefix
+	if len(cert) == 0 {
+		certFn := idFn + "-cert.pub"
+		logrus.Infof("certificate not found in %s. looking in %s", idFn, certFn)
+		cert, err = ioutil.ReadFile(certFn)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	// validate both by parsing them:
+	privKey, err := ssh.ParseRawPrivateKey(keyBuf.Bytes())
+	if err != nil {
+		return nil, trace.BadParameter("invalid identity: %s. %v", idFn, err)
+	}
+	signer, err := ssh.NewSignerFromKey(privKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	k := &client.Key{
+		Priv: keyBuf.Bytes(),
+		Pub:  signer.PublicKey().Marshal(),
+		Cert: cert,
+	}
+	return k, nil
+}
+
+// authFromIdentity returns a standard ssh.Authmethod for a given identity file
+func authFromIdentity(k *client.Key) (ssh.AuthMethod, error) {
+	signer, err := sshutils.NewSigner(k.Priv, k.Cert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return client.NewAuthMethodForCert(signer), nil
 }

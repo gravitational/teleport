@@ -17,6 +17,7 @@ limitations under the License.
 package common
 
 import (
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -81,4 +82,28 @@ func (s *MainTestSuite) TestMakeClient(c *check.C) {
 			DestPort: 180,
 		},
 	})
+}
+
+func (s *MainTestSuite) TestIdentityRead(c *check.C) {
+	// 3 different types of identities
+	ids := []string{
+		"cert-key.pem", // cert + key concatenated togther, cert first
+		"key-cert.pem", // cert + key concatenated togther, key first
+		"key",          // two separate files: key and key-cert.pub
+	}
+	for _, id := range ids {
+		// test reading:
+		k, err := loadIdentity(fmt.Sprintf("../../../fixtures/certs/identities/%s", id))
+		c.Assert(err, check.IsNil)
+		c.Assert(k, check.NotNil)
+
+		// test creating an auth method from the key:
+		am, err := authFromIdentity(k)
+		c.Assert(err, check.IsNil)
+		c.Assert(am, check.NotNil)
+	}
+	k, err := loadIdentity("../../../fixtures/certs/identities/lonekey")
+	c.Assert(k, check.IsNil)
+	c.Assert(err, check.NotNil)
+	fmt.Println(err)
 }
