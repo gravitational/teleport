@@ -914,6 +914,8 @@ func (tc *TeleportClient) authMethods() []ssh.AuthMethod {
 
 // ConnectToProxy dials the proxy server and returns ProxyClient if successful
 func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
+	var err error
+
 	proxyPrincipal := tc.getProxySSHPrincipal()
 	proxyAddr := tc.Config.ProxySSHHostPort()
 	sshConfig := &ssh.ClientConfig{
@@ -939,9 +941,10 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 	// try to authenticate using every non interactive auth method we have:
 	for i, m := range tc.authMethods() {
 		log.Infof("[CLIENT] connecting proxy=%v login='%v' method=%d", proxyAddr, sshConfig.User, i)
+		var sshClient *ssh.Client
 
 		sshConfig.Auth = []ssh.AuthMethod{m}
-		sshClient, err := ssh.Dial("tcp", proxyAddr, sshConfig)
+		sshClient, err = ssh.Dial("tcp", proxyAddr, sshConfig)
 		if err != nil {
 			if utils.IsHandshakeFailedError(err) {
 				log.Warn(err)
@@ -953,9 +956,12 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 		return makeProxyClient(sshClient, m), nil
 	}
 	// we have exhausted all auth existing auth methods and local login
-	// is disabled in configuration
-	if tc.Config.SkipLocalAuth {
-		return nil, trace.BadParameter("failed to authenticate with proxy %v", proxyAddr)
+	// is disabled in configuration, or the user refused connecting to untrusted hosts
+	if tc.Config.SkipLocalAuth || tc.localAgent.UserRefusedHosts() {
+		if err == nil {
+			err = trace.BadParameter("failed to authenticate with proxy %v", proxyAddr)
+		}
+		return nil, trace.Wrap(err)
 	}
 	// if we get here, it means we failed to authenticate using stored keys
 	// and we need to ask for the login information
@@ -968,7 +974,6 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 		}
 		return nil, trace.Wrap(err)
 	}
-
 	// After successfull login we have local agent updated with latest
 	// and greatest auth information, try it now
 	sshConfig.Auth = []ssh.AuthMethod{authMethod}
@@ -1041,7 +1046,7 @@ func (tc *TeleportClient) Login() (*CertAuthMethod, error) {
 	// extract the new certificate out of the response
 	key.Cert = response.Cert
 
-	// save the list of CAs we trust to the cache file
+	// save the list of CAs we trust to ~/.tsh/known_hosts
 	err = tc.localAgent.AddHostSignersToCache(response.HostSigners)
 	if err != nil {
 		return nil, trace.Wrap(err)

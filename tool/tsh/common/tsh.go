@@ -526,9 +526,6 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 			identityAuth ssh.AuthMethod
 			expiryDate   time.Time
 		)
-		// do not try to login interactively if identity file fails:
-		c.SkipLocalAuth = true
-
 		// read the ID file and create an "auth method" from it:
 		key, err = loadIdentity(cf.IdentityFile)
 		if err != nil {
