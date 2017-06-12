@@ -221,6 +221,17 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Auth.DynamicConfig = *fc.SeedConfig
 	}
 
+	// apply ciphers, kex algorithms, and mac algorithms
+	if fc.Ciphers != nil {
+		cfg.Ciphers = fc.Ciphers
+	}
+	if fc.KEXAlgorithms != nil {
+		cfg.KEXAlgorithms = fc.KEXAlgorithms
+	}
+	if fc.MACAlgorithms != nil {
+		cfg.MACAlgorithms = fc.MACAlgorithms
+	}
+
 	// apply connection throttling:
 	limiters := []limiter.LimiterConfig{
 		cfg.SSH.Limiter,

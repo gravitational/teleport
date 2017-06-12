@@ -90,8 +90,15 @@ type AuthCommand struct {
 	exportAuthorityFingerprint string
 	exportPrivateKeys          bool
 	output                     string
+	outputFormat               string
 	compatVersion              string
 }
+
+const (
+	IdentityFormatFile    = "file"
+	IdentityFormatDir     = "dir"
+	DefaultIdentityFormat = IdentityFormatFile
+)
 
 type SAMLCommand struct {
 	config *service.Config
@@ -227,7 +234,7 @@ func Run() {
 	auth := app.Command("auth", "Operations with user and host certificate authorities (CAs)").Hidden()
 	authList := auth.Command("ls", "List trusted certificate authorities (CAs)")
 	authList.Flag("type", "certificate type: 'user' or 'host'").StringVar(&cmdAuth.authType)
-	authExport := auth.Command("export", "Export CA keys to standard output")
+	authExport := auth.Command("export", "Export public cluster (CA) keys to stdout")
 	authExport.Flag("keys", "if set, will print private keys").BoolVar(&cmdAuth.exportPrivateKeys)
 	authExport.Flag("fingerprint", "filter authority by fingerprint").StringVar(&cmdAuth.exportAuthorityFingerprint)
 	authExport.Flag("compat", "export cerfiticates compatible with specific version of Teleport").StringVar(&cmdAuth.compatVersion)
@@ -237,9 +244,10 @@ func Run() {
 	authGenerate.Flag("pub-key", "path to the public key").Required().StringVar(&cmdAuth.genPubPath)
 	authGenerate.Flag("priv-key", "path to the private key").Required().StringVar(&cmdAuth.genPrivPath)
 
-	authSign := auth.Command("sign", "Create a signed cerfiticate")
+	authSign := auth.Command("sign", "Create an identity file(s) for a given user")
 	authSign.Flag("user", "Teleport user name").Required().StringVar(&cmdAuth.genUser)
-	authSign.Flag("out", "Output directory [defaults to current]").Short('o').StringVar(&cmdAuth.output)
+	authSign.Flag("out", "identity output").Short('o').StringVar(&cmdAuth.output)
+	authSign.Flag("format", "identity format: 'file' (default) or 'dir'").Default(DefaultIdentityFormat).StringVar(&cmdAuth.outputFormat)
 	authSign.Flag("ttl", "TTL (time to live) for the generated certificate").Default(fmt.Sprintf("%v", defaults.CertDuration)).DurationVar(&cmdAuth.genTTL)
 
 	// operations with reverse tunnels
@@ -750,39 +758,69 @@ func (a *AuthCommand) GenerateAndSignKeys(client *auth.TunClient) error {
 		return trace.Wrap(err)
 	}
 
-	certPath := a.genUser + "-cert.pub"
-	keyPath := a.genUser
-	pubPath := a.genUser + ".pub"
-
-	// --out flag
-	if a.output != "" {
-		if !utils.IsDir(a.output) {
-			if err = os.MkdirAll(a.output, 0770); err != nil {
+	switch a.outputFormat {
+	//
+	// dump user identity into a single file:
+	//
+	case IdentityFormatFile:
+		if a.output == "" {
+			a.output = fmt.Sprintf("%s.pem", a.genUser)
+		}
+		var (
+			output  io.Writer
+			beQuiet bool
+		)
+		if a.output == "-" {
+			output = os.Stdout
+			beQuiet = true
+		} else {
+			f, err := os.OpenFile(a.output, os.O_CREATE|os.O_WRONLY, 0600)
+			if err != nil {
 				return trace.Wrap(err)
 			}
+			output = f
+			defer f.Close()
 		}
-		certPath = filepath.Join(a.output, certPath)
-		keyPath = filepath.Join(a.output, keyPath)
-		pubPath = filepath.Join(a.output, pubPath)
-	}
+		// write key:
+		if _, err = output.Write(privateKey); err != nil {
+			return trace.Wrap(err)
+		}
+		// append cert:
+		if _, err = output.Write(cert); err != nil {
+			return trace.Wrap(err)
+		}
+		if !beQuiet {
+			fmt.Printf("Identity file: %s\n", a.output)
+		}
+	//
+	// dump user identity into separate files:
+	//
+	case IdentityFormatDir:
+		certPath := a.genUser + "-cert.pub"
+		keyPath := a.genUser
 
-	err = ioutil.WriteFile(certPath, cert, 0600)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+		// --out flag
+		if a.output != "" {
+			if !utils.IsDir(a.output) {
+				if err = os.MkdirAll(a.output, 0770); err != nil {
+					return trace.Wrap(err)
+				}
+			}
+			certPath = filepath.Join(a.output, certPath)
+			keyPath = filepath.Join(a.output, keyPath)
+		}
 
-	err = ioutil.WriteFile(keyPath, privateKey, 0600)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+		err = ioutil.WriteFile(certPath, cert, 0600)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-	err = ioutil.WriteFile(pubPath, publicKey, 0600)
-	if err != nil {
-		return trace.Wrap(err)
+		err = ioutil.WriteFile(keyPath, privateKey, 0600)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("Private key: %v\nCertificate: %v\n", keyPath, certPath)
 	}
-
-	fmt.Printf("Public key : %v\nPrivate key: %v\nCertificate: %v\n",
-		pubPath, keyPath, certPath)
 	return nil
 }
 

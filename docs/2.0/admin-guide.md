@@ -190,6 +190,34 @@ teleport:
     storage:
         type: bolt
 
+    # Cipher algorithms that the server supports. This section only needs to be
+    # set if you want to override the defaults.
+    ciphers:
+      - aes128-ctr
+      - aes192-ctr
+      - aes256-ctr
+      - aes128-gcm@openssh.com
+      - arcfour256
+      - arcfour128
+
+    # Key exchange algorithms that the server supports. This section only needs
+    # to be set if you want to override the defaults.
+    kex_algos:
+      - kexAlgoCurve25519SHA256
+      - kexAlgoECDH256
+      - kexAlgoECDH384
+      - kexAlgoECDH521
+      - kexAlgoDH14SHA1
+      - kexAlgoDH1SHA1
+
+    # Message authentication code (MAC) algorithms that the server supports.
+    # This section only needs to be set if you want to override the defaults.
+    mac_algos:
+      - hmac-sha2-256-etm@openssh.com
+      - hmac-sha2-256
+      - hmac-sha1
+      - hmac-sha1-96
+
 # This section configures the 'auth service':
 auth_service:
     # Turns 'auth' role on. Default is 'yes'

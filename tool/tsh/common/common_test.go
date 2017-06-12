@@ -18,6 +18,8 @@ package common
 
 import (
 	"fmt"
+	"io/ioutil"
+	"net"
 	"os"
 	"testing"
 	"time"
@@ -27,6 +29,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"gopkg.in/check.v1"
+
+	"golang.org/x/crypto/ssh"
 )
 
 // bootstrap check
@@ -93,17 +97,32 @@ func (s *MainTestSuite) TestIdentityRead(c *check.C) {
 	}
 	for _, id := range ids {
 		// test reading:
-		k, err := loadIdentity(fmt.Sprintf("../../../fixtures/certs/identities/%s", id))
+		k, cb, err := loadIdentity(fmt.Sprintf("../../../fixtures/certs/identities/%s", id))
 		c.Assert(err, check.IsNil)
 		c.Assert(k, check.NotNil)
+		c.Assert(cb, check.IsNil)
 
 		// test creating an auth method from the key:
 		am, err := authFromIdentity(k)
 		c.Assert(err, check.IsNil)
 		c.Assert(am, check.NotNil)
 	}
-	k, err := loadIdentity("../../../fixtures/certs/identities/lonekey")
+	k, _, err := loadIdentity("../../../fixtures/certs/identities/lonekey")
 	c.Assert(k, check.IsNil)
 	c.Assert(err, check.NotNil)
-	fmt.Println(err)
+
+	// lets read an indentity which includes a CA cert
+	k, hostAuthCallback, err := loadIdentity("../../../fixtures/certs/identities/key-cert-ca.pem")
+	c.Assert(err, check.IsNil)
+	c.Assert(k, check.NotNil)
+	c.Assert(hostAuthCallback, check.NotNil)
+	// prepare the cluster CA separately
+	certBytes, err := ioutil.ReadFile("../../../fixtures/certs/identities/ca.pem")
+	c.Assert(err, check.IsNil)
+	_, hosts, cert, _, _, err := ssh.ParseKnownHosts(certBytes)
+	c.Assert(err, check.IsNil)
+	var a net.Addr
+	// host auth callback must succeed
+	err = hostAuthCallback(hosts[0], a, cert)
+	c.Assert(err, check.IsNil)
 }

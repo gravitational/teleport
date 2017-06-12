@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -525,9 +526,10 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 			key          *client.Key
 			identityAuth ssh.AuthMethod
 			expiryDate   time.Time
+			hostAuthFunc client.HostKeyCallback
 		)
 		// read the ID file and create an "auth method" from it:
-		key, err = loadIdentity(cf.IdentityFile)
+		key, hostAuthFunc, err = loadIdentity(cf.IdentityFile)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -536,6 +538,9 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 			return nil, trace.Wrap(err)
 		}
 		c.AuthMethods = []ssh.AuthMethod{identityAuth}
+		if hostAuthFunc != nil {
+			c.HostKeyCallback = hostAuthFunc
+		}
 
 		// check the expiration date
 		expiryDate, _ = key.CertValidBefore()
@@ -612,18 +617,26 @@ func refuseArgs(command string, args []string) {
 }
 
 // loadIdentity loads the private key + certificate from a file
-func loadIdentity(idFn string) (*client.Key, error) {
+// Returns:
+//	 - client key: user's private key+cert
+//   - host auth callback: function to validate the host (may be null)
+//   - error, if somthing happens when reading the identityf file
+//
+// If the "host auth callback" is not returned, user will be prompted to
+// trust the proxy server.
+func loadIdentity(idFn string) (*client.Key, client.HostKeyCallback, error) {
 	logrus.Infof("Reading identity file: ", idFn)
 
 	f, err := os.Open(idFn)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	defer f.Close()
 	var (
 		keyBuf bytes.Buffer
 		state  int // 0: not found, 1: found beginning, 2: found ending
 		cert   []byte
+		caCert []byte
 	)
 	// read the identity file line by line:
 	scanner := bufio.NewScanner(f)
@@ -632,6 +645,10 @@ func loadIdentity(idFn string) (*client.Key, error) {
 		if state != 1 {
 			if strings.HasPrefix(line, "ssh") {
 				cert = []byte(line)
+				continue
+			}
+			if strings.HasPrefix(line, "@cert-authority") {
+				caCert = []byte(line)
 				continue
 			}
 		}
@@ -657,24 +674,46 @@ func loadIdentity(idFn string) (*client.Key, error) {
 		logrus.Infof("certificate not found in %s. looking in %s", idFn, certFn)
 		cert, err = ioutil.ReadFile(certFn)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 	}
 	// validate both by parsing them:
 	privKey, err := ssh.ParseRawPrivateKey(keyBuf.Bytes())
 	if err != nil {
-		return nil, trace.BadParameter("invalid identity: %s. %v", idFn, err)
+		return nil, nil, trace.BadParameter("invalid identity: %s. %v", idFn, err)
 	}
 	signer, err := ssh.NewSignerFromKey(privKey)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
-	k := &client.Key{
+	var hostAuthFunc client.HostKeyCallback = nil
+	// validate CA (cluster) cert
+	if len(caCert) > 0 {
+		_, _, pkey, _, _, err := ssh.ParseKnownHosts(caCert)
+		if err != nil {
+			return nil, nil, trace.BadParameter("CA cert parsing error: %v. cert line :%v",
+				err.Error(), string(caCert))
+		}
+		// found CA cert in the indentity file? construct the host key checking function
+		// and return it:
+		hostAuthFunc = func(host string, a net.Addr, hostKey ssh.PublicKey) error {
+			clusterCert, ok := hostKey.(*ssh.Certificate)
+			if ok {
+				hostKey = clusterCert.SignatureKey
+			}
+			if !sshutils.KeysEqual(pkey, hostKey) {
+				err = trace.AccessDenied("host %v is untrusted", host)
+				logrus.Error(err)
+				return err
+			}
+			return nil
+		}
+	}
+	return &client.Key{
 		Priv: keyBuf.Bytes(),
 		Pub:  signer.PublicKey().Marshal(),
 		Cert: cert,
-	}
-	return k, nil
+	}, hostAuthFunc, nil
 }
 
 // authFromIdentity returns a standard ssh.Authmethod for a given identity file
