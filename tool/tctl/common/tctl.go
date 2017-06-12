@@ -89,9 +89,16 @@ type AuthCommand struct {
 	genTTL                     time.Duration
 	exportAuthorityFingerprint string
 	exportPrivateKeys          bool
-	outDir                     string
+	output                     string
+	outputFormat               string
 	compatVersion              string
 }
+
+const (
+	IdentityFormatFile    = "file"
+	IdentityFormatDir     = "dir"
+	DefaultIdentityFormat = IdentityFormatFile
+)
 
 type SAMLCommand struct {
 	config *service.Config
@@ -224,21 +231,23 @@ func Run() {
 	samlExport.Flag("name", "name of the connector to export").StringVar(&cmdSAML.name)
 
 	// operations with authorities
-	auth := app.Command("auth", "Operations with user and host certificate authorities").Hidden()
-	auth.Flag("type", "authority type, 'user' or 'host'").StringVar(&cmdAuth.authType)
+	auth := app.Command("auth", "Operations with user and host certificate authorities (CAs)").Hidden()
 	authList := auth.Command("ls", "List trusted certificate authorities (CAs)")
-	authExport := auth.Command("export", "Export CA keys to standard output")
+	authList.Flag("type", "certificate type: 'user' or 'host'").StringVar(&cmdAuth.authType)
+	authExport := auth.Command("export", "Export public cluster (CA) keys to stdout")
 	authExport.Flag("keys", "if set, will print private keys").BoolVar(&cmdAuth.exportPrivateKeys)
 	authExport.Flag("fingerprint", "filter authority by fingerprint").StringVar(&cmdAuth.exportAuthorityFingerprint)
 	authExport.Flag("compat", "export cerfiticates compatible with specific version of Teleport").StringVar(&cmdAuth.compatVersion)
+	authExport.Flag("type", "certificate type: 'user' or 'host'").StringVar(&cmdAuth.authType)
 
 	authGenerate := auth.Command("gen", "Generate a new SSH keypair")
 	authGenerate.Flag("pub-key", "path to the public key").Required().StringVar(&cmdAuth.genPubPath)
 	authGenerate.Flag("priv-key", "path to the private key").Required().StringVar(&cmdAuth.genPrivPath)
 
-	authSign := auth.Command("sign", "Create a signed user session cerfiticate")
+	authSign := auth.Command("sign", "Create an identity file(s) for a given user")
 	authSign.Flag("user", "Teleport user name").Required().StringVar(&cmdAuth.genUser)
-	authSign.Flag("out", "Output directory [defaults to current]").Short('o').StringVar(&cmdAuth.outDir)
+	authSign.Flag("out", "identity output").Short('o').StringVar(&cmdAuth.output)
+	authSign.Flag("format", "identity format: 'file' (default) or 'dir'").Default(DefaultIdentityFormat).StringVar(&cmdAuth.outputFormat)
 	authSign.Flag("ttl", "TTL (time to live) for the generated certificate").Default(fmt.Sprintf("%v", defaults.CertDuration)).DurationVar(&cmdAuth.genTTL)
 
 	// operations with reverse tunnels
@@ -322,14 +331,9 @@ func Run() {
 		err = cmdTokens.Del(client)
 	case authSign.FullCommand():
 		err = cmdAuth.GenerateAndSignKeys(client)
-		if err != nil {
-			utils.FatalError(err)
-		}
-		return
 	}
-
 	if err != nil {
-		logrus.Error(trace.DebugReport(err))
+		logrus.Error(err)
 		utils.FatalError(err)
 	}
 }
@@ -754,39 +758,64 @@ func (a *AuthCommand) GenerateAndSignKeys(client *auth.TunClient) error {
 		return trace.Wrap(err)
 	}
 
-	certPath := a.genUser + "-cert.pub"
-	keyPath := a.genUser
-	pubPath := a.genUser + ".pub"
-
-	// --out flag
-	if a.outDir != "" {
-		if !utils.IsDir(a.outDir) {
-			if err = os.MkdirAll(a.outDir, 0770); err != nil {
+	switch a.outputFormat {
+	//
+	// dump user identity into a single file:
+	//
+	case IdentityFormatFile:
+		var (
+			output  io.Writer = os.Stdout
+			beQuiet bool      = true
+		)
+		if a.output != "" {
+			beQuiet = false
+			f, err := os.OpenFile(a.output, os.O_CREATE|os.O_WRONLY, 0600)
+			if err != nil {
 				return trace.Wrap(err)
 			}
+			output = f
+			defer f.Close()
 		}
-		certPath = filepath.Join(a.outDir, certPath)
-		keyPath = filepath.Join(a.outDir, keyPath)
-		pubPath = filepath.Join(a.outDir, pubPath)
-	}
+		// write key:
+		if _, err = output.Write(privateKey); err != nil {
+			return trace.Wrap(err)
+		}
+		// append cert:
+		if _, err = output.Write(cert); err != nil {
+			return trace.Wrap(err)
+		}
+		if !beQuiet {
+			fmt.Printf("Identity file: %s\n", a.output)
+		}
+	//
+	// dump user identity into separate files:
+	//
+	case IdentityFormatDir:
+		certPath := a.genUser + "-cert.pub"
+		keyPath := a.genUser
 
-	err = ioutil.WriteFile(certPath, cert, 0600)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+		// --out flag
+		if a.output != "" {
+			if !utils.IsDir(a.output) {
+				if err = os.MkdirAll(a.output, 0770); err != nil {
+					return trace.Wrap(err)
+				}
+			}
+			certPath = filepath.Join(a.output, certPath)
+			keyPath = filepath.Join(a.output, keyPath)
+		}
 
-	err = ioutil.WriteFile(keyPath, privateKey, 0600)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+		err = ioutil.WriteFile(certPath, cert, 0600)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-	err = ioutil.WriteFile(pubPath, publicKey, 0600)
-	if err != nil {
-		return trace.Wrap(err)
+		err = ioutil.WriteFile(keyPath, privateKey, 0600)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("Private key: %v\nCertificate: %v\n", keyPath, certPath)
 	}
-
-	fmt.Printf("Public key : %v\nPrivate key: %v\nCertificate: %v\n",
-		pubPath, keyPath, certPath)
 	return nil
 }
 
@@ -993,7 +1022,7 @@ func (u *CreateCommand) Create(client *auth.TunClient) error {
 			if err := client.UpsertSAMLConnector(conn); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Printf("SAML connector %v upserted\n", conn.GetName())
+			fmt.Printf("created SAML connector: %v\n", conn.GetName())
 		case services.KindOIDCConnector:
 			conn, err := services.GetOIDCConnectorMarshaler().UnmarshalOIDCConnector(raw.Raw)
 			if err != nil {
@@ -1002,7 +1031,7 @@ func (u *CreateCommand) Create(client *auth.TunClient) error {
 			if err := client.UpsertOIDCConnector(conn); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Printf("OIDC connector %v upserted\n", conn.GetName())
+			fmt.Printf("created OIDC connector: %v\n", conn.GetName())
 		case services.KindReverseTunnel:
 			tun, err := services.GetReverseTunnelMarshaler().UnmarshalReverseTunnel(raw.Raw)
 			if err != nil {
@@ -1011,7 +1040,7 @@ func (u *CreateCommand) Create(client *auth.TunClient) error {
 			if err := client.UpsertReverseTunnel(tun); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Printf("reverse tunnel %v upserted\n", tun.GetName())
+			fmt.Printf("created reverse tunnel: %v\n", tun.GetName())
 		case services.KindCertAuthority:
 			ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(raw.Raw)
 			if err != nil {
@@ -1020,7 +1049,7 @@ func (u *CreateCommand) Create(client *auth.TunClient) error {
 			if err := client.UpsertCertAuthority(ca); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Printf("cert authority %v upserted\n", ca.GetName())
+			fmt.Printf("created cert authority: %v \n", ca.GetName())
 		case services.KindUser:
 			user, err := services.GetUserMarshaler().UnmarshalUser(raw.Raw)
 			if err != nil {
@@ -1029,7 +1058,7 @@ func (u *CreateCommand) Create(client *auth.TunClient) error {
 			if err := client.UpsertUser(user); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Printf("user %v upserted\n", user.GetName())
+			fmt.Printf("created user: %v\n", user.GetName())
 		case services.KindRole:
 			role, err := services.GetRoleMarshaler().UnmarshalRole(raw.Raw)
 			if err != nil {
@@ -1042,7 +1071,7 @@ func (u *CreateCommand) Create(client *auth.TunClient) error {
 			if err := client.UpsertRole(role, backend.Forever); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Printf("role %v upserted\n", role.GetName())
+			fmt.Printf("created role: %v\n", role.GetName())
 		case services.KindNamespace:
 			ns, err := services.UnmarshalNamespace(raw.Raw)
 			if err != nil {
@@ -1051,7 +1080,7 @@ func (u *CreateCommand) Create(client *auth.TunClient) error {
 			if err := client.UpsertNamespace(*ns); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Printf("namespace %v upserted\n", ns.Metadata.Name)
+			fmt.Printf("created namespace: %v\n", ns.Metadata.Name)
 		case services.KindTrustedCluster:
 			tc, err := services.GetTrustedClusterMarshaler().Unmarshal(raw.Raw)
 			if err != nil {
@@ -1060,7 +1089,7 @@ func (u *CreateCommand) Create(client *auth.TunClient) error {
 			if err := client.UpsertTrustedCluster(tc); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Printf("trusted cluster %q upserted\n", tc.GetName())
+			fmt.Printf("created trusted cluster: %q\n", tc.GetName())
 		case services.KindClusterAuthPreference:
 			cap, err := services.GetAuthPreferenceMarshaler().Unmarshal(raw.Raw)
 			if err != nil {
@@ -1069,7 +1098,7 @@ func (u *CreateCommand) Create(client *auth.TunClient) error {
 			if err := client.SetClusterAuthPreference(cap); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Printf("cluster auth preference upserted\n")
+			fmt.Printf("updated cluster auth preferences\n")
 		case services.KindUniversalSecondFactor:
 			universalSecondFactor, err := services.GetUniversalSecondFactorMarshaler().Unmarshal(raw.Raw)
 			if err != nil {
@@ -1078,7 +1107,7 @@ func (u *CreateCommand) Create(client *auth.TunClient) error {
 			if err := client.SetUniversalSecondFactor(universalSecondFactor); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Printf("universal second factor upserted\n")
+			fmt.Printf("updated utf settings\n")
 		case "":
 			return trace.BadParameter("missing resource kind")
 		default:

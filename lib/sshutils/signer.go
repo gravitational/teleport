@@ -22,8 +22,9 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// NewSigner returns new ssh Signer using OpenSSH certificates
-// to authenticate itself
+// NewSigner returns new ssh Signer from private key + certificate pair.  The
+// signer can be used to create "auth methods" i.e. login into Teleport SSH
+// servers.
 func NewSigner(keyBytes, certBytes []byte) (ssh.Signer, error) {
 	keySigner, err := ssh.ParsePrivateKey(keyBytes)
 	if err != nil {

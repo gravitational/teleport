@@ -28,7 +28,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
@@ -202,8 +202,61 @@ func (s *KeyAgentTestSuite) TestLoadKey(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
+func (s *KeyAgentTestSuite) TestHostVerification(c *check.C) {
+	// make a new local agent
+	lka, err := NewLocalAgent(s.keyDir, s.username)
+	c.Assert(err, check.IsNil)
+
+	// by default user has not refused any hosts:
+	c.Assert(lka.UserRefusedHosts(), check.Equals, false)
+
+	// make a fake host key:
+	keygen := testauthority.New()
+	_, pub, err := keygen.GenerateKeyPair("")
+	c.Assert(err, check.IsNil)
+	pk, _, _, _, err := ssh.ParseAuthorizedKey(pub)
+	c.Assert(err, check.IsNil)
+
+	// test user refusing connection:
+	fakeErr := trace.Errorf("luna cannot be trusted!")
+	lka.hostPromptFunc = func(host string, k ssh.PublicKey) error {
+		c.Assert(host, check.Equals, "luna")
+		c.Assert(k, check.Equals, pk)
+		return fakeErr
+	}
+	var a net.TCPAddr
+	err = lka.CheckHostSignature("luna", &a, pk)
+	c.Assert(err, check.NotNil)
+	c.Assert(err.Error(), check.Equals, "luna cannot be trusted!")
+	c.Assert(lka.UserRefusedHosts(), check.Equals, true)
+
+	// clean user answer:
+	delete(lka.noHosts, "luna")
+	c.Assert(lka.UserRefusedHosts(), check.Equals, false)
+
+	// now lets simulate user being asked:
+	userWasAsked := false
+	lka.hostPromptFunc = func(host string, k ssh.PublicKey) error {
+		// user answered "yes"
+		userWasAsked = true
+		return nil
+	}
+	c.Assert(lka.UserRefusedHosts(), check.Equals, false)
+	err = lka.CheckHostSignature("luna", &a, pk)
+	c.Assert(err, check.IsNil)
+	c.Assert(userWasAsked, check.Equals, true)
+
+	// now lets simulate automatic host verification (no need to ask user, he
+	// just said "yes")
+	userWasAsked = false
+	c.Assert(lka.UserRefusedHosts(), check.Equals, false)
+	err = lka.CheckHostSignature("luna", &a, pk)
+	c.Assert(err, check.IsNil)
+	c.Assert(userWasAsked, check.Equals, false)
+}
+
 func makeKey(username string, allowedLogins []string, ttl time.Duration) (*Key, error) {
-	keygen := native.New()
+	keygen := testauthority.New()
 
 	privateKey, publicKey, err := keygen.GenerateKeyPair("")
 	if err != nil {

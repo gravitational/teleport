@@ -531,6 +531,7 @@ func (s *session) start(ch ssh.Channel, ctx *ctx) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	ctx.Debugf("session exec: %#v", cmd)
 	if err := s.term.run(cmd); err != nil {
 		ctx.Errorf("shell command failed: %v", err)
 		return trace.ConvertSystemError(err)
