@@ -763,17 +763,12 @@ func (a *AuthCommand) GenerateAndSignKeys(client *auth.TunClient) error {
 	// dump user identity into a single file:
 	//
 	case IdentityFormatFile:
-		if a.output == "" {
-			a.output = fmt.Sprintf("%s.pem", a.genUser)
-		}
 		var (
-			output  io.Writer
-			beQuiet bool
+			output  io.Writer = os.Stdout
+			beQuiet bool      = true
 		)
-		if a.output == "-" {
-			output = os.Stdout
-			beQuiet = true
-		} else {
+		if a.output != "" {
+			beQuiet = false
 			f, err := os.OpenFile(a.output, os.O_CREATE|os.O_WRONLY, 0600)
 			if err != nil {
 				return trace.Wrap(err)

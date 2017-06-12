@@ -271,11 +271,14 @@ func (a *LocalKeyAgent) CheckHostSignature(host string, remote net.Addr, key ssh
 			return nil
 		}
 	}
-	// final step: lets ask user:
+	// final step: if we have not seen the host key/cert before, lets ask the user if
+	// he trusts it, and add to the known_hosts if he says "yes"
 	if err = hostPromptFunc(host, key); err != nil {
+		// he said "no"
 		a.noHosts[host] = true
 		return trace.Wrap(err)
 	}
+	// user said "yes"
 	err = a.keyStore.AddKnownHostKeys(host, []ssh.PublicKey{key})
 	if err != nil {
 		log.Warn(err)
@@ -292,7 +295,7 @@ func (a *LocalKeyAgent) AddKey(host string, username string, key *Key) (*CertAut
 	// save it to disk (usually into ~/.tsh)
 	err := a.keyStore.AddKey(host, username, key)
 	if err != nil {
-
+		return nil, trace.Wrap(err)
 	}
 
 	// load key into the teleport agent and system agent
@@ -337,19 +340,23 @@ func (a *LocalKeyAgent) DeleteKey(proxyHost string, username string) error {
 //    2. Itself (disk-based local agent)
 func (a *LocalKeyAgent) AuthMethods() (m []ssh.AuthMethod) {
 	// combine our certificates with external SSH agent's:
-	var certs []ssh.Signer
+	var signers []ssh.Signer
 	if ourCerts, _ := a.Signers(); ourCerts != nil {
-		certs = append(certs, ourCerts...)
+		signers = append(signers, ourCerts...)
 	}
 	if a.sshAgent != nil {
 		if sshAgentCerts, _ := a.sshAgent.Signers(); sshAgentCerts != nil {
-			certs = append(certs, sshAgentCerts...)
+			signers = append(signers, sshAgentCerts...)
 		}
 	}
 	// for every certificate create a new "auth method" and return them
-	m = make([]ssh.AuthMethod, len(certs))
-	for i := range certs {
-		m[i] = NewAuthMethodForCert(certs[i])
+	m = make([]ssh.AuthMethod, 0)
+	for i := range signers {
+		// filter out non-certificates (like regular public SSH keys stored in the SSH agent):
+		_, ok := signers[i].PublicKey().(*ssh.Certificate)
+		if ok {
+			m = append(m, NewAuthMethodForCert(signers[i]))
+		}
 	}
 	return m
 }
