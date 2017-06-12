@@ -40,6 +40,9 @@ type LocalKeyAgent struct {
 	// map of "no hosts". these are hosts that user manually (via keyboard
 	// input) refused connecting to.
 	noHosts map[string]bool
+
+	// function which asks a user to trust host/key combination (during host auth)
+	hostPromptFunc func(host string, k ssh.PublicKey) error
 }
 
 // NewLocalAgent reads all Teleport certificates from disk (using FSLocalKeyStore),
@@ -212,40 +215,44 @@ func (a *LocalKeyAgent) UserRefusedHosts() bool {
 
 // CheckHostSignature checks if the given host key was signed by one of the trusted
 // certificaate authorities (CAs)
-func (a *LocalKeyAgent) CheckHostSignature(hostId string, remote net.Addr, key ssh.PublicKey) error {
-	promptUser := func() error {
+func (a *LocalKeyAgent) CheckHostSignature(host string, remote net.Addr, key ssh.PublicKey) error {
+	hostPromptFunc := func(host string, key ssh.PublicKey) error {
 		userAnswer := "no"
-		if !a.noHosts[hostId] {
+		if !a.noHosts[host] {
 			fmt.Printf("The authenticity of host '%s' can't be established. "+
 				"Its public key is:\n%s\nAre you sure you want to continue (yes/no)? ",
-				hostId, ssh.MarshalAuthorizedKey(key))
+				host, ssh.MarshalAuthorizedKey(key))
 
 			bytes := make([]byte, 12)
 			os.Stdin.Read(bytes)
 			userAnswer = strings.TrimSpace(strings.ToLower(string(bytes)))
 		}
 		if !strings.HasPrefix(userAnswer, "y") {
-			a.noHosts[hostId] = true
-			return trace.AccessDenied("untrusted host %v", hostId)
+			return trace.AccessDenied("untrusted host %v", host)
 		}
 		// success
 		return nil
+	}
+	// overwritten host prompt func? (probably for tests)
+	if a.hostPromptFunc != nil {
+		hostPromptFunc = a.hostPromptFunc
 	}
 	cert, ok := key.(*ssh.Certificate)
 	if !ok {
 		// not a signed cert? perhaps we're given a host public key (happens when the host is running
 		// sshd instead of teleport daemon
-		keys, _ := a.keyStore.GetKnownHostKeys(hostId)
+		keys, _ := a.keyStore.GetKnownHostKeys(host)
 		if len(keys) > 0 && sshutils.KeysEqual(key, keys[0]) {
-			log.Debugf("[KEY AGENT] verified host %s", hostId)
+			log.Debugf("[KEY AGENT] verified host %s", host)
 			return nil
 		}
 		// ask user:
-		if err := promptUser(); err != nil {
+		if err := hostPromptFunc(host, key); err != nil {
+			a.noHosts[host] = true
 			return trace.Wrap(err)
 		}
 		// remember the host key (put it into 'known_hosts')
-		if err := a.keyStore.AddKnownHostKeys(hostId, []ssh.PublicKey{key}); err != nil {
+		if err := a.keyStore.AddKnownHostKeys(host, []ssh.PublicKey{key}); err != nil {
 			log.Warnf("error saving the host key: %v", err)
 		}
 		return nil
@@ -260,15 +267,16 @@ func (a *LocalKeyAgent) CheckHostSignature(hostId string, remote net.Addr, key s
 	log.Debugf("[KEY AGENT] got %d known hosts", len(keys))
 	for i := range keys {
 		if sshutils.KeysEqual(cert.SignatureKey, keys[i]) {
-			log.Debugf("[KEY AGENT] verified host %s", hostId)
+			log.Debugf("[KEY AGENT] verified host %s", host)
 			return nil
 		}
 	}
 	// final step: lets ask user:
-	if err = promptUser(); err != nil {
+	if err = hostPromptFunc(host, key); err != nil {
+		a.noHosts[host] = true
 		return trace.Wrap(err)
 	}
-	err = a.keyStore.AddKnownHostKeys(hostId, []ssh.PublicKey{key})
+	err = a.keyStore.AddKnownHostKeys(host, []ssh.PublicKey{key})
 	if err != nil {
 		log.Warn(err)
 	}
