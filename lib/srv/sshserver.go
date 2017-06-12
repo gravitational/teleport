@@ -98,6 +98,18 @@ type Server struct {
 	// permitUserEnvironment controls if this server will read ~/.tsh/environment
 	// before creating a new session.
 	permitUserEnvironment bool
+
+	// ciphers is a list of ciphers that the server supports. If omitted,
+	// the defaults will be used.
+	ciphers []string
+
+	// kexAlgorithms is a list of key exchange (KEX) algorithms that the
+	// server supports. If omitted, the defaults will be used.
+	kexAlgorithms []string
+
+	// macAlgorithms is a list of message authentication codes (MAC) that
+	// the server supports. If omitted the defaults will be used.
+	macAlgorithms []string
 }
 
 // ServerOption is a functional option passed to the server
@@ -200,6 +212,27 @@ func SetPermitUserEnvironment(permitUserEnvironment bool) ServerOption {
 	}
 }
 
+func SetCiphers(ciphers []string) ServerOption {
+	return func(s *Server) error {
+		s.ciphers = ciphers
+		return nil
+	}
+}
+
+func SetKEXAlgorithms(kexAlgorithms []string) ServerOption {
+	return func(s *Server) error {
+		s.kexAlgorithms = kexAlgorithms
+		return nil
+	}
+}
+
+func SetMACAlgorithms(macAlgorithms []string) ServerOption {
+	return func(s *Server) error {
+		s.macAlgorithms = macAlgorithms
+		return nil
+	}
+}
+
 // New returns an unstarted server
 func New(addr utils.NetAddr,
 	hostname string,
@@ -252,7 +285,10 @@ func New(addr utils.NetAddr,
 		addr, s, signers,
 		sshutils.AuthMethods{PublicKey: s.keyAuth},
 		sshutils.SetLimiter(s.limiter),
-		sshutils.SetRequestHandler(s))
+		sshutils.SetRequestHandler(s),
+		sshutils.SetCiphers(s.ciphers),
+		sshutils.SetKEXAlgorithms(s.kexAlgorithms),
+		sshutils.SetMACAlgorithms(s.macAlgorithms))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

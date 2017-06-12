@@ -28,7 +28,7 @@ import (
 	"strings"
 	"time"
 
-	"gopkg.in/yaml.v2"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
@@ -39,6 +39,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
+
+	"gopkg.in/yaml.v2"
 )
 
 var (
@@ -123,6 +125,9 @@ var (
 		"ttl":                false,
 		"issuer":             false,
 		"permit_user_env":    false,
+		"ciphers":            false,
+		"kex_algos":          false,
+		"mac_algos":          false,
 	}
 )
 
@@ -174,6 +179,11 @@ func ReadConfig(reader io.Reader) (*FileConfig, error) {
 	}
 	var fc FileConfig
 	if err = yaml.Unmarshal(bytes, &fc); err != nil {
+		return nil, trace.BadParameter("failed to parse Teleport configuration: %v", err)
+	}
+	// don't start Teleport with invalid ciphers, kex algorithms, or mac algorithms.
+	err = fc.Check()
+	if err != nil {
 		return nil, trace.BadParameter("failed to parse Teleport configuration: %v", err)
 	}
 	// now check for unknown (misspelled) config keys:
@@ -279,6 +289,32 @@ func (conf *FileConfig) DebugDumpToYAML() string {
 	return string(bytes)
 }
 
+// Check ensures that the ciphers, kex algorithms, and mac algorithms set
+// are supported by golang.org/x/crypto/ssh. This ensures we don't start
+// Teleport with invalid configuration.
+func (conf *FileConfig) Check() error {
+	var sc ssh.Config
+	sc.SetDefaults()
+
+	for _, c := range conf.Ciphers {
+		if utils.SliceContainsStr(sc.Ciphers, c) == false {
+			return trace.BadParameter("cipher %q not supported", c)
+		}
+	}
+	for _, k := range conf.KEXAlgorithms {
+		if utils.SliceContainsStr(sc.KeyExchanges, k) == false {
+			return trace.BadParameter("KEX %q not supported", k)
+		}
+	}
+	for _, m := range conf.MACAlgorithms {
+		if utils.SliceContainsStr(sc.MACs, m) == false {
+			return trace.BadParameter("MAC %q not supported", m)
+		}
+	}
+
+	return nil
+}
+
 // ConnectionRate configures rate limiter
 type ConnectionRate struct {
 	Period  time.Duration `yaml:"period"`
@@ -320,6 +356,18 @@ type Global struct {
 	// Each service (like proxy, auth, node) can find the key it needs
 	// by looking into certificate
 	Keys []KeyPair `yaml:"keys,omitempty"`
+
+	// Ciphers is a list of ciphers that the server supports. If omitted,
+	// the defaults will be used.
+	Ciphers []string `yaml:"ciphers,omitempty"`
+
+	// KEXAlgorithms is a list of key exchange (KEX) algorithms that the
+	// server supports. If omitted, the defaults will be used.
+	KEXAlgorithms []string `yaml:"kex_algos,omitempty"`
+
+	// MACAlgorithms is a list of message authentication codes (MAC) that
+	// the server supports. If omitted the defaults will be used.
+	MACAlgorithms []string `yaml:"mac_algos,omitempty"`
 }
 
 // CachePolicy is used to control  local cache
