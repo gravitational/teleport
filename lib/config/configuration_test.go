@@ -335,6 +335,48 @@ teleport:
 	}
 }
 
+// TestFileConfigCheck makes sure we don't start with invalid settings.
+func (s *ConfigTestSuite) TestFileConfigCheck(c *check.C) {
+	tests := []struct {
+		inConfigString string
+		outError       bool
+	}{
+		// 0 - all defaults, valid
+		{
+			`
+teleport:
+`,
+			false,
+		},
+		// 1 - invalid cipher, not valid
+		{
+			`
+teleport:
+  ciphers:
+    - aes256-ctr
+    - fake-cipher
+  kex_algos:
+    - kexAlgoCurve25519SHA256
+  mac_algos:
+    - hmac-sha2-256-etm@openssh.com
+`,
+			true,
+		},
+	}
+
+	// run tests
+	for i, tt := range tests {
+		comment := check.Commentf("Test %v", i)
+
+		_, err := ReadConfig(bytes.NewBufferString(tt.inConfigString))
+		if tt.outError {
+			c.Assert(err, check.NotNil, comment)
+		} else {
+			c.Assert(err, check.IsNil, comment)
+		}
+	}
+}
+
 func (s *ConfigTestSuite) TestApplyConfig(c *check.C) {
 	conf, err := ReadConfig(bytes.NewBufferString(SmallConfigString))
 	c.Assert(err, check.IsNil)

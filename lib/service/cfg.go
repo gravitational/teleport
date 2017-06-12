@@ -23,6 +23,8 @@ import (
 	"os"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
@@ -114,6 +116,18 @@ type Config struct {
 
 	// Access is a service that controls access
 	Access services.Access
+
+	// Ciphers is a list of ciphers that the server supports. If omitted,
+	// the defaults will be used.
+	Ciphers []string
+
+	// KEXAlgorithms is a list of key exchange (KEX) algorithms that the
+	// server supports. If omitted, the defaults will be used.
+	KEXAlgorithms []string
+
+	// MACAlgorithms is a list of message authentication codes (MAC) that
+	// the server supports. If omitted the defaults will be used.
+	MACAlgorithms []string
 }
 
 // ApplyToken assigns a given token to all internal services but only if token
@@ -281,6 +295,11 @@ func MakeDefaultConfig() (config *Config) {
 
 // ApplyDefaults applies default values to the existing config structure
 func ApplyDefaults(cfg *Config) {
+	// get defaults for cipher, kex algorithms, and mac algorithms from
+	// golang.org/x/crypto/ssh default config.
+	var sc ssh.Config
+	sc.SetDefaults()
+
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "localhost"
@@ -291,6 +310,9 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Hostname = hostname
 	cfg.DataDir = defaults.DataDir
 	cfg.Console = os.Stdout
+	cfg.Ciphers = sc.Ciphers
+	cfg.KEXAlgorithms = sc.KeyExchanges
+	cfg.MACAlgorithms = sc.MACs
 
 	// defaults for the auth service:
 	cfg.Auth.Enabled = true

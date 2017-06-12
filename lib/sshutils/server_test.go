@@ -73,6 +73,47 @@ func (s *ServerSuite) TestStartStop(c *C) {
 	c.Assert(called, Equals, true)
 }
 
+func (s *ServerSuite) TestConfigureCiphers(c *C) {
+	called := false
+	fn := NewChanHandlerFunc(func(_ net.Conn, conn *ssh.ServerConn, nch ssh.NewChannel) {
+		called = true
+		nch.Reject(ssh.Prohibited, "nothing to see here")
+	})
+
+	// create a server that only speaks aes128-ctr
+	srv, err := NewServer(
+		"test",
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
+		fn,
+		s.signers,
+		AuthMethods{Password: pass("abc123")},
+		SetCiphers([]string{"aes128-ctr"}),
+	)
+	c.Assert(err, IsNil)
+	c.Assert(srv.Start(), IsNil)
+
+	// client only speaks aes256-ctr, should fail
+	cc := ssh.ClientConfig{
+		Config: ssh.Config{
+			Ciphers: []string{"aes256-ctr"},
+		},
+		Auth: []ssh.AuthMethod{ssh.Password("abc123")},
+	}
+	clt, err := ssh.Dial("tcp", srv.Addr(), &cc)
+	c.Assert(err, NotNil, Commentf("cipher mismatch, should fail, got nil"))
+
+	// client only speaks aes128-ctr, should succeed
+	cc = ssh.ClientConfig{
+		Config: ssh.Config{
+			Ciphers: []string{"aes128-ctr"},
+		},
+		Auth: []ssh.AuthMethod{ssh.Password("abc123")},
+	}
+	clt, err = ssh.Dial("tcp", srv.Addr(), &cc)
+	c.Assert(err, IsNil, Commentf("cipher match, should not fail, got error: %v", err))
+	defer clt.Close()
+}
+
 func wait(c *C, srv *Server) {
 	s := make(chan struct{})
 	go func() {
