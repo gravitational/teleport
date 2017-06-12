@@ -17,13 +17,25 @@ limitations under the License.
 package main
 
 import (
+	"os"
+	"path"
+
 	"github.com/gravitational/teleport/tool/tsh/common"
 )
 
-import (
-	"os"
-)
-
 func main() {
-	common.Run(os.Args[1:], false)
+	cmd_line_orig := os.Args[1:]
+	cmd_line := []string{}
+
+	// lets see: if the executable name is 'ssh' or 'scp' we convert
+	// that to "tsh ssh" or "tsh scp"
+	switch path.Base(os.Args[0]) {
+	case "ssh":
+		cmd_line = append([]string{"ssh"}, cmd_line_orig...)
+	case "scp":
+		cmd_line = append([]string{"scp"}, cmd_line_orig...)
+	default:
+		cmd_line = cmd_line_orig
+	}
+	common.Run(cmd_line, false)
 }
