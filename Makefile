@@ -26,13 +26,13 @@ LIBS = $(shell find lib -type f -name '*.go') *.go
 .PHONY: all
 all: $(VERSRC) $(BINARIES) 
 
-$(BUILDDIR)/tctl: $(LIBS) $(TOOLS) tool/tctl/*.go
+$(BUILDDIR)/tctl: $(LIBS) $(TOOLS) tool/tctl/common/*.go tool/tctl/*go
 	go build -o $(BUILDDIR)/tctl -i $(BUILDFLAGS) ./tool/tctl
 
 $(BUILDDIR)/teleport: $(LIBS) tool/teleport/*.go tool/teleport/common/*.go
 	go build -o $(BUILDDIR)/teleport -i $(BUILDFLAGS) ./tool/teleport
 
-$(BUILDDIR)/tsh: $(LIBS) tool/tsh/*.go
+$(BUILDDIR)/tsh: $(LIBS) tool/tsh/*.go tool/tsh/common/*go
 	go build -o $(BUILDDIR)/tsh -i $(BUILDFLAGS) ./tool/tsh
 
 .PHONY: goinstall

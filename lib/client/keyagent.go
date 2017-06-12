@@ -36,6 +36,13 @@ type LocalKeyAgent struct {
 	agent.Agent               // Agent is the teleport agent
 	keyStore    LocalKeyStore // keyStore is the storage backend for certificates and keys
 	sshAgent    agent.Agent   // sshAgent is the system ssh agent
+
+	// map of "no hosts". these are hosts that user manually (via keyboard
+	// input) refused connecting to.
+	noHosts map[string]bool
+
+	// function which asks a user to trust host/key combination (during host auth)
+	hostPromptFunc func(host string, k ssh.PublicKey) error
 }
 
 // NewLocalAgent reads all Teleport certificates from disk (using FSLocalKeyStore),
@@ -50,6 +57,7 @@ func NewLocalAgent(keyDir, username string) (a *LocalKeyAgent, err error) {
 		Agent:    agent.NewKeyring(),
 		keyStore: keystore,
 		sshAgent: connectToSSHAgent(),
+		noHosts:  make(map[string]bool),
 	}
 
 	// unload all teleport keys from the agent first to ensure
@@ -199,38 +207,57 @@ func (a *LocalKeyAgent) AddHostSignersToCache(hostSigners []services.CertAuthori
 	return nil
 }
 
+// UserRefusedHosts returns 'true' if a user refuses connecting to remote hosts
+// when prompted during host authorization
+func (a *LocalKeyAgent) UserRefusedHosts() bool {
+	return len(a.noHosts) > 0
+}
+
 // CheckHostSignature checks if the given host key was signed by one of the trusted
 // certificaate authorities (CAs)
-func (a *LocalKeyAgent) CheckHostSignature(hostId string, remote net.Addr, key ssh.PublicKey) error {
-	cert, ok := key.(*ssh.Certificate)
-	if !ok {
-		// not a signed cert? perhaps we're given a host public key (happens when the host is running
-		// sshd instead of teleport daemon
-		keys, _ := a.keyStore.GetKnownHostKeys(hostId)
-		if len(keys) > 0 && sshutils.KeysEqual(key, keys[0]) {
-			log.Debugf("[KEY AGENT] verified host %s", hostId)
-			return nil
-		}
-		// ask the user if they want to trust this host
-		fmt.Printf("The authenticity of host '%s' can't be established. "+
-			"Its public key is:\n%s\nAre you sure you want to continue (yes/no)? ",
-			hostId, ssh.MarshalAuthorizedKey(key))
+func (a *LocalKeyAgent) CheckHostSignature(host string, remote net.Addr, key ssh.PublicKey) error {
+	hostPromptFunc := func(host string, key ssh.PublicKey) error {
+		userAnswer := "no"
+		if !a.noHosts[host] {
+			fmt.Printf("The authenticity of host '%s' can't be established. "+
+				"Its public key is:\n%s\nAre you sure you want to continue (yes/no)? ",
+				host, ssh.MarshalAuthorizedKey(key))
 
-		bytes := make([]byte, 12)
-		os.Stdin.Read(bytes)
-		if strings.TrimSpace(strings.ToLower(string(bytes)))[0] != 'y' {
-			err := trace.AccessDenied("untrusted host %v", hostId)
-			log.Error(err)
-			return err
+			bytes := make([]byte, 12)
+			os.Stdin.Read(bytes)
+			userAnswer = strings.TrimSpace(strings.ToLower(string(bytes)))
 		}
-		// remember the host key (put it into 'known_hosts')
-		if err := a.keyStore.AddKnownHostKeys(hostId, []ssh.PublicKey{key}); err != nil {
-			log.Warnf("error saving the host key: %v", err)
+		if !strings.HasPrefix(userAnswer, "y") {
+			return trace.AccessDenied("untrusted host %v", host)
 		}
 		// success
 		return nil
 	}
-
+	// overwritten host prompt func? (probably for tests)
+	if a.hostPromptFunc != nil {
+		hostPromptFunc = a.hostPromptFunc
+	}
+	cert, ok := key.(*ssh.Certificate)
+	if !ok {
+		// not a signed cert? perhaps we're given a host public key (happens when the host is running
+		// sshd instead of teleport daemon
+		keys, _ := a.keyStore.GetKnownHostKeys(host)
+		if len(keys) > 0 && sshutils.KeysEqual(key, keys[0]) {
+			log.Debugf("[KEY AGENT] verified host %s", host)
+			return nil
+		}
+		// ask user:
+		if err := hostPromptFunc(host, key); err != nil {
+			a.noHosts[host] = true
+			return trace.Wrap(err)
+		}
+		// remember the host key (put it into 'known_hosts')
+		if err := a.keyStore.AddKnownHostKeys(host, []ssh.PublicKey{key}); err != nil {
+			log.Warnf("error saving the host key: %v", err)
+		}
+		return nil
+	}
+	key = cert.SignatureKey
 	// we are given a certificate. see if it was signed by any of the known_host keys:
 	keys, err := a.keyStore.GetKnownHostKeys("")
 	if err != nil {
@@ -240,12 +267,22 @@ func (a *LocalKeyAgent) CheckHostSignature(hostId string, remote net.Addr, key s
 	log.Debugf("[KEY AGENT] got %d known hosts", len(keys))
 	for i := range keys {
 		if sshutils.KeysEqual(cert.SignatureKey, keys[i]) {
-			log.Debugf("[KEY AGENT] verified host %s", hostId)
+			log.Debugf("[KEY AGENT] verified host %s", host)
 			return nil
 		}
 	}
-	err = trace.AccessDenied("untrusted host %v", hostId)
-	log.Error(err)
+	// final step: if we have not seen the host key/cert before, lets ask the user if
+	// he trusts it, and add to the known_hosts if he says "yes"
+	if err = hostPromptFunc(host, key); err != nil {
+		// he said "no"
+		a.noHosts[host] = true
+		return trace.Wrap(err)
+	}
+	// user said "yes"
+	err = a.keyStore.AddKnownHostKeys(host, []ssh.PublicKey{key})
+	if err != nil {
+		log.Warn(err)
+	}
 	return err
 }
 
@@ -277,7 +314,7 @@ func (a *LocalKeyAgent) AddKey(host string, username string, key *Key) (*CertAut
 		return nil, trace.Wrap(err)
 	}
 
-	return methodForCert(signer), nil
+	return NewAuthMethodForCert(signer), nil
 }
 
 // DeleteKey removes the key from the key store as well as unloading the key from the agent.
@@ -303,19 +340,23 @@ func (a *LocalKeyAgent) DeleteKey(proxyHost string, username string) error {
 //    2. Itself (disk-based local agent)
 func (a *LocalKeyAgent) AuthMethods() (m []ssh.AuthMethod) {
 	// combine our certificates with external SSH agent's:
-	var certs []ssh.Signer
+	var signers []ssh.Signer
 	if ourCerts, _ := a.Signers(); ourCerts != nil {
-		certs = append(certs, ourCerts...)
+		signers = append(signers, ourCerts...)
 	}
 	if a.sshAgent != nil {
 		if sshAgentCerts, _ := a.sshAgent.Signers(); sshAgentCerts != nil {
-			certs = append(certs, sshAgentCerts...)
+			signers = append(signers, sshAgentCerts...)
 		}
 	}
 	// for every certificate create a new "auth method" and return them
-	m = make([]ssh.AuthMethod, len(certs))
-	for i := range certs {
-		m[i] = methodForCert(certs[i])
+	m = make([]ssh.AuthMethod, 0)
+	for i := range signers {
+		// filter out non-certificates (like regular public SSH keys stored in the SSH agent):
+		_, ok := signers[i].PublicKey().(*ssh.Certificate)
+		if ok {
+			m = append(m, NewAuthMethodForCert(signers[i]))
+		}
 	}
 	return m
 }
@@ -331,7 +372,7 @@ type CertAuthMethod struct {
 	Cert ssh.Signer
 }
 
-func methodForCert(cert ssh.Signer) *CertAuthMethod {
+func NewAuthMethodForCert(cert ssh.Signer) *CertAuthMethod {
 	return &CertAuthMethod{
 		Cert: cert,
 		AuthMethod: ssh.PublicKeysCallback(func() ([]ssh.Signer, error) {
