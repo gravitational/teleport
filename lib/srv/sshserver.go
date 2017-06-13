@@ -527,8 +527,8 @@ func (s *Server) checkPermissionToLogin(cert *ssh.Certificate, teleportUser, osU
 	}
 
 	if err := roles.CheckAccessToServer(osUser, s.getInfo()); err != nil {
-		return "", trace.AccessDenied("user %s@%s is not authorized to login as %v@%s",
-			teleportUser, ca.GetClusterName(), osUser, domainName)
+		return "", trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
+			teleportUser, ca.GetClusterName(), osUser, domainName, err)
 	}
 
 	return domainName, nil
@@ -692,7 +692,7 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 	}
 	clusterName, err := s.checkPermissionToLogin(cert, teleportUser, conn.User())
 	if err != nil {
-		logger.Error(err)
+		logger.Errorf("Permission denied: %v", err)
 		logAuditEvent(err)
 		return nil, trace.Wrap(err)
 	}

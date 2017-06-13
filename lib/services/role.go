@@ -27,6 +27,8 @@ import (
 
 	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
+
+	log "github.com/Sirupsen/logrus"
 	"github.com/jonboulle/clockwork"
 )
 
@@ -542,15 +544,23 @@ func (set RoleSet) CheckLogins(ttl time.Duration) ([]string, error) {
 // CheckAccessToServer checks if role set has access to server based
 // on combined role's selector and attempted login
 func (set RoleSet) CheckAccessToServer(login string, s Server) error {
+	var errs []error
+
 	for _, role := range set {
 		matchNamespace := MatchNamespace(role.GetNamespaces(), s.GetNamespace())
 		matchLabels := MatchLabels(role.GetNodeLabels(), s.GetAllLabels())
 		matchLogin := MatchLogin(role.GetLogins(), login)
 		if matchNamespace && matchLabels && matchLogin {
+			log.Debugf("Role %v granted access to node %v", role.GetName(), s.GetHostname())
 			return nil
 		}
+
+		errorMessage := fmt.Sprintf("Role %v denied access; match(namespace=%v, label=%v, login=%v)",
+			role.GetName(), matchNamespace, matchLabels, matchLogin)
+		errs = append(errs, trace.AccessDenied(errorMessage))
 	}
-	return trace.AccessDenied("access to server is denied for %v", set)
+
+	return trace.AccessDenied("access to node %v is denied to role(s): %v", s.GetHostname(), errs)
 }
 
 // CanForwardAgents returns true if role set allows forwarding agents
