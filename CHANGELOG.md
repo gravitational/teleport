@@ -1,5 +1,34 @@
 # Changelog
 
+## 2.2.0
+
+### Features
+
+* HTTP CONNECT tunneling for Trusted Clusters. [#860](https://github.com/gravitational/teleport/issues/860)
+* Long lived certificates and identity export which can be used for automation. [#1033](https://github.com/gravitational/teleport/issues/1033)
+* New terminal for Web UI. [#933](https://github.com/gravitational/teleport/issues/933)
+* Read user environment files. [#1014](https://github.com/gravitational/teleport/issues/1014)
+* Improvements to Auth Server resiliency and availability. [#1071](https://github.com/gravitational/teleport/issues/1071)
+* Server side configuration of support ciphers, key exchange (KEX) algorithms, and MAC algorithms. [#1062](https://github.com/gravitational/teleport/issues/1062)
+* Renaming `tsh` to `ssh` or making a symlink `tsh -> ssh` removes the need to type `tsh ssh`, making it compatible with familiar `ssh user@host`. [#929](https://github.com/gravitational/teleport/issues/929)
+
+### Enterprise Features
+
+* SAML 2.0. [#1070](https://github.com/gravitational/teleport/issues/1070)
+* Role mapping for Trusted Clusters. [#983](https://github.com/gravitational/teleport/issues/983)
+* ACR parsing for OIDC identity providers. [#901](https://github.com/gravitational/teleport/issues/901)
+
+### Improvements
+
+* Improvements to OpenSSH interoperability.
+  * Certificate export format changes to match OpenSSH. [#1068](https://github.com/gravitational/teleport/issues/1068)
+  * CA export format changes to match OpenSSH. [#918](https://github.com/gravitational/teleport/issues/918)
+  * Improvements to `scp` implementation to fix incompatibility issues. [#1048](https://github.com/gravitational/teleport/issues/1048)
+  * OpenSSH keep alive messages are now processed correctly. [#963](https://github.com/gravitational/teleport/issues/963)
+* `tsh` profile is now always read. [#1047](https://github.com/gravitational/teleport/issues/1047)
+* Correct signal handling when Teleport is launched using sysvinit. [#981](https://github.com/gravitational/teleport/issues/981)
+* Role templates now automatically fill out default values when omitted. [#912](https://github.com/gravitational/teleport/issues/912)
+
 ## 2.0.6
 
 ### Bugfixes
