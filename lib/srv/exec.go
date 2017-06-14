@@ -43,8 +43,10 @@ import (
 )
 
 const (
-	defaultPath = "/bin:/usr/bin:/usr/local/bin:/sbin"
-	defaultTerm = "xterm"
+	defaultPath          = "/bin:/usr/bin:/usr/local/bin:/sbin"
+	defaultEnvPath       = "PATH=" + defaultPath
+	defaultTerm          = "xterm"
+	defaultLoginDefsPath = "/etc/login.defs"
 )
 
 // execResult is used internally to send the result of a command execution from
@@ -202,7 +204,7 @@ func prepareCommand(ctx *ctx) (*exec.Cmd, error) {
 
 	c.Env = []string{
 		"LANG=en_US.UTF-8",
-		getDefaultEnvPath(""),
+		getDefaultEnvPath(osUser.Uid, defaultLoginDefsPath),
 		"HOME=" + osUser.HomeDir,
 		"USER=" + osUserName,
 		"SHELL=" + shell,
@@ -365,36 +367,56 @@ func collectStatus(cmd *exec.Cmd, err error) (*execResult, error) {
 }
 
 // getDefaultEnvPath returns the default value of PATH environment variable for
-// new logins (prior to shell)
-//
-// Normally getDefaultEnvPath is set to "" (default /etc/login.defs is used)
-// but for unit testing it takes any file
-//
-// Returns a strings which looks like "PATH=/usr/bin:/bin"
-func getDefaultEnvPath(loginDefsPath string) string {
-	defaultValue := "PATH=" + defaultPath
-	if loginDefsPath == "" {
-		loginDefsPath = "/etc/login.defs"
-	}
+// new logins (prior to shell) based on login.defs. Returns a strings which
+// looks like "PATH=/usr/bin:/bin"
+func getDefaultEnvPath(uid string, loginDefsPath string) string {
+	envPath := defaultEnvPath
+	envSuPath := defaultEnvPath
+
+	// open file, if it doesn't exist return a default path and move on
 	f, err := os.Open(loginDefsPath)
 	if err != nil {
-		log.Warn(err)
-		return defaultValue
+		log.Warn("Unable to open %q: %v: returning default path: %q", loginDefsPath, err, defaultEnvPath)
+		return defaultEnvPath
 	}
 	defer f.Close()
 
-	// read /etc/login.defs line by line:
+	// read path to login.defs file /etc/login.defs line by line:
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
+
 		// skip comments and empty lines:
 		if line == "" || line[0] == '#' {
 			continue
 		}
+
+		// look for a line that starts with ENV_SUPATH or ENV_PATH
 		fields := strings.Fields(line)
-		if len(fields) > 1 && fields[0] == "ENV_PATH" {
-			return strings.TrimSpace(fields[1])
+		if len(fields) > 1 {
+			if fields[0] == "ENV_PATH" {
+				envPath = fields[1]
+			}
+			if fields[0] == "ENV_SUPATH" {
+				envSuPath = fields[1]
+			}
 		}
 	}
-	return defaultValue
+
+	// if any error occurs while reading the file, return the default value
+	err = scanner.Err()
+	if err != nil {
+		log.Warnf("Unable to read %q: %v: returning default path: %q", loginDefsPath, err, defaultEnvPath)
+		return defaultEnvPath
+	}
+
+	// if requesting path for uid 0 and no ENV_SUPATH is given, fallback to
+	// ENV_PATH first, then the default path.
+	if uid == "0" {
+		if envSuPath == defaultEnvPath {
+			return envPath
+		}
+		return envSuPath
+	}
+	return envPath
 }
