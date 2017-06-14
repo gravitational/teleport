@@ -533,7 +533,7 @@ func (s *session) start(ch ssh.Channel, ctx *ctx) error {
 	}
 	ctx.Debugf("session exec: %#v", cmd)
 	if err := s.term.run(cmd); err != nil {
-		ctx.Errorf("shell command failed: %v", err)
+		ctx.Errorf("shell command (%v %v) failed: %v", cmd.Path, cmd.Args, err)
 		return trace.ConvertSystemError(err)
 	}
 	if err := s.addParty(p); err != nil {

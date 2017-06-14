@@ -32,11 +32,16 @@ import "C"
 
 import (
 	"os/user"
+	"strings"
 	"syscall"
 	"unsafe"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
+)
+
+const (
+	DefaultShell = "/bin/sh"
 )
 
 // GetLoginShell determines the login shell for a given username
@@ -73,5 +78,10 @@ func GetLoginShell(username string) (string, error) {
 		log.Errorf("lookupPosixShell: lookup username %s: %s", username, syscall.Errno(rv))
 		return "", trace.Errorf("cannot determine shell for %s", username)
 	}
-	return C.GoString(pwd.pw_shell), nil
+	shellCmd := strings.TrimSpace(C.GoString(pwd.pw_shell))
+	if len(shellCmd) == 0 {
+		log.Warnf("no shell specified for %s. using default=%s", username, DefaultShell)
+		shellCmd = DefaultShell
+	}
+	return shellCmd, nil
 }
