@@ -27,7 +27,8 @@ documented on the identity providers website. Here are a few links:
    * [Google Identity Platform](https://developers.google.com/identity/protocols/OpenIDConnect)
    * [Keycloak Client Registration](http://www.keycloak.org/docs/2.0/securing_apps_guide/topics/client-registration.html)
 
-Add your OIDC connector information to `teleport.yaml`. Here are a few examples:
+Add your OIDC connector information to `teleport.yaml`. A few examples are
+provided below.
 
 #### OIDC with pre-defined roles
 
@@ -94,6 +95,40 @@ authentication:
                     "*": "*"
                  resources:
                     "*": [ "read", "write" ]
+```
+
+#### ACR Values
+
+Teleport supports sending Authentication Context Class Reference (ACR) values
+when obtaining an authorization code from an OIDC provider. By default ACR
+values are not set. However, if the `acr_values` field is set, Teleport expects
+to receive the same value in the `acr` claim, otherwise it will consider the
+callback invalid.
+
+In addition, Teleport supports OIDC provider specific ACR value processing
+which can be enabled by setting the `provider` field in OIDC configuration. At
+the moment, the only build-in support is for NetIQ.
+
+A example of using ACR values and provider specific processing is below:
+
+```yaml
+authentication:
+   type: oidc
+   oidc:
+      id: example.com
+      redirect_url: https://localhost:3080/v1/webapi/oidc/callback
+      redirect_timeout: 90s
+      client_id: 000000000000-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com
+      client_secret: AAAAAAAAAAAAAAAAAAAAAAAA
+      issuer_url: https://oidc.example.com
+      acr_values: "foo/bar"
+      provider: netiq
+      display: "Login with Example"
+      scope: [ "group" ]
+      claims_to_roles:
+         - claim: "group"
+           value: "admin"
+           roles: [ "admin" ]
 ```
 
 #### Login
