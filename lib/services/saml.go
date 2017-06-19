@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 	"text/template"
 	"time"
 
@@ -434,13 +435,13 @@ func (o *SAMLConnectorV2) MapAttributes(assertionInfo saml2.AssertionInfo) []str
 	return utils.Deduplicate(roles)
 }
 
-func executeSAMLStringTemplate(raw string, assertionInfo saml2.AssertionInfo) (string, error) {
+func executeSAMLStringTemplate(raw string, assertion map[string]string) (string, error) {
 	tmpl, err := template.New("dynamic-roles").Parse(raw)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 	var buf bytes.Buffer
-	err = tmpl.Execute(&buf, assertionInfo)
+	err = tmpl.Execute(&buf, assertion)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -448,7 +449,7 @@ func executeSAMLStringTemplate(raw string, assertionInfo saml2.AssertionInfo) (s
 	return buf.String(), nil
 }
 
-func executeSAMLSliceTemplate(raw []string, assertionInfo saml2.AssertionInfo) ([]string, error) {
+func executeSAMLSliceTemplate(raw []string, assertion map[string]string) ([]string, error) {
 	var sl []string
 
 	for _, v := range raw {
@@ -457,7 +458,7 @@ func executeSAMLSliceTemplate(raw []string, assertionInfo saml2.AssertionInfo) (
 			return nil, trace.Wrap(err)
 		}
 		var buf bytes.Buffer
-		err = tmpl.Execute(&buf, assertionInfo)
+		err = tmpl.Execute(&buf, assertion)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -470,22 +471,16 @@ func executeSAMLSliceTemplate(raw []string, assertionInfo saml2.AssertionInfo) (
 
 // RoleFromTemplate creates a role from a template and claims.
 func (o *SAMLConnectorV2) RoleFromTemplate(assertionInfo saml2.AssertionInfo) (Role, error) {
+	assertionMap := buildAssertionMap(assertionInfo)
 	for _, mapping := range o.Spec.AttributesToRoles {
-		for _, attr := range assertionInfo.Values {
-			// attribute name doesn't match
-			if attr.Name != mapping.Value {
+		for assrName, assrValue := range assertionMap {
+			// match assertion name
+			if assrName != mapping.Name {
 				continue
 			}
 
-			// attribute value doesn't match
-			var matched bool
-			for _, val := range attr.Values {
-				if val.Value == mapping.Value {
-					matched = true
-					break
-				}
-			}
-			if !matched {
+			// match assertion value
+			if assrValue != mapping.Value {
 				continue
 			}
 
@@ -493,11 +488,11 @@ func (o *SAMLConnectorV2) RoleFromTemplate(assertionInfo saml2.AssertionInfo) (R
 			roleTemplate := mapping.RoleTemplate
 			if roleTemplate != nil {
 				// at the moment, only allow templating for role name and logins
-				executedName, err := executeSAMLStringTemplate(roleTemplate.GetName(), assertionInfo)
+				executedName, err := executeSAMLStringTemplate(roleTemplate.GetName(), assertionMap)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				executedLogins, err := executeSAMLSliceTemplate(roleTemplate.GetLogins(), assertionInfo)
+				executedLogins, err := executeSAMLSliceTemplate(roleTemplate.GetLogins(), assertionMap)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
@@ -516,7 +511,7 @@ func (o *SAMLConnectorV2) RoleFromTemplate(assertionInfo saml2.AssertionInfo) (R
 		}
 	}
 
-	return nil, trace.BadParameter("unable to create role from template")
+	return nil, trace.BadParameter("no matching assertion name/value, assertions: %q", assertionMap)
 }
 
 // GetServiceProvider initialises service provider spec from settings
@@ -801,4 +796,21 @@ type SigningKeyPair struct {
 	PrivateKey string `json:"private_key"`
 	// Cert is certificate in OpenSSH authorized keys format
 	Cert string `json:"cert"`
+}
+
+// buildAssertionMap takes an saml2.AssertionInfo and builds a friendly map
+// that can be used to access assertion/value pairs. If multiple values are
+// returned for an assertion, they are joined into a string by ",".
+func buildAssertionMap(assertionInfo saml2.AssertionInfo) map[string]string {
+	assertionMap := make(map[string]string)
+
+	for _, assr := range assertionInfo.Values {
+		var vals []string
+		for _, v := range assr.Values {
+			vals = append(vals, v.Value)
+		}
+		assertionMap[assr.Name] = strings.Join(vals, ",")
+	}
+
+	return assertionMap
 }
