@@ -325,7 +325,7 @@ func (s *sessionCache) GetCertificateWithoutOTP(c client.CreateSSHCertReq) (*cli
 	}
 	defer clt.Close()
 
-	return createCertificate(c.User, c.PubKey, c.TTL, clt)
+	return createCertificate(c.User, c.PubKey, c.TTL, c.Compatibility, clt)
 }
 
 func (s *sessionCache) GetCertificateWithOTP(c client.CreateSSHCertReq) (*client.SSHLoginResponse, error) {
@@ -340,11 +340,11 @@ func (s *sessionCache) GetCertificateWithOTP(c client.CreateSSHCertReq) (*client
 	}
 	defer clt.Close()
 
-	return createCertificate(c.User, c.PubKey, c.TTL, clt)
+	return createCertificate(c.User, c.PubKey, c.TTL, c.Compatibility, clt)
 }
 
-func createCertificate(user string, pubkey []byte, ttl time.Duration, clt *auth.TunClient) (*client.SSHLoginResponse, error) {
-	cert, err := clt.GenerateUserCert(pubkey, user, ttl)
+func createCertificate(user string, pubkey []byte, ttl time.Duration, compatibility string, clt *auth.TunClient) (*client.SSHLoginResponse, error) {
+	cert, err := clt.GenerateUserCert(pubkey, user, ttl, compatibility)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -368,12 +368,14 @@ func (s *sessionCache) GetCertificateWithU2F(c client.CreateSSHCertWithU2FReq) (
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	clt, err := auth.NewTunClient("web.session-u2f", s.authServers, c.User, method)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer clt.Close()
-	return createCertificate(c.User, c.PubKey, c.TTL, clt)
+
+	return createCertificate(c.User, c.PubKey, c.TTL, c.Compatibility, clt)
 }
 
 func (s *sessionCache) GetUserInviteInfo(token string) (user string, otpQRCode []byte, err error) {

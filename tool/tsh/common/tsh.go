@@ -109,6 +109,8 @@ type CLIConf struct {
 	GopsAddr string
 	// IdentityFile is an argument to -i flag (path to the private key+cert file)
 	IdentityFile string
+	// Compatibility flags, --compat, specifies OpenSSH compatibility flags.
+	Compatibility string
 }
 
 // Run executes TSH client. same as main() but easier to test
@@ -127,6 +129,7 @@ func Run(args []string, underTest bool) {
 	app.Flag("cluster", "Specify the cluster to connect").Envar("TELEPORT_SITE").StringVar(&cf.SiteName)
 	app.Flag("ttl", "Minutes to live for a SSH session").Int32Var(&cf.MinsToLive)
 	app.Flag("identity", "Identity file").Short('i').StringVar(&cf.IdentityFile)
+	app.Flag("compat", "OpenSSH compatibility flag").StringVar(&cf.Compatibility)
 
 	app.Flag("insecure", "Do not verify server's certificate and host name. Use only in test environments").Default("false").BoolVar(&cf.InsecureSkipVerify)
 	app.Flag("namespace", "Namespace of the cluster").Default(defaults.Namespace).Hidden().StringVar(&cf.Namespace)
@@ -260,6 +263,7 @@ func onLogin(cf *CLIConf) {
 	if err != nil {
 		utils.FatalError(err)
 	}
+
 	if _, err := tc.Login(); err != nil {
 		utils.FatalError(err)
 	}
@@ -588,6 +592,14 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 	if !cf.NoCache {
 		c.CachePolicy = &client.CachePolicy{}
 	}
+
+	// parse compatibility parameter
+	compatibility, err := utils.CheckCompatibilityFlag(cf.Compatibility)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	c.Compatibility = compatibility
+
 	return client.NewClient(c)
 }
 

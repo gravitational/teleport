@@ -61,6 +61,8 @@ type UserCertParams struct {
 	PermitAgentForwarding bool
 	// Roles is a list of roles assigned to this user
 	Roles []string
+	// Compatibility specifies OpenSSH compatibility flags.
+	Compatibility string
 }
 
 // CertRoles defines certificate roles

@@ -166,3 +166,13 @@ const (
 
 // MaxEnvironmentFileLines is the maximum number of lines in a environment file.
 const MaxEnvironmentFileLines = 1000
+
+const (
+	// CompatibilityOldSSH is used to make Teleport interoperate with older
+	// versions of OpenSSH.
+	CompatibilityOldSSH = "oldssh"
+
+	// CompatibilityNone is used for normal Teleport operation without any
+	// compatibility modes.
+	CompatibilityNone = ""
+)

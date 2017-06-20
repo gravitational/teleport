@@ -92,6 +92,7 @@ type AuthCommand struct {
 	output                     string
 	outputFormat               string
 	compatVersion              string
+	compatibility              string
 }
 
 const (
@@ -243,6 +244,7 @@ func Run() {
 	authSign.Flag("out", "identity output").Short('o').StringVar(&cmdAuth.output)
 	authSign.Flag("format", "identity format: 'file' (default) or 'dir'").Default(DefaultIdentityFormat).StringVar(&cmdAuth.outputFormat)
 	authSign.Flag("ttl", "TTL (time to live) for the generated certificate").Default(fmt.Sprintf("%v", defaults.CertDuration)).DurationVar(&cmdAuth.genTTL)
+	authSign.Flag("compat", "OpenSSH compatibility flag").StringVar(&cmdAuth.compatibility)
 
 	// operations with reverse tunnels
 	reverseTunnels := app.Command("tunnels", "Operations on reverse tunnels clusters").Hidden()
@@ -745,7 +747,14 @@ func (a *AuthCommand) GenerateAndSignKeys(client *auth.TunClient) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	cert, err := client.GenerateUserCert(publicKey, a.genUser, a.genTTL)
+
+	// parse compatibility parameter
+	compatibility, err := utils.CheckCompatibilityFlag(a.compatibility)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	cert, err := client.GenerateUserCert(publicKey, a.genUser, a.genTTL, compatibility)
 	if err != nil {
 		return trace.Wrap(err)
 	}

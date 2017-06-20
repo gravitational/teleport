@@ -61,10 +61,11 @@ type SSHLoginResponse struct {
 
 // SSOLoginConsoleReq is used to SSO for tsh
 type SSOLoginConsoleReq struct {
-	RedirectURL string        `json:"redirect_url"`
-	PublicKey   []byte        `json:"public_key"`
-	CertTTL     time.Duration `json:"cert_ttl"`
-	ConnectorID string        `json:"connector_id"`
+	RedirectURL   string        `json:"redirect_url"`
+	PublicKey     []byte        `json:"public_key"`
+	CertTTL       time.Duration `json:"cert_ttl"`
+	ConnectorID   string        `json:"connector_id"`
+	Compatibility string        `json:"compatibility,omitempty"`
 }
 
 // SSOLoginConsoleResponse is a response to SSO console request
@@ -96,6 +97,8 @@ type CreateSSHCertReq struct {
 	// TTL is a desired TTL for the cert (max is still capped by server,
 	// however user can shorten the time)
 	TTL time.Duration `json:"ttl"`
+	// Compatibility specifies OpenSSH compatibility flags.
+	Compatibility string `json:"compatibility,omitempty"`
 }
 
 // CreateSSHCertWithU2FReq are passed by web client
@@ -112,6 +115,8 @@ type CreateSSHCertWithU2FReq struct {
 	// TTL is a desired TTL for the cert (max is still capped by server,
 	// however user can shorten the time)
 	TTL time.Duration `json:"ttl"`
+	// Compatibility specifies OpenSSH compatibility flags.
+	Compatibility string `json:"compatibility,omitempty"`
 }
 
 type sealData struct {
@@ -120,7 +125,7 @@ type sealData struct {
 }
 
 // SSHAgentSSOLogin is used by SSH Agent (tsh) to login using OpenID connect
-func SSHAgentSSOLogin(proxyAddr, connectorID string, pubKey []byte, ttl time.Duration, insecure bool, pool *x509.CertPool, protocol string) (*SSHLoginResponse, error) {
+func SSHAgentSSOLogin(proxyAddr, connectorID string, pubKey []byte, ttl time.Duration, insecure bool, pool *x509.CertPool, protocol string, compatibility string) (*SSHLoginResponse, error) {
 	clt, proxyURL, err := initClient(proxyAddr, insecure, pool)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -200,10 +205,11 @@ func SSHAgentSSOLogin(proxyAddr, connectorID string, pubKey []byte, ttl time.Dur
 	u.RawQuery = query.Encode()
 
 	out, err := clt.PostJSON(clt.Endpoint("webapi", protocol, "login", "console"), SSOLoginConsoleReq{
-		RedirectURL: u.String(),
-		PublicKey:   pubKey,
-		CertTTL:     ttl,
-		ConnectorID: connectorID,
+		RedirectURL:   u.String(),
+		PublicKey:     pubKey,
+		CertTTL:       ttl,
+		ConnectorID:   connectorID,
+		Compatibility: compatibility,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -315,17 +321,18 @@ func Ping(proxyAddr string, insecure bool, pool *x509.CertPool) (*PingResponse, 
 // if credentials are valid
 //
 // proxyAddr must be specified as host:port
-func SSHAgentLogin(proxyAddr, user, password, otpToken string, pubKey []byte, ttl time.Duration, insecure bool, pool *x509.CertPool) (*SSHLoginResponse, error) {
+func SSHAgentLogin(proxyAddr, user, password, otpToken string, pubKey []byte, ttl time.Duration, insecure bool, pool *x509.CertPool, compatibility string) (*SSHLoginResponse, error) {
 	clt, _, err := initClient(proxyAddr, insecure, pool)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	re, err := clt.PostJSON(clt.Endpoint("webapi", "ssh", "certs"), CreateSSHCertReq{
-		User:     user,
-		Password: password,
-		OTPToken: otpToken,
-		PubKey:   pubKey,
-		TTL:      ttl,
+		User:          user,
+		Password:      password,
+		OTPToken:      otpToken,
+		PubKey:        pubKey,
+		TTL:           ttl,
+		Compatibility: compatibility,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -344,7 +351,7 @@ func SSHAgentLogin(proxyAddr, user, password, otpToken string, pubKey []byte, tt
 // If the credentials are valid, the proxy wiil return a challenge.
 // We then call the official u2f-host binary to perform the signing and pass the signature to the proxy.
 // If the authentication succeeds, we will get a temporary certificate back
-func SSHAgentU2FLogin(proxyAddr, user, password string, pubKey []byte, ttl time.Duration, insecure bool, pool *x509.CertPool) (*SSHLoginResponse, error) {
+func SSHAgentU2FLogin(proxyAddr, user, password string, pubKey []byte, ttl time.Duration, insecure bool, pool *x509.CertPool, compatibility string) (*SSHLoginResponse, error) {
 	clt, _, err := initClient(proxyAddr, insecure, pool)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -414,6 +421,7 @@ func SSHAgentU2FLogin(proxyAddr, user, password string, pubKey []byte, ttl time.
 		U2FSignResponse: *u2fSignResponse,
 		PubKey:          pubKey,
 		TTL:             ttl,
+		Compatibility:   compatibility,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -742,17 +742,16 @@ func (c *Client) GenerateHostCert(
 	return []byte(cert), nil
 }
 
-// GenerateUserCert takes the public key in the Open SSH ``authorized_keys``
-// plain text format, signs it using User Certificate Authority signing key and returns the
-// resulting certificate.
-func (c *Client) GenerateUserCert(
-	key []byte, user string, ttl time.Duration) ([]byte, error) {
-
+// GenerateUserCert takes the public key in the OpenSSH `authorized_keys` plain
+// text format, signs it using User Certificate Authority signing key and
+// returns the resulting certificate.
+func (c *Client) GenerateUserCert(key []byte, user string, ttl time.Duration, compatibility string) ([]byte, error) {
 	out, err := c.PostJSON(c.Endpoint("ca", "user", "certs"),
 		generateUserCertReq{
-			Key:  key,
-			User: user,
-			TTL:  ttl,
+			Key:           key,
+			User:          user,
+			TTL:           ttl,
+			Compatibility: compatibility,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1610,10 +1609,10 @@ type IdentityService interface {
 	// resulting certificate.
 	GenerateHostCert(key []byte, hostID, nodeName, clusterName string, roles teleport.Roles, ttl time.Duration) ([]byte, error)
 
-	// GenerateUserCert takes the public key in the Open SSH ``authorized_keys``
+	// GenerateUserCert takes the public key in the OpenSSH `authorized_keys`
 	// plain text format, signs it using User Certificate Authority signing key and returns the
 	// resulting certificate.
-	GenerateUserCert(key []byte, user string, ttl time.Duration) ([]byte, error)
+	GenerateUserCert(key []byte, user string, ttl time.Duration, compatibility string) ([]byte, error)
 
 	// GetSignupTokenData returns token data for a valid token
 	GetSignupTokenData(token string) (user string, otpQRCode []byte, e error)

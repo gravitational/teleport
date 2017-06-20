@@ -285,6 +285,9 @@ type OIDCAuthRequest struct {
 	// ClientRedirectURL is a URL client wants to be redirected
 	// after successfull authentication
 	ClientRedirectURL string `json:"client_redirect_url"`
+
+	// Compatibility specifies OpenSSH compatibility flags.
+	Compatibility string `json:"compatibility,omitempty"`
 }
 
 // Check returns nil if all parameters are great, err otherwise
@@ -341,6 +344,9 @@ type SAMLAuthRequest struct {
 	// ClientRedirectURL is a URL client wants to be redirected
 	// after successfull authentication
 	ClientRedirectURL string `json:"client_redirect_url"`
+
+	// Compatibility specifies OpenSSH compatibility flags.
+	Compatibility string `json:"compatibility,omitempty"`
 }
 
 // Check returns nil if all parameters are great, err otherwise

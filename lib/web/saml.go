@@ -61,6 +61,7 @@ func (m *Handler) samlSSOConsole(w http.ResponseWriter, r *http.Request, p httpr
 			ClientRedirectURL: req.RedirectURL,
 			PublicKey:         req.PublicKey,
 			CertTTL:           req.CertTTL,
+			Compatibility:     req.Compatibility,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
