@@ -435,6 +435,11 @@ func (o *SAMLConnectorV2) MapAttributes(assertionInfo saml2.AssertionInfo) []str
 	return utils.Deduplicate(roles)
 }
 
+// executeSAMLStringTemplate takes a raw template string and a map of
+// assertions to execute a template and generate output. Because the data
+// structure used to execute the template is a map, the format of the raw
+// string is expected to be {{index . "key"}}. See
+// https://golang.org/pkg/text/template/ for more details.
 func executeSAMLStringTemplate(raw string, assertion map[string]string) (string, error) {
 	tmpl, err := template.New("dynamic-roles").Parse(raw)
 	if err != nil {
@@ -449,6 +454,11 @@ func executeSAMLStringTemplate(raw string, assertion map[string]string) (string,
 	return buf.String(), nil
 }
 
+// executeSAMLStringTemplate takes raw template strings and a map of
+// assertions to execute templates and generate a slice of output. Because the
+// data structure used to execute the template is a map, the format of each raw
+// string is expected to be {{index . "key"}}. See
+// https://golang.org/pkg/text/template/ for more details.
 func executeSAMLSliceTemplate(raw []string, assertion map[string]string) ([]string, error) {
 	var sl []string
 
