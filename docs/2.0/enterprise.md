@@ -21,7 +21,8 @@ Teleport Enterprise:
 
 ## RBAC
 
-RBAC stands for `Role Based Access Control`, quoting [Wikipedia](https://en.wikipedia.org/wiki/Role-based_access_control):
+RBAC stands for `Role Based Access Control`, quoting
+[Wikipedia](https://en.wikipedia.org/wiki/Role-based_access_control):
 
 > In computer systems security, role-based access control (RBAC) is an
 > approach to restricting system access to authorized users. It is used by the
@@ -56,12 +57,27 @@ The typical OS logins traditionally used. For example, you may not want your int
 
 **Allowed Labels**
 
-A user will be allowed to only log in to the
-nodes with these labels. Perhaps you want to label your staging nodes
-with the "staging" label and update the `intern` role such that the interns
-won't be able to SSH into a production machine by accident.
+A user will only be granted access to a node if all of the labels defined in
+the role are present on the node. This effectively means we use an AND
+operator when evaluating access using labels. Two examples of using labels to
+restrict access:
+
+1. If you split your infrastructure at a macro level with the labels
+`environment: production` and `environment: staging` then you can create roles
+that only have access to one environment. Let's say you create an `intern`
+role with allow label `environment: staging` then interns will not have access
+to production servers.
+1. Like above, suppose you split your infrastructure at a macro level with the
+labels `environment: production` and `environment: staging`. In addition,
+within each environment you want to split the servers used by the frontend and
+backend teams, `team: frontend`, `team: backend`. If you have an intern that
+joins the frontend team that should only have access to staging, you would
+create a role with the following allow labels
+`environment: staging, team: frontend`. That would restrict users with the
+`intern` role to only staging servers the frontend team uses.
 
 **Session Duration**
+
 Also known as "Session TTL" - a period of time a user is allowed to be logged in.
 
 **Resources**
