@@ -486,22 +486,30 @@ func MatchNamespace(selector []string, namespace string) bool {
 	return false
 }
 
-// MatchLabels matches selector against target
+// MatchLabels matches selector against target.
 func MatchLabels(selector map[string]string, target map[string]string) bool {
 	// empty selector matches nothing
 	if len(selector) == 0 {
 		return false
 	}
+
 	// *: * matches everything even empty target set
 	if selector[Wildcard] == Wildcard {
 		return true
 	}
+
+	// label matching is an or operation
 	for key, val := range selector {
-		if targetVal, ok := target[key]; !ok || (val != targetVal && val != Wildcard) {
-			return false
+		targetVal, ok := target[key]
+		if !ok {
+			continue
+		}
+		if val == targetVal || val == Wildcard {
+			return true
 		}
 	}
-	return true
+
+	return false
 }
 
 // AdjustSessionTTL will reduce the requested ttl to lowest max allowed TTL
