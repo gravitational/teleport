@@ -235,7 +235,7 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 	authServer, userClient := s.newServerWithAuthorizer(c, authorizer)
 	defer authServer.Close()
 
-	cert, err = userClient.GenerateUserCert(pub, "user1", time.Hour)
+	cert, err = userClient.GenerateUserCert(pub, "user1", time.Hour, teleport.CompatibilityNone)
 	c.Assert(err, NotNil)
 	c.Assert(err.Error(), Equals, "auth API: access denied [00]")
 
@@ -245,7 +245,7 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 	authServer2, userClient2 := s.newServerWithAuthorizer(c, authorizer)
 	defer authServer2.Close()
 
-	cert, err = userClient2.GenerateUserCert(pub, "user1", time.Hour)
+	cert, err = userClient2.GenerateUserCert(pub, "user1", time.Hour, teleport.CompatibilityNone)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, ".*cannot request a certificate for user1")
 
@@ -255,7 +255,7 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 	authServer3, userClient3 := s.newServerWithAuthorizer(c, authorizer)
 	defer authServer3.Close()
 
-	cert, err = userClient3.GenerateUserCert(pub, "user1", 40*time.Hour)
+	cert, err = userClient3.GenerateUserCert(pub, "user1", 40*time.Hour, teleport.CompatibilityNone)
 	c.Assert(err, IsNil)
 	parsedKey, _, _, _, err := ssh.ParseAuthorizedKey(cert)
 	c.Assert(err, IsNil)
@@ -278,7 +278,7 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 	authServer4, userClient4 := s.newServerWithAuthorizer(c, authorizer)
 	defer authServer4.Close()
 
-	cert, err = userClient4.GenerateUserCert(pub, "user1", 1*time.Hour)
+	cert, err = userClient4.GenerateUserCert(pub, "user1", 1*time.Hour, teleport.CompatibilityNone)
 	c.Assert(err, IsNil)
 	parsedKey, _, _, _, err = ssh.ParseAuthorizedKey(cert)
 	c.Assert(err, IsNil)
@@ -289,7 +289,7 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 	c.Assert(exists, Equals, true)
 
 	// apply HTTP Auth to generate user cert:
-	cert, err = userClient3.GenerateUserCert(pub, "user1", time.Hour)
+	cert, err = userClient3.GenerateUserCert(pub, "user1", time.Hour, teleport.CompatibilityNone)
 	c.Assert(err, IsNil)
 
 	_, _, _, _, err = ssh.ParseAuthorizedKey(cert)

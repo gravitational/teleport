@@ -526,6 +526,7 @@ func (m *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p htt
 			PublicKey:         req.PublicKey,
 			CertTTL:           req.CertTTL,
 			CheckUser:         true,
+			Compatibility:     req.Compatibility,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)

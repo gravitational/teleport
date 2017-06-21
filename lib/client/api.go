@@ -172,6 +172,9 @@ type Config struct {
 	// CachePolicy defines local caching policy in case if discovery goes down
 	// by default does not use caching
 	CachePolicy *CachePolicy
+
+	// Compatibility specifies OpenSSH compatibility flags.
+	Compatibility string
 }
 
 // CachePolicy defines cache policy for local clients
@@ -1010,7 +1013,8 @@ func (tc *TeleportClient) Login() (*CertAuthMethod, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// generate a new keypair. the public key will be signed via proxy if our password+HOTP  are legit
+	// generate a new keypair. the public key will be signed via proxy if our
+	// password+OTP are legit
 	key, err := tc.MakeKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1124,14 +1128,16 @@ func (tc *TeleportClient) directLogin(secondFactorType string, pub []byte) (*SSH
 	}
 
 	// ask the CA (via proxy) to sign our public key:
-	response, err := SSHAgentLogin(httpsProxyHostPort,
+	response, err := SSHAgentLogin(
+		httpsProxyHostPort,
 		tc.Config.Username,
 		password,
 		otpToken,
 		pub,
 		tc.KeyTTL,
 		tc.InsecureSkipVerify,
-		certPool)
+		certPool,
+		tc.Compatibility)
 
 	return response, trace.Wrap(err)
 }
@@ -1141,8 +1147,15 @@ func (tc *TeleportClient) ssoLogin(connectorID string, pub []byte, protocol stri
 	log.Debugf("samlLogin start")
 	// ask the CA (via proxy) to sign our public key:
 	webProxyAddr := tc.Config.ProxyWebHostPort()
-	response, err := SSHAgentSSOLogin(webProxyAddr,
-		connectorID, pub, tc.KeyTTL, tc.InsecureSkipVerify, loopbackPool(webProxyAddr), protocol)
+	response, err := SSHAgentSSOLogin(
+		webProxyAddr,
+		connectorID,
+		pub,
+		tc.KeyTTL,
+		tc.InsecureSkipVerify,
+		loopbackPool(webProxyAddr),
+		protocol,
+		tc.Compatibility)
 	return response, trace.Wrap(err)
 }
 
@@ -1162,13 +1175,15 @@ func (tc *TeleportClient) u2fLogin(pub []byte) (*SSHLoginResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	response, err := SSHAgentU2FLogin(httpsProxyHostPort,
+	response, err := SSHAgentU2FLogin(
+		httpsProxyHostPort,
 		tc.Config.Username,
 		password,
 		pub,
 		tc.KeyTTL,
 		tc.InsecureSkipVerify,
-		certPool)
+		certPool,
+		tc.Compatibility)
 
 	return response, trace.Wrap(err)
 }

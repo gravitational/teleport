@@ -203,6 +203,16 @@ func SliceContainsStr(slice []string, value string) bool {
 	return false
 }
 
+// CheckCompatibilityFlag check that the compatibility flag is valid.
+func CheckCompatibilityFlag(s string) (string, error) {
+	switch s {
+	case teleport.CompatibilityNone, teleport.CompatibilityOldSSH:
+		return s, nil
+	default:
+		return teleport.CompatibilityNone, trace.BadParameter("invalid compatibility parameter: %q", s)
+	}
+}
+
 const (
 	// HumanTimeFormatString is a human readable date formatting
 	HumanTimeFormatString = "Mon Jan _2 15:04 UTC"

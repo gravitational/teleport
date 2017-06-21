@@ -209,18 +209,23 @@ func (n *nauth) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
 		cert.Permissions.Extensions[teleport.CertExtensionPermitAgentForwarding] = ""
 	}
 	if len(c.Roles) != 0 {
-		roles, err := services.MarshalCertRoles(c.Roles)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		// if we are requesting a certificate with support for older versions of OpenSSH
+		// don't add roles to certificate extensions, due to a bug in <= OpenSSH 7.1
+		// https://bugzilla.mindrot.org/show_bug.cgi?id=2387
+		if c.Compatibility != teleport.CompatibilityOldSSH {
+			roles, err := services.MarshalCertRoles(c.Roles)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			cert.Permissions.Extensions[teleport.CertExtensionTeleportRoles] = roles
 		}
-		cert.Permissions.Extensions[teleport.CertExtensionTeleportRoles] = roles
 	}
 	signer, err := ssh.ParsePrivateKey(c.PrivateCASigningKey)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	if err := cert.SignCert(rand.Reader, signer); err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	return ssh.MarshalAuthorizedKey(cert), nil
 }

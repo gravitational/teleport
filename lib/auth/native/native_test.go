@@ -16,6 +16,7 @@ limitations under the License.
 package native
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -36,6 +37,7 @@ type NativeSuite struct {
 }
 
 var _ = Suite(&NativeSuite{})
+var _ = fmt.Printf
 
 func (s *NativeSuite) SetUpSuite(c *C) {
 	utils.InitLoggerForTests()
@@ -137,5 +139,60 @@ func (s *NativeSuite) TestBuildPrincipals(c *C) {
 		c.Assert(ok, Equals, true)
 
 		c.Assert(hostCertificate.ValidPrincipals, DeepEquals, tt.outValidPrincipals)
+	}
+}
+
+// TestUserCertCompatibility makes sure the compatibility flag can be used to
+// add to remove roles from certificate extensions.
+func (s *NativeSuite) TestUserCertCompatibility(c *C) {
+	priv, pub, err := s.suite.A.GenerateKeyPair("")
+	c.Assert(err, IsNil)
+
+	tests := []struct {
+		inCompatibility string
+		outHasRoles     bool
+	}{
+		// 0 - no compatibility, has roles
+		{
+			"",
+			true,
+		},
+		// 1 - no compatibility, has roles
+		{
+			"invalid",
+			true,
+		},
+		// 2 - compatibility, has roles
+		{
+			"oldssh",
+			false,
+		},
+	}
+
+	// run tests
+	for i, tt := range tests {
+		comment := Commentf("Test %v", i)
+
+		userCertificateBytes, err := s.suite.A.GenerateUserCert(services.UserCertParams{
+			PrivateCASigningKey:   priv,
+			PublicUserKey:         pub,
+			Username:              "user",
+			AllowedLogins:         []string{"centos", "root"},
+			TTL:                   time.Hour,
+			Roles:                 []string{"foo"},
+			Compatibility:         tt.inCompatibility,
+			PermitAgentForwarding: true,
+		})
+		c.Assert(err, IsNil, comment)
+
+		publicKey, _, _, _, err := ssh.ParseAuthorizedKey(userCertificateBytes)
+		c.Assert(err, IsNil, comment)
+
+		userCertificate, ok := publicKey.(*ssh.Certificate)
+		c.Assert(ok, Equals, true, comment)
+
+		// check if we added the roles extension
+		_, ok = userCertificate.Extensions[teleport.CertExtensionTeleportRoles]
+		c.Assert(ok, Equals, tt.outHasRoles, comment)
 	}
 }

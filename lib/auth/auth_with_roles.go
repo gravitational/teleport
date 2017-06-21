@@ -365,7 +365,7 @@ func (a *AuthWithRoles) GenerateHostCert(
 	return a.authServer.GenerateHostCert(key, hostID, nodeName, clusterName, roles, ttl)
 }
 
-func (a *AuthWithRoles) GenerateUserCert(key []byte, username string, ttl time.Duration) ([]byte, error) {
+func (a *AuthWithRoles) GenerateUserCert(key []byte, username string, ttl time.Duration, compatibility string) ([]byte, error) {
 	if err := a.currentUserAction(username); err != nil {
 		return nil, trace.AccessDenied("%v cannot request a certificate for %v", a.user.GetName(), username)
 	}
@@ -398,7 +398,7 @@ func (a *AuthWithRoles) GenerateUserCert(key []byte, username string, ttl time.D
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.GenerateUserCert(
-		key, user, allowedLogins, sessionTTL, checker.CanForwardAgents())
+		key, user, allowedLogins, sessionTTL, checker.CanForwardAgents(), compatibility)
 }
 
 func (a *AuthWithRoles) CreateSignupToken(user services.UserV1) (token string, e error) {

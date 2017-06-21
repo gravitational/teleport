@@ -715,9 +715,10 @@ func (s *APIServer) generateHostCert(auth ClientI, w http.ResponseWriter, r *htt
 }
 
 type generateUserCertReq struct {
-	Key  []byte        `json:"key"`
-	User string        `json:"user"`
-	TTL  time.Duration `json:"ttl"`
+	Key           []byte        `json:"key"`
+	User          string        `json:"user"`
+	TTL           time.Duration `json:"ttl"`
+	Compatibility string        `json:"compatibility,omitempty"`
 }
 
 func (s *APIServer) generateUserCert(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
@@ -725,7 +726,11 @@ func (s *APIServer) generateUserCert(auth ClientI, w http.ResponseWriter, r *htt
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cert, err := auth.GenerateUserCert(req.Key, req.User, req.TTL)
+	compatibility, err := utils.CheckCompatibilityFlag(req.Compatibility)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cert, err := auth.GenerateUserCert(req.Key, req.User, req.TTL, compatibility)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
