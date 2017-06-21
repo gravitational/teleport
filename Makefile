@@ -81,7 +81,7 @@ run-docs:
 # tests everything: called by Jenkins
 #
 .PHONY: test
-test: FLAGS ?= -cover
+test: FLAGS ?=
 test: 
 	go test -v ./tool/tsh/... \
 			   ./lib/... \
