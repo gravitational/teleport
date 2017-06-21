@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.2.1
+
+### Improvements
+
+* Added `--compat=oldssh` to both `tsh` and `tctl` that can be used to request certificates in the legacy format (no roles in extensions). [#1083](https://github.com/gravitational/teleport/issues/1083)
+
+### Bugfixes
+
+* Fixed multiple regressions when using SAML with dynamic roles. [#1080](https://github.com/gravitational/teleport/issues/1080)
+
 ## 2.2.0
 
 ### Features
