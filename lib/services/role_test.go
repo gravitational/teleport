@@ -187,7 +187,7 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 		Metadata: Metadata{
 			Name:      "c",
 			Namespace: namespaceC,
-			Labels:    map[string]string{"role": "db", "status": "follower"},
+			Labels:    map[string]string{"role": "db", "status": "follower", "env": "prod"},
 		},
 	}
 	testCases := []struct {
@@ -291,9 +291,118 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 				{server: serverC, login: "admin", hasAccess: true},
 			},
 		},
+		{
+			name: "no labels in role spec, don't match any nodes",
+			roles: []RoleV2{
+				RoleV2{
+					Metadata: Metadata{
+						Name:      "name1",
+						Namespace: defaults.Namespace,
+					},
+					Spec: RoleSpecV2{
+						MaxSessionTTL: Duration{20 * time.Hour},
+						Logins:        []string{"root"},
+						Namespaces:    []string{Wildcard},
+					},
+				},
+			},
+			checks: []check{
+				{server: serverA, login: "root", hasAccess: false},
+				{server: serverB, login: "root", hasAccess: false},
+				{server: serverC, login: "root", hasAccess: false},
+			},
+		},
+		{
+			name: "allow access nodes with label 'role: worker'",
+			roles: []RoleV2{
+				RoleV2{
+					Metadata: Metadata{
+						Name:      "name1",
+						Namespace: defaults.Namespace,
+					},
+					Spec: RoleSpecV2{
+						MaxSessionTTL: Duration{20 * time.Hour},
+						Logins:        []string{"root"},
+						NodeLabels:    map[string]string{"role": "worker"},
+						Namespaces:    []string{Wildcard},
+					},
+				},
+			},
+			checks: []check{
+				{server: serverA, login: "root", hasAccess: false},
+				{server: serverB, login: "root", hasAccess: true},
+				{server: serverC, login: "root", hasAccess: false},
+			},
+		},
+		{
+			name: "allow access nodes with 'role: db' or 'status: follower'",
+			roles: []RoleV2{
+				RoleV2{
+					Metadata: Metadata{
+						Name:      "name1",
+						Namespace: defaults.Namespace,
+					},
+					Spec: RoleSpecV2{
+						MaxSessionTTL: Duration{20 * time.Hour},
+						Logins:        []string{"root"},
+						NodeLabels:    map[string]string{"role": "db", "status": "follower"},
+						Namespaces:    []string{Wildcard},
+					},
+				},
+			},
+			checks: []check{
+				{server: serverA, login: "root", hasAccess: false},
+				{server: serverB, login: "root", hasAccess: true},
+				{server: serverC, login: "root", hasAccess: true},
+			},
+		},
+		{
+			name: "allow access to any node with 'env' label",
+			roles: []RoleV2{
+				RoleV2{
+					Metadata: Metadata{
+						Name:      "name1",
+						Namespace: defaults.Namespace,
+					},
+					Spec: RoleSpecV2{
+						MaxSessionTTL: Duration{20 * time.Hour},
+						Logins:        []string{"root"},
+						NodeLabels:    map[string]string{"env": Wildcard},
+						Namespaces:    []string{Wildcard},
+					},
+				},
+			},
+			checks: []check{
+				{server: serverA, login: "root", hasAccess: false},
+				{server: serverB, login: "root", hasAccess: false},
+				{server: serverC, login: "root", hasAccess: true},
+			},
+		},
+		{
+			name: "allow access to any node with any label",
+			roles: []RoleV2{
+				RoleV2{
+					Metadata: Metadata{
+						Name:      "name1",
+						Namespace: defaults.Namespace,
+					},
+					Spec: RoleSpecV2{
+						MaxSessionTTL: Duration{20 * time.Hour},
+						Logins:        []string{"root"},
+						NodeLabels:    map[string]string{Wildcard: Wildcard},
+						Namespaces:    []string{Wildcard},
+					},
+				},
+			},
+			checks: []check{
+				{server: serverA, login: "root", hasAccess: true},
+				{server: serverB, login: "root", hasAccess: true},
+				{server: serverC, login: "root", hasAccess: true},
+			},
+		},
 	}
-	for i, tc := range testCases {
 
+	for i, tc := range testCases {
 		var set RoleSet
 		for i := range tc.roles {
 			set = append(set, &tc.roles[i])
