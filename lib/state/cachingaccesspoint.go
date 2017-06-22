@@ -119,7 +119,10 @@ func NewCachingAuthClient(config Config) (*CachingAuthClient, error) {
 	if !cs.SkipPreload {
 		err := cs.fetchAll()
 		if err != nil {
-			log.Warningf("failed to fetch results for cache %v", err)
+			// we almost always get some "access denied" errors here because
+			// not all cacheable resources are available (for example nodes do
+			// not have access to tunnels)
+			log.Debugf("Auth cache: %v", err)
 		}
 	}
 	return cs, nil

@@ -21,5 +21,8 @@ import (
 )
 
 func main() {
-	common.Run()
+	const (
+		ossDistribution = ""
+	)
+	common.Run(ossDistribution)
 }
