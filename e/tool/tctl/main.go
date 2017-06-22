@@ -17,9 +17,10 @@ limitations under the License.
 package main
 
 import (
+	"github.com/gravitational/teleport/e/lib"
 	"github.com/gravitational/teleport/tool/tctl/common"
 )
 
 func main() {
-	common.Run()
+	common.Run(lib.DistroName)
 }

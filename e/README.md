@@ -15,6 +15,17 @@ $GOHOME/gravitational/teleport  <-- open source public Teleport repo
    |- e                         <-- this repo cloned into 'e'
 ```
 
+## Binaries
+
+Regular OSS version of `tsh` is used for Enterprise, while `tctl` and
+`teleport` binaries are built differently. Differences:
+
+* `teleport` has different UI
+* `tctl` supports additional commands
+
+Both `teleport` and `tctl` report different version string when given `version`
+CLI command.
+
 ## Getting Started
 
 By default, when you clone OSS Teleport, the submodules are not cloned:

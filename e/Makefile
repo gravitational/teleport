@@ -1,9 +1,9 @@
 BUILDDIR ?= build
-BINARIES=$(BUILDDIR)/tsh $(BUILDDIR)/teleport $(BUILDDIR)/tctl
+BINARIES=$(BUILDDIR)/teleport $(BUILDDIR)/tctl
 LIBS = $(shell find lib -type f -name '*.go')
 
 #
-# Default target: builds all 3 executables and plaaces them in a current directory
+# Default target: builds 'tctl' and 'teleport' and plaaces them into ./build/
 #
 .PHONY: all
 all: $(BINARIES) 
@@ -14,5 +14,6 @@ $(BUILDDIR)/tctl: $(LIBS) tool/tctl/*.go
 $(BUILDDIR)/teleport: $(LIBS) tool/teleport/*.go 
 	go build -o $(BUILDDIR)/teleport -i $(BUILDFLAGS) ./tool/teleport
 
-$(BUILDDIR)/tsh: $(LIBS) tool/tsh/*.go
-	go build -o $(BUILDDIR)/tsh -i $(BUILDFLAGS) ./tool/tsh
+.PHONY: clean
+clean:
+	rm -rf $(BUILDDIR)
