@@ -8,7 +8,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 )
@@ -379,8 +378,8 @@ func (u *UserV2) Check() error {
 	if u.Version == "" {
 		return trace.BadParameter("user version is not set")
 	}
-	if !cstrings.IsValidUnixUser(u.Metadata.Name) {
-		return trace.BadParameter("'%v' is not a valid user name", u.Metadata.Name)
+	if u.Metadata.Name == "" {
+		return trace.BadParameter("user name cannot be empty")
 	}
 	for _, id := range u.Spec.OIDCIdentities {
 		if err := id.Check(); err != nil {
@@ -418,8 +417,8 @@ type UserV1 struct {
 
 // Check checks validity of all parameters
 func (u *UserV1) Check() error {
-	if !cstrings.IsValidUnixUser(u.Name) {
-		return trace.BadParameter("'%v' is not a valid user name", u.Name)
+	if u.Name == "" {
+		return trace.BadParameter("user name cannot be empty")
 	}
 	for _, id := range u.OIDCIdentities {
 		if err := id.Check(); err != nil {
