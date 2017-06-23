@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.2
+
+### Bug fixes
+
+* Fixed and issue where in certain situations `tctl ls` would not work. [#1102](https://github.com/gravitational/teleport/issues/1102).
+
 ## 2.2.1
 
 ### Improvements
