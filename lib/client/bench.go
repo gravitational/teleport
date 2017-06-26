@@ -167,7 +167,10 @@ type benchmarkThread struct {
 
 func (b *benchmarkThread) execute(measure *benchMeasure) {
 	if !b.interactive {
-		measure.Error = b.client.SSH(b.ctx, nil, false)
+		// do not use parent context that will cancel in flight requests
+		// because we give test some time to gracefully wrap up
+		// the in-flight connections to avoid extra errors
+		measure.Error = b.client.SSH(context.TODO(), nil, false)
 		measure.End = time.Now()
 		b.sendMeasure(measure)
 		return
