@@ -722,29 +722,30 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 
 	err = trustedCluster.CheckAndSetDefaults()
 	c.Assert(err, check.IsNil)
-	abortTime := time.Now().Add(2 * time.Second)
-	for {
-		log.Debugf("Will create trusted cluster %v", trustedCluster)
+
+	// try and upsert a trusted cluster multiple times
+	var upsertSuccessCount int
+	for i := 0; i < 10; i++ {
+		log.Debugf("Will create trusted cluster %v, attempt %v", trustedCluster, i)
 		err = aux.Process.GetAuthServer().UpsertTrustedCluster(trustedCluster)
-		if err == nil {
-			break
-		}
-		if trace.IsConnectionProblem(err) {
-			log.Debugf("retrying on connection problem: %v", err)
-		} else {
+		if err != nil {
+			if trace.IsConnectionProblem(err) {
+				log.Debugf("retrying on connection problem: %v", err)
+				continue
+			}
 			c.Fatalf("got non connection problem %v", err)
 		}
-		time.Sleep(time.Millisecond * 300)
-		if time.Now().After(abortTime) {
-			c.Fatalf("failed to add trusted cluster")
-		}
+		upsertSuccessCount++
 	}
+	// make sure we upsert a trusted cluster multiple times.
+	c.Assert(upsertSuccessCount > 1, check.Equals, true)
+
 	nodePorts := s.getPorts(3)
 	sshPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
 	c.Assert(aux.StartNode("aux-node", sshPort, proxyWebPort, proxySSHPort), check.IsNil)
 
 	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
-	abortTime = time.Now().Add(time.Second * 10)
+	abortTime := time.Now().Add(time.Second * 10)
 	for len(main.Tunnel.GetSites()) < 2 && len(main.Tunnel.GetSites()) < 2 {
 		time.Sleep(time.Millisecond * 2000)
 		if time.Now().After(abortTime) {
@@ -770,6 +771,74 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 	}
 	c.Assert(err, check.IsNil)
 	c.Assert(output.String(), check.Equals, "hello world\n")
+
+	// make sure both clusters have the right certificate authorities with the right signing keys.
+	var tests = []struct {
+		inCluster        *TeleInstance
+		outChkMainUserCA check.Checker
+		outLenMainUserCA int
+		outChkMainHostCA check.Checker
+		outLenMainHostCA int
+		outChkAuxUserCA  check.Checker
+		outLenAuxUserCA  int
+		outChkAuxHostCA  check.Checker
+		outLenAuxHostCA  int
+	}{
+		// 0 - main
+		//   * User CA for main has one signing key.
+		//   * Host CA for main has one signing key.
+		//   * User CA for aux does not exist.
+		//   * Host CA for aux has no signing keys.
+		{
+			main,
+			check.IsNil, 1,
+			check.IsNil, 1,
+			check.NotNil, 0,
+			check.IsNil, 0,
+		},
+		// 1 - aux
+		//   * User CA for main has no signing keys.
+		//   * Host CA for main has no signing keys.
+		//   * User CA for aux has one signing key.
+		//   * Host CA for aux has one signing key.
+		{
+			aux,
+			check.IsNil, 0,
+			check.IsNil, 0,
+			check.IsNil, 1,
+			check.IsNil, 1,
+		},
+	}
+
+	for i, tt := range tests {
+		cid := services.CertAuthID{services.UserCA, "cluster-main"}
+		mainUserCAs, err := tt.inCluster.Process.GetAuthServer().GetCertAuthority(cid, true)
+		c.Assert(err, tt.outChkMainUserCA)
+		if tt.outChkMainUserCA == check.IsNil {
+			c.Assert(mainUserCAs.GetSigningKeys(), check.HasLen, tt.outLenMainUserCA, check.Commentf("Test %v, Main User CA", i))
+		}
+
+		cid = services.CertAuthID{services.HostCA, "cluster-main"}
+		mainHostCAs, err := tt.inCluster.Process.GetAuthServer().GetCertAuthority(cid, true)
+		c.Assert(err, tt.outChkMainHostCA)
+		if tt.outChkMainHostCA == check.IsNil {
+			c.Assert(mainHostCAs.GetSigningKeys(), check.HasLen, tt.outLenMainHostCA, check.Commentf("Test %v, Main Host CA", i))
+		}
+
+		cid = services.CertAuthID{services.UserCA, "cluster-aux"}
+		auxUserCAs, err := tt.inCluster.Process.GetAuthServer().GetCertAuthority(cid, true)
+		c.Assert(err, tt.outChkAuxUserCA)
+		if tt.outChkAuxUserCA == check.IsNil {
+			c.Assert(auxUserCAs.GetSigningKeys(), check.HasLen, tt.outLenAuxUserCA, check.Commentf("Test %v, Aux User CA", i))
+		}
+
+		cid = services.CertAuthID{services.HostCA, "cluster-aux"}
+		auxHostCAs, err := tt.inCluster.Process.GetAuthServer().GetCertAuthority(cid, true)
+		c.Assert(err, tt.outChkAuxHostCA)
+		if tt.outChkAuxHostCA == check.IsNil {
+			c.Assert(auxHostCAs.GetSigningKeys(), check.HasLen, tt.outLenAuxHostCA, check.Commentf("Test %v, Aux Host CA", i))
+		}
+	}
 
 	// stop clusters and remaining nodes
 	c.Assert(main.Stop(true), check.IsNil)
