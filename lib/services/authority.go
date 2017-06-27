@@ -153,6 +153,8 @@ type CertAuthority interface {
 	V1() *CertAuthorityV1
 	// V2 returns V2 version of the resource
 	V2() *CertAuthorityV2
+	// String returns human readable version of the CertAuthority
+	String() string
 }
 
 // NewCertAuthority returns new cert authority
@@ -228,6 +230,11 @@ func (c *CertAuthorityV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
 // V2 returns V2 version of the resouirce - itself
 func (c *CertAuthorityV2) V2() *CertAuthorityV2 {
 	return c
+}
+
+// String returns human readable version of the CertAuthorityV2.
+func (c *CertAuthorityV2) String() string {
+	return fmt.Sprintf("CA(name=%v, type=%v)", c.GetClusterName(), c.GetType())
 }
 
 // V1 returns V1 version of the object
@@ -497,6 +504,11 @@ func (c *CertAuthorityV1) V2() *CertAuthorityV2 {
 		},
 		rawObject: *c,
 	}
+}
+
+// String returns human readable version of the CertAuthorityV1.
+func (c *CertAuthorityV1) String() string {
+	return fmt.Sprintf("CA(name=%v, type=%v)", c.DomainName, c.Type)
 }
 
 var certAuthorityMarshaler CertAuthorityMarshaler = &TeleportCertAuthorityMarshaler{}
