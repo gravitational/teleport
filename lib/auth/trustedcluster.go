@@ -46,10 +46,17 @@ func (a *AuthServer) UpsertTrustedCluster(trustedCluster services.TrustedCluster
 }
 
 func (a *AuthServer) enableTrustedCluster(trustedCluster services.TrustedCluster) error {
-	// get the certificate authorities for this auth server
-	localCertAuthorities, err := a.GetCertAuthorities(services.HostCA, false)
+	var localCertAuthorities []services.CertAuthority
+
+	// get a list of certificate authorities for this auth server
+	allLocalCAs, err := a.GetCertAuthorities(services.HostCA, false)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	for _, lca := range allLocalCAs {
+		if lca.GetClusterName() == a.DomainName {
+			localCertAuthorities = append(localCertAuthorities, lca)
+		}
 	}
 
 	// create a request to validate a trusted cluster (token and local certificate authorities)
@@ -58,16 +65,21 @@ func (a *AuthServer) enableTrustedCluster(trustedCluster services.TrustedCluster
 		CAs:   localCertAuthorities,
 	}
 
+	// log the local certificate authorities that we are sending
+	log.Debugf("[TRUSTED CLUSTER] Sending validate request; token=%v, CAs=%v", validateRequest.Token, validateRequest.CAs)
+
 	// send the request to the remote auth server via the proxy
 	validateResponse, err := a.sendValidateRequestToProxy(trustedCluster.GetProxyAddress(), &validateRequest)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	// log the remote certificate authorities we are adding
+	log.Debugf("[TRUSTED CLUSTER] Received validate response; CAs=%v", validateResponse.CAs)
+
 	// the remote auth server has verified our token. add the
 	// remote certificate authority to our backend
 	for _, remoteCertAuthority := range validateResponse.CAs {
-
 		// add roles into user certificates
 		// ignore roles set locally by the cert authority
 		remoteCertAuthority.SetRoles(nil)
@@ -130,6 +142,9 @@ func (a *AuthServer) validateTrustedCluster(validateRequest *ValidateTrustedClus
 		return nil, trace.Wrap(err)
 	}
 
+	// log the remote certificate authorities we are adding
+	log.Debugf("[TRUSTED CLUSTER] Received validate request: token=%v, CAs=%v", validateRequest.Token, validateRequest.CAs)
+
 	// token has been validated, upsert the given certificate authority
 	for _, certAuthority := range validateRequest.CAs {
 		err = a.UpsertCertAuthority(certAuthority)
@@ -154,6 +169,9 @@ func (a *AuthServer) validateTrustedCluster(validateRequest *ValidateTrustedClus
 			}
 		}
 	}
+
+	// log the local certificate authorities we are sending
+	log.Debugf("[TRUSTED CLUSTER] Sending validate response: CAs=%v", validateResponse.CAs)
 
 	return &validateResponse, nil
 }
