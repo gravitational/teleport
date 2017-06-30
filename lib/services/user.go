@@ -491,7 +491,7 @@ func GetUserSchema(extensionSchema string) string {
 	} else {
 		userSchema = fmt.Sprintf(UserSpecV2SchemaTemplate, ExternalIdentitySchema, ExternalIdentitySchema, LoginStatusSchema, CreatedBySchema, ", "+extensionSchema)
 	}
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, userSchema)
+	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, userSchema, DefaultDefinitions)
 }
 
 type TeleportUserMarshaler struct{}

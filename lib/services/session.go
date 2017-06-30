@@ -348,7 +348,7 @@ func GetWebSessionSchema() string {
 
 // GetWebSessionSchemaWithExtensions returns JSON Schema for web session with user-supplied extensions
 func GetWebSessionSchemaWithExtensions(extension string) string {
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, fmt.Sprintf(WebSessionSpecV2Schema, extension))
+	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, fmt.Sprintf(WebSessionSpecV2Schema, extension), DefaultDefinitions)
 }
 
 type TeleportWebSessionMarshaler struct{}

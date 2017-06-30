@@ -382,7 +382,7 @@ func GetTrustedClusterSchema(extensionSchema string) string {
 	} else {
 		trustedClusterSchema = fmt.Sprintf(TrustedClusterSpecSchemaTemplate, RoleMapSchema, ","+extensionSchema)
 	}
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, trustedClusterSchema)
+	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, trustedClusterSchema, DefaultDefinitions)
 }
 
 // TrustedClusterMarshaler implements marshal/unmarshal of TrustedCluster implementations

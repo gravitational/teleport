@@ -700,7 +700,7 @@ func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 		}
 		roles = append(roles, role)
 	}
-	allowedLogins, err := roles.CheckLogins(0)
+	allowedLogins, err := roles.CheckLoginDuration(0)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

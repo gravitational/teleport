@@ -118,11 +118,14 @@ const (
 	// KindTrustedCluster is a resource that contains trusted cluster configuration.
 	KindTrustedCluster = "trusted_cluster"
 
-	// V2 is our current version
+	// V3 is the third version of resources.
+	V3 = "v3"
+
+	// V2 is the second version of resources.
 	V2 = "v2"
 
-	// V1 is our first version
-	// resources were not explicitly versioned at that point
+	// V1 is the first version of resources. Note: The first version was
+	// not explicitly versioned.
 	V1 = "v1"
 )
 
@@ -179,7 +182,7 @@ const V2SchemaTemplate = `{
     "version": {"type": "string", "default": "v2"},
     "metadata": %v,
     "spec": %v
-  }
+  }%v
 }`
 
 // MetadataSchema is a schema for resource metadata
@@ -201,6 +204,9 @@ const MetadataSchema = `{
     }
   }
 }`
+
+// DefaultDefinitions the default list of JSON schema definitions which is none.
+const DefaultDefinitions = ``
 
 // UnknownResource is used to detect resources
 type UnknownResource struct {

@@ -678,8 +678,10 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 
 	// main cluster has a local user and belongs to role "main-devs"
 	mainDevs := "main-devs"
-	role, err := services.NewRole(mainDevs, services.RoleSpecV2{
-		Logins: []string{username},
+	role, err := services.NewRole(mainDevs, services.RoleSpecV3{
+		Allow: services.RoleConditions{
+			Logins: []string{username},
+		},
 	})
 	c.Assert(err, check.IsNil)
 	main.AddUserWithRole(username, role)
@@ -704,8 +706,10 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	role, err = services.NewRole(auxDevs, services.RoleSpecV2{
-		Logins: []string{username},
+	role, err = services.NewRole(auxDevs, services.RoleSpecV3{
+		Allow: services.RoleConditions{
+			Logins: []string{username},
+		},
 	})
 	c.Assert(err, check.IsNil)
 	err = aux.Process.GetAuthServer().UpsertRole(role, backend.Forever)

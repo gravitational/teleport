@@ -24,7 +24,7 @@ func NewRole(sRole teleservices.Role) *Role {
 
 // ToTeleRole converts UI Role to Storage Role
 func (r *Role) ToTeleRole() (teleservices.Role, error) {
-	teleRole, err := teleservices.NewRole(r.Name, teleservices.RoleSpecV2{})
+	teleRole, err := teleservices.NewRole(r.Name, teleservices.RoleSpecV3{})
 	if err != nil {
 		return nil, err
 	}

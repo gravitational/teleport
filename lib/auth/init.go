@@ -329,7 +329,7 @@ func migrateUsers(asrv *AuthServer) error {
 
 		// create role for user and upsert to backend
 		role := services.RoleForUser(user)
-		role.SetLogins(raw.AllowedLogins)
+		role.SetLogins(services.Allow, raw.AllowedLogins)
 		err = asrv.UpsertRole(role, backend.Forever)
 		if err != nil {
 			return trace.Wrap(err)

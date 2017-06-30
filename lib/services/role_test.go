@@ -18,6 +18,7 @@ package services
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -34,6 +35,7 @@ type RoleSuite struct {
 }
 
 var _ = Suite(&RoleSuite{})
+var _ = fmt.Printf
 
 func (s *RoleSuite) SetUpSuite(c *C) {
 	utils.InitLoggerForTests()
@@ -49,49 +51,55 @@ func (s *RoleSuite) TestRoleExtension(c *C) {
 	}
 	in := `{"kind": "role", "metadata": {"name": "name1"}, "spec": {"a": "b"}}`
 	var role ExtendedRole
-	err := utils.UnmarshalWithSchema(GetRoleSchema(`"a": {"type": "string"}`), &role, []byte(in))
+	err := utils.UnmarshalWithSchema(GetRoleSchema(V2, `"a": {"type": "string"}`), &role, []byte(in))
 	c.Assert(err, IsNil)
 	c.Assert(role.Spec.A, Equals, "b")
 
 	// this is a bad type
 	in = `{"kind": "role", "metadata": {"name": "name1"}, "spec": {"a": 12}}`
-	err = utils.UnmarshalWithSchema(GetRoleSchema(`"a": {"type": "string"}`), &role, []byte(in))
+	err = utils.UnmarshalWithSchema(GetRoleSchema(V2, `"a": {"type": "string"}`), &role, []byte(in))
 	c.Assert(err, NotNil)
 }
 
 func (s *RoleSuite) TestRoleParse(c *C) {
 	testCases := []struct {
 		in    string
-		role  RoleV2
+		role  RoleV3
 		error error
 	}{
+		// 0
 		{
 			in:    ``,
 			error: trace.BadParameter("empty input"),
 		},
+		// 1
 		{
 			in:    `{}`,
 			error: trace.BadParameter("failed to validate: name: name is required"),
 		},
+		// 2
 		{
 			in:    `{"kind": "role"}`,
 			error: trace.BadParameter("failed to validate: name: name is required"),
 		},
+		// 3
 		{
-			in: `{"kind": "role", "metadata": {"name": "name1"}, "spec": {}}`,
-			role: RoleV2{
+			in: `{"kind": "role", "version": "v2", "metadata": {"name": "name1"}, "spec": {}}`,
+			role: RoleV3{
 				Kind:    KindRole,
-				Version: V2,
+				Version: V3,
 				Metadata: Metadata{
 					Name:      "name1",
 					Namespace: defaults.Namespace,
 				},
-				Spec: RoleSpecV2{},
+				Spec: RoleSpecV3{},
 			},
 		},
+		// 4
 		{
 			in: `{
               "kind": "role", 
+              "version": "v2",
               "metadata": {"name": "name1"}, 
               "spec": {
                  "max_session_ttl": "20h",
@@ -102,45 +110,22 @@ func (s *RoleSuite) TestRoleParse(c *C) {
                  }
               }
             }`,
-			role: RoleV2{
+			role: RoleV3{
 				Kind:    KindRole,
-				Version: V2,
+				Version: V3,
 				Metadata: Metadata{
 					Name:      "name1",
 					Namespace: defaults.Namespace,
 				},
-				Spec: RoleSpecV2{
+				Spec: RoleSpecV3{
 					MaxSessionTTL: Duration{20 * time.Hour},
-					NodeLabels:    map[string]string{"a": "b"},
-					Namespaces:    []string{"system", "default"},
-					Resources:     map[string][]string{"role": {ActionRead, ActionWrite}},
-				},
-			},
-		},
-		{
-			in: `kind: role
-metadata:
-  name: name1
-spec:
-  max_session_ttl: 20h
-  node_labels:
-    a: b
-  namespaces: ["system", "default"]
-  resources:
-    role: [read, write]
-`,
-			role: RoleV2{
-				Kind:    KindRole,
-				Version: V2,
-				Metadata: Metadata{
-					Name:      "name1",
-					Namespace: defaults.Namespace,
-				},
-				Spec: RoleSpecV2{
-					MaxSessionTTL: Duration{20 * time.Hour},
-					NodeLabels:    map[string]string{"a": "b"},
-					Namespaces:    []string{"system", "default"},
-					Resources:     map[string][]string{"role": {ActionRead, ActionWrite}},
+					Allow: RoleConditions{
+						NodeLabels: map[string]string{"a": "b"},
+						Namespaces: []string{"system", "default"},
+						Rules: map[string][]string{
+							"role": []string{ActionRead, ActionWrite},
+						},
+					},
 				},
 			},
 		},
@@ -154,7 +139,7 @@ spec:
 			c.Assert(err, IsNil, comment)
 			c.Assert(*role, DeepEquals, tc.role, comment)
 
-			out, err := json.Marshal(*role)
+			out, err := json.Marshal(role)
 			c.Assert(err, IsNil, comment)
 
 			role2, err := UnmarshalRole(out)
@@ -296,7 +281,7 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 
 		var set RoleSet
 		for i := range tc.roles {
-			set = append(set, &tc.roles[i])
+			set = append(set, tc.roles[i].V3())
 		}
 		for j, check := range tc.checks {
 			comment := Commentf("test case %v '%v', check %v", i, tc.name, j)
@@ -385,11 +370,11 @@ func (s *RoleSuite) TestCheckResourceAccess(c *C) {
 
 		var set RoleSet
 		for i := range tc.roles {
-			set = append(set, &tc.roles[i])
+			set = append(set, tc.roles[i].V3())
 		}
 		for j, check := range tc.checks {
 			comment := Commentf("test case %v '%v', check %v", i, tc.name, j)
-			result := set.CheckResourceAction(check.namespace, check.resource, check.action)
+			result := set.CheckAccessToResource(check.namespace, check.resource, check.action)
 			if check.hasAccess {
 				c.Assert(result, IsNil, comment)
 			} else {

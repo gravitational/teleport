@@ -138,7 +138,9 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
 	user, role := createUserAndRole(s.a, userName, []string{userName})
-	role.SetResource(services.KindNode, services.RW())
+	rules := role.GetRules(services.Allow)
+	rules[services.KindNode] = services.RW()
+	role.SetRules(services.Allow, rules)
 	err = s.a.UpsertRole(role, backend.Forever)
 	c.Assert(err, IsNil)
 

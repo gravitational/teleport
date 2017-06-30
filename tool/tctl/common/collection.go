@@ -50,10 +50,10 @@ func (r *roleCollection) writeText(w io.Writer) error {
 	for _, r := range r.roles {
 		fmt.Fprintf(t, "%v\t%v\t%v\t%v\t%v\n",
 			r.GetMetadata().Name,
-			strings.Join(r.GetLogins(), ","),
-			strings.Join(r.GetNamespaces(), ","),
-			printNodeLabels(r.GetNodeLabels()),
-			printActions(r.GetResources()))
+			strings.Join(r.GetLogins(services.Allow), ","),
+			strings.Join(r.GetNamespaces(services.Allow), ","),
+			printNodeLabels(r.GetNodeLabels(services.Allow)),
+			printActions(r.GetRules(services.Allow)))
 	}
 	_, err := io.WriteString(w, t.String())
 	return trace.Wrap(err)

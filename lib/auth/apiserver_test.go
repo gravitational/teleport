@@ -129,7 +129,7 @@ func createUserAndRole(clt clt, username string, allowedLogins []string) (servic
 		panic(err)
 	}
 	role := services.RoleForUser(user)
-	role.SetLogins([]string{user.GetName()})
+	role.SetLogins(services.Allow, []string{user.GetName()})
 	err = clt.UpsertRole(role, backend.Forever)
 	if err != nil {
 		panic(err)
@@ -147,24 +147,28 @@ func createUserAndRoleWithoutRoles(clt clt, username string, allowedLogins []str
 	if err != nil {
 		panic(err)
 	}
+
 	role := services.RoleForUser(user)
-	role.RemoveResource(services.KindRole)
-	role.SetLogins([]string{user.GetName()})
+	rules := role.GetRules(services.Allow)
+	delete(rules, services.KindRole)
+	role.SetRules(services.Allow, rules)
+	role.SetLogins(services.Allow, []string{user.GetName()})
 	err = clt.UpsertRole(role, backend.Forever)
 	if err != nil {
 		panic(err)
 	}
+
 	user.AddRole(role.GetName())
 	err = clt.UpsertUser(user)
 	if err != nil {
 		panic(err)
 	}
+
 	return user, role
 }
 
 // TestOwnRole tests that user can read roles assigned to them
 func (s *APISuite) TestReadOwnRole(c *C) {
-
 	user1, userRole := createUserAndRoleWithoutRoles(s.clt, "user1", []string{"user1"})
 	user2, _ := createUserAndRoleWithoutRoles(s.clt, "user2", []string{"user2"})
 	err := s.clt.UpsertPassword(user1.GetName(), []byte("abc1231"))
@@ -269,7 +273,7 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 	c.Assert(exists, Equals, false)
 
 	// now update role to permit agent forwarding
-	userRole.SetForwardAgent(true)
+	userRole.SetOption(services.ForwardAgent, "true")
 	err = s.clt.UpsertRole(userRole, backend.Forever)
 	c.Assert(err, IsNil)
 

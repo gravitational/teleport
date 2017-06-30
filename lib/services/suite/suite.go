@@ -378,19 +378,23 @@ func (s *ServicesTestSuite) RolesCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 0)
 
-	role := services.RoleV2{
+	role := services.RoleV3{
 		Kind:    services.KindRole,
-		Version: services.V2,
+		Version: services.V3,
 		Metadata: services.Metadata{
 			Name:      "role1",
 			Namespace: defaults.Namespace,
 		},
-		Spec: services.RoleSpecV2{
-			Logins:        []string{"root", "bob"},
-			NodeLabels:    map[string]string{services.Wildcard: services.Wildcard},
+		Spec: services.RoleSpecV3{
 			MaxSessionTTL: services.Duration{Duration: time.Hour},
-			Namespaces:    []string{"default", "system"},
-			Resources:     map[string][]string{services.KindRole: []string{services.ActionRead}},
+			Allow: services.RoleConditions{
+				Logins:     []string{"root", "bob"},
+				NodeLabels: map[string]string{services.Wildcard: services.Wildcard},
+				Namespaces: []string{"default", "system"},
+				Rules: map[string][]string{
+					services.KindRole: services.RO(),
+				},
+			},
 		},
 	}
 	err = s.Access.UpsertRole(&role, backend.Forever)
@@ -399,7 +403,7 @@ func (s *ServicesTestSuite) RolesCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rout, DeepEquals, &role)
 
-	role.Spec.Logins = []string{"bob"}
+	role.Spec.Allow.Logins = []string{"bob"}
 	err = s.Access.UpsertRole(&role, backend.Forever)
 	c.Assert(err, IsNil)
 	rout, err = s.Access.GetRole(role.Metadata.Name)

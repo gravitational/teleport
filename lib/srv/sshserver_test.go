@@ -225,7 +225,7 @@ func (s *SrvSuite) TestAgentForward(c *C) {
 	roleName := services.RoleNameForUser(s.user)
 	role, err := s.a.GetRole(roleName)
 	c.Assert(err, IsNil)
-	role.SetForwardAgent(true)
+	role.SetOption(services.ForwardAgent, "true")
 	err = s.a.UpsertRole(role, backend.Forever)
 	c.Assert(err, IsNil)
 
@@ -917,8 +917,10 @@ func newUpack(username string, allowedLogins []string, a *auth.AuthServer) (*upa
 		return nil, trace.Wrap(err)
 	}
 	role := services.RoleForUser(user)
-	role.SetResource(services.Wildcard, services.RW())
-	role.SetLogins(allowedLogins)
+	rules := role.GetRules(services.Allow)
+	rules[services.Wildcard] = services.RW()
+	role.SetRules(services.Allow, rules)
+	role.SetLogins(services.Allow, allowedLogins)
 	err = a.UpsertRole(role, backend.Forever)
 	if err != nil {
 		return nil, trace.Wrap(err)
