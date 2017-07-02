@@ -197,6 +197,11 @@ func (s *APIServer) withAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 		// context to be set by SSH server
 		authContext, err := s.Authorizer.Authorize(r.Context())
 		if err != nil {
+			// propagate connection problem error so we can differentiate
+			// between connection failed and access denied
+			if trace.IsConnectionProblem(err) {
+				return nil, trace.ConnectionProblem(err, "[07] failed to connect to the database")
+			}
 			log.Warn(accessDeniedMsg + err.Error())
 			return nil, trace.AccessDenied(accessDeniedMsg + "[00]")
 		}

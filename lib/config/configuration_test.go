@@ -29,9 +29,11 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 
+	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"gopkg.in/check.v1"
 )
@@ -456,6 +458,30 @@ func (s *ConfigTestSuite) TestParseKey(c *check.C) {
 		c.Assert(err, check.IsNil, comment)
 		c.Assert(ca.GetType(), check.Equals, tt.outType)
 		c.Assert(ca.GetClusterName(), check.Equals, tt.outClusterName)
+	}
+}
+
+func (s *ConfigTestSuite) TestParseCachePolicy(c *check.C) {
+	tcs := []struct {
+		in  *CachePolicy
+		out *service.CachePolicy
+		err error
+	}{
+		{in: &CachePolicy{EnabledFlag: "yes", TTL: "never"}, out: &service.CachePolicy{Enabled: true, NeverExpires: true}},
+		{in: &CachePolicy{EnabledFlag: "yes", TTL: "10h"}, out: &service.CachePolicy{Enabled: true, NeverExpires: false, TTL: 10 * time.Hour}},
+		{in: &CachePolicy{EnabledFlag: "false", TTL: "10h"}, out: &service.CachePolicy{Enabled: false, NeverExpires: false, TTL: 10 * time.Hour}},
+		{in: &CachePolicy{EnabledFlag: "no"}, out: &service.CachePolicy{Enabled: false}},
+		{in: &CachePolicy{EnabledFlag: "false", TTL: "zap"}, err: trace.BadParameter("bad format")},
+	}
+	for i, tc := range tcs {
+		comment := check.Commentf("test case #%v", i)
+		out, err := tc.in.Parse()
+		if tc.err != nil {
+			c.Assert(err, check.FitsTypeOf, err, comment)
+		} else {
+			c.Assert(err, check.IsNil, comment)
+			fixtures.DeepCompare(c, out, tc.out)
+		}
 	}
 }
 
