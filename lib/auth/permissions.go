@@ -237,7 +237,9 @@ func GetCheckerForBuiltinRole(role teleport.Role) (services.AccessChecker, error
 		return services.FromSpec(
 			role.String(),
 			services.RoleSpecV3{
-				MaxSessionTTL: services.MaxDuration(),
+				Options: services.RoleOptions{
+					services.MaxSessionTTL: services.MaxDuration(),
+				},
 				Allow: services.RoleConditions{
 					Namespaces: []string{services.Wildcard},
 					Logins:     []string{},

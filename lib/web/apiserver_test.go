@@ -438,7 +438,9 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 	err = connector.CheckAndSetDefaults()
 
 	role, err := services.NewRole(connector.GetAttributesToRoles()[0].Roles[0], services.RoleSpecV3{
-		MaxSessionTTL: services.NewDuration(defaults.MaxCertDuration),
+		Options: services.RoleOptions{
+			services.MaxSessionTTL: services.NewDuration(defaults.MaxCertDuration),
+		},
 		Allow: services.RoleConditions{
 			NodeLabels: map[string]string{services.Wildcard: services.Wildcard},
 			Namespaces: []string{defaults.Namespace},

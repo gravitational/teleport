@@ -92,7 +92,11 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 					Name:      "name1",
 					Namespace: defaults.Namespace,
 				},
-				Spec: RoleSpecV3{},
+				Spec: RoleSpecV3{
+					Options: RoleOptions{
+						MaxSessionTTL: Duration{0},
+					},
+				},
 			},
 		},
 		// 4
@@ -118,7 +122,9 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 					Namespace: defaults.Namespace,
 				},
 				Spec: RoleSpecV3{
-					MaxSessionTTL: Duration{20 * time.Hour},
+					Options: RoleOptions{
+						MaxSessionTTL: NewDuration(20 * time.Hour),
+					},
 					Allow: RoleConditions{
 						NodeLabels: map[string]string{"a": "b"},
 						Namespaces: []string{"system", "default"},
@@ -132,6 +138,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 	}
 	for i, tc := range testCases {
 		comment := Commentf("test case %v", i)
+
 		role, err := UnmarshalRole([]byte(tc.in))
 		if tc.error != nil {
 			c.Assert(err, NotNil, comment)

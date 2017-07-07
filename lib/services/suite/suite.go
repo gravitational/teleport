@@ -386,7 +386,9 @@ func (s *ServicesTestSuite) RolesCRUD(c *C) {
 			Namespace: defaults.Namespace,
 		},
 		Spec: services.RoleSpecV3{
-			MaxSessionTTL: services.Duration{Duration: time.Hour},
+			Options: services.RoleOptions{
+				services.MaxSessionTTL: services.Duration{Duration: time.Hour},
+			},
 			Allow: services.RoleConditions{
 				Logins:     []string{"root", "bob"},
 				NodeLabels: map[string]string{services.Wildcard: services.Wildcard},

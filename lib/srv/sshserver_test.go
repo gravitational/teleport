@@ -225,7 +225,9 @@ func (s *SrvSuite) TestAgentForward(c *C) {
 	roleName := services.RoleNameForUser(s.user)
 	role, err := s.a.GetRole(roleName)
 	c.Assert(err, IsNil)
-	role.SetOption(services.ForwardAgent, "true")
+	roleOptions := role.GetOptions()
+	roleOptions.Set(services.ForwardAgent, true)
+	role.SetOptions(roleOptions)
 	err = s.a.UpsertRole(role, backend.Forever)
 	c.Assert(err, IsNil)
 

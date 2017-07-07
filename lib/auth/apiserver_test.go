@@ -273,7 +273,9 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 	c.Assert(exists, Equals, false)
 
 	// now update role to permit agent forwarding
-	userRole.SetOption(services.ForwardAgent, "true")
+	roleOptions := userRole.GetOptions()
+	roleOptions.Set(services.ForwardAgent, true)
+	userRole.SetOptions(roleOptions)
 	err = s.clt.UpsertRole(userRole, backend.Forever)
 	c.Assert(err, IsNil)
 

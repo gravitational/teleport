@@ -339,7 +339,10 @@ func (m *Handler) getUserACL(w http.ResponseWriter, r *http.Request, _ httproute
 	accessSet := []*ui.RoleAccess{}
 	for _, item := range allTeleRoles {
 		if roleNamesMap[item.GetName()] {
-			uiRole := ui.NewRole(item)
+			uiRole, err := ui.NewRole(item)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 			accessSet = append(accessSet, &uiRole.Access)
 		}
 	}

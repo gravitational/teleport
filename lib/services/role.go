@@ -19,7 +19,6 @@ package services
 import (
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -79,8 +78,9 @@ func RoleForUser(u User) Role {
 			Namespace: defaults.Namespace,
 		},
 		Spec: RoleSpecV3{
-			MaxSessionTTL: NewDuration(defaults.MaxCertDuration),
-			Options:       map[string]string{},
+			Options: RoleOptions{
+				MaxSessionTTL: NewDuration(defaults.MaxCertDuration),
+			},
 			Allow: RoleConditions{
 				Namespaces: []string{defaults.Namespace},
 				NodeLabels: map[string]string{Wildcard: Wildcard},
@@ -100,8 +100,9 @@ func RoleForCertAuthority(ca CertAuthority) Role {
 			Namespace: defaults.Namespace,
 		},
 		Spec: RoleSpecV3{
-			MaxSessionTTL: NewDuration(defaults.MaxCertDuration),
-			Options:       map[string]string{},
+			Options: RoleOptions{
+				MaxSessionTTL: NewDuration(defaults.MaxCertDuration),
+			},
 			Allow: RoleConditions{
 				Namespaces: []string{defaults.Namespace},
 				NodeLabels: map[string]string{Wildcard: Wildcard},
@@ -141,6 +142,9 @@ type Access interface {
 const (
 	// ForwardAgent is SSH agent forwarding.
 	ForwardAgent = "ForwardAgent"
+
+	// MaxSessionTTL defines how long a SSH session can last for.
+	MaxSessionTTL = "MaxSessionTTL"
 )
 
 const (
@@ -162,15 +166,10 @@ type Role interface {
 	// Equals returns true if the roles are equal.
 	Equals(other Role) bool
 
-	// GetMaxSessionTTL gets the maximum duration for a SSH or Web session.
-	GetMaxSessionTTL() Duration
-	// SetMaxSessionTTL sets the maximum duration for a SSH or Web session.
-	SetMaxSessionTTL(duration time.Duration)
-
-	// GetStringOption gets an OpenSSH option.
-	GetOption(string) string
-	// SetOption sets an OpenSSH option.
-	SetOption(string, string)
+	// GetOptions gets role options.
+	GetOptions() RoleOptions
+	// SetOptions sets role options
+	SetOptions(opt RoleOptions)
 
 	// GetLogins gets *nix system logins for allow or deny condition.
 	GetLogins(RoleConditionType) []string
@@ -240,27 +239,15 @@ func (r *RoleV3) GetMetadata() Metadata {
 	return r.Metadata
 }
 
-// SetMaxSessionTTL sets the maximum duration for a SSH or Web session.
-func (r *RoleV3) SetMaxSessionTTL(duration time.Duration) {
-	r.Spec.MaxSessionTTL.Duration = duration
+// GetOptions gets role options.
+func (r *RoleV3) GetOptions() RoleOptions {
+	return r.Spec.Options
 }
 
-// GetMaxSessionTTL gets the maximum duration for a SSH or Web session.
-func (r *RoleV3) GetMaxSessionTTL() Duration {
-	return r.Spec.MaxSessionTTL
-}
-
-// GetOption gets an OpenSSH option.
-func (r *RoleV3) GetOption(optionName string) string {
-	return r.Spec.Options[optionName]
-}
-
-// SetOption sets an OpenSSH option.
-func (r *RoleV3) SetOption(optionName string, optionValue string) {
-	if r.Spec.Options == nil {
-		r.Spec.Options = make(map[string]string)
-	}
-	r.Spec.Options[optionName] = optionValue
+// SetOptions sets role options.
+func (r *RoleV3) SetOptions(ro RoleOptions) {
+	// TODO(russjones): deep copy here?
+	r.Spec.Options = ro
 }
 
 // GetLogins gets system logins for allow or deny condition.
@@ -349,11 +336,8 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 	if r.Metadata.Namespace == "" {
 		r.Metadata.Namespace = defaults.Namespace
 	}
-	if r.Spec.MaxSessionTTL.Duration == 0 {
-		r.Spec.MaxSessionTTL.Duration = defaults.MaxCertDuration
-	}
-	if r.Spec.MaxSessionTTL.Duration < defaults.MinCertDuration {
-		return trace.BadParameter("maximum session TTL can not be less than")
+	if r.Spec.Options == nil {
+		r.Spec.Options = make(RoleOptions)
 	}
 	if r.Spec.Allow.Namespaces == nil {
 		r.Spec.Allow.Namespaces = []string{defaults.Namespace}
@@ -363,6 +347,18 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 	}
 	if r.Spec.Allow.Rules == nil {
 		r.Spec.Allow.Rules = DefaultUserRules
+	}
+
+	// check and correct the session ttl
+	maxSessionTTL, err := r.Spec.Options.GetDuration(MaxSessionTTL)
+	if err != nil {
+		r.Spec.Options.Set(MaxSessionTTL, NewDuration(defaults.MaxCertDuration))
+	}
+	if maxSessionTTL.Duration == 0 {
+		r.Spec.Options.Set(MaxSessionTTL, NewDuration(defaults.MaxCertDuration))
+	}
+	if maxSessionTTL.Duration < defaults.MinCertDuration {
+		return trace.BadParameter("maximum session TTL can not be less than")
 	}
 
 	// restrict wildcards
@@ -385,20 +381,83 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 
 // String returns the human readable representation of a role.
 func (r *RoleV3) String() string {
-	return fmt.Sprintf("Role(Name=%v,MaxSessionTTL=%v,Options=%v,Allow=%v,Deny=%v)",
-		r.GetName(), r.GetMaxSessionTTL(), r.Spec.Options, r.Spec.Allow, r.Spec.Deny)
+	return fmt.Sprintf("Role(Name=%v,Options=%v,Allow=%v,Deny=%v)",
+		r.GetName(), r.Spec.Options, r.Spec.Allow, r.Spec.Deny)
 }
 
 // RoleSpecV3 is role specification for RoleV3.
 type RoleSpecV3 struct {
-	// MaxSessionTTL is a maximum duration for a SSH or Web session.
-	MaxSessionTTL Duration `json:"max_session_ttl" yaml:"max_session_ttl"`
 	// Options is for OpenSSH options like agent forwarding.
-	Options map[string]string `json:"options,omitempty" yaml:"options,omitempty"`
+	Options RoleOptions `json:"options,omitempty" yaml:"options,omitempty"`
 	// Allow is the set of conditions evaluated to grant access.
 	Allow RoleConditions `json:"allow,omitempty" yaml:"allow,omitempty"`
 	// Deny is the set of conditions evaluated to deny access. Deny takes priority over allow.
 	Deny RoleConditions `json:"deny,omitempty" yaml:"deny,omitempty"`
+}
+
+// RoleOptions are options that always exist on a role.
+type RoleOptions map[string]interface{}
+
+func (o *RoleOptions) UnmarshalJSON(data []byte) error {
+	var raw map[string]interface{}
+	err := json.Unmarshal(data, &raw)
+	if err != nil {
+		return err
+	}
+
+	rmap := make(map[string]interface{})
+	for k, v := range raw {
+		switch k {
+		case MaxSessionTTL:
+			d, err := time.ParseDuration(v.(string))
+			if err != nil {
+				return err
+			}
+			rmap[k] = NewDuration(d)
+		default:
+			rmap[k] = v
+		}
+	}
+
+	*o = rmap
+	return nil
+}
+
+func (o RoleOptions) Set(key string, value interface{}) {
+	o[key] = value
+}
+
+func (o RoleOptions) Get(key string) (interface{}, error) {
+	valueI, ok := o[key]
+	if !ok {
+		return nil, trace.NotFound("key %q not found in options", key)
+	}
+	return valueI, nil
+}
+
+func (o RoleOptions) GetString(key string) (string, error) {
+	valueI, ok := o[key]
+	if !ok {
+		return "", trace.NotFound("key %q not found in options", key)
+	}
+	return valueI.(string), nil
+}
+
+func (o RoleOptions) GetBoolean(key string) (bool, error) {
+	valueI, ok := o[key]
+	if !ok {
+		return false, trace.NotFound("key %q not found in options", key)
+	}
+	return valueI.(bool), nil
+}
+
+func (o RoleOptions) GetDuration(key string) (Duration, error) {
+	valueI, ok := o[key]
+	if !ok {
+		return NewDuration(defaults.MinCertDuration), trace.NotFound("key %q not found in options", key)
+	}
+
+	return valueI.(Duration), nil
 }
 
 // RoleConditions is a set of conditions that must all match to be allowed or
@@ -486,11 +545,15 @@ func (r *RoleV2) Equals(other Role) bool {
 		return false
 	}
 
-	if r.GetMaxSessionTTL() != other.GetMaxSessionTTL() {
+	maxSessionTTL, err := other.GetOptions().GetDuration(MaxSessionTTL)
+	if err != nil {
+		return false
+	}
+	if r.GetMaxSessionTTL() != maxSessionTTL {
 		return false
 	}
 
-	forwardAgent, err := strconv.ParseBool(other.GetOption(ForwardAgent))
+	forwardAgent, err := other.GetOptions().GetBoolean(ForwardAgent)
 	if err != nil {
 		return false
 	}
@@ -674,7 +737,9 @@ func (r *RoleV2) V3() *RoleV3 {
 		Version:  V3,
 		Metadata: r.Metadata,
 		Spec: RoleSpecV3{
-			MaxSessionTTL: r.GetMaxSessionTTL(),
+			Options: RoleOptions{
+				MaxSessionTTL: r.GetMaxSessionTTL(),
+			},
 			Allow: RoleConditions{
 				Logins:     r.GetLogins(),
 				Namespaces: r.GetNamespaces(),
@@ -686,7 +751,7 @@ func (r *RoleV2) V3() *RoleV3 {
 
 	// translate old v2 agent forwarding to a v3 option
 	if r.CanForwardAgent() {
-		role.Spec.Options[ForwardAgent] = "true"
+		role.Spec.Options[ForwardAgent] = true
 	}
 
 	return role
@@ -864,8 +929,12 @@ func MatchLabels(selector map[string]string, target map[string]string) bool {
 // for this role set, otherwise it returns ttl unchanges
 func (set RoleSet) AdjustSessionTTL(ttl time.Duration) time.Duration {
 	for _, role := range set {
-		if ttl > role.GetMaxSessionTTL().Duration {
-			ttl = role.GetMaxSessionTTL().Duration
+		maxSessionTTL, err := role.GetOptions().GetDuration(MaxSessionTTL)
+		if err != nil {
+			continue
+		}
+		if ttl > maxSessionTTL.Duration {
+			ttl = maxSessionTTL.Duration
 		}
 	}
 	return ttl
@@ -875,9 +944,14 @@ func (set RoleSet) AdjustSessionTTL(ttl time.Duration) time.Duration {
 // returns a combined list of allowed logins.
 func (set RoleSet) CheckLoginDuration(ttl time.Duration) ([]string, error) {
 	logins := make(map[string]bool)
+
 	var matchedTTL bool
 	for _, role := range set {
-		if ttl <= role.GetMaxSessionTTL().Duration && role.GetMaxSessionTTL().Duration != 0 {
+		maxSessionTTL, err := role.GetOptions().GetDuration(MaxSessionTTL)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if ttl <= maxSessionTTL.Duration && maxSessionTTL.Duration != 0 {
 			matchedTTL = true
 		}
 		for _, login := range role.GetLogins(Allow) {
@@ -939,7 +1013,7 @@ func (set RoleSet) CheckAccessToServer(login string, s Server) error {
 // CanForwardAgents returns true if role set allows forwarding agents.
 func (set RoleSet) CanForwardAgents() bool {
 	for _, role := range set {
-		forwardAgent, err := strconv.ParseBool(role.GetOption(ForwardAgent))
+		forwardAgent, err := role.GetOptions().GetBoolean(ForwardAgent)
 		if err != nil {
 			return false
 		}
@@ -964,7 +1038,7 @@ func (set RoleSet) CheckAgentForward(login string) error {
 	// allow check: check if we have permission to login and forward agent.
 	for _, role := range set {
 		for _, l := range role.GetLogins(Allow) {
-			forwardAgent, err := strconv.ParseBool(role.GetOption(ForwardAgent))
+			forwardAgent, err := role.GetOptions().GetBoolean(ForwardAgent)
 			if err != nil {
 				return trace.AccessDenied("unable to parse ForwardAgent: %v", err)
 			}
