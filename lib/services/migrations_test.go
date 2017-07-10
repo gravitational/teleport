@@ -240,3 +240,58 @@ func (s *MigrationsSuite) TestMigrateCertAuthorities(c *C) {
 	in.AllowedLogins = nil
 	c.Assert(out3, DeepEquals, *in)
 }
+
+func (s *MigrationsSuite) TestMigrateRoles(c *C) {
+	in := &RoleV2{
+		Kind:    KindRole,
+		Version: V2,
+		Metadata: Metadata{
+			Name:      "name1",
+			Namespace: defaults.Namespace,
+		},
+		Spec: RoleSpecV2{
+			MaxSessionTTL: NewDuration(20 * time.Hour),
+			Logins:        []string{"foo"},
+			NodeLabels:    map[string]string{"a": "b"},
+			Namespaces:    []string{"system", "default"},
+			Resources:     map[string][]string{"role": []string{"read", "write"}},
+		},
+	}
+
+	out := in.V3()
+	expected := &RoleV3{
+		Kind:    KindRole,
+		Version: V3,
+		Metadata: Metadata{
+			Name:      "name1",
+			Namespace: defaults.Namespace,
+		},
+		Spec: RoleSpecV3{
+			Options: RoleOptions{
+				MaxSessionTTL: NewDuration(20 * time.Hour),
+			},
+			Allow: RoleConditions{
+				Logins:     []string{"foo"},
+				NodeLabels: map[string]string{"a": "b"},
+				Namespaces: []string{"system", "default"},
+				Rules: map[string][]string{
+					"role": []string{ActionRead, ActionWrite},
+				},
+			},
+		},
+	}
+	c.Assert(out, DeepEquals, expected)
+
+	data, err := json.Marshal(in)
+	c.Assert(err, IsNil)
+	out2, err := GetRoleMarshaler().UnmarshalRole(data)
+	c.Assert(err, IsNil)
+	c.Assert(out2, DeepEquals, out)
+
+	// check V3 marshaling
+	data, err = GetRoleMarshaler().MarshalRole(expected)
+	c.Assert(err, IsNil)
+	out3, err := GetRoleMarshaler().UnmarshalRole(data)
+	c.Assert(err, IsNil)
+	c.Assert(out3, DeepEquals, expected)
+}

@@ -67,24 +67,24 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 		role  RoleV3
 		error error
 	}{
-		// 0
+		// 0 - no input, should not parse
 		{
 			in:    ``,
 			error: trace.BadParameter("empty input"),
 		},
-		// 1
+		// 1 - validation error, no name
 		{
 			in:    `{}`,
 			error: trace.BadParameter("failed to validate: name: name is required"),
 		},
-		// 2
+		// 2 - validation error, no name
 		{
 			in:    `{"kind": "role"}`,
 			error: trace.BadParameter("failed to validate: name: name is required"),
 		},
-		// 3
+		// 3 - role with no spec
 		{
-			in: `{"kind": "role", "version": "v2", "metadata": {"name": "name1"}, "spec": {}}`,
+			in: `{"kind": "role", "version": "v3", "metadata": {"name": "name1"}, "spec": {}}`,
 			role: RoleV3{
 				Kind:    KindRole,
 				Version: V3,
@@ -92,28 +92,34 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 					Name:      "name1",
 					Namespace: defaults.Namespace,
 				},
-				Spec: RoleSpecV3{
-					Options: RoleOptions{
-						MaxSessionTTL: Duration{0},
-					},
-				},
+				Spec: RoleSpecV3{},
 			},
 		},
-		// 4
+		// 4 - full valid role
 		{
 			in: `{
-              "kind": "role", 
-              "version": "v2",
-              "metadata": {"name": "name1"}, 
-              "spec": {
-                 "max_session_ttl": "20h",
-                 "node_labels": {"a": "b"},
-                 "namespaces": ["system", "default"],
-                 "resources": {
-                    "role": ["read", "write"]
+		      "kind": "role",
+		      "version": "v3",
+		      "metadata": {"name": "name1"},
+		      "spec": {
+                 "options": {
+                   "max_session_ttl": "20h"
+                 },
+                 "allow": {
+                   "node_labels": {"a": "b"},
+                   "namespaces": ["system", "default"],
+                   "rules": [
+                     {
+                       "resources": ["role"],
+                       "verbs": ["read", "write"]
+                     }
+                   ]
+                 },
+                 "deny": {
+                   "logins": ["c"]
                  }
-              }
-            }`,
+		      }
+		    }`,
 			role: RoleV3{
 				Kind:    KindRole,
 				Version: V3,
@@ -131,6 +137,9 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 						Rules: map[string][]string{
 							"role": []string{ActionRead, ActionWrite},
 						},
+					},
+					Deny: RoleConditions{
+						Logins: []string{"c"},
 					},
 				},
 			},

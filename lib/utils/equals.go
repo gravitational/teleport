@@ -42,6 +42,19 @@ func StringMapsEqual(a, b map[string]string) bool {
 	return true
 }
 
+// InterfaceMapsEqual returns true if two interface maps are equal.
+func InterfaceMapsEqual(a, b map[string]interface{}) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for key := range a {
+		if a[key] != b[key] {
+			return false
+		}
+	}
+	return true
+}
+
 // StringMapSlicesEqual returns true if two maps of string slices are equal
 func StringMapSlicesEqual(a, b map[string][]string) bool {
 	if len(a) != len(b) {
