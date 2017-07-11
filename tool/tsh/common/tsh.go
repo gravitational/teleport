@@ -171,7 +171,7 @@ func Run(args []string, underTest bool) {
 
 	// login logs in with remote proxy and obtains a "session certificate" which gets
 	// stored in ~/.tsh directory
-	login := app.Command("login", "Log in to the cluster and store the session certificate to avoid login prompts")
+	login := app.Command("login", "Log in to a cluster and retreive the session certificate")
 
 	// logout deletes obtained session certificates in ~/.tsh
 	logout := app.Command("logout", "Delete a cluster certificate")
@@ -619,12 +619,13 @@ func printHeader(t *goterm.Table, cols []string) {
 // refuseArgs helper makes sure that 'args' (list of CLI arguments)
 // does not contain anything other than command
 func refuseArgs(command string, args []string) {
-	if len(args) == 0 {
-		return
-	}
-	lastArg := args[len(args)-1]
-	if lastArg != command {
-		utils.FatalError(trace.BadParameter("%s does not expect arguments", command))
+	for _, arg := range args {
+		if arg == command || strings.HasPrefix(arg, "-") {
+			continue
+		} else {
+			utils.FatalError(trace.BadParameter("unexpected argument: %s", arg))
+		}
+
 	}
 }
 

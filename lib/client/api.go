@@ -38,7 +38,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dir"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -1015,7 +1014,7 @@ func (tc *TeleportClient) Login() (*CertAuthMethod, error) {
 
 	// generate a new keypair. the public key will be signed via proxy if our
 	// password+OTP are legit
-	key, err := tc.MakeKey()
+	key, err := MakeNewKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1056,7 +1055,7 @@ func (tc *TeleportClient) Login() (*CertAuthMethod, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// save the key:
+	// save the cert to the local storage (~/.tsh usually):
 	return tc.localAgent.AddKey(tc.ProxyHost(), tc.Config.Username, key)
 }
 
@@ -1085,19 +1084,6 @@ func (tc *TeleportClient) localLogin(secondFactor string, pub []byte) (*SSHLogin
 // Adds a new CA as trusted CA for this client
 func (tc *TeleportClient) AddTrustedCA(ca *services.CertAuthorityV1) error {
 	return tc.LocalAgent().AddHostSignersToCache([]services.CertAuthorityV1{*ca})
-}
-
-// MakeKey generates a new unsigned key. It's useless by itself until a
-// trusted CA signs it
-func (tc *TeleportClient) MakeKey() (key *Key, err error) {
-	key = &Key{}
-	keygen := native.New()
-	defer keygen.Close()
-	key.Priv, key.Pub, err = keygen.GenerateKeyPair("")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return key, nil
 }
 
 func (tc *TeleportClient) AddKey(host string, key *Key) (*CertAuthMethod, error) {
