@@ -165,7 +165,7 @@ func Run(args []string, underTest bool) {
 	clusters := app.Command("clusters", "List available Teleport clusters")
 	clusters.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
 	// agent (SSH agent listening on unix socket)
-	agent := app.Command("agent", "Start SSH agent on unix socket")
+	agent := app.Command("agent", "Start SSH agent on unix socket [deprecating soon]")
 	agent.Flag("socket", "SSH agent listening socket address, e.g. unix:///tmp/teleport.agent.sock").SetValue(&cf.AgentSocketAddr)
 	agent.Flag("load", "When set to true, the tsh agent will load the external system agent and then exit.").BoolVar(&cf.LoadSystemAgentOnly)
 
@@ -447,6 +447,12 @@ func onSCP(cf *CLIConf) {
 
 // onAgentStart start ssh agent on a socket
 func onAgentStart(cf *CLIConf) {
+	const warning = "\x1b[1mWARNING:\x1b[0m 'tsh agent' will be deprecated in the next Teleport release.\n" +
+		"Use 'ssh-agent' supplied by your operating system instead. \n" +
+		"'tsh login' now saves the session keys in ssh-agent automatically.\n"
+
+	fmt.Fprintln(os.Stderr, warning)
+
 	// create a client, a side effect of this is that it creates a client.LocalAgent.
 	// creation of a client.LocalAgent has a side effect of loading all keys into
 	// client.LocalAgent and the system agent.
