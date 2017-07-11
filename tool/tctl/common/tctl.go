@@ -754,7 +754,14 @@ func (a *AuthCommand) GenerateAndSignKeys(clusterApi *auth.TunClient) error {
 	}
 
 	// write the cert+private key to the output:
-	return trace.Wrap(client.MakeIdentityFile(a.genUser, a.output, key, a.outputFormat))
+	err = client.MakeIdentityFile(a.genUser, a.output, key, a.outputFormat)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if a.output != "" {
+		fmt.Printf("\nThe certificate has been written to %s\n", a.output)
+	}
+	return nil
 }
 
 // ListActive retreives the list of nodes who recently sent heartbeats to

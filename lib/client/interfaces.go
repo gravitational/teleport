@@ -37,19 +37,6 @@ type Key struct {
 	ProxyHost string
 }
 
-// LocalKeyStore interface allows for different storage back-ends for TSH to load/save its keys
-type LocalKeyStore interface {
-	// client key management
-	GetKeys(username string) ([]Key, error)
-	AddKey(host string, username string, key *Key) error
-	GetKey(host string, username string) (*Key, error)
-	DeleteKey(host string, username string) error
-
-	// interface to known_hosts file:
-	AddKnownHostKeys(hostname string, keys []ssh.PublicKey) error
-	GetKnownHostKeys(hostname string) ([]ssh.PublicKey, error)
-}
-
 // AsAgentKeys converts client.Key struct to a []*agent.AddedKey. All elements
 // of the []*agent.AddedKey slice need to be loaded into the agent!
 //
@@ -61,6 +48,7 @@ type LocalKeyStore interface {
 // this behavior to ensure OpenSSH interoperability.
 //
 // For more details see the following: https://bugzilla.mindrot.org/show_bug.cgi?id=2550
+// WARNING: callers expect the returned slice to be __exactly as it is__
 func (k *Key) AsAgentKeys() ([]*agent.AddedKey, error) {
 	// unmarshal certificate bytes into a ssh.PublicKey
 	publicKey, _, _, _, err := ssh.ParseAuthorizedKey(k.Cert)
@@ -118,4 +106,22 @@ func (k *Key) CertValidBefore() (t time.Time, err error) {
 		return t, trace.Errorf("not supported certificate type")
 	}
 	return time.Unix(int64(cert.ValidBefore), 0), nil
+}
+
+// AsAuthMethod returns an "auth method" interface, a common abstraction
+// used by Golang SSH library. This is how you actually use a Key to feed
+// it into the SSH lib.
+func (k *Key) AsAuthMethod() (ssh.AuthMethod, error) {
+	keys, err := k.AsAgentKeys()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	signer, err := ssh.NewSignerFromKey(keys[0].PrivateKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if signer, err = ssh.NewCertSigner(keys[0].Certificate, signer); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return NewAuthMethodForCert(signer), nil
 }

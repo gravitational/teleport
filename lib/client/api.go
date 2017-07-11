@@ -967,7 +967,7 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 	}
 	// if we get here, it means we failed to authenticate using stored keys
 	// and we need to ask for the login information
-	authMethod, err := tc.Login()
+	key, err := tc.Login(true)
 	if err != nil {
 		// we need to communicate directly to user here,
 		// otherwise user will see endless loop with no explanation
@@ -976,6 +976,11 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 		}
 		return nil, trace.Wrap(err)
 	}
+	authMethod, err := key.AsAuthMethod()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// After successfull login we have local agent updated with latest
 	// and greatest auth information, try it now
 	sshConfig.Auth = []ssh.AuthMethod{authMethod}
@@ -1001,8 +1006,11 @@ func (tc *TeleportClient) Logout() error {
 }
 
 // Login logs the user into a Teleport cluster by talking to a Teleport proxy.
-// If successful, saves the received session keys into the local keystore for future use.
-func (tc *TeleportClient) Login() (*CertAuthMethod, error) {
+//
+// If 'activateKey' is true, saves the received session cert into the local
+// keystore (and into the ssh-agent) for future use.
+//
+func (tc *TeleportClient) Login(activateKey bool) (*Key, error) {
 	httpsProxyHostPort := tc.Config.ProxyWebHostPort()
 	certPool := loopbackPool(httpsProxyHostPort)
 
@@ -1049,14 +1057,20 @@ func (tc *TeleportClient) Login() (*CertAuthMethod, error) {
 	// extract the new certificate out of the response
 	key.Cert = response.Cert
 
-	// save the list of CAs we trust to ~/.tsh/known_hosts
-	err = tc.localAgent.AddHostSignersToCache(response.HostSigners)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	if activateKey {
+		// save the list of CAs we trust to ~/.tsh/known_hosts
+		err = tc.localAgent.AddHostSignersToCache(response.HostSigners)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
-	// save the cert to the local storage (~/.tsh usually):
-	return tc.localAgent.AddKey(tc.ProxyHost(), tc.Config.Username, key)
+		// save the cert to the local storage (~/.tsh usually):
+		_, err = tc.localAgent.AddKey(tc.ProxyHost(), tc.Config.Username, key)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return key, nil
 }
 
 func (tc *TeleportClient) localLogin(secondFactor string, pub []byte) (*SSHLoginResponse, error) {
@@ -1086,7 +1100,7 @@ func (tc *TeleportClient) AddTrustedCA(ca *services.CertAuthorityV1) error {
 	return tc.LocalAgent().AddHostSignersToCache([]services.CertAuthorityV1{*ca})
 }
 
-func (tc *TeleportClient) AddKey(host string, key *Key) (*CertAuthMethod, error) {
+func (tc *TeleportClient) AddKey(host string, key *Key) (*agent.AddedKey, error) {
 	return tc.localAgent.AddKey(host, tc.Username, key)
 }
 

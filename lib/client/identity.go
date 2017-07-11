@@ -1,7 +1,6 @@
 package client
 
 import (
-	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -48,15 +47,11 @@ func MakeIdentityFile(username, fp string, key *Key, format IdentityFileFormat) 
 		fileMode = 0600
 		dirMode  = 0770
 	)
+	var output io.Writer = os.Stdout
 	switch format {
 	// dump user identity into a single file:
 	case IdentityFormatFile:
-		var (
-			output  io.Writer = os.Stdout
-			beQuiet bool      = true
-		)
 		if fp != "" {
-			beQuiet = false
 			f, err := os.OpenFile(fp, os.O_CREATE|os.O_WRONLY, fileMode)
 			if err != nil {
 				return trace.Wrap(err)
@@ -71,9 +66,6 @@ func MakeIdentityFile(username, fp string, key *Key, format IdentityFileFormat) 
 		// append cert:
 		if _, err = output.Write(key.Cert); err != nil {
 			return trace.Wrap(err)
-		}
-		if !beQuiet {
-			fmt.Printf("Identity file: %s\n", fp)
 		}
 	// dump user identity into separate files:
 	case IdentityFormatDir:
@@ -100,7 +92,6 @@ func MakeIdentityFile(username, fp string, key *Key, format IdentityFileFormat) 
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("Private key: %v\nCertificate: %v\n", keyPath, certPath)
 	}
 	return nil
 }
