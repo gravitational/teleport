@@ -36,7 +36,7 @@ bbox:
 # Runs tests inside a build container 
 #
 .PHONY:test
-test: integration
+test: bbox
 	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BBOX) \
 		/bin/bash -c \
 		"examples/etcd/start-etcd.sh & sleep 1; \
