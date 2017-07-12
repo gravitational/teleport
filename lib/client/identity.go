@@ -61,15 +61,15 @@ const (
 func MakeIdentityFile(username, filePath string, key *Key, format IdentityFileFormat) (err error) {
 	const (
 		// the files and the dir will be created with these permissions:
-		fileMode = 0666
-		dirMode  = 0770
+		fileMode = 0600
+		dirMode  = 0700
 	)
 	var output io.Writer = os.Stdout
 	switch format {
 	// dump user identity into a single file:
 	case IdentityFormatFile:
 		if filePath != "" {
-			f, err := os.Create(filePath)
+			f, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY, fileMode)
 			if err != nil {
 				return trace.Wrap(err)
 			}
