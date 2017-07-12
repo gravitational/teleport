@@ -413,6 +413,9 @@ func (c *CachePolicy) Parse() (*service.CachePolicy, error) {
 		Enabled:      c.Enabled(),
 		NeverExpires: c.NeverExpires(),
 	}
+	if out.NeverExpires {
+		return &out, nil
+	}
 	var err error
 	if c.TTL != "" {
 		out.TTL, err = time.ParseDuration(c.TTL)
