@@ -12,6 +12,7 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+
 */
 
 package client
@@ -1022,7 +1023,7 @@ func (tc *TeleportClient) Login(activateKey bool) (*Key, error) {
 
 	// generate a new keypair. the public key will be signed via proxy if our
 	// password+OTP are legit
-	key, err := MakeNewKey()
+	key, err := NewKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

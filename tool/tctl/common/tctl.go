@@ -742,7 +742,7 @@ func (a *AuthCommand) GenerateAndSignKeys(clusterApi *auth.TunClient) error {
 	}
 
 	// generate a keypair:
-	key, err := client.MakeNewKey()
+	key, err := client.NewKey()
 	if err != nil {
 		return trace.Wrap(err)
 	}

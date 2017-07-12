@@ -1,3 +1,20 @@
+/*
+Copyright 2016 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+*/
+
 package client
 
 import (
@@ -11,9 +28,9 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// MakeNewKey generates a new unsigned key. Such key must be signed by a
+// NewKey generates a new unsigned key. Such key must be signed by a
 // Teleport CA (auth server) before it becomes useful.
-func MakeNewKey() (key *Key, err error) {
+func NewKey() (key *Key, err error) {
 	key = &Key{}
 	keygen := native.New()
 	defer keygen.Close()
@@ -41,18 +58,18 @@ const (
 
 // MakeIdentityFile takes a username + his credentials and saves them to disk
 // in a specified format
-func MakeIdentityFile(username, fp string, key *Key, format IdentityFileFormat) (err error) {
+func MakeIdentityFile(username, filePath string, key *Key, format IdentityFileFormat) (err error) {
 	const (
 		// the files and the dir will be created with these permissions:
-		fileMode = 0600
+		fileMode = 0666
 		dirMode  = 0770
 	)
 	var output io.Writer = os.Stdout
 	switch format {
 	// dump user identity into a single file:
 	case IdentityFormatFile:
-		if fp != "" {
-			f, err := os.OpenFile(fp, os.O_CREATE|os.O_WRONLY, fileMode)
+		if filePath != "" {
+			f, err := os.Create(filePath)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -73,14 +90,14 @@ func MakeIdentityFile(username, fp string, key *Key, format IdentityFileFormat) 
 		keyPath := username
 
 		// --out flag
-		if fp != "" {
-			if !utils.IsDir(fp) {
-				if err = os.MkdirAll(fp, dirMode); err != nil {
+		if filePath != "" {
+			if !utils.IsDir(filePath) {
+				if err = os.MkdirAll(filePath, dirMode); err != nil {
 					return trace.Wrap(err)
 				}
 			}
-			certPath = filepath.Join(fp, certPath)
-			keyPath = filepath.Join(fp, keyPath)
+			certPath = filepath.Join(filePath, certPath)
+			keyPath = filepath.Join(filePath, keyPath)
 		}
 
 		err = ioutil.WriteFile(certPath, key.Cert, fileMode)
