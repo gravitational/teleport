@@ -107,10 +107,16 @@ type CLIConf struct {
 	Gops bool
 	// GopsAddr specifies to gops addr to listen on
 	GopsAddr string
-	// IdentityFile is an argument to -i flag (path to the private key+cert file)
-	IdentityFile string
+	// IdentityFileIn is an argument to -i flag (path to the private key+cert file)
+	IdentityFileIn string
 	// Compatibility flags, --compat, specifies OpenSSH compatibility flags.
 	Compatibility string
+
+	// IdentityFileOut is an argument to -out flag
+	IdentityFileOut string
+	// IdentityFormat (used for --format flag for 'tsh login') defines which
+	// format to use with --out to store a fershly retreived certificate
+	IdentityFormat client.IdentityFileFormat
 }
 
 // Run executes TSH client. same as main() but easier to test
@@ -128,7 +134,7 @@ func Run(args []string, underTest bool) {
 	app.Flag("user", fmt.Sprintf("SSH proxy user [%s]", localUser)).Envar("TELEPORT_USER").StringVar(&cf.Username)
 	app.Flag("cluster", "Specify the cluster to connect").Envar("TELEPORT_SITE").StringVar(&cf.SiteName)
 	app.Flag("ttl", "Minutes to live for a SSH session").Int32Var(&cf.MinsToLive)
-	app.Flag("identity", "Identity file").Short('i').StringVar(&cf.IdentityFile)
+	app.Flag("identity", "Identity file").Short('i').StringVar(&cf.IdentityFileIn)
 	app.Flag("compat", "OpenSSH compatibility flag").StringVar(&cf.Compatibility)
 
 	app.Flag("insecure", "Do not verify server's certificate and host name. Use only in test environments").Default("false").BoolVar(&cf.InsecureSkipVerify)
@@ -145,7 +151,7 @@ func Run(args []string, underTest bool) {
 	ssh.Flag("port", "SSH port on a remote host").Short('p').Int16Var(&cf.NodePort)
 	ssh.Flag("forward", "Forward localhost connections to remote server").Short('L').StringsVar(&cf.LocalForwardPorts)
 	ssh.Flag("local", "Execute command on localhost after connecting to SSH node").Default("false").BoolVar(&cf.LocalExec)
-	ssh.Flag("", "Allocate TTY").Short('t').BoolVar(&cf.Interactive)
+	ssh.Flag("tty", "Allocate TTY").Short('t').BoolVar(&cf.Interactive)
 	// join
 	join := app.Command("join", "Join the active SSH session")
 	join.Arg("session-id", "ID of the session to join").Required().StringVar(&cf.SessionID)
@@ -171,7 +177,9 @@ func Run(args []string, underTest bool) {
 
 	// login logs in with remote proxy and obtains a "session certificate" which gets
 	// stored in ~/.tsh directory
-	login := app.Command("login", "Log in to the cluster and store the session certificate to avoid login prompts")
+	login := app.Command("login", "Log in to a cluster and retreive the session certificate")
+	login.Flag("out", "Identity output").Short('o').StringVar(&cf.IdentityFileOut)
+	login.Flag("format", "Identity format").Default(string(client.DefaultIdentityFormat)).StringVar((*string)(&cf.IdentityFormat))
 
 	// logout deletes obtained session certificates in ~/.tsh
 	logout := app.Command("logout", "Delete a cluster certificate")
@@ -259,16 +267,37 @@ func onPlay(cf *CLIConf) {
 
 // onLogin logs in with remote proxy and gets signed certificates
 func onLogin(cf *CLIConf) {
-	tc, err := makeClient(cf, true)
+	var (
+		err error
+		tc  *client.TeleportClient
+		key *client.Key
+	)
+
+	if cf.IdentityFileIn != "" {
+		utils.FatalError(trace.BadParameter("-i flag cannot be used with login"))
+	}
+
+	// make the teleport client and retreive the certificate from the proxy:
+	tc, err = makeClient(cf, true)
 	if err != nil {
 		utils.FatalError(err)
 	}
 
-	if _, err := tc.Login(); err != nil {
+	// -i flag specified? save the retreived cert into an identity file
+	makeIdentityFile := (cf.IdentityFileOut != "")
+	activateKey := !makeIdentityFile
+
+	if key, err = tc.Login(activateKey); err != nil {
 		utils.FatalError(err)
 	}
-	tc.SaveProfile("")
+	if makeIdentityFile {
+		client.MakeIdentityFile(cf.Username, cf.IdentityFileOut, key, cf.IdentityFormat)
+		fmt.Printf("\nThe certificate has been written to %s\n", cf.IdentityFileOut)
+		return
+	}
 
+	// regular login (without -i flag)
+	tc.SaveProfile("")
 	if tc.SiteName != "" {
 		fmt.Printf("\nYou are now logged into %s as %s\n", tc.SiteName, tc.Username)
 	} else {
@@ -531,7 +560,7 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 	c := client.MakeDefaultConfig()
 
 	// Look if a user identity was given via -i flag
-	if cf.IdentityFile != "" {
+	if cf.IdentityFileIn != "" {
 		var (
 			key          *client.Key
 			identityAuth ssh.AuthMethod
@@ -539,7 +568,7 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 			hostAuthFunc client.HostKeyCallback
 		)
 		// read the ID file and create an "auth method" from it:
-		key, hostAuthFunc, err = loadIdentity(cf.IdentityFile)
+		key, hostAuthFunc, err = loadIdentity(cf.IdentityFileIn)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -621,12 +650,13 @@ func printHeader(t *goterm.Table, cols []string) {
 // refuseArgs helper makes sure that 'args' (list of CLI arguments)
 // does not contain anything other than command
 func refuseArgs(command string, args []string) {
-	if len(args) == 0 {
-		return
-	}
-	lastArg := args[len(args)-1]
-	if lastArg != command {
-		utils.FatalError(trace.BadParameter("%s does not expect arguments", command))
+	for _, arg := range args {
+		if arg == command || strings.HasPrefix(arg, "-") {
+			continue
+		} else {
+			utils.FatalError(trace.BadParameter("unexpected argument: %s", arg))
+		}
+
 	}
 }
 

@@ -286,12 +286,9 @@ func (a *LocalKeyAgent) CheckHostSignature(host string, remote net.Addr, key ssh
 	return err
 }
 
-// AddKey stores a new signed session key for future use.
-//
-// It returns an implementation of ssh.Authmethod which can be passed to ssh.Config
-// to make new SSH connections authenticated by this key.
-//
-func (a *LocalKeyAgent) AddKey(host string, username string, key *Key) (*CertAuthMethod, error) {
+// AddKey activates a new signed session key by adding it into the keystore and also
+// by loading it into the SSH agent
+func (a *LocalKeyAgent) AddKey(host string, username string, key *Key) (*agent.AddedKey, error) {
 	// save it to disk (usually into ~/.tsh)
 	err := a.keyStore.AddKey(host, username, key)
 	if err != nil {
@@ -299,22 +296,7 @@ func (a *LocalKeyAgent) AddKey(host string, username string, key *Key) (*CertAut
 	}
 
 	// load key into the teleport agent and system agent
-	agentKey, err := a.LoadKey(username, *key)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// generate SSH auth method based on the given signed key and return
-	// it to the caller:
-	signer, err := ssh.NewSignerFromKey(agentKey.PrivateKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if signer, err = ssh.NewCertSigner(agentKey.Certificate, signer); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return NewAuthMethodForCert(signer), nil
+	return a.LoadKey(username, *key)
 }
 
 // DeleteKey removes the key from the key store as well as unloading the key from the agent.
@@ -330,7 +312,6 @@ func (a *LocalKeyAgent) DeleteKey(proxyHost string, username string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	return nil
 }
 
