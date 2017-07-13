@@ -166,6 +166,9 @@ type Role interface {
 	// Equals returns true if the roles are equal. Roles are equal if options and
 	// conditions match.
 	Equals(other Role) bool
+	// GetRawObject returns the raw object stored in the backend without any
+	// conversions applied, used in migrations.
+	GetRawObject() interface{}
 
 	// GetOptions gets role options.
 	GetOptions() RoleOptions
@@ -208,6 +211,9 @@ type RoleV3 struct {
 	Metadata Metadata `json:"metadata"`
 	// Spec contains resource specification.
 	Spec RoleSpecV3 `json:"spec"`
+	// rawObject is the raw object stored in the backend without any
+	// conversions applied, used in migrations.
+	rawObject interface{}
 }
 
 // Equals returns true if the roles are equal. Roles are equal if options,
@@ -237,6 +243,12 @@ func (r *RoleV3) Equals(other Role) bool {
 	}
 
 	return true
+}
+
+// GetRawObject returns the raw object stored in the backend without any
+// conversions applied, used in migrations.
+func (r *RoleV3) GetRawObject() interface{} {
+	return r.rawObject
 }
 
 // SetExpiry sets expiry time for the object.
@@ -803,6 +815,7 @@ func (r *RoleV2) V3() *RoleV3 {
 				SystemResources: r.GetResources(),
 			},
 		},
+		rawObject: *r,
 	}
 
 	// translate old v2 agent forwarding to a v3 option
@@ -1055,7 +1068,6 @@ func (set RoleSet) CheckAccessToServer(login string, s Server) error {
 		matchLabels := MatchLabels(role.GetNodeLabels(Allow), s.GetAllLabels())
 		matchLogin := MatchLogin(role.GetLogins(Allow), login)
 		if matchNamespace && matchLabels && matchLogin {
-			log.Debugf("[RBAC] Granted access to server: Role %v granted access to node %v", role.GetName(), s.GetHostname())
 			return nil
 		}
 
@@ -1168,7 +1180,6 @@ func (set RoleSet) CheckAccessToRuleAndResource(namespace string, resource strin
 		}
 	}
 
-	log.Debugf("[RBAC] Granted %v access to resource %v in namespace: %v", verb, resource, namespace)
 	return nil
 }
 
@@ -1360,8 +1371,10 @@ func UnmarshalRole(data []byte) (*RoleV3, error) {
 			return nil, trace.BadParameter(err.Error())
 		}
 		utils.UTC(&role.Metadata.Expires)
+		roleV3 := role.V3()
+		roleV3.rawObject = role
 
-		return role.V3(), nil
+		return roleV3, nil
 	case V3:
 		var role RoleV3
 		if err := utils.UnmarshalWithSchema(GetRoleSchema(V3, ""), &role, data); err != nil {

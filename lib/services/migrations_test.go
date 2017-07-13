@@ -279,7 +279,9 @@ func (s *MigrationsSuite) TestMigrateRoles(c *C) {
 				},
 			},
 		},
+		rawObject: *in,
 	}
+	c.Assert(out.rawObject, DeepEquals, *in)
 	c.Assert(out, DeepEquals, expected)
 
 	data, err := json.Marshal(in)
@@ -293,5 +295,6 @@ func (s *MigrationsSuite) TestMigrateRoles(c *C) {
 	c.Assert(err, IsNil)
 	out3, err := GetRoleMarshaler().UnmarshalRole(data)
 	c.Assert(err, IsNil)
+	expected.rawObject = nil
 	c.Assert(out3, DeepEquals, expected)
 }

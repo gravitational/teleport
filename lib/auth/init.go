@@ -424,41 +424,20 @@ func migrateAuthPreference(cfg InitConfig, asrv *AuthServer) error {
 }
 
 func migrateRoles(asrv *AuthServer) error {
-	users, err := asrv.GetUsers()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// delete all dynamic users as we won't be supporting role templates anymore
-	// and their roles will not be migrated.
-	for _, user := range users {
-		if user.GetCreatedBy().Connector != nil {
-			err = asrv.DeleteUser(user.GetName())
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			log.Infof("[MIGRATION] Removing Dynamic User: %v", user.GetName())
-		}
-	}
-
 	roles, err := asrv.GetRoles()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// loop over all roles and remove dynamic roles but migrate static roles
-	for _, role := range roles {
-		// remove dynamic roles
-		ttl := backend.TTL(asrv.clock, role.GetMetadata().Expires)
-		if ttl != backend.Forever {
-			err = asrv.DeleteRole(role.GetName())
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			log.Infof("[MIGRATION] Removed Dynamic Role: %v", role.GetName())
+	// loop over all roles and only migrate RoleV2 -> RoleV3
+	for i, _ := range roles {
+		role := roles[i]
+		_, ok := (role.GetRawObject()).(services.RoleV2)
+		if !ok {
+			continue
 		}
 
-		// GetRoles already converted to RoleV3, just upsert now
+		// with RoleV2 we never had a TTL so upsert them forever
 		err = asrv.UpsertRole(role, backend.Forever)
 		if err != nil {
 			return trace.Wrap(err)
