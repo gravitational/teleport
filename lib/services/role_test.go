@@ -390,7 +390,7 @@ func (s *RoleSuite) TestCheckResourceAccess(c *C) {
 		}
 		for j, check := range tc.checks {
 			comment := Commentf("test case %v '%v', check %v", i, tc.name, j)
-			result := set.CheckAccessToRuleAndResource(check.namespace, check.resource, check.action)
+			result := set.CheckAccessToRuleOrResource(check.namespace, check.resource, check.action)
 			if check.hasAccess {
 				c.Assert(result, IsNil, comment)
 			} else {

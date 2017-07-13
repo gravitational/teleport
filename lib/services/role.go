@@ -43,7 +43,7 @@ var DefaultUserSystemResources = map[string][]string{
 	KindCertAuthority: RO(),
 }
 
-// DefaultCertAuthorityResources provides access the minimal set of resources
+// DefaultCertAuthoritySystemResources provides access the minimal set of resources
 // needed for a certificate authority to function.
 var DefaultCertAuthoritySystemResources = map[string][]string{
 	KindSession:       RO(),
@@ -53,7 +53,7 @@ var DefaultCertAuthoritySystemResources = map[string][]string{
 	KindCertAuthority: RO(),
 }
 
-// DefaultAdministratorResources provides access to all resources.
+// DefaultAdministratorSystemResources provides access to all resources.
 var DefaultAdministratorSystemResources = map[string][]string{
 	Wildcard: RW(),
 }
@@ -63,7 +63,8 @@ func RoleNameForUser(name string) string {
 	return "user:" + name
 }
 
-// RoleNameForCertAuthority returns role name associated with a cert authority.
+// RoleNameForCertAuthority returns role name associated with a certificate
+// authority.
 func RoleNameForCertAuthority(name string) string {
 	return "ca:" + name
 }
@@ -852,8 +853,8 @@ type RoleSpecV2 struct {
 type AccessChecker interface {
 	// CheckAccessToServer checks access to server.
 	CheckAccessToServer(login string, server Server) error
-	// CheckAccessToRuleAndResource check access to a resource.
-	CheckAccessToRuleAndResource(resourceNamespace, resourceName, accessType string) error
+	// CheckAccessToRuleOrResource check access to a resource.
+	CheckAccessToRuleOrResource(resourceNamespace, resourceName, accessType string) error
 	// CheckLoginDuration checks if role set can login up to given duration and
 	// returns a combined list of allowed logins.
 	CheckLoginDuration(ttl time.Duration) ([]string, error)
@@ -1165,18 +1166,17 @@ func (set RoleSet) checkAccessToResource(namespace string, resource string, verb
 	return trace.AccessDenied("%v access to %v in namespace %v is denied for %v", verb, resource, namespace, set)
 }
 
-// CheckAccessToRuleAndResource checks if role set has access to this resource action
-func (set RoleSet) CheckAccessToRuleAndResource(namespace string, resource string, verb string) error {
+// CheckAccessToRuleOrResource checks if role set has access to this resource action
+func (set RoleSet) CheckAccessToRuleOrResource(namespace string, resource string, verb string) error {
 	// always check high level rules first
-	err := set.checkAccessToRule(namespace, resource, verb)
-	if err != nil {
-		log.Warnf("[RBAC] Denied access to rule: %v", err)
-
+	ruleErr := set.checkAccessToRule(namespace, resource, verb)
+	if ruleErr != nil {
 		// check low level resource if rules didn't match
-		err = set.checkAccessToResource(namespace, resource, verb)
-		if err != nil {
-			log.Warnf("[RBAC] Denied access to resource: %v", err)
-			return trace.Wrap(err)
+		resourcesErr := set.checkAccessToResource(namespace, resource, verb)
+		if resourcesErr != nil {
+			errorMessage := fmt.Sprintf("unable to access rule: %v and resource: %v", ruleErr, resourcesErr)
+			log.Warnf("[RBAC] Denied access to rule or resource: %v", errorMessage)
+			return trace.AccessDenied(errorMessage)
 		}
 	}
 
@@ -1439,13 +1439,4 @@ func (s SortedRoles) Less(i, j int) bool {
 // Swap swaps two roles in a list
 func (s SortedRoles) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
-}
-
-func indexInSlice(slice []string, value string) (int, bool) {
-	for i := range slice {
-		if slice[i] == value {
-			return i, true
-		}
-	}
-	return 0, false
 }
