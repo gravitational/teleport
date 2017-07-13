@@ -104,19 +104,19 @@ func (a *RoleAccess) initAdmin(teleRole services.Role) {
 		teleRole.GetNamespaces(services.Allow),
 		services.Wildcard)
 
-	rules := teleRole.GetRules(services.Allow)
-	a.Admin.Enabled = hasFullAccess(rules, adminResources) && hasAllNamespaces
+	resources := teleRole.GetSystemResources(services.Allow)
+	a.Admin.Enabled = hasFullAccess(resources, adminResources) && hasAllNamespaces
 }
 
 func (a *RoleAccess) applyAdmin(role services.Role) {
 	if a.Admin.Enabled {
 		allowAllNamespaces(role)
-		applyRuleAccess(role, adminResources, services.RW())
+		applyResourceAccess(role, adminResources, services.RW())
 	} else {
-		rules := role.GetRules(services.Allow)
-		delete(rules, services.Wildcard)
-		role.SetRules(services.Allow, rules)
-		applyRuleAccess(role, adminResources, services.RO())
+		resources := role.GetSystemResources(services.Allow)
+		delete(resources, services.Wildcard)
+		role.SetSystemResources(services.Allow, resources)
+		applyResourceAccess(role, adminResources, services.RO())
 	}
 }
 
@@ -160,11 +160,10 @@ func hasFullAccess(rules map[string][]string, resources []string) bool {
 	return true
 }
 
-func applyRuleAccess(role services.Role, resources []string, verbs []string) {
-	rules := role.GetRules(services.Allow)
+func applyResourceAccess(role services.Role, resources []string, verbs []string) {
+	rs := role.GetSystemResources(services.Allow)
 	for _, resource := range resources {
-		rules[resource] = verbs
+		rs[resource] = verbs
 	}
-
-	role.SetRules(services.Allow, rules)
+	role.SetSystemResources(services.Allow, rs)
 }

@@ -274,7 +274,7 @@ func (s *MigrationsSuite) TestMigrateRoles(c *C) {
 				Logins:     []string{"foo"},
 				NodeLabels: map[string]string{"a": "b"},
 				Namespaces: []string{"system", "default"},
-				Rules: map[string][]string{
+				SystemResources: map[string][]string{
 					"role": []string{ActionRead, ActionWrite},
 				},
 			},

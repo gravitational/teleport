@@ -195,9 +195,9 @@ func (s *WebSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	role := services.RoleForUser(teleUser)
 	role.SetLogins(services.Allow, []string{s.user})
-	rules := role.GetRules(services.Allow)
-	rules[services.Wildcard] = services.RW()
-	role.SetRules(services.Allow, rules)
+	resources := role.GetSystemResources(services.Allow)
+	resources[services.Wildcard] = services.RW()
+	role.SetSystemResources(services.Allow, resources)
 	err = s.authServer.UpsertRole(role, backend.Forever)
 	c.Assert(err, IsNil)
 

@@ -310,6 +310,11 @@ func migrateLegacyResources(cfg InitConfig, asrv *AuthServer) error {
 		return trace.Wrap(err)
 	}
 
+	err = migrateRoles(asrv)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
@@ -413,6 +418,52 @@ func migrateAuthPreference(cfg InitConfig, asrv *AuthServer) error {
 				return trace.Wrap(err)
 			}
 		}
+	}
+
+	return nil
+}
+
+func migrateRoles(asrv *AuthServer) error {
+	users, err := asrv.GetUsers()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// delete all dynamic users as we won't be supporting role templates anymore
+	// and their roles will not be migrated.
+	for _, user := range users {
+		if user.GetCreatedBy().Connector != nil {
+			err = asrv.DeleteUser(user.GetName())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			log.Infof("[MIGRATION] Removing Dynamic User: %v", user.GetName())
+		}
+	}
+
+	roles, err := asrv.GetRoles()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// loop over all roles and remove dynamic roles but migrate static roles
+	for _, role := range roles {
+		// remove dynamic roles
+		ttl := backend.TTL(asrv.clock, role.GetMetadata().Expires)
+		if ttl != backend.Forever {
+			err = asrv.DeleteRole(role.GetName())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			log.Infof("[MIGRATION] Removed Dynamic Role: %v", role.GetName())
+		}
+
+		// GetRoles already converted to RoleV3, just upsert now
+		err = asrv.UpsertRole(role, backend.Forever)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		log.Infof("[MIGRATION] Updated Role: %v", role.GetName())
 	}
 
 	return nil

@@ -149,9 +149,9 @@ func createUserAndRoleWithoutRoles(clt clt, username string, allowedLogins []str
 	}
 
 	role := services.RoleForUser(user)
-	rules := role.GetRules(services.Allow)
-	delete(rules, services.KindRole)
-	role.SetRules(services.Allow, rules)
+	resources := role.GetSystemResources(services.Allow)
+	delete(resources, services.KindRole)
+	role.SetSystemResources(services.Allow, resources)
 	role.SetLogins(services.Allow, []string{user.GetName()})
 	err = clt.UpsertRole(role, backend.Forever)
 	if err != nil {

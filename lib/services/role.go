@@ -32,9 +32,9 @@ import (
 	"github.com/jonboulle/clockwork"
 )
 
-// DefaultUserRules provides access to the minimal set of rules needed for
-// a user to function.
-var DefaultUserRules = map[string][]string{
+// DefaultUserSystemResources provides access to the minimal set of resources needed
+// for a user to function.
+var DefaultUserSystemResources = map[string][]string{
 	KindSession:       RO(),
 	KindRole:          RO(),
 	KindNode:          RO(),
@@ -43,9 +43,9 @@ var DefaultUserRules = map[string][]string{
 	KindCertAuthority: RO(),
 }
 
-// DefaultCertAuthorityRules provides access the minimal set of rules needed
-// for a certificate authority to function.
-var DefaultCertAuthorityRules = map[string][]string{
+// DefaultCertAuthorityResources provides access the minimal set of resources
+// needed for a certificate authority to function.
+var DefaultCertAuthoritySystemResources = map[string][]string{
 	KindSession:       RO(),
 	KindNode:          RO(),
 	KindAuthServer:    RO(),
@@ -53,22 +53,22 @@ var DefaultCertAuthorityRules = map[string][]string{
 	KindCertAuthority: RO(),
 }
 
-// DefaultAdministratorRules provides access to all resources.
-var DefaultAdministratorRules = map[string][]string{
+// DefaultAdministratorResources provides access to all resources.
+var DefaultAdministratorSystemResources = map[string][]string{
 	Wildcard: RW(),
 }
 
-// RoleNameForUser returns role name associated with user
+// RoleNameForUser returns role name associated with a user.
 func RoleNameForUser(name string) string {
 	return "user:" + name
 }
 
-// RoleNameForCertAuthority returns role name associated with cert authority
+// RoleNameForCertAuthority returns role name associated with a cert authority.
 func RoleNameForCertAuthority(name string) string {
 	return "ca:" + name
 }
 
-// RoleForUser creates role using AllowedLogins parameter
+// RoleForUser creates role for a services.User.
 func RoleForUser(u User) Role {
 	return &RoleV3{
 		Kind:    KindRole,
@@ -82,15 +82,15 @@ func RoleForUser(u User) Role {
 				MaxSessionTTL: NewDuration(defaults.MaxCertDuration),
 			},
 			Allow: RoleConditions{
-				Namespaces: []string{defaults.Namespace},
-				NodeLabels: map[string]string{Wildcard: Wildcard},
-				Rules:      utils.CopyStringMapSlices(DefaultUserRules),
+				Namespaces:      []string{defaults.Namespace},
+				NodeLabels:      map[string]string{Wildcard: Wildcard},
+				SystemResources: utils.CopyStringMapSlices(DefaultUserSystemResources),
 			},
 		},
 	}
 }
 
-// RoleForCertauthority creates role using AllowedLogins parameter
+// RoleForCertauthority creates role using services.CertAuthority.
 func RoleForCertAuthority(ca CertAuthority) Role {
 	return &RoleV3{
 		Kind:    KindRole,
@@ -104,9 +104,9 @@ func RoleForCertAuthority(ca CertAuthority) Role {
 				MaxSessionTTL: NewDuration(defaults.MaxCertDuration),
 			},
 			Allow: RoleConditions{
-				Namespaces: []string{defaults.Namespace},
-				NodeLabels: map[string]string{Wildcard: Wildcard},
-				Rules:      utils.CopyStringMapSlices(DefaultCertAuthorityRules),
+				Namespaces:      []string{defaults.Namespace},
+				NodeLabels:      map[string]string{Wildcard: Wildcard},
+				SystemResources: utils.CopyStringMapSlices(DefaultCertAuthoritySystemResources),
 			},
 		},
 	}
@@ -191,6 +191,11 @@ type Role interface {
 	GetRules(rct RoleConditionType) map[string][]string
 	// SetRules sets an allow or deny rule.
 	SetRules(rct RoleConditionType, rrs map[string][]string)
+
+	// GetSystemResources gets all low level resources.
+	GetSystemResources(rct RoleConditionType) map[string][]string
+	// SetSystemResources sets all low level resources.
+	SetSystemResources(rct RoleConditionType, sr map[string][]string)
 }
 
 // RoleV3 represents role resource specification
@@ -223,6 +228,9 @@ func (r *RoleV3) Equals(other Role) bool {
 			return false
 		}
 
+		if !utils.StringMapSlicesEqual(r.GetSystemResources(condition), other.GetSystemResources(condition)) {
+			return false
+		}
 		if !utils.StringMapSlicesEqual(r.GetRules(condition), other.GetRules(condition)) {
 			return false
 		}
@@ -338,14 +346,31 @@ func (r *RoleV3) GetRules(rct RoleConditionType) map[string][]string {
 
 // SetRules sets an allow or deny rule.
 func (r *RoleV3) SetRules(rct RoleConditionType, rrs map[string][]string) {
-	// make a copy of rules. we don't want someone to accidentally update the
-	// map they passed us and modify the role.
-	rrscopy := utils.CopyStringMapSlices(rrs)
+	rcopy := utils.CopyStringMapSlices(rrs)
 
 	if rct == Allow {
-		r.Spec.Allow.Rules = rrscopy
+		r.Spec.Allow.Rules = rcopy
 	} else {
-		r.Spec.Deny.Rules = rrscopy
+		r.Spec.Deny.Rules = rcopy
+	}
+}
+
+// GetSystemResources gets all low level resources.
+func (r *RoleV3) GetSystemResources(rct RoleConditionType) map[string][]string {
+	if rct == Allow {
+		return r.Spec.Allow.SystemResources
+	}
+	return r.Spec.Deny.SystemResources
+}
+
+// SetSystemResources sets all low level resources.
+func (r *RoleV3) SetSystemResources(rct RoleConditionType, sr map[string][]string) {
+	srcopy := utils.CopyStringMapSlices(sr)
+
+	if rct == Allow {
+		r.Spec.Allow.SystemResources = srcopy
+	} else {
+		r.Spec.Deny.SystemResources = srcopy
 	}
 }
 
@@ -369,8 +394,8 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 	if r.Spec.Allow.NodeLabels == nil {
 		r.Spec.Allow.NodeLabels = map[string]string{Wildcard: Wildcard}
 	}
-	if r.Spec.Allow.Rules == nil {
-		r.Spec.Allow.Rules = DefaultUserRules
+	if r.Spec.Allow.SystemResources == nil {
+		r.Spec.Allow.SystemResources = DefaultUserSystemResources
 	}
 
 	// check and correct the session ttl
@@ -405,7 +430,7 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 
 // String returns the human readable representation of a role.
 func (r *RoleV3) String() string {
-	return fmt.Sprintf("Role(Name=%v,Options=%v,Allow=%v,Deny=%v)",
+	return fmt.Sprintf("Role(Name=%v,Options=%v,Allow=%+v,Deny=%+v)",
 		r.GetName(), r.Spec.Options, r.Spec.Allow, r.Spec.Deny)
 }
 
@@ -524,8 +549,13 @@ type RoleConditions struct {
 	Namespaces []string `json:"namespaces,omitempty" yaml:"namespaces,omitempty"`
 	// NodeLabels is a map of node labels (used to dynamically grant access to nodes).
 	NodeLabels map[string]string `json:"node_labels,omitempty" yaml:"node_labels,omitempty"`
-	// Rules is a list of resources and their access levels.
+
+	// Rules is a list of rules and their access levels. Rules are a high level
+	// construct used for access control.
 	Rules RoleRules `json:"rules,omitempty" yaml:"rules,omitempty"`
+	// SystemResources is map of resources and their access levels. Resources are a low level
+	// construct that control access to Teleport data structures (resources).
+	SystemResources map[string][]string `json:"system_resources,omitempty" yaml:"system_resources,omitempty"`
 }
 
 // Equals returns true if the role conditions (logins, namespaces, labels,
@@ -541,6 +571,9 @@ func (r *RoleConditions) Equals(o RoleConditions) bool {
 		return false
 	}
 	if !utils.StringMapSlicesEqual(r.Rules, o.Rules) {
+		return false
+	}
+	if !utils.StringMapSlicesEqual(r.SystemResources, o.SystemResources) {
 		return false
 	}
 
@@ -764,10 +797,10 @@ func (r *RoleV2) V3() *RoleV3 {
 				MaxSessionTTL: r.GetMaxSessionTTL(),
 			},
 			Allow: RoleConditions{
-				Logins:     r.GetLogins(),
-				Namespaces: r.GetNamespaces(),
-				NodeLabels: r.GetNodeLabels(),
-				Rules:      r.GetResources(),
+				Logins:          r.GetLogins(),
+				Namespaces:      r.GetNamespaces(),
+				NodeLabels:      r.GetNodeLabels(),
+				SystemResources: r.GetResources(),
 			},
 		},
 	}
@@ -806,8 +839,8 @@ type RoleSpecV2 struct {
 type AccessChecker interface {
 	// CheckAccessToServer checks access to server.
 	CheckAccessToServer(login string, server Server) error
-	// CheckAccessToResource check access to a resource.
-	CheckAccessToResource(resourceNamespace, resourceName, accessType string) error
+	// CheckAccessToRuleAndResource check access to a resource.
+	CheckAccessToRuleAndResource(resourceNamespace, resourceName, accessType string) error
 	// CheckLoginDuration checks if role set can login up to given duration and
 	// returns a combined list of allowed logins.
 	CheckLoginDuration(ttl time.Duration) ([]string, error)
@@ -1008,9 +1041,9 @@ func (set RoleSet) CheckAccessToServer(login string, s Server) error {
 		matchLabels := MatchLabels(role.GetNodeLabels(Deny), s.GetAllLabels())
 		matchLogin := MatchLogin(role.GetLogins(Deny), login)
 		if matchNamespace || matchLabels || matchLogin {
-			errorMessage := fmt.Sprintf("Role %v denied access to node %v: deny rule matched; match(namespace=%v, label=%v, login=%v)",
+			errorMessage := fmt.Sprintf("role %v denied access to node %v: deny rule matched; match(namespace=%v, label=%v, login=%v)",
 				role.GetName(), s.GetHostname(), matchNamespace, matchLabels, matchLogin)
-			log.Warnf("[RBAC] " + errorMessage)
+			log.Warnf("[RBAC] Denied access to server: " + errorMessage)
 			return trace.AccessDenied(errorMessage)
 		}
 	}
@@ -1022,16 +1055,18 @@ func (set RoleSet) CheckAccessToServer(login string, s Server) error {
 		matchLabels := MatchLabels(role.GetNodeLabels(Allow), s.GetAllLabels())
 		matchLogin := MatchLogin(role.GetLogins(Allow), login)
 		if matchNamespace && matchLabels && matchLogin {
-			log.Debugf("[RBAC] Role %v granted access to node %v", role.GetName(), s.GetHostname())
+			log.Debugf("[RBAC] Granted access to server: Role %v granted access to node %v", role.GetName(), s.GetHostname())
 			return nil
 		}
 
-		errorMessage := fmt.Sprintf("Role %v denied access: allow rules did not match; match(namespace=%v, label=%v, login=%v)",
+		errorMessage := fmt.Sprintf("role %v denied access: allow rules did not match; match(namespace=%v, label=%v, login=%v)",
 			role.GetName(), matchNamespace, matchLabels, matchLogin)
 		errs = append(errs, trace.AccessDenied(errorMessage))
 	}
 
-	return trace.AccessDenied("access to node %v is denied to role(s): %v", s.GetHostname(), errs)
+	errorMessage := fmt.Sprintf("access to node %v is denied to role(s): %v", s.GetHostname(), errs)
+	log.Warnf("[RBAC] Denied access to server: " + errorMessage)
+	return trace.AccessDenied(errorMessage)
 }
 
 // CanForwardAgents returns true if role set allows forwarding agents.
@@ -1079,8 +1114,7 @@ func (set RoleSet) String() string {
 	return fmt.Sprintf("roles %v", strings.Join(roleNames, ","))
 }
 
-// CheckAccessToResource checks if role set has access to this resource action
-func (set RoleSet) CheckAccessToResource(namespace string, resource string, verb string) error {
+func (set RoleSet) checkAccessToRule(namespace string, resource string, verb string) error {
 	var errs []error
 
 	// check deny: a single match on a deny rule prohibits access
@@ -1088,9 +1122,7 @@ func (set RoleSet) CheckAccessToResource(namespace string, resource string, verb
 		matchNamespace := MatchNamespace(role.GetNamespaces(Deny), ProcessNamespace(namespace))
 		matchRule := MatchRule(role.GetRules(Deny), resource, verb)
 		if matchNamespace && matchRule {
-			errorMessage := fmt.Sprintf("Role %v denied %v access to %v in namespace %v: deny rule matched", role, verb, resource, namespace)
-			log.Warnf("[RBAC] " + errorMessage)
-			return trace.AccessDenied(errorMessage)
+			return trace.AccessDenied("role %v denied %v access to %v in namespace %v: deny rule matched", role, verb, resource, namespace)
 		}
 	}
 
@@ -1102,11 +1134,42 @@ func (set RoleSet) CheckAccessToResource(namespace string, resource string, verb
 			return nil
 		}
 
-		errorMessage := fmt.Sprintf("Role %v denied %v access to %v in namespace %v: no matching allow rule", role, verb, resource, namespace)
+		errorMessage := fmt.Sprintf("role %v denied %v access to %v in namespace %v: no allow rule match", role, verb, resource, namespace)
 		errs = append(errs, trace.AccessDenied(errorMessage))
 	}
 
-	return trace.AccessDenied("%v access to %v denied to role(s): %v", verb, resource, set)
+	return trace.AccessDenied("%v access to %v denied to role(s): %v: %v", verb, resource, set, errs)
+}
+
+func (set RoleSet) checkAccessToResource(namespace string, resource string, verb string) error {
+	namespace = ProcessNamespace(namespace)
+	for _, role := range set {
+		matchNamespace := MatchNamespace(role.GetNamespaces(Allow), namespace)
+		matchSystemResource := MatchRule(role.GetSystemResources(Allow), resource, verb)
+		if matchNamespace && matchSystemResource {
+			return nil
+		}
+	}
+	return trace.AccessDenied("%v access to %v in namespace %v is denied for %v", verb, resource, namespace, set)
+}
+
+// CheckAccessToRuleAndResource checks if role set has access to this resource action
+func (set RoleSet) CheckAccessToRuleAndResource(namespace string, resource string, verb string) error {
+	// always check high level rules first
+	err := set.checkAccessToRule(namespace, resource, verb)
+	if err != nil {
+		log.Warnf("[RBAC] Denied access to rule: %v", err)
+
+		// check low level resource if rules didn't match
+		err = set.checkAccessToResource(namespace, resource, verb)
+		if err != nil {
+			log.Warnf("[RBAC] Denied access to resource: %v", err)
+			return trace.Wrap(err)
+		}
+	}
+
+	log.Debugf("[RBAC] Granted %v access to resource %v in namespace: %v", verb, resource, namespace)
+	return nil
 }
 
 // ProcessNamespace sets default namespace in case if namespace is empty
@@ -1217,6 +1280,12 @@ const RoleSpecV3SchemaDefinitions = `
             }
           }
         }
+      },
+      "resources": {
+        "type": "object",
+        "patternProperties": {
+           "^[a-zA-Z/.0-9_]$":  { "type": "array", "items": {"type": "string"} }
+         }
       }
     }
   }

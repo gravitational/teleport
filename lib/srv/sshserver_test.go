@@ -919,9 +919,9 @@ func newUpack(username string, allowedLogins []string, a *auth.AuthServer) (*upa
 		return nil, trace.Wrap(err)
 	}
 	role := services.RoleForUser(user)
-	rules := role.GetRules(services.Allow)
-	rules[services.Wildcard] = services.RW()
-	role.SetRules(services.Allow, rules)
+	resources := role.GetSystemResources(services.Allow)
+	resources[services.Wildcard] = services.RW()
+	role.SetSystemResources(services.Allow, resources)
 	role.SetLogins(services.Allow, allowedLogins)
 	err = a.UpsertRole(role, backend.Forever)
 	if err != nil {

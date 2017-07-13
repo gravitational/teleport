@@ -325,14 +325,14 @@ func (s *RoleSuite) TestCheckResourceAccess(c *C) {
 		checks []check
 	}{
 		{
-			name:  "empty role set has access to nothing",
+			name:  "0 - empty role set has access to nothing",
 			roles: []RoleV2{},
 			checks: []check{
 				{resource: KindUser, action: ActionWrite, namespace: defaults.Namespace, hasAccess: false},
 			},
 		},
 		{
-			name: "user can read sessions in default namespace",
+			name: "1 - user can read sessions in default namespace",
 			roles: []RoleV2{
 				RoleV2{
 					Metadata: Metadata{
@@ -350,8 +350,9 @@ func (s *RoleSuite) TestCheckResourceAccess(c *C) {
 				{resource: KindSession, action: ActionWrite, namespace: defaults.Namespace, hasAccess: false},
 			},
 		},
+		// 2
 		{
-			name: "user can read sessions in system namespace and write stuff in default namespace",
+			name: "1 - user can read sessions in system namespace and write stuff in default namespace",
 			roles: []RoleV2{
 				RoleV2{
 					Metadata: Metadata{
@@ -383,14 +384,13 @@ func (s *RoleSuite) TestCheckResourceAccess(c *C) {
 		},
 	}
 	for i, tc := range testCases {
-
 		var set RoleSet
 		for i := range tc.roles {
 			set = append(set, tc.roles[i].V3())
 		}
 		for j, check := range tc.checks {
 			comment := Commentf("test case %v '%v', check %v", i, tc.name, j)
-			result := set.CheckAccessToResource(check.namespace, check.resource, check.action)
+			result := set.CheckAccessToRuleAndResource(check.namespace, check.resource, check.action)
 			if check.hasAccess {
 				c.Assert(result, IsNil, comment)
 			} else {
