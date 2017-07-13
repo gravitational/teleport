@@ -228,7 +228,7 @@ func Run(args []string, underTest bool) {
 
 	switch command {
 	case ver.FullCommand():
-		onVersion()
+		utils.PrintVersion("")
 	case ssh.FullCommand():
 		onSSH(&cf)
 	case bench.FullCommand():
@@ -636,10 +636,6 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 	c.Compatibility = compatibility
 
 	return client.NewClient(c)
-}
-
-func onVersion() {
-	utils.PrintVersion()
 }
 
 func printHeader(t *goterm.Table, cols []string) {

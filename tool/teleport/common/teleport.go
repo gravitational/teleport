@@ -40,7 +40,10 @@ import (
 )
 
 // same as main() but has a testing switch
-func Run(cmdlineArgs []string, testRun bool) (executedCommand string, conf *service.Config) {
+//   - cmdlineArgs are passed from main()
+//   - distro can be "" (OSS version) or "enterprise"
+//   - testRun is 'true' when running under an integration test
+func Run(cmdlineArgs []string, distro string, testRun bool) (executedCommand string, conf *service.Config) {
 	var err error
 	// configure trace's errors to produce full stack traces
 	isDebug, _ := strconv.ParseBool(os.Getenv(teleport.VerboseLogsEnvVar))
@@ -175,7 +178,7 @@ func Run(cmdlineArgs []string, testRun bool) (executedCommand string, conf *serv
 	case dump.FullCommand():
 		onConfigDump()
 	case ver.FullCommand():
-		onVersion()
+		utils.PrintVersion(distro)
 	}
 	if err != nil {
 		utils.FatalError(err)
@@ -281,9 +284,4 @@ func (rw *StdReadWriter) Read(b []byte) (int, error) {
 
 func (rw *StdReadWriter) Write(b []byte) (int, error) {
 	return os.Stdout.Write(b)
-}
-
-// onVersion is the handler for "version"
-func onVersion() {
-	utils.PrintVersion()
 }

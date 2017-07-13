@@ -45,7 +45,6 @@ import (
 	"github.com/buger/goterm"
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
 	kyaml "k8s.io/client-go/1.4/pkg/util/yaml"
 )
@@ -104,13 +103,6 @@ type AuthServerCommand struct {
 	config *service.Config
 }
 
-type ReverseTunnelCommand struct {
-	config      *service.Config
-	domainNames string
-	dialAddrs   utils.NetAddrList
-	ttl         time.Duration
-}
-
 type TokenCommand struct {
 	config *service.Config
 	// token argument to 'tokens del' command
@@ -135,7 +127,11 @@ type DeleteCommand struct {
 	ref    services.Ref
 }
 
-func Run() {
+// Run() is the same as 'make'. It helps to share the code between different
+// "distributions" like OSS or Enterprise
+//
+// distribution: name of the Teleport distribution
+func Run(distribution string) {
 	utils.InitLogger(utils.LoggingForCLI, logrus.WarnLevel)
 	app := utils.InitCLIParser("tctl", GlobalHelpString)
 
@@ -144,7 +140,6 @@ func Run() {
 	cmdUsers := UserCommand{config: cfg}
 	cmdNodes := NodeCommand{config: cfg}
 	cmdAuth := AuthCommand{config: cfg}
-	cmdReverseTunnel := ReverseTunnelCommand{config: cfg}
 	cmdTokens := TokenCommand{config: cfg}
 	cmdGet := GetCommand{config: cfg}
 	cmdCreate := CreateCommand{config: cfg}
@@ -221,8 +216,6 @@ func Run() {
 
 	// operations with authorities
 	auth := app.Command("auth", "Operations with user and host certificate authorities (CAs)").Hidden()
-	authList := auth.Command("ls", "List trusted certificate authorities (CAs)")
-	authList.Flag("type", "certificate type: 'user' or 'host'").StringVar(&cmdAuth.authType)
 	authExport := auth.Command("export", "Export public cluster (CA) keys to stdout")
 	authExport.Flag("keys", "if set, will print private keys").BoolVar(&cmdAuth.exportPrivateKeys)
 	authExport.Flag("fingerprint", "filter authority by fingerprint").StringVar(&cmdAuth.exportAuthorityFingerprint)
@@ -240,19 +233,6 @@ func Run() {
 	authSign.Flag("ttl", "TTL (time to live) for the generated certificate").Default(fmt.Sprintf("%v", defaults.CertDuration)).DurationVar(&cmdAuth.genTTL)
 	authSign.Flag("compat", "OpenSSH compatibility flag").StringVar(&cmdAuth.compatibility)
 
-	// operations with reverse tunnels
-	reverseTunnels := app.Command("tunnels", "Operations on reverse tunnels clusters").Hidden()
-	reverseTunnelsList := reverseTunnels.Command("ls", "List tunnels").Hidden()
-	reverseTunnelsDelete := reverseTunnels.Command("del", "Delete a tunnel").Hidden()
-	reverseTunnelsDelete.Arg("name", "Tunnels to delete").
-		Required().StringVar(&cmdReverseTunnel.domainNames)
-	reverseTunnelsUpsert := reverseTunnels.Command("add", "Create a new reverse tunnel").Hidden()
-	reverseTunnelsUpsert.Arg("name", "Name of the tunnel").
-		Required().StringVar(&cmdReverseTunnel.domainNames)
-	reverseTunnelsUpsert.Arg("addrs", "Comma-separated list of tunnels").
-		Required().SetValue(&cmdReverseTunnel.dialAddrs)
-	reverseTunnelsUpsert.Flag("ttl", "Optional TTL (time to live) for the tunnel").DurationVar(&cmdReverseTunnel.ttl)
-
 	// parse CLI commands+flags:
 	command, err := app.Parse(os.Args[1:])
 	if err != nil {
@@ -261,7 +241,7 @@ func Run() {
 
 	// "version" command?
 	if command == ver.FullCommand() {
-		onVersion()
+		utils.PrintVersion(distribution)
 		return
 	}
 
@@ -303,16 +283,8 @@ func Run() {
 		err = cmdNodes.Invite(client)
 	case nodeList.FullCommand():
 		err = cmdNodes.ListActive(client)
-	case authList.FullCommand():
-		err = cmdAuth.ListAuthorities(client)
 	case authExport.FullCommand():
 		err = cmdAuth.ExportAuthorities(client)
-	case reverseTunnelsList.FullCommand():
-		err = cmdReverseTunnel.ListActive(client)
-	case reverseTunnelsDelete.FullCommand():
-		err = cmdReverseTunnel.Delete(client)
-	case reverseTunnelsUpsert.FullCommand():
-		err = cmdReverseTunnel.Upsert(client)
 	case tokenList.FullCommand():
 		err = cmdTokens.List(client)
 	case tokenDel.FullCommand():
@@ -330,10 +302,6 @@ func Ref(s kingpin.Settings) *services.Ref {
 	r := new(services.Ref)
 	s.SetValue(r)
 	return r
-}
-
-func onVersion() {
-	utils.PrintVersion()
 }
 
 func printHeader(t *goterm.Table, cols []string) {
@@ -481,83 +449,6 @@ func (u *NodeCommand) ListActive(client *auth.TunClient) error {
 	}
 	coll := &serverCollection{servers: nodes}
 	coll.writeText(os.Stdout)
-	return nil
-}
-
-// ListAuthorities shows list of user authorities we trust
-func (a *AuthCommand) ListAuthorities(client *auth.TunClient) error {
-	// by default show authorities of both types:
-	authTypes := []services.CertAuthType{
-		services.UserCA,
-		services.HostCA,
-	}
-	// but if there was a --type switch, only select those:
-	if a.authType != "" {
-		authTypes = []services.CertAuthType{services.CertAuthType(a.authType)}
-		if err := authTypes[0].Check(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	localAuthName, err := client.GetDomainName()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	var (
-		localCAs   []services.CertAuthority
-		trustedCAs []services.CertAuthority
-	)
-	for _, t := range authTypes {
-		cas, err := client.GetCertAuthorities(t, false)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		for i := range cas {
-			if cas[i].GetClusterName() == localAuthName {
-				localCAs = append(localCAs, cas[i])
-			} else {
-				trustedCAs = append(trustedCAs, cas[i])
-			}
-		}
-	}
-	localCAsView := func() string {
-		t := goterm.NewTable(0, 10, 5, ' ', 0)
-		printHeader(t, []string{"CA Type", "Fingerprint"})
-		for _, a := range localCAs {
-			for _, keyBytes := range a.GetCheckingKeys() {
-				fingerprint, err := sshutils.AuthorizedKeyFingerprint(keyBytes)
-				if err != nil {
-					fingerprint = fmt.Sprintf("<bad key: %v", err)
-				}
-				fmt.Fprintf(t, "%v\t%v\n", a.GetType(), fingerprint)
-			}
-		}
-		return fmt.Sprintf("CA keys for the local cluster %v:\n\n", localAuthName) +
-			t.String()
-	}
-	trustedCAsView := func() string {
-		t := goterm.NewTable(0, 10, 5, ' ', 0)
-		printHeader(t, []string{"Cluster Name", "CA Type", "Fingerprint", "Roles"})
-		for _, a := range trustedCAs {
-			for _, keyBytes := range a.GetCheckingKeys() {
-				fingerprint, err := sshutils.AuthorizedKeyFingerprint(keyBytes)
-				if err != nil {
-					fingerprint = fmt.Sprintf("<bad key: %v", err)
-				}
-				var logins string
-				if a.GetType() == services.HostCA {
-					logins = "N/A"
-				} else {
-					logins = strings.Join(a.GetRoles(), ",")
-				}
-				fmt.Fprintf(t, "%v\t%v\t%v\t%v\n", a.GetClusterName(), a.GetType(), fingerprint, logins)
-			}
-		}
-		return "\nCA Keys for Trusted Clusters:\n\n" + t.String()
-	}
-	fmt.Printf(localCAsView())
-	if len(trustedCAs) > 0 {
-		fmt.Printf(trustedCAsView())
-	}
 	return nil
 }
 
@@ -760,45 +651,6 @@ func (a *AuthCommand) GenerateAndSignKeys(clusterApi *auth.TunClient) error {
 	}
 	if a.output != "" {
 		fmt.Printf("\nThe certificate has been written to %s\n", a.output)
-	}
-	return nil
-}
-
-// ListActive retreives the list of nodes who recently sent heartbeats to
-// to a cluster and prints it to stdout
-func (r *ReverseTunnelCommand) ListActive(client *auth.TunClient) error {
-	tunnels, err := client.GetReverseTunnels()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	coll := &reverseTunnelCollection{tunnels: tunnels}
-	coll.writeText(os.Stdout)
-	return nil
-}
-
-// Upsert updates or inserts new reverse tunnel
-func (r *ReverseTunnelCommand) Upsert(client *auth.TunClient) error {
-	tunnel := services.NewReverseTunnel(r.domainNames, r.dialAddrs.Addresses())
-	tunnel.SetTTL(clockwork.NewRealClock(), r.ttl)
-	err := client.UpsertReverseTunnel(tunnel)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("Reverse tunnel updated\n")
-	return nil
-}
-
-// Delete deletes teleport user(s). User IDs are passed as a comma-separated
-// list in UserCommand.login
-func (r *ReverseTunnelCommand) Delete(client *auth.TunClient) error {
-	for _, domainName := range strings.Split(r.domainNames, ",") {
-		if err := client.DeleteReverseTunnel(domainName); err != nil {
-			if trace.IsNotFound(err) {
-				return trace.Errorf("'%v' is not found", domainName)
-			}
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Cluster '%v' has been disconnected\n", domainName)
 	}
 	return nil
 }
