@@ -45,6 +45,23 @@ const (
 	fileNameKnownHosts = "known_hosts"
 )
 
+// LocalKeyStore interface allows for different storage back-ends for TSH to
+// load/save its keys
+//
+// The _only_ filesystem-based implementation of LocalKeyStore is declared
+// below (FSLocalKeyStore)
+type LocalKeyStore interface {
+	// client key management
+	GetKeys(username string) ([]Key, error)
+	AddKey(host string, username string, key *Key) error
+	GetKey(host string, username string) (*Key, error)
+	DeleteKey(host string, username string) error
+
+	// interface to known_hosts file:
+	AddKnownHostKeys(hostname string, keys []ssh.PublicKey) error
+	GetKnownHostKeys(hostname string) ([]ssh.PublicKey, error)
+}
+
 // FSLocalKeyStore implements LocalKeyStore interface using the filesystem
 // Here's the file layout for the FS store:
 // ~/.tsh/

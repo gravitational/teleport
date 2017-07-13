@@ -12,6 +12,7 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+
 */
 
 package client
@@ -38,7 +39,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dir"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -968,7 +968,7 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 	}
 	// if we get here, it means we failed to authenticate using stored keys
 	// and we need to ask for the login information
-	authMethod, err := tc.Login()
+	key, err := tc.Login(true)
 	if err != nil {
 		// we need to communicate directly to user here,
 		// otherwise user will see endless loop with no explanation
@@ -977,6 +977,11 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 		}
 		return nil, trace.Wrap(err)
 	}
+	authMethod, err := key.AsAuthMethod()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// After successfull login we have local agent updated with latest
 	// and greatest auth information, try it now
 	sshConfig.Auth = []ssh.AuthMethod{authMethod}
@@ -1002,8 +1007,11 @@ func (tc *TeleportClient) Logout() error {
 }
 
 // Login logs the user into a Teleport cluster by talking to a Teleport proxy.
-// If successful, saves the received session keys into the local keystore for future use.
-func (tc *TeleportClient) Login() (*CertAuthMethod, error) {
+//
+// If 'activateKey' is true, saves the received session cert into the local
+// keystore (and into the ssh-agent) for future use.
+//
+func (tc *TeleportClient) Login(activateKey bool) (*Key, error) {
 	httpsProxyHostPort := tc.Config.ProxyWebHostPort()
 	certPool := loopbackPool(httpsProxyHostPort)
 
@@ -1015,7 +1023,7 @@ func (tc *TeleportClient) Login() (*CertAuthMethod, error) {
 
 	// generate a new keypair. the public key will be signed via proxy if our
 	// password+OTP are legit
-	key, err := tc.MakeKey()
+	key, err := NewKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1050,14 +1058,20 @@ func (tc *TeleportClient) Login() (*CertAuthMethod, error) {
 	// extract the new certificate out of the response
 	key.Cert = response.Cert
 
-	// save the list of CAs we trust to ~/.tsh/known_hosts
-	err = tc.localAgent.AddHostSignersToCache(response.HostSigners)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	if activateKey {
+		// save the list of CAs we trust to ~/.tsh/known_hosts
+		err = tc.localAgent.AddHostSignersToCache(response.HostSigners)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
-	// save the key:
-	return tc.localAgent.AddKey(tc.ProxyHost(), tc.Config.Username, key)
+		// save the cert to the local storage (~/.tsh usually):
+		_, err = tc.localAgent.AddKey(tc.ProxyHost(), tc.Config.Username, key)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return key, nil
 }
 
 func (tc *TeleportClient) localLogin(secondFactor string, pub []byte) (*SSHLoginResponse, error) {
@@ -1087,20 +1101,7 @@ func (tc *TeleportClient) AddTrustedCA(ca *services.CertAuthorityV1) error {
 	return tc.LocalAgent().AddHostSignersToCache([]services.CertAuthorityV1{*ca})
 }
 
-// MakeKey generates a new unsigned key. It's useless by itself until a
-// trusted CA signs it
-func (tc *TeleportClient) MakeKey() (key *Key, err error) {
-	key = &Key{}
-	keygen := native.New()
-	defer keygen.Close()
-	key.Priv, key.Pub, err = keygen.GenerateKeyPair("")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return key, nil
-}
-
-func (tc *TeleportClient) AddKey(host string, key *Key) (*CertAuthMethod, error) {
+func (tc *TeleportClient) AddKey(host string, key *Key) (*agent.AddedKey, error) {
 	return tc.localAgent.AddKey(host, tc.Username, key)
 }
 

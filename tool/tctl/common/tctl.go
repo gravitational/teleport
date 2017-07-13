@@ -24,7 +24,6 @@ import (
 	"net"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -33,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
@@ -90,16 +90,10 @@ type AuthCommand struct {
 	exportAuthorityFingerprint string
 	exportPrivateKeys          bool
 	output                     string
-	outputFormat               string
+	outputFormat               client.IdentityFileFormat
 	compatVersion              string
 	compatibility              string
 }
-
-const (
-	IdentityFormatFile    = "file"
-	IdentityFormatDir     = "dir"
-	DefaultIdentityFormat = IdentityFormatFile
-)
 
 type SAMLCommand struct {
 	config *service.Config
@@ -242,7 +236,7 @@ func Run() {
 	authSign := auth.Command("sign", "Create an identity file(s) for a given user")
 	authSign.Flag("user", "Teleport user name").Required().StringVar(&cmdAuth.genUser)
 	authSign.Flag("out", "identity output").Short('o').StringVar(&cmdAuth.output)
-	authSign.Flag("format", "identity format: 'file' (default) or 'dir'").Default(DefaultIdentityFormat).StringVar(&cmdAuth.outputFormat)
+	authSign.Flag("format", "identity format: 'file' (default) or 'dir'").Default(string(client.DefaultIdentityFormat)).StringVar((*string)(&cmdAuth.outputFormat))
 	authSign.Flag("ttl", "TTL (time to live) for the generated certificate").Default(fmt.Sprintf("%v", defaults.CertDuration)).DurationVar(&cmdAuth.genTTL)
 	authSign.Flag("compat", "OpenSSH compatibility flag").StringVar(&cmdAuth.compatibility)
 
@@ -740,82 +734,32 @@ func (a *AuthCommand) GenerateKeys() error {
 }
 
 // GenerateAndSignKeys generates a new keypair and signs it for role
-func (a *AuthCommand) GenerateAndSignKeys(client *auth.TunClient) error {
-	ca := native.New()
-	defer ca.Close()
-	privateKey, publicKey, err := ca.GenerateKeyPair("")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
+func (a *AuthCommand) GenerateAndSignKeys(clusterApi *auth.TunClient) error {
 	// parse compatibility parameter
 	compatibility, err := utils.CheckCompatibilityFlag(a.compatibility)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	cert, err := client.GenerateUserCert(publicKey, a.genUser, a.genTTL, compatibility)
+	// generate a keypair:
+	key, err := client.NewKey()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	switch a.outputFormat {
-	//
-	// dump user identity into a single file:
-	//
-	case IdentityFormatFile:
-		var (
-			output  io.Writer = os.Stdout
-			beQuiet bool      = true
-		)
-		if a.output != "" {
-			beQuiet = false
-			f, err := os.OpenFile(a.output, os.O_CREATE|os.O_WRONLY, 0600)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			output = f
-			defer f.Close()
-		}
-		// write key:
-		if _, err = output.Write(privateKey); err != nil {
-			return trace.Wrap(err)
-		}
-		// append cert:
-		if _, err = output.Write(cert); err != nil {
-			return trace.Wrap(err)
-		}
-		if !beQuiet {
-			fmt.Printf("Identity file: %s\n", a.output)
-		}
-	//
-	// dump user identity into separate files:
-	//
-	case IdentityFormatDir:
-		certPath := a.genUser + "-cert.pub"
-		keyPath := a.genUser
+	// sign it and produce a cert:
+	key.Cert, err = clusterApi.GenerateUserCert(key.Pub, a.genUser, a.genTTL, compatibility)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
-		// --out flag
-		if a.output != "" {
-			if !utils.IsDir(a.output) {
-				if err = os.MkdirAll(a.output, 0770); err != nil {
-					return trace.Wrap(err)
-				}
-			}
-			certPath = filepath.Join(a.output, certPath)
-			keyPath = filepath.Join(a.output, keyPath)
-		}
-
-		err = ioutil.WriteFile(certPath, cert, 0600)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		err = ioutil.WriteFile(keyPath, privateKey, 0600)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Private key: %v\nCertificate: %v\n", keyPath, certPath)
+	// write the cert+private key to the output:
+	err = client.MakeIdentityFile(a.genUser, a.output, key, a.outputFormat)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if a.output != "" {
+		fmt.Printf("\nThe certificate has been written to %s\n", a.output)
 	}
 	return nil
 }
