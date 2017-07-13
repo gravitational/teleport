@@ -376,7 +376,7 @@ func getDefaultEnvPath(uid string, loginDefsPath string) string {
 	// open file, if it doesn't exist return a default path and move on
 	f, err := os.Open(loginDefsPath)
 	if err != nil {
-		log.Warn("Unable to open %q: %v: returning default path: %q", loginDefsPath, err, defaultEnvPath)
+		log.Infof("Unable to open %q: %v: returning default path: %q", loginDefsPath, err, defaultEnvPath)
 		return defaultEnvPath
 	}
 	defer f.Close()
