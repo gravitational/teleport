@@ -402,7 +402,7 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 		}
 	}
 	if r.Spec.Allow.Namespaces == nil {
-		r.Spec.Allow.Namespaces = []string{defaults.Namespace}
+		r.Spec.Allow.Namespaces = []string{Wildcard}
 	}
 	if r.Spec.Allow.NodeLabels == nil {
 		r.Spec.Allow.NodeLabels = map[string]string{Wildcard: Wildcard}

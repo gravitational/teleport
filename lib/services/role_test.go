@@ -321,27 +321,31 @@ func (s *RoleSuite) TestCheckResourceAccess(c *C) {
 	}
 	testCases := []struct {
 		name   string
-		roles  []RoleV2
+		roles  []RoleV3
 		checks []check
 	}{
 		{
 			name:  "0 - empty role set has access to nothing",
-			roles: []RoleV2{},
+			roles: []RoleV3{},
 			checks: []check{
 				{resource: KindUser, action: ActionWrite, namespace: defaults.Namespace, hasAccess: false},
 			},
 		},
 		{
 			name: "1 - user can read sessions in default namespace",
-			roles: []RoleV2{
-				RoleV2{
+			roles: []RoleV3{
+				RoleV3{
 					Metadata: Metadata{
 						Name:      "name1",
 						Namespace: defaults.Namespace,
 					},
-					Spec: RoleSpecV2{
-						Namespaces: []string{defaults.Namespace},
-						Resources:  map[string][]string{KindSession: []string{ActionRead}},
+					Spec: RoleSpecV3{
+						Allow: RoleConditions{
+							Namespaces: []string{defaults.Namespace},
+							SystemResources: map[string][]string{
+								KindSession: []string{ActionRead},
+							},
+						},
 					},
 				},
 			},
@@ -350,28 +354,35 @@ func (s *RoleSuite) TestCheckResourceAccess(c *C) {
 				{resource: KindSession, action: ActionWrite, namespace: defaults.Namespace, hasAccess: false},
 			},
 		},
-		// 2
 		{
 			name: "1 - user can read sessions in system namespace and write stuff in default namespace",
-			roles: []RoleV2{
-				RoleV2{
+			roles: []RoleV3{
+				RoleV3{
 					Metadata: Metadata{
 						Name:      "name1",
 						Namespace: defaults.Namespace,
 					},
-					Spec: RoleSpecV2{
-						Namespaces: []string{"system"},
-						Resources:  map[string][]string{KindSession: []string{ActionRead}},
+					Spec: RoleSpecV3{
+						Allow: RoleConditions{
+							Namespaces: []string{"system"},
+							SystemResources: map[string][]string{
+								KindSession: []string{ActionRead},
+							},
+						},
 					},
 				},
-				RoleV2{
+				RoleV3{
 					Metadata: Metadata{
 						Name:      "name2",
 						Namespace: defaults.Namespace,
 					},
-					Spec: RoleSpecV2{
-						Namespaces: []string{defaults.Namespace},
-						Resources:  map[string][]string{KindSession: []string{ActionWrite, ActionRead}},
+					Spec: RoleSpecV3{
+						Allow: RoleConditions{
+							Namespaces: []string{defaults.Namespace},
+							SystemResources: map[string][]string{
+								KindSession: []string{ActionWrite, ActionRead},
+							},
+						},
 					},
 				},
 			},
@@ -382,11 +393,64 @@ func (s *RoleSuite) TestCheckResourceAccess(c *C) {
 				{resource: KindRole, action: ActionRead, namespace: defaults.Namespace, hasAccess: false},
 			},
 		},
+		{
+			name: "3 - deny rules override allow rules",
+			roles: []RoleV3{
+				RoleV3{
+					Metadata: Metadata{
+						Name:      "name1",
+						Namespace: defaults.Namespace,
+					},
+					Spec: RoleSpecV3{
+						Deny: RoleConditions{
+							Namespaces: []string{defaults.Namespace},
+							Rules: map[string][]string{
+								KindSession: []string{ActionWrite},
+							},
+						},
+						Allow: RoleConditions{
+							Namespaces: []string{defaults.Namespace},
+							Rules: map[string][]string{
+								KindSession: []string{ActionWrite},
+							},
+						},
+					},
+				},
+			},
+			checks: []check{
+				{resource: KindSession, action: ActionWrite, namespace: defaults.Namespace, hasAccess: false},
+			},
+		},
+		{
+			name: "4 - rules override system resources",
+			roles: []RoleV3{
+				RoleV3{
+					Metadata: Metadata{
+						Name:      "name1",
+						Namespace: defaults.Namespace,
+					},
+					Spec: RoleSpecV3{
+						Allow: RoleConditions{
+							Namespaces: []string{defaults.Namespace},
+							Rules: map[string][]string{
+								KindSession: []string{ActionWrite},
+							},
+							SystemResources: map[string][]string{
+								KindSession: []string{ActionRead},
+							},
+						},
+					},
+				},
+			},
+			checks: []check{
+				{resource: KindSession, action: ActionWrite, namespace: defaults.Namespace, hasAccess: true},
+			},
+		},
 	}
 	for i, tc := range testCases {
 		var set RoleSet
 		for i := range tc.roles {
-			set = append(set, tc.roles[i].V3())
+			set = append(set, &tc.roles[i])
 		}
 		for j, check := range tc.checks {
 			comment := Commentf("test case %v '%v', check %v", i, tc.name, j)
