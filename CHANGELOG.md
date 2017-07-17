@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.4
+
+#### Bug fixes
+
+* Fixed issue with remote tunnel timeouts. [#1140](https://github.com/gravitational/teleport/issues/1140).
+
 ## 2.2.3
 
 ### Bug fixes

@@ -160,6 +160,7 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 			User:            a.clientName,
 			Auth:            []ssh.AuthMethod{authMethod},
 			HostKeyCallback: a.hostKeyCallback,
+			Timeout:         defaults.DefaultDialTimeout,
 		})
 		if conn != nil {
 			break
