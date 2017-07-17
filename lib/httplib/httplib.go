@@ -25,6 +25,7 @@ import (
 	"net/url"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
@@ -40,6 +41,9 @@ type StdHandlerFunc func(w http.ResponseWriter, r *http.Request) (interface{}, e
 // MakeHandler returns a new httprouter.Handle func from a handler func
 func MakeHandler(fn HandlerFunc) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+		// ensure that niether proxies nor browsers cache http traffic
+		SetNoCacheHeaders(w.Header())
+
 		out, err := fn(w, r, p)
 		if err != nil {
 			trace.WriteError(w, err)
@@ -90,13 +94,43 @@ func ConvertResponse(re *roundtrip.Response, err error) (*roundtrip.Response, er
 	return re, trace.ReadError(re.Code(), re.Bytes())
 }
 
-// InsecureSetDevmodeHeaders allows cross-origin requests, used in dev mode only
-func InsecureSetDevmodeHeaders(w http.ResponseWriter) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, PUT, DELETE, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Accept, Origin, Content-type, Authorization")
-	w.Header().Set("Access-Control-Allow-Credentials", "true")
-	w.Header().Set("Access-Control-Max-Age", "1728000")
+// SetNoCacheHeaders tells proxies and browsers do not cache the content
+func SetNoCacheHeaders(h http.Header) {
+	h.Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	h.Set("Pragma", "no-cache")
+	h.Set("Expires", "0")
+}
+
+// SetIndexHTMLHeaders sets security header flags for main index.html page
+func SetIndexHTMLHeaders(h http.Header) {
+	// Disable caching
+	SetNoCacheHeaders(h)
+
+	// X-Frame-Options indicates that the page can only be displayed in iframe on the same origin as the page itself
+	h.Set("X-Frame-Options", "SAMEORIGIN")
+
+	// X-XSS-Protection is a feature of Internet Explorer, Chrome and Safari that stops pages
+	// from loading when they detect reflected cross-site scripting (XSS) attacks.
+	h.Set("X-XSS-Protection", "1; mode=block")
+
+	// Once a supported browser receives this header that browser will prevent any communications from
+	// being sent over HTTP to the specified domain and will instead send all communications over HTTPS.
+	// It also prevents HTTPS click through prompts on browsers
+	h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+
+	// Prevent web browsers from using content sniffing to discover a file’s MIME type
+	h.Set("X-Content-Type-Options", "nosniff")
+
+	// Set content policy flags
+	var cspValue = strings.Join([]string{
+		"script-src 'self'",
+		// 'unsafe-inline' needed for reactjs inline styles
+		"style-src 'self' 'unsafe-inline'",
+		"object-src 'none'",
+		"img-src 'self' data: blob:",
+	}, ";")
+
+	h.Set("Content-Security-Policy", cspValue)
 }
 
 // ParseBool will parse boolean variable from url query
