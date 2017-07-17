@@ -1,0 +1,43 @@
+{
+  "sessions": [
+    {
+      "id": "f60c4f1e-aedd-4fa6-8fe5-8068b49b17b4",
+      "parties": null,
+      "terminal_params": {
+        "w": 115,
+        "h": 34
+      },
+      "login": "akontsevoy",
+      "active": false,
+      "created": "2016-03-12T20:25:02.748578423Z",
+      "last_active": "2016-03-12T20:25:02.748578518Z"
+    },
+    {
+      "id": "11d76502-0ed7-470c-9ae2-472f3873fa6e",
+      "parties": [
+        {
+          "id": "66dfccf2-867f-4835-a337-8d5a241365ed",
+          "remote_addr": "127.0.0.1:60973",
+          "user": "user1",
+          "server_id": "ad2109a6-42ac-44e4-a570-5ce1b470f9b6",
+          "last_active": "2016-03-15T15:55:49.306916333-04:00"
+        },
+        {
+          "id": "66dfccf2-867f-4835-a337-8d5a241365e2",
+          "remote_addr": "127.0.0.1:60973",
+          "user": "user2",
+          "server_id": "ad2109a6-42ac-44e4-a570-5ce1b470f9b6",
+          "last_active": "2016-03-15T15:56:49.306916333-04:00"
+        }
+      ],
+      "terminal_params": {
+        "w": 114,
+        "h": 36
+      },
+      "login": "akontsevoy",
+      "active": true,
+      "created": "2016-03-15T19:55:49.251601013Z",
+      "last_active": "2016-03-15T19:55:49.251601164Z"
+    }
+  ]
+}

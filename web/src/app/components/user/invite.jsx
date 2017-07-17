@@ -20,7 +20,7 @@ import classnames from 'classnames';
 import { connect } from 'nuclear-js-react-addons';
 import cfg from 'app/config';
 import {actions, getters} from 'app/flux/user';
-import { Auth2faTypeEnum, AuthTypeEnum } from 'app/services/enums';
+import { Auth2faTypeEnum } from 'app/services/enums';
 import { ErrorPage, ErrorTypes } from './../msgPage';
 import { TeleportLogo } from './../icons.jsx';
 import GoogleAuthInfo from './googleAuthLogo';
@@ -45,8 +45,7 @@ export class Invite extends React.Component {
   }
 
   render() {
-    let {fetchingInvite, invite, attemp} = this.props;            
-    let authType = cfg.getAuthType();
+    let {fetchingInvite, invite, attemp} = this.props;                
     let auth2faType = cfg.getAuth2faType();
             
     if(fetchingInvite.isFailed){
@@ -67,8 +66,7 @@ export class Invite extends React.Component {
         <div className={containerClass}>
           <div className="grv-flex-column">
             <InviteInputForm              
-              auth2faType={auth2faType}
-              authType={authType}                
+              auth2faType={auth2faType}              
               attemp={attemp}
               invite={invite}              
               onSignupWithU2f={this.onSignupWithU2f}
@@ -145,16 +143,8 @@ export class InviteInputForm extends React.Component {
     var $form = $(this.refs.form);
     return $form.length === 0 || $form.valid();
   }
-  
-  needsCredentials() {
-    return this.props.authType === AuthTypeEnum.LOCAL || needs2fa(this.props.auth2faType);
-  }
-  
-  renderNameAndPassFields() {
-    if (!this.needsCredentials()) {
-      return null;
-    }
-
+      
+  renderNameAndPassFields() {    
     return (
       <div>
         <div className="form-group">
@@ -210,11 +200,7 @@ export class InviteInputForm extends React.Component {
   }
 
   renderSignupBtn() {    
-    let { isProcessing } = this.props.attemp;    
-    if (!this.needsCredentials()) {
-      return null;
-    }
-
+    let { isProcessing } = this.props.attemp;        
     let $helpBlock = isProcessing && this.props.auth2faType === Auth2faTypeEnum.UTF ? (
       <div className="help-block">
         Insert your U2F key and press the button on the key

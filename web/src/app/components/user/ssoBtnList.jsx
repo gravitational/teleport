@@ -1,6 +1,6 @@
 import React from 'react';
 import classnames from 'classnames';
-import { AuthProviderEnum, AuthTypeEnum } from 'app/services/enums';
+import { AuthProviderEnum, AuthProviderTypeEnum } from 'app/services/enums';
 
 const ProviderIcon = ({ provider }) => {
   let { name, type } = provider;
@@ -13,7 +13,7 @@ const ProviderIcon = ({ provider }) => {
   });
 
   // do not render any icon for unknown SAML providers
-  if (iconClass === 'fa' && type === AuthTypeEnum.SAML) {
+  if (iconClass === 'fa' && type === AuthProviderTypeEnum.SAML) {
     return null;
   }
   

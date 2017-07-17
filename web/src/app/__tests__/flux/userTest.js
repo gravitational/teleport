@@ -14,39 +14,40 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var { reactor, sampleData, expect, api, Dfd, spyOn } = require('./../');
-var {actions, getters} = require('app/flux/user');
-var {TLPT_RECEIVE_USER} =  require('app/flux/user/actionTypes');
+import { reactor,  expect, api, Dfd, spyOn } from './../';
+import { actions, getters } from 'app/flux/user';
+import {TLPT_RECEIVE_USER} from  'app/flux/user/actionTypes';
+import { user } from 'app/__tests__/apiData';
 
-describe('flux/user', function () {
+describe('flux/user', () => {
 
-  afterEach(function () {
+  afterEach(() => {
     reactor.reset()
   })
 
-  beforeEach( ()=> spyOn(api, 'get') );
+  beforeEach(() => spyOn(api, 'get') );
 
-  describe('getters', function () {
-    beforeEach(function () {
-      reactor.dispatch(TLPT_RECEIVE_USER, sampleData.user);
+  describe('getters', () => {
+    beforeEach(() => {
+      reactor.dispatch(TLPT_RECEIVE_USER, user);
     });
 
-    it('should return "user"', function () {
-      var expected = {"name":"alex", "shortDisplayName": "a"};
+    it('should return "user"', () => {
+      const expected = {"name":"alex", "shortDisplayName": "a"};
       expect(reactor.evaluateToJS(getters.user)).toEqual(expected);
     });
   });
 
-  describe('actions', function() {
-    let inviteToken = 'd82e9f81b3826801af8da16cde3335cbffcef5f7e9490e880b3fcc3f894efcfb';
-    let inviteInfoSample = {
+  describe('actions', () => {
+    const inviteToken = 'd82e9f81b3826801af8da16cde3335cbffcef5f7e9490e880b3fcc3f894efcfb';
+    const inviteInfoSample = {
       invite_token: inviteToken,
       qr: "iVBORw0KG",
       user: "dada"
     };
 
-    describe('fetchInvite', function() {
-      it('should handle loading state', function() {
+    describe('fetchInvite', () => {
+      it('should handle loading state', () => {
         api.get.andReturn(Dfd());        
         actions.fetchInvite(inviteToken)
         expect(reactor.evaluate(getters.fetchingInvite)).toEqual({
@@ -54,7 +55,7 @@ describe('flux/user', function () {
         });
       });
 
-      it('should handle failed state', function() {
+      it('should handle failed state', () => {
         let message = 'error message';
         api.get.andReturn(Dfd().reject({responseJSON: {message}}));
         actions.fetchInvite(inviteToken)
@@ -64,7 +65,7 @@ describe('flux/user', function () {
         });
       });
 
-      it('should handle success state', function() {
+      it('should handle success state', () => {
         api.get.andReturn(Dfd().resolve(inviteInfoSample));
         actions.fetchInvite(inviteToken)
         expect(reactor.evaluateToJS(getters.invite)).toEqual(inviteInfoSample);

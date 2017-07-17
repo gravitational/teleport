@@ -24,7 +24,7 @@ import cfg from 'app/config';
 import { ErrorMessage } from './items';
 import { TeleportLogo } from './../icons.jsx';
 import { SsoBtnList } from './ssoBtnList';
-import { Auth2faTypeEnum, AuthTypeEnum } from 'app/services/enums';
+import { Auth2faTypeEnum } from 'app/services/enums';
 
 export class Login extends React.Component {
   
@@ -42,8 +42,7 @@ export class Login extends React.Component {
   
   render() {  
     let {attemp} = this.props;
-    let authProviders = cfg.getAuthProviders();
-    let authType = cfg.getAuthType();
+    let authProviders = cfg.getAuthProviders();    
     let auth2faType = cfg.getAuth2faType();
         
     return (
@@ -53,8 +52,7 @@ export class Login extends React.Component {
           <div className="grv-flex-column">            
             <LoginInputForm
               authProviders={authProviders}  
-              auth2faType={auth2faType}
-              authType={authType}              
+              auth2faType={auth2faType}              
               onLoginWithSso={this.onLoginWithSso}
               onLoginWithU2f={this.onLoginWithU2f}
               onLogin={this.onLogin}              
@@ -69,6 +67,16 @@ export class Login extends React.Component {
 }
 
 export class LoginInputForm extends React.Component {
+
+  static propTypes = {  
+    authProviders: React.PropTypes.array,
+    auth2faType: React.PropTypes.string,    
+    onLoginWithSso: React.PropTypes.func.isRequired,
+    onLoginWithU2f: React.PropTypes.func.isRequired,
+    onLogin: React.PropTypes.func.isRequired,
+    attemp: React.PropTypes.object.isRequired
+  }
+
   constructor(props) {
     super(props)
     this.state = {      
@@ -108,13 +116,13 @@ export class LoginInputForm extends React.Component {
     var $form = $(this.refs.form);
     return $form.length === 0 || $form.valid();
   }
-
-  needsCredentials() {
-    return this.props.authType === AuthTypeEnum.LOCAL || this.needs2fa();
-  }
-
+  
   needs2fa() {
     return !!this.props.auth2faType && this.props.auth2faType !== Auth2faTypeEnum.DISABLED;
+  }
+
+  needsSso() {
+    return this.props.authProviders && this.props.authProviders.length > 0;    
   }
 
   render2faFields() {
@@ -135,11 +143,7 @@ export class LoginInputForm extends React.Component {
     )
   }
   
-  renderNameAndPassFields() {
-    if (!this.needsCredentials()) {
-      return null;
-    }
-
+  renderNameAndPassFields() {    
     return (
       <div>
         <div className="form-group">
@@ -165,11 +169,7 @@ export class LoginInputForm extends React.Component {
   }
 
   renderLoginBtn() {    
-    let { isProcessing } = this.props.attemp;    
-    if (!this.needsCredentials()) {
-      return null;
-    }
-
+    let { isProcessing } = this.props.attemp;        
     let $helpBlock = isProcessing && this.props.auth2faType === Auth2faTypeEnum.UTF ? (
       <div className="help-block">
         Insert your U2F key and press the button on the key
@@ -195,9 +195,8 @@ export class LoginInputForm extends React.Component {
   }
 
   renderSsoBtns() {    
-    let { authType, authProviders, attemp } = this.props;
-
-    if (authType !== AuthTypeEnum.OIDC && authType !== AuthTypeEnum.SAML) {
+    let { authProviders, attemp } = this.props;
+    if (!this.needsSso()) {
       return null;
     }
         
@@ -236,16 +235,6 @@ export class LoginInputForm extends React.Component {
       </div>
     );
   }
-}
-
-LoginInputForm.propTypes = {  
-  authProviders: React.PropTypes.array,
-  auth2faType: React.PropTypes.string,
-  authType: React.PropTypes.string,
-  onLoginWithSso: React.PropTypes.func.isRequired,
-  onLoginWithU2f: React.PropTypes.func.isRequired,
-  onLogin: React.PropTypes.func.isRequired,
-  attemp: React.PropTypes.object.isRequired
 }
 
 const LoginFooter = ({auth2faType}) => {

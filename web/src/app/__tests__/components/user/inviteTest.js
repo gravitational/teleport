@@ -1,3 +1,5 @@
+import * as enums from 'app/services/enums';
+import { InviteInputForm } from 'app/components/user/invite';
 import {
   ReactTestUtils,
   React,
@@ -6,10 +8,6 @@ import {
   expect,  
   reactor
 } from 'app/__tests__/';
-
-import enums from 'app/services/enums';
-
-import { InviteInputForm } from 'app/components/user/invite';
 
 let $node = $('<div>').appendTo("body");
 
@@ -21,9 +19,9 @@ describe('components/user/invite', () => {
     reactor.reset();
   })
   
-  it('should sign-up with AuthTypeEnum.LOCAL (basic)', () => {        
-    let props = getProps({
-      authType: enums.AuthTypeEnum.LOCAL
+  it('should sign-up with username and password', () => {        
+    let props = getProps({      
+      auth2faType: enums.Auth2faTypeEnum.DISABLED
     });
         
     render(props);        
@@ -36,8 +34,7 @@ describe('components/user/invite', () => {
   });    
 
   it('should sign-up with Auth2faTypeEnum.UTF', () => {                            
-    let props = getProps({
-      authType: enums.AuthTypeEnum.LOCAL,      
+    let props = getProps({      
       auth2faType: enums.Auth2faTypeEnum.UTF      
     });
     
@@ -52,8 +49,7 @@ describe('components/user/invite', () => {
   });    
 
   it('should sign-up with Auth2faTypeEnum.OTP', () => {                    
-    let props = getProps({
-      authType: enums.AuthTypeEnum.LOCAL,      
+    let props = getProps({      
       auth2faType: enums.Auth2faTypeEnum.OTP      
     });
     

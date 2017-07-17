@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import { formatPattern } from 'app/lib/patternUtils';
-import { AuthTypeEnum } from './services/enums';
+import { AuthProviderTypeEnum } from './services/enums';
 import $ from 'jQuery';
 
 let cfg = {
@@ -80,11 +80,11 @@ let cfg = {
     },
 
     getSsoUrl(redirect, providerName, providerType) {            
-      if (providerType === AuthTypeEnum.OIDC) {
+      if (providerType === AuthProviderTypeEnum.OIDC) {
         return cfg.baseUrl + formatPattern(cfg.api.ssoOidc, {redirect, providerName});  
       }
 
-      if (providerType === AuthTypeEnum.SAML) {
+      if (providerType === AuthProviderTypeEnum.SAML) {
         return cfg.baseUrl + formatPattern(cfg.api.ssoSaml, {redirect, providerName});  
       }          
 
@@ -138,17 +138,13 @@ let cfg = {
     let saml = cfg.auth && cfg.auth.saml ? [cfg.auth.saml] : [];  
     // create provider objects
     let providers = [
-      ...oidc.map(createProvider(AuthTypeEnum.OIDC)),
-      ...saml.map(createProvider(AuthTypeEnum.SAML))
+      ...oidc.map(createProvider(AuthProviderTypeEnum.OIDC)),
+      ...saml.map(createProvider(AuthProviderTypeEnum.SAML))
     ];
-
+    
     return providers;
   },
-  
-  getAuthType() {
-    return cfg.auth ? cfg.auth.type : null;
-  },
-
+    
   getAuth2faType() {
     return cfg.auth ? cfg.auth.second_factor : null; 
   },

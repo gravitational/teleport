@@ -54,6 +54,11 @@ module.exports = {
 
   loaders: {
 
+    json:{       
+      test: /\.json$/,
+      loader: 'json-loader'      
+    },
+
     svg: {
       test: /\.svg$/,
       loader: 'svg-sprite'

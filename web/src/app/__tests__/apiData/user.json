@@ -1,0 +1,4 @@
+{
+  "name":"alex",
+  "allowed_logins":["admin","bob"]
+}

@@ -14,37 +14,38 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var { sampleData, reactor, expect, Dfd, spyOn, api } = require('./../');
-var { getters, actions } = require('app/flux/nodes');
-var { setSiteId } = require('app/flux/app/actions');
+import { reactor, expect, Dfd, spyOn, api } from './../';
+import { getters, actions } from 'app/flux/nodes';
+import { setSiteId } from 'app/flux/app/actions';
+import { nodes } from 'app/__tests__/apiData'
 
-describe('flux/nodes', function () {
-  let siteid = 'siteid123';
+describe('flux/nodes', () => {
+  const siteid = 'siteid123';
+  const serverId = 'ad2109a6-42ac-44e4-a570-5ce1b470f9b6';
   
   beforeEach(() => {
     setSiteId(siteid);  
     spyOn(api, 'get');
   });
 
-  afterEach(function() {
+  afterEach(() => {
     reactor.reset()
     expect.restoreSpies();
   })
 
-  describe('getters and actions', function() {
-    beforeEach(function() {
-      api.get.andReturn(Dfd().resolve(sampleData.nodes));
+  describe('getters and actions', () => {
+    beforeEach(() => {
+      api.get.andReturn(Dfd().resolve(nodes));
       actions.fetchNodes();
     });
 
-    it('should get "nodeListView"', function () {      
-      var expected = [{"id":"ad2109a6-42ac-44e4-a570-5ce1b470f9b6","siteId": "siteid123", "hostname":"x220","tags":[{"role":"role","value":"mysql"},{"role":"db_status","value":"master","tooltip":"mysql -c status"}],"addr":"0.0.0.0:3022"}];
+    it('should get "nodeListView"', () => {      
+      const expected = [{"id":"ad2109a6-42ac-44e4-a570-5ce1b470f9b6","siteId": "siteid123", "hostname":"x220","tags":[{"role":"role","value":"mysql"},{"role":"db_status","value":"master","tooltip":"mysql -c status"}],"addr":"0.0.0.0:3022"}];
       expect(reactor.evaluateToJS(getters.nodeListView)).toEqual(expected);
     });
 
-    it('should get "nodeHostNameByServerId"', function() {
-      var id = sampleData.ids.serverIds[0];
-      expect(reactor.evaluateToJS(getters.nodeHostNameByServerId(id))).toEqual('x220');
+    it('should get "nodeHostNameByServerId"', () => {      
+      expect(reactor.evaluateToJS(getters.nodeHostNameByServerId(serverId))).toEqual('x220');
     });
   });
 })

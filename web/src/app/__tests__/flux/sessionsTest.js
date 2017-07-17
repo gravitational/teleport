@@ -14,31 +14,31 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var { sampleData, reactor, expect, Dfd, cfg, spyOn, api } = require('./../');
-var {actions, getters} = require('app/flux/sessions');
-var { setSiteId } = require('app/flux/app/actions');
+import { reactor, expect, Dfd, cfg, spyOn, api } from './../';
+import {actions, getters} from 'app/flux/sessions';
+import { setSiteId } from 'app/flux/app/actions';
+import { activeSessions } from 'app/__tests__/apiData'
 
-describe('flux/sessions', function () {
-  let siteid = 'siteid123';
+describe('flux/sessions', () => {
+  const siteid = 'siteid123';
 
   beforeEach(() => {
     setSiteId(siteid);  
     spyOn(api, 'get').andReturn(Dfd())
   });
 
-  afterEach(function () {
+  afterEach(() => {
     reactor.reset()
     expect.restoreSpies();
   })
 
-  describe('actions', function () {
-    describe('fetchActiveSessions', function () {
-
-      it('should fetch based on the input params', function () {  
+  describe('actions', () => {
+    describe('fetchActiveSessions', () => {
+      it('should fetch based on the input params', () => {  
         spyOn(cfg.api, 'getFetchSessionsUrl');
         actions.fetchActiveSessions();
 
-        let [actualSiteId] = cfg.api.getFetchSessionsUrl.calls[0].arguments;
+        const [actualSiteId] = cfg.api.getFetchSessionsUrl.calls[0].arguments;
         expect(api.get.calls.length).toBe(1);
         expect(actualSiteId).toBe(siteid);                
       })
@@ -46,17 +46,18 @@ describe('flux/sessions', function () {
     });
   });
 
-  describe('getters', function () {
-    beforeEach(function () {
+  describe('getters', () => {
+    const sid = '11d76502-0ed7-470c-9ae2-472f3873fa6e';
+
+    beforeEach(() => {
       spyOn(api, 'get');
     });
 
-    it('should get "activeSessionById"', function () {
-      api.get.andReturn(Dfd().resolve(sampleData.sessions));
-      actions.fetchActiveSessions();
-      var sid = sampleData.ids.sids[1];
-      var actual = reactor.evaluate(getters.activeSessionById(sid));
-      var expected = {
+    it('should get "activeSessionById"', () => {            
+      api.get.andReturn(Dfd().resolve(activeSessions));
+      actions.fetchActiveSessions();      
+      const actual = reactor.evaluateToJS(getters.activeSessionById(sid));
+      const expected = {
         'id': '11d76502-0ed7-470c-9ae2-472f3873fa6e',
         'login': 'akontsevoy',
         'namespace': undefined,
@@ -78,8 +79,7 @@ describe('flux/sessions', function () {
           }
         ]
       }
-      
-      actual = actual.toJS();      
+            
       expect(actual).toEqual(expected);
     });    
   });
