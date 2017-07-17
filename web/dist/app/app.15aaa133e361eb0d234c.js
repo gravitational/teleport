@@ -1251,11 +1251,11 @@ webpackJsonp([0],[
 	      return (0, _patternUtils.formatPattern)(cfg.api.siteSessionPath, { siteId: siteId });
 	    },
 	    getSsoUrl: function getSsoUrl(redirect, providerName, providerType) {
-	      if (providerType === _enums.AuthTypeEnum.OIDC) {
+	      if (providerType === _enums.AuthProviderTypeEnum.OIDC) {
 	        return cfg.baseUrl + (0, _patternUtils.formatPattern)(cfg.api.ssoOidc, { redirect: redirect, providerName: providerName });
 	      }
 
-	      if (providerType === _enums.AuthTypeEnum.SAML) {
+	      if (providerType === _enums.AuthProviderTypeEnum.SAML) {
 	        return cfg.baseUrl + (0, _patternUtils.formatPattern)(cfg.api.ssoSaml, { redirect: redirect, providerName: providerName });
 	      }
 
@@ -1321,12 +1321,9 @@ webpackJsonp([0],[
 	    var oidc = cfg.auth && cfg.auth.oidc ? [cfg.auth.oidc] : [];
 	    var saml = cfg.auth && cfg.auth.saml ? [cfg.auth.saml] : [];
 	    // create provider objects
-	    var providers = [].concat(oidc.map(createProvider(_enums.AuthTypeEnum.OIDC)), saml.map(createProvider(_enums.AuthTypeEnum.SAML)));
+	    var providers = [].concat(oidc.map(createProvider(_enums.AuthProviderTypeEnum.OIDC)), saml.map(createProvider(_enums.AuthProviderTypeEnum.SAML)));
 
 	    return providers;
-	  },
-	  getAuthType: function getAuthType() {
-	    return cfg.auth ? cfg.auth.type : null;
 	  },
 	  getAuth2faType: function getAuth2faType() {
 	    return cfg.auth ? cfg.auth.second_factor : null;
@@ -1378,28 +1375,23 @@ webpackJsonp([0],[
 	'use strict';
 
 	exports.__esModule = true;
-	exports.default = {
-	  AuthTypeEnum: {
-	    LOCAL: 'local',
-	    OIDC: 'oidc',
-	    SAML: 'saml',
-	    LDAP: 'ldap'
-	  },
-
-	  Auth2faTypeEnum: {
-	    UTF: 'u2f',
-	    OTP: 'otp',
-	    DISABLED: 'off'
-	  },
-
-	  AuthProviderEnum: {
-	    GOOGLE: 'google',
-	    MS: 'microsoft',
-	    GITHUB: 'github',
-	    BITBUCKET: 'bitbucket'
-	  }
+	var AuthProviderTypeEnum = exports.AuthProviderTypeEnum = {
+	  OIDC: 'oidc',
+	  SAML: 'saml'
 	};
-	module.exports = exports['default'];
+
+	var Auth2faTypeEnum = exports.Auth2faTypeEnum = {
+	  UTF: 'u2f',
+	  OTP: 'otp',
+	  DISABLED: 'off'
+	};
+
+	var AuthProviderEnum = exports.AuthProviderEnum = {
+	  GOOGLE: 'google',
+	  MS: 'microsoft',
+	  GITHUB: 'github',
+	  BITBUCKET: 'bitbucket'
+	};
 
 /***/ },
 /* 230 */,
@@ -1746,9 +1738,9 @@ webpackJsonp([0],[
 	      siteId = siteId || masterSiteId;
 	      _reactor2.default.dispatch(_actionTypes.TLPT_APP_SET_SITE_ID, siteId);
 	      // fetch nodes and active sessions 
-	      return _jQuery2.default.when((0, _actions4.fetchNodes)(), (0, _actions6.fetchActiveSessions)()).done(function () {
-	        _actions3.default.success(_constants.TRYING_TO_INIT_APP);
-	      });
+	      return _jQuery2.default.when((0, _actions4.fetchNodes)(), (0, _actions6.fetchActiveSessions)());
+	    }).done(function () {
+	      _actions3.default.success(_constants.TRYING_TO_INIT_APP);
 	    }).fail(function (err) {
 	      var msg = _api2.default.getErrorText(err);
 	      _actions3.default.fail(_constants.TRYING_TO_INIT_APP, msg);
@@ -5026,7 +5018,6 @@ webpackJsonp([0],[
 	    var attemp = this.props.attemp;
 
 	    var authProviders = _config2.default.getAuthProviders();
-	    var authType = _config2.default.getAuthType();
 	    var auth2faType = _config2.default.getAuth2faType();
 
 	    return _react2.default.createElement(
@@ -5042,7 +5033,6 @@ webpackJsonp([0],[
 	          _react2.default.createElement(LoginInputForm, {
 	            authProviders: authProviders,
 	            auth2faType: auth2faType,
-	            authType: authType,
 	            onLoginWithSso: this.onLoginWithSso,
 	            onLoginWithU2f: this.onLoginWithU2f,
 	            onLogin: this.onLogin,
@@ -5111,12 +5101,12 @@ webpackJsonp([0],[
 	    return $form.length === 0 || $form.valid();
 	  };
 
-	  LoginInputForm.prototype.needsCredentials = function needsCredentials() {
-	    return this.props.authType === _enums.AuthTypeEnum.LOCAL || this.needs2fa();
-	  };
-
 	  LoginInputForm.prototype.needs2fa = function needs2fa() {
 	    return !!this.props.auth2faType && this.props.auth2faType !== _enums.Auth2faTypeEnum.DISABLED;
+	  };
+
+	  LoginInputForm.prototype.needsSso = function needsSso() {
+	    return this.props.authProviders && this.props.authProviders.length > 0;
 	  };
 
 	  LoginInputForm.prototype.render2faFields = function render2faFields() {
@@ -5143,10 +5133,6 @@ webpackJsonp([0],[
 
 	  LoginInputForm.prototype.renderNameAndPassFields = function renderNameAndPassFields() {
 	    var _this4 = this;
-
-	    if (!this.needsCredentials()) {
-	      return null;
-	    }
 
 	    return _react2.default.createElement(
 	      'div',
@@ -5183,10 +5169,6 @@ webpackJsonp([0],[
 	  LoginInputForm.prototype.renderLoginBtn = function renderLoginBtn() {
 	    var isProcessing = this.props.attemp.isProcessing;
 
-	    if (!this.needsCredentials()) {
-	      return null;
-	    }
-
 	    var $helpBlock = isProcessing && this.props.auth2faType === _enums.Auth2faTypeEnum.UTF ? _react2.default.createElement(
 	      'div',
 	      { className: 'help-block' },
@@ -5213,12 +5195,10 @@ webpackJsonp([0],[
 
 	  LoginInputForm.prototype.renderSsoBtns = function renderSsoBtns() {
 	    var _props = this.props,
-	        authType = _props.authType,
 	        authProviders = _props.authProviders,
 	        attemp = _props.attemp;
 
-
-	    if (authType !== _enums.AuthTypeEnum.OIDC && authType !== _enums.AuthTypeEnum.SAML) {
+	    if (!this.needsSso()) {
 	      return null;
 	    }
 
@@ -5272,12 +5252,12 @@ webpackJsonp([0],[
 	LoginInputForm.propTypes = {
 	  authProviders: _react2.default.PropTypes.array,
 	  auth2faType: _react2.default.PropTypes.string,
-	  authType: _react2.default.PropTypes.string,
 	  onLoginWithSso: _react2.default.PropTypes.func.isRequired,
 	  onLoginWithU2f: _react2.default.PropTypes.func.isRequired,
 	  onLogin: _react2.default.PropTypes.func.isRequired,
 	  attemp: _react2.default.PropTypes.object.isRequired
 	};
+
 
 	var LoginFooter = function LoginFooter(_ref) {
 	  var auth2faType = _ref.auth2faType;
@@ -5702,7 +5682,7 @@ webpackJsonp([0],[
 	  });
 
 	  // do not render any icon for unknown SAML providers
-	  if (iconClass === 'fa' && type === _enums.AuthTypeEnum.SAML) {
+	  if (iconClass === 'fa' && type === _enums.AuthProviderTypeEnum.SAML) {
 	    return null;
 	  }
 
@@ -5881,7 +5861,6 @@ webpackJsonp([0],[
 	        invite = _props.invite,
 	        attemp = _props.attemp;
 
-	    var authType = _config2.default.getAuthType();
 	    var auth2faType = _config2.default.getAuth2faType();
 
 	    if (fetchingInvite.isFailed) {
@@ -5908,7 +5887,6 @@ webpackJsonp([0],[
 	          { className: 'grv-flex-column' },
 	          _react2.default.createElement(InviteInputForm, {
 	            auth2faType: auth2faType,
-	            authType: authType,
 	            attemp: attemp,
 	            invite: invite,
 	            onSignupWithU2f: this.onSignupWithU2f,
@@ -5999,16 +5977,8 @@ webpackJsonp([0],[
 	    return $form.length === 0 || $form.valid();
 	  };
 
-	  InviteInputForm.prototype.needsCredentials = function needsCredentials() {
-	    return this.props.authType === _enums.AuthTypeEnum.LOCAL || needs2fa(this.props.auth2faType);
-	  };
-
 	  InviteInputForm.prototype.renderNameAndPassFields = function renderNameAndPassFields() {
 	    var _this3 = this;
-
-	    if (!this.needsCredentials()) {
-	      return null;
-	    }
 
 	    return _react2.default.createElement(
 	      'div',
@@ -6083,10 +6053,6 @@ webpackJsonp([0],[
 
 	  InviteInputForm.prototype.renderSignupBtn = function renderSignupBtn() {
 	    var isProcessing = this.props.attemp.isProcessing;
-
-	    if (!this.needsCredentials()) {
-	      return null;
-	    }
 
 	    var $helpBlock = isProcessing && this.props.auth2faType === _enums.Auth2faTypeEnum.UTF ? _react2.default.createElement(
 	      'div',
