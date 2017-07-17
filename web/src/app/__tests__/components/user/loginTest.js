@@ -1,3 +1,5 @@
+import * as enums from 'app/services/enums';
+import { LoginInputForm } from 'app/components/user/login';
 import {
   ReactTestUtils,
   React,
@@ -7,16 +9,12 @@ import {
   reactor
 } from 'app/__tests__/';
 
-import enums from 'app/services/enums';
-
-import { LoginInputForm } from 'app/components/user/login';
-
 let $node = $('<div>').appendTo("body");
 
 describe('components/user/login', () => {
 
-  const oidcSsoProvider = { name: enums.AuthProviderEnum.MS, type: enums.AuthTypeEnum.OIDC };
-  const samlSsoProvider = { name: enums.AuthProviderEnum.MS, type: enums.AuthTypeEnum.SAML };
+  const oidcSsoProvider = { name: enums.AuthProviderEnum.MS, type: enums.AuthProviderTypeEnum.OIDC };
+  const samlSsoProvider = { name: enums.AuthProviderEnum.MS, type: enums.AuthProviderTypeEnum.SAML };
 
   afterEach(function () {
     ReactDOM.unmountComponentAtNode($node[0]);
@@ -24,15 +22,14 @@ describe('components/user/login', () => {
     reactor.reset();
   })
   
-  it('should login using AuthTypeEnum.LOCAL', () => {        
-    let props = getProps({
-      authType: enums.AuthTypeEnum.LOCAL
+  it('should login using username and password', () => {        
+    let props = getProps({      
+      auth2faType: enums.Auth2faTypeEnum.DISABLED
     });
 
     render(<LoginInputForm { ...props } />);    
     
-    let expected = ['email@email', '123456', ''];
-        
+    let expected = ['email@email', '123456', ''];        
     setValues(...expected);    
     clickLogin();    
     expectNInputs(3);
@@ -40,8 +37,7 @@ describe('components/user/login', () => {
   });    
 
   it('should login with Auth2faTypeEnum.UTF', () => {                        
-    let props = getProps({
-      authType: enums.AuthTypeEnum.OIDC,      
+    let props = getProps({      
       auth2faType: enums.Auth2faTypeEnum.UTF      
     });
     
@@ -56,8 +52,7 @@ describe('components/user/login', () => {
   });    
 
   it('should login with Auth2faTypeEnum.OTP', () => {                    
-    let props = getProps({
-      authType: enums.AuthTypeEnum.LOCAL,      
+    let props = getProps({      
       auth2faType: enums.Auth2faTypeEnum.OTP      
     });
     
@@ -71,35 +66,31 @@ describe('components/user/login', () => {
     expect(props.onLogin).toHaveBeenCalledWith(...expected);    
   });    
 
-  it('should login with AuthTypeEnum.OIDC', () => {                
-    let props = getProps({
-      authType: enums.AuthTypeEnum.OIDC,
+  it('should login with OIDC', () => {                
+    let props = getProps({      
       authProviders: [oidcSsoProvider]
     });
 
     render(<LoginInputForm { ...props } />);    
                 
     $node.find(".btn-microsoft").click();    
-    expectNInputs(1);
+    expectNInputs(4);
     expect(props.onLoginWithSso).toHaveBeenCalledWith(oidcSsoProvider);    
   });    
 
-  it('should login with AuthTypeEnum.SAML', () => {                
-    let props = getProps({
-      authType: enums.AuthTypeEnum.SAML,
+  it('should login with SAML', () => {                
+    let props = getProps({      
       authProviders: [samlSsoProvider]
     });
 
-    render(<LoginInputForm { ...props } />);    
-                
-    $node.find(".btn-microsoft").click();    
-    expectNInputs(1);
+    render(<LoginInputForm { ...props } />);        
+    $node.find(".btn-microsoft").click();        
+    expectNInputs(4);
     expect(props.onLoginWithSso).toHaveBeenCalledWith(samlSsoProvider);    
   });    
   
-  it('should render AuthTypeEnum.OIDC and Auth2faTypeEnum.OTP', () => {                    
-    let props = getProps({
-      authType: enums.AuthTypeEnum.OIDC,
+  it('should render OIDC and Auth2faTypeEnum.OTP', () => {                    
+    let props = getProps({      
       authProviders: [oidcSsoProvider],
       auth2faType: enums.Auth2faTypeEnum.OTP      
     });
@@ -116,9 +107,8 @@ describe('components/user/login', () => {
     expect(props.onLogin).toHaveBeenCalledWith(...expected);    
   });    
 
-  it('should render AuthTypeEnum.SAML and Auth2faTypeEnum.UTF', () => {                    
-    let props = getProps({
-      authType: enums.AuthTypeEnum.SAML,
+  it('should render SAML and Auth2faTypeEnum.UTF', () => {                    
+    let props = getProps({      
       authProviders: [samlSsoProvider],
       auth2faType: enums.Auth2faTypeEnum.UTF      
     });

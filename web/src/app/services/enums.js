@@ -1,21 +1,17 @@
-export default {
-  AuthTypeEnum: {
-    LOCAL: 'local',
-    OIDC: 'oidc',
-    SAML: 'saml',
-    LDAP: 'ldap'
-  },
+export const AuthProviderTypeEnum = {
+  OIDC: 'oidc',
+  SAML: 'saml'
+}
 
-  Auth2faTypeEnum: {
-    UTF: 'u2f',
-    OTP: 'otp',
-    DISABLED: 'off'
-  },
-  
-  AuthProviderEnum: {
-    GOOGLE: 'google',
-    MS: 'microsoft',
-    GITHUB: 'github',
-    BITBUCKET: 'bitbucket'
-  }
+export const Auth2faTypeEnum = {
+  UTF: 'u2f',
+  OTP: 'otp',
+  DISABLED: 'off'
+}
+
+export const AuthProviderEnum = {
+  GOOGLE: 'google',
+  MS: 'microsoft',
+  GITHUB: 'github',
+  BITBUCKET: 'bitbucket'
 }

@@ -47,9 +47,10 @@ const actions = {
         siteId = siteId || masterSiteId;
         reactor.dispatch(TLPT_APP_SET_SITE_ID, siteId);
         // fetch nodes and active sessions 
-        return $.when(fetchNodes(), fetchActiveSessions()).done(() => {
-          restApiActions.success(TRYING_TO_INIT_APP);                                  
-        })                
+        return $.when(fetchNodes(), fetchActiveSessions());
+      })
+      .done(() => {
+        restApiActions.success(TRYING_TO_INIT_APP);                                  
       })
       .fail(err => {        
         let msg = api.getErrorText(err);                
@@ -62,7 +63,7 @@ const actions = {
     fetchActiveSessions();          
     fetchNodes();  
   },
-
+  
   fetchSites(){
     return api.get(cfg.api.sitesBasePath)
       .then(json => {

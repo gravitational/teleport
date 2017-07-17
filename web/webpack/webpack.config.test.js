@@ -17,10 +17,11 @@ limitations under the License.
 var baseCfg = require('./webpack.base');
 
 var config = {
-  devtool: 'inline-source-map',
+  //devtool: 'inline-source-map',
   resolve: baseCfg.resolve,
   module: {
     loaders: [
+      baseCfg.loaders.json,
       { test: /\.(js|jsx)$/, exclude: /node_modules/, loader: 'babel' },
       { test: /\.(svg|scss)$/, exclude: /node_modules/, loader: 'ignore-loader' }
     ]
