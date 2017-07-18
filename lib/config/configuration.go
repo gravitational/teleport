@@ -474,7 +474,7 @@ func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (services.CertAut
 
 	// transform old allowed logins into roles
 	role := services.RoleForCertAuthority(ca)
-	role.SetLogins(allowedLogins)
+	role.SetLogins(services.Allow, allowedLogins)
 	ca.AddRole(role.GetName())
 
 	return ca, role, nil

@@ -411,7 +411,7 @@ func (c *CommandLabels) SetEnv(v string) error {
 // GetServerSchema returns role schema with optionally injected
 // schema for extensions
 func GetServerSchema() string {
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, ServerSpecV2Schema)
+	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, ServerSpecV2Schema, DefaultDefinitions)
 }
 
 // UnmarshalServerResource unmarshals role from JSON or YAML,

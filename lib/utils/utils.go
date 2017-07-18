@@ -33,15 +33,6 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-func CopyStrings(in []string) []string {
-	if in == nil {
-		return nil
-	}
-	out := make([]string, len(in))
-	copy(out, in)
-	return out
-}
-
 type HostKeyCallback func(hostID string, remote net.Addr, key ssh.PublicKey) error
 
 func ReadPath(path string) ([]byte, error) {

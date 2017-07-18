@@ -320,7 +320,7 @@ func (o *SAMLConnectorV2) Equals(other SAMLConnector) bool {
 		if (a.RoleTemplate != nil && b.RoleTemplate == nil) || (a.RoleTemplate == nil && b.RoleTemplate != nil) {
 			return false
 		}
-		if a.RoleTemplate != nil && !a.RoleTemplate.Equals(b.RoleTemplate) {
+		if a.RoleTemplate != nil && !a.RoleTemplate.Equals(b.RoleTemplate.V3()) {
 			return false
 		}
 	}
@@ -516,7 +516,7 @@ func (o *SAMLConnectorV2) RoleFromTemplate(assertionInfo saml2.AssertionInfo) (R
 					return nil, trace.Wrap(err)
 				}
 
-				return roleTemplate, nil
+				return roleTemplate.V3(), nil
 			}
 		}
 	}
@@ -788,7 +788,7 @@ var AttributeMappingSchema = fmt.Sprintf(`{
     },
     "role_template": %v
   }
-}`, GetRoleSchema(""))
+}`, GetRoleSchema(V2, ""))
 
 // SigningKeyPairSchema
 var SigningKeyPairSchema = `{

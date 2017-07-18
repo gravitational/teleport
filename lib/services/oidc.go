@@ -451,7 +451,7 @@ func (o *OIDCConnectorV2) RoleFromTemplate(claims jose.Claims) (Role, error) {
 					return nil, trace.Wrap(err)
 				}
 
-				return roleTemplate, nil
+				return roleTemplate.V3(), nil
 			}
 		}
 	}
@@ -602,7 +602,7 @@ var ClaimMappingSchema = fmt.Sprintf(`{
     },
     "role_template": %v
   }
-}`, GetRoleSchema(""))
+}`, GetRoleSchema(V2, ""))
 
 // OIDCConnectorV1 specifies configuration for Open ID Connect compatible external
 // identity provider, e.g. google in some organisation
