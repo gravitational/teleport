@@ -44,6 +44,10 @@ type User interface {
 	GetRawObject() interface{}
 	// WebSessionInfo returns web session information about user
 	WebSessionInfo(allowedLogins []string) interface{}
+	// GetTraits gets the trait map for this user used to populate role variables.
+	GetTraits() map[string][]string
+	// GetTraits sets the trait map for this user used to populate role variables.
+	SetTraits(map[string][]string)
 }
 
 // NewUser creates new empty user
@@ -212,6 +216,16 @@ func (u *UserV2) WebSessionInfo(allowedLogins []string) interface{} {
 	return *out
 }
 
+// GetTraits gets the trait map for this user used to populate role variables.
+func (u *UserV2) GetTraits() map[string][]string {
+	return u.Spec.Traits
+}
+
+// SetTraits sets the trait map for this user used to populate role variables.
+func (u *UserV2) SetTraits(traits map[string][]string) {
+	u.Spec.Traits = traits
+}
+
 // UserSpecV2 is a specification for V2 user
 type UserSpecV2 struct {
 	// OIDCIdentities lists associated OpenID Connect identities
@@ -224,6 +238,11 @@ type UserSpecV2 struct {
 
 	// Roles is a list of roles assigned to user
 	Roles []string `json:"roles,omitempty"`
+
+	// Traits are key/value pairs received from an identity provider (through
+	// OIDC claims or SAML assertions) or from a system administrator for local
+	// accounts. Traits are used to populate role variables.
+	Traits map[string][]string `json:"traits,omitempty"`
 
 	// Status is a login status of the user
 	Status LoginStatus `json:"status"`
@@ -261,6 +280,12 @@ const UserSpecV2SchemaTemplate = `{
       "type": "array",
       "items": {
         "type": "string"
+      }
+    },
+    "traits": {
+      "type": "object",
+      "patternProperties": {
+        "^[a-zA-Z/.0-9_]$":  { "type": "array", "items": {"type": "string"} }
       }
     },
     "oidc_identities": {

@@ -503,7 +503,8 @@ func (s *Server) checkPermissionToLogin(cert *ssh.Certificate, teleportUser, osU
 		}
 		for _, u := range users {
 			if u.GetName() == teleportUser {
-				roles, err = services.FetchRoles(u.GetRoles(), s.authService)
+				// pass along the traits so we get the substituted roles for this user
+				roles, err = services.FetchRoles(u.GetRoles(), s.authService, u.GetTraits())
 				if err != nil {
 					return "", trace.Wrap(err)
 				}
@@ -520,7 +521,9 @@ func (s *Server) checkPermissionToLogin(cert *ssh.Certificate, teleportUser, osU
 			log.Errorf("failed to map roles %v", err)
 			return "", trace.AccessDenied("failed to map roles")
 		}
-		roles, err = services.FetchRoles(roleNames, s.authService)
+		// pass nil for the traits as we don't want to allow substitution into
+		// someone elses cluster
+		roles, err = services.FetchRoles(roleNames, s.authService, nil)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
@@ -565,14 +568,14 @@ func (s *Server) fetchRoleSet(teleportUser string, clusterName string) (services
 		}
 		for _, u := range users {
 			if u.GetName() == teleportUser {
-				roles, err = services.FetchRoles(u.GetRoles(), s.authService)
+				roles, err = services.FetchRoles(u.GetRoles(), s.authService, u.GetTraits())
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
 			}
 		}
 	} else {
-		roles, err = services.FetchRoles(ca.GetRoles(), s.authService)
+		roles, err = services.FetchRoles(ca.GetRoles(), s.authService, nil)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

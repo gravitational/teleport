@@ -380,7 +380,7 @@ func (a *AuthWithRoles) GenerateUserCert(key []byte, username string, ttl time.D
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		checker, err = services.FetchRoles(user.GetRoles(), a.authServer)
+		checker, err = services.FetchRoles(user.GetRoles(), a.authServer, user.GetTraits())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -123,7 +123,7 @@ func (a *authorizer) authorizeRemoteUser(u teleport.RemoteUser) (*AuthContext, e
 	if err != nil {
 		return nil, trace.AccessDenied("failed to map roles for remote user %v from cluster %v", u.Username, u.ClusterName)
 	}
-	checker, err := services.FetchRoles(roleNames, a.access)
+	checker, err := services.FetchRoles(roleNames, a.access, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -284,7 +284,7 @@ func contextForLocalUser(username string, identity services.Identity, access ser
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.FetchRoles(user.GetRoles(), access)
+	checker, err := services.FetchRoles(user.GetRoles(), access, user.GetTraits())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

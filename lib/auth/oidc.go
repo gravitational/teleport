@@ -164,7 +164,7 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 		return nil, trace.OAuth2(
 			oauth2.ErrorUnsupportedResponseType, "unable to convert claims to identity", q)
 	}
-	log.Debugf("[IDENTITY] %q expires at: %v", ident.Email, ident.ExpiresAt)
+	log.Debugf("[OIDC] %q expires at: %v", ident.Email, ident.ExpiresAt)
 
 	response := &OIDCAuthResponse{
 		Identity: services.ExternalIdentity{ConnectorID: connector.GetName(), Username: ident.Email},
@@ -190,7 +190,7 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 	response.Username = user.GetName()
 
 	var roles services.RoleSet
-	roles, err = services.FetchRoles(user.GetRoles(), a.Access)
+	roles, err = services.FetchRoles(user.GetRoles(), a.Access, user.GetTraits())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -283,13 +283,34 @@ func (a *AuthServer) buildRoles(connector services.OIDCConnector, ident *oidc.Id
 	return roles, nil
 }
 
+// claimsToTraitMap extracts all string claims and creates a map of traits
+// that can be used to populate role variables.
+func claimsToTraitMap(claims jose.Claims) map[string][]string {
+	traits := make(map[string][]string)
+
+	for claimName := range claims {
+		claimValue, ok, _ := claims.StringClaim(claimName)
+		if ok {
+			traits[claimName] = []string{claimValue}
+		}
+		claimValues, ok, _ := claims.StringsClaim(claimName)
+		if ok {
+			traits[claimName] = claimValues
+		}
+	}
+
+	return traits
+}
+
 func (a *AuthServer) createOIDCUser(connector services.OIDCConnector, ident *oidc.Identity, claims jose.Claims) error {
 	roles, err := a.buildRoles(connector, ident, claims)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	log.Debugf("[IDENTITY] %v/%v is a dynamic identity, generating user with roles: %v", connector.GetName(), ident.Email, roles)
+	traits := claimsToTraitMap(claims)
+
+	log.Debugf("[OIDC] Generating dynamic identity %v/%v with roles: %v", connector.GetName(), ident.Email, roles)
 	user, err := services.GetUserMarshaler().GenerateUser(&services.UserV2{
 		Kind:    services.KindUser,
 		Version: services.V2,
@@ -299,6 +320,7 @@ func (a *AuthServer) createOIDCUser(connector services.OIDCConnector, ident *oid
 		},
 		Spec: services.UserSpecV2{
 			Roles:          roles,
+			Traits:         traits,
 			Expires:        ident.ExpiresAt,
 			OIDCIdentities: []services.ExternalIdentity{{ConnectorID: connector.GetName(), Username: ident.Email}},
 			CreatedBy: services.CreatedBy{
