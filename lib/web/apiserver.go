@@ -278,6 +278,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 					}
 				}
 			}
+			httplib.SetIndexHTMLHeaders(w.Header())
 			indexPage.Execute(w, session)
 		} else {
 			http.NotFound(w, r)
