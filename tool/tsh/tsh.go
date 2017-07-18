@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package common
+package main
 
 import (
 	"bufio"
@@ -25,6 +25,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -117,6 +118,23 @@ type CLIConf struct {
 	// IdentityFormat (used for --format flag for 'tsh login') defines which
 	// format to use with --out to store a fershly retreived certificate
 	IdentityFormat client.IdentityFileFormat
+}
+
+func main() {
+	cmd_line_orig := os.Args[1:]
+	cmd_line := []string{}
+
+	// lets see: if the executable name is 'ssh' or 'scp' we convert
+	// that to "tsh ssh" or "tsh scp"
+	switch path.Base(os.Args[0]) {
+	case "ssh":
+		cmd_line = append([]string{"ssh"}, cmd_line_orig...)
+	case "scp":
+		cmd_line = append([]string{"scp"}, cmd_line_orig...)
+	default:
+		cmd_line = cmd_line_orig
+	}
+	Run(cmd_line, false)
 }
 
 // Run executes TSH client. same as main() but easier to test
