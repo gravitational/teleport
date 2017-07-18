@@ -189,7 +189,7 @@ func (r *ReverseTunnelV1) V2() *ReverseTunnelV2 {
 // GetReverseTunnelSchema returns role schema with optionally injected
 // schema for extensions
 func GetReverseTunnelSchema() string {
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, ReverseTunnelSpecV2Schema)
+	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, ReverseTunnelSpecV2Schema, DefaultDefinitions)
 }
 
 // UnmarshalReverseTunnel unmarshals reverse tunnel from JSON or YAML,

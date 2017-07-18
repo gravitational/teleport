@@ -139,7 +139,7 @@ func GetUniversalSecondFactorSchema(extensionSchema string) string {
 	} else {
 		authPreferenceSchema = fmt.Sprintf(UniversalSecondFactorSpecSchemaTemplate, ","+extensionSchema)
 	}
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, authPreferenceSchema)
+	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, authPreferenceSchema, DefaultDefinitions)
 }
 
 // UniversalSecondFactorMarshaler implements marshal/unmarshal of UniversalSecondFactor implementations

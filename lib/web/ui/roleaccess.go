@@ -3,8 +3,10 @@ package ui
 import (
 	"time"
 
-	teleservices "github.com/gravitational/teleport/lib/services"
-	teleutils "github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/gravitational/trace"
 )
 
 const (
@@ -15,13 +17,13 @@ const (
 )
 
 var adminResources = []string{
-	teleservices.KindRole,
-	teleservices.KindUser,
-	teleservices.KindOIDC,
-	teleservices.KindCertAuthority,
-	teleservices.KindReverseTunnel,
-	teleservices.KindTrustedCluster,
-	teleservices.KindNode,
+	services.KindRole,
+	services.KindUser,
+	services.KindOIDC,
+	services.KindCertAuthority,
+	services.KindReverseTunnel,
+	services.KindTrustedCluster,
+	services.KindNode,
 }
 
 // AdminAccess describes admin access
@@ -52,7 +54,7 @@ type RoleAccess struct {
 func MergeAccessSet(accessList []*RoleAccess) *RoleAccess {
 	uiAccess := RoleAccess{}
 	for _, item := range accessList {
-		uiAccess.SSH.Logins = teleutils.Deduplicate(append(uiAccess.SSH.Logins, item.SSH.Logins...))
+		uiAccess.SSH.Logins = utils.Deduplicate(append(uiAccess.SSH.Logins, item.SSH.Logins...))
 		uiAccess.Admin.Enabled = item.Admin.Enabled || uiAccess.Admin.Enabled
 	}
 
@@ -60,84 +62,95 @@ func MergeAccessSet(accessList []*RoleAccess) *RoleAccess {
 }
 
 // Apply applies this role access to Teleport Role
-func (a *RoleAccess) Apply(teleRole teleservices.Role) {
+func (a *RoleAccess) Apply(teleRole services.Role) {
 	a.applyAdmin(teleRole)
 	a.applySSH(teleRole)
 }
 
-func (a *RoleAccess) init(teleRole teleservices.Role) {
+func (a *RoleAccess) init(teleRole services.Role) error {
 	a.initAdmin(teleRole)
-	a.initSSH(teleRole)
+
+	err := a.initSSH(teleRole)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
-func (a *RoleAccess) initSSH(teleRole teleservices.Role) {
-	a.SSH.MaxSessionTTL = teleRole.GetMaxSessionTTL().Duration
-	a.SSH.NodeLabels = teleRole.GetNodeLabels()
+func (a *RoleAccess) initSSH(teleRole services.Role) error {
+	maxSessionTTL, err := teleRole.GetOptions().GetDuration(services.MaxSessionTTL)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	a.SSH.MaxSessionTTL = maxSessionTTL.Duration
+
+	a.SSH.NodeLabels = teleRole.GetNodeLabels(services.Allow)
+
 	// FIXME: this is a workaround for #1623
 	filteredLogins := []string{}
-	for _, login := range teleRole.GetLogins() {
+	for _, login := range teleRole.GetLogins(services.Allow) {
 		if login != roleDefaultAllowedLogin {
 			filteredLogins = append(filteredLogins, login)
 		}
 	}
-
 	a.SSH.Logins = filteredLogins
+
+	return nil
 }
 
-func (a *RoleAccess) initAdmin(teleRole teleservices.Role) {
-	hasAllNamespaces := teleservices.MatchNamespace(
-		teleRole.GetNamespaces(),
-		teleservices.Wildcard)
+func (a *RoleAccess) initAdmin(teleRole services.Role) {
+	hasAllNamespaces := services.MatchNamespace(
+		teleRole.GetNamespaces(services.Allow),
+		services.Wildcard)
 
-	resources := teleRole.GetResources()
+	resources := teleRole.GetSystemResources(services.Allow)
 	a.Admin.Enabled = hasFullAccess(resources, adminResources) && hasAllNamespaces
 }
 
-func (a *RoleAccess) applyAdmin(teleRole teleservices.Role) {
+func (a *RoleAccess) applyAdmin(role services.Role) {
 	if a.Admin.Enabled {
-		allowAllNamespaces(teleRole)
-		applyResourceAccess(teleRole, adminResources, teleservices.RW())
+		allowAllNamespaces(role)
+		applyResourceAccess(role, adminResources, services.RW())
 	} else {
-		teleRole.RemoveResource(teleservices.Wildcard)
-		applyResourceAccess(teleRole, adminResources, teleservices.RO())
+		resources := role.GetSystemResources(services.Allow)
+		delete(resources, services.Wildcard)
+		role.SetSystemResources(services.Allow, resources)
+		applyResourceAccess(role, adminResources, services.RO())
 	}
 }
 
-func (a *RoleAccess) applySSH(teleRole teleservices.Role) {
+func (a *RoleAccess) applySSH(teleRole services.Role) {
 	// FIXME: this is a workaround for #1623
 	if len(a.SSH.Logins) == 0 {
 		a.SSH.Logins = append(a.SSH.Logins, roleDefaultAllowedLogin)
 	}
 
-	teleRole.SetMaxSessionTTL(a.SSH.MaxSessionTTL)
-	teleRole.SetLogins(a.SSH.Logins)
-	teleRole.SetNodeLabels(a.SSH.NodeLabels)
+	roleOptions := teleRole.GetOptions()
+	roleOptions[services.MaxSessionTTL] = services.NewDuration(a.SSH.MaxSessionTTL)
+	teleRole.SetOptions(roleOptions)
+
+	teleRole.SetLogins(services.Allow, a.SSH.Logins)
+	teleRole.SetNodeLabels(services.Allow, a.SSH.NodeLabels)
 }
 
 func all() []string {
-	return []string{teleservices.Wildcard}
+	return []string{services.Wildcard}
 }
 
-func allowAllNamespaces(teleRole teleservices.Role) {
-	newNamespaces := teleutils.Deduplicate(append(teleRole.GetNamespaces(), all()...))
-	teleRole.SetNamespaces(newNamespaces)
+func allowAllNamespaces(teleRole services.Role) {
+	newNamespaces := utils.Deduplicate(append(teleRole.GetNamespaces(services.Allow), all()...))
+	teleRole.SetNamespaces(services.Allow, newNamespaces)
 }
 
 func none() []string {
 	return nil
 }
 
-func hasFullAccess(resources map[string][]string, kinds []string) bool {
-	for _, kind := range kinds {
-		hasRead := teleservices.MatchResourceAction(
-			resources,
-			kind,
-			teleservices.ActionRead)
-
-		hasWrite := teleservices.MatchResourceAction(
-			resources,
-			kind,
-			teleservices.ActionWrite)
+func hasFullAccess(rules map[string][]string, resources []string) bool {
+	for _, resource := range resources {
+		hasRead := services.MatchRule(rules, resource, services.ActionRead)
+		hasWrite := services.MatchRule(rules, resource, services.ActionWrite)
 
 		if !(hasRead && hasWrite) {
 			return false
@@ -147,8 +160,10 @@ func hasFullAccess(resources map[string][]string, kinds []string) bool {
 	return true
 }
 
-func applyResourceAccess(teleRole teleservices.Role, kinds []string, actions []string) {
-	for _, kind := range kinds {
-		teleRole.SetResource(kind, actions)
+func applyResourceAccess(role services.Role, resources []string, verbs []string) {
+	rs := role.GetSystemResources(services.Allow)
+	for _, resource := range resources {
+		rs[resource] = verbs
 	}
+	role.SetSystemResources(services.Allow, rs)
 }

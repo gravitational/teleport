@@ -171,7 +171,7 @@ func GetAuthPreferenceSchema(extensionSchema string) string {
 	} else {
 		authPreferenceSchema = fmt.Sprintf(AuthPreferenceSpecSchemaTemplate, ","+extensionSchema)
 	}
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, authPreferenceSchema)
+	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, authPreferenceSchema, DefaultDefinitions)
 }
 
 // AuthPreferenceMarshaler implements marshal/unmarshal of AuthPreference implementations

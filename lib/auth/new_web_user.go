@@ -197,7 +197,7 @@ func (s *AuthServer) CreateUserWithOTP(token string, password string, otpToken s
 
 	// apply user allowed logins
 	role := services.RoleForUser(tokenData.User.V2())
-	role.SetLogins(tokenData.User.AllowedLogins)
+	role.SetLogins(services.Allow, tokenData.User.AllowedLogins)
 	if err := s.UpsertRole(role, backend.Forever); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -243,7 +243,7 @@ func (s *AuthServer) CreateUserWithoutOTP(token string, password string) (servic
 
 	// apply user allowed logins
 	role := services.RoleForUser(tokenData.User.V2())
-	role.SetLogins(tokenData.User.AllowedLogins)
+	role.SetLogins(services.Allow, tokenData.User.AllowedLogins)
 	if err := s.UpsertRole(role, backend.Forever); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -313,7 +313,7 @@ func (s *AuthServer) CreateUserWithU2FToken(token string, password string, respo
 	}
 
 	role := services.RoleForUser(tokenData.User.V2())
-	role.SetLogins(tokenData.User.AllowedLogins)
+	role.SetLogins(services.Allow, tokenData.User.AllowedLogins)
 	if err := s.UpsertRole(role, backend.Forever); err != nil {
 		return nil, trace.Wrap(err)
 	}
