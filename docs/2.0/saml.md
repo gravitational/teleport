@@ -158,7 +158,7 @@ tctl create -f dev.yaml
 ### Login
 
 For the Web UI, if the above configuration were real, you would see a button
-that says `Login with adfs`. Simply click on that and you will be
+that says `Login with Okta`. Simply click on that and you will be
 re-directed to a login page for your identity provider and if successful,
 redirected back to Teleport.
 
@@ -167,6 +167,10 @@ and a browser window should automatically open taking you to the login page for
 your identity provider. `tsh` will also output a link the login page of the
 identity provider if you are not automatically redirected.
 
+!!! note "IMPORTANT":
+    Teleport only supports sending party initiated flows for SAML 2.0. This
+    means you can not initiate login from your identity provider, you have to
+    initiate login from either the Teleport Web UI or CLI.
 
 ## ADFS
 
