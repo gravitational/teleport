@@ -152,7 +152,7 @@ func GetCheckerForBuiltinRole(role teleport.Role) (services.AccessChecker, error
 			services.RoleSpecV3{
 				Allow: services.RoleConditions{
 					Namespaces: []string{services.Wildcard},
-					Rules: map[string][]string{
+					SystemResources: map[string][]string{
 						services.KindAuthServer: services.RW(),
 					},
 				},

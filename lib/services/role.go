@@ -58,6 +58,11 @@ var DefaultAdministratorSystemResources = map[string][]string{
 	Wildcard: RW(),
 }
 
+// ValidRuleNames is a list of valid rules that a user can operate on.
+var ValidRules = []string{
+	Wildcard,
+}
+
 // RoleNameForUser returns role name associated with a user.
 func RoleNameForUser(name string) string {
 	return "user:" + name
@@ -408,7 +413,16 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 		r.Spec.Allow.NodeLabels = map[string]string{Wildcard: Wildcard}
 	}
 	if r.Spec.Allow.SystemResources == nil {
-		r.Spec.Allow.SystemResources = DefaultUserSystemResources
+		r.Spec.Allow.SystemResources = utils.CopyStringMapSlices(DefaultUserSystemResources)
+	}
+
+	// check and make sure valid rule names were used
+	for _, condition := range []RoleConditionType{Allow, Deny} {
+		for ruleName, _ := range r.GetRules(condition) {
+			if !utils.SliceContainsStr(ValidRules, ruleName) {
+				return trace.BadParameter("invalid rule name: %v", ruleName)
+			}
+		}
 	}
 
 	// check and correct the session ttl
@@ -1128,14 +1142,12 @@ func (set RoleSet) String() string {
 }
 
 func (set RoleSet) checkAccessToRule(namespace string, resource string, verb string) error {
-	var errs []error
-
 	// check deny: a single match on a deny rule prohibits access
 	for _, role := range set {
 		matchNamespace := MatchNamespace(role.GetNamespaces(Deny), ProcessNamespace(namespace))
 		matchRule := MatchRule(role.GetRules(Deny), resource, verb)
 		if matchNamespace && matchRule {
-			return trace.AccessDenied("role %v denied %v access to %v in namespace %v: deny rule matched", role, verb, resource, namespace)
+			return trace.AccessDenied("%v access to %v in namespace %v is denied for %v: deny rule matched", verb, resource, namespace, role)
 		}
 	}
 
@@ -1146,12 +1158,9 @@ func (set RoleSet) checkAccessToRule(namespace string, resource string, verb str
 		if matchNamespace && matchRule {
 			return nil
 		}
-
-		errorMessage := fmt.Sprintf("role %v denied %v access to %v in namespace %v: no allow rule match", role, verb, resource, namespace)
-		errs = append(errs, trace.AccessDenied(errorMessage))
 	}
 
-	return trace.AccessDenied("%v access to %v denied to role(s): %v: %v", verb, resource, set, errs)
+	return trace.AccessDenied("%v access to %v in namespace %v is denied for %v: no allow rule matched", verb, resource, namespace, set)
 }
 
 func (set RoleSet) checkAccessToResource(namespace string, resource string, verb string) error {
@@ -1171,12 +1180,11 @@ func (set RoleSet) CheckAccessToRuleOrResource(namespace string, resource string
 	// always check high level rules first
 	ruleErr := set.checkAccessToRule(namespace, resource, verb)
 	if ruleErr != nil {
-		// check low level resource if rules didn't match
+		// check low level system resource if rules didn't match
 		resourcesErr := set.checkAccessToResource(namespace, resource, verb)
 		if resourcesErr != nil {
-			errorMessage := fmt.Sprintf("unable to access rule: %v and resource: %v", ruleErr, resourcesErr)
-			log.Warnf("[RBAC] Denied access to rule or resource: %v", errorMessage)
-			return trace.AccessDenied(errorMessage)
+			log.Warnf("[RBAC] Denied access to rule %v and resource: %v", ruleErr, resourcesErr)
+			return trace.AccessDenied("%v access to %v in namespace %v is denied for %v", verb, resource, namespace, set)
 		}
 	}
 
