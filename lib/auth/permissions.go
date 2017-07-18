@@ -171,6 +171,7 @@ func GetCheckerForBuiltinRole(role teleport.Role) (services.AccessChecker, error
 					services.KindNamespace:     services.RO(),
 					services.KindRole:          services.RO(),
 					services.KindAuthServer:    services.RO(),
+					services.KindReverseTunnel: services.RO(),
 				},
 			})
 	case teleport.RoleProxy:
