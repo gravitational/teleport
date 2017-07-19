@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.5
+
+#### Bug fixes
+
+* Fixed issue where node did not have correct permissions. [#1151](https://github.com/gravitational/teleport/issues/1151)
+
 ## 2.2.4
 
 #### Bug fixes
