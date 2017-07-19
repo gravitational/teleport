@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.6
+
+#### Bug fixes
+
+* Fixed issue with SSH dial potentially hanging indefinitely. [#1153](https://github.com/gravitational/teleport/issues/1153)
+
 ## 2.2.5
 
 #### Bug fixes
