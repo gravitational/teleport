@@ -661,8 +661,6 @@ type CreateSessionResponse struct {
 	Type string `json:"type"`
 	// Token value
 	Token string `json:"token"`
-	// User represents the user
-	User interface{} `json:"user"`
 	// ExpiresIn sets seconds before this token is not valid
 	ExpiresIn int `json:"expires_in"`
 }
@@ -672,46 +670,19 @@ type createSessionResponseRaw struct {
 	Type string `json:"type"`
 	// Token value
 	Token string `json:"token"`
-	// User represents the user
-	User json.RawMessage `json:"user"`
 	// ExpiresIn sets seconds before this token is not valid
 	ExpiresIn int `json:"expires_in"`
 }
 
-func (r createSessionResponseRaw) response() (*CreateSessionResponse, services.User, error) {
-	user, err := services.GetUserMarshaler().UnmarshalUser(r.User)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	return &CreateSessionResponse{Type: r.Type, Token: r.Token, ExpiresIn: r.ExpiresIn, User: user.WebSessionInfo(nil)}, user, nil
+func (r createSessionResponseRaw) response() (*CreateSessionResponse, error) {
+	return &CreateSessionResponse{Type: r.Type, Token: r.Token, ExpiresIn: r.ExpiresIn}, nil
 }
 
 func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
-	clt, err := ctx.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	webSession := ctx.GetWebSession()
-	user, err := clt.GetUser(webSession.GetUser())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var roles services.RoleSet
-	for _, roleName := range user.GetRoles() {
-		role, err := clt.GetRole(roleName)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		roles = append(roles, role)
-	}
-	allowedLogins, err := roles.CheckLoginDuration(0)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	return &CreateSessionResponse{
 		Type:      roundtrip.AuthBearer,
 		Token:     webSession.GetBearerToken(),
-		User:      user.WebSessionInfo(allowedLogins),
 		ExpiresIn: int(webSession.GetBearerTokenExpiryTime().Sub(time.Now()) / time.Second),
 	}, nil
 }
