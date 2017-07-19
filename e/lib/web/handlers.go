@@ -105,7 +105,11 @@ func (p *Plugin) getRoles(w http.ResponseWriter, r *http.Request, _ httprouter.P
 
 	uiroles := []teleui.Role{}
 	for _, item := range teleRoles {
-		uiroles = append(uiroles, *teleui.NewRole(item))
+		role, err := teleui.NewRole(item)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		uiroles = append(uiroles, *role)
 	}
 
 	return uiroles, nil
