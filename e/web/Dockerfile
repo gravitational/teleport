@@ -1,22 +1,21 @@
-FROM node:5-slim
+FROM node:8.1.2-slim
 
-ARG UID
-ARG GID
+RUN mkdir -p /teleport/e/web
+RUN mkdir -p /teleport/web
 
-VOLUME ["/tmp/copy"]
+COPY package.json /teleport/e/web
 
-RUN mkdir -p /app
+WORKDIR /teleport/e/web
 
-COPY package.json /app/
+# RUN npm install
 
-WORKDIR /app
+COPY ../../web/src /teleport/web
+COPY web /teleport/e/web
 
-COPY telebase/web/ /app/telebase/web
-
-RUN npm install
-
-COPY . /app
-
-RUN groupadd builder --gid=$GID  -o ;\
-    useradd builder --uid=$UID --gid=$GID --create-home --shell=/bin/bash  ;\
-    chown builder /app -R
+#RUN npm install
+#
+#COPY . /app
+#
+#RUN groupadd builder --gid=$GID  -o ;\
+#    useradd builder --uid=$UID --gid=$GID --create-home --shell=/bin/bash  ;\
+#    chown builder /app -R

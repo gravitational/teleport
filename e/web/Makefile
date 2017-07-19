@@ -40,18 +40,14 @@ git-revendor:
 .PHONY:docker-build
 docker-build:
 	rm -rf $(HOST_DIR)/dist
-	docker build --build-arg UID=$$(id -u) --build-arg GID=$$(id -g) --force-rm=true -t e-teleport-web:$(TAG) . && \
-	docker run -i --rm -v $(HOST_TMP_VOL):/tmp/copy $(NOROOT) e-teleport-web:$(TAG) cp -r /app /tmp/copy && \
-	docker run --rm -v $(HOST_TMP_VOL)/app:/app $(NOROOT) e-teleport-web:$(TAG) npm run build && \
-	cp -r $(HOST_TMP_VOL)/app/dist $(HOST_DIR)
-	rm -rf $(HOST_TMP_VOL)
-
+	docker build --force-rm=true -t e-teleport-web:$(TAG) -f Dockerfile . 
+	
 #
 # 'make docker-enter' builds a Docker container with a website
 #
 .PHONY:docker-enter
 docker-enter:
-	docker run -ti -p 3000:3000 --rm=true $(NOROOT) -t e-teleport-web:$(TAG) /bin/bash
+	docker run -ti --rm=true $(NOROOT) -t e-teleport-web:$(TAG) /bin/bash
 
 ##############################
 #   Native Localhost

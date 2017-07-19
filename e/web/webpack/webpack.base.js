@@ -19,9 +19,9 @@ var webpack = require('webpack');
 var HtmlWebPackPlugin = require('html-webpack-plugin');
 var ExtractTextPlugin = require('extract-text-webpack-plugin');
 var ROOT_PATH = path.join(__dirname, '../');
-var TELEBASE_PATH = 'telebase/web'; 
-var TELEBASE_APP_PATH = 'telebase/web/src/app';
-var TELEBASE_ASSET_PATH = 'telebase/web/src/assets';
+var TELEBASE_PATH = '../../web'; 
+var TELEBASE_APP_PATH = '../../web/src/app';
+var TELEBASE_ASSET_PATH = '../../web/src/assets';
 
 var favIconPath = path.join(ROOT_PATH, TELEBASE_ASSET_PATH+'/img/favicon.ico');
 var extractCss = new ExtractTextPlugin('vendor.[contenthash].css');
@@ -153,20 +153,19 @@ function handleTelebaseImports() {
   return {
     apply: function (compiler) { 
       compiler.resolvers.normal.apply({
-          apply(resolver) {
-            resolver.plugin('resolve', (context, request) => {                            
-              if (request.path.indexOf('assets/') === 0) {                                
-                request.path = request.path.replace('assets/', 'telebase-assets/');                  
-              }
-
-              if (context.indexOf(TELEBASE_PATH) !== -1) {                
-                if (request.path.indexOf('app/') === 0) {                   
-                  request.path = request.path.replace('app/', 'telebase-app/');                  
-                }                                      
-              }              
-            });
-          },
-        });
+        apply(resolver) {
+          resolver.plugin('resolve', (context, request) => {                            
+            if (request.path.indexOf('assets/') === 0) {                                
+              request.path = request.path.replace('assets/', 'telebase-assets/');                  
+            }
+            if (context.indexOf('teleport/web/src/app') !== -1) {                
+              if (request.path.indexOf('app/') === 0) {                   
+                request.path = request.path.replace('app/', 'telebase-app/');                  
+              }                                      
+            }              
+          });
+        },
+      });
     }
   }
 }
