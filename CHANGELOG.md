@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.6
+
+#### Bug fixes
+
+* Fixed issue with SSH dial potentially hanging indefinitely. [#1153](https://github.com/gravitational/teleport/issues/1153)
+
 ## 2.2.5
 
 #### Bug fixes
@@ -74,7 +80,7 @@
 
 Teleport 2.0.5 contains a variety of security fixes. We strongly encourage anyone running Teleport 2.0.0 and above to upgrade to 2.0.5.
 
-The most pressing issues (a phishing attack which can potentially be used to extract plaintext credentials and an attack where an already authenticated user can escalate privileges) can be resolved by upgrading the web proxy. However, however all nodes need to be upgraded to mitigate all vulnerabilities. 
+The most pressing issues (a phishing attack which can be used to extract plaintext credentials and an attack where an already authenticated user can escalate privileges) can be resolved by upgrading the web proxy. However, all nodes need to be upgraded to mitigate all vulnerabilities.
 
 ### Bugfixes
 
@@ -218,8 +224,8 @@ certificates did not work correctly in this release due to #529
 ### Bugfixes
 
 * Wrong url to register new users. #497
-* Logged in users inherit Teleport supplemental groups bug security. #507 
-* Joining a session running on a trusted cluster does not work. #504 
+* Logged in users inherit Teleport supplemental groups bug security. #507
+* Joining a session running on a trusted cluster does not work. #504
 
 ## 1.0.4
 

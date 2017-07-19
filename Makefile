@@ -2,7 +2,7 @@
 # Naming convention:
 #	for stable releases we use "1.0.0" format
 #   for pre-releases, we use   "1.0.0-beta.2" format
-VERSION=2.2.5
+VERSION=2.2.6
 
 # These are standard autotools variables, don't change them please
 BUILDDIR ?= build
@@ -24,7 +24,7 @@ LIBS = $(shell find lib -type f -name '*.go') *.go
 # Default target: builds all 3 executables and plaaces them in a current directory
 #
 .PHONY: all
-all: $(VERSRC) $(BINARIES) 
+all: $(VERSRC) $(BINARIES)
 
 $(BUILDDIR)/tctl: $(LIBS) $(TOOLS) tool/tctl/common/*.go tool/tctl/*go
 	go build -o $(BUILDDIR)/tctl -i $(BUILDFLAGS) ./tool/tctl
@@ -42,8 +42,8 @@ goinstall:
 	go install github.com/gravitational/teleport/tool/tctl
 
 #
-# make install will installs system-wide teleport 
-# 
+# make install will installs system-wide teleport
+#
 .PHONY: install
 install: build
 	@echo "\n** Make sure to run 'make install' as root! **\n"
@@ -82,7 +82,7 @@ run-docs:
 #
 .PHONY: test
 test: FLAGS ?=
-test: 
+test:
 	go test -v ./tool/tsh/... \
 			   ./lib/... \
 			   ./tool/teleport... $(FLAGS) $(ADDFLAGS)
@@ -92,7 +92,7 @@ test:
 # integration tests. need a TTY to work and not compatible with a race detector
 #
 .PHONY: integration
-integration: 
+integration:
 	go test -v ./integration/...
 
 # This rule triggers re-generation of version.go and gitref.go if Makefile changes
@@ -111,9 +111,9 @@ tag:
 	@echo "Run this:\n> git tag $(GITTAG)\n> git push --tags"
 
 #
-# make release - produces a binary release tarball 
-#	
-.PHONY: 
+# make release - produces a binary release tarball
+#
+.PHONY:
 release: clean all $(BUILDDIR)/webassets.zip
 	cp -f build.assets/release.mk $(BUILDDIR)/Makefile
 	cat $(BUILDDIR)/webassets.zip >> $(BUILDDIR)/teleport
@@ -201,4 +201,3 @@ buildbox-grpc:
 	cd $(GRPC_API) && protoc -I=.:$$PROTO_INCLUDE \
       --gofast_out=plugins=grpc:.\
     *.proto
-
