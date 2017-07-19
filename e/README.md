@@ -42,8 +42,9 @@ enterprise submodule:
 
 ```
 $ git clone git@github.com:gravitational/teleport.git
+$ cd teleport
 $ git submodule init e
-$ git submodule update --remote
+$ git submodule update
 ```
 
 This will populate `e` subdirectory.
