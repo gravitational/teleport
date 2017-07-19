@@ -31,7 +31,7 @@ CLI command.
 By default, when you clone OSS Teleport, the submodules are not cloned:
 
 ```
-$ git@github.com:gravitational/teleport.git
+$ git clone git@github.com:gravitational/teleport.git
 ```
 
 This will create a regular OSS Teleport repo, so any Github user can clone,
@@ -41,7 +41,7 @@ If you want to start working on Enterprise, you need to initialize the
 enterprise submodule:
 
 ```
-$ git@github.com:gravitational/teleport.git
+$ git clone git@github.com:gravitational/teleport.git
 $ git submodule init e
 $ git submodule update --remote
 ```
