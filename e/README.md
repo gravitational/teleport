@@ -60,9 +60,9 @@ Read these two articles and you'll be fine:
 
 The parent OSS repository always "knows" which branch of the `e` submodule is
 current.  Say, you want to introduce a new feature which spans across both
-repositories, so ideally you'd like to keep it in your own "safe place". So how
-do you create such "safe place"? Usually you would just create a branch and
-work there, how would that work with two repositories when one of them is a
+repositories, so ideally you'd like to keep it in your own "safe place", often in your own branch. 
+
+How to create such "safe place" with two repositories when one of them is a
 submodule of another?
 
 Lets use "Ev wants to add feature foo" scenario as an example. 
