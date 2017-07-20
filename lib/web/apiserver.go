@@ -679,7 +679,28 @@ func (r createSessionResponseRaw) response() (*CreateSessionResponse, error) {
 }
 
 func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	webSession := ctx.GetWebSession()
+	user, err := clt.GetUser(webSession.GetUser())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var roles services.RoleSet
+	for _, roleName := range user.GetRoles() {
+		role, err := clt.GetRole(roleName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		roles = append(roles, role)
+	}
+	_, err = roles.CheckLoginDuration(0)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &CreateSessionResponse{
 		Type:      roundtrip.AuthBearer,
 		Token:     webSession.GetBearerToken(),
