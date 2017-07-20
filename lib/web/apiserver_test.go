@@ -530,7 +530,7 @@ func (s *WebSuite) authPackFromResponse(c *C, re *roundtrip.Response) *authPack 
 	clt := s.client(roundtrip.BearerAuth(sess.Token), roundtrip.CookieJar(jar))
 	jar.SetCookies(s.url(), re.Cookies())
 
-	session, err := sess.response()
+	session, user, err := sess.response()
 	if err != nil {
 		panic(err)
 	}
@@ -538,6 +538,7 @@ func (s *WebSuite) authPackFromResponse(c *C, re *roundtrip.Response) *authPack 
 		c.Errorf("expected expiry time to be in the future but got %v", session.ExpiresIn)
 	}
 	return &authPack{
+		user:    user.GetName(),
 		session: session,
 		clt:     clt,
 		cookies: re.Cookies(),
@@ -586,7 +587,7 @@ func (s *WebSuite) authPack(c *C) *authPack {
 	var rawSess *createSessionResponseRaw
 	c.Assert(json.Unmarshal(re.Bytes(), &rawSess), IsNil)
 
-	sess, err := rawSess.response()
+	sess, _, err := rawSess.response()
 	c.Assert(err, IsNil)
 
 	jar, err := cookiejar.New(nil)
