@@ -310,6 +310,11 @@ func migrateLegacyResources(cfg InitConfig, asrv *AuthServer) error {
 		return trace.Wrap(err)
 	}
 
+	err = migrateRoles(asrv)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
@@ -329,7 +334,7 @@ func migrateUsers(asrv *AuthServer) error {
 
 		// create role for user and upsert to backend
 		role := services.RoleForUser(user)
-		role.SetLogins(raw.AllowedLogins)
+		role.SetLogins(services.Allow, raw.AllowedLogins)
 		err = asrv.UpsertRole(role, backend.Forever)
 		if err != nil {
 			return trace.Wrap(err)
@@ -413,6 +418,31 @@ func migrateAuthPreference(cfg InitConfig, asrv *AuthServer) error {
 				return trace.Wrap(err)
 			}
 		}
+	}
+
+	return nil
+}
+
+func migrateRoles(asrv *AuthServer) error {
+	roles, err := asrv.GetRoles()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// loop over all roles and only migrate RoleV2 -> RoleV3
+	for i, _ := range roles {
+		role := roles[i]
+		_, ok := (role.GetRawObject()).(services.RoleV2)
+		if !ok {
+			continue
+		}
+
+		// with RoleV2 we never had a TTL so upsert them forever
+		err = asrv.UpsertRole(role, backend.Forever)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		log.Infof("[MIGRATION] Updated Role: %v", role.GetName())
 	}
 
 	return nil

@@ -17,12 +17,9 @@ package services
 
 import (
 	"fmt"
-	"time"
 
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/coreos/go-oidc/jose"
 	"gopkg.in/check.v1"
 )
 
@@ -74,46 +71,14 @@ func (s *OIDCSuite) TestUnmarshal(c *check.C) {
       }
 	`
 
-	output := OIDCConnectorV2{
-		Kind:    KindOIDCConnector,
-		Version: V2,
-		Metadata: Metadata{
-			Name:      "google",
-			Namespace: defaults.Namespace,
-		},
-		Spec: OIDCConnectorSpecV2{
-			IssuerURL:    "https://accounts.google.com",
-			ClientID:     "id-from-google.apps.googleusercontent.com",
-			ClientSecret: "secret-key-from-google",
-			RedirectURL:  "https://localhost:3080/v1/webapi/oidc/callback",
-			Display:      "whatever",
-			Scope:        []string{"roles"},
-			ClaimsToRoles: []ClaimMapping{
-				ClaimMapping{
-					Claim: "roles",
-					Value: "teleport-user",
-					RoleTemplate: &RoleV2{
-						Kind:    KindRole,
-						Version: V2,
-						Metadata: Metadata{
-							Name:      `{{index . "email"}}`,
-							Namespace: defaults.Namespace,
-						},
-						Spec: RoleSpecV2{
-							Namespaces:    []string{"default"},
-							MaxSessionTTL: NewDuration(90 * 60 * time.Minute),
-							Logins:        []string{`{{index . "nickname"}}`, `root`},
-							NodeLabels:    map[string]string{"*": "*"},
-						},
-					},
-				},
-			},
-		},
-	}
-
 	oc, err := GetOIDCConnectorMarshaler().UnmarshalOIDCConnector([]byte(input))
 	c.Assert(err, check.IsNil)
-	c.Assert(oc, check.DeepEquals, &output)
+
+	c.Assert(oc.GetName(), check.Equals, "google")
+	c.Assert(oc.GetIssuerURL(), check.Equals, "https://accounts.google.com")
+	c.Assert(oc.GetClientID(), check.Equals, "id-from-google.apps.googleusercontent.com")
+	c.Assert(oc.GetRedirectURL(), check.Equals, "https://localhost:3080/v1/webapi/oidc/callback")
+	c.Assert(oc.GetDisplay(), check.Equals, "whatever")
 }
 
 func (s *OIDCSuite) TestUnmarshalInvalid(c *check.C) {
@@ -160,65 +125,4 @@ func (s *OIDCSuite) TestUnmarshalInvalid(c *check.C) {
 	c.Assert(err, check.IsNil)
 	err = oc.Check()
 	c.Assert(err, check.NotNil)
-}
-
-// TestRoleFromTemplate checks that we can create a valid role from a template. Also
-// makes sure missing fields are filled in.
-func (s *OIDCSuite) TestRoleFromTemplate(c *check.C) {
-	oidcConnector := OIDCConnectorV2{
-		Kind:    KindOIDCConnector,
-		Version: V2,
-		Metadata: Metadata{
-			Name:      "google",
-			Namespace: defaults.Namespace,
-		},
-		Spec: OIDCConnectorSpecV2{
-			IssuerURL:    "https://accounts.google.com",
-			ClientID:     "id-from-google.apps.googleusercontent.com",
-			ClientSecret: "secret-key-from-google",
-			RedirectURL:  "https://localhost:3080/v1/webapi/oidc/callback",
-			Display:      "whatever",
-			Scope:        []string{"roles"},
-			ClaimsToRoles: []ClaimMapping{
-				ClaimMapping{
-					Claim: "roles",
-					Value: "teleport-user",
-					RoleTemplate: &RoleV2{
-						Kind:    KindRole,
-						Version: V2,
-						Metadata: Metadata{
-							Name:      `{{index . "email"}}`,
-							Namespace: defaults.Namespace,
-						},
-						Spec: RoleSpecV2{
-							MaxSessionTTL: NewDuration(30 * 60 * time.Minute),
-							Logins:        []string{`{{index . "nickname"}}`, `root`},
-							NodeLabels:    map[string]string{"*": "*"},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	// create some claims
-	var claims = make(jose.Claims)
-	claims.Add("roles", "teleport-user")
-	claims.Add("email", "foo@example.com")
-	claims.Add("nickname", "foo")
-	claims.Add("full_name", "foo bar")
-
-	role, err := oidcConnector.RoleFromTemplate(claims)
-	c.Assert(err, check.IsNil)
-
-	outRole, err := NewRole("foo@example.com", RoleSpecV2{
-		Logins:        []string{"foo", "root"},
-		MaxSessionTTL: NewDuration(30 * time.Hour),
-		NodeLabels:    map[string]string{"*": "*"},
-		Namespaces:    []string{"default"},
-		Resources:     nil,
-		ForwardAgent:  false,
-	})
-	c.Assert(err, check.IsNil)
-	c.Assert(role, check.DeepEquals, outRole)
 }

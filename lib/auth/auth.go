@@ -653,7 +653,7 @@ func (s *AuthServer) NewWebSession(userName string) (services.WebSession, error)
 	sessionTTL := roles.AdjustSessionTTL(defaults.CertDuration)
 	bearerTokenTTL := utils.MinTTL(sessionTTL, BearerTokenTTL)
 
-	allowedLogins, err := roles.CheckLogins(sessionTTL)
+	allowedLogins, err := roles.CheckLoginDuration(sessionTTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

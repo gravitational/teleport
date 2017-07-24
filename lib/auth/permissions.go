@@ -149,97 +149,115 @@ func GetCheckerForBuiltinRole(role teleport.Role) (services.AccessChecker, error
 	case teleport.RoleAuth:
 		return services.FromSpec(
 			role.String(),
-			services.RoleSpecV2{
-				Namespaces: []string{services.Wildcard},
-				Resources: map[string][]string{
-					services.KindAuthServer: services.RW()},
+			services.RoleSpecV3{
+				Allow: services.RoleConditions{
+					Namespaces: []string{services.Wildcard},
+					SystemResources: map[string][]string{
+						services.KindAuthServer: services.RW(),
+					},
+				},
 			})
 	case teleport.RoleProvisionToken:
-		return services.FromSpec(role.String(), services.RoleSpecV2{})
+		return services.FromSpec(role.String(), services.RoleSpecV3{})
 	case teleport.RoleNode:
 		return services.FromSpec(
 			role.String(),
-			services.RoleSpecV2{
-				Namespaces: []string{services.Wildcard},
-				Resources: map[string][]string{
-					services.KindNode:          services.RW(),
-					services.KindSession:       services.RW(),
-					services.KindEvent:         services.RW(),
-					services.KindProxy:         services.RO(),
-					services.KindCertAuthority: services.RO(),
-					services.KindUser:          services.RO(),
-					services.KindNamespace:     services.RO(),
-					services.KindRole:          services.RO(),
-					services.KindAuthServer:    services.RO(),
+			services.RoleSpecV3{
+				Allow: services.RoleConditions{
+					Namespaces: []string{services.Wildcard},
+					SystemResources: map[string][]string{
+						services.KindNode:          services.RW(),
+						services.KindSession:       services.RW(),
+						services.KindEvent:         services.RW(),
+						services.KindProxy:         services.RO(),
+						services.KindCertAuthority: services.RO(),
+						services.KindUser:          services.RO(),
+						services.KindNamespace:     services.RO(),
+						services.KindRole:          services.RO(),
+						services.KindAuthServer:    services.RO(),
+						services.KindReverseTunnel: services.RO(),
+					},
 				},
 			})
 	case teleport.RoleProxy:
 		return services.FromSpec(
 			role.String(),
-			services.RoleSpecV2{
-				Namespaces: []string{services.Wildcard},
-				Resources: map[string][]string{
-					services.KindProxy:                 services.RW(),
-					services.KindOIDCRequest:           services.RW(),
-					services.KindOIDC:                  services.RO(),
-					services.KindSAMLRequest:           services.RW(),
-					services.KindSAML:                  services.RO(),
-					services.KindNamespace:             services.RO(),
-					services.KindEvent:                 services.RW(),
-					services.KindSession:               services.RW(),
-					services.KindNode:                  services.RO(),
-					services.KindAuthServer:            services.RO(),
-					services.KindReverseTunnel:         services.RO(),
-					services.KindCertAuthority:         services.RO(),
-					services.KindUser:                  services.RO(),
-					services.KindRole:                  services.RO(),
-					services.KindClusterAuthPreference: services.RO(),
-					services.KindUniversalSecondFactor: services.RO(),
+			services.RoleSpecV3{
+				Allow: services.RoleConditions{
+					Namespaces: []string{services.Wildcard},
+					SystemResources: map[string][]string{
+						services.KindProxy:                 services.RW(),
+						services.KindOIDCRequest:           services.RW(),
+						services.KindSession:               services.RW(),
+						services.KindEvent:                 services.RW(),
+						services.KindSAMLRequest:           services.RW(),
+						services.KindOIDC:                  services.RO(),
+						services.KindSAML:                  services.RO(),
+						services.KindNamespace:             services.RO(),
+						services.KindNode:                  services.RO(),
+						services.KindAuthServer:            services.RO(),
+						services.KindReverseTunnel:         services.RO(),
+						services.KindCertAuthority:         services.RO(),
+						services.KindUser:                  services.RO(),
+						services.KindRole:                  services.RO(),
+						services.KindClusterAuthPreference: services.RO(),
+						services.KindUniversalSecondFactor: services.RO(),
+					},
 				},
 			})
 	case teleport.RoleWeb:
 		return services.FromSpec(
 			role.String(),
-			services.RoleSpecV2{
-				Namespaces: []string{services.Wildcard},
-				Resources: map[string][]string{
-					services.KindWebSession:     services.RW(),
-					services.KindSession:        services.RW(),
-					services.KindAuthServer:     services.RO(),
-					services.KindUser:           services.RO(),
-					services.KindRole:           services.RO(),
-					services.KindNamespace:      services.RO(),
-					services.KindTrustedCluster: services.RO(),
+			services.RoleSpecV3{
+				Allow: services.RoleConditions{
+					Namespaces: []string{services.Wildcard},
+					SystemResources: map[string][]string{
+						services.KindWebSession:     services.RW(),
+						services.KindSession:        services.RW(),
+						services.KindAuthServer:     services.RO(),
+						services.KindUser:           services.RO(),
+						services.KindRole:           services.RO(),
+						services.KindNamespace:      services.RO(),
+						services.KindTrustedCluster: services.RO(),
+					},
 				},
 			})
 	case teleport.RoleSignup:
 		return services.FromSpec(
 			role.String(),
-			services.RoleSpecV2{
-				Namespaces: []string{services.Wildcard},
-				Resources: map[string][]string{
-					services.KindAuthServer:            services.RO(),
-					services.KindClusterAuthPreference: services.RO(),
+			services.RoleSpecV3{
+				Allow: services.RoleConditions{
+					Namespaces: []string{services.Wildcard},
+					SystemResources: map[string][]string{
+						services.KindAuthServer:            services.RO(),
+						services.KindClusterAuthPreference: services.RO(),
+					},
 				},
 			})
 	case teleport.RoleAdmin:
 		return services.FromSpec(
 			role.String(),
-			services.RoleSpecV2{
-				MaxSessionTTL: services.MaxDuration(),
-				Logins:        []string{},
-				Namespaces:    []string{services.Wildcard},
-				NodeLabels:    map[string]string{services.Wildcard: services.Wildcard},
-				Resources: map[string][]string{
-					services.Wildcard: services.RW(),
+			services.RoleSpecV3{
+				Options: services.RoleOptions{
+					services.MaxSessionTTL: services.MaxDuration(),
+				},
+				Allow: services.RoleConditions{
+					Namespaces: []string{services.Wildcard},
+					Logins:     []string{},
+					NodeLabels: map[string]string{services.Wildcard: services.Wildcard},
+					SystemResources: map[string][]string{
+						services.Wildcard: services.RW(),
+					},
 				},
 			})
 	case teleport.RoleNop:
 		return services.FromSpec(
 			role.String(),
-			services.RoleSpecV2{
-				Namespaces: []string{},
-				Resources:  map[string][]string{},
+			services.RoleSpecV3{
+				Allow: services.RoleConditions{
+					Namespaces:      []string{},
+					SystemResources: map[string][]string{},
+				},
 			})
 	}
 

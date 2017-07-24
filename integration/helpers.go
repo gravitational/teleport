@@ -139,7 +139,7 @@ func (s *InstanceSecrets) GetRoles() []services.Role {
 			continue
 		}
 		role := services.RoleForCertAuthority(ca)
-		role.SetLogins(s.AllowedLogins())
+		role.SetLogins(services.Allow, s.AllowedLogins())
 		roles = append(roles, role)
 	}
 	return roles
@@ -301,7 +301,7 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 		var roles []services.Role
 		if len(user.Roles) == 0 {
 			role := services.RoleForUser(teleUser)
-			role.SetLogins(user.AllowedLogins)
+			role.SetLogins(services.Allow, user.AllowedLogins)
 			err = auth.UpsertRole(role, backend.Forever)
 			if err != nil {
 				return trace.Wrap(err)
@@ -333,7 +333,7 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 		}
 		// sign user's keys:
 		ttl := 24 * time.Hour
-		logins, err := services.RoleSet(roles).CheckLogins(ttl)
+		logins, err := services.RoleSet(roles).CheckLoginDuration(ttl)
 		if err != nil {
 			return trace.Wrap(err)
 		}

@@ -217,7 +217,7 @@ func hostCAFormat(ca services.CertAuthority, keyBytes []byte, client *auth.TunCl
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	allowedLogins, _ := roles.CheckLogins(defaults.MinCertDuration + time.Second)
+	allowedLogins, _ := roles.CheckLoginDuration(defaults.MinCertDuration + time.Second)
 	if len(allowedLogins) > 0 {
 		comment["logins"] = allowedLogins
 	}

@@ -23,6 +23,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
@@ -31,6 +32,27 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 )
+
+// DialWithDeadline works around the case when net.DialWithTimeout
+// succeeds, but key exchange hangs. Setting deadline on connection
+// prevents this case from happening
+func DialWithDeadline(network string, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
+	conn, err := net.DialTimeout(network, addr, config.Timeout)
+	if err != nil {
+		return nil, err
+	}
+	if config.Timeout > 0 {
+		conn.SetReadDeadline(time.Now().Add(config.Timeout))
+	}
+	c, chans, reqs, err := ssh.NewClientConn(conn, addr, config)
+	if err != nil {
+		return nil, err
+	}
+	if config.Timeout > 0 {
+		conn.SetReadDeadline(time.Time{})
+	}
+	return ssh.NewClient(c, chans, reqs), nil
+}
 
 // A Dialer is a means for a client to establish a SSH connection.
 type Dialer interface {
@@ -42,7 +64,7 @@ type directDial struct{}
 
 // Dial calls ssh.Dial directly.
 func (d directDial) Dial(network string, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
-	return ssh.Dial(network, addr, config)
+	return DialWithDeadline(network, addr, config)
 }
 
 type proxyDial struct {
@@ -57,11 +79,16 @@ func (d proxyDial) Dial(network string, addr string, config *ssh.ClientConfig) (
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
+	if config.Timeout > 0 {
+		pconn.SetReadDeadline(time.Now().Add(config.Timeout))
+	}
 	// do the same as ssh.Dial but pass in proxy connection
 	c, chans, reqs, err := ssh.NewClientConn(pconn, addr, config)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if config.Timeout > 0 {
+		pconn.SetReadDeadline(time.Time{})
 	}
 	return ssh.NewClient(c, chans, reqs), nil
 }
