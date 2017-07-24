@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -55,6 +56,7 @@ var _ = fmt.Printf
 
 func (s *ConfigTestSuite) SetUpSuite(c *check.C) {
 	var err error
+
 	s.tempDir, err = ioutil.TempDir("", "teleport-config")
 	if err != nil {
 		c.FailNow()
@@ -85,6 +87,15 @@ func (s *ConfigTestSuite) TearDownSuite(c *check.C) {
 	os.RemoveAll(s.tempDir)
 }
 
+func (s *ConfigTestSuite) TearDownTest(c *check.C) {
+	utils.InitLoggerForTests()
+
+}
+
+func (s *ConfigTestSuite) SetUpTest(c *check.C) {
+	utils.InitLoggerForTests()
+}
+
 func (s *ConfigTestSuite) TestSampleConfig(c *check.C) {
 	// generate sample config and write it into a temp file:
 	sfc := MakeSampleFileConfig()
@@ -101,6 +112,7 @@ func (s *ConfigTestSuite) TestSampleConfig(c *check.C) {
 	c.Assert(fc.Limits.MaxUsers, check.Equals, defaults.LimiterMaxConcurrentUsers)
 	c.Assert(fc.Global.DataDir, check.Equals, defaults.DataDir)
 	c.Assert(fc.Logger.Severity, check.Equals, "INFO")
+
 }
 
 func (s *ConfigTestSuite) TestConfigReading(c *check.C) {
