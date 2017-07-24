@@ -108,13 +108,31 @@ func (a *AuthServer) buildSAMLRoles(connector services.SAMLConnector, assertionI
 	return roles, nil
 }
 
+// assertionsToTraitMap extracts all string assertions and creates a map of traits
+// that can be used to populate role variables.
+func assertionsToTraitMap(assertionInfo saml2.AssertionInfo) map[string][]string {
+	traits := make(map[string][]string)
+
+	for _, assr := range assertionInfo.Values {
+		var vals []string
+		for _, value := range assr.Values {
+			vals = append(vals, value.Value)
+		}
+		traits[assr.Name] = vals
+	}
+
+	return traits
+}
+
 func (a *AuthServer) createSAMLUser(connector services.SAMLConnector, assertionInfo saml2.AssertionInfo, expiresAt time.Time) error {
 	roles, err := a.buildSAMLRoles(connector, assertionInfo, expiresAt)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	log.Debugf("[SAML] %v/%v is a dynamic identity, generating user with roles: %v", connector.GetName(), assertionInfo.NameID, roles)
+	traits := assertionsToTraitMap(assertionInfo)
+
+	log.Debugf("[SAML] Generating dynamic identity %v/%v with roles: %v", connector.GetName(), assertionInfo.NameID, roles)
 	user, err := services.GetUserMarshaler().GenerateUser(&services.UserV2{
 		Kind:    services.KindUser,
 		Version: services.V2,
@@ -124,6 +142,7 @@ func (a *AuthServer) createSAMLUser(connector services.SAMLConnector, assertionI
 		},
 		Spec: services.UserSpecV2{
 			Roles:          roles,
+			Traits:         traits,
 			Expires:        expiresAt,
 			SAMLIdentities: []services.ExternalIdentity{{ConnectorID: connector.GetName(), Username: assertionInfo.NameID}},
 			CreatedBy: services.CreatedBy{
@@ -292,7 +311,7 @@ func (a *AuthServer) ValidateSAMLResponse(samlResponse string) (*SAMLAuthRespons
 	}
 
 	var roles services.RoleSet
-	roles, err = services.FetchRoles(user.GetRoles(), a.Access)
+	roles, err = services.FetchRoles(user.GetRoles(), a.Access, user.GetTraits())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

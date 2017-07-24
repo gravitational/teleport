@@ -5,6 +5,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/parse"
 
 	"github.com/gravitational/trace"
 )
@@ -91,7 +92,11 @@ func (a *RoleAccess) initSSH(teleRole services.Role) error {
 	filteredLogins := []string{}
 	for _, login := range teleRole.GetLogins(services.Allow) {
 		if login != roleDefaultAllowedLogin {
-			filteredLogins = append(filteredLogins, login)
+			// don't pass along role variables
+			_, _, err = parse.IsRoleVariable(login)
+			if trace.IsNotFound(err) {
+				filteredLogins = append(filteredLogins, login)
+			}
 		}
 	}
 	a.SSH.Logins = filteredLogins
