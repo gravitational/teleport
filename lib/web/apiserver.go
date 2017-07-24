@@ -321,33 +321,24 @@ func (m *Handler) getUserACL(w http.ResponseWriter, r *http.Request, _ httproute
 		return nil, trace.Wrap(err)
 	}
 
-	allTeleRoles, err := clt.GetRoles()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	user, err := clt.GetUser(c.GetUser())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	userTeleRoles := user.GetRoles()
-	roleNamesMap := map[string]bool{}
-	for _, name := range userTeleRoles {
-		roleNamesMap[name] = true
+	roleSet, err := services.FetchRoles(user.GetRoles(), clt, user.GetTraits())
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	accessSet := []*ui.RoleAccess{}
-	for _, item := range allTeleRoles {
-		if roleNamesMap[item.GetName()] {
-			uiRole, err := ui.NewRole(item)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			accessSet = append(accessSet, &uiRole.Access)
+	for _, role := range roleSet {
+		uiRole, err := ui.NewRole(role)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
+		accessSet = append(accessSet, &uiRole.Access)
 	}
-
 	uiaccess := ui.MergeAccessSet(accessSet)
 
 	return uiaccess, nil

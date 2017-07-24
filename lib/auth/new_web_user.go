@@ -27,7 +27,7 @@ import (
 	"bytes"
 	"image/png"
 
-	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -195,38 +195,13 @@ func (s *AuthServer) CreateUserWithOTP(token string, password string, otpToken s
 		return nil, trace.Wrap(err)
 	}
 
-	// apply user allowed logins
-	role := services.RoleForUser(tokenData.User.V2())
-	role.SetLogins(services.Allow, tokenData.User.AllowedLogins)
-	if err := s.UpsertRole(role, backend.Forever); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Allowed logins are not going to be used anymore
-	tokenData.User.AllowedLogins = nil
-	tokenData.User.Roles = append(tokenData.User.Roles, role.GetName())
-	user := tokenData.User.V2()
-	if err = s.UpsertUser(user); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	log.Infof("[AUTH] created new user: %v", &tokenData.User)
-
-	if err = s.DeleteSignupToken(token); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	sess, err := s.NewWebSession(user.GetName())
+	// create services.User and services.WebSession
+	webSession, err := s.createUserAndSession(tokenData)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	err = s.UpsertWebSession(user.GetName(), sess)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return sess.WithoutSecrets(), nil
+	return webSession, nil
 }
 
 // CreateUserWithoutOTP creates an account with the provided password and deletes the token afterwards.
@@ -241,38 +216,13 @@ func (s *AuthServer) CreateUserWithoutOTP(token string, password string) (servic
 		return nil, trace.Wrap(err)
 	}
 
-	// apply user allowed logins
-	role := services.RoleForUser(tokenData.User.V2())
-	role.SetLogins(services.Allow, tokenData.User.AllowedLogins)
-	if err := s.UpsertRole(role, backend.Forever); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// allowed logins are not going to be used anymore
-	tokenData.User.AllowedLogins = nil
-	tokenData.User.Roles = append(tokenData.User.Roles, role.GetName())
-	user := tokenData.User.V2()
-	if err = s.UpsertUser(user); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	log.Infof("[AUTH] Created new user: %v", &tokenData.User)
-
-	if err = s.DeleteSignupToken(token); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	sess, err := s.NewWebSession(user.GetName())
+	// create services.User and services.WebSession
+	webSession, err := s.createUserAndSession(tokenData)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	err = s.UpsertWebSession(user.GetName(), sess)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return sess.WithoutSecrets(), nil
+	return webSession, nil
 }
 
 func (s *AuthServer) CreateUserWithU2FToken(token string, password string, response u2f.RegisterResponse) (services.WebSession, error) {
@@ -312,32 +262,46 @@ func (s *AuthServer) CreateUserWithU2FToken(token string, password string, respo
 		return nil, trace.Wrap(err)
 	}
 
-	role := services.RoleForUser(tokenData.User.V2())
-	role.SetLogins(services.Allow, tokenData.User.AllowedLogins)
-	if err := s.UpsertRole(role, backend.Forever); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Allowed logins are not going to be used anymore
-	tokenData.User.AllowedLogins = nil
-	tokenData.User.Roles = append(tokenData.User.Roles, role.GetName())
-	user := tokenData.User.V2()
-	if err = s.UpsertUser(user); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	log.Infof("[AUTH] created new user: %v", &tokenData.User)
-
-	if err = s.DeleteSignupToken(token); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	sess, err := s.NewWebSession(user.GetName())
+	// create services.User and services.WebSession
+	webSession, err := s.createUserAndSession(tokenData)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	err = s.UpsertWebSession(user.GetName(), sess)
+	return webSession, nil
+}
+
+// createUserAndSession takes a signup token and creates services.User (either
+// with the passed in roles, or if no role, the default role) and
+// services.WebSession in the backend and returns the new services.WebSession.
+func (a *AuthServer) createUserAndSession(stoken *services.SignupToken) (services.WebSession, error) {
+	// extract user from signup token. if no roles have been passed along, create
+	// user with default role. note: during the conversion from services.UserV1
+	// to services.UserV2 we convert allowed logins to traits.
+	user := stoken.User.V2()
+	if len(user.GetRoles()) == 0 {
+		user.SetRoles([]string{teleport.DefaultRoleName})
+	}
+
+	// upsert user into the backend
+	err := a.UpsertUser(user)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	log.Infof("[AUTH] Created user: %v", user)
+
+	// remove the token once the user has been created
+	err = a.DeleteSignupToken(stoken.Token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// create and upsert a new web session into the backend
+	sess, err := a.NewWebSession(user.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = a.UpsertWebSession(user.GetName(), sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/parse"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -445,6 +447,12 @@ func (u *UserV1) Check() error {
 	if u.Name == "" {
 		return trace.BadParameter("user name cannot be empty")
 	}
+	for _, login := range u.AllowedLogins {
+		_, _, err := parse.IsRoleVariable(login)
+		if err == nil {
+			return trace.BadParameter("role variables not allowed in allowed logins")
+		}
+	}
 	for _, id := range u.OIDCIdentities {
 		if err := id.Check(); err != nil {
 			return trace.Wrap(err)
@@ -473,6 +481,9 @@ func (u *UserV1) V2() *UserV2 {
 			Expires:        u.Expires,
 			CreatedBy:      u.CreatedBy,
 			Roles:          u.Roles,
+			Traits: map[string][]string{
+				teleport.TraitLogins: u.AllowedLogins,
+			},
 		},
 		rawObject: *u,
 	}

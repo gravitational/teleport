@@ -176,3 +176,21 @@ const (
 	// compatibility modes.
 	CompatibilityNone = ""
 )
+
+const (
+	// TraitInternalPrefix is the role variable prefix that indicates it's for
+	// local accounts.
+	TraitInternalPrefix = "internal"
+
+	// TraitLogins is the name the role variable used to store
+	// allowed logins.
+	TraitLogins = "logins"
+
+	// TraitInternalRoleVariable is the role variable used to store allowed
+	// logins for local accounts.
+	TraitInternalRoleVariable = "{{internal.logins}}"
+)
+
+// NewDefaultRole is the name of the default role for all local users if
+// another role is not explicitly assigned (Enterprise only).
+const DefaultRoleName = "default"
