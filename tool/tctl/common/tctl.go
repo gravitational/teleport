@@ -31,14 +31,96 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/buger/goterm"
+	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
 
-type CLIConfig struct {
+// GlobalCLIFlags keeps the CLI flags that apply to all tctl commands
+type GlobalCLIFlags struct {
 	Debug        bool
 	ConfigFile   string
 	ConfigString string
+}
+
+// CLICommand interface must be implemented by every CLI command
+//
+// This allows OSS and Enterprise Teleport editions to plug their own
+// implementations of different CLI commands into the common execution
+// framework
+//
+type CLICommand interface {
+	// Initialize allows a caller-defined command to plug itself into CLI
+	// argument parsing
+	Initialize(*kingpin.Application, *service.Config)
+
+	// TryRun is executed after the CLI parsing is done. The command must
+	// determine if selectedCommand belongs to it and return match=true
+	TryRun(selectedCommand string, c *auth.TunClient) (match bool, err error)
+}
+
+func Run2(distribution string, commands []CLICommand) {
+	utils.InitLogger(utils.LoggingForCLI, logrus.WarnLevel)
+
+	// app is the command line parser
+	app := utils.InitCLIParser("tctl", GlobalHelpString)
+
+	// cfg (teleport auth server configuration) is going to be shared by all
+	// commands
+	cfg := service.MakeDefaultConfig()
+
+	// each command will add itself to the CLI parser:
+	for i := range commands {
+		commands[i].Initialize(app, cfg)
+	}
+
+	// these global flags apply to all commands
+	var ccf GlobalCLIFlags
+	app.Flag("debug", "Enable verbose logging to stderr").
+		Short('d').
+		BoolVar(&ccf.Debug)
+	app.Flag("config", fmt.Sprintf("Path to a configuration file [%v]", defaults.ConfigFilePath)).
+		Short('c').
+		ExistingFileVar(&ccf.ConfigFile)
+	app.Flag("config-string",
+		"Base64 encoded configuration string").Hidden().Envar(defaults.ConfigEnvar).StringVar(&ccf.ConfigString)
+
+	// "version" command is always available:
+	ver := app.Command("version", "Print the version.")
+	app.HelpFlag.Short('h')
+
+	// parse CLI commands+flags:
+	selectedCmd, err := app.Parse(os.Args[1:])
+	if err != nil {
+		utils.FatalError(err)
+	}
+
+	// "version" command?
+	if selectedCmd == ver.FullCommand() {
+		utils.PrintVersion(distribution)
+		return
+	}
+
+	// configure all commands with Teleport configuration (they share 'cfg')
+	applyConfig(&ccf, cfg)
+
+	// connect to the auth sever:
+	client, err := connectToAuthService(cfg)
+	if err != nil {
+		utils.FatalError(err)
+	}
+
+	// execute whatever is selected:
+	var match bool
+	for _, c := range commands {
+		match, err = c.TryRun(selectedCmd, client)
+		if err != nil {
+			utils.FatalError(err)
+		}
+		if match {
+			break
+		}
+	}
 }
 
 // Run() is the same as 'make'. It helps to share the code between different
@@ -51,8 +133,6 @@ func Run(distribution string) {
 
 	// generate default tctl configuration:
 	cfg := service.MakeDefaultConfig()
-	cmdUsers := UserCommand{config: cfg}
-	cmdNodes := NodeCommand{config: cfg}
 	cmdAuth := AuthCommand{config: cfg}
 	cmdTokens := TokenCommand{config: cfg}
 	cmdGet := GetCommand{config: cfg}
@@ -60,7 +140,7 @@ func Run(distribution string) {
 	cmdDelete := DeleteCommand{config: cfg}
 
 	// define global flags:
-	var ccf CLIConfig
+	var ccf GlobalCLIFlags
 	app.Flag("debug", "Enable verbose logging to stderr").
 		Short('d').
 		BoolVar(&ccf.Debug)
@@ -73,20 +153,6 @@ func Run(distribution string) {
 	// commands:
 	ver := app.Command("version", "Print the version.")
 	app.HelpFlag.Short('h')
-
-	// user add command:
-	users := app.Command("users", "Manage users logins")
-
-	userAdd := users.Command("add", "Generate an invitation token and print the signup URL")
-	userAdd.Arg("login", "Teleport user login").Required().StringVar(&cmdUsers.login)
-	userAdd.Arg("local-logins", "Local UNIX users this account can log in as [login]").
-		Default("").StringVar(&cmdUsers.allowedLogins)
-	userAdd.Alias(AddUserHelp)
-
-	userUpdate := users.Command("update", "Update properties for existing user").Hidden()
-	userUpdate.Arg("login", "Teleport user login").Required().StringVar(&cmdUsers.login)
-	userUpdate.Flag("set-roles", "Roles to assign to this user").
-		Default("").StringVar(&cmdUsers.roles)
 
 	delete := app.Command("del", "Delete resources").Hidden()
 	delete.Arg("resource", "Resource to delete").SetValue(&cmdDelete.ref)
@@ -101,26 +167,6 @@ func Run(distribution string) {
 	// upsert one or many resources
 	create := app.Command("create", "Create or update a resource").Hidden()
 	create.Flag("filename", "resource definition file").Short('f').StringVar(&cmdCreate.filename)
-
-	// list users command
-	userList := users.Command("ls", "List all user accounts")
-
-	// delete user command
-	userDelete := users.Command("del", "Deletes user accounts")
-	userDelete.Arg("logins", "Comma-separated list of user logins to delete").
-		Required().StringVar(&cmdUsers.login)
-
-	// add node command
-	nodes := app.Command("nodes", "Issue invites for other nodes to join the cluster")
-	nodeAdd := nodes.Command("add", "Generate an invitation token. Use it to add a new node to the Teleport cluster")
-	nodeAdd.Flag("roles", "Comma-separated list of roles for the new node to assume [node]").Default("node").StringVar(&cmdNodes.roles)
-	nodeAdd.Flag("ttl", "Time to live for a generated token").Default(defaults.ProvisioningTokenTTL.String()).DurationVar(&cmdNodes.ttl)
-	nodeAdd.Flag("count", "add count tokens and output JSON with the list").Hidden().Default("1").IntVar(&cmdNodes.count)
-	nodeAdd.Flag("format", "output format, 'text' or 'json'").Hidden().Default("text").StringVar(&cmdNodes.format)
-	nodeAdd.Alias(AddNodeHelp)
-	nodeList := nodes.Command("ls", "List all active SSH nodes within the cluster")
-	nodeList.Flag("namespace", "Namespace of the nodes").Default(defaults.Namespace).StringVar(&cmdNodes.namespace)
-	nodeList.Alias(ListNodesHelp)
 
 	// operations on invitation tokens
 	tokens := app.Command("tokens", "List or revoke invitation tokens")
@@ -184,18 +230,7 @@ func Run(distribution string) {
 		err = cmdCreate.Create(client)
 	case delete.FullCommand():
 		err = cmdDelete.Delete(client)
-	case userAdd.FullCommand():
-		err = cmdUsers.Add(client)
-	case userList.FullCommand():
-		err = cmdUsers.List(client)
-	case userUpdate.FullCommand():
-		err = cmdUsers.Update(client)
-	case userDelete.FullCommand():
-		err = cmdUsers.Delete(client)
-	case nodeAdd.FullCommand():
-		err = cmdNodes.Invite(client)
-	case nodeList.FullCommand():
-		err = cmdNodes.ListActive(client)
+
 	case authExport.FullCommand():
 		err = cmdAuth.ExportAuthorities(client)
 	case tokenList.FullCommand():
@@ -256,7 +291,7 @@ func connectToAuthService(cfg *service.Config) (client *auth.TunClient, err erro
 
 // applyConfig takes configuration values from the config file and applies
 // them to 'service.Config' object
-func applyConfig(ccf *CLIConfig, cfg *service.Config) error {
+func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) error {
 	// load /etc/teleport.yaml and apply it's values:
 	fileConf, err := config.ReadConfigFile(ccf.ConfigFile)
 	if err != nil {
