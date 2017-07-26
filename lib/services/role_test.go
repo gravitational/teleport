@@ -464,3 +464,135 @@ func (s *RoleSuite) TestCheckResourceAccess(c *C) {
 		}
 	}
 }
+
+func (s *RoleSuite) TestApplyTraits(c *C) {
+	var tests = []struct {
+		inTraits  map[string][]string
+		inLogins  []string
+		outLogins []string
+	}{
+		// 0 - substitute in allow rule
+		{
+			map[string][]string{
+				"foo": []string{"bar"},
+			},
+			[]string{`{{external.foo}}`, "root"},
+			[]string{"bar", "root"},
+		},
+		// 1 - substitute in deny rule
+		{
+			map[string][]string{
+				"foo": []string{"bar"},
+			},
+			[]string{`{{external.foo}}`},
+			[]string{"bar"},
+		},
+		// 2 - no variable in logins
+		{
+			map[string][]string{
+				"foo": []string{"bar"},
+			},
+			[]string{"root"},
+			[]string{"root"},
+		},
+		// 3 - invalid variable in logins gets passed along
+		{
+			map[string][]string{
+				"foo": []string{"bar"},
+			},
+			[]string{`external.foo}}`},
+			[]string{`external.foo}}`},
+		},
+		// 4 - variable in logins, none in traits
+		{
+			map[string][]string{
+				"foo": []string{"bar"},
+			},
+			[]string{`{{internal.bar}}`, "root"},
+			[]string{"root"},
+		},
+		// 5 - multiple variables in traits
+		{
+			map[string][]string{
+				"foo": []string{"bar", "baz"},
+			},
+			[]string{`{{internal.foo}}`, "root"},
+			[]string{"bar", "baz", "root"},
+		},
+		// 6 - deduplicate
+		{
+			map[string][]string{
+				"foo": []string{"bar"},
+			},
+			[]string{`{{external.foo}}`, "bar"},
+			[]string{"bar"},
+		},
+	}
+
+	for i, tt := range tests {
+		comment := Commentf("Test %v", i)
+
+		role := &RoleV3{
+			Kind:    KindRole,
+			Version: V3,
+			Metadata: Metadata{
+				Name:      "name1",
+				Namespace: defaults.Namespace,
+			},
+			Spec: RoleSpecV3{
+				Allow: RoleConditions{
+					Logins: tt.inLogins,
+				},
+			},
+		}
+		outRole := role.ApplyTraits(tt.inTraits)
+		c.Assert(outRole.GetLogins(Allow), DeepEquals, tt.outLogins, comment)
+	}
+}
+
+func (s *RoleSuite) TestCheckAndSetDefaults(c *C) {
+	var tests = []struct {
+		inLogins []string
+		outError bool
+	}{
+		// 0 - invalid syntax
+		{
+			[]string{"{{foo"},
+			true,
+		},
+		// 1 - invalid syntax
+		{
+			[]string{"bar}}"},
+			true,
+		},
+		// 2 - valid syntax
+		{
+			[]string{"{{foo.bar}}"},
+			false,
+		},
+	}
+
+	for i, tt := range tests {
+		comment := Commentf("Test %v", i)
+
+		role := &RoleV3{
+			Kind:    KindRole,
+			Version: V3,
+			Metadata: Metadata{
+				Name:      "name1",
+				Namespace: defaults.Namespace,
+			},
+			Spec: RoleSpecV3{
+				Allow: RoleConditions{
+					Logins: tt.inLogins,
+				},
+			},
+		}
+		if tt.outError {
+			c.Assert(role.CheckAndSetDefaults(), NotNil, comment)
+		} else {
+			c.Assert(role.CheckAndSetDefaults(), IsNil, comment)
+		}
+	}
+
+}

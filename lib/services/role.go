@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/parse"
 
 	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
@@ -172,6 +173,9 @@ type Role interface {
 	// Equals returns true if the roles are equal. Roles are equal if options and
 	// conditions match.
 	Equals(other Role) bool
+	// ApplyTraits applies the passed in traits to any variables within the role
+	// and returns itself.
+	ApplyTraits(map[string][]string) Role
 	// GetRawObject returns the raw object stored in the backend without any
 	// conversions applied, used in migrations.
 	GetRawObject() interface{}
@@ -249,6 +253,41 @@ func (r *RoleV3) Equals(other Role) bool {
 	}
 
 	return true
+}
+
+// ApplyTraits applies the passed in traits to any variables within the role
+// and returns itself.
+func (r *RoleV3) ApplyTraits(traits map[string][]string) Role {
+	for _, condition := range []RoleConditionType{Allow, Deny} {
+		inLogins := r.GetLogins(condition)
+
+		var outLogins []string
+		for _, login := range inLogins {
+			// for now throw away the variable prefix, we'll start using it when
+			// we introduce variables for local accounts.
+			_, variableName, err := parse.IsRoleVariable(login)
+
+			// if we didn't find a variable (found a normal login) then append it and
+			// go on to the next login
+			if trace.IsNotFound(err) {
+				outLogins = append(outLogins, login)
+				continue
+			}
+
+			// if we can't find the variable in the traits, skip it
+			variableValue, ok := traits[variableName]
+			if !ok {
+				continue
+			}
+
+			// we found the variable in the traits, append it to the list of logins
+			outLogins = append(outLogins, variableValue...)
+		}
+
+		r.SetLogins(condition, utils.Deduplicate(outLogins))
+	}
+
+	return r
 }
 
 // GetRawObject returns the raw object stored in the backend without any
@@ -421,6 +460,18 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 		for ruleName, _ := range r.GetRules(condition) {
 			if !utils.SliceContainsStr(ValidRules, ruleName) {
 				return trace.BadParameter("invalid rule name: %v", ruleName)
+			}
+		}
+	}
+
+	// if we find {{ or }} but the syntax is invalid, the role is invalid
+	for _, condition := range []RoleConditionType{Allow, Deny} {
+		for _, login := range r.GetLogins(condition) {
+			if strings.Contains(login, "{{") || strings.Contains(login, "}}") {
+				_, _, err := parse.IsRoleVariable(login)
+				if err != nil {
+					return trace.BadParameter("invalid login found: %v", login)
+				}
 			}
 		}
 	}
@@ -925,15 +976,16 @@ type RoleGetter interface {
 	GetRole(name string) (Role, error)
 }
 
-// FetchRoles fetches roles by their names and returns role set
-func FetchRoles(roleNames []string, access RoleGetter) (RoleSet, error) {
+// FetchRoles fetches roles by their names, applies the traits to role
+// variables, and returns the RoleSet.
+func FetchRoles(roleNames []string, access RoleGetter, traits map[string][]string) (RoleSet, error) {
 	var roles RoleSet
 	for _, roleName := range roleNames {
 		role, err := access.GetRole(roleName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		roles = append(roles, role)
+		roles = append(roles, role.ApplyTraits(traits))
 	}
 	return roles, nil
 }

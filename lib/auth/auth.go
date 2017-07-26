@@ -648,7 +648,10 @@ func (s *AuthServer) NewWebSession(userName string) (services.WebSession, error)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		roles = append(roles, role)
+		// apply traits to role to fill in any role variables
+		roles = append(roles, role.ApplyTraits(user.GetTraits()))
+		log.Debugf("[RBAC] Generating user certificate for %v with role %v. Allow logins: %v. Deny logins: %v",
+			user.GetName(), role.GetName(), role.GetLogins(services.Allow), role.GetLogins(services.Deny))
 	}
 	sessionTTL := roles.AdjustSessionTTL(defaults.CertDuration)
 	bearerTokenTTL := utils.MinTTL(sessionTTL, BearerTokenTTL)

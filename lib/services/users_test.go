@@ -32,7 +32,7 @@ func (s *UserSuite) SetUpSuite(c *C) {
 	utils.InitLoggerForTests()
 }
 
-func (s *RoleSuite) TestOIDCMapping(c *C) {
+func (s *UserSuite) TestOIDCMapping(c *C) {
 	conn := OIDCConnectorV2{}
 	c.Assert(conn.MapClaims(jose.Claims{"a": "b"}), DeepEquals, []string(nil))
 

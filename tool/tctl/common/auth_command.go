@@ -259,7 +259,7 @@ func hostCAFormat(ca services.CertAuthority, keyBytes []byte, client *auth.TunCl
 		"type": []string{string(ca.GetType())},
 	}
 
-	roles, err := services.FetchRoles(ca.GetRoles(), client)
+	roles, err := services.FetchRoles(ca.GetRoles(), client, nil)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
