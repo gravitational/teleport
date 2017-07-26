@@ -86,18 +86,18 @@ func (c *NodeCommand) TryRun(cmd string, client *auth.TunClient) (match bool, er
 
 // Invite generates a token which can be used to add another SSH node
 // to a cluster
-func (u *NodeCommand) Invite(client *auth.TunClient) error {
-	if u.count < 1 {
-		return trace.BadParameter("count should be > 0, got %v", u.count)
+func (c *NodeCommand) Invite(client *auth.TunClient) error {
+	if c.count < 1 {
+		return trace.BadParameter("count should be > 0, got %v", c.count)
 	}
 	// parse --roles flag
-	roles, err := teleport.ParseRoles(u.roles)
+	roles, err := teleport.ParseRoles(c.roles)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	var tokens []string
-	for i := 0; i < u.count; i++ {
-		token, err := client.GenerateToken(roles, u.ttl)
+	for i := 0; i < c.count; i++ {
+		token, err := client.GenerateToken(roles, c.ttl)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -113,13 +113,13 @@ func (u *NodeCommand) Invite(client *auth.TunClient) error {
 	}
 
 	// output format swtich:
-	if u.format == "text" {
+	if c.format == "text" {
 		for _, token := range tokens {
 			fmt.Printf(
 				"The invite token: %v\nRun this on the new node to join the cluster:\n> teleport start --roles=%s --token=%v --auth-server=%v\n\nPlease note:\n",
 				token, strings.ToLower(roles.String()), token, authServers[0].GetAddr())
 		}
-		fmt.Printf("  - This invitation token will expire in %d minutes\n", int(u.ttl.Minutes()))
+		fmt.Printf("  - This invitation token will expire in %d minutes\n", int(c.ttl.Minutes()))
 		fmt.Printf("  - %v must be reachable from the new node, see --advertise-ip server flag\n", authServers[0].GetAddr())
 	} else {
 		out, err := json.Marshal(tokens)
@@ -133,8 +133,8 @@ func (u *NodeCommand) Invite(client *auth.TunClient) error {
 
 // ListActive retreives the list of nodes who recently sent heartbeats to
 // to a cluster and prints it to stdout
-func (u *NodeCommand) ListActive(client *auth.TunClient) error {
-	nodes, err := client.GetNodes(u.namespace)
+func (c *NodeCommand) ListActive(client *auth.TunClient) error {
+	nodes, err := client.GetNodes(c.namespace)
 	if err != nil {
 		return trace.Wrap(err)
 	}

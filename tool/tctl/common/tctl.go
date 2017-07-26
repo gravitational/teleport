@@ -23,7 +23,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
@@ -59,7 +58,11 @@ type CLICommand interface {
 	TryRun(selectedCommand string, c *auth.TunClient) (match bool, err error)
 }
 
-func Run2(distribution string, commands []CLICommand) {
+// Run() is the same as 'make'. It helps to share the code between different
+// "distributions" like OSS or Enterprise
+//
+// distribution: name of the Teleport distribution
+func Run(distribution string, commands []CLICommand) {
 	utils.InitLogger(utils.LoggingForCLI, logrus.WarnLevel)
 
 	// app is the command line parser
@@ -120,129 +123,6 @@ func Run2(distribution string, commands []CLICommand) {
 		if match {
 			break
 		}
-	}
-}
-
-// Run() is the same as 'make'. It helps to share the code between different
-// "distributions" like OSS or Enterprise
-//
-// distribution: name of the Teleport distribution
-func Run(distribution string) {
-	utils.InitLogger(utils.LoggingForCLI, logrus.WarnLevel)
-	app := utils.InitCLIParser("tctl", GlobalHelpString)
-
-	// generate default tctl configuration:
-	cfg := service.MakeDefaultConfig()
-	cmdAuth := AuthCommand{config: cfg}
-	cmdTokens := TokenCommand{config: cfg}
-	cmdGet := GetCommand{config: cfg}
-	cmdCreate := CreateCommand{config: cfg}
-	cmdDelete := DeleteCommand{config: cfg}
-
-	// define global flags:
-	var ccf GlobalCLIFlags
-	app.Flag("debug", "Enable verbose logging to stderr").
-		Short('d').
-		BoolVar(&ccf.Debug)
-	app.Flag("config", fmt.Sprintf("Path to a configuration file [%v]", defaults.ConfigFilePath)).
-		Short('c').
-		ExistingFileVar(&ccf.ConfigFile)
-	app.Flag("config-string",
-		"Base64 encoded configuration string").Hidden().Envar(defaults.ConfigEnvar).StringVar(&ccf.ConfigString)
-
-	// commands:
-	ver := app.Command("version", "Print the version.")
-	app.HelpFlag.Short('h')
-
-	delete := app.Command("del", "Delete resources").Hidden()
-	delete.Arg("resource", "Resource to delete").SetValue(&cmdDelete.ref)
-
-	// get one or many resources in the system
-	get := app.Command("get", "Get one or many objects in the system").Hidden()
-	get.Arg("resource", "Resource type and name").SetValue(&cmdGet.ref)
-	get.Flag("format", "Format output type, one of 'yaml', 'json' or 'text'").Default(formatText).StringVar(&cmdGet.format)
-	get.Flag("namespace", "Namespace of the resources").Default(defaults.Namespace).StringVar(&cmdGet.namespace)
-	get.Flag("with-secrets", "Include secrets in resources like certificate authorities or OIDC connectors").Default("false").BoolVar(&cmdGet.withSecrets)
-
-	// upsert one or many resources
-	create := app.Command("create", "Create or update a resource").Hidden()
-	create.Flag("filename", "resource definition file").Short('f').StringVar(&cmdCreate.filename)
-
-	// operations on invitation tokens
-	tokens := app.Command("tokens", "List or revoke invitation tokens")
-	tokenList := tokens.Command("ls", "List node and user invitation tokens")
-	tokenDel := tokens.Command("del", "Delete/revoke an invitation token")
-	tokenDel.Arg("token", "Token to delete").StringVar(&cmdTokens.token)
-
-	// operations with authorities
-	auth := app.Command("auth", "Operations with user and host certificate authorities (CAs)").Hidden()
-	authExport := auth.Command("export", "Export public cluster (CA) keys to stdout")
-	authExport.Flag("keys", "if set, will print private keys").BoolVar(&cmdAuth.exportPrivateKeys)
-	authExport.Flag("fingerprint", "filter authority by fingerprint").StringVar(&cmdAuth.exportAuthorityFingerprint)
-	authExport.Flag("compat", "export cerfiticates compatible with specific version of Teleport").StringVar(&cmdAuth.compatVersion)
-	authExport.Flag("type", "certificate type: 'user' or 'host'").StringVar(&cmdAuth.authType)
-
-	authGenerate := auth.Command("gen", "Generate a new SSH keypair")
-	authGenerate.Flag("pub-key", "path to the public key").Required().StringVar(&cmdAuth.genPubPath)
-	authGenerate.Flag("priv-key", "path to the private key").Required().StringVar(&cmdAuth.genPrivPath)
-
-	authSign := auth.Command("sign", "Create an identity file(s) for a given user")
-	authSign.Flag("user", "Teleport user name").Required().StringVar(&cmdAuth.genUser)
-	authSign.Flag("out", "identity output").Short('o').StringVar(&cmdAuth.output)
-	authSign.Flag("format", "identity format: 'file' (default) or 'dir'").Default(string(client.DefaultIdentityFormat)).StringVar((*string)(&cmdAuth.outputFormat))
-	authSign.Flag("ttl", "TTL (time to live) for the generated certificate").Default(fmt.Sprintf("%v", defaults.CertDuration)).DurationVar(&cmdAuth.genTTL)
-	authSign.Flag("compat", "OpenSSH compatibility flag").StringVar(&cmdAuth.compatibility)
-
-	// parse CLI commands+flags:
-	command, err := app.Parse(os.Args[1:])
-	if err != nil {
-		utils.FatalError(err)
-	}
-
-	// "version" command?
-	if command == ver.FullCommand() {
-		utils.PrintVersion(distribution)
-		return
-	}
-
-	applyConfig(&ccf, cfg)
-
-	// some commands do not need a connection to client
-	switch command {
-	case authGenerate.FullCommand():
-		err = cmdAuth.GenerateKeys()
-		if err != nil {
-			utils.FatalError(err)
-		}
-		return
-	}
-	// connect to the teleport auth service:
-	client, err := connectToAuthService(cfg)
-	if err != nil {
-		utils.FatalError(err)
-	}
-
-	// execute the selected command:
-	switch command {
-	case get.FullCommand():
-		err = cmdGet.Get(client)
-	case create.FullCommand():
-		err = cmdCreate.Create(client)
-	case delete.FullCommand():
-		err = cmdDelete.Delete(client)
-
-	case authExport.FullCommand():
-		err = cmdAuth.ExportAuthorities(client)
-	case tokenList.FullCommand():
-		err = cmdTokens.List(client)
-	case tokenDel.FullCommand():
-		err = cmdTokens.Del(client)
-	case authSign.FullCommand():
-		err = cmdAuth.GenerateAndSignKeys(client)
-	}
-	if err != nil {
-		logrus.Error(err)
-		utils.FatalError(err)
 	}
 }
 

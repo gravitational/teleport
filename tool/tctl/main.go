@@ -21,8 +21,12 @@ import (
 )
 
 func main() {
-	const (
-		ossDistribution = ""
-	)
-	common.Run(ossDistribution)
+	commands := []common.CLICommand{
+		&common.UserCommand{},
+		&common.NodeCommand{},
+		&common.TokenCommand{},
+		&common.AuthCommand{},
+		&common.ResourceCommand{},
+	}
+	common.Run("Community Edition", commands)
 }

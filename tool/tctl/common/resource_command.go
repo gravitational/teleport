@@ -22,8 +22,10 @@ import (
 	"io/ioutil"
 	"os"
 
+	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -31,29 +33,61 @@ import (
 	kyaml "k8s.io/client-go/1.4/pkg/util/yaml"
 )
 
-// GetCommand implements `tctl get` command
-type GetCommand struct {
+// ResourceCommand implements `tctl get/create/list` commands for manipulating
+// Teleport resources
+type ResourceCommand struct {
 	config      *service.Config
 	ref         services.Ref
 	format      string
 	namespace   string
 	withSecrets bool
-}
 
-// GetCommand implements `tctl create` command
-type CreateCommand struct {
-	config   *service.Config
+	// filename is the name of the resource, used for 'create'
 	filename string
+
+	// CLI subcommands:
+	delete *kingpin.CmdClause
+	get    *kingpin.CmdClause
+	create *kingpin.CmdClause
 }
 
-// GetCommand implements `tctl delete` command
-type DeleteCommand struct {
-	config *service.Config
-	ref    services.Ref
+// Initialize allows ResourceCommand to plug itself into the CLI parser
+func (g *ResourceCommand) Initialize(app *kingpin.Application, config *service.Config) {
+	g.config = config
+
+	g.create = app.Command("create", "Create or update a resource")
+	g.create.Flag("filename", "resource definition file").Short('f').StringVar(&g.filename)
+
+	g.delete = app.Command("rm", "Delete a resource").Alias("del")
+	g.delete.Arg("resource", "Resource to delete").SetValue(&g.ref)
+
+	g.get = app.Command("get", "Print a resource")
+	g.get.Arg("resource", "Resource type and name").SetValue(&g.ref)
+	g.get.Flag("format", "Format output type, one of 'yaml', 'json' or 'text'").Default(formatText).StringVar(&g.format)
+	g.get.Flag("namespace", "Namespace of the resources").Hidden().Default(defaults.Namespace).StringVar(&g.namespace)
+	g.get.Flag("with-secrets", "Include secrets in resources like certificate authorities or OIDC connectors").Default("false").BoolVar(&g.withSecrets)
+}
+
+// TryRun takes the CLI command as an argument (like "auth gen") and executes it
+// or returns match=false if 'cmd' does not belong to it
+func (g *ResourceCommand) TryRun(cmd string, client *auth.TunClient) (match bool, err error) {
+	switch cmd {
+
+	case g.get.FullCommand():
+		err = g.Get(client)
+	case g.create.FullCommand():
+		err = g.Create(client)
+	case g.delete.FullCommand():
+		err = g.Delete(client)
+
+	default:
+		return false, nil
+	}
+	return true, trace.Wrap(err)
 }
 
 // Get prints one or many resources of a certain type
-func (g *GetCommand) Get(client *auth.TunClient) error {
+func (g *ResourceCommand) Get(client *auth.TunClient) error {
 	collection, err := g.getCollection(client)
 	if err != nil {
 		return trace.Wrap(err)
@@ -72,7 +106,7 @@ func (g *GetCommand) Get(client *auth.TunClient) error {
 }
 
 // Create updates or insterts one or many resources
-func (u *CreateCommand) Create(client *auth.TunClient) error {
+func (u *ResourceCommand) Create(client *auth.TunClient) error {
 	var reader io.ReadCloser
 	var err error
 	if u.filename != "" {
@@ -205,7 +239,7 @@ func (u *CreateCommand) Create(client *auth.TunClient) error {
 }
 
 // Delete deletes resource by name
-func (d *DeleteCommand) Delete(client *auth.TunClient) error {
+func (d *ResourceCommand) Delete(client *auth.TunClient) error {
 	if d.ref.Kind == "" {
 		return trace.BadParameter("provide full resource name to delete e.g. roles/example")
 	}
@@ -258,7 +292,7 @@ func (d *DeleteCommand) Delete(client *auth.TunClient) error {
 	return nil
 }
 
-func (g *GetCommand) getCollection(client auth.ClientI) (collection, error) {
+func (g *ResourceCommand) getCollection(client auth.ClientI) (collection, error) {
 	if g.ref.Kind == "" {
 		return nil, trace.BadParameter("specify resource to list, e.g. 'tctl get roles'")
 	}

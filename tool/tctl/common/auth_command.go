@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
@@ -33,6 +34,51 @@ type AuthCommand struct {
 	outputFormat               client.IdentityFileFormat
 	compatVersion              string
 	compatibility              string
+
+	authGenerate *kingpin.CmdClause
+	authExport   *kingpin.CmdClause
+	authSign     *kingpin.CmdClause
+}
+
+// Initialize allows TokenCommand to plug itself into the CLI parser
+func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Config) {
+	a.config = config
+
+	// operations with authorities
+	auth := app.Command("auth", "Operations with user and host certificate authorities (CAs)").Hidden()
+	a.authExport = auth.Command("export", "Export public cluster (CA) keys to stdout")
+	a.authExport.Flag("keys", "if set, will print private keys").BoolVar(&a.exportPrivateKeys)
+	a.authExport.Flag("fingerprint", "filter authority by fingerprint").StringVar(&a.exportAuthorityFingerprint)
+	a.authExport.Flag("compat", "export cerfiticates compatible with specific version of Teleport").StringVar(&a.compatVersion)
+	a.authExport.Flag("type", "certificate type: 'user' or 'host'").StringVar(&a.authType)
+
+	a.authGenerate = auth.Command("gen", "Generate a new SSH keypair").Hidden()
+	a.authGenerate.Flag("pub-key", "path to the public key").Required().StringVar(&a.genPubPath)
+	a.authGenerate.Flag("priv-key", "path to the private key").Required().StringVar(&a.genPrivPath)
+
+	a.authSign = auth.Command("sign", "Create an identity file(s) for a given user")
+	a.authSign.Flag("user", "Teleport user name").Required().StringVar(&a.genUser)
+	a.authSign.Flag("out", "identity output").Short('o').StringVar(&a.output)
+	a.authSign.Flag("format", "identity format: 'file' (default) or 'dir'").Default(string(client.DefaultIdentityFormat)).StringVar((*string)(&a.outputFormat))
+	a.authSign.Flag("ttl", "TTL (time to live) for the generated certificate").Default(fmt.Sprintf("%v", defaults.CertDuration)).DurationVar(&a.genTTL)
+	a.authSign.Flag("compat", "OpenSSH compatibility flag").StringVar(&a.compatibility)
+}
+
+// TryRun takes the CLI command as an argument (like "auth gen") and executes it
+// or returns match=false if 'cmd' does not belong to it
+func (a *AuthCommand) TryRun(cmd string, client *auth.TunClient) (match bool, err error) {
+	switch cmd {
+	case a.authGenerate.FullCommand():
+		err = a.GenerateKeys()
+	case a.authExport.FullCommand():
+		err = a.ExportAuthorities(client)
+	case a.authSign.FullCommand():
+		err = a.GenerateAndSignKeys(client)
+
+	default:
+		return false, nil
+	}
+	return true, trace.Wrap(err)
 }
 
 // ExportAuthorities outputs the list of authorities in OpenSSH compatible formats
