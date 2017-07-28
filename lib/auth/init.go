@@ -49,9 +49,9 @@ type InitConfig struct {
 	// NodeName is the DNS name of the node
 	NodeName string
 
-	// DomainName stores the FQDN of the signing CA (its certificate will have this
+	// ClusterName stores the FQDN of the signing CA (its certificate will have this
 	// name embedded). It is usually set to the GUID of the host the Auth service runs on
-	DomainName string
+	ClusterName services.ClusterName
 
 	// Authorities is a list of pre-configured authorities to supply on first start
 	Authorities []services.CertAuthority
@@ -87,25 +87,20 @@ type InitConfig struct {
 	// Access is service controlling access to resources
 	Access services.Access
 
-	// ClusterAuthPreferenceService is a service to get and set authentication preferences.
-	ClusterAuthPreferenceService services.ClusterAuthPreference
-
-	// UniversalSecondFactorService is a service to get and set universal second factor settings.
-	UniversalSecondFactorService services.UniversalSecondFactorSettings
+	// ClusterConfiguration is a services that holds cluster wide configuration.
+	ClusterConfiguration services.ClusterConfiguration
 
 	// Roles is a set of roles to create
 	Roles []services.Role
 
 	// StaticTokens are pre-defined host provisioning tokens supplied via config file for
 	// environments where paranoid security is not needed
-	StaticTokens []services.ProvisionToken
+	//StaticTokens []services.ProvisionToken
+	StaticTokens services.StaticTokens
 
 	// AuthPreference defines the authentication type (local, oidc) and second
 	// factor (off, otp, u2f) passed in from a configuration file.
 	AuthPreference services.AuthPreference
-
-	// U2F defines U2F application ID and any facets passed in from a configuration file.
-	U2F services.UniversalSecondFactor
 
 	// DeveloperMode should only be used during development as it does several
 	// unsafe things like log sensitive information to console as well as
@@ -122,82 +117,63 @@ func Init(cfg InitConfig, dynamicConfig bool) (*AuthServer, *Identity, error) {
 		return nil, nil, trace.BadParameter("HostUUID: host UUID can not be empty")
 	}
 
-	err := cfg.Backend.AcquireLock(cfg.DomainName, 30*time.Second)
+	domainName := cfg.ClusterName.GetClusterName()
+	err := cfg.Backend.AcquireLock(domainName, 30*time.Second)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	defer cfg.Backend.ReleaseLock(cfg.DomainName)
+	defer cfg.Backend.ReleaseLock(domainName)
 
 	// check that user CA and host CA are present and set the certs if needed
 	asrv := NewAuthServer(&cfg)
 
-	// we determine if it's the first start by checking if the CA's are set
-	firstStart, err := isFirstStart(asrv, cfg)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
+	// INTERNAL: Authorities (plus Roles) and ReverseTunnels don't follow the
+	// same pattern as the rest of the configuration (they are not configuration
+	// singletons). However, we need to keep them around while Telekube uses them.
+	for _, role := range cfg.Roles {
+		if err := asrv.UpsertRole(role, backend.Forever); err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		log.Infof("[INIT] Created Role: %v", role)
 	}
-
-	// the logic for when to upload resources to the backend is as follows:
-	//
-	// if dynamicConfig is false:                   upload resources
-	// if dynamicConfig is true AND firstStart:     upload resources
-	// if dynamicConfig is true AND NOT firstStart: don't upload resources
-	uploadResources := true
-	if dynamicConfig == true && firstStart == false {
-		uploadResources = false
-	}
-
-	if uploadResources {
-		err = asrv.SetClusterAuthPreference(cfg.AuthPreference)
+	for i := range cfg.Authorities {
+		ca := cfg.Authorities[i]
+		ca, err = services.GetCertAuthorityMarshaler().GenerateCertAuthority(ca)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		log.Infof("[INIT] Set Cluster Authentication Preference: %v", cfg.AuthPreference)
 
-		if cfg.U2F != nil {
-			err = asrv.SetUniversalSecondFactor(cfg.U2F)
-			if err != nil {
-				return nil, nil, trace.Wrap(err)
-			}
-			log.Infof("[INIT] Set Universal Second Factor Settings: %v", cfg.U2F)
+		if err := asrv.Trust.UpsertCertAuthority(ca); err != nil {
+			return nil, nil, trace.Wrap(err)
 		}
-
-		if len(cfg.OIDCConnectors) > 0 {
-			for _, connector := range cfg.OIDCConnectors {
-				if err := asrv.UpsertOIDCConnector(connector); err != nil {
-					return nil, nil, trace.Wrap(err)
-				}
-				log.Infof("[INIT] Created ODIC Connector: %q", connector.GetName())
-			}
-		}
-
-		for _, role := range cfg.Roles {
-			if err := asrv.UpsertRole(role, backend.Forever); err != nil {
-				return nil, nil, trace.Wrap(err)
-			}
-			log.Infof("[INIT] Created Role: %v", role)
-		}
-
-		for i := range cfg.Authorities {
-			ca := cfg.Authorities[i]
-			ca, err = services.GetCertAuthorityMarshaler().GenerateCertAuthority(ca)
-			if err != nil {
-				return nil, nil, trace.Wrap(err)
-			}
-
-			if err := asrv.Trust.UpsertCertAuthority(ca); err != nil {
-				return nil, nil, trace.Wrap(err)
-			}
-			log.Infof("[INIT] Created Trusted Certificate Authority: %q, type: %q", ca.GetName(), ca.GetType())
-		}
-
-		for _, tunnel := range cfg.ReverseTunnels {
-			if err := asrv.UpsertReverseTunnel(tunnel); err != nil {
-				return nil, nil, trace.Wrap(err)
-			}
-			log.Infof("[INIT] Created Reverse Tunnel: %v", tunnel)
-		}
+		log.Infof("[INIT] Created Trusted Certificate Authority: %q, type: %q", ca.GetName(), ca.GetType())
 	}
+	for _, tunnel := range cfg.ReverseTunnels {
+		if err := asrv.UpsertReverseTunnel(tunnel); err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		log.Infof("[INIT] Created Reverse Tunnel: %v", tunnel)
+	}
+
+	// always upload cluster configuration when auth service starts. the last
+	// one always wins.
+	err = asrv.SetClusterName(cfg.ClusterName)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	log.Infof("[INIT] Updating Cluster Configuration: ClusterName: %v", cfg.ClusterName)
+
+	err = asrv.SetStaticTokens(cfg.StaticTokens)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	log.Infof("[INIT] Updating Cluster Configuration: Static Tokens: %v", cfg.StaticTokens)
+
+	err = asrv.SetAuthPreference(cfg.AuthPreference)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	log.Infof("[INIT] Updating Cluster Configuration: AuthPreference: %v", cfg.AuthPreference)
 
 	// always create the default namespace
 	err = asrv.UpsertNamespace(services.NewNamespace(defaults.Namespace))
@@ -215,7 +191,7 @@ func Init(cfg InitConfig, dynamicConfig bool) (*AuthServer, *Identity, error) {
 	log.Infof("[INIT] Created default Role: %q", defaultRole.GetName())
 
 	// generate a user certificate authority if it doesn't exist
-	if _, err := asrv.GetCertAuthority(services.CertAuthID{DomainName: cfg.DomainName, Type: services.UserCA}, false); err != nil {
+	if _, err := asrv.GetCertAuthority(services.CertAuthID{DomainName: cfg.ClusterName.GetClusterName(), Type: services.UserCA}, false); err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -230,11 +206,11 @@ func Init(cfg InitConfig, dynamicConfig bool) (*AuthServer, *Identity, error) {
 			Kind:    services.KindCertAuthority,
 			Version: services.V2,
 			Metadata: services.Metadata{
-				Name:      cfg.DomainName,
+				Name:      cfg.ClusterName.GetClusterName(),
 				Namespace: defaults.Namespace,
 			},
 			Spec: services.CertAuthoritySpecV2{
-				ClusterName:  cfg.DomainName,
+				ClusterName:  cfg.ClusterName.GetClusterName(),
 				Type:         services.UserCA,
 				SigningKeys:  [][]byte{priv},
 				CheckingKeys: [][]byte{pub},
@@ -247,7 +223,7 @@ func Init(cfg InitConfig, dynamicConfig bool) (*AuthServer, *Identity, error) {
 	}
 
 	// generate a host certificate authority if it doesn't exist
-	if _, err := asrv.GetCertAuthority(services.CertAuthID{DomainName: cfg.DomainName, Type: services.HostCA}, false); err != nil {
+	if _, err := asrv.GetCertAuthority(services.CertAuthID{DomainName: cfg.ClusterName.GetClusterName(), Type: services.HostCA}, false); err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -262,11 +238,11 @@ func Init(cfg InitConfig, dynamicConfig bool) (*AuthServer, *Identity, error) {
 			Kind:    services.KindCertAuthority,
 			Version: services.V2,
 			Metadata: services.Metadata{
-				Name:      cfg.DomainName,
+				Name:      cfg.ClusterName.GetClusterName(),
 				Namespace: defaults.Namespace,
 			},
 			Spec: services.CertAuthoritySpecV2{
-				ClusterName:  cfg.DomainName,
+				ClusterName:  cfg.ClusterName.GetClusterName(),
 				Type:         services.HostCA,
 				SigningKeys:  [][]byte{priv},
 				CheckingKeys: [][]byte{pub},
@@ -279,7 +255,10 @@ func Init(cfg InitConfig, dynamicConfig bool) (*AuthServer, *Identity, error) {
 	}
 
 	if cfg.DeveloperMode {
-		log.Warn("[INIT] Starting Teleport in developer mode. This is dangerous! Sensitive information will be logged to console and certificates will not be verified. Proceed with caution!")
+		warningMessage := "[INIT] Starting Teleport in developer mode. This is " +
+			"dangerous! Sensitive information will be logged to console and " +
+			"certificates will not be verified. Proceed with caution!"
+		log.Warn(warningMessage)
 	}
 
 	// read host keys from disk or create them if they don't exist
@@ -309,11 +288,6 @@ func migrateLegacyResources(cfg InitConfig, asrv *AuthServer) error {
 	}
 
 	err = migrateCertAuthority(asrv)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = migrateAuthPreference(cfg, asrv)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -397,40 +371,6 @@ func migrateCertAuthority(asrv *AuthServer) error {
 	return nil
 }
 
-func migrateAuthPreference(cfg InitConfig, asrv *AuthServer) error {
-	// if no cluster auth preferences exist, upload them from file config
-	_, err := asrv.GetClusterAuthPreference()
-	if err != nil {
-		if trace.IsNotFound(err) {
-			err = asrv.SetClusterAuthPreference(cfg.AuthPreference)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			log.Infof("[MIGRATION] Set Cluster Authentication Preference: %v", cfg.AuthPreference)
-		} else {
-			return trace.Wrap(err)
-		}
-	}
-
-	// if no u2f settings exist, upload from file config
-	if cfg.U2F != nil {
-		_, err = asrv.GetUniversalSecondFactor()
-		if err != nil {
-			if trace.IsNotFound(err) {
-				err = asrv.SetUniversalSecondFactor(cfg.U2F)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				log.Infof("[MIGRATION] Set Universal Second Factor Settings: %v", cfg.U2F)
-			} else {
-				return trace.Wrap(err)
-			}
-		}
-	}
-
-	return nil
-}
-
 func migrateRoles(asrv *AuthServer) error {
 	roles, err := asrv.GetRoles()
 	if err != nil {
@@ -462,7 +402,7 @@ func isFirstStart(authServer *AuthServer, cfg InitConfig) (bool, error) {
 	// check if the CA exists?
 	_, err := authServer.GetCertAuthority(
 		services.CertAuthID{
-			DomainName: cfg.DomainName,
+			DomainName: cfg.ClusterName.GetClusterName(),
 			Type:       services.HostCA,
 		}, false)
 	if err != nil {

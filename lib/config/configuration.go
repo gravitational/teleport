@@ -153,7 +153,6 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 	cfg.ApplyToken(fc.AuthToken)
-	cfg.Auth.DomainName = fc.Auth.DomainName
 
 	if fc.Global.DataDir != "" {
 		cfg.DataDir = fc.Global.DataDir
@@ -162,13 +161,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 
 	// if a backend is specified, override the defaults
 	if fc.Storage.Type != "" {
-		cfg.Auth.DynamicConfig = true
 		cfg.Auth.StorageConfig = fc.Storage
-	}
-
-	// if dynamic_config is specified, override the default
-	if fc.Auth.DynamicConfig != nil {
-		cfg.Auth.DynamicConfig = *fc.Auth.DynamicConfig
 	}
 
 	// apply logger settings
@@ -215,12 +208,6 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		utils.SwitchLoggingtoSyslog()
 	}
 
-	// log warning if someone is using seed config
-	if fc.SeedConfig != nil {
-		log.Warningf("DEPRECATED: seed_config setting is deprecated and will be removed in future versions")
-		cfg.Auth.DynamicConfig = *fc.SeedConfig
-	}
-
 	// apply ciphers, kex algorithms, and mac algorithms
 	if fc.Ciphers != nil {
 		cfg.Ciphers = fc.Ciphers
@@ -261,15 +248,6 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 		cfg.Identities = append(cfg.Identities, identity)
-	}
-
-	// add reverse tunnels supplied from configs
-	for _, t := range fc.Auth.ReverseTunnels {
-		tun, err := t.ConvertAndValidate()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		cfg.ReverseTunnels = append(cfg.ReverseTunnels, tun)
 	}
 
 	// apply "proxy_service" section
@@ -314,74 +292,6 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Proxy.TLSCert = fc.Proxy.CertFile
 	}
 
-	// if no authentication section exists, we need to transform the old config into the new one
-	if fc.Auth.Authentication == nil {
-		// create an empty authentication preferences resource
-		cfg.Auth.Preference, err = services.NewAuthPreference(services.AuthPreferenceSpecV2{})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		// set the defaults in-case no oidc connector or u2f settings are defined
-		err = cfg.Auth.Preference.CheckAndSetDefaults()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		// if we have defined a oidc connector update the authentication type
-		if len(fc.Auth.OIDCConnectors) > 0 {
-			oidcConnector, err := fc.Auth.OIDCConnectors[0].Parse()
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			cfg.OIDCConnectors = []services.OIDCConnector{oidcConnector}
-
-			cfg.Auth.Preference.SetType(teleport.OIDC)
-			cfg.Auth.Preference.SetSecondFactor("")
-		}
-
-		// parse the configuration to see if we have defined u2f
-		u, err := fc.Auth.U2F.Parse()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		// if we have defined u2f configuration update the second factor settings
-		if u.Enabled {
-			cfg.Auth.U2F, err = services.NewUniversalSecondFactor(services.UniversalSecondFactorSpecV2{
-				AppID:  u.AppID,
-				Facets: u.Facets,
-			})
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			cfg.Auth.Preference.SetSecondFactor(teleport.U2F)
-		}
-	}
-
-	// if authentication section exists on the auth_server, then use it to extract
-	// the cluster authentication preferences and override u2f and oidc settings set
-	// in the above two blocks
-	if fc.Auth.Authentication != nil {
-		authPreference, oidcConnector, universalSecondFactor, err := fc.Auth.Authentication.Parse()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		cfg.Auth.Preference = authPreference
-
-		// we now only always allow a single oidc connector, note this will
-		// override anything set with the old format
-		if oidcConnector != nil {
-			cfg.OIDCConnectors = []services.OIDCConnector{oidcConnector}
-		}
-
-		// set u2f settings, note this will override anything set with the old format
-		if universalSecondFactor != nil {
-			cfg.Auth.U2F = universalSecondFactor
-		}
-	}
-
 	// apply "auth_service" section
 	if fc.Auth.ListenAddress != "" {
 		addr, err := utils.ParseHostPortAddr(fc.Auth.ListenAddress, int(defaults.AuthListenPort))
@@ -391,6 +301,15 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Auth.SSHAddr = *addr
 		cfg.AuthServers = append(cfg.AuthServers, *addr)
 	}
+	// DEPRECATED: Remove the following message in Teleport 2.4
+	if fc.Auth.DynamicConfig != nil {
+		warningMessage := "Dynamic configuration is no longer supported. Refer to " +
+			"Teleport documentation for more details: https://www.example.com."
+		log.Warnf(warningMessage)
+	}
+	// INTERNAL: Authorities (plus Roles) and ReverseTunnels don't follow the
+	// same pattern as the rest of the configuration (they are not configuration
+	// singletons). However, we need to keep them around while Telekube uses them.
 	for _, authority := range fc.Auth.Authorities {
 		ca, role, err := authority.Parse()
 		if err != nil {
@@ -399,12 +318,49 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Auth.Authorities = append(cfg.Auth.Authorities, ca)
 		cfg.Auth.Roles = append(cfg.Auth.Roles, role)
 	}
-	for _, token := range fc.Auth.StaticTokens {
-		roles, tokenValue, err := token.Parse()
+	for _, t := range fc.Auth.ReverseTunnels {
+		tun, err := t.ConvertAndValidate()
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		cfg.Auth.StaticTokens = append(cfg.Auth.StaticTokens, services.ProvisionToken{Token: tokenValue, Roles: roles, Expires: time.Unix(0, 0)})
+		cfg.ReverseTunnels = append(cfg.ReverseTunnels, tun)
+	}
+	// DEPRECATED: Remove the following message in Teleport 2.4.
+	if len(fc.Auth.TrustedClusters) > 0 {
+		warningMessage := "Configuring Trusted Clusters using file configuration has " +
+			"been deprecated, Trusted Clusters must now be configured using resources. " +
+			"Existing Trusted Cluster relationships will be maintained, but you will " +
+			"not be able to add or remove Trusted Clusters using file configuration " +
+			"anymore. Refer to Teleport documentation for more details: https://www.example.com."
+		log.Warnf(warningMessage)
+	}
+	// read in cluster name from file configuration and create services.ClusterName
+	cfg.Auth.ClusterName, err = fc.Auth.ClusterName.Parse()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// read in static tokens from file configuration and create services.StaticTokens
+	cfg.Auth.StaticTokens, err = fc.Auth.StaticTokens.Parse()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// read in and set authentication preferences
+	if fc.Auth.Authentication != nil {
+		authPreference, oidcConnector, err := fc.Auth.Authentication.Parse()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Auth.Preference = authPreference
+
+		// DEPRECATED: Remove the following message in Teleport 2.4.
+		if oidcConnector != nil {
+			warningMessage := "Configuring OIDC connectors using file configuration is " +
+				"no longer supported, OIDC connectors must be configured using resources. " +
+				"Existing OIDC connectors will not be removed but you will not be able to " +
+				"add, remove, or update them using file configuration. Refer to Teleport " +
+				"documentation for more details: https://www.example.com."
+			log.Warnf(warningMessage)
+		}
 	}
 
 	// apply "ssh_service" section
@@ -438,12 +394,6 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.SSH.PermitUserEnvironment = true
 	}
 
-	// read 'trusted_clusters' section:
-	if fc.Auth.Enabled() && len(fc.Auth.TrustedClusters) > 0 {
-		if err := readTrustedClusters(fc.Auth.TrustedClusters, cfg); err != nil {
-			return trace.Wrap(err)
-		}
-	}
 	return nil
 }
 

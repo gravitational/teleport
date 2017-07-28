@@ -1309,7 +1309,63 @@ func (c *Client) DeleteRole(name string) error {
 	return trace.Wrap(err)
 }
 
-func (c *Client) GetClusterAuthPreference() (services.AuthPreference, error) {
+func (c *Client) GetClusterName() (services.ClusterName, error) {
+	out, err := c.Get(c.Endpoint("configuration", "name"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cn, err := services.GetClusterNameMarshaler().Unmarshal(out.Bytes())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return cn, err
+}
+
+func (c *Client) SetClusterName(cn services.ClusterName) error {
+	data, err := services.GetClusterNameMarshaler().Marshal(cn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = c.PostJSON(c.Endpoint("configuration", "name"), &setClusterNameReq{ClusterName: data})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (c *Client) GetStaticTokens() (services.StaticTokens, error) {
+	out, err := c.Get(c.Endpoint("configuration", "static_tokens"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	st, err := services.GetStaticTokensMarshaler().Unmarshal(out.Bytes())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return st, err
+}
+
+func (c *Client) SetStaticTokens(st services.StaticTokens) error {
+	data, err := services.GetStaticTokensMarshaler().Marshal(st)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = c.PostJSON(c.Endpoint("configuration", "static_tokens"), &setStaticTokensReq{StaticTokens: data})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (c *Client) GetAuthPreference() (services.AuthPreference, error) {
 	out, err := c.Get(c.Endpoint("authentication", "preference"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1323,41 +1379,13 @@ func (c *Client) GetClusterAuthPreference() (services.AuthPreference, error) {
 	return cap, nil
 }
 
-func (c *Client) SetClusterAuthPreference(cap services.AuthPreference) error {
+func (c *Client) SetAuthPreference(cap services.AuthPreference) error {
 	data, err := services.GetAuthPreferenceMarshaler().Marshal(cap)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	_, err = c.PostJSON(c.Endpoint("authentication", "preference"), &setClusterAuthPreferenceReq{ClusterAuthPreference: data})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-func (c *Client) GetUniversalSecondFactor() (services.UniversalSecondFactor, error) {
-	out, err := c.Get(c.Endpoint("authentication", "preference", "u2f"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	universalSecondFactor, err := services.GetUniversalSecondFactorMarshaler().Unmarshal(out.Bytes())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return universalSecondFactor, nil
-}
-
-func (c *Client) SetUniversalSecondFactor(universalSecondFactor services.UniversalSecondFactor) error {
-	data, err := services.GetUniversalSecondFactorMarshaler().Marshal(universalSecondFactor)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = c.PostJSON(c.Endpoint("authentication", "preference", "u2f"), &setUniversalSecondFactorReq{UniversalSecondFactor: data})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1653,8 +1681,7 @@ type ClientI interface {
 	services.Access
 	WebService
 	session.Service
-	services.ClusterAuthPreference
-	services.UniversalSecondFactorSettings
+	services.ClusterConfiguration
 
 	ValidateTrustedCluster(*ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error)
 	GetDomainName() (string, error)

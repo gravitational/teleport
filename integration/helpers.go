@@ -245,6 +245,7 @@ func (i *TeleInstance) Create(trustedSecrets []*InstanceSecrets, enableSSH bool,
 // Unlike Create() it allows for greater customization because it accepts
 // a full Teleport config structure
 func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *service.Config) error {
+	var err error
 	dataDir, err := ioutil.TempDir("", "cluster-"+i.Secrets.SiteName)
 	if err != nil {
 		return trace.Wrap(err)
@@ -253,7 +254,23 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 		tconf = service.MakeDefaultConfig()
 	}
 	tconf.DataDir = dataDir
-	tconf.Auth.DomainName = i.Secrets.SiteName
+	tconf.Auth.ClusterName, err = services.NewClusterName(services.ClusterNameSpecV2{
+		ClusterName: i.Secrets.SiteName,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	tconf.Auth.StaticTokens, err = services.NewStaticTokens(services.StaticTokensSpecV2{
+		StaticTokens: []services.ProvisionToken{
+			{
+				Roles: []teleport.Role{teleport.RoleNode, teleport.RoleProxy, teleport.RoleTrustedCluster},
+				Token: "token",
+			},
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	tconf.Auth.Authorities = append(tconf.Auth.Authorities, i.Secrets.GetCAs()...)
 	tconf.Identities = append(tconf.Identities, i.Secrets.GetIdentity())
 	for _, trusted := range trustedSecrets {
@@ -278,12 +295,6 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 		Params: backend.Params{"path": dataDir},
 	}
 	tconf.Keygen = testauthority.New()
-	tconf.Auth.StaticTokens = []services.ProvisionToken{
-		{
-			Roles: []teleport.Role{teleport.RoleNode, teleport.RoleProxy, teleport.RoleTrustedCluster},
-			Token: "token",
-		},
-	}
 
 	i.Config = tconf
 	i.Process, err = service.NewTeleport(tconf)

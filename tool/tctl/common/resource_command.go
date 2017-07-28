@@ -212,24 +212,6 @@ func (u *ResourceCommand) Create(client *auth.TunClient) error {
 				return trace.Wrap(err)
 			}
 			fmt.Printf("created trusted cluster: %q\n", tc.GetName())
-		case services.KindClusterAuthPreference:
-			cap, err := services.GetAuthPreferenceMarshaler().Unmarshal(raw.Raw)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if err := client.SetClusterAuthPreference(cap); err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Printf("updated cluster auth preferences\n")
-		case services.KindUniversalSecondFactor:
-			universalSecondFactor, err := services.GetUniversalSecondFactorMarshaler().Unmarshal(raw.Raw)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if err := client.SetUniversalSecondFactor(universalSecondFactor); err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Printf("updated utf settings\n")
 		case "":
 			return trace.BadParameter("missing resource kind")
 		default:
@@ -389,18 +371,6 @@ func (g *ResourceCommand) getCollection(client auth.ClientI) (collection, error)
 			return nil, trace.Wrap(err)
 		}
 		return &trustedClusterCollection{trustedClusters: []services.TrustedCluster{trustedCluster}}, nil
-	case services.KindClusterAuthPreference:
-		cap, err := client.GetClusterAuthPreference()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &authPreferenceCollection{AuthPreference: cap}, nil
-	case services.KindUniversalSecondFactor:
-		universalSecondFactor, err := client.GetUniversalSecondFactor()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &universalSecondFactorCollection{UniversalSecondFactor: universalSecondFactor}, nil
 	}
 
 	return nil, trace.BadParameter("'%v' is not supported", g.ref.Kind)

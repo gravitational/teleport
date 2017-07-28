@@ -115,6 +115,18 @@ const (
 	// MetaNameUniversalSecondFactor is a type of second factor authentication.
 	MetaNameUniversalSecondFactor = "universal-second-factor"
 
+	// KindClusterName is a type of configuration resource that contains the cluster name.
+	KindClusterName = "cluster_name"
+
+	// MetaNameClusterName is the name of a configuration resource for cluster name.
+	MetaNameClusterName = "cluster-name"
+
+	// KindStaticTokens is a type of configuration resource that contains static tokens.
+	KindStaticTokens = "static_tokens"
+
+	// MetaNameStaticTokens is the name of a configuration resource for static tokens.
+	MetaNameStaticTokens = "static-tokens"
+
 	// KindTrustedCluster is a resource that contains trusted cluster configuration.
 	KindTrustedCluster = "trusted_cluster"
 

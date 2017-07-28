@@ -419,7 +419,7 @@ func (s *sessionCache) CreateNewUser(token, password, otpToken string) (services
 	}
 	defer clt.Close()
 
-	cap, err := clt.GetClusterAuthPreference()
+	cap, err := clt.GetAuthPreference()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

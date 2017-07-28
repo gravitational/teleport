@@ -141,7 +141,12 @@ func (s *AuthServer) GetSignupTokenData(token string) (user string, qrCode []byt
 }
 
 func (s *AuthServer) CreateSignupU2FRegisterRequest(token string) (u2fRegisterRequest *u2f.RegisterRequest, e error) {
-	universalSecondFactor, err := s.GetUniversalSecondFactor()
+	cap, err := s.GetAuthPreference()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	universalSecondFactor, err := cap.GetU2F()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -156,7 +161,7 @@ func (s *AuthServer) CreateSignupU2FRegisterRequest(token string) (u2fRegisterRe
 		return nil, trace.AlreadyExists("can't add user %q, user already exists", tokenData.User)
 	}
 
-	c, err := u2f.NewChallenge(universalSecondFactor.GetAppID(), universalSecondFactor.GetFacets())
+	c, err := u2f.NewChallenge(universalSecondFactor.AppID, universalSecondFactor.Facets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -227,9 +232,13 @@ func (s *AuthServer) CreateUserWithoutOTP(token string, password string) (servic
 
 func (s *AuthServer) CreateUserWithU2FToken(token string, password string, response u2f.RegisterResponse) (services.WebSession, error) {
 	// before trying to create a user, see U2F is actually setup on the backend
-	_, err := s.GetUniversalSecondFactor()
+	cap, err := s.GetAuthPreference()
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
+	}
+	_, err = cap.GetU2F()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	tokenData, err := s.GetSignupToken(token)

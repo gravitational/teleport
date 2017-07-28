@@ -269,86 +269,6 @@ func (s *ConfigTestSuite) TestTrustedClusters(c *check.C) {
 	c.Assert(len(conf.ReverseTunnels), check.Equals, 0)
 }
 
-func (s *ConfigTestSuite) TestDynamicConfig(c *check.C) {
-	falseBool := false
-
-	tests := []struct {
-		inConfigString   string
-		outFileConfig    *bool // DynamicConfig set in config.FileConfig
-		outDefaultConfig bool  // DynamicConfig set in default service.Config
-		outConfig        bool  // DynamicConfig set in service.Config
-	}{
-
-		// 0 - nothing defined, final DynamicConfig should be false
-		{
-			`
-teleport:
-`,
-			nil,
-			false,
-			false,
-		},
-		// 1 - define a backend, final DynamicConfig should be true
-		{
-			`
-teleport:
-  storage:
-    type: bolt
-`,
-			nil,
-			false,
-			true,
-		},
-		// 2 - define a backend and override, final DynamicConfig should be false
-		{
-			`
-teleport:
-  storage:
-    type: bolt
-
-auth_service:
-  dynamic_config: false
-`,
-			&falseBool,
-			false,
-			false,
-		},
-		// 3 - test legacy setting
-		{
-			`
-teleport:
-  seed_config: true
-`,
-			nil,
-			false,
-			true,
-		},
-	}
-
-	// run tests
-	for i, tt := range tests {
-		comment := check.Commentf("Test %v", i)
-
-		// read in the file configuration
-		fc, err := ReadConfig(bytes.NewBufferString(tt.inConfigString))
-		c.Assert(err, check.IsNil, comment)
-		if fc.Auth.DynamicConfig != nil {
-			c.Assert(*fc.Auth.DynamicConfig, check.Equals, *tt.outFileConfig, comment)
-		} else {
-			c.Assert(fc.Auth.DynamicConfig, check.Equals, tt.outFileConfig, comment)
-		}
-
-		// create a default configuration
-		conf := service.MakeDefaultConfig()
-		c.Assert(conf.Auth.DynamicConfig, check.Equals, tt.outDefaultConfig, comment)
-
-		// apply the file configuration to the default configuration
-		err = ApplyFileConfig(fc, conf)
-		c.Assert(err, check.IsNil)
-		c.Assert(conf.Auth.DynamicConfig, check.Equals, tt.outConfig, comment)
-	}
-}
-
 // TestFileConfigCheck makes sure we don't start with invalid settings.
 func (s *ConfigTestSuite) TestFileConfigCheck(c *check.C) {
 	tests := []struct {
@@ -399,7 +319,7 @@ func (s *ConfigTestSuite) TestApplyConfig(c *check.C) {
 	cfg := service.MakeDefaultConfig()
 	err = ApplyFileConfig(conf, cfg)
 	c.Assert(err, check.IsNil)
-	c.Assert(cfg.Auth.StaticTokens, check.DeepEquals, []services.ProvisionToken{
+	c.Assert(cfg.Auth.StaticTokens.GetStaticTokens(), check.DeepEquals, []services.ProvisionToken{
 		{
 			Token:   "xxx",
 			Roles:   teleport.Roles([]teleport.Role{"Proxy", "Node"}),
@@ -411,27 +331,12 @@ func (s *ConfigTestSuite) TestApplyConfig(c *check.C) {
 			Expires: time.Unix(0, 0),
 		},
 	})
-	c.Assert(cfg.Auth.DomainName, check.Equals, "magadan")
+	c.Assert(cfg.Auth.ClusterName.GetClusterName(), check.Equals, "magadan")
 	c.Assert(cfg.AdvertiseIP, check.DeepEquals, net.ParseIP("10.10.10.1"))
 
 	c.Assert(cfg.Proxy.Enabled, check.Equals, true)
 	c.Assert(cfg.Proxy.WebAddr.FullAddress(), check.Equals, "tcp://webhost:3080")
 	c.Assert(cfg.Proxy.ReverseTunnelListenAddr.FullAddress(), check.Equals, "tcp://tunnelhost:1001")
-}
-
-// TestLegacyU2FTransformation ensures that the legacy format for U2F gets transformed
-// into the new format that we are using now for backward compatibility.
-func (s *ConfigTestSuite) TestLegacyU2FTransformation(c *check.C) {
-	conf, err := ReadConfig(bytes.NewBufferString(LegacyAuthenticationSection))
-	c.Assert(err, check.IsNil)
-	c.Assert(conf, check.NotNil)
-
-	cfg := service.MakeDefaultConfig()
-	err = ApplyFileConfig(conf, cfg)
-	c.Assert(err, check.IsNil)
-
-	c.Assert(cfg.Auth.U2F.GetAppID(), check.Equals, "https://graviton:3080")
-	c.Assert(cfg.Auth.U2F.GetFacets(), check.DeepEquals, []string{"https://graviton:3080"})
 }
 
 // TestParseKey ensures that keys are parsed correctly if they are in
@@ -546,7 +451,7 @@ func checkStaticConfig(c *check.C, conf *FileConfig) {
 		},
 	})
 	c.Assert(conf.Auth.StaticTokens, check.DeepEquals,
-		[]StaticToken{"proxy,node:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "auth:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
+		StaticTokens{"proxy,node:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "auth:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
 
 	policy, err := conf.CachePolicy.Parse()
 	c.Assert(err, check.IsNil)

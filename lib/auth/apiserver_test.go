@@ -76,11 +76,26 @@ func (s *APISuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	s.a = NewAuthServer(&InitConfig{
-		Backend:    s.bk,
-		Authority:  authority.New(),
-		DomainName: "localhost",
+		Backend:   s.bk,
+		Authority: authority.New(),
 	})
 	s.sessions, err = session.New(s.bk)
+	c.Assert(err, IsNil)
+
+	// set cluster name
+	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
+		ClusterName: "localhost",
+	})
+	c.Assert(err, IsNil)
+	err = s.a.SetClusterName(clusterName)
+	c.Assert(err, IsNil)
+
+	// set static tokens
+	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
+		StaticTokens: []services.ProvisionToken{},
+	})
+	c.Assert(err, IsNil)
+	err = s.a.SetStaticTokens(staticTokens)
 	c.Assert(err, IsNil)
 
 	// use a fake clock during tests for stability

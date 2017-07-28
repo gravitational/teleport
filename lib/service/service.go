@@ -227,8 +227,13 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	}
 
 	// if user did not provide auth domain name, use this host UUID
-	if cfg.Auth.Enabled && cfg.Auth.DomainName == "" {
-		cfg.Auth.DomainName = cfg.HostUUID
+	if cfg.Auth.Enabled && cfg.Auth.ClusterName == nil {
+		cfg.Auth.ClusterName, err = services.NewClusterName(services.ClusterNameSpecV2{
+			ClusterName: cfg.HostUUID,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	process := &TeleportProcess{
@@ -314,7 +319,7 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 	authServer, identity, err := auth.Init(auth.InitConfig{
 		Backend:         b,
 		Authority:       authority,
-		DomainName:      cfg.Auth.DomainName,
+		ClusterName:     cfg.Auth.ClusterName,
 		AuthServiceName: cfg.Hostname,
 		DataDir:         cfg.DataDir,
 		HostUUID:        cfg.HostUUID,
@@ -330,7 +335,6 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 		Roles:           cfg.Auth.Roles,
 		AuthPreference:  cfg.Auth.Preference,
 		OIDCConnectors:  cfg.OIDCConnectors,
-		U2F:             cfg.Auth.U2F,
 		DeveloperMode:   cfg.DeveloperMode,
 	}, cfg.Auth.DynamicConfig)
 	if err != nil {

@@ -244,15 +244,15 @@ type AuthConfig struct {
 	// Roles is a set of roles to pre-provision for this cluster
 	Roles []services.Role
 
-	// DomainName is a name that identifies this authority and all
+	// ClusterName is a name that identifies this authority and all
 	// host nodes in the cluster that will share this authority domain name
 	// as a base name, e.g. if authority domain name is example.com,
 	// all nodes in the cluster will have UUIDs in the form: <uuid>.example.com
-	DomainName string
+	ClusterName services.ClusterName
 
 	// StaticTokens are pre-defined host provisioning tokens supplied via config file for
 	// environments where paranoid security is not needed
-	StaticTokens []services.ProvisionToken
+	StaticTokens services.StaticTokens
 
 	// DynamicConfig determines the source of configuration truth for Teleport. File
 	// configuration or configuration that is in the backend.
@@ -269,9 +269,6 @@ type AuthConfig struct {
 	// Preference defines the authentication preference (type and second factor) for
 	// the auth server.
 	Preference services.AuthPreference
-
-	// U2F defines is settings for Universal Second Factor (appID and facets).
-	U2F services.UniversalSecondFactor
 }
 
 // SSHConfig configures SSH server node role

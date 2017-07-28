@@ -222,7 +222,12 @@ func (s *AuthTunnel) HandleNewChan(_ net.Conn, sconn *ssh.ServerConn, nch ssh.Ne
 // isHostAuthority is called during checking the client key, to see if the signing
 // key is the real host CA authority key.
 func (s *AuthTunnel) isHostAuthority(auth ssh.PublicKey) bool {
-	key, err := s.authServer.GetCertAuthority(services.CertAuthID{DomainName: s.authServer.DomainName, Type: services.HostCA}, false)
+	domainName, err := s.authServer.GetDomainName()
+	if err != nil {
+		return false
+	}
+
+	key, err := s.authServer.GetCertAuthority(services.CertAuthID{DomainName: domainName, Type: services.HostCA}, false)
 	if err != nil {
 		log.Errorf("failed to retrieve user authority key, err: %v", err)
 		return false

@@ -84,31 +84,25 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
 	if cfg.Access == nil {
 		cfg.Access = local.NewAccessService(cfg.Backend)
 	}
-	if cfg.ClusterAuthPreferenceService == nil {
-		cfg.ClusterAuthPreferenceService = local.NewClusterAuthPreferenceService(cfg.Backend)
-	}
-	if cfg.UniversalSecondFactorService == nil {
-		cfg.UniversalSecondFactorService = local.NewUniversalSecondFactorService(cfg.Backend)
+	if cfg.ClusterConfiguration == nil {
+		cfg.ClusterConfiguration = local.NewClusterConfigurationService(cfg.Backend)
 	}
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	as := AuthServer{
-		bk:                            cfg.Backend,
-		Authority:                     cfg.Authority,
-		Trust:                         cfg.Trust,
-		Presence:                      cfg.Presence,
-		Provisioner:                   cfg.Provisioner,
-		Identity:                      cfg.Identity,
-		Access:                        cfg.Access,
-		DomainName:                    cfg.DomainName,
-		AuthServiceName:               cfg.AuthServiceName,
-		StaticTokens:                  cfg.StaticTokens,
-		ClusterAuthPreference:         cfg.ClusterAuthPreferenceService,
-		UniversalSecondFactorSettings: cfg.UniversalSecondFactorService,
-		oidcClients:                   make(map[string]*oidcClient),
-		samlProviders:                 make(map[string]*samlProvider),
-		DeveloperMode:                 cfg.DeveloperMode,
-		cancelFunc:                    cancelFunc,
-		closeCtx:                      closeCtx,
+		bk:                   cfg.Backend,
+		Authority:            cfg.Authority,
+		Trust:                cfg.Trust,
+		Presence:             cfg.Presence,
+		Provisioner:          cfg.Provisioner,
+		Identity:             cfg.Identity,
+		Access:               cfg.Access,
+		AuthServiceName:      cfg.AuthServiceName,
+		ClusterConfiguration: cfg.ClusterConfiguration,
+		oidcClients:          make(map[string]*oidcClient),
+		samlProviders:        make(map[string]*samlProvider),
+		DeveloperMode:        cfg.DeveloperMode,
+		cancelFunc:           cancelFunc,
+		closeCtx:             closeCtx,
 	}
 	for _, o := range opts {
 		o(&as)
@@ -142,26 +136,17 @@ type AuthServer struct {
 
 	Authority
 
-	// DomainName stores the FQDN of the signing CA (its certificate will have this
-	// name embedded). It is usually set to the GUID of the host the Auth service runs on
-	DomainName string
-
 	// AuthServiceName is a human-readable name of this CA. If several Auth services are running
 	// (managing multiple teleport clusters) this field is used to tell them apart in UIs
 	// It usually defaults to the hostname of the machine the Auth service runs on.
 	AuthServiceName string
-
-	// StaticTokens are pre-defined host provisioning tokens supplied via config file for
-	// environments where paranoid security is not needed
-	StaticTokens []services.ProvisionToken
 
 	services.Trust
 	services.Presence
 	services.Provisioner
 	services.Identity
 	services.Access
-	services.ClusterAuthPreference
-	services.UniversalSecondFactorSettings
+	services.ClusterConfiguration
 }
 
 func (a *AuthServer) Close() error {
@@ -180,19 +165,29 @@ func (a *AuthServer) SetClock(clock clockwork.Clock) {
 // GetDomainName returns the domain name that identifies this authority server.
 // Also known as "cluster name"
 func (a *AuthServer) GetDomainName() (string, error) {
-	return a.DomainName, nil
+	cn, err := a.GetClusterName()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return cn.GetClusterName(), nil
 }
 
 // GenerateHostCert uses the private key of the CA to sign the public key of the host
 // (along with meta data like host ID, node name, roles, and ttl) to generate a host certificate.
 func (s *AuthServer) GenerateHostCert(hostPublicKey []byte, hostID, nodeName, clusterName string, roles teleport.Roles, ttl time.Duration) ([]byte, error) {
+	domainName, err := s.GetDomainName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// get the certificate authority that will be signing the public key of the hostL
 	ca, err := s.Trust.GetCertAuthority(services.CertAuthID{
 		Type:       services.HostCA,
-		DomainName: s.DomainName,
+		DomainName: domainName,
 	}, true)
 	if err != nil {
-		return nil, trace.BadParameter("failed to load host CA for '%s': %v", s.DomainName, err)
+		return nil, trace.BadParameter("failed to load host CA for '%s': %v", domainName, err)
 	}
 
 	// get the private key of the certificate authority
@@ -216,9 +211,14 @@ func (s *AuthServer) GenerateHostCert(hostPublicKey []byte, hostID, nodeName, cl
 // GenerateUserCert generates user certificate, it takes pkey as a signing
 // private key (user certificate authority)
 func (s *AuthServer) GenerateUserCert(key []byte, user services.User, allowedLogins []string, ttl time.Duration, canForwardAgents bool, compatibility string) ([]byte, error) {
+	domainName, err := s.GetDomainName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	ca, err := s.Trust.GetCertAuthority(services.CertAuthID{
 		Type:       services.UserCA,
-		DomainName: s.DomainName,
+		DomainName: domainName,
 	}, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -316,7 +316,12 @@ func (s *AuthServer) PreAuthenticatedSignIn(user string) (services.WebSession, e
 }
 
 func (s *AuthServer) U2FSignRequest(user string, password []byte) (*u2f.SignRequest, error) {
-	universalSecondFactor, err := s.GetUniversalSecondFactor()
+	cap, err := s.GetAuthPreference()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	universalSecondFactor, err := cap.GetU2F()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -333,7 +338,7 @@ func (s *AuthServer) U2FSignRequest(user string, password []byte) (*u2f.SignRequ
 		return nil, trace.Wrap(err)
 	}
 
-	challenge, err := u2f.NewChallenge(universalSecondFactor.GetAppID(), universalSecondFactor.GetFacets())
+	challenge, err := u2f.NewChallenge(universalSecondFactor.AppID, universalSecondFactor.Facets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -350,7 +355,11 @@ func (s *AuthServer) U2FSignRequest(user string, password []byte) (*u2f.SignRequ
 
 func (s *AuthServer) CheckU2FSignResponse(user string, response *u2f.SignResponse) error {
 	// before trying to register a user, see U2F is actually setup on the backend
-	_, err := s.GetUniversalSecondFactor()
+	cap, err := s.GetAuthPreference()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = cap.GetU2F()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -452,6 +461,11 @@ func (s *AuthServer) GenerateToken(roles teleport.Roles, ttl time.Duration) (str
 // GenerateServerKeys generates new host private keys and certificates (signed
 // by the host certificate authority) for a node.
 func (s *AuthServer) GenerateServerKeys(hostID string, nodeName string, roles teleport.Roles) (*PackedKeys, error) {
+	domainName, err := s.GetDomainName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// generate private key
 	k, pub, err := s.GenerateKeyPair("")
 	if err != nil {
@@ -459,7 +473,7 @@ func (s *AuthServer) GenerateServerKeys(hostID string, nodeName string, roles te
 	}
 
 	// generate host certificate with an infinite ttl
-	c, err := s.GenerateHostCert(pub, hostID, nodeName, s.DomainName, roles, 0)
+	c, err := s.GenerateHostCert(pub, hostID, nodeName, domainName, roles, 0)
 	if err != nil {
 		log.Warningf("[AUTH] Node %q [%v] can not join: certificate generation error: %v", nodeName, hostID, err)
 		return nil, trace.Wrap(err)
@@ -475,8 +489,13 @@ func (s *AuthServer) GenerateServerKeys(hostID string, nodeName string, roles te
 // a list of roles this token allows its owner to assume, or an error if the token
 // cannot be found
 func (s *AuthServer) ValidateToken(token string) (roles teleport.Roles, e error) {
+	tkns, err := s.GetStaticTokens()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// look at static tokens first:
-	for _, st := range s.StaticTokens {
+	for _, st := range tkns.GetStaticTokens() {
 		if st.Token == token {
 			return st.Roles, nil
 		}
@@ -570,8 +589,13 @@ func (s *AuthServer) RegisterNewAuthServer(token string) error {
 }
 
 func (s *AuthServer) DeleteToken(token string) (err error) {
+	tkns, err := s.GetStaticTokens()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// is this a static token?
-	for _, st := range s.StaticTokens {
+	for _, st := range tkns.GetStaticTokens() {
 		if st.Token == token {
 			return trace.BadParameter("token %s is statically configured and cannot be removed", token)
 		}
@@ -596,7 +620,11 @@ func (s *AuthServer) GetTokens() (tokens []services.ProvisionToken, err error) {
 		return nil, trace.Wrap(err)
 	}
 	// get static tokens:
-	tokens = append(tokens, s.StaticTokens...)
+	tkns, err := s.GetStaticTokens()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tokens = append(tokens, tkns.GetStaticTokens()...)
 	// get user tokens:
 	userTokens, err := s.Identity.GetSignupTokens()
 	if err != nil {
@@ -615,6 +643,10 @@ func (s *AuthServer) GetTokens() (tokens []services.ProvisionToken, err error) {
 }
 
 func (s *AuthServer) NewWebSession(userName string) (services.WebSession, error) {
+	domainName, err := s.GetDomainName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	token, err := utils.CryptoRandomHex(TokenLenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -629,7 +661,7 @@ func (s *AuthServer) NewWebSession(userName string) (services.WebSession, error)
 	}
 	ca, err := s.Trust.GetCertAuthority(services.CertAuthID{
 		Type:       services.UserCA,
-		DomainName: s.DomainName,
+		DomainName: domainName,
 	}, true)
 	if err != nil {
 		return nil, trace.Wrap(err)

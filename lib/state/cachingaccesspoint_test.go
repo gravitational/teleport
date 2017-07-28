@@ -113,10 +113,20 @@ func (s *ClusterSnapshotSuite) SetUpTest(c *check.C) {
 	var err error
 	s.backend, err = boltbk.New(backend.Params{"path": s.dataDir})
 	c.Assert(err, check.IsNil)
+
+	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
+		ClusterName: "localhost",
+	})
+	c.Assert(err, check.IsNil)
+	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
+		StaticTokens: []services.ProvisionToken{},
+	})
+	c.Assert(err, check.IsNil)
 	s.authServer = auth.NewAuthServer(&auth.InitConfig{
-		Backend:    s.backend,
-		Authority:  testauthority.New(),
-		DomainName: "auth.local",
+		Backend:      s.backend,
+		Authority:    testauthority.New(),
+		ClusterName:  clusterName,
+		StaticTokens: staticTokens,
 	})
 	err = s.authServer.UpsertNamespace(
 		services.NewNamespace(defaults.Namespace))
