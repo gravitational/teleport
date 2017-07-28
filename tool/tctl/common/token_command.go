@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/buger/goterm"
+	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/trace"
@@ -31,6 +32,34 @@ type TokenCommand struct {
 	config *service.Config
 	// token argument to 'tokens del' command
 	token string
+
+	// CLI clauses (subcommands)
+	tokenList *kingpin.CmdClause
+	tokenDel  *kingpin.CmdClause
+}
+
+// Initialize allows TokenCommand to plug itself into the CLI parser
+func (c *TokenCommand) Initialize(app *kingpin.Application, config *service.Config) {
+	c.config = config
+
+	tokens := app.Command("tokens", "List or revoke invitation tokens")
+	c.tokenList = tokens.Command("ls", "List node and user invitation tokens")
+	c.tokenDel = tokens.Command("rm", "Delete/revoke an invitation token").Alias("del")
+	c.tokenDel.Arg("token", "Token to delete").StringVar(&c.token)
+}
+
+// TryRun takes the CLI command as an argument (like "nodes ls") and executes it.
+func (c *TokenCommand) TryRun(cmd string, client *auth.TunClient) (match bool, err error) {
+	switch cmd {
+	case c.tokenList.FullCommand():
+		err = c.List(client)
+	case c.tokenDel.FullCommand():
+		err = c.Del(client)
+
+	default:
+		return false, nil
+	}
+	return true, trace.Wrap(err)
 }
 
 // onTokenList is called to execute "tokens del" command

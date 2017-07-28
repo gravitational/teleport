@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
@@ -32,12 +33,58 @@ import (
 )
 
 // UserCommand implements `tctl users` set of commands
+// It implements CLICommand interface
 type UserCommand struct {
 	config        *service.Config
 	login         string
 	allowedLogins string
 	roles         string
 	identities    []string
+
+	userAdd    *kingpin.CmdClause
+	userUpdate *kingpin.CmdClause
+	userList   *kingpin.CmdClause
+	userDelete *kingpin.CmdClause
+}
+
+// Initialize allows UserCommand to plug itself into the CLI parser
+func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Config) {
+	u.config = config
+	users := app.Command("users", "Manage user accounts")
+
+	u.userAdd = users.Command("add", "Generate a user invitation token")
+	u.userAdd.Arg("account", "Teleport user account name").Required().StringVar(&u.login)
+	u.userAdd.Arg("local-logins", "Local UNIX users this account can log in as [login]").
+		Default("").StringVar(&u.allowedLogins)
+	u.userAdd.Alias(AddUserHelp)
+
+	u.userUpdate = users.Command("update", "Update properties for existing user").Hidden()
+	u.userUpdate.Arg("login", "Teleport user login").Required().StringVar(&u.login)
+	u.userUpdate.Flag("set-roles", "Roles to assign to this user").
+		Default("").StringVar(&u.roles)
+
+	u.userList = users.Command("ls", "List all user accounts")
+
+	u.userDelete = users.Command("rm", "Deletes user accounts").Alias("del")
+	u.userDelete.Arg("logins", "Comma-separated list of user logins to delete").
+		Required().StringVar(&u.login)
+}
+
+// TryRun takes the CLI command as an argument (like "users add") and executes it.
+func (u *UserCommand) TryRun(cmd string, client *auth.TunClient) (match bool, err error) {
+	switch cmd {
+	case u.userAdd.FullCommand():
+		err = u.Add(client)
+	case u.userUpdate.FullCommand():
+		err = u.Update(client)
+	case u.userList.FullCommand():
+		err = u.List(client)
+	case u.userDelete.FullCommand():
+		err = u.Delete(client)
+	default:
+		return false, nil
+	}
+	return true, trace.Wrap(err)
 }
 
 // Add creates a new sign-up token and prints a token URL to stdout.

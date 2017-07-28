@@ -19,6 +19,7 @@ package client
 import (
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net"
 	"os"
 	"path/filepath"
@@ -286,7 +287,9 @@ func startDebugAgent() error {
 	errorC := make(chan error)
 
 	go func() {
-		socketpath := filepath.Join(os.TempDir(), fmt.Sprintf("teleport-%d.socket", os.Getpid()))
+		socketpath := filepath.Join(os.TempDir(),
+			fmt.Sprintf("teleport-%d-%d.socket", os.Getpid(), rand.Uint32()))
+
 		systemAgent := agent.NewKeyring()
 
 		listener, err := net.Listen("unix", socketpath)

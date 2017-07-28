@@ -155,7 +155,7 @@ type serverCollection struct {
 
 func (s *serverCollection) writeText(w io.Writer) error {
 	t := goterm.NewTable(0, 10, 5, ' ', 0)
-	printHeader(t, []string{"Hostname", "Name", "Address", "Labels"})
+	printHeader(t, []string{"Hostname", "UUID", "Address", "Labels"})
 	if len(s.servers) == 0 {
 		_, err := io.WriteString(w, t.String())
 		return trace.Wrap(err)
