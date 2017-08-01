@@ -514,9 +514,9 @@ func (s *RoleSuite) TestApplyTraits(c *C) {
 		// 5 - multiple variables in traits
 		{
 			map[string][]string{
-				"foo": []string{"bar", "baz"},
+				"logins": []string{"bar", "baz"},
 			},
-			[]string{`{{internal.foo}}`, "root"},
+			[]string{`{{internal.logins}}`, "root"},
 			[]string{"bar", "baz", "root"},
 		},
 		// 6 - deduplicate

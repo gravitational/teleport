@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
@@ -73,6 +74,30 @@ func RoleNameForUser(name string) string {
 // authority.
 func RoleNameForCertAuthority(name string) string {
 	return "ca:" + name
+}
+
+// NewDefaultRole is the default role for all local users if another role
+// is not explicitly assigned (Enterprise only).
+func NewDefaultRole() Role {
+	return &RoleV3{
+		Kind:    KindRole,
+		Version: V3,
+		Metadata: Metadata{
+			Name:      teleport.DefaultRoleName,
+			Namespace: defaults.Namespace,
+		},
+		Spec: RoleSpecV3{
+			Options: RoleOptions{
+				MaxSessionTTL: NewDuration(defaults.MaxCertDuration),
+			},
+			Allow: RoleConditions{
+				Namespaces:      []string{defaults.Namespace},
+				Logins:          []string{teleport.TraitInternalRoleVariable},
+				NodeLabels:      map[string]string{Wildcard: Wildcard},
+				SystemResources: utils.CopyStringMapSlices(DefaultUserSystemResources),
+			},
+		},
+	}
 }
 
 // RoleForUser creates role for a services.User.
@@ -263,15 +288,21 @@ func (r *RoleV3) ApplyTraits(traits map[string][]string) Role {
 
 		var outLogins []string
 		for _, login := range inLogins {
-			// for now throw away the variable prefix, we'll start using it when
-			// we introduce variables for local accounts.
-			_, variableName, err := parse.IsRoleVariable(login)
+			// extract the variablePrefix and variableName from the role variable
+			variablePrefix, variableName, err := parse.IsRoleVariable(login)
 
 			// if we didn't find a variable (found a normal login) then append it and
 			// go on to the next login
 			if trace.IsNotFound(err) {
 				outLogins = append(outLogins, login)
 				continue
+			}
+
+			// for internal traits, we only support internal.logins at the moment
+			if variablePrefix == teleport.TraitInternalPrefix {
+				if variableName != teleport.TraitLogins {
+					continue
+				}
 			}
 
 			// if we can't find the variable in the traits, skip it

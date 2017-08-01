@@ -118,6 +118,9 @@ func (s *MigrationsSuite) TestMigrateUsers(c *C) {
 			Status:         in.Status,
 			Expires:        in.Expires,
 			CreatedBy:      in.CreatedBy,
+			Traits: map[string][]string{
+				"logins": in.AllowedLogins,
+			},
 		},
 		rawObject: *in,
 	}

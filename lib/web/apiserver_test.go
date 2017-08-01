@@ -173,6 +173,9 @@ func (s *WebSuite) SetUpTest(c *C) {
 		Access:     access,
 	})
 
+	// create the default role
+	c.Assert(s.authServer.UpsertRole(services.NewDefaultRole(), backend.Forever), IsNil)
+
 	// configure cluster authentication preferences
 	cap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
 		Type:         teleport.Local,

@@ -206,6 +206,14 @@ func Init(cfg InitConfig, dynamicConfig bool) (*AuthServer, *Identity, error) {
 	}
 	log.Infof("[INIT] Created Namespace: %q", defaults.Namespace)
 
+	// always create a default role
+	defaultRole := services.NewDefaultRole()
+	err = asrv.UpsertRole(defaultRole, backend.Forever)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	log.Infof("[INIT] Created default Role: %q", defaultRole.GetName())
+
 	// generate a user certificate authority if it doesn't exist
 	if _, err := asrv.GetCertAuthority(services.CertAuthID{DomainName: cfg.DomainName, Type: services.UserCA}, false); err != nil {
 		if !trace.IsNotFound(err) {
