@@ -334,7 +334,7 @@ func (a *AuthServer) ValidateSAMLResponse(samlResponse string) (*SAMLAuthRespons
 	}
 
 	if len(request.PublicKey) != 0 {
-		certTTL := utils.MinTTL(utils.ToTTL(a.clock, expiresAt), request.CertTTL)
+		certTTL := utils.MinTTL(sessionTTL, request.CertTTL)
 		allowedLogins, err := roles.CheckLoginDuration(certTTL)
 		if err != nil {
 			return nil, trace.Wrap(err)
