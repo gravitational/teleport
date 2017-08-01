@@ -4618,7 +4618,7 @@ webpackJsonp([0],[
 	                                                                                                        limitations under the License.
 	                                                                                                        */
 
-	var MSG_ERROR_LOGIN_FAILED = 'Login unsuccessful. Please try again, if the problem persists, contact your system administator.';
+	var MSG_ERROR_LOGIN_FAILED = 'Login unsuccessful. Please try again, if the problem persists, contact your system administrator.';
 	var MSG_ERROR_DEFAULT = 'Whoops, something went wrong.';
 
 	var MSG_ERROR_NOT_FOUND = 'Whoops, we cannot find that.';
