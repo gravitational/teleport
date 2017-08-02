@@ -17,7 +17,7 @@ limitations under the License.
 import React from 'react';
 
 const MSG_INFO_LOGIN_SUCCESS = 'Login was successful, you can close this window and continue using tsh.';
-const MSG_ERROR_LOGIN_FAILED = 'Login unsuccessful. Please try again, if the problem persists, contact your system administator.';
+const MSG_ERROR_LOGIN_FAILED = 'Login unsuccessful. Please try again, if the problem persists, contact your system administrator.';
 const MSG_ERROR_DEFAULT = 'Whoops, something went wrong.';
 
 const MSG_ERROR_NOT_FOUND = 'Whoops, we cannot find that.';
