@@ -15,3 +15,11 @@ Look at `build.sh` script to see how it works.
 
 Teleport docs are published using a private `web` repository.
 See `web/README.md` for more info.
+
+## Running Locally
+
+To run the specific version of the docs on [http://127.0.0.1:8000](http://127.0.0.1:8000/quickstart):
+
+```bash
+$ mkdocs serve --config-file 2.3.yaml
+```
