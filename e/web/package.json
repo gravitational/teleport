@@ -36,7 +36,7 @@
     "react-slider": "0.6.1",
     "react-toastr": "2.4.0",
     "xterm": "2.4.0",
-    "u2f-api-polyfill": "^0.4.3"    
+    "u2f-api-polyfill": "^0.4.3"
   },
   "devDependencies": {
     "babel-core": "^6.14.0",
@@ -51,11 +51,11 @@
     "babel-preset-stage-0": "^6.5.0",
     "body-parser": "^1.9.0",
     "bootstrap-sass": "^3.3.6",
-    "css-loader": "^0.18.0",    
+    "css-loader": "^0.18.0",
     "eslint": "^3.5.0",
     "eslint-import-resolver-webpack": "^0.6.0",
     "eslint-loader": "^1.6.1",
-    "eslint-plugin-babel": "^3.3.0",    
+    "eslint-plugin-babel": "^3.3.0",
     "eslint-plugin-import": "^1.16.0",
     "eslint-plugin-react": "^6.3.0",
     "events": "1.0.2",
@@ -73,7 +73,6 @@
     "karma-spec-reporter": "0.0.24",
     "karma-webpack": "^1.7.0",
     "mocha": "^2.0.1",
-    "node-inspector": "^1.0.0",
     "node-sass": "^4.5.2",
     "raw-loader": "^0.5.1",
     "react-addons-test-utils": "15.1.0",

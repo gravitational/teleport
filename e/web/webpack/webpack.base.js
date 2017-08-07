@@ -19,9 +19,9 @@ var webpack = require('webpack');
 var HtmlWebPackPlugin = require('html-webpack-plugin');
 var ExtractTextPlugin = require('extract-text-webpack-plugin');
 var ROOT_PATH = path.join(__dirname, '../');
-var TELEBASE_PATH = 'telebase/web'; 
-var TELEBASE_APP_PATH = 'telebase/web/src/app';
-var TELEBASE_ASSET_PATH = 'telebase/web/src/assets';
+var TELEBASE_PATH = '../../web'; 
+var TELEBASE_APP_PATH = '../../web/src/app';
+var TELEBASE_ASSET_PATH = '../../web/src/assets';
 
 var favIconPath = path.join(ROOT_PATH, TELEBASE_ASSET_PATH+'/img/favicon.ico');
 var extractCss = new ExtractTextPlugin('vendor.[contenthash].css');
@@ -38,8 +38,7 @@ module.exports = {
     publicPath: '/web/app',
     path: path.join(ROOT_PATH, 'dist/app'),
     filename: '[name].[hash].js',
-    chunkFilename: '[chunkhash].js',
-    sourceMapFilename: '[name].map'
+    chunkFilename: '[chunkhash].js'    
   },
 
   noParse: [ /xterm.js$/ ],
@@ -51,8 +50,7 @@ module.exports = {
       'telebase-app': path.join(ROOT_PATH, TELEBASE_APP_PATH),      
       '_': path.join(ROOT_PATH, TELEBASE_ASSET_PATH+'/js/underscore'),
       jquery: path.join(ROOT_PATH, TELEBASE_ASSET_PATH+'/js/jquery'),
-      jQuery: path.join(ROOT_PATH, TELEBASE_ASSET_PATH+'/js/jquery'),
-      Terminal: path.join(ROOT_PATH, TELEBASE_ASSET_PATH+'/js/terminal')
+      jQuery: path.join(ROOT_PATH, TELEBASE_ASSET_PATH+'/js/jquery')      
     },
 
     root: [ path.join(ROOT_PATH, 'src')],
@@ -153,20 +151,19 @@ function handleTelebaseImports() {
   return {
     apply: function (compiler) { 
       compiler.resolvers.normal.apply({
-          apply(resolver) {
-            resolver.plugin('resolve', (context, request) => {                            
-              if (request.path.indexOf('assets/') === 0) {                                
-                request.path = request.path.replace('assets/', 'telebase-assets/');                  
-              }
-
-              if (context.indexOf(TELEBASE_PATH) !== -1) {                
-                if (request.path.indexOf('app/') === 0) {                   
-                  request.path = request.path.replace('app/', 'telebase-app/');                  
-                }                                      
-              }              
-            });
-          },
-        });
+        apply(resolver) {
+          resolver.plugin('resolve', (context, request) => {                            
+            if (request.path.indexOf('assets/') === 0) {                                
+              request.path = request.path.replace('assets/', 'telebase-assets/');                  
+            }
+            if (context.indexOf('teleport/web/src/app') !== -1) {                
+              if (request.path.indexOf('app/') === 0) {                   
+                request.path = request.path.replace('app/', 'telebase-app/');                  
+              }                                      
+            }              
+          });
+        },
+      });
     }
   }
 }

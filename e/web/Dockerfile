@@ -1,22 +1,19 @@
-FROM node:5-slim
+FROM node:8.1.2-slim
+RUN apt-get update && apt-get install -y python python-dev python-pip 
+
+RUN mkdir -p /teleport/e/web
+COPY package*.json /teleport/e/web/
+
+VOLUME ["/teleport/web/"]
+VOLUME ["/teleport/e/web/dist"]
+
+WORKDIR /teleport/e/web
+
+RUN npm install
+
+COPY . /teleport/e/web
 
 ARG UID
 ARG GID
 
-VOLUME ["/tmp/copy"]
-
-RUN mkdir -p /app
-
-COPY package.json /app/
-
-WORKDIR /app
-
-COPY telebase/web/ /app/telebase/web
-
-RUN npm install
-
-COPY . /app
-
-RUN groupadd builder --gid=$GID  -o ;\
-    useradd builder --uid=$UID --gid=$GID --create-home --shell=/bin/bash  ;\
-    chown builder /app -R
+RUN chown $UID:$GID /teleport -R

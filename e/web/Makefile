@@ -1,57 +1,29 @@
 TAG=1.0.0
-NOROOT=-u $$(id -u):$$(id -g)
-LOCALDIR := $(dir $(CURDIR)/$(word $(words $(MAKEFILE_LIST)),$(MAKEFILE_LIST)))
-
-CONTAINER_DIST_DIR=/app/dist
 HOST_DIR="$$(pwd)"
-HOST_TMP_VOL:= $(shell mktemp -d "/tmp/teleport-build-dist.XXXXXXXXX")
-
-GRV_TELEBASE := telebase
-GRV_TELEBASE_LOC := $(LOCALDIR)/$(GRV_TELEBASE)
-GRV_TELEBASE_REPO := git@github.com:gravitational/teleport.git
-GRV_TELEBASE_TAG ?= master
+DIST_DIR=$(HOST_DIR)/dist
+TELEBASE_SRCDIR=$(HOST_DIR)/../../web
+NOROOT=-u $$(id -u):$$(id -g)
+IMAGE_NAME:=e-teleport-web:$(TAG)
 
 .PHONY:all
 all: docker-build
-
-.PHONY:revendor
-revendor:		
-	rm -rf $(GRV_TELEBASE)
-	mkdir -p $(GRV_TELEBASE_LOC)/web
-	cp -R $(GOPATH)/src/github.com/gravitational/teleport/web/src $(GRV_TELEBASE_LOC)/web
-
-.PHONY:git-revendor
-git-revendor:		
-	rm -rf $(GRV_TELEBASE)
-	if [ ! -d "$(GRV_TELEBASE_LOC)" ]; then \
-		mkdir -p $(GRV_TELEBASE_LOC);	\
-		cd $(GRV_TELEBASE_LOC) && \
-		git init && \
-		git remote add origin $(GRV_TELEBASE_REPO) && \
-		git config core.sparsecheckout true && \
-		echo "web/src/*" >> .git/info/sparse-checkout; \
-	fi;
-	cd $(GRV_TELEBASE_LOC) &&	git pull --depth=1 origin $(GRV_TELEBASE_TAG)
-	rm -rf $(GRV_TELEBASE_LOC)/.git
 
 #
 # Builds dist files
 #
 .PHONY:docker-build
-docker-build:
-	rm -rf $(HOST_DIR)/dist
-	docker build --build-arg UID=$$(id -u) --build-arg GID=$$(id -g) --force-rm=true -t e-teleport-web:$(TAG) . && \
-	docker run -i --rm -v $(HOST_TMP_VOL):/tmp/copy $(NOROOT) e-teleport-web:$(TAG) cp -r /app /tmp/copy && \
-	docker run --rm -v $(HOST_TMP_VOL)/app:/app $(NOROOT) e-teleport-web:$(TAG) npm run build && \
-	cp -r $(HOST_TMP_VOL)/app/dist $(HOST_DIR)
-	rm -rf $(HOST_TMP_VOL)
-
+docker-build:	
+	rm -rf $(DIST_DIR)
+	mkdir -p $(DIST_DIR) 	
+	docker build --build-arg UID=$$(id -u) --build-arg GID=$$(id -g) --force-rm=true -t $(IMAGE_NAME) -f Dockerfile . 		
+	docker run -v $(TELEBASE_SRCDIR):/teleport/web -v $(DIST_DIR):/teleport/e/web/dist $(NOROOT) -t $(IMAGE_NAME) npm run build 
+		
 #
 # 'make docker-enter' builds a Docker container with a website
 #
 .PHONY:docker-enter
 docker-enter:
-	docker run -ti -p 3000:3000 --rm=true $(NOROOT) -t e-teleport-web:$(TAG) /bin/bash
+	docker run -ti --rm=true -t $(IMAGE_NAME) /bin/bash
 
 ##############################
 #   Native Localhost
@@ -61,7 +33,7 @@ docker-enter:
 # locally installs npm packages and builds
 #
 .PHONY:local
-local: ensure-deps
+local: 
 	npm install
 	npm run build
 
