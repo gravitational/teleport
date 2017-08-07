@@ -1,21 +1,19 @@
 FROM node:8.1.2-slim
+RUN apt-get update && apt-get install -y python python-dev python-pip 
 
 RUN mkdir -p /teleport/e/web
-RUN mkdir -p /teleport/web
+COPY package*.json /teleport/e/web/
 
-COPY package.json /teleport/e/web
+VOLUME ["/teleport/web/"]
+VOLUME ["/teleport/e/web/dist"]
 
 WORKDIR /teleport/e/web
 
-# RUN npm install
+RUN npm install
 
-COPY ../../web/src /teleport/web
-COPY web /teleport/e/web
+COPY . /teleport/e/web
 
-#RUN npm install
-#
-#COPY . /app
-#
-#RUN groupadd builder --gid=$GID  -o ;\
-#    useradd builder --uid=$UID --gid=$GID --create-home --shell=/bin/bash  ;\
-#    chown builder /app -R
+ARG UID
+ARG GID
+
+RUN chown $UID:$GID /teleport -R

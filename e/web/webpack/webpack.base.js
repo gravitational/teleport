@@ -38,8 +38,7 @@ module.exports = {
     publicPath: '/web/app',
     path: path.join(ROOT_PATH, 'dist/app'),
     filename: '[name].[hash].js',
-    chunkFilename: '[chunkhash].js',
-    sourceMapFilename: '[name].map'
+    chunkFilename: '[chunkhash].js'    
   },
 
   noParse: [ /xterm.js$/ ],
@@ -51,8 +50,7 @@ module.exports = {
       'telebase-app': path.join(ROOT_PATH, TELEBASE_APP_PATH),      
       '_': path.join(ROOT_PATH, TELEBASE_ASSET_PATH+'/js/underscore'),
       jquery: path.join(ROOT_PATH, TELEBASE_ASSET_PATH+'/js/jquery'),
-      jQuery: path.join(ROOT_PATH, TELEBASE_ASSET_PATH+'/js/jquery'),
-      Terminal: path.join(ROOT_PATH, TELEBASE_ASSET_PATH+'/js/terminal')
+      jQuery: path.join(ROOT_PATH, TELEBASE_ASSET_PATH+'/js/jquery')      
     },
 
     root: [ path.join(ROOT_PATH, 'src')],
