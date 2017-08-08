@@ -141,26 +141,17 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	if c.Spec.Type == "" {
 		c.Spec.Type = teleport.Local
 	}
-	if c.Spec.SecondFactor == "" && c.Spec.Type == teleport.Local {
+	if c.Spec.SecondFactor == "" {
 		c.Spec.SecondFactor = teleport.OTP
 	}
 
-	// make sure whatever was passed in was sane
-	switch c.Spec.Type {
-	case teleport.Local:
-		if c.Spec.SecondFactor != teleport.OFF && c.Spec.SecondFactor != teleport.OTP && c.Spec.SecondFactor != teleport.U2F {
-			return trace.BadParameter("second factor type %q not supported", c.Spec.SecondFactor)
-		}
-	case teleport.OIDC:
-		if c.Spec.SecondFactor != "" {
-			return trace.BadParameter("second factor [%q] not supported with OIDC connector")
-		}
-	case teleport.SAML:
-		if c.Spec.SecondFactor != "" {
-			return trace.BadParameter("second factor [%q] not supported with SAML connector")
-		}
-	default:
-		return trace.BadParameter("unsupported type %q", c.Spec.Type)
+	// make sure type makes sense
+	if c.Spec.Type != teleport.Local && c.Spec.Type != teleport.OIDC && c.Spec.Type != teleport.SAML {
+		return trace.BadParameter("authentication type %q not supported", c.Spec.Type)
+	}
+	// make sure second factor makes sense
+	if c.Spec.SecondFactor != teleport.OFF && c.Spec.SecondFactor != teleport.OTP && c.Spec.SecondFactor != teleport.U2F {
+		return trace.BadParameter("second factor type %q not supported", c.Spec.SecondFactor)
 	}
 
 	return nil

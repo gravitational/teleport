@@ -297,13 +297,18 @@ type OIDCSettings struct {
 // to better user experience: users get connection errors before being asked for passwords. The second
 // is to return the form of authentication that the server supports. This also leads to better user
 // experience: users only get prompted for the type of authentication the server supports.
-func Ping(proxyAddr string, insecure bool, pool *x509.CertPool) (*PingResponse, error) {
+func Ping(proxyAddr string, insecure bool, pool *x509.CertPool, connectorName string) (*PingResponse, error) {
 	clt, _, err := initClient(proxyAddr, insecure, pool)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	response, err := clt.Get(clt.Endpoint("webapi", "ping"), url.Values{})
+	endpoint := clt.Endpoint("webapi", "ping")
+	if connectorName != "" {
+		endpoint = clt.Endpoint("webapi", "ping", connectorName)
+	}
+
+	response, err := clt.Get(endpoint, url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

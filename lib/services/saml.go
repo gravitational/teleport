@@ -529,6 +529,9 @@ func (o *SAMLConnectorV2) GetServiceProvider(clock clockwork.Clock) (*saml2.SAML
 	if o.Metadata.Name == "" {
 		return nil, trace.BadParameter("ID: missing connector name, name your connector to refer to internally e.g. okta1")
 	}
+	if o.Metadata.Name == teleport.Local {
+		return nil, trace.BadParameter("ID: invalid connector name %v is a reserved name", teleport.Local)
+	}
 	if o.Spec.AssertionConsumerService == "" {
 		return nil, trace.BadParameter("missing acs - assertion consumer service parameter, set service URL that will receive POST requests from SAML")
 	}

@@ -24,6 +24,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -463,6 +464,9 @@ func (o *OIDCConnectorV2) RoleFromTemplate(claims jose.Claims) (Role, error) {
 func (o *OIDCConnectorV2) Check() error {
 	if o.Metadata.Name == "" {
 		return trace.BadParameter("ID: missing connector name")
+	}
+	if o.Metadata.Name == teleport.Local {
+		return trace.BadParameter("ID: invalid connector name %v is a reserved name", teleport.Local)
 	}
 	if _, err := url.Parse(o.Spec.IssuerURL); err != nil {
 		return trace.BadParameter("IssuerURL: bad url: '%v'", o.Spec.IssuerURL)
