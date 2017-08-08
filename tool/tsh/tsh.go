@@ -118,6 +118,9 @@ type CLIConf struct {
 	// IdentityFormat (used for --format flag for 'tsh login') defines which
 	// format to use with --out to store a fershly retreived certificate
 	IdentityFormat client.IdentityFileFormat
+
+	// AuthConnector is the name of the connector to use.
+	AuthConnector string
 }
 
 func main() {
@@ -154,8 +157,8 @@ func Run(args []string, underTest bool) {
 	app.Flag("ttl", "Minutes to live for a SSH session").Int32Var(&cf.MinsToLive)
 	app.Flag("identity", "Identity file").Short('i').StringVar(&cf.IdentityFileIn)
 	app.Flag("compat", "OpenSSH compatibility flag").StringVar(&cf.Compatibility)
-
 	app.Flag("insecure", "Do not verify server's certificate and host name. Use only in test environments").Default("false").BoolVar(&cf.InsecureSkipVerify)
+	app.Flag("auth", "Specify the type of authentication connector to use.").StringVar(&cf.AuthConnector)
 	app.Flag("namespace", "Namespace of the cluster").Default(defaults.Namespace).Hidden().StringVar(&cf.Namespace)
 	app.Flag("gops", "Start gops endpoint on a given address").Hidden().BoolVar(&cf.Gops)
 	app.Flag("gops-addr", "Specify gops addr to listen on").Hidden().StringVar(&cf.GopsAddr)
@@ -652,6 +655,9 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 		return nil, trace.Wrap(err)
 	}
 	c.Compatibility = compatibility
+
+	// copy the authentication connector over
+	c.AuthConnector = cf.AuthConnector
 
 	return client.NewClient(c)
 }

@@ -142,10 +142,12 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		h.clock = clockwork.NewRealClock()
 	}
 
-	// a response indicates if the server is up and the response data
-	// indicates the type of authentication methods that are supported
-	// TODO(russjones): Where is /webapi, that was the old /ping?
-	h.GET("/webapi/ping", httplib.MakeHandler(h.getAuthenticationSettings))
+	// ping endpoint is used to check if the server is up. the /webapi/ping
+	// endpoint returns the default authentication method and configuration that
+	// the server supports. the /webapi/ping/:connector endpoint can be used to
+	// query the authentication configuration for a specific connector.
+	h.GET("/webapi/ping", httplib.MakeHandler(h.ping))
+	h.GET("/webapi/ping/:connector", httplib.MakeHandler(h.pingWithConnector))
 
 	// Web sessions
 	h.POST("/webapi/sessions", httplib.MakeHandler(h.createSession))
@@ -344,139 +346,158 @@ func (m *Handler) getUserACL(w http.ResponseWriter, r *http.Request, _ httproute
 	return uiaccess, nil
 }
 
-func buildUniversalSecondFactorSettings(authClient auth.ClientI) *client.U2FSettings {
-	cap, err := authClient.GetAuthPreference()
-	if err != nil {
-		log.Debugf("Unable to get U2F Settings: %v", err)
-		return nil
+func localSettings(authClient auth.ClientI, cap services.AuthPreference) (client.AuthenticationSettings, error) {
+	as := client.AuthenticationSettings{
+		Type:         teleport.Local,
+		SecondFactor: cap.GetSecondFactor(),
 	}
 
-	universalSecondFactor, err := cap.GetU2F()
-	if err != nil {
-		// if we have nothing set on the backend, return we have nothing
-		if trace.IsNotFound(err) {
-			return nil
-		}
-
-		log.Debugf("Unable to get U2F Settings: %v", err)
-		return nil
-	}
-
-	return &client.U2FSettings{AppID: universalSecondFactor.AppID}
-}
-
-func buildOIDCConnectorSettings(cap services.AuthPreference, authClient auth.ClientI) *client.OIDCSettings {
-	var err error
-	var oidcConnector services.OIDCConnector
-
-	// if we have a connector name, try and pull that connector back, otherwise
-	// return the first connector
-	connectorName := cap.GetConnectorName()
-	if connectorName != "" {
-		oidcConnector, err = authClient.GetOIDCConnector(connectorName, false)
-		if err != nil {
-			log.Debugf("Unable to find OIDC Connector %v: %v", connectorName, err)
-			return nil
-		}
-	} else {
-		oidcConnectors, err := authClient.GetOIDCConnectors(false)
-		if err != nil {
-			// if we have nothing set on the backend, return we have nothing
-			if trace.IsNotFound(err) {
-				return nil
-			}
-
-			log.Debugf("Unable to get OIDC Connectors: %v", err)
-			return nil
-		}
-
-		if len(oidcConnectors) < 1 {
-			log.Debugf("No OIDC Connectors found")
-			return nil
-		}
-		oidcConnector = oidcConnectors[0]
-	}
-
-	return &client.OIDCSettings{
-		Name:    oidcConnector.GetName(),
-		Display: oidcConnector.GetDisplay(),
-	}
-}
-
-func buildSAMLConnectorSettings(cap services.AuthPreference, authClient auth.ClientI) *client.SAMLSettings {
-	var err error
-	var samlConnector services.SAMLConnector
-
-	// if we have a connector name, try and pull that connector back, otherwise
-	// return the first connector
-	connectorName := cap.GetConnectorName()
-	if connectorName != "" {
-		samlConnector, err = authClient.GetSAMLConnector(connectorName, false)
-		if err != nil {
-			log.Debugf("Unable to find OIDC Connector %v: %v", connectorName, err)
-			return nil
-		}
-	} else {
-		samlConnectors, err := authClient.GetSAMLConnectors(false)
-		if err != nil {
-			// if we have nothing set on the backend, return we have nothing
-			if trace.IsNotFound(err) {
-				return nil
-			}
-
-			log.Debugf("Unable to get SAML Connectors: %v", err)
-			return nil
-		}
-
-		if len(samlConnectors) < 1 {
-			log.Debugf("No SAML Connectors found")
-			return nil
-		}
-		samlConnector = samlConnectors[0]
-	}
-
-	// always use the first one as only allow a single oidc connector now
-	return &client.SAMLSettings{
-		Name:    samlConnector.GetName(),
-		Display: samlConnector.GetDisplay(),
-	}
-}
-
-func buildAuthenticationSettings(authClient auth.ClientI) (*client.AuthenticationSettings, error) {
-	as := &client.AuthenticationSettings{}
-
-	cap, err := authClient.GetAuthPreference()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	as.Type = cap.GetType()
-	as.SecondFactor = cap.GetSecondFactor()
-
-	// if we have u2f or oidc settings, build those as well
+	// if the type is u2f, pull some additional data back
 	if cap.GetSecondFactor() == teleport.U2F {
-		as.U2F = buildUniversalSecondFactorSettings(authClient)
-	}
-	if cap.GetType() == teleport.OIDC {
-		as.OIDC = buildOIDCConnectorSettings(cap, authClient)
-	}
-	if cap.GetType() == teleport.SAML {
-		as.SAML = buildSAMLConnectorSettings(cap, authClient)
+		u2fs, err := cap.GetU2F()
+		if err != nil {
+			return client.AuthenticationSettings{}, trace.Wrap(err)
+		}
+
+		as.U2F = &client.U2FSettings{AppID: u2fs.AppID}
 	}
 
 	return as, nil
 }
 
-func (m *Handler) getAuthenticationSettings(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	as, err := buildAuthenticationSettings(m.cfg.ProxyClient)
+func oidcSettings(connector services.OIDCConnector) client.AuthenticationSettings {
+	return client.AuthenticationSettings{
+		Type: teleport.OIDC,
+		OIDC: &client.OIDCSettings{
+			Name:    connector.GetName(),
+			Display: connector.GetDisplay(),
+		},
+	}
+}
+
+func samlSettings(connector services.SAMLConnector) client.AuthenticationSettings {
+	return client.AuthenticationSettings{
+		Type: teleport.SAML,
+		SAML: &client.SAMLSettings{
+			Name:    connector.GetName(),
+			Display: connector.GetDisplay(),
+		},
+	}
+}
+
+func defaultAuthenticationSettings(authClient auth.ClientI) (client.AuthenticationSettings, error) {
+	cap, err := authClient.GetAuthPreference()
+	if err != nil {
+		return client.AuthenticationSettings{}, trace.Wrap(err)
+	}
+
+	var as client.AuthenticationSettings
+
+	switch cap.GetType() {
+	case teleport.Local:
+		as, err = localSettings(authClient, cap)
+		if err != nil {
+			return client.AuthenticationSettings{}, trace.Wrap(err)
+		}
+	case teleport.OIDC:
+		if cap.GetConnectorName() != "" {
+			oidcConnector, err := authClient.GetOIDCConnector(cap.GetConnectorName(), false)
+			if err != nil {
+				return client.AuthenticationSettings{}, trace.Wrap(err)
+			}
+
+			as = oidcSettings(oidcConnector)
+		} else {
+			oidcConnectors, err := authClient.GetOIDCConnectors(false)
+			if err != nil {
+				return client.AuthenticationSettings{}, trace.Wrap(err)
+			}
+			if len(oidcConnectors) == 0 {
+				return client.AuthenticationSettings{}, trace.BadParameter("no oidc connectors found")
+			}
+
+			as = oidcSettings(oidcConnectors[0])
+		}
+	case teleport.SAML:
+		if cap.GetConnectorName() != "" {
+			samlConnector, err := authClient.GetSAMLConnector(cap.GetConnectorName(), false)
+			if err != nil {
+				return client.AuthenticationSettings{}, trace.Wrap(err)
+			}
+
+			as = samlSettings(samlConnector)
+		} else {
+			samlConnectors, err := authClient.GetSAMLConnectors(false)
+			if err != nil {
+				return client.AuthenticationSettings{}, trace.Wrap(err)
+			}
+			if len(samlConnectors) == 0 {
+				return client.AuthenticationSettings{}, trace.BadParameter("no saml connectors found")
+			}
+
+			as = samlSettings(samlConnectors[0])
+		}
+	default:
+		return client.AuthenticationSettings{}, trace.BadParameter("unknown type %v", cap.GetType())
+	}
+
+	return as, nil
+}
+
+func (m *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var err error
+
+	defaultSettings, err := defaultAuthenticationSettings(m.cfg.ProxyClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &client.PingResponse{
-		Auth:          *as,
+	return client.PingResponse{
+		Auth:          defaultSettings,
 		ServerVersion: teleport.Version,
 	}, nil
+}
+
+func (m *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	authClient := m.cfg.ProxyClient
+	connectorName := p.ByName("connector")
+
+	if connectorName == teleport.Local {
+		cap, err := authClient.GetAuthPreference()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		as, err := localSettings(m.cfg.ProxyClient, cap)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &client.PingResponse{
+			Auth:          as,
+			ServerVersion: teleport.Version,
+		}, nil
+	}
+
+	// first look for a oidc connector with that name
+	oidcConnector, err := authClient.GetOIDCConnector(connectorName, false)
+	if err == nil {
+		return &client.PingResponse{
+			Auth:          oidcSettings(oidcConnector),
+			ServerVersion: teleport.Version,
+		}, nil
+	}
+
+	// if no oidc connector was found, look for a saml connector
+	samlConnector, err := authClient.GetSAMLConnector(connectorName, false)
+	if err == nil {
+		return &client.PingResponse{
+			Auth:          samlSettings(samlConnector),
+			ServerVersion: teleport.Version,
+		}, nil
+	}
+
+	return nil, trace.BadParameter("invalid connector name %v", connectorName)
 }
 
 type webConfig struct {
@@ -489,13 +510,13 @@ type webConfig struct {
 
 // getConfigurationSettings returns configuration for the web application.
 func (m *Handler) getConfigurationSettings(w http.ResponseWriter, r *http.Request) (interface{}, error) {
-	var as, err = buildAuthenticationSettings(m.cfg.ProxyClient)
+	as, err := defaultAuthenticationSettings(m.cfg.ProxyClient)
 	if err != nil {
 		log.Infof("Cannot retrieve cluster auth preferences: %v", err)
 	}
 
 	webCfg := webConfig{
-		Auth:          as,
+		Auth:          &as,
 		ServerVersion: teleport.Version,
 	}
 
@@ -1154,6 +1175,7 @@ func (m *Handler) getSiteNodes(w http.ResponseWriter, r *http.Request, p httprou
 	for key := range nodeMap {
 		nodes = append(nodes, *nodeMap[key])
 	}
+
 	return getSiteNodesResponse{
 		Nodes: nodes,
 	}, nil

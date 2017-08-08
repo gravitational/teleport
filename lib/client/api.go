@@ -175,6 +175,9 @@ type Config struct {
 
 	// Compatibility specifies OpenSSH compatibility flags.
 	Compatibility string
+
+	// AuthConnector is the name of the authentication connector to use.
+	AuthConnector string
 }
 
 // CachePolicy defines cache policy for local clients
@@ -1016,7 +1019,7 @@ func (tc *TeleportClient) Login(activateKey bool) (*Key, error) {
 	certPool := loopbackPool(httpsProxyHostPort)
 
 	// ping the endpoint to see if it's up and find the type of authentication supported
-	pr, err := Ping(httpsProxyHostPort, tc.InsecureSkipVerify, certPool)
+	pr, err := Ping(httpsProxyHostPort, tc.InsecureSkipVerify, certPool, tc.AuthConnector)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
