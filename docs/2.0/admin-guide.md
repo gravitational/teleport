@@ -988,7 +988,7 @@ First, you need to export the public keys of cluster members. This has to be don
 on a node which runs Teleport auth server:
 
 ```bash
-$ tctl auth --type=host export > cluster_node_keys
+$ tctl auth export --type=host > cluster_node_keys
 ```
 
 On your client machine, you need to import these keys. It will allow your OpenSSH client
@@ -1058,7 +1058,7 @@ have to configure `sshd` to trust the Teleport CA.
 Export the Teleport CA certificate into a file:
 
 ```bash
-$ tctl auth --type=user export > teleport-user-ca.pub
+$ tctl auth export --type=user > teleport-user-ca.pub
 ```
 
 To allow access per-user, append the contents of `teleport-user-ca.pub` to
