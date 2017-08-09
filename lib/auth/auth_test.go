@@ -201,9 +201,8 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 
 	// lets use static tokens now
 	roles = teleport.Roles{teleport.RoleProxy}
-	//s.a.StaticTokens = append(s.a.StaticTokens, services.ProvisionToken{Token: "static-token-value", Roles: roles, Expires: time.Unix(0, 0)})
 	st, err := services.NewStaticTokens(services.StaticTokensSpecV2{
-		StaticTokens: []services.ProvisionToken{services.ProvisionToken{Token: "static-token-value", Roles: roles, Expires: time.Unix(0, 0)}},
+		StaticTokens: []services.ProvisionToken{services.ProvisionToken{Token: "static-token-value", Roles: roles, Expires: time.Unix(0, 0).UTC()}},
 	})
 	c.Assert(err, IsNil)
 	err = s.a.SetStaticTokens(st)

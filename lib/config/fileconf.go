@@ -556,7 +556,7 @@ func (t StaticToken) Parse() (services.ProvisionToken, error) {
 	return services.ProvisionToken{
 		Token:   parts[1],
 		Roles:   roles,
-		Expires: time.Unix(0, 0),
+		Expires: time.Unix(0, 0).UTC(),
 	}, nil
 }
 

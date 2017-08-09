@@ -323,12 +323,12 @@ func (s *ConfigTestSuite) TestApplyConfig(c *check.C) {
 		{
 			Token:   "xxx",
 			Roles:   teleport.Roles([]teleport.Role{"Proxy", "Node"}),
-			Expires: time.Unix(0, 0),
+			Expires: time.Unix(0, 0).UTC(),
 		},
 		{
 			Token:   "yyy",
 			Roles:   teleport.Roles([]teleport.Role{"Auth"}),
-			Expires: time.Unix(0, 0),
+			Expires: time.Unix(0, 0).UTC(),
 		},
 	})
 	c.Assert(cfg.Auth.ClusterName.GetClusterName(), check.Equals, "magadan")

@@ -1610,7 +1610,7 @@ type setClusterNameReq struct {
 }
 
 func (s *APIServer) setClusterName(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *setClusterNameReq
+	var req setClusterNameReq
 
 	err := httplib.ReadJSON(r, &req)
 	if err != nil {
@@ -1644,7 +1644,7 @@ type setStaticTokensReq struct {
 }
 
 func (s *APIServer) setStaticTokens(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *setStaticTokensReq
+	var req setStaticTokensReq
 
 	err := httplib.ReadJSON(r, &req)
 	if err != nil {

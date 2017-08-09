@@ -304,7 +304,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	// DEPRECATED: Remove the following message in Teleport 2.4
 	if fc.Auth.DynamicConfig != nil {
 		warningMessage := "Dynamic configuration is no longer supported. Refer to " +
-			"Teleport documentation for more details: https://www.example.com."
+			"Teleport documentation for more details: " +
+			"http://gravitational.com/teleport/docs/2.0/admin-guide"
 		log.Warnf(warningMessage)
 	}
 	// INTERNAL: Authorities (plus Roles) and ReverseTunnels don't follow the
@@ -331,7 +332,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 			"been deprecated, Trusted Clusters must now be configured using resources. " +
 			"Existing Trusted Cluster relationships will be maintained, but you will " +
 			"not be able to add or remove Trusted Clusters using file configuration " +
-			"anymore. Refer to Teleport documentation for more details: https://www.example.com."
+			"anymore. Refer to Teleport documentation for more details: " +
+			"http://gravitational.com/teleport/docs/2.0/admin-guide"
 		log.Warnf(warningMessage)
 	}
 	// read in cluster name from file configuration and create services.ClusterName
@@ -358,7 +360,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 				"no longer supported, OIDC connectors must be configured using resources. " +
 				"Existing OIDC connectors will not be removed but you will not be able to " +
 				"add, remove, or update them using file configuration. Refer to Teleport " +
-				"documentation for more details: https://www.example.com."
+				"documentation for more details: " +
+				"http://gravitational.com/teleport/docs/2.0/admin-guide"
 			log.Warnf(warningMessage)
 		}
 	}
