@@ -14,6 +14,7 @@ limitations under the License.
 package utils
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/rand"
@@ -154,4 +155,61 @@ func ParsePrivateKeyDER(der []byte) (crypto.Signer, error) {
 	}
 
 	return nil, trace.BadParameter("unsupported private key type")
+}
+
+// VerifyCertificateChain reads in chain of certificates and makes sure the
+// chain from leaf to root is valid. This ensures that clients (web browsers
+// and CLI) won't have problem validating the chain.
+func VerifyCertificateChain(certificateBytes []byte) error {
+	// build the certificate chain next
+	var certificateBlock *pem.Block
+	var remainingBytes []byte = certificateBytes
+	var certificateChain [][]byte
+
+	for {
+		certificateBlock, remainingBytes = pem.Decode(remainingBytes)
+		certificateChain = append(certificateChain, certificateBlock.Bytes)
+
+		if len(remainingBytes) == 0 {
+			break
+		}
+	}
+
+	// build a concatenated certificate chain
+	var buf bytes.Buffer
+	for _, cc := range certificateChain {
+		_, err := buf.Write(cc)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	// parse the chain and get a slice of x509.Certificates.
+	x509Chain, err := x509.ParseCertificates(buf.Bytes())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// extract intermediates and leaf certificate chains
+	intermediates := x509.NewCertPool()
+	if len(certificateChain) > 1 {
+		for _, v := range x509Chain[1:len(x509Chain)] {
+			intermediates.AddCert(v)
+		}
+	}
+	leaf := x509Chain[0]
+
+	// verify the entire chain using system roots. if we want to support
+	// validating the name presented on the certificate in the future we should
+	// pass in DNSName here.
+	opts := x509.VerifyOptions{
+		Intermediates: intermediates,
+	}
+
+	_, err = leaf.Verify(opts)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
