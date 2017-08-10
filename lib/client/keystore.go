@@ -43,6 +43,14 @@ const (
 	fileExtPub         = ".pub"
 	sessionKeyDir      = "keys"
 	fileNameKnownHosts = "known_hosts"
+
+	// profileDirPerms is the default permissions applied to the profile
+	// directory (usually ~/.tsh)
+	profileDirPerms os.FileMode = 0700
+
+	// keyFilePerms is the default permissions applied to key files (.cert, .key, pub)
+	// under ~/.tsh
+	keyFilePerms os.FileMode = 0600
 )
 
 // LocalKeyStore interface allows for different storage back-ends for TSH to
@@ -132,7 +140,7 @@ func (fs *FSLocalKeyStore) AddKey(host, username string, key *Key) error {
 	}
 	writeBytes := func(fname string, data []byte) error {
 		fp := filepath.Join(dirPath, fname)
-		err := ioutil.WriteFile(fp, data, 0640)
+		err := ioutil.WriteFile(fp, data, keyFilePerms)
 		if err != nil {
 			log.Error(err)
 		}
@@ -293,7 +301,7 @@ func (fs *FSLocalKeyStore) GetKnownHostKeys(hostname string) ([]ssh.PublicKey, e
 // for a given host are stored
 func (fs *FSLocalKeyStore) dirFor(hostname string) (string, error) {
 	dirPath := filepath.Join(fs.KeyDir, sessionKeyDir, hostname)
-	if err := os.MkdirAll(dirPath, 0777); err != nil {
+	if err := os.MkdirAll(dirPath, profileDirPerms); err != nil {
 		log.Error(err)
 		return "", trace.Wrap(err)
 	}
@@ -317,7 +325,7 @@ func initKeysDir(dirPath string) (string, error) {
 	_, err = os.Stat(dirPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			err = os.MkdirAll(dirPath, os.ModeDir|0777)
+			err = os.MkdirAll(dirPath, os.ModeDir|profileDirPerms)
 			if err != nil {
 				return "", trace.Wrap(err)
 			}
