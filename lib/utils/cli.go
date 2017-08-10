@@ -100,9 +100,31 @@ func UserMessageFromError(err error) string {
 			innerError.Host,
 			innerError.Error(),
 			"try a different hostname for --proxy or specify --insecure flag if you know what you're doing.")
-	case x509.UnknownAuthorityError, x509.CertificateInvalidError:
-		return "WARNING:\n The proxy you are connecting to uses the self-signed HTTPS certificate.\n" +
-			" Try --insecure flag if you know what you're doing.\n"
+	case x509.UnknownAuthorityError:
+		return `WARNING:
+
+  The proxy you are connecting to has presented a certificate signed by a
+  unknown authority. This is most likely due to either being presented
+  with a self-signed certificate or the certificate was truly signed by an
+  authority not known to the client.
+
+  If you know the certificate is self-signed and would like to ignore this
+  error use the --insecure flag.
+
+  If you have your own certificate authority that you would like to use to
+  validate the certificate chain presented by the proxy, set the
+  SSL_CERT_FILE and SSL_CERT_DIR environment variables respectively and try
+  again.
+
+  If you think something malicious may be occurring, contact your Teleport
+  system administrator to resolve this issue.
+`
+	case x509.CertificateInvalidError:
+		return fmt.Sprintf(`WARNING:
+
+  The certificate presented by the proxy is invalid: %v.
+
+  Contact your Teleport system administrator to resolve this issue.`, innerError)
 	}
 	if log.GetLevel() == log.DebugLevel {
 		return trace.DebugReport(err)
