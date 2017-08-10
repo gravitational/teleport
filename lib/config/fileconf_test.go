@@ -245,7 +245,6 @@ func (s *FileTestSuite) TestLegacyAuthenticationSection(c *check.C) {
 	c.Assert(fc.Auth.OIDCConnectors[0].IssuerURL, check.Equals, "https://accounts.google.com")
 
 	// validate u2f
-	c.Assert(fc.Auth.U2F.EnabledFlag, check.Equals, "yes")
 	c.Assert(fc.Auth.U2F.AppID, check.Equals, "https://graviton:3080")
 	c.Assert(fc.Auth.U2F.Facets, check.HasLen, 1)
 	c.Assert(fc.Auth.U2F.Facets[0], check.Equals, "https://graviton:3080")

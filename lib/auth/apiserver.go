@@ -142,11 +142,13 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	srv.GET("/:version/roles/:role", srv.withAuth(srv.getRole))
 	srv.DELETE("/:version/roles/:role", srv.withAuth(srv.deleteRole))
 
-	// cluster authentication preferences
+	// cluster configuration
+	srv.GET("/:version/configuration/name", srv.withAuth(srv.getClusterName))
+	srv.POST("/:version/configuration/name", srv.withAuth(srv.setClusterName))
+	srv.GET("/:version/configuration/static_tokens", srv.withAuth(srv.getStaticTokens))
+	srv.POST("/:version/configuration/static_tokens", srv.withAuth(srv.setStaticTokens))
 	srv.GET("/:version/authentication/preference", srv.withAuth(srv.getClusterAuthPreference))
 	srv.POST("/:version/authentication/preference", srv.withAuth(srv.setClusterAuthPreference))
-	srv.GET("/:version/authentication/preference/u2f", srv.withAuth(srv.getUniversalSecondFactor))
-	srv.POST("/:version/authentication/preference/u2f", srv.withAuth(srv.setUniversalSecondFactor))
 
 	// OIDC
 	srv.POST("/:version/oidc/connectors", srv.withAuth(srv.upsertOIDCConnector))
@@ -866,13 +868,18 @@ func (s *APIServer) getDomainName(auth ClientI, w http.ResponseWriter, r *http.R
 
 // getU2FAppID returns the U2F AppID in the auth configuration
 func (s *APIServer) getU2FAppID(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	universalSecondFactor, err := auth.GetUniversalSecondFactor()
+	cap, err := auth.GetAuthPreference()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	universalSecondFactor, err := cap.GetU2F()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	w.Header().Set("Content-Type", "application/fido.trusted-apps+json")
-	return universalSecondFactor.GetAppID(), nil
+	return universalSecondFactor.AppID, nil
 }
 
 func (s *APIServer) deleteCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
@@ -1018,7 +1025,7 @@ func (s *APIServer) createUserWithToken(auth ClientI, w http.ResponseWriter, r *
 		return nil, trace.Wrap(err)
 	}
 
-	cap, err := auth.GetClusterAuthPreference()
+	cap, err := auth.GetAuthPreference()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1589,8 +1596,76 @@ func (s *APIServer) deleteRole(auth ClientI, w http.ResponseWriter, r *http.Requ
 	return message(fmt.Sprintf("role '%v' deleted", role)), nil
 }
 
+func (s *APIServer) getClusterName(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	cn, err := auth.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rawMessage(services.GetClusterNameMarshaler().Marshal(cn, services.WithVersion(version)))
+}
+
+type setClusterNameReq struct {
+	ClusterName json.RawMessage `json:"cluster_name"`
+}
+
+func (s *APIServer) setClusterName(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	var req setClusterNameReq
+
+	err := httplib.ReadJSON(r, &req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cn, err := services.GetClusterNameMarshaler().Unmarshal(req.ClusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = auth.SetClusterName(cn)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return message(fmt.Sprintf("cluster name set: %+v", cn)), nil
+}
+
+func (s *APIServer) getStaticTokens(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	st, err := auth.GetStaticTokens()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rawMessage(services.GetStaticTokensMarshaler().Marshal(st, services.WithVersion(version)))
+}
+
+type setStaticTokensReq struct {
+	StaticTokens json.RawMessage `json:"static_tokens"`
+}
+
+func (s *APIServer) setStaticTokens(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	var req setStaticTokensReq
+
+	err := httplib.ReadJSON(r, &req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	st, err := services.GetStaticTokensMarshaler().Unmarshal(req.StaticTokens)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = auth.SetStaticTokens(st)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return message(fmt.Sprintf("static tokens set: %+v", st)), nil
+}
+
 func (s *APIServer) getClusterAuthPreference(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	cap, err := auth.GetClusterAuthPreference()
+	cap, err := auth.GetAuthPreference()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1615,46 +1690,12 @@ func (s *APIServer) setClusterAuthPreference(auth ClientI, w http.ResponseWriter
 		return nil, trace.Wrap(err)
 	}
 
-	err = auth.SetClusterAuthPreference(cap)
+	err = auth.SetAuthPreference(cap)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return message(fmt.Sprintf("cluster authenticaton preference set: %+v", cap)), nil
-}
-
-func (s *APIServer) getUniversalSecondFactor(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	universalSecondFactor, err := auth.GetUniversalSecondFactor()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return rawMessage(services.GetUniversalSecondFactorMarshaler().Marshal(universalSecondFactor, services.WithVersion(version)))
-}
-
-type setUniversalSecondFactorReq struct {
-	UniversalSecondFactor json.RawMessage `json:"universal_second_factor"`
-}
-
-func (s *APIServer) setUniversalSecondFactor(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *setUniversalSecondFactorReq
-
-	err := httplib.ReadJSON(r, &req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	universalSecondFactor, err := services.GetUniversalSecondFactorMarshaler().Unmarshal(req.UniversalSecondFactor)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	err = auth.SetUniversalSecondFactor(universalSecondFactor)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return message(fmt.Sprintf("universal second factor set: %+v", universalSecondFactor)), nil
 }
 
 func message(msg string) map[string]interface{} {

@@ -22,7 +22,6 @@ package services
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/lib/defaults"
@@ -364,35 +363,6 @@ func (i *SAMLAuthRequest) Check() error {
 		}
 	}
 
-	return nil
-}
-
-// U2F is a configuration of the U2F two factor authentication
-// Deprecated: Use services.UniversalSecondFactor instead.
-type U2F struct {
-	Enabled bool
-	// AppID identifies the website to the U2F keys. It should not be changed once a U2F
-	// key is registered or all existing registrations will become invalid.
-	AppID string
-	// Facets should include the domain name of all proxies.
-	Facets []string
-}
-
-func (u *U2F) Check() error {
-	if u.Enabled {
-		// Basic verification of the U2F config
-		if !strings.HasPrefix(u.AppID, "https://") {
-			return trace.BadParameter("U2F: invalid AppID: %s", u.AppID)
-		}
-		if len(u.Facets) == 0 {
-			return trace.BadParameter("U2F: no Facets specified")
-		}
-		for i := range u.Facets {
-			if !strings.HasPrefix(u.Facets[i], "https://") {
-				return trace.BadParameter("U2F: invalid Facet: %s", u.Facets[i])
-			}
-		}
-	}
 	return nil
 }
 

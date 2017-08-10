@@ -59,11 +59,26 @@ func (s *AuthSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	authConfig := &InitConfig{
-		Backend:    s.bk,
-		Authority:  authority.New(),
-		DomainName: "me.localhost",
+		Backend:   s.bk,
+		Authority: authority.New(),
 	}
 	s.a = NewAuthServer(authConfig)
+
+	// set cluster name
+	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
+		ClusterName: "me.localhost",
+	})
+	c.Assert(err, IsNil)
+	err = s.a.SetClusterName(clusterName)
+	c.Assert(err, IsNil)
+
+	// set static tokens
+	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
+		StaticTokens: []services.ProvisionToken{},
+	})
+	c.Assert(err, IsNil)
+	err = s.a.SetStaticTokens(staticTokens)
+	c.Assert(err, IsNil)
 }
 
 func (s *AuthSuite) TestSessions(c *C) {
@@ -186,7 +201,12 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 
 	// lets use static tokens now
 	roles = teleport.Roles{teleport.RoleProxy}
-	s.a.StaticTokens = append(s.a.StaticTokens, services.ProvisionToken{Token: "static-token-value", Roles: roles, Expires: time.Unix(0, 0)})
+	st, err := services.NewStaticTokens(services.StaticTokensSpecV2{
+		StaticTokens: []services.ProvisionToken{services.ProvisionToken{Token: "static-token-value", Roles: roles, Expires: time.Unix(0, 0).UTC()}},
+	})
+	c.Assert(err, IsNil)
+	err = s.a.SetStaticTokens(st)
+	c.Assert(err, IsNil)
 	_, err = s.a.RegisterUsingToken("static-token-value", "static.host", "node-name", teleport.RoleProxy)
 	c.Assert(err, IsNil)
 	_, err = s.a.RegisterUsingToken("static-token-value", "wrong.role", "node-name", teleport.RoleAuth)
@@ -439,4 +459,59 @@ func (s *AuthSuite) TestValidateACRValues(c *C) {
 			c.Assert(err, NotNil, comment)
 		}
 	}
+}
+
+func (s *AuthSuite) TestUpdateConfig(c *C) {
+	cn, err := s.a.GetClusterName()
+	c.Assert(err, IsNil)
+	c.Assert(cn.GetClusterName(), Equals, "me.localhost")
+	st, err := s.a.GetStaticTokens()
+	c.Assert(err, IsNil)
+	c.Assert(st.GetStaticTokens(), DeepEquals, []services.ProvisionToken{})
+
+	// use same backend but start a new auth server with different config.
+	authConfig := &InitConfig{
+		Backend:   s.bk,
+		Authority: authority.New(),
+	}
+	authServer := NewAuthServer(authConfig)
+	// set cluster name
+	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
+		ClusterName: "foo.localhost",
+	})
+	c.Assert(err, IsNil)
+	err = authServer.SetClusterName(clusterName)
+	c.Assert(err, IsNil)
+	// set static tokens
+	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
+		StaticTokens: []services.ProvisionToken{services.ProvisionToken{
+			Token: "bar",
+			Roles: teleport.Roles{teleport.Role("baz")},
+		}},
+	})
+	c.Assert(err, IsNil)
+	err = authServer.SetStaticTokens(staticTokens)
+	c.Assert(err, IsNil)
+
+	// check first auth server and make sure it returns the new values
+	cn, err = s.a.GetClusterName()
+	c.Assert(err, IsNil)
+	c.Assert(cn.GetClusterName(), Equals, "foo.localhost")
+	st, err = s.a.GetStaticTokens()
+	c.Assert(err, IsNil)
+	c.Assert(st.GetStaticTokens(), DeepEquals, []services.ProvisionToken{services.ProvisionToken{
+		Token: "bar",
+		Roles: teleport.Roles{teleport.Role("baz")},
+	}})
+
+	// check second auth server and make sure it also has the new values
+	cn, err = authServer.GetClusterName()
+	c.Assert(err, IsNil)
+	c.Assert(cn.GetClusterName(), Equals, "foo.localhost")
+	st, err = authServer.GetStaticTokens()
+	c.Assert(err, IsNil)
+	c.Assert(st.GetStaticTokens(), DeepEquals, []services.ProvisionToken{services.ProvisionToken{
+		Token: "bar",
+		Roles: teleport.Roles{teleport.Role("baz")},
+	}})
 }

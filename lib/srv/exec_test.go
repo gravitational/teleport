@@ -32,6 +32,7 @@ import (
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -50,11 +51,27 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 	bk, err := boltbk.New(backend.Params{"path": c.MkDir()})
 	c.Assert(err, check.IsNil)
 
+	c.Assert(err, check.IsNil)
 	a := auth.NewAuthServer(&auth.InitConfig{
-		Backend:    bk,
-		Authority:  authority.New(),
-		DomainName: "localhost",
+		Backend:   bk,
+		Authority: authority.New(),
 	})
+
+	// set cluster name
+	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
+		ClusterName: "localhost",
+	})
+	c.Assert(err, check.IsNil)
+	err = a.SetClusterName(clusterName)
+	c.Assert(err, check.IsNil)
+
+	// set static tokens
+	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
+		StaticTokens: []services.ProvisionToken{},
+	})
+	c.Assert(err, check.IsNil)
+	err = a.SetStaticTokens(staticTokens)
+	c.Assert(err, check.IsNil)
 
 	utils.InitLoggerForTests()
 	s.usr, _ = user.Current()

@@ -166,12 +166,27 @@ func (s *WebSuite) SetUpTest(c *C) {
 
 	s.domainName = "localhost"
 	s.authServer = auth.NewAuthServer(&auth.InitConfig{
-		Backend:    s.bk,
-		Authority:  authority.New(),
-		DomainName: s.domainName,
-		Identity:   identity,
-		Access:     access,
+		Backend:   s.bk,
+		Authority: authority.New(),
+		Identity:  identity,
+		Access:    access,
 	})
+
+	// set cluster name
+	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
+		ClusterName: s.domainName,
+	})
+	c.Assert(err, IsNil)
+	err = s.authServer.SetClusterName(clusterName)
+	c.Assert(err, IsNil)
+
+	// set static tokens
+	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
+		StaticTokens: []services.ProvisionToken{},
+	})
+	c.Assert(err, IsNil)
+	err = s.authServer.SetStaticTokens(staticTokens)
+	c.Assert(err, IsNil)
 
 	// create the default role
 	c.Assert(s.authServer.UpsertRole(services.NewDefaultRole(), backend.Forever), IsNil)
@@ -180,18 +195,13 @@ func (s *WebSuite) SetUpTest(c *C) {
 	cap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
 		Type:         teleport.Local,
 		SecondFactor: teleport.U2F,
+		U2F: &services.U2F{
+			AppID:  "https://" + s.domainName,
+			Facets: []string{"https://" + s.domainName},
+		},
 	})
 	c.Assert(err, IsNil)
-	err = s.authServer.SetClusterAuthPreference(cap)
-	c.Assert(err, IsNil)
-
-	// configure u2f
-	universalSecondFactor, err := services.NewUniversalSecondFactor(services.UniversalSecondFactorSpecV2{
-		AppID:  "https://" + s.domainName,
-		Facets: []string{"https://" + s.domainName},
-	})
-	c.Assert(err, IsNil)
-	err = s.authServer.SetUniversalSecondFactor(universalSecondFactor)
+	err = s.authServer.SetAuthPreference(cap)
 	c.Assert(err, IsNil)
 
 	teleUser, err := services.NewUser(s.user)
@@ -341,7 +351,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		SecondFactor: teleport.OTP,
 	})
 	c.Assert(err, IsNil)
-	err = s.authServer.SetClusterAuthPreference(cap)
+	err = s.authServer.SetAuthPreference(cap)
 	c.Assert(err, IsNil)
 }
 
@@ -1014,6 +1024,19 @@ func removeSpace(in string) string {
 }
 
 func (s *WebSuite) TestNewU2FUser(c *C) {
+	// configure cluster authentication preferences
+	cap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+		Type:         teleport.Local,
+		SecondFactor: teleport.U2F,
+		U2F: &services.U2F{
+			AppID:  "https://" + s.domainName,
+			Facets: []string{"https://" + s.domainName},
+		},
+	})
+	c.Assert(err, IsNil)
+	err = s.authServer.SetAuthPreference(cap)
+	c.Assert(err, IsNil)
+
 	token, err := s.roleAuth.CreateSignupToken(services.UserV1{Name: "bob", AllowedLogins: []string{s.user}})
 	c.Assert(err, IsNil)
 
@@ -1077,6 +1100,19 @@ func (s *WebSuite) TestNewU2FUser(c *C) {
 }
 
 func (s *WebSuite) TestU2FLogin(c *C) {
+	// configure cluster authentication preferences
+	cap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+		Type:         teleport.Local,
+		SecondFactor: teleport.U2F,
+		U2F: &services.U2F{
+			AppID:  "https://" + s.domainName,
+			Facets: []string{"https://" + s.domainName},
+		},
+	})
+	c.Assert(err, IsNil)
+	err = s.authServer.SetAuthPreference(cap)
+	c.Assert(err, IsNil)
+
 	token, err := s.roleAuth.CreateSignupToken(services.UserV1{Name: "bob", AllowedLogins: []string{s.user}})
 	c.Assert(err, IsNil)
 
@@ -1187,4 +1223,66 @@ func (s *WebSuite) TestPing(c *C) {
 
 	c.Assert(out.Auth.Type, Equals, teleport.Local)
 	c.Assert(out.Auth.SecondFactor, Equals, teleport.OTP)
+}
+
+func (s *WebSuite) TestMultipleConnectors(c *C) {
+	wc := s.client()
+
+	// create two oidc connectors, one named "foo" and another named "bar"
+	oidcConnectorSpec := services.OIDCConnectorSpecV2{
+		RedirectURL:  "https://localhost:3080/v1/webapi/oidc/callback",
+		ClientID:     "000000000000-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com",
+		ClientSecret: "AAAAAAAAAAAAAAAAAAAAAAAA",
+		IssuerURL:    "https://oidc.example.com",
+		Display:      "Login with Example",
+		Scope:        []string{"group"},
+		ClaimsToRoles: []services.ClaimMapping{
+			{
+				Claim: "group",
+				Value: "admin",
+				Roles: []string{"admin"},
+			},
+		},
+	}
+	err := s.authServer.UpsertOIDCConnector(services.NewOIDCConnector("foo", oidcConnectorSpec))
+	c.Assert(err, IsNil)
+	err = s.authServer.UpsertOIDCConnector(services.NewOIDCConnector("bar", oidcConnectorSpec))
+	c.Assert(err, IsNil)
+
+	// set the auth preferences to oidc with no connector name
+	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+		Type: "oidc",
+	})
+	c.Assert(err, IsNil)
+	err = s.authServer.SetAuthPreference(authPreference)
+	c.Assert(err, IsNil)
+
+	// hit the ping endpoint to get the auth type and connector name
+	re, err := wc.Get(wc.Endpoint("webapi", "ping"), url.Values{})
+	c.Assert(err, IsNil)
+	var out *client.PingResponse
+	c.Assert(json.Unmarshal(re.Bytes(), &out), IsNil)
+
+	// make sure the connector name we got back was the first connector
+	// in the backend, in this case it's "bar"
+	oidcConnectors, err := s.authServer.GetOIDCConnectors(false)
+	c.Assert(err, IsNil)
+	c.Assert(out.Auth.OIDC.Name, Equals, oidcConnectors[0].GetName())
+
+	// update the auth preferences and this time specify the connector name
+	authPreference, err = services.NewAuthPreference(services.AuthPreferenceSpecV2{
+		Type:          "oidc",
+		ConnectorName: "foo",
+	})
+	c.Assert(err, IsNil)
+	err = s.authServer.SetAuthPreference(authPreference)
+	c.Assert(err, IsNil)
+
+	// hit the ping endpoing to get the auth type and connector name
+	re, err = wc.Get(wc.Endpoint("webapi", "ping"), url.Values{})
+	c.Assert(err, IsNil)
+	c.Assert(json.Unmarshal(re.Bytes(), &out), IsNil)
+
+	// make sure the connector we get back is "foo"
+	c.Assert(out.Auth.OIDC.Name, Equals, "foo")
 }

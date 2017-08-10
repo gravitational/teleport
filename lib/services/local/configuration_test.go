@@ -29,22 +29,22 @@ import (
 	"gopkg.in/check.v1"
 )
 
-type ClusterAuthPreferenceSuite struct {
+type ClusterConfigurationSuite struct {
 	bk      backend.Backend
 	tempDir string
 }
 
-var _ = check.Suite(&ClusterAuthPreferenceSuite{})
+var _ = check.Suite(&ClusterConfigurationSuite{})
 var _ = fmt.Printf
 
-func (s *ClusterAuthPreferenceSuite) SetUpSuite(c *check.C) {
+func (s *ClusterConfigurationSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests()
 }
 
-func (s *ClusterAuthPreferenceSuite) TearDownSuite(c *check.C) {
+func (s *ClusterConfigurationSuite) TearDownSuite(c *check.C) {
 }
 
-func (s *ClusterAuthPreferenceSuite) SetUpTest(c *check.C) {
+func (s *ClusterConfigurationSuite) SetUpTest(c *check.C) {
 	var err error
 
 	s.tempDir, err = ioutil.TempDir("", "preference-test-")
@@ -54,7 +54,7 @@ func (s *ClusterAuthPreferenceSuite) SetUpTest(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
-func (s *ClusterAuthPreferenceSuite) TearDownTest(c *check.C) {
+func (s *ClusterConfigurationSuite) TearDownTest(c *check.C) {
 	var err error
 
 	c.Assert(s.bk.Close(), check.IsNil)
@@ -63,8 +63,8 @@ func (s *ClusterAuthPreferenceSuite) TearDownTest(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
-func (s *ClusterAuthPreferenceSuite) TestCycle(c *check.C) {
-	caps := NewClusterAuthPreferenceService(s.bk)
+func (s *ClusterConfigurationSuite) TestCycle(c *check.C) {
+	caps := NewClusterConfigurationService(s.bk)
 
 	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
 		Type:         "local",
@@ -72,10 +72,10 @@ func (s *ClusterAuthPreferenceSuite) TestCycle(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	err = caps.SetClusterAuthPreference(ap)
+	err = caps.SetAuthPreference(ap)
 	c.Assert(err, check.IsNil)
 
-	gotAP, err := caps.GetClusterAuthPreference()
+	gotAP, err := caps.GetAuthPreference()
 	c.Assert(err, check.IsNil)
 
 	c.Assert(gotAP.GetType(), check.Equals, "local")

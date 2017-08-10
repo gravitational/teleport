@@ -22,6 +22,7 @@ import (
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"gopkg.in/check.v1"
@@ -47,10 +48,20 @@ func (s *PasswordSuite) SetUpTest(c *check.C) {
 	s.bk, err = boltbk.New(backend.Params{"path": c.MkDir()})
 	c.Assert(err, check.IsNil)
 
+	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
+		ClusterName: "me.localhost",
+	})
+	c.Assert(err, check.IsNil)
+	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
+		StaticTokens: []services.ProvisionToken{},
+	})
+	c.Assert(err, check.IsNil)
+
 	authConfig := &InitConfig{
-		Backend:    s.bk,
-		Authority:  authority.New(),
-		DomainName: "me.localhost",
+		Backend:      s.bk,
+		Authority:    authority.New(),
+		ClusterName:  clusterName,
+		StaticTokens: staticTokens,
 	}
 	s.a = NewAuthServer(authConfig)
 }

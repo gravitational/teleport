@@ -110,12 +110,27 @@ func (s *SrvSuite) SetUpTest(c *C) {
 
 	s.domainName = "localhost"
 	s.a = auth.NewAuthServer(&auth.InitConfig{
-		Backend:    s.bk,
-		Authority:  authority.New(),
-		DomainName: s.domainName,
-		Identity:   s.identity,
-		Access:     s.access,
+		Backend:   s.bk,
+		Authority: authority.New(),
+		Identity:  s.identity,
+		Access:    s.access,
 	})
+
+	// set cluster name
+	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
+		ClusterName: s.domainName,
+	})
+	c.Assert(err, IsNil)
+	err = s.a.SetClusterName(clusterName)
+	c.Assert(err, IsNil)
+
+	// set static tokens
+	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
+		StaticTokens: []services.ProvisionToken{},
+	})
+	c.Assert(err, IsNil)
+	err = s.a.SetStaticTokens(staticTokens)
+	c.Assert(err, IsNil)
 
 	sessionServer, err := sess.New(s.bk)
 	s.sessionServer = sessionServer

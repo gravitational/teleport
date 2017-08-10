@@ -128,6 +128,7 @@ var (
 		"ciphers":            false,
 		"kex_algos":          false,
 		"mac_algos":          false,
+		"connector_name":     false,
 	}
 )
 
@@ -456,7 +457,8 @@ type Auth struct {
 	Service `yaml:",inline"`
 
 	// DomainName is the name of the CA who manages this cluster
-	DomainName string `yaml:"cluster_name,omitempty"`
+	//DomainName string `yaml:"cluster_name,omitempty"`
+	ClusterName ClusterName `yaml:"cluster_name,omitempty"`
 
 	// TrustedClustersFile is a file path to a file containing public CA keys
 	// of clusters we trust. One key per line, those starting with '#' are comments
@@ -476,7 +478,7 @@ type Auth struct {
 	//
 	// Each token string has the following format: "role1,role2,..:token",
 	// for exmple: "auth,proxy,node:MTIzNGlvemRmOWE4MjNoaQo"
-	StaticTokens []StaticToken `yaml:"tokens,omitempty"`
+	StaticTokens StaticTokens `yaml:"tokens,omitempty"`
 
 	// Authentication holds authentication configuration information like authentication
 	// type, second factor type, specific connector information, etc.
@@ -506,62 +508,100 @@ type TrustedCluster struct {
 	TunnelAddr string `yaml:"tunnel_addr,omitempty"`
 }
 
+type ClusterName string
+
+func (c ClusterName) Parse() (services.ClusterName, error) {
+	if string(c) == "" {
+		return nil, nil
+	}
+	return services.NewClusterName(services.ClusterNameSpecV2{
+		ClusterName: string(c),
+	})
+}
+
+type StaticTokens []StaticToken
+
+func (t StaticTokens) Parse() (services.StaticTokens, error) {
+	var staticTokens []services.ProvisionToken
+
+	for _, token := range t {
+		st, err := token.Parse()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		staticTokens = append(staticTokens, st)
+	}
+
+	return services.NewStaticTokens(services.StaticTokensSpecV2{
+		StaticTokens: staticTokens,
+	})
+}
+
 type StaticToken string
 
 // Parse is applied to a string in "role,role,role:token" format. It breaks it
-// apart into a slice of roles, token and optional error
-func (t StaticToken) Parse() (roles teleport.Roles, token string, err error) {
+// apart and constructs a services.ProvisionToken which contains the token,
+// role, and expiry (infinite).
+func (t StaticToken) Parse() (services.ProvisionToken, error) {
 	parts := strings.Split(string(t), ":")
 	if len(parts) != 2 {
-		return nil, "", trace.BadParameter("invalid static token spec: %q", t)
+		return services.ProvisionToken{}, trace.BadParameter("invalid static token spec: %q", t)
 	}
-	roles, err = teleport.ParseRoles(parts[0])
-	return roles, parts[1], trace.Wrap(err)
+
+	roles, err := teleport.ParseRoles(parts[0])
+	if err != nil {
+		return services.ProvisionToken{}, trace.Wrap(err)
+	}
+
+	return services.ProvisionToken{
+		Token:   parts[1],
+		Roles:   roles,
+		Expires: time.Unix(0, 0).UTC(),
+	}, nil
 }
 
 type AuthenticationConfig struct {
-	Type         string                 `yaml:"type"`
-	SecondFactor string                 `yaml:"second_factor,omitempty"`
-	U2F          *UniversalSecondFactor `yaml:"u2f,omitempty"`
-	OIDC         *OIDCConnector         `yaml:"oidc,omitempty"`
+	Type          string                 `yaml:"type"`
+	SecondFactor  string                 `yaml:"second_factor,omitempty"`
+	ConnectorName string                 `yaml:"connector_name,omitempty"`
+	U2F           *UniversalSecondFactor `yaml:"u2f,omitempty"`
+	OIDC          *OIDCConnector         `yaml:"oidc,omitempty"`
 }
 
-// Parse returns the Authentication Configuration in three parts, the AuthPreference (type and second factor) as well
-// as OIDCConnector and UniversalSecondFactor that define how those two are configured (if provided).
-func (a *AuthenticationConfig) Parse() (services.AuthPreference, services.OIDCConnector, services.UniversalSecondFactor, error) {
+// Parse returns the Authentication Configuration in two parts: AuthPreference
+// (type, second factor, u2f) and OIDCConnector.
+func (a *AuthenticationConfig) Parse() (services.AuthPreference, services.OIDCConnector, error) {
 	var err error
 
-	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
-		Type:         a.Type,
-		SecondFactor: a.SecondFactor,
-	})
-	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
+	var u services.U2F
+	if a.U2F != nil {
+		u = a.U2F.Parse()
 	}
 
+	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+		Type:          a.Type,
+		SecondFactor:  a.SecondFactor,
+		ConnectorName: a.ConnectorName,
+		U2F:           &u,
+	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 	// check to make sure the configuration is valid
 	err = ap.CheckAndSetDefaults()
 	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	var oidcConnector services.OIDCConnector
 	if a.OIDC != nil {
 		oidcConnector, err = a.OIDC.Parse()
 		if err != nil {
-			return nil, nil, nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 	}
 
-	var universalSecondFactor services.UniversalSecondFactor
-	if a.U2F != nil {
-		universalSecondFactor, err = a.U2F.Parse()
-		if err != nil {
-			return nil, nil, nil, trace.Wrap(err)
-		}
-	}
-
-	return ap, oidcConnector, universalSecondFactor, nil
+	return ap, oidcConnector, nil
 }
 
 type UniversalSecondFactor struct {
@@ -569,11 +609,11 @@ type UniversalSecondFactor struct {
 	Facets []string `yaml:"facets"`
 }
 
-func (u *UniversalSecondFactor) Parse() (services.UniversalSecondFactor, error) {
-	return services.NewUniversalSecondFactor(services.UniversalSecondFactorSpecV2{
+func (u *UniversalSecondFactor) Parse() services.U2F {
+	return services.U2F{
 		AppID:  u.AppID,
 		Facets: u.Facets,
-	})
+	}
 }
 
 // SSH is 'ssh_service' section of the config file
@@ -806,21 +846,14 @@ func (o *OIDCConnector) Parse() (services.OIDCConnector, error) {
 }
 
 type U2F struct {
-	EnabledFlag string   `yaml:"enabled"`
-	AppID       string   `yaml:"app_id,omitempty"`
-	Facets      []string `yaml:"facets,omitempty"`
+	AppID  string   `yaml:"app_id,omitempty"`
+	Facets []string `yaml:"facets,omitempty"`
 }
 
-// Parse parses the values in 'u2f' configuration section of 'auth' and
-// validates its content:
+// Parse parses values in the U2F configuration section and validates its content.
 func (u *U2F) Parse() (*services.U2F, error) {
-	enabled := false
-	switch strings.ToLower(u.EnabledFlag) {
-	case "yes", "yeah", "y", "true", "1":
-		enabled = true
-	}
-	appID := u.AppID
 	// If no appID specified, default to hostname
+	appID := u.AppID
 	if appID == "" {
 		hostname, err := os.Hostname()
 		if err != nil {
@@ -828,18 +861,15 @@ func (u *U2F) Parse() (*services.U2F, error) {
 		}
 		appID = fmt.Sprintf("https://%s:%d", strings.ToLower(hostname), defaults.HTTPListenPort)
 	}
-	facets := u.Facets
+
 	// If no facets specified, default to AppID
+	facets := u.Facets
 	if len(facets) == 0 {
 		facets = []string{appID}
 	}
-	other := &services.U2F{
-		Enabled: enabled,
-		AppID:   appID,
-		Facets:  facets,
-	}
-	if err := other.Check(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return other, nil
+
+	return &services.U2F{
+		AppID:  appID,
+		Facets: facets,
+	}, nil
 }

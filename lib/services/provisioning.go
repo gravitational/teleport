@@ -17,6 +17,7 @@ limitations under the License.
 package services
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -42,4 +43,14 @@ type ProvisionToken struct {
 	Roles   teleport.Roles `json:"roles"`
 	Expires time.Time      `json:"expires"`
 	Token   string         `json:"token"`
+}
+
+// String returns the human readable representation of a provisioning token.
+func (p ProvisionToken) String() string {
+	expires := "never"
+	if p.Expires.Unix() != 0 {
+		expires = p.Expires.String()
+	}
+	return fmt.Sprintf("ProvisionToken(Token=%v,Roles=%v,Expires=%v)",
+		p.Token, p.Roles, expires)
 }

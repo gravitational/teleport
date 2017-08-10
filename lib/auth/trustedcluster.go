@@ -48,13 +48,18 @@ func (a *AuthServer) UpsertTrustedCluster(trustedCluster services.TrustedCluster
 func (a *AuthServer) enableTrustedCluster(trustedCluster services.TrustedCluster) error {
 	var localCertAuthorities []services.CertAuthority
 
+	domainName, err := a.GetDomainName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// get a list of certificate authorities for this auth server
 	allLocalCAs, err := a.GetCertAuthorities(services.HostCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	for _, lca := range allLocalCAs {
-		if lca.GetClusterName() == a.DomainName {
+		if lca.GetClusterName() == domainName {
 			localCertAuthorities = append(localCertAuthorities, lca)
 		}
 	}
@@ -136,8 +141,13 @@ func (a *AuthServer) disableTrustedCluster(trustedCluster services.TrustedCluste
 }
 
 func (a *AuthServer) validateTrustedCluster(validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
+	domainName, err := a.GetDomainName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// validate that we generated the token
-	err := a.validateTrustedClusterToken(validateRequest.Token)
+	err = a.validateTrustedClusterToken(validateRequest.Token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -164,7 +174,7 @@ func (a *AuthServer) validateTrustedCluster(validateRequest *ValidateTrustedClus
 		}
 
 		for _, certAuthority := range certAuthorities {
-			if certAuthority.GetClusterName() == a.DomainName {
+			if certAuthority.GetClusterName() == domainName {
 				validateResponse.CAs = append(validateResponse.CAs, certAuthority)
 			}
 		}
