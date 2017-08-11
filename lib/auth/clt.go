@@ -277,6 +277,18 @@ func (c *Client) DeleteCertAuthority(id services.CertAuthID) error {
 	return trace.Wrap(err)
 }
 
+// ActivateCertAuthority moves a CertAuthority from the deactivated list to
+// the normal list.
+func (c *Client) ActivateCertAuthority(id services.CertAuthID) error {
+	return trace.BadParameter("not implemented")
+}
+
+// DeactivateCertAuthority moves a CertAuthority from the normal list to
+// the deactivated list.
+func (c *Client) DeactivateCertAuthority(id services.CertAuthID) error {
+	return trace.BadParameter("not implemented")
+}
+
 // GenerateToken creates a special provisioning token for a new SSH server
 // that is valid for ttl period seconds.
 //
@@ -1518,6 +1530,16 @@ func (c *Client) ValidateTrustedCluster(validateRequest *ValidateTrustedClusterR
 func (c *Client) DeleteTrustedCluster(name string) error {
 	_, err := c.Delete(c.Endpoint("trustedclusters", name))
 	return trace.Wrap(err)
+}
+
+// EnableTrustedCluster will enable a TrustedCluster that is already in the backend.
+func (c *Client) EnableTrustedCluster(trustedCluster services.TrustedCluster) error {
+	return c.EnableTrustedCluster(trustedCluster)
+}
+
+// DisableTrustedCluster will disable a TrustedCluster that is already in the backend.
+func (c *Client) DisableTrustedCluster(trustedCluster services.TrustedCluster) error {
+	return c.DisableTrustedCluster(trustedCluster)
 }
 
 // WebService implements features used by Web UI clients

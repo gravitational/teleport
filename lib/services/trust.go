@@ -49,6 +49,14 @@ type Trust interface {
 	// GetCertAuthorities returns a list of authorities of a given type
 	// loadSigningKeys controls whether signing keys should be loaded or not
 	GetCertAuthorities(caType CertAuthType, loadSigningKeys bool) ([]CertAuthority, error)
+
+	// ActivateCertAuthority moves a CertAuthority from the deactivated list to
+	// the normal list.
+	ActivateCertAuthority(id CertAuthID) error
+
+	// DeactivateCertAuthority moves a CertAuthority from the normal list to
+	// the deactivated list.
+	DeactivateCertAuthority(id CertAuthID) error
 }
 
 const (
