@@ -22,5 +22,12 @@ import (
 )
 
 func main() {
-	common.Run(lib.DistroName)
+	commands := []common.CLICommand{
+		&common.UserCommand{},
+		&common.NodeCommand{},
+		&common.TokenCommand{},
+		&common.AuthCommand{},
+		&common.ResourceCommand{},
+	}
+	common.Run(lib.DistroName, commands)
 }
