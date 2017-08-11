@@ -19,27 +19,34 @@ BINARIES=$(BUILDDIR)/tsh $(BUILDDIR)/teleport $(BUILDDIR)/tctl
 
 VERSRC = version.go gitref.go
 LIBS = $(shell find lib -type f -name '*.go') *.go
+TCTLSRC = $(shell find tool/tctl -type f -name '*.go')
+TELEPORTSRC = $(shell find tool/teleport -type f -name '*.go')
+TSHSRC = $(shell find tool/tsh -type f -name '*.go')
 
 #
 # Default target: builds all 3 executables and plaaces them in a current directory
 #
 .PHONY: all
-all: $(VERSRC) $(BINARIES)
+all: $(VERSRC)
+	go install $(BUILDFLAGS) ./lib/...
+	$(MAKE) -s -j 4 $(BINARIES)
 
-$(BUILDDIR)/tctl: $(LIBS) $(TOOLS) tool/tctl/common/*.go tool/tctl/*go
+$(BUILDDIR)/tctl: $(LIBS) $(TCTLSRC)
 	go build -o $(BUILDDIR)/tctl -i $(BUILDFLAGS) ./tool/tctl
 
-$(BUILDDIR)/teleport: $(LIBS) tool/teleport/*.go tool/teleport/common/*.go
+$(BUILDDIR)/teleport: $(LIBS) $(TELEPORTSRC)
 	go build -o $(BUILDDIR)/teleport -i $(BUILDFLAGS) ./tool/teleport
 
-$(BUILDDIR)/tsh: $(LIBS) tool/tsh/*.go 
+$(BUILDDIR)/tsh: $(LIBS) $(TSHSRC)
 	go build -o $(BUILDDIR)/tsh -i $(BUILDFLAGS) ./tool/tsh
 
 .PHONY: goinstall
 goinstall:
-	go install github.com/gravitational/teleport/tool/tsh
-	go install github.com/gravitational/teleport/tool/teleport
-	go install github.com/gravitational/teleport/tool/tctl
+	go install $(BUILDFLAGS) \
+		github.com/gravitational/teleport/tool/tsh \
+		github.com/gravitational/teleport/tool/teleport \
+		github.com/gravitational/teleport/tool/tctl
+
 
 #
 # make install will installs system-wide teleport 
