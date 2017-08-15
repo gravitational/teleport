@@ -15,36 +15,31 @@ limitations under the License.
 */
 
 import React from 'react';
-import reactor from 'app/reactor';
+import { connect } from 'nuclear-js-react-addons';
 import userAclGetters from 'app/flux/userAcl/getters';
 import nodeGetters from 'app/flux/nodes/getters';
 import NodeList from './nodeList.jsx';
 
-const Nodes = React.createClass({
+const Nodes = props => {  
+  const { nodeRecords, aclStore, sites, siteId } = props;
+  const logins = aclStore.getSshLogins();
+  return (   
+    <div className="grv-page">
+      <NodeList
+        siteId={siteId}
+        sites={sites} 
+        nodeRecords={nodeRecords} 
+        logins={logins}
+      />
+    </div>
+  );
+}  
 
-  mixins: [reactor.ReactMixin],
+function mapStateToProps() {
+  return {    
+    nodeRecords: nodeGetters.nodeListView,
+    aclStore: userAclGetters.userAcl     
+  }
+}
 
-  getDataBindings() {
-    return {      
-      nodeRecords: nodeGetters.nodeListView,
-      aclStore: userAclGetters.userAcl            
-    }
-  },
-
-  render() {
-    let { nodeRecords, aclStore, sites, siteId } = this.state;
-    let logins = aclStore.getSshLogins();
-    return (   
-      <div className="grv-page">
-        <NodeList
-          siteId={siteId}
-          sites={sites} 
-          nodeRecords={nodeRecords} 
-          logins={logins}
-        />
-      </div>
-    );
-  }  
-});
-
-export default Nodes;
+export default connect(mapStateToProps)(Nodes);

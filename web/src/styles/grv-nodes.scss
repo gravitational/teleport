@@ -20,6 +20,18 @@ limitations under the License.
     align-items: center;       
   }
 
+  .grv-nodes-custom-login{
+    border-top-width: 0;
+    border-left-width: 0;
+    border-right-width: 0;
+
+    &:focus{
+      border-top-width: 1px;
+      border-left-width: 1px;
+      border-right-width: 1px;
+    }
+  }
+
   .grv-nodes-table{
      tbody > tr > td{
         vertical-align: middle;
