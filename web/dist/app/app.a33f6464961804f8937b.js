@@ -6205,9 +6205,7 @@ webpackJsonp([0],[
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _reactor = __webpack_require__(240);
-
-	var _reactor2 = _interopRequireDefault(_reactor);
+	var _nuclearJsReactAddons = __webpack_require__(219);
 
 	var _getters = __webpack_require__(395);
 
@@ -6223,54 +6221,47 @@ webpackJsonp([0],[
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-	var Nodes = _react2.default.createClass({
-	  displayName: 'Nodes',
+	var Nodes = function Nodes(props) {
+	  var nodeRecords = props.nodeRecords,
+	      aclStore = props.aclStore,
+	      sites = props.sites,
+	      siteId = props.siteId;
 
+	  var logins = aclStore.getSshLogins();
+	  return _react2.default.createElement(
+	    'div',
+	    { className: 'grv-page' },
+	    _react2.default.createElement(_nodeList2.default, {
+	      siteId: siteId,
+	      sites: sites,
+	      nodeRecords: nodeRecords,
+	      logins: logins
+	    })
+	  );
+	}; /*
+	   Copyright 2015 Gravitational, Inc.
+	   
+	   Licensed under the Apache License, Version 2.0 (the "License");
+	   you may not use this file except in compliance with the License.
+	   You may obtain a copy of the License at
+	   
+	       http://www.apache.org/licenses/LICENSE-2.0
+	   
+	   Unless required by applicable law or agreed to in writing, software
+	   distributed under the License is distributed on an "AS IS" BASIS,
+	   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	   See the License for the specific language governing permissions and
+	   limitations under the License.
+	   */
 
-	  mixins: [_reactor2.default.ReactMixin],
+	function mapStateToProps() {
+	  return {
+	    nodeRecords: _getters4.default.nodeListView,
+	    aclStore: _getters2.default.userAcl
+	  };
+	}
 
-	  getDataBindings: function getDataBindings() {
-	    return {
-	      nodeRecords: _getters4.default.nodeListView,
-	      aclStore: _getters2.default.userAcl
-	    };
-	  },
-	  render: function render() {
-	    var _state = this.state,
-	        nodeRecords = _state.nodeRecords,
-	        aclStore = _state.aclStore,
-	        sites = _state.sites,
-	        siteId = _state.siteId;
-
-	    var logins = aclStore.getSshLogins();
-	    return _react2.default.createElement(
-	      'div',
-	      { className: 'grv-page' },
-	      _react2.default.createElement(_nodeList2.default, {
-	        siteId: siteId,
-	        sites: sites,
-	        nodeRecords: nodeRecords,
-	        logins: logins
-	      })
-	    );
-	  }
-	}); /*
-	    Copyright 2015 Gravitational, Inc.
-	    
-	    Licensed under the Apache License, Version 2.0 (the "License");
-	    you may not use this file except in compliance with the License.
-	    You may obtain a copy of the License at
-	    
-	        http://www.apache.org/licenses/LICENSE-2.0
-	    
-	    Unless required by applicable law or agreed to in writing, software
-	    distributed under the License is distributed on an "AS IS" BASIS,
-	    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	    See the License for the specific language governing permissions and
-	    limitations under the License.
-	    */
-
-	exports.default = Nodes;
+	exports.default = (0, _nuclearJsReactAddons.connect)(mapStateToProps)(Nodes);
 	module.exports = exports['default'];
 
 /***/ },
@@ -6405,6 +6396,10 @@ webpackJsonp([0],[
 
 	var _config2 = _interopRequireDefault(_config);
 
+	var _history = __webpack_require__(226);
+
+	var _history2 = _interopRequireDefault(_history);
+
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -6443,23 +6438,10 @@ webpackJsonp([0],[
 	  );
 	};
 
-	var TextCell = function TextCell(_ref2) {
+	var TagCell = function TagCell(_ref2) {
 	  var rowIndex = _ref2.rowIndex,
 	      data = _ref2.data,
-	      columnKey = _ref2.columnKey,
-	      props = _objectWithoutProperties(_ref2, ['rowIndex', 'data', 'columnKey']);
-
-	  return _react2.default.createElement(
-	    _table.Cell,
-	    props,
-	    data[rowIndex][columnKey]
-	  );
-	};
-
-	var TagCell = function TagCell(_ref3) {
-	  var rowIndex = _ref3.rowIndex,
-	      data = _ref3.data,
-	      props = _objectWithoutProperties(_ref3, ['rowIndex', 'data']);
+	      props = _objectWithoutProperties(_ref2, ['rowIndex', 'data']);
 
 	  var tags = data[rowIndex].tags;
 
@@ -6485,101 +6467,135 @@ webpackJsonp([0],[
 	  );
 	};
 
-	var LoginCell = function LoginCell(_ref4) {
-	  var logins = _ref4.logins,
-	      rowIndex = _ref4.rowIndex,
-	      data = _ref4.data,
-	      props = _objectWithoutProperties(_ref4, ['logins', 'rowIndex', 'data']);
+	var LoginCell = function (_React$Component) {
+	  _inherits(LoginCell, _React$Component);
 
-	  if (!logins || logins.length === 0) {
-	    return _react2.default.createElement(_table.Cell, props);
+	  function LoginCell() {
+	    var _temp, _this, _ret;
+
+	    _classCallCheck(this, LoginCell);
+
+	    for (var _len = arguments.length, args = Array(_len), _key = 0; _key < _len; _key++) {
+	      args[_key] = arguments[_key];
+	    }
+
+	    return _ret = (_temp = (_this = _possibleConstructorReturn(this, _React$Component.call.apply(_React$Component, [this].concat(args))), _this), _this.onKeyPress = function (e) {
+	      if (e.key === 'Enter' && e.target.value) {
+	        var url = _this.makeUrl(e.target.value);
+	        _history2.default.push(url);
+	      }
+	    }, _this.onShowLoginsClick = function () {
+	      _this.refs.customLogin.focus();
+	    }, _temp), _possibleConstructorReturn(_this, _ret);
 	  }
 
-	  var _data$rowIndex = data[rowIndex],
-	      id = _data$rowIndex.id,
-	      siteId = _data$rowIndex.siteId;
+	  LoginCell.prototype.makeUrl = function makeUrl(login) {
+	    var _props = this.props,
+	        data = _props.data,
+	        rowIndex = _props.rowIndex;
+	    var _data$rowIndex = data[rowIndex],
+	        siteId = _data$rowIndex.siteId,
+	        id = _data$rowIndex.id;
 
-	  var $lis = [];
-
-	  for (var i = 0; i < logins.length; i++) {
-	    var termUrl = _config2.default.getTerminalLoginUrl({
+	    return _config2.default.getTerminalLoginUrl({
 	      siteId: siteId,
 	      serverId: id,
-	      login: logins[i]
+	      login: login
 	    });
+	  };
 
-	    $lis.push(_react2.default.createElement(
-	      'li',
-	      { key: i },
-	      _react2.default.createElement(
-	        _reactRouter.Link,
-	        { to: termUrl },
-	        logins[i]
-	      )
-	    ));
-	  }
+	  LoginCell.prototype.render = function render() {
+	    var _props2 = this.props,
+	        logins = _props2.logins,
+	        props = _objectWithoutProperties(_props2, ['logins']);
 
-	  var defaultTermUrl = _config2.default.getTerminalLoginUrl({
-	    siteId: siteId,
-	    serverId: id,
-	    login: logins[0]
-	  });
+	    var $lis = [];
+	    var defaultLogin = logins[0] || 'root';
+	    var defaultTermUrl = this.makeUrl(defaultLogin);
 
-	  return _react2.default.createElement(
-	    _table.Cell,
-	    props,
-	    _react2.default.createElement(
-	      'div',
-	      { style: { display: "flex" } },
-	      _react2.default.createElement(
-	        'div',
-	        { style: { display: "flex" }, className: 'btn-group' },
+	    for (var i = 0; i < logins.length; i++) {
+	      var termUrl = this.makeUrl(logins[i]);
+	      $lis.push(_react2.default.createElement(
+	        'li',
+	        { key: i },
 	        _react2.default.createElement(
 	          _reactRouter.Link,
-	          { className: 'btn btn-xs btn-primary', to: defaultTermUrl },
-	          logins[0]
-	        ),
-	        $lis.length > 1 ? [_react2.default.createElement(
-	          'button',
-	          { key: 0, 'data-toggle': 'dropdown', className: 'btn btn-default btn-xs dropdown-toggle', 'aria-expanded': 'true' },
-	          _react2.default.createElement('span', { className: 'caret' })
-	        ), _react2.default.createElement(
-	          'ul',
-	          { key: 1, className: 'dropdown-menu pull-right' },
-	          $lis
-	        )] : null
-	      )
-	    )
-	  );
-	};
+	          { to: termUrl },
+	          logins[i]
+	        )
+	      ));
+	    }
 
-	var NodeList = function (_React$Component) {
-	  _inherits(NodeList, _React$Component);
+	    return _react2.default.createElement(
+	      _table.Cell,
+	      props,
+	      _react2.default.createElement(
+	        'div',
+	        { style: { display: "flex" } },
+	        _react2.default.createElement(
+	          'div',
+	          { style: { display: "flex" }, className: 'btn-group' },
+	          _react2.default.createElement(
+	            _reactRouter.Link,
+	            { className: 'btn btn-xs btn-primary', to: defaultTermUrl },
+	            defaultLogin
+	          ),
+	          _react2.default.createElement(
+	            'button',
+	            { 'data-toggle': 'dropdown',
+	              onClick: this.onShowLoginsClick,
+	              className: 'btn btn-default btn-xs dropdown-toggle', 'aria-expanded': 'true' },
+	            _react2.default.createElement('span', { className: 'caret' })
+	          ),
+	          _react2.default.createElement(
+	            'ul',
+	            { className: 'dropdown-menu pull-right' },
+	            _react2.default.createElement(
+	              'li',
+	              null,
+	              _react2.default.createElement('input', { className: 'form-control grv-nodes-custom-login', ref: 'customLogin',
+	                placeholder: 'Enter login name...',
+	                onKeyPress: this.onKeyPress,
+	                autoFocus: true
+	              })
+	            ),
+	            $lis
+	          )
+	        )
+	      )
+	    );
+	  };
+
+	  return LoginCell;
+	}(_react2.default.Component);
+
+	var NodeList = function (_React$Component2) {
+	  _inherits(NodeList, _React$Component2);
 
 	  function NodeList(props) {
 	    _classCallCheck(this, NodeList);
 
-	    var _this = _possibleConstructorReturn(this, _React$Component.call(this, props));
+	    var _this2 = _possibleConstructorReturn(this, _React$Component2.call(this, props));
 
-	    _this.searchableProps = ['addr', 'hostname', 'tags'];
+	    _this2.searchableProps = ['addr', 'hostname', 'tags'];
 
-	    _this.onSortChange = function (columnKey, sortDir) {
-	      var _this$state$colSortDi;
+	    _this2.onSortChange = function (columnKey, sortDir) {
+	      var _this2$state$colSortD;
 
-	      _this.state.colSortDirs = (_this$state$colSortDi = {}, _this$state$colSortDi[columnKey] = sortDir, _this$state$colSortDi);
-	      _this.setState(_this.state);
+	      _this2.state.colSortDirs = (_this2$state$colSortD = {}, _this2$state$colSortD[columnKey] = sortDir, _this2$state$colSortD);
+	      _this2.setState(_this2.state);
 	    };
 
-	    _this.onFilterChange = function (value) {
-	      _this.state.filter = value;
-	      _this.setState(_this.state);
+	    _this2.onFilterChange = function (value) {
+	      _this2.state.filter = value;
+	      _this2.setState(_this2.state);
 	    };
 
-	    _this.state = {
+	    _this2.state = {
 	      filter: '',
 	      colSortDirs: { hostname: _table.SortTypes.DESC }
 	    };
-	    return _this;
+	    return _this2;
 	  }
 
 	  NodeList.prototype.searchAndFilterCb = function searchAndFilterCb(targetValue, searchValue, propName) {
@@ -6594,14 +6610,14 @@ webpackJsonp([0],[
 	  };
 
 	  NodeList.prototype.sortAndFilter = function sortAndFilter(data) {
-	    var _this2 = this;
+	    var _this3 = this;
 
 	    var colSortDirs = this.state.colSortDirs;
 
 	    var filtered = data.filter(function (obj) {
-	      return (0, _objectUtils.isMatch)(obj, _this2.state.filter, {
-	        searchableProps: _this2.searchableProps,
-	        cb: _this2.searchAndFilterCb
+	      return (0, _objectUtils.isMatch)(obj, _this3.state.filter, {
+	        searchableProps: _this3.searchableProps,
+	        cb: _this3.searchAndFilterCb
 	      });
 	    });
 
@@ -6616,10 +6632,10 @@ webpackJsonp([0],[
 	  };
 
 	  NodeList.prototype.render = function render() {
-	    var _props = this.props,
-	        nodeRecords = _props.nodeRecords,
-	        logins = _props.logins,
-	        onLoginClick = _props.onLoginClick;
+	    var _props3 = this.props,
+	        nodeRecords = _props3.nodeRecords,
+	        logins = _props3.logins,
+	        onLoginClick = _props3.onLoginClick;
 
 	    var data = this.sortAndFilter(nodeRecords);
 	    return _react2.default.createElement(
@@ -6653,7 +6669,7 @@ webpackJsonp([0],[
 	              onSortChange: this.onSortChange,
 	              title: 'Hostname'
 	            }),
-	            cell: _react2.default.createElement(TextCell, { data: data })
+	            cell: _react2.default.createElement(_table.TextCell, { data: data })
 	          }),
 	          _react2.default.createElement(_table.Column, {
 	            columnKey: 'addr',
@@ -6662,7 +6678,7 @@ webpackJsonp([0],[
 	              onSortChange: this.onSortChange,
 	              title: 'Address'
 	            }),
-	            cell: _react2.default.createElement(TextCell, { data: data })
+	            cell: _react2.default.createElement(_table.TextCell, { data: data })
 	          }),
 	          _react2.default.createElement(_table.Column, {
 	            columnKey: 'tags',
