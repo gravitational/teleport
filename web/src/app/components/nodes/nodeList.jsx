@@ -104,11 +104,13 @@ class LoginCell extends React.Component {
             </button>
             <ul className="dropdown-menu pull-right">
               <li>
-                <input className="form-control grv-nodes-custom-login" ref="customLogin"
-                  placeholder="Enter login name..."
-                  onKeyPress={this.onKeyPress}
-                  autoFocus
-                />
+                <div className="input-group-sm grv-nodes-custom-login">
+                  <input className="form-control" ref="customLogin"
+                    placeholder="Enter login name..."
+                    onKeyPress={this.onKeyPress}
+                    autoFocus
+                    />
+                </div>  
               </li>
               {$lis}
             </ul>                                        
@@ -126,8 +128,8 @@ class NodeList extends React.Component {
   constructor(props) {
     super(props);
     this.state = {        
-        filter: '',
-        colSortDirs: { hostname: SortTypes.DESC }
+      filter: '',
+      colSortDirs: { hostname: SortTypes.DESC }
     };
   }
   
@@ -141,6 +143,21 @@ class NodeList extends React.Component {
     this.setState(this.state);
   }
   
+  onKeyPress = e => {
+    if ( (e.key === 'Enter' || e.type === 'click') && this.refs.ssh.value) {            
+      const [login, serverId] = this.refs.ssh.value.split('@');
+        if (login && serverId) {
+          const url = cfg.getTerminalLoginUrl({
+          siteId: this.props.siteId,
+          serverId,
+          login
+        })     
+        
+        history.push(url);        
+      }      
+    }            
+  }
+  
   searchAndFilterCb(targetValue, searchValue, propName){
     if(propName === 'tags'){
       return targetValue.some((item) => {
@@ -150,7 +167,7 @@ class NodeList extends React.Component {
       });
     }
   }
-
+  
   sortAndFilter(data) {
     const { colSortDirs } = this.state;    
     const filtered = data      
@@ -179,6 +196,19 @@ class NodeList extends React.Component {
           <div className="grv-flex">
             <ClusterSelector/>  
             <InputSearch onChange={this.onFilterChange} />                        
+            <div className="m-l grv-search input-group input-group-sm" title="login to SSH server">
+              <input ref="ssh"
+                className="form-control" 
+                placeholder="login@host"
+                onKeyPress={this.onKeyPress}                  
+              />                            
+              <span className="input-group-btn"> 
+                <button className="btn btn-sm btn-white" onClick={this.onKeyPress}>                  
+                  <i className="fa fa-terminal text-muted"/>
+                </button>            
+              </span>              
+              </div>
+              
           </div>
         </div>
         <div className="m-t">

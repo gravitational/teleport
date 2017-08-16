@@ -17,10 +17,13 @@ limitations under the License.
 import { formatPattern } from 'app/lib/patternUtils';
 import { AuthProviderTypeEnum } from './services/enums';
 import $ from 'jQuery';
+import { isTestEnv } from './services/utils'
 
-let cfg = {
+const baseUrl = isTestEnv() ? 'localhost' : window.location.origin;
 
-  baseUrl: window.location.origin,
+const cfg = {
+
+  baseUrl,
 
   helpUrl: 'https://gravitational.com/teleport/docs/quickstart/',
   
@@ -38,7 +41,8 @@ let cfg = {
     currentSession: '/web/cluster/:siteId/sessions/:sid',
     sessions: '/web/sessions',
     newUser: '/web/newuser/:inviteToken',    
-    msgs: '/web/msg/:type(/:subType)',
+    error: '/web/msg/error(/:type)',
+    info: '/web/msg/info(/:type)',
     pageNotFound: '/web/notfound',
     terminal: '/web/cluster/:siteId/node/:serverId/:login(/:sid)',
     player: '/web/player/node/:siteId/sid/:sid',
@@ -51,8 +55,8 @@ let cfg = {
     ssoSaml: '/v1/webapi/saml/sso?redirect_url=:redirect&connector_id=:providerName',        
     renewTokenPath:'/v1/webapi/sessions/renew',
     sessionPath: '/v1/webapi/sessions',
-    userStatus: '/v1/webapi/user/status',
-    userAclPath: '/v1/webapi/user/acl',    
+    userContextPath: '/v1/webapi/user/context',
+    userStatus: '/v1/webapi/user/status',    
     invitePath: '/v1/webapi/users/invites/:inviteToken',        
     createUserPath: '/v1/webapi/users',
     u2fCreateUserChallengePath: '/v1/webapi/u2f/signuptokens/:inviteToken',

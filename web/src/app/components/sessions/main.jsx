@@ -19,7 +19,7 @@ import reactor from 'app/reactor';
 import { fetchSiteEventsWithinTimeRange } from 'app/flux/storedSessionsFilter/actions';
 import { storedSessionList, activeSessionList } from 'app/flux/sessions/getters';
 import { filter } from 'app/flux/storedSessionsFilter/getters';
-import Timer from './../timer.jsx';
+import AjaxPoller from './../dataProvider.jsx';
 import SessionList from './sessionList.jsx';
 
 const Sessions = React.createClass({
@@ -35,11 +35,11 @@ const Sessions = React.createClass({
   },
 
   refresh(){
-    fetchSiteEventsWithinTimeRange();    
+    return fetchSiteEventsWithinTimeRange();    
   },
 
   render() {
-    let {storedSessions, activeSessions, storedSessionsFilter} = this.state;
+    const { storedSessions, activeSessions, storedSessionsFilter } = this.state;
     return (      
       <div className="grv-page grv-sessions">                                      
         <SessionList
@@ -47,7 +47,7 @@ const Sessions = React.createClass({
           storedSessions={storedSessions}
           filter={storedSessionsFilter}
         />
-        <Timer onTimeout={this.refresh} />
+        <AjaxPoller onFetch={this.refresh} />        
       </div>        
     );
   }

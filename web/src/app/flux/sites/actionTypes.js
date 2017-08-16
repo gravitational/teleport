@@ -14,8 +14,4 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import keyMirror from 'keymirror'
-
-export default keyMirror({
-  TLPT_SITES_RECEIVE: null  
-})
+export const RECEIVE_CLUSTERS = 'TLPT_CLUSTER_RECEIVE';

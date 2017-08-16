@@ -21,12 +21,12 @@ import { Provider } from 'nuclear-js-react-addons';
 import history from './services/history';
 import AppContainer from './components/app.jsx';
 import LoginContainer from './components/user/login.jsx';
-import Signup from './components/user/invite.jsx';
+import InviteUser from './components/user/invite.jsx';
 import Nodes from './components/nodes/main.jsx';
 import Sessions from './components/sessions/main.jsx';
 import TerminalHost from './components/terminal/terminalHost.jsx';
 import PlayerHost from './components/player/playerHost.jsx';
-import { MessagePage, NotFound } from './components/msgPage.jsx';
+import  * as Message from './components/msgPage.jsx';
 import { ensureUser, initLogin } from './flux/user/actions';
 import { initApp } from './flux/app/actions';
 import cfg from './config';
@@ -42,9 +42,10 @@ render((
   <Provider reactor={reactor}>        
     <Router history={history.original()}>      
       <Route component={DocumentTitle}>
-        <Route path={cfg.routes.msgs} component={MessagePage}/>
+        <Route path={cfg.routes.error} title="Whoops..." component={Message.ErrorPage} />
+        <Route path={cfg.routes.info} title="Info" component={Message.InfoPage}/>
         <Route path={cfg.routes.login} onEnter={initLogin} title="Login" component={LoginContainer}/>
-        <Route path={cfg.routes.newUser} component={Signup}/>
+        <Route path={cfg.routes.newUser} component={InviteUser}/>
         <Redirect from={cfg.routes.app} to={cfg.routes.nodes}/>
         <Route path={cfg.routes.app} onEnter={ensureUser} component={AppContainer} >
           <Route path={cfg.routes.app} onEnter={initApp} >        
@@ -54,7 +55,7 @@ render((
             <Route path={cfg.routes.player} title="Player" components={{ CurrentSessionHost: PlayerHost }} />
           </Route>  
         </Route>
-        <Route path="*" component={NotFound} />
+        <Route path="*" component={Message.NotFound} />
       </Route>
     </Router>
   </Provider>  

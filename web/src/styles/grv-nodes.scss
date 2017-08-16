@@ -21,14 +21,9 @@ limitations under the License.
   }
 
   .grv-nodes-custom-login{
-    border-top-width: 0;
-    border-left-width: 0;
-    border-right-width: 0;
-
-    &:focus{
-      border-top-width: 1px;
-      border-left-width: 1px;
-      border-right-width: 1px;
+    padding: 2px;
+    input{      
+      border-radius: 0;      
     }
   }
 
@@ -59,8 +54,6 @@ limitations under the License.
       .fa-long-arrow-right{
         font-size: 10px;
       }
-
     }
-
   }  
 }

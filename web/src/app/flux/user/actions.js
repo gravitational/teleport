@@ -15,11 +15,13 @@ limitations under the License.
 */
 
 import reactor from 'app/reactor';
-import { TLPT_RECEIVE_USER, TLPT_RECEIVE_USER_INVITE } from './actionTypes';
+import { RECEIVE_INVITE } from './actionTypes';
 import { TRYING_TO_SIGN_UP, TRYING_TO_LOGIN, FETCHING_INVITE} from 'app/flux/restApi/constants';
 import restApiActions from 'app/flux/restApi/actions';
 import auth from 'app/services/auth';
+import localStorage from 'app/services/localStorage';
 import history from 'app/services/history';
+import session, { BearerToken } from 'app/services/session';
 import cfg from 'app/config';
 import api from 'app/services/api';
 import Logger from 'app/lib/logger';
@@ -29,11 +31,11 @@ const logger = Logger.create('flux/user/actions');
 const actions = {
   
   fetchInvite(inviteToken){
-    let path = cfg.api.getInviteUrl(inviteToken);
+    const path = cfg.api.getInviteUrl(inviteToken);
     restApiActions.start(FETCHING_INVITE);    
     api.get(path).done(invite=>{
       restApiActions.success(FETCHING_INVITE);
-      reactor.dispatch(TLPT_RECEIVE_USER_INVITE, invite);
+      reactor.dispatch(RECEIVE_INVITE, invite);
     })
     .fail(err => {
       let msg = api.getErrorText(err);        
@@ -42,32 +44,29 @@ const actions = {
   },
 
   ensureUser(nextState, replace, cb) {        
-    auth.ensureUser()
-      .done(userData => {
-        reactor.dispatch(TLPT_RECEIVE_USER, userData.user);
-        cb();
-      })
+    session.ensureSession()      
       .fail(() => {                          
-        let redirectUrl = history.createRedirect(nextState.location);
-        let search = `?redirect_uri=${redirectUrl}`;        
+        const redirectUrl = history.createRedirect(nextState.location);
+        const search = `?redirect_uri=${redirectUrl}`;        
         // navigate to login
         replace({
           pathname: cfg.routes.login,
           search
-        });
-        
+        });                
+      })
+      .always(() => {
         cb();
-      });
+      })
+  },
+  
+  acceptInvite(name, psw, token, inviteToken){    
+    const promise = auth.acceptInvite(name, psw, token, inviteToken);
+    actions._handleAcceptInvitePromise(promise);
   },
 
-  signup(name, psw, token, inviteToken){    
-    let promise = auth.signUp(name, psw, token, inviteToken);
-    actions._handleSignupPromise(promise);
-  },
-
-  signupWithU2f(name, psw, inviteToken) {
-    let promise = auth.signUpWithU2f(name, psw, inviteToken);
-    actions._handleSignupPromise(promise);
+  acceptInviteWithU2f(name, psw, inviteToken) {
+    const promise = auth.acceptInviteWithU2f(name, psw, inviteToken);
+    return actions._handleAcceptInvitePromise(promise);
   },
   
   loginWithSso(providerName, providerType) {
@@ -77,24 +76,28 @@ const actions = {
   },
   
   loginWithU2f(user, password) {
-    let promise = auth.loginWithU2f(user, password);
+    const promise = auth.loginWithU2f(user, password);
     actions._handleLoginPromise(promise);
   },
 
   login(user, password, token) {
-    let promise = auth.login(user, password, token);
+    const promise = auth.login(user, password, token);
     actions._handleLoginPromise(promise);              
   },
-  
-  _handleSignupPromise(promise) {
+
+  logout() {
+    session.logout();
+  },
+
+  _handleAcceptInvitePromise(promise) {
     restApiActions.start(TRYING_TO_SIGN_UP);    
-    promise
+    return promise
       .done(() => {                
         history.push(cfg.routes.app, true);        
       })
       .fail(err => {
-        let msg = api.getErrorText(err);        
-        logger.error('signup', err);
+        const msg = api.getErrorText(err);        
+        logger.error('accept invite', err);
         restApiActions.fail(TRYING_TO_SIGN_UP, msg);
       })        
   },
@@ -102,12 +105,14 @@ const actions = {
   _handleLoginPromise(promise) {
     restApiActions.start(TRYING_TO_LOGIN);
     promise
-      .done(() => {        
-        let url = history.extractRedirect();
+      .done(json => {        
+        // needed for devServer only
+        localStorage.setBearerToken(new BearerToken(json))        
+        const url = history.extractRedirect();
         history.push(url, true);        
       })
       .fail(err => {
-        let msg = api.getErrorText(err);
+        const msg = api.getErrorText(err);
         logger.error('login', err);
         restApiActions.fail(TRYING_TO_LOGIN, msg);
       })

@@ -14,19 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var reactor = require('app/reactor');
-var api = require('app/services/api');
-var cfg = require('app/config');
-var {showError} = require('app/flux/notifications/actions');
-var moment = require('moment');
-var appGetters = require('app/flux/app/getters')
-
-const logger = require('app/lib/logger').create('Modules/Sessions');
-const {
+import reactor from 'app/reactor';
+import api from 'app/services/api';
+import cfg from 'app/config';
+import {showError} from 'app/flux/notifications/actions';
+import moment from 'moment';
+import appGetters from 'app/flux/app/getters';
+import Logger from 'app/lib/logger';
+import {
   TLPT_SESSIONS_ACTIVE_RECEIVE,
   TLPT_SESSIONS_EVENTS_RECEIVE,
   TLPT_SESSIONS_ACTIVE_UPDATE  
-} = require('./actionTypes');
+} from './actionTypes';
+
+const logger = Logger.create('Modules/Sessions');
 
 const actions = {
 
@@ -61,7 +62,7 @@ const actions = {
   },
 
   fetchActiveSessions() {    
-    let siteId = reactor.evaluate(appGetters.siteId);        
+    const siteId = reactor.evaluate(appGetters.siteId);        
     return api.get(cfg.api.getFetchSessionsUrl(siteId))
       .done( json => {
         let sessions = json.sessions || [];                        

@@ -30,7 +30,7 @@ describe('components/user/invite', () => {
     setValues(...expected);    
     clickLogin();    
     expectNInputs(4);
-    expect(props.onSignup).toHaveBeenCalledWith(props.invite.user, ...expected);    
+    expect(props.onSubmit).toHaveBeenCalledWith(props.invite.user, ...expected);    
   });    
 
   it('should sign-up with Auth2faTypeEnum.UTF', () => {                            
@@ -45,7 +45,7 @@ describe('components/user/invite', () => {
     setValues(...expected);        
     clickLogin();
     expectNInputs(4);            
-    expect(props.onSignupWithU2f).toHaveBeenCalledWith(props.invite.user, expected[0]);    
+    expect(props.onSubmitWithU2f).toHaveBeenCalledWith(props.invite.user, expected[0]);    
   });    
 
   it('should sign-up with Auth2faTypeEnum.OTP', () => {                    
@@ -60,7 +60,7 @@ describe('components/user/invite', () => {
     setValues(...expected);        
     clickLogin();
     expectNInputs(5);            
-    expect(props.onSignup).toHaveBeenCalledWith(props.invite.user, ...expected);    
+    expect(props.onSubmit).toHaveBeenCalledWith(props.invite.user, ...expected);    
   });    
         
 });
@@ -88,8 +88,8 @@ const getProps = customProps => {
   let props = {    
     auth2faType: '',    
     authType: '',        
-    onSignupWithU2f(/*username, password*/) { },
-    onSignup(/*username, password, token*/) { },    
+    onSubmitWithU2f(/*username, password*/) { },
+    onSubmit(/*username, password, token*/) { },    
     invite: {
       user: 'test_user'
     },
@@ -97,8 +97,8 @@ const getProps = customProps => {
     ...customProps
   };
   
-  expect.spyOn(props, 'onSignupWithU2f');
-  expect.spyOn(props, 'onSignup');
+  expect.spyOn(props, 'onSubmitWithU2f');
+  expect.spyOn(props, 'onSubmit');
 
   return props;
 }

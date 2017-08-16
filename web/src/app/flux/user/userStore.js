@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var { Store, toImmutable } = require('nuclear-js');
-var  { TLPT_RECEIVE_USER } = require('./actionTypes');
+import { Store, toImmutable } from 'nuclear-js';
+import { RECEIVE_USER } from './actionTypes';
 
 export default Store({
   getInitialState() {
@@ -23,7 +23,7 @@ export default Store({
   },
 
   initialize() {
-    this.on(TLPT_RECEIVE_USER, receiveUser)
+    this.on(RECEIVE_USER, receiveUser)
   }
 
 })
