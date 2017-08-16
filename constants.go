@@ -191,6 +191,10 @@ const (
 	TraitInternalRoleVariable = "{{internal.logins}}"
 )
 
-// NewDefaultRole is the name of the default role for all local users if
+// DefaultRole is the name of the default role for all local users if
 // another role is not explicitly assigned (Enterprise only).
 const DefaultRoleName = "default"
+
+// DefaultImplicitRole is implicit role that gets added to all service.RoleSet
+// objects.
+const DefaultImplicitRole = "default-implicit-role"

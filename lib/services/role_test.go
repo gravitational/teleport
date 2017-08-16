@@ -111,7 +111,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
                    "rules": [
                      {
                        "resources": ["role"],
-                       "verbs": ["read", "write"]
+                       "verbs": ["read", "list"]
                      }
                    ]
                  },
@@ -135,7 +135,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 						NodeLabels: map[string]string{"a": "b"},
 						Namespaces: []string{"system", "default"},
 						Rules: map[string][]string{
-							"role": []string{ActionRead, ActionWrite},
+							KindRole: []string{VerbRead, VerbList},
 						},
 					},
 					Deny: RoleConditions{
@@ -312,12 +312,12 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 	}
 }
 
-func (s *RoleSuite) TestCheckResourceAccess(c *C) {
+func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 	type check struct {
 		hasAccess bool
-		action    string
+		verb      string
 		namespace string
-		resource  string
+		rule      string
 	}
 	testCases := []struct {
 		name   string
@@ -328,11 +328,11 @@ func (s *RoleSuite) TestCheckResourceAccess(c *C) {
 			name:  "0 - empty role set has access to nothing",
 			roles: []RoleV3{},
 			checks: []check{
-				{resource: KindUser, action: ActionWrite, namespace: defaults.Namespace, hasAccess: false},
+				{rule: KindUser, verb: ActionWrite, namespace: defaults.Namespace, hasAccess: false},
 			},
 		},
 		{
-			name: "1 - user can read sessions in default namespace",
+			name: "1 - user can read session but can't list in default namespace",
 			roles: []RoleV3{
 				RoleV3{
 					Metadata: Metadata{
@@ -342,20 +342,20 @@ func (s *RoleSuite) TestCheckResourceAccess(c *C) {
 					Spec: RoleSpecV3{
 						Allow: RoleConditions{
 							Namespaces: []string{defaults.Namespace},
-							SystemResources: map[string][]string{
-								KindSession: []string{ActionRead},
+							Rules: map[string][]string{
+								KindSession: []string{VerbRead},
 							},
 						},
 					},
 				},
 			},
 			checks: []check{
-				{resource: KindSession, action: ActionRead, namespace: defaults.Namespace, hasAccess: true},
-				{resource: KindSession, action: ActionWrite, namespace: defaults.Namespace, hasAccess: false},
+				{rule: KindSession, verb: VerbRead, namespace: defaults.Namespace, hasAccess: true},
+				{rule: KindSession, verb: VerbList, namespace: defaults.Namespace, hasAccess: false},
 			},
 		},
 		{
-			name: "1 - user can read sessions in system namespace and write stuff in default namespace",
+			name: "2 - user can read sessions in system namespace and create stuff in default namespace",
 			roles: []RoleV3{
 				RoleV3{
 					Metadata: Metadata{
@@ -365,8 +365,8 @@ func (s *RoleSuite) TestCheckResourceAccess(c *C) {
 					Spec: RoleSpecV3{
 						Allow: RoleConditions{
 							Namespaces: []string{"system"},
-							SystemResources: map[string][]string{
-								KindSession: []string{ActionRead},
+							Rules: map[string][]string{
+								KindSession: []string{VerbRead},
 							},
 						},
 					},
@@ -379,18 +379,18 @@ func (s *RoleSuite) TestCheckResourceAccess(c *C) {
 					Spec: RoleSpecV3{
 						Allow: RoleConditions{
 							Namespaces: []string{defaults.Namespace},
-							SystemResources: map[string][]string{
-								KindSession: []string{ActionWrite, ActionRead},
+							Rules: map[string][]string{
+								KindSession: []string{VerbCreate, VerbRead},
 							},
 						},
 					},
 				},
 			},
 			checks: []check{
-				{resource: KindSession, action: ActionRead, namespace: defaults.Namespace, hasAccess: true},
-				{resource: KindSession, action: ActionWrite, namespace: defaults.Namespace, hasAccess: true},
-				{resource: KindSession, action: ActionWrite, namespace: "system", hasAccess: false},
-				{resource: KindRole, action: ActionRead, namespace: defaults.Namespace, hasAccess: false},
+				{rule: KindSession, verb: VerbRead, namespace: defaults.Namespace, hasAccess: true},
+				{rule: KindSession, verb: VerbCreate, namespace: defaults.Namespace, hasAccess: true},
+				{rule: KindSession, verb: VerbCreate, namespace: "system", hasAccess: false},
+				{rule: KindRole, verb: VerbRead, namespace: defaults.Namespace, hasAccess: false},
 			},
 		},
 		{
@@ -405,45 +405,20 @@ func (s *RoleSuite) TestCheckResourceAccess(c *C) {
 						Deny: RoleConditions{
 							Namespaces: []string{defaults.Namespace},
 							Rules: map[string][]string{
-								KindSession: []string{ActionWrite},
+								KindSession: []string{VerbCreate},
 							},
 						},
 						Allow: RoleConditions{
 							Namespaces: []string{defaults.Namespace},
 							Rules: map[string][]string{
-								KindSession: []string{ActionWrite},
+								KindSession: []string{VerbCreate},
 							},
 						},
 					},
 				},
 			},
 			checks: []check{
-				{resource: KindSession, action: ActionWrite, namespace: defaults.Namespace, hasAccess: false},
-			},
-		},
-		{
-			name: "4 - rules override system resources",
-			roles: []RoleV3{
-				RoleV3{
-					Metadata: Metadata{
-						Name:      "name1",
-						Namespace: defaults.Namespace,
-					},
-					Spec: RoleSpecV3{
-						Allow: RoleConditions{
-							Namespaces: []string{defaults.Namespace},
-							Rules: map[string][]string{
-								KindSession: []string{ActionWrite},
-							},
-							SystemResources: map[string][]string{
-								KindSession: []string{ActionRead},
-							},
-						},
-					},
-				},
-			},
-			checks: []check{
-				{resource: KindSession, action: ActionWrite, namespace: defaults.Namespace, hasAccess: true},
+				{rule: KindSession, verb: VerbCreate, namespace: defaults.Namespace, hasAccess: false},
 			},
 		},
 	}
@@ -454,7 +429,7 @@ func (s *RoleSuite) TestCheckResourceAccess(c *C) {
 		}
 		for j, check := range tc.checks {
 			comment := Commentf("test case %v '%v', check %v", i, tc.name, j)
-			result := set.CheckAccessToRuleOrResource(check.namespace, check.resource, check.action)
+			result := set.CheckAccessToRule(check.namespace, check.rule, check.verb)
 			if check.hasAccess {
 				c.Assert(result, IsNil, comment)
 			} else {

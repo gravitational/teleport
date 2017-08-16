@@ -109,12 +109,6 @@ const (
 	// KindAuthPreference is the type of authentication for this cluster.
 	MetaNameClusterAuthPreference = "cluster-auth-preference"
 
-	// KindUniversalSecondFactor is a type of second factor authentication.
-	KindUniversalSecondFactor = "universal_second_factor"
-
-	// MetaNameUniversalSecondFactor is a type of second factor authentication.
-	MetaNameUniversalSecondFactor = "universal-second-factor"
-
 	// KindClusterName is a type of configuration resource that contains the cluster name.
 	KindClusterName = "cluster_name"
 
@@ -139,6 +133,29 @@ const (
 	// V1 is the first version of resources. Note: The first version was
 	// not explicitly versioned.
 	V1 = "v1"
+)
+
+const (
+	// VerbConnect is used to allow you to connect to a remote object.
+	VerbConnect = "connect"
+
+	// VerbReadSecrets is used to allow reading secret information from an object.
+	VerbReadSecrets = "readsecrets"
+
+	// VerbList is used to list all objects. Does not imply the ability to read a single object.
+	VerbList = "list"
+
+	// VerbCreate is used to create an object.
+	VerbCreate = "create"
+
+	// VerbRead is used to read a single object.
+	VerbRead = "read"
+
+	// VerbUpdate is used to update an object.
+	VerbUpdate = "update"
+
+	// VerbDelete is used to remove an object.
+	VerbDelete = "delete"
 )
 
 func collectOptions(opts []MarshalOption) (*MarshalConfig, error) {
@@ -351,8 +368,6 @@ func ParseShortcut(in string) (string, error) {
 		return KindTrustedCluster, nil
 	case "cluster_authentication_preferences", "cap":
 		return KindClusterAuthPreference, nil
-	case "universal_second_factor", "u2f":
-		return KindUniversalSecondFactor, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %v", in)
 }

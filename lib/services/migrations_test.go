@@ -18,6 +18,7 @@ package services
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/gravitational/teleport/lib/defaults"
@@ -27,6 +28,8 @@ import (
 	"github.com/kylelemons/godebug/diff"
 	. "gopkg.in/check.v1"
 )
+
+var _ = fmt.Printf
 
 type MigrationsSuite struct {
 }
@@ -277,8 +280,8 @@ func (s *MigrationsSuite) TestMigrateRoles(c *C) {
 				Logins:     []string{"foo"},
 				NodeLabels: map[string]string{"a": "b"},
 				Namespaces: []string{"system", "default"},
-				SystemResources: map[string][]string{
-					"role": []string{ActionRead, ActionWrite},
+				Rules: map[string][]string{
+					KindRole: RW(),
 				},
 			},
 		},

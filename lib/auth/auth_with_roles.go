@@ -41,8 +41,8 @@ type AuthWithRoles struct {
 	alog       events.IAuditLog
 }
 
-func (a *AuthWithRoles) action(namespace string, resourceKind, action string) error {
-	return a.checker.CheckAccessToRuleOrResource(namespace, resourceKind, action)
+func (a *AuthWithRoles) action(namespace string, resource string, action string) error {
+	return a.checker.CheckAccessToRule(namespace, resource, action)
 }
 
 // currentUserAction is a special checker that allows certain actions for users
@@ -52,53 +52,61 @@ func (a *AuthWithRoles) currentUserAction(username string) error {
 	if username == a.user.GetName() {
 		return nil
 	}
-	return a.checker.CheckAccessToRuleOrResource(
-		defaults.Namespace, services.KindUser, services.ActionWrite)
+	return a.checker.CheckAccessToRule(
+		defaults.Namespace, services.KindUser, services.VerbCreate)
 }
 
 func (a *AuthWithRoles) GetSessions(namespace string) ([]session.Session, error) {
-	if err := a.action(namespace, services.KindSession, services.ActionRead); err != nil {
+	if err := a.action(namespace, services.KindSession, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := a.action(namespace, services.KindSession, services.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return a.sessions.GetSessions(namespace)
 }
 
 func (a *AuthWithRoles) GetSession(namespace string, id session.ID) (*session.Session, error) {
-	if err := a.action(namespace, services.KindSession, services.ActionRead); err != nil {
+	if err := a.action(namespace, services.KindSession, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.sessions.GetSession(namespace, id)
 }
 
 func (a *AuthWithRoles) CreateSession(s session.Session) error {
-	if err := a.action(s.Namespace, services.KindSession, services.ActionWrite); err != nil {
+	if err := a.action(s.Namespace, services.KindSession, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.sessions.CreateSession(s)
 }
 
 func (a *AuthWithRoles) UpdateSession(req session.UpdateRequest) error {
-	if err := a.action(req.Namespace, services.KindSession, services.ActionWrite); err != nil {
+	if err := a.action(req.Namespace, services.KindSession, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.sessions.UpdateSession(req)
 }
 
 func (a *AuthWithRoles) UpsertCertAuthority(ca services.CertAuthority) error {
-	if err := a.action(defaults.Namespace, services.KindCertAuthority, services.ActionWrite); err != nil {
+	if err := a.action(defaults.Namespace, services.KindCertAuthority, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindCertAuthority, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.UpsertCertAuthority(ca)
 }
 
 func (a *AuthWithRoles) GetCertAuthorities(caType services.CertAuthType, loadKeys bool) ([]services.CertAuthority, error) {
+	if err := a.action(defaults.Namespace, services.KindCertAuthority, services.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindCertAuthority, services.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if loadKeys {
-		// loading private key implies admin access, what in our case == Write access to them
-		if err := a.action(defaults.Namespace, services.KindCertAuthority, services.ActionWrite); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		if err := a.action(defaults.Namespace, services.KindCertAuthority, services.ActionRead); err != nil {
+		if err := a.action(defaults.Namespace, services.KindCertAuthority, services.VerbReadSecrets); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -106,13 +114,11 @@ func (a *AuthWithRoles) GetCertAuthorities(caType services.CertAuthType, loadKey
 }
 
 func (a *AuthWithRoles) GetCertAuthority(id services.CertAuthID, loadKeys bool) (services.CertAuthority, error) {
+	if err := a.action(defaults.Namespace, services.KindCertAuthority, services.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if loadKeys {
-		// loading private key implies admin access, what in our case == Write access to them
-		if err := a.action(defaults.Namespace, services.KindCertAuthority, services.ActionWrite); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		if err := a.action(defaults.Namespace, services.KindCertAuthority, services.ActionRead); err != nil {
+		if err := a.action(defaults.Namespace, services.KindCertAuthority, services.VerbReadSecrets); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -130,14 +136,17 @@ func (a *AuthWithRoles) GetLocalClusterName() (string, error) {
 }
 
 func (a *AuthWithRoles) UpsertLocalClusterName(clusterName string) error {
-	if err := a.action(defaults.Namespace, services.KindAuthServer, services.ActionWrite); err != nil {
+	if err := a.action(defaults.Namespace, services.KindAuthServer, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindAuthServer, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.UpsertLocalClusterName(clusterName)
 }
 
 func (a *AuthWithRoles) DeleteCertAuthority(id services.CertAuthID) error {
-	if err := a.action(defaults.Namespace, services.KindCertAuthority, services.ActionWrite); err != nil {
+	if err := a.action(defaults.Namespace, services.KindCertAuthority, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteCertAuthority(id)
@@ -152,7 +161,7 @@ func (a *AuthWithRoles) DeactivateCertAuthority(id services.CertAuthID) error {
 }
 
 func (a *AuthWithRoles) GenerateToken(roles teleport.Roles, ttl time.Duration) (string, error) {
-	if err := a.action(defaults.Namespace, services.KindToken, services.ActionWrite); err != nil {
+	if err := a.action(defaults.Namespace, services.KindToken, services.VerbCreate); err != nil {
 		return "", trace.Wrap(err)
 	}
 	return a.authServer.GenerateToken(roles, ttl)
@@ -169,91 +178,121 @@ func (a *AuthWithRoles) RegisterNewAuthServer(token string) error {
 }
 
 func (a *AuthWithRoles) UpsertNode(s services.Server) error {
-	if err := a.action(s.GetNamespace(), services.KindNode, services.ActionWrite); err != nil {
+	if err := a.action(s.GetNamespace(), services.KindNode, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(s.GetNamespace(), services.KindNode, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.UpsertNode(s)
 }
 
 func (a *AuthWithRoles) GetNodes(namespace string) ([]services.Server, error) {
-	if err := a.action(namespace, services.KindNode, services.ActionRead); err != nil {
+	if err := a.action(namespace, services.KindNode, services.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.action(namespace, services.KindNode, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.GetNodes(namespace)
 }
 
 func (a *AuthWithRoles) UpsertAuthServer(s services.Server) error {
-	if err := a.action(defaults.Namespace, services.KindAuthServer, services.ActionWrite); err != nil {
+	if err := a.action(defaults.Namespace, services.KindAuthServer, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindAuthServer, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.UpsertAuthServer(s)
 }
 
 func (a *AuthWithRoles) GetAuthServers() ([]services.Server, error) {
-	if err := a.action(defaults.Namespace, services.KindAuthServer, services.ActionRead); err != nil {
+	if err := a.action(defaults.Namespace, services.KindAuthServer, services.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindAuthServer, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.GetAuthServers()
 }
 
 func (a *AuthWithRoles) UpsertProxy(s services.Server) error {
-	if err := a.action(defaults.Namespace, services.KindProxy, services.ActionWrite); err != nil {
+	if err := a.action(defaults.Namespace, services.KindProxy, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindProxy, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.UpsertProxy(s)
 }
 
 func (a *AuthWithRoles) GetProxies() ([]services.Server, error) {
-	if err := a.action(defaults.Namespace, services.KindProxy, services.ActionRead); err != nil {
+	if err := a.action(defaults.Namespace, services.KindProxy, services.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindProxy, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.GetProxies()
 }
 
 func (a *AuthWithRoles) UpsertReverseTunnel(r services.ReverseTunnel) error {
-	if err := a.action(defaults.Namespace, services.KindReverseTunnel, services.ActionWrite); err != nil {
+	if err := a.action(defaults.Namespace, services.KindReverseTunnel, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindReverseTunnel, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.UpsertReverseTunnel(r)
 }
 
 func (a *AuthWithRoles) GetReverseTunnels() ([]services.ReverseTunnel, error) {
-	if err := a.action(defaults.Namespace, services.KindReverseTunnel, services.ActionRead); err != nil {
+	if err := a.action(defaults.Namespace, services.KindReverseTunnel, services.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindReverseTunnel, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.GetReverseTunnels()
 }
 
 func (a *AuthWithRoles) DeleteReverseTunnel(domainName string) error {
-	if err := a.action(defaults.Namespace, services.KindReverseTunnel, services.ActionWrite); err != nil {
+	if err := a.action(defaults.Namespace, services.KindReverseTunnel, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteReverseTunnel(domainName)
 }
 
 func (a *AuthWithRoles) DeleteToken(token string) error {
-	if err := a.action(defaults.Namespace, services.KindToken, services.ActionWrite); err != nil {
+	if err := a.action(defaults.Namespace, services.KindToken, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteToken(token)
 }
 
 func (a *AuthWithRoles) GetTokens() ([]services.ProvisionToken, error) {
-	if err := a.action(defaults.Namespace, services.KindToken, services.ActionRead); err != nil {
+	if err := a.action(defaults.Namespace, services.KindToken, services.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindToken, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.GetTokens()
 }
 
 func (a *AuthWithRoles) GetToken(token string) (*services.ProvisionToken, error) {
-	if err := a.action(defaults.Namespace, services.KindToken, services.ActionRead); err != nil {
+	if err := a.action(defaults.Namespace, services.KindToken, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.GetToken(token)
 }
 
 func (a *AuthWithRoles) UpsertToken(token string, roles teleport.Roles, ttl time.Duration) error {
-	if err := a.action(defaults.Namespace, services.KindToken, services.ActionWrite); err != nil {
+	if err := a.action(defaults.Namespace, services.KindToken, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindToken, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.UpsertToken(token, roles, ttl)
@@ -336,7 +375,10 @@ func (a *AuthWithRoles) DeleteWebSession(user string, sid string) error {
 }
 
 func (a *AuthWithRoles) GetUsers() ([]services.User, error) {
-	if err := a.action(defaults.Namespace, services.KindUser, services.ActionRead); err != nil {
+	if err := a.action(defaults.Namespace, services.KindUser, services.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindUser, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.GetUsers()
@@ -350,14 +392,14 @@ func (a *AuthWithRoles) GetUser(name string) (services.User, error) {
 }
 
 func (a *AuthWithRoles) DeleteUser(user string) error {
-	if err := a.action(defaults.Namespace, services.KindUser, services.ActionWrite); err != nil {
+	if err := a.action(defaults.Namespace, services.KindUser, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteUser(user)
 }
 
 func (a *AuthWithRoles) GenerateKeyPair(pass string) ([]byte, []byte, error) {
-	if err := a.action(defaults.Namespace, services.KindKeyPair, services.ActionWrite); err != nil {
+	if err := a.action(defaults.Namespace, services.KindKeyPair, services.VerbCreate); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 	return a.authServer.GenerateKeyPair(pass)
@@ -367,7 +409,7 @@ func (a *AuthWithRoles) GenerateHostCert(
 	key []byte, hostID, nodeName, clusterName string, roles teleport.Roles,
 	ttl time.Duration) ([]byte, error) {
 
-	if err := a.action(defaults.Namespace, services.KindHostCert, services.ActionWrite); err != nil {
+	if err := a.action(defaults.Namespace, services.KindHostCert, services.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.GenerateHostCert(key, hostID, nodeName, clusterName, roles, ttl)
@@ -410,7 +452,7 @@ func (a *AuthWithRoles) GenerateUserCert(key []byte, username string, ttl time.D
 }
 
 func (a *AuthWithRoles) CreateSignupToken(user services.UserV1) (token string, e error) {
-	if err := a.action(defaults.Namespace, services.KindUser, services.ActionWrite); err != nil {
+	if err := a.action(defaults.Namespace, services.KindUser, services.VerbCreate); err != nil {
 		return "", trace.Wrap(err)
 	}
 	return a.authServer.CreateSignupToken(user)
@@ -447,9 +489,13 @@ func (a *AuthWithRoles) CreateUserWithU2FToken(token string, password string, u2
 }
 
 func (a *AuthWithRoles) UpsertUser(u services.User) error {
-	if err := a.action(defaults.Namespace, services.KindUser, services.ActionWrite); err != nil {
+	if err := a.action(defaults.Namespace, services.KindUser, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
+	if err := a.action(defaults.Namespace, services.KindUser, services.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
 	createdBy := u.GetCreatedBy()
 	if createdBy.IsEmpty() {
 		u.SetCreatedBy(services.CreatedBy{
@@ -460,19 +506,21 @@ func (a *AuthWithRoles) UpsertUser(u services.User) error {
 }
 
 func (a *AuthWithRoles) UpsertOIDCConnector(connector services.OIDCConnector) error {
-	if err := a.action(defaults.Namespace, services.KindOIDC, services.ActionWrite); err != nil {
+	if err := a.action(defaults.Namespace, services.KindOIDC, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindOIDC, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.UpsertOIDCConnector(connector)
 }
 
 func (a *AuthWithRoles) GetOIDCConnector(id string, withSecrets bool) (services.OIDCConnector, error) {
+	if err := a.action(defaults.Namespace, services.KindOIDC, services.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if withSecrets {
-		if err := a.action(defaults.Namespace, services.KindOIDC, services.ActionWrite); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		if err := a.action(defaults.Namespace, services.KindOIDC, services.ActionRead); err != nil {
+		if err := a.action(defaults.Namespace, services.KindOIDC, services.VerbReadSecrets); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -480,12 +528,14 @@ func (a *AuthWithRoles) GetOIDCConnector(id string, withSecrets bool) (services.
 }
 
 func (a *AuthWithRoles) GetOIDCConnectors(withSecrets bool) ([]services.OIDCConnector, error) {
+	if err := a.action(defaults.Namespace, services.KindOIDC, services.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindOIDC, services.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if withSecrets {
-		if err := a.action(defaults.Namespace, services.KindOIDC, services.ActionWrite); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		if err := a.action(defaults.Namespace, services.KindOIDC, services.ActionRead); err != nil {
+		if err := a.action(defaults.Namespace, services.KindOIDC, services.VerbReadSecrets); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -493,7 +543,7 @@ func (a *AuthWithRoles) GetOIDCConnectors(withSecrets bool) ([]services.OIDCConn
 }
 
 func (a *AuthWithRoles) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error) {
-	if err := a.action(defaults.Namespace, services.KindOIDCRequest, services.ActionWrite); err != nil {
+	if err := a.action(defaults.Namespace, services.KindOIDCRequest, services.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.CreateOIDCAuthRequest(req)
@@ -505,34 +555,35 @@ func (a *AuthWithRoles) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthRespons
 }
 
 func (a *AuthWithRoles) DeleteOIDCConnector(connectorID string) error {
-	if err := a.action(defaults.Namespace, services.KindOIDC, services.ActionWrite); err != nil {
+	if err := a.action(defaults.Namespace, services.KindOIDC, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteOIDCConnector(connectorID)
 }
 
-//
 func (a *AuthWithRoles) CreateSAMLConnector(connector services.SAMLConnector) error {
-	if err := a.action(defaults.Namespace, services.KindSAML, services.ActionWrite); err != nil {
+	if err := a.action(defaults.Namespace, services.KindSAML, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.UpsertSAMLConnector(connector)
 }
 
 func (a *AuthWithRoles) UpsertSAMLConnector(connector services.SAMLConnector) error {
-	if err := a.action(defaults.Namespace, services.KindSAML, services.ActionWrite); err != nil {
+	if err := a.action(defaults.Namespace, services.KindSAML, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindSAML, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.UpsertSAMLConnector(connector)
 }
 
 func (a *AuthWithRoles) GetSAMLConnector(id string, withSecrets bool) (services.SAMLConnector, error) {
+	if err := a.action(defaults.Namespace, services.KindSAML, services.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if withSecrets {
-		if err := a.action(defaults.Namespace, services.KindSAML, services.ActionWrite); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		if err := a.action(defaults.Namespace, services.KindSAML, services.ActionRead); err != nil {
+		if err := a.action(defaults.Namespace, services.KindSAML, services.VerbReadSecrets); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -540,20 +591,23 @@ func (a *AuthWithRoles) GetSAMLConnector(id string, withSecrets bool) (services.
 }
 
 func (a *AuthWithRoles) GetSAMLConnectors(withSecrets bool) ([]services.SAMLConnector, error) {
+	if err := a.action(defaults.Namespace, services.KindSAML, services.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindSAML, services.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if withSecrets {
-		if err := a.action(defaults.Namespace, services.KindSAML, services.ActionWrite); err != nil {
+		if err := a.action(defaults.Namespace, services.KindSAML, services.VerbReadSecrets); err != nil {
 			return nil, trace.Wrap(err)
-		}
-	} else {
-		if err := a.action(defaults.Namespace, services.KindSAML, services.ActionRead); err != nil {
-			return nil, trace.Wrap(err)
+
 		}
 	}
 	return a.authServer.Identity.GetSAMLConnectors(withSecrets)
 }
 
 func (a *AuthWithRoles) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.SAMLAuthRequest, error) {
-	if err := a.action(defaults.Namespace, services.KindSAMLRequest, services.ActionWrite); err != nil {
+	if err := a.action(defaults.Namespace, services.KindSAMLRequest, services.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.CreateSAMLAuthRequest(req)
@@ -565,49 +619,63 @@ func (a *AuthWithRoles) ValidateSAMLResponse(re string) (*SAMLAuthResponse, erro
 }
 
 func (a *AuthWithRoles) DeleteSAMLConnector(connectorID string) error {
-	if err := a.action(defaults.Namespace, services.KindSAML, services.ActionWrite); err != nil {
+	if err := a.action(defaults.Namespace, services.KindSAML, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteSAMLConnector(connectorID)
 }
 
 func (a *AuthWithRoles) EmitAuditEvent(eventType string, fields events.EventFields) error {
-	if err := a.action(defaults.Namespace, services.KindEvent, services.ActionWrite); err != nil {
+	if err := a.action(defaults.Namespace, services.KindEvent, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindEvent, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.alog.EmitAuditEvent(eventType, fields)
 }
 
 func (a *AuthWithRoles) PostSessionSlice(slice events.SessionSlice) error {
-	if err := a.action(slice.Namespace, services.KindSession, services.ActionWrite); err != nil {
+	if err := a.action(slice.Namespace, services.KindSession, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(slice.Namespace, services.KindSession, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.alog.PostSessionSlice(slice)
 }
 
 func (a *AuthWithRoles) PostSessionChunk(namespace string, sid session.ID, reader io.Reader) error {
-	if err := a.action(namespace, services.KindSession, services.ActionWrite); err != nil {
+	if err := a.action(namespace, services.KindSession, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(namespace, services.KindSession, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.alog.PostSessionChunk(namespace, sid, reader)
 }
 
 func (a *AuthWithRoles) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
-	if err := a.action(namespace, services.KindSession, services.ActionRead); err != nil {
+	if err := a.action(namespace, services.KindSession, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return a.alog.GetSessionChunk(namespace, sid, offsetBytes, maxBytes)
 }
 
 func (a *AuthWithRoles) GetSessionEvents(namespace string, sid session.ID, afterN int) ([]events.EventFields, error) {
-	if err := a.action(namespace, services.KindSession, services.ActionRead); err != nil {
+	if err := a.action(namespace, services.KindSession, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return a.alog.GetSessionEvents(namespace, sid, afterN)
 }
 
 func (a *AuthWithRoles) SearchEvents(from, to time.Time, query string) ([]events.EventFields, error) {
-	if err := a.action(defaults.Namespace, services.KindEvent, services.ActionRead); err != nil {
+	if err := a.action(defaults.Namespace, services.KindEvent, services.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindEvent, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.alog.SearchEvents(from, to, query)
@@ -615,7 +683,10 @@ func (a *AuthWithRoles) SearchEvents(from, to time.Time, query string) ([]events
 
 // GetNamespaces returns a list of namespaces
 func (a *AuthWithRoles) GetNamespaces() ([]services.Namespace, error) {
-	if err := a.action(defaults.Namespace, services.KindNamespace, services.ActionRead); err != nil {
+	if err := a.action(defaults.Namespace, services.KindNamespace, services.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindNamespace, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.GetNamespaces()
@@ -623,7 +694,7 @@ func (a *AuthWithRoles) GetNamespaces() ([]services.Namespace, error) {
 
 // GetNamespace returns namespace by name
 func (a *AuthWithRoles) GetNamespace(name string) (*services.Namespace, error) {
-	if err := a.action(defaults.Namespace, services.KindNamespace, services.ActionRead); err != nil {
+	if err := a.action(defaults.Namespace, services.KindNamespace, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.GetNamespace(name)
@@ -631,7 +702,10 @@ func (a *AuthWithRoles) GetNamespace(name string) (*services.Namespace, error) {
 
 // UpsertNamespace upserts namespace
 func (a *AuthWithRoles) UpsertNamespace(ns services.Namespace) error {
-	if err := a.action(defaults.Namespace, services.KindNamespace, services.ActionWrite); err != nil {
+	if err := a.action(defaults.Namespace, services.KindNamespace, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindNamespace, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.UpsertNamespace(ns)
@@ -639,7 +713,7 @@ func (a *AuthWithRoles) UpsertNamespace(ns services.Namespace) error {
 
 // DeleteNamespace deletes namespace by name
 func (a *AuthWithRoles) DeleteNamespace(name string) error {
-	if err := a.action(defaults.Namespace, services.KindNamespace, services.ActionWrite); err != nil {
+	if err := a.action(defaults.Namespace, services.KindNamespace, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteNamespace(name)
@@ -647,7 +721,10 @@ func (a *AuthWithRoles) DeleteNamespace(name string) error {
 
 // GetRoles returns a list of roles
 func (a *AuthWithRoles) GetRoles() ([]services.Role, error) {
-	if err := a.action(defaults.Namespace, services.KindRole, services.ActionRead); err != nil {
+	if err := a.action(defaults.Namespace, services.KindRole, services.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindRole, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.GetRoles()
@@ -655,7 +732,10 @@ func (a *AuthWithRoles) GetRoles() ([]services.Role, error) {
 
 // UpsertRole creates or updates role
 func (a *AuthWithRoles) UpsertRole(role services.Role, ttl time.Duration) error {
-	if err := a.action(defaults.Namespace, services.KindRole, services.ActionWrite); err != nil {
+	if err := a.action(defaults.Namespace, services.KindRole, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindRole, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.UpsertRole(role, ttl)
@@ -663,9 +743,8 @@ func (a *AuthWithRoles) UpsertRole(role services.Role, ttl time.Duration) error 
 
 // GetRole returns role by name
 func (a *AuthWithRoles) GetRole(name string) (services.Role, error) {
-	if err := a.action(defaults.Namespace, services.KindRole, services.ActionRead); err != nil {
+	if err := a.action(defaults.Namespace, services.KindRole, services.VerbRead); err != nil {
 		// allow user to read roles assigned to them
-
 		log.Infof("%v %v %v", a.user, a.user.GetRoles(), name)
 		if !utils.SliceContainsStr(a.user.GetRoles(), name) {
 			return nil, trace.Wrap(err)
@@ -676,7 +755,7 @@ func (a *AuthWithRoles) GetRole(name string) (services.Role, error) {
 
 // DeleteRole deletes role by name
 func (a *AuthWithRoles) DeleteRole(name string) error {
-	if err := a.action(defaults.Namespace, services.KindRole, services.ActionWrite); err != nil {
+	if err := a.action(defaults.Namespace, services.KindRole, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteRole(name)
@@ -684,16 +763,18 @@ func (a *AuthWithRoles) DeleteRole(name string) error {
 
 // GetClusterName gets the name of the cluster.
 func (a *AuthWithRoles) GetClusterName() (services.ClusterName, error) {
-	if err := a.action(defaults.Namespace, services.KindAuthServer, services.ActionRead); err != nil {
+	if err := a.action(defaults.Namespace, services.KindClusterName, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	return a.authServer.GetClusterName()
 }
 
 // SetClusterName sets the name of the cluster.
 func (a *AuthWithRoles) SetClusterName(c services.ClusterName) error {
-	if err := a.action(defaults.Namespace, services.KindAuthServer, services.ActionWrite); err != nil {
+	if err := a.action(defaults.Namespace, services.KindClusterName, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindClusterName, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.SetClusterName(c)
@@ -701,7 +782,7 @@ func (a *AuthWithRoles) SetClusterName(c services.ClusterName) error {
 
 // GetStaticTokens gets the list of static tokens used to provision nodes.
 func (a *AuthWithRoles) GetStaticTokens() (services.StaticTokens, error) {
-	if err := a.action(defaults.Namespace, services.KindAuthServer, services.ActionWrite); err != nil {
+	if err := a.action(defaults.Namespace, services.KindStaticTokens, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.GetStaticTokens()
@@ -709,15 +790,17 @@ func (a *AuthWithRoles) GetStaticTokens() (services.StaticTokens, error) {
 
 // SetStaticTokens sets the list of static tokens used to provision nodes.
 func (a *AuthWithRoles) SetStaticTokens(s services.StaticTokens) error {
-	if err := a.action(defaults.Namespace, services.KindAuthServer, services.ActionWrite); err != nil {
+	if err := a.action(defaults.Namespace, services.KindStaticTokens, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindStaticTokens, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.SetStaticTokens(s)
 }
 
 func (a *AuthWithRoles) GetAuthPreference() (services.AuthPreference, error) {
-	err := a.action(defaults.Namespace, services.KindClusterAuthPreference, services.ActionRead)
-	if err != nil {
+	if err := a.action(defaults.Namespace, services.KindClusterAuthPreference, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -725,8 +808,10 @@ func (a *AuthWithRoles) GetAuthPreference() (services.AuthPreference, error) {
 }
 
 func (a *AuthWithRoles) SetAuthPreference(cap services.AuthPreference) error {
-	err := a.action(defaults.Namespace, services.KindClusterAuthPreference, services.ActionWrite)
-	if err != nil {
+	if err := a.action(defaults.Namespace, services.KindClusterAuthPreference, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindClusterAuthPreference, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -768,36 +853,42 @@ func (a *AuthWithRoles) DeleteAllUsers() error {
 	return trace.BadParameter("not implemented")
 }
 
-func (a *AuthWithRoles) GetTrustedCluster(name string) (services.TrustedCluster, error) {
-	err := a.action(defaults.Namespace, services.KindTrustedCluster, services.ActionRead)
-	if err != nil {
+func (a *AuthWithRoles) GetTrustedClusters() ([]services.TrustedCluster, error) {
+	if err := a.action(defaults.Namespace, services.KindTrustedCluster, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	return a.authServer.GetTrustedCluster(name)
-}
-
-func (a *AuthWithRoles) GetTrustedClusters() ([]services.TrustedCluster, error) {
-	err := a.action(defaults.Namespace, services.KindTrustedCluster, services.ActionRead)
-	if err != nil {
+	if err := a.action(defaults.Namespace, services.KindTrustedCluster, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return a.authServer.GetTrustedClusters()
 }
 
+func (a *AuthWithRoles) GetTrustedCluster(name string) (services.TrustedCluster, error) {
+	if err := a.action(defaults.Namespace, services.KindTrustedCluster, services.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.GetTrustedCluster(name)
+}
+
 func (a *AuthWithRoles) UpsertTrustedCluster(tc services.TrustedCluster) error {
-	log.Debugf("UpsertTrustedCluster %v", tc)
-	err := a.action(defaults.Namespace, services.KindTrustedCluster, services.ActionWrite)
-	if err != nil {
+	if err := a.action(defaults.Namespace, services.KindTrustedCluster, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
-	err = a.action(defaults.Namespace, services.KindCertAuthority, services.ActionWrite)
-	if err != nil {
+	if err := a.action(defaults.Namespace, services.KindTrustedCluster, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	err = a.action(defaults.Namespace, services.KindReverseTunnel, services.ActionWrite)
-	if err != nil {
+	if err := a.action(defaults.Namespace, services.KindCertAuthority, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindCertAuthority, services.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindReverseTunnel, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindReverseTunnel, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -810,16 +901,13 @@ func (a *AuthWithRoles) ValidateTrustedCluster(validateRequest *ValidateTrustedC
 }
 
 func (a *AuthWithRoles) DeleteTrustedCluster(name string) error {
-	err := a.action(defaults.Namespace, services.KindTrustedCluster, services.ActionWrite)
-	if err != nil {
+	if err := a.action(defaults.Namespace, services.KindTrustedCluster, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	err = a.action(defaults.Namespace, services.KindCertAuthority, services.ActionWrite)
-	if err != nil {
+	if err := a.action(defaults.Namespace, services.KindCertAuthority, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	err = a.action(defaults.Namespace, services.KindReverseTunnel, services.ActionWrite)
-	if err != nil {
+	if err := a.action(defaults.Namespace, services.KindReverseTunnel, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -828,18 +916,13 @@ func (a *AuthWithRoles) DeleteTrustedCluster(name string) error {
 
 // EnableTrustedCluster will enable a TrustedCluster that is already in the backend.
 func (a *AuthWithRoles) EnableTrustedCluster(t services.TrustedCluster) error {
-	log.Debugf("EnableTrustedCluster %v", t)
-
-	err := a.action(defaults.Namespace, services.KindTrustedCluster, services.ActionWrite)
-	if err != nil {
+	if err := a.action(defaults.Namespace, services.KindTrustedCluster, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	err = a.action(defaults.Namespace, services.KindCertAuthority, services.ActionWrite)
-	if err != nil {
+	if err := a.action(defaults.Namespace, services.KindCertAuthority, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	err = a.action(defaults.Namespace, services.KindReverseTunnel, services.ActionWrite)
-	if err != nil {
+	if err := a.action(defaults.Namespace, services.KindReverseTunnel, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -848,18 +931,13 @@ func (a *AuthWithRoles) EnableTrustedCluster(t services.TrustedCluster) error {
 
 // DisableTrustedCluster will disable a TrustedCluster that is already in the backend.
 func (a *AuthWithRoles) DisableTrustedCluster(t services.TrustedCluster) error {
-	log.Debugf("DisableTrustedCluster %v", t)
-
-	err := a.action(defaults.Namespace, services.KindTrustedCluster, services.ActionWrite)
-	if err != nil {
+	if err := a.action(defaults.Namespace, services.KindTrustedCluster, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	err = a.action(defaults.Namespace, services.KindCertAuthority, services.ActionWrite)
-	if err != nil {
+	if err := a.action(defaults.Namespace, services.KindCertAuthority, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	err = a.action(defaults.Namespace, services.KindReverseTunnel, services.ActionWrite)
-	if err != nil {
+	if err := a.action(defaults.Namespace, services.KindReverseTunnel, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 
