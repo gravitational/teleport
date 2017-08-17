@@ -200,7 +200,9 @@ func Run(args []string, underTest bool) {
 	// stored in ~/.tsh directory
 	login := app.Command("login", "Log in to a cluster and retreive the session certificate")
 	login.Flag("out", "Identity output").Short('o').StringVar(&cf.IdentityFileOut)
-	login.Flag("format", "Identity format").Default(string(client.DefaultIdentityFormat)).StringVar((*string)(&cf.IdentityFormat))
+	login.Flag("format", fmt.Sprintf("Identity format [%s] or %s (for OpenSSH compatibility)",
+		client.DefaultIdentityFormat,
+		client.IdentityFormatDir)).Default(string(client.DefaultIdentityFormat)).StringVar((*string)(&cf.IdentityFormat))
 
 	// logout deletes obtained session certificates in ~/.tsh
 	logout := app.Command("logout", "Delete a cluster certificate")
@@ -298,10 +300,18 @@ func onLogin(cf *CLIConf) {
 		utils.FatalError(trace.BadParameter("-i flag cannot be used with login"))
 	}
 
+	if cf.IdentityFormat != client.IdentityFormatDir && cf.IdentityFormat != client.IdentityFormatFile {
+		utils.FatalError(trace.BadParameter("invalid identity format: %s", cf.IdentityFormat))
+	}
+
 	// make the teleport client and retreive the certificate from the proxy:
 	tc, err = makeClient(cf, true)
 	if err != nil {
 		utils.FatalError(err)
+	}
+
+	if cf.Username == "" {
+		cf.Username = tc.Username
 	}
 
 	// -i flag specified? save the retreived cert into an identity file

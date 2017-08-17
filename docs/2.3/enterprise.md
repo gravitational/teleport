@@ -180,10 +180,6 @@ Two resources are supported currently:
 * See [Trusted Clusters](#dynamic-trusted-clusters): to dynamically connect / disconnect remote Teleport clusters.
 * See [User Roles](#rbac): to create or update user permissions on the fly.
 
-### Dynamic Trusted Clusters
-
-See the [Dynamic Trusted Clusters](trustedclusters.md) more more details and examples.
-
 ### Authentication Preferences
 
 Using dynamic configuration you can also view and change the type of cluster authentication Teleport supports at runtime.

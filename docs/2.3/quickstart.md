@@ -75,33 +75,46 @@ https://localhost:3080/web/newuser/96c85ed60b47ad345525f03e1524ac95d78d94ffd2d0f
 
 ![teleport login](/img/login.png?style=grv-image-center-md)
 
-Teleport enforces two-factor authentication. If you do not already have Google Authenticator, you will have to install it on your smart phone. Then you can scan the bar code on the Teleport login web page, pick a password and enter in the two factor token.
+Teleport enforces two-factor authentication. If you do not already have Google
+Authenticator (or another 2FA client), you will have to install it on your
+smart phone. Then you can scan the bar code on the Teleport login web page,
+pick a password and enter in the two factor token.
  
-The default TTL for a login is 12 hours but this can be configured to a maximum of 30 hours and a minimum of 1 minute.
+The default TTL for a login is 12 hours but this can be configured to a maximum
+of 30 hours and a minimum of 1 minute.
 
-Having done that, you will be presented with a Web UI where you will see your machine and will be able to log in to it using web-based terminal.
+Having done that, you will be presented with a Web UI where you will see your
+machine and will be able to log in to it using web-based terminal.
 
 ![teleport ui](/img/firstpage.png?style=grv-image-center-md)
 
-## Logging In Through CLI
+## Logging in Through CLI
 
 Let's login using the `tsh` command line tool:
 
 ```bash
-$ tsh --proxy=localhost --insecure ssh localhost
+$ tsh --proxy=localhost --insecure login
 ```
 
 Notice that `tsh` client always needs `--proxy` flag because all client connections
-in Teleport have to go via a proxy sometimes called an "SSH bastion".
+in Teleport always must to go via an SSH proxy, sometimes called an "SSH bastion".
 
 !!! warning "Warning":
-    For the purposes of this quickstart we are using the `-- insecure` flag however this should not be used in production. See [Admin Manual](admin-guide.md) for more information on setting up Teleport in production.
+    For the purposes of this quickstart we are using the `-- insecure` flag however 
+    this should not be used in production. See [Admin Manual](admin-guide.md) for 
+    more information on setting up Teleport in production.
 
+If successful, `tsh login` command will receive a user certificate for a given proxy
+and will store it in `~/.tsh/keys/<proxy>` directory.
 
-!!! tip "Tip":
-    You can use `tsh --proxy=localhost login` to create a client profile in `~/.tsh`
-    directory. This will make `tsh` "remember" the current proxy server and remove
-    the need for `--proxy` flag.
+With a certificate in place, a user can SSH into any host behind the proxy:
+
+```
+$ tsh ssh localhost
+```
+
+To avoid typing "tsh ssh" a user may rename `tsh` binary to `ssh` and use the familiar
+syntax as in `ssh localhost`. 
 
 ## Adding Nodes to Cluster
 
