@@ -1,6 +1,6 @@
 import reactor from 'app/reactor';
 import { showError, showSuccess } from 'telebase-app/flux/notifications/actions';
-import { fetchAcl } from 'telebase-app/flux/userAcl/actions';
+import { fetchUserContext } from 'telebase-app/flux/app/actions';
 
 import { TRYING_TO_DELETE_ROLE } from './../restApi/constants';
 import restApiActions from './../restApi/actions';
@@ -55,7 +55,7 @@ const actions =  {
     api.delete(cfg.getRolesUrl(roleName))
       .then(() => actions.fetchRoles())
       .done(() => {
-        fetchAcl();
+        fetchUserContext();
         actions.closeDeleteRoleDialog();
         actions.setSelectedRole();
         restApiActions.success(TRYING_TO_DELETE_ROLE);
@@ -79,7 +79,7 @@ const actions =  {
     return dfd
       .then(() =>  actions.fetchRoles())
       .done(() => {        
-        fetchAcl();        
+        fetchUserContext();        
         actions.setSelectedRole(role.name);                        
         showSuccess(`role ${role.name} has been saved`, '');
       })

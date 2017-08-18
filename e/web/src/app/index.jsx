@@ -20,16 +20,16 @@ import { Router, IndexRoute, Route, Redirect } from 'react-router';
 import { Provider } from 'nuclear-js-react-addons';
 
 // telebase imports
-import { ensureUser, initLogin } from 'telebase-app/flux/user/actions';
+import { ensureUser } from 'telebase-app/flux/user/actions';
 import { initApp } from 'telebase-app/flux/app/actions';
 import history from 'telebase-app/services/history';
 import LoginContainer from 'telebase-app/components/user/login.jsx';
-import Signup from 'telebase-app/components/user/invite.jsx';
+import InviteUser from 'telebase-app/components/user/invite.jsx';
 import Nodes from 'telebase-app/components/nodes/main.jsx';
 import Sessions from 'telebase-app/components/sessions/main.jsx';
 import TerminalHost from 'telebase-app/components/terminal/terminalHost.jsx';
 import PlayerHost from 'telebase-app/components/player/playerHost.jsx';
-import { MessagePage, NotFound } from 'telebase-app/components/msgPage.jsx';
+import * as Message from 'telebase-app/components/msgPage.jsx';
 import DocumentTitle from 'telebase-app/components/documentTitle';
 import 'telebase-app/flux';
 
@@ -48,12 +48,13 @@ history.init();
 cfg.init(window.GRV_CONFIG);
 
 render((  
-  <Provider reactor={reactor}>        
+<Provider reactor={reactor}>        
     <Router history={history.original()}>      
       <Route component={DocumentTitle}>
-        <Route path={cfg.routes.msgs} title="Whoops" component={MessagePage}/>
-        <Route path={cfg.routes.login} onEnter={initLogin} title="Login" component={LoginContainer}/>
-        <Route path={cfg.routes.newUser} component={Signup}/>
+        <Route path={cfg.routes.error} title="Error" component={Message.ErrorPage} />
+        <Route path={cfg.routes.info} title="Info" component={Message.InfoPage}/>
+        <Route path={cfg.routes.login} title="Login" component={LoginContainer}/>
+        <Route path={cfg.routes.newUser} component={InviteUser}/>
         <Redirect from={cfg.routes.app} to={cfg.routes.nodes}/>
         <Route path={cfg.routes.app} onEnter={ensureUser} component={App} >      
           <Route onEnter={initApp} >        
@@ -65,11 +66,11 @@ render((
             <Route path={cfg.routes.sessions} title="Stored Sessions" component={Sessions}/>
             <Route path={cfg.routes.nodes} title="Nodes" component={Nodes}/>
             <Route path={cfg.routes.terminal} title="Terminal" components={{ CurrentSessionHost: TerminalHost }} />
-            <Route path={cfg.routes.player} title="Stored Sessions" components={{ CurrentSessionHost: PlayerHost }} />
-          </Route>        
+            <Route path={cfg.routes.player} title="Player" components={{ CurrentSessionHost: PlayerHost }} />
+          </Route>  
         </Route>
-        <Route path="*" component={NotFound} />
-      </Route>  
+        <Route path="*" component={Message.NotFound} />
+      </Route>
     </Router>
-  </Provider>
+  </Provider>  
 ), document.getElementById("app"));
