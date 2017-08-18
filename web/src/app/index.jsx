@@ -42,7 +42,7 @@ render((
   <Provider reactor={reactor}>        
     <Router history={history.original()}>      
       <Route component={DocumentTitle}>
-        <Route path={cfg.routes.error} title="Whoops..." component={Message.ErrorPage} />
+        <Route path={cfg.routes.error} title="Error" component={Message.ErrorPage} />
         <Route path={cfg.routes.info} title="Info" component={Message.InfoPage}/>
         <Route path={cfg.routes.login} onEnter={initLogin} title="Login" component={LoginContainer}/>
         <Route path={cfg.routes.newUser} component={InviteUser}/>

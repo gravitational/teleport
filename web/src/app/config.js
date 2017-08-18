@@ -56,7 +56,7 @@ const cfg = {
     renewTokenPath:'/v1/webapi/sessions/renew',
     sessionPath: '/v1/webapi/sessions',
     userContextPath: '/v1/webapi/user/context',
-    userStatus: '/v1/webapi/user/status',    
+    userStatusPath: '/v1/webapi/user/status',    
     invitePath: '/v1/webapi/users/invites/:inviteToken',        
     createUserPath: '/v1/webapi/users',
     u2fCreateUserChallengePath: '/v1/webapi/u2f/signuptokens/:inviteToken',

@@ -18,8 +18,8 @@ import React from 'react';
 
 export const MSG_INFO_LOGIN_SUCCESS = 'Login was successful, you can close this window and continue using tsh.';
 export const MSG_ERROR_LOGIN_FAILED = 'Login unsuccessful. Please try again, if the problem persists, contact your system administrator.';
-export const MSG_ERROR_DEFAULT = 'Whoops, something went wrong.';
-export const MSG_ERROR_NOT_FOUND = 'Whoops, we cannot find that.';
+export const MSG_ERROR_DEFAULT = 'Internal Error';
+export const MSG_ERROR_NOT_FOUND = '404 Not Found';
 export const MSG_ERROR_NOT_FOUND_DETAILS = `Looks like the page you are looking for isn't here any longer.`;
 export const MSG_ERROR_EXPIRED_INVITE = 'Invite code has expired.';
 export const MSG_ERROR_EXPIRED_INVITE_DETAILS = `Looks like your invite code isn't valid anymore.`;

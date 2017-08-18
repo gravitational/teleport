@@ -16,7 +16,7 @@ limitations under the License.
 
 import { Store, toImmutable } from 'nuclear-js';
 import { Record, List } from 'immutable';
-import { TLPT_SESSIONS_EVENTS_RECEIVE } from './actionTypes';
+import { RECEIVE_SITE_EVENTS } from './actionTypes';
 import { EventTypeEnum } from 'app/lib/term/enums';
 
 const StoredSessionRec = Record({
@@ -35,12 +35,13 @@ export default Store({
     return toImmutable({});
   },
 
-  initialize() {
-    this.on(TLPT_SESSIONS_EVENTS_RECEIVE, receive);        
+  initialize() {        
+    this.on(RECEIVE_SITE_EVENTS, receive);        
   }
 })
 
-function receive(state, { siteId, json }) {
+// uses events to build stored session objects
+function receive(state, { siteId, json }) {  
   let jsonEvents = json || [];
   let tmp = {};
   return state.withMutations(state => {    

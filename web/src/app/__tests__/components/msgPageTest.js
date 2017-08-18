@@ -9,8 +9,7 @@ import { makeHelper, ReactDOM } from 'app/__tests__/domUtils';
 
 const $node = $('<div>');
 const helper = makeHelper($node);
-
-let rootRoutes = [  
+const rootRoutes = [  
   {
     component: DocumentTitle,
     childRoutes: [  

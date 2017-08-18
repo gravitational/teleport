@@ -106,7 +106,7 @@ webpackJsonp([0],[
 	    _react2.default.createElement(
 	      _reactRouter.Route,
 	      { component: _documentTitle2.default },
-	      _react2.default.createElement(_reactRouter.Route, { path: _config2.default.routes.error, title: 'Whoops...', component: Message.ErrorPage }),
+	      _react2.default.createElement(_reactRouter.Route, { path: _config2.default.routes.error, title: 'Error', component: Message.ErrorPage }),
 	      _react2.default.createElement(_reactRouter.Route, { path: _config2.default.routes.info, title: 'Info', component: Message.InfoPage }),
 	      _react2.default.createElement(_reactRouter.Route, { path: _config2.default.routes.login, onEnter: _actions.initLogin, title: 'Login', component: _login2.default }),
 	      _react2.default.createElement(_reactRouter.Route, { path: _config2.default.routes.newUser, component: _invite2.default }),
@@ -1248,7 +1248,7 @@ webpackJsonp([0],[
 	    renewTokenPath: '/v1/webapi/sessions/renew',
 	    sessionPath: '/v1/webapi/sessions',
 	    userContextPath: '/v1/webapi/user/context',
-	    userStatus: '/v1/webapi/user/status',
+	    userStatusPath: '/v1/webapi/user/status',
 	    invitePath: '/v1/webapi/users/invites/:inviteToken',
 	    createUserPath: '/v1/webapi/users',
 	    u2fCreateUserChallengePath: '/v1/webapi/u2f/signuptokens/:inviteToken',
@@ -2507,7 +2507,7 @@ webpackJsonp([0],[
 	    siteId = siteId || _reactor2.default.evaluate(_getters2.default.siteId);
 	    return _api2.default.get(_config2.default.api.getSessionEventsUrl({ siteId: siteId, sid: sid })).then(function (json) {
 	      if (json && json.events) {
-	        _reactor2.default.dispatch(_actionTypes.TLPT_SESSIONS_EVENTS_RECEIVE, { siteId: siteId, json: json.events });
+	        _reactor2.default.dispatch(_actionTypes.RECEIVE_SITE_EVENTS, { siteId: siteId, json: json.events });
 	      }
 	    });
 	  },
@@ -2522,7 +2522,7 @@ webpackJsonp([0],[
 	    var siteId = _reactor2.default.evaluate(_getters2.default.siteId);
 	    return _api2.default.get(_config2.default.api.getSiteEventsFilterUrl({ start: start, end: end, siteId: siteId })).done(function (json) {
 	      if (json && json.events) {
-	        _reactor2.default.dispatch(_actionTypes.TLPT_SESSIONS_EVENTS_RECEIVE, { siteId: siteId, json: json.events });
+	        _reactor2.default.dispatch(_actionTypes.RECEIVE_SITE_EVENTS, { siteId: siteId, json: json.events });
 	      }
 	    }).fail(function (err) {
 	      (0, _actions.showError)('Unable to retrieve site events');
@@ -2533,7 +2533,7 @@ webpackJsonp([0],[
 	    var siteId = _reactor2.default.evaluate(_getters2.default.siteId);
 	    return _api2.default.get(_config2.default.api.getFetchSessionsUrl(siteId)).done(function (json) {
 	      var sessions = json.sessions || [];
-	      _reactor2.default.dispatch(_actionTypes.TLPT_SESSIONS_ACTIVE_RECEIVE, { siteId: siteId, json: sessions });
+	      _reactor2.default.dispatch(_actionTypes.RECEIVE_ACTIVE_SESSIONS, { siteId: siteId, json: sessions });
 	    }).fail(function (err) {
 	      (0, _actions.showError)('Unable to retrieve list of sessions');
 	      logger.error('fetchActiveSessions', err);
@@ -2543,7 +2543,7 @@ webpackJsonp([0],[
 	    var siteId = _ref.siteId,
 	        json = _ref.json;
 
-	    _reactor2.default.dispatch(_actionTypes.TLPT_SESSIONS_ACTIVE_UPDATE, { siteId: siteId, json: json });
+	    _reactor2.default.dispatch(_actionTypes.UPDATE_ACTIVE_SESSION, { siteId: siteId, json: json });
 	  }
 	};
 
@@ -2652,39 +2652,30 @@ webpackJsonp([0],[
 /* 354 */,
 /* 355 */,
 /* 356 */
-/***/ function(module, exports, __webpack_require__) {
+/***/ function(module, exports) {
 
 	'use strict';
 
 	exports.__esModule = true;
+	/*
+	Copyright 2015 Gravitational, Inc.
 
-	var _keymirror = __webpack_require__(237);
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
 
-	var _keymirror2 = _interopRequireDefault(_keymirror);
+	    http://www.apache.org/licenses/LICENSE-2.0
 
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+	*/
 
-	exports.default = (0, _keymirror2.default)({
-	  TLPT_SESSIONS_ACTIVE_RECEIVE: null,
-	  TLPT_SESSIONS_ACTIVE_UPDATE: null,
-	  TLPT_SESSIONS_EVENTS_RECEIVE: null
-	}); /*
-	    Copyright 2015 Gravitational, Inc.
-	    
-	    Licensed under the Apache License, Version 2.0 (the "License");
-	    you may not use this file except in compliance with the License.
-	    You may obtain a copy of the License at
-	    
-	        http://www.apache.org/licenses/LICENSE-2.0
-	    
-	    Unless required by applicable law or agreed to in writing, software
-	    distributed under the License is distributed on an "AS IS" BASIS,
-	    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	    See the License for the specific language governing permissions and
-	    limitations under the License.
-	    */
-
-	module.exports = exports['default'];
+	var RECEIVE_ACTIVE_SESSIONS = exports.RECEIVE_ACTIVE_SESSIONS = 'TLPT_SESSIONS_RECEIVE_ACTIVE';
+	var UPDATE_ACTIVE_SESSION = exports.UPDATE_ACTIVE_SESSION = 'TLPT_SESSIONS_UPDATE_ACTIVE';
+	var RECEIVE_SITE_EVENTS = exports.RECEIVE_SITE_EVENTS = 'TLPT_SESSIONS_RECEIVE_EVENTS';
 
 /***/ },
 /* 357 */
@@ -4855,8 +4846,8 @@ webpackJsonp([0],[
 
 	var MSG_INFO_LOGIN_SUCCESS = exports.MSG_INFO_LOGIN_SUCCESS = 'Login was successful, you can close this window and continue using tsh.';
 	var MSG_ERROR_LOGIN_FAILED = exports.MSG_ERROR_LOGIN_FAILED = 'Login unsuccessful. Please try again, if the problem persists, contact your system administrator.';
-	var MSG_ERROR_DEFAULT = exports.MSG_ERROR_DEFAULT = 'Whoops, something went wrong.';
-	var MSG_ERROR_NOT_FOUND = exports.MSG_ERROR_NOT_FOUND = 'Whoops, we cannot find that.';
+	var MSG_ERROR_DEFAULT = exports.MSG_ERROR_DEFAULT = 'Internal Error';
+	var MSG_ERROR_NOT_FOUND = exports.MSG_ERROR_NOT_FOUND = '404 Not Found';
 	var MSG_ERROR_NOT_FOUND_DETAILS = exports.MSG_ERROR_NOT_FOUND_DETAILS = 'Looks like the page you are looking for isn\'t here any longer.';
 	var MSG_ERROR_EXPIRED_INVITE = exports.MSG_ERROR_EXPIRED_INVITE = 'Invite code has expired.';
 	var MSG_ERROR_EXPIRED_INVITE_DETAILS = exports.MSG_ERROR_EXPIRED_INVITE_DETAILS = 'Looks like your invite code isn\'t valid anymore.';
@@ -17170,7 +17161,7 @@ webpackJsonp([0],[
 	    return (0, _nuclearJs.toImmutable)({});
 	  },
 	  initialize: function initialize() {
-	    this.on(_actionTypes.TLPT_SESSIONS_EVENTS_RECEIVE, receive);
+	    this.on(_actionTypes.RECEIVE_SITE_EVENTS, receive);
 	  }
 	});
 
@@ -17243,10 +17234,11 @@ webpackJsonp([0],[
 	    return (0, _nuclearJs.toImmutable)({});
 	  },
 	  initialize: function initialize() {
-	    this.on(_actionTypes.TLPT_SESSIONS_EVENTS_RECEIVE, receive);
+	    this.on(_actionTypes.RECEIVE_SITE_EVENTS, receive);
 	  }
 	});
 
+	// uses events to build stored session objects
 
 	function receive(state, _ref) {
 	  var siteId = _ref.siteId,
@@ -17348,8 +17340,8 @@ webpackJsonp([0],[
 	    return defaultState();
 	  },
 	  initialize: function initialize() {
-	    this.on(_actionTypes.TLPT_SESSIONS_ACTIVE_RECEIVE, receive);
-	    this.on(_actionTypes.TLPT_SESSIONS_ACTIVE_UPDATE, updateSession);
+	    this.on(_actionTypes.RECEIVE_ACTIVE_SESSIONS, receive);
+	    this.on(_actionTypes.UPDATE_ACTIVE_SESSION, updateSession);
 	  }
 	});
 
