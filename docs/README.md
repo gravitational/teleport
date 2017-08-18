@@ -18,8 +18,14 @@ See `web/README.md` for more info.
 
 ## Running Locally
 
-To run the specific version of the docs on [http://127.0.0.1:8000](http://127.0.0.1:8000/quickstart):
+To run the latest version of the docs on [http://127.0.0.1:8000](http://127.0.0.1:8000/quickstart):
 
 ```bash
-$ mkdocs serve --config-file 2.3.yaml
+$ ./serve.sh
+```
+
+To run a specific version of the docs:
+
+```bash
+$ mkdocs serve --config-file 1.3.yaml
 ```
