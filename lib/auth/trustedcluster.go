@@ -16,28 +16,107 @@ import (
 	log "github.com/Sirupsen/logrus"
 )
 
-func (a *AuthServer) getTrustedCluster(name string) (services.TrustedCluster, error) {
-	return a.GetTrustedCluster(name)
-}
+// UpsertTrustedCluster will either create a new services.TrustedCluster or
+// can be used to toggle a services.TrustedCluster on and off.
+func (a *AuthServer) UpsertTrustedCluster(t services.TrustedCluster) error {
+	// check if the trusted cluster exists already
+	var exists bool
+	_, err := a.Presence.GetTrustedCluster(t.GetName())
+	if err == nil {
+		exists = true
+	}
 
-func (a *AuthServer) getTrustedClusters() ([]services.TrustedCluster, error) {
-	return a.GetTrustedClusters()
-}
+	// if the trusted cluster does not exist, do the initial token exchange
+	// to establish trust relationship and return.
+	if !exists {
+		err = a.establishTrust(t)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-func (a *AuthServer) UpsertTrustedCluster(trustedCluster services.TrustedCluster) error {
-	if trustedCluster.GetEnabled() {
-		err := a.enableTrustedCluster(trustedCluster)
+		err = a.Presence.UpsertTrustedCluster(t)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
+	}
+
+	// if the trusted cluster exists already, the user is just trying to toggle
+	// the trusted cluster
+	if t.GetEnabled() {
+		err = a.EnableTrustedCluster(t)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	} else {
-		err := a.disableTrustedCluster(trustedCluster)
+		err = a.DisableTrustedCluster(t)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
-	err := a.Presence.UpsertTrustedCluster(trustedCluster)
+	return nil
+}
+
+// DeleteTrustedCluster removes services.CertAuthority, services.ReverseTunnel,
+// and services.TrustedCluster resources.
+func (a *AuthServer) DeleteTrustedCluster(name string) error {
+	err := a.DeleteCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: name})
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+
+	err = a.DeleteCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: name})
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+
+	err = a.DeleteReverseTunnel(name)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+
+	err = a.Presence.DeleteTrustedCluster(name)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+// EnableTrustedCluster will enable a TrustedCluster that is already in the backend.
+func (a *AuthServer) EnableTrustedCluster(trustedCluster services.TrustedCluster) error {
+	err := a.ActivateCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: trustedCluster.GetName()})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = a.ActivateCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: trustedCluster.GetName()})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// the remote auth server has verified our token. add the
+	// reverse tunnel into our backend
+	reverseTunnel := services.NewReverseTunnel(
+		trustedCluster.GetName(),
+		[]string{trustedCluster.GetReverseTunnelAddress()},
+	)
+	err = a.UpsertReverseTunnel(reverseTunnel)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = a.Presence.EnableTrustedCluster(trustedCluster)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -45,7 +124,32 @@ func (a *AuthServer) UpsertTrustedCluster(trustedCluster services.TrustedCluster
 	return nil
 }
 
-func (a *AuthServer) enableTrustedCluster(trustedCluster services.TrustedCluster) error {
+// DisableTrustedCluster will disable a TrustedCluster that is already in the backend.
+func (a *AuthServer) DisableTrustedCluster(trustedCluster services.TrustedCluster) error {
+	err := a.DeactivateCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: trustedCluster.GetName()})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = a.DeactivateCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: trustedCluster.GetName()})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = a.DeleteReverseTunnel(trustedCluster.GetName())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = a.Presence.DisableTrustedCluster(trustedCluster)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (a *AuthServer) establishTrust(trustedCluster services.TrustedCluster) error {
 	var localCertAuthorities []services.CertAuthority
 
 	domainName, err := a.GetDomainName()
@@ -115,31 +219,6 @@ func (a *AuthServer) enableTrustedCluster(trustedCluster services.TrustedCluster
 	return nil
 }
 
-func (a *AuthServer) disableTrustedCluster(trustedCluster services.TrustedCluster) error {
-	err := a.DeleteCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: trustedCluster.GetName()})
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-	}
-
-	err = a.DeleteCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: trustedCluster.GetName()})
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-	}
-
-	err = a.DeleteReverseTunnel(trustedCluster.GetName())
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-	}
-
-	return nil
-}
-
 func (a *AuthServer) validateTrustedCluster(validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
 	domainName, err := a.GetDomainName()
 	if err != nil {
@@ -198,38 +277,6 @@ func (a *AuthServer) validateTrustedClusterToken(token string) error {
 
 	if !a.checkTokenTTL(token) {
 		return trace.AccessDenied("expired token")
-	}
-
-	return nil
-}
-
-func (a *AuthServer) deleteTrustedCluster(name string) error {
-	err := a.DeleteCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: name})
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-	}
-
-	err = a.DeleteCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: name})
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-	}
-
-	err = a.DeleteReverseTunnel(name)
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-	}
-
-	err = a.DeleteTrustedCluster(name)
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
 	}
 
 	return nil
