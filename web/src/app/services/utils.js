@@ -13,6 +13,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-module.exports.getters = require('./getters');
-module.exports.actions = require('./actions');
-module.exports.appStore = require('./appStore');
+
+export const isDevEnv = () => process.env.NODE_ENV === 'development';
+export const isTestEnv = () => process.env.NODE_ENV === 'test';

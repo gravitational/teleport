@@ -14,27 +14,28 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var reactor = require('app/reactor');
-var api = require('app/services/api');
-var cfg = require('app/config');
-var {showError} = require('app/flux/notifications/actions');
-var moment = require('moment');
-var appGetters = require('app/flux/app/getters')
+import reactor from 'app/reactor';
+import api from 'app/services/api';
+import cfg from 'app/config';
+import {showError} from 'app/flux/notifications/actions';
+import moment from 'moment';
+import appGetters from 'app/flux/app/getters';
+import Logger from 'app/lib/logger';
+import {
+  RECEIVE_ACTIVE_SESSIONS,  
+  RECEIVE_SITE_EVENTS,
+  UPDATE_ACTIVE_SESSION  
+} from './actionTypes';
 
-const logger = require('app/lib/logger').create('Modules/Sessions');
-const {
-  TLPT_SESSIONS_ACTIVE_RECEIVE,
-  TLPT_SESSIONS_EVENTS_RECEIVE,
-  TLPT_SESSIONS_ACTIVE_UPDATE  
-} = require('./actionTypes');
+const logger = Logger.create('Modules/Sessions');
 
 const actions = {
 
   fetchStoredSession(sid, siteId) {
     siteId = siteId || reactor.evaluate(appGetters.siteId);
     return api.get(cfg.api.getSessionEventsUrl({ siteId, sid })).then(json=>{
-      if(json && json.events){
-        reactor.dispatch(TLPT_SESSIONS_EVENTS_RECEIVE, { siteId, json: json.events });
+      if (json && json.events) {        
+        reactor.dispatch(RECEIVE_SITE_EVENTS, { siteId, json: json.events });
       }
     });
   },
@@ -50,8 +51,8 @@ const actions = {
     let siteId = reactor.evaluate(appGetters.siteId);
     return api.get(cfg.api.getSiteEventsFilterUrl({ start, end, siteId }))
       .done( json => {
-        if (json && json.events) {
-          reactor.dispatch(TLPT_SESSIONS_EVENTS_RECEIVE, { siteId, json: json.events });
+        if (json && json.events) {          
+          reactor.dispatch(RECEIVE_SITE_EVENTS, { siteId, json: json.events });
         }  
       })
       .fail( err => {
@@ -61,11 +62,11 @@ const actions = {
   },
 
   fetchActiveSessions() {    
-    let siteId = reactor.evaluate(appGetters.siteId);        
+    const siteId = reactor.evaluate(appGetters.siteId);        
     return api.get(cfg.api.getFetchSessionsUrl(siteId))
       .done( json => {
         let sessions = json.sessions || [];                        
-        reactor.dispatch(TLPT_SESSIONS_ACTIVE_RECEIVE, { siteId, json: sessions });        
+        reactor.dispatch(RECEIVE_ACTIVE_SESSIONS, { siteId, json: sessions });        
       })
       .fail( err => {
         showError('Unable to retrieve list of sessions');
@@ -74,7 +75,7 @@ const actions = {
   },
   
   updateSession({ siteId, json }){
-    reactor.dispatch(TLPT_SESSIONS_ACTIVE_UPDATE, { siteId, json });
+    reactor.dispatch(UPDATE_ACTIVE_SESSION, { siteId, json });
   }
 }
 

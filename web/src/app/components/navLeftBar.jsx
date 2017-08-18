@@ -17,8 +17,8 @@ import React from 'react';
 import reactor from 'app/reactor';
 import cfg from 'app/config';
 import userGetters from 'app/flux/user/getters';
+import { logout } from 'app/flux/user/actions';
 import { IndexLink } from 'react-router';
-import { logoutUser } from 'app/flux/app/actions';
 import { UserIcon } from './icons.jsx';
 
 const NavLeftBar = React.createClass({
@@ -45,7 +45,7 @@ const NavLeftBar = React.createClass({
 
     $items.push((
       <li key={$items.length} title="logout">
-        <a href="#" onClick={logoutUser} >
+        <a href="#" onClick={logout} >
           <i className="fa fa-sign-out" style={{marginRight: 0}}></i>
         </a>
       </li>

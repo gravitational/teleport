@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import { Store, toImmutable } from 'nuclear-js';
-import { TLPT_RECEIVE_USER_INVITE } from './actionTypes';
+import { RECEIVE_INVITE } from './actionTypes';
 import { Record } from 'immutable';
 
 const Invite = new Record({
@@ -30,7 +30,7 @@ export default Store({
   },
 
   initialize() {
-    this.on(TLPT_RECEIVE_USER_INVITE, receiveInvite)
+    this.on(RECEIVE_INVITE, receiveInvite)
   }
 })
 

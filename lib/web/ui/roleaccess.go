@@ -51,14 +51,14 @@ type RoleAccess struct {
 }
 
 // MergeAccessSet merges a set of roles by strongest permission
-func MergeAccessSet(accessList []*RoleAccess) *RoleAccess {
+func MergeAccessSet(accessList []RoleAccess) RoleAccess {
 	uiAccess := RoleAccess{}
 	for _, item := range accessList {
 		uiAccess.SSH.Logins = utils.Deduplicate(append(uiAccess.SSH.Logins, item.SSH.Logins...))
 		uiAccess.Admin.Enabled = item.Admin.Enabled || uiAccess.Admin.Enabled
 	}
 
-	return &uiAccess
+	return uiAccess
 }
 
 // Apply applies this role access to Teleport Role
@@ -83,8 +83,8 @@ func (a *RoleAccess) initSSH(teleRole services.Role) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	a.SSH.MaxSessionTTL = maxSessionTTL.Duration
 
+	a.SSH.MaxSessionTTL = maxSessionTTL.Duration
 	a.SSH.NodeLabels = teleRole.GetNodeLabels(services.Allow)
 
 	// FIXME: this is a workaround for #1623

@@ -212,7 +212,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 
 	// User Status (used by client to check if user session is valid)
 	h.GET("/webapi/user/status", h.WithAuth(h.getUserStatus))
-	h.GET("/webapi/user/acl", h.WithAuth(h.getUserACL))
+	h.GET("/webapi/user/context", h.WithAuth(h.getUserContext))
 
 	// if Web UI is enabled, check the assets dir:
 	var (
@@ -311,13 +311,11 @@ func (m *Handler) getUserStatus(w http.ResponseWriter, r *http.Request, _ httpro
 	return ok(), nil
 }
 
-// getUserACL returns currently signed-in user permissions
+// getUserContext returns user context
 //
-// GET /webapi/user/acl
+// GET /webapi/user/context
 //
-// { "admin": { "enabled": false }, "kubernetes": { "groups": null }, "license": { "enabled": false }, "applications": { "fullAccess": false }, "cluster": { "enabled": false }, "ssh": { "logins": null } }
-//
-func (m *Handler) getUserACL(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext) (interface{}, error) {
+func (m *Handler) getUserContext(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext) (interface{}, error) {
 	clt, err := c.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -333,17 +331,12 @@ func (m *Handler) getUserACL(w http.ResponseWriter, r *http.Request, _ httproute
 		return nil, trace.Wrap(err)
 	}
 
-	accessSet := []*ui.RoleAccess{}
-	for _, role := range roleSet {
-		uiRole, err := ui.NewRole(role)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		accessSet = append(accessSet, &uiRole.Access)
+	userContext, err := ui.NewUserContext(user, roleSet)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	uiaccess := ui.MergeAccessSet(accessSet)
 
-	return uiaccess, nil
+	return userContext, nil
 }
 
 func localSettings(authClient auth.ClientI, cap services.AuthPreference) (client.AuthenticationSettings, error) {
@@ -708,8 +701,6 @@ type CreateSessionResponse struct {
 	Type string `json:"type"`
 	// Token value
 	Token string `json:"token"`
-	// User represents the user
-	User interface{} `json:"user"`
 	// ExpiresIn sets seconds before this token is not valid
 	ExpiresIn int `json:"expires_in"`
 }
@@ -719,18 +710,12 @@ type createSessionResponseRaw struct {
 	Type string `json:"type"`
 	// Token value
 	Token string `json:"token"`
-	// User represents the user
-	User json.RawMessage `json:"user"`
 	// ExpiresIn sets seconds before this token is not valid
 	ExpiresIn int `json:"expires_in"`
 }
 
-func (r createSessionResponseRaw) response() (*CreateSessionResponse, services.User, error) {
-	user, err := services.GetUserMarshaler().UnmarshalUser(r.User)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	return &CreateSessionResponse{Type: r.Type, Token: r.Token, ExpiresIn: r.ExpiresIn, User: user.WebSessionInfo(nil)}, user, nil
+func (r createSessionResponseRaw) response() (*CreateSessionResponse, error) {
+	return &CreateSessionResponse{Type: r.Type, Token: r.Token, ExpiresIn: r.ExpiresIn}, nil
 }
 
 func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
@@ -751,14 +736,14 @@ func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 		}
 		roles = append(roles, role)
 	}
-	allowedLogins, err := roles.CheckLoginDuration(0)
+	_, err = roles.CheckLoginDuration(0)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return &CreateSessionResponse{
 		Type:      roundtrip.AuthBearer,
 		Token:     webSession.GetBearerToken(),
-		User:      user.WebSessionInfo(allowedLogins),
 		ExpiresIn: int(webSession.GetBearerTokenExpiryTime().Sub(time.Now()) / time.Second),
 	}, nil
 }

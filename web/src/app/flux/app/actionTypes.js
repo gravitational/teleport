@@ -14,11 +14,4 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import keyMirror from 'keymirror'
-
-export default keyMirror({
-  TLPT_APP_INIT: null,
-  TLPT_APP_FAILED: null,
-  TLPT_APP_READY: null,
-  TLPT_APP_SET_SITE_ID: null
-})
+export const SET_SITE_ID = 'TLPT_APP_SET_SITE_ID';

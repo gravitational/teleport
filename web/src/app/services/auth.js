@@ -15,113 +15,46 @@ limitations under the License.
 */
 
 import api from './api';
-import session from './session';
-import history from './history';
 import cfg from 'app/config';
 import $ from 'jQuery';
-import Logger from 'app/lib/logger';
 
 // This puts it in window.u2f
 import 'u2f-api-polyfill'; 
 
-const logger = Logger.create('services/auth');
+const auth = {      
 
-const AUTH_IS_RENEWING = 'GRV_AUTH_IS_RENEWING';
-
-const CHECK_TOKEN_REFRESH_RATE = 10 * 1000; // 10 sec
-
-let refreshTokenTimerId = null;
-
-const auth = {
-
-  signUp(name, password, token, inviteToken){
-    var data = {user: name, pass: password, second_factor_token: token, invite_token: inviteToken};
-    return api.post(cfg.api.createUserPath, data)
-      .then((data)=>{
-        session.setUserData(data);
-        auth._startTokenRefresher();
-        return data;
-      });
-  },
-
-  signUpWithU2f(name, password, inviteToken){
-    return api.get(cfg.api.getU2fCreateUserChallengeUrl(inviteToken))
-      .then(data => {
-        let deferred = $.Deferred();
-
-        window.u2f.register(data.appId, [data], [], function(res){        
-          if (res.errorCode) {
-            let err = auth._getU2fErr(res.errorCode);
-            deferred.reject(err);
-            return;
-        }
-
-        let response = {
-          user: name,
-          pass: password,
-          u2f_register_response: res,
-          invite_token: inviteToken
-        };
-
-        api.post(cfg.api.u2fCreateUserPath, response, false)
-          .then(data => {
-            session.setUserData(data);
-            auth._startTokenRefresher();
-            deferred.resolve(data);
-          })
-          .fail(err => {
-            deferred.reject(err);
-          })
-        });
-
-        return deferred.promise();        
-    });
-  },
-
-  login(name, password, token){
-    auth._stopTokenRefresher();
-    session.clear();
-
-    var data = {
-      user: name,
+  login(email, password, token){
+    const data = {
+      user: email,
       pass: password,
       second_factor_token: token
     };
-
-    return api.post(cfg.api.sessionPath, data, false).then(data=>{
-      session.setUserData(data);
-      this._startTokenRefresher();
-      return data;
-    });
+    
+    return api.post(cfg.api.sessionPath, data, false);
   },
 
-  loginWithU2f(name, password){
-    auth._stopTokenRefresher();
-    session.clear();
-
-    var data = {
+  loginWithU2f(name, password){    
+    const data = {
       user: name,
       pass: password
     };
 
     return api.post(cfg.api.u2fSessionChallengePath, data, false).then(data=>{
-      var deferred = $.Deferred();
+      const deferred = $.Deferred();
 
       window.u2f.sign(data.appId, data.challenge, [data], function(res){
         if(res.errorCode){
-          var err = auth._getU2fErr(res.errorCode);
+          const err = auth._getU2fErr(res.errorCode);
           deferred.reject(err);
           return;
         }
 
-        var response = {
+        const response = {
           user: name,
           u2f_sign_response: res
         };
 
-        api.post(cfg.api.u2fSessionPath, response, false).then(data=>{
-          session.setUserData(data);
-          auth._startTokenRefresher();
+        api.post(cfg.api.u2fSessionPath, response, false).then(data=>{                    
           deferred.resolve(data);
         }).fail(data=>{
           deferred.reject(data);
@@ -133,87 +66,45 @@ const auth = {
     });
   },
 
-  ensureUser(){
-    this._stopTokenRefresher();
+  acceptInvite(name, password, token, inviteToken){
+    const data = {
+      invite_token: inviteToken,      
+      pass: password,      
+      second_factor_token: token,
+      user: name,      
+    };
 
-    let userData = session.getUserData();
-    
-    if(!userData.token){
-      return $.Deferred().reject();
-    }
-    
-    if(this._shouldRefreshToken(userData)){
-      return this._refreshToken().done(this._startTokenRefresher);
-    }
-
-    this._startTokenRefresher();
-    return $.Deferred().resolve(userData);    
+    return api.post(cfg.api.createUserPath, data, false);      
   },
 
-  logout(){
-    logger.info('logout()');
-    api.delete(cfg.api.sessionPath).always(()=>{
-      history.push(cfg.routes.login, true);    
-    });
-    session.clear();
-    auth._stopTokenRefresher();
-  },
-  
-  _shouldRefreshToken({ expires_in, created } ){
-    if(!created || !expires_in){
-      return true;
-    }
-    
-    expires_in = expires_in * 1000;
-
-    var delta = created + expires_in - new Date().getTime();
-
-    // give some extra time for slow connection  
-    return delta < CHECK_TOKEN_REFRESH_RATE * 3;
-  },
-
-  _startTokenRefresher(){
-    refreshTokenTimerId = setInterval(() => {      
-      // check if barer-token needs to be renewed
-      auth.ensureUser();
-      // extra ping to a server to see of logout was triggered from another tab
-      auth._checkStatus();
-    }, CHECK_TOKEN_REFRESH_RATE);        
-  },
-
-  _stopTokenRefresher(){
-    clearInterval(refreshTokenTimerId);
-    refreshTokenTimerId = null;
-  },
-
-  _checkStatus(){
-    // do not attemp to fetch the status with potentially invalid token
-    // as it will trigger logout action.
-    if(localStorage.getItem(AUTH_IS_RENEWING) !== null){
-      return;
-    }
-    
-    api.get(cfg.api.userStatus)          
-      .fail(err => {              
-        // indicates that user session is no longer valid
-        if(err.status == 403){
-          auth.logout();
-        }
-      });
-  },
-
-  _refreshToken() {
-    localStorage.setItem(AUTH_IS_RENEWING, true);
-    return api.post(cfg.api.renewTokenPath)
+  acceptInviteWithU2f(name, password, inviteToken){
+    return api.get(cfg.api.getU2fCreateUserChallengeUrl(inviteToken))
       .then(data => {
-        session.setUserData(data);        
-        return data;
-      })
-      .fail(() => {
-        auth.logout();
-      })
-      .always(() => {
-        localStorage.removeItem(AUTH_IS_RENEWING);
+        const deferred = $.Deferred();        
+        window.u2f.register(data.appId, [data], [], function(res){        
+          if (res.errorCode) {
+            const err = auth._getU2fErr(res.errorCode);
+            deferred.reject(err);
+            return;
+          }
+
+          const response = {
+            user: name,
+            pass: password,
+            u2f_register_response: res,
+            invite_token: inviteToken
+          };
+
+          api.post(cfg.api.u2fCreateUserPath, response, false)
+            .then(data => {                        
+              deferred.resolve(data);
+            })
+            .fail(err => {
+              deferred.reject(err);
+            })
+          });
+
+          return deferred.promise();        
       });
   },
 
@@ -226,7 +117,7 @@ const auth = {
       }
     }
 
-    let message = `Please check your U2F settings, make sure it is plugged in and you are using the supported browser.\nU2F error: ${errorMsg}`
+    const message = `Please check your U2F settings, make sure it is plugged in and you are using the supported browser.\nU2F error: ${errorMsg}`
 
     return {
       responseJSON: {
@@ -237,4 +128,3 @@ const auth = {
 }
 
 export default auth;
-

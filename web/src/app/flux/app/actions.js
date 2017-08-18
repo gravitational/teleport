@@ -14,27 +14,26 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import $ from 'jQuery';
 import reactor from 'app/reactor';
-import auth from 'app/services/auth';
 import { showError } from 'app/flux/notifications/actions';
-import { TLPT_APP_SET_SITE_ID } from './actionTypes';
+import { SET_SITE_ID } from './actionTypes';
 import { TRYING_TO_INIT_APP } from 'app/flux/restApi/constants';
-import { TLPT_SITES_RECEIVE } from './../sites/actionTypes';
+import { RECEIVE_CLUSTERS } from './../sites/actionTypes';
+import { RECEIVE_USER } from './../user/actionTypes';
+import { RECEIVE_USERACL } from './../userAcl/actionTypes';
 import api from 'app/services/api';
 import cfg from 'app/config';
 import restApiActions from 'app/flux/restApi/actions';
 import { fetchNodes } from './../nodes/actions';
-import { fetchAcl } from './../userAcl/actions'
 import { fetchActiveSessions } from 'app/flux/sessions/actions';
-
-import $ from 'jQuery';
 
 const logger = require('app/lib/logger').create('flux/app');
 
 const actions = {
 
   setSiteId(siteId) {
-    reactor.dispatch(TLPT_APP_SET_SITE_ID, siteId);    
+    reactor.dispatch(SET_SITE_ID, siteId);    
   },
 
   initApp(nextState) {
@@ -42,11 +41,10 @@ const actions = {
     restApiActions.start(TRYING_TO_INIT_APP);    
     
     // get the list of available clusters        
-    return $.when(actions.fetchSites(), fetchAcl())
+    return $.when(actions.fetchSites(), actions.fetchUserContext())
       .then(masterSiteId => {         
-        siteId = siteId || masterSiteId;
-        reactor.dispatch(TLPT_APP_SET_SITE_ID, siteId);
-        // fetch nodes and active sessions 
+        const selectedCluster = siteId || masterSiteId;
+        actions.setSiteId(selectedCluster);                
         return $.when(fetchNodes(), fetchActiveSessions());
       })
       .done(() => {
@@ -59,11 +57,13 @@ const actions = {
   },
   
   refresh() {
-    actions.fetchSites();
-    fetchActiveSessions();          
-    fetchNodes();  
+    return $.when(
+      actions.fetchSites(),
+      fetchActiveSessions(),
+      fetchNodes()
+    )    
   },
-  
+    
   fetchSites(){
     return api.get(cfg.api.sitesBasePath)
       .then(json => {
@@ -73,7 +73,7 @@ const actions = {
           masterSiteId = sites[0].name;
         }
                 
-        reactor.dispatch(TLPT_SITES_RECEIVE, sites);
+        reactor.dispatch(RECEIVE_CLUSTERS, sites);
         
         return masterSiteId;
     })
@@ -83,15 +83,12 @@ const actions = {
     })    
   },
 
-  resetApp() {    
-    // reset  reactor
-    reactor.reset();
-  },
-    
-  logoutUser(){
-    actions.resetApp();
-    auth.logout();
-  }
+  fetchUserContext(){
+    return api.get(cfg.api.userContextPath).done(json=>{      
+      reactor.dispatch(RECEIVE_USER, { name: json.userName });
+      reactor.dispatch(RECEIVE_USERACL, json.userAcl);
+    })    
+  }      
 }
 
 export default actions;

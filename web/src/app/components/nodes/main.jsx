@@ -18,6 +18,8 @@ import React from 'react';
 import { connect } from 'nuclear-js-react-addons';
 import userAclGetters from 'app/flux/userAcl/getters';
 import nodeGetters from 'app/flux/nodes/getters';
+import appGetters from 'app/flux/app/getters';
+
 import NodeList from './nodeList.jsx';
 
 const Nodes = props => {  
@@ -37,6 +39,7 @@ const Nodes = props => {
 
 function mapStateToProps() {
   return {    
+    siteId: appGetters.siteId,
     nodeRecords: nodeGetters.nodeListView,
     aclStore: userAclGetters.userAcl     
   }

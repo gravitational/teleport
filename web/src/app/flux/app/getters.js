@@ -18,6 +18,6 @@ import { TRYING_TO_INIT_APP } from 'app/flux/restApi/constants';
 import { requestStatus } from 'app/flux/restApi/getters';
 
 export default {
-  initAttemp: requestStatus(TRYING_TO_INIT_APP),
+  initAttempt: requestStatus(TRYING_TO_INIT_APP),
   siteId: ['tlpt', 'siteId']
 }

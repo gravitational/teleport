@@ -17,11 +17,11 @@ limitations under the License.
 import React, { Component } from 'react';
 import { connect } from 'nuclear-js-react-addons';
 import cfg from 'app/config'
-import { getters } from 'app/flux/app';
+import appGetters from 'app/flux/app/getters';
 import { refresh } from 'app/flux/app/actions';
 import NavLeftBar from './navLeftBar';
 import NotificationHost from './notificationHost.jsx';
-import Timer from './timer.jsx';
+import AjaxPoller from './dataProvider.jsx';
 import { Failed } from './msgPage.jsx';
 import Indicator from './indicator.jsx';
 
@@ -37,7 +37,7 @@ class App extends Component {
   }
 
   render() {    
-    const { isProcessing, isSuccess, isFailed, message } = this.props.initAttemp;
+    const { isProcessing, isSuccess, isFailed, message } = this.props.initAttempt;
         
     if (isProcessing) {      
       return (
@@ -54,7 +54,7 @@ class App extends Component {
     if (isSuccess) {
       return (
         <div className="grv-tlpt grv-flex grv-flex-row">
-          <Timer onTimeout={refresh} interval={4000}/>
+          <AjaxPoller onFetch={refresh} time={4000}/>
           <NotificationHost />
           {this.props.CurrentSessionHost}
           <NavLeftBar items={this.getMenuItems()} />
@@ -70,7 +70,7 @@ class App extends Component {
 
 function mapStateToProps() {
   return {    
-    initAttemp: getters.initAttemp      
+    initAttempt: appGetters.initAttempt      
   }
 }
 

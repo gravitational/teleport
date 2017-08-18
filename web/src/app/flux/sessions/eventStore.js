@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import { Store, toImmutable } from 'nuclear-js';
-import { TLPT_SESSIONS_EVENTS_RECEIVE } from './actionTypes';
+import { RECEIVE_SITE_EVENTS } from './actionTypes';
     
 export default Store({
   getInitialState() {
@@ -23,12 +23,12 @@ export default Store({
   },
 
   initialize() {
-    this.on(TLPT_SESSIONS_EVENTS_RECEIVE, receive);        
+    this.on(RECEIVE_SITE_EVENTS, receive);        
   }
 })
 
 function receive(state, { json }) { 
-  let jsonEvents = json || [];  
+  let jsonEvents = json || [];    
   return state.withMutations(state => {
     jsonEvents.forEach(item => {      
       let { sid, event } = item;
