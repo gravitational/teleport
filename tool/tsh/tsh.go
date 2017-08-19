@@ -217,6 +217,10 @@ func Run(args []string, underTest bool) {
 	bench.Flag("rate", "Requests per second rate").Default("10").IntVar(&cf.BenchRate)
 	bench.Flag("interactive", "Create interactive SSH session").BoolVar(&cf.BenchInteractive)
 
+	// show key
+	show := app.Command("show", "Read an identity from file and print to stdout").Hidden()
+	show.Arg("identity_file", "The file containing a public key or a certificate").Required().StringVar(&cf.IdentityFileIn)
+
 	// parse CLI commands+flags:
 	command, err := app.Parse(args)
 	if err != nil {
@@ -274,6 +278,8 @@ func Run(args []string, underTest bool) {
 	case logout.FullCommand():
 		refuseArgs(logout.FullCommand(), args)
 		onLogout(&cf)
+	case show.FullCommand():
+		onShow(&cf)
 	}
 }
 
@@ -801,4 +807,31 @@ func authFromIdentity(k *client.Key) (ssh.AuthMethod, error) {
 		return nil, trace.Wrap(err)
 	}
 	return client.NewAuthMethodForCert(signer), nil
+}
+
+// onShow reads an identity file (a public SSH key or a cert) and dumps it to stdout
+func onShow(cf *CLIConf) {
+	key, _, err := loadIdentity(cf.IdentityFileIn)
+
+	// unmarshal certificate bytes into a ssh.PublicKey
+	cert, _, _, _, err := ssh.ParseAuthorizedKey(key.Cert)
+	if err != nil {
+		utils.FatalError(err)
+	}
+
+	// unmarshal private key bytes into a *rsa.PrivateKey
+	priv, err := ssh.ParseRawPrivateKey(key.Priv)
+	if err != nil {
+		utils.FatalError(err)
+	}
+
+	pub, err := ssh.ParsePublicKey(key.Pub)
+	if err != nil {
+		utils.FatalError(err)
+	}
+
+	fmt.Printf("Cert: %#v\nPriv: %#v\nPub: %#v\n",
+		cert, priv, pub)
+
+	fmt.Printf("Fingerprint: %s\n", ssh.FingerprintSHA256(pub))
 }
