@@ -97,7 +97,7 @@ func (s *KeyAgentTestSuite) TestAddKey(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// check that the key has been written to disk
-	for _, ext := range []string{fileExtCert, fileExtKey, fileExtPub} {
+	for _, ext := range []string{fileExtCert, "", fileExtPub} {
 		_, err := os.Stat(fmt.Sprintf("%v/keys/%v/%v%v", s.keyDir, s.hostname, s.username, ext))
 		c.Assert(err, check.IsNil)
 	}

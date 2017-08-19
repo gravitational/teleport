@@ -38,8 +38,7 @@ import (
 
 const (
 	defaultKeyDir      = ProfileDir
-	fileExtCert        = ".cert"
-	fileExtKey         = ".key"
+	fileExtCert        = "-cert.pub"
 	fileExtPub         = ".pub"
 	sessionKeyDir      = "keys"
 	fileNameKnownHosts = "known_hosts"
@@ -152,7 +151,7 @@ func (fs *FSLocalKeyStore) AddKey(host, username string, key *Key) error {
 	if err = writeBytes(username+fileExtPub, key.Pub); err != nil {
 		return trace.Wrap(err)
 	}
-	if err = writeBytes(username+fileExtKey, key.Priv); err != nil {
+	if err = writeBytes(username, key.Priv); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -167,7 +166,7 @@ func (fs *FSLocalKeyStore) DeleteKey(host string, username string) error {
 	files := []string{
 		filepath.Join(dirPath, username+fileExtCert),
 		filepath.Join(dirPath, username+fileExtPub),
-		filepath.Join(dirPath, username+fileExtKey),
+		filepath.Join(dirPath, username),
 	}
 	for _, fn := range files {
 		if err = os.Remove(fn); err != nil {
@@ -195,7 +194,7 @@ func (fs *FSLocalKeyStore) GetKey(host, username string) (*Key, error) {
 		log.Error(err)
 		return nil, trace.Wrap(err)
 	}
-	priv, err := ioutil.ReadFile(filepath.Join(dirPath, username+fileExtKey))
+	priv, err := ioutil.ReadFile(filepath.Join(dirPath, username))
 	if err != nil {
 		log.Error(err)
 		return nil, trace.Wrap(err)
