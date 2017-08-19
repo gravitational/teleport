@@ -202,7 +202,7 @@ func Run(args []string, underTest bool) {
 	login.Flag("out", "Identity output").Short('o').StringVar(&cf.IdentityFileOut)
 	login.Flag("format", fmt.Sprintf("Identity format [%s] or %s (for OpenSSH compatibility)",
 		client.DefaultIdentityFormat,
-		client.IdentityFormatDir)).Default(string(client.DefaultIdentityFormat)).StringVar((*string)(&cf.IdentityFormat))
+		client.IdentityFormatOpenSSH)).Default(string(client.DefaultIdentityFormat)).StringVar((*string)(&cf.IdentityFormat))
 
 	// logout deletes obtained session certificates in ~/.tsh
 	logout := app.Command("logout", "Delete a cluster certificate")
@@ -297,10 +297,10 @@ func onLogin(cf *CLIConf) {
 	)
 
 	if cf.IdentityFileIn != "" {
-		utils.FatalError(trace.BadParameter("-i flag cannot be used with login"))
+		utils.FatalError(trace.BadParameter("-i flag cannot be used here"))
 	}
 
-	if cf.IdentityFormat != client.IdentityFormatDir && cf.IdentityFormat != client.IdentityFormatFile {
+	if cf.IdentityFormat != client.IdentityFormatOpenSSH && cf.IdentityFormat != client.IdentityFormatFile {
 		utils.FatalError(trace.BadParameter("invalid identity format: %s", cf.IdentityFormat))
 	}
 
