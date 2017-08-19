@@ -63,14 +63,18 @@ docs: bbox
 .PHONY:run-docs
 run-docs: bbox
 	@echo -e "\n\n----> LIVE EDIT HERE: http://localhost:6600/admin-guide/\n"
-	docker run $(DOCKERFLAGS) -ti $(NOROOT) -e HOME=$(SRCDIR)/build.assets -p 6600:6600 -w $(SRCDIR) $(BBOX) mkdocs serve -a 0.0.0.0:6600
+	docker run $(DOCKERFLAGS) -ti $(NOROOT) \
+		-e HOME=$(SRCDIR)/build.assets \
+		-p 6600:6600 \
+		-w $(SRCDIR) \
+		$(BBOX) docs/run.sh
 
 #
 # Starts shell inside the build container
 #
 .PHONY:enter
 enter: bbox
-	docker run $(DOCKERFLAGS) -ti $(NOROOT) $(BBOX) /bin/bash
+	docker run $(DOCKERFLAGS) -ti $(NOROOT) -e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BBOX) /bin/bash
 
 #
 # Create a teleport package using the build container

@@ -21,10 +21,8 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"path/filepath"
 
 	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
 
@@ -48,9 +46,9 @@ const (
 	// IdentityFormatFile is when a key + cert are stored concatenated into a single file
 	IdentityFormatFile IdentityFileFormat = "file"
 
-	// IdentityFormatDir is OpenSSH-compatible format, when a key and a cert are stored in
+	// IdentityFormatOpenSSH is OpenSSH-compatible format, when a key and a cert are stored in
 	// two different files (in the same directory)
-	IdentityFormatDir IdentityFileFormat = "dir"
+	IdentityFormatOpenSSH IdentityFileFormat = "openssh"
 
 	// DefaultIdentityFormat is what Teleport uses by default
 	DefaultIdentityFormat = IdentityFormatFile
@@ -64,18 +62,25 @@ func MakeIdentityFile(username, filePath string, key *Key, format IdentityFileFo
 		fileMode = 0600
 		dirMode  = 0700
 	)
+
+	if filePath == "" {
+		return trace.BadParameter("identity location is not specified")
+	}
+	if username == "" {
+		return trace.BadParameter("identity name is not specified")
+	}
+
 	var output io.Writer = os.Stdout
 	switch format {
 	// dump user identity into a single file:
 	case IdentityFormatFile:
-		if filePath != "" {
-			f, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY, fileMode)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			output = f
-			defer f.Close()
+		f, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY, fileMode)
+		if err != nil {
+			return trace.Wrap(err)
 		}
+		output = f
+		defer f.Close()
+
 		// write key:
 		if _, err = output.Write(key.Priv); err != nil {
 			return trace.Wrap(err)
@@ -85,20 +90,9 @@ func MakeIdentityFile(username, filePath string, key *Key, format IdentityFileFo
 			return trace.Wrap(err)
 		}
 	// dump user identity into separate files:
-	case IdentityFormatDir:
-		certPath := username + "-cert.pub"
-		keyPath := username
-
-		// --out flag
-		if filePath != "" {
-			if !utils.IsDir(filePath) {
-				if err = os.MkdirAll(filePath, dirMode); err != nil {
-					return trace.Wrap(err)
-				}
-			}
-			certPath = filepath.Join(filePath, certPath)
-			keyPath = filepath.Join(filePath, keyPath)
-		}
+	case IdentityFormatOpenSSH:
+		keyPath := filePath
+		certPath := keyPath + "-cert.pub"
 
 		err = ioutil.WriteFile(certPath, key.Cert, fileMode)
 		if err != nil {

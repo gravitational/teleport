@@ -200,7 +200,9 @@ func Run(args []string, underTest bool) {
 	// stored in ~/.tsh directory
 	login := app.Command("login", "Log in to a cluster and retreive the session certificate")
 	login.Flag("out", "Identity output").Short('o').StringVar(&cf.IdentityFileOut)
-	login.Flag("format", "Identity format").Default(string(client.DefaultIdentityFormat)).StringVar((*string)(&cf.IdentityFormat))
+	login.Flag("format", fmt.Sprintf("Identity format [%s] or %s (for OpenSSH compatibility)",
+		client.DefaultIdentityFormat,
+		client.IdentityFormatOpenSSH)).Default(string(client.DefaultIdentityFormat)).StringVar((*string)(&cf.IdentityFormat))
 
 	// logout deletes obtained session certificates in ~/.tsh
 	logout := app.Command("logout", "Delete a cluster certificate")
@@ -214,6 +216,10 @@ func Run(args []string, underTest bool) {
 	bench.Flag("duration", "Test duration").Default("1s").DurationVar(&cf.BenchDuration)
 	bench.Flag("rate", "Requests per second rate").Default("10").IntVar(&cf.BenchRate)
 	bench.Flag("interactive", "Create interactive SSH session").BoolVar(&cf.BenchInteractive)
+
+	// show key
+	show := app.Command("show", "Read an identity from file and print to stdout").Hidden()
+	show.Arg("identity_file", "The file containing a public key or a certificate").Required().StringVar(&cf.IdentityFileIn)
 
 	// parse CLI commands+flags:
 	command, err := app.Parse(args)
@@ -272,6 +278,8 @@ func Run(args []string, underTest bool) {
 	case logout.FullCommand():
 		refuseArgs(logout.FullCommand(), args)
 		onLogout(&cf)
+	case show.FullCommand():
+		onShow(&cf)
 	}
 }
 
@@ -295,13 +303,21 @@ func onLogin(cf *CLIConf) {
 	)
 
 	if cf.IdentityFileIn != "" {
-		utils.FatalError(trace.BadParameter("-i flag cannot be used with login"))
+		utils.FatalError(trace.BadParameter("-i flag cannot be used here"))
+	}
+
+	if cf.IdentityFormat != client.IdentityFormatOpenSSH && cf.IdentityFormat != client.IdentityFormatFile {
+		utils.FatalError(trace.BadParameter("invalid identity format: %s", cf.IdentityFormat))
 	}
 
 	// make the teleport client and retreive the certificate from the proxy:
 	tc, err = makeClient(cf, true)
 	if err != nil {
 		utils.FatalError(err)
+	}
+
+	if cf.Username == "" {
+		cf.Username = tc.Username
 	}
 
 	// -i flag specified? save the retreived cert into an identity file
@@ -791,4 +807,31 @@ func authFromIdentity(k *client.Key) (ssh.AuthMethod, error) {
 		return nil, trace.Wrap(err)
 	}
 	return client.NewAuthMethodForCert(signer), nil
+}
+
+// onShow reads an identity file (a public SSH key or a cert) and dumps it to stdout
+func onShow(cf *CLIConf) {
+	key, _, err := loadIdentity(cf.IdentityFileIn)
+
+	// unmarshal certificate bytes into a ssh.PublicKey
+	cert, _, _, _, err := ssh.ParseAuthorizedKey(key.Cert)
+	if err != nil {
+		utils.FatalError(err)
+	}
+
+	// unmarshal private key bytes into a *rsa.PrivateKey
+	priv, err := ssh.ParseRawPrivateKey(key.Priv)
+	if err != nil {
+		utils.FatalError(err)
+	}
+
+	pub, err := ssh.ParsePublicKey(key.Pub)
+	if err != nil {
+		utils.FatalError(err)
+	}
+
+	fmt.Printf("Cert: %#v\nPriv: %#v\nPub: %#v\n",
+		cert, priv, pub)
+
+	fmt.Printf("Fingerprint: %s\n", ssh.FingerprintSHA256(pub))
 }

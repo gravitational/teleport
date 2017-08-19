@@ -44,3 +44,6 @@ _testmain.go
 *.prof
 *.tmp
 flymake*
+
+# mkdocs
+docs/latest.yaml

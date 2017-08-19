@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
-Restart=always
+Restart=on-failure
 ExecStart=/usr/local/bin/teleport start --config=/etc/teleport.yaml
 
 [Install]

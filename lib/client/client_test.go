@@ -18,6 +18,7 @@ limitations under the License.
 package client
 
 import (
+	"io/ioutil"
 	"os"
 
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -26,6 +27,7 @@ import (
 )
 
 type ClientTestSuite struct {
+	client *TeleportClient
 }
 
 var _ = check.Suite(&ClientTestSuite{})
@@ -33,6 +35,17 @@ var _ = check.Suite(&ClientTestSuite{})
 func (s *ClientTestSuite) TestHelperFunctions(c *check.C) {
 	c.Assert(nodeName("one"), check.Equals, "one")
 	c.Assert(nodeName("one:22"), check.Equals, "one")
+}
+
+func (s *ClientTestSuite) SetUpSuite(c *check.C) {
+	// create the client:
+	client, err := NewClient(&Config{
+		ProxyHostPort: "localhost:3023",
+		KeysDir:       c.MkDir(),
+	})
+	c.Assert(err, check.IsNil)
+	c.Assert(client, check.NotNil)
+	s.client = client
 }
 
 func (s *ClientTestSuite) TestNewSession(c *check.C) {
@@ -61,4 +74,38 @@ func (s *ClientTestSuite) TestNewSession(c *check.C) {
 	c.Assert(ses.env, check.DeepEquals, env)
 	// the session ID must be taken from tne environ map, if passed:
 	c.Assert(string(ses.id), check.Equals, "session-id")
+}
+
+func (s *ClientTestSuite) TestIdentityFileMaking(c *check.C) {
+	keyFilePath := c.MkDir() + "openssh"
+	username := "joeuser"
+
+	var key Key
+	key.Cert = []byte("cert")
+	key.Priv = []byte("priv")
+	key.Pub = []byte("pub")
+
+	// test OpenSSH-compatible identity file creation:
+	err := MakeIdentityFile(username, keyFilePath, &key, IdentityFormatOpenSSH)
+	c.Assert(err, check.IsNil)
+
+	// key is OK:
+	out, err := ioutil.ReadFile(keyFilePath)
+	c.Assert(err, check.IsNil)
+	c.Assert(string(out), check.Equals, "priv")
+
+	// cert is OK:
+	out, err = ioutil.ReadFile(keyFilePath + "-cert.pub")
+	c.Assert(err, check.IsNil)
+	c.Assert(string(out), check.Equals, "cert")
+
+	// test standard Teleport identity file creation:
+	keyFilePath = c.MkDir() + "file"
+	err = MakeIdentityFile(username, keyFilePath, &key, IdentityFormatFile)
+	c.Assert(err, check.IsNil)
+
+	// key+cert are OK:
+	out, err = ioutil.ReadFile(keyFilePath)
+	c.Assert(err, check.IsNil)
+	c.Assert(string(out), check.Equals, "privcert")
 }

@@ -130,7 +130,7 @@ func (proxy *ProxyClient) FindServersByLabels(ctx context.Context, namespace str
 // and could be cached based on the access policy
 func (proxy *ProxyClient) ClusterAccessPoint(ctx context.Context, quiet bool) (auth.AccessPoint, error) {
 	// get the current cluster:
-	clusterName, err := proxy.currentCluster()
+	cluster, err := proxy.currentCluster()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -138,7 +138,7 @@ func (proxy *ProxyClient) ClusterAccessPoint(ctx context.Context, quiet bool) (a
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return proxy.teleportClient.accessPoint(clt, clusterName.Name)
+	return proxy.teleportClient.accessPoint(clt, proxy.proxyAddress, cluster.Name)
 }
 
 // ConnectToSite connects to the auth server of the given site via proxy.

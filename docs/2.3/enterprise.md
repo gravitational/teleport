@@ -3,10 +3,6 @@
 This chapter covers Teleport features that are only available in the commercial
 edition of Teleport, called "Teleport Enterprise".
 
-!!! warning "Version Warning":
-    This chapter covers Teleport Enterprise 2.2. We highly recommend evaluating
-    the [latest](../docs/enterprise) version instead.
-
 Below is the full list of features that are only available to users of 
 Teleport Enterprise:
 
@@ -186,14 +182,11 @@ Two resources are supported currently:
 
 ### Authentication Preferences
 
-Using dynamic configuration you can also view and change the type of cluster
-authentication Teleport supports at runtime.
+Using dynamic configuration you can also view and change the type of cluster authentication Teleport supports at runtime.
 
 #### Viewing Authentication Preferences
 
-You can query the Cluster Authentication Preferences (abbreviated `cap`)
-resource using `tctl` to find out what your current authentication preferences
-are.
+You can query the Cluster Authentication Preferences (abbreviated `cap`) resource using `tctl` to find out what your current authentication preferences are.
 
 ```
 $ tctl get cap
@@ -202,9 +195,7 @@ Type      Second Factor
 local     u2f
 ```
 
-In the above example we are using local accounts and the Second Factor used is
-Universal Second Factor (U2F, abbreviated `u2f`), once again to drill down and
-get more details you can use `tctl`:
+In the above example we are using local accounts and the Second Factor used is Universal Second Factor (U2F, abbreviated `u2f`), once again to drill down and get more details you can use `tctl`:
 
 ```
 $ tctl get u2f
@@ -215,9 +206,7 @@ https://localhost:3080     ["https://localhost" "https://localhost:3080"]
 
 #### Updating Authentication Preferences
 
-To update Cluster Authentication Preferences, you'll need to update the
-resources you viewed before. You can do that creating the following file on
-disk and then update the backend with `tctl create -f {filename}`.
+To update Cluster Authentication Preferences, you'll need to update the resources you viewed before. You can do that creating the following file on disk and then update the backend with `tctl create -f {filename}`.
 
 ```yaml
 kind: cluster_auth_preference
@@ -246,8 +235,7 @@ spec:
   facets: ["https://localhost", "https://localhost:3080"]
 ```
 
-If you are not using local accounts but rather an external identity provider
-like OIDC, you'll need to create an OIDC resource like below.
+If you are not using local accounts but rather an external identity provider like OIDC, you'll need to create an OIDC resource like below.
 
 ```yaml
 kind: oidc

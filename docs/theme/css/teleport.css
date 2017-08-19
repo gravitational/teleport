@@ -395,3 +395,7 @@ img[src$="grv-image-center-lg"] {
     margin: 0 auto;        
     border-radius: 5px;
 }
+
+/* correct syntax highlighting */
+code.bash span.hljs-built_in { color: #333 }
+code.bash span.hljs-number { color: #333 }

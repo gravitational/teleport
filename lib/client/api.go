@@ -382,7 +382,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 }
 
 // accessPoint returns access point based on the cache policy
-func (tc *TeleportClient) accessPoint(clt auth.AccessPoint, clusterName string) (auth.AccessPoint, error) {
+func (tc *TeleportClient) accessPoint(clt auth.AccessPoint, proxyHostPort string, clusterName string) (auth.AccessPoint, error) {
 	if tc.CachePolicy == nil {
 		log.Debugf("not using caching access point")
 		return clt, nil
@@ -391,7 +391,8 @@ func (tc *TeleportClient) accessPoint(clt auth.AccessPoint, clusterName string) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	path := filepath.Join(dirPath, "cache", clusterName)
+	path := filepath.Join(dirPath, "cache", proxyHostPort, clusterName)
+
 	log.Debugf("using caching access point %v", path)
 	cacheBackend, err := dir.New(backend.Params{"path": path})
 	if err != nil {
