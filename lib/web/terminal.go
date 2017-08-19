@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -68,16 +67,16 @@ func newTerminal(req terminalRequest,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var server *services.Server
+
+	var hostName = req.ServerID
 	for i := range servers {
 		node := servers[i]
 		if node.GetName() == req.ServerID {
-			server = &node
+			hostName = node.GetHostname()
+			break
 		}
 	}
-	if server == nil {
-		return nil, trace.NotFound("node '%v' not found", req.ServerID)
-	}
+
 	if req.Login == "" {
 		return nil, trace.BadParameter("login: missing login")
 	}
@@ -90,10 +89,10 @@ func newTerminal(req terminalRequest,
 		return nil, trace.BadParameter("sid: invalid session id")
 	}
 	return &terminalHandler{
-		params: req,
-		ctx:    ctx,
-		site:   site,
-		server: *server,
+		params:   req,
+		ctx:      ctx,
+		site:     site,
+		hostname: hostName,
 	}, nil
 }
 
@@ -111,8 +110,8 @@ type terminalHandler struct {
 
 	// site/cluster we're connected to
 	site reversetunnel.RemoteSite
-	// server we're connected to
-	server services.Server
+	// hostname we're connected to
+	hostname string
 
 	// sshClient is initialized after an SSH connection to a node is established
 	sshSession *ssh.Session
@@ -185,7 +184,7 @@ func (t *terminalHandler) Run(w http.ResponseWriter, r *http.Request) {
 			Stdin:            ws,
 			SiteName:         t.site.GetName(),
 			ProxyHostPort:    t.params.ProxyHostPort,
-			Host:             t.server.GetHostname(),
+			Host:             t.hostname,
 			Env:              map[string]string{sshutils.SessionEnvVar: string(t.params.SessionID)},
 			HostKeyCallback:  func(string, net.Addr, ssh.PublicKey) error { return nil },
 			ClientAddr:       r.RemoteAddr,

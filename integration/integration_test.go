@@ -727,8 +727,8 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 	err = trustedCluster.CheckAndSetDefaults()
 	c.Assert(err, check.IsNil)
 
-	// try and upsert a trusted cluster multiple times
-	var upsertSuccessCount int
+	// try and upsert a trusted cluster
+	var upsertSuccess bool
 	for i := 0; i < 10; i++ {
 		log.Debugf("Will create trusted cluster %v, attempt %v", trustedCluster, i)
 		err = aux.Process.GetAuthServer().UpsertTrustedCluster(trustedCluster)
@@ -739,10 +739,11 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 			}
 			c.Fatalf("got non connection problem %v", err)
 		}
-		upsertSuccessCount++
+		upsertSuccess = true
+		break
 	}
-	// make sure we upsert a trusted cluster multiple times.
-	c.Assert(upsertSuccessCount > 1, check.Equals, true)
+	// make sure we upsert a trusted cluster
+	c.Assert(upsertSuccess, check.Equals, true)
 
 	nodePorts := s.getPorts(3)
 	sshPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]

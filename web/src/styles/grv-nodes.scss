@@ -20,6 +20,13 @@ limitations under the License.
     align-items: center;       
   }
 
+  .grv-nodes-custom-login{
+    padding: 2px;
+    input{      
+      border-radius: 0;      
+    }
+  }
+
   .grv-nodes-table{
      tbody > tr > td{
         vertical-align: middle;
@@ -47,8 +54,6 @@ limitations under the License.
       .fa-long-arrow-right{
         font-size: 10px;
       }
-
     }
-
   }  
 }

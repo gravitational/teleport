@@ -19,9 +19,10 @@ import { Link } from  'react-router';
 import { sortBy } from 'lodash';
 import { isMatch } from 'app/lib/objectUtils';
 import InputSearch from './../inputSearch';
-import { Table, Column, Cell, SortHeaderCell, SortTypes, EmptyIndicator } from 'app/components/table.jsx';
+import { Table, Column, Cell, TextCell, SortHeaderCell, SortTypes, EmptyIndicator } from 'app/components/table.jsx';
 import ClusterSelector from './../clusterSelector.jsx';
 import cfg from 'app/config';
+import history from 'app/services/history';
 
 const EmptyValue = ({ text='Empty' }) => (    
   <small className="text-muted">
@@ -29,14 +30,8 @@ const EmptyValue = ({ text='Empty' }) => (
   </small>
 );
     
-const TextCell = ({rowIndex, data, columnKey, ...props}) => (
-  <Cell {...props}>
-    {data[rowIndex][columnKey]}
-  </Cell>
-);
-
 const TagCell = ({rowIndex, data, ...props}) => {
-  let { tags } = data[rowIndex];    
+  const { tags } = data[rowIndex];    
   let $content = tags.map((item, index) => (
     <span key={index} title={`${item.role}:${item.value}`} className="label label-default grv-nodes-table-label">
       {item.role} <li className="fa fa-long-arrow-right m-r-xs"/> 
@@ -55,60 +50,76 @@ const TagCell = ({rowIndex, data, ...props}) => {
   )  
 }
 
-const LoginCell = ({logins, rowIndex, data, ...props}) => {
-  if(!logins ||logins.length === 0){
-    return <Cell {...props} />;
+class LoginCell extends React.Component {
+ 
+  onKeyPress = e => {    
+    if (e.key === 'Enter' && e.target.value) {        
+      const url = this.makeUrl(e.target.value);
+      history.push(url);
+    }        
   }
 
-  let { id, siteId } = data[rowIndex];
-  let $lis = [];
-    
-  for (var i = 0; i < logins.length; i++){
-    let termUrl = cfg.getTerminalLoginUrl({
+  onShowLoginsClick = () => {
+    this.refs.customLogin.focus()
+  }
+
+  makeUrl(login) {
+    const { data, rowIndex } = this.props;
+    const { siteId, id } = data[rowIndex];
+    return cfg.getTerminalLoginUrl({
       siteId: siteId,
       serverId: id,
-      login: logins[i]
-    })
-      
-    $lis.push(
-      <li key={i}>        
-        <Link to={termUrl}>
-          {logins[i]}
-        </Link>
-      </li>        
-    );
-  } 
+      login
+    })    
+  }
 
-  let defaultTermUrl = cfg.getTerminalLoginUrl({
-    siteId: siteId,
-    serverId: id,
-    login: logins[0]
-  })
+  render() {  
+    const { logins, ...props } = this.props;                      
+    const $lis = [];    
+    const defaultLogin = logins[0] || 'root';
+    const defaultTermUrl = this.makeUrl(defaultLogin);
 
-  return (
-    <Cell {...props}>
-      <div style={{display: "flex"}}>
-        <div style={{display: "flex"}} className="btn-group">        
-          <Link className="btn btn-xs btn-primary" to={defaultTermUrl}>
-            {logins[0]}
+    for (var i = 0; i < logins.length; i++) {
+      const termUrl = this.makeUrl(logins[i]);      
+      $lis.push(
+        <li key={i}>
+          <Link to={termUrl}>
+            {logins[i]}
           </Link>
-          {
-            $lis.length > 1 ? (
-              [
-                <button key={0} data-toggle="dropdown" className="btn btn-default btn-xs dropdown-toggle" aria-expanded="true">
-                  <span className="caret"></span>
-                </button>,
-                <ul key={1} className="dropdown-menu pull-right">
-                  {$lis}
-                </ul>
-              ] )
-            : null
-          }
+        </li>
+      );
+    }
+        
+    return (
+      <Cell {...props}>
+        <div style={{ display: "flex" }}>
+          <div style={{ display: "flex" }} className="btn-group">
+            <Link className="btn btn-xs btn-primary" to={defaultTermUrl}>
+              {defaultLogin}
+            </Link>                          
+            <button data-toggle="dropdown"
+              onClick={this.onShowLoginsClick}  
+              className="btn btn-default btn-xs dropdown-toggle" aria-expanded="true">
+              <span className="caret"></span>
+            </button>
+            <ul className="dropdown-menu pull-right">
+              <li>
+                <div className="input-group-sm grv-nodes-custom-login">
+                  <input className="form-control" ref="customLogin"
+                    placeholder="Enter login name..."
+                    onKeyPress={this.onKeyPress}
+                    autoFocus
+                    />
+                </div>  
+              </li>
+              {$lis}
+            </ul>                                        
+          </div>
         </div>
-      </div>  
-    </Cell>
-  )
-};
+      </Cell>
+    )
+  }
+}  
 
 class NodeList extends React.Component {
 
@@ -117,8 +128,8 @@ class NodeList extends React.Component {
   constructor(props) {
     super(props);
     this.state = {        
-        filter: '',
-        colSortDirs: { hostname: SortTypes.DESC }
+      filter: '',
+      colSortDirs: { hostname: SortTypes.DESC }
     };
   }
   
@@ -132,26 +143,41 @@ class NodeList extends React.Component {
     this.setState(this.state);
   }
   
+  onKeyPress = e => {
+    if ( (e.key === 'Enter' || e.type === 'click') && this.refs.ssh.value) {            
+      const [login, serverId] = this.refs.ssh.value.split('@');
+        if (login && serverId) {
+          const url = cfg.getTerminalLoginUrl({
+          siteId: this.props.siteId,
+          serverId,
+          login
+        })     
+        
+        history.push(url);        
+      }      
+    }            
+  }
+  
   searchAndFilterCb(targetValue, searchValue, propName){
     if(propName === 'tags'){
       return targetValue.some((item) => {
-        let {role, value} = item;
+        const { role, value } = item;
         return role.toLocaleUpperCase().indexOf(searchValue) !==-1 ||
           value.toLocaleUpperCase().indexOf(searchValue) !==-1;
       });
     }
   }
-
+  
   sortAndFilter(data) {
-    let { colSortDirs } = this.state;    
-    let filtered = data      
+    const { colSortDirs } = this.state;    
+    const filtered = data      
       .filter(obj => isMatch(obj, this.state.filter, {
         searchableProps: this.searchableProps,
         cb: this.searchAndFilterCb
       }));
         
-    let columnKey = Object.getOwnPropertyNames(colSortDirs)[0];
-    let sortDir = colSortDirs[columnKey];
+    const columnKey = Object.getOwnPropertyNames(colSortDirs)[0];
+    const sortDir = colSortDirs[columnKey];
     let sorted = sortBy(filtered, columnKey);
     if(sortDir === SortTypes.ASC){
       sorted = sorted.reverse();
@@ -161,8 +187,8 @@ class NodeList extends React.Component {
   }
 
   render() {      
-    let { nodeRecords, logins, onLoginClick } = this.props;       
-    let data = this.sortAndFilter(nodeRecords);                                     
+    const { nodeRecords, logins, onLoginClick } = this.props;       
+    const data = this.sortAndFilter(nodeRecords);                                     
     return (
       <div className="grv-nodes m-t">                
         <div className="grv-flex grv-header" style={{ justifyContent: "space-between" }}>                    
@@ -170,6 +196,19 @@ class NodeList extends React.Component {
           <div className="grv-flex">
             <ClusterSelector/>  
             <InputSearch onChange={this.onFilterChange} />                        
+            <div className="m-l grv-search input-group input-group-sm" title="login to SSH server">
+              <input ref="ssh"
+                className="form-control" 
+                placeholder="login@host"
+                onKeyPress={this.onKeyPress}                  
+              />                            
+              <span className="input-group-btn"> 
+                <button className="btn btn-sm btn-white" onClick={this.onKeyPress}>                  
+                  <i className="fa fa-terminal text-muted"/>
+                </button>            
+              </span>              
+              </div>
+              
           </div>
         </div>
         <div className="m-t">

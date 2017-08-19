@@ -40,20 +40,22 @@ describe('services/history', function () {
 
   describe('canPush', function () {
         
-    const tryAndExpectBrowserHistoryWith = (actual, expected) => {
-      history.push(actual)
-      expect(browserHistory.push).toHaveBeenCalledWith(expected);
-    }
+    const push = actual => ({
+      andExpect(expected){
+        history.push(actual)
+        expect(browserHistory.push).toHaveBeenCalledWith(expected);
+      }
+    })
     
     it('should push if allowed else fallback to default route', function () {
       history.getRoutes.andReturn(['/valid', '/']);      
-      tryAndExpectBrowserHistoryWith('invalid', fallbackRoute);
-      tryAndExpectBrowserHistoryWith('.', fallbackRoute);
-      tryAndExpectBrowserHistoryWith('/valid/test', fallbackRoute);
-      tryAndExpectBrowserHistoryWith('@#4', fallbackRoute);
-      tryAndExpectBrowserHistoryWith('/valid', '/valid');      
-      tryAndExpectBrowserHistoryWith('', '');      
-      tryAndExpectBrowserHistoryWith('/', '/');      
+      push('invalid').andExpect(fallbackRoute);
+      push('.').andExpect(fallbackRoute);
+      push('/valid/test').andExpect(fallbackRoute);
+      push('@#4').andExpect(fallbackRoute);
+      push('/valid').andExpect('/valid');      
+      push('').andExpect('');      
+      push('/').andExpect('/');      
     })
 
     it('should refresh a page if called withRefresh=true', function () {

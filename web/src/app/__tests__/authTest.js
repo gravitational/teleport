@@ -14,156 +14,134 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import expect from 'expect';
-import $ from 'jQuery';
-import api from 'app/services/api';
-import session from 'app/services/session';
-import auth from 'app/services/auth';
-import history from 'app/services/history';
 import cfg from 'app/config';
+import auth from 'app/services/auth';
+import {reactor, expect, api, Dfd, spyOn} from './';
 
-let spyOn = expect.spyOn;
-
-describe('auth', function () {
-  let sample = { token: 'token', expires_in: 599, created: new Date().getTime() };
-
-  beforeEach(function () {
-    spyOn(session, 'setUserData');
-    spyOn(session, 'getUserData');
-    spyOn(session, 'clear');
-    spyOn(history, 'push');
-    spyOn(api, 'post');
-    spyOn(api, 'get');
-    spyOn(api, 'delete').andReturn($.Deferred().resolve());    
-    spyOn(auth, '_startTokenRefresher');
-    spyOn(auth, '_stopTokenRefresher');                
-    spyOn(auth, '_shouldRefreshToken').andCallThrough();
-  });
-
-  afterEach(function () {
+describe('services/auth', () => {
+  
+  afterEach(() => {
+    reactor.reset();
     expect.restoreSpies();
-  });
+  })
 
-  describe('login(username, password, token)', function () {
-    it('should successfully login and put user data in the session', function () {
-      let token = null;
-      api.post.andReturn($.Deferred().resolve(sample));
-      auth.login('user', 'password').done(()=>{ token = sample.token; });
+  // sample data    
+  const user = 'user@example.com';
+  const password = 'sample_pass';
+  const inviteToken = 'd82e9f81b3826801af8da16cde3335cbffcef5f7e9490e880b3fcc3f894efcfb';
+  const secretToken = 'sample_secret_token';
 
-      expect(token).toEqual(sample.token);
-      expect(auth._startTokenRefresher.calls.length).toEqual(1);
-      expect(getCallArgs(session.setUserData).token, sample.token);
-    });
+  describe('login()', () => {        
+    const user = 'user@example.com';
+    const email = user;    
+    const submitData = {
+      user: email,
+      pass: password,
+      second_factor_token: undefined
+    };
 
-    it('should return rejected promise if failed to log in', function () {
+    it('should login with email', () => {      
+      spyOn(api, 'post').andReturn(Dfd().resolve());            
       let wasCalled = false;
-      api.post.andReturn($.Deferred().reject());
-      auth.login('user', 'password').fail(()=> { wasCalled = true });
-      expect(wasCalled).toEqual(true);
+      auth.login(email, password).done(() => wasCalled = true);
+      expect(api.post).toHaveBeenCalledWith(cfg.api.sessionPath, submitData, false);
+      expect(wasCalled).toBe(true);
     });
-  });
 
-  describe('loginWithU2f(name, password)', function () {
-    let u2fSample = { type: 2, signRequests: -2, timeoutSeconds: -599, requestId: 2 };
-
-    it('should successfully login and put user data in the session', function () {
-      window.u2f = {
-        sign(appId, challenge, registeredKeys, callback) {
-          u2fSample.errorCode = 0;
-          callback(u2fSample);
-        }
+    it('should login with OTP', () => {
+      spyOn(api, 'post');      
+      const data = {        
+        ...submitData,
+        second_factor_token: 'xxx'
       };
 
-      let token = null;
-      api.post.andReturn($.Deferred().resolve(u2fSample));
-      auth.loginWithU2f('user', 'password').done(()=>{ token = u2fSample; });
-
-      expect(token).toEqual(u2fSample);
-      expect(auth._startTokenRefresher.calls.length).toEqual(1);
-      expect(getCallArgs(session.setUserData).token, u2fSample);
-    });
-
-    it('should return rejected promise if failed to login', function () {
-      let wasCalled = false;
-      api.post.andReturn($.Deferred().reject());
-      auth.loginWithU2f('user', 'password').fail(()=> { wasCalled = true });
-      expect(wasCalled).toEqual(true);
-    });
-
-    it('should return rejected promise if u2f api throws an error', function() {
-      window.u2f = {
-	      sign(appId, challenge, registeredKeys, callback) {
-	        callback({errorCode: 1});
-	      }
-      };
-
-      let wasCalled = false;
-      api.post.andReturn($.Deferred().resolve(u2fSample));
-      auth.loginWithU2f('user', 'password').fail(()=> { wasCalled = true });
-      expect(wasCalled).toEqual(true);
+      auth.login(email, password, 'xxx')            
+      expect(api.post).toHaveBeenCalledWith(cfg.api.sessionPath, data, false);
     });
   });
+    
+  describe('loginWithU2f()', () => {
+    it('should login', () => {
+      const dummyResponse = { appId: 'xxx' }
+      spyOn(api, 'post').andReturn(Dfd().resolve(dummyResponse));
+      spyOn(window.u2f, 'sign').andCall((a, b, c, d) => {
+        d(dummyResponse)
+      });
 
-  describe('_checkStatus()', function () {
-    it('should ping the server', function () {
-      api.get.andReturn($.Deferred());                  
-      auth._checkStatus();      
-      expect(api.get).toHaveBeenCalledWith(cfg.api.userStatus);            
+      auth.loginWithU2f(user, password);
+      expect(window.u2f.sign).toHaveBeenCalled();      
+    });    
+
+    it('should handle error', () => {
+      const dummyResponse = { appId: 'xxx' }
+      let wasCalled = false;
+      spyOn(api, 'post').andReturn(Dfd().resolve(dummyResponse));
+      spyOn(window.u2f, 'sign').andCall((a, b, c, d) => {
+        d({ errorCode: '404' })
+      });
+
+      auth.loginWithU2f(user, password).fail(() => wasCalled = true )
+      expect(window.u2f.sign).toHaveBeenCalled();      
+      expect(wasCalled).toBe(true);
+    })
+  })
+      
+  describe('acceptInvite()', () => {
+    it('should accept invite with 2FA', () => {
+      let wasCalled = false;
+      const submitData = {
+        user,
+        pass: password,
+        second_factor_token: secretToken,
+        invite_token: inviteToken
+      }
+      
+      spyOn(api, 'post').andReturn(Dfd().resolve());
+      auth.acceptInvite(user, password, secretToken, inviteToken).done(() => wasCalled = true);    
+      expect(api.post).toHaveBeenCalledWith(cfg.api.createUserPath, submitData, false);    
+      expect(wasCalled).toBe(true);
     });
   })
 
-  describe('ensureUser()', function () {            
-    describe('when token is valid', function () {
-      it('should be resolved', function () {                
-        let wasCalled = false;        
-        session.getUserData.andReturn(sample);                                
-        auth.ensureUser('user', 'password').done(()=> { wasCalled = true });
-
-        expect(wasCalled).toEqual(true);                
-        expect(auth._startTokenRefresher).toHaveBeenCalled();
-        expect(auth._shouldRefreshToken).toHaveBeenCalled();
+  describe('acceptInviteWithU2f()', () => {
+    it('should accept invite with U2F', () => {
+      const appId = 'xxx';
+      const dummyResponse = { appId };
+      let wasCalled = false;
+      spyOn(api, 'post').andReturn(Dfd().resolve());
+      spyOn(api, 'get').andReturn(Dfd().resolve(dummyResponse));
+      spyOn(window.u2f, 'register').andCall((a, b, c, d) => {
+        d(dummyResponse)
       });
+
+      auth.acceptInviteWithU2f(user, password, inviteToken).done(() => wasCalled = true);
+      
+      expect(wasCalled).toBe(true);
+      expect(api.get).toHaveBeenCalledWith(`/v1/webapi/u2f/signuptokens/${inviteToken}`);
+      expect(api.post).toHaveBeenCalledWith("/v1/webapi/u2f/users", {
+        "user": user,
+        "pass": password,
+        "u2f_register_response": {
+          "appId": appId
+        },
+        "invite_token": inviteToken
+      }, false);    
     });
 
-    describe('when token is about to be expired', function () {
-      it('should renew the token', function () {                
-        api.post.andReturn($.Deferred().resolve(sample));
-        session.getUserData.andReturn({
-           ...sample,
-           created: new Date('12/12/2000').getTime()
-         });
-
-        let wasCalled = false;        
-        auth.ensureUser('user', 'password').done(()=> { wasCalled = true });
-
-        expect(wasCalled).toEqual(true);        
-        expect(auth._startTokenRefresher).toHaveBeenCalled();
-        expect(auth._shouldRefreshToken).toHaveBeenCalled();
+    it('should handle error', () => {
+      const appId = 'xxx';
+      const dummyResponse = { appId };
+      let wasCalled = false;
+      spyOn(api, 'post').andReturn(Dfd().resolve());
+      spyOn(api, 'get').andReturn(Dfd().resolve(dummyResponse));
+      spyOn(window.u2f, 'register').andCall((a, b, c, d) => {
+        d({ errorCode: '404' })
       });
-    });
-  
-    describe('when token is missing', function () {
-      it('should reject', function () {                
-        session.getUserData.andReturn({});
-        
-        let wasCalled = false;
-        auth.ensureUser('user', 'password').fail(() => { wasCalled = true });
-        expect(wasCalled).toEqual(true);
-      });
-    });
+
+      auth.acceptInviteWithU2f(user, password, inviteToken).fail(() => wasCalled = true);      
+      expect(wasCalled).toBe(true);
+      expect(api.post).toNotHaveBeenCalled();      
+    })
 
   });
-
-  describe('logout()', function () {
-    it('should clear the session and stop refreshTimer', function () {
-      auth.logout();
-      expect(api.delete.calls.length).toEqual(1);
-      expect(session.clear.calls.length).toEqual(1);
-      expect(auth._stopTokenRefresher.calls.length).toEqual(1);
-    });
-  });
-
-  function getCallArgs(spy){
-    return spy.getLastCall().arguments[0];
-  }
-})
+});

@@ -14,10 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import keyMirror from 'keymirror'
+export const RECEIVE_ACTIVE_SESSIONS = 'TLPT_SESSIONS_RECEIVE_ACTIVE';
+export const UPDATE_ACTIVE_SESSION = 'TLPT_SESSIONS_UPDATE_ACTIVE';
+export const RECEIVE_SITE_EVENTS = 'TLPT_SESSIONS_RECEIVE_EVENTS';
 
-export default keyMirror({      
-  TLPT_SESSIONS_ACTIVE_RECEIVE: null,
-  TLPT_SESSIONS_ACTIVE_UPDATE: null,
-  TLPT_SESSIONS_EVENTS_RECEIVE: null
-})

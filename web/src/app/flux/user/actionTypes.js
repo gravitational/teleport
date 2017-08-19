@@ -14,9 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import keyMirror from 'keymirror'
+export const RECEIVE_USER = 'TLPT_RECEIVE_USER'
+export const RECEIVE_INVITE = 'TLPT_RECEIVE_USER_INVITE'
 
-export default keyMirror({
-  TLPT_RECEIVE_USER: null,
-  TLPT_RECEIVE_USER_INVITE: null
-})

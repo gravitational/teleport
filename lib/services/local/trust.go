@@ -51,6 +51,68 @@ func (s *CA) DeleteCertAuthority(id services.CertAuthID) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	// when removing a services.CertAuthority also remove any deactivated
+	// services.CertAuthority as well if they exist.
+	err = s.DeleteKey([]string{"authorities", "deactivated", string(id.Type)}, id.DomainName)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+// ActivateCertAuthority moves a CertAuthority from the deactivated list to
+// the normal list.
+func (s *CA) ActivateCertAuthority(id services.CertAuthID) error {
+	data, err := s.GetVal([]string{"authorities", "deactivated", string(id.Type)}, id.DomainName)
+	if err != nil {
+		return trace.BadParameter("can not activate CertAuthority which has not been deactivated: %v: %v", id, err)
+	}
+
+	certAuthority, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(data)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = s.UpsertCertAuthority(certAuthority)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = s.DeleteKey([]string{"authorities", "deactivated", string(id.Type)}, id.DomainName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// DeactivateCertAuthority moves a CertAuthority from the normal list to
+// the deactivated list.
+func (s *CA) DeactivateCertAuthority(id services.CertAuthID) error {
+	certAuthority, err := s.GetCertAuthority(id, true)
+	if err != nil {
+		return trace.BadParameter("can not deactivate CertAuthority which does not exist: %v: %v", id, err)
+	}
+
+	data, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(certAuthority)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	ttl := backend.TTL(s.Clock(), certAuthority.GetMetadata().Expires)
+
+	err = s.UpsertVal([]string{"authorities", "deactivated", string(id.Type)}, id.DomainName, data, ttl)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = s.DeleteCertAuthority(id)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 

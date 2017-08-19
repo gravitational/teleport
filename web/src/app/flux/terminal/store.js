@@ -16,7 +16,7 @@ limitations under the License.
 import { Store } from 'nuclear-js';
 import { Record } from 'immutable';
 import cfg from 'app/config';
-import session from 'app/services/session';
+import localStorage from 'app/services/localStorage';
 import reactor from 'app/reactor';
 import { nodeHostNameByServerId } from 'app/flux/nodes/getters';
 import {
@@ -43,13 +43,13 @@ export class TermRec extends Record({
 }) {
   
   getTtyParams(){            
-    let { token } = session.getUserData();  
+    let { accessToken } = localStorage.getBearerToken()
     let ttyParams = {
       serverId: this.serverId,
       login: this.login,
       sid: this.sid,
       url: cfg.api.getSiteUrl(this.siteId),
-      token,      
+      token: accessToken
     }
     
     return ttyParams;

@@ -18,8 +18,8 @@ import { Store, toImmutable } from 'nuclear-js';
 import { Record, List } from 'immutable';
 
 import {
-  TLPT_SESSIONS_ACTIVE_RECEIVE,
-  TLPT_SESSIONS_ACTIVE_UPDATE } from './actionTypes';
+  RECEIVE_ACTIVE_SESSIONS,
+  UPDATE_ACTIVE_SESSION } from './actionTypes';
 
 const ActiveSessionRec = Record({ 
   id: undefined,
@@ -47,8 +47,8 @@ export default Store({
   },
 
   initialize() {    
-    this.on(TLPT_SESSIONS_ACTIVE_RECEIVE, receive);
-    this.on(TLPT_SESSIONS_ACTIVE_UPDATE, updateSession);
+    this.on(RECEIVE_ACTIVE_SESSIONS, receive);
+    this.on(UPDATE_ACTIVE_SESSION, updateSession);
   }
 })
 

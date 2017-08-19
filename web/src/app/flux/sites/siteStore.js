@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import { Store, toImmutable } from 'nuclear-js';
-import { TLPT_SITES_RECEIVE } from './actionTypes';
+import { RECEIVE_CLUSTERS } from './actionTypes';
 import { Record, List } from 'immutable';
 
 const Site = Record({
@@ -29,7 +29,7 @@ export default Store({
   },
 
   initialize() {
-    this.on(TLPT_SITES_RECEIVE, receiveSites)
+    this.on(RECEIVE_CLUSTERS, receiveSites)
   }
 })
 

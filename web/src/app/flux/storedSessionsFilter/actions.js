@@ -14,20 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var reactor = require('app/reactor');
-var {filter} = require('./getters');
-var {fetchSiteEvents} = require('./../sessions/actions');
-var {showError} = require('app/flux/notifications/actions');
+import reactor from 'app/reactor';
+import {filter} from './getters';
+import {fetchSiteEvents} from './../sessions/actions';
+import {showError} from 'app/flux/notifications/actions';
+import { TLPT_STORED_SESSINS_FILTER_SET_RANGE } from './actionTypes';
+import Logger from 'app/lib/logger';
 
-const logger = require('app/lib/logger').create('Modules/Sessions');
-
-const { TLPT_STORED_SESSINS_FILTER_SET_RANGE }  = require('./actionTypes');
+const logger = Logger.create('Modules/Sessions');
 
 const actions = {
 
   fetchSiteEventsWithinTimeRange(){
     let { start, end } = reactor.evaluate(filter);
-    _fetch(start, end);
+    return _fetch(start, end);
   },
 
   setTimeRange(start, end){

@@ -19,7 +19,8 @@ import $ from 'jQuery';
 import classnames from 'classnames';
 import { connect } from 'nuclear-js-react-addons';
 import cfg from 'app/config';
-import {actions, getters} from 'app/flux/user';
+import actions from 'app/flux/user/actions';
+import getters from 'app/flux/user/getters';
 import { Auth2faTypeEnum } from 'app/services/enums';
 import { ErrorPage, ErrorTypes } from './../msgPage';
 import { TeleportLogo } from './../icons.jsx';
@@ -36,12 +37,12 @@ export class Invite extends React.Component {
     actions.fetchInvite(this.props.params.inviteToken);
   }
       
-  onSignupWithU2f = (username, password) => {    
-    actions.signupWithU2f(username, password, this.props.params.inviteToken);
+  onSubmitWithU2f = (username, password) => {    
+    actions.acceptInviteWithU2f(username, password, this.props.params.inviteToken);
   }
 
-  onSignup = (username, password, token) => {    
-    actions.signup(username, password, token, this.props.params.inviteToken);
+  onSubmit = (username, password, token) => {    
+    actions.acceptInvite(username, password, token, this.props.params.inviteToken);
   }
 
   render() {
@@ -69,8 +70,8 @@ export class Invite extends React.Component {
               auth2faType={auth2faType}              
               attemp={attemp}
               invite={invite}              
-              onSignupWithU2f={this.onSignupWithU2f}
-              onSignup={this.onSignup}                          
+              onSubmitWithU2f={this.onSubmitWithU2f}
+              onSubmit={this.onSubmit}                          
             />
             <InviteFooter auth2faType={auth2faType}/>
           </div>
@@ -84,6 +85,24 @@ export class Invite extends React.Component {
 }
 
 export class InviteInputForm extends React.Component {
+
+  static propTypes = {    
+    auth2faType: React.PropTypes.string,
+    authType: React.PropTypes.string,  
+    onSubmitWithU2f: React.PropTypes.func.isRequired,
+    onSubmit: React.PropTypes.func.isRequired,
+    attemp: React.PropTypes.object.isRequired
+  }
+
+  constructor(props) {
+    super(props);
+    this.state = {
+      userName: this.props.invite.user,
+      password: '',
+      passwordConfirmed: '',
+      token: ''  
+    }
+  }
   
   componentDidMount(){
     $(this.refs.form).validate({
@@ -106,30 +125,20 @@ export class InviteInputForm extends React.Component {
       }
     })
   }
-
-  constructor(props) {
-    super(props);
-    this.state = {
-      userName: this.props.invite.user,
-      password: '',
-      passwordConfirmed: '',
-      token: ''  
-    }
-  }
   
-  onSignup = e => {    
+  onSubmit = e => {    
     e.preventDefault();    
     if (this.isValid()) {
       let { userName, password, token } = this.state;
-      this.props.onSignup(userName, password, token);
+      this.props.onSubmit(userName, password, token);
     }
   }
 
-  onSignupWithU2f = e => {    
+  onSubmitWithU2f = e => {    
     e.preventDefault();    
     if (this.isValid()) {
       let { userName, password } = this.state;
-      this.props.onSignupWithU2f(userName, password);
+      this.props.onSubmitWithU2f(userName, password);
     }
   }
 
@@ -199,7 +208,7 @@ export class InviteInputForm extends React.Component {
     return null;            
   }
 
-  renderSignupBtn() {    
+  renderSubmitBtn() {    
     let { isProcessing } = this.props.attemp;        
     let $helpBlock = isProcessing && this.props.auth2faType === Auth2faTypeEnum.UTF ? (
       <div className="help-block">
@@ -209,7 +218,7 @@ export class InviteInputForm extends React.Component {
 
 
     let onClick = this.props.auth2faType === Auth2faTypeEnum.UTF ?
-      this.onSignupWithU2f : this.onSignup;
+      this.onSubmitWithU2f : this.onSubmit;
 
     return (
       <div>
@@ -233,7 +242,7 @@ export class InviteInputForm extends React.Component {
         <h3> Get started with Teleport </h3>
         {this.renderNameAndPassFields()}    
         {this.render2faFields()}
-        {this.renderSignupBtn()}                                  
+        {this.renderSubmitBtn()}                                  
         {$error}
       </form>
     );
@@ -274,14 +283,6 @@ const Invite2faData = ({auth2faType, qr}) => {
   }
 
   return null;
-}
-
-InviteInputForm.propTypes = {    
-  auth2faType: React.PropTypes.string,
-  authType: React.PropTypes.string,  
-  onSignupWithU2f: React.PropTypes.func.isRequired,
-  onSignup: React.PropTypes.func.isRequired,
-  attemp: React.PropTypes.object.isRequired
 }
 
 const InviteFooter = ({auth2faType}) => {

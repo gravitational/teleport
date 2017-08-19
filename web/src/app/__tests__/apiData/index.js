@@ -1,10 +1,11 @@
 const activeSessions = require('./activeSessions.json');
 const nodes = require('./nodes.json');
-const certificate = require('./user.json');
-const user = require('./user.json');
+const userContext = require('./userContext.json');
+const bearerToken = require('./bearerToken.json');
+
 export {
-  user,
+  bearerToken,
+  userContext,
   activeSessions,
-  nodes,
-  certificate
+  nodes
 }

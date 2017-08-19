@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import $ from 'jQuery';
-import session from './session';
+import localStorage from './localStorage';
 
 const api = {
 
@@ -36,17 +36,16 @@ const api = {
   },
 
   ajax(cfg, withToken = true){
-    var defaultCfg = {      
-      // to avoid caching in IE browsers
-      // (implicitly disabling caching adds a timestamp to each ajax requestStatus)
+    var defaultCfg = {            
       cache: false,
       type: 'GET',
       contentType: 'application/json; charset=utf-8',
       dataType: 'json',
       beforeSend: function(xhr) {
-        if(withToken){
-          var { token } = session.getUserData();
-          xhr.setRequestHeader('Authorization','Bearer ' + token);
+        if (withToken) {
+          const bearerToken = localStorage.getBearerToken() || {};
+          const { accessToken } = bearerToken;
+          xhr.setRequestHeader('Authorization','Bearer ' + accessToken);
         }
        }
     }
