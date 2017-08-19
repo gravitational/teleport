@@ -7,15 +7,17 @@ of Linux administration.
 ## Installing
 
 Gravitational Teleport is written in Go language. It requires Golang v1.7 or newer. 
-If you have Go already installed, type:
+If you have Go 1.8+ already installed:
 
 ```bash
-$ go get github.com/gravitational/teleport
-$ cd $GOPATH/src/github.com/gravitational/teleport
+$ cd $GOPATH/src/github.com/gravitational
+$ git clone https://github.com/gravitational/teleport.git 
+$ cd teleport
 $ make release
 ```
 
-You can also download binaries from [Github releases](https://github.com/gravitational/teleport/releases) or you can [build it from source](https://github.com/gravitational/teleport).
+You can also download binaries from [Github releases](https://github.com/gravitational/teleport/releases) 
+or you can [build it from source](https://github.com/gravitational/teleport).
 
 ## Definitions
 
@@ -61,7 +63,7 @@ After=network.target
 
 [Service]
 Type=simple
-Restart=always
+Restart=on-failure
 ExecStart=/usr/local/bin/teleport start --config=/etc/teleport.yaml
 
 [Install]
@@ -79,7 +81,6 @@ Teleport services listen on several ports. This table shows the default port num
 |3024      | Proxy      | SSH port used to create "reverse SSH tunnels" from behind-firewall environments into a trusted proxy server.
 |3025      | Auth       | SSH port used by the Auth Service to serve its API to other nodes in a cluster.
 |3080      | Proxy      | HTTPS connection to authenticate `tsh` users and web users into the cluster. The same connection is used to serve a Web UI.
-
 
 ## Configuration
 

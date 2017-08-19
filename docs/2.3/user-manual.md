@@ -119,8 +119,8 @@ In a Teleport cluster all nodes periodically ping the cluster's auth server and
 update their status. This allows Teleport users to see which nodes are online with the `tsh ls` command:
 
 ```bash
-# This command lists all nodes in the cluster 'proxy.example.com':
-$ tsh --proxy=proxy.example.com ls
+# This command lists all nodes in the cluster which you previously logged in via "tsh login":
+$ tsh ls
 
 # Output:
 Node Name     Node ID                Address            Labels
@@ -134,7 +134,7 @@ graviton      33333333-aaaa-1284     10.1.0.7:3022     os:osx
 
 ```bash
 # only show nodes with os label set to 'osx':
-$ tsh --proxy=proxy.example.com ls os=osx
+$ tsh ls os=osx
 
 Node Name     Node ID                Address            Labels
 ---------     -------                -------            ------
