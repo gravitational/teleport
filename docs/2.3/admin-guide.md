@@ -1106,6 +1106,10 @@ to run in a highly available fashion.
   * If a load balancer is not an option, you must specify each instance of an 
     auth server in `auth_servers` section of Teleport configuration.
 
+**IMPORTANT:** with multiple instances of the auth servers running, special
+attention needs to be paid to keep their configuration identical. Settings 
+like `cluster_name`, `tokens`, `storage`, etc must be the same.
+
 #### Run multiple instances of Teleport Proxy 
 
 The Teleport Proxy is stateless which makes running multiple instances trivial.
