@@ -148,6 +148,10 @@ func connectToAuthService(cfg *service.Config) (client *auth.TunClient, err erro
 	// read the host SSH keys and use them to open an SSH connection to the auth service
 	i, err := auth.ReadIdentity(cfg.DataDir, auth.IdentityID{Role: teleport.RoleAdmin, HostUUID: cfg.HostUUID})
 	if err != nil {
+		// the "admin" identity is not present? this means the tctl is running NOT on the auth server.
+		if trace.IsNotFound(err) {
+			return nil, trace.AccessDenied("tctl must be used on the auth server")
+		}
 		return nil, trace.Wrap(err)
 	}
 	client, err = auth.NewTunClient(
