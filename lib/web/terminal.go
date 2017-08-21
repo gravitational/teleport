@@ -22,10 +22,11 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strconv"
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -39,8 +40,8 @@ import (
 // terminalRequest describes a request to crate a web-based terminal
 // to a remote SSH server
 type terminalRequest struct {
-	// ServerID is a server id to connect to
-	ServerID string `json:"server_id"`
+	// Server describes a server to connect to (serverId|hostname[:port])
+	Server string `json:"server_id"`
 	// User is linux username to connect as
 	Login string `json:"login"`
 	// Term sets PTY params like width and height
@@ -51,30 +52,25 @@ type terminalRequest struct {
 	Namespace string `json:"namespace"`
 	// Proxy server address
 	ProxyHostPort string `json:"-"`
+	// Remote cluster name
+	Cluster string `json:"-"`
+}
+
+type nodeProvider interface {
+	GetNodes(namespace string) ([]services.Server, error)
 }
 
 // newTerminal creates a web-based terminal based on WebSockets and returns a new
 // terminalHandler
-func newTerminal(req terminalRequest,
-	ctx *SessionContext,
-	site reversetunnel.RemoteSite) (*terminalHandler, error) {
-
-	clt, err := site.GetClient()
+func newTerminal(req terminalRequest, provider nodeProvider, ctx *SessionContext) (*terminalHandler, error) {
+	// make sure whatever session is requested is a valid session
+	_, err := session.ParseID(string(req.SessionID))
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	servers, err := clt.GetNodes(req.Namespace)
-	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.BadParameter("sid: invalid session id")
 	}
 
-	var hostName = req.ServerID
-	for i := range servers {
-		node := servers[i]
-		if node.GetName() == req.ServerID {
-			hostName = node.GetHostname()
-			break
-		}
+	if req.Server == "" {
+		return nil, trace.BadParameter("server: missing server")
 	}
 
 	if req.Login == "" {
@@ -83,16 +79,43 @@ func newTerminal(req terminalRequest,
 	if req.Term.W <= 0 || req.Term.H <= 0 {
 		return nil, trace.BadParameter("term: bad term dimensions")
 	}
-	// make sure whatever session is requested is a valid session
-	_, err = session.ParseID(string(req.SessionID))
+
+	servers, err := provider.GetNodes(req.Namespace)
 	if err != nil {
-		return nil, trace.BadParameter("sid: invalid session id")
+		return nil, trace.Wrap(err)
 	}
+
+	var hostName = ""
+	var hostPort = 0
+
+	// when joining an active session, server is UUID
+	for i := range servers {
+		node := servers[i]
+		if node.GetName() == req.Server {
+			hostName = node.GetHostname()
+			break
+		}
+	}
+
+	// when joining an unlisted SSH server, server name is a string hostname[:port]
+	if hostName == "" {
+		hostName = req.Server
+		// parse port value and convert it to int
+		host, port, err := net.SplitHostPort(req.Server)
+		if err == nil {
+			hostName = host
+			hostPort, err = strconv.Atoi(port)
+			if err != nil {
+				return nil, trace.BadParameter("server: invalid port", err)
+			}
+		}
+	}
+
 	return &terminalHandler{
 		params:   req,
 		ctx:      ctx,
-		site:     site,
-		hostname: hostName,
+		hostName: hostName,
+		hostPort: hostPort,
 	}, nil
 }
 
@@ -101,18 +124,14 @@ func newTerminal(req terminalRequest,
 type terminalHandler struct {
 	// params describe the terminal configuration
 	params terminalRequest
-
 	// ctx is a web session context for the currently logged in user
 	ctx *SessionContext
-
 	// ws is the websocket which is connected to stdin/out/err of the terminal shell
 	ws *websocket.Conn
-
-	// site/cluster we're connected to
-	site reversetunnel.RemoteSite
-	// hostname we're connected to
-	hostname string
-
+	// hostName we're connected to
+	hostName string
+	// hostPort we'are connected to
+	hostPort int
 	// sshClient is initialized after an SSH connection to a node is established
 	sshSession *ssh.Session
 }
@@ -182,9 +201,10 @@ func (t *terminalHandler) Run(w http.ResponseWriter, r *http.Request) {
 			Stdout:           output,
 			Stderr:           output,
 			Stdin:            ws,
-			SiteName:         t.site.GetName(),
+			SiteName:         t.params.Cluster,
 			ProxyHostPort:    t.params.ProxyHostPort,
-			Host:             t.hostname,
+			Host:             t.hostName,
+			HostPort:         t.hostPort,
 			Env:              map[string]string{sshutils.SessionEnvVar: string(t.params.SessionID)},
 			HostKeyCallback:  func(string, net.Addr, ssh.PublicKey) error { return nil },
 			ClientAddr:       r.RemoteAddr,
