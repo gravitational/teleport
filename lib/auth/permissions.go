@@ -152,7 +152,7 @@ func GetCheckerForBuiltinRole(role teleport.Role) (services.AccessChecker, error
 			services.RoleSpecV3{
 				Allow: services.RoleConditions{
 					Namespaces: []string{services.Wildcard},
-					SystemResources: map[string][]string{
+					Rules: map[string][]string{
 						services.KindAuthServer: services.RW(),
 					},
 				},
@@ -165,7 +165,7 @@ func GetCheckerForBuiltinRole(role teleport.Role) (services.AccessChecker, error
 			services.RoleSpecV3{
 				Allow: services.RoleConditions{
 					Namespaces: []string{services.Wildcard},
-					SystemResources: map[string][]string{
+					Rules: map[string][]string{
 						services.KindNode:          services.RW(),
 						services.KindSession:       services.RW(),
 						services.KindEvent:         services.RW(),
@@ -185,7 +185,7 @@ func GetCheckerForBuiltinRole(role teleport.Role) (services.AccessChecker, error
 			services.RoleSpecV3{
 				Allow: services.RoleConditions{
 					Namespaces: []string{services.Wildcard},
-					SystemResources: map[string][]string{
+					Rules: map[string][]string{
 						services.KindProxy:                 services.RW(),
 						services.KindOIDCRequest:           services.RW(),
 						services.KindSession:               services.RW(),
@@ -201,7 +201,8 @@ func GetCheckerForBuiltinRole(role teleport.Role) (services.AccessChecker, error
 						services.KindUser:                  services.RO(),
 						services.KindRole:                  services.RO(),
 						services.KindClusterAuthPreference: services.RO(),
-						services.KindUniversalSecondFactor: services.RO(),
+						services.KindClusterName:           services.RO(),
+						services.KindStaticTokens:          services.RO(),
 					},
 				},
 			})
@@ -211,7 +212,7 @@ func GetCheckerForBuiltinRole(role teleport.Role) (services.AccessChecker, error
 			services.RoleSpecV3{
 				Allow: services.RoleConditions{
 					Namespaces: []string{services.Wildcard},
-					SystemResources: map[string][]string{
+					Rules: map[string][]string{
 						services.KindWebSession:     services.RW(),
 						services.KindSession:        services.RW(),
 						services.KindAuthServer:     services.RO(),
@@ -228,7 +229,7 @@ func GetCheckerForBuiltinRole(role teleport.Role) (services.AccessChecker, error
 			services.RoleSpecV3{
 				Allow: services.RoleConditions{
 					Namespaces: []string{services.Wildcard},
-					SystemResources: map[string][]string{
+					Rules: map[string][]string{
 						services.KindAuthServer:            services.RO(),
 						services.KindClusterAuthPreference: services.RO(),
 					},
@@ -245,7 +246,7 @@ func GetCheckerForBuiltinRole(role teleport.Role) (services.AccessChecker, error
 					Namespaces: []string{services.Wildcard},
 					Logins:     []string{},
 					NodeLabels: map[string]string{services.Wildcard: services.Wildcard},
-					SystemResources: map[string][]string{
+					Rules: map[string][]string{
 						services.Wildcard: services.RW(),
 					},
 				},
@@ -255,8 +256,8 @@ func GetCheckerForBuiltinRole(role teleport.Role) (services.AccessChecker, error
 			role.String(),
 			services.RoleSpecV3{
 				Allow: services.RoleConditions{
-					Namespaces:      []string{},
-					SystemResources: map[string][]string{},
+					Namespaces: []string{},
+					Rules:      map[string][]string{},
 				},
 			})
 	}

@@ -156,9 +156,9 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
 	user, role := createUserAndRole(s.a, userName, []string{userName})
-	resources := role.GetSystemResources(services.Allow)
-	resources[services.KindNode] = services.RW()
-	role.SetSystemResources(services.Allow, resources)
+	rules := role.GetRules(services.Allow)
+	rules[services.KindNode] = services.RW()
+	role.SetRules(services.Allow, rules)
 	err = s.a.UpsertRole(role, backend.Forever)
 	c.Assert(err, IsNil)
 
@@ -188,7 +188,8 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 		"test", authMethod)
 	c.Assert(err, IsNil)
 
-	err = clt.UpsertNode(newServer(services.KindNode, "a.example.com", "hello", "hello", defaults.Namespace))
+	// call some endpoint
+	_, err = clt.GetUser(userName)
 	c.Assert(err, IsNil)
 }
 
