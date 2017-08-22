@@ -95,6 +95,25 @@ limitations under the License.
   float: right;
 }
 
+.grv-sshserver-input{
+  position: relative;
+  max-width: 200px;
+  float: right;
+
+  .grv-sshserver-input-errors{
+    display: none;
+    font-size: 10px;
+  }
+
+  &.--error {
+    .grv-sshserver-input-errors{
+      display: block;
+      position: absolute;
+      color: $grv-color-danger;
+    }
+  }
+}
+
 .grv-clusters-selector{
   min-width: 220px;
   align-self: flex-end;

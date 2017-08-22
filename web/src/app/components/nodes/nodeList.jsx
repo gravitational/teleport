@@ -19,6 +19,7 @@ import { Link } from  'react-router';
 import { sortBy } from 'lodash';
 import { isMatch } from 'app/lib/objectUtils';
 import InputSearch from './../inputSearch';
+import InputSshServer from './../inputSshServer';
 import { Table, Column, Cell, TextCell, SortHeaderCell, SortTypes, EmptyIndicator } from 'app/components/table.jsx';
 import ClusterSelector from './../clusterSelector.jsx';
 import cfg from 'app/config';
@@ -74,9 +75,9 @@ class LoginCell extends React.Component {
   }
 
   render() {  
-    const { logins, ...props } = this.props;                      
+    const { logins, ...props } = this.props;                        
     const $lis = [];    
-    const defaultLogin = logins[0] || 'root';
+    const defaultLogin = logins[0] || '';
     const defaultTermUrl = this.makeUrl(defaultLogin);
 
     for (var i = 0; i < logins.length; i++) {
@@ -89,17 +90,24 @@ class LoginCell extends React.Component {
         </li>
       );
     }
-        
+      
     return (
       <Cell {...props}>
         <div style={{ display: "flex" }}>
           <div style={{ display: "flex" }} className="btn-group">
-            <Link className="btn btn-xs btn-primary" to={defaultTermUrl}>
-              {defaultLogin}
-            </Link>                          
+            {logins.length > 0 &&
+              <Link className="btn btn-xs btn-primary" to={defaultTermUrl}>
+                {defaultLogin}
+              </Link>
+            }
+            {logins.length === 0 &&
+              <div className="btn btn-xs btn-white">
+                <span className="text-muted"> Empty </span>
+              </div>              
+            }
             <button data-toggle="dropdown"
               onClick={this.onShowLoginsClick}  
-              className="btn btn-default btn-xs dropdown-toggle" aria-expanded="true">
+              className="btn btn-default btn-xs dropdown-toggle">
               <span className="caret"></span>
             </button>
             <ul className="dropdown-menu pull-right">
@@ -142,22 +150,17 @@ class NodeList extends React.Component {
     this.state.filter = value;
     this.setState(this.state);
   }
-  
-  onKeyPress = e => {
-    if ( (e.key === 'Enter' || e.type === 'click') && this.refs.ssh.value) {            
-      const [login, serverId] = this.refs.ssh.value.split('@');
-        if (login && serverId) {
-          const url = cfg.getTerminalLoginUrl({
-          siteId: this.props.siteId,
-          serverId,
-          login
-        })     
         
-        history.push(url);        
-      }      
-    }            
+  onSshInputEnter = (login, host) => {
+    const url = cfg.getTerminalLoginUrl({
+      siteId: this.props.siteId,
+      serverId: host,
+      login
+    })     
+        
+    history.push(url);           
   }
-  
+
   searchAndFilterCb(targetValue, searchValue, propName){
     if(propName === 'tags'){
       return targetValue.some((item) => {
@@ -193,23 +196,11 @@ class NodeList extends React.Component {
       <div className="grv-nodes m-t">                
         <div className="grv-flex grv-header" style={{ justifyContent: "space-between" }}>                    
           <h2 className="text-center no-margins"> Nodes </h2>          
-          <div className="grv-flex">
+          <div className="grv-flex">          
             <ClusterSelector/>  
             <InputSearch onChange={this.onFilterChange} />                        
-            <div className="m-l grv-search input-group input-group-sm" title="login to SSH server">
-              <input ref="ssh"
-                className="form-control" 
-                placeholder="login@host"
-                onKeyPress={this.onKeyPress}                  
-              />                            
-              <span className="input-group-btn"> 
-                <button className="btn btn-sm btn-white" onClick={this.onKeyPress}>                  
-                  <i className="fa fa-terminal text-muted"/>
-                </button>            
-              </span>              
-              </div>
-              
-          </div>
+            <InputSshServer onEnter={this.onSshInputEnter} />            
+          </div>          
         </div>
         <div className="m-t">
           {
