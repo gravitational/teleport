@@ -38,10 +38,10 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/coreos/go-oidc/oidc"
 	"github.com/jonboulle/clockwork"
 	saml2 "github.com/russellhaering/gosaml2"
+	log "github.com/sirupsen/logrus"
 	"github.com/tstranex/u2f"
 )
 

@@ -18,7 +18,7 @@ package sshutils
 import (
 	"io"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
 func CloseAll(closers ...io.Closer) error {

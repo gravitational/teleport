@@ -25,8 +25,8 @@ import (
 	"math/big"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 // ParseSigningKeyStore parses signing key store from PEM encoded key pair

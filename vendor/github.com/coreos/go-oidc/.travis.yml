@@ -1,0 +1,16 @@
+language: go
+
+go:
+  - 1.7.3
+  - 1.6.3
+
+install:
+ - go get -v -t github.com/coreos/go-oidc/...
+ - go get golang.org/x/tools/cmd/cover
+ - go get github.com/golang/lint/golint
+
+script:
+ - ./test
+
+notifications:
+  email: false

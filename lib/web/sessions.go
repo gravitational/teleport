@@ -30,9 +30,9 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/jonboulle/clockwork"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/tstranex/u2f"
 )

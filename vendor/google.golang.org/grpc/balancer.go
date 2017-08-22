@@ -1,33 +1,18 @@
 /*
  *
- * Copyright 2016, Google Inc.
- * All rights reserved.
+ * Copyright 2016 gRPC authors.
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *     * Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- * copyright notice, this list of conditions and the following disclaimer
- * in the documentation and/or other materials provided with the
- * distribution.
- *     * Neither the name of Google Inc. nor the names of its
- * contributors may be used to endorse or promote products derived from
- * this software without specific prior written permission.
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  *
  */
 
@@ -35,9 +20,12 @@ package grpc
 
 import (
 	"fmt"
+	"net"
 	"sync"
 
 	"golang.org/x/net/context"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/naming"
 )
@@ -50,6 +38,18 @@ type Address struct {
 	// Metadata is the information associated with Addr, which may be used
 	// to make load balancing decision.
 	Metadata interface{}
+}
+
+// BalancerConfig specifies the configurations for Balancer.
+type BalancerConfig struct {
+	// DialCreds is the transport credential the Balancer implementation can
+	// use to dial to a remote load balancer server. The Balancer implementations
+	// can ignore this if it does not need to talk to another party securely.
+	DialCreds credentials.TransportCredentials
+	// Dialer is the custom dialer the Balancer implementation can use to dial
+	// to a remote load balancer server. The Balancer implementations
+	// can ignore this if it doesn't need to talk to remote balancer.
+	Dialer func(context.Context, string) (net.Conn, error)
 }
 
 // BalancerGetOptions configures a Get call.
@@ -66,11 +66,11 @@ type Balancer interface {
 	// Start does the initialization work to bootstrap a Balancer. For example,
 	// this function may start the name resolution and watch the updates. It will
 	// be called when dialing.
-	Start(target string) error
+	Start(target string, config BalancerConfig) error
 	// Up informs the Balancer that gRPC has a connection to the server at
 	// addr. It returns down which is called once the connection to addr gets
 	// lost or closed.
-	// TODO: It is not clear how to construct and take advantage the meaningful error
+	// TODO: It is not clear how to construct and take advantage of the meaningful error
 	// parameter for down. Need realistic demands to guide.
 	Up(addr Address) (down func(error))
 	// Get gets the address of a server for the RPC corresponding to ctx.
@@ -157,7 +157,7 @@ type roundRobin struct {
 func (rr *roundRobin) watchAddrUpdates() error {
 	updates, err := rr.w.Next()
 	if err != nil {
-		grpclog.Printf("grpc: the naming watcher stops working due to %v.\n", err)
+		grpclog.Warningf("grpc: the naming watcher stops working due to %v.", err)
 		return err
 	}
 	rr.mu.Lock()
@@ -173,7 +173,7 @@ func (rr *roundRobin) watchAddrUpdates() error {
 			for _, v := range rr.addrs {
 				if addr == v.addr {
 					exist = true
-					grpclog.Println("grpc: The name resolver wanted to add an existing address: ", addr)
+					grpclog.Infoln("grpc: The name resolver wanted to add an existing address: ", addr)
 					break
 				}
 			}
@@ -190,7 +190,7 @@ func (rr *roundRobin) watchAddrUpdates() error {
 				}
 			}
 		default:
-			grpclog.Println("Unknown update.Op ", update.Op)
+			grpclog.Errorln("Unknown update.Op ", update.Op)
 		}
 	}
 	// Make a copy of rr.addrs and write it onto rr.addrCh so that gRPC internals gets notified.
@@ -201,11 +201,20 @@ func (rr *roundRobin) watchAddrUpdates() error {
 	if rr.done {
 		return ErrClientConnClosing
 	}
+	select {
+	case <-rr.addrCh:
+	default:
+	}
 	rr.addrCh <- open
 	return nil
 }
 
-func (rr *roundRobin) Start(target string) error {
+func (rr *roundRobin) Start(target string, config BalancerConfig) error {
+	rr.mu.Lock()
+	defer rr.mu.Unlock()
+	if rr.done {
+		return ErrClientConnClosing
+	}
 	if rr.r == nil {
 		// If there is no name resolver installed, it is not needed to
 		// do name resolution. In this case, target is added into rr.addrs
@@ -218,7 +227,7 @@ func (rr *roundRobin) Start(target string) error {
 		return err
 	}
 	rr.w = w
-	rr.addrCh = make(chan []Address)
+	rr.addrCh = make(chan []Address, 1)
 	go func() {
 		for {
 			if err := rr.watchAddrUpdates(); err != nil {
@@ -301,7 +310,7 @@ func (rr *roundRobin) Get(ctx context.Context, opts BalancerGetOptions) (addr Ad
 	if !opts.BlockingWait {
 		if len(rr.addrs) == 0 {
 			rr.mu.Unlock()
-			err = fmt.Errorf("there is no address available")
+			err = Errorf(codes.Unavailable, "there is no address available")
 			return
 		}
 		// Returns the next addr on rr.addrs for failfast RPCs.
@@ -370,6 +379,9 @@ func (rr *roundRobin) Notify() <-chan []Address {
 func (rr *roundRobin) Close() error {
 	rr.mu.Lock()
 	defer rr.mu.Unlock()
+	if rr.done {
+		return errBalancerClosed
+	}
 	rr.done = true
 	if rr.w != nil {
 		rr.w.Close()

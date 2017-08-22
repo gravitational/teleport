@@ -28,10 +28,10 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/buger/goterm"
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
 

@@ -73,7 +73,7 @@ func formatCmdUsage(app *ApplicationModel, cmd *CmdModel) string {
 	return strings.Join(s, " ")
 }
 
-func formatFlagCompact(haveShort bool, flag *FlagModel) string {
+func formatFlag(haveShort bool, flag *FlagModel) string {
 	flagString := ""
 	if flag.Short != 0 {
 		flagString += fmt.Sprintf("-%c, --%s", flag.Short, flag.Name)
@@ -84,11 +84,6 @@ func formatFlagCompact(haveShort bool, flag *FlagModel) string {
 			flagString += fmt.Sprintf("--%s", flag.Name)
 		}
 	}
-	return flagString
-}
-
-func formatFlag(haveShort bool, flag *FlagModel) string {
-	flagString := formatFlagCompact(haveShort, flag)
 	if !flag.IsBoolFlag() {
 		flagString += fmt.Sprintf("=%s", flag.FormatPlaceHolder())
 	}
@@ -118,14 +113,6 @@ func (a *Application) UsageForContext(context *ParseContext) error {
 
 // UsageForContextWithTemplate is the base usage function. You generally don't need to use this.
 func (a *Application) UsageForContextWithTemplate(context *ParseContext, indent int, tmpl string) error {
-	shortFlagsPresent := func(f []*FlagModel) bool {
-		for _, flag := range f {
-			if flag.Short != 0 {
-				return true
-			}
-		}
-		return false
-	}
 	width := guessWidth(a.writer)
 	funcs := template.FuncMap{
 		"Indent": func(level int) string {
@@ -137,21 +124,16 @@ func (a *Application) UsageForContextWithTemplate(context *ParseContext, indent 
 			doc.ToText(buf, s, indentText, indentText, width-indent)
 			return buf.String()
 		},
-		"FormatFlag":        formatFlag,
-		"FormatFlagCompact": formatFlagCompact,
-		"FlagsToTwoColumnsCompact": func(f []*FlagModel) [][2]string {
-			rows := [][2]string{}
-			haveShort := shortFlagsPresent(f)
-			for _, flag := range f {
-				if !flag.Hidden {
-					rows = append(rows, [2]string{formatFlagCompact(haveShort, flag), flag.Help})
-				}
-			}
-			return rows
-		},
+		"FormatFlag": formatFlag,
 		"FlagsToTwoColumns": func(f []*FlagModel) [][2]string {
 			rows := [][2]string{}
-			haveShort := shortFlagsPresent(f)
+			haveShort := false
+			for _, flag := range f {
+				if flag.Short != 0 {
+					haveShort = true
+					break
+				}
+			}
 			for _, flag := range f {
 				if !flag.Hidden {
 					rows = append(rows, [2]string{formatFlag(haveShort, flag), flag.Help})

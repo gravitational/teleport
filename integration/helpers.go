@@ -27,7 +27,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
 // SetTestTimeouts affects global timeouts inside Teleport, making connections

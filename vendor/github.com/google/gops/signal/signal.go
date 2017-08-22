@@ -26,10 +26,4 @@ const (
 
 	// Stats returns Go runtime statistics such as number of goroutines, GOMAXPROCS, and NumCPU.
 	Stats = byte(0x7)
-
-	// Trace starts the Go execution tracer, waits 5 seconds and launches the trace tool.
-	Trace = byte(0x8)
-
-	// BinaryDump returns running binary file.
-	BinaryDump = byte(0x9)
 )

@@ -23,8 +23,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/docker/docker/pkg/term"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/moby/moby/pkg/term"
 )
 
 const (

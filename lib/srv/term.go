@@ -24,10 +24,10 @@ import (
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 
-	log "github.com/Sirupsen/logrus"
-	"github.com/docker/docker/pkg/term"
 	"github.com/gravitational/trace"
 	"github.com/kr/pty"
+	"github.com/moby/moby/pkg/term"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
 

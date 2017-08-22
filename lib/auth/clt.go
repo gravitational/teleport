@@ -39,7 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/trace"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/tstranex/u2f"
 )
 

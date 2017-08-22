@@ -20,11 +20,11 @@ import (
 	"encoding/json"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/trace"
 )
