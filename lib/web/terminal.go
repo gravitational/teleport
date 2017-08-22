@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -100,9 +101,10 @@ func newTerminal(req terminalRequest, provider nodeProvider, ctx *SessionContext
 	// when joining an unlisted SSH server, server name is a string hostname[:port]
 	if hostName == "" {
 		hostName = req.Server
-		// parse port value and convert it to int
 		host, port, err := net.SplitHostPort(req.Server)
-		if err == nil {
+		if err != nil {
+			hostPort = defaults.SSHDefaultPort
+		} else {
 			hostName = host
 			hostPort, err = strconv.Atoi(port)
 			if err != nil {
@@ -130,7 +132,7 @@ type terminalHandler struct {
 	ws *websocket.Conn
 	// hostName we're connected to
 	hostName string
-	// hostPort we'are connected to
+	// hostPort we're connected to
 	hostPort int
 	// sshClient is initialized after an SSH connection to a node is established
 	sshSession *ssh.Session

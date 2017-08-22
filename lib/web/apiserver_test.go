@@ -778,7 +778,7 @@ func (s *WebSuite) TestNewTerminalHandler(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(handler.params.Login, Equals, "root")
 	c.Assert(handler.hostName, Equals, "localhost")
-	c.Assert(handler.hostPort, Equals, 0)
+	c.Assert(handler.hostPort, Equals, 22)
 
 	handler, err = s.makeTerminalHandler("root", "localhost:8080", emptyNodes)
 	c.Assert(err, IsNil)
