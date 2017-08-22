@@ -766,6 +766,39 @@ func (s *WebSuite) TestSiteNodeConnectInvalidSessionID(c *C) {
 	c.Assert(err, NotNil)
 }
 
+func (s *WebSuite) TestNewTerminalHandler(c *C) {
+	var emptyNodes = []services.ServerV2{}
+
+	v2node := services.ServerV2{}
+	v2node.SetName("nodename")
+	v2node.Spec.Hostname = "nodehostname"
+
+	// valid inputs
+	handler, err := s.makeTerminalHandler("root", "localhost", emptyNodes)
+	c.Assert(err, IsNil)
+	c.Assert(handler.params.Login, Equals, "root")
+	c.Assert(handler.hostName, Equals, "localhost")
+	c.Assert(handler.hostPort, Equals, 22)
+
+	handler, err = s.makeTerminalHandler("root", "localhost:8080", emptyNodes)
+	c.Assert(err, IsNil)
+	c.Assert(handler.hostName, Equals, "localhost")
+	c.Assert(handler.hostPort, Equals, 8080)
+
+	handler, err = s.makeTerminalHandler("root", "nodename", []services.ServerV2{v2node})
+	c.Assert(err, IsNil)
+	c.Assert(handler.hostName, Equals, "nodehostname")
+	c.Assert(handler.hostPort, Equals, 0)
+
+	// invalid inputs
+	handler, err = s.makeTerminalHandler("", "localhost", emptyNodes)
+	c.Assert(err, NotNil)
+	handler, err = s.makeTerminalHandler("root", "", emptyNodes)
+	c.Assert(err, NotNil)
+	handler, err = s.makeTerminalHandler("root", "locahost:invalid_port", emptyNodes)
+	c.Assert(err, NotNil)
+}
+
 func (s *WebSuite) makeTerminal(pack *authPack, opts ...session.ID) (*websocket.Conn, error) {
 	var sessionID session.ID
 	if len(opts) == 0 {
@@ -775,7 +808,7 @@ func (s *WebSuite) makeTerminal(pack *authPack, opts ...session.ID) (*websocket.
 	}
 	u := url.URL{Host: s.url().Host, Scheme: client.WSS, Path: fmt.Sprintf("/v1/webapi/sites/%v/connect", currentSiteShortcut)}
 	data, err := json.Marshal(terminalRequest{
-		ServerID:  s.srvID,
+		Server:    s.srvID,
 		Login:     s.user,
 		Term:      session.TerminalParams{W: 100, H: 100},
 		SessionID: sessionID,
@@ -1284,4 +1317,31 @@ func (s *WebSuite) TestMultipleConnectors(c *C) {
 
 	// make sure the connector we get back is "foo"
 	c.Assert(out.Auth.OIDC.Name, Equals, "foo")
+}
+
+type nodeProviderMock func() []services.Server
+
+func (mock nodeProviderMock) GetNodes(namespace string) ([]services.Server, error) {
+	return mock(), nil
+}
+
+func (s *WebSuite) makeTerminalHandler(login string, server string, v2Servers []services.ServerV2) (*terminalHandler, error) {
+	var req = terminalRequest{
+		Login:  login,
+		Server: server,
+	}
+
+	req.SessionID = "eca53e45-86a9-11e7-a893-0242ac0a0101"
+	req.Term.H = 1
+	req.Term.W = 1
+
+	var servers = []services.Server{}
+	return newTerminal(req, nodeProviderMock(func() []services.Server {
+		for _, s := range v2Servers {
+			servers = append(servers, &s)
+		}
+
+		return servers
+	}), nil)
+
 }

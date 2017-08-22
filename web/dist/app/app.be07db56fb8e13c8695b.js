@@ -41,15 +41,15 @@ webpackJsonp([0],[
 
 	var _main2 = _interopRequireDefault(_main);
 
-	var _main3 = __webpack_require__(402);
+	var _main3 = __webpack_require__(403);
 
 	var _main4 = _interopRequireDefault(_main3);
 
-	var _terminalHost = __webpack_require__(467);
+	var _terminalHost = __webpack_require__(468);
 
 	var _terminalHost2 = _interopRequireDefault(_terminalHost);
 
-	var _playerHost = __webpack_require__(486);
+	var _playerHost = __webpack_require__(487);
 
 	var _playerHost2 = _interopRequireDefault(_playerHost);
 
@@ -69,11 +69,11 @@ webpackJsonp([0],[
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _documentTitle = __webpack_require__(517);
+	var _documentTitle = __webpack_require__(518);
 
 	var _documentTitle2 = _interopRequireDefault(_documentTitle);
 
-	__webpack_require__(518);
+	__webpack_require__(519);
 
 	function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key]; } } newObj.default = obj; return newObj; } }
 
@@ -108,7 +108,7 @@ webpackJsonp([0],[
 	      { component: _documentTitle2.default },
 	      _react2.default.createElement(_reactRouter.Route, { path: _config2.default.routes.error, title: 'Error', component: Message.ErrorPage }),
 	      _react2.default.createElement(_reactRouter.Route, { path: _config2.default.routes.info, title: 'Info', component: Message.InfoPage }),
-	      _react2.default.createElement(_reactRouter.Route, { path: _config2.default.routes.login, onEnter: _actions.initLogin, title: 'Login', component: _login2.default }),
+	      _react2.default.createElement(_reactRouter.Route, { path: _config2.default.routes.login, title: 'Login', component: _login2.default }),
 	      _react2.default.createElement(_reactRouter.Route, { path: _config2.default.routes.newUser, component: _invite2.default }),
 	      _react2.default.createElement(_reactRouter.Redirect, { from: _config2.default.routes.app, to: _config2.default.routes.nodes }),
 	      _react2.default.createElement(
@@ -6383,9 +6383,13 @@ webpackJsonp([0],[
 
 	var _inputSearch2 = _interopRequireDefault(_inputSearch);
 
-	var _table = __webpack_require__(398);
+	var _inputSshServer = __webpack_require__(398);
 
-	var _clusterSelector = __webpack_require__(399);
+	var _inputSshServer2 = _interopRequireDefault(_inputSshServer);
+
+	var _table = __webpack_require__(399);
+
+	var _clusterSelector = __webpack_require__(400);
 
 	var _clusterSelector2 = _interopRequireDefault(_clusterSelector);
 
@@ -6507,7 +6511,7 @@ webpackJsonp([0],[
 	        props = _objectWithoutProperties(_props2, ['logins']);
 
 	    var $lis = [];
-	    var defaultLogin = logins[0] || 'root';
+	    var defaultLogin = logins[0] || '';
 	    var defaultTermUrl = this.makeUrl(defaultLogin);
 
 	    for (var i = 0; i < logins.length; i++) {
@@ -6532,16 +6536,25 @@ webpackJsonp([0],[
 	        _react2.default.createElement(
 	          'div',
 	          { style: { display: "flex" }, className: 'btn-group' },
-	          _react2.default.createElement(
+	          logins.length > 0 && _react2.default.createElement(
 	            _reactRouter.Link,
 	            { className: 'btn btn-xs btn-primary', to: defaultTermUrl },
 	            defaultLogin
+	          ),
+	          logins.length === 0 && _react2.default.createElement(
+	            'div',
+	            { className: 'btn btn-xs btn-white' },
+	            _react2.default.createElement(
+	              'span',
+	              { className: 'text-muted' },
+	              ' Empty '
+	            )
 	          ),
 	          _react2.default.createElement(
 	            'button',
 	            { 'data-toggle': 'dropdown',
 	              onClick: this.onShowLoginsClick,
-	              className: 'btn btn-default btn-xs dropdown-toggle', 'aria-expanded': 'true' },
+	              className: 'btn btn-default btn-xs dropdown-toggle' },
 	            _react2.default.createElement('span', { className: 'caret' })
 	          ),
 	          _react2.default.createElement(
@@ -6592,22 +6605,14 @@ webpackJsonp([0],[
 	      _this2.setState(_this2.state);
 	    };
 
-	    _this2.onKeyPress = function (e) {
-	      if ((e.key === 'Enter' || e.type === 'click') && _this2.refs.ssh.value) {
-	        var _this2$refs$ssh$value = _this2.refs.ssh.value.split('@'),
-	            login = _this2$refs$ssh$value[0],
-	            serverId = _this2$refs$ssh$value[1];
+	    _this2.onSshInputEnter = function (login, host) {
+	      var url = _config2.default.getTerminalLoginUrl({
+	        siteId: _this2.props.siteId,
+	        serverId: host,
+	        login: login
+	      });
 
-	        if (login && serverId) {
-	          var url = _config2.default.getTerminalLoginUrl({
-	            siteId: _this2.props.siteId,
-	            serverId: serverId,
-	            login: login
-	          });
-
-	          _history2.default.push(url);
-	        }
-	      }
+	      _history2.default.push(url);
 	    };
 
 	    _this2.state = {
@@ -6673,24 +6678,7 @@ webpackJsonp([0],[
 	          { className: 'grv-flex' },
 	          _react2.default.createElement(_clusterSelector2.default, null),
 	          _react2.default.createElement(_inputSearch2.default, { onChange: this.onFilterChange }),
-	          _react2.default.createElement(
-	            'div',
-	            { className: 'm-l grv-search input-group input-group-sm', title: 'login to SSH server' },
-	            _react2.default.createElement('input', { ref: 'ssh',
-	              className: 'form-control',
-	              placeholder: 'login@host',
-	              onKeyPress: this.onKeyPress
-	            }),
-	            _react2.default.createElement(
-	              'span',
-	              { className: 'input-group-btn' },
-	              _react2.default.createElement(
-	                'button',
-	                { className: 'btn btn-sm btn-white', onClick: this.onKeyPress },
-	                _react2.default.createElement('i', { className: 'fa fa-terminal text-muted' })
-	              )
-	            )
-	          )
+	          _react2.default.createElement(_inputSshServer2.default, { onEnter: this.onSshInputEnter })
 	        )
 	      ),
 	      _react2.default.createElement(
@@ -6905,6 +6893,125 @@ webpackJsonp([0],[
 
 /***/ },
 /* 398 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	exports.__esModule = true;
+
+	var _react = __webpack_require__(2);
+
+	var _react2 = _interopRequireDefault(_react);
+
+	var _classnames = __webpack_require__(364);
+
+	var _classnames2 = _interopRequireDefault(_classnames);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; } /*
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Copyright 2015 Gravitational, Inc.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Licensed under the Apache License, Version 2.0 (the "License");
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               you may not use this file except in compliance with the License.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               You may obtain a copy of the License at
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   http://www.apache.org/licenses/LICENSE-2.0
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Unless required by applicable law or agreed to in writing, software
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               distributed under the License is distributed on an "AS IS" BASIS,
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               See the License for the specific language governing permissions and
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               limitations under the License.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               */
+
+	var SSH_STR_REGEX = /(^\w+\@(\w|\.|\-)+(:\d+)*$)|(^$)/;
+	var PLACEHOLDER_TEXT = 'login@host';
+
+	var InputSshServer = function (_React$Component) {
+	  _inherits(InputSshServer, _React$Component);
+
+	  function InputSshServer() {
+	    var _temp, _this, _ret;
+
+	    _classCallCheck(this, InputSshServer);
+
+	    for (var _len = arguments.length, args = Array(_len), _key = 0; _key < _len; _key++) {
+	      args[_key] = arguments[_key];
+	    }
+
+	    return _ret = (_temp = (_this = _possibleConstructorReturn(this, _React$Component.call.apply(_React$Component, [this].concat(args))), _this), _this.state = {
+	      hasErrors: false
+	    }, _this.onChange = function (e) {
+	      var value = e.target.value;
+	      var isValid = _this.isValid(value);
+	      if (isValid && _this.state.hasErrors === true) {
+	        _this.setState({ hasErrors: false });
+	      }
+	    }, _this.onKeyPress = function (e) {
+	      var value = e.target.value;
+	      var isValid = _this.isValid(value);
+	      if ((e.key === 'Enter' || e.type === 'click') && value) {
+	        _this.setState({ hasErrors: !isValid });
+	        if (isValid) {
+	          var _value$split = value.split('@'),
+	              login = _value$split[0],
+	              host = _value$split[1];
+
+	          _this.props.onEnter(login, host);
+	        }
+	      }
+	    }, _temp), _possibleConstructorReturn(_this, _ret);
+	  }
+
+	  InputSshServer.prototype.isValid = function isValid(value) {
+	    var match = SSH_STR_REGEX.exec(value);
+	    return !!match;
+	  };
+
+	  InputSshServer.prototype.render = function render() {
+	    var className = (0, _classnames2.default)('grv-sshserver-input', { '--error': this.state.hasErrors });
+	    return _react2.default.createElement(
+	      'div',
+	      { className: className },
+	      _react2.default.createElement(
+	        'div',
+	        { className: 'm-l input-group input-group-sm', title: 'login to SSH server' },
+	        _react2.default.createElement('input', { className: 'form-control',
+	          placeholder: PLACEHOLDER_TEXT,
+	          onChange: this.onChange,
+	          onKeyPress: this.onKeyPress
+	        }),
+	        _react2.default.createElement(
+	          'span',
+	          { className: 'input-group-btn' },
+	          _react2.default.createElement(
+	            'button',
+	            { className: 'btn btn-sm btn-white', onClick: this.onKeyPress },
+	            _react2.default.createElement('i', { className: 'fa fa-terminal text-muted' })
+	          )
+	        )
+	      ),
+	      _react2.default.createElement(
+	        'label',
+	        { className: 'm-l grv-sshserver-input-errors' },
+	        ' Invalid format '
+	      )
+	    );
+	  };
+
+	  return InputSshServer;
+	}(_react2.default.Component);
+
+	exports.default = InputSshServer;
+	module.exports = exports['default'];
+
+/***/ },
+/* 399 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -7144,7 +7251,7 @@ webpackJsonp([0],[
 	exports.EmptyIndicator = EmptyIndicator;
 
 /***/ },
-/* 399 */
+/* 400 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -7159,7 +7266,7 @@ webpackJsonp([0],[
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _getters = __webpack_require__(400);
+	var _getters = __webpack_require__(401);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
@@ -7167,7 +7274,7 @@ webpackJsonp([0],[
 
 	var _getters4 = _interopRequireDefault(_getters3);
 
-	var _dropdown = __webpack_require__(401);
+	var _dropdown = __webpack_require__(402);
 
 	var _dropdown2 = _interopRequireDefault(_dropdown);
 
@@ -7248,7 +7355,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 400 */
+/* 401 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -7289,7 +7396,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 401 */
+/* 402 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -7459,7 +7566,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 402 */
+/* 403 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -7474,17 +7581,17 @@ webpackJsonp([0],[
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _actions = __webpack_require__(403);
+	var _actions = __webpack_require__(404);
 
-	var _getters = __webpack_require__(406);
+	var _getters = __webpack_require__(407);
 
-	var _getters2 = __webpack_require__(404);
+	var _getters2 = __webpack_require__(405);
 
 	var _dataProvider = __webpack_require__(381);
 
 	var _dataProvider2 = _interopRequireDefault(_dataProvider);
 
-	var _sessionList = __webpack_require__(408);
+	var _sessionList = __webpack_require__(409);
 
 	var _sessionList2 = _interopRequireDefault(_sessionList);
 
@@ -7543,7 +7650,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 403 */
+/* 404 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -7554,13 +7661,13 @@ webpackJsonp([0],[
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _getters = __webpack_require__(404);
+	var _getters = __webpack_require__(405);
 
 	var _actions = __webpack_require__(255);
 
 	var _actions2 = __webpack_require__(242);
 
-	var _actionTypes = __webpack_require__(405);
+	var _actionTypes = __webpack_require__(406);
 
 	var _logger = __webpack_require__(254);
 
@@ -7613,7 +7720,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 404 */
+/* 405 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -7645,7 +7752,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 405 */
+/* 406 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -7681,7 +7788,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 406 */
+/* 407 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -7696,7 +7803,7 @@ webpackJsonp([0],[
 
 	var _config2 = _interopRequireDefault(_config);
 
-	var _enums = __webpack_require__(407);
+	var _enums = __webpack_require__(408);
 
 	var _reactor = __webpack_require__(240);
 
@@ -7865,7 +7972,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 407 */
+/* 408 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -7899,7 +8006,7 @@ webpackJsonp([0],[
 	};
 
 /***/ },
-/* 408 */
+/* 409 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -7922,17 +8029,17 @@ webpackJsonp([0],[
 
 	var _objectUtils = __webpack_require__(396);
 
-	var _storedSessionsFilter = __webpack_require__(409);
+	var _storedSessionsFilter = __webpack_require__(410);
 
-	var _table = __webpack_require__(398);
+	var _table = __webpack_require__(399);
 
-	var _listItems = __webpack_require__(410);
+	var _listItems = __webpack_require__(411);
 
-	var _datePicker = __webpack_require__(466);
+	var _datePicker = __webpack_require__(467);
 
 	var _datePicker2 = _interopRequireDefault(_datePicker);
 
-	var _clusterSelector = __webpack_require__(399);
+	var _clusterSelector = __webpack_require__(400);
 
 	var _clusterSelector2 = _interopRequireDefault(_clusterSelector);
 
@@ -8150,7 +8257,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 409 */
+/* 410 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -8170,11 +8277,11 @@ webpackJsonp([0],[
 	See the License for the specific language governing permissions and
 	limitations under the License.
 	*/
-	module.exports.getters = __webpack_require__(404);
-	module.exports.actions = __webpack_require__(403);
+	module.exports.getters = __webpack_require__(405);
+	module.exports.actions = __webpack_require__(404);
 
 /***/ },
-/* 410 */
+/* 411 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -8188,21 +8295,21 @@ webpackJsonp([0],[
 
 	var _reactRouter = __webpack_require__(164);
 
-	var _table = __webpack_require__(398);
+	var _table = __webpack_require__(399);
 
 	var _moment = __webpack_require__(256);
 
 	var _moment2 = _interopRequireDefault(_moment);
 
-	var _layout = __webpack_require__(411);
+	var _layout = __webpack_require__(412);
 
 	var _layout2 = _interopRequireDefault(_layout);
 
-	var _moreButton = __webpack_require__(412);
+	var _moreButton = __webpack_require__(413);
 
 	var _moreButton2 = _interopRequireDefault(_moreButton);
 
-	var _popover = __webpack_require__(465);
+	var _popover = __webpack_require__(466);
 
 	var _popover2 = _interopRequireDefault(_popover);
 
@@ -8385,7 +8492,7 @@ webpackJsonp([0],[
 	exports.NodeCell = NodeCell;
 
 /***/ },
-/* 411 */
+/* 412 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -8497,7 +8604,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 412 */
+/* 413 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -8512,7 +8619,7 @@ webpackJsonp([0],[
 
 	var _classnames2 = _interopRequireDefault(_classnames);
 
-	var _overlayTrigger = __webpack_require__(413);
+	var _overlayTrigger = __webpack_require__(414);
 
 	var _overlayTrigger2 = _interopRequireDefault(_overlayTrigger);
 
@@ -8560,7 +8667,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 413 */
+/* 414 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -8575,7 +8682,7 @@ webpackJsonp([0],[
 
 	var _reactDom2 = _interopRequireDefault(_reactDom);
 
-	var _reactOverlays = __webpack_require__(414);
+	var _reactOverlays = __webpack_require__(415);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -8717,7 +8824,6 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 414 */,
 /* 415 */,
 /* 416 */,
 /* 417 */,
@@ -8768,7 +8874,8 @@ webpackJsonp([0],[
 /* 462 */,
 /* 463 */,
 /* 464 */,
-/* 465 */
+/* 465 */,
+/* 466 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -8889,7 +8996,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 466 */
+/* 467 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -9010,7 +9117,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 467 */
+/* 468 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -9025,23 +9132,23 @@ webpackJsonp([0],[
 
 	var _nuclearJsReactAddons = __webpack_require__(219);
 
-	var _enums = __webpack_require__(407);
+	var _enums = __webpack_require__(408);
 
-	var _terminal = __webpack_require__(468);
+	var _terminal = __webpack_require__(469);
 
 	var _terminal2 = _interopRequireDefault(_terminal);
 
-	var _getters = __webpack_require__(473);
+	var _getters = __webpack_require__(474);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
-	var _actions = __webpack_require__(474);
+	var _actions = __webpack_require__(475);
 
 	var _actions2 = __webpack_require__(255);
 
-	var _actions3 = __webpack_require__(476);
+	var _actions3 = __webpack_require__(477);
 
-	var _partyListPanel = __webpack_require__(478);
+	var _partyListPanel = __webpack_require__(479);
 
 	var _partyListPanel2 = _interopRequireDefault(_partyListPanel);
 
@@ -9049,7 +9156,7 @@ webpackJsonp([0],[
 
 	var _indicator2 = _interopRequireDefault(_indicator);
 
-	var _terminalPartyList = __webpack_require__(479);
+	var _terminalPartyList = __webpack_require__(480);
 
 	var _terminalPartyList2 = _interopRequireDefault(_terminalPartyList);
 
@@ -9279,22 +9386,22 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 468 */
+/* 469 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _xterm = __webpack_require__(469);
+	var _xterm = __webpack_require__(470);
 
 	var _xterm2 = _interopRequireDefault(_xterm);
 
-	var _tty = __webpack_require__(470);
+	var _tty = __webpack_require__(471);
 
 	var _tty2 = _interopRequireDefault(_tty);
 
-	var _ttyEvents = __webpack_require__(472);
+	var _ttyEvents = __webpack_require__(473);
 
 	var _ttyEvents2 = _interopRequireDefault(_ttyEvents);
 
@@ -9577,8 +9684,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 469 */,
-/* 470 */
+/* 470 */,
+/* 471 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -9587,9 +9694,9 @@ webpackJsonp([0],[
 
 	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
-	var _events = __webpack_require__(471);
+	var _events = __webpack_require__(472);
 
-	var _enums = __webpack_require__(407);
+	var _enums = __webpack_require__(408);
 
 	var _logger = __webpack_require__(254);
 
@@ -9710,7 +9817,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 471 */
+/* 472 */
 /***/ function(module, exports) {
 
 	// Copyright Joyent, Inc. and other Node contributors.
@@ -10017,16 +10124,16 @@ webpackJsonp([0],[
 
 
 /***/ },
-/* 472 */
+/* 473 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _events = __webpack_require__(471);
+	var _events = __webpack_require__(472);
 
-	var _enums = __webpack_require__(407);
+	var _enums = __webpack_require__(408);
 
 	var _lodash = __webpack_require__(395);
 
@@ -10133,7 +10240,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 473 */
+/* 474 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -10161,7 +10268,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 474 */
+/* 475 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -10206,11 +10313,11 @@ webpackJsonp([0],[
 
 	var _logger2 = _interopRequireDefault(_logger);
 
-	var _getters = __webpack_require__(406);
+	var _getters = __webpack_require__(407);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
-	var _actionTypes = __webpack_require__(475);
+	var _actionTypes = __webpack_require__(476);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -10287,7 +10394,7 @@ webpackJsonp([0],[
 	};
 
 /***/ },
-/* 475 */
+/* 476 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -10313,7 +10420,7 @@ webpackJsonp([0],[
 	var TLPT_TERMINAL_SET_STATUS = exports.TLPT_TERMINAL_SET_STATUS = 'TLPT_TERMINAL_SET_STATUS';
 
 /***/ },
-/* 476 */
+/* 477 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -10338,11 +10445,11 @@ webpackJsonp([0],[
 
 	var _actions = __webpack_require__(255);
 
-	var _getters = __webpack_require__(406);
+	var _getters = __webpack_require__(407);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
-	var _actionTypes = __webpack_require__(477);
+	var _actionTypes = __webpack_require__(478);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -10408,7 +10515,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 477 */
+/* 478 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -10444,7 +10551,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 478 */
+/* 479 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -10510,7 +10617,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 479 */
+/* 480 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -10521,13 +10628,13 @@ webpackJsonp([0],[
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _reactAddonsCssTransitionGroup = __webpack_require__(480);
+	var _reactAddonsCssTransitionGroup = __webpack_require__(481);
 
 	var _reactAddonsCssTransitionGroup2 = _interopRequireDefault(_reactAddonsCssTransitionGroup);
 
 	var _nuclearJsReactAddons = __webpack_require__(219);
 
-	var _getters = __webpack_require__(406);
+	var _getters = __webpack_require__(407);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
@@ -10584,13 +10691,13 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 480 */,
 /* 481 */,
 /* 482 */,
 /* 483 */,
 /* 484 */,
 /* 485 */,
-/* 486 */
+/* 486 */,
+/* 487 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -10601,7 +10708,7 @@ webpackJsonp([0],[
 
 	var _jQuery2 = _interopRequireDefault(_jQuery);
 
-	var _jquery = __webpack_require__(487);
+	var _jquery = __webpack_require__(488);
 
 	var _jquery2 = _interopRequireDefault(_jquery);
 
@@ -10611,27 +10718,27 @@ webpackJsonp([0],[
 
 	var _nuclearJsReactAddons = __webpack_require__(219);
 
-	var _reactSlider = __webpack_require__(509);
+	var _reactSlider = __webpack_require__(510);
 
 	var _reactSlider2 = _interopRequireDefault(_reactSlider);
 
-	var _getters = __webpack_require__(510);
+	var _getters = __webpack_require__(511);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
-	var _terminal = __webpack_require__(468);
+	var _terminal = __webpack_require__(469);
 
 	var _terminal2 = _interopRequireDefault(_terminal);
 
-	var _ttyPlayer = __webpack_require__(511);
+	var _ttyPlayer = __webpack_require__(512);
 
-	var _actions = __webpack_require__(476);
+	var _actions = __webpack_require__(477);
 
 	var _indicator = __webpack_require__(383);
 
 	var _indicator2 = _interopRequireDefault(_indicator);
 
-	var _partyListPanel = __webpack_require__(478);
+	var _partyListPanel = __webpack_require__(479);
 
 	var _partyListPanel2 = _interopRequireDefault(_partyListPanel);
 
@@ -10879,7 +10986,6 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 487 */,
 /* 488 */,
 /* 489 */,
 /* 490 */,
@@ -10902,7 +11008,8 @@ webpackJsonp([0],[
 /* 507 */,
 /* 508 */,
 /* 509 */,
-/* 510 */
+/* 510 */,
+/* 511 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -10930,7 +11037,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 511 */
+/* 512 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -10959,16 +11066,16 @@ webpackJsonp([0],[
 	limitations under the License.
 	*/
 
-	var Tty = __webpack_require__(470);
+	var Tty = __webpack_require__(471);
 	var api = __webpack_require__(248);
 
 	var _require = __webpack_require__(242),
 	    showError = _require.showError;
 
 	var $ = __webpack_require__(230);
-	var Buffer = __webpack_require__(512).Buffer;
+	var Buffer = __webpack_require__(513).Buffer;
 
-	var _require2 = __webpack_require__(407),
+	var _require2 = __webpack_require__(408),
 	    EventTypeEnum = _require2.EventTypeEnum;
 
 	var logger = __webpack_require__(254).create('TtyPlayer');
@@ -11396,12 +11503,12 @@ webpackJsonp([0],[
 	exports.Buffer = Buffer;
 
 /***/ },
-/* 512 */,
 /* 513 */,
 /* 514 */,
 /* 515 */,
 /* 516 */,
-/* 517 */
+/* 517 */,
+/* 518 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -11444,7 +11551,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 518 */
+/* 519 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -11453,15 +11560,15 @@ webpackJsonp([0],[
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _store = __webpack_require__(519);
+	var _store = __webpack_require__(520);
 
 	var _store2 = _interopRequireDefault(_store);
 
-	var _store3 = __webpack_require__(521);
+	var _store3 = __webpack_require__(522);
 
 	var _store4 = _interopRequireDefault(_store3);
 
-	var _store5 = __webpack_require__(522);
+	var _store5 = __webpack_require__(523);
 
 	var _store6 = _interopRequireDefault(_store5);
 
@@ -11484,24 +11591,24 @@ webpackJsonp([0],[
 	*/
 
 	_reactor2.default.registerStores({
-	  'tlpt': __webpack_require__(523),
+	  'tlpt': __webpack_require__(524),
 	  'tlpt_terminal': _store2.default,
 	  'tlpt_player': _store4.default,
-	  'tlpt_user': __webpack_require__(524),
-	  'tlpt_user_invite': __webpack_require__(525),
+	  'tlpt_user': __webpack_require__(525),
+	  'tlpt_user_invite': __webpack_require__(526),
 	  'tlpt_user_acl': _store6.default,
-	  'tlpt_sites': __webpack_require__(526),
-	  'tlpt_nodes': __webpack_require__(527),
-	  'tlpt_rest_api': __webpack_require__(528),
-	  'tlpt_sessions_events': __webpack_require__(529),
-	  'tlpt_sessions_archived': __webpack_require__(530),
-	  'tlpt_sessions_active': __webpack_require__(531),
-	  'tlpt_sessions_filter': __webpack_require__(532),
-	  'tlpt_notifications': __webpack_require__(533)
+	  'tlpt_sites': __webpack_require__(527),
+	  'tlpt_nodes': __webpack_require__(528),
+	  'tlpt_rest_api': __webpack_require__(529),
+	  'tlpt_sessions_events': __webpack_require__(530),
+	  'tlpt_sessions_archived': __webpack_require__(531),
+	  'tlpt_sessions_active': __webpack_require__(532),
+	  'tlpt_sessions_filter': __webpack_require__(533),
+	  'tlpt_notifications': __webpack_require__(534)
 	});
 
 /***/ },
-/* 519 */
+/* 520 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -11511,7 +11618,7 @@ webpackJsonp([0],[
 
 	var _nuclearJs = __webpack_require__(241);
 
-	var _immutable = __webpack_require__(520);
+	var _immutable = __webpack_require__(521);
 
 	var _config = __webpack_require__(228);
 
@@ -11527,7 +11634,7 @@ webpackJsonp([0],[
 
 	var _getters = __webpack_require__(393);
 
-	var _actionTypes = __webpack_require__(475);
+	var _actionTypes = __webpack_require__(476);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -11585,7 +11692,7 @@ webpackJsonp([0],[
 	  };
 
 	  TermRec.prototype.getServerLabel = function getServerLabel() {
-	    var hostname = _reactor2.default.evaluate((0, _getters.nodeHostNameByServerId)(this.serverId));
+	    var hostname = _reactor2.default.evaluate((0, _getters.nodeHostNameByServerId)(this.serverId)) || this.serverId;
 
 	    if (hostname && this.login) {
 	      return this.login + '@' + hostname;
@@ -11628,7 +11735,7 @@ webpackJsonp([0],[
 	}
 
 /***/ },
-/* 520 */
+/* 521 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/**
@@ -16612,7 +16719,7 @@ webpackJsonp([0],[
 	}));
 
 /***/ },
-/* 521 */
+/* 522 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16622,13 +16729,13 @@ webpackJsonp([0],[
 
 	var _nuclearJs = __webpack_require__(241);
 
-	var _immutable = __webpack_require__(520);
+	var _immutable = __webpack_require__(521);
 
 	var _config = __webpack_require__(228);
 
 	var _config2 = _interopRequireDefault(_config);
 
-	var _actionTypes = __webpack_require__(477);
+	var _actionTypes = __webpack_require__(478);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -16729,7 +16836,7 @@ webpackJsonp([0],[
 	}
 
 /***/ },
-/* 522 */
+/* 523 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16738,7 +16845,7 @@ webpackJsonp([0],[
 
 	var _nuclearJs = __webpack_require__(241);
 
-	var _immutable = __webpack_require__(520);
+	var _immutable = __webpack_require__(521);
 
 	var _actionTypes = __webpack_require__(247);
 
@@ -16833,7 +16940,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 523 */
+/* 524 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16874,7 +16981,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 524 */
+/* 525 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16917,7 +17024,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 525 */
+/* 526 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16928,7 +17035,7 @@ webpackJsonp([0],[
 
 	var _actionTypes = __webpack_require__(246);
 
-	var _immutable = __webpack_require__(520);
+	var _immutable = __webpack_require__(521);
 
 	var Invite = new _immutable.Record({
 	  invite_token: '',
@@ -16966,7 +17073,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 526 */
+/* 527 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16977,7 +17084,7 @@ webpackJsonp([0],[
 
 	var _actionTypes = __webpack_require__(245);
 
-	var _immutable = __webpack_require__(520);
+	var _immutable = __webpack_require__(521);
 
 	var Site = (0, _immutable.Record)({
 	  name: null,
@@ -17016,7 +17123,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 527 */
+/* 528 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -17071,7 +17178,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 528 */
+/* 529 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -17129,7 +17236,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 529 */
+/* 530 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -17187,7 +17294,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 530 */
+/* 531 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -17196,11 +17303,11 @@ webpackJsonp([0],[
 
 	var _nuclearJs = __webpack_require__(241);
 
-	var _immutable = __webpack_require__(520);
+	var _immutable = __webpack_require__(521);
 
 	var _actionTypes = __webpack_require__(356);
 
-	var _enums = __webpack_require__(407);
+	var _enums = __webpack_require__(408);
 
 	/*
 	Copyright 2015 Gravitational, Inc.
@@ -17284,7 +17391,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 531 */
+/* 532 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -17309,7 +17416,7 @@ webpackJsonp([0],[
 
 	var _nuclearJs = __webpack_require__(241);
 
-	var _immutable = __webpack_require__(520);
+	var _immutable = __webpack_require__(521);
 
 	var _actionTypes = __webpack_require__(356);
 
@@ -17393,7 +17500,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 532 */
+/* 533 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -17422,7 +17529,7 @@ webpackJsonp([0],[
 
 	var moment = __webpack_require__(256);
 
-	var _require2 = __webpack_require__(405),
+	var _require2 = __webpack_require__(406),
 	    TLPT_STORED_SESSINS_FILTER_SET_RANGE = _require2.TLPT_STORED_SESSINS_FILTER_SET_RANGE;
 
 	exports.default = Store({
@@ -17449,7 +17556,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ },
-/* 533 */
+/* 534 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';

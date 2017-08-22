@@ -27,7 +27,7 @@ import Sessions from './components/sessions/main.jsx';
 import TerminalHost from './components/terminal/terminalHost.jsx';
 import PlayerHost from './components/player/playerHost.jsx';
 import  * as Message from './components/msgPage.jsx';
-import { ensureUser, initLogin } from './flux/user/actions';
+import { ensureUser } from './flux/user/actions';
 import { initApp } from './flux/app/actions';
 import cfg from './config';
 import reactor from './reactor';
@@ -44,7 +44,7 @@ render((
       <Route component={DocumentTitle}>
         <Route path={cfg.routes.error} title="Error" component={Message.ErrorPage} />
         <Route path={cfg.routes.info} title="Info" component={Message.InfoPage}/>
-        <Route path={cfg.routes.login} onEnter={initLogin} title="Login" component={LoginContainer}/>
+        <Route path={cfg.routes.login} title="Login" component={LoginContainer}/>
         <Route path={cfg.routes.newUser} component={InviteUser}/>
         <Redirect from={cfg.routes.app} to={cfg.routes.nodes}/>
         <Route path={cfg.routes.app} onEnter={ensureUser} component={AppContainer} >

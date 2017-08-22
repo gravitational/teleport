@@ -56,13 +56,13 @@ export class TermRec extends Record({
   }
 
   getServerLabel() {
-    let hostname = reactor.evaluate(nodeHostNameByServerId(this.serverId));
+    let hostname = reactor.evaluate(nodeHostNameByServerId(this.serverId)) || this.serverId;
 
     if (hostname && this.login) {
       return `${this.login}@${hostname}`;  
     }
 
-    return ''    
+    return '';
   }
 }
 

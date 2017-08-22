@@ -21,7 +21,8 @@ $gray-lighter: lighten($gray-base, 85.0%) !default; // #eee
 $input-bg-disabled: $gray-lighter;
 $fa-font-path: "~font-awesome/fonts";
 
-$grv-color-bg-term: #252323;   // Background color for terminal screen
+$grv-color-danger: #cc5965;
+$grv-color-bg-term: #252323;
 $grv-color-bg-inactive: #0D5849;
 $grv-color-bg-active: #1AB394;
 $grv-color-border-active: #8AD8C5;
