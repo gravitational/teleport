@@ -20,10 +20,9 @@
 #  name = "github.com/x/y"
 #  version = "2.4.0"
 
-
 [[constraint]]
-  name = "github.com/Sirupsen/logrus"
-  version = "0.10.0"
+  name = "github.com/docker/docker"
+  revision = "1009e6a40b295187e038b67e184e9c0384d95538"
 
 [[constraint]]
   name = "github.com/aws/aws-sdk-go"
@@ -44,10 +43,6 @@
 [[constraint]]
   name = "github.com/davecgh/go-spew"
   version = "1.1.0"
-
-[[constraint]]
-  name = "github.com/docker/docker"
-  version = ">=1.4.1, <=4831.0.0-g0f5c9d3"
 
 [[constraint]]
   branch = "master"

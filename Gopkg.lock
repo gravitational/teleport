@@ -8,12 +8,6 @@
   revision = "19f72df4d05d31cbe1c56bfc8045c96babff6c7e"
 
 [[projects]]
-  name = "github.com/Sirupsen/logrus"
-  packages = ["."]
-  revision = "4b6ea7319e214d98c938f12692336f7ca9348d6b"
-  version = "v0.10.0"
-
-[[projects]]
   name = "github.com/alecthomas/template"
   packages = [".","parse"]
   revision = "b867cc6ab45cece8143cfcc6fc9c77cf3f2c23c0"
