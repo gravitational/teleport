@@ -214,6 +214,23 @@ func (f *FlagClause) needsValue() bool {
 	return f.required && !(haveDefault || haveEnvar)
 }
 
+func (f *FlagClause) formatPlaceHolder() string {
+	if f.placeholder != "" {
+		return f.placeholder
+	}
+	if len(f.defaultValues) > 0 {
+		ellipsis := ""
+		if len(f.defaultValues) > 1 {
+			ellipsis = "..."
+		}
+		if _, ok := f.value.(*stringValue); ok {
+			return fmt.Sprintf("%q"+ellipsis, f.defaultValues[0])
+		}
+		return f.defaultValues[0] + ellipsis
+	}
+	return strings.ToUpper(f.name)
+}
+
 func (f *FlagClause) init() error {
 	if f.required && len(f.defaultValues) > 0 {
 		return fmt.Errorf("required flag '--%s' with default value that will never be used", f.name)

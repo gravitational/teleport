@@ -13,10 +13,10 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
+	log "github.com/sirupsen/logrus"
 )
 
 func (s *AuthServer) getOIDCClient(conn services.OIDCConnector) (*oidc.Client, error) {

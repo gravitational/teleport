@@ -33,10 +33,10 @@ import (
 
 	"github.com/gravitational/teleport/lib/services"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/mailgun/lemma/secret"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/tstranex/u2f"
 )

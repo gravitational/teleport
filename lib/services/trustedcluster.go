@@ -24,9 +24,9 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
 )
 
 // TrustedCluster holds information needed for a cluster that can not be directly

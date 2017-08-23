@@ -23,9 +23,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
+	log "github.com/sirupsen/logrus"
 
 	"gopkg.in/check.v1"
 )

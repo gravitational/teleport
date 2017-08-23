@@ -23,12 +23,12 @@ import (
 	"sort"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
+	log "github.com/sirupsen/logrus"
 
-	"github.com/docker/docker/pkg/term"
 	"github.com/gravitational/trace"
+	"github.com/moby/moby/pkg/term"
 	"github.com/pborman/uuid"
 )
 

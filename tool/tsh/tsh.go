@@ -42,9 +42,9 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/buger/goterm"
 	gops "github.com/google/gops/agent"
+	"github.com/sirupsen/logrus"
 )
 
 // CLIConf stores command line arguments and flags:

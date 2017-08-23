@@ -31,11 +31,11 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/gokyle/hotp"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
+	log "github.com/sirupsen/logrus"
 	"github.com/tstranex/u2f"
 )
 

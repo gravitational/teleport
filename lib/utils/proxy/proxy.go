@@ -30,7 +30,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
 // DialWithDeadline works around the case when net.DialWithTimeout

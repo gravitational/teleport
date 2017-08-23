@@ -24,9 +24,9 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/codahale/hdrhistogram"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 // Benchmark specifies benchmark requests to run

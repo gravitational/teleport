@@ -8,23 +8,18 @@ package agent
 
 import (
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net"
 	"os"
 	gosignal "os/signal"
 	"runtime"
 	"runtime/pprof"
-	"runtime/trace"
 	"strconv"
 	"sync"
 	"time"
 
-	"bufio"
-
 	"github.com/google/gops/internal"
 	"github.com/google/gops/signal"
-	"github.com/kardianos/osext"
 )
 
 const defaultAddr = "127.0.0.1:0"
@@ -33,8 +28,6 @@ var (
 	mu       sync.Mutex
 	portfile string
 	listener net.Listener
-
-	units = []string{" bytes", "KB", "MB", "GB", "TB", "PB"}
 )
 
 // Options allows configuring the started agent.
@@ -44,7 +37,7 @@ type Options struct {
 	Addr string
 
 	// NoShutdownCleanup tells the agent not to automatically cleanup
-	// resources if the running process receives an interrupt.
+	// resources if the running process recieves an interrupt.
 	// Optional.
 	NoShutdownCleanup bool
 }
@@ -150,22 +143,7 @@ func Close() {
 	}
 }
 
-func formatBytes(val uint64) string {
-	var i int
-	var target uint64
-	for i = range units {
-		target = 1 << uint(10*(i+1))
-		if val < target {
-			break
-		}
-	}
-	if i > 0 {
-		return fmt.Sprintf("%0.2f%s (%d bytes)", float64(val)/(float64(target)/1024), units[i], val)
-	}
-	return fmt.Sprintf("%d bytes", val)
-}
-
-func handle(conn io.Writer, msg []byte) error {
+func handle(conn net.Conn, msg []byte) error {
 	switch msg[0] {
 	case signal.StackTrace:
 		return pprof.Lookup("goroutine").WriteTo(conn, 2)
@@ -176,27 +154,23 @@ func handle(conn io.Writer, msg []byte) error {
 	case signal.MemStats:
 		var s runtime.MemStats
 		runtime.ReadMemStats(&s)
-		fmt.Fprintf(conn, "alloc: %v\n", formatBytes(s.Alloc))
-		fmt.Fprintf(conn, "total-alloc: %v\n", formatBytes(s.TotalAlloc))
-		fmt.Fprintf(conn, "sys: %v\n", formatBytes(s.Sys))
+		fmt.Fprintf(conn, "alloc: %v bytes\n", s.Alloc)
+		fmt.Fprintf(conn, "total-alloc: %v bytes\n", s.TotalAlloc)
+		fmt.Fprintf(conn, "sys: %v bytes\n", s.Sys)
 		fmt.Fprintf(conn, "lookups: %v\n", s.Lookups)
 		fmt.Fprintf(conn, "mallocs: %v\n", s.Mallocs)
 		fmt.Fprintf(conn, "frees: %v\n", s.Frees)
-		fmt.Fprintf(conn, "heap-alloc: %v\n", formatBytes(s.HeapAlloc))
-		fmt.Fprintf(conn, "heap-sys: %v\n", formatBytes(s.HeapSys))
-		fmt.Fprintf(conn, "heap-idle: %v\n", formatBytes(s.HeapIdle))
-		fmt.Fprintf(conn, "heap-in-use: %v\n", formatBytes(s.HeapInuse))
-		fmt.Fprintf(conn, "heap-released: %v\n", formatBytes(s.HeapReleased))
+		fmt.Fprintf(conn, "heap-alloc: %v bytes\n", s.HeapAlloc)
+		fmt.Fprintf(conn, "heap-sys: %v bytes\n", s.HeapSys)
+		fmt.Fprintf(conn, "heap-idle: %v bytes\n", s.HeapIdle)
+		fmt.Fprintf(conn, "heap-in-use: %v bytes\n", s.HeapInuse)
+		fmt.Fprintf(conn, "heap-released: %v bytes\n", s.HeapReleased)
 		fmt.Fprintf(conn, "heap-objects: %v\n", s.HeapObjects)
-		fmt.Fprintf(conn, "stack-in-use: %v\n", formatBytes(s.StackInuse))
-		fmt.Fprintf(conn, "stack-sys: %v\n", formatBytes(s.StackSys))
-		fmt.Fprintf(conn, "next-gc: when heap-alloc >= %v\n", formatBytes(s.NextGC))
-		lastGC := "-"
-		if s.LastGC != 0 {
-			lastGC = fmt.Sprint(time.Unix(0, int64(s.LastGC)))
-		}
-		fmt.Fprintf(conn, "last-gc: %v\n", lastGC)
-		fmt.Fprintf(conn, "gc-pause: %v\n", time.Duration(s.PauseTotalNs))
+		fmt.Fprintf(conn, "stack-in-use: %v bytes\n", s.StackInuse)
+		fmt.Fprintf(conn, "stack-sys: %v bytes\n", s.StackSys)
+		fmt.Fprintf(conn, "next-gc: when heap-alloc >= %v bytes\n", s.NextGC)
+		fmt.Fprintf(conn, "last-gc: %v ns\n", s.LastGC)
+		fmt.Fprintf(conn, "gc-pause: %v ns\n", s.PauseTotalNs)
 		fmt.Fprintf(conn, "num-gc: %v\n", s.NumGC)
 		fmt.Fprintf(conn, "enable-gc: %v\n", s.EnableGC)
 		fmt.Fprintf(conn, "debug-gc: %v\n", s.DebugGC)
@@ -215,23 +189,6 @@ func handle(conn io.Writer, msg []byte) error {
 		fmt.Fprintf(conn, "OS threads: %v\n", pprof.Lookup("threadcreate").Count())
 		fmt.Fprintf(conn, "GOMAXPROCS: %v\n", runtime.GOMAXPROCS(0))
 		fmt.Fprintf(conn, "num CPU: %v\n", runtime.NumCPU())
-	case signal.BinaryDump:
-		path, err := osext.Executable()
-		if err != nil {
-			return err
-		}
-		f, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-
-		_, err = bufio.NewReader(f).WriteTo(conn)
-		return err
-	case signal.Trace:
-		trace.Start(conn)
-		time.Sleep(5 * time.Second)
-		trace.Stop()
 	}
 	return nil
 }

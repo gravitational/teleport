@@ -27,16 +27,16 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/docker/docker/pkg/term"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+	"github.com/moby/moby/pkg/term"
 	"golang.org/x/crypto/ssh"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
 type NodeSession struct {

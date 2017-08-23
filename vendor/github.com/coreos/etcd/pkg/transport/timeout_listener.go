@@ -1,4 +1,4 @@
-// Copyright 2015 CoreOS, Inc.
+// Copyright 2015 The etcd Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,16 +22,20 @@ import (
 // NewTimeoutListener returns a listener that listens on the given address.
 // If read/write on the accepted connection blocks longer than its time limit,
 // it will return timeout error.
-func NewTimeoutListener(addr string, scheme string, info TLSInfo, rdtimeoutd, wtimeoutd time.Duration) (net.Listener, error) {
-	ln, err := NewListener(addr, scheme, info)
+func NewTimeoutListener(addr string, scheme string, tlsinfo *TLSInfo, rdtimeoutd, wtimeoutd time.Duration) (net.Listener, error) {
+	ln, err := newListener(addr, scheme)
 	if err != nil {
 		return nil, err
 	}
-	return &rwTimeoutListener{
+	ln = &rwTimeoutListener{
 		Listener:   ln,
 		rdtimeoutd: rdtimeoutd,
 		wtimeoutd:  wtimeoutd,
-	}, nil
+	}
+	if ln, err = wrapTLS(addr, scheme, tlsinfo, ln); err != nil {
+		return nil, err
+	}
+	return ln, nil
 }
 
 type rwTimeoutListener struct {

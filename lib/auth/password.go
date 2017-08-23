@@ -11,9 +11,9 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
+	log "github.com/sirupsen/logrus"
 )
 
 var fakePasswordHash = []byte(`$2a$10$Yy.e6BmS2SrGbBDsyDLVkOANZmvjjMR890nUGSXFJHBXWzxe7T44m`)

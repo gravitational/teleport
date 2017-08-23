@@ -16,7 +16,7 @@ limitations under the License.
 package sshutils
 
 import (
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
 

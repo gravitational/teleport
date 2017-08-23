@@ -51,7 +51,7 @@ In your code, attach a logrus hook to use udpbeat:
 
 import (
    "github.com/gravitational/trace"
-   log "github.com/Sirupsen/logrus"
+   log "github.com/sirupsen/logrus"
 )
 
 func main() {

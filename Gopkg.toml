@@ -1,0 +1,122 @@
+
+# Gopkg.toml example
+#
+# Refer to https://github.com/golang/dep/blob/master/docs/Gopkg.toml.md
+# for detailed Gopkg.toml documentation.
+#
+# required = ["github.com/user/thing/cmd/thing"]
+# ignored = ["github.com/user/project/pkgX", "bitbucket.org/user/project/pkgA/pkgY"]
+#
+# [[constraint]]
+#   name = "github.com/user/project"
+#   version = "1.0.0"
+#
+# [[constraint]]
+#   name = "github.com/user/project2"
+#   branch = "dev"
+#   source = "github.com/myfork/project2"
+#
+# [[override]]
+#  name = "github.com/x/y"
+#  version = "2.4.0"
+
+
+[[constraint]]
+  name = "github.com/Sirupsen/logrus"
+  version = "0.10.0"
+
+[[constraint]]
+  name = "github.com/aws/aws-sdk-go"
+  version = "1.5.13"
+
+[[constraint]]
+  name = "github.com/boltdb/bolt"
+  version = ">=1.0.0, <=111.0.0-g04a3e85"
+
+[[constraint]]
+  name = "github.com/cenkalti/backoff"
+  version = ">=1.0.0, <=19.0.0-g5d150e7"
+
+[[constraint]]
+  name = "github.com/coreos/etcd"
+  version = "3.2.4"
+
+[[constraint]]
+  name = "github.com/davecgh/go-spew"
+  version = "1.1.0"
+
+[[constraint]]
+  name = "github.com/docker/docker"
+  version = ">=1.4.1, <=4831.0.0-g0f5c9d3"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/gokyle/hotp"
+
+[[constraint]]
+  name = "github.com/google/gops"
+  version = ">=0.3.1, <=12.0.0-gccfb39d"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/gravitational/form"
+
+[[constraint]]
+  name = "github.com/gravitational/kingpin"
+  version = ">=2.1.10, <=6.0.0-g7856865"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/gravitational/roundtrip"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/gravitational/ttlmap"
+
+[[constraint]]
+  name = "github.com/grpc-ecosystem/grpc-gateway"
+  version = "1.1.0"
+
+[[constraint]]
+  name = "github.com/julienschmidt/httprouter"
+  version = ">=1.0.0, <=64.0.0-gb428fda"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/kardianos/osext"
+
+[[constraint]]
+  name = "github.com/kr/pty"
+  version = "1.0.0"
+
+[[constraint]]
+  name = "github.com/mailgun/lemma"
+  version = ">=0.0.2, <=1.0.0-gc98f59f"
+
+[[constraint]]
+  branch = "alexander/copy"
+  name = "github.com/mailgun/oxy"
+
+[[constraint]]
+  name = "github.com/pborman/uuid"
+  version = ">=1.0.0, <=11.0.0-gc55201b"
+
+[[constraint]]
+  name = "github.com/prometheus/client_golang"
+  version = "0.8.0"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/russellhaering/goxmldsig"
+
+[[constraint]]
+  name = "google.golang.org/grpc"
+  version = ">=1.0.0, <=183.0.0-g231b4cf"
+
+[[constraint]]
+  name = "k8s.io/client-go"
+  version = "2.0.0"
+
+[[constraint]]
+  name = "github.com/gravitational/trace"
+  version = "1.0.0"

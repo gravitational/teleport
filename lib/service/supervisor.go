@@ -20,9 +20,9 @@ import (
 	"fmt"
 	"sync"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 // Supervisor implements the simple service logic - registering

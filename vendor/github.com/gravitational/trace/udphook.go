@@ -5,8 +5,8 @@ import (
 	"net"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -83,17 +83,18 @@ func (elk *UDPHook) Fire(e *log.Entry) error {
 		return Wrap(err)
 	}
 
-	c, err := net.ListenPacket("udp", ":0")
+	conn, err := net.ListenPacket("udp", ":0")
+	if err != nil {
+		return Wrap(err)
+	}
+	defer conn.Close()
+
+	resolvedAddr, err := net.ResolveUDPAddr("udp", "127.0.0.1:5000")
 	if err != nil {
 		return Wrap(err)
 	}
 
-	ra, err := net.ResolveUDPAddr("udp", "127.0.0.1:5000")
-	if err != nil {
-		return Wrap(err)
-	}
-
-	_, err = (c.(*net.UDPConn)).WriteToUDP(data, ra)
+	_, err = (conn.(*net.UDPConn)).WriteToUDP(data, resolvedAddr)
 	return Wrap(err)
 
 }

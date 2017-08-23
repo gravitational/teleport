@@ -13,9 +13,9 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/beevik/etree"
 	saml2 "github.com/russellhaering/gosaml2"
+	log "github.com/sirupsen/logrus"
 )
 
 func (s *AuthServer) UpsertSAMLConnector(connector services.SAMLConnector) error {

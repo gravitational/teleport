@@ -27,7 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/trace"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/jonboulle/clockwork"
 )
