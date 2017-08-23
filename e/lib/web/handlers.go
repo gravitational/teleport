@@ -1,17 +1,21 @@
 package web
 
 import (
+	"io"
 	"net/http"
+	"strings"
 
 	"github.com/gravitational/teleport/e/lib/web/ui"
 
-	telebackend "github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/backend"
 	telehttplib "github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web"
-	teleui "github.com/gravitational/teleport/lib/web/ui"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+	kyaml "k8s.io/client-go/1.4/pkg/util/yaml"
 )
 
 // Plugin is our plugins to web API of teleport OSS
@@ -20,287 +24,79 @@ type Plugin struct {
 
 // AddHandlers registeres Plugin handlers
 func (p *Plugin) AddHandlers(h *web.Handler) {
-	h.GET("/enterprise/trustedclusters", h.WithAuth(p.getTrustedClusters))
-	h.PUT("/enterprise/trustedclusters", h.WithAuth(p.upsertTrustedCluster))
-	h.GET("/enterprise/roles", h.WithAuth(p.getRoles))
-	h.POST("/enterprise/roles", h.WithAuth(p.createRole))
-	h.PUT("/enterprise/roles", h.WithAuth(p.updateRole))
-	h.DELETE("/enterprise/roles/:rolename", h.WithAuth(p.deleteRole))
-	h.GET("/enterprise/oidc", h.WithAuth(p.getOIDConnectors))
-	h.POST("/enterprise/oidc", h.WithAuth(p.createOIDConnector))
-	h.PUT("/enterprise/oidc", h.WithAuth(p.updateOIDConnector))
-	h.DELETE("/enterprise/oidc/:oidconnectorname", h.WithAuth(p.deleteOIDConnectors))
+	h.GET("/enterprise/resources/:kind", h.WithAuth(p.getResources))
+	h.PUT("/enterprise/resources/:kind", h.WithAuth(p.upsertResource))
+	h.POST("/enterprise/resources/:kind", h.WithAuth(p.upsertResource))
+	h.DELETE("/enterprise/resources/:kind/:name", h.WithAuth(p.deleteResource))
 }
 
-// getRoles is an example handler
-//
-// GET /v1/enterprise/roles
-//
-// Sucessful response:
-//
-// {"ok":"ok"}
-//
-func (p *Plugin) getTrustedClusters(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *web.SessionContext) (interface{}, error) {
+func (p *Plugin) getResources(w http.ResponseWriter, r *http.Request, params httprouter.Params, c *web.SessionContext) (interface{}, error) {
+	resourceKind := params.ByName("kind")
 	clt, err := c.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	teleTrustedClusters, err := clt.GetTrustedClusters()
+	data, err := getResourceByKind(resourceKind, clt)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	uiTrustedClrs := []ui.TrustedCluster{}
-	for _, item := range teleTrustedClusters {
-		uiTrustedClrs = append(uiTrustedClrs, ui.NewTrustedCluster(item))
-	}
-
-	return uiTrustedClrs, nil
+	return makeItemsResponse(data)
 }
 
-func (p *Plugin) upsertTrustedCluster(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *web.SessionContext) (interface{}, error) {
-	clt, err := c.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var req *ui.TrustedCluster
+func (p *Plugin) upsertResource(w http.ResponseWriter, r *http.Request, params httprouter.Params, c *web.SessionContext) (interface{}, error) {
+	var req *ui.ConfigItem
 	if err := telehttplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	teleTrustedClr, err := clt.GetTrustedCluster(req.Name)
+	client, err := c.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	teleTrustedClr.SetEnabled(req.Enabled)
-
-	if err := clt.UpsertTrustedCluster(teleTrustedClr); err != nil {
+	resourceKind := params.ByName("kind")
+	items, err := upsertResourceByKind(resourceKind, *req, client)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return ok(), nil
+	return makeItemsResponse(items)
 }
 
-// getRoles is an example handler
-//
-// GET /v1/enterprise/roles
-//
-// Sucessful response:
-//
-// {"ok":"ok"}
-//
-func (p *Plugin) getRoles(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *web.SessionContext) (interface{}, error) {
-	clt, err := c.GetClient()
+func (p *Plugin) deleteResource(w http.ResponseWriter, r *http.Request, params httprouter.Params, c *web.SessionContext) (interface{}, error) {
+	resourceKind := params.ByName("kind")
+	resourceName := params.ByName("name")
+
+	client, err := c.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	teleRoles, err := clt.GetRoles()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	uiroles := []teleui.Role{}
-	for _, item := range teleRoles {
-		role, err := teleui.NewRole(item)
-		if err != nil {
+	switch resourceKind {
+	case services.KindSAMLConnector:
+		if err := client.DeleteSAMLConnector(resourceName); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		uiroles = append(uiroles, *role)
-	}
-
-	return uiroles, nil
-}
-
-// updateRole updates existing one
-//
-// PUT /v1/enterprise/roles
-//
-// Sucessful response:
-//
-// {"ok":"ok"}
-//
-func (p *Plugin) updateRole(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *web.SessionContext) (interface{}, error) {
-	clt, err := c.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var req *teleui.Role
-	if err := telehttplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	teleRole, err := clt.GetRole(req.Name)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	req.Access.Apply(teleRole)
-
-	if err := clt.UpsertRole(teleRole, telebackend.Forever); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return ok(), nil
-}
-
-// createRole updates existing one
-//
-// POST /v1/enterprise/roles
-//
-// Sucessful response:
-//
-// {"ok":"ok"}
-//
-func (p *Plugin) createRole(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *web.SessionContext) (interface{}, error) {
-	clt, err := c.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var req *teleui.Role
-	if err := telehttplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	teleRole, err := req.ToTeleRole()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := clt.UpsertRole(teleRole, telebackend.Forever); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return ok(), nil
-}
-
-// deleteRole updates existing one
-//
-// DELETE /v1/enterprise/roles
-//
-// Sucessful response:
-//
-// {"ok":"ok"}
-//
-func (p *Plugin) deleteRole(w http.ResponseWriter, r *http.Request, params httprouter.Params, c *web.SessionContext) (interface{}, error) {
-	clt, err := c.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	roleName := params.ByName("rolename")
-	if err := clt.DeleteRole(roleName); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return ok(), nil
-}
-
-// getOIConnectors returns oicd connectors
-//
-// GET /v1/enterprise/iodc
-//
-// Sucessful response:
-//
-//  [{"name":"", "clientId":"","issuerUrl":"","redirectUrl":"","scopes":["one","two","three"],"roleMapping":{"claim":{"claim_value":["role_name"]}}}]
-//
-func (p *Plugin) getOIDConnectors(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *web.SessionContext) (interface{}, error) {
-	clt, err := c.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	teleConnectors, err := clt.GetOIDCConnectors(true)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	uiConnectors := []ui.OIDConnector{}
-	for _, item := range teleConnectors {
-		uiConnectors = append(uiConnectors, ui.NewOIDConnector(item))
-	}
-
-	return uiConnectors, nil
-}
-
-// createOIConnector creates oidc connector
-//
-// POST /v1/enterprise/iodc
-//
-// Sucessful response:
-//
-// {"ok":"ok"}
-//
-func (p *Plugin) createOIDConnector(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *web.SessionContext) (interface{}, error) {
-	clt, err := c.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	uiConnector := ui.OIDConnector{}
-	if err := telehttplib.ReadJSON(r, &uiConnector); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	storageConnector := uiConnector.ToStorageConnector()
-	if err := clt.UpsertOIDCConnector(storageConnector); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return ok(), nil
-}
-
-// deleteOIConnectors deletes oidc connector
-//
-// DELETE /v1/enterprise/iodc/:name
-//
-// Sucessful response:
-//
-// {"ok":"ok"}
-//
-func (p *Plugin) deleteOIDConnectors(w http.ResponseWriter, r *http.Request, params httprouter.Params, c *web.SessionContext) (interface{}, error) {
-	clt, err := c.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	err = clt.DeleteOIDCConnector(params[0].Value)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return ok(), nil
-}
-
-// updateOIConnector returns oicd connectors
-//
-// PUT /v1/enterprise/iodc
-//
-//  [{"name":"", "clientId":"","issuerUrl":"","redirectUrl":"","scopes":["one","two","three"],"roleMapping":{"claim":{"claim_value":["role_name"]}}}]
-//
-func (p *Plugin) updateOIDConnector(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *web.SessionContext) (interface{}, error) {
-	clt, err := c.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	uiConnector := ui.OIDConnector{}
-	if err := telehttplib.ReadJSON(r, &uiConnector); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	teleConnector, err := clt.GetOIDCConnector(uiConnector.ID, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	uiConnector.Apply(teleConnector)
-	if err := clt.UpsertOIDCConnector(teleConnector); err != nil {
-		return nil, trace.Wrap(err)
+		return ok(), nil
+	case services.KindOIDCConnector:
+		if err := client.DeleteOIDCConnector(resourceName); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return ok(), nil
+	case services.KindRole:
+		if err := client.DeleteRole(resourceName); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return ok(), nil
+	case services.KindTrustedCluster:
+		if err := client.DeleteTrustedCluster(resourceName); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return ok(), nil
+	default:
+		return nil, trace.BadParameter("%q is not supported", resourceKind)
 	}
 
 	return ok(), nil
@@ -314,4 +110,127 @@ func message(msg string) interface{} {
 // ok returns structured OK response
 func ok() interface{} {
 	return message("OK")
+}
+
+func getResourceByKind(kind string, client auth.ClientI) (interface{}, error) {
+	if kind == "" {
+		return nil, trace.BadParameter("specify resource to list, e.g. 'tctl get roles'")
+	}
+	switch kind {
+	case services.KindSAMLConnector:
+		connectors, err := client.GetSAMLConnectors(true)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return ui.ConvertSAMLConnectors(connectors)
+	case services.KindOIDCConnector:
+		connectors, err := client.GetOIDCConnectors(true)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return ui.ConvertOIDCConnectors(connectors)
+	case services.KindRole:
+		roles, err := client.GetRoles()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return ui.ConvertRoles(roles)
+	case services.KindTrustedCluster:
+		trustedClusters, err := client.GetTrustedClusters()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return ui.ConvertTrustedClusters(trustedClusters)
+	}
+
+	return nil, trace.BadParameter("'%v' is not supported", kind)
+}
+
+func upsertResourceByKind(kind string, uiItem ui.ConfigItem, client auth.ClientI) (interface{}, error) {
+	var raw services.UnknownResource
+	reader := strings.NewReader(uiItem.Content)
+	decoder := kyaml.NewYAMLOrJSONDecoder(reader, 32*1024)
+	err := decoder.Decode(&raw)
+	if err != nil {
+		if err == io.EOF {
+			return nil, trace.BadParameter("no resources found, emtpy input?")
+
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	yaml := raw.Raw
+	switch kind {
+	case services.KindSAMLConnector:
+		conn, err := services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(yaml)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := conn.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := client.UpsertSAMLConnector(conn); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		items, err := ui.ConvertSAMLConnectors([]services.SAMLConnector{conn})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return items, nil
+	case services.KindOIDCConnector:
+		conn, err := services.GetOIDCConnectorMarshaler().UnmarshalOIDCConnector(yaml)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := client.UpsertOIDCConnector(conn); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		items, err := ui.ConvertOIDCConnectors([]services.OIDCConnector{conn})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return items, nil
+	case services.KindRole:
+		role, err := services.GetRoleMarshaler().UnmarshalRole(yaml)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		err = role.CheckAndSetDefaults()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := client.UpsertRole(role, backend.Forever); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		items, err := ui.ConvertRoles([]services.Role{role})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return items, nil
+	case services.KindTrustedCluster:
+		tc, err := services.GetTrustedClusterMarshaler().Unmarshal(yaml)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := client.UpsertTrustedCluster(tc); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		items, err := ui.ConvertTrustedClusters([]services.TrustedCluster{tc})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return items, nil
+	case "":
+		return nil, trace.BadParameter("missing resource kind")
+	default:
+		return nil, trace.BadParameter("%q is not supported", kind)
+	}
+}
+
+type itemsResponse struct {
+	Items interface{} `json:"items"`
+}
+
+func makeItemsResponse(items interface{}) (interface{}, error) {
+	return itemsResponse{Items: items}, nil
 }

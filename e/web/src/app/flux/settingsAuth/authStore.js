@@ -1,93 +1,24 @@
-import { Store, toImmutable } from 'nuclear-js';
-import { Record, List } from 'immutable';
+import reactor from 'app/reactor';
+import { Store } from 'nuclear-js';
+import * as AT from './actionTypes';
 
-import {
-  SETTINGS_AUTH_CONN_NEW,
-  SETTINGS_AUTH_CONN_CANCEL_NEW,
-  SETTINGS_AUTH_CONN_SET_TO_DELETE,
-  SETTINGS_AUTH_CONN_RECEIVE,
-  SETTINGS_AUTH_CONN_CLEAR
-} from './actionTypes';
+import { StoreRec } from './../records';
 
-const mappingSample = [
-  {
-    "claim": "claim",
-    "value": "claim_value",
-    "roles": [
-      "role_name"
-    ]
-  }
-]
-
-class OIDConnectorRec extends Record({
-  key: null,
-  id: '',
-  displayName: '',
-  isNew: false,
-  isSaving: false,
-  clientId: '',
-  clientSecret: '',
-  issuerUrl: '',
-  redirectUrl: '',
-  scope: [],
-  roleMapping: null
-}) {
-  constructor({ scope, ...props }) {
-    let key = Math.random().toString();
-    scope = scope || [];
-    super({
-      key,
-      scope, 
-      ...props
-    });    
-  }
+export function getStore() {
+  return reactor.evaluate(['tlp_settings_auth'])
 }
 
 export default Store({
 
   getInitialState() {
-    return toImmutable({      
-      connectors: [],
-      connectorToDelete: null
-    });
+    return new StoreRec()
   },
 
-  initialize() {
-    this.on(SETTINGS_AUTH_CONN_CLEAR, clear);    
-    this.on(SETTINGS_AUTH_CONN_RECEIVE, receive);
-    this.on(SETTINGS_AUTH_CONN_NEW, createNew);
-    this.on(SETTINGS_AUTH_CONN_CANCEL_NEW, cancelNew);
-    this.on(SETTINGS_AUTH_CONN_SET_TO_DELETE, setToDelete);    
+  initialize() {    
+    this.on(AT.UPDATE_CONNECTORS, (state, items) => state.upsertItems(items) );            
+    this.on(AT.RECEIVE_CONNECTORS, (state, items) => state.setItems(items) );            
+    this.on(AT.SET_TO_DELETE, (state, id) => state.setItemToDelete(id) );            
+    this.on(AT.SET_CURRENT, (state, item) => state.setCurItem(item))
   }
 })
 
-function receive(state, json) {
-  json = json || [];
-  let connectorList = new List(json.map(
-    i => new OIDConnectorRec(i)));
-  
-  return state.setIn(['connectors'], connectorList); 
-}
-
-function setToDelete(state, connectorId) {
-  return state.set('connectorToDelete', connectorId);
-}
-
-function createNew(state) {
-  let newRec = new OIDConnectorRec({
-    isNew: true,  
-    scope: ['scope1', 'scope2'],
-    roleMapping: mappingSample
-  });  
-
-  return state.updateIn(['connectors'], provList => provList.unshift(newRec))
-}
-
-function cancelNew(state) {  
-  let allConnectors = state.get('connectors').filter( item => !item.get('isNew'))
-  return state.set('connectors', allConnectors);
-}
-
-function clear(state) {
-  return cancelNew(state);
-}

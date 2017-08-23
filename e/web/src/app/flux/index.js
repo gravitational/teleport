@@ -17,12 +17,14 @@ limitations under the License.
 import reactor from 'app/reactor';
 
 import settingsStore from './settings/store';
+import dialogsStore from './settings/storeDialogs';
 import authStore from './settingsAuth/authStore';
 import rolesStore from './settingsRoles/store';
 import clustersStore from './settingsClusters/store';
 
 reactor.registerStores({
-  'tlp_settings': settingsStore,
+  'tlp_settings': settingsStore,  
+  'tlp_settings_dialogs': dialogsStore,  
   'tlp_settings_auth': authStore,
   'tlp_settings_role': rolesStore,
   'tlp_settings_cluster': clustersStore

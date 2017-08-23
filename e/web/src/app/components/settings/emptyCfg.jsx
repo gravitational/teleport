@@ -1,19 +1,19 @@
 import React from 'react';
-import Button from 'app/components/common/button';
+import Box from 'app/components/common/boxes/box';
 
-const Empty = ({ onClick, title, description, btnText }) => (
-  <div className="text-center" style={{ minHeight: "50px", margin: "25px auto", maxWidth: "600px" }}>
-    <p>
-      {title}
-    </p>
-    <div className="text-muted"> {description}</div>
-    { btnText && <Button
-      className="btn-sm btn-primary m-t"
-      onClick={onClick}>
-      {btnText}
-    </Button>
-    }
-  </div>
+export const EmptyList = props => (
+  <Box> 
+    <div className="text-center" style={{ minHeight: "50px", margin: "25px auto", maxWidth: "600px" }}>
+      <p>
+        <strong>You do not have anything here</strong>
+      </p>
+      <div className="text-muted"> 
+        <div>          
+            <button className="btn btn-sm btn-primary" onClick={props.onClick}>          
+              Create
+            </button>
+          </div>            
+        </div>        
+    </div>    
+  </Box>  
 );
-
-export default Empty;

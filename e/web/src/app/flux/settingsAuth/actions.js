@@ -1,82 +1,64 @@
 import $ from 'jQuery';
 import api from 'app/services/api';
+import Logger from 'telebase-app/lib/logger';
+import { ResourceEnum } from 'app/services/enums';
 import cfg from 'app/config';
+import { getStore } from './authStore';
 import reactor from 'app/reactor';
-import { TRYING_TO_DELETE_AUTH_PROVIDER } from 'app/flux/restApi/constants';
-import restApiActions from 'telebase-app/flux/restApi/actions';
-import { showError, showSuccess } from 'telebase-app/flux/notifications/actions';
-
-import {
-  SETTINGS_AUTH_CONN_NEW,
-  SETTINGS_AUTH_CONN_SET_TO_DELETE,
-  SETTINGS_AUTH_CONN_CANCEL_NEW,
-  SETTINGS_AUTH_CONN_RECEIVE,
-  SETTINGS_AUTH_CONN_CLEAR
-} from './actionTypes';
-
-const actions = {
-
-  clear() {
-    reactor.dispatch(SETTINGS_AUTH_CONN_CLEAR);
-  },
-
-  addNew() {
-    reactor.dispatch(SETTINGS_AUTH_CONN_NEW);    
-  },   
-
-  cancelNew() {
-    reactor.dispatch(SETTINGS_AUTH_CONN_CANCEL_NEW);
-  },
-
-  fetchConnectors() {
-    return api.get(cfg.getOicdConnectorsPath()).done(json => {      
-      reactor.dispatch(SETTINGS_AUTH_CONN_RECEIVE, json);
-    })    
-  },
-
-  save(connector) {
-    let dfd = $.Deferred();
-    let url = cfg.getOicdConnectorsPath();
-    if (connector.isNew) {
-      dfd = api.post(url, connector); 
-    } else {
-      dfd = api.put(url, connector);
-    }
-
-    let { id } = connector;    
-    return dfd
-      .then(() => actions.fetchConnectors())
-      .done(() => {
-        showSuccess(`Connector ${id} has been saved`, '');
-      })
-      .fail(err => {
-        let msg = api.getErrorText(err);                
-        showError(msg, 'Failed to save a connector');        
-      })      
-  },
-
-  deleteConnector(connectorId) {
-    restApiActions.start(TRYING_TO_DELETE_AUTH_PROVIDER);    
-    api.delete(cfg.getOicdConnectorsPath(connectorId))
-      .then(() =>  actions.fetchConnectors() )
-      .done(() => {
-        restApiActions.success(TRYING_TO_DELETE_AUTH_PROVIDER);
-        actions.closeDeleteConnectorDialog();
-      })
-      .fail(err => {
-        let msg = api.getErrorText(err);
-        restApiActions.fail(TRYING_TO_DELETE_AUTH_PROVIDER);        
-        showError(msg, 'Failed to delete a connector');
-      });        
-  },
-  
-  openDeleteConnectorDialog(connectorId){
-    reactor.dispatch(SETTINGS_AUTH_CONN_SET_TO_DELETE, connectorId);
-  },
-
-  closeDeleteConnectorDialog(){
-    reactor.dispatch(SETTINGS_AUTH_CONN_SET_TO_DELETE, null);
-  }
+import { closeDeleteDialog } from '../settings/actions';
+import * as RAT from 'app/flux/restApi/constants';
+import apiActions from 'telebase-app/flux/restApi/actions';
+import * as AT from './actionTypes';
+const logger = Logger.create('flux/settingsAuth/actions');
+      
+export function setCurProvider(item) {    
+  reactor.batch(() => {      
+    apiActions.clear(RAT.TRYING_TO_SAVE_AUTH_PROVIDER);
+    reactor.dispatch(AT.SET_CURRENT, item)
+  });
 }
 
-export default actions;
+export function fetchAuthProviders(){
+  return $.when(
+    api.get(cfg.getResourcesUrl(ResourceEnum.OIDC)),
+    api.get(cfg.getResourcesUrl(ResourceEnum.SAML)))
+    .then((res1, res2) => {        
+      return [...res1[0].items, ...res2[0].items]
+    })
+    .done(items => {
+      reactor.dispatch(AT.RECEIVE_CONNECTORS, items);
+    });      
+}
+
+export function saveAuthProvider(authProvider) {
+  apiActions.start(RAT.TRYING_TO_SAVE_AUTH_PROVIDER);            
+  return api.put(cfg.getResourcesUrl(ResourceEnum.OIDC), authProvider)          
+    .then( res => res.items)
+    .done( items =>{  
+      reactor.dispatch(AT.UPDATE_CONNECTORS, items);
+      setCurProvider(items[0].name);
+      apiActions.success(RAT.TRYING_TO_SAVE_AUTH_PROVIDER);            
+    })
+    .fail(err => {
+      const msg = api.getErrorText(err);
+      logger.error('saveAuthProvider()', err);        
+      apiActions.fail(RAT.TRYING_TO_SAVE_AUTH_PROVIDER, msg);            
+  })
+}
+
+export function deleteAuthProvider(id) {  
+  apiActions.start(RAT.TRYING_TO_DELETE_RESOURCE);    
+  const item = getStore().findItem(id);
+  api.delete(cfg.getResourcesUrl(ResourceEnum.OIDC, id), item)      
+    .then(fetchAuthProviders)
+    .done(() => {      
+      setCurProvider(null)
+      closeDeleteDialog();      
+      apiActions.success(RAT.TRYING_TO_DELETE_RESOURCE);
+    })
+    .fail(err => {
+      const msg = api.getErrorText(err);
+      logger.error('deleteAuthProvider()', err);
+      apiActions.fail(RAT.TRYING_TO_DELETE_RESOURCE, msg);              
+    });        
+}

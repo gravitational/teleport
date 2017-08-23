@@ -1,7 +1,8 @@
 @import "grv-settings-separators";
-@import "grv-settings-auth";
-@import "grv-settings-roles";
-@import "grv-settings-cluster";
+@import "grv-settings-dialogs";
+@import "grv-settings-res-list";
+@import "grv-settings-res-editor";
+@import "grv-settings-tabs";
 
 .grv-settings {
   padding: 0 15px;

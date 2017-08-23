@@ -1,93 +1,61 @@
+import { ResourceEnum } from 'app/services/enums';
+import Logger from 'telebase-app/lib/logger';
 import reactor from 'app/reactor';
-import { showError, showSuccess } from 'telebase-app/flux/notifications/actions';
-import { fetchUserContext } from 'telebase-app/flux/app/actions';
-
-import { TRYING_TO_DELETE_ROLE } from './../restApi/constants';
-import restApiActions from './../restApi/actions';
 import api from 'app/services/api';
 import cfg from 'app/config';
+import apiActions from 'app/flux/restApi/actions';
+import { TRYING_TO_SAVE_ROLE, TRYING_TO_DELETE_RESOURCE } from 'app/flux/restApi/constants';
+import * as AT from './actionTypes';
+import { closeDeleteDialog } from '../settings/actions';
+import {getStore} from './store';
 
-import {
-  SETTINGS_ROLES_RECEIVE,
-  SETTINGS_ROLES_SET_CURRENT,  
-  SETTINGS_ROLES_NEW,
-  SETTINGS_ROLES_CLEAR,  
-  SETTINGS_ROLES_SET_ROLE_TO_DELETE
-} from './actionTypes';
+const logger = Logger.create('flux/settingsCluster/actions');
 
-const actions =  {
-
-  setSelectedRole(roleName) {
-    reactor.batch(() => {      
-      reactor.dispatch(SETTINGS_ROLES_SET_CURRENT, roleName)
-    });        
-  },   
-      
-  clear(){
-    reactor.dispatch(SETTINGS_ROLES_CLEAR);
-  },
-
-  openDeleteRoleDialog(roleName){
-    reactor.dispatch(SETTINGS_ROLES_SET_ROLE_TO_DELETE, roleName);
-  },
-
-  closeDeleteRoleDialog(){
-    reactor.dispatch(SETTINGS_ROLES_SET_ROLE_TO_DELETE, null);
-  },
-
-  cancelNewRole() {
-    reactor.dispatch(SETTINGS_ROLES_NEW, false);
-  },
-
-  newRole() {
-    reactor.dispatch(SETTINGS_ROLES_NEW, true);  
-  },
-    
-  fetchRoles() {                    
-    return api.get(cfg.getRolesUrl()).done(json => {
-      reactor.dispatch(SETTINGS_ROLES_RECEIVE, json)
-    });      
-  },
-    
-  deleteRole(roleName) {
-    console.log(roleName);
-    restApiActions.start(TRYING_TO_DELETE_ROLE);
-    api.delete(cfg.getRolesUrl(roleName))
-      .then(() => actions.fetchRoles())
-      .done(() => {
-        fetchUserContext();
-        actions.closeDeleteRoleDialog();
-        actions.setSelectedRole();
-        restApiActions.success(TRYING_TO_DELETE_ROLE);
-        showSuccess(`role ${roleName} has been deleted`, '');
-      })
-      .fail(err => {
-        let msg = api.getErrorText(err);                
-        showError(msg, '');
-        restApiActions.fail(TRYING_TO_DELETE_ROLE);
-      })      
-  },
-
-  saveRole(role) {            
-    let dfd = null;
-    if(role.isNew){
-      dfd = api.post(cfg.getRolesUrl(), role);
-    }else{
-      dfd = api.put(cfg.getRolesUrl(), role);
-    }
-
-    return dfd
-      .then(() =>  actions.fetchRoles())
-      .done(() => {        
-        fetchUserContext();        
-        actions.setSelectedRole(role.name);                        
-        showSuccess(`role ${role.name} has been saved`, '');
-      })
-      .fail(err => {
-        let msg = api.getErrorText(err);                
-        showError(msg, '');        
-      });      
-  }    
+export function setCurRole(item) {    
+  reactor.batch(() => {  
+    apiActions.clear(TRYING_TO_SAVE_ROLE);
+    reactor.dispatch(AT.SET_CURRENT, item)
+  });
 }
 
-export default actions;
+export function saveRole(item) {    
+  apiActions.start(TRYING_TO_SAVE_ROLE);            
+  return api.put(cfg.getResourcesUrl(ResourceEnum.ROLE), item)      
+    .then( res => res.items)
+    .done( items => {            
+      reactor.dispatch(AT.UPSERT_ROLES, items);
+      setCurRole(items[0].name);        
+      apiActions.success(TRYING_TO_SAVE_ROLE);      
+    })
+    .fail(err => {
+      logger.error('saveRole()', err);
+      const msg = api.getErrorText(err);       
+      apiActions.fail(TRYING_TO_SAVE_ROLE, msg);
+  })
+}
+    
+export function deleteRole(id) {  
+  apiActions.start(TRYING_TO_DELETE_RESOURCE);    
+  const item = getStore().findItem(id);
+  api.delete(cfg.getResourcesUrl(ResourceEnum.ROLE, id), item)      
+    .then(fetchRoles)
+    .done(() => {      
+      setCurRole(null)
+      closeDeleteDialog();      
+      apiActions.success(TRYING_TO_DELETE_RESOURCE);
+    })
+    .fail(err => {
+      const msg = api.getErrorText(err);
+      logger.error('deleteRole()', err);
+      apiActions.fail(TRYING_TO_DELETE_RESOURCE, msg);              
+    });        
+}
+
+export function fetchRoles() {                    
+  return api.get(cfg.getResourcesUrl(ResourceEnum.ROLE))
+  .then(res => { return res.items || [] })
+  .done(items => {
+      reactor.dispatch(AT.RECEIVE_ROLES, items);
+  })    
+}
+

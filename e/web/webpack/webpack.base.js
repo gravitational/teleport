@@ -161,7 +161,7 @@ function handleTelebaseImports() {
                 request.path = request.path.replace('assets/', 'telebase-assets/');                  
               }
 
-              if (context.indexOf(TELEBASE_PATH) !== -1) {                
+              if (context.indexOf(TELEBASE_PATH+'/') !== -1) {                
                 if (request.path.indexOf('app/') === 0) {                   
                   request.path = request.path.replace('app/', 'telebase-app/');                  
                 }                                      

@@ -1,9 +1,10 @@
 import { Store } from 'nuclear-js';
-import { Record } from 'immutable';
-import { SETTINGS_INIT } from './actionTypes';
+import { Record, List } from 'immutable';
+import * as AT from './actionTypes';
 
 class SettingsRec extends Record({  
-  isInitialized: false
+  isInitialized: false,  
+  navItems: new List() 
 }){
   constructor(params){
     super(params);            
@@ -12,6 +13,14 @@ class SettingsRec extends Record({
   isReady() {
     return this.isInitialized;
   }    
+
+  getNavItems(){    
+    return this.navItems.toJS();
+  }
+  
+  addNavItem(navItem) {    
+    return this.set('navItems', this.navItems.push(navItem))
+  }
 }
 
 export default Store({
@@ -19,9 +28,8 @@ export default Store({
     return new SettingsRec();
   },
 
-  initialize() {
-    this.on(SETTINGS_INIT, state => {      
-      return state.set('isInitialized', true);
-    })
+  initialize() {    
+    this.on(AT.INIT, state => state.set('isInitialized', true))    
+    this.on(AT.ADD_NAV_ITEM, (state, navItem) => state.addNavItem(navItem))
   }
 });
