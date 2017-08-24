@@ -508,8 +508,13 @@ type TrustedCluster struct {
 	TunnelAddr string `yaml:"tunnel_addr,omitempty"`
 }
 
-type ClusterName string
+type (
+	ClusterName  string
+	StaticToken  string
+	StaticTokens []StaticToken
+)
 
+// Parse
 func (c ClusterName) Parse() (services.ClusterName, error) {
 	if string(c) == "" {
 		return nil, nil
@@ -518,8 +523,6 @@ func (c ClusterName) Parse() (services.ClusterName, error) {
 		ClusterName: string(c),
 	})
 }
-
-type StaticTokens []StaticToken
 
 func (t StaticTokens) Parse() (services.StaticTokens, error) {
 	var staticTokens []services.ProvisionToken
@@ -536,8 +539,6 @@ func (t StaticTokens) Parse() (services.StaticTokens, error) {
 		StaticTokens: staticTokens,
 	})
 }
-
-type StaticToken string
 
 // Parse is applied to a string in "role,role,role:token" format. It breaks it
 // apart and constructs a services.ProvisionToken which contains the token,
