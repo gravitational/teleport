@@ -280,8 +280,8 @@ func (s *MigrationsSuite) TestMigrateRoles(c *C) {
 				Logins:     []string{"foo"},
 				NodeLabels: map[string]string{"a": "b"},
 				Namespaces: []string{"system", "default"},
-				Rules: map[string][]string{
-					KindRole: RW(),
+				Rules: []Rule{
+					NewRule(KindRole, RW()),
 				},
 			},
 		},

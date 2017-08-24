@@ -134,8 +134,8 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 					Allow: RoleConditions{
 						NodeLabels: map[string]string{"a": "b"},
 						Namespaces: []string{"system", "default"},
-						Rules: map[string][]string{
-							KindRole: []string{VerbRead, VerbList},
+						Rules: []Rule{
+							NewRule(KindRole, []string{VerbRead, VerbList}),
 						},
 					},
 					Deny: RoleConditions{
@@ -342,8 +342,8 @@ func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 					Spec: RoleSpecV3{
 						Allow: RoleConditions{
 							Namespaces: []string{defaults.Namespace},
-							Rules: map[string][]string{
-								KindSession: []string{VerbRead},
+							Rules: []Rule{
+								NewRule(KindSession, []string{VerbRead}),
 							},
 						},
 					},
@@ -365,8 +365,8 @@ func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 					Spec: RoleSpecV3{
 						Allow: RoleConditions{
 							Namespaces: []string{"system"},
-							Rules: map[string][]string{
-								KindSession: []string{VerbRead},
+							Rules: []Rule{
+								NewRule(KindSession, []string{VerbRead}),
 							},
 						},
 					},
@@ -379,8 +379,8 @@ func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 					Spec: RoleSpecV3{
 						Allow: RoleConditions{
 							Namespaces: []string{defaults.Namespace},
-							Rules: map[string][]string{
-								KindSession: []string{VerbCreate, VerbRead},
+							Rules: []Rule{
+								NewRule(KindSession, []string{VerbCreate, VerbRead}),
 							},
 						},
 					},
@@ -404,14 +404,14 @@ func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 					Spec: RoleSpecV3{
 						Deny: RoleConditions{
 							Namespaces: []string{defaults.Namespace},
-							Rules: map[string][]string{
-								KindSession: []string{VerbCreate},
+							Rules: []Rule{
+								NewRule(KindSession, []string{VerbCreate}),
 							},
 						},
 						Allow: RoleConditions{
 							Namespaces: []string{defaults.Namespace},
-							Rules: map[string][]string{
-								KindSession: []string{VerbCreate},
+							Rules: []Rule{
+								NewRule(KindSession, []string{VerbCreate}),
 							},
 						},
 					},

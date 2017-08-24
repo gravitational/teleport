@@ -72,20 +72,3 @@ func (s *UtilsSuite) TestMiscFunctions(c *check.C) {
 	c.Assert(Deduplicate([]string{"a", "b"}), check.DeepEquals, []string{"a", "b"})
 	c.Assert(Deduplicate([]string{"a", "b", "b", "a", "c"}), check.DeepEquals, []string{"a", "b", "c"})
 }
-
-func (s *UtilsSuite) TestGetShell(c *check.C) {
-	shell, err := GetLoginShell("root")
-	c.Assert(err, check.IsNil)
-	c.Assert(shell == "/bin/bash" || shell == "/bin/sh", check.Equals, true)
-
-	shell, err = GetLoginShell("non-existent-user")
-	c.Assert(err, check.NotNil)
-	c.Assert(err.Error(), check.Matches, "user: unknown user non-existent-user")
-
-	shell, err = GetLoginShell("daemon")
-	c.Assert(err, check.IsNil)
-	c.Assert(shell == "/usr/sbin/nologin" ||
-		shell == "/sbin/nologin" ||
-		shell == "/usr/bin/nologin" ||
-		shell == "/usr/bin/false", check.Equals, true)
-}
