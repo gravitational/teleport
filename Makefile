@@ -121,18 +121,26 @@ tag:
 # make release - produces a binary release tarball 
 #	
 .PHONY: 
-release: clean all $(BUILDDIR)/webassets.zip
+release: clean full
+	cp -rf $(BUILDDIR) teleport
+	cp -rf examples teleport/
+	tar -czf $(RELEASE).tar.gz teleport
+	rm -rf teleport
+	@echo "\nCREATED: $(RELEASE).tar.gz"
+
+
+#
+# make full - builds the binary with built-in web assets and places it into $(BUILDDIR)
+#
+.PHONY:full
+full: all $(BUILDDIR)/webassets.zip
 	cp -f build.assets/release.mk $(BUILDDIR)/Makefile
 	cat $(BUILDDIR)/webassets.zip >> $(BUILDDIR)/teleport
 	rm -fr $(BUILDDIR)/webassets.zip
 	cp README.md $(BUILDDIR)
 	cp CHANGELOG.md $(BUILDDIR)
 	zip -q -A $(BUILDDIR)/teleport
-	cp -rf $(BUILDDIR) teleport
-	@echo $(GITTAG) > teleport/VERSION
-	tar -czf $(RELEASE).tar.gz teleport
-	rm -rf teleport
-	@echo "\nCREATED: $(RELEASE).tar.gz"
+	echo $(GITTAG) > $(BUILDDIR)/VERSION
 
 # build/webassets.zip archive contains the web assets (UI) which gets
 # appended to teleport binary

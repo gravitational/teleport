@@ -1,5 +1,37 @@
 # Changelog
 
+## 2.3 
+
+This release focus was to increase Teleport user experience, including:
+
+* Easier configuration
+* Better documentation
+* Improved CLI interface
+* Make the Web UI better
+
+#### Improvements
+
+* Web UI: users can connect to OpenSSH servers using the Web UI.
+* Web UI: arbitrary logins are supported, in addition to role-defined ones.
+* CLI: trusted clusters can now be managed on the fly without having to edit Teleport configuration. [#1137](https://github.com/gravitational/teleport/issues/1137)
+* CLI: `tsh login` supports exporting a user identity into a file to be used later with OpenSSH.
+* `tsh agent` command has been deprecated: users are expected to use native SSH Agents on their platforms.
+
+#### Teleport Enterprise 
+
+* More granular RBAC rules [#1092](https://github.com/gravitational/teleport/issues/1092)
+* Role definitions now support templates. [#1120](https://github.com/gravitational/teleport/issues/1120)
+* Authentication: Teleport now supports multilpe OIDC/SAML endpoints.
+* Configuration: local authentication is always enabled as a fallback if a SAML/OIDC endpoints go offline.
+* Configuration: SAML/OIDC endpoints can be created on the fly using `tctl` and without having to edit configuration file or restart Teleport.
+* Web UI: it is now easier to turn a trusted cluster on/off [#1199](https://github.com/gravitational/teleport/issues/1199).
+
+#### Bug Fixes
+
+* Proper handling of `ENV_SUPATH` from login.defs [#1004](https://github.com/gravitational/teleport/pull/1004)
+* Reverse tunnels would periodically lose connectivity. [#1156](https://github.com/gravitational/teleport/issues/1156)
+* tsh now stores user identities in a format compatible with OpenSSH. [1171](https://github.com/gravitational/teleport/issues/1171).
+
 ## 2.2.6
 
 #### Bug fixes
