@@ -18,6 +18,7 @@ package web
 
 import (
 	"io"
+	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -25,6 +26,8 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -35,6 +38,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/tstranex/u2f"
+	"golang.org/x/crypto/ssh"
 )
 
 // SessionContext is a context associated with users'
@@ -44,11 +48,12 @@ import (
 type SessionContext struct {
 	sync.Mutex
 	*log.Entry
-	sess    services.WebSession
-	user    string
-	clt     *auth.TunClient
-	parent  *sessionCache
-	closers []io.Closer
+	sess      services.WebSession
+	user      string
+	clt       *auth.TunClient
+	remoteClt map[string]auth.ClientI
+	parent    *sessionCache
+	closers   []io.Closer
 }
 
 // getTerminal finds and returns an active web terminal for a given session:
@@ -117,9 +122,132 @@ func (c *SessionContext) Invalidate() error {
 	return c.parent.InvalidateSession(c)
 }
 
+func (c *SessionContext) addRemoteClient(siteName string, remoteClient auth.ClientI) {
+	c.Lock()
+	defer c.Unlock()
+
+	c.remoteClt[siteName] = remoteClient
+}
+
+func (c *SessionContext) getRemoteClient(siteName string) (auth.ClientI, bool) {
+	c.Lock()
+	defer c.Unlock()
+
+	remoteClt, ok := c.remoteClt[siteName]
+	return remoteClt, ok
+}
+
 // GetClient returns the client connected to the auth server
 func (c *SessionContext) GetClient() (auth.ClientI, error) {
 	return c.clt, nil
+}
+
+// GetUserClient will return an auth.ClientI with the role of the user at
+// the requested site. If the site is local a client with the users local role
+// is returned. If the site is remote a client with the users remote role is
+// returned.
+func (c *SessionContext) GetUserClient(site reversetunnel.RemoteSite) (auth.ClientI, error) {
+	// get the name of the current cluster
+	clt, err := c.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cn, err := clt.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// if we're trying to access the local cluster, pass back the local client.
+	if cn.GetClusterName() == site.GetName() {
+		return clt, nil
+	}
+
+	// look to see if we already have a connection to this cluster
+	remoteClt, ok := c.getRemoteClient(site.GetName())
+	if !ok {
+		rClt, rConn, err := c.newRemoteClient(site)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// add a closer for the underlying connection
+		c.AddClosers(rConn)
+
+		// we'll save the remote client in our session context so we don't have to
+		// build a new connection next time. all remote clients will be closed when
+		// the session context is closed.
+		c.addRemoteClient(site.GetName(), rClt)
+
+		return rClt, nil
+	}
+
+	return remoteClt, nil
+}
+
+// newRemoteClient returns a client to a remote cluster with the role of
+// the logged in user.
+func (c *SessionContext) newRemoteClient(site reversetunnel.RemoteSite) (auth.ClientI, net.Conn, error) {
+	var err error
+	var netConn net.Conn
+
+	sshDialer := func(network, addr string) (net.Conn, error) {
+		// we tell the remote site we want a connection to the auth server by using
+		// a non-resolvable string @remote-auth-server as the destination.
+		srcAddr := utils.NetAddr{Addr: "web.get-remote-client-with-user-role", AddrNetwork: "tcp"}
+		dstAddr := utils.NetAddr{Addr: reversetunnel.RemoteAuthServer, AddrNetwork: "tcp"}
+
+		// first get a net.Conn (tcp connection) to the remote auth server. no
+		// authentication has occured.
+		netConn, err = site.Dial(&srcAddr, &dstAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// get the principal and authMethods we will use to authenticate on the
+		// remote cluster from our local cluster
+		agent, err := c.GetAgent()
+		if err != nil {
+			err = netConn.Close()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return nil, trace.Wrap(err)
+		}
+		principal, authMethods, err := getUserCredentials(agent)
+		if err != nil {
+			err = netConn.Close()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return nil, trace.Wrap(err)
+		}
+
+		// build a ssh connection to the remote auth server
+		config := &ssh.ClientConfig{
+			User:    principal,
+			Auth:    []ssh.AuthMethod{authMethods},
+			Timeout: defaults.DefaultDialTimeout,
+		}
+		sshConn, sshChans, sshReqs, err := ssh.NewClientConn(netConn, reversetunnel.RemoteAuthServer, config)
+		if err != nil {
+			err = netConn.Close()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return nil, trace.Wrap(err)
+		}
+		client := ssh.NewClient(sshConn, sshChans, sshReqs)
+
+		// dial again to the HTTP server
+		return client.Dial(network, addr)
+	}
+
+	clt, err := auth.NewClient("http://stub:0", sshDialer)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return clt, netConn, nil
 }
 
 // GetUser returns the authenticated teleport user
@@ -541,10 +669,11 @@ func (s *sessionCache) ValidateSession(user, sid string) (*SessionContext, error
 		return nil, trace.Wrap(err)
 	}
 	c := &SessionContext{
-		clt:    clt,
-		user:   user,
-		sess:   sess,
-		parent: s,
+		clt:       clt,
+		remoteClt: make(map[string]auth.ClientI),
+		user:      user,
+		sess:      sess,
+		parent:    s,
 	}
 	c.Entry = log.WithFields(log.Fields{
 		"user": user,

@@ -235,20 +235,51 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 	}
 
 	server := string(req.Payload)
-	log.Infof("got out of band request %v", server)
+	var servers []string
 
-	conn, err := net.Dial("tcp", server)
+	// if the request is for the special string @remote-auth-server, then get the
+	// list of auth servers and return that. otherwise try and connect to the
+	// passed in server.
+	if server == RemoteAuthServer {
+		authServers, err := a.clt.GetAuthServers()
+		if err != nil {
+			a.log.Errorf("unable to find auth servers: %v", err)
+			return
+		}
+		for _, as := range authServers {
+			servers = append(servers, as.GetAddr())
+		}
+	} else {
+		servers = append(servers, server)
+	}
+
+	log.Debugf("got out of band request %v", servers)
+
+	var conn net.Conn
+	var err error
+
+	// loop over all servers and try and connect to one of them
+	for _, s := range servers {
+		conn, err = net.Dial("tcp", s)
+		if err == nil {
+			break
+		}
+
+		// log the reason we were not able to connect
+		log.Debugf(trace.DebugReport(err))
+	}
+
+	// if we were not able to connect to any server, write the last connection
+	// error to stderr of the caller (via SSH channel) so the error will be
+	// propagated all the way back to the client (most likely tsh)
 	if err != nil {
-		log.Error(trace.DebugReport(err))
-		// write the connection error to stderr of the caller (via SSH channel)
-		// so the error will be propagated all the way back to the
-		// client (most likely tsh)
 		fmt.Fprint(ch.Stderr(), err.Error())
 		req.Reply(false, []byte(err.Error()))
 		return
 	}
-	req.Reply(true, []byte("connected"))
 
+	// successfully dialed
+	req.Reply(true, []byte("connected"))
 	a.log.Infof("successfully dialed to %v, start proxying", server)
 
 	wg := sync.WaitGroup{}
@@ -378,3 +409,7 @@ const (
 	// at expected interval
 	RemoteSiteStatusOnline = "online"
 )
+
+// RemoteAuthServer is a special non-resolvable address that indicates we want
+// a connection to the remote auth server.
+const RemoteAuthServer = "@remote-auth-server"

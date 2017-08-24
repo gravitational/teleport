@@ -428,7 +428,7 @@ func (l *AuditLog) EmitAuditEvent(eventType string, fields EventFields) error {
 	return nil
 }
 
-// Search finds events. Results show up sorted by date (newest first)
+// SearchEvents finds events. Results show up sorted by date (newest first)
 func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, query string) ([]EventFields, error) {
 	log.Infof("auditLog.SearchEvents(%v, %v, query=%v)", fromUTC, toUTC, query)
 	queryVals, err := url.ParseQuery(query)
@@ -475,6 +475,20 @@ func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, query string) ([]Event
 		events = append(events, found...)
 	}
 	return events, nil
+}
+
+// SearchSessionEvents searches for session related events. Used to find completed sessions.
+func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time) ([]EventFields, error) {
+	log.Infof("auditLog.SearchSessionEvents(%v, %v)", fromUTC, toUTC)
+
+	// only search for specific event types
+	query := url.Values{}
+	query[EventType] = []string{
+		SessionStartEvent,
+		SessionEndEvent,
+	}
+
+	return l.SearchEvents(fromUTC, toUTC, query.Encode())
 }
 
 // byDate implements sort.Interface.

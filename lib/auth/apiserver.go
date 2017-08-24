@@ -120,7 +120,7 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	srv.POST("/:version/tokens/register", srv.withAuth(srv.registerUsingToken))
 	srv.POST("/:version/tokens/register/auth", srv.withAuth(srv.registerNewAuthServer))
 
-	// Sesssions
+	// active sesssions
 	srv.POST("/:version/namespaces/:namespace/sessions", srv.withAuth(srv.createSession))
 	srv.PUT("/:version/namespaces/:namespace/sessions/:id", srv.withAuth(srv.updateSession))
 	srv.GET("/:version/namespaces/:namespace/sessions", srv.withAuth(srv.getSessions))
@@ -181,6 +181,7 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	// Audit logs AKA events
 	srv.POST("/:version/events", srv.withAuth(srv.emitAuditEvent))
 	srv.GET("/:version/events", srv.withAuth(srv.searchEvents))
+	srv.GET("/:version/events/session", srv.withAuth(srv.searchSessionEvents))
 
 	return httplib.RewritePaths(&srv.Router,
 		httplib.Rewrite("/v1/nodes", "/v1/namespaces/default/nodes"),
@@ -1386,6 +1387,40 @@ func (s *APIServer) searchEvents(auth ClientI, w http.ResponseWriter, r *http.Re
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	return eventsList, nil
+}
+
+// searchSessionEvents only allows searching audit log for events related to session playback.
+func (s *APIServer) searchSessionEvents(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	var err error
+
+	// default values for "to" and "from" fields
+	to := time.Now().In(time.UTC) // now
+	from := to.AddDate(0, -1, 0)  // one month ago
+
+	// parse query for "to" and "from"
+	query := r.URL.Query()
+	fromStr := query.Get("from")
+	if fromStr != "" {
+		from, err = time.Parse(time.RFC3339, fromStr)
+		if err != nil {
+			return nil, trace.BadParameter("from")
+		}
+	}
+	toStr := query.Get("to")
+	if toStr != "" {
+		to, err = time.Parse(time.RFC3339, toStr)
+		if err != nil {
+			return nil, trace.BadParameter("to")
+		}
+	}
+
+	// only pull back start and end events to build list of completed sessions
+	eventsList, err := auth.SearchSessionEvents(from, to)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return eventsList, nil
 }
 

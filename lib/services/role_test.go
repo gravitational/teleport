@@ -343,15 +343,15 @@ func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 						Allow: RoleConditions{
 							Namespaces: []string{defaults.Namespace},
 							Rules: []Rule{
-								NewRule(KindSession, []string{VerbRead}),
+								NewRule(KindSSHSession, []string{VerbRead}),
 							},
 						},
 					},
 				},
 			},
 			checks: []check{
-				{rule: KindSession, verb: VerbRead, namespace: defaults.Namespace, hasAccess: true},
-				{rule: KindSession, verb: VerbList, namespace: defaults.Namespace, hasAccess: false},
+				{rule: KindSSHSession, verb: VerbRead, namespace: defaults.Namespace, hasAccess: true},
+				{rule: KindSSHSession, verb: VerbList, namespace: defaults.Namespace, hasAccess: false},
 			},
 		},
 		{
@@ -366,7 +366,7 @@ func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 						Allow: RoleConditions{
 							Namespaces: []string{"system"},
 							Rules: []Rule{
-								NewRule(KindSession, []string{VerbRead}),
+								NewRule(KindSSHSession, []string{VerbRead}),
 							},
 						},
 					},
@@ -380,16 +380,16 @@ func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 						Allow: RoleConditions{
 							Namespaces: []string{defaults.Namespace},
 							Rules: []Rule{
-								NewRule(KindSession, []string{VerbCreate, VerbRead}),
+								NewRule(KindSSHSession, []string{VerbCreate, VerbRead}),
 							},
 						},
 					},
 				},
 			},
 			checks: []check{
-				{rule: KindSession, verb: VerbRead, namespace: defaults.Namespace, hasAccess: true},
-				{rule: KindSession, verb: VerbCreate, namespace: defaults.Namespace, hasAccess: true},
-				{rule: KindSession, verb: VerbCreate, namespace: "system", hasAccess: false},
+				{rule: KindSSHSession, verb: VerbRead, namespace: defaults.Namespace, hasAccess: true},
+				{rule: KindSSHSession, verb: VerbCreate, namespace: defaults.Namespace, hasAccess: true},
+				{rule: KindSSHSession, verb: VerbCreate, namespace: "system", hasAccess: false},
 				{rule: KindRole, verb: VerbRead, namespace: defaults.Namespace, hasAccess: false},
 			},
 		},
@@ -405,20 +405,20 @@ func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 						Deny: RoleConditions{
 							Namespaces: []string{defaults.Namespace},
 							Rules: []Rule{
-								NewRule(KindSession, []string{VerbCreate}),
+								NewRule(KindSSHSession, []string{VerbCreate}),
 							},
 						},
 						Allow: RoleConditions{
 							Namespaces: []string{defaults.Namespace},
 							Rules: []Rule{
-								NewRule(KindSession, []string{VerbCreate}),
+								NewRule(KindSSHSession, []string{VerbCreate}),
 							},
 						},
 					},
 				},
 			},
 			checks: []check{
-				{rule: KindSession, verb: VerbCreate, namespace: defaults.Namespace, hasAccess: false},
+				{rule: KindSSHSession, verb: VerbCreate, namespace: defaults.Namespace, hasAccess: false},
 			},
 		},
 	}
