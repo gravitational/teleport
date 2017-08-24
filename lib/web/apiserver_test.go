@@ -209,7 +209,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 	role := services.RoleForUser(teleUser)
 	role.SetLogins(services.Allow, []string{s.user})
 	rules := role.GetRules(services.Allow)
-	rules[services.Wildcard] = services.RW()
+	rules = append(rules, services.NewRule(services.Wildcard, services.RW()))
 	role.SetRules(services.Allow, rules)
 	err = s.authServer.UpsertRole(role, backend.Forever)
 	c.Assert(err, IsNil)
@@ -457,8 +457,8 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 		Allow: services.RoleConditions{
 			NodeLabels: map[string]string{services.Wildcard: services.Wildcard},
 			Namespaces: []string{defaults.Namespace},
-			Rules: map[string][]string{
-				services.Wildcard: services.RW(),
+			Rules: []services.Rule{
+				services.NewRule(services.Wildcard, services.RW()),
 			},
 		},
 	})

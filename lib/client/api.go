@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/shell"
 	"github.com/gravitational/teleport/lib/state"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -1364,7 +1365,7 @@ func runLocalCommand(command []string) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		shell, err := utils.GetLoginShell(user.Username)
+		shell, err := shell.GetLoginShell(user.Username)
 		if err != nil {
 			return trace.Wrap(err)
 		}

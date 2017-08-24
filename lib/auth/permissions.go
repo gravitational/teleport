@@ -152,8 +152,8 @@ func GetCheckerForBuiltinRole(role teleport.Role) (services.AccessChecker, error
 			services.RoleSpecV3{
 				Allow: services.RoleConditions{
 					Namespaces: []string{services.Wildcard},
-					Rules: map[string][]string{
-						services.KindAuthServer: services.RW(),
+					Rules: []services.Rule{
+						services.NewRule(services.KindAuthServer, services.RW()),
 					},
 				},
 			})
@@ -165,17 +165,17 @@ func GetCheckerForBuiltinRole(role teleport.Role) (services.AccessChecker, error
 			services.RoleSpecV3{
 				Allow: services.RoleConditions{
 					Namespaces: []string{services.Wildcard},
-					Rules: map[string][]string{
-						services.KindNode:          services.RW(),
-						services.KindSession:       services.RW(),
-						services.KindEvent:         services.RW(),
-						services.KindProxy:         services.RO(),
-						services.KindCertAuthority: services.RO(),
-						services.KindUser:          services.RO(),
-						services.KindNamespace:     services.RO(),
-						services.KindRole:          services.RO(),
-						services.KindAuthServer:    services.RO(),
-						services.KindReverseTunnel: services.RO(),
+					Rules: []services.Rule{
+						services.NewRule(services.KindNode, services.RW()),
+						services.NewRule(services.KindSession, services.RW()),
+						services.NewRule(services.KindEvent, services.RW()),
+						services.NewRule(services.KindProxy, services.RO()),
+						services.NewRule(services.KindCertAuthority, services.RO()),
+						services.NewRule(services.KindUser, services.RO()),
+						services.NewRule(services.KindNamespace, services.RO()),
+						services.NewRule(services.KindRole, services.RO()),
+						services.NewRule(services.KindAuthServer, services.RO()),
+						services.NewRule(services.KindReverseTunnel, services.RO()),
 					},
 				},
 			})
@@ -185,24 +185,24 @@ func GetCheckerForBuiltinRole(role teleport.Role) (services.AccessChecker, error
 			services.RoleSpecV3{
 				Allow: services.RoleConditions{
 					Namespaces: []string{services.Wildcard},
-					Rules: map[string][]string{
-						services.KindProxy:                 services.RW(),
-						services.KindOIDCRequest:           services.RW(),
-						services.KindSession:               services.RW(),
-						services.KindEvent:                 services.RW(),
-						services.KindSAMLRequest:           services.RW(),
-						services.KindOIDC:                  services.RO(),
-						services.KindSAML:                  services.RO(),
-						services.KindNamespace:             services.RO(),
-						services.KindNode:                  services.RO(),
-						services.KindAuthServer:            services.RO(),
-						services.KindReverseTunnel:         services.RO(),
-						services.KindCertAuthority:         services.RO(),
-						services.KindUser:                  services.RO(),
-						services.KindRole:                  services.RO(),
-						services.KindClusterAuthPreference: services.RO(),
-						services.KindClusterName:           services.RO(),
-						services.KindStaticTokens:          services.RO(),
+					Rules: []services.Rule{
+						services.NewRule(services.KindProxy, services.RW()),
+						services.NewRule(services.KindOIDCRequest, services.RW()),
+						services.NewRule(services.KindSession, services.RW()),
+						services.NewRule(services.KindEvent, services.RW()),
+						services.NewRule(services.KindSAMLRequest, services.RW()),
+						services.NewRule(services.KindOIDC, services.RO()),
+						services.NewRule(services.KindSAML, services.RO()),
+						services.NewRule(services.KindNamespace, services.RO()),
+						services.NewRule(services.KindNode, services.RO()),
+						services.NewRule(services.KindAuthServer, services.RO()),
+						services.NewRule(services.KindReverseTunnel, services.RO()),
+						services.NewRule(services.KindCertAuthority, services.RO()),
+						services.NewRule(services.KindUser, services.RO()),
+						services.NewRule(services.KindRole, services.RO()),
+						services.NewRule(services.KindClusterAuthPreference, services.RO()),
+						services.NewRule(services.KindClusterName, services.RO()),
+						services.NewRule(services.KindStaticTokens, services.RO()),
 					},
 				},
 			})
@@ -212,14 +212,14 @@ func GetCheckerForBuiltinRole(role teleport.Role) (services.AccessChecker, error
 			services.RoleSpecV3{
 				Allow: services.RoleConditions{
 					Namespaces: []string{services.Wildcard},
-					Rules: map[string][]string{
-						services.KindWebSession:     services.RW(),
-						services.KindSession:        services.RW(),
-						services.KindAuthServer:     services.RO(),
-						services.KindUser:           services.RO(),
-						services.KindRole:           services.RO(),
-						services.KindNamespace:      services.RO(),
-						services.KindTrustedCluster: services.RO(),
+					Rules: []services.Rule{
+						services.NewRule(services.KindWebSession, services.RW()),
+						services.NewRule(services.KindSession, services.RW()),
+						services.NewRule(services.KindAuthServer, services.RO()),
+						services.NewRule(services.KindUser, services.RO()),
+						services.NewRule(services.KindRole, services.RO()),
+						services.NewRule(services.KindNamespace, services.RO()),
+						services.NewRule(services.KindTrustedCluster, services.RO()),
 					},
 				},
 			})
@@ -229,9 +229,9 @@ func GetCheckerForBuiltinRole(role teleport.Role) (services.AccessChecker, error
 			services.RoleSpecV3{
 				Allow: services.RoleConditions{
 					Namespaces: []string{services.Wildcard},
-					Rules: map[string][]string{
-						services.KindAuthServer:            services.RO(),
-						services.KindClusterAuthPreference: services.RO(),
+					Rules: []services.Rule{
+						services.NewRule(services.KindAuthServer, services.RO()),
+						services.NewRule(services.KindClusterAuthPreference, services.RO()),
 					},
 				},
 			})
@@ -246,8 +246,8 @@ func GetCheckerForBuiltinRole(role teleport.Role) (services.AccessChecker, error
 					Namespaces: []string{services.Wildcard},
 					Logins:     []string{},
 					NodeLabels: map[string]string{services.Wildcard: services.Wildcard},
-					Rules: map[string][]string{
-						services.Wildcard: services.RW(),
+					Rules: []services.Rule{
+						services.NewRule(services.Wildcard, services.RW()),
 					},
 				},
 			})
@@ -257,7 +257,7 @@ func GetCheckerForBuiltinRole(role teleport.Role) (services.AccessChecker, error
 			services.RoleSpecV3{
 				Allow: services.RoleConditions{
 					Namespaces: []string{},
-					Rules:      map[string][]string{},
+					Rules:      []services.Rule{},
 				},
 			})
 	}

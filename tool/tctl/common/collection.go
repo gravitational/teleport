@@ -127,13 +127,10 @@ func (n *namespaceCollection) writeYAML(w io.Writer) error {
 	return trace.Wrap(err)
 }
 
-func printActions(resources map[string][]string) string {
+func printActions(rules []services.Rule) string {
 	pairs := []string{}
-	for key, actions := range resources {
-		if key == services.Wildcard {
-			return fmt.Sprintf("<all resources>: %v", strings.Join(actions, ","))
-		}
-		pairs = append(pairs, fmt.Sprintf("%v:%v", key, strings.Join(actions, ",")))
+	for _, rule := range rules {
+		pairs = append(pairs, fmt.Sprintf("%v:%v", strings.Join(rule.Resources, ","), strings.Join(rule.Verbs, ",")))
 	}
 	return strings.Join(pairs, ",")
 }

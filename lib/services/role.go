@@ -36,31 +36,31 @@ import (
 
 // DefaultUserRules provides access to the default set of rules assigned to
 // all users.
-var DefaultUserRules = map[string][]string{
-	KindRole:           RO(),
-	KindOIDC:           RO(),
-	KindSAML:           RO(),
-	KindSession:        RO(),
-	KindTrustedCluster: RW(),
+var DefaultUserRules = []Rule{
+	NewRule(KindRole, RO()),
+	NewRule(KindOIDC, RO()),
+	NewRule(KindSAML, RO()),
+	NewRule(KindSession, RO()),
+	NewRule(KindTrustedCluster, RW()),
 }
 
 // DefaultImplicitRules provides access to the default set of implicit rules
 // assigned to all roles.
-var DefaultImplicitRules = map[string][]string{
-	KindNode:          RO(),
-	KindAuthServer:    RO(),
-	KindReverseTunnel: RO(),
-	KindCertAuthority: RO(),
+var DefaultImplicitRules = []Rule{
+	NewRule(KindNode, RO()),
+	NewRule(KindAuthServer, RO()),
+	NewRule(KindReverseTunnel, RO()),
+	NewRule(KindCertAuthority, RO()),
 }
 
 // DefaultCertAuthorityRules provides access the minimal set of resources
 // needed for a certificate authority to function.
-var DefaultCertAuthorityRules = map[string][]string{
-	KindSession:       RO(),
-	KindNode:          RO(),
-	KindAuthServer:    RO(),
-	KindReverseTunnel: RO(),
-	KindCertAuthority: RO(),
+var DefaultCertAuthorityRules = []Rule{
+	NewRule(KindSession, RO()),
+	NewRule(KindNode, RO()),
+	NewRule(KindAuthServer, RO()),
+	NewRule(KindReverseTunnel, RO()),
+	NewRule(KindCertAuthority, RO()),
 }
 
 // RoleNameForUser returns role name associated with a user.
@@ -92,7 +92,7 @@ func NewDefaultRole() Role {
 				Namespaces: []string{defaults.Namespace},
 				Logins:     []string{teleport.TraitInternalRoleVariable},
 				NodeLabels: map[string]string{Wildcard: Wildcard},
-				Rules:      utils.CopyStringMapSlices(DefaultUserRules),
+				Rules:      CopyRulesSlice(DefaultUserRules),
 			},
 		},
 	}
@@ -116,7 +116,7 @@ func NewImplicitRole() Role {
 				Namespaces: []string{defaults.Namespace},
 				Logins:     []string{teleport.TraitInternalRoleVariable},
 				NodeLabels: map[string]string{Wildcard: Wildcard},
-				Rules:      utils.CopyStringMapSlices(DefaultImplicitRules),
+				Rules:      CopyRulesSlice(DefaultImplicitRules),
 			},
 		},
 	}
@@ -138,7 +138,7 @@ func RoleForUser(u User) Role {
 			Allow: RoleConditions{
 				Namespaces: []string{defaults.Namespace},
 				NodeLabels: map[string]string{Wildcard: Wildcard},
-				Rules:      utils.CopyStringMapSlices(DefaultUserRules),
+				Rules:      CopyRulesSlice(DefaultUserRules),
 			},
 		},
 	}
@@ -160,7 +160,7 @@ func RoleForCertAuthority(ca CertAuthority) Role {
 			Allow: RoleConditions{
 				Namespaces: []string{defaults.Namespace},
 				NodeLabels: map[string]string{Wildcard: Wildcard},
-				Rules:      utils.CopyStringMapSlices(DefaultCertAuthorityRules),
+				Rules:      CopyRulesSlice(DefaultCertAuthorityRules),
 			},
 		},
 	}
@@ -248,9 +248,9 @@ type Role interface {
 	SetNodeLabels(RoleConditionType, map[string]string)
 
 	// GetRules gets all allow or deny rules.
-	GetRules(rct RoleConditionType) map[string][]string
+	GetRules(rct RoleConditionType) []Rule
 	// SetRules sets an allow or deny rule.
-	SetRules(rct RoleConditionType, rrs map[string][]string)
+	SetRules(rct RoleConditionType, rules []Rule)
 }
 
 // RoleV3 represents role resource specification
@@ -285,8 +285,7 @@ func (r *RoleV3) Equals(other Role) bool {
 		if !utils.StringMapsEqual(r.GetNodeLabels(condition), other.GetNodeLabels(condition)) {
 			return false
 		}
-
-		if !utils.StringMapSlicesEqual(r.GetRules(condition), other.GetRules(condition)) {
+		if !RuleSlicesEqual(r.GetRules(condition), other.GetRules(condition)) {
 			return false
 		}
 	}
@@ -439,7 +438,7 @@ func (r *RoleV3) SetNodeLabels(rct RoleConditionType, labels map[string]string) 
 }
 
 // GetRules gets all allow or deny rules.
-func (r *RoleV3) GetRules(rct RoleConditionType) map[string][]string {
+func (r *RoleV3) GetRules(rct RoleConditionType) []Rule {
 	if rct == Allow {
 		return r.Spec.Allow.Rules
 	}
@@ -447,8 +446,8 @@ func (r *RoleV3) GetRules(rct RoleConditionType) map[string][]string {
 }
 
 // SetRules sets an allow or deny rule.
-func (r *RoleV3) SetRules(rct RoleConditionType, rrs map[string][]string) {
-	rcopy := utils.CopyStringMapSlices(rrs)
+func (r *RoleV3) SetRules(rct RoleConditionType, in []Rule) {
+	rcopy := CopyRulesSlice(in)
 
 	if rct == Allow {
 		r.Spec.Allow.Rules = rcopy
@@ -478,7 +477,7 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 		r.Spec.Allow.NodeLabels = map[string]string{Wildcard: Wildcard}
 	}
 	if r.Spec.Allow.Rules == nil {
-		r.Spec.Allow.Rules = utils.CopyStringMapSlices(DefaultUserRules)
+		r.Spec.Allow.Rules = CopyRulesSlice(DefaultUserRules)
 	}
 
 	// if we find {{ or }} but the syntax is invalid, the role is invalid
@@ -647,7 +646,7 @@ type RoleConditions struct {
 
 	// Rules is a list of rules and their access levels. Rules are a high level
 	// construct used for access control.
-	Rules RoleRules `json:"rules,omitempty" yaml:"rules,omitempty"`
+	Rules []Rule `json:"rules,omitempty" yaml:"rules,omitempty"`
 }
 
 // Equals returns true if the role conditions (logins, namespaces, labels,
@@ -662,51 +661,134 @@ func (r *RoleConditions) Equals(o RoleConditions) bool {
 	if !utils.StringMapsEqual(r.NodeLabels, o.NodeLabels) {
 		return false
 	}
-	if !utils.StringMapSlicesEqual(r.Rules, o.Rules) {
+	if len(r.Rules) != len(o.Rules) {
 		return false
 	}
-
+	for i := range r.Rules {
+		if !r.Rules[i].Equals(o.Rules[i]) {
+			return false
+		}
+	}
 	return true
 }
 
-// RoleRules is a map of resources and their verbs. Role rules can be used
-// to allow or deny access to resources.
-type RoleRules map[string][]string
+// NewRule creates a rule based on a resource name and a list of verbs
+func NewRule(resource string, verbs []string) Rule {
+	return Rule{
+		Resources: []string{resource},
+		Verbs:     verbs,
+	}
+}
 
-type rules struct {
+// Rule represents allow or deny rule that is executed to check
+// if user or service have access to resource
+type Rule struct {
+	// Resources is a list of
 	Resources []string `json:"resources"`
 	Verbs     []string `json:"verbs"`
+	Where     string   `json:"where,omitempty"`
+	Actions   []string `json:"actions,omitempty"`
 }
 
-// MarshalJSON is used to convert between the internal representation of
-// rules and the format defined in RoleSpecV3.
-func (rrs *RoleRules) MarshalJSON() ([]byte, error) {
-	var r []rules
-	for resource, verbs := range *rrs {
-		r = append(r, rules{Resources: []string{resource}, Verbs: verbs})
+// HasVerb returns true if the rule has verb,
+// this method also matches wildcard
+func (r *Rule) HasVerb(verb string) bool {
+	for _, v := range r.Verbs {
+		if v == verb {
+			return true
+		}
 	}
-
-	return json.Marshal(r)
+	return false
 }
 
-// UnmarshalJSON is used to convert between the internal representation of
-// rules and the format defined in RoleSpecV3.
-func (rrs *RoleRules) UnmarshalJSON(data []byte) error {
-	var r []rules
-	err := json.Unmarshal(data, &r)
-	if err != nil {
-		return err
+// Equals returns true if the rule equals to another
+func (r *Rule) Equals(other Rule) bool {
+	if !utils.StringSlicesEqual(r.Resources, other.Resources) {
+		return false
+	}
+	if !utils.StringSlicesEqual(r.Verbs, other.Verbs) {
+		return false
+	}
+	if !utils.StringSlicesEqual(r.Actions, other.Actions) {
+		return false
+	}
+	if r.Where != other.Where {
+		return false
+	}
+	return true
+}
+
+// RuleSet maps resource to a set of rules defined for it
+type RuleSet map[string][]Rule
+
+// MatchRule tests if the resource name and verb are in a given list of rules.
+func (set RuleSet) Match(resource string, verb string) bool {
+	// empty set matches nothing
+	if len(set) == 0 {
+		return false
 	}
 
-	rmap := make(map[string][]string)
-	for _, rule := range r {
-		for _, resource := range rule.Resources {
-			rmap[resource] = rule.Verbs
+	// check for wildcard resource matcher
+	for _, rule := range set[Wildcard] {
+		if rule.HasVerb(Wildcard) || rule.HasVerb(verb) {
+			return true
 		}
 	}
 
-	*rrs = rmap
-	return nil
+	// check for matching resource by name
+	for _, rule := range set[resource] {
+		if rule.HasVerb(Wildcard) || rule.HasVerb(verb) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// Slice returns slice from a set
+func (set RuleSet) Slice() []Rule {
+	var out []Rule
+	for _, rules := range set {
+		out = append(out, rules...)
+	}
+	return out
+}
+
+// MakeRuleSet converts slice of rules to the set of rules
+func MakeRuleSet(rules []Rule) RuleSet {
+	set := make(RuleSet)
+	for _, rule := range rules {
+		for _, resource := range rule.Resources {
+			rules, ok := set[resource]
+			if !ok {
+				set[resource] = []Rule{rule}
+			} else {
+				rules = append(rules, rule)
+				set[resource] = rules
+			}
+		}
+	}
+	return set
+}
+
+// CopyRulesSlice copies input slice of Rules and returns the copy
+func CopyRulesSlice(in []Rule) []Rule {
+	out := make([]Rule, len(in))
+	copy(out, in)
+	return out
+}
+
+// RuleSlicesEqual returns true if two rule slices are equal
+func RuleSlicesEqual(a, b []Rule) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if !a[i].Equals(b[i]) {
+			return false
+		}
+	}
+	return true
 }
 
 // RoleV2 represents role resource specification
@@ -900,7 +982,7 @@ func (r *RoleV2) V3() *RoleV3 {
 	}
 
 	// translate old v2 resources to v3 rules
-	rules := make(map[string][]string)
+	rules := []Rule{}
 	for resource, actions := range r.GetResources() {
 		var verbs []string
 
@@ -916,7 +998,7 @@ func (r *RoleV2) V3() *RoleV3 {
 			verbs = []string{VerbReadSecrets, VerbCreate, VerbUpdate, VerbDelete}
 		}
 
-		rules[resource] = utils.Deduplicate(verbs)
+		rules = append(rules, NewRule(resource, verbs))
 	}
 	role.Spec.Allow.Rules = rules
 
@@ -1035,30 +1117,6 @@ func NewRoleSet(roles ...Role) RoleSet {
 
 // RoleSet is a set of roles that implements access control functionality
 type RoleSet []Role
-
-// MatchRule tests if the resource name and verb are in a given list of rules.
-func MatchRule(rules map[string][]string, resource string, verb string) bool {
-	// empty selector matches nothing
-	if len(rules) == 0 {
-		return false
-	}
-
-	// check for wildcard resource matcher
-	for _, action := range rules[Wildcard] {
-		if action == Wildcard || action == verb {
-			return true
-		}
-	}
-
-	// check for matching resource by name
-	for _, action := range rules[resource] {
-		if action == Wildcard || action == verb {
-			return true
-		}
-	}
-
-	return false
-}
 
 // MatchLogin returns true if attempted login matches any of the logins
 func MatchLogin(logins []string, login string) bool {
@@ -1235,8 +1293,7 @@ func (set RoleSet) CheckAccessToRule(namespace string, resource string, verb str
 	// check deny: a single match on a deny rule prohibits access
 	for _, role := range set {
 		matchNamespace := MatchNamespace(role.GetNamespaces(Deny), ProcessNamespace(namespace))
-		matchRule := MatchRule(role.GetRules(Deny), resource, verb)
-		if matchNamespace && matchRule {
+		if matchNamespace && MakeRuleSet(role.GetRules(Deny)).Match(resource, verb) {
 			return trace.AccessDenied("%v access to %v in namespace %v is denied for %v: deny rule matched", verb, resource, namespace, role)
 		}
 	}
@@ -1244,8 +1301,7 @@ func (set RoleSet) CheckAccessToRule(namespace string, resource string, verb str
 	// check allow: if rule matches, grant access to resource
 	for _, role := range set {
 		matchNamespace := MatchNamespace(role.GetNamespaces(Allow), ProcessNamespace(namespace))
-		matchRule := MatchRule(role.GetRules(Allow), resource, verb)
-		if matchNamespace && matchRule {
+		if matchNamespace && MakeRuleSet(role.GetRules(Allow)).Match(resource, verb) {
 			return nil
 		}
 	}

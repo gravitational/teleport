@@ -34,10 +34,10 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/shell"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-
 	"github.com/kardianos/osext"
 	log "github.com/sirupsen/logrus"
 )
@@ -118,7 +118,7 @@ func prepInteractiveCommand(ctx *ctx) (*exec.Cmd, error) {
 	// determine shell for the given OS user:
 	if ctx.exec.cmdName == "" {
 		runShell = true
-		ctx.exec.cmdName, err = utils.GetLoginShell(ctx.login)
+		ctx.exec.cmdName, err = shell.GetLoginShell(ctx.login)
 		if err != nil {
 			log.Error(err)
 			return nil, trace.Wrap(err)
@@ -167,7 +167,7 @@ func prepareCommand(ctx *ctx) (*exec.Cmd, error) {
 	}
 
 	// get user's shell:
-	shell, err := utils.GetLoginShell(ctx.login)
+	shell, err := shell.GetLoginShell(ctx.login)
 	if err != nil {
 		log.Warn(err)
 	}

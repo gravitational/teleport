@@ -109,15 +109,6 @@ func (a *RoleAccess) initAdmin(teleRole services.Role) {
 }
 
 func (a *RoleAccess) applyAdmin(role services.Role) {
-	if a.Admin.Enabled {
-		allowAllNamespaces(role)
-		applyResourceAccess(role, adminRules, services.RW())
-	} else {
-		rules := role.GetRules(services.Allow)
-		delete(rules, services.Wildcard)
-		role.SetRules(services.Allow, rules)
-		applyResourceAccess(role, adminRules, services.RO())
-	}
 }
 
 func (a *RoleAccess) applySSH(teleRole services.Role) {
@@ -147,10 +138,11 @@ func none() []string {
 	return nil
 }
 
-func hasFullAccess(rules map[string][]string, resources []string) bool {
+func hasFullAccess(rules []services.Rule, resources []string) bool {
+	set := services.MakeRuleSet(rules)
 	for _, resource := range resources {
-		hasRead := services.MatchRule(rules, resource, services.ActionRead)
-		hasWrite := services.MatchRule(rules, resource, services.ActionWrite)
+		hasRead := set.Match(resource, services.ActionRead)
+		hasWrite := set.Match(resource, services.ActionWrite)
 
 		if !(hasRead && hasWrite) {
 			return false
@@ -158,12 +150,4 @@ func hasFullAccess(rules map[string][]string, resources []string) bool {
 	}
 
 	return true
-}
-
-func applyResourceAccess(role services.Role, rules []string, verbs []string) {
-	rs := role.GetRules(services.Allow)
-	for _, rule := range rules {
-		rs[rule] = verbs
-	}
-	role.SetRules(services.Allow, rs)
 }

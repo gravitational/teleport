@@ -157,7 +157,7 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 
 	user, role := createUserAndRole(s.a, userName, []string{userName})
 	rules := role.GetRules(services.Allow)
-	rules[services.KindNode] = services.RW()
+	rules = append(rules, services.NewRule(services.KindNode, services.RW()))
 	role.SetRules(services.Allow, rules)
 	err = s.a.UpsertRole(role, backend.Forever)
 	c.Assert(err, IsNil)
