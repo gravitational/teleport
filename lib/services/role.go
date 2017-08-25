@@ -764,7 +764,6 @@ func (set RuleSet) Match(whereParser predicate.Parser, actionsParser predicate.P
 	if len(set) == 0 {
 		return false, nil
 	}
-
 	// check for wildcard resource matcher
 	for _, rule := range set[Wildcard] {
 		match, err := rule.MatchesWhere(whereParser)
@@ -1358,7 +1357,7 @@ func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource
 				return trace.Wrap(err)
 			}
 			if matched {
-				return trace.AccessDenied("%v access to %v in namespace %v is denied for %v: deny rule matched", verb, resource, namespace, role)
+				return trace.AccessDenied("%v access to %v in namespace %q is denied for role %q: deny rule matched", verb, resource, namespace, role.GetName())
 			}
 		}
 	}
