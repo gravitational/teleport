@@ -86,7 +86,7 @@ func (l *LogAction) Log(level, format string, args ...interface{}) predicate.Boo
 			ilevel = log.DebugLevel
 		}
 		writer := log.StandardLogger().WriterLevel(ilevel)
-		writer.Write([]byte(fmt.Sprintf("%v %v", l.ctx, fmt.Sprintf(format, args...))))
+		writer.Write([]byte(fmt.Sprintf(format, args...)))
 		return true
 	}
 }

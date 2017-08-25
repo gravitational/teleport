@@ -451,7 +451,7 @@ func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 									Verbs:     []string{VerbRead},
 									Where:     `contains(user.spec.traits["group"], "prod")`,
 									Actions: []string{
-										`log("info", "4 - tc match")`,
+										`log("info", "4 - tc match for user %v", user.metadata.name)`,
 									},
 								},
 							},
@@ -465,6 +465,9 @@ func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 				{
 					context: Context{
 						User: &UserV2{
+							Metadata: Metadata{
+								Name: "bob",
+							},
 							Spec: UserSpecV2{
 								Traits: map[string][]string{
 									"group": []string{"dev", "prod"},
