@@ -1084,7 +1084,7 @@ type AccessChecker interface {
 	CheckAccessToServer(login string, server Server) error
 
 	// CheckAccessToRule checks access to a rule within a namespace.
-	CheckAccessToRule(namespace string, rule string, verb string) error
+	CheckAccessToRule(context RuleContext, namespace string, rule string, verb string) error
 
 	// CheckLoginDuration checks if role set can login up to given duration and
 	// returns a combined list of allowed logins.

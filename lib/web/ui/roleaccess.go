@@ -100,12 +100,8 @@ func (a *RoleAccess) initSSH(teleRole services.Role) error {
 }
 
 func (a *RoleAccess) initAdmin(teleRole services.Role) {
-	hasAllNamespaces := services.MatchNamespace(
-		teleRole.GetNamespaces(services.Allow),
-		services.Wildcard)
-
-	rules := teleRole.GetRules(services.Allow)
-	a.Admin.Enabled = hasFullAccess(rules, adminRules) && hasAllNamespaces
+	// FIXME: this logic is obsolete
+	a.Admin.Enabled = false
 }
 
 func (a *RoleAccess) applyAdmin(role services.Role) {
@@ -136,18 +132,4 @@ func allowAllNamespaces(teleRole services.Role) {
 
 func none() []string {
 	return nil
-}
-
-func hasFullAccess(rules []services.Rule, resources []string) bool {
-	set := services.MakeRuleSet(rules)
-	for _, resource := range resources {
-		hasRead := set.Match(resource, services.ActionRead)
-		hasWrite := set.Match(resource, services.ActionWrite)
-
-		if !(hasRead && hasWrite) {
-			return false
-		}
-	}
-
-	return true
 }
