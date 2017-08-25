@@ -129,6 +129,9 @@ const (
 
 	// SAML means authentication will happen remotly using an SAML connector.
 	SAML = "saml"
+
+	// JSON means JSON serialization format
+	JSON = "json"
 )
 
 const (

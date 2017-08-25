@@ -429,7 +429,7 @@ func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 		}
 		for j, check := range tc.checks {
 			comment := Commentf("test case %v '%v', check %v", i, tc.name, j)
-			result := set.CheckAccessToRule(check.namespace, check.rule, check.verb)
+			result := set.CheckAccessToRule(&Context{}, check.namespace, check.rule, check.verb)
 			if check.hasAccess {
 				c.Assert(result, IsNil, comment)
 			} else {
