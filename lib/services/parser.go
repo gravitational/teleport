@@ -47,7 +47,8 @@ func NewWhereParser(ctx RuleContext) (predicate.Parser, error) {
 			OR:  predicate.Or,
 		},
 		Functions: map[string]interface{}{
-			"equals": predicate.Equals,
+			"equals":   predicate.Equals,
+			"contains": predicate.Contains,
 		},
 		GetIdentifier: ctx.GetIdentifier,
 		GetProperty:   predicate.GetStringMapValue,
@@ -183,7 +184,12 @@ var emptyUser = &UserV2{}
 // EmptyResource is used to represent a use case when no resource
 // is specified in the rules matcher
 type EmptyResource struct {
-	ResourceHeader
+	// Kind is a resource kind
+	Kind string `json:"kind"`
+	// Version is a resource version
+	Version string `json:"version"`
+	// Metadata is Role metadata
+	Metadata Metadata `json:"metadata"`
 }
 
 // SetExpiry sets expiry time for the object.
