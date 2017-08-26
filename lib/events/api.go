@@ -141,6 +141,10 @@ type IAuditLog interface {
 	// The only mandatory requirement is a date range (UTC). Results must always
 	// show up sorted by date (newest first)
 	SearchEvents(fromUTC, toUTC time.Time, query string) ([]EventFields, error)
+
+	// SearchSessionEvents returns session related events only. This is used to
+	// find completed session.
+	SearchSessionEvents(fromUTC time.Time, toUTC time.Time) ([]EventFields, error)
 }
 
 // EventFields instance is attached to every logged event

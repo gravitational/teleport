@@ -171,24 +171,19 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 
 	// get nodes
 	h.GET("/webapi/sites/:site/namespaces/:namespace/nodes", h.WithClusterAuth(h.getSiteNodes))
-	// connect to node via websocket (that's why it's a GET method)
-	h.GET("/webapi/sites/:site/namespaces/:namespace/connect", h.WithClusterAuth(h.siteNodeConnect))
-	// get session event stream
-	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/events/stream", h.WithClusterAuth(h.siteSessionStream))
-	// generate a new session
-	h.POST("/webapi/sites/:site/namespaces/:namespace/sessions", h.WithClusterAuth(h.siteSessionGenerate))
-	// update session parameters
-	h.PUT("/webapi/sites/:site/namespaces/:namespace/sessions/:sid", h.WithClusterAuth(h.siteSessionUpdate))
-	// get the session list
-	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions", h.WithClusterAuth(h.siteSessionsGet))
-	// get a session
-	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid", h.WithClusterAuth(h.siteSessionGet))
-	// get session's events
-	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/events", h.WithClusterAuth(h.siteSessionEventsGet))
-	// get session's bytestream
-	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/stream", h.siteSessionStreamGet)
-	// search site events
-	h.GET("/webapi/sites/:site/events", h.WithClusterAuth(h.siteEventsGet))
+
+	// active sessions handlers
+	h.GET("/webapi/sites/:site/namespaces/:namespace/connect", h.WithClusterAuth(h.siteNodeConnect))                       // connect to an active session (via websocket)
+	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions", h.WithClusterAuth(h.siteSessionsGet))                      // get active list of sessions
+	h.POST("/webapi/sites/:site/namespaces/:namespace/sessions", h.WithClusterAuth(h.siteSessionGenerate))                 // create active session metadata
+	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid", h.WithClusterAuth(h.siteSessionGet))                  // get active session metadata
+	h.PUT("/webapi/sites/:site/namespaces/:namespace/sessions/:sid", h.WithClusterAuth(h.siteSessionUpdate))               // update active session metadata (parameters)
+	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/events/stream", h.WithClusterAuth(h.siteSessionStream)) // get active session's byte stream (from events)
+
+	// recorded sessions handlers
+	h.GET("/webapi/sites/:site/events", h.WithClusterAuth(h.siteEventsGet))                                            // get recorded list of sessions (from events)
+	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/events", h.WithClusterAuth(h.siteSessionEventsGet)) // get recorded session's timing information (from events)
+	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/stream", h.siteSessionStreamGet)                    // get recorded session's bytes (from events)
 
 	// OIDC related callback handlers
 	h.GET("/webapi/oidc/login/web", httplib.MakeHandler(h.oidcLoginWeb))
@@ -1208,7 +1203,7 @@ func (m *Handler) siteNodeConnect(
 	req.ProxyHostPort = m.ProxyHostPort()
 	req.Cluster = site.GetName()
 
-	clt, err := ctx.GetClient()
+	clt, err := ctx.GetUserClient(site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1366,7 +1361,7 @@ type siteSessionsGetResponse struct {
 //
 // {"sessions": [{"id": "sid", "terminal_params": {"w": 100, "h": 100}, "parties": [], "login": "bob"}, ...] }
 func (m *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	clt, err := site.GetClient()
+	clt, err := ctx.GetUserClient(site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1397,7 +1392,8 @@ func (m *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 	log.Infof("web.getSetssion(%v)", sessionID)
-	clt, err := site.GetClient()
+
+	clt, err := ctx.GetUserClient(site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1431,11 +1427,13 @@ func (m *Handler) siteEventsGet(w http.ResponseWriter, r *http.Request, p httpro
 	query := r.URL.Query()
 	log.Infof("web.getEvents(%v)", r.URL.RawQuery)
 
-	clt, err := site.GetClient()
+	clt, err := ctx.GetUserClient(site)
 	if err != nil {
 		log.Error(err)
 		return nil, trace.Wrap(err)
 	}
+
+	// default values
 	to := time.Now().In(time.UTC)
 	from := to.AddDate(0, -1, 0) // one month ago
 
@@ -1454,11 +1452,8 @@ func (m *Handler) siteEventsGet(w http.ResponseWriter, r *http.Request, p httpro
 			return nil, trace.BadParameter("to")
 		}
 	}
-	// remove to & from fields, and pass the rest of it directly to the back-end:
-	query.Del("to")
-	query.Del("from")
 
-	el, err := clt.SearchEvents(from, to, query.Encode())
+	el, err := clt.SearchSessionEvents(from, to)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1488,7 +1483,7 @@ func (m *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 		trace.WriteError(w, err)
 	}
 	// authenticate first:
-	_, err := m.AuthenticateRequest(w, r, true)
+	ctx, err := m.AuthenticateRequest(w, r, true)
 	if err != nil {
 		log.Info(err)
 		// clear session just in case if the authentication request is not valid
@@ -1517,11 +1512,13 @@ func (m *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 		onError(trace.Wrap(err))
 		return
 	}
-	clt, err := site.GetClient()
+
+	clt, err := ctx.GetUserClient(site)
 	if err != nil {
 		onError(trace.Wrap(err))
 		return
 	}
+
 	// look at 'offset' parameter
 	query := r.URL.Query()
 	offset, _ := strconv.Atoi(query.Get("offset"))
@@ -1541,6 +1538,7 @@ func (m *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 		onError(trace.BadParameter("invalid namespace %q", namespace))
 		return
 	}
+
 	// call the site API to get the chunk:
 	bytes, err := clt.GetSessionChunk(namespace, *sid, offset, max)
 	if err != nil {
@@ -1586,7 +1584,8 @@ func (m *Handler) siteSessionEventsGet(w http.ResponseWriter, r *http.Request, p
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clt, err := site.GetClient()
+
+	clt, err := ctx.GetUserClient(site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1751,6 +1750,7 @@ func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 			log.Warn(err)
 			return nil, trace.Wrap(err)
 		}
+
 		return fn(w, r, p, ctx, site)
 	})
 }

@@ -1227,6 +1227,26 @@ func (c *Client) SearchEvents(from, to time.Time, query string) ([]events.EventF
 	return retval, nil
 }
 
+// SearchSessionEvents returns session related events to find completed sessions.
+func (c *Client) SearchSessionEvents(from, to time.Time) ([]events.EventFields, error) {
+	query := url.Values{
+		"to":   []string{to.Format(time.RFC3339)},
+		"from": []string{from.Format(time.RFC3339)},
+	}
+
+	response, err := c.Get(c.Endpoint("events", "session"), query)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	retval := make([]events.EventFields, 0)
+	if err := json.Unmarshal(response.Bytes(), &retval); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return retval, nil
+}
+
 // GetNamespaces returns a list of namespaces
 func (c *Client) GetNamespaces() ([]services.Namespace, error) {
 	out, err := c.Get(c.Endpoint("namespaces"), url.Values{})
