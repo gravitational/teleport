@@ -52,6 +52,9 @@ var DefaultImplicitRules = []Rule{
 	NewRule(KindAuthServer, RO()),
 	NewRule(KindReverseTunnel, RO()),
 	NewRule(KindCertAuthority, RO()),
+	NewRule(KindClusterAuthPreference, RO()),
+	NewRule(KindClusterName, RO()),
+	NewRule(KindSSHSession, RO()),
 }
 
 // DefaultCertAuthorityRules provides access the minimal set of resources
@@ -981,7 +984,7 @@ func (r *RoleV2) CheckAndSetDefaults() error {
 	}
 	if r.Spec.Resources == nil {
 		r.Spec.Resources = map[string][]string{
-			KindSession:       RO(),
+			KindSSHSession:    RO(),
 			KindRole:          RO(),
 			KindNode:          RO(),
 			KindAuthServer:    RO(),

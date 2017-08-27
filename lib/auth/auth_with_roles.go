@@ -57,10 +57,7 @@ func (a *AuthWithRoles) currentUserAction(username string) error {
 }
 
 func (a *AuthWithRoles) GetSessions(namespace string) ([]session.Session, error) {
-	if err := a.action(namespace, services.KindSession, services.VerbList); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := a.action(namespace, services.KindSession, services.VerbRead); err != nil {
+	if err := a.action(namespace, services.KindSSHSession, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -68,21 +65,21 @@ func (a *AuthWithRoles) GetSessions(namespace string) ([]session.Session, error)
 }
 
 func (a *AuthWithRoles) GetSession(namespace string, id session.ID) (*session.Session, error) {
-	if err := a.action(namespace, services.KindSession, services.VerbRead); err != nil {
+	if err := a.action(namespace, services.KindSSHSession, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.sessions.GetSession(namespace, id)
 }
 
 func (a *AuthWithRoles) CreateSession(s session.Session) error {
-	if err := a.action(s.Namespace, services.KindSession, services.VerbCreate); err != nil {
+	if err := a.action(s.Namespace, services.KindSSHSession, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.sessions.CreateSession(s)
 }
 
 func (a *AuthWithRoles) UpdateSession(req session.UpdateRequest) error {
-	if err := a.action(req.Namespace, services.KindSession, services.VerbUpdate); err != nil {
+	if err := a.action(req.Namespace, services.KindSSHSession, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.sessions.UpdateSession(req)
@@ -189,9 +186,6 @@ func (a *AuthWithRoles) UpsertNode(s services.Server) error {
 
 func (a *AuthWithRoles) GetNodes(namespace string) ([]services.Server, error) {
 	if err := a.action(namespace, services.KindNode, services.VerbList); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := a.action(namespace, services.KindNode, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.GetNodes(namespace)
@@ -636,20 +630,20 @@ func (a *AuthWithRoles) EmitAuditEvent(eventType string, fields events.EventFiel
 }
 
 func (a *AuthWithRoles) PostSessionSlice(slice events.SessionSlice) error {
-	if err := a.action(slice.Namespace, services.KindSession, services.VerbCreate); err != nil {
+	if err := a.action(slice.Namespace, services.KindEvent, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.action(slice.Namespace, services.KindSession, services.VerbUpdate); err != nil {
+	if err := a.action(slice.Namespace, services.KindEvent, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.alog.PostSessionSlice(slice)
 }
 
 func (a *AuthWithRoles) PostSessionChunk(namespace string, sid session.ID, reader io.Reader) error {
-	if err := a.action(namespace, services.KindSession, services.VerbCreate); err != nil {
+	if err := a.action(namespace, services.KindEvent, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.action(namespace, services.KindSession, services.VerbUpdate); err != nil {
+	if err := a.action(namespace, services.KindEvent, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.alog.PostSessionChunk(namespace, sid, reader)
@@ -672,13 +666,19 @@ func (a *AuthWithRoles) GetSessionEvents(namespace string, sid session.ID, after
 }
 
 func (a *AuthWithRoles) SearchEvents(from, to time.Time, query string) ([]events.EventFields, error) {
-	if err := a.action(defaults.Namespace, services.KindEvent, services.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	if err := a.action(defaults.Namespace, services.KindEvent, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return a.alog.SearchEvents(from, to, query)
+}
+
+func (a *AuthWithRoles) SearchSessionEvents(from, to time.Time) ([]events.EventFields, error) {
+	if err := a.action(defaults.Namespace, services.KindSession, services.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.alog.SearchSessionEvents(from, to)
 }
 
 // GetNamespaces returns a list of namespaces

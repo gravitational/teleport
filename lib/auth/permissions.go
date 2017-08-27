@@ -167,7 +167,7 @@ func GetCheckerForBuiltinRole(role teleport.Role) (services.AccessChecker, error
 					Namespaces: []string{services.Wildcard},
 					Rules: []services.Rule{
 						services.NewRule(services.KindNode, services.RW()),
-						services.NewRule(services.KindSession, services.RW()),
+						services.NewRule(services.KindSSHSession, services.RW()),
 						services.NewRule(services.KindEvent, services.RW()),
 						services.NewRule(services.KindProxy, services.RO()),
 						services.NewRule(services.KindCertAuthority, services.RO()),
@@ -188,7 +188,8 @@ func GetCheckerForBuiltinRole(role teleport.Role) (services.AccessChecker, error
 					Rules: []services.Rule{
 						services.NewRule(services.KindProxy, services.RW()),
 						services.NewRule(services.KindOIDCRequest, services.RW()),
-						services.NewRule(services.KindSession, services.RW()),
+						services.NewRule(services.KindSSHSession, services.RW()),
+						services.NewRule(services.KindSession, services.RO()),
 						services.NewRule(services.KindEvent, services.RW()),
 						services.NewRule(services.KindSAMLRequest, services.RW()),
 						services.NewRule(services.KindOIDC, services.RO()),
@@ -214,7 +215,7 @@ func GetCheckerForBuiltinRole(role teleport.Role) (services.AccessChecker, error
 					Namespaces: []string{services.Wildcard},
 					Rules: []services.Rule{
 						services.NewRule(services.KindWebSession, services.RW()),
-						services.NewRule(services.KindSession, services.RW()),
+						services.NewRule(services.KindSSHSession, services.RW()),
 						services.NewRule(services.KindAuthServer, services.RO()),
 						services.NewRule(services.KindUser, services.RO()),
 						services.NewRule(services.KindRole, services.RO()),

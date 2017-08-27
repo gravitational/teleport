@@ -413,3 +413,6 @@ func (ll *CachingAuditLog) GetSessionEvents(string, session.ID, int) ([]events.E
 func (ll *CachingAuditLog) SearchEvents(time.Time, time.Time, string) ([]events.EventFields, error) {
 	return nil, errNotSupported
 }
+func (ll *CachingAuditLog) SearchSessionEvents(time.Time, time.Time) ([]events.EventFields, error) {
+	return nil, errNotSupported
+}

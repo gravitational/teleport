@@ -70,8 +70,11 @@ const (
 	// KindOIDCReques is saml auth request resource
 	KindSAMLRequest = "saml_request"
 
-	// KindSession is a recorded session resource
+	// KindSession is a recorded SSH session.
 	KindSession = "session"
+
+	// KindSSHSession is an active SSH session.
+	KindSSHSession = "ssh_session"
 
 	// KindWebSession is a web session resource
 	KindWebSession = "web_session"

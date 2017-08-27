@@ -34,3 +34,6 @@ func (d *DiscardAuditLog) GetSessionEvents(namespace string, sid session.ID, aft
 func (d *DiscardAuditLog) SearchEvents(fromUTC, toUTC time.Time, query string) ([]EventFields, error) {
 	return make([]EventFields, 0), nil
 }
+func (d *DiscardAuditLog) SearchSessionEvents(fromUTC time.Time, toUTC time.Time) ([]EventFields, error) {
+	return make([]EventFields, 0), nil
+}

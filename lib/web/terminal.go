@@ -186,7 +186,7 @@ func (t *terminalHandler) Run(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		defer agent.Close()
-		principal, auth, err := t.getUserCredentials(agent)
+		principal, auth, err := getUserCredentials(agent)
 		if err != nil {
 			errToTerm(err, ws)
 			return
@@ -242,8 +242,7 @@ func (t *terminalHandler) Run(w http.ResponseWriter, r *http.Request) {
 
 // getUserCredentials retreives the SSH credentials (certificate) for the currently logged in user
 // from the auth server API.
-//
-func (t *terminalHandler) getUserCredentials(agent auth.AgentCloser) (string, ssh.AuthMethod, error) {
+func getUserCredentials(agent auth.AgentCloser) (string, ssh.AuthMethod, error) {
 	var (
 		cert *ssh.Certificate
 		pub  ssh.PublicKey
