@@ -32,6 +32,7 @@ import (
 
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
+	"github.com/vulcand/predicate"
 )
 
 // DefaultUserRules provides access to the default set of rules assigned to
@@ -686,11 +687,47 @@ func NewRule(resource string, verbs []string) Rule {
 // Rule represents allow or deny rule that is executed to check
 // if user or service have access to resource
 type Rule struct {
-	// Resources is a list of
+	// Resources is a list of resources
 	Resources []string `json:"resources"`
-	Verbs     []string `json:"verbs"`
-	Where     string   `json:"where,omitempty"`
-	Actions   []string `json:"actions,omitempty"`
+	// Verbs is a list of verbs
+	Verbs []string `json:"verbs"`
+	// Where specifies optional advanced matcher
+	Where string `json:"where,omitempty"`
+	// Actions specifies optional actions taken when this rule matches
+	Actions []string `json:"actions,omitempty"`
+}
+
+// MatchesWhere returns true if Where rule matches
+// Empty Where block always matches
+func (r *Rule) MatchesWhere(parser predicate.Parser) (bool, error) {
+	if r.Where == "" {
+		return true, nil
+	}
+	ifn, err := parser.Parse(r.Where)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	fn, ok := ifn.(predicate.BoolPredicate)
+	if !ok {
+		return false, trace.BadParameter("unsupported type: %T", ifn)
+	}
+	return fn(), nil
+}
+
+// ProcessActions processes actions specified for this rule
+func (r *Rule) ProcessActions(parser predicate.Parser) error {
+	for _, action := range r.Actions {
+		ifn, err := parser.Parse(action)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fn, ok := ifn.(predicate.BoolPredicate)
+		if !ok {
+			return trace.BadParameter("unsupported type: %T", ifn)
+		}
+		fn()
+	}
+	return nil
 }
 
 // HasVerb returns true if the rule has verb,
@@ -725,27 +762,40 @@ func (r *Rule) Equals(other Rule) bool {
 type RuleSet map[string][]Rule
 
 // MatchRule tests if the resource name and verb are in a given list of rules.
-func (set RuleSet) Match(resource string, verb string) bool {
+func (set RuleSet) Match(whereParser predicate.Parser, actionsParser predicate.Parser, resource string, verb string) (bool, error) {
 	// empty set matches nothing
 	if len(set) == 0 {
-		return false
+		return false, nil
 	}
-
 	// check for wildcard resource matcher
 	for _, rule := range set[Wildcard] {
-		if rule.HasVerb(Wildcard) || rule.HasVerb(verb) {
-			return true
+		match, err := rule.MatchesWhere(whereParser)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		if match && (rule.HasVerb(Wildcard) || rule.HasVerb(verb)) {
+			if err := rule.ProcessActions(actionsParser); err != nil {
+				return true, trace.Wrap(err)
+			}
+			return true, nil
 		}
 	}
 
 	// check for matching resource by name
 	for _, rule := range set[resource] {
-		if rule.HasVerb(Wildcard) || rule.HasVerb(verb) {
-			return true
+		match, err := rule.MatchesWhere(whereParser)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		if match && (rule.HasVerb(Wildcard) || rule.HasVerb(verb)) {
+			if err := rule.ProcessActions(actionsParser); err != nil {
+				return true, trace.Wrap(err)
+			}
+			return true, nil
 		}
 	}
 
-	return false
+	return false, nil
 }
 
 // Slice returns slice from a set
@@ -1036,7 +1086,7 @@ type AccessChecker interface {
 	CheckAccessToServer(login string, server Server) error
 
 	// CheckAccessToRule checks access to a rule within a namespace.
-	CheckAccessToRule(namespace string, rule string, verb string) error
+	CheckAccessToRule(context RuleContext, namespace string, rule string, verb string) error
 
 	// CheckLoginDuration checks if role set can login up to given duration and
 	// returns a combined list of allowed logins.
@@ -1292,20 +1342,40 @@ func (set RoleSet) String() string {
 	return fmt.Sprintf("roles %v", strings.Join(roleNames, ","))
 }
 
-func (set RoleSet) CheckAccessToRule(namespace string, resource string, verb string) error {
+func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource string, verb string) error {
+	whereParser, err := GetWhereParserFn()(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	actionsParser, err := GetActionsParserFn()(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	// check deny: a single match on a deny rule prohibits access
 	for _, role := range set {
 		matchNamespace := MatchNamespace(role.GetNamespaces(Deny), ProcessNamespace(namespace))
-		if matchNamespace && MakeRuleSet(role.GetRules(Deny)).Match(resource, verb) {
-			return trace.AccessDenied("%v access to %v in namespace %v is denied for %v: deny rule matched", verb, resource, namespace, role)
+		if matchNamespace {
+			matched, err := MakeRuleSet(role.GetRules(Deny)).Match(whereParser, actionsParser, resource, verb)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if matched {
+				return trace.AccessDenied("%v access to %v in namespace %q is denied for role %q: deny rule matched", verb, resource, namespace, role.GetName())
+			}
 		}
 	}
 
 	// check allow: if rule matches, grant access to resource
 	for _, role := range set {
 		matchNamespace := MatchNamespace(role.GetNamespaces(Allow), ProcessNamespace(namespace))
-		if matchNamespace && MakeRuleSet(role.GetRules(Allow)).Match(resource, verb) {
-			return nil
+		if matchNamespace {
+			match, err := MakeRuleSet(role.GetRules(Allow)).Match(whereParser, actionsParser, resource, verb)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if match {
+				return nil
+			}
 		}
 	}
 
@@ -1415,6 +1485,13 @@ const RoleSpecV3SchemaDefinitions = `
               "items": { "type": "string" }
             },
             "verbs": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "where": {
+               "type": "string"
+            },
+            "actions": {
               "type": "array",
               "items": { "type": "string" }
             }

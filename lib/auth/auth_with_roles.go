@@ -42,7 +42,7 @@ type AuthWithRoles struct {
 }
 
 func (a *AuthWithRoles) action(namespace string, resource string, action string) error {
-	return a.checker.CheckAccessToRule(namespace, resource, action)
+	return a.checker.CheckAccessToRule(&services.Context{User: a.user}, namespace, resource, action)
 }
 
 // currentUserAction is a special checker that allows certain actions for users
@@ -52,7 +52,7 @@ func (a *AuthWithRoles) currentUserAction(username string) error {
 	if username == a.user.GetName() {
 		return nil
 	}
-	return a.checker.CheckAccessToRule(
+	return a.checker.CheckAccessToRule(&services.Context{User: a.user},
 		defaults.Namespace, services.KindUser, services.VerbCreate)
 }
 

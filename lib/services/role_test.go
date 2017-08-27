@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -111,7 +112,11 @@ func (s *RoleSuite) TestRoleParse(c *C) {
                    "rules": [
                      {
                        "resources": ["role"],
-                       "verbs": ["read", "list"]
+                       "verbs": ["read", "list"],
+                       "where": "contains(user.spec.traits[\"groups\"], \"prod\")",
+                       "actions": [
+                          "log(\"info\", \"log entry\")"
+                       ]
                      }
                    ]
                  },
@@ -135,7 +140,14 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 						NodeLabels: map[string]string{"a": "b"},
 						Namespaces: []string{"system", "default"},
 						Rules: []Rule{
-							NewRule(KindRole, []string{VerbRead, VerbList}),
+							Rule{
+								Resources: []string{KindRole},
+								Verbs:     []string{VerbRead, VerbList},
+								Where:     "contains(user.spec.traits[\"groups\"], \"prod\")",
+								Actions: []string{
+									"log(\"info\", \"log entry\")",
+								},
+							},
 						},
 					},
 					Deny: RoleConditions{
@@ -153,7 +165,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 			c.Assert(err, NotNil, comment)
 		} else {
 			c.Assert(err, IsNil, comment)
-			c.Assert(*role, DeepEquals, tc.role, comment)
+			fixtures.DeepCompare(c, *role, tc.role)
 
 			out, err := json.Marshal(role)
 			c.Assert(err, IsNil, comment)
@@ -318,6 +330,7 @@ func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 		verb      string
 		namespace string
 		rule      string
+		context   Context
 	}
 	testCases := []struct {
 		name   string
@@ -421,6 +434,112 @@ func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 				{rule: KindSSHSession, verb: VerbCreate, namespace: defaults.Namespace, hasAccess: false},
 			},
 		},
+		{
+			name: "4 - user can read sessions if trait matches",
+			roles: []RoleV3{
+				RoleV3{
+					Metadata: Metadata{
+						Name:      "name1",
+						Namespace: defaults.Namespace,
+					},
+					Spec: RoleSpecV3{
+						Allow: RoleConditions{
+							Namespaces: []string{defaults.Namespace},
+							Rules: []Rule{
+								Rule{
+									Resources: []string{KindSession},
+									Verbs:     []string{VerbRead},
+									Where:     `contains(user.spec.traits["group"], "prod")`,
+									Actions: []string{
+										`log("info", "4 - tc match for user %v", user.metadata.name)`,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			checks: []check{
+				{rule: KindSession, verb: VerbRead, namespace: defaults.Namespace, hasAccess: false},
+				{rule: KindSession, verb: VerbList, namespace: defaults.Namespace, hasAccess: false},
+				{
+					context: Context{
+						User: &UserV2{
+							Metadata: Metadata{
+								Name: "bob",
+							},
+							Spec: UserSpecV2{
+								Traits: map[string][]string{
+									"group": []string{"dev", "prod"},
+								},
+							},
+						},
+					},
+					rule:      KindSession,
+					verb:      VerbRead,
+					namespace: defaults.Namespace,
+					hasAccess: true,
+				},
+				{
+					context: Context{
+						User: &UserV2{
+							Spec: UserSpecV2{
+								Traits: map[string][]string{
+									"group": []string{"dev"},
+								},
+							},
+						},
+					},
+					rule:      KindSession,
+					verb:      VerbRead,
+					namespace: defaults.Namespace,
+					hasAccess: false,
+				},
+			},
+		},
+		{
+			name: "5 - user can read role if role has label",
+			roles: []RoleV3{
+				RoleV3{
+					Metadata: Metadata{
+						Name:      "name1",
+						Namespace: defaults.Namespace,
+					},
+					Spec: RoleSpecV3{
+						Allow: RoleConditions{
+							Namespaces: []string{defaults.Namespace},
+							Rules: []Rule{
+								Rule{
+									Resources: []string{KindRole},
+									Verbs:     []string{VerbRead},
+									Where:     `equals(resource.metadata.labels["team"], "dev")`,
+									Actions: []string{
+										`log("error", "4 - tc match")`,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			checks: []check{
+				{rule: KindRole, verb: VerbRead, namespace: defaults.Namespace, hasAccess: false},
+				{rule: KindRole, verb: VerbList, namespace: defaults.Namespace, hasAccess: false},
+				{
+					context: Context{
+						Resource: &RoleV2{
+							Metadata: Metadata{
+								Labels: map[string]string{"team": "dev"},
+							},
+						},
+					},
+					rule:      KindRole,
+					verb:      VerbRead,
+					namespace: defaults.Namespace,
+					hasAccess: true,
+				},
+			},
+		},
 	}
 	for i, tc := range testCases {
 		var set RoleSet
@@ -429,13 +548,12 @@ func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 		}
 		for j, check := range tc.checks {
 			comment := Commentf("test case %v '%v', check %v", i, tc.name, j)
-			result := set.CheckAccessToRule(check.namespace, check.rule, check.verb)
+			result := set.CheckAccessToRule(&check.context, check.namespace, check.rule, check.verb)
 			if check.hasAccess {
 				c.Assert(result, IsNil, comment)
 			} else {
 				c.Assert(trace.IsAccessDenied(result), Equals, true, comment)
 			}
-
 		}
 	}
 }

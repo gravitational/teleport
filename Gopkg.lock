@@ -322,6 +322,12 @@
   revision = "5725fecc9a4f3aa6fdc3ffd29cef771241809add"
 
 [[projects]]
+  name = "github.com/vulcand/predicate"
+  packages = ["."]
+  revision = "939c094524d124c55fa8afe0e077701db4a865e2"
+  version = "v1.0.0"
+
+[[projects]]
   name = "github.com/xeipuuv/gojsonpointer"
   packages = ["."]
   revision = "e0fe6f68307607d540ed8eac07a342c33fa1b54a"
@@ -388,6 +394,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "b95b2baa7e996bc32da399192180a50cf289a0b9718f85b57e14a86f46e25048"
+  inputs-digest = "451ff02b1741edaebc95ff6dde7beabbe4d721e179cba379452fa312df4a9f7a"
   solver-name = "gps-cdcl"
   solver-version = 1

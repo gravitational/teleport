@@ -21,6 +21,10 @@
 #  version = "2.4.0"
 
 [[constraint]]
+  name = "github.com/vulcand/predicate"
+  version = "v1.0.0"
+
+[[constraint]]
   name = "github.com/docker/docker"
   revision = "1009e6a40b295187e038b67e184e9c0384d95538"
 
