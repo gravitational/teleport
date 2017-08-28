@@ -535,11 +535,11 @@ func (r *RoleV3) String() string {
 // RoleSpecV3 is role specification for RoleV3.
 type RoleSpecV3 struct {
 	// Options is for OpenSSH options like agent forwarding.
-	Options RoleOptions `json:"options,omitempty" yaml:"options,omitempty"`
+	Options RoleOptions `json:"options,omitempty"`
 	// Allow is the set of conditions evaluated to grant access.
-	Allow RoleConditions `json:"allow,omitempty" yaml:"allow,omitempty"`
+	Allow RoleConditions `json:"allow,omitempty"`
 	// Deny is the set of conditions evaluated to deny access. Deny takes priority over allow.
-	Deny RoleConditions `json:"deny,omitempty" yaml:"deny,omitempty"`
+	Deny RoleConditions `json:"deny,omitempty"`
 }
 
 // RoleOptions are key/value pairs that always exist for a role.
@@ -642,15 +642,16 @@ func (o RoleOptions) Equals(other RoleOptions) bool {
 // denied access.
 type RoleConditions struct {
 	// Logins is a list of *nix system logins.
-	Logins []string `json:"logins,omitempty" yaml:"logins,omitempty"`
-	// Namespaces is a list of namespaces (used to partition a cluster).
-	Namespaces []string `json:"namespaces,omitempty" yaml:"namespaces,omitempty"`
+	Logins []string `json:"logins,omitempty"`
+	// Namespaces is a list of namespaces (used to partition a cluster). The
+	// field should be called "namespaces" when it returns in Teleport 2.4.
+	Namespaces []string `json:"-"`
 	// NodeLabels is a map of node labels (used to dynamically grant access to nodes).
-	NodeLabels map[string]string `json:"node_labels,omitempty" yaml:"node_labels,omitempty"`
+	NodeLabels map[string]string `json:"node_labels,omitempty"`
 
 	// Rules is a list of rules and their access levels. Rules are a high level
 	// construct used for access control.
-	Rules []Rule `json:"rules,omitempty" yaml:"rules,omitempty"`
+	Rules []Rule `json:"rules,omitempty"`
 }
 
 // Equals returns true if the role conditions (logins, namespaces, labels,
@@ -1066,18 +1067,18 @@ func (r *RoleV2) String() string {
 // RoleSpecV2 is role specification for RoleV2
 type RoleSpecV2 struct {
 	// MaxSessionTTL is a maximum SSH or Web session TTL
-	MaxSessionTTL Duration `json:"max_session_ttl" yaml:"max_session_ttl"`
+	MaxSessionTTL Duration `json:"max_session_ttl"`
 	// Logins is a list of linux logins allowed for this role
-	Logins []string `json:"logins,omitempty" yaml:"logins,omitempty"`
+	Logins []string `json:"logins,omitempty"`
 	// NodeLabels is a set of matching labels that users of this role
 	// will be allowed to access
-	NodeLabels map[string]string `json:"node_labels,omitempty" yaml:"node_labels,omitempty"`
+	NodeLabels map[string]string `json:"node_labels,omitempty"`
 	// Namespaces is a list of namespaces, guarding accesss to resources
-	Namespaces []string `json:"namespaces,omitempty" yaml:"namespaces,omitempty"`
+	Namespaces []string `json:"namespaces,omitempty"`
 	// Resources limits access to resources
-	Resources map[string][]string `json:"resources,omitempty" yaml:"resources,omitempty"`
+	Resources map[string][]string `json:"resources,omitempty"`
 	// ForwardAgent permits SSH agent forwarding if requested by the client
-	ForwardAgent bool `json:"forward_agent" yaml:"forward_agent"`
+	ForwardAgent bool `json:"forward_agent"`
 }
 
 // AccessChecker interface implements access checks for given role

@@ -22,12 +22,13 @@ import (
 	"io"
 	"strings"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/trace"
 
 	"github.com/buger/goterm"
 	"github.com/ghodss/yaml"
-	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/trace"
 )
 
 type collection interface {
@@ -42,16 +43,18 @@ type roleCollection struct {
 
 func (r *roleCollection) writeText(w io.Writer) error {
 	t := goterm.NewTable(0, 10, 5, ' ', 0)
-	printHeader(t, []string{"Role", "Allowed to login as", "Namespaces", "Node Labels", "Access to resources"})
+	printHeader(t, []string{"Role", "Allowed to login as", "Node Labels", "Access to resources"})
 	if len(r.roles) == 0 {
 		_, err := io.WriteString(w, t.String())
 		return trace.Wrap(err)
 	}
 	for _, r := range r.roles {
-		fmt.Fprintf(t, "%v\t%v\t%v\t%v\t%v\n",
+		if r.GetName() == teleport.DefaultImplicitRole {
+			continue
+		}
+		fmt.Fprintf(t, "%v\t%v\t%v\t%v\n",
 			r.GetMetadata().Name,
 			strings.Join(r.GetLogins(services.Allow), ","),
-			strings.Join(r.GetNamespaces(services.Allow), ","),
 			printNodeLabels(r.GetNodeLabels(services.Allow)),
 			printActions(r.GetRules(services.Allow)))
 	}

@@ -273,15 +273,16 @@ func (u *UnknownResource) UnmarshalJSON(raw []byte) error {
 type Metadata struct {
 	// Name is an object name
 	Name string `json:"name"`
-	// Namespace is object namespace
-	Namespace string `json:"namespace"`
+	// Namespace is object namespace. The field should be called "namespace"
+	// when it returns in Teleport 2.4.
+	Namespace string `json:"-"`
 	// Description is object description
 	Description string `json:"description,omitempty"`
 	// Labels is a set of labels
 	Labels map[string]string `json:"labels,omitempty"`
-	// Expires is a global expiry time header
-	// can be set on any resource in the system
-	Expires time.Time `json:"expires,omitempty"`
+	// Expires is a global expiry time header can be set on any resource in the
+	// system. The field should be called "expires" when it returns.
+	Expires time.Time `json:"-"`
 }
 
 // Resource represents common properties for resources
