@@ -69,7 +69,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/net/websocket"
 	. "gopkg.in/check.v1"
-	kyaml "k8s.io/client-go/1.4/pkg/util/yaml"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
 func TestWeb(t *testing.T) {
