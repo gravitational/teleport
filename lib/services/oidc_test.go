@@ -121,8 +121,6 @@ func (s *OIDCSuite) TestUnmarshalInvalid(c *check.C) {
       }
 	`
 
-	oc, err := GetOIDCConnectorMarshaler().UnmarshalOIDCConnector([]byte(input))
-	c.Assert(err, check.IsNil)
-	err = oc.Check()
+	_, err := GetOIDCConnectorMarshaler().UnmarshalOIDCConnector([]byte(input))
 	c.Assert(err, check.NotNil)
 }

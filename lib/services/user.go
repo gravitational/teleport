@@ -50,6 +50,8 @@ type User interface {
 	GetTraits() map[string][]string
 	// GetTraits sets the trait map for this user used to populate role variables.
 	SetTraits(map[string][]string)
+	// CheckAndSetDefaults checks and set default values for any missing fields.
+	CheckAndSetDefaults() error
 }
 
 // NewUser creates new empty user
@@ -62,7 +64,7 @@ func NewUser(name string) (User, error) {
 			Namespace: defaults.Namespace,
 		},
 	}
-	if err := u.Check(); err != nil {
+	if err := u.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return u, nil
@@ -228,6 +230,21 @@ func (u *UserV2) SetTraits(traits map[string][]string) {
 	u.Spec.Traits = traits
 }
 
+// CheckAndSetDefaults checks and set default values for any missing fields.
+func (u *UserV2) CheckAndSetDefaults() error {
+	err := u.Metadata.CheckAndSetDefaults()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = u.Check()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 // UserSpecV2 is a specification for V2 user
 type UserSpecV2 struct {
 	// OIDCIdentities lists associated OpenID Connect identities
@@ -346,8 +363,11 @@ func (u *UserV2) Equals(other User) bool {
 
 // Expiry returns expiry time for temporary users
 func (u *UserV2) Expiry() time.Time {
+	if u.Metadata.Expires == nil {
+		return time.Time{}
+	}
 	if !u.Metadata.Expires.IsZero() {
-		return u.Metadata.Expires
+		return *u.Metadata.Expires
 	}
 	return u.Spec.Expires
 }
@@ -552,8 +572,12 @@ func (*TeleportUserMarshaler) UnmarshalUser(bytes []byte) (User, error) {
 		if err := utils.UnmarshalWithSchema(GetUserSchema(""), &u, bytes); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
-		utils.UTC(&u.Metadata.Expires)
 		u.rawObject = u
+
+		if err := u.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		return &u, nil
 	}
 

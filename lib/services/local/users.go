@@ -299,7 +299,8 @@ func (s *IdentityService) UpsertWebSession(user, sid string, session services.We
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ttl := backend.AnyTTL(clockwork.NewRealClock(), session.GetBearerTokenExpiryTime(), session.GetMetadata().Expires)
+	sessionMetadata := session.GetMetadata()
+	ttl := backend.AnyTTL(clockwork.NewRealClock(), session.GetBearerTokenExpiryTime(), sessionMetadata.Expiry())
 	err = s.UpsertVal([]string{"web", "users", user, "sessions"},
 		sid, bytes, ttl)
 	if trace.IsNotFound(err) {

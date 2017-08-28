@@ -33,8 +33,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/ghodss/yaml"
 	log "github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v2"
 )
 
 // Config structure is used to initialize _all_ services Teleporot can run.

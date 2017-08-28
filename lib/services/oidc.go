@@ -67,6 +67,8 @@ type OIDCConnector interface {
 	RoleFromTemplate(claims jose.Claims) (Role, error)
 	// Check checks OIDC connector for errors
 	Check() error
+	// CheckAndSetDefaults checks and set default values for any missing fields.
+	CheckAndSetDefaults() error
 	// SetClientSecret sets client secret to some value
 	SetClientSecret(secret string)
 	// SetClientID sets id for authentication client (in our case it's our Auth server)
@@ -152,6 +154,11 @@ func (*TeleportOIDCConnectorMarshaler) UnmarshalOIDCConnector(bytes []byte) (OID
 		if err := utils.UnmarshalWithSchema(GetOIDCConnectorSchema(), &c, bytes); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
+
+		if err := c.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		return &c, nil
 	}
 
@@ -477,9 +484,6 @@ func (o *OIDCConnectorV2) Check() error {
 	if o.Spec.ClientID == "" {
 		return trace.BadParameter("ClientID: missing client id")
 	}
-	if o.Spec.ClientSecret == "" {
-		return trace.BadParameter("ClientSecret: missing client secret")
-	}
 
 	// make sure claim mappings have either roles or a role template
 	for _, v := range o.Spec.ClaimsToRoles {
@@ -497,6 +501,21 @@ func (o *OIDCConnectorV2) Check() error {
 		if hasRoles == hasRoleTemplate {
 			return trace.BadParameter("need roles or role template (not both or none)")
 		}
+	}
+
+	return nil
+}
+
+// CheckAndSetDefaults checks and set default values for any missing fields.
+func (o *OIDCConnectorV2) CheckAndSetDefaults() error {
+	err := o.Metadata.CheckAndSetDefaults()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = o.Check()
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil

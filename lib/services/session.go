@@ -46,6 +46,8 @@ type WebSession interface {
 	V2() *WebSessionV2
 	// WithoutSecrets returns copy of the web session but without private keys
 	WithoutSecrets() WebSession
+	// CheckAndSetDefaults checks and set default values for any missing fields.
+	CheckAndSetDefaults() error
 }
 
 // NewWebSession returns new instance of the web session based on the V2 spec
@@ -100,6 +102,16 @@ func (ws *WebSessionV2) WithoutSecrets() WebSession {
 	v2 := ws.V2()
 	v2.Spec.Priv = nil
 	return v2
+}
+
+// CheckAndSetDefaults checks and set default values for any missing fields.
+func (ws *WebSessionV2) CheckAndSetDefaults() error {
+	err := ws.Metadata.CheckAndSetDefaults()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // SetName sets session name
@@ -388,7 +400,11 @@ func (*TeleportWebSessionMarshaler) UnmarshalWebSession(bytes []byte) (WebSessio
 		}
 		utils.UTC(&ws.Spec.BearerTokenExpires)
 		utils.UTC(&ws.Spec.Expires)
-		utils.UTC(&ws.Metadata.Expires)
+
+		if err := ws.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		return &ws, nil
 	}
 

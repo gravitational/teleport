@@ -71,19 +71,22 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 		// 0 - no input, should not parse
 		{
 			in:    ``,
+			role:  RoleV3{},
 			error: trace.BadParameter("empty input"),
 		},
 		// 1 - validation error, no name
 		{
 			in:    `{}`,
+			role:  RoleV3{},
 			error: trace.BadParameter("failed to validate: name: name is required"),
 		},
 		// 2 - validation error, no name
 		{
 			in:    `{"kind": "role"}`,
+			role:  RoleV3{},
 			error: trace.BadParameter("failed to validate: name: name is required"),
 		},
-		// 3 - role with no spec
+		// 3 - role with no spec still gets defaults
 		{
 			in: `{"kind": "role", "version": "v3", "metadata": {"name": "name1"}, "spec": {}}`,
 			role: RoleV3{
@@ -93,8 +96,24 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 					Name:      "name1",
 					Namespace: defaults.Namespace,
 				},
-				Spec: RoleSpecV3{},
+				Spec: RoleSpecV3{
+					Options: RoleOptions{
+						MaxSessionTTL: NewDuration(defaults.MaxCertDuration),
+					},
+					Allow: RoleConditions{
+						NodeLabels: map[string]string{Wildcard: Wildcard},
+						Namespaces: []string{defaults.Namespace},
+						Rules: []Rule{
+							NewRule(KindRole, RO()),
+							NewRule(KindOIDC, RO()),
+							NewRule(KindSAML, RO()),
+							NewRule(KindSession, RO()),
+							NewRule(KindTrustedCluster, RW()),
+						},
+					},
+				},
 			},
+			error: nil,
 		},
 		// 4 - full valid role
 		{
@@ -108,7 +127,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
                  },
                  "allow": {
                    "node_labels": {"a": "b"},
-                   "namespaces": ["system", "default"],
+                   "namespaces": ["default"],
                    "rules": [
                      {
                        "resources": ["role"],
@@ -138,7 +157,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 					},
 					Allow: RoleConditions{
 						NodeLabels: map[string]string{"a": "b"},
-						Namespaces: []string{"system", "default"},
+						Namespaces: []string{"default"},
 						Rules: []Rule{
 							Rule{
 								Resources: []string{KindRole},
@@ -155,6 +174,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 					},
 				},
 			},
+			error: nil,
 		},
 	}
 	for i, tc := range testCases {

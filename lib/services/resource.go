@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -273,15 +274,15 @@ func (u *UnknownResource) UnmarshalJSON(raw []byte) error {
 type Metadata struct {
 	// Name is an object name
 	Name string `json:"name"`
-	// Namespace is object namespace
-	Namespace string `json:"namespace"`
+	// Namespace is object namespace. The field should be called "namespace"
+	// when it returns in Teleport 2.4.
+	Namespace string `json:"-"`
 	// Description is object description
 	Description string `json:"description,omitempty"`
 	// Labels is a set of labels
 	Labels map[string]string `json:"labels,omitempty"`
-	// Expires is a global expiry time header
-	// can be set on any resource in the system
-	Expires time.Time `json:"expires,omitempty"`
+	// Expires is a global expiry time header can be set on any resource in the system.
+	Expires *time.Time `json:"expires,omitempty"`
 }
 
 // Resource represents common properties for resources
@@ -317,17 +318,21 @@ func (m *Metadata) SetName(name string) {
 
 // SetExpiry sets expiry time for the object
 func (m *Metadata) SetExpiry(expires time.Time) {
-	m.Expires = expires
+	m.Expires = &expires
 }
 
-// Expires retuns object expiry setting
+// Expires retuns object expiry setting.
 func (m *Metadata) Expiry() time.Time {
-	return m.Expires
+	if m.Expires == nil {
+		return time.Time{}
+	}
+	return *m.Expires
 }
 
 // SetTTL sets Expires header using realtime clock
 func (m *Metadata) SetTTL(clock clockwork.Clock, ttl time.Duration) {
-	m.Expires = clock.Now().UTC().Add(ttl)
+	expireTime := clock.Now().UTC().Add(ttl)
+	m.Expires = &expireTime
 }
 
 // CheckAndSetDefaults checks validity of all parameters and sets defaults
@@ -338,6 +343,12 @@ func (m *Metadata) CheckAndSetDefaults() error {
 	if m.Namespace == "" {
 		m.Namespace = defaults.Namespace
 	}
+
+	// adjust expires time to utc if it's set
+	if m.Expires != nil {
+		utils.UTC(m.Expires)
+	}
+
 	return nil
 }
 

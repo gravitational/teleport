@@ -420,7 +420,12 @@ func (t *TeleportTrustedClusterMarshaler) Unmarshal(bytes []byte) (TrustedCluste
 	if err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
-	utils.UTC(&trustedCluster.Metadata.Expires)
+
+	err = trustedCluster.CheckAndSetDefaults()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &trustedCluster, nil
 }
 
