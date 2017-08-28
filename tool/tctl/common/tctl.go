@@ -47,7 +47,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
-	kyaml "k8s.io/client-go/1.4/pkg/util/yaml"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
 type CLIConfig struct {

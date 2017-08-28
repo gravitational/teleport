@@ -706,9 +706,9 @@
 			"Rev": "7ad95dd0798a40da1ccdff6dff35fd177b5edf40"
 		},
 		{
-			"ImportPath": "k8s.io/client-go/1.4/pkg/util/yaml",
-			"Comment": "v1.4.0",
-			"Rev": "3a5b96cfd3d3ff1d53d979b4297c4f3b869aab09"
+			"ImportPath": "k8s.io/apimachinery/pkg/util/yaml",
+			"Comment": "release-1.7",
+			"Rev": "1fd2e63a9a370677308a42f24fd40c86438afddf"
 		}
 	]
 }
