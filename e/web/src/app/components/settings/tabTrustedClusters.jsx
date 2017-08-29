@@ -3,6 +3,7 @@ import connect from 'telebase-app/lib/connect';
 import getters from 'app/flux/settingsClusters/getters';
 import * as actions from 'app/flux/settingsClusters/actions';
 import ConfigItemList from './configItemList';
+import {openDeleteDialog} from 'app/flux/settings/actions';
 import ConfigDeleteDialog from './configDeleteDialog';
 import { EmptyList } from './emptyCfg';
 import ConfidAddEdit from './configAddEdit';
@@ -24,6 +25,10 @@ class TrustedClusters extends React.Component {
     })     
   }
   
+  onItemDelete = () => {
+    openDeleteDialog(this.props.store.curItem);
+  }
+
   onCancelNewItem = () => {    
     actions.setCurCluster();
   }

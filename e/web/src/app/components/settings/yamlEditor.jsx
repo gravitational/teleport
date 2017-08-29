@@ -15,6 +15,10 @@ class YamlEditor extends React.Component{
     }      
   }  
 
+  componentDidUpdate(){
+    this.editor.resize();
+  }
+
   initEditSessions() {
     let { data } = this.props;
     let undoManager = new UndoManager();  
@@ -52,7 +56,7 @@ class YamlEditor extends React.Component{
   }
     
   shouldComponentUpdate() {
-    return false;
+    return true;
   }
 
   render() {    

@@ -9,7 +9,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
-	telehttplib "github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web"
 
@@ -24,19 +24,19 @@ type Plugin struct {
 
 // AddHandlers registeres Plugin handlers
 func (p *Plugin) AddHandlers(h *web.Handler) {
-	h.GET("/enterprise/resources/:kind", h.WithAuth(p.getResources))
-	h.PUT("/enterprise/resources/:kind", h.WithAuth(p.upsertResource))
-	h.POST("/enterprise/resources/:kind", h.WithAuth(p.upsertResource))
-	h.DELETE("/enterprise/resources/:kind/:name", h.WithAuth(p.deleteResource))
+	h.GET("/enterprise/resources/:kind", h.WithAuth(p.getResourceHandler))
+	h.PUT("/enterprise/resources", h.WithAuth(p.upsertResourceHandler))
+	h.POST("/enterprise/resources", h.WithAuth(p.upsertResourceHandler))
+	h.DELETE("/enterprise/resources/:kind/:name", h.WithAuth(p.deleteResourceHandler))
 }
 
-func (p *Plugin) getResources(w http.ResponseWriter, r *http.Request, params httprouter.Params, c *web.SessionContext) (interface{}, error) {
-	resourceKind := params.ByName("kind")
+func (p *Plugin) getResourceHandler(w http.ResponseWriter, r *http.Request, params httprouter.Params, c *web.SessionContext) (interface{}, error) {
 	clt, err := c.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	resourceKind := params.ByName("kind")
 	data, err := getResourceByKind(resourceKind, clt)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -45,9 +45,9 @@ func (p *Plugin) getResources(w http.ResponseWriter, r *http.Request, params htt
 	return makeItemsResponse(data)
 }
 
-func (p *Plugin) upsertResource(w http.ResponseWriter, r *http.Request, params httprouter.Params, c *web.SessionContext) (interface{}, error) {
-	var req *ui.ConfigItem
-	if err := telehttplib.ReadJSON(r, &req); err != nil {
+func (p *Plugin) upsertResourceHandler(w http.ResponseWriter, r *http.Request, params httprouter.Params, c *web.SessionContext) (interface{}, error) {
+	var req *upsertRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -56,8 +56,7 @@ func (p *Plugin) upsertResource(w http.ResponseWriter, r *http.Request, params h
 		return nil, trace.Wrap(err)
 	}
 
-	resourceKind := params.ByName("kind")
-	items, err := upsertResourceByKind(resourceKind, *req, client)
+	items, err := upsertResource(req.Yaml, client)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -65,41 +64,23 @@ func (p *Plugin) upsertResource(w http.ResponseWriter, r *http.Request, params h
 	return makeItemsResponse(items)
 }
 
-func (p *Plugin) deleteResource(w http.ResponseWriter, r *http.Request, params httprouter.Params, c *web.SessionContext) (interface{}, error) {
-	resourceKind := params.ByName("kind")
-	resourceName := params.ByName("name")
-
+func (p *Plugin) deleteResourceHandler(w http.ResponseWriter, r *http.Request, params httprouter.Params, c *web.SessionContext) (interface{}, error) {
 	client, err := c.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	switch resourceKind {
-	case services.KindSAMLConnector:
-		if err := client.DeleteSAMLConnector(resourceName); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return ok(), nil
-	case services.KindOIDCConnector:
-		if err := client.DeleteOIDCConnector(resourceName); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return ok(), nil
-	case services.KindRole:
-		if err := client.DeleteRole(resourceName); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return ok(), nil
-	case services.KindTrustedCluster:
-		if err := client.DeleteTrustedCluster(resourceName); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return ok(), nil
-	default:
-		return nil, trace.BadParameter("%q is not supported", resourceKind)
+	resourceKind := params.ByName("kind")
+	resourceName := params.ByName("name")
+	if err := deleteResource(resourceKind, resourceName, client); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return ok(), nil
+}
+
+type upsertRequest struct {
+	Yaml string `json:"yaml"`
 }
 
 // message returns structured message response
@@ -110,6 +91,33 @@ func message(msg string) interface{} {
 // ok returns structured OK response
 func ok() interface{} {
 	return message("OK")
+}
+
+func deleteResource(resourceKind string, resourceName string, client auth.ClientI) error {
+	switch resourceKind {
+	case services.KindSAMLConnector:
+		if err := client.DeleteSAMLConnector(resourceName); err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+	case services.KindOIDCConnector:
+		if err := client.DeleteOIDCConnector(resourceName); err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+	case services.KindRole:
+		if err := client.DeleteRole(resourceName); err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+	case services.KindTrustedCluster:
+		if err := client.DeleteTrustedCluster(resourceName); err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+	default:
+		return trace.BadParameter("%q is not supported", resourceKind)
+	}
 }
 
 func getResourceByKind(kind string, client auth.ClientI) (interface{}, error) {
@@ -146,9 +154,9 @@ func getResourceByKind(kind string, client auth.ClientI) (interface{}, error) {
 	return nil, trace.BadParameter("'%v' is not supported", kind)
 }
 
-func upsertResourceByKind(kind string, uiItem ui.ConfigItem, client auth.ClientI) (interface{}, error) {
+func upsertResource(data string, client auth.ClientI) (interface{}, error) {
 	var raw services.UnknownResource
-	reader := strings.NewReader(uiItem.Content)
+	reader := strings.NewReader(data)
 	decoder := kyaml.NewYAMLOrJSONDecoder(reader, 32*1024)
 	err := decoder.Decode(&raw)
 	if err != nil {
@@ -160,7 +168,7 @@ func upsertResourceByKind(kind string, uiItem ui.ConfigItem, client auth.ClientI
 	}
 
 	yaml := raw.Raw
-	switch kind {
+	switch raw.Kind {
 	case services.KindSAMLConnector:
 		conn, err := services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(yaml)
 		if err != nil {
@@ -223,7 +231,7 @@ func upsertResourceByKind(kind string, uiItem ui.ConfigItem, client auth.ClientI
 	case "":
 		return nil, trace.BadParameter("missing resource kind")
 	default:
-		return nil, trace.BadParameter("%q is not supported", kind)
+		return nil, trace.BadParameter("%q is not supported", raw.Kind)
 	}
 }
 

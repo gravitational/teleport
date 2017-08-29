@@ -28,6 +28,10 @@ $lazur: #4e988b;
 @import 'grv-settings';
 @import 'grv-dialog';
 
+#app{
+  min-width: 800px;
+}
+
 .grv-line-solid{
   border-bottom: 1px solid #e7eaec;
   background-color: transparent;  

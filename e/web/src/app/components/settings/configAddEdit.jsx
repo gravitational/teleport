@@ -84,8 +84,9 @@ class AddEditConfig extends React.Component {
     
     const { isFailed, message } = saveAttempt;
     const $footer = this.renderFooter(saveAttempt);    
+    const className = classnames('grv-settings-res-editor', { 'm-l': !item.isNew });
     return (
-      <Layout.Flex style={{flex: "1"}} className="grv-settings-res-editor m-l">     
+      <Layout.Flex style={{flex: "1"}} className={className}>     
         <div className="full-width">          
           { isFailed && <Alerts.Danger className="m-b-sm"> {message} </Alerts.Danger> }
         </div>                       

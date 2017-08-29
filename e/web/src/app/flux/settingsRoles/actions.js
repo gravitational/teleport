@@ -1,13 +1,13 @@
-import { ResourceEnum } from 'app/services/enums';
-import Logger from 'telebase-app/lib/logger';
 import reactor from 'app/reactor';
 import api from 'app/services/api';
-import cfg from 'app/config';
-import apiActions from 'app/flux/restApi/actions';
 import { TRYING_TO_SAVE_ROLE, TRYING_TO_DELETE_RESOURCE } from 'app/flux/restApi/constants';
+import { ResourceEnum } from 'app/services/enums';
+import * as resApi from 'app/services/resources';
+import Logger from 'telebase-app/lib/logger';
+import apiActions from 'app/flux/restApi/actions';
 import * as AT from './actionTypes';
 import { closeDeleteDialog } from '../settings/actions';
-import {getStore} from './store';
+import { checkResourceKind } from './../utils';
 
 const logger = Logger.create('flux/settingsCluster/actions');
 
@@ -18,26 +18,33 @@ export function setCurRole(item) {
   });
 }
 
-export function saveRole(item) {    
-  apiActions.start(TRYING_TO_SAVE_ROLE);            
-  return api.put(cfg.getResourcesUrl(ResourceEnum.ROLE), item)      
-    .then( res => res.items)
-    .done( items => {            
-      reactor.dispatch(AT.UPSERT_ROLES, items);
-      setCurRole(items[0].name);        
-      apiActions.success(TRYING_TO_SAVE_ROLE);      
-    })
-    .fail(err => {
-      logger.error('saveRole()', err);
-      const msg = api.getErrorText(err);       
-      apiActions.fail(TRYING_TO_SAVE_ROLE, msg);
-  })
+export function saveRole(rolRec) {      
+  const handleError = err => {
+    const msg = api.getErrorText(err);
+    logger.error('saveRole()', err);        
+    apiActions.fail(TRYING_TO_SAVE_ROLE, msg);            
+  }
+
+  try {
+    const yaml = rolRec.getContent();  
+    checkResourceKind([ResourceEnum.ROLE], yaml);  
+    apiActions.start(TRYING_TO_SAVE_ROLE);                          
+    return resApi.upsert(yaml)      
+      .done( items => {            
+        reactor.dispatch(AT.UPSERT_ROLES, items);
+        setCurRole(items[0].name);        
+        apiActions.success(TRYING_TO_SAVE_ROLE);      
+      })
+      .fail(handleError)
+  }    
+  catch(err){
+    handleError(err);
+  }
 }
     
 export function deleteRole(id) {  
-  apiActions.start(TRYING_TO_DELETE_RESOURCE);    
-  const item = getStore().findItem(id);
-  api.delete(cfg.getResourcesUrl(ResourceEnum.ROLE, id), item)      
+  apiActions.start(TRYING_TO_DELETE_RESOURCE);      
+  resApi.remove(ResourceEnum.ROLE, id)  
     .then(fetchRoles)
     .done(() => {      
       setCurRole(null)
@@ -52,10 +59,7 @@ export function deleteRole(id) {
 }
 
 export function fetchRoles() {                    
-  return api.get(cfg.getResourcesUrl(ResourceEnum.ROLE))
-  .then(res => { return res.items || [] })
-  .done(items => {
-      reactor.dispatch(AT.RECEIVE_ROLES, items);
+  return resApi.getRoles().done(items => {
+    reactor.dispatch(AT.RECEIVE_ROLES, items);
   })    
 }
-

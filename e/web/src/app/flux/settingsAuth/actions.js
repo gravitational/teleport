@@ -1,14 +1,15 @@
 import $ from 'jQuery';
-import api from 'app/services/api';
-import Logger from 'telebase-app/lib/logger';
-import { ResourceEnum } from 'app/services/enums';
-import cfg from 'app/config';
-import { getStore } from './authStore';
 import reactor from 'app/reactor';
-import { closeDeleteDialog } from '../settings/actions';
+import { ResourceEnum } from 'app/services/enums';
+import * as resApi from 'app/services/resources';
+import api from 'app/services/api';
 import * as RAT from 'app/flux/restApi/constants';
+import Logger from 'telebase-app/lib/logger';
 import apiActions from 'telebase-app/flux/restApi/actions';
+import { closeDeleteDialog } from '../settings/actions';
+import { checkResourceKind } from './../utils';
 import * as AT from './actionTypes';
+
 const logger = Logger.create('flux/settingsAuth/actions');
       
 export function setCurProvider(item) {    
@@ -18,38 +19,64 @@ export function setCurProvider(item) {
   });
 }
 
-export function fetchAuthProviders(){
-  return $.when(
-    api.get(cfg.getResourcesUrl(ResourceEnum.OIDC)),
-    api.get(cfg.getResourcesUrl(ResourceEnum.SAML)))
-    .then((res1, res2) => {        
-      return [...res1[0].items, ...res2[0].items]
-    })
-    .done(items => {
-      reactor.dispatch(AT.RECEIVE_CONNECTORS, items);
-    });      
-}
+export function fetchAuthProviders(){  
+  const dfdOidc = $.Deferred();
+  const dfdSaml = $.Deferred();    
 
-export function saveAuthProvider(authProvider) {
-  apiActions.start(RAT.TRYING_TO_SAVE_AUTH_PROVIDER);            
-  return api.put(cfg.getResourcesUrl(ResourceEnum.OIDC), authProvider)          
-    .then( res => res.items)
-    .done( items =>{  
-      reactor.dispatch(AT.UPDATE_CONNECTORS, items);
-      setCurProvider(items[0].name);
-      apiActions.success(RAT.TRYING_TO_SAVE_AUTH_PROVIDER);            
-    })
-    .fail(err => {
-      const msg = api.getErrorText(err);
-      logger.error('saveAuthProvider()', err);        
-      apiActions.fail(RAT.TRYING_TO_SAVE_AUTH_PROVIDER, msg);            
+  let receivedItems = [];
+  let errorMessages = [];
+
+  const addToErrors = err => {
+    const text = api.getErrorText(err);
+    errorMessages.push(text);     
+  }
+
+  const addToReceived = items => {
+    receivedItems = receivedItems.concat(items);
+  }
+
+  resApi.getOidc()
+    .done(addToReceived)
+    .fail(addToErrors)
+    .always( () => { dfdOidc.resolve(); });
+
+  resApi.getSaml()
+    .done(addToReceived)
+    .fail(addToErrors)
+    .always( () => { dfdSaml.resolve(); })
+
+  return $.when(dfdOidc, dfdSaml).done(()=> {        
+    reactor.dispatch(AT.ADD_ERROR, errorMessages)
+    reactor.dispatch(AT.RECEIVE_CONNECTORS, receivedItems);
   })
 }
 
+export function saveAuthProvider(authProvider) {      
+  const handleError = err => {
+    const msg = api.getErrorText(err);
+    logger.error('saveAuthProvider()', err);        
+    apiActions.fail(RAT.TRYING_TO_SAVE_AUTH_PROVIDER, msg);            
+  }
+
+  try {
+    const yaml = authProvider.getContent();
+    apiActions.start(RAT.TRYING_TO_SAVE_AUTH_PROVIDER);            
+    checkResourceKind([ResourceEnum.OIDC, ResourceEnum.SAML], yaml);    
+    return resApi.upsert(yaml)
+      .done( items => {  
+        reactor.dispatch(AT.UPDATE_CONNECTORS, items);
+        setCurProvider(items[0].name);
+        apiActions.success(RAT.TRYING_TO_SAVE_AUTH_PROVIDER);            
+      })
+      .fail(handleError);
+  }catch(err){
+    handleError(err)    
+  }  
+}
+
 export function deleteAuthProvider(id) {  
-  apiActions.start(RAT.TRYING_TO_DELETE_RESOURCE);    
-  const item = getStore().findItem(id);
-  api.delete(cfg.getResourcesUrl(ResourceEnum.OIDC, id), item)      
+  apiActions.start(RAT.TRYING_TO_DELETE_RESOURCE);      
+  resApi.remove(ResourceEnum.OIDC, id )  
     .then(fetchAuthProviders)
     .done(() => {      
       setCurProvider(null)

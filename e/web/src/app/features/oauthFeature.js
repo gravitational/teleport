@@ -23,16 +23,14 @@ class OAuthFeature extends FeatureBase {
   onload() {         
     const navItem = {      
       to: cfg.routes.settingsAuth,
-      title: "Auth"  
+      title: "Auth. Connectors"  
     }
     
     addNavItem(navItem);
 
     this.startProcessing();
-
-    fetchAuthProviders()
-      .done(this.stopProcessing.bind(this))
-      .fail(this.handleError.bind(this))            
+    
+    fetchAuthProviders().always(this.stopProcessing.bind(this))      
   }  
 }
 

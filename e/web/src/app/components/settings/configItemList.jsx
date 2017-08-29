@@ -24,26 +24,20 @@ class ConfigItemList extends React.Component {
     const { onNew, items, btnText } = this.props;    
     const $items = items.map(r => this.renderItem(r));    
     return (      
-      <div className="grv-settings-res-list">                        
-        <button onClick={onNew} className="grv-settings-res-new btn btn-sm m-b-sm btn-primary"> 
-          <i className="fa fa-plus m-r-xs"/>
-          {btnText} 
-        </button>                                                                                  
-        <div style={ss}>          
+      <div className="grv-settings-res-list">                                
+        <div className="grv-settings-res-list-body" >          
           <ul className="grv-settings-res-list-content">
             {$items}
           </ul>                              
         </div>                                     
+        <button onClick={onNew} className="grv-settings-res-new btn btn-sm m-t btn-default"> 
+          <i className="fa fa-plus m-r-xs"/>
+          {btnText} 
+        </button>                                                                                  
       </div>
     );
   }
 }
 
-const ss = {  
-  flexDirection: "column",
-  overflow: "auto",
-  flex: "1"
-}
-    
 
 export default ConfigItemList;
