@@ -386,14 +386,13 @@
   revision = "7ad95dd0798a40da1ccdff6dff35fd177b5edf40"
 
 [[projects]]
-  name = "k8s.io/client-go"
+  name = "k8s.io/apimachinery"
   packages = ["pkg/util/yaml"]
-  revision = "e121606b0d09b2e1c467183ee46217fa85a6b672"
-  version = "v2.0.0"
+  revision = "1fd2e63a9a370677308a42f24fd40c86438afddf"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "451ff02b1741edaebc95ff6dde7beabbe4d721e179cba379452fa312df4a9f7a"
+  inputs-digest = "4b36d4b5c38ecf8b6ebc90931ef8685a50243192bb7e58532eedcf34bafab1ae"
   solver-name = "gps-cdcl"
   solver-version = 1
