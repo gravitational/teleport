@@ -80,7 +80,7 @@ const ErrorBox = props => (
 )
 
 const ErrorBoxDetails = ({ message='' }) => (
-  <div className="m-t text-muted" style={{ wordBreak: "break-all" }}>
+  <div className="m-t text-muted">
     <small className="grv-msg-page-details-text">{message}</small>
     <p>
       <small className="contact-section">If you believe this is an issue with Teleport, please <a href="https://github.com/gravitational/teleport/issues/new">create a GitHub issue.</a></small>

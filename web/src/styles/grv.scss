@@ -139,6 +139,13 @@ limitations under the License.
   background: #dfe2e5;
   border: 0;
   border-radius: 1px;
+  span {    
+    vertical-align: super;
+  }
+}
+
+.grv-msg-page-details-text{
+  word-break: break-word;
 }
 
 .grv-spinner.sk-spinner-three-bounce {
