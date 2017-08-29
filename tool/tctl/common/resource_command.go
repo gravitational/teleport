@@ -30,7 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
-	kyaml "k8s.io/client-go/pkg/util/yaml"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
 // ResourceCommand implements `tctl get/create/list` commands for manipulating

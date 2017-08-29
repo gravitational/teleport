@@ -21,6 +21,10 @@
 #  version = "2.4.0"
 
 [[constraint]]
+  name = "k8s.io/apimachinery"
+  revision = "1fd2e63a9a370677308a42f24fd40c86438afddf"
+
+[[constraint]]
   name = "github.com/vulcand/predicate"
   version = "v1.0.0"
 
@@ -111,10 +115,6 @@
 [[constraint]]
   name = "google.golang.org/grpc"
   version = ">=1.0.0, <=183.0.0-g231b4cf"
-
-[[constraint]]
-  name = "k8s.io/client-go"
-  version = "2.0.0"
 
 [[constraint]]
   name = "github.com/gravitational/trace"

@@ -24,7 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"gopkg.in/check.v1"
-	kyaml "k8s.io/client-go/pkg/util/yaml"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
 type SAMLSuite struct{}
