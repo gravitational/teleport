@@ -1,9 +1,4 @@
-import keyMirror from 'keymirror'
-
-export default keyMirror({
-  SETTINGS_ROLES_CLEAR: null,  
-  SETTINGS_ROLES_RECEIVE: null,
-  SETTINGS_ROLES_SET_CURRENT: null,  
-  SETTINGS_ROLES_NEW: null,  
-  SETTINGS_ROLES_SET_ROLE_TO_DELETE: null
-})
+export const UPSERT_ROLES = 'SETTINGS_ROLES_UPSERT';
+export const RECEIVE_ROLES = 'SETTINGS_ROLES_RECEIVE';
+export const SET_TO_DELETE = 'SETTINGS_ROLES_SET_TO_DELETE';
+export const SET_CURRENT = 'SETTINGS_ROLES_SET_CURRENT';

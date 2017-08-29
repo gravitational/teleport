@@ -22,29 +22,16 @@ import { isObject } from 'lodash';
 import { AccessDenied, Failed } from 'telebase-app/components/msgPage.jsx';
 import Indicator from 'telebase-app/components/indicator.jsx';
 // local
-import cfg from 'app/config';
 import getters from 'app/flux/settings/getters';
 import { RestRespCodeEnum } from 'app/services/enums';
 
-const headerItems = [
-  {
-    isIndex: true,
-    to: cfg.routes.settingsBase,
-    title: "Auth"
-  },
-  {
-    to: cfg.routes.settingsRoles,
-    title: "Roles"
-  },
-  {
-    to: cfg.routes.settingsCluster,
-    title: "Clustering"
-  }      
-];
-
-const Separator = () => (<div className="grv-settings-header-line-solid m-t-sm m-b-sm"></div>);
+const Separator = () => <div className="grv-settings-header-line-solid m-t-sm m-b-sm"/>;
 
 class Settings extends React.Component {
+
+  static contextTypes = {
+    router: PropTypes.object.isRequired
+  }
         
   renderHeaderItem(item, key){
     let { to, isIndex, title } = item;    
@@ -62,9 +49,9 @@ class Settings extends React.Component {
   }
   
   render() {    
-    const { store, initAttemp } = this.props;
-    const { isProcessing, isFailed, message } = initAttemp;
-    
+    const { store, initAttempt } = this.props;
+    const { isProcessing, isFailed, message } = initAttempt;
+        
     if (!store.isReady() && isProcessing) {      
       return (
         <div>
@@ -86,29 +73,23 @@ class Settings extends React.Component {
       return null;
     }
 
-    let $headerItems = headerItems.map(this.renderHeaderItem.bind(this));
+    let $headerItems = store.getNavItems().map(this.renderHeaderItem.bind(this));
     return (   
-      <div className="grv-page grv-settings">
+      <div className="grv-page grv-settings">                                                
         <ul className="grv-settings-header-menu m-t">
           {$headerItems}
         </ul>  
-        <Separator />
-        <div>
-          {this.props.children}
-        </div>
+        <Separator />        
+        {this.props.children}        
       </div>
     );
   }
 }
 
-Settings.contextTypes = {
-  router: PropTypes.object.isRequired
-}
-
 function mapStateToProps() {
   return {    
     store: getters.store,
-    initAttemp: getters.initAttemp      
+    initAttempt: getters.initAttempt      
   }
 }
 

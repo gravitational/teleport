@@ -1,36 +1,29 @@
-import $ from 'jQuery';
 import reactor from 'app/reactor';
-import api from 'app/services/api'
-import { fetchConnectors } from './../settingsAuth/actions';
-import { fetchRoles } from './../settingsRoles/actions';
-import { fetchTrustedClusters } from './../settingsClusters/actions';
-import { SETTINGS_INIT } from './actionTypes';
+import getters from './getters';
+import * as AT from './actionTypes';
+import * as RAT from './../restApi/constants';
 import apiActions from './../restApi/actions';
-import { TRYING_TO_INIT_SETTINGS } from './../restApi/constants';
-import { RestRespCodeEnum } from 'app/services/enums';
 
-const actions = {
-  initSettings() {        
-    apiActions.start(TRYING_TO_INIT_SETTINGS)    
-    $.when(fetchRoles(), fetchConnectors(), fetchTrustedClusters())
-      .done(() => {                
-        apiActions.success(TRYING_TO_INIT_SETTINGS);
-        reactor.dispatch(SETTINGS_INIT, {});        
-      })  
-      .fail(err => {
-        let msg = api.getErrorText(err);                             
-        if (err.status === RestRespCodeEnum.FORBIDDEN) {          
-          msg = {
-            code: RestRespCodeEnum.FORBIDDEN,
-            text: msg
-          }
-        } else {
-          msg = api.getErrorText(err);            
-        }         
-        
-        apiActions.fail(TRYING_TO_INIT_SETTINGS, msg);                  
-      });              
-  }         
+export function addNavItem(navItem){
+  reactor.dispatch(AT.ADD_NAV_ITEM, navItem)
 }
 
-export default actions;
+export function initSettings(featureActivator) {        
+  const store = reactor.evaluate(getters.store)
+  if (store.isReady()){
+    return;
+  }
+
+  featureActivator.onload();  
+  apiActions.success(RAT.TRYING_TO_INIT_SETTINGS);
+  reactor.dispatch(AT.INIT, {});            
+}         
+
+export function openDeleteDialog(item){
+  reactor.dispatch(AT.SET_RES_TO_DELETE, item);
+}
+
+export function closeDeleteDialog(){
+  apiActions.clear(RAT.TRYING_TO_DELETE_RESOURCE);
+  reactor.dispatch(AT.SET_RES_TO_DELETE, null);
+}

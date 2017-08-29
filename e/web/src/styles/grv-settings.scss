@@ -1,14 +1,15 @@
 @import "grv-settings-separators";
-@import "grv-settings-auth";
-@import "grv-settings-roles";
-@import "grv-settings-cluster";
+@import "grv-settings-dialogs";
+@import "grv-settings-res-list";
+@import "grv-settings-res-editor";
+@import "grv-settings-tabs";
 
 .grv-settings {
   padding: 0 15px;
   width: 100%;
   height: 100%;    
   margin: 0 auto; 
-    
+      
   .grv-line-solid {
     border-bottom: 1px solid #e7eaec;
     background-color: transparent;    
@@ -112,9 +113,7 @@
       }
     }
   }
-
-
-  // NEW
+  
   .grv-settings-header-menu {
     padding-left: 0;
     margin-bottom: 0;

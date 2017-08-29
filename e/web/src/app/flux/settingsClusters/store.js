@@ -1,42 +1,24 @@
-import { Store, toImmutable } from 'nuclear-js';
-import {  Record, List } from 'immutable';
-import { SETTINGS_CLUSTER_RECEIVE } from './actionTypes';
+import reactor from 'app/reactor';
+import { Store } from 'nuclear-js';
+import * as AT from './actionTypes';
 
-export class ClusterRec extends Record({
-  key: null,
-  name: '',
-  proxyAddress: '',
-  reverseTunnelAddress: '',
-  enabled: false,
-  roles: new List()
-}) {
-  constructor(props) {    
-    let key = Math.random();
-    super({ key, ...props });                
-  }  
+import { StoreRec } from './../records';
+
+export function getStore() {
+  return reactor.evaluate(['tlp_settings_cluster'])
 }
 
 export default Store({
+
   getInitialState() {
-    return toImmutable({      
-      clusterToDelete: null,        
-      clusters: []
-    });
+    return new StoreRec()
   },
 
-  initialize() {     
-    this.on(SETTINGS_CLUSTER_RECEIVE, receiveClusters);                
+  initialize() {    
+    this.on(AT.UPDATE_CLUSTERS, (state, items) => state.upsertItems(items) );            
+    this.on(AT.RECEIVE_CLUSTERS, (state, items) => state.setItems(items) );            
+    this.on(AT.SET_TO_DELETE, (state, id) => state.setItemToDelete(id) );            
+    this.on(AT.SET_CURRENT, (state, item) => state.setCurItem(item))
   }
 })
 
-function receiveClusters(state, json) {      
-  json = json || [];  
-  let recList = json.reduce(
-    (list, item) => list.push(new ClusterRec(item)),
-    new List()
-  );
-
-  recList = recList.sortBy(item => !item.enabled);
-
-  return state.set('clusters', recList);
-}

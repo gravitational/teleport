@@ -14,25 +14,27 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+export const ResourceEnum = {
+  SAML: 'saml',
+  OIDC: 'oidc',
+  ROLE: 'role',
+  TRUSTED_CLUSTER: 'trusted_cluster'
+}
 
-export default {
+export const SshBuiltInLoginEnum = {
+  ROOT : 'root'
+}
 
-  SshBuiltInLoginEnum : {
-    ROOT: 'root'
-  },
+export const K8sBuiltInGroupEnum = {
+  ADMIN : 'admin',
+  VIEW : 'view',
+  EDIT : 'edit'
+}
 
-  K8sBuiltInGroupEnum : {
-    ADMIN: 'admin',
-    VIEW: 'view',
-    EDIT: 'edit'
-  },
+export const UserRoleSystemNameEnum = {
+  ADMIN : '@teleadmin'
+}
 
-  UserRoleSystemNameEnum: {
-    ADMIN: '@teleadmin'
-  },
-  
-  RestRespCodeEnum: {
-    FORBIDDEN: 403
-  }
-  
+export const RestRespCodeEnum = {
+  FORBIDDEN : 403
 }

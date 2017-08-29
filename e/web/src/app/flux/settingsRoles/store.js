@@ -1,108 +1,24 @@
-import { Store, toImmutable } from 'nuclear-js';
-import { Record, List } from 'immutable';
-import { sortBy } from 'lodash';
-import { UserRoleSystemNameEnum } from 'app/services/enums';
-import { isHiddenRoleName } from './../utils';
-import {  
-  SETTINGS_ROLES_CLEAR,
-  SETTINGS_ROLES_RECEIVE,
-  SETTINGS_ROLES_NEW,    
-  SETTINGS_ROLES_SET_CURRENT,  
-  SETTINGS_ROLES_SET_ROLE_TO_DELETE
-} from './actionTypes';
+import reactor from 'app/reactor';
+import { Store } from 'nuclear-js';
+import * as AT from './actionTypes';
 
-const ROLE_DEF_NAME = 'Untitled';
-const ADMIN_ROLE_DISPLAY_NAME = "admin";
+import { StoreRec } from './../records';
 
-class UserRoleRec extends Record({
-  key: null,
-  system: false,
-  isNew: false,
-  isSaving: false,
-  name: '',
-  displayName: '',
-  access: toImmutable({
-    admin: {
-      enabled: false
-    },            
-    ssh: {
-      nodeLabels: {'*':'*'},      
-      maxTtl: 108000000000000, /**30h */
-      logins: []
-    }
-  })
-}) {
-  constructor(props) {         
-    super(props);
-    let displayName = this.name;    
-    if (displayName === UserRoleSystemNameEnum.ADMIN) {
-      displayName = ADMIN_ROLE_DISPLAY_NAME;
-    }
-
-    return this.set('displayName', displayName)
-               .set('key', Math.random().toString());
-  }
+export function getStore() {
+  return reactor.evaluate(['tlp_settings_role'])
 }
 
 export default Store({
+
   getInitialState() {
-    return toImmutable({
-      siteId: null,
-      roleToDelete: null,
-      selectedRole: null,
-      allRoles: []
-    }); 
+    return new StoreRec()
   },
 
-  initialize() {          
-    this.on(SETTINGS_ROLES_CLEAR, state => state.set('selectedRole', null));
-    this.on(SETTINGS_ROLES_RECEIVE, receiveRoles);  
-    this.on(SETTINGS_ROLES_SET_CURRENT, setCurrentRole);    
-    this.on(SETTINGS_ROLES_NEW, handleNewRole);      
-    this.on(SETTINGS_ROLES_SET_ROLE_TO_DELETE, setRoleToDelete);            
+  initialize() {      
+    this.on(AT.UPSERT_ROLES, (state, items) => state.upsertItems(items) );            
+    this.on(AT.RECEIVE_ROLES, (state, items) => state.setItems(items) );            
+    this.on(AT.SET_TO_DELETE, (state, id) => state.setItemToDelete(id) );            
+    this.on(AT.SET_CURRENT, (state, item) => state.setCurItem(item))
   }
 })
 
-function receiveRoles(state, json) {  
-  json = json || [];
-  json = sortBy(json, r => r.name.toLowerCase());
-  json = json.filter(r => !isHiddenRoleName(r.name));
-  let recList = json.reduce((recList, item) => {      
-    return recList.push(new UserRoleRec(toImmutable(item)));
-  }, new List());
-        
-  return state.set('allRoles', recList);    
-}
-
-function setRoleToDelete(state, roleName) {
-  return state.set('roleToDelete', roleName);
-}
-
-function handleNewRole(state, enable) {
-  if (enable) {
-    let roleRec = new UserRoleRec({
-      name: ROLE_DEF_NAME,
-      isNew: true
-    });
-        
-    return state.set('selectedRole', roleRec);          
-  }
-    
-  // cancel new role
-  return setCurrentRole(state);   
-}
-
-function setCurrentRole(state, roleName) {  
-  // if no name is provided, set the first available 
-  if (!roleName) {
-    let firstRole = state.get('allRoles').first();
-    if (firstRole) {
-      return setCurrentRole(state, firstRole.name);  
-    }else{
-      return state.set('selectedRole', null);
-    }            
-  }
-  
-  let roleRec = state.get('allRoles').find( r => r.get('name') === roleName);    
-  return state.set('selectedRole', roleRec);      
-}

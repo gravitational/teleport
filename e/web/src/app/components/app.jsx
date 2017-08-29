@@ -15,28 +15,16 @@ limitations under the License.
 */
 
 import { App as TeleApp, Connector as TeleAppConnector}  from 'telebase-app/components/app';
-import cfg from 'app/config';
-import reactor from 'app/reactor';
-import userAclGetters from 'telebase-app/flux/userAcl/getters';
+import cfg from '../config';
 
-class App extends TeleApp {
-  constructor(props) {
-    super(props)
-  }
-  
-  getMenuItems() {    
-    let menuItems = [
-      { icon: 'fa fa-share-alt', to: cfg.routes.nodes, title: 'Nodes' },
-      { icon: 'fa fa-group', to: cfg.routes.sessions, title: 'Sessions' }      
-    ];
+const menuItems = [
+  { icon: 'fa fa-share-alt', to: cfg.routes.nodes, title: 'Nodes' },
+  { icon: 'fa fa-group', to: cfg.routes.sessions, title: 'Sessions' },
+  { icon: 'fa fa-wrench', to: cfg.routes.settingsBase, title: 'Settings' }
+];
 
-    let aclStore = reactor.evaluate(userAclGetters.userAcl);
-    if (aclStore.isAdminEnabled()) {
-      menuItems.push({
-        icon: 'fa fa-wrench', to: cfg.routes.settingsBase, title: 'Settings'
-      })
-    }
-    
+class App extends TeleApp {  
+  getMenuItems() {            
     return menuItems;
   }
 }

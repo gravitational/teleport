@@ -1,82 +1,91 @@
 import $ from 'jQuery';
-import api from 'app/services/api';
-import cfg from 'app/config';
 import reactor from 'app/reactor';
-import { TRYING_TO_DELETE_AUTH_PROVIDER } from 'app/flux/restApi/constants';
-import restApiActions from 'telebase-app/flux/restApi/actions';
-import { showError, showSuccess } from 'telebase-app/flux/notifications/actions';
+import { ResourceEnum } from 'app/services/enums';
+import * as resApi from 'app/services/resources';
+import api from 'app/services/api';
+import * as RAT from 'app/flux/restApi/constants';
+import Logger from 'telebase-app/lib/logger';
+import apiActions from 'telebase-app/flux/restApi/actions';
+import { closeDeleteDialog } from '../settings/actions';
+import { checkResourceKind } from './../utils';
+import * as AT from './actionTypes';
 
-import {
-  SETTINGS_AUTH_CONN_NEW,
-  SETTINGS_AUTH_CONN_SET_TO_DELETE,
-  SETTINGS_AUTH_CONN_CANCEL_NEW,
-  SETTINGS_AUTH_CONN_RECEIVE,
-  SETTINGS_AUTH_CONN_CLEAR
-} from './actionTypes';
-
-const actions = {
-
-  clear() {
-    reactor.dispatch(SETTINGS_AUTH_CONN_CLEAR);
-  },
-
-  addNew() {
-    reactor.dispatch(SETTINGS_AUTH_CONN_NEW);    
-  },   
-
-  cancelNew() {
-    reactor.dispatch(SETTINGS_AUTH_CONN_CANCEL_NEW);
-  },
-
-  fetchConnectors() {
-    return api.get(cfg.getOicdConnectorsPath()).done(json => {      
-      reactor.dispatch(SETTINGS_AUTH_CONN_RECEIVE, json);
-    })    
-  },
-
-  save(connector) {
-    let dfd = $.Deferred();
-    let url = cfg.getOicdConnectorsPath();
-    if (connector.isNew) {
-      dfd = api.post(url, connector); 
-    } else {
-      dfd = api.put(url, connector);
-    }
-
-    let { id } = connector;    
-    return dfd
-      .then(() => actions.fetchConnectors())
-      .done(() => {
-        showSuccess(`Connector ${id} has been saved`, '');
-      })
-      .fail(err => {
-        let msg = api.getErrorText(err);                
-        showError(msg, 'Failed to save a connector');        
-      })      
-  },
-
-  deleteConnector(connectorId) {
-    restApiActions.start(TRYING_TO_DELETE_AUTH_PROVIDER);    
-    api.delete(cfg.getOicdConnectorsPath(connectorId))
-      .then(() =>  actions.fetchConnectors() )
-      .done(() => {
-        restApiActions.success(TRYING_TO_DELETE_AUTH_PROVIDER);
-        actions.closeDeleteConnectorDialog();
-      })
-      .fail(err => {
-        let msg = api.getErrorText(err);
-        restApiActions.fail(TRYING_TO_DELETE_AUTH_PROVIDER);        
-        showError(msg, 'Failed to delete a connector');
-      });        
-  },
-  
-  openDeleteConnectorDialog(connectorId){
-    reactor.dispatch(SETTINGS_AUTH_CONN_SET_TO_DELETE, connectorId);
-  },
-
-  closeDeleteConnectorDialog(){
-    reactor.dispatch(SETTINGS_AUTH_CONN_SET_TO_DELETE, null);
-  }
+const logger = Logger.create('flux/settingsAuth/actions');
+      
+export function setCurProvider(item) {    
+  reactor.batch(() => {      
+    apiActions.clear(RAT.TRYING_TO_SAVE_AUTH_PROVIDER);
+    reactor.dispatch(AT.SET_CURRENT, item)
+  });
 }
 
-export default actions;
+export function fetchAuthProviders(){  
+  const dfdOidc = $.Deferred();
+  const dfdSaml = $.Deferred();    
+
+  let receivedItems = [];
+  let errorMessages = [];
+
+  const addToErrors = err => {
+    const text = api.getErrorText(err);
+    errorMessages.push(text);     
+  }
+
+  const addToReceived = items => {
+    receivedItems = receivedItems.concat(items);
+  }
+
+  resApi.getOidc()
+    .done(addToReceived)
+    .fail(addToErrors)
+    .always( () => { dfdOidc.resolve(); });
+
+  resApi.getSaml()
+    .done(addToReceived)
+    .fail(addToErrors)
+    .always( () => { dfdSaml.resolve(); })
+
+  return $.when(dfdOidc, dfdSaml).done(()=> {        
+    reactor.dispatch(AT.ADD_ERROR, errorMessages)
+    reactor.dispatch(AT.RECEIVE_CONNECTORS, receivedItems);
+  })
+}
+
+export function saveAuthProvider(authProvider) {      
+  const handleError = err => {
+    const msg = api.getErrorText(err);
+    logger.error('saveAuthProvider()', err);        
+    apiActions.fail(RAT.TRYING_TO_SAVE_AUTH_PROVIDER, msg);            
+  }
+
+  try {
+    const yaml = authProvider.getContent();
+    apiActions.start(RAT.TRYING_TO_SAVE_AUTH_PROVIDER);            
+    checkResourceKind([ResourceEnum.OIDC, ResourceEnum.SAML], yaml);    
+    return resApi.upsert(yaml)
+      .done( items => {  
+        reactor.dispatch(AT.UPDATE_CONNECTORS, items);
+        setCurProvider(items[0].name);
+        apiActions.success(RAT.TRYING_TO_SAVE_AUTH_PROVIDER);            
+      })
+      .fail(handleError);
+  }catch(err){
+    handleError(err)    
+  }  
+}
+
+export function deleteAuthProvider(id) {  
+  apiActions.start(RAT.TRYING_TO_DELETE_RESOURCE);      
+  resApi.remove(ResourceEnum.OIDC, id )  
+    .then(fetchAuthProviders)
+    .done(() => {      
+      setCurProvider(null)
+      closeDeleteDialog();      
+      apiActions.success(RAT.TRYING_TO_DELETE_RESOURCE);
+    })
+    .fail(err => {
+      const msg = api.getErrorText(err);
+      logger.error('deleteAuthProvider()', err);
+      apiActions.fail(RAT.TRYING_TO_DELETE_RESOURCE, msg);              
+    });        
+}
