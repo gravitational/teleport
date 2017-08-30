@@ -15,16 +15,16 @@ func TestBase2BytesString(t *testing.T) {
 func TestParseBase2Bytes(t *testing.T) {
 	n, err := ParseBase2Bytes("0B")
 	assert.NoError(t, err)
-	assert.Equal(t, 0, n)
+	assert.Equal(t, 0, int(n))
 	n, err = ParseBase2Bytes("1KB")
 	assert.NoError(t, err)
-	assert.Equal(t, 1024, n)
+	assert.Equal(t, 1024, int(n))
 	n, err = ParseBase2Bytes("1MB1KB25B")
 	assert.NoError(t, err)
-	assert.Equal(t, 1049625, n)
+	assert.Equal(t, 1049625, int(n))
 	n, err = ParseBase2Bytes("1.5MB")
 	assert.NoError(t, err)
-	assert.Equal(t, 1572864, n)
+	assert.Equal(t, 1572864, int(n))
 }
 
 func TestMetricBytesString(t *testing.T) {
@@ -36,14 +36,14 @@ func TestMetricBytesString(t *testing.T) {
 func TestParseMetricBytes(t *testing.T) {
 	n, err := ParseMetricBytes("0B")
 	assert.NoError(t, err)
-	assert.Equal(t, 0, n)
+	assert.Equal(t, 0, int(n))
 	n, err = ParseMetricBytes("1KB1B")
 	assert.NoError(t, err)
-	assert.Equal(t, 1001, n)
+	assert.Equal(t, 1001, int(n))
 	n, err = ParseMetricBytes("1MB1KB25B")
 	assert.NoError(t, err)
-	assert.Equal(t, 1001025, n)
+	assert.Equal(t, 1001025, int(n))
 	n, err = ParseMetricBytes("1.5MB")
 	assert.NoError(t, err)
-	assert.Equal(t, 1500000, n)
+	assert.Equal(t, 1500000, int(n))
 }

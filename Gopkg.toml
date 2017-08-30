@@ -21,6 +21,14 @@
 #  version = "2.4.0"
 
 [[constraint]]
+  name = "github.com/alecthomas/template"
+  branch = "master"
+
+[[constraint]]
+  name = "github.com/alecthomas/units"
+  branch = "master"
+
+[[constraint]]
   name = "k8s.io/apimachinery"
   revision = "1fd2e63a9a370677308a42f24fd40c86438afddf"
 
@@ -66,7 +74,7 @@
 
 [[constraint]]
   name = "github.com/gravitational/kingpin"
-  version = ">=2.1.10, <=6.0.0-g7856865"
+  branch = "master"
 
 [[constraint]]
   branch = "master"

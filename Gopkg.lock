@@ -8,14 +8,16 @@
   revision = "19f72df4d05d31cbe1c56bfc8045c96babff6c7e"
 
 [[projects]]
+  branch = "master"
   name = "github.com/alecthomas/template"
   packages = [".","parse"]
-  revision = "b867cc6ab45cece8143cfcc6fc9c77cf3f2c23c0"
+  revision = "a0175ee3bccc567396460bf5acd36800cb10c49c"
 
 [[projects]]
+  branch = "master"
   name = "github.com/alecthomas/units"
   packages = ["."]
-  revision = "6b4e7dc5e3143b85ea77909c72caf89416fc2915"
+  revision = "2efee857e7cfd4f3d0138cc3cbb1b4966962b93a"
 
 [[projects]]
   name = "github.com/aws/aws-sdk-go"
@@ -139,10 +141,10 @@
   revision = "c4048f792f70d207e6d8b9c1bf52319247f202b8"
 
 [[projects]]
+  branch = "master"
   name = "github.com/gravitational/kingpin"
   packages = ["."]
-  revision = "24b74030480f0aa98802b51ff4622a7eb09dfddd"
-  version = "v2.1.10"
+  revision = "785686550a08e8e2e77641c91714280a6dfb08ee"
 
 [[projects]]
   branch = "master"
@@ -393,6 +395,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "4b36d4b5c38ecf8b6ebc90931ef8685a50243192bb7e58532eedcf34bafab1ae"
+  inputs-digest = "206dacde9d25202422550789814d38dc5a453f29beaeb6e00d059a8f4101515a"
   solver-name = "gps-cdcl"
   solver-version = 1
