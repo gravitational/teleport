@@ -70,7 +70,7 @@ func (s *AccessService) UpsertRole(role services.Role, ttl time.Duration) error 
 	}
 
 	// TODO(klizhentas): Picking smaller of the two ttls
-	backendTTL := backend.TTL(s.Clock(), role.GetMetadata().Expires)
+	backendTTL := backend.TTL(s.Clock(), role.Expiry())
 	if backendTTL < ttl {
 		ttl = backendTTL
 	}

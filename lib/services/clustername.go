@@ -204,7 +204,12 @@ func (t *TeleportClusterNameMarshaler) Unmarshal(bytes []byte) (ClusterName, err
 	if err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
-	utils.UTC(&clusterName.Metadata.Expires)
+
+	err = clusterName.CheckAndSetDefaults()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &clusterName, nil
 }
 

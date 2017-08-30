@@ -167,7 +167,11 @@ func (*TeleportSAMLConnectorMarshaler) UnmarshalSAMLConnector(bytes []byte) (SAM
 		if err := utils.UnmarshalWithSchema(GetSAMLConnectorSchema(), &c, bytes); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
-		utils.UTC(&c.Metadata.Expires)
+
+		if err := c.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		return &c, nil
 	}
 
@@ -679,8 +683,17 @@ func (o *SAMLConnectorV2) SetSigningKeyPair(k *SigningKeyPair) {
 }
 
 func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
-	_, err := o.GetServiceProvider(clockwork.NewRealClock())
-	return err
+	err := o.Metadata.CheckAndSetDefaults()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = o.GetServiceProvider(clockwork.NewRealClock())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // SAMLConnectorV2SchemaTemplate is a template JSON Schema for user

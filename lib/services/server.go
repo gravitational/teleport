@@ -48,6 +48,8 @@ type Server interface {
 	MatchAgainst(labels map[string]string) bool
 	// LabelsString returns a comma separated string with all node's labels
 	LabelsString() string
+	// CheckAndSetDefaults checks and set default values for any missing fields.
+	CheckAndSetDefaults() error
 }
 
 // ServersToV1 converts list of servers to slice of V1 style ones
@@ -225,6 +227,16 @@ func (s *ServerV2) LabelsString() string {
 	}
 	sort.Strings(labels)
 	return strings.Join(labels, ",")
+}
+
+// CheckAndSetDefaults checks and set default values for any missing fields.
+func (s *ServerV2) CheckAndSetDefaults() error {
+	err := s.Metadata.CheckAndSetDefaults()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // ServerSpecV2 is a specification for V2 Server
@@ -439,7 +451,11 @@ func UnmarshalServerResource(data []byte, kind string) (Server, error) {
 		if err := utils.UnmarshalWithSchema(GetServerSchema(), &s, data); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
-		utils.UTC(&s.Metadata.Expires)
+
+		if err := s.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		return &s, nil
 	}
 	return nil, trace.BadParameter("server resource version %v is not supported", h.Version)

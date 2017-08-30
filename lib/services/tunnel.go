@@ -25,6 +25,8 @@ type ReverseTunnel interface {
 	GetDialAddrs() []string
 	// Check checks tunnel for errors
 	Check() error
+	// CheckAndSetDefaults checks and set default values for any missing fields.
+	CheckAndSetDefaults() error
 }
 
 // NewReverseTunnel returns new version of reverse tunnel
@@ -96,6 +98,20 @@ func (r *ReverseTunnelV2) V1() *ReverseTunnelV1 {
 		DomainName: r.Spec.ClusterName,
 		DialAddrs:  r.Spec.DialAddrs,
 	}
+}
+
+func (r *ReverseTunnelV2) CheckAndSetDefaults() error {
+	err := r.Metadata.CheckAndSetDefaults()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = r.Check()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // GetClusterName returns name of the cluster
@@ -213,10 +229,15 @@ func UnmarshalReverseTunnel(data []byte) (ReverseTunnel, error) {
 		return r.V2(), nil
 	case V2:
 		var r ReverseTunnelV2
+
 		if err := utils.UnmarshalWithSchema(GetReverseTunnelSchema(), &r, data); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
-		utils.UTC(&r.Metadata.Expires)
+
+		if err := r.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		return &r, nil
 	}
 	return nil, trace.BadParameter("reverse tunnel version %v is not supported", h.Version)

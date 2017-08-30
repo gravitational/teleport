@@ -462,20 +462,19 @@ func (r *RoleV3) SetRules(rct RoleConditionType, in []Rule) {
 
 // Check checks validity of all parameters and sets defaults
 func (r *RoleV3) CheckAndSetDefaults() error {
+	err := r.Metadata.CheckAndSetDefaults()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// make sure we have defaults for all fields
-	if r.Metadata.Name == "" {
-		return trace.BadParameter("missing parameter Name")
-	}
-	if r.Metadata.Namespace == "" {
-		r.Metadata.Namespace = defaults.Namespace
-	}
 	if r.Spec.Options == nil {
 		r.Spec.Options = map[string]interface{}{
 			MaxSessionTTL: NewDuration(defaults.MaxCertDuration),
 		}
 	}
 	if r.Spec.Allow.Namespaces == nil {
-		r.Spec.Allow.Namespaces = []string{Wildcard}
+		r.Spec.Allow.Namespaces = []string{defaults.Namespace}
 	}
 	if r.Spec.Allow.NodeLabels == nil {
 		r.Spec.Allow.NodeLabels = map[string]string{Wildcard: Wildcard}
@@ -535,11 +534,11 @@ func (r *RoleV3) String() string {
 // RoleSpecV3 is role specification for RoleV3.
 type RoleSpecV3 struct {
 	// Options is for OpenSSH options like agent forwarding.
-	Options RoleOptions `json:"options,omitempty" yaml:"options,omitempty"`
+	Options RoleOptions `json:"options,omitempty"`
 	// Allow is the set of conditions evaluated to grant access.
-	Allow RoleConditions `json:"allow,omitempty" yaml:"allow,omitempty"`
+	Allow RoleConditions `json:"allow,omitempty"`
 	// Deny is the set of conditions evaluated to deny access. Deny takes priority over allow.
-	Deny RoleConditions `json:"deny,omitempty" yaml:"deny,omitempty"`
+	Deny RoleConditions `json:"deny,omitempty"`
 }
 
 // RoleOptions are key/value pairs that always exist for a role.
@@ -642,15 +641,16 @@ func (o RoleOptions) Equals(other RoleOptions) bool {
 // denied access.
 type RoleConditions struct {
 	// Logins is a list of *nix system logins.
-	Logins []string `json:"logins,omitempty" yaml:"logins,omitempty"`
-	// Namespaces is a list of namespaces (used to partition a cluster).
-	Namespaces []string `json:"namespaces,omitempty" yaml:"namespaces,omitempty"`
+	Logins []string `json:"logins,omitempty"`
+	// Namespaces is a list of namespaces (used to partition a cluster). The
+	// field should be called "namespaces" when it returns in Teleport 2.4.
+	Namespaces []string `json:"-"`
 	// NodeLabels is a map of node labels (used to dynamically grant access to nodes).
-	NodeLabels map[string]string `json:"node_labels,omitempty" yaml:"node_labels,omitempty"`
+	NodeLabels map[string]string `json:"node_labels,omitempty"`
 
 	// Rules is a list of rules and their access levels. Rules are a high level
 	// construct used for access control.
-	Rules []Rule `json:"rules,omitempty" yaml:"rules,omitempty"`
+	Rules []Rule `json:"rules,omitempty"`
 }
 
 // Equals returns true if the role conditions (logins, namespaces, labels,
@@ -1570,7 +1570,11 @@ func UnmarshalRole(data []byte) (*RoleV3, error) {
 		if err := utils.UnmarshalWithSchema(GetRoleSchema(V2, ""), &role, data); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
-		utils.UTC(&role.Metadata.Expires)
+
+		if err := role.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		roleV3 := role.V3()
 		roleV3.rawObject = role
 
@@ -1580,7 +1584,10 @@ func UnmarshalRole(data []byte) (*RoleV3, error) {
 		if err := utils.UnmarshalWithSchema(GetRoleSchema(V3, ""), &role, data); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
-		utils.UTC(&role.Metadata.Expires)
+
+		if err := role.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
 
 		return &role, nil
 	}

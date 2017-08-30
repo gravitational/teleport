@@ -219,7 +219,12 @@ func (t *TeleportStaticTokensMarshaler) Unmarshal(bytes []byte) (StaticTokens, e
 	if err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
-	utils.UTC(&staticTokens.Metadata.Expires)
+
+	err = staticTokens.CheckAndSetDefaults()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &staticTokens, nil
 }
 

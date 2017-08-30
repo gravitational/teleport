@@ -156,7 +156,7 @@ func (s *InstanceSecrets) GetCAs() []services.CertAuthority {
 }
 
 func (s *InstanceSecrets) AllowedLogins() []string {
-	logins := make([]string, len(s.Users))
+	var logins []string
 	for i := range s.Users {
 		logins = append(logins, s.Users[i].AllowedLogins...)
 	}

@@ -34,7 +34,7 @@ func (s *CA) UpsertCertAuthority(ca services.CertAuthority) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ttl := backend.TTL(s.Clock(), ca.GetMetadata().Expires)
+	ttl := backend.TTL(s.Clock(), ca.Expiry())
 	err = s.UpsertVal([]string{"authorities", string(ca.GetType())}, ca.GetName(), data, ttl)
 	if err != nil {
 		return trace.Wrap(err)
@@ -101,7 +101,7 @@ func (s *CA) DeactivateCertAuthority(id services.CertAuthID) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ttl := backend.TTL(s.Clock(), certAuthority.GetMetadata().Expires)
+	ttl := backend.TTL(s.Clock(), certAuthority.Expiry())
 
 	err = s.UpsertVal([]string{"authorities", "deactivated", string(id.Type)}, id.DomainName, data, ttl)
 	if err != nil {

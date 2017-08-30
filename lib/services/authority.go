@@ -141,6 +141,8 @@ type CertAuthority interface {
 	GetRawObject() interface{}
 	// Check checks object for errors
 	Check() error
+	// CheckAndSetDefaults checks and set default values for any missing fields.
+	CheckAndSetDefaults() error
 	// SetSigningKeys sets signing keys
 	SetSigningKeys([][]byte) error
 	// AddRole adds a role to ca role list
@@ -398,6 +400,21 @@ func (ca *CertAuthorityV2) Check() error {
 	return nil
 }
 
+// CheckAndSetDefaults checks and set default values for any missing fields.
+func (ca *CertAuthorityV2) CheckAndSetDefaults() error {
+	err := ca.Metadata.CheckAndSetDefaults()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = ca.Check()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 // CertAuthoritySpecV2 is a host or user certificate authority that
 // can check and if it has private key stored as well, sign it too
 type CertAuthoritySpecV2 struct {
@@ -574,7 +591,11 @@ func (*TeleportCertAuthorityMarshaler) UnmarshalCertAuthority(bytes []byte) (Cer
 		if err := utils.UnmarshalWithSchema(GetCertAuthoritySchema(), &ca, bytes); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
-		utils.UTC(&ca.Metadata.Expires)
+
+		if err := ca.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		return &ca, nil
 	}
 

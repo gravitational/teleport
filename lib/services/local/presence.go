@@ -80,7 +80,7 @@ func (s *PresenceService) UpsertNamespace(n services.Namespace) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ttl := backend.TTL(s.Clock(), n.Metadata.Expires)
+	ttl := backend.TTL(s.Clock(), n.Metadata.Expiry())
 	err = s.UpsertVal([]string{namespacesPrefix, n.Metadata.Name}, "params", []byte(data), ttl)
 	if err != nil {
 		return trace.Wrap(err)
@@ -140,7 +140,7 @@ func (s *PresenceService) getServers(kind, prefix string) ([]services.Server, er
 }
 
 func (s *PresenceService) upsertServer(prefix string, server services.Server) error {
-	ttl := backend.TTL(s.Clock(), server.GetMetadata().Expires)
+	ttl := backend.TTL(s.Clock(), server.Expiry())
 	data, err := services.GetServerMarshaler().MarshalServer(server)
 	if err != nil {
 		return trace.Wrap(err)
@@ -193,7 +193,7 @@ func (s *PresenceService) UpsertNode(server services.Server) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ttl := backend.TTL(s.Clock(), server.GetMetadata().Expires)
+	ttl := backend.TTL(s.Clock(), server.Expiry())
 	err = s.UpsertVal([]string{namespacesPrefix, server.GetNamespace(), nodesPrefix}, server.GetName(), data, ttl)
 	return trace.Wrap(err)
 }
@@ -239,7 +239,7 @@ func (s *PresenceService) UpsertReverseTunnel(tunnel services.ReverseTunnel) err
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ttl := backend.TTL(s.Clock(), tunnel.GetMetadata().Expires)
+	ttl := backend.TTL(s.Clock(), tunnel.Expiry())
 	err = s.UpsertVal([]string{reverseTunnelsPrefix}, tunnel.GetName(), data, ttl)
 	return trace.Wrap(err)
 }
@@ -282,7 +282,7 @@ func (s *PresenceService) UpsertTrustedCluster(trustedCluster services.TrustedCl
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ttl := backend.TTL(s.Clock(), trustedCluster.GetMetadata().Expires)
+	ttl := backend.TTL(s.Clock(), trustedCluster.Expiry())
 	err = s.UpsertVal([]string{"trustedclusters"}, trustedCluster.GetName(), []byte(data), ttl)
 	if err != nil {
 		return trace.Wrap(err)
