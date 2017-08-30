@@ -56,6 +56,20 @@ func (a *AuthWithRoles) currentUserAction(username string) error {
 		defaults.Namespace, services.KindUser, services.VerbCreate)
 }
 
+// authConnectorAction is a special checker that grants access to auth
+// connectors. It first checks if you have access to the specific connector.
+// If not, it checks if the requester has the meta KindAuthConnector access
+// (which grants access to all connectors).
+func (a *AuthWithRoles) authConnectorAction(namespace string, resource string, verb string) error {
+	if err := a.checker.CheckAccessToRule(&services.Context{User: a.user}, namespace, resource, verb); err != nil {
+		if err := a.checker.CheckAccessToRule(&services.Context{User: a.user}, namespace, services.KindAuthConnector, verb); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
 func (a *AuthWithRoles) GetSessions(namespace string) ([]session.Session, error) {
 	if err := a.action(namespace, services.KindSSHSession, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)
@@ -500,21 +514,21 @@ func (a *AuthWithRoles) UpsertUser(u services.User) error {
 }
 
 func (a *AuthWithRoles) UpsertOIDCConnector(connector services.OIDCConnector) error {
-	if err := a.action(defaults.Namespace, services.KindOIDC, services.VerbCreate); err != nil {
+	if err := a.authConnectorAction(defaults.Namespace, services.KindOIDC, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.action(defaults.Namespace, services.KindOIDC, services.VerbUpdate); err != nil {
+	if err := a.authConnectorAction(defaults.Namespace, services.KindOIDC, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.UpsertOIDCConnector(connector)
 }
 
 func (a *AuthWithRoles) GetOIDCConnector(id string, withSecrets bool) (services.OIDCConnector, error) {
-	if err := a.action(defaults.Namespace, services.KindOIDC, services.VerbRead); err != nil {
+	if err := a.authConnectorAction(defaults.Namespace, services.KindOIDC, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if withSecrets {
-		if err := a.action(defaults.Namespace, services.KindOIDC, services.VerbReadSecrets); err != nil {
+		if err := a.authConnectorAction(defaults.Namespace, services.KindOIDC, services.VerbReadSecrets); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -522,14 +536,14 @@ func (a *AuthWithRoles) GetOIDCConnector(id string, withSecrets bool) (services.
 }
 
 func (a *AuthWithRoles) GetOIDCConnectors(withSecrets bool) ([]services.OIDCConnector, error) {
-	if err := a.action(defaults.Namespace, services.KindOIDC, services.VerbList); err != nil {
+	if err := a.authConnectorAction(defaults.Namespace, services.KindOIDC, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.action(defaults.Namespace, services.KindOIDC, services.VerbRead); err != nil {
+	if err := a.authConnectorAction(defaults.Namespace, services.KindOIDC, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if withSecrets {
-		if err := a.action(defaults.Namespace, services.KindOIDC, services.VerbReadSecrets); err != nil {
+		if err := a.authConnectorAction(defaults.Namespace, services.KindOIDC, services.VerbReadSecrets); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -549,35 +563,35 @@ func (a *AuthWithRoles) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthRespons
 }
 
 func (a *AuthWithRoles) DeleteOIDCConnector(connectorID string) error {
-	if err := a.action(defaults.Namespace, services.KindOIDC, services.VerbDelete); err != nil {
+	if err := a.authConnectorAction(defaults.Namespace, services.KindOIDC, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteOIDCConnector(connectorID)
 }
 
 func (a *AuthWithRoles) CreateSAMLConnector(connector services.SAMLConnector) error {
-	if err := a.action(defaults.Namespace, services.KindSAML, services.VerbCreate); err != nil {
+	if err := a.authConnectorAction(defaults.Namespace, services.KindSAML, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.UpsertSAMLConnector(connector)
 }
 
 func (a *AuthWithRoles) UpsertSAMLConnector(connector services.SAMLConnector) error {
-	if err := a.action(defaults.Namespace, services.KindSAML, services.VerbCreate); err != nil {
+	if err := a.authConnectorAction(defaults.Namespace, services.KindSAML, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.action(defaults.Namespace, services.KindSAML, services.VerbUpdate); err != nil {
+	if err := a.authConnectorAction(defaults.Namespace, services.KindSAML, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.UpsertSAMLConnector(connector)
 }
 
 func (a *AuthWithRoles) GetSAMLConnector(id string, withSecrets bool) (services.SAMLConnector, error) {
-	if err := a.action(defaults.Namespace, services.KindSAML, services.VerbRead); err != nil {
+	if err := a.authConnectorAction(defaults.Namespace, services.KindSAML, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if withSecrets {
-		if err := a.action(defaults.Namespace, services.KindSAML, services.VerbReadSecrets); err != nil {
+		if err := a.authConnectorAction(defaults.Namespace, services.KindSAML, services.VerbReadSecrets); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -585,14 +599,14 @@ func (a *AuthWithRoles) GetSAMLConnector(id string, withSecrets bool) (services.
 }
 
 func (a *AuthWithRoles) GetSAMLConnectors(withSecrets bool) ([]services.SAMLConnector, error) {
-	if err := a.action(defaults.Namespace, services.KindSAML, services.VerbList); err != nil {
+	if err := a.authConnectorAction(defaults.Namespace, services.KindSAML, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.action(defaults.Namespace, services.KindSAML, services.VerbRead); err != nil {
+	if err := a.authConnectorAction(defaults.Namespace, services.KindSAML, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if withSecrets {
-		if err := a.action(defaults.Namespace, services.KindSAML, services.VerbReadSecrets); err != nil {
+		if err := a.authConnectorAction(defaults.Namespace, services.KindSAML, services.VerbReadSecrets); err != nil {
 			return nil, trace.Wrap(err)
 
 		}
@@ -613,7 +627,7 @@ func (a *AuthWithRoles) ValidateSAMLResponse(re string) (*SAMLAuthResponse, erro
 }
 
 func (a *AuthWithRoles) DeleteSAMLConnector(connectorID string) error {
-	if err := a.action(defaults.Namespace, services.KindSAML, services.VerbDelete); err != nil {
+	if err := a.authConnectorAction(defaults.Namespace, services.KindSAML, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteSAMLConnector(connectorID)

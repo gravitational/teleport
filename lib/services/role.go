@@ -39,8 +39,7 @@ import (
 // all users.
 var DefaultUserRules = []Rule{
 	NewRule(KindRole, RO()),
-	NewRule(KindOIDC, RO()),
-	NewRule(KindSAML, RO()),
+	NewRule(KindAuthConnector, RO()),
 	NewRule(KindSession, RO()),
 	NewRule(KindTrustedCluster, RW()),
 }
