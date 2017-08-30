@@ -128,6 +128,9 @@ const (
 	// KindTrustedCluster is a resource that contains trusted cluster configuration.
 	KindTrustedCluster = "trusted_cluster"
 
+	// KindAuthConnector allows access to OIDC and SAML connectors.
+	KindAuthConnector = "auth_connector"
+
 	// V3 is the third version of resources.
 	V3 = "v3"
 
