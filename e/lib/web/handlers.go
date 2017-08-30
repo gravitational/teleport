@@ -15,7 +15,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
-	kyaml "k8s.io/client-go/1.4/pkg/util/yaml"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
 // Plugin is our plugins to web API of teleport OSS
