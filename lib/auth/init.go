@@ -155,10 +155,22 @@ func Init(cfg InitConfig, dynamicConfig bool) (*AuthServer, *Identity, error) {
 		log.Infof("[INIT] Created Reverse Tunnel: %v", tunnel)
 	}
 
-	err = setClusterName(cfg, asrv)
-	if err != nil {
+	// cluster name can only be set once. if it has already been set and we are
+	// trying to update it to something else, hard fail.
+	err = asrv.SetClusterName(cfg.ClusterName)
+	if err != nil && !trace.IsAlreadyExists(err) {
 		return nil, nil, trace.Wrap(err)
 	}
+	if trace.IsAlreadyExists(err) {
+		cn, err := asrv.GetClusterName()
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		if cn.GetClusterName() != cfg.ClusterName.GetClusterName() {
+			return nil, nil, trace.BadParameter("cannot rename cluster %q to %q: clusters cannot be renamed", cn.GetClusterName(), cfg.ClusterName.GetClusterName())
+		}
+	}
+	log.Debugf("[INIT] Cluster Configuration: %v", cfg.ClusterName)
 
 	err = asrv.SetStaticTokens(cfg.StaticTokens)
 	if err != nil {
@@ -276,36 +288,6 @@ func Init(cfg InitConfig, dynamicConfig bool) (*AuthServer, *Identity, error) {
 	}
 
 	return asrv, identity, nil
-}
-
-// setClusterName will set the cluster name resource if it doesn't exist on
-// the backend. if it does exist on the backend and differs from what is in
-// the configuration file we will hardfail. if it matches, we do nothing.
-func setClusterName(cfg InitConfig, asrv *AuthServer) error {
-	cn, err := asrv.GetClusterName()
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-
-	// if nothing is set on the backend, set and return
-	if trace.IsNotFound(err) {
-		err = asrv.SetClusterName(cfg.ClusterName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		log.Infof("[INIT] Updating Cluster Configuration: %v", cfg.ClusterName)
-
-		return nil
-	}
-
-	// we found a cluster name set on the backend, but it differs from is in
-	// the config file: hard fail.
-	if cn.GetClusterName() != cfg.ClusterName.GetClusterName() {
-		return trace.BadParameter("unable to update cluster configuration, cluster name already set: %v", cn)
-	}
-
-	log.Infof("[INIT] Cluster Configuration: %v", cn)
-	return nil
 }
 
 func migrateLegacyResources(cfg InitConfig, asrv *AuthServer) error {

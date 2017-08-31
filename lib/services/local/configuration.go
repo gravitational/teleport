@@ -47,14 +47,15 @@ func (s *ClusterConfigurationService) GetClusterName() (services.ClusterName, er
 	return services.GetClusterNameMarshaler().Unmarshal(data)
 }
 
-// SetClusterName sets the name of the cluster in the backend.
+// SetClusterName sets the name of the cluster in the backend. SetClusterName
+// can only be called once on a cluster after which it will return trace.AlreadyExists.
 func (s *ClusterConfigurationService) SetClusterName(c services.ClusterName) error {
 	data, err := services.GetClusterNameMarshaler().Marshal(c)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = s.UpsertVal([]string{"cluster_configuration"}, "name", []byte(data), backend.Forever)
+	err = s.CreateVal([]string{"cluster_configuration"}, "name", []byte(data), backend.Forever)
 	if err != nil {
 		return trace.Wrap(err)
 	}
