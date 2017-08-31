@@ -48,15 +48,14 @@ const actions = {
     start = start.toISOString();
     end = end.toISOString();
 
-    let siteId = reactor.evaluate(appGetters.siteId);
+    let siteId = reactor.evaluate(appGetters.siteId);    
     return api.get(cfg.api.getSiteEventsFilterUrl({ start, end, siteId }))
-      .done( json => {
+      .done(json => {
         if (json && json.events) {          
           reactor.dispatch(RECEIVE_SITE_EVENTS, { siteId, json: json.events });
         }  
       })
-      .fail( err => {
-        showError('Unable to retrieve site events');
+      .fail(err => {        
         logger.error('fetchSiteEvents', err);
       });
   },

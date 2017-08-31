@@ -3,42 +3,58 @@ import FeatureBase from './../featureBase';
 import { addNavItem } from './../flux/app/actions';
 import Sessions from '../components/sessions/main.jsx';
 import PlayerHost from '../components/player/playerHost.jsx';
-
-const auditRoutes = [
-  {
-    path: cfg.routes.sessions,
-    title: "Stored Sessions",
-    component: Sessions
-  }, {
-    path: cfg.routes.player,
-    title: "Player",
-    components: {
-      CurrentSessionHost: PlayerHost
-    }
-  }
-]
+import reactor from 'app/reactor';
+import { fetchSiteEventsWithinTimeRange } from 'app/flux/storedSessionsFilter/actions';
+import { getStore } from '../flux/userAcl/store';
 
 const auditNavItem = {
-  icon: 'fa fa-share-alt',
-  to: cfg.routes.nodes,
-  title: 'Nodes'
+  icon: 'fa  fa-group',
+  to: cfg.routes.sessions,
+  title: 'Sessions'
 }
 
 class AuditFeature extends FeatureBase {
+    
+  componentDidMount() {    
+    this.init()    
+  }
+
+  init() {
+    if (!this.wasInitialized()) {      
+      reactor.batch(() => {
+        this.startProcessing();
+        fetchSiteEventsWithinTimeRange()
+          .done(this.stopProcessing.bind(this))
+          .fail(this.handleError.bind(this))                                                  
+      })      
+    }                
+  }
 
   constructor(routes) {        
     super();        
+    const auditRoutes = [
+      {
+        path: cfg.routes.sessions,
+        title: "Stored Sessions",
+        component: this.withMe(Sessions)
+      }, {
+        path: cfg.routes.player,
+        title: "Player",
+        components: {
+          CurrentSessionHost: PlayerHost
+        }
+      }
+    ];
+
     routes.push(...auditRoutes);        
   }
-  
-  getIndexRoute(){
-    return cfg.routes.nodes;
-  }
-
-  onload() {                  
-    addNavItem(auditNavItem);
-    //this.startProcessing();    
-    //fetchAuthProviders().always(this.stopProcessing.bind(this))      
+      
+  onload() {     
+    const store = getStore();    
+    if (store.canReadSessions()) {
+      addNavItem(auditNavItem);  
+      this.init();
+    }        
   }  
 }
 

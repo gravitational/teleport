@@ -24,62 +24,64 @@ export default class FeatureBase {
     
   constructor(actionType) {
     this.initAttemptActionType = ensureActionType(actionType);
-  } 
+  }
       
-  preload(){
-    return $.Deferred().resolve();    
+  preload() {
+    return $.Deferred().resolve();
   }
   
-  onload() {}
+  onload() { }
       
   startProcessing() {
-    restApiActions.start(this.initAttemptActionType);        
+    restApiActions.start(this.initAttemptActionType);
   }
 
-  stopProcessing() {    
+  stopProcessing() {
     restApiActions.success(this.initAttemptActionType);
   }
     
-  isReady(){
-    return this._getInitAttemptFromStore().isSuccess;
+  isReady() {
+    return this._getInitAttempt().isSuccess;
   }
 
   isProcessing() {
-    return this._getInitAttemptFromStore().isProcessing;
+    return this._getInitAttempt().isProcessing;
   }
 
   isFailed() {
-    return this._getInitAttemptFromStore().isFailed;
+    return this._getInitAttempt().isFailed;
   }
 
-  wasInitialized(){
-    const attempt = this._getInitAttemptFromStore();        
+  wasInitialized() {
+    const attempt = this._getInitAttempt();
     return attempt.isFailed || attempt.isProcessing || attempt.isSuccess;
   }
 
-  getIndexRoute(){
+  getIndexRoute() {
     throw Error('not implemented');
   }
 
+  getIndexComponent() {
+    return null;
+  }
+
+  componentDidMount(){ }
+
   getErrorText() {
-    const { message } = this._getInitAttemptFromStore();
+    const { message } = this._getInitAttempt();
     return isObject(message) ? message.text : message;          
   }
 
   getErrorCode(){
-    const { message } = this._getInitAttemptFromStore();
+    const { message } = this._getInitAttempt();
     return isObject(message) ? message.code : null;
-  }
-
-  getIndexComponent(){
-    return null;
   }
 
   handleAccesDenied() {
     this.handleError(new Error('Access Denied'));
   }
 
-  handleError(err) {        
+  handleError(err) {            
     let message = api.getErrorText(err);                
     if (err.status === RestRespCodeEnum.FORBIDDEN) {          
       message = {
@@ -99,7 +101,7 @@ export default class FeatureBase {
     return requestStatus(this.initAttemptActionType);      
   }
   
-  _getInitAttemptFromStore(){
+  _getInitAttempt(){
     return reactor.evaluate(this.initAttemptGetter());
   }
 }

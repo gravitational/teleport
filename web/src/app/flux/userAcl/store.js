@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import reactor from 'app/reactor';
 import { Store, toImmutable } from 'nuclear-js';
 import { Record, Map, List } from 'immutable';
 import { RECEIVE_USERACL } from './actionTypes';
@@ -46,6 +47,10 @@ class AccessRec extends Record({
     super(params);                
   }
         
+  canReadSessions() {
+    return this.getIn(['sessions', 'read']);    
+  }
+
   getSshLogins() {
     let logins = this.getIn(['ssh', 'logins']);
     if (!logins) {
@@ -54,6 +59,10 @@ class AccessRec extends Record({
 
     return logins.toJS()    
   }
+}
+
+export function getStore() {
+  return reactor.evaluate(['tlpt_user_acl']);
 }
 
 export default Store({

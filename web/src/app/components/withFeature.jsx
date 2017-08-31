@@ -1,7 +1,8 @@
 import React from 'react';
 import reactor from 'app/reactor';
 import Indicator from 'app/components/indicator';
-import { Failed } from 'app/components/msgPage.jsx';
+import { RestRespCodeEnum } from 'app/services/enums';
+import * as Messages from 'app/components/msgPage.jsx';
 
 const withFeature = feature => component => {
   
@@ -18,8 +19,10 @@ const withFeature = feature => component => {
       this._unsubscribeFn = reactor.observe(feature.initAttemptGetter(), ()=>{        
         this.setState({})
       })
-    }
 
+      feature.componentDidMount();
+    }
+    
     componentWillUnmount() {
       this._unsubscribeFn();
     }
@@ -30,10 +33,14 @@ const withFeature = feature => component => {
       }
 
       if (feature.isFailed()) {
-        return <Failed message={feature.getErrorText()}/>
+        const errorText = feature.getErrorText();
+        if (feature.getErrorCode() === RestRespCodeEnum.FORBIDDEN) {
+          return <Messages.AccessDenied message={errorText}/>  
+        }
+        return <Messages.Failed message={errorText}/>
       }
       
-      let props = this.props;
+      const props = this.props;
       return React.createElement(component, {
         ...props,
         feature

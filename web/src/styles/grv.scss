@@ -28,6 +28,7 @@ limitations under the License.
 @import "grv-login";
 @import "grv-icons";
 @import "grv-table";
+@import "grv-alerts";
 @import "grv-nodes";
 @import "grv-sessions";
 @import "grv-nav";
@@ -55,7 +56,7 @@ limitations under the License.
     padding: 0 5%;    
     display: flex;
     overflow: auto;
-    width: 100%;
+    flex: 1;
     flex-direction: column;
   }
 }

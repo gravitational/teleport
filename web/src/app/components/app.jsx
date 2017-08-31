@@ -16,7 +16,6 @@ limitations under the License.
 
 import React, { Component } from 'react';
 import { connect } from 'nuclear-js-react-addons';
-import cfg from 'app/config'
 import appGetters from 'app/flux/app/getters';
 import { refresh } from 'app/flux/app/actions';
 import NavLeftBar from './navLeftBar';
@@ -25,19 +24,11 @@ import AjaxPoller from './dataProvider.jsx';
 import { Failed } from './msgPage.jsx';
 import Indicator from './indicator.jsx';
 
-const menuItems = [        
-  { icon: 'fa fa-share-alt', to: cfg.routes.nodes, title: 'Nodes' },
-  { icon: 'fa  fa-group', to: cfg.routes.sessions, title: 'Sessions'}  
-]
-
 class App extends Component {
       
-  getMenuItems() {    
-    return menuItems;
-  }
-
   render() {    
-    const { isProcessing, isSuccess, isFailed, message } = this.props.initAttempt;
+    const { router, initAttempt } = this.props;
+    const { isProcessing, isSuccess, isFailed, message } = initAttempt;
         
     if (isProcessing) {      
       return (
@@ -57,7 +48,7 @@ class App extends Component {
           <AjaxPoller onFetch={refresh} time={4000}/>
           <NotificationHost />
           {this.props.CurrentSessionHost}
-          <NavLeftBar items={this.getMenuItems()} />
+          <NavLeftBar router={router}/>
           {this.props.children}
         </div>
       );
@@ -65,7 +56,6 @@ class App extends Component {
 
     return null;
   }
-
 }
 
 function mapStateToProps() {

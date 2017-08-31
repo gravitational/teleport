@@ -21,26 +21,24 @@ import InviteUser from './components/user/invite.jsx';
 import * as Message from './components/msgPage.jsx';
 import DocumentTitle from './components/documentTitle';
 import App from './components/app.jsx';
-import featureRoutes from './features'
 
-const rootRoutes = [{
-  component: DocumentTitle,
-  childRoutes: [
-    { path: cfg.routes.error, title: "Error", component: Message.ErrorPage },
-    { path: cfg.routes.info, title: "Info", component: Message.InfoPage },
-    { path: cfg.routes.login, title: "Login", component: LoginContainer },
-    { path: cfg.routes.newUser, component: InviteUser },
-    { path: cfg.routes.app, onEnter: (localtion, replace) => replace(cfg.routes.nodes) },
-    {
-      path: cfg.routes.app,
-      onEnter: ensureUser,
-      component: App,
-      childRoutes: [
-        ...featureRoutes
-      ]                            
-    },
-    { path: '*', component: Message.NotFound }
-  ]
-}]
-    
-export default rootRoutes;
+export function withAllRoutes(otherRoutes = []) {  
+  return [{
+    component: DocumentTitle,
+    childRoutes: [
+      { path: cfg.routes.error, title: "Error", component: Message.ErrorPage },
+      { path: cfg.routes.info, title: "Info", component: Message.InfoPage },
+      { path: cfg.routes.login, title: "Login", component: LoginContainer },
+      { path: cfg.routes.newUser, component: InviteUser },
+      { path: cfg.routes.app, onEnter: (localtion, replace) => replace(cfg.routes.nodes) },
+      {               
+        path: cfg.routes.app,
+        onEnter: ensureUser,
+        component: App,        
+        childRoutes: otherRoutes      
+        
+      },
+      { path: '*', component: Message.NotFound }
+    ]
+  }];
+}

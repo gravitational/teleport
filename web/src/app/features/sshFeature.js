@@ -30,15 +30,9 @@ class SshFeature extends FeatureBase {
     super();        
     routes.push(...sshRoutes);        
   }
-  
-  getIndexRoute(){
-    return cfg.routes.nodes;
-  }
-
+    
   onload() {                  
-    addNavItem(sshNavItem);
-    //this.startProcessing();    
-    //fetchAuthProviders().always(this.stopProcessing.bind(this))      
+    addNavItem(sshNavItem);        
   }  
 }
 

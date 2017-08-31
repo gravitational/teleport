@@ -15,11 +15,16 @@ type sshAccess struct {
 }
 
 type userACL struct {
-	Sessions        access    `json:"sessions"`
-	AuthConnectors  access    `json:"authConnectors"`
-	Roles           access    `json:"roles"`
-	TrustedClusters access    `json:"trustedClusters"`
-	SSH             sshAccess `json:"ssh"`
+	// Sessions defines access to recorded sessions
+	Sessions access `json:"sessions"`
+	// AuthConnectors defines access to auth.connectors
+	AuthConnectors access `json:"authConnectors"`
+	// Roles defined access to roles
+	Roles access `json:"roles"`
+	// TrustedClusters defined access to trusted clusters
+	TrustedClusters access `json:"trustedClusters"`
+	// SSH defined access to servers
+	SSH sshAccess `json:"ssh"`
 }
 
 type userContext struct {
@@ -41,6 +46,10 @@ func getLogins(roleSet services.RoleSet) []string {
 	}
 
 	return utils.Deduplicate(allLogins)
+}
+
+func canReadAuthConnectors(roleSet services.RoleSet, ctx *services.Context) bool {
+	return checkAccess(roleSet, ctx, services.KindAuthConnector, services.VerbRead)
 }
 
 func canReadTrustedClusters(roleSet services.RoleSet, ctx *services.Context) bool {
@@ -73,6 +82,10 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*userContex
 		Read: canReadRoles(userRoles, ctx),
 	}
 
+	authConnectors := access{
+		Read: canReadAuthConnectors(userRoles, ctx),
+	}
+
 	trustedClusterAccess := access{
 		Read: canReadTrustedClusters(userRoles, ctx),
 	}
@@ -83,6 +96,7 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*userContex
 	}
 
 	acl := userACL{
+		AuthConnectors:  authConnectors,
 		TrustedClusters: trustedClusterAccess,
 		Sessions:        sessionAccess,
 		Roles:           roleAccess,

@@ -17,55 +17,52 @@ import React from 'react';
 import reactor from 'app/reactor';
 import cfg from 'app/config';
 import userGetters from 'app/flux/user/getters';
+import * as AppStore from 'app/flux/app/appStore';
 import { logout } from 'app/flux/user/actions';
 import { IndexLink } from 'react-router';
 import { UserIcon } from './icons.jsx';
 
-const NavLeftBar = React.createClass({
-  render() {
-    let { items=[] } = this.props;        
-    let { name } = reactor.evaluate(userGetters.user);
-    let $items = items.map((i, index)=>{
-      var className = this.context.router.isActive(i.to) ? 'active' : '';
-      return (
-        <li key={index} className={className} title={i.title}>
-          <IndexLink to={i.to}>
-            <i className={i.icon} />
-          </IndexLink>
-        </li>
-      );
-    });
-
-    $items.push((
-      <li key={$items.length} title="help">
-        <a href={cfg.helpUrl} target="_blank">
-          <i className="fa fa-question" />
-        </a>
-      </li>));
-
-    $items.push((
-      <li key={$items.length} title="logout">
-        <a href="#" onClick={logout} >
-          <i className="fa fa-sign-out" style={{marginRight: 0}}></i>
-        </a>
-      </li>
-    ));
-
+export default function NavLeftBar(props) {    
+  const items = AppStore.getStore().getNavItems()
+  const name = reactor.evaluate(userGetters.userName);
+  const $items = items.map((i, index)=>{
+    var className = props.router.isActive(i.to) ? 'active' : '';
     return (
-      <nav className='grv-nav navbar-default' role='navigation'>
-        <ul className='nav text-center' id='side-menu'>
-          <li>
-            <UserIcon name={name} />
-          </li>
-          {$items}
-        </ul>
-      </nav>
+      <li key={index} className={className} title={i.title}>
+        <IndexLink to={i.to}>
+          <i className={i.icon} />
+        </IndexLink>
+      </li>
     );
-  }
-});
+  });
 
-NavLeftBar.contextTypes = {
-  router: React.PropTypes.object.isRequired
+  $items.push((
+    <li key={$items.length} title="help">
+      <a href={cfg.helpUrl} target="_blank">
+        <i className="fa fa-question" />
+      </a>
+    </li>));
+
+  $items.push((
+    <li key={$items.length} title="logout">
+      <a href="#" onClick={logout} >
+        <i className="fa fa-sign-out" style={{marginRight: 0}}></i>
+      </a>
+    </li>
+  ));
+
+  return (
+    <nav className='grv-nav navbar-default' role='navigation'>
+      <ul className='nav text-center' id='side-menu'>
+        <li>
+          <UserIcon name={name} />
+        </li>
+        {$items}
+      </ul>
+    </nav>
+  );
 }
 
-export default NavLeftBar;
+NavLeftBar.propTypes = {
+  router: React.PropTypes.object.isRequired
+}

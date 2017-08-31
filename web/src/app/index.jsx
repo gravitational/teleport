@@ -21,15 +21,35 @@ import { Provider } from 'nuclear-js-react-addons';
 import history from './services/history';
 import cfg from './config';
 import reactor from './reactor';
-import routes from './routes';
+import { withAllRoutes } from './routes';
+import { AuditFeature, SshFeature } from './features';
+import FeatureActivator from './featureActivator';
+import { initApp } from './flux/app/actions';
 import './flux';
 
+cfg.init(window.GRV_CONFIG);
 history.init();
 
-cfg.init(window.GRV_CONFIG);
+const featureRoutes = [];
+const featureActivator = new FeatureActivator();
+
+featureActivator.register(new SshFeature(featureRoutes));
+featureActivator.register(new AuditFeature(featureRoutes));
+
+const onEnterApp = nextState => {  
+  let { siteId } = nextState.params; 
+  initApp(siteId, featureActivator)
+}
+
+const routes = [
+  {       
+    onEnter: onEnterApp,
+    childRoutes: featureRoutes        
+  }
+]
 
 render((  
   <Provider reactor={reactor}>        
-    <Router history={history.original()} routes={routes}/>            
+    <Router history={history.original()} routes={withAllRoutes(routes)}/>            
   </Provider>  
 ), document.getElementById("app"));

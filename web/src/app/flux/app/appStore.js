@@ -39,7 +39,7 @@ class AppRec extends Record({
     return this.navItems.toJS();
   }
   
-  addNavItem(navItem) {    
+  addNavItem(navItem) {        
     return this.set('navItems', this.navItems.push(navItem))
   }
 }
