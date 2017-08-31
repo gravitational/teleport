@@ -475,14 +475,17 @@ func (s *AuthSuite) TestUpdateConfig(c *C) {
 		Authority: authority.New(),
 	}
 	authServer := NewAuthServer(authConfig)
-	// set cluster name
+
+	// try and set cluster name, this should fail because you can only set the
+	// cluster name once
 	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
 		ClusterName: "foo.localhost",
 	})
 	c.Assert(err, IsNil)
 	err = authServer.SetClusterName(clusterName)
-	c.Assert(err, IsNil)
-	// set static tokens
+	c.Assert(err, NotNil)
+	// try and set static tokens, this should be successfull because the last
+	// one to upsert tokens wins
 	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
 		StaticTokens: []services.ProvisionToken{services.ProvisionToken{
 			Token: "bar",
@@ -493,10 +496,11 @@ func (s *AuthSuite) TestUpdateConfig(c *C) {
 	err = authServer.SetStaticTokens(staticTokens)
 	c.Assert(err, IsNil)
 
-	// check first auth server and make sure it returns the new values
+	// check first auth server and make sure it returns the correct values
+	// (original cluster name, new static tokens)
 	cn, err = s.a.GetClusterName()
 	c.Assert(err, IsNil)
-	c.Assert(cn.GetClusterName(), Equals, "foo.localhost")
+	c.Assert(cn.GetClusterName(), Equals, "me.localhost")
 	st, err = s.a.GetStaticTokens()
 	c.Assert(err, IsNil)
 	c.Assert(st.GetStaticTokens(), DeepEquals, []services.ProvisionToken{services.ProvisionToken{
@@ -504,10 +508,11 @@ func (s *AuthSuite) TestUpdateConfig(c *C) {
 		Roles: teleport.Roles{teleport.Role("baz")},
 	}})
 
-	// check second auth server and make sure it also has the new values
+	// check second auth server and make sure it also has the correct values
+	// (original cluster name, new static tokens)
 	cn, err = authServer.GetClusterName()
 	c.Assert(err, IsNil)
-	c.Assert(cn.GetClusterName(), Equals, "foo.localhost")
+	c.Assert(cn.GetClusterName(), Equals, "me.localhost")
 	st, err = authServer.GetStaticTokens()
 	c.Assert(err, IsNil)
 	c.Assert(st.GetStaticTokens(), DeepEquals, []services.ProvisionToken{services.ProvisionToken{

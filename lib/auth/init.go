@@ -155,25 +155,34 @@ func Init(cfg InitConfig, dynamicConfig bool) (*AuthServer, *Identity, error) {
 		log.Infof("[INIT] Created Reverse Tunnel: %v", tunnel)
 	}
 
-	// always upload cluster configuration when auth service starts. the last
-	// one always wins.
+	// cluster name can only be set once. if it has already been set and we are
+	// trying to update it to something else, hard fail.
 	err = asrv.SetClusterName(cfg.ClusterName)
-	if err != nil {
+	if err != nil && !trace.IsAlreadyExists(err) {
 		return nil, nil, trace.Wrap(err)
 	}
-	log.Infof("[INIT] Updating Cluster Configuration: ClusterName: %v", cfg.ClusterName)
+	if trace.IsAlreadyExists(err) {
+		cn, err := asrv.GetClusterName()
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		if cn.GetClusterName() != cfg.ClusterName.GetClusterName() {
+			return nil, nil, trace.BadParameter("cannot rename cluster %q to %q: clusters cannot be renamed", cn.GetClusterName(), cfg.ClusterName.GetClusterName())
+		}
+	}
+	log.Debugf("[INIT] Cluster Configuration: %v", cfg.ClusterName)
 
 	err = asrv.SetStaticTokens(cfg.StaticTokens)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	log.Infof("[INIT] Updating Cluster Configuration: Static Tokens: %v", cfg.StaticTokens)
+	log.Infof("[INIT] Updating Cluster Configuration: %v", cfg.StaticTokens)
 
 	err = asrv.SetAuthPreference(cfg.AuthPreference)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	log.Infof("[INIT] Updating Cluster Configuration: AuthPreference: %v", cfg.AuthPreference)
+	log.Infof("[INIT] Updating Cluster Configuration: %v", cfg.AuthPreference)
 
 	// always create the default namespace
 	err = asrv.UpsertNamespace(services.NewNamespace(defaults.Namespace))

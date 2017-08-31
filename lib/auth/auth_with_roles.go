@@ -783,7 +783,7 @@ func (a *AuthWithRoles) GetClusterName() (services.ClusterName, error) {
 	return a.authServer.GetClusterName()
 }
 
-// SetClusterName sets the name of the cluster.
+// SetClusterName sets the name of the cluster. SetClusterName can only be called once.
 func (a *AuthWithRoles) SetClusterName(c services.ClusterName) error {
 	if err := a.action(defaults.Namespace, services.KindClusterName, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
