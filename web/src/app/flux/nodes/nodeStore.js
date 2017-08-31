@@ -27,9 +27,9 @@ export default Store({
   }
 })
 
-function receiveNodes(state, { siteId, nodeArray }) {
-  nodeArray = nodeArray || [];  
-  nodeArray.forEach(n => n.siteId = siteId);
+function receiveNodes(state, { siteId, jsonItems }) {
+  jsonItems = jsonItems || [];    
+  jsonItems.forEach(n => n.siteId = siteId);
   return state.filter(o => o.get('siteId') !== siteId)
-       .concat(toImmutable(nodeArray))    
+       .concat(toImmutable(jsonItems))    
 }

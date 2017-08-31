@@ -170,7 +170,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.GET("/webapi/sites/:site/namespaces", h.WithClusterAuth(h.getSiteNamespaces))
 
 	// get nodes
-	h.GET("/webapi/sites/:site/namespaces/:namespace/nodes", h.WithClusterAuth(h.getSiteNodes))
+	h.GET("/webapi/sites/:site/namespaces/:namespace/nodes", h.WithClusterAuth(h.siteNodesGet))
 
 	// active sessions handlers
 	h.GET("/webapi/sites/:site/namespaces/:namespace/connect", h.WithClusterAuth(h.siteNodeConnect))                       // connect to an active session (via websocket)
@@ -321,12 +321,12 @@ func (m *Handler) getUserContext(w http.ResponseWriter, r *http.Request, _ httpr
 		return nil, trace.Wrap(err)
 	}
 
-	roleSet, err := services.FetchRoles(user.GetRoles(), clt, user.GetTraits())
+	userRoleSet, err := services.FetchRoles(user.GetRoles(), clt, user.GetTraits())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	userContext, err := ui.NewUserContext(user, roleSet)
+	userContext, err := ui.NewUserContext(user, userRoleSet)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1088,40 +1088,7 @@ type getSiteNodesResponse struct {
 	Nodes []nodeWithSessions `json:"nodes"`
 }
 
-/* getSiteNodes returns a list of nodes active in the site
-
-GET /v1/webapi/namespaces/:namespace/sites/:site/nodes
-
-Sucessful response:
-
-{"nodes": [
-  {
-    "node": {
-        "addr": "ip:port",
-        "hostname": "a.example.com",
-        "labels": {"role": "mysql"}, // static key value pairs set by user for every node
-        "cmd_labels": {
-            "db_status": {
-               "command": "mysql -c status", // command periodically executed on server
-               "result": "master",  // output of the command
-               "period": 1000000000 // microseconds between calls
-             }
-        }
-     },
-     "sessions": [{
-         "id": "unique session id",
-         "parties": [{ // parties is a list of currently active participants
-            "id": "party id",
-            "user": "alice", // teleport user
-            "server_addr": "127.0.0.1:3000",
-            "last_active": "time" // RFC3339 timestamp when user was last acive
-         }]
-     }]
-   }
-  ]
-}
-*/
-func (m *Handler) getSiteNodes(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (m *Handler) siteNodesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	log.Debugf("[web] GET /nodes")
 	clt, err := site.GetClient()
 	if err != nil {
@@ -1135,30 +1102,13 @@ func (m *Handler) getSiteNodes(w http.ResponseWriter, r *http.Request, p httprou
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sessions, err := clt.GetSessions(namespace)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	nodeMap := make(map[string]*nodeWithSessions, len(servers))
-	for i := range servers {
-		nodeMap[servers[i].GetName()] = &nodeWithSessions{Node: *servers[i].V1()}
-	}
-	for i := range sessions {
-		sess := sessions[i]
-		for _, p := range sess.Parties {
-			if _, ok := nodeMap[p.ServerID]; ok {
-				nodeMap[p.ServerID].Sessions = append(nodeMap[p.ServerID].Sessions, sess)
-			}
-		}
-	}
-	nodes := make([]nodeWithSessions, 0, len(nodeMap))
-	for key := range nodeMap {
-		nodes = append(nodes, *nodeMap[key])
+
+	items := []interface{}{}
+	for _, server := range servers {
+		items = append(items, server.V1())
 	}
 
-	return getSiteNodesResponse{
-		Nodes: nodes,
-	}, nil
+	return makeResponse(items)
 }
 
 // siteNodeConnect connect to the site node
@@ -1835,4 +1785,12 @@ type Server struct {
 // user to complete registration with Teleport via Web UI
 func CreateSignupLink(hostPort string, token string) string {
 	return "https://" + hostPort + "/web/newuser/" + token
+}
+
+type responseData struct {
+	Items interface{} `json:"items"`
+}
+
+func makeResponse(items interface{}) (interface{}, error) {
+	return responseData{Items: items}, nil
 }

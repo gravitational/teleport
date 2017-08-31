@@ -16,47 +16,20 @@ limitations under the License.
 
 import React from 'react';
 import { render } from 'react-dom';
-import { Router, Route, Redirect } from 'react-router';
+import { Router } from 'react-router';
 import { Provider } from 'nuclear-js-react-addons';
 import history from './services/history';
-import AppContainer from './components/app.jsx';
-import LoginContainer from './components/user/login.jsx';
-import InviteUser from './components/user/invite.jsx';
-import Nodes from './components/nodes/main.jsx';
-import Sessions from './components/sessions/main.jsx';
-import TerminalHost from './components/terminal/terminalHost.jsx';
-import PlayerHost from './components/player/playerHost.jsx';
-import  * as Message from './components/msgPage.jsx';
-import { ensureUser } from './flux/user/actions';
-import { initApp } from './flux/app/actions';
 import cfg from './config';
 import reactor from './reactor';
-import DocumentTitle from './components/documentTitle';
+import routes from './routes';
 import './flux';
 
 history.init();
 
 cfg.init(window.GRV_CONFIG);
 
-render((
+render((  
   <Provider reactor={reactor}>        
-    <Router history={history.original()}>      
-      <Route component={DocumentTitle}>
-        <Route path={cfg.routes.error} title="Error" component={Message.ErrorPage} />
-        <Route path={cfg.routes.info} title="Info" component={Message.InfoPage}/>
-        <Route path={cfg.routes.login} title="Login" component={LoginContainer}/>
-        <Route path={cfg.routes.newUser} component={InviteUser}/>
-        <Redirect from={cfg.routes.app} to={cfg.routes.nodes}/>
-        <Route path={cfg.routes.app} onEnter={ensureUser} component={AppContainer} >
-          <Route path={cfg.routes.app} onEnter={initApp} >        
-            <Route path={cfg.routes.sessions} title="Stored Sessions" component={Sessions}/>
-            <Route path={cfg.routes.nodes} title="Nodes" component={Nodes}/>
-            <Route path={cfg.routes.terminal} title="Terminal" components={{ CurrentSessionHost: TerminalHost }} />
-            <Route path={cfg.routes.player} title="Player" components={{ CurrentSessionHost: PlayerHost }} />
-          </Route>  
-        </Route>
-        <Route path="*" component={Message.NotFound} />
-      </Route>
-    </Router>
+    <Router history={history.original()} routes={routes}/>            
   </Provider>  
 ), document.getElementById("app"));

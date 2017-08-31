@@ -74,11 +74,4 @@ function mapStateToProps() {
   }
 }
 
-const Connector = connect(mapStateToProps);
-
-export default Connector(App);
-
-export {
-  App,
-  Connector
-}
+export default connect(mapStateToProps)(App);

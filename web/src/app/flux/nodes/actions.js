@@ -12,9 +12,9 @@ export default {
   fetchNodes() {
     let siteId = reactor.evaluate(appGetters.siteId);
     return api.get(cfg.api.getSiteNodesUrl(siteId))
-      .done((data = []) => {
-        let nodeArray = data.nodes.map(item => item.node);                     
-        reactor.dispatch(TLPT_NODES_RECEIVE, { siteId, nodeArray });
+      .then(res => res.items)   
+      .done(items => {                           
+        reactor.dispatch(TLPT_NODES_RECEIVE, { siteId, jsonItems: items });
       })
       .fail(err => {
         showError('Unable to retrieve list of nodes');

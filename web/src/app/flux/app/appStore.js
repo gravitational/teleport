@@ -13,18 +13,50 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-import { Store, toImmutable } from 'nuclear-js';
-import { SET_SITE_ID } from './actionTypes';
+import reactor from 'app/reactor';
+import { Store } from 'nuclear-js';
+import { Record, List } from 'immutable';
+import * as AT from './actionTypes';
+
+class AppRec extends Record({  
+  siteId: null,  
+  navItems: new List() 
+}){      
+
+  constructor(props) {
+    super(props)
+  }
+
+  setSiteId(siteId) {
+    return this.set('siteId', siteId);
+  }
+
+  getSiteId() {
+    return this.get('siteId');
+  }
+
+  getNavItems(){    
+    return this.navItems.toJS();
+  }
+  
+  addNavItem(navItem) {    
+    return this.set('navItems', this.navItems.push(navItem))
+  }
+}
+
+export function getStore() {
+  return reactor.evaluate(['tlpt']);
+}
 
 export default Store({
-
-  getInitialState() {    
-    return toImmutable({
-      siteId: undefined      
-    });
+  
+  getInitialState() {
+    return new AppRec();
   },
 
   initialize() {    
-    this.on(SET_SITE_ID, (state, siteId) => state.set('siteId', siteId) );        
+    this.on(AT.SET_SITE_ID, (state, siteId) => state.setSiteId(siteId) );            
+    this.on(AT.ADD_NAV_ITEM, (state, navItem) => state.addNavItem(navItem))
   }
-})
+});
+

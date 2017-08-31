@@ -29,27 +29,23 @@ const sortLogins = loginList => {
 }
 
 class AccessRec extends Record({  
-  admin: Map({
-    enabled: false
+  authConnectors: Map({
+    read: false
+  }),
+  trustedClusters: Map({
+    read: false,    
+  }),
+  sessions: Map({
+    read: false,    
   }),
   ssh: Map({
-    enabled: false,
-    logins: List()
+    logins: List(),    
   })
 }){
   constructor(params) {    
     super(params);                
   }
-  
-  isAdminEnabled() {
-    return this.getIn(['admin', 'enabled']);
-  }
-  
-  isSshEnabled() {
-    let logins = this.getIn(['ssh', 'logins']);
-    return logins ? logins.size > 0 : false;    
-  }
-
+        
   getSshLogins() {
     let logins = this.getIn(['ssh', 'logins']);
     if (!logins) {
