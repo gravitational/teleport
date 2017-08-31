@@ -226,10 +226,10 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		cfg.AuthServers = []utils.NetAddr{cfg.Auth.SSHAddr}
 	}
 
-	// if user did not provide auth domain name, use this host UUID
+	// if user did not provide auth domain name, use this host's name
 	if cfg.Auth.Enabled && cfg.Auth.ClusterName == nil {
 		cfg.Auth.ClusterName, err = services.NewClusterName(services.ClusterNameSpecV2{
-			ClusterName: cfg.HostUUID,
+			ClusterName: cfg.Hostname,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

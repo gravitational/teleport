@@ -32,6 +32,12 @@ This release focus was to increase Teleport user experience, including:
 * Reverse tunnels would periodically lose connectivity. [#1156](https://github.com/gravitational/teleport/issues/1156)
 * tsh now stores user identities in a format compatible with OpenSSH. [1171](https://github.com/gravitational/teleport/issues/1171).
 
+## 2.2.7
+
+#### Bug fixes
+
+* Updated YAML parsing library. [#1226](https://github.com/gravitational/teleport/pull/1226)
+
 ## 2.2.6
 
 #### Bug fixes
