@@ -82,7 +82,7 @@ func (s *EtcdSuite) SetUpTest(c *C) {
 		})
 	err = convertErr(err)
 	if err != nil && !trace.IsNotFound(err) {
-		if strings.Contains(err.Error(), "cluster is unavailable") {
+		if strings.Contains(err.Error(), "connection refused") {
 			fmt.Println("WARNING: etcd cluster is not available. Start examples/etcd/start-etcd.sh")
 			s.skip = true
 			c.Skip(err.Error())

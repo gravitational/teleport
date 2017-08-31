@@ -285,6 +285,7 @@ func makeKey(username string, allowedLogins []string, ttl time.Duration) (*Key, 
 
 func startDebugAgent() error {
 	errorC := make(chan error)
+	rand.Seed(time.Now().Unix())
 
 	go func() {
 		socketpath := filepath.Join(os.TempDir(),
