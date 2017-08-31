@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.7
+
+#### Bug fixes
+
+* Updated YAML parsing library. [#1226](https://github.com/gravitational/teleport/pull/1226)
+
 ## 2.2.6
 
 #### Bug fixes
