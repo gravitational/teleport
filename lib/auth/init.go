@@ -155,25 +155,22 @@ func Init(cfg InitConfig, dynamicConfig bool) (*AuthServer, *Identity, error) {
 		log.Infof("[INIT] Created Reverse Tunnel: %v", tunnel)
 	}
 
-	// always upload cluster configuration when auth service starts. the last
-	// one always wins.
-	err = asrv.SetClusterName(cfg.ClusterName)
+	err = setClusterName(cfg, asrv)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	log.Infof("[INIT] Updating Cluster Configuration: ClusterName: %v", cfg.ClusterName)
 
 	err = asrv.SetStaticTokens(cfg.StaticTokens)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	log.Infof("[INIT] Updating Cluster Configuration: Static Tokens: %v", cfg.StaticTokens)
+	log.Infof("[INIT] Updating Cluster Configuration: %v", cfg.StaticTokens)
 
 	err = asrv.SetAuthPreference(cfg.AuthPreference)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	log.Infof("[INIT] Updating Cluster Configuration: AuthPreference: %v", cfg.AuthPreference)
+	log.Infof("[INIT] Updating Cluster Configuration: %v", cfg.AuthPreference)
 
 	// always create the default namespace
 	err = asrv.UpsertNamespace(services.NewNamespace(defaults.Namespace))
@@ -279,6 +276,36 @@ func Init(cfg InitConfig, dynamicConfig bool) (*AuthServer, *Identity, error) {
 	}
 
 	return asrv, identity, nil
+}
+
+// setClusterName will set the cluster name resource if it doesn't exist on
+// the backend. if it does exist on the backend and differs from what is in
+// the configuration file we will hardfail. if it matches, we do nothing.
+func setClusterName(cfg InitConfig, asrv *AuthServer) error {
+	cn, err := asrv.GetClusterName()
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+
+	// if nothing is set on the backend, set and return
+	if trace.IsNotFound(err) {
+		err = asrv.SetClusterName(cfg.ClusterName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		log.Infof("[INIT] Updating Cluster Configuration: %v", cfg.ClusterName)
+
+		return nil
+	}
+
+	// we found a cluster name set on the backend, but it differs from is in
+	// the config file: hard fail.
+	if cn.GetClusterName() != cfg.ClusterName.GetClusterName() {
+		return trace.BadParameter("unable to update cluster configuration, cluster name already set: %v", cn)
+	}
+
+	log.Infof("[INIT] Cluster Configuration: %v", cn)
+	return nil
 }
 
 func migrateLegacyResources(cfg InitConfig, asrv *AuthServer) error {
