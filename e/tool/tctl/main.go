@@ -17,13 +17,25 @@ limitations under the License.
 package main
 
 import (
+	"fmt"
+
 	"github.com/gravitational/teleport/e/lib"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/tool/tctl/common"
 )
 
+type UserCommand struct {
+	common.UserCommand
+}
+
+func (u *UserCommand) List(client *auth.TunClient) error {
+	fmt.Println("Enterprise!")
+	return nil
+}
+
 func main() {
 	commands := []common.CLICommand{
-		&common.UserCommand{},
+		&UserCommand{},
 		&common.NodeCommand{},
 		&common.TokenCommand{},
 		&common.AuthCommand{},
