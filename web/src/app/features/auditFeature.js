@@ -50,8 +50,8 @@ class AuditFeature extends FeatureBase {
   }
       
   onload() {     
-    const store = getStore();    
-    if (store.canReadSessions()) {
+    const sessAccess = getStore().getSessions();    
+    if (sessAccess.read) {
       addNavItem(auditNavItem);  
       this.init();
     }        

@@ -16,9 +16,10 @@ limitations under the License.
 
 import reactor from 'app/reactor';
 import { Store, toImmutable } from 'nuclear-js';
-import { Record, Map, List } from 'immutable';
+import { Record, List } from 'immutable';
 import { RECEIVE_USERACL } from './actionTypes';
 
+// sort logins by making 'root' as the first in the list
 const sortLogins = loginList => {
   let index = loginList.indexOf('root');
   if (index !== -1) {
@@ -29,35 +30,52 @@ const sortLogins = loginList => {
   return loginList;
 }
 
-class AccessRec extends Record({  
-  authConnectors: Map({
-    read: false
-  }),
-  trustedClusters: Map({
-    read: false,    
-  }),
-  sessions: Map({
-    read: false,    
-  }),
-  ssh: Map({
-    logins: List(),    
-  })
+const Access = new Record({
+  read: false,
+	edit: false,
+	create: false,
+	delete: false
+})
+	
+class AccessListRec extends Record({  
+  authConnectors: new Access(),
+  trustedClusters: new Access(),
+  roles: new Access(),
+  sessions: new Access(),
+  sshLogins: []
 }){
-  constructor(params) {    
+  constructor(json = {}) {    
+    let map = toImmutable(json);    
+    let sshLogins = new List(map.get('sshLogins'));            
+    const params = {
+      sshLogins: sortLogins(sshLogins),
+      authConnectors: new Access(map.get('authConnectors')),
+      trustedClusters: new Access(map.get('trustedClusters')),
+      roles: new Access(map.get('roles')),
+      sessions: new Access(map.get('sessions'))
+    }
+      
     super(params);                
   }
         
-  canReadSessions() {
-    return this.getIn(['sessions', 'read']);    
+  getSessions() {
+    return this.get('sessions');
   }
 
-  getSshLogins() {
-    let logins = this.getIn(['ssh', 'logins']);
-    if (!logins) {
-      return []
-    }
+  getRoles() {
+    return this.get('roles');    
+  }
 
-    return logins.toJS()    
+  getConnectors() {
+    return this.get('authConnectors');    
+  }
+  
+  getTrustedClusters() {
+    return this.get('trustedClusters');    
+  }
+      
+  getSshLogins() {
+    return this.get('sshLogins')    
   }
 }
 
@@ -67,21 +85,10 @@ export function getStore() {
 
 export default Store({
   getInitialState() {
-    return new AccessRec();
+    return new AccessListRec();
   },
 
   initialize() {          
-    this.on(RECEIVE_USERACL, receiveAcl);            
+    this.on(RECEIVE_USERACL, (state, json ) => new AccessListRec(json) );            
   }
 })
-
-function receiveAcl(state, json) {
-  json = json || {};   
-  let aclMap = toImmutable(json);
-  let loginList = aclMap.getIn(['ssh', 'logins']);
-  if (loginList) {
-    aclMap = aclMap.setIn(['ssh', 'logins'], sortLogins(loginList));
-  }
-
-  return new AccessRec(aclMap);    
-}

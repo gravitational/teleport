@@ -7,11 +7,10 @@ import (
 )
 
 type access struct {
-	Read bool `json:"read"`
-}
-
-type sshAccess struct {
-	Logins []string `json:"logins"`
+	Read   bool `json:"read"`
+	Edit   bool `json:"edit"`
+	Create bool `json:"create"`
+	Delete bool `json:"delete"`
 }
 
 type userACL struct {
@@ -24,7 +23,7 @@ type userACL struct {
 	// TrustedClusters defined access to trusted clusters
 	TrustedClusters access `json:"trustedClusters"`
 	// SSH defined access to servers
-	SSH sshAccess `json:"ssh"`
+	SSHLogins []string `json:"sshLogins"`
 }
 
 type userContext struct {
@@ -48,59 +47,41 @@ func getLogins(roleSet services.RoleSet) []string {
 	return utils.Deduplicate(allLogins)
 }
 
-func canReadAuthConnectors(roleSet services.RoleSet, ctx *services.Context) bool {
-	return checkAccess(roleSet, ctx, services.KindAuthConnector, services.VerbRead)
+func hasAccess(roleSet services.RoleSet, ctx *services.Context, kind string, verbs ...string) bool {
+	for _, verb := range verbs {
+		err := roleSet.CheckAccessToRule(ctx, defaults.Namespace, kind, verb)
+		if err != nil {
+			return false
+		}
+	}
+
+	return true
 }
 
-func canReadTrustedClusters(roleSet services.RoleSet, ctx *services.Context) bool {
-	return checkAccess(roleSet, ctx, services.KindTrustedCluster, services.VerbList) &&
-		checkAccess(roleSet, ctx, services.KindTrustedCluster, services.VerbRead)
-}
-
-func canReadRoles(roleSet services.RoleSet, ctx *services.Context) bool {
-	return checkAccess(roleSet, ctx, services.KindSession, services.VerbList)
-}
-
-func canReadSessions(roleSet services.RoleSet, ctx *services.Context) bool {
-	return checkAccess(roleSet, ctx, services.KindSession, services.VerbList)
-}
-
-func checkAccess(roleSet services.RoleSet, ctx *services.Context, kind string, verb string) bool {
-	err := roleSet.CheckAccessToRule(ctx, defaults.Namespace, kind, verb)
-	return err == nil
+func newAccess(roleSet services.RoleSet, ctx *services.Context, kind string) access {
+	return access{
+		Read:   hasAccess(roleSet, ctx, kind, services.VerbList),
+		Edit:   hasAccess(roleSet, ctx, kind, services.VerbUpdate),
+		Create: hasAccess(roleSet, ctx, kind, services.VerbCreate),
+		Delete: hasAccess(roleSet, ctx, kind, services.VerbDelete),
+	}
 }
 
 // NewUserContext returns userContext
 func NewUserContext(user services.User, userRoles services.RoleSet) (*userContext, error) {
 	ctx := &services.Context{User: user}
-
-	sessionAccess := access{
-		Read: canReadSessions(userRoles, ctx),
-	}
-
-	roleAccess := access{
-		Read: canReadRoles(userRoles, ctx),
-	}
-
-	authConnectors := access{
-		Read: canReadAuthConnectors(userRoles, ctx),
-	}
-
-	trustedClusterAccess := access{
-		Read: canReadTrustedClusters(userRoles, ctx),
-	}
-
+	sessionAccess := newAccess(userRoles, ctx, services.KindSession)
+	roleAccess := newAccess(userRoles, ctx, services.KindRole)
+	authConnectors := newAccess(userRoles, ctx, services.KindAuthConnector)
+	trustedClusterAccess := newAccess(userRoles, ctx, services.KindTrustedCluster)
 	logins := getLogins(userRoles)
-	ssh := sshAccess{
-		Logins: logins,
-	}
 
 	acl := userACL{
 		AuthConnectors:  authConnectors,
 		TrustedClusters: trustedClusterAccess,
 		Sessions:        sessionAccess,
 		Roles:           roleAccess,
-		SSH:             ssh,
+		SSHLogins:       logins,
 	}
 
 	return &userContext{

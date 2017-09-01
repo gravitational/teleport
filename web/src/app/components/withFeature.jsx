@@ -1,8 +1,11 @@
 import React from 'react';
-import reactor from 'app/reactor';
-import Indicator from 'app/components/indicator';
-import { RestRespCodeEnum } from 'app/services/enums';
-import * as Messages from 'app/components/msgPage.jsx';
+import reactor from '../reactor';
+import Indicator from './indicator';
+import { RestRespCodeEnum } from '../services/enums';
+import * as Messages from './msgPage.jsx';
+import Logger from '../lib/logger';
+
+const logger = Logger.create('components/withFeature');
 
 const withFeature = feature => component => {
   
@@ -16,11 +19,18 @@ const withFeature = feature => component => {
     }
                     
     componentDidMount() {
-      this._unsubscribeFn = reactor.observe(feature.initAttemptGetter(), ()=>{        
-        this.setState({})
-      })
+      try{
+        this._unsubscribeFn = reactor.observe(feature.initAttemptGetter(), ()=>{        
+          this.setState({})
+        })
 
-      feature.componentDidMount();
+        reactor.batch(() => {
+          feature.componentDidMount();
+        })      
+                
+      }catch(err){
+        logger.error('failed to initialize a feature', err);        
+      }      
     }
     
     componentWillUnmount() {
