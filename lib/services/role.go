@@ -343,6 +343,12 @@ func (r *RoleV3) ApplyTraits(traits map[string][]string) Role {
 	return ApplyTraits(r, traits)
 }
 
+// SetRawObject sets raw object as it was stored in the database
+// used for migrations and should not be modifed
+func (r *RoleV3) SetRawObject(raw interface{}) {
+	r.rawObject = raw
+}
+
 // GetRawObject returns the raw object stored in the backend without any
 // conversions applied, used in migrations.
 func (r *RoleV3) GetRawObject() interface{} {
