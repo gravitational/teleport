@@ -256,6 +256,47 @@ type Role interface {
 	SetRules(rct RoleConditionType, rules []Rule)
 }
 
+// ApplyTraits applies the passed in traits to any variables within the role
+// and returns itself.
+func ApplyTraits(r Role, traits map[string][]string) Role {
+	for _, condition := range []RoleConditionType{Allow, Deny} {
+		inLogins := r.GetLogins(condition)
+
+		var outLogins []string
+		for _, login := range inLogins {
+			// extract the variablePrefix and variableName from the role variable
+			variablePrefix, variableName, err := parse.IsRoleVariable(login)
+
+			// if we didn't find a variable (found a normal login) then append it and
+			// go on to the next login
+			if trace.IsNotFound(err) {
+				outLogins = append(outLogins, login)
+				continue
+			}
+
+			// for internal traits, we only support internal.logins at the moment
+			if variablePrefix == teleport.TraitInternalPrefix {
+				if variableName != teleport.TraitLogins {
+					continue
+				}
+			}
+
+			// if we can't find the variable in the traits, skip it
+			variableValue, ok := traits[variableName]
+			if !ok {
+				continue
+			}
+
+			// we found the variable in the traits, append it to the list of logins
+			outLogins = append(outLogins, variableValue...)
+		}
+
+		r.SetLogins(condition, utils.Deduplicate(outLogins))
+	}
+
+	return r
+}
+
 // RoleV3 represents role resource specification
 type RoleV3 struct {
 	// Kind is the type of resource.
@@ -299,42 +340,13 @@ func (r *RoleV3) Equals(other Role) bool {
 // ApplyTraits applies the passed in traits to any variables within the role
 // and returns itself.
 func (r *RoleV3) ApplyTraits(traits map[string][]string) Role {
-	for _, condition := range []RoleConditionType{Allow, Deny} {
-		inLogins := r.GetLogins(condition)
+	return ApplyTraits(r, traits)
+}
 
-		var outLogins []string
-		for _, login := range inLogins {
-			// extract the variablePrefix and variableName from the role variable
-			variablePrefix, variableName, err := parse.IsRoleVariable(login)
-
-			// if we didn't find a variable (found a normal login) then append it and
-			// go on to the next login
-			if trace.IsNotFound(err) {
-				outLogins = append(outLogins, login)
-				continue
-			}
-
-			// for internal traits, we only support internal.logins at the moment
-			if variablePrefix == teleport.TraitInternalPrefix {
-				if variableName != teleport.TraitLogins {
-					continue
-				}
-			}
-
-			// if we can't find the variable in the traits, skip it
-			variableValue, ok := traits[variableName]
-			if !ok {
-				continue
-			}
-
-			// we found the variable in the traits, append it to the list of logins
-			outLogins = append(outLogins, variableValue...)
-		}
-
-		r.SetLogins(condition, utils.Deduplicate(outLogins))
-	}
-
-	return r
+// SetRawObject sets raw object as it was stored in the database
+// used for migrations and should not be modifed
+func (r *RoleV3) SetRawObject(raw interface{}) {
+	r.rawObject = raw
 }
 
 // GetRawObject returns the raw object stored in the backend without any
