@@ -465,8 +465,8 @@ of 30 hours and a minimum of 1 minute. Once authenticated, the account will beco
 ```bash
 $ tctl users ls
 
-User           Allowed to Login as
-----           -------------------
+User           Allowed Logins
+----           --------------
 admin          admin,root
 ross           ross
 joe            joe,root 

@@ -86,7 +86,7 @@ func (c *TokenCommand) List(client *auth.TunClient) error {
 	}
 	tokensView := func() string {
 		table := goterm.NewTable(0, 10, 5, ' ', 0)
-		printHeader(table, []string{"Token", "Role", "Expiry Time (UTC)"})
+		PrintHeader(table, []string{"Token", "Role", "Expiry Time (UTC)"})
 		for _, t := range tokens {
 			expiry := "never"
 			if t.Expires.Unix() > 0 {

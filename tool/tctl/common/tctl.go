@@ -126,8 +126,8 @@ func Run(distribution string, commands []CLICommand) {
 	}
 }
 
-// printHeader helper prints an ASCII table header to stdout
-func printHeader(t *goterm.Table, cols []string) {
+// PrintHeader helper prints an ASCII table header to stdout
+func PrintHeader(t *goterm.Table, cols []string) {
 	dots := make([]string, len(cols))
 	for i := range dots {
 		dots[i] = strings.Repeat("-", len(cols[i]))
