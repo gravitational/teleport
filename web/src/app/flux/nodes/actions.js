@@ -2,7 +2,6 @@ import reactor from 'app/reactor';
 import { TLPT_NODES_RECEIVE } from './actionTypes';
 import api from 'app/services/api';
 import cfg from 'app/config';
-import { showError } from 'app/flux/notifications/actions';
 import appGetters from 'app/flux/app/getters';
 import Logger from 'app/lib/logger';
 
@@ -17,7 +16,6 @@ export default {
         reactor.dispatch(TLPT_NODES_RECEIVE, { siteId, jsonItems: items });
       })
       .fail(err => {
-        showError('Unable to retrieve list of nodes');
         logger.error('fetchNodes', err);
     })
   }

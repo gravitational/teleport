@@ -19,7 +19,7 @@ import api from 'app/services/api';
 import cfg from 'app/config';
 import { fetchStoredSession } from './../sessions/actions';
 import sessionGetters from './../sessions/getters';
-import { getStore } from './../userAcl/store';
+import { getAcl } from './../userAcl/store';
 
 const logger = require('app/lib/logger').create('app/flux/player');
 
@@ -68,7 +68,7 @@ const actions = {
 
   close() {    
     reactor.dispatch(TLPT_PLAYER_CLOSE);    
-    const canListSessions = getStore().getSessions().read;
+    const canListSessions = getAcl().getSessionAccess().read;
     const redirect = canListSessions ? cfg.routes.sessions : cfg.routes.app;
     history.push(redirect);    
   }

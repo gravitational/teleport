@@ -34,7 +34,7 @@ const Access = new Record({
   read: false,
 	edit: false,
 	create: false,
-	delete: false
+	remove: false
 })
 	
 class AccessListRec extends Record({  
@@ -42,11 +42,11 @@ class AccessListRec extends Record({
   trustedClusters: new Access(),
   roles: new Access(),
   sessions: new Access(),
-  sshLogins: []
+  sshLogins: new List()
 }){
   constructor(json = {}) {    
-    let map = toImmutable(json);    
-    let sshLogins = new List(map.get('sshLogins'));            
+    const map = toImmutable(json);    
+    const sshLogins = new List(map.get('sshLogins'));            
     const params = {
       sshLogins: sortLogins(sshLogins),
       authConnectors: new Access(map.get('authConnectors')),
@@ -58,19 +58,19 @@ class AccessListRec extends Record({
     super(params);                
   }
         
-  getSessions() {
+  getSessionAccess() {
     return this.get('sessions');
   }
 
-  getRoles() {
+  getRoleAccess() {
     return this.get('roles');    
   }
 
-  getConnectors() {
+  getConnectorAccess() {
     return this.get('authConnectors');    
   }
   
-  getTrustedClusters() {
+  getClusterAccess() {
     return this.get('trustedClusters');    
   }
       
@@ -79,7 +79,7 @@ class AccessListRec extends Record({
   }
 }
 
-export function getStore() {
+export function getAcl() {
   return reactor.evaluate(['tlpt_user_acl']);
 }
 

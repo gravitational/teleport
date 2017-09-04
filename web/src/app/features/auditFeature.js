@@ -5,7 +5,7 @@ import Sessions from '../components/sessions/main.jsx';
 import PlayerHost from '../components/player/playerHost.jsx';
 import reactor from 'app/reactor';
 import { fetchSiteEventsWithinTimeRange } from 'app/flux/storedSessionsFilter/actions';
-import { getStore } from '../flux/userAcl/store';
+import { getAcl } from '../flux/userAcl/store';
 
 const auditNavItem = {
   icon: 'fa  fa-group',
@@ -50,7 +50,7 @@ class AuditFeature extends FeatureBase {
   }
       
   onload() {     
-    const sessAccess = getStore().getSessions();    
+    const sessAccess = getAcl().getSessionAccess();    
     if (sessAccess.read) {
       addNavItem(auditNavItem);  
       this.init();

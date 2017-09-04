@@ -68,6 +68,10 @@ const api = {
       return err.responseJSON.error.message || msg;
     }
     
+    if (err.responseText) {
+      return err.responseText;
+    }
+
     return msg;
   }    
 }

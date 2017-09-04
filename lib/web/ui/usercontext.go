@@ -10,7 +10,7 @@ type access struct {
 	Read   bool `json:"read"`
 	Edit   bool `json:"edit"`
 	Create bool `json:"create"`
-	Delete bool `json:"delete"`
+	Delete bool `json:"remove"`
 }
 
 type userACL struct {
