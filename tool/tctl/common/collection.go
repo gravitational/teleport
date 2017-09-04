@@ -31,7 +31,7 @@ import (
 	"github.com/ghodss/yaml"
 )
 
-type collection interface {
+type ResourceCollection interface {
 	writeText(w io.Writer) error
 	writeJSON(w io.Writer) error
 	writeYAML(w io.Writer) error
