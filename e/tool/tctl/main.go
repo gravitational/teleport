@@ -25,8 +25,10 @@ import (
 	"github.com/buger/goterm"
 	"github.com/gravitational/teleport/e/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/tool/tctl/common"
+	"github.com/gravitational/trace"
 )
 
 func main() {
@@ -37,9 +39,43 @@ func main() {
 		&common.NodeCommand{},
 		&common.TokenCommand{},
 		&common.AuthCommand{},
-		&common.ResourceCommand{},
+		&common.ResourceCommand{Impl: &common.ResourceCommandImpl{
+			Delete: deleteResource,
+			Create: createResource,
+		}},
 	}
 	common.Run(lib.DistroName, commands)
+}
+
+func deleteResource(ref services.Ref, client *auth.TunClient) error {
+	switch ref.Kind {
+	case services.KindRole:
+		if err := client.DeleteRole(ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("role %s has been deleted\n", ref.Name)
+	}
+	return nil
+}
+func createResource(raw *services.UnknownResource, client *auth.TunClient) error {
+	switch raw.Kind {
+	case services.KindRole:
+		role, err := services.GetRoleMarshaler().UnmarshalRole(raw.Raw)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		err = role.CheckAndSetDefaults()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := client.UpsertRole(role, backend.Forever); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("created role: %v\n", role.GetName())
+	default:
+		return trace.BadParameter("creating resources of type %q is not supported", raw.Kind)
+	}
+	return nil
 }
 
 // listUsers performs `tctl users ls` for the enterprise edition. Unlike the OSS
