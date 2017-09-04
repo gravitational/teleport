@@ -23,11 +23,13 @@ import (
 	"strings"
 
 	"github.com/buger/goterm"
+
 	"github.com/gravitational/teleport/e/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/tool/tctl/common"
+
 	"github.com/gravitational/trace"
 )
 
