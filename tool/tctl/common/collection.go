@@ -31,7 +31,7 @@ import (
 	"github.com/ghodss/yaml"
 )
 
-type collection interface {
+type ResourceCollection interface {
 	writeText(w io.Writer) error
 	writeJSON(w io.Writer) error
 	writeYAML(w io.Writer) error
@@ -43,7 +43,7 @@ type roleCollection struct {
 
 func (r *roleCollection) writeText(w io.Writer) error {
 	t := goterm.NewTable(0, 10, 5, ' ', 0)
-	printHeader(t, []string{"Role", "Allowed to login as", "Node Labels", "Access to resources"})
+	PrintHeader(t, []string{"Role", "Allowed to login as", "Node Labels", "Access to resources"})
 	if len(r.roles) == 0 {
 		_, err := io.WriteString(w, t.String())
 		return trace.Wrap(err)
@@ -93,7 +93,7 @@ type namespaceCollection struct {
 
 func (n *namespaceCollection) writeText(w io.Writer) error {
 	t := goterm.NewTable(0, 10, 5, ' ', 0)
-	printHeader(t, []string{"Name"})
+	PrintHeader(t, []string{"Name"})
 	if len(n.namespaces) == 0 {
 		_, err := io.WriteString(w, t.String())
 		return trace.Wrap(err)
@@ -155,7 +155,7 @@ type serverCollection struct {
 
 func (s *serverCollection) writeText(w io.Writer) error {
 	t := goterm.NewTable(0, 10, 5, ' ', 0)
-	printHeader(t, []string{"Hostname", "UUID", "Address", "Labels"})
+	PrintHeader(t, []string{"Hostname", "UUID", "Address", "Labels"})
 	if len(s.servers) == 0 {
 		_, err := io.WriteString(w, t.String())
 		return trace.Wrap(err)
@@ -197,17 +197,8 @@ type userCollection struct {
 }
 
 func (s *userCollection) writeText(w io.Writer) error {
-	t := goterm.NewTable(0, 10, 5, ' ', 0)
-	printHeader(t, []string{"User", "Roles", "Created By"})
-	if len(s.users) == 0 {
-		_, err := io.WriteString(w, t.String())
-		return trace.Wrap(err)
-	}
-	for _, u := range s.users {
-		fmt.Fprintf(t, "%v\t%v\t%v\n", u.GetName(), strings.Join(u.GetRoles(), ","), u.GetCreatedBy().String())
-	}
-	_, err := io.WriteString(w, t.String())
-	return trace.Wrap(err)
+	// a user collection does not need this method
+	return nil
 }
 
 func (s *userCollection) writeJSON(w io.Writer) error {
@@ -241,7 +232,7 @@ type authorityCollection struct {
 
 func (a *authorityCollection) writeText(w io.Writer) error {
 	t := goterm.NewTable(0, 10, 5, ' ', 0)
-	printHeader(t, []string{"Cluster Name", "CA Type", "Fingerprint", "Role Map"})
+	PrintHeader(t, []string{"Cluster Name", "CA Type", "Fingerprint", "Role Map"})
 	for _, a := range a.cas {
 		for _, keyBytes := range a.GetCheckingKeys() {
 			fingerprint, err := sshutils.AuthorizedKeyFingerprint(keyBytes)
@@ -292,7 +283,7 @@ type reverseTunnelCollection struct {
 
 func (r *reverseTunnelCollection) writeText(w io.Writer) error {
 	t := goterm.NewTable(0, 10, 5, ' ', 0)
-	printHeader(t, []string{"Cluster Name", "Dial Addresses"})
+	PrintHeader(t, []string{"Cluster Name", "Dial Addresses"})
 	for _, tunnel := range r.tunnels {
 		fmt.Fprintf(t, "%v\t%v\n", tunnel.GetClusterName(), strings.Join(tunnel.GetDialAddrs(), ","))
 	}
@@ -331,7 +322,7 @@ type oidcCollection struct {
 
 func (c *oidcCollection) writeText(w io.Writer) error {
 	t := goterm.NewTable(0, 10, 5, ' ', 0)
-	printHeader(t, []string{"Name", "Issuer URL", "Additional Scope"})
+	PrintHeader(t, []string{"Name", "Issuer URL", "Additional Scope"})
 	for _, conn := range c.connectors {
 		fmt.Fprintf(t, "%v\t%v\t%v\n", conn.GetName(), conn.GetIssuerURL(), strings.Join(conn.GetScope(), ","))
 	}
@@ -370,7 +361,7 @@ type samlCollection struct {
 
 func (c *samlCollection) writeText(w io.Writer) error {
 	t := goterm.NewTable(0, 10, 5, ' ', 0)
-	printHeader(t, []string{"Name", "SSO URL"})
+	PrintHeader(t, []string{"Name", "SSO URL"})
 	for _, conn := range c.connectors {
 		fmt.Fprintf(t, "%v\t%v\n", conn.GetName(), conn.GetSSO())
 	}
@@ -409,7 +400,7 @@ type trustedClusterCollection struct {
 
 func (c *trustedClusterCollection) writeText(w io.Writer) error {
 	t := goterm.NewTable(0, 10, 5, ' ', 0)
-	printHeader(t, []string{"Name", "Enabled", "Token", "Proxy Address", "Reverse Tunnel Address", "Role Map"})
+	PrintHeader(t, []string{"Name", "Enabled", "Token", "Proxy Address", "Reverse Tunnel Address", "Role Map"})
 	for _, tc := range c.trustedClusters {
 		fmt.Fprintf(t, "%v\t%v\t%v\t%v\t%v\t%v\n", tc.GetName(), tc.GetEnabled(), tc.GetToken(), tc.GetProxyAddress(), tc.GetReverseTunnelAddress(), tc.CombinedMapping())
 	}
@@ -448,7 +439,7 @@ type authPreferenceCollection struct {
 
 func (c *authPreferenceCollection) writeText(w io.Writer) error {
 	t := goterm.NewTable(0, 10, 5, ' ', 0)
-	printHeader(t, []string{"Type", "Second Factor"})
+	PrintHeader(t, []string{"Type", "Second Factor"})
 	fmt.Fprintf(t, "%v\t%v\n", c.GetType(), c.GetSecondFactor())
 	_, err := io.WriteString(w, t.String())
 	return trace.Wrap(err)

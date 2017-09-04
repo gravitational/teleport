@@ -361,7 +361,7 @@ func ParseShortcut(in string) (string, error) {
 		return "", trace.BadParameter("missing resource name")
 	}
 	switch strings.ToLower(in) {
-	case "roles":
+	case "role", "roles":
 		return KindRole, nil
 	case "namespaces", "ns":
 		return KindNamespace, nil
@@ -369,19 +369,19 @@ func ParseShortcut(in string) (string, error) {
 		return KindAuthServer, nil
 	case "proxies":
 		return KindProxy, nil
-	case "nodes":
+	case "nodes", "node":
 		return KindNode, nil
 	case "oidc":
 		return KindOIDCConnector, nil
 	case "saml":
 		return KindSAMLConnector, nil
-	case "users":
+	case "user", "users":
 		return KindUser, nil
 	case "cert_authorities", "cas":
 		return KindCertAuthority, nil
 	case "reverse_tunnels", "rts":
 		return KindReverseTunnel, nil
-	case "trusted_cluster", "tc":
+	case "trusted_cluster", "tc", "cluster", "clusters":
 		return KindTrustedCluster, nil
 	case "cluster_authentication_preferences", "cap":
 		return KindClusterAuthPreference, nil
@@ -441,5 +441,5 @@ func (r *Ref) Set(v string) error {
 }
 
 func (r *Ref) String() string {
-	return fmt.Sprintf("%v/%v", r.Kind, r.Name)
+	return fmt.Sprintf("%s/%s", r.Kind, r.Name)
 }
