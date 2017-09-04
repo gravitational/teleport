@@ -46,16 +46,6 @@ type UserCommand struct {
 	userUpdate *kingpin.CmdClause
 	userList   *kingpin.CmdClause
 	userDelete *kingpin.CmdClause
-
-	// behavior of the user command can be changed by providing
-	// different implementations of subcommands commands
-	Impl *UserCommandImpl
-}
-
-// UserCommandImpl is used to supply alternative implementations of
-// user subcommands
-type UserCommandImpl struct {
-	List func([]services.User, *auth.TunClient) error
 }
 
 // Initialize allows UserCommand to plug itself into the CLI parser
@@ -113,25 +103,30 @@ func (u *UserCommand) Add(client *auth.TunClient) error {
 	if err != nil {
 		return err
 	}
-	proxies, err := client.GetProxies()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	hostname := "teleport-proxy"
-	if len(proxies) == 0 {
-		fmt.Printf("\x1b[1mWARNING\x1b[0m: this Teleport cluster does not have any proxy servers online.\nYou need to start some to be able to login.\n\n")
-	} else {
-		hostname = proxies[0].GetHostname()
-	}
 
 	// try to auto-suggest the activation link
+	u.PrintSignupURL(client, token)
+	return nil
+}
+
+func (u *UserCommand) PrintSignupURL(client *auth.TunClient, token string) {
+	hostname := "your.teleport.proxy"
+
+	proxies, err := client.GetProxies()
+	if err == nil {
+		if len(proxies) == 0 {
+			fmt.Printf("\x1b[1mWARNING\x1b[0m: this Teleport cluster does not have any proxy servers online.\nYou need to start some to be able to login.\n\n")
+		} else {
+			hostname = proxies[0].GetHostname()
+		}
+	}
 	_, proxyPort, err := net.SplitHostPort(u.config.Proxy.WebAddr.Addr)
 	if err != nil {
 		proxyPort = strconv.Itoa(defaults.HTTPListenPort)
 	}
 	url := web.CreateSignupLink(net.JoinHostPort(hostname, proxyPort), token)
-	fmt.Printf("Signup token has been created and is valid for %v seconds. Share this URL with the user:\n%v\n\nNOTE: make sure '%s' is accessible!\n", defaults.MaxSignupTokenTTL.Seconds(), url, hostname)
-	return nil
+	fmt.Printf("Signup token has been created and is valid for %v seconds. Share this URL with the user:\n%v\n\nNOTE: make sure '%s' is accessible!\n",
+		defaults.MaxSignupTokenTTL.Seconds(), url, hostname)
 }
 
 // Update updates existing user
@@ -163,10 +158,6 @@ func (u *UserCommand) List(client *auth.TunClient) error {
 	if len(users) == 0 {
 		fmt.Println("No users found")
 		return nil
-	}
-	// see if "user ls" command is customized
-	if u.Impl != nil && u.Impl.List != nil {
-		return u.Impl.List(users, client)
 	}
 	t := goterm.NewTable(0, 10, 5, ' ', 0)
 	PrintHeader(t, []string{"User", "Allowed logins"})

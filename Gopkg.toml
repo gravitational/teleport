@@ -74,7 +74,7 @@
 
 [[constraint]]
   name = "github.com/gravitational/kingpin"
-  branch = "master"
+  revision = "d5e216317e25d1472d208dfcca18cd8fbce6ed54"
 
 [[constraint]]
   branch = "master"
