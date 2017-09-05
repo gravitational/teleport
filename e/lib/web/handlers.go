@@ -176,16 +176,21 @@ func getResourceByKind(kind string, client auth.ClientI) ([]ui.ConfigItem, error
 }
 
 func upsertResource(kind string, data string, client auth.ClientI) (interface{}, error) {
-	var raw services.UnknownResource
+	var unknownRes services.UnknownResource
 	reader := strings.NewReader(data)
 	decoder := kyaml.NewYAMLOrJSONDecoder(reader, 32*1024)
-	err := decoder.Decode(&raw)
+	err := decoder.Decode(&unknownRes)
 	if err != nil {
 		return nil, trace.BadParameter("Not a valid resource declaration")
 	}
 
-	json := raw.Raw
-	switch raw.Kind {
+	kind = resolveKindValue(unknownRes.Kind, kind)
+	if kind == "" {
+		return nil, trace.BadParameter("Invalid value for kind")
+	}
+
+	json := unknownRes.Raw
+	switch kind {
 	case services.KindSAMLConnector:
 		conn, err := services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(json)
 		if err != nil {
@@ -248,8 +253,23 @@ func upsertResource(kind string, data string, client auth.ClientI) (interface{},
 	case "":
 		return nil, trace.BadParameter("missing resource kind")
 	default:
-		return nil, trace.BadParameter("%q is not supported", raw.Kind)
+		return nil, trace.BadParameter("%q is not supported", kind)
 	}
+}
+
+func resolveKindValue(given string, expected string) string {
+	if expected == services.KindAuthConnector {
+		// AuthConnector might be of 2 types OIDC and SAML
+		if given == services.KindOIDCConnector || given == services.KindSAMLConnector {
+			expected = given
+		}
+	}
+
+	if expected != given {
+		return ""
+	}
+
+	return expected
 }
 
 func withAccessDeniedMessage(err error, verb string, kind string) error {
