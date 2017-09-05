@@ -50,7 +50,7 @@ func (p *Plugin) getResourceHandler(w http.ResponseWriter, r *http.Request, para
 }
 
 func (p *Plugin) upsertResourceHandler(w http.ResponseWriter, r *http.Request, params httprouter.Params, c *web.SessionContext) (interface{}, error) {
-	var item2Upsert *ui.ConfigItem
+	var item2Upsert ui.ConfigItem
 	if err := httplib.ReadJSON(r, &item2Upsert); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -184,13 +184,13 @@ func upsertResource(kind string, data string, client auth.ClientI) (interface{},
 		return nil, trace.BadParameter("Not a valid resource declaration")
 	}
 
-	kind = resolveKindValue(unknownRes.Kind, kind)
-	if kind == "" {
-		return nil, trace.BadParameter("Invalid value for kind")
+	err = ensureKindValue(unknownRes.Kind, kind)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	json := unknownRes.Raw
-	switch kind {
+	switch unknownRes.Kind {
 	case services.KindSAMLConnector:
 		conn, err := services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(json)
 		if err != nil {
@@ -253,23 +253,24 @@ func upsertResource(kind string, data string, client auth.ClientI) (interface{},
 	case "":
 		return nil, trace.BadParameter("missing resource kind")
 	default:
-		return nil, trace.BadParameter("%q is not supported", kind)
+		return nil, trace.BadParameter("%q is not supported", unknownRes.Kind)
 	}
 }
 
-func resolveKindValue(given string, expected string) string {
+// ensureKindValue verifies that given resource kind matches its expected value.
+func ensureKindValue(given string, expected string) error {
 	if expected == services.KindAuthConnector {
 		// AuthConnector might be of 2 types OIDC and SAML
 		if given == services.KindOIDCConnector || given == services.KindSAMLConnector {
-			expected = given
+			return nil
 		}
 	}
 
-	if expected != given {
-		return ""
+	if expected == given {
+		return nil
 	}
 
-	return expected
+	return trace.BadParameter("Invalid value for kind")
 }
 
 func withAccessDeniedMessage(err error, verb string, kind string) error {
