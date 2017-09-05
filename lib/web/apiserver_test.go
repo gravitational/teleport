@@ -27,7 +27,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
@@ -739,6 +738,10 @@ func (s *WebSuite) TestWebSessionsBadInput(c *C) {
 	}
 }
 
+type getSiteNodeResponse struct {
+	Items []services.ServerV1 `json:"items"`
+}
+
 func (s *WebSuite) TestGetSiteNodes(c *C) {
 	pack := s.authPack(c)
 
@@ -746,18 +749,17 @@ func (s *WebSuite) TestGetSiteNodes(c *C) {
 	re, err := pack.clt.Get(pack.clt.Endpoint("webapi", "sites", s.domainName, "nodes"), url.Values{})
 	c.Assert(err, IsNil)
 
-	var nodes *getSiteNodesResponse
+	nodes := getSiteNodeResponse{}
 	c.Assert(json.Unmarshal(re.Bytes(), &nodes), IsNil)
-	c.Assert(len(nodes.Nodes), Equals, 1)
+	c.Assert(len(nodes.Items), Equals, 1)
 
 	// get site nodes using shortcut
 	re, err = pack.clt.Get(pack.clt.Endpoint("webapi", "sites", currentSiteShortcut, "nodes"), url.Values{})
 	c.Assert(err, IsNil)
 
-	var nodes2 *getSiteNodesResponse
+	nodes2 := getSiteNodeResponse{}
 	c.Assert(json.Unmarshal(re.Bytes(), &nodes2), IsNil)
-	c.Assert(len(nodes.Nodes), Equals, 1)
-
+	c.Assert(len(nodes.Items), Equals, 1)
 	c.Assert(nodes2, DeepEquals, nodes)
 }
 
@@ -893,62 +895,6 @@ func (s *WebSuite) TestTerminal(c *C) {
 		// everything is as expected
 	}
 
-}
-
-func (s *WebSuite) TestNodesWithSessions(c *C) {
-	sid := session.NewID()
-	pack := s.authPack(c)
-	clt, err := s.makeTerminal(pack, sid)
-	c.Assert(err, IsNil)
-	defer clt.Close()
-
-	// to make sure we have a session
-	_, err = io.WriteString(clt, "echo vinsong\r\n")
-	c.Assert(err, IsNil)
-
-	// make sure server has replied
-	out := make([]byte, 1024)
-	n := 0
-	for err == nil {
-		clt.SetReadDeadline(time.Now().Add(time.Millisecond * 20))
-		n, err = clt.Read(out)
-		if err == nil && n > 0 {
-			break
-		}
-		ne, ok := err.(net.Error)
-		if ok && ne.Timeout() {
-			err = nil
-			continue
-		}
-		c.Error(err)
-	}
-
-	var nodes *getSiteNodesResponse
-	for i := 0; i < 10; i++ {
-		// get site nodes and make sure the node has our active party
-		re, err := pack.clt.Get(pack.clt.Endpoint("webapi", "sites", s.domainName, "nodes"), url.Values{})
-		c.Assert(err, IsNil)
-
-		c.Assert(json.Unmarshal(re.Bytes(), &nodes), IsNil)
-		c.Assert(len(nodes.Nodes), Equals, 1)
-
-		if len(nodes.Nodes[0].Sessions) == 1 {
-			break
-		}
-		// sessions do not appear momentarily as there's async heartbeat
-		// procedure
-		time.Sleep(30 * time.Millisecond)
-	}
-
-	c.Assert(len(nodes.Nodes[0].Sessions), Equals, 1)
-	c.Assert(nodes.Nodes[0].Sessions[0].ID, Equals, sid)
-
-	// connect to session stream and receive events
-	stream := s.sessionStream(c, pack, sid)
-	defer stream.Close()
-	var event *sessionStreamEvent
-	c.Assert(websocket.JSON.Receive(stream, &event), IsNil)
-	c.Assert(event, NotNil)
 }
 
 func (s *WebSuite) TestCloseConnectionsOnLogout(c *C) {
