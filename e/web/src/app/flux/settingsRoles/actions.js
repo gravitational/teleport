@@ -7,7 +7,7 @@ import Logger from 'telebase-app/lib/logger';
 import apiActions from 'app/flux/restApi/actions';
 import * as AT from './actionTypes';
 import { closeDeleteDialog } from '../settings/actions';
-import { checkResourceKind } from './../utils';
+import { getRoleStore } from './store';
 
 const logger = Logger.create('flux/settingsCluster/actions');
 
@@ -25,16 +25,17 @@ export function saveRole(rolRec) {
     apiActions.fail(TRYING_TO_SAVE_ROLE, msg);            
   }
 
+  const updateStore = items => reactor.batch(()=> {
+    reactor.dispatch(AT.UPSERT_ROLES, items);
+    setCurRole(items[0].name);        
+    apiActions.success(TRYING_TO_SAVE_ROLE);      
+  })
+
   try {
     const yaml = rolRec.getContent();  
-    checkResourceKind([ResourceEnum.ROLE], yaml);  
     apiActions.start(TRYING_TO_SAVE_ROLE);                          
-    return resApi.upsert(yaml)      
-      .done( items => {            
-        reactor.dispatch(AT.UPSERT_ROLES, items);
-        setCurRole(items[0].name);        
-        apiActions.success(TRYING_TO_SAVE_ROLE);      
-      })
+    return resApi.upsert(ResourceEnum.ROLE, yaml, rolRec.getIsNew())      
+      .done(updateStore)
       .fail(handleError)
   }    
   catch(err){
@@ -42,15 +43,20 @@ export function saveRole(rolRec) {
   }
 }
     
-export function deleteRole(id) {  
+export function deleteRole(id) {    
+  const updateStore = () => {
+    reactor.batch(()=>{
+      const next = getRoleStore().getNext(id);      
+      closeDeleteDialog();            
+      reactor.dispatch(AT.DELETE_ROLE, id);            
+      apiActions.success(TRYING_TO_DELETE_RESOURCE);
+      setCurRole(next);
+    })
+  }
+
   apiActions.start(TRYING_TO_DELETE_RESOURCE);      
   resApi.remove(ResourceEnum.ROLE, id)  
-    .then(fetchRoles)
-    .done(() => {      
-      setCurRole(null)
-      closeDeleteDialog();      
-      apiActions.success(TRYING_TO_DELETE_RESOURCE);
-    })
+    .done(updateStore)
     .fail(err => {
       const msg = api.getErrorText(err);
       logger.error('deleteRole()', err);

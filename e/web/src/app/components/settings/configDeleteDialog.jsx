@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { PropTypes } from 'react';
 import Button from 'app/components/common/button';
+import { ResourceEnum } from 'app/services/enums'
 import * as Alerts from './../common/alerts';
 import {
   GrvDialogHeader,
@@ -10,6 +11,22 @@ import { connect } from 'nuclear-js-react-addons';
 import getters from 'app/flux/settings/getters';
 import { closeDeleteDialog } from 'app/flux/settings/actions';
 
+const getResourceKind = kind => {  
+  if(kind === ResourceEnum.OIDC || kind === ResourceEnum.SAML){
+    return 'auth.connector'
+  }
+
+  if(kind === ResourceEnum.ROLE){
+    return 'role'
+  }
+
+  if(kind === ResourceEnum.TRUSTED_CLUSTER){
+    return 'trusted cluster'
+  }
+
+  return 'resource';
+}
+
 const ConfigDeleteDialog = props => {    
   const { store, attempt, onContinue } = props;
   const { isProcessing, isFailed, message } = attempt;
@@ -19,7 +36,9 @@ const ConfigDeleteDialog = props => {
     return null;
   }    
         
-  const id = resItem.getName();
+  const id = resItem.getName();  
+  const kindText = getResourceKind(resItem.getKind());
+  const messagePrefix = `You are about to delete ${kindText} `;
 
   return (
     <GrvDialog title="" className="grv-dialog-no-body grv-dialog-sm grv-dialog-confirm grv-settings-dlg-delete">
@@ -32,7 +51,7 @@ const ConfigDeleteDialog = props => {
             <h3 className="m-b-xs">Are you sure?</h3>
             <div>
               <small>
-                You are about to delete resource <strong>{id}</strong>.
+                {messagePrefix} <strong>{id}</strong>.
               </small>
             </div>
           </div>          
@@ -58,6 +77,12 @@ const ConfigDeleteDialog = props => {
     </GrvDialog>
   );
 }
+
+ConfigDeleteDialog.propTypes = {
+  store: PropTypes.object.isRequired,  
+  attempt: PropTypes.object.isRequired
+};
+
 
 function mapStateToProps() {
   return {    

@@ -49,7 +49,7 @@ const Button = props => {
     children,
     isDisabled = false} = props;
 
-  let containerClass = classnames('btn ' + className, {
+  let containerClass = classnames('btn', className, {
     'disabled': isDisabled,
     'btn-block': isBlock,
     'btn-sm': size === SizeEnum.SM,

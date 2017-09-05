@@ -4,12 +4,13 @@ import apiActions from 'app/flux/restApi/actions';
 import reactor from 'app/reactor';
 import api from 'app/services/api';
 import * as resApi from 'app/services/resources';
-import { checkResourceKind } from './../utils';
 import { closeDeleteDialog } from '../settings/actions';
+import { getClusterStore } from './store';
 import * as RAT from 'app/flux/restApi/constants';
 import * as AT from './actionTypes';
 
 const logger = Logger.create('flux/settingsCluster/actions');
+const TRUSTED_CLUSTER = ResourceEnum.TRUSTED_CLUSTER;
 
 export function setCurCluster(item) {      
   reactor.batch(() => {  
@@ -25,16 +26,17 @@ export function saveCluster(cluster) {
     apiActions.fail(RAT.TRYING_TO_SAVE_CLUSTER, msg);            
   }
 
+  const updateStore = items => reactor.batch(()=> {
+    reactor.dispatch(AT.UPDATE_CLUSTERS, items);
+    setCurCluster(items[0].name);        
+    apiActions.success(RAT.TRYING_TO_SAVE_CLUSTER);            
+  })
+
   try {
     const yaml = cluster.getContent();
-    apiActions.start(RAT.TRYING_TO_SAVE_CLUSTER);            
-    checkResourceKind([ResourceEnum.TRUSTED_CLUSTER], yaml);  
-    return resApi.upsert(yaml)            
-      .done( items => {
-        reactor.dispatch(AT.UPDATE_CLUSTERS, items);
-        setCurCluster(items[0].name);        
-        apiActions.success(RAT.TRYING_TO_SAVE_CLUSTER);            
-      })
+    apiActions.start(RAT.TRYING_TO_SAVE_CLUSTER);                  
+    return resApi.upsert(TRUSTED_CLUSTER, yaml, cluster.getIsNew())            
+      .done(updateStore)
       .fail(handleError);
   }    
   catch(err){
@@ -43,14 +45,17 @@ export function saveCluster(cluster) {
 }
 
 export function deleteCluster(id) {  
+  const updateStore = () => reactor.batch(()=> {
+    const next = getClusterStore().getNext(id);      
+    closeDeleteDialog();      
+    reactor.dispatch(AT.DELETE_CLUSTER, id);
+    setCurCluster(next);
+    apiActions.success(RAT.TRYING_TO_DELETE_RESOURCE);
+  });
+  
   apiActions.start(RAT.TRYING_TO_DELETE_RESOURCE);      
-  resApi.remove(ResourceEnum.TRUSTED_CLUSTER, id)  
-    .then(fetchTrustedClusters)
-    .done(() => {      
-      saveCluster(null)
-      closeDeleteDialog();      
-      apiActions.success(RAT.TRYING_TO_DELETE_RESOURCE);
-    })
+  resApi.remove(TRUSTED_CLUSTER, id)      
+    .done(updateStore)
     .fail(err => {
       const msg = api.getErrorText(err);
       logger.error('deleteCluster()', err);

@@ -3,7 +3,6 @@ import { requestStatus } from 'app/flux/restApi/getters';
 
 export default {  
   store: ['tlp_settings'],
-  dialogsStore: ['tlp_settings_dialogs'],
-  initAttempt: requestStatus(API.TRYING_TO_INIT_SETTINGS),
+  dialogsStore: ['tlp_settings_dialogs'],  
   deleteAttempt: requestStatus(API.TRYING_TO_DELETE_RESOURCE)
 }

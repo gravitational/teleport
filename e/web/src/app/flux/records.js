@@ -19,6 +19,10 @@ export class ItemRec extends Record({
     })
   }
 
+  getIsNew(){
+    return this.get('isNew');
+  }
+
   getName(){
     return this.get('name');
   }
@@ -38,16 +42,11 @@ export class ItemRec extends Record({
 
 export class StoreRec extends Record({
   curItem: null,
-  itemToDelete: null,
   items: Map()
 }){
-    
-  getItemToDelete(){
-    return this.get('itemToDelete');
-  }
-
+      
   getItems(){
-    return this.items.valueSeq();
+    return this.items.valueSeq().sortBy(i => i.getName());
   }
   
   getCurItem(){    
@@ -77,6 +76,34 @@ export class StoreRec extends Record({
     return this.set('items', new Map())
   }
 
+  remove(id){        
+    return this.deleteIn(['items', id]);      
+  }
+
+  getNext(id){
+    const curItem = this.findItem(id);            
+    if(!curItem){
+      return null;
+    }
+
+    const itemList = this.getItems();
+    const index = itemList.indexOf(curItem);      
+
+    if(itemList.size === 1){
+      return null;
+    }
+
+    if(index === 0){
+      return itemList.get(1);
+    }
+
+    if(index === itemList.size -1){
+      return itemList.get(index-1);
+    }
+    
+    return itemList.get(index+1);              
+  }
+
   createItem(){
     return new ItemRec({ isNew: true });
   }
@@ -85,11 +112,7 @@ export class StoreRec extends Record({
     let store = this.removeAll();
     return store.upsertItems(jsonItems);            
   }  
-  
-  setItemToDelete(id) {
-    return this.set('itemToDelete', id);
-  }
-
+    
   setCurItem(item/* string|itemRec*/){        
     if(item && item.isNew ){
       return this.set('curItem', item);        
@@ -97,7 +120,7 @@ export class StoreRec extends Record({
 
     const found = this.findItem(item);    
     if (!found) {
-      const firstAvailable = this.get('items').first();
+      const firstAvailable = this.getItems().first();
       if (firstAvailable) {
         return this.setCurItem(firstAvailable);  
       }else{

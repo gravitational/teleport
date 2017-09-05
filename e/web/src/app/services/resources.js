@@ -2,29 +2,30 @@ import api from 'app/services/api';
 import { ResourceEnum } from 'app/services/enums';
 import cfg from 'app/config';
 
-export function getOidc(){
-  return api.get(cfg.getResourcesUrl(ResourceEnum.OIDC))
-    .then(res => { return res.items || [] })   
-}
+const unpackItems = res => res.items || [];
 
-export function getSaml(){
-  return api.get(cfg.getResourcesUrl(ResourceEnum.SAML))
-    .then(res => { return res.items || [] })   
+export function getAuthProviders(){
+  return api.get(cfg.getResourcesUrl(ResourceEnum.AUTH_CONNECTORS))
+    .then(unpackItems)   
 }
 
 export function getRoles(){
   return api.get(cfg.getResourcesUrl(ResourceEnum.ROLE))
-    .then(res => { return res.items || [] })   
+    .then(unpackItems)   
 }
 
 export function getTrustedClusters(){
   return api.get(cfg.getResourcesUrl(ResourceEnum.TRUSTED_CLUSTER))
-    .then(res => { return res.items || [] })   
+    .then(unpackItems)   
 }
 
-export function upsert(yaml){
-  return api.put(cfg.getResourcesUrl(), { yaml } )          
-    .then(res => { return res.items || [] })     
+export function upsert(kind, yaml, isNew=false){
+  const req = { kind, content: yaml };
+  if(isNew){
+    return api.post(cfg.getResourcesUrl(), req).then(unpackItems)     
+  }
+
+  return api.put(cfg.getResourcesUrl(), req).then(unpackItems)     
 }
 
 export function remove(kind, name){

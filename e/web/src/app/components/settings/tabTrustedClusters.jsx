@@ -1,11 +1,12 @@
 import React from 'react';
-import connect from 'telebase-app/lib/connect';
+import connect from 'telebase-app/components/connect';
 import getters from 'app/flux/settingsClusters/getters';
+import userAclGetters from 'telebase-app/flux/userAcl/getters';
 import * as actions from 'app/flux/settingsClusters/actions';
 import ConfigItemList from './configItemList';
 import {openDeleteDialog} from 'app/flux/settings/actions';
 import ConfigDeleteDialog from './configDeleteDialog';
-import { EmptyList } from './emptyCfg';
+import { EmptyList } from './elements';
 import ConfidAddEdit from './configAddEdit';
 import ChangeTracker from './../changeTracker';
   
@@ -42,22 +43,31 @@ class TrustedClusters extends React.Component {
   }
   
   render() {    
-    const { store, saveAttempt } = this.props;                
+    const { store, saveAttempt, userAclStore } = this.props;                
     const curItem = store.getCurItem();
     const items = store.getItems();
-    
+    const access = userAclStore.getClusterAccess();
+    const canCreate = access.create;
+
+    const props = {
+      ref: e => this.refTracker = e,
+      className: "grv-settings-tab",
+      route: this.props.route
+    }
+
     if(!curItem){
       return (
-        <div className="grv-settings-tab">                                             
-          <EmptyList onClick={this.onNewItem}/>
-        </div>
+        <ChangeTracker {...props}>         
+          <EmptyList canCreate={canCreate} onClick={this.onNewItem}/>
+        </ChangeTracker>
       )
     }
                 
     return (      
-      <ChangeTracker ref={ e => this.refTracker = e } className="grv-settings-tab" route={this.props.route}> 
+      <ChangeTracker {...props}> 
         { !curItem.isNew &&
         <ConfigItemList          
+          canCreate={canCreate}
           btnText="New Trusted Cluster"
           curItem={curItem}
           items={items}          
@@ -65,11 +75,11 @@ class TrustedClusters extends React.Component {
           onItemClick={this.onItemClick}                        
         />      
         }
-        <ConfidAddEdit 
-          key={curItem.key}
+        <ConfidAddEdit           
           onCancel={this.onCancelNewItem}
           onDelete={this.onItemDelete}
           onSave={this.onItemSave}
+          access={access}
           item={curItem} 
           saveAttempt={saveAttempt}/>        
         <ConfigDeleteDialog onContinue={actions.deleteCluster} />                          
@@ -80,6 +90,7 @@ class TrustedClusters extends React.Component {
 
 function mapStateToProps() {
   return {    
+    userAclStore: userAclGetters.userAcl,
     saveAttempt: getters.saveAttempt,
     store: getters.store
   }  
