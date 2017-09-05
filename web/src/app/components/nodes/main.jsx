@@ -24,7 +24,7 @@ import NodeList from './nodeList.jsx';
 
 const Nodes = props => {  
   const { nodeRecords, aclStore, sites, siteId } = props;
-  const logins = aclStore.getSshLogins();
+  const logins = aclStore.getSshLogins().toJS();
   return (   
     <div className="grv-page">
       <NodeList

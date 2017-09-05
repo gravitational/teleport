@@ -1,0 +1,15 @@
+.grv-alert {
+  padding: 10px;  
+  border: 1px solid transparent;  
+  max-height: 100px;
+  text-overflow: ellipsis;
+  overflow: auto;
+  text-align: left;
+}
+
+.grv-alert-danger {
+  color: #a94442;
+  background-color: #f2dede;
+  border-color: #ebccd1;  
+  text-overflow: ellipsis;
+}

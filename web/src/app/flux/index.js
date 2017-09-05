@@ -18,9 +18,10 @@ import reactor from 'app/reactor';
 import termStore from './terminal/store';
 import playerStore from './player/store';
 import userAcl from './userAcl/store';
+import appStore from './app/appStore';
 
 reactor.registerStores({
-  'tlpt': require('./app/appStore'),    
+  'tlpt': appStore,    
   'tlpt_terminal': termStore,
   'tlpt_player': playerStore,    
   'tlpt_user': require('./user/userStore'),  

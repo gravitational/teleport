@@ -18,24 +18,10 @@ var {TRYING_TO_LOGIN, TRYING_TO_SIGN_UP, FETCHING_INVITE} = require('app/flux/re
 var {requestStatus} = require('app/flux/restApi/getters');
 
 const invite = [ ['tlpt_user_invite'], invite => invite ];
-
-const user = [ ['tlpt_user'], (currentUser) => {
-    if(!currentUser){
-      return null;
-    }
-
-    var name = currentUser.get('name') || '';
-    var shortDisplayName = name[0] || '';
-
-    return {
-      name,
-      shortDisplayName      
-    }
-  }
-];
+const userName = ['tlpt_user', 'name']
 
 export default {
-  user,
+  userName,
   invite,
   loginAttemp: requestStatus(TRYING_TO_LOGIN),
   attemp: requestStatus(TRYING_TO_SIGN_UP),
