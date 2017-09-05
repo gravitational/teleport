@@ -1,7 +1,7 @@
 package web
 
 import (
-	"io"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -15,6 +15,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+	log "github.com/sirupsen/logrus"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
@@ -36,9 +37,12 @@ func (p *Plugin) getResourceHandler(w http.ResponseWriter, r *http.Request, para
 		return nil, trace.Wrap(err)
 	}
 
-	resourceKind := params.ByName("kind")
-	data, err := getResourceByKind(resourceKind, clt)
+	kind := params.ByName("kind")
+	data, err := getResourceByKind(kind, clt)
 	if err != nil {
+		if trace.IsAccessDenied(err) {
+			return nil, withAccessDeniedMessage(err, services.VerbRead, kind)
+		}
 		return nil, trace.Wrap(err)
 	}
 
@@ -46,8 +50,8 @@ func (p *Plugin) getResourceHandler(w http.ResponseWriter, r *http.Request, para
 }
 
 func (p *Plugin) upsertResourceHandler(w http.ResponseWriter, r *http.Request, params httprouter.Params, c *web.SessionContext) (interface{}, error) {
-	var req *upsertRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	var item2Upsert ui.ConfigItem
+	if err := httplib.ReadJSON(r, &item2Upsert); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -56,8 +60,16 @@ func (p *Plugin) upsertResourceHandler(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
-	items, err := upsertResource(req.Yaml, client)
+	items, err := upsertResource(item2Upsert.Kind, item2Upsert.Content, client)
 	if err != nil {
+		if trace.IsAccessDenied(err) {
+			verb := services.VerbUpdate
+			if r.Method == "POST" {
+				verb = services.VerbCreate
+			}
+
+			return nil, withAccessDeniedMessage(err, verb, item2Upsert.Kind)
+		}
 		return nil, trace.Wrap(err)
 	}
 
@@ -73,14 +85,13 @@ func (p *Plugin) deleteResourceHandler(w http.ResponseWriter, r *http.Request, p
 	resourceKind := params.ByName("kind")
 	resourceName := params.ByName("name")
 	if err := deleteResource(resourceKind, resourceName, client); err != nil {
+		if trace.IsAccessDenied(err) {
+			return nil, withAccessDeniedMessage(err, services.VerbDelete, resourceKind)
+		}
 		return nil, trace.Wrap(err)
 	}
 
 	return ok(), nil
-}
-
-type upsertRequest struct {
-	Yaml string `json:"yaml"`
 }
 
 // message returns structured message response
@@ -120,23 +131,33 @@ func deleteResource(resourceKind string, resourceName string, client auth.Client
 	}
 }
 
-func getResourceByKind(kind string, client auth.ClientI) (interface{}, error) {
+func getResourceByKind(kind string, client auth.ClientI) ([]ui.ConfigItem, error) {
 	if kind == "" {
 		return nil, trace.BadParameter("specify resource to list, e.g. 'tctl get roles'")
 	}
 	switch kind {
-	case services.KindSAMLConnector:
-		connectors, err := client.GetSAMLConnectors(true)
+	case services.KindAuthConnector:
+		oidcConnectors, err := client.GetOIDCConnectors(true)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return ui.ConvertSAMLConnectors(connectors)
-	case services.KindOIDCConnector:
-		connectors, err := client.GetOIDCConnectors(true)
+
+		samlConnectors, err := client.GetSAMLConnectors(true)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return ui.ConvertOIDCConnectors(connectors)
+
+		uiSAMLItems, err := ui.ConvertSAMLConnectors(samlConnectors)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		uiOIDCItems, err := ui.ConvertOIDCConnectors(oidcConnectors)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return append(uiSAMLItems, uiOIDCItems...), nil
 	case services.KindRole:
 		roles, err := client.GetRoles()
 		if err != nil {
@@ -154,23 +175,24 @@ func getResourceByKind(kind string, client auth.ClientI) (interface{}, error) {
 	return nil, trace.BadParameter("'%v' is not supported", kind)
 }
 
-func upsertResource(data string, client auth.ClientI) (interface{}, error) {
-	var raw services.UnknownResource
+func upsertResource(kind string, data string, client auth.ClientI) (interface{}, error) {
+	var unknownRes services.UnknownResource
 	reader := strings.NewReader(data)
 	decoder := kyaml.NewYAMLOrJSONDecoder(reader, 32*1024)
-	err := decoder.Decode(&raw)
+	err := decoder.Decode(&unknownRes)
 	if err != nil {
-		if err == io.EOF {
-			return nil, trace.BadParameter("no resources found, emtpy input?")
+		return nil, trace.BadParameter("Not a valid resource declaration")
+	}
 
-		}
+	err = ensureKindValue(unknownRes.Kind, kind)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	yaml := raw.Raw
-	switch raw.Kind {
+	json := unknownRes.Raw
+	switch unknownRes.Kind {
 	case services.KindSAMLConnector:
-		conn, err := services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(yaml)
+		conn, err := services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(json)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -186,7 +208,7 @@ func upsertResource(data string, client auth.ClientI) (interface{}, error) {
 		}
 		return items, nil
 	case services.KindOIDCConnector:
-		conn, err := services.GetOIDCConnectorMarshaler().UnmarshalOIDCConnector(yaml)
+		conn, err := services.GetOIDCConnectorMarshaler().UnmarshalOIDCConnector(json)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -199,7 +221,7 @@ func upsertResource(data string, client auth.ClientI) (interface{}, error) {
 		}
 		return items, nil
 	case services.KindRole:
-		role, err := services.GetRoleMarshaler().UnmarshalRole(yaml)
+		role, err := services.GetRoleMarshaler().UnmarshalRole(json)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -216,7 +238,7 @@ func upsertResource(data string, client auth.ClientI) (interface{}, error) {
 		}
 		return items, nil
 	case services.KindTrustedCluster:
-		tc, err := services.GetTrustedClusterMarshaler().Unmarshal(yaml)
+		tc, err := services.GetTrustedClusterMarshaler().Unmarshal(json)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -231,8 +253,34 @@ func upsertResource(data string, client auth.ClientI) (interface{}, error) {
 	case "":
 		return nil, trace.BadParameter("missing resource kind")
 	default:
-		return nil, trace.BadParameter("%q is not supported", raw.Kind)
+		return nil, trace.BadParameter("%q is not supported", unknownRes.Kind)
 	}
+}
+
+// ensureKindValue verifies that given resource kind matches its expected value.
+func ensureKindValue(given string, expected string) error {
+	if expected == services.KindAuthConnector {
+		// AuthConnector might be of 2 types OIDC and SAML
+		if given == services.KindOIDCConnector || given == services.KindSAMLConnector {
+			return nil
+		}
+	}
+
+	if expected == given {
+		return nil
+	}
+
+	return trace.BadParameter("Invalid value for kind")
+}
+
+func withAccessDeniedMessage(err error, verb string, kind string) error {
+	message := getAccessDeniedText(verb, kind)
+	log.Errorf(message, err)
+	return trace.AccessDenied(message)
+}
+
+func getAccessDeniedText(verb string, kind string) string {
+	return fmt.Sprintf("You do not have permissions to %v %v ", verb, ui.ResourceDisplayString[kind])
 }
 
 type itemsResponse struct {

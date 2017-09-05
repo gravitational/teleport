@@ -18,6 +18,7 @@ export const ResourceEnum = {
   SAML: 'saml',
   OIDC: 'oidc',
   ROLE: 'role',
+  AUTH_CONNECTORS: 'auth_connector',
   TRUSTED_CLUSTER: 'trusted_cluster'
 }
 

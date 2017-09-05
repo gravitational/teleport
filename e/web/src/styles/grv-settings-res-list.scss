@@ -18,25 +18,22 @@
 
   .grv-settings-res-list-content {
     margin: 0;    
-    margin-left: 2px;
+    margin-left: -2px;
     padding: 0;
     list-style: none;
-    
-    li.active {      
-      border-left: 2px solid #4b9185;
-      margin-left: -2px;
-    }
-
+        
     .grv-settings-res-list-content-item {
       border-bottom: 1px solid #eee;
       display: block;
       
       &.active {
-        //background-color: #e2e2e2;
+        //border-left: 2px solid #4b9185;
+        //margin-left: 2px;        
+        background-color: #f0f0f0;
 
-        a {
-          font-weight: bold;
-          color: #5b5d5f;
+        a {          
+//          padding-left: 6px;
+          color: $gray-base;
         }
       }
 

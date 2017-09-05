@@ -21,19 +21,42 @@ import { Provider } from 'nuclear-js-react-addons';
 
 // telebase imports
 import history from 'telebase-app/services/history';
+import { withAllRoutes } from 'telebase-app/routes';
+import { AuditFeature, SshFeature } from 'telebase-app/features';
+import FeatureActivator from 'telebase-app/featureActivator';
+import { initApp } from 'telebase-app/flux/app/actions';
 import 'telebase-app/flux';
 
 // app imports
+import SettignsFeature from './features/settings';
 import reactor from 'app/reactor';
 import cfg from 'app/config';
-import routes from './routes';
 import './flux';
 
-history.init();
 cfg.init(window.GRV_CONFIG);
+history.init();
+
+const nestedRoutes = [];
+const featureActivator = new FeatureActivator();
+
+featureActivator.register(new SshFeature(nestedRoutes));
+featureActivator.register(new AuditFeature(nestedRoutes));
+featureActivator.register(new SettignsFeature(nestedRoutes));
+
+const onEnterApp = nextState => {  
+  let { siteId } = nextState.params; 
+  initApp(siteId, featureActivator)
+}
+
+const routes = [
+  {       
+    onEnter: onEnterApp,
+    childRoutes: nestedRoutes        
+  }
+]
 
 render((  
   <Provider reactor={reactor}>        
-    <Router history={history.original()} routes={routes}/>            
+    <Router history={history.original()} routes={withAllRoutes(routes)}/>            
   </Provider>  
 ), document.getElementById("app"));

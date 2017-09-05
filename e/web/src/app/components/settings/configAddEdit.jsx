@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { PropTypes } from 'react';
 import classnames from 'classnames';
 import Layout from 'app/components/common/layout';
 import Button from 'app/components/common/button';
@@ -9,8 +9,10 @@ import * as Alerts from 'app/components/common/alerts';
 class AddEditConfig extends React.Component {
   
   static propTypes = {  
-    changeTracker: React.PropTypes.object.isRequired,
-    saveAttempt: React.PropTypes.object.isRequired
+    changeTracker: PropTypes.object.isRequired,
+    saveAttempt: PropTypes.object.isRequired,
+    access: PropTypes.object.isRequired,
+    item: PropTypes.object.isRequired
   }
 
   state = {
@@ -30,11 +32,16 @@ class AddEditConfig extends React.Component {
 
   constructor(props){
     super(props);
-    this.isNew = props.item.isNew;
-    this.original = props.item.getContent();   
-    this.current = this.current;    
+    this.init(props);    
   }
   
+  init(props){
+    this.isNew = props.item.isNew;
+    this.original = props.item.getContent();   
+    this.current = this.original;    
+    this.state.isDirty = false;
+  }
+
   componentWillUnmount() {
     this.props.changeTracker.unregister(this);
   }
@@ -43,33 +50,49 @@ class AddEditConfig extends React.Component {
     this.props.changeTracker.register(this);
   }
 
-  hasChanges(){
-    return this.state.isDirty || this.isNew;
+  componentWillReceiveProps(nextProps) {    
+    if(nextProps.item !== this.props.item){
+      this.init(nextProps)      
+    }
   }
 
-  renderFooter(saveAttempt) {                
-    const { isProcessing } = saveAttempt;    
-    const isPrimaryBtnEnabled = this.isNew || this.state.isDirty;    
+  hasChanges(){
+    return this.state.isDirty;
+  }
+
+  renderFooter() {                
+    const { saveAttempt, access } = this.props;                                
+    const { isProcessing } = saveAttempt;                    
+    const isSecondaryBtnEnabled = this.isNew || access.remove || isProcessing;
     const secondaryBtnCb = this.isNew ? this.props.onCancel : this.props.onDelete;
     const secondaryBtnText = this.isNew ? 'Cancel' : 'Delete';
     const secondaryBtnClassName = classnames({
       'btn-danger': !this.isNew,
       'btn-default': this.isNew
     });
+
+    let isPrimaryBtnEnabled = true;    
+    if(this.isNew){
+      isPrimaryBtnEnabled = access.create;
+    }else{
+      isPrimaryBtnEnabled = access.edit;
+    }
+
+    isPrimaryBtnEnabled = this.state.isDirty;
               
     return (
       <div className="m-t">
-        <Button size="sm"         
+        <Button size="sm"                   
           onClick={this.onSave}
           isProcessing={isProcessing}
           isDisabled={!isPrimaryBtnEnabled}
           className="btn-primary m-r-sm">
           Save
         </Button>
-        <Button size="sm"         
+        <Button size="sm"      
+          isDisabled={!isSecondaryBtnEnabled}   
           className={secondaryBtnClassName}
-          onClick={secondaryBtnCb}
-          isDisabled={isProcessing}>            
+          onClick={secondaryBtnCb}>            
           {secondaryBtnText}
         </Button>
       </div>     
@@ -77,21 +100,24 @@ class AddEditConfig extends React.Component {
   }
   
   render(){
-    const { item, saveAttempt } = this.props;                            
+    const { item, saveAttempt, access } = this.props;                            
     if(!item){
       return null;
     }
     
+    const name = item.getName();
+    const readOnly = !this.isNew && !access.edit;
     const { isFailed, message } = saveAttempt;
-    const $footer = this.renderFooter(saveAttempt);    
-    const className = classnames('grv-settings-res-editor', { 'm-l': !item.isNew });
+    const $footer = this.renderFooter();        
     return (
-      <Layout.Flex style={{flex: "1"}} className={className}>     
+      <Layout.Flex style={{flex: "1"}} className="grv-settings-res-editor">     
         <div className="full-width">          
           { isFailed && <Alerts.Danger className="m-b-sm"> {message} </Alerts.Danger> }
-        </div>                       
+          { readOnly && <Alerts.Info className="m-b-sm"> You do not have permissions to edit this resource </Alerts.Info> }
+        </div>                               
         <YamlEditor
-          key={item.key}
+          key={name}
+          readOnly={readOnly}          
           data={item.content}
           onChange={this.onItemContentChange}
           name="rolemappings" required

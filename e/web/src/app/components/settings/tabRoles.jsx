@@ -1,11 +1,12 @@
 import React from 'react';
-import connect from 'telebase-app/lib/connect';
+import connect from 'telebase-app/components/connect';
 import getters from 'app/flux/settingsRoles/getters';
+import userAclGetters from 'telebase-app/flux/userAcl/getters';
 import {openDeleteDialog} from 'app/flux/settings/actions';
 import * as actions from 'app/flux/settingsRoles/actions';
 import ConfigItemList from './configItemList';
 import ConfigDeleteDialog from './configDeleteDialog';
-import { EmptyList } from './emptyCfg';
+import { EmptyList } from './elements';
 import ConfidAddEdit from './configAddEdit';
 import ChangeTracker from './../changeTracker';
 
@@ -13,10 +14,10 @@ class Roles extends React.Component {
 
   state = {}
 
-  onNewItem = () => {    
-     this.refTracker.checkIfUnsafedData(()=> {
-        actions.setCurRole(this.props.store.createItem())    
-     });
+  onNewItem = () => {        
+    this.refTracker.checkIfUnsafedData(()=> {
+      actions.setCurRole(this.props.store.createItem())    
+    });
   }
   
   onCancelNewItem = () => {    
@@ -42,24 +43,31 @@ class Roles extends React.Component {
   }
     
   render() {    
-    const { store, saveAttempt, changeTracker } = this.props;                
+    const { store, saveAttempt, userAclStore } = this.props;                        
     const curItem = store.getCurItem();
     const items = store.getItems();
+    const access = userAclStore.getRoleAccess();
+    const canCreate = access.create;
     
+    const props = {
+      ref: e => this.refTracker = e,
+      className: "grv-settings-tab",
+      route: this.props.route
+    }
+
     if(!curItem){
       return (
-        <div className="grv-settings-tab">                                             
-          <EmptyList onClick={this.onNewItem}/>
-        </div>
+        <ChangeTracker {...props}>         
+          <EmptyList canCreate={canCreate} onClick={this.onNewItem}/>
+        </ChangeTracker>
       )
     }
-                    
+                        
     return (      
-      <ChangeTracker ref={ e => { this.refTracker = e } } 
-        className="grv-settings-tab" 
-        route={this.props.route}>   
+      <ChangeTracker {...props}>   
         { !curItem.isNew &&
         <ConfigItemList        
+          canCreate={canCreate}
           btnText="New Role"                        
           curItem={curItem}
           items={items}          
@@ -67,9 +75,8 @@ class Roles extends React.Component {
           onItemClick={this.onItemClick}                        
         />      
         }
-        <ConfidAddEdit 
-          key={curItem.key}
-          changeTracker={changeTracker}
+        <ConfidAddEdit               
+          access={access}
           onCancel={this.onCancelNewItem}
           onDelete={this.onItemDelete}
           onSave={this.onItemSave}
@@ -83,6 +90,7 @@ class Roles extends React.Component {
 
 function mapStateToProps() {
   return {    
+    userAclStore: userAclGetters.userAcl,
     saveAttempt: getters.saveAttempt,
     store: getters.store
   }  

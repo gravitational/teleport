@@ -19,8 +19,7 @@ class YamlEditor extends React.Component{
     this.editor.resize();
   }
 
-  initEditSessions() {
-    let { data } = this.props;
+  initEditSessions(data, readOnly) {    
     let undoManager = new UndoManager();  
     data = data || '';      
     this.isDirty = false;
@@ -31,22 +30,22 @@ class YamlEditor extends React.Component{
     this.session.setMode("ace/mode/yaml");  
     //this.editor.setTheme('ace/theme/iplastic');
     this.editor.setSession(this.session);
-    this.editor.renderer.setShowGutter(true);
+    this.editor.setReadOnly(readOnly);        
   }
   
   componentDidMount() {
-    this.editor = ace.edit(this.refs.ace_viewer);    
-    this.editor.renderer.setShowGutter(false);
-    this.editor.renderer.setShowPrintMargin(false);
-    this.editor.renderer.setOption('showLineNumbers', true)
+    const { data, readOnly } = this.props;
+    this.editor = ace.edit(this.refs.ace_viewer);            
     this.editor.setFadeFoldWidgets(true);
     this.editor.setWrapBehavioursEnabled(true);
     this.editor.setHighlightActiveLine(false);
-    this.editor.setShowInvisibles(false);      
-    this.editor.setReadOnly(false);    
+    this.editor.setShowInvisibles(false);              
+    this.editor.renderer.setShowGutter(false);
+    this.editor.renderer.setShowPrintMargin(false);
+    this.editor.renderer.setShowGutter(true);
     this.editor.on('input', this.onChange);
-    this.initEditSessions(this.props.initialData);        
-    this.editor.focus();    
+    this.initEditSessions(data, readOnly);        
+    this.editor.focus();        
   }
 
   componentWillUnmount() {
@@ -55,10 +54,11 @@ class YamlEditor extends React.Component{
     this.session = null;    
   }
     
-  shouldComponentUpdate() {
+  // to properly recalculate scrollbar area when layout is changed
+  shouldComponentUpdate() {    
     return true;
   }
-
+  
   render() {    
     return (      
       <div style={mainStyle}>

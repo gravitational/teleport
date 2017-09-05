@@ -17,13 +17,7 @@ limitations under the License.
 import React, { PropTypes } from 'react';
 import { connect } from 'nuclear-js-react-addons';
 import { Link } from 'react-router';
-import { isObject } from 'lodash';
-// telebase
-import { AccessDenied, Failed } from 'telebase-app/components/msgPage.jsx';
-import Indicator from 'telebase-app/components/indicator.jsx';
-// local
 import getters from 'app/flux/settings/getters';
-import { RestRespCodeEnum } from 'app/services/enums';
 
 const Separator = () => <div className="grv-settings-header-line-solid m-t-sm m-b-sm"/>;
 
@@ -48,38 +42,20 @@ class Settings extends React.Component {
     )
   }
   
-  render() {    
-    const { store, initAttempt } = this.props;
-    const { isProcessing, isFailed, message } = initAttempt;
-        
-    if (!store.isReady() && isProcessing) {      
-      return (
-        <div>
-          <Indicator type={'bounce'} />
-        </div>
-      )
-    }
+  render() {        
+    const { store } = this.props;                        
+    const $headerItems = store.getNavItems().map(this.renderHeaderItem.bind(this));
 
-    if (isFailed) {
-      if (isObject(message) && message.code === RestRespCodeEnum.FORBIDDEN) {
-        return <AccessDenied message={message.text}/>
-      } else {
-        return <Failed message={message}/>
-      }      
-    }
-
-    
-    if (!store.isReady()) {
+    if ( !store.isReady() ){
       return null;
     }
 
-    let $headerItems = store.getNavItems().map(this.renderHeaderItem.bind(this));
     return (   
       <div className="grv-page grv-settings">                                                
         <ul className="grv-settings-header-menu m-t">
           {$headerItems}
         </ul>  
-        <Separator />        
+        { $headerItems.length > 0 && <Separator /> }
         {this.props.children}        
       </div>
     );
@@ -88,8 +64,7 @@ class Settings extends React.Component {
 
 function mapStateToProps() {
   return {    
-    store: getters.store,
-    initAttempt: getters.initAttempt      
+    store: getters.store
   }
 }
 

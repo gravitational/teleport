@@ -8,15 +8,16 @@ export function addNavItem(navItem){
   reactor.dispatch(AT.ADD_NAV_ITEM, navItem)
 }
 
-export function initSettings(featureActivator) {        
-  const store = reactor.evaluate(getters.store)
+export function initSettings(featureActivator) {                    
+  // init only once
+  let store = reactor.evaluate(getters.store)
   if (store.isReady()){
     return;
   }
-
-  featureActivator.onload();  
-  apiActions.success(RAT.TRYING_TO_INIT_SETTINGS);
+  
+  featureActivator.onload();         
   reactor.dispatch(AT.INIT, {});            
+  apiActions.success(RAT.TRYING_TO_INIT_SETTINGS);                  
 }         
 
 export function openDeleteDialog(item){
