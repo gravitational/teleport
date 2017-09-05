@@ -1059,7 +1059,7 @@ func (r *RoleV2) V3() *RoleV3 {
 			verbs = RO()
 		} else if containsWrite {
 			// in RoleV2 ActionWrite implied the ability to read secrets.
-			verbs = []string{VerbReadSecrets, VerbCreate, VerbUpdate, VerbDelete}
+			verbs = []string{VerbCreate, VerbUpdate, VerbDelete}
 		}
 
 		rules = append(rules, NewRule(resource, verbs))
@@ -1126,7 +1126,7 @@ func FromSpec(name string, spec RoleSpecV3) (RoleSet, error) {
 
 // RW is a shortcut that returns all verbs.
 func RW() []string {
-	return []string{VerbReadSecrets, VerbConnect, VerbList, VerbCreate, VerbRead, VerbUpdate, VerbDelete}
+	return []string{VerbConnect, VerbList, VerbCreate, VerbRead, VerbUpdate, VerbDelete}
 }
 
 // RO is a shortcut that returns read only verbs.

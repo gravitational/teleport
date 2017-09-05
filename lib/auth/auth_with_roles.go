@@ -117,7 +117,7 @@ func (a *AuthWithRoles) GetCertAuthorities(caType services.CertAuthType, loadKey
 		return nil, trace.Wrap(err)
 	}
 	if loadKeys {
-		if err := a.action(defaults.Namespace, services.KindCertAuthority, services.VerbReadSecrets); err != nil {
+		if err := a.action(defaults.Namespace, services.KindCertAuthority, services.VerbUpdate); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -129,7 +129,7 @@ func (a *AuthWithRoles) GetCertAuthority(id services.CertAuthID, loadKeys bool) 
 		return nil, trace.Wrap(err)
 	}
 	if loadKeys {
-		if err := a.action(defaults.Namespace, services.KindCertAuthority, services.VerbReadSecrets); err != nil {
+		if err := a.action(defaults.Namespace, services.KindCertAuthority, services.VerbUpdate); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -528,7 +528,7 @@ func (a *AuthWithRoles) GetOIDCConnector(id string, withSecrets bool) (services.
 		return nil, trace.Wrap(err)
 	}
 	if withSecrets {
-		if err := a.authConnectorAction(defaults.Namespace, services.KindOIDC, services.VerbReadSecrets); err != nil {
+		if err := a.authConnectorAction(defaults.Namespace, services.KindOIDC, services.VerbUpdate); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -543,7 +543,7 @@ func (a *AuthWithRoles) GetOIDCConnectors(withSecrets bool) ([]services.OIDCConn
 		return nil, trace.Wrap(err)
 	}
 	if withSecrets {
-		if err := a.authConnectorAction(defaults.Namespace, services.KindOIDC, services.VerbReadSecrets); err != nil {
+		if err := a.authConnectorAction(defaults.Namespace, services.KindOIDC, services.VerbUpdate); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -591,7 +591,7 @@ func (a *AuthWithRoles) GetSAMLConnector(id string, withSecrets bool) (services.
 		return nil, trace.Wrap(err)
 	}
 	if withSecrets {
-		if err := a.authConnectorAction(defaults.Namespace, services.KindSAML, services.VerbReadSecrets); err != nil {
+		if err := a.authConnectorAction(defaults.Namespace, services.KindSAML, services.VerbUpdate); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -606,7 +606,7 @@ func (a *AuthWithRoles) GetSAMLConnectors(withSecrets bool) ([]services.SAMLConn
 		return nil, trace.Wrap(err)
 	}
 	if withSecrets {
-		if err := a.authConnectorAction(defaults.Namespace, services.KindSAML, services.VerbReadSecrets); err != nil {
+		if err := a.authConnectorAction(defaults.Namespace, services.KindSAML, services.VerbUpdate); err != nil {
 			return nil, trace.Wrap(err)
 
 		}
