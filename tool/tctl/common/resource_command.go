@@ -24,7 +24,6 @@ import (
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
@@ -32,6 +31,13 @@ import (
 	"github.com/gravitational/trace"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
+
+// ResourceCommandImpl allows to customize the implementation of certain
+// subcommands of the resource command
+type ResourceCommandImpl struct {
+	Delete func(services.Ref, *auth.TunClient) error
+	Create func(*services.UnknownResource, *auth.TunClient) error
+}
 
 // ResourceCommand implements `tctl get/create/list` commands for manipulating
 // Teleport resources
@@ -49,7 +55,20 @@ type ResourceCommand struct {
 	delete *kingpin.CmdClause
 	get    *kingpin.CmdClause
 	create *kingpin.CmdClause
+
+	// customized implementation
+	Impl *ResourceCommandImpl
 }
+
+const getHelp = `Examples:
+
+  $ tctl get clusters      : prints the list of all trusted clusters
+  $ tctl get cluster/east  : prints the trusted cluster 'east'
+
+Same as above, but using JSON output:
+
+  $ tctl get clusters --format=json
+`
 
 // Initialize allows ResourceCommand to plug itself into the CLI parser
 func (g *ResourceCommand) Initialize(app *kingpin.Application, config *service.Config) {
@@ -61,25 +80,28 @@ func (g *ResourceCommand) Initialize(app *kingpin.Application, config *service.C
 	g.delete = app.Command("rm", "Delete a resource").Alias("del")
 	g.delete.Arg("resource", "Resource to delete").SetValue(&g.ref)
 
-	g.get = app.Command("get", "Print a resource")
-	g.get.Arg("resource", "Resource type and name").SetValue(&g.ref)
-	g.get.Flag("format", "Format output type, one of 'yaml', 'json' or 'text'").Default(formatText).StringVar(&g.format)
+	g.get = app.Command("get", "Print a YAML declaration of various Teleport resources")
+	g.get.Arg("resource", "Resource spec: 'type/[name]'").SetValue(&g.ref)
+	g.get.Flag("format", "Output format: 'yaml' or 'json'").Default(formatYAML).StringVar(&g.format)
 	g.get.Flag("namespace", "Namespace of the resources").Hidden().Default(defaults.Namespace).StringVar(&g.namespace)
 	g.get.Flag("with-secrets", "Include secrets in resources like certificate authorities or OIDC connectors").Default("false").BoolVar(&g.withSecrets)
+
+	g.get.Alias(getHelp)
 }
 
 // TryRun takes the CLI command as an argument (like "auth gen") and executes it
 // or returns match=false if 'cmd' does not belong to it
 func (g *ResourceCommand) TryRun(cmd string, client *auth.TunClient) (match bool, err error) {
 	switch cmd {
-
+	// tctl get
 	case g.get.FullCommand():
 		err = g.Get(client)
+		// tctl create
 	case g.create.FullCommand():
 		err = g.Create(client)
+		// tctl rm
 	case g.delete.FullCommand():
 		err = g.Delete(client)
-
 	default:
 		return false, nil
 	}
@@ -92,6 +114,7 @@ func (g *ResourceCommand) Get(client *auth.TunClient) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	switch g.format {
 	case formatYAML:
 		return collection.writeYAML(os.Stdout)
@@ -154,24 +177,6 @@ func (u *ResourceCommand) Create(client *auth.TunClient) error {
 				return trace.Wrap(err)
 			}
 			fmt.Printf("created OIDC connector: %v\n", conn.GetName())
-		case services.KindReverseTunnel:
-			tun, err := services.GetReverseTunnelMarshaler().UnmarshalReverseTunnel(raw.Raw)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if err := client.UpsertReverseTunnel(tun); err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Printf("created reverse tunnel: %v\n", tun.GetName())
-		case services.KindCertAuthority:
-			ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(raw.Raw)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if err := client.UpsertCertAuthority(ca); err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Printf("created cert authority: %v \n", ca.GetName())
 		case services.KindUser:
 			user, err := services.GetUserMarshaler().UnmarshalUser(raw.Raw)
 			if err != nil {
@@ -181,28 +186,6 @@ func (u *ResourceCommand) Create(client *auth.TunClient) error {
 				return trace.Wrap(err)
 			}
 			fmt.Printf("created user: %v\n", user.GetName())
-		case services.KindRole:
-			role, err := services.GetRoleMarshaler().UnmarshalRole(raw.Raw)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			err = role.CheckAndSetDefaults()
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if err := client.UpsertRole(role, backend.Forever); err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Printf("created role: %v\n", role.GetName())
-		case services.KindNamespace:
-			ns, err := services.UnmarshalNamespace(raw.Raw)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if err := client.UpsertNamespace(*ns); err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Printf("created namespace: %v\n", ns.Metadata.Name)
 		case services.KindTrustedCluster:
 			tc, err := services.GetTrustedClusterMarshaler().Unmarshal(raw.Raw)
 			if err != nil {
@@ -215,33 +198,38 @@ func (u *ResourceCommand) Create(client *auth.TunClient) error {
 		case "":
 			return trace.BadParameter("missing resource kind")
 		default:
-			return trace.BadParameter("%q is not supported", raw.Kind)
+			// customized creation:
+			if u.Impl != nil && u.Impl.Create != nil {
+				err := u.Impl.Create(&raw, client)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+			} else {
+				return trace.BadParameter("creating resources of type %q is not supported", raw.Kind)
+			}
 		}
 	}
 }
 
 // Delete deletes resource by name
-func (d *ResourceCommand) Delete(client *auth.TunClient) error {
-	if d.ref.Kind == "" {
-		return trace.BadParameter("provide full resource name to delete e.g. roles/example")
-	}
-	if d.ref.Name == "" {
-		return trace.BadParameter("provide full resource name to delete e.g. roles/example")
+func (d *ResourceCommand) Delete(client *auth.TunClient) (err error) {
+	if d.ref.Kind == "" || d.ref.Name == "" {
+		return trace.BadParameter("provide a full resource name to delete, for example:\n$ tctl rm cluster/east\n")
 	}
 
 	switch d.ref.Kind {
 	case services.KindUser:
-		if err := client.DeleteUser(d.ref.Name); err != nil {
+		if err = client.DeleteUser(d.ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("user %v has been deleted\n", d.ref.Name)
 	case services.KindSAMLConnector:
-		if err := client.DeleteSAMLConnector(d.ref.Name); err != nil {
+		if err = client.DeleteSAMLConnector(d.ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("SAML Connector %v has been deleted\n", d.ref.Name)
 	case services.KindOIDCConnector:
-		if err := client.DeleteOIDCConnector(d.ref.Name); err != nil {
+		if err = client.DeleteOIDCConnector(d.ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("OIDC Connector %v has been deleted\n", d.ref.Name)
@@ -250,35 +238,43 @@ func (d *ResourceCommand) Delete(client *auth.TunClient) error {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("reverse tunnel %v has been deleted\n", d.ref.Name)
-	case services.KindRole:
-		if err := client.DeleteRole(d.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("role %v has been deleted\n", d.ref.Name)
-	case services.KindNamespace:
-		if err := client.DeleteNamespace(d.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("namespace %v has been deleted\n", d.ref.Name)
 	case services.KindTrustedCluster:
-		if err := client.DeleteTrustedCluster(d.ref.Name); err != nil {
+		if err = client.DeleteTrustedCluster(d.ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("trusted cluster %q has been deleted\n", d.ref.Name)
-	case "":
-		return trace.BadParameter("missing resource kind")
 	default:
-		return trace.BadParameter("%q is not supported", d.ref.Kind)
+		if d.Impl != nil && d.Impl.Delete != nil {
+			return trace.Wrap(d.Impl.Delete(d.ref, client))
+		}
+		return trace.BadParameter("deleting resoruces of type %q is not supported", d.ref.Kind)
 	}
-
 	return nil
 }
 
-func (g *ResourceCommand) getCollection(client auth.ClientI) (collection, error) {
+func (g *ResourceCommand) getCollection(client auth.ClientI) (c ResourceCollection, err error) {
 	if g.ref.Kind == "" {
 		return nil, trace.BadParameter("specify resource to list, e.g. 'tctl get roles'")
 	}
 	switch g.ref.Kind {
+	// load user(s)
+	case services.KindUser:
+		var users services.Users
+		// just one?
+		if !g.ref.IsEmtpy() {
+			user, err := client.GetUser(g.ref.Name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			users = services.Users{user}
+			// all of them?
+		} else {
+			users, err = client.GetUsers()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+		return &userCollection{users: users}, nil
 	case services.KindSAMLConnector:
 		connectors, err := client.GetSAMLConnectors(g.withSecrets)
 		if err != nil {
@@ -308,12 +304,6 @@ func (g *ResourceCommand) getCollection(client auth.ClientI) (collection, error)
 		}
 		userAuthorities = append(userAuthorities, hostAuthorities...)
 		return &authorityCollection{cas: userAuthorities}, nil
-	case services.KindUser:
-		users, err := client.GetUsers()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &userCollection{users: users}, nil
 	case services.KindNode:
 		nodes, err := client.GetNodes(g.namespace)
 		if err != nil {
@@ -372,7 +362,6 @@ func (g *ResourceCommand) getCollection(client auth.ClientI) (collection, error)
 		}
 		return &trustedClusterCollection{trustedClusters: []services.TrustedCluster{trustedCluster}}, nil
 	}
-
 	return nil, trace.BadParameter("'%v' is not supported", g.ref.Kind)
 }
 

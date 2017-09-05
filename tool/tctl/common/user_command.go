@@ -19,11 +19,12 @@ package common
 import (
 	"fmt"
 	"net"
-	"os"
 	"strconv"
 	"strings"
 
+	"github.com/buger/goterm"
 	"github.com/gravitational/kingpin"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
@@ -45,6 +46,16 @@ type UserCommand struct {
 	userUpdate *kingpin.CmdClause
 	userList   *kingpin.CmdClause
 	userDelete *kingpin.CmdClause
+
+	// behavior of the user command can be changed by providing
+	// different implementations of subcommands commands
+	Impl *UserCommandImpl
+}
+
+// UserCommandImpl is used to supply alternative implementations of
+// user subcommands
+type UserCommandImpl struct {
+	List func([]services.User, *auth.TunClient) error
 }
 
 // Initialize allows UserCommand to plug itself into the CLI parser
@@ -149,8 +160,21 @@ func (u *UserCommand) List(client *auth.TunClient) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	coll := &userCollection{users: users}
-	coll.writeText(os.Stdout)
+	if len(users) == 0 {
+		fmt.Println("No users found")
+		return nil
+	}
+	// see if "user ls" command is customized
+	if u.Impl != nil && u.Impl.List != nil {
+		return u.Impl.List(users, client)
+	}
+	t := goterm.NewTable(0, 10, 5, ' ', 0)
+	PrintHeader(t, []string{"User", "Allowed logins"})
+	for _, u := range users {
+		logins, _ := u.GetTraits()[teleport.TraitLogins]
+		fmt.Fprintf(t, "%v\t%v\n", u.GetName(), strings.Join(logins, ","))
+	}
+	fmt.Println(t.String())
 	return nil
 }
 
