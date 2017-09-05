@@ -1084,10 +1084,6 @@ type nodeWithSessions struct {
 	Sessions []session.Session `json:"sessions"`
 }
 
-type getSiteNodesResponse struct {
-	Nodes []nodeWithSessions `json:"nodes"`
-}
-
 func (m *Handler) siteNodesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	log.Debugf("[web] GET /nodes")
 	clt, err := site.GetClient()
