@@ -6,6 +6,15 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// ResourceDisplayString is used to create user friendly error messages
+var ResourceDisplayString = map[string]string{
+	services.KindSAML:           "auth. connectors",
+	services.KindOIDC:           "auth. connectors",
+	services.KindAuthConnector:  "auth. connectors",
+	services.KindRole:           "roles",
+	services.KindTrustedCluster: "trusted clusters",
+}
+
 // ConfigCollection is a collection of ConfigItems
 type ConfigCollection struct {
 	// Items is a slice of ConfigItems
@@ -25,7 +34,7 @@ type ConfigItem struct {
 }
 
 // ConvertRoles creates UI objects for Roles
-func ConvertRoles(roles []services.Role) (interface{}, error) {
+func ConvertRoles(roles []services.Role) ([]ConfigItem, error) {
 	configItems := []ConfigItem{}
 	for _, role := range roles {
 		item, err := NewConfigItem(services.KindRole, role.GetName(), role)
@@ -40,7 +49,7 @@ func ConvertRoles(roles []services.Role) (interface{}, error) {
 }
 
 // ConvertTrustedClusters creates UI objects for Cluster
-func ConvertTrustedClusters(clusters []services.TrustedCluster) (interface{}, error) {
+func ConvertTrustedClusters(clusters []services.TrustedCluster) ([]ConfigItem, error) {
 	configItems := []ConfigItem{}
 	for _, cluster := range clusters {
 		item, err := NewConfigItem(services.KindTrustedCluster, cluster.GetName(), cluster)
@@ -55,7 +64,7 @@ func ConvertTrustedClusters(clusters []services.TrustedCluster) (interface{}, er
 }
 
 // ConvertOIDCConnectors creates UI objects for OIDC connectors
-func ConvertOIDCConnectors(connectors []services.OIDCConnector) (interface{}, error) {
+func ConvertOIDCConnectors(connectors []services.OIDCConnector) ([]ConfigItem, error) {
 	configItems := []ConfigItem{}
 	for _, oidc := range connectors {
 		item, err := NewConfigItem(services.KindOIDCConnector, oidc.GetName(), oidc)
@@ -70,7 +79,7 @@ func ConvertOIDCConnectors(connectors []services.OIDCConnector) (interface{}, er
 }
 
 // ConvertSAMLConnectors creates UI objects for SAML connectors
-func ConvertSAMLConnectors(connectors []services.SAMLConnector) (interface{}, error) {
+func ConvertSAMLConnectors(connectors []services.SAMLConnector) ([]ConfigItem, error) {
 	configItems := []ConfigItem{}
 	for _, saml := range connectors {
 		item, err := NewConfigItem(services.KindSAMLConnector, saml.GetName(), saml)
