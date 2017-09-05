@@ -104,8 +104,8 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 						NodeLabels: map[string]string{Wildcard: Wildcard},
 						Namespaces: []string{defaults.Namespace},
 						Rules: []Rule{
-							NewRule(KindRole, RO()),
-							NewRule(KindAuthConnector, RO()),
+							NewRule(KindRole, RW()),
+							NewRule(KindAuthConnector, RW()),
 							NewRule(KindSession, RO()),
 							NewRule(KindTrustedCluster, RW()),
 						},

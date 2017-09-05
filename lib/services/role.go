@@ -35,11 +35,11 @@ import (
 	"github.com/vulcand/predicate"
 )
 
-// DefaultUserRules provides access to the default set of rules assigned to
+// AdminUserRules provides access to the default set of rules assigned to
 // all users.
-var DefaultUserRules = []Rule{
-	NewRule(KindRole, RO()),
-	NewRule(KindAuthConnector, RO()),
+var AdminUserRules = []Rule{
+	NewRule(KindRole, RW()),
+	NewRule(KindAuthConnector, RW()),
 	NewRule(KindSession, RO()),
 	NewRule(KindTrustedCluster, RW()),
 }
@@ -77,14 +77,14 @@ func RoleNameForCertAuthority(name string) string {
 	return "ca:" + name
 }
 
-// NewDefaultRole is the default role for all local users if another role
+// NewAdminRole is the default admin role for all local users if another role
 // is not explicitly assigned (Enterprise only).
-func NewDefaultRole() Role {
+func NewAdminRole() Role {
 	return &RoleV3{
 		Kind:    KindRole,
 		Version: V3,
 		Metadata: Metadata{
-			Name:      teleport.DefaultRoleName,
+			Name:      teleport.AdminRoleName,
 			Namespace: defaults.Namespace,
 		},
 		Spec: RoleSpecV3{
@@ -95,7 +95,7 @@ func NewDefaultRole() Role {
 				Namespaces: []string{defaults.Namespace},
 				Logins:     []string{teleport.TraitInternalRoleVariable},
 				NodeLabels: map[string]string{Wildcard: Wildcard},
-				Rules:      CopyRulesSlice(DefaultUserRules),
+				Rules:      CopyRulesSlice(AdminUserRules),
 			},
 		},
 	}
@@ -125,7 +125,7 @@ func NewImplicitRole() Role {
 	}
 }
 
-// RoleForUser creates role for a services.User.
+// RoleForUser creates an admin role for a services.User.
 func RoleForUser(u User) Role {
 	return &RoleV3{
 		Kind:    KindRole,
@@ -141,7 +141,7 @@ func RoleForUser(u User) Role {
 			Allow: RoleConditions{
 				Namespaces: []string{defaults.Namespace},
 				NodeLabels: map[string]string{Wildcard: Wildcard},
-				Rules:      CopyRulesSlice(DefaultUserRules),
+				Rules:      CopyRulesSlice(AdminUserRules),
 			},
 		},
 	}
@@ -491,7 +491,7 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 		r.Spec.Allow.NodeLabels = map[string]string{Wildcard: Wildcard}
 	}
 	if r.Spec.Allow.Rules == nil {
-		r.Spec.Allow.Rules = CopyRulesSlice(DefaultUserRules)
+		r.Spec.Allow.Rules = CopyRulesSlice(AdminUserRules)
 	}
 
 	// if we find {{ or }} but the syntax is invalid, the role is invalid
