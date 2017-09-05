@@ -171,7 +171,9 @@ func (c *SessionContext) GetUserClient(site reversetunnel.RemoteSite) (auth.Clie
 		}
 
 		// add a closer for the underlying connection
-		c.AddClosers(rConn)
+		if rConn != nil {
+			c.AddClosers(rConn)
+		}
 
 		// we'll save the remote client in our session context so we don't have to
 		// build a new connection next time. all remote clients will be closed when
