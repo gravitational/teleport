@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -64,6 +65,8 @@ type CLICommand interface {
 // distribution: name of the Teleport distribution
 func Run(distro teleport.DistroType, commands []CLICommand) {
 	utils.InitLogger(utils.LoggingForCLI, logrus.WarnLevel)
+
+	lib.SetDistroType(distro)
 
 	// app is the command line parser
 	app := utils.InitCLIParser("tctl", GlobalHelpString)
