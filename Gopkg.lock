@@ -141,10 +141,9 @@
   revision = "c4048f792f70d207e6d8b9c1bf52319247f202b8"
 
 [[projects]]
-  branch = "master"
   name = "github.com/gravitational/kingpin"
   packages = ["."]
-  revision = "785686550a08e8e2e77641c91714280a6dfb08ee"
+  revision = "d5e216317e25d1472d208dfcca18cd8fbce6ed54"
 
 [[projects]]
   branch = "master"
@@ -395,6 +394,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "206dacde9d25202422550789814d38dc5a453f29beaeb6e00d059a8f4101515a"
+  inputs-digest = "fb766a1ede0d8921137477f21b1cd749b0ed12638206aecb430864fe914399af"
   solver-name = "gps-cdcl"
   solver-version = 1
