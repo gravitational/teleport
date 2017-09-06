@@ -38,8 +38,8 @@ func getLogins(roleSet services.RoleSet) []string {
 	allowed := []string{}
 	denied := []string{}
 	for _, role := range roleSet {
-		denied = append(role.GetLogins(services.Deny), denied...)
-		allowed = append(role.GetLogins(services.Allow), allowed...)
+		denied = append(denied, role.GetLogins(services.Deny)...)
+		allowed = append(allowed, role.GetLogins(services.Allow)...)
 	}
 
 	allowed = utils.Deduplicate(allowed)
