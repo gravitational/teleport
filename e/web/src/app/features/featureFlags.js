@@ -2,15 +2,15 @@
 import { getAcl } from 'telebase-app/flux/userAcl/store';
 
 export function isTrustedClrsEnabled(){  
-  return getAcl().getClusterAccess().read;      
+  return getAcl().getClusterAccess().list;      
 }
 
 export function isRolesEnabled(){  
-  return getAcl().getRoleAccess().read;      
+  return getAcl().getRoleAccess().list;      
 }
 
 export function isAuthConnectorsEnabled(){  
-  return getAcl().getConnectorAccess().read;      
+  return getAcl().getConnectorAccess().list;      
 }
 
 export function isAnythingEnabled(){
