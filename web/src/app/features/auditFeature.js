@@ -51,7 +51,7 @@ class AuditFeature extends FeatureBase {
       
   onload() {     
     const sessAccess = getAcl().getSessionAccess();    
-    if (sessAccess.read) {
+    if (sessAccess.list) {
       addNavItem(auditNavItem);  
       this.init();
     }        

@@ -7,6 +7,7 @@ import (
 )
 
 type access struct {
+	List   bool `json:"list"`
 	Read   bool `json:"read"`
 	Edit   bool `json:"edit"`
 	Create bool `json:"create"`
@@ -18,33 +19,39 @@ type userACL struct {
 	Sessions access `json:"sessions"`
 	// AuthConnectors defines access to auth.connectors
 	AuthConnectors access `json:"authConnectors"`
-	// Roles defined access to roles
+	// Roles defines access to roles
 	Roles access `json:"roles"`
-	// TrustedClusters defined access to trusted clusters
+	// TrustedClusters defines access to trusted clusters
 	TrustedClusters access `json:"trustedClusters"`
-	// SSH defined access to servers
+	// SSH defines access to servers
 	SSHLogins []string `json:"sshLogins"`
 }
 
 type userContext struct {
 	// Name is this user name
 	Name string `json:"userName"`
-	// Email is this user email
-	Email string `json:"userEmail"`
-	// Logins is this user available logins
-	Logins []string `json:"userLogins"`
 	// ACL contains user access control list
 	ACL userACL `json:"userAcl"`
 }
 
 func getLogins(roleSet services.RoleSet) []string {
-	allLogins := []string{}
+	allowed := []string{}
+	denied := []string{}
 	for _, role := range roleSet {
-		logins := role.GetLogins(services.Allow)
-		allLogins = append(allLogins, logins...)
+		denied = append(role.GetLogins(services.Deny), denied...)
+		allowed = append(role.GetLogins(services.Allow), allowed...)
 	}
 
-	return utils.Deduplicate(allLogins)
+	allowed = utils.Deduplicate(allowed)
+	denied = utils.Deduplicate(denied)
+	userLogins := []string{}
+	for _, login := range allowed {
+		if services.MatchLogin(denied, login) == false {
+			userLogins = append(userLogins, login)
+		}
+	}
+
+	return userLogins
 }
 
 func hasAccess(roleSet services.RoleSet, ctx *services.Context, kind string, verbs ...string) bool {
@@ -60,14 +67,15 @@ func hasAccess(roleSet services.RoleSet, ctx *services.Context, kind string, ver
 
 func newAccess(roleSet services.RoleSet, ctx *services.Context, kind string) access {
 	return access{
-		Read:   hasAccess(roleSet, ctx, kind, services.VerbList),
+		List:   hasAccess(roleSet, ctx, kind, services.VerbList),
+		Read:   hasAccess(roleSet, ctx, kind, services.VerbRead),
 		Edit:   hasAccess(roleSet, ctx, kind, services.VerbUpdate),
 		Create: hasAccess(roleSet, ctx, kind, services.VerbCreate),
 		Delete: hasAccess(roleSet, ctx, kind, services.VerbDelete),
 	}
 }
 
-// NewUserContext returns userContext
+// NewUserContext constructs user context from roles assigned to user
 func NewUserContext(user services.User, userRoles services.RoleSet) (*userContext, error) {
 	ctx := &services.Context{User: user}
 	sessionAccess := newAccess(userRoles, ctx, services.KindSession)

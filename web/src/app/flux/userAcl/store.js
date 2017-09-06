@@ -31,6 +31,7 @@ const sortLogins = loginList => {
 }
 
 const Access = new Record({
+  list: false,
   read: false,
 	edit: false,
 	create: false,

@@ -1,19 +1,17 @@
 {
-  "nodes": [
+  "items": [
     {
-      "node": {
-        "id": "ad2109a6-42ac-44e4-a570-5ce1b470f9b6",
-        "addr": "0.0.0.0:3022",
-        "hostname": "x220",
-        "labels": {
-          "role": "mysql"
-        },
-        "cmd_labels": {
-          "db_status": {
-            "command": "mysql -c status",
-            "result": "master",
-            "period": 1000000000
-          }
+      "id": "ad2109a6-42ac-44e4-a570-5ce1b470f9b6",
+      "addr": "0.0.0.0:3022",
+      "hostname": "x220",
+      "labels": {
+        "role": "mysql"
+      },
+      "cmd_labels": {
+        "db_status": {
+          "command": "mysql -c status",
+          "result": "master",
+          "period": 1000000000
         }
       }
     }
