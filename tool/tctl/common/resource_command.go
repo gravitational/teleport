@@ -19,7 +19,6 @@ package common
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 
 	"github.com/gravitational/kingpin"
@@ -32,13 +31,6 @@ import (
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
-// ResourceCommandImpl allows to customize the implementation of certain
-// subcommands of the resource command
-type ResourceCommandImpl struct {
-	Delete func(services.Ref, *auth.TunClient) error
-	Create func(*services.UnknownResource, *auth.TunClient) error
-}
-
 // ResourceCommand implements `tctl get/create/list` commands for manipulating
 // Teleport resources
 type ResourceCommand struct {
@@ -47,6 +39,7 @@ type ResourceCommand struct {
 	format      string
 	namespace   string
 	withSecrets bool
+	force       bool
 
 	// filename is the name of the resource, used for 'create'
 	filename string
@@ -55,9 +48,6 @@ type ResourceCommand struct {
 	delete *kingpin.CmdClause
 	get    *kingpin.CmdClause
 	create *kingpin.CmdClause
-
-	// customized implementation
-	Impl *ResourceCommandImpl
 }
 
 const getHelp = `Examples:
@@ -74,8 +64,9 @@ Same as above, but using JSON output:
 func (g *ResourceCommand) Initialize(app *kingpin.Application, config *service.Config) {
 	g.config = config
 
-	g.create = app.Command("create", "Create or update a resource")
-	g.create.Flag("filename", "resource definition file").Short('f').StringVar(&g.filename)
+	g.create = app.Command("create", "Create or update a Teleport resource from a YAML file")
+	g.create.Arg("filename", "resource definition file").Required().StringVar(&g.filename)
+	g.create.Flag("force", "Overwrite the resource if already exists").Short('f').BoolVar(&g.force)
 
 	g.delete = app.Command("rm", "Delete a resource").Alias("del")
 	g.delete.Arg("resource", "Resource to delete").SetValue(&g.ref)
@@ -130,15 +121,9 @@ func (g *ResourceCommand) Get(client *auth.TunClient) error {
 
 // Create updates or insterts one or many resources
 func (u *ResourceCommand) Create(client *auth.TunClient) error {
-	var reader io.ReadCloser
-	var err error
-	if u.filename != "" {
-		reader, err = utils.OpenFile(u.filename)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	} else {
-		reader = ioutil.NopCloser(os.Stdin)
+	reader, err := utils.OpenFile(u.filename)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 	decoder := kyaml.NewYAMLOrJSONDecoder(reader, 32*1024)
 	count := 0
@@ -155,60 +140,127 @@ func (u *ResourceCommand) Create(client *auth.TunClient) error {
 			return trace.Wrap(err)
 		}
 		count += 1
+
 		switch raw.Kind {
-		case services.KindSAMLConnector:
-			conn, err := services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(raw.Raw)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if err := conn.CheckAndSetDefaults(); err != nil {
-				return trace.Wrap(err)
-			}
-			if err := client.UpsertSAMLConnector(conn); err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Printf("created SAML connector: %v\n", conn.GetName())
-		case services.KindOIDCConnector:
-			conn, err := services.GetOIDCConnectorMarshaler().UnmarshalOIDCConnector(raw.Raw)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if err := client.UpsertOIDCConnector(conn); err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Printf("created OIDC connector: %v\n", conn.GetName())
+		case services.KindSAMLConnector, services.KindOIDCConnector:
+			return u.createConnector(client, raw)
 		case services.KindUser:
-			user, err := services.GetUserMarshaler().UnmarshalUser(raw.Raw)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if err := client.UpsertUser(user); err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Printf("created user: %v\n", user.GetName())
+			return u.createUser(client, raw)
 		case services.KindTrustedCluster:
-			tc, err := services.GetTrustedClusterMarshaler().Unmarshal(raw.Raw)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if err := client.UpsertTrustedCluster(tc); err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Printf("created trusted cluster: %q\n", tc.GetName())
-		case "":
-			return trace.BadParameter("missing resource kind")
+			return u.createTrustedCluster(client, raw)
 		default:
-			// customized creation:
-			if u.Impl != nil && u.Impl.Create != nil {
-				err := u.Impl.Create(&raw, client)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-			} else {
-				return trace.BadParameter("creating resources of type %q is not supported", raw.Kind)
-			}
+			return trace.BadParameter("creating resources of type %q is not supported", raw.Kind)
 		}
 	}
+}
+
+// createTrustedCluster implements `tctl create cluster.yaml` command
+func (u *ResourceCommand) createTrustedCluster(client *auth.TunClient, raw services.UnknownResource) error {
+	tc, err := services.GetTrustedClusterMarshaler().Unmarshal(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// check if such cluster already exists:
+	name := tc.GetName()
+	_, err = client.GetTrustedCluster(name)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	exists := (err == nil)
+	if u.force == false && exists {
+		return trace.AlreadyExists("trusted cluster '%s' already exists", name)
+	}
+	if err := client.UpsertTrustedCluster(tc); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("trusted cluster '%s' has been %s\n", name, upsertVerb(exists))
+	return nil
+}
+
+// createConnector implements 'tctl create connector.yaml' command
+func (u *ResourceCommand) createConnector(client *auth.TunClient, raw services.UnknownResource) error {
+	var (
+		connectorName string
+		exists        bool
+		err           error
+	)
+	switch raw.Kind {
+
+	// SAML
+	case services.KindSAMLConnector:
+		conn, err := services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(raw.Raw)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := conn.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+		connectorName = conn.GetName()
+		_, err = client.GetSAMLConnector(connectorName, false)
+		if err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+		exists = (err == nil)
+		if u.force == false && exists {
+			return trace.AlreadyExists("connector '%s' already exists", connectorName)
+		}
+		err = client.UpsertSAMLConnector(conn)
+
+		// OpenID connect
+	case services.KindOIDCConnector:
+		conn, err := services.GetOIDCConnectorMarshaler().UnmarshalOIDCConnector(raw.Raw)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := conn.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+		connectorName = conn.GetName()
+		_, err = client.GetOIDCConnector(connectorName, false)
+		if err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+		exists = (err == nil)
+		if u.force == false && exists {
+			return trace.AlreadyExists("connector '%s' already exists", connectorName)
+		}
+		err = client.UpsertOIDCConnector(conn)
+
+		// unknown connector type
+	default:
+		err = trace.BadParameter("unknown connector type: '%s'", raw.Kind)
+	}
+
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("authentication connector '%s' has been %s\n", connectorName, upsertVerb(exists))
+	return nil
+}
+
+// createUser implements 'tctl create user.yaml' command
+func (u *ResourceCommand) createUser(client *auth.TunClient, raw services.UnknownResource) error {
+	user, err := services.GetUserMarshaler().UnmarshalUser(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	userName := user.GetName()
+	// see if a user with such name exists:
+	_, err = client.GetUser(userName)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	userExists := (err == nil)
+	// asked not to overwrite an existing user? check if it exists
+	if u.force == false && userExists {
+		return trace.AlreadyExists("user '%s' already exists", userName)
+	}
+	if err := client.UpsertUser(user); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("user '%s' has been %s\n", userName, upsertVerb(userExists))
+	return nil
 }
 
 // Delete deletes resource by name
@@ -244,9 +296,6 @@ func (d *ResourceCommand) Delete(client *auth.TunClient) (err error) {
 		}
 		fmt.Printf("trusted cluster %q has been deleted\n", d.ref.Name)
 	default:
-		if d.Impl != nil && d.Impl.Delete != nil {
-			return trace.Wrap(d.Impl.Delete(d.ref, client))
-		}
 		return trace.BadParameter("deleting resoruces of type %q is not supported", d.ref.Kind)
 	}
 	return nil
@@ -370,3 +419,11 @@ const (
 	formatText = "text"
 	formatJSON = "json"
 )
+
+func upsertVerb(exists bool) string {
+	if exists {
+		return "updated"
+	} else {
+		return "created"
+	}
+}
