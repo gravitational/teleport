@@ -144,7 +144,7 @@
   branch = "master"
   name = "github.com/gravitational/kingpin"
   packages = ["."]
-  revision = "785686550a08e8e2e77641c91714280a6dfb08ee"
+  revision = "52bc17adf63c0807b5e5b5d91350703630f621c7"
 
 [[projects]]
   branch = "master"
