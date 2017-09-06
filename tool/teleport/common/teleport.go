@@ -43,7 +43,7 @@ import (
 //   - cmdlineArgs are passed from main()
 //   - distro can be "" (OSS version) or "enterprise"
 //   - testRun is 'true' when running under an integration test
-func Run(cmdlineArgs []string, distro string, testRun bool) (executedCommand string, conf *service.Config) {
+func Run(cmdlineArgs []string, distro teleport.DistroType, testRun bool) (executedCommand string, conf *service.Config) {
 	var err error
 	// configure trace's errors to produce full stack traces
 	isDebug, _ := strconv.ParseBool(os.Getenv(teleport.VerboseLogsEnvVar))

@@ -62,7 +62,7 @@ type CLICommand interface {
 // "distributions" like OSS or Enterprise
 //
 // distribution: name of the Teleport distribution
-func Run(distribution string, commands []CLICommand) {
+func Run(distro teleport.DistroType, commands []CLICommand) {
 	utils.InitLogger(utils.LoggingForCLI, logrus.WarnLevel)
 
 	// app is the command line parser
@@ -100,7 +100,7 @@ func Run(distribution string, commands []CLICommand) {
 
 	// "version" command?
 	if selectedCmd == ver.FullCommand() {
-		utils.PrintVersion(distribution)
+		utils.PrintVersion(distro)
 		return
 	}
 
