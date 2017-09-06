@@ -49,6 +49,13 @@ func (c *cmdGroup) flattenedCommands() (out []*CmdClause) {
 func (c *cmdGroup) addCommand(name, help string) *CmdClause {
 	cmd := newCommand(c.app, name, help)
 	c.commands[name] = cmd
+	// replace the existing command (if exists)
+	for i := range c.commandOrder {
+		if c.commandOrder[i].Name() == name {
+			c.commandOrder[i] = cmd
+			return cmd
+		}
+	}
 	c.commandOrder = append(c.commandOrder, cmd)
 	return cmd
 }
@@ -115,6 +122,11 @@ func newCommand(app *Application, name, help string) *CmdClause {
 		help:      help,
 	}
 	return c
+}
+
+// Name returns the name of the clause
+func (c *CmdClause) Name() string {
+	return c.name
 }
 
 // Add an Alias for this command.
