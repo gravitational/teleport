@@ -14628,6 +14628,7 @@ webpackJsonp([0],[
 	};
 
 	var Access = new _immutable.Record({
+	  list: false,
 	  read: false,
 	  edit: false,
 	  create: false,
@@ -14970,7 +14971,7 @@ webpackJsonp([0],[
 
 	  AuditFeature.prototype.onload = function onload() {
 	    var sessAccess = (0, _store.getAcl)().getSessionAccess();
-	    if (sessAccess.read) {
+	    if (sessAccess.list) {
 	      (0, _actions.addNavItem)(auditNavItem);
 	      this.init();
 	    }
@@ -40780,15 +40781,15 @@ webpackJsonp([0],[
 	var _store = __webpack_require__(421);
 
 	function isTrustedClrsEnabled() {
-	  return (0, _store.getAcl)().getClusterAccess().read;
+	  return (0, _store.getAcl)().getClusterAccess().list;
 	}
 
 	function isRolesEnabled() {
-	  return (0, _store.getAcl)().getRoleAccess().read;
+	  return (0, _store.getAcl)().getRoleAccess().list;
 	}
 
 	function isAuthConnectorsEnabled() {
-	  return (0, _store.getAcl)().getConnectorAccess().read;
+	  return (0, _store.getAcl)().getConnectorAccess().list;
 	}
 
 	function isAnythingEnabled() {
