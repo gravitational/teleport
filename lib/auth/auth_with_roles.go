@@ -893,18 +893,6 @@ func (a *AuthWithRoles) UpsertTrustedCluster(tc services.TrustedCluster) error {
 	if err := a.action(defaults.Namespace, services.KindTrustedCluster, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.action(defaults.Namespace, services.KindCertAuthority, services.VerbCreate); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := a.action(defaults.Namespace, services.KindCertAuthority, services.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := a.action(defaults.Namespace, services.KindReverseTunnel, services.VerbCreate); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := a.action(defaults.Namespace, services.KindReverseTunnel, services.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
 
 	return a.authServer.UpsertTrustedCluster(tc)
 }
@@ -918,12 +906,6 @@ func (a *AuthWithRoles) DeleteTrustedCluster(name string) error {
 	if err := a.action(defaults.Namespace, services.KindTrustedCluster, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.action(defaults.Namespace, services.KindCertAuthority, services.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := a.action(defaults.Namespace, services.KindReverseTunnel, services.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
 
 	return a.authServer.DeleteTrustedCluster(name)
 }
@@ -933,12 +915,6 @@ func (a *AuthWithRoles) EnableTrustedCluster(t services.TrustedCluster) error {
 	if err := a.action(defaults.Namespace, services.KindTrustedCluster, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.action(defaults.Namespace, services.KindCertAuthority, services.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := a.action(defaults.Namespace, services.KindReverseTunnel, services.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
 
 	return a.authServer.EnableTrustedCluster(t)
 }
@@ -946,12 +922,6 @@ func (a *AuthWithRoles) EnableTrustedCluster(t services.TrustedCluster) error {
 // DisableTrustedCluster will disable a TrustedCluster that is already in the backend.
 func (a *AuthWithRoles) DisableTrustedCluster(t services.TrustedCluster) error {
 	if err := a.action(defaults.Namespace, services.KindTrustedCluster, services.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := a.action(defaults.Namespace, services.KindCertAuthority, services.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := a.action(defaults.Namespace, services.KindReverseTunnel, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 
