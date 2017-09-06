@@ -189,7 +189,7 @@ const ErrorIndicator = ({ text }) => (
     <i className="fa fa-exclamation-triangle fa-3x text-warning"></i>
     <div className="m-l">
       <strong>Error</strong>
-      <div className="text-center"><small>{text}</small></div>
+      <div><small>{text}</small></div>
     </div>
   </div>
 )

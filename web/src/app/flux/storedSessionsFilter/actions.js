@@ -17,7 +17,6 @@ limitations under the License.
 import reactor from 'app/reactor';
 import {filter} from './getters';
 import {fetchSiteEvents} from './../sessions/actions';
-import {showError} from 'app/flux/notifications/actions';
 import { TLPT_STORED_SESSINS_FILTER_SET_RANGE } from './actionTypes';
 import Logger from 'app/lib/logger';
 
@@ -40,8 +39,7 @@ const actions = {
 
 function _fetch(start, end){
   return fetchSiteEvents(start, end)
-    .fail((err)=>{
-      showError('Unable to retrieve list of sessions for a given time range');
+    .fail(err => {      
       logger.error('fetching filtered set of sessions', err);
     });
 }

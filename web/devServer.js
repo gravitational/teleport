@@ -20,7 +20,7 @@ var express = require('express');
 var webpack = require('webpack');
 var proxy = require('http-proxy').createProxyServer();
 
-var PROXY_TARGET = '0.0.0.0:3080/';
+var PROXY_TARGET = '0.0.0.0:5080/';
 var ROOT = '/web';
 var PORT = '8081';
 var WEBPACK_CLIENT_ENTRY = 'webpack-dev-server/client?https://localhost:' + PORT;

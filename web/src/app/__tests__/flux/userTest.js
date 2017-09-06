@@ -27,12 +27,9 @@ import * as apiData from 'app/__tests__/apiData';
 
 describe('flux/user/getters', () => {
   it('should return "user"', () => {
-    reactor.dispatch(RECEIVE_USER, {name: apiData.userContext.userName});
-    const expected = {
-      "name": "alex",
-      "shortDisplayName": "a"
-    };
-    expect(reactor.evaluateToJS(getters.user)).toEqual(expected);
+    const userName = apiData.userContext.userName;    
+    reactor.dispatch(RECEIVE_USER, { name: userName });    
+    expect(reactor.evaluate(getters.userName)).toEqual(userName);
   });
 });
 

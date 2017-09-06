@@ -17,7 +17,6 @@ limitations under the License.
 import reactor from 'app/reactor';
 import api from 'app/services/api';
 import cfg from 'app/config';
-import {showError} from 'app/flux/notifications/actions';
 import moment from 'moment';
 import appGetters from 'app/flux/app/getters';
 import Logger from 'app/lib/logger';
@@ -48,15 +47,14 @@ const actions = {
     start = start.toISOString();
     end = end.toISOString();
 
-    let siteId = reactor.evaluate(appGetters.siteId);
+    let siteId = reactor.evaluate(appGetters.siteId);    
     return api.get(cfg.api.getSiteEventsFilterUrl({ start, end, siteId }))
-      .done( json => {
+      .done(json => {
         if (json && json.events) {          
           reactor.dispatch(RECEIVE_SITE_EVENTS, { siteId, json: json.events });
         }  
       })
-      .fail( err => {
-        showError('Unable to retrieve site events');
+      .fail(err => {        
         logger.error('fetchSiteEvents', err);
       });
   },
@@ -64,12 +62,11 @@ const actions = {
   fetchActiveSessions() {    
     const siteId = reactor.evaluate(appGetters.siteId);        
     return api.get(cfg.api.getFetchSessionsUrl(siteId))
-      .done( json => {
+      .done(json => {
         let sessions = json.sessions || [];                        
         reactor.dispatch(RECEIVE_ACTIVE_SESSIONS, { siteId, json: sessions });        
       })
-      .fail( err => {
-        showError('Unable to retrieve list of sessions');
+      .fail(err => {        
         logger.error('fetchActiveSessions', err);
       });
   },

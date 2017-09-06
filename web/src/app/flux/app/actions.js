@@ -16,8 +16,7 @@ limitations under the License.
 
 import $ from 'jQuery';
 import reactor from 'app/reactor';
-import { showError } from 'app/flux/notifications/actions';
-import { SET_SITE_ID } from './actionTypes';
+import { SET_SITE_ID, ADD_NAV_ITEM } from './actionTypes';
 import { TRYING_TO_INIT_APP } from 'app/flux/restApi/constants';
 import { RECEIVE_CLUSTERS } from './../sites/actionTypes';
 import { RECEIVE_USER } from './../user/actionTypes';
@@ -32,28 +31,31 @@ const logger = require('app/lib/logger').create('flux/app');
 
 const actions = {
 
+  addNavItem(item) {
+    reactor.dispatch(ADD_NAV_ITEM, item);
+  },
+
   setSiteId(siteId) {
     reactor.dispatch(SET_SITE_ID, siteId);    
   },
-
-  initApp(nextState) {
-    let { siteId } = nextState.params;        
-    restApiActions.start(TRYING_TO_INIT_APP);    
     
+  initApp(siteId, featureActivator) {         
+    restApiActions.start(TRYING_TO_INIT_APP);        
     // get the list of available clusters        
     return $.when(actions.fetchSites(), actions.fetchUserContext())
-      .then(masterSiteId => {         
+      .then(masterSiteId => {
         const selectedCluster = siteId || masterSiteId;
-        actions.setSiteId(selectedCluster);                
+        actions.setSiteId(selectedCluster);
         return $.when(fetchNodes(), fetchActiveSessions());
       })
       .done(() => {
-        restApiActions.success(TRYING_TO_INIT_APP);                                  
+        featureActivator.onload();
+        restApiActions.success(TRYING_TO_INIT_APP);
       })
-      .fail(err => {        
-        let msg = api.getErrorText(err);                
-        restApiActions.fail(TRYING_TO_INIT_APP, msg);                        
-      });
+      .fail(err => {
+        let msg = api.getErrorText(err);
+        restApiActions.fail(TRYING_TO_INIT_APP, msg);
+      })      
   },
   
   refresh() {
@@ -77,8 +79,7 @@ const actions = {
         
         return masterSiteId;
     })
-    .fail(err => {
-      showError('Unable to retrieve list of clusters ');
+    .fail(err => {      
       logger.error('fetchSites', err);
     })    
   },

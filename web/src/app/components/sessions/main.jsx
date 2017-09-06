@@ -38,7 +38,7 @@ const Sessions = React.createClass({
     return fetchSiteEventsWithinTimeRange();    
   },
 
-  render() {
+  render() {    
     const { storedSessions, activeSessions, storedSessionsFilter } = this.state;
     return (      
       <div className="grv-page grv-sessions">                                      

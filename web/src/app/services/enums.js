@@ -19,6 +19,10 @@ export const AuthProviderTypeEnum = {
   SAML: 'saml'
 }
 
+export const RestRespCodeEnum = {
+  FORBIDDEN : 403
+}
+
 export const Auth2faTypeEnum = {
   UTF: 'u2f',
   OTP: 'otp',

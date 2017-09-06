@@ -14,10 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import reactor from 'app/reactor';
 import { Store, toImmutable } from 'nuclear-js';
-import { Record, Map, List } from 'immutable';
+import { Record, List } from 'immutable';
 import { RECEIVE_USERACL } from './actionTypes';
 
+// sort logins by making 'root' as the first in the list
 const sortLogins = loginList => {
   let index = loginList.indexOf('root');
   if (index !== -1) {
@@ -28,55 +30,66 @@ const sortLogins = loginList => {
   return loginList;
 }
 
-class AccessRec extends Record({  
-  admin: Map({
-    enabled: false
-  }),
-  ssh: Map({
-    enabled: false,
-    logins: List()
-  })
+const Access = new Record({
+  list: false,
+  read: false,
+	edit: false,
+	create: false,
+	remove: false
+})
+	
+class AccessListRec extends Record({  
+  authConnectors: new Access(),
+  trustedClusters: new Access(),
+  roles: new Access(),
+  sessions: new Access(),
+  sshLogins: new List()
 }){
-  constructor(params) {    
+  constructor(json = {}) {    
+    const map = toImmutable(json);    
+    const sshLogins = new List(map.get('sshLogins'));            
+    const params = {
+      sshLogins: sortLogins(sshLogins),
+      authConnectors: new Access(map.get('authConnectors')),
+      trustedClusters: new Access(map.get('trustedClusters')),
+      roles: new Access(map.get('roles')),
+      sessions: new Access(map.get('sessions'))
+    }
+      
     super(params);                
   }
-  
-  isAdminEnabled() {
-    return this.getIn(['admin', 'enabled']);
-  }
-  
-  isSshEnabled() {
-    let logins = this.getIn(['ssh', 'logins']);
-    return logins ? logins.size > 0 : false;    
+        
+  getSessionAccess() {
+    return this.get('sessions');
   }
 
+  getRoleAccess() {
+    return this.get('roles');    
+  }
+
+  getConnectorAccess() {
+    return this.get('authConnectors');    
+  }
+  
+  getClusterAccess() {
+    return this.get('trustedClusters');    
+  }
+      
   getSshLogins() {
-    let logins = this.getIn(['ssh', 'logins']);
-    if (!logins) {
-      return []
-    }
-
-    return logins.toJS()    
+    return this.get('sshLogins')    
   }
+}
+
+export function getAcl() {
+  return reactor.evaluate(['tlpt_user_acl']);
 }
 
 export default Store({
   getInitialState() {
-    return new AccessRec();
+    return new AccessListRec();
   },
 
   initialize() {          
-    this.on(RECEIVE_USERACL, receiveAcl);            
+    this.on(RECEIVE_USERACL, (state, json ) => new AccessListRec(json) );            
   }
 })
-
-function receiveAcl(state, json) {
-  json = json || {};   
-  let aclMap = toImmutable(json);
-  let loginList = aclMap.getIn(['ssh', 'logins']);
-  if (loginList) {
-    aclMap = aclMap.setIn(['ssh', 'logins'], sortLogins(loginList));
-  }
-
-  return new AccessRec(aclMap);    
-}
