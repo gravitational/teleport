@@ -20,9 +20,6 @@ package main
 
 import (
 	"fmt"
-	"strings"
-
-	"github.com/buger/goterm"
 
 	"github.com/gravitational/teleport/e/lib"
 	"github.com/gravitational/teleport/lib/auth"
@@ -35,9 +32,7 @@ import (
 
 func main() {
 	commands := []common.CLICommand{
-		&common.UserCommand{Impl: &common.UserCommandImpl{
-			List: listUsers,
-		}},
+		&UserCommandE{},
 		&common.NodeCommand{},
 		&common.TokenCommand{},
 		&common.AuthCommand{},
@@ -77,17 +72,5 @@ func createResource(raw *services.UnknownResource, client *auth.TunClient) error
 	default:
 		return trace.BadParameter("creating resources of type %q is not supported", raw.Kind)
 	}
-	return nil
-}
-
-// listUsers performs `tctl users ls` for the enterprise edition. Unlike the OSS
-// version, this implementation prints user roles (instead of "allowed logins")
-func listUsers(users []services.User, client *auth.TunClient) error {
-	t := goterm.NewTable(0, 10, 5, ' ', 0)
-	common.PrintHeader(t, []string{"User", "Roles"})
-	for _, u := range users {
-		fmt.Fprintf(t, "%v\t%v\n", u.GetName(), strings.Join(u.GetRoles(), ","))
-	}
-	fmt.Println(t.String())
 	return nil
 }
