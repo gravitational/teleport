@@ -254,10 +254,6 @@ type AuthConfig struct {
 	// environments where paranoid security is not needed
 	StaticTokens services.StaticTokens
 
-	// DynamicConfig determines the source of configuration truth for Teleport. File
-	// configuration or configuration that is in the backend.
-	DynamicConfig bool
-
 	// StorageConfig contains configuration settings for the storage backend.
 	StorageConfig backend.Config
 
@@ -314,7 +310,6 @@ func ApplyDefaults(cfg *Config) {
 	// defaults for the auth service:
 	cfg.Auth.Enabled = true
 	cfg.Auth.SSHAddr = *defaults.AuthListenAddr()
-	cfg.Auth.DynamicConfig = false
 	cfg.Auth.StorageConfig.Type = boltbk.GetName()
 	cfg.Auth.StorageConfig.Params = backend.Params{"path": cfg.DataDir}
 	defaults.ConfigureLimiter(&cfg.Auth.Limiter)

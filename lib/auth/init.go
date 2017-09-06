@@ -109,7 +109,7 @@ type InitConfig struct {
 }
 
 // Init instantiates and configures an instance of AuthServer
-func Init(cfg InitConfig, dynamicConfig bool) (*AuthServer, *Identity, error) {
+func Init(cfg InitConfig) (*AuthServer, *Identity, error) {
 	if cfg.DataDir == "" {
 		return nil, nil, trace.BadParameter("DataDir: data dir can not be empty")
 	}
