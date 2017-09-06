@@ -31,6 +31,9 @@ import (
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
+type ResourceCreateHandler func(*auth.TunClient, services.UnknownResource) error
+type ResourceKind string
+
 // ResourceCommand implements `tctl get/create/list` commands for manipulating
 // Teleport resources
 type ResourceCommand struct {
@@ -45,9 +48,11 @@ type ResourceCommand struct {
 	filename string
 
 	// CLI subcommands:
-	delete *kingpin.CmdClause
-	get    *kingpin.CmdClause
-	create *kingpin.CmdClause
+	deleteCmd *kingpin.CmdClause
+	getCmd    *kingpin.CmdClause
+	createCmd *kingpin.CmdClause
+
+	CreateHandlers map[ResourceKind]ResourceCreateHandler
 }
 
 const getHelp = `Examples:
@@ -62,22 +67,26 @@ Same as above, but using JSON output:
 
 // Initialize allows ResourceCommand to plug itself into the CLI parser
 func (g *ResourceCommand) Initialize(app *kingpin.Application, config *service.Config) {
+	g.CreateHandlers = map[ResourceKind]ResourceCreateHandler{
+		services.KindUser:           g.createUser,
+		services.KindTrustedCluster: g.createTrustedCluster,
+	}
 	g.config = config
 
-	g.create = app.Command("create", "Create or update a Teleport resource from a YAML file")
-	g.create.Arg("filename", "resource definition file").Required().StringVar(&g.filename)
-	g.create.Flag("force", "Overwrite the resource if already exists").Short('f').BoolVar(&g.force)
+	g.createCmd = app.Command("create", "Create or update a Teleport resource from a YAML file")
+	g.createCmd.Arg("filename", "resource definition file").Required().StringVar(&g.filename)
+	g.createCmd.Flag("force", "Overwrite the resource if already exists").Short('f').BoolVar(&g.force)
 
-	g.delete = app.Command("rm", "Delete a resource").Alias("del")
-	g.delete.Arg("resource", "Resource to delete").SetValue(&g.ref)
+	g.deleteCmd = app.Command("rm", "Delete a resource").Alias("del")
+	g.deleteCmd.Arg("resource", "Resource to delete").SetValue(&g.ref)
 
-	g.get = app.Command("get", "Print a YAML declaration of various Teleport resources")
-	g.get.Arg("resource", "Resource spec: 'type/[name]'").SetValue(&g.ref)
-	g.get.Flag("format", "Output format: 'yaml' or 'json'").Default(formatYAML).StringVar(&g.format)
-	g.get.Flag("namespace", "Namespace of the resources").Hidden().Default(defaults.Namespace).StringVar(&g.namespace)
-	g.get.Flag("with-secrets", "Include secrets in resources like certificate authorities or OIDC connectors").Default("false").BoolVar(&g.withSecrets)
+	g.getCmd = app.Command("get", "Print a YAML declaration of various Teleport resources")
+	g.getCmd.Arg("resource", "Resource spec: 'type/[name]'").SetValue(&g.ref)
+	g.getCmd.Flag("format", "Output format: 'yaml' or 'json'").Default(formatYAML).StringVar(&g.format)
+	g.getCmd.Flag("namespace", "Namespace of the resources").Hidden().Default(defaults.Namespace).StringVar(&g.namespace)
+	g.getCmd.Flag("with-secrets", "Include secrets in resources like certificate authorities or OIDC connectors").Default("false").BoolVar(&g.withSecrets)
 
-	g.get.Alias(getHelp)
+	g.getCmd.Alias(getHelp)
 }
 
 // TryRun takes the CLI command as an argument (like "auth gen") and executes it
@@ -85,18 +94,29 @@ func (g *ResourceCommand) Initialize(app *kingpin.Application, config *service.C
 func (g *ResourceCommand) TryRun(cmd string, client *auth.TunClient) (match bool, err error) {
 	switch cmd {
 	// tctl get
-	case g.get.FullCommand():
+	case g.getCmd.FullCommand():
 		err = g.Get(client)
 		// tctl create
-	case g.create.FullCommand():
+	case g.createCmd.FullCommand():
 		err = g.Create(client)
 		// tctl rm
-	case g.delete.FullCommand():
+	case g.deleteCmd.FullCommand():
 		err = g.Delete(client)
 	default:
 		return false, nil
 	}
 	return true, trace.Wrap(err)
+}
+
+// IsDeleteSubcommand returns 'true' if the given command is `tctl rm`
+func (g *ResourceCommand) IsDeleteSubcommand(cmd string) bool {
+	return cmd == g.deleteCmd.FullCommand()
+}
+
+// GetRef returns the reference (basically type/name pair) of the resource
+// the command is operating on
+func (g *ResourceCommand) GetRef() services.Ref {
+	return g.ref
 }
 
 // Get prints one or many resources of a certain type
@@ -141,16 +161,12 @@ func (u *ResourceCommand) Create(client *auth.TunClient) error {
 		}
 		count += 1
 
-		switch raw.Kind {
-		case services.KindSAMLConnector, services.KindOIDCConnector:
-			return u.createConnector(client, raw)
-		case services.KindUser:
-			return u.createUser(client, raw)
-		case services.KindTrustedCluster:
-			return u.createTrustedCluster(client, raw)
-		default:
+		// locate the creator function for a given resource kind:
+		creator, found := u.CreateHandlers[ResourceKind(raw.Kind)]
+		if !found {
 			return trace.BadParameter("creating resources of type %q is not supported", raw.Kind)
 		}
+		return creator(client, raw)
 	}
 }
 
@@ -174,68 +190,7 @@ func (u *ResourceCommand) createTrustedCluster(client *auth.TunClient, raw servi
 	if err := client.UpsertTrustedCluster(tc); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("trusted cluster '%s' has been %s\n", name, upsertVerb(exists))
-	return nil
-}
-
-// createConnector implements 'tctl create connector.yaml' command
-func (u *ResourceCommand) createConnector(client *auth.TunClient, raw services.UnknownResource) error {
-	var (
-		connectorName string
-		exists        bool
-		err           error
-	)
-	switch raw.Kind {
-
-	// SAML
-	case services.KindSAMLConnector:
-		conn, err := services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(raw.Raw)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := conn.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
-		}
-		connectorName = conn.GetName()
-		_, err = client.GetSAMLConnector(connectorName, false)
-		if err != nil && !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-		exists = (err == nil)
-		if u.force == false && exists {
-			return trace.AlreadyExists("connector '%s' already exists", connectorName)
-		}
-		err = client.UpsertSAMLConnector(conn)
-
-		// OpenID connect
-	case services.KindOIDCConnector:
-		conn, err := services.GetOIDCConnectorMarshaler().UnmarshalOIDCConnector(raw.Raw)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := conn.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
-		}
-		connectorName = conn.GetName()
-		_, err = client.GetOIDCConnector(connectorName, false)
-		if err != nil && !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-		exists = (err == nil)
-		if u.force == false && exists {
-			return trace.AlreadyExists("connector '%s' already exists", connectorName)
-		}
-		err = client.UpsertOIDCConnector(conn)
-
-		// unknown connector type
-	default:
-		err = trace.BadParameter("unknown connector type: '%s'", raw.Kind)
-	}
-
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("authentication connector '%s' has been %s\n", connectorName, upsertVerb(exists))
+	fmt.Printf("trusted cluster '%s' has been %s\n", name, UpsertVerb(exists))
 	return nil
 }
 
@@ -259,7 +214,7 @@ func (u *ResourceCommand) createUser(client *auth.TunClient, raw services.Unknow
 	if err := client.UpsertUser(user); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("user '%s' has been %s\n", userName, upsertVerb(userExists))
+	fmt.Printf("user '%s' has been %s\n", userName, UpsertVerb(userExists))
 	return nil
 }
 
@@ -299,6 +254,11 @@ func (d *ResourceCommand) Delete(client *auth.TunClient) (err error) {
 		return trace.BadParameter("deleting resoruces of type %q is not supported", d.ref.Kind)
 	}
 	return nil
+}
+
+// IsForced returns true if -f flag was passed
+func (cmd *ResourceCommand) IsForced() bool {
+	return cmd.force
 }
 
 func (g *ResourceCommand) getCollection(client auth.ClientI) (c ResourceCollection, err error) {
@@ -420,7 +380,7 @@ const (
 	formatJSON = "json"
 )
 
-func upsertVerb(exists bool) string {
+func UpsertVerb(exists bool) string {
 	if exists {
 		return "updated"
 	} else {
