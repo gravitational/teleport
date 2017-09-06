@@ -1371,7 +1371,8 @@ func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource
 				return trace.Wrap(err)
 			}
 			if matched {
-				return trace.AccessDenied("%v access to %v in namespace %q is denied for role %q: deny rule matched", verb, resource, namespace, role.GetName())
+				log.Infof("[RBAC] %s access to %s [namespace %s] denied for role %q: deny rule matched", verb, resource, namespace, role.GetName())
+				return trace.AccessDenied("access denied to perform action '%s' on %s", verb, resource)
 			}
 		}
 	}
@@ -1390,7 +1391,8 @@ func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource
 		}
 	}
 
-	return trace.AccessDenied("%v access to %v in namespace %v is denied for %v: no allow rule matched", verb, resource, namespace, set)
+	log.Infof("[RBAC] %s access to %s [namespace %s] denied for %v: no allow rule matched", verb, resource, namespace, set)
+	return trace.AccessDenied("access denied to perform action '%s' on %s", verb, resource)
 }
 
 // ProcessNamespace sets default namespace in case if namespace is empty
