@@ -1,7 +1,6 @@
 package web
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -15,7 +14,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
-	log "github.com/sirupsen/logrus"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
@@ -40,12 +38,8 @@ func (p *Plugin) getResourceHandler(w http.ResponseWriter, r *http.Request, para
 	kind := params.ByName("kind")
 	data, err := getResourceByKind(kind, clt)
 	if err != nil {
-		if trace.IsAccessDenied(err) {
-			return nil, withAccessDeniedMessage(err, services.VerbRead, kind)
-		}
 		return nil, trace.Wrap(err)
 	}
-
 	return makeItemsResponse(data)
 }
 
@@ -62,14 +56,6 @@ func (p *Plugin) upsertResourceHandler(w http.ResponseWriter, r *http.Request, p
 
 	items, err := upsertResource(item2Upsert.Kind, item2Upsert.Content, client)
 	if err != nil {
-		if trace.IsAccessDenied(err) {
-			verb := services.VerbUpdate
-			if r.Method == "POST" {
-				verb = services.VerbCreate
-			}
-
-			return nil, withAccessDeniedMessage(err, verb, item2Upsert.Kind)
-		}
 		return nil, trace.Wrap(err)
 	}
 
@@ -85,9 +71,6 @@ func (p *Plugin) deleteResourceHandler(w http.ResponseWriter, r *http.Request, p
 	resourceKind := params.ByName("kind")
 	resourceName := params.ByName("name")
 	if err := deleteResource(resourceKind, resourceName, client); err != nil {
-		if trace.IsAccessDenied(err) {
-			return nil, withAccessDeniedMessage(err, services.VerbDelete, resourceKind)
-		}
 		return nil, trace.Wrap(err)
 	}
 
@@ -271,16 +254,6 @@ func ensureKindValue(given string, expected string) error {
 	}
 
 	return trace.BadParameter("Invalid value for kind")
-}
-
-func withAccessDeniedMessage(err error, verb string, kind string) error {
-	message := getAccessDeniedText(verb, kind)
-	log.Errorf(message, err)
-	return trace.AccessDenied(message)
-}
-
-func getAccessDeniedText(verb string, kind string) string {
-	return fmt.Sprintf("You do not have permissions to %v %v ", verb, ui.ResourceDisplayString[kind])
 }
 
 type itemsResponse struct {
