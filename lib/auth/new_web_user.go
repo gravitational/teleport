@@ -289,7 +289,7 @@ func (a *AuthServer) createUserAndSession(stoken *services.SignupToken) (service
 	// to services.UserV2 we convert allowed logins to traits.
 	user := stoken.User.V2()
 	if len(user.GetRoles()) == 0 {
-		user.SetRoles([]string{teleport.DefaultRoleName})
+		user.SetRoles([]string{teleport.AdminRoleName})
 	}
 
 	// upsert user into the backend
