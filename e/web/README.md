@@ -1,13 +1,45 @@
 ## web client
 
-Build (to create new /dist files)
+### To build and regenerate /dist/* files
 
-1. `install nodejs >= 5.0.0`
-2. `npm install`
-3. `npm run build`
+With docker
 
-To run a dev server (development)
+```
+$ make
+```
 
-1. `npm run start`
-2. `open https://localhost:8081/web`
+Locally 
 
+```
+$ install nodejs >= 8.0.0
+```
+```
+$ make local
+```
+
+
+To run a dev server
+
+```
+$ npm run start
+```
+```
+open https://localhost:8081/web
+```
+
+### To generate a list of dependencies with their licenses 
+
+```
+$ npm install -g nlf
+$ nlf -d --summary detail > licenses.txt
+```
+
+Then modify the file by excluding dual dependencies and adding manual dependecies from /assets/vendor folder
+
+If you want to generate JSON file to build custom reports.
+https://github.com/davglass/license-checker
+
+```
+$ npm install -g license-checker
+$ license-checker --production --json --summary > licenses.json
+```

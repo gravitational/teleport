@@ -15,5 +15,3 @@ limitations under the License.
 */
 
 import 'telebase-app/vendor';
-import 'expiry-js';
-import 'react-select';

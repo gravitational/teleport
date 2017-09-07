@@ -29,6 +29,7 @@ func (p *Plugin) AddHandlers(h *web.Handler) {
 	h.DELETE("/enterprise/resources/:kind/:name", h.WithAuth(p.deleteResourceHandler))
 }
 
+// getResourceHandler is GET handler that returns ConfigItems for requested resource kind
 func (p *Plugin) getResourceHandler(w http.ResponseWriter, r *http.Request, params httprouter.Params, c *web.SessionContext) (interface{}, error) {
 	clt, err := c.GetClient()
 	if err != nil {
@@ -40,9 +41,10 @@ func (p *Plugin) getResourceHandler(w http.ResponseWriter, r *http.Request, para
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return makeItemsResponse(data)
+	return makeResponse(data)
 }
 
+// upsertResourceHandler is POST|PUT handler that upserts a resource using its ConfigItem
 func (p *Plugin) upsertResourceHandler(w http.ResponseWriter, r *http.Request, params httprouter.Params, c *web.SessionContext) (interface{}, error) {
 	var item2Upsert ui.ConfigItem
 	if err := httplib.ReadJSON(r, &item2Upsert); err != nil {
@@ -59,9 +61,10 @@ func (p *Plugin) upsertResourceHandler(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
-	return makeItemsResponse(items)
+	return makeResponse(items)
 }
 
+// deleteResourceHandler is DELETE handler that removes a resource by its kind and name values
 func (p *Plugin) deleteResourceHandler(w http.ResponseWriter, r *http.Request, params httprouter.Params, c *web.SessionContext) (interface{}, error) {
 	client, err := c.GetClient()
 	if err != nil {
@@ -87,6 +90,7 @@ func ok() interface{} {
 	return message("OK")
 }
 
+// deleteResource deletes a resource
 func deleteResource(resourceKind string, resourceName string, client auth.ClientI) error {
 	switch resourceKind {
 	case services.KindSAMLConnector:
@@ -114,6 +118,7 @@ func deleteResource(resourceKind string, resourceName string, client auth.Client
 	}
 }
 
+// getResourceByKind returns a collection of ConfigItem wrappers that contains resources of requested kind
 func getResourceByKind(kind string, client auth.ClientI) ([]ui.ConfigItem, error) {
 	if kind == "" {
 		return nil, trace.BadParameter("specify resource to list, e.g. 'tctl get roles'")
@@ -158,6 +163,7 @@ func getResourceByKind(kind string, client auth.ClientI) ([]ui.ConfigItem, error
 	return nil, trace.BadParameter("'%v' is not supported", kind)
 }
 
+// upsertResource updates a resource and returns ConfigItem wrapper with the updated resource
 func upsertResource(kind string, data string, client auth.ClientI) (interface{}, error) {
 	var unknownRes services.UnknownResource
 	reader := strings.NewReader(data)
@@ -256,10 +262,11 @@ func ensureKindValue(given string, expected string) error {
 	return trace.BadParameter("Invalid value for kind")
 }
 
-type itemsResponse struct {
+type webAPIResponse struct {
 	Items interface{} `json:"items"`
 }
 
-func makeItemsResponse(items interface{}) (interface{}, error) {
-	return itemsResponse{Items: items}, nil
+// makeResponse takes a collection of objects and returns API response object
+func makeResponse(items interface{}) (interface{}, error) {
+	return webAPIResponse{Items: items}, nil
 }
