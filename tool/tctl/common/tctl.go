@@ -19,7 +19,6 @@ package common
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
@@ -28,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/buger/goterm"
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -124,16 +122,6 @@ func Run(distribution string, commands []CLICommand) {
 			break
 		}
 	}
-}
-
-// PrintHeader helper prints an ASCII table header to stdout
-func PrintHeader(t *goterm.Table, cols []string) {
-	dots := make([]string, len(cols))
-	for i := range dots {
-		dots[i] = strings.Repeat("-", len(cols[i]))
-	}
-	fmt.Fprint(t, strings.Join(cols, "\t")+"\n")
-	fmt.Fprint(t, strings.Join(dots, "\t")+"\n")
 }
 
 // connectToAuthService creates a valid client connection to the auth service
