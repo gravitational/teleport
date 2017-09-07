@@ -22,9 +22,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/buger/goterm"
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
@@ -159,13 +159,12 @@ func (u *UserCommand) List(client *auth.TunClient) error {
 		fmt.Println("No users found")
 		return nil
 	}
-	t := goterm.NewTable(0, 10, 5, ' ', 0)
-	PrintHeader(t, []string{"User", "Allowed logins"})
+	t := asciitable.MakeTable([]string{"User", "Allowed logins"})
 	for _, u := range users {
 		logins, _ := u.GetTraits()[teleport.TraitLogins]
-		fmt.Fprintf(t, "%v\t%v\n", u.GetName(), strings.Join(logins, ","))
+		t.AddRow([]string{u.GetName(), strings.Join(logins, ",")})
 	}
-	fmt.Println(t.String())
+	fmt.Println(t.AsBuffer().String())
 	return nil
 }
 
