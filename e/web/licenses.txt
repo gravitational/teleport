@@ -58,8 +58,6 @@ LICENSES:
 │ ├── react-dom@0.14.9
 │ ├── react-dom@15.3.1
 │ └── warning@3.0.0
-├─┬ ISC
-│ └── element-class@0.2.2
 ├─┬ BSD-3-Clause
 │ ├── fbjs@0.8.14
 │ ├── ieee754@1.1.8
@@ -78,14 +76,9 @@ LICENSES:
 │ └── ajaxorg/ace@1.2.6
 ├─┬ (OFL-1.1 AND MIT)
 │ └── font-awesome@4.5.0
-├─┬ GPL
-│ ├── gravitational-enterprise@2.0.0
-│ └── ua-parser-js@0.7.14
 ├─┬ Apache-2.0
 │ ├── Datepicker for Bootstrap v1.6.0
 │ └── keymirror@0.1.1
-├─┬ (GPL-2.0 OR MIT)
-│ └── ua-parser-js@0.7.14
 └─┬ (DejaVu Fonts — License)
   └── DejaVe mono fonts used for terminal(https://dejavu-fonts.github.io)
 
