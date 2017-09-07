@@ -11,7 +11,7 @@ $ make
 Locally 
 
 ```
-$ install nodejs >= 8.0.0
+install nodejs >= 8.0.0
 ```
 ```
 $ make local
