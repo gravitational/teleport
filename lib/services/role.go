@@ -493,6 +493,9 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 	if r.Spec.Allow.Rules == nil {
 		r.Spec.Allow.Rules = CopyRulesSlice(AdminUserRules)
 	}
+	if r.Spec.Deny.Namespaces == nil {
+		r.Spec.Deny.Namespaces = []string{defaults.Namespace}
+	}
 
 	// if we find {{ or }} but the syntax is invalid, the role is invalid
 	for _, condition := range []RoleConditionType{Allow, Deny} {
@@ -1066,6 +1069,13 @@ func (r *RoleV2) V3() *RoleV3 {
 	}
 	role.Spec.Allow.Rules = rules
 
+	err := role.CheckAndSetDefaults()
+	if err != nil {
+		// as V2 to V3 migration should not throw any errors, we can ignore this error
+		errorMessage := fmt.Sprintf("[RBAC] Errors while converting %v from V2 to V3: %v ", r.String(), err)
+		log.Warnf(errorMessage)
+	}
+
 	return role
 }
 
@@ -1280,7 +1290,7 @@ func (set RoleSet) CheckAccessToServer(login string, s Server) error {
 		matchNamespace := MatchNamespace(role.GetNamespaces(Deny), s.GetNamespace())
 		matchLabels := MatchLabels(role.GetNodeLabels(Deny), s.GetAllLabels())
 		matchLogin := MatchLogin(role.GetLogins(Deny), login)
-		if matchNamespace || matchLabels || matchLogin {
+		if matchNamespace && (matchLabels || matchLogin) {
 			errorMessage := fmt.Sprintf("role %v denied access to node %v: deny rule matched; match(namespace=%v, label=%v, login=%v)",
 				role.GetName(), s.GetHostname(), matchNamespace, matchLabels, matchLogin)
 			log.Warnf("[RBAC] Denied access to server: " + errorMessage)
