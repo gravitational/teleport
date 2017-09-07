@@ -27,3 +27,12 @@ npm run start
 open https://localhost:8081/web
 ```
 
+### To generate a list of NPM modules with their license 
+
+```
+npm install -g nlf
+```
+
+```
+nlf -d --summary detail
+```
