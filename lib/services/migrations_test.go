@@ -259,7 +259,7 @@ func (s *MigrationsSuite) TestMigrateRoles(c *C) {
 			MaxSessionTTL: NewDuration(20 * time.Hour),
 			Logins:        []string{"foo"},
 			NodeLabels:    map[string]string{"a": "b"},
-			Namespaces:    []string{"default"},
+			Namespaces:    []string{defaults.Namespace},
 			Resources:     map[string][]string{"role": []string{"read", "write"}},
 		},
 	}
@@ -279,10 +279,13 @@ func (s *MigrationsSuite) TestMigrateRoles(c *C) {
 			Allow: RoleConditions{
 				Logins:     []string{"foo"},
 				NodeLabels: map[string]string{"a": "b"},
-				Namespaces: []string{"default"},
+				Namespaces: []string{defaults.Namespace},
 				Rules: []Rule{
 					NewRule(KindRole, RW()),
 				},
+			},
+			Deny: RoleConditions{
+				Namespaces: []string{defaults.Namespace},
 			},
 		},
 		rawObject: *in,
