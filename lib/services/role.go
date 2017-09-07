@@ -746,6 +746,14 @@ func (r *Rule) ProcessActions(parser predicate.Parser) error {
 // this method also matches wildcard
 func (r *Rule) HasVerb(verb string) bool {
 	for _, v := range r.Verbs {
+		// readnosecrets can be satisfied by having readnosecrets or read
+		if verb == VerbReadNoSecrets {
+			if v == VerbReadNoSecrets || v == VerbRead {
+				return true
+			}
+			continue
+		}
+
 		if v == verb {
 			return true
 		}
@@ -1060,7 +1068,7 @@ func (r *RoleV2) V3() *RoleV3 {
 			verbs = RO()
 		} else if containsWrite {
 			// in RoleV2 ActionWrite implied the ability to read secrets.
-			verbs = []string{VerbCreate, VerbUpdate, VerbDelete}
+			verbs = []string{VerbCreate, VerbRead, VerbUpdate, VerbDelete}
 		}
 
 		rules = append(rules, NewRule(resource, verbs))
@@ -1136,9 +1144,15 @@ func RW() []string {
 	return []string{VerbConnect, VerbList, VerbCreate, VerbRead, VerbUpdate, VerbDelete}
 }
 
-// RO is a shortcut that returns read only verbs.
+// RO is a shortcut that returns read only verbs that provide access to secrets.
 func RO() []string {
 	return []string{VerbList, VerbRead}
+}
+
+// ReadNoSecrets is a shortcut that returns read only verbs that do not
+// provide access to secrets.
+func ReadNoSecrets() []string {
+	return []string{VerbList, VerbReadNoSecrets}
 }
 
 // NewRole constructs new standard role

@@ -155,6 +155,9 @@ const (
 	// VerbRead is used to read a single object.
 	VerbRead = "read"
 
+	// VerbReadNoSecrets is used to read a single object without secrets.
+	VerbReadNoSecrets = "readnosecrets"
+
 	// VerbUpdate is used to update an object.
 	VerbUpdate = "update"
 
