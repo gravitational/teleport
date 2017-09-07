@@ -1070,8 +1070,7 @@ func (r *RoleV2) V3() *RoleV3 {
 	err := role.CheckAndSetDefaults()
 	if err != nil {
 		// as V2 to V3 migration should not throw any errors, we can ignore this error
-		errorMessage := fmt.Sprintf("[RBAC] Errors while converting %v from V2 to V3: %v ", r.String(), err)
-		log.Warnf(errorMessage)
+		log.Warnf("[RBAC] Errors while converting %v from V2 to V3: %v ", r.String(), err)
 	}
 
 	return role
