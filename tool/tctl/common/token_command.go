@@ -20,8 +20,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/buger/goterm"
 	"github.com/gravitational/kingpin"
+	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/trace"
@@ -85,16 +85,15 @@ func (c *TokenCommand) List(client *auth.TunClient) error {
 		return nil
 	}
 	tokensView := func() string {
-		table := goterm.NewTable(0, 10, 5, ' ', 0)
-		PrintHeader(table, []string{"Token", "Role", "Expiry Time (UTC)"})
+		table := asciitable.MakeTable([]string{"Token", "Role", "Expiry Time (UTC)"})
 		for _, t := range tokens {
 			expiry := "never"
 			if t.Expires.Unix() > 0 {
 				expiry = t.Expires.Format(time.RFC822)
 			}
-			fmt.Fprintf(table, "%v\t%v\t%s\n", t.Token, t.Roles.String(), expiry)
+			table.AddRow([]string{t.Token, t.Roles.String(), expiry})
 		}
-		return table.String()
+		return table.AsBuffer().String()
 	}
 	fmt.Printf(tokensView())
 	return nil

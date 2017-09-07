@@ -20,14 +20,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/trace"
 
-	"github.com/buger/goterm"
 	"github.com/ghodss/yaml"
 )
 
@@ -42,23 +43,18 @@ type roleCollection struct {
 }
 
 func (r *roleCollection) writeText(w io.Writer) error {
-	t := goterm.NewTable(0, 10, 5, ' ', 0)
-	PrintHeader(t, []string{"Role", "Allowed to login as", "Node Labels", "Access to resources"})
-	if len(r.roles) == 0 {
-		_, err := io.WriteString(w, t.String())
-		return trace.Wrap(err)
-	}
+	t := asciitable.MakeTable([]string{"Role", "Allowed to login as", "Node Labels", "Access to resources"})
 	for _, r := range r.roles {
 		if r.GetName() == teleport.DefaultImplicitRole {
 			continue
 		}
-		fmt.Fprintf(t, "%v\t%v\t%v\t%v\n",
+		t.AddRow([]string{
 			r.GetMetadata().Name,
 			strings.Join(r.GetLogins(services.Allow), ","),
 			printNodeLabels(r.GetNodeLabels(services.Allow)),
-			printActions(r.GetRules(services.Allow)))
+			printActions(r.GetRules(services.Allow))})
 	}
-	_, err := io.WriteString(w, t.String())
+	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
 
@@ -92,16 +88,11 @@ type namespaceCollection struct {
 }
 
 func (n *namespaceCollection) writeText(w io.Writer) error {
-	t := goterm.NewTable(0, 10, 5, ' ', 0)
-	PrintHeader(t, []string{"Name"})
-	if len(n.namespaces) == 0 {
-		_, err := io.WriteString(w, t.String())
-		return trace.Wrap(err)
-	}
+	t := asciitable.MakeTable([]string{"Name"})
 	for _, n := range n.namespaces {
-		fmt.Fprintf(t, "%v\n", n.Metadata.Name)
+		t.AddRow([]string{n.Metadata.Name})
 	}
-	_, err := io.WriteString(w, t.String())
+	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
 
@@ -154,16 +145,13 @@ type serverCollection struct {
 }
 
 func (s *serverCollection) writeText(w io.Writer) error {
-	t := goterm.NewTable(0, 10, 5, ' ', 0)
-	PrintHeader(t, []string{"Hostname", "UUID", "Address", "Labels"})
-	if len(s.servers) == 0 {
-		_, err := io.WriteString(w, t.String())
-		return trace.Wrap(err)
-	}
+	t := asciitable.MakeTable([]string{"Hostname", "UUID", "Address", "Labels"})
 	for _, s := range s.servers {
-		fmt.Fprintf(t, "%v\t%v\t%v\t%v\n", s.GetHostname(), s.GetName(), s.GetAddr(), s.LabelsString())
+		t.AddRow([]string{
+			s.GetHostname(), s.GetName(), s.GetAddr(), s.LabelsString(),
+		})
 	}
-	_, err := io.WriteString(w, t.String())
+	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
 
@@ -231,8 +219,7 @@ type authorityCollection struct {
 }
 
 func (a *authorityCollection) writeText(w io.Writer) error {
-	t := goterm.NewTable(0, 10, 5, ' ', 0)
-	PrintHeader(t, []string{"Cluster Name", "CA Type", "Fingerprint", "Role Map"})
+	t := asciitable.MakeTable([]string{"Cluster Name", "CA Type", "Fingerprint", "Role Map"})
 	for _, a := range a.cas {
 		for _, keyBytes := range a.GetCheckingKeys() {
 			fingerprint, err := sshutils.AuthorizedKeyFingerprint(keyBytes)
@@ -245,10 +232,15 @@ func (a *authorityCollection) writeText(w io.Writer) error {
 			} else {
 				roles = fmt.Sprintf("%v", a.CombinedMapping())
 			}
-			fmt.Fprintf(t, "%v\t%v\t%v\t%v\n", a.GetClusterName(), a.GetType(), fingerprint, roles)
+			t.AddRow([]string{
+				a.GetClusterName(),
+				string(a.GetType()),
+				fingerprint,
+				roles,
+			})
 		}
 	}
-	_, err := io.WriteString(w, t.String())
+	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
 
@@ -282,12 +274,13 @@ type reverseTunnelCollection struct {
 }
 
 func (r *reverseTunnelCollection) writeText(w io.Writer) error {
-	t := goterm.NewTable(0, 10, 5, ' ', 0)
-	PrintHeader(t, []string{"Cluster Name", "Dial Addresses"})
+	t := asciitable.MakeTable([]string{"Cluster Name", "Dial Addresses"})
 	for _, tunnel := range r.tunnels {
-		fmt.Fprintf(t, "%v\t%v\n", tunnel.GetClusterName(), strings.Join(tunnel.GetDialAddrs(), ","))
+		t.AddRow([]string{
+			tunnel.GetClusterName(), strings.Join(tunnel.GetDialAddrs(), ","),
+		})
 	}
-	_, err := io.WriteString(w, t.String())
+	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
 
@@ -321,12 +314,13 @@ type oidcCollection struct {
 }
 
 func (c *oidcCollection) writeText(w io.Writer) error {
-	t := goterm.NewTable(0, 10, 5, ' ', 0)
-	PrintHeader(t, []string{"Name", "Issuer URL", "Additional Scope"})
+	t := asciitable.MakeTable([]string{"Name", "Issuer URL", "Additional Scope"})
 	for _, conn := range c.connectors {
-		fmt.Fprintf(t, "%v\t%v\t%v\n", conn.GetName(), conn.GetIssuerURL(), strings.Join(conn.GetScope(), ","))
+		t.AddRow([]string{
+			conn.GetName(), conn.GetIssuerURL(), strings.Join(conn.GetScope(), ","),
+		})
 	}
-	_, err := io.WriteString(w, t.String())
+	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
 
@@ -360,13 +354,12 @@ type samlCollection struct {
 }
 
 func (c *samlCollection) writeText(w io.Writer) error {
-	t := goterm.NewTable(0, 10, 5, ' ', 0)
-	PrintHeader(t, []string{"Name", "SSO URL"})
+	t := asciitable.MakeTable([]string{"Name", "SSO URL"})
 	for _, conn := range c.connectors {
-		fmt.Fprintf(t, "%v\t%v\n", conn.GetName(), conn.GetSSO())
+		t.AddRow([]string{conn.GetName(), conn.GetSSO()})
 	}
-	_, err := io.WriteString(w, t.String())
-	return trace.Wrap(err)
+	t.AsBuffer().WriteTo(w)
+	return nil
 }
 
 func (c *samlCollection) writeJSON(w io.Writer) error {
@@ -399,12 +392,19 @@ type trustedClusterCollection struct {
 }
 
 func (c *trustedClusterCollection) writeText(w io.Writer) error {
-	t := goterm.NewTable(0, 10, 5, ' ', 0)
-	PrintHeader(t, []string{"Name", "Enabled", "Token", "Proxy Address", "Reverse Tunnel Address", "Role Map"})
+	t := asciitable.MakeTable([]string{
+		"Name", "Enabled", "Token", "Proxy Address", "Reverse Tunnel Address", "Role Map"})
 	for _, tc := range c.trustedClusters {
-		fmt.Fprintf(t, "%v\t%v\t%v\t%v\t%v\t%v\n", tc.GetName(), tc.GetEnabled(), tc.GetToken(), tc.GetProxyAddress(), tc.GetReverseTunnelAddress(), tc.CombinedMapping())
+		t.AddRow([]string{
+			tc.GetName(),
+			strconv.FormatBool(tc.GetEnabled()),
+			tc.GetToken(),
+			tc.GetProxyAddress(),
+			tc.GetReverseTunnelAddress(),
+			fmt.Sprintf("%v", tc.CombinedMapping()),
+		})
 	}
-	_, err := io.WriteString(w, t.String())
+	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
 
@@ -425,40 +425,6 @@ func (c *trustedClusterCollection) toMarshal() interface{} {
 }
 
 func (c *trustedClusterCollection) writeYAML(w io.Writer) error {
-	data, err := yaml.Marshal(c.toMarshal())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = w.Write(data)
-	return trace.Wrap(err)
-}
-
-type authPreferenceCollection struct {
-	services.AuthPreference
-}
-
-func (c *authPreferenceCollection) writeText(w io.Writer) error {
-	t := goterm.NewTable(0, 10, 5, ' ', 0)
-	PrintHeader(t, []string{"Type", "Second Factor"})
-	fmt.Fprintf(t, "%v\t%v\n", c.GetType(), c.GetSecondFactor())
-	_, err := io.WriteString(w, t.String())
-	return trace.Wrap(err)
-}
-
-func (c *authPreferenceCollection) writeJSON(w io.Writer) error {
-	data, err := json.MarshalIndent(c.toMarshal(), "", "    ")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = w.Write(data)
-	return trace.Wrap(err)
-}
-
-func (c *authPreferenceCollection) toMarshal() interface{} {
-	return c
-}
-
-func (c *authPreferenceCollection) writeYAML(w io.Writer) error {
 	data, err := yaml.Marshal(c.toMarshal())
 	if err != nil {
 		return trace.Wrap(err)

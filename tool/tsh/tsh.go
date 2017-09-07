@@ -33,16 +33,15 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
-	"github.com/buger/goterm"
 	gops "github.com/google/gops/agent"
 	"github.com/sirupsen/logrus"
 )
@@ -370,22 +369,17 @@ func onListNodes(cf *CLIConf) {
 	if err != nil {
 		utils.FatalError(err)
 	}
-	servers, err := tc.ListNodes(context.TODO())
+	nodes, err := tc.ListNodes(context.TODO())
 	if err != nil {
 		utils.FatalError(err)
 	}
-	nodesView := func(nodes []services.Server) string {
-		t := goterm.NewTable(0, 10, 5, ' ', 0)
-		printHeader(t, []string{"Node Name", "Node ID", "Address", "Labels"})
-		if len(nodes) == 0 {
-			return t.String()
-		}
-		for _, n := range nodes {
-			fmt.Fprintf(t, "%v\t%v\t%v\t%v\n", n.GetHostname(), n.GetName(), n.GetAddr(), n.LabelsString())
-		}
-		return t.String()
+	t := asciitable.MakeTable([]string{"Node Name", "Node ID", "Address", "Labels"})
+	for _, n := range nodes {
+		t.AddRow([]string{
+			n.GetHostname(), n.GetName(), n.GetAddr(), n.LabelsString(),
+		})
 	}
-	fmt.Printf(nodesView(servers))
+	fmt.Println(t.AsBuffer().String())
 }
 
 // onListSites executes 'tsh sites' command
@@ -404,28 +398,19 @@ func onListSites(cf *CLIConf) {
 	if err != nil {
 		utils.FatalError(err)
 	}
-	sitesView := func() string {
-		t := goterm.NewTable(0, 10, 5, ' ', 0)
-		printHeader(t, []string{"Cluster Name", "Status"})
-		if len(sites) == 0 {
-			return t.String()
-		}
-		for _, site := range sites {
-			fmt.Fprintf(t, "%v\t%v\n", site.Name, site.Status)
-		}
-		return t.String()
-	}
-	quietSitesView := func() string {
-		names := make([]string, 0)
-		for _, site := range sites {
-			names = append(names, site.Name)
-		}
-		return strings.Join(names, "\n")
-	}
+	var t asciitable.Table
 	if cf.Quiet {
-		sitesView = quietSitesView
+		t = asciitable.MakeHeadlessTable(2)
+	} else {
+		t = asciitable.MakeTable([]string{"Cluster Name", "Status"})
 	}
-	fmt.Printf(sitesView())
+	if len(sites) == 0 {
+		return
+	}
+	for _, site := range sites {
+		t.AddRow([]string{site.Name, site.Status})
+	}
+	fmt.Println(t.AsBuffer().String())
 }
 
 // onSSH executes 'tsh ssh' command
@@ -470,13 +455,12 @@ func onBenchmark(cf *CLIConf) {
 		fmt.Printf("* Last error: %v\n", result.LastError)
 	}
 	fmt.Printf("\nHistogram\n\n")
-	t := goterm.NewTable(0, 10, 5, ' ', 0)
-	printHeader(t, []string{"Percentile", "Duration"})
+	t := asciitable.MakeTable([]string{"Percentile", "Duration"})
 	for _, quantile := range []float64{25, 50, 75, 90, 95, 99, 100} {
-		fmt.Fprintf(t, "%v\t%v ms\n", quantile, result.Histogram.ValueAtQuantile(quantile))
+		t.AddRow([]string{fmt.Sprintf("%v", quantile),
+			fmt.Sprintf("%v ms", result.Histogram.ValueAtQuantile(quantile)),
+		})
 	}
-
-	fmt.Fprintf(os.Stdout, t.String())
 	fmt.Printf("\n")
 }
 
@@ -676,15 +660,6 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 	c.AuthConnector = cf.AuthConnector
 
 	return client.NewClient(c)
-}
-
-func printHeader(t *goterm.Table, cols []string) {
-	dots := make([]string, len(cols))
-	for i := range dots {
-		dots[i] = strings.Repeat("-", len(cols[i]))
-	}
-	fmt.Fprint(t, strings.Join(cols, "\t")+"\n")
-	fmt.Fprint(t, strings.Join(dots, "\t")+"\n")
 }
 
 // refuseArgs helper makes sure that 'args' (list of CLI arguments)
