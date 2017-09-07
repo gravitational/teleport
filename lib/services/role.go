@@ -117,8 +117,6 @@ func NewImplicitRole() Role {
 			},
 			Allow: RoleConditions{
 				Namespaces: []string{defaults.Namespace},
-				Logins:     []string{teleport.TraitInternalRoleVariable},
-				NodeLabels: map[string]string{Wildcard: Wildcard},
 				Rules:      CopyRulesSlice(DefaultImplicitRules),
 			},
 		},

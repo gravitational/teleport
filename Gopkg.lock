@@ -47,11 +47,6 @@
   revision = "fe0f26ff6d26693948ee8189aa064ee8c54141fa"
 
 [[projects]]
-  name = "github.com/buger/goterm"
-  packages = ["."]
-  revision = "d281585cd7365cff9edfed1a5115fc624a012bdc"
-
-[[projects]]
   name = "github.com/cenkalti/backoff"
   packages = ["."]
   revision = "61153c768f31ee5f130071d08fc82b85208528de"
