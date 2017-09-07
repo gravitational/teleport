@@ -156,9 +156,11 @@ func ReadOrMakeHostUUID(dataDir string) (string, error) {
 
 // PrintVersion prints human readable version.
 //   - distro: name of the distribution. Empty string for OSS or "enterprise"
-func PrintVersion(distro string) {
-	if distro != "" {
+func PrintVersion(distro teleport.DistroType) {
+	if distro == teleport.DistroTypeEnterprise {
 		distro = " " + distro
+	} else {
+		distro = ""
 	}
 	ver := fmt.Sprintf("Teleport%s v%s", distro, teleport.Version)
 	if teleport.Gitref != "" {

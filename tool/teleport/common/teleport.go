@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
@@ -43,8 +44,12 @@ import (
 //   - cmdlineArgs are passed from main()
 //   - distro can be "" (OSS version) or "enterprise"
 //   - testRun is 'true' when running under an integration test
-func Run(cmdlineArgs []string, distro string, testRun bool) (executedCommand string, conf *service.Config) {
+func Run(cmdlineArgs []string, distro teleport.DistroType, testRun bool) (executedCommand string, conf *service.Config) {
 	var err error
+
+	// initialize the teleport library with the proper distro flag
+	lib.SetDistroType(distro)
+
 	// configure trace's errors to produce full stack traces
 	isDebug, _ := strconv.ParseBool(os.Getenv(teleport.VerboseLogsEnvVar))
 	if isDebug {

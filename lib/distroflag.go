@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Gravitational, Inc.
+Copyright 2015 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -12,22 +12,26 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+
+This file contains a single global variable controlling which edition
+of Teleport is running
+
 */
 
-package main
+package lib
 
 import (
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/tool/tctl/common"
 )
 
-func main() {
-	commands := []common.CLICommand{
-		&common.UserCommand{},
-		&common.NodeCommand{},
-		&common.TokenCommand{},
-		&common.AuthCommand{},
-		&common.ResourceCommand{},
-	}
-	common.Run(teleport.DistroTypeOSS, commands)
+var (
+	currentDistroType teleport.DistroType = teleport.DistroTypeOSS
+)
+
+func SetDistroType(t teleport.DistroType) {
+	currentDistroType = t
+}
+
+func IsEnterprise() bool {
+	return currentDistroType == teleport.DistroTypeEnterprise
 }

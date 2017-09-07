@@ -197,7 +197,7 @@ func (s *AuthInitSuite) TestAuthPreference(c *C) {
 		StaticTokens:   staticTokens,
 		AuthPreference: ap,
 	}
-	as, _, err := Init(ac, false)
+	as, _, err := Init(ac)
 	c.Assert(err, IsNil)
 
 	cap, err := as.GetAuthPreference()

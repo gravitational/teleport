@@ -201,3 +201,13 @@ const AdminRoleName = "admin"
 // DefaultImplicitRole is implicit role that gets added to all service.RoleSet
 // objects.
 const DefaultImplicitRole = "default-implicit-role"
+
+// DistroType allows to declare what kind of distribution of Teleport
+// is running
+type DistroType string
+
+// Possible values for DistroType:
+const (
+	DistroTypeOSS        DistroType = "community"
+	DistroTypeEnterprise DistroType = "enterprise"
+)
