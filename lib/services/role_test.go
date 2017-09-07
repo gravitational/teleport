@@ -110,6 +110,9 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 							NewRule(KindTrustedCluster, RW()),
 						},
 					},
+					Deny: RoleConditions{
+						Namespaces: []string{defaults.Namespace},
+					},
 				},
 			},
 			error: nil,
@@ -169,7 +172,8 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 						},
 					},
 					Deny: RoleConditions{
-						Logins: []string{"c"},
+						Namespaces: []string{defaults.Namespace},
+						Logins:     []string{"c"},
 					},
 				},
 			},
