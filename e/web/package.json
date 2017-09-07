@@ -16,7 +16,6 @@
     "brace": "0.10.0",
     "buffer": "4.5.0",
     "classnames": "^2.2.3",
-    "expiry-js": "^0.1.7",
     "font-awesome": "4.5.0",
     "keymirror": "0.1.1",
     "lodash": "4.8.2",
@@ -32,11 +31,11 @@
     "react-dom": "15.3.1",
     "react-overlays": "^0.6.11",
     "react-router": "3.0.1",
-    "react-select": "0.9.1",
     "react-slider": "0.6.1",
     "react-toastr": "2.4.0",
     "u2f-api-polyfill": "^0.4.3",
-    "xterm": "2.4.0"
+    "xterm": "2.4.0",
+    "bootstrap-sass": "^3.3.6"
   },
   "devDependencies": {
     "babel-core": "^6.14.0",
@@ -50,7 +49,6 @@
     "babel-preset-react": "^6.11.1",
     "babel-preset-stage-0": "^6.5.0",
     "body-parser": "^1.9.0",
-    "bootstrap-sass": "^3.3.6",
     "css-loader": "^0.18.0",
     "eslint": "^3.5.0",
     "eslint-import-resolver-webpack": "^0.6.0",

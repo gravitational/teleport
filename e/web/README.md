@@ -1,13 +1,29 @@
 ## web client
 
-Build (to create new /dist files)
+### To build and regenerate /dist/* files
 
-1. `install nodejs >= 5.0.0`
-2. `npm install`
-3. `npm run build`
+With docker
 
-To run a dev server (development)
+```
+make
+```
 
-1. `npm run start`
-2. `open https://localhost:8081/web`
+Locally 
+
+```
+install nodejs >= 8.0.0
+```
+```
+make local
+```
+
+
+To run a dev server
+
+```
+npm run start
+```
+```
+open https://localhost:8081/web
+```
 
