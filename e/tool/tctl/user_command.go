@@ -28,8 +28,9 @@ type UserCommandE struct {
 	userAdd  *kingpin.CmdClause
 	userList *kingpin.CmdClause
 
-	username string
-	roles    []string
+	username      string
+	roles         []string
+	allowedLogins []string
 }
 
 // Initialize allows a caller-defined command to plug itself into CLI
@@ -44,6 +45,7 @@ func (cmd *UserCommandE) Initialize(app *kingpin.Application, cfg *service.Confi
 	cmd.userAdd = users.Command("add", "Generate a user invitation token "+helpPrefix)
 	cmd.userAdd.Arg("account", "Teleport user account name").Required().StringVar(&cmd.username)
 	cmd.userAdd.Flag("roles", "List of roles for the new user to assume").Required().StringsVar(&cmd.roles)
+	cmd.userAdd.Flag("logins", "List of allowed logins for the new user").StringsVar(&cmd.allowedLogins)
 	cmd.userAdd.Alias(AddUserHelp)
 
 	cmd.userList = users.Command("ls", "List all user accounts "+helpPrefix)
@@ -88,7 +90,8 @@ func (cmd *UserCommandE) List(client *auth.TunClient) error {
 // Add implements `tctl users add` for the enterprise edition. Unlike the OSS
 // version, this one requires --roles flag to be set
 func (cmd *UserCommandE) Add(client *auth.TunClient) error {
-	cmd.roles = flattenRoles(cmd.roles)
+	cmd.roles = flattenSlice(cmd.roles)
+	cmd.allowedLogins = flattenSlice(cmd.allowedLogins)
 
 	// validate roles (server does not do this yet)
 	for _, roleName := range cmd.roles {
@@ -99,8 +102,9 @@ func (cmd *UserCommandE) Add(client *auth.TunClient) error {
 	}
 
 	user := services.UserV1{
-		Name:  cmd.username,
-		Roles: cmd.roles,
+		Name:          cmd.username,
+		Roles:         cmd.roles,
+		AllowedLogins: cmd.allowedLogins,
 	}
 	token, err := client.CreateSignupToken(user)
 	if err != nil {
@@ -112,9 +116,9 @@ func (cmd *UserCommandE) Add(client *auth.TunClient) error {
 	return nil
 }
 
-// flattenRoles takes a slice of strings like ["one,two", "three"] and returns
+// flattenSlice takes a slice of strings like ["one,two", "three"] and returns
 // ["one", "two", "three"]
-func flattenRoles(slice []string) (retval []string) {
+func flattenSlice(slice []string) (retval []string) {
 	for i := range slice {
 		for _, role := range strings.Split(slice[i], ",") {
 			retval = append(retval, strings.TrimSpace(role))
@@ -129,14 +133,14 @@ const (
   1. tctl will generate a signup token and give you a URL to share with a user.
      A user will have to complete account creation by visiting the URL.
 
-  2. A Teleport user account is not the same as a local UNIX users on SSH nodes.
-     You must assign a list of allowed local users for every Teleport login.
+  2. The allowed logins of the account only apply if a role uses them by including
+     '{{ internal.logins }}' variable in a role definition.
 
 Examples:
 
-  > tctl users add --roles=admin joe 
+  > tctl users add --roles=admin,dba joe
 
-  This creates a Teleport account 'joe' who will assume the role 'admin'
-  To see 'admin' permissions, you can execute 'tctl get role/admin'
+  This creates a Teleport account 'joe' who will assume the roles 'admin' and 'dba'
+  To see the permissions of 'admin' role, execute 'tctl get role/admin'
 `
 )
