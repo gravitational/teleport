@@ -9,14 +9,10 @@ const logger = Logger.create('Modules/Nodes');
 
 export default {
   fetchNodes() {
-    let siteId = reactor.evaluate(appGetters.siteId);
+    const siteId = reactor.evaluate(appGetters.siteId);
     return api.get(cfg.api.getSiteNodesUrl(siteId))
-      .then(res => res.items)   
-      .done(items => {                           
-        reactor.dispatch(TLPT_NODES_RECEIVE, { siteId, jsonItems: items });
-      })
-      .fail(err => {
-        logger.error('fetchNodes', err);
-    })
+      .then(res => res.items || [])
+      .done(items => reactor.dispatch(TLPT_NODES_RECEIVE, items))
+      .fail(err => logger.error('fetchNodes', err));    
   }
 }

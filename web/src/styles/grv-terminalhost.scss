@@ -23,6 +23,14 @@
   width: 50px;
   position: absolute;
 
+  .grv-icon-close{
+    fill: $red;
+    &:hover{
+      fill: darken($red, 2%);
+      cursor: pointer;
+    }
+  }
+
   .grv-divider{
     background-color: #3B3838;
     border-color: #3B3838;
@@ -42,6 +50,7 @@
   margin-top: -35px;
   text-align: center;
   overflow: hidden;
+  color: $gray-light;
   span{
     margin-left: 5px
   }

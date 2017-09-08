@@ -14,22 +14,59 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var { Store, toImmutable } = require('nuclear-js');
-var  { TLPT_NODES_RECEIVE } = require('./actionTypes');
+import reactor from 'app/reactor';
+import { Store, toImmutable } from 'nuclear-js';
+import { Record, List } from 'immutable';
+import { TLPT_NODES_RECEIVE } from './actionTypes';
+
+export class ServerRec extends Record({
+  id: '',
+  siteId: '',
+  hostname: '',
+  tags: new List(),
+  addr: ''
+}) {
+  constructor(props) {
+    const tags = new List(toImmutable(props.tags));
+    super({
+      ...props,
+      tags
+    })
+  }
+}
+
+class NodeStoreRec extends Record({
+  servers: new List()
+}) {
+   
+  findServer(serverId) {    
+    return this.servers.find(s => s.id === serverId);      
+  }
+
+  getSiteServers(siteId) {
+    return this.servers.filter(s => s.siteId === siteId);    
+  }
+
+  addSiteServers(jsonItems) {      
+    const list = new List().withMutations(state => {
+      jsonItems.forEach(item => state.push(new ServerRec(item)));
+      return state;
+    });
+    
+    return list.equals(this.servers) ? this : this.set('servers', list);    
+  }
+}
+
+export function getNodeStore() {
+  return reactor.evaluate(['tlpt_nodes']);
+}
 
 export default Store({
   getInitialState() {
-    return toImmutable([]);
+    return new NodeStoreRec();
   },
 
   initialize() {
-    this.on(TLPT_NODES_RECEIVE, receiveNodes)
+    this.on(TLPT_NODES_RECEIVE, (state, items) => state.addSiteServers(items))
   }
 })
-
-function receiveNodes(state, { siteId, jsonItems }) {
-  jsonItems = jsonItems || [];    
-  jsonItems.forEach(n => n.siteId = siteId);
-  return state.filter(o => o.get('siteId') !== siteId)
-       .concat(toImmutable(jsonItems))    
-}

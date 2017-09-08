@@ -17,13 +17,18 @@ limitations under the License.
 import React from 'react';
 import classnames from 'classnames';
 const logoSvg = require('assets/img/svg/grv-tlpt-logo-full.svg');
+const closeSvg = require('assets/img/svg/grv-icon-close.svg');
 
 const TeleportLogo = () => (
   <svg className="grv-icon-logo-tlpt"><use xlinkHref={logoSvg}/></svg>
 )
 
+const CloseIcon = () => (
+  <svg className="grv-icon-close"><use xlinkHref={closeSvg}/></svg>
+)
+
 const UserIcon = ({name='', isDark})=>{
-  let iconClass = classnames('grv-icon-user', {
+  const iconClass = classnames('grv-icon-user', {
     '--dark' : isDark
   });
 
@@ -36,4 +41,4 @@ const UserIcon = ({name='', isDark})=>{
   )
 };
 
-export {TeleportLogo, UserIcon}
+export {TeleportLogo, UserIcon, CloseIcon}

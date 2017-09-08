@@ -59,8 +59,7 @@ const actions = {
   },
   
   refresh() {
-    return $.when(
-      actions.fetchSites(),
+    return $.when(      
       fetchActiveSessions(),
       fetchNodes()
     )    

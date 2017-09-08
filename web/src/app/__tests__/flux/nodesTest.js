@@ -15,7 +15,9 @@ limitations under the License.
 */
 
 import { reactor, expect, Dfd, spyOn, api } from './../';
-import { getters, actions } from 'app/flux/nodes';
+import actions from 'app/flux/nodes/actions';
+import getters from 'app/flux/nodes/getters';
+import { getNodeStore } from 'app/flux/nodes/nodeStore';
 import { setSiteId } from 'app/flux/app/actions';
 import { nodes } from 'app/__tests__/apiData'
 
@@ -39,13 +41,13 @@ describe('flux/nodes', () => {
       actions.fetchNodes();
     });
 
-    it('should get "nodeListView"', () => {      
-      const expected = [{"id":"ad2109a6-42ac-44e4-a570-5ce1b470f9b6","siteId": "siteid123", "hostname":"x220","tags":[{"role":"role","value":"mysql"},{"role":"db_status","value":"master","tooltip":"mysql -c status"}],"addr":"0.0.0.0:3022"}];
-      expect(reactor.evaluateToJS(getters.nodeListView)).toEqual(expected);
+    it('should get cluster nodes"', () => {                           
+      expect(reactor.evaluateToJS(getters.siteNodes)).toEqual(nodes.items);
     });
 
-    it('should get "nodeHostNameByServerId"', () => {      
-      expect(reactor.evaluateToJS(getters.nodeHostNameByServerId(serverId))).toEqual('x220');
+    it('should findServer', () => {            
+      const server = getNodeStore().findServer(serverId);
+      expect(server.hostname).toEqual('x220');
     });
   });
 })

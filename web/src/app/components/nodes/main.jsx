@@ -19,12 +19,12 @@ import { connect } from 'nuclear-js-react-addons';
 import userAclGetters from 'app/flux/userAcl/getters';
 import nodeGetters from 'app/flux/nodes/getters';
 import appGetters from 'app/flux/app/getters';
-
 import NodeList from './nodeList.jsx';
 
 const Nodes = props => {  
-  const { nodeRecords, aclStore, sites, siteId } = props;
-  const logins = aclStore.getSshLogins().toJS();
+  const { siteNodes, aclStore, sites, siteId } = props;
+  const logins = aclStore.getSshLogins().toJS();  
+  const nodeRecords = siteNodes.toJS();
   return (   
     <div className="grv-page">
       <NodeList
@@ -40,7 +40,7 @@ const Nodes = props => {
 function mapStateToProps() {
   return {    
     siteId: appGetters.siteId,
-    nodeRecords: nodeGetters.nodeListView,
+    siteNodes: nodeGetters.siteNodes,
     aclStore: userAclGetters.userAcl     
   }
 }
