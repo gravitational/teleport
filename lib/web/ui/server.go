@@ -6,16 +6,16 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-// LabelDTO describes a label
-type LabelDTO struct {
+// Label describes label for webapp
+type Label struct {
 	// Name is this label name
 	Name string `json:"name"`
 	// Value is this label value
 	Value string `json:"value"`
 }
 
-// ServerDTO describes a server
-type ServerDTO struct {
+// Server describes a server for webapp
+type Server struct {
 	// Name is this server name
 	Name string `json:"id"`
 	// ClusterName is this server cluster name
@@ -25,12 +25,12 @@ type ServerDTO struct {
 	// Addrr is this server ip address
 	Addr string `json:"addr"`
 	// Labels is this server list of labels
-	Labels []LabelDTO `json:"tags"`
+	Labels []Label `json:"tags"`
 }
 
-// MakeServerDTOs creates DTO object for Server
-func MakeServerDTOs(clusterName string, servers []services.Server) []ServerDTO {
-	serverDTOs := []ServerDTO{}
+// MakeServers creates server objects for webapp
+func MakeServers(clusterName string, servers []services.Server) []Server {
+	uiServers := []Server{}
 	for _, server := range servers {
 		serverLabels := server.GetLabels()
 		labelNames := []string{}
@@ -38,24 +38,24 @@ func MakeServerDTOs(clusterName string, servers []services.Server) []ServerDTO {
 			labelNames = append(labelNames, name)
 		}
 
-		// sort labels by name and create their dtos
+		// sort labels by name
 		sort.Strings(labelNames)
-		labelDTOs := []LabelDTO{}
+		uiLabels := []Label{}
 		for _, name := range labelNames {
-			labelDTOs = append(labelDTOs, LabelDTO{
+			uiLabels = append(uiLabels, Label{
 				Name:  name,
 				Value: serverLabels[name],
 			})
 		}
 
-		serverDTOs = append(serverDTOs, ServerDTO{
+		uiServers = append(uiServers, Server{
 			ClusterName: clusterName,
 			Name:        server.GetName(),
 			Hostname:    server.GetHostname(),
 			Addr:        server.GetAddr(),
-			Labels:      labelDTOs,
+			Labels:      uiLabels,
 		})
 	}
 
-	return serverDTOs
+	return uiServers
 }

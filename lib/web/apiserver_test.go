@@ -741,7 +741,7 @@ func (s *WebSuite) TestWebSessionsBadInput(c *C) {
 }
 
 type getSiteNodeResponse struct {
-	Items []ui.ServerDTO `json:"items"`
+	Items []ui.Server `json:"items"`
 }
 
 func (s *WebSuite) TestGetSiteNodes(c *C) {
