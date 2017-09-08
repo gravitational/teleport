@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -192,12 +193,14 @@ func Init(cfg InitConfig) (*AuthServer, *Identity, error) {
 	log.Infof("[INIT] Created Namespace: %q", defaults.Namespace)
 
 	// always create a default admin role
-	defaultRole := services.NewAdminRole()
-	err = asrv.UpsertRole(defaultRole, backend.Forever)
-	if err != nil {
+	defaultRole := services.NewAdminRole(lib.IsEnterprise())
+	err = asrv.CreateRole(defaultRole, backend.Forever)
+	if err != nil && !trace.IsAlreadyExists(err) {
 		return nil, nil, trace.Wrap(err)
 	}
-	log.Infof("[INIT] Created default Role: %q", defaultRole.GetName())
+	if !trace.IsAlreadyExists(err) {
+		log.Infof("[INIT] Created default admin role: %q", defaultRole.GetName())
+	}
 
 	// generate a user certificate authority if it doesn't exist
 	if _, err := asrv.GetCertAuthority(services.CertAuthID{DomainName: cfg.ClusterName.GetClusterName(), Type: services.UserCA}, false); err != nil {

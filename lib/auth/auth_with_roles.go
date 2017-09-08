@@ -744,6 +744,11 @@ func (a *AuthWithRoles) GetRoles() ([]services.Role, error) {
 	return a.authServer.GetRoles()
 }
 
+// CreateRole creates a role.
+func (a *AuthWithRoles) CreateRole(role services.Role, ttl time.Duration) error {
+	return trace.BadParameter("not implemented")
+}
+
 // UpsertRole creates or updates role
 func (a *AuthWithRoles) UpsertRole(role services.Role, ttl time.Duration) error {
 	if err := a.action(defaults.Namespace, services.KindRole, services.VerbCreate); err != nil {

@@ -101,7 +101,7 @@ func (s *TunSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	// create the default role
-	c.Assert(s.a.UpsertRole(services.NewAdminRole(), backend.Forever), IsNil)
+	c.Assert(s.a.UpsertRole(services.NewAdminRole(false), backend.Forever), IsNil)
 
 	// set up host private key and certificate
 	c.Assert(s.a.UpsertCertAuthority(

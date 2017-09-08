@@ -79,8 +79,8 @@ func RoleNameForCertAuthority(name string) string {
 
 // NewAdminRole is the default admin role for all local users if another role
 // is not explicitly assigned (Enterprise only).
-func NewAdminRole() Role {
-	return &RoleV3{
+func NewAdminRole(isEnterprise bool) Role {
+	role := &RoleV3{
 		Kind:    KindRole,
 		Version: V3,
 		Metadata: Metadata{
@@ -93,12 +93,20 @@ func NewAdminRole() Role {
 			},
 			Allow: RoleConditions{
 				Namespaces: []string{defaults.Namespace},
-				Logins:     []string{teleport.TraitInternalRoleVariable},
 				NodeLabels: map[string]string{Wildcard: Wildcard},
 				Rules:      CopyRulesSlice(AdminUserRules),
 			},
 		},
 	}
+
+	// the default role also has "root" for enterprise users
+	allowedLogins := []string{teleport.TraitInternalRoleVariable}
+	if isEnterprise {
+		allowedLogins = append(allowedLogins, teleport.Root)
+	}
+	role.SetLogins(Allow, allowedLogins)
+
+	return role
 }
 
 // NewImplicitRole is the default implicit role that gets added to all
@@ -180,6 +188,9 @@ func ConvertV1CertAuthority(v1 *CertAuthorityV1) (CertAuthority, Role) {
 type Access interface {
 	// GetRoles returns a list of roles
 	GetRoles() ([]Role, error)
+
+	// CreateRole creates a role
+	CreateRole(role Role, ttl time.Duration) error
 
 	// UpsertRole creates or updates role
 	UpsertRole(role Role, ttl time.Duration) error
