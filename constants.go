@@ -194,6 +194,9 @@ const (
 	TraitInternalRoleVariable = "{{internal.logins}}"
 )
 
+// Root is *nix system administrator account name.
+const Root = "root"
+
 // DefaultRole is the name of the default admin role for all local users if
 // another role is not explicitly assigned (Enterprise only).
 const AdminRoleName = "admin"

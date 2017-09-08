@@ -62,6 +62,26 @@ func (s *AccessService) GetRoles() ([]services.Role, error) {
 	return out, nil
 }
 
+// CreateRole creates a role on the backend.
+func (s *AccessService) CreateRole(role services.Role, ttl time.Duration) error {
+	data, err := services.GetRoleMarshaler().MarshalRole(role)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// TODO(klizhentas): Picking smaller of the two ttls
+	backendTTL := backend.TTL(s.Clock(), role.Expiry())
+	if backendTTL < ttl {
+		ttl = backendTTL
+	}
+
+	err = s.CreateVal([]string{"roles", role.GetName()}, "params", []byte(data), ttl)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 // UpsertRole updates parameters about role
 func (s *AccessService) UpsertRole(role services.Role, ttl time.Duration) error {
 	data, err := services.GetRoleMarshaler().MarshalRole(role)
