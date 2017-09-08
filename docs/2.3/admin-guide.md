@@ -224,20 +224,15 @@ auth_service:
     # Turns 'auth' role on. Default is 'yes'
     enabled: yes
 
-    # Turns on dynamic configuration. Dynamic configuration defines the source
-    # for configuration information, configuration files on disk or what's
-    # stored in the backend. Default is false if no backend is specified,
-    # otherwise if backend is specified, it is assumed to be true.
-    dynamic_config: false
-
     # defines the types and second factors the auth server supports
     authentication:
-        # type can be local or oidc
+        # default authentication type. possible values are 'local', 'oidc' and 'saml'
+        # only local authentication (Teleport's own user DB) is supported in the open 
+        # source version
         type: local
         # second_factor can be off, otp, or u2f
         second_factor: otp
-
-        # this section is only used if using u2f
+        # U2F configuration, if enabled
         u2f:
             # app_id should point to the Web UI.
             app_id: https://localhost:3080
@@ -326,18 +321,26 @@ proxy_service:
 
 ## Authentication
 
-Teleport supports two types of user accounts: 
+Teleport uses the concept of "authentication connectors" to authenticate users when
+they execute `tsh login` command. There are three types of authentication connectors:
 
-* **Internal users** are created and stored in Teleport's own identitiy storage. A cluster
-  administrator has to create account entries for every Teleport user. 
-  Teleport also supports two factor authentication (2FA), which is turned on by default. 
-  There are two types of 2FA supported:
+* **local** is used to authenticate against a local Teleport user database. This database
+  is managed by `tctl users` command. Teleport also supports second factor authentication 
+  (2FA) for the local connector. There are two types of 2FA:
     * [TOTP](https://en.wikipedia.org/wiki/Time-based_One-time_Password_Algorithm)
       is the default. You can use [Google Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator) or 
       [Authy](https://www.authy.com/) or any other TOTP client.
     * [U2F](https://en.wikipedia.org/wiki/Universal_2nd_Factor) is the second.
-* **External users** are users stored elsewhere else within an organization. Examples include
-  Github, Active Directory (AD), LDAP server, OpenID/OAuth2 endpoint or behind SAML. 
+
+* **saml** connector type implements SAML authentication can be configured
+  against any external identity manager like Okta or Auth0. This feature is
+  only available for Teleport Enterprise.
+* **oidc** connector type implements OpenID Connect (OIDC) authentication, which 
+  is similar to SAML in principle. This feature is
+  only available for Teleport Enterprise.
+
+The authentication connector type is configured via `auth/authentication/type`
+setting in the `teleport.yaml` above.
 
 ## FIDO U2F
 
@@ -482,7 +485,7 @@ $ tsh --proxy=work --user=joe root@luna
 To delete this user:
 
 ```bash
-$ tctl users del joe
+$ tctl users rm joe
 ```
 
 ## Adding Nodes to the Cluster

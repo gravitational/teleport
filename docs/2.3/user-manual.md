@@ -260,7 +260,7 @@ flag can help.
 This command logs you into the cluster with a very short-lived (1 minute) temporary certificate:
 
 ```bash
-$ tsh --ttl=1 ssh
+$ tsh --ttl=1 login
 ```
 
 You will be logged out after one minute, but if you want to log out immediately, you can 
