@@ -236,13 +236,12 @@ auth_service:
         type: local
         # second_factor can be off, otp, or u2f
         second_factor: otp
-
-        # this section is only used if using u2f
+        # this section is used if second_factor is set to 'u2f'
         u2f:
-            # app_id should point to the Web UI.
+            # app_id must point to the URL of the Teleport Web UI (proxy) accessible
+            # by the end users
             app_id: https://localhost:3080
-
-            # facets should list all proxy servers.
+            # facets must list all proxy servers if there are more than one deployed
             facets:
             - https://localhost
             - https://localhost:3080
@@ -284,15 +283,12 @@ ssh_service:
     labels:
         role: master
         type: postgres
-    # List (YAML array) of commands to periodically execute and use
-    # their output as labels. 
-    # See explanation of how this works in "Labeling Nodes" section below
+
+    # List of the commands to periodically execute. Their output will be used as node labels. 
+    # See "Labeling Nodes" section below for more information.
     commands:
-    - name: hostname
-      command: [/usr/bin/hostname]
-      period: 1m0s
-    - name: arch
-      command: [/usr/bin/uname, -p]
+    - name: arch             # this command will add a label like 'arch=x86_64' to a node
+      command: [uname, -p]
       period: 1h0m0s
 
     # enables reading ~/.tsh/environment before creating a session. by default
@@ -342,43 +338,19 @@ Teleport supports two types of user accounts:
 ## FIDO U2F
 
 Teleport supports [FIDO U2F](https://www.yubico.com/about/background/fido/) 
-hardware keys as a second authentication factor.
+hardware keys as a second authentication factor. To start using U2F:
 
-To start using U2F:
-
-* Purchase a U2F hardware key: looks like a tiny USB drive.
+* Purchase a U2F hardware key: looks like a tiny USB drive. Teleport developers like [these.](https://www.yubico.com/products/yubikey-hardware)
 * Enable U2F in Teleport configuration `teleport.yaml`.
 * For CLI-based logins you have to install [u2f-host](https://developers.yubico.com/libu2f-host/) utility. 
 * For web-based logins you have to use Google Chrome, as the only browser supporting U2F at this moment.
 
-Lets look into each of these steps in detail.
-
-### Getting U2F Keys
-
-The following hardware keys have been tested with Teleport:
-   * [Yubikey](https://www.yubico.com/products/yubikey-hardware)
-
 ### Enabling U2F
 
-By default U2F is disabled. To enable U2F, add the following to the auth 
-service configuration in `teleport.yaml`:
+By default U2F is disabled. To enable U2F, configure the Teleport configuration file 
+to contain `u2f` section as shown above.
 
-```yaml
-authentication:
-   type: local
-   second_factor: u2f
-
-   u2f:
-      # app_id should point to the Web UI.
-      app_id: https://localhost:3080
-
-      # facets should list all proxy servers.
-      facets:
-         - https://localhost
-         - https://localhost:3080
-```
-
-For single-proxy setups, the App ID can be equal to the domain name of the
+For single-proxy setups, the `app_id` setting can be equal to the domain name of the
 proxy, but this will prevent you from adding more proxies without changing the
 App ID.  For multi-proxy setups, the App ID should be an HTTPS URL pointing to
 a JSON file that mirrors `facets` in the auth config.
@@ -482,7 +454,7 @@ $ tsh --proxy=work --user=joe root@luna
 To delete this user:
 
 ```bash
-$ tctl users del joe
+$ tctl users rm joe
 ```
 
 ## Adding Nodes to the Cluster
