@@ -63,10 +63,19 @@ func (cmd *ResourceCommandE) createRole(client *auth.TunClient, raw services.Unk
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	roleName := role.GetName()
+	_, err = client.GetRole(roleName)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	roleExists := (err == nil)
+	if roleExists && !cmd.base.IsForced() {
+		return trace.AlreadyExists("role '%s' already exists", roleName)
+	}
 	if err := client.UpsertRole(role, backend.Forever); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("created role: %v\n", role.GetName())
+	fmt.Printf("role '%s' has been %s\n", roleName, common.UpsertVerb(roleExists))
 	return nil
 }
 
