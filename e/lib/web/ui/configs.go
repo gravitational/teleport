@@ -6,15 +6,6 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// ResourceDisplayString is used to create user friendly error messages
-var ResourceDisplayString = map[string]string{
-	services.KindSAML:           "auth. connectors",
-	services.KindOIDC:           "auth. connectors",
-	services.KindAuthConnector:  "auth. connectors",
-	services.KindRole:           "roles",
-	services.KindTrustedCluster: "trusted clusters",
-}
-
 // ConfigCollection is a collection of ConfigItems
 type ConfigCollection struct {
 	// Items is a slice of ConfigItems
