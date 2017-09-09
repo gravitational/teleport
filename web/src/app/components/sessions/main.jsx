@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import reactor from 'app/reactor';
+import connect from './../connect';
 import { fetchSiteEventsWithinTimeRange } from 'app/flux/storedSessionsFilter/actions';
 import { storedSessionList, activeSessionList } from 'app/flux/sessions/getters';
 import { filter } from 'app/flux/storedSessionsFilter/getters';
@@ -23,23 +23,13 @@ import AjaxPoller from './../dataProvider.jsx';
 import SessionList from './sessionList.jsx';
 
 const Sessions = React.createClass({
-
-  mixins: [reactor.ReactMixin],
-
-  getDataBindings() {
-    return {
-      activeSessions: activeSessionList,
-      storedSessions: storedSessionList,
-      storedSessionsFilter: filter
-    }
-  },
-
+    
   refresh(){
     return fetchSiteEventsWithinTimeRange();    
   },
 
-  render() {    
-    const { storedSessions, activeSessions, storedSessionsFilter } = this.state;
+  render() {            
+    const { storedSessions, activeSessions, storedSessionsFilter } = this.props;
     return (      
       <div className="grv-page grv-sessions">                                      
         <SessionList
@@ -53,4 +43,12 @@ const Sessions = React.createClass({
   }
 });
 
-export default Sessions;
+function mapStateToProps() {
+  return {    
+    activeSessions: activeSessionList,
+    storedSessions: storedSessionList,
+    storedSessionsFilter: filter
+  }
+}
+
+export default connect(mapStateToProps)(Sessions);

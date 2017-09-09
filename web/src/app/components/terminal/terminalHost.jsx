@@ -123,9 +123,9 @@ class TerminalContainer extends React.Component {
       close();
     }
 
-    // updates active sessin participant list
+    // update participant list
     updateSession({      
-      siteId: this.props.siteId,
+      siteId: this.props.store.getClusterName(),
       json: data.session      
     })                                  
   }

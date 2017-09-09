@@ -18,6 +18,7 @@ import history from 'app/services/history';
 import api from 'app/services/api';
 import cfg from 'app/config';
 import Logger from 'app/lib/logger'; 
+import { getNodeStore } from './../nodes/nodeStore';
 import sessionGetters from './../sessions/getters';
 import { TLPT_TERMINAL_INIT, TLPT_TERMINAL_CLOSE, TLPT_TERMINAL_SET_STATUS } from './actionTypes';
 
@@ -25,7 +26,15 @@ const logger = Logger.create('flux/terminal');
 
 const setStatus = json => reactor.dispatch(TLPT_TERMINAL_SET_STATUS, json);    
 
-const initStore = json => reactor.dispatch(TLPT_TERMINAL_INIT, json );    
+const initStore = params => {
+  const { serverId } = params;
+  const server = getNodeStore().findServer(serverId);  
+  const hostname = server ? server.hostname : '';
+  reactor.dispatch(TLPT_TERMINAL_INIT, {
+    ...params,
+    hostname
+  });
+}
 
 const createSid = routeParams => {
   let { login, siteId } = routeParams;

@@ -18,9 +18,12 @@ import moment from 'moment';
 import cfg from 'app/config';
 import { EventTypeEnum } from 'app/lib/term/enums';
 import reactor from 'app/reactor';
-import { nodeHostNameByServerId } from 'app/flux/nodes/getters';
 import { parseIp } from 'app/lib/objectUtils';
+import { getNodeStore } from './../nodes/nodeStore';
 
+/*
+** Getters
+*/
 const activeSessionList = [['tlpt_sessions_active'], ['tlpt', 'siteId'], (sessionList, siteId) => {  
   sessionList = sessionList.filter(n => n.get('siteId') === siteId);    
   return sessionList.valueSeq().map(createActiveListItem).toJS();
@@ -31,28 +34,21 @@ const storedSessionList = [['tlpt_sessions_archived'], ['tlpt', 'siteId'], (sess
   return sessionList.valueSeq().map(createStoredListItem).toJS();
 }];
 
-const activeSessionById = sid => ['tlpt_sessions_active', sid];
+const nodeIpById = sid => ['tlpt_sessions_events', sid, EventTypeEnum.START, 'addr.local'];
 const storedSessionById = sid => ['tlpt_sessions_archived', sid];
-
-
-const activePartiesById = sid => [['tlpt_sessions_active', sid, 'parties'], parties => {
-  if (parties) {
-    return parties.toJS();
-  }
-
-  return [];
+const activeSessionById = sid => ['tlpt_sessions_active', sid];
+const activePartiesById = sid => [['tlpt_sessions_active', sid, 'parties'], parties => {  
+  return parties ? parties.toJS() : [];  
 }];
 
-const nodeIpById = sid => ['tlpt_sessions_events', sid, EventTypeEnum.START, 'addr.local'];
-
+// creates a list of stored sessions which involves collecting the data from other stores
 function createStoredListItem(session){
-  let sid = session.get('id');      
-  let { siteId, nodeIp, created, server_id, parties, last_active } = session;    
-  let duration = moment(last_active).diff(created);
-  let nodeDisplayText = getNodeIpDisplayText(server_id, nodeIp);
-  let createdDisplayText = getCreatedDisplayText(created);
-
-  let sessionUrl = cfg.getPlayerUrl({
+  const sid = session.get('id');      
+  const { siteId, nodeIp, created, server_id, parties, last_active } = session;    
+  const duration = moment(last_active).diff(created);
+  const nodeDisplayText = getNodeIpDisplayText(siteId, server_id, nodeIp);
+  const createdDisplayText = getCreatedDisplayText(created);
+  const sessionUrl = cfg.getPlayerUrl({
     sid,
     siteId
   });
@@ -71,17 +67,16 @@ function createStoredListItem(session){
   }
 }
 
+// creates a list of active sessions which involves collecting the data from other stores
 function createActiveListItem(session){
-  let sid = session.get('id');  
-  let parties = createParties(session.parties);
-  
-  let { siteId, created, login, last_active, server_id } = session;    
-  let duration = moment(last_active).diff(created);
-  let nodeIp = reactor.evaluate(nodeIpById(sid));
-  let nodeDisplayText = getNodeIpDisplayText(server_id, nodeIp);
-  let createdDisplayText = getCreatedDisplayText(created);
-    
-  let sessionUrl = cfg.getTerminalLoginUrl({
+  const sid = session.get('id');  
+  const parties = createParties(session.parties);  
+  const { siteId, created, login, last_active, server_id } = session;    
+  const duration = moment(last_active).diff(created);
+  const nodeIp = reactor.evaluate(nodeIpById(sid));
+  const nodeDisplayText = getNodeIpDisplayText(siteId, server_id, nodeIp);
+  const createdDisplayText = getCreatedDisplayText(created);    
+  const sessionUrl = cfg.getTerminalLoginUrl({
     sid,
     siteId,
     login,
@@ -103,7 +98,7 @@ function createActiveListItem(session){
 }
   
 function createParties(partyRecs) {
-  let parties = partyRecs.toJS();
+  const parties = partyRecs.toJS();
   return parties.map(p => {
       let ip = parseIp(p.serverIp);
       return `${p.user} [${ip}]`;
@@ -114,18 +109,18 @@ function getCreatedDisplayText(date) {
   return moment(date).format(cfg.displayDateFormat);  
 }
 
-function getNodeIpDisplayText(serverId, serverIp) {
-  let hostname = reactor.evaluate(nodeHostNameByServerId(serverId));
-  let ipAddress = parseIp(serverIp);
-  let displayText = ipAddress;
-    
-  if (hostname) {
-    displayText = `${hostname}`;
-    if (ipAddress) {
-      displayText = `${hostname} [${ipAddress}]`;
-    }  
-  }  
+function getNodeIpDisplayText(siteId, serverId, serverIp) {    
+  const server = getNodeStore().findServer(serverId);
+  const ipAddress = parseIp(serverIp);
 
+  let displayText = ipAddress;      
+  if (server && server.hostname) {
+    displayText = server.hostname;
+    if (ipAddress) {
+      displayText = `${displayText} [${ipAddress}]`;
+    }      
+  }
+  
   return displayText;  
 }
 
