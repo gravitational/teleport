@@ -168,7 +168,7 @@ func (*TeleportSAMLConnectorMarshaler) UnmarshalSAMLConnector(bytes []byte) (SAM
 			return nil, trace.BadParameter(err.Error())
 		}
 
-		if err := c.CheckAndSetDefaults(); err != nil {
+		if err := c.Metadata.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 

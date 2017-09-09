@@ -353,23 +353,27 @@ func localSettings(authClient auth.ClientI, cap services.AuthPreference) (client
 	return as, nil
 }
 
-func oidcSettings(connector services.OIDCConnector) client.AuthenticationSettings {
+func oidcSettings(connector services.OIDCConnector, cap services.AuthPreference) client.AuthenticationSettings {
 	return client.AuthenticationSettings{
 		Type: teleport.OIDC,
 		OIDC: &client.OIDCSettings{
 			Name:    connector.GetName(),
 			Display: connector.GetDisplay(),
 		},
+		// if you falling back to local accounts
+		SecondFactor: cap.GetSecondFactor(),
 	}
 }
 
-func samlSettings(connector services.SAMLConnector) client.AuthenticationSettings {
+func samlSettings(connector services.SAMLConnector, cap services.AuthPreference) client.AuthenticationSettings {
 	return client.AuthenticationSettings{
 		Type: teleport.SAML,
 		SAML: &client.SAMLSettings{
 			Name:    connector.GetName(),
 			Display: connector.GetDisplay(),
 		},
+		// if you are falling back to local accounts
+		SecondFactor: cap.GetSecondFactor(),
 	}
 }
 
@@ -394,7 +398,7 @@ func defaultAuthenticationSettings(authClient auth.ClientI) (client.Authenticati
 				return client.AuthenticationSettings{}, trace.Wrap(err)
 			}
 
-			as = oidcSettings(oidcConnector)
+			as = oidcSettings(oidcConnector, cap)
 		} else {
 			oidcConnectors, err := authClient.GetOIDCConnectors(false)
 			if err != nil {
@@ -404,7 +408,7 @@ func defaultAuthenticationSettings(authClient auth.ClientI) (client.Authenticati
 				return client.AuthenticationSettings{}, trace.BadParameter("no oidc connectors found")
 			}
 
-			as = oidcSettings(oidcConnectors[0])
+			as = oidcSettings(oidcConnectors[0], cap)
 		}
 	case teleport.SAML:
 		if cap.GetConnectorName() != "" {
@@ -413,7 +417,7 @@ func defaultAuthenticationSettings(authClient auth.ClientI) (client.Authenticati
 				return client.AuthenticationSettings{}, trace.Wrap(err)
 			}
 
-			as = samlSettings(samlConnector)
+			as = samlSettings(samlConnector, cap)
 		} else {
 			samlConnectors, err := authClient.GetSAMLConnectors(false)
 			if err != nil {
@@ -423,7 +427,7 @@ func defaultAuthenticationSettings(authClient auth.ClientI) (client.Authenticati
 				return client.AuthenticationSettings{}, trace.BadParameter("no saml connectors found")
 			}
 
-			as = samlSettings(samlConnectors[0])
+			as = samlSettings(samlConnectors[0], cap)
 		}
 	default:
 		return client.AuthenticationSettings{}, trace.BadParameter("unknown type %v", cap.GetType())
@@ -450,12 +454,12 @@ func (m *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	authClient := m.cfg.ProxyClient
 	connectorName := p.ByName("connector")
 
-	if connectorName == teleport.Local {
-		cap, err := authClient.GetAuthPreference()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	cap, err := authClient.GetAuthPreference()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
+	if connectorName == teleport.Local {
 		as, err := localSettings(m.cfg.ProxyClient, cap)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -471,7 +475,7 @@ func (m *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	oidcConnector, err := authClient.GetOIDCConnector(connectorName, false)
 	if err == nil {
 		return &client.PingResponse{
-			Auth:          oidcSettings(oidcConnector),
+			Auth:          oidcSettings(oidcConnector, cap),
 			ServerVersion: teleport.Version,
 		}, nil
 	}
@@ -480,7 +484,7 @@ func (m *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	samlConnector, err := authClient.GetSAMLConnector(connectorName, false)
 	if err == nil {
 		return &client.PingResponse{
-			Auth:          samlSettings(samlConnector),
+			Auth:          samlSettings(samlConnector, cap),
 			ServerVersion: teleport.Version,
 		}, nil
 	}
