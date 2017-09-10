@@ -22,8 +22,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
 
@@ -197,6 +199,10 @@ func (a *AuthServer) establishTrust(trustedCluster services.TrustedCluster) erro
 	// send the request to the remote auth server via the proxy
 	validateResponse, err := a.sendValidateRequestToProxy(trustedCluster.GetProxyAddress(), &validateRequest)
 	if err != nil {
+		log.Error(err)
+		if strings.Contains(err.Error(), "x509") {
+			return trace.AccessDenied("the trusted cluster uses misconfigured HTTP/TLS certificate.")
+		}
 		return trace.Wrap(err)
 	}
 
@@ -285,10 +291,10 @@ func (a *AuthServer) validateTrustedCluster(validateRequest *ValidateTrustedClus
 func (a *AuthServer) validateTrustedClusterToken(token string) error {
 	roles, err := a.ValidateToken(token)
 	if err != nil {
-		return trace.AccessDenied("invalid token")
+		return trace.AccessDenied("the remote server denied access: invalid cluster token")
 	}
 
-	if !roles.Include(teleport.RoleTrustedCluster) {
+	if !roles.Include(teleport.RoleTrustedCluster) && !roles.Include(teleport.LegacyClusterTokenType) {
 		return trace.AccessDenied("role does not match")
 	}
 
@@ -306,7 +312,8 @@ func (s *AuthServer) sendValidateRequestToProxy(host string, validateRequest *Va
 	}
 
 	var opts []roundtrip.ClientParam
-	if s.DeveloperMode {
+
+	if lib.IsInsecureDevMode() {
 		log.Warn("insecureSkipVerify is used to communicate with proxy. make sure you intend to run Teleport in insecure mode!")
 
 		// get the default transport (so we can get the proxy from environment)

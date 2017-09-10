@@ -335,7 +335,6 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 		Roles:           cfg.Auth.Roles,
 		AuthPreference:  cfg.Auth.Preference,
 		OIDCConnectors:  cfg.OIDCConnectors,
-		DeveloperMode:   cfg.DeveloperMode,
 	})
 	if err != nil {
 		return trace.Wrap(err)

@@ -114,7 +114,9 @@ func Run(cmdlineArgs []string, distro teleport.DistroType, testRun bool) (execut
 	start.Flag("diag-addr",
 		"Start diangonstic endpoint on this address").Hidden().StringVar(&ccf.DiagnosticAddr)
 	start.Flag("permit-user-env",
-		"Enables reading of ~/.tsh/environment when creating a session").BoolVar(&ccf.PermitUserEnvironment)
+		"Enables reading of ~/.tsh/environment when creating a session").Hidden().BoolVar(&ccf.PermitUserEnvironment)
+	start.Flag("insecure",
+		"Insecure mode disables certificate validation [NOT FOR PRODUCTION]").Hidden().BoolVar(&ccf.InsecureMode)
 
 	// define start's usage info (we use kingpin's "alias" field for this)
 	start.Alias(usageNotes + usageExamples)

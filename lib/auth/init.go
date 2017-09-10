@@ -102,11 +102,6 @@ type InitConfig struct {
 	// AuthPreference defines the authentication type (local, oidc) and second
 	// factor (off, otp, u2f) passed in from a configuration file.
 	AuthPreference services.AuthPreference
-
-	// DeveloperMode should only be used during development as it does several
-	// unsafe things like log sensitive information to console as well as
-	// not verify certificates.
-	DeveloperMode bool
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -266,8 +261,8 @@ func Init(cfg InitConfig) (*AuthServer, *Identity, error) {
 		}
 	}
 
-	if cfg.DeveloperMode {
-		warningMessage := "[INIT] Starting Teleport in developer mode. This is " +
+	if lib.IsInsecureDevMode() {
+		warningMessage := "[INIT] Starting Teleport in insecure mode. This is " +
 			"dangerous! Sensitive information will be logged to console and " +
 			"certificates will not be verified. Proceed with caution!"
 		log.Warn(warningMessage)

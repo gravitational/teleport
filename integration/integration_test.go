@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
@@ -694,9 +695,10 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 		tconf.Console = nil
 		tconf.Proxy.DisableWebService = false
 		tconf.Proxy.DisableWebInterface = true
-		tconf.DeveloperMode = true
 		return nil, tconf
 	}
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
 
 	c.Assert(main.CreateEx(makeConfig(false)), check.IsNil)
 	c.Assert(aux.CreateEx(makeConfig(true)), check.IsNil)

@@ -97,11 +97,6 @@ type Config struct {
 	// PidFile is a full path of the PID file for teleport daemon
 	PIDFile string
 
-	// DeveloperMode should only be used during development as it does several
-	// unsafe things like log sensitive information to console as well as
-	// not verify certificates.
-	DeveloperMode bool
-
 	// Trust is a service that manages users and credentials
 	Trust services.Trust
 

@@ -100,7 +100,6 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
 		ClusterConfiguration: cfg.ClusterConfiguration,
 		oidcClients:          make(map[string]*oidcClient),
 		samlProviders:        make(map[string]*samlProvider),
-		DeveloperMode:        cfg.DeveloperMode,
 		cancelFunc:           cancelFunc,
 		closeCtx:             closeCtx,
 	}
@@ -128,11 +127,6 @@ type AuthServer struct {
 	bk            backend.Backend
 	closeCtx      context.Context
 	cancelFunc    context.CancelFunc
-
-	// DeveloperMode should only be used during development as it does several
-	// unsafe things like log sensitive information to console as well as
-	// not verify certificates.
-	DeveloperMode bool
 
 	Authority
 

@@ -26,7 +26,6 @@ import (
 	"net"
 	"net/url"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -34,6 +33,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -84,6 +84,11 @@ type CommandLineFlags struct {
 	// PermitUserEnvironment enables reading of ~/.tsh/environment
 	// when creating a new session.
 	PermitUserEnvironment bool
+
+	// Insecure mode is controlled by --insecure flag and in this mode
+	// Teleport won't check certificates when connecting to trusted clusters
+	// It's useful for learning Teleport (following quick starts, etc).
+	InsecureMode bool
 }
 
 // readConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -590,6 +595,9 @@ func applyString(src string, target *string) bool {
 // Configure merges command line arguments with what's in a configuration file
 // with CLI commands taking precedence
 func Configure(clf *CommandLineFlags, cfg *service.Config) error {
+	// pass the value of --insecure flag to the runtime
+	lib.SetInsecureDevMode(clf.InsecureMode)
+
 	// load /etc/teleport.yaml and apply it's values:
 	fileConf, err := ReadConfigFile(clf.ConfigFile)
 	if err != nil {
@@ -609,13 +617,6 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 
 	// apply --debug flag:
 	if clf.Debug {
-		// to enable debug mode, you have to set the environment variable and the -d flag
-		// we can ignore the error here because if an error occurs, debugFlag = false which is okay
-		debugFlag, _ := strconv.ParseBool(os.Getenv(teleport.DebugEnvVar))
-		if debugFlag {
-			cfg.DeveloperMode = true
-		}
-
 		cfg.Console = ioutil.Discard
 		utils.InitLogger(utils.LoggingForDaemon, log.DebugLevel)
 	}

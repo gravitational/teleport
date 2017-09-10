@@ -44,13 +44,16 @@ const (
 	// RoleProvisionToken is a role for nodes authenticated using provisioning tokens
 	RoleProvisionToken Role = "ProvisionToken"
 	// RoleTrustedCluster is a role needed for tokens used to add trusted clusters.
-	RoleTrustedCluster Role = "Trustedcluster"
+	RoleTrustedCluster Role = "trusted_cluster"
 	// RoleSignup is for first time signing up users
 	RoleSignup Role = "Signup"
 	// RoleNop is used for actions that already using external authz mechanisms
 	// e.g. tokens or passwords
 	RoleNop Role = "Nop"
 )
+
+// this constant exists for backwards compatibility reasons, needed to upgrade to 2.3
+const LegacyClusterTokenType Role = "Trustedcluster"
 
 // ParseRoles takes a comma-separated list of roles and returns a slice
 // of roles, or an error if parsing failed
@@ -125,7 +128,10 @@ func (r *Role) String() string {
 // if it's ok, false otherwise
 func (r *Role) Check() error {
 	switch *r {
-	case RoleAuth, RoleWeb, RoleNode, RoleAdmin, RoleProvisionToken, RoleTrustedCluster, RoleSignup, RoleProxy, RoleNop:
+	case RoleAuth, RoleWeb, RoleNode,
+		RoleAdmin, RoleProvisionToken,
+		RoleTrustedCluster, LegacyClusterTokenType,
+		RoleSignup, RoleProxy, RoleNop:
 		return nil
 	}
 	return trace.BadParameter("role %v is not registered", *r)

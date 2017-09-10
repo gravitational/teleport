@@ -235,7 +235,6 @@ func (i *TeleInstance) Create(trustedSecrets []*InstanceSecrets, enableSSH bool,
 	tconf.Console = console
 	tconf.Proxy.DisableWebService = true
 	tconf.Proxy.DisableWebInterface = true
-	tconf.DeveloperMode = false
 	return i.CreateEx(trustedSecrets, tconf)
 }
 
