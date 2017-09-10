@@ -106,7 +106,7 @@ func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 // If no labels are passed, ALL nodes are returned.
 func (proxy *ProxyClient) FindServersByLabels(ctx context.Context, namespace string, labels map[string]string) ([]services.Server, error) {
 	if namespace == "" {
-		return nil, trace.BadParameter("missing parameter namespace")
+		return nil, trace.BadParameter(auth.MissingNamespaceError)
 	}
 	nodes := make([]services.Server, 0)
 	site, err := proxy.ClusterAccessPoint(ctx, false)
