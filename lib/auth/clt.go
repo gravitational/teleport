@@ -43,8 +43,13 @@ import (
 	"github.com/tstranex/u2f"
 )
 
-// CurrentVersion is a current API version
-const CurrentVersion = services.V2
+const (
+	// CurrentVersion is a current API version
+	CurrentVersion = services.V2
+
+	// MissingNamespaceError is a _very_ common error this file generatets
+	MissingNamespaceError = "missing required parameter: namespace"
+)
 
 type Dialer func(network, addr string) (net.Conn, error)
 
@@ -136,7 +141,7 @@ func (c *Client) Delete(u string) (*roundtrip.Response, error) {
 // as reported by auth server
 func (c *Client) GetSessions(namespace string) ([]session.Session, error) {
 	if namespace == "" {
-		return nil, trace.BadParameter("missing namespace parameter")
+		return nil, trace.BadParameter(MissingNamespaceError)
 	}
 	out, err := c.Get(c.Endpoint("namespaces", namespace, "sessions"), url.Values{})
 	if err != nil {
@@ -152,7 +157,7 @@ func (c *Client) GetSessions(namespace string) ([]session.Session, error) {
 // GetSession returns a session by ID
 func (c *Client) GetSession(namespace string, id session.ID) (*session.Session, error) {
 	if namespace == "" {
-		return nil, trace.BadParameter("missing parameter namespace")
+		return nil, trace.BadParameter(MissingNamespaceError)
 	}
 	// saving extra round-trip
 	if err := id.Check(); err != nil {
@@ -172,7 +177,7 @@ func (c *Client) GetSession(namespace string, id session.ID) (*session.Session, 
 // DeleteSession deletes a session by ID
 func (c *Client) DeleteSession(namespace, id string) error {
 	if namespace == "" {
-		return trace.BadParameter("missing namespace parameter")
+		return trace.BadParameter(MissingNamespaceError)
 	}
 	_, err := c.Delete(c.Endpoint("namespaces", namespace, "sessions", id))
 	return trace.Wrap(err)
@@ -181,7 +186,7 @@ func (c *Client) DeleteSession(namespace, id string) error {
 // CreateSession creates new session
 func (c *Client) CreateSession(sess session.Session) error {
 	if sess.Namespace == "" {
-		return trace.BadParameter("missing parameter namespace")
+		return trace.BadParameter(MissingNamespaceError)
 	}
 	_, err := c.PostJSON(c.Endpoint("namespaces", sess.Namespace, "sessions"), createSessionReq{Session: sess})
 	return trace.Wrap(err)
@@ -393,7 +398,7 @@ func (c *Client) UpsertNode(s services.Server) error {
 // GetNodes returns the list of servers registered in the cluster.
 func (c *Client) GetNodes(namespace string) ([]services.Server, error) {
 	if namespace == "" {
-		return nil, trace.BadParameter("missing parameter namespace")
+		return nil, trace.BadParameter(MissingNamespaceError)
 	}
 	out, err := c.Get(c.Endpoint("namespaces", namespace, "nodes"), url.Values{})
 	if err != nil {
@@ -1117,7 +1122,7 @@ func (c *Client) EmitAuditEvent(eventType string, fields events.EventFields) err
 // kind are needed)
 func (c *Client) PostSessionChunk(namespace string, sid session.ID, reader io.Reader) error {
 	if namespace == "" {
-		return trace.BadParameter("missing parameter namespace")
+		return trace.BadParameter(MissingNamespaceError)
 	}
 	r, err := http.NewRequest("POST", c.Endpoint("namespaces", namespace, "sessions", string(sid), "stream"), reader)
 	if err != nil {
@@ -1168,7 +1173,7 @@ func (c *Client) PostSessionSlice(slice events.SessionSlice) error {
 // of 'max' is set to events.MaxChunkBytes
 func (c *Client) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
 	if namespace == "" {
-		return nil, trace.BadParameter("missing parameter namespace")
+		return nil, trace.BadParameter(MissingNamespaceError)
 	}
 	response, err := c.Get(c.Endpoint("namespaces", namespace, "sessions", string(sid), "stream"), url.Values{
 		"offset": []string{strconv.Itoa(offsetBytes)},
@@ -1191,7 +1196,7 @@ func (c *Client) GetSessionChunk(namespace string, sid session.ID, offsetBytes, 
 // replay recorded session streams.
 func (c *Client) GetSessionEvents(namespace string, sid session.ID, afterN int) (retval []events.EventFields, err error) {
 	if namespace == "" {
-		return nil, trace.BadParameter("missing parameter namespace")
+		return nil, trace.BadParameter(MissingNamespaceError)
 	}
 	query := make(url.Values)
 	if afterN > 0 {
