@@ -15,21 +15,23 @@ limitations under the License.
 */
 
 import React from 'react';
+import { CloseIcon } from './icons';
 
 const closeTextStyle = {
-  lineHeight: '0px',
-  margin: '0px',  
-  fontSize: '14px'
+  width: "30px",
+  height: "30px",
+  display: "block",
+  margin: "0 auto"
 }
 
 const PartyListPanel = ({onClose, children}) => {      
   return (
     <div className="grv-terminal-participans">
       <ul className="nav">
-        <li title="Close">
-          <button onClick={onClose} className="btn btn-danger btn-circle" type="button">
-            <div style={closeTextStyle} >&#10005;</div>
-          </button>
+        <li title="Close">          
+          <div style={closeTextStyle} onClick={onClose}>
+            <CloseIcon />
+          </div>          
         </li>
       </ul>
       { children ? <hr className="grv-divider" /> : null }

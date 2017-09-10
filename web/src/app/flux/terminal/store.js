@@ -17,8 +17,7 @@ import { Store } from 'nuclear-js';
 import { Record } from 'immutable';
 import cfg from 'app/config';
 import localStorage from 'app/services/localStorage';
-import reactor from 'app/reactor';
-import { nodeHostNameByServerId } from 'app/flux/nodes/getters';
+
 import {
   TLPT_TERMINAL_INIT,
   TLPT_TERMINAL_CLOSE,
@@ -34,14 +33,19 @@ const TermStatusRec = new Record({
   errorText: undefined,
 })
 
-export class TermRec extends Record({
+export class TermRec extends Record({  
   status: TermStatusRec(),
-  login: undefined,
-  siteId: undefined,
-  serverId: undefined,
-  sid: undefined
+  hostname: null,
+  login: null,
+  siteId: null,
+  serverId: null,
+  sid: null
 }) {
   
+  getClusterName() {
+    return this.siteId;
+  }
+
   getTtyParams(){            
     let { accessToken } = localStorage.getBearerToken()
     let ttyParams = {
@@ -55,11 +59,9 @@ export class TermRec extends Record({
     return ttyParams;
   }
 
-  getServerLabel() {
-    let hostname = reactor.evaluate(nodeHostNameByServerId(this.serverId)) || this.serverId;
-
-    if (hostname && this.login) {
-      return `${this.login}@${hostname}`;  
+  getServerLabel() {    
+    if (this.hostname && this.login) {
+      return `${this.login}@${this.hostname}`;  
     }
 
     return '';
@@ -82,7 +84,7 @@ function close(){
   return new TermRec();
 }
 
-function init(state, json ){
+function init(state, json){
   return new TermRec(json);
 }
 

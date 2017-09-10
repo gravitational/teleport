@@ -42,15 +42,15 @@ export default Store({
 
 // uses events to build stored session objects
 function receive(state, { siteId, json }) {  
-  let jsonEvents = json || [];
-  let tmp = {};
+  const jsonEvents = json || [];
+  let tmp = {};    
   return state.withMutations(state => {    
     jsonEvents.forEach( item => {
       if(item.event !== EventTypeEnum.START && item.event !== EventTypeEnum.END){
         return;
       }
 
-      let { sid, user, time, event, server_id } = item;
+      const { sid, user, time, event, server_id } = item;
       
       tmp[sid] = tmp[sid] || {}              
       tmp[sid].id = sid;
@@ -67,10 +67,11 @@ function receive(state, { siteId, json }) {
         }]
       }
 
-      if(event === EventTypeEnum.END){
+      // update the store only with new items
+      if(event === EventTypeEnum.END && !state.has(sid)){
         tmp[sid].last_active = time;
-        state.set(sid, new StoredSessionRec(toImmutable(tmp[sid])));
+        state.set(sid, new StoredSessionRec(toImmutable(tmp[sid])));        
       }                  
     })    
-  });
+  });  
 }

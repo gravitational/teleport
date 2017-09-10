@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/state"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/web/ui"
 
 	"github.com/beevik/etree"
 	"github.com/gokyle/hotp"
@@ -740,7 +741,7 @@ func (s *WebSuite) TestWebSessionsBadInput(c *C) {
 }
 
 type getSiteNodeResponse struct {
-	Items []services.ServerV1 `json:"items"`
+	Items []ui.Server `json:"items"`
 }
 
 func (s *WebSuite) TestGetSiteNodes(c *C) {

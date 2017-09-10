@@ -53,21 +53,22 @@ export default Store({
 })
 
 function updateSession(state, { siteId, json }) {
-  let rec = createSessionRec(siteId, json);  
-  return state.set(rec.id, rec);
+  const rec = createSessionRec(siteId, json);    
+  return rec.equals(state.get(rec.id)) ? state : state.set(rec.id, rec);
 }
 
 function receive(state, { siteId, json }) {
-  let jsonArray = json || [];
-  let newState = defaultState();  
-  jsonArray
-    .filter(item => item.active === true)
-    .forEach(item => {
-      let rec = createSessionRec(siteId, item);      
-      newState = newState.set(rec.id, rec);  
-    });
-  
-  return newState;  
+  const jsonArray = json || [];
+  const newState = defaultState().withMutations(newState =>
+    jsonArray
+      .filter(item => item.active === true)
+      .forEach(item => {
+        const rec = createSessionRec(siteId, item);
+        newState.set(rec.id, rec);
+      })
+  );
+    
+  return newState.equals(state) ? state : newState;  
 }
 
 function createSessionRec(siteId, json) {
@@ -83,11 +84,16 @@ function createSessionRec(siteId, json) {
 
 function createParties(jsonArray) {
   jsonArray = jsonArray || [];
-  return jsonArray.map(item =>    
-    new PartyRecord({
-      user: item.user,
-      serverIp: item.remote_addr,
-      serverId: item.server_id
+  const list = new List(); 
+  return list.withMutations(list => {
+    jsonArray.forEach(item => {      
+      const party = new PartyRecord({
+        user: item.user,
+        serverIp: item.remote_addr,
+        serverId: item.server_id
+      })
+
+      list.push(party)
     })
-  );   
+  })       
 }

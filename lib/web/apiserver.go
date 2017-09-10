@@ -1103,12 +1103,8 @@ func (m *Handler) siteNodesGet(w http.ResponseWriter, r *http.Request, p httprou
 		return nil, trace.Wrap(err)
 	}
 
-	items := []interface{}{}
-	for _, server := range servers {
-		items = append(items, server.V1())
-	}
-
-	return makeResponse(items)
+	uiServers := ui.MakeServers(site.GetName(), servers)
+	return makeResponse(uiServers)
 }
 
 // siteNodeConnect connect to the site node

@@ -34,8 +34,8 @@ const EmptyValue = ({ text='Empty' }) => (
 const TagCell = ({rowIndex, data, ...props}) => {
   const { tags } = data[rowIndex];    
   let $content = tags.map((item, index) => (
-    <span key={index} title={`${item.role}:${item.value}`} className="label label-default grv-nodes-table-label">
-      {item.role} <li className="fa fa-long-arrow-right m-r-xs"/> 
+    <span key={index} title={`${item.name}:${item.value}`} className="label label-default grv-nodes-table-label">
+      {item.name} <li className="fa fa-long-arrow-right m-r-xs"/> 
       {item.value}
     </span>
   ));
@@ -164,8 +164,8 @@ class NodeList extends React.Component {
   searchAndFilterCb(targetValue, searchValue, propName){
     if(propName === 'tags'){
       return targetValue.some((item) => {
-        const { role, value } = item;
-        return role.toLocaleUpperCase().indexOf(searchValue) !==-1 ||
+        const { name, value } = item;
+        return name.toLocaleUpperCase().indexOf(searchValue) !==-1 ||
           value.toLocaleUpperCase().indexOf(searchValue) !==-1;
       });
     }
@@ -229,13 +229,11 @@ class NodeList extends React.Component {
                 }
                 cell={<TextCell data={data}/> }
               />
-              <Column
-                columnKey="tags"
+              <Column                
                 header={<Cell>Labels</Cell> }
                 cell={<TagCell data={data}/> }
               />
-              <Column
-                columnKey="roles"
+              <Column                
                 onLoginClick={onLoginClick}
                 header={<Cell>Login as</Cell> }
                 cell={<LoginCell data={data} logins={logins}/> }

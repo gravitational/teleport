@@ -19,16 +19,17 @@ import termStore from './terminal/store';
 import playerStore from './player/store';
 import userAcl from './userAcl/store';
 import appStore from './app/appStore';
+import nodeStore from './nodes/nodeStore';
 
 reactor.registerStores({
   'tlpt': appStore,    
   'tlpt_terminal': termStore,
   'tlpt_player': playerStore,    
+  'tlpt_nodes': nodeStore,
   'tlpt_user': require('./user/userStore'),  
   'tlpt_user_invite': require('./user/userInviteStore'),
   'tlpt_user_acl': userAcl,
-  'tlpt_sites': require('./sites/siteStore'),  
-  'tlpt_nodes': require('./nodes/nodeStore'),
+  'tlpt_sites': require('./sites/siteStore'),    
   'tlpt_rest_api': require('./restApi/restApiStore'),
   'tlpt_sessions_events': require('./sessions/eventStore'),
   'tlpt_sessions_archived': require('./sessions/archivedSessionStore'),
