@@ -30,6 +30,8 @@ being visible to any code under 'lib'
 package lib
 
 import (
+	"sync"
+
 	"github.com/gravitational/teleport"
 )
 
@@ -43,22 +45,36 @@ var (
 	// --insecure flag. This mode is only useful for learning Teleport and following
 	// quick starts: it disables HTTPS certificate validation
 	insecureDevMode bool
+
+	// flagLock protects access to all globals declared in this file
+	flagLock sync.Mutex
 )
 
 func SetDistroType(t teleport.DistroType) {
+	flagLock.Lock()
+	defer flagLock.Unlock()
 	currentDistroType = t
 }
 
+// IsEnterprise returns 'true' if Teleport is packaged with enterprise runime
 func IsEnterprise() bool {
+	flagLock.Lock()
+	defer flagLock.Unlock()
 	return currentDistroType == teleport.DistroTypeEnterprise
 }
 
+// SetInsecureDevMode turns the 'insecure' mode on. In this mode Teleport accpets
+// self-signed HTTPS certificates (for development only!)
 func SetInsecureDevMode(m bool) {
+	flagLock.Lock()
+	defer flagLock.Unlock()
 	insecureDevMode = m
 }
 
 // IsInsecureDevMode returns 'true' if Teleport daemon was started with the
 // --insecure flag
 func IsInsecureDevMode() bool {
+	flagLock.Lock()
+	defer flagLock.Unlock()
 	return insecureDevMode
 }

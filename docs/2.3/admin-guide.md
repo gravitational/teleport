@@ -328,12 +328,12 @@ they execute `tsh login` command. There are three types of authentication connec
       [Authy](https://www.authy.com/) or any other TOTP client.
     * [U2F](https://en.wikipedia.org/wiki/Universal_2nd_Factor) is the second.
 
-* **saml** connector type implements SAML authentication can be configured
+* **saml** connector type implements SAML authentication. It can be configured
   against any external identity manager like Okta or Auth0. This feature is
   only available for Teleport Enterprise.
 * **oidc** connector type implements OpenID Connect (OIDC) authentication, which 
-  is similar to SAML in principle. This feature is
-  only available for Teleport Enterprise.
+  is similar to SAML in principle. This feature is only available for Teleport
+  Enterprise.
 
 The authentication connector type is configured via `auth/authentication/type`
 setting in the `teleport.yaml` above.
