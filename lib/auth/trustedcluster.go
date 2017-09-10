@@ -1,3 +1,20 @@
+/*
+Copyright 2017 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+*/
+
 package auth
 
 import (
@@ -290,8 +307,7 @@ func (s *AuthServer) sendValidateRequestToProxy(host string, validateRequest *Va
 
 	var opts []roundtrip.ClientParam
 	if s.DeveloperMode {
-		log.Warn("InsecureSkipVerify used to communicate with proxy.")
-		log.Warn("Make sure you intend to run Teleport in debug mode.")
+		log.Warn("insecureSkipVerify is used to communicate with proxy. make sure you intend to run Teleport in insecure mode!")
 
 		// get the default transport (so we can get the proxy from environment)
 		// but disable tls certificate checking.
