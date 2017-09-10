@@ -185,7 +185,11 @@ type userCollection struct {
 }
 
 func (s *userCollection) writeText(w io.Writer) error {
-	// a user collection does not need this method
+	t := asciitable.MakeTable([]string{"User"})
+	for _, u := range s.users {
+		t.AddRow([]string{u.GetName()})
+	}
+	fmt.Println(t.AsBuffer().String())
 	return nil
 }
 

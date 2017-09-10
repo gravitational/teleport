@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/service"
@@ -113,6 +114,7 @@ func (s *ConfigTestSuite) TestSampleConfig(c *check.C) {
 	c.Assert(fc.Global.DataDir, check.Equals, defaults.DataDir)
 	c.Assert(fc.Logger.Severity, check.Equals, "INFO")
 
+	c.Assert(lib.IsInsecureDevMode(), check.Equals, false)
 }
 
 func (s *ConfigTestSuite) TestConfigReading(c *check.C) {

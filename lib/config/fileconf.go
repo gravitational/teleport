@@ -462,6 +462,7 @@ type Auth struct {
 
 	// TrustedClustersFile is a file path to a file containing public CA keys
 	// of clusters we trust. One key per line, those starting with '#' are comments
+	// TODO: THIS SETTING IS DEPRECATED
 	TrustedClusters []TrustedCluster `yaml:"trusted_clusters,omitempty"`
 
 	// FOR INTERNAL USE:
@@ -494,6 +495,7 @@ type Auth struct {
 
 	// DynamicConfig determines when file configuration is pushed to the backend. Setting
 	// it here overrides defaults.
+	// TODO: THIS SETTING IS DEPRECATED
 	DynamicConfig *bool `yaml:"dynamic_config,omitempty"`
 }
 
@@ -560,12 +562,16 @@ func (t StaticToken) Parse() (services.ProvisionToken, error) {
 	}, nil
 }
 
+// AuthenticationConfig describes the auth_service/authentication section of teleport.yaml
 type AuthenticationConfig struct {
 	Type          string                 `yaml:"type"`
 	SecondFactor  string                 `yaml:"second_factor,omitempty"`
 	ConnectorName string                 `yaml:"connector_name,omitempty"`
 	U2F           *UniversalSecondFactor `yaml:"u2f,omitempty"`
-	OIDC          *OIDCConnector         `yaml:"oidc,omitempty"`
+
+	// TODO: OIDC connection is DEPRECATED!!!! Users are supposed to use resources
+	// for configuring OIDC connectors
+	OIDC *OIDCConnector `yaml:"oidc,omitempty"`
 }
 
 // Parse returns the Authentication Configuration in two parts: AuthPreference
