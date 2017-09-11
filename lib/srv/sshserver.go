@@ -521,9 +521,12 @@ func (s *Server) checkPermissionToLogin(cert *ssh.Certificate, teleportUser, osU
 			log.Errorf("failed to map roles %v", err)
 			return "", trace.AccessDenied("failed to map roles")
 		}
-		// pass nil for the traits as we don't want to allow substitution into
-		// someone elses cluster
-		roles, err = services.FetchRoles(roleNames, s.authService, nil)
+		// pass the principals on the certificate along as the login traits
+		// to the remote cluster.
+		traits := map[string][]string{
+			teleport.TraitLogins: cert.ValidPrincipals,
+		}
+		roles, err = services.FetchRoles(roleNames, s.authService, traits)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
