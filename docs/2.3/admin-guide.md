@@ -696,8 +696,81 @@ $ tsh --proxy=proxy play 4c146ec8-eab6-11e6-b1b3-40167e68e931
 
 ## Resources
 
-TODO
+A Teleport administrator has two tools to configure a Teleport cluster: the
+[configuration file](#configuration) is used for static configuration like the
+cluster name, and the `tctl` admin tool is used for manipulating dynamic records
+like Teleport users.
 
+`tctl` has convenient subcommands for this, like `tctl users` or `tctl nodes`. 
+However, for dealing with more advanced topics, like connecting clusters together, or
+when troubleshooting trust, `tctl` offers the more powerful, although lower-level
+CLI interface called "resources".
+
+The basic idea is borrowed from REST programming pattern: a cluster is composed
+of different objects (AKA resources) and there are just four common operations
+that can be performed on them: get, create, update, remove. 
+
+Every resource in Teleport has three mandatory properties: 
+
+1. Kind
+2. Name
+3. Version
+
+Everything else is resource-specific and is always defined as a YAML file. With these simple rules,
+any component of a Teleport cluster can be manipulated with just 3 CLI commands:
+
+Command         | Description | Examples
+----------------|-------------|----------
+`tctl get`      | Get one or multipe resources           | `tctl get users` or `tctl get user/joe`
+`tctl rm`       | Delete a resource by type/name         | `tctl rm user/joe`
+`tctl create`   | Create a new resource from a YAML file | `tctl create -f joe.yaml`
+`tctl create`   | Update an existing from a YAML file    | `tctl create joe.yaml`
+
+Here's an example how the YAML resource definition for a user Joe may look like, 
+it can be retreived by executing `tctl get user/joe`
+
+```bash
+kind: user
+version: v2
+metadata:
+  name: joe
+spec:
+  roles:
+  - admin
+  status:
+    # users can be temporarily locked in a Teleport system, but this
+    # functionality is reserved for the internal use for now.
+    is_locked: false
+    lock_expires: 0001-01-01T00:00:00Z
+    locked_time: 0001-01-01T00:00:00Z
+  traits:
+    # these are "allowed logins" which are usually specified as the last argument to `tctl users add`
+    logins:
+    - joe
+    - root
+  # any resource in Teleport can automatically expire.
+  expires: 0001-01-01T00:00:00Z
+  # for internal use only
+  created_by:
+    time: 0001-01-01T00:00:00Z
+    user:
+      name: builtin-Admin
+```
+
+!!! tip "Tip":
+    Many of the fields you will see when printing resources are used only
+    internally and are not meant to be changed.  Others are reserved for future
+    use. Refer to the documentation specific to a resource in question to
+    understand the meaning of the fields and what values are accepted.
+
+Here's the list of resources currently exposed via `tctl`:
+
+Resource Kind      | Description
+-------------------|--------------
+user               | A user record in the internal Teleport user DB.
+node               | A registered SSH node. The same record is displayed via `tctl nodes ls`
+trusted_cluster    | A trusted cluster. See [here](#trusted-clusters) for more details on connecting clusters together.
+role               | A role assumed by users. The open source Teleport only includes one role: "admin", but Enterprise teleport users can define their own roles.
 
 ## Trusted Clusters
 
@@ -797,13 +870,16 @@ Cluster Name   Status
 master         online 
 east           online 
 
-# see the list of machines behind the eastern cluster:
+# see the list of machines (nodes) behind the eastern cluster:
 $ tsh --cluster=east ls
 
-[list of nodes will be printed here]
+Node Name Node ID            Address        Labels
+--------- ------------------ -------------- -----------
+db1.east  cf7cc5cd-935e-46f1 10.0.5.2:3022  role=db-master
+db2.east  3879d133-fe81-3212 10.0.5.3:3022  role=db-slave
 
 # SSH into any node in "east":
-$ tsh --cluster=east ssh root@node.east
+$ tsh --cluster=east ssh root@db1.east
 ```
 
 ## HTTP CONNECT Proxies
