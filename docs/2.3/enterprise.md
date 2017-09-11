@@ -1,18 +1,14 @@
 # Teleport Enterprise Features
 
 This chapter covers Teleport features that are only available in the commercial
-edition of Teleport, called "Teleport Enterprise".
-
-Below is the full list of features that are only available to users of 
-Teleport Enterprise:
+edition of Teleport, called "Teleport Enterprise". The table below gives the quick 
+overview of the Enterprise Edition features.
 
 |Teleport Enterprise Feature|Description
 ---------|--------------
 |[Role Based Access Control (RBAC)](#rbac)|Allows Teleport administrators to define User Roles and restrict each role to specific actions. RBAC also allows to partition cluster nodes into groups with different access permissions.
 |[External User Identity Integration](#external-identities)| Allows Teleport to integrate with existing enterprise identity systems. Examples include Active Directory, Github, Google Apps and numerous identity middleware solutions like Auth0, Okta, and so on. Teleport supports LDAP, SAML and OAuth/OpenID Connect protocols to interact with them.
-|[Dynamic Configuration](#dynamic-configuration) | Open source edition of Teleport takes its configuration from a single YAML file. Teleport Enterprise can also be controlled at runtime, even programmatically, by dynamiclally updating its configuration.
-|[Integration with Kubernetes](#integration-with-kubernetes)| Teleport can be embedded into Kubernetes clusters. This allows Teleport users to deploy and remotely manage Kubernetes on any infrastructure, even behind-firewalls. Teleport embedded into Kubernetes is available as a separate offering called [Telekube](http://gravitational.com/telekube/).
-|External Audit Logging | In addition to supporting the local filesystem, Teleport Enterprise is capable of forwarding the audit log to external systems such as Splunk, Alert Logic and others.
+|[Integration with Kubernetes](#integration-with-kubernetes)| Teleport embedded into Kubernetes is available as a separate offering called [Telekube](http://gravitational.com/telekube/). Telekube allows users to define and enfroce company-wide policies like "Developers Must Never Have Access to Production Data" and Telekube will enforce these rules on both the SSH and Kubernetes API level. Another use case of Telekube is to run Kubernetes clusters on multi-region infrastructure, even in behind-firewalls environments. 
 |Commercial Support | In addition to these features, Teleport Enterprise also comes with a premium support SLA with guaranteed response times. 
 
 !!! tip "Contact Information":
@@ -30,19 +26,24 @@ RBAC stands for `Role Based Access Control`, quoting
 > mandatory access control (MAC) or discretionary access control (DAC). RBAC is
 > sometimes referred to as role-based security.
 
-Every user in Teleport is **always** assigned a role. OSS Teleport automatically
-creates a role-per-user, while Teleport Enterprise allows far greater control over
-how roles are created, assigned and managed.
+Every user in Teleport is **always** assigned a set of roles. The open source
+edition of Teleport automatically assigns every user to the "admin" role, but
+the Teleport Enterprise allows administrators to define their own roles with
+far greater control over over what actions users have authorization to take.
 
-Lets assume your company is using Active Directory to authenticate users, so for a typical 
-enterprise deployment you would:
+Lets assume a company is using Active Directory to authenticate users and place
+them into groups. A typical enterprise deployment of Teleport in this scenario
+would look like this:
 
-1. Configure Teleport to [use existing user identities](#external-identities) stored 
-   in Active Directory.
-2. Using Active Directory, assign a user to several groups, perhaps "sales",
+1. Teleport will be configured to use existing user identities stored in Active
+   Directory.
+2. Active Directory would have users placed in certain grops, perhaps "interns",
    "developers", "admins", "contractors", etc.
-3. Create Teleport Roles - perhaps "users", "developers" and "admins".
-4. Define mappings from Active Directory groups (claims) to Teleport Roles.
+3. The Teleport administrator will have to define Teleport Roles, for
+   simplicity sake let them be "users", "developers" and "admins".
+4. The last step will be to define mappings from the Active Directory groups (claims) 
+   to the Teleport Roles, so every Teleport user will be assigned a role based 
+   on the group membership.
 
 This section covers the process of defining user roles. 
 
