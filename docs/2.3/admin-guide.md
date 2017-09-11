@@ -694,6 +694,84 @@ To replay this session via CLI:
 $ tsh --proxy=proxy play 4c146ec8-eab6-11e6-b1b3-40167e68e931
 ```
 
+## Resources
+
+A Teleport administrator has two tools to configure a Teleport cluster: the
+[configuration file](#configuration) is used for static configuration like the
+cluster name, and the `tctl` admin tool is used for manipulating dynamic records
+like Teleport users.
+
+`tctl` has convenient subcommands for this, like `tctl users` or `tctl nodes`. 
+However, for dealing with more advanced topics, like connecting clusters together, or
+when troubleshooting trust, `tctl` offers the more powerful, although lower-level
+CLI interface called "resources".
+
+The basic idea is borrowed from REST programming pattern: a cluster is composed
+of different objects (AKA resources) and there are just four common operations
+that can be performed on them: get, create, update, remove. 
+
+Every resource in Teleport has three mandatory properties: 
+
+1. Kind
+2. Name
+3. Version
+
+Everything else is resource-specific and is always defined as a YAML file. With these simple rules,
+any component of a Teleport cluster can be manipulated with just 3 CLI commands:
+
+Command         | Description | Examples
+----------------|-------------|----------
+`tctl get`      | Get one or multipe resources           | `tctl get users` or `tctl get user/joe`
+`tctl rm`       | Delete a resource by type/name         | `tctl rm user/joe`
+`tctl create`   | Create a new resource from a YAML file | `tctl create -f joe.yaml`
+`tctl create`   | Update an existing from a YAML file    | `tctl create joe.yaml`
+
+Here's an example how the YAML resource definition for a user Joe may look like, 
+it can be retreived by executing `tctl get user/joe`
+
+```bash
+kind: user
+version: v2
+metadata:
+  name: joe
+spec:
+  roles:
+  - admin
+  status:
+    # users can be temporarily locked in a Teleport system, but this
+    # functionality is reserved for the internal use for now.
+    is_locked: false
+    lock_expires: 0001-01-01T00:00:00Z
+    locked_time: 0001-01-01T00:00:00Z
+  traits:
+    # these are "allowed logins" which are usually specified as the last argument to `tctl users add`
+    logins:
+    - joe
+    - root
+  # any resource in Teleport can automatically expire.
+  expires: 0001-01-01T00:00:00Z
+  # for internal use only
+  created_by:
+    time: 0001-01-01T00:00:00Z
+    user:
+      name: builtin-Admin
+```
+
+!!! tip "Tip":
+    Many of the fields you will see when printing resources are used only
+    internally and are not meant to be changed.  Others are reserved for future
+    use. Refer to the documentation specific to a resource in question to
+    understand the meaning of the fields and what values are accepted.
+
+Here's the list of resources currently exposed via `tctl`:
+
+Resource Kind      | Description
+-------------------|--------------
+user               | A user record in the internal Teleport user DB.
+node               | A registered SSH node. The same record is displayed via `tctl nodes ls`
+trusted_cluster    | A trusted cluster. See [here](#trusted-clusters) for more details on connecting clusters together.
+role               | A role assumed by users. The open source Teleport only includes one role: "admin", but Enterprise teleport users can define their own roles.
+
 ## Trusted Clusters
 
 Teleport allows to partition your infrastructure into multiple clusters. Some clusters can be 
@@ -706,219 +784,115 @@ As [explained above](#nomenclature), a Teleport Cluster has a name and is manage
 Let's assume we need to place some servers behind a firewall and we only want Teleport 
 user "john" to have access to them. We already have our primary Teleport cluster and our 
 users set up. Say this primary cluster is called `main`, and the behind-the-firewall cluster
-is called `cluster-b` as shown on this diagram:
+is called `east` as shown on this diagram:
 
 ![Tunels](img/tunnel.svg)
 
 This setup works as follows:
 
-0. `cluster-b` and `main` trust each other: they are "trusted clusters".
-1. `cluster-b` creates an outbound reverse SSH tunnel to `main` and keeps it open.
-2. Users of `main` should use `--cluster=cluster-b` flag of `tsh` tool if they want to connect to any nodes of `cluster-b`.
-3. The `main` cluster uses the tunnel to connect back to any node of `cluster-b`.
+1. "East" creates an outbound reverse SSH tunnel to "main" and keeps it open.
+2. "East" and "main" must trust each other, they are "trusted clusters" because
+   "main" must authenticate "east" (cluster-to-cluster authentication) when the
+   tunnel is established, and "east" must trust users connecting from "main"
+   (user authentication).
+3. Users of "main" must use `tsh --cluster=east` flag if they want to connect to any nodes in "east".
+4. Users of "main" can see other trusted clusters connected to "main" by running `tsh clusters`
 
 ### Example Configuration
 
-To add behind-the-firewall machines and restrict access only to "john", we will have to do the following:
+Creating a trust between two clusters is easy. Here are the steps:
 
-1. Add `cluster-b` to the list of trusted clusters of `main`.
-2. Add `main` cluster to the list of trusted clusters of `cluster-b`.
-3. Tell `cluster-b` to open a reverse tunnel to `main`. 
-4. Tell `cluster-b` to only allow user "john" from the `main` cluster.
+1. The main cluster needs to define a "cluster join token" in its config file.
+   This token is used for establishing the _initial_ trust between "main" and
+   new clusters. 
+2. The administrator of the eastern cluster must create a "trusted cluster" [resource](#resources).
 
-Let's look into the details of each step. First, let's configure two independent (at first) clusters: 
+Below is the snippet from the auth server configuration for the "main" cluster:
 
-```
+```bash
+# fragment of /etc/teleport.yaml:
 auth_service:
-  enabled: yes
-  cluster_name: main
+  enabled: true
+  tokens:
+  - trusted_cluster:secret-token-to-add-new-clusters
 ```
 
-And our behind-the-firewall cluster:
+The snippet above states that another Teleport cluster can establish a reverse
+tunnel to "main" if it knows the secret, the cluster join token declared in the
+`tokens` section.
 
-```
-auth_service:
-  enabled: yes
-  cluster_name: cluster-b
-```
+!!! tip "Tip":
+    The permission to establish a reverse tunnel is the only action "east" is
+    permitted to. Trusted clusters work only one way: users from "east" cannot
+    connect to the nodes in "main".
 
-Start both servers. At this point they do not know about each other.
-Now, export their public CA keys:
+Now, with the main cluster prepared to allow remote clusters to connect to it,
+lets configure "east". The administrator of "east" must create the following
+resource file:
 
-On "main":
-
-```
-$ tctl auth export > main-cluster.ca
-```
-
-On "cluster-b":
-
-```
-$ tctl auth export > b-cluster.ca
-```
-
-!!! tip "NOTE":
-    In Teleport 2.0 the format used when exporting Certificate Authorities (CAs)
-    has changed to better support interoperability with OpenSSH. In Teleport
-    1.0, all CAs were exported in the `known_hosts` format. Starting in Teleport
-    2.0 we export host CAs in `known_hosts` format and user CAs in
-    `authorized_keys` format. For compatibility with Teleport 1.0, you can still
-    export user CAs in the `known_hosts` format with the following command:
-    `tctl auth export --compat=1.0 > cluster.ca`.
-
-Update the YAML configuration of both clusters to connect them. 
-
-On `main`:
-
-```yaml
-auth_service:
-  enabled: yes
-  cluster_name: main
-  trusted_clusters:
-      - key_file: /path/to/b-cluster.ca
+```bash
+# cluster.yaml
+kind: trusted_cluster
+version: v2
+metadata:
+  # each trusted cluster must be given a name. it does not have to match how
+  # clusters are named internally.
+  name: main
+spec:
+  # this field allows to create tunnels that are disabled, but can be enabled later.
+  enabled: true
+  # the token expected by the "main" cluster:
+  token: secret-token-to-add-new-clusters
+  # the address in 'host:port' form of the reverse tunnel listening port on the
+  # "master" proxy server:
+  tunnel_addr: proxy.main:3024
+  # the address in 'host:port' form of the web listening port on the
+  # "master" proxy server:
+  web_proxy_addr: proxy.main:3080
 ```
 
-On `cluster-b` (notice the `tunnel_addr` - that should point to the address of `main` proxy node):
+... and create it:
 
-```yaml
-auth_service:
-  enabled: yes
-  cluster_name: cluster-b
-  trusted_clusters:
-      - key_file: /path/to/main-cluster.ca
-        # This line contains comma-separated list of OS logins allowed
-        # to users from this trusted cluster
-        allow_logins: john
-        # This line establishes a reverse SSH tunnel from 
-        # cluster-b to main:
-        tunnel_addr: 62.28.10.1
+```bash
+$ tctl create cluster.yaml
 ```
 
-Now, if you restart `teleport` auth service on both clusters, they should trust each
-other. To verify, run this on "cluster-b":
+At this point the users of the main cluster should be able to see "east" in the
+list of available clusters.
 
-```
-$ tctl auth ls
-CA keys for the local cluster cluster-b:
+### Using Trusted Clusters
 
-CA Type     Fingerprint
--------     -----------
-user        xxxxxxxxxxxxxxx
-host        zzzzzzzzzzzzzzz
+It's worth repeating: the users of "east" cannot see or connect to the main
+cluster. The relationship works the other way around: any user from the main
+cluster can now use nodes in "east".
 
-CA Keys for Trusted Clusters:
+A user 'joe' of the main cluster can:
 
-Cluster Name     CA Type     Fingerprint                     Allowed Logins
-------------     -------     -----------                     --------------
-main             user        zzzzzzzzzzzzzzzzzzzzzzzzzzz     john
-main             host        xxxxxxxxxxxxxxxxxxxxxxxxxxx     N/A
-```
+```bash
+# login into the main cluster:
+$ tsh --proxy=proxy.main login joe
 
-Notice that each cluster is shown as two CAs: one is used to establish trust between nodes,
-and another one is for trusting users. 
+# see the list of available clusters
+$ tsh clusters
 
-Now, our sample user John, having direct access to a proxy server of cluster "main" (let's call it main.proxy), can use `tsh` command to see which clusters are online:
+Cluster Name   Status 
+------------   ------ 
+master         online 
+east           online 
 
-```
-$ tsh --proxy=main.proxy clusters
-```
+# see the list of machines (nodes) behind the eastern cluster:
+$ tsh --cluster=east ls
 
-John can also list all nodes in the cluster-b:
+Node Name Node ID            Address        Labels
+--------- ------------------ -------------- -----------
+db1.east  cf7cc5cd-935e-46f1 10.0.5.2:3022  role=db-master
+db2.east  3879d133-fe81-3212 10.0.5.3:3022  role=db-slave
 
-```
-$ tsh --proxy=main.proxy --cluster=cluster-b ls
-```
-
-Similarly, by passing `--cluster=cluster-b` to `tsh` John can login into cluster-b nodes.
-
-!!! tip "Note":
-    Teleport Enterprise also supports adding and removing trusted clusters dynamically
-    at runtime. See [this section](enterprise.md#dynamic-trusted-clusters) to learn more.
-
-
-### Permissions with Trusted Clusters
-
-As illustrated in the above example, when you make changes to the Trusted Cluster
-configuration, you need to restart Teleport. In addition if you specify your
-backend, you need to set `dynamic_config: false` to make sure your changes are
-propagated to the Auth Server.
-
-In the example below we are starting with just allowing `root` to login to
-`cluster-b` then also allowing `jsmith`.
-
-First update `teleport.yaml` to so that `dynamic_config: false` set under
-`auth_service` for both clusters and `allowed_logins` has your new user.
-Something like this:
-
-```
-auth_service:
-  dynamic_config: false
-  trusted_clusters:
-    - key_file: /path/to/one.ca
-      allow_logins: root, jsmith
-      tunnel_addr: one
+# SSH into any node in "east":
+$ tsh --cluster=east ssh root@db1.east
 ```
 
-You’ll need to restart the Auth Server in `cluster-b`.
-
-If you look at the roles on `cluster-b`, you will see that you are allowed to
-login as `root` or `jsmith`.
-
-```
-$ tctl get roles
-Role          Allowed to login as     Namespaces     Node Labels     Access to resources
-----          -------------------     ----------     -----------     -------------------
-ca:cluster-b  root,jsmith             default        <all nodes>     node:read,session:read,tunnel:read,auth_server:read,cert_authority:read
-```
-
-Now back on the main cluster, you need to make sure you are issued a certificate
-that allows you to login as `root` or `jsmith`. The easiest way to do this would be to
-delete the existing `jsmith` user and create them again but you can do the same
-by creating a new role with `logins` set and assigning `jsmith` that role.
-
-```
-$ tctl users del jsmith
-User 'jsmith' has been deleted
-```
-```
-$ tctl users add jsmith root,jsmith
-Signup token has been created and is valid for 3600 seconds. Share this URL with the user:
-https://localhost:3080/web/newuser/20ca3354800bdd50f6df0b19818e9c0e
-```
-
-Now take a look at at the allowed logins on your main cluster:
-
-```
-$ tctl get roles
-Role            Allowed to login as     Namespaces     Node Labels     Access to resources
-----            -------------------     ----------     -----------     -------------------
-ca:cluster-b                            default        <all nodes>     auth_server:read,cert_authority:read,node:read,session:read,tunnel:read
-user:jsmith     root,jsmith             default        <all nodes>     auth_server:read,cert_authority:read,node:read,role:read,session:read,tunnel:read
-```
-
-You can now login as both `root` and `jsmith`. Login again and you will be able to see the same in the issued SSH certificate:
-
-```
-$ tsh --proxy=localhost --user=jsmith login
-[...]
-$ ssh-keygen -L -f ~/.tsh/keys/localhost/jsmith.cert 
-/root/.tsh/keys/localhost/jsmith.cert:
-        Type: ssh-rsa-cert-v01@openssh.com user certificate
-        Public key: RSA-CERT 00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00
-        Signing CA: RSA 00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00
-        Key ID: "jsmith"
-        Serial: 0
-        Valid: before 2017-05-09T12:04:36
-        Principals: 
-                root
-                jsmith
-        Critical Options: (none)
-        Extensions: 
-                permit-port-forwarding
-                permit-pty
-```
-
-### HTTP CONNECT Tunneling
+## HTTP CONNECT Proxies
 
 Some networks funnel all connections through a proxy server where they can be
 audited and access control rules applied. For these scenarios Teleport supports
