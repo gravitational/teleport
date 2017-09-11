@@ -877,7 +877,7 @@ $ tsh clusters
 
 Cluster Name   Status 
 ------------   ------ 
-master         online 
+main           online 
 east           online 
 
 # see the list of machines (nodes) behind the eastern cluster:
