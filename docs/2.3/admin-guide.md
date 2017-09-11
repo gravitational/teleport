@@ -826,17 +826,18 @@ tunnel to "main" if it knows the secret, the cluster join token declared in the
     permitted to. Trusted clusters work only one way: users from "east" cannot
     connect to the nodes in "main".
 
-Now, with the main claster prepared to allow remote clusters to connect to it,
-lets configure "east". The administrator of the eastern cluster must create the
-following resource file:
+Now, with the main cluster prepared to allow remote clusters to connect to it,
+lets configure "east". The administrator of "east" must create the following
+resource file:
 
 ```bash
-# save this to main-cluster.yaml
+# cluster.yaml
 kind: trusted_cluster
 version: v2
 metadata:
-  # each trusted cluster must be given a name
-  name: master
+  # each trusted cluster must be given a name. it does not have to match how
+  # clusters are named internally.
+  name: main
 spec:
   # this field allows to create tunnels that are disabled, but can be enabled later.
   enabled: true
@@ -844,11 +845,20 @@ spec:
   token: secret-token-to-add-new-clusters
   # the address in 'host:port' form of the reverse tunnel listening port on the
   # "master" proxy server:
-  tunnel_addr: proxy.master:3024
+  tunnel_addr: proxy.main:3024
   # the address in 'host:port' form of the web listening port on the
   # "master" proxy server:
-  web_proxy_addr: proxy.master:3080
+  web_proxy_addr: proxy.main:3080
 ```
+
+... and create it:
+
+```bash
+$ tctl create cluster.yaml
+```
+
+At this point the users of the main cluster should be able to see "east" in the
+list of available clusters.
 
 ### Using Trusted Clusters
 

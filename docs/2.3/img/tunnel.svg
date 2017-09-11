@@ -25,10 +25,10 @@
     <switch>
         <foreignObject style="overflow:visible;" pointer-events="all" width="136" height="22" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility">
         <div xmlns="http://www.w3.org/1999/xhtml" style="display: inline-block; font-size: 20px; font-family: Helvetica; color: rgb(77, 77, 77); line-height: 1.2; vertical-align: top; overflow: hidden; max-height: 26px; max-width: 181px; width: 138px; white-space: normal; word-wrap: normal; font-weight: bold; text-align: center;">
-        <div xmlns="http://www.w3.org/1999/xhtml" style="display:inline-block;text-align:inherit;text-decoration:inherit;">master cluster</div>
+        <div xmlns="http://www.w3.org/1999/xhtml" style="display:inline-block;text-align:inherit;text-decoration:inherit;">"main" cluster</div>
         </div>
         </foreignObject>
-        <text x="68" y="21" fill="#4D4D4D" text-anchor="middle" font-size="20px" font-family="Helvetica" font-weight="bold">master cluster</text>
+        <text x="68" y="21" fill="#4D4D4D" text-anchor="middle" font-size="20px" font-family="Helvetica" font-weight="bold">"main" cluster</text>
     </switch>
     </g>
 
