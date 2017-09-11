@@ -25,6 +25,23 @@ func (s *CA) DeleteAllCertAuthorities(caType services.CertAuthType) error {
 	return s.DeleteBucket([]string{"authorities"}, string(caType))
 }
 
+// CreateCertAuthority updates or inserts a new certificate authority
+func (s *CA) CreateCertAuthority(ca services.CertAuthority) error {
+	if err := ca.Check(); err != nil {
+		return trace.Wrap(err)
+	}
+	data, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(ca)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	ttl := backend.TTL(s.Clock(), ca.Expiry())
+	err = s.CreateVal([]string{"authorities", string(ca.GetType())}, ca.GetName(), data, ttl)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 // UpsertCertAuthority updates or inserts a new certificate authority
 func (s *CA) UpsertCertAuthority(ca services.CertAuthority) error {
 	if err := ca.Check(); err != nil {
@@ -94,7 +111,12 @@ func (s *CA) ActivateCertAuthority(id services.CertAuthID) error {
 func (s *CA) DeactivateCertAuthority(id services.CertAuthID) error {
 	certAuthority, err := s.GetCertAuthority(id, true)
 	if err != nil {
-		return trace.BadParameter("can not deactivate CertAuthority which does not exist: %v: %v", id, err)
+		return trace.NotFound("can not deactivate CertAuthority which does not exist: %v", err)
+	}
+
+	err = s.DeleteCertAuthority(id)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	data, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(certAuthority)
@@ -104,11 +126,6 @@ func (s *CA) DeactivateCertAuthority(id services.CertAuthID) error {
 	ttl := backend.TTL(s.Clock(), certAuthority.Expiry())
 
 	err = s.UpsertVal([]string{"authorities", "deactivated", string(id.Type)}, id.DomainName, data, ttl)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = s.DeleteCertAuthority(id)
 	if err != nil {
 		return trace.Wrap(err)
 	}

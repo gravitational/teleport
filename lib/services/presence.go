@@ -95,12 +95,6 @@ type Presence interface {
 
 	// DeleteTrustedCluster removes a TrustedCluster from the backend by name.
 	DeleteTrustedCluster(string) error
-
-	// EnableTrustedCluster will enable a TrustedCluster that is already in the backend.
-	EnableTrustedCluster(TrustedCluster) error
-
-	// DisableTrustedCluster will disable a TrustedCluster that is already in the backend.
-	DisableTrustedCluster(TrustedCluster) error
 }
 
 // NewNamespace returns new namespace

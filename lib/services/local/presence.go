@@ -336,16 +336,6 @@ func (s *PresenceService) DeleteTrustedCluster(name string) error {
 	return trace.Wrap(err)
 }
 
-// EnableTrustedCluster updates the resource on the backend with new state.
-func (s *PresenceService) EnableTrustedCluster(t services.TrustedCluster) error {
-	return s.UpsertTrustedCluster(t)
-}
-
-// DisableTrustedCluster updates the resource on the backend with the new state.
-func (s *PresenceService) DisableTrustedCluster(t services.TrustedCluster) error {
-	return s.UpsertTrustedCluster(t)
-}
-
 const (
 	localClusterPrefix   = "localCluster"
 	reverseTunnelsPrefix = "reverseTunnels"
