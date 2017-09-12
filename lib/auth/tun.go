@@ -501,7 +501,10 @@ func (s *AuthTunnel) passwordAuth(
 	switch ab.Type {
 	// user is trying to get in using their password+otp
 	case AuthWebPassword:
-		if err := s.authServer.CheckPassword(conn.User(), ab.Pass, ab.OTPToken); err != nil {
+		err := s.authServer.WithUserLock(conn.User(), func() error {
+			return s.authServer.CheckPassword(conn.User(), ab.Pass, ab.OTPToken)
+		})
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -515,7 +518,10 @@ func (s *AuthTunnel) passwordAuth(
 		return perms, nil
 	// user is trying to get in using their password only
 	case AuthWebPasswordWithoutOTP:
-		if err := s.authServer.CheckPasswordWOToken(conn.User(), ab.Pass); err != nil {
+		err := s.authServer.WithUserLock(conn.User(), func() error {
+			return s.authServer.CheckPasswordWOToken(conn.User(), ab.Pass)
+		})
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -527,8 +533,12 @@ func (s *AuthTunnel) passwordAuth(
 		}
 		log.Infof("[AUTH] password authenticated user: %q", conn.User())
 		return perms, nil
+	// user is trying to get in using u2f (step 1)
 	case AuthWebU2FSign:
-		if err := s.authServer.CheckPasswordWOToken(conn.User(), ab.Pass); err != nil {
+		err := s.authServer.WithUserLock(conn.User(), func() error {
+			return s.authServer.CheckPasswordWOToken(conn.User(), ab.Pass)
+		})
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		// notice RoleNop here - it can literally call to nothing except one
@@ -541,8 +551,12 @@ func (s *AuthTunnel) passwordAuth(
 		}
 		log.Infof("[AUTH] u2f sign authenticated user: '%v'", conn.User())
 		return perms, nil
+	// user is trying to get in using u2f (step 2)
 	case AuthWebU2F:
-		if err := s.authServer.CheckU2FSignResponse(conn.User(), &ab.U2FSignResponse); err != nil {
+		err := s.authServer.WithUserLock(conn.User(), func() error {
+			return s.authServer.CheckU2FSignResponse(conn.User(), &ab.U2FSignResponse)
+		})
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		perms := &ssh.Permissions{

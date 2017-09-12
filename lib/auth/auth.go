@@ -233,14 +233,14 @@ func (s *AuthServer) GenerateUserCert(key []byte, user services.User, allowedLog
 	})
 }
 
-// withUserLock executes function authenticateFn that perorms user authenticaton
+// WithUserLock executes function authenticateFn that perorms user authenticaton
 // if authenticateFn returns non nil error, the login attempt will be logged in as failed.
 // The only exception to this rule is ConnectionProblemError, in case if it occurs
 // access will be denied, but login attempt will not be recorded
 // this is done to avoid potential user lockouts due to backend failures
 // In case if user exceeds defaults.MaxLoginAttempts
 // the user account will be locked for defaults.AccountLockInterval
-func (s *AuthServer) withUserLock(username string, authenticateFn func() error) error {
+func (s *AuthServer) WithUserLock(username string, authenticateFn func() error) error {
 	user, err := s.Identity.GetUser(username)
 	if err != nil {
 		return trace.Wrap(err)
@@ -287,7 +287,7 @@ func (s *AuthServer) withUserLock(username string, authenticateFn func() error) 
 }
 
 func (s *AuthServer) SignIn(user string, password []byte) (services.WebSession, error) {
-	err := s.withUserLock(user, func() error {
+	err := s.WithUserLock(user, func() error {
 		return s.CheckPasswordWOToken(user, password)
 	})
 	if err != nil {
@@ -320,7 +320,7 @@ func (s *AuthServer) U2FSignRequest(user string, password []byte) (*u2f.SignRequ
 		return nil, trace.Wrap(err)
 	}
 
-	err = s.withUserLock(user, func() error {
+	err = s.WithUserLock(user, func() error {
 		return s.CheckPasswordWOToken(user, password)
 	})
 	if err != nil {
