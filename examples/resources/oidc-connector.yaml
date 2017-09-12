@@ -1,13 +1,12 @@
 kind: oidc
 version: v2
 metadata:
-  name: "google"
-  namespace: "default"
+  name: "oidc_connector"
 spec:
   redirect_url: https://localhost:3080/v1/webapi/oidc/callback
   redirect_timeout: 90s
-  client_id: 000000000000-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com
-  client_secret: AAAAAAAAAAAAAAAAAAAAAAAA
+  client_id: client.example.com
+  client_secret: secret-secret
   issuer_url: https://oidc.example.com
   acr_values: foo
   provider: example

@@ -2,7 +2,6 @@ kind: saml
 version: v2
 metadata:
   name: "adfs"
-  namespace: "default"
 spec:
   # entity_descriptor XML can either be copied into connector or fetched from a URL
   entity_descriptor: |

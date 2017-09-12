@@ -279,7 +279,12 @@ to the `admin` role. Groups with the value `teleusers` is being mapped to the
 
 **Exporting Signing Key**
 
-For the last step, you'll need to export the signing key, you can do this with
-`tctl saml export --name adfs`. Save the output to a file named `saml.crt`.
-Return back to ADFS, open the "Relying Party Trust" and add this file as one
-of the signature verification certificates.
+For the last step, you'll need to export the signing key:
+
+```bash
+$ tctl saml export adfs
+```
+
+Save the output to a file named `saml.crt`, return back to ADFS, open the
+"Relying Party Trust" and add this file as one of the signature verification
+certificates.
