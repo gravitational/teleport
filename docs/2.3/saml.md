@@ -139,7 +139,7 @@ $ tctl create admin.yaml
 $ tctl create dev.yaml
 ```
 
-### Loging In
+### Logging In
 
 The Web UI will now contain a new button: "Login with Okta". The CLI is 
 the same as before:
@@ -239,7 +239,7 @@ metadata:
    name: "users"
 spec:
    # regular users can only be guests and their certificates will have a TTL of 1 hour:
-   max_session_ttl: 1h0m0s
+   max_session_ttl: 1h
    logins: [ guest ]
    node_labels:
       "*": "*"

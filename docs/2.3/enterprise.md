@@ -29,7 +29,7 @@ RBAC stands for `Role Based Access Control`, quoting
 Every user in Teleport is **always** assigned a set of roles. The open source
 edition of Teleport automatically assigns every user to the "admin" role, but
 the Teleport Enterprise allows administrators to define their own roles with
-far greater control over over what actions users have authorization to take.
+far greater control over the actions users have authorization to take.
 
 Lets assume a company is using Active Directory to authenticate users and place
 them into groups. A typical enterprise deployment of Teleport in this scenario
@@ -67,9 +67,9 @@ spec:
   options:
     # max_session_ttl defines the TTL (time to live) of SSH certificates 
     # issued to the users with this role.
-    max_session_ttl: 30h0m0s
+    max_session_ttl: 8h
 
-    # forward_agent turns on/off SSH agent forwarding
+    # forward_agent controls either users are allowed to use SSH agent forwarding
     forward_agent: true
 
   # allow section declares a list of resource/verb combinations that are
@@ -104,7 +104,7 @@ The following variables can be used with `logins` field:
 Variable                | Description
 ------------------------|--------------------------
 `{{ internal.logins }}` | Substituted with "allowed logins" parameter used in 'tctl users add [login] <allowed logins>' command. This is applicable to the local user DB only.
-`{{ external.XYZ }}`    | For SAML-authenticated users this will get substituted with "XYZ" assertion. For OIDC-authenticated users it will get substituted with "XYZ" claim.
+`{{ external.XYZ }}`    | For SAML-authenticated users this will get substituted with "XYZ" assertion value. For OIDC-authenticated users it will get substituted with "XYZ" claim value.
 
 Both variables above are there to deliver the same benefit: it allows Teleport
 administrators to define allowed OS logins via the user database, be it the
