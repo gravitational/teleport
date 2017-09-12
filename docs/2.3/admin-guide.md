@@ -224,7 +224,6 @@ auth_service:
     # Turns 'auth' role on. Default is 'yes'
     enabled: yes
 
-    # defines the types and second factors the auth server supports
     authentication:
         # default authentication type. possible values are 'local', 'oidc' and 'saml'
         # only local authentication (Teleport's own user DB) is supported in the open 

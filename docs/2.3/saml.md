@@ -29,7 +29,6 @@ auth_service:
 ...
 ```
 
-
 ### Confiugre Okta
 
 First, create a SAML 2.0 Web App in Okta configuration section
