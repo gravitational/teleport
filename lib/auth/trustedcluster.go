@@ -35,41 +35,49 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// UpsertTrustedCluster will either create a new services.TrustedCluster or
-// can be used to toggle a services.TrustedCluster on and off.
+// UpsertTrustedCluster changes the state of trust relationship. If we have do
+// not have an exisiting trusted cluster resource in the backend a new one will
+// be created (either enabled or disabled). If we do, we will enable to disable
+// the existing resource.
 func (a *AuthServer) UpsertTrustedCluster(t services.TrustedCluster) error {
-	// check if the trusted cluster exists already
 	var exists bool
-	_, err := a.Presence.GetTrustedCluster(t.GetName())
+	existingCluster, err := a.Presence.GetTrustedCluster(t.GetName())
 	if err == nil {
 		exists = true
 	}
+	enable := t.GetEnabled()
 
-	// if the trusted cluster does not exist, do the initial token exchange
-	// to establish trust relationship and return.
-	if !exists {
-		err = a.establishTrust(t)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		err = a.Presence.UpsertTrustedCluster(t)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
+	// if we are not making any changes, return nil right away
+	if exists == true && existingCluster.GetEnabled() == enable {
 		return nil
 	}
 
-	// if the trusted cluster exists already, the user is just trying to toggle
-	// the trusted cluster
-	if t.GetEnabled() {
-		err = a.EnableTrustedCluster(t)
+	// change state
+	if exists == true && enable == true {
+		log.Debugf("[TRUSTED CLUSTER] Enabling existing Trusted Cluster relationship.")
+
+		err := a.EnableTrustedCluster(t)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-	} else {
-		err = a.DisableTrustedCluster(t)
+	} else if exists == true && enable == false {
+		log.Debugf("[TRUSTED CLUSTER] Disabling existing Trusted Cluster relationship.")
+
+		err := a.DisableTrustedCluster(t)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	} else if exists == false && enable == true {
+		log.Debugf("[TRUSTED CLUSTER] Creating enabled Trusted Cluster relationship.")
+
+		err := a.addEnabledTrustedCluster(t)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	} else if exists == false && enable == false {
+		log.Debugf("[TRUSTED CLUSTER] Creating disabled Trusted Cluster relationship.")
+
+		err := a.addDisabledTrustedCluster(t)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -112,6 +120,76 @@ func (a *AuthServer) DeleteTrustedCluster(name string) error {
 	return nil
 }
 
+// addEnabledTrustedCluster does Trusted Cluster exchange and creates enabled
+// resources on the backend.
+func (a *AuthServer) addEnabledTrustedCluster(t services.TrustedCluster) error {
+	// do the trust exchange. if establishTrust is successful, the remote
+	// auth server has verified out token.
+	remoteCAs, err := a.establishTrust(t)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// add remote ca to our backend
+	err = a.addRemoteCAs(remoteCAs, t)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// add reverse tunnel to our backend
+	reverseTunnel := services.NewReverseTunnel(
+		t.GetName(),
+		[]string{t.GetReverseTunnelAddress()},
+	)
+	err = a.UpsertReverseTunnel(reverseTunnel)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// update trusted cluster resource
+	err = a.Presence.UpsertTrustedCluster(t)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// addDisabledTrustedCluster does Trusted Cluster exchange and creates disabled
+// resources on the backend.
+func (a *AuthServer) addDisabledTrustedCluster(t services.TrustedCluster) error {
+	// do the trust exchange. if establishTrust is successful, the remote
+	// auth server has verified out token.
+	remoteCAs, err := a.establishTrust(t)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// add remote ca to our backend
+	err = a.addRemoteCAs(remoteCAs, t)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// deactivate the ca we just added
+	err = a.DeactivateCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: t.GetName()})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = a.DeactivateCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: t.GetName()})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// update trusted cluster resource
+	err = a.Presence.UpsertTrustedCluster(t)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 // EnableTrustedCluster will enable a TrustedCluster that is already in the backend.
 func (a *AuthServer) EnableTrustedCluster(trustedCluster services.TrustedCluster) error {
 	err := a.ActivateCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: trustedCluster.GetName()})
@@ -135,7 +213,8 @@ func (a *AuthServer) EnableTrustedCluster(trustedCluster services.TrustedCluster
 		return trace.Wrap(err)
 	}
 
-	err = a.Presence.EnableTrustedCluster(trustedCluster)
+	trustedCluster.SetEnabled(true)
+	err = a.Presence.UpsertTrustedCluster(trustedCluster)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -160,7 +239,8 @@ func (a *AuthServer) DisableTrustedCluster(trustedCluster services.TrustedCluste
 		return trace.Wrap(err)
 	}
 
-	err = a.Presence.DisableTrustedCluster(trustedCluster)
+	trustedCluster.SetEnabled(false)
+	err = a.Presence.UpsertTrustedCluster(trustedCluster)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -168,18 +248,18 @@ func (a *AuthServer) DisableTrustedCluster(trustedCluster services.TrustedCluste
 	return nil
 }
 
-func (a *AuthServer) establishTrust(trustedCluster services.TrustedCluster) error {
+func (a *AuthServer) establishTrust(trustedCluster services.TrustedCluster) ([]services.CertAuthority, error) {
 	var localCertAuthorities []services.CertAuthority
 
 	domainName, err := a.GetDomainName()
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// get a list of certificate authorities for this auth server
 	allLocalCAs, err := a.GetCertAuthorities(services.HostCA, false)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	for _, lca := range allLocalCAs {
 		if lca.GetClusterName() == domainName {
@@ -201,17 +281,21 @@ func (a *AuthServer) establishTrust(trustedCluster services.TrustedCluster) erro
 	if err != nil {
 		log.Error(err)
 		if strings.Contains(err.Error(), "x509") {
-			return trace.AccessDenied("the trusted cluster uses misconfigured HTTP/TLS certificate.")
+			return nil, trace.AccessDenied("the trusted cluster uses misconfigured HTTP/TLS certificate.")
 		}
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// log the remote certificate authorities we are adding
 	log.Debugf("[TRUSTED CLUSTER] Received validate response; CAs=%v", validateResponse.CAs)
 
+	return validateResponse.CAs, nil
+}
+
+func (a *AuthServer) addRemoteCAs(remoteCAs []services.CertAuthority, trustedCluster services.TrustedCluster) error {
 	// the remote auth server has verified our token. add the
 	// remote certificate authority to our backend
-	for _, remoteCertAuthority := range validateResponse.CAs {
+	for _, remoteCertAuthority := range remoteCAs {
 		// add roles into user certificates
 		// ignore roles set locally by the cert authority
 		remoteCertAuthority.SetRoles(nil)
@@ -222,21 +306,10 @@ func (a *AuthServer) establishTrust(trustedCluster services.TrustedCluster) erro
 			remoteCertAuthority.SetRoleMap(trustedCluster.GetRoleMap())
 		}
 
-		err = a.UpsertCertAuthority(remoteCertAuthority)
+		err := a.UpsertCertAuthority(remoteCertAuthority)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-	}
-
-	// the remote auth server has verified our token. add the
-	// reverse tunnel into our backend
-	reverseTunnel := services.NewReverseTunnel(
-		trustedCluster.GetName(),
-		[]string{trustedCluster.GetReverseTunnelAddress()},
-	)
-	err = a.UpsertReverseTunnel(reverseTunnel)
-	if err != nil {
-		return trace.Wrap(err)
 	}
 
 	return nil
