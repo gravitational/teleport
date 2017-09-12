@@ -203,18 +203,18 @@ func (u *ResourceCommand) createUser(client *auth.TunClient, raw services.Unknow
 	userName := user.GetName()
 	// see if a user with such name exists:
 	_, err = client.GetUser(userName)
-	if err != nil && !trace.IsNotFound(err) {
+	if err != nil {
 		return trace.Wrap(err)
 	}
-	userExists := (err == nil)
-	// asked not to overwrite an existing user? check if it exists
-	if u.force == false && userExists {
-		return trace.AlreadyExists("user '%s' already exists", userName)
+	// only 'update' is supported (resources API do not support generating
+	// invitation tokens, 2FA and sign-up URLs)
+	if u.force == false {
+		return trace.BadParameter("you must use 'tctl users add' to create new users")
 	}
 	if err := client.UpsertUser(user); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("user '%s' has been %s\n", userName, UpsertVerb(userExists))
+	fmt.Printf("user '%s' has been updated\n", userName)
 	return nil
 }
 
