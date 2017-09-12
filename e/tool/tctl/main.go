@@ -17,6 +17,7 @@ func main() {
 		&common.TokenCommand{},
 		&common.AuthCommand{},
 		&ResourceCommandE{},
+		&SAMLCommand{},
 	}
 	common.Run(teleport.DistroTypeEnterprise, commands)
 }
