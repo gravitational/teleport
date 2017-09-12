@@ -30,71 +30,85 @@ documented on the identity providers website. Here are a few links:
 Add your OIDC connector information to `teleport.yaml`. A few examples are
 provided below.
 
-#### OIDC with pre-defined roles
+### Enable OIDC Authentication
+
+First, configure Teleport auth server to use OID authentication instead of the local
+user database. Update `/etc/teleport.yaml` as show below and restart the
+teleport daemon.
+
+```yaml
+auth_service:
+    # Turns 'auth' role on. Default is 'yes'
+    enabled: yes
+
+    # defines the types and second factors the auth server supports
+    authentication:
+        type: oidc
+```
+
+#### OIDC connector configuration
 
 In the configuration below, we are requesting the scope `group` from the
 identity provider then mapping the value to either to `admin` role or the `user`
 role depending on the value returned for `group` within the claims.
 
 ```yaml
-authentication:
-   type: oidc
-   oidc:
-      id: example.com
-      redirect_url: https://localhost:3080/v1/webapi/oidc/callback
-      redirect_timeout: 90s
-      client_id: 000000000000-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com
-      client_secret: AAAAAAAAAAAAAAAAAAAAAAAA
-      issuer_url: https://oidc.example.com
-      display: "Login with Example"
-      scope: [ "group" ]
-      claims_to_roles:
-         - claim: "group"
-           value: "admin"
-           roles: [ "admin" ]
-         - claim: "group"
-           value: "user"
-           roles: [ "user" ]
+kind: oidc
+version: v2
+metadata:
+  name: "google"
+spec:
+  issuer_url: "https://oidc.example.com"
+  client_id: "000000000000-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com"
+  client_secret: "AAAAAAAAAAAAAAAAAAAAAAAA"
+  redirect_url: "https://localhost:3080/v1/webapi/oidc/callback"
+  display: "Login with Example"
+  scope: [ "group" ]
+  claims_to_roles:
+     - claim: "group"
+       value: "admin"
+       roles: [ "admin" ]
+     - claim: "group"
+       value: "user"
+       roles: [ "user" ]
 ```
 
-#### OIDC with role templates
-
-If you have individual system logins using pre-defined roles can be cumbersome
-because you need to create a new role every time you add a new member to your
-team. In this situation you can use role templates to dynamically create roles
-based off information passed in the claims. In the configuration below, if the
-claims have a `group` with value `admin` we dynamically create a role with the
-name extracted from the value of `email` in the claim and login `username`.
+Below are two example roles that are mentioned above, the first is an admin
+with full access to the system while the second is a developer with limited
+access.
 
 ```yaml
-authentication:
-   type: oidc
-   oidc:
-      id: google
-      redirect_url: https://localhost:3080/v1/webapi/oidc/callback
-      redirect_timeout: 90s
-      client_id: 000000000000-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com
-      client_secret: AAAAAAAAAAAAAAAAAAAAAAAA
-      issuer_url: https://oidc.example.com
-      display: "Login with Example"
-      scope: [ "group", "username", "email" ]
-      claims_to_roles:
-         - claim: "group"
-           value: "admin"
-           role_template:
-              kind: role
-              version: v2
-              metadata:
-                 name: '{{index . "email"}}'
-                 namespace: "default"
-              spec:
-                 namespaces: [ "*" ]
-                 max_session_ttl: 90h0m0s
-                 logins: [ '{{index . "username"}}', root ]
-                 node_labels:
-                    "*": "*"
-                 resources:
-                    "*": [ "read", "write" ]
+kind: "role"
+version: "v3"
+metadata:
+  name: "admin"
+spec:
+  max_session_ttl: "90h0m0s"
+  allow:
+    logins: [root]
+    node_labels:
+      "*": "*"
+    rules:
+      - resources: ["*"]
+        verbs: ["*"]
+```
+
+Users are only allowed to login to nodes labelled with `access: relaxed`
+teleport label. Developers can log in as either `ubuntu` to a username that
+arrives in their assertions. Developers also do not have any rules needed to
+obtain admin access.
+
+```yaml
+kind: "role"
+version: "v3"
+metadata:
+  name: "dev"
+spec:
+  max_session_ttl: "90h0m0s"
+  allow:
+    logins: [ "{{external.username}}", ubuntu ]
+    node_labels:
+      access: relaxed
 ```
 
 #### ACR Values
@@ -112,23 +126,26 @@ the moment, the only build-in support is for NetIQ.
 A example of using ACR values and provider specific processing is below:
 
 ```yaml
-authentication:
-   type: oidc
-   oidc:
-      id: example.com
-      redirect_url: https://localhost:3080/v1/webapi/oidc/callback
-      redirect_timeout: 90s
-      client_id: 000000000000-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com
-      client_secret: AAAAAAAAAAAAAAAAAAAAAAAA
-      issuer_url: https://oidc.example.com
-      acr_values: "foo/bar"
-      provider: netiq
-      display: "Login with Example"
-      scope: [ "group" ]
-      claims_to_roles:
-         - claim: "group"
-           value: "admin"
-           roles: [ "admin" ]
+kind: oidc
+version: v2
+metadata:
+  name: "google"
+spec:
+  issuer_url: "https://oidc.example.com"
+  client_id: "000000000000-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com"
+  client_secret: "AAAAAAAAAAAAAAAAAAAAAAAA"
+  redirect_url: "https://localhost:3080/v1/webapi/oidc/callback"
+  display: "Login with Example"
+  acr_values: "foo/bar"
+  provider: netiq
+  scope: [ "group" ]
+  claims_to_roles:
+     - claim: "group"
+       value: "admin"
+       roles: [ "admin" ]
+     - claim: "group"
+       value: "user"
+       roles: [ "user" ]
 ```
 
 #### Login
