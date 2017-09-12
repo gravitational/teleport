@@ -1,0 +1,39 @@
+kind: role
+version: v3
+metadata:
+  name: admin
+spec:
+  # SSH options used for user sessions 
+  options:
+    # max_session_ttl defines the TTL (time to live) of SSH certificates 
+    # issued to the users with this role.
+    max_session_ttl: 30h0m0s
+
+    # forward_agent turns on/off SSH agent forwarding
+    forward_agent: true
+
+  # allow section declares a list of resource/verb combinations that are
+  # allowed for the users of this role. by default nothing is allowed.
+  allow:
+    # logins array defines the OS logins a user is allowed to use.
+    # A few special variables are supported here (see below)
+    logins: [root, '{{internal.logins}}']
+
+    # node labels that a user can connect to. The wildcard ('*') means "any node"
+    node_labels:
+      '*': '*'
+
+    # see below.
+    rules:
+    - resources: [role]
+      verbs: [list, create, read, update, delete]
+    - resources: [auth_connector]
+      verbs: [connect, list, create, read, update, delete]
+    - resources: [session]
+      verbs: [list, read]
+    - resources: [trusted_cluster]
+      verbs: [connect, list, create, read, update, delete]
+
+  # the deny section uses the identical format as the 'allow' section.
+  # the deny rules always override allow rules.
+  deny: {}

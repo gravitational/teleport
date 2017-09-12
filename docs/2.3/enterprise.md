@@ -1,18 +1,14 @@
 # Teleport Enterprise Features
 
 This chapter covers Teleport features that are only available in the commercial
-edition of Teleport, called "Teleport Enterprise".
-
-Below is the full list of features that are only available to users of 
-Teleport Enterprise:
+edition of Teleport, called "Teleport Enterprise". The table below gives the quick 
+overview of the Enterprise Edition features.
 
 |Teleport Enterprise Feature|Description
 ---------|--------------
 |[Role Based Access Control (RBAC)](#rbac)|Allows Teleport administrators to define User Roles and restrict each role to specific actions. RBAC also allows to partition cluster nodes into groups with different access permissions.
 |[External User Identity Integration](#external-identities)| Allows Teleport to integrate with existing enterprise identity systems. Examples include Active Directory, Github, Google Apps and numerous identity middleware solutions like Auth0, Okta, and so on. Teleport supports LDAP, SAML and OAuth/OpenID Connect protocols to interact with them.
-|[Dynamic Configuration](#dynamic-configuration) | Open source edition of Teleport takes its configuration from a single YAML file. Teleport Enterprise can also be controlled at runtime, even programmatically, by dynamiclally updating its configuration.
-|[Integration with Kubernetes](#integration-with-kubernetes)| Teleport can be embedded into Kubernetes clusters. This allows Teleport users to deploy and remotely manage Kubernetes on any infrastructure, even behind-firewalls. Teleport embedded into Kubernetes is available as a separate offering called [Telekube](http://gravitational.com/telekube/).
-|External Audit Logging | In addition to supporting the local filesystem, Teleport Enterprise is capable of forwarding the audit log to external systems such as Splunk, Alert Logic and others.
+|[Integration with Kubernetes](#integration-with-kubernetes)| Teleport embedded into Kubernetes is available as a separate offering called [Telekube](http://gravitational.com/telekube/). Telekube allows users to define and enfroce company-wide policies like "Developers Must Never Have Access to Production Data" and Telekube will enforce these rules on both the SSH and Kubernetes API level. Another use case of Telekube is to run Kubernetes clusters on multi-region infrastructure, even in behind-firewalls environments. 
 |Commercial Support | In addition to these features, Teleport Enterprise also comes with a premium support SLA with guaranteed response times. 
 
 !!! tip "Contact Information":
@@ -30,32 +26,91 @@ RBAC stands for `Role Based Access Control`, quoting
 > mandatory access control (MAC) or discretionary access control (DAC). RBAC is
 > sometimes referred to as role-based security.
 
-Every user in Teleport is **always** assigned a role. OSS Teleport automatically
-creates a role-per-user, while Teleport Enterprise allows far greater control over
-how roles are created, assigned and managed.
+Every user in Teleport is **always** assigned a set of roles. The open source
+edition of Teleport automatically assigns every user to the "admin" role, but
+the Teleport Enterprise allows administrators to define their own roles with
+far greater control over the actions users have authorization to take.
 
-Lets assume your company is using Active Directory to authenticate users, so for a typical 
-enterprise deployment you would:
+Lets assume a company is using Active Directory to authenticate users and place
+them into groups. A typical enterprise deployment of Teleport in this scenario
+would look like this:
 
-1. Configure Teleport to [use existing user identities](#external-identities) stored 
-   in Active Directory.
-2. Using Active Directory, assign a user to several groups, perhaps "sales",
+1. Teleport will be configured to use existing user identities stored in Active
+   Directory.
+2. Active Directory would have users placed in certain grops, perhaps "interns",
    "developers", "admins", "contractors", etc.
-3. Create Teleport Roles - perhaps "users", "developers" and "admins".
-4. Define mappings from Active Directory groups (claims) to Teleport Roles.
-
-This section covers the process of defining user roles. 
+3. The Teleport administrator will have to define Teleport Roles, for
+   simplicity sake let them be "users", "developers" and "admins".
+4. The last step will be to define mappings from the Active Directory groups (claims) 
+   to the Teleport Roles, so every Teleport user will be assigned a role based 
+   on the group membership.
 
 ### Roles
 
-A role in Teleport defines the following restrictions for the users who are 
-assigned to it:
+To manage cluster roles a Teleport administrator can use the Web UI or the command
+line using [tctl resource commands](admin-guide#resources). To see the list of
+roles in a Teleport cluster, an administrator can execute:
 
-**OS logins**
+```bash
+$ tctl get roles
+```
 
-The typical OS logins traditionally used. For example, you may not want your interns to login as "root".
+By default there is always one role called "admin" which looks like this:
 
-**Allowed Labels**
+```bash
+kind: role
+version: v3
+metadata:
+  name: admin
+spec:
+  # SSH options used for user sessions 
+  options:
+    # max_session_ttl defines the TTL (time to live) of SSH certificates 
+    # issued to the users with this role.
+    max_session_ttl: 8h
+
+    # forward_agent controls either users are allowed to use SSH agent forwarding
+    forward_agent: true
+
+  # allow section declares a list of resource/verb combinations that are
+  # allowed for the users of this role. by default nothing is allowed.
+  allow:
+    # logins array defines the OS logins a user is allowed to use.
+    # A few special variables are supported here (see below)
+    logins: [root, '{{internal.logins}}']
+
+    # node labels that a user can connect to. The wildcard ('*') means "any node"
+    node_labels:
+      '*': '*'
+
+    # see below.
+    rules:
+    - resources: [role]
+      verbs: [list, create, read, update, delete]
+    - resources: [auth_connector]
+      verbs: [connect, list, create, read, update, delete]
+    - resources: [session]
+      verbs: [list, read]
+    - resources: [trusted_cluster]
+      verbs: [connect, list, create, read, update, delete]
+
+  # the deny section uses the identical format as the 'allow' section.
+  # the deny rules always override allow rules.
+  deny: {}
+```
+
+The following variables can be used with `logins` field:
+
+Variable                | Description
+------------------------|--------------------------
+`{{ internal.logins }}` | Substituted with "allowed logins" parameter used in 'tctl users add [login] <allowed logins>' command. This is applicable to the local user DB only.
+`{{ external.XYZ }}`    | For SAML-authenticated users this will get substituted with "XYZ" assertion value. For OIDC-authenticated users it will get substituted with "XYZ" claim value.
+
+Both variables above are there to deliver the same benefit: it allows Teleport
+administrators to define allowed OS logins via the user database, be it the
+local DB, or an identity manager behind a SAML or OIDC endpoint.
+
+**Node Labels**
 
 A user will only be granted access to a node if all of the labels defined in
 the role are present on the node. This effectively means we use an AND
@@ -76,184 +131,39 @@ create a role with the following allow labels
 `environment: staging, team: frontend`. That would restrict users with the
 `intern` role to only staging servers the frontend team uses.
 
-**Session Duration**
+**Rules**
 
-Also known as "Session TTL" - a period of time a user is allowed to be logged in.
+Each role contains two lists of rules: "allow" rules and "deny" rules. Deny
+rules get evaluated first, and a user gets "access denied" error if there's a
+deny rule match.
 
-**Resources**
-
-Resources defines access levels to resources on the backend of Teleport.
-
-Access is either `read` or `write`. Typically you will not set this for users and simply take the default values.
-For admins, you often want to give them full read/write access and you can set `resources` to `"*": ["read", "write"]`.
-
-Currently supported resources are:
-
-  * `oidc` - OIDC Connector
-  * `cert_authority` - Certificate Authority
-  * `tunnel` - Reverse Tunnel (used with trusted clusters)
-  * `user` - Teleport users
-  * `node` - Teleport nodes
-  * `auth_server` - Auth server
-  * `proxy` - Proxy server
-  * `role` - Teleport roles
-  * `namespace` - Teleport namespaces
-  * `trusted_cluster` - Trusted Clusters (creates `cert_authority` and `tunnel`).
-  * `cluster_auth_preference` - Authentication preferences.
-  * `universal_second_factor` - Universal Second Factor (U2F) settings.
-
-**Namespaces**
-
-Namespaces allow you to partition nodes within a single cluster to restrict access to a set of nodes.
-To use namespaces, first you need to create a `namespace` resource on the backend then set `namespace`
-under `ssh_service` in `teleport.yaml` for each node which you want to be part of said namespace.
-For admins, you might want to give them access to all namespaces and you can set `namespaces` to `["*"]`.
-
-The roles are managed as any other resource using [dynamic configuration](#dynamic-configuration) 
-commands. For example, let's create a role `intern`.
-
-First, lets define this role using YAML format and save it into `interns-role.yaml`:
-
-```yaml
-kind: role
-version: v1
-metadata:
-  description: "This role is for interns"
-  name: "intern"
-spec:
-  # interns can only SSH as 'intern' OS login
-  logins: ["intern"]
-
-  # automatically log users out after 8 hours
-  max_session_ttl: 8h0m0s
-
-  # Interns will only be allowed to SSH into machines 
-  # with the label 'environment' set to 'staging'
-  node_labels:
-    "environment": "staging"
-```
-
-Now, we just have to create this role:
+Each rule consists of two lists: the list of resources and verbs. Here's an example of
+a rule describing "list" access to sessions and trusted cluters:
 
 ```bash
-$ tctl create -f interns-role.yaml
+- resources: [session, trusted_cluster]
+  verbs: [connect, list, create, read, update, delete]
 ```
+
+If this rule is declared in `deny` section of a role definition, it effectively
+prohibits users from getting a list of trusted clusters and sessions.
 
 ## External Identities
 
-The standard OSS edition of Teleport stores user accounts using a local storage
-back-end, typically on a file system or using a highly available database like `etcd`. 
+Teleport Enterprise allows to authenticate users against a corporate identity management
+system and map their group membership to Teleport SSH roles.
 
-Teleport Enterprise allows the administrators to integrate Teleport clusters
-with existing user identities like Active Directory or Google Apps using protocols
-like LDAP, OpenID/OAuth2 or SAML. Refer to the following links for additional
-additional integration documentation:
+Any identity management system can be used with Teleport as long as it implements a 
+single sign on (SSO) mechanism via [OpenID Connect](https://en.wikipedia.org/wiki/OpenID_Connect) 
+or [SAML](https://en.wikipedia.org/wiki/Security_Assertion_Markup_Language). 
+Examples of such systems include commercial solutions like [Okta](https://www.okta.com) or 
+[Active Directory](https://en.wikipedia.org/wiki/Active_Directory_Federation_Services), as 
+well as open source products like [Keycloak](http://www.keycloak.org).
+
+Refer to the following links for additional additional integration documentation:
 
 * [OpenID Connect (OIDC)](oidc.md)
 * [Security Assertion Markup Language 2.0 (SAML 2.0)](saml.md)
-
-In addition, Teleport Enterprise can query for users' group membership and assign different
-roles to different groups, see the [RBAC section](#rbac) for more details.
-
-## Dynamic Configuration
-
-OSS Teleport reads its configuration from a single YAML file,
-usually located in `/etc/teleport.yaml`. Teleport Enterprise extends that by
-allowing cluster administrators to dynamically update certain configuration
-parameters while Teleport is running. This can also be done programmatically.
-
-Teleport treats such dynamic settings as objects, also called "resources".
-Each resource can be described in a YAML format and can be created, updated or
-deleted at runtime through three `tctl` commands:
-
-| Command Example | Description
-|---------|------------------------------------------------------------------------
-| `tctl create -f tc.yaml`  | Creates the trusted cluster described in `tc.yaml` resource file.
-| `tctl del -f tc.yaml`     | Deletes the trusted cluster described in `tc.yaml` resource file.
-| `tctl update -f tc.yaml`  | Updates the trusted cluster described in `tc.yaml` resource file.
-
-This is very similar how the `kubectl` command works in
-[Kubernetes](https://en.wikipedia.org/wiki/Kubernetes).
-
-Two resources are supported currently:
-
-* See [Trusted Clusters](#dynamic-trusted-clusters): to dynamically connect / disconnect remote Teleport clusters.
-* See [User Roles](#rbac): to create or update user permissions on the fly.
-
-### Authentication Preferences
-
-Using dynamic configuration you can also view and change the type of cluster authentication Teleport supports at runtime.
-
-#### Viewing Authentication Preferences
-
-You can query the Cluster Authentication Preferences (abbreviated `cap`) resource using `tctl` to find out what your current authentication preferences are.
-
-```
-$ tctl get cap
-Type      Second Factor
-----      -------------
-local     u2f
-```
-
-In the above example we are using local accounts and the Second Factor used is Universal Second Factor (U2F, abbreviated `u2f`), once again to drill down and get more details you can use `tctl`:
-
-```
-$ tctl get u2f
-App ID                     Facets
-------                     ------
-https://localhost:3080     ["https://localhost" "https://localhost:3080"]
-```
-
-#### Updating Authentication Preferences
-
-To update Cluster Authentication Preferences, you'll need to update the resources you viewed before. You can do that creating the following file on disk and then update the backend with `tctl create -f {filename}`.
-
-```yaml
-kind: cluster_auth_preference
-version: v2
-metadata:
-  description: ""
-  name: "cluster-auth-preference"
-  namespace: "default"
-spec:
-  type: local         # allowable types are local or oidc
-  second_factor: otp  # allowable second factors are none, otp, or u2f.
-```
-
-If your Second Factor Authentication type is U2F, you'll need to create an additional resource:
-
-
-```yaml
-kind: universal_second_factor
-version: v2
-metadata:
-  description: ""
-  name: "universal-second-factor"
-  namespace: "default"
-spec:
-  app_id: "https://localhost:3080"
-  facets: ["https://localhost", "https://localhost:3080"]
-```
-
-If you are not using local accounts but rather an external identity provider like OIDC, you'll need to create an OIDC resource like below.
-
-```yaml
-kind: oidc
-version: v2
-metadata:
-  description: ""
-  name: "example"
-  namespace: "default"
-spec:
-  issuer_url: https://accounts.example.com
-  client_id: 00000000000000000.example.com
-  client_secret: 00000000-0000-0000-0000-000000000000
-  redirect_url: https://localhost:3080/v1/webapi/oidc/callback
-  display: "Welcome to Example.com"
-  scope: ["email"]
-  claims_to_roles: 
-    - {claim: "email", value: "foo@example.com", roles: ["admin"]}
-```
 
 ## Integration With Kubernetes
 

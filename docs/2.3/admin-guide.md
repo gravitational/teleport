@@ -716,8 +716,9 @@ Every resource in Teleport has three mandatory properties:
 2. Name
 3. Version
 
-Everything else is resource-specific and is always defined as a YAML file. With these simple rules,
-any component of a Teleport cluster can be manipulated with just 3 CLI commands:
+Everything else is resource-specific and is always defined as a [YAML](https://en.wikipedia.org/wiki/YAML) 
+file. With these simple rules, any component of a Teleport cluster can be
+manipulated with just 3 CLI commands:
 
 Command         | Description | Examples
 ----------------|-------------|----------
@@ -725,6 +726,12 @@ Command         | Description | Examples
 `tctl rm`       | Delete a resource by type/name         | `tctl rm user/joe`
 `tctl create`   | Create a new resource from a YAML file | `tctl create -f joe.yaml`
 `tctl create`   | Update an existing from a YAML file    | `tctl create joe.yaml`
+
+!!! warning "YAML Format":
+    By default Teleport uses [YAML format](https://en.wikipedia.org/wiki/YAML)
+    to describe resources. YAML is a wonderful and very human-readable
+    alternative to JSON or XML, but it's sensitive to white space. Pay
+    attention to spaces vs tabs!
 
 Here's an example how the YAML resource definition for a user Joe may look like, 
 it can be retreived by executing `tctl get user/joe`
@@ -835,8 +842,8 @@ resource file:
 kind: trusted_cluster
 version: v2
 metadata:
-  # each trusted cluster must be given a name. it does not have to match how
-  # clusters are named internally.
+  # the trusted cluster name MUST match the 'cluster_name' setting of the
+  # cluster
   name: main
 spec:
   # this field allows to create tunnels that are disabled, but can be enabled later.
@@ -859,6 +866,14 @@ $ tctl create cluster.yaml
 
 At this point the users of the main cluster should be able to see "east" in the
 list of available clusters.
+
+!!! warning "HTTPS configuration":
+    If the `web_proxy_addr` endpoint of the main cluster uses a self-signed or
+    invalid HTTPS certificate, you will get an error: _"the trusted cluster
+    uses misconfigured HTTP/TLS certificate"_. For ease of testing the
+    teleport daemon of "east" can be started with `--insecure` CLI flag to
+    accept self-signed certificates. Make sure to configure HTTPS properly and
+    remove the insecure flag for production use.
 
 ### Using Trusted Clusters
 

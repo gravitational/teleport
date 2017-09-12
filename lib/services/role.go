@@ -205,6 +205,9 @@ type Access interface {
 	DeleteRole(name string) error
 }
 
+// TODO: [ev] can we please define a RoleOption type (instead of using strings)
+// and use RoleOption prefix for naming these? It's impossible right now to find
+// all possible role options.
 const (
 	// ForwardAgent is SSH agent forwarding.
 	ForwardAgent = "forward_agent"
