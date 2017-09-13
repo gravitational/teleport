@@ -2,7 +2,7 @@
 # Naming convention:
 #	for stable releases we use "1.0.0" format
 #   for pre-releases, we use   "1.0.0-beta.2" format
-VERSION=2.3.0-rc2
+VERSION=2.3.0-rc3
 
 # These are standard autotools variables, don't change them please
 BUILDDIR ?= build
@@ -65,6 +65,7 @@ clean:
 	rm -rf $(BUILDDIR)
 	rm -rf teleport
 	rm -rf *.gz
+	rm -rf $(VERSRC)
 	rm -rf `go env GOPATH`/pkg/`go env GOHOSTOS`_`go env GOARCH`/github.com/gravitational/teleport*
 	@if [ -f e/Makefile ]; then $(MAKE) -C e clean; fi
 
