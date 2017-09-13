@@ -2,17 +2,17 @@
 
 ## 2.3 
 
-This release focus was to increase Teleport user experience, including:
+This release focus was to increase Teleport user experience in the following areas:
 
-* Easier configuration
-* Better documentation
-* Improved CLI interface
-* Make the Web UI better
+* Easier configuration via `tctl` resource commands.
+* Improved documentation, with expanded 'examples' directory.
+* Improved CLI interface.
+* Web UI improvements.
 
 #### Improvements
 
 * Web UI: users can connect to OpenSSH servers using the Web UI.
-* Web UI: arbitrary logins are supported, in addition to role-defined ones.
+* Web UI now supports arbitrarty SSH logins, in addition to role-defined ones, for better compatibility with OpenSSH.
 * CLI: trusted clusters can now be managed on the fly without having to edit Teleport configuration. [#1137](https://github.com/gravitational/teleport/issues/1137)
 * CLI: `tsh login` supports exporting a user identity into a file to be used later with OpenSSH.
 * `tsh agent` command has been deprecated: users are expected to use native SSH Agents on their platforms.
