@@ -65,6 +65,8 @@ type TrustedCluster interface {
 	SetReverseTunnelAddress(string)
 	// CheckAndSetDefaults checks and set default values for missing fields.
 	CheckAndSetDefaults() error
+	// CanChangeStateTo checks the TrustedCluster can transform into another.
+	CanChangeStateTo(TrustedCluster) error
 }
 
 // NewTrustedCluster is a convenience wa to create a TrustedCluster resource.
@@ -123,6 +125,19 @@ type TrustedClusterSpecV2 struct {
 
 // RoleMap is a list of mappings
 type RoleMap []RoleMapping
+
+// Equals checks if the two role maps are equal.
+func (r RoleMap) Equals(o RoleMap) bool {
+	if len(r) != len(o) {
+		return false
+	}
+	for i := range r {
+		if !r[i].Equals(o[i]) {
+			return false
+		}
+	}
+	return true
+}
 
 // String prints user friendly representation of role mapping
 func (r RoleMap) String() string {
@@ -211,6 +226,17 @@ type RoleMapping struct {
 	Remote string `json:"remote"`
 	// Local specifies local roles to map to
 	Local []string `json:"local"`
+}
+
+// Equals checks if the two role mappings are equal.
+func (r RoleMapping) Equals(o RoleMapping) bool {
+	if r.Remote != o.Remote {
+		return false
+	}
+	if !utils.StringSlicesEqual(r.Local, r.Local) {
+		return false
+	}
+	return true
 }
 
 // Check checks validity of all parameters and sets defaults
@@ -339,6 +365,35 @@ func (c *TrustedClusterV2) GetReverseTunnelAddress() string {
 // SetReverseTunnelAddress sets the address of the reverse tunnel.
 func (c *TrustedClusterV2) SetReverseTunnelAddress(e string) {
 	c.Spec.ReverseTunnelAddress = e
+}
+
+// CanChangeState checks if the state change is allowed or not. If not, returns
+// an error explaining the reason.
+func (c *TrustedClusterV2) CanChangeStateTo(t TrustedCluster) error {
+	if c.GetToken() != t.GetToken() {
+		return trace.BadParameter("can not update token for existing trusted cluster")
+	}
+	if c.GetProxyAddress() != t.GetProxyAddress() {
+		return trace.BadParameter("can not update proxy address for existing trusted cluster")
+	}
+	if c.GetReverseTunnelAddress() != t.GetReverseTunnelAddress() {
+		return trace.BadParameter("can not update proxy address for existing trusted cluster")
+	}
+	if !utils.StringSlicesEqual(c.GetRoles(), t.GetRoles()) {
+		return trace.BadParameter("can not update roles for existing trusted cluster")
+	}
+	if !c.GetRoleMap().Equals(t.GetRoleMap()) {
+		return trace.BadParameter("can not update role map for existing trusted cluster")
+	}
+
+	if c.GetEnabled() == t.GetEnabled() {
+		if t.GetEnabled() == true {
+			return trace.BadParameter("trusted cluster is already enabled")
+		}
+		return trace.BadParameter("trusted cluster state is already disabled")
+	}
+
+	return nil
 }
 
 // String represents a human readable version of trusted cluster settings.

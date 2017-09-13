@@ -44,11 +44,13 @@ func (a *AuthServer) UpsertTrustedCluster(trustedCluster services.TrustedCluster
 	}
 	enable := trustedCluster.GetEnabled()
 
-	// if the resource exists and we are not changing state, return right away.
-	// note that if the resource exists, the only state change we allow is to
-	// enable/disable it.
-	if exists == true && existingCluster.GetEnabled() == enable {
-		return nil
+	// if the trusted cluster already exists in the backend, make sure it's a
+	// valid state change we are trying to make
+	if exists == true {
+		err := existingCluster.CanChangeStateTo(trustedCluster)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// change state
@@ -448,12 +450,7 @@ func (a *AuthServer) activateCertAuthority(t services.TrustedCluster) error {
 		return trace.Wrap(err)
 	}
 
-	err = a.ActivateCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: t.GetName()})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	return trace.Wrap(a.ActivateCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: t.GetName()}))
 }
 
 // deactivateCertAuthority will deactivate both the user and host certificate
@@ -464,12 +461,7 @@ func (a *AuthServer) deactivateCertAuthority(t services.TrustedCluster) error {
 		return trace.Wrap(err)
 	}
 
-	err = a.DeactivateCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: t.GetName()})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	return trace.Wrap(a.DeactivateCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: t.GetName()}))
 }
 
 // createReverseTunnel will create a services.ReverseTunnel givenin the
@@ -479,10 +471,5 @@ func (a *AuthServer) createReverseTunnel(t services.TrustedCluster) error {
 		t.GetName(),
 		[]string{t.GetReverseTunnelAddress()},
 	)
-	err := a.UpsertReverseTunnel(reverseTunnel)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	return trace.Wrap(a.UpsertReverseTunnel(reverseTunnel))
 }
