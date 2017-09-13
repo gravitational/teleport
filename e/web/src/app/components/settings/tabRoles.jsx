@@ -9,6 +9,7 @@ import ConfigDeleteDialog from './configDeleteDialog';
 import { EmptyList } from './elements';
 import ConfidAddEdit from './configAddEdit';
 import ChangeTracker from './../changeTracker';
+import { roleTemplate } from './examples';
 
 class Roles extends React.Component {
 
@@ -16,7 +17,9 @@ class Roles extends React.Component {
 
   onNewItem = () => {        
     this.refTracker.checkIfUnsafedData(()=> {
-      actions.setCurRole(this.props.store.createItem())    
+      let newItem = this.props.store.createItem();
+      newItem = newItem.setContent(roleTemplate);      
+      actions.setCurRole(newItem);    
     });
   }
   

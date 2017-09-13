@@ -9,13 +9,18 @@ import ConfigDeleteDialog from './configDeleteDialog';
 import ConfidAddEdit from './configAddEdit';
 import { EmptyList } from './elements';
 import ChangeTracker from './../changeTracker';
+import { authTemplate } from './examples';
 
 class Auth extends React.Component {
 
   state = {}
 
-  onNewItem = () => {    
-    this.onItemClick(this.props.store.createItem());    
+  onNewItem = () => {
+    this.refTracker.checkIfUnsafedData(()=> {    
+      let newItem = this.props.store.createItem();
+      newItem = newItem.setContent(authTemplate);      
+      this.onItemClick(newItem);    
+    });
   }
   
   onCancelNewItem = () => {    

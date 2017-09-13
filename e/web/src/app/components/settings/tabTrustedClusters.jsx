@@ -9,6 +9,7 @@ import ConfigDeleteDialog from './configDeleteDialog';
 import { EmptyList } from './elements';
 import ConfidAddEdit from './configAddEdit';
 import ChangeTracker from './../changeTracker';
+import { trustedClusterTemplate } from './examples';
   
 class TrustedClusters extends React.Component {
 
@@ -16,7 +17,9 @@ class TrustedClusters extends React.Component {
 
   onNewItem = () => { 
     this.refTracker.checkIfUnsafedData(()=> {
-      actions.setCurCluster(this.props.store.createItem())    
+      let newItem = this.props.store.createItem();
+      newItem = newItem.setContent(trustedClusterTemplate);      
+      actions.setCurCluster(newItem); 
     })
   }
 
