@@ -7,7 +7,7 @@ There are three types of services Teleport nodes can run: `nodes`, `proxies` and
 
 - Auth servers are the core of a cluster. Auth servers store user accounts and provide authentication and authorization services for every node and every user in a cluster.
 - Nodes are regular SSH nodes, similar to the `sshd` daemon you may be familiar with. When a node receives
-  a connection request, it authenticates it via the cluster's auth server.
+  a connection request, the request is authenticated through the cluster's auth server.
 - Proxies route client connection requests to the appropriate node and serve a Web UI 
   which can also be used to log into SSH nodes. Every client-to-node connection in 
   Teleport must be routed via a proxy.
@@ -57,7 +57,7 @@ Congratulations - you are now running Teleport!
 
 ## Creating Users
 
-Teleport users are defined on a cluster level, and every Teleport user must be associated with
+Teleport users are defined on a cluster level and every Teleport user must be associated with
 a list of machine-level OS usernames it can authenticate as during a login. This list is 
 called "user mappings".
 
@@ -201,7 +201,7 @@ another team member for help. Traditionally this could be done by letting them k
 node you're on, having them SSH in, start a terminal multiplexer like `screen` and join a 
 session there.
 
-Teleport makes this a bit more convenient. Let's login into "db" and ask Teleport for your 
+Teleport makes this a bit more convenient. Let's log into "db" and ask Teleport for your 
 current session status:
 
 ```bash

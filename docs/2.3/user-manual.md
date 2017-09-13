@@ -71,8 +71,8 @@ certificates with a TTL (time to live) of 23 hours.
 
 
 !!! tip "Tip": 
-    It is recommended to always use `tsh login` before using any other `tsh` commands,
-    this allows to omit `--proxy` flag.
+    It is recommended to always use `tsh login` before using any other `tsh` commands.
+    This allows you to omit `--proxy` flag in subsequent tsh commands.
 
 ### SSH Agent Support
 
@@ -194,7 +194,7 @@ This means _use port `5000` for HTTPS and `5001` for SSH_
 
 ### Port Forwarding
 
-`tsh ssh` supports OpenSSH `-L` flag which allows to forward incoming connections from localhost
+`tsh ssh` supports OpenSSH `-L` flag which allows forwarding incoming connections from localhost
 to the specified remote host:port. The syntax of `-L` flag is:
 
 ```bash
@@ -214,7 +214,7 @@ a listening socket on `localhost:5000` and will forward all incoming connections
 to `web.remote:80` via this SSH tunnel.
 
 It is often convenient to establish port forwarding, execute a local command which uses such 
-connection and disconnect. Yon can do this via `--local` flag.
+connection and disconnect. You can do this via `--local` flag.
 
 Example:
 
@@ -314,7 +314,7 @@ to ask another team member for help. Traditionally this could be done by letting
 node you're on, having them SSH in, start a terminal multiplexer like `screen` and join a 
 session there.
 
-Teleport makes this a bit more convenient. Let's log in to "luna" and ask Teleport for your 
+Teleport makes this a bit more convenient. Let's log into "luna" and ask Teleport for your 
 current session status:
 
 ```bash
@@ -447,12 +447,12 @@ SSH agent running on a client computer. You can verify it by executing `ssh-add 
 right after `tsh login`. If the SSH agent is running the cluster certificates will 
 be printed to stdout.
 
-But if there is no ssh-agent available, the certificate must be passed to the
+If there is no ssh-agent available, the certificate must be passed to the
 OpenSSH client explicitly.
 
 ### Passing Teleport SSH Certificate to OpenSSH Client
 
-But if a user does not want to use an SSH agent or if the agent is not available, the certificate
+If a user does not want to use an SSH agent or if the agent is not available, the certificate
 must be passed to `ssh` via `IdentityFile` option (see `man ssh_config`). Consider this example: 
 the Teleport user "joe" wants to login into the proxy named "lab.example.com". 
 He executes `tsh login` command:
@@ -471,7 +471,7 @@ Host *.lab.example.com
     ProxyCommand ssh -i ~/.tsh/keys/lab.example.com/joe -p 3023 %r@lab.example.com -s proxy:%h:%p
 ```
 
-Now he can SSH into any machine behind `lab.example.com` using OpenSSH client:
+Now he can SSH into any machine behind `lab.example.com` using the OpenSSH client:
 
 ```bash
 $ ssh jenkins.lab.example.com
