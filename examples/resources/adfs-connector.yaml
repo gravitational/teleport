@@ -1,0 +1,52 @@
+# This example connector uses SAML to authenticate against 
+# Active Directory Feneration Services (ADFS)
+kind: saml
+version: v2
+metadata:
+  name: "adfs_connector"
+spec:
+  # entity_descriptor XML can either be copied into connector or fetched from a URL
+  entity_descriptor: |
+    <EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata">
+    ...
+    </md:EntityDescriptor>
+  entity_descriptor_url: "https://example.com"
+
+  # issuer typically comes from the "entity_descriptor" but can be overridden here
+  issuer: "foo"
+  # sso typically comes from the "entity_descriptor" but can be overridden here
+  sso: "bar"
+  # cert typically comes from the "entity_descriptor" but can be overridden here
+  cert: |
+    -----BEGIN RSA PRIVATE KEY-----
+    ...
+    -----END RSA PRIVATE KEY-----
+
+  display: "adfs"
+  provider: "adfs"
+
+  acs: "https://teleport-proxy.example.com:3080/v1/webapi/saml/acs"
+  # if "service_provider_issuer" is not set, comes from "acs"
+  service_provider_issuer: "https://teleport-proxy.example.com:3080/v1/webapi/saml/acs"
+  # if "audience" is not set, comes from "acs"
+  audience: "https://teleport-proxy.example.com:3080/v1/webapi/saml/acs"
+
+  # if "signing_key_pair" is not set, teleport will generate a self signed
+  # signing key pair
+  signing_key_pair:
+    private_key: |
+      -----BEGIN RSA PRIVATE KEY-----
+      ...
+      -----END RSA PRIVATE KEY-----
+    cert:
+      -----BEGIN RSA PRIVATE KEY-----
+      ...
+      -----END RSA PRIVATE KEY-----
+
+  attributes_to_roles:
+    - name: "http://schemas.xmlsoap.org/claims/Group"
+      value: "teleadmins"
+      roles: ["admins"]
+    - name: "http://schemas.xmlsoap.org/claims/Group"
+      value: "teleusers"
+      roles: ["users"]
