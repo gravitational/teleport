@@ -14,7 +14,8 @@ TELEPORT_DEBUG ?= no
 GITTAG=v$(VERSION)
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s'
 
-RELEASE=teleport-$(GITTAG)-`go env GOOS`-`go env GOARCH`-bin
+ARCH=`go env GOOS`-`go env GOARCH`
+RELEASE=teleport-$(GITTAG)-$(ARCH)-bin
 BINARIES=$(BUILDDIR)/tsh $(BUILDDIR)/teleport $(BUILDDIR)/tctl
 
 VERSRC = version.go gitref.go
@@ -122,12 +123,14 @@ tag:
 # make release - produces a binary release tarball 
 #	
 .PHONY: 
+export
 release: clean full
 	cp -rf $(BUILDDIR) teleport
 	cp -rf examples teleport/
 	tar -czf $(RELEASE).tar.gz teleport
 	rm -rf teleport
 	@echo "\nCREATED: $(RELEASE).tar.gz"
+	if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
 
 #
