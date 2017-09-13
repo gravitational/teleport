@@ -42,12 +42,12 @@ would look like this:
 3. The Teleport administrator will have to define Teleport Roles, for
    simplicity sake let them be "users", "developers" and "admins".
 4. The last step will be to define mappings from the Active Directory groups (claims) 
-   to the Teleport Roles, so every Teleport user will be assigned a role based 
+   to the Teleport Roles. So every Teleport user will be assigned a role based 
    on the group membership.
 
 ### Roles
 
-To manage cluster roles a Teleport administrator can use the Web UI or the command
+To manage cluster roles, a Teleport administrator can use the Web UI or the command
 line using [tctl resource commands](admin-guide#resources). To see the list of
 roles in a Teleport cluster, an administrator can execute:
 
@@ -110,7 +110,7 @@ Both variables above are there to deliver the same benefit: it allows Teleport
 administrators to define allowed OS logins via the user database, be it the
 local DB, or an identity manager behind a SAML or OIDC endpoint.
 
-**Node Labels**
+#### Node Labels
 
 A user will only be granted access to a node if all of the labels defined in
 the role are present on the node. This effectively means we use an AND
@@ -131,11 +131,11 @@ create a role with the following allow labels
 `environment: staging, team: frontend`. That would restrict users with the
 `intern` role to only staging servers the frontend team uses.
 
-**Rules**
+#### Roles
 
 Each role contains two lists of rules: "allow" rules and "deny" rules. Deny
 rules get evaluated first, and a user gets "access denied" error if there's a
-deny rule match.
+allow rule match.
 
 Each rule consists of two lists: the list of resources and verbs. Here's an example of
 a rule describing "list" access to sessions and trusted cluters:
@@ -150,17 +150,55 @@ prohibits users from getting a list of trusted clusters and sessions.
 
 ## External Identities
 
-Teleport Enterprise allows to authenticate users against a corporate identity management
+Teleport Enterprise can authenticate users against a corporate identity management
 system and map their group membership to Teleport SSH roles.
 
 Any identity management system can be used with Teleport as long as it implements a 
-single sign on (SSO) mechanism via [OpenID Connect](https://en.wikipedia.org/wiki/OpenID_Connect) 
-or [SAML](https://en.wikipedia.org/wiki/Security_Assertion_Markup_Language). 
+single sign on (SSO) mechanism provided by enterprise identity management systems.
+
+
 Examples of such systems include commercial solutions like [Okta](https://www.okta.com) or 
 [Active Directory](https://en.wikipedia.org/wiki/Active_Directory_Federation_Services), as 
 well as open source products like [Keycloak](http://www.keycloak.org).
 
-Refer to the following links for additional additional integration documentation:
+Teleport can work with all of these protocols by relying on a concept called
+"authentication connector". An auth connector is a plugin which controls how a
+user logs in and which group he or she belongs to.
+
+The following connectors are supported:
+
+* `local`: connector type uses the built-in user database. This database can be
+  manipulated by `tctl users` command and it is the only connector type
+  supported by the open source Teleport.
+* `saml` : this connector type uses [SAML protocol](https://en.wikipedia.org/wiki/Security_Assertion_Markup_Language)
+  to authenticate users and query their group membership.
+* `oidc` : this connector type uses [OpenID Connect protocol](https://en.wikipedia.org/wiki/OpenID_Connect) 
+  to authenticate users and query their group membership.
+
+To configure the connector type, update the following section of an auth server:
+
+```bash
+# This section configures the 'auth service':
+auth_service:
+    # defines the authentication connector type:
+    authentication:
+        type: saml 
+```
+
+Teleport can also support multiple simultaneous connectors of the same type. 
+This works because every auth connector must have a name, and the desired
+connector can be selected via `--auth` argument:
+
+```bash
+# authenticates using the auth connector named 'corporate'
+$ tsh --proxy=proxy.example.com login --auth=corporate
+```
+
+The command above will print a URL which the user will have to visit to
+retreive an SSH certificate to be used to access SSH nodes.
+
+Refer to the following pages for detailed guides of how to configure authentication
+connectors of both SAML and OIDC types:
 
 * [OpenID Connect (OIDC)](oidc.md)
 * [Security Assertion Markup Language 2.0 (SAML 2.0)](saml.md)

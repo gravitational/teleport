@@ -5,17 +5,23 @@ Teleport supports [OpenID Connect](http://openid.net/connect/) (also known as
 like [Auth0](https://auth0.com) as well as open source identity managers like
 [Keycloak](http://www.keycloak.org).
 
-## Configuration
+### Enable OIDC Authentication
 
-OIDC relies on re-directs to return control back to Teleport after
-authentication is complete. Decide on the redirect URL you will be using and
-know it in advance before you register Teleport with an external identity
-provider.
+First, configure Teleport auth server to use OIDC authentication instead of the local
+user database. Update `/etc/teleport.yaml` as show below and restart the
+teleport daemon.
 
-### Development mode
+```bash
+...
+auth_service:
+    # Turns 'auth' role on. Default is 'yes'
+    enabled: yes
 
-For development purposes we recommend the following `redirect_url`:
-`https://localhost:3080/v1/webapi/oidc/callback`.
+    # defines the types and second factors the auth server supports
+    authentication:
+        type: oidc
+...
+```
 
 ### Identity Providers
 
@@ -30,74 +36,107 @@ documented on the identity providers website. Here are a few links:
 Add your OIDC connector information to `teleport.yaml`. A few examples are
 provided below.
 
-#### OIDC with pre-defined roles
+### OIDC Redirect URL
 
-In the configuration below, we are requesting the scope `group` from the
-identity provider then mapping the value to either to `admin` role or the `user`
-role depending on the value returned for `group` within the claims.
+OIDC relies on HTTP re-directs to return control back to Teleport after
+authentication is complete. The redirect URL must be selected by a Teleport
+administrator in advance.
 
-```yaml
-authentication:
-   type: oidc
-   oidc:
-      id: example.com
-      redirect_url: https://localhost:3080/v1/webapi/oidc/callback
-      redirect_timeout: 90s
-      client_id: 000000000000-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com
-      client_secret: AAAAAAAAAAAAAAAAAAAAAAAA
-      issuer_url: https://oidc.example.com
-      display: "Login with Example"
-      scope: [ "group" ]
-      claims_to_roles:
-         - claim: "group"
-           value: "admin"
-           roles: [ "admin" ]
-         - claim: "group"
-           value: "user"
-           roles: [ "user" ]
+If the Teleport web proxy is running on `proxy.example.com` host, the redirect URL 
+should be `https://proxy.example.com:3080/v1/webapi/oidc/callback`
+
+### OIDC connector configuration
+
+The next step is to add an OIDC connector to Teleport. The connectors are manipulated
+via `tctl` [resource commands](admin-guide#resources). To create a new connector,
+create a connector resource file in YAML format, for example `oidc-connector.yaml`.
+
+The file contents are shown below. This connector requests the scope `group`
+from the identity provider then mapping the value to either to `admin` role or
+the `user` role depending on the value returned for `group` within the claims.
+
+```bash
+# oidc-connector.yaml
+kind: oidc
+version: v2
+metadata:
+  name: "google"
+spec:
+  issuer_url: "https://oidc.example.com"
+  client_id: "xxxxxxxx.example.com"
+  client_secret: "zzzzzzzzzzzzzzzzzzzzzzzz"
+  redirect_url: "https://proxy.example.com:3080/v1/webapi/oidc/callback"
+  display: "Login with Example"
+  scope: ["group"]
+  claims_to_roles:
+     - claim: "group"
+       value: "admin"
+       roles: ["admin"]
+     - claim: "group"
+       value: "user"
+       roles: ["user"]
 ```
 
-#### OIDC with role templates
+Create the connector:
 
-If you have individual system logins using pre-defined roles can be cumbersome
-because you need to create a new role every time you add a new member to your
-team. In this situation you can use role templates to dynamically create roles
-based off information passed in the claims. In the configuration below, if the
-claims have a `group` with value `admin` we dynamically create a role with the
-name extracted from the value of `email` in the claim and login `username`.
-
-```yaml
-authentication:
-   type: oidc
-   oidc:
-      id: google
-      redirect_url: https://localhost:3080/v1/webapi/oidc/callback
-      redirect_timeout: 90s
-      client_id: 000000000000-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com
-      client_secret: AAAAAAAAAAAAAAAAAAAAAAAA
-      issuer_url: https://oidc.example.com
-      display: "Login with Example"
-      scope: [ "group", "username", "email" ]
-      claims_to_roles:
-         - claim: "group"
-           value: "admin"
-           role_template:
-              kind: role
-              version: v2
-              metadata:
-                 name: '{{index . "email"}}'
-                 namespace: "default"
-              spec:
-                 namespaces: [ "*" ]
-                 max_session_ttl: 90h0m0s
-                 logins: [ '{{index . "username"}}', root ]
-                 node_labels:
-                    "*": "*"
-                 resources:
-                    "*": [ "read", "write" ]
+```bash
+$ tctl create oidc-connector.yaml
 ```
 
-#### ACR Values
+### Create Roles
+
+The next step is to define Teleport roles. They are created using the same 
+`tctl` [resource commands](admin-guide#resources) as we used for the auth
+connector.
+
+Below are two example roles that are mentioned above, the first is an admin
+with full access to the system while the second is a developer with limited
+access.
+
+```bash
+# role-admin.yaml
+kind: "role"
+version: "v3"
+metadata:
+  name: "admin"
+spec:
+  max_session_ttl: "90h0m0s"
+  allow:
+    logins: [root]
+    node_labels:
+      "*": "*"
+    rules:
+      - resources: ["*"]
+        verbs: ["*"]
+```
+
+Users are only allowed to login to nodes labelled with `access: relaxed`
+teleport label. Developers can log in as either `ubuntu` to a username that
+arrives in their assertions. Developers also do not have any rules needed to
+obtain admin access.
+
+```bash
+# role-dev.yaml
+kind: "role"
+version: "v3"
+metadata:
+  name: "dev"
+spec:
+  max_session_ttl: "90h0m0s"
+  allow:
+    logins: [ "{{external.username}}", ubuntu ]
+    node_labels:
+      access: relaxed
+```
+
+Create both roles:
+
+```bash
+$ tctl create role-admin.yaml
+$ tctl create role-dev.yaml
+```
+
+### Optional: ACR Values
 
 Teleport supports sending Authentication Context Class Reference (ACR) values
 when obtaining an authorization code from an OIDC provider. By default ACR
@@ -112,26 +151,30 @@ the moment, the only build-in support is for NetIQ.
 A example of using ACR values and provider specific processing is below:
 
 ```yaml
-authentication:
-   type: oidc
-   oidc:
-      id: example.com
-      redirect_url: https://localhost:3080/v1/webapi/oidc/callback
-      redirect_timeout: 90s
-      client_id: 000000000000-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com
-      client_secret: AAAAAAAAAAAAAAAAAAAAAAAA
-      issuer_url: https://oidc.example.com
-      acr_values: "foo/bar"
-      provider: netiq
-      display: "Login with Example"
-      scope: [ "group" ]
-      claims_to_roles:
-         - claim: "group"
-           value: "admin"
-           roles: [ "admin" ]
+# example connector which uses ACR values
+kind: oidc
+version: v2
+metadata:
+  name: "oidc-connector"
+spec:
+  issuer_url: "https://oidc.example.com"
+  client_id: "xxxxxxxxxxxxxxxxxxxxxxx.example.com"
+  client_secret: "zzzzzzzzzzzzzzzzzzzzzzzz"
+  redirect_url: "https://localhost:3080/v1/webapi/oidc/callback"
+  display: "Login with Example"
+  acr_values: "foo/bar"
+  provider: netiq
+  scope: [ "group" ]
+  claims_to_roles:
+     - claim: "group"
+       value: "admin"
+       roles: [ "admin" ]
+     - claim: "group"
+       value: "user"
+       roles: [ "user" ]
 ```
 
-#### Login
+### Login
 
 For the Web UI, if the above configuration were real, you would see a button
 that says `Login with Example`. Simply click on that and you will be

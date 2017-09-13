@@ -149,7 +149,7 @@ of data stored by the auth server:
   to store secrets, including the file-based storage or databases like [BoltDB](https://github.com/boltdb/bolt), 
   [DynamoDB](https://aws.amazon.com/dynamodb/) or [etcd](https://github.com/coreos/etcd). Implementing another key storage backend is simple, see `lib/backend` directory in Teleport source code.
 
-* **Audit Log**. When users login into a Teleport cluster, execute remote commands and logout,
+* **Audit Log**. When users log into a Teleport cluster, execute remote commands and logout,
   that activity is recorded in the audit log. See [Audit Log](admin-guide.md#audit-log) 
   for more details.
   
@@ -176,8 +176,8 @@ In addition to `teleport` daemon, there are three client tools you will use:
 | Tool           | Description
 |----------------|------------------------------------------------------------------------
 | tctl    | Cluster administration tool used to invite nodes to a cluster and manage user accounts. `tctl` must be used on the same machine where `auth` is running.
-| tsh     | Teleport client tool, similar in principle to OpenSSH's `ssh`. Use it to login into remote SSH nodes, list and search for nodes in a cluster, securely upload/download files, etc. `tsh` can work in conjunction with `ssh` by acting as an SSH agent.
-| Web browser | You can use your web browser to login into any Teleport node, just open `https://<proxy-host>:3080` (`proxy-host` is one of the machines that has proxy service enabled).
+| tsh     | Teleport client tool, similar in principle to OpenSSH's `ssh`. Use it to log into remote SSH nodes, list and search for nodes in a cluster, securely upload/download files, etc. `tsh` can work in conjunction with `ssh` by acting as an SSH agent.
+| Web browser | You can use your web browser to log into any Teleport node, just open `https://<proxy-host>:3080` (`proxy-host` is one of the machines that has proxy service enabled).
 
 Let's explore each of the Teleport services in detail.
 
@@ -232,12 +232,12 @@ Cluster administration is performed using `tctl` command line tool.
 The proxy is a stateless service which performs two functions in a Teleport cluster: 
 
 1. It serves a Web UI which is used by cluster users to sign up and configure their accounts, 
-   explore nodes in a cluster, login into remote nodes, join existing SSH sessions or replay 
+   explore nodes in a cluster, log into remote nodes, join existing SSH sessions or replay 
    recorded sessions.
 
 2. It serves as an authentication gateway, asking for user credentials and forwarding them
    to the auth server via Auth API. When a user executes `tsh --proxy=p ssh node` command,
-   trying to login into "node", the `tsh` tool will establish HTTPS connection to the proxy "p"
+   trying to log into "node", the `tsh` tool will establish HTTPS connection to the proxy "p"
    and authenticate before it will be given access to "node".
 
 All user interactions with the Teleport cluster are done via a proxy service. It is

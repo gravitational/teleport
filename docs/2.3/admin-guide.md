@@ -224,7 +224,6 @@ auth_service:
     # Turns 'auth' role on. Default is 'yes'
     enabled: yes
 
-    # defines the types and second factors the auth server supports
     authentication:
         # default authentication type. possible values are 'local', 'oidc' and 'saml'
         # only local authentication (Teleport's own user DB) is supported in the open 
@@ -343,10 +342,10 @@ setting in the `teleport.yaml` above.
 Teleport supports [FIDO U2F](https://www.yubico.com/about/background/fido/) 
 hardware keys as a second authentication factor. To start using U2F:
 
-* Purchase a U2F hardware key: looks like a tiny USB drive. Teleport developers like [these.](https://www.yubico.com/products/yubikey-hardware)
+* Purchase a U2F hardware key. Teleport developers like [these.](https://www.yubico.com/products/yubikey-hardware)
 * Enable U2F in Teleport configuration `teleport.yaml`.
 * For CLI-based logins you have to install [u2f-host](https://developers.yubico.com/libu2f-host/) utility. 
-* For web-based logins you have to use Google Chrome, as the only browser supporting U2F at this moment.
+* For web-based logins you have to use Google Chrome, as it is the only browser supporting U2F at this moment.
 
 ### Enabling U2F
 
@@ -362,9 +361,8 @@ a JSON file that mirrors `facets` in the auth config.
     The `app_id` must never change in the lifetime of the cluster. If the App ID
     changes, all existing U2F key registrations will become invalid and all users
     who use U2F as the second factor will need to re-register.
-
-    When adding a new proxy server, make sure to add it to the list of "facets" 
-    in the configuration file, but also to the JSON file referenced by `app_id`
+	When adding a new proxy server, make sure to add it to the list of "facets" 
+	in the configuration file, but also to the JSON file referenced by `app_id`
 
 ### Logging in with U2F
 
@@ -553,8 +551,8 @@ eoKoh0caiw6weoGupahgh6Wuo7jaTee2     Proxy      never
 6fc5545ab78c2ea978caabef9dbd08a5     Signup     17 May 16 04:24 UTC
 ```
 
-In this example, the first token with "never" expiry date is a static token configured via
-a config file. It cannot be revoked. 
+In this example, the first token with "never" expiry date because it is a static token configured via
+a config file.
 
 The 2nd token with "Node" role was generated to invite a new node to this cluster. And the
 3rd token was generated to invite a new user.
@@ -704,28 +702,26 @@ like Teleport users.
 `tctl` has convenient subcommands for this, like `tctl users` or `tctl nodes`. 
 However, for dealing with more advanced topics, like connecting clusters together, or
 when troubleshooting trust, `tctl` offers the more powerful, although lower-level
-CLI interface called "resources".
+CLI interface called `resources`.
 
 The basic idea is borrowed from REST programming pattern: a cluster is composed
 of different objects (AKA resources) and there are just four common operations
-that can be performed on them: get, create, update, remove. 
+that can be performed on them: `get`, `create`, `remove`. 
 
-Every resource in Teleport has three mandatory properties: 
+A resource is defined as a [YAML](https://en.wikipedia.org/wiki/YAML) file. Every resource in Teleport has three required fields: 
 
-1. Kind
-2. Name
-3. Version
+* `Kind` - The type of resource
+* `Name` - A required field in the `metadata` to uniquely identify the resource
+* `Version` - The version of the resource format
 
-Everything else is resource-specific and is always defined as a [YAML](https://en.wikipedia.org/wiki/YAML) 
-file. With these simple rules, any component of a Teleport cluster can be
+Everything else is resource-specific and any component of a Teleport cluster can be
 manipulated with just 3 CLI commands:
 
 Command         | Description | Examples
 ----------------|-------------|----------
 `tctl get`      | Get one or multipe resources           | `tctl get users` or `tctl get user/joe`
 `tctl rm`       | Delete a resource by type/name         | `tctl rm user/joe`
-`tctl create`   | Create a new resource from a YAML file | `tctl create -f joe.yaml`
-`tctl create`   | Update an existing from a YAML file    | `tctl create joe.yaml`
+`tctl create`   | Create a new resource from a YAML file. Use `-f` to overide / update | `tctl create -f joe.yaml`
 
 !!! warning "YAML Format":
     By default Teleport uses [YAML format](https://en.wikipedia.org/wiki/YAML)
@@ -733,8 +729,8 @@ Command         | Description | Examples
     alternative to JSON or XML, but it's sensitive to white space. Pay
     attention to spaces vs tabs!
 
-Here's an example how the YAML resource definition for a user Joe may look like, 
-it can be retreived by executing `tctl get user/joe`
+Here's an example how the YAML resource definition for a user Joe might look like. 
+It can be retreived by executing `tctl get user/joe`
 
 ```bash
 kind: user
@@ -764,11 +760,10 @@ spec:
       name: builtin-Admin
 ```
 
-!!! tip "Tip":
+!!! tip "Note":
     Many of the fields you will see when printing resources are used only
     internally and are not meant to be changed.  Others are reserved for future
-    use. Refer to the documentation specific to a resource in question to
-    understand the meaning of the fields and what values are accepted.
+    use.
 
 Here's the list of resources currently exposed via `tctl`:
 
@@ -785,10 +780,10 @@ Teleport allows to partition your infrastructure into multiple clusters. Some cl
 located behind firewalls without any open ports. They can also have their own restrictions on
 which users have access.
 
-As [explained above](#nomenclature), a Teleport Cluster has a name and is managed by a 
+A Teleport Cluster has a name and is managed by a 
 `teleport` daemon with "auth service" enabled.
 
-Let's assume we need to place some servers behind a firewall and we only want Teleport 
+Let's assume we need to access servers behind a firewall and we only want Teleport 
 user "john" to have access to them. We already have our primary Teleport cluster and our 
 users set up. Say this primary cluster is called `main`, and the behind-the-firewall cluster
 is called `east` as shown on this diagram:
@@ -807,7 +802,7 @@ This setup works as follows:
 
 ### Example Configuration
 
-Creating a trust between two clusters is easy. Here are the steps:
+Creating trust between two clusters is easy. Here are the steps:
 
 1. The main cluster needs to define a "cluster join token" in its config file.
    This token is used for establishing the _initial_ trust between "main" and
@@ -825,7 +820,7 @@ auth_service:
 ```
 
 The snippet above states that another Teleport cluster can establish a reverse
-tunnel to "main" if it knows the secret, the cluster join token declared in the
+tunnel to "main" if it knows the secret, the cluster join token is declared in the
 `tokens` section.
 
 !!! tip "Tip":
@@ -879,9 +874,7 @@ list of available clusters.
 
 It's worth repeating: the users of "east" cannot see or connect to the main
 cluster. The relationship works the other way around: any user from the main
-cluster can now use nodes in "east".
-
-A user 'joe' of the main cluster can:
+cluster can now use nodes in "east":
 
 ```bash
 # login into the main cluster:
@@ -1032,7 +1025,7 @@ To allow access for all users:
 
 ## Integrating with Ansible
 
-Ansible is uses the OpenSSH client by default. This makes it compatible with Teleport without any extra work, except configuring OpenSSH client to work with Teleport Proxy:
+Ansible uses the OpenSSH client by default. This makes it compatible with Teleport without any extra work, except configuring OpenSSH client to work with Teleport Proxy:
 
 * configure your OpenSSH to connect to Teleport proxy and user `tsh agent` socket
 * enable scp mode in the Ansible config file (default is `/etc/ansible/ansible.cfg`):
@@ -1071,7 +1064,7 @@ like `cluster_name`, `tokens`, `storage`, etc must be the same.
 #### Run multiple instances of Teleport Proxy 
 
 The Teleport Proxy is stateless which makes running multiple instances trivial.
-If using the [default configuration](#ports) configure your load balancer to
+If using the [default configuration](#ports), configure your load balancer to
 forward ports `3023` and `3080` to the servers that run the Teleport proxy. If
 you have configured your proxy to use non-default ports, you will need to
 configure your load balancer to forward the ports you specified for

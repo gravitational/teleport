@@ -29,7 +29,6 @@ auth_service:
 ...
 ```
 
-
 ### Confiugre Okta
 
 First, create a SAML 2.0 Web App in Okta configuration section
@@ -99,37 +98,40 @@ $ tctl create okta-connector.yaml
 **Create Teleport Roles**
 
 We are going to create 2 roles, privileged role admin who is able to login as
-root and is capable of administrating the cluster and non-privileged dev who is
-only allowed to view sessions and login as non-privileged user.
+root and is capable of administrating the cluster and non-privileged dev.
 
-```bash
-kind: role
-version: v2
+```yaml
+kind: "role"
+version: "v3"
 metadata:
-  name: admin
+  name: "admin"
 spec:
-  logins: [root]
-  max_session_ttl: 90h0m0s
-  node_labels:
-    '*': '*'
-  resources:
-    '*': [read, write]
+  max_session_ttl: "90h0m0s"
+  allow:
+    logins: [root]
+    node_labels:
+      "*": "*"
+    rules:
+      - resources: ["*"]
+        verbs: ["*"]
 ```
 
-Devs are only allowed to login to nodes labelled with `access: relaxed` teleport label.
+Devs are only allowed to login to nodes labelled with `access: relaxed`
+teleport label. Developers can log in as either `ubuntu` to a username that
+arrives in their assertions. Developers also do not have any rules needed to
+obtain admin access.
 
-```bash
-kind: role
-version: v2
+```yaml
+kind: "role"
+version: "v3"
 metadata:
-  name: stage-devops
+  name: "dev"
 spec:
-  logins: [ubuntu]
-  max_session_ttl: 90h0m0s
-  node_labels:
-    access: relaxed
-  resources:
-    '*': [read]
+  max_session_ttl: "90h0m0s"
+  allow:
+    logins: [ "{{external.username}}", ubuntu ]
+    node_labels:
+      access: relaxed
 ```
     
 **Notice:** Replace `ubuntu` with linux login available on your servers!
@@ -215,36 +217,35 @@ Lets create two Teleport roles: one for administrators and the other is for
 normal users. You can create them using `tctl create {file name}` CLI command
 or via the Web UI.
 
-```bash
+```yaml
 # admin-role.yaml
-kind: role
-version: v2
+kind: "role"
+version: "v3"
 metadata:
-   name: "admins"
+  name: "admin"
 spec:
-   max_session_ttl: 90h0m0s
-   # admins can login as root:
-   logins: [ root ]
-   node_labels:
+  max_session_ttl: "90h0m0s"
+  allow:
+    logins: [ root ]
+    node_labels:
       "*": "*"
-   resources:
-      "*": [ "read", "write" ]
+    rules:
+      - resources: ["*"]
+        verbs: ["*"]
 ```
 
-```bash
+```yaml
 # user-role.yaml
-kind: role
-version: v2
+kind: "role"
+version: "v3"
 metadata:
-   name: "users"
+  name: "dev"
 spec:
-   # regular users can only be guests and their certificates will have a TTL of 1 hour:
-   max_session_ttl: 1h
-   logins: [ guest ]
-   node_labels:
-      "*": "*"
-   resources:
-      "*": [ "read", "write" ]
+  # regular users can only be guests and their certificates will have a TTL of 1 hour:
+  max_session_ttl: 1h
+  allow:
+    # only allow login as either ubuntu or the username claim
+    logins: [ "{{external.username}}", ubuntu ]
 ```
 
 Next create a SAML connector [resource](admin-guide#resources):
