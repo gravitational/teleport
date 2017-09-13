@@ -218,6 +218,11 @@ func (c *Client) Close() error {
 	return nil
 }
 
+// CreateCertAuthority inserts new cert authority
+func (c *Client) CreateCertAuthority(ca services.CertAuthority) error {
+	return trace.BadParameter("not implemented")
+}
+
 // UpsertCertAuthority updates or inserts new cert authority
 func (c *Client) UpsertCertAuthority(ca services.CertAuthority) error {
 	if err := ca.Check(); err != nil {
@@ -1560,16 +1565,6 @@ func (c *Client) ValidateTrustedCluster(validateRequest *ValidateTrustedClusterR
 func (c *Client) DeleteTrustedCluster(name string) error {
 	_, err := c.Delete(c.Endpoint("trustedclusters", name))
 	return trace.Wrap(err)
-}
-
-// EnableTrustedCluster will enable a TrustedCluster that is already in the backend.
-func (c *Client) EnableTrustedCluster(trustedCluster services.TrustedCluster) error {
-	return c.EnableTrustedCluster(trustedCluster)
-}
-
-// DisableTrustedCluster will disable a TrustedCluster that is already in the backend.
-func (c *Client) DisableTrustedCluster(trustedCluster services.TrustedCluster) error {
-	return c.DisableTrustedCluster(trustedCluster)
 }
 
 // WebService implements features used by Web UI clients

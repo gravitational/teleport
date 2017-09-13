@@ -99,6 +99,10 @@ func (a *AuthWithRoles) UpdateSession(req session.UpdateRequest) error {
 	return a.sessions.UpdateSession(req)
 }
 
+func (a *AuthWithRoles) CreateCertAuthority(ca services.CertAuthority) error {
+	return trace.BadParameter("not implemented")
+}
+
 func (a *AuthWithRoles) UpsertCertAuthority(ca services.CertAuthority) error {
 	if err := a.action(defaults.Namespace, services.KindCertAuthority, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
@@ -913,24 +917,6 @@ func (a *AuthWithRoles) DeleteTrustedCluster(name string) error {
 	}
 
 	return a.authServer.DeleteTrustedCluster(name)
-}
-
-// EnableTrustedCluster will enable a TrustedCluster that is already in the backend.
-func (a *AuthWithRoles) EnableTrustedCluster(t services.TrustedCluster) error {
-	if err := a.action(defaults.Namespace, services.KindTrustedCluster, services.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return a.authServer.EnableTrustedCluster(t)
-}
-
-// DisableTrustedCluster will disable a TrustedCluster that is already in the backend.
-func (a *AuthWithRoles) DisableTrustedCluster(t services.TrustedCluster) error {
-	if err := a.action(defaults.Namespace, services.KindTrustedCluster, services.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return a.authServer.DisableTrustedCluster(t)
 }
 
 func (a *AuthWithRoles) Close() error {
