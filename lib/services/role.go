@@ -1155,7 +1155,7 @@ func FromSpec(name string, spec RoleSpecV3) (RoleSet, error) {
 
 // RW is a shortcut that returns all verbs.
 func RW() []string {
-	return []string{VerbConnect, VerbList, VerbCreate, VerbRead, VerbUpdate, VerbDelete}
+	return []string{VerbList, VerbCreate, VerbRead, VerbUpdate, VerbDelete}
 }
 
 // RO is a shortcut that returns read only verbs that provide access to secrets.

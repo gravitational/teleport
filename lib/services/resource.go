@@ -143,9 +143,6 @@ const (
 )
 
 const (
-	// VerbConnect is used to allow you to connect to a remote object.
-	VerbConnect = "connect"
-
 	// VerbList is used to list all objects. Does not imply the ability to read a single object.
 	VerbList = "list"
 
