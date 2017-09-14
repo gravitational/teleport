@@ -6,7 +6,7 @@
 kind: trusted_cluster
 version: v2
 metadata:
-  # he name of a trusted cluster 
+  # the name of a trusted cluster 
   name: new_trusted_cluster
 spec:
   # this field allows to create tunnels that are disabled, but can be enabled later.
