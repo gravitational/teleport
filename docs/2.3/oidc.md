@@ -100,7 +100,8 @@ version: "v3"
 metadata:
   name: "admin"
 spec:
-  max_session_ttl: "90h0m0s"
+  options:
+    max_session_ttl: "90h0m0s"
   allow:
     logins: [root]
     node_labels:
@@ -122,7 +123,8 @@ version: "v3"
 metadata:
   name: "dev"
 spec:
-  max_session_ttl: "90h0m0s"
+  options:
+    max_session_ttl: "90h0m0s"
   allow:
     logins: [ "{{external.username}}", ubuntu ]
     node_labels:
@@ -150,7 +152,7 @@ the moment, the only build-in support is for NetIQ.
 
 A example of using ACR values and provider specific processing is below:
 
-```yaml
+```bash
 # example connector which uses ACR values
 kind: oidc
 version: v2
