@@ -452,6 +452,31 @@ To delete this user:
 $ tctl users rm joe
 ```
 
+## Editing Users
+
+Users entries can be manipulated using the generic [resource commands](#resources) 
+via `tctl`. For example to see the full list of user records, an administrator
+can execute:
+
+```bash
+$ tctl get users
+```
+
+To edit the user "joe":
+
+```bash
+# dump the user definition into a file:
+$ tctl get user/joe > joe.yaml
+# ... edit the contents of joe.yaml
+
+# update the user record:
+$ tctl create -f joe.yaml
+```
+
+Some fields in the user record are reserved for the internal use. Some of them
+will be finalized and documented in the future versions. But fields like
+`is_locked` or `traits/logins` can be used starting in version 2.3
+
 ## Adding Nodes to the Cluster
 
 Gravitational Teleport is a "clustered" SSH manager, meaning it only allows SSH

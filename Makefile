@@ -2,7 +2,7 @@
 # Naming convention:
 #	for stable releases we use "1.0.0" format
 #   for pre-releases, we use   "1.0.0-beta.2" format
-VERSION=2.3.0-rc3
+VERSION=2.3.0-rc4
 
 # These are standard autotools variables, don't change them please
 BUILDDIR ?= build
