@@ -66,7 +66,6 @@ clean:
 	rm -rf $(BUILDDIR)
 	rm -rf teleport
 	rm -rf *.gz
-	rm -rf $(VERSRC)
 	rm -rf `go env GOPATH`/pkg/`go env GOHOSTOS`_`go env GOARCH`/github.com/gravitational/teleport*
 	@if [ -f e/Makefile ]; then $(MAKE) -C e clean; fi
 
@@ -91,7 +90,7 @@ run-docs:
 #
 .PHONY: test
 test: FLAGS ?=
-test: 
+test: $(VERSRC)
 	go test -v ./tool/tsh/... \
 			   ./lib/... \
 			   ./tool/teleport... $(FLAGS) $(ADDFLAGS)
