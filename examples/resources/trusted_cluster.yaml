@@ -1,12 +1,15 @@
-# trusted_cluster.yaml
+# 
+# Example resource for a trusted cluster
+# IMPORTANT: only one field (enabled) can be changed after a cluster is created.
+# 
 kind: trusted_cluster
 version: v2
 metadata:
-  # the trusted cluster name MUST match the 'cluster_name' setting of the
-  # cluster
-  name: main
+  # he name of a trusted cluster 
+  name: new_trusted_cluster
 spec:
   # this field allows to create tunnels that are disabled, but can be enabled later.
+  # this is the only field that can be changed later.
   enabled: true
   # the token expected by the "main" cluster:
   token: secret-token-to-add-new-clusters

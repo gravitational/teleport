@@ -1,9 +1,12 @@
-# saml-connector.yaml
+# 
+# Example resource for a SAML connector
 # This connector can be used for SAML endpoints like Okta
+#
 kind: saml
 version: v2
 metadata:
-  name: OktaSAML
+  # the name of the connector
+  name: new_saml_connector
 spec:
   acs: https://teleport-proxy.example.com:3080/v1/webapi/saml/acs
   attributes_to_roles:
