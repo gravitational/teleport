@@ -104,7 +104,7 @@ func (p *Plugin) createResourceHandler(w http.ResponseWriter, r *http.Request, p
 
 	err = checkIfResourceExists(*unknownRes, client)
 	if err != nil && !trace.IsNotFound(err) {
-		return false, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	exists := err == nil
