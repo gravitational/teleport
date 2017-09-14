@@ -502,9 +502,6 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 	if r.Spec.Allow.NodeLabels == nil {
 		r.Spec.Allow.NodeLabels = map[string]string{Wildcard: Wildcard}
 	}
-	if r.Spec.Allow.Rules == nil {
-		r.Spec.Allow.Rules = CopyRulesSlice(AdminUserRules)
-	}
 	if r.Spec.Deny.Namespaces == nil {
 		r.Spec.Deny.Namespaces = []string{defaults.Namespace}
 	}
