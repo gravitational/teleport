@@ -12933,10 +12933,6 @@ webpackJsonp([0],[
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _jQuery = __webpack_require__(230);
-
-	var _jQuery2 = _interopRequireDefault(_jQuery);
-
 	var _nuclearJsReactAddons = __webpack_require__(219);
 
 	var _enums = __webpack_require__(411);
@@ -13092,40 +13088,6 @@ webpackJsonp([0],[
 	    this.terminal = new _terminal2.default(options);
 	    this.terminal.ttyEvents.on('data', this.receiveEvents.bind(this));
 	    this.terminal.open();
-	    this.terminal.ttyEvents.on('data', this._processEvents.bind(this));
-	  };
-
-	  TerminalContainer.prototype._processEvents = function _processEvents(json) {
-	    var canAcceptInput = json.events.some(function (e) {
-	      return e.event === 'session.start';
-	    });
-	    if (!this.isReady && canAcceptInput) {
-	      this.isReady = true;
-	      window.t = this.terminal;
-	      window.term = this.terminal.term;
-	      //this.terminal.term.write('sudo gravity enter; ubectl exec --namespace=kub-system -ti kapacitor-3583118970-8stqr -c alert-loader-- /bin/bash;')      
-	      //this.terminal.term.send('\r');      
-
-	      //this.terminal.term.focus()
-	      //this.terminal.term.write('sudo gravity enter; ubectl exec --namespace=kub-system -ti kapacitor-3583118970-8stqr -c alert-loader-- /bin/bash;')      
-	      this.terminal.tty.send("ls");
-
-	      var a = {
-	        preventDefault: function preventDefault() {},
-	        stopPropagation: function stopPropagation() {},
-	        type: 'keypress',
-	        altKey: null,
-	        charCode: null,
-	        keyCode: 13
-	      };
-
-	      this.terminal.term.keyDown(a);
-	      //var e = $.Event( "keypress", { which: 13, keyCode: 13 } );
-	      //$(window.term.textarea).trigger(e);
-
-
-	      //this.terminal.term.write('\r')      
-	    }
 	  };
 
 	  TerminalContainer.prototype.componentWillUnmount = function componentWillUnmount() {
