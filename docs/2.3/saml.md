@@ -81,7 +81,11 @@ version: v2
 metadata:
   name: OktaSAML
 spec:
-  acs: https://localhost:3080/v1/webapi/saml/acs
+  # display allows to set the caption of the "login" button
+  # in the Web interface
+  display: "Login with Okta SSO"
+
+  acs: https://teleprot-proxy.example.com:3080/v1/webapi/saml/acs
   attributes_to_roles:
     - {name: "groups", value: "okta-admin", roles: ["admin"]}
     - {name: "groups", value: "okta-dev", roles: ["dev"]}
@@ -106,7 +110,7 @@ version: "v3"
 metadata:
   name: "admin"
 spec:
-  max_session_ttl: "90h0m0s"
+  max_session_ttl: "24h"
   allow:
     logins: [root]
     node_labels:
@@ -127,7 +131,7 @@ version: "v3"
 metadata:
   name: "dev"
 spec:
-  max_session_ttl: "90h0m0s"
+  max_session_ttl: "24h"
   allow:
     logins: [ "{{external.username}}", ubuntu ]
     node_labels:

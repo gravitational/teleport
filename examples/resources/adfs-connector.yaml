@@ -5,6 +5,14 @@ version: v2
 metadata:
   name: "adfs_connector"
 spec:
+  # display allows to set the caption of the "login" button
+  # in the Web interface
+  display: "login with SSO"
+
+  # "adfs" provider setting tells Teleport that this SAML connector uses ADFS
+  # as a provider
+  provider: "adfs"
+
   # entity_descriptor XML can either be copied into connector or fetched from a URL
   entity_descriptor: |
     <EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata">
@@ -21,9 +29,6 @@ spec:
     -----BEGIN RSA PRIVATE KEY-----
     ...
     -----END RSA PRIVATE KEY-----
-
-  display: "adfs"
-  provider: "adfs"
 
   acs: "https://teleport-proxy.example.com:3080/v1/webapi/saml/acs"
   # if "service_provider_issuer" is not set, comes from "acs"

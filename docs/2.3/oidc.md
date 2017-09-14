@@ -60,14 +60,20 @@ the `user` role depending on the value returned for `group` within the claims.
 kind: oidc
 version: v2
 metadata:
-  name: "google"
+  name: "example-oidc-connector"
 spec:
+  # display allows to set the caption of the "login" button
+  # in the Web interface
+  display: "Login with Example"
   issuer_url: "https://oidc.example.com"
   client_id: "xxxxxxxx.example.com"
   client_secret: "zzzzzzzzzzzzzzzzzzzzzzzz"
-  redirect_url: "https://proxy.example.com:3080/v1/webapi/oidc/callback"
-  display: "Login with Example"
+  redirect_url: "https://teleport-proxy.example.com:3080/v1/webapi/oidc/callback"
+  # scope instructs Teleport to query for 'group' scope to retreive
+  # user's group membership
   scope: ["group"]
+  # once Teleport retreives the user's groups, this section configures
+  # the mapping from groups to Teleport roles
   claims_to_roles:
      - claim: "group"
        value: "admin"
