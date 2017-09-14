@@ -103,12 +103,6 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 					Allow: RoleConditions{
 						NodeLabels: map[string]string{Wildcard: Wildcard},
 						Namespaces: []string{defaults.Namespace},
-						Rules: []Rule{
-							NewRule(KindRole, RW()),
-							NewRule(KindAuthConnector, RW()),
-							NewRule(KindSession, RO()),
-							NewRule(KindTrustedCluster, RW()),
-						},
 					},
 					Deny: RoleConditions{
 						Namespaces: []string{defaults.Namespace},
