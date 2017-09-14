@@ -22,6 +22,11 @@ limitations under the License.
 .grv-icon-close{      
   width: 100%;
   height: 100%;
+
+  // IE11 bug https://github.com/facebook/react/issues/1509
+  use{
+    pointer-events: none;
+  }
 }
 
 .grv-google-auth{
