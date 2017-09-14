@@ -7,7 +7,7 @@ metadata:
 spec:
   # display allows to set the caption of the "login" button
   # in the Web interface
-  display: "login with SSO"
+  display: "Login with SSO"
 
   # "adfs" provider setting tells Teleport that this SAML connector uses ADFS
   # as a provider
