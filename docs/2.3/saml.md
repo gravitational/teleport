@@ -100,13 +100,14 @@ $ tctl create okta-connector.yaml
 We are going to create 2 roles, privileged role admin who is able to login as
 root and is capable of administrating the cluster and non-privileged dev.
 
-```yaml
+```bash
 kind: "role"
 version: "v3"
 metadata:
   name: "admin"
 spec:
-  max_session_ttl: "90h0m0s"
+  options:
+    max_session_ttl: "90h0m0s"
   allow:
     logins: [root]
     node_labels:
@@ -121,13 +122,14 @@ teleport label. Developers can log in as either `ubuntu` to a username that
 arrives in their assertions. Developers also do not have any rules needed to
 obtain admin access.
 
-```yaml
+```bash
 kind: "role"
 version: "v3"
 metadata:
   name: "dev"
 spec:
-  max_session_ttl: "90h0m0s"
+  options:
+    max_session_ttl: "90h0m0s"
   allow:
     logins: [ "{{external.username}}", ubuntu ]
     node_labels:
@@ -217,14 +219,15 @@ Lets create two Teleport roles: one for administrators and the other is for
 normal users. You can create them using `tctl create {file name}` CLI command
 or via the Web UI.
 
-```yaml
+```bash
 # admin-role.yaml
 kind: "role"
 version: "v3"
 metadata:
   name: "admin"
 spec:
-  max_session_ttl: "90h0m0s"
+  options:
+    max_session_ttl: "8h0m0s"
   allow:
     logins: [ root ]
     node_labels:
@@ -234,15 +237,16 @@ spec:
         verbs: ["*"]
 ```
 
-```yaml
+```bash
 # user-role.yaml
 kind: "role"
 version: "v3"
 metadata:
   name: "dev"
 spec:
-  # regular users can only be guests and their certificates will have a TTL of 1 hour:
-  max_session_ttl: 1h
+  options:
+    # regular users can only be guests and their certificates will have a TTL of 1 hour:
+    max_session_ttl: "1h"
   allow:
     # only allow login as either ubuntu or the username claim
     logins: [ "{{external.username}}", ubuntu ]
