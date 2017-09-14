@@ -74,11 +74,9 @@ class AddEditConfig extends React.Component {
     let isPrimaryBtnEnabled = true;    
     if(this.isNew){
       isPrimaryBtnEnabled = access.create;
-    }else{
-      isPrimaryBtnEnabled = access.edit;
-    }
-
-    isPrimaryBtnEnabled = this.state.isDirty;
+    }else{      
+      isPrimaryBtnEnabled = this.state.isDirty;
+    }    
               
     return (
       <div className="m-t">

@@ -30,10 +30,7 @@ telecfg.init({
 
   api: {                
     resourcePath: '/v1/enterprise/resources(/:kind)',            
-    removeResourcePath: '/v1/enterprise/resources/:kind/:id',            
-    oidcConnectorsPath: '/v1/enterprise/oidc(/:connectorId)',            
-    roles: '/v1/enterprise/roles(/:roleName)',
-    clusters: '/v1/enterprise/trustedclusters',
+    removeResourcePath: '/v1/enterprise/resources/:kind/:id'        
   },
   
   getResourcesUrl(kind){
@@ -47,39 +44,11 @@ telecfg.init({
 
   getRemoveResourceUrl(kind, id) {    
     return formatPattern(telecfg.api.removeResourcePath, { kind, id })
-  },
-
-  getRolesUrl(roleName) {    
-    if (!roleName) {
-      return stripParams(telecfg.api.roles);
-    } 
-
-    return formatPattern(telecfg.api.roles, {roleName})
-  },
-
-  getClusterUrl(name) {    
-    if (!name) {
-      return stripParams(telecfg.api.clusters);
-    } 
-
-    return formatPattern(telecfg.api.clusters, {name})
-  },
-  
-  getOicdConnectorsPath(connectorId) {    
-    if (!connectorId) {
-      return stripParams(telecfg.api.oidcConnectorsPath);
-    } 
-
-    return formatPattern(telecfg.api.oidcConnectorsPath, {connectorId} )    
   }  
-
+  
 })
 
 export function removeAllOptionalParameters(pattern) {
-  return pattern.replace(/\(.*\)/, '');
-}
-
-function stripParams(pattern) {
   return pattern.replace(/\(.*\)/, '');
 }
 

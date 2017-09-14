@@ -49,7 +49,7 @@ webpackJsonp([0],[
 
 	var _config2 = _interopRequireDefault(_config);
 
-	__webpack_require__(599);
+	__webpack_require__(603);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -18433,21 +18433,21 @@ webpackJsonp([0],[
 
 	var _settingsAuth2 = _interopRequireDefault(_settingsAuth);
 
-	var _settingsClusters = __webpack_require__(585);
+	var _settingsClusters = __webpack_require__(589);
 
 	var _settingsClusters2 = _interopRequireDefault(_settingsClusters);
 
-	var _settingsRoles = __webpack_require__(591);
+	var _settingsRoles = __webpack_require__(595);
 
 	var _settingsRoles2 = _interopRequireDefault(_settingsRoles);
 
-	var _main = __webpack_require__(597);
+	var _main = __webpack_require__(601);
 
 	var _main2 = _interopRequireDefault(_main);
 
 	var _actions2 = __webpack_require__(547);
 
-	var _settings = __webpack_require__(598);
+	var _settings = __webpack_require__(602);
 
 	var _settings2 = _interopRequireDefault(_settings);
 
@@ -18455,7 +18455,7 @@ webpackJsonp([0],[
 
 	var API = _interopRequireWildcard(_constants);
 
-	var _featureFlags = __webpack_require__(584);
+	var _featureFlags = __webpack_require__(588);
 
 	var flags = _interopRequireWildcard(_featureFlags);
 
@@ -18573,7 +18573,6 @@ webpackJsonp([0],[
 	  api: {
 	    resourcePath: '/v1/enterprise/resources(/:kind)',
 	    removeResourcePath: '/v1/enterprise/resources/:kind/:id',
-	    oidcConnectorsPath: '/v1/enterprise/oidc(/:connectorId)',
 	    roles: '/v1/enterprise/roles(/:roleName)',
 	    clusters: '/v1/enterprise/trustedclusters'
 	  },
@@ -18588,35 +18587,10 @@ webpackJsonp([0],[
 	  },
 	  getRemoveResourceUrl: function getRemoveResourceUrl(kind, id) {
 	    return (0, _patternUtils.formatPattern)(_config2.default.api.removeResourcePath, { kind: kind, id: id });
-	  },
-	  getRolesUrl: function getRolesUrl(roleName) {
-	    if (!roleName) {
-	      return stripParams(_config2.default.api.roles);
-	    }
-
-	    return (0, _patternUtils.formatPattern)(_config2.default.api.roles, { roleName: roleName });
-	  },
-	  getClusterUrl: function getClusterUrl(name) {
-	    if (!name) {
-	      return stripParams(_config2.default.api.clusters);
-	    }
-
-	    return (0, _patternUtils.formatPattern)(_config2.default.api.clusters, { name: name });
-	  },
-	  getOicdConnectorsPath: function getOicdConnectorsPath(connectorId) {
-	    if (!connectorId) {
-	      return stripParams(_config2.default.api.oidcConnectorsPath);
-	    }
-
-	    return (0, _patternUtils.formatPattern)(_config2.default.api.oidcConnectorsPath, { connectorId: connectorId });
 	  }
 	});
 
 	function removeAllOptionalParameters(pattern) {
-	  return pattern.replace(/\(.*\)/, '');
-	}
-
-	function stripParams(pattern) {
 	  return pattern.replace(/\(.*\)/, '');
 	}
 
@@ -18646,7 +18620,7 @@ webpackJsonp([0],[
 
 	var _tabAuth2 = _interopRequireDefault(_tabAuth);
 
-	var _featureFlags = __webpack_require__(584);
+	var _featureFlags = __webpack_require__(588);
 
 	var flags = _interopRequireWildcard(_featureFlags);
 
@@ -19408,6 +19382,8 @@ webpackJsonp([0],[
 
 	var _changeTracker2 = _interopRequireDefault(_changeTracker);
 
+	var _examples = __webpack_require__(584);
+
 	function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key]; } } newObj.default = obj; return newObj; } }
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
@@ -19431,7 +19407,11 @@ webpackJsonp([0],[
 	    }
 
 	    return _ret = (_temp = (_this = _possibleConstructorReturn(this, _React$Component.call.apply(_React$Component, [this].concat(args))), _this), _this.state = {}, _this.onNewItem = function () {
-	      _this.onItemClick(_this.props.store.createItem());
+	      _this.refTracker.checkIfUnsafedData(function () {
+	        var newItem = _this.props.store.createItem();
+	        newItem = newItem.setContent(_examples.authTemplate);
+	        _this.onItemClick(newItem);
+	      });
 	    }, _this.onCancelNewItem = function () {
 	      actions.setCurProvider();
 	    }, _this.onItemSave = function (item) {
@@ -20487,10 +20467,8 @@ webpackJsonp([0],[
 	    if (this.isNew) {
 	      isPrimaryBtnEnabled = access.create;
 	    } else {
-	      isPrimaryBtnEnabled = access.edit;
+	      isPrimaryBtnEnabled = this.state.isDirty;
 	    }
-
-	    isPrimaryBtnEnabled = this.state.isDirty;
 
 	    return _react2.default.createElement(
 	      'div',
@@ -40812,6 +40790,39 @@ webpackJsonp([0],[
 	'use strict';
 
 	exports.__esModule = true;
+	var roleTemplate = __webpack_require__(585);
+	var authTemplate = __webpack_require__(586);
+	var trustedClusterTemplate = __webpack_require__(587);
+
+	exports.roleTemplate = roleTemplate;
+	exports.authTemplate = authTemplate;
+	exports.trustedClusterTemplate = trustedClusterTemplate;
+
+/***/ }),
+/* 585 */
+/***/ (function(module, exports) {
+
+	module.exports = "#\n# Example resource for a role\n#\nkind: role\nversion: v3\nmetadata:\n  # insert the name of your role here:\n  name: role_name\nspec:\n  # SSH options used for user sessions \n  options:\n    # max_session_ttl defines the TTL (time to live) of SSH certificates \n    # issued to the users with this role.\n    max_session_ttl: 30h0m0s\n\n    # forward_agent turns on/off SSH agent forwarding\n    forward_agent: true\n\n  # allow section declares a list of resource/verb combinations that are\n  # allowed for the users of this role. by default nothing is allowed.\n  allow:\n    # logins array defines the OS logins a user is allowed to use.\n    # A few special variables are supported here (see below)\n    logins: [root, '{{internal.logins}}']\n\n    # node labels that a user can connect to. The wildcard ('*') means \"any node\"\n    node_labels:\n      '*': '*'\n\n    # see below.\n    rules:\n    - resources: [role]\n      verbs: [list, create, read, update, delete]\n    - resources: [auth_connector]\n      verbs: [connect, list, create, read, update, delete]\n    - resources: [session]\n      verbs: [list, read]\n    - resources: [trusted_cluster]\n      verbs: [connect, list, create, read, update, delete]\n\n  # the deny section uses the identical format as the 'allow' section.\n  # the deny rules always override allow rules.\n  deny: {}\n"
+
+/***/ }),
+/* 586 */
+/***/ (function(module, exports) {
+
+	module.exports = "# \n# Example resource for a SAML connector\n# This connector can be used for SAML endpoints like Okta\n#\nkind: saml\nversion: v2\nmetadata:\n  # the name of the connector\n  name: new_saml_connector\nspec:\n  # display allows to set the caption of the \"login\" button\n  # in the Web interface\n  display: \"Login with SSO\"\n  # acs is the Assertion Consumer Service URL. This should be the address of\n  # the Teleport proxy that your identity provider will communicate with.\n  acs: https://teleport-proxy.example.com:3080/v1/webapi/saml/acs\n  attributes_to_roles:\n    - {name: \"groups\", value: \"okta-admin\", roles: [\"admin\"]}\n    - {name: \"groups\", value: \"okta-dev\", roles: [\"dev\"]}\n  entity_descriptor: |\n    <paste SAML XML contents here>\n"
+
+/***/ }),
+/* 587 */
+/***/ (function(module, exports) {
+
+	module.exports = "# \n# Example resource for a trusted cluster with RBAC\n#\n# IMPORTANT: only one field (enabled) can be changed after a cluster is created.\n# \nkind: trusted_cluster\nversion: v2\nmetadata:\n  # the name of a trusted cluster \n  name: new_trusted_cluster\nspec:\n  # this field allows to create tunnels that are disabled, but can be enabled later.\n  # this is the only field that can be changed later.\n  enabled: true\n  # the token expected by the \"main\" cluster:\n  token: secret-token-to-add-new-clusters\n  # the address in 'host:port' form of the reverse tunnel listening port on the\n  # \"master\" proxy server:\n  tunnel_addr: proxy.main:3024\n  # the address in 'host:port' form of the web listening port on the\n  # \"master\" proxy server:\n  web_proxy_addr: proxy.main:3080\n  # RBAC for trusted clusters: it says that the users who have the role 'admin'\n  # on a remote cluster will be mapped to the local role 'guest'\n  role_map:\n  - local: [guest]\n    remote: admin\n"
+
+/***/ }),
+/* 588 */
+/***/ (function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	exports.__esModule = true;
 	exports.isTrustedClrsEnabled = isTrustedClrsEnabled;
 	exports.isRolesEnabled = isRolesEnabled;
 	exports.isAuthConnectorsEnabled = isAuthConnectorsEnabled;
@@ -40836,7 +40847,7 @@ webpackJsonp([0],[
 	}
 
 /***/ }),
-/* 585 */
+/* 589 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -40853,13 +40864,13 @@ webpackJsonp([0],[
 
 	var _actions = __webpack_require__(547);
 
-	var _actions2 = __webpack_require__(586);
+	var _actions2 = __webpack_require__(590);
 
-	var _tabTrustedClusters = __webpack_require__(589);
+	var _tabTrustedClusters = __webpack_require__(593);
 
 	var _tabTrustedClusters2 = _interopRequireDefault(_tabTrustedClusters);
 
-	var _featureFlags = __webpack_require__(584);
+	var _featureFlags = __webpack_require__(588);
 
 	var flags = _interopRequireWildcard(_featureFlags);
 
@@ -40927,7 +40938,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 586 */
+/* 590 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -40962,13 +40973,13 @@ webpackJsonp([0],[
 
 	var _actions3 = __webpack_require__(547);
 
-	var _store = __webpack_require__(587);
+	var _store = __webpack_require__(591);
 
 	var _constants = __webpack_require__(550);
 
 	var RAT = _interopRequireWildcard(_constants);
 
-	var _actionTypes = __webpack_require__(588);
+	var _actionTypes = __webpack_require__(592);
 
 	var AT = _interopRequireWildcard(_actionTypes);
 
@@ -41036,7 +41047,7 @@ webpackJsonp([0],[
 	}
 
 /***/ }),
-/* 587 */
+/* 591 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -41050,7 +41061,7 @@ webpackJsonp([0],[
 
 	var _nuclearJs = __webpack_require__(237);
 
-	var _actionTypes = __webpack_require__(588);
+	var _actionTypes = __webpack_require__(592);
 
 	var AT = _interopRequireWildcard(_actionTypes);
 
@@ -41085,7 +41096,7 @@ webpackJsonp([0],[
 	});
 
 /***/ }),
-/* 588 */
+/* 592 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -41097,7 +41108,7 @@ webpackJsonp([0],[
 	var DELETE_CLUSTER = exports.DELETE_CLUSTER = 'SETTINGS_TRUSTED_CLRS_DELETE';
 
 /***/ }),
-/* 589 */
+/* 593 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -41112,7 +41123,7 @@ webpackJsonp([0],[
 
 	var _connect2 = _interopRequireDefault(_connect);
 
-	var _getters = __webpack_require__(590);
+	var _getters = __webpack_require__(594);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
@@ -41120,7 +41131,7 @@ webpackJsonp([0],[
 
 	var _getters4 = _interopRequireDefault(_getters3);
 
-	var _actions = __webpack_require__(586);
+	var _actions = __webpack_require__(590);
 
 	var actions = _interopRequireWildcard(_actions);
 
@@ -41143,6 +41154,8 @@ webpackJsonp([0],[
 	var _changeTracker = __webpack_require__(582);
 
 	var _changeTracker2 = _interopRequireDefault(_changeTracker);
+
+	var _examples = __webpack_require__(584);
 
 	function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key]; } } newObj.default = obj; return newObj; } }
 
@@ -41168,7 +41181,9 @@ webpackJsonp([0],[
 
 	    return _ret = (_temp = (_this = _possibleConstructorReturn(this, _React$Component.call.apply(_React$Component, [this].concat(args))), _this), _this.state = {}, _this.onNewItem = function () {
 	      _this.refTracker.checkIfUnsafedData(function () {
-	        actions.setCurCluster(_this.props.store.createItem());
+	        var newItem = _this.props.store.createItem();
+	        newItem = newItem.setContent(_examples.trustedClusterTemplate);
+	        actions.setCurCluster(newItem);
 	      });
 	    }, _this.onItemClick = function (item) {
 	      _this.refTracker.checkIfUnsafedData(function () {
@@ -41253,7 +41268,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 590 */
+/* 594 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -41275,7 +41290,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 591 */
+/* 595 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -41292,13 +41307,13 @@ webpackJsonp([0],[
 
 	var _actions = __webpack_require__(547);
 
-	var _actions2 = __webpack_require__(592);
+	var _actions2 = __webpack_require__(596);
 
-	var _tabRoles = __webpack_require__(595);
+	var _tabRoles = __webpack_require__(599);
 
 	var _tabRoles2 = _interopRequireDefault(_tabRoles);
 
-	var _featureFlags = __webpack_require__(584);
+	var _featureFlags = __webpack_require__(588);
 
 	var flags = _interopRequireWildcard(_featureFlags);
 
@@ -41367,7 +41382,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 592 */
+/* 596 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -41402,13 +41417,13 @@ webpackJsonp([0],[
 
 	var _actions2 = _interopRequireDefault(_actions);
 
-	var _actionTypes = __webpack_require__(593);
+	var _actionTypes = __webpack_require__(597);
 
 	var AT = _interopRequireWildcard(_actionTypes);
 
 	var _actions3 = __webpack_require__(547);
 
-	var _store = __webpack_require__(594);
+	var _store = __webpack_require__(598);
 
 	function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key]; } } newObj.default = obj; return newObj; } }
 
@@ -41473,7 +41488,7 @@ webpackJsonp([0],[
 	}
 
 /***/ }),
-/* 593 */
+/* 597 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -41485,7 +41500,7 @@ webpackJsonp([0],[
 	var DELETE_ROLE = exports.DELETE_ROLE = 'SETTINGS_ROLES_DELETE';
 
 /***/ }),
-/* 594 */
+/* 598 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -41499,7 +41514,7 @@ webpackJsonp([0],[
 
 	var _nuclearJs = __webpack_require__(237);
 
-	var _actionTypes = __webpack_require__(593);
+	var _actionTypes = __webpack_require__(597);
 
 	var AT = _interopRequireWildcard(_actionTypes);
 
@@ -41534,7 +41549,7 @@ webpackJsonp([0],[
 	});
 
 /***/ }),
-/* 595 */
+/* 599 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -41549,7 +41564,7 @@ webpackJsonp([0],[
 
 	var _connect2 = _interopRequireDefault(_connect);
 
-	var _getters = __webpack_require__(596);
+	var _getters = __webpack_require__(600);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
@@ -41559,7 +41574,7 @@ webpackJsonp([0],[
 
 	var _actions = __webpack_require__(547);
 
-	var _actions2 = __webpack_require__(592);
+	var _actions2 = __webpack_require__(596);
 
 	var actions = _interopRequireWildcard(_actions2);
 
@@ -41580,6 +41595,8 @@ webpackJsonp([0],[
 	var _changeTracker = __webpack_require__(582);
 
 	var _changeTracker2 = _interopRequireDefault(_changeTracker);
+
+	var _examples = __webpack_require__(584);
 
 	function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key]; } } newObj.default = obj; return newObj; } }
 
@@ -41605,7 +41622,9 @@ webpackJsonp([0],[
 
 	    return _ret = (_temp = (_this = _possibleConstructorReturn(this, _React$Component.call.apply(_React$Component, [this].concat(args))), _this), _this.state = {}, _this.onNewItem = function () {
 	      _this.refTracker.checkIfUnsafedData(function () {
-	        actions.setCurRole(_this.props.store.createItem());
+	        var newItem = _this.props.store.createItem();
+	        newItem = newItem.setContent(_examples.roleTemplate);
+	        actions.setCurRole(newItem);
 	      });
 	    }, _this.onCancelNewItem = function () {
 	      actions.setCurRole();
@@ -41690,7 +41709,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 596 */
+/* 600 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -41712,7 +41731,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 597 */
+/* 601 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -41828,7 +41847,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 598 */
+/* 602 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -41910,7 +41929,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 599 */
+/* 603 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -41919,11 +41938,11 @@ webpackJsonp([0],[
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _store = __webpack_require__(600);
+	var _store = __webpack_require__(604);
 
 	var _store2 = _interopRequireDefault(_store);
 
-	var _storeDialogs = __webpack_require__(601);
+	var _storeDialogs = __webpack_require__(605);
 
 	var _storeDialogs2 = _interopRequireDefault(_storeDialogs);
 
@@ -41931,11 +41950,11 @@ webpackJsonp([0],[
 
 	var _store4 = _interopRequireDefault(_store3);
 
-	var _store5 = __webpack_require__(594);
+	var _store5 = __webpack_require__(598);
 
 	var _store6 = _interopRequireDefault(_store5);
 
-	var _store7 = __webpack_require__(587);
+	var _store7 = __webpack_require__(591);
 
 	var _store8 = _interopRequireDefault(_store7);
 
@@ -41966,7 +41985,7 @@ webpackJsonp([0],[
 	});
 
 /***/ }),
-/* 600 */
+/* 604 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -42032,7 +42051,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 601 */
+/* 605 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
