@@ -68,11 +68,11 @@ func (p *Plugin) upsertResourceHandler(w http.ResponseWriter, r *http.Request, p
 	}
 
 	if exists && r.Method == http.MethodPost {
-		return nil, trace.AlreadyExists("'%s' already exists", rawRes.Metadata.Name)
+		return nil, trace.AlreadyExists("%q already exists", rawRes.Metadata.Name)
 	}
 
 	if !exists && r.Method == http.MethodPut {
-		return nil, trace.NotFound("Cannot find resource with a name '%v'", rawRes.Metadata.Name)
+		return nil, trace.NotFound("Cannot find resource with a name %q", rawRes.Metadata.Name)
 	}
 
 	err = validateKind(rawRes.Kind, itemToUpsert.Kind)
@@ -296,6 +296,7 @@ func validateKind(given string, expected string) error {
 	return trace.BadParameter("Invalid value for kind")
 }
 
+// getInvalidKindMessage returns a message about unsupported resource kind
 func getInvalidKindMessage(kind string) string {
 	return fmt.Sprintf("resources of kind %q are not supported", kind)
 }

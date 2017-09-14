@@ -18573,7 +18573,6 @@ webpackJsonp([0],[
 	  api: {
 	    resourcePath: '/v1/enterprise/resources(/:kind)',
 	    removeResourcePath: '/v1/enterprise/resources/:kind/:id',
-	    oidcConnectorsPath: '/v1/enterprise/oidc(/:connectorId)',
 	    roles: '/v1/enterprise/roles(/:roleName)',
 	    clusters: '/v1/enterprise/trustedclusters'
 	  },
@@ -18588,35 +18587,10 @@ webpackJsonp([0],[
 	  },
 	  getRemoveResourceUrl: function getRemoveResourceUrl(kind, id) {
 	    return (0, _patternUtils.formatPattern)(_config2.default.api.removeResourcePath, { kind: kind, id: id });
-	  },
-	  getRolesUrl: function getRolesUrl(roleName) {
-	    if (!roleName) {
-	      return stripParams(_config2.default.api.roles);
-	    }
-
-	    return (0, _patternUtils.formatPattern)(_config2.default.api.roles, { roleName: roleName });
-	  },
-	  getClusterUrl: function getClusterUrl(name) {
-	    if (!name) {
-	      return stripParams(_config2.default.api.clusters);
-	    }
-
-	    return (0, _patternUtils.formatPattern)(_config2.default.api.clusters, { name: name });
-	  },
-	  getOicdConnectorsPath: function getOicdConnectorsPath(connectorId) {
-	    if (!connectorId) {
-	      return stripParams(_config2.default.api.oidcConnectorsPath);
-	    }
-
-	    return (0, _patternUtils.formatPattern)(_config2.default.api.oidcConnectorsPath, { connectorId: connectorId });
 	  }
 	});
 
 	function removeAllOptionalParameters(pattern) {
-	  return pattern.replace(/\(.*\)/, '');
-	}
-
-	function stripParams(pattern) {
 	  return pattern.replace(/\(.*\)/, '');
 	}
 
@@ -40834,7 +40808,7 @@ webpackJsonp([0],[
 /* 586 */
 /***/ (function(module, exports) {
 
-	module.exports = "# \n# Example resource for a SAML connector\n# This connector can be used for SAML endpoints like Okta\n#\nkind: saml\nversion: v2\nmetadata:\n  # the name of the connector\n  name: new_saml_connector\nspec:\n  acs: https://teleport-proxy.example.com:3080/v1/webapi/saml/acs\n  attributes_to_roles:\n    - {name: \"groups\", value: \"okta-admin\", roles: [\"admin\"]}\n    - {name: \"groups\", value: \"okta-dev\", roles: [\"dev\"]}\n  entity_descriptor: |\n    <paste SAML XML contents here>\n"
+	module.exports = "# \n# Example resource for a SAML connector\n# This connector can be used for SAML endpoints like Okta\n#\nkind: saml\nversion: v2\nmetadata:\n  # the name of the connector\n  name: new_saml_connector\nspec:\n  # display allows to set the caption of the \"login\" button\n  # in the Web interface\n  display: \"Login with SSO\"\n  # acs is the Assertion Consumer Service URL. This should be the address of\n  # the Teleport proxy that your identity provider will communicate with.\n  acs: https://teleport-proxy.example.com:3080/v1/webapi/saml/acs\n  attributes_to_roles:\n    - {name: \"groups\", value: \"okta-admin\", roles: [\"admin\"]}\n    - {name: \"groups\", value: \"okta-dev\", roles: [\"dev\"]}\n  entity_descriptor: |\n    <paste SAML XML contents here>\n"
 
 /***/ }),
 /* 587 */
