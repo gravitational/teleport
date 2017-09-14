@@ -1,6 +1,7 @@
 package web
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -24,8 +25,8 @@ type Plugin struct {
 // AddHandlers registeres Plugin handlers
 func (p *Plugin) AddHandlers(h *web.Handler) {
 	h.GET("/enterprise/resources/:kind", h.WithAuth(p.getResourceHandler))
-	h.PUT("/enterprise/resources", h.WithAuth(p.updateResourceHandler))
-	h.POST("/enterprise/resources", h.WithAuth(p.createResourceHandler))
+	h.PUT("/enterprise/resources", h.WithAuth(p.upsertResourceHandler))
+	h.POST("/enterprise/resources", h.WithAuth(p.upsertResourceHandler))
 	h.DELETE("/enterprise/resources/:kind/:name", h.WithAuth(p.deleteResourceHandler))
 }
 
@@ -44,10 +45,10 @@ func (p *Plugin) getResourceHandler(w http.ResponseWriter, r *http.Request, para
 	return makeResponse(data)
 }
 
-// updateResourceHandler is PUT handler that updates existing resource
-func (p *Plugin) updateResourceHandler(w http.ResponseWriter, r *http.Request, params httprouter.Params, c *web.SessionContext) (interface{}, error) {
-	var item2Update ui.ConfigItem
-	if err := httplib.ReadJSON(r, &item2Update); err != nil {
+// upsertResourceHandler is POST|PUT handler that upserts a new resource
+func (p *Plugin) upsertResourceHandler(w http.ResponseWriter, r *http.Request, params httprouter.Params, c *web.SessionContext) (interface{}, error) {
+	var itemToUpsert ui.ConfigItem
+	if err := httplib.ReadJSON(r, &itemToUpsert); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -56,69 +57,30 @@ func (p *Plugin) updateResourceHandler(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
-	unknownRes, err := extractMetadata(item2Update.Content)
+	rawRes, err := extractMetadata(itemToUpsert.Content)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	err = checkIfResourceExists(*unknownRes, client)
-	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
-	}
-
-	exists := err == nil
-
-	if !exists {
-		return nil, trace.NotFound("Cannot find resource with a name '%v'", unknownRes.Metadata.Name)
-	}
-
-	err = ensureKindValue(unknownRes.Kind, item2Update.Kind)
+	exists, err := checkIfResourceExists(*rawRes, client)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	items, err := upsertResource(*unknownRes, client)
+	if exists && r.Method == http.MethodPost {
+		return nil, trace.AlreadyExists("'%s' already exists", rawRes.Metadata.Name)
+	}
+
+	if !exists && r.Method == http.MethodPut {
+		return nil, trace.NotFound("Cannot find resource with a name '%v'", rawRes.Metadata.Name)
+	}
+
+	err = validateKind(rawRes.Kind, itemToUpsert.Kind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return makeResponse(items)
-}
-
-// createResourceHandler is POST handler that creates a new resource
-func (p *Plugin) createResourceHandler(w http.ResponseWriter, r *http.Request, params httprouter.Params, c *web.SessionContext) (interface{}, error) {
-	var item2Create ui.ConfigItem
-	if err := httplib.ReadJSON(r, &item2Create); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	client, err := c.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	unknownRes, err := extractMetadata(item2Create.Content)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	err = checkIfResourceExists(*unknownRes, client)
-	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
-	}
-
-	exists := err == nil
-
-	if exists {
-		return nil, trace.AlreadyExists("'%s' already exists", unknownRes.Metadata.Name)
-	}
-
-	err = ensureKindValue(unknownRes.Kind, item2Create.Kind)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	items, err := upsertResource(*unknownRes, client)
+	items, err := upsertResource(*rawRes, client)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -176,7 +138,7 @@ func deleteResource(resourceKind string, resourceName string, client auth.Client
 		}
 		return nil
 	default:
-		return trace.BadParameter("%q is not supported", resourceKind)
+		return trace.BadParameter(getInvalidKindMessage(resourceKind))
 	}
 }
 
@@ -222,7 +184,7 @@ func getResourceByKind(kind string, client auth.ClientI) ([]ui.ConfigItem, error
 		return ui.ConvertTrustedClusters(trustedClusters)
 	}
 
-	return nil, trace.BadParameter("'%v' is not supported", kind)
+	return nil, trace.BadParameter(getInvalidKindMessage(kind))
 }
 
 // upsertResource updates a resource and returns ConfigItem wrapper with the updated resource
@@ -291,32 +253,35 @@ func upsertResource(unknownRes services.UnknownResource, client auth.ClientI) (i
 	case "":
 		return nil, trace.BadParameter("missing resource kind")
 	default:
-		return nil, trace.BadParameter("%q is not supported", unknownRes.Kind)
+		return nil, trace.BadParameter(getInvalidKindMessage(unknownRes.Kind))
 	}
 }
 
 // checkIfResourceExists checks if resource exists and returns an error if cannot find it
-func checkIfResourceExists(unknownRes services.UnknownResource, client auth.ClientI) error {
+func checkIfResourceExists(unknownRes services.UnknownResource, client auth.ClientI) (bool, error) {
+	var err error
 	switch unknownRes.Kind {
 	case services.KindOIDCConnector:
-		_, err := client.GetOIDCConnector(unknownRes.Metadata.Name, false)
-		return err
+		_, err = client.GetOIDCConnector(unknownRes.Metadata.Name, false)
 	case services.KindSAMLConnector:
-		_, err := client.GetSAMLConnector(unknownRes.Metadata.Name, false)
-		return err
+		_, err = client.GetSAMLConnector(unknownRes.Metadata.Name, false)
 	case services.KindRole:
-		_, err := client.GetRole(unknownRes.Metadata.Name)
-		return err
+		_, err = client.GetRole(unknownRes.Metadata.Name)
 	case services.KindTrustedCluster:
-		_, err := client.GetTrustedCluster(unknownRes.Metadata.Name)
-		return err
+		_, err = client.GetTrustedCluster(unknownRes.Metadata.Name)
+	default:
+		return false, trace.BadParameter(getInvalidKindMessage(unknownRes.Kind))
 	}
 
-	return trace.BadParameter("'%v' is not supported", unknownRes.Kind)
+	if err != nil && !trace.IsNotFound(err) {
+		return false, trace.Wrap(err)
+	}
+
+	return err == nil, nil
 }
 
-// ensureKindValue verifies that given resource kind matches its expected value.
-func ensureKindValue(given string, expected string) error {
+// validateKind verifies that given resource kind matches its expected value.
+func validateKind(given string, expected string) error {
 	if expected == services.KindAuthConnector {
 		// AuthConnector might be of 2 types OIDC and SAML
 		if given == services.KindOIDCConnector || given == services.KindSAMLConnector {
@@ -329,6 +294,10 @@ func ensureKindValue(given string, expected string) error {
 	}
 
 	return trace.BadParameter("Invalid value for kind")
+}
+
+func getInvalidKindMessage(kind string) string {
+	return fmt.Sprintf("resources of kind %q are not supported", kind)
 }
 
 // extractMetadata extracts resource meta information
