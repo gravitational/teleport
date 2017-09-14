@@ -1,7 +1,11 @@
+#
+# Example resource for a role
+#
 kind: role
 version: v3
 metadata:
-  name: admin
+  # insert the name of your role here:
+  name: role_name
 spec:
   # SSH options used for user sessions 
   options:
