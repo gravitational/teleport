@@ -34,7 +34,12 @@ func TestDynamoDB(t *testing.T) { TestingT(t) }
 type DynamoDBSuite struct {
 	bk    *DynamoDBBackend
 	suite test.BackendSuite
-	cfg   backend.Config
+	cfg   config
+}
+
+type config struct {
+	backend.Config
+	DynamoConfig
 }
 
 var _ = Suite(&DynamoDBSuite{})
@@ -43,11 +48,13 @@ func (s *DynamoDBSuite) SetUpSuite(c *C) {
 	utils.InitLoggerForTests()
 
 	var err error
-	s.cfg.Type = "dynamodb"
-	s.cfg.Tablename = "teleport.dynamo.test"
+	cfg := make(backend.Params)
+	cfg["type"] = "dynamodb"
+	cfg["table_name"] = "teleport.dynamo.test"
 
-	s.bk, err = New(&s.cfg)
+	backend, err := New(cfg)
 	c.Assert(err, IsNil)
+	s.bk = backend.(*DynamoDBBackend)
 	s.suite.B = s.bk
 }
 
@@ -58,11 +65,13 @@ func (s *DynamoDBSuite) TearDownSuite(c *C) {
 }
 
 func (s *DynamoDBSuite) TestMigration(c *C) {
-	s.cfg.Type = "dynamodb"
-	s.cfg.Tablename = "teleport.dynamo.test"
+	var cfg backend.Params
+	cfg["type"] = "dynamodb"
+	cfg["table_name"] = "teleport.dynamo.test"
 	// migration uses its own instance of the backend:
-	bk, err := New(&s.cfg)
+	backend, err := New(cfg)
 	c.Assert(err, IsNil)
+	bk := backend.(*DynamoDBBackend)
 
 	var (
 		legacytable      = "legacy.teleport.t"
