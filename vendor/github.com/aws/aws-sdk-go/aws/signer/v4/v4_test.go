@@ -28,6 +28,8 @@ func TestStripExcessHeaders(t *testing.T) {
 		"1  2  3",
 		"1  2  ",
 		" 1  2  ",
+		"12   3",
+		"12   3   1",
 	}
 
 	expected := []string{
@@ -39,6 +41,8 @@ func TestStripExcessHeaders(t *testing.T) {
 		"1 2 3",
 		"1 2",
 		"1 2",
+		"12 3",
+		"12 3 1",
 	}
 
 	newVals := stripExcessSpaces(vals)
@@ -422,6 +426,69 @@ func TestBuildCanonicalRequest(t *testing.T) {
 	ctx.buildCanonicalString()
 	expected := "https://example.org/bucket/key-._~,!@#$%^&*()?Foo=z&Foo=o&Foo=m&Foo=a"
 	assert.Equal(t, expected, ctx.Request.URL.String())
+}
+
+func TestSignWithBody_ReplaceRequestBody(t *testing.T) {
+	creds := credentials.NewStaticCredentials("AKID", "SECRET", "SESSION")
+	req, seekerBody := buildRequest("dynamodb", "us-east-1", "{}")
+	req.Body = ioutil.NopCloser(bytes.NewReader([]byte{}))
+
+	s := NewSigner(creds)
+	origBody := req.Body
+
+	_, err := s.Sign(req, seekerBody, "dynamodb", "us-east-1", time.Now())
+	if err != nil {
+		t.Fatalf("expect no error, got %v", err)
+	}
+
+	if req.Body == origBody {
+		t.Errorf("expeect request body to not be origBody")
+	}
+
+	if req.Body == nil {
+		t.Errorf("expect request body to be changed but was nil")
+	}
+}
+
+func TestSignWithBody_NoReplaceRequestBody(t *testing.T) {
+	creds := credentials.NewStaticCredentials("AKID", "SECRET", "SESSION")
+	req, seekerBody := buildRequest("dynamodb", "us-east-1", "{}")
+	req.Body = ioutil.NopCloser(bytes.NewReader([]byte{}))
+
+	s := NewSigner(creds, func(signer *Signer) {
+		signer.DisableRequestBodyOverwrite = true
+	})
+
+	origBody := req.Body
+
+	_, err := s.Sign(req, seekerBody, "dynamodb", "us-east-1", time.Now())
+	if err != nil {
+		t.Fatalf("expect no error, got %v", err)
+	}
+
+	if req.Body != origBody {
+		t.Errorf("expect request body to not be chagned")
+	}
+}
+
+func TestRequestHost(t *testing.T) {
+	req, body := buildRequest("dynamodb", "us-east-1", "{}")
+	req.URL.RawQuery = "Foo=z&Foo=o&Foo=m&Foo=a"
+	req.Host = "myhost"
+	ctx := &signingCtx{
+		ServiceName: "dynamodb",
+		Region:      "us-east-1",
+		Request:     req,
+		Body:        body,
+		Query:       req.URL.Query(),
+		Time:        time.Now(),
+		ExpireTime:  5 * time.Second,
+	}
+
+	ctx.buildCanonicalHeaders(ignoredHeaders, ctx.Request.Header)
+	if !strings.Contains(ctx.canonicalHeaders, "host:"+req.Host) {
+		t.Errorf("canonical host header invalid")
+	}
 }
 
 func BenchmarkPresignRequest(b *testing.B) {
