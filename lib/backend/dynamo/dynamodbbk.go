@@ -47,6 +47,8 @@ type DynamoConfig struct {
 	SecretKey string `json:"secret_key,omitempty"`
 	// Tablename where to store K/V in DynamoDB
 	Tablename string `json:"table_name,omitempty"`
+	// Endpoint where to talk to the DynamoDB API
+	Endpoint string `json:"endpoint,omitempty"`
 }
 
 // DynamoDBBackend struct
@@ -131,6 +133,11 @@ func New(params backend.Params) (backend.Backend, error) {
 	if cfg.AccessKey != "" || cfg.SecretKey != "" {
 		creds := credentials.NewStaticCredentials(cfg.AccessKey, cfg.SecretKey, "")
 		sess.Config.Credentials = creds
+	}
+
+	// Used to over-write the default endpoints in local development
+	if cfg.Endpoint != "" {
+		sess.Config.Endpoint = aws.String(cfg.Endpoint)
 	}
 
 	// create DynamoDB service:

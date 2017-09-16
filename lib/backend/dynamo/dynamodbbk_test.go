@@ -51,6 +51,9 @@ func (s *DynamoDBSuite) SetUpSuite(c *C) {
 	cfg := make(backend.Params)
 	cfg["type"] = "dynamodb"
 	cfg["table_name"] = "teleport.dynamo.test"
+	cfg["endpoint"] = "http://localhost:8000"
+	cfg["access_key"] = "access_key"
+	cfg["secret_key"] = "secret_key"
 
 	backend, err := New(cfg)
 	c.Assert(err, IsNil)
@@ -65,9 +68,12 @@ func (s *DynamoDBSuite) TearDownSuite(c *C) {
 }
 
 func (s *DynamoDBSuite) TestMigration(c *C) {
-	var cfg backend.Params
+	cfg := make(backend.Params)
 	cfg["type"] = "dynamodb"
 	cfg["table_name"] = "teleport.dynamo.test"
+	cfg["endpoint"] = "http://localhost:8000"
+	cfg["access_key"] = "access_key"
+	cfg["secret_key"] = "secret_key"
 	// migration uses its own instance of the backend:
 	backend, err := New(cfg)
 	c.Assert(err, IsNil)
