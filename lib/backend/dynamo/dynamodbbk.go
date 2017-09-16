@@ -18,6 +18,12 @@ limitations under the License.
 package dynamo
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"errors"
+	"io"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -31,6 +37,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
+	"github.com/aws/aws-sdk-go/service/kms"
+	"github.com/aws/aws-sdk-go/service/kms/kmsiface"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
@@ -49,22 +57,30 @@ type DynamoConfig struct {
 	Tablename string `json:"table_name,omitempty"`
 	// Endpoint where to talk to the DynamoDB API
 	Endpoint string `json:"endpoint,omitempty"`
+	// KMS Key to encrypt data in DynamoDB
+	KmsKey string `json:"kms_key,omitempty"`
 }
 
 // DynamoDBBackend struct
 type DynamoDBBackend struct {
-	tableName string
-	region    string
-	svc       *dynamodb.DynamoDB
-	clock     clockwork.Clock
+	tableName           string
+	region              string
+	svc                 *dynamodb.DynamoDB
+	clock               clockwork.Clock
+	kmsKeyID            string
+	kmsDataKey          []byte
+	kmsEncryptedDataKey []byte
+	kmsSvc              kmsiface.KMSAPI
 }
 
 type record struct {
-	HashKey   string
-	FullPath  string
-	Value     []byte
-	Timestamp int64
-	TTL       time.Duration
+	HashKey      string
+	FullPath     string
+	Value        []byte
+	Timestamp    int64
+	TTL          time.Duration
+	KeyID        string `json:",omitempty"`
+	EncryptedKey []byte `json:",omitempty"`
 }
 
 type keyLookup struct {
@@ -143,6 +159,14 @@ func New(params backend.Params) (backend.Backend, error) {
 	// create DynamoDB service:
 	b.svc = dynamodb.New(sess)
 
+	if cfg.KmsKey != "" {
+		b.kmsSvc = kms.New(sess)
+		err := b.generateDataKey(cfg.KmsKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	// check if the table exists?
 	ts, err := b.getTableStatus(b.tableName)
 	if err != nil {
@@ -160,6 +184,20 @@ func New(params backend.Params) (backend.Backend, error) {
 		return nil, trace.Wrap(err)
 	}
 	return b, nil
+}
+
+func (b *DynamoDBBackend) generateDataKey(kmsKey string) error {
+	datakeyin := &kms.GenerateDataKeyInput{
+		KeyId: aws.String(kmsKey),
+	}
+	datakeyout, err := b.kmsSvc.GenerateDataKey(datakeyin)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	b.kmsKeyID = *datakeyout.KeyId
+	b.kmsDataKey = datakeyout.Plaintext
+	b.kmsEncryptedDataKey = datakeyout.CiphertextBlob
+	return nil
 }
 
 type tableStatus int
@@ -390,6 +428,16 @@ func (b *DynamoDBBackend) getKeys(path string) ([]string, error) {
 	for _, item := range out.Items {
 		var r record
 		dynamodbattribute.UnmarshalMap(item, &r)
+		if r.KeyID != "" {
+			key, err := b.getDecryptedKey(r)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			err = r.decrypt(key)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
 
 		if strings.Compare(path, r.FullPath[:len(path)]) == 0 && len(path) < len(r.FullPath) {
 			if r.isExpired() {
@@ -458,10 +506,15 @@ func (b *DynamoDBBackend) createKey(fullPath string, val []byte, ttl time.Durati
 		TTL:       ttl,
 		Timestamp: time.Now().UTC().Unix(),
 	}
+	if b.kmsKeyID != "" {
+		r.encrypt(b.kmsEncryptedDataKey, b.kmsDataKey, b.kmsKeyID)
+	}
+
 	av, err := dynamodbattribute.MarshalMap(r)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	input := dynamodb.PutItemInput{
 		Item:      av,
 		TableName: aws.String(b.tableName),
@@ -479,6 +532,26 @@ func (b *DynamoDBBackend) createKey(fullPath string, val []byte, ttl time.Durati
 		}
 		return trace.Wrap(err)
 	}
+	return nil
+}
+
+// encrypt helper encrypts the record Value
+func (r *record) encrypt(encryptedKey []byte, dataKey []byte, keyID string) error {
+	r.EncryptedKey = encryptedKey
+	r.KeyID = keyID
+	block, err := aes.NewCipher(dataKey)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	ciphertext := make([]byte, aes.BlockSize+len(r.Value))
+	iv := ciphertext[:aes.BlockSize]
+	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
+		return trace.Wrap(err)
+	}
+
+	stream := cipher.NewCFBEncrypter(block, iv)
+	stream.XORKeyStream(ciphertext[aes.BlockSize:], r.Value)
+	r.Value = ciphertext
 	return nil
 }
 
@@ -622,7 +695,52 @@ func (b *DynamoDBBackend) getKey(fullPath string) (*record, error) {
 		b.deleteKey(fullPath)
 		return nil, trace.NotFound("%v not found", fullPath)
 	}
+
+	if r.KeyID != "" {
+		key, err := b.getDecryptedKey(r)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		err = r.decrypt(key)
+		if err != nil {
+			return nil, err
+		}
+	}
 	return &r, nil
+}
+
+func (b *DynamoDBBackend) getDecryptedKey(record record) ([]byte, error) {
+	var key []byte
+	if reflect.DeepEqual(record.EncryptedKey, b.kmsEncryptedDataKey) {
+		key = b.kmsDataKey
+	} else {
+		result, err := b.kmsSvc.Decrypt(&kms.DecryptInput{
+			CiphertextBlob: record.EncryptedKey,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		key = result.Plaintext
+	}
+	return key, nil
+}
+
+func (r *record) decrypt(key []byte) error {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(r.Value) < aes.BlockSize {
+		return errors.New("ciphertext too short")
+	}
+
+	iv := r.Value[:aes.BlockSize]
+	ciphertext := r.Value[aes.BlockSize:]
+	stream := cipher.NewCFBDecrypter(block, iv)
+	stream.XORKeyStream(ciphertext, ciphertext)
+	r.Value = ciphertext
+	return nil
 }
 
 // GetVal retrieve a value from a key

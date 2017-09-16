@@ -20,7 +20,13 @@ limitations under the License.
 package dynamo
 
 import (
+	"reflect"
 	"testing"
+	"time"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/kms"
+	"github.com/aws/aws-sdk-go/service/kms/kmsiface"
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
@@ -28,6 +34,25 @@ import (
 
 	. "gopkg.in/check.v1"
 )
+
+type mockKmsClient struct {
+	kmsiface.KMSAPI
+	Datakey []byte
+}
+
+func (k *mockKmsClient) GenerateDataKey(*kms.GenerateDataKeyInput) (*kms.GenerateDataKeyOutput, error) {
+	return &kms.GenerateDataKeyOutput{
+		KeyId:          aws.String("abcde-12345"),
+		Plaintext:      k.Datakey,
+		CiphertextBlob: []byte("ciphertext"),
+	}, nil
+}
+
+func (k *mockKmsClient) Decrypt(*kms.DecryptInput) (*kms.DecryptOutput, error) {
+	return &kms.DecryptOutput{
+		Plaintext: k.Datakey,
+	}, nil
+}
 
 func TestDynamoDB(t *testing.T) { TestingT(t) }
 
@@ -58,6 +83,8 @@ func (s *DynamoDBSuite) SetUpSuite(c *C) {
 	backend, err := New(cfg)
 	c.Assert(err, IsNil)
 	s.bk = backend.(*DynamoDBBackend)
+	s.bk.kmsSvc = &mockKmsClient{Datakey: []byte("example key 1234")}
+	s.bk.generateDataKey("alias/teleport")
 	s.suite.B = s.bk
 }
 
@@ -78,6 +105,8 @@ func (s *DynamoDBSuite) TestMigration(c *C) {
 	backend, err := New(cfg)
 	c.Assert(err, IsNil)
 	bk := backend.(*DynamoDBBackend)
+	s.bk.kmsSvc = &mockKmsClient{Datakey: []byte("example key 1234")}
+	s.bk.generateDataKey("alias/teleport")
 
 	var (
 		legacytable      = "legacy.teleport.t"
@@ -125,4 +154,24 @@ func (s *DynamoDBSuite) TestLock(c *C) {
 
 func (s *DynamoDBSuite) TestValueAndTTL(c *C) {
 	s.suite.ValueAndTTL(c)
+}
+func TestRecord(t *testing.T) {
+	r := record{
+		HashKey:   "teleport",
+		FullPath:  "a/directory/path",
+		Value:     []byte(`{"some":"json","data":true}`),
+		Timestamp: int64(1505543201),
+		TTL:       time.Duration(1) * time.Second,
+	}
+
+	r.encrypt([]byte("encrypteddatakey"), []byte("example key 1234"), "abcde-12345")
+	if reflect.DeepEqual(r.Value, []byte(`{"some":"json","data":true}`)) {
+		t.Error("Expected record to be encrypted but it was not")
+	}
+	firstEncryptedValue := r.Value
+	r.decrypt([]byte("example key 1234"))
+	r.encrypt([]byte("encrypteddatakey"), []byte("example key 1234"), "abcde-12345")
+	if reflect.DeepEqual(r.Value, firstEncryptedValue) {
+		t.Error("Expected record value to be different when encrypted twice, but it was the same")
+	}
 }

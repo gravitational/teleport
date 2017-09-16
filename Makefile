@@ -161,7 +161,7 @@ test-grep-package: remove-temp-files
 .PHONY: test-dynamo
 test-dynamo:
 	CONTAINER_ID=`docker run --rm -d -p 8000:8000 deangiberson/aws-dynamodb-local`; \
-	go test -v ./lib/backend/dynamo/ -tags dynamodb; \
+	go test -v ./lib/... -tags dynamodb; \
 	docker kill $$CONTAINER_ID
 
 .PHONY: cover-package
