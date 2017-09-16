@@ -36,7 +36,7 @@ teleport:
     kms_key: alias/teleport
 ```
 
-Replace `region`, `table_name` and `kms_key` with your own settings. Teleport will create the table automatically.
+Replace `region` and `table_name` with your own settings. Optionally add `kms_key` to enable encryption of the data stored in Dynamo. Teleport will create the table automatically.
 
 ### AWS IAM Role
 
