@@ -34,6 +34,10 @@ clean:
 # (must be run as a sub-make)
 .PHONY: 
 release: clean full
+	cp ../README.md $(BUILDDIR)/
+	cp ../CHANGELOG.md $(BUILDDIR)/
+	cp ../build.assets/install $(BUILDDIR)/
+	echo $(GITTAG) > $(BUILDDIR)/VERSION
 	cp -rf $(BUILDDIR) teleport-ent
 	cp -rf ../examples teleport-ent/
 	cp ../build/tsh teleport-ent/
@@ -44,13 +48,9 @@ release: clean full
 # make full - produces a teleport binary with the web assets built-in
 .PHONY:full
 full: check-build-vars all $(BUILDDIR)/webassets.zip 
-	cp -f ../build.assets/release.mk $(BUILDDIR)/Makefile
 	cat $(BUILDDIR)/webassets.zip >> $(BUILDDIR)/teleport
 	rm -fr $(BUILDDIR)/webassets.zip
-	cp ../README.md $(BUILDDIR)
-	cp ../CHANGELOG.md $(BUILDDIR)
 	zip -q -A $(BUILDDIR)/teleport
-	echo $(GITTAG) > $(BUILDDIR)/VERSION
 
 # build/webassets.zip archive contains the web assets (UI) which gets
 # appended to teleport binary
