@@ -1,8 +1,16 @@
-# Update this variable, then run 'make'
+# Make targets:
+#
+#  all    : builds all binaries in development mode, without web assets (default)
+#  full   : builds all binaries for PRODUCTION use
+#  release: prepares a release tarball
+#  clean  : removes all buld artifacts
+#  test   : runs tests
+
+# To update the Teleport version, update VERSION variable:
 # Naming convention:
 #	for stable releases we use "1.0.0" format
 #   for pre-releases, we use   "1.0.0-beta.2" format
-VERSION=2.3.0-rc4
+VERSION=2.3.0
 
 # These are standard autotools variables, don't change them please
 BUILDDIR ?= build
@@ -25,8 +33,12 @@ TELEPORTSRC = $(shell find tool/teleport -type f -name '*.go')
 TSHSRC = $(shell find tool/tsh -type f -name '*.go')
 
 #
-# Default target: builds all 3 executables and plaaces them in a current directory
-#
+# 'make all' builds all 3 executables and plaaces them in a current directory
+# 
+# IMPORTANT: the binaries will not contain the web UI assets and `teleport`
+#            won't start without setting the environment variable DEBUG=1
+#            This is the default build target for convenience of working on
+#            a web UI.
 .PHONY: all
 all: $(VERSRC)
 	go install $(BUILDFLAGS) ./lib/...
