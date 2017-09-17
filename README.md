@@ -9,7 +9,7 @@ for organizations who need:
 * SSH into behind-firewall clusters without any open ports.
 * Role-based access control (RBAC) for SSH protocol.
 
-In addition its hallmark features, Teleport is interesting for smaller teams
+In addition to its hallmark features, Teleport is interesting for smaller teams
 because it facilitates easy adoption the best SSH practices like:
 
 - No need to distribute keys: Teleport uses certificate-based access with automatic certificate expiration time.

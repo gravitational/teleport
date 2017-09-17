@@ -1,0 +1,16 @@
+#!/bin/sh
+
+#
+# the directory where Teleport binaries will be located
+#
+BINDIR=/usr/local/bin
+
+#
+# the directory where Teleport will keep its state/data
+#
+VARDIR=/var/lib/teleport
+
+[ ! $(id -u) != "0" ] || (echo "ERROR: You must be root"; exit 1)
+cd $(dirname $0)
+mkdir -p $VARDIR $BINDIR
+cp -f teleport tctl tsh $BINDIR/
