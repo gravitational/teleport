@@ -10,7 +10,7 @@ for organizations who need:
 * Role-based access control (RBAC) for SSH protocol.
 
 In addition to its hallmark features, Teleport is interesting for smaller teams
-because it facilitates easy adoption the best SSH practices like:
+because it facilitates easy adoption of the best SSH practices like:
 
 - No need to distribute keys: Teleport uses certificate-based access with automatic certificate expiration time.
 - 2nd factor authentication (2FA) for SSH.
@@ -54,20 +54,14 @@ and we keep it checked into Git under `/dist`, so you only need to build Golang:
 Make sure you have Golang `v1.8.3` or newer, then run:
 
 ```bash
-#
-# getting & building:
-#
-
+# get the source & build:
 $ mkdir -p $GOPATH/src/github.com/gravitational
 $ cd $GOPATH/src/github.com/gravitational
 $ git clone https://github.com/gravitational/teleport.git
 $ cd teleport
 $ make full
 
-#
-# Create the default data directory before starting:
-#
-
+# create the default data directory before starting:
 $ sudo mkdir -p /var/lib/teleport
 $ sudo chown $USER /var/lib/teleport
 ```
