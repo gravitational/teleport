@@ -1,8 +1,16 @@
-# Update this variable, then run 'make'
+# Make targets:
+#
+#  all    : builds all binaries in development mode, without web assets (default)
+#  full   : builds all binaries for PRODUCTION use
+#  release: prepares a release tarball
+#  clean  : removes all buld artifacts
+#  test   : runs tests
+
+# To update the Teleport version, update VERSION variable:
 # Naming convention:
 #	for stable releases we use "1.0.0" format
 #   for pre-releases, we use   "1.0.0-beta.2" format
-VERSION=2.3.0-rc4
+VERSION=2.3.0
 
 # These are standard autotools variables, don't change them please
 BUILDDIR ?= build
@@ -25,8 +33,12 @@ TELEPORTSRC = $(shell find tool/teleport -type f -name '*.go')
 TSHSRC = $(shell find tool/tsh -type f -name '*.go')
 
 #
-# Default target: builds all 3 executables and plaaces them in a current directory
-#
+# 'make all' builds all 3 executables and plaaces them in a current directory
+# 
+# IMPORTANT: the binaries will not contain the web UI assets and `teleport`
+#            won't start without setting the environment variable DEBUG=1
+#            This is the default build target for convenience of working on
+#            a web UI.
 .PHONY: all
 all: $(VERSRC)
 	go install $(BUILDFLAGS) ./lib/...
@@ -41,24 +53,15 @@ $(BUILDDIR)/teleport: $(LIBS) $(TELEPORTSRC)
 $(BUILDDIR)/tsh: $(LIBS) $(TSHSRC)
 	go build -o $(BUILDDIR)/tsh -i $(BUILDFLAGS) ./tool/tsh
 
-.PHONY: goinstall
-goinstall:
-	go install $(BUILDFLAGS) \
-		github.com/gravitational/teleport/tool/tsh \
-		github.com/gravitational/teleport/tool/teleport \
-		github.com/gravitational/teleport/tool/tctl
-
-
 #
-# make install will installs system-wide teleport 
-# 
-.PHONY: install
-install: build
-	@echo "\n** Make sure to run 'make install' as root! **\n"
-	cp -f $(BUILDDIR)/tctl      $(BINDIR)/
-	cp -f $(BUILDDIR)/tsh       $(BINDIR)/
-	cp -f $(BUILDDIR)/teleport  $(BINDIR)/
-	mkdir -p $(DATADIR)
+# make full - builds the binary with the built-in web assets and places it 
+#     into $(BUILDDIR)
+#
+.PHONY:full
+full: all $(BUILDDIR)/webassets.zip
+	cat $(BUILDDIR)/webassets.zip >> $(BUILDDIR)/teleport
+	rm -fr $(BUILDDIR)/webassets.zip
+	zip -q -A $(BUILDDIR)/teleport
 
 
 .PHONY: clean
@@ -69,6 +72,24 @@ clean:
 	rm -rf `go env GOPATH`/pkg/`go env GOHOSTOS`_`go env GOARCH`/github.com/gravitational/teleport*
 	@if [ -f e/Makefile ]; then $(MAKE) -C e clean; fi
 
+#
+# make release - produces a binary release tarball 
+#	
+.PHONY: 
+export
+release: clean full
+	mkdir teleport
+	cp -rf $(BUILDDIR) \
+		examples \
+		build.assets/install\
+		README.md \
+		CHANGELOG.md \
+		teleport/
+	echo $(GITTAG) > teleport/VERSION
+	tar -czf $(RELEASE).tar.gz teleport
+	rm -rf teleport
+	@echo "\nCREATED: $(RELEASE).tar.gz"
+	if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
 #
 # Builds docs using containerized mkdocs
@@ -118,32 +139,6 @@ $(VERSRC): Makefile
 tag:
 	@echo "Run this:\n> git tag $(GITTAG)\n> git push --tags"
 
-#
-# make release - produces a binary release tarball 
-#	
-.PHONY: 
-export
-release: clean full
-	cp -rf $(BUILDDIR) teleport
-	cp -rf examples teleport/
-	tar -czf $(RELEASE).tar.gz teleport
-	rm -rf teleport
-	@echo "\nCREATED: $(RELEASE).tar.gz"
-	if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
-
-
-#
-# make full - builds the binary with built-in web assets and places it into $(BUILDDIR)
-#
-.PHONY:full
-full: all $(BUILDDIR)/webassets.zip
-	cp -f build.assets/release.mk $(BUILDDIR)/Makefile
-	cat $(BUILDDIR)/webassets.zip >> $(BUILDDIR)/teleport
-	rm -fr $(BUILDDIR)/webassets.zip
-	cp README.md $(BUILDDIR)
-	cp CHANGELOG.md $(BUILDDIR)
-	zip -q -A $(BUILDDIR)/teleport
-	echo $(GITTAG) > $(BUILDDIR)/VERSION
 
 # build/webassets.zip archive contains the web assets (UI) which gets
 # appended to teleport binary
@@ -220,7 +215,19 @@ buildbox-grpc:
       --gofast_out=plugins=grpc:.\
     *.proto
 
-# Enterprise build
-.PHONY:enterprise
-enterprise:
-	@if [ -f e/Makefile ]; then $(MAKE) -C e; fi
+.PHONY: goinstall
+goinstall:
+	go install $(BUILDFLAGS) \
+		github.com/gravitational/teleport/tool/tsh \
+		github.com/gravitational/teleport/tool/teleport \
+		github.com/gravitational/teleport/tool/tctl
+
+# make install will installs system-wide teleport 
+.PHONY: install
+install: build
+	@echo "\n** Make sure to run 'make install' as root! **\n"
+	cp -f $(BUILDDIR)/tctl      $(BINDIR)/
+	cp -f $(BUILDDIR)/tsh       $(BINDIR)/
+	cp -f $(BUILDDIR)/teleport  $(BINDIR)/
+	mkdir -p $(DATADIR)
+
