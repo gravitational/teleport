@@ -69,6 +69,7 @@ clean:
 	rm -rf $(BUILDDIR)
 	rm -rf teleport
 	rm -rf *.gz
+	rm -r gitref.go
 	rm -rf `go env GOPATH`/pkg/`go env GOHOSTOS`_`go env GOARCH`/github.com/gravitational/teleport*
 	@if [ -f e/Makefile ]; then $(MAKE) -C e clean; fi
 
