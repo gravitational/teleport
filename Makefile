@@ -80,7 +80,7 @@ clean:
 export
 release: clean full
 	mkdir teleport
-	cp -rf $(BUILDDIR) \
+	cp -rf $(BUILDDIR)/* \
 		examples \
 		build.assets/install\
 		README.md \
