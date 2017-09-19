@@ -4,11 +4,11 @@ BUILDDIR ?= build
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s'
 RELEASE=teleport-ent-$(GITTAG)-$(ARCH)-bin
 
-LIBS = $(shell find lib -type f -name '*.go')
+LIBSE = $(shell find lib -type f -name '*.go')
 OSSLIBS = $(shell find ../lib -type f -name '*.go')
 
-TCTLSRC = $(shell find tool/tctl -type f -name '*.go')
-TELEPORTSRC = $(shell find tool/teleport -type f -name '*.go')
+TCTLSRCE = $(shell find tool/tctl -type f -name '*.go')
+TELEPORTSRCE = $(shell find tool/teleport -type f -name '*.go')
 
 # All builds all binaries
 .PHONY: all
@@ -17,10 +17,10 @@ all:
 	go install $(BUILDFLAGS) ./lib/...
 	make -j2 -s $(BUILDDIR)/tctl $(BUILDDIR)/teleport
 
-$(BUILDDIR)/tctl: $(LIBS) $(OSSLIBS) $(TCTLSRC)
+$(BUILDDIR)/tctl: $(LIBSE) $(OSSLIBS) $(TCTLSRC#)
 	go build -o $(BUILDDIR)/tctl -i $(BUILDFLAGS) ./tool/tctl
 
-$(BUILDDIR)/teleport: $(LIBS) $(OSSLIBS) $(TELEPORTSRC)
+$(BUILDDIR)/teleport: $(LIBS#) $(OSSLIBS) $(TELEPORTSRCE)
 	go build -o $(BUILDDIR)/teleport -i $(BUILDFLAGS) ./tool/teleport
 
 # make clean: cleans the build
