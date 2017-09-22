@@ -118,13 +118,8 @@ func (s *ConfigTestSuite) TestSampleConfig(c *check.C) {
 }
 
 func (s *ConfigTestSuite) TestConfigReading(c *check.C) {
-	// invalid config file type:
-	conf, err := ReadFromFile("/bin/true")
-	c.Assert(conf, check.IsNil)
-	c.Assert(err, check.NotNil)
-	c.Assert(err, check.ErrorMatches, ".*invalid configuration file type.*")
 	// non-existing file:
-	conf, err = ReadFromFile("/heaven/trees/apple.ymL")
+	conf, err := ReadFromFile("/heaven/trees/apple.ymL")
 	c.Assert(conf, check.IsNil)
 	c.Assert(err, check.NotNil)
 	c.Assert(err, check.ErrorMatches, ".*failed to open file.*")
