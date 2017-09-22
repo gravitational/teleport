@@ -24,7 +24,6 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -148,11 +147,6 @@ type YAMLMap map[interface{}]interface{}
 // ReadFromFile reads Teleport configuration from a file. Currently only YAML
 // format is supported
 func ReadFromFile(filePath string) (*FileConfig, error) {
-	ext := strings.ToLower(filepath.Ext(filePath))
-	if ext != ".yaml" && ext != ".yml" {
-		return nil, trace.BadParameter(
-			"'%v' invalid configuration file type: '%v'. Only .yml is supported", filePath, ext)
-	}
 	f, err := os.Open(filePath)
 	if err != nil {
 		return nil, trace.Wrap(err, fmt.Sprintf("failed to open file: %v", filePath))
