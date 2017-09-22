@@ -38,9 +38,9 @@ import (
 	"golang.org/x/net/websocket"
 )
 
-// terminalRequest describes a request to crate a web-based terminal
+// TerminalRequest describes a request to crate a web-based terminal
 // to a remote SSH server
-type terminalRequest struct {
+type TerminalRequest struct {
 	// Server describes a server to connect to (serverId|hostname[:port])
 	Server string `json:"server_id"`
 	// User is linux username to connect as
@@ -55,15 +55,18 @@ type terminalRequest struct {
 	ProxyHostPort string `json:"-"`
 	// Remote cluster name
 	Cluster string `json:"-"`
+	// InteractiveCommand is a command to execute
+	InteractiveCommand []string `json:"-"`
 }
 
-type nodeProvider interface {
+// NodeProvider is a provider of nodes for namespace
+type NodeProvider interface {
 	GetNodes(namespace string) ([]services.Server, error)
 }
 
 // newTerminal creates a web-based terminal based on WebSockets and returns a new
-// terminalHandler
-func newTerminal(req terminalRequest, provider nodeProvider, ctx *SessionContext) (*terminalHandler, error) {
+// TerminalHandler
+func NewTerminal(req TerminalRequest, provider NodeProvider, ctx *SessionContext) (*TerminalHandler, error) {
 	// make sure whatever session is requested is a valid session
 	_, err := session.ParseID(string(req.SessionID))
 	if err != nil {
@@ -113,7 +116,7 @@ func newTerminal(req terminalRequest, provider nodeProvider, ctx *SessionContext
 		}
 	}
 
-	return &terminalHandler{
+	return &TerminalHandler{
 		params:   req,
 		ctx:      ctx,
 		hostName: hostName,
@@ -121,11 +124,11 @@ func newTerminal(req terminalRequest, provider nodeProvider, ctx *SessionContext
 	}, nil
 }
 
-// terminalHandler connects together an SSH session with a web-based
+// TerminalHandler connects together an SSH session with a web-based
 // terminal via a web socket.
-type terminalHandler struct {
+type TerminalHandler struct {
 	// params describe the terminal configuration
-	params terminalRequest
+	params TerminalRequest
 	// ctx is a web session context for the currently logged in user
 	ctx *SessionContext
 	// ws is the websocket which is connected to stdin/out/err of the terminal shell
@@ -138,7 +141,7 @@ type terminalHandler struct {
 	sshSession *ssh.Session
 }
 
-func (t *terminalHandler) Close() error {
+func (t *TerminalHandler) Close() error {
 	if t.ws != nil {
 		t.ws.Close()
 	}
@@ -150,7 +153,7 @@ func (t *terminalHandler) Close() error {
 
 // resizePTYWindow is called when a brower resizes its window. Now the node
 // needs to be notified via SSH
-func (t *terminalHandler) resizePTYWindow(params session.TerminalParams) error {
+func (t *TerminalHandler) resizePTYWindow(params session.TerminalParams) error {
 	if t.sshSession == nil {
 		return nil
 	}
@@ -172,7 +175,7 @@ func (t *terminalHandler) resizePTYWindow(params session.TerminalParams) error {
 // Run creates a new websocket connection to the SSH server and runs
 // the "loop" piping the input/output of the SSH session into the
 // js-based terminal.
-func (t *terminalHandler) Run(w http.ResponseWriter, r *http.Request) {
+func (t *TerminalHandler) Run(w http.ResponseWriter, r *http.Request) {
 	errToTerm := func(err error, w io.Writer) {
 		fmt.Fprintf(w, "%s\n\r", err.Error())
 		log.Error(err)
@@ -193,7 +196,7 @@ func (t *terminalHandler) Run(w http.ResponseWriter, r *http.Request) {
 		}
 		// create teleport client:
 		output := utils.NewWebSockWrapper(ws, utils.WebSocketTextMode)
-		tc, err := client.NewClient(&client.Config{
+		clientConfig := &client.Config{
 			SkipLocalAuth:    true,
 			AuthMethods:      []ssh.AuthMethod{auth},
 			DefaultPrincipal: principal,
@@ -210,7 +213,11 @@ func (t *terminalHandler) Run(w http.ResponseWriter, r *http.Request) {
 			Env:              map[string]string{sshutils.SessionEnvVar: string(t.params.SessionID)},
 			HostKeyCallback:  func(string, net.Addr, ssh.PublicKey) error { return nil },
 			ClientAddr:       r.RemoteAddr,
-		})
+		}
+		if len(t.params.InteractiveCommand) > 0 {
+			clientConfig.Interactive = true
+		}
+		tc, err := client.NewClient(clientConfig)
 		if err != nil {
 			errToTerm(err, ws)
 			return
@@ -222,7 +229,7 @@ func (t *terminalHandler) Run(w http.ResponseWriter, r *http.Request) {
 			t.resizePTYWindow(t.params.Term)
 			return false, nil
 		}
-		if err = tc.SSH(context.TODO(), nil, false); err != nil {
+		if err = tc.SSH(context.TODO(), t.params.InteractiveCommand, false); err != nil {
 			errToTerm(err, ws)
 			return
 		}

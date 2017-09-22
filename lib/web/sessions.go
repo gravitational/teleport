@@ -57,12 +57,12 @@ type SessionContext struct {
 }
 
 // getTerminal finds and returns an active web terminal for a given session:
-func (c *SessionContext) getTerminal(sessionID session.ID) (*terminalHandler, error) {
+func (c *SessionContext) getTerminal(sessionID session.ID) (*TerminalHandler, error) {
 	c.Lock()
 	defer c.Unlock()
 
 	for _, closer := range c.closers {
-		term, ok := closer.(*terminalHandler)
+		term, ok := closer.(*TerminalHandler)
 		if ok && term.params.SessionID == sessionID {
 			return term, nil
 		}
