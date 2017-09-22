@@ -26,7 +26,6 @@ import (
 	"os"
 	"os/signal"
 	"path"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -38,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
@@ -190,10 +188,6 @@ func Run(args []string, underTest bool) {
 	// clusters
 	clusters := app.Command("clusters", "List available Teleport clusters")
 	clusters.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
-	// agent (SSH agent listening on unix socket)
-	agent := app.Command("agent", "Start SSH agent on unix socket [deprecating soon]")
-	agent.Flag("socket", "SSH agent listening socket address, e.g. unix:///tmp/teleport.agent.sock").SetValue(&cf.AgentSocketAddr)
-	agent.Flag("load", "When set to true, the tsh agent will load the external system agent and then exit.").BoolVar(&cf.LoadSystemAgentOnly)
 
 	// login logs in with remote proxy and obtains a "session certificate" which gets
 	// stored in ~/.tsh directory
@@ -269,8 +263,6 @@ func Run(args []string, underTest bool) {
 		onListNodes(&cf)
 	case clusters.FullCommand():
 		onListSites(&cf)
-	case agent.FullCommand():
-		onAgentStart(&cf)
 	case login.FullCommand():
 		refuseArgs(login.FullCommand(), args)
 		onLogin(&cf)
@@ -492,58 +484,6 @@ func onSCP(cf *CLIConf) {
 		} else {
 			utils.FatalError(err)
 		}
-	}
-}
-
-// onAgentStart start ssh agent on a socket
-func onAgentStart(cf *CLIConf) {
-	const warning = "\x1b[1mWARNING:\x1b[0m 'tsh agent' will be deprecated in the next Teleport release.\n" +
-		"Use 'ssh-agent' supplied by your operating system instead. \n" +
-		"'tsh login' now saves the session keys in ssh-agent automatically.\n"
-
-	fmt.Fprintln(os.Stderr, warning)
-
-	// create a client, a side effect of this is that it creates a client.LocalAgent.
-	// creation of a client.LocalAgent has a side effect of loading all keys into
-	// client.LocalAgent and the system agent.
-	tc, err := makeClient(cf, true)
-	if err != nil {
-		utils.FatalError(err)
-	}
-
-	// check if we are only loading keys and exiting. this is useful
-	// when calling tsh agent from a script like ~/.bash_profile.
-	if cf.LoadSystemAgentOnly {
-		return
-	}
-
-	// we're starting tsh agent, build the socket address
-	socketAddr := utils.NetAddr(cf.AgentSocketAddr)
-	pid := os.Getpid()
-	if socketAddr.IsEmpty() {
-		socketAddr = utils.NetAddr{
-			AddrNetwork: "unix",
-			Addr:        filepath.Join(os.TempDir(), fmt.Sprintf("teleport-%d.socket", pid)),
-		}
-	}
-
-	// This makes teleport agent behave exactly like ssh-agent command,
-	// the output and behavior matches the openssh behavior,
-	// so users can do 'eval $(tsh agent --proxy=<addr>&)
-	fmt.Printf(`# Keep this agent process running in the background.
-# Set these environment variables:
-export SSH_AUTH_SOCK=%v;
-export SSH_AGENT_PID=%v
-
-# you can redirect this output into a file and call 'source' on it
-`, socketAddr.Addr, pid)
-
-	// create a new teleport agent and start listening
-	agentServer := teleagent.AgentServer{
-		Agent: tc.LocalAgent(),
-	}
-	if err := agentServer.ListenAndServe(socketAddr); err != nil {
-		utils.FatalError(err)
 	}
 }
 
