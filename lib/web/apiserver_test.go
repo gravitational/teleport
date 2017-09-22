@@ -811,7 +811,7 @@ func (s *WebSuite) makeTerminal(pack *authPack, opts ...session.ID) (*websocket.
 		sessionID = opts[0]
 	}
 	u := url.URL{Host: s.url().Host, Scheme: client.WSS, Path: fmt.Sprintf("/v1/webapi/sites/%v/connect", currentSiteShortcut)}
-	data, err := json.Marshal(terminalRequest{
+	data, err := json.Marshal(TerminalRequest{
 		Server:    s.srvID,
 		Login:     s.user,
 		Term:      session.TerminalParams{W: 100, H: 100},
@@ -1324,8 +1324,8 @@ func (mock nodeProviderMock) GetNodes(namespace string) ([]services.Server, erro
 	return mock(), nil
 }
 
-func (s *WebSuite) makeTerminalHandler(login string, server string, v2Servers []services.ServerV2) (*terminalHandler, error) {
-	var req = terminalRequest{
+func (s *WebSuite) makeTerminalHandler(login string, server string, v2Servers []services.ServerV2) (*TerminalHandler, error) {
+	var req = TerminalRequest{
 		Login:  login,
 		Server: server,
 	}
@@ -1335,7 +1335,7 @@ func (s *WebSuite) makeTerminalHandler(login string, server string, v2Servers []
 	req.Term.W = 1
 
 	var servers = []services.Server{}
-	return newTerminal(req, nodeProviderMock(func() []services.Server {
+	return NewTerminal(req, nodeProviderMock(func() []services.Server {
 		for _, s := range v2Servers {
 			servers = append(servers, &s)
 		}
