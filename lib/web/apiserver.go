@@ -1151,7 +1151,7 @@ func (h *Handler) siteNodeConnect(
 	if params == "" {
 		return nil, trace.BadParameter("missing params")
 	}
-	var req *terminalRequest
+	var req *TerminalRequest
 	if err := json.Unmarshal([]byte(params), &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1168,7 +1168,7 @@ func (h *Handler) siteNodeConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	term, err := newTerminal(*req, clt, ctx)
+	term, err := NewTerminal(*req, clt, ctx)
 	if err != nil {
 		log.Errorf("[WEB] Unable to create terminal: %v", err)
 		return nil, trace.Wrap(err)
