@@ -68,3 +68,21 @@ func (s *ProxyTestSuite) TestParseProxyRequest(c *check.C) {
 	c.Assert(subsys.port, check.Equals, "100")
 	c.Assert(subsys.siteName, check.Equals, "moon")
 }
+
+func (s *ProxyTestSuite) TestParseBadRequests(c *check.C) {
+	testCases := []string{
+		// empty request
+		"proxy:",
+		// missing hostname
+		"proxy::80",
+		// missing hostname and missing cluster name
+		"proxy:@",
+		// just random string
+		"this is bad string",
+	}
+	for _, input := range testCases {
+		comment := check.Commentf("test case: %q", input)
+		_, err := parseProxySubsys(input, s.srv)
+		c.Assert(err, check.NotNil, comment)
+	}
+}
