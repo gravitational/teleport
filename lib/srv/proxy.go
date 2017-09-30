@@ -95,7 +95,7 @@ func parseProxySubsys(request string, srv *Server) (*proxySubsys, error) {
 		if clusterName == "" && targetHost == "" {
 			return nil, trace.BadParameter("invalid format for proxy request: missing cluster name or target host in %q", request)
 		}
-	case len(parts) > 3: // "proxy:host:22@namespace@clustername"
+	case len(parts) >= 3: // "proxy:host:22@namespace@clustername"
 		clusterName = strings.Join(parts[2:], "@")
 		namespace = parts[1]
 		targetHost, targetPort, err = utils.SplitHostPort(parts[0])
