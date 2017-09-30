@@ -67,6 +67,16 @@ func (s *ProxyTestSuite) TestParseProxyRequest(c *check.C) {
 	c.Assert(subsys.host, check.Equals, "station")
 	c.Assert(subsys.port, check.Equals, "100")
 	c.Assert(subsys.siteName, check.Equals, "moon")
+
+	// proxy request for the host:port@namespace@cluster
+	subsys, err = parseProxySubsys("proxy:station:100@system@moon", s.srv)
+	c.Assert(err, check.IsNil)
+	c.Assert(subsys, check.NotNil)
+	c.Assert(subsys.srv, check.Equals, s.srv)
+	c.Assert(subsys.host, check.Equals, "station")
+	c.Assert(subsys.port, check.Equals, "100")
+	c.Assert(subsys.siteName, check.Equals, "moon")
+	c.Assert(subsys.namespace, check.Equals, "system")
 }
 
 func (s *ProxyTestSuite) TestParseBadRequests(c *check.C) {
