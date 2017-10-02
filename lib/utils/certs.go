@@ -168,6 +168,9 @@ func VerifyCertificateChain(certificateBytes []byte) error {
 
 	for {
 		certificateBlock, remainingBytes = pem.Decode(remainingBytes)
+		if certificateBlock == nil {
+			return trace.NotFound("no PEM data found")
+		}
 		certificateChain = append(certificateChain, certificateBlock.Bytes)
 
 		if len(remainingBytes) == 0 {
