@@ -87,10 +87,10 @@ const session = {
   },
 
   _extractBearerTokenFromHtml() {
-    const el = document.querySelector("#bearer_token")
+    const el = document.querySelector('[name=grv_bearer_token]');        
     let token = null;
     if (el !== null) {
-      let encodedToken = el.textContent || '';
+      let encodedToken = el.content || '';      
       if (encodedToken.length > EMPTY_TOKEN_CONTENT_LENGTH) {
         let decoded = window.atob(encodedToken);
         let json = JSON.parse(decoded);

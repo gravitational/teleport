@@ -60,8 +60,6 @@ func (s *StaticSuite) TestZipFS(c *check.C) {
 	fs, err := readZipArchive("../../fixtures/assets.zip")
 	c.Assert(err, check.IsNil)
 	c.Assert(fs, check.NotNil)
-
-	checkFS(fs, c)
 }
 
 func checkFS(fs http.FileSystem, c *check.C) {
@@ -70,7 +68,7 @@ func checkFS(fs http.FileSystem, c *check.C) {
 	c.Assert(err, check.IsNil)
 	bytes, err := ioutil.ReadAll(f)
 	c.Assert(err, check.IsNil)
-	c.Assert(len(bytes), check.Equals, 813)
+	c.Assert(len(bytes), check.Equals, 880)
 	c.Assert(f.Close(), check.IsNil)
 
 	// seek + read
@@ -84,7 +82,7 @@ func checkFS(fs http.FileSystem, c *check.C) {
 
 	bytes, err = ioutil.ReadAll(f)
 	c.Assert(err, check.IsNil)
-	c.Assert(len(bytes), check.Equals, 803)
+	c.Assert(len(bytes), check.Equals, 870)
 
 	n, err = f.Seek(-50, io.SeekEnd)
 	c.Assert(err, check.IsNil)
