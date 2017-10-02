@@ -51,8 +51,6 @@ LICENSES:
 │ ├── immutable@3.8.1
 │ ├── react@15.3.1
 │ ├── react-addons-css-transition-group@15.3.0
-│ ├── react-addons-linked-state-mixin@15.3.0
-│ ├── react-addons-pure-render-mixin@15.3.0
 │ ├── react-addons-transition-group@15.3.0
 │ ├── react-addons-update@0.14.8
 │ ├── react-dom@0.14.9
@@ -65,8 +63,6 @@ LICENSES:
 │ ├── invariant@2.2.2
 │ ├── react@15.3.1
 │ ├── react-addons-css-transition-group@15.3.0
-│ ├── react-addons-linked-state-mixin@15.3.0
-│ ├── react-addons-pure-render-mixin@15.3.0
 │ ├── react-addons-transition-group@15.3.0
 │ ├── react-addons-update@0.14.8
 │ ├── react-dom@0.14.9
@@ -237,14 +233,6 @@ react@15.3.1 [license(s): BSD, BSD-3-Clause]
 └── license files: BSD
 
 react-addons-css-transition-group@15.3.0 [license(s): BSD, BSD-3-Clause]
-├── package.json:  BSD-3-Clause
-└── license files: BSD
-
-react-addons-linked-state-mixin@15.3.0 [license(s): BSD, BSD-3-Clause]
-├── package.json:  BSD-3-Clause
-└── license files: BSD
-
-react-addons-pure-render-mixin@15.3.0 [license(s): BSD, BSD-3-Clause]
 ├── package.json:  BSD-3-Clause
 └── license files: BSD
 
