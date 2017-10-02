@@ -24,8 +24,6 @@
     "perfect-scrollbar": "^0.6.13",
     "react": "15.3.1",
     "react-addons-css-transition-group": "15.3.0",
-    "react-addons-linked-state-mixin": "15.3.0",
-    "react-addons-pure-render-mixin": "15.3.0",
     "react-addons-transition-group": "15.3.0",
     "react-dom": "15.3.1",
     "react-overlays": "^0.6.11",
