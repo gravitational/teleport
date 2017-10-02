@@ -21,7 +21,7 @@ $ make local
 To run a dev server
 
 ```
-$ npm run start
+$ npm run start -- --proxy=https://host:port
 ```
 ```
 open https://localhost:8081/web
