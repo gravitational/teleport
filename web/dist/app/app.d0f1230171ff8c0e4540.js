@@ -2011,6 +2011,7 @@ webpackJsonp([0],[
 	      contentType: 'application/json; charset=utf-8',
 	      dataType: 'json',
 	      beforeSend: function beforeSend(xhr) {
+	        xhr.setRequestHeader('X-CSRF-Token', getXCSRFToken());
 	        if (withToken) {
 	          var bearerToken = _localStorage2.default.getBearerToken() || {};
 	          var accessToken = bearerToken.accessToken;
@@ -2043,6 +2044,11 @@ webpackJsonp([0],[
 
 	    return msg;
 	  }
+	};
+
+	var getXCSRFToken = function getXCSRFToken() {
+	  var metaTag = document.querySelector('[name=grv_csrf_token]');
+	  return metaTag ? metaTag.content : '';
 	};
 
 	exports.default = api;
@@ -2976,10 +2982,10 @@ webpackJsonp([0],[
 	    return token;
 	  },
 	  _extractBearerTokenFromHtml: function _extractBearerTokenFromHtml() {
-	    var el = document.querySelector("#bearer_token");
+	    var el = document.querySelector('[name=grv_bearer_token]');
 	    var token = null;
 	    if (el !== null) {
-	      var encodedToken = el.textContent || '';
+	      var encodedToken = el.content || '';
 	      if (encodedToken.length > EMPTY_TOKEN_CONTENT_LENGTH) {
 	        var decoded = window.atob(encodedToken);
 	        var json = JSON.parse(decoded);
