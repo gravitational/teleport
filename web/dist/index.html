@@ -4,11 +4,12 @@
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="grv_csrf_token" content="{{ .XCSRF }}" />    
+    <meta name="grv_bearer_token" content="{{ .Session }}" />    
     <title>Teleport by Gravitational</title>
     <script src="/web/config.js"></script>
   <link rel="shortcut icon" href="/web/app/favicon.ico"><link href="/web/app/vendor.7c7e8bde8015ae63511442e683de6a37.css" rel="stylesheet"></head>
   <body class="grv">
-    <div id="app"></div>
-    <div id="bearer_token" style="display: none;">{{.Session}}</div>
-  <script type="text/javascript" src="/web/app/vendor.b83772a8a4dadb99e5c4.js"></script><script type="text/javascript" src="/web/app/styles.b83772a8a4dadb99e5c4.js"></script><script type="text/javascript" src="/web/app/app.b83772a8a4dadb99e5c4.js"></script></body>
+    <div id="app"></div>        
+  <script type="text/javascript" src="/web/app/vendor.d0f1230171ff8c0e4540.js"></script><script type="text/javascript" src="/web/app/styles.d0f1230171ff8c0e4540.js"></script><script type="text/javascript" src="/web/app/app.d0f1230171ff8c0e4540.js"></script></body>
 </html>

@@ -49,6 +49,8 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -589,12 +591,14 @@ func (s *WebSuite) authPack(c *C) *authPack {
 	c.Assert(err, IsNil)
 
 	clt := s.client()
-
-	re, err := clt.PostJSON(clt.Endpoint("webapi", "sessions"), createSessionReq{
+	req := createSessionReq{
 		User:              user,
 		Pass:              pass,
 		SecondFactorToken: validToken,
-	})
+	}
+
+	csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
+	re, err := s.login(clt, csrfToken, csrfToken, req)
 	c.Assert(err, IsNil)
 
 	var rawSess *createSessionResponseRaw
@@ -646,6 +650,30 @@ func (s *WebSuite) TestNamespace(c *C) {
 
 	_, err = pack.clt.Get(pack.clt.Endpoint("webapi", "sites", s.domainName, "namespaces", "default", "nodes"), url.Values{})
 	c.Assert(err, IsNil)
+}
+
+func (s *WebSuite) TestCRSF(c *C) {
+	type input struct {
+		reqToken    string
+		cookieToken string
+	}
+
+	encodedToken1 := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
+	encodedToken2 := "bf355921bbf3ef3672a03e410d4194077dfa5fe863c652521763b3e7f81e7b11"
+	invalid := []input{
+		{reqToken: encodedToken2, cookieToken: encodedToken1},
+		{reqToken: "", cookieToken: encodedToken1},
+		{reqToken: "", cookieToken: ""},
+		{reqToken: encodedToken1, cookieToken: ""},
+	}
+
+	clt := s.client()
+	// invalid
+	for i := range invalid {
+		_, err := s.login(clt, invalid[i].cookieToken, invalid[i].reqToken, nil)
+		c.Assert(err, NotNil)
+		c.Assert(trace.IsAccessDenied(err), Equals, true)
+	}
 }
 
 func (s *WebSuite) TestWebSessionsRenew(c *C) {
@@ -1343,4 +1371,24 @@ func (s *WebSuite) makeTerminalHandler(login string, server string, v2Servers []
 		return servers
 	}), nil)
 
+}
+
+func (s *WebSuite) login(clt *client.WebClient, cookieToken string, reqToken string, reqData interface{}) (*roundtrip.Response, error) {
+	return httplib.ConvertResponse(clt.RoundTrip(func() (*http.Response, error) {
+		data, err := json.Marshal(reqData)
+		req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions"), bytes.NewBuffer(data))
+		if err != nil {
+			return nil, err
+		}
+
+		cookie := &http.Cookie{
+			Name:  csrf.CookieName,
+			Value: cookieToken,
+		}
+
+		req.AddCookie(cookie)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set(csrf.HeaderName, reqToken)
+		return clt.HTTPClient().Do(req)
+	}))
 }

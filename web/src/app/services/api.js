@@ -41,13 +41,14 @@ const api = {
       type: 'GET',
       contentType: 'application/json; charset=utf-8',
       dataType: 'json',
-      beforeSend: function(xhr) {
+      beforeSend: function (xhr) {                
+        xhr.setRequestHeader('X-CSRF-Token', getXCSRFToken());
         if (withToken) {
           const bearerToken = localStorage.getBearerToken() || {};
           const { accessToken } = bearerToken;
-          xhr.setRequestHeader('Authorization','Bearer ' + accessToken);
+          xhr.setRequestHeader('Authorization', 'Bearer ' + accessToken);                    
         }
-       }
+      }
     }
 
     return $.ajax($.extend({}, defaultCfg, cfg));
@@ -74,6 +75,11 @@ const api = {
 
     return msg;
   }    
+}
+
+const getXCSRFToken = () => {
+  const metaTag = document.querySelector('[name=grv_csrf_token]'); 
+  return metaTag ? metaTag.content : ''
 }
 
 export default api;
