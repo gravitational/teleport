@@ -27,8 +27,6 @@ import 'keymirror';
 import 'moment';
 import 'nuclear-js';
 import 'react';
-import 'react-addons-linked-state-mixin';
-import 'react-addons-pure-render-mixin';
 import 'react-addons-transition-group';
 import 'react-addons-css-transition-group';
 import 'react-dom';

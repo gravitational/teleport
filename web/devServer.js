@@ -57,15 +57,9 @@ var compiler = webpack(webpackConfig);
 
 var server = new WebpackDevServer(compiler, {
   proxy:{
-    '/web/grafana/*': getTargetOptions(),
-    '/web/config.*': getTargetOptions(),
-    '/pack/v1/*': getTargetOptions(),
-    '/portalapi/*': getTargetOptions(),
-    '/portal*': getTargetOptions(),
-    '/proxy/*': getTargetOptions(),
-    '/v1/*': getTargetOptions(),
-    '/app/*': getTargetOptions(),
-    '/sites/v1/*': getTargetOptions()
+    '/web/config.js': getTargetOptions(),
+    '/v1/webapi/*': getTargetOptions(),
+    '/v1/enterprise/*': getTargetOptions()
   },
   publicPath: ROOT +'/app',
   hot: true,
