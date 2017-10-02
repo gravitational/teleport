@@ -60,6 +60,7 @@ func (s *StaticSuite) TestZipFS(c *check.C) {
 	fs, err := readZipArchive("../../fixtures/assets.zip")
 	c.Assert(err, check.IsNil)
 	c.Assert(fs, check.NotNil)
+	checkFS(fs, c)
 }
 
 func checkFS(fs http.FileSystem, c *check.C) {
