@@ -175,3 +175,13 @@ func RewritePaths(next http.Handler, rewrites ...RewritePair) http.Handler {
 		next.ServeHTTP(w, req)
 	})
 }
+
+// SafeRedirect performs a relative redirect to the URI part of the provided redirect URL
+func SafeRedirect(w http.ResponseWriter, r *http.Request, redirectURL string) error {
+	parsedURL, err := url.Parse(redirectURL)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	http.Redirect(w, r, parsedURL.RequestURI(), http.StatusFound)
+	return nil
+}
