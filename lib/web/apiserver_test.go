@@ -525,7 +525,7 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 	// we have got valid session
 	c.Assert(authRe.Headers().Get("Set-Cookie"), Not(Equals), "")
 	// we are being redirected to orignal URL
-	c.Assert(authRe.Headers().Get("Location"), Equals, "http://localhost/after")
+	c.Assert(authRe.Headers().Get("Location"), Equals, "/after")
 }
 
 type authPack struct {
