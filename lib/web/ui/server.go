@@ -44,25 +44,42 @@ type Server struct {
 	Labels []Label `json:"tags"`
 }
 
+type sortedLabels []Label
+
+func (s sortedLabels) Len() int {
+	return len(s)
+}
+
+func (s sortedLabels) Less(i, j int) bool {
+	return s[i].Name < s[j].Name
+}
+
+func (s sortedLabels) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
 // MakeServers creates server objects for webapp
 func MakeServers(clusterName string, servers []services.Server) []Server {
 	uiServers := []Server{}
 	for _, server := range servers {
-		serverLabels := server.GetLabels()
-		labelNames := []string{}
-		for name := range serverLabels {
-			labelNames = append(labelNames, name)
-		}
-
-		// sort labels by name
-		sort.Strings(labelNames)
 		uiLabels := []Label{}
-		for _, name := range labelNames {
+		serverLabels := server.GetLabels()
+		for name, value := range serverLabels {
 			uiLabels = append(uiLabels, Label{
 				Name:  name,
-				Value: serverLabels[name],
+				Value: value,
 			})
 		}
+
+		serverCmdLabels := server.GetCmdLabels()
+		for name, cmd := range serverCmdLabels {
+			uiLabels = append(uiLabels, Label{
+				Name:  name,
+				Value: cmd.GetResult(),
+			})
+		}
+
+		sort.Sort(sortedLabels(uiLabels))
 
 		uiServers = append(uiServers, Server{
 			ClusterName: clusterName,
