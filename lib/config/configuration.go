@@ -302,7 +302,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		err = utils.VerifyCertificateChain(certificateBytes)
 		if err != nil {
-			return trace.BadParameter("unable to verify HTTPS certificate chain in %v: %v", fc.Proxy.CertFile, err)
+			return trace.BadParameter("unable to verify HTTPS certificate chain in %v: %s",
+				fc.Proxy.CertFile, utils.UserMessageFromError(err))
 		}
 
 		cfg.Proxy.TLSCert = fc.Proxy.CertFile
