@@ -151,7 +151,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.GET("/webapi/ping/:connector", httplib.MakeHandler(h.pingWithConnector))
 
 	// Web sessions
-	h.POST("/webapi/sessions", h.WithCSRFProtection(httplib.MakeHandler(h.createSession)))
+	h.POST("/webapi/sessions", httplib.WithCSRFProtection(h.createSession))
 	h.DELETE("/webapi/sessions", h.WithAuth(h.deleteSession))
 	h.POST("/webapi/sessions/renew", h.WithAuth(h.renewSession))
 
@@ -212,9 +212,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 
 	// if Web UI is enabled, check the assets dir:
 	var (
-		writeSettings http.HandlerFunc
-		indexPage     *template.Template
-		staticFS      http.FileSystem
+		indexPage *template.Template
+		staticFS  http.FileSystem
 	)
 	if !cfg.DisableUI {
 		staticFS, err = NewStaticFileSystem(isDebugMode())
@@ -235,7 +234,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		if err != nil {
 			return nil, trace.BadParameter("failed parsing index.html template: %v", err)
 		}
-		writeSettings = httplib.MakeStdHandler(h.getConfigurationSettings)
+
+		h.Handle("GET", "/web/config.js", httplib.MakeHandler(h.getConfigurationSettings))
 	}
 
 	routingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -259,11 +259,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 
 		// serve Web UI:
 		if strings.HasPrefix(r.URL.Path, "/web/app") {
+			httplib.SetStaticFileHeaders(w.Header())
 			http.StripPrefix("/web", http.FileServer(staticFS)).ServeHTTP(w, r)
-
-		} else if strings.HasPrefix(r.URL.Path, "/web/config.js") {
-			writeSettings.ServeHTTP(w, r)
-		} else if strings.HasPrefix(r.URL.Path, "/web") {
+		} else if strings.HasPrefix(r.URL.Path, "/web/") || r.URL.Path == "/web" {
 			csrfToken, err := csrf.AddCSRFProtection(w, r)
 			if err != nil {
 				log.Errorf("failed to generate CSRF token %v", err)
@@ -515,7 +513,8 @@ type webConfig struct {
 }
 
 // getConfigurationSettings returns configuration for the web application.
-func (h *Handler) getConfigurationSettings(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+func (h *Handler) getConfigurationSettings(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	httplib.SetWebConfigHeaders(w.Header())
 	as, err := defaultAuthenticationSettings(h.cfg.ProxyClient)
 	if err != nil {
 		log.Infof("Cannot retrieve cluster auth preferences: %v", err)
@@ -547,8 +546,19 @@ func (h *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprou
 	if connectorID == "" {
 		return nil, trace.BadParameter("missing connector_id query parameter")
 	}
+
+	csrfToken, err := csrf.ExtractTokenFromCookie(r)
+	if connectorID == "" {
+		return nil, trace.BadParameter("unable to find CSRF token")
+	}
+
+	reqState := services.OIDCAuthRequestState{
+		CSRFToken: csrfToken,
+	}
+
 	response, err := h.cfg.ProxyClient.CreateOIDCAuthRequest(
 		services.OIDCAuthRequest{
+			State:             reqState,
 			ConnectorID:       connectorID,
 			CreateWebSession:  true,
 			ClientRedirectURL: clientRedirectURL,
@@ -608,6 +618,11 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 	}
 	// if we created web session, set session cookie and redirect to original url
 	if response.Req.CreateWebSession {
+		err = csrf.VerifyToken(response.Req.State.CSRFToken, r)
+		if err != nil {
+			return nil, trace.AccessDenied("unable to verify CSRF token", err)
+		}
+
 		log.Infof("oidcCallback redirecting to web browser")
 		if err := SetSession(w, response.Username, response.Session.GetName()); err != nil {
 			return nil, trace.Wrap(err)
@@ -1729,18 +1744,6 @@ func (h *Handler) WithAuth(fn ContextHandler) httprouter.Handle {
 		}
 		return fn(w, r, p, ctx)
 	})
-}
-
-// WithCSRFProtection ensures that request to unauthenticated API is checked against CSRF attacks
-func (h *Handler) WithCSRFProtection(fn httprouter.Handle) httprouter.Handle {
-	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-		err := csrf.VerifyToken(w, r)
-		if err != nil {
-			trace.WriteError(w, trace.AccessDenied("failed to validate CSRF token", err))
-			return
-		}
-		fn(w, r, p)
-	}
 }
 
 // AuthenticateRequest authenticates request using combination of a session cookie

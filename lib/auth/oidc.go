@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -68,20 +69,26 @@ func (s *AuthServer) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*servi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	token, err := utils.CryptoRandomHex(TokenLenBytes)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	req.StateToken = token
-
 	oauthClient, err := oidcClient.OAuthClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	reqID, err := utils.CryptoRandomHex(TokenLenBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	req.State.ID = reqID
+	reqStateBytes, err := json.Marshal(req.State)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	reqStateString := base64.StdEncoding.EncodeToString(reqStateBytes)
+
 	// online is OIDC online scope, "select_account" forces user to always select account
-	req.RedirectURL = oauthClient.AuthCodeURL(req.StateToken, "online", "select_account")
+	req.RedirectURL = oauthClient.AuthCodeURL(reqStateString, "online", "select_account")
 
 	// if the connector has an Authentication Context Class Reference (ACR) value set,
 	// update redirect url and add it as a query value.
@@ -120,13 +127,24 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 			oauth2.ErrorInvalidRequest, "code query param must be set", q)
 	}
 
-	stateToken := q.Get("state")
-	if stateToken == "" {
+	stateEncoded := q.Get("state")
+	if stateEncoded == "" {
 		return nil, trace.OAuth2(
 			oauth2.ErrorInvalidRequest, "missing state query param", q)
 	}
 
-	req, err := a.Identity.GetOIDCAuthRequest(stateToken)
+	stateBytes, err := base64.StdEncoding.DecodeString(stateEncoded)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	reqState := services.OIDCAuthRequestState{}
+	err = json.Unmarshal(stateBytes, &reqState)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	req, err := a.Identity.GetOIDCAuthRequest(reqState.ID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

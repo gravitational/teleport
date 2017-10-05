@@ -560,19 +560,11 @@ func (s *WebSuite) authPackFromResponse(c *C, re *roundtrip.Response) *authPack 
 	}
 }
 
-// authPack returns new authenticated package consisting
-// of created valid user, hotp token, created web session and
-// authenticated client
-func (s *WebSuite) authPack(c *C) *authPack {
-	user := s.user
-	pass := "abc123"
-	rawSecret := "def456"
-	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
-
+func (s *WebSuite) createUser(c *C, user string, pass string, otpSecret string) {
 	teleUser, err := services.NewUser(user)
 	c.Assert(err, IsNil)
 	role := services.RoleForUser(teleUser)
-	role.SetLogins(services.Allow, []string{s.user})
+	role.SetLogins(services.Allow, []string{user})
 	err = s.roleAuth.UpsertRole(role, backend.Forever)
 	c.Assert(err, IsNil)
 	teleUser.AddRole(role.GetName())
@@ -585,6 +577,17 @@ func (s *WebSuite) authPack(c *C) *authPack {
 
 	err = s.roleAuth.UpsertTOTP(user, otpSecret)
 	c.Assert(err, IsNil)
+}
+
+// authPack returns new authenticated package consisting
+// of created valid user, hotp token, created web session and
+// authenticated client
+func (s *WebSuite) authPack(c *C) *authPack {
+	user := s.user
+	pass := "abc123"
+	rawSecret := "def456"
+	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
+	s.createUser(c, user, pass, otpSecret)
 
 	// create a valid otp token
 	validToken, err := totp.GenerateCode(otpSecret, time.Now())
@@ -652,10 +655,25 @@ func (s *WebSuite) TestNamespace(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *WebSuite) TestCRSF(c *C) {
+func (s *WebSuite) TestCSRF(c *C) {
 	type input struct {
 		reqToken    string
 		cookieToken string
+	}
+
+	// create a valid user
+	user := "csrfuser"
+	pass := "abc123"
+	otpSecret := base32.StdEncoding.EncodeToString([]byte("def456"))
+	s.createUser(c, user, pass, otpSecret)
+
+	// create a valid login form request
+	validToken, err := totp.GenerateCode(otpSecret, time.Now())
+	c.Assert(err, IsNil)
+	loginForm := createSessionReq{
+		User:              user,
+		Pass:              pass,
+		SecondFactorToken: validToken,
 	}
 
 	encodedToken1 := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
@@ -668,9 +686,14 @@ func (s *WebSuite) TestCRSF(c *C) {
 	}
 
 	clt := s.client()
+
+	// valid
+	_, err = s.login(clt, encodedToken1, encodedToken1, loginForm)
+	c.Assert(err, IsNil)
+
 	// invalid
 	for i := range invalid {
-		_, err := s.login(clt, invalid[i].cookieToken, invalid[i].reqToken, nil)
+		_, err := s.login(clt, invalid[i].cookieToken, invalid[i].reqToken, loginForm)
 		c.Assert(err, NotNil)
 		c.Assert(trace.IsAccessDenied(err), Equals, true)
 	}

@@ -681,7 +681,7 @@ func (s *IdentityService) CreateOIDCAuthRequest(req services.OIDCAuthRequest, tt
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.CreateVal(oidcAuthRequestsPath, req.StateToken, data, ttl)
+	err = s.CreateVal(oidcAuthRequestsPath, req.State.ID, data, ttl)
 	if err != nil {
 		return trace.Wrap(err)
 	}
