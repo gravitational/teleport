@@ -474,8 +474,17 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 	c.Assert(err, IsNil)
 	s.authServer.SetClock(clockwork.NewFakeClockAt(time.Date(2017, 05, 10, 18, 53, 0, 0, time.UTC)))
 	clt := s.clientNoRedirects()
-	re, err := clt.Get(clt.Endpoint("webapi", "saml", "sso"),
-		url.Values{"redirect_url": []string{"http://localhost/after"}, "connector_id": []string{connector.GetName()}})
+
+	csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
+
+	baseURL, err := url.Parse(clt.Endpoint("webapi", "saml", "sso") + `?redirect_url=http://localhost/after;connector_id=` + connector.GetName())
+	c.Assert(err, IsNil)
+	req, err := http.NewRequest("GET", baseURL.String(), nil)
+	addCSRFCookieToReq(req, csrfToken)
+	re, err := clt.Client.RoundTrip(func() (*http.Response, error) {
+		return clt.Client.HTTPClient().Do(req)
+	})
+
 	// we got a redirect
 	locationURL := re.Headers().Get("Location")
 	u, err := url.Parse(locationURL)
@@ -494,8 +503,10 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 	identity := local.NewIdentityService(s.bk)
 	authRequest, err := identity.GetSAMLAuthRequest(id.Value)
 	c.Assert(err, IsNil)
+
 	// now swap the request id to the hardcoded one in fixtures
 	authRequest.ID = fixtures.SAMLOktaAuthRequestID
+	authRequest.CSRFToken = csrfToken
 	identity.CreateSAMLAuthRequest(*authRequest, backend.Forever)
 
 	// now respond with pre-recorded request to the POST url
@@ -513,12 +524,14 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 	// now send the response to the server to exchange it for auth session
 	form := url.Values{}
 	form.Add("SAMLResponse", encodedResponse)
-	req, err := http.NewRequest("POST", clt.Endpoint("webapi", "saml", "acs"), strings.NewReader(form.Encode()))
+	req, err = http.NewRequest("POST", clt.Endpoint("webapi", "saml", "acs"), strings.NewReader(form.Encode()))
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	addCSRFCookieToReq(req, csrfToken)
 	c.Assert(err, IsNil)
 	authRe, err := clt.Client.RoundTrip(func() (*http.Response, error) {
 		return clt.Client.HTTPClient().Do(req)
 	})
+
 	c.Assert(err, IsNil)
 	comment := Commentf("Response: %v", string(authRe.Bytes()))
 	c.Assert(authRe.Code(), Equals, http.StatusFound, comment)
@@ -560,19 +573,11 @@ func (s *WebSuite) authPackFromResponse(c *C, re *roundtrip.Response) *authPack 
 	}
 }
 
-// authPack returns new authenticated package consisting
-// of created valid user, hotp token, created web session and
-// authenticated client
-func (s *WebSuite) authPack(c *C) *authPack {
-	user := s.user
-	pass := "abc123"
-	rawSecret := "def456"
-	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
-
+func (s *WebSuite) createUser(c *C, user string, pass string, otpSecret string) {
 	teleUser, err := services.NewUser(user)
 	c.Assert(err, IsNil)
 	role := services.RoleForUser(teleUser)
-	role.SetLogins(services.Allow, []string{s.user})
+	role.SetLogins(services.Allow, []string{user})
 	err = s.roleAuth.UpsertRole(role, backend.Forever)
 	c.Assert(err, IsNil)
 	teleUser.AddRole(role.GetName())
@@ -585,6 +590,17 @@ func (s *WebSuite) authPack(c *C) *authPack {
 
 	err = s.roleAuth.UpsertTOTP(user, otpSecret)
 	c.Assert(err, IsNil)
+}
+
+// authPack returns new authenticated package consisting
+// of created valid user, hotp token, created web session and
+// authenticated client
+func (s *WebSuite) authPack(c *C) *authPack {
+	user := s.user
+	pass := "abc123"
+	rawSecret := "def456"
+	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
+	s.createUser(c, user, pass, otpSecret)
 
 	// create a valid otp token
 	validToken, err := totp.GenerateCode(otpSecret, time.Now())
@@ -652,10 +668,25 @@ func (s *WebSuite) TestNamespace(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *WebSuite) TestCRSF(c *C) {
+func (s *WebSuite) TestCSRF(c *C) {
 	type input struct {
 		reqToken    string
 		cookieToken string
+	}
+
+	// create a valid user
+	user := "csrfuser"
+	pass := "abc123"
+	otpSecret := base32.StdEncoding.EncodeToString([]byte("def456"))
+	s.createUser(c, user, pass, otpSecret)
+
+	// create a valid login form request
+	validToken, err := totp.GenerateCode(otpSecret, time.Now())
+	c.Assert(err, IsNil)
+	loginForm := createSessionReq{
+		User:              user,
+		Pass:              pass,
+		SecondFactorToken: validToken,
 	}
 
 	encodedToken1 := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
@@ -668,9 +699,14 @@ func (s *WebSuite) TestCRSF(c *C) {
 	}
 
 	clt := s.client()
+
+	// valid
+	_, err = s.login(clt, encodedToken1, encodedToken1, loginForm)
+	c.Assert(err, IsNil)
+
 	// invalid
 	for i := range invalid {
-		_, err := s.login(clt, invalid[i].cookieToken, invalid[i].reqToken, nil)
+		_, err := s.login(clt, invalid[i].cookieToken, invalid[i].reqToken, loginForm)
 		c.Assert(err, NotNil)
 		c.Assert(trace.IsAccessDenied(err), Equals, true)
 	}
@@ -1380,15 +1416,18 @@ func (s *WebSuite) login(clt *client.WebClient, cookieToken string, reqToken str
 		if err != nil {
 			return nil, err
 		}
-
-		cookie := &http.Cookie{
-			Name:  csrf.CookieName,
-			Value: cookieToken,
-		}
-
-		req.AddCookie(cookie)
+		addCSRFCookieToReq(req, cookieToken)
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set(csrf.HeaderName, reqToken)
 		return clt.HTTPClient().Do(req)
 	}))
+}
+
+func addCSRFCookieToReq(req *http.Request, token string) {
+	cookie := &http.Cookie{
+		Name:  csrf.CookieName,
+		Value: token,
+	}
+
+	req.AddCookie(cookie)
 }
