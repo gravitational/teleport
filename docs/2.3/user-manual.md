@@ -72,7 +72,8 @@ certificates with a TTL (time to live) of 23 hours.
 
 !!! tip "Tip": 
     It is recommended to always use `tsh login` before using any other `tsh` commands.
-    This allows you to omit `--proxy` flag in subsequent tsh commands.
+    This allows you to omit `--proxy` flag in subsequent tsh commands; for example 
+    `tsh ssh user@host` will work.
 
 ### SSH Agent Support
 
@@ -112,6 +113,28 @@ total 8.0K
 -rw------- 1 joe staff 1.7K Aug 10 16:16 joe
 -rw------- 1 joe staff 1.5K Aug 10 16:16 joe-cert.pub
 ```
+
+### SSH Certificates for Automation
+
+Regular users of Teleport must request an auto-expiring SSH certificate,
+usually every day. This doesn't work for non-intractive scripts, like cron jobs
+or CI/CD pipeline.
+
+It is recommended to create a separate Teleport user for such bots and request
+a certificate for them with a long time to live (TTL). In this example we're
+creating a certificate with a TTL of 10 years for the Jenkins user and storing
+it in jenkins.pem file, which can be later used with `-i` (identity) flag for `tsh`.
+
+```bash
+# to be executed on a Teleport auth server
+$ tctl auth sign --ttl=87600h --user=ekontsevoy --out=jenkins.pem
+```
+
+Copy jenkins.pem to the jenkins server and it can be used with `-i` (identity
+file) flag parameter to `tsh`. Essentially `tctl auth sign` is an admin's
+equivalent of `tsh login --out` and allows for unrestricted certificate TTL
+values.
+
 
 ## Exploring the Cluster
 
