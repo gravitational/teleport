@@ -68,18 +68,17 @@ func (s *AuthServer) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*servi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	token, err := utils.CryptoRandomHex(TokenLenBytes)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	req.StateToken = token
-
 	oauthClient, err := oidcClient.OAuthClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	stateToken, err := utils.CryptoRandomHex(TokenLenBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	req.StateToken = stateToken
 	// online is OIDC online scope, "select_account" forces user to always select account
 	req.RedirectURL = oauthClient.AuthCodeURL(req.StateToken, "online", "select_account")
 
