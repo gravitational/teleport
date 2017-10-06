@@ -57,10 +57,15 @@ const (
 	// ComponentFields stores component-specific fields
 	ComponentFields = "fields"
 
-	// ComponentReverseTunnel is reverse tunnel agent and server
-	// that together establish a bi-directional SSH revers tunnel
+	// ComponentReverseTunnelServer is reverse tunnel server
+	// that together with agent establish a bi-directional SSH revers tunnel
 	// to bypass firewall restrictions
-	ComponentReverseTunnel = "reversetunnel"
+	ComponentReverseTunnelServer = "proxy:server"
+
+	// ComponentReverseTunnel is reverse tunnel agent
+	// that together with server establish a bi-directional SSH revers tunnel
+	// to bypass firewall restrictions
+	ComponentReverseTunnelAgent = "proxy:agent"
 
 	// ComponentAuth is the cluster CA node (auth server API)
 	ComponentAuth = "auth"

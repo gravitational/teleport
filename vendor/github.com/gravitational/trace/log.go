@@ -18,7 +18,12 @@ limitations under the License.
 package trace
 
 import (
+	"bytes"
+	"fmt"
 	"regexp"
+	"sort"
+	"strings"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 
@@ -40,20 +45,55 @@ const (
 // TextFormatter is logrus-compatible formatter and adds
 // file and line details to every logged entry.
 type TextFormatter struct {
-	log.TextFormatter
+	DisableTimestamp bool
 }
 
 // Format implements logrus.Formatter interface and adds file and line
 func (tf *TextFormatter) Format(e *log.Entry) ([]byte, error) {
+	var file string
 	if frameNo := findFrame(); frameNo != -1 {
 		t := newTrace(frameNo, nil)
-		new := e.WithFields(log.Fields{FileField: t.Loc(), FunctionField: t.FuncName()})
-		new.Time = e.Time
-		new.Level = e.Level
-		new.Message = e.Message
-		e = new
+		file = t.Loc()
 	}
-	return (&tf.TextFormatter).Format(e)
+
+	w := &writer{bytes.Buffer{}}
+
+	// time
+	if !tf.DisableTimestamp {
+		w.writeField(e.Time.Format(time.RFC3339))
+	}
+
+	// level
+	w.writeField(strings.ToUpper(padMax(e.Level.String(), 4)))
+
+	// component if present, highly visible
+	component, ok := e.Data[Component]
+	if ok {
+		if w.Len() > 0 {
+			w.WriteByte(' ')
+		}
+		w.WriteByte('[')
+		w.WriteString(strings.ToUpper(padMax(fmt.Sprintf("%v", component), 11)))
+		w.WriteByte(']')
+	}
+
+	// message
+	if e.Message != "" {
+		w.writeField(e.Message)
+	}
+
+	// file, if present
+	if file != "" {
+		w.writeField(file)
+	}
+
+	// rest of the fields
+	if len(e.Data) > 0 {
+		w.WriteByte(' ')
+		w.writeMap(e.Data)
+	}
+	w.WriteByte('\n')
+	return w.Bytes(), nil
 }
 
 // JSONFormatter implements logrus.Formatter interface and adds file and line
@@ -90,4 +130,79 @@ func findFrame() int {
 		}
 	}
 	return -1
+}
+
+type writer struct {
+	bytes.Buffer
+}
+
+func (w *writer) writeField(value interface{}) {
+	if w.Len() > 0 {
+		w.WriteByte(' ')
+	}
+	w.writeValue(value)
+}
+
+func (w *writer) writeValue(value interface{}) {
+	stringVal, ok := value.(string)
+	if !ok {
+		stringVal = fmt.Sprint(value)
+	}
+	if !needsQuoting(stringVal) {
+		w.WriteString(stringVal)
+	} else {
+		w.WriteString(fmt.Sprintf("%q", stringVal))
+	}
+}
+
+func (w *writer) writeKeyValue(key string, value interface{}) {
+	if w.Len() > 0 {
+		w.WriteByte(' ')
+	}
+	w.WriteString(key)
+	w.WriteByte(':')
+	w.writeValue(value)
+}
+
+func (w *writer) writeMap(m map[string]interface{}) {
+	if len(m) == 0 {
+		return
+	}
+	keys := make([]string, 0, len(m))
+	for key := range m {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		if key == Component {
+			continue
+		}
+		switch val := m[key].(type) {
+		case map[string]interface{}:
+			w.WriteString(key)
+			w.WriteString(":{")
+			w.writeMap(val)
+			w.WriteString(" }")
+		default:
+			w.writeKeyValue(key, val)
+		}
+	}
+}
+
+func needsQuoting(text string) bool {
+	for _, ch := range text {
+		if ch < 32 {
+			return true
+		}
+	}
+	return false
+}
+
+func padMax(in string, chars int) string {
+	switch {
+	case len(in) < chars:
+		return in + strings.Repeat(" ", chars-len(in))
+	default:
+		return in[:chars]
+	}
 }

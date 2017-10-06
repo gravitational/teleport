@@ -41,60 +41,84 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// AgentConfig holds configuration for agent
+type AgentConfig struct {
+	// Addr is target address to dial
+	Addr utils.NetAddr
+	// RemoteCluster is a remote cluster name to connect to
+	RemoteCluster string
+	// Signers contains authentication signers
+	Signers []ssh.Signer
+	// Client is a client to the local auth servers
+	Client *auth.TunClient
+	// AccessPoint is a caching access point to the local auth servers
+	AccessPoint auth.AccessPoint
+	// Context is a parent context
+	Context context.Context
+	// DiscoveryC is a channel that receives discovery requests
+	// from reverse tunnel server
+	DiscoveryC chan *discoveryRequest
+	// Username is the name of this client used to authenticate on SSH
+	Username string
+}
+
+// CheckAndSetDefaults checks parameters and sets default values
+func (a *AgentConfig) CheckAndSetDefaults() error {
+	if a.Addr.IsEmpty() {
+		return trace.BadParameter("missing parameter Addr")
+	}
+	if a.DiscoveryC == nil {
+		return trace.BadParameter("missing parameter DiscoveryC")
+	}
+	if a.Context == nil {
+		return trace.BadParameter("missing parameter Context")
+	}
+	if a.Client == nil {
+		return trace.BadParameter("missing parameter Client")
+	}
+	if a.AccessPoint == nil {
+		return trace.BadParameter("missing parameter AccessPoint")
+	}
+	if len(a.Signers) == 0 {
+		return trace.BadParameter("missing parameter Signers")
+	}
+	if len(a.Username) == 0 {
+		return trace.BadParameter("missing parameter Username")
+	}
+	return nil
+}
+
 // Agent is a reverse tunnel agent running as a part of teleport Proxies
 // to establish outbound reverse tunnels to remote proxies
 type Agent struct {
-	log  *log.Entry
-	addr utils.NetAddr
-	clt  *auth.TunClient
-	// domain name of the tunnel server, used only for debugging & logging
-	remoteDomainName string
-	// clientName format is "hostid.domain" (where 'domain' is local domain name)
-	clientName      string
+	*log.Entry
+	AgentConfig
 	ctx             context.Context
 	cancel          context.CancelFunc
 	hostKeyCallback utils.HostKeyCallback
 	authMethods     []ssh.AuthMethod
-	accessPoint     auth.AccessPoint
 }
-
-// AgentOption specifies parameter that could be passed to Agents
-type AgentOption func(a *Agent) error
 
 // NewAgent returns a new reverse tunnel agent
 // Parameters:
 //	  addr points to the remote reverse tunnel server
 //    remoteDomainName is the domain name of the runnel server, used only for logging
 //    clientName is hostid.domain (where 'domain' is local domain name)
-func NewAgent(
-	addr utils.NetAddr,
-	remoteDomainName string,
-	clientName string,
-	signers []ssh.Signer,
-	clt *auth.TunClient,
-	accessPoint auth.AccessPoint, parentContext context.Context) (*Agent, error) {
-
-	log.Debugf("reversetunnel.NewAgent %s -> %s", clientName, remoteDomainName)
-
-	ctx, cancel := context.WithCancel(parentContext)
+func NewAgent(cfg AgentConfig) (*Agent, error) {
+	ctx, cancel := context.WithCancel(cfg.Context)
 
 	a := &Agent{
-		log: log.WithFields(log.Fields{
-			teleport.Component: teleport.ComponentReverseTunnel,
+		AgentConfig: cfg,
+		Entry: log.WithFields(log.Fields{
+			teleport.Component: teleport.ComponentReverseTunnelAgent,
 			teleport.ComponentFields: map[string]interface{}{
-				"side":   "agent",
-				"remote": addr.String(),
-				"mode":   "agent",
+				"remote": cfg.Addr.String(),
+				"client": cfg.Username,
 			},
 		}),
-		clt:              clt,
-		addr:             addr,
-		remoteDomainName: remoteDomainName,
-		clientName:       clientName,
-		authMethods:      []ssh.AuthMethod{ssh.PublicKeys(signers...)},
-		accessPoint:      accessPoint,
-		ctx:              ctx,
-		cancel:           cancel,
+		ctx:         ctx,
+		cancel:      cancel,
+		authMethods: []ssh.AuthMethod{ssh.PublicKeys(cfg.Signers...)},
 	}
 	a.hostKeyCallback = a.checkHostSignature
 	return a, nil
@@ -110,8 +134,7 @@ func (a *Agent) Close() error {
 func (a *Agent) Start() error {
 	conn, err := a.connect()
 	if err != nil {
-		log.Errorf("Failed to create remote tunnel for %v on %s(%s): %v",
-			a.clientName, a.remoteDomainName, a.addr.FullAddress(), err)
+		a.Warningf("Failed to create remote tunnel: %v", err)
 	}
 	// start heartbeat even if error happend, it will reconnect
 	go a.runHeartbeat(conn)
@@ -125,7 +148,7 @@ func (a *Agent) Wait() error {
 
 // String returns debug-friendly
 func (a *Agent) String() string {
-	return fmt.Sprintf("tunagent(remote=%s)", a.addr.String())
+	return fmt.Sprintf("tunagent(remote=%s)", a.Addr.String())
 }
 
 func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.PublicKey) error {
@@ -133,7 +156,7 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 	if !ok {
 		return trace.BadParameter("expected certificate")
 	}
-	cas, err := a.accessPoint.GetCertAuthorities(services.HostCA, false)
+	cas, err := a.AccessPoint.GetCertAuthorities(services.HostCA, false)
 	if err != nil {
 		return trace.Wrap(err, "failed to fetch remote certs")
 	}
@@ -144,7 +167,7 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 		}
 		for _, checker := range checkers {
 			if sshutils.KeysEqual(checker, cert.SignatureKey) {
-				a.log.Debugf("matched key %v for %v", ca.GetName(), hostport)
+				a.Debugf("matched key %v for %v", ca.GetName(), hostport)
 				return nil
 			}
 		}
@@ -154,14 +177,11 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 }
 
 func (a *Agent) connect() (conn *ssh.Client, err error) {
-	if a.addr.IsEmpty() {
-		return nil, trace.BadParameter("reverse tunnel cannot be created: target address is empty")
-	}
 	for _, authMethod := range a.authMethods {
 		// if http_proxy is set, dial through the proxy
 		dialer := proxy.DialerFromEnvironment()
-		conn, err = dialer.Dial(a.addr.AddrNetwork, a.addr.Addr, &ssh.ClientConfig{
-			User:            a.clientName,
+		conn, err = dialer.Dial(a.Addr.AddrNetwork, a.Addr.Addr, &ssh.ClientConfig{
+			User:            a.Username,
 			Auth:            []ssh.AuthMethod{authMethod},
 			HostKeyCallback: a.hostKeyCallback,
 			Timeout:         defaults.DefaultDialTimeout,
@@ -174,12 +194,12 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 }
 
 func (a *Agent) proxyAccessPoint(ch ssh.Channel, req <-chan *ssh.Request) {
-	log.Debugf("[HA Agent] proxyAccessPoint")
+	a.Debugf("proxyAccessPoint")
 	defer ch.Close()
 
-	conn, err := a.clt.GetDialer()()
+	conn, err := a.Client.GetDialer()()
 	if err != nil {
-		a.log.Errorf("error dialing: %v", err)
+		a.Warningf("error dialing: %v", err)
 		return
 	}
 
@@ -215,7 +235,7 @@ func (a *Agent) proxyAccessPoint(ch ssh.Channel, req <-chan *ssh.Request) {
 // ch   : SSH channel which received "teleport-transport" out-of-band request
 // reqC : request payload
 func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
-	log.Debugf("[HA Agent] proxyTransport")
+	a.Debugf("proxyTransport")
 	defer ch.Close()
 
 	// always push space into stderr to make sure the caller can always
@@ -226,15 +246,15 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 	var req *ssh.Request
 	select {
 	case <-a.ctx.Done():
-		a.log.Infof("is closed, returning")
+		a.Infof("is closed, returning")
 		return
 	case req = <-reqC:
 		if req == nil {
-			a.log.Infof("connection closed, returning")
+			a.Infof("connection closed, returning")
 			return
 		}
 	case <-time.After(defaults.DefaultDialTimeout):
-		a.log.Errorf("timeout waiting for dial")
+		a.Warningf("timeout waiting for dial")
 		return
 	}
 
@@ -245,9 +265,9 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 	// list of auth servers and return that. otherwise try and connect to the
 	// passed in server.
 	if server == RemoteAuthServer {
-		authServers, err := a.clt.GetAuthServers()
+		authServers, err := a.Client.GetAuthServers()
 		if err != nil {
-			a.log.Errorf("unable to find auth servers: %v", err)
+			a.Warningf("unable to find auth servers: %v", err)
 			return
 		}
 		for _, as := range authServers {
@@ -257,7 +277,7 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 		servers = append(servers, server)
 	}
 
-	log.Debugf("got out of band request %v", servers)
+	a.Debugf("got out of band request %v", servers)
 
 	var conn net.Conn
 	var err error
@@ -284,7 +304,7 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 
 	// successfully dialed
 	req.Reply(true, []byte("connected"))
-	a.log.Infof("successfully dialed to %v, start proxying", server)
+	a.Debugf("successfully dialed to %v, start proxying", server)
 
 	wg := sync.WaitGroup{}
 	wg.Add(2)
@@ -317,7 +337,7 @@ func (a *Agent) runHeartbeat(conn *ssh.Client) {
 		if conn == nil {
 			return trace.Errorf("heartbeat cannot ping: need to reconnect")
 		}
-		log.Infof("[TUNNEL CLIENT] connected to %s", conn.RemoteAddr())
+		a.Infof("connected to %s", conn.RemoteAddr())
 		defer conn.Close()
 		hb, reqC, err := conn.OpenChannel(chanHeartbeat, nil)
 		if err != nil {
@@ -336,26 +356,26 @@ func (a *Agent) runHeartbeat(conn *ssh.Client) {
 				return nil
 			// time to ping:
 			case <-ticker.C:
-				log.Debugf("[TUNNEL CLIENT] pings \"%s\" at %s", a.remoteDomainName, conn.RemoteAddr())
 				_, err := hb.SendRequest("ping", false, nil)
 				if err != nil {
 					log.Error(err)
 					return trace.Wrap(err)
 				}
+				a.Debugf("ping -> %v", conn.RemoteAddr())
 			// ssh channel closed:
 			case req := <-reqC:
 				if req == nil {
-					return trace.Errorf("heartbeat: connection closed")
+					return trace.ConnectionProblem(nil, "heartbeat: connection closed")
 				}
 			// new access point request:
 			case nch := <-newAccesspointC:
 				if nch == nil {
 					continue
 				}
-				a.log.Infof("[TUNNEL CLIENT] access point request: %v", nch.ChannelType())
+				a.Debugf("access point request: %v", nch.ChannelType())
 				ch, req, err := nch.Accept()
 				if err != nil {
-					a.log.Errorf("failed to accept request: %v", err)
+					a.Warningf("failed to accept request: %v", err)
 					continue
 				}
 				go a.proxyAccessPoint(ch, req)
@@ -364,10 +384,22 @@ func (a *Agent) runHeartbeat(conn *ssh.Client) {
 				if nch == nil {
 					continue
 				}
-				a.log.Infof("[TUNNEL CLIENT] transport request: %v", nch.ChannelType())
+				a.Debugf("transport request: %v", nch.ChannelType())
 				ch, req, err := nch.Accept()
 				if err != nil {
-					a.log.Errorf("failed to accept request: %v", err)
+					a.Warningf("failed to accept request: %v", err)
+					continue
+				}
+				go a.proxyTransport(ch, req)
+			// new discovery request
+			case nch := <-newTransportC:
+				if nch == nil {
+					continue
+				}
+				a.Debugf("transport request: %v", nch.ChannelType())
+				ch, req, err := nch.Accept()
+				if err != nil {
+					a.Warningf("failed to accept request: %v", err)
 					continue
 				}
 				go a.proxyTransport(ch, req)
@@ -398,11 +430,50 @@ func (a *Agent) runHeartbeat(conn *ssh.Client) {
 	}
 }
 
+// handleDisovery receives discovery requests from the reverse tunnel
+// server, that informs agent about proxies registered in the remote
+// cluster and the reverse tunnels already established
+//
+// ch   : SSH channel which received "teleport-transport" out-of-band request
+// reqC : request payload
+func (a *Agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
+	a.Debugf("handleDiscovery")
+	defer ch.Close()
+
+	for {
+		var req *ssh.Request
+		select {
+		case <-a.ctx.Done():
+			a.Infof("is closed, returning")
+			return
+		case req = <-reqC:
+			if req == nil {
+				a.Infof("connection closed, returning")
+				return
+			}
+			r, err := unmarshalDiscoveryRequest(req.Payload)
+			if err != nil {
+				a.Warningf("bad payload: %v", err)
+				return
+			}
+			select {
+			case a.DiscoveryC <- r:
+			case <-a.ctx.Done():
+				a.Infof("is closed, returning")
+				return
+			default:
+			}
+			req.Reply(true, []byte("thanks"))
+		}
+	}
+}
+
 const (
 	chanHeartbeat        = "teleport-heartbeat"
 	chanAccessPoint      = "teleport-access-point"
 	chanTransport        = "teleport-transport"
 	chanTransportDialReq = "teleport-transport-dial"
+	chanDiscovery        = "teleport-discovery"
 )
 
 const (

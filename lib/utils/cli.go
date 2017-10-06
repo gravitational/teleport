@@ -44,8 +44,7 @@ const (
 // InitLogger configures the global logger for a given purpose / verbosity level
 func InitLogger(purpose LoggingPurpose, level log.Level) {
 	log.StandardLogger().Hooks = make(log.LevelHooks)
-	formatter := &trace.TextFormatter{}
-	formatter.DisableTimestamp = true
+	formatter := &trace.TextFormatter{DisableTimestamp: true}
 	log.SetFormatter(formatter)
 	log.SetLevel(level)
 

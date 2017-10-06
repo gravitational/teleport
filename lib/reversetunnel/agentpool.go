@@ -24,10 +24,11 @@ import (
 type AgentPool struct {
 	sync.Mutex
 	*log.Entry
-	cfg    AgentPoolConfig
-	agents map[agentKey]*Agent
-	ctx    context.Context
-	cancel context.CancelFunc
+	cfg        AgentPoolConfig
+	agents     map[agentKey]*Agent
+	ctx        context.Context
+	cancel     context.CancelFunc
+	discoveryC chan *discoveryRequest
 }
 
 // AgentPoolConfig holds configuration parameters for the agent pool
@@ -68,19 +69,19 @@ func (cfg *AgentPoolConfig) CheckAndSetDefaults() error {
 
 // NewAgentPool returns new isntance of the agent pool
 func NewAgentPool(cfg AgentPoolConfig) (*AgentPool, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	ctx, cancel := context.WithCancel(cfg.Context)
 	pool := &AgentPool{
-		agents: make(map[agentKey]*Agent),
-		cfg:    cfg,
-		ctx:    ctx,
-		cancel: cancel,
+		agents:     make(map[agentKey]*Agent),
+		cfg:        cfg,
+		ctx:        ctx,
+		cancel:     cancel,
+		discoveryC: make(chan *discoveryRequest),
 	}
 	pool.Entry = log.WithFields(log.Fields{
-		teleport.Component: teleport.ComponentReverseTunnel,
-		teleport.ComponentFields: map[string]interface{}{
-			"side": "agent",
-			"mode": "agentpool",
-		},
+		teleport.Component: teleport.ComponentReverseTunnelAgent,
 	})
 	return pool, nil
 }
@@ -103,6 +104,22 @@ func (m *AgentPool) Wait() error {
 		break
 	}
 	return nil
+}
+
+func (m *AgentPool) processDiscoveryRequests() {
+	for {
+		select {
+		case <-m.ctx.Done():
+			m.Debugf("closing")
+			return
+		case req := <-m.discoveryC:
+			if req == nil {
+				m.Debugf("channel closed")
+				return
+			}
+			m.Debugf("got discovery request, following proxies are not connected %v", req.Proxies)
+		}
+	}
 }
 
 // FetchAndSyncAgents executes one time fetch and sync request
@@ -160,7 +177,16 @@ func (m *AgentPool) syncAgents(tunnels []services.ReverseTunnel) error {
 
 	for _, key := range agentsToAdd {
 		m.Debugf("adding %v", &key)
-		agent, err := NewAgent(key.addr, key.domainName, m.cfg.HostUUID, m.cfg.HostSigners, m.cfg.Client, m.cfg.AccessPoint, m.ctx)
+		agent, err := NewAgent(AgentConfig{
+			Addr:          key.addr,
+			RemoteCluster: key.domainName,
+			Username:      m.cfg.HostUUID,
+			Signers:       m.cfg.HostSigners,
+			Client:        m.cfg.Client,
+			AccessPoint:   m.cfg.AccessPoint,
+			Context:       m.ctx,
+			DiscoveryC:    m.discoveryC,
+		})
 		if err != nil {
 			return trace.Wrap(err)
 		}

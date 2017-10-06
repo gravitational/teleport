@@ -158,7 +158,7 @@ func NewServer(cfg Config) (Server, error) {
 
 	var err error
 	s, err := sshutils.NewServer(
-		teleport.ComponentReverseTunnel,
+		teleport.ComponentReverseTunnelServer,
 		cfg.ListenAddr,
 		srv,
 		cfg.HostSigners,
@@ -604,11 +604,29 @@ func (s *server) RemoveSite(domainName string) error {
 }
 
 type remoteConn struct {
-	sshConn ssh.Conn
-	conn    net.Conn
-	invalid int32
-	log     *log.Entry
-	counter int32
+	sshConn      ssh.Conn
+	conn         net.Conn
+	invalid      int32
+	log          *log.Entry
+	counter      int32
+	discoveryC   ssh.Channel
+	discoveryErr error
+}
+
+func (rc *remoteConn) openDiscoveryChannel() (ssh.Channel, error) {
+	if rc.discoveryC != nil {
+		return rc.discoveryC, nil
+	}
+	if rc.discoveryErr != nil {
+		return nil, trace.Wrap(rc.discoveryErr)
+	}
+	discoveryC, _, err := rc.sshConn.OpenChannel(chanDiscovery, nil)
+	if err != nil {
+		rc.discoveryErr = err
+		return nil, trace.Wrap(err)
+	}
+	rc.discoveryC = discoveryC
+	return rc.discoveryC, nil
 }
 
 func (rc *remoteConn) String() string {
@@ -616,6 +634,10 @@ func (rc *remoteConn) String() string {
 }
 
 func (rc *remoteConn) Close() error {
+	if rc.discoveryC != nil {
+		rc.discoveryC.Close()
+		rc.discoveryC = nil
+	}
 	return rc.sshConn.Close()
 }
 
@@ -645,13 +667,13 @@ func newRemoteSite(srv *server, domainName string) (*remoteSite, error) {
 		srv:        srv,
 		domainName: domainName,
 		connInfo:   connInfo,
-		log: log.WithFields(log.Fields{
-			teleport.Component: teleport.ComponentReverseTunnel,
+		Entry: log.WithFields(log.Fields{
+			teleport.Component: teleport.ComponentReverseTunnelServer,
 			teleport.ComponentFields: map[string]string{
-				"domainName": domainName,
-				"side":       "server",
+				"cluster": domainName,
 			},
 		}),
+		ctx: srv.ctx,
 	}
 	// transport uses connection do dial out to the remote address
 	remoteSite.transport = &http.Transport{
