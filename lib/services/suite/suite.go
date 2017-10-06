@@ -552,3 +552,52 @@ func (s *ServicesTestSuite) SAMLCRUD(c *C) {
 	_, err = s.WebS.GetSAMLConnector(connector.GetName(), true)
 	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("expected not found, got %T", err))
 }
+
+func (s *ServicesTestSuite) TunnelConnectionsCRUD(c *C) {
+	clusterName := "example.com"
+	out, err := s.PresenceS.GetTunnelConnections(clusterName)
+	c.Assert(err, IsNil)
+	c.Assert(len(out), Equals, 0)
+
+	dt := time.Date(2015, 6, 5, 4, 3, 2, 1, time.UTC).UTC()
+	conn, err := services.NewTunnelConnection("conn1", services.TunnelConnectionSpecV2{
+		ClusterName:   clusterName,
+		ProxyName:     "p1",
+		LastHeartbeat: dt,
+	})
+	c.Assert(err, IsNil)
+
+	err = s.PresenceS.UpsertTunnelConnection(conn)
+	c.Assert(err, IsNil)
+
+	out, err = s.PresenceS.GetTunnelConnections(clusterName)
+	c.Assert(err, IsNil)
+	c.Assert(len(out), Equals, 1)
+	fixtures.DeepCompare(c, out[0], conn)
+
+	out, err = s.PresenceS.GetAllTunnelConnections()
+	c.Assert(err, IsNil)
+	c.Assert(len(out), Equals, 1)
+	fixtures.DeepCompare(c, out[0], conn)
+
+	dt = dt.Add(time.Hour)
+	conn.SetLastHeartbeat(dt)
+
+	err = s.PresenceS.UpsertTunnelConnection(conn)
+	c.Assert(err, IsNil)
+
+	out, err = s.PresenceS.GetTunnelConnections(clusterName)
+	c.Assert(err, IsNil)
+	c.Assert(len(out), Equals, 1)
+	fixtures.DeepCompare(c, out[0], conn)
+
+	err = s.PresenceS.DeleteAllTunnelConnections()
+	c.Assert(err, IsNil)
+
+	out, err = s.PresenceS.GetTunnelConnections(clusterName)
+	c.Assert(err, IsNil)
+	c.Assert(len(out), Equals, 0)
+
+	err = s.PresenceS.DeleteAllTunnelConnections()
+	c.Assert(err, IsNil)
+}

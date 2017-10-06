@@ -56,9 +56,10 @@ import (
 type Server struct {
 	sync.Mutex
 
-	namespace     string
-	addr          utils.NetAddr
-	hostname      string
+	namespace string
+	addr      utils.NetAddr
+	hostname  string
+	// certChecker checks the CA of the connecting user
 	certChecker   ssh.CertChecker
 	srv           *sshutils.Server
 	hostSigner    ssh.Signer
@@ -649,6 +650,7 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 		log.Debugf("[SSH] need a valid principal for key %v", fingerprint)
 		return nil, trace.BadParameter("need a valid principal for key %v", fingerprint)
 	}
+
 	if len(cert.KeyId) == 0 {
 		log.Debugf("[SSH] need a valid key ID for key %v", fingerprint)
 		return nil, trace.BadParameter("need a valid key for key %v", fingerprint)
@@ -689,7 +691,7 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 		}
 	}
 
-	// this is the only way I know of to pass valid principal with the
+	// this is the only way we know of to pass valid principal with the
 	// connection
 	permissions.Extensions[utils.CertTeleportUser] = teleportUser
 

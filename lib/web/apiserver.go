@@ -1069,7 +1069,6 @@ Sucessful response:
 {"namespaces": [{..namespace resource...}]}
 */
 func (m *Handler) getSiteNamespaces(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	log.Debugf("[web] GET /namespaces")
 	clt, err := site.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1089,7 +1088,6 @@ type nodeWithSessions struct {
 }
 
 func (m *Handler) siteNodesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	log.Debugf("[web] GET /nodes")
 	clt, err := site.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)

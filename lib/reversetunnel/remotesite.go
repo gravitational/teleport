@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
@@ -37,7 +38,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// remoteSite is a remote site who established the inbound connecton to
+// remoteSite is a remote site that established the inbound connecton to
 // the local reverse tunnel server, and now it can provide access to the
 // cluster behind it.
 type remoteSite struct {
@@ -53,6 +54,7 @@ type remoteSite struct {
 	transport   *http.Transport
 	clt         *auth.Client
 	accessPoint auth.AccessPoint
+	connInfo    services.TunnelConnection
 }
 
 func (s *remoteSite) CachingAccessPoint() (auth.AccessPoint, error) {
@@ -109,37 +111,60 @@ func (s *remoteSite) addConn(conn net.Conn, sshConn ssh.Conn) (*remoteConn, erro
 	return rc, nil
 }
 
+func (s *remoteSite) getLatestTunnelConnection() (services.TunnelConnection, error) {
+	conns, err := s.srv.AccessPoint.GetTunnelConnections(s.domainName)
+	if err != nil {
+		s.log.Warningf("[TUNNEL] failed to fetch tunnel statuses: %v", err)
+		return nil, trace.Wrap(err)
+	}
+	var lastConn services.TunnelConnection
+	for i := range conns {
+		conn := conns[i]
+		if lastConn == nil || conn.GetLastHeartbeat().After(lastConn.GetLastHeartbeat()) {
+			lastConn = conn
+		}
+	}
+	if lastConn == nil {
+		return nil, trace.NotFound("no connections from %v found in the cluster", s.domainName)
+	}
+	return lastConn, nil
+}
+
 func (s *remoteSite) GetStatus() string {
-	s.Lock()
-	defer s.Unlock()
-	diff := time.Now().Sub(s.lastActive)
-	if diff > 2*defaults.ReverseTunnelAgentHeartbeatPeriod {
+	connInfo, err := s.getLatestTunnelConnection()
+	if err != nil {
+		return RemoteSiteStatusOffline
+	}
+	diff := time.Now().Sub(connInfo.GetLastHeartbeat())
+	if diff > defaults.ReverseTunnelOfflineThreshold {
 		return RemoteSiteStatusOffline
 	}
 	return RemoteSiteStatusOnline
 }
 
-func (s *remoteSite) setLastActive(t time.Time) {
-	s.Lock()
-	defer s.Unlock()
-	s.lastActive = t
+func (s *remoteSite) registerHeartbeat(t time.Time) {
+	s.connInfo.SetLastHeartbeat(t)
+	err := s.srv.AccessPoint.UpsertTunnelConnection(s.connInfo)
+	if err != nil {
+		log.Warningf("[TUNNEL] failed to register heartbeat: %v", err)
+	}
 }
 
 func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-chan *ssh.Request) {
 	defer func() {
-		s.log.Infof("[TUNNEL] site connection closed: %v", s.domainName)
+		s.log.Infof("[TUNNEL] cluster connection closed: %v", s.domainName)
 		conn.Close()
 	}()
 	for {
 		select {
 		case req := <-reqC:
 			if req == nil {
-				s.log.Infof("[TUNNEL] site disconnected: %v", s.domainName)
+				s.log.Infof("[TUNNEL] cluster disconnected: %v", s.domainName)
 				conn.markInvalid(trace.ConnectionProblem(nil, "agent disconnected"))
 				return
 			}
 			log.Debugf("[TUNNEL] ping from \"%s\" %s", s.domainName, conn.conn.RemoteAddr())
-			s.setLastActive(time.Now())
+			go s.registerHeartbeat(time.Now())
 		case <-time.After(3 * defaults.ReverseTunnelAgentHeartbeatPeriod):
 			conn.markInvalid(trace.ConnectionProblem(nil, "agent missed 3 heartbeats"))
 		}
@@ -151,9 +176,11 @@ func (s *remoteSite) GetName() string {
 }
 
 func (s *remoteSite) GetLastConnected() time.Time {
-	s.Lock()
-	defer s.Unlock()
-	return s.lastActive
+	connInfo, err := s.getLatestTunnelConnection()
+	if err != nil {
+		return time.Time{}
+	}
+	return connInfo.GetLastHeartbeat()
 }
 
 // dialAccessPoint establishes a connection from the proxy (reverse tunnel server)
@@ -246,7 +273,7 @@ func (s *remoteSite) Dial(from, to net.Addr) (conn net.Conn, err error) {
 	// didn't connect and no error? this means we didn't have any connected
 	// tunnels to try
 	if err == nil {
-		err = trace.Errorf("%v is offline", s.GetName())
+		err = trace.ConnectionProblem(nil, "%v is offline", s.GetName())
 	}
 	return nil, err
 }

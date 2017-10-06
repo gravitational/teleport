@@ -152,6 +152,20 @@ func (cs *CachingAuthClient) fetchAll() error {
 	errors = append(errors, err)
 	_, err = cs.GetUsers()
 	errors = append(errors, err)
+	conns, err := cs.ap.GetAllTunnelConnections()
+	if err != nil {
+		errors = append(errors, err)
+	}
+	clusters := map[string]bool{}
+	for _, conn := range conns {
+		clusterName := conn.GetClusterName()
+		if _, ok := clusters[clusterName]; ok {
+			continue
+		}
+		clusters[clusterName] = true
+		_, err = cs.GetTunnelConnections(clusterName)
+		errors = append(errors, err)
+	}
 	return trace.NewAggregate(errors...)
 }
 
@@ -414,6 +428,58 @@ func (cs *CachingAuthClient) GetUsers() (users []services.User, err error) {
 	return users, err
 }
 
+// GetTunnelConnections is a part of auth.AccessPoint implementation
+func (cs *CachingAuthClient) GetTunnelConnections(clusterName string) (conns []services.TunnelConnection, err error) {
+	err = cs.try(func() error {
+		conns, err = cs.ap.GetTunnelConnections(clusterName)
+		return err
+	})
+	if err != nil {
+		if trace.IsConnectionProblem(err) {
+			return cs.presence.GetTunnelConnections(clusterName)
+		}
+		return conns, err
+	}
+	if err := cs.presence.DeleteTunnelConnections(clusterName); err != nil {
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+	}
+	for _, conn := range conns {
+		cs.setTTL(conn)
+		if err := cs.presence.UpsertTunnelConnection(conn); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return conns, err
+}
+
+// GetAllTunnelConnections is a part of auth.AccessPoint implementation
+func (cs *CachingAuthClient) GetAllTunnelConnections() (conns []services.TunnelConnection, err error) {
+	err = cs.try(func() error {
+		conns, err = cs.ap.GetAllTunnelConnections()
+		return err
+	})
+	if err != nil {
+		if trace.IsConnectionProblem(err) {
+			return cs.presence.GetAllTunnelConnections()
+		}
+		return conns, err
+	}
+	if err := cs.presence.DeleteAllTunnelConnections(); err != nil {
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+	}
+	for _, conn := range conns {
+		cs.setTTL(conn)
+		if err := cs.presence.UpsertTunnelConnection(conn); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return conns, err
+}
+
 // UpsertNode is part of auth.AccessPoint implementation
 func (cs *CachingAuthClient) UpsertNode(s services.Server) error {
 	cs.setTTL(s)
@@ -424,6 +490,12 @@ func (cs *CachingAuthClient) UpsertNode(s services.Server) error {
 func (cs *CachingAuthClient) UpsertProxy(s services.Server) error {
 	cs.setTTL(s)
 	return cs.ap.UpsertProxy(s)
+}
+
+// UpsertTunnelConnection is a part of auth.AccessPoint implementation
+func (cs *CachingAuthClient) UpsertTunnelConnection(conn services.TunnelConnection) error {
+	cs.setTTL(conn)
+	return cs.ap.UpsertTunnelConnection(conn)
 }
 
 // try calls a given function f and checks for errors. If f() fails, the current

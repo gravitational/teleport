@@ -6,6 +6,10 @@ teleport:
   log:
     output: /var/lib/teleport/teleport.log
     severity: INFO
+  data_dir: /var/lib/teleport
+  storage:
+      path: /var/lib/teleport/backend
+      type: dir
 
 auth_service:
   enabled: no

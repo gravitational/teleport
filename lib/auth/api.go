@@ -60,4 +60,13 @@ type AccessPoint interface {
 
 	// GetRoles returns a list of roles
 	GetRoles() ([]services.Role, error)
+
+	// UpsertTunnelConnection upserts tunnel connection
+	UpsertTunnelConnection(conn services.TunnelConnection) error
+
+	// GetTunnelConnections returns tunnel connections for a given cluster
+	GetTunnelConnections(clusterName string) ([]services.TunnelConnection, error)
+
+	// GetAllTunnelConnections returns all tunnel connections
+	GetAllTunnelConnections() ([]services.TunnelConnection, error)
 }

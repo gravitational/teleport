@@ -689,14 +689,20 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	tsrv, err := reversetunnel.NewServer(
-		cfg.Proxy.ReverseTunnelListenAddr,
-		[]ssh.Signer{conn.Identity.KeySigner},
-		authClient,
-		process.newLocalCache,
-		reversetunnel.SetLimiter(reverseTunnelLimiter),
-		reversetunnel.DirectSite(conn.Identity.Cert.Extensions[utils.CertExtensionAuthority],
-			conn.Client),
-	)
+		reversetunnel.Config{
+			ID:                    conn.Identity.ID.HostUUID,
+			ListenAddr:            cfg.Proxy.ReverseTunnelListenAddr,
+			HostSigners:           []ssh.Signer{conn.Identity.KeySigner},
+			AccessPoint:           authClient,
+			NewCachingAccessPoint: process.newLocalCache,
+			Limiter:               reverseTunnelLimiter,
+			DirectClusters: []reversetunnel.DirectCluster{
+				{
+					Name:   conn.Identity.Cert.Extensions[utils.CertExtensionAuthority],
+					Client: conn.Client,
+				},
+			},
+		})
 	if err != nil {
 		return trace.Wrap(err)
 	}
