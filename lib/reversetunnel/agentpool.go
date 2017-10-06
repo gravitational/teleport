@@ -1,6 +1,7 @@
 package reversetunnel
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -23,9 +24,10 @@ import (
 type AgentPool struct {
 	sync.Mutex
 	*log.Entry
-	cfg            AgentPoolConfig
-	agents         map[agentKey]*Agent
-	closeBroadcast *utils.CloseBroadcaster
+	cfg    AgentPoolConfig
+	agents map[agentKey]*Agent
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 // AgentPoolConfig holds configuration parameters for the agent pool
@@ -40,26 +42,38 @@ type AgentPoolConfig struct {
 	HostSigners []ssh.Signer
 	// HostUUID is a unique ID of this host
 	HostUUID string
+	// Context is an optional context
+	Context context.Context
+}
+
+// CheckAndSetDefaults checks and sets defaults
+func (cfg *AgentPoolConfig) CheckAndSetDefaults() error {
+	if cfg.Client == nil {
+		return trace.BadParameter("missing 'Client' parameter")
+	}
+	if cfg.AccessPoint == nil {
+		return trace.BadParameter("missing 'AccessPoint' parameter")
+	}
+	if len(cfg.HostSigners) == 0 {
+		return trace.BadParameter("missing 'HostSigners' parameter")
+	}
+	if len(cfg.HostUUID) == 0 {
+		return trace.BadParameter("missing 'HostUUID' parameter")
+	}
+	if cfg.Context == nil {
+		cfg.Context = context.TODO()
+	}
+	return nil
 }
 
 // NewAgentPool returns new isntance of the agent pool
 func NewAgentPool(cfg AgentPoolConfig) (*AgentPool, error) {
-	if cfg.Client == nil {
-		return nil, trace.BadParameter("missing 'Client' parameter")
-	}
-	if cfg.AccessPoint == nil {
-		return nil, trace.BadParameter("missing 'AccessPoint' parameter")
-	}
-	if len(cfg.HostSigners) == 0 {
-		return nil, trace.BadParameter("missing 'HostSigners' parameter")
-	}
-	if len(cfg.HostUUID) == 0 {
-		return nil, trace.BadParameter("missing 'HostUUID' parameter")
-	}
+	ctx, cancel := context.WithCancel(cfg.Context)
 	pool := &AgentPool{
-		agents:         make(map[agentKey]*Agent),
-		cfg:            cfg,
-		closeBroadcast: utils.NewCloseBroadcaster(),
+		agents: make(map[agentKey]*Agent),
+		cfg:    cfg,
+		ctx:    ctx,
+		cancel: cancel,
 	}
 	pool.Entry = log.WithFields(log.Fields{
 		teleport.Component: teleport.ComponentReverseTunnel,
@@ -79,13 +93,13 @@ func (m *AgentPool) Start() error {
 
 // Stop stops the agent pool
 func (m *AgentPool) Stop() {
-	m.closeBroadcast.Close()
+	m.cancel()
 }
 
 // Wait returns when agent pool is closed
 func (m *AgentPool) Wait() error {
 	select {
-	case <-m.closeBroadcast.C:
+	case <-m.ctx.Done():
 		break
 	}
 	return nil
@@ -110,7 +124,7 @@ func (m *AgentPool) pollAndSyncAgents() {
 	m.FetchAndSyncAgents()
 	for {
 		select {
-		case <-m.closeBroadcast.C:
+		case <-m.ctx.Done():
 			m.Debugf("closing")
 			m.Lock()
 			defer m.Unlock()
@@ -146,7 +160,7 @@ func (m *AgentPool) syncAgents(tunnels []services.ReverseTunnel) error {
 
 	for _, key := range agentsToAdd {
 		m.Debugf("adding %v", &key)
-		agent, err := NewAgent(key.addr, key.domainName, m.cfg.HostUUID, m.cfg.HostSigners, m.cfg.Client, m.cfg.AccessPoint)
+		agent, err := NewAgent(key.addr, key.domainName, m.cfg.HostUUID, m.cfg.HostSigners, m.cfg.Client, m.cfg.AccessPoint, m.ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}

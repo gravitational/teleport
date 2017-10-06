@@ -21,6 +21,7 @@ limitations under the License.
 package reversetunnel
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -50,8 +51,8 @@ type Agent struct {
 	remoteDomainName string
 	// clientName format is "hostid.domain" (where 'domain' is local domain name)
 	clientName      string
-	broadcastClose  *utils.CloseBroadcaster
-	disconnectC     chan bool
+	ctx             context.Context
+	cancel          context.CancelFunc
 	hostKeyCallback utils.HostKeyCallback
 	authMethods     []ssh.AuthMethod
 	accessPoint     auth.AccessPoint
@@ -71,9 +72,11 @@ func NewAgent(
 	clientName string,
 	signers []ssh.Signer,
 	clt *auth.TunClient,
-	accessPoint auth.AccessPoint) (*Agent, error) {
+	accessPoint auth.AccessPoint, parentContext context.Context) (*Agent, error) {
 
 	log.Debugf("reversetunnel.NewAgent %s -> %s", clientName, remoteDomainName)
+
+	ctx, cancel := context.WithCancel(parentContext)
 
 	a := &Agent{
 		log: log.WithFields(log.Fields{
@@ -88,10 +91,10 @@ func NewAgent(
 		addr:             addr,
 		remoteDomainName: remoteDomainName,
 		clientName:       clientName,
-		broadcastClose:   utils.NewCloseBroadcaster(),
-		disconnectC:      make(chan bool, 10),
 		authMethods:      []ssh.AuthMethod{ssh.PublicKeys(signers...)},
 		accessPoint:      accessPoint,
+		ctx:              ctx,
+		cancel:           cancel,
 	}
 	a.hostKeyCallback = a.checkHostSignature
 	return a, nil
@@ -99,7 +102,8 @@ func NewAgent(
 
 // Close signals to close all connections
 func (a *Agent) Close() error {
-	return a.broadcastClose.Close()
+	a.cancel()
+	return nil
 }
 
 // Start starts agent that attempts to connect to remote server part
@@ -221,7 +225,7 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 
 	var req *ssh.Request
 	select {
-	case <-a.broadcastClose.C:
+	case <-a.ctx.Done():
 		a.log.Infof("is closed, returning")
 		return
 	case req = <-reqC:
@@ -328,7 +332,7 @@ func (a *Agent) runHeartbeat(conn *ssh.Client) {
 		for {
 			select {
 			// need to exit:
-			case <-a.broadcastClose.C:
+			case <-a.ctx.Done():
 				return nil
 			// time to ping:
 			case <-ticker.C:
@@ -385,7 +389,7 @@ func (a *Agent) runHeartbeat(conn *ssh.Client) {
 	if err != nil || conn == nil {
 		select {
 		// abort if asked to stop:
-		case <-a.broadcastClose.C:
+		case <-a.ctx.Done():
 			return
 			// reconnect
 		case <-ticker.C:
