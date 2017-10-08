@@ -40,8 +40,8 @@ func newlocalSite(srv *server, domainName string, client auth.ClientI) (*localSi
 		accessPoint: accessPoint,
 		domainName:  domainName,
 		log: log.WithFields(log.Fields{
-			teleport.Component: teleport.ComponentReverseTunnelServer,
-			teleport.ComponentFields: map[string]string{
+			trace.Component: teleport.ComponentReverseTunnelServer,
+			trace.ComponentFields: map[string]string{
 				"cluster": domainName,
 			},
 		}),

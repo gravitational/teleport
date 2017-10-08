@@ -25,7 +25,7 @@ type AgentPool struct {
 	sync.Mutex
 	*log.Entry
 	cfg        AgentPoolConfig
-	agents     map[agentKey]*Agent
+	agents     map[agentKey][]*Agent
 	ctx        context.Context
 	cancel     context.CancelFunc
 	discoveryC chan *discoveryRequest
@@ -45,6 +45,8 @@ type AgentPoolConfig struct {
 	HostUUID string
 	// Context is an optional context
 	Context context.Context
+	// Cluster is a cluster name
+	Cluster string
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -74,14 +76,17 @@ func NewAgentPool(cfg AgentPoolConfig) (*AgentPool, error) {
 	}
 	ctx, cancel := context.WithCancel(cfg.Context)
 	pool := &AgentPool{
-		agents:     make(map[agentKey]*Agent),
+		agents:     make(map[agentKey][]*Agent),
 		cfg:        cfg,
 		ctx:        ctx,
 		cancel:     cancel,
 		discoveryC: make(chan *discoveryRequest),
 	}
 	pool.Entry = log.WithFields(log.Fields{
-		teleport.Component: teleport.ComponentReverseTunnelAgent,
+		trace.Component: teleport.ComponentReverseTunnelAgent,
+		trace.ComponentFields: map[string]interface{}{
+			"cluster": cfg.Cluster,
+		},
 	})
 	return pool, nil
 }
@@ -89,6 +94,7 @@ func NewAgentPool(cfg AgentPoolConfig) (*AgentPool, error) {
 // Start starts the agent pool
 func (m *AgentPool) Start() error {
 	go m.pollAndSyncAgents()
+	go m.processDiscoveryRequests()
 	return nil
 }
 
@@ -117,8 +123,35 @@ func (m *AgentPool) processDiscoveryRequests() {
 				m.Debugf("channel closed")
 				return
 			}
-			m.Debugf("got discovery request, following proxies are not connected %v", req.Proxies)
+			m.tryDiscover(*req)
 		}
+	}
+}
+
+func (m *AgentPool) tryDiscover(req discoveryRequest) {
+	m.Debugf("will need to discover: %v", Proxies(req.Proxies))
+	m.Lock()
+	defer m.Unlock()
+	proxies := Proxies(req.Proxies)
+	matchKey := req.key()
+	var foundAgent bool
+	// close agents that are discovering proxies that are somehow
+	// different from discovery request
+	m.closeAgentsIf(&matchKey, func(agent *Agent) bool {
+		if agent.getState() != agentStateDiscovering {
+			return false
+		}
+		if proxies.Equal(agent.DiscoverProxies) {
+			foundAgent = true
+			agent.Debugf("is already discovering %v, nothing to do", req)
+			return false
+		}
+		return true
+	})
+
+	// if we haven't found any discovery agent
+	if !foundAgent {
+		m.addAgent(req.key(), req.Proxies)
 	}
 }
 
@@ -135,6 +168,45 @@ func (m *AgentPool) FetchAndSyncAgents() error {
 	return nil
 }
 
+func (m *AgentPool) withLock(f func()) {
+	m.Lock()
+	defer m.Unlock()
+	f()
+}
+
+type matchAgentFn func(a *Agent) bool
+
+func (m *AgentPool) closeAgentsIf(matchKey *agentKey, matchAgent matchAgentFn) {
+	if matchKey != nil {
+		m.agents[*matchKey] = filterAndClose(m.agents[*matchKey], matchAgent)
+		return
+	}
+	for key, agents := range m.agents {
+		m.agents[key] = filterAndClose(agents, matchAgent)
+	}
+}
+
+func filterAndClose(agents []*Agent, matchAgent matchAgentFn) []*Agent {
+	var filtered []*Agent
+	for i := range agents {
+		agent := agents[i]
+		if matchAgent(agent) {
+			agent.Debugf("pool is closing agent")
+			agent.Close()
+		} else {
+			filtered = append(filtered, agent)
+		}
+	}
+	return filtered
+}
+
+func (m *AgentPool) closeAgents(matchKey *agentKey) {
+	m.closeAgentsIf(matchKey, func(*Agent) bool {
+		// close all agents matching the matchKey
+		return true
+	})
+}
+
 func (m *AgentPool) pollAndSyncAgents() {
 	ticker := time.NewTicker(defaults.ReverseTunnelAgentHeartbeatPeriod)
 	defer ticker.Stop()
@@ -142,12 +214,10 @@ func (m *AgentPool) pollAndSyncAgents() {
 	for {
 		select {
 		case <-m.ctx.Done():
+			m.withLock(func() {
+				m.closeAgents(nil)
+			})
 			m.Debugf("closing")
-			m.Lock()
-			defer m.Unlock()
-			for _, a := range m.agents {
-				a.Close()
-			}
 			return
 		case <-ticker.C:
 			err := m.FetchAndSyncAgents()
@@ -159,6 +229,31 @@ func (m *AgentPool) pollAndSyncAgents() {
 	}
 }
 
+func (m *AgentPool) addAgent(key agentKey, discoverProxies []services.Server) error {
+	agent, err := NewAgent(AgentConfig{
+		Addr:            key.addr,
+		RemoteCluster:   key.domainName,
+		Username:        m.cfg.HostUUID,
+		Signers:         m.cfg.HostSigners,
+		Client:          m.cfg.Client,
+		AccessPoint:     m.cfg.AccessPoint,
+		Context:         m.ctx,
+		DiscoveryC:      m.discoveryC,
+		DiscoverProxies: discoverProxies,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	m.Debugf("adding %v", agent)
+	// start the agent in a goroutine. no need to handle Start() errors: Start() will be
+	// retrying itself until the agent is closed
+	go agent.Start()
+	agents, _ := m.agents[key]
+	agents = append(agents, agent)
+	m.agents[key] = agents
+	return nil
+}
+
 func (m *AgentPool) syncAgents(tunnels []services.ReverseTunnel) error {
 	m.Lock()
 	defer m.Unlock()
@@ -168,33 +263,24 @@ func (m *AgentPool) syncAgents(tunnels []services.ReverseTunnel) error {
 		return trace.Wrap(err)
 	}
 	agentsToAdd, agentsToRemove := diffTunnels(m.agents, keys)
+	// remove agents from deleted reverse tunnels
 	for _, key := range agentsToRemove {
-		m.Debugf("removing %v", &key)
-		agent := m.agents[key]
-		delete(m.agents, key)
-		agent.Close()
+		m.closeAgents(&key)
 	}
-
+	// add agents from added reverse tunnels
 	for _, key := range agentsToAdd {
-		m.Debugf("adding %v", &key)
-		agent, err := NewAgent(AgentConfig{
-			Addr:          key.addr,
-			RemoteCluster: key.domainName,
-			Username:      m.cfg.HostUUID,
-			Signers:       m.cfg.HostSigners,
-			Client:        m.cfg.Client,
-			AccessPoint:   m.cfg.AccessPoint,
-			Context:       m.ctx,
-			DiscoveryC:    m.discoveryC,
-		})
-		if err != nil {
+		if err := m.addAgent(key, nil); err != nil {
 			return trace.Wrap(err)
 		}
-		// start the agent in a goroutine. no need to handle Start() errors: Start() will be
-		// retrying itself until the agent is closed
-		go agent.Start()
-		m.agents[key] = agent
 	}
+	// garbage collect agents that have connected, but to the wrong proxy
+	m.closeAgentsIf(nil, func(agent *Agent) bool {
+		if agent.getState() == agentStateMissed {
+			agent.Debugf("closing agent that could not discover clusters")
+			return true
+		}
+		return false
+	})
 	return nil
 }
 
@@ -224,7 +310,7 @@ func tunnelToAgentKeys(tunnel services.ReverseTunnel) ([]agentKey, error) {
 	return out, nil
 }
 
-func diffTunnels(existingTunnels map[agentKey]*Agent, arrivedKeys map[agentKey]bool) ([]agentKey, []agentKey) {
+func diffTunnels(existingTunnels map[agentKey][]*Agent, arrivedKeys map[agentKey]bool) ([]agentKey, []agentKey) {
 	var agentsToRemove, agentsToAdd []agentKey
 	for existingKey := range existingTunnels {
 		if _, ok := arrivedKeys[existingKey]; !ok { // agent was removed

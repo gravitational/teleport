@@ -48,3 +48,7 @@ enter-two-node:
 .PHONY: setup-tc
 setup-tc:
 	docker exec -i two-auth /bin/bash -c "tctl -c /root/go/src/github.com/gravitational/teleport/docker/two-auth.yaml create -f /root/go/src/github.com/gravitational/teleport/docker/two-tc.yaml"
+
+.PHONY: delete-tc
+delete-tc:
+	docker exec -i two-auth /bin/bash -c "tctl -c /root/go/src/github.com/gravitational/teleport/docker/two-auth.yaml rm tc/one"

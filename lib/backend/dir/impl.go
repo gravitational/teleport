@@ -58,6 +58,8 @@ type Backend struct {
 
 	// InternalClock is a test-friendly source of current time
 	InternalClock clockwork.Clock
+
+	*log.Entry
 }
 
 func (b *Backend) Clock() clockwork.Clock {
@@ -82,6 +84,12 @@ func New(params backend.Params) (backend.Backend, error) {
 	bk := &Backend{
 		RootDir:       rootDir,
 		InternalClock: clockwork.NewRealClock(),
+		Entry: log.WithFields(log.Fields{
+			trace.Component: "fs",
+			trace.ComponentFields: log.Fields{
+				"dir": rootDir,
+			},
+		}),
 	}
 
 	locksDir := path.Join(bk.RootDir, locksBucket)
@@ -244,7 +252,7 @@ func removeFiles(dir string) error {
 
 // AcquireLock grabs a lock that will be released automatically in TTL
 func (bk *Backend) AcquireLock(token string, ttl time.Duration) (err error) {
-	log.Debugf("fs.AcquireLock(%s)", token)
+	bk.Debugf("AcquireLock(%s)", token)
 
 	if err = backend.ValidateLockTTL(ttl); err != nil {
 		return trace.Wrap(err)
@@ -271,7 +279,7 @@ func (bk *Backend) AcquireLock(token string, ttl time.Duration) (err error) {
 
 // ReleaseLock forces lock release before TTL
 func (bk *Backend) ReleaseLock(token string) (err error) {
-	log.Debugf("fs.ReleaseLock(%s)", token)
+	bk.Debugf("ReleaseLock(%s)", token)
 
 	if err = bk.DeleteKey([]string{locksBucket}, token); err != nil {
 		if !os.IsNotExist(err) {

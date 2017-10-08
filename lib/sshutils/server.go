@@ -42,6 +42,8 @@ import (
 // Server is a generic implementation of an SSH server. All Teleport
 // services (auth, proxy, ssh) use this as a base to accept SSH connections.
 type Server struct {
+	*log.Entry
+
 	// component is a name of the facility which uses this server,
 	// used for logging/debugging. typically it's "proxy" or "auth api", etc
 	component string
@@ -107,10 +109,13 @@ func NewServer(
 		return nil, err
 	}
 	s := &Server{
-		component:      component,
+		Entry: log.WithFields(log.Fields{
+			trace.Component: "ssh:" + component,
+		}),
 		addr:           a,
 		newChanHandler: h,
 		closeC:         make(chan struct{}),
+		component:      component,
 	}
 	s.limiter, err = limiter.NewLimiter(limiter.LimiterConfig{})
 	if err != nil {
@@ -151,7 +156,7 @@ func SetRequestHandler(req RequestHandler) ServerOption {
 
 func SetCiphers(ciphers []string) ServerOption {
 	return func(s *Server) error {
-		log.Debugf("[SSH:%v] Supported Ciphers: %q", s.component, ciphers)
+		s.Debugf("supported ciphers: %q", ciphers)
 		if ciphers != nil {
 			s.cfg.Ciphers = ciphers
 		}
@@ -161,7 +166,7 @@ func SetCiphers(ciphers []string) ServerOption {
 
 func SetKEXAlgorithms(kexAlgorithms []string) ServerOption {
 	return func(s *Server) error {
-		log.Debugf("[SSH:%v] Supported KEX algorithms: %q", s.component, kexAlgorithms)
+		s.Debugf("supported KEX algorithms: %q", kexAlgorithms)
 		if kexAlgorithms != nil {
 			s.cfg.KeyExchanges = kexAlgorithms
 		}
@@ -171,7 +176,7 @@ func SetKEXAlgorithms(kexAlgorithms []string) ServerOption {
 
 func SetMACAlgorithms(macAlgorithms []string) ServerOption {
 	return func(s *Server) error {
-		log.Debugf("[SSH:%v] Supported MAC algorithms: %q", s.component, macAlgorithms)
+		s.Debugf("supported MAC algorithms: %q", macAlgorithms)
 		if macAlgorithms != nil {
 			s.cfg.MACs = macAlgorithms
 		}
@@ -190,7 +195,7 @@ func (s *Server) Start() error {
 		return err
 	}
 	s.listener = socket
-	log.Infof("[SSH:%s] listening socket: %v", s.component, socket.Addr())
+	s.Infof("listening socket: %v", socket.Addr())
 	go s.acceptConnections()
 	return nil
 }
@@ -215,21 +220,21 @@ func (s *Server) Close() error {
 func (s *Server) acceptConnections() {
 	defer s.notifyClosed()
 	addr := s.Addr()
-	log.Infof("[SSH:%v] is listening on %v", s.component, addr)
+	s.Infof("listening on %v", addr)
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
 			if s.askedToClose {
-				log.Infof("[SSH:%v] server %v exited", s.component, addr)
+				s.Infof("server %v exited", addr)
 				s.askedToClose = false
 				return
 			}
 			// our best shot to avoid excessive logging
 			if op, ok := err.(*net.OpError); ok && !op.Timeout() {
-				log.Debugf("[SSH:%v] closed socket %v", s.component, op)
+				s.Debugf("closed socket %v", op)
 				return
 			}
-			log.Errorf("SSH:%v accept error: %T %v", s.component, err, err)
+			s.Errorf("accept error: %T %v", err, err)
 			return
 		}
 		go s.handleConnection(conn)
@@ -278,12 +283,12 @@ func (s *Server) handleConnection(conn net.Conn) {
 		return
 	}
 	// Connection successfully initiated
-	log.Infof("[SSH:%v] new connection %v -> %v vesion: %v",
-		s.component, sconn.RemoteAddr(), sconn.LocalAddr(), string(sconn.ClientVersion()))
+	s.Debugf("incoming connection %v -> %v vesion: %v",
+		sconn.RemoteAddr(), sconn.LocalAddr(), string(sconn.ClientVersion()))
 
 	// will be called when the connection is closed
 	connClosed := func() {
-		log.Infof("[SSH:%v] closed connection", s.component)
+		s.Debugf("closed connection %v", sconn.RemoteAddr())
 	}
 
 	// The keepalive ticket will ensure that SSH keepalive requests are being sent
@@ -300,7 +305,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 				connClosed()
 				return
 			}
-			log.Infof("[SSH:%v] recieved out-of-band request: %+v", s.component, req)
+			s.Debugf("recieved out-of-band request: %+v", req)
 			if s.reqHandler != nil {
 				go s.reqHandler.HandleRequest(req)
 			}

@@ -18,6 +18,8 @@ services:
     networks:
       teleport:
         ipv4_address: 172.10.1.1
+        aliases:
+          - one-lb
 
   #
   # one-proxy is a second xproxy of the first cluster
@@ -36,6 +38,8 @@ services:
     networks:
       teleport:
         ipv4_address: 172.10.1.10
+        aliases:
+          - one-lb        
 
   #
   # two-auth is a auth server of the second cluster

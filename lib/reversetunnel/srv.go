@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
@@ -76,6 +77,8 @@ type server struct {
 
 	// ctx is a context used for signalling and broadcast
 	ctx context.Context
+
+	*log.Entry
 }
 
 // DirectCluster is used to access cluster directly
@@ -106,6 +109,9 @@ type Config struct {
 	DirectClusters []DirectCluster
 	// Context is a signalling context
 	Context context.Context
+	// Clock is a clock used in the server, set up to
+	// wall clock if not set
+	Clock clockwork.Clock
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -125,6 +131,9 @@ func (cfg *Config) CheckAndSetDefaults() error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+	}
+	if cfg.Clock == nil {
+		cfg.Clock = clockwork.NewRealClock()
 	}
 	return nil
 }
@@ -146,6 +155,9 @@ func NewServer(cfg Config) (Server, error) {
 		ctx:            ctx,
 		cancel:         cancel,
 		clusterPeers:   make(map[string]*clusterPeers),
+		Entry: log.WithFields(log.Fields{
+			trace.Component: teleport.ComponentReverseTunnelServer,
+		}),
 	}
 
 	for _, clusterInfo := range cfg.DirectClusters {
@@ -181,17 +193,17 @@ func (s *server) periodicFetchClusterPeers() {
 	ticker := time.NewTicker(defaults.ReverseTunnelAgentHeartbeatPeriod)
 	defer ticker.Stop()
 	if err := s.fetchClusterPeers(); err != nil {
-		log.Warningf("[TUNNEL] failed to fetch cluster peers: %v", err)
+		s.Warningf("failed to fetch cluster peers: %v", err)
 	}
 	for {
 		select {
 		case <-s.ctx.Done():
-			log.Debugf("[TUNNEL] closing")
+			s.Debugf("closing")
 			return
 		case <-ticker.C:
 			err := s.fetchClusterPeers()
 			if err != nil {
-				log.Warningf("[TUNNEL] failed to fetch cluster peers: %v", err)
+				s.Warningf("failed to fetch cluster peers: %v", err)
 			}
 		}
 	}
@@ -266,11 +278,11 @@ func (s *server) removeClusterPeers(conns []services.TunnelConnection) {
 	for _, conn := range conns {
 		peers, ok := s.clusterPeers[conn.GetClusterName()]
 		if !ok {
-			log.Warningf("[TUNNEL] failed to remove cluster peer, not found peers for %v", conn)
+			s.Warningf("failed to remove cluster peer, not found peers for %v", conn)
 			continue
 		}
 		peers.removePeer(conn)
-		log.Debugf("[TUNNEL] removed cluster peer %v", conn)
+		s.Debugf("removed cluster peer %v", conn)
 	}
 }
 
@@ -338,13 +350,13 @@ func (s *server) HandleNewChan(conn net.Conn, sconn *ssh.ServerConn, nch ssh.New
 		if ct == "session" {
 			msg = "Cannot open new SSH session on reverse tunnel. Are you connecting to the right port?"
 		}
-		log.Warningf(msg)
+		s.Warning(msg)
 		nch.Reject(ssh.ConnectionFailed, msg)
 		return
 	}
-	log.Debugf("[TUNNEL] new tunnel from %s", sconn.RemoteAddr())
+	s.Debugf("new tunnel from %s", sconn.RemoteAddr())
 	if sconn.Permissions.Extensions[extCertType] != extCertTypeHost {
-		log.Error(trace.BadParameter("can't retrieve certificate type in certType"))
+		s.Error(trace.BadParameter("can't retrieve certificate type in certType"))
 		return
 	}
 	// add the incoming site (cluster) to the list of active connections:
@@ -369,7 +381,7 @@ func (s *server) HandleNewChan(conn net.Conn, sconn *ssh.ServerConn, nch ssh.New
 func (s *server) isHostAuthority(auth ssh.PublicKey) bool {
 	keys, err := s.getTrustedCAKeys(services.HostCA)
 	if err != nil {
-		log.Errorf("failed to retrieve trusted keys, err: %v", err)
+		s.Errorf("failed to retrieve trusted keys, err: %v", err)
 		return false
 	}
 	for _, k := range keys {
@@ -385,7 +397,7 @@ func (s *server) isHostAuthority(auth ssh.PublicKey) bool {
 func (s *server) isUserAuthority(auth ssh.PublicKey) bool {
 	keys, err := s.getTrustedCAKeys(services.UserCA)
 	if err != nil {
-		log.Errorf("failed to retrieve trusted keys, err: %v", err)
+		s.Errorf("failed to retrieve trusted keys, err: %v", err)
 		return false
 	}
 	for _, k := range keys {
@@ -435,7 +447,7 @@ func (s *server) checkTrustedKey(CertType services.CertAuthType, domainName stri
 }
 
 func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
-	logger := log.WithFields(log.Fields{
+	logger := s.WithFields(log.Fields{
 		"remote": conn.RemoteAddr(),
 		"user":   conn.User(),
 	})
@@ -533,8 +545,7 @@ func (s *server) upsertSite(conn net.Conn, sshConn *ssh.ServerConn) (*remoteSite
 		}
 		s.remoteSites = append(s.remoteSites, site)
 	}
-	log.Infof("[TUNNEL] cluster %v connected from %v. clusters: %d",
-		domainName, conn.RemoteAddr(), len(s.remoteSites))
+	site.Infof("connection <- %v, clusters: %d", conn.RemoteAddr(), len(s.remoteSites))
 	// treat first connection as a registered heartbeat,
 	// otherwise the connection information will appear after initial
 	// heartbeat delay
@@ -668,12 +679,13 @@ func newRemoteSite(srv *server, domainName string) (*remoteSite, error) {
 		domainName: domainName,
 		connInfo:   connInfo,
 		Entry: log.WithFields(log.Fields{
-			teleport.Component: teleport.ComponentReverseTunnelServer,
-			teleport.ComponentFields: map[string]string{
+			trace.Component: teleport.ComponentReverseTunnelServer,
+			trace.ComponentFields: map[string]interface{}{
 				"cluster": domainName,
 			},
 		}),
-		ctx: srv.ctx,
+		ctx:   srv.ctx,
+		clock: srv.Clock,
 	}
 	// transport uses connection do dial out to the remote address
 	remoteSite.transport = &http.Transport{
@@ -691,6 +703,8 @@ func newRemoteSite(srv *server, domainName string) (*remoteSite, error) {
 	}
 
 	remoteSite.accessPoint = accessPoint
+
+	go remoteSite.periodicSendDiscoveryRequests()
 
 	return remoteSite, nil
 }

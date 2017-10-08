@@ -301,7 +301,7 @@ func (s *Server) getNamespace() string {
 	return services.ProcessNamespace(s.namespace)
 }
 
-func (s *Server) logFields(fields map[string]interface{}) log.Fields {
+func (s *Server) logFields(fields log.Fields) log.Fields {
 	var component string
 	if s.proxyMode {
 		component = teleport.ComponentProxy
@@ -309,8 +309,8 @@ func (s *Server) logFields(fields map[string]interface{}) log.Fields {
 		component = teleport.ComponentNode
 	}
 	return log.Fields{
-		teleport.Component:       component,
-		teleport.ComponentFields: fields,
+		trace.Component:       component,
+		trace.ComponentFields: fields,
 	}
 }
 

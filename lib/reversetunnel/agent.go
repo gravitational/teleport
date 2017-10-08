@@ -37,8 +37,27 @@ import (
 	"github.com/gravitational/teleport/lib/utils/proxy"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+)
+
+const (
+	// agentStateConnecting is when agent is connecting to the target
+	// without particular purpose
+	agentStateConnecting = "connecting"
+	// agentStateDiscovering is when agent is created with a goal
+	// to discover one or many proxies
+	agentStateDiscovering = "discovering"
+	// agentStateConnected means that agent has connected to instance
+	agentStateConnected = "connected"
+	// agentStateDiscovered means that agent has discovered the right proxy
+	agentStateDiscovered = "discovered"
+	// agentStateMissed means that agent has connected,
+	// but not to the one of the instances it was targeted to discover
+	agentStateMissed = "missed"
+	// agentStateClosed is for closed agents
+	agentStateClosed = "closed"
 )
 
 // AgentConfig holds configuration for agent
@@ -60,6 +79,12 @@ type AgentConfig struct {
 	DiscoveryC chan *discoveryRequest
 	// Username is the name of this client used to authenticate on SSH
 	Username string
+	// DiscoverProxies is set when the agent is created in discovery mode
+	// and is set to connect to one of the target proxies from the list
+	DiscoverProxies []services.Server
+	// Clock is a clock passed in tests, if not set wall clock
+	// will be used
+	Clock clockwork.Clock
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -85,43 +110,91 @@ func (a *AgentConfig) CheckAndSetDefaults() error {
 	if len(a.Username) == 0 {
 		return trace.BadParameter("missing parameter Username")
 	}
+	if a.Clock == nil {
+		a.Clock = clockwork.NewRealClock()
+	}
 	return nil
 }
 
 // Agent is a reverse tunnel agent running as a part of teleport Proxies
 // to establish outbound reverse tunnels to remote proxies
 type Agent struct {
+	sync.RWMutex
 	*log.Entry
 	AgentConfig
 	ctx             context.Context
 	cancel          context.CancelFunc
 	hostKeyCallback utils.HostKeyCallback
 	authMethods     []ssh.AuthMethod
+	// state is the state of this agent
+	state string
+	// stateChange records last time the state was changed
+	stateChange time.Time
+	// principals is the list of principals of the server this agent
+	// is currently connected to
+	principals []string
 }
 
 // NewAgent returns a new reverse tunnel agent
-// Parameters:
-//	  addr points to the remote reverse tunnel server
-//    remoteDomainName is the domain name of the runnel server, used only for logging
-//    clientName is hostid.domain (where 'domain' is local domain name)
 func NewAgent(cfg AgentConfig) (*Agent, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	ctx, cancel := context.WithCancel(cfg.Context)
-
 	a := &Agent{
 		AgentConfig: cfg,
-		Entry: log.WithFields(log.Fields{
-			teleport.Component: teleport.ComponentReverseTunnelAgent,
-			teleport.ComponentFields: map[string]interface{}{
-				"remote": cfg.Addr.String(),
-				"client": cfg.Username,
-			},
-		}),
 		ctx:         ctx,
 		cancel:      cancel,
 		authMethods: []ssh.AuthMethod{ssh.PublicKeys(cfg.Signers...)},
 	}
+	if len(cfg.DiscoverProxies) == 0 {
+		a.state = agentStateConnecting
+	} else {
+		a.state = agentStateDiscovering
+	}
+	a.Entry = log.WithFields(log.Fields{
+		trace.Component: teleport.ComponentReverseTunnelAgent,
+		trace.ComponentFields: map[string]interface{}{
+			"remote": cfg.Addr.String(),
+		},
+	})
 	a.hostKeyCallback = a.checkHostSignature
+
+	if len(a.DiscoverProxies) != 0 {
+		a.setState(agentStateDiscovering)
+	} else {
+		a.setState(agentStateConnecting)
+	}
+
 	return a, nil
+}
+
+func (a *Agent) String() string {
+	if len(a.DiscoverProxies) == 0 {
+		return fmt.Sprintf("agent -> cluster %v, target %v", a.RemoteCluster, a.Addr.String())
+	}
+	return fmt.Sprintf("agent -> cluster %v, target %v, discover %v", a.RemoteCluster, a.Addr.String(), Proxies(a.DiscoverProxies))
+}
+
+func (a *Agent) getLastStateChange() time.Time {
+	a.RLock()
+	defer a.RUnlock()
+	return a.stateChange
+}
+
+func (a *Agent) setState(state string) {
+	a.Lock()
+	defer a.Unlock()
+	prev := a.state
+	a.Debugf("changing state %v -> %v", prev, state)
+	a.state = state
+	a.stateChange = a.Clock.Now().UTC()
+}
+
+func (a *Agent) getState() string {
+	a.RLock()
+	defer a.RUnlock()
+	return a.state
 }
 
 // Close signals to close all connections
@@ -146,9 +219,39 @@ func (a *Agent) Wait() error {
 	return nil
 }
 
-// String returns debug-friendly
-func (a *Agent) String() string {
-	return fmt.Sprintf("tunagent(remote=%s)", a.Addr.String())
+func (a *Agent) connectedToRightProxy() bool {
+	principals := a.getPrincipals()
+	for _, proxy := range a.DiscoverProxies {
+		proxyID := fmt.Sprintf("%v.%v", proxy.GetName(), a.RemoteCluster)
+		if _, ok := principals[proxyID]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *Agent) setPrincipals(principals []string) {
+	a.Lock()
+	defer a.Unlock()
+	a.principals = principals
+}
+
+func (a *Agent) getPrincipalsList() []string {
+	a.RLock()
+	defer a.RUnlock()
+	out := make([]string, len(a.principals))
+	copy(out, a.principals)
+	return out
+}
+
+func (a *Agent) getPrincipals() map[string]struct{} {
+	a.RLock()
+	defer a.RUnlock()
+	out := make(map[string]struct{}, len(a.principals))
+	for _, p := range a.principals {
+		out[p] = struct{}{}
+	}
+	return out
 }
 
 func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.PublicKey) error {
@@ -167,7 +270,7 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 		}
 		for _, checker := range checkers {
 			if sshutils.KeysEqual(checker, cert.SignatureKey) {
-				a.Debugf("matched key %v for %v", ca.GetName(), hostport)
+				a.setPrincipals(cert.ValidPrincipals)
 				return nil
 			}
 		}
@@ -187,6 +290,16 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 			Timeout:         defaults.DefaultDialTimeout,
 		})
 		if conn != nil {
+			if len(a.DiscoverProxies) != 0 {
+				if a.connectedToRightProxy() {
+					a.setState(agentStateDiscovered)
+				} else {
+					a.Debugf("missed, connected to %v instead of %v", a.getPrincipalsList(), Proxies(a.DiscoverProxies))
+					a.setState(agentStateMissed)
+				}
+			} else {
+				a.setState(agentStateConnected)
+			}
 			break
 		}
 	}
@@ -345,6 +458,7 @@ func (a *Agent) runHeartbeat(conn *ssh.Client) {
 		}
 		newAccesspointC := conn.HandleChannelOpen(chanAccessPoint)
 		newTransportC := conn.HandleChannelOpen(chanTransport)
+		newDiscoveryC := conn.HandleChannelOpen(chanDiscovery)
 
 		// send first ping right away, then start a ping timer:
 		hb.SendRequest("ping", false, nil)
@@ -392,17 +506,17 @@ func (a *Agent) runHeartbeat(conn *ssh.Client) {
 				}
 				go a.proxyTransport(ch, req)
 			// new discovery request
-			case nch := <-newTransportC:
+			case nch := <-newDiscoveryC:
 				if nch == nil {
 					continue
 				}
-				a.Debugf("transport request: %v", nch.ChannelType())
+				a.Debugf("discovery request: %v", nch.ChannelType())
 				ch, req, err := nch.Accept()
 				if err != nil {
 					a.Warningf("failed to accept request: %v", err)
 					continue
 				}
-				go a.proxyTransport(ch, req)
+				go a.handleDiscovery(ch, req)
 			}
 		}
 	}
@@ -410,12 +524,17 @@ func (a *Agent) runHeartbeat(conn *ssh.Client) {
 	// run heartbeat loop, and when it fails (probably means that a tunnel got disconnected)
 	// keep repeating to reconnect until we're asked to stop
 	err := heartbeatLoop()
+	if len(a.DiscoverProxies) != 0 {
+		a.setState(agentStateDiscovering)
+	} else {
+		a.setState(agentStateConnecting)
+	}
 
 	// when this happens, this is #1 issue we have right now with Teleport. So I'm making
 	// it EASY to see in the logs. This condition should never be permanent (like repeates
 	// every XX seconds)
 	if err != nil {
-		log.Warn(err)
+		a.Warn(err)
 	}
 
 	if err != nil || conn == nil {
@@ -456,6 +575,8 @@ func (a *Agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 				a.Warningf("bad payload: %v", err)
 				return
 			}
+			r.ClusterName = a.RemoteCluster
+			r.ClusterAddr = a.Addr
 			select {
 			case a.DiscoveryC <- r:
 			case <-a.ctx.Done():
@@ -463,7 +584,6 @@ func (a *Agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 				return
 			default:
 			}
-			req.Reply(true, []byte("thanks"))
 		}
 	}
 }

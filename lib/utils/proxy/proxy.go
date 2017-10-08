@@ -162,20 +162,22 @@ func getProxyAddress() string {
 		strings.ToLower(teleport.HTTPProxy),
 	}
 
+	l := log.WithFields(log.Fields{trace.Component: "http:proxy"})
+
 	for _, v := range envs {
 		addr := os.Getenv(v)
 		if addr != "" {
 			proxyaddr, err := parse(addr)
 			if err != nil {
-				log.Debugf("[HTTP PROXY] Unable to parse environment variable %q: %q.", v, addr)
+				l.Debugf("unable to parse environment variable %q: %q.", v, addr)
 				continue
 			}
-			log.Debugf("[HTTP PROXY] Successfully parsed environment variable %q: %q to %q", v, addr, proxyaddr)
+			l.Debugf("successfully parsed environment variable %q: %q to %q", v, addr, proxyaddr)
 			return proxyaddr
 		}
 	}
 
-	log.Debugf("[HTTP PROXY] No valid environment variables found.")
+	l.Debugf("no valid environment variables found.")
 	return ""
 }
 

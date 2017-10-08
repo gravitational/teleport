@@ -34,9 +34,9 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
-	log "github.com/sirupsen/logrus"
-
+	"github.com/jonboulle/clockwork"
 	"github.com/mailgun/oxy/forward"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -57,6 +57,7 @@ type remoteSite struct {
 	accessPoint auth.AccessPoint
 	connInfo    services.TunnelConnection
 	ctx         context.Context
+	clock       clockwork.Clock
 }
 
 func (s *remoteSite) CachingAccessPoint() (auth.AccessPoint, error) {
@@ -137,11 +138,10 @@ func (s *remoteSite) GetStatus() string {
 	if err != nil {
 		return RemoteSiteStatusOffline
 	}
-	diff := time.Now().Sub(connInfo.GetLastHeartbeat())
-	if diff > defaults.ReverseTunnelOfflineThreshold {
-		return RemoteSiteStatusOffline
+	if s.isOnline(connInfo) {
+		return RemoteSiteStatusOnline
 	}
-	return RemoteSiteStatusOnline
+	return RemoteSiteStatusOffline
 }
 
 func (s *remoteSite) registerHeartbeat(t time.Time) {
@@ -192,7 +192,7 @@ func (s *remoteSite) periodicSendDiscoveryRequests() {
 	ticker := time.NewTicker(defaults.ReverseTunnelAgentHeartbeatPeriod)
 	defer ticker.Stop()
 	if err := s.sendDiscoveryRequest(); err != nil {
-		s.Warningf("failed to fetch cluster peers: %v", err)
+		s.Warningf("failed to send discovery: %v", err)
 	}
 	for {
 		select {
@@ -202,10 +202,15 @@ func (s *remoteSite) periodicSendDiscoveryRequests() {
 		case <-ticker.C:
 			err := s.sendDiscoveryRequest()
 			if err != nil {
-				s.Warningf("could not send discovery request: %v", err)
+				s.Warningf("could not send discovery request: %v", trace.DebugReport(err))
 			}
 		}
 	}
+}
+
+func (s *remoteSite) isOnline(conn services.TunnelConnection) bool {
+	diff := s.clock.Now().Sub(conn.GetLastHeartbeat())
+	return diff < defaults.ReverseTunnelOfflineThreshold
 }
 
 // findDisconnectedProxies
@@ -216,7 +221,9 @@ func (s *remoteSite) findDisconnectedProxies() ([]services.Server, error) {
 	}
 	connected := make(map[string]bool)
 	for _, conn := range conns {
-		connected[conn.GetProxyName()] = true
+		if s.isOnline(conn) {
+			connected[conn.GetProxyName()] = true
+		}
 	}
 	proxies, err := s.srv.AccessPoint.GetProxies()
 	if err != nil {
@@ -240,7 +247,7 @@ func (s *remoteSite) sendDiscoveryRequest() error {
 	if len(disconnectedProxies) == 0 {
 		return nil
 	}
-	s.Infof("detected disconnected proxies: %v", disconnectedProxies)
+	s.Debugf("going to request discovery for: %v", Proxies(disconnectedProxies))
 	req := discoveryRequest{
 		Proxies: disconnectedProxies,
 	}
@@ -257,18 +264,21 @@ func (s *remoteSite) sendDiscoveryRequest() error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		_, err = discoveryC.SendRequest("ping", false, payload)
-		remoteConn.markInvalid(err)
-		s.Errorf("disconnecting cluster on %v, err: %v",
-			remoteConn.conn.RemoteAddr(),
-			err)
-		return trace.Wrap(err)
+		_, err = discoveryC.SendRequest("discovery", false, payload)
+		if err != nil {
+			remoteConn.markInvalid(err)
+			s.Errorf("disconnecting cluster on %v, err: %v",
+				remoteConn.conn.RemoteAddr(),
+				err)
+			return trace.Wrap(err)
+		}
+		return nil
 	}
 
 	for i := 0; i < s.connectionCount(); i++ {
 		err := send()
 		if err != nil {
-			s.Warningf("%v")
+			s.Warningf("%v", err)
 		}
 	}
 	return nil
@@ -277,8 +287,6 @@ func (s *remoteSite) sendDiscoveryRequest() error {
 // dialAccessPoint establishes a connection from the proxy (reverse tunnel server)
 // back into the client using previously established tunnel.
 func (s *remoteSite) dialAccessPoint(network, addr string) (net.Conn, error) {
-	s.Debugf("dialAccessPoint")
-
 	try := func() (net.Conn, error) {
 		remoteConn, err := s.nextConn()
 		if err != nil {
@@ -292,7 +300,7 @@ func (s *remoteSite) dialAccessPoint(network, addr string) (net.Conn, error) {
 				err)
 			return nil, trace.Wrap(err)
 		}
-		s.Infof("success dialing to cluster")
+		s.Debugf("success dialing to cluster")
 		return utils.NewChConn(remoteConn.sshConn, ch), nil
 	}
 

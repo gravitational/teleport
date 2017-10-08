@@ -5,5 +5,5 @@ metadata:
 spec:
    enabled: true
    token: "bar"
-   tunnel_addr: one:3024
-   web_proxy_addr: one:3080
+   tunnel_addr: one-lb:3024
+   web_proxy_addr: one-lb:3080

@@ -3,6 +3,7 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -172,7 +173,7 @@ type TunnelConnectionSpecV2 struct {
 	// ProxyName is the name of the proxy server
 	ProxyName string `json:"proxy_name"`
 	// LastHeartbeat is a time of the last heartbeat
-	LastHeartbeat time.Time `json:"last_heartbeat"`
+	LastHeartbeat time.Time `json:"last_heartbeat,omitempty"`
 }
 
 // TunnelConnectionSpecV2Schema is JSON schema for reverse tunnel spec
@@ -197,7 +198,8 @@ func GetTunnelConnectionSchema() string {
 // sets defaults and checks the schema
 func UnmarshalTunnelConnection(data []byte) (TunnelConnection, error) {
 	if len(data) == 0 {
-		return nil, trace.BadParameter("missing tunnel data")
+		debug.PrintStack()
+		return nil, trace.BadParameter("missing tunnel connection data")
 	}
 	var h ResourceHeader
 	err := json.Unmarshal(data, &h)

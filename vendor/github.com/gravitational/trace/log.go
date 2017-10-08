@@ -39,17 +39,26 @@ const (
 	LevelField = "level"
 	// Component is a field that represents component - e.g. service or
 	// function
-	Component = "component"
+	Component = "trace.component"
+	// ComponentFields is a fields compoonent
+	ComponentFields = "trace.fields"
 )
 
 // TextFormatter is logrus-compatible formatter and adds
 // file and line details to every logged entry.
 type TextFormatter struct {
+	// DisableTimestamp disables timestamp output (useful when outputting to
+	// systemd logs)
 	DisableTimestamp bool
 }
 
 // Format implements logrus.Formatter interface and adds file and line
-func (tf *TextFormatter) Format(e *log.Entry) ([]byte, error) {
+func (tf *TextFormatter) Format(e *log.Entry) (data []byte, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = BadParameter("recovered from panic: %v", r)
+		}
+	}()
 	var file string
 	if frameNo := findFrame(); frameNo != -1 {
 		t := newTrace(frameNo, nil)
@@ -179,6 +188,11 @@ func (w *writer) writeMap(m map[string]interface{}) {
 		}
 		switch val := m[key].(type) {
 		case map[string]interface{}:
+			w.WriteString(key)
+			w.WriteString(":{")
+			w.writeMap(val)
+			w.WriteString(" }")
+		case log.Fields:
 			w.WriteString(key)
 			w.WriteString(":{")
 			w.writeMap(val)

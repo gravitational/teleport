@@ -51,12 +51,6 @@ const (
 )
 
 const (
-	// Component indicates a component of teleport, used for logging
-	Component = "component"
-
-	// ComponentFields stores component-specific fields
-	ComponentFields = "fields"
-
 	// ComponentReverseTunnelServer is reverse tunnel server
 	// that together with agent establish a bi-directional SSH revers tunnel
 	// to bypass firewall restrictions
@@ -77,7 +71,10 @@ const (
 	ComponentProxy = "proxy"
 
 	// ComponentTunClient is a tunnel client
-	ComponentTunClient = "tunclient"
+	ComponentTunClient = "client:tunnel"
+
+	// ComponentCachingClient is a caching auth client
+	ComponentCachingClient = "client:cache"
 
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"

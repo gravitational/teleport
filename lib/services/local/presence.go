@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 // PresenceService records and reports the presence of all components
@@ -363,7 +364,11 @@ func (s *PresenceService) GetTunnelConnection(clusterName, connectionName string
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalTunnelConnection(data)
+	conn, err := services.UnmarshalTunnelConnection(data)
+	if err != nil {
+		log.Debugf("got some problem with data: %q", string(data))
+	}
+	return conn, err
 }
 
 // GetTunnelConnections returns connections for a trusted cluster

@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -57,6 +58,7 @@ const (
 // This which can be used if the upstream AccessPoint goes offline
 type CachingAuthClient struct {
 	Config
+	*log.Entry
 	// ap points to the access ponit we're caching access to:
 	ap auth.AccessPoint
 
@@ -115,6 +117,9 @@ func NewCachingAuthClient(config Config) (*CachingAuthClient, error) {
 		trust:    local.NewCAService(config.Backend),
 		access:   local.NewAccessService(config.Backend),
 		presence: local.NewPresenceService(config.Backend),
+		Entry: log.WithFields(log.Fields{
+			trace.Component: teleport.ComponentCachingClient,
+		}),
 	}
 	if !cs.SkipPreload {
 		err := cs.fetchAll()
@@ -122,7 +127,7 @@ func NewCachingAuthClient(config Config) (*CachingAuthClient, error) {
 			// we almost always get some "access denied" errors here because
 			// not all cacheable resources are available (for example nodes do
 			// not have access to tunnels)
-			log.Debugf("Auth cache: %v", err)
+			cs.Debugf("auth cache: %v", err)
 		}
 	}
 	return cs, nil
@@ -504,14 +509,14 @@ func (cs *CachingAuthClient) UpsertTunnelConnection(conn services.TunnelConnecti
 func (cs *CachingAuthClient) try(f func() error) error {
 	tooSoon := cs.lastErrorTime.Add(backoffDuration).After(time.Now())
 	if tooSoon {
-		log.Warnf("Backoff: using cached value due to recent errors")
+		cs.Warnf("backoff: using cached value due to recent errors")
 		return trace.ConnectionProblem(fmt.Errorf("backoff"), "backing off due to recent errors")
 	}
 	accessPointRequests.Inc()
 	err := trace.ConvertSystemError(f())
 	if trace.IsConnectionProblem(err) {
 		cs.lastErrorTime = time.Now()
-		log.Warningf("Connection Problem: failed connect to the auth servers, using local cache")
+		cs.Warningf("connection problem: failed connect to the auth servers, using local cache")
 	}
 	return err
 }
