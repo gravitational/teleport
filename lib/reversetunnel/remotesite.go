@@ -146,6 +146,7 @@ func (s *remoteSite) GetStatus() string {
 
 func (s *remoteSite) registerHeartbeat(t time.Time) {
 	s.connInfo.SetLastHeartbeat(t)
+	s.connInfo.SetExpiry(s.clock.Now().Add(defaults.ReverseTunnelOfflineThreshold))
 	err := s.srv.AccessPoint.UpsertTunnelConnection(s.connInfo)
 	if err != nil {
 		log.Warningf("failed to register heartbeat: %v", err)
@@ -221,9 +222,7 @@ func (s *remoteSite) findDisconnectedProxies() ([]services.Server, error) {
 	}
 	connected := make(map[string]bool)
 	for _, conn := range conns {
-		if s.isOnline(conn) {
-			connected[conn.GetProxyName()] = true
-		}
+		connected[conn.GetProxyName()] = true
 	}
 	proxies, err := s.srv.AccessPoint.GetProxies()
 	if err != nil {

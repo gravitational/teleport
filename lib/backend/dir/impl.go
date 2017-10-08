@@ -85,7 +85,7 @@ func New(params backend.Params) (backend.Backend, error) {
 		RootDir:       rootDir,
 		InternalClock: clockwork.NewRealClock(),
 		Entry: log.WithFields(log.Fields{
-			trace.Component: "fs",
+			trace.Component: "backend:dir",
 			trace.ComponentFields: log.Fields{
 				"dir": rootDir,
 			},
@@ -176,16 +176,21 @@ func (bk *Backend) GetVal(bucket []string, key string) ([]byte, error) {
 	}
 	if expired {
 		bk.DeleteKey(bucket, key)
-		return nil, trace.NotFound("key '%s' is not found", key)
+		return nil, trace.NotFound("key %q is not found", key)
 	}
 	fp := path.Join(dirPath, key)
 	bytes, err := ioutil.ReadFile(fp)
 	if err != nil {
 		// GetVal() on a bucket must return 'BadParameter' error:
 		if fi, _ := os.Stat(fp); fi != nil && fi.IsDir() {
-			return nil, trace.BadParameter("%s is not a valid key", key)
+			return nil, trace.BadParameter("%q is not a valid key", key)
 		}
 		return nil, trace.ConvertSystemError(err)
+	}
+	// this could happen if we delete the file concurrently
+	// with the read, apparently we can read empty file back
+	if len(bytes) == 0 {
+		return nil, trace.NotFound("key %q is not found", key)
 	}
 	return bytes, nil
 }
@@ -313,6 +318,10 @@ func (bk *Backend) checkTTL(dirPath string, key string) (expired bool, err error
 			return false, nil
 		}
 		return false, trace.Wrap(err)
+	}
+	// this could happen if file was deleted, we can sometimes read empty contents
+	if len(bytes) == 0 {
+		return false, nil
 	}
 	var expiryTime time.Time
 	if err = expiryTime.UnmarshalText(bytes); err != nil {

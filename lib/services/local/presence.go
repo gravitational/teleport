@@ -123,17 +123,20 @@ func (s *PresenceService) getServers(kind, prefix string) ([]services.Server, er
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	servers := make([]services.Server, len(keys))
-	for i, key := range keys {
+	servers := make([]services.Server, 0, len(keys))
+	for _, key := range keys {
 		data, err := s.GetVal([]string{prefix}, key)
 		if err != nil {
+			if trace.IsNotFound(err) {
+				continue
+			}
 			return nil, trace.Wrap(err)
 		}
 		server, err := services.GetServerMarshaler().UnmarshalServer(data, kind)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		servers[i] = server
+		servers = append(servers, server)
 	}
 	// sorting helps with tests and makes it all deterministic
 	sort.Sort(services.SortedServers(servers))
@@ -390,6 +393,7 @@ func (s *PresenceService) GetTunnelConnections(clusterName string) ([]services.T
 			if !trace.IsNotFound(err) {
 				return nil, trace.Wrap(err)
 			}
+			continue
 		}
 		conns = append(conns, conn)
 	}
