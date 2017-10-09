@@ -149,8 +149,8 @@ func NewAgent(cfg AgentConfig) (*Agent, error) {
 	}
 	a.Entry = log.WithFields(log.Fields{
 		trace.Component: teleport.ComponentReverseTunnelAgent,
-		trace.ComponentFields: map[string]interface{}{
-			"remote": cfg.Addr.String(),
+		trace.ComponentFields: log.Fields{
+			"target": cfg.Addr.String(),
 		},
 	})
 	a.hostKeyCallback = a.checkHostSignature

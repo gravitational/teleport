@@ -177,7 +177,7 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 				}
 			}
 			if roundtrip != 0 {
-				s.Debugf("ping <- %v rtt(%v)", conn.conn.RemoteAddr(), roundtrip)
+				s.WithFields(log.Fields{"rtt": roundtrip}).Debugf("ping <- %v", conn.conn.RemoteAddr())
 			} else {
 				s.Debugf("ping <- %v", conn.conn.RemoteAddr())
 			}

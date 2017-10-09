@@ -680,7 +680,7 @@ func newRemoteSite(srv *server, domainName string) (*remoteSite, error) {
 		connInfo:   connInfo,
 		Entry: log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentReverseTunnelServer,
-			trace.ComponentFields: map[string]interface{}{
+			trace.ComponentFields: log.Fields{
 				"cluster": domainName,
 			},
 		}),
