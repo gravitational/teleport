@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"fmt"
 	"regexp"
+	rundebug "runtime/debug"
 	"sort"
 	"strings"
 	"time"
@@ -42,6 +43,10 @@ const (
 	Component = "trace.component"
 	// ComponentFields is a fields compoonent
 	ComponentFields = "trace.fields"
+	// DefaultComponentPadding is a default char padding for component
+	DefaultComponentPadding = 11
+	// DefaultLevelPadding is a default char padding for component
+	DefaultLevelPadding = 4
 )
 
 // TextFormatter is logrus-compatible formatter and adds
@@ -50,13 +55,17 @@ type TextFormatter struct {
 	// DisableTimestamp disables timestamp output (useful when outputting to
 	// systemd logs)
 	DisableTimestamp bool
+	// ComponentPadding is a padding to pick when displaying
+	// and formatting component field, default is set to 11
+	ComponentPadding int
 }
 
 // Format implements logrus.Formatter interface and adds file and line
 func (tf *TextFormatter) Format(e *log.Entry) (data []byte, err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = BadParameter("recovered from panic: %v", r)
+			data = append([]byte("panic in log formatter\n"), rundebug.Stack()...)
+			return
 		}
 	}()
 	var file string
@@ -73,18 +82,32 @@ func (tf *TextFormatter) Format(e *log.Entry) (data []byte, err error) {
 	}
 
 	// level
-	w.writeField(strings.ToUpper(padMax(e.Level.String(), 4)))
+	w.writeField(strings.ToUpper(padMax(e.Level.String(), DefaultLevelPadding)))
 
-	// component if present, highly visible
-	component, ok := e.Data[Component]
-	if ok {
-		if w.Len() > 0 {
-			w.WriteByte(' ')
-		}
-		w.WriteByte('[')
-		w.WriteString(strings.ToUpper(padMax(fmt.Sprintf("%v", component), 11)))
-		w.WriteByte(']')
+	// component, always output
+	componentI, ok := e.Data[Component]
+	if !ok {
+		componentI = ""
 	}
+	component, ok := componentI.(string)
+	if !ok {
+		component = fmt.Sprintf("%v", componentI)
+	}
+	padding := DefaultComponentPadding
+	if tf.ComponentPadding != 0 {
+		padding = tf.ComponentPadding
+	}
+	if w.Len() > 0 {
+		w.WriteByte(' ')
+	}
+	if component != "" {
+		component = fmt.Sprintf("[%v]", component)
+	}
+	component = strings.ToUpper(padMax(component, padding))
+	if component[len(component)-1] != ' ' {
+		component = component[:len(component)-1] + "]"
+	}
+	w.WriteString(component)
 
 	// message
 	if e.Message != "" {
@@ -102,7 +125,8 @@ func (tf *TextFormatter) Format(e *log.Entry) (data []byte, err error) {
 		w.writeMap(e.Data)
 	}
 	w.WriteByte('\n')
-	return w.Bytes(), nil
+	data = w.Bytes()
+	return
 }
 
 // JSONFormatter implements logrus.Formatter interface and adds file and line
