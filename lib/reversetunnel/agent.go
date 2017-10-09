@@ -53,11 +53,6 @@ const (
 	agentStateConnected = "connected"
 	// agentStateDiscovered means that agent has discovered the right proxy
 	agentStateDiscovered = "discovered"
-	// agentStateMissed means that agent has connected,
-	// but not to the one of the instances it was targeted to discover
-	agentStateMissed = "missed"
-	// agentStateClosed is for closed agents
-	agentStateClosed = "closed"
 )
 
 // AgentConfig holds configuration for agent
@@ -171,9 +166,9 @@ func NewAgent(cfg AgentConfig) (*Agent, error) {
 
 func (a *Agent) String() string {
 	if len(a.DiscoverProxies) == 0 {
-		return fmt.Sprintf("agent -> cluster %v, target %v", a.RemoteCluster, a.Addr.String())
+		return fmt.Sprintf("agent(%v) -> %v:%v", a.getState(), a.RemoteCluster, a.Addr.String())
 	}
-	return fmt.Sprintf("agent -> cluster %v, target %v, discover %v", a.RemoteCluster, a.Addr.String(), Proxies(a.DiscoverProxies))
+	return fmt.Sprintf("agent(%v) -> %v:%v, discover %v", a.getState(), a.RemoteCluster, a.Addr.String(), Proxies(a.DiscoverProxies))
 }
 
 func (a *Agent) getLastStateChange() time.Time {
@@ -182,6 +177,13 @@ func (a *Agent) getLastStateChange() time.Time {
 	return a.stateChange
 }
 
+func (a *Agent) setStateAndPrincipals(state string, principals []string) {
+	prev := a.state
+	a.Debugf("changing state %v -> %v", prev, state)
+	a.state = state
+	a.stateChange = a.Clock.Now().UTC()
+	a.principals = principals
+}
 func (a *Agent) setState(state string) {
 	a.Lock()
 	defer a.Unlock()
@@ -219,11 +221,18 @@ func (a *Agent) Wait() error {
 	return nil
 }
 
-func (a *Agent) connectedToRightProxy() bool {
+func (a *Agent) connectedTo(proxy services.Server) bool {
 	principals := a.getPrincipals()
+	proxyID := fmt.Sprintf("%v.%v", proxy.GetName(), a.RemoteCluster)
+	if _, ok := principals[proxyID]; ok {
+		return true
+	}
+	return false
+}
+
+func (a *Agent) connectedToRightProxy() bool {
 	for _, proxy := range a.DiscoverProxies {
-		proxyID := fmt.Sprintf("%v.%v", proxy.GetName(), a.RemoteCluster)
-		if _, ok := principals[proxyID]; ok {
+		if a.connectedTo(proxy) {
 			return true
 		}
 	}
@@ -295,7 +304,9 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 					a.setState(agentStateDiscovered)
 				} else {
 					a.Debugf("missed, connected to %v instead of %v", a.getPrincipalsList(), Proxies(a.DiscoverProxies))
-					a.setState(agentStateMissed)
+					a.setStateAndPrincipals(agentStateDiscovering, nil)
+					conn.Close()
+					return nil, trace.ConnectionProblem(nil, "did not discover the right proxy")
 				}
 			} else {
 				a.setState(agentStateConnected)
@@ -439,6 +450,20 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 	wg.Wait()
 }
 
+func (a *Agent) run() {
+	// connect with exponential backoff untill asked to stop
+	for {
+		conn, err := a.connect()
+		if err != nil {
+			a.Warningf("failed to create remote tunnel: %v", err)
+		} else {
+			a.Infof("connected to %s", conn.RemoteAddr())
+			// start heartbeat even if error happend, it will reconnect
+			a.runHeartbeat(conn)
+		}
+	}
+}
+
 // runHeartbeat is a blocking function which runs in a loop sending heartbeats
 // to the given SSH connection.
 //
@@ -448,7 +473,7 @@ func (a *Agent) runHeartbeat(conn *ssh.Client) {
 
 	heartbeatLoop := func() error {
 		if conn == nil {
-			return trace.Errorf("heartbeat cannot ping: need to reconnect")
+			return trace.ConnectionProblem(nil, "heartbeat cannot ping: need to reconnect")
 		}
 		a.Infof("connected to %s", conn.RemoteAddr())
 		defer conn.Close()
@@ -470,7 +495,8 @@ func (a *Agent) runHeartbeat(conn *ssh.Client) {
 				return nil
 			// time to ping:
 			case <-ticker.C:
-				_, err := hb.SendRequest("ping", false, nil)
+				bytes, _ := a.Clock.Now().UTC().MarshalText()
+				_, err := hb.SendRequest("ping", false, bytes)
 				if err != nil {
 					log.Error(err)
 					return trace.Wrap(err)
@@ -525,9 +551,9 @@ func (a *Agent) runHeartbeat(conn *ssh.Client) {
 	// keep repeating to reconnect until we're asked to stop
 	err := heartbeatLoop()
 	if len(a.DiscoverProxies) != 0 {
-		a.setState(agentStateDiscovering)
+		a.setStateAndPrincipals(agentStateDiscovering, nil)
 	} else {
-		a.setState(agentStateConnecting)
+		a.setStateAndPrincipals(agentStateConnecting, nil)
 	}
 
 	// when this happens, this is #1 issue we have right now with Teleport. So I'm making

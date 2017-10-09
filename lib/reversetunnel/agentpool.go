@@ -13,9 +13,20 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
-
+	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
+)
+
+var (
+	tunnelStats = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "tunnels",
+			Help: "Number of tunnels per state",
+		},
+		[]string{"cluster", "state"},
+	)
 )
 
 // AgentPool manages the pool of outbound reverse tunnel agents.
@@ -47,6 +58,9 @@ type AgentPoolConfig struct {
 	Context context.Context
 	// Cluster is a cluster name
 	Cluster string
+	// Clock is a clock used to get time, if not set,
+	// system clock is used
+	Clock clockwork.Clock
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -65,6 +79,9 @@ func (cfg *AgentPoolConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.Context == nil {
 		cfg.Context = context.TODO()
+	}
+	if cfg.Clock == nil {
+		cfg.Clock = clockwork.NewRealClock()
 	}
 	return nil
 }
@@ -128,24 +145,50 @@ func (m *AgentPool) processDiscoveryRequests() {
 	}
 }
 
+func foundInOneOf(proxy services.Server, agents []*Agent) bool {
+	for _, agent := range agents {
+		if agent.connectedTo(proxy) {
+			return true
+		}
+	}
+	return false
+}
+
 func (m *AgentPool) tryDiscover(req discoveryRequest) {
-	m.Debugf("will need to discover: %v", Proxies(req.Proxies))
+	proxies := Proxies(req.Proxies)
 	m.Lock()
 	defer m.Unlock()
-	proxies := Proxies(req.Proxies)
+
 	matchKey := req.key()
-	var foundAgent bool
+
+	// if one of the proxies have been discovered or connected to
+	// remove proxy from discovery request
+	var filtered Proxies
+	agents := m.agents[matchKey]
+	for i := range proxies {
+		proxy := proxies[i]
+		if !foundInOneOf(proxy, agents) {
+			filtered = append(filtered, proxy)
+		}
+	}
+	m.Debugf("tryDiscover original(%v) -> filtered(%v)", proxies, filtered)
+	// nothing to do
+	if len(filtered) == 0 {
+		return
+	}
 	// close agents that are discovering proxies that are somehow
 	// different from discovery request
+	var foundAgent bool
 	m.closeAgentsIf(&matchKey, func(agent *Agent) bool {
 		if agent.getState() != agentStateDiscovering {
 			return false
 		}
-		if proxies.Equal(agent.DiscoverProxies) {
+		if filtered.Equal(agent.DiscoverProxies) {
 			foundAgent = true
-			agent.Debugf("is already discovering %v, nothing to do", req)
+			agent.Debugf("agent is already discovering the same proxies as requested in %v", filtered)
 			return false
 		}
+		agent.Debugf("is obsolete, going to close", agent.getState(), agent.DiscoverProxies)
 		return true
 	})
 
@@ -254,6 +297,25 @@ func (m *AgentPool) addAgent(key agentKey, discoverProxies []services.Server) er
 	return nil
 }
 
+// reportStats submits report about agents state once in a while
+func (m *AgentPool) reportStats() {
+	for key, agents := range m.agents {
+		countPerState := make(map[string]int)
+		for _, a := range agents {
+			countPerState[a.getState()] += 1
+		}
+		for state, count := range countPerState {
+			gauge, err := tunnelStats.GetMetricWithLabelValues(key.domainName, state)
+			if err != nil {
+				m.Warningf("%v", err)
+				continue
+			}
+			gauge.Set(float64(count))
+		}
+		m.Debugf("STATS: %v -> %v", key.domainName, countPerState)
+	}
+}
+
 func (m *AgentPool) syncAgents(tunnels []services.ReverseTunnel) error {
 	m.Lock()
 	defer m.Unlock()
@@ -273,14 +335,7 @@ func (m *AgentPool) syncAgents(tunnels []services.ReverseTunnel) error {
 			return trace.Wrap(err)
 		}
 	}
-	// garbage collect agents that have connected, but to the wrong proxy
-	m.closeAgentsIf(nil, func(agent *Agent) bool {
-		if agent.getState() == agentStateMissed {
-			agent.Debugf("closing agent that could not discover clusters")
-			return true
-		}
-		return false
-	})
+	m.reportStats()
 	return nil
 }
 

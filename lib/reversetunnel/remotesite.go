@@ -149,7 +149,7 @@ func (s *remoteSite) registerHeartbeat(t time.Time) {
 	s.connInfo.SetExpiry(s.clock.Now().Add(defaults.ReverseTunnelOfflineThreshold))
 	err := s.srv.AccessPoint.UpsertTunnelConnection(s.connInfo)
 	if err != nil {
-		log.Warningf("failed to register heartbeat: %v", err)
+		s.Warningf("failed to register heartbeat: %v", err)
 	}
 }
 
@@ -169,10 +169,21 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 				conn.markInvalid(trace.ConnectionProblem(nil, "agent disconnected"))
 				return
 			}
-			s.Debugf("ping <- %v", conn.conn.RemoteAddr())
+			var timeSent time.Time
+			var roundtrip time.Duration
+			if req.Payload != nil {
+				if err := timeSent.UnmarshalText(req.Payload); err == nil {
+					roundtrip = s.srv.Clock.Now().Sub(timeSent)
+				}
+			}
+			if roundtrip != 0 {
+				s.Debugf("ping <- %v rtt(%v)", conn.conn.RemoteAddr(), roundtrip)
+			} else {
+				s.Debugf("ping <- %v", conn.conn.RemoteAddr())
+			}
 			go s.registerHeartbeat(time.Now())
-		case <-time.After(3 * defaults.ReverseTunnelAgentHeartbeatPeriod):
-			conn.markInvalid(trace.ConnectionProblem(nil, "agent missed 3 heartbeats"))
+		case <-time.After(defaults.ReverseTunnelOfflineThreshold):
+			conn.markInvalid(trace.ConnectionProblem(nil, "no heartbeats for %v", defaults.ReverseTunnelOfflineThreshold))
 		}
 	}
 }
@@ -222,7 +233,9 @@ func (s *remoteSite) findDisconnectedProxies() ([]services.Server, error) {
 	}
 	connected := make(map[string]bool)
 	for _, conn := range conns {
-		connected[conn.GetProxyName()] = true
+		if s.isOnline(conn) {
+			connected[conn.GetProxyName()] = true
+		}
 	}
 	proxies, err := s.srv.AccessPoint.GetProxies()
 	if err != nil {
