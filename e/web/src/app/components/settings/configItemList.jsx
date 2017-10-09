@@ -15,13 +15,13 @@ class ConfigItemList extends React.Component {
   renderItem(item) {
     const { onItemClick, curItem } = this.props;    
     const className = classnames('grv-settings-res-list-content-item', {
-      'active': item.key === curItem.key
+      'active': item.id === curItem.id
     });
 
     const displayName = item.displayName || item.name;
 
     return (
-      <li key={item.key} className={className} onClick={() => onItemClick(item)}>
+      <li key={item.id} className={className} onClick={() => onItemClick(item)}>
         <a>
           <span> {displayName} </span>
         </a>

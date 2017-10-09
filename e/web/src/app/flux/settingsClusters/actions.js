@@ -28,7 +28,7 @@ export function saveCluster(cluster) {
 
   const updateStore = items => reactor.batch(()=> {
     reactor.dispatch(AT.UPDATE_CLUSTERS, items);
-    setCurCluster(items[0].name);        
+    setCurCluster(items[0].id);        
     apiActions.success(RAT.TRYING_TO_SAVE_CLUSTER);            
   })
 
@@ -44,7 +44,9 @@ export function saveCluster(cluster) {
   }
 }
 
-export function deleteCluster(id) {  
+export function deleteCluster(clusterRec) { 
+  const { name, id } = clusterRec;
+  
   const updateStore = () => reactor.batch(()=> {
     const next = getClusterStore().getNext(id);      
     closeDeleteDialog();      
@@ -54,7 +56,7 @@ export function deleteCluster(id) {
   });
   
   apiActions.start(RAT.TRYING_TO_DELETE_RESOURCE);      
-  resApi.remove(TRUSTED_CLUSTER, id)      
+  resApi.remove(TRUSTED_CLUSTER, name)      
     .done(updateStore)
     .fail(err => {
       const msg = api.getErrorText(err);

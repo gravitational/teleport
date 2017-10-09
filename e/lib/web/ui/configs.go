@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"fmt"
+
 	yaml "github.com/ghodss/yaml"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
@@ -14,6 +16,8 @@ type ConfigCollection struct {
 
 // ConfigItem is UI representation of the resource
 type ConfigItem struct {
+	// ID is a resource ID which is a composed value based on kind and name
+	ID string `json:"id"`
 	// Kind is a resource kind
 	Kind string `json:"kind"`
 	// Name is a resource name
@@ -92,6 +96,7 @@ func NewConfigItem(kind string, name string, resource interface{}) (*ConfigItem,
 	}
 
 	return &ConfigItem{
+		ID:      fmt.Sprintf("%v:%v", kind, name),
 		Kind:    kind,
 		Name:    name,
 		Content: string(data[:]),

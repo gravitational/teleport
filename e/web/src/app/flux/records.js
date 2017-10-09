@@ -3,20 +3,21 @@ import { isString } from 'lodash';
 
 export class ItemRec extends Record({
   isNew: false,
-  kind: '',
-  key: '',
+  id: '',
+  kind: '',  
   name: '',
   displayName: '',
   content: ''
 }){
-  constructor(props={}){
-    const key = Math.random().toString();
-
-    super({
-      key,
+  constructor(props={}){    
+    super({      
       displayName: props.name,
       ...props
     })
+  }
+
+  getId(){
+    return this.get('id');
   }
 
   getIsNew(){
@@ -57,7 +58,7 @@ export class StoreRec extends Record({
     let itemMap = this.get('items');
     jsonItems.forEach(json => {
       const rec = new ItemRec(json);
-      itemMap = itemMap.set(rec.getName(), rec)
+      itemMap = itemMap.set(rec.id, rec)
     })
 
     return this.set('items', itemMap);
@@ -68,8 +69,8 @@ export class StoreRec extends Record({
       return null;
     }
 
-    const name = isString(item) ? item : item.getName();    
-    return this.getIn(['items', name]);    
+    const id = isString(item) ? item : item.id;    
+    return this.getIn(['items', id]);    
   }
 
   removeAll(){
