@@ -48,10 +48,6 @@ func init() {
 	prometheus.MustRegister(accessPointRequests)
 }
 
-const (
-	backoffDuration = time.Second * 10
-)
-
 // CachingAuthClient implements auth.AccessPoint interface and remembers
 // the previously returned upstream value for each API call.
 //
@@ -507,7 +503,7 @@ func (cs *CachingAuthClient) UpsertTunnelConnection(conn services.TunnelConnecti
 // time is recorded. Future calls to f will be ingored until sufficient time passes
 // since th last error
 func (cs *CachingAuthClient) try(f func() error) error {
-	tooSoon := cs.lastErrorTime.Add(backoffDuration).After(time.Now())
+	tooSoon := cs.lastErrorTime.Add(defaults.NetworkBackoffDuration).After(time.Now())
 	if tooSoon {
 		cs.Warnf("backoff: using cached value due to recent errors")
 		return trace.ConnectionProblem(fmt.Errorf("backoff"), "backing off due to recent errors")

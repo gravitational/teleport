@@ -173,6 +173,9 @@ var (
 	// TerminalSizeRefreshPeriod is how frequently clients who share sessions sync up
 	// their terminal sizes
 	TerminalSizeRefreshPeriod = 2 * time.Second
+
+	// NewtworkBackoffDuration is a standard backoff on network requests
+	NetworkBackoffDuration = time.Second * 10
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport

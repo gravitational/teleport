@@ -154,13 +154,6 @@ func NewAgent(cfg AgentConfig) (*Agent, error) {
 		},
 	})
 	a.hostKeyCallback = a.checkHostSignature
-
-	if len(a.DiscoverProxies) != 0 {
-		a.setState(agentStateDiscovering)
-	} else {
-		a.setState(agentStateConnecting)
-	}
-
 	return a, nil
 }
 
@@ -199,21 +192,15 @@ func (a *Agent) getState() string {
 	return a.state
 }
 
-// Close signals to close all connections
+// Close signals to close all connections and operations
 func (a *Agent) Close() error {
 	a.cancel()
 	return nil
 }
 
-// Start starts agent that attempts to connect to remote server part
-func (a *Agent) Start() error {
-	conn, err := a.connect()
-	if err != nil {
-		a.Warningf("Failed to create remote tunnel: %v", err)
-	}
-	// start heartbeat even if error happend, it will reconnect
-	go a.runHeartbeat(conn)
-	return err
+// Start starts agent that attempts to connect to remote server
+func (a *Agent) Start() {
+	go a.run()
 }
 
 // Wait waits until all outstanding operations are completed
@@ -299,18 +286,6 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 			Timeout:         defaults.DefaultDialTimeout,
 		})
 		if conn != nil {
-			if len(a.DiscoverProxies) != 0 {
-				if a.connectedToRightProxy() {
-					a.setState(agentStateDiscovered)
-				} else {
-					a.Debugf("missed, connected to %v instead of %v", a.getPrincipalsList(), Proxies(a.DiscoverProxies))
-					a.setStateAndPrincipals(agentStateDiscovering, nil)
-					conn.Close()
-					return nil, trace.ConnectionProblem(nil, "did not discover the right proxy")
-				}
-			} else {
-				a.setState(agentStateConnected)
-			}
 			break
 		}
 	}
@@ -450,127 +425,133 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 	wg.Wait()
 }
 
+// run is the main agent loop, constantly tries to re-establish
+// the connection until stopped
 func (a *Agent) run() {
-	// connect with exponential backoff untill asked to stop
+	backoff := time.NewTicker(defaults.NetworkBackoffDuration)
+	defer backoff.Stop()
+	firstAttempt := true
 	for {
+		if len(a.DiscoverProxies) != 0 {
+			a.setStateAndPrincipals(agentStateDiscovering, nil)
+		} else {
+			a.setStateAndPrincipals(agentStateConnecting, nil)
+		}
+
+		// ignore timer and context on the first attempt
+		if !firstAttempt {
+			select {
+			// abort if asked to stop:
+			case <-a.ctx.Done():
+				a.Debugf("agent has closed, exiting")
+				return
+				// wait backoff on network retries
+			case <-backoff.C:
+			}
+		}
+
 		conn, err := a.connect()
-		if err != nil {
-			a.Warningf("failed to create remote tunnel: %v", err)
+		firstAttempt = false
+		if err != nil || conn == nil {
+			a.Warningf("failed to create remote tunnel: %v, conn: %v", err, conn)
+			continue
 		} else {
 			a.Infof("connected to %s", conn.RemoteAddr())
+			if len(a.DiscoverProxies) != 0 {
+				if !a.connectedToRightProxy() {
+					a.Debugf("missed, connected to %v instead of %v", a.getPrincipalsList(), Proxies(a.DiscoverProxies))
+					conn.Close()
+					continue
+				}
+				a.setState(agentStateDiscovered)
+			} else {
+				a.setState(agentStateConnected)
+			}
 			// start heartbeat even if error happend, it will reconnect
-			a.runHeartbeat(conn)
+			// when this happens, this is #1 issue we have right now with Teleport. So we are making
+			// it EASY to see in the logs. This condition should never be permanent (repeates
+			// every XX seconds)
+			if err := a.processRequests(conn); err != nil {
+				log.Warn(err)
+			}
 		}
 	}
 }
 
-// runHeartbeat is a blocking function which runs in a loop sending heartbeats
-// to the given SSH connection.
-//
-func (a *Agent) runHeartbeat(conn *ssh.Client) {
+// processRequests is a blocking function which runs in a loop sending heartbeats
+// to the given SSH connection and processes inbound requests from the
+// remote proxy
+func (a *Agent) processRequests(conn *ssh.Client) error {
+	defer conn.Close()
 	ticker := time.NewTicker(defaults.ReverseTunnelAgentHeartbeatPeriod)
 	defer ticker.Stop()
 
-	heartbeatLoop := func() error {
-		if conn == nil {
-			return trace.ConnectionProblem(nil, "heartbeat cannot ping: need to reconnect")
-		}
-		a.Infof("connected to %s", conn.RemoteAddr())
-		defer conn.Close()
-		hb, reqC, err := conn.OpenChannel(chanHeartbeat, nil)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		newAccesspointC := conn.HandleChannelOpen(chanAccessPoint)
-		newTransportC := conn.HandleChannelOpen(chanTransport)
-		newDiscoveryC := conn.HandleChannelOpen(chanDiscovery)
-
-		// send first ping right away, then start a ping timer:
-		hb.SendRequest("ping", false, nil)
-
-		for {
-			select {
-			// need to exit:
-			case <-a.ctx.Done():
-				return nil
-			// time to ping:
-			case <-ticker.C:
-				bytes, _ := a.Clock.Now().UTC().MarshalText()
-				_, err := hb.SendRequest("ping", false, bytes)
-				if err != nil {
-					log.Error(err)
-					return trace.Wrap(err)
-				}
-				a.Debugf("ping -> %v", conn.RemoteAddr())
-			// ssh channel closed:
-			case req := <-reqC:
-				if req == nil {
-					return trace.ConnectionProblem(nil, "heartbeat: connection closed")
-				}
-			// new access point request:
-			case nch := <-newAccesspointC:
-				if nch == nil {
-					continue
-				}
-				a.Debugf("access point request: %v", nch.ChannelType())
-				ch, req, err := nch.Accept()
-				if err != nil {
-					a.Warningf("failed to accept request: %v", err)
-					continue
-				}
-				go a.proxyAccessPoint(ch, req)
-			// new transport request:
-			case nch := <-newTransportC:
-				if nch == nil {
-					continue
-				}
-				a.Debugf("transport request: %v", nch.ChannelType())
-				ch, req, err := nch.Accept()
-				if err != nil {
-					a.Warningf("failed to accept request: %v", err)
-					continue
-				}
-				go a.proxyTransport(ch, req)
-			// new discovery request
-			case nch := <-newDiscoveryC:
-				if nch == nil {
-					continue
-				}
-				a.Debugf("discovery request: %v", nch.ChannelType())
-				ch, req, err := nch.Accept()
-				if err != nil {
-					a.Warningf("failed to accept request: %v", err)
-					continue
-				}
-				go a.handleDiscovery(ch, req)
-			}
-		}
-	}
-
-	// run heartbeat loop, and when it fails (probably means that a tunnel got disconnected)
-	// keep repeating to reconnect until we're asked to stop
-	err := heartbeatLoop()
-	if len(a.DiscoverProxies) != 0 {
-		a.setStateAndPrincipals(agentStateDiscovering, nil)
-	} else {
-		a.setStateAndPrincipals(agentStateConnecting, nil)
-	}
-
-	// when this happens, this is #1 issue we have right now with Teleport. So I'm making
-	// it EASY to see in the logs. This condition should never be permanent (like repeates
-	// every XX seconds)
+	hb, reqC, err := conn.OpenChannel(chanHeartbeat, nil)
 	if err != nil {
-		a.Warn(err)
+		return trace.Wrap(err)
 	}
+	newAccesspointC := conn.HandleChannelOpen(chanAccessPoint)
+	newTransportC := conn.HandleChannelOpen(chanTransport)
+	newDiscoveryC := conn.HandleChannelOpen(chanDiscovery)
 
-	if err != nil || conn == nil {
+	// send first ping right away, then start a ping timer:
+	hb.SendRequest("ping", false, nil)
+
+	for {
 		select {
-		// abort if asked to stop:
+		// need to exit:
 		case <-a.ctx.Done():
-			return
-			// reconnect
+			return trace.ConnectionProblem(nil, "heartbeat: agent is stopped")
+		// time to ping:
 		case <-ticker.C:
-			a.Start()
+			bytes, _ := a.Clock.Now().UTC().MarshalText()
+			_, err := hb.SendRequest("ping", false, bytes)
+			if err != nil {
+				log.Error(err)
+				return trace.Wrap(err)
+			}
+			a.Debugf("ping -> %v", conn.RemoteAddr())
+		// ssh channel closed:
+		case req := <-reqC:
+			if req == nil {
+				return trace.ConnectionProblem(nil, "heartbeat: connection closed")
+			}
+		// new access point request:
+		case nch := <-newAccesspointC:
+			if nch == nil {
+				continue
+			}
+			a.Debugf("access point request: %v", nch.ChannelType())
+			ch, req, err := nch.Accept()
+			if err != nil {
+				a.Warningf("failed to accept request: %v", err)
+				continue
+			}
+			go a.proxyAccessPoint(ch, req)
+		// new transport request:
+		case nch := <-newTransportC:
+			if nch == nil {
+				continue
+			}
+			a.Debugf("transport request: %v", nch.ChannelType())
+			ch, req, err := nch.Accept()
+			if err != nil {
+				a.Warningf("failed to accept request: %v", err)
+				continue
+			}
+			go a.proxyTransport(ch, req)
+		// new discovery request
+		case nch := <-newDiscoveryC:
+			if nch == nil {
+				continue
+			}
+			a.Debugf("discovery request: %v", nch.ChannelType())
+			ch, req, err := nch.Accept()
+			if err != nil {
+				a.Warningf("failed to accept request: %v", err)
+				continue
+			}
+			go a.handleDiscovery(ch, req)
 		}
 	}
 }

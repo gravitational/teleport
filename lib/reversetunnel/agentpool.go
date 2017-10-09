@@ -335,6 +335,7 @@ func (m *AgentPool) syncAgents(tunnels []services.ReverseTunnel) error {
 			return trace.Wrap(err)
 		}
 	}
+
 	m.reportStats()
 	return nil
 }
