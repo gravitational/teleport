@@ -18937,7 +18937,7 @@ webpackJsonp([0],[
 	  var updateStore = function updateStore(items) {
 	    return _reactor2.default.batch(function () {
 	      _reactor2.default.dispatch(AT.UPDATE_CONNECTORS, items);
-	      setCurProvider(items[0].name);
+	      setCurProvider(items[0].id);
 	      _actions2.default.success(RAT.TRYING_TO_SAVE_AUTH_PROVIDER);
 	    });
 	  };
@@ -18951,7 +18951,12 @@ webpackJsonp([0],[
 	  }
 	}
 
-	function deleteAuthProvider(id) {
+	function deleteAuthProvider(authRec) {
+	  var name = authRec.name,
+	      id = authRec.id,
+	      kind = authRec.kind;
+
+
 	  var updateStore = function updateStore() {
 	    return _reactor2.default.batch(function () {
 	      var next = (0, _store.getAuthStore)().getNext(id);
@@ -18963,7 +18968,7 @@ webpackJsonp([0],[
 	  };
 
 	  _actions2.default.start(RAT.TRYING_TO_DELETE_RESOURCE);
-	  resApi.remove(_enums.ResourceEnum.OIDC, id).done(updateStore).fail(function (err) {
+	  resApi.remove(kind, name).done(updateStore).fail(function (err) {
 	    var msg = _api2.default.getErrorText(err);
 	    logger.error('deleteAuthProvider()', err);
 	    _actions2.default.fail(RAT.TRYING_TO_DELETE_RESOURCE, msg);
@@ -19197,13 +19202,14 @@ webpackJsonp([0],[
 
 	    _classCallCheck(this, ItemRec);
 
-	    var key = Math.random().toString();
-
 	    return _possibleConstructorReturn(this, _Record.call(this, _extends({
-	      key: key,
 	      displayName: props.name
 	    }, props)));
 	  }
+
+	  ItemRec.prototype.getId = function getId() {
+	    return this.get('id');
+	  };
 
 	  ItemRec.prototype.getIsNew = function getIsNew() {
 	    return this.get('isNew');
@@ -19228,8 +19234,8 @@ webpackJsonp([0],[
 	  return ItemRec;
 	}((0, _immutable.Record)({
 	  isNew: false,
+	  id: '',
 	  kind: '',
-	  key: '',
 	  name: '',
 	  displayName: '',
 	  content: ''
@@ -19258,7 +19264,7 @@ webpackJsonp([0],[
 	    var itemMap = this.get('items');
 	    jsonItems.forEach(function (json) {
 	      var rec = new ItemRec(json);
-	      itemMap = itemMap.set(rec.getName(), rec);
+	      itemMap = itemMap.set(rec.id, rec);
 	    });
 
 	    return this.set('items', itemMap);
@@ -19269,8 +19275,8 @@ webpackJsonp([0],[
 	      return null;
 	    }
 
-	    var name = (0, _lodash.isString)(item) ? item : item.getName();
-	    return this.getIn(['items', name]);
+	    var id = (0, _lodash.isString)(item) ? item : item.id;
+	    return this.getIn(['items', id]);
 	  };
 
 	  StoreRec.prototype.removeAll = function removeAll() {
@@ -19560,14 +19566,14 @@ webpackJsonp([0],[
 	        curItem = _props.curItem;
 
 	    var className = (0, _classnames2.default)('grv-settings-res-list-content-item', {
-	      'active': item.key === curItem.key
+	      'active': item.id === curItem.id
 	    });
 
 	    var displayName = item.displayName || item.name;
 
 	    return _react2.default.createElement(
 	      'li',
-	      { key: item.key, className: className, onClick: function onClick() {
+	      { key: item.id, className: className, onClick: function onClick() {
 	          return onItemClick(item);
 	        } },
 	      _react2.default.createElement(
@@ -20080,9 +20086,9 @@ webpackJsonp([0],[
 	    return null;
 	  }
 
-	  var id = resItem.getName();
-	  var kindText = getResourceKind(resItem.getKind());
-	  var messagePrefix = 'You are about to delete ' + kindText + ' ';
+	  var name = resItem.getName();
+	  var kind = getResourceKind(resItem.getKind());
+	  var messagePrefix = 'You are about to delete ' + kind + ' ';
 
 	  return _react2.default.createElement(
 	    _dialog.GrvDialog,
@@ -20117,7 +20123,7 @@ webpackJsonp([0],[
 	              _react2.default.createElement(
 	                'strong',
 	                null,
-	                id
+	                name
 	              ),
 	              '.'
 	            )
@@ -20139,7 +20145,7 @@ webpackJsonp([0],[
 	        {
 	          className: 'btn-danger',
 	          onClick: function onClick() {
-	            return onContinue(id);
+	            return onContinue(resItem);
 	          },
 	          isProcessing: isProcessing,
 	          isDisabled: isProcessing },
@@ -20507,7 +20513,7 @@ webpackJsonp([0],[
 	      return null;
 	    }
 
-	    var name = item.getName();
+	    var id = item.getId();
 	    var readOnly = !this.isNew && !access.edit;
 	    var isFailed = saveAttempt.isFailed,
 	        message = saveAttempt.message;
@@ -20533,7 +20539,7 @@ webpackJsonp([0],[
 	        )
 	      ),
 	      _react2.default.createElement(_yamlEditor2.default, {
-	        key: name,
+	        key: id,
 	        readOnly: readOnly,
 	        data: item.content,
 	        onChange: this.onItemContentChange,
@@ -41011,7 +41017,7 @@ webpackJsonp([0],[
 	  var updateStore = function updateStore(items) {
 	    return _reactor2.default.batch(function () {
 	      _reactor2.default.dispatch(AT.UPDATE_CLUSTERS, items);
-	      setCurCluster(items[0].name);
+	      setCurCluster(items[0].id);
 	      _actions2.default.success(RAT.TRYING_TO_SAVE_CLUSTER);
 	    });
 	  };
@@ -41025,7 +41031,11 @@ webpackJsonp([0],[
 	  }
 	}
 
-	function deleteCluster(id) {
+	function deleteCluster(clusterRec) {
+	  var name = clusterRec.name,
+	      id = clusterRec.id;
+
+
 	  var updateStore = function updateStore() {
 	    return _reactor2.default.batch(function () {
 	      var next = (0, _store.getClusterStore)().getNext(id);
@@ -41037,7 +41047,7 @@ webpackJsonp([0],[
 	  };
 
 	  _actions2.default.start(RAT.TRYING_TO_DELETE_RESOURCE);
-	  resApi.remove(TRUSTED_CLUSTER, id).done(updateStore).fail(function (err) {
+	  resApi.remove(TRUSTED_CLUSTER, name).done(updateStore).fail(function (err) {
 	    var msg = _api2.default.getErrorText(err);
 	    logger.error('deleteCluster()', err);
 	    _actions2.default.fail(RAT.TRYING_TO_DELETE_RESOURCE, msg);
@@ -41452,7 +41462,7 @@ webpackJsonp([0],[
 	  var updateStore = function updateStore(items) {
 	    return _reactor2.default.batch(function () {
 	      _reactor2.default.dispatch(AT.UPSERT_ROLES, items);
-	      setCurRole(items[0].name);
+	      setCurRole(items[0].id);
 	      _actions2.default.success(_constants.TRYING_TO_SAVE_ROLE);
 	    });
 	  };
@@ -41466,7 +41476,11 @@ webpackJsonp([0],[
 	  }
 	}
 
-	function deleteRole(id) {
+	function deleteRole(rolRec) {
+	  var name = rolRec.name,
+	      id = rolRec.id;
+
+
 	  var updateStore = function updateStore() {
 	    _reactor2.default.batch(function () {
 	      var next = (0, _store.getRoleStore)().getNext(id);
@@ -41478,7 +41492,7 @@ webpackJsonp([0],[
 	  };
 
 	  _actions2.default.start(_constants.TRYING_TO_DELETE_RESOURCE);
-	  resApi.remove(_enums.ResourceEnum.ROLE, id).done(updateStore).fail(function (err) {
+	  resApi.remove(_enums.ResourceEnum.ROLE, name).done(updateStore).fail(function (err) {
 	    var msg = _api2.default.getErrorText(err);
 	    logger.error('deleteRole()', err);
 	    _actions2.default.fail(_constants.TRYING_TO_DELETE_RESOURCE, msg);

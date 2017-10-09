@@ -36,9 +36,9 @@ const ConfigDeleteDialog = props => {
     return null;
   }    
         
-  const id = resItem.getName();  
-  const kindText = getResourceKind(resItem.getKind());
-  const messagePrefix = `You are about to delete ${kindText} `;
+  const name = resItem.getName();    
+  const kind = getResourceKind(resItem.getKind());
+  const messagePrefix = `You are about to delete ${kind} `;
 
   return (
     <GrvDialog title="" className="grv-dialog-no-body grv-dialog-sm grv-dialog-confirm grv-settings-dlg-delete">
@@ -51,7 +51,7 @@ const ConfigDeleteDialog = props => {
             <h3 className="m-b-xs">Are you sure?</h3>
             <div>
               <small>
-                {messagePrefix} <strong>{id}</strong>.
+                {messagePrefix} <strong>{name}</strong>.
               </small>
             </div>
           </div>          
@@ -61,7 +61,7 @@ const ConfigDeleteDialog = props => {
       <GrvDialogFooter>
         <Button
           className="btn-danger"
-          onClick={ () => onContinue(id) }
+          onClick={ () => onContinue(resItem) }
           isProcessing={isProcessing}
           isDisabled={isProcessing}>
           Delete

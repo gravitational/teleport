@@ -33,7 +33,7 @@ export function saveAuthProvider(authProvider) {
 
   const updateStore = items => reactor.batch( ()=> {
     reactor.dispatch(AT.UPDATE_CONNECTORS, items);
-    setCurProvider(items[0].name);
+    setCurProvider(items[0].id);
     apiActions.success(RAT.TRYING_TO_SAVE_AUTH_PROVIDER);            
   })
 
@@ -48,7 +48,9 @@ export function saveAuthProvider(authProvider) {
   }  
 }
 
-export function deleteAuthProvider(id) {  
+export function deleteAuthProvider(authRec) {  
+  const { name, id, kind } = authRec;
+  
   const updateStore = () => reactor.batch(()=> {
     const next = getAuthStore().getNext(id);      
     closeDeleteDialog();      
@@ -58,7 +60,7 @@ export function deleteAuthProvider(id) {
   });
 
   apiActions.start(RAT.TRYING_TO_DELETE_RESOURCE);      
-  resApi.remove(ResourceEnum.OIDC, id )      
+  resApi.remove(kind, name)      
     .done(updateStore)
     .fail(err => {
       const msg = api.getErrorText(err);

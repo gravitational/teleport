@@ -18,7 +18,7 @@ export function setCurRole(item) {
   });
 }
 
-export function saveRole(rolRec) {      
+export function saveRole(rolRec) {        
   const handleError = err => {
     const msg = api.getErrorText(err);
     logger.error('saveRole()', err);        
@@ -27,7 +27,7 @@ export function saveRole(rolRec) {
 
   const updateStore = items => reactor.batch(()=> {
     reactor.dispatch(AT.UPSERT_ROLES, items);
-    setCurRole(items[0].name);        
+    setCurRole(items[0].id);        
     apiActions.success(TRYING_TO_SAVE_ROLE);      
   })
 
@@ -43,7 +43,9 @@ export function saveRole(rolRec) {
   }
 }
     
-export function deleteRole(id) {    
+export function deleteRole(rolRec) {    
+  const { name, id } = rolRec;
+  
   const updateStore = () => {
     reactor.batch(()=>{
       const next = getRoleStore().getNext(id);      
@@ -55,7 +57,7 @@ export function deleteRole(id) {
   }
 
   apiActions.start(TRYING_TO_DELETE_RESOURCE);      
-  resApi.remove(ResourceEnum.ROLE, id)  
+  resApi.remove(ResourceEnum.ROLE, name)  
     .done(updateStore)
     .fail(err => {
       const msg = api.getErrorText(err);

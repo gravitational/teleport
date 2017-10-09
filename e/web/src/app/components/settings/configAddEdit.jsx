@@ -103,7 +103,7 @@ class AddEditConfig extends React.Component {
       return null;
     }
     
-    const name = item.getName();
+    const id = item.getId();
     const readOnly = !this.isNew && !access.edit;
     const { isFailed, message } = saveAttempt;
     const $footer = this.renderFooter();        
@@ -114,7 +114,7 @@ class AddEditConfig extends React.Component {
           { readOnly && <Alerts.Info className="m-b-sm"> You do not have permissions to edit this resource </Alerts.Info> }
         </div>                               
         <YamlEditor
-          key={name}
+          key={id}
           readOnly={readOnly}          
           data={item.content}
           onChange={this.onItemContentChange}
