@@ -14,8 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-/* package reversetunnel provides tools for accessing remote clusters
-   via reverse tunnels and directly
+/* package reversetunnel provides interfaces for accessing remote clusters
+   via reverse tunnels and directly.
+
+Reverse Tunnels
 
       Proxy server                      Proxy agent
                      Reverse tunnel
@@ -29,21 +31,21 @@ limitations under the License.
  Proxy Cluster "A"                      Proxy Cluster "B"
 
 
-Reverse tunnel is established from the cluster "B" Proxy
-to the cluster "A" proxy, and clients of cluster "A"
-can access servers of cluster "B" via reverse tunnel,
+Reverse tunnel is established from a cluster "B" Proxy
+to the a cluster "A" proxy, and clients of the cluster "A"
+can access servers of the cluster "B" via reverse tunnel connection,
 even if the cluster "B" is behind the firewall.
 
-Multiple Proxies Design
+Multiple Proxies and Revese Tunnels
 
 With multiple proxies behind the load balancer,
 proxy agents will eventually discover and establish connections to all
-proxies in a cluster.
+proxies in cluster.
 
-* Initially Proxy Agent connects to the Proxy 1.
-* Proxy 1 starts sending information about all the other proxies
-in the cluster and whether they proxies have received the connection
-from the agent or not.
+* Initially Proxy Agent connects to Proxy 1.
+* Proxy 1 starts sending information about all available proxies
+that have not received connection from the Proxy Agent yet. This
+process is called "sending discovery request".
 
 
 +----------+
@@ -60,10 +62,11 @@ from the agent or not.
 +----------+
   Proxy 2
 
-* Agent will use this information to establish new connections
-and check if it connected and "discovered" all the proxies.
+* Agent will use the discovery request to establish new connections
+and check if it has connected and "discovered" all the proxies specified
+ in the discovery request.
 * Assuming that load balancer uses fair load balancing algorithm,
-agent will eventually discover all the proxies and connect back to them all
+agent will eventually discover and connect back to all the proxies.
 
 +----------+
 |          <--------+
