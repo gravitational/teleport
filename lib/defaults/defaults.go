@@ -176,6 +176,9 @@ var (
 
 	// NewtworkBackoffDuration is a standard backoff on network requests
 	NetworkBackoffDuration = time.Second * 10
+
+	// ReportingPeriod is a period for reports in logs
+	ReportingPeriod = 5 * time.Minute
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport

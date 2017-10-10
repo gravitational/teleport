@@ -23,6 +23,7 @@ import (
 	"regexp"
 	rundebug "runtime/debug"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -41,11 +42,11 @@ const (
 	// Component is a field that represents component - e.g. service or
 	// function
 	Component = "trace.component"
-	// ComponentFields is a fields compoonent
+	// ComponentFields is a fields component
 	ComponentFields = "trace.fields"
-	// DefaultComponentPadding is a default char padding for component
+	// DefaultComponentPadding is a default padding for component field
 	DefaultComponentPadding = 11
-	// DefaultLevelPadding is a default char padding for component
+	// DefaultLevelPadding is a default padding for level field
 	DefaultLevelPadding = 4
 )
 
@@ -56,7 +57,7 @@ type TextFormatter struct {
 	// systemd logs)
 	DisableTimestamp bool
 	// ComponentPadding is a padding to pick when displaying
-	// and formatting component field, default is set to 11
+	// and formatting component field, defaults to DefaultComponentPadding
 	ComponentPadding int
 }
 
@@ -74,7 +75,7 @@ func (tf *TextFormatter) Format(e *log.Entry) (data []byte, err error) {
 		file = t.Loc()
 	}
 
-	w := &writer{bytes.Buffer{}}
+	w := &writer{}
 
 	// time
 	if !tf.DisableTimestamp {
@@ -114,16 +115,16 @@ func (tf *TextFormatter) Format(e *log.Entry) (data []byte, err error) {
 		w.writeField(e.Message)
 	}
 
-	// file, if present
+	// rest of the fields
+	if len(e.Data) > 0 {
+		w.writeMap(e.Data)
+	}
+
+	// file, if present, always last
 	if file != "" {
 		w.writeField(file)
 	}
 
-	// rest of the fields
-	if len(e.Data) > 0 {
-		w.WriteByte(' ')
-		w.writeMap(e.Data)
-	}
 	w.WriteByte('\n')
 	data = w.Bytes()
 	return
@@ -143,6 +144,7 @@ func (j *JSONFormatter) Format(e *log.Entry) ([]byte, error) {
 			FileField:     t.Loc(),
 			FunctionField: t.FuncName(),
 		})
+		new.Time = e.Time
 		new.Level = e.Level
 		new.Message = e.Message
 		e = new
@@ -211,16 +213,8 @@ func (w *writer) writeMap(m map[string]interface{}) {
 			continue
 		}
 		switch val := m[key].(type) {
-		case map[string]interface{}:
-			w.WriteString(key)
-			w.WriteString(":{")
-			w.writeMap(val)
-			w.WriteString(" }")
 		case log.Fields:
-			w.WriteString(key)
-			w.WriteString(":{")
 			w.writeMap(val)
-			w.WriteString(" }")
 		default:
 			w.writeKeyValue(key, val)
 		}
@@ -228,8 +222,8 @@ func (w *writer) writeMap(m map[string]interface{}) {
 }
 
 func needsQuoting(text string) bool {
-	for _, ch := range text {
-		if ch < 32 {
+	for _, r := range text {
+		if !strconv.IsPrint(r) {
 			return true
 		}
 	}

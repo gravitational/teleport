@@ -40,6 +40,8 @@ type AgentPool struct {
 	ctx        context.Context
 	cancel     context.CancelFunc
 	discoveryC chan *discoveryRequest
+	// lastReport is the last time the agent has reported the stats
+	lastReport time.Time
 }
 
 // AgentPoolConfig holds configuration parameters for the agent pool
@@ -101,7 +103,7 @@ func NewAgentPool(cfg AgentPoolConfig) (*AgentPool, error) {
 	}
 	pool.Entry = log.WithFields(log.Fields{
 		trace.Component: teleport.ComponentReverseTunnelAgent,
-		trace.ComponentFields: map[string]interface{}{
+		trace.ComponentFields: log.Fields{
 			"cluster": cfg.Cluster,
 		},
 	})
@@ -299,6 +301,11 @@ func (m *AgentPool) addAgent(key agentKey, discoverProxies []services.Server) er
 
 // reportStats submits report about agents state once in a while
 func (m *AgentPool) reportStats() {
+	var logReport bool
+	if m.cfg.Clock.Now().Sub(m.lastReport) > defaults.ReportingPeriod {
+		m.lastReport = m.cfg.Clock.Now()
+		logReport = true
+	}
 	for key, agents := range m.agents {
 		countPerState := make(map[string]int)
 		for _, a := range agents {
@@ -312,7 +319,9 @@ func (m *AgentPool) reportStats() {
 			}
 			gauge.Set(float64(count))
 		}
-		m.Debugf("STATS: %v -> %v", key.domainName, countPerState)
+		if logReport {
+			m.WithFields(log.Fields{"target": key.domainName, "stats": countPerState}).Infof("outbound tunnel stats")
+		}
 	}
 }
 
