@@ -73,6 +73,7 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	// Generating certificates for user and host authorities
 	srv.POST("/:version/ca/host/certs", srv.withAuth(srv.generateHostCert))
 	srv.POST("/:version/ca/user/certs", srv.withAuth(srv.generateUserCert))
+	srv.POST("/:version/ca/user/certs/bundle", srv.withAuth(srv.generateUserCertBundle))
 
 	// Operations on users
 	srv.GET("/:version/users", srv.withAuth(srv.getUsers))
@@ -744,6 +745,46 @@ func (s *APIServer) generateUserCert(auth ClientI, w http.ResponseWriter, r *htt
 		return nil, trace.Wrap(err)
 	}
 	return string(cert), nil
+}
+
+type sshUserCertBundleResponse struct {
+	Username    string                     `json:"username"`
+	Cert        []byte                     `json:"cert"`
+	HostSigners []services.CertAuthorityV1 `json:"host_signers"`
+}
+
+func (s *APIServer) generateUserCertBundle(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
+	var req *generateUserCertReq
+
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// create the user certificate
+	compatibility, err := utils.CheckCompatibilityFlag(req.Compatibility)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cert, err := auth.GenerateUserCert(req.Key, req.User, req.TTL, compatibility)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// get the host ca
+	hostSigners, err := auth.GetCertAuthorities(services.HostCA, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	signers, err := services.CertAuthoritiesToV1(hostSigners)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &sshUserCertBundleResponse{
+		Username:    req.User,
+		Cert:        cert,
+		HostSigners: signers,
+	}, nil
 }
 
 type generateTokenReq struct {

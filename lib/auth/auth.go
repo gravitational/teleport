@@ -251,6 +251,12 @@ func (s *AuthServer) WithUserLock(username string, authenticateFn func() error) 
 	}
 	fnErr := authenticateFn()
 	if fnErr == nil {
+		// upon successful login, reset the failed attempt counter
+		err = s.DeleteUserLoginAttempts(username)
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+
 		return nil
 	}
 	// do not lock user in case if DB is flaky or down

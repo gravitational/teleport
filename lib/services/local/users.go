@@ -351,6 +351,18 @@ func (s *IdentityService) GetUserLoginAttempts(user string) ([]services.LoginAtt
 	return out, nil
 }
 
+// DeleteUserLoginAttempts removes all login attempts of a user. Should be
+// called after successful login.
+func (s *IdentityService) DeleteUserLoginAttempts(user string) error {
+	err := s.DeleteBucket([]string{"web", "users", user}, "attempts")
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.NotFound(fmt.Sprintf("user '%v' is not found", user))
+		}
+	}
+	return trace.Wrap(err)
+}
+
 // GetWebSession returns a web session state for a given user and session id
 func (s *IdentityService) GetWebSession(user, sid string) (services.WebSession, error) {
 	val, err := s.GetVal([]string{"web", "users", user, "sessions"}, sid)

@@ -785,6 +785,30 @@ func (c *Client) GenerateUserCert(key []byte, user string, ttl time.Duration, co
 	return []byte(cert), nil
 }
 
+// GenerateUserCertBundle takes the public key in the OpenSSH `authorized_keys`
+// plain text format, signs it using User Certificate Authority signing key and
+// returns the resulting certificate. It also includes the host certificate that
+// can be added to the known_hosts file.
+func (c *Client) GenerateUserCertBundle(key []byte, user string, ttl time.Duration, compatibility string) ([]byte, []services.CertAuthorityV1, error) {
+	out, err := c.PostJSON(c.Endpoint("ca", "user", "certs", "bundle"),
+		generateUserCertReq{
+			Key:           key,
+			User:          user,
+			TTL:           ttl,
+			Compatibility: compatibility,
+		})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	var br sshUserCertBundleResponse
+	if err := json.Unmarshal(out.Bytes(), &br); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return br.Cert, br.HostSigners, nil
+}
+
 // CreateSignupToken creates one time token for creating account for the user
 // For each token it creates username and otp generator
 func (c *Client) CreateSignupToken(user services.UserV1) (string, error) {
