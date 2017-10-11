@@ -154,6 +154,11 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(s.a.UpsertCertAuthority(
 		suite.NewTestCA(services.HostCA, "me.localhost")), IsNil)
 
+	// before we do anything, we should have 0 tokens
+	btokens, err := s.a.GetTokens()
+	c.Assert(err, IsNil)
+	c.Assert(len(btokens), Equals, 0)
+
 	// generate single-use token (TTL is 0)
 	tok, err := s.a.GenerateToken(teleport.Roles{teleport.RoleNode}, 0)
 	c.Assert(err, IsNil)

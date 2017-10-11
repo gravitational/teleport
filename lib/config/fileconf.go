@@ -518,7 +518,7 @@ func (c ClusterName) Parse() (services.ClusterName, error) {
 type StaticTokens []StaticToken
 
 func (t StaticTokens) Parse() (services.StaticTokens, error) {
-	var staticTokens []services.ProvisionToken
+	staticTokens := []services.ProvisionToken{}
 
 	for _, token := range t {
 		st, err := token.Parse()
