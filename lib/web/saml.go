@@ -94,7 +94,7 @@ func (m *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.P
 		// redirect to an error page
 		pathToError := url.URL{
 			Path:     "/web/msg/error/login_failed",
-			RawQuery: url.Values{"details": []string{"Unable to process callback from OIDC provider."}}.Encode(),
+			RawQuery: url.Values{"details": []string{"Unable to process callback from SAML provider."}}.Encode(),
 		}
 		http.Redirect(w, r, pathToError.String(), http.StatusFound)
 		return nil, nil
