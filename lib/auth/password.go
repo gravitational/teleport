@@ -134,6 +134,15 @@ func (s *AuthServer) getOTPType(user string) (string, error) {
 	_, err := s.GetHOTP(user)
 	if err != nil {
 		if trace.IsNotFound(err) {
+			_, err := s.GetTOTP(user)
+			if err != nil {
+				if trace.IsNotFound(err) {
+					return "", nil
+				}
+
+				return "", trace.Wrap(err)
+			}
+
 			return "totp", nil
 		}
 		return "", trace.Wrap(err)
