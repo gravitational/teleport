@@ -371,12 +371,13 @@ func (s *sessionCache) AuthWithOTP(user, pass string, otpToken string) (services
 	// only using the tunnel for authentication, we close it right afterwards
 	// because we will not be using this connection (initiated using password
 	// based credentials) later.
-	clt, err := auth.NewTunClient("web.client.password-and-otp", s.authServers, user, method)
+	clt, err := auth.NewTunClient("web.client.password-and-otp", s.authServers, user, method, auth.TunDisableRefresh())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer clt.Close()
 
+	// create a web session
 	session, err := clt.SignIn(user, []byte(pass))
 	if err != nil {
 		defer clt.Close()
@@ -391,12 +392,13 @@ func (s *sessionCache) AuthWithoutOTP(user, pass string) (services.WebSession, e
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := auth.NewTunClient("web.client.password-only", s.authServers, user, method)
+	clt, err := auth.NewTunClient("web.client.password-only", s.authServers, user, method, auth.TunDisableRefresh())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer clt.Close()
 
+	// create a web session
 	session, err := clt.SignIn(user, []byte(pass))
 	if err != nil {
 		defer clt.Close()
@@ -431,15 +433,18 @@ func (s *sessionCache) AuthWithU2FSignResponse(user string, response *u2f.SignRe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clt, err := auth.NewTunClient("web.client-u2f", s.authServers, user, method)
+	clt, err := auth.NewTunClient("web.client-u2f", s.authServers, user, method, auth.TunDisableRefresh())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer clt.Close()
+
+	// create a web session
 	session, err := clt.PreAuthenticatedSignIn(user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return session, nil
 }
 
@@ -449,7 +454,7 @@ func (s *sessionCache) GetCertificateWithoutOTP(c client.CreateSSHCertReq) (*cli
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := auth.NewTunClient("web.session.password-only", s.authServers, c.User, method)
+	clt, err := auth.NewTunClient("web.session.password-only", s.authServers, c.User, method, auth.TunDisableRefresh())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -464,7 +469,7 @@ func (s *sessionCache) GetCertificateWithOTP(c client.CreateSSHCertReq) (*client
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := auth.NewTunClient("web.session.password+otp", s.authServers, c.User, method)
+	clt, err := auth.NewTunClient("web.session.password+otp", s.authServers, c.User, method, auth.TunDisableRefresh())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -474,22 +479,14 @@ func (s *sessionCache) GetCertificateWithOTP(c client.CreateSSHCertReq) (*client
 }
 
 func createCertificate(user string, pubkey []byte, ttl time.Duration, compatibility string, clt *auth.TunClient) (*client.SSHLoginResponse, error) {
-	cert, err := clt.GenerateUserCert(pubkey, user, ttl, compatibility)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	hostSigners, err := clt.GetCertAuthorities(services.HostCA, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	signers, err := services.CertAuthoritiesToV1(hostSigners)
+	userCert, hostCA, err := clt.GenerateUserCertBundle(pubkey, user, ttl, compatibility)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &client.SSHLoginResponse{
-		Cert:        cert,
-		HostSigners: signers,
+		Cert:        userCert,
+		HostSigners: hostCA,
 	}, nil
 }
 
@@ -499,7 +496,7 @@ func (s *sessionCache) GetCertificateWithU2F(c client.CreateSSHCertWithU2FReq) (
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := auth.NewTunClient("web.session-u2f", s.authServers, c.User, method)
+	clt, err := auth.NewTunClient("web.session-u2f", s.authServers, c.User, method, auth.TunDisableRefresh())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
