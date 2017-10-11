@@ -852,6 +852,47 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 	c.Assert(aux.Stop(true), check.IsNil)
 }
 
+// TestDiscovery tests case for multiple proxies and a reverse tunnel
+// agent that eventually connnects to the the right proxy
+func (s *IntSuite) TestDiscovery(c *check.C) {
+	username := s.me.Username
+
+	a := NewInstance("cluster-a", HostID, Host, s.getPorts(5), s.priv, s.pub)
+	b := NewInstance("cluster-b", HostID, Host, s.getPorts(5), s.priv, s.pub)
+
+	a.AddUser(username, []string{username})
+	b.AddUser(username, []string{username})
+
+	c.Assert(b.Create(a.Secrets.AsSlice(), false, nil), check.IsNil)
+	c.Assert(a.Create(b.Secrets.AsSlice(), true, nil), check.IsNil)
+
+	c.Assert(b.Start(), check.IsNil)
+	c.Assert(a.Start(), check.IsNil)
+
+	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
+	abortTime := time.Now().Add(time.Second * 10)
+	for len(b.Tunnel.GetSites()) < 2 && len(b.Tunnel.GetSites()) < 2 {
+		time.Sleep(time.Millisecond * 2000)
+		if time.Now().After(abortTime) {
+			c.Fatalf("two clusters do not see each other: tunnels are not working")
+		}
+	}
+
+	cmd := []string{"echo", "hello world"}
+	tc, err := b.NewClient(username, "cluster-a", "127.0.0.1", a.GetPortSSHInt())
+	c.Assert(err, check.IsNil)
+	output := &bytes.Buffer{}
+	tc.Stdout = output
+	c.Assert(err, check.IsNil)
+	err = tc.SSH(context.TODO(), cmd, false)
+	c.Assert(err, check.IsNil)
+	c.Assert(output.String(), check.Equals, "hello world\n")
+
+	// stop cluster and remaining nodes
+	c.Assert(a.Stop(true), check.IsNil)
+	c.Assert(b.Stop(true), check.IsNil)
+}
+
 // getPorts helper returns a range of unallocated ports available for litening on
 func (s *IntSuite) getPorts(num int) []int {
 	if len(s.ports) < num {
