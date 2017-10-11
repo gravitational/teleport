@@ -46,6 +46,10 @@ type Identity interface {
 	// GetUserLoginAttempts returns user login attempts
 	GetUserLoginAttempts(user string) ([]LoginAttempt, error)
 
+	// DeleteUserLoginAttempts removes all login attempts of a user. Should be
+	// called after successful login.
+	DeleteUserLoginAttempts(user string) error
+
 	// CreateUser creates user if it does not exist
 	CreateUser(user User) error
 
