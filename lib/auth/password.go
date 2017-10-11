@@ -132,22 +132,24 @@ func (s *AuthServer) CheckOTP(user string, otpToken string) error {
 // Deprecated: Remove this method once HOTP support has been removed.
 func (s *AuthServer) getOTPType(user string) (string, error) {
 	_, err := s.GetHOTP(user)
-	if err != nil {
-		if trace.IsNotFound(err) {
-			_, err := s.GetTOTP(user)
-			if err != nil {
-				if trace.IsNotFound(err) {
-					return "", nil
-				}
-
-				return "", trace.Wrap(err)
-			}
-
-			return "totp", nil
-		}
+	if err != nil && !trace.IsNotFound(err) {
 		return "", trace.Wrap(err)
 	}
-	return "hotp", nil
+
+	if err == nil {
+		return "hotp", nil
+	}
+
+	_, err = s.GetTOTP(user)
+	if err != nil && !trace.IsNotFound(err) {
+		return "", trace.Wrap(err)
+	}
+
+	if err == nil {
+		return "totp", nil
+	}
+
+	return "", nil
 }
 
 // GetOTPData returns the OTP Key, Key URL, and the QR code.
