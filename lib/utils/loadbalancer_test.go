@@ -196,7 +196,7 @@ func roundtrip(addr string) (string, error) {
 		return "", err
 	}
 	defer conn.Close()
-	fmt.Fprintf(conn, "GET / HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n\r\n")
+	fmt.Fprintf(conn, "GET / HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")
 
 	re, err := http.ReadResponse(bufio.NewReader(conn), nil)
 	if err != nil {
