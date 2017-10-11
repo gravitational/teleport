@@ -761,7 +761,10 @@ func TunClientStorage(storage utils.AddrStorage) TunClientOption {
 }
 
 // TunDisableRefresh will disable refreshing the list of auth servers. This is
-// required when requesting user certificates.
+// required when requesting user certificates because we only allow a single
+// HTTP request to be made over the tunnel. This is because each request does
+// keyAuth, and for situations like password+otp where the OTP token is invalid
+// after the first use, that means all other requests would fail.
 func TunDisableRefresh() TunClientOption {
 	return func(t *TunClient) {
 		t.disableRefresh = true
