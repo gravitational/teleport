@@ -158,6 +158,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	// Users
 	h.GET("/webapi/users/invites/:token", httplib.MakeHandler(h.renderUserInvite))
 	h.POST("/webapi/users", httplib.MakeHandler(h.createNewUser))
+	h.PUT("/webapi/users/password", h.WithAuth(h.changePassword))
 
 	// Issues SSH temp certificates based on 2FA access creds
 	h.POST("/webapi/ssh/certs", httplib.MakeHandler(h.createSSHCert))
