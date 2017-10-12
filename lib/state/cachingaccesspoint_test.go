@@ -91,7 +91,6 @@ var (
 	TunnelConnections = []services.TunnelConnection{
 		services.MustCreateTunnelConnection("conn1", services.TunnelConnectionSpecV2{
 			ClusterName:   "example.com",
-			ProxyAddr:     "localhost:3025",
 			ProxyName:     "p1",
 			LastHeartbeat: time.Date(2015, 6, 5, 4, 3, 2, 1, time.UTC).UTC(),
 		}),
@@ -234,7 +233,7 @@ func (s *ClusterSnapshotSuite) TestTry(c *check.C) {
 	c.Assert(failedCalls, check.Equals, 1)
 
 	// "wait" for backoff duration and try again:
-	ap.lastErrorTime = time.Now().Add(-backoffDuration)
+	ap.lastErrorTime = time.Now().Add(-defaults.NetworkBackoffDuration)
 
 	ap.try(success)
 	ap.try(failure)

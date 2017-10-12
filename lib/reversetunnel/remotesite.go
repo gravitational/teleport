@@ -78,6 +78,18 @@ func (s *remoteSite) connectionCount() int {
 	return len(s.connections)
 }
 
+func (s *remoteSite) hasValidConnections() bool {
+	s.Lock()
+	defer s.Unlock()
+
+	for _, conn := range s.connections {
+		if !conn.isInvalid() {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *remoteSite) nextConn() (*remoteConn, error) {
 	s.Lock()
 	defer s.Unlock()
@@ -153,6 +165,12 @@ func (s *remoteSite) registerHeartbeat(t time.Time) {
 	}
 }
 
+// deleteConnectionRecord deletes connection record to let know peer proxies
+// that this node lost the connection and needs to be discovered
+func (s *remoteSite) deleteConnectionRecord() {
+	s.srv.AccessPoint.DeleteTunnelConnection(s.connInfo.GetClusterName(), s.connInfo.GetName())
+}
+
 func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-chan *ssh.Request) {
 	defer func() {
 		s.Infof("cluster connection closed")
@@ -165,8 +183,12 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 			return
 		case req := <-reqC:
 			if req == nil {
-				s.Infof("cluster disconnected")
+				s.Infof("cluster agent disconnected")
 				conn.markInvalid(trace.ConnectionProblem(nil, "agent disconnected"))
+				if !s.hasValidConnections() {
+					s.Debugf("deleting connection record")
+					s.deleteConnectionRecord()
+				}
 				return
 			}
 			var timeSent time.Time

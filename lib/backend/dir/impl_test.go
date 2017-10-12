@@ -179,7 +179,7 @@ func (s *Suite) TestTTL(c *check.C) {
 
 	v, err = s.bk.GetVal(bucket, "key")
 	c.Assert(trace.IsNotFound(err), check.Equals, true)
-	c.Assert(err.Error(), check.Equals, `key 'key' is not found`)
+	c.Assert(err.Error(), check.Equals, `key "key" is not found`)
 	c.Assert(v, check.IsNil)
 }
 

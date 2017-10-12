@@ -420,6 +420,11 @@ func (s *PresenceService) GetAllTunnelConnections() ([]services.TunnelConnection
 	return conns, nil
 }
 
+// DeleteTunnelConnection deletes tunnel connection by name
+func (s *PresenceService) DeleteTunnelConnection(clusterName, connectionName string) error {
+	return s.DeleteKey([]string{tunnelConnectionsPrefix, clusterName}, connectionName)
+}
+
 // DeleteTunnelConnections deletes all tunnel connections for cluster
 func (s *PresenceService) DeleteTunnelConnections(clusterName string) error {
 	err := s.DeleteBucket([]string{tunnelConnectionsPrefix}, clusterName)

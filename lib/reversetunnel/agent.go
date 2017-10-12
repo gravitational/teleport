@@ -80,15 +80,14 @@ type AgentConfig struct {
 	// Clock is a clock passed in tests, if not set wall clock
 	// will be used
 	Clock clockwork.Clock
+	// EventsC is an optional events channel, used for testing purposes
+	EventsC chan string
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
 func (a *AgentConfig) CheckAndSetDefaults() error {
 	if a.Addr.IsEmpty() {
 		return trace.BadParameter("missing parameter Addr")
-	}
-	if a.DiscoveryC == nil {
-		return trace.BadParameter("missing parameter DiscoveryC")
 	}
 	if a.Context == nil {
 		return trace.BadParameter("missing parameter Context")
@@ -430,7 +429,7 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 func (a *Agent) run() {
 	ticker, err := utils.NewSwitchTicker(defaults.FastAttempts, defaults.NetworkRetryDuration, defaults.NetworkBackoffDuration)
 	if err != nil {
-		log.Error("failed to run: %v", err)
+		log.Errorf("failed to run: %v", err)
 		return
 	}
 	defer ticker.Stop()
@@ -473,6 +472,15 @@ func (a *Agent) run() {
 			} else {
 				a.setState(agentStateConnected)
 			}
+			if a.EventsC != nil {
+				select {
+				case a.EventsC <- ConnectedEvent:
+				case <-a.ctx.Done():
+					a.Debugf("context is closing")
+					return
+				default:
+				}
+			}
 			// start heartbeat even if error happend, it will reconnect
 			// when this happens, this is #1 issue we have right now with Teleport. So we are making
 			// it EASY to see in the logs. This condition should never be permanent (repeates
@@ -483,6 +491,9 @@ func (a *Agent) run() {
 		}
 	}
 }
+
+// ConnectedEvent is used to indicate that reverse tunnel has connected
+const ConnectedEvent = "connected"
 
 // processRequests is a blocking function which runs in a loop sending heartbeats
 // to the given SSH connection and processes inbound requests from the

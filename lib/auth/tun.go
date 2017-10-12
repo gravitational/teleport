@@ -858,7 +858,7 @@ func (c *TunClient) GetDialer() AccessPointDialer {
 			}
 			time.Sleep(4 * time.Duration(attempt) * dialRetryInterval)
 		}
-		c.Error("%v", err)
+		c.Errorf("%v", err)
 		return nil, trace.Wrap(err)
 	}
 }

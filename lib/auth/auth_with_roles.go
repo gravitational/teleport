@@ -942,6 +942,13 @@ func (a *AuthWithRoles) GetAllTunnelConnections() ([]services.TunnelConnection, 
 	return a.authServer.GetAllTunnelConnections()
 }
 
+func (a *AuthWithRoles) DeleteTunnelConnection(clusterName string, connName string) error {
+	if err := a.action(defaults.Namespace, services.KindTunnelConnection, services.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteTunnelConnection(clusterName, connName)
+}
+
 func (a *AuthWithRoles) DeleteTunnelConnections(clusterName string) error {
 	if err := a.action(defaults.Namespace, services.KindTunnelConnection, services.VerbList); err != nil {
 		return trace.Wrap(err)

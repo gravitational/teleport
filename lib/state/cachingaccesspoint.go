@@ -499,11 +499,16 @@ func (cs *CachingAuthClient) UpsertTunnelConnection(conn services.TunnelConnecti
 	return cs.ap.UpsertTunnelConnection(conn)
 }
 
+// DeleteTunnelConnection is a part of auth.AccessPoint implementation
+func (cs *CachingAuthClient) DeleteTunnelConnection(clusterName, connName string) error {
+	return cs.ap.DeleteTunnelConnection(clusterName, connName)
+}
+
 // try calls a given function f and checks for errors. If f() fails, the current
 // time is recorded. Future calls to f will be ingored until sufficient time passes
 // since th last error
 func (cs *CachingAuthClient) try(f func() error) error {
-	tooSoon := cs.lastErrorTime.Add(defaults.NetworkBackoffDuration).After(time.Now())
+	tooSoon := cs.lastErrorTime.Add(defaults.NetworkRetryDuration).After(time.Now())
 	if tooSoon {
 		cs.Warnf("backoff: using cached value due to recent errors")
 		return trace.ConnectionProblem(fmt.Errorf("backoff"), "backing off due to recent errors")

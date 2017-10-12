@@ -172,6 +172,44 @@ func (s *LBSuite) TestClose(c *check.C) {
 	c.Assert(err, check.NotNil)
 }
 
+func (s *LBSuite) TestDropConnections(c *check.C) {
+	backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "backend 1")
+	}))
+	defer backend1.Close()
+
+	ports, err := GetFreeTCPPorts(1)
+	c.Assert(err, check.IsNil)
+
+	frontend := localAddr(ports[0])
+
+	backendAddr := urlToNetAddr(backend1.URL)
+	lb, err := NewLoadBalancer(context.TODO(), frontend, backendAddr)
+	c.Assert(err, check.IsNil)
+	err = lb.Listen()
+	c.Assert(err, check.IsNil)
+	go lb.Serve()
+	defer lb.Close()
+
+	conn, err := net.Dial("tcp", frontend.String())
+	c.Assert(err, check.IsNil)
+	defer conn.Close()
+
+	out, err := roundtripWithConn(conn)
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.Equals, "backend 1")
+
+	// to make sure multiple requests work on the same wire
+	out, err = roundtripWithConn(conn)
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.Equals, "backend 1")
+
+	// removing backend results in dropped connection to this backend
+	lb.RemoveBackend(backendAddr)
+	out, err = roundtripWithConn(conn)
+	c.Assert(err, check.NotNil)
+}
+
 func urlToNetAddr(u string) NetAddr {
 	parsed, err := url.Parse(u)
 	if err != nil {
@@ -196,7 +234,15 @@ func roundtrip(addr string) (string, error) {
 		return "", err
 	}
 	defer conn.Close()
-	fmt.Fprintf(conn, "GET / HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")
+	return roundtripWithConn(conn)
+}
+
+// roundtripWithConn uses HTTP get on the existing connection
+func roundtripWithConn(conn net.Conn) (string, error) {
+	_, err := fmt.Fprintf(conn, "GET / HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")
+	if err != nil {
+		return "", err
+	}
 
 	re, err := http.ReadResponse(bufio.NewReader(conn), nil)
 	if err != nil {

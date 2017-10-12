@@ -529,6 +529,18 @@ func (c *Client) GetAllTunnelConnections() ([]services.TunnelConnection, error) 
 	return conns, nil
 }
 
+// DeleteTunnelConnection deletes tunnel connection by name
+func (c *Client) DeleteTunnelConnection(clusterName string, connName string) error {
+	if clusterName == "" {
+		return trace.BadParameter("missing parameter cluster name")
+	}
+	if connName == "" {
+		return trace.BadParameter("missing parameter connection name")
+	}
+	_, err := c.Delete(c.Endpoint("tunnelconnections", clusterName, connName))
+	return trace.Wrap(err)
+}
+
 // DeleteTunnelConnections deletes all tunnel connections for cluster
 func (c *Client) DeleteTunnelConnections(clusterName string) error {
 	if clusterName == "" {

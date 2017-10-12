@@ -600,4 +600,20 @@ func (s *ServicesTestSuite) TunnelConnectionsCRUD(c *C) {
 
 	err = s.PresenceS.DeleteAllTunnelConnections()
 	c.Assert(err, IsNil)
+
+	// test delete individual connection
+	err = s.PresenceS.UpsertTunnelConnection(conn)
+	c.Assert(err, IsNil)
+
+	out, err = s.PresenceS.GetTunnelConnections(clusterName)
+	c.Assert(err, IsNil)
+	c.Assert(len(out), Equals, 1)
+	fixtures.DeepCompare(c, out[0], conn)
+
+	err = s.PresenceS.DeleteTunnelConnection(clusterName, conn.GetName())
+	c.Assert(err, IsNil)
+
+	out, err = s.PresenceS.GetTunnelConnections(clusterName)
+	c.Assert(err, IsNil)
+	c.Assert(len(out), Equals, 0)
 }

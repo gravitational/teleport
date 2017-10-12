@@ -44,6 +44,7 @@ func NewLoadBalancer(ctx context.Context, frontend NetAddr, backends ...NetAddr)
 				"listen": frontend.String(),
 			},
 		}),
+		connections: make(map[NetAddr]map[int64]net.Conn),
 	}, nil
 }
 
@@ -51,6 +52,7 @@ func NewLoadBalancer(ctx context.Context, frontend NetAddr, backends ...NetAddr)
 // balancer used in tests.
 type LoadBalancer struct {
 	sync.RWMutex
+	connID int64
 	*log.Entry
 	frontend       NetAddr
 	backends       []NetAddr
@@ -58,6 +60,41 @@ type LoadBalancer struct {
 	currentIndex   int
 	listener       net.Listener
 	listenerClosed bool
+	connections    map[NetAddr]map[int64]net.Conn
+}
+
+// trackeConnection adds connection to the connection tracker
+func (l *LoadBalancer) trackConnection(backend NetAddr, conn net.Conn) int64 {
+	l.Lock()
+	defer l.Unlock()
+	l.connID += 1
+	tracker, ok := l.connections[backend]
+	if !ok {
+		tracker = make(map[int64]net.Conn)
+		l.connections[backend] = tracker
+	}
+	tracker[l.connID] = conn
+	return l.connID
+}
+
+// untrackConnection removes connection from connection tracker
+func (l *LoadBalancer) untrackConnection(backend NetAddr, id int64) {
+	l.Lock()
+	defer l.Unlock()
+	tracker, ok := l.connections[backend]
+	if !ok {
+		return
+	}
+	delete(tracker, id)
+}
+
+// dropConnections drops connections associated with backend
+func (l *LoadBalancer) dropConnections(backend NetAddr) {
+	tracker := l.connections[backend]
+	for _, conn := range tracker {
+		conn.Close()
+	}
+	delete(l.connections, backend)
 }
 
 // AddBackend adds backend
@@ -76,10 +113,10 @@ func (l *LoadBalancer) RemoveBackend(b NetAddr) {
 	for i := range l.backends {
 		if l.backends[i].Equals(b) {
 			l.backends = append(l.backends[:i], l.backends[i+1:]...)
+			l.dropConnections(b)
 			return
 		}
 	}
-
 }
 
 func (l *LoadBalancer) nextBackend() (*NetAddr, error) {
@@ -171,11 +208,17 @@ func (l *LoadBalancer) forward(conn net.Conn) error {
 		return trace.Wrap(err)
 	}
 
+	connID := l.trackConnection(*backend, conn)
+	defer l.untrackConnection(*backend, connID)
+
 	backendConn, err := net.Dial(backend.AddrNetwork, backend.Addr)
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
 	defer backendConn.Close()
+
+	backendConnID := l.trackConnection(*backend, backendConn)
+	defer l.untrackConnection(*backend, backendConnID)
 
 	logger := l.WithFields(log.Fields{
 		"source": conn.RemoteAddr(),

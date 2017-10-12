@@ -862,6 +862,7 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 	lb, err := utils.NewLoadBalancer(context.TODO(), frontend)
 	c.Assert(err, check.IsNil)
 	c.Assert(lb.Listen(), check.IsNil)
+	go lb.Serve()
 	defer lb.Close()
 
 	remote := NewInstance("cluster-remote", HostID, Host, s.getPorts(5), s.priv, s.pub)
@@ -873,7 +874,8 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 	c.Assert(main.Create(remote.Secrets.AsSlice(), false, nil), check.IsNil)
 	mainSecrets := main.Secrets
 	// switch listen address of the main cluster to load balancer
-	lb.AddBackend(*utils.MustParseAddr(mainSecrets.ListenAddr))
+	mainProxyAddr := *utils.MustParseAddr(mainSecrets.ListenAddr)
+	lb.AddBackend(mainProxyAddr)
 	mainSecrets.ListenAddr = frontend.String()
 	c.Assert(remote.Create(mainSecrets.AsSlice(), true, nil), check.IsNil)
 
@@ -892,31 +894,77 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 	// start second proxy
 	nodePorts := s.getPorts(3)
 	proxyReverseTunnelPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
-	err = main.StartProxy(ProxyConfig{
+	proxyConfig := ProxyConfig{
 		Name:              "cluster-main-proxy",
 		SSHPort:           proxySSHPort,
 		WebPort:           proxyWebPort,
 		ReverseTunnelPort: proxyReverseTunnelPort,
-	})
+	}
+	err = main.StartProxy(proxyConfig)
 	c.Assert(err, check.IsNil)
 
 	// add second proxy as a backend to the load balancer
-	lb.AddBackend(*utils.MustParseAddr(fmt.Sprintf("127.0.0.0:%v", proxyReverseTunnelPort)))
+	lb.AddBackend(*utils.MustParseAddr(fmt.Sprintf("127.0.0.1:%v", proxyReverseTunnelPort)))
 
 	// execute the connection via first proxy
-	cmd := []string{"echo", "hello world"}
-	tc, err := main.NewClient(ClientConfig{Login: username, Cluster: "cluster-remote", Host: "127.0.0.1", Port: remote.GetPortSSHInt()})
+	cfg := ClientConfig{Login: username, Cluster: "cluster-remote", Host: "127.0.0.1", Port: remote.GetPortSSHInt()}
+	output, err := runCommand(main, []string{"echo", "hello world"}, cfg, 1)
 	c.Assert(err, check.IsNil)
-	output := &bytes.Buffer{}
-	tc.Stdout = output
+	c.Assert(output, check.Equals, "hello world\n")
+
+	// execute the connection via second proxy, should work
+	cfgProxy := ClientConfig{
+		Login:   username,
+		Cluster: "cluster-remote",
+		Host:    "127.0.0.1",
+		Port:    remote.GetPortSSHInt(),
+		Proxy:   &proxyConfig,
+	}
+	output, err = runCommand(main, []string{"echo", "hello world"}, cfgProxy, 10)
 	c.Assert(err, check.IsNil)
-	err = tc.SSH(context.TODO(), cmd, false)
+	c.Assert(output, check.Equals, "hello world\n")
+
+	// now disconnect the main proxy and make sure it will reconnect eventually
+	lb.RemoveBackend(mainProxyAddr)
+
+	// requests going via main proxy will fail
+	output, err = runCommand(main, []string{"echo", "hello world"}, cfg, 1)
+	c.Assert(err, check.NotNil)
+
+	// requests going via second proxy will succeed
+	output, err = runCommand(main, []string{"echo", "hello world"}, cfgProxy, 1)
 	c.Assert(err, check.IsNil)
-	c.Assert(output.String(), check.Equals, "hello world\n")
+	c.Assert(output, check.Equals, "hello world\n")
+
+	// connect the main proxy back and make sure agents have reconnected over time
+	lb.AddBackend(mainProxyAddr)
+	output, err = runCommand(main, []string{"echo", "hello world"}, cfg, 10)
+	c.Assert(err, check.IsNil)
+	c.Assert(output, check.Equals, "hello world\n")
 
 	// stop cluster and remaining nodes
 	c.Assert(remote.Stop(true), check.IsNil)
 	c.Assert(main.Stop(true), check.IsNil)
+}
+
+// runCommand is a shortcut for running SSH command, it creates
+// a client connected to proxy hosted by instance
+// and returns the result
+func runCommand(instance *TeleInstance, cmd []string, cfg ClientConfig, attempts int) (string, error) {
+	tc, err := instance.NewClient(cfg)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	output := &bytes.Buffer{}
+	tc.Stdout = output
+	for i := 0; i < attempts; i++ {
+		err = tc.SSH(context.TODO(), cmd, false)
+		if err == nil {
+			break
+		}
+		time.Sleep(time.Millisecond * 50)
+	}
+	return output.String(), trace.Wrap(err)
 }
 
 // getPorts helper returns a range of unallocated ports available for litening on

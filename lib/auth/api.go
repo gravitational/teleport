@@ -64,6 +64,9 @@ type AccessPoint interface {
 	// UpsertTunnelConnection upserts tunnel connection
 	UpsertTunnelConnection(conn services.TunnelConnection) error
 
+	// DeleteTunnelConnection deletes tunnel connection
+	DeleteTunnelConnection(clusterName, connName string) error
+
 	// GetTunnelConnections returns tunnel connections for a given cluster
 	GetTunnelConnections(clusterName string) ([]services.TunnelConnection, error)
 
