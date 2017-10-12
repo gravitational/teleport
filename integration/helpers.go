@@ -388,6 +388,51 @@ func (i *TeleInstance) StartNode(name string, sshPort, proxyWebPort, proxySSHPor
 	return process.Start()
 }
 
+// ProxyConfig is a set of configuration parameters for Proxy
+type ProxyConfig struct {
+	// Name is a proxy name
+	Name string
+	// SSHPort is SSH proxy port
+	SSHPort int
+	// WebPort is web proxy port
+	WebPort int
+	// ReverseTunnelPort is a port for reverse tunnel addresses
+	ReverseTunnelPort int
+}
+
+// StartProxy starts proxy server and adds it to the cluster
+func (i *TeleInstance) StartProxy(cfg ProxyConfig) error {
+	dataDir, err := ioutil.TempDir("", "cluster-"+i.Secrets.SiteName+"-"+cfg.Name)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	tconf := service.MakeDefaultConfig()
+	tconf.HostUUID = cfg.Name
+	tconf.Hostname = cfg.Name
+	tconf.DataDir = dataDir
+	tconf.Auth.Enabled = false
+	tconf.Proxy.Enabled = true
+	tconf.SSH.Enabled = false
+	authServer := utils.MustParseAddr(net.JoinHostPort(i.Hostname, i.GetPortAuth()))
+	tconf.AuthServers = append(tconf.AuthServers, *authServer)
+	tconf.Token = "token"
+	tconf.Proxy.Enabled = true
+	tconf.Proxy.SSHAddr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", cfg.SSHPort))
+	tconf.Proxy.ReverseTunnelListenAddr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", cfg.SSHPort))
+	tconf.Proxy.WebAddr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", cfg.WebPort))
+	tconf.Proxy.DisableReverseTunnel = false
+	tconf.Proxy.DisableWebService = true
+	// Enable caching
+	tconf.CachePolicy = service.CachePolicy{Enabled: true}
+
+	process, err := service.NewTeleport(tconf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	i.Nodes = append(i.Nodes, process)
+	return process.Start()
+}
+
 // Reset re-creates the teleport instance based on the same configuration
 // This is needed if you want to stop the instance, reset it and start again
 func (i *TeleInstance) Reset() (err error) {
@@ -471,9 +516,23 @@ func (i *TeleInstance) Start() (err error) {
 	return err
 }
 
+// ClientConfig is a client configuration
+type ClientConfig struct {
+	// Login is SSH login name
+	Login string
+	// Cluster is a cluster name to connect to
+	Cluster string
+	// Host string is a target host to connect to
+	Host string
+	// Port is a target port to connect to
+	Port int
+	// Proxy is an optional alternative proxy to use
+	Proxy *ProxyConfig
+}
+
 // NewClient returns a fully configured and pre-authenticated client
 // (pre-authenticated with server CAs and signed session key)
-func (i *TeleInstance) NewClient(login string, site string, host string, port int) (tc *client.TeleportClient, err error) {
+func (i *TeleInstance) NewClient(cfg ClientConfig) (tc *client.TeleportClient, err error) {
 	keyDir, err := ioutil.TempDir(i.Config.DataDir, "tsh")
 	if err != nil {
 		return nil, err
@@ -485,26 +544,33 @@ func (i *TeleInstance) NewClient(login string, site string, host string, port in
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	proxySSHPort, err := strconv.Atoi(sp)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	_, sp, err = net.SplitHostPort(proxyConf.WebAddr.Addr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	proxyWebPort, err := strconv.Atoi(sp)
-	if err != nil {
-		return nil, trace.Wrap(err)
+
+	// use alternative proxy if necessary
+	var proxySSHPort, proxyWebPort int
+	if cfg.Proxy == nil {
+		proxySSHPort, err = strconv.Atoi(sp)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		_, sp, err = net.SplitHostPort(proxyConf.WebAddr.Addr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		proxyWebPort, err = strconv.Atoi(sp)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		proxySSHPort, proxyWebPort = cfg.Proxy.SSHPort, cfg.Proxy.WebPort
 	}
 	cconf := &client.Config{
-		Username:           login,
-		Host:               host,
-		HostPort:           port,
-		HostLogin:          login,
+		Username:           cfg.Login,
+		Host:               cfg.Host,
+		HostPort:           cfg.Port,
+		HostLogin:          cfg.Login,
 		InsecureSkipVerify: true,
 		KeysDir:            keyDir,
-		SiteName:           site,
+		SiteName:           cfg.Cluster,
 	}
 	cconf.SetProxy(proxyHost, proxyWebPort, proxySSHPort)
 
@@ -513,14 +579,14 @@ func (i *TeleInstance) NewClient(login string, site string, host string, port in
 		return nil, err
 	}
 	// confnigures the client authenticate using the keys from 'secrets':
-	user, ok := i.Secrets.Users[login]
+	user, ok := i.Secrets.Users[cfg.Login]
 	if !ok {
-		return nil, trace.Errorf("unknown login '%v'", login)
+		return nil, trace.BadParameter("unknown login %q", cfg.Login)
 	}
 	if user.Key == nil {
-		return nil, trace.Errorf("user %v has no key", login)
+		return nil, trace.BadParameter("user %q has no key", cfg.Login)
 	}
-	_, err = tc.AddKey(host, user.Key)
+	_, err = tc.AddKey(cfg.Host, user.Key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

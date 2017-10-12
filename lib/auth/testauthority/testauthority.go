@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -54,8 +55,9 @@ func (n *Keygen) GenerateHostCert(c services.HostCertParams) ([]byte, error) {
 		b := time.Now().Add(c.TTL)
 		validBefore = uint64(b.Unix())
 	}
+	principals := native.BuildPrincipals(c.HostID, c.NodeName, c.ClusterName, c.Roles)
 	cert := &ssh.Certificate{
-		ValidPrincipals: []string{c.HostID, c.NodeName},
+		ValidPrincipals: principals,
 		Key:             pubKey,
 		ValidBefore:     validBefore,
 		CertType:        ssh.HostCert,

@@ -49,7 +49,7 @@ func (s *LBSuite) TestSingleBackendLB(c *check.C) {
 
 	frontend := localAddr(ports[0])
 
-	lb, err := NewLoadBalancer(context.TODO(), frontend, []NetAddr{urlToNetAddr(backend1.URL)})
+	lb, err := NewLoadBalancer(context.TODO(), frontend, urlToNetAddr(backend1.URL))
 	c.Assert(err, check.IsNil)
 	err = lb.Listen()
 	c.Assert(err, check.IsNil)
@@ -79,7 +79,7 @@ func (s *LBSuite) TestTwoBackendsLB(c *check.C) {
 
 	frontend := localAddr(ports[0])
 
-	lb, err := NewLoadBalancer(context.TODO(), frontend, nil)
+	lb, err := NewLoadBalancer(context.TODO(), frontend)
 	c.Assert(err, check.IsNil)
 	err = lb.Listen()
 	c.Assert(err, check.IsNil)
@@ -119,7 +119,7 @@ func (s *LBSuite) TestOneFailingBackend(c *check.C) {
 
 	frontend := localAddr(ports[0])
 
-	lb, err := NewLoadBalancer(context.TODO(), frontend, nil)
+	lb, err := NewLoadBalancer(context.TODO(), frontend)
 	c.Assert(err, check.IsNil)
 	err = lb.Listen()
 	c.Assert(err, check.IsNil)
@@ -152,7 +152,7 @@ func (s *LBSuite) TestClose(c *check.C) {
 
 	frontend := localAddr(ports[0])
 
-	lb, err := NewLoadBalancer(context.TODO(), frontend, []NetAddr{urlToNetAddr(backend1.URL)})
+	lb, err := NewLoadBalancer(context.TODO(), frontend, urlToNetAddr(backend1.URL))
 	c.Assert(err, check.IsNil)
 	err = lb.Listen()
 	c.Assert(err, check.IsNil)

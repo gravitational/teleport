@@ -144,7 +144,7 @@ func (s *IntSuite) TestAudit(c *check.C) {
 	endC := make(chan error, 0)
 	myTerm := NewTerminal(250)
 	go func() {
-		cl, err := t.NewClient(s.me.Username, Site, Host, t.GetPortSSHInt())
+		cl, err := t.NewClient(ClientConfig{Login: s.me.Username, Cluster: Site, Host: Host, Port: t.GetPortSSHInt()})
 		c.Assert(err, check.IsNil)
 		cl.Stdout = &myTerm
 		cl.Stdin = &myTerm
@@ -326,7 +326,7 @@ func (s *IntSuite) TestInteroperability(c *check.C) {
 
 	for i, tt := range tests {
 		// create new teleport client
-		cl, err := t.NewClient(s.me.Username, Site, Host, t.GetPortSSHInt())
+		cl, err := t.NewClient(ClientConfig{Login: s.me.Username, Cluster: Site, Host: Host, Port: t.GetPortSSHInt()})
 		c.Assert(err, check.IsNil)
 
 		// hook up stdin and stdout to a buffer for reading and writing
@@ -376,7 +376,7 @@ func (s *IntSuite) TestInteractive(c *check.C) {
 
 	// PersonA: SSH into the server, wait one second, then type some commands on stdin:
 	openSession := func() {
-		cl, err := t.NewClient(s.me.Username, Site, Host, t.GetPortSSHInt())
+		cl, err := t.NewClient(ClientConfig{Login: s.me.Username, Cluster: Site, Host: Host, Port: t.GetPortSSHInt()})
 		c.Assert(err, check.IsNil)
 		cl.Stdout = &personA
 		cl.Stdin = &personA
@@ -399,7 +399,7 @@ func (s *IntSuite) TestInteractive(c *check.C) {
 			sessionID = string(sessions[0].ID)
 			break
 		}
-		cl, err := t.NewClient(s.me.Username, Site, Host, t.GetPortSSHInt())
+		cl, err := t.NewClient(ClientConfig{Login: s.me.Username, Cluster: Site, Host: Host, Port: t.GetPortSSHInt()})
 		c.Assert(err, check.IsNil)
 		cl.Stdout = &personB
 		for i := 0; i < 10; i++ {
@@ -433,7 +433,7 @@ func (s *IntSuite) TestEnvironmentVariables(c *check.C) {
 	cmd := []string{"printenv", testKey}
 
 	// make sure sessions set run command
-	tc, err := t.NewClient(s.me.Username, Site, Host, t.GetPortSSHInt())
+	tc, err := t.NewClient(ClientConfig{Login: s.me.Username, Cluster: Site, Host: Host, Port: t.GetPortSSHInt()})
 	c.Assert(err, check.IsNil)
 
 	tc.Env = map[string]string{testKey: testVal}
@@ -455,7 +455,7 @@ func (s *IntSuite) TestInvalidLogins(c *check.C) {
 	cmd := []string{"echo", "success"}
 
 	// try the wrong site:
-	tc, err := t.NewClient(s.me.Username, "wrong-site", Host, t.GetPortSSHInt())
+	tc, err := t.NewClient(ClientConfig{Login: s.me.Username, Cluster: "wrong-site", Host: Host, Port: t.GetPortSSHInt()})
 	c.Assert(err, check.IsNil)
 	err = tc.SSH(context.TODO(), cmd, false)
 	c.Assert(err, check.ErrorMatches, "cluster wrong-site not found")
@@ -513,7 +513,7 @@ func (s *IntSuite) TestTwoClusters(c *check.C) {
 	cmd := []string{"echo", "hello world"}
 
 	// directly:
-	tc, err := a.NewClient(username, "site-A", Host, sshPort)
+	tc, err := a.NewClient(ClientConfig{Login: username, Cluster: "site-A", Host: Host, Port: sshPort})
 	tc.Stdout = &outputA
 	c.Assert(err, check.IsNil)
 	err = tc.SSH(context.TODO(), cmd, false)
@@ -521,7 +521,7 @@ func (s *IntSuite) TestTwoClusters(c *check.C) {
 	c.Assert(outputA.String(), check.Equals, "hello world\n")
 
 	// via tunnel b->a:
-	tc, err = b.NewClient(username, "site-A", Host, sshPort)
+	tc, err = b.NewClient(ClientConfig{Login: username, Cluster: "site-A", Host: Host, Port: sshPort})
 	tc.Stdout = &outputB
 	c.Assert(err, check.IsNil)
 	err = tc.SSH(context.TODO(), cmd, false)
@@ -631,7 +631,7 @@ func (s *IntSuite) TestHA(c *check.C) {
 	}
 
 	cmd := []string{"echo", "hello world"}
-	tc, err := b.NewClient(username, "cluster-a", "127.0.0.1", sshPort)
+	tc, err := b.NewClient(ClientConfig{Login: username, Cluster: "cluster-a", Host: "127.0.0.1", Port: sshPort})
 	c.Assert(err, check.IsNil)
 	output := &bytes.Buffer{}
 	tc.Stdout = output
@@ -761,7 +761,7 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 	}
 
 	cmd := []string{"echo", "hello world"}
-	tc, err := main.NewClient(username, clusterAux, "127.0.0.1", sshPort)
+	tc, err := main.NewClient(ClientConfig{Login: username, Cluster: clusterAux, Host: "127.0.0.1", Port: sshPort})
 	c.Assert(err, check.IsNil)
 	output := &bytes.Buffer{}
 	tc.Stdout = output
@@ -818,28 +818,28 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 	}
 
 	for i, tt := range tests {
-		cid := services.CertAuthID{services.UserCA, "cluster-main"}
+		cid := services.CertAuthID{Type: services.UserCA, DomainName: "cluster-main"}
 		mainUserCAs, err := tt.inCluster.Process.GetAuthServer().GetCertAuthority(cid, true)
 		c.Assert(err, tt.outChkMainUserCA)
 		if tt.outChkMainUserCA == check.IsNil {
 			c.Assert(mainUserCAs.GetSigningKeys(), check.HasLen, tt.outLenMainUserCA, check.Commentf("Test %v, Main User CA", i))
 		}
 
-		cid = services.CertAuthID{services.HostCA, "cluster-main"}
+		cid = services.CertAuthID{Type: services.HostCA, DomainName: "cluster-main"}
 		mainHostCAs, err := tt.inCluster.Process.GetAuthServer().GetCertAuthority(cid, true)
 		c.Assert(err, tt.outChkMainHostCA)
 		if tt.outChkMainHostCA == check.IsNil {
 			c.Assert(mainHostCAs.GetSigningKeys(), check.HasLen, tt.outLenMainHostCA, check.Commentf("Test %v, Main Host CA", i))
 		}
 
-		cid = services.CertAuthID{services.UserCA, "cluster-aux"}
+		cid = services.CertAuthID{Type: services.UserCA, DomainName: "cluster-aux"}
 		auxUserCAs, err := tt.inCluster.Process.GetAuthServer().GetCertAuthority(cid, true)
 		c.Assert(err, tt.outChkAuxUserCA)
 		if tt.outChkAuxUserCA == check.IsNil {
 			c.Assert(auxUserCAs.GetSigningKeys(), check.HasLen, tt.outLenAuxUserCA, check.Commentf("Test %v, Aux User CA", i))
 		}
 
-		cid = services.CertAuthID{services.HostCA, "cluster-aux"}
+		cid = services.CertAuthID{Type: services.HostCA, DomainName: "cluster-aux"}
 		auxHostCAs, err := tt.inCluster.Process.GetAuthServer().GetCertAuthority(cid, true)
 		c.Assert(err, tt.outChkAuxHostCA)
 		if tt.outChkAuxHostCA == check.IsNil {
@@ -857,29 +857,55 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 func (s *IntSuite) TestDiscovery(c *check.C) {
 	username := s.me.Username
 
-	a := NewInstance("cluster-a", HostID, Host, s.getPorts(5), s.priv, s.pub)
-	b := NewInstance("cluster-b", HostID, Host, s.getPorts(5), s.priv, s.pub)
+	// create load balancer for main cluster proxies
+	frontend := *utils.MustParseAddr(fmt.Sprintf("127.0.0.1:%v", s.getPorts(1)[0]))
+	lb, err := utils.NewLoadBalancer(context.TODO(), frontend)
+	c.Assert(err, check.IsNil)
+	c.Assert(lb.Listen(), check.IsNil)
+	defer lb.Close()
 
-	a.AddUser(username, []string{username})
-	b.AddUser(username, []string{username})
+	remote := NewInstance("cluster-remote", HostID, Host, s.getPorts(5), s.priv, s.pub)
+	main := NewInstance("cluster-main", HostID, Host, s.getPorts(5), s.priv, s.pub)
 
-	c.Assert(b.Create(a.Secrets.AsSlice(), false, nil), check.IsNil)
-	c.Assert(a.Create(b.Secrets.AsSlice(), true, nil), check.IsNil)
+	remote.AddUser(username, []string{username})
+	main.AddUser(username, []string{username})
 
-	c.Assert(b.Start(), check.IsNil)
-	c.Assert(a.Start(), check.IsNil)
+	c.Assert(main.Create(remote.Secrets.AsSlice(), false, nil), check.IsNil)
+	mainSecrets := main.Secrets
+	// switch listen address of the main cluster to load balancer
+	lb.AddBackend(*utils.MustParseAddr(mainSecrets.ListenAddr))
+	mainSecrets.ListenAddr = frontend.String()
+	c.Assert(remote.Create(mainSecrets.AsSlice(), true, nil), check.IsNil)
+
+	c.Assert(main.Start(), check.IsNil)
+	c.Assert(remote.Start(), check.IsNil)
 
 	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
 	abortTime := time.Now().Add(time.Second * 10)
-	for len(b.Tunnel.GetSites()) < 2 && len(b.Tunnel.GetSites()) < 2 {
+	for len(main.Tunnel.GetSites()) < 2 && len(main.Tunnel.GetSites()) < 2 {
 		time.Sleep(time.Millisecond * 2000)
 		if time.Now().After(abortTime) {
 			c.Fatalf("two clusters do not see each other: tunnels are not working")
 		}
 	}
 
+	// start second proxy
+	nodePorts := s.getPorts(3)
+	proxyReverseTunnelPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
+	err = main.StartProxy(ProxyConfig{
+		Name:              "cluster-main-proxy",
+		SSHPort:           proxySSHPort,
+		WebPort:           proxyWebPort,
+		ReverseTunnelPort: proxyReverseTunnelPort,
+	})
+	c.Assert(err, check.IsNil)
+
+	// add second proxy as a backend to the load balancer
+	lb.AddBackend(*utils.MustParseAddr(fmt.Sprintf("127.0.0.0:%v", proxyReverseTunnelPort)))
+
+	// execute the connection via first proxy
 	cmd := []string{"echo", "hello world"}
-	tc, err := b.NewClient(username, "cluster-a", "127.0.0.1", a.GetPortSSHInt())
+	tc, err := main.NewClient(ClientConfig{Login: username, Cluster: "cluster-remote", Host: "127.0.0.1", Port: remote.GetPortSSHInt()})
 	c.Assert(err, check.IsNil)
 	output := &bytes.Buffer{}
 	tc.Stdout = output
@@ -889,8 +915,8 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 	c.Assert(output.String(), check.Equals, "hello world\n")
 
 	// stop cluster and remaining nodes
-	c.Assert(a.Stop(true), check.IsNil)
-	c.Assert(b.Stop(true), check.IsNil)
+	c.Assert(remote.Stop(true), check.IsNil)
+	c.Assert(main.Stop(true), check.IsNil)
 }
 
 // getPorts helper returns a range of unallocated ports available for litening on

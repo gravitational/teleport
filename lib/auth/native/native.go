@@ -150,7 +150,7 @@ func (n *nauth) GenerateHostCert(c services.HostCertParams) ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	principals := buildPrincipals(c.HostID, c.NodeName, c.ClusterName, c.Roles)
+	principals := BuildPrincipals(c.HostID, c.NodeName, c.ClusterName, c.Roles)
 
 	// create certificate
 	validBefore := uint64(ssh.CertTimeInfinity)
@@ -230,12 +230,12 @@ func (n *nauth) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
 	return ssh.MarshalAuthorizedKey(cert), nil
 }
 
-// buildPrincipals takes a hostID, nodeName, clusterName, and role and builds a list of
+// BuildPrincipals takes a hostID, nodeName, clusterName, and role and builds a list of
 // principals to insert into a certificate. This function is backward compatible with
 // older clients which means:
 //    * If RoleAdmin is in the list of roles, only a single principal is returned: hostID
 //    * If nodename is empty, it is not included in the list of principals.
-func buildPrincipals(hostID string, nodeName string, clusterName string, roles teleport.Roles) []string {
+func BuildPrincipals(hostID string, nodeName string, clusterName string, roles teleport.Roles) []string {
 	// TODO(russjones): This should probably be clusterName, but we need to
 	// verify changing this won't break older clients.
 	if roles.Include(teleport.RoleAdmin) {

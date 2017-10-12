@@ -29,7 +29,7 @@ import (
 
 // NewLoadBalancer returns new load balancer listening on frotend
 // and redirecting requests to backends using round robin algo
-func NewLoadBalancer(ctx context.Context, frontend NetAddr, backends []NetAddr) (*LoadBalancer, error) {
+func NewLoadBalancer(ctx context.Context, frontend NetAddr, backends ...NetAddr) (*LoadBalancer, error) {
 	if ctx == nil {
 		return nil, trace.BadParameter("missing parameter context")
 	}
