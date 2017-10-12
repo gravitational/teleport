@@ -175,7 +175,16 @@ var (
 	TerminalSizeRefreshPeriod = 2 * time.Second
 
 	// NewtworkBackoffDuration is a standard backoff on network requests
-	NetworkBackoffDuration = time.Second * 10
+	// usually is slow, e.g. once in 30 seconds
+	NetworkBackoffDuration = time.Second * 30
+
+	// NewtworkRetryDuration is a standard retry on network requests
+	// to retry quickly, e.g. once in one second
+	NetworkRetryDuration = time.Second
+
+	// FastAttempts is the intial amount of fast retry attempts
+	// before switching to slow mode
+	FastAttempts = 10
 
 	// ReportingPeriod is a period for reports in logs
 	ReportingPeriod = 5 * time.Minute

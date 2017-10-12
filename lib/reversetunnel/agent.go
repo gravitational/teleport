@@ -428,8 +428,12 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 // run is the main agent loop, constantly tries to re-establish
 // the connection until stopped
 func (a *Agent) run() {
-	backoff := time.NewTicker(defaults.NetworkBackoffDuration)
-	defer backoff.Stop()
+	ticker, err := utils.NewSwitchTicker(defaults.FastAttempts, defaults.NetworkRetryDuration, defaults.NetworkBackoffDuration)
+	if err != nil {
+		log.Error("failed to run: %v", err)
+		return
+	}
+	defer ticker.Stop()
 	firstAttempt := true
 	for {
 		if len(a.DiscoverProxies) != 0 {
@@ -446,16 +450,18 @@ func (a *Agent) run() {
 				a.Debugf("agent has closed, exiting")
 				return
 				// wait backoff on network retries
-			case <-backoff.C:
+			case <-ticker.Channel():
 			}
 		}
 
 		conn, err := a.connect()
 		firstAttempt = false
 		if err != nil || conn == nil {
+			ticker.IncrementFailureCount()
 			a.Warningf("failed to create remote tunnel: %v, conn: %v", err, conn)
 			continue
 		} else {
+			ticker.Reset()
 			a.Infof("connected to %s", conn.RemoteAddr())
 			if len(a.DiscoverProxies) != 0 {
 				if !a.connectedToRightProxy() {
