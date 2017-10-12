@@ -310,8 +310,8 @@ proxy_service:
 
     # TLS certificate for the HTTPS connection. Configuring these properly is 
     # critical for Teleport security.
-    https_key_file: /etc/teleport/teleport.key
-    https_cert_file: /etc/teleport/teleport.crt
+    https_key_file: /var/lib/teleport/webproxy_key.pem
+    https_cert_file: /var/lib/teleport/webproxy_cert.pem
 ```
 
 ## Authentication
