@@ -29,14 +29,17 @@ type CertsSuite struct {
 var _ = Suite(&CertsSuite{})
 
 func (_ *CertsSuite) TestRejectsInvalidPEMData(c *C) {
-	err := VerifyCertificateChain([]byte("no data"))
+	_, err := ReadCertificateChain([]byte("no data"))
 	c.Assert(trace.Unwrap(err), FitsTypeOf, &trace.NotFoundError{})
 }
 
 func (_ *CertsSuite) TestRejectsSelfSignedCertificate(c *C) {
-	cert, err := ioutil.ReadFile("../../fixtures/certs/ca.pem")
+	certificateChainBytes, err := ioutil.ReadFile("../../fixtures/certs/ca.pem")
 	c.Assert(err, IsNil)
 
-	err = VerifyCertificateChain(cert)
+	certificateChain, err := ReadCertificateChain(certificateChainBytes)
+	c.Assert(err, IsNil)
+
+	err = VerifyCertificateChain(certificateChain)
 	c.Assert(err, ErrorMatches, "x509: certificate signed by unknown authority")
 }
