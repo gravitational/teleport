@@ -359,9 +359,11 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		return trace.Wrap(err)
 	}
 	// read in static tokens from file configuration and create services.StaticTokens
-	cfg.Auth.StaticTokens, err = fc.Auth.StaticTokens.Parse()
-	if err != nil {
-		return trace.Wrap(err)
+	if fc.Auth.StaticTokens != nil {
+		cfg.Auth.StaticTokens, err = fc.Auth.StaticTokens.Parse()
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	// read in and set authentication preferences
 	if fc.Auth.Authentication != nil {

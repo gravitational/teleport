@@ -62,6 +62,22 @@ func NewStaticTokens(spec StaticTokensSpecV2) (StaticTokens, error) {
 	return &st, nil
 }
 
+// DefaultStaticTokens is used to get the default static tokens (empty list)
+// when nothing is specified in file configuration.
+func DefaultStaticTokens() StaticTokens {
+	return &StaticTokensV2{
+		Kind:    KindStaticTokens,
+		Version: V2,
+		Metadata: Metadata{
+			Name:      MetaNameStaticTokens,
+			Namespace: defaults.Namespace,
+		},
+		Spec: StaticTokensSpecV2{
+			StaticTokens: []ProvisionToken{},
+		},
+	}
+}
+
 // StaticTokensV2 implements the StaticTokens interface.
 type StaticTokensV2 struct {
 	// Kind is a resource kind - always resource.

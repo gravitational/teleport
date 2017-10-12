@@ -621,10 +621,12 @@ func (s *AuthServer) GetTokens() (tokens []services.ProvisionToken, err error) {
 	}
 	// get static tokens:
 	tkns, err := s.GetStaticTokens()
-	if err != nil {
+	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
-	tokens = append(tokens, tkns.GetStaticTokens()...)
+	if err == nil {
+		tokens = append(tokens, tkns.GetStaticTokens()...)
+	}
 	// get user tokens:
 	userTokens, err := s.Identity.GetSignupTokens()
 	if err != nil {
