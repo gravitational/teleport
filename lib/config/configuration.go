@@ -302,7 +302,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		err = utils.VerifyCertificateChain(certificateBytes)
 		if err != nil {
-			return trace.BadParameter("unable to verify HTTPS certificate chain in %v: %v", fc.Proxy.CertFile, err)
+			return trace.BadParameter("unable to verify HTTPS certificate chain in %v: %s",
+				fc.Proxy.CertFile, utils.UserMessageFromError(err))
 		}
 
 		cfg.Proxy.TLSCert = fc.Proxy.CertFile
@@ -321,7 +322,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.Auth.DynamicConfig != nil {
 		warningMessage := "Dynamic configuration is no longer supported. Refer to " +
 			"Teleport documentation for more details: " +
-			"http://gravitational.com/teleport/docs/2.0/admin-guide"
+			"http://gravitational.com/teleport/docs/admin-guide"
 		log.Warnf(warningMessage)
 	}
 	// INTERNAL: Authorities (plus Roles) and ReverseTunnels don't follow the
@@ -349,7 +350,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 			"Existing Trusted Cluster relationships will be maintained, but you will " +
 			"not be able to add or remove Trusted Clusters using file configuration " +
 			"anymore. Refer to Teleport documentation for more details: " +
-			"http://gravitational.com/teleport/docs/2.0/admin-guide"
+			"http://gravitational.com/teleport/docs/admin-guide"
 		log.Warnf(warningMessage)
 	}
 	// read in cluster name from file configuration and create services.ClusterName
@@ -358,9 +359,11 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		return trace.Wrap(err)
 	}
 	// read in static tokens from file configuration and create services.StaticTokens
-	cfg.Auth.StaticTokens, err = fc.Auth.StaticTokens.Parse()
-	if err != nil {
-		return trace.Wrap(err)
+	if fc.Auth.StaticTokens != nil {
+		cfg.Auth.StaticTokens, err = fc.Auth.StaticTokens.Parse()
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	// read in and set authentication preferences
 	if fc.Auth.Authentication != nil {
@@ -377,7 +380,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 				"Existing OIDC connectors will not be removed but you will not be able to " +
 				"add, remove, or update them using file configuration. Refer to Teleport " +
 				"documentation for more details: " +
-				"http://gravitational.com/teleport/docs/2.0/admin-guide"
+				"http://gravitational.com/teleport/docs/admin-guide"
 			log.Warnf(warningMessage)
 		}
 	}

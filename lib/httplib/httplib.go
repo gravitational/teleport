@@ -25,11 +25,14 @@ import (
 	"net/url"
 	"regexp"
 	"strconv"
-	"strings"
+
+	"github.com/gravitational/teleport/lib/httplib/csrf"
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+
 	"github.com/julienschmidt/httprouter"
+	log "github.com/sirupsen/logrus"
 )
 
 // HandlerFunc specifies HTTP handler function that returns error
@@ -69,6 +72,20 @@ func MakeStdHandler(fn StdHandlerFunc) http.HandlerFunc {
 	}
 }
 
+// WithCSRFProtection ensures that request to unauthenticated API is checked against CSRF attacks
+func WithCSRFProtection(fn HandlerFunc) httprouter.Handle {
+	hanlderFn := MakeHandler(fn)
+	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+		err := csrf.VerifyHTTPHeader(r)
+		if err != nil {
+			log.Warningf("unable to validate CSRF token %v", err)
+			trace.WriteError(w, trace.AccessDenied("access denied"))
+			return
+		}
+		hanlderFn(w, r, p)
+	}
+}
+
 // ReadJSON reads HTTP json request and unmarshals it
 // into passed interface{} obj
 func ReadJSON(r *http.Request, val interface{}) error {
@@ -92,45 +109,6 @@ func ConvertResponse(re *roundtrip.Response, err error) (*roundtrip.Response, er
 		return nil, trace.Wrap(err)
 	}
 	return re, trace.ReadError(re.Code(), re.Bytes())
-}
-
-// SetNoCacheHeaders tells proxies and browsers do not cache the content
-func SetNoCacheHeaders(h http.Header) {
-	h.Set("Cache-Control", "no-cache, no-store, must-revalidate")
-	h.Set("Pragma", "no-cache")
-	h.Set("Expires", "0")
-}
-
-// SetIndexHTMLHeaders sets security header flags for main index.html page
-func SetIndexHTMLHeaders(h http.Header) {
-	// Disable caching
-	SetNoCacheHeaders(h)
-
-	// X-Frame-Options indicates that the page can only be displayed in iframe on the same origin as the page itself
-	h.Set("X-Frame-Options", "SAMEORIGIN")
-
-	// X-XSS-Protection is a feature of Internet Explorer, Chrome and Safari that stops pages
-	// from loading when they detect reflected cross-site scripting (XSS) attacks.
-	h.Set("X-XSS-Protection", "1; mode=block")
-
-	// Once a supported browser receives this header that browser will prevent any communications from
-	// being sent over HTTP to the specified domain and will instead send all communications over HTTPS.
-	// It also prevents HTTPS click through prompts on browsers
-	h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
-
-	// Prevent web browsers from using content sniffing to discover a file’s MIME type
-	h.Set("X-Content-Type-Options", "nosniff")
-
-	// Set content policy flags
-	var cspValue = strings.Join([]string{
-		"script-src 'self'",
-		// 'unsafe-inline' needed for reactjs inline styles
-		"style-src 'self' 'unsafe-inline'",
-		"object-src 'none'",
-		"img-src 'self' data: blob:",
-	}, ";")
-
-	h.Set("Content-Security-Policy", cspValue)
 }
 
 // ParseBool will parse boolean variable from url query
@@ -174,4 +152,14 @@ func RewritePaths(next http.Handler, rewrites ...RewritePair) http.Handler {
 		}
 		next.ServeHTTP(w, req)
 	})
+}
+
+// SafeRedirect performs a relative redirect to the URI part of the provided redirect URL
+func SafeRedirect(w http.ResponseWriter, r *http.Request, redirectURL string) error {
+	parsedURL, err := url.Parse(redirectURL)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	http.Redirect(w, r, parsedURL.RequestURI(), http.StatusFound)
+	return nil
 }

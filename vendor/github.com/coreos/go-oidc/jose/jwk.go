@@ -131,5 +131,12 @@ func decodeBase64URLPaddingOptional(e string) ([]byte, error) {
 	if m := len(e) % 4; m != 0 {
 		e += strings.Repeat("=", 4-m)
 	}
-	return base64.URLEncoding.DecodeString(e)
+
+	// TODO(russjones): This is a temporary patch! Remove as soon as possible.
+	bytes, err := base64.URLEncoding.DecodeString(e)
+	if err != nil {
+		return base64.StdEncoding.DecodeString(e)
+	}
+
+	return bytes, nil
 }

@@ -46,6 +46,10 @@ type Identity interface {
 	// GetUserLoginAttempts returns user login attempts
 	GetUserLoginAttempts(user string) ([]LoginAttempt, error)
 
+	// DeleteUserLoginAttempts removes all login attempts of a user. Should be
+	// called after successful login.
+	DeleteUserLoginAttempts(user string) error
+
 	// CreateUser creates user if it does not exist
 	CreateUser(user User) error
 
@@ -266,6 +270,9 @@ type OIDCAuthRequest struct {
 	// reuqest coming from
 	StateToken string `json:"state_token"`
 
+	// CSRFToken is associated with user web session token
+	CSRFToken string `json:"csrf_token"`
+
 	// RedirectURL will be used by browser
 	RedirectURL string `json:"redirect_url"`
 
@@ -335,6 +342,9 @@ type SAMLAuthRequest struct {
 
 	// CertTTL is the TTL of the certificate user wants to get
 	CertTTL time.Duration `json:"cert_ttl"`
+
+	// CSRFToken is associated with user web session token
+	CSRFToken string `json:"csrf_token"`
 
 	// CreateWebSession indicates if user wants to generate a web
 	// session after successful authentication

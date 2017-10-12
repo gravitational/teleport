@@ -68,7 +68,7 @@ func (s *ClusterConfigurationService) GetStaticTokens() (services.StaticTokens, 
 	data, err := s.GetVal([]string{"cluster_configuration"}, "static_tokens")
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return nil, trace.NotFound("cluster name not found")
+			return nil, trace.NotFound("static tokens not found")
 		}
 		return nil, trace.Wrap(err)
 	}

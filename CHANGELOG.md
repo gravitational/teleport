@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.3.1
+
+#### Bug fixes
+
+* Added CSRF protection to login endpoint. [#1356](https://github.com/gravitational/teleport/issues/1356)
+* Proxy subsystem handling is more robust. [#1336](https://github.com/gravitational/teleport/issues/1336)
+
 ## 2.3 
 
 This release focus was to increase Teleport user experience in the following areas:

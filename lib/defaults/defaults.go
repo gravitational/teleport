@@ -144,7 +144,7 @@ const (
 	Namespace = "default"
 
 	// AttemptTTL is TTL for login attempt
-	AttemptTTL = time.Hour * 24 * 7
+	AttemptTTL = time.Minute * 30
 )
 
 var (

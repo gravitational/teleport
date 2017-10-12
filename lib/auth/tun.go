@@ -87,9 +87,12 @@ type TunClient struct {
 	discoveredAuthServers []utils.NetAddr
 	authMethods           []ssh.AuthMethod
 	refreshTicker         *time.Ticker
-	closeC                chan struct{}
-	closeOnce             sync.Once
-	addrStorage           utils.AddrStorage
+	// disableRefresh will disable the refresh ticker. Used when we only call a
+	// single function with a TunClient (initial fetch of certs).
+	disableRefresh bool
+	closeC         chan struct{}
+	closeOnce      sync.Once
+	addrStorage    utils.AddrStorage
 	// purpose is used for more informative logging. it explains _why_ this
 	// client was created
 	purpose string
@@ -759,6 +762,17 @@ func TunClientStorage(storage utils.AddrStorage) TunClientOption {
 	}
 }
 
+// TunDisableRefresh will disable refreshing the list of auth servers. This is
+// required when requesting user certificates because we only allow a single
+// HTTP request to be made over the tunnel. This is because each request does
+// keyAuth, and for situations like password+otp where the OTP token is invalid
+// after the first use, that means all other requests would fail.
+func TunDisableRefresh() TunClientOption {
+	return func(t *TunClient) {
+		t.disableRefresh = true
+	}
+}
+
 // NewTunClient returns an instance of new HTTP client to Auth server API
 // exposed over SSH tunnel, so client  uses SSH credentials to dial and authenticate
 //  - purpose is mostly for debuggin, like "web client" or "reverse tunnel client"
@@ -897,9 +911,11 @@ func (c *TunClient) Dial(network, address string) (net.Conn, error) {
 	}
 	// dialed & authenticated? lets start synchronizing the
 	// list of auth servers:
-	if c.refreshTicker == nil {
-		c.refreshTicker = time.NewTicker(defaults.AuthServersRefreshPeriod)
-		go c.authServersSyncLoop()
+	if c.disableRefresh == false {
+		if c.refreshTicker == nil {
+			c.refreshTicker = time.NewTicker(defaults.AuthServersRefreshPeriod)
+			go c.authServersSyncLoop()
+		}
 	}
 	return &tunConn{client: client, Conn: conn}, nil
 }

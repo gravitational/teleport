@@ -127,3 +127,8 @@
 [[constraint]]
   name = "github.com/gravitational/trace"
   version = "1.1.1"
+
+[[constraint]]
+  name = "github.com/coreos/go-oidc"
+  version = "0.0.1"
+  source = "github.com/gravitational/go-oidc"

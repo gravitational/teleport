@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -150,7 +151,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.GET("/webapi/ping/:connector", httplib.MakeHandler(h.pingWithConnector))
 
 	// Web sessions
-	h.POST("/webapi/sessions", httplib.MakeHandler(h.createSession))
+	h.POST("/webapi/sessions", httplib.WithCSRFProtection(h.createSession))
 	h.DELETE("/webapi/sessions", h.WithAuth(h.deleteSession))
 	h.POST("/webapi/sessions/renew", h.WithAuth(h.renewSession))
 
@@ -211,9 +212,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 
 	// if Web UI is enabled, check the assets dir:
 	var (
-		writeSettings http.HandlerFunc
-		indexPage     *template.Template
-		staticFS      http.FileSystem
+		indexPage *template.Template
+		staticFS  http.FileSystem
 	)
 	if !cfg.DisableUI {
 		staticFS, err = NewStaticFileSystem(isDebugMode())
@@ -234,7 +234,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		if err != nil {
 			return nil, trace.BadParameter("failed parsing index.html template: %v", err)
 		}
-		writeSettings = httplib.MakeStdHandler(h.getConfigurationSettings)
+
+		h.Handle("GET", "/web/config.js", httplib.MakeHandler(h.getConfigurationSettings))
 	}
 
 	routingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -258,14 +259,23 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 
 		// serve Web UI:
 		if strings.HasPrefix(r.URL.Path, "/web/app") {
+			httplib.SetStaticFileHeaders(w.Header())
 			http.StripPrefix("/web", http.FileServer(staticFS)).ServeHTTP(w, r)
-		} else if strings.HasPrefix(r.URL.Path, "/web/config.js") {
-			writeSettings.ServeHTTP(w, r)
-		} else if strings.HasPrefix(r.URL.Path, "/web") {
-			ctx, err := h.AuthenticateRequest(w, r, false)
+		} else if strings.HasPrefix(r.URL.Path, "/web/") || r.URL.Path == "/web" {
+			csrfToken, err := csrf.AddCSRFProtection(w, r)
+			if err != nil {
+				log.Errorf("failed to generate CSRF token %v", err)
+			}
+
 			session := struct {
 				Session string
-			}{Session: base64.StdEncoding.EncodeToString([]byte("{}"))}
+				XCSRF   string
+			}{
+				XCSRF:   csrfToken,
+				Session: base64.StdEncoding.EncodeToString([]byte("{}")),
+			}
+
+			ctx, err := h.AuthenticateRequest(w, r, false)
 			if err == nil {
 				re, err := NewSessionResponse(ctx)
 				if err == nil {
@@ -281,11 +291,13 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 			http.NotFound(w, r)
 		}
 	})
+
 	h.NotFound = routingHandler
 	plugin := GetPlugin()
 	if plugin != nil {
 		plugin.AddHandlers(h)
 	}
+
 	return &RewritingHandler{
 		Handler: httplib.RewritePaths(h,
 			httplib.Rewrite("/webapi/sites/([^/]+)/sessions/(.*)", "/webapi/sites/$1/namespaces/default/sessions/$2"),
@@ -298,11 +310,11 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 }
 
 // Close closes associated session cache operations
-func (m *Handler) Close() error {
-	return m.auth.Close()
+func (h *Handler) Close() error {
+	return h.auth.Close()
 }
 
-func (m *Handler) getUserStatus(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext) (interface{}, error) {
+func (h *Handler) getUserStatus(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext) (interface{}, error) {
 	return ok(), nil
 }
 
@@ -310,7 +322,7 @@ func (m *Handler) getUserStatus(w http.ResponseWriter, r *http.Request, _ httpro
 //
 // GET /webapi/user/context
 //
-func (m *Handler) getUserContext(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext) (interface{}, error) {
+func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext) (interface{}, error) {
 	clt, err := c.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -436,10 +448,10 @@ func defaultAuthenticationSettings(authClient auth.ClientI) (client.Authenticati
 	return as, nil
 }
 
-func (m *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var err error
 
-	defaultSettings, err := defaultAuthenticationSettings(m.cfg.ProxyClient)
+	defaultSettings, err := defaultAuthenticationSettings(h.cfg.ProxyClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -450,8 +462,8 @@ func (m *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	}, nil
 }
 
-func (m *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	authClient := m.cfg.ProxyClient
+func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	authClient := h.cfg.ProxyClient
 	connectorName := p.ByName("connector")
 
 	cap, err := authClient.GetAuthPreference()
@@ -460,7 +472,7 @@ func (m *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	}
 
 	if connectorName == teleport.Local {
-		as, err := localSettings(m.cfg.ProxyClient, cap)
+		as, err := localSettings(h.cfg.ProxyClient, cap)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -501,8 +513,9 @@ type webConfig struct {
 }
 
 // getConfigurationSettings returns configuration for the web application.
-func (m *Handler) getConfigurationSettings(w http.ResponseWriter, r *http.Request) (interface{}, error) {
-	as, err := defaultAuthenticationSettings(m.cfg.ProxyClient)
+func (h *Handler) getConfigurationSettings(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	httplib.SetWebConfigHeaders(w.Header())
+	as, err := defaultAuthenticationSettings(h.cfg.ProxyClient)
 	if err != nil {
 		log.Infof("Cannot retrieve cluster auth preferences: %v", err)
 	}
@@ -521,7 +534,7 @@ func (m *Handler) getConfigurationSettings(w http.ResponseWriter, r *http.Reques
 	return nil, nil
 }
 
-func (m *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	log.Infof("oidcLoginWeb start")
 
 	query := r.URL.Query()
@@ -533,8 +546,16 @@ func (m *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprou
 	if connectorID == "" {
 		return nil, trace.BadParameter("missing connector_id query parameter")
 	}
-	response, err := m.cfg.ProxyClient.CreateOIDCAuthRequest(
+
+	csrfToken, err := csrf.ExtractTokenFromCookie(r)
+	if err != nil {
+		log.Warningf("unable to extract CSRF token from cookie", err)
+		return nil, trace.AccessDenied("access denied")
+	}
+
+	response, err := h.cfg.ProxyClient.CreateOIDCAuthRequest(
 		services.OIDCAuthRequest{
+			CSRFToken:         csrfToken,
 			ConnectorID:       connectorID,
 			CreateWebSession:  true,
 			ClientRedirectURL: clientRedirectURL,
@@ -547,7 +568,7 @@ func (m *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprou
 	return nil, nil
 }
 
-func (m *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	log.Debugf("oidcLoginConsole start")
 	var req *client.SSOLoginConsoleReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -562,7 +583,7 @@ func (m *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p htt
 	if req.ConnectorID == "" {
 		return nil, trace.BadParameter("missing ConnectorID")
 	}
-	response, err := m.cfg.ProxyClient.CreateOIDCAuthRequest(
+	response, err := h.cfg.ProxyClient.CreateOIDCAuthRequest(
 		services.OIDCAuthRequest{
 			ConnectorID:       req.ConnectorID,
 			ClientRedirectURL: req.RedirectURL,
@@ -577,10 +598,10 @@ func (m *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p htt
 	return &client.SSOLoginConsoleResponse{RedirectURL: response.RedirectURL}, nil
 }
 
-func (m *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	log.Debugf("oidcCallback start")
 
-	response, err := m.cfg.ProxyClient.ValidateOIDCAuthCallback(r.URL.Query())
+	response, err := h.cfg.ProxyClient.ValidateOIDCAuthCallback(r.URL.Query())
 	if err != nil {
 		log.Warningf("[OIDC] Error while processing callback: %v", err)
 
@@ -594,11 +615,17 @@ func (m *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 	}
 	// if we created web session, set session cookie and redirect to original url
 	if response.Req.CreateWebSession {
+		err = csrf.VerifyToken(response.Req.CSRFToken, r)
+		if err != nil {
+			log.Warningf("[OIDC] unable to verify CSRF token", err)
+			return nil, trace.AccessDenied("access denied")
+		}
+
 		log.Infof("oidcCallback redirecting to web browser")
 		if err := SetSession(w, response.Username, response.Session.GetName()); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		http.Redirect(w, r, response.Req.ClientRedirectURL, http.StatusFound)
+		httplib.SafeRedirect(w, r, response.Req.ClientRedirectURL)
 		return nil, nil
 	}
 	log.Infof("oidcCallback redirecting to console login")
@@ -757,7 +784,7 @@ func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 //
 // {"type": "bearer", "token": "bearer token", "user": {"name": "alex", "allowed_logins": ["admin", "bob"]}, "expires_in": 20}
 //
-func (m *Handler) createSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) createSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req *createSessionReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -765,7 +792,7 @@ func (m *Handler) createSession(w http.ResponseWriter, r *http.Request, p httpro
 
 	// get cluster preferences to see if we should login
 	// with password or password+otp
-	authClient := m.cfg.ProxyClient
+	authClient := h.cfg.ProxyClient
 	cap, err := authClient.GetAuthPreference()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -775,9 +802,9 @@ func (m *Handler) createSession(w http.ResponseWriter, r *http.Request, p httpro
 
 	switch cap.GetSecondFactor() {
 	case teleport.OFF:
-		webSession, err = m.auth.AuthWithoutOTP(req.User, req.Pass)
+		webSession, err = h.auth.AuthWithoutOTP(req.User, req.Pass)
 	case teleport.OTP, teleport.HOTP, teleport.TOTP:
-		webSession, err = m.auth.AuthWithOTP(req.User, req.Pass, req.SecondFactorToken)
+		webSession, err = h.auth.AuthWithOTP(req.User, req.Pass, req.SecondFactorToken)
 	default:
 		return nil, trace.AccessDenied("unknown second factor type: %q", cap.GetSecondFactor())
 	}
@@ -789,7 +816,7 @@ func (m *Handler) createSession(w http.ResponseWriter, r *http.Request, p httpro
 		return nil, trace.Wrap(err)
 	}
 
-	ctx, err := m.auth.ValidateSession(req.User, webSession.GetName())
+	ctx, err := h.auth.ValidateSession(req.User, webSession.GetName())
 	if err != nil {
 		return nil, trace.AccessDenied("need auth")
 	}
@@ -805,7 +832,7 @@ func (m *Handler) createSession(w http.ResponseWriter, r *http.Request, p httpro
 //
 // {"message": "ok"}
 //
-func (m *Handler) deleteSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) deleteSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	if err := ctx.Invalidate(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -826,7 +853,7 @@ func (m *Handler) deleteSession(w http.ResponseWriter, r *http.Request, _ httpro
 // {"type": "bearer", "token": "bearer token", "user": {"name": "alex", "allowed_logins": ["admin", "bob"]}, "expires_in": 20}
 //
 //
-func (m *Handler) renewSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) renewSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	newSess, err := ctx.ExtendWebSession()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -859,9 +886,9 @@ type renderUserInviteResponse struct {
 // {"invite_token": "token", "user": "alex", qr: "base64-encoded-qr-code image"}
 //
 //
-func (m *Handler) renderUserInvite(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) renderUserInvite(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	token := p[0].Value
-	user, qrCodeBytes, err := m.auth.GetUserInviteInfo(token)
+	user, qrCodeBytes, err := h.auth.GetUserInviteInfo(token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -881,9 +908,9 @@ func (m *Handler) renderUserInvite(w http.ResponseWriter, r *http.Request, p htt
 //
 // {"version":"U2F_V2","challenge":"randombase64string","appId":"https://mycorp.com:3080"}
 //
-func (m *Handler) u2fRegisterRequest(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) u2fRegisterRequest(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	token := p[0].Value
-	u2fRegisterRequest, err := m.auth.GetUserInviteU2FRegisterRequest(token)
+	u2fRegisterRequest, err := h.auth.GetUserInviteU2FRegisterRequest(token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -901,12 +928,12 @@ func (m *Handler) u2fRegisterRequest(w http.ResponseWriter, r *http.Request, p h
 //
 // {"version":"U2F_V2","challenge":"randombase64string","keyHandle":"longbase64string","appId":"https://mycorp.com:3080"}
 //
-func (m *Handler) u2fSignRequest(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) u2fSignRequest(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req *client.U2fSignRequestReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	u2fSignReq, err := m.auth.GetU2FSignRequest(req.User, req.Pass)
+	u2fSignReq, err := h.auth.GetU2FSignRequest(req.User, req.Pass)
 	if err != nil {
 		return nil, trace.AccessDenied("bad auth credentials")
 	}
@@ -930,20 +957,20 @@ type u2fSignResponseReq struct {
 //
 // {"type": "bearer", "token": "bearer token", "user": {"name": "alex", "allowed_logins": ["admin", "bob"]}, "expires_in": 20}
 //
-func (m *Handler) createSessionWithU2FSignResponse(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) createSessionWithU2FSignResponse(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req *u2fSignResponseReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	sess, err := m.auth.AuthWithU2FSignResponse(req.User, &req.U2FSignResponse)
+	sess, err := h.auth.AuthWithU2FSignResponse(req.User, &req.U2FSignResponse)
 	if err != nil {
 		return nil, trace.AccessDenied("bad auth credentials")
 	}
 	if err := SetSession(w, req.User, sess.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ctx, err := m.auth.ValidateSession(req.User, sess.GetName())
+	ctx, err := h.auth.ValidateSession(req.User, sess.GetName())
 	if err != nil {
 		return nil, trace.AccessDenied("need auth")
 	}
@@ -966,16 +993,16 @@ type createNewUserReq struct {
 // Sucessful response: (session cookie is set)
 //
 // {"type": "bearer", "token": "bearer token", "user": "alex", "expires_in": 20}
-func (m *Handler) createNewUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) createNewUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req *createNewUserReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess, err := m.auth.CreateNewUser(req.InviteToken, req.Pass, req.SecondFactorToken)
+	sess, err := h.auth.CreateNewUser(req.InviteToken, req.Pass, req.SecondFactorToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ctx, err := m.auth.ValidateSession(sess.GetUser(), sess.GetName())
+	ctx, err := h.auth.ValidateSession(sess.GetUser(), sess.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1001,16 +1028,16 @@ type createNewU2FUserReq struct {
 // Sucessful response: (session cookie is set)
 //
 // {"type": "bearer", "token": "bearer token", "user": "alex", "expires_in": 20}
-func (m *Handler) createNewU2FUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) createNewU2FUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req *createNewU2FUserReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess, err := m.auth.CreateNewU2FUser(req.InviteToken, req.Pass, req.U2FRegisterResponse)
+	sess, err := h.auth.CreateNewU2FUser(req.InviteToken, req.Pass, req.U2FRegisterResponse)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ctx, err := m.auth.ValidateSession(sess.GetUser(), sess.GetName())
+	ctx, err := h.auth.ValidateSession(sess.GetUser(), sess.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1068,7 +1095,7 @@ Sucessful response:
 
 {"namespaces": [{..namespace resource...}]}
 */
-func (m *Handler) getSiteNamespaces(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) getSiteNamespaces(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	clt, err := site.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1087,7 +1114,7 @@ type nodeWithSessions struct {
 	Sessions []session.Session `json:"sessions"`
 }
 
-func (m *Handler) siteNodesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) siteNodesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	clt, err := site.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1118,7 +1145,7 @@ func (m *Handler) siteNodesGet(w http.ResponseWriter, r *http.Request, p httprou
 //
 // Sucessful response is a websocket stream that allows read write to the server
 //
-func (m *Handler) siteNodeConnect(
+func (h *Handler) siteNodeConnect(
 	w http.ResponseWriter,
 	r *http.Request,
 	p httprouter.Params,
@@ -1144,7 +1171,7 @@ func (m *Handler) siteNodeConnect(
 		req.Namespace, req.Server, req.Login, req.SessionID)
 
 	req.Namespace = namespace
-	req.ProxyHostPort = m.ProxyHostPort()
+	req.ProxyHostPort = h.ProxyHostPort()
 	req.Cluster = site.GetName()
 
 	clt, err := ctx.GetUserClient(site)
@@ -1180,7 +1207,7 @@ type sessionStreamEvent struct {
 // Sucessful response is a websocket stream that allows read write to the server and returns
 // json events
 //
-func (m *Handler) siteSessionStream(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) siteSessionStream(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	sessionID, err := session.ParseID(p.ByName("sid"))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1192,7 +1219,7 @@ func (m *Handler) siteSessionStream(w http.ResponseWriter, r *http.Request, p ht
 	}
 
 	connect, err := newSessionStreamHandler(namespace,
-		*sessionID, ctx, site, m.sessionStreamPollPeriod)
+		*sessionID, ctx, site, h.sessionStreamPollPeriod)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1228,7 +1255,7 @@ type siteSessionGenerateResponse struct {
 //
 // {"session": {"id": "session-id", "terminal_params": {"w": 100, "h": 100}, "login": "centos"}}
 //
-func (m *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	namespace := p.ByName("namespace")
 	if !services.IsValidNamespace(namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
@@ -1262,7 +1289,7 @@ type siteSessionUpdateReq struct {
 //
 // {"message": "ok"}
 //
-func (m *Handler) siteSessionUpdate(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) siteSessionUpdate(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	sessionID, err := session.ParseID(p.ByName("sid"))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1304,7 +1331,7 @@ type siteSessionsGetResponse struct {
 // Response body:
 //
 // {"sessions": [{"id": "sid", "terminal_params": {"w": 100, "h": 100}, "parties": [], "login": "bob"}, ...] }
-func (m *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	clt, err := ctx.GetUserClient(site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1330,7 +1357,7 @@ func (m *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 //
 // {"session": {"id": "sid", "terminal_params": {"w": 100, "h": 100}, "parties": [], "login": "bob"}}
 //
-func (m *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	sessionID, err := session.ParseID(p.ByName("sid"))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1367,7 +1394,7 @@ const maxStreamBytes = 5 * 1024 * 1024
 //             the default backend performs exact search: ?key=value means "event
 //             with a field 'key' with value 'value'
 //
-func (m *Handler) siteEventsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) siteEventsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	query := r.URL.Query()
 	log.Infof("web.getEvents(%v)", r.URL.RawQuery)
 
@@ -1420,14 +1447,14 @@ type siteSessionStreamGetResponse struct {
 // It returns the binary stream unencoded, directly in the respose body,
 // with Content-Type of application/octet-stream, gzipped with up to 95%
 // compression ratio.
-func (m *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+func (h *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	var site reversetunnel.RemoteSite
 	onError := func(err error) {
 		w.Header().Set("Content-Type", "text/json")
 		trace.WriteError(w, err)
 	}
 	// authenticate first:
-	ctx, err := m.AuthenticateRequest(w, r, true)
+	ctx, err := h.AuthenticateRequest(w, r, true)
 	if err != nil {
 		log.Info(err)
 		// clear session just in case if the authentication request is not valid
@@ -1438,14 +1465,14 @@ func (m *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 	// get the site interface:
 	siteName := p.ByName("site")
 	if siteName == currentSiteShortcut {
-		sites := m.cfg.Proxy.GetSites()
+		sites := h.cfg.Proxy.GetSites()
 		if len(sites) < 1 {
 			onError(trace.NotFound("no active sites"))
 			return
 		}
 		siteName = sites[0].GetName()
 	}
-	site, err = m.cfg.Proxy.GetSite(siteName)
+	site, err = h.cfg.Proxy.GetSite(siteName)
 	if err != nil {
 		onError(err)
 		return
@@ -1523,7 +1550,7 @@ type eventsListGetResponse struct {
 //
 // {"events": [{...}, {...}, ...}
 //
-func (m *Handler) siteSessionEventsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) siteSessionEventsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	sessionID, err := session.ParseID(p.ByName("sid"))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1715,7 +1742,7 @@ func (h *Handler) WithAuth(fn ContextHandler) httprouter.Handle {
 	})
 }
 
-// authenticateRequest authenticates request using combination of a session cookie
+// AuthenticateRequest authenticates request using combination of a session cookie
 // and bearer token
 func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, checkBearerToken bool) (*SessionContext, error) {
 	const missingCookieMsg = "missing session cookie"
@@ -1774,10 +1801,6 @@ func message(msg string) interface{} {
 
 func ok() interface{} {
 	return message("ok")
-}
-
-type Server struct {
-	http.Server
 }
 
 // CreateSignupLink generates and returns a URL which is given to a new

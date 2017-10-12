@@ -64,9 +64,11 @@
   version = "v3.2.6"
 
 [[projects]]
+  branch = "master"
   name = "github.com/coreos/go-oidc"
   packages = ["http","jose","key","oauth2","oidc"]
-  revision = "dedb650fb29c39c2f21aa88c1e4cec66da8754d1"
+  revision = "e51edf2e47e65e5708600d4da6fca1388ee437b4"
+  source = "github.com/gravitational/go-oidc"
 
 [[projects]]
   name = "github.com/coreos/go-semver"
@@ -86,10 +88,10 @@
   version = "v1.1.0"
 
 [[projects]]
+  branch = "master"
   name = "github.com/docker/docker"
   packages = ["pkg/term/windows"]
-  revision = "092cba3727bb9b4a2f0e922cd6c0f93ea270e363"
-  version = "v1.13.1"
+  revision = "b8571fd81c7d2223c9ecbf799c693e3ef1daaea9"
 
 [[projects]]
   name = "github.com/ghodss/yaml"

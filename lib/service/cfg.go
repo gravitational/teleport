@@ -307,6 +307,7 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Auth.SSHAddr = *defaults.AuthListenAddr()
 	cfg.Auth.StorageConfig.Type = boltbk.GetName()
 	cfg.Auth.StorageConfig.Params = backend.Params{"path": cfg.DataDir}
+	cfg.Auth.StaticTokens = services.DefaultStaticTokens()
 	defaults.ConfigureLimiter(&cfg.Auth.Limiter)
 	// set new style default auth preferences
 	ap := &services.AuthPreferenceV2{}

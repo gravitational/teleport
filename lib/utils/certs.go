@@ -163,11 +163,14 @@ func ParsePrivateKeyDER(der []byte) (crypto.Signer, error) {
 func VerifyCertificateChain(certificateBytes []byte) error {
 	// build the certificate chain next
 	var certificateBlock *pem.Block
-	var remainingBytes []byte = certificateBytes
+	var remainingBytes []byte = bytes.TrimSpace(certificateBytes)
 	var certificateChain [][]byte
 
 	for {
 		certificateBlock, remainingBytes = pem.Decode(remainingBytes)
+		if certificateBlock == nil || certificateBlock.Type != pemBlockCertificate {
+			return trace.NotFound("no PEM data found")
+		}
 		certificateChain = append(certificateChain, certificateBlock.Bytes)
 
 		if len(remainingBytes) == 0 {
@@ -213,3 +216,5 @@ func VerifyCertificateChain(certificateBytes []byte) error {
 
 	return nil
 }
+
+const pemBlockCertificate = "CERTIFICATE"
