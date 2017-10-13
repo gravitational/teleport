@@ -622,6 +622,7 @@ type remoteConn struct {
 	counter      int32
 	discoveryC   ssh.Channel
 	discoveryErr error
+	closed       int32
 }
 
 func (rc *remoteConn) openDiscoveryChannel() (ssh.Channel, error) {
@@ -645,6 +646,10 @@ func (rc *remoteConn) String() string {
 }
 
 func (rc *remoteConn) Close() error {
+	if !atomic.CompareAndSwapInt32(&rc.closed, 0, 1) {
+		// already closed
+		return nil
+	}
 	if rc.discoveryC != nil {
 		rc.discoveryC.Close()
 		rc.discoveryC = nil
