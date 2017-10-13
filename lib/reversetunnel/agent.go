@@ -170,6 +170,8 @@ func (a *Agent) getLastStateChange() time.Time {
 }
 
 func (a *Agent) setStateAndPrincipals(state string, principals []string) {
+	a.Lock()
+	defer a.Unlock()
 	prev := a.state
 	a.Debugf("changing state %v -> %v", prev, state)
 	a.state = state
