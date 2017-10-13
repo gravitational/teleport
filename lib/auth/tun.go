@@ -897,6 +897,19 @@ func (c *TunClient) GetAgent() (AgentCloser, error) {
 	return ta, nil
 }
 
+func (c *TunClient) setupSyncLoop() {
+	c.Lock()
+	defer c.Unlock()
+	if c.disableRefresh {
+		return
+	}
+	if c.refreshTicker != nil {
+		return
+	}
+	c.refreshTicker = time.NewTicker(defaults.AuthServersRefreshPeriod)
+	go c.authServersSyncLoop()
+}
+
 // Dial dials to Auth server's HTTP API over SSH tunnel.
 func (c *TunClient) Dial(network, address string) (net.Conn, error) {
 	c.Debugf("dialing %v %v", network, address)
@@ -909,14 +922,9 @@ func (c *TunClient) Dial(network, address string) (net.Conn, error) {
 	if err != nil {
 		return nil, trace.ConnectionProblem(err, "can't connect to auth API")
 	}
-	// dialed & authenticated? lets start synchronizing the
-	// list of auth servers:
-	if c.disableRefresh == false {
-		if c.refreshTicker == nil {
-			c.refreshTicker = time.NewTicker(defaults.AuthServersRefreshPeriod)
-			go c.authServersSyncLoop()
-		}
-	}
+	// dialed & authenticated?
+	// lets start synchronizing the list of auth servers:
+	c.setupSyncLoop()
 	return &tunConn{client: client, Conn: conn}, nil
 }
 
