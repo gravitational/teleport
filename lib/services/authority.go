@@ -11,6 +11,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/tstranex/u2f"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -43,6 +44,20 @@ func (c *HostCertParams) Check() error {
 	}
 
 	return nil
+}
+
+// ChangePasswordReq defines a request to change user password
+type ChangePasswordReq struct {
+	// User is user ID
+	User string
+	// OldPassword is user current password
+	OldPassword []byte `json:"old_password"`
+	// NewPassword is user new password
+	NewPassword []byte `json:"new_password"`
+	// SecondFactorToken is user 2nd factor token
+	SecondFactorToken string `json:"second_factor_token"`
+	// U2FSignResponse is U2F sign response
+	U2FSignResponse *u2f.SignResponse `json:"u2f_sign_response"`
 }
 
 // UserCertParams defines OpenSSH user certificate parameters

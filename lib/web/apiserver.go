@@ -158,6 +158,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	// Users
 	h.GET("/webapi/users/invites/:token", httplib.MakeHandler(h.renderUserInvite))
 	h.POST("/webapi/users", httplib.MakeHandler(h.createNewUser))
+	h.PUT("/webapi/users/password", h.WithAuth(h.changePassword))
 
 	// Issues SSH temp certificates based on 2FA access creds
 	h.POST("/webapi/ssh/certs", httplib.MakeHandler(h.createSSHCert))
@@ -199,6 +200,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	// U2F related APIs
 	h.GET("/webapi/u2f/signuptokens/:token", httplib.MakeHandler(h.u2fRegisterRequest))
 	h.POST("/webapi/u2f/users", httplib.MakeHandler(h.createNewU2FUser))
+	h.POST("/webapi/u2f/password/changerequest", h.WithAuth(h.u2fChangePasswordRequest))
 	h.POST("/webapi/u2f/signrequest", httplib.MakeHandler(h.u2fSignRequest))
 	h.POST("/webapi/u2f/sessions", httplib.MakeHandler(h.createSessionWithU2FSignResponse))
 	h.POST("/webapi/u2f/certs", httplib.MakeHandler(h.createSSHCertWithU2FSignResponse))
@@ -833,13 +835,23 @@ func (h *Handler) createSession(w http.ResponseWriter, r *http.Request, p httpro
 // {"message": "ok"}
 //
 func (h *Handler) deleteSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	if err := ctx.Invalidate(); err != nil {
+	err := h.logout(w, ctx)
+	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	return ok(), nil
+}
+
+func (h *Handler) logout(w http.ResponseWriter, ctx *SessionContext) error {
+	if err := ctx.Invalidate(); err != nil {
+		return trace.Wrap(err)
 	}
 	if err := ClearSession(w); err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
-	return ok(), nil
+
+	return nil
 }
 
 // renewSession is called to renew the session that is about to expire

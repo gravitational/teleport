@@ -43,7 +43,16 @@ type userACL struct {
 	SSHLogins []string `json:"sshLogins"`
 }
 
+type authType string
+
+const (
+	authLocal authType = "local"
+	authSSO   authType = "sso"
+)
+
 type userContext struct {
+	// AuthType is auth method of this user
+	AuthType authType `json:"authType"`
 	// Name is this user name
 	Name string `json:"userName"`
 	// ACL contains user access control list
@@ -108,8 +117,16 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*userContex
 		SSHLogins:       logins,
 	}
 
+	// detect auth method for this user
+	identities := append(user.GetOIDCIdentities(), user.GetSAMLIdentities()...)
+	authType := authLocal
+	if len(identities) > 0 {
+		authType = authSSO
+	}
+
 	return &userContext{
-		Name: user.GetName(),
-		ACL:  acl,
+		Name:     user.GetName(),
+		ACL:      acl,
+		AuthType: authType,
 	}, nil
 }
