@@ -44,7 +44,7 @@ import (
 // the local reverse tunnel server, and now it can provide access to the
 // cluster behind it.
 type remoteSite struct {
-	sync.Mutex
+	sync.RWMutex
 
 	*log.Entry
 	domainName  string
@@ -73,14 +73,14 @@ func (s *remoteSite) String() string {
 }
 
 func (s *remoteSite) connectionCount() int {
-	s.Lock()
-	defer s.Unlock()
+	s.RLock()
+	defer s.RUnlock()
 	return len(s.connections)
 }
 
 func (s *remoteSite) hasValidConnections() bool {
-	s.Lock()
-	defer s.Unlock()
+	s.RLock()
+	defer s.RUnlock()
 
 	for _, conn := range s.connections {
 		if !conn.isInvalid() {
@@ -156,10 +156,17 @@ func (s *remoteSite) GetStatus() string {
 	return RemoteSiteStatusOffline
 }
 
+func (s *remoteSite) copyConnInfo() services.TunnelConnection {
+	s.RLock()
+	defer s.RUnlock()
+	return s.connInfo.Clone()
+}
+
 func (s *remoteSite) registerHeartbeat(t time.Time) {
-	s.connInfo.SetLastHeartbeat(t)
-	s.connInfo.SetExpiry(s.clock.Now().Add(defaults.ReverseTunnelOfflineThreshold))
-	err := s.srv.AccessPoint.UpsertTunnelConnection(s.connInfo)
+	connInfo := s.copyConnInfo()
+	connInfo.SetLastHeartbeat(t)
+	connInfo.SetExpiry(s.clock.Now().Add(defaults.ReverseTunnelOfflineThreshold))
+	err := s.srv.AccessPoint.UpsertTunnelConnection(connInfo)
 	if err != nil {
 		s.Warningf("failed to register heartbeat: %v", err)
 	}

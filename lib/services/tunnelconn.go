@@ -35,6 +35,8 @@ type TunnelConnection interface {
 	CheckAndSetDefaults() error
 	// String returns user friendly representation of this connection
 	String() string
+	// Clone returns a copy of this tunnel connection
+	Clone() TunnelConnection
 }
 
 // MustCreateTunnelConnection returns new connection from V2 spec or panics if
@@ -74,6 +76,12 @@ type TunnelConnectionV2 struct {
 	Metadata Metadata `json:"metadata"`
 	// Spec contains user specification
 	Spec TunnelConnectionSpecV2 `json:"spec"`
+}
+
+// Clone returns a copy of this tunnel connection
+func (r *TunnelConnectionV2) Clone() TunnelConnection {
+	out := *r
+	return &out
 }
 
 // String returns user-friendly description of this connection
