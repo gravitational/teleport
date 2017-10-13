@@ -18,6 +18,46 @@ import (
 
 var fakePasswordHash = []byte(`$2a$10$Yy.e6BmS2SrGbBDsyDLVkOANZmvjjMR890nUGSXFJHBXWzxe7T44m`)
 
+// ChangePassword changes user passsword
+func (s *AuthServer) ChangePassword(req services.ChangePasswordReq) error {
+	// validate new password
+	err := services.VerifyPassword(req.NewPassword)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	authPreference, err := s.GetAuthPreference()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	userID := req.User
+	fn := func() error {
+		secondFactor := authPreference.GetSecondFactor()
+		switch secondFactor {
+		case teleport.OFF:
+			return s.CheckPasswordWOToken(userID, req.OldPassword)
+		case teleport.OTP:
+			return s.CheckPassword(userID, req.OldPassword, req.SecondFactorToken)
+		case teleport.U2F:
+			if req.U2FSignResponse == nil {
+				return trace.BadParameter("missing U2F sign response")
+			}
+
+			return s.CheckU2FSignResponse(userID, req.U2FSignResponse)
+		}
+
+		return trace.BadParameter("unsupported second factor method: %q", secondFactor)
+	}
+
+	err = s.WithUserLock(userID, fn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(s.UpsertPassword(userID, req.NewPassword))
+}
+
 // CheckPasswordWOToken checks just password without checking OTP tokens
 // used in case of SSH authentication, when token has been validated.
 func (s *AuthServer) CheckPasswordWOToken(user string, password []byte) error {
@@ -47,15 +87,11 @@ func (s *AuthServer) CheckPasswordWOToken(user string, password []byte) error {
 func (s *AuthServer) CheckPassword(user string, password []byte, otpToken string) error {
 	err := s.CheckPasswordWOToken(user, password)
 	if err != nil {
-		return trace.AccessDenied("invalid password")
+		return trace.Wrap(err)
 	}
 
 	err = s.CheckOTP(user, otpToken)
-	if err != nil {
-		return trace.AccessDenied("invalid otp token")
-	}
-
-	return nil
+	return trace.Wrap(err)
 }
 
 // CheckOTP determines the type of OTP token used (for legacy HOTP support), fetches the
@@ -69,7 +105,7 @@ func (s *AuthServer) CheckOTP(user string, otpToken string) error {
 	}
 
 	switch otpType {
-	case "hotp":
+	case teleport.HOTP:
 		otp, err := s.GetHOTP(user)
 		if err != nil {
 			return trace.Wrap(err)
@@ -85,7 +121,7 @@ func (s *AuthServer) CheckOTP(user string, otpToken string) error {
 		if err := s.UpsertHOTP(user, otp); err != nil {
 			return trace.Wrap(err)
 		}
-	case "totp":
+	case teleport.TOTP:
 		otpSecret, err := s.GetTOTP(user)
 		if err != nil {
 			return trace.Wrap(err)
@@ -134,11 +170,11 @@ func (s *AuthServer) getOTPType(user string) (string, error) {
 	_, err := s.GetHOTP(user)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return "totp", nil
+			return teleport.TOTP, nil
 		}
 		return "", trace.Wrap(err)
 	}
-	return "hotp", nil
+	return teleport.HOTP, nil
 }
 
 // GetOTPData returns the OTP Key, Key URL, and the QR code.

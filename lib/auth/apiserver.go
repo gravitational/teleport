@@ -85,6 +85,7 @@ func NewAPIServer(config *APIConfig) http.Handler {
 
 	// Passwords and sessions
 	srv.POST("/:version/users", srv.withAuth(srv.upsertUser))
+	srv.PUT("/:version/users/:user/web/password", srv.withAuth(srv.changePassword))
 	srv.POST("/:version/users/:user/web/password", srv.withAuth(srv.upsertPassword))
 	srv.POST("/:version/users/:user/web/password/check", srv.withAuth(srv.checkPassword))
 	srv.POST("/:version/users/:user/web/signin", srv.withAuth(srv.signIn))
@@ -578,6 +579,20 @@ func (s *APIServer) createWebSession(auth ClientI, w http.ResponseWriter, r *htt
 		return nil, trace.Wrap(err)
 	}
 	return rawMessage(services.GetWebSessionMarshaler().MarshalWebSession(sess, services.WithVersion(version)))
+}
+
+func (s *APIServer) changePassword(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	var req services.ChangePasswordReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err := auth.ChangePassword(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return message(fmt.Sprintf("password has been changed for user %q", req.User)), nil
 }
 
 type upsertPasswordReq struct {
