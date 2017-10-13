@@ -15,9 +15,6 @@ limitations under the License.
 */
 
 import reactor from 'app/reactor';
-import { RECEIVE_INVITE } from './actionTypes';
-import { TRYING_TO_SIGN_UP, TRYING_TO_LOGIN, FETCHING_INVITE} from 'app/flux/restApi/constants';
-import restApiActions from 'app/flux/restApi/actions';
 import auth from 'app/services/auth';
 import localStorage from 'app/services/localStorage';
 import history from 'app/services/history';
@@ -25,6 +22,9 @@ import session, { BearerToken } from 'app/services/session';
 import cfg from 'app/config';
 import api from 'app/services/api';
 import Logger from 'app/lib/logger';
+import  * as AT from './../restApi/constants';
+import restApiActions from './../restApi/actions';
+import { RECEIVE_INVITE } from './actionTypes';  
 
 const logger = Logger.create('flux/user/actions');
 
@@ -32,14 +32,14 @@ const actions = {
   
   fetchInvite(inviteToken){
     const path = cfg.api.getInviteUrl(inviteToken);
-    restApiActions.start(FETCHING_INVITE);    
+    restApiActions.start(AT.FETCHING_INVITE);    
     api.get(path).done(invite=>{
-      restApiActions.success(FETCHING_INVITE);
+      restApiActions.success(AT.FETCHING_INVITE);
       reactor.dispatch(RECEIVE_INVITE, invite);
     })
     .fail(err => {
       let msg = api.getErrorText(err);        
-      restApiActions.fail(FETCHING_INVITE, msg);
+      restApiActions.fail(AT.FETCHING_INVITE, msg);
     });
   },
 
@@ -89,8 +89,35 @@ const actions = {
     session.logout();
   },
 
+  changePasswordWithU2f(oldPsw, newPsw) {
+    const promise = auth.changePasswordWithU2f(oldPsw, newPsw);
+    actions._handleChangePasswordPromise(promise);    
+  },
+
+  changePassword(oldPass, newPass, token){        
+    const promise = auth.changePassword(oldPass, newPass, token);
+    actions._handleChangePasswordPromise(promise);    
+  },
+
+  resetPasswordChangeAttempt() {
+    restApiActions.clear(AT.TRYING_TO_CHANGE_PSW);
+  },
+
+  _handleChangePasswordPromise(promise) {
+    restApiActions.start(AT.TRYING_TO_CHANGE_PSW);    
+    return promise
+      .done(() => {                
+        restApiActions.success(AT.TRYING_TO_CHANGE_PSW);            
+      })
+      .fail(err => {
+        const msg = api.getErrorText(err);        
+        logger.error('change password', err);
+        restApiActions.fail(AT.TRYING_TO_CHANGE_PSW, msg);
+      })        
+  },
+
   _handleAcceptInvitePromise(promise) {
-    restApiActions.start(TRYING_TO_SIGN_UP);    
+    restApiActions.start(AT.TRYING_TO_SIGN_UP);    
     return promise
       .done(() => {                
         history.push(cfg.routes.app, true);        
@@ -98,12 +125,12 @@ const actions = {
       .fail(err => {
         const msg = api.getErrorText(err);        
         logger.error('accept invite', err);
-        restApiActions.fail(TRYING_TO_SIGN_UP, msg);
+        restApiActions.fail(AT.TRYING_TO_SIGN_UP, msg);
       })        
   },
 
   _handleLoginPromise(promise) {
-    restApiActions.start(TRYING_TO_LOGIN);
+    restApiActions.start(AT.TRYING_TO_LOGIN);
     promise
       .done(json => {        
         // needed for devServer only
@@ -114,7 +141,7 @@ const actions = {
       .fail(err => {
         const msg = api.getErrorText(err);
         logger.error('login', err);
-        restApiActions.fail(TRYING_TO_LOGIN, msg);
+        restApiActions.fail(AT.TRYING_TO_LOGIN, msg);
       })
   }
 }

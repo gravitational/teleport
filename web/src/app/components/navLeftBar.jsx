@@ -14,17 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 import React from 'react';
-import reactor from 'app/reactor';
 import cfg from 'app/config';
-import userGetters from 'app/flux/user/getters';
+import * as UserFlux from 'app/flux/user';
 import * as AppStore from 'app/flux/app/appStore';
 import { logout } from 'app/flux/user/actions';
 import { IndexLink } from 'react-router';
 import { UserIcon } from './icons.jsx';
 
 export default function NavLeftBar(props) {    
-  const items = AppStore.getStore().getNavItems()
-  const name = reactor.evaluate(userGetters.userName);
+  const items = AppStore.getStore().getNavItems()  
+  const name = UserFlux.getUser().getName();
   const $items = items.map((i, index)=>{
     var className = props.router.isActive(i.to) ? 'active' : '';
     return (

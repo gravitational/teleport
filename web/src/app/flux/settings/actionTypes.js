@@ -14,6 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-module.exports.getters = require('./getters');
-module.exports.actions = require('./actions');
-module.exports.constants = require('./constants');
+export const INIT = 'SETTINGS_INIT';
+export const ADD_NAV_ITEM = 'SETTINGS_ADD_NAV_ITEM';
+export const SET_RES_TO_DELETE = 'SETTINGS_SET_RES_TO_DELETE';

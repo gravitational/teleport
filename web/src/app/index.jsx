@@ -22,7 +22,8 @@ import history from './services/history';
 import cfg from './config';
 import reactor from './reactor';
 import { withAllRoutes } from './routes';
-import { AuditFeature, SshFeature } from './features';
+import * as Features from './features';
+import { createSettings } from './features/settings';
 import FeatureActivator from './featureActivator';
 import { initApp } from './flux/app/actions';
 import './flux';
@@ -33,11 +34,12 @@ history.init();
 const featureRoutes = [];
 const featureActivator = new FeatureActivator();
 
-featureActivator.register(new SshFeature(featureRoutes));
-featureActivator.register(new AuditFeature(featureRoutes));
+featureActivator.register(new Features.Ssh(featureRoutes));
+featureActivator.register(new Features.Audit(featureRoutes));
+featureActivator.register(createSettings(featureRoutes))
 
 const onEnterApp = nextState => {  
-  let { siteId } = nextState.params; 
+  const { siteId } = nextState.params; 
   initApp(siteId, featureActivator)
 }
 

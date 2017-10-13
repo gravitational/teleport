@@ -20,8 +20,10 @@ import playerStore from './player/store';
 import userAcl from './userAcl/store';
 import appStore from './app/appStore';
 import nodeStore from './nodes/nodeStore';
+import settingsStore from './settings/store';
 
 reactor.registerStores({
+  'tlpt_settings': settingsStore,  
   'tlpt': appStore,    
   'tlpt_terminal': termStore,
   'tlpt_player': playerStore,    

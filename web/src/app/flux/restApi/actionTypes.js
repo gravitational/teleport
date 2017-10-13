@@ -14,10 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import keyMirror from 'keymirror'
+export const TLPT_REST_API_START = 'TLPT_REST_API_START';
+export const TLPT_REST_API_SUCCESS = 'TLPT_REST_API_SUCCESS';
+export const TLPT_REST_API_FAIL = 'TLPT_REST_API_FAIL';
+export const TLPT_REST_API_CLEAR = 'TLPT_REST_API_CLEAR';
 
-export default keyMirror({
-  TLPT_REST_API_START: null,
-  TLPT_REST_API_SUCCESS: null,
-  TLPT_REST_API_FAIL: null  
-})

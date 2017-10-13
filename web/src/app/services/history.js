@@ -45,8 +45,8 @@ const history = {
       
   createRedirect(location /* location || string */ ) {
     let route = _inst.createHref(location);
-    let safeRoute = this.ensureSafeRoute(route);
-    return this.ensureBaseUrl(safeRoute);
+    let knownRoute = this.ensureSafeRoute(route);
+    return this.ensureBaseUrl(knownRoute);
   },
 
   extractRedirect() {    
@@ -80,7 +80,7 @@ const history = {
     route = route || '';                
     let routes = this.getRoutes();
     if (route.indexOf(cfg.baseUrl) === 0) {      
-      routes = routes.map(r => withBaseUrl(r));      
+      route = route.replace(cfg.baseUrl, '')      
     }
                     
     return routes.some(match(route));

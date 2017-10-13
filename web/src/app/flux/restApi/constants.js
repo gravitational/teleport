@@ -14,11 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import keyMirror from 'keymirror'
-
-export default keyMirror({
-  TRYING_TO_SIGN_UP: null,
-  TRYING_TO_LOGIN: null,
-  FETCHING_INVITE: null,
-  TRYING_TO_INIT_APP: null
-})
+export const TRYING_TO_SIGN_UP = 'TRYING_TO_SIGN_UP';
+export const TRYING_TO_LOGIN = 'TRYING_TO_LOGIN';
+export const FETCHING_INVITE = 'FETCHING_INVITE';
+export const TRYING_TO_INIT_APP = 'TRYING_TO_INIT_APP';
+export const TRYING_TO_INIT_SETTINGS = 'TRYING_TO_INIT_SETTINGS';
+export const TRYING_TO_CHANGE_PSW = 'TRYING_TO_CHANGE_PSW';

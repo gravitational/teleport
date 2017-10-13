@@ -14,11 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var { Store, toImmutable } = require('nuclear-js');
-var {
-  TLPT_REST_API_START,
-  TLPT_REST_API_SUCCESS,
-  TLPT_REST_API_FAIL } = require('./actionTypes');
+import { Store, toImmutable } from 'nuclear-js';
+import * as AT from './actionTypes';
 
 export default Store({
   getInitialState() {
@@ -26,9 +23,10 @@ export default Store({
   },
 
   initialize() {
-    this.on(TLPT_REST_API_START, start);
-    this.on(TLPT_REST_API_FAIL, fail);
-    this.on(TLPT_REST_API_SUCCESS, success);
+    this.on(AT.TLPT_REST_API_START, start);
+    this.on(AT.TLPT_REST_API_FAIL, fail);
+    this.on(AT.TLPT_REST_API_SUCCESS, success);
+    this.on(AT.TLPT_REST_API_CLEAR, clear);
   }
 })
 
@@ -43,3 +41,14 @@ function fail(state, request){
 function success(state, request){
   return state.set(request.type, toImmutable({isSuccess: true}));
 }
+
+function clear(state, request){
+  return state.set(request.type, toImmutable(
+    {
+      isProcessing: false,
+      isFailed: false,
+      isSuccess: false,
+      message: undefined
+    }));  
+}
+
