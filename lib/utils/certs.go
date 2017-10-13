@@ -160,16 +160,76 @@ func ParsePrivateKeyDER(der []byte) (crypto.Signer, error) {
 // VerifyCertificateChain reads in chain of certificates and makes sure the
 // chain from leaf to root is valid. This ensures that clients (web browsers
 // and CLI) won't have problem validating the chain.
-func VerifyCertificateChain(certificateBytes []byte) error {
+func VerifyCertificateChain(certificateChain []*x509.Certificate) error {
+	// chain needs at least one certificate
+	if len(certificateChain) == 0 {
+		return trace.BadParameter("need at least one certificate in chain")
+	}
+
+	// extract leaf of certificate chain. it is safe to index into the chain here
+	// because readCertificateChain always returns a valid chain with at least
+	// one certificate.
+	leaf := certificateChain[0]
+
+	// extract intermediate certificate chain.
+	intermediates := x509.NewCertPool()
+	if len(certificateChain) > 1 {
+		for _, v := range certificateChain[1:len(certificateChain)] {
+			intermediates.AddCert(v)
+		}
+	}
+
+	// verify certificate chain, roots is nil which will cause us to to use the
+	// system roots.
+	opts := x509.VerifyOptions{
+		Intermediates: intermediates,
+	}
+	_, err := leaf.Verify(opts)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// IsSelfSigned checks if the certificate is a self-signed certificate. To
+// check if a certificate is self signed, we make sure that only one
+// certificate is in the chain and that the SubjectKeyId and AuthorityKeyId
+// match.
+//
+// From RFC5280: https://tools.ietf.org/html/rfc5280#section-4.2.1.1
+//
+//   The signature on a self-signed certificate is generated with the private
+//   key associated with the certificate's subject public key.  (This
+//   proves that the issuer possesses both the public and private keys.)
+//   In this case, the subject and authority key identifiers would be
+//   identical, but only the subject key identifier is needed for
+//   certification path building.
+//
+func IsSelfSigned(certificateChain []*x509.Certificate) bool {
+	if len(certificateChain) != 1 {
+		return false
+	}
+
+	if bytes.Compare(certificateChain[0].SubjectKeyId, certificateChain[0].AuthorityKeyId) != 0 {
+		return false
+	}
+
+	return true
+}
+
+// ReadCertificateChain parses PEM encoded bytes that can contain one or
+// multiple certificates and returns a slice of x509.Certificate.
+func ReadCertificateChain(certificateChainBytes []byte) ([]*x509.Certificate, error) {
 	// build the certificate chain next
 	var certificateBlock *pem.Block
-	var remainingBytes []byte = bytes.TrimSpace(certificateBytes)
+	var remainingBytes []byte = bytes.TrimSpace(certificateChainBytes)
 	var certificateChain [][]byte
 
 	for {
 		certificateBlock, remainingBytes = pem.Decode(remainingBytes)
 		if certificateBlock == nil || certificateBlock.Type != pemBlockCertificate {
-			return trace.NotFound("no PEM data found")
+			return nil, trace.NotFound("no PEM data found")
 		}
 		certificateChain = append(certificateChain, certificateBlock.Bytes)
 
@@ -183,38 +243,17 @@ func VerifyCertificateChain(certificateBytes []byte) error {
 	for _, cc := range certificateChain {
 		_, err := buf.Write(cc)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	}
 
 	// parse the chain and get a slice of x509.Certificates.
 	x509Chain, err := x509.ParseCertificates(buf.Bytes())
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	// extract intermediates and leaf certificate chains
-	intermediates := x509.NewCertPool()
-	if len(certificateChain) > 1 {
-		for _, v := range x509Chain[1:len(x509Chain)] {
-			intermediates.AddCert(v)
-		}
-	}
-	leaf := x509Chain[0]
-
-	// verify the entire chain using system roots. if we want to support
-	// validating the name presented on the certificate in the future we should
-	// pass in DNSName here.
-	opts := x509.VerifyOptions{
-		Intermediates: intermediates,
-	}
-
-	_, err = leaf.Verify(opts)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	return x509Chain, nil
 }
 
 const pemBlockCertificate = "CERTIFICATE"

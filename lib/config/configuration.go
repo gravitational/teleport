@@ -295,15 +295,31 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Errorf("https cert does not exist: %s", fc.Proxy.CertFile)
 		}
 
-		// verify we have a valid certificate chain before starting teleport
-		certificateBytes, err := utils.ReadPath(fc.Proxy.CertFile)
+		// read in certificate chain from disk
+		certificateChainBytes, err := utils.ReadPath(fc.Proxy.CertFile)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		err = utils.VerifyCertificateChain(certificateBytes)
+
+		// parse certificate chain into []*x509.Certificate
+		certificateChain, err := utils.ReadCertificateChain(certificateChainBytes)
 		if err != nil {
-			return trace.BadParameter("unable to verify HTTPS certificate chain in %v: %s",
-				fc.Proxy.CertFile, utils.UserMessageFromError(err))
+			return trace.Wrap(err)
+		}
+
+		// if starting teleport with a self signed certificate, print a warning, and
+		// then take whatever was passed to us. otherwise verify the certificate
+		// chain from leaf to root so browsers don't complain.
+		if utils.IsSelfSigned(certificateChain) {
+			warningMessage := "Starting Teleport with a self-signed TLS certificate, this is " +
+				"not safe for production clusters. Using a self-signed certificate opens " +
+				"Teleport users to Man-in-the-Middle attacks."
+			log.Warnf(warningMessage)
+		} else {
+			if err := utils.VerifyCertificateChain(certificateChain); err != nil {
+				return trace.BadParameter("unable to verify HTTPS certificate chain in %v: %s",
+					fc.Proxy.CertFile, utils.UserMessageFromError(err))
+			}
 		}
 
 		cfg.Proxy.TLSCert = fc.Proxy.CertFile
