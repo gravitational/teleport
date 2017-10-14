@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/plugins"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
 
@@ -79,7 +80,7 @@ func RoleNameForCertAuthority(name string) string {
 
 // NewAdminRole is the default admin role for all local users if another role
 // is not explicitly assigned (Enterprise only).
-func NewAdminRole(isEnterprise bool) Role {
+func NewAdminRole() Role {
 	role := &RoleV3{
 		Kind:    KindRole,
 		Version: V3,
@@ -98,14 +99,7 @@ func NewAdminRole(isEnterprise bool) Role {
 			},
 		},
 	}
-
-	// the default role also has "root" for enterprise users
-	allowedLogins := []string{teleport.TraitInternalRoleVariable}
-	if isEnterprise {
-		allowedLogins = append(allowedLogins, teleport.Root)
-	}
-	role.SetLogins(Allow, allowedLogins)
-
+	role.SetLogins(Allow, plugins.DefaultAllowedLogins())
 	return role
 }
 

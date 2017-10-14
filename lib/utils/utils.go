@@ -17,7 +17,6 @@ limitations under the License.
 package utils
 
 import (
-	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
@@ -28,6 +27,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/plugins"
 	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
 	"golang.org/x/crypto/ssh"
@@ -166,19 +166,9 @@ func ReadOrMakeHostUUID(dataDir string) (string, error) {
 	return id, nil
 }
 
-// PrintVersion prints human readable version.
-//   - distro: name of the distribution. Empty string for OSS or "enterprise"
-func PrintVersion(distro teleport.DistroType) {
-	if distro == teleport.DistroTypeEnterprise {
-		distro = " " + distro
-	} else {
-		distro = ""
-	}
-	ver := fmt.Sprintf("Teleport%s v%s", distro, teleport.Version)
-	if teleport.Gitref != "" {
-		ver = fmt.Sprintf("%s git:%s", ver, teleport.Gitref)
-	}
-	fmt.Println(ver)
+// PrintVersion prints human readable version
+func PrintVersion() {
+	plugins.VersionPrinter()
 }
 
 // HumanTimeFormat formats time as recognized by humans

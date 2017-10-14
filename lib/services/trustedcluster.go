@@ -22,8 +22,8 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/plugins"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -251,8 +251,8 @@ func (c *TrustedClusterV2) CheckAndSetDefaults() error {
 	}
 	// we are not mentioning Roles parameter because we are deprecating it
 	if len(c.Spec.Roles) == 0 && len(c.Spec.RoleMap) == 0 {
-		if lib.IsEnterprise() {
-			return trace.BadParameter("missing 'role_map' parameter")
+		if err := plugins.EmptyRolesHandler(); err != nil {
+			return trace.Wrap(err)
 		}
 		// OSS teleport uses 'admin' by default:
 		c.Spec.RoleMap = RoleMap{
@@ -427,9 +427,9 @@ const RoleMapSchema = `{
   "items": {
     "type": "object",
     "additionalProperties": false,
-    "properties": {    
+    "properties": {
       "local": {
-        "type": "array", 
+        "type": "array",
         "items": {
            "type": "string"
         }

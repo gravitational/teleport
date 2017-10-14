@@ -31,16 +31,9 @@ package lib
 
 import (
 	"sync"
-
-	"github.com/gravitational/teleport"
 )
 
 var (
-	// currentDistroType contains the type of teleport binary: enterprise or
-	// open source this flag does not enable any enterprise features, but it
-	// makes the default experience of the OSS users nicer.
-	currentDistroType teleport.DistroType = teleport.DistroTypeOSS
-
 	// insecureDevMode is set to 'true' when teleport is started with a hidden
 	// --insecure flag. This mode is only useful for learning Teleport and following
 	// quick starts: it disables HTTPS certificate validation
@@ -49,19 +42,6 @@ var (
 	// flagLock protects access to all globals declared in this file
 	flagLock sync.Mutex
 )
-
-func SetDistroType(t teleport.DistroType) {
-	flagLock.Lock()
-	defer flagLock.Unlock()
-	currentDistroType = t
-}
-
-// IsEnterprise returns 'true' if Teleport is packaged with enterprise runime
-func IsEnterprise() bool {
-	flagLock.Lock()
-	defer flagLock.Unlock()
-	return currentDistroType == teleport.DistroTypeEnterprise
-}
 
 // SetInsecureDevMode turns the 'insecure' mode on. In this mode Teleport accpets
 // self-signed HTTPS certificates (for development only!)

@@ -188,7 +188,7 @@ func Init(cfg InitConfig) (*AuthServer, *Identity, error) {
 	log.Infof("[INIT] Created Namespace: %q", defaults.Namespace)
 
 	// always create a default admin role
-	defaultRole := services.NewAdminRole(lib.IsEnterprise())
+	defaultRole := services.NewAdminRole()
 	err = asrv.CreateRole(defaultRole, backend.Forever)
 	if err != nil && !trace.IsAlreadyExists(err) {
 		return nil, nil, trace.Wrap(err)
