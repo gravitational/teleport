@@ -318,6 +318,13 @@ func (a *AuthWithRoles) UpsertPassword(user string, password []byte) error {
 	return a.authServer.UpsertPassword(user, password)
 }
 
+func (a *AuthWithRoles) ChangePassword(req services.ChangePasswordReq) error {
+	if err := a.currentUserAction(req.User); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.ChangePassword(req)
+}
+
 func (a *AuthWithRoles) CheckPassword(user string, password []byte, otpToken string) error {
 	if err := a.currentUserAction(user); err != nil {
 		return trace.Wrap(err)

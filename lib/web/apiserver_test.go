@@ -545,11 +545,12 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 }
 
 type authPack struct {
-	user    string
-	otp     *hotp.HOTP
-	session *CreateSessionResponse
-	clt     *client.WebClient
-	cookies []*http.Cookie
+	otpSecret string
+	user      string
+	otp       *hotp.HOTP
+	session   *CreateSessionResponse
+	clt       *client.WebClient
+	cookies   []*http.Cookie
 }
 
 func (s *WebSuite) authPackFromResponse(c *C, re *roundtrip.Response) *authPack {
@@ -603,6 +604,15 @@ func (s *WebSuite) authPack(c *C) *authPack {
 	pass := "abc123"
 	rawSecret := "def456"
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
+
+	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+		Type:         teleport.Local,
+		SecondFactor: teleport.OTP,
+	})
+	c.Assert(err, IsNil)
+	err = s.authServer.SetAuthPreference(ap)
+	c.Assert(err, IsNil)
+
 	s.createUser(c, user, pass, otpSecret)
 
 	// create a valid otp token
@@ -633,10 +643,11 @@ func (s *WebSuite) authPack(c *C) *authPack {
 	jar.SetCookies(s.url(), re.Cookies())
 
 	return &authPack{
-		user:    user,
-		session: sess,
-		clt:     clt,
-		cookies: re.Cookies(),
+		otpSecret: otpSecret,
+		user:      user,
+		session:   sess,
+		clt:       clt,
+		cookies:   re.Cookies(),
 	}
 }
 
@@ -713,6 +724,24 @@ func (s *WebSuite) TestCSRF(c *C) {
 		c.Assert(err, NotNil)
 		c.Assert(trace.IsAccessDenied(err), Equals, true)
 	}
+}
+
+func (s *WebSuite) TestPasswordChange(c *C) {
+	pack := s.authPack(c)
+	fakeClock := clockwork.NewFakeClock()
+	s.authServer.SetClock(fakeClock)
+
+	validToken, err := totp.GenerateCode(pack.otpSecret, fakeClock.Now())
+	c.Assert(err, IsNil)
+
+	req := changePasswordReq{
+		OldPassword:       []byte("abc123"),
+		NewPassword:       []byte("abc1234"),
+		SecondFactorToken: validToken,
+	}
+
+	_, err = pack.clt.PutJSON(pack.clt.Endpoint("webapi", "users", "password"), req)
+	c.Assert(err, IsNil)
 }
 
 func (s *WebSuite) TestWebSessionsRenew(c *C) {

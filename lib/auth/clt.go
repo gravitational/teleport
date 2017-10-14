@@ -663,6 +663,12 @@ func (c *Client) UpsertUser(user services.User) error {
 	return trace.Wrap(err)
 }
 
+// ChangePassword changes user password
+func (c *Client) ChangePassword(req services.ChangePasswordReq) error {
+	_, err := c.PutJSON(c.Endpoint("users", req.User, "web", "password"), req)
+	return trace.Wrap(err)
+}
+
 // CheckPassword checks if the suplied web access password is valid.
 func (c *Client) CheckPassword(user string, password []byte, otpToken string) error {
 	_, err := c.PostJSON(
@@ -1757,6 +1763,9 @@ type IdentityService interface {
 
 	// GetUsers returns a list of usernames registered in the system
 	GetUsers() ([]services.User, error)
+
+	// ChangePassword changes user password
+	ChangePassword(req services.ChangePasswordReq) error
 
 	// CheckPassword checks if the suplied web access password is valid.
 	CheckPassword(user string, password []byte, otpToken string) error

@@ -247,7 +247,7 @@ func (s *AuthServer) WithUserLock(username string, authenticateFn func() error) 
 	}
 	status := user.GetStatus()
 	if status.IsLocked && status.LockExpires.After(s.clock.Now().UTC()) {
-		return trace.AccessDenied("user %v is locked until %v", utils.HumanTimeFormat(status.LockExpires))
+		return trace.AccessDenied("user %v is locked until %v", user, utils.HumanTimeFormat(status.LockExpires))
 	}
 	fnErr := authenticateFn()
 	if fnErr == nil {
