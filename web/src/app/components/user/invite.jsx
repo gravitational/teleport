@@ -22,7 +22,7 @@ import cfg from 'app/config';
 import actions from 'app/flux/user/actions';
 import getters from 'app/flux/user/getters';
 import { Auth2faTypeEnum } from 'app/services/enums';
-import { ErrorPage, ErrorTypes } from './../msgPage';
+import { ExpiredLink } from './../msgPage';
 import { TeleportLogo } from './../icons.jsx';
 import GoogleAuthInfo from './googleAuthLogo';
 import { ErrorMessage } from './items';
@@ -46,11 +46,11 @@ export class Invite extends React.Component {
   }
 
   render() {
-    let {fetchingInvite, invite, attemp} = this.props;                
-    let auth2faType = cfg.getAuth2faType();
+    const { fetchingInvite, invite, attemp } = this.props;                
+    const auth2faType = cfg.getAuth2faType();
             
     if(fetchingInvite.isFailed){
-      return <ErrorPage type={ErrorTypes.EXPIRED_INVITE}/>
+      return <ExpiredLink/>
     }
 
     if(!invite) {
@@ -235,8 +235,8 @@ export class InviteInputForm extends React.Component {
   }
       
   render() {            
-    let { isFailed, message } = this.props.attemp;        
-    let $error = isFailed ? <ErrorMessage message={message} /> : null;
+    const { isFailed, message } = this.props.attemp;        
+    const $error = isFailed ? <ErrorMessage message={message} /> : null;
     return (
       <form ref="form" className="grv-invite-input-form">
         <h3> Get started with Teleport </h3>
@@ -286,7 +286,7 @@ const Invite2faData = ({auth2faType, qr}) => {
 }
 
 const InviteFooter = ({auth2faType}) => {
-  let $googleHint = auth2faType === Auth2faTypeEnum.OTP ? <GoogleAuthInfo /> : null;
+  const $googleHint = auth2faType === Auth2faTypeEnum.OTP ? <GoogleAuthInfo /> : null;
   return (
     <div>
       {$googleHint}      
