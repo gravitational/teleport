@@ -1,15 +1,16 @@
 import React, { PropTypes } from 'react';
-import Button from 'app/components/common/button';
+import * as Alerts from 'telebase-app/components/alerts';
 import { ResourceEnum } from 'app/services/enums'
-import * as Alerts from './../common/alerts';
+import Button from './../common/button';
+
 import {
   GrvDialogHeader,
   GrvDialogFooter,  
   GrvDialog } from 'app/components/common/dialog';
 
 import { connect } from 'nuclear-js-react-addons';
-import getters from 'app/flux/settings/getters';
-import { closeDeleteDialog } from 'app/flux/settings/actions';
+import getters from 'app/flux/settingsDialogs/getters';
+import { closeDeleteDialog } from 'app/flux/settingsDialogs/actions';
 
 const getResourceKind = kind => {  
   if(kind === ResourceEnum.OIDC || kind === ResourceEnum.SAML){

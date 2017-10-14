@@ -15,44 +15,7 @@ limitations under the License.
 */
 
 @import '../../web/src/styles/grv'; 
-
-$grv-regular-btn: #4f8aaf;
-$grv-settings-label-bg: #D1DADE;
-$grv-settings-input-border: #e5e6e7;
-$grv-hover-bg-color: #f5f5f5;
-$blue: #4f8aaf;
-$lazur: #4e988b;
-
-@import 'grv-buttons';
-@import 'grv-settings';
 @import 'grv-dialog';
-
-#app{
-  min-width: 800px;
-}
-
-.grv-line-solid{
-  border-bottom: 1px solid #e7eaec;
-  background-color: transparent;  
-}
-
-.grv-alert {
-  padding: 10px;  
-  border: 1px solid transparent;  
-  max-height: 100px;
-  text-overflow: ellipsis;
-  overflow: auto;
-  text-align: left;
-}
-
-.grv-alert-danger {
-  color: #a94442;
-  background-color: #f2dede;
-  border-color: #ebccd1;  
-  text-overflow: ellipsis;
-}
-
-.grv-alert-info {  
-  background-color: #f0f0f0;  
-  text-overflow: ellipsis;
-}
+@import "grv-settings-dialogs";
+@import "grv-settings-res-list";
+@import "grv-settings-res-editor";

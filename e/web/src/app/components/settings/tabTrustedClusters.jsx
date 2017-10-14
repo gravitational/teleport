@@ -4,7 +4,7 @@ import getters from 'app/flux/settingsClusters/getters';
 import userAclGetters from 'telebase-app/flux/userAcl/getters';
 import * as actions from 'app/flux/settingsClusters/actions';
 import ConfigItemList from './configItemList';
-import {openDeleteDialog} from 'app/flux/settings/actions';
+import {openDeleteDialog} from 'app/flux/settingsDialogs/actions';
 import ConfigDeleteDialog from './configDeleteDialog';
 import { EmptyList } from './elements';
 import ConfidAddEdit from './configAddEdit';

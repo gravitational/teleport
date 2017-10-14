@@ -12,7 +12,3 @@ export function isRolesEnabled(){
 export function isAuthConnectorsEnabled(){  
   return getAcl().getConnectorAccess().list;      
 }
-
-export function isAnythingEnabled(){
-  return isTrustedClrsEnabled() || isRolesEnabled() || isAuthConnectorsEnabled();
-}

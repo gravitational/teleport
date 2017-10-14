@@ -2,7 +2,7 @@ import React from 'react';
 import connect from 'telebase-app/components/connect';
 import getters from 'app/flux/settingsRoles/getters';
 import userAclGetters from 'telebase-app/flux/userAcl/getters';
-import {openDeleteDialog} from 'app/flux/settings/actions';
+import {openDeleteDialog} from 'app/flux/settingsDialogs/actions';
 import * as actions from 'app/flux/settingsRoles/actions';
 import ConfigItemList from './configItemList';
 import ConfigDeleteDialog from './configDeleteDialog';

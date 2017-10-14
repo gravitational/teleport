@@ -1,12 +1,12 @@
+import Logger from 'telebase-app/lib/logger';
 import reactor from 'app/reactor';
 import api from 'app/services/api';
 import { TRYING_TO_SAVE_ROLE, TRYING_TO_DELETE_RESOURCE } from 'app/flux/restApi/constants';
 import { ResourceEnum } from 'app/services/enums';
 import * as resApi from 'app/services/resources';
-import Logger from 'telebase-app/lib/logger';
 import apiActions from 'app/flux/restApi/actions';
 import * as AT from './actionTypes';
-import { closeDeleteDialog } from '../settings/actions';
+import { closeDeleteDialog } from './../settingsDialogs/actions';
 import { getRoleStore } from './store';
 
 const logger = Logger.create('flux/settingsCluster/actions');

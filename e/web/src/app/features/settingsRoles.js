@@ -1,11 +1,12 @@
-import FeatureBase from 'telebase-app/featureBase';
-import cfg from 'app/config'
-import { addNavItem } from './../flux/settings/actions';
+import { SettingsFeatureBase } from 'telebase-app/features/settings/featureSettings';
+import { addNavItem } from 'telebase-app/flux/settings/actions';
+
+import cfg from './../config'
 import { fetchRoles } from './../flux/settingsRoles/actions';
-import SettingsRoles from '../components/settings/tabRoles'
+import SettingsRoles from './../components/settings/tabRoles'
 import * as flags from './featureFlags';
 
-class RolesFeature extends FeatureBase {
+class RolesFeature extends SettingsFeatureBase {
 
   constructor(routes) {        
     super();
@@ -32,22 +33,24 @@ class RolesFeature extends FeatureBase {
       .done(this.stopProcessing.bind(this))
       .fail(this.handleError.bind(this))                         
   }
+
+  isEnabled(){
+    return flags.isRolesEnabled();
+  }
   
   getIndexRoute(){
     return cfg.routes.settingsRoles;
   }
 
-  onload() {         
-    if (!flags.isRolesEnabled()) {
-      return false;
-    }
-    
+  onload() {                
     const navItem = {      
       to: cfg.routes.settingsRoles,
       title: "Roles"  
     }
-            
-    addNavItem(navItem);    
+
+    if (this.isEnabled()) {
+      addNavItem(navItem);    
+    }                
   }  
 }
 
