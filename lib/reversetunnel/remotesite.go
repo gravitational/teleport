@@ -178,6 +178,9 @@ func (s *remoteSite) deleteConnectionRecord() {
 	s.srv.AccessPoint.DeleteTunnelConnection(s.connInfo.GetClusterName(), s.connInfo.GetName())
 }
 
+// handleHearbeat receives heartbeat messages from the connected agent
+// if the agent has missed several heartbeats in a row, Proxy marks
+// the connection as invalid.
 func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-chan *ssh.Request) {
 	defer func() {
 		s.Infof("cluster connection closed")
@@ -280,6 +283,13 @@ func (s *remoteSite) findDisconnectedProxies() ([]services.Server, error) {
 	return missing, nil
 }
 
+// sendDiscovery requests sends special "Discovery requests"
+// back to the connected agent.
+// Discovery request consists of the proxies that are part
+// of the cluster, but did not receive the connection from the agent.
+// Agent will act on a discovery request attempting
+// to establish connection to the proxies that were not discovered.
+// See package documentation for more details.
 func (s *remoteSite) sendDiscoveryRequest() error {
 	disconnectedProxies, err := s.findDisconnectedProxies()
 	if err != nil {
@@ -316,6 +326,8 @@ func (s *remoteSite) sendDiscoveryRequest() error {
 		return nil
 	}
 
+	// loop over existing connections (reverse tunnels) and try to send discovery
+	// requests to the remote cluster
 	for i := 0; i < s.connectionCount(); i++ {
 		err := send()
 		if err != nil {

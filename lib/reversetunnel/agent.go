@@ -111,7 +111,15 @@ func (a *AgentConfig) CheckAndSetDefaults() error {
 }
 
 // Agent is a reverse tunnel agent running as a part of teleport Proxies
-// to establish outbound reverse tunnels to remote proxies
+// to establish outbound reverse tunnels to remote proxies.
+//
+// There are two operation modes for agents:
+// * Standard agent attempts to establish connection
+// to any available proxy. Standard agent transitions between
+// "connecting" -> "connected states.
+// * Discovering agent attempts to establish connection to a subset
+// of remote proxies (specified in the config via DiscoverProxies parameter.)
+// Discovering agent transitions between "discovering" -> "discovered" states.
 type Agent struct {
 	sync.RWMutex
 	*log.Entry
@@ -427,9 +435,20 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 }
 
 // run is the main agent loop, constantly tries to re-establish
-// the connection until stopped
+// the connection until stopped. It has several operation modes:
+// at first it tries to connect with fast retries on errors,
+// but after a certain threshold it slows down retry pace
+// by switching to longer delays between retries.
+//
+// Once run connects to a proxy it starts processing requests
+// from the proxy via SSH channels opened by the remote Proxy.
+//
+// Agent sends periodic heartbeats back to the Proxy
+// and that is how Proxy determines disconnects.
+//
 func (a *Agent) run() {
-	ticker, err := utils.NewSwitchTicker(defaults.FastAttempts, defaults.NetworkRetryDuration, defaults.NetworkBackoffDuration)
+	ticker, err := utils.NewSwitchTicker(defaults.FastAttempts,
+		defaults.NetworkRetryDuration, defaults.NetworkBackoffDuration)
 	if err != nil {
 		log.Errorf("failed to run: %v", err)
 		return
