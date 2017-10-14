@@ -134,5 +134,6 @@ export {
   InfoPage,
   NotFound,
   Failed,
-  AccessDenied    
+  AccessDenied,
+  ExpiredLink
 };
