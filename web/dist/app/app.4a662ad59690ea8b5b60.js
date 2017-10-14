@@ -4490,7 +4490,7 @@ webpackJsonp([0],[
 	    var auth2faType = _config2.default.getAuth2faType();
 
 	    if (fetchingInvite.isFailed) {
-	      return _react2.default.createElement(_msgPage.ErrorPage, { type: _msgPage.ErrorTypes.EXPIRED_INVITE });
+	      return _react2.default.createElement(_msgPage.ExpiredLink, null);
 	    }
 
 	    if (!invite) {
@@ -4827,7 +4827,7 @@ webpackJsonp([0],[
 	'use strict';
 
 	exports.__esModule = true;
-	exports.AccessDenied = exports.Failed = exports.NotFound = exports.InfoPage = exports.ErrorPage = exports.MSG_ERROR_ACCESS_DENIED = exports.MSG_ERROR_EXPIRED_INVITE_DETAILS = exports.MSG_ERROR_EXPIRED_INVITE = exports.MSG_ERROR_NOT_FOUND_DETAILS = exports.MSG_ERROR_NOT_FOUND = exports.MSG_ERROR_DEFAULT = exports.MSG_ERROR_LOGIN_FAILED = exports.MSG_INFO_LOGIN_SUCCESS = undefined;
+	exports.ExpiredLink = exports.AccessDenied = exports.Failed = exports.NotFound = exports.InfoPage = exports.ErrorPage = exports.MSG_ERROR_ACCESS_DENIED = exports.MSG_ERROR_EXPIRED_INVITE_DETAILS = exports.MSG_ERROR_EXPIRED_INVITE = exports.MSG_ERROR_NOT_FOUND_DETAILS = exports.MSG_ERROR_NOT_FOUND = exports.MSG_ERROR_DEFAULT = exports.MSG_ERROR_LOGIN_FAILED = exports.MSG_INFO_LOGIN_SUCCESS = undefined;
 
 	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; /*
 	                                                                                                                                                                                                                                                                  Copyright 2015 Gravitational, Inc.
@@ -5036,6 +5036,7 @@ webpackJsonp([0],[
 	exports.NotFound = NotFound;
 	exports.Failed = Failed;
 	exports.AccessDenied = AccessDenied;
+	exports.ExpiredLink = ExpiredLink;
 
 /***/ }),
 /* 266 */
