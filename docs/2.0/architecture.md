@@ -1,3 +1,7 @@
+!!! danger "Version Warning":
+    This page refers to the obsolete Teleport version.
+    [Click here](../architecture) to see the latest version of this page.
+
 # Architecture
 
 This document covers the underlying design principles of Teleport and a detailed description of Teleport architecture.

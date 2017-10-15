@@ -1,3 +1,7 @@
+!!! danger "Version Warning":
+    This page refers to the obsolete Teleport version.
+    [Click here](../faq) to see the latest version of this page.
+
 # FAQ
 
 ### Can I use Teleport in production today?

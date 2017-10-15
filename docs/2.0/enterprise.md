@@ -1,3 +1,7 @@
+!!! danger "Version Warning":
+    This page refers to obsolete Teleport version.
+    [Click here](../enterprise) to see the latest version of this page.
+
 # Teleport Enterprise Features
 
 This chapter covers Teleport features that are only available in the commercial

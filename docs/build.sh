@@ -6,6 +6,7 @@
 #     * edit theme/base.html and update docVersions variable
 
 cd $(dirname $0)
+rm -f latest.yaml
 
 for conf_file in $(ls *.yaml | sort); do
     echo "Building docs version --> $conf_file"

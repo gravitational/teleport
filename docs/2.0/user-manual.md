@@ -1,3 +1,7 @@
+!!! danger "Version Warning":
+    This page refers to obsolete Teleport version.
+    [Click here](../user-manual) to see the latest version of this page.
+    
 # User Manual
 
 This User Manual covers usage of the Teleport client tool `tsh`. In this 
