@@ -1,3 +1,7 @@
+!!! danger "Version Warning":
+    This page refers to the obsolete Teleport version.
+    [Click here](../admin-guide) to see the latest version of this page.
+
 # Admin Manual
 
 This manual covers installation and configuration of Teleport and the ongoing 

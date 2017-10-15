@@ -1,3 +1,7 @@
+!!! danger "Version Warning":
+    This page refers to the obsolete Teleport version.
+    [Click here](../quickstart) to see the latest version of this page.
+
 # Quick Start Guide
 
 Welcome to the Teleport Quick Start Guide!

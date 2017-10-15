@@ -39,7 +39,7 @@ RUN apt-get install -q -y \
       apt-get -y autoclean; apt-get -y clean
 
 # Install mkDocs
-RUN pip install click==6.1 recommonmark==0.4.0 markdown-include==0.5.1 mkdocs==0.16.1
+RUN pip install click==6.1 recommonmark==0.4.0 markdown-include==0.5.1 mkdocs==0.16.1 Markdown==2.6.7
 
 RUN (groupadd jenkins --gid=$GID -o && useradd jenkins --uid=$UID --gid=$GID --create-home --shell=/bin/sh ;\
      mkdir -p /var/lib/teleport && chown -R jenkins /var/lib/teleport)
