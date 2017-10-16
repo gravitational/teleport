@@ -33,14 +33,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// DialWithDeadline works around the case when net.DialWithTimeout
-// succeeds, but key exchange hangs. Setting deadline on connection
-// prevents this case from happening
-func DialWithDeadline(network string, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
-	conn, err := net.DialTimeout(network, addr, config.Timeout)
-	if err != nil {
-		return nil, err
-	}
+// NewClientConnWithDeadline establishes new client connection with specified deadline
+func NewClientConnWithDeadline(conn net.Conn, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
 	if config.Timeout > 0 {
 		conn.SetReadDeadline(time.Now().Add(config.Timeout))
 	}
@@ -52,6 +46,17 @@ func DialWithDeadline(network string, addr string, config *ssh.ClientConfig) (*s
 		conn.SetReadDeadline(time.Time{})
 	}
 	return ssh.NewClient(c, chans, reqs), nil
+}
+
+// DialWithDeadline works around the case when net.DialWithTimeout
+// succeeds, but key exchange hangs. Setting deadline on connection
+// prevents this case from happening
+func DialWithDeadline(network string, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
+	conn, err := net.DialTimeout(network, addr, config.Timeout)
+	if err != nil {
+		return nil, err
+	}
+	return NewClientConnWithDeadline(conn, addr, config)
 }
 
 // A Dialer is a means for a client to establish a SSH connection.
@@ -157,20 +162,22 @@ func getProxyAddress() string {
 		strings.ToLower(teleport.HTTPProxy),
 	}
 
+	l := log.WithFields(log.Fields{trace.Component: "http:proxy"})
+
 	for _, v := range envs {
 		addr := os.Getenv(v)
 		if addr != "" {
 			proxyaddr, err := parse(addr)
 			if err != nil {
-				log.Debugf("[HTTP PROXY] Unable to parse environment variable %q: %q.", v, addr)
+				l.Debugf("unable to parse environment variable %q: %q.", v, addr)
 				continue
 			}
-			log.Debugf("[HTTP PROXY] Successfully parsed environment variable %q: %q to %q", v, addr, proxyaddr)
+			l.Debugf("successfully parsed environment variable %q: %q to %q", v, addr, proxyaddr)
 			return proxyaddr
 		}
 	}
 
-	log.Debugf("[HTTP PROXY] No valid environment variables found.")
+	l.Debugf("no valid environment variables found.")
 	return ""
 }
 

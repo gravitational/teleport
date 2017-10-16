@@ -426,8 +426,7 @@ func (a *AuthWithRoles) GenerateKeyPair(pass string) ([]byte, []byte, error) {
 }
 
 func (a *AuthWithRoles) GenerateHostCert(
-	key []byte, hostID, nodeName, clusterName string, roles teleport.Roles,
-	ttl time.Duration) ([]byte, error) {
+	key []byte, hostID, nodeName, clusterName string, roles teleport.Roles, ttl time.Duration) ([]byte, error) {
 
 	if err := a.action(defaults.Namespace, services.KindHostCert, services.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
@@ -924,6 +923,57 @@ func (a *AuthWithRoles) DeleteTrustedCluster(name string) error {
 	}
 
 	return a.authServer.DeleteTrustedCluster(name)
+}
+
+func (a *AuthWithRoles) UpsertTunnelConnection(conn services.TunnelConnection) error {
+	if err := a.action(defaults.Namespace, services.KindTunnelConnection, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindTunnelConnection, services.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.UpsertTunnelConnection(conn)
+}
+
+func (a *AuthWithRoles) GetTunnelConnections(clusterName string) ([]services.TunnelConnection, error) {
+	if err := a.action(defaults.Namespace, services.KindTunnelConnection, services.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetTunnelConnections(clusterName)
+}
+
+func (a *AuthWithRoles) GetAllTunnelConnections() ([]services.TunnelConnection, error) {
+	if err := a.action(defaults.Namespace, services.KindTunnelConnection, services.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetAllTunnelConnections()
+}
+
+func (a *AuthWithRoles) DeleteTunnelConnection(clusterName string, connName string) error {
+	if err := a.action(defaults.Namespace, services.KindTunnelConnection, services.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteTunnelConnection(clusterName, connName)
+}
+
+func (a *AuthWithRoles) DeleteTunnelConnections(clusterName string) error {
+	if err := a.action(defaults.Namespace, services.KindTunnelConnection, services.VerbList); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindTunnelConnection, services.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteTunnelConnections(clusterName)
+}
+
+func (a *AuthWithRoles) DeleteAllTunnelConnections() error {
+	if err := a.action(defaults.Namespace, services.KindTunnelConnection, services.VerbList); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindTunnelConnection, services.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteAllTunnelConnections()
 }
 
 func (a *AuthWithRoles) Close() error {

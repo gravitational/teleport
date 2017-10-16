@@ -105,3 +105,7 @@ func (s *ServicesSuite) TestU2FCRUD(c *C) {
 func (s *ServicesSuite) TestSAMLCRUD(c *C) {
 	s.suite.SAMLCRUD(c)
 }
+
+func (s *ServicesSuite) TestTunnelConnectionsCRUD(c *C) {
+	s.suite.TunnelConnectionsCRUD(c)
+}

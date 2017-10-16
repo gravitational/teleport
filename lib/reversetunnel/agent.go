@@ -21,6 +21,7 @@ limitations under the License.
 package reversetunnel
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -36,82 +37,179 @@ import (
 	"github.com/gravitational/teleport/lib/utils/proxy"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
 
-// Agent is a reverse tunnel agent running as a part of teleport Proxies
-// to establish outbound reverse tunnels to remote proxies
-type Agent struct {
-	log  *log.Entry
-	addr utils.NetAddr
-	clt  *auth.TunClient
-	// domain name of the tunnel server, used only for debugging & logging
-	remoteDomainName string
-	// clientName format is "hostid.domain" (where 'domain' is local domain name)
-	clientName      string
-	broadcastClose  *utils.CloseBroadcaster
-	disconnectC     chan bool
-	hostKeyCallback utils.HostKeyCallback
-	authMethods     []ssh.AuthMethod
-	accessPoint     auth.AccessPoint
+const (
+	// agentStateConnecting is when agent is connecting to the target
+	// without particular purpose
+	agentStateConnecting = "connecting"
+	// agentStateDiscovering is when agent is created with a goal
+	// to discover one or many proxies
+	agentStateDiscovering = "discovering"
+	// agentStateConnected means that agent has connected to instance
+	agentStateConnected = "connected"
+	// agentStateDiscovered means that agent has discovered the right proxy
+	agentStateDiscovered = "discovered"
+)
+
+// AgentConfig holds configuration for agent
+type AgentConfig struct {
+	// Addr is target address to dial
+	Addr utils.NetAddr
+	// RemoteCluster is a remote cluster name to connect to
+	RemoteCluster string
+	// Signers contains authentication signers
+	Signers []ssh.Signer
+	// Client is a client to the local auth servers
+	Client *auth.TunClient
+	// AccessPoint is a caching access point to the local auth servers
+	AccessPoint auth.AccessPoint
+	// Context is a parent context
+	Context context.Context
+	// DiscoveryC is a channel that receives discovery requests
+	// from reverse tunnel server
+	DiscoveryC chan *discoveryRequest
+	// Username is the name of this client used to authenticate on SSH
+	Username string
+	// DiscoverProxies is set when the agent is created in discovery mode
+	// and is set to connect to one of the target proxies from the list
+	DiscoverProxies []services.Server
+	// Clock is a clock passed in tests, if not set wall clock
+	// will be used
+	Clock clockwork.Clock
+	// EventsC is an optional events channel, used for testing purposes
+	EventsC chan string
 }
 
-// AgentOption specifies parameter that could be passed to Agents
-type AgentOption func(a *Agent) error
+// CheckAndSetDefaults checks parameters and sets default values
+func (a *AgentConfig) CheckAndSetDefaults() error {
+	if a.Addr.IsEmpty() {
+		return trace.BadParameter("missing parameter Addr")
+	}
+	if a.Context == nil {
+		return trace.BadParameter("missing parameter Context")
+	}
+	if a.Client == nil {
+		return trace.BadParameter("missing parameter Client")
+	}
+	if a.AccessPoint == nil {
+		return trace.BadParameter("missing parameter AccessPoint")
+	}
+	if len(a.Signers) == 0 {
+		return trace.BadParameter("missing parameter Signers")
+	}
+	if len(a.Username) == 0 {
+		return trace.BadParameter("missing parameter Username")
+	}
+	if a.Clock == nil {
+		a.Clock = clockwork.NewRealClock()
+	}
+	return nil
+}
+
+// Agent is a reverse tunnel agent running as a part of teleport Proxies
+// to establish outbound reverse tunnels to remote proxies.
+//
+// There are two operation modes for agents:
+// * Standard agent attempts to establish connection
+// to any available proxy. Standard agent transitions between
+// "connecting" -> "connected states.
+// * Discovering agent attempts to establish connection to a subset
+// of remote proxies (specified in the config via DiscoverProxies parameter.)
+// Discovering agent transitions between "discovering" -> "discovered" states.
+type Agent struct {
+	sync.RWMutex
+	*log.Entry
+	AgentConfig
+	ctx             context.Context
+	cancel          context.CancelFunc
+	hostKeyCallback utils.HostKeyCallback
+	authMethods     []ssh.AuthMethod
+	// state is the state of this agent
+	state string
+	// stateChange records last time the state was changed
+	stateChange time.Time
+	// principals is the list of principals of the server this agent
+	// is currently connected to
+	principals []string
+}
 
 // NewAgent returns a new reverse tunnel agent
-// Parameters:
-//	  addr points to the remote reverse tunnel server
-//    remoteDomainName is the domain name of the runnel server, used only for logging
-//    clientName is hostid.domain (where 'domain' is local domain name)
-func NewAgent(
-	addr utils.NetAddr,
-	remoteDomainName string,
-	clientName string,
-	signers []ssh.Signer,
-	clt *auth.TunClient,
-	accessPoint auth.AccessPoint) (*Agent, error) {
-
-	log.Debugf("reversetunnel.NewAgent %s -> %s", clientName, remoteDomainName)
-
-	a := &Agent{
-		log: log.WithFields(log.Fields{
-			teleport.Component: teleport.ComponentReverseTunnel,
-			teleport.ComponentFields: map[string]interface{}{
-				"side":   "agent",
-				"remote": addr.String(),
-				"mode":   "agent",
-			},
-		}),
-		clt:              clt,
-		addr:             addr,
-		remoteDomainName: remoteDomainName,
-		clientName:       clientName,
-		broadcastClose:   utils.NewCloseBroadcaster(),
-		disconnectC:      make(chan bool, 10),
-		authMethods:      []ssh.AuthMethod{ssh.PublicKeys(signers...)},
-		accessPoint:      accessPoint,
+func NewAgent(cfg AgentConfig) (*Agent, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
 	}
+	ctx, cancel := context.WithCancel(cfg.Context)
+	a := &Agent{
+		AgentConfig: cfg,
+		ctx:         ctx,
+		cancel:      cancel,
+		authMethods: []ssh.AuthMethod{ssh.PublicKeys(cfg.Signers...)},
+	}
+	if len(cfg.DiscoverProxies) == 0 {
+		a.state = agentStateConnecting
+	} else {
+		a.state = agentStateDiscovering
+	}
+	a.Entry = log.WithFields(log.Fields{
+		trace.Component: teleport.ComponentReverseTunnelAgent,
+		trace.ComponentFields: log.Fields{
+			"target": cfg.Addr.String(),
+		},
+	})
 	a.hostKeyCallback = a.checkHostSignature
 	return a, nil
 }
 
-// Close signals to close all connections
-func (a *Agent) Close() error {
-	return a.broadcastClose.Close()
+func (a *Agent) String() string {
+	if len(a.DiscoverProxies) == 0 {
+		return fmt.Sprintf("agent(%v) -> %v:%v", a.getState(), a.RemoteCluster, a.Addr.String())
+	}
+	return fmt.Sprintf("agent(%v) -> %v:%v, discover %v", a.getState(), a.RemoteCluster, a.Addr.String(), Proxies(a.DiscoverProxies))
 }
 
-// Start starts agent that attempts to connect to remote server part
-func (a *Agent) Start() error {
-	conn, err := a.connect()
-	if err != nil {
-		log.Errorf("Failed to create remote tunnel for %v on %s(%s): %v",
-			a.clientName, a.remoteDomainName, a.addr.FullAddress(), err)
-	}
-	// start heartbeat even if error happend, it will reconnect
-	go a.runHeartbeat(conn)
-	return err
+func (a *Agent) getLastStateChange() time.Time {
+	a.RLock()
+	defer a.RUnlock()
+	return a.stateChange
+}
+
+func (a *Agent) setStateAndPrincipals(state string, principals []string) {
+	a.Lock()
+	defer a.Unlock()
+	prev := a.state
+	a.Debugf("changing state %v -> %v", prev, state)
+	a.state = state
+	a.stateChange = a.Clock.Now().UTC()
+	a.principals = principals
+}
+func (a *Agent) setState(state string) {
+	a.Lock()
+	defer a.Unlock()
+	prev := a.state
+	a.Debugf("changing state %v -> %v", prev, state)
+	a.state = state
+	a.stateChange = a.Clock.Now().UTC()
+}
+
+func (a *Agent) getState() string {
+	a.RLock()
+	defer a.RUnlock()
+	return a.state
+}
+
+// Close signals to close all connections and operations
+func (a *Agent) Close() error {
+	a.cancel()
+	return nil
+}
+
+// Start starts agent that attempts to connect to remote server
+func (a *Agent) Start() {
+	go a.run()
 }
 
 // Wait waits until all outstanding operations are completed
@@ -119,9 +217,46 @@ func (a *Agent) Wait() error {
 	return nil
 }
 
-// String returns debug-friendly
-func (a *Agent) String() string {
-	return fmt.Sprintf("tunagent(remote=%s)", a.addr.String())
+func (a *Agent) connectedTo(proxy services.Server) bool {
+	principals := a.getPrincipals()
+	proxyID := fmt.Sprintf("%v.%v", proxy.GetName(), a.RemoteCluster)
+	if _, ok := principals[proxyID]; ok {
+		return true
+	}
+	return false
+}
+
+func (a *Agent) connectedToRightProxy() bool {
+	for _, proxy := range a.DiscoverProxies {
+		if a.connectedTo(proxy) {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *Agent) setPrincipals(principals []string) {
+	a.Lock()
+	defer a.Unlock()
+	a.principals = principals
+}
+
+func (a *Agent) getPrincipalsList() []string {
+	a.RLock()
+	defer a.RUnlock()
+	out := make([]string, len(a.principals))
+	copy(out, a.principals)
+	return out
+}
+
+func (a *Agent) getPrincipals() map[string]struct{} {
+	a.RLock()
+	defer a.RUnlock()
+	out := make(map[string]struct{}, len(a.principals))
+	for _, p := range a.principals {
+		out[p] = struct{}{}
+	}
+	return out
 }
 
 func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.PublicKey) error {
@@ -129,7 +264,7 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 	if !ok {
 		return trace.BadParameter("expected certificate")
 	}
-	cas, err := a.accessPoint.GetCertAuthorities(services.HostCA, false)
+	cas, err := a.AccessPoint.GetCertAuthorities(services.HostCA, false)
 	if err != nil {
 		return trace.Wrap(err, "failed to fetch remote certs")
 	}
@@ -140,7 +275,7 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 		}
 		for _, checker := range checkers {
 			if sshutils.KeysEqual(checker, cert.SignatureKey) {
-				a.log.Debugf("matched key %v for %v", ca.GetName(), hostport)
+				a.setPrincipals(cert.ValidPrincipals)
 				return nil
 			}
 		}
@@ -150,14 +285,11 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 }
 
 func (a *Agent) connect() (conn *ssh.Client, err error) {
-	if a.addr.IsEmpty() {
-		return nil, trace.BadParameter("reverse tunnel cannot be created: target address is empty")
-	}
 	for _, authMethod := range a.authMethods {
 		// if http_proxy is set, dial through the proxy
 		dialer := proxy.DialerFromEnvironment()
-		conn, err = dialer.Dial(a.addr.AddrNetwork, a.addr.Addr, &ssh.ClientConfig{
-			User:            a.clientName,
+		conn, err = dialer.Dial(a.Addr.AddrNetwork, a.Addr.Addr, &ssh.ClientConfig{
+			User:            a.Username,
 			Auth:            []ssh.AuthMethod{authMethod},
 			HostKeyCallback: a.hostKeyCallback,
 			Timeout:         defaults.DefaultDialTimeout,
@@ -170,12 +302,12 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 }
 
 func (a *Agent) proxyAccessPoint(ch ssh.Channel, req <-chan *ssh.Request) {
-	log.Debugf("[HA Agent] proxyAccessPoint")
+	a.Debugf("proxyAccessPoint")
 	defer ch.Close()
 
-	conn, err := a.clt.GetDialer()()
+	conn, err := a.Client.GetDialer()()
 	if err != nil {
-		a.log.Errorf("error dialing: %v", err)
+		a.Warningf("error dialing: %v", err)
 		return
 	}
 
@@ -211,7 +343,7 @@ func (a *Agent) proxyAccessPoint(ch ssh.Channel, req <-chan *ssh.Request) {
 // ch   : SSH channel which received "teleport-transport" out-of-band request
 // reqC : request payload
 func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
-	log.Debugf("[HA Agent] proxyTransport")
+	a.Debugf("proxyTransport")
 	defer ch.Close()
 
 	// always push space into stderr to make sure the caller can always
@@ -221,16 +353,16 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 
 	var req *ssh.Request
 	select {
-	case <-a.broadcastClose.C:
-		a.log.Infof("is closed, returning")
+	case <-a.ctx.Done():
+		a.Infof("is closed, returning")
 		return
 	case req = <-reqC:
 		if req == nil {
-			a.log.Infof("connection closed, returning")
+			a.Infof("connection closed, returning")
 			return
 		}
 	case <-time.After(defaults.DefaultDialTimeout):
-		a.log.Errorf("timeout waiting for dial")
+		a.Warningf("timeout waiting for dial")
 		return
 	}
 
@@ -241,9 +373,9 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 	// list of auth servers and return that. otherwise try and connect to the
 	// passed in server.
 	if server == RemoteAuthServer {
-		authServers, err := a.clt.GetAuthServers()
+		authServers, err := a.Client.GetAuthServers()
 		if err != nil {
-			a.log.Errorf("unable to find auth servers: %v", err)
+			a.Warningf("unable to find auth servers: %v", err)
 			return
 		}
 		for _, as := range authServers {
@@ -253,7 +385,7 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 		servers = append(servers, server)
 	}
 
-	log.Debugf("got out of band request %v", servers)
+	a.Debugf("got out of band request %v", servers)
 
 	var conn net.Conn
 	var err error
@@ -280,7 +412,7 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 
 	// successfully dialed
 	req.Reply(true, []byte("connected"))
-	a.log.Infof("successfully dialed to %v, start proxying", server)
+	a.Debugf("successfully dialed to %v, start proxying", server)
 
 	wg := sync.WaitGroup{}
 	wg.Add(2)
@@ -302,94 +434,201 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 	wg.Wait()
 }
 
-// runHeartbeat is a blocking function which runs in a loop sending heartbeats
-// to the given SSH connection.
+// run is the main agent loop, constantly tries to re-establish
+// the connection until stopped. It has several operation modes:
+// at first it tries to connect with fast retries on errors,
+// but after a certain threshold it slows down retry pace
+// by switching to longer delays between retries.
 //
-func (a *Agent) runHeartbeat(conn *ssh.Client) {
-	ticker := time.NewTicker(defaults.ReverseTunnelAgentHeartbeatPeriod)
+// Once run connects to a proxy it starts processing requests
+// from the proxy via SSH channels opened by the remote Proxy.
+//
+// Agent sends periodic heartbeats back to the Proxy
+// and that is how Proxy determines disconnects.
+//
+func (a *Agent) run() {
+	ticker, err := utils.NewSwitchTicker(defaults.FastAttempts,
+		defaults.NetworkRetryDuration, defaults.NetworkBackoffDuration)
+	if err != nil {
+		log.Errorf("failed to run: %v", err)
+		return
+	}
 	defer ticker.Stop()
-
-	heartbeatLoop := func() error {
-		if conn == nil {
-			return trace.Errorf("heartbeat cannot ping: need to reconnect")
+	firstAttempt := true
+	for {
+		if len(a.DiscoverProxies) != 0 {
+			a.setStateAndPrincipals(agentStateDiscovering, nil)
+		} else {
+			a.setStateAndPrincipals(agentStateConnecting, nil)
 		}
-		log.Infof("[TUNNEL CLIENT] connected to %s", conn.RemoteAddr())
-		defer conn.Close()
-		hb, reqC, err := conn.OpenChannel(chanHeartbeat, nil)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		newAccesspointC := conn.HandleChannelOpen(chanAccessPoint)
-		newTransportC := conn.HandleChannelOpen(chanTransport)
 
-		// send first ping right away, then start a ping timer:
-		hb.SendRequest("ping", false, nil)
-
-		for {
+		// ignore timer and context on the first attempt
+		if !firstAttempt {
 			select {
-			// need to exit:
-			case <-a.broadcastClose.C:
-				return nil
-			// time to ping:
-			case <-ticker.C:
-				log.Debugf("[TUNNEL CLIENT] pings \"%s\" at %s", a.remoteDomainName, conn.RemoteAddr())
-				_, err := hb.SendRequest("ping", false, nil)
-				if err != nil {
-					log.Error(err)
-					return trace.Wrap(err)
-				}
-			// ssh channel closed:
-			case req := <-reqC:
-				if req == nil {
-					return trace.Errorf("heartbeat: connection closed")
-				}
-			// new access point request:
-			case nch := <-newAccesspointC:
-				if nch == nil {
+			// abort if asked to stop:
+			case <-a.ctx.Done():
+				a.Debugf("agent has closed, exiting")
+				return
+				// wait backoff on network retries
+			case <-ticker.Channel():
+			}
+		}
+
+		conn, err := a.connect()
+		firstAttempt = false
+		if err != nil || conn == nil {
+			ticker.IncrementFailureCount()
+			a.Warningf("failed to create remote tunnel: %v, conn: %v", err, conn)
+			continue
+		} else {
+			ticker.Reset()
+			a.Infof("connected to %s", conn.RemoteAddr())
+			if len(a.DiscoverProxies) != 0 {
+				if !a.connectedToRightProxy() {
+					a.Debugf("missed, connected to %v instead of %v", a.getPrincipalsList(), Proxies(a.DiscoverProxies))
+					conn.Close()
 					continue
 				}
-				a.log.Infof("[TUNNEL CLIENT] access point request: %v", nch.ChannelType())
-				ch, req, err := nch.Accept()
-				if err != nil {
-					a.log.Errorf("failed to accept request: %v", err)
-					continue
+				a.setState(agentStateDiscovered)
+			} else {
+				a.setState(agentStateConnected)
+			}
+			if a.EventsC != nil {
+				select {
+				case a.EventsC <- ConnectedEvent:
+				case <-a.ctx.Done():
+					a.Debugf("context is closing")
+					return
+				default:
 				}
-				go a.proxyAccessPoint(ch, req)
-			// new transport request:
-			case nch := <-newTransportC:
-				if nch == nil {
-					continue
-				}
-				a.log.Infof("[TUNNEL CLIENT] transport request: %v", nch.ChannelType())
-				ch, req, err := nch.Accept()
-				if err != nil {
-					a.log.Errorf("failed to accept request: %v", err)
-					continue
-				}
-				go a.proxyTransport(ch, req)
+			}
+			// start heartbeat even if error happend, it will reconnect
+			// when this happens, this is #1 issue we have right now with Teleport. So we are making
+			// it EASY to see in the logs. This condition should never be permanent (repeates
+			// every XX seconds)
+			if err := a.processRequests(conn); err != nil {
+				log.Warn(err)
 			}
 		}
 	}
+}
 
-	// run heartbeat loop, and when it fails (probably means that a tunnel got disconnected)
-	// keep repeating to reconnect until we're asked to stop
-	err := heartbeatLoop()
+// ConnectedEvent is used to indicate that reverse tunnel has connected
+const ConnectedEvent = "connected"
 
-	// when this happens, this is #1 issue we have right now with Teleport. So I'm making
-	// it EASY to see in the logs. This condition should never be permanent (like repeates
-	// every XX seconds)
+// processRequests is a blocking function which runs in a loop sending heartbeats
+// to the given SSH connection and processes inbound requests from the
+// remote proxy
+func (a *Agent) processRequests(conn *ssh.Client) error {
+	defer conn.Close()
+	ticker := time.NewTicker(defaults.ReverseTunnelAgentHeartbeatPeriod)
+	defer ticker.Stop()
+
+	hb, reqC, err := conn.OpenChannel(chanHeartbeat, nil)
 	if err != nil {
-		log.Warn(err)
+		return trace.Wrap(err)
 	}
+	newAccesspointC := conn.HandleChannelOpen(chanAccessPoint)
+	newTransportC := conn.HandleChannelOpen(chanTransport)
+	newDiscoveryC := conn.HandleChannelOpen(chanDiscovery)
 
-	if err != nil || conn == nil {
+	// send first ping right away, then start a ping timer:
+	hb.SendRequest("ping", false, nil)
+
+	for {
 		select {
-		// abort if asked to stop:
-		case <-a.broadcastClose.C:
-			return
-			// reconnect
+		// need to exit:
+		case <-a.ctx.Done():
+			return trace.ConnectionProblem(nil, "heartbeat: agent is stopped")
+		// time to ping:
 		case <-ticker.C:
-			a.Start()
+			bytes, _ := a.Clock.Now().UTC().MarshalText()
+			_, err := hb.SendRequest("ping", false, bytes)
+			if err != nil {
+				log.Error(err)
+				return trace.Wrap(err)
+			}
+			a.Debugf("ping -> %v", conn.RemoteAddr())
+		// ssh channel closed:
+		case req := <-reqC:
+			if req == nil {
+				return trace.ConnectionProblem(nil, "heartbeat: connection closed")
+			}
+		// new access point request:
+		case nch := <-newAccesspointC:
+			if nch == nil {
+				continue
+			}
+			a.Debugf("access point request: %v", nch.ChannelType())
+			ch, req, err := nch.Accept()
+			if err != nil {
+				a.Warningf("failed to accept request: %v", err)
+				continue
+			}
+			go a.proxyAccessPoint(ch, req)
+		// new transport request:
+		case nch := <-newTransportC:
+			if nch == nil {
+				continue
+			}
+			a.Debugf("transport request: %v", nch.ChannelType())
+			ch, req, err := nch.Accept()
+			if err != nil {
+				a.Warningf("failed to accept request: %v", err)
+				continue
+			}
+			go a.proxyTransport(ch, req)
+		// new discovery request
+		case nch := <-newDiscoveryC:
+			if nch == nil {
+				continue
+			}
+			a.Debugf("discovery request: %v", nch.ChannelType())
+			ch, req, err := nch.Accept()
+			if err != nil {
+				a.Warningf("failed to accept request: %v", err)
+				continue
+			}
+			go a.handleDiscovery(ch, req)
+		}
+	}
+}
+
+// handleDisovery receives discovery requests from the reverse tunnel
+// server, that informs agent about proxies registered in the remote
+// cluster and the reverse tunnels already established
+//
+// ch   : SSH channel which received "teleport-transport" out-of-band request
+// reqC : request payload
+func (a *Agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
+	a.Debugf("handleDiscovery")
+	defer ch.Close()
+
+	for {
+		var req *ssh.Request
+		select {
+		case <-a.ctx.Done():
+			a.Infof("is closed, returning")
+			return
+		case req = <-reqC:
+			if req == nil {
+				a.Infof("connection closed, returning")
+				return
+			}
+			r, err := unmarshalDiscoveryRequest(req.Payload)
+			if err != nil {
+				a.Warningf("bad payload: %v", err)
+				return
+			}
+			r.ClusterName = a.RemoteCluster
+			r.ClusterAddr = a.Addr
+			select {
+			case a.DiscoveryC <- r:
+			case <-a.ctx.Done():
+				a.Infof("is closed, returning")
+				return
+			default:
+			}
 		}
 	}
 }
@@ -399,6 +638,7 @@ const (
 	chanAccessPoint      = "teleport-access-point"
 	chanTransport        = "teleport-transport"
 	chanTransportDialReq = "teleport-transport-dial"
+	chanDiscovery        = "teleport-discovery"
 )
 
 const (

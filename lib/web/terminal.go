@@ -185,12 +185,14 @@ func (t *TerminalHandler) Run(w http.ResponseWriter, r *http.Request) {
 		// retreives them directly from auth server API:
 		agent, err := t.ctx.GetAgent()
 		if err != nil {
+			log.Warningf("failed to get agent: %v", err)
 			errToTerm(err, ws)
 			return
 		}
 		defer agent.Close()
 		principal, auth, err := getUserCredentials(agent)
 		if err != nil {
+			log.Warningf("failed to get user credentials: %v", err)
 			errToTerm(err, ws)
 			return
 		}
@@ -219,6 +221,7 @@ func (t *TerminalHandler) Run(w http.ResponseWriter, r *http.Request) {
 		}
 		tc, err := client.NewClient(clientConfig)
 		if err != nil {
+			log.Warningf("failed to create client: %v", err)
 			errToTerm(err, ws)
 			return
 		}
@@ -230,6 +233,7 @@ func (t *TerminalHandler) Run(w http.ResponseWriter, r *http.Request) {
 			return false, nil
 		}
 		if err = tc.SSH(context.TODO(), t.params.InteractiveCommand, false); err != nil {
+			log.Warningf("failed to SSH: %v", err)
 			errToTerm(err, ws)
 			return
 		}

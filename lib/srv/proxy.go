@@ -41,14 +41,14 @@ import (
 // proxySubsys implements an SSH subsystem for proxying listening sockets from
 // remote hosts to a proxy client (AKA port mapping)
 type proxySubsys struct {
-	srv       *Server
-	host      string
-	port      string
-	namespace string
-	siteName  string
-	closeC    chan struct{}
-	error     error
-	closeOnce sync.Once
+	srv         *Server
+	host        string
+	port        string
+	namespace   string
+	clusterName string
+	closeC      chan struct{}
+	error       error
+	closeOnce   sync.Once
 }
 
 // parseProxySubsys looks at the requested subsystem name and returns a fully configured
@@ -110,18 +110,18 @@ func parseProxySubsys(request string, srv *Server) (*proxySubsys, error) {
 		}
 	}
 	return &proxySubsys{
-		namespace: namespace,
-		srv:       srv,
-		host:      targetHost,
-		port:      targetPort,
-		siteName:  clusterName,
-		closeC:    make(chan struct{}),
+		namespace:   namespace,
+		srv:         srv,
+		host:        targetHost,
+		port:        targetPort,
+		clusterName: clusterName,
+		closeC:      make(chan struct{}),
 	}, nil
 }
 
 func (t *proxySubsys) String() string {
 	return fmt.Sprintf("proxySubsys(cluster=%s/%s, host=%s, port=%s)",
-		t.namespace, t.siteName, t.host, t.port)
+		t.namespace, t.clusterName, t.host, t.port)
 }
 
 // start is called by Golang's ssh when it needs to engage this sybsystem (typically to establish
@@ -145,9 +145,9 @@ func (t *proxySubsys) start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Requ
 			clientAddr = a
 		}
 	}
-	// get the site by name:
-	if t.siteName != "" {
-		site, err = tunnel.GetSite(t.siteName)
+	// get the cluster by name:
+	if t.clusterName != "" {
+		site, err = tunnel.GetSite(t.clusterName)
 		if err != nil {
 			log.Warn(err)
 			return trace.Wrap(err)
@@ -299,7 +299,7 @@ func (t *proxySubsys) proxyToHost(
 		return trace.Wrap(err)
 	}
 	// this custom SSH handshake allows SSH proxy to relay the client's IP
-	// address to the SSH erver:
+	// address to the SSH server
 	doHandshake(remoteAddr, ch, conn)
 
 	go func() {

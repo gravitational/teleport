@@ -28,7 +28,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 )
 
 // TrustedCluster holds information needed for a cluster that can not be directly
@@ -200,7 +199,6 @@ func (r RoleMap) Map(remoteRoles []string) ([]string, error) {
 		outRoles = append(outRoles, wildcardMatch...)
 		return outRoles, nil
 	}
-	log.Debugf("%v: direct match: %v wildcard match: %v", r, directMatch, wildcardMatch)
 	for _, remoteRole := range remoteRoles {
 		match, ok := directMatch[remoteRole]
 		if ok {

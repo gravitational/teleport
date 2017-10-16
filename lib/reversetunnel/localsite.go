@@ -40,11 +40,9 @@ func newlocalSite(srv *server, domainName string, client auth.ClientI) (*localSi
 		accessPoint: accessPoint,
 		domainName:  domainName,
 		log: log.WithFields(log.Fields{
-			teleport.Component: teleport.ComponentReverseTunnel,
-			teleport.ComponentFields: map[string]string{
-				"domainName": domainName,
-				"side":       "server",
-				"type":       "localSite",
+			trace.Component: teleport.ComponentReverseTunnelServer,
+			trace.ComponentFields: map[string]string{
+				"cluster": domainName,
 			},
 		}),
 	}, nil
@@ -77,7 +75,7 @@ func (s *localSite) GetClient() (auth.ClientI, error) {
 }
 
 func (s *localSite) String() string {
-	return fmt.Sprintf("localSite(%v)", s.domainName)
+	return fmt.Sprintf("local(%v)", s.domainName)
 }
 
 func (s *localSite) GetStatus() string {
@@ -94,7 +92,7 @@ func (s *localSite) GetLastConnected() time.Time {
 
 // Dial dials a given host in this site (cluster).
 func (s *localSite) Dial(from net.Addr, to net.Addr) (net.Conn, error) {
-	s.log.Debugf("[PROXY] localSite.Dial(from=%v, to=%v)", from, to)
+	s.log.Debugf("local.Dial(from=%v, to=%v)", from, to)
 	return net.Dial(to.Network(), to.String())
 }
 

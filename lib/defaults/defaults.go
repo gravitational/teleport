@@ -151,6 +151,10 @@ var (
 	// ReverseTunnelAgentHeartbeatPeriod is the period between agent heartbeat messages
 	ReverseTunnelAgentHeartbeatPeriod = 5 * time.Second
 
+	// ReverseTunnelOfflineThreshold is the threshold of missed heartbeats
+	// after which we are going to declare the reverse tunnel offline
+	ReverseTunnelOfflineThreshold = 5 * ReverseTunnelAgentHeartbeatPeriod
+
 	// ServerHeartbeatTTL is a period between heartbeats
 	// Median sleep time between node pings is this value / 2 + random
 	// deviation added to this time to avoid lots of simultaneous
@@ -169,6 +173,21 @@ var (
 	// TerminalSizeRefreshPeriod is how frequently clients who share sessions sync up
 	// their terminal sizes
 	TerminalSizeRefreshPeriod = 2 * time.Second
+
+	// NewtworkBackoffDuration is a standard backoff on network requests
+	// usually is slow, e.g. once in 30 seconds
+	NetworkBackoffDuration = time.Second * 30
+
+	// NewtworkRetryDuration is a standard retry on network requests
+	// to retry quickly, e.g. once in one second
+	NetworkRetryDuration = time.Second
+
+	// FastAttempts is the intial amount of fast retry attempts
+	// before switching to slow mode
+	FastAttempts = 10
+
+	// ReportingPeriod is a period for reports in logs
+	ReportingPeriod = 5 * time.Minute
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport

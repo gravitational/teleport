@@ -87,6 +87,8 @@ func (s *SrvSuite) SetUpSuite(c *C) {
 	utils.InitLoggerForTests()
 }
 
+const hostID = "00000000-0000-0000-0000-000000000000"
+
 func (s *SrvSuite) SetUpTest(c *C) {
 	var err error
 	s.dir = c.MkDir()
@@ -155,7 +157,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	// set up host private key and certificate
 	hpriv, hpub, err := s.a.GenerateKeyPair("")
 	c.Assert(err, IsNil)
-	hcert, err := s.a.GenerateHostCert(hpub, "00000000-0000-0000-0000-000000000000", s.domainName, s.domainName, teleport.Roles{teleport.RoleAdmin}, 0)
+	hcert, err := s.a.GenerateHostCert(hpub, hostID, s.domainName, s.domainName, teleport.Roles{teleport.RoleAdmin}, 0)
 	c.Assert(err, IsNil)
 
 	// set up user CA and set up a user that has access to the server
@@ -469,12 +471,13 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	reverseTunnelPort := s.freePorts[len(s.freePorts)-1]
 	s.freePorts = s.freePorts[:len(s.freePorts)-1]
 	reverseTunnelAddress := utils.NetAddr{AddrNetwork: "tcp", Addr: fmt.Sprintf("%v:%v", s.domainName, reverseTunnelPort)}
-	reverseTunnelServer, err := reversetunnel.NewServer(
-		reverseTunnelAddress,
-		[]ssh.Signer{s.signer},
-		s.roleAuth,
-		state.NoCache,
-	)
+	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
+		ID:                    s.domainName,
+		ListenAddr:            reverseTunnelAddress,
+		HostSigners:           []ssh.Signer{s.signer},
+		AccessPoint:           s.roleAuth,
+		NewCachingAccessPoint: state.NoCache,
+	})
 	c.Assert(err, IsNil)
 	c.Assert(reverseTunnelServer.Start(), IsNil)
 
@@ -500,14 +503,14 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	c.Assert(tsrv.Start(), IsNil)
 
 	tunClt, err := auth.NewTunClient("test",
-		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: tsrv.Addr()}}, s.domainName, []ssh.AuthMethod{ssh.PublicKeys(s.signer)})
+		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: tsrv.Addr()}}, hostID, []ssh.AuthMethod{ssh.PublicKeys(s.signer)})
 	c.Assert(err, IsNil)
 	defer tunClt.Close()
 
 	agentPool, err := reversetunnel.NewAgentPool(reversetunnel.AgentPoolConfig{
 		Client:      tunClt,
 		HostSigners: []ssh.Signer{s.signer},
-		HostUUID:    s.domainName,
+		HostUUID:    hostID,
 		AccessPoint: tunClt,
 	})
 	c.Assert(err, IsNil)
@@ -519,13 +522,27 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	err = agentPool.FetchAndSyncAgents()
 	c.Assert(err, IsNil)
 
-	rsAgent, err := reversetunnel.NewAgent(
-		reverseTunnelAddress,
-		"remote",
-		"localhost",
-		[]ssh.Signer{s.signer}, tunClt, tunClt)
+	eventsC := make(chan string, 1)
+	rsAgent, err := reversetunnel.NewAgent(reversetunnel.AgentConfig{
+		Context:       context.TODO(),
+		Addr:          reverseTunnelAddress,
+		RemoteCluster: "remote",
+		Username:      hostID,
+		Signers:       []ssh.Signer{s.signer},
+		Client:        tunClt,
+		AccessPoint:   tunClt,
+		EventsC:       eventsC,
+	})
 	c.Assert(err, IsNil)
-	c.Assert(rsAgent.Start(), IsNil)
+	rsAgent.Start()
+
+	timeout := time.After(time.Second)
+	select {
+	case event := <-eventsC:
+		c.Assert(event, Equals, reversetunnel.ConnectedEvent)
+	case <-timeout:
+		c.Fatalf("timeout waiting for clusters to connect")
+	}
 
 	sshConfig := &ssh.ClientConfig{
 		User: s.user,
@@ -620,12 +637,13 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		AddrNetwork: "tcp",
 		Addr:        fmt.Sprintf("%v:%v", s.domainName, reverseTunnelPort),
 	}
-	reverseTunnelServer, err := reversetunnel.NewServer(
-		reverseTunnelAddress,
-		[]ssh.Signer{s.signer},
-		s.roleAuth,
-		state.NoCache,
-	)
+	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
+		ID:                    s.domainName,
+		ListenAddr:            reverseTunnelAddress,
+		HostSigners:           []ssh.Signer{s.signer},
+		AccessPoint:           s.roleAuth,
+		NewCachingAccessPoint: state.NoCache,
+	})
 	c.Assert(err, IsNil)
 
 	c.Assert(reverseTunnelServer.Start(), IsNil)
@@ -652,27 +670,48 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 	c.Assert(tsrv.Start(), IsNil)
 
 	tunClt, err := auth.NewTunClient("test",
-		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: tsrv.Addr()}}, s.domainName, []ssh.AuthMethod{ssh.PublicKeys(s.signer)})
+		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: tsrv.Addr()}}, hostID, []ssh.AuthMethod{ssh.PublicKeys(s.signer)})
 	c.Assert(err, IsNil)
 	defer tunClt.Close()
 
 	// start agent and load balance requests
-	rsAgent, err := reversetunnel.NewAgent(
-		reverseTunnelAddress,
-		"remote",
-		"localhost",
-		[]ssh.Signer{s.signer}, tunClt, tunClt)
+	eventsC := make(chan string, 2)
+	rsAgent, err := reversetunnel.NewAgent(reversetunnel.AgentConfig{
+		Context:       context.TODO(),
+		Addr:          reverseTunnelAddress,
+		RemoteCluster: "remote",
+		Username:      hostID,
+		Signers:       []ssh.Signer{s.signer},
+		Client:        tunClt,
+		AccessPoint:   tunClt,
+		EventsC:       eventsC,
+	})
 	c.Assert(err, IsNil)
-	c.Assert(rsAgent.Start(), IsNil)
+	rsAgent.Start()
 
-	rsAgent2, err := reversetunnel.NewAgent(
-		reverseTunnelAddress,
-		"remote",
-		"localhost",
-		[]ssh.Signer{s.signer}, tunClt, tunClt)
+	rsAgent2, err := reversetunnel.NewAgent(reversetunnel.AgentConfig{
+		Context:       context.TODO(),
+		Addr:          reverseTunnelAddress,
+		RemoteCluster: "remote",
+		Username:      hostID,
+		Signers:       []ssh.Signer{s.signer},
+		Client:        tunClt,
+		AccessPoint:   tunClt,
+		EventsC:       eventsC,
+	})
 	c.Assert(err, IsNil)
-	c.Assert(rsAgent2.Start(), IsNil)
+	rsAgent2.Start()
 	defer rsAgent2.Close()
+
+	timeout := time.After(time.Second)
+	for i := 0; i < 2; i++ {
+		select {
+		case event := <-eventsC:
+			c.Assert(event, Equals, reversetunnel.ConnectedEvent)
+		case <-timeout:
+			c.Fatalf("timeout waiting for clusters to connect")
+		}
+	}
 
 	sshConfig := &ssh.ClientConfig{
 		User: s.user,
@@ -700,13 +739,14 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 		AddrNetwork: "tcp",
 		Addr:        fmt.Sprintf("%v:0", s.domainName),
 	}
-	reverseTunnelServer, err := reversetunnel.NewServer(
-		reverseTunnelAddress,
-		[]ssh.Signer{s.signer},
-		s.roleAuth,
-		state.NoCache,
-		reversetunnel.DirectSite(s.domainName, s.roleAuth),
-	)
+	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
+		ID:                    s.domainName,
+		ListenAddr:            reverseTunnelAddress,
+		HostSigners:           []ssh.Signer{s.signer},
+		AccessPoint:           s.roleAuth,
+		NewCachingAccessPoint: state.NoCache,
+		DirectClusters:        []reversetunnel.DirectCluster{{Name: s.domainName, Client: s.roleAuth}},
+	})
 	c.Assert(err, IsNil)
 
 	proxy, err := New(
@@ -731,7 +771,7 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 	c.Assert(tsrv.Start(), IsNil)
 
 	tunClt, err := auth.NewTunClient("test",
-		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: tsrv.Addr()}}, s.domainName, []ssh.AuthMethod{ssh.PublicKeys(s.signer)})
+		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: tsrv.Addr()}}, hostID, []ssh.AuthMethod{ssh.PublicKeys(s.signer)})
 	c.Assert(err, IsNil)
 	defer tunClt.Close()
 
