@@ -27,7 +27,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// NewLoadBalancer returns new load balancer listening on frotend
+// NewLoadBalancer returns new load balancer listening on frontend
 // and redirecting requests to backends using round robin algo
 func NewLoadBalancer(ctx context.Context, frontend NetAddr, backends ...NetAddr) (*LoadBalancer, error) {
 	if ctx == nil {
