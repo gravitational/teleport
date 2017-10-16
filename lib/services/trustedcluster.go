@@ -251,7 +251,7 @@ func (c *TrustedClusterV2) CheckAndSetDefaults() error {
 	}
 	// we are not mentioning Roles parameter because we are deprecating it
 	if len(c.Spec.Roles) == 0 && len(c.Spec.RoleMap) == 0 {
-		if err := plugins.EmptyRolesHandler(); err != nil {
+		if err := plugins.GetPlugins().EmptyRolesHandler(); err != nil {
 			return trace.Wrap(err)
 		}
 		// OSS teleport uses 'admin' by default:

@@ -168,7 +168,7 @@ func ReadOrMakeHostUUID(dataDir string) (string, error) {
 
 // PrintVersion prints human readable version
 func PrintVersion() {
-	plugins.VersionPrinter()
+	plugins.GetPlugins().PrintVersion()
 }
 
 // HumanTimeFormat formats time as recognized by humans

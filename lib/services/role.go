@@ -99,7 +99,7 @@ func NewAdminRole() Role {
 			},
 		},
 	}
-	role.SetLogins(Allow, plugins.DefaultAllowedLogins())
+	role.SetLogins(Allow, plugins.GetPlugins().DefaultAllowedLogins())
 	return role
 }
 

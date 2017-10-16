@@ -25,48 +25,47 @@ import (
 	"github.com/gravitational/teleport"
 )
 
-var m = &sync.Mutex{}
+// Plugins defines interface that external libraries can implement customizing
+// default teleport behavior
+type Plugins interface {
+	// EmptyRoles handler is called when a new trusted cluster with empty roles
+	// is being created
+	EmptyRolesHandler() error
+	// DefaultAllowedLogins returns default allowed logins for a new admin role
+	DefaultAllowedLogins() []string
+	// PrintVersion prints teleport version
+	PrintVersion()
+}
 
-var emptyRolesHandler = func() error {
+// SetPlugins sets the plugins interface
+func SetPlugins(p Plugins) {
+	m.Lock()
+	defer m.Unlock()
+	plugins = p
+}
+
+// GetPlugins returns the plugins interface
+func GetPlugins() Plugins {
+	m.Lock()
+	defer m.Unlock()
+	return plugins
+}
+
+type defaultPlugins struct{}
+
+// EmptyRolesHandler is called when a new trusted cluster with empty roles
+// is created, no-op by default
+func (p *defaultPlugins) EmptyRolesHandler() error {
 	return nil
 }
 
-// SetEmptyRolesHandler sets the callback which is called when a new trusted
-// cluster with empty roles is being created
-func SetEmptyRolesHandler(fn func() error) {
-	m.Lock()
-	defer m.Unlock()
-	emptyRolesHandler = fn
-}
-
-// EmptyRoles handler is called when a new trusted cluster with empty roles
-// is being created
-func EmptyRolesHandler() error {
-	m.Lock()
-	defer m.Unlock()
-	return emptyRolesHandler()
-}
-
-var defaultAllowedLogins = func() []string {
+// DefaultAllowedLogins returns allowed logins for a new admin role
+func (p *defaultPlugins) DefaultAllowedLogins() []string {
 	return []string{teleport.TraitInternalRoleVariable}
 }
 
-// SetDefaultAllowedLogins sets the function that returns default allowed
-// logins for a new admin role
-func SetDefaultAllowedLogins(fn func() []string) {
-	m.Lock()
-	defer m.Unlock()
-	defaultAllowedLogins = fn
-}
-
-// DefaultAllowedLogins returns default allowed logins for a new admin role
-func DefaultAllowedLogins() []string {
-	m.Lock()
-	defer m.Unlock()
-	return defaultAllowedLogins()
-}
-
-var versionPrinter = func() {
+// PrintVersion prints teleport version
+func (p *defaultPlugins) PrintVersion() {
 	ver := fmt.Sprintf("Teleport v%s", teleport.Version)
 	if teleport.Gitref != "" {
 		ver = fmt.Sprintf("%s git:%s", ver, teleport.Gitref)
@@ -74,16 +73,7 @@ var versionPrinter = func() {
 	fmt.Println(ver)
 }
 
-// SetVersionPrinter sets the method that prints teleport version
-func SetVersionPrinter(fn func()) {
-	m.Lock()
-	defer m.Unlock()
-	versionPrinter = fn
-}
-
-// VersionPrinter prints teleport version
-func VersionPrinter() {
-	m.Lock()
-	defer m.Unlock()
-	versionPrinter()
-}
+var (
+	m               = &sync.Mutex{}
+	plugins Plugins = &defaultPlugins{}
+)
