@@ -5,9 +5,9 @@ teleport:
     output: /var/lib/teleport/teleport.log
     severity: INFO
 
-  data_dir: /root/go/src/github.com/gravitational/teleport/docker/data/two
+  data_dir: /var/lib/teleport
   storage:
-      path: /root/go/src/github.com/gravitational/teleport/docker/data/two/backend
+      path: /var/lib/teleport/backend
       type: dir
 
 auth_service:

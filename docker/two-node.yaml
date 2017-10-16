@@ -3,9 +3,14 @@ teleport:
   nodename: node-on-second-cluster
   auth_servers: ["two-auth"]
   auth_token: foo
+  advertise_ip: 172.10.1.4
   log:
     output: /var/lib/teleport/teleport.log
     severity: INFO
+  data_dir: /var/lib/teleport
+  storage:
+      path: /var/lib/teleport/backend
+      type: dir
 
 ssh_service:
   enabled: yes

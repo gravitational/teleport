@@ -58,6 +58,8 @@ type Backend struct {
 
 	// InternalClock is a test-friendly source of current time
 	InternalClock clockwork.Clock
+
+	*log.Entry
 }
 
 func (b *Backend) Clock() clockwork.Clock {
@@ -82,6 +84,12 @@ func New(params backend.Params) (backend.Backend, error) {
 	bk := &Backend{
 		RootDir:       rootDir,
 		InternalClock: clockwork.NewRealClock(),
+		Entry: log.WithFields(log.Fields{
+			trace.Component: "backend:dir",
+			trace.ComponentFields: log.Fields{
+				"dir": rootDir,
+			},
+		}),
 	}
 
 	locksDir := path.Join(bk.RootDir, locksBucket)
@@ -168,16 +176,21 @@ func (bk *Backend) GetVal(bucket []string, key string) ([]byte, error) {
 	}
 	if expired {
 		bk.DeleteKey(bucket, key)
-		return nil, trace.NotFound("key '%s' is not found", key)
+		return nil, trace.NotFound("key %q is not found", key)
 	}
 	fp := path.Join(dirPath, key)
 	bytes, err := ioutil.ReadFile(fp)
 	if err != nil {
 		// GetVal() on a bucket must return 'BadParameter' error:
 		if fi, _ := os.Stat(fp); fi != nil && fi.IsDir() {
-			return nil, trace.BadParameter("%s is not a valid key", key)
+			return nil, trace.BadParameter("%q is not a valid key", key)
 		}
 		return nil, trace.ConvertSystemError(err)
+	}
+	// this could happen if we delete the file concurrently
+	// with the read, apparently we can read empty file back
+	if len(bytes) == 0 {
+		return nil, trace.NotFound("key %q is not found", key)
 	}
 	return bytes, nil
 }
@@ -244,7 +257,7 @@ func removeFiles(dir string) error {
 
 // AcquireLock grabs a lock that will be released automatically in TTL
 func (bk *Backend) AcquireLock(token string, ttl time.Duration) (err error) {
-	log.Debugf("fs.AcquireLock(%s)", token)
+	bk.Debugf("AcquireLock(%s)", token)
 
 	if err = backend.ValidateLockTTL(ttl); err != nil {
 		return trace.Wrap(err)
@@ -271,7 +284,7 @@ func (bk *Backend) AcquireLock(token string, ttl time.Duration) (err error) {
 
 // ReleaseLock forces lock release before TTL
 func (bk *Backend) ReleaseLock(token string) (err error) {
-	log.Debugf("fs.ReleaseLock(%s)", token)
+	bk.Debugf("ReleaseLock(%s)", token)
 
 	if err = bk.DeleteKey([]string{locksBucket}, token); err != nil {
 		if !os.IsNotExist(err) {
@@ -305,6 +318,10 @@ func (bk *Backend) checkTTL(dirPath string, key string) (expired bool, err error
 			return false, nil
 		}
 		return false, trace.Wrap(err)
+	}
+	// this could happen if file was deleted, we can sometimes read empty contents
+	if len(bytes) == 0 {
+		return false, nil
 	}
 	var expiryTime time.Time
 	if err = expiryTime.UnmarshalText(bytes); err != nil {

@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 // PresenceService records and reports the presence of all components
@@ -122,17 +123,20 @@ func (s *PresenceService) getServers(kind, prefix string) ([]services.Server, er
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	servers := make([]services.Server, len(keys))
-	for i, key := range keys {
+	servers := make([]services.Server, 0, len(keys))
+	for _, key := range keys {
 		data, err := s.GetVal([]string{prefix}, key)
 		if err != nil {
+			if trace.IsNotFound(err) {
+				continue
+			}
 			return nil, trace.Wrap(err)
 		}
 		server, err := services.GetServerMarshaler().UnmarshalServer(data, kind)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		servers[i] = server
+		servers = append(servers, server)
 	}
 	// sorting helps with tests and makes it all deterministic
 	sort.Sort(services.SortedServers(servers))
@@ -336,11 +340,115 @@ func (s *PresenceService) DeleteTrustedCluster(name string) error {
 	return trace.Wrap(err)
 }
 
+// UpsertTunnelConnection updates or creates tunnel connection
+func (s *PresenceService) UpsertTunnelConnection(conn services.TunnelConnection) error {
+	if err := conn.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	bytes, err := services.MarshalTunnelConnection(conn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	metadata := conn.GetMetadata()
+	ttl := backend.TTL(s.Clock(), metadata.Expiry())
+	err = s.UpsertVal([]string{tunnelConnectionsPrefix, conn.GetClusterName()}, conn.GetName(), bytes, ttl)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// GetTunnelConnection returns connection by cluster name and connection name
+func (s *PresenceService) GetTunnelConnection(clusterName, connectionName string) (services.TunnelConnection, error) {
+	data, err := s.GetVal([]string{tunnelConnectionsPrefix, clusterName}, connectionName)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("trusted cluster connection %q is not found", connectionName)
+		}
+		return nil, trace.Wrap(err)
+	}
+	conn, err := services.UnmarshalTunnelConnection(data)
+	if err != nil {
+		log.Debugf("got some problem with data: %q", string(data))
+	}
+	return conn, err
+}
+
+// GetTunnelConnections returns connections for a trusted cluster
+func (s *PresenceService) GetTunnelConnections(clusterName string) ([]services.TunnelConnection, error) {
+	if clusterName == "" {
+		return nil, trace.BadParameter("missing cluster name")
+	}
+	var conns []services.TunnelConnection
+	keys, err := s.GetKeys([]string{tunnelConnectionsPrefix, clusterName})
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, trace.Wrap(err)
+	}
+	for _, key := range keys {
+		conn, err := s.GetTunnelConnection(clusterName, key)
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				return nil, trace.Wrap(err)
+			}
+			continue
+		}
+		conns = append(conns, conn)
+	}
+	return conns, nil
+}
+
+// GetAllTunnelConnections returns all tunnel connections
+func (s *PresenceService) GetAllTunnelConnections() ([]services.TunnelConnection, error) {
+	var conns []services.TunnelConnection
+	clusters, err := s.GetKeys([]string{tunnelConnectionsPrefix})
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, trace.Wrap(err)
+	}
+	for _, clusterName := range clusters {
+		clusterConns, err := s.GetTunnelConnections(clusterName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		conns = append(conns, clusterConns...)
+	}
+	return conns, nil
+}
+
+// DeleteTunnelConnection deletes tunnel connection by name
+func (s *PresenceService) DeleteTunnelConnection(clusterName, connectionName string) error {
+	return s.DeleteKey([]string{tunnelConnectionsPrefix, clusterName}, connectionName)
+}
+
+// DeleteTunnelConnections deletes all tunnel connections for cluster
+func (s *PresenceService) DeleteTunnelConnections(clusterName string) error {
+	err := s.DeleteBucket([]string{tunnelConnectionsPrefix}, clusterName)
+	if trace.IsNotFound(err) {
+		return nil
+	}
+	return err
+}
+
+// DeleteAllTunnelConnections deletes all tunnel connections
+func (s *PresenceService) DeleteAllTunnelConnections() error {
+	err := s.DeleteBucket([]string{}, tunnelConnectionsPrefix)
+	if trace.IsNotFound(err) {
+		return nil
+	}
+	return err
+}
+
 const (
-	localClusterPrefix   = "localCluster"
-	reverseTunnelsPrefix = "reverseTunnels"
-	nodesPrefix          = "nodes"
-	namespacesPrefix     = "namespaces"
-	authServersPrefix    = "authservers"
-	proxiesPrefix        = "proxies"
+	localClusterPrefix      = "localCluster"
+	reverseTunnelsPrefix    = "reverseTunnels"
+	tunnelConnectionsPrefix = "tunnelConnections"
+	nodesPrefix             = "nodes"
+	namespacesPrefix        = "namespaces"
+	authServersPrefix       = "authservers"
+	proxiesPrefix           = "proxies"
 )

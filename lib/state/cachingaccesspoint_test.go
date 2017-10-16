@@ -88,6 +88,13 @@ var (
 			},
 		},
 	}
+	TunnelConnections = []services.TunnelConnection{
+		services.MustCreateTunnelConnection("conn1", services.TunnelConnectionSpecV2{
+			ClusterName:   "example.com",
+			ProxyName:     "p1",
+			LastHeartbeat: time.Date(2015, 6, 5, 4, 3, 2, 1, time.UTC).UTC(),
+		}),
+	}
 )
 
 type ClusterSnapshotSuite struct {
@@ -151,6 +158,11 @@ func (s *ClusterSnapshotSuite) SetUpTest(c *check.C) {
 		err = s.authServer.UpsertUser(v2)
 		c.Assert(err, check.IsNil)
 	}
+	// add tunnel connections
+	for _, c := range TunnelConnections {
+		c.SetTTL(s.clock, defaults.ServerHeartbeatTTL)
+		err = s.authServer.UpsertTunnelConnection(c)
+	}
 }
 
 func (s *ClusterSnapshotSuite) TearDownTest(c *check.C) {
@@ -184,6 +196,10 @@ func (s *ClusterSnapshotSuite) TestEverything(c *check.C) {
 	proxies, err := snap.GetProxies()
 	c.Assert(err, check.IsNil)
 	c.Assert(proxies, check.HasLen, len(Proxies))
+
+	conns, err := snap.GetTunnelConnections("example.com")
+	c.Assert(err, check.IsNil)
+	c.Assert(conns, check.HasLen, len(TunnelConnections))
 }
 
 func (s *ClusterSnapshotSuite) TestTry(c *check.C) {
@@ -217,7 +233,7 @@ func (s *ClusterSnapshotSuite) TestTry(c *check.C) {
 	c.Assert(failedCalls, check.Equals, 1)
 
 	// "wait" for backoff duration and try again:
-	ap.lastErrorTime = time.Now().Add(-backoffDuration)
+	ap.lastErrorTime = time.Now().Add(-defaults.NetworkBackoffDuration)
 
 	ap.try(success)
 	ap.try(failure)

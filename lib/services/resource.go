@@ -131,6 +131,9 @@ const (
 	// KindAuthConnector allows access to OIDC and SAML connectors.
 	KindAuthConnector = "auth_connector"
 
+	// KindTunnelConection specifies connection of a reverse tunnel to proxy
+	KindTunnelConnection = "tunnel_connection"
+
 	// V3 is the third version of resources.
 	V3 = "v3"
 

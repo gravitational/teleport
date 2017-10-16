@@ -75,6 +75,8 @@ import (
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
+const hostID = "00000000-0000-0000-0000-000000000000"
+
 func TestWeb(t *testing.T) {
 	TestingT(t)
 }
@@ -243,7 +245,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 	hpriv, hpub, err := s.authServer.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 	hcert, err := s.authServer.GenerateHostCert(
-		hpub, "00000000-0000-0000-0000-000000000000", s.domainName, s.domainName, teleport.Roles{teleport.RoleAdmin}, 0)
+		hpub, hostID, s.domainName, s.domainName, teleport.Roles{teleport.RoleAdmin}, 0)
 	c.Assert(err, IsNil)
 
 	// set up user CA and set up a user that has access to the server
@@ -276,16 +278,17 @@ func (s *WebSuite) SetUpTest(c *C) {
 	c.Assert(s.node.Start(), IsNil)
 
 	// create reverse tunnel service:
-	revTunServer, err := reversetunnel.NewServer(
-		utils.NetAddr{
+	revTunServer, err := reversetunnel.NewServer(reversetunnel.Config{
+		ID: node.ID(),
+		ListenAddr: utils.NetAddr{
 			AddrNetwork: "tcp",
 			Addr:        fmt.Sprintf("%v:0", s.domainName),
 		},
-		[]ssh.Signer{s.signer},
-		s.roleAuth,
-		state.NoCache,
-		reversetunnel.DirectSite(s.domainName, s.roleAuth),
-	)
+		HostSigners:           []ssh.Signer{s.signer},
+		AccessPoint:           s.roleAuth,
+		NewCachingAccessPoint: state.NoCache,
+		DirectClusters:        []reversetunnel.DirectCluster{{Name: s.domainName, Client: s.roleAuth}},
+	})
 	c.Assert(err, IsNil)
 
 	apiPort := s.freePorts[len(s.freePorts)-1]
@@ -309,7 +312,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 
 	// create a tun client
 	tunClient, err := auth.NewTunClient("test", []utils.NetAddr{tunAddr},
-		s.domainName, []ssh.AuthMethod{ssh.PublicKeys(s.signer)})
+		hostID, []ssh.AuthMethod{ssh.PublicKeys(s.signer)})
 	c.Assert(err, IsNil)
 
 	// proxy server:

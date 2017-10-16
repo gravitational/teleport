@@ -210,6 +210,13 @@ func (s *APISuite) TestReadOwnRole(c *C) {
 	c.Assert(err, NotNil)
 }
 
+func (s *APISuite) TestTunnelConnectionsCRUD(c *C) {
+	suite := &suite.ServicesTestSuite{
+		PresenceS: s.clt,
+	}
+	suite.TunnelConnectionsCRUD(c)
+}
+
 func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 	priv, pub, err := s.clt.GenerateKeyPair("")
 	c.Assert(err, IsNil)

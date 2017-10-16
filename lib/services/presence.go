@@ -95,6 +95,24 @@ type Presence interface {
 
 	// DeleteTrustedCluster removes a TrustedCluster from the backend by name.
 	DeleteTrustedCluster(string) error
+
+	// UpsertTunnelConnection upserts tunnel connection
+	UpsertTunnelConnection(TunnelConnection) error
+
+	// GetTunnelConnections returns tunnel connections for a given cluster
+	GetTunnelConnections(clusterName string) ([]TunnelConnection, error)
+
+	// GetAllTunnelConnections returns all tunnel connections
+	GetAllTunnelConnections() ([]TunnelConnection, error)
+
+	// DeleteTunnelConnection deletes tunnel connection by name
+	DeleteTunnelConnection(clusterName string, connName string) error
+
+	// DeleteTunnelConnections deletes all tunnel connections for cluster
+	DeleteTunnelConnections(clusterName string) error
+
+	// DeleteAllTunnelConnections deletes all tunnel connections for cluster
+	DeleteAllTunnelConnections() error
 }
 
 // NewNamespace returns new namespace

@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -47,16 +48,13 @@ func init() {
 	prometheus.MustRegister(accessPointRequests)
 }
 
-const (
-	backoffDuration = time.Second * 10
-)
-
 // CachingAuthClient implements auth.AccessPoint interface and remembers
 // the previously returned upstream value for each API call.
 //
 // This which can be used if the upstream AccessPoint goes offline
 type CachingAuthClient struct {
 	Config
+	*log.Entry
 	// ap points to the access ponit we're caching access to:
 	ap auth.AccessPoint
 
@@ -115,6 +113,9 @@ func NewCachingAuthClient(config Config) (*CachingAuthClient, error) {
 		trust:    local.NewCAService(config.Backend),
 		access:   local.NewAccessService(config.Backend),
 		presence: local.NewPresenceService(config.Backend),
+		Entry: log.WithFields(log.Fields{
+			trace.Component: teleport.ComponentCachingClient,
+		}),
 	}
 	if !cs.SkipPreload {
 		err := cs.fetchAll()
@@ -122,7 +123,7 @@ func NewCachingAuthClient(config Config) (*CachingAuthClient, error) {
 			// we almost always get some "access denied" errors here because
 			// not all cacheable resources are available (for example nodes do
 			// not have access to tunnels)
-			log.Debugf("Auth cache: %v", err)
+			cs.Debugf("auth cache: %v", err)
 		}
 	}
 	return cs, nil
@@ -152,6 +153,20 @@ func (cs *CachingAuthClient) fetchAll() error {
 	errors = append(errors, err)
 	_, err = cs.GetUsers()
 	errors = append(errors, err)
+	conns, err := cs.ap.GetAllTunnelConnections()
+	if err != nil {
+		errors = append(errors, err)
+	}
+	clusters := map[string]bool{}
+	for _, conn := range conns {
+		clusterName := conn.GetClusterName()
+		if _, ok := clusters[clusterName]; ok {
+			continue
+		}
+		clusters[clusterName] = true
+		_, err = cs.GetTunnelConnections(clusterName)
+		errors = append(errors, err)
+	}
 	return trace.NewAggregate(errors...)
 }
 
@@ -414,6 +429,58 @@ func (cs *CachingAuthClient) GetUsers() (users []services.User, err error) {
 	return users, err
 }
 
+// GetTunnelConnections is a part of auth.AccessPoint implementation
+func (cs *CachingAuthClient) GetTunnelConnections(clusterName string) (conns []services.TunnelConnection, err error) {
+	err = cs.try(func() error {
+		conns, err = cs.ap.GetTunnelConnections(clusterName)
+		return err
+	})
+	if err != nil {
+		if trace.IsConnectionProblem(err) {
+			return cs.presence.GetTunnelConnections(clusterName)
+		}
+		return conns, err
+	}
+	if err := cs.presence.DeleteTunnelConnections(clusterName); err != nil {
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+	}
+	for _, conn := range conns {
+		cs.setTTL(conn)
+		if err := cs.presence.UpsertTunnelConnection(conn); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return conns, err
+}
+
+// GetAllTunnelConnections is a part of auth.AccessPoint implementation
+func (cs *CachingAuthClient) GetAllTunnelConnections() (conns []services.TunnelConnection, err error) {
+	err = cs.try(func() error {
+		conns, err = cs.ap.GetAllTunnelConnections()
+		return err
+	})
+	if err != nil {
+		if trace.IsConnectionProblem(err) {
+			return cs.presence.GetAllTunnelConnections()
+		}
+		return conns, err
+	}
+	if err := cs.presence.DeleteAllTunnelConnections(); err != nil {
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+	}
+	for _, conn := range conns {
+		cs.setTTL(conn)
+		if err := cs.presence.UpsertTunnelConnection(conn); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return conns, err
+}
+
 // UpsertNode is part of auth.AccessPoint implementation
 func (cs *CachingAuthClient) UpsertNode(s services.Server) error {
 	cs.setTTL(s)
@@ -426,20 +493,31 @@ func (cs *CachingAuthClient) UpsertProxy(s services.Server) error {
 	return cs.ap.UpsertProxy(s)
 }
 
+// UpsertTunnelConnection is a part of auth.AccessPoint implementation
+func (cs *CachingAuthClient) UpsertTunnelConnection(conn services.TunnelConnection) error {
+	cs.setTTL(conn)
+	return cs.ap.UpsertTunnelConnection(conn)
+}
+
+// DeleteTunnelConnection is a part of auth.AccessPoint implementation
+func (cs *CachingAuthClient) DeleteTunnelConnection(clusterName, connName string) error {
+	return cs.ap.DeleteTunnelConnection(clusterName, connName)
+}
+
 // try calls a given function f and checks for errors. If f() fails, the current
 // time is recorded. Future calls to f will be ingored until sufficient time passes
 // since th last error
 func (cs *CachingAuthClient) try(f func() error) error {
-	tooSoon := cs.lastErrorTime.Add(backoffDuration).After(time.Now())
+	tooSoon := cs.lastErrorTime.Add(defaults.NetworkRetryDuration).After(time.Now())
 	if tooSoon {
-		log.Warnf("Backoff: using cached value due to recent errors")
+		cs.Warnf("backoff: using cached value due to recent errors")
 		return trace.ConnectionProblem(fmt.Errorf("backoff"), "backing off due to recent errors")
 	}
 	accessPointRequests.Inc()
 	err := trace.ConvertSystemError(f())
 	if trace.IsConnectionProblem(err) {
 		cs.lastErrorTime = time.Now()
-		log.Warningf("Connection Problem: failed connect to the auth servers, using local cache")
+		cs.Warningf("connection problem: failed connect to the auth servers, using local cache")
 	}
 	return err
 }

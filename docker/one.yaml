@@ -1,13 +1,14 @@
 # Single-node Teleport cluster called "one" (runs all 3 roles: proxy, auth and node)
 teleport:
   nodename: one
+  advertise_ip: 172.10.1.1
   log:
     output: /var/lib/teleport/teleport.log
     severity: INFO
 
-  data_dir: /root/go/src/github.com/gravitational/teleport/docker/data/one
+  data_dir: /var/lib/teleport
   storage:
-      path: /root/go/src/github.com/gravitational/teleport/docker/data/one/backend
+      path: /var/lib/teleport/backend
       type: dir
 
 auth_service:
@@ -33,3 +34,4 @@ ssh_service:
 
 proxy_service:
   enabled: yes
+

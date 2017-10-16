@@ -471,6 +471,91 @@ func (c *Client) DeleteReverseTunnel(domainName string) error {
 	return trace.Wrap(err)
 }
 
+// UpsertTunnelConnection upserts tunnel connection
+func (c *Client) UpsertTunnelConnection(conn services.TunnelConnection) error {
+	data, err := services.MarshalTunnelConnection(conn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	args := &upsertTunnelConnectionRawReq{
+		TunnelConnection: data,
+	}
+	_, err = c.PostJSON(c.Endpoint("tunnelconnections"), args)
+	return trace.Wrap(err)
+}
+
+// GetTunnelConnections returns tunnel connections for a given cluster
+func (c *Client) GetTunnelConnections(clusterName string) ([]services.TunnelConnection, error) {
+	if clusterName == "" {
+		return nil, trace.BadParameter("missing cluster name parameter")
+	}
+	out, err := c.Get(c.Endpoint("tunnelconnections", clusterName), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var items []json.RawMessage
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	conns := make([]services.TunnelConnection, len(items))
+	for i, raw := range items {
+		conn, err := services.UnmarshalTunnelConnection(raw)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		conns[i] = conn
+	}
+	return conns, nil
+}
+
+// GetAllTunnelConnections returns all tunnel connections
+func (c *Client) GetAllTunnelConnections() ([]services.TunnelConnection, error) {
+	out, err := c.Get(c.Endpoint("tunnelconnections"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var items []json.RawMessage
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	conns := make([]services.TunnelConnection, len(items))
+	for i, raw := range items {
+		conn, err := services.UnmarshalTunnelConnection(raw)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		conns[i] = conn
+	}
+	return conns, nil
+}
+
+// DeleteTunnelConnection deletes tunnel connection by name
+func (c *Client) DeleteTunnelConnection(clusterName string, connName string) error {
+	if clusterName == "" {
+		return trace.BadParameter("missing parameter cluster name")
+	}
+	if connName == "" {
+		return trace.BadParameter("missing parameter connection name")
+	}
+	_, err := c.Delete(c.Endpoint("tunnelconnections", clusterName, connName))
+	return trace.Wrap(err)
+}
+
+// DeleteTunnelConnections deletes all tunnel connections for cluster
+func (c *Client) DeleteTunnelConnections(clusterName string) error {
+	if clusterName == "" {
+		return trace.BadParameter("missing parameter cluster name")
+	}
+	_, err := c.Delete(c.Endpoint("tunnelconnections", clusterName))
+	return trace.Wrap(err)
+}
+
+// DeleteAllTunnelConnections deletes all tunnel connections
+func (c *Client) DeleteAllTunnelConnections() error {
+	_, err := c.Delete(c.Endpoint("tunnelconnections"))
+	return trace.Wrap(err)
+}
+
 // UpsertAuthServer is used by auth servers to report their presense
 // to other auth servers in form of hearbeat expiring after ttl period.
 func (c *Client) UpsertAuthServer(s services.Server) error {
