@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package plugins
+package modules
 
 import (
 	"testing"
@@ -25,38 +25,38 @@ import (
 	check "gopkg.in/check.v1"
 )
 
-func TestPlugins(t *testing.T) { check.TestingT(t) }
+func TestModules(t *testing.T) { check.TestingT(t) }
 
-type PluginsSuite struct{}
+type ModulesSuite struct{}
 
-var _ = check.Suite(&PluginsSuite{})
+var _ = check.Suite(&ModulesSuite{})
 
-func (s *PluginsSuite) TestDefaultPlugins(c *check.C) {
-	err := GetPlugins().EmptyRolesHandler()
+func (s *ModulesSuite) TestDefaultModules(c *check.C) {
+	err := GetModules().EmptyRolesHandler()
 	c.Assert(err, check.IsNil)
 
-	logins := GetPlugins().DefaultAllowedLogins()
+	logins := GetModules().DefaultAllowedLogins()
 	c.Assert(logins, check.DeepEquals, []string{teleport.TraitInternalRoleVariable})
 }
 
-func (s *PluginsSuite) TestTestPlugins(c *check.C) {
-	SetPlugins(&testPlugins{})
+func (s *ModulesSuite) TestTestModules(c *check.C) {
+	SetModules(&testModules{})
 
-	err := GetPlugins().EmptyRolesHandler()
+	err := GetModules().EmptyRolesHandler()
 	c.Assert(trace.IsNotFound(err), check.Equals, true)
 
-	logins := GetPlugins().DefaultAllowedLogins()
+	logins := GetModules().DefaultAllowedLogins()
 	c.Assert(logins, check.DeepEquals, []string{"a", "b"})
 }
 
-type testPlugins struct{}
+type testModules struct{}
 
-func (p *testPlugins) EmptyRolesHandler() error {
+func (p *testModules) EmptyRolesHandler() error {
 	return trace.NotFound("no roles specified")
 }
 
-func (p *testPlugins) DefaultAllowedLogins() []string {
+func (p *testModules) DefaultAllowedLogins() []string {
 	return []string{"a", "b"}
 }
 
-func (p *testPlugins) PrintVersion() {}
+func (p *testModules) PrintVersion() {}

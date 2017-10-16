@@ -24,7 +24,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/plugins"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
 
@@ -99,7 +99,7 @@ func NewAdminRole() Role {
 			},
 		},
 	}
-	role.SetLogins(Allow, plugins.GetPlugins().DefaultAllowedLogins())
+	role.SetLogins(Allow, modules.GetModules().DefaultAllowedLogins())
 	return role
 }
 

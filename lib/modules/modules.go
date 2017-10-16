@@ -14,9 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// package plugins allows external packages override certain behavioral
+// package modules allows external packages override certain behavioral
 // aspects of teleport
-package plugins
+package modules
 
 import (
 	"fmt"
@@ -25,9 +25,9 @@ import (
 	"github.com/gravitational/teleport"
 )
 
-// Plugins defines interface that external libraries can implement customizing
+// Modules defines interface that external libraries can implement customizing
 // default teleport behavior
-type Plugins interface {
+type Modules interface {
 	// EmptyRoles handler is called when a new trusted cluster with empty roles
 	// is being created
 	EmptyRolesHandler() error
@@ -37,35 +37,35 @@ type Plugins interface {
 	PrintVersion()
 }
 
-// SetPlugins sets the plugins interface
-func SetPlugins(p Plugins) {
-	m.Lock()
-	defer m.Unlock()
-	plugins = p
+// SetModules sets the modules interface
+func SetModules(m Modules) {
+	mutex.Lock()
+	defer mutex.Unlock()
+	modules = m
 }
 
-// GetPlugins returns the plugins interface
-func GetPlugins() Plugins {
-	m.Lock()
-	defer m.Unlock()
-	return plugins
+// GetModules returns the modules interface
+func GetModules() Modules {
+	mutex.Lock()
+	defer mutex.Unlock()
+	return modules
 }
 
-type defaultPlugins struct{}
+type defaultModules struct{}
 
 // EmptyRolesHandler is called when a new trusted cluster with empty roles
 // is created, no-op by default
-func (p *defaultPlugins) EmptyRolesHandler() error {
+func (p *defaultModules) EmptyRolesHandler() error {
 	return nil
 }
 
 // DefaultAllowedLogins returns allowed logins for a new admin role
-func (p *defaultPlugins) DefaultAllowedLogins() []string {
+func (p *defaultModules) DefaultAllowedLogins() []string {
 	return []string{teleport.TraitInternalRoleVariable}
 }
 
 // PrintVersion prints teleport version
-func (p *defaultPlugins) PrintVersion() {
+func (p *defaultModules) PrintVersion() {
 	ver := fmt.Sprintf("Teleport v%s", teleport.Version)
 	if teleport.Gitref != "" {
 		ver = fmt.Sprintf("%s git:%s", ver, teleport.Gitref)
@@ -74,6 +74,6 @@ func (p *defaultPlugins) PrintVersion() {
 }
 
 var (
-	m               = &sync.Mutex{}
-	plugins Plugins = &defaultPlugins{}
+	mutex           = &sync.Mutex{}
+	modules Modules = &defaultModules{}
 )
