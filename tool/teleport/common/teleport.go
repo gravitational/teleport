@@ -144,7 +144,7 @@ func Run(cmdlineArgs []string, testRun bool) (executedCommand string, conf *serv
 			utils.FatalError(err)
 		}
 		if !testRun {
-			log.Info(conf.DebugDumpToYAML())
+			log.Debug(conf.DebugDumpToYAML())
 		}
 		if ccf.HTTPProfileEndpoint {
 			log.Warningf("http profile endpoint is deprecated, use gops instead")

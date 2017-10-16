@@ -30,9 +30,10 @@ or you can [build it from source](https://github.com/gravitational/teleport).
 
 After downloading the binary tarball, run:
 
-```
+```bash
 $ tar -xzf teleport-binary-release.tar.gz
-$ sudo make install
+$ cd teleport
+$ sudo ./install
 ```
 
 This will copy Teleport binaries to `/usr/local/bin`.
