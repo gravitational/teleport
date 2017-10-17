@@ -194,7 +194,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	// create the default role
-	c.Assert(s.authServer.UpsertRole(services.NewAdminRole(false), backend.Forever), IsNil)
+	c.Assert(s.authServer.UpsertRole(services.NewAdminRole(), backend.Forever), IsNil)
 
 	// configure cluster authentication preferences
 	cap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
