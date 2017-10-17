@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.3.5
+
+This release is focused on fixing a few regressions in configuration and UI/UX.
+
+#### Improvements
+
+* Updated documentation to accurately reflect 2.3 changes
+* Web UI can use introspection so users can skip explicitly specifying SSH port [#1410](https://github.com/gravitational/teleport/issues/1410)
+
+#### Bug fixes
+
+* Fixed issue of 2FA users getting prematurely locked out [#1347](https://github.com/gravitational/teleport/issues/1347)
+* UI (regression) when invite link is expired, nothing is shown to the user  [#1400](https://github.com/gravitational/teleport/issues/1400)
+* OIDC regression with some providers [#1371](https://github.com/gravitational/teleport/issues/1371)
+* Legacy configuration for trusted clusters regression: [#1381](https://github.com/gravitational/teleport/issues/1381)
+* Dynamic tokens for adding nodes: "access denied" [#1348](https://github.com/gravitational/teleport/issues/1348)
+
 ## 2.3.1
 
 #### Bug fixes
