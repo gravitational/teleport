@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/tool/tctl/common"
 )
 
@@ -29,5 +28,5 @@ func main() {
 		&common.AuthCommand{},
 		&common.ResourceCommand{},
 	}
-	common.Run(teleport.DistroTypeOSS, commands)
+	common.Run(commands)
 }

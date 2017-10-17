@@ -23,9 +23,6 @@ import (
 )
 
 func main() {
-	const (
-		testRun         = false
-		ossDistribution = ""
-	)
-	common.Run(os.Args[1:], ossDistribution, testRun)
+	const testRun = false
+	common.Run(os.Args[1:], testRun)
 }

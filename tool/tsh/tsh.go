@@ -248,7 +248,7 @@ func Run(args []string, underTest bool) {
 
 	switch command {
 	case ver.FullCommand():
-		utils.PrintVersion("")
+		utils.PrintVersion()
 	case ssh.FullCommand():
 		onSSH(&cf)
 	case bench.FullCommand():
