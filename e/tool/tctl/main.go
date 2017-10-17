@@ -6,11 +6,13 @@ Package main contains the enterprise edition of tctl CLI tool.
 package main
 
 import (
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/e/tool/modules"
+
 	"github.com/gravitational/teleport/tool/tctl/common"
 )
 
 func main() {
+	modules.SetModules()
 	commands := []common.CLICommand{
 		&UserCommandE{},
 		&common.NodeCommand{},
@@ -19,5 +21,5 @@ func main() {
 		&ResourceCommandE{},
 		&SAMLCommand{},
 	}
-	common.Run(teleport.DistroTypeEnterprise, commands)
+	common.Run(commands)
 }

@@ -4,8 +4,8 @@ import (
 	"os"
 
 	enterpriseUI "github.com/gravitational/teleport/e/lib/web"
+	"github.com/gravitational/teleport/e/tool/modules"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/teleport/tool/teleport/common"
 )
@@ -13,6 +13,7 @@ import (
 func main() {
 	// injects enterprise web handler plugins
 	web.SetPlugin(&enterpriseUI.Plugin{})
+	modules.SetModules()
 	const testRun = false
-	common.Run(os.Args[1:], teleport.DistroTypeEnterprise, testRun)
+	common.Run(os.Args[1:], testRun)
 }
