@@ -17679,6 +17679,10 @@ webpackJsonp([0],[
 	      return this.login + '@' + this.hostname;
 	    }
 
+	    if (this.serverId && this.login) {
+	      return this.login + '@' + this.serverId;
+	    }
+
 	    return '';
 	  };
 
