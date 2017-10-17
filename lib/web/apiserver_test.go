@@ -858,6 +858,16 @@ func (s *WebSuite) TestNewTerminalHandler(c *C) {
 	c.Assert(handler.hostName, Equals, "nodehostname")
 	c.Assert(handler.hostPort, Equals, 0)
 
+	handler, err = s.makeTerminalHandler("root", "nodehostname", []services.ServerV2{v2node})
+	c.Assert(err, IsNil)
+	c.Assert(handler.hostName, Equals, "nodehostname")
+	c.Assert(handler.hostPort, Equals, 0)
+
+	handler, err = s.makeTerminalHandler("root", "NODEhostname", []services.ServerV2{v2node})
+	c.Assert(err, IsNil)
+	c.Assert(handler.hostName, Equals, "nodehostname")
+	c.Assert(handler.hostPort, Equals, 0)
+
 	// invalid inputs
 	handler, err = s.makeTerminalHandler("", "localhost", emptyNodes)
 	c.Assert(err, NotNil)

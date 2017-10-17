@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
@@ -89,31 +90,9 @@ func NewTerminal(req TerminalRequest, provider NodeProvider, ctx *SessionContext
 		return nil, trace.Wrap(err)
 	}
 
-	var hostName = ""
-	var hostPort = 0
-
-	// when joining an active session, server is UUID
-	for i := range servers {
-		node := servers[i]
-		if node.GetName() == req.Server {
-			hostName = node.GetHostname()
-			break
-		}
-	}
-
-	// when joining an unlisted SSH server, server name is a string hostname[:port]
-	if hostName == "" {
-		hostName = req.Server
-		host, port, err := net.SplitHostPort(req.Server)
-		if err != nil {
-			hostPort = defaults.SSHDefaultPort
-		} else {
-			hostName = host
-			hostPort, err = strconv.Atoi(port)
-			if err != nil {
-				return nil, trace.BadParameter("server: invalid port", err)
-			}
-		}
+	hostName, hostPort, err := resolveHostPort(req.Server, servers)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return &TerminalHandler{
@@ -280,4 +259,37 @@ func getUserCredentials(agent auth.AgentCloser) (string, ssh.AuthMethod, error) 
 		return "", nil, trace.Wrap(err)
 	}
 	return cert.ValidPrincipals[0], ssh.PublicKeys(signers...), nil
+}
+
+// resolveHostPort parses an input value and attempts to resolve hostname and port of requested server
+func resolveHostPort(value string, existingServers []services.Server) (string, int, error) {
+	var hostName = ""
+	// if port is 0, it means the client wants us to figure out which port to use
+	var hostPort = 0
+
+	// check if server exists by comparing its UUID or hostname
+	for i := range existingServers {
+		node := existingServers[i]
+		if node.GetName() == value || strings.EqualFold(node.GetHostname(), value) {
+			hostName = node.GetHostname()
+			break
+		}
+	}
+
+	// if server is not found, parse SSH connection string (for joining an unlisted SSH server)
+	if hostName == "" {
+		hostName = value
+		host, port, err := net.SplitHostPort(value)
+		if err != nil {
+			hostPort = defaults.SSHDefaultPort
+		} else {
+			hostName = host
+			hostPort, err = strconv.Atoi(port)
+			if err != nil {
+				return "", 0, trace.BadParameter("server: invalid port", err)
+			}
+		}
+	}
+
+	return hostName, hostPort, nil
 }
