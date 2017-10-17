@@ -481,7 +481,7 @@ type Auth struct {
 
 	// OIDCConnectors is a list of trusted OpenID Connect Identity providers
 	// Deprecated: Use OIDC section in Authentication section instead.
-	OIDCConnectors []OIDCConnector `yaml:"oidc_connectors"`
+	OIDCConnectors []OIDCConnector `yaml:"oidc_connectors,omitempty"`
 
 	// Configuration for "universal 2nd factor"
 	// Deprecated: Use U2F section in Authentication section instead.
