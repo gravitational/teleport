@@ -1,11 +1,12 @@
-import FeatureBase from 'telebase-app/featureBase';
-import cfg from 'app/config'
-import { addNavItem } from './../flux/settings/actions';
+import { SettingsFeatureBase } from 'telebase-app/features/settings/featureSettings';
+import { addNavItem } from 'telebase-app/flux/settings/actions';
+
+import cfg from './../config'
 import { fetchTrustedClusters } from './../flux/settingsClusters/actions';
 import TrustedClusters from '../components/settings/tabTrustedClusters'
 import * as flags from './featureFlags';
 
-class TrustedClustersFeature extends FeatureBase {
+class TrustedClustersFeature extends SettingsFeatureBase {
 
   constructor(routes) {        
     super();
@@ -20,6 +21,10 @@ class TrustedClustersFeature extends FeatureBase {
   
   componentDidMount() {    
     this.init()    
+  }
+
+  isEnabled(){
+    return flags.isTrustedClrsEnabled();
   }
 
   init(){
@@ -43,7 +48,7 @@ class TrustedClustersFeature extends FeatureBase {
       title: "Trusted Clusters"  
     }
     
-    if (flags.isTrustedClrsEnabled()) {
+    if (this.isEnabled()) {
       addNavItem(navItem);
       this.init();
     }      

@@ -1,11 +1,11 @@
-import FeatureBase from 'telebase-app/featureBase';
+import { SettingsFeatureBase } from 'telebase-app/features/settings/featureSettings';
+import { addNavItem } from 'telebase-app/flux/settings/actions';
+
 import cfg from 'app/config'
-import { addNavItem } from './../flux/settings/actions';
 import { fetchAuthProviders } from './../flux/settingsAuth/actions';
 import SettingsAuth from '../components/settings/tabAuth'
 import * as flags from './featureFlags';
-
-class OAuthFeature extends FeatureBase {
+class OAuthFeature extends SettingsFeatureBase {
 
   constructor(routes) {        
     super();
@@ -35,12 +35,16 @@ class OAuthFeature extends FeatureBase {
     }
   }
 
+  isEnabled(){
+    return flags.isAuthConnectorsEnabled();
+  }
+
   onload() {             
     const navItem = {      
       to: cfg.routes.settingsAuth,
       title: "Auth. Connectors"  
     }        
-    if (flags.isAuthConnectorsEnabled()) {
+    if (this.isEnabled()) {
       addNavItem(navItem);
       this.init();
     }                

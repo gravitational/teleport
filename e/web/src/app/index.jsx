@@ -21,14 +21,14 @@ import { Provider } from 'nuclear-js-react-addons';
 
 // telebase imports
 import history from 'telebase-app/services/history';
-import { withAllRoutes } from 'telebase-app/routes';
-import { AuditFeature, SshFeature } from 'telebase-app/features';
 import FeatureActivator from 'telebase-app/featureActivator';
+import { withAllRoutes } from 'telebase-app/routes';
+import * as Features from 'telebase-app/features';
 import { initApp } from 'telebase-app/flux/app/actions';
 import 'telebase-app/flux';
 
 // app imports
-import SettignsFeature from './features/settings';
+import { createSettings } from './features';
 import reactor from 'app/reactor';
 import cfg from 'app/config';
 import './flux';
@@ -36,12 +36,12 @@ import './flux';
 cfg.init(window.GRV_CONFIG);
 history.init();
 
-const nestedRoutes = [];
+const childRoutes = [];
 const featureActivator = new FeatureActivator();
 
-featureActivator.register(new SshFeature(nestedRoutes));
-featureActivator.register(new AuditFeature(nestedRoutes));
-featureActivator.register(new SettignsFeature(nestedRoutes));
+featureActivator.register(new Features.Ssh(childRoutes));
+featureActivator.register(new Features.Audit(childRoutes));
+featureActivator.register(createSettings(childRoutes));
 
 const onEnterApp = nextState => {  
   let { siteId } = nextState.params; 
@@ -51,7 +51,7 @@ const onEnterApp = nextState => {
 const routes = [
   {       
     onEnter: onEnterApp,
-    childRoutes: nestedRoutes        
+    childRoutes: childRoutes        
   }
 ]
 

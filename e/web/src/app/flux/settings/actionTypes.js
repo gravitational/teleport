@@ -1,5 +1,0 @@
-export const INIT = 'SETTINGS_INIT';
-export const ADD_NAV_ITEM = 'SETTINGS_ADD_NAV_ITEM';
-export const SET_RES_TO_DELETE = 'SETTINGS_SET_RES_TO_DELETE';
-
-

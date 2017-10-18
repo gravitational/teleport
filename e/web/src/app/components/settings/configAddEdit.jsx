@@ -1,10 +1,10 @@
 import React, { PropTypes } from 'react';
 import classnames from 'classnames';
+import * as Alerts from 'telebase-app/components/alerts';
 import Layout from 'app/components/common/layout';
 import Button from 'app/components/common/button';
 import YamlEditor from './yamlEditor';
 import withChangeTracker from './../withChangeTracker';
-import * as Alerts from 'app/components/common/alerts';
 
 class AddEditConfig extends React.Component {
   

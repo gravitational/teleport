@@ -1,11 +1,12 @@
+import Logger from 'telebase-app/lib/logger';
+import apiActions from 'telebase-app/flux/restApi/actions';
+
 import reactor from 'app/reactor';
 import { ResourceEnum } from 'app/services/enums';
 import * as resApi from 'app/services/resources';
 import api from 'app/services/api';
 import * as RAT from 'app/flux/restApi/constants';
-import Logger from 'telebase-app/lib/logger';
-import apiActions from 'telebase-app/flux/restApi/actions';
-import { closeDeleteDialog } from '../settings/actions';
+import { closeDeleteDialog } from './../settingsDialogs/actions';
 import { getAuthStore } from './store';
 import * as AT from './actionTypes';
 
