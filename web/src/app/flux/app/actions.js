@@ -85,7 +85,7 @@ const actions = {
 
   fetchUserContext(){
     return api.get(cfg.api.userContextPath).done(json=>{      
-      reactor.dispatch(RECEIVE_USER, { name: json.userName });
+      reactor.dispatch(RECEIVE_USER, { name: json.userName, authType: json.authType });
       reactor.dispatch(RECEIVE_USERACL, json.userAcl);
     })    
   }      

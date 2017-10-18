@@ -35,3 +35,8 @@ export const AuthProviderEnum = {
   GITHUB: 'github',
   BITBUCKET: 'bitbucket'
 }
+
+export const AuthTypeEnum = {
+  LOCAL: 'local',
+  SSO: 'sso'
+}

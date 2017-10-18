@@ -19,7 +19,7 @@ import { connect } from 'nuclear-js-react-addons';
 import $ from 'jQuery';
 import 'app/../assets/js/jquery-validate';
 import actions from 'app/flux/user/actions';
-import getters from 'app/flux/user/getters';
+import { getters } from 'app/flux/user';
 import GoogleAuthInfo from './googleAuthLogo';
 import cfg from 'app/config';
 import { ErrorMessage } from './items';

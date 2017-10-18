@@ -15,24 +15,23 @@ limitations under the License.
 */
 
 import reactor from 'app/reactor';
-
+import getters from './getters';
 import * as AT from './actionTypes';
+import * as RAT from './../restApi/constants';
+import apiActions from './../restApi/actions';
 
-export default {
-
-  start(reqType){
-    reactor.dispatch(AT.TLPT_REST_API_START, {type: reqType});
-  },
-
-  fail(reqType, message){
-    reactor.dispatch(AT.TLPT_REST_API_FAIL,  {type: reqType, message});
-  },
-
-  success(reqType){
-    reactor.dispatch(AT.TLPT_REST_API_SUCCESS, {type: reqType});
-  },
-
-  clear(reqType){
-    reactor.dispatch(AT.TLPT_REST_API_CLEAR, {type: reqType});
-  }
+export function addNavItem(navItem){
+  reactor.dispatch(AT.ADD_NAV_ITEM, navItem)
 }
+
+export function initSettings(featureActivator) {                    
+  // init only once
+  let store = reactor.evaluate(getters.store)
+  if (store.isReady()){
+    return;
+  }
+  
+  featureActivator.onload();         
+  reactor.dispatch(AT.INIT, {});            
+  apiActions.success(RAT.TRYING_TO_INIT_SETTINGS);                  
+}         

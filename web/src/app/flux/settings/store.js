@@ -14,40 +14,38 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { Store, toImmutable } from 'nuclear-js';
-import { Record} from 'immutable';
-import { RECEIVE_USER } from './actionTypes';
-import { AuthTypeEnum } from 'app/services/enums';
+import { Store } from 'nuclear-js';
+import { Record, List } from 'immutable';
+import * as AT from './actionTypes';
 
-class UserRec extends Record({  
-  name: '',
-  authType: '',  
+class SettingsRec extends Record({  
+  isInitialized: false,  
+  navItems: new List() 
 }){
-
   constructor(params){
     super(params);            
   }
   
-  isSso() {
-    return this.get('authType') === AuthTypeEnum.SSO;
-  }  
+  isReady() {
+    return this.isInitialized;
+  }    
 
-  getName() {
-    return this.get('name');
+  getNavItems(){    
+    return this.navItems.toJS();
   }
-
+  
+  addNavItem(navItem) {    
+    return this.set('navItems', this.navItems.push(navItem))
+  }
 }
 
 export default Store({
   getInitialState() {
-    return toImmutable(null);
+    return new SettingsRec();
   },
 
-  initialize() {
-    this.on(RECEIVE_USER, receiveUser);   
+  initialize() {    
+    this.on(AT.INIT, state => state.set('isInitialized', true))    
+    this.on(AT.ADD_NAV_ITEM, (state, navItem) => state.addNavItem(navItem))
   }
-})
-
-function receiveUser(state, json){
-  return new UserRec(json);    
-}
+});

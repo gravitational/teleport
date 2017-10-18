@@ -20,7 +20,7 @@ import history from 'app/services/history';
 import {createMemoryHistory} from 'react-router';
 import {reactor, expect, api, Dfd, spyOn} from './../';
 import actions from 'app/flux/user/actions';
-import getters from 'app/flux/user/getters';
+import * as UserFlux from 'app/flux/user';
 import {AuthProviderTypeEnum, AuthProviderEnum} from 'app/services/enums';
 import {RECEIVE_USER} from 'app/flux/user/actionTypes';
 import * as apiData from 'app/__tests__/apiData';
@@ -29,7 +29,7 @@ describe('flux/user/getters', () => {
   it('should return "user"', () => {
     const userName = apiData.userContext.userName;    
     reactor.dispatch(RECEIVE_USER, { name: userName });    
-    expect(reactor.evaluate(getters.userName)).toEqual(userName);
+    expect(reactor.evaluate(UserFlux.getters.userName)).toEqual(userName);
   });
 });
 
@@ -63,21 +63,21 @@ describe('flux/user/actions', () => {
     it('should handle loading state', () => {
       spyOn(api, 'get').andReturn(Dfd());
       actions.fetchInvite(inviteToken)
-      expect(reactor.evaluate(getters.fetchingInvite)).toEqual({isProcessing: true});
+      expect(reactor.evaluate(UserFlux.getters.fetchingInvite)).toEqual({isProcessing: true});
     });
 
     it('should handle failed state', () => {
       const message = 'error';
       spyOn(api, 'get').andReturn(Dfd().reject(err));
       actions.fetchInvite(inviteToken)
-      expect(reactor.evaluate(getters.fetchingInvite)).toEqual({isFailed: true, message});
+      expect(reactor.evaluate(UserFlux.getters.fetchingInvite)).toEqual({isFailed: true, message});
     });
 
     it('should handle success state', () => {
       spyOn(api, 'get').andReturn(Dfd().resolve(inviteInfoSample));
       actions.fetchInvite(inviteToken)
-      expect(reactor.evaluateToJS(getters.invite)).toEqual(inviteInfoSample);
-      expect(reactor.evaluate(getters.fetchingInvite)).toEqual({isSuccess: true});
+      expect(reactor.evaluateToJS(UserFlux.getters.invite)).toEqual(inviteInfoSample);
+      expect(reactor.evaluate(UserFlux.getters.fetchingInvite)).toEqual({isSuccess: true});
     });
   });
 
@@ -120,14 +120,14 @@ describe('flux/user/actions', () => {
       actions.login(email, password);
 
       // processing
-      let attemp = reactor.evaluateToJS(getters.loginAttemp);
+      let attemp = reactor.evaluateToJS(UserFlux.getters.loginAttemp);
       expect(attemp.isProcessing).toBe(true);
 
       // reject
       reactor.reset();
       spyOn(auth, 'login').andReturn(Dfd().reject(err));
       actions.login(email, password);
-      attemp = reactor.evaluateToJS(getters.loginAttemp);
+      attemp = reactor.evaluateToJS(UserFlux.getters.loginAttemp);
       expect(attemp.isFailed).toBe(true);
     });
   })

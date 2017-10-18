@@ -20,7 +20,7 @@ import classnames from 'classnames';
 import { connect } from 'nuclear-js-react-addons';
 import cfg from 'app/config';
 import actions from 'app/flux/user/actions';
-import getters from 'app/flux/user/getters';
+import { getters } from 'app/flux/user';
 import { Auth2faTypeEnum } from 'app/services/enums';
 import { ExpiredLink } from './../msgPage';
 import { TeleportLogo } from './../icons.jsx';

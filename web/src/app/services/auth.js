@@ -108,6 +108,49 @@ const auth = {
       });
   },
 
+  changePassword(oldPass, newPass, token) {
+    const data = {
+      old_password: window.btoa(oldPass),
+      new_password: window.btoa(newPass),
+      second_factor_token: token
+    }
+    
+    return api.put(cfg.api.changeUserPasswordPath, data);      
+  },
+
+  changePasswordWithU2f(oldPass, newPass) {
+    const data = {
+      user: name,
+      pass: oldPass,
+    };
+    
+    return api.post(cfg.api.u2fChangePassChallengePath, data).then(data=>{
+      const deferred = $.Deferred();
+
+      window.u2f.sign(data.appId, data.challenge, [data], function(res){
+        if(res.errorCode){
+          const err = auth._getU2fErr(res.errorCode);
+          deferred.reject(err);
+          return;
+        }
+        
+        const data = {          
+          new_password: window.btoa(newPass),
+          u2f_sign_response: res
+        }
+
+        api.put(cfg.api.changeUserPasswordPath, data).then(data=>{                    
+          deferred.resolve(data);
+        }).fail(data=>{
+          deferred.reject(data);
+        });
+        
+      });
+
+      return deferred.promise();
+    });    
+  },
+  
   _getU2fErr(errorCode){
     let errorMsg = "";
     // lookup error message...

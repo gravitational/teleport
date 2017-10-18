@@ -48,6 +48,8 @@ const cfg = {
     player: '/web/player/node/:siteId/sid/:sid',
     ssoOidc: '/v1/webapi/oidc/*',        
     ssoSaml: '/v1/webapi/saml/*',    
+    settingsBase: '/web/settings',        
+    settingsAccount: '/web/settings/account',        
   },
 
   api: {    
@@ -59,9 +61,12 @@ const cfg = {
     userStatusPath: '/v1/webapi/user/status',    
     invitePath: '/v1/webapi/users/invites/:inviteToken',        
     createUserPath: '/v1/webapi/users',
+    changeUserPasswordPath: '/v1/webapi/users/password',
     u2fCreateUserChallengePath: '/v1/webapi/u2f/signuptokens/:inviteToken',
     u2fCreateUserPath: '/v1/webapi/u2f/users',
     u2fSessionChallengePath: '/v1/webapi/u2f/signrequest',
+    u2fChangePassChallengePath: '/v1/webapi/u2f/password/changerequest',
+    u2fChangePassPath: '/v1/webapi/u2f/password',
     u2fSessionPath: '/v1/webapi/u2f/sessions',
     sitesBasePath: '/v1/webapi/sites',
     sitePath: '/v1/webapi/sites/:siteId',  

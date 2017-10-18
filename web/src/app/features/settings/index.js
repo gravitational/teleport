@@ -14,29 +14,22 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-.grv-alert {
-  padding: 10px;  
-  border: 1px solid transparent;  
-  max-height: 100px;
-  text-overflow: ellipsis;
-  overflow: auto;
-  text-align: left;
+import SettingsAccount from './featureSettingsAccount'
+import Settings from './featureSettings'
+
+/**
+ * Adds nested feature to given Settings feature
+ * @param {*instance of Settings feature} settings 
+ */
+export const append = (settings, fctor) =>  {
+  const f = new fctor(settings.childRoutes);
+  settings.addChild(f)
+} 
+
+export const createSettings = routes => {  
+  const settings = new Settings(routes);
+  append(settings, SettingsAccount)    
+  return settings;
 }
 
-.grv-alert-danger {
-  color: #a94442;
-  background-color: #f2dede;
-  border-color: #ebccd1;  
-  text-overflow: ellipsis;
-}
 
-.grv-alert-info {  
-  background-color: #f0f0f0;  
-  text-overflow: ellipsis;
-}
-
-.grv-alert-success{
-  background-color: #f0f0f0;  
-  color: $grv-color-success;
-  text-overflow: ellipsis;
-}

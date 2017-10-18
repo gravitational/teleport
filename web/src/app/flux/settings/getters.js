@@ -14,16 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var {TRYING_TO_LOGIN, TRYING_TO_SIGN_UP, FETCHING_INVITE} = require('app/flux/restApi/constants');
-var {requestStatus} = require('app/flux/restApi/getters');
-
-const invite = [ ['tlpt_user_invite'], invite => invite ];
-const userName = ['tlpt_user', 'name']
-
-export default {
-  userName,
-  invite,
-  loginAttemp: requestStatus(TRYING_TO_LOGIN),
-  attemp: requestStatus(TRYING_TO_SIGN_UP),
-  fetchingInvite: requestStatus(FETCHING_INVITE)
+export default {  
+  store: ['tlpt_settings']  
 }
