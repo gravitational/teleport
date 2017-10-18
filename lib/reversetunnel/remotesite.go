@@ -258,8 +258,10 @@ func (s *remoteSite) isOnline(conn services.TunnelConnection) bool {
 	return diff < defaults.ReverseTunnelOfflineThreshold
 }
 
-// findDisconnectedProxies
+// findDisconnectedProxies finds proxies that do not have inbound reverse tunnel
+// connections
 func (s *remoteSite) findDisconnectedProxies() ([]services.Server, error) {
+	connInfo := s.copyConnInfo()
 	conns, err := s.srv.AccessPoint.GetTunnelConnections(s.domainName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -277,7 +279,8 @@ func (s *remoteSite) findDisconnectedProxies() ([]services.Server, error) {
 	var missing []services.Server
 	for i := range proxies {
 		proxy := proxies[i]
-		if !connected[proxy.GetName()] {
+		// do not add this proxy to the list of disconnected proxies
+		if !connected[proxy.GetName()] && proxy.GetName() != connInfo.GetProxyName() {
 			missing = append(missing, proxy)
 		}
 	}
@@ -299,12 +302,12 @@ func (s *remoteSite) sendDiscoveryRequest() error {
 	if len(disconnectedProxies) == 0 {
 		return nil
 	}
-	cn, err := s.clt.GetClusterName()
+	clusterName, err := s.srv.AccessPoint.GetDomainName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	clusterName := cn.GetClusterName()
-	s.Debugf("going to request discovery for: %v: %v", clusterName, Proxies(disconnectedProxies))
+	connInfo := s.copyConnInfo()
+	s.Debugf("proxy %q is going to request discovery for: %q", connInfo.GetProxyName(), Proxies(disconnectedProxies))
 	req := discoveryRequest{
 		ClusterName: clusterName,
 		Proxies:     disconnectedProxies,
