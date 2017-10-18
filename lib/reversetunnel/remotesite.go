@@ -214,6 +214,7 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 				s.Debugf("ping <- %v", conn.conn.RemoteAddr())
 			}
 			go s.registerHeartbeat(time.Now())
+		// since we block on select, time.After is re-created everytime we process a request.
 		case <-time.After(defaults.ReverseTunnelOfflineThreshold):
 			conn.markInvalid(trace.ConnectionProblem(nil, "no heartbeats for %v", defaults.ReverseTunnelOfflineThreshold))
 		}
@@ -298,9 +299,15 @@ func (s *remoteSite) sendDiscoveryRequest() error {
 	if len(disconnectedProxies) == 0 {
 		return nil
 	}
-	s.Debugf("going to request discovery for: %v", Proxies(disconnectedProxies))
+	cn, err := s.clt.GetClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	clusterName := cn.GetClusterName()
+	s.Debugf("going to request discovery for: %v: %v", clusterName, Proxies(disconnectedProxies))
 	req := discoveryRequest{
-		Proxies: disconnectedProxies,
+		ClusterName: clusterName,
+		Proxies:     disconnectedProxies,
 	}
 	payload, err := marshalDiscoveryRequest(req)
 	if err != nil {

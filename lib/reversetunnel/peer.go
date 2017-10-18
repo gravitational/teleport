@@ -118,7 +118,7 @@ func (p *clusterPeers) GetLastConnected() time.Time {
 // located in a remote connected site, the connection goes through the
 // reverse proxy tunnel.
 func (p *clusterPeers) Dial(from, to net.Addr) (conn net.Conn, err error) {
-	return nil, trace.ConnectionProblem(nil, "lost connection to reverse tunnel")
+	return nil, trace.ConnectionProblem(nil, "unable to dial, this proxy has not been discovered yet, try again later")
 }
 
 // newClusterPeer returns new cluster peer
@@ -146,11 +146,11 @@ type clusterPeer struct {
 }
 
 func (s *clusterPeer) CachingAccessPoint() (auth.AccessPoint, error) {
-	return nil, trace.ConnectionProblem(nil, "lost connection to reverse tunnel")
+	return nil, trace.ConnectionProblem(nil, "unable to fetch access point, this proxy %v has not been discovered yet, try again later")
 }
 
 func (s *clusterPeer) GetClient() (auth.ClientI, error) {
-	return nil, trace.ConnectionProblem(nil, "lost connection to reverse tunnel")
+	return nil, trace.ConnectionProblem(nil, "unable to fetch client, this proxy %v has not been discovered yet, try again later", s)
 }
 
 func (s *clusterPeer) String() string {
@@ -177,5 +177,5 @@ func (s *clusterPeer) GetLastConnected() time.Time {
 // located in a remote connected site, the connection goes through the
 // reverse proxy tunnel.
 func (s *clusterPeer) Dial(from, to net.Addr) (conn net.Conn, err error) {
-	return nil, trace.ConnectionProblem(nil, "lost connection to remote proxy")
+	return nil, trace.ConnectionProblem(nil, "unable to dial, this proxy %v has not been discovered yet, try again later", s)
 }

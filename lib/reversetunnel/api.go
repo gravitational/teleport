@@ -12,25 +12,8 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
-reversetunnel package allows teleport clusters to connect to each
-other and to allow users of one cluster to get access to machines
-inside of another cluster.
-
-This capability is called "Trusted Clusters": see Teleport documentation.
-The words "site" and "clusters" are used in the code interchangeably.
-
-Every cluster, in order to be accessible by other trusted clusters,
-must register itself with the reverse tunnel server.
-
-Reverse tunnel server: the TCP/IP server which accepts remote connections
-(tunnels) and keeps track of them. There are two types of tunnels:
-	- Direct (local)
-	- Remote
-
-Direct sites/tunnels are tunnels to itself, i.e. within the same cluster.
-Remote sites/tunnels are, well, remote.
 */
+
 package reversetunnel
 
 import (
