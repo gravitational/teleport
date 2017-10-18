@@ -723,6 +723,10 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 		{Remote: mainDevs, Local: []string{auxDevs}},
 	})
 
+	// modify trusted cluster resource name so it would not
+	// match the cluster name to check that it does not matter
+	trustedCluster.SetName(main.Secrets.SiteName + "-cluster")
+
 	c.Assert(main.Start(), check.IsNil)
 	c.Assert(aux.Start(), check.IsNil)
 
@@ -781,6 +785,8 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 
 	// make sure both clusters have the right certificate authorities with the right signing keys.
 	var tests = []struct {
+		mainClusterName  string
+		auxClusterName   string
 		inCluster        *TeleInstance
 		outChkMainUserCA check.Checker
 		outLenMainUserCA int
@@ -797,6 +803,8 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 		//   * User CA for aux does not exist.
 		//   * Host CA for aux has no signing keys.
 		{
+			main.Secrets.SiteName,
+			aux.Secrets.SiteName,
 			main,
 			check.IsNil, 1,
 			check.IsNil, 1,
@@ -809,6 +817,8 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 		//   * User CA for aux has one signing key.
 		//   * Host CA for aux has one signing key.
 		{
+			trustedCluster.GetName(),
+			aux.Secrets.SiteName,
 			aux,
 			check.IsNil, 0,
 			check.IsNil, 0,
@@ -818,28 +828,28 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 	}
 
 	for i, tt := range tests {
-		cid := services.CertAuthID{Type: services.UserCA, DomainName: "cluster-main"}
+		cid := services.CertAuthID{Type: services.UserCA, DomainName: tt.mainClusterName}
 		mainUserCAs, err := tt.inCluster.Process.GetAuthServer().GetCertAuthority(cid, true)
 		c.Assert(err, tt.outChkMainUserCA)
 		if tt.outChkMainUserCA == check.IsNil {
 			c.Assert(mainUserCAs.GetSigningKeys(), check.HasLen, tt.outLenMainUserCA, check.Commentf("Test %v, Main User CA", i))
 		}
 
-		cid = services.CertAuthID{Type: services.HostCA, DomainName: "cluster-main"}
+		cid = services.CertAuthID{Type: services.HostCA, DomainName: tt.mainClusterName}
 		mainHostCAs, err := tt.inCluster.Process.GetAuthServer().GetCertAuthority(cid, true)
 		c.Assert(err, tt.outChkMainHostCA)
 		if tt.outChkMainHostCA == check.IsNil {
 			c.Assert(mainHostCAs.GetSigningKeys(), check.HasLen, tt.outLenMainHostCA, check.Commentf("Test %v, Main Host CA", i))
 		}
 
-		cid = services.CertAuthID{Type: services.UserCA, DomainName: "cluster-aux"}
+		cid = services.CertAuthID{Type: services.UserCA, DomainName: tt.auxClusterName}
 		auxUserCAs, err := tt.inCluster.Process.GetAuthServer().GetCertAuthority(cid, true)
 		c.Assert(err, tt.outChkAuxUserCA)
 		if tt.outChkAuxUserCA == check.IsNil {
 			c.Assert(auxUserCAs.GetSigningKeys(), check.HasLen, tt.outLenAuxUserCA, check.Commentf("Test %v, Aux User CA", i))
 		}
 
-		cid = services.CertAuthID{Type: services.HostCA, DomainName: "cluster-aux"}
+		cid = services.CertAuthID{Type: services.HostCA, DomainName: tt.auxClusterName}
 		auxHostCAs, err := tt.inCluster.Process.GetAuthServer().GetCertAuthority(cid, true)
 		c.Assert(err, tt.outChkAuxHostCA)
 		if tt.outChkAuxHostCA == check.IsNil {
