@@ -209,6 +209,11 @@ func (s *server) periodicFetchClusterPeers() {
 	}
 }
 
+// fetchClusterPeers pulls back all proxies that have registered themselves
+// (created a services.TunnelConnection) in the backend and compares them to
+// what was found in the previous iteration and updates the in-memory cluster
+// peer map. This map is used later by GetSite(s) to return either local or
+// remote site, or if non match, a cluster peer.
 func (s *server) fetchClusterPeers() error {
 	conns, err := s.AccessPoint.GetAllTunnelConnections()
 	if err != nil {
@@ -575,6 +580,14 @@ func (s *server) GetSites() []RemoteSite {
 	return out
 }
 
+// GetSite returns a RemoteSite. The first attempt is to find and return a
+// remote site and that is what is returned if a remote remote agent has
+// connected to this proxy. Next we loop over local sites and try and try and
+// return a local site. If that fails, we return a cluster peer. This happens
+// when you hit proxy that has never had an agent connect to it. If you end up
+// with a cluster peer your best bet is to wait until the agent has discovered
+// all proxies behind a the load balancer. Note, the cluster peer is a
+// services.TunnelConnection that was created by another proxy.
 func (s *server) GetSite(name string) (RemoteSite, error) {
 	s.RLock()
 	defer s.RUnlock()

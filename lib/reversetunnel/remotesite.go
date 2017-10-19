@@ -214,6 +214,7 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 				s.Debugf("ping <- %v", conn.conn.RemoteAddr())
 			}
 			go s.registerHeartbeat(time.Now())
+		// since we block on select, time.After is re-created everytime we process a request.
 		case <-time.After(defaults.ReverseTunnelOfflineThreshold):
 			conn.markInvalid(trace.ConnectionProblem(nil, "no heartbeats for %v", defaults.ReverseTunnelOfflineThreshold))
 		}
@@ -257,8 +258,10 @@ func (s *remoteSite) isOnline(conn services.TunnelConnection) bool {
 	return diff < defaults.ReverseTunnelOfflineThreshold
 }
 
-// findDisconnectedProxies
+// findDisconnectedProxies finds proxies that do not have inbound reverse tunnel
+// connections
 func (s *remoteSite) findDisconnectedProxies() ([]services.Server, error) {
+	connInfo := s.copyConnInfo()
 	conns, err := s.srv.AccessPoint.GetTunnelConnections(s.domainName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -276,7 +279,8 @@ func (s *remoteSite) findDisconnectedProxies() ([]services.Server, error) {
 	var missing []services.Server
 	for i := range proxies {
 		proxy := proxies[i]
-		if !connected[proxy.GetName()] {
+		// do not add this proxy to the list of disconnected proxies
+		if !connected[proxy.GetName()] && proxy.GetName() != connInfo.GetProxyName() {
 			missing = append(missing, proxy)
 		}
 	}
@@ -298,9 +302,15 @@ func (s *remoteSite) sendDiscoveryRequest() error {
 	if len(disconnectedProxies) == 0 {
 		return nil
 	}
-	s.Debugf("going to request discovery for: %v", Proxies(disconnectedProxies))
+	clusterName, err := s.srv.AccessPoint.GetDomainName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	connInfo := s.copyConnInfo()
+	s.Debugf("proxy %q is going to request discovery for: %q", connInfo.GetProxyName(), Proxies(disconnectedProxies))
 	req := discoveryRequest{
-		Proxies: disconnectedProxies,
+		ClusterName: clusterName,
+		Proxies:     disconnectedProxies,
 	}
 	payload, err := marshalDiscoveryRequest(req)
 	if err != nil {

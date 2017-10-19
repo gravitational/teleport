@@ -12,7 +12,7 @@ import (
 )
 
 type discoveryRequest struct {
-	ClusterName string            `json:"-"`
+	ClusterName string            `json:"cluster_name"`
 	ClusterAddr utils.NetAddr     `json:"-"`
 	Proxies     []services.Server `json:"proxies"`
 }
@@ -56,7 +56,8 @@ func (r discoveryRequest) String() string {
 }
 
 type discoveryRequestRaw struct {
-	Proxies []json.RawMessage `json:"proxies"`
+	ClusterName string            `json:"cluster_name"`
+	Proxies     []json.RawMessage `json:"proxies"`
 }
 
 func marshalDiscoveryRequest(req discoveryRequest) ([]byte, error) {
@@ -69,7 +70,7 @@ func marshalDiscoveryRequest(req discoveryRequest) ([]byte, error) {
 		}
 		out.Proxies = append(out.Proxies, data)
 	}
-
+	out.ClusterName = req.ClusterName
 	return json.Marshal(out)
 }
 
@@ -91,5 +92,6 @@ func unmarshalDiscoveryRequest(data []byte) (*discoveryRequest, error) {
 		}
 		out.Proxies = append(out.Proxies, proxy)
 	}
+	out.ClusterName = raw.ClusterName
 	return &out, nil
 }

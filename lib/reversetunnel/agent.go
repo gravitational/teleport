@@ -217,6 +217,7 @@ func (a *Agent) Wait() error {
 	return nil
 }
 
+// connectedTo returns true if connected services.Server passed in.
 func (a *Agent) connectedTo(proxy services.Server) bool {
 	principals := a.getPrincipals()
 	proxyID := fmt.Sprintf("%v.%v", proxy.GetName(), a.RemoteCluster)
@@ -226,6 +227,8 @@ func (a *Agent) connectedTo(proxy services.Server) bool {
 	return false
 }
 
+// connectedToRightProxy returns true if it connected to a proxy in the
+// discover list.
 func (a *Agent) connectedToRightProxy() bool {
 	for _, proxy := range a.DiscoverProxies {
 		if a.connectedTo(proxy) {
@@ -474,41 +477,45 @@ func (a *Agent) run() {
 			}
 		}
 
+		// try and connect to remote cluster
 		conn, err := a.connect()
 		firstAttempt = false
 		if err != nil || conn == nil {
 			ticker.IncrementFailureCount()
 			a.Warningf("failed to create remote tunnel: %v, conn: %v", err, conn)
 			continue
+		}
+
+		// successfully connected to remote cluster
+		ticker.Reset()
+		a.Infof("connected to %s", conn.RemoteAddr())
+		if len(a.DiscoverProxies) != 0 {
+			// we did not connect to a proxy in the discover list (which means we
+			// connected to a proxy we already have a connection to), try again
+			if !a.connectedToRightProxy() {
+				a.Debugf("missed, connected to %v instead of %v", a.getPrincipalsList(), Proxies(a.DiscoverProxies))
+				conn.Close()
+				continue
+			}
+			a.setState(agentStateDiscovered)
 		} else {
-			ticker.Reset()
-			a.Infof("connected to %s", conn.RemoteAddr())
-			if len(a.DiscoverProxies) != 0 {
-				if !a.connectedToRightProxy() {
-					a.Debugf("missed, connected to %v instead of %v", a.getPrincipalsList(), Proxies(a.DiscoverProxies))
-					conn.Close()
-					continue
-				}
-				a.setState(agentStateDiscovered)
-			} else {
-				a.setState(agentStateConnected)
+			a.setState(agentStateConnected)
+		}
+		if a.EventsC != nil {
+			select {
+			case a.EventsC <- ConnectedEvent:
+			case <-a.ctx.Done():
+				a.Debugf("context is closing")
+				return
+			default:
 			}
-			if a.EventsC != nil {
-				select {
-				case a.EventsC <- ConnectedEvent:
-				case <-a.ctx.Done():
-					a.Debugf("context is closing")
-					return
-				default:
-				}
-			}
-			// start heartbeat even if error happend, it will reconnect
-			// when this happens, this is #1 issue we have right now with Teleport. So we are making
-			// it EASY to see in the logs. This condition should never be permanent (repeates
-			// every XX seconds)
-			if err := a.processRequests(conn); err != nil {
-				log.Warn(err)
-			}
+		}
+		// start heartbeat even if error happend, it will reconnect
+		// when this happens, this is #1 issue we have right now with Teleport. So we are making
+		// it EASY to see in the logs. This condition should never be permanent (repeates
+		// every XX seconds)
+		if err := a.processRequests(conn); err != nil {
+			log.Warn(err)
 		}
 	}
 }
@@ -620,7 +627,6 @@ func (a *Agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 				a.Warningf("bad payload: %v", err)
 				return
 			}
-			r.ClusterName = a.RemoteCluster
 			r.ClusterAddr = a.Addr
 			select {
 			case a.DiscoveryC <- r:
