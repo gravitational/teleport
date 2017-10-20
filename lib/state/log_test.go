@@ -195,7 +195,7 @@ func (s *CacheLogSuite) TestRetryOnError(c *check.C) {
 	for i := 0; i < 3; i++ {
 		waitSlice(c, mock.FailedAttemptsC, time.Second)
 	}
-	// wait until successfull attempt
+	// wait until successful attempt
 	mock.SetError(nil)
 	out := waitSlice(c, mock.SlicesC, time.Second)
 	fixtures.DeepCompare(c, out, slice)

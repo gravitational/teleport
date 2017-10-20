@@ -34,7 +34,7 @@ import (
 //
 // We need this to make sure that the entire buffer in io.Writer.Write(buffer)
 // is delivered as a single chunk to the web browser, instead of being split
-// into multiple frames. This wrapper basically substitues every Write() with
+// into multiple frames. This wrapper basically substitutes every Write() with
 // Send() and every Read() with Receive()
 type WebSockWrapper struct {
 	io.ReadWriteCloser

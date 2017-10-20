@@ -510,9 +510,9 @@ func (a *Agent) run() {
 			default:
 			}
 		}
-		// start heartbeat even if error happend, it will reconnect
+		// start heartbeat even if error happened, it will reconnect
 		// when this happens, this is #1 issue we have right now with Teleport. So we are making
-		// it EASY to see in the logs. This condition should never be permanent (repeates
+		// it EASY to see in the logs. This condition should never be permanent (repeats
 		// every XX seconds)
 		if err := a.processRequests(conn); err != nil {
 			log.Warn(err)

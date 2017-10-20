@@ -922,7 +922,7 @@ func initSelfSignedHTTPSCert(cfg *Config) (err error) {
 	cfg.Proxy.TLSKey = keyPath
 	cfg.Proxy.TLSCert = certPath
 
-	// return the existing pair if they ahve already been generated:
+	// return the existing pair if they have already been generated:
 	_, err = tls.LoadX509KeyPair(certPath, keyPath)
 	if err == nil {
 		return nil

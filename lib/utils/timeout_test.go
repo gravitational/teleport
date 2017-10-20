@@ -76,7 +76,7 @@ func (s *TimeoutSuite) TestNormalOperation(c *check.C) {
 }
 
 // newClient helper returns HTTP client configured to use a connection
-// wich drops itself after N idle time
+// which drops itself after N idle time
 func newClient(timeout time.Duration) *http.Client {
 	var t http.Transport
 	t.Dial = func(network string, addr string) (net.Conn, error) {

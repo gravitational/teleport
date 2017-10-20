@@ -987,7 +987,7 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// After successfull login we have local agent updated with latest
+	// After successful login we have local agent updated with latest
 	// and greatest auth information, try it now
 	sshConfig.Auth = []ssh.AuthMethod{authMethod}
 	sshConfig.User = proxyPrincipal
@@ -1392,7 +1392,7 @@ func ParsePortForwardSpec(spec []string) (ports ForwardedPorts, err error) {
 	if len(spec) == 0 {
 		return ports, nil
 	}
-	const errTemplate = "Invalid port forwarding spec: '%s'. Sould be like `80:remote.host:80`"
+	const errTemplate = "Invalid port forwarding spec: '%s'. Could be like `80:remote.host:80`"
 	ports = make([]ForwardedPort, len(spec), len(spec))
 
 	for i, str := range spec {

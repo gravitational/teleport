@@ -1002,7 +1002,7 @@ type createNewUserReq struct {
 //
 // {"invite_token": "unique invite token", "pass": "user password", "second_factor_token": "valid second factor token"}
 //
-// Sucessful response: (session cookie is set)
+// Successful response: (session cookie is set)
 //
 // {"type": "bearer", "token": "bearer token", "user": "alex", "expires_in": 20}
 func (h *Handler) createNewUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -1037,7 +1037,7 @@ type createNewU2FUserReq struct {
 //
 // {"invite_token": "unique invite token", "pass": "user password", "u2f_register_response": {"registrationData":"verylongbase64string","clientData":"longbase64string"}}
 //
-// Sucessful response: (session cookie is set)
+// Successful response: (session cookie is set)
 //
 // {"type": "bearer", "token": "bearer token", "user": "alex", "expires_in": 20}
 func (h *Handler) createNewU2FUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -1085,7 +1085,7 @@ func convertSites(rs []reversetunnel.RemoteSite) []site {
 //
 // GET /v1/webapi/sites
 //
-// Sucessful response:
+// Successful response:
 //
 // {"sites": {"name": "localhost", "last_connected": "RFC3339 time", "status": "active"}}
 //
@@ -1103,7 +1103,7 @@ type getSiteNamespacesResponse struct {
 
 GET /v1/webapi/namespaces/:namespace/sites/:site/nodes
 
-Sucessful response:
+Successful response:
 
 {"namespaces": [{..namespace resource...}]}
 */
@@ -1155,7 +1155,7 @@ func (h *Handler) siteNodesGet(w http.ResponseWriter, r *http.Request, p httprou
 //
 // Session id can be empty
 //
-// Sucessful response is a websocket stream that allows read write to the server
+// Successful response is a websocket stream that allows read write to the server
 //
 func (h *Handler) siteNodeConnect(
 	w http.ResponseWriter,
@@ -1205,7 +1205,7 @@ func (h *Handler) siteNodeConnect(
 }
 
 // sessionStreamEvent is sent over the session stream socket, it contains
-// last events that occured (only new events are sent)
+// last events that occurred (only new events are sent)
 type sessionStreamEvent struct {
 	Events  []events.EventFields `json:"events"`
 	Session *session.Session     `json:"session"`
@@ -1216,7 +1216,7 @@ type sessionStreamEvent struct {
 //
 // GET /v1/webapi/sites/:site/namespaces/:namespace/sessions/:sid/events/stream?access_token=bearer_token
 //
-// Sucessful response is a websocket stream that allows read write to the server and returns
+// Successful response is a websocket stream that allows read write to the server and returns
 // json events
 //
 func (h *Handler) siteSessionStream(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {

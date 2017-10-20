@@ -369,7 +369,7 @@ func (s *TunSuite) TestWebCreatingNewUserValidClientValidToken(c *C) {
 	c.Assert(ws, Not(Equals), "")
 }
 
-// TestWebCreatingNewUserValidClientValidTokenReuseToken connects to teh auth server
+// TestWebCreatingNewUserValidClientValidTokenReuseToken connects to the auth server
 // using a valid signup token and then uses a valid token to create a user. Then
 // try to create another user. This should fail.
 func (s *TunSuite) TestWebCreatingNewUserValidClientValidTokenReuseToken(c *C) {

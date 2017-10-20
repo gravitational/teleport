@@ -155,7 +155,7 @@ func (proxy *ProxyClient) ConnectToSite(ctx context.Context, quiet bool) (auth.C
 	// crate HTTP client to Auth API over SSH connection:
 	sshDialer := func(network, addr string) (net.Conn, error) {
 		// this connects us to the node which is an auth server for this site
-		// note the addres we're using: "@sitename", which in practice looks like "@{site-global-id}"
+		// note the address we're using: "@sitename", which in practice looks like "@{site-global-id}"
 		// the Teleport proxy interprets such address as a request to connec to the active auth server
 		// of the named site
 		nodeClient, err := proxy.ConnectToNode(ctx, "@"+site.Name, proxy.proxyPrincipal, quiet)

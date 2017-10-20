@@ -150,7 +150,7 @@ func (s *MigrationsSuite) TestMigrateUsers(c *C) {
 	obj.rawObject = nil
 	c.Assert(obj, DeepEquals, expected, Commentf("%v", diff.Diff(d.Sdump(obj), d.Sdump(expected))))
 
-	// test backwards compatiblity
+	// test backwards compatibility
 	data, err = GetUserMarshaler().MarshalUser(expected, WithVersion(V1))
 	c.Assert(err, IsNil)
 	var out4 UserV1

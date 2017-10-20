@@ -182,7 +182,7 @@ var (
 	// to retry quickly, e.g. once in one second
 	NetworkRetryDuration = time.Second
 
-	// FastAttempts is the intial amount of fast retry attempts
+	// FastAttempts is the initial amount of fast retry attempts
 	// before switching to slow mode
 	FastAttempts = 10
 

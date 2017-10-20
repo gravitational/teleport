@@ -234,7 +234,7 @@ func (c *CertAuthorityV2) SetExpiry(expires time.Time) {
 	c.Metadata.SetExpiry(expires)
 }
 
-// Expires retuns object expiry setting
+// Expires returns object expiry setting
 func (c *CertAuthorityV2) Expiry() time.Time {
 	return c.Metadata.Expiry()
 }

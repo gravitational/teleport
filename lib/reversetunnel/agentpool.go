@@ -62,7 +62,7 @@ type AgentPool struct {
 
 // AgentPoolConfig holds configuration parameters for the agent pool
 type AgentPoolConfig struct {
-	// Client is client to the auth server this agent connects to recieve
+	// Client is client to the auth server this agent connects to receive
 	// a list of pools
 	Client *auth.TunClient
 	// AccessPoint is a lightweight access point

@@ -441,7 +441,7 @@ func (s *Service) Enabled() bool {
 	return false
 }
 
-// Disabled returns 'true' if the service has been deliverately turned off
+// Disabled returns 'true' if the service has been deliberately turned off
 func (s *Service) Disabled() bool {
 	return s.Configured() && !s.Enabled()
 }
@@ -499,7 +499,7 @@ type TrustedCluster struct {
 	KeyFile string `yaml:"key_file,omitempty"`
 	// AllowedLogins is a comma-separated list of user logins allowed from that cluster
 	AllowedLogins string `yaml:"allow_logins,omitempty"`
-	// TunnelAddr is a comma-separated list of reverse tunnel addressess to
+	// TunnelAddr is a comma-separated list of reverse tunnel addresses to
 	// connect to
 	TunnelAddr string `yaml:"tunnel_addr,omitempty"`
 }
@@ -642,7 +642,7 @@ type Proxy struct {
 	PublicAddr string `yaml:"public_addr,omitempty"`
 }
 
-// ReverseTunnel is a SSH reverse tunnel mantained by one cluster's
+// ReverseTunnel is a SSH reverse tunnel maintained by one cluster's
 // proxy to remote Teleport proxy
 type ReverseTunnel struct {
 	DomainName string   `yaml:"domain_name"`
@@ -788,7 +788,7 @@ type OIDCConnector struct {
 	// be visible to end user
 	ClientSecret string `yaml:"client_secret"`
 	// RedirectURL - Identity provider will use this URL to redirect
-	// client's browser back to it after successfull authentication
+	// client's browser back to it after successful authentication
 	// Should match the URL on Provider's side
 	RedirectURL string `yaml:"redirect_url"`
 	// ACR is the acr_values parameter to be sent with an authorization request.

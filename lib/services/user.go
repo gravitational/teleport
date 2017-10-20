@@ -80,7 +80,7 @@ type ConnectorRef struct {
 	Identity string `json:"identity"`
 }
 
-// UserRef holds refernce to user
+// UserRef holds references to user
 type UserRef struct {
 	// Name is name of the user
 	Name string `json:"name"`
@@ -158,11 +158,11 @@ const LoginStatusSchema = `{
    }
 }`
 
-// LoginAttempt represents successfull or unsuccessful attempt for user to login
+// LoginAttempt represents successful or unsuccessful attempt for user to login
 type LoginAttempt struct {
 	// Time is time of the attempt
 	Time time.Time `json:"time"`
-	// Sucess indicates whether attempt was successfull
+	// Success indicates whether attempt was successful
 	Success bool `json:"bool"`
 }
 

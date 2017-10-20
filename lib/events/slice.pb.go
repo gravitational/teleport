@@ -59,7 +59,7 @@ func (m *SessionSlice) GetChunks() []*SessionChunk {
 
 // SessionChunk is a chunk to be posted in the context of the session
 type SessionChunk struct {
-	// Time is the occurence of this event
+	// Time is the occurrence of this event
 	Time int64 `protobuf:"varint,2,opt,name=Time,json=time,proto3" json:"Time,omitempty"`
 	// Data is captured data
 	Data []byte `protobuf:"bytes,3,opt,name=Data,json=data,proto3" json:"Data,omitempty"`

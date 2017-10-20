@@ -53,7 +53,7 @@ const (
 	// or updated by a joining party on the server
 	SessionStartEvent = "session.start"
 
-	// SessionEndEvent indicates taht a session has ended
+	// SessionEndEvent indicates that a session has ended
 	SessionEndEvent = "session.end"
 	SessionEventID  = "sid"
 	SessionServerID = "server_id"
@@ -83,7 +83,7 @@ const (
 	AuthAttemptSuccess = "success"
 	AuthAttemptErr     = "error"
 
-	// SCPEvent means data transfer that occured on the server
+	// SCPEvent means data transfer that occurred on the server
 	SCPEvent  = "scp"
 	SCPPath   = "path"
 	SCPLengh  = "len"

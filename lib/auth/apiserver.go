@@ -1793,7 +1793,7 @@ func (s *APIServer) setClusterAuthPreference(auth ClientI, w http.ResponseWriter
 		return nil, trace.Wrap(err)
 	}
 
-	return message(fmt.Sprintf("cluster authenticaton preference set: %+v", cap)), nil
+	return message(fmt.Sprintf("cluster authentication preference set: %+v", cap)), nil
 }
 
 type upsertTunnelConnectionRawReq struct {

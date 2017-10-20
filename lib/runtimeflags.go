@@ -20,7 +20,7 @@ This flag contains various global booleans that are set during
 Teleport initialization.
 
 These are NOT for configuring Teleport: use regular Config facilities for that,
-preferrably tailored to specific services, i.e proxy config, auth config, etc
+preferably tailored to specific services, i.e proxy config, auth config, etc
 
 These are for being set once, at the beginning of the process, and for
 being visible to any code under 'lib'
@@ -43,7 +43,7 @@ var (
 	flagLock sync.Mutex
 )
 
-// SetInsecureDevMode turns the 'insecure' mode on. In this mode Teleport accpets
+// SetInsecureDevMode turns the 'insecure' mode on. In this mode Teleport accepts
 // self-signed HTTPS certificates (for development only!)
 func SetInsecureDevMode(m bool) {
 	flagLock.Lock()

@@ -35,7 +35,7 @@ import (
 )
 
 var (
-	// this global configures how many pre-caluclated keypairs to keep in the
+	// this global configures how many pre-calculated keypairs to keep in the
 	// background (perform key genreation in a separate goroutine, useful for
 	// web sesssion for snappy UI)
 	PrecalculatedKeysNum = 10

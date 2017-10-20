@@ -352,7 +352,7 @@ func (s *AuthTunnel) onAPIConnection(sconn *ssh.ServerConn, sshChan ssh.Channel,
 
 	var user interface{} = nil
 	if extRole, ok := sconn.Permissions.Extensions[ExtRole]; ok {
-		// retreive the role from thsi connection's permissions (make sure it's a valid role)
+		// retrieve the role from this connection's permissions (make sure it's a valid role)
 		systemRole := teleport.Role(extRole)
 		if err := systemRole.Check(); err != nil {
 			log.Error(err.Error())

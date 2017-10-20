@@ -126,7 +126,7 @@ func (s *AuthSuite) TestUserLock(c *C) {
 	err = s.a.UpsertPassword(user, pass)
 	c.Assert(err, IsNil)
 
-	// successfull log in
+	// successful log in
 	ws, err = s.a.SignIn(user, pass)
 	c.Assert(err, IsNil)
 	c.Assert(ws, NotNil)
@@ -489,7 +489,7 @@ func (s *AuthSuite) TestUpdateConfig(c *C) {
 	c.Assert(err, IsNil)
 	err = authServer.SetClusterName(clusterName)
 	c.Assert(err, NotNil)
-	// try and set static tokens, this should be successfull because the last
+	// try and set static tokens, this should be successful because the last
 	// one to upsert tokens wins
 	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
 		StaticTokens: []services.ProvisionToken{services.ProvisionToken{
