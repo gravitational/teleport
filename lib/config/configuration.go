@@ -68,6 +68,8 @@ type CommandLineFlags struct {
 	Roles string
 	// -d flag
 	Debug bool
+	// --disable-tls flag
+	DisableTLS bool
 	// --labels flag
 	Labels string
 	// --httpprofile hidden flag
@@ -632,6 +634,11 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	}
 	if err = ApplyFileConfig(fileConf, cfg); err != nil {
 		return trace.Wrap(err)
+	}
+
+	// apply --disable-tls flag:
+	if clf.DisableTLS {
+		cfg.DisableTLS = clf.DisableTLS
 	}
 
 	// apply --debug flag:
