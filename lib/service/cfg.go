@@ -45,6 +45,9 @@ type Config struct {
 	// (in case of auth server backed by BoltDB) or local state, e.g. keys
 	DataDir string
 
+	//DisableTLS is enable if we don't want self signed certs
+	DisableTLS bool
+
 	// Hostname is a node host name
 	Hostname string
 
