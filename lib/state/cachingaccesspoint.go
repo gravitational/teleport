@@ -55,7 +55,7 @@ func init() {
 type CachingAuthClient struct {
 	Config
 	*log.Entry
-	// ap points to the access ponit we're caching access to:
+	// ap points to the access point we're caching access to:
 	ap auth.AccessPoint
 
 	// lastErrorTime is a timestamp of the last error when talking to the AP
@@ -65,6 +65,7 @@ type CachingAuthClient struct {
 	access   services.Access
 	trust    services.Trust
 	presence services.Presence
+	config   services.ClusterConfiguration
 }
 
 // Config is CachingAuthClient config
@@ -113,6 +114,7 @@ func NewCachingAuthClient(config Config) (*CachingAuthClient, error) {
 		trust:    local.NewCAService(config.Backend),
 		access:   local.NewAccessService(config.Backend),
 		presence: local.NewPresenceService(config.Backend),
+		config:   local.NewClusterConfigurationService(config.Backend),
 		Entry: log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentCachingClient,
 		}),
@@ -132,6 +134,8 @@ func NewCachingAuthClient(config Config) (*CachingAuthClient, error) {
 func (cs *CachingAuthClient) fetchAll() error {
 	var errors []error
 	_, err := cs.GetDomainName()
+	errors = append(errors, err)
+	_, err = cs.GetClusterConfig()
 	errors = append(errors, err)
 	_, err = cs.GetRoles()
 	errors = append(errors, err)
@@ -186,6 +190,23 @@ func (cs *CachingAuthClient) GetDomainName() (clusterName string, err error) {
 		return "", trace.Wrap(err)
 	}
 	return clusterName, err
+}
+
+func (cs *CachingAuthClient) GetClusterConfig() (clusterConfig services.ClusterConfig, err error) {
+	err = cs.try(func() error {
+		clusterConfig, err = cs.ap.GetClusterConfig()
+		return err
+	})
+	if err != nil {
+		if trace.IsConnectionProblem(err) {
+			return cs.config.GetClusterConfig()
+		}
+		return nil, trace.Wrap(err)
+	}
+	if err = cs.config.SetClusterConfig(clusterConfig); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return clusterConfig, nil
 }
 
 // GetRoles is a part of auth.AccessPoint implementation

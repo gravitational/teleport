@@ -72,7 +72,7 @@ func (s *APISuite) SetUpTest(c *C) {
 	s.bk, err = boltbk.New(backend.Params{"path": dir})
 	c.Assert(err, IsNil)
 
-	s.alog, err = events.NewAuditLog(dir)
+	s.alog, err = events.NewAuditLog(dir, true)
 	c.Assert(err, IsNil)
 
 	s.a = NewAuthServer(&InitConfig{

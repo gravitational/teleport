@@ -151,6 +151,8 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	srv.DELETE("/:version/roles/:role", srv.withAuth(srv.deleteRole))
 
 	// cluster configuration
+	srv.GET("/:version/configuration", srv.withAuth(srv.getClusterConfig))
+	srv.POST("/:version/configuration", srv.withAuth(srv.setClusterConfig))
 	srv.GET("/:version/configuration/name", srv.withAuth(srv.getClusterName))
 	srv.POST("/:version/configuration/name", srv.withAuth(srv.setClusterName))
 	srv.GET("/:version/configuration/static_tokens", srv.withAuth(srv.getStaticTokens))
@@ -1692,6 +1694,40 @@ func (s *APIServer) deleteRole(auth ClientI, w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 	return message(fmt.Sprintf("role '%v' deleted", role)), nil
+}
+
+func (s *APIServer) getClusterConfig(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	cc, err := auth.GetClusterConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rawMessage(services.GetClusterConfigMarshaler().Marshal(cc, services.WithVersion(version)))
+}
+
+type setClusterConfigReq struct {
+	ClusterConfig json.RawMessage `json:"cluster_config"`
+}
+
+func (s *APIServer) setClusterConfig(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	var req setClusterConfigReq
+
+	err := httplib.ReadJSON(r, &req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cc, err := services.GetClusterConfigMarshaler().Unmarshal(req.ClusterConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = auth.SetClusterConfig(cc)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return message(fmt.Sprintf("cluster config set: %+v", cc)), nil
 }
 
 func (s *APIServer) getClusterName(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
