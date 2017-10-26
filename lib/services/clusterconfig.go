@@ -19,6 +19,7 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/lib/defaults"
@@ -45,10 +46,10 @@ type ClusterConfig interface {
 }
 
 // NewClusterConfig is a convenience wrapper to create a ClusterConfig resource.
-func NewClusterConfig(spec ClusterConfigSpecV2) (ClusterConfig, error) {
-	cc := ClusterConfigV2{
+func NewClusterConfig(spec ClusterConfigSpecV3) (ClusterConfig, error) {
+	cc := ClusterConfigV3{
 		Kind:    KindClusterConfig,
-		Version: V2,
+		Version: V3,
 		Metadata: Metadata{
 			Name:      MetaNameClusterConfig,
 			Namespace: defaults.Namespace,
@@ -62,8 +63,8 @@ func NewClusterConfig(spec ClusterConfigSpecV2) (ClusterConfig, error) {
 	return &cc, nil
 }
 
-// ClusterConfigV2 implements the ClusterConfig interface.
-type ClusterConfigV2 struct {
+// ClusterConfigV3 implements the ClusterConfig interface.
+type ClusterConfigV3 struct {
 	// Kind is a resource kind - always resource.
 	Kind string `json:"kind"`
 
@@ -74,7 +75,7 @@ type ClusterConfigV2 struct {
 	Metadata Metadata `json:"metadata"`
 
 	// Spec is the specification of the resource.
-	Spec ClusterConfigSpecV2 `json:"spec"`
+	Spec ClusterConfigSpecV3 `json:"spec"`
 }
 
 // RecordingType holds where the session will be recorded.
@@ -91,54 +92,54 @@ const (
 	RecordOff RecordingType = "off"
 )
 
-// ClusterConfigSpecV2 is the actual data we care about for ClusterConfig.
-type ClusterConfigSpecV2 struct {
+// ClusterConfigSpecV3 is the actual data we care about for ClusterConfig.
+type ClusterConfigSpecV3 struct {
 	// SessionRecording controls where (or if) the session is recorded.
 	SessionRecording RecordingType `json:"session_recording"`
 }
 
 // GetName returns the name of the cluster.
-func (c *ClusterConfigV2) GetName() string {
+func (c *ClusterConfigV3) GetName() string {
 	return c.Metadata.Name
 }
 
 // SetName sets the name of the cluster.
-func (c *ClusterConfigV2) SetName(e string) {
+func (c *ClusterConfigV3) SetName(e string) {
 	c.Metadata.Name = e
 }
 
 // Expires retuns object expiry setting
-func (c *ClusterConfigV2) Expiry() time.Time {
+func (c *ClusterConfigV3) Expiry() time.Time {
 	return c.Metadata.Expiry()
 }
 
 // SetExpiry sets expiry time for the object
-func (c *ClusterConfigV2) SetExpiry(expires time.Time) {
+func (c *ClusterConfigV3) SetExpiry(expires time.Time) {
 	c.Metadata.SetExpiry(expires)
 }
 
 // SetTTL sets Expires header using realtime clock
-func (c *ClusterConfigV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+func (c *ClusterConfigV3) SetTTL(clock clockwork.Clock, ttl time.Duration) {
 	c.Metadata.SetTTL(clock, ttl)
 }
 
 // GetMetadata returns object metadata
-func (c *ClusterConfigV2) GetMetadata() Metadata {
+func (c *ClusterConfigV3) GetMetadata() Metadata {
 	return c.Metadata
 }
 
 // GetClusterConfig gets the name of the cluster.
-func (c *ClusterConfigV2) GetSessionRecording() RecordingType {
+func (c *ClusterConfigV3) GetSessionRecording() RecordingType {
 	return c.Spec.SessionRecording
 }
 
 // SetClusterConfig sets the name of the cluster.
-func (c *ClusterConfigV2) SetSessionRecording(s RecordingType) {
+func (c *ClusterConfigV3) SetSessionRecording(s RecordingType) {
 	c.Spec.SessionRecording = s
 }
 
 // CheckAndSetDefaults checks validity of all parameters and sets defaults.
-func (c *ClusterConfigV2) CheckAndSetDefaults() error {
+func (c *ClusterConfigV3) CheckAndSetDefaults() error {
 	// make sure we have defaults for all metadata fields
 	err := c.Metadata.CheckAndSetDefaults()
 	if err != nil {
@@ -153,14 +154,14 @@ func (c *ClusterConfigV2) CheckAndSetDefaults() error {
 	all := []string{string(RecordAtNode), string(RecordAtProxy), string(RecordOff)}
 	ok := utils.SliceContainsStr(all, string(c.Spec.SessionRecording))
 	if !ok {
-		return trace.BadParameter(`session_recording must either be "node", "proxy", or "off".`)
+		return trace.BadParameter("session_recording must either be: %v", strings.Join(all, ","))
 	}
 
 	return nil
 }
 
 // String represents a human readable version of the cluster name.
-func (c *ClusterConfigV2) String() string {
+func (c *ClusterConfigV3) String() string {
 	return fmt.Sprintf("ClusterConfig(SessionRecording=%v)", c.Spec.SessionRecording)
 }
 
@@ -215,7 +216,7 @@ type TeleportClusterConfigMarshaler struct{}
 
 // Unmarshal unmarshals ClusterConfig from JSON.
 func (t *TeleportClusterConfigMarshaler) Unmarshal(bytes []byte) (ClusterConfig, error) {
-	var clusterConfig ClusterConfigV2
+	var clusterConfig ClusterConfigV3
 
 	if len(bytes) == 0 {
 		return nil, trace.BadParameter("missing resource data")

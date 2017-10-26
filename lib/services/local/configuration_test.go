@@ -84,13 +84,13 @@ func (s *ClusterConfigurationSuite) TestCycle(c *check.C) {
 
 func (s *ClusterConfigurationSuite) TestSessionRecording(c *check.C) {
 	// don't allow invalid session recording values
-	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV2{
+	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
 		SessionRecording: "foo",
 	})
 	c.Assert(err, check.NotNil)
 
 	// default is to record at the node
-	clusterConfig, err = services.NewClusterConfig(services.ClusterConfigSpecV2{})
+	clusterConfig, err = services.NewClusterConfig(services.ClusterConfigSpecV3{})
 	c.Assert(err, check.IsNil)
 	recordingType := clusterConfig.GetSessionRecording()
 	c.Assert(recordingType, check.Equals, services.RecordAtNode)

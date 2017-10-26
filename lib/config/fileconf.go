@@ -624,7 +624,7 @@ type SessionRecording string
 
 // Parse reads session_recording and creates a services.ClusterConfig.
 func (s SessionRecording) Parse() (services.ClusterConfig, error) {
-	return services.NewClusterConfig(services.ClusterConfigSpecV2{
+	return services.NewClusterConfig(services.ClusterConfigSpecV3{
 		SessionRecording: services.RecordingType(s),
 	})
 }
