@@ -113,6 +113,12 @@ const (
 	// KindAuthPreference is the type of authentication for this cluster.
 	MetaNameClusterAuthPreference = "cluster-auth-preference"
 
+	// KindClusterConfig is the resource that holds cluster level configuration.
+	KindClusterConfig = "cluster_config"
+
+	// MetaNameClusterName is the exact name of the singleton resource.
+	MetaNameClusterConfig = "cluster-config"
+
 	// KindClusterName is a type of configuration resource that contains the cluster name.
 	KindClusterName = "cluster_name"
 

@@ -120,3 +120,31 @@ func (s *ClusterConfigurationService) SetAuthPreference(preferences services.Aut
 
 	return nil
 }
+
+// GetClusterConfig gets services.ClusterConfig from the backend.
+func (s *ClusterConfigurationService) GetClusterConfig() (services.ClusterConfig, error) {
+	data, err := s.GetVal([]string{"cluster_configuration"}, "general")
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("cluster configuration not found")
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	return services.GetClusterConfigMarshaler().Unmarshal(data)
+}
+
+// SetClusterConfig sets services.ClusterConfig on the backend.
+func (s *ClusterConfigurationService) SetClusterConfig(c services.ClusterConfig) error {
+	data, err := services.GetClusterConfigMarshaler().Marshal(c)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = s.UpsertVal([]string{"cluster_configuration"}, "general", []byte(data), backend.Forever)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}

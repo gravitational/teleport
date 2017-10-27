@@ -30,8 +30,8 @@ func (a *AuditTestSuite) TearDownSuite(c *check.C) {
 
 // creates a file-based audit log and returns a proper *AuditLog pointer
 // instead of the usual IAuditLog interface
-func (a *AuditTestSuite) makeLog(c *check.C, dataDir string) (*AuditLog, error) {
-	alog, err := NewAuditLog(dataDir)
+func (a *AuditTestSuite) makeLog(c *check.C, dataDir string, recordSessions bool) (*AuditLog, error) {
+	alog, err := NewAuditLog(dataDir, recordSessions)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -48,7 +48,7 @@ func (a *AuditTestSuite) SetUpSuite(c *check.C) {
 }
 
 func (a *AuditTestSuite) TestNew(c *check.C) {
-	alog, err := a.makeLog(c, a.dataDir)
+	alog, err := a.makeLog(c, a.dataDir, true)
 	c.Assert(err, check.IsNil)
 	// close twice:
 	c.Assert(alog.Close(), check.IsNil)
@@ -60,7 +60,7 @@ func (a *AuditTestSuite) TestComplexLogging(c *check.C) {
 	os.RemoveAll(a.dataDir)
 
 	// create audit log, write a couple of events into it, close it
-	alog, err := a.makeLog(c, a.dataDir)
+	alog, err := a.makeLog(c, a.dataDir, true)
 	c.Assert(err, check.IsNil)
 	alog.TimeSource = func() time.Time { return now }
 
@@ -135,10 +135,44 @@ func (a *AuditTestSuite) TestComplexLogging(c *check.C) {
 	c.Assert(found[0].GetString(EventLogin), check.Equals, "vincent")
 }
 
+func (a *AuditTestSuite) TestSessionRecordingOff(c *check.C) {
+	now := time.Now().In(time.UTC).Round(time.Second)
+	os.RemoveAll(a.dataDir)
+
+	// create audit log with session recording disabled
+	alog, err := a.makeLog(c, a.dataDir, false)
+	c.Assert(err, check.IsNil)
+	alog.TimeSource = func() time.Time { return now }
+
+	// emit "session.start" event into the audit log for session "200"
+	err = alog.EmitAuditEvent(SessionStartEvent, EventFields{SessionEventID: "200", EventLogin: "doggy", EventNamespace: defaults.Namespace})
+	c.Assert(err, check.IsNil)
+
+	// type "hello" into session "200"
+	err = alog.PostSessionChunk(defaults.Namespace, "200", bytes.NewBufferString("hello"))
+	c.Assert(err, check.IsNil)
+
+	// emit "sesion-end" event into the audit log for session "200"
+	err = alog.EmitAuditEvent(SessionEndEvent, EventFields{SessionEventID: "200", EventLogin: "doggy", EventNamespace: defaults.Namespace})
+	c.Assert(err, check.IsNil)
+
+	// get all events from the audit log, we should have two
+	found, err := alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), "")
+	c.Assert(err, check.IsNil)
+	c.Assert(found, check.HasLen, 2)
+	c.Assert(found[0].GetString(EventLogin), check.Equals, "doggy")
+	c.Assert(found[1].GetString(EventLogin), check.Equals, "doggy")
+
+	// inspect the session log for "200". it should be empty.
+	history, err := alog.GetSessionEvents(defaults.Namespace, "200", 0)
+	c.Assert(err, check.IsNil)
+	c.Assert(history, check.HasLen, 0)
+}
+
 func (a *AuditTestSuite) TestBasicLogging(c *check.C) {
 	now := time.Now().In(time.UTC).Round(time.Second)
 	// create audit log, write a couple of events into it, close it
-	alog, err := a.makeLog(c, a.dataDir)
+	alog, err := a.makeLog(c, a.dataDir, true)
 	c.Assert(err, check.IsNil)
 	alog.TimeSource = func() time.Time { return now }
 

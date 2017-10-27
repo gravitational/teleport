@@ -1471,6 +1471,36 @@ func (c *Client) DeleteRole(name string) error {
 	return trace.Wrap(err)
 }
 
+// GetClusterConfig returns cluster level configuration information.
+func (c *Client) GetClusterConfig() (services.ClusterConfig, error) {
+	out, err := c.Get(c.Endpoint("configuration"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cc, err := services.GetClusterConfigMarshaler().Unmarshal(out.Bytes())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return cc, err
+}
+
+// SetClusterConfig sets cluster level configuration information.
+func (c *Client) SetClusterConfig(cc services.ClusterConfig) error {
+	data, err := services.GetClusterConfigMarshaler().Marshal(cc)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = c.PostJSON(c.Endpoint("configuration"), &setClusterConfigReq{ClusterConfig: data})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 func (c *Client) GetClusterName() (services.ClusterName, error) {
 	out, err := c.Get(c.Endpoint("configuration", "name"), url.Values{})
 	if err != nil {

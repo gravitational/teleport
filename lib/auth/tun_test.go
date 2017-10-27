@@ -68,7 +68,7 @@ func (s *TunSuite) SetUpTest(c *C) {
 	s.bk, err = dir.New(backend.Params{"path": s.dir})
 	c.Assert(err, IsNil)
 
-	s.alog, err = events.NewAuditLog(s.dir)
+	s.alog, err = events.NewAuditLog(s.dir, true)
 	c.Assert(err, IsNil)
 
 	s.sessionServer, err = session.New(s.bk)

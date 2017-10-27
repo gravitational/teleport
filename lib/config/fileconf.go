@@ -128,6 +128,7 @@ var (
 		"kex_algos":          false,
 		"mac_algos":          false,
 		"connector_name":     false,
+		"session_recording":  false,
 	}
 )
 
@@ -450,23 +451,8 @@ func (s *Service) Disabled() bool {
 type Auth struct {
 	Service `yaml:",inline"`
 
-	// DomainName is the name of the CA who manages this cluster
-	//DomainName string `yaml:"cluster_name,omitempty"`
+	// ClusterName is the name of the CA who manages this cluster
 	ClusterName ClusterName `yaml:"cluster_name,omitempty"`
-
-	// TrustedClustersFile is a file path to a file containing public CA keys
-	// of clusters we trust. One key per line, those starting with '#' are comments
-	// TODO: THIS SETTING IS DEPRECATED
-	TrustedClusters []TrustedCluster `yaml:"trusted_clusters,omitempty"`
-
-	// FOR INTERNAL USE:
-	// Authorities : 3rd party certificate authorities (CAs) this auth service trusts.
-	Authorities []Authority `yaml:"authorities,omitempty"`
-
-	// FOR INTERNAL USE:
-	// ReverseTunnels is a list of SSH tunnels to 3rd party proxy services (used to talk
-	// to 3rd party auth servers we trust)
-	ReverseTunnels []ReverseTunnel `yaml:"reverse_tunnels,omitempty"`
 
 	// StaticTokens are pre-defined host provisioning tokens supplied via config file for
 	// environments where paranoid security is not needed
@@ -479,17 +465,34 @@ type Auth struct {
 	// type, second factor type, specific connector information, etc.
 	Authentication *AuthenticationConfig `yaml:"authentication,omitempty"`
 
+	// SessionRecording determines where the session is recorded: node, proxy, or off.
+	SessionRecording SessionRecording `yaml:"session_recording"`
+
+	// FOR INTERNAL USE:
+	// Authorities : 3rd party certificate authorities (CAs) this auth service trusts.
+	Authorities []Authority `yaml:"authorities,omitempty"`
+
+	// FOR INTERNAL USE:
+	// ReverseTunnels is a list of SSH tunnels to 3rd party proxy services (used to talk
+	// to 3rd party auth servers we trust)
+	ReverseTunnels []ReverseTunnel `yaml:"reverse_tunnels,omitempty"`
+
+	// TrustedClustersFile is a file path to a file containing public CA keys
+	// of clusters we trust. One key per line, those starting with '#' are comments
+	// Deprecated: Remove in Teleport 2.4.1.
+	TrustedClusters []TrustedCluster `yaml:"trusted_clusters,omitempty"`
+
 	// OIDCConnectors is a list of trusted OpenID Connect Identity providers
-	// Deprecated: Use OIDC section in Authentication section instead.
+	// Deprecated: Remove in Teleport 2.4.1.
 	OIDCConnectors []OIDCConnector `yaml:"oidc_connectors,omitempty"`
 
 	// Configuration for "universal 2nd factor"
-	// Deprecated: Use U2F section in Authentication section instead.
+	// Deprecated: Remove in Teleport 2.4.1.
 	U2F U2F `yaml:"u2f,omitempty"`
 
 	// DynamicConfig determines when file configuration is pushed to the backend. Setting
 	// it here overrides defaults.
-	// TODO: THIS SETTING IS DEPRECATED
+	// Deprecated: Remove in Teleport 2.4.1.
 	DynamicConfig *bool `yaml:"dynamic_config,omitempty"`
 }
 
@@ -614,6 +617,16 @@ func (u *UniversalSecondFactor) Parse() services.U2F {
 		AppID:  u.AppID,
 		Facets: u.Facets,
 	}
+}
+
+// SessionRecording determines where the session is recorded: node, proxy, or off.
+type SessionRecording string
+
+// Parse reads session_recording and creates a services.ClusterConfig.
+func (s SessionRecording) Parse() (services.ClusterConfig, error) {
+	return services.NewClusterConfig(services.ClusterConfigSpecV3{
+		SessionRecording: services.RecordingType(s),
+	})
 }
 
 // SSH is 'ssh_service' section of the config file

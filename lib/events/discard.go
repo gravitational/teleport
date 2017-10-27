@@ -37,3 +37,25 @@ func (d *DiscardAuditLog) SearchEvents(fromUTC, toUTC time.Time, query string) (
 func (d *DiscardAuditLog) SearchSessionEvents(fromUTC time.Time, toUTC time.Time) ([]EventFields, error) {
 	return make([]EventFields, 0), nil
 }
+
+// discardSessionLogger implements a session logger that does nothing. It
+// discards all events and chunks written to it. It is used when session
+// recording has been disabled.
+type discardSessionLogger struct {
+}
+
+func (d *discardSessionLogger) LogEvent(fields EventFields) {
+	return
+}
+
+func (d *discardSessionLogger) Close() error {
+	return nil
+}
+
+func (d *discardSessionLogger) Finalize() error {
+	return nil
+}
+
+func (d *discardSessionLogger) WriteChunk(chunk *SessionChunk) (written int, err error) {
+	return 0, nil
+}
