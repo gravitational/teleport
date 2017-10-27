@@ -87,6 +87,12 @@ const (
 	// SessionStreamPrefix defines the ending of session stream files,
 	// that's where interactive PTY I/O is saved.
 	SessionStreamPrefix = ".session.bytes"
+
+	// UID of the root user (always 0)
+	RootUID = 0
+
+	// GID of the adm group (always 4)
+	AdmGID = 4
 )
 
 var (
@@ -562,6 +568,10 @@ func (l *AuditLog) rotateLog() (err error) {
 		logfname := filepath.Join(l.dataDir,
 			fileTime.Format("2006-01-02.15:04:05")+LogfileExt)
 		l.file, err = os.OpenFile(logfname, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
+		if err != nil {
+			log.Error(err)
+		}
+		err := os.Chown(logfname, RootUID, AdmGID)
 		if err != nil {
 			log.Error(err)
 		}
