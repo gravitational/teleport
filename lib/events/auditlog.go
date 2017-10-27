@@ -14,38 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-/*
-Package events currently implements the audit log using a simple filesystem backend.
-"Implements" means it implements events.IAuditLog interface (see events/api.go)
-
-The main log files are saved as:
-	/var/lib/teleport/log/<date>.log
-
-Each session has its own session log stored as two files
-	/var/lib/teleport/log/<session-id>.session.log
-	/var/lib/teleport/log/<session-id>.session.bytes
-
-Where:
-	- .session.log   (same events as in the main log, but related to the session)
-	- .session.bytes (recorded session bytes: PTY IO)
-
-The log file is rotated every 24 hours. The old files must be cleaned
-up or archived by an external tool.
-
-Log file format:
-utc_date,action,json_fields
-
-Common JSON fields
-- user       : teleport user
-- login      : server OS login, the user logged in as
-- addr.local : server address:port
-- addr.remote: connected client's address:port
-- sid        : session ID (GUID format)
-
-Examples:
-2016-04-25 22:37:29 +0000 UTC,session.start,{"addr.local":"127.0.0.1:3022","addr.remote":"127.0.0.1:35732","login":"root","sid":"4a9d97de-0b36-11e6-a0b3-d8cb8ae5080e","user":"vincent"}
-2016-04-25 22:54:31 +0000 UTC,exec,{"addr.local":"127.0.0.1:3022","addr.remote":"127.0.0.1:35949","command":"-bash -c ls /","login":"root","user":"vincent"}
-*/
 package events
 
 import (
@@ -60,7 +28,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/teleport/lib/defaults"
@@ -115,7 +82,7 @@ type TimeSourceFunc func() time.Time
 // sessions. It implements IAuditLog
 type AuditLog struct {
 	sync.Mutex
-	loggers map[session.ID]*SessionLogger
+	loggers map[session.ID]SessionLogger
 	dataDir string
 
 	// file is the current global event log file. As the time goes
@@ -131,126 +98,27 @@ type AuditLog struct {
 
 	// same as time.Now(), but helps with testing
 	TimeSource TimeSourceFunc
+
+	// recordSessions controls if sessions are recorded along with audit events.
+	recordSessions bool
 }
 
-// BaseSessionLogger implements the common features of a session logger. The imporant
-// property of the base logger is that it never fails and can be used as a fallback
-// implementation behind more sophisticated loggers
-type SessionLogger struct {
-	sync.Mutex
-
-	sid session.ID
-
-	// eventsFile stores logged events, just like the main logger, except
-	// these are all associated with this session
-	eventsFile *os.File
-
-	// streamFile stores bytes from the session terminal I/O for replaying
-	streamFile *os.File
-
-	// counter of how many bytes have been written during this session
-	writtenBytes int64
-
-	// same as time.Now(), but helps with testing
-	timeSource TimeSourceFunc
-
-	createdTime time.Time
-}
-
-// LogEvent logs an event associated with this session
-func (sl *SessionLogger) LogEvent(fields EventFields) {
-	sl.logEvent(fields, time.Time{})
-}
-
-// LogEvent logs an event associated with this session
-func (sl *SessionLogger) logEvent(fields EventFields, start time.Time) {
-	sl.Lock()
-	defer sl.Unlock()
-
-	// add "bytes written" counter:
-	fields[SessionByteOffset] = atomic.LoadInt64(&sl.writtenBytes)
-
-	// add "milliseconds since" timestamp:
-	var now time.Time
-	if start.IsZero() {
-		now = sl.timeSource().In(time.UTC).Round(time.Millisecond)
-	} else {
-		now = start.In(time.UTC).Round(time.Millisecond)
-	}
-
-	fields[SessionEventTimestamp] = int(now.Sub(sl.createdTime).Nanoseconds() / 1000000)
-	fields[EventTime] = now
-
-	line := eventToLine(fields)
-
-	if sl.eventsFile != nil {
-		_, err := fmt.Fprintln(sl.eventsFile, line)
-		if err != nil {
-			log.Error(err)
-		}
-	}
-}
-
-// Close() is called when clients close on the requested "session writer".
-// We ignore their requests because this writer (file) should be closed only
-// when the session logger is closed
-func (sl *SessionLogger) Close() error {
-	log.Infof("sessionLogger.Close(sid=%s)", sl.sid)
-	return nil
-}
-
-// Finalize is called by the session when it's closing. This is where we're
-// releasing audit resources associated with the session
-func (sl *SessionLogger) Finalize() error {
-	sl.Lock()
-	defer sl.Unlock()
-	if sl.streamFile != nil {
-		auditOpenFiles.Dec()
-		log.Infof("sessionLogger.Finalize(sid=%s)", sl.sid)
-		sl.streamFile.Close()
-		sl.eventsFile.Close()
-		sl.streamFile = nil
-		sl.eventsFile = nil
-	}
-	return nil
-}
-
-// WriteChunk takes a stream of bytes (usually the output from a session terminal)
-// and writes it into a "stream file", for future replay of interactive sessions.
-func (sl *SessionLogger) WriteChunk(chunk *SessionChunk) (written int, err error) {
-	if sl.streamFile == nil {
-		err := trace.Errorf("session %v error: attempt to write to a closed file", sl.sid)
-		return 0, trace.Wrap(err)
-	}
-	if written, err = sl.streamFile.Write(chunk.Data); err != nil {
-		log.Error(err)
-		return written, trace.Wrap(err)
-	}
-
-	// log this as a session event (but not more often than once a sec)
-	sl.logEvent(EventFields{
-		EventType:              SessionPrintEvent,
-		SessionPrintEventBytes: len(chunk.Data),
-	}, time.Unix(0, chunk.Time))
-
-	// increase the total lengh of the stream
-	atomic.AddInt64(&sl.writtenBytes, int64(len(chunk.Data)))
-	return written, nil
-}
-
-// Creates and returns a new Audit Log oboject whish will store its logfiles
-// in a given directory>
-func NewAuditLog(dataDir string) (IAuditLog, error) {
+// Creates and returns a new Audit Log oboject whish will store its logfiles in
+// a given directory. Session recording can be disabled by setting
+// recordSessions to false.
+func NewAuditLog(dataDir string, recordSessions bool) (IAuditLog, error) {
 	// create a directory for session logs:
 	sessionDir := filepath.Join(dataDir, SessionLogsDir)
 	if err := os.MkdirAll(sessionDir, 0770); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	al := &AuditLog{
-		loggers:        make(map[session.ID]*SessionLogger, 0),
+		loggers:        make(map[session.ID]SessionLogger, 0),
 		dataDir:        dataDir,
 		RotationPeriod: defaults.LogRotationPeriod,
 		TimeSource:     time.Now,
+		recordSessions: recordSessions,
 	}
 	if err := al.migrateSessions(); err != nil {
 		return nil, trace.Wrap(err)
@@ -284,8 +152,7 @@ func (l *AuditLog) migrateSessions() error {
 	return nil
 }
 
-// PostSessionSlice submits slice of session chunks
-// to the audit log server
+// PostSessionSlice submits slice of session chunks to the audit log server.
 func (l *AuditLog) PostSessionSlice(slice SessionSlice) error {
 	if slice.Namespace == "" {
 		return trace.BadParameter("missing parameter Namespace")
@@ -362,7 +229,6 @@ func (l *AuditLog) GetSessionEvents(namespace string, sid session.ID, afterN int
 	}
 	logFile, err := os.OpenFile(l.sessionLogFn(namespace, sid), os.O_RDONLY, 0640)
 	if err != nil {
-		log.Warn(err)
 		// no file found? this means no events have been logged yet
 		if os.IsNotExist(err) {
 			return nil, nil
@@ -630,12 +496,18 @@ func (l *AuditLog) sessionLogFn(namespace string, sid session.ID) string {
 
 // LoggerFor creates a logger for a specified session. Session loggers allow
 // to group all events into special "session log files" for easier audit
-func (l *AuditLog) LoggerFor(namespace string, sid session.ID) (sl *SessionLogger, err error) {
+func (l *AuditLog) LoggerFor(namespace string, sid session.ID) (sl SessionLogger, err error) {
 	l.Lock()
 	defer l.Unlock()
 
 	if namespace == "" {
 		return nil, trace.BadParameter("missing parameter namespace")
+	}
+
+	// if we are not recording sessions, create a logger that discards all
+	// session data sent to it.
+	if l.recordSessions == false {
+		return &discardSessionLogger{}, nil
 	}
 
 	sl, ok := l.loggers[sid]
@@ -660,7 +532,7 @@ func (l *AuditLog) LoggerFor(namespace string, sid session.ID) (sl *SessionLogge
 		log.Error(err)
 		return nil, trace.Wrap(err)
 	}
-	sl = &SessionLogger{
+	sl = &diskSessionLogger{
 		sid:         sid,
 		streamFile:  fstream,
 		eventsFile:  fevents,

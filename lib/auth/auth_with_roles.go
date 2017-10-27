@@ -790,6 +790,25 @@ func (a *AuthWithRoles) DeleteRole(name string) error {
 	return a.authServer.DeleteRole(name)
 }
 
+// GetClusterConfig gets cluster level configuration.
+func (a *AuthWithRoles) GetClusterConfig() (services.ClusterConfig, error) {
+	if err := a.action(defaults.Namespace, services.KindClusterConfig, services.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetClusterConfig()
+}
+
+// SetClusterConfig sets cluster level configuration.
+func (a *AuthWithRoles) SetClusterConfig(c services.ClusterConfig) error {
+	if err := a.action(defaults.Namespace, services.KindClusterConfig, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindClusterConfig, services.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.SetClusterConfig(c)
+}
+
 // GetClusterName gets the name of the cluster.
 func (a *AuthWithRoles) GetClusterName() (services.ClusterName, error) {
 	if err := a.action(defaults.Namespace, services.KindClusterName, services.VerbRead); err != nil {

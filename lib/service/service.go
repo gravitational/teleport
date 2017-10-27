@@ -303,13 +303,29 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 	}
 
 	// create the audit log, which will be consuming (and recording) all events
-	// and record sessions
+	// and recording all sessions.
 	var auditLog events.IAuditLog
 	if cfg.Auth.NoAudit {
+		// this is for teleconsole
 		auditLog = &events.DiscardAuditLog{}
-		log.Warn("the audit and session recording are turned off")
+
+		warningMessage := "Warning: Teleport audit and session recording have been " +
+			"turned off. This is dangerous, you will not be able to view audit events " +
+			"or save and playback recorded sessions."
+		log.Warn(warningMessage)
 	} else {
-		auditLog, err = events.NewAuditLog(filepath.Join(cfg.DataDir, "log"))
+		// check if session recording has been disabled. note, we will continue
+		// logging audit events, we just won't record sessions.
+		recordSessions := true
+		if cfg.Auth.ClusterConfig.GetSessionRecording() == services.RecordOff {
+			recordSessions = false
+
+			warningMessage := "Warning: Teleport session recording have been turned off. " +
+				"This is dangerous, you will not be able to save and playback sessions."
+			log.Warn(warningMessage)
+		}
+
+		auditLog, err = events.NewAuditLog(filepath.Join(cfg.DataDir, "log"), recordSessions)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -319,6 +335,7 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 	authServer, identity, err := auth.Init(auth.InitConfig{
 		Backend:         b,
 		Authority:       authority,
+		ClusterConfig:   cfg.Auth.ClusterConfig,
 		ClusterName:     cfg.Auth.ClusterName,
 		AuthServiceName: cfg.Hostname,
 		DataDir:         cfg.DataDir,
@@ -647,9 +664,8 @@ func (process *TeleportProcess) initProxy() error {
 			return trace.Wrap(err)
 		}
 	}
-	myRole := teleport.RoleProxy
 
-	process.RegisterWithAuthServer(process.Config.Token, myRole, ProxyIdentityEvent)
+	process.RegisterWithAuthServer(process.Config.Token, teleport.RoleProxy, ProxyIdentityEvent)
 	process.RegisterFunc(func() error {
 		eventsC := make(chan Event)
 		process.WaitForEvent(ProxyIdentityEvent, eventsC, make(chan struct{}))
