@@ -103,10 +103,17 @@ type AuditLog struct {
 	recordSessions bool
 }
 
-// Creates and returns a new Audit Log oboject whish will store its logfiles in
+// Creates and returns a new Audit Log object which will store its logfiles in
 // a given directory. Session recording can be disabled by setting
 // recordSessions to false.
 func NewAuditLog(dataDir string, recordSessions bool) (IAuditLog, error) {
+	// create the log directory first, with slightly broader permissions
+	if err := os.MkdirAll(dataDir, 0770); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := os.Chown(dataDir, RootUID, AdmGID); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	// create a directory for session logs:
 	sessionDir := filepath.Join(dataDir, SessionLogsDir)
 	if err := os.MkdirAll(sessionDir, 0770); err != nil {
