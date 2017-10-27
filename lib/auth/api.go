@@ -29,6 +29,9 @@ type AccessPoint interface {
 	// server / certificate authority (CA)
 	GetDomainName() (string, error)
 
+	// GetClusterConfig returns cluster level configuration.
+	GetClusterConfig() (services.ClusterConfig, error)
+
 	// GetNamespaces returns a list of namespaces
 	GetNamespaces() ([]services.Namespace, error)
 

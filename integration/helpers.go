@@ -253,6 +253,12 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 		tconf = service.MakeDefaultConfig()
 	}
 	tconf.DataDir = dataDir
+	tconf.Auth.ClusterConfig, err = services.NewClusterConfig(services.ClusterConfigSpecV3{
+		SessionRecording: services.RecordAtNode,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	tconf.Auth.ClusterName, err = services.NewClusterName(services.ClusterNameSpecV2{
 		ClusterName: i.Secrets.SiteName,
 	})

@@ -81,3 +81,22 @@ func (s *ClusterConfigurationSuite) TestCycle(c *check.C) {
 	c.Assert(gotAP.GetType(), check.Equals, "local")
 	c.Assert(gotAP.GetSecondFactor(), check.Equals, "otp")
 }
+
+func (s *ClusterConfigurationSuite) TestSessionRecording(c *check.C) {
+	// don't allow invalid session recording values
+	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+		SessionRecording: "foo",
+	})
+	c.Assert(err, check.NotNil)
+
+	// default is to record at the node
+	clusterConfig, err = services.NewClusterConfig(services.ClusterConfigSpecV3{})
+	c.Assert(err, check.IsNil)
+	recordingType := clusterConfig.GetSessionRecording()
+	c.Assert(recordingType, check.Equals, services.RecordAtNode)
+
+	// update sessions to be recorded at the proxy and check again
+	clusterConfig.SetSessionRecording(services.RecordAtProxy)
+	recordingType = clusterConfig.GetSessionRecording()
+	c.Assert(recordingType, check.Equals, services.RecordAtProxy)
+}

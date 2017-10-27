@@ -93,7 +93,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	var err error
 	s.dir = c.MkDir()
 
-	s.alog, err = events.NewAuditLog(s.dir)
+	s.alog, err = events.NewAuditLog(s.dir, true)
 	c.Assert(err, IsNil)
 
 	u, err := user.Current()
