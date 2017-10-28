@@ -278,7 +278,7 @@ type OIDCAuthRequest struct {
 
 	// PublicKey is an optional public key, users want these
 	// keys to be signed by auth servers user CA in case
-	// of successfull auth
+	// of successful auth
 	PublicKey []byte `json:"public_key"`
 
 	// CertTTL is the TTL of the certificate user wants to get
@@ -289,7 +289,7 @@ type OIDCAuthRequest struct {
 	CreateWebSession bool `json:"create_web_session"`
 
 	// ClientRedirectURL is a URL client wants to be redirected
-	// after successfull authentication
+	// after successful authentication
 	ClientRedirectURL string `json:"client_redirect_url"`
 
 	// Compatibility specifies OpenSSH compatibility flags.
@@ -337,7 +337,7 @@ type SAMLAuthRequest struct {
 
 	// PublicKey is an optional public key, users want these
 	// keys to be signed by auth servers user CA in case
-	// of successfull auth
+	// of successful auth
 	PublicKey []byte `json:"public_key"`
 
 	// CertTTL is the TTL of the certificate user wants to get
@@ -351,7 +351,7 @@ type SAMLAuthRequest struct {
 	CreateWebSession bool `json:"create_web_session"`
 
 	// ClientRedirectURL is a URL client wants to be redirected
-	// after successfull authentication
+	// after successful authentication
 	ClientRedirectURL string `json:"client_redirect_url"`
 
 	// Compatibility specifies OpenSSH compatibility flags.

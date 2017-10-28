@@ -703,7 +703,7 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 	c.Assert(main.CreateEx(makeConfig(false)), check.IsNil)
 	c.Assert(aux.CreateEx(makeConfig(true)), check.IsNil)
 
-	// auxillary cluster has a role aux-devs
+	// auxiliary cluster has a role aux-devs
 	// connect aux cluster to main cluster
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"

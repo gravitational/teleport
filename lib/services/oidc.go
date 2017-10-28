@@ -46,7 +46,7 @@ type OIDCConnector interface {
 	// be visible to end user
 	GetClientSecret() string
 	// RedirectURL - Identity provider will use this URL to redirect
-	// client's browser back to it after successfull authentication
+	// client's browser back to it after successful authentication
 	// Should match the URL on Provider's side
 	GetRedirectURL() string
 	// GetACR returns the Authentication Context Class Reference (ACR) value.
@@ -243,7 +243,7 @@ func (o *OIDCConnectorV2) SetExpiry(expires time.Time) {
 	o.Metadata.SetExpiry(expires)
 }
 
-// Expires retuns object expiry setting
+// Expires returns object expiry setting
 func (o *OIDCConnectorV2) Expiry() time.Time {
 	return o.Metadata.Expiry()
 }
@@ -320,7 +320,7 @@ func (o *OIDCConnectorV2) GetClientSecret() string {
 }
 
 // RedirectURL - Identity provider will use this URL to redirect
-// client's browser back to it after successfull authentication
+// client's browser back to it after successful authentication
 // Should match the URL on Provider's side
 func (o *OIDCConnectorV2) GetRedirectURL() string {
 	return o.Spec.RedirectURL
@@ -545,7 +545,7 @@ type OIDCConnectorSpecV2 struct {
 	// be visible to end user
 	ClientSecret string `json:"client_secret"`
 	// RedirectURL - Identity provider will use this URL to redirect
-	// client's browser back to it after successfull authentication
+	// client's browser back to it after successful authentication
 	// Should match the URL on Provider's side
 	RedirectURL string `json:"redirect_url"`
 	// ACR is an Authentication Context Class Reference value. The meaning of the ACR
@@ -640,7 +640,7 @@ type OIDCConnectorV1 struct {
 	// be visible to end user
 	ClientSecret string `json:"client_secret"`
 	// RedirectURL - Identity provider will use this URL to redirect
-	// client's browser back to it after successfull authentication
+	// client's browser back to it after successful authentication
 	// Should match the URL on Provider's side
 	RedirectURL string `json:"redirect_url"`
 	// Display - Friendly name for this provider.

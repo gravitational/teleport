@@ -153,7 +153,7 @@ func (u *ResourceCommand) Create(client *auth.TunClient) error {
 		if err != nil {
 			if err == io.EOF {
 				if count == 0 {
-					return trace.BadParameter("no resources found, emtpy input?")
+					return trace.BadParameter("no resources found, empty input?")
 				}
 				return nil
 			}
@@ -251,7 +251,7 @@ func (d *ResourceCommand) Delete(client *auth.TunClient) (err error) {
 		}
 		fmt.Printf("trusted cluster %q has been deleted\n", d.ref.Name)
 	default:
-		return trace.BadParameter("deleting resoruces of type %q is not supported", d.ref.Kind)
+		return trace.BadParameter("deleting resources of type %q is not supported", d.ref.Kind)
 	}
 	return nil
 }

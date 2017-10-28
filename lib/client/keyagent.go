@@ -315,7 +315,7 @@ func (a *LocalKeyAgent) DeleteKey(proxyHost string, username string) error {
 	return nil
 }
 
-// AuthMethods returns the list of differnt authentication methods this agent supports
+// AuthMethods returns the list of different authentication methods this agent supports
 // It returns two:
 //	  1. First to try is the external SSH agent
 //    2. Itself (disk-based local agent)

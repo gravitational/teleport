@@ -233,7 +233,7 @@ func (s *AuthServer) GenerateUserCert(key []byte, user services.User, allowedLog
 	})
 }
 
-// WithUserLock executes function authenticateFn that perorms user authenticaton
+// WithUserLock executes function authenticateFn that performs user authentication
 // if authenticateFn returns non nil error, the login attempt will be logged in as failed.
 // The only exception to this rule is ConnectionProblemError, in case if it occurs
 // access will be denied, but login attempt will not be recorded
@@ -303,7 +303,7 @@ func (s *AuthServer) SignIn(user string, password []byte) (services.WebSession, 
 }
 
 // PreAuthenticatedSignIn is for 2-way authentication methods like U2F where the password is
-// already checked before issueing the second factor challenge
+// already checked before issuing the second factor challenge
 func (s *AuthServer) PreAuthenticatedSignIn(user string) (services.WebSession, error) {
 	sess, err := s.NewWebSession(user)
 	if err != nil {

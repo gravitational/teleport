@@ -89,7 +89,7 @@ func (a *AuditTestSuite) TestComplexLogging(c *check.C) {
 	alog.Close()
 	c.Assert(alog.loggers, check.HasLen, 0)
 
-	// inspect session "200". it sould have three events: join, print and leave:
+	// inspect session "200". it could have three events: join, print and leave:
 	history, err := alog.GetSessionEvents(defaults.Namespace, "200", 0)
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.HasLen, 3)

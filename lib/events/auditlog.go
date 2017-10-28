@@ -464,7 +464,7 @@ func (l *AuditLog) Close() error {
 	return nil
 }
 
-// sessionStreamFn helper determins the name of the stream file for a given
+// sessionStreamFn helper determines the name of the stream file for a given
 // session by its ID
 func (l *AuditLog) sessionStreamFn(namespace string, sid session.ID) string {
 	return filepath.Join(
@@ -474,7 +474,7 @@ func (l *AuditLog) sessionStreamFn(namespace string, sid session.ID) string {
 		fmt.Sprintf("%s%s", sid, SessionStreamPrefix))
 }
 
-// sessionLogFn helper determins the name of the stream file for a given
+// sessionLogFn helper determines the name of the stream file for a given
 // session by its ID
 func (l *AuditLog) sessionLogFn(namespace string, sid session.ID) string {
 	return filepath.Join(

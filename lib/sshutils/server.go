@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 
-This file contains the implementatino of sshutils.Server class.
+This file contains the implementations of sshutils.Server class.
 It is the underlying "base SSH server" for everything in Teleport.
 
 */
@@ -305,7 +305,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 				connClosed()
 				return
 			}
-			s.Debugf("recieved out-of-band request: %+v", req)
+			s.Debugf("received out-of-band request: %+v", req)
 			if s.reqHandler != nil {
 				go s.reqHandler.HandleRequest(req)
 			}

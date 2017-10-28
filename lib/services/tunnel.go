@@ -67,7 +67,7 @@ func (r *ReverseTunnelV2) SetExpiry(expires time.Time) {
 	r.Metadata.SetExpiry(expires)
 }
 
-// Expires retuns object expiry setting
+// Expires returns object expiry setting
 func (r *ReverseTunnelV2) Expiry() time.Time {
 	return r.Metadata.Expiry()
 }

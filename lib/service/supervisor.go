@@ -29,7 +29,7 @@ import (
 // service functions and de-registering the service goroutines
 type Supervisor interface {
 	// Register adds the service to the pool, if supervisor is in
-	// the started state, the service will be started immediatelly
+	// the started state, the service will be started immediately
 	// otherwise, it will be started after Start() has been called
 	Register(srv Service)
 

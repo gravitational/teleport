@@ -93,7 +93,7 @@ func (c *ClusterNameV2) SetName(e string) {
 	c.Metadata.Name = e
 }
 
-// Expires retuns object expiry setting
+// Expires returns object expiry setting
 func (c *ClusterNameV2) Expiry() time.Time {
 	return c.Metadata.Expiry()
 }

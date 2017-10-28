@@ -354,7 +354,7 @@ func (o *SAMLConnectorV2) SetExpiry(expires time.Time) {
 	o.Metadata.SetExpiry(expires)
 }
 
-// Expires retuns object expiry setting
+// Expires returns object expiry setting
 func (o *SAMLConnectorV2) Expiry() time.Time {
 	return o.Metadata.Expiry()
 }
@@ -587,7 +587,7 @@ func (o *SAMLConnectorV2) GetServiceProvider(clock clockwork.Clock) (*saml2.SAML
 		o.Spec.SSO = metadata.IDPSSODescriptor.SingleSignOnService.Location
 	}
 	if o.Spec.Issuer == "" {
-		return nil, trace.BadParameter("no issuer or entityID set, either set issuer as a paramter or via entity_descriptor spec")
+		return nil, trace.BadParameter("no issuer or entityID set, either set issuer as a parameter or via entity_descriptor spec")
 	}
 	if o.Spec.SSO == "" {
 		return nil, trace.BadParameter("no SSO set either explicitly or via entity_descriptor spec")

@@ -27,7 +27,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// Implements a fake "socket" (net.Listener interface) on top of exisitng ssh.Channel
+// Implements a fake "socket" (net.Listener interface) on top of existing ssh.Channel
 type fakeSocket struct {
 	closed      chan int
 	connections chan net.Conn

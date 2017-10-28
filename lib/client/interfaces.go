@@ -65,7 +65,7 @@ func (k *Key) AsAgentKeys() ([]*agent.AddedKey, error) {
 	// put a teleport identifier along with the teleport user into the comment field
 	comment := fmt.Sprintf("teleport:%v", publicKey.(*ssh.Certificate).KeyId)
 
-	// return a certificate (with embeded private key) as well as a private key
+	// return a certificate (with embedded private key) as well as a private key
 	return []*agent.AddedKey{
 		&agent.AddedKey{
 			PrivateKey:       privateKey,

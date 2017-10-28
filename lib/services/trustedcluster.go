@@ -162,7 +162,7 @@ func (r RoleMap) parse() (map[string][]string, []string, error) {
 			return nil, nil, trace.BadParameter("missing 'remote' parameter for role_map")
 		}
 		if len(roleMap.Local) == 0 {
-			return nil, nil, trace.BadParameter("missing 'local' paramter for 'role_map'")
+			return nil, nil, trace.BadParameter("missing 'local' parameter for 'role_map'")
 		}
 		for _, local := range roleMap.Local {
 			if local == "" {
@@ -295,7 +295,7 @@ func (c *TrustedClusterV2) SetExpiry(expires time.Time) {
 	c.Metadata.SetExpiry(expires)
 }
 
-// Expires retuns object expiry setting
+// Expires returns object expiry setting
 func (c *TrustedClusterV2) Expiry() time.Time {
 	return c.Metadata.Expiry()
 }

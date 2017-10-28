@@ -383,7 +383,7 @@ func (c *Client) RegisterNewAuthServer(token string) error {
 	return trace.Wrap(err)
 }
 
-// UpsertNode is used by SSH servers to reprt their presense
+// UpsertNode is used by SSH servers to reprt their presence
 // to the auth servers in form of hearbeat expiring after ttl period.
 func (c *Client) UpsertNode(s services.Server) error {
 	if s.GetNamespace() == "" {
@@ -461,7 +461,7 @@ func (c *Client) GetReverseTunnels() ([]services.ReverseTunnel, error) {
 
 // DeleteReverseTunnel deletes reverse tunnel by domain name
 func (c *Client) DeleteReverseTunnel(domainName string) error {
-	// this is to avoid confusing error in case if domain emtpy for example
+	// this is to avoid confusing error in case if domain empty for example
 	// HTTP route will fail producing generic not found error
 	// instead we catch the error here
 	if strings.TrimSpace(domainName) == "" {
@@ -556,7 +556,7 @@ func (c *Client) DeleteAllTunnelConnections() error {
 	return trace.Wrap(err)
 }
 
-// UpsertAuthServer is used by auth servers to report their presense
+// UpsertAuthServer is used by auth servers to report their presence
 // to other auth servers in form of hearbeat expiring after ttl period.
 func (c *Client) UpsertAuthServer(s services.Server) error {
 	data, err := services.GetServerMarshaler().MarshalServer(s)
@@ -591,7 +591,7 @@ func (c *Client) GetAuthServers() ([]services.Server, error) {
 	return re, nil
 }
 
-// UpsertProxy is used by proxies to report their presense
+// UpsertProxy is used by proxies to report their presence
 // to other auth servers in form of hearbeat expiring after ttl period.
 func (c *Client) UpsertProxy(s services.Server) error {
 	data, err := services.GetServerMarshaler().MarshalServer(s)
@@ -696,7 +696,7 @@ func (c *Client) SignIn(user string, password []byte) (services.WebSession, erro
 }
 
 // PreAuthenticatedSignIn is for 2-way authentication methods like U2F where the password is
-// already checked before issueing the second factor challenge
+// already checked before issuing the second factor challenge
 func (c *Client) PreAuthenticatedSignIn(user string) (services.WebSession, error) {
 	out, err := c.Get(
 		c.Endpoint("users", user, "web", "signin", "preauth"),

@@ -256,7 +256,7 @@ func getUserCredentials(agent auth.AgentCloser) (string, ssh.AuthMethod, error) 
 	}
 	// take the principal (SSH username) out of the returned certificate
 	if cert == nil {
-		return "", nil, trace.Errorf("unable to retreive the user certificate")
+		return "", nil, trace.Errorf("unable to retrieve the user certificate")
 	}
 	signers, err := agent.Signers()
 	if err != nil {

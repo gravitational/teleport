@@ -340,7 +340,7 @@ func (cmd *Command) receiveFile(st *state, fc NewFileCmd, ch io.ReadWriter) erro
 func (cmd *Command) receiveDir(st *state, fc NewFileCmd, ch io.ReadWriter) error {
 	targetDir := cmd.Target[0]
 
-	// copying into an exising directory? append to it:
+	// copying into an existing directory? append to it:
 	if utils.IsDir(targetDir) {
 		targetDir = st.makePath(targetDir, fc.Name)
 		st.push(fc.Name)

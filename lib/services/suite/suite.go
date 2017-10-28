@@ -79,7 +79,7 @@ func (s *ServicesTestSuite) collectChanges(c *C, expected int) []interface{} {
 		case changes[i] = <-s.ChangesC:
 			// successfully collected changes
 		case <-time.After(2 * time.Second):
-			c.Fatalf("Timeout occured waiting for events")
+			c.Fatalf("Timeout occurred waiting for events")
 		}
 	}
 	return changes

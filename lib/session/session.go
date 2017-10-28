@@ -35,7 +35,7 @@ import (
 // ID is a uinique session id that is based on time UUID v1
 type ID string
 
-// IsZero returns true if this ID is emtpy
+// IsZero returns true if this ID is empty
 func (s *ID) IsZero() bool {
 	return len(*s) == 0
 }

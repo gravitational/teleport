@@ -429,7 +429,7 @@ func (s *WebSuite) TestNewUser(c *C) {
 	var sites *getSitesResponse
 	c.Assert(json.Unmarshal(re.Bytes(), &sites), IsNil)
 
-	// in absense of session cookie or bearer auth the same request fill fail
+	// in absence of session cookie or bearer auth the same request fill fail
 
 	// no session cookie:
 	clt = s.client(roundtrip.BearerAuth(rawSess.Token))
@@ -799,7 +799,7 @@ func (s *WebSuite) TestWebSessionsBadInput(c *C) {
 	clt := s.client()
 
 	reqs := []createSessionReq{
-		// emtpy request
+		// empty request
 		{},
 		// missing user
 		{
@@ -1221,7 +1221,7 @@ func (s *WebSuite) TestNewU2FUser(c *C) {
 	var sites *getSitesResponse
 	c.Assert(json.Unmarshal(re.Bytes(), &sites), IsNil)
 
-	// in absense of session cookie or bearer auth the same request fill fail
+	// in absence of session cookie or bearer auth the same request fill fail
 
 	// no session cookie:
 	clt = s.client(roundtrip.BearerAuth(rawSess.Token))

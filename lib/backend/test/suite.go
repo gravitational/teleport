@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package test contains a backend acceptance test suite that is backend implementation independant
+// Package test contains a backend acceptance test suite that is backend implementation independent
 // each backend will use the suite to test itself
 package test
 
@@ -43,7 +43,7 @@ func (s *BackendSuite) collectChanges(c *C, expected int) []interface{} {
 		case changes[i] = <-s.ChangesC:
 			// successfully collected changes
 		case <-time.After(2 * time.Second):
-			c.Fatalf("Timeout occured waiting for events")
+			c.Fatalf("Timeout occurred waiting for events")
 		}
 	}
 	return changes
