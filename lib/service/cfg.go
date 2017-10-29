@@ -45,9 +45,6 @@ type Config struct {
 	// (in case of auth server backed by BoltDB) or local state, e.g. keys
 	DataDir string
 
-	//DisableTLS is enable if we don't want self signed certs
-	DisableTLS bool
-
 	// Hostname is a node host name
 	Hostname string
 
@@ -196,6 +193,9 @@ func (c CachePolicy) String() string {
 type ProxyConfig struct {
 	// Enabled turns proxy role on or off for this process
 	Enabled bool
+
+	//DisableTLS is enabled if we don't want self signed certs
+	DisableTLS bool
 
 	// DisableWebInterface allows to turn off serving the Web UI interface
 	DisableWebInterface bool

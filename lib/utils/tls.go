@@ -44,14 +44,6 @@ func ListenTLS(address string, certFile, keyFile string) (net.Listener, error) {
 }
 
 
-// ListenNonTLS sets up non TLS listener for the http handler, starts listening
-// on a TCP socket and returns the socket which is ready to be used
-// for http.Serve
-func ListenNonTLS(address string) (net.Listener, error) {
-	return net.Listen("tcp", address)
-}
-
-
 // CreateTLSConfiguration sets up default TLS configuration
 func CreateTLSConfiguration(certFile, keyFile string) (*tls.Config, error) {
 	config := &tls.Config{}
