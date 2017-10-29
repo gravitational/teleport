@@ -109,7 +109,7 @@ type AuditLog struct {
 func NewAuditLog(dataDir string, recordSessions bool) (IAuditLog, error) {
 	// create the log directory first, with slightly broader permissions
 	if err := os.MkdirAll(dataDir, 0770); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.ConvertSystemError(err)
 	}
 	if err := os.Chown(dataDir, RootUID, AdmGID); err != nil {
 		return nil, trace.Wrap(err)
