@@ -68,8 +68,10 @@ type CommandLineFlags struct {
 	Roles string
 	// -d flag
 	Debug bool
-	// --disable-tls flag
+
+	// --insecure-no-tls flag
 	DisableTLS bool
+
 	// --labels flag
 	Labels string
 	// --httpprofile hidden flag
@@ -642,9 +644,9 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		return trace.Wrap(err)
 	}
 
-	// apply --disable-tls flag:
+	// apply --insecure-no-tls flag:
 	if clf.DisableTLS {
-		cfg.DisableTLS = clf.DisableTLS
+		cfg.Proxy.DisableTLS = clf.DisableTLS
 	}
 
 	// apply --debug flag:
