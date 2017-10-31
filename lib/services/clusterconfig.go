@@ -63,6 +63,22 @@ func NewClusterConfig(spec ClusterConfigSpecV3) (ClusterConfig, error) {
 	return &cc, nil
 }
 
+// DefaultClusterConfig is used as the default cluster configuration when
+// one is not specified (record at node).
+func DefaultClusterConfig() ClusterConfig {
+	return &ClusterConfigV3{
+		Kind:    KindClusterConfig,
+		Version: V3,
+		Metadata: Metadata{
+			Name:      MetaNameClusterConfig,
+			Namespace: defaults.Namespace,
+		},
+		Spec: ClusterConfigSpecV3{
+			SessionRecording: RecordAtNode,
+		},
+	}
+}
+
 // ClusterConfigV3 implements the ClusterConfig interface.
 type ClusterConfigV3 struct {
 	// Kind is a resource kind - always resource.
