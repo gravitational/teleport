@@ -658,7 +658,7 @@ func (process *TeleportProcess) RegisterWithAuthServer(token string, role telepo
 //    3. take care of reverse tunnels
 func (process *TeleportProcess) initProxy() error {
 	// if no TLS key was provided for the web UI, generate a self signed cert
-	if process.Config.Proxy.TLSKey == "" && !process.Config.Proxy.DisableWebService {
+	if process.Config.Proxy.TLSKey == "" && !process.Config.Proxy.DisableTLS && !process.Config.Proxy.DisableWebService {
 		err := initSelfSignedHTTPSCert(process.Config)
 		if err != nil {
 			return trace.Wrap(err)
@@ -798,6 +798,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			process.BroadcastEvent(Event{Name: ProxyWebServerEvent, Payload: webHandler})
 
 			log.Infof("[PROXY] init TLS listeners")
+			if !process.Config.Proxy.DisableTLS {
 			webListener, err = utils.ListenTLS(
 				cfg.Proxy.WebAddr.Addr,
 				cfg.Proxy.TLSCert,
@@ -805,6 +806,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
+			} else {
+
+			webListener, err = net.Listen("tcp", cfg.Proxy.WebAddr.Addr)
+			if err != nil {
+				return trace.Wrap(err)
+			}}
 			if err = http.Serve(webListener, proxyLimiter); err != nil {
 				if askedToExit {
 					log.Infof("[PROXY] web server exited")

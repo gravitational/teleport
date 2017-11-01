@@ -71,6 +71,8 @@ func Run(cmdlineArgs []string, testRun bool) (executedCommand string, conf *serv
 	start.Flag("debug", "Enable verbose logging to stderr").
 		Short('d').
 		BoolVar(&ccf.Debug)
+	start.Flag("insecure-no-tls", "Disable TLS for the web socket").
+		BoolVar(&ccf.DisableTLS)
 	start.Flag("roles",
 		fmt.Sprintf("Comma-separated list of roles to start with [%s]", strings.Join(defaults.StartRoles, ","))).
 		Short('r').

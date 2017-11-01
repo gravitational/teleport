@@ -43,6 +43,7 @@ func ListenTLS(address string, certFile, keyFile string) (net.Listener, error) {
 	return tls.Listen("tcp", address, tlsConfig)
 }
 
+
 // CreateTLSConfiguration sets up default TLS configuration
 func CreateTLSConfiguration(certFile, keyFile string) (*tls.Config, error) {
 	config := &tls.Config{}
