@@ -314,6 +314,7 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Auth.StorageConfig.Type = boltbk.GetName()
 	cfg.Auth.StorageConfig.Params = backend.Params{"path": cfg.DataDir}
 	cfg.Auth.StaticTokens = services.DefaultStaticTokens()
+	cfg.Auth.ClusterConfig = services.DefaultClusterConfig()
 	defaults.ConfigureLimiter(&cfg.Auth.Limiter)
 	// set new style default auth preferences
 	ap := &services.AuthPreferenceV2{}
