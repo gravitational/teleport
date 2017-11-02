@@ -82,6 +82,12 @@ func (s *APISuite) SetUpTest(c *C) {
 	s.sessions, err = session.New(s.bk)
 	c.Assert(err, IsNil)
 
+	// set cluster config
+	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+		SessionRecording: services.RecordAtNode,
+	})
+	c.Assert(err, IsNil)
+
 	// set cluster name
 	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
 		ClusterName: "localhost",
@@ -104,7 +110,7 @@ func (s *APISuite) SetUpTest(c *C) {
 	s.AccessS = local.NewAccessService(s.bk)
 	s.WebS = local.NewIdentityService(s.bk)
 
-	authorizer, err := NewRoleAuthorizer(teleport.RoleAdmin)
+	authorizer, err := NewRoleAuthorizer(clusterConfig, teleport.RoleAdmin)
 	c.Assert(err, IsNil)
 
 	apiServer := NewAPIServer(&APIConfig{
@@ -630,4 +636,30 @@ func (s *APISuite) TestSharedSessions(c *C) {
 	c.Assert(len(history), Equals, 1)
 	c.Assert(history[0].GetString(events.SessionEventID), Equals, string(anotherSessionID))
 	c.Assert(history[0].GetString("val"), Equals, "three")
+}
+
+func (s *APISuite) TestSyncCachedClusterConfig(c *C) {
+	// set cluster config to record at nodes
+	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+		SessionRecording: services.RecordAtNode,
+	})
+	err = s.a.SetClusterConfig(clusterConfig)
+	c.Assert(err, IsNil)
+
+	// check to make sure the cached value is the same
+	clusterConfig = s.a.getCachedClusterConfig()
+	c.Assert(clusterConfig.GetSessionRecording(), Equals, services.RecordAtNode)
+
+	// update cluster config to record at proxy
+	clusterConfig.SetSessionRecording(services.RecordAtProxy)
+	err = s.a.SetClusterConfig(clusterConfig)
+	c.Assert(err, IsNil)
+
+	// manually force synching cluster config
+	err = s.a.syncCachedClusterConfig()
+	c.Assert(err, IsNil)
+
+	// check to make sure the cached value was updated
+	clusterConfig = s.a.getCachedClusterConfig()
+	c.Assert(clusterConfig.GetSessionRecording(), Equals, services.RecordAtProxy)
 }

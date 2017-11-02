@@ -136,29 +136,3 @@ func (r *Role) Check() error {
 	}
 	return trace.BadParameter("role %v is not registered", *r)
 }
-
-// ContextUser is a user set in the context of the request
-const ContextUser = "teleport-user"
-
-// LocalUsername is a local username
-type LocalUser struct {
-	// Username is local username
-	Username string
-}
-
-// BuiltinRole is monitoring
-type BuiltinRole struct {
-	// Role is the builtin role this username is associated with
-	Role Role
-}
-
-// RemoteUser defines encoded remote user
-type RemoteUser struct {
-	// Username is a name of the remote user
-	Username string `json:"username"`
-	// ClusterName is a name of the remote cluster
-	// of the user
-	ClusterName string `json:"cluster_name"`
-	// RemoteRoles is optional list of remote roles
-	RemoteRoles []string `json:"remote_roles"`
-}

@@ -234,7 +234,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 	sessionServer, err := sess.New(s.bk)
 	c.Assert(err, IsNil)
 
-	ctx := context.WithValue(context.TODO(), teleport.ContextUser, teleport.LocalUser{Username: s.user})
+	ctx := context.WithValue(context.TODO(), auth.ContextUser, auth.LocalUser{Username: s.user})
 	authContext, err := authorizer.Authorize(ctx)
 
 	c.Assert(err, IsNil)

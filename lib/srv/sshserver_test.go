@@ -148,7 +148,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	up, err := newUpack(s.user, []string{s.user}, s.a)
 	c.Assert(err, IsNil)
 
-	ctx := context.WithValue(context.TODO(), teleport.ContextUser, teleport.LocalUser{Username: s.user})
+	ctx := context.WithValue(context.TODO(), auth.ContextUser, auth.LocalUser{Username: s.user})
 	authContext, err := authorizer.Authorize(ctx)
 	c.Assert(err, IsNil)
 
