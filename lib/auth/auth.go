@@ -89,6 +89,9 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
 	}
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	as := AuthServer{
+		Entry: log.WithFields(log.Fields{
+			trace.Component: teleport.ComponentAuth,
+		}),
 		bk:                   cfg.Backend,
 		Authority:            cfg.Authority,
 		Trust:                cfg.Trust,
@@ -109,6 +112,12 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
 	if as.clock == nil {
 		as.clock = clockwork.NewRealClock()
 	}
+
+	// start sync loop that keeps cluster config synced with what's in backend.
+	// this is used by the context passed in requests to always have a fresh copy
+	// of the cluster config without hammering the backend.
+	go as.syncCachedClusterConfigLoop()
+
 	return &as
 }
 
@@ -120,6 +129,8 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
 //   - same for users and their sessions
 //   - checks public keys to see if they're signed by it (can be trusted or not)
 type AuthServer struct {
+	*log.Entry
+
 	lock          sync.Mutex
 	oidcClients   map[string]*oidcClient
 	samlProviders map[string]*samlProvider
@@ -127,6 +138,11 @@ type AuthServer struct {
 	bk            backend.Backend
 	closeCtx      context.Context
 	cancelFunc    context.CancelFunc
+
+	// cachedClusterConfig stores a cached copy of the cluster config to avoid
+	// hamming the backend with too many requests.
+	cachedClusterConfig   services.ClusterConfig
+	cachedClusterConfigMu sync.RWMutex
 
 	Authority
 
@@ -780,6 +796,56 @@ func (a *AuthServer) DeleteRole(name string) error {
 		}
 	}
 	return a.Access.DeleteRole(name)
+}
+
+// syncCachedClusterConfigLoop keeps updating the cached cluster config.
+func (a *AuthServer) syncCachedClusterConfigLoop() {
+	// update the cache at the same rate nodes heartbeat
+	ticker := time.NewTicker(defaults.ServerHeartbeatTTL)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-a.closeCtx.Done():
+			return
+		case <-ticker.C:
+			err := a.syncCachedClusterConfig()
+			if err != nil {
+				a.Warnf("failed to sync cluster config: %v", err)
+				continue
+			}
+		}
+	}
+}
+
+// getCachedClusterConfig returns a copy of cached services.ClusterConfig. If
+// nothing is cached yet, a safe default is returned.
+func (a *AuthServer) getCachedClusterConfig() services.ClusterConfig {
+	a.cachedClusterConfigMu.RLock()
+	defer a.cachedClusterConfigMu.RUnlock()
+
+	// if cache is empty, return a safe default
+	clusterConfig := a.cachedClusterConfig
+	if clusterConfig == nil {
+		return services.DefaultClusterConfig()
+	}
+
+	return a.cachedClusterConfig.Copy()
+}
+
+// syncCachedClusterConfig gets cluster config from the backend and updated
+// the cached value.
+func (a *AuthServer) syncCachedClusterConfig() error {
+	clusterConfig, err := a.GetClusterConfig()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	a.cachedClusterConfigMu.Lock()
+	defer a.cachedClusterConfigMu.Unlock()
+
+	a.cachedClusterConfig = clusterConfig
+	return nil
 }
 
 const (

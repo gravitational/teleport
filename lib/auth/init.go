@@ -154,7 +154,12 @@ func Init(cfg InitConfig) (*AuthServer, *Identity, error) {
 		log.Infof("[INIT] Created Reverse Tunnel: %v", tunnel)
 	}
 
+	// set cluster level config on the backend and then force a sync of the cache.
 	err = asrv.SetClusterConfig(cfg.ClusterConfig)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	err = asrv.syncCachedClusterConfig()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

@@ -43,6 +43,9 @@ type ClusterConfig interface {
 
 	// CheckAndSetDefaults checks and set default values for missing fields.
 	CheckAndSetDefaults() error
+
+	// Copy creates a copy of the resource and returns it.
+	Copy() ClusterConfig
 }
 
 // NewClusterConfig is a convenience wrapper to create a ClusterConfig resource.
@@ -174,6 +177,12 @@ func (c *ClusterConfigV3) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// Copy creates a copy of the resource and returns it.
+func (c *ClusterConfigV3) Copy() ClusterConfig {
+	out := *c
+	return &out
 }
 
 // String represents a human readable version of the cluster name.

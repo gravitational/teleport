@@ -358,7 +358,10 @@ func (s *AuthTunnel) onAPIConnection(sconn *ssh.ServerConn, sshChan ssh.Channel,
 			log.Error(err.Error())
 			return
 		}
-		user = teleport.BuiltinRole{Role: systemRole}
+		user = BuiltinRole{
+			GetClusterConfig: s.authServer.getCachedClusterConfig,
+			Role:             systemRole,
+		}
 	} else if clusterName, ok := sconn.Permissions.Extensions[utils.CertTeleportUserCA]; ok {
 		// we got user signed by remote certificate authority
 		var remoteRoles []string
@@ -371,14 +374,14 @@ func (s *AuthTunnel) onAPIConnection(sconn *ssh.ServerConn, sshChan ssh.Channel,
 				return
 			}
 		}
-		user = teleport.RemoteUser{
+		user = RemoteUser{
 			ClusterName: clusterName,
 			Username:    sconn.Permissions.Extensions[utils.CertTeleportUser],
 			RemoteRoles: remoteRoles,
 		}
 	} else if teleportUser, ok := sconn.Permissions.Extensions[utils.CertTeleportUser]; ok {
 		// we got user signed by local certificate authority
-		user = teleport.LocalUser{
+		user = LocalUser{
 			Username: teleportUser,
 		}
 	} else {
@@ -410,7 +413,7 @@ func (s *AuthTunnel) onAPIConnection(sconn *ssh.ServerConn, sshChan ssh.Channel,
 	// serve HTTP API via this SSH connection until it gets closed:
 	http.Serve(&socket, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// take SSH client name and pass it to HTTP API via HTTP Auth
-		api.ServeHTTP(w, r.WithContext(context.WithValue(context.TODO(), teleport.ContextUser, user)))
+		api.ServeHTTP(w, r.WithContext(context.WithValue(context.TODO(), ContextUser, user)))
 	}))
 }
 
