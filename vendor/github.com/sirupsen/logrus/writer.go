@@ -11,48 +11,39 @@ func (logger *Logger) Writer() *io.PipeWriter {
 }
 
 func (logger *Logger) WriterLevel(level Level) *io.PipeWriter {
-	return NewEntry(logger).WriterLevel(level)
-}
-
-func (entry *Entry) Writer() *io.PipeWriter {
-	return entry.WriterLevel(InfoLevel)
-}
-
-func (entry *Entry) WriterLevel(level Level) *io.PipeWriter {
 	reader, writer := io.Pipe()
 
 	var printFunc func(args ...interface{})
-
 	switch level {
 	case DebugLevel:
-		printFunc = entry.Debug
+		printFunc = logger.Debug
 	case InfoLevel:
-		printFunc = entry.Info
+		printFunc = logger.Info
 	case WarnLevel:
-		printFunc = entry.Warn
+		printFunc = logger.Warn
 	case ErrorLevel:
-		printFunc = entry.Error
+		printFunc = logger.Error
 	case FatalLevel:
-		printFunc = entry.Fatal
+		printFunc = logger.Fatal
 	case PanicLevel:
-		printFunc = entry.Panic
+		printFunc = logger.Panic
 	default:
-		printFunc = entry.Print
+		printFunc = logger.Print
 	}
 
-	go entry.writerScanner(reader, printFunc)
+	go logger.writerScanner(reader, printFunc)
 	runtime.SetFinalizer(writer, writerFinalizer)
 
 	return writer
 }
 
-func (entry *Entry) writerScanner(reader *io.PipeReader, printFunc func(args ...interface{})) {
+func (logger *Logger) writerScanner(reader *io.PipeReader, printFunc func(args ...interface{})) {
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
 		printFunc(scanner.Text())
 	}
 	if err := scanner.Err(); err != nil {
-		entry.Errorf("Error while reading from Writer: %s", err)
+		logger.Errorf("Error while reading from Writer: %s", err)
 	}
 	reader.Close()
 }

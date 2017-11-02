@@ -3,12 +3,10 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// +build !appengine
-
 package logrus
 
-import "golang.org/x/sys/unix"
+import "syscall"
 
-const ioctlReadTermios = unix.TCGETS
+const ioctlReadTermios = syscall.TCGETS
 
-type Termios unix.Termios
+type Termios syscall.Termios
