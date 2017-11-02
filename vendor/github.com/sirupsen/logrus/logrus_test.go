@@ -360,27 +360,24 @@ func TestLogrusInterface(t *testing.T) {
 	fn(e)
 }
 
-// Implements io.Writer using channels for synchronization, so we can wait on
-// the Entry.Writer goroutine to write in a non-racey way. This does assume that
-// there is a single call to Logger.Out for each message.
-type channelWriter chan []byte
-
-func (cw channelWriter) Write(p []byte) (int, error) {
-	cw <- p
-	return len(p), nil
-}
-
-func TestEntryWriter(t *testing.T) {
-	cw := channelWriter(make(chan []byte, 1))
-	log := New()
-	log.Out = cw
-	log.Formatter = new(JSONFormatter)
-	log.WithField("foo", "bar").WriterLevel(WarnLevel).Write([]byte("hello\n"))
-
-	bs := <-cw
-	var fields Fields
-	err := json.Unmarshal(bs, &fields)
-	assert.Nil(t, err)
-	assert.Equal(t, fields["foo"], "bar")
-	assert.Equal(t, fields["level"], "warning")
+func TestEntryRace(t *testing.T) {
+	entry := WithFields(Fields{"key": "value"})
+	wg := sync.WaitGroup{}
+	for i := 0; i < 1000; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			switch i % 4 {
+			case 0:
+				SetLevel(InfoLevel)
+			case 1:
+				SetFormatter(&TextFormatter{})
+			case 2:
+				entry.Infof("hello")
+			case 3:
+				Infof("hello")
+			}
+		}(i)
+	}
+	wg.Wait()
 }

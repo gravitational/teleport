@@ -20,6 +20,8 @@
 #  name = "github.com/x/y"
 #  version = "2.4.0"
 
+ignored = ["github.com/Sirupsen/logrus"]
+
 [[constraint]]
   name = "github.com/alecthomas/template"
   branch = "master"
@@ -132,3 +134,8 @@
   name = "github.com/coreos/go-oidc"
   version = "0.0.1"
   source = "github.com/gravitational/go-oidc"
+
+[[override]]
+  name = "github.com/sirupsen/logrus"
+  source = "github.com/gravitational/logrus"
+  revision = "e340a662ee7a1b9e3f6675182abed99b892189d6"
