@@ -14,12 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package srv
+package regular
 
 import (
 	"encoding/json"
 
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -43,13 +44,13 @@ func (t *proxySitesSubsys) String() string {
 	return "proxySites()"
 }
 
-func (t *proxySitesSubsys) wait() error {
+func (t *proxySitesSubsys) Wait() error {
 	return nil
 }
 
-// start serves a request for "proxysites" custom SSH subsystem. It builds an array of
+// Start serves a request for "proxysites" custom SSH subsystem. It builds an array of
 // service.Site structures, and writes it serialized as JSON back to the SSH client
-func (t *proxySitesSubsys) start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
+func (t *proxySitesSubsys) Start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) error {
 	log.Debugf("proxysites.start(%v)", ctx)
 	remoteSites := t.srv.proxyTun.GetSites()
 

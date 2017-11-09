@@ -76,6 +76,9 @@ const (
 	// ComponentCachingClient is a caching auth client
 	ComponentCachingClient = "client:cache"
 
+	// ComponentSubsystemProxy is the proxy subsystem.
+	ComponentSubsystemProxy = "subsystem:proxy"
+
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
 
