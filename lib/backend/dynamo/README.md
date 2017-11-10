@@ -33,9 +33,10 @@ teleport:
     table_name: teleport.state
     access_key: XXXXXXXXXXXXXXXXXXXXX
     secret_key: YYYYYYYYYYYYYYYYYYYYY
+    kms_key: alias/teleport
 ```
 
-Replace `region` and `table_name` with your own settings. Teleport will create the table automatically.
+Replace `region` and `table_name` with your own settings. Optionally add `kms_key` to enable encryption of the data stored in Dynamo. Teleport will create the table automatically.
 
 ### AWS IAM Role
 
@@ -54,6 +55,19 @@ Example of a typical policy (change region and account ID):
             "Effect": "Allow",
             "Action": "dynamodb:*",
             "Resource": "arn:aws:dynamodb:eu-west-1:123456789012:table/prod.teleport.auth"
+        },
+        {
+            "Sid": "UseKMSKey",
+            "Effect": "Allow",
+            "Action": [
+                "kms:Describe*",
+                "kms:Encrypt",
+                "kms:Decrypt",
+                "kms:Describe*",
+                "kms:List*",
+                "kms:GenerateDataKey*",
+            ],
+            "Resource": "arn:aws:kms:eu-west-1:123456789012:key/key-id"
         }
     ]
 }

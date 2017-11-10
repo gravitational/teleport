@@ -21,9 +21,9 @@
 
 [[projects]]
   name = "github.com/aws/aws-sdk-go"
-  packages = ["aws","aws/awserr","aws/awsutil","aws/client","aws/client/metadata","aws/corehandlers","aws/credentials","aws/credentials/ec2rolecreds","aws/credentials/endpointcreds","aws/credentials/stscreds","aws/defaults","aws/ec2metadata","aws/request","aws/session","aws/signer/v4","private/endpoints","private/protocol","private/protocol/json/jsonutil","private/protocol/jsonrpc","private/protocol/query","private/protocol/query/queryutil","private/protocol/rest","private/protocol/xml/xmlutil","private/waiter","service/dynamodb","service/dynamodb/dynamodbattribute","service/sts"]
-  revision = "918c42e2bcdb277aa821401c906e88254501bdf4"
-  version = "v1.5.13"
+  packages = ["aws","aws/awserr","aws/awsutil","aws/client","aws/client/metadata","aws/corehandlers","aws/credentials","aws/credentials/ec2rolecreds","aws/credentials/endpointcreds","aws/credentials/stscreds","aws/defaults","aws/ec2metadata","aws/request","aws/session","aws/signer/v4","private/endpoints","private/protocol","private/protocol/json/jsonutil","private/protocol/jsonrpc","private/protocol/query","private/protocol/query/queryutil","private/protocol/rest","private/protocol/xml/xmlutil","private/waiter","service/dynamodb","service/dynamodb/dynamodbattribute","service/sts","internal/shareddefaults"]
+  revision = "cbd6949bf5611b581f686f8fbacd7858c7464767"
+  version = "v1.10.45"
 
 [[projects]]
   name = "github.com/beevik/etree"
