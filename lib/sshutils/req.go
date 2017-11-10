@@ -71,6 +71,16 @@ func (p *PTYReqParams) CheckAndSetDefaults() error {
 	return nil
 }
 
+// ExecReq specifies parameters for a "exec" request.
+type ExecReq struct {
+	Command string
+}
+
+// SubsystemReq specifies the parameters for a "subsystem" request.
+type SubsystemReq struct {
+	Name string
+}
+
 const (
 	// SessionEnvVar is environment variable for SSH session
 	SessionEnvVar = "TELEPORT_SESSION"

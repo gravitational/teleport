@@ -30,6 +30,8 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -44,16 +46,15 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/state"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
-
 	"github.com/gravitational/trace"
+
 	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 )
 
 const (
@@ -519,7 +520,7 @@ func (process *TeleportProcess) initSSH() error {
 	eventsC := make(chan Event)
 	process.WaitForEvent(SSHIdentityEvent, eventsC, make(chan struct{}))
 
-	var s *srv.Server
+	var s *regular.Server
 
 	process.RegisterFunc(func() error {
 		event := <-eventsC
@@ -552,23 +553,23 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 
-		s, err = srv.New(cfg.SSH.Addr,
+		s, err = regular.New(cfg.SSH.Addr,
 			cfg.Hostname,
 			[]ssh.Signer{conn.Identity.KeySigner},
 			authClient,
 			cfg.DataDir,
 			cfg.AdvertiseIP,
 			cfg.Proxy.PublicAddr,
-			srv.SetLimiter(limiter),
-			srv.SetShell(cfg.SSH.Shell),
-			srv.SetAuditLog(conn.Client),
-			srv.SetSessionServer(conn.Client),
-			srv.SetLabels(cfg.SSH.Labels, cfg.SSH.CmdLabels),
-			srv.SetNamespace(namespace),
-			srv.SetPermitUserEnvironment(cfg.SSH.PermitUserEnvironment),
-			srv.SetCiphers(cfg.Ciphers),
-			srv.SetKEXAlgorithms(cfg.KEXAlgorithms),
-			srv.SetMACAlgorithms(cfg.MACAlgorithms),
+			regular.SetLimiter(limiter),
+			regular.SetShell(cfg.SSH.Shell),
+			regular.SetAuditLog(conn.Client),
+			regular.SetSessionServer(conn.Client),
+			regular.SetLabels(cfg.SSH.Labels, cfg.SSH.CmdLabels),
+			regular.SetNamespace(namespace),
+			regular.SetPermitUserEnvironment(cfg.SSH.PermitUserEnvironment),
+			regular.SetCiphers(cfg.Ciphers),
+			regular.SetKEXAlgorithms(cfg.KEXAlgorithms),
+			regular.SetMACAlgorithms(cfg.MACAlgorithms),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -723,20 +724,20 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
-	SSHProxy, err := srv.New(cfg.Proxy.SSHAddr,
+	SSHProxy, err := regular.New(cfg.Proxy.SSHAddr,
 		cfg.Hostname,
 		[]ssh.Signer{conn.Identity.KeySigner},
 		authClient,
 		cfg.DataDir,
 		nil,
 		cfg.Proxy.PublicAddr,
-		srv.SetLimiter(proxyLimiter),
-		srv.SetProxyMode(tsrv),
-		srv.SetSessionServer(conn.Client),
-		srv.SetAuditLog(conn.Client),
-		srv.SetCiphers(cfg.Ciphers),
-		srv.SetKEXAlgorithms(cfg.KEXAlgorithms),
-		srv.SetMACAlgorithms(cfg.MACAlgorithms),
+		regular.SetLimiter(proxyLimiter),
+		regular.SetProxyMode(tsrv),
+		regular.SetSessionServer(conn.Client),
+		regular.SetAuditLog(conn.Client),
+		regular.SetCiphers(cfg.Ciphers),
+		regular.SetKEXAlgorithms(cfg.KEXAlgorithms),
+		regular.SetMACAlgorithms(cfg.MACAlgorithms),
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -799,19 +800,20 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 			log.Infof("[PROXY] init TLS listeners")
 			if !process.Config.Proxy.DisableTLS {
-			webListener, err = utils.ListenTLS(
-				cfg.Proxy.WebAddr.Addr,
-				cfg.Proxy.TLSCert,
-				cfg.Proxy.TLSKey)
-			if err != nil {
-				return trace.Wrap(err)
-			}
+				webListener, err = utils.ListenTLS(
+					cfg.Proxy.WebAddr.Addr,
+					cfg.Proxy.TLSCert,
+					cfg.Proxy.TLSKey)
+				if err != nil {
+					return trace.Wrap(err)
+				}
 			} else {
 
-			webListener, err = net.Listen("tcp", cfg.Proxy.WebAddr.Addr)
-			if err != nil {
-				return trace.Wrap(err)
-			}}
+				webListener, err = net.Listen("tcp", cfg.Proxy.WebAddr.Addr)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+			}
 			if err = http.Serve(webListener, proxyLimiter); err != nil {
 				if askedToExit {
 					log.Infof("[PROXY] web server exited")

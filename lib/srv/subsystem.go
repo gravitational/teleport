@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2017 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,36 +17,20 @@ limitations under the License.
 package srv
 
 import (
-	"fmt"
-	"strings"
-
-	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
 
-type subsys struct {
-	Name string
+// SubsystemResult is a result of execution of the subsystem.
+type SubsystemResult struct {
+	Err error
 }
 
-// subsystem represents SSH subsytem - special command executed
-// in the context of the session
-type subsystem interface {
-	// start starts subsystem
-	start(*ssh.ServerConn, ssh.Channel, *ssh.Request, *ctx) error
-	// wait is returned by subystem when it's completed
-	wait() error
-}
+// Subsystem represents SSH subsytem - special command executed
+// in the context of the session.
+type Subsystem interface {
+	// Start starts subsystem
+	Start(*ssh.ServerConn, ssh.Channel, *ssh.Request, *ServerContext) error
 
-func parseSubsystemRequest(srv *Server, req *ssh.Request) (subsystem, error) {
-	var s subsys
-	if err := ssh.Unmarshal(req.Payload, &s); err != nil {
-		return nil, fmt.Errorf("failed to parse subsystem request, error: %v", err)
-	}
-	if srv.proxyMode && strings.HasPrefix(s.Name, "proxy:") {
-		return parseProxySubsys(s.Name, srv)
-	}
-	if srv.proxyMode && strings.HasPrefix(s.Name, "proxysites") {
-		return parseProxySitesSubsys(s.Name, srv)
-	}
-	return nil, trace.BadParameter("unrecognized subsystem: %v", s.Name)
+	// Wait is returned by subystem when it's completed
+	Wait() error
 }
