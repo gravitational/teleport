@@ -1,0 +1,3 @@
+## DynamoDB examples
+
+* [Autoscaling]

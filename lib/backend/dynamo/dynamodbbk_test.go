@@ -22,7 +22,6 @@ package dynamo
 import (
 	"testing"
 
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -32,9 +31,9 @@ import (
 func TestDynamoDB(t *testing.T) { TestingT(t) }
 
 type DynamoDBSuite struct {
-	bk    *DynamoDBBackend
-	suite test.BackendSuite
-	cfg   backend.Config
+	bk        *DynamoDBBackend
+	suite     test.BackendSuite
+	tableName string
 }
 
 var _ = Suite(&DynamoDBSuite{})
@@ -43,53 +42,20 @@ func (s *DynamoDBSuite) SetUpSuite(c *C) {
 	utils.InitLoggerForTests()
 
 	var err error
-	s.cfg.Type = "dynamodb"
-	s.cfg.Tablename = "teleport.dynamo.test"
-
-	s.bk, err = New(&s.cfg)
+	s.tableName = "teleport.dynamo.test"
+	bk, err := New(map[string]interface{}{
+		"table_name": s.tableName,
+	})
+	c.Assert(err, IsNil)
+	s.bk = bk.(*DynamoDBBackend)
 	c.Assert(err, IsNil)
 	s.suite.B = s.bk
 }
 
 func (s *DynamoDBSuite) TearDownSuite(c *C) {
 	if s.bk != nil && s.bk.svc != nil {
-		s.bk.deleteTable(s.cfg.Tablename, false)
+		s.bk.deleteTable(s.tableName, false)
 	}
-}
-
-func (s *DynamoDBSuite) TestMigration(c *C) {
-	s.cfg.Type = "dynamodb"
-	s.cfg.Tablename = "teleport.dynamo.test"
-	// migration uses its own instance of the backend:
-	bk, err := New(&s.cfg)
-	c.Assert(err, IsNil)
-
-	var (
-		legacytable      = "legacy.teleport.t"
-		nonExistingTable = "nonexisting.teleport.t"
-	)
-	bk.deleteTable(legacytable, true)
-	bk.deleteTable(legacytable+".bak", false)
-	defer bk.deleteTable(legacytable, false)
-	defer bk.deleteTable(legacytable+".bak", false)
-
-	status, err := bk.getTableStatus(nonExistingTable)
-	c.Assert(err, IsNil)
-	c.Assert(status, Equals, tableStatus(tableStatusMissing))
-
-	err = bk.createTable(legacytable, oldPathAttr)
-	c.Assert(err, IsNil)
-
-	status, err = bk.getTableStatus(legacytable)
-	c.Assert(err, IsNil)
-	c.Assert(status, Equals, tableStatus(tableStatusNeedsMigration))
-
-	err = bk.migrate(legacytable)
-	c.Assert(err, IsNil)
-
-	status, err = bk.getTableStatus(legacytable)
-	c.Assert(err, IsNil)
-	c.Assert(status, Equals, tableStatus(tableStatusOK))
 }
 
 func (s *DynamoDBSuite) TearDownTest(c *C) {
@@ -98,6 +64,14 @@ func (s *DynamoDBSuite) TearDownTest(c *C) {
 
 func (s *DynamoDBSuite) TestBasicCRUD(c *C) {
 	s.suite.BasicCRUD(c)
+}
+
+func (s *DynamoDBSuite) TestBatchCRUD(c *C) {
+	s.suite.BatchCRUD(c)
+}
+
+func (s *DynamoDBSuite) TestDirectories(c *C) {
+	s.suite.Directories(c)
 }
 
 func (s *DynamoDBSuite) TestExpiration(c *C) {

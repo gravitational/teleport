@@ -19,6 +19,7 @@ package local
 import (
 	"encoding/json"
 	"sort"
+	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -30,12 +31,20 @@ import (
 // PresenceService records and reports the presence of all components
 // of the cluster - Nodes, Proxies and SSH nodes
 type PresenceService struct {
+	*log.Entry
 	backend.Backend
+	// fast getter of the items extension
+	getter backend.ItemsGetter
 }
 
 // NewPresenceService returns new presence service instance
-func NewPresenceService(backend backend.Backend) *PresenceService {
-	return &PresenceService{Backend: backend}
+func NewPresenceService(b backend.Backend) *PresenceService {
+	getter, _ := b.(backend.ItemsGetter)
+	return &PresenceService{
+		Entry:   log.WithFields(log.Fields{trace.Component: "Presence"}),
+		Backend: b,
+		getter:  getter,
+	}
 }
 
 // UpsertLocalClusterName upserts local domain
@@ -163,6 +172,10 @@ func (s *PresenceService) GetNodes(namespace string) ([]services.Server, error) 
 	if namespace == "" {
 		return nil, trace.BadParameter("missing namespace value")
 	}
+	if s.getter != nil {
+		return s.batchGetNodes(namespace)
+	}
+	start := time.Now()
 	keys, err := s.GetKeys([]string{namespacesPrefix, namespace, nodesPrefix})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -182,6 +195,30 @@ func (s *PresenceService) GetNodes(namespace string) ([]services.Server, error) 
 		}
 		servers = append(servers, server)
 	}
+	s.Infof("GetServers(%v) in %v", len(servers), time.Now().Sub(start))
+	// sorting helps with tests and makes it all deterministic
+	sort.Sort(services.SortedServers(servers))
+	return servers, nil
+}
+
+// batchGetNodes returns a list of registered servers by using fast batch get
+func (s *PresenceService) batchGetNodes(namespace string) ([]services.Server, error) {
+	start := time.Now()
+	bucket := []string{namespacesPrefix, namespace, nodesPrefix}
+	items, err := s.getter.GetItems(bucket)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	servers := make([]services.Server, len(items))
+	for i, item := range items {
+		server, err := services.GetServerMarshaler().UnmarshalServer(item.Value, services.KindNode)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		servers[i] = server
+	}
+
+	s.Infof("GetServers(%v) in %v", len(servers), time.Now().Sub(start))
 	// sorting helps with tests and makes it all deterministic
 	sort.Sort(services.SortedServers(servers))
 	return servers, nil

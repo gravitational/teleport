@@ -59,6 +59,10 @@ func InitLogger(purpose LoggingPurpose, level log.Level) {
 		if val {
 			return
 		}
+		val, _ = strconv.ParseBool(os.Getenv(teleport.DebugEnvVar))
+		if val {
+			return
+		}
 		log.SetLevel(log.WarnLevel)
 		log.SetOutput(ioutil.Discard)
 	}
