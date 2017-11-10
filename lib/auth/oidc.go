@@ -213,7 +213,7 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 
 	if len(req.PublicKey) != 0 {
 		certTTL := utils.MinTTL(utils.ToTTL(a.clock, ident.ExpiresAt), req.CertTTL)
-		allowedLogins, err := roles.CheckLoginDuration(certTTL)
+		allowedLogins, err := roles.CheckLoginDuration(roles.AdjustSessionTTL(certTTL))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
