@@ -54,6 +54,9 @@ const (
 	// SessionStreamPrefix defines the ending of session stream files,
 	// that's where interactive PTY I/O is saved.
 	SessionStreamPrefix = ".session.bytes"
+
+	// GID of the adm group (always 4)
+	AdmGID = 4
 )
 
 var (
@@ -95,12 +98,36 @@ type AuditLog struct {
 
 	// recordSessions controls if sessions are recorded along with audit events.
 	recordSessions bool
+
+	// contains the current uid we're running as
+	currentUid int
+
+	// tells us if we should make log files readable by the Adm group
+	makeLogsReadableByAdm bool
 }
 
-// Creates and returns a new Audit Log oboject whish will store its logfiles in
+// Creates and returns a new Audit Log object which will store its logfiles in
 // a given directory. Session recording can be disabled by setting
 // recordSessions to false.
 func NewAuditLog(dataDir string, recordSessions bool) (IAuditLog, error) {
+	// create the log directory first, with slightly broader permissions
+	if err := os.MkdirAll(dataDir, 0770); err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+	currentUid := os.Getuid()
+	makeLogsReadableByAdm := false
+	if groups, err := os.Getgroups(); err != nil {
+		for _, group := range groups {
+			if group == AdmGID {
+				makeLogsReadableByAdm = true
+			}
+		}
+	}
+	if makeLogsReadableByAdm {
+		if err := os.Chown(dataDir, currentUid, AdmGID); err != nil {
+			return nil, trace.ConvertSystemError(err)
+		}
+	}
 	// create a directory for session logs:
 	sessionDir := filepath.Join(dataDir, SessionLogsDir)
 	if err := os.MkdirAll(sessionDir, 0770); err != nil {
@@ -108,11 +135,13 @@ func NewAuditLog(dataDir string, recordSessions bool) (IAuditLog, error) {
 	}
 
 	al := &AuditLog{
-		loggers:        make(map[session.ID]SessionLogger, 0),
-		dataDir:        dataDir,
-		RotationPeriod: defaults.LogRotationPeriod,
-		TimeSource:     time.Now,
-		recordSessions: recordSessions,
+		loggers:               make(map[session.ID]SessionLogger, 0),
+		dataDir:               dataDir,
+		RotationPeriod:        defaults.LogRotationPeriod,
+		TimeSource:            time.Now,
+		recordSessions:        recordSessions,
+		currentUid:            currentUid,
+		makeLogsReadableByAdm: makeLogsReadableByAdm,
 	}
 	if err := al.migrateSessions(); err != nil {
 		return nil, trace.Wrap(err)
@@ -430,6 +459,12 @@ func (l *AuditLog) rotateLog() (err error) {
 		l.file, err = os.OpenFile(logfname, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
 		if err != nil {
 			log.Error(err)
+		}
+		if l.makeLogsReadableByAdm {
+			err := os.Chown(logfname, l.currentUid, AdmGID)
+			if err != nil {
+				log.Error(err)
+			}
 		}
 		l.fileTime = fileTime
 		return trace.Wrap(err)
