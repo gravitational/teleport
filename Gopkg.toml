@@ -44,7 +44,7 @@ ignored = ["github.com/Sirupsen/logrus"]
 
 [[constraint]]
   name = "github.com/aws/aws-sdk-go"
-  version = "1.5.13"
+  version = "1.12.17"
 
 [[constraint]]
   name = "github.com/boltdb/bolt"
@@ -139,3 +139,7 @@ ignored = ["github.com/Sirupsen/logrus"]
   name = "github.com/sirupsen/logrus"
   source = "github.com/gravitational/logrus"
   revision = "e340a662ee7a1b9e3f6675182abed99b892189d6"
+
+[[constraint]]
+  name = "github.com/russellhaering/gosaml2"
+  revision = "8908227c114abe0b63b1f0606abae72d11bf632a"
