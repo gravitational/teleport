@@ -179,6 +179,8 @@ func (t *TerminalHandler) Run(w http.ResponseWriter, r *http.Request) {
 		output := utils.NewWebSockWrapper(ws, utils.WebSocketTextMode)
 		clientConfig := &client.Config{
 			SkipLocalAuth:    true,
+			Agent:            agent,
+			ForwardAgent:     true,
 			AuthMethods:      []ssh.AuthMethod{auth},
 			DefaultPrincipal: principal,
 			HostLogin:        t.params.Login,

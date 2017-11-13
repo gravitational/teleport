@@ -27,6 +27,9 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
@@ -34,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/moby/moby/pkg/term"
-	"golang.org/x/crypto/ssh"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -162,6 +164,21 @@ func (ns *NodeSession) createServerSession() (*ssh.Session, error) {
 			log.Warn(err)
 		}
 	}
+
+	// if agent forwarding was requested (and we have a agent to forward),
+	// forward the agent to endpoint.
+	tc := ns.nodeClient.Proxy.teleportClient
+	if tc.ForwardAgent && tc.localAgent.Agent != nil {
+		err = agent.ForwardToAgent(ns.nodeClient.Client, tc.localAgent.Agent)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		err = agent.RequestAgentForwarding(sess)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	return sess, nil
 }
 

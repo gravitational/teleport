@@ -177,6 +177,14 @@ func (s *WebSuite) SetUpTest(c *C) {
 		Access:    access,
 	})
 
+	// set cluster config
+	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+		SessionRecording: services.RecordAtNode,
+	})
+	c.Assert(err, IsNil)
+	err = s.authServer.SetClusterConfig(clusterConfig)
+	c.Assert(err, IsNil)
+
 	// set cluster name
 	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
 		ClusterName: s.domainName,
@@ -583,6 +591,9 @@ func (s *WebSuite) createUser(c *C, user string, pass string, otpSecret string) 
 	c.Assert(err, IsNil)
 	role := services.RoleForUser(teleUser)
 	role.SetLogins(services.Allow, []string{user})
+	options := role.GetOptions()
+	options[services.ForwardAgent] = true
+	role.SetOptions(options)
 	err = s.roleAuth.UpsertRole(role, backend.Forever)
 	c.Assert(err, IsNil)
 	teleUser.AddRole(role.GetName())
@@ -999,6 +1010,37 @@ func (s *WebSuite) TestTerminal(c *C) {
 
 	select {
 	case <-time.After(time.Second):
+		c.Fatalf("timeout waiting for proper response")
+	case <-resultC:
+		// everything is as expected
+	}
+}
+
+func (s *WebSuite) TestWebAgentForward(c *C) {
+	term, err := s.makeTerminal(s.authPack(c))
+	c.Assert(err, IsNil)
+	defer term.Close()
+
+	_, err = io.WriteString(term, "echo $SSH_AUTH_SOCK\r\n")
+	c.Assert(err, IsNil)
+
+	resultC := make(chan struct{})
+
+	go func() {
+		out := make([]byte, 10000)
+		for {
+			n, err := term.Read(out)
+			c.Assert(err, IsNil)
+			c.Assert(n > 0, Equals, true)
+			if strings.Contains(removeSpace(string(out)), "/") {
+				close(resultC)
+				return
+			}
+		}
+	}()
+
+	select {
+	case <-time.After(1 * time.Second):
 		c.Fatalf("timeout waiting for proper response")
 	case <-resultC:
 		// everything is as expected

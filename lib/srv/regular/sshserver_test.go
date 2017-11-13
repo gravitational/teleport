@@ -26,6 +26,7 @@ import (
 	"net"
 	"os"
 	"os/user"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -958,6 +959,51 @@ func (s *SrvSuite) TestServerAliveInterval(c *C) {
 	ok, _, err := s.clt.SendRequest(teleport.KeepAliveReqType, true, nil)
 	c.Assert(err, IsNil)
 	c.Assert(ok, Equals, true)
+}
+
+// TestGlobalRequestRecordingProxy simulates sending a global out-of-band
+// recording-proxy@teleport.com request.
+func (s *SrvSuite) TestGlobalRequestRecordingProxy(c *C) {
+	// send request, since no cluster config is set, we should reply false to
+	// this request
+	ok, _, err := s.clt.SendRequest(teleport.RecordingProxyReqType, true, nil)
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, false)
+
+	// set cluster config to record at the node
+	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+		SessionRecording: services.RecordAtNode,
+	})
+	c.Assert(err, IsNil)
+	err = s.a.SetClusterConfig(clusterConfig)
+	c.Assert(err, IsNil)
+
+	// send the request again, we have cluster config and when we parse the
+	// response, it should be false because recording is occuring at the node.
+	ok, responseBytes, err := s.clt.SendRequest(teleport.RecordingProxyReqType, true, nil)
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
+	response, err := strconv.ParseBool(string(responseBytes))
+	c.Assert(err, IsNil)
+	c.Assert(response, Equals, false)
+
+	// set cluster config to record at the proxy
+	clusterConfig, err = services.NewClusterConfig(services.ClusterConfigSpecV3{
+		SessionRecording: services.RecordAtProxy,
+	})
+	c.Assert(err, IsNil)
+	err = s.a.SetClusterConfig(clusterConfig)
+	c.Assert(err, IsNil)
+
+	// send request again, now that we have cluster config and it's set to record
+	// at the proxy, we should return true and when we parse the payload it should
+	// also be true
+	ok, responseBytes, err = s.clt.SendRequest(teleport.RecordingProxyReqType, true, nil)
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
+	response, err = strconv.ParseBool(string(responseBytes))
+	c.Assert(err, IsNil)
+	c.Assert(response, Equals, true)
 }
 
 // upack holds all ssh signing artefacts needed for signing and checking user keys
