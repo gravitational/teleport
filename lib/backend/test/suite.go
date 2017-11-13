@@ -102,7 +102,7 @@ func (s *BackendSuite) BasicCRUD(c *C) {
 	c.Assert(string(out), Equals, "val-updated")
 
 	c.Assert(s.B.DeleteKey([]string{"a", "b"}, "bkey"), IsNil)
-	c.Assert(trace.IsNotFound(s.B.DeleteKey([]string{"a", "b"}, "bkey")), Equals, true)
+	c.Assert(trace.IsNotFound(s.B.DeleteKey([]string{"a", "b"}, "bkey")), Equals, true, Commentf("%#v", err))
 	_, err = s.B.GetVal([]string{"a", "b"}, "bkey")
 	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
 
@@ -113,6 +113,39 @@ func (s *BackendSuite) BasicCRUD(c *C) {
 	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
 	_, err = s.B.GetVal([]string{"a", "c"}, "ykey")
 	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
+}
+
+// BatchCRUD tests batch CRUD operations if supported by the backend
+func (s *BackendSuite) BatchCRUD(c *C) {
+	getter, ok := s.B.(backend.ItemsGetter)
+	if !ok {
+		c.Skip("backend does not support batch get")
+		return
+	}
+	c.Assert(s.B.UpsertVal([]string{"a", "b"}, "bkey", []byte("val1"), 0), IsNil)
+	c.Assert(s.B.UpsertVal([]string{"a", "b"}, "akey", []byte("val2"), 0), IsNil)
+
+	items, err := getter.GetItems([]string{"a", "b"})
+	c.Assert(err, IsNil)
+	c.Assert(len(items), Equals, 2)
+	c.Assert(string(items[0].Value), Equals, "val2")
+	c.Assert(items[0].Key, Equals, "akey")
+	c.Assert(string(items[1].Value), Equals, "val1")
+	c.Assert(items[1].Key, Equals, "bkey")
+}
+
+// Directories checks directories access
+func (s *BackendSuite) Directories(c *C) {
+	bucket := []string{"level1", "level2", "level3"}
+	c.Assert(s.B.UpsertVal(bucket, "key", []byte("val"), 0), IsNil)
+
+	keys, err := s.B.GetKeys(bucket[:2])
+	c.Assert(err, IsNil)
+	c.Assert(keys, DeepEquals, []string{"level3"})
+
+	keys, err = s.B.GetKeys(bucket[:1])
+	c.Assert(err, IsNil)
+	c.Assert(keys, DeepEquals, []string{"level2"})
 }
 
 func (s *BackendSuite) Expiration(c *C) {

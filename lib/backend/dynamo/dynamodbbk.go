@@ -18,6 +18,7 @@ limitations under the License.
 package dynamo
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -47,14 +48,34 @@ type DynamoConfig struct {
 	SecretKey string `json:"secret_key,omitempty"`
 	// Tablename where to store K/V in DynamoDB
 	Tablename string `json:"table_name,omitempty"`
+	// ReadCapacityUnits is Dynamodb read capacity units
+	ReadCapacityUnits int64 `json:"read_capacity_units"`
+	// WriteCapacityUnits is Dynamodb write capacity units
+	WriteCapacityUnits int64 `json:"write_capacity_units"`
+}
+
+// CheckAndSetDefaults is a helper returns an error if the supplied configuration
+// is not enough to connect to DynamoDB
+func (cfg *DynamoConfig) CheckAndSetDefaults() error {
+	// table is not configured?
+	if cfg.Tablename == "" {
+		return trace.BadParameter("DynamoDB: table_name is not specified")
+	}
+	if cfg.ReadCapacityUnits == 0 {
+		cfg.ReadCapacityUnits = DefaultReadCapacityUnits
+	}
+	if cfg.WriteCapacityUnits == 0 {
+		cfg.WriteCapacityUnits = DefaultWriteCapacityUnits
+	}
+	return nil
 }
 
 // DynamoDBBackend struct
 type DynamoDBBackend struct {
-	tableName string
-	region    string
-	svc       *dynamodb.DynamoDB
-	clock     clockwork.Clock
+	*log.Entry
+	DynamoConfig
+	svc   *dynamodb.DynamoDB
+	clock clockwork.Clock
 }
 
 type record struct {
@@ -63,6 +84,8 @@ type record struct {
 	Value     []byte
 	Timestamp int64
 	TTL       time.Duration
+	Expires   *int64 `json:"Expires,omitempty"`
+	key       string
 }
 
 type keyLookup struct {
@@ -79,24 +102,30 @@ const (
 	// such table needs to be migrated
 	oldPathAttr = "Key"
 
-	// conditionFailedErr is an AWS error code for "already exists"
-	// when creating a new object:
-	conditionFailedErr = "ConditionalCheckFailedException"
+	// BackendName is the name of this backend
+	BackendName = "dynamodb"
 
-	// resourceNotFoundErr is an AWS error code for "resource not found"
-	resourceNotFoundErr = "ResourceNotFoundException"
+	// ttlKey is a key used for TTL specification
+	ttlKey = "Expires"
+
+	// DefaultReadCapacityUnits specifies default value for read capacity units
+	DefaultReadCapacityUnits = 10
+
+	// DefaultWriteCapacityUnits specifies default value for write capacity units
+	DefaultWriteCapacityUnits = 10
 )
 
 // GetName() is a part of backend API and it returns DynamoDB backend type
 // as it appears in `storage/type` section of Teleport YAML
 func GetName() string {
-	return "dynamodb"
+	return BackendName
 }
 
 // New returns new instance of DynamoDB backend.
 // It's an implementation of backend API's NewFunc
 func New(params backend.Params) (backend.Backend, error) {
-	log.Info("[DynamoDB] Initializing DynamoDB backend")
+	l := log.WithFields(log.Fields{trace.Component: BackendName})
+	l.Info("initializing backend")
 
 	var cfg *DynamoConfig
 	err := utils.ObjectToStruct(params, &cfg)
@@ -105,15 +134,15 @@ func New(params backend.Params) (backend.Backend, error) {
 		return nil, trace.BadParameter("DynamoDB configuration is invalid", err)
 	}
 
-	defer log.Debug("[DynamoDB] AWS session created")
+	defer log.Debug("AWS session created")
 
-	if err := checkConfig(cfg); err != nil {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	b := &DynamoDBBackend{
-		tableName: cfg.Tablename,
-		region:    cfg.Region,
-		clock:     clockwork.NewRealClock(),
+		Entry:        l,
+		DynamoConfig: *cfg,
+		clock:        clockwork.NewRealClock(),
 	}
 	// create an AWS session using default SDK behavior, i.e. it will interpret
 	// the environment and ~/.aws directory just like an AWS CLI tool would:
@@ -137,7 +166,7 @@ func New(params backend.Params) (backend.Backend, error) {
 	b.svc = dynamodb.New(sess)
 
 	// check if the table exists?
-	ts, err := b.getTableStatus(b.tableName)
+	ts, err := b.getTableStatus(b.Tablename)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -145,10 +174,14 @@ func New(params backend.Params) (backend.Backend, error) {
 	case tableStatusOK:
 		break
 	case tableStatusMissing:
-		err = b.createTable(b.tableName, "FullPath")
+		err = b.createTable(b.Tablename, "FullPath")
 	case tableStatusNeedsMigration:
-		err = b.migrate(b.tableName)
+		return nil, trace.BadParameter("unsupported schema")
 	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = b.turnOnTimeToLive()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -169,16 +202,36 @@ func (b *DynamoDBBackend) Clock() clockwork.Clock {
 	return b.clock
 }
 
+func (b *DynamoDBBackend) turnOnTimeToLive() error {
+	status, err := b.svc.DescribeTimeToLive(&dynamodb.DescribeTimeToLiveInput{
+		TableName: aws.String(b.Tablename),
+	})
+	if err != nil {
+		return trace.Wrap(convertError(err))
+	}
+	switch aws.StringValue(status.TimeToLiveDescription.TimeToLiveStatus) {
+	case dynamodb.TimeToLiveStatusEnabled, dynamodb.TimeToLiveStatusEnabling:
+		return nil
+	}
+	_, err = b.svc.UpdateTimeToLive(&dynamodb.UpdateTimeToLiveInput{
+		TableName: aws.String(b.Tablename),
+		TimeToLiveSpecification: &dynamodb.TimeToLiveSpecification{
+			AttributeName: aws.String(ttlKey),
+			Enabled:       aws.Bool(true),
+		},
+	})
+	return convertError(err)
+}
+
 // getTableStatus checks if a given table exists
 func (b *DynamoDBBackend) getTableStatus(tableName string) (tableStatus, error) {
 	td, err := b.svc.DescribeTable(&dynamodb.DescribeTableInput{
 		TableName: aws.String(tableName),
 	})
+	err = convertError(err)
 	if err != nil {
-		if awsErr, ok := err.(awserr.Error); ok {
-			if awsErr.Code() == resourceNotFoundErr {
-				return tableStatusMissing, nil
-			}
+		if trace.IsNotFound(err) {
+			return tableStatusMissing, nil
 		}
 		return tableStatusError, trace.Wrap(err)
 	}
@@ -198,8 +251,8 @@ func (b *DynamoDBBackend) getTableStatus(tableName string) (tableStatus, error) 
 // why it's a parameter for migration purposes)
 func (b *DynamoDBBackend) createTable(tableName string, rangeKey string) error {
 	pThroughput := dynamodb.ProvisionedThroughput{
-		ReadCapacityUnits:  aws.Int64(5),
-		WriteCapacityUnits: aws.Int64(5),
+		ReadCapacityUnits:  aws.Int64(b.ReadCapacityUnits),
+		WriteCapacityUnits: aws.Int64(b.WriteCapacityUnits),
 	}
 	def := []*dynamodb.AttributeDefinition{
 		{
@@ -255,102 +308,6 @@ func (b *DynamoDBBackend) deleteTable(tableName string, wait bool) error {
 	return nil
 }
 
-// migrate checks if the table contains existing data in "old" format
-// which used "Key" and "HashKey" attributes prior to Teleport 1.5
-//
-// this migration function replaces "Key" with "FullPath":
-//     - load all existing entries and keep them in RAM
-//     - create <table_name>.bak backup table and copy all entries to it
-//     - delete the original table_name
-//     - re-create table_name with a new schema (with "FullPath" instead of "Key")
-//     - copy all entries to it
-func (b *DynamoDBBackend) migrate(tableName string) error {
-	backupTableName := tableName + ".bak"
-	noMigrationNeededErr := trace.AlreadyExists("table '%s' has already been migrated. see backup in '%s'",
-		tableName, backupTableName)
-
-	// make sure migration is needed:
-	if status, _ := b.getTableStatus(tableName); status != tableStatusNeedsMigration {
-		return trace.Wrap(noMigrationNeededErr)
-	}
-	// create backup table, or refuse migration if backup table already exists
-	s, err := b.getTableStatus(backupTableName)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if s != tableStatusMissing {
-		return trace.Wrap(noMigrationNeededErr)
-	}
-	log.Infof("[DynamoDB] creating backup table '%s'", backupTableName)
-	if err = b.createTable(backupTableName, oldPathAttr); err != nil {
-		return trace.Wrap(err)
-	}
-	log.Infof("[DynamoDB] backup table '%s' created", backupTableName)
-
-	// request all entries in the table (up to 1MB):
-	log.Infof("[DynamoDB] pulling legacy records out of '%s'", tableName)
-	result, err := b.svc.Query(&dynamodb.QueryInput{
-		TableName: aws.String(tableName),
-		KeyConditions: map[string]*dynamodb.Condition{
-			"HashKey": {
-				ComparisonOperator: aws.String(dynamodb.ComparisonOperatorEq),
-				AttributeValueList: []*dynamodb.AttributeValue{
-					{
-						S: aws.String("teleport"),
-					},
-				},
-			},
-			oldPathAttr: {
-				ComparisonOperator: aws.String(dynamodb.ComparisonOperatorBeginsWith),
-				AttributeValueList: []*dynamodb.AttributeValue{
-					{
-						S: aws.String("teleport"),
-					},
-				},
-			},
-		},
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// copy all items into the backup table:
-	log.Infof("[DynamoDB] migrating legacy records to backup table '%s'", backupTableName)
-	for _, item := range result.Items {
-		_, err = b.svc.PutItem(&dynamodb.PutItemInput{
-			TableName: aws.String(backupTableName),
-			Item:      item,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	// kill the original table:
-	log.Infof("[DynamoDB] deleting legacy table '%s'", tableName)
-	if err = b.deleteTable(tableName, true); err != nil {
-		log.Warn(err)
-	}
-	// re-create the original table:
-	log.Infof("[DynamoDB] re-creating table '%s' with a new schema", tableName)
-	if err = b.createTable(tableName, "FullPath"); err != nil {
-		return trace.Wrap(err)
-	}
-	// copy the items into the new table:
-	log.Infof("[DynamoDB] migrating legacy records to the new schema in '%s'", tableName)
-	for _, item := range result.Items {
-		item["FullPath"] = item["Key"]
-		delete(item, "Key")
-		_, err = b.svc.PutItem(&dynamodb.PutItemInput{
-			TableName: aws.String(tableName),
-			Item:      item,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	log.Infof("[DynamoDB] migration succeeded")
-	return nil
-}
-
 // Close the DynamoDB driver
 func (b *DynamoDBBackend) Close() error {
 	return nil
@@ -360,20 +317,24 @@ func (b *DynamoDBBackend) fullPath(bucket ...string) string {
 	return strings.Join(append([]string{"teleport"}, bucket...), "/")
 }
 
-// getKeys retrieve all prefixed keys
-// WARNING: there is no bucket feature, retrieving a "bucket" mean a full scan on DynamoDB table
-// might be quite resource intensive (take care of read provisioning)
-func (b *DynamoDBBackend) getKeys(path string) ([]string, error) {
-	var vals []string
-	query := "HashKey = :hashKey AND begins_with (#K, :fullpath)"
-	attrV := map[string]string{":fullpath": path, ":hashKey": hashKey}
-	attrN := map[string]*string{"#K": aws.String("FullPath")}
+// getRecords retrieve all prefixed keys
+func (b *DynamoDBBackend) getRecords(path string) ([]record, error) {
+	var vals []record
+	query := "HashKey = :hashKey AND begins_with (FullPath, :fullPath)"
+	attrV := map[string]interface{}{
+		":fullPath":  path,
+		":hashKey":   hashKey,
+		":timestamp": b.clock.Now().UTC().Unix(),
+	}
+	// filter out expired items, otherwise they might show up in the query
+	// http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/howitworks-ttl.html
+	filter := fmt.Sprintf("attribute_not_exists(Expires) OR Expires >= :timestamp")
 	av, err := dynamodbattribute.MarshalMap(attrV)
 	input := dynamodb.QueryInput{
 		KeyConditionExpression:    aws.String(query),
-		TableName:                 &b.tableName,
+		TableName:                 &b.Tablename,
 		ExpressionAttributeValues: av,
-		ExpressionAttributeNames:  attrN,
+		FilterExpression:          aws.String(filter),
 	}
 	out, err := b.svc.Query(&input)
 	if err != nil {
@@ -388,10 +349,13 @@ func (b *DynamoDBBackend) getKeys(path string) ([]string, error) {
 			if r.isExpired() {
 				b.deleteKey(r.FullPath)
 			} else {
-				vals = append(vals, suffix(r.FullPath[len(path)+1:]))
+				r.key = suffix(r.FullPath[len(path)+1:])
+				vals = append(vals, r)
 			}
 		}
 	}
+	sort.Sort(records(vals))
+	vals = removeDuplicates(vals)
 	return vals, nil
 }
 
@@ -407,17 +371,22 @@ func (r *record) isExpired() bool {
 	return nowUTC.After(expiryDateUTC)
 }
 
-func removeDuplicates(elements []string) []string {
+func suffix(key string) string {
+	vals := strings.Split(key, "/")
+	return vals[0]
+}
+
+func removeDuplicates(elements []record) []record {
 	// Use map to record duplicates as we find them.
 	encountered := map[string]bool{}
-	result := []string{}
+	result := []record{}
 
 	for v := range elements {
-		if encountered[elements[v]] == true {
+		if encountered[elements[v].key] == true {
 			// Do not add duplicate.
 		} else {
 			// Record this element as an encountered element.
-			encountered[elements[v]] = true
+			encountered[elements[v].key] = true
 			// Append to result slice.
 			result = append(result, elements[v])
 		}
@@ -426,16 +395,38 @@ func removeDuplicates(elements []string) []string {
 	return result
 }
 
-// GetKeys retrieve all keys matching specific path
-func (b *DynamoDBBackend) GetKeys(path []string) ([]string, error) {
-	log.Debugf("[DynamoDB] call GetKeys(%s)", path)
-	keys, err := b.getKeys(b.fullPath(path...))
+// GetItems is a function that retuns keys in batch
+func (b *DynamoDBBackend) GetItems(path []string) ([]backend.Item, error) {
+	start := time.Now()
+	fullPath := b.fullPath(path...)
+	records, err := b.getRecords(fullPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sort.Sort(sort.StringSlice(keys))
-	keys = removeDuplicates(keys)
-	log.Debugf("[DynamoDB] return GetKeys(%s)=%s", path, keys)
+	values := make([]backend.Item, len(records))
+	for i, r := range records {
+		values[i] = backend.Item{
+			Key:   r.key,
+			Value: r.Value,
+		}
+	}
+	b.Debugf("GetItems(%v) in %v", fullPath, time.Now().Sub(start))
+	return values, nil
+}
+
+// GetKeys retrieve all keys matching specific path
+func (b *DynamoDBBackend) GetKeys(path []string) ([]string, error) {
+	start := time.Now()
+	fullPath := b.fullPath(path...)
+	records, err := b.getRecords(b.fullPath(path...))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	keys := make([]string, len(records))
+	for i, r := range records {
+		keys[i] = r.key
+	}
+	b.Debugf("GetKeys(%v) in %v", fullPath, time.Now().Sub(start))
 	return keys, nil
 }
 
@@ -451,25 +442,23 @@ func (b *DynamoDBBackend) createKey(fullPath string, val []byte, ttl time.Durati
 		TTL:       ttl,
 		Timestamp: time.Now().UTC().Unix(),
 	}
+	if ttl != backend.Forever {
+		r.Expires = aws.Int64(b.clock.Now().UTC().Add(ttl).Unix())
+	}
 	av, err := dynamodbattribute.MarshalMap(r)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	input := dynamodb.PutItemInput{
 		Item:      av,
-		TableName: aws.String(b.tableName),
+		TableName: aws.String(b.Tablename),
 	}
 	if !overwrite {
 		input.SetConditionExpression("attribute_not_exists(FullPath)")
 	}
 	_, err = b.svc.PutItem(&input)
+	err = convertError(err)
 	if err != nil {
-		// special handling for 'already exists':
-		if aerr, ok := err.(awserr.Error); ok {
-			if aerr.Code() == conditionFailedErr {
-				return trace.AlreadyExists("%s already exists", fullPath)
-			}
-		}
 		return trace.Wrap(err)
 	}
 	return nil
@@ -530,7 +519,7 @@ func (b *DynamoDBBackend) DeleteBucket(path []string, key string) error {
 	av, err := dynamodbattribute.MarshalMap(attrV)
 	input := dynamodb.QueryInput{
 		KeyConditionExpression:    aws.String(query),
-		TableName:                 &b.tableName,
+		TableName:                 &b.Tablename,
 		ExpressionAttributeValues: av, ExpressionAttributeNames: attrN,
 	}
 	out, err := b.svc.Query(&input)
@@ -567,7 +556,7 @@ func (b *DynamoDBBackend) deleteKey(fullPath string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	input := dynamodb.DeleteItemInput{Key: av, TableName: aws.String(b.tableName)}
+	input := dynamodb.DeleteItemInput{Key: av, TableName: aws.String(b.Tablename)}
 	if _, err = b.svc.DeleteItem(&input); err != nil {
 		return trace.Wrap(err)
 	}
@@ -582,7 +571,7 @@ func (b *DynamoDBBackend) getKey(fullPath string) (*record, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	input := dynamodb.GetItemInput{Key: av, TableName: aws.String(b.tableName)}
+	input := dynamodb.GetItemInput{Key: av, TableName: aws.String(b.Tablename)}
 	out, err := b.svc.GetItem(&input)
 	if err != nil {
 		return nil, trace.NotFound("%v not found", fullPath)
@@ -595,7 +584,7 @@ func (b *DynamoDBBackend) getKey(fullPath string) (*record, error) {
 		av, _ := dynamodbattribute.MarshalMap(attrV)
 		input := dynamodb.QueryInput{
 			KeyConditionExpression:    aws.String(query),
-			TableName:                 &b.tableName,
+			TableName:                 &b.Tablename,
 			ExpressionAttributeValues: av,
 			ExpressionAttributeNames:  attrN,
 		}
@@ -628,17 +617,43 @@ func (b *DynamoDBBackend) GetVal(path []string, key string) ([]byte, error) {
 	return r.Value, nil
 }
 
-func suffix(key string) string {
-	vals := strings.Split(key, "/")
-	return vals[0]
+func convertError(err error) error {
+	if err == nil {
+		return nil
+	}
+	aerr, ok := err.(awserr.Error)
+	if !ok {
+		return err
+	}
+	switch aerr.Code() {
+	case dynamodb.ErrCodeConditionalCheckFailedException:
+		return trace.AlreadyExists(aerr.Error())
+	case dynamodb.ErrCodeProvisionedThroughputExceededException:
+		return trace.ConnectionProblem(aerr, aerr.Error())
+	case dynamodb.ErrCodeResourceNotFoundException:
+		return trace.NotFound(aerr.Error())
+	case dynamodb.ErrCodeItemCollectionSizeLimitExceededException:
+		return trace.BadParameter(aerr.Error())
+	case dynamodb.ErrCodeInternalServerError:
+		return trace.BadParameter(aerr.Error())
+	default:
+		return err
+	}
 }
 
-// checkConfig helper returns an error if the supplied configuration
-// is not enough to connect to DynamoDB
-func checkConfig(cfg *DynamoConfig) (err error) {
-	// table is not configured?
-	if cfg.Tablename == "" {
-		return trace.BadParameter("DynamoDB: table_name is not specified")
-	}
-	return nil
+type records []record
+
+// Len is part of sort.Interface.
+func (r records) Len() int {
+	return len(r)
+}
+
+// Swap is part of sort.Interface.
+func (r records) Swap(i, j int) {
+	r[i], r[j] = r[j], r[i]
+}
+
+// Less is part of sort.Interface.
+func (r records) Less(i, j int) bool {
+	return r[i].key < r[j].key
 }

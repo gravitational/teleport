@@ -47,3 +47,7 @@ flymake*
 
 # mkdocs
 docs/latest.yaml
+
+# terraform
+.terraform
+terraform.tfstate

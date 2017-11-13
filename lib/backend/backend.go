@@ -61,6 +61,21 @@ type Backend interface {
 	Clock() clockwork.Clock
 }
 
+// Item is a pair of key and value
+type Item struct {
+	// Key is an item key
+	Key string
+	// Value is an item value
+	Value []byte
+}
+
+// ItemsGetter is an interface that allows gettings all
+// items in the bucket at once
+type ItemsGetter interface {
+	// GetItems returns a list of items - key value pairs
+	GetItems(bucket []string) ([]Item, error)
+}
+
 // backend.Params type defines a flexible unified back-end configuration API.
 // It is just a map of key/value pairs which gets populated by `storage` section
 // in Teleport YAML config.
