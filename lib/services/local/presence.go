@@ -33,7 +33,7 @@ import (
 type PresenceService struct {
 	*log.Entry
 	backend.Backend
-	// fast getter of the items extension
+	// getter is used to make batch requests to the backend.
 	getter backend.ItemsGetter
 }
 
