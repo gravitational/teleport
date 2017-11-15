@@ -60,8 +60,7 @@ type Server struct {
 	namespace string
 	addr      utils.NetAddr
 	hostname  string
-	// certChecker checks the CA of the connecting user
-	certChecker   ssh.CertChecker
+
 	srv           *sshutils.Server
 	hostSigner    ssh.Signer
 	shell         string
@@ -112,6 +111,9 @@ type Server struct {
 	// macAlgorithms is a list of message authentication codes (MAC) that
 	// the server supports. If omitted the defaults will be used.
 	macAlgorithms []string
+
+	// authHandlers are common authorization and authentication related handlers.
+	authHandlers srv.AuthHandlers
 }
 
 func (s *Server) GetNamespace() string {
@@ -282,7 +284,7 @@ func New(addr utils.NetAddr,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	s.certChecker = ssh.CertChecker{IsAuthority: s.isAuthority}
+
 	for _, o := range options {
 		if err := o(s); err != nil {
 			return nil, trace.Wrap(err)
@@ -296,11 +298,23 @@ func New(addr utils.NetAddr,
 		component = teleport.ComponentNode
 	}
 
+	// add in common auth handlers
+	s.authHandlers = srv.AuthHandlers{
+		Entry: log.WithFields(log.Fields{
+			trace.Component:       component,
+			trace.ComponentFields: log.Fields{},
+		}),
+		Server:      s.getInfo(),
+		Component:   component,
+		AuditLog:    s.alog,
+		AccessPoint: s.authService,
+	}
+
 	s.reg = srv.NewSessionRegistry(s)
 	server, err := sshutils.NewServer(
 		component,
 		addr, s, signers,
-		sshutils.AuthMethods{PublicKey: s.keyAuth},
+		sshutils.AuthMethods{PublicKey: s.authHandlers.KeyAuth},
 		sshutils.SetLimiter(s.limiter),
 		sshutils.SetRequestHandler(s),
 		sshutils.SetCiphers(s.ciphers),
@@ -460,166 +474,52 @@ func (s *Server) getCommandLabels() map[string]services.CommandLabel {
 	return out
 }
 
-// extractRolesFromCert extracts roles from certificate metadata extensions
-func (s *Server) extractRolesFromCert(cert *ssh.Certificate) ([]string, error) {
-	data, ok := cert.Extensions[teleport.CertExtensionTeleportRoles]
-	if !ok {
-		// it's ok to not have any roles in the metadata
-		return nil, nil
-	}
-	return services.UnmarshalCertRoles(data)
-}
-
-// checkPermissionToLogin checks the given certificate (supplied by a connected client)
-// to see if this certificate can be allowed to login as user:login pair
-func (s *Server) checkPermissionToLogin(cert *ssh.Certificate, teleportUser, osUser string) (string, error) {
-	// enumerate all known CAs and see if any of them signed the
-	// supplied certificate
-	log.Debugf("[HA SSH NODE] checkPermsissionToLogin(%v, %v)", teleportUser, osUser)
-	cas, err := s.authService.GetCertAuthorities(services.UserCA, false)
+// serveAgent will build the a sock path for this user and serve an SSH agent on unix socket.
+func (s *Server) serveAgent(ctx *srv.ServerContext) error {
+	// gather information about user and process. this will be used to set the
+	// socket path and permissions
+	systemUser, err := user.Lookup(ctx.Login)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return trace.ConvertSystemError(err)
 	}
-	var ca services.CertAuthority
-	for i := range cas {
-		checkers, err := cas[i].Checkers()
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-		for _, checker := range checkers {
-			if sshutils.KeysEqual(cert.SignatureKey, checker) {
-				ca = cas[i]
-				break
-			}
-		}
-	}
-	// the certificate was signed by unknown authority
-	if ca == nil {
-		return "", trace.AccessDenied(
-			"the certificate for user '%v' is signed by untrusted CA",
-			teleportUser)
-	}
-
-	domainName, err := s.authService.GetDomainName()
+	uid, err := strconv.Atoi(systemUser.Uid)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return trace.Wrap(err)
 	}
-
-	// for local users, go and check their individual permissions
-	var roles services.RoleSet
-	if domainName == ca.GetClusterName() {
-		users, err := s.authService.GetUsers()
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-		for _, u := range users {
-			if u.GetName() == teleportUser {
-				// pass along the traits so we get the substituted roles for this user
-				roles, err = services.FetchRoles(u.GetRoles(), s.authService, u.GetTraits())
-				if err != nil {
-					return "", trace.Wrap(err)
-				}
-			}
-		}
-	} else {
-		certRoles, err := s.extractRolesFromCert(cert)
-		if err != nil {
-			log.Errorf("failed to extract roles from cert: %v", err)
-			return "", trace.AccessDenied("failed to parse certificate roles")
-		}
-		roleNames, err := ca.CombinedMapping().Map(certRoles)
-		if err != nil {
-			log.Errorf("failed to map roles %v", err)
-			return "", trace.AccessDenied("failed to map roles")
-		}
-		// pass the principals on the certificate along as the login traits
-		// to the remote cluster.
-		traits := map[string][]string{
-			teleport.TraitLogins: cert.ValidPrincipals,
-		}
-		roles, err = services.FetchRoles(roleNames, s.authService, traits)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-	}
-
-	if err := roles.CheckAccessToServer(osUser, s.getInfo()); err != nil {
-		return "", trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
-			teleportUser, ca.GetClusterName(), osUser, domainName, err)
-	}
-
-	return domainName, nil
-}
-
-// fetchRoleSet fretches role set for a given user
-func (s *Server) fetchRoleSet(teleportUser string, clusterName string) (services.RoleSet, error) {
-	localClusterName, err := s.authService.GetDomainName()
+	gid, err := strconv.Atoi(systemUser.Gid)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
+	pid := os.Getpid()
 
-	cas, err := s.authService.GetCertAuthorities(services.UserCA, false)
+	// build the socket path and set permissions
+	socketDir, err := ioutil.TempDir(os.TempDir(), "teleport-")
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
+	}
+	dirCloser := &utils.RemoveDirCloser{Path: socketDir}
+	socketPath := filepath.Join(socketDir, fmt.Sprintf("teleport-%v.socket", pid))
+	if err := os.Chown(socketDir, uid, gid); err != nil {
+		if err := dirCloser.Close(); err != nil {
+			log.Warn("failed to remove directory: %v", err)
+		}
+		return trace.ConvertSystemError(err)
 	}
 
-	var ca services.CertAuthority
-	for i := range cas {
-		if cas[i].GetClusterName() == clusterName {
-			ca = cas[i]
-			break
-		}
-	}
-	if ca == nil {
-		return nil, trace.NotFound("could not find certificate authority for cluster %v and user %v", clusterName, teleportUser)
-	}
-
-	var roles services.RoleSet
-	if localClusterName == clusterName {
-		users, err := s.authService.GetUsers()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		for _, u := range users {
-			if u.GetName() == teleportUser {
-				roles, err = services.FetchRoles(u.GetRoles(), s.authService, u.GetTraits())
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-			}
-		}
-	} else {
-		roles, err = services.FetchRoles(ca.GetRoles(), s.authService, nil)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	return roles, err
-}
-
-// isAuthority is called during checking the client key, to see if the signing
-// key is the real CA authority key.
-func (s *Server) isAuthority(cert ssh.PublicKey) bool {
-	// find cert authority by it's key
-	cas, err := s.authService.GetCertAuthorities(services.UserCA, false)
+	// start an agent on a unix socket
+	agentServer := &teleagent.AgentServer{Agent: ctx.GetAgent()}
+	err = agentServer.ListenUnixSocket(socketPath, uid, gid, 0600)
 	if err != nil {
-		log.Warningf("%v", trace.DebugReport(err))
-		return false
+		return trace.Wrap(err)
 	}
+	ctx.SetEnv(teleport.SSHAuthSock, socketPath)
+	ctx.SetEnv(teleport.SSHAgentPID, fmt.Sprintf("%v", pid))
+	ctx.AddCloser(agentServer)
+	ctx.AddCloser(dirCloser)
+	ctx.Debugf("[SSH:node] opened agent channel for teleport user %v and socket %v", ctx.TeleportUser, socketPath)
+	go agentServer.Serve()
 
-	for i := range cas {
-		checkers, err := cas[i].Checkers()
-		if err != nil {
-			log.Warningf("%v", err)
-			return false
-		}
-		for _, checker := range checkers {
-			if sshutils.KeysEqual(cert, checker) {
-				return true
-			}
-		}
-	}
-	return false
+	return nil
 }
 
 // EmitAuditEvent logs a given event to the audit log attached to the
@@ -634,88 +534,6 @@ func (s *Server) EmitAuditEvent(eventType string, fields events.EventFields) {
 	} else {
 		log.Warn("SSH server has no audit log")
 	}
-}
-
-// keyAuth implements SSH client authentication using public keys and is called
-// by the server every time the client connects
-func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
-	cid := fmt.Sprintf("conn(%v->%v, user=%v)", conn.RemoteAddr(), conn.LocalAddr(), conn.User())
-	fingerprint := fmt.Sprintf("%v %v", key.Type(), sshutils.Fingerprint(key))
-	log.Debugf("[SSH] %v auth attempt with key %v", cid, fingerprint)
-
-	logger := log.WithFields(log.Fields{
-		"local":       conn.LocalAddr(),
-		"remote":      conn.RemoteAddr(),
-		"user":        conn.User(),
-		"fingerprint": fingerprint,
-	})
-
-	cert, ok := key.(*ssh.Certificate)
-	log.Debugf("[SSH] %v auth attempt with key %v, %#v", cid, fingerprint, cert)
-	if !ok {
-		log.Debugf("[SSH] auth attempt, unsupported key type for %v", fingerprint)
-		return nil, trace.BadParameter("unsupported key type: %v", fingerprint)
-	}
-	if len(cert.ValidPrincipals) == 0 {
-		log.Debugf("[SSH] need a valid principal for key %v", fingerprint)
-		return nil, trace.BadParameter("need a valid principal for key %v", fingerprint)
-	}
-
-	if len(cert.KeyId) == 0 {
-		log.Debugf("[SSH] need a valid key ID for key %v", fingerprint)
-		return nil, trace.BadParameter("need a valid key for key %v", fingerprint)
-	}
-	teleportUser := cert.KeyId
-
-	logAuditEvent := func(err error) {
-		// only failed attempts are logged right now
-		if err != nil {
-			fields := events.EventFields{
-				events.EventUser:          teleportUser,
-				events.AuthAttemptSuccess: false,
-				events.AuthAttemptErr:     err.Error(),
-			}
-			log.Warningf("[SSH] failed login attempt %#v", fields)
-			s.EmitAuditEvent(events.AuthAttemptEvent, fields)
-		}
-	}
-	permissions, err := s.certChecker.Authenticate(conn, key)
-	if err != nil {
-		logAuditEvent(err)
-		return nil, trace.Wrap(err)
-	}
-	if err := s.certChecker.CheckCert(conn.User(), cert); err != nil {
-		logAuditEvent(err)
-		return nil, trace.Wrap(err)
-	}
-	logger.Debugf("[SSH] successfully authenticated")
-
-	// see if the host user is valid (no need to do this in proxy mode)
-	if !s.proxyMode {
-		_, err = user.Lookup(conn.User())
-		if err != nil {
-			host, _ := os.Hostname()
-			logger.Warningf("host '%s' does not have OS user '%s'", host, conn.User())
-			logger.Errorf("no such user")
-			return nil, trace.AccessDenied("no such user: '%s'", conn.User())
-		}
-	}
-
-	// this is the only way we know of to pass valid principal with the
-	// connection
-	permissions.Extensions[utils.CertTeleportUser] = teleportUser
-
-	if s.proxyMode {
-		return permissions, nil
-	}
-	clusterName, err := s.checkPermissionToLogin(cert, teleportUser, conn.User())
-	if err != nil {
-		logger.Errorf("Permission denied: %v", err)
-		logAuditEvent(err)
-		return nil, trace.Wrap(err)
-	}
-	permissions.Extensions[utils.CertTeleportClusterName] = clusterName
-	return permissions, nil
 }
 
 // HandleRequest is a callback for handling global out-of-band requests.
@@ -933,70 +751,44 @@ func (s *Server) dispatch(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerConte
 		// https://tools.ietf.org/html/draft-ietf-secsh-agent-02
 		// the open ssh proto spec that we implement is here:
 		// http://cvsweb.openbsd.org/cgi-bin/cvsweb/src/usr.bin/ssh/PROTOCOL.agent
-		return s.handleAgentForward(ch, req, ctx)
+
+		// to maintain interoperability with OpenSSH, agent forwarding requests
+		// should never fail, all errors should be logged and we should continue
+		// processing requests.
+		err := s.handleAgentForwardNode(ch, req, ctx)
+		if err != nil {
+			log.Info(err)
+		}
+		return nil
 	default:
 		return trace.BadParameter(
 			"proxy doesn't support request type '%v'", req.Type)
 	}
 }
 
-func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) error {
-	roles, err := s.fetchRoleSet(ctx.TeleportUser, ctx.ClusterName)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := roles.CheckAgentForward(ctx.Login); err != nil {
-		log.Warningf("[SSH:node] denied forward agent %v", err)
-		return trace.Wrap(err)
-	}
-	systemUser, err := user.Lookup(ctx.Login)
-	if err != nil {
-		return trace.ConvertSystemError(err)
-	}
-	uid, err := strconv.Atoi(systemUser.Uid)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	gid, err := strconv.Atoi(systemUser.Gid)
+// handleAgentForwardNode will create a unix socket and serve the agent running
+// on the client on it.
+func (s *Server) handleAgentForwardNode(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) error {
+	// check if the users rbac role allows agent forwarding
+	err := s.authHandlers.CheckAgentForward(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	// open a channel to the client where the client will serve an agent
 	authChan, _, err := ctx.Conn.OpenChannel("auth-agent@openssh.com", nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	clientAgent := agent.NewClient(authChan)
-	ctx.SetAgent(clientAgent, authChan)
 
-	pid := os.Getpid()
-	socketDir, err := ioutil.TempDir(os.TempDir(), "teleport-")
+	// save the agent in the context so it can be used later
+	ctx.SetAgent(agent.NewClient(authChan), authChan)
+
+	// serve an agent on a unix socket on this node
+	err = s.serveAgent(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	dirCloser := &utils.RemoveDirCloser{Path: socketDir}
-	socketPath := filepath.Join(socketDir, fmt.Sprintf("teleport-%v.socket", pid))
-	if err := os.Chown(socketDir, uid, gid); err != nil {
-		if err := dirCloser.Close(); err != nil {
-			log.Warn("failed to remove directory: %v", err)
-		}
-		return trace.ConvertSystemError(err)
-	}
-
-	agentServer := &teleagent.AgentServer{Agent: clientAgent}
-	err = agentServer.ListenUnixSocket(socketPath, uid, gid, 0600)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if req.WantReply {
-		req.Reply(true, nil)
-	}
-	ctx.SetEnv(teleport.SSHAuthSock, socketPath)
-	ctx.SetEnv(teleport.SSHAgentPID, fmt.Sprintf("%v", pid))
-	ctx.AddCloser(agentServer)
-	ctx.AddCloser(dirCloser)
-	ctx.Debugf("[SSH:node] opened agent channel for teleport user %v and socket %v", ctx.TeleportUser, socketPath)
-	go agentServer.Serve()
 
 	return nil
 }

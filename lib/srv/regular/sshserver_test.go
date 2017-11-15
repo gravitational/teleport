@@ -35,6 +35,7 @@ import (
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dir"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -177,6 +178,8 @@ func (s *SrvSuite) SetUpTest(c *C) {
 		s.dir,
 		nil,
 		utils.NetAddr{},
+		SetNamespace(defaults.Namespace),
+		SetAuditLog(s.alog),
 		SetShell("/bin/sh"),
 		SetSessionServer(sessionServer),
 	)
@@ -222,15 +225,32 @@ func (s *SrvSuite) TestAdvertiseAddr(c *C) {
 	s.srv.setAdvertiseIP(nil)
 }
 
-// TestAgentForwardPermission tests agent forwarding via unix sockets
+// TestAgentForwardPermission makes sure if RBAC rules don't allow agent
+// forwarding, we don't start an agent even if requested.
 func (s *SrvSuite) TestAgentForwardPermission(c *C) {
 	se, err := s.clt.NewSession()
 	c.Assert(err, IsNil)
 	defer se.Close()
 
-	// by default user does not have agent forwarding set up
+	// make sure the role does not allow agent forwarding
+	roleName := services.RoleNameForUser(s.user)
+	role, err := s.a.GetRole(roleName)
+	c.Assert(err, IsNil)
+	roleOptions := role.GetOptions()
+	roleOptions.Set(services.ForwardAgent, false)
+	role.SetOptions(roleOptions)
+	err = s.a.UpsertRole(role, backend.Forever)
+	c.Assert(err, IsNil)
+
+	// to interoperate with OpenSSH, requests for agent forwarding always succeed.
+	// however that does not mean the users agent will actually be forwarded.
 	err = agent.RequestAgentForwarding(se)
-	c.Assert(err, NotNil)
+	c.Assert(err, IsNil)
+
+	// the output of env, we should not see SSH_AUTH_SOCK in the output
+	output, err := se.Output("env")
+	c.Assert(err, IsNil)
+	c.Assert(strings.Contains(string(output), "SSH_AUTH_SOCK"), Equals, false)
 }
 
 // TestAgentForward tests agent forwarding via unix sockets
