@@ -129,8 +129,9 @@ type ServerContext struct {
 	// ClusterName is the name of the cluster current user is authenticated with.
 	ClusterName string
 
-	// Certificate is the SSH certificate used in this session.
-	Certificate string
+	// Certificate is the SSH user certificate bytes marshalled in the OpenSSH
+	// authorized_keys format.
+	Certificate []byte
 }
 
 // NewServerContext creates a new *ServerContext which is used to pass and
@@ -145,7 +146,7 @@ func NewServerContext(srv Server, conn *ssh.ServerConn) *ServerContext {
 		SubsystemResultCh: make(chan SubsystemResult, 10),
 		TeleportUser:      conn.Permissions.Extensions[utils.CertTeleportUser],
 		ClusterName:       conn.Permissions.Extensions[utils.CertTeleportClusterName],
-		Certificate:       conn.Permissions.Extensions[utils.CertTeleportUserCertificate],
+		Certificate:       []byte(conn.Permissions.Extensions[utils.CertTeleportUserCertificate]),
 		Login:             conn.User(),
 	}
 
@@ -164,14 +165,14 @@ func NewServerContext(srv Server, conn *ssh.ServerConn) *ServerContext {
 
 // GetCertificate parses the SSH certificate bytes and returns a *ssh.Certificate.
 func (c *ServerContext) GetCertificate() (*ssh.Certificate, error) {
-	k, _, _, _, err := ssh.ParseAuthorizedKey([]byte(c.Certificate))
+	k, _, _, _, err := ssh.ParseAuthorizedKey(c.Certificate)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	cert, ok := k.(*ssh.Certificate)
 	if !ok {
-		return nil, trace.BadParameter("not a certificate: %v")
+		return nil, trace.BadParameter("not a certificate")
 	}
 
 	return cert, nil

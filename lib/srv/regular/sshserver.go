@@ -291,19 +291,23 @@ func New(addr utils.NetAddr,
 		}
 	}
 
-	// add in common auth handlers
-	s.authHandlers = srv.AuthHandlers{
-		Server:      s.getInfo(),
-		ProxyMode:   s.proxyMode,
-		AuditLog:    s.alog,
-		AccessPoint: s.authService,
-	}
-
 	var component string
 	if s.proxyMode {
 		component = teleport.ComponentProxy
 	} else {
 		component = teleport.ComponentNode
+	}
+
+	// add in common auth handlers
+	s.authHandlers = srv.AuthHandlers{
+		Entry: log.WithFields(log.Fields{
+			trace.Component:       component,
+			trace.ComponentFields: log.Fields{},
+		}),
+		Server:      s.getInfo(),
+		Component:   component,
+		AuditLog:    s.alog,
+		AccessPoint: s.authService,
 	}
 
 	s.reg = srv.NewSessionRegistry(s)

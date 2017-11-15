@@ -29,20 +29,21 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
+
 	log "github.com/sirupsen/logrus"
 )
 
 // AuthHandlers are common authorization and authentication related handlers
 // used by the regular and forwarding server.
 type AuthHandlers struct {
+	*log.Entry
+
 	// Server is the services.Server in the backend.
 	Server services.Server
 
-	// ProxyMode is if the server is running in proxy mode. Only applies to the
-	// regular server.
-	ProxyMode bool
+	// Component is the type of SSH server (node, proxy, or recording proxy).
+	Component string
 
 	// AuditLog is the service used to access Audit Log.
 	AuditLog events.IAuditLog
@@ -80,66 +81,70 @@ func (h *AuthHandlers) CheckAgentForward(ctx *ServerContext) error {
 // KeyAuth implements SSH client authentication using public keys and is called
 // by the server every time the client connects
 func (h *AuthHandlers) KeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
-	cid := fmt.Sprintf("conn(%v->%v, user=%v)", conn.RemoteAddr(), conn.LocalAddr(), conn.User())
 	fingerprint := fmt.Sprintf("%v %v", key.Type(), sshutils.Fingerprint(key))
-	log.Debugf("[SSH] %v auth attempt with key %v", cid, fingerprint)
 
-	logger := log.WithFields(log.Fields{
-		"local":       conn.LocalAddr(),
-		"remote":      conn.RemoteAddr(),
-		"user":        conn.User(),
-		"fingerprint": fingerprint,
+	// as soon as key auth starts, we know something about the connection, so
+	// update *log.Entry.
+	h.Entry = log.WithFields(log.Fields{
+		trace.Component: h.Component,
+		trace.ComponentFields: log.Fields{
+			"local":       conn.LocalAddr(),
+			"remote":      conn.RemoteAddr(),
+			"user":        conn.User(),
+			"fingerprint": fingerprint,
+		},
 	})
+
+	cid := fmt.Sprintf("conn(%v->%v, user=%v)", conn.RemoteAddr(), conn.LocalAddr(), conn.User())
+	h.Debugf("%v auth attempt", cid)
 
 	certChecker := ssh.CertChecker{IsAuthority: h.isAuthority}
 
 	cert, ok := key.(*ssh.Certificate)
-	log.Debugf("[SSH] %v auth attempt with key %v, %#v", cid, fingerprint, cert)
+	h.Debugf("%v auth attempt with key %v, %#v", cid, fingerprint, cert)
 	if !ok {
-		log.Debugf("[SSH] auth attempt, unsupported key type for %v", fingerprint)
+		h.Debugf("auth attempt, unsupported key type")
 		return nil, trace.BadParameter("unsupported key type: %v", fingerprint)
 	}
 	if len(cert.ValidPrincipals) == 0 {
-		log.Debugf("[SSH] need a valid principal for key %v", fingerprint)
+		h.Debugf("need a valid principal for key")
 		return nil, trace.BadParameter("need a valid principal for key %v", fingerprint)
 	}
 
 	if len(cert.KeyId) == 0 {
-		log.Debugf("[SSH] need a valid key ID for key %v", fingerprint)
+		h.Debugf("need a valid key ID for key")
 		return nil, trace.BadParameter("need a valid key for key %v", fingerprint)
 	}
 	teleportUser := cert.KeyId
 
-	logAuditEvent := func(err error) {
-		// only failed attempts are logged right now
-		if err != nil {
-			fields := events.EventFields{
-				events.EventUser:          teleportUser,
-				events.AuthAttemptSuccess: false,
-				events.AuthAttemptErr:     err.Error(),
-			}
-			log.Warningf("[SSH] failed login attempt %#v", fields)
-			h.AuditLog.EmitAuditEvent(events.AuthAttemptEvent, fields)
+	// only failed attempts are logged right now
+	recordFailedLogin := func(err error) {
+		fields := events.EventFields{
+			events.EventUser:          teleportUser,
+			events.AuthAttemptSuccess: false,
+			events.AuthAttemptErr:     err.Error(),
 		}
+		h.Warningf("failed login attempt %#v", fields)
+		h.AuditLog.EmitAuditEvent(events.AuthAttemptEvent, fields)
 	}
 	permissions, err := certChecker.Authenticate(conn, key)
 	if err != nil {
-		logAuditEvent(err)
+		recordFailedLogin(err)
 		return nil, trace.Wrap(err)
 	}
 	if err := certChecker.CheckCert(conn.User(), cert); err != nil {
-		logAuditEvent(err)
+		recordFailedLogin(err)
 		return nil, trace.Wrap(err)
 	}
-	logger.Debugf("[SSH] successfully authenticated")
+	h.Debugf("successfully authenticated")
 
 	// see if the host user is valid (no need to do this in proxy mode)
-	if !h.ProxyMode {
+	if !h.isProxy() {
 		_, err = user.Lookup(conn.User())
 		if err != nil {
 			host, _ := os.Hostname()
-			logger.Warningf("host '%s' does not have OS user '%s'", host, conn.User())
-			logger.Errorf("no such user")
+			h.Warningf("host '%s' does not have OS user '%s'", host, conn.User())
+			h.Errorf("no such user")
 			return nil, trace.AccessDenied("no such user: '%s'", conn.User())
 		}
 	}
@@ -155,15 +160,15 @@ func (h *AuthHandlers) KeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.P
 	permissions.Extensions[utils.CertTeleportClusterName] = clusterName
 	permissions.Extensions[utils.CertTeleportUserCertificate] = string(ssh.MarshalAuthorizedKey(cert))
 
-	if h.ProxyMode {
+	if h.isProxy() {
 		return permissions, nil
 	}
 
-	// if we are trying to connect to a node, make sure rbac rules allow it
+	// if we are trying to connect to a node, make sure RBAC rules allow it
 	err = h.checkPermissionToLogin(cert, clusterName, teleportUser, conn.User())
 	if err != nil {
-		logger.Errorf("Permission denied: %v", err)
-		logAuditEvent(err)
+		h.Errorf("Permission denied: %v", err)
+		recordFailedLogin(err)
 		return nil, trace.Wrap(err)
 	}
 
@@ -174,7 +179,7 @@ func (h *AuthHandlers) KeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.P
 // client) to see if this certificate can be allowed to login as user:login
 // pair to requested server.
 func (h *AuthHandlers) checkPermissionToLogin(cert *ssh.Certificate, clusterName string, teleportUser, osUser string) error {
-	log.Debugf("CheckPermsissionToLogin(%v, %v)", teleportUser, osUser)
+	h.Debugf("CheckPermsissionToLogin(%v, %v)", teleportUser, osUser)
 
 	// get the ca that signd the users certificate
 	ca, err := h.authorityForCert(cert.SignatureKey)
@@ -253,7 +258,7 @@ func (h *AuthHandlers) authorityForCert(cert ssh.PublicKey) (services.CertAuthor
 	// get all user certificate authorities
 	cas, err := h.AccessPoint.GetCertAuthorities(services.UserCA, false)
 	if err != nil {
-		log.Warningf("%v", trace.DebugReport(err))
+		h.Warningf("%v", trace.DebugReport(err))
 		return nil, trace.Wrap(err)
 	}
 
@@ -262,7 +267,7 @@ func (h *AuthHandlers) authorityForCert(cert ssh.PublicKey) (services.CertAuthor
 	for i := range cas {
 		checkers, err := cas[i].Checkers()
 		if err != nil {
-			log.Warningf("%v", err)
+			h.Warningf("%v", err)
 			return nil, trace.Wrap(err)
 		}
 		for _, checker := range checkers {
@@ -279,6 +284,14 @@ func (h *AuthHandlers) authorityForCert(cert ssh.PublicKey) (services.CertAuthor
 	}
 
 	return ca, nil
+}
+
+// isProxy returns true if it's a regular SSH proxy.
+func (h *AuthHandlers) isProxy() bool {
+	if h.Component == teleport.ComponentProxy {
+		return true
+	}
+	return false
 }
 
 // extractRolesFromCert extracts roles from certificate metadata extensions.
