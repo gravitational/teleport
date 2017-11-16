@@ -13,7 +13,7 @@ import (
 type DiscardAuditLog struct {
 }
 
-func (d *DiscardAuditLog) Wait(context.Context) error {
+func (d *DiscardAuditLog) WaitForDelivery(context.Context) error {
 	return nil
 }
 

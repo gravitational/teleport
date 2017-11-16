@@ -160,7 +160,7 @@ func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
 	return al, nil
 }
 
-func (l *AuditLog) Wait(context.Context) error {
+func (l *AuditLog) WaitForDelivery(context.Context) error {
 	return nil
 }
 
@@ -192,7 +192,6 @@ func (l *AuditLog) migrateSessions() error {
 
 // PostSessionSlice submits slice of session chunks to the audit log server.
 func (l *AuditLog) PostSessionSlice(slice SessionSlice) error {
-	l.Debugf("PostSessionSlice(%s)", slice.SessionID)
 	if slice.Namespace == "" {
 		return trace.BadParameter("missing parameter Namespace")
 	}

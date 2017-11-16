@@ -209,34 +209,49 @@ func (a *AuditTestSuite) TestAutoClose(c *check.C) {
 
 	sessionID := "100"
 	// type "hello" into session "100":
-	err = alog.PostSessionChunk(defaults.Namespace, session.ID(sessionID), bytes.NewBufferString("hello"))
+	firstMessage := "hello"
+	err = alog.PostSessionChunk(defaults.Namespace, session.ID(sessionID), bytes.NewBufferString(firstMessage))
 	c.Assert(err, check.IsNil)
 
 	// now fake sleep past expiration
-	fakeClock.Advance(defaults.SessionIdlePeriod * 2)
+	firstDelay := defaults.SessionIdlePeriod * 2
+	fakeClock.Advance(firstDelay)
 
 	// logger for idle session should be closed
 	alog.closeInactiveLoggers()
 	c.Assert(alog.loggers.Len(), check.Equals, 0)
 
 	// send another event to the session
-	err = alog.PostSessionChunk(defaults.Namespace, session.ID(sessionID), bytes.NewBufferString("howdy"))
+	secondMessage := "good day"
+	err = alog.PostSessionChunk(defaults.Namespace, session.ID(sessionID), bytes.NewBufferString(secondMessage))
 	c.Assert(err, check.IsNil)
 	// the logger has been reopened
 	c.Assert(alog.loggers.Len(), check.Equals, 1)
+
+	// emit next event 17 milliseconds later
+	secondDelay := 17 * time.Millisecond
+	fakeClock.Advance(secondDelay)
+	err = alog.PostSessionChunk(defaults.Namespace, session.ID(sessionID), bytes.NewBufferString("test"))
+	c.Assert(err, check.IsNil)
 
 	// emitting session end event should close the session
 	err = alog.EmitAuditEvent(SessionEndEvent, EventFields{SessionEventID: sessionID, EventLogin: "bob", EventNamespace: defaults.Namespace})
 	c.Assert(alog.loggers.Len(), check.Equals, 0)
 
 	// read the session bytes
-	history, err := alog.GetSessionEvents(defaults.Namespace, "100", 2)
+	history, err := alog.GetSessionEvents(defaults.Namespace, "100", 1)
 	c.Assert(err, check.IsNil)
-	c.Assert(history, check.HasLen, 2)
+	c.Assert(history, check.HasLen, 4)
 
 	// make sure offsets were properly set (0 for the first event and 5 bytes for hello):
 	c.Assert(history[0][SessionByteOffset], check.Equals, float64(0))
-	c.Assert(history[1][SessionByteOffset], check.Equals, float64(len("hello")))
+	c.Assert(history[1][SessionByteOffset], check.Equals, float64(len(firstMessage)))
+	c.Assert(history[2][SessionByteOffset], check.Equals, float64(len(firstMessage)+len(secondMessage)))
+
+	// make sure delays are right
+	c.Assert(history[0][SessionEventTimestamp], check.Equals, float64(0))
+	c.Assert(history[1][SessionEventTimestamp], check.Equals, float64(firstDelay/time.Millisecond))
+	c.Assert(history[2][SessionEventTimestamp], check.Equals, float64((firstDelay+secondDelay)/time.Millisecond))
 }
 
 // TestCloseOutstanding makes sure the logger closed outstanding sessions

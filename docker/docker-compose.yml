@@ -22,6 +22,20 @@ services:
           - one-lb
 
   #
+  # one-node is a single-node Teleport cluster called "one" (runs all 3 roles: proxy, auth and node)
+  #
+  one-node:
+    image: teleport:latest
+    container_name: one-node
+    command: ${CONTAINERHOME}/build/teleport start -d -c ${CONTAINERHOME}/docker/one-node.yaml
+    env_file: env.file
+    volumes:
+      - ../:/root/go/src/github.com/gravitational/teleport
+    networks:
+      teleport:
+        ipv4_address: 172.10.1.20
+
+  #
   # one-proxy is a second xproxy of the first cluster
   #
   one-proxy:

@@ -126,7 +126,7 @@ func (s *CacheLogSuite) TestFlushWait(c *check.C) {
 	c.Assert(err, check.IsNil)
 	wait, cancel := context.WithTimeout(context.TODO(), time.Second)
 	defer cancel()
-	err = log.Wait(wait)
+	err = log.WaitForDelivery(wait)
 	c.Assert(err, check.IsNil)
 
 	var out *events.SessionSlice

@@ -545,7 +545,7 @@ func (r *sessionRecorder) Close() error {
 	// in missing playback events
 	context, cancel := context.WithTimeout(context.TODO(), defaults.DefaultReadHeadersTimeout)
 	defer cancel() // releases resources if slowOperation completes before timeout elapses
-	err = r.alog.Wait(context)
+	err = r.alog.WaitForDelivery(context)
 	if err != nil {
 		errors = append(errors, err)
 		log.Warningf("timeout waiting for session to flush events: %v", trace.DebugReport(err))

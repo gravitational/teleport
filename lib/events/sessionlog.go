@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"os"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -67,9 +66,13 @@ type DiskSessionLoggerConfig struct {
 
 // NewDiskSessionLogger creates new disk based session logger
 func NewDiskSessionLogger(cfg DiskSessionLoggerConfig) (*DiskSessionLogger, error) {
-	writtenBytes, err := ReadWrittenBytes(cfg.EventsFileName)
+	lastPrintEvent, err := readLastPrintEvent(cfg.EventsFileName)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+		// no last event is ok
+		lastPrintEvent = nil
 	}
 	// create a new session stream file:
 	fstream, err := os.OpenFile(cfg.StreamFileName, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
@@ -88,12 +91,11 @@ func NewDiskSessionLogger(cfg DiskSessionLoggerConfig) (*DiskSessionLogger, erro
 				"sid": cfg.SessionID,
 			},
 		}),
-		writtenBytes: writtenBytes,
-		sid:          cfg.SessionID,
-		streamFile:   fstream,
-		eventsFile:   fevents,
-		clock:        cfg.Clock,
-		createdTime:  cfg.Clock.Now().In(time.UTC).Round(time.Second),
+		sid:            cfg.SessionID,
+		streamFile:     fstream,
+		eventsFile:     fevents,
+		clock:          cfg.Clock,
+		lastPrintEvent: lastPrintEvent,
 	}
 	return sessionLogger, nil
 }
@@ -115,41 +117,30 @@ type DiskSessionLogger struct {
 	// streamFile stores bytes from the session terminal I/O for replaying
 	streamFile *os.File
 
-	// counter of how many bytes have been written during this session
-	writtenBytes int64
-
 	// clock provides real of fake clock (for tests)
 	clock clockwork.Clock
 
-	createdTime time.Time
+	// lastPrintEvent is the last written session event
+	lastPrintEvent *printEvent
 }
 
 // LogEvent logs an event associated with this session
 func (sl *DiskSessionLogger) LogEvent(fields EventFields) {
-	sl.logEvent(fields, time.Time{})
-}
+	if _, ok := fields[EventTime]; !ok {
+		fields[EventTime] = sl.clock.Now().In(time.UTC).Round(time.Millisecond)
+	}
 
-// ReadWritternBytes reads last written bytes offset from the events file
-func ReadWrittenBytes(fileName string) (int64, error) {
-	lastEvent, err := ReadLastEvent(fileName)
-	if err != nil {
-		// empty file, no last event found or the file was
-		// not created yet
-		if trace.IsNotFound(err) {
-			return 0, nil
+	if sl.eventsFile != nil {
+		_, err := fmt.Fprintln(sl.eventsFile, eventToLine(fields))
+		if err != nil {
+			log.Error(trace.DebugReport(err))
 		}
-		return -1, trace.Wrap(err)
 	}
-	bytes, ok := lastEvent[SessionByteOffset].(float64)
-	if !ok {
-		return -1, trace.BadParameter("expected float64, got %T", lastEvent[SessionByteOffset])
-	}
-	return int64(bytes), nil
 }
 
-// ReadLastEvent reads last event from the file, it opens
+// readLastEvent reads last event from the file, it opens
 // the file in read only mode and closes it after
-func ReadLastEvent(fileName string) (EventFields, error) {
+func readLastPrintEvent(fileName string) (*printEvent, error) {
 	f, err := os.Open(fileName)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
@@ -175,50 +166,21 @@ func ReadLastEvent(fileName string) (EventFields, error) {
 	if len(lines) == 0 {
 		return nil, trace.BadParameter("expected some lines, got %q", string(buf))
 	}
-	var lastLine []byte
 	for i := len(lines) - 1; i > 0; i-- {
-		lastLine = bytes.TrimSpace(lines[i])
-		if len(lastLine) != 0 {
-			break
+		line := bytes.TrimSpace(lines[i])
+		if len(line) == 0 {
+			continue
 		}
-	}
-	if len(lastLine) == 0 {
-		return nil, trace.BadParameter("file is filled with empty newlines")
-	}
-	var fields EventFields
-	if err = json.Unmarshal(lastLine, &fields); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return fields, nil
-}
-
-// LogEvent logs an event associated with this session
-func (sl *DiskSessionLogger) logEvent(fields EventFields, start time.Time) {
-	sl.Lock()
-	defer sl.Unlock()
-
-	// add "bytes written" counter:
-	fields[SessionByteOffset] = atomic.LoadInt64(&sl.writtenBytes)
-
-	// add "milliseconds since" timestamp:
-	var now time.Time
-	if start.IsZero() {
-		now = sl.clock.Now().In(time.UTC).Round(time.Millisecond)
-	} else {
-		now = start.In(time.UTC).Round(time.Millisecond)
-	}
-
-	fields[SessionEventTimestamp] = int(now.Sub(sl.createdTime).Nanoseconds() / 1000000)
-	fields[EventTime] = now
-
-	line := eventToLine(fields)
-
-	if sl.eventsFile != nil {
-		_, err := fmt.Fprintln(sl.eventsFile, line)
-		if err != nil {
-			log.Error(err)
+		var event printEvent
+		if err = json.Unmarshal(line, &event); err != nil {
+			return nil, trace.Wrap(err)
 		}
+		if event.Type != SessionPrintEvent {
+			continue
+		}
+		return &event, nil
 	}
+	return nil, trace.NotFound("no session print events found")
 }
 
 // Close is called when clients close on the requested "session writer".
@@ -248,22 +210,66 @@ func (sl *DiskSessionLogger) Finalize() error {
 // WriteChunk takes a stream of bytes (usually the output from a session terminal)
 // and writes it into a "stream file", for future replay of interactive sessions.
 func (sl *DiskSessionLogger) WriteChunk(chunk *SessionChunk) (written int, err error) {
-	if sl.streamFile == nil {
-		err := trace.Errorf("session %v error: attempt to write to a closed file", sl.sid)
-		return 0, trace.Wrap(err)
+	sl.Lock()
+	defer sl.Unlock()
+
+	if sl.streamFile == nil || sl.eventsFile == nil {
+		return 0, trace.BadParameter("session %v: attempt to write to a closed file", sl.sid)
 	}
+
 	if written, err = sl.streamFile.Write(chunk.Data); err != nil {
-		log.Error(err)
 		return written, trace.Wrap(err)
 	}
 
-	// log this as a session event (but not more often than once a sec)
-	sl.logEvent(EventFields{
-		EventType:              SessionPrintEvent,
-		SessionPrintEventBytes: len(chunk.Data),
-	}, time.Unix(0, chunk.Time))
+	err = sl.writePrintEvent(time.Unix(0, chunk.Time), len(chunk.Data))
+	return written, trace.Wrap(err)
+}
 
-	// increase the total lengh of the stream
-	atomic.AddInt64(&sl.writtenBytes, int64(len(chunk.Data)))
-	return written, nil
+// writePrintEvent logs print event indicating write to the session
+func (sl *DiskSessionLogger) writePrintEvent(start time.Time, bytesWritten int) error {
+	start = start.In(time.UTC).Round(time.Millisecond)
+	offset := int64(0)
+	delayMilliseconds := int64(0)
+	if sl.lastPrintEvent != nil {
+		offset = sl.lastPrintEvent.Offset + sl.lastPrintEvent.Bytes
+		delayMilliseconds = diff(sl.lastPrintEvent.Start, start) + sl.lastPrintEvent.DelayMilliseconds
+	}
+	event := printEvent{
+		Start:             start,
+		Type:              SessionPrintEvent,
+		Bytes:             int64(bytesWritten),
+		DelayMilliseconds: delayMilliseconds,
+		Offset:            offset,
+	}
+	bytes, err := json.Marshal(event)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = fmt.Fprintln(sl.eventsFile, string(bytes))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	sl.lastPrintEvent = &event
+	return trace.Wrap(err)
+}
+
+func diff(before, after time.Time) int64 {
+	d := int64(after.Sub(before) / time.Millisecond)
+	if d < 0 {
+		return 0
+	}
+	return d
+}
+
+type printEvent struct {
+	// Start is event start
+	Start time.Time `json:"time"`
+	// Type is event type
+	Type string `json:"event"`
+	// Bytes is event bytes
+	Bytes int64 `json:"bytes"`
+	// DelayMilliseconds is the delay in milliseconds from the start of the session
+	DelayMilliseconds int64 `json:"ms"`
+	// Offset int64 is the offset in bytes in the session file
+	Offset int64 `json:"offset"`
 }

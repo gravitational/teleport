@@ -54,7 +54,7 @@ func (d *MockAuditLog) GetError() error {
 	return d.returnError
 }
 
-func (d *MockAuditLog) Wait(context.Context) error {
+func (d *MockAuditLog) WaitForDelivery(context.Context) error {
 	return nil
 }
 

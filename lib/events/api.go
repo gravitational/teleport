@@ -148,9 +148,9 @@ type IAuditLog interface {
 	// find completed session.
 	SearchSessionEvents(fromUTC time.Time, toUTC time.Time) ([]EventFields, error)
 
-	// Wait waits for resources to be released and outstanding requests to
+	// WaitForDelivery waits for resources to be released and outstanding requests to
 	// complete after calling Close method
-	Wait(context.Context) error
+	WaitForDelivery(context.Context) error
 }
 
 // EventFields instance is attached to every logged event

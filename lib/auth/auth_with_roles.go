@@ -1000,7 +1000,7 @@ func (a *AuthWithRoles) Close() error {
 	return a.authServer.Close()
 }
 
-func (a *AuthWithRoles) Wait(context.Context) error {
+func (a *AuthWithRoles) WaitForDelivery(context.Context) error {
 	return nil
 }
 

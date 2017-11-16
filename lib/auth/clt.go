@@ -219,7 +219,7 @@ func (c *Client) Close() error {
 	return nil
 }
 
-func (c *Client) Wait(context.Context) error {
+func (c *Client) WaitForDelivery(context.Context) error {
 	return nil
 }
 

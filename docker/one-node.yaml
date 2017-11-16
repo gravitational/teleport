@@ -1,7 +1,6 @@
-# Single-node Teleport cluster called "one" (runs all 3 roles: proxy, auth and node)
 teleport:
-  nodename: one
-  advertise_ip: 172.10.1.1
+  auth_servers: ["one"]
+  auth_token: foo
   log:
     output: /var/lib/teleport/teleport.log
     severity: INFO
@@ -12,15 +11,7 @@ teleport:
       type: dir
 
 auth_service:
-  enabled: yes
-
-  authentication:
-    type: oidc
-
-  cluster_name: one
-  tokens: 
-       - "node,auth,proxy:foo"
-       - "trustedcluster:bar"
+  enabled: no
 
 ssh_service:
   enabled: yes
@@ -32,5 +23,5 @@ ssh_service:
         period: 5m
 
 proxy_service:
-  enabled: yes
+  enabled: no
 

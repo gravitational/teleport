@@ -528,8 +528,10 @@ func (s *Server) EmitAuditEvent(eventType string, fields events.EventFields) {
 	log.Debugf("server.EmitAuditEvent(%v)", eventType)
 	alog := s.alog
 	if alog != nil {
+		// record the event time with ms precision
+		fields[events.EventTime] = s.clock.Now().In(time.UTC).Round(time.Millisecond)
 		if err := alog.EmitAuditEvent(eventType, fields); err != nil {
-			log.Error(err)
+			log.Error(trace.DebugReport(err))
 		}
 	} else {
 		log.Warn("SSH server has no audit log")

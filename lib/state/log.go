@@ -386,9 +386,9 @@ func (ll *CachingAuditLog) post(chunks []*events.SessionChunk) error {
 	return nil
 }
 
-// Wait waits until all operations of the caching audit log complete
+// WaitForDelivery waits until all operations of the caching audit log complete
 // after Close has been called, e.g. flushing remaining items
-func (ll *CachingAuditLog) Wait(ctx context.Context) error {
+func (ll *CachingAuditLog) WaitForDelivery(ctx context.Context) error {
 	select {
 	case <-ll.waitCtx.Done():
 		return nil
