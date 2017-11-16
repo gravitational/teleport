@@ -79,6 +79,9 @@ const (
 	// ComponentSubsystemProxy is the proxy subsystem.
 	ComponentSubsystemProxy = "subsystem:proxy"
 
+	// ComponentAuditLog is audit log component
+	ComponentAuditLog = "auditlog"
+
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
 

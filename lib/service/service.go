@@ -326,7 +326,10 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 			log.Warn(warningMessage)
 		}
 
-		auditLog, err = events.NewAuditLog(filepath.Join(cfg.DataDir, "log"), recordSessions)
+		auditLog, err = events.NewAuditLog(events.AuditLogConfig{
+			DataDir:        filepath.Join(cfg.DataDir, "log"),
+			RecordSessions: recordSessions,
+		})
 		if err != nil {
 			return trace.Wrap(err)
 		}

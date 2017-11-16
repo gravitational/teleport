@@ -18,6 +18,7 @@ limitations under the License.
 package state
 
 import (
+	"context"
 	"time"
 
 	"github.com/gravitational/teleport/lib/events"
@@ -99,6 +100,35 @@ func (s *CacheLogSuite) TestFlushOnClose(c *check.C) {
 	c.Assert(err, check.IsNil)
 	err = log.Close()
 	c.Assert(err, check.IsNil)
+	var out *events.SessionSlice
+	select {
+	case out = <-mock.SlicesC:
+	case <-time.After(time.Second):
+		c.Fatalf("timeout")
+	}
+	fixtures.DeepCompare(c, out, slice)
+}
+
+// TestFlushWait makes sure wait returns correctly
+// after audit log closes and the event is received
+func (s *CacheLogSuite) TestFlushWait(c *check.C) {
+	mock := events.NewMockAuditLog(1)
+	log := newLog(CachingAuditLogConfig{
+		FlushTimeout: 10 * time.Second,
+		FlushChunks:  100,
+		QueueLen:     200,
+		Server:       mock,
+	})
+	slice := s.newSlice("hello")
+	err := log.PostSessionSlice(*slice)
+	c.Assert(err, check.IsNil)
+	err = log.Close()
+	c.Assert(err, check.IsNil)
+	wait, cancel := context.WithTimeout(context.TODO(), time.Second)
+	defer cancel()
+	err = log.WaitForDelivery(wait)
+	c.Assert(err, check.IsNil)
+
 	var out *events.SessionSlice
 	select {
 	case out = <-mock.SlicesC:

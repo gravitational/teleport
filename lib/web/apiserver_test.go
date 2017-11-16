@@ -117,7 +117,8 @@ func (s *WebSuite) SetUpSuite(c *C) {
 
 	sessionStreamPollPeriod = time.Millisecond
 	s.logDir = c.MkDir()
-	s.auditLog, err = events.NewAuditLog(s.logDir, true)
+	s.auditLog, err = events.NewAuditLog(events.AuditLogConfig{
+		DataDir: s.logDir, RecordSessions: true})
 	c.Assert(err, IsNil)
 	c.Assert(s.auditLog, NotNil)
 	s.mockU2F, err = mocku2f.Create()

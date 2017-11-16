@@ -19,6 +19,7 @@ package events
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -30,11 +31,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
+	"github.com/gravitational/ttlmap"
+	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 )
@@ -70,14 +74,14 @@ func init() {
 	prometheus.MustRegister(auditOpenFiles)
 }
 
-type TimeSourceFunc func() time.Time
-
 // AuditLog is a new combined facility to record Teleport events and
 // sessions. It implements IAuditLog
 type AuditLog struct {
 	sync.Mutex
-	loggers map[session.ID]SessionLogger
-	dataDir string
+	*log.Entry
+	AuditLogConfig
+
+	loggers *ttlmap.TTLMap
 
 	// file is the current global event log file. As the time goes
 	// on, it will be replaced by a new file every day
@@ -86,43 +90,83 @@ type AuditLog struct {
 	// fileTime is a rounded (to a day, by default) timestamp of the
 	// currently opened file
 	fileTime time.Time
+}
+
+// AuditLogConfig specifies configuration for AuditLog server
+type AuditLogConfig struct {
+	// DataDir is the directory where audit log stores the data
+	DataDir string
+
+	// RecordSessions controls if sessions are recorded along with audit events.
+	RecordSessions bool
 
 	// RotationPeriod defines how frequently to rotate the log file
 	RotationPeriod time.Duration
 
-	// same as time.Now(), but helps with testing
-	TimeSource TimeSourceFunc
+	// SessionIdlePeriod defines the period after which sessions will be considered
+	// idle (and audit log will free up some resources)
+	SessionIdlePeriod time.Duration
 
-	// recordSessions controls if sessions are recorded along with audit events.
-	recordSessions bool
+	// Clock is a clock either real one or used in tests
+	Clock clockwork.Clock
+}
+
+// CheckAndSetDefaults checks and sets defaults
+func (a *AuditLogConfig) CheckAndSetDefaults() error {
+	if a.DataDir == "" {
+		return trace.BadParameter("missing parameter DataDir")
+	}
+	if a.Clock == nil {
+		a.Clock = clockwork.NewRealClock()
+	}
+	if a.RotationPeriod == 0 {
+		a.RotationPeriod = defaults.LogRotationPeriod
+	}
+	if a.SessionIdlePeriod == 0 {
+		a.SessionIdlePeriod = defaults.SessionIdlePeriod
+	}
+	return nil
 }
 
 // Creates and returns a new Audit Log oboject whish will store its logfiles in
 // a given directory. Session recording can be disabled by setting
 // recordSessions to false.
-func NewAuditLog(dataDir string, recordSessions bool) (IAuditLog, error) {
+func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	// create a directory for session logs:
-	sessionDir := filepath.Join(dataDir, SessionLogsDir)
+	sessionDir := filepath.Join(cfg.DataDir, SessionLogsDir)
 	if err := os.MkdirAll(sessionDir, 0770); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	al := &AuditLog{
-		loggers:        make(map[session.ID]SessionLogger, 0),
-		dataDir:        dataDir,
-		RotationPeriod: defaults.LogRotationPeriod,
-		TimeSource:     time.Now,
-		recordSessions: recordSessions,
+		AuditLogConfig: cfg,
+		Entry: log.WithFields(log.Fields{
+			trace.Component: teleport.ComponentAuditLog,
+		}),
 	}
+	loggers, err := ttlmap.New(defaults.AuditLogSessions,
+		ttlmap.CallOnExpire(al.asyncCloseSessionLogger), ttlmap.Clock(cfg.Clock))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	al.loggers = loggers
 	if err := al.migrateSessions(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	go al.periodicCloseInactiveLoggers()
 	return al, nil
+}
+
+func (l *AuditLog) WaitForDelivery(context.Context) error {
+	return nil
 }
 
 func (l *AuditLog) migrateSessions() error {
 	// if 'default' namespace does not exist, migrate old logs to the new location
-	sessionDir := filepath.Join(l.dataDir, SessionLogsDir)
+	sessionDir := filepath.Join(l.DataDir, SessionLogsDir)
 	targetDir := filepath.Join(sessionDir, defaults.Namespace)
 	_, err := utils.StatDir(targetDir)
 	if err == nil {
@@ -131,9 +175,9 @@ func (l *AuditLog) migrateSessions() error {
 	if !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
-	log.Infof("[MIGRATION] migrating sessions from %v to %v", sessionDir, filepath.Join(sessionDir, defaults.Namespace))
+	l.Infof("[MIGRATION] migrating sessions from %v to %v", sessionDir, filepath.Join(sessionDir, defaults.Namespace))
 	// can't directly rename dir to its own subdir, so using temp dir
-	tempDir := filepath.Join(l.dataDir, "___migrate")
+	tempDir := filepath.Join(l.DataDir, "___migrate")
 	if err := os.Rename(sessionDir, tempDir); err != nil {
 		return trace.ConvertSystemError(err)
 	}
@@ -156,6 +200,7 @@ func (l *AuditLog) PostSessionSlice(slice SessionSlice) error {
 	}
 	sl, err := l.LoggerFor(slice.Namespace, session.ID(slice.SessionID))
 	if err != nil {
+		l.Errorf("failed to get logger: %v", trace.DebugReport(err))
 		return trace.BadParameter("audit.log: no session writer for %s", slice.SessionID)
 	}
 	for i := range slice.Chunks {
@@ -174,7 +219,7 @@ func (l *AuditLog) PostSessionChunk(namespace string, sid session.ID, reader io.
 		return trace.Wrap(err)
 	}
 	chunk := &SessionChunk{
-		Time: l.TimeSource().In(time.UTC).UnixNano(),
+		Time: l.Clock.Now().In(time.UTC).UnixNano(),
 		Data: tmp,
 	}
 	return l.PostSessionSlice(SessionSlice{
@@ -189,7 +234,7 @@ func (l *AuditLog) PostSessionChunk(namespace string, sid session.ID, reader io.
 // session stream range from offsetBytes to offsetBytes+maxBytes
 //
 func (l *AuditLog) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
-	log.Debugf("audit.log: getSessionReader(%v, %v)", namespace, sid)
+	l.Debugf("getSessionReader(%v, %v)", namespace, sid)
 	if namespace == "" {
 		return nil, trace.BadParameter("missing parameter namespace")
 	}
@@ -252,7 +297,7 @@ func (l *AuditLog) GetSessionEvents(namespace string, sid session.ID, afterN int
 
 // EmitAuditEvent adds a new event to the log. Part of auth.IAuditLog interface.
 func (l *AuditLog) EmitAuditEvent(eventType string, fields EventFields) error {
-	log.Debugf("auditLog.EmitAuditEvent(%s)", eventType)
+	l.Debugf("EmitAuditEvent(%v: %v)", eventType, fields)
 
 	// see if the log needs to be rotated
 	if err := l.rotateLog(); err != nil {
@@ -261,7 +306,7 @@ func (l *AuditLog) EmitAuditEvent(eventType string, fields EventFields) error {
 
 	// set event type and time:
 	fields[EventType] = eventType
-	fields[EventTime] = l.TimeSource().In(time.UTC).Round(time.Second)
+	fields[EventTime] = l.Clock.Now().In(time.UTC).Round(time.Second)
 
 	// line is the text to be logged
 	line := eventToLine(fields)
@@ -275,16 +320,16 @@ func (l *AuditLog) EmitAuditEvent(eventType string, fields EventFields) error {
 
 			// Session ended? Get rid of the session logger then:
 			if eventType == SessionEndEvent {
-				log.Debugf("audit log: removing session logger for SID=%v", sessionID)
+				l.Debugf("removing session logger for SID=%v", sessionID)
 				l.Lock()
-				delete(l.loggers, session.ID(sessionID))
+				l.loggers.Remove(sessionID)
 				l.Unlock()
 				if err := sl.Finalize(); err != nil {
 					log.Error(err)
 				}
 			}
 		} else {
-			log.Warning(err.Error())
+			l.Errorf("failed to get logger: %v", trace.DebugReport(err))
 		}
 	}
 	// log it to the main log file:
@@ -296,7 +341,7 @@ func (l *AuditLog) EmitAuditEvent(eventType string, fields EventFields) error {
 
 // SearchEvents finds events. Results show up sorted by date (newest first)
 func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, query string) ([]EventFields, error) {
-	log.Infof("auditLog.SearchEvents(%v, %v, query=%v)", fromUTC, toUTC, query)
+	l.Debugf("SearchEvents(%v, %v, query=%v)", fromUTC, toUTC, query)
 	queryVals, err := url.ParseQuery(query)
 	if err != nil {
 		return nil, trace.BadParameter("missing parameter query", query)
@@ -308,7 +353,7 @@ func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, query string) ([]Event
 	}
 
 	// scan the log directory:
-	df, err := os.Open(l.dataDir)
+	df, err := os.Open(l.DataDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -334,7 +379,7 @@ func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, query string) ([]Event
 	// search within each file:
 	events := make([]EventFields, 0)
 	for i := range filtered {
-		found, err := l.findInFile(filepath.Join(l.dataDir, filtered[i].Name()), queryVals)
+		found, err := l.findInFile(filepath.Join(l.DataDir, filtered[i].Name()), queryVals)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -345,7 +390,7 @@ func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, query string) ([]Event
 
 // SearchSessionEvents searches for session related events. Used to find completed sessions.
 func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time) ([]EventFields, error) {
-	log.Infof("auditLog.SearchSessionEvents(%v, %v)", fromUTC, toUTC)
+	l.Infof("SearchSessionEvents(%v, %v)", fromUTC, toUTC)
 
 	// only search for specific event types
 	query := url.Values{}
@@ -369,7 +414,7 @@ func (f byDate) Swap(i, j int)      { f[i], f[j] = f[j], f[i] }
 //
 // You can pass multiple types like "event=session.start&event=session.end"
 func (l *AuditLog) findInFile(fn string, query url.Values) ([]EventFields, error) {
-	log.Infof("auditLog.findInFile(%s, %v)", fn, query)
+	l.Infof("findInFile(%s, %v)", fn, query)
 	retval := make([]EventFields, 0)
 
 	eventFilter := query[EventType]
@@ -401,7 +446,7 @@ func (l *AuditLog) findInFile(fn string, query url.Values) ([]EventFields, error
 		// in the query:
 		var ef EventFields
 		if err = json.Unmarshal(scanner.Bytes(), &ef); err != nil {
-			log.Warnf("invalid JSON in %s line %d", fn, lineNo)
+			l.Warnf("invalid JSON in %s line %d", fn, lineNo)
 		}
 		for i := range eventFilter {
 			if ef.GetString(EventType) == eventFilter[i] {
@@ -420,12 +465,12 @@ func (l *AuditLog) findInFile(fn string, query url.Values) ([]EventFields, error
 // and if it is, closes it and opens a new one
 func (l *AuditLog) rotateLog() (err error) {
 	// determine the timestamp for the current log file
-	fileTime := l.TimeSource().In(time.UTC).Round(l.RotationPeriod)
+	fileTime := l.Clock.Now().In(time.UTC).Round(l.RotationPeriod)
 
 	openLogFile := func() error {
 		l.Lock()
 		defer l.Unlock()
-		logfname := filepath.Join(l.dataDir,
+		logfname := filepath.Join(l.DataDir,
 			fileTime.Format("2006-01-02.15:04:05")+LogfileExt)
 		l.file, err = os.OpenFile(logfname, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
 		if err != nil {
@@ -457,9 +502,14 @@ func (l *AuditLog) Close() error {
 		l.file.Close()
 		l.file = nil
 	}
-	for sid, logger := range l.loggers {
-		logger.Close()
-		delete(l.loggers, sid)
+
+	// close any open sessions that haven't expired yet and are open
+	for {
+		key, value, found := l.loggers.Pop()
+		if !found {
+			break
+		}
+		l.closeSessionLogger(key, value)
 	}
 	return nil
 }
@@ -468,7 +518,7 @@ func (l *AuditLog) Close() error {
 // session by its ID
 func (l *AuditLog) sessionStreamFn(namespace string, sid session.ID) string {
 	return filepath.Join(
-		l.dataDir,
+		l.DataDir,
 		SessionLogsDir,
 		namespace,
 		fmt.Sprintf("%s%s", sid, SessionStreamPrefix))
@@ -478,7 +528,7 @@ func (l *AuditLog) sessionStreamFn(namespace string, sid session.ID) string {
 // session by its ID
 func (l *AuditLog) sessionLogFn(namespace string, sid session.ID) string {
 	return filepath.Join(
-		l.dataDir,
+		l.DataDir,
 		SessionLogsDir,
 		namespace,
 		fmt.Sprintf("%s%s", sid, SessionLogPrefix))
@@ -486,7 +536,7 @@ func (l *AuditLog) sessionLogFn(namespace string, sid session.ID) string {
 
 // LoggerFor creates a logger for a specified session. Session loggers allow
 // to group all events into special "session log files" for easier audit
-func (l *AuditLog) LoggerFor(namespace string, sid session.ID) (sl SessionLogger, err error) {
+func (l *AuditLog) LoggerFor(namespace string, sid session.ID) (SessionLogger, error) {
 	l.Lock()
 	defer l.Unlock()
 
@@ -496,42 +546,75 @@ func (l *AuditLog) LoggerFor(namespace string, sid session.ID) (sl SessionLogger
 
 	// if we are not recording sessions, create a logger that discards all
 	// session data sent to it.
-	if l.recordSessions == false {
+	if l.RecordSessions == false {
 		return &discardSessionLogger{}, nil
 	}
 
-	sl, ok := l.loggers[sid]
+	logger, ok := l.loggers.Get(string(sid))
 	if ok {
-		return sl, nil
+		sessionLogger, converted := logger.(SessionLogger)
+		if !converted {
+			return nil, trace.BadParameter("unsupported type: %T", logger)
+		}
+		// refresh the last active time of the logger
+		l.loggers.Set(string(sid), logger, l.SessionIdlePeriod)
+		return sessionLogger, nil
 	}
 	// make sure session logs dir is present
-	sdir := filepath.Join(l.dataDir, SessionLogsDir, namespace)
+	sdir := filepath.Join(l.DataDir, SessionLogsDir, namespace)
 	if err := os.MkdirAll(sdir, 0770); err != nil {
-		log.Error(err)
 		return nil, trace.Wrap(err)
 	}
-	// create a new session stream file:
-	fstream, err := os.OpenFile(l.sessionStreamFn(namespace, sid), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
+	sessionLogger, err := NewDiskSessionLogger(DiskSessionLoggerConfig{
+		SessionID:      sid,
+		EventsFileName: l.sessionLogFn(namespace, sid),
+		StreamFileName: l.sessionStreamFn(namespace, sid),
+		Clock:          l.Clock,
+	})
 	if err != nil {
-		log.Error(err)
 		return nil, trace.Wrap(err)
 	}
-	// create a new session file:
-	fevents, err := os.OpenFile(l.sessionLogFn(namespace, sid), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
-	if err != nil {
-		log.Error(err)
-		return nil, trace.Wrap(err)
-	}
-	sl = &diskSessionLogger{
-		sid:         sid,
-		streamFile:  fstream,
-		eventsFile:  fevents,
-		timeSource:  l.TimeSource,
-		createdTime: l.TimeSource().In(time.UTC).Round(time.Second),
-	}
-	l.loggers[sid] = sl
+	l.loggers.Set(string(sid), sessionLogger, l.SessionIdlePeriod)
 	auditOpenFiles.Inc()
-	return sl, nil
+	return sessionLogger, nil
+}
+
+func (l *AuditLog) asyncCloseSessionLogger(key string, val interface{}) {
+	go l.closeSessionLogger(key, val)
+}
+
+func (l *AuditLog) closeSessionLogger(key string, val interface{}) {
+	l.Debugf("closing session logger %v", key)
+	logger, ok := val.(SessionLogger)
+	if !ok {
+		l.Warningf("warning, not valid value type %T for %v", val, key)
+		return
+	}
+	if err := logger.Finalize(); err != nil {
+		log.Warningf("failed to finalize: %v", trace.DebugReport(err))
+	}
+}
+
+func (l *AuditLog) periodicCloseInactiveLoggers() {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			l.closeInactiveLoggers()
+		}
+	}
+}
+
+func (l *AuditLog) closeInactiveLoggers() {
+	l.Lock()
+	defer l.Unlock()
+
+	expired := l.loggers.RemoveExpired(10)
+	if expired != 0 {
+		l.Debugf("closed %v inactive session loggers", expired)
+	}
 }
 
 // eventToLine helper creates a loggable line/string for a given event

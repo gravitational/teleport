@@ -528,8 +528,10 @@ func (s *Server) EmitAuditEvent(eventType string, fields events.EventFields) {
 	log.Debugf("server.EmitAuditEvent(%v)", eventType)
 	alog := s.alog
 	if alog != nil {
+		// record the event time with ms precision
+		fields[events.EventTime] = s.clock.Now().In(time.UTC).Round(time.Millisecond)
 		if err := alog.EmitAuditEvent(eventType, fields); err != nil {
-			log.Error(err)
+			log.Error(trace.DebugReport(err))
 		}
 	} else {
 		log.Warn("SSH server has no audit log")
@@ -841,13 +843,13 @@ func (s *Server) handleSubsystem(ch ssh.Channel, req *ssh.Request, ctx *srv.Serv
 	// while collecting its result and waiting is not blocking
 	if err := sb.Start(ctx.Conn, ch, req, ctx); err != nil {
 		ctx.Warnf("[SSH] failed executing request: %v", err)
-		ctx.SendSubsystemResult(srv.SubsystemResult{trace.Wrap(err)})
+		ctx.SendSubsystemResult(srv.SubsystemResult{Err: trace.Wrap(err)})
 		return trace.Wrap(err)
 	}
 	go func() {
 		err := sb.Wait()
 		log.Debugf("[SSH] %v finished with result: %v", sb, err)
-		ctx.SendSubsystemResult(srv.SubsystemResult{trace.Wrap(err)})
+		ctx.SendSubsystemResult(srv.SubsystemResult{Err: trace.Wrap(err)})
 	}()
 	return nil
 }
