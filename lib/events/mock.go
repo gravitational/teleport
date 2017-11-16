@@ -17,6 +17,7 @@ limitations under the License.
 package events
 
 import (
+	"context"
 	"io"
 	"sync"
 	"time"
@@ -51,6 +52,10 @@ func (d *MockAuditLog) GetError() error {
 	d.Lock()
 	defer d.Unlock()
 	return d.returnError
+}
+
+func (d *MockAuditLog) Wait(context.Context) error {
+	return nil
 }
 
 func (d *MockAuditLog) Close() error {

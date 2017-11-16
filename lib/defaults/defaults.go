@@ -145,6 +145,10 @@ const (
 
 	// AttemptTTL is TTL for login attempt
 	AttemptTTL = time.Minute * 30
+
+	// AuditLogSessions is the default expected amount of concurrent sessions
+	// supported by Audit logger
+	AuditLogSessions = 16384
 )
 
 var (
@@ -169,6 +173,10 @@ var (
 	// TODO(klizhentas) all polling periods should go away once backend
 	// releases events
 	SessionRefreshPeriod = 2 * time.Second
+
+	// SessionIdlePeriod is the period of inactivity after which the
+	// session will be considered idle
+	SessionIdlePeriod = SessionRefreshPeriod * 10
 
 	// TerminalSizeRefreshPeriod is how frequently clients who share sessions sync up
 	// their terminal sizes

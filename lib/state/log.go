@@ -203,6 +203,8 @@ type CachingAuditLog struct {
 	chunks        []*events.SessionChunk
 	bytes         int64
 	throttleStart time.Time
+	waitCtx       context.Context
+	waitCtxCancel context.CancelFunc
 }
 
 func (ll *CachingAuditLog) add(chunks []*events.SessionChunk) {
@@ -224,11 +226,16 @@ func NewCachingAuditLog(cfg CachingAuditLogConfig) (*CachingAuditLog, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// context to wait for all tail data to arrive
+	waitCtx, waitCtxCancel := context.WithCancel(context.TODO())
+	// context to singal stops
 	ctx, cancel := context.WithCancel(context.TODO())
 	ll := &CachingAuditLog{
 		CachingAuditLogConfig: cfg,
 		cancel:                cancel,
 		ctx:                   ctx,
+		waitCtx:               waitCtx,
+		waitCtxCancel:         waitCtxCancel,
 	}
 	ll.queue = make(chan []*events.SessionChunk, ll.QueueLen)
 	go ll.run()
@@ -249,6 +256,8 @@ func (ll *CachingAuditLog) collectRemainingChunks() {
 // run thread is picking up logging events and tries to forward them
 // to the logging server
 func (ll *CachingAuditLog) run() {
+	// signal that the logger has flushed all resources
+	defer ll.waitCtxCancel()
 	ticker := time.NewTicker(ll.FlushTimeout)
 	defer ticker.Stop()
 	var tickerC <-chan time.Time
@@ -375,6 +384,18 @@ func (ll *CachingAuditLog) post(chunks []*events.SessionChunk) error {
 		log.Warningf("latency spiked over %v, will throttle audit log forward until %v", ll.ThrottleTimeout, ll.throttleStart)
 	}
 	return nil
+}
+
+// Wait waits until all operations of the caching audit log complete
+// after Close has been called, e.g. flushing remaining items
+func (ll *CachingAuditLog) Wait(ctx context.Context) error {
+	select {
+	case <-ll.waitCtx.Done():
+		return nil
+	case <-ctx.Done():
+		// interrupted by caller
+		return trace.ConnectionProblem(nil, "interrupted by caller: context closed")
+	}
 }
 
 func (ll *CachingAuditLog) Close() error {

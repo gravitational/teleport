@@ -400,3 +400,29 @@ func (s *TestSuite) TestRemove(c *C) {
 	_, ok = m.Get("c")
 	c.Assert(ok, Equals, false)
 }
+
+func (s *TestSuite) TestPop(c *C) {
+	m := s.newMap(100)
+
+	_, _, exists := m.Pop()
+	c.Assert(exists, Equals, false)
+
+	err := m.Set("a", "aval", 2*time.Second)
+	c.Assert(err, Equals, nil)
+
+	err = m.Set("b", "bval", time.Second)
+	c.Assert(err, Equals, nil)
+
+	key, val, exists := m.Pop()
+	c.Assert(exists, Equals, true)
+	c.Assert(key, Equals, "b")
+	c.Assert(val, Equals, "bval")
+
+	key, val, exists = m.Pop()
+	c.Assert(exists, Equals, true)
+	c.Assert(key, Equals, "a")
+	c.Assert(val, Equals, "aval")
+
+	_, _, exists = m.Pop()
+	c.Assert(exists, Equals, false)
+}

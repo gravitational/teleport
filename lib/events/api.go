@@ -17,6 +17,7 @@ limitations under the License.
 package events
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"time"
@@ -107,6 +108,7 @@ type IAuditLog interface {
 	// Closer releases connection and resources associated with log if any
 	io.Closer
 
+	// EmitAuditEvent emits audit event
 	EmitAuditEvent(eventType string, fields EventFields) error
 
 	// PostSessionSlice sends chunks of recorded session to the event log
@@ -145,6 +147,10 @@ type IAuditLog interface {
 	// SearchSessionEvents returns session related events only. This is used to
 	// find completed session.
 	SearchSessionEvents(fromUTC time.Time, toUTC time.Time) ([]EventFields, error)
+
+	// Wait waits for resources to be released and outstanding requests to
+	// complete after calling Close method
+	Wait(context.Context) error
 }
 
 // EventFields instance is attached to every logged event

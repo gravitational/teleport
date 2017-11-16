@@ -156,10 +156,10 @@
   version = "1.1.1"
 
 [[projects]]
-  branch = "master"
   name = "github.com/gravitational/ttlmap"
   packages = ["."]
-  revision = "348cf76cace4d93fdacc38dfdaa2306f4f0e9c16"
+  revision = "91fd36b9004c1ee5a778739752ea1aba5638c03a"
+  version = "0.0.1"
 
 [[projects]]
   name = "github.com/grpc-ecosystem/grpc-gateway"
@@ -392,6 +392,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "735b82dec018f4584f873438cf8cf57ba19f1a65643656fd2f9ad659be7403b9"
+  inputs-digest = "0d5ba19796a8723d2194ffa3917e3374eed4638672d291c10bf7013e159e4bdb"
   solver-name = "gps-cdcl"
   solver-version = 1

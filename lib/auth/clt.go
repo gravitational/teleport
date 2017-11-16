@@ -18,6 +18,7 @@ package auth
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -215,6 +216,10 @@ func (c *Client) GetDomainName() (string, error) {
 }
 
 func (c *Client) Close() error {
+	return nil
+}
+
+func (c *Client) Wait(context.Context) error {
 	return nil
 }
 

@@ -841,13 +841,13 @@ func (s *Server) handleSubsystem(ch ssh.Channel, req *ssh.Request, ctx *srv.Serv
 	// while collecting its result and waiting is not blocking
 	if err := sb.Start(ctx.Conn, ch, req, ctx); err != nil {
 		ctx.Warnf("[SSH] failed executing request: %v", err)
-		ctx.SendSubsystemResult(srv.SubsystemResult{trace.Wrap(err)})
+		ctx.SendSubsystemResult(srv.SubsystemResult{Err: trace.Wrap(err)})
 		return trace.Wrap(err)
 	}
 	go func() {
 		err := sb.Wait()
 		log.Debugf("[SSH] %v finished with result: %v", sb, err)
-		ctx.SendSubsystemResult(srv.SubsystemResult{trace.Wrap(err)})
+		ctx.SendSubsystemResult(srv.SubsystemResult{Err: trace.Wrap(err)})
 	}()
 	return nil
 }

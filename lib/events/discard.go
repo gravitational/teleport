@@ -1,6 +1,7 @@
 package events
 
 import (
+	"context"
 	"io"
 	"time"
 
@@ -10,6 +11,10 @@ import (
 // DiscardAuditLog is do-nothing, discard-everything implementation
 // of IAuditLog interface used for cases when audit is turned off
 type DiscardAuditLog struct {
+}
+
+func (d *DiscardAuditLog) Wait(context.Context) error {
+	return nil
 }
 
 func (d *DiscardAuditLog) Close() error {

@@ -17,6 +17,7 @@ limitations under the License.
 package srv
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"sync"
@@ -164,6 +165,12 @@ func (s *SessionRegistry) leaveSession(party *party) error {
 		delete(s.sessions, sess.id)
 		s.Unlock()
 
+		// close recorder to free up associated resources
+		// and flush data
+		if sess.recorder != nil {
+			sess.recorder.Close()
+		}
+
 		// send an event indicating that this session has ended
 		s.srv.EmitAuditEvent(events.SessionEndEvent, events.EventFields{
 			events.SessionEventID: string(sess.id),
@@ -305,6 +312,8 @@ type session struct {
 	login string
 
 	closeOnce sync.Once
+
+	recorder *sessionRecorder
 }
 
 // newSession creates a new session with a given ID within a given context.
@@ -359,7 +368,7 @@ func newSession(id rsession.ID, r *SessionRegistry, context *ServerContext) (*se
 		writer:    newMultiWriter(),
 		login:     context.Login,
 		closeC:    make(chan bool),
-		lingerTTL: defaults.SessionRefreshPeriod * 10,
+		lingerTTL: defaults.SessionIdlePeriod,
 	}
 	return sess, nil
 }
@@ -525,7 +534,24 @@ func (r *sessionRecorder) Write(data []byte) (int, error) {
 
 // Close() closes audit log caching forwarder
 func (r *sessionRecorder) Close() error {
-	return r.alog.Close()
+	var errors []error
+	err := r.alog.Close()
+	errors = append(errors, err)
+
+	// wait until all events from recorder get flushed, it is important
+	// to do so before we send SessionEndEvent to advise the audit log
+	// to release resources associated with this session.
+	// not doing so will not result in memory leak, but could result
+	// in missing playback events
+	context, cancel := context.WithTimeout(context.TODO(), defaults.DefaultReadHeadersTimeout)
+	defer cancel() // releases resources if slowOperation completes before timeout elapses
+	err = r.alog.Wait(context)
+	if err != nil {
+		errors = append(errors, err)
+		log.Warningf("timeout waiting for session to flush events: %v", err)
+	}
+
+	return trace.NewAggregate(errors...)
 }
 
 // start starts a new interactive process (or a shell) in the current session
@@ -571,11 +597,12 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 	// start recording this session
 	auditLog := s.registry.srv.GetAuditLog()
 	if auditLog != nil {
-		recorder, err := newSessionRecorder(auditLog, ctx.srv.GetNamespace(), s.id)
+		var err error
+		s.recorder, err = newSessionRecorder(auditLog, ctx.srv.GetNamespace(), s.id)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		s.writer.addWriter("session-recorder", recorder, true)
+		s.writer.addWriter("session-recorder", s.recorder, true)
 	}
 
 	// start asynchronous loop of synchronizing session state with

@@ -1,9 +1,9 @@
 package ttlmap
 
 import (
-	"fmt"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/mailgun/minheap"
 )
@@ -50,7 +50,7 @@ type mapElement struct {
 // New returns new instance of TTLMap
 func New(capacity int, opts ...Option) (*TTLMap, error) {
 	if capacity <= 0 {
-		return nil, fmt.Errorf("Capacity should be > 0")
+		return nil, trace.BadParameter("capacity should be > 0")
 	}
 
 	m := &TTLMap{
@@ -70,6 +70,19 @@ func New(capacity int, opts ...Option) (*TTLMap, error) {
 	}
 
 	return m, nil
+}
+
+// Pop removes and returns the key and the value of the oldest element
+// from the TTL Map if there are no elements in the map, returns empty
+// string and false
+func (m *TTLMap) Pop() (string, interface{}, bool) {
+	if len(m.elements) == 0 {
+		return "", nil, false
+	}
+	heapEl := m.expiryTimes.PeekEl()
+	mapEl := heapEl.Value.(*mapElement)
+	m.Remove(mapEl.key)
+	return mapEl.key, mapEl.value, true
 }
 
 // Remove removes and returns element if it's found,
@@ -118,7 +131,7 @@ func (m *TTLMap) Set(key string, value interface{}, ttl time.Duration) error {
 
 func (m *TTLMap) toEpochSeconds(ttl time.Duration) (int, error) {
 	if ttl < time.Second {
-		return 0, fmt.Errorf("ttlS should be >= time.Second, got %v", ttl)
+		return 0, trace.BadParameter("ttl should be >= time.Second, got %v", ttl)
 	}
 	return int(m.Clock.Now().UTC().Add(ttl).Unix()), nil
 }
@@ -158,7 +171,7 @@ func (m *TTLMap) Increment(key string, value int, ttl time.Duration) (int, error
 	}
 	currentValue, ok := mapEl.value.(int)
 	if !ok {
-		return 0, fmt.Errorf("expected existing value to be integer, got %T", mapEl.value)
+		return 0, trace.BadParameter("expected existing value to be integer, got %T", mapEl.value)
 	}
 	currentValue += value
 	mapEl.value = currentValue
@@ -175,7 +188,7 @@ func (m *TTLMap) GetInt(key string) (int, bool, error) {
 	}
 	value, ok := valueI.(int)
 	if !ok {
-		return 0, false, fmt.Errorf("expected existing value to be integer, got %T", valueI)
+		return 0, false, trace.BadParameter("expected existing value to be integer, got %T", valueI)
 	}
 	return value, true, nil
 }

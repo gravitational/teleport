@@ -17,15 +17,18 @@ limitations under the License.
 package events
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/trace"
-
+	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -49,10 +52,58 @@ type SessionLogger interface {
 	WriteChunk(chunk *SessionChunk) (written int, err error)
 }
 
-// diskSessionLogger implements a disk based session logger. The imporant
+// DiskSessionLoggerConfig sets up parameters for disk session logger
+// associated with the session ID
+type DiskSessionLoggerConfig struct {
+	// SessionID is the session id of the logger
+	SessionID session.ID
+	// EventsFileName is the events file name
+	EventsFileName string
+	// StreamFileName is the byte stream file name
+	StreamFileName string
+	// Clock is the clock replacement
+	Clock clockwork.Clock
+}
+
+// NewDiskSessionLogger creates new disk based session logger
+func NewDiskSessionLogger(cfg DiskSessionLoggerConfig) (*DiskSessionLogger, error) {
+	writtenBytes, err := ReadWrittenBytes(cfg.EventsFileName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// create a new session stream file:
+	fstream, err := os.OpenFile(cfg.StreamFileName, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// create a new session file:
+	fevents, err := os.OpenFile(cfg.EventsFileName, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sessionLogger := &DiskSessionLogger{
+		Entry: log.WithFields(log.Fields{
+			trace.Component: teleport.ComponentAuditLog,
+			trace.ComponentFields: log.Fields{
+				"sid": cfg.SessionID,
+			},
+		}),
+		writtenBytes: writtenBytes,
+		sid:          cfg.SessionID,
+		streamFile:   fstream,
+		eventsFile:   fevents,
+		clock:        cfg.Clock,
+		createdTime:  cfg.Clock.Now().In(time.UTC).Round(time.Second),
+	}
+	return sessionLogger, nil
+}
+
+// DiskSessionLogger implements a disk based session logger. The imporant
 // property of the disk based logger is that it never fails and can be used as
 // a fallback implementation behind more sophisticated loggers.
-type diskSessionLogger struct {
+type DiskSessionLogger struct {
+	*log.Entry
+
 	sync.Mutex
 
 	sid session.ID
@@ -67,19 +118,82 @@ type diskSessionLogger struct {
 	// counter of how many bytes have been written during this session
 	writtenBytes int64
 
-	// same as time.Now(), but helps with testing
-	timeSource TimeSourceFunc
+	// clock provides real of fake clock (for tests)
+	clock clockwork.Clock
 
 	createdTime time.Time
 }
 
 // LogEvent logs an event associated with this session
-func (sl *diskSessionLogger) LogEvent(fields EventFields) {
+func (sl *DiskSessionLogger) LogEvent(fields EventFields) {
 	sl.logEvent(fields, time.Time{})
 }
 
+// ReadWritternBytes reads last written bytes offset from the events file
+func ReadWrittenBytes(fileName string) (int64, error) {
+	lastEvent, err := ReadLastEvent(fileName)
+	if err != nil {
+		// empty file, no last event found or the file was
+		// not created yet
+		if trace.IsNotFound(err) {
+			return 0, nil
+		}
+		return -1, trace.Wrap(err)
+	}
+	bytes, ok := lastEvent[SessionByteOffset].(float64)
+	if !ok {
+		return -1, trace.BadParameter("expected float64, got %T", lastEvent[SessionByteOffset])
+	}
+	return int64(bytes), nil
+}
+
+// ReadLastEvent reads last event from the file, it opens
+// the file in read only mode and closes it after
+func ReadLastEvent(fileName string) (EventFields, error) {
+	f, err := os.Open(fileName)
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+	if info.Size() == 0 {
+		return nil, trace.NotFound("no events found")
+	}
+	bufSize := int64(512)
+	if info.Size() < bufSize {
+		bufSize = info.Size()
+	}
+	buf := make([]byte, bufSize)
+	_, err = f.ReadAt(buf, info.Size()-bufSize)
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+	lines := bytes.Split(buf, []byte("\n"))
+	if len(lines) == 0 {
+		return nil, trace.BadParameter("expected some lines, got %q", string(buf))
+	}
+	var lastLine []byte
+	for i := len(lines) - 1; i > 0; i-- {
+		lastLine = bytes.TrimSpace(lines[i])
+		if len(lastLine) != 0 {
+			break
+		}
+	}
+	if len(lastLine) == 0 {
+		return nil, trace.BadParameter("file is filled with empty newlines")
+	}
+	var fields EventFields
+	if err = json.Unmarshal(lastLine, &fields); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return fields, nil
+}
+
 // LogEvent logs an event associated with this session
-func (sl *diskSessionLogger) logEvent(fields EventFields, start time.Time) {
+func (sl *DiskSessionLogger) logEvent(fields EventFields, start time.Time) {
 	sl.Lock()
 	defer sl.Unlock()
 
@@ -89,7 +203,7 @@ func (sl *diskSessionLogger) logEvent(fields EventFields, start time.Time) {
 	// add "milliseconds since" timestamp:
 	var now time.Time
 	if start.IsZero() {
-		now = sl.timeSource().In(time.UTC).Round(time.Millisecond)
+		now = sl.clock.Now().In(time.UTC).Round(time.Millisecond)
 	} else {
 		now = start.In(time.UTC).Round(time.Millisecond)
 	}
@@ -110,19 +224,19 @@ func (sl *diskSessionLogger) logEvent(fields EventFields, start time.Time) {
 // Close is called when clients close on the requested "session writer".
 // We ignore their requests because this writer (file) should be closed only
 // when the session logger is closed
-func (sl *diskSessionLogger) Close() error {
-	log.Infof("sessionLogger.Close(sid=%s)", sl.sid)
+func (sl *DiskSessionLogger) Close() error {
+	sl.Debugf("Close")
 	return nil
 }
 
 // Finalize is called by the session when it's closing. This is where we're
 // releasing audit resources associated with the session
-func (sl *diskSessionLogger) Finalize() error {
+func (sl *DiskSessionLogger) Finalize() error {
 	sl.Lock()
 	defer sl.Unlock()
 	if sl.streamFile != nil {
 		auditOpenFiles.Dec()
-		log.Infof("sessionLogger.Finalize(sid=%s)", sl.sid)
+		sl.Debug("Finalize")
 		sl.streamFile.Close()
 		sl.eventsFile.Close()
 		sl.streamFile = nil
@@ -133,7 +247,7 @@ func (sl *diskSessionLogger) Finalize() error {
 
 // WriteChunk takes a stream of bytes (usually the output from a session terminal)
 // and writes it into a "stream file", for future replay of interactive sessions.
-func (sl *diskSessionLogger) WriteChunk(chunk *SessionChunk) (written int, err error) {
+func (sl *DiskSessionLogger) WriteChunk(chunk *SessionChunk) (written int, err error) {
 	if sl.streamFile == nil {
 		err := trace.Errorf("session %v error: attempt to write to a closed file", sl.sid)
 		return 0, trace.Wrap(err)
