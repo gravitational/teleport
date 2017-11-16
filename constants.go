@@ -111,6 +111,10 @@ const (
 	// pining each other with it:
 	KeepAliveReqType = "keepalive@openssh.com"
 
+	// RecordingProxyReqType is the name of a global request which returns if
+	// the proxy is recording sessions or not.
+	RecordingProxyReqType = "recording-proxy@teleport.com"
+
 	// OTP means One-time Password Algorithm for Two-Factor Authentication.
 	OTP = "otp"
 

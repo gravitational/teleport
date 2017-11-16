@@ -125,6 +125,12 @@ type Config struct {
 	// against Teleport client and obtaining credentials from elsewhere.
 	SkipLocalAuth bool
 
+	// Agent is used when SkipLocalAuth is true
+	Agent agent.Agent
+
+	// ForwardAgent is used by the client to request agent forwarding from the server.
+	ForwardAgent bool
+
 	// AuthMethods are used to login into the cluster. If specified, the client will
 	// use them in addition to certs stored in its local agent (from disk)
 	AuthMethods []ssh.AuthMethod
@@ -367,6 +373,11 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	if c.SkipLocalAuth {
 		if len(c.AuthMethods) == 0 {
 			return nil, trace.BadParameter("SkipLocalAuth is true but no AuthMethods provided")
+		}
+		// if the client was passed an agent in the configuration and skip local auth, use
+		// the passed in agent.
+		if c.Agent != nil {
+			tc.localAgent = &LocalKeyAgent{Agent: c.Agent}
 		}
 	} else {
 		// initialize the local agent (auth agent which uses local SSH keys signed by the CA):

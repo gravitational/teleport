@@ -536,12 +536,23 @@ func (s *Server) EmitAuditEvent(eventType string, fields events.EventFields) {
 	}
 }
 
-// HandleRequest is a callback for handling global out-of-band requests.
+// HandleRequest processes global out-of-band requests. Global out-of-band
+// requests are processed in order (this way the originator knows which
+// request we are responding to). If Teleport does not support the request
+// type or an error occurs while processing that request Teleport will reply
+// req.Reply(false, nil).
+//
+// For more details: https://tools.ietf.org/html/rfc4254.html#page-4
 func (s *Server) HandleRequest(r *ssh.Request) {
 	switch r.Type {
 	case teleport.KeepAliveReqType:
 		s.handleKeepAlive(r)
+	case teleport.RecordingProxyReqType:
+		s.handleRecordingProxy(r)
 	default:
+		if r.WantReply {
+			r.Reply(false, nil)
+		}
 		log.Debugf("[SSH] Discarding %q global request: %+v", r.Type, r)
 	}
 }
@@ -715,6 +726,10 @@ func (s *Server) dispatch(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerConte
 		case "env":
 			// we currently ignore setting any environment variables via SSH for security purposes
 			return s.handleEnv(ch, req, ctx)
+		case sshutils.AgentReq:
+			// to maintain interoperability with OpenSSH, agent forwarding requests
+			// should never fail, so accept the request, do nothing, and return success
+			return nil
 		default:
 			return trace.BadParameter(
 				"proxy doesn't support request type '%v'", req.Type)
@@ -941,6 +956,37 @@ func (s *Server) handleKeepAlive(req *ssh.Request) {
 	}
 
 	log.Debugf("[KEEP ALIVE] Replied to %q", req.Type)
+}
+
+// handleRecordingProxy responds to global out-of-band with a bool which
+// indicates if it is in recording mode or not.
+func (s *Server) handleRecordingProxy(req *ssh.Request) {
+	var recordingProxy bool
+
+	log.Debugf("Global request (%v, %v) received", req.Type, req.WantReply)
+
+	if req.WantReply {
+		// get the cluster config, if we can't get it, reply false
+		clusterConfig, err := s.authService.GetClusterConfig()
+		if err != nil {
+			err := req.Reply(false, nil)
+			if err != nil {
+				log.Warnf("Unable to respond to global request (%v, %v): %v", req.Type, req.WantReply, err)
+			}
+			return
+		}
+
+		// reply true that we were able to process the message and reply with a
+		// bool if we are in recording mode or not
+		recordingProxy = clusterConfig.GetSessionRecording() == services.RecordAtProxy
+		err = req.Reply(true, []byte(strconv.FormatBool(recordingProxy)))
+		if err != nil {
+			log.Warnf("Unable to respond to global request (%v, %v): %v: %v", req.Type, req.WantReply, recordingProxy, err)
+			return
+		}
+	}
+
+	log.Debugf("Replied to global request (%v, %v): %v", req.Type, req.WantReply, recordingProxy)
 }
 
 func replyError(ch ssh.Channel, req *ssh.Request, err error) {

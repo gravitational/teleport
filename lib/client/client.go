@@ -23,19 +23,23 @@ import (
 	"io"
 	"io/ioutil"
 	"net"
+	"strconv"
 	"strings"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
+
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
+
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 )
 
 // ProxyClient implements ssh client to a teleport proxy
@@ -46,6 +50,7 @@ type ProxyClient struct {
 	hostLogin       string
 	proxyAddress    string
 	proxyPrincipal  string
+	agentForwarded  bool
 	hostKeyCallback utils.HostKeyCallback
 	authMethod      ssh.AuthMethod
 	siteName        string
@@ -209,6 +214,55 @@ func nodeName(node string) string {
 	return n
 }
 
+type proxyResponse struct {
+	isRecord bool
+	err      error
+}
+
+// isRecordingProxy returns true if the proxy is in recording mode. Note, this
+// function can only be called after authentication has occured and should be
+// called before the first session is created.
+func (proxy *ProxyClient) isRecordingProxy() (bool, error) {
+	responseCh := make(chan proxyResponse)
+
+	// we have to run this in a goroutine because older version of Teleport handled
+	// global out-of-band requests incorrectly: Teleport would ignore requests it
+	// does not know about and never reply to them. So if we wait a second and
+	// don't hear anything back, most likley we are trying to connect to an older
+	// version of Teleport and we should not try and forward our agent.
+	go func() {
+		ok, responseBytes, err := proxy.Client.SendRequest(teleport.RecordingProxyReqType, true, nil)
+		if err != nil {
+			responseCh <- proxyResponse{isRecord: false, err: trace.Wrap(err)}
+			return
+		}
+		if !ok {
+			responseCh <- proxyResponse{isRecord: false, err: trace.AccessDenied("unable to determine proxy type")}
+			return
+		}
+
+		recordingProxy, err := strconv.ParseBool(string(responseBytes))
+		if err != nil {
+			responseCh <- proxyResponse{isRecord: false, err: trace.Wrap(err)}
+			return
+		}
+
+		responseCh <- proxyResponse{isRecord: recordingProxy, err: nil}
+	}()
+
+	select {
+	case resp := <-responseCh:
+		if resp.err != nil {
+			return false, trace.Wrap(resp.err)
+		}
+		return resp.isRecord, nil
+	case <-time.After(1 * time.Second):
+		// probably the older version of the proxy or at least someone that is
+		// responding incorrectly, don't forward agent to it
+		return false, nil
+	}
+}
+
 // ConnectToNode connects to the ssh server via Proxy.
 // It returns connected and authenticated NodeClient
 func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress string, user string, quiet bool) (*NodeClient, error) {
@@ -220,6 +274,13 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress string,
 		return nil, trace.Wrap(err)
 	}
 	fakeAddr, err := utils.ParseAddr("tcp://" + nodeAddress)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// after auth but before we create the first session, find out if the proxy
+	// is in recording mode or not
+	recordingProxy, err := proxy.isRecordingProxy()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -247,6 +308,22 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress string,
 		if err = proxySession.Setenv(sshutils.TrueClientAddrVar, proxy.clientAddr); err != nil {
 			log.Error(err)
 		}
+	}
+
+	// the client only tries to forward an agent when the proxy is in recording
+	// mode and even then only does this once (otherwise the client will pollute
+	// the logs with "agent: already have handler" errors).
+	if recordingProxy && !proxy.agentForwarded {
+		err = agent.ForwardToAgent(proxy.Client, proxy.teleportClient.localAgent.Agent)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		err = agent.RequestAgentForwarding(proxySession)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		proxy.agentForwarded = true
 	}
 
 	err = proxySession.RequestSubsystem("proxy:" + nodeAddress)
@@ -284,9 +361,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress string,
 	}
 
 	client := ssh.NewClient(conn, chans, reqs)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+
 	return &NodeClient{Client: client, Proxy: proxy, Namespace: defaults.Namespace}, nil
 }
 
