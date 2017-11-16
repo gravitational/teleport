@@ -322,7 +322,7 @@ func onLogin(cf *CLIConf) {
 		utils.FatalError(err)
 	}
 	if makeIdentityFile {
-		client.MakeIdentityFile(cf.Username, cf.IdentityFileOut, key, cf.IdentityFormat)
+		client.MakeIdentityFile(cf.IdentityFileOut, key, cf.IdentityFormat)
 		fmt.Printf("\nThe certificate has been written to %s\n", cf.IdentityFileOut)
 		return
 	}

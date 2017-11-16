@@ -731,6 +731,7 @@ type generateHostCertReq struct {
 	Key         []byte         `json:"key"`
 	HostID      string         `json:"hostname"`
 	NodeName    string         `json:"node_name"`
+	Principals  []string       `json:"principals"`
 	ClusterName string         `json:"auth_domain"`
 	Roles       teleport.Roles `json:"roles"`
 	TTL         time.Duration  `json:"ttl"`
@@ -742,7 +743,7 @@ func (s *APIServer) generateHostCert(auth ClientI, w http.ResponseWriter, r *htt
 		return nil, trace.Wrap(err)
 	}
 
-	cert, err := auth.GenerateHostCert(req.Key, req.HostID, req.NodeName, req.ClusterName, req.Roles, req.TTL)
+	cert, err := auth.GenerateHostCert(req.Key, req.HostID, req.NodeName, req.Principals, req.ClusterName, req.Roles, req.TTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

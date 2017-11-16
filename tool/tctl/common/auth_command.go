@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/kingpin"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
@@ -18,6 +18,8 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/kingpin"
 )
 
 // AuthCommand implements `tctl auth` group of commands
@@ -27,6 +29,7 @@ type AuthCommand struct {
 	genPubPath                 string
 	genPrivPath                string
 	genUser                    string
+	genHost                    string
 	genTTL                     time.Duration
 	exportAuthorityFingerprint string
 	exportPrivateKeys          bool
@@ -57,7 +60,8 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authGenerate.Flag("priv-key", "path to the private key").Required().StringVar(&a.genPrivPath)
 
 	a.authSign = auth.Command("sign", "Create an identity file(s) for a given user")
-	a.authSign.Flag("user", "Teleport user name").Required().StringVar(&a.genUser)
+	a.authSign.Flag("user", "Teleport user name").StringVar(&a.genUser)
+	a.authSign.Flag("host", "Teleport host name").StringVar(&a.genHost)
 	a.authSign.Flag("out", "identity output").Short('o').StringVar(&a.output)
 	a.authSign.Flag("format", "identity format: 'file' (default) or 'dir'").Default(string(client.DefaultIdentityFormat)).StringVar((*string)(&a.outputFormat))
 	a.authSign.Flag("ttl", "TTL (time to live) for the generated certificate").Default(fmt.Sprintf("%v", defaults.CertDuration)).DurationVar(&a.genTTL)
@@ -199,6 +203,61 @@ func (a *AuthCommand) GenerateKeys() error {
 
 // GenerateAndSignKeys generates a new keypair and signs it for role
 func (a *AuthCommand) GenerateAndSignKeys(clusterApi *auth.TunClient) error {
+	switch {
+	case a.genUser != "" && a.genHost == "":
+		return a.generateUserKeys(clusterApi)
+	case a.genUser == "" && a.genHost != "":
+		return a.generateHostKeys(clusterApi)
+	default:
+		return trace.BadParameter("--user or --host must be specified")
+	}
+}
+
+func (a *AuthCommand) generateHostKeys(clusterApi *auth.TunClient) error {
+	// only format=openssh is supported
+	if a.outputFormat != client.IdentityFormatOpenSSH {
+		return trace.BadParameter("invalid --format flag %q, only %q is supported", a.outputFormat, client.IdentityFormatOpenSSH)
+	}
+
+	// split up comma separated list
+	principals := strings.Split(a.genHost, ",")
+
+	// generate a keypair
+	key, err := client.NewKey()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	cn, err := clusterApi.GetClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	clusterName := cn.GetClusterName()
+
+	key.Cert, err = clusterApi.GenerateHostCert(key.Pub,
+		"", "", principals,
+		clusterName, teleport.Roles{teleport.RoleNode}, 0)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// if no name was given, take the first name on the list of principals
+	filePath := a.output
+	if filePath == "" {
+		filePath = principals[0]
+	}
+
+	err = client.MakeIdentityFile(filePath, key, a.outputFormat)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if a.output != "" {
+		fmt.Printf("\nThe certificate has been written to %s\n", a.output)
+	}
+	return nil
+}
+
+func (a *AuthCommand) generateUserKeys(clusterApi *auth.TunClient) error {
 	// parse compatibility parameter
 	compatibility, err := utils.CheckCompatibilityFlag(a.compatibility)
 	if err != nil {
@@ -218,7 +277,7 @@ func (a *AuthCommand) GenerateAndSignKeys(clusterApi *auth.TunClient) error {
 	}
 
 	// write the cert+private key to the output:
-	err = client.MakeIdentityFile(a.genUser, a.output, key, a.outputFormat)
+	err = client.MakeIdentityFile(a.output, key, a.outputFormat)
 	if err != nil {
 		return trace.Wrap(err)
 	}

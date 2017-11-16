@@ -78,7 +78,6 @@ func (s *ClientTestSuite) TestNewSession(c *check.C) {
 
 func (s *ClientTestSuite) TestIdentityFileMaking(c *check.C) {
 	keyFilePath := c.MkDir() + "openssh"
-	username := "joeuser"
 
 	var key Key
 	key.Cert = []byte("cert")
@@ -86,7 +85,7 @@ func (s *ClientTestSuite) TestIdentityFileMaking(c *check.C) {
 	key.Pub = []byte("pub")
 
 	// test OpenSSH-compatible identity file creation:
-	err := MakeIdentityFile(username, keyFilePath, &key, IdentityFormatOpenSSH)
+	err := MakeIdentityFile(keyFilePath, &key, IdentityFormatOpenSSH)
 	c.Assert(err, check.IsNil)
 
 	// key is OK:
@@ -101,7 +100,7 @@ func (s *ClientTestSuite) TestIdentityFileMaking(c *check.C) {
 
 	// test standard Teleport identity file creation:
 	keyFilePath = c.MkDir() + "file"
-	err = MakeIdentityFile(username, keyFilePath, &key, IdentityFormatFile)
+	err = MakeIdentityFile(keyFilePath, &key, IdentityFormatFile)
 	c.Assert(err, check.IsNil)
 
 	// key+cert are OK:

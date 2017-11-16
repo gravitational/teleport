@@ -167,7 +167,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	// set up host private key and certificate
 	hpriv, hpub, err := s.a.GenerateKeyPair("")
 	c.Assert(err, IsNil)
-	hcert, err := s.a.GenerateHostCert(hpub, hostID, s.domainName, s.domainName, teleport.Roles{teleport.RoleAdmin}, 0)
+	hcert, err := s.a.GenerateHostCert(hpub, hostID, s.domainName, nil, s.domainName, teleport.Roles{teleport.RoleAdmin}, 0)
 	c.Assert(err, IsNil)
 
 	// set up user CA and set up a user that has access to the server
