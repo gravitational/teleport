@@ -92,7 +92,7 @@ type AuditLog struct {
 	fileTime time.Time
 }
 
-// AuditLogConfig specifies configuration
+// AuditLogConfig specifies configuration for AuditLog server
 type AuditLogConfig struct {
 	// DataDir is the directory where audit log stores the data
 	DataDir string
@@ -131,7 +131,7 @@ func (a *AuditLogConfig) CheckAndSetDefaults() error {
 // Creates and returns a new Audit Log oboject whish will store its logfiles in
 // a given directory. Session recording can be disabled by setting
 // recordSessions to false.
-func NewAuditLog(cfg AuditLogConfig) (IAuditLog, error) {
+func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -150,7 +150,7 @@ func NewAuditLog(cfg AuditLogConfig) (IAuditLog, error) {
 	loggers, err := ttlmap.New(defaults.AuditLogSessions,
 		ttlmap.CallOnExpire(al.asyncCloseSessionLogger), ttlmap.Clock(cfg.Clock))
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	al.loggers = loggers
 	if err := al.migrateSessions(); err != nil {
@@ -614,7 +614,7 @@ func (l *AuditLog) closeInactiveLoggers() {
 
 	expired := l.loggers.RemoveExpired(10)
 	if expired != 0 {
-		l.Infof("closed %v inactive session loggers", expired)
+		l.Debugf("closed %v inactive session loggers", expired)
 	}
 }
 

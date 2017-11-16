@@ -147,7 +147,9 @@ const (
 	AttemptTTL = time.Minute * 30
 
 	// AuditLogSessions is the default expected amount of concurrent sessions
-	// supported by Audit logger
+	// supported by Audit logger, this number limits the possible
+	// amount of simultaneously processes concurrent sessions by the
+	// Audit log server, and 16K is OK for now
 	AuditLogSessions = 16384
 )
 

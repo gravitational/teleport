@@ -548,7 +548,7 @@ func (r *sessionRecorder) Close() error {
 	err = r.alog.Wait(context)
 	if err != nil {
 		errors = append(errors, err)
-		log.Warningf("timeout waiting for session to flush events: %v", err)
+		log.Warningf("timeout waiting for session to flush events: %v", trace.DebugReport(err))
 	}
 
 	return trace.NewAggregate(errors...)

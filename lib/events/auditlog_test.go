@@ -40,11 +40,7 @@ func (a *AuditTestSuite) makeLog(c *check.C, dataDir string, recordSessions bool
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	retval, ok := alog.(*AuditLog)
-	if !ok {
-		c.FailNow()
-	}
-	return retval, nil
+	return alog, nil
 }
 
 func (a *AuditTestSuite) SetUpSuite(c *check.C) {
@@ -199,13 +195,12 @@ func (a *AuditTestSuite) TestBasicLogging(c *check.C) {
 func (a *AuditTestSuite) TestAutoClose(c *check.C) {
 	// create audit log, write a couple of events into it, close it
 	fakeClock := clockwork.NewFakeClock()
-	alogI, err := NewAuditLog(AuditLogConfig{
+	alog, err := NewAuditLog(AuditLogConfig{
 		DataDir:        a.dataDir,
 		RecordSessions: true,
 		Clock:          fakeClock,
 	})
 	c.Assert(err, check.IsNil)
-	alog := alogI.(*AuditLog)
 
 	// start the session and emit data stream to it
 	err = alog.EmitAuditEvent(SessionStartEvent, EventFields{SessionEventID: "100", EventLogin: "bob", EventNamespace: defaults.Namespace})
@@ -248,13 +243,12 @@ func (a *AuditTestSuite) TestAutoClose(c *check.C) {
 func (a *AuditTestSuite) TestCloseOutstanding(c *check.C) {
 	// create audit log, write a couple of events into it, close it
 	fakeClock := clockwork.NewFakeClock()
-	alogI, err := NewAuditLog(AuditLogConfig{
+	alog, err := NewAuditLog(AuditLogConfig{
 		DataDir:        a.dataDir,
 		RecordSessions: true,
 		Clock:          fakeClock,
 	})
 	c.Assert(err, check.IsNil)
-	alog := alogI.(*AuditLog)
 
 	// start the session and emit data stream to it
 	err = alog.EmitAuditEvent(SessionStartEvent, EventFields{SessionEventID: "100", EventLogin: "bob", EventNamespace: defaults.Namespace})
