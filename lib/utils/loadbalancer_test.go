@@ -167,9 +167,11 @@ func (s *LBSuite) TestClose(c *check.C) {
 	// second close works
 	lb.Close()
 
+	lb.Wait()
+
 	// requests are failing
 	out, err = roundtrip(frontend.String())
-	c.Assert(err, check.NotNil)
+	c.Assert(err, check.NotNil, check.Commentf("output: %v, err: %v", string(out), err))
 }
 
 func (s *LBSuite) TestDropConnections(c *check.C) {

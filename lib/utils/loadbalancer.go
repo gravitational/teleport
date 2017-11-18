@@ -33,11 +33,14 @@ func NewLoadBalancer(ctx context.Context, frontend NetAddr, backends ...NetAddr)
 	if ctx == nil {
 		return nil, trace.BadParameter("missing parameter context")
 	}
+	waitCtx, waitCancel := context.WithCancel(ctx)
 	return &LoadBalancer{
 		frontend:     frontend,
 		ctx:          ctx,
 		backends:     backends,
 		currentIndex: -1,
+		waitCtx:      waitCtx,
+		waitCancel:   waitCancel,
 		Entry: log.WithFields(log.Fields{
 			trace.Component: "loadbalancer",
 			trace.ComponentFields: log.Fields{
@@ -61,6 +64,8 @@ type LoadBalancer struct {
 	listener       net.Listener
 	listenerClosed bool
 	connections    map[NetAddr]map[int64]net.Conn
+	waitCtx        context.Context
+	waitCancel     context.CancelFunc
 }
 
 // trackeConnection adds connection to the connection tracker
@@ -174,6 +179,7 @@ func (l *LoadBalancer) Listen() error {
 
 // Serve starts accepting connections
 func (l *LoadBalancer) Serve() error {
+	defer l.waitCancel()
 	backoffTimer := time.NewTicker(5 * time.Second)
 	defer backoffTimer.Stop()
 	for {
@@ -198,6 +204,12 @@ func (l *LoadBalancer) forwardConnection(conn net.Conn) {
 	if err != nil {
 		l.Warningf("failed to forward connection: %v", err)
 	}
+}
+
+// this is to workaround issue https://github.com/golang/go/issues/10527
+// in tests
+func (l *LoadBalancer) Wait() {
+	<-l.waitCtx.Done()
 }
 
 func (l *LoadBalancer) forward(conn net.Conn) error {
