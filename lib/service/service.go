@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"time"
 
@@ -326,10 +327,25 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 			log.Warn(warningMessage)
 		}
 
-		auditLog, err = events.NewAuditLog(events.AuditLogConfig{
+		auditConfig := events.AuditLogConfig{
 			DataDir:        filepath.Join(cfg.DataDir, "log"),
 			RecordSessions: recordSessions,
-		})
+		}
+		if runtime.GOOS == teleport.LinuxOS {
+			// if the user member of adm linux group,
+			// make audit log folder readable by admins
+			isAdmin, err := utils.IsGroupMember(teleport.LinuxAdminGID)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if isAdmin {
+				uid := os.Getuid()
+				gid := teleport.LinuxAdminGID
+				auditConfig.UID = &uid
+				auditConfig.GID = &gid
+			}
+		}
+		auditLog, err = events.NewAuditLog(auditConfig)
 		if err != nil {
 			return trace.Wrap(err)
 		}

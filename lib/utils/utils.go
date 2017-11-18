@@ -33,6 +33,20 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// IsGroupMember returns whether currently logged user is a member of a group
+func IsGroupMember(gid int) (bool, error) {
+	groups, err := os.Getgroups()
+	if err != nil {
+		return false, trace.ConvertSystemError(err)
+	}
+	for _, group := range groups {
+		if group == gid {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // SplitHostPort splits host and port and checks that host is not empty
 func SplitHostPort(hostname string) (string, string, error) {
 	host, port, err := net.SplitHostPort(hostname)
