@@ -144,6 +144,16 @@ const (
 
 	// JSON means JSON serialization format
 	JSON = "json"
+
+	// LinuxAdminGID is the ID of the standard adm group on linux
+	LinuxAdminGID = 4
+
+	// LinuxOS is the name of the linux OS
+	LinuxOS = "linux"
+
+	// DirMaskSharedGroup is the mask for a directory accessible
+	// by the owner and group
+	DirMaskSharedGroup = 0770
 )
 
 const (

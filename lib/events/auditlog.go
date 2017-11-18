@@ -109,6 +109,18 @@ type AuditLogConfig struct {
 
 	// Clock is a clock either real one or used in tests
 	Clock clockwork.Clock
+
+	// GID if provided will be used to set group ownership of the directory
+	// to GID
+	GID *int
+
+	// UID if provided will be used to set userownership of the directory
+	// to UID
+	UID *int
+
+	// DirMask if provided will be used to set directory mask access
+	// otherwise set to default value
+	DirMask *os.FileMode
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -125,10 +137,17 @@ func (a *AuditLogConfig) CheckAndSetDefaults() error {
 	if a.SessionIdlePeriod == 0 {
 		a.SessionIdlePeriod = defaults.SessionIdlePeriod
 	}
+	if a.DirMask == nil {
+		mask := os.FileMode(teleport.DirMaskSharedGroup)
+		a.DirMask = &mask
+	}
+	if (a.GID != nil && a.UID == nil) || (a.UID != nil && a.GID == nil) {
+		return trace.BadParameter("if UID or GID is set, both should be specified")
+	}
 	return nil
 }
 
-// Creates and returns a new Audit Log oboject whish will store its logfiles in
+// Creates and returns a new Audit Log object whish will store its logfiles in
 // a given directory. Session recording can be disabled by setting
 // recordSessions to false.
 func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
@@ -137,8 +156,19 @@ func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
 	}
 	// create a directory for session logs:
 	sessionDir := filepath.Join(cfg.DataDir, SessionLogsDir)
-	if err := os.MkdirAll(sessionDir, 0770); err != nil {
-		return nil, trace.Wrap(err)
+	if err := os.MkdirAll(sessionDir, *cfg.DirMask); err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+
+	if cfg.UID != nil && cfg.GID != nil {
+		err := os.Chown(cfg.DataDir, *cfg.UID, *cfg.GID)
+		if err != nil {
+			return nil, trace.ConvertSystemError(err)
+		}
+		err = os.Chown(sessionDir, *cfg.UID, *cfg.GID)
+		if err != nil {
+			return nil, trace.ConvertSystemError(err)
+		}
 	}
 
 	al := &AuditLog{
@@ -153,40 +183,11 @@ func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
 		return nil, trace.Wrap(err)
 	}
 	al.loggers = loggers
-	if err := al.migrateSessions(); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	go al.periodicCloseInactiveLoggers()
 	return al, nil
 }
 
 func (l *AuditLog) WaitForDelivery(context.Context) error {
-	return nil
-}
-
-func (l *AuditLog) migrateSessions() error {
-	// if 'default' namespace does not exist, migrate old logs to the new location
-	sessionDir := filepath.Join(l.DataDir, SessionLogsDir)
-	targetDir := filepath.Join(sessionDir, defaults.Namespace)
-	_, err := utils.StatDir(targetDir)
-	if err == nil {
-		return nil
-	}
-	if !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	l.Infof("[MIGRATION] migrating sessions from %v to %v", sessionDir, filepath.Join(sessionDir, defaults.Namespace))
-	// can't directly rename dir to its own subdir, so using temp dir
-	tempDir := filepath.Join(l.DataDir, "___migrate")
-	if err := os.Rename(sessionDir, tempDir); err != nil {
-		return trace.ConvertSystemError(err)
-	}
-	if err := os.MkdirAll(sessionDir, 0770); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := os.Rename(tempDir, targetDir); err != nil {
-		return trace.ConvertSystemError(err)
-	}
 	return nil
 }
 
@@ -562,8 +563,15 @@ func (l *AuditLog) LoggerFor(namespace string, sid session.ID) (SessionLogger, e
 	}
 	// make sure session logs dir is present
 	sdir := filepath.Join(l.DataDir, SessionLogsDir, namespace)
-	if err := os.MkdirAll(sdir, 0770); err != nil {
-		return nil, trace.Wrap(err)
+	if err := os.Mkdir(sdir, *l.DirMask); err != nil {
+		if !os.IsExist(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else if l.UID != nil && l.GID != nil {
+		err := os.Chown(sdir, *l.UID, *l.GID)
+		if err != nil {
+			return nil, trace.ConvertSystemError(err)
+		}
 	}
 	sessionLogger, err := NewDiskSessionLogger(DiskSessionLoggerConfig{
 		SessionID:      sid,
