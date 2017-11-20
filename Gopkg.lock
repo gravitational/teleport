@@ -152,8 +152,8 @@
 [[projects]]
   name = "github.com/gravitational/trace"
   packages = ["."]
-  revision = "6b5a7fe88920c524ac56d22ed6f371ca25ec7e13"
-  version = "1.1.1"
+  revision = "0bd13642feb8f57acc0d8e3a568edc34e05a74b9"
+  version = "1.1.3"
 
 [[projects]]
   name = "github.com/gravitational/ttlmap"
@@ -301,8 +301,9 @@
 [[projects]]
   name = "github.com/sirupsen/logrus"
   packages = [".","hooks/syslog"]
-  revision = "e340a662ee7a1b9e3f6675182abed99b892189d6"
+  revision = "8ab1e1b91d5f1a6124287906f8b0402844d3a2b3"
   source = "github.com/gravitational/logrus"
+  version = "1.0.0"
 
 [[projects]]
   name = "github.com/tstranex/u2f"
@@ -392,6 +393,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "0d5ba19796a8723d2194ffa3917e3374eed4638672d291c10bf7013e159e4bdb"
+  inputs-digest = "c8734d8ce5c599785cf35e78aca518adc1fdd6ff31c139d65777429211331ba5"
   solver-name = "gps-cdcl"
   solver-version = 1

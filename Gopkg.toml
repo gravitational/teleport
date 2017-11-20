@@ -128,7 +128,7 @@ ignored = ["github.com/Sirupsen/logrus"]
 
 [[constraint]]
   name = "github.com/gravitational/trace"
-  version = "1.1.1"
+  version = "1.1.3"
 
 [[constraint]]
   name = "github.com/coreos/go-oidc"
@@ -138,7 +138,7 @@ ignored = ["github.com/Sirupsen/logrus"]
 [[override]]
   name = "github.com/sirupsen/logrus"
   source = "github.com/gravitational/logrus"
-  revision = "e340a662ee7a1b9e3f6675182abed99b892189d6"
+  version = "1.0.0"
 
 [[constraint]]
   name = "github.com/russellhaering/gosaml2"

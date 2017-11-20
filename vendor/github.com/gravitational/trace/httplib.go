@@ -6,11 +6,6 @@ import (
 	"net/http"
 )
 
-const (
-	statusTooManyRequests = 429
-	statusTrustError      = 504
-)
-
 // WriteError sets up HTTP error response and writes it to writer w
 func WriteError(w http.ResponseWriter, err error) {
 	if IsAggregate(err) {
@@ -30,32 +25,28 @@ func WriteError(w http.ResponseWriter, err error) {
 	writeError(w, err)
 }
 
-func writeError(w http.ResponseWriter, err error) {
+// ErrorToCode returns an appropriate HTTP status code based on the provided error type
+func ErrorToCode(err error) int {
 	if IsNotFound(err) {
-		replyJSON(
-			w, http.StatusNotFound, err)
+		return http.StatusNotFound
 	} else if IsBadParameter(err) || IsOAuth2(err) {
-		replyJSON(
-			w, http.StatusBadRequest, err)
+		return http.StatusBadRequest
 	} else if IsCompareFailed(err) {
-		replyJSON(
-			w, http.StatusPreconditionFailed, err)
+		return http.StatusPreconditionFailed
 	} else if IsAccessDenied(err) {
-		replyJSON(
-			w, http.StatusForbidden, err)
+		return http.StatusForbidden
 	} else if IsAlreadyExists(err) {
-		replyJSON(
-			w, http.StatusConflict, err)
+		return http.StatusConflict
 	} else if IsLimitExceeded(err) {
-		replyJSON(
-			w, statusTooManyRequests, err)
+		return http.StatusTooManyRequests
 	} else if IsConnectionProblem(err) {
-		replyJSON(
-			w, http.StatusGatewayTimeout, err)
-	} else {
-		replyJSON(
-			w, http.StatusInternalServerError, err)
+		return http.StatusGatewayTimeout
 	}
+	return http.StatusInternalServerError
+}
+
+func writeError(w http.ResponseWriter, err error) {
+	replyJSON(w, ErrorToCode(err), err)
 }
 
 // ReadError converts http error to internal error type
@@ -74,7 +65,7 @@ func ReadError(statusCode int, re []byte) error {
 		e = &AccessDeniedError{Message: string(re)}
 	case http.StatusConflict:
 		e = &AlreadyExistsError{Message: string(re)}
-	case statusTooManyRequests:
+	case http.StatusTooManyRequests:
 		e = &LimitExceededError{Message: string(re)}
 	case http.StatusGatewayTimeout:
 		e = &ConnectionProblemError{Message: string(re)}
