@@ -211,6 +211,20 @@ func (logger *Logger) Panicln(args ...interface{}) {
 	}
 }
 
+func (logger *Logger) GetHooks() LevelHooks {
+	var hooks LevelHooks
+	logger.mu.RLock()
+	hooks = logger.Hooks
+	logger.mu.RUnlock()
+	return hooks
+}
+
+func (logger *Logger) SetHooks(hooks LevelHooks) {
+	logger.mu.Lock()
+	logger.Hooks = hooks
+	logger.mu.Unlock()
+}
+
 func (logger *Logger) level() Level {
 	var level Level
 	logger.mu.RLock()

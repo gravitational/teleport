@@ -228,6 +228,9 @@ func IsAccessDenied(e error) bool {
 func ConvertSystemError(err error) error {
 	innerError := Unwrap(err)
 
+	if os.IsExist(innerError) {
+		return WrapWithMessage(&AlreadyExistsError{Message: innerError.Error()}, innerError.Error())
+	}
 	if os.IsNotExist(innerError) {
 		return WrapWithMessage(&NotFoundError{Message: innerError.Error()}, innerError.Error())
 	}
