@@ -17,8 +17,10 @@ import (
 func main() {
 	web.InitPlugin()
 	modules.SetModules()
-	const dontStart = true
-	_, config := common.Run(os.Args[1:], dontStart)
+	_, config := common.Run(common.Options{
+		Args:     os.Args[1:],
+		InitOnly: true,
+	})
 	if err := run(config); err != nil {
 		utils.FatalError(err)
 	}
