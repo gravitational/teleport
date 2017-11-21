@@ -20,12 +20,12 @@ const (
 
 	// MaxControlPlaneUnreachableDuration is amount of time after which failure
 	// to contact the control plane violates Terms of Service
-	MaxControlPlaneUnreachableDuration = 24 * time.Hour
+	MaxControlPlaneUnreachableDuration = 48 * time.Hour
 
 	// EnforcerHeartbeatPeriod is how often enforcer calls home
-	EnforcerHeartbeatPeriod = 2 * time.Second
+	EnforcerHeartbeatPeriod = 1 * time.Minute
 	// EnforcerEnforcePeriod is how often enforcer turns on enforcement checks
-	EnforcerEnforcePeriod = 5 * time.Second
+	EnforcerEnforcePeriod = 1 * time.Minute
 )
 
 var (
