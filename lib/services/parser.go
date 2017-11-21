@@ -18,6 +18,7 @@ package services
 
 import (
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -69,13 +70,19 @@ func NewActionsParser(ctx RuleContext) (predicate.Parser, error) {
 
 // NewLogActionFn creates logger functions
 func NewLogActionFn(ctx RuleContext) interface{} {
-	return (&LogAction{ctx: ctx}).Log
+	l := &LogAction{ctx: ctx}
+	writer, ok := ctx.(io.Writer)
+	if ok && writer != nil {
+		l.writer = writer
+	}
+	return l.Log
 }
 
 // LogAction represents action that will emit log entry
 // when specified in the actions of a matched rule
 type LogAction struct {
-	ctx RuleContext
+	ctx    RuleContext
+	writer io.Writer
 }
 
 // Log logs with specified level and formatting string with arguments
@@ -85,7 +92,12 @@ func (l *LogAction) Log(level, format string, args ...interface{}) predicate.Boo
 		if err != nil {
 			ilevel = log.DebugLevel
 		}
-		writer := log.StandardLogger().WriterLevel(ilevel)
+		var writer io.Writer
+		if l.writer != nil {
+			writer = l.writer
+		} else {
+			writer = log.StandardLogger().WriterLevel(ilevel)
+		}
 		writer.Write([]byte(fmt.Sprintf(format, args...)))
 		return true
 	}

@@ -19,6 +19,7 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -538,7 +539,18 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 			return trace.BadParameter("selector *:<val> is not supported")
 		}
 	}
-
+	for i := range r.Spec.Allow.Rules {
+		err := r.Spec.Allow.Rules[i].CheckAndSetDefaults()
+		if err != nil {
+			return trace.BadParameter("failed to process 'allow' rule %v: %v", i, err)
+		}
+	}
+	for i := range r.Spec.Deny.Rules {
+		err := r.Spec.Deny.Rules[i].CheckAndSetDefaults()
+		if err != nil {
+			return trace.BadParameter("failed to process 'deny' rule %v: %v", i, err)
+		}
+	}
 	return nil
 }
 
@@ -714,6 +726,73 @@ type Rule struct {
 	Actions []string `json:"actions,omitempty"`
 }
 
+// CheckAndSetDefaults checks and sets defaults for this rule
+func (r *Rule) CheckAndSetDefaults() error {
+	if len(r.Resources) == 0 {
+		return trace.BadParameter("missing resources to match")
+	}
+	if len(r.Verbs) == 0 {
+		return trace.BadParameter("missing verbs")
+	}
+	if len(r.Where) != 0 {
+		parser, err := GetWhereParserFn()(&Context{})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		_, err = parser.Parse(r.Where)
+		if err != nil {
+			return trace.BadParameter("could not parse 'where' rule: %q, error: %v", r.Where, err)
+		}
+	}
+	if len(r.Actions) != 0 {
+		parser, err := GetActionsParserFn()(&Context{})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for i, action := range r.Actions {
+			_, err = parser.Parse(action)
+			if err != nil {
+				return trace.BadParameter("could not parse action %v %q, error: %v", i, action, err)
+			}
+		}
+	}
+	return nil
+}
+
+// score is a sorting score of the rule, the more the score, the more
+// specific the rule is
+func (r *Rule) score() int {
+	score := 0
+	// wilcard rules are less specific
+	if utils.SliceContainsStr(r.Resources, Wildcard) {
+		score -= 4
+	} else if len(r.Resources) == 1 {
+		// rules that match specific resource are more specific than
+		// fields that match several resources
+		score += 2
+	}
+	// rules that have wilcard verbs are less specific
+	if utils.SliceContainsStr(r.Verbs, Wildcard) {
+		score -= 2
+	}
+	// rules that supply where are more specific
+	if len(r.Where) > 0 {
+		score += 8
+	}
+	// rules featuring actions are more specific
+	if len(r.Actions) > 0 {
+		score += 8
+	}
+	return score
+}
+
+// IsMoreSpecificThan returns true if the rule is more specific than the other
+// rule, the rules that feature less resources and have where sections and
+// actions are more specific than the rules that don't have those.
+func (r *Rule) IsMoreSpecificThan(o Rule) bool {
+	return r.score() > o.score()
+}
+
 // MatchesWhere returns true if Where rule matches
 // Empty Where block always matches
 func (r *Rule) MatchesWhere(parser predicate.Parser) (bool, error) {
@@ -758,7 +837,6 @@ func (r *Rule) HasVerb(verb string) bool {
 			}
 			continue
 		}
-
 		if v == verb {
 			return true
 		}
@@ -792,8 +870,11 @@ func (set RuleSet) Match(whereParser predicate.Parser, actionsParser predicate.P
 	if len(set) == 0 {
 		return false, nil
 	}
-	// check for wildcard resource matcher
-	for _, rule := range set[Wildcard] {
+
+	// check for matching resource by name
+	// the most specific rule should win
+	rules := set[resource]
+	for _, rule := range rules {
 		match, err := rule.MatchesWhere(whereParser)
 		if err != nil {
 			return false, trace.Wrap(err)
@@ -806,8 +887,8 @@ func (set RuleSet) Match(whereParser predicate.Parser, actionsParser predicate.P
 		}
 	}
 
-	// check for matching resource by name
-	for _, rule := range set[resource] {
+	// check for wildcard resource matcher
+	for _, rule := range set[Wildcard] {
 		match, err := rule.MatchesWhere(whereParser)
 		if err != nil {
 			return false, trace.Wrap(err)
@@ -845,6 +926,15 @@ func MakeRuleSet(rules []Rule) RuleSet {
 				set[resource] = rules
 			}
 		}
+	}
+	for resource := range set {
+		rules := set[resource]
+		// sort rules by most specific rule, the rule that has actions
+		// is more specific than the one that has no actions
+		sort.Slice(rules, func(i, j int) bool {
+			return rules[i].IsMoreSpecificThan(rules[j])
+		})
+		set[resource] = rules
 	}
 	return set
 }
