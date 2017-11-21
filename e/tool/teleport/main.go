@@ -31,7 +31,7 @@ func run(config *service.Config) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if teleport.IsPro() {
+	if config.Auth.Enabled && teleport.IsPro() {
 		auth.InitPlugin(teleport.Enforcer)
 	}
 	if err := teleport.Start(); err != nil {

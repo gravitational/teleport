@@ -25,6 +25,8 @@ type Enforcer struct {
 	*client.WebClient
 	// Backend is the configured backend
 	backend.Backend
+	// Entry is used for logging
+	*log.Entry
 }
 
 // EnforcerConfig is enforcer configuration
@@ -77,8 +79,12 @@ func NewEnforcer(ctx context.Context, config EnforcerConfig) (*Enforcer, error) 
 	enforcer := &Enforcer{
 		WebClient: client,
 		Backend:   config.Backend,
+		Entry: log.WithFields(log.Fields{
+			trace.Component: "enforcer",
+		}),
 	}
 	if !config.NoStart {
+		enforcer.Debug("starting enforcer")
 		go enforcer.periodicHeartbeat(ctx)
 		go enforcer.enforcer(ctx)
 	}
@@ -96,6 +102,7 @@ func (e *Enforcer) enforcer(ctx context.Context) {
 				log.Error(trace.DebugReport(err))
 			}
 		case <-ctx.Done():
+			e.Debug("enforce loop is exiting")
 			return
 		}
 	}
@@ -112,6 +119,7 @@ func (e *Enforcer) periodicHeartbeat(ctx context.Context) {
 				log.Debug(trace.DebugReport(err))
 			}
 		case <-ctx.Done():
+			e.Debug("heartbeat loop is exiting")
 			return
 		}
 	}

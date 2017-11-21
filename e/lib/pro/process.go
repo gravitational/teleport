@@ -12,12 +12,15 @@ import (
 	"github.com/gravitational/license"
 	reporting "github.com/gravitational/reporting/client"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 // TeleportProcess augments struct from open-source version
 type TeleportProcess struct {
 	// TeleportProcess is the OSS process
 	*service.TeleportProcess
+	// Entry is used for logging
+	*log.Entry
 	// Enforcer is the teleport pro enforcer
 	Enforcer *Enforcer
 	// License is the teleport license
@@ -32,12 +35,15 @@ func NewTeleport(config *service.Config) (*TeleportProcess, error) {
 	}
 	process := &TeleportProcess{
 		TeleportProcess: teleport,
+		Entry: log.WithFields(log.Fields{
+			trace.Component: "process",
+		}),
 	}
 	// only check the license and run extra services on auth server
 	if !config.Auth.Enabled {
 		return process, nil
 	}
-	process.License, err = checkLicense(config)
+	process.License, err = checkLicense(process, config)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -109,7 +115,7 @@ func initServices(ctx context.Context, config *proConfig) (*Enforcer, error) {
 }
 
 // checkLicense verified the presence of license and runs basic checks on it
-func checkLicense(config *service.Config) (*license.License, error) {
+func checkLicense(process *TeleportProcess, config *service.Config) (*license.License, error) {
 	if config.Auth.LicenseFile == "" {
 		return nil, trace.AccessDenied("please provide a valid license file")
 	}
@@ -128,5 +134,7 @@ func checkLicense(config *service.Config) (*license.License, error) {
 	default:
 		return nil, trace.BadParameter("invalid license product name: %q", name)
 	}
+	process.Infof("using %v license from %v",
+		parsed.Payload.ProductName, config.Auth.LicenseFile)
 	return parsed, nil
 }
