@@ -235,7 +235,7 @@ var (
 	// ConfigFilePath is default path to teleport config file
 	ConfigFilePath = "/etc/teleport.yaml"
 
-	// DataDir  is where all mutable data is stored (user keys, recorded sessions,
+	// DataDir is where all mutable data is stored (user keys, recorded sessions,
 	// registered SSH servers, etc):
 	DataDir = "/var/lib/teleport"
 
@@ -247,6 +247,9 @@ var (
 
 	// ConfigEnvar is a name of teleport's configuration environment variable
 	ConfigEnvar = "TELEPORT_CONFIG"
+
+	// LicenseFile is the default name of the license file
+	LicenseFile = "license.pem"
 )
 
 const (

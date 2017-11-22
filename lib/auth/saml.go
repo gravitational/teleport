@@ -9,11 +9,12 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 
 	"github.com/beevik/etree"
+	"github.com/gravitational/trace"
 	saml2 "github.com/russellhaering/gosaml2"
 	log "github.com/sirupsen/logrus"
 )
@@ -353,6 +354,9 @@ func (a *AuthServer) ValidateSAMLResponse(samlResponse string) (*SAMLAuthRespons
 			response.HostSigners = append(response.HostSigners, authority)
 		}
 	}
-
+	a.EmitAuditEvent(events.UserLoginEvent, events.EventFields{
+		events.EventUser:   user.GetName(),
+		events.LoginMethod: events.LoginMethodSAML,
+	})
 	return response, nil
 }

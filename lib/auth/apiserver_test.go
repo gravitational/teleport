@@ -79,6 +79,7 @@ func (s *APISuite) SetUpTest(c *C) {
 	s.a = NewAuthServer(&InitConfig{
 		Backend:   s.bk,
 		Authority: authority.New(),
+		AuditLog:  s.alog,
 	})
 	s.sessions, err = session.New(s.bk)
 	c.Assert(err, IsNil)

@@ -117,7 +117,7 @@
 
 [[projects]]
   name = "github.com/golang/protobuf"
-  packages = ["proto","protoc-gen-go/descriptor","ptypes/any","ptypes/empty"]
+  packages = ["jsonpb","proto","protoc-gen-go/descriptor","ptypes/any","ptypes/empty"]
   revision = "8ee79997227bf9b34611aee7946ae64735e6fd93"
 
 [[projects]]
@@ -144,6 +144,18 @@
   revision = "52bc17adf63c0807b5e5b5d91350703630f621c7"
 
 [[projects]]
+  name = "github.com/gravitational/license"
+  packages = [".","constants"]
+  revision = "102213511ace56c97ccf1eef645835e16f84d130"
+  version = "0.0.4"
+
+[[projects]]
+  name = "github.com/gravitational/reporting"
+  packages = [".","client","types"]
+  revision = "3c4a4e96fb5896e14fe29da7fcce14b8d93f3965"
+  version = "0.0.4"
+
+[[projects]]
   branch = "master"
   name = "github.com/gravitational/roundtrip"
   packages = ["."]
@@ -163,7 +175,7 @@
 
 [[projects]]
   name = "github.com/grpc-ecosystem/grpc-gateway"
-  packages = ["third_party/googleapis/google/api"]
+  packages = ["runtime","runtime/internal","third_party/googleapis/google/api","utilities"]
   revision = "a8f25bd1ab549f8b87afd48aa9181221e9d439bb"
   version = "v1.1.0"
 
@@ -393,6 +405,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "c8734d8ce5c599785cf35e78aca518adc1fdd6ff31c139d65777429211331ba5"
+  inputs-digest = "97a726bb183a88f10d511f1853d157e006b3a6a3a8d2887dddc0aa8f92506175"
   solver-name = "gps-cdcl"
   solver-version = 1

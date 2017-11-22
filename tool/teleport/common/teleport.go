@@ -39,10 +39,17 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// same as main() but has a testing switch
-//   - cmdlineArgs are passed from main()
-//   - testRun is 'true' when running under an integration test
-func Run(cmdlineArgs []string, testRun bool) (executedCommand string, conf *service.Config) {
+// Options combines init/start teleport options
+type Options struct {
+	// Args is a list of command-line args passed from main()
+	Args []string
+	// InitOnly when set to true, initializes config and aux
+	// endpoints but does not start the process
+	InitOnly bool
+}
+
+// Run inits/starts the process according to the provided options
+func Run(options Options) (executedCommand string, conf *service.Config) {
 	var err error
 
 	// configure trace's errors to produce full stack traces
@@ -130,7 +137,7 @@ func Run(cmdlineArgs []string, testRun bool) (executedCommand string, conf *serv
 	scpc.Arg("target", "").StringsVar(&scpCommand.Target)
 
 	// parse CLI commands+flags:
-	command, err := app.Parse(cmdlineArgs)
+	command, err := app.Parse(options.Args)
 	if err != nil {
 		utils.FatalError(err)
 	}
@@ -145,7 +152,7 @@ func Run(cmdlineArgs []string, testRun bool) (executedCommand string, conf *serv
 		if err = config.Configure(&ccf, conf); err != nil {
 			utils.FatalError(err)
 		}
-		if !testRun {
+		if !options.InitOnly {
 			log.Debug(conf.DebugDumpToYAML())
 		}
 		if ccf.HTTPProfileEndpoint {
@@ -172,8 +179,8 @@ func Run(cmdlineArgs []string, testRun bool) (executedCommand string, conf *serv
 				}
 			}()
 		}
-		if !testRun {
-			err = onStart(conf)
+		if !options.InitOnly {
+			err = OnStart(conf)
 		}
 	case scpc.FullCommand():
 		err = onSCP(&scpCommand)
@@ -191,12 +198,13 @@ func Run(cmdlineArgs []string, testRun bool) (executedCommand string, conf *serv
 	return command, conf
 }
 
-// onStart is the handler for "start" CLI command
-func onStart(config *service.Config) error {
+// OnStart is the handler for "start" CLI command
+func OnStart(config *service.Config) error {
 	srv, err := service.NewTeleport(config)
 	if err != nil {
 		return trace.Wrap(err, "initializing teleport")
 	}
+
 	if err := srv.Start(); err != nil {
 		return trace.Wrap(err, "starting teleport")
 	}
@@ -210,8 +218,8 @@ func onStart(config *service.Config) error {
 		fmt.Fprintf(f, "%v", os.Getpid())
 		defer f.Close()
 	}
-	srv.Wait()
-	return nil
+
+	return trace.Wrap(srv.Wait())
 }
 
 // onStatus is the handler for "status" CLI command

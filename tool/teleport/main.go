@@ -23,6 +23,7 @@ import (
 )
 
 func main() {
-	const testRun = false
-	common.Run(os.Args[1:], testRun)
+	common.Run(common.Options{
+		Args: os.Args[1:],
+	})
 }

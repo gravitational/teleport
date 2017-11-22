@@ -311,6 +311,11 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	}, nil
 }
 
+// GetProxyClient returns authenticated auth server client
+func (h *Handler) GetProxyClient() auth.ClientI {
+	return h.cfg.ProxyClient
+}
+
 // Close closes associated session cache operations
 func (h *Handler) Close() error {
 	return h.auth.Close()

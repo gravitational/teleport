@@ -214,3 +214,45 @@ func (s *AuthInitSuite) TestAuthPreference(c *C) {
 	c.Assert(u.AppID, Equals, "foo")
 	c.Assert(u.Facets, DeepEquals, []string{"bar", "baz"})
 }
+
+func (s *AuthInitSuite) TestClusterID(c *C) {
+	bk, err := boltbk.New(backend.Params{"path": c.MkDir()})
+	c.Assert(err, IsNil)
+
+	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
+		ClusterName: "me.localhost",
+	})
+	c.Assert(err, IsNil)
+
+	authServer, _, err := Init(InitConfig{
+		DataDir:       c.MkDir(),
+		HostUUID:      "00000000-0000-0000-0000-000000000000",
+		NodeName:      "foo",
+		Backend:       bk,
+		Authority:     testauthority.New(),
+		ClusterName:   clusterName,
+		ClusterConfig: services.DefaultClusterConfig(),
+	})
+	c.Assert(err, IsNil)
+
+	cc, err := authServer.GetClusterConfig()
+	c.Assert(err, IsNil)
+	clusterID := cc.GetClusterID()
+	c.Assert(clusterID, Not(Equals), "")
+
+	// do it again and make sure cluster ID hasn't changed
+	authServer, _, err = Init(InitConfig{
+		DataDir:       c.MkDir(),
+		HostUUID:      "00000000-0000-0000-0000-000000000000",
+		NodeName:      "foo",
+		Backend:       bk,
+		Authority:     testauthority.New(),
+		ClusterName:   clusterName,
+		ClusterConfig: services.DefaultClusterConfig(),
+	})
+	c.Assert(err, IsNil)
+
+	cc, err = authServer.GetClusterConfig()
+	c.Assert(err, IsNil)
+	c.Assert(cc.GetClusterID(), Equals, clusterID)
+}
