@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	enterpriseAuth "github.com/gravitational/teleport/e/lib/auth"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 
 	"github.com/gravitational/teleport/lib/auth"
@@ -20,6 +21,13 @@ import (
 
 // Plugin is our plugins to web API of teleport OSS
 type Plugin struct {
+	// ProxyClient is authenticated auth server client
+	ProxyClient auth.ClientI
+}
+
+// InitPlugin initializes sets plugin that adds extra web handlers
+func InitPlugin() {
+	web.SetPlugin(&Plugin{})
 }
 
 // AddHandlers registeres Plugin handlers
@@ -28,6 +36,8 @@ func (p *Plugin) AddHandlers(h *web.Handler) {
 	h.PUT("/enterprise/resources", h.WithAuth(p.upsertResourceHandler))
 	h.POST("/enterprise/resources", h.WithAuth(p.upsertResourceHandler))
 	h.DELETE("/enterprise/resources/:kind/:name", h.WithAuth(p.deleteResourceHandler))
+	h.GET("/webapi/heartbeat", httplib.MakeHandler(p.getHeartbeat))
+	p.ProxyClient = h.GetProxyClient()
 }
 
 // getResourceHandler is GET handler that returns ConfigItems for requested resource kind
@@ -102,6 +112,16 @@ func (p *Plugin) deleteResourceHandler(w http.ResponseWriter, r *http.Request, p
 	}
 
 	return ok(), nil
+}
+
+// getHeartbeat is GET handler that returns the result of the latest heartbeat
+func (p *Plugin) getHeartbeat(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
+	client := p.ProxyClient
+	enterpriseClient, err := enterpriseAuth.NewClient(client.(*auth.TunClient))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return enterpriseClient.GetHeartbeat()
 }
 
 // message returns structured message response

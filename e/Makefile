@@ -12,7 +12,7 @@ TELEPORTSRCE = $(shell find tool/teleport -type f -name '*.go')
 
 # All builds all binaries
 .PHONY: all
-all: 
+all:
 	$(MAKE) -C ..
 	go install $(BUILDFLAGS) ./lib/...
 	make -j2 -s $(BUILDDIR)/tctl $(BUILDDIR)/teleport
@@ -30,9 +30,9 @@ clean:
 	rm -rf *gz
 
 
-# make release - produces a binary release tarball 
+# make release - produces a binary release tarball
 # (must be run as a sub-make)
-.PHONY: 
+.PHONY:
 release: clean full
 	cp ../README.md $(BUILDDIR)/
 	cp ../CHANGELOG.md $(BUILDDIR)/
@@ -47,7 +47,7 @@ release: clean full
 
 # make full - produces a teleport binary with the web assets built-in
 .PHONY:full
-full: check-build-vars all $(BUILDDIR)/webassets.zip 
+full: check-build-vars all $(BUILDDIR)/webassets.zip
 	cat $(BUILDDIR)/webassets.zip >> $(BUILDDIR)/teleport
 	rm -fr $(BUILDDIR)/webassets.zip
 	zip -q -A $(BUILDDIR)/teleport
@@ -60,9 +60,17 @@ $(BUILDDIR)/webassets.zip:
 
 .PHONY: check-build-vars
 check-build-vars:
-ifndef ARCH 
+ifndef ARCH
 	$(error ARCH is not set)
 endif
-ifndef GITTAG 
+ifndef GITTAG
 	$(error GITTAG is not set)
 endif
+
+#
+# test runs teleport enterprise tests
+#
+.PHONY: test
+test:
+	go test -v ./lib/... && \
+	go vet ./lib/...

@@ -1,0 +1,81 @@
+package auth
+
+import (
+	"context"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/gravitational/reporting/types"
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/e/lib/fixtures"
+	"github.com/gravitational/teleport/e/lib/pro"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/boltbk"
+	"github.com/gravitational/teleport/lib/services"
+
+	check "gopkg.in/check.v1"
+)
+
+func TestAPI(t *testing.T) { check.TestingT(t) }
+
+type APISuite struct {
+	apiServer *httptest.Server
+	enforcer  *pro.Enforcer
+}
+
+var _ = check.Suite(&APISuite{})
+
+func (s *APISuite) SetUpSuite(c *check.C) {
+	dir := c.MkDir()
+
+	backend, err := boltbk.New(backend.Params{"path": dir})
+	c.Assert(err, check.IsNil)
+
+	authServer := auth.NewAuthServer(&auth.InitConfig{
+		Backend: backend,
+	})
+
+	// set cluster config
+	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+		SessionRecording: services.RecordAtNode,
+	})
+	c.Assert(err, check.IsNil)
+
+	authorizer, err := auth.NewRoleAuthorizer(clusterConfig, teleport.RoleAdmin)
+	c.Assert(err, check.IsNil)
+
+	s.enforcer, err = pro.NewEnforcer(context.Background(), pro.EnforcerConfig{
+		Backend: backend,
+		License: fixtures.TestLicense(c),
+		NoStart: true,
+	})
+	c.Assert(err, check.IsNil)
+
+	InitPlugin(s.enforcer)
+
+	apiServer := auth.NewAPIServer(&auth.APIConfig{
+		AuthServer: authServer,
+		Authorizer: authorizer,
+	})
+	s.apiServer = httptest.NewServer(apiServer)
+}
+
+func (s *APISuite) TestHeartbeat(c *check.C) {
+	httpClient, err := auth.NewClient(s.apiServer.URL, nil)
+	c.Assert(err, check.IsNil)
+
+	client, err := NewClient(&auth.TunClient{
+		Client: *httpClient,
+	})
+	c.Assert(err, check.IsNil)
+
+	heartbeat := types.NewHeartbeat()
+
+	err = s.enforcer.SetHeartbeatResult(*heartbeat)
+	c.Assert(err, check.IsNil)
+
+	retrieved, err := client.GetHeartbeat()
+	c.Assert(err, check.IsNil)
+	c.Assert(retrieved, check.DeepEquals, heartbeat)
+}
