@@ -2,10 +2,13 @@ package pro
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
+	"path/filepath"
 
 	"github.com/gravitational/teleport/e/lib/constants"
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -117,24 +120,43 @@ func initServices(ctx context.Context, config *proConfig) (*Enforcer, error) {
 // checkLicense verified the presence of license and runs basic checks on it
 func checkLicense(process *TeleportProcess, config *service.Config) (*license.License, error) {
 	if config.Auth.LicenseFile == "" {
-		return nil, trace.AccessDenied("please provide a valid license file")
+		return nil, trace.AccessDenied(
+			fmt.Sprintf(errLicensePath, filepath.Join(config.DataDir, defaults.LicenseFile)))
 	}
 	bytes, err := ioutil.ReadFile(config.Auth.LicenseFile)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to read the license file: %v",
-			config.Auth.LicenseFile)
+		process.Debug(trace.DebugReport(err))
+		return nil, trace.AccessDenied(
+			fmt.Sprintf(errLicensePath, filepath.Join(config.DataDir, defaults.LicenseFile)))
 	}
 	parsed, err := license.ParseString(string(bytes))
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to parse the license")
+		process.Debug(trace.DebugReport(err))
+		return nil, trace.AccessDenied(
+			fmt.Sprintf(errLicenseParse, config.Auth.LicenseFile))
 	}
 	name := parsed.Payload.ProductName
 	switch name {
 	case constants.ProPlan, constants.BusinessPlan, constants.EnterprisePlan:
 	default:
-		return nil, trace.BadParameter("invalid license product name: %q", name)
+		return nil, trace.AccessDenied(
+			fmt.Sprintf(errLicenseProduct, config.Auth.LicenseFile, name))
 	}
 	process.Infof("using %v license from %v",
 		parsed.Payload.ProductName, config.Auth.LicenseFile)
 	return parsed, nil
 }
+
+const (
+	// errLicensePath is displayed when auth server is started w/o valid license
+	errLicensePath = "auth server requires a valid license file to start, " +
+		"please set the correct license_file path under auth_server section " +
+		"in your teleport config or put the license into the default search " +
+		"location at %v"
+	// errLicenseParse is displayed on license parsing error
+	errLicenseParse = "the provided license file %v could not be parsed, " +
+		"please contact support@gravitational.com for assistance"
+	// errLicenseProduct is displayed when license product name is invalid
+	errLicenseProduct = "the provided license file %v has invalid product " +
+		"name %q, please contact support@gravitational.com for assistance"
+)
