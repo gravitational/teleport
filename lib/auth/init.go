@@ -28,10 +28,12 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
+	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
@@ -105,10 +107,13 @@ type InitConfig struct {
 
 	// ClusterConfig holds cluster level configuration.
 	ClusterConfig services.ClusterConfig
+
+	// AuditLog is used for emitting events to audit log
+	AuditLog events.IAuditLog
 }
 
 // Init instantiates and configures an instance of AuthServer
-func Init(cfg InitConfig) (*AuthServer, *Identity, error) {
+func Init(cfg InitConfig, opts ...AuthServerOption) (*AuthServer, *Identity, error) {
 	if cfg.DataDir == "" {
 		return nil, nil, trace.BadParameter("DataDir: data dir can not be empty")
 	}
@@ -124,7 +129,7 @@ func Init(cfg InitConfig) (*AuthServer, *Identity, error) {
 	defer cfg.Backend.ReleaseLock(domainName)
 
 	// check that user CA and host CA are present and set the certs if needed
-	asrv := NewAuthServer(&cfg)
+	asrv := NewAuthServer(&cfg, opts...)
 
 	// INTERNAL: Authorities (plus Roles) and ReverseTunnels don't follow the
 	// same pattern as the rest of the configuration (they are not configuration
@@ -155,6 +160,17 @@ func Init(cfg InitConfig) (*AuthServer, *Identity, error) {
 	}
 
 	// set cluster level config on the backend and then force a sync of the cache.
+	clusterConfig, err := asrv.GetClusterConfig()
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, nil, trace.Wrap(err)
+	}
+	// init a unique cluster ID, it must be set once only during the first
+	// start so if it's already there, reuse it
+	if clusterConfig != nil && clusterConfig.GetClusterID() != "" {
+		cfg.ClusterConfig.SetClusterID(clusterConfig.GetClusterID())
+	} else {
+		cfg.ClusterConfig.SetClusterID(uuid.New())
+	}
 	err = asrv.SetClusterConfig(cfg.ClusterConfig)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

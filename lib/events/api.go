@@ -63,9 +63,21 @@ const (
 	// the beginning
 	SessionByteOffset = "offset"
 
-	// Join & Leave events indicate when someone joins/leaves a session
-	SessionJoinEvent  = "session.join"
+	// SessionJoinEvent indicates that someone joined a session
+	SessionJoinEvent = "session.join"
+	// SessionLeaveEvent indicates that someone left a session
 	SessionLeaveEvent = "session.leave"
+
+	// UserLoginEvent indicates that a user logged into web UI or via tsh
+	UserLoginEvent = "user.login"
+	// LoginMethod is the event field indicating how the login was performed
+	LoginMethod = "method"
+	// LoginMethodLocal represents login with username/password
+	LoginMethodLocal = "local"
+	// LoginMethodOIDC represents login with OIDC
+	LoginMethodOIDC = "oidc"
+	// LoginMethodSAML represents login with SAML
+	LoginMethodSAML = "saml"
 
 	// ExecEvent is an exec command executed by script or user on
 	// the server side
@@ -101,7 +113,7 @@ const (
 	MaxChunkBytes = 1024 * 1024 * 5
 )
 
-// IAuditLog is the primary (and the only external-facing) interface for AUditLogger.
+// IAuditLog is the primary (and the only external-facing) interface for AuditLogger.
 // If you wish to implement a different kind of logger (not filesystem-based), you
 // have to implement this interface
 type IAuditLog interface {

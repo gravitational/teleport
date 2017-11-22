@@ -26,6 +26,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 	"unicode"
@@ -404,12 +405,23 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 			log.Warnf(warningMessage)
 		}
 	}
+
 	// read in and set session recording
 	clusterConfig, err := fc.Auth.SessionRecording.Parse()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	cfg.Auth.ClusterConfig = clusterConfig
+
+	// read in and set the license file path (not used in open-source version)
+	licenseFile := fc.Auth.LicenseFile
+	if licenseFile != "" {
+		if filepath.IsAbs(licenseFile) {
+			cfg.Auth.LicenseFile = licenseFile
+		} else {
+			cfg.Auth.LicenseFile = filepath.Join(cfg.DataDir, licenseFile)
+		}
+	}
 
 	// apply "ssh_service" section
 	if fc.SSH.ListenAddress != "" {

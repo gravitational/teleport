@@ -138,7 +138,7 @@ func (c *SessionContext) getRemoteClient(siteName string) (auth.ClientI, bool) {
 }
 
 // GetClient returns the client connected to the auth server
-func (c *SessionContext) GetClient() (auth.ClientI, error) {
+func (c *SessionContext) GetClient() (*auth.TunClient, error) {
 	return c.clt, nil
 }
 

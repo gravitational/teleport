@@ -19,6 +19,7 @@ package local
 import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
+
 	"github.com/gravitational/trace"
 )
 

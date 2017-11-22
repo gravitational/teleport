@@ -10,7 +10,11 @@ import (
 
 // DiscardAuditLog is do-nothing, discard-everything implementation
 // of IAuditLog interface used for cases when audit is turned off
-type DiscardAuditLog struct {
+type DiscardAuditLog struct{}
+
+// NewDiscardAuditLog returns a no-op audit log instance
+func NewDiscardAuditLog() *DiscardAuditLog {
+	return &DiscardAuditLog{}
 }
 
 func (d *DiscardAuditLog) WaitForDelivery(context.Context) error {
@@ -46,8 +50,7 @@ func (d *DiscardAuditLog) SearchSessionEvents(fromUTC time.Time, toUTC time.Time
 // discardSessionLogger implements a session logger that does nothing. It
 // discards all events and chunks written to it. It is used when session
 // recording has been disabled.
-type discardSessionLogger struct {
-}
+type discardSessionLogger struct{}
 
 func (d *discardSessionLogger) LogEvent(fields EventFields) {
 	return

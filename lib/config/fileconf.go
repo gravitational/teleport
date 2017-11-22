@@ -44,8 +44,8 @@ import (
 
 var (
 	// all possible valid YAML config keys
-	// true  = non-scalar
-	// false = scalar
+	// true  = has sub-keys
+	// false = does not have sub-keys (a leaf)
 	validKeys = map[string]bool{
 		"namespace":            true,
 		"cluster_name":         true,
@@ -131,6 +131,7 @@ var (
 		"session_recording":    false,
 		"read_capacity_units":  false,
 		"write_capacity_units": false,
+		"license_file":         false,
 	}
 )
 
@@ -496,6 +497,10 @@ type Auth struct {
 	// it here overrides defaults.
 	// Deprecated: Remove in Teleport 2.4.1.
 	DynamicConfig *bool `yaml:"dynamic_config,omitempty"`
+
+	// LicenseFile is a path to the license file. The path can be either absolute or
+	// relative to the global data dir
+	LicenseFile string `yaml:"license_file,omitempty"`
 }
 
 // TrustedCluster struct holds configuration values under "trusted_clusters" key

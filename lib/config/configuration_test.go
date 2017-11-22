@@ -146,6 +146,7 @@ func (s *ConfigTestSuite) TestConfigReading(c *check.C) {
 	c.Assert(conf.DataDir, check.Equals, "/path/to/data")
 	c.Assert(conf.Auth.Enabled(), check.Equals, true)
 	c.Assert(conf.Auth.ListenAddress, check.Equals, "tcp://auth")
+	c.Assert(conf.Auth.LicenseFile, check.Equals, "lic.pem")
 	c.Assert(conf.SSH.Configured(), check.Equals, true)
 	c.Assert(conf.SSH.Enabled(), check.Equals, true)
 	c.Assert(conf.SSH.ListenAddress, check.Equals, "tcp://ssh")
@@ -508,6 +509,7 @@ func makeConfigFixture() string {
 	// auth service:
 	conf.Auth.EnabledFlag = "Yeah"
 	conf.Auth.ListenAddress = "tcp://auth"
+	conf.Auth.LicenseFile = "lic.pem"
 
 	// ssh service:
 	conf.SSH.EnabledFlag = "true"
@@ -570,5 +572,42 @@ ssh_service:
 		c.Assert(err, check.IsNil, comment)
 
 		c.Assert(cfg.SSH.PermitUserEnvironment, check.Equals, tt.outPermitUserEnvironment, comment)
+	}
+}
+
+func (s *ConfigTestSuite) TestLicenseFile(c *check.C) {
+	testCases := []struct {
+		path   string
+		result string
+	}{
+		// 0 - no license
+		{
+			path:   "",
+			result: filepath.Join(defaults.DataDir, defaults.LicenseFile),
+		},
+		// 1 - relative path
+		{
+			path:   "lic.pem",
+			result: filepath.Join(defaults.DataDir, "lic.pem"),
+		},
+		// 2 - absolute path
+		{
+			path:   "/etc/teleport/license",
+			result: "/etc/teleport/license",
+		},
+	}
+
+	cfg := service.MakeDefaultConfig()
+	c.Assert(cfg.Auth.LicenseFile, check.Equals,
+		filepath.Join(defaults.DataDir, defaults.LicenseFile))
+
+	for _, tc := range testCases {
+		err := ApplyFileConfig(&FileConfig{
+			Auth: Auth{
+				LicenseFile: tc.path,
+			},
+		}, cfg)
+		c.Assert(err, check.IsNil)
+		c.Assert(cfg.Auth.LicenseFile, check.Equals, tc.result)
 	}
 }

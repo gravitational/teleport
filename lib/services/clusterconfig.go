@@ -41,6 +41,12 @@ type ClusterConfig interface {
 	// SetSessionRecording sets where the session is recorded.
 	SetSessionRecording(RecordingType)
 
+	// GetClusterID returns the unique cluster ID
+	GetClusterID() string
+
+	// SetClusterID sets the cluster ID
+	SetClusterID(string)
+
 	// CheckAndSetDefaults checks and set default values for missing fields.
 	CheckAndSetDefaults() error
 
@@ -115,6 +121,9 @@ const (
 type ClusterConfigSpecV3 struct {
 	// SessionRecording controls where (or if) the session is recorded.
 	SessionRecording RecordingType `json:"session_recording"`
+	// ClusterID is the unique cluster ID that is set once during the first auth
+	// server startup.
+	ClusterID string `json:"cluster_id"`
 }
 
 // GetName returns the name of the cluster.
@@ -157,6 +166,16 @@ func (c *ClusterConfigV3) SetSessionRecording(s RecordingType) {
 	c.Spec.SessionRecording = s
 }
 
+// GetClusterID returns the unique cluster ID
+func (c *ClusterConfigV3) GetClusterID() string {
+	return c.Spec.ClusterID
+}
+
+// SetClusterID sets the cluster ID
+func (c *ClusterConfigV3) SetClusterID(id string) {
+	c.Spec.ClusterID = id
+}
+
 // CheckAndSetDefaults checks validity of all parameters and sets defaults.
 func (c *ClusterConfigV3) CheckAndSetDefaults() error {
 	// make sure we have defaults for all metadata fields
@@ -187,7 +206,8 @@ func (c *ClusterConfigV3) Copy() ClusterConfig {
 
 // String represents a human readable version of the cluster name.
 func (c *ClusterConfigV3) String() string {
-	return fmt.Sprintf("ClusterConfig(SessionRecording=%v)", c.Spec.SessionRecording)
+	return fmt.Sprintf("ClusterConfig(SessionRecording=%v, ClusterID=%v)",
+		c.Spec.SessionRecording, c.Spec.ClusterID)
 }
 
 // ClusterConfigSpecSchemaTemplate is a template for ClusterConfig schema.
@@ -196,6 +216,9 @@ const ClusterConfigSpecSchemaTemplate = `{
   "additionalProperties": false,
   "properties": {
     "session_recording": {
+      "type": "string"
+    },
+    "cluster_id": {
       "type": "string"
     }%v
   }
