@@ -775,7 +775,10 @@ func (r *Rule) score() int {
 	if utils.SliceContainsStr(r.Verbs, Wildcard) {
 		score -= 2
 	}
-	// rules that supply where are more specific
+	// rules that supply 'where' or 'actions' are more specific
+	// having 'where' or 'actions' is more important than
+	// whether the rules are wildcard or not, so here we have +8 vs
+	// -4 and -2 score penalty for wildcards in resources and verbs
 	if len(r.Where) > 0 {
 		score += 8
 	}
@@ -786,9 +789,16 @@ func (r *Rule) score() int {
 	return score
 }
 
-// IsMoreSpecificThan returns true if the rule is more specific than the other
-// rule, the rules that feature less resources and have where sections and
-// actions are more specific than the rules that don't have those.
+// IsMoreSpecificThan returns true if the rule is more specific than the other.
+//
+// * nRule matching wildcard resource is less specific
+// than same rule matching specific resource.
+// * Rule that has wildcard verbs is less specific
+// than the same rules matching specific verb.
+// * Rule that has where section is more specific
+// than the same rule without where section.
+// * Rule that has actions list is more specific than
+// rule without actions list.
 func (r *Rule) IsMoreSpecificThan(o Rule) bool {
 	return r.score() > o.score()
 }
@@ -865,6 +875,13 @@ func (r *Rule) Equals(other Rule) bool {
 type RuleSet map[string][]Rule
 
 // MatchRule tests if the resource name and verb are in a given list of rules.
+// More specific rules will be matched first. See Rule.IsMoreSpecificThan
+// for exact specs on whether the rule is more or less specific.
+//
+// Specifying order solves the problem on having multiple rules, e.g. one wildcard
+// rule can override more specific rules with 'where' sections that can have
+// 'actions' lists with side effects that will not be triggered otherwise.
+//
 func (set RuleSet) Match(whereParser predicate.Parser, actionsParser predicate.Parser, resource string, verb string) (bool, error) {
 	// empty set matches nothing
 	if len(set) == 0 {
