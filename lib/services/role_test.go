@@ -17,6 +17,7 @@ limitations under the License.
 package services
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -64,31 +65,124 @@ func (s *RoleSuite) TestRoleExtension(c *C) {
 
 func (s *RoleSuite) TestRoleParse(c *C) {
 	testCases := []struct {
-		in    string
-		role  RoleV3
-		error error
+		name         string
+		in           string
+		role         RoleV3
+		error        error
+		matchMessage string
 	}{
-		// 0 - no input, should not parse
 		{
+			name:  "no input, should not parse",
 			in:    ``,
 			role:  RoleV3{},
 			error: trace.BadParameter("empty input"),
 		},
-		// 1 - validation error, no name
 		{
+			name:  "validation error, no name",
 			in:    `{}`,
 			role:  RoleV3{},
 			error: trace.BadParameter("failed to validate: name: name is required"),
 		},
-		// 2 - validation error, no name
 		{
+			name:  "validation error, no name",
 			in:    `{"kind": "role"}`,
 			role:  RoleV3{},
 			error: trace.BadParameter("failed to validate: name: name is required"),
 		},
-		// 3 - role with no spec still gets defaults
 		{
-			in: `{"kind": "role", "version": "v3", "metadata": {"name": "name1"}, "spec": {}}`,
+			name: "validation error, missing resources",
+			in: `{
+		      "kind": "role",
+		      "version": "v3",
+		      "metadata": {"name": "name1"},
+		      "spec": {
+                 "allow": {
+                   "node_labels": {"a": "b"},
+                   "namespaces": ["default"],
+                   "rules": [
+                     {
+                       "verbs": ["read", "list"]
+                     }
+                   ]
+                 }
+		      }
+		    }`,
+			error:        trace.BadParameter(""),
+			matchMessage: ".*missing resources.*",
+		},
+		{
+			name: "validation error, missing verbs",
+			in: `{
+		      "kind": "role",
+		      "version": "v3",
+		      "metadata": {"name": "name1"},
+		      "spec": {
+                 "allow": {
+                   "node_labels": {"a": "b"},
+                   "namespaces": ["default"],
+                   "rules": [
+                     {
+                       "resources": ["role"]
+                     }
+                   ]
+                 }
+		      }
+		    }`,
+			error:        trace.BadParameter(""),
+			matchMessage: ".*missing verbs.*",
+		},
+		{
+			name: "validation error, unsupported function in where",
+			in: `{
+		      "kind": "role",
+		      "version": "v3",
+		      "metadata": {"name": "name1"},
+		      "spec": {
+                 "allow": {
+                   "node_labels": {"a": "b"},
+                   "namespaces": ["default"],
+                   "rules": [
+                     {
+                       "resources": ["role"],
+                       "verbs": ["read", "list"],
+                       "where": "containz(user.spec.traits[\"groups\"], \"prod\")"
+                     }
+                   ]
+                 }
+		      }
+		    }`,
+			error:        trace.BadParameter(""),
+			matchMessage: ".*unsupported function: containz.*",
+		},
+		{
+			name: "validation error, unsupported function in actions",
+			in: `{
+		      "kind": "role",
+		      "version": "v3",
+		      "metadata": {"name": "name1"},
+		      "spec": {
+                 "allow": {
+                   "node_labels": {"a": "b"},
+                   "namespaces": ["default"],
+                   "rules": [
+                     {
+                       "resources": ["role"],
+                       "verbs": ["read", "list"],
+                       "where": "contains(user.spec.traits[\"groups\"], \"prod\")",
+                       "actions": [
+                          "zzz(\"info\", \"log entry\")"
+                       ]
+                     }
+                   ]
+                 }
+		      }
+		    }`,
+			error:        trace.BadParameter(""),
+			matchMessage: ".*unsupported function: zzz.*",
+		},
+		{
+			name: "role with no spec still gets defaults",
+			in:   `{"kind": "role", "version": "v3", "metadata": {"name": "name1"}, "spec": {}}`,
 			role: RoleV3{
 				Kind:    KindRole,
 				Version: V3,
@@ -111,8 +205,8 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 			},
 			error: nil,
 		},
-		// 4 - full valid role
 		{
+			name: "full valid role",
 			in: `{
 		      "kind": "role",
 		      "version": "v3",
@@ -175,11 +269,14 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 		},
 	}
 	for i, tc := range testCases {
-		comment := Commentf("test case %v", i)
+		comment := Commentf("test case %v %q", i, tc.name)
 
 		role, err := UnmarshalRole([]byte(tc.in))
 		if tc.error != nil {
 			c.Assert(err, NotNil, comment)
+			if tc.matchMessage != "" {
+				c.Assert(err.Error(), Matches, tc.matchMessage)
+			}
 		} else {
 			c.Assert(err, IsNil, comment)
 			fixtures.DeepCompare(c, *role, tc.role)
@@ -341,13 +438,27 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 	}
 }
 
+// testContext overrides context and captures log writes in action
+type testContext struct {
+	Context
+	// Buffer captures log writes
+	buffer *bytes.Buffer
+}
+
+// Write is implemented explicitly to avoid collision
+// of String methods when embedding
+func (t *testContext) Write(data []byte) (int, error) {
+	return t.buffer.Write(data)
+}
+
 func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 	type check struct {
-		hasAccess bool
-		verb      string
-		namespace string
-		rule      string
-		context   Context
+		hasAccess   bool
+		verb        string
+		namespace   string
+		rule        string
+		context     testContext
+		matchBuffer string
 	}
 	testCases := []struct {
 		name   string
@@ -480,14 +591,17 @@ func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 				{rule: KindSession, verb: VerbRead, namespace: defaults.Namespace, hasAccess: false},
 				{rule: KindSession, verb: VerbList, namespace: defaults.Namespace, hasAccess: false},
 				{
-					context: Context{
-						User: &UserV2{
-							Metadata: Metadata{
-								Name: "bob",
-							},
-							Spec: UserSpecV2{
-								Traits: map[string][]string{
-									"group": []string{"dev", "prod"},
+					context: testContext{
+						buffer: &bytes.Buffer{},
+						Context: Context{
+							User: &UserV2{
+								Metadata: Metadata{
+									Name: "bob",
+								},
+								Spec: UserSpecV2{
+									Traits: map[string][]string{
+										"group": []string{"dev", "prod"},
+									},
 								},
 							},
 						},
@@ -498,11 +612,14 @@ func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 					hasAccess: true,
 				},
 				{
-					context: Context{
-						User: &UserV2{
-							Spec: UserSpecV2{
-								Traits: map[string][]string{
-									"group": []string{"dev"},
+					context: testContext{
+						buffer: &bytes.Buffer{},
+						Context: Context{
+							User: &UserV2{
+								Spec: UserSpecV2{
+									Traits: map[string][]string{
+										"group": []string{"dev"},
+									},
 								},
 							},
 						},
@@ -543,10 +660,13 @@ func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 				{rule: KindRole, verb: VerbRead, namespace: defaults.Namespace, hasAccess: false},
 				{rule: KindRole, verb: VerbList, namespace: defaults.Namespace, hasAccess: false},
 				{
-					context: Context{
-						Resource: &RoleV2{
-							Metadata: Metadata{
-								Labels: map[string]string{"team": "dev"},
+					context: testContext{
+						buffer: &bytes.Buffer{},
+						Context: Context{
+							Resource: &RoleV2{
+								Metadata: Metadata{
+									Labels: map[string]string{"team": "dev"},
+								},
 							},
 						},
 					},
@@ -554,6 +674,55 @@ func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 					verb:      VerbRead,
 					namespace: defaults.Namespace,
 					hasAccess: true,
+				},
+			},
+		},
+		{
+			name: "More specific rule wins",
+			roles: []RoleV3{
+				RoleV3{
+					Metadata: Metadata{
+						Name:      "name1",
+						Namespace: defaults.Namespace,
+					},
+					Spec: RoleSpecV3{
+						Allow: RoleConditions{
+							Namespaces: []string{defaults.Namespace},
+							Rules: []Rule{
+								Rule{
+									Resources: []string{Wildcard},
+									Verbs:     []string{Wildcard},
+								},
+								Rule{
+									Resources: []string{KindRole},
+									Verbs:     []string{VerbRead},
+									Where:     `equals(resource.metadata.labels["team"], "dev")`,
+									Actions: []string{
+										`log("info", "matched more specific rule")`,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			checks: []check{
+				{
+					context: testContext{
+						buffer: &bytes.Buffer{},
+						Context: Context{
+							Resource: &RoleV2{
+								Metadata: Metadata{
+									Labels: map[string]string{"team": "dev"},
+								},
+							},
+						},
+					},
+					rule:        KindRole,
+					verb:        VerbRead,
+					namespace:   defaults.Namespace,
+					hasAccess:   true,
+					matchBuffer: ".*more specific rule.*",
 				},
 			},
 		},
@@ -571,7 +740,104 @@ func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 			} else {
 				c.Assert(trace.IsAccessDenied(result), Equals, true, comment)
 			}
+			if check.matchBuffer != "" {
+				c.Assert(check.context.buffer.String(), Matches, check.matchBuffer, comment)
+			}
 		}
+	}
+}
+
+func (s *RoleSuite) TestCheckRuleSorting(c *C) {
+	testCases := []struct {
+		name  string
+		rules []Rule
+		set   RuleSet
+	}{
+		{
+			name: "single rule set sorts OK",
+			rules: []Rule{
+				{
+					Resources: []string{KindUser},
+					Verbs:     []string{VerbCreate},
+				},
+			},
+			set: RuleSet{
+				KindUser: []Rule{
+					{
+						Resources: []string{KindUser},
+						Verbs:     []string{VerbCreate},
+					},
+				},
+			},
+		},
+		{
+			name: "rule with where section is more specific",
+			rules: []Rule{
+				{
+					Resources: []string{KindUser},
+					Verbs:     []string{VerbCreate},
+				},
+				{
+					Resources: []string{KindUser},
+					Verbs:     []string{VerbCreate},
+					Where:     "contains(user.spec.traits[\"groups\"], \"prod\")",
+				},
+			},
+			set: RuleSet{
+				KindUser: []Rule{
+					{
+						Resources: []string{KindUser},
+						Verbs:     []string{VerbCreate},
+						Where:     "contains(user.spec.traits[\"groups\"], \"prod\")",
+					},
+					{
+						Resources: []string{KindUser},
+						Verbs:     []string{VerbCreate},
+					},
+				},
+			},
+		},
+		{
+			name: "rule with action is more specific",
+			rules: []Rule{
+				{
+					Resources: []string{KindUser},
+					Verbs:     []string{VerbCreate},
+
+					Where: "contains(user.spec.traits[\"groups\"], \"prod\")",
+				},
+				{
+					Resources: []string{KindUser},
+					Verbs:     []string{VerbCreate},
+					Where:     "contains(user.spec.traits[\"groups\"], \"prod\")",
+					Actions: []string{
+						"log(\"info\", \"log entry\")",
+					},
+				},
+			},
+			set: RuleSet{
+				KindUser: []Rule{
+					{
+						Resources: []string{KindUser},
+						Verbs:     []string{VerbCreate},
+						Where:     "contains(user.spec.traits[\"groups\"], \"prod\")",
+						Actions: []string{
+							"log(\"info\", \"log entry\")",
+						},
+					},
+					{
+						Resources: []string{KindUser},
+						Verbs:     []string{VerbCreate},
+						Where:     "contains(user.spec.traits[\"groups\"], \"prod\")",
+					},
+				},
+			},
+		},
+	}
+	for i, tc := range testCases {
+		comment := Commentf("test case %v '%v'", i, tc.name)
+		out := MakeRuleSet(tc.rules)
+		c.Assert(tc.set, DeepEquals, out, comment)
 	}
 }
 
