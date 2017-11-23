@@ -138,7 +138,7 @@ func (b *bk) reconnect() error {
 	clt, err := client.New(client.Config{
 		Endpoints:               b.nodes,
 		Transport:               tr,
-		HeaderTimeoutPerRequest: defaults.DefaultReadHeadersTimeout,
+		HeaderTimeoutPerRequest: defaults.ReadHeadersTimeout,
 	})
 	if err != nil {
 		return trace.Wrap(err)

@@ -22,11 +22,13 @@ package sshutils
 
 import (
 	"bytes"
+	"context"
 	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -43,6 +45,7 @@ import (
 // services (auth, proxy, ssh) use this as a base to accept SSH connections.
 type Server struct {
 	*log.Entry
+	sync.RWMutex
 
 	// component is a name of the facility which uses this server,
 	// used for logging/debugging. typically it's "proxy" or "auth api", etc
@@ -54,15 +57,16 @@ type Server struct {
 	// listener is usually the listening TCP/IP socket
 	listener net.Listener
 
-	// closeC channel is used to stop the server by closing it
-	closeC chan struct{}
-
 	newChanHandler NewChanHandler
 	reqHandler     RequestHandler
 
-	cfg          ssh.ServerConfig
-	limiter      *limiter.Limiter
-	askedToClose bool
+	cfg     ssh.ServerConfig
+	limiter *limiter.Limiter
+
+	listenerClosed bool
+
+	closeContext context.Context
+	closeFunc    context.CancelFunc
 }
 
 const (
@@ -108,14 +112,17 @@ func NewServer(
 	if err != nil {
 		return nil, err
 	}
+
+	closeContext, cancel := context.WithCancel(context.TODO())
 	s := &Server{
 		Entry: log.WithFields(log.Fields{
 			trace.Component: "ssh:" + component,
 		}),
 		addr:           a,
 		newChanHandler: h,
-		closeC:         make(chan struct{}),
 		component:      component,
+		closeContext:   closeContext,
+		closeFunc:      cancel,
 	}
 	s.limiter, err = limiter.NewLimiter(limiter.LimiterConfig{})
 	if err != nil {
@@ -188,56 +195,90 @@ func (s *Server) Addr() string {
 	return s.listener.Addr().String()
 }
 
-func (s *Server) Start() error {
-	s.askedToClose = false
-	socket, err := net.Listen(s.addr.AddrNetwork, s.addr.Addr)
-	if err != nil {
-		return err
+func (s *Server) isClosed() bool {
+	s.RLock()
+	defer s.RUnlock()
+	return s.listenerClosed
+}
+
+func (s *Server) Serve(listener net.Listener) error {
+	if err := s.setListener(listener); err != nil {
+		return trace.Wrap(err)
 	}
-	s.listener = socket
-	s.Infof("listening socket: %v", socket.Addr())
+	s.acceptConnections()
+	return nil
+}
+
+func (s *Server) Start() error {
+	listener, err := net.Listen(s.addr.AddrNetwork, s.addr.Addr)
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	if err := s.setListener(listener); err != nil {
+		return trace.Wrap(err)
+	}
 	go s.acceptConnections()
 	return nil
 }
 
-func (s *Server) notifyClosed() {
-	close(s.closeC)
+func (s *Server) setListener(l net.Listener) error {
+	s.Lock()
+	defer s.Unlock()
+	if s.listener != nil {
+		return trace.BadParameter("listener is already set to %v", s.listener.Addr())
+	}
+	s.listenerClosed = false
+	s.listener = l
+	return nil
 }
 
+// Wait waits until server stops serving new connections
+// on the listener socket
 func (s *Server) Wait() {
-	<-s.closeC
+	<-s.closeContext.Done()
 }
 
 // Close closes listening socket and stops accepting connections
 func (s *Server) Close() error {
-	s.askedToClose = true
+	s.Lock()
+	defer s.Unlock()
+
+	// listener already closed, nothing to do
+	if s.listenerClosed {
+		return nil
+	}
+
+	s.listenerClosed = true
 	if s.listener != nil {
-		return s.listener.Close()
+		err := s.listener.Close()
+		return err
 	}
 	return nil
 }
 
 func (s *Server) acceptConnections() {
-	defer s.notifyClosed()
+	defer s.closeFunc()
+	backoffTimer := time.NewTicker(5 * time.Second)
+	defer backoffTimer.Stop()
 	addr := s.Addr()
-	s.Infof("listening on %v", addr)
+	s.Debugf("listening on %v", addr)
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
-			if s.askedToClose {
-				s.Infof("server %v exited", addr)
-				s.askedToClose = false
+			if s.isClosed() {
+				s.Debugf("server %v has closed", addr)
 				return
 			}
-			// our best shot to avoid excessive logging
-			if op, ok := err.(*net.OpError); ok && !op.Timeout() {
-				s.Debugf("closed socket %v", op)
+			select {
+			case <-s.closeContext.Done():
+				s.Debugf("server %v has closed", addr)
 				return
+			case <-backoffTimer.C:
+				s.Debugf("backoff on network error: %v", err)
 			}
-			s.Errorf("accept error: %T %v", err, err)
-			return
+		} else {
+			go s.handleConnection(conn)
 		}
-		go s.handleConnection(conn)
 	}
 }
 

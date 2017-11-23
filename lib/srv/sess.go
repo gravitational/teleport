@@ -543,7 +543,7 @@ func (r *sessionRecorder) Close() error {
 	// to release resources associated with this session.
 	// not doing so will not result in memory leak, but could result
 	// in missing playback events
-	context, cancel := context.WithTimeout(context.TODO(), defaults.DefaultReadHeadersTimeout)
+	context, cancel := context.WithTimeout(context.TODO(), defaults.ReadHeadersTimeout)
 	defer cancel() // releases resources if slowOperation completes before timeout elapses
 	err = r.alog.WaitForDelivery(context)
 	if err != nil {

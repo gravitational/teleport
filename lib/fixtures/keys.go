@@ -1,4 +1,4 @@
-package suite
+package fixtures
 
 var PEMBytes = map[string][]byte{
 	"dsa": []byte(`-----BEGIN DSA PRIVATE KEY-----
