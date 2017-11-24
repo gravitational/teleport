@@ -441,7 +441,7 @@ const RoleMapSchema = `{
 // schema for extensions.
 func GetTrustedClusterSchema(extensionSchema string) string {
 	var trustedClusterSchema string
-	if trustedClusterSchema == "" {
+	if extensionSchema == "" {
 		trustedClusterSchema = fmt.Sprintf(TrustedClusterSpecSchemaTemplate, RoleMapSchema, "")
 	} else {
 		trustedClusterSchema = fmt.Sprintf(TrustedClusterSpecSchemaTemplate, RoleMapSchema, ","+extensionSchema)
