@@ -1220,6 +1220,31 @@ Also, here's the example of the IAM policy to grant access to DynamoDB:
 }
 ```
 
+## License File
+
+Paid Teleport subscription plans such as Pro, Business and Enterprise require
+a valid license. The license file can be downloaded from the [Teleport Download
+Portal](https://dashboard.gravitational.com) dashboard which you signed up for
+when purchasing your subscription plan.
+
+The Teleport license file contains a X.509 certificate and the corresponding
+private key in PEM format. Place the downloaded file on Auth servers and set
+the `license_file` configuration parameter of your `teleport.yaml` to point to
+the file location:
+
+```bash
+auth_service:
+    license_file: /var/lib/teleport/license.pem
+```
+
+The `license_file` path can be either absolute or relative to the configured
+`data_dir`. If license file path is not set, Teleport will look for the
+`license.pem` file in the configured `data_dir`.
+
+!!! tip "NOTE":
+    Only Auth servers require the license. Proxies and Nodes that do not also
+    have Auth role enabled don't need the license.
+
 ## Troubleshooting
 
 To diagnose problems you can configure `teleport` to run with verbose logging enabled
