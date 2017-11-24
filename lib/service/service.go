@@ -103,13 +103,28 @@ type TeleportProcess struct {
 	// localAuth has local auth server listed in case if this process
 	// has started with auth server role enabled
 	localAuth *auth.AuthServer
+	// backend is the process' backend
+	backend backend.Backend
+	// auditLog is the initialized audit log
+	auditLog events.IAuditLog
 
 	// identities of this process (credentials to auth sever, basically)
 	Identities map[teleport.Role]*auth.Identity
 }
 
+// GetAuthServer returns the process' auth server
 func (process *TeleportProcess) GetAuthServer() *auth.AuthServer {
 	return process.localAuth
+}
+
+// GetAuditLog returns the process' audit log
+func (process *TeleportProcess) GetAuditLog() events.IAuditLog {
+	return process.auditLog
+}
+
+// GetBackend returns the process' backend
+func (process *TeleportProcess) GetBackend() backend.Backend {
+	return process.backend
 }
 
 func (process *TeleportProcess) findStaticIdentity(id auth.IdentityID) (*auth.Identity, error) {
@@ -303,13 +318,13 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	process.backend = b
 
 	// create the audit log, which will be consuming (and recording) all events
 	// and recording all sessions.
-	var auditLog events.IAuditLog
 	if cfg.Auth.NoAudit {
 		// this is for teleconsole
-		auditLog = &events.DiscardAuditLog{}
+		process.auditLog = events.NewDiscardAuditLog()
 
 		warningMessage := "Warning: Teleport audit and session recording have been " +
 			"turned off. This is dangerous, you will not be able to view audit events " +
@@ -345,7 +360,7 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 				auditConfig.GID = &gid
 			}
 		}
-		auditLog, err = events.NewAuditLog(auditConfig)
+		process.auditLog, err = events.NewAuditLog(auditConfig)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -372,6 +387,7 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 		Roles:           cfg.Auth.Roles,
 		AuthPreference:  cfg.Auth.Preference,
 		OIDCConnectors:  cfg.OIDCConnectors,
+		AuditLog:        process.auditLog,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -393,7 +409,7 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 		AuthServer:     authServer,
 		SessionService: sessionService,
 		Authorizer:     authorizer,
-		AuditLog:       auditLog,
+		AuditLog:       process.auditLog,
 	}
 
 	limiter, err := limiter.NewLimiter(cfg.Auth.Limiter)

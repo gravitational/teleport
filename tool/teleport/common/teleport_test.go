@@ -66,7 +66,10 @@ func (s *MainTestSuite) SetUpSuite(c *check.C) {
 }
 
 func (s *MainTestSuite) TestDefault(c *check.C) {
-	cmd, conf := Run([]string{"start"}, true)
+	cmd, conf := Run(Options{
+		Args:     []string{"start"},
+		InitOnly: true,
+	})
 	c.Assert(cmd, check.Equals, "start")
 	c.Assert(conf.Hostname, check.Equals, s.hostname)
 	c.Assert(conf.DataDir, check.Equals, "/tmp/teleport/var/lib/teleport")
@@ -78,17 +81,26 @@ func (s *MainTestSuite) TestDefault(c *check.C) {
 }
 
 func (s *MainTestSuite) TestRolesFlag(c *check.C) {
-	cmd, conf := Run([]string{"start", "--roles=node"}, true)
+	cmd, conf := Run(Options{
+		Args:     []string{"start", "--roles=node"},
+		InitOnly: true,
+	})
 	c.Assert(conf.SSH.Enabled, check.Equals, true)
 	c.Assert(conf.Auth.Enabled, check.Equals, false)
 	c.Assert(conf.Proxy.Enabled, check.Equals, false)
 
-	cmd, conf = Run([]string{"start", "--roles=proxy"}, true)
+	cmd, conf = Run(Options{
+		Args:     []string{"start", "--roles=proxy"},
+		InitOnly: true,
+	})
 	c.Assert(conf.SSH.Enabled, check.Equals, false)
 	c.Assert(conf.Auth.Enabled, check.Equals, false)
 	c.Assert(conf.Proxy.Enabled, check.Equals, true)
 
-	cmd, conf = Run([]string{"start", "--roles=auth"}, true)
+	cmd, conf = Run(Options{
+		Args:     []string{"start", "--roles=auth"},
+		InitOnly: true,
+	})
 	c.Assert(conf.SSH.Enabled, check.Equals, false)
 	c.Assert(conf.Auth.Enabled, check.Equals, true)
 	c.Assert(conf.Proxy.Enabled, check.Equals, false)
@@ -96,7 +108,10 @@ func (s *MainTestSuite) TestRolesFlag(c *check.C) {
 }
 
 func (s *MainTestSuite) TestConfigFile(c *check.C) {
-	cmd, conf := Run([]string{"start", "--roles=node", "--labels=a=a1,b=b1", "--config=" + s.configFile}, true)
+	cmd, conf := Run(Options{
+		Args:     []string{"start", "--roles=node", "--labels=a=a1,b=b1", "--config=" + s.configFile},
+		InitOnly: true,
+	})
 	c.Assert(cmd, check.Equals, "start")
 	c.Assert(conf.SSH.Enabled, check.Equals, true)
 	c.Assert(conf.Auth.Enabled, check.Equals, false)

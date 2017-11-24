@@ -33,12 +33,13 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 
 	"github.com/coreos/go-oidc/oidc"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	saml2 "github.com/russellhaering/gosaml2"
 	log "github.com/sirupsen/logrus"
@@ -87,6 +88,9 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
 	if cfg.ClusterConfiguration == nil {
 		cfg.ClusterConfiguration = local.NewClusterConfigurationService(cfg.Backend)
 	}
+	if cfg.AuditLog == nil {
+		cfg.AuditLog = events.NewDiscardAuditLog()
+	}
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	as := AuthServer{
 		Entry: log.WithFields(log.Fields{
@@ -101,6 +105,7 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
 		Access:               cfg.Access,
 		AuthServiceName:      cfg.AuthServiceName,
 		ClusterConfiguration: cfg.ClusterConfiguration,
+		IAuditLog:            cfg.AuditLog,
 		oidcClients:          make(map[string]*oidcClient),
 		samlProviders:        make(map[string]*samlProvider),
 		cancelFunc:           cancelFunc,
@@ -157,6 +162,7 @@ type AuthServer struct {
 	services.Identity
 	services.Access
 	services.ClusterConfiguration
+	events.IAuditLog
 }
 
 func (a *AuthServer) Close() error {
@@ -170,6 +176,11 @@ func (a *AuthServer) Close() error {
 // SetClock sets clock, used in tests
 func (a *AuthServer) SetClock(clock clockwork.Clock) {
 	a.clock = clock
+}
+
+// SetAuditLog sets the server's audit log
+func (a *AuthServer) SetAuditLog(auditLog events.IAuditLog) {
+	a.IAuditLog = auditLog
 }
 
 // GetDomainName returns the domain name that identifies this authority server.
@@ -225,7 +236,6 @@ func (s *AuthServer) GenerateUserCert(key []byte, user services.User, allowedLog
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	ca, err := s.Trust.GetCertAuthority(services.CertAuthID{
 		Type:       services.UserCA,
 		DomainName: domainName,
@@ -237,7 +247,7 @@ func (s *AuthServer) GenerateUserCert(key []byte, user services.User, allowedLog
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return s.Authority.GenerateUserCert(services.UserCertParams{
+	cert, err := s.Authority.GenerateUserCert(services.UserCertParams{
 		PrivateCASigningKey:   privateKey,
 		PublicUserKey:         key,
 		Username:              user.GetName(),
@@ -247,6 +257,14 @@ func (s *AuthServer) GenerateUserCert(key []byte, user services.User, allowedLog
 		Compatibility:         compatibility,
 		PermitAgentForwarding: canForwardAgents,
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	s.EmitAuditEvent(events.UserLoginEvent, events.EventFields{
+		events.EventUser:   user.GetName(),
+		events.LoginMethod: events.LoginMethodLocal,
+	})
+	return cert, nil
 }
 
 // WithUserLock executes function authenticateFn that performs user authentication
@@ -315,6 +333,10 @@ func (s *AuthServer) SignIn(user string, password []byte) (services.WebSession, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	s.EmitAuditEvent(events.UserLoginEvent, events.EventFields{
+		events.EventUser:   user,
+		events.LoginMethod: events.LoginMethodLocal,
+	})
 	return s.PreAuthenticatedSignIn(user)
 }
 

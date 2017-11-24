@@ -228,8 +228,8 @@ const ExternalIdentitySchema = `{
   "type": "object",
   "additionalProperties": false,
   "properties": {
-     "connector_id": {"type": "string"}, 
-     "username": {"type": "string"} 
+     "connector_id": {"type": "string"},
+     "username": {"type": "string"}
    }
 }`
 

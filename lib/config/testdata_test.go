@@ -46,7 +46,7 @@ teleport:
     - period: 10m10s
       average: 170
       burst: 171
-  keys: 
+  keys:
   - cert: node.cert
     private_key: !!binary cHJpdmF0ZSBrZXk=
   - cert_file: /proxy.cert.file
@@ -61,21 +61,21 @@ auth_service:
   tokens:
   - "proxy,node:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
   - "auth:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-  authorities: 
+  authorities:
   - type: host
     domain_name: example.com
-    checking_keys: 
+    checking_keys:
       - checking key 1
     checking_key_files:
       - /ca.checking.key
-    signing_keys: 
+    signing_keys:
       - !!binary c2lnbmluZyBrZXkgMQ==
     signing_key_files:
       - /ca.signing.key
   reverse_tunnels:
-      - domain_name: tunnel.example.com  	  
+      - domain_name: tunnel.example.com
         addresses: ["com-1", "com-2"]
-      - domain_name: tunnel.example.org  	  
+      - domain_name: tunnel.example.org
         addresses: ["org-1"]
 
 ssh_service:
@@ -135,7 +135,7 @@ proxy_service:
 // need to support it until it's fully removed.
 const LegacyAuthenticationSection = `
 auth_service:
-  oidc_connectors:    
+  oidc_connectors:
     - id: google
       redirect_url: https://localhost:3080/v1/webapi/oidc/callback
       client_id: id-from-google.apps.googleusercontent.com
