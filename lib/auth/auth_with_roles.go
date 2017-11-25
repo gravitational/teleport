@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/url"
 	"time"
@@ -30,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"github.com/tstranex/u2f"
 )
 
@@ -67,8 +67,39 @@ func (a *AuthWithRoles) authConnectorAction(namespace string, resource string, v
 			return trace.Wrap(err)
 		}
 	}
-
 	return nil
+}
+
+// AuthenticateWebUser authenticates web user, creates and  returns web session
+// in case if authentication is successfull
+func (a *AuthWithRoles) AuthenticateWebUser(req AuthenticateUserRequest) (services.WebSession, error) {
+	// authentication request has it's own authentication, however this limits the requests
+	// types to proxies to make it harder to break
+	if !a.checker.HasRole(string(teleport.RoleProxy)) {
+		return nil, trace.AccessDenied("this request can be only executed by proxy")
+	}
+	return a.authServer.AuthenticateWebUser(req)
+}
+
+// AuthenticateSSHUser authenticates SSH console user, creates and  returns a pair of signed TLS and SSH
+// short lived certificates as a result
+func (a *AuthWithRoles) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginResponse, error) {
+	// authentication request has it's own authentication, however this limits the requests
+	// types to proxies to make it harder to break
+	if !a.checker.HasRole(string(teleport.RoleProxy)) {
+		return nil, trace.AccessDenied("this request can be only executed by proxy")
+	}
+	return a.authServer.AuthenticateSSHUser(req)
+}
+
+// ExchangeCerts exchanges TLS certificates for established host certificate authorities
+func (a *AuthWithRoles) ExchangeCerts(req ExchangeCertsRequest) (*ExchangeCertsResponse, error) {
+	// exchange request has it's own authentication, however this limits the requests
+	// types to proxies to make it harder to break
+	if !a.checker.HasRole(string(teleport.RoleProxy)) {
+		return nil, trace.AccessDenied("this request can be only executed by proxy")
+	}
+	return a.authServer.ExchangeCerts(req)
 }
 
 func (a *AuthWithRoles) GetSessions(namespace string) ([]session.Session, error) {
@@ -192,6 +223,28 @@ func (a *AuthWithRoles) RegisterUsingToken(token, hostID string, nodeName string
 func (a *AuthWithRoles) RegisterNewAuthServer(token string) error {
 	// tokens have authz mechanism  on their own, no need to check
 	return a.authServer.RegisterNewAuthServer(token)
+}
+
+// GenerateServerKeys generates new host private keys and certificates (signed
+// by the host certificate authority) for a node.
+func (a *AuthWithRoles) GenerateServerKeys(hostID string, nodeName string, roles teleport.Roles) (*PackedKeys, error) {
+	clusterName, err := a.authServer.GetDomainName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// username is hostID + cluster name, so make sure server requests new keys for itself
+	if a.user.GetName() != fmt.Sprintf("%v.%v", hostID, clusterName) {
+		return nil, trace.AccessDenied("username mismatch %q and %q", a.user.GetName(), fmt.Sprintf("%v.%v", hostID, clusterName))
+	}
+	existingRoles, err := teleport.NewRoles(a.user.GetRoles())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// prohibit privilege escalations through role changes
+	if !existingRoles.Equals(roles) {
+		return nil, trace.AccessDenied("roles do not match: %v and %v", existingRoles, roles)
+	}
+	return a.authServer.GenerateServerKeys(hostID, nodeName, roles)
 }
 
 func (a *AuthWithRoles) UpsertNode(s services.Server) error {
@@ -457,18 +510,17 @@ func (a *AuthWithRoles) GenerateUserCert(key []byte, username string, ttl time.D
 	} else {
 		user = a.user
 	}
-
-	// adjust session ttl to the smaller of two values: the session
-	// ttl requested in tsh or the session ttl for the role.
-	sessionTTL := checker.AdjustSessionTTL(ttl)
-
-	// check signing TTL and return a list of allowed logins
-	allowedLogins, err := checker.CheckLoginDuration(sessionTTL)
+	certs, err := a.authServer.generateUserCert(certRequest{
+		user:          user,
+		roles:         checker,
+		ttl:           ttl,
+		compatibility: compatibility,
+		publicKey:     key,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GenerateUserCert(
-		key, user, allowedLogins, sessionTTL, checker.CanForwardAgents(), checker.CanPortForward(), compatibility)
+	return certs.ssh, nil
 }
 
 func (a *AuthWithRoles) CreateSignupToken(user services.UserV1, ttl time.Duration) (token string, e error) {
@@ -1057,6 +1109,10 @@ func (a *AuthWithRoles) DeleteAllTunnelConnections() error {
 
 func (a *AuthWithRoles) Close() error {
 	return a.authServer.Close()
+}
+
+func (a *AuthWithRoles) GetDialer() AccessPointDialer {
+	return nil
 }
 
 func (a *AuthWithRoles) WaitForDelivery(context.Context) error {

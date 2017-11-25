@@ -19,6 +19,7 @@ package client
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"io"
 	"io/ioutil"
@@ -37,8 +38,8 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 
+	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -156,27 +157,39 @@ func (proxy *ProxyClient) ConnectToSite(ctx context.Context, quiet bool) (auth.C
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// crate HTTP client to Auth API over SSH connection:
-	sshDialer := func(network, addr string) (net.Conn, error) {
-		// this connects us to the node which is an auth server for this site
-		// note the address we're using: "@sitename", which in practice looks like "@{site-global-id}"
-		// the Teleport proxy interprets such address as a request to connec to the active auth server
-		// of the named site
-		nodeClient, err := proxy.ConnectToNode(ctx, "@"+site.Name, proxy.proxyPrincipal, quiet)
-		if err != nil {
-			log.Error(err)
-			return nil, trace.Wrap(err)
-		}
-		conn, err := nodeClient.Client.Dial(network, addr)
-		if err != nil {
-			if err := nodeClient.Close(); err != nil {
-				log.Error(err)
-			}
-			return nil, trace.Wrap(err)
-		}
-		return &closerConn{Conn: conn, closers: []io.Closer{nodeClient}}, nil
+
+	dialer := func(ctx context.Context, network, _ string) (net.Conn, error) {
+		return proxy.dialAuthServer(ctx, site.Name)
 	}
-	clt, err := auth.NewClient("http://stub:0", sshDialer)
+
+	if proxy.teleportClient.SkipLocalAuth {
+		return auth.NewTLSClientWithDialer(dialer, proxy.teleportClient.TLS)
+	}
+
+	tlsConfig := utils.TLSConfig()
+	localAgent := proxy.teleportClient.LocalAgent()
+	pool, err := localAgent.GetCerts(proxy.teleportClient.ProxyHost())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsConfig.RootCAs = pool
+	keys, err := localAgent.GetKeys(proxy.teleportClient.Username)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to fetch TLS keys for %v", proxy.teleportClient.Username)
+	}
+	for _, key := range keys {
+		if len(key.TLSCert) != 0 {
+			tlsCert, err := tls.X509KeyPair(key.TLSCert, key.Priv)
+			if err != nil {
+				return nil, trace.Wrap(err, "failed to parse TLS cert and key")
+			}
+			tlsConfig.Certificates = append(tlsConfig.Certificates, tlsCert)
+		}
+	}
+	if len(tlsConfig.Certificates) == 0 {
+		return nil, trace.BadParameter("no TLS keys found for user %v, please relogin to get new credentials", proxy.teleportClient.Username)
+	}
+	clt, err := auth.NewTLSClientWithDialer(dialer, tlsConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -260,6 +273,56 @@ func (proxy *ProxyClient) isRecordingProxy() (bool, error) {
 		// responding incorrectly, don't forward agent to it
 		return false, nil
 	}
+}
+
+// dialAuthServer returns auth server connection forwarded via proxy
+func (proxy *ProxyClient) dialAuthServer(ctx context.Context, clusterName string) (net.Conn, error) {
+	log.Infof("[CLIENT] client=%v connecting to auth server on cluster ", proxy.clientAddr, clusterName)
+
+	address := "@" + clusterName
+
+	// parse destination first:
+	localAddr, err := utils.ParseAddr("tcp://" + proxy.proxyAddress)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	fakeAddr, err := utils.ParseAddr("tcp://" + address)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	proxySession, err := proxy.Client.NewSession()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	proxyWriter, err := proxySession.StdinPipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	proxyReader, err := proxySession.StdoutPipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	proxyErr, err := proxySession.StderrPipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = proxySession.RequestSubsystem("proxy:" + address)
+	if err != nil {
+		// read the stderr output from the failed SSH session and append
+		// it to the end of our own message:
+		serverErrorMsg, _ := ioutil.ReadAll(proxyErr)
+		return nil, trace.ConnectionProblem(err, "failed connecting to node %v. %s",
+			nodeName(strings.Split(address, "@")[0]), serverErrorMsg)
+	}
+	return utils.NewPipeNetConn(
+		proxyReader,
+		proxyWriter,
+		proxySession,
+		localAddr,
+		fakeAddr,
+	), nil
 }
 
 // ConnectToNode connects to the ssh server via Proxy.

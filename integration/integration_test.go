@@ -709,7 +709,8 @@ func (s *IntSuite) TestTwoClusters(c *check.C) {
 		// Stop "site-A" and try to connect to it again via "site-A" (expect a connection error)
 		a.Stop(false)
 		err = tc.SSH(context.TODO(), cmd, false)
-		c.Assert(err, check.ErrorMatches, `failed connecting to node localhost. site-A is offline`)
+		// debug mode will add more lines, so this check has to be flexible
+		c.Assert(strings.Replace(err.Error(), "\n", "", -1), check.Matches, `.*site-A is offline.*`)
 
 		// Reset and start "Site-A" again
 		a.Reset()

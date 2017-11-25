@@ -31,9 +31,12 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/check.v1"
 )
@@ -43,6 +46,7 @@ type KeyAgentTestSuite struct {
 	key      *Key
 	username string
 	hostname string
+	tlsca    *tlsca.CertAuthority
 }
 
 var _ = check.Suite(&KeyAgentTestSuite{})
@@ -60,8 +64,11 @@ func (s *KeyAgentTestSuite) SetUpSuite(c *check.C) {
 	s.username = "foo"
 	s.hostname = "bar"
 
+	s.tlsca, err = newSelfSignedCA(caPrivateKey)
+	c.Assert(err, check.IsNil)
+
 	// temporary key to use during tests
-	s.key, err = makeKey(s.username, []string{s.username}, 1*time.Minute)
+	s.key, err = s.makeKey(s.username, []string{s.username}, 1*time.Minute)
 	c.Assert(err, check.IsNil)
 
 	// start a debug agent that will be used in tests
@@ -256,12 +263,32 @@ func (s *KeyAgentTestSuite) TestHostVerification(c *check.C) {
 	c.Assert(userWasAsked, check.Equals, false)
 }
 
-func makeKey(username string, allowedLogins []string, ttl time.Duration) (*Key, error) {
+func (s *KeyAgentTestSuite) makeKey(username string, allowedLogins []string, ttl time.Duration) (*Key, error) {
 	keygen := testauthority.New()
 
 	privateKey, publicKey, err := keygen.GenerateKeyPair("")
 	if err != nil {
 		return nil, err
+	}
+
+	// reuse the same RSA keys for SSH and TLS keys
+	cryptoPubKey, err := sshutils.CryptoPublicKey(publicKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clock := clockwork.NewRealClock()
+	identity := tlsca.Identity{
+		Username: username,
+	}
+
+	tlsCert, err := s.tlsca.GenerateCertificate(tlsca.CertificateRequest{
+		Clock:     clock,
+		PublicKey: cryptoPubKey,
+		Subject:   identity.Subject(),
+		NotAfter:  clock.Now().UTC().Add(ttl),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	certificate, err := keygen.GenerateUserCert(services.UserCertParams{
@@ -274,13 +301,14 @@ func makeKey(username string, allowedLogins []string, ttl time.Duration) (*Key, 
 		PermitPortForwarding:  true,
 	})
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	return &Key{
-		Priv: privateKey,
-		Pub:  publicKey,
-		Cert: certificate,
+		Priv:    privateKey,
+		Pub:     publicKey,
+		Cert:    certificate,
+		TLSCert: tlsCert,
 	}, nil
 }
 

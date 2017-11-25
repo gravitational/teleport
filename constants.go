@@ -51,6 +51,12 @@ const (
 )
 
 const (
+	// ComponentAuthority is a TLS and an SSH certificate authority
+	ComponentAuthority = "authority"
+
+	// ComponentProcess is a main control process
+	ComponentProcess = "process"
+
 	// ComponentReverseTunnelServer is reverse tunnel server
 	// that together with agent establish a bi-directional SSH revers tunnel
 	// to bypass firewall restrictions
@@ -172,6 +178,16 @@ const (
 	// DirMaskSharedGroup is the mask for a directory accessible
 	// by the owner and group
 	DirMaskSharedGroup = 0770
+
+	// FileMaskOwnerOnly is the file mask that allows read write access
+	// to owers only
+	FileMaskOwnerOnly = 0600
+
+	// On means mode is on
+	On = "on"
+
+	// Off means mode is off
+	Off = "off"
 )
 
 const (
@@ -247,3 +263,6 @@ const AdminRoleName = "admin"
 // DefaultImplicitRole is implicit role that gets added to all service.RoleSet
 // objects.
 const DefaultImplicitRole = "default-implicit-role"
+
+// APIDomain is a default domain name for Auth server API
+const APIDomain = "teleport.cluster.local"

@@ -152,6 +152,11 @@ func (s *CA) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool) (ser
 	}
 	if !loadSigningKeys {
 		ca.SetSigningKeys(nil)
+		keyPairs := ca.GetTLSKeyPairs()
+		for i := range keyPairs {
+			keyPairs[i].Key = nil
+		}
+		ca.SetTLSKeyPairs(keyPairs)
 	}
 	return ca, nil
 }

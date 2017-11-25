@@ -473,10 +473,15 @@ func (s *PresenceService) DeleteTunnelConnections(clusterName string) error {
 
 // DeleteAllTunnelConnections deletes all tunnel connections
 func (s *PresenceService) DeleteAllTunnelConnections() error {
+	conns, _ := s.GetAllTunnelConnections()
+	log.Debugf("Presence delete all tunnel connections: %v", conns)
 	err := s.DeleteBucket([]string{}, tunnelConnectionsPrefix)
+	log.Debugf("Presence delete all tunnel connections: %v", err)
 	if trace.IsNotFound(err) {
 		return nil
 	}
+	conns, _ = s.GetAllTunnelConnections()
+	log.Debugf("Presence delete all tunnel connections: %v", conns)
 	return err
 }
 

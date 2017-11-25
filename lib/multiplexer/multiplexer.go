@@ -50,6 +50,8 @@ type Config struct {
 	// Clock is a clock to override in tests, set to real time clock
 	// by default
 	Clock clockwork.Clock
+	// EnableProxyProtocol enables proxy protocol
+	EnableProxyProtocol bool
 }
 
 // CheckAndSetDefaults verifies configuration and sets defaults
@@ -74,6 +76,7 @@ func New(cfg Config) (*Mux, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	ctx, cancel := context.WithCancel(cfg.Context)
 	waitContext, waitCancel := context.WithCancel(context.TODO())
 	return &Mux{
@@ -160,6 +163,10 @@ func (m *Mux) Serve() error {
 			go m.detectAndForward(conn)
 			continue
 		}
+		if tcpConn, ok := conn.(*net.TCPConn); ok {
+			tcpConn.SetKeepAlive(true)
+			tcpConn.SetKeepAlivePeriod(3 * time.Minute)
+		}
 		if m.isClosed() {
 			return nil
 		}
@@ -179,16 +186,16 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 		conn.Close()
 		return
 	}
-	connWrapper, err := detect(conn)
+	connWrapper, err := detect(conn, m.EnableProxyProtocol)
 	if err != nil {
-		m.Warning(err.Error())
+		m.Warning(trace.DebugReport(err))
 		conn.Close()
 		return
 	}
 
 	err = conn.SetReadDeadline(time.Time{})
 	if err != nil {
-		m.Warning(err.Error())
+		m.Warning(trace.DebugReport(err))
 		conn.Close()
 		return
 	}
@@ -215,7 +222,7 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 	}
 }
 
-func detect(conn net.Conn) (*Conn, error) {
+func detect(conn net.Conn, enableProxyProtocol bool) (*Conn, error) {
 	reader := bufio.NewReader(conn)
 
 	// the first attempt is to parse optional proxy
@@ -237,6 +244,9 @@ func detect(conn net.Conn) (*Conn, error) {
 
 		switch proto {
 		case ProtoProxy:
+			if !enableProxyProtocol {
+				return nil, trace.BadParameter("proxy protocol support is disabled")
+			}
 			if proxyLine != nil {
 				return nil, trace.BadParameter("duplicate proxy line")
 			}
@@ -285,6 +295,6 @@ func detectProto(in []byte) (int, error) {
 	case bytes.HasPrefix(in, tlsPrefix):
 		return ProtoTLS, nil
 	default:
-		return ProtoUnknown, trace.BadParameter("failed to detect protocol")
+		return ProtoUnknown, trace.BadParameter("failed to detect protocol by prefix: %v", in)
 	}
 }

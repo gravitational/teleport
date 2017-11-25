@@ -398,6 +398,30 @@ func (cs *CachingAuthClient) GetProxies() (proxies []services.Server, err error)
 	return proxies, err
 }
 
+// GetCertAuthority is a part of auth.AccessPoint implementation
+func (cs *CachingAuthClient) GetCertAuthority(id services.CertAuthID, loadKeys bool) (ca services.CertAuthority, err error) {
+	err = cs.try(func() error {
+		ca, err = cs.ap.GetCertAuthority(id, loadKeys)
+		return err
+	})
+	if err != nil {
+		if trace.IsConnectionProblem(err) {
+			return cs.trust.GetCertAuthority(id, loadKeys)
+		}
+		return ca, err
+	}
+	if err := cs.trust.DeleteCertAuthority(id); err != nil {
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+	}
+	cs.setTTL(ca)
+	if err := cs.trust.UpsertCertAuthority(ca); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ca, err
+}
+
 // GetCertAuthorities is a part of auth.AccessPoint implementation
 func (cs *CachingAuthClient) GetCertAuthorities(ct services.CertAuthType, loadKeys bool) (cas []services.CertAuthority, err error) {
 	err = cs.try(func() error {

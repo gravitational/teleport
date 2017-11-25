@@ -54,7 +54,7 @@ const (
 	DefaultIdentityFormat = IdentityFormatFile
 )
 
-// MakeIdentityFile takes a username + his credentials and saves them to disk
+// MakeIdentityFile takes a username + their credentials and saves them to disk
 // in a specified format
 func MakeIdentityFile(filePath string, key *Key, format IdentityFileFormat) (err error) {
 	const (

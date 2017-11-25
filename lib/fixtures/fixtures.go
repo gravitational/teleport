@@ -4,9 +4,30 @@ import (
 	"runtime/debug"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/gravitational/trace"
 	"github.com/kylelemons/godebug/diff"
 	check "gopkg.in/check.v1"
 )
+
+// ExpectNotFound expects not found error
+func ExpectNotFound(c *check.C, err error) {
+	c.Assert(trace.IsNotFound(err), check.Equals, true, check.Commentf("expected NotFound, got %T %#v at %v", err, err, string(debug.Stack())))
+}
+
+// ExpectBadParameter expects bad parameter error
+func ExpectBadParameter(c *check.C, err error) {
+	c.Assert(trace.IsBadParameter(err), check.Equals, true, check.Commentf("expected BadParameter, got %T %#v at %v", err, err, string(debug.Stack())))
+}
+
+// ExpectCompareFailed expects compare failed error
+func ExpectCompareFailed(c *check.C, err error) {
+	c.Assert(trace.IsCompareFailed(err), check.Equals, true, check.Commentf("expected CompareFailed, got %T %#v at %v", err, err, string(debug.Stack())))
+}
+
+// ExpectAccessDenied expects error to be access denied
+func ExpectAccessDenied(c *check.C, err error) {
+	c.Assert(trace.IsAccessDenied(err), check.Equals, true, check.Commentf("expected AccessDenied, got %T %#v at %v", err, err, string(debug.Stack())))
+}
 
 // DeepCompare uses gocheck DeepEquals but provides nice diff if things are not equal
 func DeepCompare(c *check.C, a, b interface{}) {

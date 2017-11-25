@@ -25,7 +25,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -160,29 +159,36 @@ func (t *TerminalHandler) Run(w http.ResponseWriter, r *http.Request) {
 		log.Error(err)
 	}
 	webSocketLoop := func(ws *websocket.Conn) {
-		// get user's credentials using the SSH agent implementation which
-		// retreives them directly from auth server API:
-		agent, err := t.ctx.GetAgent()
-		if err != nil {
-			log.Warningf("failed to get agent: %v", err)
-			errToTerm(err, ws)
-			return
-		}
-		defer agent.Close()
-		principal, auth, err := getUserCredentials(agent)
+		agent, cert, err := t.ctx.GetAgent()
 		if err != nil {
 			log.Warningf("failed to get user credentials: %v", err)
 			errToTerm(err, ws)
 			return
 		}
+
+		signers, err := agent.Signers()
+		if err != nil {
+			log.Warningf("failed to get user credentials: %v", err)
+			errToTerm(err, ws)
+			return
+		}
+
+		tlsConfig, err := t.ctx.ClientTLSConfig()
+		if err != nil {
+			log.Warningf("failed to get client TLS config: %v", err)
+			errToTerm(err, ws)
+			return
+		}
+
 		// create teleport client:
 		output := utils.NewWebSockWrapper(ws, utils.WebSocketTextMode)
 		clientConfig := &client.Config{
 			SkipLocalAuth:    true,
-			Agent:            agent,
 			ForwardAgent:     true,
-			AuthMethods:      []ssh.AuthMethod{auth},
-			DefaultPrincipal: principal,
+			Agent:            agent,
+			TLS:              tlsConfig,
+			AuthMethods:      []ssh.AuthMethod{ssh.PublicKeys(signers...)},
+			DefaultPrincipal: cert.ValidPrincipals[0],
 			HostLogin:        t.params.Login,
 			Username:         t.ctx.user,
 			Namespace:        t.params.Namespace,
@@ -230,41 +236,6 @@ func (t *TerminalHandler) Run(w http.ResponseWriter, r *http.Request) {
 	// make sure we check origin when in prod mode
 	ws := &websocket.Server{Handler: webSocketLoop}
 	ws.ServeHTTP(w, r)
-}
-
-// getUserCredentials retreives the SSH credentials (certificate) for the currently logged in user
-// from the auth server API.
-func getUserCredentials(agent auth.AgentCloser) (string, ssh.AuthMethod, error) {
-	var (
-		cert *ssh.Certificate
-		pub  ssh.PublicKey
-	)
-	// this loop-over-keys is only needed to find an ssh.Certificate (so we can pull
-	// the 1st valid principal out of it)
-	keys, err := agent.List()
-	if err != nil {
-		return "", nil, trace.Wrap(err)
-	}
-	for _, k := range keys {
-		pub, _, _, _, err = ssh.ParseAuthorizedKey([]byte(k.String()))
-		if err != nil {
-			log.Warn(err)
-			continue
-		}
-		cert, _ = pub.(*ssh.Certificate)
-		if cert != nil {
-			break
-		}
-	}
-	// take the principal (SSH username) out of the returned certificate
-	if cert == nil {
-		return "", nil, trace.Errorf("unable to retrieve the user certificate")
-	}
-	signers, err := agent.Signers()
-	if err != nil {
-		return "", nil, trace.Wrap(err)
-	}
-	return cert.ValidPrincipals[0], ssh.PublicKeys(signers...), nil
 }
 
 // resolveHostPort parses an input value and attempts to resolve hostname and port of requested server

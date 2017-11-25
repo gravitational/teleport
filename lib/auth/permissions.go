@@ -26,9 +26,9 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// NewRoleAuthorizer authorizes everyone as predefined role
+// NewRoleAuthorizer authorizes everyone as predefined role, used in tests
 func NewRoleAuthorizer(clusterConfig services.ClusterConfig, r teleport.Role) (Authorizer, error) {
-	authContext, err := contextForBuiltinRole(clusterConfig, r)
+	authContext, err := contextForBuiltinRole(clusterConfig, r, fmt.Sprintf("test-%v", r))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -103,6 +103,8 @@ func (a *authorizer) Authorize(ctx context.Context) (*AuthContext, error) {
 		return a.authorizeRemoteUser(user)
 	case BuiltinRole:
 		return a.authorizeBuiltinRole(user)
+	case RemoteBuiltinRole:
+		return a.authorizeRemoteBuiltinRole(user)
 	default:
 		return nil, trace.AccessDenied("unsupported context type %T", userI)
 	}
@@ -121,7 +123,12 @@ func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*AuthContext, error) {
 	}
 	roleNames, err := ca.CombinedMapping().Map(u.RemoteRoles)
 	if err != nil {
-		return nil, trace.AccessDenied("failed to map roles for remote user %v from cluster %v", u.Username, u.ClusterName)
+		return nil, trace.AccessDenied("failed to map roles for remote user %q from cluster %q", u.Username, u.ClusterName)
+	}
+	if len(roleNames) == 0 {
+		return nil, trace.AccessDenied("no roles mapped for remote user %q from cluster %q", u.Username, u.ClusterName)
+	} else {
+		log.Debugf("Mapped roles %v of remote user %q to local roles %v.", u.RemoteRoles, u.Username, roleNames)
 	}
 	checker, err := services.FetchRoles(roleNames, a.access, nil)
 	if err != nil {
@@ -140,7 +147,45 @@ func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*AuthContext, error) {
 
 // authorizeBuiltinRole authorizes builtin role
 func (a *authorizer) authorizeBuiltinRole(r BuiltinRole) (*AuthContext, error) {
-	return contextForBuiltinRole(r.GetClusterConfig(), r.Role)
+	return contextForBuiltinRole(r.GetClusterConfig(), r.Role, r.Username)
+}
+
+func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*AuthContext, error) {
+	if r.Role != teleport.RoleProxy {
+		return nil, trace.AccessDenied("access denied for remote %v connecting to cluster", r.Role)
+	}
+	// TODO(klizhentas): allow remote proxy to update the cluster's certificate authorities
+	// during certificates renewal
+	roles, err := services.FromSpec(
+		string(teleport.RoleRemoteProxy),
+		services.RoleSpecV3{
+			Allow: services.RoleConditions{
+				Namespaces: []string{services.Wildcard},
+				Rules: []services.Rule{
+					services.NewRule(services.KindNode, services.RO()),
+					services.NewRule(services.KindProxy, services.RO()),
+					services.NewRule(services.KindCertAuthority, services.ReadNoSecrets()),
+					services.NewRule(services.KindNamespace, services.RO()),
+					services.NewRule(services.KindUser, services.RO()),
+					services.NewRule(services.KindAuthServer, services.RO()),
+					services.NewRule(services.KindReverseTunnel, services.RO()),
+					services.NewRule(services.KindTunnelConnection, services.RO()),
+					services.NewRule(services.KindClusterConfig, services.RO()),
+				},
+			},
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	user, err := services.NewUser(r.Username)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	user.SetRoles([]string{string(teleport.RoleRemoteProxy)})
+	return &AuthContext{
+		User:    user,
+		Checker: roles,
+	}, nil
 }
 
 // GetCheckerForBuiltinRole returns checkers for embedded builtin role
@@ -308,15 +353,16 @@ func GetCheckerForBuiltinRole(clusterConfig services.ClusterConfig, role telepor
 	return nil, trace.NotFound("%v is not reconginzed", role.String())
 }
 
-func contextForBuiltinRole(clusterConfig services.ClusterConfig, r teleport.Role) (*AuthContext, error) {
+func contextForBuiltinRole(clusterConfig services.ClusterConfig, r teleport.Role, username string) (*AuthContext, error) {
 	checker, err := GetCheckerForBuiltinRole(clusterConfig, r)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user, err := services.NewUser(fmt.Sprintf("builtin-%v", r))
+	user, err := services.NewUser(username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	user.SetRoles([]string{string(r)})
 	return &AuthContext{
 		User:    user,
 		Checker: checker,
@@ -354,6 +400,22 @@ type BuiltinRole struct {
 
 	// Role is the builtin role this username is associated with
 	Role teleport.Role
+
+	// Username is for authentication tracking purposes
+	Username string
+}
+
+// RemoteBuiltinRole is the role of the remote (service connecting via trusted cluster link)
+// Teleport service.
+type RemoteBuiltinRole struct {
+	// Role is the builtin role of the user
+	Role teleport.Role
+
+	// Username is for authentication tracking purposes
+	Username string
+
+	// ClusterName is the name of the remote cluster
+	ClusterName string
 }
 
 // RemoteUser defines encoded remote user

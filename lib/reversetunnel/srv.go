@@ -19,6 +19,7 @@ package reversetunnel
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
@@ -98,6 +99,11 @@ type DirectCluster struct {
 type Config struct {
 	// ID is the ID of this server proxy
 	ID string
+	// ClusterName is a name of this cluster
+	ClusterName string
+	// ClientTLS is a TLS config associated with this proxy
+	// used to connect to remote auth servers on remote clusters
+	ClientTLS *tls.Config
 	// ListenAddr is a listening address for reverse tunnel server
 	ListenAddr utils.NetAddr
 	// HostSigners is a list of host signers
@@ -139,6 +145,12 @@ type Config struct {
 func (cfg *Config) CheckAndSetDefaults() error {
 	if cfg.ID == "" {
 		return trace.BadParameter("missing parameter ID")
+	}
+	if cfg.ClusterName == "" {
+		return trace.BadParameter("missing parameter ClusterName")
+	}
+	if cfg.ClientTLS == nil {
+		return trace.BadParameter("missing parameter ClientTLS")
 	}
 	if cfg.ListenAddr.IsEmpty() {
 		return trace.BadParameter("missing parameter ListenAddr")
@@ -727,6 +739,7 @@ func newRemoteSite(srv *server, domainName string) (*remoteSite, error) {
 		ctx:   srv.ctx,
 		clock: srv.Clock,
 	}
+
 	// transport uses connection do dial out to the remote address
 	remoteSite.transport = &http.Transport{
 		Dial: remoteSite.dialAccessPoint,
@@ -737,9 +750,7 @@ func newRemoteSite(srv *server, domainName string) (*remoteSite, error) {
 	remoteSite.localClient = srv.localAuthClient
 	remoteSite.localAccessPoint = srv.localAccessPoint
 
-	// configure access to the full Auth Server API for the remote cluster that
-	// this remote site provides access to.
-	clt, err := auth.NewClient("http://stub:0", remoteSite.dialAccessPoint)
+	clt, isLegacyRemoteCluster, err := remoteSite.getRemoteClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -764,6 +775,11 @@ func newRemoteSite(srv *server, domainName string) (*remoteSite, error) {
 	remoteSite.certificateCache = certificateCache
 
 	go remoteSite.periodicSendDiscoveryRequests()
+
+	// if remote cluster is legacy, attempt periodic certificate exchanges
+	if isLegacyRemoteCluster {
+		go remoteSite.periodicAttemptCertExchange()
+	}
 
 	return remoteSite, nil
 }

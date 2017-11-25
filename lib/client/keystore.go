@@ -18,6 +18,8 @@ package client
 
 import (
 	"bufio"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -27,6 +29,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -38,10 +41,12 @@ import (
 
 const (
 	defaultKeyDir      = ProfileDir
+	fileExtTLSCert     = "-x509.pem"
 	fileExtCert        = "-cert.pub"
 	fileExtPub         = ".pub"
 	sessionKeyDir      = "keys"
 	fileNameKnownHosts = "known_hosts"
+	fileNameTLSCerts   = "certs.pem"
 
 	// profileDirPerms is the default permissions applied to the profile
 	// directory (usually ~/.tsh)
@@ -67,6 +72,11 @@ type LocalKeyStore interface {
 	// interface to known_hosts file:
 	AddKnownHostKeys(hostname string, keys []ssh.PublicKey) error
 	GetKnownHostKeys(hostname string) ([]ssh.PublicKey, error)
+
+	// SaveCerts saves trusted TLS certificates of certificate authorities
+	SaveCerts(proxy string, cas []auth.TrustedCerts) error
+	// GetCerts gets trusted TLS certificates of certificate authorities
+	GetCerts(proxy string) (*x509.CertPool, error)
 }
 
 // FSLocalKeyStore implements LocalKeyStore interface using the filesystem
@@ -148,6 +158,9 @@ func (fs *FSLocalKeyStore) AddKey(host, username string, key *Key) error {
 	if err = writeBytes(username+fileExtCert, key.Cert); err != nil {
 		return trace.Wrap(err)
 	}
+	if err = writeBytes(username+fileExtTLSCert, key.TLSCert); err != nil {
+		return trace.Wrap(err)
+	}
 	if err = writeBytes(username+fileExtPub, key.Pub); err != nil {
 		return trace.Wrap(err)
 	}
@@ -165,6 +178,7 @@ func (fs *FSLocalKeyStore) DeleteKey(host string, username string) error {
 	}
 	files := []string{
 		filepath.Join(dirPath, username+fileExtCert),
+		filepath.Join(dirPath, username+fileExtTLSCert),
 		filepath.Join(dirPath, username+fileExtPub),
 		filepath.Join(dirPath, username),
 	}
@@ -189,6 +203,12 @@ func (fs *FSLocalKeyStore) GetKey(host, username string) (*Key, error) {
 		log.Error(err)
 		return nil, trace.Wrap(err)
 	}
+	tlsCertFile := filepath.Join(dirPath, username+fileExtTLSCert)
+	tlsCert, err := ioutil.ReadFile(tlsCertFile)
+	if err != nil {
+		log.Error(err)
+		return nil, trace.Wrap(err)
+	}
 	pub, err := ioutil.ReadFile(filepath.Join(dirPath, username+fileExtPub))
 	if err != nil {
 		log.Error(err)
@@ -200,20 +220,83 @@ func (fs *FSLocalKeyStore) GetKey(host, username string) (*Key, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	key := &Key{Pub: pub, Priv: priv, Cert: cert, ProxyHost: host}
+	key := &Key{Pub: pub, Priv: priv, Cert: cert, ProxyHost: host, TLSCert: tlsCert}
 
 	// expired certificate? this key won't be accepted anymore, lets delete it:
 	certExpiration, err := key.CertValidBefore()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Debugf("[KEYSTORE] Returning certificate %q valid until %q", certFile, certExpiration)
-	if certExpiration.Before(time.Now()) {
-		log.Infof("[KEYSTORE] TTL expired (%v) for session key %v", certExpiration, dirPath)
+	tlsCertExpiration, err := key.TLSCertValidBefore()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	log.Debugf("[KEYSTORE] Returning certificate %q valid until %q,  TLS certificate %q valid until %q", certFile, certExpiration, tlsCertFile, tlsCertExpiration)
+	if certExpiration.Before(time.Now()) || tlsCertExpiration.Before(time.Now()) {
+		log.Infof("[KEYSTORE] TTL expired (%v) or (%v)  for session key %v", certExpiration, tlsCertExpiration, dirPath)
 		os.RemoveAll(dirPath)
 		return nil, trace.NotFound("session keys for %s are not found", host)
 	}
 	return key, nil
+}
+
+// SaveCerts saves trusted TLS certificates of certificate authorities
+func (fs *FSLocalKeyStore) SaveCerts(proxy string, cas []auth.TrustedCerts) error {
+	dir, err := fs.dirFor(proxy)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fp, err := os.OpenFile(filepath.Join(dir, fileNameTLSCerts), os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0640)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer fp.Sync()
+	defer fp.Close()
+	for _, ca := range cas {
+		for _, cert := range ca.TLSCertificates {
+			_, err := fp.Write(cert)
+			if err != nil {
+				return trace.ConvertSystemError(err)
+			}
+			_, err = fp.WriteString("\n")
+			if err != nil {
+				return trace.ConvertSystemError(err)
+			}
+		}
+	}
+	return nil
+}
+
+// GetCerts returns trusted TLS certificates of certificate authorities
+func (fs *FSLocalKeyStore) GetCerts(proxy string) (*x509.CertPool, error) {
+	dir, err := fs.dirFor(proxy)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	bytes, err := ioutil.ReadFile(filepath.Join(dir, fileNameTLSCerts))
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+	pool := x509.NewCertPool()
+	for len(bytes) > 0 {
+		var block *pem.Block
+		block, bytes = pem.Decode(bytes)
+		if block == nil {
+			break
+		}
+		if block.Type != "CERTIFICATE" || len(block.Headers) != 0 {
+			log.Debugf("skipping PEM block type=%v headers=%v", block.Type, block.Headers)
+			continue
+		}
+
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, trace.BadParameter("failed to parse certificate: %v", err)
+		}
+		log.Debugf("Addding trusted cluster certificate authority %q to trusted pool.", cert.Issuer)
+		pool.AddCert(cert)
+	}
+	return pool, nil
 }
 
 // AddKnownHostKeys adds a new entry to 'known_hosts' file
