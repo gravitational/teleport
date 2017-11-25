@@ -143,6 +143,11 @@ func MustParseAddr(a string) *NetAddr {
 	return addr
 }
 
+// FromAddr returns NetAddr from golang standard net.Addr
+func FromAddr(a net.Addr) NetAddr {
+	return NetAddr{AddrNetwork: a.Network(), Addr: a.String()}
+}
+
 // ParseHostPortAddr takes strings like "host:port" and returns
 // *NetAddr or an error
 //

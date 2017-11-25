@@ -39,7 +39,7 @@ func (s *RolesTestSuite) TestParsing(c *check.C) {
 	c.Assert(roles[2].Check(), check.IsNil)
 	c.Assert(roles.Check(), check.IsNil)
 	c.Assert(roles.String(), check.Equals, "Auth,Proxy,Node")
-	c.Assert(roles[0].String(), check.Equals, "AUTH")
+	c.Assert(roles[0].String(), check.Equals, "Auth")
 }
 
 func (s *RolesTestSuite) TestBadRoles(c *check.C) {

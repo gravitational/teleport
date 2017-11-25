@@ -28,11 +28,10 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
-
-	log "github.com/sirupsen/logrus"
 )
 
 // UpsertTrustedCluster creates or toggles a Trusted Cluster relationship.
@@ -56,7 +55,7 @@ func (a *AuthServer) UpsertTrustedCluster(trustedCluster services.TrustedCluster
 	// change state
 	switch {
 	case exists == true && enable == true:
-		log.Debugf("[TRUSTED CLUSTER] Enabling existing Trusted Cluster relationship.")
+		log.Debugf("Enabling existing Trusted Cluster relationship.")
 
 		err := a.activateCertAuthority(trustedCluster)
 		if err != nil {
@@ -71,7 +70,7 @@ func (a *AuthServer) UpsertTrustedCluster(trustedCluster services.TrustedCluster
 			return trace.Wrap(err)
 		}
 	case exists == true && enable == false:
-		log.Debugf("[TRUSTED CLUSTER] Disabling existing Trusted Cluster relationship.")
+		log.Debugf("Disabling existing Trusted Cluster relationship.")
 
 		err := a.deactivateCertAuthority(trustedCluster)
 		if err != nil {
@@ -86,7 +85,7 @@ func (a *AuthServer) UpsertTrustedCluster(trustedCluster services.TrustedCluster
 			return trace.Wrap(err)
 		}
 	case exists == false && enable == true:
-		log.Debugf("[TRUSTED CLUSTER] Creating enabled Trusted Cluster relationship.")
+		log.Debugf("Creating enabled Trusted Cluster relationship.")
 
 		remoteCAs, err := a.establishTrust(trustedCluster)
 		if err != nil {
@@ -103,7 +102,7 @@ func (a *AuthServer) UpsertTrustedCluster(trustedCluster services.TrustedCluster
 			return trace.Wrap(err)
 		}
 	case exists == false && enable == false:
-		log.Debugf("[TRUSTED CLUSTER] Creating disabled Trusted Cluster relationship.")
+		log.Debugf("Creating disabled Trusted Cluster relationship.")
 
 		remoteCAs, err := a.establishTrust(trustedCluster)
 		if err != nil {
@@ -188,7 +187,7 @@ func (a *AuthServer) establishTrust(trustedCluster services.TrustedCluster) ([]s
 	}
 
 	// log the local certificate authorities that we are sending
-	log.Debugf("[TRUSTED CLUSTER] Sending validate request; token=%v, CAs=%v", validateRequest.Token, validateRequest.CAs)
+	log.Debugf("Sending validate request; token=%v, CAs=%v", validateRequest.Token, validateRequest.CAs)
 
 	// send the request to the remote auth server via the proxy
 	validateResponse, err := a.sendValidateRequestToProxy(trustedCluster.GetProxyAddress(), &validateRequest)
@@ -201,7 +200,26 @@ func (a *AuthServer) establishTrust(trustedCluster services.TrustedCluster) ([]s
 	}
 
 	// log the remote certificate authorities we are adding
-	log.Debugf("[TRUSTED CLUSTER] Received validate response; CAs=%v", validateResponse.CAs)
+	log.Debugf("Received validate response; CAs=%v", validateResponse.CAs)
+
+	for _, ca := range validateResponse.CAs {
+		for _, keyPair := range ca.GetTLSKeyPairs() {
+			cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			remoteClusterName, err := tlsca.ClusterName(cert.Subject)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if remoteClusterName == domainName {
+				return nil, trace.BadParameter("remote cluster name can not be the same as local cluster name")
+			}
+			// TODO(klizhentas) in 2.5.0 prohibit adding trusted cluster resource name
+			// different from cluster name (we had no way of checking this before x509,
+			// because SSH CA was a public key, not a cert with metadata)
+		}
+	}
 
 	return validateResponse.CAs, nil
 }
@@ -246,7 +264,7 @@ func (a *AuthServer) validateTrustedCluster(validateRequest *ValidateTrustedClus
 	}
 
 	// log the remote certificate authorities we are adding
-	log.Debugf("[TRUSTED CLUSTER] Received validate request: token=%v, CAs=%v", validateRequest.Token, validateRequest.CAs)
+	log.Debugf("Received validate request: token=%v, CAs=%v", validateRequest.Token, validateRequest.CAs)
 
 	// token has been validated, upsert the given certificate authority
 	for _, certAuthority := range validateRequest.CAs {
@@ -278,7 +296,7 @@ func (a *AuthServer) validateTrustedCluster(validateRequest *ValidateTrustedClus
 	}
 
 	// log the local certificate authorities we are sending
-	log.Debugf("[TRUSTED CLUSTER] Sending validate response: CAs=%v", validateResponse.CAs)
+	log.Debugf("Sending validate response: CAs=%v", validateResponse.CAs)
 
 	return &validateResponse, nil
 }
@@ -309,7 +327,7 @@ func (s *AuthServer) sendValidateRequestToProxy(host string, validateRequest *Va
 	var opts []roundtrip.ClientParam
 
 	if lib.IsInsecureDevMode() {
-		log.Warn("insecureSkipVerify is used to communicate with proxy. make sure you intend to run Teleport in insecure mode!")
+		log.Warn("The setting insecureSkipVerify is used to communicate with proxy. Make sure you intend to run Teleport in insecure mode!")
 
 		// get the default transport (so we can get the proxy from environment)
 		// but disable tls certificate checking.

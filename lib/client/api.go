@@ -20,6 +20,7 @@ package client
 import (
 	"bufio"
 	"context"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
@@ -135,6 +136,10 @@ type Config struct {
 	// use them in addition to certs stored in its local agent (from disk)
 	AuthMethods []ssh.AuthMethod
 
+	// TLSConfig is TLS configuration, if specified, the client
+	// will use this TLS configuration to access API endpoints
+	TLS *tls.Config
+
 	// DefaultPrincipal determines the default SSH username (principal) the client should be using
 	// when connecting to auth/proxy servers. Usually it's returned with a certificate,
 	// but this variables provides a default (used by the web-based terminal client)
@@ -145,7 +150,7 @@ type Config struct {
 	Stdin  io.Reader
 
 	// ExitStatus carries the returned value (exit status) of the remote
-	// process execution (via SSh exec)
+	// process execution (via SSH exec)
 	ExitStatus int
 
 	// SiteName specifies site to execute operation,
@@ -340,7 +345,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		log.Infof("no teleport login given. defaulting to %s", c.Username)
 	}
 	if c.ProxyHostPort == "" {
-		return nil, trace.Errorf("No proxy address specified, missed --proxy flag?")
+		return nil, trace.BadParameter("No proxy address specified, missed --proxy flag?")
 	}
 	if c.HostLogin == "" {
 		c.HostLogin, err = Username()
@@ -352,7 +357,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	if c.KeyTTL == 0 {
 		c.KeyTTL = defaults.CertDuration
 	} else if c.KeyTTL > defaults.MaxCertDuration || c.KeyTTL < defaults.MinCertDuration {
-		return nil, trace.Errorf("invalid requested cert TTL")
+		return nil, trace.BadParameter("invalid requested cert TTL")
 	}
 	c.Namespace = services.ProcessNamespace(c.Namespace)
 
@@ -373,6 +378,9 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	if c.SkipLocalAuth {
 		if len(c.AuthMethods) == 0 {
 			return nil, trace.BadParameter("SkipLocalAuth is true but no AuthMethods provided")
+		}
+		if c.TLS == nil {
+			return nil, trace.BadParameter("SkipLocalAuth is true but no TLS config is provided")
 		}
 		// if the client was passed an agent in the configuration and skip local auth, use
 		// the passed in agent.
@@ -1037,14 +1045,14 @@ func (tc *TeleportClient) Login(activateKey bool) (*Key, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// generate a new keypair. the public key will be signed via proxy if our
-	// password+OTP are legit
+	// generate a new keypair. the public key will be signed via proxy if client's
+	// password+OTP are valid
 	key, err := NewKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var response *SSHLoginResponse
+	var response *auth.SSHLoginResponse
 
 	switch pr.Auth.Type {
 	case teleport.Local:
@@ -1080,10 +1088,17 @@ func (tc *TeleportClient) Login(activateKey bool) (*Key, error) {
 
 	// extract the new certificate out of the response
 	key.Cert = response.Cert
+	key.TLSCert = response.TLSCert
 
 	if activateKey {
-		// save the list of CAs we trust to ~/.tsh/known_hosts
+		// save the list of CAs client trusts to ~/.tsh/known_hosts
 		err = tc.localAgent.AddHostSignersToCache(response.HostSigners)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// save the list of TLS CAs client trusts
+		err = tc.localAgent.SaveCerts(tc.ProxyHost(), response.HostSigners)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1097,9 +1112,9 @@ func (tc *TeleportClient) Login(activateKey bool) (*Key, error) {
 	return key, nil
 }
 
-func (tc *TeleportClient) localLogin(secondFactor string, pub []byte) (*SSHLoginResponse, error) {
+func (tc *TeleportClient) localLogin(secondFactor string, pub []byte) (*auth.SSHLoginResponse, error) {
 	var err error
-	var response *SSHLoginResponse
+	var response *auth.SSHLoginResponse
 
 	switch secondFactor {
 	case teleport.OFF, teleport.OTP, teleport.TOTP, teleport.HOTP:
@@ -1119,9 +1134,23 @@ func (tc *TeleportClient) localLogin(secondFactor string, pub []byte) (*SSHLogin
 	return response, nil
 }
 
-// Adds a new CA as trusted CA for this client
-func (tc *TeleportClient) AddTrustedCA(ca *services.CertAuthorityV1) error {
-	return tc.LocalAgent().AddHostSignersToCache([]services.CertAuthorityV1{*ca})
+// Adds a new CA as trusted CA for this client, used in tests
+func (tc *TeleportClient) AddTrustedCA(ca services.CertAuthority) error {
+	err := tc.LocalAgent().AddHostSignersToCache(auth.AuthoritiesToTrustedCerts([]services.CertAuthority{ca}))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// only host CA has TLS certificates, user CA will overwrite trusted certs
+	// to empty file if called
+	if ca.GetType() == services.HostCA {
+		err = tc.LocalAgent().SaveCerts(tc.ProxyHost(), auth.AuthoritiesToTrustedCerts([]services.CertAuthority{ca}))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
 }
 
 func (tc *TeleportClient) AddKey(host string, key *Key) (*agent.AddedKey, error) {
@@ -1129,7 +1158,7 @@ func (tc *TeleportClient) AddKey(host string, key *Key) (*agent.AddedKey, error)
 }
 
 // directLogin asks for a password + HOTP token, makes a request to CA via proxy
-func (tc *TeleportClient) directLogin(secondFactorType string, pub []byte) (*SSHLoginResponse, error) {
+func (tc *TeleportClient) directLogin(secondFactorType string, pub []byte) (*auth.SSHLoginResponse, error) {
 	var err error
 
 	httpsProxyHostPort := tc.Config.ProxyWebHostPort()
@@ -1167,7 +1196,7 @@ func (tc *TeleportClient) directLogin(secondFactorType string, pub []byte) (*SSH
 }
 
 // samlLogin opens browser window and uses OIDC or SAML redirect cycle with browser
-func (tc *TeleportClient) ssoLogin(connectorID string, pub []byte, protocol string) (*SSHLoginResponse, error) {
+func (tc *TeleportClient) ssoLogin(connectorID string, pub []byte, protocol string) (*auth.SSHLoginResponse, error) {
 	log.Debugf("samlLogin start")
 	// ask the CA (via proxy) to sign our public key:
 	webProxyAddr := tc.Config.ProxyWebHostPort()
@@ -1184,7 +1213,7 @@ func (tc *TeleportClient) ssoLogin(connectorID string, pub []byte, protocol stri
 }
 
 // directLogin asks for a password and performs the challenge-response authentication
-func (tc *TeleportClient) u2fLogin(pub []byte) (*SSHLoginResponse, error) {
+func (tc *TeleportClient) u2fLogin(pub []byte) (*auth.SSHLoginResponse, error) {
 	// U2F login requires the official u2f-host executable
 	_, err := exec.LookPath("u2f-host")
 	if err != nil {

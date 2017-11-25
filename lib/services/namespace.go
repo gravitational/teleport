@@ -118,4 +118,4 @@ func IsValidNamespace(s string) bool {
 	return validNamespace.MatchString(s)
 }
 
-var validNamespace = regexp.MustCompile(`[A-Za-z0-9]+`)
+var validNamespace = regexp.MustCompile(`^[A-Za-z0-9]+$`)

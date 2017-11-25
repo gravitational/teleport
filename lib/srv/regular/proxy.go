@@ -265,7 +265,7 @@ func (t *proxySubsys) proxyToHost(
 	// which port to use
 	specifiedPort := len(t.port) > 0 && t.port != "0"
 	ips, _ := net.LookupHost(t.host)
-	t.log.Debugf("proxy connecting to host=%v port=%v, exact port=%v\n", t.host, t.port, specifiedPort)
+	t.log.Debugf("proxy connecting to host=%v port=%v, exact port=%v", t.host, t.port, specifiedPort)
 
 	// enumerate and try to find a server with self-registered with a matching name/IP:
 	var server services.Server

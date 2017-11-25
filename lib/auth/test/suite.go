@@ -21,8 +21,8 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
 
 	"golang.org/x/crypto/ssh"
 	. "gopkg.in/check.v1"
@@ -31,7 +31,7 @@ import (
 func TestAuth(t *testing.T) { TestingT(t) }
 
 type AuthSuite struct {
-	A auth.Authority
+	A sshca.Authority
 }
 
 func (s *AuthSuite) GenerateKeypairEmptyPass(c *C) {

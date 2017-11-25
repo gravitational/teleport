@@ -63,6 +63,10 @@ check-license:
 		mkdir -p ./data/two/auth && cp $(TEST_LICENSE) ./data/two/auth; \
 	fi
 
+.PHONY: build
+build:
+	docker build -t teleport:latest .
+
 .PHONY: clean
 clean:
 	rm -rf data

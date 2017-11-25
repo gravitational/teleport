@@ -43,6 +43,9 @@ import (
 
 var _ = fmt.Printf // for testing
 
+// DELETE IN: 2.6.0
+// Tunnel server is deprecated and will be deleted in 2.6.0 alongside
+// with HTTP over SSH tunnel
 type TunSuite struct {
 	bk backend.Backend
 
@@ -144,6 +147,21 @@ func (s *TunSuite) SetUpTest(c *C) {
 	s.tsrv = tsrv
 }
 
+func newServer(kind string, name, addr, hostname, namespace string) services.Server {
+	return &services.ServerV2{
+		Kind:    kind,
+		Version: services.V2,
+		Metadata: services.Metadata{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: services.ServerSpecV2{
+			Addr:     addr,
+			Hostname: hostname,
+		},
+	}
+}
+
 func (s *TunSuite) TestUnixServerClient(c *C) {
 	authorizer, err := NewAuthorizer(s.a.Access, s.a.Identity, s.a.Trust)
 	c.Assert(err, IsNil)
@@ -168,7 +186,9 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 	rawSecret := "def456"
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
-	user, role := createUserAndRole(s.a, userName, []string{userName})
+	user, role, err := CreateUserAndRole(s.a, userName, []string{userName})
+	c.Assert(err, IsNil)
+
 	rules := role.GetRules(services.Allow)
 	rules = append(rules, services.NewRule(services.KindNode, services.RW()))
 	role.SetRules(services.Allow, rules)
@@ -206,46 +226,6 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 	c.Assert(err, IsNil)
 }
 
-// TestClusterConfigContext checks that the cluster configuration gets passed
-// along in the context and permissions get updated accordingly.
-func (s *TunSuite) TestClusterConfigContext(c *C) {
-	_, hpub, err := s.a.GenerateKeyPair("")
-	c.Assert(err, IsNil)
-
-	// connect to the auth server with role proxy
-	authMethod := []ssh.AuthMethod{ssh.PublicKeys(s.signer)}
-	clt, err := NewTunClient("test",
-		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, s.hostuuid+".localhost", authMethod)
-	c.Assert(err, IsNil)
-	defer clt.Close()
-
-	// try and generate a host cert, this should fail because we are recording
-	// at the nodes not at the proxy
-	_, err = clt.GenerateHostCert(hpub,
-		"a", "b", nil,
-		"localhost", teleport.Roles{teleport.RoleProxy}, 0)
-	c.Assert(err, NotNil)
-
-	// update cluster config to record at the proxy
-	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		SessionRecording: services.RecordAtProxy,
-	})
-	c.Assert(err, IsNil)
-	err = s.a.SetClusterConfig(clusterConfig)
-	c.Assert(err, IsNil)
-
-	// force a sync so the cached value gets updated
-	err = s.a.syncCachedClusterConfig()
-	c.Assert(err, IsNil)
-
-	// try and generate a host cert, now the proxy should be able to generate a
-	// host cert because it's in recording mode.
-	_, err = clt.GenerateHostCert(hpub,
-		"a", "b", nil,
-		"localhost", teleport.Roles{teleport.RoleProxy}, 0)
-	c.Assert(err, IsNil)
-}
-
 func (s *TunSuite) TestSessions(c *C) {
 	c.Assert(s.a.UpsertCertAuthority(
 		suite.NewTestCA(services.UserCA, "localhost")), IsNil)
@@ -255,9 +235,10 @@ func (s *TunSuite) TestSessions(c *C) {
 	rawSecret := "def456"
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
-	createUserAndRole(s.a, user, []string{user})
+	_, _, err := CreateUserAndRole(s.a, user, []string{user})
+	c.Assert(err, IsNil)
 
-	err := s.a.UpsertPassword(user, pass)
+	err = s.a.UpsertPassword(user, pass)
 	c.Assert(err, IsNil)
 
 	err = s.a.UpsertTOTP(user, otpSecret)
@@ -486,9 +467,10 @@ func (s *TunSuite) TestPermissions(c *C) {
 	rawSecret := "def456"
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
-	user, _ := createUserAndRole(s.a, userName, []string{userName})
+	user, _, err := CreateUserAndRole(s.a, userName, []string{userName})
+	c.Assert(err, IsNil)
 
-	err := s.a.UpsertPassword(user.GetName(), pass)
+	err = s.a.UpsertPassword(user.GetName(), pass)
 	c.Assert(err, IsNil)
 
 	err = s.a.UpsertTOTP(user.GetName(), otpSecret)

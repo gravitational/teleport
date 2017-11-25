@@ -32,14 +32,14 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/ghodss/yaml"
-	log "github.com/sirupsen/logrus"
 )
 
 // Config structure is used to initialize _all_ services Teleporot can run.
-// Some settings are globl (like DataDir) while others are grouped into
+// Some settings are global (like DataDir) while others are grouped into
 // sections, like AuthConfig
 type Config struct {
 	// DataDir provides directory where teleport stores it's permanent state
@@ -75,7 +75,7 @@ type Config struct {
 	Auth AuthConfig
 
 	// Keygen points to a key generator implementation
-	Keygen auth.Authority
+	Keygen sshca.Authority
 
 	// Proxy is SSH proxy that manages incoming and outbound connections
 	// via multiple reverse tunnels
@@ -233,6 +233,9 @@ type AuthConfig struct {
 	// Enabled turns auth role on or off for this process
 	Enabled bool
 
+	// EnableProxyProtocol enables proxy protocol support
+	EnableProxyProtocol bool
+
 	// SSHAddr is the listening address of SSH tunnel to HTTP service
 	SSHAddr utils.NetAddr
 
@@ -301,7 +304,7 @@ func ApplyDefaults(cfg *Config) {
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "localhost"
-		log.Errorf("Failed to determine hostname: %v", err)
+		log.Errorf("Failed to determine hostname: %v.", err)
 	}
 
 	// global defaults

@@ -1228,8 +1228,14 @@ type RoleSpecV2 struct {
 	ForwardAgent bool `json:"forward_agent" yaml:"forward_agent"`
 }
 
-// AccessChecker interface implements access checks for given role
+// AccessChecker interface implements access checks for given role or role set
 type AccessChecker interface {
+	// HasRole checks if the checker includes the role
+	HasRole(role string) bool
+
+	// RoleNames returns a list of role names
+	RoleNames() []string
+
 	// CheckAccessToServer checks access to server.
 	CheckAccessToServer(login string, server Server) error
 
@@ -1322,6 +1328,11 @@ func FetchRoles(roleNames []string, access RoleGetter, traits map[string][]strin
 
 // NewRoleSet returns new RoleSet based on the roles
 func NewRoleSet(roles ...Role) RoleSet {
+	// unauthenticated Nop role should not have any privileges
+	// by default, otherwise it is too permissive
+	if len(roles) == 1 && roles[0].GetName() == string(teleport.RoleNop) {
+		return roles
+	}
 	return append(roles, NewImplicitRole())
 }
 
@@ -1365,6 +1376,25 @@ func MatchLabels(selector map[string]string, target map[string]string) bool {
 		}
 	}
 	return true
+}
+
+// RoleNames returns a slice with role names
+func (set RoleSet) RoleNames() []string {
+	out := make([]string, len(set))
+	for i, r := range set {
+		out[i] = r.GetName()
+	}
+	return out
+}
+
+// HasRole checks if the role set has the role
+func (set RoleSet) HasRole(role string) bool {
+	for _, r := range set {
+		if r.GetName() == role {
+			return true
+		}
+	}
+	return false
 }
 
 // AdjustSessionTTL will reduce the requested ttl to lowest max allowed TTL

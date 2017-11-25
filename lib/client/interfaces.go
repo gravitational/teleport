@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2015-2017 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gravitational/teleport/lib/tlsca"
+
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -28,9 +30,14 @@ import (
 
 // Key describes a complete (signed) client key
 type Key struct {
+	// Priv is a PEM encoded private key
 	Priv []byte `json:"Priv,omitempty"`
-	Pub  []byte `json:"Pub,omitempty"`
+	// Pub is a public key
+	Pub []byte `json:"Pub,omitempty"`
+	// Cert is an SSH client certificate
 	Cert []byte `json:"Cert,omitempty"`
+	// TLSCert is a PEM encoded client TLS x509 certificate
+	TLSCert []byte `json:"TLSCert,omitempty"`
 
 	// ProxyHost (optionally) contains the hostname of the proxy server
 	// which issued this key
@@ -92,7 +99,17 @@ func (k *Key) EqualsTo(other *Key) bool {
 	}
 	return bytes.Equal(k.Cert, other.Cert) &&
 		bytes.Equal(k.Priv, other.Priv) &&
-		bytes.Equal(k.Pub, other.Pub)
+		bytes.Equal(k.Pub, other.Pub) &&
+		bytes.Equal(k.TLSCert, other.TLSCert)
+}
+
+// TLSCertValidBefore returns the time of the TLS cert expiration
+func (k *Key) TLSCertValidBefore() (t time.Time, err error) {
+	cert, err := tlsca.ParseCertificatePEM(k.TLSCert)
+	if err != nil {
+		return t, trace.Wrap(err)
+	}
+	return cert.NotAfter, nil
 }
 
 // CertValidBefore returns the time of the cert expiration
