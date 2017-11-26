@@ -218,6 +218,11 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 func detect(conn net.Conn) (*Conn, error) {
 	reader := bufio.NewReader(conn)
 
+	// the first attempt is to parse optional proxy
+	// protocol line that is injected by load balancers
+	// before actual protocol traffic flows.
+	// if the first attempt encounters proxy it
+	// goes to the second pass to do protocol detection
 	var proxyLine *ProxyLine
 	for i := 0; i < 2; i++ {
 		bytes, err := reader.Peek(3)
