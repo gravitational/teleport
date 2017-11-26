@@ -40,7 +40,7 @@ import (
 // NewTestCA returns new test authority with a test key as a public and
 // signing key
 func NewTestCA(caType services.CertAuthType, domainName string) *services.CertAuthorityV2 {
-	keyBytes := PEMBytes["rsa"]
+	keyBytes := fixtures.PEMBytes["rsa"]
 	key, err := ssh.ParsePrivateKey(keyBytes)
 	if err != nil {
 		panic(err)
