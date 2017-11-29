@@ -53,7 +53,7 @@ services:
       teleport:
         ipv4_address: 172.10.1.10
         aliases:
-          - one-lb        
+          - one-lb
 
   #
   # two-auth is a auth server of the second cluster
