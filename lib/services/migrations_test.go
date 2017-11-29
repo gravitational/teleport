@@ -274,7 +274,8 @@ func (s *MigrationsSuite) TestMigrateRoles(c *C) {
 		},
 		Spec: RoleSpecV3{
 			Options: RoleOptions{
-				MaxSessionTTL: NewDuration(20 * time.Hour),
+				MaxSessionTTL:  NewDuration(20 * time.Hour),
+				PortForwarding: true,
 			},
 			Allow: RoleConditions{
 				Logins:     []string{"foo"},

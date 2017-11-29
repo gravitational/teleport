@@ -47,91 +47,92 @@ var (
 	// true  = has sub-keys
 	// false = does not have sub-keys (a leaf)
 	validKeys = map[string]bool{
-		"namespace":            true,
-		"cluster_name":         true,
-		"trusted_clusters":     true,
-		"pid_file":             true,
-		"cert_file":            true,
-		"private_key_file":     true,
-		"cert":                 true,
-		"private_key":          true,
-		"checking_keys":        true,
-		"checking_key_files":   true,
-		"signing_keys":         true,
-		"signing_key_files":    true,
-		"allowed_logins":       true,
-		"teleport":             true,
-		"enabled":              true,
-		"ssh_service":          true,
-		"proxy_service":        true,
-		"auth_service":         true,
-		"auth_token":           true,
-		"auth_servers":         true,
-		"domain_name":          true,
-		"storage":              false,
-		"nodename":             true,
-		"log":                  true,
-		"period":               true,
-		"connection_limits":    true,
-		"max_connections":      true,
-		"max_users":            true,
-		"rates":                true,
-		"commands":             true,
-		"labels":               false,
-		"output":               true,
-		"severity":             true,
-		"role":                 true,
-		"name":                 true,
-		"type":                 true,
-		"data_dir":             true,
-		"web_listen_addr":      true,
-		"tunnel_listen_addr":   true,
-		"ssh_listen_addr":      true,
-		"listen_addr":          true,
-		"https_key_file":       true,
-		"https_cert_file":      true,
-		"advertise_ip":         true,
-		"authorities":          true,
-		"keys":                 true,
-		"reverse_tunnels":      true,
-		"addresses":            true,
-		"oidc_connectors":      true,
-		"id":                   true,
-		"issuer_url":           true,
-		"client_id":            true,
-		"client_secret":        true,
-		"redirect_url":         true,
-		"acr_values":           true,
-		"provider":             true,
-		"tokens":               true,
-		"region":               true,
-		"table_name":           true,
-		"access_key":           true,
-		"secret_key":           true,
-		"u2f":                  true,
-		"app_id":               true,
-		"facets":               true,
-		"authentication":       true,
-		"second_factor":        false,
-		"oidc":                 true,
-		"display":              false,
-		"scope":                false,
-		"claims_to_roles":      true,
-		"dynamic_config":       false,
-		"seed_config":          false,
-		"public_addr":          false,
-		"cache":                true,
-		"ttl":                  false,
-		"issuer":               false,
-		"permit_user_env":      false,
-		"ciphers":              false,
-		"kex_algos":            false,
-		"mac_algos":            false,
-		"connector_name":       false,
-		"session_recording":    false,
-		"read_capacity_units":  false,
-		"write_capacity_units": false,
-		"license_file":         false,
+		"namespace":              true,
+		"cluster_name":           true,
+		"trusted_clusters":       true,
+		"pid_file":               true,
+		"cert_file":              true,
+		"private_key_file":       true,
+		"cert":                   true,
+		"private_key":            true,
+		"checking_keys":          true,
+		"checking_key_files":     true,
+		"signing_keys":           true,
+		"signing_key_files":      true,
+		"allowed_logins":         true,
+		"teleport":               true,
+		"enabled":                true,
+		"ssh_service":            true,
+		"proxy_service":          true,
+		"auth_service":           true,
+		"auth_token":             true,
+		"auth_servers":           true,
+		"domain_name":            true,
+		"storage":                false,
+		"nodename":               true,
+		"log":                    true,
+		"period":                 true,
+		"connection_limits":      true,
+		"max_connections":        true,
+		"max_users":              true,
+		"rates":                  true,
+		"commands":               true,
+		"labels":                 false,
+		"output":                 true,
+		"severity":               true,
+		"role":                   true,
+		"name":                   true,
+		"type":                   true,
+		"data_dir":               true,
+		"web_listen_addr":        true,
+		"tunnel_listen_addr":     true,
+		"ssh_listen_addr":        true,
+		"listen_addr":            true,
+		"https_key_file":         true,
+		"https_cert_file":        true,
+		"advertise_ip":           true,
+		"authorities":            true,
+		"keys":                   true,
+		"reverse_tunnels":        true,
+		"addresses":              true,
+		"oidc_connectors":        true,
+		"id":                     true,
+		"issuer_url":             true,
+		"client_id":              true,
+		"client_secret":          true,
+		"redirect_url":           true,
+		"acr_values":             true,
+		"provider":               true,
+		"tokens":                 true,
+		"region":                 true,
+		"table_name":             true,
+		"access_key":             true,
+		"secret_key":             true,
+		"u2f":                    true,
+		"app_id":                 true,
+		"facets":                 true,
+		"authentication":         true,
+		"second_factor":          false,
+		"oidc":                   true,
+		"display":                false,
+		"scope":                  false,
+		"claims_to_roles":        true,
+		"dynamic_config":         false,
+		"seed_config":            false,
+		"public_addr":            false,
+		"cache":                  true,
+		"ttl":                    false,
+		"issuer":                 false,
+		"permit_user_env":        false,
+		"ciphers":                false,
+		"kex_algos":              false,
+		"mac_algos":              false,
+		"connector_name":         false,
+		"session_recording":      false,
+		"read_capacity_units":    false,
+		"write_capacity_units":   false,
+		"license_file":           false,
+		"proxy_checks_host_keys": false,
 	}
 )
 
@@ -469,7 +470,15 @@ type Auth struct {
 	Authentication *AuthenticationConfig `yaml:"authentication,omitempty"`
 
 	// SessionRecording determines where the session is recorded: node, proxy, or off.
-	SessionRecording SessionRecording `yaml:"session_recording"`
+	SessionRecording string `yaml:"session_recording"`
+
+	// ProxyChecksHostKeys is used when the proxy is in recording mode and
+	// determines if the proxy will check the host key of the client or not.
+	ProxyChecksHostKeys string `yaml:"proxy_checks_host_keys,omitempty"`
+
+	// LicenseFile is a path to the license file. The path can be either absolute or
+	// relative to the global data dir
+	LicenseFile string `yaml:"license_file,omitempty"`
 
 	// FOR INTERNAL USE:
 	// Authorities : 3rd party certificate authorities (CAs) this auth service trusts.
@@ -497,10 +506,6 @@ type Auth struct {
 	// it here overrides defaults.
 	// Deprecated: Remove in Teleport 2.4.1.
 	DynamicConfig *bool `yaml:"dynamic_config,omitempty"`
-
-	// LicenseFile is a path to the license file. The path can be either absolute or
-	// relative to the global data dir
-	LicenseFile string `yaml:"license_file,omitempty"`
 }
 
 // TrustedCluster struct holds configuration values under "trusted_clusters" key
@@ -624,16 +629,6 @@ func (u *UniversalSecondFactor) Parse() services.U2F {
 		AppID:  u.AppID,
 		Facets: u.Facets,
 	}
-}
-
-// SessionRecording determines where the session is recorded: node, proxy, or off.
-type SessionRecording string
-
-// Parse reads session_recording and creates a services.ClusterConfig.
-func (s SessionRecording) Parse() (services.ClusterConfig, error) {
-	return services.NewClusterConfig(services.ClusterConfigSpecV3{
-		SessionRecording: services.RecordingType(s),
-	})
 }
 
 // SSH is 'ssh_service' section of the config file

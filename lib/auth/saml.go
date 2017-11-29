@@ -340,7 +340,7 @@ func (a *AuthServer) ValidateSAMLResponse(samlResponse string) (*SAMLAuthRespons
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cert, err := a.GenerateUserCert(request.PublicKey, user, allowedLogins, certTTL, roles.CanForwardAgents(), request.Compatibility)
+		cert, err := a.GenerateUserCert(request.PublicKey, user, allowedLogins, certTTL, roles.CanForwardAgents(), roles.CanPortForward(), request.Compatibility)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

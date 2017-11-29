@@ -271,6 +271,7 @@ func makeKey(username string, allowedLogins []string, ttl time.Duration) (*Key, 
 		AllowedLogins:       allowedLogins,
 		TTL:                 ttl,
 		PermitAgentForwarding: true,
+		PermitPortForwarding:  true,
 	})
 	if err != nil {
 		return nil, err

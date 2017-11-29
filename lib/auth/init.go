@@ -105,11 +105,11 @@ type InitConfig struct {
 	// factor (off, otp, u2f) passed in from a configuration file.
 	AuthPreference services.AuthPreference
 
-	// ClusterConfig holds cluster level configuration.
-	ClusterConfig services.ClusterConfig
-
 	// AuditLog is used for emitting events to audit log
 	AuditLog events.IAuditLog
+
+	// ClusterConfig holds cluster level configuration.
+	ClusterConfig services.ClusterConfig
 }
 
 // Init instantiates and configures an instance of AuthServer

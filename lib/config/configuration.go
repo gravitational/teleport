@@ -406,12 +406,14 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 
-	// read in and set session recording
-	clusterConfig, err := fc.Auth.SessionRecording.Parse()
+	// build cluster config from session recording and host key checking preferences
+	cfg.Auth.ClusterConfig, err = services.NewClusterConfig(services.ClusterConfigSpecV3{
+		SessionRecording:    fc.Auth.SessionRecording,
+		ProxyChecksHostKeys: fc.Auth.ProxyChecksHostKeys,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	cfg.Auth.ClusterConfig = clusterConfig
 
 	// read in and set the license file path (not used in open-source version)
 	licenseFile := fc.Auth.LicenseFile

@@ -231,7 +231,7 @@ func (s *AuthServer) GenerateHostCert(hostPublicKey []byte, hostID, nodeName, cl
 
 // GenerateUserCert generates user certificate, it takes pkey as a signing
 // private key (user certificate authority)
-func (s *AuthServer) GenerateUserCert(key []byte, user services.User, allowedLogins []string, ttl time.Duration, canForwardAgents bool, compatibility string) ([]byte, error) {
+func (s *AuthServer) GenerateUserCert(key []byte, user services.User, allowedLogins []string, ttl time.Duration, canForwardAgents bool, canPortForward bool, compatibility string) ([]byte, error) {
 	domainName, err := s.GetDomainName()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -256,6 +256,7 @@ func (s *AuthServer) GenerateUserCert(key []byte, user services.User, allowedLog
 		Roles:                 user.GetRoles(),
 		Compatibility:         compatibility,
 		PermitAgentForwarding: canForwardAgents,
+		PermitPortForwarding:  canPortForward,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -742,7 +743,8 @@ func (s *AuthServer) NewWebSession(userName string) (services.WebSession, error)
 		AllowedLogins:       allowedLogins,
 		TTL:                 bearerTokenTTL,
 		PermitAgentForwarding: roles.CanForwardAgents(),
-		Roles: user.GetRoles(),
+		PermitPortForwarding:  roles.CanPortForward(),
+		Roles:                 user.GetRoles(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -192,7 +192,8 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 				},
 				Spec: RoleSpecV3{
 					Options: RoleOptions{
-						MaxSessionTTL: NewDuration(defaults.MaxCertDuration),
+						MaxSessionTTL:  NewDuration(defaults.MaxCertDuration),
+						PortForwarding: true,
 					},
 					Allow: RoleConditions{
 						NodeLabels: map[string]string{Wildcard: Wildcard},
@@ -213,7 +214,8 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 		      "metadata": {"name": "name1"},
 		      "spec": {
                  "options": {
-                   "max_session_ttl": "20h"
+                   "max_session_ttl": "20h",
+                   "port_forwarding": true
                  },
                  "allow": {
                    "node_labels": {"a": "b"},
@@ -243,7 +245,8 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 				},
 				Spec: RoleSpecV3{
 					Options: RoleOptions{
-						MaxSessionTTL: NewDuration(20 * time.Hour),
+						MaxSessionTTL:  NewDuration(20 * time.Hour),
+						PortForwarding: true,
 					},
 					Allow: RoleConditions{
 						NodeLabels: map[string]string{"a": "b"},

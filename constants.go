@@ -67,6 +67,9 @@ const (
 	// ComponentNode is SSH node (SSH server serving requests)
 	ComponentNode = "node"
 
+	// ComponentNode is SSH node (SSH server serving requests)
+	ComponentForwardingNode = "node:forward"
+
 	// ComponentProxy is SSH proxy (SSH server forwarding connections)
 	ComponentProxy = "proxy"
 
@@ -78,6 +81,15 @@ const (
 
 	// ComponentSubsystemProxy is the proxy subsystem.
 	ComponentSubsystemProxy = "subsystem:proxy"
+
+	// ComponentLocalTerm is a terminal on a regular SSH node.
+	ComponentLocalTerm = "term:local"
+
+	// ComponentRemoteTerm is a terminal on a forwarding SSH node.
+	ComponentRemoteTerm = "term:remote"
+
+	// ComponentRemoteSubsystem is subsystem on a forwarding SSH node.
+	ComponentRemoteSubsystem = "subsystem:remote"
 
 	// ComponentAuditLog is audit log component
 	ComponentAuditLog = "auditlog"
@@ -215,6 +227,9 @@ const (
 	// logins for local accounts.
 	TraitInternalRoleVariable = "{{internal.logins}}"
 )
+
+// SCP is Secure Copy.
+const SCP = "scp"
 
 // Root is *nix system administrator account name.
 const Root = "root"

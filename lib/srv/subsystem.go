@@ -22,6 +22,10 @@ import (
 
 // SubsystemResult is a result of execution of the subsystem.
 type SubsystemResult struct {
+	// Name holds the name of the subsystem that was executed.
+	Name string
+
+	// Err holds the result of execution of the subsystem.
 	Err error
 }
 

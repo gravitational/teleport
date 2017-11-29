@@ -208,6 +208,9 @@ func (n *nauth) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
 	if c.PermitAgentForwarding {
 		cert.Permissions.Extensions[teleport.CertExtensionPermitAgentForwarding] = ""
 	}
+	if !c.PermitPortForwarding {
+		delete(cert.Permissions.Extensions, teleport.CertExtensionPermitPortForwarding)
+	}
 	if len(c.Roles) != 0 {
 		// if we are requesting a certificate with support for older versions of OpenSSH
 		// don't add roles to certificate extensions, due to a bug in <= OpenSSH 7.1

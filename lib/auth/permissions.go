@@ -177,6 +177,7 @@ func GetCheckerForBuiltinRole(clusterConfig services.ClusterConfig, role telepor
 						services.NewRule(services.KindAuthServer, services.RO()),
 						services.NewRule(services.KindReverseTunnel, services.RO()),
 						services.NewRule(services.KindTunnelConnection, services.RO()),
+						services.NewRule(services.KindClusterConfig, services.RO()),
 					},
 				},
 			})

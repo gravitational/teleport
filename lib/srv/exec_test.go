@@ -76,11 +76,11 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests()
 	s.usr, _ = user.Current()
 	s.ctx = &ServerContext{IsTestStub: true}
-	s.ctx.Login = s.usr.Username
+	s.ctx.Identity.Login = s.usr.Username
 	s.ctx.session = &session{id: "xxx"}
-	s.ctx.TeleportUser = "galt"
+	s.ctx.Identity.TeleportUser = "galt"
 	s.ctx.Conn = &ssh.ServerConn{Conn: s}
-	s.ctx.ExecRequest = &LocalExecRequest{Ctx: s.ctx}
+	s.ctx.ExecRequest = &localExec{Ctx: s.ctx}
 	s.localAddr, _ = utils.ParseAddr("127.0.0.1:3022")
 	s.remoteAddr, _ = utils.ParseAddr("10.0.0.5:4817")
 }

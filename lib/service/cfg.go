@@ -243,9 +243,6 @@ type AuthConfig struct {
 	// Roles is a set of roles to pre-provision for this cluster
 	Roles []services.Role
 
-	// ClusterConfig stores cluster level configuration.
-	ClusterConfig services.ClusterConfig
-
 	// ClusterName is a name that identifies this authority and all
 	// host nodes in the cluster that will share this authority domain name
 	// as a base name, e.g. if authority domain name is example.com,
@@ -267,6 +264,9 @@ type AuthConfig struct {
 	// Preference defines the authentication preference (type and second factor) for
 	// the auth server.
 	Preference services.AuthPreference
+
+	// ClusterConfig stores cluster level configuration.
+	ClusterConfig services.ClusterConfig
 
 	// LicenseFile is a full path to the license file
 	LicenseFile string

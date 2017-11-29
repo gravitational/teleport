@@ -468,7 +468,7 @@ func (a *AuthWithRoles) GenerateUserCert(key []byte, username string, ttl time.D
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.GenerateUserCert(
-		key, user, allowedLogins, sessionTTL, checker.CanForwardAgents(), compatibility)
+		key, user, allowedLogins, sessionTTL, checker.CanForwardAgents(), checker.CanPortForward(), compatibility)
 }
 
 func (a *AuthWithRoles) CreateSignupToken(user services.UserV1, ttl time.Duration) (token string, e error) {
