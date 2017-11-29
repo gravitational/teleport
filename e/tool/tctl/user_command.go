@@ -9,13 +9,16 @@ package main
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/tool/tctl/common"
+
 	"github.com/gravitational/trace"
 )
 
@@ -31,6 +34,7 @@ type UserCommandE struct {
 	username      string
 	roles         []string
 	allowedLogins []string
+	ttl           time.Duration
 }
 
 // Initialize allows a caller-defined command to plug itself into CLI
@@ -46,6 +50,9 @@ func (cmd *UserCommandE) Initialize(app *kingpin.Application, cfg *service.Confi
 	cmd.userAdd.Arg("account", "Teleport user account name").Required().StringVar(&cmd.username)
 	cmd.userAdd.Flag("roles", "List of roles for the new user to assume").Required().StringsVar(&cmd.roles)
 	cmd.userAdd.Flag("logins", "List of allowed logins for the new user").StringsVar(&cmd.allowedLogins)
+	cmd.userAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v hour, maximum is %v hours",
+		int(defaults.SignupTokenTTL/time.Hour), int(defaults.MaxSignupTokenTTL/time.Hour))).
+		Default(fmt.Sprintf("%v", defaults.SignupTokenTTL)).DurationVar(&cmd.ttl)
 	cmd.userAdd.Alias(AddUserHelp)
 
 	cmd.userList = users.Command("ls", "List all user accounts "+helpPrefix)
@@ -106,11 +113,11 @@ func (cmd *UserCommandE) Add(client *auth.TunClient) error {
 		Roles:         cmd.roles,
 		AllowedLogins: cmd.allowedLogins,
 	}
-	token, err := client.CreateSignupToken(user)
+	token, err := client.CreateSignupToken(user, cmd.ttl)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	cmd.UserCommand.PrintSignupURL(client, token)
+	cmd.UserCommand.PrintSignupURL(client, token, cmd.ttl)
 	fmt.Printf("When the user '%s' activates their account, they will be assigned roles %s\n",
 		cmd.username, cmd.roles)
 	return nil
