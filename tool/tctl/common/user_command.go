@@ -21,6 +21,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport"
@@ -41,6 +42,7 @@ type UserCommand struct {
 	allowedLogins string
 	roles         string
 	identities    []string
+	ttl           time.Duration
 
 	userAdd    *kingpin.CmdClause
 	userUpdate *kingpin.CmdClause
@@ -57,6 +59,9 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Confi
 	u.userAdd.Arg("account", "Teleport user account name").Required().StringVar(&u.login)
 	u.userAdd.Arg("local-logins", "Local UNIX users this account can log in as [login]").
 		Default("").StringVar(&u.allowedLogins)
+	u.userAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v hours, maximum is %v hours",
+		defaults.SignupTokenTTL/time.Hour, defaults.MaxSignupTokenTTL/time.Hour)).
+		Default(fmt.Sprintf("%v", defaults.SignupTokenTTL)).DurationVar(&u.ttl)
 	u.userAdd.Alias(AddUserHelp)
 
 	u.userUpdate = users.Command("update", "Update properties for existing user").Hidden()
@@ -99,7 +104,7 @@ func (u *UserCommand) Add(client *auth.TunClient) error {
 		Name:          u.login,
 		AllowedLogins: strings.Split(u.allowedLogins, ","),
 	}
-	token, err := client.CreateSignupToken(user)
+	token, err := client.CreateSignupToken(user, u.ttl)
 	if err != nil {
 		return err
 	}

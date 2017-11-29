@@ -26,6 +26,7 @@ package auth
 import (
 	"bytes"
 	"image/png"
+	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -41,7 +42,7 @@ import (
 
 // CreateSignupToken creates one time token for creating account for the user
 // For each token it creates username and otp generator
-func (s *AuthServer) CreateSignupToken(userv1 services.UserV1) (string, error) {
+func (s *AuthServer) CreateSignupToken(userv1 services.UserV1, ttl time.Duration) (string, error) {
 	user := userv1.V2()
 	if err := user.Check(); err != nil {
 		return "", trace.Wrap(err)
@@ -92,7 +93,11 @@ func (s *AuthServer) CreateSignupToken(userv1 services.UserV1) (string, error) {
 		OTPQRCode: otpQRCode,
 	}
 
-	err = s.UpsertSignupToken(token, tokenData, defaults.MaxSignupTokenTTL)
+	if ttl == 0 || ttl > defaults.MaxSignupTokenTTL {
+		ttl = defaults.SignupTokenTTL
+	}
+
+	err = s.UpsertSignupToken(token, tokenData, ttl)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
