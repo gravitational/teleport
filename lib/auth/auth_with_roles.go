@@ -471,11 +471,11 @@ func (a *AuthWithRoles) GenerateUserCert(key []byte, username string, ttl time.D
 		key, user, allowedLogins, sessionTTL, checker.CanForwardAgents(), compatibility)
 }
 
-func (a *AuthWithRoles) CreateSignupToken(user services.UserV1) (token string, e error) {
+func (a *AuthWithRoles) CreateSignupToken(user services.UserV1, ttl time.Duration) (token string, e error) {
 	if err := a.action(defaults.Namespace, services.KindUser, services.VerbCreate); err != nil {
 		return "", trace.Wrap(err)
 	}
-	return a.authServer.CreateSignupToken(user)
+	return a.authServer.CreateSignupToken(user, ttl)
 }
 
 func (a *AuthWithRoles) GetSignupTokenData(token string) (user string, otpQRCode []byte, err error) {

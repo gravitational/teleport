@@ -311,7 +311,7 @@ func (s *TunSuite) TestWebCreatingNewUserInvalidClientValidToken(c *C) {
 	user := "foobar"
 	mappings := []string{"admin", "db"}
 
-	token, err := s.a.CreateSignupToken(services.UserV1{Name: user, AllowedLogins: mappings})
+	token, err := s.a.CreateSignupToken(services.UserV1{Name: user, AllowedLogins: mappings}, 0)
 	c.Assert(err, IsNil)
 
 	authMethod, err := NewSignupTokenAuth("invalid_signup_token")
@@ -335,7 +335,7 @@ func (s *TunSuite) TestWebCreatingNewUserValidClientInvalidToken(c *C) {
 	user := "foobar"
 	mappings := []string{"admin", "db"}
 
-	token, err := s.a.CreateSignupToken(services.UserV1{Name: user, AllowedLogins: mappings})
+	token, err := s.a.CreateSignupToken(services.UserV1{Name: user, AllowedLogins: mappings}, 0)
 	c.Assert(err, IsNil)
 
 	authMethod, err := NewSignupTokenAuth(token)
@@ -373,7 +373,7 @@ func (s *TunSuite) TestWebCreatingNewUserValidClientValidToken(c *C) {
 	password := "bazqux"
 	mappings := []string{"admin", "db"}
 
-	token, err := s.a.CreateSignupToken(services.UserV1{Name: user, AllowedLogins: mappings})
+	token, err := s.a.CreateSignupToken(services.UserV1{Name: user, AllowedLogins: mappings}, 0)
 	c.Assert(err, IsNil)
 
 	authMethod, err := NewSignupTokenAuth(token)
@@ -434,7 +434,7 @@ func (s *TunSuite) TestWebCreatingNewUserValidClientValidTokenReuseToken(c *C) {
 	user := "foobar"
 	mappings := []string{"admin", "db"}
 
-	token, err := s.a.CreateSignupToken(services.UserV1{Name: user, AllowedLogins: mappings})
+	token, err := s.a.CreateSignupToken(services.UserV1{Name: user, AllowedLogins: mappings}, 0)
 	c.Assert(err, IsNil)
 
 	authMethod, err := NewSignupTokenAuth(token)

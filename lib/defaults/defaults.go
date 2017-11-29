@@ -89,9 +89,12 @@ const (
 	// for the response headers to arrive
 	ReadHeadersTimeout = time.Second
 
+	// SignupTokenTTL is a default TTL for a web signup one time token
+	SignupTokenTTL = time.Hour
+
 	// MaxSignupTokenTTL is a maximum TTL for a web signup one time token
 	// clients can reduce this time, not increase it
-	MaxSignupTokenTTL = time.Hour
+	MaxSignupTokenTTL = 48 * time.Hour
 
 	// ProvisioningTokenTTL is a the default TTL for server provisioning
 	// tokens. When a user generates a token without an explicit TTL, this

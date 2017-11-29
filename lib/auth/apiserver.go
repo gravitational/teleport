@@ -1061,6 +1061,7 @@ func (s *APIServer) getSignupU2FRegisterRequest(auth ClientI, w http.ResponseWri
 
 type createSignupTokenReq struct {
 	User services.UserV1 `json:"user"`
+	TTL  time.Duration   `json:"ttl"`
 }
 
 func (s *APIServer) createSignupToken(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
@@ -1074,7 +1075,7 @@ func (s *APIServer) createSignupToken(auth ClientI, w http.ResponseWriter, r *ht
 		return nil, trace.Wrap(err)
 	}
 
-	token, err := auth.CreateSignupToken(req.User)
+	token, err := auth.CreateSignupToken(req.User, req.TTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
