@@ -59,8 +59,8 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Confi
 	u.userAdd.Arg("account", "Teleport user account name").Required().StringVar(&u.login)
 	u.userAdd.Arg("local-logins", "Local UNIX users this account can log in as [login]").
 		Default("").StringVar(&u.allowedLogins)
-	u.userAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v hours, maximum is %v hours",
-		defaults.SignupTokenTTL/time.Hour, defaults.MaxSignupTokenTTL/time.Hour)).
+	u.userAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v hour, maximum is %v hours",
+		int(defaults.SignupTokenTTL/time.Hour), int(defaults.MaxSignupTokenTTL/time.Hour))).
 		Default(fmt.Sprintf("%v", defaults.SignupTokenTTL)).DurationVar(&u.ttl)
 	u.userAdd.Alias(AddUserHelp)
 
@@ -110,11 +110,11 @@ func (u *UserCommand) Add(client *auth.TunClient) error {
 	}
 
 	// try to auto-suggest the activation link
-	u.PrintSignupURL(client, token)
+	u.PrintSignupURL(client, token, u.ttl)
 	return nil
 }
 
-func (u *UserCommand) PrintSignupURL(client *auth.TunClient, token string) {
+func (u *UserCommand) PrintSignupURL(client *auth.TunClient, token string, ttl time.Duration) {
 	hostname := "your.teleport.proxy"
 
 	proxies, err := client.GetProxies()
@@ -130,8 +130,8 @@ func (u *UserCommand) PrintSignupURL(client *auth.TunClient, token string) {
 		proxyPort = strconv.Itoa(defaults.HTTPListenPort)
 	}
 	url := web.CreateSignupLink(net.JoinHostPort(hostname, proxyPort), token)
-	fmt.Printf("Signup token has been created and is valid for %v seconds. Share this URL with the user:\n%v\n\nNOTE: make sure '%s' is accessible!\n",
-		defaults.MaxSignupTokenTTL.Seconds(), url, hostname)
+	fmt.Printf("Signup token has been created and is valid for %v hours. Share this URL with the user:\n%v\n\nNOTE: make sure '%s' is accessible!\n",
+		int(ttl/time.Hour), url, hostname)
 }
 
 // Update updates existing user

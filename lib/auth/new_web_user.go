@@ -48,6 +48,10 @@ func (s *AuthServer) CreateSignupToken(userv1 services.UserV1, ttl time.Duration
 		return "", trace.Wrap(err)
 	}
 
+	if ttl > defaults.MaxSignupTokenTTL {
+		return "", trace.BadParameter("failed to invite user: maximum signup token TTL is %v hours", int(defaults.MaxSignupTokenTTL/time.Hour))
+	}
+
 	// make sure that connectors actually exist
 	for _, id := range user.GetOIDCIdentities() {
 		if err := id.Check(); err != nil {
