@@ -31,7 +31,7 @@ func (cmd *SAMLCommand) Initialize(app *kingpin.Application, cfg *service.Config
 
 // TryRun is executed after the CLI parsing is done. The command must
 // determine if selectedCommand belongs to it and return match=true
-func (cmd *SAMLCommand) TryRun(selectedCommand string, c *auth.TunClient) (match bool, err error) {
+func (cmd *SAMLCommand) TryRun(selectedCommand string, c auth.ClientI) (match bool, err error) {
 	if selectedCommand == cmd.exportCmd.FullCommand() {
 		return true, trace.Wrap(cmd.export(c))
 	}
@@ -39,7 +39,7 @@ func (cmd *SAMLCommand) TryRun(selectedCommand string, c *auth.TunClient) (match
 }
 
 // export executes 'tctl saml export <connector_name'
-func (cmd *SAMLCommand) export(c *auth.TunClient) error {
+func (cmd *SAMLCommand) export(c auth.ClientI) error {
 	sc, err := c.GetSAMLConnector(cmd.connectorName, false)
 	if err != nil {
 		return trace.Wrap(err)

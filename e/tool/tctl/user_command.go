@@ -60,7 +60,7 @@ func (cmd *UserCommandE) Initialize(app *kingpin.Application, cfg *service.Confi
 
 // TryRun is executed after the CLI parsing is done. The command must
 // determine if selectedCommand belongs to it and return match=true
-func (cmd *UserCommandE) TryRun(selectedCommand string, c *auth.TunClient) (match bool, err error) {
+func (cmd *UserCommandE) TryRun(selectedCommand string, c auth.ClientI) (match bool, err error) {
 	switch selectedCommand {
 	// tctl users add? execute enterprise version of it:
 	case cmd.userAdd.FullCommand():
@@ -75,7 +75,7 @@ func (cmd *UserCommandE) TryRun(selectedCommand string, c *auth.TunClient) (matc
 
 // List implements `tctl users ls` for the enterprise edition. Unlike the OSS
 // version, this implementation prints user roles (instead of "allowed logins")
-func (cmd *UserCommandE) List(client *auth.TunClient) error {
+func (cmd *UserCommandE) List(client auth.ClientI) error {
 	users, err := client.GetUsers()
 	if err != nil {
 		return trace.Wrap(err)
@@ -96,7 +96,7 @@ func (cmd *UserCommandE) List(client *auth.TunClient) error {
 
 // Add implements `tctl users add` for the enterprise edition. Unlike the OSS
 // version, this one requires --roles flag to be set
-func (cmd *UserCommandE) Add(client *auth.TunClient) error {
+func (cmd *UserCommandE) Add(client auth.ClientI) error {
 	cmd.roles = flattenSlice(cmd.roles)
 	cmd.allowedLogins = flattenSlice(cmd.allowedLogins)
 

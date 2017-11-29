@@ -38,7 +38,7 @@ func (cmd *ResourceCommandE) Initialize(app *kingpin.Application, cfg *service.C
 
 // TryRun is executed after the CLI parsing is done. The command must
 // determine if selectedCommand belongs to it and return match=true
-func (cmd *ResourceCommandE) TryRun(selectedCommand string, c *auth.TunClient) (match bool, err error) {
+func (cmd *ResourceCommandE) TryRun(selectedCommand string, c auth.ClientI) (match bool, err error) {
 	ref := cmd.base.GetRef()
 
 	// implement 'tctl rm role/xxx' (OSS lacks this)
@@ -54,7 +54,7 @@ func (cmd *ResourceCommandE) TryRun(selectedCommand string, c *auth.TunClient) (
 }
 
 // createConnector implements 'tctl create role.yaml' command
-func (cmd *ResourceCommandE) createRole(client *auth.TunClient, raw services.UnknownResource) error {
+func (cmd *ResourceCommandE) createRole(client auth.ClientI, raw services.UnknownResource) error {
 	role, err := services.GetRoleMarshaler().UnmarshalRole(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -80,7 +80,7 @@ func (cmd *ResourceCommandE) createRole(client *auth.TunClient, raw services.Unk
 }
 
 // createConnector implements 'tctl create connector.yaml' command
-func (cmd *ResourceCommandE) createConnector(client *auth.TunClient, raw services.UnknownResource) error {
+func (cmd *ResourceCommandE) createConnector(client auth.ClientI, raw services.UnknownResource) error {
 	var (
 		connectorName string
 		exists        bool
