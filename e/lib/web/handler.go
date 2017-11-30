@@ -32,16 +32,16 @@ func InitPlugin() {
 
 // AddHandlers registeres Plugin handlers
 func (p *Plugin) AddHandlers(h *web.Handler) {
-	h.GET("/enterprise/resources/:kind", h.WithAuth(p.getResourceHandler))
-	h.PUT("/enterprise/resources", h.WithAuth(p.upsertResourceHandler))
-	h.POST("/enterprise/resources", h.WithAuth(p.upsertResourceHandler))
-	h.DELETE("/enterprise/resources/:kind/:name", h.WithAuth(p.deleteResourceHandler))
-	h.GET("/webapi/heartbeat", httplib.MakeHandler(p.getHeartbeat))
+	h.GET("/enterprise/resources/:kind", h.WithAuth(p.getResourceHandle))
+	h.PUT("/enterprise/resources", h.WithAuth(p.upsertResourceHandle))
+	h.POST("/enterprise/resources", h.WithAuth(p.upsertResourceHandle))
+	h.DELETE("/enterprise/resources/:kind/:name", h.WithAuth(p.deleteResourceHandle))
+	h.GET("/enterprise/houston", httplib.MakeHandler(p.getHoustonStatusHandle))
 	p.ProxyClient = h.GetProxyClient()
 }
 
-// getResourceHandler is GET handler that returns ConfigItems for requested resource kind
-func (p *Plugin) getResourceHandler(w http.ResponseWriter, r *http.Request, params httprouter.Params, c *web.SessionContext) (interface{}, error) {
+// getResourceHandle is GET handler that returns ConfigItems for requested resource kind
+func (p *Plugin) getResourceHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, c *web.SessionContext) (interface{}, error) {
 	clt, err := c.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -55,8 +55,8 @@ func (p *Plugin) getResourceHandler(w http.ResponseWriter, r *http.Request, para
 	return makeResponse(data)
 }
 
-// upsertResourceHandler is POST|PUT handler that upserts a new resource
-func (p *Plugin) upsertResourceHandler(w http.ResponseWriter, r *http.Request, params httprouter.Params, c *web.SessionContext) (interface{}, error) {
+// upsertResourceHandle is POST|PUT handler that upserts a new resource
+func (p *Plugin) upsertResourceHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, c *web.SessionContext) (interface{}, error) {
 	var itemToUpsert ui.ConfigItem
 	if err := httplib.ReadJSON(r, &itemToUpsert); err != nil {
 		return nil, trace.Wrap(err)
@@ -98,8 +98,8 @@ func (p *Plugin) upsertResourceHandler(w http.ResponseWriter, r *http.Request, p
 	return makeResponse(items)
 }
 
-// deleteResourceHandler is DELETE handler that removes a resource by its kind and name values
-func (p *Plugin) deleteResourceHandler(w http.ResponseWriter, r *http.Request, params httprouter.Params, c *web.SessionContext) (interface{}, error) {
+// deleteResourceHandle is DELETE handler that removes a resource by its kind and name values
+func (p *Plugin) deleteResourceHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, c *web.SessionContext) (interface{}, error) {
 	client, err := c.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -114,14 +114,24 @@ func (p *Plugin) deleteResourceHandler(w http.ResponseWriter, r *http.Request, p
 	return ok(), nil
 }
 
-// getHeartbeat is GET handler that returns the result of the latest heartbeat
-func (p *Plugin) getHeartbeat(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
+func (p *Plugin) getHoustonStatusHandle2(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
+	return ui.HoustonStatus{}, nil
+}
+
+// getHoustonStatusHandle is GET handle that returns the result of the latest houston status
+func (p *Plugin) getHoustonStatusHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
 	client := p.ProxyClient
 	enterpriseClient, err := enterpriseAuth.NewClient(client.(*auth.TunClient))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return enterpriseClient.GetHeartbeat()
+
+	heartBeat, err := enterpriseClient.GetHeartbeat()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.NewHoustonStatus(heartBeat), nil
 }
 
 // message returns structured message response
