@@ -7,6 +7,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
 
+	"github.com/gravitational/reporting/types"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -30,5 +31,8 @@ func (ap *AuthPlugin) AddHandlers(srv *auth.APIServer) {
 }
 
 func (ap *AuthPlugin) getHeartbeat(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	if ap.Enforcer == nil {
+		return types.NewHeartbeat(), nil
+	}
 	return ap.Enforcer.GetHeartbeatResult()
 }
