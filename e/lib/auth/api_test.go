@@ -72,7 +72,7 @@ func (s *APISuite) TestHeartbeat(c *check.C) {
 
 	heartbeat := types.NewHeartbeat()
 
-	err = s.enforcer.SetHeartbeatResult(*heartbeat)
+	err = s.enforcer.SetHeartbeat(*heartbeat)
 	c.Assert(err, check.IsNil)
 
 	retrieved, err := client.GetHeartbeat()

@@ -97,7 +97,7 @@ func (e *Enforcer) enforcer(ctx context.Context) {
 	for {
 		select {
 		case <-ticker.C:
-			err := e.checkHeartbeatResult()
+			err := e.processHeartbeatResult()
 			if err != nil {
 				log.Error(trace.DebugReport(err))
 			}
@@ -134,15 +134,15 @@ func (e *Enforcer) heartbeat() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = e.SetHeartbeatResult(*heartbeat)
+	err = e.SetHeartbeat(*heartbeat)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-// SetHeartbeatResults saves the heartbeat into the database
-func (e *Enforcer) SetHeartbeatResult(heartbeat types.Heartbeat) error {
+// SetHeartbeat saves the heartbeat into the database
+func (e *Enforcer) SetHeartbeat(heartbeat types.Heartbeat) error {
 	bytes, err := types.MarshalHeartbeat(heartbeat)
 	if err != nil {
 		return trace.Wrap(err)
@@ -154,8 +154,8 @@ func (e *Enforcer) SetHeartbeatResult(heartbeat types.Heartbeat) error {
 	return nil
 }
 
-// GetHeartbeatResult returns the result of the latest heartbeat
-func (e *Enforcer) GetHeartbeatResult() (*types.Heartbeat, error) {
+// GetHeartbeat returns the latest heartbeat
+func (e *Enforcer) GetHeartbeat() (*types.Heartbeat, error) {
 	out, err := e.GetVal([]string{"heartbeat"}, "val")
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -167,13 +167,30 @@ func (e *Enforcer) GetHeartbeatResult() (*types.Heartbeat, error) {
 	return heartbeat, nil
 }
 
-func (e *Enforcer) checkHeartbeatResult() error {
+// GetHeartbeatResult returns the heartbeat result
+func (e *Enforcer) GetHeartbeatResult() (*types.Heartbeat, error) {
+	heartbeat, err := e.GetHeartbeat()
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+	if heartbeat == nil {
+		heartbeat = types.NewHeartbeat()
+	}
+	if isExpired(heartbeat) {
+		heartbeat.Spec.Notifications = append(heartbeat.Spec.Notifications,
+			types.Notification{
+				Severity: types.SeverityError,
+				Text:     tosViolationMessage,
+				HTML:     tosViolationMessage,
+			})
+	}
+	return heartbeat, nil
+}
+
+func (e *Enforcer) processHeartbeatResult() error {
 	heartbeat, err := e.GetHeartbeatResult()
 	if err != nil {
 		return trace.Wrap(err)
-	}
-	if time.Since(heartbeat.GetMetadata().Created) > constants.MaxControlPlaneUnreachableDuration {
-		return trace.AccessDenied(tosViolationMessage)
 	}
 	for _, notification := range heartbeat.Spec.Notifications {
 		switch notification.Severity {
@@ -186,6 +203,11 @@ func (e *Enforcer) checkHeartbeatResult() error {
 		}
 	}
 	return nil
+}
+
+func isExpired(heartbeat *types.Heartbeat) bool {
+	return time.Since(heartbeat.GetMetadata().Created) >
+		constants.MaxControlPlaneUnreachableDuration
 }
 
 // tosViolationMessage is a warning message that gets displayed when teleport

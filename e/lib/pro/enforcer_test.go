@@ -51,24 +51,22 @@ func (s *EnforcerSuite) TestEnforcer(c *check.C) {
 			HTML:     "<div>Terms of service violation</div>",
 		})
 
-	err := s.enforcer.SetHeartbeatResult(*h)
+	err := s.enforcer.SetHeartbeat(*h)
 	c.Assert(err, check.IsNil)
 
 	res, err := s.enforcer.GetHeartbeatResult()
 	c.Assert(err, check.IsNil)
 	c.Assert(res, check.DeepEquals, h)
-
-	err = s.enforcer.checkHeartbeatResult()
-	c.Assert(err, check.IsNil)
 }
 
 func (s *EnforcerSuite) TestEnforcerUnreachable(c *check.C) {
 	h := types.NewHeartbeat()
 	h.Metadata.Created = time.Now().Add(-constants.MaxControlPlaneUnreachableDuration - time.Hour)
 
-	err := s.enforcer.SetHeartbeatResult(*h)
+	err := s.enforcer.SetHeartbeat(*h)
 	c.Assert(err, check.IsNil)
 
-	err = s.enforcer.checkHeartbeatResult()
-	c.Assert(err, check.NotNil)
+	res, err := s.enforcer.GetHeartbeatResult()
+	c.Assert(err, check.IsNil)
+	c.Assert(len(res.Spec.Notifications), check.Equals, 1)
 }
