@@ -284,6 +284,17 @@ auth_service:
     # certificates and keys (may need to wipe out /var/lib/teleport directory)
     cluster_name: "main"
 
+    # License file to start auth server with. Note that this setting is ignored
+    # in open-source Teleport and is required only for Teleport Pro, Business
+    # and Enterprise subscription plans.
+    #
+    # The path can be either absolute or relative to the configured `data_dir`
+    # and should point to the license file obtained from Teleport Download Portal.
+    #
+    # If not set, by default Teleport will look for the `license.pem` file in
+    # the configured `data_dir`.
+    license_file: /var/lib/teleport/license.pem
+
 # This section configures the 'node service':
 ssh_service:
     # Turns 'ssh' role on. Default is 'yes'
@@ -732,6 +743,7 @@ session.leave   | A user has left the session.
 exec            | Remote command has been executed via SSH, like `tsh ssh root@node ls /`. The following fields will be logged: `{"command": "ls /", "exitCode": 0, "exitError": ""}`
 scp             | Remote file copy has been executed. The following fields will be logged: `{"path": "/path/to/file.txt", "len": 32344, "action": "read" }`
 resize          | Terminal has been resized.
+user.login      | A user logged into web UI or via tsh. The following fields will be logged: `{"user": "alice@example.com", "method": "local"}`.
 
 !!! tip "Note":
     The commercial Teleport edition called "Teleport Enterprise" supports native
@@ -1236,6 +1248,31 @@ Also, here's the example of the IAM policy to grant access to DynamoDB:
     ]
 }
 ```
+
+## License File
+
+Paid Teleport subscription plans such as Pro, Business and Enterprise require
+a valid license. The license file can be downloaded from the [Teleport Download
+Portal](https://dashboard.gravitational.com) dashboard which you signed up for
+when purchasing your subscription plan.
+
+The Teleport license file contains a X.509 certificate and the corresponding
+private key in PEM format. Place the downloaded file on Auth servers and set
+the `license_file` configuration parameter of your `teleport.yaml` to point to
+the file location:
+
+```bash
+auth_service:
+    license_file: /var/lib/teleport/license.pem
+```
+
+The `license_file` path can be either absolute or relative to the configured
+`data_dir`. If license file path is not set, Teleport will look for the
+`license.pem` file in the configured `data_dir`.
+
+!!! tip "NOTE":
+    Only Auth servers require the license. Proxies and Nodes that do not also
+    have Auth role enabled don't need the license.
 
 ## Troubleshooting
 
