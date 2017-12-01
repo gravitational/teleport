@@ -217,7 +217,7 @@ var licenseCheckConnectionProblemText = fmt.Sprintf(`Teleport has failed to cont
 	`Please make sure the Teleport auth server machine is capable of connecting to %v `+
 	`Otherwise, contact Gravitational support (%v)`,
 	constants.MaxControlPlaneUnreachableHours,
-	constants.ControlPlaneAPIURL,
+	constants.GravitationalDownloadPortalURL,
 	constants.GravitationalSupportURL)
 
 // licenseCheckConnectionProblemHTML is a warning message in HTML format that gets displayed when teleport
@@ -226,5 +226,5 @@ var licenseCheckConnectionProblemHTML = fmt.Sprintf(`Teleport has failed to cont
 	`Please make sure the Teleport auth server machine is capable of connecting to (%v). `+
 	`Otherwise, contact <a href="%v">Gravitational Support</a>.`,
 	constants.MaxControlPlaneUnreachableHours,
-	constants.ControlPlaneAPIURL,
+	constants.GravitationalDownloadPortalURL,
 	constants.GravitationalSupportURL)

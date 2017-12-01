@@ -31,6 +31,8 @@ const (
 
 	// GravitationalSupportURL is company support website URL
 	GravitationalSupportURL = "https://support.gravitational.com"
+	// GravitationalDownloadPortalURL is teleport download portal website URL
+	GravitationalDownloadPortalURL = "https://dashboard.gravitational.com"
 )
 
 var (
