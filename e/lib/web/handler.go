@@ -36,7 +36,7 @@ func (p *Plugin) AddHandlers(h *web.Handler) {
 	h.PUT("/enterprise/resources", h.WithAuth(p.upsertResourceHandle))
 	h.POST("/enterprise/resources", h.WithAuth(p.upsertResourceHandle))
 	h.DELETE("/enterprise/resources/:kind/:name", h.WithAuth(p.deleteResourceHandle))
-	h.GET("/enterprise/houston", httplib.MakeHandler(p.getHoustonStatusHandle))
+	h.GET("/enterprise/license/status", httplib.MakeHandler(p.getLicenseCheckStatusHandle))
 	p.ProxyClient = h.GetProxyClient()
 }
 
@@ -114,20 +114,20 @@ func (p *Plugin) deleteResourceHandle(w http.ResponseWriter, r *http.Request, pa
 	return ok(), nil
 }
 
-// getHoustonStatusHandle is GET handle that returns the result of the latest houston status
-func (p *Plugin) getHoustonStatusHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
+// getLicenseCheckStatusHandle is GET handle that returns the license check status
+func (p *Plugin) getLicenseCheckStatusHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
 	client := p.ProxyClient
 	enterpriseClient, err := enterpriseAuth.NewClient(client.(*auth.TunClient))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	heartBeat, err := enterpriseClient.GetHeartbeat()
+	licenseCheckStatus, err := enterpriseClient.GetHeartbeat()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.NewHoustonStatus(heartBeat), nil
+	return ui.NewLicenseCheckStatus(licenseCheckStatus), nil
 }
 
 // message returns structured message response

@@ -18,19 +18,19 @@ const (
 	// ControlPlaneAPIPort is the control plane API port
 	ControlPlaneAPIPort = 443
 
-	// MaxControlPlaneUnreachableDuration is amount of time after which failure
+	// MaxControlPlaneUnreachableHours is number hours after which failure
 	// to contact the control plane violates Terms of Service
-	MaxControlPlaneUnreachableDuration = 48 * time.Hour
+	MaxControlPlaneUnreachableHours = 48
+	// MaxControlPlaneUnreachableDuration is a duration value of MaxControlPlaneUnreachableHours
+	MaxControlPlaneUnreachableDuration = MaxControlPlaneUnreachableHours * time.Hour
 
 	// EnforcerHeartbeatPeriod is how often enforcer calls home
 	EnforcerHeartbeatPeriod = 1 * time.Minute
 	// EnforcerEnforcePeriod is how often enforcer turns on enforcement checks
 	EnforcerEnforcePeriod = 1 * time.Minute
 
-	// HoustonSupportURL is URL of houston support
-	HoustonSupportURL = "https://houston.gravitational.com"
-	// GravitationalTOS is URL of company terms of service page
-	GravitationalTOS = "https://gravitational.com/tos/"
+	// GravitationalSupportURL is company support website URL
+	GravitationalSupportURL = "https://support.gravitational.com"
 )
 
 var (

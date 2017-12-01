@@ -181,8 +181,8 @@ func (e *Enforcer) GetHeartbeatResult() (*types.Heartbeat, error) {
 		heartbeat.Spec.Notifications = append(heartbeat.Spec.Notifications,
 			types.Notification{
 				Severity: types.SeverityError,
-				Text:     tosViolationMessageText,
-				HTML:     tosViolationMessageHTML,
+				Text:     licenseCheckConnectionProblemText,
+				HTML:     licenseCheckConnectionProblemHTML,
 			})
 	}
 	return heartbeat, nil
@@ -211,16 +211,20 @@ func isExpired(heartbeat *types.Heartbeat) bool {
 		constants.MaxControlPlaneUnreachableDuration
 }
 
-// tosViolationMessageText is a warning message that gets displayed when teleport
+// licenseCheckConnectionProblemText is a warning message that gets displayed when teleport
 // has failed to contact control plane for 48 hours
-var tosViolationMessageText = fmt.Sprintf(`You have exceeded the usage restrictions on your Teleport license. `+
-	`Please create a support ticket at our support center (%v) `+
-	`so that we can resolve the issue. Failure to resolve this is a violation of our Terms of Service for Teleport (%v).`,
-	constants.HoustonSupportURL, constants.GravitationalTOS)
+var licenseCheckConnectionProblemText = fmt.Sprintf(`Teleport has failed to contact the license server for more than %v consecutive hours. `+
+	`Please make sure the Teleport auth server machine is capable of connecting to %v `+
+	`Otherwise, contact Gravitational support (%v)`,
+	constants.MaxControlPlaneUnreachableHours,
+	constants.ControlPlaneAPIURL,
+	constants.GravitationalSupportURL)
 
-// tosViolationMessageHTML is a warning message that gets displayed when teleport
+// licenseCheckConnectionProblemHTML is a warning message in HTML format that gets displayed when teleport
 // has failed to contact control plane for 48 hours
-var tosViolationMessageHTML = fmt.Sprintf(`You have exceeded the usage restrictions on your Teleport license. `+
-	`Please create a support ticket at our <a href="%v"> Support Center </a> `+
-	`so that we can resolve the issue. Failure to resolve this is a violation of our <a href="%v"> Terms of Service </a> for Teleport.`,
-	constants.HoustonSupportURL, constants.GravitationalTOS)
+var licenseCheckConnectionProblemHTML = fmt.Sprintf(`Teleport has failed to contact the license server for more than %v consecutive hours. `+
+	`Please make sure the Teleport auth server machine is capable of connecting to (%v). `+
+	`Otherwise, contact <a href="%v">Gravitational Support</a>.`,
+	constants.MaxControlPlaneUnreachableHours,
+	constants.ControlPlaneAPIURL,
+	constants.GravitationalSupportURL)

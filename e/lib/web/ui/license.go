@@ -2,8 +2,8 @@ package ui
 
 import "github.com/gravitational/reporting/types"
 
-// HoustonStatus is the houston status
-type HoustonStatus struct {
+// LicenseCheckStatus is the license status
+type LicenseCheckStatus struct {
 	// Type is the notification type
 	Type string `json:"type"`
 	// Severity is the notification severity: info, warning or error
@@ -14,15 +14,15 @@ type HoustonStatus struct {
 	HTML string `json:"html"`
 }
 
-// NewHoustonStatus creates houston status
-func NewHoustonStatus(hb *types.Heartbeat) *HoustonStatus {
-	messages := hb.Spec.Notifications
+// NewLicenseCheckStatus creates houston status
+func NewLicenseCheckStatus(licenseCheckStatus *types.Heartbeat) *LicenseCheckStatus {
+	messages := licenseCheckStatus.Spec.Notifications
 	if len(messages) == 0 {
 		return nil
 	}
 
 	message := messages[0]
-	return &HoustonStatus{
+	return &LicenseCheckStatus{
 		Text:     message.Text,
 		HTML:     message.HTML,
 		Type:     message.Type,
