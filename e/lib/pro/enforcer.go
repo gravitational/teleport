@@ -2,6 +2,7 @@ package pro
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/url"
 	"time"
@@ -180,8 +181,8 @@ func (e *Enforcer) GetHeartbeatResult() (*types.Heartbeat, error) {
 		heartbeat.Spec.Notifications = append(heartbeat.Spec.Notifications,
 			types.Notification{
 				Severity: types.SeverityError,
-				Text:     tosViolationMessage,
-				HTML:     tosViolationMessage,
+				Text:     tosViolationMessageText,
+				HTML:     tosViolationMessageHTML,
 			})
 	}
 	return heartbeat, nil
@@ -210,6 +211,16 @@ func isExpired(heartbeat *types.Heartbeat) bool {
 		constants.MaxControlPlaneUnreachableDuration
 }
 
-// tosViolationMessage is a warning message that gets displayed when teleport
+// tosViolationMessageText is a warning message that gets displayed when teleport
 // has failed to contact control plane for 48 hours
-const tosViolationMessage = `You have exceeded the usage restrictions on your Teleport license. Please create a support ticket at our support center (https://support.gravitational.com) so that we can resolve the issue. Failure to resolve this is a violation of our Terms of Service for Teleport (https://gravitational.com/tos/).`
+var tosViolationMessageText = fmt.Sprintf(`You have exceeded the usage restrictions on your Teleport license. `+
+	`Please create a support ticket at our support center (%v) `+
+	`so that we can resolve the issue. Failure to resolve this is a violation of our Terms of Service for Teleport (%v).`,
+	constants.HoustonSupportURL, constants.GravitationalTOS)
+
+// tosViolationMessageHTML is a warning message that gets displayed when teleport
+// has failed to contact control plane for 48 hours
+var tosViolationMessageHTML = fmt.Sprintf(`You have exceeded the usage restrictions on your Teleport license. `+
+	`Please create a support ticket at our <a href="%v"> Support Center </a> `+
+	`so that we can resolve the issue. Failure to resolve this is a violation of our <a href="%v"> Terms of Service </a> for Teleport.`,
+	constants.HoustonSupportURL, constants.GravitationalTOS)

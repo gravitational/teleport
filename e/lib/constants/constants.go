@@ -26,6 +26,11 @@ const (
 	EnforcerHeartbeatPeriod = 1 * time.Minute
 	// EnforcerEnforcePeriod is how often enforcer turns on enforcement checks
 	EnforcerEnforcePeriod = 1 * time.Minute
+
+	// HoustonSupportURL is URL of houston support
+	HoustonSupportURL = "https://houston.gravitational.com"
+	// GravitationalTOS is URL of company terms of service page
+	GravitationalTOS = "https://gravitational.com/tos/"
 )
 
 var (
