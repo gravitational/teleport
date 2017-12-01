@@ -122,7 +122,7 @@ func (p *Plugin) getLicenseCheckStatusHandle(w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	licenseCheckStatus, err := enterpriseClient.GetHeartbeat()
+	licenseCheckStatus, err := enterpriseClient.GetLicenseCheckResult()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
