@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/services/suite"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"golang.org/x/crypto/ssh"
@@ -39,7 +39,7 @@ var _ = Suite(&ServerSuite{})
 func (s *ServerSuite) SetUpSuite(c *C) {
 	utils.InitLoggerForTests()
 
-	pk, err := ssh.ParsePrivateKey(suite.PEMBytes["ecdsa"])
+	pk, err := ssh.ParsePrivateKey(fixtures.PEMBytes["ecdsa"])
 	c.Assert(err, IsNil)
 	s.signers = []ssh.Signer{pk}
 }

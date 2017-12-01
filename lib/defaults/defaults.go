@@ -85,13 +85,16 @@ const (
 	// the SSH connection open if there are no reads/writes happening over it.
 	DefaultIdleConnectionDuration = 20 * time.Minute
 
-	// DefaultReadHeadersTimeout is a default TCP timeout when we wait
+	// ReadHeadersTimeout is a default TCP timeout when we wait
 	// for the response headers to arrive
-	DefaultReadHeadersTimeout = time.Second
+	ReadHeadersTimeout = time.Second
+
+	// SignupTokenTTL is a default TTL for a web signup one time token
+	SignupTokenTTL = time.Hour
 
 	// MaxSignupTokenTTL is a maximum TTL for a web signup one time token
 	// clients can reduce this time, not increase it
-	MaxSignupTokenTTL = time.Hour
+	MaxSignupTokenTTL = 48 * time.Hour
 
 	// ProvisioningTokenTTL is a the default TTL for server provisioning
 	// tokens. When a user generates a token without an explicit TTL, this

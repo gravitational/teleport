@@ -907,12 +907,13 @@ func (c *Client) GenerateUserCertBundle(key []byte, user string, ttl time.Durati
 
 // CreateSignupToken creates one time token for creating account for the user
 // For each token it creates username and otp generator
-func (c *Client) CreateSignupToken(user services.UserV1) (string, error) {
+func (c *Client) CreateSignupToken(user services.UserV1, ttl time.Duration) (string, error) {
 	if err := user.Check(); err != nil {
 		return "", trace.Wrap(err)
 	}
 	out, err := c.PostJSON(c.Endpoint("signuptokens"), createSignupTokenReq{
 		User: user,
+		TTL:  ttl,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -1847,7 +1848,7 @@ type IdentityService interface {
 
 	// CreateSignupToken creates one time token for creating account for the user
 	// For each token it creates username and OTP key
-	CreateSignupToken(user services.UserV1) (string, error)
+	CreateSignupToken(user services.UserV1, ttl time.Duration) (string, error)
 }
 
 // ProvisioningService is a service in control

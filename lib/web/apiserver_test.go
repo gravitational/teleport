@@ -387,7 +387,7 @@ func (s *WebSuite) TearDownTest(c *C) {
 }
 
 func (s *WebSuite) TestNewUser(c *C) {
-	token, err := s.roleAuth.CreateSignupToken(services.UserV1{Name: "bob", AllowedLogins: []string{s.user}})
+	token, err := s.roleAuth.CreateSignupToken(services.UserV1{Name: "bob", AllowedLogins: []string{s.user}}, 0)
 	c.Assert(err, IsNil)
 
 	tokens, err := s.roleAuth.GetTokens()
@@ -1218,7 +1218,7 @@ func (s *WebSuite) TestNewU2FUser(c *C) {
 	err = s.authServer.SetAuthPreference(cap)
 	c.Assert(err, IsNil)
 
-	token, err := s.roleAuth.CreateSignupToken(services.UserV1{Name: "bob", AllowedLogins: []string{s.user}})
+	token, err := s.roleAuth.CreateSignupToken(services.UserV1{Name: "bob", AllowedLogins: []string{s.user}}, 0)
 	c.Assert(err, IsNil)
 
 	tokens, err := s.roleAuth.GetTokens()
@@ -1294,7 +1294,7 @@ func (s *WebSuite) TestU2FLogin(c *C) {
 	err = s.authServer.SetAuthPreference(cap)
 	c.Assert(err, IsNil)
 
-	token, err := s.roleAuth.CreateSignupToken(services.UserV1{Name: "bob", AllowedLogins: []string{s.user}})
+	token, err := s.roleAuth.CreateSignupToken(services.UserV1{Name: "bob", AllowedLogins: []string{s.user}}, 0)
 	c.Assert(err, IsNil)
 
 	u2fRegReq, err := s.roleAuth.GetSignupU2FRegisterRequest(token)
