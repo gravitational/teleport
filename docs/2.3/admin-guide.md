@@ -337,23 +337,52 @@ proxy_service:
 Teleport uses the concept of "authentication connectors" to authenticate users when
 they execute `tsh login` command. There are three types of authentication connectors:
 
-* **local** is used to authenticate against a local Teleport user database. This database
-  is managed by `tctl users` command. Teleport also supports second factor authentication
-  (2FA) for the local connector. There are two types of 2FA:
-    * [TOTP](https://en.wikipedia.org/wiki/Time-based_One-time_Password_Algorithm)
-      is the default. You can use [Google Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator) or
-      [Authy](https://www.authy.com/) or any other TOTP client.
-    * [U2F](https://en.wikipedia.org/wiki/Universal_2nd_Factor) is the second.
+**Local**
 
-* **saml** connector type implements SAML authentication. It can be configured
-  against any external identity manager like Okta or Auth0. This feature is
-  only available for Teleport Enterprise.
-* **oidc** connector type implements OpenID Connect (OIDC) authentication, which
-  is similar to SAML in principle. This feature is only available for Teleport
-  Enterprise.
+Local authentication is used to authenticate against a local Teleport user database. This database
+is managed by `tctl users` command. Teleport also supports second factor authentication
+(2FA) for the local connector. There are two types of 2FA:
+  * [TOTP](https://en.wikipedia.org/wiki/Time-based_One-time_Password_Algorithm)
+    is the default. You can use [Google Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator) or
+    [Authy](https://www.authy.com/) or any other TOTP client.
+  * [U2F](https://en.wikipedia.org/wiki/Universal_2nd_Factor) is the second.
 
-The authentication connector type is configured via `auth/authentication/type`
-setting in the `teleport.yaml` above.
+Here is an example of this setting in the `teleport.yaml`:
+
+```yaml
+auth_service:
+  authentication:
+    type: local
+    second_factor: u2f
+```
+
+**SAML**
+
+This connector type implements SAML authentication. It can be configured
+against any external identity manager like Okta or Auth0. This feature is
+only available for Teleport Enterprise.
+
+Here is an example of this setting in the `teleport.yaml`:
+
+```yaml
+auth_service:
+  authentication:
+    type: saml
+```
+
+**OIDC**
+
+Teleport implements OpenID Connect (OIDC) authentication, which
+is similar to SAML in principle. This feature is only available for Teleport Enterprise.
+
+Here is an example of this setting in the `teleport.yaml`:
+
+```yaml
+auth_service:
+  authentication:
+    type: oidc
+```
+
 
 ## FIDO U2F
 
