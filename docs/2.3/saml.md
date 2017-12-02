@@ -305,7 +305,7 @@ using [One Login](https://www.onelogin.com/) as a SAML provider.
 
 ### Enable SAML Authentication
 
-First, configure Teleport auth server to use SAML authentication instead of the local
+Configure Teleport auth server to use SAML authentication instead of the local
 user database. Update `/etc/teleport.yaml` as shown below and restart the
 teleport daemon.
 
@@ -323,7 +323,7 @@ auth_service:
 
 ### Confiugre One Login Application
 
-First, create a SAML 2.0 Web App in SAML configuration section:
+Create a SAML 2.0 Web App in SAML configuration section:
 
 ![Create APP](img/onelogin-saml-1.png?raw=true)
 
@@ -333,7 +333,7 @@ First, create a SAML 2.0 Web App in SAML configuration section:
 
 **Configure the App**
 
-Set `Audience`, `Recipient`, `ACS (Consumer) URL Validator` and to the same value:
+Set `Audience`, `Recipient` and `ACS (Consumer) URL Validator` to the same value:
 
 `https://teleport.example.com/v1/webapi/saml/acs` where `teleport.example.com` is the
 public name of the teleport web proxy service:
@@ -383,7 +383,7 @@ To fill in the fields, open `SSO` tab:
 ![Configure APP](img/onelogin-saml-6.png)
 
 * `acs` - is the name of the teleport web proxy, e.g. `https://teleport.example.com/v1/webapi/saml/acs`
-* `issuer` - use value from `Issuer URL field`, e.g. https://app.onelogin.com/saml/metadata/123456
+* `issuer` - use value from `Issuer URL field`, e.g. `https://app.onelogin.com/saml/metadata/123456`
 * `sso` - use the value from the value from field `SAML 2.0 Endpoint (HTTP)` but replace `http-post` with `http-redirect`, e.g. `https://mycompany.onelogin.com/trust/saml2/http-redirect/sso/123456`
 
 !!! tip "Important":
