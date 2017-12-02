@@ -14,7 +14,7 @@ using [Okta](https://www.okta.com/) as a SAML provider.
 ### Enable SAML Authentication
 
 First, configure Teleport auth server to use SAML authentication instead of the local
-user database. Update `/etc/teleport.yaml` as show below and restart the
+user database. Update `/etc/teleport.yaml` as shown below and restart the
 teleport daemon.
 
 ```bash
@@ -306,7 +306,7 @@ using [One Login](https://www.onelogin.com/) as a SAML provider.
 ### Enable SAML Authentication
 
 First, configure Teleport auth server to use SAML authentication instead of the local
-user database. Update `/etc/teleport.yaml` as show below and restart the
+user database. Update `/etc/teleport.yaml` as shown below and restart the
 teleport daemon.
 
 ```bash
@@ -369,7 +369,7 @@ spec:
   attributes_to_roles:
     - {name: "groups", value: "admin", roles: ["admin"]}
     - {name: "groups", value: "dev", roles: ["dev"]}
-  display: Login with One Login
+  display: OneLogin
   issuer: https://app.onelogin.com/saml/metadata/123456
   sso: https://mycompany.onelogin.com/trust/saml2/http-redirect/sso/123456
   cert: |
@@ -449,7 +449,7 @@ $ tctl create dev.yaml
 
 ### Logging In
 
-The Web UI will now contain a new button: "Login with One Login". The CLI is 
+The Web UI will now contain a new button: "Login with OneLogin". The CLI is 
 the same as before:
 
 ```bash
