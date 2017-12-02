@@ -284,6 +284,17 @@ auth_service:
     # certificates and keys (may need to wipe out /var/lib/teleport directory)
     cluster_name: "main"
 
+    # License file to start auth server with. Note that this setting is ignored
+    # in open-source Teleport and is required only for Teleport Pro, Business
+    # and Enterprise subscription plans.
+    #
+    # The path can be either absolute or relative to the configured `data_dir`
+    # and should point to the license file obtained from Teleport Download Portal.
+    #
+    # If not set, by default Teleport will look for the `license.pem` file in
+    # the configured `data_dir`.
+    license_file: /var/lib/teleport/license.pem
+
 # This section configures the 'node service':
 ssh_service:
     # Turns 'ssh' role on. Default is 'yes'
@@ -337,23 +348,52 @@ proxy_service:
 Teleport uses the concept of "authentication connectors" to authenticate users when
 they execute `tsh login` command. There are three types of authentication connectors:
 
-* **local** is used to authenticate against a local Teleport user database. This database
-  is managed by `tctl users` command. Teleport also supports second factor authentication
-  (2FA) for the local connector. There are two types of 2FA:
-    * [TOTP](https://en.wikipedia.org/wiki/Time-based_One-time_Password_Algorithm)
-      is the default. You can use [Google Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator) or
-      [Authy](https://www.authy.com/) or any other TOTP client.
-    * [U2F](https://en.wikipedia.org/wiki/Universal_2nd_Factor) is the second.
+**Local**
 
-* **saml** connector type implements SAML authentication. It can be configured
-  against any external identity manager like Okta or Auth0. This feature is
-  only available for Teleport Enterprise.
-* **oidc** connector type implements OpenID Connect (OIDC) authentication, which
-  is similar to SAML in principle. This feature is only available for Teleport
-  Enterprise.
+Local authentication is used to authenticate against a local Teleport user database. This database
+is managed by `tctl users` command. Teleport also supports second factor authentication
+(2FA) for the local connector. There are two types of 2FA:
+  * [TOTP](https://en.wikipedia.org/wiki/Time-based_One-time_Password_Algorithm)
+    is the default. You can use [Google Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator) or
+    [Authy](https://www.authy.com/) or any other TOTP client.
+  * [U2F](https://en.wikipedia.org/wiki/Universal_2nd_Factor) is the second.
 
-The authentication connector type is configured via `auth/authentication/type`
-setting in the `teleport.yaml` above.
+Here is an example of this setting in the `teleport.yaml`:
+
+```yaml
+auth_service:
+  authentication:
+    type: local
+    second_factor: u2f
+```
+
+**SAML**
+
+This connector type implements SAML authentication. It can be configured
+against any external identity manager like Okta or Auth0. This feature is
+only available for Teleport Enterprise.
+
+Here is an example of this setting in the `teleport.yaml`:
+
+```yaml
+auth_service:
+  authentication:
+    type: saml
+```
+
+**OIDC**
+
+Teleport implements OpenID Connect (OIDC) authentication, which
+is similar to SAML in principle. This feature is only available for Teleport Enterprise.
+
+Here is an example of this setting in the `teleport.yaml`:
+
+```yaml
+auth_service:
+  authentication:
+    type: oidc
+```
+
 
 ## FIDO U2F
 
@@ -703,6 +743,7 @@ session.leave   | A user has left the session.
 exec            | Remote command has been executed via SSH, like `tsh ssh root@node ls /`. The following fields will be logged: `{"command": "ls /", "exitCode": 0, "exitError": ""}`
 scp             | Remote file copy has been executed. The following fields will be logged: `{"path": "/path/to/file.txt", "len": 32344, "action": "read" }`
 resize          | Terminal has been resized.
+user.login      | A user logged into web UI or via tsh. The following fields will be logged: `{"user": "alice@example.com", "method": "local"}`.
 
 !!! tip "Note":
     The commercial Teleport edition called "Teleport Enterprise" supports native
@@ -1207,6 +1248,31 @@ Also, here's the example of the IAM policy to grant access to DynamoDB:
     ]
 }
 ```
+
+## License File
+
+Paid Teleport subscription plans such as Pro, Business and Enterprise require
+a valid license. The license file can be downloaded from the [Teleport Download
+Portal](https://dashboard.gravitational.com) dashboard which you signed up for
+when purchasing your subscription plan.
+
+The Teleport license file contains a X.509 certificate and the corresponding
+private key in PEM format. Place the downloaded file on Auth servers and set
+the `license_file` configuration parameter of your `teleport.yaml` to point to
+the file location:
+
+```bash
+auth_service:
+    license_file: /var/lib/teleport/license.pem
+```
+
+The `license_file` path can be either absolute or relative to the configured
+`data_dir`. If license file path is not set, Teleport will look for the
+`license.pem` file in the configured `data_dir`.
+
+!!! tip "NOTE":
+    Only Auth servers require the license. Proxies and Nodes that do not also
+    have Auth role enabled don't need the license.
 
 ## Troubleshooting
 
