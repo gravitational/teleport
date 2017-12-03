@@ -15,14 +15,12 @@ limitations under the License.
 */
 
 import cfg from './config';
-import { ensureUser } from './flux/user/actions';
 import LoginContainer from './components/user/login.jsx';
 import InviteUser from './components/user/invite.jsx';
 import * as Message from './components/msgPage.jsx';
 import DocumentTitle from './components/documentTitle';
-import App from './components/app.jsx';
 
-export function withAllRoutes(otherRoutes = []) {  
+export function addRoutes(routesToAdd = []) {  
   return [{
     component: DocumentTitle,
     childRoutes: [
@@ -31,13 +29,7 @@ export function withAllRoutes(otherRoutes = []) {
       { path: cfg.routes.login, title: "Login", component: LoginContainer },
       { path: cfg.routes.newUser, component: InviteUser },
       { path: cfg.routes.app, onEnter: (localtion, replace) => replace(cfg.routes.nodes) },
-      {               
-        path: cfg.routes.app,
-        onEnter: ensureUser,
-        component: App,        
-        childRoutes: otherRoutes      
-        
-      },
+      ...routesToAdd,      
       { path: '*', component: Message.NotFound }
     ]
   }];

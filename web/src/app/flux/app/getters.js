@@ -14,10 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { TRYING_TO_INIT_APP } from 'app/flux/restApi/constants';
-import { requestStatus } from 'app/flux/restApi/getters';
+import { initAppAttempt } from 'app/flux/status/getters';
 
 export default {
-  initAttempt: requestStatus(TRYING_TO_INIT_APP),
+  initAttempt: initAppAttempt,
   siteId: ['tlpt', 'siteId']
 }

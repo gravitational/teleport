@@ -34,11 +34,7 @@ class AccountFeature extends SettingsFeatureBase {
 
     routes.push(route);        
   }
-  
-  getIndexRoute(){
-    return featureUrl;
-  }
-  
+      
   isEnabled() {
     return featureFlags.isAccountEnabled()
   }

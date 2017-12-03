@@ -15,8 +15,7 @@ limitations under the License.
 */
 
 import reactor from 'app/reactor';
-import { TRYING_TO_LOGIN, TRYING_TO_SIGN_UP, FETCHING_INVITE, TRYING_TO_CHANGE_PSW} from 'app/flux/restApi/constants';
-import { requestStatus } from 'app/flux/restApi/getters';
+import * as stsGetters from 'app/flux/status/getters';
 
 const STORE_NAME = 'tlpt_user';
 
@@ -30,8 +29,8 @@ const userName = [STORE_NAME, 'name'];
 export const getters = {
   userName,
   invite,
-  pswChangeAttempt: requestStatus(TRYING_TO_CHANGE_PSW),
-  loginAttemp: requestStatus(TRYING_TO_LOGIN),
-  attemp: requestStatus(TRYING_TO_SIGN_UP),
-  fetchingInvite: requestStatus(FETCHING_INVITE)
+  pswChangeAttempt: stsGetters.changePasswordAttempt,
+  loginAttemp: stsGetters.loginAttempt,
+  attemp: stsGetters.signupAttempt,
+  fetchingInvite: stsGetters.fetchInviteAttempt
 }

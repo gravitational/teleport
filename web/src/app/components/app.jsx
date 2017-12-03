@@ -31,11 +31,7 @@ class App extends Component {
     const { isProcessing, isSuccess, isFailed, message } = initAttempt;
         
     if (isProcessing) {      
-      return (
-        <div>
-          <Indicator type={'bounce'} />
-        </div>
-      )
+      return <Indicator type={'bounce'} />
     }
 
     if (isFailed) {

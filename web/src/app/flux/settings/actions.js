@@ -17,8 +17,7 @@ limitations under the License.
 import reactor from 'app/reactor';
 import getters from './getters';
 import * as AT from './actionTypes';
-import * as RAT from './../restApi/constants';
-import apiActions from './../restApi/actions';
+import { initSettingsStatus } from './../status/actions';
 
 export function addNavItem(navItem){
   reactor.dispatch(AT.ADD_NAV_ITEM, navItem)
@@ -33,5 +32,5 @@ export function initSettings(featureActivator) {
   
   featureActivator.onload();         
   reactor.dispatch(AT.INIT, {});            
-  apiActions.success(RAT.TRYING_TO_INIT_SETTINGS);                  
+  initSettingsStatus.success();  
 }         

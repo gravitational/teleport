@@ -4,8 +4,8 @@ import { isObject } from 'lodash';
 import withFeature from './components/withFeature';
 import api from 'app/services/api';
 import { RestRespCodeEnum } from 'app/services/enums';
-import restApiActions from 'app/flux/restApi/actions';
-import { requestStatus } from 'app/flux/restApi/getters';
+import { makeStatus } from 'app/flux/status/actions';
+import { makeGetter } from 'app/flux/status/getters';
 
 let _featureId = 0;
 
@@ -19,11 +19,11 @@ const ensureActionType = actionType => {
 }
 
 export default class FeatureBase {
-
-  initAttemptActionType = '';
-    
+      
   constructor(actionType) {
-    this.initAttemptActionType = ensureActionType(actionType);
+    actionType = ensureActionType(actionType);
+    this.initStatus = makeStatus(ensureActionType(actionType));
+    this.initAttemptGetter = makeGetter(actionType);
   }
       
   preload() {
@@ -33,11 +33,11 @@ export default class FeatureBase {
   onload() { }
       
   startProcessing() {
-    restApiActions.start(this.initAttemptActionType);
+    this.initStatus.start();    
   }
 
   stopProcessing() {
-    restApiActions.success(this.initAttemptActionType);
+    this.initStatus.success();    
   }
     
   isReady() {
@@ -55,14 +55,6 @@ export default class FeatureBase {
   wasInitialized() {
     const attempt = this._getInitAttempt();
     return attempt.isFailed || attempt.isProcessing || attempt.isSuccess;
-  }
-
-  getIndexRoute() {
-    throw Error('not implemented');
-  }
-
-  getIndexComponent() {
-    return null;
   }
 
   componentDidMount(){ }
@@ -90,18 +82,14 @@ export default class FeatureBase {
       }
     }      
     
-    restApiActions.fail(this.initAttemptActionType, message);        
+    this.initStatus.fail(message);    
   }
     
   withMe(component) {
     return withFeature(this)(component);
   }
-
-  initAttemptGetter(){    
-    return requestStatus(this.initAttemptActionType);      
-  }
-  
+    
   _getInitAttempt(){
-    return reactor.evaluate(this.initAttemptGetter());
+    return reactor.evaluate(this.initAttemptGetter);
   }
 }

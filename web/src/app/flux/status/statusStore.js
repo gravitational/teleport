@@ -16,39 +16,41 @@ limitations under the License.
 
 import { Store, toImmutable } from 'nuclear-js';
 import * as AT from './actionTypes';
+import { Record } from 'immutable';
+
+export const TrackRec = new Record({
+  isProcessing: false,
+  isFailed: false,
+  isSuccess: false,
+  message: ''
+});
 
 export default Store({
+
   getInitialState() {
     return toImmutable({});
   },
 
   initialize() {
-    this.on(AT.TLPT_REST_API_START, start);
-    this.on(AT.TLPT_REST_API_FAIL, fail);
-    this.on(AT.TLPT_REST_API_SUCCESS, success);
-    this.on(AT.TLPT_REST_API_CLEAR, clear);
+    this.on(AT.START, start);
+    this.on(AT.FAIL, fail);
+    this.on(AT.SUCCESS, success);
+    this.on(AT.CLEAR, clear);
   }
 })
 
 function start(state, request){
-  return state.set(request.type, toImmutable({isProcessing: true}));
+  return state.set(request.type, new TrackRec({isProcessing: true}));
 }
 
 function fail(state, request){
-  return state.set(request.type, toImmutable({isFailed: true, message: request.message}));
+  return state.set(request.type, new TrackRec({isFailed: true, message: request.message}));
 }
 
 function success(state, request){
-  return state.set(request.type, toImmutable({isSuccess: true}));
+  return state.set(request.type, new TrackRec({isSuccess: true, message: request.message}));
 }
 
-function clear(state, request){
-  return state.set(request.type, toImmutable(
-    {
-      isProcessing: false,
-      isFailed: false,
-      isSuccess: false,
-      message: undefined
-    }));  
+function clear(state, request) {  
+  return state.set(request.type, new TrackRec());
 }
-

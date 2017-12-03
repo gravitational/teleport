@@ -21,6 +21,7 @@ import userAcl from './userAcl/store';
 import appStore from './app/appStore';
 import nodeStore from './nodes/nodeStore';
 import settingsStore from './settings/store';
+import StatusStore from './status/statusStore';
 
 reactor.registerStores({
   'tlpt_settings': settingsStore,  
@@ -32,7 +33,7 @@ reactor.registerStores({
   'tlpt_user_invite': require('./user/userInviteStore'),
   'tlpt_user_acl': userAcl,
   'tlpt_sites': require('./sites/siteStore'),    
-  'tlpt_rest_api': require('./restApi/restApiStore'),
+  'tlpt_status': StatusStore,
   'tlpt_sessions_events': require('./sessions/eventStore'),
   'tlpt_sessions_archived': require('./sessions/archivedSessionStore'),
   'tlpt_sessions_active': require('./sessions/activeSessionStore'),

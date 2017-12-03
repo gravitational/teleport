@@ -36,7 +36,7 @@ const withFeature = feature => component => {
                     
     componentDidMount() {
       try{
-        this._unsubscribeFn = reactor.observe(feature.initAttemptGetter(), ()=>{        
+        this._unsubscribeFn = reactor.observe(feature.initAttemptGetter, ()=>{        
           this.setState({})
         })
 

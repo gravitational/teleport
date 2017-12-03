@@ -21,11 +21,13 @@ import { Provider } from 'nuclear-js-react-addons';
 import history from './services/history';
 import cfg from './config';
 import reactor from './reactor';
-import { withAllRoutes } from './routes';
+import { addRoutes } from './routes';
 import * as Features from './features';
 import { createSettings } from './features/settings';
 import FeatureActivator from './featureActivator';
 import { initApp } from './flux/app/actions';
+import App from './components/app.jsx';
+import { ensureUser } from './flux/user/actions';
 import './flux';
 
 cfg.init(window.GRV_CONFIG);
@@ -43,15 +45,18 @@ const onEnterApp = nextState => {
   initApp(siteId, featureActivator)
 }
 
-const routes = [
-  {       
+const routes = [{
+  path: cfg.routes.app,
+  onEnter: ensureUser,
+  component: App,
+  childRoutes: [{
     onEnter: onEnterApp,
-    childRoutes: featureRoutes        
-  }
-]
+    childRoutes: featureRoutes
+  }]
+}];
 
 render((  
   <Provider reactor={reactor}>        
-    <Router history={history.original()} routes={withAllRoutes(routes)}/>            
+    <Router history={history.original()} routes={addRoutes(routes)}/>            
   </Provider>  
 ), document.getElementById("app"));

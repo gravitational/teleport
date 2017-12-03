@@ -22,8 +22,7 @@ import session, { BearerToken } from 'app/services/session';
 import cfg from 'app/config';
 import api from 'app/services/api';
 import Logger from 'app/lib/logger';
-import  * as AT from './../restApi/constants';
-import restApiActions from './../restApi/actions';
+import * as status from './../status/actions';
 import { RECEIVE_INVITE } from './actionTypes';  
 
 const logger = Logger.create('flux/user/actions');
@@ -32,14 +31,14 @@ const actions = {
   
   fetchInvite(inviteToken){
     const path = cfg.api.getInviteUrl(inviteToken);
-    restApiActions.start(AT.FETCHING_INVITE);    
-    api.get(path).done(invite=>{
-      restApiActions.success(AT.FETCHING_INVITE);
+    status.fetchInviteStatus.start();    
+    api.get(path).done(invite => {
+      status.fetchInviteStatus.success();      
       reactor.dispatch(RECEIVE_INVITE, invite);
     })
     .fail(err => {
-      let msg = api.getErrorText(err);        
-      restApiActions.fail(AT.FETCHING_INVITE, msg);
+      let msg = api.getErrorText(err);      
+      status.fetchInviteStatus.fail(msg);      
     });
   },
 
@@ -100,37 +99,37 @@ const actions = {
   },
 
   resetPasswordChangeAttempt() {
-    restApiActions.clear(AT.TRYING_TO_CHANGE_PSW);
+    status.changePasswordStatus.clear();    
   },
 
   _handleChangePasswordPromise(promise) {
-    restApiActions.start(AT.TRYING_TO_CHANGE_PSW);    
+    status.changePasswordStatus.start();    
     return promise
       .done(() => {                
-        restApiActions.success(AT.TRYING_TO_CHANGE_PSW);            
+        status.changePasswordStatus.success();        
       })
       .fail(err => {
         const msg = api.getErrorText(err);        
         logger.error('change password', err);
-        restApiActions.fail(AT.TRYING_TO_CHANGE_PSW, msg);
+        status.changePasswordStatus.fail(msg);        
       })        
   },
 
   _handleAcceptInvitePromise(promise) {
-    restApiActions.start(AT.TRYING_TO_SIGN_UP);    
+    status.signupStatus.start();    
     return promise
       .done(() => {                
         history.push(cfg.routes.app, true);        
       })
       .fail(err => {
         const msg = api.getErrorText(err);        
-        logger.error('accept invite', err);
-        restApiActions.fail(AT.TRYING_TO_SIGN_UP, msg);
+        logger.error('accept invite', err);        
+        status.signupStatus.fail(msg);
       })        
   },
 
-  _handleLoginPromise(promise) {
-    restApiActions.start(AT.TRYING_TO_LOGIN);
+  _handleLoginPromise(promise) {    
+    status.loginStatus.start();
     promise
       .done(json => {        
         // needed for devServer only
@@ -141,7 +140,7 @@ const actions = {
       .fail(err => {
         const msg = api.getErrorText(err);
         logger.error('login', err);
-        restApiActions.fail(AT.TRYING_TO_LOGIN, msg);
+        status.loginStatus.fail(msg);        
       })
   }
 }
