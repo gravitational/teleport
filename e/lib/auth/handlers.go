@@ -7,6 +7,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
 
+	"github.com/gravitational/reporting/types"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -26,9 +27,12 @@ func InitPlugin(enforcer *pro.Enforcer) {
 
 // AddHandler plugs in new handlers into OSS auth server router
 func (ap *AuthPlugin) AddHandlers(srv *auth.APIServer) {
-	srv.GET("/:version/heartbeat", httplib.MakeHandler(ap.getHeartbeat))
+	srv.GET("/:version/license/status", httplib.MakeHandler(ap.getLicenseCheckResult))
 }
 
-func (ap *AuthPlugin) getHeartbeat(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	return ap.Enforcer.GetHeartbeatResult()
+func (ap *AuthPlugin) getLicenseCheckResult(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	if ap.Enforcer == nil {
+		return types.NewHeartbeat(), nil
+	}
+	return ap.Enforcer.GetLicenseCheckResult()
 }

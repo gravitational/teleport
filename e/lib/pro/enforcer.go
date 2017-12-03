@@ -2,6 +2,7 @@ package pro
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/url"
 	"time"
@@ -92,12 +93,12 @@ func NewEnforcer(ctx context.Context, config EnforcerConfig) (*Enforcer, error) 
 }
 
 func (e *Enforcer) enforcer(ctx context.Context) {
-	ticker := time.NewTicker(constants.EnforcerEnforcePeriod)
+	ticker := time.NewTicker(constants.EnforcementInterval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
-			err := e.checkHeartbeatResult()
+			err := e.processLicenseCheckResult()
 			if err != nil {
 				log.Error(trace.DebugReport(err))
 			}
@@ -109,7 +110,7 @@ func (e *Enforcer) enforcer(ctx context.Context) {
 }
 
 func (e *Enforcer) periodicHeartbeat(ctx context.Context) {
-	ticker := time.NewTicker(constants.EnforcerHeartbeatPeriod)
+	ticker := time.NewTicker(constants.LicenseCheckInterval)
 	defer ticker.Stop()
 	for {
 		select {
@@ -134,15 +135,15 @@ func (e *Enforcer) heartbeat() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = e.SetHeartbeatResult(*heartbeat)
+	err = e.SetLicenseCheckHeartbeat(*heartbeat)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-// SetHeartbeatResults saves the heartbeat into the database
-func (e *Enforcer) SetHeartbeatResult(heartbeat types.Heartbeat) error {
+// SetLicenseCheckHeartbeat saves the license check heartbeat into the database
+func (e *Enforcer) SetLicenseCheckHeartbeat(heartbeat types.Heartbeat) error {
 	bytes, err := types.MarshalHeartbeat(heartbeat)
 	if err != nil {
 		return trace.Wrap(err)
@@ -154,8 +155,8 @@ func (e *Enforcer) SetHeartbeatResult(heartbeat types.Heartbeat) error {
 	return nil
 }
 
-// GetHeartbeatResult returns the result of the latest heartbeat
-func (e *Enforcer) GetHeartbeatResult() (*types.Heartbeat, error) {
+// getLicenseCheckHeartbeat returns the latest license check heartbeat
+func (e *Enforcer) getLicenseCheckHeartbeat() (*types.Heartbeat, error) {
 	out, err := e.GetVal([]string{"heartbeat"}, "val")
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -167,13 +168,37 @@ func (e *Enforcer) GetHeartbeatResult() (*types.Heartbeat, error) {
 	return heartbeat, nil
 }
 
-func (e *Enforcer) checkHeartbeatResult() error {
-	heartbeat, err := e.GetHeartbeatResult()
+// GetLicenseCheckResult returns the last license check result
+func (e *Enforcer) GetLicenseCheckResult() (*types.Heartbeat, error) {
+	heartbeat, err := e.getLicenseCheckHeartbeat()
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+	// there may be no heartbeats yet, for example upon the very first start,
+	// or in the enterprise mode, so make an empty one in this case
+	if heartbeat == nil {
+		heartbeat = types.NewHeartbeat()
+	}
+	// if the last successful heartbeat was more than 48 hours ago, add a
+	// connection problem notification to the list of messages returned to
+	// the user
+	if isExpired(heartbeat) {
+		heartbeat.Spec.Notifications = append(heartbeat.Spec.Notifications,
+			types.Notification{
+				Severity: types.SeverityError,
+				Text:     licenseCheckConnectionProblemText,
+				HTML:     licenseCheckConnectionProblemHTML,
+			})
+	}
+	return heartbeat, nil
+}
+
+// processLicenseCheckResult implements "enforcement" policies, right now it
+// only logs all messages received from the control plane into Teleport logs
+func (e *Enforcer) processLicenseCheckResult() error {
+	heartbeat, err := e.GetLicenseCheckResult()
 	if err != nil {
 		return trace.Wrap(err)
-	}
-	if time.Since(heartbeat.GetMetadata().Created) > constants.MaxControlPlaneUnreachableDuration {
-		return trace.AccessDenied(tosViolationMessage)
 	}
 	for _, notification := range heartbeat.Spec.Notifications {
 		switch notification.Severity {
@@ -188,6 +213,29 @@ func (e *Enforcer) checkHeartbeatResult() error {
 	return nil
 }
 
-// tosViolationMessage is a warning message that gets displayed when teleport
-// has failed to contact control plane for 48 hours
-const tosViolationMessage = `You have exceeded the usage restrictions on your Teleport license. Please create a support ticket at our support center (https://support.gravitational.com) so that we can resolve the issue. Failure to resolve this is a violation of our Terms of Service for Teleport (https://gravitational.com/tos/).`
+func isExpired(heartbeat *types.Heartbeat) bool {
+	return time.Since(heartbeat.GetMetadata().Created) >
+		constants.MaxControlPlaneUnreachableDuration
+}
+
+// licenseCheckConnectionProblemText is a warning message that gets displayed
+// when teleport has failed to contact control plane for 48 hours
+var licenseCheckConnectionProblemText = fmt.Sprintf(
+	"Teleport has failed to contact the license server for more than %v "+
+		"consecutive hours. Please make sure the Teleport auth server machine "+
+		"is capable of connecting to %v. Otherwise, contact Gravitational "+
+		"support (%v)",
+	constants.MaxControlPlaneUnreachableHours,
+	constants.GravitationalDownloadPortalURL,
+	constants.GravitationalSupportURL)
+
+// licenseCheckConnectionProblemHTML is a warning message in HTML format that
+// gets displayed when teleport has failed to contact control plane for 48 hours
+var licenseCheckConnectionProblemHTML = fmt.Sprintf(
+	"Teleport has failed to contact the license server for more than %v "+
+		"consecutive hours. Please make sure the Teleport auth server machine "+
+		`is capable of connecting to (%v). Otherwise, contact <a href="%v">`+
+		"Gravitational Support</a>.",
+	constants.MaxControlPlaneUnreachableHours,
+	constants.GravitationalDownloadPortalURL,
+	constants.GravitationalSupportURL)

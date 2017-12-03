@@ -12,8 +12,8 @@ import (
 // Client extends OSS auth client interface with enterprise-specific methods
 type Client interface {
 	auth.ClientI
-	// GetHeartbeat returns the latest heartbeat result
-	GetHearbeat() (*types.Heartbeat, error)
+	// GetLicenseCheckResult returns the last license check result
+	GetLicenseCheckResult() (*types.Heartbeat, error)
 }
 
 // client is the enterprise-specific auth client
@@ -29,9 +29,9 @@ func NewClient(clt *auth.TunClient) (*client, error) {
 	}, nil
 }
 
-// GetHeartbeat returns the latest heartbeat result
-func (c *client) GetHeartbeat() (*types.Heartbeat, error) {
-	out, err := c.Get(c.Endpoint("heartbeat"), url.Values{})
+// GetLicenseCheckResult returns the last license check result
+func (c *client) GetLicenseCheckResult() (*types.Heartbeat, error) {
+	out, err := c.Get(c.Endpoint("license", "status"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
