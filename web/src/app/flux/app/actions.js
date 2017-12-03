@@ -17,78 +17,76 @@ limitations under the License.
 import $ from 'jQuery';
 import reactor from 'app/reactor';
 import { SET_SITE_ID, ADD_NAV_ITEM } from './actionTypes';
-import { TRYING_TO_INIT_APP } from 'app/flux/restApi/constants';
 import { RECEIVE_CLUSTERS } from './../sites/actionTypes';
 import { RECEIVE_USER } from './../user/actionTypes';
 import { RECEIVE_USERACL } from './../userAcl/actionTypes';
 import api from 'app/services/api';
 import cfg from 'app/config';
-import restApiActions from 'app/flux/restApi/actions';
+import { initAppStatus } from 'app/flux/status/actions';
 import { fetchNodes } from './../nodes/actions';
 import { fetchActiveSessions } from 'app/flux/sessions/actions';
 
 const logger = require('app/lib/logger').create('flux/app');
 
-const actions = {
-
-  addNavItem(item) {
-    reactor.dispatch(ADD_NAV_ITEM, item);
-  },
-
-  setSiteId(siteId) {
-    reactor.dispatch(SET_SITE_ID, siteId);    
-  },
-    
-  initApp(siteId, featureActivator) {         
-    restApiActions.start(TRYING_TO_INIT_APP);        
-    // get the list of available clusters        
-    return $.when(actions.fetchSites(), actions.fetchUserContext())
-      .then(masterSiteId => {
-        const selectedCluster = siteId || masterSiteId;
-        actions.setSiteId(selectedCluster);
-        return $.when(fetchNodes(), fetchActiveSessions());
-      })
-      .done(() => {
-        featureActivator.onload();
-        restApiActions.success(TRYING_TO_INIT_APP);
-      })
-      .fail(err => {
-        let msg = api.getErrorText(err);
-        restApiActions.fail(TRYING_TO_INIT_APP, msg);
-      })      
-  },
-  
-  refresh() {
-    return $.when(      
-      fetchActiveSessions(),
-      fetchNodes()
-    )    
-  },
-    
-  fetchSites(){
-    return api.get(cfg.api.sitesBasePath)
-      .then(json => {
-        let masterSiteId = null;
-        let sites = json.sites;     
-        if (sites) {
-          masterSiteId = sites[0].name;
-        }
-                
-        reactor.dispatch(RECEIVE_CLUSTERS, sites);
-        
-        return masterSiteId;
-    })
-    .fail(err => {      
-      logger.error('fetchSites', err);
-    })    
-  },
-
-  fetchUserContext(){
-    return api.get(cfg.api.userContextPath).done(json=>{      
-      reactor.dispatch(RECEIVE_USER, { name: json.userName, authType: json.authType });
-      reactor.dispatch(RECEIVE_USERACL, json.userAcl);
-    })    
-  }      
+export function addNavItem(item) {
+  reactor.dispatch(ADD_NAV_ITEM, item);
 }
 
-export default actions;
+export function setSiteId(siteId) {
+  reactor.dispatch(SET_SITE_ID, siteId);    
+}
+
+export function initApp(siteId, featureActivator) {         
+  initAppStatus.start();  
+  // get the list of available clusters        
+  return fetchInitData(siteId)  
+    .done(() => {
+      featureActivator.onload();
+      initAppStatus.success();      
+    })
+    .fail(err => {      
+      let msg = api.getErrorText(err);
+      initAppStatus.fail(msg);
+    })      
+}
+
+export function refresh() {
+  return $.when(      
+    fetchActiveSessions(),
+    fetchNodes()
+  )    
+}
+
+export function fetchInitData(siteId) {
+  return $.when(fetchSites(), fetchUserContext())
+    .then(masterSiteId => {
+      const selectedCluster = siteId || masterSiteId;
+      setSiteId(selectedCluster);
+      return $.when(fetchNodes(), fetchActiveSessions());
+    });  
+}
+
+export function fetchSites(){
+  return api.get(cfg.api.sitesBasePath)
+    .then(json => {
+      let masterSiteId = null;
+      let sites = json.sites;     
+      if (sites) {
+        masterSiteId = sites[0].name;
+      }
+              
+      reactor.dispatch(RECEIVE_CLUSTERS, sites);
+      
+      return masterSiteId;
+  })
+  .fail(err => {      
+    logger.error('fetchSites', err);
+  })    
+}
+
+export function  fetchUserContext(){
+  return api.get(cfg.api.userContextPath).done(json=>{      
+    reactor.dispatch(RECEIVE_USER, { name: json.userName, authType: json.authType });
+    reactor.dispatch(RECEIVE_USERACL, json.userAcl);
+  })    
+}      

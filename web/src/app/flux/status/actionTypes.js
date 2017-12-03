@@ -14,16 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var defaultObj = {
-  isProcessing: false,
-  isError: false,
-  isSuccess: false,
-  message: ''
-}
-
-const requestStatus = (reqType) =>  [ ['tlpt_rest_api', reqType], (attemp) => {
-  return attemp ? attemp.toJS() : defaultObj;
- }
-];
-
-export default {  requestStatus  };
+export const START = 'TLPT_STATUS_START';
+export const SUCCESS = 'TLPT_STATUS_SUCCESS';
+export const FAIL = 'TLPT_STATUS_FAIL';
+export const CLEAR = 'TLPT_STATUS_CLEAR';

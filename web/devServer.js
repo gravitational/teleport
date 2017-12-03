@@ -18,7 +18,6 @@ var fs = require('fs');
 var uri = require('url');
 var WebpackDevServer = require("webpack-dev-server");
 var webpackConfig = require('./webpack/webpack.config.dev.js');
-var express = require('express');
 var webpack = require('webpack');
 var proxy = require('http-proxy').createProxyServer();
 var changeProxyResponse = require('./devServerUtils');
@@ -80,7 +79,7 @@ server.listeningApp.on('upgrade', function(req, socket) {
   });  
 });
 
-var htmlToSend = fs.readFileSync(__dirname + "//dist//index.html", 'utf8')
+var indexHtml = fs.readFileSync(__dirname + "//dist//index.html", 'utf8')
 
 // to enable Hot Module Reload we need to serve local index.html. 
 // since local index.html has no embeded TOKEN, we need to:
@@ -101,6 +100,7 @@ server.app.use(changeProxyResponse(
         // body is a Buffer with the current response; return Buffer or string with the modified response
         // can also return a Promise.        
         var str = body.toString();      
+        var htmlToSend = indexHtml;
         htmlToSend = replaceToken(new RegExp(/<meta name="grv_csrf_token" .*\>/), str, htmlToSend);
         htmlToSend = replaceToken(new RegExp(/<meta name="grv_bearer_token" .*\>/), str, htmlToSend);        
         return htmlToSend;
@@ -115,10 +115,14 @@ function replaceToken(regex, takeFrom, insertTo){
   return insertTo;
 }
 
-server.app.use(ROOT, express.static(__dirname + "//dist"));
-server.app.get(ROOT +'/*', function (req, res) {
+function serveHTML() {
+  return function (req, res) {
     proxy.web(req, res,  getTargetOptions());
-});
+  }
+}
+
+server.app.get(ROOT +'/*', serveHTML());
+server.app.get(ROOT, serveHTML());
 
 server.listen(PORT, "0.0.0.0", function() {
   console.log('Dev Server is up and running: https://location:' + PORT + '/web/');

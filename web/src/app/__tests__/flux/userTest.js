@@ -63,21 +63,25 @@ describe('flux/user/actions', () => {
     it('should handle loading state', () => {
       spyOn(api, 'get').andReturn(Dfd());
       actions.fetchInvite(inviteToken)
-      expect(reactor.evaluate(UserFlux.getters.fetchingInvite)).toEqual({isProcessing: true});
+      const rec = reactor.evaluate(UserFlux.getters.fetchingInvite);
+      expect(rec.isProcessing).toEqual(true);
     });
 
     it('should handle failed state', () => {
       const message = 'error';
       spyOn(api, 'get').andReturn(Dfd().reject(err));
       actions.fetchInvite(inviteToken)
-      expect(reactor.evaluate(UserFlux.getters.fetchingInvite)).toEqual({isFailed: true, message});
+      const rec = reactor.evaluate(UserFlux.getters.fetchingInvite);
+      expect(rec.isFailed).toBe(true);
+      expect(rec.message).toEqual(message)            
     });
 
     it('should handle success state', () => {
       spyOn(api, 'get').andReturn(Dfd().resolve(inviteInfoSample));
       actions.fetchInvite(inviteToken)
-      expect(reactor.evaluateToJS(UserFlux.getters.invite)).toEqual(inviteInfoSample);
-      expect(reactor.evaluate(UserFlux.getters.fetchingInvite)).toEqual({isSuccess: true});
+      const rec = reactor.evaluate(UserFlux.getters.fetchingInvite);
+      expect(rec.isSuccess).toBe(true);
+      expect(reactor.evaluateToJS(UserFlux.getters.invite)).toEqual(inviteInfoSample);      
     });
   });
 

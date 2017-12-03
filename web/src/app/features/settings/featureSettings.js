@@ -22,7 +22,7 @@ import cfg from 'app/config'
 import Settings from './../../components/settings/main'
 import { initSettings } from './../../flux/settings/actions'
 import SettingsIndex from './../../components/settings'
-import * as API from 'app/flux/restApi/constants';
+import * as API from 'app/flux/status/constants';
 
 const settingsNavItem = {
   icon: 'fa fa-wrench',
