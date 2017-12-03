@@ -38,10 +38,6 @@ class RolesFeature extends SettingsFeatureBase {
     return flags.isRolesEnabled();
   }
   
-  getIndexRoute(){
-    return cfg.routes.settingsRoles;
-  }
-
   onload() {                
     const navItem = {      
       to: cfg.routes.settingsRoles,

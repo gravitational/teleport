@@ -1,42 +1,40 @@
 import Logger from 'telebase-app/lib/logger';
 
 import { ResourceEnum } from 'app/services/enums';
-import apiActions from 'app/flux/restApi/actions';
+import { saveClusterStatus } from 'app/flux/status/actions';
 import reactor from 'app/reactor';
-import api from 'app/services/api';
-import * as resApi from 'app/services/resources';
+import * as backend from 'app/services/backend';
 import { closeDeleteDialog } from './../settingsDialogs/actions';
 import { getClusterStore } from './store';
-import * as RAT from 'app/flux/restApi/constants';
 import * as AT from './actionTypes';
 
 const logger = Logger.create('flux/settingsCluster/actions');
 const TRUSTED_CLUSTER = ResourceEnum.TRUSTED_CLUSTER;
 
 export function setCurCluster(item) {      
-  reactor.batch(() => {  
-    apiActions.clear(RAT.TRYING_TO_SAVE_CLUSTER);
+  reactor.batch(() => {      
+    saveClusterStatus.clear();
     reactor.dispatch(AT.SET_CURRENT, item);
   });
 }
     
 export function saveCluster(cluster) {    
   const handleError = err => {
-    const msg = api.getErrorText(err);
+    const msg = backend.getErrorText(err);
     logger.error('saveCluster()', err);        
-    apiActions.fail(RAT.TRYING_TO_SAVE_CLUSTER, msg);            
+    saveClusterStatus.fail(msg);    
   }
 
   const updateStore = items => reactor.batch(()=> {
     reactor.dispatch(AT.UPDATE_CLUSTERS, items);
-    setCurCluster(items[0].id);        
-    apiActions.success(RAT.TRYING_TO_SAVE_CLUSTER);            
+    setCurCluster(items[0].id);  
+    saveClusterStatus.success();    
   })
 
   try {
-    const yaml = cluster.getContent();
-    apiActions.start(RAT.TRYING_TO_SAVE_CLUSTER);                  
-    return resApi.upsert(TRUSTED_CLUSTER, yaml, cluster.getIsNew())            
+    const yaml = cluster.getContent();    
+    saveClusterStatus.start();
+    return backend.upsert(TRUSTED_CLUSTER, yaml, cluster.getIsNew())            
       .done(updateStore)
       .fail(handleError);
   }    
@@ -53,21 +51,21 @@ export function deleteCluster(clusterRec) {
     closeDeleteDialog();      
     reactor.dispatch(AT.DELETE_CLUSTER, id);
     setCurCluster(next);
-    apiActions.success(RAT.TRYING_TO_DELETE_RESOURCE);
+    saveClusterStatus.success();    
   });
   
-  apiActions.start(RAT.TRYING_TO_DELETE_RESOURCE);      
-  resApi.remove(TRUSTED_CLUSTER, name)      
+  saveClusterStatus.start();  
+  backend.remove(TRUSTED_CLUSTER, name)      
     .done(updateStore)
     .fail(err => {
-      const msg = api.getErrorText(err);
+      const msg = backend.getErrorText(err);
       logger.error('deleteCluster()', err);
-      apiActions.fail(RAT.TRYING_TO_DELETE_RESOURCE, msg);              
+      saveClusterStatus.fail(msg);      
     });        
 }
 
 export function fetchTrustedClusters() {                    
-  return resApi.getTrustedClusters().done(items => {
+  return backend.getTrustedClusters().done(items => {
     reactor.dispatch(AT.RECEIVE_CLUSTERS, items);
   })    
 }

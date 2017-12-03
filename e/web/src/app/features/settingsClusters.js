@@ -37,11 +37,7 @@ class TrustedClustersFeature extends SettingsFeatureBase {
       .done(this.stopProcessing.bind(this))
       .fail(this.handleError.bind(this))                      
   }
-  
-  getIndexRoute(){
-    return cfg.routes.settingsCluster;
-  }
-
+    
   onload() {             
     const navItem = {      
       to: cfg.routes.settingsCluster,

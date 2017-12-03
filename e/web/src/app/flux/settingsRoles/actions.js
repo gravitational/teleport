@@ -1,10 +1,9 @@
 import Logger from 'telebase-app/lib/logger';
 import reactor from 'app/reactor';
-import api from 'app/services/api';
-import { TRYING_TO_SAVE_ROLE, TRYING_TO_DELETE_RESOURCE } from 'app/flux/restApi/constants';
+import { saveRoleStatus, deleteResourceStatus } from 'app/flux/status/actions';
+
 import { ResourceEnum } from 'app/services/enums';
-import * as resApi from 'app/services/resources';
-import apiActions from 'app/flux/restApi/actions';
+import * as backend from 'app/services/backend';
 import * as AT from './actionTypes';
 import { closeDeleteDialog } from './../settingsDialogs/actions';
 import { getRoleStore } from './store';
@@ -12,29 +11,29 @@ import { getRoleStore } from './store';
 const logger = Logger.create('flux/settingsCluster/actions');
 
 export function setCurRole(item) {    
-  reactor.batch(() => {  
-    apiActions.clear(TRYING_TO_SAVE_ROLE);
+  reactor.batch(() => {      
+    saveRoleStatus.clear();
     reactor.dispatch(AT.SET_CURRENT, item)
   });
 }
 
 export function saveRole(rolRec) {        
   const handleError = err => {
-    const msg = api.getErrorText(err);
-    logger.error('saveRole()', err);        
-    apiActions.fail(TRYING_TO_SAVE_ROLE, msg);            
+    const msg = backend.getErrorText(err);
+    logger.error('saveRole()', err);            
+    saveRoleStatus.fail(msg);
   }
 
   const updateStore = items => reactor.batch(()=> {
     reactor.dispatch(AT.UPSERT_ROLES, items);
-    setCurRole(items[0].id);        
-    apiActions.success(TRYING_TO_SAVE_ROLE);      
+    setCurRole(items[0].id);  
+    saveRoleStatus.success();    
   })
 
   try {
-    const yaml = rolRec.getContent();  
-    apiActions.start(TRYING_TO_SAVE_ROLE);                          
-    return resApi.upsert(ResourceEnum.ROLE, yaml, rolRec.getIsNew())      
+    const yaml = rolRec.getContent();      
+    saveRoleStatus.start();
+    return backend.upsert(ResourceEnum.ROLE, yaml, rolRec.getIsNew())      
       .done(updateStore)
       .fail(handleError)
   }    
@@ -50,24 +49,24 @@ export function deleteRole(rolRec) {
     reactor.batch(()=>{
       const next = getRoleStore().getNext(id);      
       closeDeleteDialog();            
-      reactor.dispatch(AT.DELETE_ROLE, id);            
-      apiActions.success(TRYING_TO_DELETE_RESOURCE);
+      reactor.dispatch(AT.DELETE_ROLE, id);                  
+      deleteResourceStatus.success();
       setCurRole(next);
     })
   }
 
-  apiActions.start(TRYING_TO_DELETE_RESOURCE);      
-  resApi.remove(ResourceEnum.ROLE, name)  
+  deleteResourceStatus.start();  
+  backend.remove(ResourceEnum.ROLE, name)  
     .done(updateStore)
     .fail(err => {
-      const msg = api.getErrorText(err);
+      const msg = backend.getErrorText(err);
       logger.error('deleteRole()', err);
-      apiActions.fail(TRYING_TO_DELETE_RESOURCE, msg);              
+      deleteResourceStatus.fail(msg);      
     });        
 }
 
 export function fetchRoles() {                    
-  return resApi.getRoles().done(items => {
+  return backend.getRoles().done(items => {
     reactor.dispatch(AT.RECEIVE_ROLES, items);
   })    
 }

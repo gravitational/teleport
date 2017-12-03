@@ -1,47 +1,46 @@
 import Logger from 'telebase-app/lib/logger';
-import apiActions from 'telebase-app/flux/restApi/actions';
 
 import reactor from 'app/reactor';
 import { ResourceEnum } from 'app/services/enums';
-import * as resApi from 'app/services/resources';
-import api from 'app/services/api';
-import * as RAT from 'app/flux/restApi/constants';
+import * as backend from 'app/services/backend';
 import { closeDeleteDialog } from './../settingsDialogs/actions';
 import { getAuthStore } from './store';
 import * as AT from './actionTypes';
 
+import  { saveAuthProviderStatus, deleteResourceStatus } from 'app/flux/status/actions';
+
 const logger = Logger.create('flux/settingsAuth/actions');
       
 export function setCurProvider(item) {    
-  reactor.batch(() => {      
-    apiActions.clear(RAT.TRYING_TO_SAVE_AUTH_PROVIDER);
+  reactor.batch(() => {          
+    saveAuthProviderStatus.clear();
     reactor.dispatch(AT.SET_CURRENT, item)
   });
 }
 
 export function fetchAuthProviders(){    
-  return resApi.getAuthProviders().done(items => {            
+  return backend.getAuthProviders().done(items => {            
     reactor.dispatch(AT.RECEIVE_CONNECTORS, items);
   })
 }
 
 export function saveAuthProvider(authProvider) {      
   const handleError = err => {
-    const msg = api.getErrorText(err);
-    logger.error('saveAuthProvider()', err);        
-    apiActions.fail(RAT.TRYING_TO_SAVE_AUTH_PROVIDER, msg);            
+    const msg = backend.getErrorText(err);
+    logger.error('saveAuthProvider()', err); 
+    saveAuthProviderStatus.fail(msg);           
   }
 
   const updateStore = items => reactor.batch( ()=> {
     reactor.dispatch(AT.UPDATE_CONNECTORS, items);
     setCurProvider(items[0].id);
-    apiActions.success(RAT.TRYING_TO_SAVE_AUTH_PROVIDER);            
+    saveAuthProviderStatus.success();    
   })
 
   try {
     const yaml = authProvider.getContent();
-    apiActions.start(RAT.TRYING_TO_SAVE_AUTH_PROVIDER);                
-    return resApi.upsert(ResourceEnum.AUTH_CONNECTORS, yaml, authProvider.getIsNew())
+    saveAuthProviderStatus.start();    
+    return backend.upsert(ResourceEnum.AUTH_CONNECTORS, yaml, authProvider.getIsNew())
       .done(updateStore)
       .fail(handleError);
   }catch(err){
@@ -57,15 +56,15 @@ export function deleteAuthProvider(authRec) {
     closeDeleteDialog();      
     reactor.dispatch(AT.DELETE_CONN, id);
     setCurProvider(next);
-    apiActions.success(RAT.TRYING_TO_DELETE_RESOURCE);
+    deleteResourceStatus.success();    
   });
 
-  apiActions.start(RAT.TRYING_TO_DELETE_RESOURCE);      
-  resApi.remove(kind, name)      
+  deleteResourceStatus.start();      
+  backend.remove(kind, name)      
     .done(updateStore)
     .fail(err => {
-      const msg = api.getErrorText(err);
+      const msg = backend.getErrorText(err);
       logger.error('deleteAuthProvider()', err);
-      apiActions.fail(RAT.TRYING_TO_DELETE_RESOURCE, msg);              
+      deleteResourceStatus.fail(msg);      
     });        
 }

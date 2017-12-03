@@ -22,15 +22,17 @@ import { Provider } from 'nuclear-js-react-addons';
 // telebase imports
 import history from 'telebase-app/services/history';
 import FeatureActivator from 'telebase-app/featureActivator';
-import { withAllRoutes } from 'telebase-app/routes';
+import { addRoutes } from 'telebase-app/routes';
 import * as Features from 'telebase-app/features';
-import { initApp } from 'telebase-app/flux/app/actions';
+import { ensureUser } from 'telebase-app/flux/user/actions';
 import 'telebase-app/flux';
 
 // app imports
+import { initApp } from './flux/actions';
 import { createSettings } from './features';
 import reactor from 'app/reactor';
 import cfg from 'app/config';
+import TeleportE from './components/app';
 import './flux';
 
 cfg.init(window.GRV_CONFIG);
@@ -48,15 +50,18 @@ const onEnterApp = nextState => {
   initApp(siteId, featureActivator)
 }
 
-const routes = [
-  {       
+const appRoutes = [{               
+  path: cfg.routes.app,
+  onEnter: ensureUser,
+  component: TeleportE,        
+  childRoutes:  [{
     onEnter: onEnterApp,
-    childRoutes: childRoutes        
-  }
-]
+    childRoutes
+   }]
+}];
 
 render((  
   <Provider reactor={reactor}>        
-    <Router history={history.original()} routes={withAllRoutes(routes)}/>            
+    <Router history={history.original()} routes={addRoutes(appRoutes)}/>            
   </Provider>  
 ), document.getElementById("app"));

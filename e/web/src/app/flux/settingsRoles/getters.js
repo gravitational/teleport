@@ -1,7 +1,6 @@
-import { requestStatus } from 'app/flux/restApi/getters';
-import * as AT from 'app/flux/restApi/constants';
+import { saveRoleAttempt } from 'app/flux/status/getters';
 
 export default {  
-  saveAttempt: requestStatus(AT.TRYING_TO_SAVE_ROLE),
+  saveAttempt: saveRoleAttempt,
   store: ['tlp_settings_role']  
 }
