@@ -122,12 +122,12 @@ func (p *Plugin) getLicenseCheckStatusHandle(w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	licenseCheckStatus, err := enterpriseClient.GetLicenseCheckResult()
+	licenseCheckResult, err := enterpriseClient.GetLicenseCheckResult()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.NewLicenseCheckStatus(licenseCheckStatus), nil
+	return ui.NewLicenseCheckStatus(licenseCheckResult), nil
 }
 
 // message returns structured message response

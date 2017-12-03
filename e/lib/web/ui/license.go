@@ -15,8 +15,8 @@ type LicenseCheckStatus struct {
 }
 
 // NewLicenseCheckStatus creates houston status
-func NewLicenseCheckStatus(licenseCheckStatus *types.Heartbeat) *LicenseCheckStatus {
-	messages := licenseCheckStatus.Spec.Notifications
+func NewLicenseCheckStatus(licenseCheckResult *types.Heartbeat) *LicenseCheckStatus {
+	messages := licenseCheckResult.Spec.Notifications
 	if len(messages) == 0 {
 		return nil
 	}
