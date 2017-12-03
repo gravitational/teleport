@@ -1,7 +1,6 @@
-import { requestStatus } from 'app/flux/restApi/getters';
-import * as AT from 'app/flux/restApi/constants';
+import { saveClusterAttempt } from 'app/flux/status/getters';
 
 export default {  
-  saveAttempt: requestStatus(AT.TRYING_TO_SAVE_CLUSTER),
+  saveAttempt: saveClusterAttempt,
   store: ['tlp_settings_cluster']  
 }

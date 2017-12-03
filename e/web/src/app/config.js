@@ -21,14 +21,15 @@ telecfg.init({
 
   clusterDocLink: 'http://gravitational.com/teleport/docs/admin-guide/#trusted-clusters',
   oidcDocLink: 'http://gravitational.com/teleport/docs/admin-guide/#openid-oauth2',  
-  routes: {    
+  routes: {        
     settingsBase: '/web/settings',        
     settingsAuth: '/web/settings/auth',
     settingsRoles: '/web/settings/roles',
-    settingsCluster: '/web/settings/clusters'
+    settingsCluster: '/web/settings/clusters',    
   },
 
-  api: {                
+  api: {                    
+    licenseStatusPath: '/v1/enterprise/license/status',
     resourcePath: '/v1/enterprise/resources(/:kind)',            
     removeResourcePath: '/v1/enterprise/resources/:kind/:id'        
   },

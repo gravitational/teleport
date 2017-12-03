@@ -1,0 +1,1 @@
+export const store = ['tlp_license_status'];

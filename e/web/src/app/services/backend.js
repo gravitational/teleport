@@ -32,3 +32,8 @@ export function remove(kind, name){
   return api.delete(cfg.getRemoveResourceUrl(kind, name))        
 }
 
+export function fetchLicenseStatus(){  
+  return api.get(cfg.api.licenseStatusPath);
+}
+
+export const getErrorText = api.getErrorText;

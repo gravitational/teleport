@@ -17,11 +17,7 @@ class OAuthFeature extends SettingsFeatureBase {
 
     routes.push(route);        
   }
-  
-  getIndexRoute(){
-    return cfg.routes.settingsAuth;
-  }
-
+    
   componentDidMount() {    
     this.init()    
   }

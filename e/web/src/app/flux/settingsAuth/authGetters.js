@@ -1,7 +1,6 @@
-import { requestStatus } from 'app/flux/restApi/getters';
-import { TRYING_TO_SAVE_AUTH_PROVIDER } from 'app/flux/restApi/constants';
+import { saveAuthProviderAttempt } from 'app/flux/status/getters';
 
 export default {  
-  saveAttempt: requestStatus(TRYING_TO_SAVE_AUTH_PROVIDER),
+  saveAttempt: saveAuthProviderAttempt,
   store: ['tlp_settings_auth']  
 }

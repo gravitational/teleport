@@ -6,12 +6,14 @@
         "paths": {
             "*": [
                 "*",
-                "src/*"
-            ]
+                "src/*",
+                "telebase/app/*"                
+            ],
+            "telebase-app/*": ["telebase/app/*"]
         }
     },
     "include": [
-        "src/**/*"
+        "src/**/*"        
     ],
     "exclude": [
         "node_modules",
