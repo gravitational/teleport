@@ -82,15 +82,21 @@ type Terminal interface {
 // NewTerminal returns a new terminal. Terminal can be local or remote
 // depending on cluster configuration.
 func NewTerminal(ctx *ServerContext) (Terminal, error) {
+	// doesn't matter what mode the cluster is in, if this is a teleport node
+	// return a local terminal
+	if ctx.srv.Component() == teleport.ComponentNode {
+		return newLocalTerminal(ctx)
+	}
+
+	// otherwise find out what mode the cluster is in and return the
+	// correct terminal
 	clusterConfig, err := ctx.srv.GetAccessPoint().GetClusterConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	if clusterConfig.GetSessionRecording() == services.RecordAtProxy {
 		return newRemoteTerminal(ctx)
 	}
-
 	return newLocalTerminal(ctx)
 }
 
@@ -298,6 +304,10 @@ type remoteTerminal struct {
 }
 
 func newRemoteTerminal(ctx *ServerContext) (*remoteTerminal, error) {
+	if ctx.RemoteSession == nil {
+		return nil, trace.BadParameter("remote session required")
+	}
+
 	t := &remoteTerminal{
 		log: log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentRemoteTerm,

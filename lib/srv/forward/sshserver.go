@@ -63,6 +63,9 @@ import (
 type Server struct {
 	log *log.Entry
 
+	id string
+
+	targetConn net.Conn
 	clientConn net.Conn
 	serverConn net.Conn
 
@@ -96,25 +99,33 @@ type Server struct {
 
 // ServerConfig is the configuration needed to create an instance of a Server.
 type ServerConfig struct {
+	ID              string
 	AuthClient      auth.ClientI
 	UserAgent       agent.Agent
-	Source          string
-	Destination     string
+	TargetConn      net.Conn
+	SrcAddr         net.Addr
+	DstAddr         net.Addr
 	HostCertificate ssh.Signer
 }
 
 // CheckDefaults makes sure all required parameters are passed in.
 func (s *ServerConfig) CheckDefaults() error {
+	if s.ID == "" {
+		return trace.BadParameter("server ID is required")
+	}
 	if s.AuthClient == nil {
 		return trace.BadParameter("auth client required")
 	}
 	if s.UserAgent == nil {
 		return trace.BadParameter("user agent required to connect to remote host")
 	}
-	if s.Source == "" {
+	if s.TargetConn == nil {
+		return trace.BadParameter("connection to target connection required")
+	}
+	if s.SrcAddr == nil {
 		return trace.BadParameter("source address required to identify client")
 	}
-	if s.Destination == "" {
+	if s.DstAddr == nil {
 		return trace.BadParameter("destination address required to connect to remote host")
 	}
 	if s.HostCertificate == nil {
@@ -135,15 +146,7 @@ func New(c ServerConfig) (*Server, error) {
 	// build a pipe connection to hook up the client and the server. we save both
 	// here and will pass them along to the context when we create it so they
 	// can be closed by the context.
-	srcAddr, err := utils.ParseAddr(c.Source)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	dstAddr, err := utils.ParseAddr(c.Destination)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	serverConn, clientConn := utils.DualPipeNetConn(srcAddr, dstAddr)
+	serverConn, clientConn := utils.DualPipeNetConn(c.SrcAddr, c.DstAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -152,18 +155,20 @@ func New(c ServerConfig) (*Server, error) {
 		log: log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentForwardingNode,
 			trace.ComponentFields: map[string]string{
-				"src-addr": c.Source,
-				"dst-addr": c.Destination,
+				"src-addr": c.SrcAddr.String(),
+				"dst-addr": c.DstAddr.String(),
 			},
 		}),
+		id:              c.ID,
+		targetConn:      c.TargetConn,
+		serverConn:      serverConn,
+		clientConn:      clientConn,
 		agent:           c.UserAgent,
 		hostCertificate: c.HostCertificate,
 		authClient:      c.AuthClient,
 		auditLog:        c.AuthClient,
 		authService:     c.AuthClient,
 		sessionServer:   c.AuthClient,
-		serverConn:      serverConn,
-		clientConn:      clientConn,
 	}
 
 	s.sessionRegistry = srv.NewSessionRegistry(s)
@@ -188,12 +193,9 @@ func New(c ServerConfig) (*Server, error) {
 	return s, nil
 }
 
-// ID returns 0 for forwarding servers for now.
+// ID returns the ID of the proxy that creates the in-memory forwarding server.
 func (s *Server) ID() string {
-	// TODO(russjones): I can't set this until we merge in the lib/reversetunnel
-	// changes because localsite and remotesite are the onces that create this
-	// server.
-	return "0"
+	return s.id
 }
 
 // GetNamespace returns the namespace the forwarding server resides in.
@@ -258,6 +260,7 @@ func (s *Server) Serve() {
 
 	sconn, chans, reqs, err := ssh.NewServerConn(s.serverConn, config)
 	if err != nil {
+		s.targetConn.Close()
 		s.clientConn.Close()
 		s.serverConn.Close()
 
@@ -269,6 +272,7 @@ func (s *Server) Serve() {
 	// along with context
 	identityContext, err := s.authHandlers.CreateIdentityContext(sconn)
 	if err != nil {
+		s.targetConn.Close()
 		s.clientConn.Close()
 		s.serverConn.Close()
 
@@ -278,13 +282,14 @@ func (s *Server) Serve() {
 
 	// build a remote session to the remote node
 	s.log.Debugf("Creating remote connection to %v@%v", sconn.User(), s.clientConn.RemoteAddr().String())
-	s.remoteClient, s.remoteSession, err = newRemoteSession(s.clientConn.RemoteAddr().String(), sconn.User(), s.agent, s.authHandlers)
+	s.remoteClient, s.remoteSession, err = newRemoteSession(s.targetConn, s.targetConn.RemoteAddr().String(), sconn.User(), s.agent, s.authHandlers)
 	if err != nil {
 		// reject the connection with an error so the client doesn't hang then
 		// close the connection
 		s.rejectChannel(chans, err)
 		sconn.Close()
 
+		s.targetConn.Close()
 		s.clientConn.Close()
 		s.serverConn.Close()
 
@@ -427,6 +432,7 @@ func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, identityContext
 
 	ctx.AddCloser(ch)
 	ctx.AddCloser(sconn)
+	ctx.AddCloser(s.targetConn)
 	ctx.AddCloser(s.serverConn)
 	ctx.AddCloser(s.clientConn)
 	ctx.AddCloser(s.remoteSession)
@@ -505,6 +511,7 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, identityContext sr
 
 	ctx.AddCloser(ch)
 	ctx.AddCloser(sconn)
+	ctx.AddCloser(s.targetConn)
 	ctx.AddCloser(s.serverConn)
 	ctx.AddCloser(s.clientConn)
 	ctx.AddCloser(s.remoteSession)

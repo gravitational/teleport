@@ -26,6 +26,9 @@ import (
 	"strings"
 	"sync"
 
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -36,21 +39,22 @@ import (
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 )
 
 // proxySubsys implements an SSH subsystem for proxying listening sockets from
 // remote hosts to a proxy client (AKA port mapping)
 type proxySubsys struct {
-	log         *log.Entry
-	srv         *Server
-	host        string
-	port        string
-	namespace   string
-	clusterName string
-	closeC      chan struct{}
-	error       error
-	closeOnce   sync.Once
+	log          *log.Entry
+	srv          *Server
+	host         string
+	port         string
+	namespace    string
+	clusterName  string
+	closeC       chan struct{}
+	error        error
+	closeOnce    sync.Once
+	agent        agent.Agent
+	agentChannel ssh.Channel
 }
 
 // parseProxySubsys looks at the requested subsystem name and returns a fully configured
@@ -61,7 +65,7 @@ type proxySubsys struct {
 //  "proxy:@clustername"        - Teleport request to connect to an auth server for cluster with name 'clustername'
 //  "proxy:host:22@clustername" - Teleport request to connect to host:22 on cluster 'clustername'
 //  "proxy:host:22@namespace@clustername"
-func parseProxySubsys(request string, srv *Server) (*proxySubsys, error) {
+func parseProxySubsys(request string, srv *Server, ctx *srv.ServerContext) (*proxySubsys, error) {
 	log.Debugf("parse_proxy_subsys(%q)", request)
 	var (
 		clusterName  string
@@ -117,12 +121,14 @@ func parseProxySubsys(request string, srv *Server) (*proxySubsys, error) {
 			trace.Component:       teleport.ComponentSubsystemProxy,
 			trace.ComponentFields: map[string]string{},
 		}),
-		namespace:   namespace,
-		srv:         srv,
-		host:        targetHost,
-		port:        targetPort,
-		clusterName: clusterName,
-		closeC:      make(chan struct{}),
+		namespace:    namespace,
+		srv:          srv,
+		host:         targetHost,
+		port:         targetPort,
+		clusterName:  clusterName,
+		closeC:       make(chan struct{}),
+		agent:        ctx.GetAgent(),
+		agentChannel: ctx.GetAgentChannel(),
 	}, nil
 }
 
@@ -192,48 +198,31 @@ func (t *proxySubsys) Start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Requ
 func (t *proxySubsys) proxyToSite(
 	site reversetunnel.RemoteSite, remoteAddr net.Addr, ch ssh.Channel) error {
 
-	var (
-		err  error
-		conn net.Conn
-	)
-	siteClient, err := site.GetClient()
+	conn, err := site.DialAuthServer()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	authServers, err := siteClient.GetAuthServers()
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	t.log.Infof("Connected to auth server: %v", conn.RemoteAddr())
 
-	for _, authServer := range authServers {
-
-		conn, err = site.Dial(remoteAddr,
-			&utils.NetAddr{Addr: authServer.GetAddr(), AddrNetwork: "tcp"})
-		if err != nil {
-			t.log.Error(err)
-			continue
-		}
-		t.log.Infof("Connected to auth server: %v", authServer.GetAddr())
-		go func() {
-			var err error
-			defer func() {
-				t.close(err)
-			}()
-			defer ch.Close()
-			_, err = io.Copy(ch, conn)
+	go func() {
+		var err error
+		defer func() {
+			t.close(err)
 		}()
-		go func() {
-			var err error
-			defer func() {
-				t.close(err)
-			}()
-			defer conn.Close()
-			_, err = io.Copy(conn, ch)
-
+		defer ch.Close()
+		_, err = io.Copy(ch, conn)
+	}()
+	go func() {
+		var err error
+		defer func() {
+			t.close(err)
 		}()
-		return nil
-	}
-	return err
+		defer conn.Close()
+		_, err = io.Copy(conn, ch)
+
+	}()
+
+	return nil
 }
 
 // proxyToHost establishes a proxy connection from the connected SSH client to the
@@ -306,14 +295,17 @@ func (t *proxySubsys) proxyToHost(
 		t.log.Warnf("server lookup failed: using default=%v", serverAddr)
 	}
 
-	// we must dial by server IP address because hostname
-	// may not be actually DNS resolvable
+	// dial by IP address because the hostname may not be DNS resolvable
+	// pass the agent along to the site (if the proxy is in recording mode, this
+	// agent will be used for user auth)
 	conn, err := site.Dial(
 		remoteAddr,
-		&utils.NetAddr{Addr: serverAddr, AddrNetwork: "tcp"})
+		&utils.NetAddr{Addr: serverAddr, AddrNetwork: "tcp"},
+		t.agent)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	// this custom SSH handshake allows SSH proxy to relay the client's IP
 	// address to the SSH server
 	t.doHandshake(remoteAddr, ch, conn)
@@ -333,8 +325,8 @@ func (t *proxySubsys) proxyToHost(
 		}()
 		defer conn.Close()
 		_, err = io.Copy(conn, ch)
-
 	}()
+
 	return nil
 }
 

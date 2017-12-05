@@ -193,14 +193,9 @@ func (c *SessionContext) newRemoteClient(site reversetunnel.RemoteSite) (auth.Cl
 	var netConn net.Conn
 
 	sshDialer := func(network, addr string) (net.Conn, error) {
-		// we tell the remote site we want a connection to the auth server by using
-		// a non-resolvable string @remote-auth-server as the destination.
-		srcAddr := utils.NetAddr{Addr: "web.get-remote-client-with-user-role", AddrNetwork: "tcp"}
-		dstAddr := utils.NetAddr{Addr: reversetunnel.RemoteAuthServer, AddrNetwork: "tcp"}
-
 		// first get a net.Conn (tcp connection) to the remote auth server. no
 		// authentication has occurred.
-		netConn, err = site.Dial(&srcAddr, &dstAddr)
+		netConn, err = site.DialAuthServer()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

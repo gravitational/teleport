@@ -372,6 +372,11 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 	server := string(req.Payload)
 	var servers []string
 
+	// Deprecated: Remove in Teleport 2.5.
+	//   Starting with Teleport 2.4 the client now discovers the list of Auth
+	//   Servers and sends them via the transport request. So this block can be
+	//   be replaced just net.Dial.
+	//
 	// if the request is for the special string @remote-auth-server, then get the
 	// list of auth servers and return that. otherwise try and connect to the
 	// passed in server.

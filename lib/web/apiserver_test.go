@@ -295,7 +295,8 @@ func (s *WebSuite) SetUpTest(c *C) {
 			Addr:        fmt.Sprintf("%v:0", s.domainName),
 		},
 		HostSigners:           []ssh.Signer{s.signer},
-		AccessPoint:           s.roleAuth,
+		LocalAuthClient:       s.roleAuth,
+		LocalAccessPoint:      s.roleAuth,
 		NewCachingAccessPoint: state.NoCache,
 		DirectClusters:        []reversetunnel.DirectCluster{{Name: s.domainName, Client: s.roleAuth}},
 	})

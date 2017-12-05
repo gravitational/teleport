@@ -504,8 +504,10 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		ID:                    s.domainName,
 		ListenAddr:            reverseTunnelAddress,
 		HostSigners:           []ssh.Signer{s.signer},
-		AccessPoint:           s.roleAuth,
+		LocalAuthClient:       s.roleAuth,
+		LocalAccessPoint:      s.roleAuth,
 		NewCachingAccessPoint: state.NoCache,
+		DirectClusters:        []reversetunnel.DirectCluster{{Name: s.domainName, Client: s.roleAuth}},
 	})
 	c.Assert(err, IsNil)
 	c.Assert(reverseTunnelServer.Start(), IsNil)
@@ -645,10 +647,14 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	var sites []services.Site
 	c.Assert(json.Unmarshal(stdout.Bytes(), &sites), IsNil)
 	c.Assert(sites, NotNil)
-	c.Assert(sites, HasLen, 1)
+	c.Assert(sites, HasLen, 2)
 	c.Assert(sites[0].Name, Equals, "localhost")
 	c.Assert(sites[0].Status, Equals, "online")
+	c.Assert(sites[1].Name, Equals, "localhost")
+	c.Assert(sites[1].Status, Equals, "online")
+
 	c.Assert(time.Since(sites[0].LastConnected).Seconds() < 5, Equals, true)
+	c.Assert(time.Since(sites[1].LastConnected).Seconds() < 5, Equals, true)
 
 	err = tunClt.DeleteReverseTunnel(s.domainName)
 	c.Assert(err, IsNil)
@@ -670,8 +676,10 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		ID:                    s.domainName,
 		ListenAddr:            reverseTunnelAddress,
 		HostSigners:           []ssh.Signer{s.signer},
-		AccessPoint:           s.roleAuth,
+		LocalAuthClient:       s.roleAuth,
+		LocalAccessPoint:      s.roleAuth,
 		NewCachingAccessPoint: state.NoCache,
+		DirectClusters:        []reversetunnel.DirectCluster{{Name: s.domainName, Client: s.roleAuth}},
 	})
 	c.Assert(err, IsNil)
 
@@ -772,7 +780,8 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 		ID:                    s.domainName,
 		ListenAddr:            reverseTunnelAddress,
 		HostSigners:           []ssh.Signer{s.signer},
-		AccessPoint:           s.roleAuth,
+		LocalAuthClient:       s.roleAuth,
+		LocalAccessPoint:      s.roleAuth,
 		NewCachingAccessPoint: state.NoCache,
 		DirectClusters:        []reversetunnel.DirectCluster{{Name: s.domainName, Client: s.roleAuth}},
 	})

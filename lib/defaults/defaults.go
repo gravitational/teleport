@@ -214,6 +214,14 @@ const (
 )
 
 const (
+	// HostCertCacheSize is the number of host certificates to cache at any moment.
+	HostCertCacheSize = 4000
+
+	// HostCertCacheTime is how long a certificate stays in the cache.
+	HostCertCacheTime = 24 * time.Hour
+)
+
+const (
 	// MinCertDuration specifies minimum duration of validity of issued cert
 	MinCertDuration = time.Minute
 	// MaxCertDuration limits maximum duration of validity of issued cert

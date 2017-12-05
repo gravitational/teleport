@@ -139,8 +139,6 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	cid := fmt.Sprintf("conn(%v->%v, user=%v)", conn.RemoteAddr(), conn.LocalAddr(), conn.User())
 	h.Debugf("%v auth attempt", cid)
 
-	certChecker := ssh.CertChecker{IsAuthority: h.IsUserAuthority}
-
 	cert, ok := key.(*ssh.Certificate)
 	h.Debugf("%v auth attempt with key %v, %#v", cid, fingerprint, cert)
 	if !ok {
@@ -168,6 +166,8 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		h.Warnf("failed login attempt %#v", fields)
 		h.AuditLog.EmitAuditEvent(events.AuthAttemptEvent, fields)
 	}
+
+	certChecker := ssh.CertChecker{IsAuthority: h.IsUserAuthority}
 	permissions, err := certChecker.Authenticate(conn, key)
 	if err != nil {
 		recordFailedLogin(err)
@@ -257,7 +257,7 @@ func (h *AuthHandlers) HostKeyAuth(hostport string, remote net.Addr, key ssh.Pub
 
 	// if we are strictly checking host keys then reject this request right away
 	if clusterConfig.GetProxyChecksHostKeys() == services.HostKeyCheckYes {
-		return trace.AccessDenied("proxy expects certificate signed by certificate authority, got public key")
+		return trace.AccessDenied("remote host presented a public key, expected a host certificate")
 	}
 
 	// if we are not stricting rejecting host keys, we need to log that we
@@ -273,6 +273,7 @@ func (h *AuthHandlers) IsUserAuthority(cert ssh.PublicKey) bool {
 	if _, err := h.authorityForCert(services.UserCA, cert); err != nil {
 		return false
 	}
+
 	return true
 }
 
@@ -371,7 +372,7 @@ func (h *AuthHandlers) fetchRoleSet(cert *ssh.Certificate, ca services.CertAutho
 
 // authorityForCert checks if the certificate was signed by a Teleport
 // Certificate Authority and returns it.
-func (h *AuthHandlers) authorityForCert(caType services.CertAuthType, cert ssh.PublicKey) (services.CertAuthority, error) {
+func (h *AuthHandlers) authorityForCert(caType services.CertAuthType, key ssh.PublicKey) (services.CertAuthority, error) {
 	// get all certificate authorities for given type
 	cas, err := h.AccessPoint.GetCertAuthorities(caType, false)
 	if err != nil {
@@ -388,9 +389,21 @@ func (h *AuthHandlers) authorityForCert(caType services.CertAuthType, cert ssh.P
 			return nil, trace.Wrap(err)
 		}
 		for _, checker := range checkers {
-			if sshutils.KeysEqual(cert, checker) {
-				ca = cas[i]
-				break
+			// if we have a certificate, compare the certificate signing key against
+			// the ca key. otherwise check the public key that was passed in. this is
+			// due to the differences in how this function is called by the user and
+			// host checkers.
+			switch v := key.(type) {
+			case *ssh.Certificate:
+				if sshutils.KeysEqual(v.SignatureKey, checker) {
+					ca = cas[i]
+					break
+				}
+			default:
+				if sshutils.KeysEqual(key, checker) {
+					ca = cas[i]
+					break
+				}
 			}
 		}
 	}

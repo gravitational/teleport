@@ -20,6 +20,8 @@ import (
 	"net"
 	"time"
 
+	"golang.org/x/crypto/ssh/agent"
+
 	"github.com/gravitational/teleport/lib/auth"
 )
 
@@ -28,8 +30,10 @@ import (
 //
 // There are two implementations of this interface: local and remote sites.
 type RemoteSite interface {
-	// Dial dials any address within the site network
-	Dial(fromAddr, toAddr net.Addr) (net.Conn, error)
+	// DialAuthServer returns a net.Conn to the Auth Server of a site.
+	DialAuthServer() (net.Conn, error)
+	// Dial dials any address within the site network.
+	Dial(fromAddr, toAddr net.Addr, userAgent agent.Agent) (net.Conn, error)
 	// GetLastConnected returns last time the remote site was seen connected
 	GetLastConnected() time.Time
 	// GetName returns site name (identified by authority domain's name)
