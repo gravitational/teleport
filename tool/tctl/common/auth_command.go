@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gravitational/kingpin"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
@@ -26,6 +27,8 @@ type AuthCommand struct {
 	authType                   string
 	genPubPath                 string
 	genPrivPath                string
+	genCertPath                string
+	principal                  string
 	genUser                    string
 	genTTL                     time.Duration
 	exportAuthorityFingerprint string
@@ -52,9 +55,11 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authExport.Flag("compat", "export cerfiticates compatible with specific version of Teleport").StringVar(&a.compatVersion)
 	a.authExport.Flag("type", "certificate type: 'user' or 'host'").StringVar(&a.authType)
 
-	a.authGenerate = auth.Command("gen", "Generate a new SSH keypair").Hidden()
+	a.authGenerate = auth.Command("gen", "Generate a new SSH host certificate")
 	a.authGenerate.Flag("pub-key", "path to the public key").Required().StringVar(&a.genPubPath)
 	a.authGenerate.Flag("priv-key", "path to the private key").Required().StringVar(&a.genPrivPath)
+	a.authGenerate.Flag("cert", "path to certificate").Required().StringVar(&a.genCertPath)
+	a.authGenerate.Flag("principal", "principal name on certificate").Required().StringVar(&a.principal)
 
 	a.authSign = auth.Command("sign", "Create an identity file(s) for a given user")
 	a.authSign.Flag("user", "Teleport user name").Required().StringVar(&a.genUser)
@@ -69,7 +74,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 func (a *AuthCommand) TryRun(cmd string, client *auth.TunClient) (match bool, err error) {
 	switch cmd {
 	case a.authGenerate.FullCommand():
-		err = a.GenerateKeys()
+		err = a.GenerateKeys(client)
 	case a.authExport.FullCommand():
 		err = a.ExportAuthorities(client)
 	case a.authSign.FullCommand():
@@ -176,13 +181,26 @@ func (a *AuthCommand) ExportAuthorities(client *auth.TunClient) error {
 }
 
 // GenerateKeys generates a new keypair
-func (a *AuthCommand) GenerateKeys() error {
+func (a *AuthCommand) GenerateKeys(clusterApi *auth.TunClient) error {
 	keygen := native.New()
 	defer keygen.Close()
+
 	privBytes, pubBytes, err := keygen.GenerateKeyPair("")
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	cn, err := clusterApi.GetClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	clusterName := cn.GetClusterName()
+
+	certBytes, err := clusterApi.GenerateHostCert(pubBytes, a.principal, a.principal, clusterName, teleport.Roles{teleport.RoleNode}, 0)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	err = ioutil.WriteFile(a.genPubPath, pubBytes, 0600)
 	if err != nil {
 		return trace.Wrap(err)
@@ -193,7 +211,12 @@ func (a *AuthCommand) GenerateKeys() error {
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("wrote public key to: %v and private key to: %v\n", a.genPubPath, a.genPrivPath)
+	err = ioutil.WriteFile(a.genCertPath, certBytes, 0600)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("wrote public key to: %v, private key to: %v, certificate to: %v\n", a.genPubPath, a.genPrivPath, a.genCertPath)
 	return nil
 }
 
