@@ -87,6 +87,7 @@ func (s *AuthSuite) GenerateUserCert(c *C) {
 		AllowedLogins:       []string{"centos", "root"},
 		TTL:                 time.Hour,
 		PermitAgentForwarding: true,
+		PermitPortForwarding:  true,
 	})
 	c.Assert(err, IsNil)
 
@@ -100,6 +101,7 @@ func (s *AuthSuite) GenerateUserCert(c *C) {
 		AllowedLogins:       []string{"root"},
 		TTL:                 -20,
 		PermitAgentForwarding: true,
+		PermitPortForwarding:  true,
 	})
 	c.Assert(err, NotNil)
 
@@ -109,7 +111,9 @@ func (s *AuthSuite) GenerateUserCert(c *C) {
 		Username:            "user",
 		AllowedLogins:       []string{"root"},
 		TTL:                 0,
-		PermitAgentForwarding: true})
+		PermitAgentForwarding: true,
+		PermitPortForwarding:  true,
+	})
 	c.Assert(err, NotNil)
 
 	_, err = s.A.GenerateUserCert(services.UserCertParams{
@@ -119,6 +123,7 @@ func (s *AuthSuite) GenerateUserCert(c *C) {
 		AllowedLogins:       []string{"root"},
 		TTL:                 time.Hour,
 		PermitAgentForwarding: true,
+		PermitPortForwarding:  true,
 	})
 	c.Assert(err, IsNil)
 
@@ -130,7 +135,8 @@ func (s *AuthSuite) GenerateUserCert(c *C) {
 		AllowedLogins:       []string{"root"},
 		TTL:                 time.Hour,
 		PermitAgentForwarding: true,
-		Roles: inRoles,
+		PermitPortForwarding:  true,
+		Roles:                 inRoles,
 	})
 	c.Assert(err, IsNil)
 	parsedKey, _, _, _, err := ssh.ParseAuthorizedKey(cert)

@@ -92,8 +92,8 @@ func (s *SessionRegistry) OpenSession(ch ssh.Channel, req *ssh.Request, ctx *Ser
 		s.srv.EmitAuditEvent(events.SessionJoinEvent, events.EventFields{
 			events.SessionEventID:  string(ctx.session.id),
 			events.EventNamespace:  s.srv.GetNamespace(),
-			events.EventLogin:      ctx.Login,
-			events.EventUser:       ctx.TeleportUser,
+			events.EventLogin:      ctx.Identity.Login,
+			events.EventUser:       ctx.Identity.TeleportUser,
 			events.LocalAddr:       ctx.Conn.LocalAddr().String(),
 			events.RemoteAddr:      ctx.Conn.RemoteAddr().String(),
 			events.SessionServerID: ctx.srv.ID(),
@@ -223,8 +223,8 @@ func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *S
 	s.srv.EmitAuditEvent(events.ResizeEvent, events.EventFields{
 		events.EventNamespace: s.srv.GetNamespace(),
 		events.SessionEventID: sid,
-		events.EventLogin:     ctx.Login,
-		events.EventUser:      ctx.TeleportUser,
+		events.EventLogin:     ctx.Identity.Login,
+		events.EventUser:      ctx.Identity.TeleportUser,
 		events.TerminalSize:   params.Serialize(),
 	})
 	err := ctx.session.term.SetWinSize(params)
@@ -317,7 +317,7 @@ type session struct {
 }
 
 // newSession creates a new session with a given ID within a given context.
-func newSession(id rsession.ID, r *SessionRegistry, context *ServerContext) (*session, error) {
+func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*session, error) {
 	serverSessions.Inc()
 	rsess := rsession.Session{
 		ID: id,
@@ -325,13 +325,13 @@ func newSession(id rsession.ID, r *SessionRegistry, context *ServerContext) (*se
 			W: teleport.DefaultTerminalWidth,
 			H: teleport.DefaultTerminalHeight,
 		},
-		Login:      context.Login,
+		Login:      ctx.Identity.Login,
 		Created:    time.Now().UTC(),
 		LastActive: time.Now().UTC(),
-		ServerID:   context.srv.ID(),
+		ServerID:   ctx.srv.ID(),
 		Namespace:  r.srv.GetNamespace(),
 	}
-	term := context.GetTerm()
+	term := ctx.GetTerm()
 	if term != nil {
 		winsize, err := term.GetWinSize()
 		if err != nil {
@@ -366,7 +366,7 @@ func newSession(id rsession.ID, r *SessionRegistry, context *ServerContext) (*se
 		registry:  r,
 		parties:   make(map[rsession.ID]*party),
 		writer:    newMultiWriter(),
-		login:     context.Login,
+		login:     ctx.Identity.Login,
 		closeC:    make(chan bool),
 		lingerTTL: defaults.SessionIdlePeriod,
 	}
@@ -587,8 +587,8 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 		events.EventNamespace:  ctx.srv.GetNamespace(),
 		events.SessionEventID:  string(s.id),
 		events.SessionServerID: ctx.srv.ID(),
-		events.EventLogin:      ctx.Login,
-		events.EventUser:       ctx.TeleportUser,
+		events.EventLogin:      ctx.Identity.Login,
+		events.EventUser:       ctx.Identity.TeleportUser,
 		events.LocalAddr:       ctx.Conn.LocalAddr().String(),
 		events.RemoteAddr:      ctx.Conn.RemoteAddr().String(),
 		events.TerminalSize:    params.Serialize(),
@@ -917,8 +917,8 @@ func (m *multiWriter) Write(p []byte) (n int, err error) {
 
 func newParty(s *session, ch ssh.Channel, ctx *ServerContext) *party {
 	return &party{
-		user:      ctx.TeleportUser,
-		login:     ctx.Login,
+		user:      ctx.Identity.TeleportUser,
+		login:     ctx.Identity.Login,
 		serverID:  s.registry.srv.ID(),
 		site:      ctx.Conn.RemoteAddr().String(),
 		id:        rsession.NewID(),

@@ -103,6 +103,9 @@ func (n *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
 	if c.PermitAgentForwarding {
 		cert.Permissions.Extensions[teleport.CertExtensionPermitAgentForwarding] = ""
 	}
+	if !c.PermitPortForwarding {
+		delete(cert.Permissions.Extensions, teleport.CertExtensionPermitPortForwarding)
+	}
 	if len(c.Roles) != 0 {
 		roles, err := services.MarshalCertRoles(c.Roles)
 		if err != nil {

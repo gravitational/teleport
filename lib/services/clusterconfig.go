@@ -36,16 +36,22 @@ type ClusterConfig interface {
 	Resource
 
 	// GetSessionRecording gets where the session is being recorded.
-	GetSessionRecording() RecordingType
+	GetSessionRecording() string
 
 	// SetSessionRecording sets where the session is recorded.
-	SetSessionRecording(RecordingType)
+	SetSessionRecording(string)
 
 	// GetClusterID returns the unique cluster ID
 	GetClusterID() string
 
 	// SetClusterID sets the cluster ID
 	SetClusterID(string)
+
+	// GetProxyChecksHostKeys sets if the proxy will check host keys.
+	GetProxyChecksHostKeys() string
+
+	// SetProxyChecksHostKeys gets if the proxy will check host keys.
+	SetProxyChecksHostKeys(string)
 
 	// CheckAndSetDefaults checks and set default values for missing fields.
 	CheckAndSetDefaults() error
@@ -83,7 +89,8 @@ func DefaultClusterConfig() ClusterConfig {
 			Namespace: defaults.Namespace,
 		},
 		Spec: ClusterConfigSpecV3{
-			SessionRecording: RecordAtNode,
+			SessionRecording:    RecordAtNode,
+			ProxyChecksHostKeys: HostKeyCheckYes,
 		},
 	}
 }
@@ -103,27 +110,40 @@ type ClusterConfigV3 struct {
 	Spec ClusterConfigSpecV3 `json:"spec"`
 }
 
-// RecordingType holds where the session will be recorded.
-type RecordingType string
-
 const (
 	// RecordAtNode is the default. Sessions are recorded at Teleport nodes.
-	RecordAtNode RecordingType = "node"
+	RecordAtNode string = "node"
 
-	// RecordAtProxy enabled the recording proxy which intercepts and records all sessions.
-	RecordAtProxy RecordingType = "proxy"
+	// RecordAtProxy enables the recording proxy which intercepts and records
+	// all sessions.
+	RecordAtProxy string = "proxy"
 
 	// RecordOff is used to disable session recording completely.
-	RecordOff RecordingType = "off"
+	RecordOff string = "off"
+)
+
+const (
+	// HostKeyCheckYes is the default. The proxy will check the host key of the
+	// target node it connects to.
+	HostKeyCheckYes string = "yes"
+
+	// HostKeyCheckNo is used to disable host key checking. This is a insecure
+	// settings which makes MITM possible with no indications, use with caution.
+	HostKeyCheckNo string = "no"
 )
 
 // ClusterConfigSpecV3 is the actual data we care about for ClusterConfig.
 type ClusterConfigSpecV3 struct {
 	// SessionRecording controls where (or if) the session is recorded.
-	SessionRecording RecordingType `json:"session_recording"`
+	SessionRecording string `json:"session_recording"`
+
 	// ClusterID is the unique cluster ID that is set once during the first auth
 	// server startup.
 	ClusterID string `json:"cluster_id"`
+
+	// ProxyChecksHostKeys is used to control if the proxy will check host keys
+	// when in recording mode.
+	ProxyChecksHostKeys string `json:"proxy_checks_host_keys"`
 }
 
 // GetName returns the name of the cluster.
@@ -157,12 +177,12 @@ func (c *ClusterConfigV3) GetMetadata() Metadata {
 }
 
 // GetClusterConfig gets the name of the cluster.
-func (c *ClusterConfigV3) GetSessionRecording() RecordingType {
+func (c *ClusterConfigV3) GetSessionRecording() string {
 	return c.Spec.SessionRecording
 }
 
 // SetClusterConfig sets the name of the cluster.
-func (c *ClusterConfigV3) SetSessionRecording(s RecordingType) {
+func (c *ClusterConfigV3) SetSessionRecording(s string) {
 	c.Spec.SessionRecording = s
 }
 
@@ -176,6 +196,16 @@ func (c *ClusterConfigV3) SetClusterID(id string) {
 	c.Spec.ClusterID = id
 }
 
+// GetProxyChecksHostKeys sets if the proxy will check host keys.
+func (c *ClusterConfigV3) GetProxyChecksHostKeys() string {
+	return c.Spec.ProxyChecksHostKeys
+}
+
+// SetProxyChecksHostKeys sets if the proxy will check host keys.
+func (c *ClusterConfigV3) SetProxyChecksHostKeys(t string) {
+	c.Spec.ProxyChecksHostKeys = t
+}
+
 // CheckAndSetDefaults checks validity of all parameters and sets defaults.
 func (c *ClusterConfigV3) CheckAndSetDefaults() error {
 	// make sure we have defaults for all metadata fields
@@ -187,12 +217,22 @@ func (c *ClusterConfigV3) CheckAndSetDefaults() error {
 	if c.Spec.SessionRecording == "" {
 		c.Spec.SessionRecording = RecordAtNode
 	}
+	if c.Spec.ProxyChecksHostKeys == "" {
+		c.Spec.ProxyChecksHostKeys = HostKeyCheckYes
+	}
 
 	// check if the recording type is valid
-	all := []string{string(RecordAtNode), string(RecordAtProxy), string(RecordOff)}
-	ok := utils.SliceContainsStr(all, string(c.Spec.SessionRecording))
+	all := []string{RecordAtNode, RecordAtProxy, RecordOff}
+	ok := utils.SliceContainsStr(all, c.Spec.SessionRecording)
 	if !ok {
 		return trace.BadParameter("session_recording must either be: %v", strings.Join(all, ","))
+	}
+
+	// check if host key checking mode is valid
+	all = []string{HostKeyCheckYes, HostKeyCheckNo}
+	ok = utils.SliceContainsStr(all, c.Spec.ProxyChecksHostKeys)
+	if !ok {
+		return trace.BadParameter("proxy_checks_host_keys must be one of: %v", strings.Join(all, ","))
 	}
 
 	return nil
@@ -206,8 +246,8 @@ func (c *ClusterConfigV3) Copy() ClusterConfig {
 
 // String represents a human readable version of the cluster name.
 func (c *ClusterConfigV3) String() string {
-	return fmt.Sprintf("ClusterConfig(SessionRecording=%v, ClusterID=%v)",
-		c.Spec.SessionRecording, c.Spec.ClusterID)
+	return fmt.Sprintf("ClusterConfig(SessionRecording=%v, ClusterID=%v, ProxyChecksHostKeys=%v)",
+		c.Spec.SessionRecording, c.Spec.ClusterID, c.Spec.ProxyChecksHostKeys)
 }
 
 // ClusterConfigSpecSchemaTemplate is a template for ClusterConfig schema.
@@ -216,6 +256,9 @@ const ClusterConfigSpecSchemaTemplate = `{
   "additionalProperties": false,
   "properties": {
     "session_recording": {
+      "type": "string"
+    },
+    "proxy_checks_host_keys": {
       "type": "string"
     },
     "cluster_id": {

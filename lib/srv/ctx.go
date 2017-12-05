@@ -26,7 +26,9 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -55,17 +57,53 @@ type Server interface {
 	// startup is allowed.
 	PermitUserEnvironment() bool
 
-	// EmitAuditEvent an Audit Event from this server.
+	// EmitAuditEvent emits an Audit Event to the Auth Server.
 	EmitAuditEvent(string, events.EventFields)
 
-	// GetAuditLog returns the Audit Log for this server.
+	// GetAuditLog returns the Audit Log for this cluster.
 	GetAuditLog() events.IAuditLog
 
-	// GetAuthService returns an auth.AccessPoint for this server.
-	GetAuthService() auth.AccessPoint
+	// GetAccessPoint returns an auth.AccessPoint for this cluster.
+	GetAccessPoint() auth.AccessPoint
 
 	// GetSessionServer returns a session server.
 	GetSessionServer() rsession.Service
+}
+
+// IdentityContext holds all identity information associated with the user
+// logged on the connection.
+type IdentityContext struct {
+	// TeleportUser is the Teleport user associated with the connection.
+	TeleportUser string
+
+	// Login is the operating system user associated with the connection.
+	Login string
+
+	// Certificate is the SSH user certificate bytes marshalled in the OpenSSH
+	// authorized_keys format.
+	Certificate []byte
+
+	// CertAuthority is the Certificate Authority that signed the Certificate.
+	CertAuthority services.CertAuthority
+
+	// RoleSet is the roles this Teleport user is associated with. RoleSet is
+	// used to check RBAC permissions.
+	RoleSet services.RoleSet
+}
+
+// GetCertificate parses the SSH certificate bytes and returns a *ssh.Certificate.
+func (c IdentityContext) GetCertificate() (*ssh.Certificate, error) {
+	k, _, _, _, err := ssh.ParseAuthorizedKey(c.Certificate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cert, ok := k.(*ssh.Certificate)
+	if !ok {
+		return nil, trace.BadParameter("not a certificate")
+	}
+
+	return cert, nil
 }
 
 // SessionContext holds session specific context, such as SSH auth agents, PTYs,
@@ -106,6 +144,10 @@ type ServerContext struct {
 	// Conn is the underlying *ssh.ServerConn.
 	Conn *ssh.ServerConn
 
+	// Identity holds the identity of the user that is currently logged in on
+	// the Conn.
+	Identity IdentityContext
+
 	// ExecResultCh is a Go channel which will be used to send and receive the
 	// result of a "exec" request.
 	ExecResultCh chan ExecResult
@@ -113,12 +155,6 @@ type ServerContext struct {
 	// SubsystemResultCh is a Go channel which will be used to send and receive
 	// the result of a "subsystem" request.
 	SubsystemResultCh chan SubsystemResult
-
-	// TeleportUser is the Teleport user for the current session context.
-	TeleportUser string
-
-	// Login is the operating system user for the current session context.
-	Login string
 
 	// IsTestStub is set to true by tests.
 	IsTestStub bool
@@ -129,14 +165,18 @@ type ServerContext struct {
 	// ClusterName is the name of the cluster current user is authenticated with.
 	ClusterName string
 
-	// Certificate is the SSH user certificate bytes marshalled in the OpenSSH
-	// authorized_keys format.
-	Certificate []byte
+	// RemoteClient holds a SSH client to a remote server. Only used by the
+	// recording proxy.
+	RemoteClient *ssh.Client
+
+	// RemoteSession holds a SSH session to a remote server. Only used by the
+	// recording proxy.
+	RemoteSession *ssh.Session
 }
 
 // NewServerContext creates a new *ServerContext which is used to pass and
 // manage resources.
-func NewServerContext(srv Server, conn *ssh.ServerConn) *ServerContext {
+func NewServerContext(srv Server, conn *ssh.ServerConn, identityContext IdentityContext) *ServerContext {
 	ctx := &ServerContext{
 		id:                int(atomic.AddInt32(&ctxID, int32(1))),
 		env:               make(map[string]string),
@@ -144,10 +184,8 @@ func NewServerContext(srv Server, conn *ssh.ServerConn) *ServerContext {
 		Conn:              conn,
 		ExecResultCh:      make(chan ExecResult, 10),
 		SubsystemResultCh: make(chan SubsystemResult, 10),
-		TeleportUser:      conn.Permissions.Extensions[utils.CertTeleportUser],
 		ClusterName:       conn.Permissions.Extensions[utils.CertTeleportClusterName],
-		Certificate:       []byte(conn.Permissions.Extensions[utils.CertTeleportUserCertificate]),
-		Login:             conn.User(),
+		Identity:          identityContext,
 	}
 
 	ctx.Entry = log.WithFields(log.Fields{
@@ -155,27 +193,16 @@ func NewServerContext(srv Server, conn *ssh.ServerConn) *ServerContext {
 		trace.ComponentFields: log.Fields{
 			"local":        conn.LocalAddr(),
 			"remote":       conn.RemoteAddr(),
-			"login":        ctx.Login,
-			"teleportUser": ctx.TeleportUser,
+			"login":        ctx.Identity.Login,
+			"teleportUser": ctx.Identity.TeleportUser,
 			"id":           ctx.id,
 		},
 	})
 	return ctx
 }
 
-// GetCertificate parses the SSH certificate bytes and returns a *ssh.Certificate.
-func (c *ServerContext) GetCertificate() (*ssh.Certificate, error) {
-	k, _, _, _, err := ssh.ParseAuthorizedKey(c.Certificate)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cert, ok := k.(*ssh.Certificate)
-	if !ok {
-		return nil, trace.BadParameter("not a certificate")
-	}
-
-	return cert, nil
+func (c *ServerContext) GetServer() Server {
+	return c.srv
 }
 
 // CreateOrJoinSession will look in the SessionRegistry for the session ID. If
@@ -277,6 +304,7 @@ func (c *ServerContext) takeClosers() []io.Closer {
 	// this is done to avoid any operation holding the lock for too long
 	c.Lock()
 	defer c.Unlock()
+
 	closers := []io.Closer{}
 	if c.term != nil {
 		closers = append(closers, c.term)
@@ -315,21 +343,53 @@ func (c *ServerContext) SendSubsystemResult(r SubsystemResult) {
 	}
 }
 
+// ProxyPublicAddress tries to get the public address from the first
+// available proxy. if public_address is not set, fall back to the hostname
+// of the first proxy we get back.
+func (c *ServerContext) ProxyPublicAddress() string {
+	proxyHost := "<proxyhost>:3080"
+
+	if c.srv == nil {
+		return proxyHost
+	}
+
+	proxies, err := c.srv.GetAccessPoint().GetProxies()
+	if err != nil {
+		c.Errorf("Unable to retrieve proxy list: %v", err)
+	}
+
+	if len(proxies) > 0 {
+		proxyHost = proxies[0].GetPublicAddr()
+		if proxyHost == "" {
+			proxyHost = fmt.Sprintf("%v:%v", proxies[0].GetHostname(), defaults.HTTPListenPort)
+			c.Debugf("public_address not set for proxy, returning proxyHost: %q", proxyHost)
+		}
+	}
+
+	return proxyHost
+}
+
 func (c *ServerContext) String() string {
 	return fmt.Sprintf("ServerContext(%v->%v, user=%v, id=%v)", c.Conn.RemoteAddr(), c.Conn.LocalAddr(), c.Conn.User(), c.id)
 }
 
 func closeAll(closers ...io.Closer) error {
-	var err error
+	var errs []error
+
 	for _, cl := range closers {
 		if cl == nil {
 			continue
 		}
-		if e := cl.Close(); e != nil {
-			err = e
+
+		err := cl.Close()
+		if err == nil {
+			continue
 		}
+
+		errs = append(errs, err)
 	}
-	return err
+
+	return trace.NewAggregate(errs...)
 }
 
 type closerFunc func() error

@@ -138,7 +138,7 @@ func (t *TerminalHandler) resizePTYWindow(params session.TerminalParams) error {
 	}
 	_, err := t.sshSession.SendRequest(
 		// send SSH "window resized" SSH request:
-		sshutils.WindowChangeReq,
+		sshutils.WindowChangeRequest,
 		// no response needed
 		false,
 		ssh.Marshal(sshutils.WinChangeReqParams{

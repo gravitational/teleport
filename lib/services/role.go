@@ -91,7 +91,8 @@ func NewAdminRole() Role {
 		},
 		Spec: RoleSpecV3{
 			Options: RoleOptions{
-				MaxSessionTTL: NewDuration(defaults.MaxCertDuration),
+				MaxSessionTTL:  NewDuration(defaults.MaxCertDuration),
+				PortForwarding: true,
 			},
 			Allow: RoleConditions{
 				Namespaces: []string{defaults.Namespace},
@@ -137,7 +138,8 @@ func RoleForUser(u User) Role {
 		},
 		Spec: RoleSpecV3{
 			Options: RoleOptions{
-				MaxSessionTTL: NewDuration(defaults.MaxCertDuration),
+				MaxSessionTTL:  NewDuration(defaults.MaxCertDuration),
+				PortForwarding: true,
 			},
 			Allow: RoleConditions{
 				Namespaces: []string{defaults.Namespace},
@@ -209,6 +211,10 @@ const (
 
 	// MaxSessionTTL defines how long a SSH session can last for.
 	MaxSessionTTL = "max_session_ttl"
+
+	// PortForwarding defines if the certificate will have "permit-port-forwarding"
+	// in the certificate.
+	PortForwarding = "port_forwarding"
 )
 
 const (
@@ -488,7 +494,8 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 	// make sure we have defaults for all fields
 	if r.Spec.Options == nil {
 		r.Spec.Options = map[string]interface{}{
-			MaxSessionTTL: NewDuration(defaults.MaxCertDuration),
+			MaxSessionTTL:  NewDuration(defaults.MaxCertDuration),
+			PortForwarding: true,
 		}
 	}
 	if r.Spec.Allow.Namespaces == nil {
@@ -1150,7 +1157,8 @@ func (r *RoleV2) V3() *RoleV3 {
 		Metadata: r.Metadata,
 		Spec: RoleSpecV3{
 			Options: RoleOptions{
-				MaxSessionTTL: r.GetMaxSessionTTL(),
+				MaxSessionTTL:  r.GetMaxSessionTTL(),
+				PortForwarding: true,
 			},
 			Allow: RoleConditions{
 				Logins:     r.GetLogins(),
@@ -1239,6 +1247,9 @@ type AccessChecker interface {
 
 	// CanForwardAgents returns true if this role set offers capability to forward agents
 	CanForwardAgents() bool
+
+	// CanPortForward returns true if this RoleSet can forward ports.
+	CanPortForward() bool
 }
 
 // FromSpec returns new RoleSet created from spec
@@ -1449,6 +1460,20 @@ func (set RoleSet) CanForwardAgents() bool {
 			return false
 		}
 		if forwardAgent == true {
+			return true
+		}
+	}
+	return false
+}
+
+// CanPortForward returns true if a role in the RoleSet allows port forwarding.
+func (set RoleSet) CanPortForward() bool {
+	for _, role := range set {
+		portForwarding, err := role.GetOptions().GetBoolean(PortForwarding)
+		if err != nil {
+			return false
+		}
+		if portForwarding == true {
 			return true
 		}
 	}

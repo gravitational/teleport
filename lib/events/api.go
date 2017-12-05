@@ -86,9 +86,16 @@ const (
 	ExecEventCode    = "exitCode"
 	ExecEventError   = "exitError"
 
+	// SubsystemEvent is the result of the execution of a subsystem.
+	SubsystemEvent = "subsystem"
+	SubsystemName  = "name"
+	SubsystemError = "exitError"
+
 	// Port forwarding event
-	PortForwardEvent = "port"
-	PortForwardAddr  = "addr"
+	PortForwardEvent   = "port"
+	PortForwardAddr    = "addr"
+	PortForwardSuccess = "success"
+	PortForwardErr     = "error"
 
 	// AuthAttemptEvent is authentication attempt that either
 	// succeeded or failed based on event status

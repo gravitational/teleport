@@ -181,6 +181,7 @@ func (s *KeyStoreTestSuite) makeSignedKey(c *check.C, makeExpired bool) *Key {
 		AllowedLogins:       allowedLogins,
 		TTL:                 ttl,
 		PermitAgentForwarding: false,
+		PermitPortForwarding:  true,
 	})
 	c.Assert(err, check.IsNil)
 	return &Key{

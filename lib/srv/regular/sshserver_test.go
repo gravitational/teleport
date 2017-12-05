@@ -121,6 +121,13 @@ func (s *SrvSuite) SetUpTest(c *C) {
 		Access:    s.access,
 	})
 
+	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+		SessionRecording: services.RecordAtNode,
+	})
+	c.Assert(err, IsNil)
+	err = s.a.SetClusterConfig(clusterConfig)
+	c.Assert(err, IsNil)
+
 	// set cluster name
 	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
 		ClusterName: s.domainName,
@@ -257,10 +264,6 @@ func (s *SrvSuite) TestAgentForwardPermission(c *C) {
 
 // TestAgentForward tests agent forwarding via unix sockets
 func (s *SrvSuite) TestAgentForward(c *C) {
-	se, err := s.clt.NewSession()
-	c.Assert(err, IsNil)
-	defer se.Close()
-
 	roleName := services.RoleNameForUser(s.user)
 	role, err := s.a.GetRole(roleName)
 	c.Assert(err, IsNil)
@@ -269,6 +272,10 @@ func (s *SrvSuite) TestAgentForward(c *C) {
 	role.SetOptions(roleOptions)
 	err = s.a.UpsertRole(role, backend.Forever)
 	c.Assert(err, IsNil)
+
+	se, err := s.clt.NewSession()
+	c.Assert(err, IsNil)
+	defer se.Close()
 
 	err = agent.RequestAgentForwarding(se)
 	c.Assert(err, IsNil)
@@ -965,12 +972,6 @@ func (s *SrvSuite) TestServerAliveInterval(c *C) {
 // TestGlobalRequestRecordingProxy simulates sending a global out-of-band
 // recording-proxy@teleport.com request.
 func (s *SrvSuite) TestGlobalRequestRecordingProxy(c *C) {
-	// send request, since no cluster config is set, we should reply false to
-	// this request
-	ok, _, err := s.clt.SendRequest(teleport.RecordingProxyReqType, true, nil)
-	c.Assert(err, IsNil)
-	c.Assert(ok, Equals, false)
-
 	// set cluster config to record at the node
 	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
 		SessionRecording: services.RecordAtNode,
@@ -1055,7 +1056,7 @@ func newUpack(username string, allowedLogins []string, a *auth.AuthServer) (*upa
 		return nil, trace.Wrap(err)
 	}
 
-	ucert, err := a.GenerateUserCert(upub, user, allowedLogins, 0, true, teleport.CompatibilityNone)
+	ucert, err := a.GenerateUserCert(upub, user, allowedLogins, 0, true, true, teleport.CompatibilityNone)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

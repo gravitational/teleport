@@ -74,6 +74,8 @@ type UserCertParams struct {
 	AllowedLogins []string
 	// PermitAgentForwarding permits agent forwarding for this cert
 	PermitAgentForwarding bool
+	// PermitPortForwarding permits port forwarding.
+	PermitPortForwarding bool
 	// Roles is a list of roles assigned to this user
 	Roles []string
 	// Compatibility specifies OpenSSH compatibility flags.

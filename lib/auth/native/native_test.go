@@ -182,6 +182,7 @@ func (s *NativeSuite) TestUserCertCompatibility(c *C) {
 			Roles:                 []string{"foo"},
 			Compatibility:         tt.inCompatibility,
 			PermitAgentForwarding: true,
+			PermitPortForwarding:  true,
 		})
 		c.Assert(err, IsNil, comment)
 

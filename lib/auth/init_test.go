@@ -178,10 +178,6 @@ func (s *AuthInitSuite) TestAuthPreference(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		SessionRecording: services.RecordAtNode,
-	})
-	c.Assert(err, IsNil)
 	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
 		ClusterName: "me.localhost",
 	})
@@ -197,7 +193,7 @@ func (s *AuthInitSuite) TestAuthPreference(c *C) {
 		NodeName:       "foo",
 		Backend:        bk,
 		Authority:      testauthority.New(),
-		ClusterConfig:  clusterConfig,
+		ClusterConfig:  services.DefaultClusterConfig(),
 		ClusterName:    clusterName,
 		StaticTokens:   staticTokens,
 		AuthPreference: ap,
@@ -230,8 +226,8 @@ func (s *AuthInitSuite) TestClusterID(c *C) {
 		NodeName:      "foo",
 		Backend:       bk,
 		Authority:     testauthority.New(),
-		ClusterName:   clusterName,
 		ClusterConfig: services.DefaultClusterConfig(),
+		ClusterName:   clusterName,
 	})
 	c.Assert(err, IsNil)
 
@@ -247,8 +243,8 @@ func (s *AuthInitSuite) TestClusterID(c *C) {
 		NodeName:      "foo",
 		Backend:       bk,
 		Authority:     testauthority.New(),
-		ClusterName:   clusterName,
 		ClusterConfig: services.DefaultClusterConfig(),
+		ClusterName:   clusterName,
 	})
 	c.Assert(err, IsNil)
 

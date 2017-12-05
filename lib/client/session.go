@@ -316,7 +316,7 @@ func (ns *NodeSession) updateTerminalSize(s *ssh.Session) {
 			}
 			// send the new window size to the server
 			_, err = s.SendRequest(
-				sshutils.WindowChangeReq, false,
+				sshutils.WindowChangeRequest, false,
 				ssh.Marshal(sshutils.WinChangeReqParams{
 					W: uint32(winSize.Width),
 					H: uint32(winSize.Height),

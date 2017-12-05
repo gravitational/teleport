@@ -83,6 +83,18 @@ func (nc *PipeNetConn) SetWriteDeadline(t time.Time) error {
 	return nil
 }
 
+// DualPipeAddrConn creates a net.Pipe to connect a client and a server. The
+// two net.Conn instances are wrapped in an addrConn which holds the source and
+// destination addresses.
+func DualPipeNetConn(srcAddr net.Addr, dstAddr net.Addr) (*PipeNetConn, *PipeNetConn) {
+	server, client := net.Pipe()
+
+	serverConn := NewPipeNetConn(server, server, server, dstAddr, srcAddr)
+	clientConn := NewPipeNetConn(client, client, client, srcAddr, dstAddr)
+
+	return serverConn, clientConn
+}
+
 func SplitReaders(r1 io.Reader, r2 io.Reader) io.Reader {
 	reader, writer := io.Pipe()
 	go io.Copy(writer, r1)
