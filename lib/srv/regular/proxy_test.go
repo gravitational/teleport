@@ -17,6 +17,8 @@ limitations under the License.
 package regular
 
 import (
+	"github.com/gravitational/teleport/lib/srv"
+
 	"gopkg.in/check.v1"
 )
 
@@ -33,8 +35,10 @@ func (s *ProxyTestSuite) SetUpSuite(c *check.C) {
 }
 
 func (s *ProxyTestSuite) TestParseProxyRequest(c *check.C) {
+	ctx := &srv.ServerContext{}
+
 	// proxy request for a host:port
-	subsys, err := parseProxySubsys("proxy:host:22", s.srv)
+	subsys, err := parseProxySubsys("proxy:host:22", s.srv, ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(subsys, check.NotNil)
 	c.Assert(subsys.srv, check.Equals, s.srv)
@@ -43,7 +47,7 @@ func (s *ProxyTestSuite) TestParseProxyRequest(c *check.C) {
 	c.Assert(subsys.clusterName, check.Equals, "")
 
 	// similar request, just with '@' at the end (missing site)
-	subsys, err = parseProxySubsys("proxy:host:22@", s.srv)
+	subsys, err = parseProxySubsys("proxy:host:22@", s.srv, ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(subsys.srv, check.Equals, s.srv)
 	c.Assert(subsys.host, check.Equals, "host")
@@ -51,7 +55,7 @@ func (s *ProxyTestSuite) TestParseProxyRequest(c *check.C) {
 	c.Assert(subsys.clusterName, check.Equals, "")
 
 	// proxy request for just the sitename
-	subsys, err = parseProxySubsys("proxy:@moon", s.srv)
+	subsys, err = parseProxySubsys("proxy:@moon", s.srv, ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(subsys, check.NotNil)
 	c.Assert(subsys.srv, check.Equals, s.srv)
@@ -60,7 +64,7 @@ func (s *ProxyTestSuite) TestParseProxyRequest(c *check.C) {
 	c.Assert(subsys.clusterName, check.Equals, "moon")
 
 	// proxy request for the host:port@sitename
-	subsys, err = parseProxySubsys("proxy:station:100@moon", s.srv)
+	subsys, err = parseProxySubsys("proxy:station:100@moon", s.srv, ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(subsys, check.NotNil)
 	c.Assert(subsys.srv, check.Equals, s.srv)
@@ -69,7 +73,7 @@ func (s *ProxyTestSuite) TestParseProxyRequest(c *check.C) {
 	c.Assert(subsys.clusterName, check.Equals, "moon")
 
 	// proxy request for the host:port@namespace@cluster
-	subsys, err = parseProxySubsys("proxy:station:100@system@moon", s.srv)
+	subsys, err = parseProxySubsys("proxy:station:100@system@moon", s.srv, ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(subsys, check.NotNil)
 	c.Assert(subsys.srv, check.Equals, s.srv)
@@ -80,6 +84,8 @@ func (s *ProxyTestSuite) TestParseProxyRequest(c *check.C) {
 }
 
 func (s *ProxyTestSuite) TestParseBadRequests(c *check.C) {
+	ctx := &srv.ServerContext{}
+
 	testCases := []string{
 		// empty request
 		"proxy:",
@@ -92,7 +98,7 @@ func (s *ProxyTestSuite) TestParseBadRequests(c *check.C) {
 	}
 	for _, input := range testCases {
 		comment := check.Commentf("test case: %q", input)
-		_, err := parseProxySubsys(input, s.srv)
+		_, err := parseProxySubsys(input, s.srv, ctx)
 		c.Assert(err, check.NotNil, comment)
 	}
 }

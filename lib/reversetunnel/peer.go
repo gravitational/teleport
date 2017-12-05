@@ -12,7 +12,6 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
 */
 
 package reversetunnel
@@ -21,6 +20,8 @@ import (
 	"fmt"
 	"net"
 	"time"
+
+	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
@@ -117,7 +118,7 @@ func (p *clusterPeers) GetLastConnected() time.Time {
 // Dial is used to connect a requesting client (say, tsh) to an SSH server
 // located in a remote connected site, the connection goes through the
 // reverse proxy tunnel.
-func (p *clusterPeers) Dial(from, to net.Addr) (conn net.Conn, err error) {
+func (p *clusterPeers) Dial(from, to net.Addr, a agent.Agent) (conn net.Conn, err error) {
 	return nil, trace.ConnectionProblem(nil, "unable to dial, this proxy has not been discovered yet, try again later")
 }
 

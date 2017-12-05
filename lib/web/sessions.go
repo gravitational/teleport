@@ -200,7 +200,7 @@ func (c *SessionContext) newRemoteClient(site reversetunnel.RemoteSite) (auth.Cl
 
 		// first get a net.Conn (tcp connection) to the remote auth server. no
 		// authentication has occurred.
-		netConn, err = site.Dial(&srcAddr, &dstAddr)
+		netConn, err = site.Dial(&srcAddr, &dstAddr, nil)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
