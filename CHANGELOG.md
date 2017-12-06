@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.3.6
+
+This release contains a minor bugfix.
+
+#### Bug fixes
+
+* When returning a full trusted cluster schema, the extension schema was ignored [#1476](https://github.com/gravitational/teleport/pull/1476)
+
 ## 2.3.5
 
 This release is focused on fixing a few regressions in configuration and UI/UX.
@@ -24,7 +32,7 @@ This release is focused on fixing a few regressions in configuration and UI/UX.
 * Added CSRF protection to login endpoint. [#1356](https://github.com/gravitational/teleport/issues/1356)
 * Proxy subsystem handling is more robust. [#1336](https://github.com/gravitational/teleport/issues/1336)
 
-## 2.3 
+## 2.3
 
 This release focus was to increase Teleport user experience in the following areas:
 
@@ -41,7 +49,7 @@ This release focus was to increase Teleport user experience in the following are
 * CLI: `tsh login` supports exporting a user identity into a file to be used later with OpenSSH.
 * `tsh agent` command has been deprecated: users are expected to use native SSH Agents on their platforms.
 
-#### Teleport Enterprise 
+#### Teleport Enterprise
 
 * More granular RBAC rules [#1092](https://github.com/gravitational/teleport/issues/1092)
 * Role definitions now support templates. [#1120](https://github.com/gravitational/teleport/issues/1120)
@@ -142,7 +150,7 @@ This release focus was to increase Teleport user experience in the following are
 
 Teleport 2.0.5 contains a variety of security fixes. We strongly encourage anyone running Teleport 2.0.0 and above to upgrade to 2.0.5.
 
-The most pressing issues (a phishing attack which can potentially be used to extract plaintext credentials and an attack where an already authenticated user can escalate privileges) can be resolved by upgrading the web proxy. However, however all nodes need to be upgraded to mitigate all vulnerabilities. 
+The most pressing issues (a phishing attack which can potentially be used to extract plaintext credentials and an attack where an already authenticated user can escalate privileges) can be resolved by upgrading the web proxy. However, however all nodes need to be upgraded to mitigate all vulnerabilities.
 
 ### Bugfixes
 
@@ -286,8 +294,8 @@ certificates did not work correctly in this release due to #529
 ### Bugfixes
 
 * Wrong url to register new users. #497
-* Logged in users inherit Teleport supplemental groups bug security. #507 
-* Joining a session running on a trusted cluster does not work. #504 
+* Logged in users inherit Teleport supplemental groups bug security. #507
+* Joining a session running on a trusted cluster does not work. #504
 
 ## 1.0.4
 
