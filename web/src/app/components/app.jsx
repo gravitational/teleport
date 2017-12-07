@@ -15,8 +15,10 @@ limitations under the License.
 */
 
 import React, { Component } from 'react';
+import classnames from 'classnames';
 import { connect } from 'nuclear-js-react-addons';
 import appGetters from 'app/flux/app/getters';
+import { platform } from 'app/services/browser';
 import { refresh } from 'app/flux/app/actions';
 import NavLeftBar from './navLeftBar';
 import NotificationHost from './notificationHost.jsx';
@@ -34,13 +36,20 @@ class App extends Component {
       return <Indicator type={'bounce'} />
     }
 
+    
     if (isFailed) {
       return <Failed message={message}/>
     }
     
+    const className = classnames('grv-tlpt grv-flex grv-flex-row', {
+      '--isLinux': platform.isLinux,
+      '--isWin': platform.isWin,
+      '--isMac': platform.isMac      
+    })
+
     if (isSuccess) {
       return (
-        <div className="grv-tlpt grv-flex grv-flex-row">
+        <div className={className}>
           <AjaxPoller onFetch={refresh} time={4000}/>
           <NotificationHost />
           {this.props.CurrentSessionHost}
