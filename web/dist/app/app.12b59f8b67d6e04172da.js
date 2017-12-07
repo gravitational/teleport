@@ -53,7 +53,7 @@ webpackJsonp([0],[
 
 	var _actions2 = __webpack_require__(240);
 
-	__webpack_require__(544);
+	__webpack_require__(545);
 
 	function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key]; } } newObj.default = obj; return newObj; } }
 
@@ -18392,19 +18392,25 @@ webpackJsonp([0],[
 
 	var _react2 = _interopRequireDefault(_react);
 
+	var _classnames = __webpack_require__(258);
+
+	var _classnames2 = _interopRequireDefault(_classnames);
+
 	var _nuclearJsReactAddons = __webpack_require__(219);
 
 	var _getters = __webpack_require__(273);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
+	var _browser = __webpack_require__(531);
+
 	var _actions = __webpack_require__(284);
 
-	var _navLeftBar = __webpack_require__(531);
+	var _navLeftBar = __webpack_require__(532);
 
 	var _navLeftBar2 = _interopRequireDefault(_navLeftBar);
 
-	var _notificationHost = __webpack_require__(533);
+	var _notificationHost = __webpack_require__(534);
 
 	var _notificationHost2 = _interopRequireDefault(_notificationHost);
 
@@ -18467,10 +18473,16 @@ webpackJsonp([0],[
 	      return _react2.default.createElement(_msgPage.Failed, { message: message });
 	    }
 
+	    var className = (0, _classnames2.default)('grv-tlpt grv-flex grv-flex-row', {
+	      '--isLinux': _browser.platform.isLinux,
+	      '--isWin': _browser.platform.isWin,
+	      '--isMac': _browser.platform.isMac
+	    });
+
 	    if (isSuccess) {
 	      return _react2.default.createElement(
 	        'div',
-	        { className: 'grv-tlpt grv-flex grv-flex-row' },
+	        { className: className },
 	        _react2.default.createElement(_dataProvider2.default, { onFetch: _actions.refresh, time: 4000 }),
 	        _react2.default.createElement(_notificationHost2.default, null),
 	        this.props.CurrentSessionHost,
@@ -18496,6 +18508,40 @@ webpackJsonp([0],[
 
 /***/ }),
 /* 531 */
+/***/ (function(module, exports) {
+
+	'use strict';
+
+	exports.__esModule = true;
+	/*
+	Copyright 2015 Gravitational, Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	    http://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+	*/
+
+	function detectPlatform() {
+	  var userAgent = window.navigator.userAgent;
+	  return {
+	    isWin: userAgent.indexOf('Windows') >= 0,
+	    isMac: userAgent.indexOf('Macintosh') >= 0,
+	    isLinux: userAgent.indexOf('Linux') >= 0
+	  };
+	}
+
+	var platform = exports.platform = detectPlatform();
+
+/***/ }),
+/* 532 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -18515,7 +18561,7 @@ webpackJsonp([0],[
 
 	var UserFlux = _interopRequireWildcard(_user);
 
-	var _appStore = __webpack_require__(532);
+	var _appStore = __webpack_require__(533);
 
 	var AppStore = _interopRequireWildcard(_appStore);
 
@@ -18602,7 +18648,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 532 */
+/* 533 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -18697,7 +18743,7 @@ webpackJsonp([0],[
 	});
 
 /***/ }),
-/* 533 */
+/* 534 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -18712,9 +18758,9 @@ webpackJsonp([0],[
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _getters = __webpack_require__(534);
+	var _getters = __webpack_require__(535);
 
-	var _reactToastr = __webpack_require__(535);
+	var _reactToastr = __webpack_require__(536);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -18781,7 +18827,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 534 */
+/* 535 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -18808,7 +18854,6 @@ webpackJsonp([0],[
 	}];
 
 /***/ }),
-/* 535 */,
 /* 536 */,
 /* 537 */,
 /* 538 */,
@@ -18817,7 +18862,8 @@ webpackJsonp([0],[
 /* 541 */,
 /* 542 */,
 /* 543 */,
-/* 544 */
+/* 544 */,
+/* 545 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -18826,11 +18872,11 @@ webpackJsonp([0],[
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _store = __webpack_require__(545);
+	var _store = __webpack_require__(546);
 
 	var _store2 = _interopRequireDefault(_store);
 
-	var _store3 = __webpack_require__(546);
+	var _store3 = __webpack_require__(547);
 
 	var _store4 = _interopRequireDefault(_store3);
 
@@ -18838,7 +18884,7 @@ webpackJsonp([0],[
 
 	var _store6 = _interopRequireDefault(_store5);
 
-	var _appStore = __webpack_require__(532);
+	var _appStore = __webpack_require__(533);
 
 	var _appStore2 = _interopRequireDefault(_appStore);
 
@@ -18846,7 +18892,7 @@ webpackJsonp([0],[
 
 	var _nodeStore2 = _interopRequireDefault(_nodeStore);
 
-	var _store7 = __webpack_require__(547);
+	var _store7 = __webpack_require__(548);
 
 	var _store8 = _interopRequireDefault(_store7);
 
@@ -18878,20 +18924,20 @@ webpackJsonp([0],[
 	  'tlpt_terminal': _store2.default,
 	  'tlpt_player': _store4.default,
 	  'tlpt_nodes': _nodeStore2.default,
-	  'tlpt_user': __webpack_require__(548),
-	  'tlpt_user_invite': __webpack_require__(549),
+	  'tlpt_user': __webpack_require__(549),
+	  'tlpt_user_invite': __webpack_require__(550),
 	  'tlpt_user_acl': _store6.default,
-	  'tlpt_sites': __webpack_require__(550),
+	  'tlpt_sites': __webpack_require__(551),
 	  'tlpt_status': _statusStore2.default,
-	  'tlpt_sessions_events': __webpack_require__(551),
-	  'tlpt_sessions_archived': __webpack_require__(552),
-	  'tlpt_sessions_active': __webpack_require__(553),
-	  'tlpt_sessions_filter': __webpack_require__(554),
-	  'tlpt_notifications': __webpack_require__(555)
+	  'tlpt_sessions_events': __webpack_require__(552),
+	  'tlpt_sessions_archived': __webpack_require__(553),
+	  'tlpt_sessions_active': __webpack_require__(554),
+	  'tlpt_sessions_filter': __webpack_require__(555),
+	  'tlpt_notifications': __webpack_require__(556)
 	});
 
 /***/ }),
-/* 545 */
+/* 546 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19019,7 +19065,7 @@ webpackJsonp([0],[
 	}
 
 /***/ }),
-/* 546 */
+/* 547 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19136,7 +19182,7 @@ webpackJsonp([0],[
 	}
 
 /***/ }),
-/* 547 */
+/* 548 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19216,7 +19262,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 548 */
+/* 549 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19290,7 +19336,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 549 */
+/* 550 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19339,7 +19385,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 550 */
+/* 551 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19389,7 +19435,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 551 */
+/* 552 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19447,7 +19493,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 552 */
+/* 553 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19545,7 +19591,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 553 */
+/* 554 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19660,7 +19706,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 554 */
+/* 555 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19716,7 +19762,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 555 */
+/* 556 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';

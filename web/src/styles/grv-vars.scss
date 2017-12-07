@@ -21,6 +21,11 @@ $gray-lighter: lighten($gray-base, 85.0%) !default; // #eee
 $input-bg-disabled: $gray-lighter;
 $fa-font-path: "~font-awesome/fonts";
 
+$grv-font-mono-linux: "Liberation Mono", "Droid Sans Mono", "monospace", monospace, "Droid Sans Fallback";
+$grv-font-mono-win: Consolas, "Courier New", monospace;
+$grv-font-mono-mac: Menlo, Monaco, "Courier New", monospace;
+$grv-font-mono: "Liberation Mono", "Andale Mono", Consolas, monospace;
+
 $grv-color-danger: #cc5965;
 $grv-color-bg-term: #252323;
 $grv-color-bg-inactive: #0D5849;

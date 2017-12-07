@@ -14,41 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-.grv-terminal {
- height: 100%;
- width: 100%;
-
- .terminal{
-   font-family: $grv-font-mono;
-   border: none;
-   font-size: inherit;
-   line-height: normal;
-
-  .xterm-viewport {
-    overflow-y: hidden;
-    background-color: #252323;       
+function detectPlatform() {
+  const userAgent = window.navigator.userAgent;
+  return {
+    isWin: userAgent.indexOf('Windows') >= 0,
+    isMac: userAgent.indexOf('Macintosh') >= 0,
+    isLinux: userAgent.indexOf('Linux') >= 0
   }
+}  
 
-   * {
-     font-weight: normal!important;
-   }
- }
-}
+export const platform = detectPlatform();
 
-.--isLinux {
-  .terminal{
-    font-family: $grv-font-mono-linux;
-  }
-}
-
-.--isWin {
-  .terminal{
-    font-family: $grv-font-mono-win;
-  }
-}
-
-.--isMac {
-  .terminal{
-    font-family: $grv-font-mono-mac;
-  }
-}
