@@ -22,24 +22,28 @@ package reversetunnel
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"sync"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/forward"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
-
 	"github.com/gravitational/trace"
+
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 )
 
 const (
@@ -135,6 +139,14 @@ type Agent struct {
 	// principals is the list of principals of the server this agent
 	// is currently connected to
 	principals []string
+
+	// agents is a map of agents forwarded from the remote site.
+	agents map[string]agent.Agent
+	// agentChannels are the SSH channels over which communication with the
+	// agent occurs.
+	agentChannels map[string]ssh.Channel
+	// agentsMu protects the agents and agentChannels maps from concurrent access.
+	agentsMu sync.Mutex
 }
 
 // NewAgent returns a new reverse tunnel agent
@@ -144,10 +156,12 @@ func NewAgent(cfg AgentConfig) (*Agent, error) {
 	}
 	ctx, cancel := context.WithCancel(cfg.Context)
 	a := &Agent{
-		AgentConfig: cfg,
-		ctx:         ctx,
-		cancel:      cancel,
-		authMethods: []ssh.AuthMethod{ssh.PublicKeys(cfg.Signers...)},
+		AgentConfig:   cfg,
+		ctx:           ctx,
+		cancel:        cancel,
+		authMethods:   []ssh.AuthMethod{ssh.PublicKeys(cfg.Signers...)},
+		agents:        make(map[string]agent.Agent),
+		agentChannels: make(map[string]ssh.Channel),
 	}
 	if len(cfg.DiscoverProxies) == 0 {
 		a.state = agentStateConnecting
@@ -346,9 +360,6 @@ func (a *Agent) proxyAccessPoint(ch ssh.Channel, req <-chan *ssh.Request) {
 // ch   : SSH channel which received "teleport-transport" out-of-band request
 // reqC : request payload
 func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
-	a.Debugf("proxyTransport")
-	defer ch.Close()
-
 	// always push space into stderr to make sure the caller can always
 	// safely call read(stderr) without blocking. this stderr is only used
 	// to request proxying of TCP/IP via reverse tunnel.
@@ -364,58 +375,123 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 			a.Infof("connection closed, returning")
 			return
 		}
+
+		switch req.Type {
+		case chanTransportDialReq:
+			a.processTransportDialReq(ch, req)
+		case chanTransportForwardReq:
+			a.processForwardReq(ch, req)
+		default:
+			a.Infof("Unknown request type: %v", req.Type)
+			return
+		}
 	case <-time.After(defaults.DefaultDialTimeout):
 		a.Warningf("timeout waiting for dial")
 		return
 	}
+}
 
-	server := string(req.Payload)
-	var servers []string
+// processForwardReq saves the agent in a in-memory that is used by the dial
+// request when connecting to the actual host. It's the responsibility of the
+// dial request handler to close the channel because only it knows when the
+// connection is complete.
+func (a *Agent) processForwardReq(channel ssh.Channel, req *ssh.Request) {
+	agentId := string(req.Payload)
 
-	// if the request is for the special string @remote-auth-server, then get the
-	// list of auth servers and return that. otherwise try and connect to the
-	// passed in server.
-	if server == RemoteAuthServer {
-		authServers, err := a.Client.GetAuthServers()
-		if err != nil {
-			a.Warningf("unable to find auth servers: %v", err)
-			return
-		}
-		for _, as := range authServers {
-			servers = append(servers, as.GetAddr())
-		}
-	} else {
-		servers = append(servers, server)
+	a.agentsMu.Lock()
+	a.agents[agentId] = agent.NewClient(channel)
+	a.agentChannels[agentId] = channel
+	a.agentsMu.Unlock()
+
+	// if requested, tell the other side that agent has been forwarded
+	if req.WantReply {
+		req.Reply(true, nil)
 	}
+	a.Debugf("Successfully forwarded agent %v", agentId)
+}
 
-	a.Debugf("got out of band request %v", servers)
-
+// processTransportDialReq builds and returns a net.Conn to the host within
+// this cluster.
+func (a *Agent) processTransportDialReq(ch ssh.Channel, req *ssh.Request) {
 	var conn net.Conn
 	var err error
 
-	// loop over all servers and try and connect to one of them
-	for _, s := range servers {
-		conn, err = net.Dial("tcp", s)
-		if err == nil {
-			break
+	// parse payload and find out what server to connect to and what agentId to
+	// use (if agent forwarding is requested).
+	server, agentId := parsePayload(req.Payload)
+
+	// make sure we close the agent once we are done as well as this channel
+	defer a.closeAgent(ch, req, server, agentId)
+	defer a.Debugf("Closing SSH channel used to dial to %v", server)
+	defer ch.Close()
+
+	// get cluster level config to figure out session recording mode
+	clusterConfig, err := a.Client.GetClusterConfig()
+	if err != nil {
+		replyError(ch, req, trace.Wrap(err))
+		return
+	}
+
+	switch {
+	// if the request is for the special string @remote-auth-server, the caller
+	// is requesting a net.Conn to the Auth Server on the remote cluster.
+	case server == RemoteAuthServer:
+		a.Debugf("Connecting to remote auth server")
+		conn, err = a.remoteAuthDial()
+	// if we are recording at the proxy, then find the ssh agent (which should be
+	// forwarded the agent already), create a forwarding ssh server, and return
+	// a connection to it
+	case clusterConfig.GetSessionRecording() == services.RecordAtProxy:
+		hostCertificate, err := getCertificate(server, a.Client)
+		if err != nil {
+			replyError(ch, req, trace.Wrap(err))
+			return
 		}
 
-		// log the reason we were not able to connect
-		log.Debugf(trace.DebugReport(err))
+		userAgent, ok := a.agents[agentId]
+		if !ok {
+			replyError(ch, req, trace.ConnectionProblem(nil, "unable to find agent"))
+			return
+		}
+
+		// create a remote server and serve a single ssh connections on it. note the
+		// source address here doesn't matter because the remotesite on the other
+		// side will wrap connection with the correct source address.
+		serverConfig := forward.ServerConfig{
+			AuthClient:      a.Client,
+			UserAgent:       userAgent,
+			Source:          "0.0.0.0:0",
+			Destination:     server,
+			HostCertificate: hostCertificate,
+		}
+		remoteServer, err := forward.New(serverConfig)
+		if err != nil {
+			replyError(ch, req, trace.Wrap(err))
+			return
+		}
+		go remoteServer.Serve()
+
+		a.Debugf("Connecting to forwarding node: %v", server)
+		conn, err = remoteServer.Dial()
+	// connect to a regular ssh server
+	default:
+		a.Debugf("Connecting to a regular SSH node: %v", server)
+		conn, err = net.Dial("tcp", server)
 	}
 
 	// if we were not able to connect to any server, write the last connection
 	// error to stderr of the caller (via SSH channel) so the error will be
 	// propagated all the way back to the client (most likely tsh)
 	if err != nil {
-		fmt.Fprint(ch.Stderr(), err.Error())
-		req.Reply(false, []byte(err.Error()))
+		replyError(ch, req, trace.Wrap(err))
 		return
 	}
 
 	// successfully dialed
-	req.Reply(true, []byte("connected"))
-	a.Debugf("successfully dialed to %v, start proxying", server)
+	if req.WantReply {
+		req.Reply(true, []byte("connected"))
+	}
+	a.Debugf("Successfully dialed to %v, start proxying", server)
 
 	wg := sync.WaitGroup{}
 	wg.Add(2)
@@ -435,6 +511,76 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 	}()
 
 	wg.Wait()
+}
+
+// closeAgent is called to close and delete the SSH agent that was forwarded
+// to the agent when the connection is complete.
+func (a *Agent) closeAgent(ch ssh.Channel, req *ssh.Request, server string, agentId string) {
+	if agentId != "" {
+		a.Debugf("Closing SSH channel and agent %v used to dial to %v", agentId, server)
+
+		agentChannel, ok := a.agentChannels[agentId]
+		if !ok {
+			replyError(ch, req, trace.BadParameter("unable to find agent"))
+			return
+		}
+		err := agentChannel.Close()
+		if err != nil {
+			replyError(ch, req, trace.Wrap(err))
+			return
+		}
+
+		a.agentsMu.Lock()
+		defer a.agentsMu.Unlock()
+
+		delete(a.agentChannels, agentId)
+		delete(a.agents, agentId)
+	}
+}
+
+// remoteAuthDial returns a net.Conn to the Auth Server on the remote cluster.
+func (a *Agent) remoteAuthDial() (net.Conn, error) {
+	authServers, err := a.Client.GetAuthServers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for _, as := range authServers {
+		conn, err := net.Dial("tcp", as.GetAddr())
+		if err == nil {
+			return conn, nil
+		}
+
+		// log the reason we were not able to connect
+		a.Debugf(trace.DebugReport(err))
+	}
+
+	return nil, trace.ConnectionProblem(nil, "unable to connect to any auth server")
+}
+
+// parsePayload parses the payload and returns the server and agentId to connect to.
+// Backward compatibility: Introduced: 2.4.0; Remove: Teleport 2.5.0.
+func parsePayload(payload []byte) (string, string) {
+	var dialReq dialReq
+
+	// try and unmarshal the request, if we were not able to unmarshal it, it's
+	// most likely an older cluster so we take whatever was given to us
+	err := json.Unmarshal(payload, &dialReq)
+	if err != nil {
+		return string(payload), ""
+	}
+
+	return dialReq.Server, dialReq.AgentId
+}
+
+// replyError writes the error to stderr as well as replies false if a
+// response was requested.
+func replyError(channel ssh.Channel, req *ssh.Request, err error) {
+	fmt.Fprint(channel.Stderr(), err.Error())
+
+	if req.WantReply {
+		req.Reply(false, []byte(err.Error()))
+	}
 }
 
 // run is the main agent loop, constantly tries to re-establish
@@ -578,10 +724,10 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 			if nch == nil {
 				continue
 			}
-			a.Debugf("transport request: %v", nch.ChannelType())
+			a.Debugf("Received new channel request: %v", nch.ChannelType())
 			ch, req, err := nch.Accept()
 			if err != nil {
-				a.Warningf("failed to accept request: %v", err)
+				a.Warningf("Failed to accept new channel request: %v", err)
 				continue
 			}
 			go a.proxyTransport(ch, req)
@@ -640,11 +786,12 @@ func (a *Agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 }
 
 const (
-	chanHeartbeat        = "teleport-heartbeat"
-	chanAccessPoint      = "teleport-access-point"
-	chanTransport        = "teleport-transport"
-	chanTransportDialReq = "teleport-transport-dial"
-	chanDiscovery        = "teleport-discovery"
+	chanHeartbeat           = "teleport-heartbeat"
+	chanAccessPoint         = "teleport-access-point"
+	chanTransport           = "teleport-transport"
+	chanTransportDialReq    = "teleport-transport-dial"
+	chanTransportForwardReq = "teleport-transport-forward"
+	chanDiscovery           = "teleport-discovery"
 )
 
 const (

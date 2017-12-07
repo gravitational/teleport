@@ -12,8 +12,8 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
 */
+
 package reversetunnel
 
 import (
@@ -22,9 +22,12 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/crypto/ssh/agent"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/forward"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -90,10 +93,57 @@ func (s *localSite) GetLastConnected() time.Time {
 	return time.Now()
 }
 
-// Dial dials a given host in this site (cluster).
-func (s *localSite) Dial(from net.Addr, to net.Addr) (net.Conn, error) {
-	s.log.Debugf("local.Dial(from=%v, to=%v)", from, to)
+func (s *localSite) Dial(from net.Addr, to net.Addr, a agent.Agent) (net.Conn, error) {
+	clusterConfig, err := s.accessPoint.GetClusterConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// if sessions are being recorded at the proxy AND an agent has been passed
+	// in, dial with the agent using a forwarding server. otherwise dial like
+	// normal. we need to do this because this same dial method is used to get
+	// a connectiont to the auth server.
+	if clusterConfig.GetSessionRecording() == services.RecordAtProxy && a != nil {
+		return s.dialWithAgent(from, to, a)
+	}
+	return s.dial(from, to)
+}
+
+func (s *localSite) dial(from net.Addr, to net.Addr) (net.Conn, error) {
+	s.log.Debugf("Dailing from %v to %v", from, to)
 	return net.Dial(to.Network(), to.String())
+}
+
+func (s *localSite) dialWithAgent(from net.Addr, to net.Addr, userAgent agent.Agent) (net.Conn, error) {
+	s.log.Debugf("Dialing with an agent from %v to %v", from, to)
+
+	// get a host certificate for the forwarding node
+	hostCertificate, err := getCertificate(to.String(), s.client)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// create a forwarding server and serve a single ssh connections on it
+	serverConfig := forward.ServerConfig{
+		AuthClient:      s.client,
+		UserAgent:       userAgent,
+		Source:          from.String(),
+		Destination:     to.String(),
+		HostCertificate: hostCertificate,
+	}
+	remoteServer, err := forward.New(serverConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	go remoteServer.Serve()
+
+	// return a connection to the forwarding server
+	conn, err := remoteServer.Dial()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return conn, nil
 }
 
 func findServer(addr string, servers []services.Server) (services.Server, error) {

@@ -963,7 +963,7 @@ func (s *Server) parseSubsystemRequest(req *ssh.Request, ctx *srv.ServerContext)
 		return nil, fmt.Errorf("failed to parse subsystem request, error: %v", err)
 	}
 	if s.proxyMode && strings.HasPrefix(r.Name, "proxy:") {
-		return parseProxySubsys(r.Name, s)
+		return parseProxySubsys(r.Name, s, ctx)
 	}
 	if s.proxyMode && strings.HasPrefix(r.Name, "proxysites") {
 		return parseProxySitesSubsys(r.Name, s)
