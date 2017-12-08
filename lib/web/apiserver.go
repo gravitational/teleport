@@ -237,7 +237,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 			return nil, trace.BadParameter("failed parsing index.html template: %v", err)
 		}
 
-		h.Handle("GET", "/web/config.js", httplib.MakeHandler(h.getConfigurationSettings))
+		h.Handle("GET", "/web/config.js", httplib.MakeHandler(h.getWebConfig))
 	}
 
 	routingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -511,24 +511,54 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	return nil, trace.BadParameter("invalid connector name %v", connectorName)
 }
 
-type webConfig struct {
-	// Auth contains the forms of authentication the auth server supports.
-	Auth *client.AuthenticationSettings `json:"auth,omitempty"`
-
-	// ServerVersion is the version of Teleport that is running.
-	ServerVersion string `json:"serverVersion"`
-}
-
-// getConfigurationSettings returns configuration for the web application.
-func (h *Handler) getConfigurationSettings(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+// getWebConfig returns configuration for the web application.
+func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	httplib.SetWebConfigHeaders(w.Header())
-	as, err := defaultAuthenticationSettings(h.cfg.ProxyClient)
+
+	oidcProviders := []ui.WebConfigAuthProvider{}
+	samlProviders := []ui.WebConfigAuthProvider{}
+	secondFactor := teleport.OFF
+
+	// get all OIDC connectors
+	oidcConnectors, err := h.cfg.ProxyClient.GetOIDCConnectors(false)
 	if err != nil {
-		log.Infof("Cannot retrieve cluster auth preferences: %v", err)
+		log.Infof("Cannot retrieve OIDC connectors: %v", err)
+	}
+	for _, item := range oidcConnectors {
+		oidcProviders = append(oidcProviders, ui.WebConfigAuthProvider{
+			Name:        item.GetName(),
+			DisplayName: item.GetDisplay(),
+		})
 	}
 
-	webCfg := webConfig{
-		Auth:          &as,
+	// get all SAML connectors
+	samlConnectors, err := h.cfg.ProxyClient.GetSAMLConnectors(false)
+	if err != nil {
+		log.Infof("Cannot retrieve SAML connectors: %v", err)
+	}
+	for _, item := range samlConnectors {
+		samlProviders = append(samlProviders, ui.WebConfigAuthProvider{
+			Name:        item.GetName(),
+			DisplayName: item.GetDisplay(),
+		})
+	}
+
+	// get second factor type
+	cap, err := h.cfg.ProxyClient.GetAuthPreference()
+	if err != nil {
+		log.Infof("Cannot retrieve AuthPreferences: %v", err)
+	} else {
+		secondFactor = cap.GetSecondFactor()
+	}
+
+	authSettings := ui.WebConfigAuthSettings{
+		OIDC:         oidcProviders,
+		SAML:         samlProviders,
+		SecondFactor: secondFactor,
+	}
+
+	webCfg := ui.WebConfig{
+		Auth:          authSettings,
 		ServerVersion: teleport.Version,
 	}
 
