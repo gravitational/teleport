@@ -14,22 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import 'jQuery';
-import 'perfect-scrollbar/jquery';
-import 'xterm/dist/xterm';
-import 'lodash';
-import 'bootstrap-sass/assets/javascripts/bootstrap';
-import './../assets/js/jquery-validate';
-import './../assets/js/datepicker';
-import 'buffer';
-import 'classnames';
-import 'keymirror';
-import 'moment';
-import 'nuclear-js';
-import 'react';
-import 'react-addons-transition-group';
-import 'react-addons-css-transition-group';
-import 'react-dom';
-import 'react-router';
-import 'react-slider';
-import 'react-overlays';
+import React from 'react';
+
+export const ErrorIndicator = ({ text }) => (
+  <div className="grv-terminalhost-indicator-error">
+    <i className="fa fa-exclamation-triangle fa-3x text-warning"></i>
+    <div className="m-l">
+      <strong>Error</strong>
+      <div><small>{text}</small></div>
+    </div>
+  </div>
+)

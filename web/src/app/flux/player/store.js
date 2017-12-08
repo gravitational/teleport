@@ -57,6 +57,10 @@ export class PlayerRec extends Record({
   }
   
   getStoredSessionUrl() {
+    if (!this.isReady()) {
+      return '';
+    }
+
     return cfg.api.getFetchSessionUrl({
       siteId: this.siteId,
       sid: this.sid

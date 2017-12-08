@@ -21,7 +21,6 @@ import appGetters from 'app/flux/app/getters';
 import { platform } from 'app/services/browser';
 import { refresh } from 'app/flux/app/actions';
 import NavLeftBar from './navLeftBar';
-import NotificationHost from './notificationHost.jsx';
 import AjaxPoller from './dataProvider.jsx';
 import { Failed } from './msgPage.jsx';
 import Indicator from './indicator.jsx';
@@ -50,8 +49,7 @@ class App extends Component {
     if (isSuccess) {
       return (
         <div className={className}>
-          <AjaxPoller onFetch={refresh} time={4000}/>
-          <NotificationHost />
+          <AjaxPoller onFetch={refresh} time={4000}/>          
           {this.props.CurrentSessionHost}
           <NavLeftBar router={router}/>
           {this.props.children}

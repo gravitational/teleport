@@ -29,7 +29,6 @@
     "react-overlays": "^0.6.11",
     "react-router": "3.0.1",
     "react-slider": "0.6.1",
-    "react-toastr": "2.4.0",
     "u2f-api-polyfill": "^0.4.3",
     "xterm": "2.4.0"
   },
