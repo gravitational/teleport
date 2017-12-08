@@ -143,8 +143,8 @@ const cfg = {
   },
 
   getAuthProviders() {            
-    let oidc = cfg.auth && cfg.auth.oidc ? [cfg.auth.oidc] : [];  
-    let saml = cfg.auth && cfg.auth.saml ? [cfg.auth.saml] : [];  
+    let oidc = cfg.auth && cfg.auth.oidc ? cfg.auth.oidc : [];  
+    let saml = cfg.auth && cfg.auth.saml ? cfg.auth.saml : [];  
     // create provider objects
     let providers = [
       ...oidc.map(createProvider(AuthProviderTypeEnum.OIDC)),
@@ -173,7 +173,7 @@ const cfg = {
 
 const createProvider = type => item => ({
   name: item.name,
-  display: item.display,
+  display: item.displayName,
   type
 })
 

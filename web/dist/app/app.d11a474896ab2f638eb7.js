@@ -1325,8 +1325,8 @@ webpackJsonp([0],[
 	    return (0, _patternUtils.formatPattern)(cfg.routes.currentSession, { sid: sid, siteId: siteId });
 	  },
 	  getAuthProviders: function getAuthProviders() {
-	    var oidc = cfg.auth && cfg.auth.oidc ? [cfg.auth.oidc] : [];
-	    var saml = cfg.auth && cfg.auth.saml ? [cfg.auth.saml] : [];
+	    var oidc = cfg.auth && cfg.auth.oidc ? cfg.auth.oidc : [];
+	    var saml = cfg.auth && cfg.auth.saml ? cfg.auth.saml : [];
 	    // create provider objects
 	    var providers = [].concat(oidc.map(createProvider(_enums.AuthProviderTypeEnum.OIDC)), saml.map(createProvider(_enums.AuthProviderTypeEnum.SAML)));
 
@@ -1352,7 +1352,7 @@ webpackJsonp([0],[
 	  return function (item) {
 	    return {
 	      name: item.name,
-	      display: item.display,
+	      display: item.displayName,
 	      type: type
 	    };
 	  };
