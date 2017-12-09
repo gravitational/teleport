@@ -49,8 +49,13 @@ type server struct {
 	sync.RWMutex
 	Config
 
-	// localAuth points to the cluster's auth server API
-	localAuth       auth.AccessPoint
+	// localAuthClient provides access to the full Auth Server API for the
+	// local cluster.
+	localAuthClient auth.ClientI
+	// localAccessPoint provides access to a cached subset of the Auth
+	// Server API.
+	localAccessPoint auth.AccessPoint
+
 	hostCertChecker ssh.CertChecker
 	userCertChecker ssh.CertChecker
 
@@ -100,8 +105,12 @@ type Config struct {
 	// HostKeyCallback
 	// Limiter is optional request limiter
 	Limiter *limiter.Limiter
-	// AccessPoint is access point
-	AccessPoint auth.AccessPoint
+	// LocalAuthClient provides access to a full AuthClient for the local cluster.
+	LocalAuthClient auth.ClientI
+	// AccessPoint provides access to a subset of AuthClient of the cluster.
+	// AccessPoint caches values and can still return results during connection
+	// problems.
+	LocalAccessPoint auth.AccessPoint
 	// NewCachingAccessPoint returns new caching access points
 	// per remote cluster
 	NewCachingAccessPoint state.NewCachingAccessPoint
@@ -146,15 +155,16 @@ func NewServer(cfg Config) (Server, error) {
 	}
 	ctx, cancel := context.WithCancel(cfg.Context)
 	srv := &server{
-		Config:         cfg,
-		localSites:     []*localSite{},
-		remoteSites:    []*remoteSite{},
-		localAuth:      cfg.AccessPoint,
-		newAccessPoint: cfg.NewCachingAccessPoint,
-		limiter:        cfg.Limiter,
-		ctx:            ctx,
-		cancel:         cancel,
-		clusterPeers:   make(map[string]*clusterPeers),
+		Config:           cfg,
+		localSites:       []*localSite{},
+		remoteSites:      []*remoteSite{},
+		localAuthClient:  cfg.LocalAuthClient,
+		localAccessPoint: cfg.LocalAccessPoint,
+		newAccessPoint:   cfg.NewCachingAccessPoint,
+		limiter:          cfg.Limiter,
+		ctx:              ctx,
+		cancel:           cancel,
+		clusterPeers:     make(map[string]*clusterPeers),
 		Entry: log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentReverseTunnelServer,
 		}),
@@ -215,7 +225,7 @@ func (s *server) periodicFetchClusterPeers() {
 // peer map. This map is used later by GetSite(s) to return either local or
 // remote site, or if non match, a cluster peer.
 func (s *server) fetchClusterPeers() error {
-	conns, err := s.AccessPoint.GetAllTunnelConnections()
+	conns, err := s.LocalAccessPoint.GetAllTunnelConnections()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -414,7 +424,7 @@ func (s *server) isUserAuthority(auth ssh.PublicKey) bool {
 }
 
 func (s *server) getTrustedCAKeys(CertType services.CertAuthType) ([]ssh.PublicKey, error) {
-	cas, err := s.localAuth.GetCertAuthorities(CertType, false)
+	cas, err := s.localAccessPoint.GetCertAuthorities(CertType, false)
 	if err != nil {
 		return nil, err
 	}
@@ -430,7 +440,7 @@ func (s *server) getTrustedCAKeys(CertType services.CertAuthType) ([]ssh.PublicK
 }
 
 func (s *server) checkTrustedKey(CertType services.CertAuthType, domainName string, key ssh.PublicKey) error {
-	cas, err := s.localAuth.GetCertAuthorities(CertType, false)
+	cas, err := s.localAccessPoint.GetCertAuthorities(CertType, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -709,18 +719,37 @@ func newRemoteSite(srv *server, domainName string) (*remoteSite, error) {
 	remoteSite.transport = &http.Transport{
 		Dial: remoteSite.dialAccessPoint,
 	}
+
+	// configure access to the full Auth Server API and the cached subset for
+	// the local cluster within which reversetunnel.Server is running.
+	remoteSite.localClient = srv.localAuthClient
+	remoteSite.localAccessPoint = srv.localAccessPoint
+
+	// configure access to the full Auth Server API for the remote cluster that
+	// this remote site provides access to.
 	clt, err := auth.NewClient("http://stub:0", remoteSite.dialAccessPoint)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	remoteSite.clt = clt
+	remoteSite.remoteClient = clt
 
+	// configure access to the cached subset of the Auth Server API of the remote
+	// cluster this remote site provides access to.
 	accessPoint, err := srv.newAccessPoint(clt, []string{"reverse", domainName})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	remoteSite.remoteAccessPoint = accessPoint
 
-	remoteSite.accessPoint = accessPoint
+	// instantiate a cache of host certificates for the forwarding server. the
+	// certificate cache is created in each site (instead of creating it in
+	// reversetunnel.server and passing it along) so that the host certificate
+	// is signed by the correct certificate authority.
+	certificateCache, err := NewHostCertificateCache(clt)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	remoteSite.certificateCache = certificateCache
 
 	go remoteSite.periodicSendDiscoveryRequests()
 

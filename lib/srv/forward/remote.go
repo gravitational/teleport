@@ -17,6 +17,8 @@ limitations under the License.
 package forward
 
 import (
+	"net"
+
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
@@ -28,7 +30,7 @@ import (
 
 // newRemoteSession will create and return a *ssh.Client and *ssh.Session
 // with a remote host.
-func newRemoteSession(dstAddr string, systemLogin string, userAgent agent.Agent, authHandlers *srv.AuthHandlers) (*ssh.Client, *ssh.Session, error) {
+func newRemoteSession(conn net.Conn, dstAddr string, systemLogin string, userAgent agent.Agent, authHandlers *srv.AuthHandlers) (*ssh.Client, *ssh.Session, error) {
 	// the proxy will use the agent that has been forwarded to it as the auth
 	// method when connecting to the remote host
 	if userAgent == nil {
@@ -45,7 +47,7 @@ func newRemoteSession(dstAddr string, systemLogin string, userAgent agent.Agent,
 		Timeout:         defaults.DefaultDialTimeout,
 	}
 
-	client, err := proxy.DialWithDeadline("tcp", dstAddr, clientConfig)
+	client, err := proxy.NewClientConnWithDeadline(conn, dstAddr, clientConfig)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

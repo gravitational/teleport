@@ -735,7 +735,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	// make a caching auth client for the auth server:
-	authClient, err := process.newLocalCache(conn.Client, []string{"proxy"})
+	accessPoint, err := process.newLocalCache(conn.Client, []string{"proxy"})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -745,7 +745,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ID:                    process.Config.HostUUID,
 			ListenAddr:            cfg.Proxy.ReverseTunnelListenAddr,
 			HostSigners:           []ssh.Signer{conn.Identity.KeySigner},
-			AccessPoint:           authClient,
+			LocalAuthClient:       conn.Client,
+			LocalAccessPoint:      accessPoint,
 			NewCachingAccessPoint: process.newLocalCache,
 			Limiter:               reverseTunnelLimiter,
 			DirectClusters: []reversetunnel.DirectCluster{
@@ -762,7 +763,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	SSHProxy, err := regular.New(cfg.Proxy.SSHAddr,
 		cfg.Hostname,
 		[]ssh.Signer{conn.Identity.KeySigner},
-		authClient,
+		accessPoint,
 		cfg.DataDir,
 		nil,
 		cfg.Proxy.PublicAddr,
@@ -782,7 +783,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	agentPool, err := reversetunnel.NewAgentPool(reversetunnel.AgentPoolConfig{
 		HostUUID:    conn.Identity.ID.HostUUID,
 		Client:      conn.Client,
-		AccessPoint: authClient,
+		AccessPoint: accessPoint,
 		HostSigners: []ssh.Signer{conn.Identity.KeySigner},
 		Cluster:     conn.Identity.Cert.Extensions[utils.CertExtensionAuthority],
 	})

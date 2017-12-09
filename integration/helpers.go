@@ -296,6 +296,8 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 	}
 	tconf.Keygen = testauthority.New()
 
+	tconf.Auth.ClusterConfig = services.DefaultClusterConfig()
+
 	i.Config = tconf
 	i.Process, err = service.NewTeleport(tconf)
 	if err != nil {
