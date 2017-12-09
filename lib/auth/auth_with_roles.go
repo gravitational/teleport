@@ -427,12 +427,12 @@ func (a *AuthWithRoles) GenerateKeyPair(pass string) ([]byte, []byte, error) {
 }
 
 func (a *AuthWithRoles) GenerateHostCert(
-	key []byte, hostID, nodeName, clusterName string, roles teleport.Roles, ttl time.Duration) ([]byte, error) {
+	key []byte, hostID, nodeName string, principals []string, clusterName string, roles teleport.Roles, ttl time.Duration) ([]byte, error) {
 
 	if err := a.action(defaults.Namespace, services.KindHostCert, services.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GenerateHostCert(key, hostID, nodeName, clusterName, roles, ttl)
+	return a.authServer.GenerateHostCert(key, hostID, nodeName, principals, clusterName, roles, ttl)
 }
 
 func (a *AuthWithRoles) GenerateUserCert(key []byte, username string, ttl time.Duration, compatibility string) ([]byte, error) {

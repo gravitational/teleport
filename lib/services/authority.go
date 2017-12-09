@@ -23,6 +23,8 @@ type HostCertParams struct {
 	PublicHostKey []byte
 	// HostID is used by Teleport to uniquely identify a node within a cluster
 	HostID string
+	// Principals is a list of additional principals to add to the certificate.
+	Principals []string
 	// NodeName is the DNS name of the node
 	NodeName string
 	// ClusterName is the name of the cluster within which a node lives
@@ -34,9 +36,12 @@ type HostCertParams struct {
 }
 
 func (c *HostCertParams) Check() error {
-	if c.HostID == "" || c.ClusterName == "" {
-		return trace.BadParameter("HostID [%q] and ClusterName [%q] are required",
-			c.HostID, c.ClusterName)
+	if c.HostID == "" && len(c.Principals) == 0 {
+		return trace.BadParameter("HostID [%q] or Principals [%q] are required",
+			c.HostID, c.Principals)
+	}
+	if c.ClusterName == "" {
+		return trace.BadParameter("ClusterName [%q] is required", c.ClusterName)
 	}
 
 	if err := c.Roles.Check(); err != nil {

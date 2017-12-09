@@ -56,7 +56,7 @@ const (
 
 // MakeIdentityFile takes a username + his credentials and saves them to disk
 // in a specified format
-func MakeIdentityFile(username, filePath string, key *Key, format IdentityFileFormat) (err error) {
+func MakeIdentityFile(filePath string, key *Key, format IdentityFileFormat) (err error) {
 	const (
 		// the files and the dir will be created with these permissions:
 		fileMode = 0600
@@ -65,9 +65,6 @@ func MakeIdentityFile(username, filePath string, key *Key, format IdentityFileFo
 
 	if filePath == "" {
 		return trace.BadParameter("identity location is not specified")
-	}
-	if username == "" {
-		return trace.BadParameter("identity name is not specified")
 	}
 
 	var output io.Writer = os.Stdout

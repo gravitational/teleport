@@ -120,7 +120,9 @@ func (s *TunSuite) SetUpTest(c *C) {
 	hpriv, hpub, err := s.a.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 	s.hostuuid = "00000000-0000-0000-0000-000000000000"
-	hcert, err := s.a.GenerateHostCert(hpub, s.hostuuid, "localhost", "localhost", teleport.Roles{teleport.RoleProxy}, 0)
+	hcert, err := s.a.GenerateHostCert(hpub,
+		s.hostuuid, "localhost", nil,
+		"localhost", teleport.Roles{teleport.RoleProxy}, 0)
 	c.Assert(err, IsNil)
 
 	authorizer, err := NewAuthorizer(s.a.Access, s.a.Identity, s.a.Trust)
@@ -219,7 +221,9 @@ func (s *TunSuite) TestClusterConfigContext(c *C) {
 
 	// try and generate a host cert, this should fail because we are recording
 	// at the nodes not at the proxy
-	_, err = clt.GenerateHostCert(hpub, "a", "b", "localhost", teleport.Roles{teleport.RoleProxy}, 0)
+	_, err = clt.GenerateHostCert(hpub,
+		"a", "b", nil,
+		"localhost", teleport.Roles{teleport.RoleProxy}, 0)
 	c.Assert(err, NotNil)
 
 	// update cluster config to record at the proxy
@@ -236,7 +240,9 @@ func (s *TunSuite) TestClusterConfigContext(c *C) {
 
 	// try and generate a host cert, now the proxy should be able to generate a
 	// host cert because it's in recording mode.
-	_, err = clt.GenerateHostCert(hpub, "a", "b", "localhost", teleport.Roles{teleport.RoleProxy}, 0)
+	_, err = clt.GenerateHostCert(hpub,
+		"a", "b", nil,
+		"localhost", teleport.Roles{teleport.RoleProxy}, 0)
 	c.Assert(err, IsNil)
 }
 

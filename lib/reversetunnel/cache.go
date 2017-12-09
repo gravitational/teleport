@@ -135,8 +135,8 @@ func (c *certificateCache) generateHostCert(principal string) (ssh.Signer, error
 		return nil, trace.Wrap(err)
 	}
 	certBytes, err := c.authClient.GenerateHostCert(pubBytes,
-		principal, principal, clusterName,
-		teleport.Roles{teleport.RoleNode}, 0)
+		principal, principal, nil,
+		clusterName, teleport.Roles{teleport.RoleNode}, 0)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
