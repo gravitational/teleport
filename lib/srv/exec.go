@@ -76,6 +76,15 @@ type Exec interface {
 
 // NewExecRequest creates a new local or remote Exec.
 func NewExecRequest(ctx *ServerContext, command string) (Exec, error) {
+	// doesn't matter what mode the cluster is in, if this is a teleport node
+	// return a local *localExec
+	if ctx.srv.Component() == teleport.ComponentNode {
+		return &localExec{
+			Ctx:     ctx,
+			Command: command,
+		}, nil
+	}
+
 	clusterConfig, err := ctx.srv.GetAccessPoint().GetClusterConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
