@@ -50,7 +50,6 @@ type ProxyClient struct {
 	hostLogin       string
 	proxyAddress    string
 	proxyPrincipal  string
-	agentForwarded  bool
 	hostKeyCallback utils.HostKeyCallback
 	authMethod      ssh.AuthMethod
 	siteName        string
@@ -311,19 +310,19 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress string,
 	}
 
 	// the client only tries to forward an agent when the proxy is in recording
-	// mode and even then only does this once (otherwise the client will pollute
-	// the logs with "agent: already have handler" errors).
-	if recordingProxy && !proxy.agentForwarded {
+	// mode. we always try and forward an agent here because each new session
+	// creates a new context which holds the agent. if ForwardToAgent returns an error
+	// "already have handler for" we ignore it.
+	if recordingProxy {
 		err = agent.ForwardToAgent(proxy.Client, proxy.teleportClient.localAgent.Agent)
-		if err != nil {
+		if err != nil && !strings.Contains(err.Error(), "agent: already have handler for") {
 			return nil, trace.Wrap(err)
 		}
+
 		err = agent.RequestAgentForwarding(proxySession)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		proxy.agentForwarded = true
 	}
 
 	err = proxySession.RequestSubsystem("proxy:" + nodeAddress)
