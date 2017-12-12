@@ -17,10 +17,22 @@ limitations under the License.
 package ansible
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/gravitational/teleport/lib/services"
 )
+
+// Inventory matches the JSON struct needed for DynamicInventoryList
+type Inventory struct {
+	Groups map[string]Group
+}
+
+// Group gather hosts and variables common to them
+type Group struct {
+	Hosts []string
+	Vars  map[string]string
+}
 
 // DynamicInventoryList returns a JSON-formated ouput compatible with Ansible --list flag
 //
@@ -35,25 +47,23 @@ import (
 //     },
 // }
 // ```
-func DynamicInventoryList(nodes []services.Server) {
-	// this match the JSON struct needed for DynamicInventoryList
-	type Group struct {
-		hosts []string
-		vars  map[string]string
-	}
-	type Inventory struct {
-		groups map[string]Group
-	}
-	var inventory Inventory
-
+func DynamicInventoryList(nodes []services.Server) (string, error) {
 	hostsByLabels := bufferLabels(nodes)
 
+	var inventory = Inventory{
+		Groups: make(map[string]Group),
+	}
 	for labelDashValue, hosts := range hostsByLabels {
-		inventory.groups[labelDashValue] = Group{
-			hosts: hosts,
-			vars:  nil,
+		inventory.Groups[labelDashValue] = Group{
+			Hosts: hosts,
+			Vars:  make(map[string]string),
 		}
 	}
+	out, err := json.Marshal(inventory)
+	if err != nil {
+		return "", fmt.Errorf("cannot encode JSON objet: %s", err)
+	}
+	return string(out), nil
 }
 
 // DynamicInventoryHost returns a JSON-formated ouput compatible with Ansible --host <string> flag
