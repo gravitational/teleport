@@ -300,7 +300,7 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 
 	// user should not have agent forwarding
 	_, exists := parsedCert.Extensions[teleport.CertExtensionPermitAgentForwarding]
-	c.Assert(exists, Equals, false)
+	c.Assert(exists, Equals, true)
 
 	// now update role to permit agent forwarding
 	roleOptions := userRole.GetOptions()

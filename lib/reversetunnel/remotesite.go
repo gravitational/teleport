@@ -396,20 +396,12 @@ func (s *remoteSite) dialAccessPoint(network, addr string) (net.Conn, error) {
 }
 
 func (s *remoteSite) DialAuthServer() (conn net.Conn, err error) {
-	// get list of remote auth servers
-	authServers, err := s.remoteClient.GetAuthServers()
+	conn, err = s.connThroughTunnel(chanTransportDialReq, RemoteAuthServer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	for _, authServer := range authServers {
-		conn, err = s.connThroughTunnel(chanTransportDialReq, authServer.GetAddr())
-		if err == nil {
-			return conn, nil
-		}
-	}
-
-	return nil, trace.ConnectionProblem(err, "unable to connect to auth server")
+	return conn, nil
 }
 
 // Dial is used to connect a requesting client (say, tsh) to an SSH server
@@ -472,6 +464,9 @@ func (s *remoteSite) dialWithAgent(from, to net.Addr, userAgent agent.Agent) (ne
 		SrcAddr:         from,
 		DstAddr:         to,
 		HostCertificate: hostCertificate,
+		Ciphers:         s.srv.Config.Ciphers,
+		KEXAlgorithms:   s.srv.Config.KEXAlgorithms,
+		MACAlgorithms:   s.srv.Config.MACAlgorithms,
 	}
 	remoteServer, err := forward.New(serverConfig)
 	if err != nil {

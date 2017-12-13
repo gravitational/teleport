@@ -122,25 +122,11 @@ func (p *PortList) Pop() string {
 	return val
 }
 
-// GetFreeTCPPorts returns a lit of available ports on localhost
-// used for testing
+// GetFreeTCPPorts returns n ports starting from port 20000.
 func GetFreeTCPPorts(n int) (PortList, error) {
 	list := make(PortList, 0, n)
-	for i := 0; i < n; i++ {
-		addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		listener, err := net.ListenTCP("tcp", addr)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		defer listener.Close()
-		tcpAddr, ok := listener.Addr().(*net.TCPAddr)
-		if !ok {
-			return nil, trace.Errorf("Can't get tcp address")
-		}
-		list = append(list, strconv.Itoa(tcpAddr.Port))
+	for i := 20000; i < 20000+n; i++ {
+		list = append(list, strconv.Itoa(i))
 	}
 	return list, nil
 }

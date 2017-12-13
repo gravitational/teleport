@@ -124,7 +124,7 @@ test: $(VERSRC)
 #
 .PHONY: integration
 integration: 
-	go test -v ./integration/...
+	go test -v ./integration/... -check.v
 
 # This rule triggers re-generation of version.go and gitref.go if Makefile changes
 $(VERSRC): Makefile

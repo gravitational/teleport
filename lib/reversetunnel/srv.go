@@ -121,6 +121,18 @@ type Config struct {
 	// Clock is a clock used in the server, set up to
 	// wall clock if not set
 	Clock clockwork.Clock
+
+	// Ciphers is a list of ciphers that the server supports. If omitted,
+	// the defaults will be used.
+	Ciphers []string
+
+	// KEXAlgorithms is a list of key exchange (KEX) algorithms that the
+	// server supports. If omitted, the defaults will be used.
+	KEXAlgorithms []string
+
+	// MACAlgorithms is a list of message authentication codes (MAC) that
+	// the server supports. If omitted the defaults will be used.
+	MACAlgorithms []string
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -745,7 +757,7 @@ func newRemoteSite(srv *server, domainName string) (*remoteSite, error) {
 	// certificate cache is created in each site (instead of creating it in
 	// reversetunnel.server and passing it along) so that the host certificate
 	// is signed by the correct certificate authority.
-	certificateCache, err := NewHostCertificateCache(clt)
+	certificateCache, err := NewHostCertificateCache(srv.localAuthClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

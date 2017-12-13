@@ -86,7 +86,12 @@ const teleportTestUser = "teleport-test"
 var _ = Suite(&SrvSuite{})
 
 func (s *SrvSuite) SetUpSuite(c *C) {
+	var err error
+
 	utils.InitLoggerForTests()
+
+	s.freePorts, err = utils.GetFreeTCPPorts(100)
+	c.Assert(err, IsNil)
 }
 
 const hostID = "00000000-0000-0000-0000-000000000000"
@@ -102,9 +107,6 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	u, err := user.Current()
 	c.Assert(err, IsNil)
 	s.user = u.Username
-
-	s.freePorts, err = utils.GetFreeTCPPorts(10)
-	c.Assert(err, IsNil)
 
 	s.bk, err = dir.New(backend.Params{"path": s.dir})
 	c.Assert(err, IsNil)
@@ -174,8 +176,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	s.signer, err = sshutils.NewSigner(hpriv, hcert)
 	c.Assert(err, IsNil)
 
-	s.srvPort = s.freePorts[len(s.freePorts)-1]
-	s.freePorts = s.freePorts[:len(s.freePorts)-1]
+	s.srvPort = s.freePorts.Pop()
 	s.srvAddress = "127.0.0.1:" + s.srvPort
 
 	s.srvHostPort = fmt.Sprintf("%v:%v", s.domainName, s.srvPort)
@@ -237,10 +238,6 @@ func (s *SrvSuite) TestAdvertiseAddr(c *C) {
 // TestAgentForwardPermission makes sure if RBAC rules don't allow agent
 // forwarding, we don't start an agent even if requested.
 func (s *SrvSuite) TestAgentForwardPermission(c *C) {
-	se, err := s.clt.NewSession()
-	c.Assert(err, IsNil)
-	defer se.Close()
-
 	// make sure the role does not allow agent forwarding
 	roleName := services.RoleNameForUser(s.user)
 	role, err := s.a.GetRole(roleName)
@@ -250,6 +247,10 @@ func (s *SrvSuite) TestAgentForwardPermission(c *C) {
 	role.SetOptions(roleOptions)
 	err = s.a.UpsertRole(role, backend.Forever)
 	c.Assert(err, IsNil)
+
+	se, err := s.clt.NewSession()
+	c.Assert(err, IsNil)
+	defer se.Close()
 
 	// to interoperate with OpenSSH, requests for agent forwarding always succeed.
 	// however that does not mean the users agent will actually be forwarded.
@@ -497,8 +498,7 @@ func (s *SrvSuite) testClient(c *C, proxyAddr, targetAddr, remoteAddr string, ss
 func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	log.Infof("[TEST START] TestProxyReverseTunnel")
 
-	reverseTunnelPort := s.freePorts[len(s.freePorts)-1]
-	s.freePorts = s.freePorts[:len(s.freePorts)-1]
+	reverseTunnelPort := s.freePorts.Pop()
 	reverseTunnelAddress := utils.NetAddr{AddrNetwork: "tcp", Addr: fmt.Sprintf("%v:%v", s.domainName, reverseTunnelPort)}
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ID:                    s.domainName,
@@ -587,8 +587,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	s.testClient(c, proxy.Addr(), s.srvHostPort, s.srv.Addr(), sshConfig)
 
 	// adding new node
-	bobAddr := "127.0.0.1:" + s.freePorts[len(s.freePorts)-1]
-	s.freePorts = s.freePorts[:len(s.freePorts)-1]
+	bobAddr := "127.0.0.1:" + s.freePorts.Pop()
 	srv2, err := New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: bobAddr},
 		"bob",
@@ -666,8 +665,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 	log.Infof("[TEST START] TestProxyRoundRobin")
 
-	reverseTunnelPort := s.freePorts[len(s.freePorts)-1]
-	s.freePorts = s.freePorts[:len(s.freePorts)-1]
+	reverseTunnelPort := s.freePorts.Pop()
 	reverseTunnelAddress := utils.NetAddr{
 		AddrNetwork: "tcp",
 		Addr:        fmt.Sprintf("%v:%v", s.domainName, reverseTunnelPort),
@@ -894,8 +892,7 @@ func (s *SrvSuite) TestLimiter(c *C) {
 	)
 	c.Assert(err, IsNil)
 
-	srvAddress := "127.0.0.1:" + s.freePorts[len(s.freePorts)-1]
-	s.freePorts = s.freePorts[:len(s.freePorts)-1]
+	srvAddress := "127.0.0.1:" + s.freePorts.Pop()
 	srv, err := New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: srvAddress},
 		s.domainName,
