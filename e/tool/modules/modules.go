@@ -38,3 +38,19 @@ func (p *enterpriseModules) PrintVersion() {
 	}
 	fmt.Println(ver)
 }
+
+// RolesFromLogins returns roles for external user based on the logins
+// extracted from the connector
+//
+// For Enterprise edition "logins" are used as role names
+func (p *enterpriseModules) RolesFromLogins(logins []string) []string {
+	return logins
+}
+
+// TraitsFromLogins returns traits for external user based on the logins
+// extracted from the connector
+//
+// For Enterprise edition "logins" are used as role names so traits are empty
+func (p *enterpriseModules) TraitsFromLogins(logins []string) map[string][]string {
+	return nil
+}

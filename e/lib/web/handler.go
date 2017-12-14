@@ -153,6 +153,11 @@ func deleteResource(resourceKind string, resourceName string, client auth.Client
 			return trace.Wrap(err)
 		}
 		return nil
+	case services.KindGithubConnector:
+		if err := client.DeleteGithubConnector(resourceName); err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
 	case services.KindRole:
 		if err := client.DeleteRole(resourceName); err != nil {
 			return trace.Wrap(err)
@@ -185,6 +190,11 @@ func getResourceByKind(kind string, client auth.ClientI) ([]ui.ConfigItem, error
 			return nil, trace.Wrap(err)
 		}
 
+		githubConnectors, err := client.GetGithubConnectors(true)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		uiSAMLItems, err := ui.ConvertSAMLConnectors(samlConnectors)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -195,7 +205,13 @@ func getResourceByKind(kind string, client auth.ClientI) ([]ui.ConfigItem, error
 			return nil, trace.Wrap(err)
 		}
 
-		return append(uiSAMLItems, uiOIDCItems...), nil
+		uiGithubItems, err := ui.ConvertGithubConnectors(githubConnectors)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		items := append(uiSAMLItems, uiOIDCItems...)
+		return append(items, uiGithubItems...), nil
 	case services.KindRole:
 		roles, err := client.GetRoles()
 		if err != nil {
@@ -246,6 +262,19 @@ func upsertResource(unknownRes services.UnknownResource, client auth.ClientI) (i
 			return nil, trace.Wrap(err)
 		}
 		return items, nil
+	case services.KindGithubConnector:
+		conn, err := services.GetGithubConnectorMarshaler().Unmarshal(json)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := client.UpsertGithubConnector(conn); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		items, err := ui.ConvertGithubConnectors([]services.GithubConnector{conn})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return items, nil
 	case services.KindRole:
 		role, err := services.GetRoleMarshaler().UnmarshalRole(json)
 		if err != nil {
@@ -291,6 +320,8 @@ func checkIfResourceExists(unknownRes services.UnknownResource, client auth.Clie
 		_, err = client.GetOIDCConnector(unknownRes.Metadata.Name, false)
 	case services.KindSAMLConnector:
 		_, err = client.GetSAMLConnector(unknownRes.Metadata.Name, false)
+	case services.KindGithubConnector:
+		_, err = client.GetGithubConnector(unknownRes.Metadata.Name, false)
 	case services.KindRole:
 		_, err = client.GetRole(unknownRes.Metadata.Name)
 	case services.KindTrustedCluster:
@@ -309,8 +340,8 @@ func checkIfResourceExists(unknownRes services.UnknownResource, client auth.Clie
 // validateKind verifies that given resource kind matches its expected value.
 func validateKind(given string, expected string) error {
 	if expected == services.KindAuthConnector {
-		// AuthConnector might be of 2 types OIDC and SAML
-		if given == services.KindOIDCConnector || given == services.KindSAMLConnector {
+		switch given {
+		case services.KindOIDCConnector, services.KindSAMLConnector, services.KindGithubConnector:
 			return nil
 		}
 	}

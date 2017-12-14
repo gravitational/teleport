@@ -88,6 +88,20 @@ func ConvertSAMLConnectors(connectors []services.SAMLConnector) ([]ConfigItem, e
 	return configItems, nil
 }
 
+// ConvertGithubConnectors creates UI objects from Github connectors
+func ConvertGithubConnectors(connectors []services.GithubConnector) ([]ConfigItem, error) {
+	configItems := []ConfigItem{}
+	for _, connector := range connectors {
+		item, err := NewConfigItem(
+			services.KindGithubConnector, connector.GetName(), connector)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		configItems = append(configItems, *item)
+	}
+	return configItems, nil
+}
+
 // NewConfigItem creates UI objects for resource
 func NewConfigItem(kind string, name string, resource interface{}) (*ConfigItem, error) {
 	data, err := yaml.Marshal(resource)
