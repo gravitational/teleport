@@ -65,11 +65,17 @@ const (
 	// KindSAML is SAML connector resource
 	KindSAML = "saml"
 
-	// KindOIDCRequest is oidc auth request resource
+	// KindGithub is Github connector resource
+	KindGithub = "github"
+
+	// KindOIDCRequest is OIDC auth request resource
 	KindOIDCRequest = "oidc_request"
 
-	// KindOIDCReques is saml auth request resource
+	// KindOIDCReques is SAML auth request resource
 	KindSAMLRequest = "saml_request"
+
+	// KindGithubRequest is Github auth request resource
+	KindGithubRequest = "github_request"
 
 	// KindSession is a recorded SSH session.
 	KindSession = "session"
@@ -106,6 +112,9 @@ const (
 
 	// KindSAMLConnector is a SAML connector resource
 	KindSAMLConnector = "saml"
+
+	// KindGithubConnector is Github OAuth2 connector resource
+	KindGithubConnector = "github"
 
 	// KindAuthPreference is the type of authentication for this cluster.
 	KindClusterAuthPreference = "cluster_auth_preference"
@@ -381,6 +390,8 @@ func ParseShortcut(in string) (string, error) {
 		return KindOIDCConnector, nil
 	case "saml":
 		return KindSAMLConnector, nil
+	case "github":
+		return KindGithubConnector, nil
 	case "user", "users":
 		return KindUser, nil
 	case "cert_authorities", "cas":

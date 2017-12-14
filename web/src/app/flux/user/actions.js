@@ -68,10 +68,10 @@ const actions = {
     return actions._handleAcceptInvitePromise(promise);
   },
   
-  loginWithSso(providerName, providerType) {
+  loginWithSso(providerName, providerUrl) {
     let redirectUrl = history.extractRedirect();
     redirectUrl = history.ensureBaseUrl(redirectUrl);
-    history.push(cfg.api.getSsoUrl(redirectUrl, providerName, providerType), true);
+    history.push(cfg.api.getSsoUrl(providerUrl, providerName, redirectUrl), true);
   },
   
   loginWithU2f(user, password) {

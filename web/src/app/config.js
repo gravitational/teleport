@@ -15,7 +15,6 @@ limitations under the License.
 */
 
 import { formatPattern } from 'app/lib/patternUtils';
-import { AuthProviderTypeEnum } from './services/enums';
 import $ from 'jQuery';
 import { isTestEnv } from './services/utils'
 
@@ -46,8 +45,7 @@ const cfg = {
     pageNotFound: '/web/notfound',
     terminal: '/web/cluster/:siteId/node/:serverId/:login(/:sid)',
     player: '/web/player/node/:siteId/sid/:sid',
-    ssoOidc: '/v1/webapi/oidc/*',        
-    ssoSaml: '/v1/webapi/saml/*',    
+    webApi: '/v1/webapi/*',                
     settingsBase: '/web/settings',        
     settingsAccount: '/web/settings/account',        
   },
@@ -88,16 +86,8 @@ const cfg = {
       return formatPattern(cfg.api.siteSessionPath, { siteId });  
     },
 
-    getSsoUrl(redirect, providerName, providerType) {            
-      if (providerType === AuthProviderTypeEnum.OIDC) {
-        return cfg.baseUrl + formatPattern(cfg.api.ssoOidc, {redirect, providerName});  
-      }
-
-      if (providerType === AuthProviderTypeEnum.SAML) {
-        return cfg.baseUrl + formatPattern(cfg.api.ssoSaml, {redirect, providerName});  
-      }          
-
-      throw 'Unknown sso provider type';
+    getSsoUrl(providerUrl, providerName, redirect) {                  
+      return cfg.baseUrl + formatPattern(providerUrl, { redirect, providerName });              
     },
     
     getSiteEventsFilterUrl({start, end, siteId}){
@@ -143,15 +133,7 @@ const cfg = {
   },
 
   getAuthProviders() {            
-    let oidc = cfg.auth && cfg.auth.oidc ? cfg.auth.oidc : [];  
-    let saml = cfg.auth && cfg.auth.saml ? cfg.auth.saml : [];  
-    // create provider objects
-    let providers = [
-      ...oidc.map(createProvider(AuthProviderTypeEnum.OIDC)),
-      ...saml.map(createProvider(AuthProviderTypeEnum.SAML))
-    ];
-    
-    return providers;
+    return cfg.auth && cfg.auth.providers ? cfg.auth.providers : [];              
   },
     
   getAuth2faType() {
@@ -170,11 +152,5 @@ const cfg = {
     return pattern.replace(/\(.*\)/, '');
   } 
 }
-
-const createProvider = type => item => ({
-  name: item.name,
-  display: item.displayName,
-  type
-})
 
 export default cfg;

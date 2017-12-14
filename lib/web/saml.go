@@ -67,18 +67,12 @@ func (m *Handler) samlSSO(w http.ResponseWriter, r *http.Request, p httprouter.P
 
 func (m *Handler) samlSSOConsole(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	log.Debugf("samlSSOConsole start")
-	var req *client.SSOLoginConsoleReq
+	var req client.SSOLoginConsoleReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if req.RedirectURL == "" {
-		return nil, trace.BadParameter("missing RedirectURL")
-	}
-	if len(req.PublicKey) == 0 {
-		return nil, trace.BadParameter("missing PublicKey")
-	}
-	if req.ConnectorID == "" {
-		return nil, trace.BadParameter("missing ConnectorID")
+	if err := req.Check(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	response, err := m.cfg.ProxyClient.CreateSAMLAuthRequest(
 		services.SAMLAuthRequest{

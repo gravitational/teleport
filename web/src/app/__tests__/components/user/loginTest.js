@@ -13,9 +13,9 @@ let $node = $('<div>').appendTo("body");
 
 describe('components/user/login', () => {
 
-  const oidcSsoProvider = { name: enums.AuthProviderEnum.MS, type: enums.AuthProviderTypeEnum.OIDC };
-  const samlSsoProvider = { name: enums.AuthProviderEnum.MS, type: enums.AuthProviderTypeEnum.SAML };
-
+  const webApiUrl = '/v1/webapi/oidc/login/web?redirect_url=:redirect&connector_id=:providerName';
+  const ssoProvider = { name: enums.AuthProviderEnum.MS, type: enums.AuthProviderTypeEnum.OIDC, url: webApiUrl };
+  
   afterEach(function () {
     ReactDOM.unmountComponentAtNode($node[0]);
     expect.restoreSpies();
@@ -66,32 +66,20 @@ describe('components/user/login', () => {
     expect(props.onLogin).toHaveBeenCalledWith(...expected);    
   });    
 
-  it('should login with OIDC', () => {                
+  it('should login with SSO', () => {                
     let props = getProps({      
-      authProviders: [oidcSsoProvider]
+      authProviders: [ssoProvider]
     });
 
-    render(<LoginInputForm { ...props } />);    
-                
+    render(<LoginInputForm { ...props } />);                        
     $node.find(".btn-microsoft").click();    
     expectNInputs(4);
-    expect(props.onLoginWithSso).toHaveBeenCalledWith(oidcSsoProvider);    
+    expect(props.onLoginWithSso).toHaveBeenCalledWith(ssoProvider);    
   });    
-
-  it('should login with SAML', () => {                
-    let props = getProps({      
-      authProviders: [samlSsoProvider]
-    });
-
-    render(<LoginInputForm { ...props } />);        
-    $node.find(".btn-microsoft").click();        
-    expectNInputs(4);
-    expect(props.onLoginWithSso).toHaveBeenCalledWith(samlSsoProvider);    
-  });    
-  
+    
   it('should render OIDC and Auth2faTypeEnum.OTP', () => {                    
     let props = getProps({      
-      authProviders: [oidcSsoProvider],
+      authProviders: [ssoProvider],
       auth2faType: enums.Auth2faTypeEnum.OTP      
     });
       
@@ -99,7 +87,7 @@ describe('components/user/login', () => {
     expectNInputs(5);        
 
     $node.find(".btn-microsoft").click();    
-    expect(props.onLoginWithSso).toHaveBeenCalledWith(oidcSsoProvider);    
+    expect(props.onLoginWithSso).toHaveBeenCalled();
 
     let expected = ['email@email', '123456', 'token'];        
     setValues(...expected);        
@@ -109,7 +97,7 @@ describe('components/user/login', () => {
 
   it('should render SAML and Auth2faTypeEnum.UTF', () => {                    
     let props = getProps({      
-      authProviders: [samlSsoProvider],
+      authProviders: [ssoProvider],
       auth2faType: enums.Auth2faTypeEnum.UTF      
     });
 

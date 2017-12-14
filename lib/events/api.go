@@ -78,6 +78,8 @@ const (
 	LoginMethodOIDC = "oidc"
 	// LoginMethodSAML represents login with SAML
 	LoginMethodSAML = "saml"
+	// LoginMethodGithub represents login with Github
+	LoginMethodGithub = "github"
 
 	// ExecEvent is an exec command executed by script or user on
 	// the server side

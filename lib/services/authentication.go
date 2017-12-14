@@ -146,11 +146,16 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	}
 
 	// make sure type makes sense
-	if c.Spec.Type != teleport.Local && c.Spec.Type != teleport.OIDC && c.Spec.Type != teleport.SAML {
+	switch c.Spec.Type {
+	case teleport.Local, teleport.OIDC, teleport.SAML, teleport.Github:
+	default:
 		return trace.BadParameter("authentication type %q not supported", c.Spec.Type)
 	}
+
 	// make sure second factor makes sense
-	if c.Spec.SecondFactor != teleport.OFF && c.Spec.SecondFactor != teleport.OTP && c.Spec.SecondFactor != teleport.U2F {
+	switch c.Spec.SecondFactor {
+	case teleport.OFF, teleport.OTP, teleport.U2F:
+	default:
 		return trace.BadParameter("second factor type %q not supported", c.Spec.SecondFactor)
 	}
 

@@ -8,7 +8,7 @@ const ProviderIcon = ({ provider }) => {
   let iconClass = classnames('fa', {
     'fa-google': name === AuthProviderEnum.GOOGLE,
     'fa-windows': name === AuthProviderEnum.MS,
-    'fa-github': name === AuthProviderEnum.GITHUB,
+    'fa-github': name === AuthProviderEnum.GITHUB || AuthProviderTypeEnum.GITHUB,
     'fa-bitbucket': name === AuthProviderEnum.BITBUCKET
   });
 
@@ -46,9 +46,9 @@ const getProviderBtnClass = type => {
 
 const SsoBtnList = ({providers, prefixText, isDisabled, onClick}) => {      
   let $btns = providers.map((item, index) => {
-    let { name, display } = item;    
-    display = display || name;
-    let title = `${prefixText} ${display}`
+    let { name, displayName } = item;    
+    displayName = displayName || name;
+    let title = `${prefixText} ${displayName}`
     let providerBtnClass = getProviderBtnClass(name);
     let btnClass = `btn grv-user-btn-sso full-width ${providerBtnClass}`;
     return (

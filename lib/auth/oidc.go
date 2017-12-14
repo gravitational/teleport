@@ -1,3 +1,19 @@
+/*
+Copyright 2015 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package auth
 
 import (
@@ -329,10 +345,15 @@ func (a *AuthServer) createOIDCUser(connector services.OIDCConnector, ident *oid
 			Namespace: defaults.Namespace,
 		},
 		Spec: services.UserSpecV2{
-			Roles:          roles,
-			Traits:         traits,
-			Expires:        ident.ExpiresAt,
-			OIDCIdentities: []services.ExternalIdentity{{ConnectorID: connector.GetName(), Username: ident.Email}},
+			Roles:   roles,
+			Traits:  traits,
+			Expires: ident.ExpiresAt,
+			OIDCIdentities: []services.ExternalIdentity{
+				{
+					ConnectorID: connector.GetName(),
+					Username:    ident.Email,
+				},
+			},
 			CreatedBy: services.CreatedBy{
 				User: services.UserRef{Name: "system"},
 				Time: time.Now().UTC(),
@@ -356,11 +377,12 @@ func (a *AuthServer) createOIDCUser(connector services.OIDCConnector, ident *oid
 		}
 	}
 
-	// check if exisiting user is a non-oidc user, if so, return an error
+	// check if existing user is a non-oidc user, if so, return an error
 	if existingUser != nil {
-		connectorRef := existingUser.GetCreatedBy().Connector
-		if connectorRef == nil || connectorRef.Type != teleport.ConnectorOIDC || connectorRef.ID != connector.GetName() {
-			return trace.AlreadyExists("user %q already exists and is not OIDC user", existingUser.GetName())
+		ref := user.GetCreatedBy().Connector
+		if !ref.IsSameProvider(existingUser.GetCreatedBy().Connector) {
+			return trace.AlreadyExists("user %q already exists and is not OIDC user",
+				existingUser.GetName())
 		}
 	}
 

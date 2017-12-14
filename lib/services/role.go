@@ -1384,7 +1384,6 @@ func (set RoleSet) AdjustSessionTTL(ttl time.Duration) time.Duration {
 // returns a combined list of allowed logins.
 func (set RoleSet) CheckLoginDuration(ttl time.Duration) ([]string, error) {
 	logins := make(map[string]bool)
-
 	var matchedTTL bool
 	for _, role := range set {
 		maxSessionTTL, err := role.GetOptions().GetDuration(MaxSessionTTL)

@@ -108,7 +108,7 @@ func (t *TermHandlers) HandlePTYReq(ch ssh.Channel, req *ssh.Request, ctx *Serve
 
 	// update the session
 	if err := t.SessionRegistry.NotifyWinChange(*params, ctx); err != nil {
-		ctx.Error("Unable to update session: %v", err)
+		ctx.Errorf("Unable to update session: %v", err)
 	}
 
 	return nil

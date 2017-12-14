@@ -16,6 +16,23 @@ limitations under the License.
 
 package ui
 
+const (
+	// WebConfigAuthProviderOIDCType is OIDC provider type
+	WebConfigAuthProviderOIDCType = "oidc"
+	// WebConfigAuthProviderOIDCURL is OIDC webapi endpoint
+	WebConfigAuthProviderOIDCURL = "/v1/webapi/oidc/login/web?redirect_url=:redirect&connector_id=:providerName"
+
+	// WebConfigAuthProviderSAMLType is SAML provider type
+	WebConfigAuthProviderSAMLType = "saml"
+	// WebConfigAuthProviderSAMLURL is SAML webapi endpoint
+	WebConfigAuthProviderSAMLURL = "/v1/webapi/saml/sso?redirect_url=:redirect&connector_id=:providerName"
+
+	// WebConfigAuthProviderGitHubType is GitHub provider type
+	WebConfigAuthProviderGitHubType = "github"
+	// WebConfigAuthProviderGitHubURL is GitHub webapi endpoint
+	WebConfigAuthProviderGitHubURL = "/v1/webapi/github/login/web?redirect_url=:redirect&connector_id=:providerName"
+)
+
 // WebConfig is web application configuration
 type WebConfig struct {
 	// Auth contains Teleport auth. preferences
@@ -30,14 +47,16 @@ type WebConfigAuthProvider struct {
 	Name string `json:"name,omitempty"`
 	// DisplayName is this provider display name
 	DisplayName string `json:"displayName,omitempty"`
+	// Type is this provider type
+	Type string `json:"type,omitempty"`
+	// WebAPIURL is this provider webapi URL
+	WebAPIURL string `json:"url,omitempty"`
 }
 
 // WebConfigAuthSettings describes auth configuration
 type WebConfigAuthSettings struct {
 	// SecondFactor is the type of second factor to use in authentication.
 	SecondFactor string `json:"second_factor,omitempty"`
-	// OIDC contains the OIDC Connectors
-	OIDC []WebConfigAuthProvider `json:"oidc,omitempty"`
-	// SAML contains the SAML Connectors
-	SAML []WebConfigAuthProvider `json:"saml,omitempty"`
+	// Providers contains a list of configured auth providers
+	Providers []WebConfigAuthProvider `json:"providers,omitempty"`
 }
