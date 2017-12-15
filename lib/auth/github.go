@@ -196,6 +196,11 @@ func (s *AuthServer) ValidateGithubAuthCallback(q url.Values) (*GithubAuthRespon
 
 func (s *AuthServer) createGithubUser(connector services.GithubConnector, claims services.GithubClaims) error {
 	logins := connector.MapClaims(claims)
+	if len(logins) == 0 {
+		return trace.BadParameter(
+			"user %q does not belong to any teams configured in %q connector",
+			claims.Username, connector.GetName())
+	}
 	log.WithFields(log.Fields{trace.Component: "github"}).Debugf(
 		"Generating dynamic identity %v/%v with logins: %v.",
 		connector.GetName(), claims.Username, logins)
