@@ -116,7 +116,7 @@ const (
 	ConnectorOIDC = "oidc"
 
 	// ConnectorSAML means connector type SAML
-	ConnectorSAML = "oidc"
+	ConnectorSAML = "saml"
 
 	// ConnectorGithub means connector type Github
 	ConnectorGithub = "github"
@@ -152,13 +152,13 @@ const (
 	Local = "local"
 
 	// OIDC means authentication will happen remotely using an OIDC connector.
-	OIDC = "oidc"
+	OIDC = ConnectorOIDC
 
 	// SAML means authentication will happen remotely using a SAML connector.
-	SAML = "saml"
+	SAML = ConnectorSAML
 
 	// Github means authentication will happen remotely using a Github connector.
-	Github = "github"
+	Github = ConnectorGithub
 
 	// JSON means JSON serialization format
 	JSON = "json"

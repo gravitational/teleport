@@ -284,8 +284,6 @@ type GithubAuthRequest struct {
 	PublicKey []byte `json:"public_key"`
 	// CertTTL is TTL of the cert that's generated in case of successful auth
 	CertTTL time.Duration `json:"cert_ttl"`
-	// CheckUser tells validator to expect and check the user
-	CheckUser bool `json:"check_user"`
 	// CreateWebSession indicates that a user wants to generate a web session
 	// after successul authentication
 	CreateWebSession bool `json:"create_web_session"`

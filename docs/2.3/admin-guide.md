@@ -370,7 +370,7 @@ auth_service:
 
 **Github OAuth 2.0**
 
-This connector implements Github OAuth 2.0 authorization flow. Please refer
+This connector implements Github OAuth 2.0 authentication flow. Please refer
 to Github documentation on [Creating an OAuth App](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/)
 to learn how to create and register an OAuth app.
 
@@ -1050,7 +1050,7 @@ $ tctl create github.yaml
 ```
 
 !!! tip
-    When going through the Github authorizarion flow for the first time,
+    When going through the Github authentication flow for the first time,
     the application must be granted the access to all organizations that
     are present in the "teams to logins" mapping, otherwise Teleport will
     not be able to determine team memberships for these orgs.

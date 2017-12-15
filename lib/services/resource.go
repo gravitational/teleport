@@ -71,7 +71,7 @@ const (
 	// KindOIDCRequest is OIDC auth request resource
 	KindOIDCRequest = "oidc_request"
 
-	// KindOIDCReques is SAML auth request resource
+	// KindSAMLRequest is SAML auth request resource
 	KindSAMLRequest = "saml_request"
 
 	// KindGithubRequest is Github auth request resource

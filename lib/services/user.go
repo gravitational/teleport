@@ -20,7 +20,7 @@ type User interface {
 	Resource
 	// GetOIDCIdentities returns a list of connected OIDC identities
 	GetOIDCIdentities() []ExternalIdentity
-	// GetSAMLIdentities returns a list of connected OIDC identities
+	// GetSAMLIdentities returns a list of connected SAML identities
 	GetSAMLIdentities() []ExternalIdentity
 	// GetGithubIdentities returns a list of connected Github identities
 	GetGithubIdentities() []ExternalIdentity

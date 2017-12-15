@@ -52,7 +52,7 @@ func (s *AuthServer) CreateGithubAuthRequest(req services.GithubAuthRequest) (*s
 	}
 	req.RedirectURL = client.AuthCodeURL(req.StateToken, "", "")
 	log.WithFields(log.Fields{trace.Component: "github"}).Debugf(
-		"Redirect URL: %v", req.RedirectURL)
+		"Redirect URL: %v.", req.RedirectURL)
 	err = s.Identity.CreateGithubAuthRequest(req, defaults.GithubAuthRequestTTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -62,7 +62,7 @@ func (s *AuthServer) CreateGithubAuthRequest(req services.GithubAuthRequest) (*s
 
 // GithubAuthResponse represents Github auth callback validation response
 type GithubAuthResponse struct {
-	// Username is the name of authorized user
+	// Username is the name of authenticated user
 	Username string `json:"username"`
 	// Identity is the external identity
 	Identity services.ExternalIdentity `json:"identity"`
@@ -79,6 +79,7 @@ type GithubAuthResponse struct {
 
 // ValidateGithubAuthCallback validates Github auth callback redirect
 func (s *AuthServer) ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, error) {
+	logger := log.WithFields(log.Fields{trace.Component: "github"})
 	error := q.Get("error")
 	if error != "" {
 		return nil, trace.OAuth2(oauth2.ErrorInvalidRequest, error, q)
@@ -101,29 +102,32 @@ func (s *AuthServer) ValidateGithubAuthCallback(q url.Values) (*GithubAuthRespon
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if len(connector.GetTeamsToLogins()) == 0 {
+		logger.Warnf("Github connector %q has empty teams_to_logins mapping, cannot populate claims.",
+			connector.GetName())
+		return nil, trace.BadParameter(
+			"connector %q has empty teams_to_logins mapping", connector.GetName())
+	}
 	client, err := s.getGithubOAuth2Client(connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// exchange the authorization code we got in the callback for access token
+	// exchange the authorization code received by the callback for an access token
 	token, err := client.RequestToken(oauth2.GrantTypeAuthCode, code)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.WithFields(log.Fields{trace.Component: "github"}).Debugf(
-		"Obtained OAuth2 token: Type=%v Expires=%v Scope=%v",
+	logger.Debugf("Obtained OAuth2 token: Type=%v Expires=%v Scope=%v.",
 		token.TokenType, token.Expires, token.Scope)
-	// Github does not support OIDC so we have to retrieve user information
-	// by making requests to its API using the access token we just got
+	// Github does not support OIDC so user claims have to be populated
+	// by making requests to Github API using the access token
 	claims, err := populateGithubClaims(&githubAPIClient{token: token.AccessToken})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if len(connector.GetTeamsToLogins()) != 0 {
-		err = s.createGithubUser(connector, *claims)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	err = s.createGithubUser(connector, *claims)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	response := &GithubAuthResponse{
 		Identity: services.ExternalIdentity{
@@ -131,9 +135,6 @@ func (s *AuthServer) ValidateGithubAuthCallback(q url.Values) (*GithubAuthRespon
 			Username:    claims.Email,
 		},
 		Req: *req,
-	}
-	if !req.CheckUser {
-		return response, nil
 	}
 	user, err := s.Identity.GetUserByGithubIdentity(response.Identity)
 	if err != nil {
@@ -196,7 +197,7 @@ func (s *AuthServer) ValidateGithubAuthCallback(q url.Values) (*GithubAuthRespon
 func (s *AuthServer) createGithubUser(connector services.GithubConnector, claims services.GithubClaims) error {
 	logins := connector.MapClaims(claims)
 	log.WithFields(log.Fields{trace.Component: "github"}).Debugf(
-		"Generating dynamic identity %v/%v with logins: %v",
+		"Generating dynamic identity %v/%v with logins: %v.",
 		connector.GetName(), claims.Email, logins)
 	user, err := services.GetUserMarshaler().GenerateUser(&services.UserV2{
 		Kind:    services.KindUser,
@@ -280,7 +281,7 @@ func populateGithubClaims(client githubAPIClientI) (*services.GithubClaims, erro
 		OrganizationToTeams: orgToTeams,
 	}
 	log.WithFields(log.Fields{trace.Component: "github"}).Debugf(
-		"Claims: %#v", claims)
+		"Claims: %#v.", claims)
 	return claims, nil
 }
 
@@ -415,7 +416,7 @@ const (
 )
 
 var (
-	// GithubScopes is a list of scopes we request during OAuth2 flow
+	// GithubScopes is a list of scopes requested during OAuth2 flow
 	GithubScopes = []string{
 		// user:email grants read-only access to all user's email addresses
 		"user:email",
