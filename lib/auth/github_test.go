@@ -35,7 +35,7 @@ func (s *GithubSuite) TestPopulateClaims(c *check.C) {
 	claims, err := populateGithubClaims(&testGithubAPIClient{})
 	c.Assert(err, check.IsNil)
 	c.Assert(claims, check.DeepEquals, &services.GithubClaims{
-		Email: "email3@example.com",
+		Username: "octocat",
 		OrganizationToTeams: map[string][]string{
 			"org1": []string{"team1", "team2"},
 			"org2": []string{"team1"},
@@ -45,24 +45,8 @@ func (s *GithubSuite) TestPopulateClaims(c *check.C) {
 
 type testGithubAPIClient struct{}
 
-func (c *testGithubAPIClient) getEmails() ([]emailResponse, error) {
-	return []emailResponse{
-		{
-			Email:    "email1@example.com",
-			Primary:  false,
-			Verified: false,
-		},
-		{
-			Email:    "email2@example.com",
-			Primary:  false,
-			Verified: true,
-		},
-		{
-			Email:    "email3@example.com",
-			Primary:  true,
-			Verified: true,
-		},
-	}, nil
+func (c *testGithubAPIClient) getUser() (*userResponse, error) {
+	return &userResponse{Login: "octocat"}, nil
 }
 
 func (c *testGithubAPIClient) getTeams() ([]teamResponse, error) {

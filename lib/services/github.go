@@ -109,8 +109,8 @@ type TeamMapping struct {
 
 // GithubClaims represents Github user information obtained during OAuth2 flow
 type GithubClaims struct {
-	// Email is the user's primary verified email
-	Email string
+	// Username is the user's username
+	Username string
 	// OrganizationToTeams is the user's organization and team membership
 	OrganizationToTeams map[string][]string
 }

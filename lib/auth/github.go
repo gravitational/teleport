@@ -132,7 +132,7 @@ func (s *AuthServer) ValidateGithubAuthCallback(q url.Values) (*GithubAuthRespon
 	response := &GithubAuthResponse{
 		Identity: services.ExternalIdentity{
 			ConnectorID: connector.GetName(),
-			Username:    claims.Email,
+			Username:    claims.Username,
 		},
 		Req: *req,
 	}
@@ -198,12 +198,12 @@ func (s *AuthServer) createGithubUser(connector services.GithubConnector, claims
 	logins := connector.MapClaims(claims)
 	log.WithFields(log.Fields{trace.Component: "github"}).Debugf(
 		"Generating dynamic identity %v/%v with logins: %v.",
-		connector.GetName(), claims.Email, logins)
+		connector.GetName(), claims.Username, logins)
 	user, err := services.GetUserMarshaler().GenerateUser(&services.UserV2{
 		Kind:    services.KindUser,
 		Version: services.V2,
 		Metadata: services.Metadata{
-			Name:      claims.Email,
+			Name:      claims.Username,
 			Namespace: defaults.Namespace,
 		},
 		Spec: services.UserSpecV2{
@@ -212,7 +212,7 @@ func (s *AuthServer) createGithubUser(connector services.GithubConnector, claims
 			Expires: s.clock.Now().UTC().Add(defaults.OAuth2TTL),
 			GithubIdentities: []services.ExternalIdentity{{
 				ConnectorID: connector.GetName(),
-				Username:    claims.Email,
+				Username:    claims.Username,
 			}},
 			CreatedBy: services.CreatedBy{
 				User: services.UserRef{Name: "system"},
@@ -220,12 +220,12 @@ func (s *AuthServer) createGithubUser(connector services.GithubConnector, claims
 				Connector: &services.ConnectorRef{
 					Type:     teleport.ConnectorGithub,
 					ID:       connector.GetName(),
-					Identity: claims.Email,
+					Identity: claims.Username,
 				},
 			},
 		},
 	})
-	existingUser, err := s.GetUser(claims.Email)
+	existingUser, err := s.GetUser(claims.Username)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -243,24 +243,13 @@ func (s *AuthServer) createGithubUser(connector services.GithubConnector, claims
 	return nil
 }
 
-// populateGithubClaims retrieves information about user emails and team
+// populateGithubClaims retrieves information about user and its team
 // memberships by calling Github API using the access token
 func populateGithubClaims(client githubAPIClientI) (*services.GithubClaims, error) {
-	// find the primary and verified email
-	emails, err := client.getEmails()
+	// find out the username
+	user, err := client.getUser()
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to query Github user emails")
-	}
-	var primaryEmail string
-	for _, email := range emails {
-		if email.Primary && email.Verified {
-			primaryEmail = email.Email
-			break
-		}
-	}
-	if primaryEmail == "" {
-		return nil, trace.AccessDenied(
-			"could not find primary verified email: %v", emails)
+		return nil, trace.Wrap(err, "failed to query Github user info")
 	}
 	// build team memberships
 	teams, err := client.getTeams()
@@ -277,7 +266,7 @@ func populateGithubClaims(client githubAPIClientI) (*services.GithubClaims, erro
 			"list of user teams is empty, did you grant access?")
 	}
 	claims := &services.GithubClaims{
-		Email:               primaryEmail,
+		Username:            user.Login,
 		OrganizationToTeams: orgToTeams,
 	}
 	log.WithFields(log.Fields{trace.Component: "github"}).Debugf(
@@ -317,8 +306,8 @@ func (s *AuthServer) getGithubOAuth2Client(connector services.GithubConnector) (
 // githubAPIClientI defines an interface for Github API wrapper
 // so it can be substituted in tests
 type githubAPIClientI interface {
-	// getEmails returns a list of user emails
-	getEmails() ([]emailResponse, error)
+	// getUser returns user information
+	getUser() (*userResponse, error)
 	// getTeams returns a list of user team memberships
 	getTeams() ([]teamResponse, error)
 }
@@ -329,28 +318,24 @@ type githubAPIClient struct {
 	token string
 }
 
-// emailResponse represents a single email entry in the "emails" API response
-type emailResponse struct {
-	// Email is the email address
-	Email string `json:"email"`
-	// Verified is whether the email is verified
-	Verified bool `json:"verified"`
-	// Primary is whether the email is primary
-	Primary bool `json:"primary"`
+// userResponse represents response from "user" API call
+type userResponse struct {
+	// Login is the username
+	Login string `json:"login"`
 }
 
 // getEmails retrieves a list of emails for authenticated user
-func (c *githubAPIClient) getEmails() ([]emailResponse, error) {
-	bytes, err := c.get("/user/emails")
+func (c *githubAPIClient) getUser() (*userResponse, error) {
+	bytes, err := c.get("/user")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var emails []emailResponse
-	err = json.Unmarshal(bytes, &emails)
+	var user userResponse
+	err = json.Unmarshal(bytes, &user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return emails, nil
+	return &user, nil
 }
 
 // teamResponse represents a single team entry in the "teams" API response
@@ -418,8 +403,6 @@ const (
 var (
 	// GithubScopes is a list of scopes requested during OAuth2 flow
 	GithubScopes = []string{
-		// user:email grants read-only access to all user's email addresses
-		"user:email",
 		// read:org grants read-only access to user's team memberships
 		"read:org",
 	}
