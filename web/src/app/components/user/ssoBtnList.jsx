@@ -8,7 +8,7 @@ const ProviderIcon = ({ provider }) => {
   let iconClass = classnames('fa', {
     'fa-google': name === AuthProviderEnum.GOOGLE,
     'fa-windows': name === AuthProviderEnum.MS,
-    'fa-github': name === AuthProviderEnum.GITHUB || AuthProviderTypeEnum.GITHUB,
+    'fa-github': name === AuthProviderEnum.GITHUB || type === AuthProviderTypeEnum.GITHUB,
     'fa-bitbucket': name === AuthProviderEnum.BITBUCKET
   });
 
@@ -29,8 +29,8 @@ const ProviderIcon = ({ provider }) => {
   )
 }
 
-const getProviderBtnClass = type => {  
-  switch (type) {
+const guessProviderBtnClass = name => {  
+  switch (name) {
     case AuthProviderEnum.BITBUCKET:
       return 'btn-bitbucket';  
     case AuthProviderEnum.GITHUB:
@@ -49,7 +49,7 @@ const SsoBtnList = ({providers, prefixText, isDisabled, onClick}) => {
     let { name, displayName } = item;    
     displayName = displayName || name;
     let title = `${prefixText} ${displayName}`
-    let providerBtnClass = getProviderBtnClass(name);
+    let providerBtnClass = guessProviderBtnClass(name);
     let btnClass = `btn grv-user-btn-sso full-width ${providerBtnClass}`;
     return (
       <button key={index}
