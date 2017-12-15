@@ -1067,6 +1067,13 @@ func (tc *TeleportClient) Login(activateKey bool) (*Key, error) {
 		}
 		// in this case identity is returned by the proxy
 		tc.Username = response.Username
+	case teleport.Github:
+		response, err = tc.ssoLogin(pr.Auth.Github.Name, key.Pub, teleport.Github)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// in this case identity is returned by the proxy
+		tc.Username = response.Username
 	default:
 		return nil, trace.BadParameter("unsupported authentication type: %q", pr.Auth.Type)
 	}

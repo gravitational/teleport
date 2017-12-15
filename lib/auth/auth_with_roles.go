@@ -644,6 +644,65 @@ func (a *AuthWithRoles) DeleteSAMLConnector(connectorID string) error {
 	return a.authServer.DeleteSAMLConnector(connectorID)
 }
 
+func (a *AuthWithRoles) CreateGithubConnector(connector services.GithubConnector) error {
+	if err := a.authConnectorAction(defaults.Namespace, services.KindGithub, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.CreateGithubConnector(connector)
+}
+
+func (a *AuthWithRoles) UpsertGithubConnector(connector services.GithubConnector) error {
+	if err := a.authConnectorAction(defaults.Namespace, services.KindGithub, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.UpsertGithubConnector(connector)
+}
+
+func (a *AuthWithRoles) GetGithubConnector(id string, withSecrets bool) (services.GithubConnector, error) {
+	if err := a.authConnectorAction(defaults.Namespace, services.KindGithub, services.VerbReadNoSecrets); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if withSecrets {
+		if err := a.authConnectorAction(defaults.Namespace, services.KindGithub, services.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return a.authServer.Identity.GetGithubConnector(id, withSecrets)
+}
+
+func (a *AuthWithRoles) GetGithubConnectors(withSecrets bool) ([]services.GithubConnector, error) {
+	if err := a.authConnectorAction(defaults.Namespace, services.KindGithub, services.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.authConnectorAction(defaults.Namespace, services.KindGithub, services.VerbReadNoSecrets); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if withSecrets {
+		if err := a.authConnectorAction(defaults.Namespace, services.KindGithub, services.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return a.authServer.Identity.GetGithubConnectors(withSecrets)
+}
+
+func (a *AuthWithRoles) DeleteGithubConnector(id string) error {
+	if err := a.authConnectorAction(defaults.Namespace, services.KindGithub, services.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteGithubConnector(id)
+}
+
+func (a *AuthWithRoles) CreateGithubAuthRequest(req services.GithubAuthRequest) (*services.GithubAuthRequest, error) {
+	if err := a.action(defaults.Namespace, services.KindGithubRequest, services.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.CreateGithubAuthRequest(req)
+}
+
+func (a *AuthWithRoles) ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, error) {
+	return a.authServer.ValidateGithubAuthCallback(q)
+}
+
 func (a *AuthWithRoles) EmitAuditEvent(eventType string, fields events.EventFields) error {
 	if err := a.action(defaults.Namespace, services.KindEvent, services.VerbCreate); err != nil {
 		return trace.Wrap(err)

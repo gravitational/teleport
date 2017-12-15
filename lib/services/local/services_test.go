@@ -109,3 +109,7 @@ func (s *ServicesSuite) TestSAMLCRUD(c *C) {
 func (s *ServicesSuite) TestTunnelConnectionsCRUD(c *C) {
 	s.suite.TunnelConnectionsCRUD(c)
 }
+
+func (s *ServicesSuite) TestGithubConnectorCRUD(c *C) {
+	s.suite.GithubConnectorCRUD(c)
+}

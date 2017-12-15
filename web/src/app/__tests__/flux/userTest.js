@@ -86,27 +86,21 @@ describe('flux/user/actions', () => {
   });
 
   describe('login()', () => {
-    const oidcSsoProvider = { name: AuthProviderEnum.MS, type: AuthProviderTypeEnum.OIDC };
-    const samlSsoProvider = { name: AuthProviderEnum.MS, type: AuthProviderTypeEnum.SAML };
-
+    const webApiUrl = '/v1/webapi/oidc/login/web?redirect_url=:redirect&connector_id=:providerName';
+    const oidcSsoProvider = { name: AuthProviderEnum.MS, type: AuthProviderTypeEnum.OIDC, url: webApiUrl };
+    
     it('should login with email', () => {
       spyOn(auth, 'login').andReturn(Dfd().resolve(apiData.bearerToken));
       actions.login(email, password);
       expect(history.push).toHaveBeenCalledWith(cfg.routes.app, true);
     });
 
-    it('should login with OIDC', () => {
-      const expectedUrl = `localhost/v1/webapi/oidc/login/web?redirect_url=localhost%2Fweb&connector_id=${samlSsoProvider.name}`;
-      actions.loginWithSso(oidcSsoProvider.name, oidcSsoProvider.type);
+    it('should login with SSO', () => {
+      const expectedUrl = `localhost/v1/webapi/oidc/login/web?redirect_url=localhost%2Fweb&connector_id=${oidcSsoProvider.name}`;
+      actions.loginWithSso(oidcSsoProvider.name, oidcSsoProvider.url);
       expect(history.push).toHaveBeenCalledWith(expectedUrl, true);
     });
-
-    it('should login with SAML', () => {
-      const expectedUrl = `localhost/v1/webapi/saml/sso?redirect_url=localhost%2Fweb&connector_id=${samlSsoProvider.name}`;
-      actions.loginWithSso(samlSsoProvider.name, samlSsoProvider.type);
-      expect(history.push).toHaveBeenCalledWith(expectedUrl, true);
-    });
-
+    
     it('should login with U2F', () => {
       const dummyResponse = { appId: 'xxx' }
       spyOn(api, 'post').andReturn(Dfd().resolve(dummyResponse));

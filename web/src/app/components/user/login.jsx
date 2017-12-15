@@ -30,7 +30,7 @@ import { Auth2faTypeEnum } from 'app/services/enums';
 export class Login extends React.Component {
   
   onLoginWithSso = ssoProvider => {            
-    actions.loginWithSso(ssoProvider.name, ssoProvider.type);      
+    actions.loginWithSso(ssoProvider.name, ssoProvider.url);      
   }
 
   onLoginWithU2f = (username, password) => {              

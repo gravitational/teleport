@@ -27,9 +27,9 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/trace"
 
 	"github.com/ghodss/yaml"
+	"github.com/gravitational/trace"
 )
 
 type ResourceCollection interface {
@@ -435,4 +435,52 @@ func (c *trustedClusterCollection) writeYAML(w io.Writer) error {
 	}
 	_, err = w.Write(data)
 	return trace.Wrap(err)
+}
+
+type githubCollection struct {
+	connectors []services.GithubConnector
+}
+
+func (c *githubCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Name", "Teams To Logins"})
+	for _, conn := range c.connectors {
+		t.AddRow([]string{conn.GetName(), formatTeamsToLogins(
+			conn.GetTeamsToLogins())})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+func (c *githubCollection) writeJSON(w io.Writer) error {
+	data, err := json.MarshalIndent(c.toMarshal(), "", "    ")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = w.Write(data)
+	return trace.Wrap(err)
+}
+
+func (c *githubCollection) toMarshal() interface{} {
+	if len(c.connectors) == 1 {
+		return c.connectors[0]
+	}
+	return c.connectors
+}
+
+func (c *githubCollection) writeYAML(w io.Writer) error {
+	data, err := yaml.Marshal(c.toMarshal())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = w.Write(data)
+	return trace.Wrap(err)
+}
+
+func formatTeamsToLogins(mappings []services.TeamMapping) string {
+	var result []string
+	for _, m := range mappings {
+		result = append(result, fmt.Sprintf("@%v/%v: %v",
+			m.Organization, m.Team, strings.Join(m.Logins, ", ")))
+	}
+	return strings.Join(result, ", ")
 }

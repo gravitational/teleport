@@ -21,12 +21,13 @@ import (
 	"io"
 	"os"
 
-	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
@@ -68,8 +69,9 @@ Same as above, but using JSON output:
 // Initialize allows ResourceCommand to plug itself into the CLI parser
 func (g *ResourceCommand) Initialize(app *kingpin.Application, config *service.Config) {
 	g.CreateHandlers = map[ResourceKind]ResourceCreateHandler{
-		services.KindUser:           g.createUser,
-		services.KindTrustedCluster: g.createTrustedCluster,
+		services.KindUser:            g.createUser,
+		services.KindTrustedCluster:  g.createTrustedCluster,
+		services.KindGithubConnector: g.createGithubConnector,
 	}
 	g.config = config
 
@@ -194,6 +196,29 @@ func (u *ResourceCommand) createTrustedCluster(client *auth.TunClient, raw servi
 	return nil
 }
 
+func (u *ResourceCommand) createGithubConnector(client *auth.TunClient, raw services.UnknownResource) error {
+	connector, err := services.GetGithubConnectorMarshaler().Unmarshal(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = client.GetGithubConnector(connector.GetName(), false)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	exists := (err == nil)
+	if u.force == false && exists {
+		return trace.AlreadyExists("github connector %q already exists",
+			connector.GetName())
+	}
+	err = client.UpsertGithubConnector(connector)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("github connector %q has been %s\n",
+		connector.GetName(), UpsertVerb(exists))
+	return nil
+}
+
 // createUser implements 'tctl create user.yaml' command
 func (u *ResourceCommand) createUser(client *auth.TunClient, raw services.UnknownResource) error {
 	user, err := services.GetUserMarshaler().UnmarshalUser(raw.Raw)
@@ -240,6 +265,11 @@ func (d *ResourceCommand) Delete(client *auth.TunClient) (err error) {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("OIDC Connector %v has been deleted\n", d.ref.Name)
+	case services.KindGithubConnector:
+		if err = client.DeleteGithubConnector(d.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("github connector %q has been deleted\n", d.ref.Name)
 	case services.KindReverseTunnel:
 		if err := client.DeleteReverseTunnel(d.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -296,6 +326,12 @@ func (g *ResourceCommand) getCollection(client auth.ClientI) (c ResourceCollecti
 			return nil, trace.Wrap(err)
 		}
 		return &oidcCollection{connectors: connectors}, nil
+	case services.KindGithubConnector:
+		connectors, err := client.GetGithubConnectors(g.withSecrets)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &githubCollection{connectors: connectors}, nil
 	case services.KindReverseTunnel:
 		tunnels, err := client.GetReverseTunnels()
 		if err != nil {

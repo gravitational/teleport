@@ -617,3 +617,57 @@ func (s *ServicesTestSuite) TunnelConnectionsCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 0)
 }
+
+func (s *ServicesTestSuite) GithubConnectorCRUD(c *C) {
+	connector := &services.GithubConnectorV3{
+		Kind:    services.KindGithubConnector,
+		Version: services.V3,
+		Metadata: services.Metadata{
+			Name:      "github",
+			Namespace: defaults.Namespace,
+		},
+		Spec: services.GithubConnectorSpecV3{
+			ClientID:     "aaa",
+			ClientSecret: "bbb",
+			RedirectURL:  "https://localhost:3080/v1/webapi/github/callback",
+			Display:      "Github",
+			TeamsToLogins: []services.TeamMapping{
+				{
+					Organization: "gravitational",
+					Team:         "admins",
+					Logins:       []string{"admin"},
+				},
+			},
+		},
+	}
+	err := connector.CheckAndSetDefaults()
+	c.Assert(err, IsNil)
+	err = s.WebS.UpsertGithubConnector(connector)
+	c.Assert(err, IsNil)
+	out, err := s.WebS.GetGithubConnector(connector.GetName(), true)
+	c.Assert(err, IsNil)
+	fixtures.DeepCompare(c, out, connector)
+
+	connectors, err := s.WebS.GetGithubConnectors(true)
+	c.Assert(err, IsNil)
+	fixtures.DeepCompare(c, []services.GithubConnector{connector}, connectors)
+
+	out2, err := s.WebS.GetGithubConnector(connector.GetName(), false)
+	c.Assert(err, IsNil)
+	connectorNoSecrets := *connector
+	connectorNoSecrets.Spec.ClientSecret = ""
+	fixtures.DeepCompare(c, out2, &connectorNoSecrets)
+
+	connectorsNoSecrets, err := s.WebS.GetGithubConnectors(false)
+	c.Assert(err, IsNil)
+	fixtures.DeepCompare(c, []services.GithubConnector{&connectorNoSecrets}, connectorsNoSecrets)
+
+	err = s.WebS.DeleteGithubConnector(connector.GetName())
+	c.Assert(err, IsNil)
+
+	err = s.WebS.DeleteGithubConnector(connector.GetName())
+	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("expected not found, got %T", err))
+
+	_, err = s.WebS.GetGithubConnector(connector.GetName(), true)
+	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("expected not found, got %T", err))
+}

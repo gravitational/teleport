@@ -35,6 +35,12 @@ type Modules interface {
 	DefaultAllowedLogins() []string
 	// PrintVersion prints teleport version
 	PrintVersion()
+	// RolesFromLogins returns roles for external user based on the logins
+	// extracted from the connector
+	RolesFromLogins([]string) []string
+	// TraitsFromLogins returns traits for external user based on the logins
+	// extracted from the connector
+	TraitsFromLogins([]string) map[string][]string
 }
 
 // SetModules sets the modules interface
@@ -71,6 +77,25 @@ func (p *defaultModules) PrintVersion() {
 		ver = fmt.Sprintf("%s git:%s", ver, teleport.Gitref)
 	}
 	fmt.Println(ver)
+}
+
+// RolesFromLogins returns roles for external user based on the logins
+// extracted from the connector
+//
+// By default there is only one role, "admin", so logins are ignored and
+// instead used as allowed logins (see TraitsFromLogins below).
+func (p *defaultModules) RolesFromLogins(logins []string) []string {
+	return []string{teleport.AdminRoleName}
+}
+
+// TraitsFromLogins returns traits for external user based on the logins
+// extracted from the connector
+//
+// By default logins are treated as allowed logins user traits.
+func (p *defaultModules) TraitsFromLogins(logins []string) map[string][]string {
+	return map[string][]string{
+		teleport.TraitLogins: logins,
+	}
 }
 
 var (

@@ -68,6 +68,20 @@ type SSOLoginConsoleReq struct {
 	Compatibility string        `json:"compatibility,omitempty"`
 }
 
+// Check makes sure that the request is valid
+func (r SSOLoginConsoleReq) Check() error {
+	if r.RedirectURL == "" {
+		return trace.BadParameter("missing RedirectURL")
+	}
+	if len(r.PublicKey) == 0 {
+		return trace.BadParameter("missing PublicKey")
+	}
+	if r.ConnectorID == "" {
+		return trace.BadParameter("missing ConnectorID")
+	}
+	return nil
+}
+
 // SSOLoginConsoleResponse is a response to SSO console request
 type SSOLoginConsoleResponse struct {
 	RedirectURL string `json:"redirect_url"`
@@ -265,10 +279,12 @@ type AuthenticationSettings struct {
 	SecondFactor string `json:"second_factor,omitempty"`
 	// U2F contains the Universal Second Factor settings needed for authentication.
 	U2F *U2FSettings `json:"u2f,omitempty"`
-	// OIDC contains the OIDC Connector settings needed for authentication.
+	// OIDC contains OIDC connector settings needed for authentication.
 	OIDC *OIDCSettings `json:"oidc,omitempty"`
-	// SAML contains the SAML Connector settings needed for authentication.
+	// SAML contains SAML connector settings needed for authentication.
 	SAML *SAMLSettings `json:"saml,omitempty"`
+	// Github contains Github connector settings needed for authentication.
+	Github *GithubSettings `json:"github,omitempty"`
 }
 
 // U2FSettings contains the AppID for Universal Second Factor.
@@ -290,6 +306,14 @@ type OIDCSettings struct {
 	// Name is the internal name of the connector.
 	Name string `json:"name"`
 	// Display is the display name for the connector.
+	Display string `json:"display"`
+}
+
+// GithubSettings contains the Name and Display string for Github connector.
+type GithubSettings struct {
+	// Name is the internal name of the connector
+	Name string `json:"name"`
+	// Display is the connector display name
 	Display string `json:"display"`
 }
 

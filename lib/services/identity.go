@@ -59,13 +59,16 @@ type Identity interface {
 	// GetUser returns a user by name
 	GetUser(user string) (User, error)
 
-	// GetUserByOIDCIdentity returns a user by it's specified OIDC Identity, returns first
+	// GetUserByOIDCIdentity returns a user by its specified OIDC Identity, returns first
 	// user specified with this identity
 	GetUserByOIDCIdentity(id ExternalIdentity) (User, error)
 
-	// GetUserBySAMLIdentity returns a user by it's specified OIDC Identity, returns first
+	// GetUserBySAMLIdentity returns a user by its specified OIDC Identity, returns first
 	// user specified with this identity
 	GetUserBySAMLIdentity(id ExternalIdentity) (User, error)
+
+	// GetUserByGithubIdentity returns a user by its specified Github identity
+	GetUserByGithubIdentity(id ExternalIdentity) (User, error)
 
 	// DeleteUser deletes a user with all the keys from the backend
 	DeleteUser(user string) error
@@ -187,6 +190,21 @@ type Identity interface {
 
 	// GetSAMLAuthRequest returns OSAML auth request if found
 	GetSAMLAuthRequest(id string) (*SAMLAuthRequest, error)
+
+	// CreateGithubConnector creates a new Github connector
+	CreateGithubConnector(connector GithubConnector) error
+	// UpsertGithubConnector creates or updates a new Github connector
+	UpsertGithubConnector(connector GithubConnector) error
+	// GetGithubConnectors returns all configured Github connectors
+	GetGithubConnectors(withSecrets bool) ([]GithubConnector, error)
+	// GetGithubConnector returns a Github connector by its name
+	GetGithubConnector(name string, withSecrets bool) (GithubConnector, error)
+	// DeleteGithubConnector deletes a Github connector by its name
+	DeleteGithubConnector(name string) error
+	// CreateGithubAuthRequest creates a new auth request for Github OAuth2 flow
+	CreateGithubAuthRequest(req GithubAuthRequest, ttl time.Duration) error
+	// GetGithubAuthRequest retrieves Github auth request by the token
+	GetGithubAuthRequest(stateToken string) (*GithubAuthRequest, error)
 }
 
 // VerifyPassword makes sure password satisfies our requirements (relaxed),
@@ -250,6 +268,50 @@ func (i *ExternalIdentity) Check() error {
 	}
 	if i.Username == "" {
 		return trace.BadParameter("Username: missing username")
+	}
+	return nil
+}
+
+// GithubAuthRequest is the request to start Github OAuth2 flow
+type GithubAuthRequest struct {
+	// ConnectorID is the name of the connector to use
+	ConnectorID string `json:"connector_id"`
+	// StateToken is used to validate the request
+	StateToken string `json:"state_token"`
+	// CSRFToken is used to protect against CSRF attacks
+	CSRFToken string `json:"csrf_token"`
+	// PublicKey is an optional public key to sign in case of successful auth
+	PublicKey []byte `json:"public_key"`
+	// CertTTL is TTL of the cert that's generated in case of successful auth
+	CertTTL time.Duration `json:"cert_ttl"`
+	// CreateWebSession indicates that a user wants to generate a web session
+	// after successul authentication
+	CreateWebSession bool `json:"create_web_session"`
+	// RedirectURL will be used by browser
+	RedirectURL string `json:"redirect_url"`
+	// ClientRedirectURL is the URL where client will be redirected after
+	// successful auth
+	ClientRedirectURL string `json:"client_redirect_url"`
+	// Compatibility specifies OpenSSH compatibility flags
+	Compatibility string `json:"compatibility,omitempty"`
+}
+
+// Check makes sure the request is valid
+func (r *GithubAuthRequest) Check() error {
+	if r.ConnectorID == "" {
+		return trace.BadParameter("missing ConnectorID")
+	}
+	if r.StateToken == "" {
+		return trace.BadParameter("missing StateToken")
+	}
+	if len(r.PublicKey) != 0 {
+		_, _, _, _, err := ssh.ParseAuthorizedKey(r.PublicKey)
+		if err != nil {
+			return trace.BadParameter("bad PublicKey: %v", err)
+		}
+		if (r.CertTTL > defaults.MaxCertDuration) || (r.CertTTL < defaults.MinCertDuration) {
+			return trace.BadParameter("wrong CertTTL")
+		}
 	}
 	return nil
 }

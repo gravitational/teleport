@@ -176,6 +176,15 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	srv.POST("/:version/saml/requests/create", srv.withAuth(srv.createSAMLAuthRequest))
 	srv.POST("/:version/saml/requests/validate", srv.withAuth(srv.validateSAMLResponse))
 
+	// Github connector
+	srv.POST("/:version/github/connectors", srv.withAuth(srv.createGithubConnector))
+	srv.PUT("/:version/github/connectors", srv.withAuth(srv.upsertGithubConnector))
+	srv.GET("/:version/github/connectors", srv.withAuth(srv.getGithubConnectors))
+	srv.GET("/:version/github/connectors/:id", srv.withAuth(srv.getGithubConnector))
+	srv.DELETE("/:version/github/connectors/:id", srv.withAuth(srv.deleteGithubConnector))
+	srv.POST("/:version/github/requests/create", srv.withAuth(srv.createGithubAuthRequest))
+	srv.POST("/:version/github/requests/validate", srv.withAuth(srv.validateGithubAuthCallback))
+
 	// U2F
 	srv.GET("/:version/u2f/signuptokens/:token", srv.withAuth(srv.getSignupU2FRegisterRequest))
 	srv.POST("/:version/u2f/users", srv.withAuth(srv.createUserWithU2FToken))
@@ -1415,6 +1424,206 @@ func (s *APIServer) validateSAMLResponse(auth ClientI, w http.ResponseWriter, r 
 	raw.HostSigners = make([]json.RawMessage, len(response.HostSigners))
 	for i, ca := range response.HostSigners {
 		data, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(ca, services.WithVersion(version))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		raw.HostSigners[i] = data
+	}
+	return &raw, nil
+}
+
+// createGithubConnectorRawReq is a request to create a new Github connector
+type createGithubConnectorRawReq struct {
+	// Connector is the connector data
+	Connector json.RawMessage `json:"connector"`
+}
+
+/* createGithubConnector creates a new Github connector
+
+   POST /:version/github/connectors
+
+   Success response: {"message": "ok"}
+*/
+func (s *APIServer) createGithubConnector(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	var req createGithubConnectorRawReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	connector, err := services.GetGithubConnectorMarshaler().Unmarshal(req.Connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.CreateGithubConnector(connector); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message("ok"), nil
+}
+
+// upsertGithubConnectorRawReq is a request to upsert a Github connector
+type upsertGithubConnectorRawReq struct {
+	// Connector is the connector data
+	Connector json.RawMessage `json:"connector"`
+}
+
+/* upsertGithubConnector creates or updates a Github connector
+
+   PUT /:version/github/connectors
+
+   Success response: {"message": "ok"}
+*/
+func (s *APIServer) upsertGithubConnector(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	var req upsertGithubConnectorRawReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	connector, err := services.GetGithubConnectorMarshaler().Unmarshal(req.Connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.UpsertGithubConnector(connector); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message("ok"), nil
+}
+
+/* getGithubConnectors returns a list of all configured Github connectors
+
+   GET /:version/github/connectors
+
+   Success response: []services.GithubConnector
+*/
+func (s *APIServer) getGithubConnectors(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	withSecrets, _, err := httplib.ParseBool(r.URL.Query(), "with_secrets")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	connectors, err := auth.GetGithubConnectors(withSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	items := make([]json.RawMessage, len(connectors))
+	for i, connector := range connectors {
+		bytes, err := services.GetGithubConnectorMarshaler().Marshal(connector)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		items[i] = bytes
+	}
+	return items, nil
+}
+
+/* getGithubConnector returns the specified Github connector
+
+   GET /:version/github/connectors/:id
+
+   Success response: services.GithubConnector
+*/
+func (s *APIServer) getGithubConnector(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	withSecrets, _, err := httplib.ParseBool(r.URL.Query(), "with_secrets")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	connector, err := auth.GetGithubConnector(p.ByName("id"), withSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rawMessage(services.GetGithubConnectorMarshaler().Marshal(connector))
+}
+
+/* deleteGithubConnector deletes the specified Github connector
+
+   DELETE /:version/github/connectors/:id
+
+   Success response: {"message": "ok"}
+*/
+func (s *APIServer) deleteGithubConnector(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	if err := auth.DeleteGithubConnector(p.ByName("id")); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message("ok"), nil
+}
+
+// createGithubAuthRequestReq is a request to start Github OAuth2 flow
+type createGithubAuthRequestReq struct {
+	// Req is the request parameters
+	Req services.GithubAuthRequest `json:"req"`
+}
+
+/* createGithubAuthRequest creates a new request for Github OAuth2 flow
+
+   POST /:version/github/requests/create
+
+   Success response: services.GithubAuthRequest
+*/
+func (s *APIServer) createGithubAuthRequest(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	var req createGithubAuthRequestReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	response, err := auth.CreateGithubAuthRequest(req.Req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return response, nil
+}
+
+// validateGithubAuthCallbackReq is a request to validate Github OAuth2 callback
+type validateGithubAuthCallbackReq struct {
+	// Query is the callback query string
+	Query url.Values `json:"query"`
+}
+
+// githubAuthRawResponse is returned when auth server validated callback
+// parameters returned from Github during OAuth2 flow
+type githubAuthRawResponse struct {
+	// Username is authenticated teleport username
+	Username string `json:"username"`
+	// Identity contains validated OIDC identity
+	Identity services.ExternalIdentity `json:"identity"`
+	// Web session will be generated by auth server if requested in OIDCAuthRequest
+	Session json.RawMessage `json:"session,omitempty"`
+	// Cert will be generated by certificate authority
+	Cert []byte `json:"cert,omitempty"`
+	// Req is original oidc auth request
+	Req services.GithubAuthRequest `json:"req"`
+	// HostSigners is a list of signing host public keys
+	// trusted by proxy, used in console login
+	HostSigners []json.RawMessage `json:"host_signers"`
+}
+
+/* validateGithubAuthRequest validates Github auth callback redirect
+
+   POST /:version/github/requests/validate
+
+   Success response: githubAuthRawResponse
+*/
+func (s *APIServer) validateGithubAuthCallback(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	var req validateGithubAuthCallbackReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	response, err := auth.ValidateGithubAuthCallback(req.Query)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	raw := githubAuthRawResponse{
+		Username: response.Username,
+		Identity: response.Identity,
+		Cert:     response.Cert,
+		Req:      response.Req,
+	}
+	if response.Session != nil {
+		rawSession, err := services.GetWebSessionMarshaler().MarshalWebSession(
+			response.Session, services.WithVersion(version))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		raw.Session = rawSession
+	}
+	raw.HostSigners = make([]json.RawMessage, len(response.HostSigners))
+	for i, ca := range response.HostSigners {
+		data, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(
+			ca, services.WithVersion(version))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

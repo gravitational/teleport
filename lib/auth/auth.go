@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -108,6 +109,7 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
 		IAuditLog:            cfg.AuditLog,
 		oidcClients:          make(map[string]*oidcClient),
 		samlProviders:        make(map[string]*samlProvider),
+		githubClients:        make(map[string]*githubClient),
 		cancelFunc:           cancelFunc,
 		closeCtx:             closeCtx,
 	}
@@ -139,6 +141,7 @@ type AuthServer struct {
 	lock          sync.Mutex
 	oidcClients   map[string]*oidcClient
 	samlProviders map[string]*samlProvider
+	githubClients map[string]*githubClient
 	clock         clockwork.Clock
 	bk            backend.Backend
 	closeCtx      context.Context
@@ -881,19 +884,25 @@ const (
 	TokenLenBytes = 16
 )
 
-// oidcClient is internal structure that stores client and it's config
+// oidcClient is internal structure that stores OIDC client and its config
 type oidcClient struct {
 	client *oidc.Client
 	config oidc.ClientConfig
 }
 
+// samlProvider is internal structure that stores SAML client and its config
 type samlProvider struct {
 	provider  *saml2.SAMLServiceProvider
 	connector services.SAMLConnector
 }
 
-// oidcConfigsEqual is a struct that helps us to verify that
-// two oidc configs are equal
+// githubClient is internal structure that stores Github OAuth 2client and its config
+type githubClient struct {
+	client *oauth2.Client
+	config oauth2.Config
+}
+
+// oidcConfigsEqual returns true if the provided OIDC configs are equal
 func oidcConfigsEqual(a, b oidc.ClientConfig) bool {
 	if a.RedirectURL != b.RedirectURL {
 		return false
@@ -911,6 +920,37 @@ func oidcConfigsEqual(a, b oidc.ClientConfig) bool {
 		if a.Scope[i] != b.Scope[i] {
 			return false
 		}
+	}
+	return true
+}
+
+// oauth2ConfigsEqual returns true if the provided OAuth2 configs are equal
+func oauth2ConfigsEqual(a, b oauth2.Config) bool {
+	if a.Credentials.ID != b.Credentials.ID {
+		return false
+	}
+	if a.Credentials.Secret != b.Credentials.Secret {
+		return false
+	}
+	if a.RedirectURL != b.RedirectURL {
+		return false
+	}
+	if len(a.Scope) != len(b.Scope) {
+		return false
+	}
+	for i := range a.Scope {
+		if a.Scope[i] != b.Scope[i] {
+			return false
+		}
+	}
+	if a.AuthURL != b.AuthURL {
+		return false
+	}
+	if a.TokenURL != b.TokenURL {
+		return false
+	}
+	if a.AuthMethod != b.AuthMethod {
+		return false
 	}
 	return true
 }

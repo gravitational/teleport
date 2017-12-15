@@ -37,6 +37,14 @@ func (s *ModulesSuite) TestDefaultModules(c *check.C) {
 
 	logins := GetModules().DefaultAllowedLogins()
 	c.Assert(logins, check.DeepEquals, []string{teleport.TraitInternalRoleVariable})
+
+	roles := GetModules().RolesFromLogins([]string{"root"})
+	c.Assert(roles, check.DeepEquals, []string{teleport.AdminRoleName})
+
+	traits := GetModules().TraitsFromLogins([]string{"root"})
+	c.Assert(traits, check.DeepEquals, map[string][]string{
+		teleport.TraitLogins: []string{"root"},
+	})
 }
 
 func (s *ModulesSuite) TestTestModules(c *check.C) {
@@ -47,6 +55,12 @@ func (s *ModulesSuite) TestTestModules(c *check.C) {
 
 	logins := GetModules().DefaultAllowedLogins()
 	c.Assert(logins, check.DeepEquals, []string{"a", "b"})
+
+	roles := GetModules().RolesFromLogins([]string{"root"})
+	c.Assert(roles, check.DeepEquals, []string{"root"})
+
+	traits := GetModules().TraitsFromLogins([]string{"root"})
+	c.Assert(traits, check.IsNil)
 }
 
 type testModules struct{}
@@ -60,3 +74,11 @@ func (p *testModules) DefaultAllowedLogins() []string {
 }
 
 func (p *testModules) PrintVersion() {}
+
+func (p *testModules) RolesFromLogins(logins []string) []string {
+	return logins
+}
+
+func (p *testModules) TraitsFromLogins(logins []string) map[string][]string {
+	return nil
+}

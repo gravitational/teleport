@@ -30,16 +30,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/roundtrip"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/trace"
 
+	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"github.com/tstranex/u2f"
 )
@@ -1126,7 +1125,7 @@ func (c *Client) UpsertSAMLConnector(connector services.SAMLConnector) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = c.PostJSON(c.Endpoint("saml", "connectors"), &upsertSAMLConnectorRawReq{
+	_, err = c.PutJSON(c.Endpoint("saml", "connectors"), &upsertSAMLConnectorRawReq{
 		Connector: data,
 	})
 	if err != nil {
@@ -1214,6 +1213,129 @@ func (c *Client) ValidateSAMLResponse(re string) (*SAMLAuthResponse, error) {
 	}
 	if len(rawResponse.Session) != 0 {
 		session, err := services.GetWebSessionMarshaler().UnmarshalWebSession(rawResponse.Session)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		response.Session = session
+	}
+	response.HostSigners = make([]services.CertAuthority, len(rawResponse.HostSigners))
+	for i, raw := range rawResponse.HostSigners {
+		ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(raw)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		response.HostSigners[i] = ca
+	}
+	return &response, nil
+}
+
+// CreateGithubConnector creates a new Github connector
+func (c *Client) CreateGithubConnector(connector services.GithubConnector) error {
+	bytes, err := services.GetGithubConnectorMarshaler().Marshal(connector)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = c.PostJSON(c.Endpoint("github", "connectors"), &createGithubConnectorRawReq{
+		Connector: bytes,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// UpsertGithubConnector creates or updates a Github connector
+func (c *Client) UpsertGithubConnector(connector services.GithubConnector) error {
+	bytes, err := services.GetGithubConnectorMarshaler().Marshal(connector)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = c.PutJSON(c.Endpoint("github", "connectors"), &upsertGithubConnectorRawReq{
+		Connector: bytes,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// GetGithubConnectors returns all configured Github connectors
+func (c *Client) GetGithubConnectors(withSecrets bool) ([]services.GithubConnector, error) {
+	out, err := c.Get(c.Endpoint("github", "connectors"), url.Values{
+		"with_secrets": []string{strconv.FormatBool(withSecrets)},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var items []json.RawMessage
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	connectors := make([]services.GithubConnector, len(items))
+	for i, raw := range items {
+		connector, err := services.GetGithubConnectorMarshaler().Unmarshal(raw)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		connectors[i] = connector
+	}
+	return connectors, nil
+}
+
+// GetGithubConnector returns the specified Github connector
+func (c *Client) GetGithubConnector(id string, withSecrets bool) (services.GithubConnector, error) {
+	out, err := c.Get(c.Endpoint("github", "connectors", id), url.Values{
+		"with_secrets": []string{strconv.FormatBool(withSecrets)},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return services.GetGithubConnectorMarshaler().Unmarshal(out.Bytes())
+}
+
+// DeleteGithubConnector deletes the specified Github connector
+func (c *Client) DeleteGithubConnector(id string) error {
+	_, err := c.Delete(c.Endpoint("github", "connectors", id))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// CreateGithubAuthRequest creates a new request for Github OAuth2 flow
+func (c *Client) CreateGithubAuthRequest(req services.GithubAuthRequest) (*services.GithubAuthRequest, error) {
+	out, err := c.PostJSON(c.Endpoint("github", "requests", "create"),
+		createGithubAuthRequestReq{Req: req})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var response services.GithubAuthRequest
+	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &response, nil
+}
+
+// ValidateGithubAuthCallback validates Github auth callback returned from redirect
+func (c *Client) ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, error) {
+	out, err := c.PostJSON(c.Endpoint("github", "requests", "validate"),
+		validateGithubAuthCallbackReq{Query: q})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var rawResponse githubAuthRawResponse
+	if err := json.Unmarshal(out.Bytes(), &rawResponse); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	response := GithubAuthResponse{
+		Username: rawResponse.Username,
+		Identity: rawResponse.Identity,
+		Cert:     rawResponse.Cert,
+		Req:      rawResponse.Req,
+	}
+	if len(rawResponse.Session) != 0 {
+		session, err := services.GetWebSessionMarshaler().UnmarshalWebSession(
+			rawResponse.Session)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1776,6 +1898,21 @@ type IdentityService interface {
 
 	// ValidateSAMLResponse validates SAML auth response
 	ValidateSAMLResponse(re string) (*SAMLAuthResponse, error)
+
+	// CreateGithubConnector creates a new Github connector
+	CreateGithubConnector(connector services.GithubConnector) error
+	// UpsertGithubConnector creates or updates a Github connector
+	UpsertGithubConnector(connector services.GithubConnector) error
+	// GetGithubConnectors returns all configured Github connectors
+	GetGithubConnectors(withSecrets bool) ([]services.GithubConnector, error)
+	// GetGithubConnector returns the specified Github connector
+	GetGithubConnector(id string, withSecrets bool) (services.GithubConnector, error)
+	// DeleteGithubConnector deletes the specified Github connector
+	DeleteGithubConnector(id string) error
+	// CreateGithubAuthRequest creates a new request for Github OAuth2 flow
+	CreateGithubAuthRequest(services.GithubAuthRequest) (*services.GithubAuthRequest, error)
+	// ValidateGithubAuthCallback validates Github auth callback
+	ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, error)
 
 	// GetU2FSignRequest generates request for user trying to authenticate with U2F token
 	GetU2FSignRequest(user string, password []byte) (*u2f.SignRequest, error)

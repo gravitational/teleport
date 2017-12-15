@@ -16,7 +16,8 @@ limitations under the License.
 
 export const AuthProviderTypeEnum = {
   OIDC: 'oidc',
-  SAML: 'saml'
+  SAML: 'saml',
+  GITHUB: 'github'
 }
 
 export const RestRespCodeEnum = {
