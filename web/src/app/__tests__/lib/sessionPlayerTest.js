@@ -162,11 +162,11 @@ describe('lib/ttyPlayer', function () {
       expect(ttyPlayer.isLoading).toBe(true);
     });
 
-    it('should indicate its error status', function (cb) {
-      spyOn(api, 'get').andReturn($.Deferred().reject());
+    it('should indicate its error status', function (cb) {      
+      spyOn(api, 'get').andReturn($.Deferred().reject(new Error('!!!')));
       var ttyPlayer = new TtyPlayer({url: 'testSid'});
       ttyPlayer.on('change', cb);
-      ttyPlayer.connect();
+      ttyPlayer.connect();      
       expect(ttyPlayer.isError).toBe(true);
     });
 

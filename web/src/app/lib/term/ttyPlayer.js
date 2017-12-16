@@ -14,25 +14,22 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var Tty = require('./tty');
-var api = require('app/services/api');
-var {showError} = require('app/flux/notifications/actions');
-var $ = require('jQuery');
-var Buffer = require('buffer/').Buffer;
-var { EventTypeEnum } = require('./enums');
+import $ from 'jQuery';
+import BufferModule from 'buffer/';
+import api from 'app/services/api';
+import Tty from './tty';
+import { EventTypeEnum } from './enums';
+import Logger from 'app/lib/logger';
 
-const logger = require('app/lib/logger').create('TtyPlayer');
+const logger = Logger.create('TtyPlayer');
 const STREAM_START_INDEX = 0;
 const PRE_FETCH_BUF_SIZE = 150;
 const URL_PREFIX_EVENTS = '/events';
 const PLAY_SPEED = 5;
 
-function handleAjaxError(err){
-  showError('Unable to retrieve session info');
-  logger.error('fetching recorded session info', err);
-}
+const Buffer = BufferModule.Buffer;
 
-class EventProvider{
+export class EventProvider{
   constructor({url}){
     this.url = url;
     this.buffSize = PRE_FETCH_BUF_SIZE;
@@ -210,7 +207,7 @@ class EventProvider{
 
 }
 
-class TtyPlayer extends Tty {
+export class TtyPlayer extends Tty {
   constructor({url}){
     super({});
     this.currentEventIndex = 0;
@@ -220,6 +217,7 @@ class TtyPlayer extends Tty {
     this.isError = false;
     this.isReady = false;
     this.isLoading = true;
+    this.errText = '';
 
     this._posToEventIndexMap = [];
     this._eventProvider = new EventProvider({url});
@@ -235,10 +233,20 @@ class TtyPlayer extends Tty {
     this._setStatusFlag({isLoading: true});
     this._eventProvider.init()
       .done(this._init.bind(this))
-      .fail(handleAjaxError)
+      .fail(err => {
+        logger.error('unable to init event provider', err);
+        this.handleError(err);        
+      })
       .always(this._change.bind(this));
 
     this._change();
+  }
+
+  handleError(err) {
+    this._setStatusFlag({
+      isError: true,
+      errText: api.getErrorText(err)
+    })    
   }
 
   _init(){
@@ -265,7 +273,7 @@ class TtyPlayer extends Tty {
       newPos = 0;
     }
 
-    var newEventIndex = this._getEventIndex(newPos) + 1;
+    const newEventIndex = this._getEventIndex(newPos) + 1;
 
     if(newEventIndex === this.currentEventIndex){
       this.current = newPos;
@@ -330,15 +338,14 @@ class TtyPlayer extends Tty {
         this._setStatusFlag({isReady: true });
         this._display(events);
       })
-      .fail(err=>{
-        this._setStatusFlag({isError: true });
-        handleAjaxError(err);
+      .fail(err => {
+        logger.error('unable to process a chunk of session recording', err);
+        this.handleError(err);        
       })
   }
 
-  _display(stream){
-    let i;
-    let tmp = [{
+  _display(stream){    
+    const tmp = [{
       data: [stream[0].data],
       w: stream[0].w,
       h: stream[0].h
@@ -346,7 +353,7 @@ class TtyPlayer extends Tty {
 
     let cur = tmp[0];
 
-    for(i = 1; i < stream.length; i++){
+    for(let i = 1; i < stream.length; i++){
       if(cur.w === stream[i].w && cur.h === stream[i].h){
         cur.data.push(stream[i].data)
       }else{
@@ -360,9 +367,9 @@ class TtyPlayer extends Tty {
       }
     }
 
-    for(i = 0; i < tmp.length; i ++){
-      let str = tmp[i].data.join('');
-      let {h, w} = tmp[i];
+    for(let i = 0; i < tmp.length; i ++){
+      const str = tmp[i].data.join('');
+      const {h, w} = tmp[i];
       if(str.length > 0){                
         this.emit('resize', { h, w });                
         this.emit('data', str);        
@@ -371,20 +378,20 @@ class TtyPlayer extends Tty {
   }
 
   _setStatusFlag(newStatus){
-    let {isReady=false, isError=false, isLoading=false } = newStatus;
+    const { isReady=false, isError=false, isLoading=false, errText='' } = newStatus;
     this.isReady = isReady;
     this.isError = isError;
     this.isLoading = isLoading;
+    this.errText = errText;
   }
 
   _getEventIndex(num){
-    var arr = this._posToEventIndexMap;
-    var mid;
+    const arr = this._posToEventIndexMap;    
     var low = 0;
-    var hi = arr.length-1;
-
+    var hi = arr.length - 1;
+    
     while (hi - low > 1) {
-      mid = Math.floor ((low + hi) / 2);
+      const mid = Math.floor ((low + hi) / 2);
       if (arr[mid] < num) {
         low = mid;
       } else {
@@ -405,8 +412,4 @@ class TtyPlayer extends Tty {
 }
 
 export default TtyPlayer;
-export {
-  EventProvider,
-  TtyPlayer,
-  Buffer
-}
+export { Buffer } 

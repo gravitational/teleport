@@ -13,19 +13,15 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-import $ from 'jQuery';
-import initScroll from 'perfect-scrollbar/jquery';
+
 import React from 'react';
 import { connect } from 'nuclear-js-react-addons';
-import ReactSlider from 'react-slider';
 import getters from 'app/flux/player/getters';
-import Terminal from 'app/lib/term/terminal';
-import { TtyPlayer } from 'app/lib/term/ttyPlayer';
 import { initPlayer, close } from 'app/flux/player/actions';
 import Indicator from './../indicator.jsx';
+import { ErrorIndicator } from './items';
+import { Player } from './player';
 import PartyListPanel from './../partyListPanel';
-
-initScroll($);
 
 class PlayerHost extends React.Component {
     
@@ -34,24 +30,20 @@ class PlayerHost extends React.Component {
   }
 
   render() {
-    let { store } = this.props;    
-    if(store.isReady()){
-      let url = store.getStoredSessionUrl();
-      return <Player url={url}/>;
-    }        
-
-    let $indicator = null;
-
-    if(store.isLoading()){
-       $indicator = (<Indicator type="bounce" />);
-    }        
-
-    if(store.isError()){
-       $indicator = (<ErrorIndicator text={store.getErrorText()} />);
-    }        
+    const { store } = this.props;    
+    const isReady = store.isReady();
+    const isLoading = store.isLoading();
+    const isError = store.isError();
+    const errText = store.getErrorText();
+    const url = store.getStoredSessionUrl();
     
     return (
-      <Box>{$indicator}</Box>
+      <div className="grv-terminalhost grv-session-player">
+        <PartyListPanel onClose={close} />         
+        {isLoading && <Indicator type="bounce" />}
+        {isError && <ErrorIndicator text={errText} />}
+        {isReady &&  <Player url={url}/>}
+      </div>
     );
   }  
 }
@@ -63,133 +55,3 @@ function mapStateToProps() {
 }
 
 export default connect(mapStateToProps)(PlayerHost);
-
-const Player = React.createClass({
-  calculateState(){
-    return {
-      length: this.tty.length,
-      min: 1,
-      time: this.tty.getCurrentTime(),
-      isPlaying: this.tty.isPlaying,
-      current: this.tty.current,
-      canPlay: this.tty.length > 1
-    };
-  },
-
-  getInitialState() {
-    let { url } = this.props;
-    this.tty = new TtyPlayer({url});
-    return this.calculateState();
-  },
-
-  componentDidMount() {
-    this.terminal = new Term(this.tty, this.refs.container);
-    this.terminal.open();
-
-    this.tty.on('change', this.updateState)
-    this.tty.play();
-  },
-
-  updateState(){
-    var newState = this.calculateState();
-    this.setState(newState);
-  },
-
-  componentWillUnmount() {
-    this.tty.stop();
-    this.tty.removeAllListeners();
-    this.terminal.destroy();
-    $(this.refs.container).perfectScrollbar('destroy');
-  },
-
-  togglePlayStop(){
-    if(this.state.isPlaying){
-      this.tty.stop();
-    }else{
-      this.tty.play();
-    }
-  },
-
-  move(value){
-    this.tty.move(value);
-  },
-
-  onBeforeChange(){
-    this.tty.stop();
-  },
-
-  onAfterChange(value){
-    this.tty.play();
-    this.tty.move(value);
-  },
-
-  render() {
-    let {isPlaying, time} = this.state;
-
-    return (
-      <Box>
-        <div ref="container"/>
-        <div className="grv-session-player-controls">         
-         <button className="btn" onClick={this.togglePlayStop}>
-           { isPlaying ? <i className="fa fa-stop"></i> :  <i className="fa fa-play"></i> }
-         </button>
-         <div className="grv-session-player-controls-time">{time}</div>
-         <div className="grv-flex-column">
-           <ReactSlider
-              min={this.state.min}
-              max={this.state.length}
-              value={this.state.current}
-              onChange={this.move}
-              defaultValue={1}
-              withBars
-              className="grv-slider" />
-         </div>          
-        </div>  
-      </Box>     
-     );
-  }
-});
-
-class Term extends Terminal{
-  constructor(tty, el){
-    super({ el, scrollBack: 1000 });    
-    this.tty = tty;            
-  }
-
-  connect(){
-    this.tty.connect();
-  }
-
-  open() {
-    super.open();              
-    $(this._el).perfectScrollbar();
-  }
-
-  resize(cols, rows) {           
-    // ensure cursor is visible as xterm hides it on blur event
-    this.term.cursorState = 1;
-    super.resize(cols, rows);        
-    $(this._el).perfectScrollbar('update');
-  }
-
-  _disconnect(){}
-
-  _requestResize(){}
-}
-
-const Box = props => (
-  <div className="grv-terminalhost grv-session-player">
-    <PartyListPanel onClose={close} />       
-    {props.children}    
-  </div>
-)
-
-const ErrorIndicator = ({ text }) => (
-  <div className="grv-terminalhost-indicator-error">
-    <i className="fa fa-exclamation-triangle fa-3x text-warning"></i>
-    <div className="m-l">
-      <strong>Error</strong>
-      <div><small>{text}</small></div>
-    </div>
-  </div>
-)
