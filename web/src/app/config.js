@@ -44,7 +44,7 @@ const cfg = {
     info: '/web/msg/info(/:type)',
     pageNotFound: '/web/notfound',
     terminal: '/web/cluster/:siteId/node/:serverId/:login(/:sid)',
-    player: '/web/player/node/:siteId/sid/:sid',
+    player: '/web/player/cluster/:siteId/sid/:sid',
     webApi: '/v1/webapi/*',                
     settingsBase: '/web/settings',        
     settingsAccount: '/web/settings/account',        
@@ -115,8 +115,8 @@ const cfg = {
     }
   },
 
-  getPlayerUrl({siteId, serverId, sid}) {
-    return formatPattern(cfg.routes.player, { siteId, serverId, sid });  
+  getPlayerUrl({siteId, sid}) {
+    return formatPattern(cfg.routes.player, { siteId, sid });  
   },
 
   getTerminalLoginUrl({siteId, serverId, login, sid}) {

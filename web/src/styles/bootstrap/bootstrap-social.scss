@@ -12,85 +12,11 @@ $bs-height-lg:   (floor($font-size-large * $line-height-base) + $padding-large-v
 $bs-height-sm:   (floor($font-size-small * 1.5) + $padding-small-vertical * 2);
 $bs-height-xs:   (floor($font-size-small * 1.2) + $padding-small-vertical + 1);
 
-.btn-social {
-  position: relative;
-  padding-left: ($bs-height-base + $padding-base-horizontal);
-  text-align: left;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  > :first-child {
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: $bs-height-base;
-    line-height: ($bs-height-base + 2);
-    font-size: 1.6em;
-    text-align: center;
-    border-right: 1px solid rgba(0, 0, 0, 0.2);
-  }
-  &.btn-lg {
-    padding-left: ($bs-height-lg + $padding-large-horizontal);
-    > :first-child {
-      line-height: $bs-height-lg;
-      width: $bs-height-lg;
-      font-size: 1.8em;
-    }
-  }
-  &.btn-sm {
-    padding-left: ($bs-height-sm + $padding-small-horizontal);
-    > :first-child {
-      line-height: $bs-height-sm;
-      width: $bs-height-sm;
-      font-size: 1.4em;
-    }
-  }
-  &.btn-xs {
-    padding-left: ($bs-height-xs + $padding-small-horizontal);
-    > :first-child {
-      line-height: $bs-height-xs;
-      width: $bs-height-xs;
-      font-size: 1.2em;
-    }
-  }
-}
-
-.btn-social-icon {
-  @extend .btn-social;
-  height: ($bs-height-base + 2);
-  width: ($bs-height-base + 2);
-  padding: 0;
-  > :first-child {
-    border: none;
-    text-align: center;
-    width: 100%!important;
-  }
-  &.btn-lg {
-    height: $bs-height-lg;
-    width: $bs-height-lg;
-    padding-left: 0;
-    padding-right: 0;
-  }
-  &.btn-sm {
-    height: ($bs-height-sm + 2);
-    width: ($bs-height-sm + 2);
-    padding-left: 0;
-    padding-right: 0;
-  }
-  &.btn-xs {
-    height: ($bs-height-xs + 2);
-    width: ($bs-height-xs + 2);
-    padding-left: 0;
-    padding-right: 0;
-  }
-}
 
 @mixin btn-social($color-bg, $color: #fff) {
   background-color: $color-bg;
   @include button-variant($color, $color-bg, rgba(0,0,0,.2));
 }
-
 
 .btn-adn           { @include btn-social(#d87a68); }
 .btn-bitbucket     { @include btn-social(#205081); }
@@ -105,6 +31,7 @@ $bs-height-xs:   (floor($font-size-small * 1.2) + $padding-small-vertical + 1);
 .btn-microsoft     { @include btn-social(#2672ec); }
 .btn-odnoklassniki { @include btn-social(#f4731c); }
 .btn-openid        { @include btn-social(#f7931e); }
+.btn-saml          { @include btn-social(#f7931e); }
 .btn-pinterest     { @include btn-social(#cb2027); }
 .btn-reddit        { @include btn-social(#eff7ff, #000); }
 .btn-soundcloud    { @include btn-social(#ff5500); }

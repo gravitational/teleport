@@ -1,62 +1,48 @@
 import React from 'react';
-import classnames from 'classnames';
-import { AuthProviderEnum, AuthProviderTypeEnum } from 'app/services/enums';
 
-const ProviderIcon = ({ provider }) => {
-  let { name, type } = provider;
+import { AuthProviderTypeEnum } from 'app/services/enums';
 
-  let iconClass = classnames('fa', {
-    'fa-google': name === AuthProviderEnum.GOOGLE,
-    'fa-windows': name === AuthProviderEnum.MS,
-    'fa-github': name === AuthProviderEnum.GITHUB || type === AuthProviderTypeEnum.GITHUB,
-    'fa-bitbucket': name === AuthProviderEnum.BITBUCKET
-  });
+const guessProviderBtnClass = (name, type) => {  
+  name = name.toLowerCase();
 
-  // do not render any icon for unknown SAML providers
-  if (iconClass === 'fa' && type === AuthProviderTypeEnum.SAML) {
-    return null;
+  if (name.indexOf('microsoft') !== -1) {
+    return 'btn-microsoft';    
+  }
+
+  if (name.indexOf('bitbucket') !== -1) {
+    return 'btn-bitbucket';  
   }
   
-  // use default oidc icon for unknown oidc providers
-  if (iconClass === 'fa') {    
-    iconClass = `${iconClass} fa-openid`;
+  if (name.indexOf('google') !== -1) {
+    return 'btn-google';
   }
 
-  return (
-    <div className="--sso-icon">
-      <span className={iconClass}></span>
-    </div>
-  )
-}
+  if (name.indexOf('github') !== -1 || type === AuthProviderTypeEnum.GITHUB ) {
+    return 'btn-github';
+  }
 
-const guessProviderBtnClass = name => {  
-  switch (name) {
-    case AuthProviderEnum.BITBUCKET:
-      return 'btn-bitbucket';  
-    case AuthProviderEnum.GITHUB:
-      return 'btn-github';  
-    case AuthProviderEnum.MS:
-      return 'btn-microsoft';    
-    case AuthProviderEnum.GOOGLE:
-      return 'btn-google';
-    default:
-      return 'btn-openid'; 
-  }    
+  if (type === AuthProviderTypeEnum.OIDC) {
+    return 'btn-openid';
+  }
+
+  return '--unknown';   
 }
 
 const SsoBtnList = ({providers, prefixText, isDisabled, onClick}) => {      
-  let $btns = providers.map((item, index) => {
-    let { name, displayName } = item;    
+  const $btns = providers.map((item, index) => {
+    let { name, type, displayName } = item;    
     displayName = displayName || name;
-    let title = `${prefixText} ${displayName}`
-    let providerBtnClass = guessProviderBtnClass(name);
-    let btnClass = `btn grv-user-btn-sso full-width ${providerBtnClass}`;
+    const title = `${prefixText} ${displayName}`
+    const providerBtnClass = guessProviderBtnClass(displayName, type);
+    const btnClass = `btn grv-user-btn-sso full-width ${providerBtnClass}`;
     return (
       <button key={index}
         disabled={isDisabled}
         className={btnClass}
-        onClick={e => { e.preventDefault(); onClick(item) }}>      
-        <ProviderIcon provider={item}/>
+        onClick={e => { e.preventDefault(); onClick(item) }}>              
+        <div className="--sso-icon">
+          <span className="fa"/>
+        </div>
         <span>{title}</span>      
       </button>              
     )

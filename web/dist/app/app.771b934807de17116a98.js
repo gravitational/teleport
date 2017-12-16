@@ -53,7 +53,7 @@ webpackJsonp([0],[
 
 	var _actions2 = __webpack_require__(239);
 
-	__webpack_require__(545);
+	__webpack_require__(534);
 
 	function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key]; } } newObj.default = obj; return newObj; } }
 
@@ -1209,7 +1209,7 @@ webpackJsonp([0],[
 	    info: '/web/msg/info(/:type)',
 	    pageNotFound: '/web/notfound',
 	    terminal: '/web/cluster/:siteId/node/:serverId/:login(/:sid)',
-	    player: '/web/player/node/:siteId/sid/:sid',
+	    player: '/web/player/cluster/:siteId/sid/:sid',
 	    webApi: '/v1/webapi/*',
 	    settingsBase: '/web/settings',
 	    settingsAccount: '/web/settings/account'
@@ -1287,10 +1287,9 @@ webpackJsonp([0],[
 
 	  getPlayerUrl: function getPlayerUrl(_ref4) {
 	    var siteId = _ref4.siteId,
-	        serverId = _ref4.serverId,
 	        sid = _ref4.sid;
 
-	    return (0, _patternUtils.formatPattern)(cfg.routes.player, { siteId: siteId, serverId: serverId, sid: sid });
+	    return (0, _patternUtils.formatPattern)(cfg.routes.player, { siteId: siteId, sid: sid });
 	  },
 	  getTerminalLoginUrl: function getTerminalLoginUrl(_ref5) {
 	    var siteId = _ref5.siteId,
@@ -9352,72 +9351,50 @@ webpackJsonp([0],[
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _classnames = __webpack_require__(257);
-
-	var _classnames2 = _interopRequireDefault(_classnames);
-
 	var _enums = __webpack_require__(264);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-	var ProviderIcon = function ProviderIcon(_ref) {
-	  var provider = _ref.provider;
-	  var name = provider.name,
-	      type = provider.type;
+	var guessProviderBtnClass = function guessProviderBtnClass(name, type) {
+	  name = name.toLowerCase();
 
-
-	  var iconClass = (0, _classnames2.default)('fa', {
-	    'fa-google': name === _enums.AuthProviderEnum.GOOGLE,
-	    'fa-windows': name === _enums.AuthProviderEnum.MS,
-	    'fa-github': name === _enums.AuthProviderEnum.GITHUB || type === _enums.AuthProviderTypeEnum.GITHUB,
-	    'fa-bitbucket': name === _enums.AuthProviderEnum.BITBUCKET
-	  });
-
-	  // do not render any icon for unknown SAML providers
-	  if (iconClass === 'fa' && type === _enums.AuthProviderTypeEnum.SAML) {
-	    return null;
+	  if (name.indexOf('microsoft') !== -1) {
+	    return 'btn-microsoft';
 	  }
 
-	  // use default oidc icon for unknown oidc providers
-	  if (iconClass === 'fa') {
-	    iconClass = iconClass + ' fa-openid';
+	  if (name.indexOf('bitbucket') !== -1) {
+	    return 'btn-bitbucket';
 	  }
 
-	  return _react2.default.createElement(
-	    'div',
-	    { className: '--sso-icon' },
-	    _react2.default.createElement('span', { className: iconClass })
-	  );
+	  if (name.indexOf('google') !== -1) {
+	    return 'btn-google';
+	  }
+
+	  if (name.indexOf('github') !== -1 || type === _enums.AuthProviderTypeEnum.GITHUB) {
+	    return 'btn-github';
+	  }
+
+	  if (type === _enums.AuthProviderTypeEnum.OIDC) {
+	    return 'btn-openid';
+	  }
+
+	  return '--unknown';
 	};
 
-	var guessProviderBtnClass = function guessProviderBtnClass(name) {
-	  switch (name) {
-	    case _enums.AuthProviderEnum.BITBUCKET:
-	      return 'btn-bitbucket';
-	    case _enums.AuthProviderEnum.GITHUB:
-	      return 'btn-github';
-	    case _enums.AuthProviderEnum.MS:
-	      return 'btn-microsoft';
-	    case _enums.AuthProviderEnum.GOOGLE:
-	      return 'btn-google';
-	    default:
-	      return 'btn-openid';
-	  }
-	};
-
-	var SsoBtnList = function SsoBtnList(_ref2) {
-	  var providers = _ref2.providers,
-	      prefixText = _ref2.prefixText,
-	      isDisabled = _ref2.isDisabled,
-	      _onClick = _ref2.onClick;
+	var SsoBtnList = function SsoBtnList(_ref) {
+	  var providers = _ref.providers,
+	      prefixText = _ref.prefixText,
+	      isDisabled = _ref.isDisabled,
+	      _onClick = _ref.onClick;
 
 	  var $btns = providers.map(function (item, index) {
 	    var name = item.name,
+	        type = item.type,
 	        displayName = item.displayName;
 
 	    displayName = displayName || name;
 	    var title = prefixText + ' ' + displayName;
-	    var providerBtnClass = guessProviderBtnClass(name);
+	    var providerBtnClass = guessProviderBtnClass(displayName, type);
 	    var btnClass = 'btn grv-user-btn-sso full-width ' + providerBtnClass;
 	    return _react2.default.createElement(
 	      'button',
@@ -9427,7 +9404,11 @@ webpackJsonp([0],[
 	        onClick: function onClick(e) {
 	          e.preventDefault();_onClick(item);
 	        } },
-	      _react2.default.createElement(ProviderIcon, { provider: item }),
+	      _react2.default.createElement(
+	        'div',
+	        { className: '--sso-icon' },
+	        _react2.default.createElement('span', { className: 'fa' })
+	      ),
 	      _react2.default.createElement(
 	        'span',
 	        null,
@@ -9492,13 +9473,6 @@ webpackJsonp([0],[
 	  UTF: 'u2f',
 	  OTP: 'otp',
 	  DISABLED: 'off'
-	};
-
-	var AuthProviderEnum = exports.AuthProviderEnum = {
-	  GOOGLE: 'google',
-	  MS: 'microsoft',
-	  GITHUB: 'github',
-	  BITBUCKET: 'bitbucket'
 	};
 
 	var AuthTypeEnum = exports.AuthTypeEnum = {
@@ -16303,39 +16277,25 @@ webpackJsonp([0],[
 
 	exports.__esModule = true;
 
-	var _jQuery = __webpack_require__(229);
-
-	var _jQuery2 = _interopRequireDefault(_jQuery);
-
-	var _jquery = __webpack_require__(486);
-
-	var _jquery2 = _interopRequireDefault(_jquery);
-
 	var _react = __webpack_require__(2);
 
 	var _react2 = _interopRequireDefault(_react);
 
 	var _nuclearJsReactAddons = __webpack_require__(219);
 
-	var _reactSlider = __webpack_require__(508);
-
-	var _reactSlider2 = _interopRequireDefault(_reactSlider);
-
-	var _getters = __webpack_require__(509);
+	var _getters = __webpack_require__(486);
 
 	var _getters2 = _interopRequireDefault(_getters);
-
-	var _terminal = __webpack_require__(397);
-
-	var _terminal2 = _interopRequireDefault(_terminal);
-
-	var _ttyPlayer = __webpack_require__(510);
 
 	var _actions = __webpack_require__(407);
 
 	var _indicator = __webpack_require__(394);
 
 	var _indicator2 = _interopRequireDefault(_indicator);
+
+	var _items = __webpack_require__(487);
+
+	var _player = __webpack_require__(488);
 
 	var _partyListPanel = __webpack_require__(410);
 
@@ -16363,9 +16323,6 @@ webpackJsonp([0],[
 	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               limitations under the License.
 	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               */
 
-
-	(0, _jquery2.default)(_jQuery2.default);
-
 	var PlayerHost = function (_React$Component) {
 	  _inherits(PlayerHost, _React$Component);
 
@@ -16386,25 +16343,19 @@ webpackJsonp([0],[
 	  PlayerHost.prototype.render = function render() {
 	    var store = this.props.store;
 
-	    if (store.isReady()) {
-	      var url = store.getStoredSessionUrl();
-	      return _react2.default.createElement(Player, { url: url });
-	    }
-
-	    var $indicator = null;
-
-	    if (store.isLoading()) {
-	      $indicator = _react2.default.createElement(_indicator2.default, { type: 'bounce' });
-	    }
-
-	    if (store.isError()) {
-	      $indicator = _react2.default.createElement(ErrorIndicator, { text: store.getErrorText() });
-	    }
+	    var isReady = store.isReady();
+	    var isLoading = store.isLoading();
+	    var isError = store.isError();
+	    var errText = store.getErrorText();
+	    var url = store.getStoredSessionUrl();
 
 	    return _react2.default.createElement(
-	      Box,
-	      null,
-	      $indicator
+	      'div',
+	      { className: 'grv-terminalhost grv-session-player' },
+	      _react2.default.createElement(_partyListPanel2.default, { onClose: _actions.close }),
+	      isLoading && _react2.default.createElement(_indicator2.default, { type: 'bounce' }),
+	      isError && _react2.default.createElement(_items.ErrorIndicator, { text: errText }),
+	      isReady && _react2.default.createElement(_player.Player, { url: url })
 	    );
 	  };
 
@@ -16418,197 +16369,10 @@ webpackJsonp([0],[
 	}
 
 	exports.default = (0, _nuclearJsReactAddons.connect)(mapStateToProps)(PlayerHost);
-
-
-	var Player = _react2.default.createClass({
-	  displayName: 'Player',
-	  calculateState: function calculateState() {
-	    return {
-	      length: this.tty.length,
-	      min: 1,
-	      time: this.tty.getCurrentTime(),
-	      isPlaying: this.tty.isPlaying,
-	      current: this.tty.current,
-	      canPlay: this.tty.length > 1
-	    };
-	  },
-	  getInitialState: function getInitialState() {
-	    var url = this.props.url;
-
-	    this.tty = new _ttyPlayer.TtyPlayer({ url: url });
-	    return this.calculateState();
-	  },
-	  componentDidMount: function componentDidMount() {
-	    this.terminal = new Term(this.tty, this.refs.container);
-	    this.terminal.open();
-
-	    this.tty.on('change', this.updateState);
-	    this.tty.play();
-	  },
-	  updateState: function updateState() {
-	    var newState = this.calculateState();
-	    this.setState(newState);
-	  },
-	  componentWillUnmount: function componentWillUnmount() {
-	    this.tty.stop();
-	    this.tty.removeAllListeners();
-	    this.terminal.destroy();
-	    (0, _jQuery2.default)(this.refs.container).perfectScrollbar('destroy');
-	  },
-	  togglePlayStop: function togglePlayStop() {
-	    if (this.state.isPlaying) {
-	      this.tty.stop();
-	    } else {
-	      this.tty.play();
-	    }
-	  },
-	  move: function move(value) {
-	    this.tty.move(value);
-	  },
-	  onBeforeChange: function onBeforeChange() {
-	    this.tty.stop();
-	  },
-	  onAfterChange: function onAfterChange(value) {
-	    this.tty.play();
-	    this.tty.move(value);
-	  },
-	  render: function render() {
-	    var _state = this.state,
-	        isPlaying = _state.isPlaying,
-	        time = _state.time;
-
-
-	    return _react2.default.createElement(
-	      Box,
-	      null,
-	      _react2.default.createElement('div', { ref: 'container' }),
-	      _react2.default.createElement(
-	        'div',
-	        { className: 'grv-session-player-controls' },
-	        _react2.default.createElement(
-	          'button',
-	          { className: 'btn', onClick: this.togglePlayStop },
-	          isPlaying ? _react2.default.createElement('i', { className: 'fa fa-stop' }) : _react2.default.createElement('i', { className: 'fa fa-play' })
-	        ),
-	        _react2.default.createElement(
-	          'div',
-	          { className: 'grv-session-player-controls-time' },
-	          time
-	        ),
-	        _react2.default.createElement(
-	          'div',
-	          { className: 'grv-flex-column' },
-	          _react2.default.createElement(_reactSlider2.default, {
-	            min: this.state.min,
-	            max: this.state.length,
-	            value: this.state.current,
-	            onChange: this.move,
-	            defaultValue: 1,
-	            withBars: true,
-	            className: 'grv-slider' })
-	        )
-	      )
-	    );
-	  }
-	});
-
-	var Term = function (_Terminal) {
-	  _inherits(Term, _Terminal);
-
-	  function Term(tty, el) {
-	    _classCallCheck(this, Term);
-
-	    var _this3 = _possibleConstructorReturn(this, _Terminal.call(this, { el: el, scrollBack: 1000 }));
-
-	    _this3.tty = tty;
-	    return _this3;
-	  }
-
-	  Term.prototype.connect = function connect() {
-	    this.tty.connect();
-	  };
-
-	  Term.prototype.open = function open() {
-	    _Terminal.prototype.open.call(this);
-	    (0, _jQuery2.default)(this._el).perfectScrollbar();
-	  };
-
-	  Term.prototype.resize = function resize(cols, rows) {
-	    // ensure cursor is visible as xterm hides it on blur event
-	    this.term.cursorState = 1;
-	    _Terminal.prototype.resize.call(this, cols, rows);
-	    (0, _jQuery2.default)(this._el).perfectScrollbar('update');
-	  };
-
-	  Term.prototype._disconnect = function _disconnect() {};
-
-	  Term.prototype._requestResize = function _requestResize() {};
-
-	  return Term;
-	}(_terminal2.default);
-
-	var Box = function Box(props) {
-	  return _react2.default.createElement(
-	    'div',
-	    { className: 'grv-terminalhost grv-session-player' },
-	    _react2.default.createElement(_partyListPanel2.default, { onClose: _actions.close }),
-	    props.children
-	  );
-	};
-
-	var ErrorIndicator = function ErrorIndicator(_ref) {
-	  var text = _ref.text;
-	  return _react2.default.createElement(
-	    'div',
-	    { className: 'grv-terminalhost-indicator-error' },
-	    _react2.default.createElement('i', { className: 'fa fa-exclamation-triangle fa-3x text-warning' }),
-	    _react2.default.createElement(
-	      'div',
-	      { className: 'm-l' },
-	      _react2.default.createElement(
-	        'strong',
-	        null,
-	        'Error'
-	      ),
-	      _react2.default.createElement(
-	        'div',
-	        null,
-	        _react2.default.createElement(
-	          'small',
-	          null,
-	          text
-	        )
-	      )
-	    )
-	  );
-	};
 	module.exports = exports['default'];
 
 /***/ }),
-/* 486 */,
-/* 487 */,
-/* 488 */,
-/* 489 */,
-/* 490 */,
-/* 491 */,
-/* 492 */,
-/* 493 */,
-/* 494 */,
-/* 495 */,
-/* 496 */,
-/* 497 */,
-/* 498 */,
-/* 499 */,
-/* 500 */,
-/* 501 */,
-/* 502 */,
-/* 503 */,
-/* 504 */,
-/* 505 */,
-/* 506 */,
-/* 507 */,
-/* 508 */,
-/* 509 */
+/* 486 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -16636,59 +16400,347 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 510 */
+/* 487 */
+/***/ (function(module, exports, __webpack_require__) {
+
+	"use strict";
+
+	exports.__esModule = true;
+	exports.ErrorIndicator = undefined;
+
+	var _react = __webpack_require__(2);
+
+	var _react2 = _interopRequireDefault(_react);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	var ErrorIndicator = exports.ErrorIndicator = function ErrorIndicator(_ref) {
+	  var text = _ref.text;
+	  return _react2.default.createElement(
+	    "div",
+	    { className: "grv-terminalhost-indicator-error" },
+	    _react2.default.createElement("i", { className: "fa fa-exclamation-triangle fa-3x text-warning" }),
+	    _react2.default.createElement(
+	      "div",
+	      { className: "m-l" },
+	      _react2.default.createElement(
+	        "strong",
+	        null,
+	        "Error"
+	      ),
+	      _react2.default.createElement(
+	        "div",
+	        null,
+	        _react2.default.createElement(
+	          "small",
+	          null,
+	          text
+	        )
+	      )
+	    )
+	  );
+	}; /*
+	   Copyright 2015 Gravitational, Inc.
+	   
+	   Licensed under the Apache License, Version 2.0 (the "License");
+	   you may not use this file except in compliance with the License.
+	   You may obtain a copy of the License at
+	   
+	       http://www.apache.org/licenses/LICENSE-2.0
+	   
+	   Unless required by applicable law or agreed to in writing, software
+	   distributed under the License is distributed on an "AS IS" BASIS,
+	   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	   See the License for the specific language governing permissions and
+	   limitations under the License.
+	   */
+
+/***/ }),
+/* 488 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
+	exports.Player = undefined;
+
+	var _jQuery = __webpack_require__(229);
+
+	var _jQuery2 = _interopRequireDefault(_jQuery);
+
+	var _jquery = __webpack_require__(489);
+
+	var _jquery2 = _interopRequireDefault(_jquery);
+
+	var _react = __webpack_require__(2);
+
+	var _react2 = _interopRequireDefault(_react);
+
+	var _reactSlider = __webpack_require__(511);
+
+	var _reactSlider2 = _interopRequireDefault(_reactSlider);
+
+	var _terminal = __webpack_require__(397);
+
+	var _terminal2 = _interopRequireDefault(_terminal);
+
+	var _ttyPlayer = __webpack_require__(512);
+
+	var _items = __webpack_require__(487);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; } /*
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Copyright 2015 Gravitational, Inc.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Licensed under the Apache License, Version 2.0 (the "License");
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               you may not use this file except in compliance with the License.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               You may obtain a copy of the License at
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   http://www.apache.org/licenses/LICENSE-2.0
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Unless required by applicable law or agreed to in writing, software
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               distributed under the License is distributed on an "AS IS" BASIS,
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               See the License for the specific language governing permissions and
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               limitations under the License.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               */
+
+
+	(0, _jquery2.default)(_jQuery2.default);
+
+	var TerminalPlayer = function (_GrvTerminal) {
+	  _inherits(TerminalPlayer, _GrvTerminal);
+
+	  function TerminalPlayer(tty, el) {
+	    _classCallCheck(this, TerminalPlayer);
+
+	    var _this = _possibleConstructorReturn(this, _GrvTerminal.call(this, { el: el, scrollBack: 1000 }));
+
+	    _this.tty = tty;
+	    return _this;
+	  }
+
+	  TerminalPlayer.prototype.connect = function connect() {
+	    this.tty.connect();
+	  };
+
+	  TerminalPlayer.prototype.open = function open() {
+	    _GrvTerminal.prototype.open.call(this);
+	    (0, _jQuery2.default)(this._el).perfectScrollbar();
+	  };
+
+	  TerminalPlayer.prototype.resize = function resize(cols, rows) {
+	    // ensure cursor is visible as xterm hides it on blur event
+	    this.term.cursorState = 1;
+	    _GrvTerminal.prototype.resize.call(this, cols, rows);
+	    (0, _jQuery2.default)(this._el).perfectScrollbar('update');
+	  };
+
+	  TerminalPlayer.prototype._disconnect = function _disconnect() {};
+
+	  TerminalPlayer.prototype._requestResize = function _requestResize() {};
+
+	  return TerminalPlayer;
+	}(_terminal2.default);
+
+	var Player = exports.Player = function (_React$Component) {
+	  _inherits(Player, _React$Component);
+
+	  function Player(props) {
+	    _classCallCheck(this, Player);
+
+	    var _this2 = _possibleConstructorReturn(this, _React$Component.call(this, props));
+
+	    _this2.updateState = function () {
+	      var newState = _this2.calculateState();
+	      _this2.setState(newState);
+	    };
+
+	    _this2.togglePlayStop = function () {
+	      if (_this2.state.isPlaying) {
+	        _this2.tty.stop();
+	      } else {
+	        _this2.tty.play();
+	      }
+	    };
+
+	    _this2.move = function (value) {
+	      _this2.tty.move(value);
+	    };
+
+	    var url = _this2.props.url;
+
+	    _this2.tty = new _ttyPlayer.TtyPlayer({ url: url });
+	    _this2.state = _this2.calculateState();
+	    return _this2;
+	  }
+
+	  Player.prototype.calculateState = function calculateState() {
+	    return {
+	      length: this.tty.length,
+	      min: 1,
+	      time: this.tty.getCurrentTime(),
+	      isPlaying: this.tty.isPlaying,
+	      isError: this.tty.isError,
+	      errText: this.tty.errText,
+	      current: this.tty.current,
+	      canPlay: this.tty.length > 1
+	    };
+	  };
+
+	  Player.prototype.componentDidMount = function componentDidMount() {
+	    this.terminal = new TerminalPlayer(this.tty, this.refs.container);
+	    this.terminal.open();
+
+	    this.tty.on('change', this.updateState);
+	    this.tty.play();
+	  };
+
+	  Player.prototype.componentWillUnmount = function componentWillUnmount() {
+	    this.tty.stop();
+	    this.tty.removeAllListeners();
+	    this.terminal.destroy();
+	    (0, _jQuery2.default)(this.refs.container).perfectScrollbar('destroy');
+	  };
+
+	  Player.prototype.render = function render() {
+	    var _state = this.state,
+	        isPlaying = _state.isPlaying,
+	        isError = _state.isError,
+	        errText = _state.errText,
+	        time = _state.time;
+
+	    var btnClass = isPlaying ? 'fa fa-stop' : 'fa fa-play';
+	    if (isError) {
+	      return _react2.default.createElement(_items.ErrorIndicator, { text: errText });
+	    }
+
+	    return _react2.default.createElement(
+	      'div',
+	      { className: 'grv-session-player-content' },
+	      _react2.default.createElement('div', { ref: 'container' }),
+	      _react2.default.createElement(
+	        'div',
+	        { className: 'grv-session-player-controls' },
+	        _react2.default.createElement(
+	          'button',
+	          { className: 'btn', onClick: this.togglePlayStop },
+	          _react2.default.createElement('i', { className: btnClass })
+	        ),
+	        _react2.default.createElement(
+	          'div',
+	          { className: 'grv-session-player-controls-time' },
+	          time
+	        ),
+	        _react2.default.createElement(
+	          'div',
+	          { className: 'grv-flex-column' },
+	          _react2.default.createElement(_reactSlider2.default, {
+	            min: this.state.min,
+	            max: this.state.length,
+	            value: this.state.current,
+	            onChange: this.move,
+	            defaultValue: 1,
+	            withBars: true,
+	            className: 'grv-slider' })
+	        )
+	      )
+	    );
+	  };
+
+	  return Player;
+	}(_react2.default.Component);
+
+/***/ }),
+/* 489 */,
+/* 490 */,
+/* 491 */,
+/* 492 */,
+/* 493 */,
+/* 494 */,
+/* 495 */,
+/* 496 */,
+/* 497 */,
+/* 498 */,
+/* 499 */,
+/* 500 */,
+/* 501 */,
+/* 502 */,
+/* 503 */,
+/* 504 */,
+/* 505 */,
+/* 506 */,
+/* 507 */,
+/* 508 */,
+/* 509 */,
+/* 510 */,
+/* 511 */,
+/* 512 */
+/***/ (function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	exports.__esModule = true;
+	exports.Buffer = exports.TtyPlayer = exports.EventProvider = undefined;
+
+	var _jQuery = __webpack_require__(229);
+
+	var _jQuery2 = _interopRequireDefault(_jQuery);
+
+	var _buffer = __webpack_require__(513);
+
+	var _buffer2 = _interopRequireDefault(_buffer);
+
+	var _api = __webpack_require__(241);
+
+	var _api2 = _interopRequireDefault(_api);
+
+	var _tty = __webpack_require__(399);
+
+	var _tty2 = _interopRequireDefault(_tty);
+
+	var _enums = __webpack_require__(396);
+
+	var _logger = __webpack_require__(245);
+
+	var _logger2 = _interopRequireDefault(_logger);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
 
 	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 
-	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } } /*
+	                                                                                                                                                          Copyright 2015 Gravitational, Inc.
+	                                                                                                                                                          
+	                                                                                                                                                          Licensed under the Apache License, Version 2.0 (the "License");
+	                                                                                                                                                          you may not use this file except in compliance with the License.
+	                                                                                                                                                          You may obtain a copy of the License at
+	                                                                                                                                                          
+	                                                                                                                                                              http://www.apache.org/licenses/LICENSE-2.0
+	                                                                                                                                                          
+	                                                                                                                                                          Unless required by applicable law or agreed to in writing, software
+	                                                                                                                                                          distributed under the License is distributed on an "AS IS" BASIS,
+	                                                                                                                                                          WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	                                                                                                                                                          See the License for the specific language governing permissions and
+	                                                                                                                                                          limitations under the License.
+	                                                                                                                                                          */
 
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	var Tty = __webpack_require__(399);
-	var api = __webpack_require__(241);
-
-	var _require = __webpack_require__(511),
-	    showError = _require.showError;
-
-	var $ = __webpack_require__(229);
-	var Buffer = __webpack_require__(513).Buffer;
-
-	var _require2 = __webpack_require__(396),
-	    EventTypeEnum = _require2.EventTypeEnum;
-
-	var logger = __webpack_require__(245).create('TtyPlayer');
+	var logger = _logger2.default.create('TtyPlayer');
 	var STREAM_START_INDEX = 0;
 	var PRE_FETCH_BUF_SIZE = 150;
 	var URL_PREFIX_EVENTS = '/events';
 	var PLAY_SPEED = 5;
 
-	function handleAjaxError(err) {
-	  showError('Unable to retrieve session info');
-	  logger.error('fetching recorded session info', err);
-	}
+	var Buffer = _buffer2.default.Buffer;
 
-	var EventProvider = function () {
+	var EventProvider = exports.EventProvider = function () {
 	  function EventProvider(_ref) {
 	    var url = _ref.url;
 
@@ -16717,7 +16769,7 @@ webpackJsonp([0],[
 	  EventProvider.prototype.init = function init() {
 	    var _this = this;
 
-	    return api.get(this.url + URL_PREFIX_EVENTS).done(function (data) {
+	    return _api2.default.get(this.url + URL_PREFIX_EVENTS).done(function (data) {
 	      _this._createPrintEvents(data.events);
 	      _this._normalizeEventsByTime();
 	    });
@@ -16733,10 +16785,10 @@ webpackJsonp([0],[
 	          return _this2.events.slice(start, end);
 	        });
 	      } else {
-	        return $.Deferred().resolve(this.events.slice(start, end));
+	        return _jQuery2.default.Deferred().resolve(this.events.slice(start, end));
 	      }
 	    } catch (err) {
-	      return $.Deferred().reject(err);
+	      return _jQuery2.default.Deferred().reject(err);
 	    }
 	  };
 
@@ -16766,7 +16818,7 @@ webpackJsonp([0],[
 	    var offset = this.events[0].offset;
 	    var bytes = this.events[end].offset - offset + this.events[end].bytes;
 	    var url = this.url + '/stream?offset=' + offset + '&bytes=' + bytes;
-	    return api.ajax({ url: url, processData: true, dataType: 'text' }).then(function (response) {
+	    return _api2.default.ajax({ url: url, processData: true, dataType: 'text' }).then(function (response) {
 	      return new Buffer(response);
 	    });
 	  };
@@ -16787,7 +16839,7 @@ webpackJsonp([0],[
 
 	      // grab new screen size for the next events
 
-	      if (event === EventTypeEnum.RESIZE || event === EventTypeEnum.START) {
+	      if (event === _enums.EventTypeEnum.RESIZE || event === _enums.EventTypeEnum.START) {
 	        var _json$i$size$split = json[i].size.split(':');
 
 	        w = _json$i$size$split[0];
@@ -16795,12 +16847,12 @@ webpackJsonp([0],[
 	      }
 
 	      // session has ended, stop here
-	      if (event === EventTypeEnum.END) {
+	      if (event === _enums.EventTypeEnum.END) {
 	        break;
 	      }
 
 	      // process only PRINT events      
-	      if (event !== EventTypeEnum.PRINT) {
+	      if (event !== _enums.EventTypeEnum.PRINT) {
 	        continue;
 	      }
 
@@ -16883,7 +16935,7 @@ webpackJsonp([0],[
 	  return EventProvider;
 	}();
 
-	var TtyPlayer = function (_Tty) {
+	var TtyPlayer = exports.TtyPlayer = function (_Tty) {
 	  _inherits(TtyPlayer, _Tty);
 
 	  function TtyPlayer(_ref2) {
@@ -16900,6 +16952,7 @@ webpackJsonp([0],[
 	    _this3.isError = false;
 	    _this3.isReady = false;
 	    _this3.isLoading = true;
+	    _this3.errText = '';
 
 	    _this3._posToEventIndexMap = [];
 	    _this3._eventProvider = new EventProvider({ url: url });
@@ -16911,24 +16964,36 @@ webpackJsonp([0],[
 	  TtyPlayer.prototype.resize = function resize() {};
 
 	  TtyPlayer.prototype.connect = function connect() {
+	    var _this4 = this;
+
 	    this._setStatusFlag({ isLoading: true });
-	    this._eventProvider.init().done(this._init.bind(this)).fail(handleAjaxError).always(this._change.bind(this));
+	    this._eventProvider.init().done(this._init.bind(this)).fail(function (err) {
+	      logger.error('unable to init event provider', err);
+	      _this4.handleError(err);
+	    }).always(this._change.bind(this));
 
 	    this._change();
 	  };
 
+	  TtyPlayer.prototype.handleError = function handleError(err) {
+	    this._setStatusFlag({
+	      isError: true,
+	      errText: _api2.default.getErrorText(err)
+	    });
+	  };
+
 	  TtyPlayer.prototype._init = function _init() {
-	    var _this4 = this;
+	    var _this5 = this;
 
 	    this.length = this._eventProvider.getLengthInTime();
 	    this._eventProvider.events.forEach(function (item) {
-	      return _this4._posToEventIndexMap.push(item.msNormalized);
+	      return _this5._posToEventIndexMap.push(item.msNormalized);
 	    });
 	    this._setStatusFlag({ isReady: true });
 	  };
 
 	  TtyPlayer.prototype.move = function move(newPos) {
-	    var _this5 = this;
+	    var _this6 = this;
 
 	    if (!this.isReady) {
 	      return;
@@ -16962,9 +17027,9 @@ webpackJsonp([0],[
 	      }
 
 	      this._showChunk(isRewind ? 0 : this.currentEventIndex, newEventIndex).then(function () {
-	        _this5.currentEventIndex = newEventIndex;
-	        _this5.current = newPos;
-	        _this5._change();
+	        _this6.currentEventIndex = newEventIndex;
+	        _this6.current = newPos;
+	        _this6._change();
 	      });
 	    } catch (err) {
 	      logger.error('move', err);
@@ -17005,20 +17070,19 @@ webpackJsonp([0],[
 	  };
 
 	  TtyPlayer.prototype._showChunk = function _showChunk(start, end) {
-	    var _this6 = this;
+	    var _this7 = this;
 
 	    this._setStatusFlag({ isLoading: true });
 	    return this._eventProvider.getEventsWithByteStream(start, end).done(function (events) {
-	      _this6._setStatusFlag({ isReady: true });
-	      _this6._display(events);
+	      _this7._setStatusFlag({ isReady: true });
+	      _this7._display(events);
 	    }).fail(function (err) {
-	      _this6._setStatusFlag({ isError: true });
-	      handleAjaxError(err);
+	      logger.error('unable to process a chunk of session recording', err);
+	      _this7.handleError(err);
 	    });
 	  };
 
 	  TtyPlayer.prototype._display = function _display(stream) {
-	    var i = void 0;
 	    var tmp = [{
 	      data: [stream[0].data],
 	      w: stream[0].w,
@@ -17027,7 +17091,7 @@ webpackJsonp([0],[
 
 	    var cur = tmp[0];
 
-	    for (i = 1; i < stream.length; i++) {
+	    for (var i = 1; i < stream.length; i++) {
 	      if (cur.w === stream[i].w && cur.h === stream[i].h) {
 	        cur.data.push(stream[i].data);
 	      } else {
@@ -17041,11 +17105,11 @@ webpackJsonp([0],[
 	      }
 	    }
 
-	    for (i = 0; i < tmp.length; i++) {
-	      var str = tmp[i].data.join('');
-	      var _tmp$i = tmp[i],
-	          h = _tmp$i.h,
-	          w = _tmp$i.w;
+	    for (var _i = 0; _i < tmp.length; _i++) {
+	      var str = tmp[_i].data.join('');
+	      var _tmp$_i = tmp[_i],
+	          h = _tmp$_i.h,
+	          w = _tmp$_i.w;
 
 	      if (str.length > 0) {
 	        this.emit('resize', { h: h, w: w });
@@ -17060,21 +17124,23 @@ webpackJsonp([0],[
 	        _newStatus$isError = newStatus.isError,
 	        isError = _newStatus$isError === undefined ? false : _newStatus$isError,
 	        _newStatus$isLoading = newStatus.isLoading,
-	        isLoading = _newStatus$isLoading === undefined ? false : _newStatus$isLoading;
+	        isLoading = _newStatus$isLoading === undefined ? false : _newStatus$isLoading,
+	        _newStatus$errText = newStatus.errText,
+	        errText = _newStatus$errText === undefined ? '' : _newStatus$errText;
 
 	    this.isReady = isReady;
 	    this.isError = isError;
 	    this.isLoading = isLoading;
+	    this.errText = errText;
 	  };
 
 	  TtyPlayer.prototype._getEventIndex = function _getEventIndex(num) {
 	    var arr = this._posToEventIndexMap;
-	    var mid;
 	    var low = 0;
 	    var hi = arr.length - 1;
 
 	    while (hi - low > 1) {
-	      mid = Math.floor((low + hi) / 2);
+	      var mid = Math.floor((low + hi) / 2);
 	      if (arr[mid] < num) {
 	        low = mid;
 	      } else {
@@ -17094,104 +17160,10 @@ webpackJsonp([0],[
 	  };
 
 	  return TtyPlayer;
-	}(Tty);
+	}(_tty2.default);
 
 	exports.default = TtyPlayer;
-	exports.EventProvider = EventProvider;
-	exports.TtyPlayer = TtyPlayer;
 	exports.Buffer = Buffer;
-
-/***/ }),
-/* 511 */
-/***/ (function(module, exports, __webpack_require__) {
-
-	'use strict';
-
-	exports.__esModule = true;
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	var reactor = __webpack_require__(233);
-
-	var _require = __webpack_require__(512),
-	    TLPT_NOTIFICATIONS_ADD = _require.TLPT_NOTIFICATIONS_ADD;
-
-	exports.default = {
-	  showError: function showError() {
-	    var title = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 'Error';
-	    var text = arguments[1];
-
-	    dispatch({ isError: true, text: text, title: title });
-	  },
-	  showSuccess: function showSuccess() {
-	    var title = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 'SUCCESS';
-
-	    dispatch({ isSuccess: true, title: title });
-	  },
-	  showInfo: function showInfo(text) {
-	    var title = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 'INFO';
-
-	    dispatch({ isInfo: true, text: text, title: title });
-	  },
-	  showWarning: function showWarning(text) {
-	    var title = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 'WARNING';
-
-	    dispatch({ isWarning: true, text: text, title: title });
-	  }
-	};
-
-
-	function dispatch(msg) {
-	  reactor.dispatch(TLPT_NOTIFICATIONS_ADD, msg);
-	}
-	module.exports = exports['default'];
-
-/***/ }),
-/* 512 */
-/***/ (function(module, exports, __webpack_require__) {
-
-	'use strict';
-
-	exports.__esModule = true;
-
-	var _keymirror = __webpack_require__(290);
-
-	var _keymirror2 = _interopRequireDefault(_keymirror);
-
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-	exports.default = (0, _keymirror2.default)({
-	  TLPT_NOTIFICATIONS_ADD: null
-	}); /*
-	    Copyright 2015 Gravitational, Inc.
-	    
-	    Licensed under the Apache License, Version 2.0 (the "License");
-	    you may not use this file except in compliance with the License.
-	    You may obtain a copy of the License at
-	    
-	        http://www.apache.org/licenses/LICENSE-2.0
-	    
-	    Unless required by applicable law or agreed to in writing, software
-	    distributed under the License is distributed on an "AS IS" BASIS,
-	    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	    See the License for the specific language governing permissions and
-	    limitations under the License.
-	    */
-
-	module.exports = exports['default'];
 
 /***/ }),
 /* 513 */,
@@ -18383,10 +18355,6 @@ webpackJsonp([0],[
 
 	var _navLeftBar2 = _interopRequireDefault(_navLeftBar);
 
-	var _notificationHost = __webpack_require__(534);
-
-	var _notificationHost2 = _interopRequireDefault(_notificationHost);
-
 	var _dataProvider = __webpack_require__(425);
 
 	var _dataProvider2 = _interopRequireDefault(_dataProvider);
@@ -18457,7 +18425,6 @@ webpackJsonp([0],[
 	        'div',
 	        { className: className },
 	        _react2.default.createElement(_dataProvider2.default, { onFetch: _actions.refresh, time: 4000 }),
-	        _react2.default.createElement(_notificationHost2.default, null),
 	        this.props.CurrentSessionHost,
 	        _react2.default.createElement(_navLeftBar2.default, { router: router }),
 	        this.props.children
@@ -18721,135 +18688,15 @@ webpackJsonp([0],[
 
 	'use strict';
 
-	exports.__esModule = true;
-
-	var _react = __webpack_require__(2);
-
-	var _react2 = _interopRequireDefault(_react);
-
 	var _reactor = __webpack_require__(233);
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _getters = __webpack_require__(535);
-
-	var _reactToastr = __webpack_require__(536);
-
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	var ToastMessageFactory = _react2.default.createFactory(_reactToastr.ToastMessage.animation);
-
-	var animationOptions = {
-	  showAnimation: 'animated fadeIn',
-	  hideAnimation: 'animated fadeOut'
-	};
-
-	var NotificationHost = _react2.default.createClass({
-	  displayName: 'NotificationHost',
-
-
-	  mixins: [_reactor2.default.ReactMixin],
-
-	  getDataBindings: function getDataBindings() {
-	    return { msg: _getters.lastMessage };
-	  },
-	  update: function update(msg) {
-	    if (msg) {
-	      if (msg.isError) {
-	        this.refs.container.error(msg.text, msg.title, animationOptions);
-	      } else if (msg.isWarning) {
-	        this.refs.container.warning(msg.text, msg.title, animationOptions);
-	      } else if (msg.isSuccess) {
-	        this.refs.container.success(msg.text, msg.title, animationOptions);
-	      } else {
-	        this.refs.container.info(msg.text, msg.title, animationOptions);
-	      }
-	    }
-	  },
-	  componentDidMount: function componentDidMount() {
-	    _reactor2.default.observe(_getters.lastMessage, this.update);
-	  },
-	  componentWillUnmount: function componentWillUnmount() {
-	    _reactor2.default.unobserve(_getters.lastMessage, this.update);
-	  },
-	  render: function render() {
-	    return _react2.default.createElement(_reactToastr.ToastContainer, {
-	      className: 'toast-top-right',
-	      ref: 'container',
-	      toastMessageFactory: ToastMessageFactory });
-	  }
-	});
-
-	exports.default = NotificationHost;
-	module.exports = exports['default'];
-
-/***/ }),
-/* 535 */
-/***/ (function(module, exports) {
-
-	'use strict';
-
-	exports.__esModule = true;
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	var lastMessage = exports.lastMessage = [['tlpt_notifications'], function (notifications) {
-	    return notifications.last();
-	}];
-
-/***/ }),
-/* 536 */,
-/* 537 */,
-/* 538 */,
-/* 539 */,
-/* 540 */,
-/* 541 */,
-/* 542 */,
-/* 543 */,
-/* 544 */,
-/* 545 */
-/***/ (function(module, exports, __webpack_require__) {
-
-	'use strict';
-
-	var _reactor = __webpack_require__(233);
-
-	var _reactor2 = _interopRequireDefault(_reactor);
-
-	var _store = __webpack_require__(546);
+	var _store = __webpack_require__(535);
 
 	var _store2 = _interopRequireDefault(_store);
 
-	var _store3 = __webpack_require__(547);
+	var _store3 = __webpack_require__(536);
 
 	var _store4 = _interopRequireDefault(_store3);
 
@@ -18865,7 +18712,7 @@ webpackJsonp([0],[
 
 	var _nodeStore2 = _interopRequireDefault(_nodeStore);
 
-	var _store7 = __webpack_require__(548);
+	var _store7 = __webpack_require__(537);
 
 	var _store8 = _interopRequireDefault(_store7);
 
@@ -18897,20 +18744,20 @@ webpackJsonp([0],[
 	  'tlpt_terminal': _store2.default,
 	  'tlpt_player': _store4.default,
 	  'tlpt_nodes': _nodeStore2.default,
-	  'tlpt_user': __webpack_require__(549),
-	  'tlpt_user_invite': __webpack_require__(550),
+	  'tlpt_user': __webpack_require__(538),
+	  'tlpt_user_invite': __webpack_require__(539),
 	  'tlpt_user_acl': _store6.default,
-	  'tlpt_sites': __webpack_require__(551),
+	  'tlpt_sites': __webpack_require__(540),
 	  'tlpt_status': _statusStore2.default,
-	  'tlpt_sessions_events': __webpack_require__(552),
-	  'tlpt_sessions_archived': __webpack_require__(553),
-	  'tlpt_sessions_active': __webpack_require__(554),
-	  'tlpt_sessions_filter': __webpack_require__(555),
-	  'tlpt_notifications': __webpack_require__(556)
+	  'tlpt_sessions_events': __webpack_require__(541),
+	  'tlpt_sessions_archived': __webpack_require__(542),
+	  'tlpt_sessions_active': __webpack_require__(543),
+	  'tlpt_sessions_filter': __webpack_require__(544),
+	  'tlpt_notifications': __webpack_require__(545)
 	});
 
 /***/ }),
-/* 546 */
+/* 535 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19038,7 +18885,7 @@ webpackJsonp([0],[
 	}
 
 /***/ }),
-/* 547 */
+/* 536 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19117,6 +18964,10 @@ webpackJsonp([0],[
 	  };
 
 	  PlayerRec.prototype.getStoredSessionUrl = function getStoredSessionUrl() {
+	    if (!this.isReady()) {
+	      return '';
+	    }
+
 	    return _config2.default.api.getFetchSessionUrl({
 	      siteId: this.siteId,
 	      sid: this.sid
@@ -19155,7 +19006,7 @@ webpackJsonp([0],[
 	}
 
 /***/ }),
-/* 548 */
+/* 537 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19235,7 +19086,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 549 */
+/* 538 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19309,7 +19160,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 550 */
+/* 539 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19358,7 +19209,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 551 */
+/* 540 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19408,7 +19259,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 552 */
+/* 541 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19466,7 +19317,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 553 */
+/* 542 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19564,7 +19415,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 554 */
+/* 543 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19679,7 +19530,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 555 */
+/* 544 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19735,7 +19586,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 556 */
+/* 545 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19744,7 +19595,7 @@ webpackJsonp([0],[
 
 	var _nuclearJs = __webpack_require__(234);
 
-	var _actionTypes = __webpack_require__(512);
+	var _actionTypes = __webpack_require__(546);
 
 	/*
 	Copyright 2015 Gravitational, Inc.
@@ -19775,6 +19626,40 @@ webpackJsonp([0],[
 	function addNotification(state, message) {
 	  return state.set(state.size, message);
 	}
+	module.exports = exports['default'];
+
+/***/ }),
+/* 546 */
+/***/ (function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	exports.__esModule = true;
+
+	var _keymirror = __webpack_require__(290);
+
+	var _keymirror2 = _interopRequireDefault(_keymirror);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	exports.default = (0, _keymirror2.default)({
+	  TLPT_NOTIFICATIONS_ADD: null
+	}); /*
+	    Copyright 2015 Gravitational, Inc.
+	    
+	    Licensed under the Apache License, Version 2.0 (the "License");
+	    you may not use this file except in compliance with the License.
+	    You may obtain a copy of the License at
+	    
+	        http://www.apache.org/licenses/LICENSE-2.0
+	    
+	    Unless required by applicable law or agreed to in writing, software
+	    distributed under the License is distributed on an "AS IS" BASIS,
+	    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	    See the License for the specific language governing permissions and
+	    limitations under the License.
+	    */
+
 	module.exports = exports['default'];
 
 /***/ })
