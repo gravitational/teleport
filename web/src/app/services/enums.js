@@ -30,13 +30,6 @@ export const Auth2faTypeEnum = {
   DISABLED: 'off'
 }
 
-export const AuthProviderEnum = {
-  GOOGLE: 'google',
-  MS: 'microsoft',
-  GITHUB: 'github',
-  BITBUCKET: 'bitbucket'
-}
-
 export const AuthTypeEnum = {
   LOCAL: 'local',
   SSO: 'sso'

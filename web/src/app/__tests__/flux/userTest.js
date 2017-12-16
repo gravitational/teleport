@@ -21,7 +21,7 @@ import {createMemoryHistory} from 'react-router';
 import {reactor, expect, api, Dfd, spyOn} from './../';
 import actions from 'app/flux/user/actions';
 import * as UserFlux from 'app/flux/user';
-import {AuthProviderTypeEnum, AuthProviderEnum} from 'app/services/enums';
+import {AuthProviderTypeEnum} from 'app/services/enums';
 import {RECEIVE_USER} from 'app/flux/user/actionTypes';
 import * as apiData from 'app/__tests__/apiData';
 
@@ -87,7 +87,7 @@ describe('flux/user/actions', () => {
 
   describe('login()', () => {
     const webApiUrl = '/v1/webapi/oidc/login/web?redirect_url=:redirect&connector_id=:providerName';
-    const oidcSsoProvider = { name: AuthProviderEnum.MS, type: AuthProviderTypeEnum.OIDC, url: webApiUrl };
+    const oidcSsoProvider = { name: 'microsoft', type: AuthProviderTypeEnum.OIDC, url: webApiUrl };
     
     it('should login with email', () => {
       spyOn(auth, 'login').andReturn(Dfd().resolve(apiData.bearerToken));

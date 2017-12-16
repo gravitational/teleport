@@ -62,12 +62,58 @@ limitations under the License.
   &:not(:first-child){
     margin-top: 15px;
   }
-
+  
   max-width: 400px;  
   text-align: center;
   margin: 0 auto;  
   position: relative;
-  
+      
+  &.btn-github {
+    .--sso-icon {
+      .fa{
+        @extend .fa-github;
+      }
+    }
+  }
+  &.btn-google{
+    .--sso-icon {
+      .fa{
+        @extend .fa-google;
+      }
+    }
+  }  
+
+  &.btn-openid{
+    .--sso-icon {
+      .fa{
+        @extend .fa-openid;
+      }
+    }
+  }  
+
+  &.btn-microsoft{
+    .--sso-icon {
+      .fa{
+        @extend .fa-windows;
+      }
+    }
+  }  
+
+  &.btn-bitbucket{
+    .--sso-icon {
+      .fa{
+        @extend .fa-bitbucket;
+      }
+    }
+  } 
+
+  &.--unknown{
+    @extend .btn-openid;
+    .--sso-icon {      
+      display: none;      
+    }
+  } 
+    
   .--sso-icon{
     position: absolute;        
     left: 0;
@@ -76,6 +122,7 @@ limitations under the License.
     width: 32px;  
     font-size: 1.6em;
     text-align: center;
-    border-right: 1px solid rgba(0, 0, 0, 0.2);
+    border-right: 1px solid rgba(0, 0, 0, 0.2);    
   }  
+  
 }

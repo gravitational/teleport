@@ -14,7 +14,7 @@ let $node = $('<div>').appendTo("body");
 describe('components/user/login', () => {
 
   const webApiUrl = '/v1/webapi/oidc/login/web?redirect_url=:redirect&connector_id=:providerName';
-  const ssoProvider = { name: enums.AuthProviderEnum.MS, type: enums.AuthProviderTypeEnum.OIDC, url: webApiUrl };
+  const ssoProvider = { name: 'microsoft', type: enums.AuthProviderTypeEnum.OIDC, url: webApiUrl };
   
   afterEach(function () {
     ReactDOM.unmountComponentAtNode($node[0]);
