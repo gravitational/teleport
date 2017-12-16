@@ -9369,7 +9369,7 @@ webpackJsonp([0],[
 	  var iconClass = (0, _classnames2.default)('fa', {
 	    'fa-google': name === _enums.AuthProviderEnum.GOOGLE,
 	    'fa-windows': name === _enums.AuthProviderEnum.MS,
-	    'fa-github': name === _enums.AuthProviderEnum.GITHUB || _enums.AuthProviderTypeEnum.GITHUB,
+	    'fa-github': name === _enums.AuthProviderEnum.GITHUB || type === _enums.AuthProviderTypeEnum.GITHUB,
 	    'fa-bitbucket': name === _enums.AuthProviderEnum.BITBUCKET
 	  });
 
@@ -9390,8 +9390,8 @@ webpackJsonp([0],[
 	  );
 	};
 
-	var getProviderBtnClass = function getProviderBtnClass(type) {
-	  switch (type) {
+	var guessProviderBtnClass = function guessProviderBtnClass(name) {
+	  switch (name) {
 	    case _enums.AuthProviderEnum.BITBUCKET:
 	      return 'btn-bitbucket';
 	    case _enums.AuthProviderEnum.GITHUB:
@@ -9417,7 +9417,7 @@ webpackJsonp([0],[
 
 	    displayName = displayName || name;
 	    var title = prefixText + ' ' + displayName;
-	    var providerBtnClass = getProviderBtnClass(name);
+	    var providerBtnClass = guessProviderBtnClass(name);
 	    var btnClass = 'btn grv-user-btn-sso full-width ' + providerBtnClass;
 	    return _react2.default.createElement(
 	      'button',
