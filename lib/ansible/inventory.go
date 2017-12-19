@@ -19,19 +19,18 @@ package ansible
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/gravitational/teleport/lib/services"
 )
 
 // Inventory matches the JSON struct needed for DynamicInventoryList
-type Inventory struct {
-	Groups map[string]Group
-}
+type Inventory map[string]Group
 
 // Group gather hosts and variables common to them
 type Group struct {
-	Hosts []string
-	Vars  map[string]string
+	Hosts []string          `json:"hosts"`
+	Vars  map[string]string `json:"vars"`
 }
 
 // DynamicInventoryList returns a JSON-formated ouput compatible with Ansible --list flag
@@ -50,11 +49,9 @@ type Group struct {
 func DynamicInventoryList(nodes []services.Server) (string, error) {
 	hostsByLabels := bufferLabels(nodes)
 
-	var inventory = Inventory{
-		Groups: make(map[string]Group),
-	}
+	var inventory = make(map[string]Group)
 	for labelDashValue, hosts := range hostsByLabels {
-		inventory.Groups[labelDashValue] = Group{
+		inventory[labelDashValue] = Group{
 			Hosts: hosts,
 			Vars:  make(map[string]string),
 		}
@@ -72,7 +69,8 @@ func DynamicInventoryList(nodes []services.Server) (string, error) {
 // When called with the arguments --host <hostname>, the script must print either an empty JSON hash/dictionary,
 // or a hash/dictionary of variables to make available to templates and playbooks.
 func DynamicInventoryHost(nodes []services.Server, host string) {
-	// filter only the required node
+	// print an empty dic
+	fmt.Print(`{"":""}`)
 }
 
 // StaticInventory write to stdout an INI-formated ouput compatible with Ansible static inventory format
@@ -80,16 +78,7 @@ func DynamicInventoryHost(nodes []services.Server, host string) {
 // It crafts groups using the labels associated with each nodes. Each label is build in the form
 // <label>-<value> (with a dash in the middle).
 func StaticInventory(nodes []services.Server) {
-	inventory := make(map[string][]string)
-	// get all keys
-	for _, n := range nodes {
-		// get labels and add to groups
-		for label, val := range n.GetAllLabels() {
-			// groupName is of the form apache-2.2
-			groupName := label + "-" + val
-			inventory[groupName] = append(inventory[groupName], n.GetAddr())
-		}
-	}
+	inventory := bufferLabels(nodes)
 	// write one tulpe by keys
 	for groupName, nodeIPs := range inventory {
 		fmt.Println("[" + groupName + "]")
@@ -108,8 +97,15 @@ func bufferLabels(nodes []services.Server) map[string][]string {
 		for label, val := range n.GetAllLabels() {
 			// groupName is of the form apache-2.2
 			groupName := label + "-" + val
-			labelBuffer[groupName] = append(labelBuffer[groupName], n.GetAddr())
+			// remove trailing port in host (if any)
+			IP := trimTrailingPort(n.GetAddr())
+			labelBuffer[groupName] = append(labelBuffer[groupName], IP)
 		}
 	}
 	return labelBuffer
+}
+
+func trimTrailingPort(nodeAddr string) (nodeIP string) {
+	nodeIP = strings.Split(nodeAddr, ":")[0]
+	return
 }
