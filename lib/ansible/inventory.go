@@ -47,6 +47,7 @@ type Group struct {
 //     },
 // }
 // ```
+// TODO: Implement `_meta` and host variables?
 func DynamicInventoryList(nodes []services.Server) (string, error) {
 	hostsByLabels := bufferLabels(nodes)
 
