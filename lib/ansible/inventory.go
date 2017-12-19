@@ -61,7 +61,7 @@ func DynamicInventoryList(nodes []services.Server) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("cannot encode JSON objet: %s", err)
 	}
-	return string(out), nil
+	return string(out) + "\n", nil
 }
 
 // DynamicInventoryHost returns a JSON-formated ouput compatible with Ansible --host <string> flag
@@ -71,7 +71,7 @@ func DynamicInventoryList(nodes []services.Server) (string, error) {
 // or a hash/dictionary of variables to make available to templates and playbooks.
 func DynamicInventoryHost(nodes []services.Server, host string) {
 	// print an empty dic
-	fmt.Print(`{"":""}`)
+	fmt.Print("{\"\":\"\"}\n")
 }
 
 // StaticInventory write to stdout an INI-formated ouput compatible with Ansible static inventory format
