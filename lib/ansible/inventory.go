@@ -75,7 +75,7 @@ func DynamicInventoryHost(nodes []services.Server, host string) {
 	// filter only the required node
 }
 
-// StaticInventory returns an INI-formated ouput compatible with Ansible static inventory format
+// StaticInventory write to stdout an INI-formated ouput compatible with Ansible static inventory format
 //
 // It crafts groups using the labels associated with each nodes. Each label is build in the form
 // <label>-<value> (with a dash in the middle).
