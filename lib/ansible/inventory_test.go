@@ -67,20 +67,13 @@ func TestDynamicInventoryHost(t *testing.T) {
 		t.Error(err)
 	}
 
-	encodedJSON :=
-		`{
-			"os-coreos":{"hosts":["11.1.1.1"],"vars":{}},
-			"os-gentoo":{"hosts":["198.145.29.83"],"vars":{}},
-			"os-plan9":{"hosts":["8.8.4.4"],"vars":{}},
-			"role-database":{"hosts":["11.1.1.1","8.8.4.4"],"vars":{}}
-		}`
+	encodedJSON := `{"_meta":{"hostvars":{}},"os-coreos":{"hosts":["11.1.1.1"],"vars":{}},"os-gentoo":{"hosts":["198.145.29.83"],"vars":{}},"os-plan9":{"hosts":["8.8.4.4"],"vars":{}},"role-database":{"hosts":["11.1.1.1","8.8.4.4"],"vars":{}}}` + "\n"
 	var i Inventory
 	err = json.Unmarshal([]byte(encodedJSON), &i)
 	if err != nil {
 		t.Error("cannot unmarshal fixture, did the type change?")
 	}
-	reEncodedJSON, _ := json.Marshal(i)
-	if jsonInventory != string(reEncodedJSON) {
-		t.Errorf("mismatch in json output\nGiven: %s\nExpct: %s", jsonInventory, string(reEncodedJSON))
+	if jsonInventory != encodedJSON {
+		t.Errorf("mismatch in json output\nGiven: %sExpct: %s", jsonInventory, encodedJSON)
 	}
 }
