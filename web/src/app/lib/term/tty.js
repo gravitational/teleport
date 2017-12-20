@@ -16,6 +16,7 @@ limitations under the License.
 
 import { EventEmitter } from 'events';
 import { StatusCodeEnum } from './enums';
+import api from 'app/services/api';
 import Logger from './../logger';
 
 const logger = Logger.create('Tty');
@@ -26,18 +27,20 @@ const defaultOptions = {
 
 class Tty extends EventEmitter {
 
+  socket = null;
+
   _buffered = true;
   _attachSocketBufferTimer;
+  _addressResolver = null;
 
-  constructor(props = {}) {
-    let options = {
+  constructor(addressResolver, props = {}) {    
+    super();  
+    const options = {
       ...defaultOptions,
       ...props
     }
-
-    super();  
     
-    this.socket = null;
+    this._addressResolver = addressResolver;        
     this._buffered = options.buffered; 
     this._onOpenConnection = this._onOpenConnection.bind(this);
     this._onCloseConnection = this._onCloseConnection.bind(this);
@@ -50,7 +53,8 @@ class Tty extends EventEmitter {
     }  
   }
   
-  connect(connStr) {
+  connect(w, h) {
+    const connStr = this._addressResolver.getConnStr(w, h);
     this.socket = new WebSocket(connStr);
     this.socket.onopen = this._onOpenConnection;
     this.socket.onmessage = this._onReceiveData;        
@@ -59,6 +63,17 @@ class Tty extends EventEmitter {
   
   send(data){
     this.socket.send(data);
+  }
+
+  requestResize(w, h){    
+    const url = this._addressResolver.getResizeReqUrl();
+    const payload = { 
+      terminal_params: { w, h } 
+    };
+
+    logger.info('requesting new screen size', `w:${w} and h:${h}`);        
+    return api.put(url, payload)      
+      .fail(err => logger.error('requestResize', err));
   }
 
   _flushBuffer() {    

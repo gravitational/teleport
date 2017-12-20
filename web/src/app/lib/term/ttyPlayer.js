@@ -35,14 +35,7 @@ export class EventProvider{
     this.buffSize = PRE_FETCH_BUF_SIZE;
     this.events = [];
   }
-
-  getLength(){
-    return this.events.length;
-  }
-
-  getCurrentEventTime(){
-  }
-
+    
   getLengthInTime(){
     var length = this.events.length;
     if(length === 0) {
@@ -53,26 +46,36 @@ export class EventProvider{
   }
 
   init(){
-    return api.get(this.url + URL_PREFIX_EVENTS)
-      .done(data => {
-        this._createPrintEvents(data.events);
-        this._normalizeEventsByTime();
-      });
+    return api.get(this.url + URL_PREFIX_EVENTS).done(json => {
+      if (!json.events) {
+        return;
+      }
+
+      let events = this._createPrintEvents(json.events);
+      events = this._normalizeEventsByTime(events);
+      this.events = events;        
+    });
   }
 
-  getEventsWithByteStream(start, end){
-    try{
-      if(this._shouldFetch(start, end)){
-        // TODO: add buffering logic, as for now, load everything
-        return this._fetch()
-          .then(this.processByteStream.bind(this, start, this.getLength()))
-          .then(()=> this.events.slice(start, end));
-      }else{
-        return $.Deferred().resolve(this.events.slice(start, end));
+  hasAll(start, end){
+    for(var i = start; i < end; i++){
+      if(this.events[i].data === null){
+        return false;
       }
-    }catch(err){
-      return $.Deferred().reject(err);
     }
+
+    return true;
+  }
+
+  sliceEvents(start, end) {
+    return this.events.slice(start, end);
+  }
+
+  fetchEvents(start, end){    
+    // TODO: uncomment it once partial fetch is implemented on the backend
+    return this._fetch(/*start, end*/)
+      .then(this.processByteStream.bind(this, start, this.events.length))
+      .then(()=> this.events.slice(start, end));          
   }
 
   processByteStream(start, end, byteStr){
@@ -84,32 +87,22 @@ export class EventProvider{
       byteStrOffset += bytes;
     }
   }
-
-  _shouldFetch(start, end){
-    for(var i = start; i < end; i++){
-      if(this.events[i].data === null){
-        return true;
-      }
-    }
-
-    return false;
-  }
-
+  
   _fetch(){
-    let end = this.events.length - 1;
-    let offset = this.events[0].offset;
-    let bytes = this.events[end].offset - offset + this.events[end].bytes;
-    let url = `${this.url}/stream?offset=${offset}&bytes=${bytes}`;
+    const end = this.events.length - 1;
+    const offset = this.events[0].offset;
+    const bytes = this.events[end].offset - offset + this.events[end].bytes;
+    const url = `${this.url}/stream?offset=${offset}&bytes=${bytes}`;
     return api.ajax({ url, processData: true, dataType: 'text' }).then(response => {                  
       return new Buffer(response);
     });
   }
   
-  _createPrintEvents(json){
+  _createPrintEvents(json) {          
     let w, h;
     let events = [];
 
-    // filter print events and ensure that each event has the right screen size and valid values
+    // filter print events and ensure that each has the right screen size and valid values
     for(let i = 0; i < json.length; i++){
 
       let { ms, event, offset, time, bytes } = json[i];
@@ -147,11 +140,10 @@ export class EventProvider{
       });      
     }
 
-    this.events = events;
+    return events;
   }
 
-  _normalizeEventsByTime(){
-    let events = this.events;
+  _normalizeEventsByTime(events){    
     let cur = events[0];
     let tmp = [];
     for(let i = 1; i < events.length; i++){
@@ -184,7 +176,7 @@ export class EventProvider{
       tmp.push(cur);
     }
 
-    this.events = tmp;
+    return tmp;
   }
 
   _formatDisplayTime(ms){
@@ -223,16 +215,22 @@ export class TtyPlayer extends Tty {
     this._eventProvider = new EventProvider({url});
   }
 
+  // override
   send(){
   }
 
+  // override
   resize(){
   }
 
+  // override
   connect(){
     this._setStatusFlag({isLoading: true});
     this._eventProvider.init()
-      .done(this._init.bind(this))
+      .then(() => {
+        this._init();
+        this._setStatusFlag({isReady: true});
+      })
       .fail(err => {
         logger.error('unable to init event provider', err);
         this.handleError(err);        
@@ -251,8 +249,8 @@ export class TtyPlayer extends Tty {
 
   _init(){
     this.length = this._eventProvider.getLengthInTime();
-    this._eventProvider.events.forEach(item => this._posToEventIndexMap.push(item.msNormalized));
-    this._setStatusFlag({isReady: true});
+    this._eventProvider.events.forEach(item =>
+      this._posToEventIndexMap.push(item.msNormalized));    
   }
 
   move(newPos){
@@ -281,9 +279,15 @@ export class TtyPlayer extends Tty {
       return;
     }
 
-    try{
-      let isRewind= this.currentEventIndex > newEventIndex;
-      if(isRewind){
+    const isRewind = this.currentEventIndex > newEventIndex;
+    
+    try {            
+
+      // we cannot playback the content within terminal so instead we do this:
+      // 1. tell terminal to reset.
+      // 2. tell terminal to render 1 huge chunk that has everything up to current
+      // newEventIndex.
+      if (isRewind) {        
         this.emit('reset');
       }
 
@@ -293,9 +297,14 @@ export class TtyPlayer extends Tty {
           this.current = newPos;
           this._change();
         })
+        .fail(err => {
+          logger.error('unable to process a chunk of session recording', err);
+          this.handleError(err);        
+        })
     }
     catch(err){
       logger.error('move', err);
+      this.handleError(err);        
     }
   }
 
@@ -327,50 +336,59 @@ export class TtyPlayer extends Tty {
       let {displayTime} = this._eventProvider.events[this.currentEventIndex-1];
       return displayTime;
     }else{
-      return '';
+      return '--:--';
     }
   }
 
-  _showChunk(start, end){
-    this._setStatusFlag({isLoading: true });
-    return this._eventProvider.getEventsWithByteStream(start, end)
-      .done(events =>{
-        this._setStatusFlag({isReady: true });
-        this._display(events);
-      })
-      .fail(err => {
-        logger.error('unable to process a chunk of session recording', err);
-        this.handleError(err);        
-      })
+  getEventCount() {
+    return this._eventProvider.events.length;
   }
 
-  _display(stream){    
-    const tmp = [{
-      data: [stream[0].data],
-      w: stream[0].w,
-      h: stream[0].h
+  _showChunk(start, end) {          
+    // check if all events exist within given interval
+    if (this._eventProvider.hasAll(start, end)) {
+      const events = this._eventProvider.sliceEvents(start, end);      
+      this._display(events);
+      return $.Deferred().resolve();
+    } 
+
+    // fetch requests within given interval
+    this._setStatusFlag({ isLoading: true });
+    return this._eventProvider.fetchEvents(start, end).done(events => {
+      this._setStatusFlag({ isReady: true });
+      this._display(events);
+    });
+  }
+
+  _display(events) {        
+    const groups = [{
+      data: [events[0].data],
+      w: events[0].w,
+      h: events[0].h
     }];
 
-    let cur = tmp[0];
-
-    for(let i = 1; i < stream.length; i++){
-      if(cur.w === stream[i].w && cur.h === stream[i].h){
-        cur.data.push(stream[i].data)
+    let cur = groups[0];
+    
+    // group events based on screen size and merge by creating 1 event per each screen size
+    for(let i = 1; i < events.length; i++){
+      if(cur.w === events[i].w && cur.h === events[i].h){
+        cur.data.push(events[i].data)
       }else{
         cur = {
-          data: [stream[i].data],
-          w: stream[i].w,
-          h: stream[i].h
+          data: [events[i].data],
+          w: events[i].w,
+          h: events[i].h
         };
 
-        tmp.push(cur);
+        groups.push(cur);
       }
     }
 
-    for(let i = 0; i < tmp.length; i ++){
-      const str = tmp[i].data.join('');
-      const {h, w} = tmp[i];
-      if(str.length > 0){                
+    // render each group
+    for(let i = 0; i < groups.length; i ++){
+      const str = groups[i].data.join('');
+      const {h, w} = groups[i];
+      if (str.length > 0) {                        
         this.emit('resize', { h, w });                
         this.emit('data', str);        
       }

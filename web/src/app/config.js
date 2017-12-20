@@ -73,6 +73,9 @@ const cfg = {
     sessionEventsPath: '/v1/webapi/sites/:siteId/sessions/:sid/events',
     siteEventSessionFilterPath: `/v1/webapi/sites/:siteId/sessions`,
     siteEventsFilterPath: `/v1/webapi/sites/:siteId/events?event=session.start&event=session.end&from=:start&to=:end`,
+    ttyWsAddr: ':fqdm/v1/webapi/sites/:cluster/connect?access_token=:token&params=:params',
+    ttyEventWsAddr: ':fqdm/v1/webapi/sites/:cluster/sessions/:sid/events/stream?access_token=:token',      
+    ttyResizeUrl: '/v1/webapi/sites/:cluster/sessions/:sid',
 
     getSiteUrl(siteId) {              
       return formatPattern(cfg.api.sitePath, { siteId });  
@@ -142,6 +145,12 @@ const cfg = {
 
   getU2fAppId(){    
     return cfg.auth && cfg.auth.u2f ? cfg.auth.u2f.app_id : null;    
+  },
+
+  getWsHostName(){
+    const prefix = location.protocol === 'https:' ? 'wss://' : 'ws://';
+    const hostport = location.hostname+(location.port ? ':'+location.port: '');
+    return `${prefix}${hostport}`;
   },
 
   init(config={}){

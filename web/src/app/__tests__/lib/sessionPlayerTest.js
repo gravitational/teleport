@@ -27,8 +27,7 @@ describe('lib/term/ttyPlayer/eventProvider', function(){
   describe('new()', function(){
     it('should create an instance', function () {
       var provider = new EventProvider({url: 'sample.com'});
-      expect(provider.events).toEqual([]);
-      expect(provider.getLength()).toBe(0);
+      expect(provider.events).toEqual([]);      
     });
   });
 
@@ -62,31 +61,33 @@ describe('lib/term/ttyPlayer/eventProvider', function(){
         time: new Date("2016-05-09T14:57:51.243Z")
       };
 
-      provider._createPrintEvents(sample.events);
-      expect(provider.events.length).toBe(101);
-      expect(provider.events[100]).toEqual(eventObj);
+      const events = provider._createPrintEvents(sample.events);
+      expect(events.length).toBe(101);
+      expect(events[100]).toEqual(eventObj);
     });
   });
 
   describe('_normalizeEventsByTime()', function(){
     it('should adjust time for a better replay by shortening delays between events', function () {
-      var provider = new EventProvider({url: 'sample.com'});
-      provider._createPrintEvents(sample.events);
-      provider._normalizeEventsByTime();
+      const provider = new EventProvider({url: 'sample.com'});
+      let events = provider._createPrintEvents(sample.events);
+      events = provider._normalizeEventsByTime(events);
 
-      expect(provider.events.length).toBe(31);
-      expect(provider.events[30].msNormalized).toBe(1780);
+      expect(events.length).toBe(31);
+      expect(events[30].msNormalized).toBe(1780);
     });
   });
 
-  describe('getEventsWithByteStream(start, end)', function(){
-    it('should check if event data needs to be fetched and return true', function () {
+  describe('hasAll(start, end)', function () {
+    it('should check if events exist within given interval', function () {
       var provider = new EventProvider({url: 'sample.com'});
       spyOn(api, 'get').andReturn(Dfd().resolve(sample))
       provider.init();
-      expect(provider._shouldFetch(0, 3)).toBe(true);
+      expect(provider.hasAll(0, 3)).toBe(false);
     });
+  })
 
+  describe('fetchEvents(start, end)', function(){    
     it('should fetch data stream with the right URL', function () {
       spyOn(api, 'ajax').andReturn(Dfd());
       spyOn(api, 'get').andReturn(Dfd().resolve(sample))
@@ -99,24 +100,24 @@ describe('lib/term/ttyPlayer/eventProvider', function(){
       }
 
       provider.init();
-      provider.getEventsWithByteStream(0, 1);
+      provider.fetchEvents(0, 1);
 
       expect(api.ajax).toHaveBeenCalledWith(expected);
     });
 
-    it('should be able to fetch and then procces the byte stream', function () {
-      var actual = null;
-      var provider = new EventProvider({url: 'sample.com'});
-      provider._createPrintEvents(sample.events);
-      provider._normalizeEventsByTime();
-
+    it('should be able to fetch and then procces the byte stream', function () {      
+      const provider = new EventProvider({url: 'sample.com'});
+      const events = provider._createPrintEvents(sample.events);
+      
+      provider.events = provider._normalizeEventsByTime(events);
       spyOn(api, 'ajax').andReturn(Dfd().resolve(sample.data))
 
-      var {bytes, offset} = provider.events[10];
-      var buf = new Buffer(sample.data);
-      var expected = buf.slice(0, offset + bytes).toString('utf8');
+      const {bytes, offset} = provider.events[10];
+      const buf = new Buffer(sample.data);
+      const expected = buf.slice(0, offset + bytes).toString('utf8');
 
-      provider.getEventsWithByteStream(0, 11).done(events=>{
+      let actual = null;
+      provider.fetchEvents(0, 11).done(events=>{
         actual = events.map(ev => ev.data).join('');
       });
 

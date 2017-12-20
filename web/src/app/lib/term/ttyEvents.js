@@ -15,21 +15,25 @@ limitations under the License.
 */
 
 import { EventEmitter } from 'events';
-import { StatusCodeEnum, EventTypeEnum } from './enums';
 import { sortBy } from 'lodash';
-
+import { StatusCodeEnum, EventTypeEnum } from './enums';
 import Logger from './../logger';
 
 const logger = Logger.create('TtyEvents');
 
 class TtyEvents extends EventEmitter {
 
-  constructor(){
+  socket = null;
+
+  _addressResolver = null;
+
+  constructor(addressResolver){
     super();        
-    this.socket = null;
+    this._addressResolver = addressResolver;
   }
 
-  connect(connStr){
+  connect(){
+    const connStr = this._addressResolver.getEventProviderConnStr();
     this.socket = new WebSocket(connStr);
     this.socket.onmessage = this._onReceiveMessage.bind(this);
     this.socket.onclose = this._onCloseConnection.bind(this);

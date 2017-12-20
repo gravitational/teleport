@@ -16,10 +16,12 @@ limitations under the License.
 import $ from 'jQuery';
 import initScroll from 'perfect-scrollbar/jquery';
 import React from 'react';
+import ReactDOM from 'react-dom';
 import ReactSlider from 'react-slider';
 import GrvTerminal from 'app/lib/term/terminal';
 import { TtyPlayer } from 'app/lib/term/ttyPlayer';
-import { ErrorIndicator } from './items';
+import Indicator from './../indicator.jsx';
+import { ErrorIndicator, WarningIndicator } from './items';
 
 initScroll($);
 
@@ -29,8 +31,7 @@ class TerminalPlayer extends GrvTerminal{
     this.tty = tty;            
   }
 
-  connect(){
-    this.tty.connect();
+  connect(){    
   }
 
   open() {
@@ -45,9 +46,67 @@ class TerminalPlayer extends GrvTerminal{
     $(this._el).perfectScrollbar('update');
   }
 
+  destroy() {
+    super.destroy();
+    $(this._el).perfectScrollbar('destroy');
+  }
+
   _disconnect(){}
 
   _requestResize(){}
+}
+
+class Content extends React.Component {
+
+  static propTypes = {
+    tty: React.PropTypes.object.isRequired    
+  }
+
+  componentDidMount() {    
+    const tty = this.props.tty;
+    this.terminal = new TerminalPlayer(tty, this.refs.container);
+    this.terminal.open();    
+  }
+  
+  componentWillUnmount() {    
+    this.terminal.destroy();        
+  }
+
+  render() {
+    return (<div ref="container" />);
+  }
+}
+
+class ControlPanel extends React.Component {
+    
+  componentDidMount() {    
+    const el = ReactDOM.findDOMNode(this)
+    const btn = el.querySelector('.grv-session-player-controls button');
+    btn && btn.focus();    
+  }
+     
+  render() {
+    const { isPlaying, min, max, value, onChange, onToggle, time } = this.props;      
+    const btnClass = isPlaying ? 'fa fa-stop' : 'fa fa-play';
+    return (
+      <div className="grv-session-player-controls">
+        <button className="btn" onClick={onToggle}>
+          <i className={btnClass} />
+        </button>
+        <div className="grv-session-player-controls-time">{time}</div>
+        <div className="grv-flex-column">
+          <ReactSlider
+            min={min}
+            max={max}
+            value={value}
+            onChange={onChange}
+            defaultValue={1}
+            withBars
+            className="grv-slider" />
+        </div>
+      </div>
+    )  
+  }
 }
 
 export class Player extends React.Component {
@@ -61,9 +120,11 @@ export class Player extends React.Component {
 
   calculateState(){
     return {
+      eventCount: this.tty.getEventCount(),
       length: this.tty.length,
       min: 1,
-      time: this.tty.getCurrentTime(),
+      time: this.tty.getCurrentTime(),      
+      isLoading: this.tty.isLoading,
       isPlaying: this.tty.isPlaying,
       isError: this.tty.isError,
       errText: this.tty.errText,
@@ -72,19 +133,15 @@ export class Player extends React.Component {
     };
   }
   
-  componentDidMount() {
-    this.terminal = new TerminalPlayer(this.tty, this.refs.container);
-    this.terminal.open();
-
-    this.tty.on('change', this.updateState)
+  componentDidMount() {        
+    this.tty.on('change', this.updateState)    
+    this.tty.connect();
     this.tty.play();
   }
   
   componentWillUnmount() {
     this.tty.stop();
-    this.tty.removeAllListeners();
-    this.terminal.destroy();
-    $(this.refs.container).perfectScrollbar('destroy');
+    this.tty.removeAllListeners();    
   }
 
   updateState = () => {
@@ -92,7 +149,7 @@ export class Player extends React.Component {
     this.setState(newState);
   }
 
-  togglePlayStop = () => {
+  onTogglePlayStop = () => {
     if(this.state.isPlaying){
       this.tty.stop();
     }else{
@@ -100,36 +157,45 @@ export class Player extends React.Component {
     }
   }
 
-  move = value => {
+  onMove = value => {
     this.tty.move(value);
   }
   
   render() {    
-    const { isPlaying, isError, errText, time } = this.state;        
-    const btnClass = isPlaying ? 'fa fa-stop' : 'fa fa-play';
+    const {
+      isPlaying,
+      isLoading,
+      isError,
+      errText,
+      time,
+      min,
+      length,
+      current,      
+      eventCount
+    } = this.state;
+        
     if (isError) {
       return <ErrorIndicator text={errText} />
     }
-
+    
+    if (!isLoading && eventCount === 0 ) {
+      return <WarningIndicator text="The recording for this session is not available." />
+    }
+        
     return (
-      <div className="grv-session-player-content">        
-        <div ref="container"/>
-        <div className="grv-session-player-controls">         
-          <button className="btn" onClick={this.togglePlayStop}>
-            <i className={btnClass}/>
-          </button>
-          <div className="grv-session-player-controls-time">{time}</div>
-          <div className="grv-flex-column">
-           <ReactSlider
-              min={this.state.min}
-              max={this.state.length}
-              value={this.state.current}
-              onChange={this.move}
-              defaultValue={1}
-              withBars
-              className="grv-slider" />
-          </div>          
-        </div>  
+      <div className="grv-session-player-content">                
+        <Content tty={this.tty} />    
+        {isLoading && <Indicator />}            
+        {eventCount > 0 && (
+          <ControlPanel 
+            isPlaying={isPlaying}
+            time={time}
+            min={min}            
+            max={length}
+            value={current}
+            onToggle={this.onTogglePlayStop}
+            onChange={this.onMove}/>)                              
+        }  
       </div>     
      );
   }

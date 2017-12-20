@@ -21,18 +21,20 @@ import { storedSessionList, activeSessionList } from 'app/flux/sessions/getters'
 import { filter } from 'app/flux/storedSessionsFilter/getters';
 import AjaxPoller from './../dataProvider.jsx';
 import SessionList from './sessionList.jsx';
+import withStorage from './../withStorage.jsx';
 
-const Sessions = React.createClass({
+class Sessions extends React.Component {
     
-  refresh(){
+  refresh = () => {
     return fetchSiteEventsWithinTimeRange();    
-  },
+  }
 
   render() {            
     const { storedSessions, activeSessions, storedSessionsFilter } = this.props;
     return (      
       <div className="grv-page grv-sessions">                                      
         <SessionList
+          storage={this.props.storage}  
           activeSessions={activeSessions}
           storedSessions={storedSessions}
           filter={storedSessionsFilter}
@@ -41,9 +43,9 @@ const Sessions = React.createClass({
       </div>        
     );
   }
-});
+}
 
-function mapStateToProps() {
+function mapFluxToProps() {
   return {    
     activeSessions: activeSessionList,
     storedSessions: storedSessionList,
@@ -51,4 +53,6 @@ function mapStateToProps() {
   }
 }
 
-export default connect(mapStateToProps)(Sessions);
+const SessionsWithStorage = withStorage(Sessions);
+
+export default connect(mapFluxToProps)(SessionsWithStorage);

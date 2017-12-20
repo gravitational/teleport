@@ -65,8 +65,9 @@ limitations under the License.
 
     .grv-session-player-controls-time{
       min-width: 40px;
-      margin: 1px 7px 0;
+      margin: 2px 10px 0 7px;
       display: block;
+      font-family: $grv-font-mono;
     }
 
     .grv-slider{

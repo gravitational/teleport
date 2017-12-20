@@ -33,7 +33,14 @@ class SessionList extends React.Component {
 
   constructor(props) {
     super(props);    
-    this.state = { filter: '', colSortDirs: {created: 'ASC'}};
+        
+    if (props.storage) {
+      this.state = props.storage.findByKey('SessionList')
+    }
+
+    if (!this.state) {
+      this.state = { searchValue: '', colSortDirs: {created: 'ASC'}};  
+    }    
   }
 
   componentDidMount() { 
@@ -42,10 +49,13 @@ class SessionList extends React.Component {
 
   componentWillUnmount() {
     this._mounted = false;
+    if (this.props.storage) {
+      this.props.storage.save('SessionList', this.state);
+    }
   }
 
-  onFilterChange = value => {
-    this.state.filter = value;
+  onSearchChange = value => {
+    this.state.searchValue = value;
     this.setState(this.state);
   }
 
@@ -72,15 +82,15 @@ class SessionList extends React.Component {
   }
 
   sortAndFilter(data){
-    var filtered = data.filter(obj=>
-      isMatch(obj, this.state.filter, {
+    const filtered = data.filter(obj=>
+      isMatch(obj, this.state.searchValue, {
         searchableProps: this.searchableProps,
         cb: this.searchAndFilterCb
       }));
 
-    var columnKey = Object.getOwnPropertyNames(this.state.colSortDirs)[0];
-    var sortDir = this.state.colSortDirs[columnKey];
-    var sorted = sortBy(filtered, columnKey);
+    const columnKey = Object.getOwnPropertyNames(this.state.colSortDirs)[0];
+    const sortDir = this.state.colSortDirs[columnKey];
+    let sorted = sortBy(filtered, columnKey);
     if(sortDir === SortTypes.ASC){
       sorted = sorted.reverse();
     }
@@ -89,9 +99,11 @@ class SessionList extends React.Component {
   }
 
   render() {
-    let { filter, storedSessions, activeSessions } = this.props;
-    let { start, end } = filter;
+    const { filter, storedSessions, activeSessions } = this.props;
+    const { start, end } = filter;
     
+    const searchValue = this.state.searchValue;
+
     let stored = storedSessions.filter(
       item => moment(item.created).isBetween(start, end));
 
@@ -103,8 +115,7 @@ class SessionList extends React.Component {
     active = this.sortAndFilter(active);
 
     // always display active sessions first    
-    let data = [...active, ...stored];
-  
+    const data = [...active, ...stored];  
     return (
       <div className="grv-sessions-stored m-t">
         <div className="grv-header">
@@ -114,7 +125,7 @@ class SessionList extends React.Component {
             </div>            
             <div className="grv-flex">              
               <ClusterSelector/>
-              <InputSearch onChange={this.onFilterChange} />
+              <InputSearch value={searchValue} onChange={this.onSearchChange} />
               <div className="m-l-sm">
                 <DateRangePicker startDate={start} endDate={end} onChange={this.onRangePickerChange} />
               </div>

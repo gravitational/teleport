@@ -66,10 +66,10 @@ class LoginCell extends React.Component {
 
   makeUrl(login) {
     const { data, rowIndex } = this.props;
-    const { siteId, id } = data[rowIndex];
+    const { siteId, hostname } = data[rowIndex];
     return cfg.getTerminalLoginUrl({
       siteId: siteId,
-      serverId: id,
+      serverId: hostname,
       login
     })    
   }
@@ -131,16 +131,27 @@ class LoginCell extends React.Component {
 
 class NodeList extends React.Component {
 
+  storageKey = 'NodeList';
+
   searchableProps = ['addr', 'hostname', 'tags'];
 
   constructor(props) {
-    super(props);
-    this.state = {        
-      filter: '',
-      colSortDirs: { hostname: SortTypes.DESC }
-    };
+    super(props);    
+    if (props.storage) {
+      this.state = props.storage.findByKey(this.storageKey);
+    }
+
+    if (!this.state) {
+      this.state = { filter: '', colSortDirs: { hostname: SortTypes.DESC } };
+    }        
   }
   
+  componentWillUnmount() {   
+    if (this.props.storage) {
+      this.props.storage.save(this.storageKey, this.state);
+    }
+  }
+
   onSortChange = (columnKey, sortDir) => {
     this.state.colSortDirs = { [columnKey]: sortDir };
     this.setState(this.state);
@@ -191,6 +202,7 @@ class NodeList extends React.Component {
 
   render() {      
     const { nodeRecords, logins, onLoginClick } = this.props;       
+    const searchValue = this.state.filter;
     const data = this.sortAndFilter(nodeRecords);                                     
     return (
       <div className="grv-nodes m-t">                
@@ -198,7 +210,7 @@ class NodeList extends React.Component {
           <h2 className="text-center no-margins"> Nodes </h2>          
           <div className="grv-flex">          
             <ClusterSelector/>  
-            <InputSearch onChange={this.onFilterChange} />                        
+            <InputSearch value={searchValue} onChange={this.onFilterChange} />                        
             <InputSshServer onEnter={this.onSshInputEnter} />            
           </div>          
         </div>
