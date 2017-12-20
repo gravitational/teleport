@@ -39,21 +39,21 @@ webpackJsonp([0],[
 
 	var Features = _interopRequireWildcard(_features);
 
-	var _settings = __webpack_require__(525);
+	var _settings = __webpack_require__(528);
 
-	var _featureActivator = __webpack_require__(519);
+	var _featureActivator = __webpack_require__(522);
 
 	var _featureActivator2 = _interopRequireDefault(_featureActivator);
 
 	var _actions = __webpack_require__(284);
 
-	var _app = __webpack_require__(530);
+	var _app = __webpack_require__(533);
 
 	var _app2 = _interopRequireDefault(_app);
 
 	var _actions2 = __webpack_require__(239);
 
-	__webpack_require__(534);
+	__webpack_require__(537);
 
 	function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key]; } } newObj.default = obj; return newObj; } }
 
@@ -1238,6 +1238,9 @@ webpackJsonp([0],[
 	    sessionEventsPath: '/v1/webapi/sites/:siteId/sessions/:sid/events',
 	    siteEventSessionFilterPath: '/v1/webapi/sites/:siteId/sessions',
 	    siteEventsFilterPath: '/v1/webapi/sites/:siteId/events?event=session.start&event=session.end&from=:start&to=:end',
+	    ttyWsAddr: ':fqdm/v1/webapi/sites/:cluster/connect?access_token=:token&params=:params',
+	    ttyEventWsAddr: ':fqdm/v1/webapi/sites/:cluster/sessions/:sid/events/stream?access_token=:token',
+	    ttyResizeUrl: '/v1/webapi/sites/:cluster/sessions/:sid',
 
 	    getSiteUrl: function getSiteUrl(siteId) {
 	      return (0, _patternUtils.formatPattern)(cfg.api.sitePath, { siteId: siteId });
@@ -1318,6 +1321,11 @@ webpackJsonp([0],[
 	  },
 	  getU2fAppId: function getU2fAppId() {
 	    return cfg.auth && cfg.auth.u2f ? cfg.auth.u2f.app_id : null;
+	  },
+	  getWsHostName: function getWsHostName() {
+	    var prefix = location.protocol === 'https:' ? 'wss://' : 'ws://';
+	    var hostport = location.hostname + (location.port ? ':' + location.port : '');
+	    return '' + prefix + hostport;
 	  },
 	  init: function init() {
 	    var config = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
@@ -10189,11 +10197,11 @@ webpackJsonp([0],[
 
 	var _featureSsh2 = _interopRequireDefault(_featureSsh);
 
-	var _featureAudit = __webpack_require__(419);
+	var _featureAudit = __webpack_require__(422);
 
 	var _featureAudit2 = _interopRequireDefault(_featureAudit);
 
-	var _featureSettings = __webpack_require__(518);
+	var _featureSettings = __webpack_require__(521);
 
 	var _featureSettings2 = _interopRequireDefault(_featureSettings);
 
@@ -10233,13 +10241,13 @@ webpackJsonp([0],[
 
 	var _main2 = _interopRequireDefault(_main);
 
-	var _featureBase = __webpack_require__(392);
+	var _featureBase = __webpack_require__(394);
 
 	var _featureBase2 = _interopRequireDefault(_featureBase);
 
 	var _actions = __webpack_require__(284);
 
-	var _terminalHost = __webpack_require__(395);
+	var _terminalHost = __webpack_require__(397);
 
 	var _terminalHost2 = _interopRequireDefault(_terminalHost);
 
@@ -10335,29 +10343,18 @@ webpackJsonp([0],[
 
 	var _nodeList2 = _interopRequireDefault(_nodeList);
 
+	var _withStorage = __webpack_require__(392);
+
+	var _withStorage2 = _interopRequireDefault(_withStorage);
+
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
 
 	var Nodes = function Nodes(props) {
 	  var siteNodes = props.siteNodes,
 	      aclStore = props.aclStore,
 	      sites = props.sites,
-	      siteId = props.siteId;
+	      siteId = props.siteId,
+	      storage = props.storage;
 
 	  var logins = aclStore.getSshLogins().toJS();
 	  var nodeRecords = siteNodes.toJS();
@@ -10365,13 +10362,28 @@ webpackJsonp([0],[
 	    'div',
 	    { className: 'grv-page' },
 	    _react2.default.createElement(_nodeList2.default, {
+	      storage: storage,
 	      siteId: siteId,
 	      sites: sites,
 	      nodeRecords: nodeRecords,
 	      logins: logins
 	    })
 	  );
-	};
+	}; /*
+	   Copyright 2015 Gravitational, Inc.
+	   
+	   Licensed under the Apache License, Version 2.0 (the "License");
+	   you may not use this file except in compliance with the License.
+	   You may obtain a copy of the License at
+	   
+	       http://www.apache.org/licenses/LICENSE-2.0
+	   
+	   Unless required by applicable law or agreed to in writing, software
+	   distributed under the License is distributed on an "AS IS" BASIS,
+	   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	   See the License for the specific language governing permissions and
+	   limitations under the License.
+	   */
 
 	function mapStateToProps() {
 	  return {
@@ -10381,7 +10393,9 @@ webpackJsonp([0],[
 	  };
 	}
 
-	exports.default = (0, _nuclearJsReactAddons.connect)(mapStateToProps)(Nodes);
+	var NodesWithStorage = (0, _withStorage2.default)(Nodes);
+
+	exports.default = (0, _nuclearJsReactAddons.connect)(mapStateToProps)(NodesWithStorage);
 	module.exports = exports['default'];
 
 /***/ }),
@@ -10612,11 +10626,11 @@ webpackJsonp([0],[
 	        rowIndex = _props.rowIndex;
 	    var _data$rowIndex = data[rowIndex],
 	        siteId = _data$rowIndex.siteId,
-	        id = _data$rowIndex.id;
+	        hostname = _data$rowIndex.hostname;
 
 	    return _config2.default.getTerminalLoginUrl({
 	      siteId: siteId,
-	      serverId: id,
+	      serverId: hostname,
 	      login: login
 	    });
 	  };
@@ -10707,6 +10721,7 @@ webpackJsonp([0],[
 
 	    var _this2 = _possibleConstructorReturn(this, _React$Component2.call(this, props));
 
+	    _this2.storageKey = 'NodeList';
 	    _this2.searchableProps = ['addr', 'hostname', 'tags'];
 
 	    _this2.onSortChange = function (columnKey, sortDir) {
@@ -10731,12 +10746,21 @@ webpackJsonp([0],[
 	      _history2.default.push(url);
 	    };
 
-	    _this2.state = {
-	      filter: '',
-	      colSortDirs: { hostname: _table.SortTypes.DESC }
-	    };
+	    if (props.storage) {
+	      _this2.state = props.storage.findByKey(_this2.storageKey);
+	    }
+
+	    if (!_this2.state) {
+	      _this2.state = { filter: '', colSortDirs: { hostname: _table.SortTypes.DESC } };
+	    }
 	    return _this2;
 	  }
+
+	  NodeList.prototype.componentWillUnmount = function componentWillUnmount() {
+	    if (this.props.storage) {
+	      this.props.storage.save(this.storageKey, this.state);
+	    }
+	  };
 
 	  NodeList.prototype.searchAndFilterCb = function searchAndFilterCb(targetValue, searchValue, propName) {
 	    if (propName === 'tags') {
@@ -10777,6 +10801,7 @@ webpackJsonp([0],[
 	        logins = _props3.logins,
 	        onLoginClick = _props3.onLoginClick;
 
+	    var searchValue = this.state.filter;
 	    var data = this.sortAndFilter(nodeRecords);
 	    return _react2.default.createElement(
 	      'div',
@@ -10793,7 +10818,7 @@ webpackJsonp([0],[
 	          'div',
 	          { className: 'grv-flex' },
 	          _react2.default.createElement(_clusterSelector2.default, null),
-	          _react2.default.createElement(_inputSearch2.default, { onChange: this.onFilterChange }),
+	          _react2.default.createElement(_inputSearch2.default, { value: searchValue, onChange: this.onFilterChange }),
 	          _react2.default.createElement(_inputSshServer2.default, { onEnter: this.onSshInputEnter })
 	        )
 	      ),
@@ -10935,6 +10960,10 @@ webpackJsonp([0],[
 
 	var _react2 = _interopRequireDefault(_react);
 
+	var _reactDom = __webpack_require__(31);
+
+	var _reactDom2 = _interopRequireDefault(_reactDom);
+
 	var _lodash = __webpack_require__(275);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
@@ -10983,6 +11012,17 @@ webpackJsonp([0],[
 	    };
 	    return _this;
 	  }
+
+	  InputSearch.prototype.componentDidMount = function componentDidMount() {
+	    // set cursor at the end
+	    var $el = _reactDom2.default.findDOMNode(this);
+	    if ($el) {
+	      var $input = $el.querySelector('input');
+	      var length = $input.value.length;
+	      $input.selectionEnd = length;
+	      $input.selectionStart = length;
+	    }
+	  };
 
 	  InputSearch.prototype.render = function render() {
 	    var _props$className = this.props.className,
@@ -12189,6 +12229,131 @@ webpackJsonp([0],[
 
 	exports.__esModule = true;
 
+	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
+	var _react = __webpack_require__(2);
+
+	var _react2 = _interopRequireDefault(_react);
+
+	var _store = __webpack_require__(393);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; } /*
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Copyright 2015 Gravitational, Inc.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Licensed under the Apache License, Version 2.0 (the "License");
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               you may not use this file except in compliance with the License.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               You may obtain a copy of the License at
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   http://www.apache.org/licenses/LICENSE-2.0
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Unless required by applicable law or agreed to in writing, software
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               distributed under the License is distributed on an "AS IS" BASIS,
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               See the License for the specific language governing permissions and
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               limitations under the License.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               */
+
+	var withStorage = function withStorage(component) {
+	  var _class, _temp;
+
+	  return _temp = _class = function (_React$Component) {
+	    _inherits(WithTmpStorageWrapper, _React$Component);
+
+	    function WithTmpStorageWrapper(props, context) {
+	      _classCallCheck(this, WithTmpStorageWrapper);
+
+	      return _possibleConstructorReturn(this, _React$Component.call(this, props, context));
+	    }
+
+	    WithTmpStorageWrapper.prototype.render = function render() {
+	      var props = this.props;
+	      return _react2.default.createElement(component, _extends({}, props, {
+	        storage: _store.storage
+	      }));
+	    };
+
+	    return WithTmpStorageWrapper;
+	  }(_react2.default.Component), _class.displayName = 'withTmpStorageWrapper', _temp;
+	};
+
+	exports.default = withStorage;
+	module.exports = exports['default'];
+
+/***/ }),
+/* 393 */
+/***/ (function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	exports.__esModule = true;
+	exports.storage = undefined;
+
+	var _reactor$registerStor; /*
+	                           Copyright 2015 Gravitational, Inc.
+	                           
+	                           Licensed under the Apache License, Version 2.0 (the "License");
+	                           you may not use this file except in compliance with the License.
+	                           You may obtain a copy of the License at
+	                           
+	                               http://www.apache.org/licenses/LICENSE-2.0
+	                           
+	                           Unless required by applicable law or agreed to in writing, software
+	                           distributed under the License is distributed on an "AS IS" BASIS,
+	                           WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	                           See the License for the specific language governing permissions and
+	                           limitations under the License.
+	                           */
+
+	var _nuclearJs = __webpack_require__(234);
+
+	var _reactor = __webpack_require__(233);
+
+	var _reactor2 = _interopRequireDefault(_reactor);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	var SET = 'MISC_SET';
+	var STORE_NAME = 'tlpt_misc';
+
+	// stores any temporary data
+	var store = (0, _nuclearJs.Store)({
+	  getInitialState: function getInitialState() {
+	    return new _nuclearJs.Immutable.Map();
+	  },
+	  initialize: function initialize() {
+	    this.on(SET, function (state, _ref) {
+	      var key = _ref.key,
+	          payload = _ref.payload;
+	      return state.set(key, payload);
+	    });
+	  }
+	});
+
+	_reactor2.default.registerStores((_reactor$registerStor = {}, _reactor$registerStor[STORE_NAME] = store, _reactor$registerStor));
+
+	var storage = exports.storage = {
+	  save: function save(key, payload) {
+	    _reactor2.default.dispatch(SET, { key: key, payload: payload });
+	  },
+	  findByKey: function findByKey(key) {
+	    return _reactor2.default.evaluate([STORE_NAME, key]);
+	  }
+	};
+
+/***/ }),
+/* 394 */
+/***/ (function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	exports.__esModule = true;
+
 	var _jQuery = __webpack_require__(229);
 
 	var _jQuery2 = _interopRequireDefault(_jQuery);
@@ -12199,7 +12364,7 @@ webpackJsonp([0],[
 
 	var _lodash = __webpack_require__(275);
 
-	var _withFeature = __webpack_require__(393);
+	var _withFeature = __webpack_require__(395);
 
 	var _withFeature2 = _interopRequireDefault(_withFeature);
 
@@ -12315,7 +12480,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 393 */
+/* 395 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -12332,7 +12497,7 @@ webpackJsonp([0],[
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _indicator = __webpack_require__(394);
+	var _indicator = __webpack_require__(396);
 
 	var _indicator2 = _interopRequireDefault(_indicator);
 
@@ -12440,7 +12605,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 394 */
+/* 396 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -12491,7 +12656,8 @@ webpackJsonp([0],[
 	  };
 
 	  Indicator.prototype.render = function render() {
-	    var type = this.props.type;
+	    var _props$type = this.props.type,
+	        type = _props$type === undefined ? 'bounce' : _props$type;
 
 
 	    if (!this.state.canDisplay) {
@@ -12500,10 +12666,6 @@ webpackJsonp([0],[
 
 	    if (type === 'bounce') {
 	      return _react2.default.createElement(ThreeBounce, null);
-	    }
-
-	    if (type === 'circle') {
-	      return _react2.default.createElement(Circle, null);
 	    }
 	  };
 
@@ -12520,30 +12682,11 @@ webpackJsonp([0],[
 	  );
 	};
 
-	var Circle = function Circle() {
-	  return _react2.default.createElement(
-	    'div',
-	    { className: 'sk-spinner sk-spinner-circle' },
-	    _react2.default.createElement('div', { className: 'sk-circle1 sk-circle' }),
-	    _react2.default.createElement('div', { className: 'sk-circle2 sk-circle' }),
-	    _react2.default.createElement('div', { className: 'sk-circle3 sk-circle' }),
-	    _react2.default.createElement('div', { className: 'sk-circle4 sk-circle' }),
-	    _react2.default.createElement('div', { className: 'sk-circle5 sk-circle' }),
-	    _react2.default.createElement('div', { className: 'sk-circle6 sk-circle' }),
-	    _react2.default.createElement('div', { className: 'sk-circle7 sk-circle' }),
-	    _react2.default.createElement('div', { className: 'sk-circle8 sk-circle' }),
-	    _react2.default.createElement('div', { className: 'sk-circle9 sk-circle' }),
-	    _react2.default.createElement('div', { className: 'sk-circle10 sk-circle' }),
-	    _react2.default.createElement('div', { className: 'sk-circle11 sk-circle' }),
-	    _react2.default.createElement('div', { className: 'sk-circle12 sk-circle' })
-	  );
-	};
-
 	exports.default = Indicator;
 	module.exports = exports['default'];
 
 /***/ }),
-/* 395 */
+/* 397 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -12558,31 +12701,35 @@ webpackJsonp([0],[
 
 	var _nuclearJsReactAddons = __webpack_require__(219);
 
-	var _enums = __webpack_require__(396);
+	var _enums = __webpack_require__(398);
 
-	var _terminal = __webpack_require__(397);
+	var _terminal = __webpack_require__(399);
 
 	var _terminal2 = _interopRequireDefault(_terminal);
 
-	var _getters = __webpack_require__(402);
+	var _getters = __webpack_require__(404);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
-	var _actions = __webpack_require__(403);
+	var _ttyAddressResolver = __webpack_require__(405);
+
+	var _ttyAddressResolver2 = _interopRequireDefault(_ttyAddressResolver);
+
+	var _actions = __webpack_require__(406);
 
 	var _actions2 = __webpack_require__(291);
 
-	var _actions3 = __webpack_require__(407);
+	var _actions3 = __webpack_require__(410);
 
-	var _partyListPanel = __webpack_require__(410);
+	var _partyListPanel = __webpack_require__(413);
 
 	var _partyListPanel2 = _interopRequireDefault(_partyListPanel);
 
-	var _indicator = __webpack_require__(394);
+	var _indicator = __webpack_require__(396);
 
 	var _indicator2 = _interopRequireDefault(_indicator);
 
-	var _terminalPartyList = __webpack_require__(411);
+	var _terminalPartyList = __webpack_require__(414);
 
 	var _terminalPartyList2 = _interopRequireDefault(_terminalPartyList);
 
@@ -12704,11 +12851,13 @@ webpackJsonp([0],[
 	  }
 
 	  TerminalContainer.prototype.componentDidMount = function componentDidMount() {
-	    var options = {
-	      tty: this.props.store.getTtyParams(),
-	      el: this.refs.container
-	    };
-	    this.terminal = new _terminal2.default(options);
+	    var options = this.props.store.getTtyParams();
+	    var addressResolver = new _ttyAddressResolver2.default(options);
+	    this.terminal = new _terminal2.default({
+	      el: this.refs.container,
+	      addressResolver: addressResolver
+	    });
+
 	    this.terminal.ttyEvents.on('data', this.receiveEvents.bind(this));
 	    this.terminal.open();
 	  };
@@ -12812,7 +12961,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 396 */
+/* 398 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -12846,38 +12995,30 @@ webpackJsonp([0],[
 	};
 
 /***/ }),
-/* 397 */
+/* 399 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _xterm = __webpack_require__(398);
+	var _xterm = __webpack_require__(400);
 
 	var _xterm2 = _interopRequireDefault(_xterm);
 
-	var _tty = __webpack_require__(399);
+	var _tty = __webpack_require__(401);
 
 	var _tty2 = _interopRequireDefault(_tty);
 
-	var _ttyEvents = __webpack_require__(401);
+	var _ttyEvents = __webpack_require__(403);
 
 	var _ttyEvents2 = _interopRequireDefault(_ttyEvents);
 
 	var _lodash = __webpack_require__(275);
 
-	var _api = __webpack_require__(241);
-
-	var _api2 = _interopRequireDefault(_api);
-
 	var _logger = __webpack_require__(245);
 
 	var _logger2 = _interopRequireDefault(_logger);
-
-	var _jQuery = __webpack_require__(229);
-
-	var _jQuery2 = _interopRequireDefault(_jQuery);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -12898,8 +13039,6 @@ webpackJsonp([0],[
 	                                                                                                                                                          */
 
 
-	_xterm2.default.colors[256] = '#252323';
-
 	var logger = _logger2.default.create('lib/term/terminal');
 	var DISCONNECT_TXT = 'disconnected';
 	var GRV_CLASS = 'grv-terminal';
@@ -12914,28 +13053,25 @@ webpackJsonp([0],[
 	  function TtyTerminal(options) {
 	    _classCallCheck(this, TtyTerminal);
 
-	    var tty = options.tty,
+	    var addressResolver = options.addressResolver,
+	        el = options.el,
 	        _options$scrollBack = options.scrollBack,
 	        scrollBack = _options$scrollBack === undefined ? 1000 : _options$scrollBack;
 
-
-	    this.ttyParams = tty;
-	    this.tty = new _tty2.default();
-	    this.ttyEvents = new _ttyEvents2.default();
-
+	    this._el = el;
+	    this.tty = new _tty2.default(addressResolver);
+	    this.ttyEvents = new _ttyEvents2.default(addressResolver);
 	    this.scrollBack = scrollBack;
 	    this.rows = undefined;
 	    this.cols = undefined;
 	    this.term = null;
-	    this._el = options.el;
-
 	    this.debouncedResize = (0, _lodash.debounce)(this._requestResize.bind(this), WINDOW_RESIZE_DEBOUNCE_DELAY);
 	  }
 
 	  TtyTerminal.prototype.open = function open() {
 	    var _this = this;
 
-	    (0, _jQuery2.default)(this._el).addClass(GRV_CLASS);
+	    this._el.classList.add(GRV_CLASS);
 
 	    // render xtermjs with default values
 	    this.term = new _xterm2.default({
@@ -12947,13 +13083,16 @@ webpackJsonp([0],[
 
 	    this.term.open(this._el);
 
-	    // resize xterm to available space
+	    // fit xterm to available space
 	    this.resize(this.cols, this.rows);
 
 	    // subscribe to xtermjs output
 	    this.term.on('data', function (data) {
-	      return _this.tty.send(data);
+	      _this.tty.send(data);
 	    });
+
+	    // subscribe to window resize events
+	    window.addEventListener('resize', this.debouncedResize);
 
 	    // subscribe to tty
 	    this.tty.on('reset', this.reset.bind(this));
@@ -12966,8 +13105,6 @@ webpackJsonp([0],[
 	          w = _ref.w;
 	      return _this.resize(w, h);
 	    });
-	    // subscribe to window resize events
-	    window.addEventListener('resize', this.debouncedResize);
 	    // subscribe to session resize events (triggered by other participants)
 	    this.ttyEvents.on('resize', function (_ref2) {
 	      var h = _ref2.h,
@@ -12979,8 +13116,8 @@ webpackJsonp([0],[
 	  };
 
 	  TtyTerminal.prototype.connect = function connect() {
-	    this.tty.connect(this._getTtyConnStr());
-	    this.ttyEvents.connect(this._getTtyEventsConnStr());
+	    this.tty.connect(this.cols, this.rows);
+	    this.ttyEvents.connect();
 	  };
 
 	  TtyTerminal.prototype.destroy = function destroy() {
@@ -12991,7 +13128,8 @@ webpackJsonp([0],[
 	      this.term.removeAllListeners();
 	    }
 
-	    (0, _jQuery2.default)(this._el).empty().removeClass(GRV_CLASS);
+	    this._el.innerHTML = null;
+	    this._el.classList.remove(GRV_CLASS);
 	  };
 
 	  TtyTerminal.prototype.reset = function reset() {
@@ -13013,10 +13151,9 @@ webpackJsonp([0],[
 
 	      this.cols = cols;
 	      this.rows = rows;
-
 	      this.term.resize(cols, rows);
 	    } catch (err) {
-	      logger.error('resize', { w: cols, h: rows }, err);
+	      logger.error('xterm.resize', { w: cols, h: rows }, err);
 	      this.term.reset();
 	    }
 	  };
@@ -13026,7 +13163,7 @@ webpackJsonp([0],[
 	      this.term.write(data);
 	    } catch (err) {
 	      logger.error('xterm.write', data, err);
-	      // reset xtermjs so it can recover
+	      // recover xtermjs by resetting it
 	      this.term.reset();
 	    }
 	  };
@@ -13035,7 +13172,6 @@ webpackJsonp([0],[
 	    var reason = e.reason;
 
 	    var displayText = DISCONNECT_TXT;
-
 	    if (reason) {
 	      displayText = displayText + ': ' + reason;
 	    }
@@ -13055,97 +13191,53 @@ webpackJsonp([0],[
 	    var _getDimensions2 = this._getDimensions(),
 	        cols = _getDimensions2.cols,
 	        rows = _getDimensions2.rows;
+	    // ensure min size
 
-	    var w = cols;
-	    var h = rows;
 
-	    // some min values
-	    w = w < 5 ? 5 : w;
-	    h = h < 5 ? 5 : h;
+	    var w = cols < 5 ? 5 : cols;
+	    var h = rows < 5 ? 5 : rows;
 
-	    var _ttyParams = this.ttyParams,
-	        sid = _ttyParams.sid,
-	        url = _ttyParams.url;
-
-	    var reqData = { terminal_params: { w: w, h: h } };
-
-	    logger.info('requesting new screen size', 'w:' + w + ' and h:' + h);
 	    this.resize(w, h);
-	    _api2.default.put(url + '/sessions/' + sid, reqData).fail(function (err) {
-	      return logger.error('request new screen size', err);
-	    });
+	    this.tty.requestResize(w, h);
 	  };
 
 	  TtyTerminal.prototype._getDimensions = function _getDimensions() {
-	    var $container = (0, _jQuery2.default)(this._el);
-	    var fakeRow = (0, _jQuery2.default)('<div><span>&nbsp;</span></div>');
+	    var parentElementStyle = window.getComputedStyle(this.term.element.parentElement);
+	    var parentElementHeight = parseInt(parentElementStyle.getPropertyValue('height'));
+	    var parentElementWidth = Math.max(0, parseInt(parentElementStyle.getPropertyValue('width')) /*- 17*/);
+	    var elementStyle = window.getComputedStyle(this.term.element);
+	    var elementPaddingVer = parseInt(elementStyle.getPropertyValue('padding-top')) + parseInt(elementStyle.getPropertyValue('padding-bottom'));
+	    var elementPaddingHor = parseInt(elementStyle.getPropertyValue('padding-right')) + parseInt(elementStyle.getPropertyValue('padding-left'));
+	    var availableHeight = parentElementHeight - elementPaddingVer;
+	    var availableWidth = parentElementWidth - elementPaddingHor;
+	    var subjectRow = this.term.rowContainer.firstElementChild;
+	    var contentBuffer = subjectRow.innerHTML;
 
-	    $container.find('.terminal').append(fakeRow);
-	    // get div height
-	    var fakeColHeight = fakeRow[0].getBoundingClientRect().height;
-	    // get span width
-	    var fakeColWidth = fakeRow.children().first()[0].getBoundingClientRect().width;
+	    subjectRow.style.display = 'inline';
+	    // common character for measuring width, although on monospace
+	    subjectRow.innerHTML = 'W';
 
-	    var width = $container[0].clientWidth;
-	    var height = $container[0].clientHeight;
+	    var characterWidth = subjectRow.getBoundingClientRect().width;
+	    // revert style before calculating height, since they differ.
+	    subjectRow.style.display = '';
 
-	    var cols = Math.floor(width / fakeColWidth);
-	    var rows = Math.floor(height / fakeColHeight);
-	    fakeRow.remove();
+	    var characterHeight = parseInt(subjectRow.offsetHeight);
+	    subjectRow.innerHTML = contentBuffer;
 
+	    var rows = parseInt(availableHeight / characterHeight);
+	    var cols = parseInt(availableWidth / characterWidth);
 	    return { cols: cols, rows: rows };
-	  };
-
-	  TtyTerminal.prototype._getTtyEventsConnStr = function _getTtyEventsConnStr() {
-	    var _ttyParams2 = this.ttyParams,
-	        sid = _ttyParams2.sid,
-	        url = _ttyParams2.url,
-	        token = _ttyParams2.token;
-
-	    var urlPrefix = getWsHostName();
-	    return '' + urlPrefix + url + '/sessions/' + sid + '/events/stream?access_token=' + token;
-	  };
-
-	  TtyTerminal.prototype._getTtyConnStr = function _getTtyConnStr() {
-	    var _ttyParams3 = this.ttyParams,
-	        serverId = _ttyParams3.serverId,
-	        login = _ttyParams3.login,
-	        sid = _ttyParams3.sid,
-	        url = _ttyParams3.url,
-	        token = _ttyParams3.token;
-
-	    var params = {
-	      server_id: serverId,
-	      login: login,
-	      sid: sid,
-	      term: {
-	        h: this.rows,
-	        w: this.cols
-	      }
-	    };
-
-	    var json = JSON.stringify(params);
-	    var jsonEncoded = window.encodeURI(json);
-	    var urlPrefix = getWsHostName();
-
-	    return '' + urlPrefix + url + '/connect?access_token=' + token + '&params=' + jsonEncoded;
 	  };
 
 	  return TtyTerminal;
 	}();
 
-	function getWsHostName() {
-	  var prefix = location.protocol == "https:" ? "wss://" : "ws://";
-	  var hostport = location.hostname + (location.port ? ':' + location.port : '');
-	  return '' + prefix + hostport;
-	}
-
 	exports.default = TtyTerminal;
 	module.exports = exports['default'];
 
 /***/ }),
-/* 398 */,
-/* 399 */
+/* 400 */,
+/* 401 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -13154,9 +13246,13 @@ webpackJsonp([0],[
 
 	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
-	var _events = __webpack_require__(400);
+	var _events = __webpack_require__(402);
 
-	var _enums = __webpack_require__(396);
+	var _enums = __webpack_require__(398);
+
+	var _api = __webpack_require__(241);
+
+	var _api2 = _interopRequireDefault(_api);
 
 	var _logger = __webpack_require__(245);
 
@@ -13193,19 +13289,20 @@ webpackJsonp([0],[
 	var Tty = function (_EventEmitter) {
 	  _inherits(Tty, _EventEmitter);
 
-	  function Tty() {
-	    var props = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
+	  function Tty(addressResolver) {
+	    var props = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
 
 	    _classCallCheck(this, Tty);
 
-	    var options = _extends({}, defaultOptions, props);
-
 	    var _this = _possibleConstructorReturn(this, _EventEmitter.call(this));
 
-	    _this._buffered = true;
-
-
 	    _this.socket = null;
+	    _this._buffered = true;
+	    _this._addressResolver = null;
+
+	    var options = _extends({}, defaultOptions, props);
+
+	    _this._addressResolver = addressResolver;
 	    _this._buffered = options.buffered;
 	    _this._onOpenConnection = _this._onOpenConnection.bind(_this);
 	    _this._onCloseConnection = _this._onCloseConnection.bind(_this);
@@ -13221,7 +13318,8 @@ webpackJsonp([0],[
 	    }
 	  };
 
-	  Tty.prototype.connect = function connect(connStr) {
+	  Tty.prototype.connect = function connect(w, h) {
+	    var connStr = this._addressResolver.getConnStr(w, h);
 	    this.socket = new WebSocket(connStr);
 	    this.socket.onopen = this._onOpenConnection;
 	    this.socket.onmessage = this._onReceiveData;
@@ -13230,6 +13328,18 @@ webpackJsonp([0],[
 
 	  Tty.prototype.send = function send(data) {
 	    this.socket.send(data);
+	  };
+
+	  Tty.prototype.requestResize = function requestResize(w, h) {
+	    var url = this._addressResolver.getResizeReqUrl();
+	    var payload = {
+	      terminal_params: { w: w, h: h }
+	    };
+
+	    logger.info('requesting new screen size', 'w:' + w + ' and h:' + h);
+	    return _api2.default.put(url, payload).fail(function (err) {
+	      return logger.error('requestResize', err);
+	    });
 	  };
 
 	  Tty.prototype._flushBuffer = function _flushBuffer() {
@@ -13277,7 +13387,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 400 */
+/* 402 */
 /***/ (function(module, exports) {
 
 	// Copyright Joyent, Inc. and other Node contributors.
@@ -13584,18 +13694,18 @@ webpackJsonp([0],[
 
 
 /***/ }),
-/* 401 */
+/* 403 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _events = __webpack_require__(400);
-
-	var _enums = __webpack_require__(396);
+	var _events = __webpack_require__(402);
 
 	var _lodash = __webpack_require__(275);
+
+	var _enums = __webpack_require__(398);
 
 	var _logger = __webpack_require__(245);
 
@@ -13628,16 +13738,20 @@ webpackJsonp([0],[
 	var TtyEvents = function (_EventEmitter) {
 	  _inherits(TtyEvents, _EventEmitter);
 
-	  function TtyEvents() {
+	  function TtyEvents(addressResolver) {
 	    _classCallCheck(this, TtyEvents);
 
 	    var _this = _possibleConstructorReturn(this, _EventEmitter.call(this));
 
 	    _this.socket = null;
+	    _this._addressResolver = null;
+
+	    _this._addressResolver = addressResolver;
 	    return _this;
 	  }
 
-	  TtyEvents.prototype.connect = function connect(connStr) {
+	  TtyEvents.prototype.connect = function connect() {
+	    var connStr = this._addressResolver.getEventProviderConnStr();
 	    this.socket = new WebSocket(connStr);
 	    this.socket.onmessage = this._onReceiveMessage.bind(this);
 	    this.socket.onclose = this._onCloseConnection.bind(this);
@@ -13700,7 +13814,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 402 */
+/* 404 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -13728,7 +13842,93 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 403 */
+/* 405 */
+/***/ (function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	exports.__esModule = true;
+
+	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
+	var _config = __webpack_require__(228);
+
+	var _config2 = _interopRequireDefault(_config);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } } /*
+	                                                                                                                                                          Copyright 2015 Gravitational, Inc.
+	                                                                                                                                                          
+	                                                                                                                                                          Licensed under the Apache License, Version 2.0 (the "License");
+	                                                                                                                                                          you may not use this file except in compliance with the License.
+	                                                                                                                                                          You may obtain a copy of the License at
+	                                                                                                                                                          
+	                                                                                                                                                              http://www.apache.org/licenses/LICENSE-2.0
+	                                                                                                                                                          
+	                                                                                                                                                          Unless required by applicable law or agreed to in writing, software
+	                                                                                                                                                          distributed under the License is distributed on an "AS IS" BASIS,
+	                                                                                                                                                          WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	                                                                                                                                                          See the License for the specific language governing permissions and
+	                                                                                                                                                          limitations under the License.
+	                                                                                                                                                          */
+
+	var AddressResolver = function () {
+	  function AddressResolver(params) {
+	    _classCallCheck(this, AddressResolver);
+
+	    this._params = {
+	      login: null,
+	      target: function target() {
+	        throw Error('target method is not provided');
+	      },
+	      sid: null,
+	      clusterName: null,
+	      ttyUrl: null,
+	      ttyEventUrl: null,
+	      ttyResizeUrl: null
+	    };
+
+	    this._params = _extends({}, params);
+	  }
+
+	  AddressResolver.prototype.getConnStr = function getConnStr(w, h) {
+	    var _params = this._params,
+	        getTarget = _params.getTarget,
+	        ttyUrl = _params.ttyUrl,
+	        login = _params.login,
+	        sid = _params.sid;
+
+	    var params = JSON.stringify(_extends({}, getTarget(), {
+	      login: login,
+	      sid: sid,
+	      term: { h: h, w: w }
+	    }));
+
+	    var encoded = window.encodeURI(params);
+	    return this.format(ttyUrl).replace(':params', encoded);
+	  };
+
+	  AddressResolver.prototype.getEventProviderConnStr = function getEventProviderConnStr() {
+	    return this.format(this._params.ttyEventUrl);
+	  };
+
+	  AddressResolver.prototype.getResizeReqUrl = function getResizeReqUrl() {
+	    return this.format(this._params.ttyResizeUrl);
+	  };
+
+	  AddressResolver.prototype.format = function format(url) {
+	    return url.replace(':fqdm', _config2.default.getWsHostName()).replace(':token', this._params.token).replace(':cluster', this._params.cluster).replace(':sid', this._params.sid);
+	  };
+
+	  return AddressResolver;
+	}();
+
+	exports.default = AddressResolver;
+	module.exports = exports['default'];
+
+/***/ }),
+/* 406 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -13773,13 +13973,13 @@ webpackJsonp([0],[
 
 	var _logger2 = _interopRequireDefault(_logger);
 
-	var _nodeStore = __webpack_require__(404);
+	var _nodeStore = __webpack_require__(407);
 
-	var _getters = __webpack_require__(405);
+	var _getters = __webpack_require__(408);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
-	var _actionTypes = __webpack_require__(406);
+	var _actionTypes = __webpack_require__(409);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -13862,7 +14062,7 @@ webpackJsonp([0],[
 	};
 
 /***/ }),
-/* 404 */
+/* 407 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -13980,7 +14180,7 @@ webpackJsonp([0],[
 	});
 
 /***/ }),
-/* 405 */
+/* 408 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -13995,7 +14195,7 @@ webpackJsonp([0],[
 
 	var _config2 = _interopRequireDefault(_config);
 
-	var _enums = __webpack_require__(396);
+	var _enums = __webpack_require__(398);
 
 	var _reactor = __webpack_require__(233);
 
@@ -14003,7 +14203,7 @@ webpackJsonp([0],[
 
 	var _objectUtils = __webpack_require__(277);
 
-	var _nodeStore = __webpack_require__(404);
+	var _nodeStore = __webpack_require__(407);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -14160,7 +14360,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 406 */
+/* 409 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -14186,7 +14386,7 @@ webpackJsonp([0],[
 	var TLPT_TERMINAL_SET_STATUS = exports.TLPT_TERMINAL_SET_STATUS = 'TLPT_TERMINAL_SET_STATUS';
 
 /***/ }),
-/* 407 */
+/* 410 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -14211,13 +14411,13 @@ webpackJsonp([0],[
 
 	var _actions = __webpack_require__(291);
 
-	var _getters = __webpack_require__(405);
+	var _getters = __webpack_require__(408);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
-	var _store = __webpack_require__(408);
+	var _store = __webpack_require__(411);
 
-	var _actionTypes = __webpack_require__(409);
+	var _actionTypes = __webpack_require__(412);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -14285,7 +14485,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 408 */
+/* 411 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -14410,7 +14610,7 @@ webpackJsonp([0],[
 	});
 
 /***/ }),
-/* 409 */
+/* 412 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -14446,7 +14646,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 410 */
+/* 413 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -14513,7 +14713,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 411 */
+/* 414 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -14524,13 +14724,13 @@ webpackJsonp([0],[
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _reactAddonsCssTransitionGroup = __webpack_require__(412);
+	var _reactAddonsCssTransitionGroup = __webpack_require__(415);
 
 	var _reactAddonsCssTransitionGroup2 = _interopRequireDefault(_reactAddonsCssTransitionGroup);
 
 	var _nuclearJsReactAddons = __webpack_require__(219);
 
-	var _getters = __webpack_require__(405);
+	var _getters = __webpack_require__(408);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
@@ -14587,14 +14787,14 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 412 */,
-/* 413 */,
-/* 414 */,
 /* 415 */,
 /* 416 */,
 /* 417 */,
 /* 418 */,
-/* 419 */
+/* 419 */,
+/* 420 */,
+/* 421 */,
+/* 422 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -14605,17 +14805,17 @@ webpackJsonp([0],[
 
 	var _config2 = _interopRequireDefault(_config);
 
-	var _featureBase = __webpack_require__(392);
+	var _featureBase = __webpack_require__(394);
 
 	var _featureBase2 = _interopRequireDefault(_featureBase);
 
 	var _actions = __webpack_require__(284);
 
-	var _main = __webpack_require__(420);
+	var _main = __webpack_require__(423);
 
 	var _main2 = _interopRequireDefault(_main);
 
-	var _playerHost = __webpack_require__(485);
+	var _playerHost = __webpack_require__(488);
 
 	var _playerHost2 = _interopRequireDefault(_playerHost);
 
@@ -14623,9 +14823,9 @@ webpackJsonp([0],[
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _actions2 = __webpack_require__(422);
+	var _actions2 = __webpack_require__(425);
 
-	var _store = __webpack_require__(408);
+	var _store = __webpack_require__(411);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -14709,7 +14909,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 420 */
+/* 423 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -14720,32 +14920,68 @@ webpackJsonp([0],[
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _connect = __webpack_require__(421);
+	var _connect = __webpack_require__(424);
 
 	var _connect2 = _interopRequireDefault(_connect);
 
-	var _actions = __webpack_require__(422);
+	var _actions = __webpack_require__(425);
 
-	var _getters = __webpack_require__(405);
+	var _getters = __webpack_require__(408);
 
-	var _getters2 = __webpack_require__(423);
+	var _getters2 = __webpack_require__(426);
 
-	var _dataProvider = __webpack_require__(425);
+	var _dataProvider = __webpack_require__(428);
 
 	var _dataProvider2 = _interopRequireDefault(_dataProvider);
 
-	var _sessionList = __webpack_require__(426);
+	var _sessionList = __webpack_require__(429);
 
 	var _sessionList2 = _interopRequireDefault(_sessionList);
 
+	var _withStorage = __webpack_require__(392);
+
+	var _withStorage2 = _interopRequireDefault(_withStorage);
+
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-	var Sessions = _react2.default.createClass({
-	  displayName: 'Sessions',
-	  refresh: function refresh() {
-	    return (0, _actions.fetchSiteEventsWithinTimeRange)();
-	  },
-	  render: function render() {
+	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; } /*
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Copyright 2015 Gravitational, Inc.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Licensed under the Apache License, Version 2.0 (the "License");
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               you may not use this file except in compliance with the License.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               You may obtain a copy of the License at
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   http://www.apache.org/licenses/LICENSE-2.0
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Unless required by applicable law or agreed to in writing, software
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               distributed under the License is distributed on an "AS IS" BASIS,
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               See the License for the specific language governing permissions and
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               limitations under the License.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               */
+
+	var Sessions = function (_React$Component) {
+	  _inherits(Sessions, _React$Component);
+
+	  function Sessions() {
+	    var _temp, _this, _ret;
+
+	    _classCallCheck(this, Sessions);
+
+	    for (var _len = arguments.length, args = Array(_len), _key = 0; _key < _len; _key++) {
+	      args[_key] = arguments[_key];
+	    }
+
+	    return _ret = (_temp = (_this = _possibleConstructorReturn(this, _React$Component.call.apply(_React$Component, [this].concat(args))), _this), _this.refresh = function () {
+	      return (0, _actions.fetchSiteEventsWithinTimeRange)();
+	    }, _temp), _possibleConstructorReturn(_this, _ret);
+	  }
+
+	  Sessions.prototype.render = function render() {
 	    var _props = this.props,
 	        storedSessions = _props.storedSessions,
 	        activeSessions = _props.activeSessions,
@@ -14755,30 +14991,19 @@ webpackJsonp([0],[
 	      'div',
 	      { className: 'grv-page grv-sessions' },
 	      _react2.default.createElement(_sessionList2.default, {
+	        storage: this.props.storage,
 	        activeSessions: activeSessions,
 	        storedSessions: storedSessions,
 	        filter: storedSessionsFilter
 	      }),
 	      _react2.default.createElement(_dataProvider2.default, { onFetch: this.refresh })
 	    );
-	  }
-	}); /*
-	    Copyright 2015 Gravitational, Inc.
-	    
-	    Licensed under the Apache License, Version 2.0 (the "License");
-	    you may not use this file except in compliance with the License.
-	    You may obtain a copy of the License at
-	    
-	        http://www.apache.org/licenses/LICENSE-2.0
-	    
-	    Unless required by applicable law or agreed to in writing, software
-	    distributed under the License is distributed on an "AS IS" BASIS,
-	    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	    See the License for the specific language governing permissions and
-	    limitations under the License.
-	    */
+	  };
 
-	function mapStateToProps() {
+	  return Sessions;
+	}(_react2.default.Component);
+
+	function mapFluxToProps() {
 	  return {
 	    activeSessions: _getters.activeSessionList,
 	    storedSessions: _getters.storedSessionList,
@@ -14786,11 +15011,13 @@ webpackJsonp([0],[
 	  };
 	}
 
-	exports.default = (0, _connect2.default)(mapStateToProps)(Sessions);
+	var SessionsWithStorage = (0, _withStorage2.default)(Sessions);
+
+	exports.default = (0, _connect2.default)(mapFluxToProps)(SessionsWithStorage);
 	module.exports = exports['default'];
 
 /***/ }),
-/* 421 */
+/* 424 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -14947,7 +15174,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 422 */
+/* 425 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -14958,11 +15185,11 @@ webpackJsonp([0],[
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _getters = __webpack_require__(423);
+	var _getters = __webpack_require__(426);
 
 	var _actions = __webpack_require__(291);
 
-	var _actionTypes = __webpack_require__(424);
+	var _actionTypes = __webpack_require__(427);
 
 	var _logger = __webpack_require__(245);
 
@@ -15012,7 +15239,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 423 */
+/* 426 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -15044,7 +15271,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 424 */
+/* 427 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15080,7 +15307,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 425 */
+/* 428 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15159,7 +15386,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 426 */
+/* 429 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15182,13 +15409,13 @@ webpackJsonp([0],[
 
 	var _objectUtils = __webpack_require__(277);
 
-	var _storedSessionsFilter = __webpack_require__(427);
+	var _storedSessionsFilter = __webpack_require__(430);
 
 	var _table = __webpack_require__(280);
 
-	var _listItems = __webpack_require__(428);
+	var _listItems = __webpack_require__(431);
 
-	var _datePicker = __webpack_require__(484);
+	var _datePicker = __webpack_require__(487);
 
 	var _datePicker2 = _interopRequireDefault(_datePicker);
 
@@ -15229,8 +15456,8 @@ webpackJsonp([0],[
 	    _this.searchableProps = ['nodeDisplayText', 'createdDisplayText', 'sid', 'parties'];
 	    _this._mounted = false;
 
-	    _this.onFilterChange = function (value) {
-	      _this.state.filter = value;
+	    _this.onSearchChange = function (value) {
+	      _this.state.searchValue = value;
 	      _this.setState(_this.state);
 	    };
 
@@ -15254,7 +15481,13 @@ webpackJsonp([0],[
 	      }
 	    };
 
-	    _this.state = { filter: '', colSortDirs: { created: 'ASC' } };
+	    if (props.storage) {
+	      _this.state = props.storage.findByKey('SessionList');
+	    }
+
+	    if (!_this.state) {
+	      _this.state = { searchValue: '', colSortDirs: { created: 'ASC' } };
+	    }
 	    return _this;
 	  }
 
@@ -15264,6 +15497,9 @@ webpackJsonp([0],[
 
 	  SessionList.prototype.componentWillUnmount = function componentWillUnmount() {
 	    this._mounted = false;
+	    if (this.props.storage) {
+	      this.props.storage.save('SessionList', this.state);
+	    }
 	  };
 
 	  SessionList.prototype.searchAndFilterCb = function searchAndFilterCb(targetValue, searchValue, propName) {
@@ -15277,7 +15513,7 @@ webpackJsonp([0],[
 	    var _this2 = this;
 
 	    var filtered = data.filter(function (obj) {
-	      return (0, _objectUtils.isMatch)(obj, _this2.state.filter, {
+	      return (0, _objectUtils.isMatch)(obj, _this2.state.searchValue, {
 	        searchableProps: _this2.searchableProps,
 	        cb: _this2.searchAndFilterCb
 	      });
@@ -15302,6 +15538,8 @@ webpackJsonp([0],[
 	        end = filter.end;
 
 
+	    var searchValue = this.state.searchValue;
+
 	    var stored = storedSessions.filter(function (item) {
 	      return (0, _moment2.default)(item.created).isBetween(start, end);
 	    });
@@ -15317,7 +15555,6 @@ webpackJsonp([0],[
 
 	    // always display active sessions first    
 	    var data = [].concat(active, stored);
-
 	    return _react2.default.createElement(
 	      'div',
 	      { className: 'grv-sessions-stored m-t' },
@@ -15340,7 +15577,7 @@ webpackJsonp([0],[
 	            'div',
 	            { className: 'grv-flex' },
 	            _react2.default.createElement(_clusterSelector2.default, null),
-	            _react2.default.createElement(_inputSearch2.default, { onChange: this.onFilterChange }),
+	            _react2.default.createElement(_inputSearch2.default, { value: searchValue, onChange: this.onSearchChange }),
 	            _react2.default.createElement(
 	              'div',
 	              { className: 'm-l-sm' },
@@ -15410,7 +15647,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 427 */
+/* 430 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15430,11 +15667,11 @@ webpackJsonp([0],[
 	See the License for the specific language governing permissions and
 	limitations under the License.
 	*/
-	module.exports.getters = __webpack_require__(423);
-	module.exports.actions = __webpack_require__(422);
+	module.exports.getters = __webpack_require__(426);
+	module.exports.actions = __webpack_require__(425);
 
 /***/ }),
-/* 428 */
+/* 431 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15454,15 +15691,15 @@ webpackJsonp([0],[
 
 	var _moment2 = _interopRequireDefault(_moment);
 
-	var _layout = __webpack_require__(429);
+	var _layout = __webpack_require__(432);
 
 	var _layout2 = _interopRequireDefault(_layout);
 
-	var _moreButton = __webpack_require__(430);
+	var _moreButton = __webpack_require__(433);
 
 	var _moreButton2 = _interopRequireDefault(_moreButton);
 
-	var _popover = __webpack_require__(483);
+	var _popover = __webpack_require__(486);
 
 	var _popover2 = _interopRequireDefault(_popover);
 
@@ -15645,7 +15882,7 @@ webpackJsonp([0],[
 	exports.NodeCell = NodeCell;
 
 /***/ }),
-/* 429 */
+/* 432 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15757,7 +15994,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 430 */
+/* 433 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15772,7 +16009,7 @@ webpackJsonp([0],[
 
 	var _classnames2 = _interopRequireDefault(_classnames);
 
-	var _overlayTrigger = __webpack_require__(431);
+	var _overlayTrigger = __webpack_require__(434);
 
 	var _overlayTrigger2 = _interopRequireDefault(_overlayTrigger);
 
@@ -15820,7 +16057,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 431 */
+/* 434 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15835,7 +16072,7 @@ webpackJsonp([0],[
 
 	var _reactDom2 = _interopRequireDefault(_reactDom);
 
-	var _reactOverlays = __webpack_require__(432);
+	var _reactOverlays = __webpack_require__(435);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -15977,9 +16214,6 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 432 */,
-/* 433 */,
-/* 434 */,
 /* 435 */,
 /* 436 */,
 /* 437 */,
@@ -16028,7 +16262,10 @@ webpackJsonp([0],[
 /* 480 */,
 /* 481 */,
 /* 482 */,
-/* 483 */
+/* 483 */,
+/* 484 */,
+/* 485 */,
+/* 486 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16149,7 +16386,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 484 */
+/* 487 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16270,7 +16507,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 485 */
+/* 488 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16283,21 +16520,21 @@ webpackJsonp([0],[
 
 	var _nuclearJsReactAddons = __webpack_require__(219);
 
-	var _getters = __webpack_require__(486);
+	var _getters = __webpack_require__(489);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
-	var _actions = __webpack_require__(407);
+	var _actions = __webpack_require__(410);
 
-	var _indicator = __webpack_require__(394);
+	var _indicator = __webpack_require__(396);
 
 	var _indicator2 = _interopRequireDefault(_indicator);
 
-	var _items = __webpack_require__(487);
+	var _items = __webpack_require__(490);
 
-	var _player = __webpack_require__(488);
+	var _player = __webpack_require__(491);
 
-	var _partyListPanel = __webpack_require__(410);
+	var _partyListPanel = __webpack_require__(413);
 
 	var _partyListPanel2 = _interopRequireDefault(_partyListPanel);
 
@@ -16372,7 +16609,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 486 */
+/* 489 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -16400,13 +16637,13 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 487 */
+/* 490 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	"use strict";
 
 	exports.__esModule = true;
-	exports.ErrorIndicator = undefined;
+	exports.WarningIndicator = exports.ErrorIndicator = undefined;
 
 	var _react = __webpack_require__(2);
 
@@ -16426,16 +16663,7 @@ webpackJsonp([0],[
 	      _react2.default.createElement(
 	        "strong",
 	        null,
-	        "Error"
-	      ),
-	      _react2.default.createElement(
-	        "div",
-	        null,
-	        _react2.default.createElement(
-	          "small",
-	          null,
-	          text
-	        )
+	        text || "Error"
 	      )
 	    )
 	  );
@@ -16455,8 +16683,21 @@ webpackJsonp([0],[
 	   limitations under the License.
 	   */
 
+	var WarningIndicator = exports.WarningIndicator = function WarningIndicator(_ref2) {
+	  var text = _ref2.text;
+	  return _react2.default.createElement(
+	    "div",
+	    { className: "grv-terminalhost-indicator-error" },
+	    _react2.default.createElement(
+	      "h3",
+	      null,
+	      text
+	    )
+	  );
+	};
+
 /***/ }),
-/* 488 */
+/* 491 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16468,7 +16709,7 @@ webpackJsonp([0],[
 
 	var _jQuery2 = _interopRequireDefault(_jQuery);
 
-	var _jquery = __webpack_require__(489);
+	var _jquery = __webpack_require__(492);
 
 	var _jquery2 = _interopRequireDefault(_jquery);
 
@@ -16476,17 +16717,25 @@ webpackJsonp([0],[
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _reactSlider = __webpack_require__(511);
+	var _reactDom = __webpack_require__(31);
+
+	var _reactDom2 = _interopRequireDefault(_reactDom);
+
+	var _reactSlider = __webpack_require__(514);
 
 	var _reactSlider2 = _interopRequireDefault(_reactSlider);
 
-	var _terminal = __webpack_require__(397);
+	var _terminal = __webpack_require__(399);
 
 	var _terminal2 = _interopRequireDefault(_terminal);
 
-	var _ttyPlayer = __webpack_require__(512);
+	var _ttyPlayer = __webpack_require__(515);
 
-	var _items = __webpack_require__(487);
+	var _indicator = __webpack_require__(396);
+
+	var _indicator2 = _interopRequireDefault(_indicator);
+
+	var _items = __webpack_require__(490);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -16525,9 +16774,7 @@ webpackJsonp([0],[
 	    return _this;
 	  }
 
-	  TerminalPlayer.prototype.connect = function connect() {
-	    this.tty.connect();
-	  };
+	  TerminalPlayer.prototype.connect = function connect() {};
 
 	  TerminalPlayer.prototype.open = function open() {
 	    _GrvTerminal.prototype.open.call(this);
@@ -16541,6 +16788,11 @@ webpackJsonp([0],[
 	    (0, _jQuery2.default)(this._el).perfectScrollbar('update');
 	  };
 
+	  TerminalPlayer.prototype.destroy = function destroy() {
+	    _GrvTerminal.prototype.destroy.call(this);
+	    (0, _jQuery2.default)(this._el).perfectScrollbar('destroy');
+	  };
+
 	  TerminalPlayer.prototype._disconnect = function _disconnect() {};
 
 	  TerminalPlayer.prototype._requestResize = function _requestResize() {};
@@ -16548,43 +16800,132 @@ webpackJsonp([0],[
 	  return TerminalPlayer;
 	}(_terminal2.default);
 
-	var Player = exports.Player = function (_React$Component) {
-	  _inherits(Player, _React$Component);
+	var Content = function (_React$Component) {
+	  _inherits(Content, _React$Component);
+
+	  function Content() {
+	    _classCallCheck(this, Content);
+
+	    return _possibleConstructorReturn(this, _React$Component.apply(this, arguments));
+	  }
+
+	  Content.prototype.componentDidMount = function componentDidMount() {
+	    var tty = this.props.tty;
+	    this.terminal = new TerminalPlayer(tty, this.refs.container);
+	    this.terminal.open();
+	  };
+
+	  Content.prototype.componentWillUnmount = function componentWillUnmount() {
+	    this.terminal.destroy();
+	  };
+
+	  Content.prototype.render = function render() {
+	    return _react2.default.createElement('div', { ref: 'container' });
+	  };
+
+	  return Content;
+	}(_react2.default.Component);
+
+	Content.propTypes = {
+	  tty: _react2.default.PropTypes.object.isRequired
+	};
+
+	var ControlPanel = function (_React$Component2) {
+	  _inherits(ControlPanel, _React$Component2);
+
+	  function ControlPanel() {
+	    _classCallCheck(this, ControlPanel);
+
+	    return _possibleConstructorReturn(this, _React$Component2.apply(this, arguments));
+	  }
+
+	  ControlPanel.prototype.componentDidMount = function componentDidMount() {
+	    var el = _reactDom2.default.findDOMNode(this);
+	    var btn = el.querySelector('.grv-session-player-controls button');
+	    btn && btn.focus();
+	  };
+
+	  ControlPanel.prototype.render = function render() {
+	    var _props = this.props,
+	        isPlaying = _props.isPlaying,
+	        min = _props.min,
+	        max = _props.max,
+	        value = _props.value,
+	        onChange = _props.onChange,
+	        onToggle = _props.onToggle,
+	        time = _props.time;
+
+	    var btnClass = isPlaying ? 'fa fa-stop' : 'fa fa-play';
+	    return _react2.default.createElement(
+	      'div',
+	      { className: 'grv-session-player-controls' },
+	      _react2.default.createElement(
+	        'button',
+	        { className: 'btn', onClick: onToggle },
+	        _react2.default.createElement('i', { className: btnClass })
+	      ),
+	      _react2.default.createElement(
+	        'div',
+	        { className: 'grv-session-player-controls-time' },
+	        time
+	      ),
+	      _react2.default.createElement(
+	        'div',
+	        { className: 'grv-flex-column' },
+	        _react2.default.createElement(_reactSlider2.default, {
+	          min: min,
+	          max: max,
+	          value: value,
+	          onChange: onChange,
+	          defaultValue: 1,
+	          withBars: true,
+	          className: 'grv-slider' })
+	      )
+	    );
+	  };
+
+	  return ControlPanel;
+	}(_react2.default.Component);
+
+	var Player = exports.Player = function (_React$Component3) {
+	  _inherits(Player, _React$Component3);
 
 	  function Player(props) {
 	    _classCallCheck(this, Player);
 
-	    var _this2 = _possibleConstructorReturn(this, _React$Component.call(this, props));
+	    var _this4 = _possibleConstructorReturn(this, _React$Component3.call(this, props));
 
-	    _this2.updateState = function () {
-	      var newState = _this2.calculateState();
-	      _this2.setState(newState);
+	    _this4.updateState = function () {
+	      var newState = _this4.calculateState();
+	      _this4.setState(newState);
 	    };
 
-	    _this2.togglePlayStop = function () {
-	      if (_this2.state.isPlaying) {
-	        _this2.tty.stop();
+	    _this4.onTogglePlayStop = function () {
+	      if (_this4.state.isPlaying) {
+	        _this4.tty.stop();
 	      } else {
-	        _this2.tty.play();
+	        _this4.tty.play();
 	      }
 	    };
 
-	    _this2.move = function (value) {
-	      _this2.tty.move(value);
+	    _this4.onMove = function (value) {
+	      _this4.tty.move(value);
 	    };
 
-	    var url = _this2.props.url;
+	    var url = _this4.props.url;
 
-	    _this2.tty = new _ttyPlayer.TtyPlayer({ url: url });
-	    _this2.state = _this2.calculateState();
-	    return _this2;
+	    _this4.tty = new _ttyPlayer.TtyPlayer({ url: url });
+	    _this4.state = _this4.calculateState();
+	    return _this4;
 	  }
 
 	  Player.prototype.calculateState = function calculateState() {
 	    return {
+	      eventCount: this.tty.getEventCount(),
 	      length: this.tty.length,
 	      min: 1,
 	      time: this.tty.getCurrentTime(),
+	      isLoading: this.tty.isLoading,
 	      isPlaying: this.tty.isPlaying,
 	      isError: this.tty.isError,
 	      errText: this.tty.errText,
@@ -16594,62 +16935,50 @@ webpackJsonp([0],[
 	  };
 
 	  Player.prototype.componentDidMount = function componentDidMount() {
-	    this.terminal = new TerminalPlayer(this.tty, this.refs.container);
-	    this.terminal.open();
-
 	    this.tty.on('change', this.updateState);
+	    this.tty.connect();
 	    this.tty.play();
 	  };
 
 	  Player.prototype.componentWillUnmount = function componentWillUnmount() {
 	    this.tty.stop();
 	    this.tty.removeAllListeners();
-	    this.terminal.destroy();
-	    (0, _jQuery2.default)(this.refs.container).perfectScrollbar('destroy');
 	  };
 
 	  Player.prototype.render = function render() {
 	    var _state = this.state,
 	        isPlaying = _state.isPlaying,
+	        isLoading = _state.isLoading,
 	        isError = _state.isError,
 	        errText = _state.errText,
-	        time = _state.time;
+	        time = _state.time,
+	        min = _state.min,
+	        length = _state.length,
+	        current = _state.current,
+	        eventCount = _state.eventCount;
 
-	    var btnClass = isPlaying ? 'fa fa-stop' : 'fa fa-play';
+
 	    if (isError) {
 	      return _react2.default.createElement(_items.ErrorIndicator, { text: errText });
+	    }
+
+	    if (!isLoading && eventCount === 0) {
+	      return _react2.default.createElement(_items.WarningIndicator, { text: 'The recording for this session is not available.' });
 	    }
 
 	    return _react2.default.createElement(
 	      'div',
 	      { className: 'grv-session-player-content' },
-	      _react2.default.createElement('div', { ref: 'container' }),
-	      _react2.default.createElement(
-	        'div',
-	        { className: 'grv-session-player-controls' },
-	        _react2.default.createElement(
-	          'button',
-	          { className: 'btn', onClick: this.togglePlayStop },
-	          _react2.default.createElement('i', { className: btnClass })
-	        ),
-	        _react2.default.createElement(
-	          'div',
-	          { className: 'grv-session-player-controls-time' },
-	          time
-	        ),
-	        _react2.default.createElement(
-	          'div',
-	          { className: 'grv-flex-column' },
-	          _react2.default.createElement(_reactSlider2.default, {
-	            min: this.state.min,
-	            max: this.state.length,
-	            value: this.state.current,
-	            onChange: this.move,
-	            defaultValue: 1,
-	            withBars: true,
-	            className: 'grv-slider' })
-	        )
-	      )
+	      _react2.default.createElement(Content, { tty: this.tty }),
+	      isLoading && _react2.default.createElement(_indicator2.default, null),
+	      eventCount > 0 && _react2.default.createElement(ControlPanel, {
+	        isPlaying: isPlaying,
+	        time: time,
+	        min: min,
+	        max: length,
+	        value: current,
+	        onToggle: this.onTogglePlayStop,
+	        onChange: this.onMove })
 	    );
 	  };
 
@@ -16657,9 +16986,6 @@ webpackJsonp([0],[
 	}(_react2.default.Component);
 
 /***/ }),
-/* 489 */,
-/* 490 */,
-/* 491 */,
 /* 492 */,
 /* 493 */,
 /* 494 */,
@@ -16680,7 +17006,10 @@ webpackJsonp([0],[
 /* 509 */,
 /* 510 */,
 /* 511 */,
-/* 512 */
+/* 512 */,
+/* 513 */,
+/* 514 */,
+/* 515 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16692,7 +17021,7 @@ webpackJsonp([0],[
 
 	var _jQuery2 = _interopRequireDefault(_jQuery);
 
-	var _buffer = __webpack_require__(513);
+	var _buffer = __webpack_require__(516);
 
 	var _buffer2 = _interopRequireDefault(_buffer);
 
@@ -16700,11 +17029,11 @@ webpackJsonp([0],[
 
 	var _api2 = _interopRequireDefault(_api);
 
-	var _tty = __webpack_require__(399);
+	var _tty = __webpack_require__(401);
 
 	var _tty2 = _interopRequireDefault(_tty);
 
-	var _enums = __webpack_require__(396);
+	var _enums = __webpack_require__(398);
 
 	var _logger = __webpack_require__(245);
 
@@ -16751,12 +17080,6 @@ webpackJsonp([0],[
 	    this.events = [];
 	  }
 
-	  EventProvider.prototype.getLength = function getLength() {
-	    return this.events.length;
-	  };
-
-	  EventProvider.prototype.getCurrentEventTime = function getCurrentEventTime() {};
-
 	  EventProvider.prototype.getLengthInTime = function getLengthInTime() {
 	    var length = this.events.length;
 	    if (length === 0) {
@@ -16769,27 +17092,38 @@ webpackJsonp([0],[
 	  EventProvider.prototype.init = function init() {
 	    var _this = this;
 
-	    return _api2.default.get(this.url + URL_PREFIX_EVENTS).done(function (data) {
-	      _this._createPrintEvents(data.events);
-	      _this._normalizeEventsByTime();
+	    return _api2.default.get(this.url + URL_PREFIX_EVENTS).done(function (json) {
+	      if (!json.events) {
+	        return;
+	      }
+
+	      var events = _this._createPrintEvents(json.events);
+	      events = _this._normalizeEventsByTime(events);
+	      _this.events = events;
 	    });
 	  };
 
-	  EventProvider.prototype.getEventsWithByteStream = function getEventsWithByteStream(start, end) {
+	  EventProvider.prototype.hasAll = function hasAll(start, end) {
+	    for (var i = start; i < end; i++) {
+	      if (this.events[i].data === null) {
+	        return false;
+	      }
+	    }
+
+	    return true;
+	  };
+
+	  EventProvider.prototype.sliceEvents = function sliceEvents(start, end) {
+	    return this.events.slice(start, end);
+	  };
+
+	  EventProvider.prototype.fetchEvents = function fetchEvents(start, end) {
 	    var _this2 = this;
 
-	    try {
-	      if (this._shouldFetch(start, end)) {
-	        // TODO: add buffering logic, as for now, load everything
-	        return this._fetch().then(this.processByteStream.bind(this, start, this.getLength())).then(function () {
-	          return _this2.events.slice(start, end);
-	        });
-	      } else {
-	        return _jQuery2.default.Deferred().resolve(this.events.slice(start, end));
-	      }
-	    } catch (err) {
-	      return _jQuery2.default.Deferred().reject(err);
-	    }
+	    // TODO: uncomment it once partial fetch is implemented on the backend
+	    return this._fetch().then(this.processByteStream.bind(this, start, this.events.length)).then(function () {
+	      return _this2.events.slice(start, end);
+	    });
 	  };
 
 	  EventProvider.prototype.processByteStream = function processByteStream(start, end, byteStr) {
@@ -16801,16 +17135,6 @@ webpackJsonp([0],[
 	      this.events[i].data = byteStr.slice(byteStrOffset, byteStrOffset + bytes).toString('utf8');
 	      byteStrOffset += bytes;
 	    }
-	  };
-
-	  EventProvider.prototype._shouldFetch = function _shouldFetch(start, end) {
-	    for (var i = start; i < end; i++) {
-	      if (this.events[i].data === null) {
-	        return true;
-	      }
-	    }
-
-	    return false;
 	  };
 
 	  EventProvider.prototype._fetch = function _fetch() {
@@ -16828,7 +17152,7 @@ webpackJsonp([0],[
 	        h = void 0;
 	    var events = [];
 
-	    // filter print events and ensure that each event has the right screen size and valid values
+	    // filter print events and ensure that each has the right screen size and valid values
 	    for (var i = 0; i < json.length; i++) {
 	      var _json$i = json[i],
 	          ms = _json$i.ms,
@@ -16874,11 +17198,10 @@ webpackJsonp([0],[
 	      });
 	    }
 
-	    this.events = events;
+	    return events;
 	  };
 
-	  EventProvider.prototype._normalizeEventsByTime = function _normalizeEventsByTime() {
-	    var events = this.events;
+	  EventProvider.prototype._normalizeEventsByTime = function _normalizeEventsByTime(events) {
 	    var cur = events[0];
 	    var tmp = [];
 	    for (var i = 1; i < events.length; i++) {
@@ -16911,7 +17234,7 @@ webpackJsonp([0],[
 	      tmp.push(cur);
 	    }
 
-	    this.events = tmp;
+	    return tmp;
 	  };
 
 	  EventProvider.prototype._formatDisplayTime = function _formatDisplayTime(ms) {
@@ -16959,15 +17282,27 @@ webpackJsonp([0],[
 	    return _this3;
 	  }
 
+	  // override
+
+
 	  TtyPlayer.prototype.send = function send() {};
 
+	  // override
+
+
 	  TtyPlayer.prototype.resize = function resize() {};
+
+	  // override
+
 
 	  TtyPlayer.prototype.connect = function connect() {
 	    var _this4 = this;
 
 	    this._setStatusFlag({ isLoading: true });
-	    this._eventProvider.init().done(this._init.bind(this)).fail(function (err) {
+	    this._eventProvider.init().then(function () {
+	      _this4._init();
+	      _this4._setStatusFlag({ isReady: true });
+	    }).fail(function (err) {
 	      logger.error('unable to init event provider', err);
 	      _this4.handleError(err);
 	    }).always(this._change.bind(this));
@@ -16989,7 +17324,6 @@ webpackJsonp([0],[
 	    this._eventProvider.events.forEach(function (item) {
 	      return _this5._posToEventIndexMap.push(item.msNormalized);
 	    });
-	    this._setStatusFlag({ isReady: true });
 	  };
 
 	  TtyPlayer.prototype.move = function move(newPos) {
@@ -17020,8 +17354,14 @@ webpackJsonp([0],[
 	      return;
 	    }
 
+	    var isRewind = this.currentEventIndex > newEventIndex;
+
 	    try {
-	      var isRewind = this.currentEventIndex > newEventIndex;
+
+	      // we cannot playback the content within terminal so instead we do this:
+	      // 1. tell terminal to reset.
+	      // 2. tell terminal to render 1 huge chunk that has everything up to current
+	      // newEventIndex.
 	      if (isRewind) {
 	        this.emit('reset');
 	      }
@@ -17030,9 +17370,13 @@ webpackJsonp([0],[
 	        _this6.currentEventIndex = newEventIndex;
 	        _this6.current = newPos;
 	        _this6._change();
+	      }).fail(function (err) {
+	        logger.error('unable to process a chunk of session recording', err);
+	        _this6.handleError(err);
 	      });
 	    } catch (err) {
 	      logger.error('move', err);
+	      this.handleError(err);
 	    }
 	  };
 
@@ -17065,51 +17409,62 @@ webpackJsonp([0],[
 
 	      return displayTime;
 	    } else {
-	      return '';
+	      return '--:--';
 	    }
+	  };
+
+	  TtyPlayer.prototype.getEventCount = function getEventCount() {
+	    return this._eventProvider.events.length;
 	  };
 
 	  TtyPlayer.prototype._showChunk = function _showChunk(start, end) {
 	    var _this7 = this;
 
+	    // check if all events exist within given interval
+	    if (this._eventProvider.hasAll(start, end)) {
+	      var events = this._eventProvider.sliceEvents(start, end);
+	      this._display(events);
+	      return _jQuery2.default.Deferred().resolve();
+	    }
+
+	    // fetch requests within given interval
 	    this._setStatusFlag({ isLoading: true });
-	    return this._eventProvider.getEventsWithByteStream(start, end).done(function (events) {
+	    return this._eventProvider.fetchEvents(start, end).done(function (events) {
 	      _this7._setStatusFlag({ isReady: true });
 	      _this7._display(events);
-	    }).fail(function (err) {
-	      logger.error('unable to process a chunk of session recording', err);
-	      _this7.handleError(err);
 	    });
 	  };
 
-	  TtyPlayer.prototype._display = function _display(stream) {
-	    var tmp = [{
-	      data: [stream[0].data],
-	      w: stream[0].w,
-	      h: stream[0].h
+	  TtyPlayer.prototype._display = function _display(events) {
+	    var groups = [{
+	      data: [events[0].data],
+	      w: events[0].w,
+	      h: events[0].h
 	    }];
 
-	    var cur = tmp[0];
+	    var cur = groups[0];
 
-	    for (var i = 1; i < stream.length; i++) {
-	      if (cur.w === stream[i].w && cur.h === stream[i].h) {
-	        cur.data.push(stream[i].data);
+	    // group events based on screen size and merge by creating 1 event per each screen size
+	    for (var i = 1; i < events.length; i++) {
+	      if (cur.w === events[i].w && cur.h === events[i].h) {
+	        cur.data.push(events[i].data);
 	      } else {
 	        cur = {
-	          data: [stream[i].data],
-	          w: stream[i].w,
-	          h: stream[i].h
+	          data: [events[i].data],
+	          w: events[i].w,
+	          h: events[i].h
 	        };
 
-	        tmp.push(cur);
+	        groups.push(cur);
 	      }
 	    }
 
-	    for (var _i = 0; _i < tmp.length; _i++) {
-	      var str = tmp[_i].data.join('');
-	      var _tmp$_i = tmp[_i],
-	          h = _tmp$_i.h,
-	          w = _tmp$_i.w;
+	    // render each group
+	    for (var _i = 0; _i < groups.length; _i++) {
+	      var str = groups[_i].data.join('');
+	      var _groups$_i = groups[_i],
+	          h = _groups$_i.h,
+	          w = _groups$_i.w;
 
 	      if (str.length > 0) {
 	        this.emit('resize', { h: h, w: w });
@@ -17166,12 +17521,12 @@ webpackJsonp([0],[
 	exports.Buffer = Buffer;
 
 /***/ }),
-/* 513 */,
-/* 514 */,
-/* 515 */,
 /* 516 */,
 /* 517 */,
-/* 518 */
+/* 518 */,
+/* 519 */,
+/* 520 */,
+/* 521 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -17179,11 +17534,11 @@ webpackJsonp([0],[
 	exports.__esModule = true;
 	exports.SettingsFeatureBase = undefined;
 
-	var _featureBase = __webpack_require__(392);
+	var _featureBase = __webpack_require__(394);
 
 	var _featureBase2 = _interopRequireDefault(_featureBase);
 
-	var _featureActivator = __webpack_require__(519);
+	var _featureActivator = __webpack_require__(522);
 
 	var _featureActivator2 = _interopRequireDefault(_featureActivator);
 
@@ -17193,13 +17548,13 @@ webpackJsonp([0],[
 
 	var _config2 = _interopRequireDefault(_config);
 
-	var _main = __webpack_require__(520);
+	var _main = __webpack_require__(523);
 
 	var _main2 = _interopRequireDefault(_main);
 
-	var _actions2 = __webpack_require__(522);
+	var _actions2 = __webpack_require__(525);
 
-	var _settings = __webpack_require__(524);
+	var _settings = __webpack_require__(527);
 
 	var _settings2 = _interopRequireDefault(_settings);
 
@@ -17314,7 +17669,7 @@ webpackJsonp([0],[
 	exports.default = SettingsFeature;
 
 /***/ }),
-/* 519 */
+/* 522 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -17426,7 +17781,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 520 */
+/* 523 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -17441,7 +17796,7 @@ webpackJsonp([0],[
 
 	var _reactRouter = __webpack_require__(164);
 
-	var _getters = __webpack_require__(521);
+	var _getters = __webpack_require__(524);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
@@ -17542,7 +17897,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 521 */
+/* 524 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -17570,7 +17925,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 522 */
+/* 525 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -17583,11 +17938,11 @@ webpackJsonp([0],[
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _getters = __webpack_require__(521);
+	var _getters = __webpack_require__(524);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
-	var _actionTypes = __webpack_require__(523);
+	var _actionTypes = __webpack_require__(526);
 
 	var AT = _interopRequireWildcard(_actionTypes);
 
@@ -17630,7 +17985,7 @@ webpackJsonp([0],[
 	}
 
 /***/ }),
-/* 523 */
+/* 526 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -17657,7 +18012,7 @@ webpackJsonp([0],[
 	var SET_RES_TO_DELETE = exports.SET_RES_TO_DELETE = 'SETTINGS_SET_RES_TO_DELETE';
 
 /***/ }),
-/* 524 */
+/* 527 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -17668,7 +18023,7 @@ webpackJsonp([0],[
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _connect = __webpack_require__(421);
+	var _connect = __webpack_require__(424);
 
 	var _connect2 = _interopRequireDefault(_connect);
 
@@ -17676,7 +18031,7 @@ webpackJsonp([0],[
 
 	var Messages = _interopRequireWildcard(_msgPage);
 
-	var _getters = __webpack_require__(521);
+	var _getters = __webpack_require__(524);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
@@ -17753,7 +18108,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 525 */
+/* 528 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -17761,11 +18116,11 @@ webpackJsonp([0],[
 	exports.__esModule = true;
 	exports.createSettings = exports.append = undefined;
 
-	var _featureSettingsAccount = __webpack_require__(526);
+	var _featureSettingsAccount = __webpack_require__(529);
 
 	var _featureSettingsAccount2 = _interopRequireDefault(_featureSettingsAccount);
 
-	var _featureSettings = __webpack_require__(518);
+	var _featureSettings = __webpack_require__(521);
 
 	var _featureSettings2 = _interopRequireDefault(_featureSettings);
 
@@ -17803,26 +18158,26 @@ webpackJsonp([0],[
 	};
 
 /***/ }),
-/* 526 */
+/* 529 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _flags = __webpack_require__(527);
+	var _flags = __webpack_require__(530);
 
 	var featureFlags = _interopRequireWildcard(_flags);
 
-	var _featureSettings = __webpack_require__(518);
+	var _featureSettings = __webpack_require__(521);
 
 	var _config = __webpack_require__(228);
 
 	var _config2 = _interopRequireDefault(_config);
 
-	var _actions = __webpack_require__(522);
+	var _actions = __webpack_require__(525);
 
-	var _accountTab = __webpack_require__(528);
+	var _accountTab = __webpack_require__(531);
 
 	var _accountTab2 = _interopRequireDefault(_accountTab);
 
@@ -17901,7 +18256,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 527 */
+/* 530 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -17930,7 +18285,7 @@ webpackJsonp([0],[
 	  */
 
 /***/ }),
-/* 528 */
+/* 531 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -17947,7 +18302,7 @@ webpackJsonp([0],[
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _connect = __webpack_require__(421);
+	var _connect = __webpack_require__(424);
 
 	var _connect2 = _interopRequireDefault(_connect);
 
@@ -17957,7 +18312,7 @@ webpackJsonp([0],[
 
 	var _enums = __webpack_require__(264);
 
-	var _alerts = __webpack_require__(529);
+	var _alerts = __webpack_require__(532);
 
 	var Alerts = _interopRequireWildcard(_alerts);
 
@@ -17965,7 +18320,7 @@ webpackJsonp([0],[
 
 	var _actions = __webpack_require__(239);
 
-	var _layout = __webpack_require__(429);
+	var _layout = __webpack_require__(432);
 
 	var _layout2 = _interopRequireDefault(_layout);
 
@@ -18264,7 +18619,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 529 */
+/* 532 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -18326,7 +18681,7 @@ webpackJsonp([0],[
 	};
 
 /***/ }),
-/* 530 */
+/* 533 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -18347,21 +18702,21 @@ webpackJsonp([0],[
 
 	var _getters2 = _interopRequireDefault(_getters);
 
-	var _browser = __webpack_require__(531);
+	var _browser = __webpack_require__(534);
 
 	var _actions = __webpack_require__(284);
 
-	var _navLeftBar = __webpack_require__(532);
+	var _navLeftBar = __webpack_require__(535);
 
 	var _navLeftBar2 = _interopRequireDefault(_navLeftBar);
 
-	var _dataProvider = __webpack_require__(425);
+	var _dataProvider = __webpack_require__(428);
 
 	var _dataProvider2 = _interopRequireDefault(_dataProvider);
 
 	var _msgPage = __webpack_require__(266);
 
-	var _indicator = __webpack_require__(394);
+	var _indicator = __webpack_require__(396);
 
 	var _indicator2 = _interopRequireDefault(_indicator);
 
@@ -18447,7 +18802,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 531 */
+/* 534 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -18481,7 +18836,7 @@ webpackJsonp([0],[
 	var platform = exports.platform = detectPlatform();
 
 /***/ }),
-/* 532 */
+/* 535 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -18501,7 +18856,7 @@ webpackJsonp([0],[
 
 	var UserFlux = _interopRequireWildcard(_user);
 
-	var _appStore = __webpack_require__(533);
+	var _appStore = __webpack_require__(536);
 
 	var AppStore = _interopRequireWildcard(_appStore);
 
@@ -18588,7 +18943,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 533 */
+/* 536 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -18683,7 +19038,7 @@ webpackJsonp([0],[
 	});
 
 /***/ }),
-/* 534 */
+/* 537 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -18692,27 +19047,27 @@ webpackJsonp([0],[
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _store = __webpack_require__(535);
+	var _store = __webpack_require__(538);
 
 	var _store2 = _interopRequireDefault(_store);
 
-	var _store3 = __webpack_require__(536);
+	var _store3 = __webpack_require__(539);
 
 	var _store4 = _interopRequireDefault(_store3);
 
-	var _store5 = __webpack_require__(408);
+	var _store5 = __webpack_require__(411);
 
 	var _store6 = _interopRequireDefault(_store5);
 
-	var _appStore = __webpack_require__(533);
+	var _appStore = __webpack_require__(536);
 
 	var _appStore2 = _interopRequireDefault(_appStore);
 
-	var _nodeStore = __webpack_require__(404);
+	var _nodeStore = __webpack_require__(407);
 
 	var _nodeStore2 = _interopRequireDefault(_nodeStore);
 
-	var _store7 = __webpack_require__(537);
+	var _store7 = __webpack_require__(540);
 
 	var _store8 = _interopRequireDefault(_store7);
 
@@ -18720,23 +19075,9 @@ webpackJsonp([0],[
 
 	var _statusStore2 = _interopRequireDefault(_statusStore);
 
+	__webpack_require__(393);
+
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
 
 	_reactor2.default.registerStores({
 	  'tlpt_settings': _store8.default,
@@ -18744,20 +19085,34 @@ webpackJsonp([0],[
 	  'tlpt_terminal': _store2.default,
 	  'tlpt_player': _store4.default,
 	  'tlpt_nodes': _nodeStore2.default,
-	  'tlpt_user': __webpack_require__(538),
-	  'tlpt_user_invite': __webpack_require__(539),
+	  'tlpt_user': __webpack_require__(541),
+	  'tlpt_user_invite': __webpack_require__(542),
 	  'tlpt_user_acl': _store6.default,
-	  'tlpt_sites': __webpack_require__(540),
+	  'tlpt_sites': __webpack_require__(543),
 	  'tlpt_status': _statusStore2.default,
-	  'tlpt_sessions_events': __webpack_require__(541),
-	  'tlpt_sessions_archived': __webpack_require__(542),
-	  'tlpt_sessions_active': __webpack_require__(543),
-	  'tlpt_sessions_filter': __webpack_require__(544),
-	  'tlpt_notifications': __webpack_require__(545)
-	});
+	  'tlpt_sessions_events': __webpack_require__(544),
+	  'tlpt_sessions_archived': __webpack_require__(545),
+	  'tlpt_sessions_active': __webpack_require__(546),
+	  'tlpt_sessions_filter': __webpack_require__(547),
+	  'tlpt_notifications': __webpack_require__(548)
+	}); /*
+	    Copyright 2015 Gravitational, Inc.
+	    
+	    Licensed under the Apache License, Version 2.0 (the "License");
+	    you may not use this file except in compliance with the License.
+	    You may obtain a copy of the License at
+	    
+	        http://www.apache.org/licenses/LICENSE-2.0
+	    
+	    Unless required by applicable law or agreed to in writing, software
+	    distributed under the License is distributed on an "AS IS" BASIS,
+	    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	    See the License for the specific language governing permissions and
+	    limitations under the License.
+	    */
 
 /***/ }),
-/* 535 */
+/* 538 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -18777,7 +19132,7 @@ webpackJsonp([0],[
 
 	var _localStorage2 = _interopRequireDefault(_localStorage);
 
-	var _actionTypes = __webpack_require__(406);
+	var _actionTypes = __webpack_require__(409);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -18827,15 +19182,19 @@ webpackJsonp([0],[
 	    var _localStorage$getBear = _localStorage2.default.getBearerToken(),
 	        accessToken = _localStorage$getBear.accessToken;
 
-	    var ttyParams = {
-	      serverId: this.serverId,
+	    var server_id = this.serverId;
+	    return {
 	      login: this.login,
 	      sid: this.sid,
-	      url: _config2.default.api.getSiteUrl(this.siteId),
-	      token: accessToken
+	      token: accessToken,
+	      ttyUrl: _config2.default.api.ttyWsAddr,
+	      ttyEventUrl: _config2.default.api.ttyEventWsAddr,
+	      ttyResizeUrl: _config2.default.api.ttyResizeUrl,
+	      cluster: this.siteId,
+	      getTarget: function getTarget() {
+	        return { server_id: server_id };
+	      }
 	    };
-
-	    return ttyParams;
 	  };
 
 	  TermRec.prototype.getServerLabel = function getServerLabel() {
@@ -18885,7 +19244,7 @@ webpackJsonp([0],[
 	}
 
 /***/ }),
-/* 536 */
+/* 539 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -18901,7 +19260,7 @@ webpackJsonp([0],[
 
 	var _config2 = _interopRequireDefault(_config);
 
-	var _actionTypes = __webpack_require__(409);
+	var _actionTypes = __webpack_require__(412);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -19006,7 +19365,7 @@ webpackJsonp([0],[
 	}
 
 /***/ }),
-/* 537 */
+/* 540 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19017,7 +19376,7 @@ webpackJsonp([0],[
 
 	var _immutable = __webpack_require__(253);
 
-	var _actionTypes = __webpack_require__(523);
+	var _actionTypes = __webpack_require__(526);
 
 	var AT = _interopRequireWildcard(_actionTypes);
 
@@ -19086,7 +19445,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 538 */
+/* 541 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19160,7 +19519,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 539 */
+/* 542 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19209,7 +19568,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 540 */
+/* 543 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19259,7 +19618,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 541 */
+/* 544 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19317,7 +19676,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 542 */
+/* 545 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19330,7 +19689,7 @@ webpackJsonp([0],[
 
 	var _actionTypes = __webpack_require__(391);
 
-	var _enums = __webpack_require__(396);
+	var _enums = __webpack_require__(398);
 
 	/*
 	Copyright 2015 Gravitational, Inc.
@@ -19415,7 +19774,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 543 */
+/* 546 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19530,7 +19889,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 544 */
+/* 547 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19559,7 +19918,7 @@ webpackJsonp([0],[
 
 	var moment = __webpack_require__(292);
 
-	var _require2 = __webpack_require__(424),
+	var _require2 = __webpack_require__(427),
 	    TLPT_STORED_SESSINS_FILTER_SET_RANGE = _require2.TLPT_STORED_SESSINS_FILTER_SET_RANGE;
 
 	exports.default = Store({
@@ -19586,7 +19945,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 545 */
+/* 548 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19595,7 +19954,7 @@ webpackJsonp([0],[
 
 	var _nuclearJs = __webpack_require__(234);
 
-	var _actionTypes = __webpack_require__(546);
+	var _actionTypes = __webpack_require__(549);
 
 	/*
 	Copyright 2015 Gravitational, Inc.
@@ -19629,7 +19988,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 546 */
+/* 549 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';

@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
+import ReactDOM from 'react-dom';
 import { debounce } from 'lodash';
 
 class InputSearch extends React.Component {
@@ -36,7 +37,18 @@ class InputSearch extends React.Component {
     this.setState({ value: e.target.value });
     this.debouncedNotify();
   }
-        
+            
+  componentDidMount() {
+    // set cursor
+    const $el = ReactDOM.findDOMNode(this);    
+    if ($el) {
+      const $input = $el.querySelector('input')
+      const length = $input.value.length;
+      $input.selectionEnd = length;
+      $input.selectionStart = length;      
+    }
+  }
+
   render() {
     let { className = '' } = this.props;
     className = `grv-search input-group-sm ${className}`;

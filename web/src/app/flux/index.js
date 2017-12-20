@@ -22,6 +22,7 @@ import appStore from './app/appStore';
 import nodeStore from './nodes/nodeStore';
 import settingsStore from './settings/store';
 import StatusStore from './status/statusStore';
+import './misc/store';
 
 reactor.registerStores({
   'tlpt_settings': settingsStore,  

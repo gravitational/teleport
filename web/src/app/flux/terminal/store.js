@@ -47,16 +47,20 @@ export class TermRec extends Record({
   }
 
   getTtyParams(){            
-    let { accessToken } = localStorage.getBearerToken()
-    let ttyParams = {
-      serverId: this.serverId,
+    const { accessToken } = localStorage.getBearerToken()
+    const server_id = this.serverId;
+    return {
       login: this.login,
       sid: this.sid,
-      url: cfg.api.getSiteUrl(this.siteId),
-      token: accessToken
-    }
-    
-    return ttyParams;
+      token: accessToken,
+      ttyUrl: cfg.api.ttyWsAddr,
+      ttyEventUrl: cfg.api.ttyEventWsAddr,
+      ttyResizeUrl: cfg.api.ttyResizeUrl,
+      cluster: this.siteId,
+      getTarget() {
+        return { server_id };
+      }
+    };            
   }
 
   getServerLabel() {                 

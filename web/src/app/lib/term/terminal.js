@@ -13,15 +13,11 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-import Term from 'xterm/dist/xterm';
+import XTerm from 'xterm/dist/xterm';
 import Tty from './tty';
 import TtyEvents from './ttyEvents';
 import {debounce, isNumber} from 'lodash';
-import api from 'app/services/api';
 import Logger from 'app/lib/logger';
-import $ from 'jQuery';
-
-Term.colors[256] = '#252323';
 
 const logger = Logger.create('lib/term/terminal');
 const DISCONNECT_TXT = 'disconnected';
@@ -35,20 +31,14 @@ const WINDOW_RESIZE_DEBOUNCE_DELAY = 200;
 class TtyTerminal {
 
   constructor(options){
-    let {
-      tty,
-      scrollBack = 1000 } = options;
-
-    this.ttyParams = tty;
-    this.tty = new Tty();
-    this.ttyEvents = new TtyEvents();
-
+    const { addressResolver, el, scrollBack = 1000 } = options;    
+    this._el = el;
+    this.tty = new Tty(addressResolver);
+    this.ttyEvents = new TtyEvents(addressResolver);
     this.scrollBack = scrollBack
     this.rows = undefined;
     this.cols = undefined;
-    this.term = null;
-    this._el = options.el;
-
+    this.term = null;    
     this.debouncedResize = debounce(
       this._requestResize.bind(this),
       WINDOW_RESIZE_DEBOUNCE_DELAY
@@ -56,10 +46,10 @@ class TtyTerminal {
   }
 
   open() {
-    $(this._el).addClass(GRV_CLASS);
+    this._el.classList.add(GRV_CLASS);
 
     // render xtermjs with default values
-    this.term = new Term({    
+    this.term = new XTerm({    
       cols: 15,
       rows: 5,
       scrollback: this.scrollBack,                  
@@ -68,30 +58,33 @@ class TtyTerminal {
     
     this.term.open(this._el);
 
-    // resize xterm to available space
+    // fit xterm to available space
     this.resize(this.cols, this.rows);
 
     // subscribe to xtermjs output
-    this.term.on('data', data => this.tty.send(data));
+    this.term.on('data', data => {      
+      this.tty.send(data)
+    })
     
+    // subscribe to window resize events
+    window.addEventListener('resize', this.debouncedResize);
+
     // subscribe to tty
     this.tty.on('reset', this.reset.bind(this));    
     this.tty.on('close', this._processClose.bind(this));
     this.tty.on('data', this._processData.bind(this));    
-    
+
     // subscribe tty resize event (used by session player)
-    this.tty.on('resize', ({h, w}) => this.resize(w, h));    
-    // subscribe to window resize events
-    window.addEventListener('resize', this.debouncedResize);
+    this.tty.on('resize', ({h, w}) => this.resize(w, h));        
     // subscribe to session resize events (triggered by other participants)
     this.ttyEvents.on('resize', ({h, w}) => this.resize(w, h));    
 
     this.connect();    
   }
   
-  connect(){
-    this.tty.connect(this._getTtyConnStr());
-    this.ttyEvents.connect(this._getTtyEventsConnStr());
+  connect(){    
+    this.tty.connect(this.cols, this.rows);
+    this.ttyEvents.connect();
   }
 
   destroy() {
@@ -102,7 +95,8 @@ class TtyTerminal {
       this.term.removeAllListeners();
     }
 
-    $(this._el).empty().removeClass(GRV_CLASS);    
+    this._el.innerHTML = null;
+    this._el.classList.remove(GRV_CLASS);    
   }
 
   reset() {        
@@ -113,7 +107,7 @@ class TtyTerminal {
     try {      
       // if not defined, use the size of the container
       if(!isNumber(cols) || !isNumber(rows)){
-        let dim = this._getDimensions();
+        const dim = this._getDimensions();
         cols = dim.cols;
         rows = dim.rows;
       }
@@ -124,10 +118,9 @@ class TtyTerminal {
 
       this.cols = cols;
       this.rows = rows;    
-
       this.term.resize(cols, rows);  
     } catch (err) {            
-      logger.error('resize', { w: cols, h: rows }, err);     
+      logger.error('xterm.resize', { w: cols, h: rows }, err);     
       this.term.reset();  
     }       
   }
@@ -137,15 +130,14 @@ class TtyTerminal {
       this.term.write(data);                    
     } catch (err) {            
       logger.error('xterm.write', data, err);
-      // reset xtermjs so it can recover
+      // recover xtermjs by resetting it
       this.term.reset();  
     }
   }
     
   _processClose(e) {
-    let { reason } = e;
-    let displayText = DISCONNECT_TXT;
-            
+    const { reason } = e;
+    let displayText = DISCONNECT_TXT;            
     if (reason) {
       displayText = `${displayText}: ${reason}`;
     }
@@ -162,73 +154,42 @@ class TtyTerminal {
   }
 
   _requestResize(){
-    let {cols, rows} = this._getDimensions();
-    let w = cols;
-    let h = rows;
+    const { cols, rows } = this._getDimensions();
+    // ensure min size
+    const w = cols < 5 ? 5 : cols;
+    const h = rows < 5 ? 5 : rows;
 
-    // some min values
-    w = w < 5 ? 5 : w;
-    h = h < 5 ? 5 : h;
-
-    let { sid, url } = this.ttyParams;
-    let reqData = { terminal_params: { w, h } };
-    
-    logger.info('requesting new screen size', `w:${w} and h:${h}`);    
     this.resize(w, h);
-    api.put(`${url}/sessions/${sid}`, reqData)      
-      .fail(err => logger.error('request new screen size', err));
+    this.tty.requestResize(w, h);    
   }
 
-  _getDimensions(){
-    let $container = $(this._el);
-    let fakeRow = $('<div><span>&nbsp;</span></div>');
+  _getDimensions(){    
+    const parentElementStyle = window.getComputedStyle(this.term.element.parentElement);
+    const parentElementHeight = parseInt(parentElementStyle.getPropertyValue('height'));
+    const parentElementWidth = Math.max(0, parseInt(parentElementStyle.getPropertyValue('width')) /*- 17*/);
+    const elementStyle = window.getComputedStyle(this.term.element);
+    const elementPaddingVer = parseInt(elementStyle.getPropertyValue('padding-top')) + parseInt(elementStyle.getPropertyValue('padding-bottom'));
+    const elementPaddingHor = parseInt(elementStyle.getPropertyValue('padding-right')) + parseInt(elementStyle.getPropertyValue('padding-left'));
+    const availableHeight = parentElementHeight - elementPaddingVer;
+    const availableWidth = parentElementWidth - elementPaddingHor;    
+    const subjectRow = this.term.rowContainer.firstElementChild;
+    const contentBuffer = subjectRow.innerHTML;
+        
+    subjectRow.style.display = 'inline';
+    // common character for measuring width, although on monospace
+    subjectRow.innerHTML = 'W'; 
+    
+    const characterWidth = subjectRow.getBoundingClientRect().width;
+    // revert style before calculating height, since they differ.
+    subjectRow.style.display = ''; 
+    
+    const characterHeight = parseInt(subjectRow.offsetHeight);
+    subjectRow.innerHTML = contentBuffer;
 
-    $container.find('.terminal').append(fakeRow);
-    // get div height
-    let fakeColHeight = fakeRow[0].getBoundingClientRect().height;
-    // get span width
-    let fakeColWidth = fakeRow.children().first()[0].getBoundingClientRect().width;
-
-    let width = $container[0].clientWidth;
-    let height = $container[0].clientHeight;
-
-    let cols = Math.floor(width / (fakeColWidth));
-    let rows = Math.floor(height / (fakeColHeight));
-    fakeRow.remove();
-
-    return {cols, rows};
-  }
-
-  _getTtyEventsConnStr(){
-    let {sid, url, token } = this.ttyParams;
-    let urlPrefix = getWsHostName();
-    return `${urlPrefix}${url}/sessions/${sid}/events/stream?access_token=${token}`;
-  }
-
-  _getTtyConnStr(){
-    let {serverId, login, sid, url, token } = this.ttyParams;
-    let params = {
-      server_id: serverId,
-      login,
-      sid,
-      term: {
-        h: this.rows,
-        w: this.cols
-      }
-    }
-
-    let json = JSON.stringify(params);
-    let jsonEncoded = window.encodeURI(json);
-    let urlPrefix = getWsHostName();
-
-    return `${urlPrefix}${url}/connect?access_token=${token}&params=${jsonEncoded}`;
+    const rows = parseInt(availableHeight / characterHeight);
+    const cols = parseInt(availableWidth / characterWidth);
+    return { cols, rows };
   }  
-}
-
-function getWsHostName(){
-  var prefix = location.protocol == "https:"?"wss://":"ws://";
-  var hostport = location.hostname+(location.port ? ':'+location.port: '');
-  return `${prefix}${hostport}`;
 }
 
 export default TtyTerminal;

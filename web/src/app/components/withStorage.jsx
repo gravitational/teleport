@@ -15,18 +15,26 @@ limitations under the License.
 */
 
 import React from 'react';
+import { storage } from 'app/flux/misc/store';
 
-export const ErrorIndicator = ({ text }) => (
-  <div className="grv-terminalhost-indicator-error">
-    <i className="fa fa-exclamation-triangle fa-3x text-warning"></i>
-    <div className="m-l">
-      <strong>{text || "Error"}</strong>      
-    </div>
-  </div>
-)
+const withStorage = component => {
+  
+  return class WithTmpStorageWrapper extends React.Component{
+      
+    static displayName = `withTmpStorageWrapper`
 
-export const WarningIndicator = ({ text }) => (
-  <div className="grv-terminalhost-indicator-error">    
-    <h3>{text}</h3>          
-  </div>
-)
+    constructor(props, context) {
+      super(props, context)                  
+    }
+                                 
+    render() {            
+      const props = this.props;
+      return React.createElement(component, {
+        ...props,
+        storage
+      });      
+    }
+  }
+}
+
+export default withStorage;

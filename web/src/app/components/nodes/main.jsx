@@ -20,14 +20,16 @@ import userAclGetters from 'app/flux/userAcl/getters';
 import nodeGetters from 'app/flux/nodes/getters';
 import appGetters from 'app/flux/app/getters';
 import NodeList from './nodeList.jsx';
+import withStorage from './../withStorage.jsx';
 
 const Nodes = props => {  
-  const { siteNodes, aclStore, sites, siteId } = props;
+  const { siteNodes, aclStore, sites, siteId, storage } = props;
   const logins = aclStore.getSshLogins().toJS();  
   const nodeRecords = siteNodes.toJS();
   return (   
     <div className="grv-page">
       <NodeList
+        storage={storage}
         siteId={siteId}
         sites={sites} 
         nodeRecords={nodeRecords} 
@@ -45,4 +47,6 @@ function mapStateToProps() {
   }
 }
 
-export default connect(mapStateToProps)(Nodes);
+const NodesWithStorage = withStorage(Nodes);
+
+export default connect(mapStateToProps)(NodesWithStorage);

@@ -19,10 +19,12 @@ import { connect } from 'nuclear-js-react-addons';
 import { EventTypeEnum } from 'app/lib/term/enums';
 import Terminal from 'app/lib/term/terminal';
 import termGetters from 'app/flux/terminal/getters';
+import TtyAddressResolver from 'app/lib/term/ttyAddressResolver';
 import { initTerminal, updateRoute, close } from 'app/flux/terminal/actions';
 import { updateSession } from 'app/flux/sessions/actions';
 import { openPlayer } from 'app/flux/player/actions';
 import PartyListPanel from './../partyListPanel';
+
 import Indicator from './../indicator.jsx';
 import PartyList from './terminalPartyList';
 
@@ -95,12 +97,14 @@ class TerminalHost extends React.Component {
 
 class TerminalContainer extends React.Component {
   
-  componentDidMount() {            
-    let options = {
-      tty: this.props.store.getTtyParams(),  
-      el: this.refs.container
-    }    
-    this.terminal = new Terminal(options);
+  componentDidMount() {                
+    const options = this.props.store.getTtyParams();                
+    const addressResolver = new TtyAddressResolver(options);    
+    this.terminal = new Terminal({
+      el: this.refs.container,
+      addressResolver      
+    });
+    
     this.terminal.ttyEvents.on('data', this.receiveEvents.bind(this));
     this.terminal.open();
   }
