@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/proxy"
 	"github.com/gravitational/trace"
 
 	log "github.com/sirupsen/logrus"
@@ -69,10 +70,10 @@ type Server struct {
 	clientConn net.Conn
 	serverConn net.Conn
 
-	// agent is the SSH user agent that was forwarded to the proxy.
-	agent agent.Agent
-	// agentChannel is the channel over which communication with the agent occurs.
-	agentChannel ssh.Channel
+	// userAgent is the SSH user agent that was forwarded to the proxy.
+	userAgent agent.Agent
+	// userAgentChannel is the channel over which communication with the agent occurs.
+	userAgentChannel ssh.Channel
 
 	// hostCertificate is the SSH host certificate this in-memory server presents
 	// to the client.
@@ -90,6 +91,16 @@ type Server struct {
 	// forwarding server.
 	termHandlers *srv.TermHandlers
 
+	// ciphers is a list of ciphers that the server supports. If omitted,
+	// the defaults will be used.
+	ciphers []string
+	// kexAlgorithms is a list of key exchange (KEX) algorithms that the
+	// server supports. If omitted, the defaults will be used.
+	kexAlgorithms []string
+	// macAlgorithms is a list of message authentication codes (MAC) that
+	// the server supports. If omitted the defaults will be used.
+	macAlgorithms []string
+
 	authClient      auth.ClientI
 	auditLog        events.IAuditLog
 	authService     auth.AccessPoint
@@ -106,6 +117,18 @@ type ServerConfig struct {
 	SrcAddr         net.Addr
 	DstAddr         net.Addr
 	HostCertificate ssh.Signer
+
+	// Ciphers is a list of ciphers that the server supports. If omitted,
+	// the defaults will be used.
+	Ciphers []string
+
+	// KEXAlgorithms is a list of key exchange (KEX) algorithms that the
+	// server supports. If omitted, the defaults will be used.
+	KEXAlgorithms []string
+
+	// MACAlgorithms is a list of message authentication codes (MAC) that
+	// the server supports. If omitted the defaults will be used.
+	MACAlgorithms []string
 }
 
 // CheckDefaults makes sure all required parameters are passed in.
@@ -163,7 +186,7 @@ func New(c ServerConfig) (*Server, error) {
 		targetConn:      c.TargetConn,
 		serverConn:      serverConn,
 		clientConn:      clientConn,
-		agent:           c.UserAgent,
+		userAgent:       c.UserAgent,
 		hostCertificate: c.HostCertificate,
 		authClient:      c.AuthClient,
 		auditLog:        c.AuthClient,
@@ -282,7 +305,7 @@ func (s *Server) Serve() {
 
 	// build a remote session to the remote node
 	s.log.Debugf("Creating remote connection to %v@%v", sconn.User(), s.clientConn.RemoteAddr().String())
-	s.remoteClient, s.remoteSession, err = newRemoteSession(s.targetConn, s.targetConn.RemoteAddr().String(), sconn.User(), s.agent, s.authHandlers)
+	s.remoteClient, s.remoteSession, err = s.newRemoteSession(sconn.User())
 	if err != nil {
 		// reject the connection with an error so the client doesn't hang then
 		// close the connection
@@ -304,6 +327,49 @@ func (s *Server) Serve() {
 	ctx, cancel := context.WithCancel(context.Background())
 	go s.keepAliveLoop(cancel, sconn)
 	go s.handleConnection(ctx, sconn, identityContext, chans, reqs)
+}
+
+// newRemoteSession will create and return a *ssh.Client and *ssh.Session
+// with a remote host.
+func (s *Server) newRemoteSession(systemLogin string) (*ssh.Client, *ssh.Session, error) {
+	// the proxy will use the agent that has been forwarded to it as the auth
+	// method when connecting to the remote host
+	if s.userAgent == nil {
+		return nil, nil, trace.AccessDenied("agent must be forwarded to proxy")
+	}
+	authMethod := ssh.PublicKeysCallback(s.userAgent.Signers)
+
+	clientConfig := &ssh.ClientConfig{
+		User: systemLogin,
+		Auth: []ssh.AuthMethod{
+			authMethod,
+		},
+		HostKeyCallback: s.authHandlers.HostKeyAuth,
+		Timeout:         defaults.DefaultDialTimeout,
+	}
+
+	if len(s.ciphers) > 0 {
+		clientConfig.Ciphers = s.ciphers
+	}
+	if len(s.kexAlgorithms) > 0 {
+		clientConfig.KeyExchanges = s.kexAlgorithms
+	}
+	if len(s.macAlgorithms) > 0 {
+		clientConfig.MACs = s.macAlgorithms
+	}
+
+	dstAddr := s.targetConn.RemoteAddr().String()
+	client, err := proxy.NewClientConnWithDeadline(s.targetConn, dstAddr, clientConfig)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	session, err := client.NewSession()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return client, session, nil
 }
 
 func (s *Server) handleConnection(ctx context.Context, sconn *ssh.ServerConn, identityContext srv.IdentityContext, chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request) {
@@ -428,7 +494,7 @@ func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, identityContext
 
 	ctx.RemoteClient = s.remoteClient
 	ctx.RemoteSession = s.remoteSession
-	ctx.SetAgent(s.agent, s.agentChannel)
+	ctx.SetAgent(s.userAgent, s.userAgentChannel)
 
 	ctx.AddCloser(ch)
 	ctx.AddCloser(sconn)
@@ -507,7 +573,7 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, identityContext sr
 
 	ctx.RemoteClient = s.remoteClient
 	ctx.RemoteSession = s.remoteSession
-	ctx.SetAgent(s.agent, s.agentChannel)
+	ctx.SetAgent(s.userAgent, s.userAgentChannel)
 
 	ctx.AddCloser(ch)
 	ctx.AddCloser(sconn)

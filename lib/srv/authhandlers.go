@@ -179,8 +179,8 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	}
 	h.Debugf("Successfully authenticated")
 
-	// see if the host user is valid (no need to do this in proxy mode)
-	if !h.isProxy() {
+	// see if the host user is valid, we only do this when logging into a teleport node
+	if h.isTeleportNode() {
 		_, err = user.Lookup(conn.User())
 		if err != nil {
 			host, _ := os.Hostname()
@@ -421,6 +421,14 @@ func (h *AuthHandlers) isProxy() bool {
 	if h.Component == teleport.ComponentProxy {
 		return true
 	}
+	return false
+}
+
+func (h *AuthHandlers) isTeleportNode() bool {
+	if h.Component == teleport.ComponentNode {
+		return true
+	}
+
 	return false
 }
 

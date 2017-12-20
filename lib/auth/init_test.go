@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -251,4 +252,55 @@ func (s *AuthInitSuite) TestClusterID(c *C) {
 	cc, err = authServer.GetClusterConfig()
 	c.Assert(err, IsNil)
 	c.Assert(cc.GetClusterID(), Equals, clusterID)
+}
+
+func (s *AuthInitSuite) TestOptions(c *C) {
+	bk, err := boltbk.New(backend.Params{"path": c.MkDir()})
+	c.Assert(err, IsNil)
+
+	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
+		ClusterName: "me.localhost",
+	})
+	c.Assert(err, IsNil)
+
+	authServer, _, err := Init(InitConfig{
+		DataDir:       c.MkDir(),
+		HostUUID:      "00000000-0000-0000-0000-000000000000",
+		NodeName:      "foo",
+		Backend:       bk,
+		Authority:     testauthority.New(),
+		ClusterConfig: services.DefaultClusterConfig(),
+		ClusterName:   clusterName,
+	})
+	c.Assert(err, IsNil)
+
+	role := services.NewAdminRole()
+	role.SetOptions(services.RoleOptions{
+		services.MaxSessionTTL: services.NewDuration(defaults.MaxCertDuration),
+	})
+	err = authServer.UpsertRole(role, backend.Forever)
+	c.Assert(err, IsNil)
+
+	// do it again and make sure the options have been populated
+	authServer, _, err = Init(InitConfig{
+		DataDir:       c.MkDir(),
+		HostUUID:      "00000000-0000-0000-0000-000000000000",
+		NodeName:      "foo",
+		Backend:       bk,
+		Authority:     testauthority.New(),
+		ClusterConfig: services.DefaultClusterConfig(),
+		ClusterName:   clusterName,
+	})
+	c.Assert(err, IsNil)
+
+	role, err = authServer.GetRole(teleport.AdminRoleName)
+	c.Assert(err, IsNil)
+
+	portForward, err := role.GetOptions().GetBoolean(services.PortForwarding)
+	c.Assert(err, IsNil)
+	c.Assert(portForward, Equals, true)
+
+	forwardAgent, err := role.GetOptions().GetBoolean(services.ForwardAgent)
+	c.Assert(err, IsNil)
+	c.Assert(forwardAgent, Equals, true)
 }

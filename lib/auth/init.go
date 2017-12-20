@@ -408,26 +408,40 @@ func migrateCertAuthority(asrv *AuthServer) error {
 	return nil
 }
 
+// DELETE IN: 2.5.0
+// All users will be migrated to the new roles in Teleport 2.4.0, which means
+// this entire function can be removed in Teleport 2.5.0.
 func migrateRoles(asrv *AuthServer) error {
 	roles, err := asrv.GetRoles()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// loop over all roles and only migrate RoleV2 -> RoleV3
+	// loop over all roles and make sure any v3 roles have permit port
+	// forward and forward agent allowed
 	for i, _ := range roles {
 		role := roles[i]
-		_, ok := (role.GetRawObject()).(services.RoleV2)
-		if !ok {
-			continue
+
+		roleOptions := role.GetOptions()
+
+		_, err = roleOptions.GetBoolean(services.PortForwarding)
+		if err != nil {
+			roleOptions.Set(services.PortForwarding, true)
+			role.SetOptions(roleOptions)
 		}
 
-		// with RoleV2 we never had a TTL so upsert them forever
+		_, err := roleOptions.GetBoolean(services.ForwardAgent)
+		if err != nil {
+			roleOptions.Set(services.ForwardAgent, true)
+			role.SetOptions(roleOptions)
+		}
+
 		err = asrv.UpsertRole(role, backend.Forever)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		log.Infof("[MIGRATION] Updated Role: %v", role.GetName())
+
+		log.Infof("[MIGRATION] Updated Role: %v to include port_forwarding and forward_agent option", role.GetName())
 	}
 
 	return nil

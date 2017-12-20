@@ -755,6 +755,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 					Client: conn.Client,
 				},
 			},
+			Ciphers:       cfg.Ciphers,
+			KEXAlgorithms: cfg.KEXAlgorithms,
+			MACAlgorithms: cfg.MACAlgorithms,
 		})
 	if err != nil {
 		return trace.Wrap(err)

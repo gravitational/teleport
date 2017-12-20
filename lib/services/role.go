@@ -93,6 +93,7 @@ func NewAdminRole() Role {
 			Options: RoleOptions{
 				MaxSessionTTL:  NewDuration(defaults.MaxCertDuration),
 				PortForwarding: true,
+				ForwardAgent:   true,
 			},
 			Allow: RoleConditions{
 				Namespaces: []string{defaults.Namespace},
@@ -140,6 +141,7 @@ func RoleForUser(u User) Role {
 			Options: RoleOptions{
 				MaxSessionTTL:  NewDuration(defaults.MaxCertDuration),
 				PortForwarding: true,
+				ForwardAgent:   true,
 			},
 			Allow: RoleConditions{
 				Namespaces: []string{defaults.Namespace},

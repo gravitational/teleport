@@ -8,9 +8,15 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
+	"os/user"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
+
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
@@ -23,6 +29,8 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -253,7 +261,6 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 		tconf = service.MakeDefaultConfig()
 	}
 	tconf.DataDir = dataDir
-	tconf.Auth.ClusterConfig = services.DefaultClusterConfig()
 	tconf.Auth.ClusterName, err = services.NewClusterName(services.ClusterNameSpecV2{
 		ClusterName: i.Secrets.SiteName,
 	})
@@ -294,16 +301,23 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 		Type:   boltbk.GetName(),
 		Params: backend.Params{"path": dataDir},
 	}
-	tconf.Keygen = testauthority.New()
 
-	tconf.Auth.ClusterConfig = services.DefaultClusterConfig()
+	tconf.Keygen = testauthority.New()
 
 	i.Config = tconf
 	i.Process, err = service.NewTeleport(tconf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// create users and roles if they don't exist, or sign their keys if they're already present
+
+	// if the auth server is not enabled, nothing more to do be done
+	if !tconf.Auth.Enabled {
+		return nil
+	}
+
+	// if this instance contains an auth server, configure the auth server as well.
+	// create users and roles if they don't exist, or sign their keys if they're
+	// already present
 	auth := i.Process.GetAuthServer()
 
 	for _, user := range i.Secrets.Users {
@@ -315,6 +329,12 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 		if len(user.Roles) == 0 {
 			role := services.RoleForUser(teleUser)
 			role.SetLogins(services.Allow, user.AllowedLogins)
+
+			// allow tests to forward agent, still needs to be passed in client
+			roleOptions := role.GetOptions()
+			roleOptions.Set(services.ForwardAgent, true)
+			role.SetOptions(roleOptions)
+
 			err = auth.UpsertRole(role, backend.Forever)
 			if err != nil {
 				return trace.Wrap(err)
@@ -358,30 +378,72 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 	return nil
 }
 
-// StartNode starts SSH node and connects it to the cluster
-func (i *TeleInstance) StartNode(name string, sshPort, proxyWebPort, proxySSHPort int) error {
+// StartNode starts SSH node and connects it to the cluster.
+func (i *TeleInstance) StartNode(name string, sshPort int) (*service.TeleportProcess, error) {
+	dataDir, err := ioutil.TempDir("", "cluster-"+i.Secrets.SiteName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tconf := service.MakeDefaultConfig()
+
+	authServer := utils.MustParseAddr(net.JoinHostPort(i.Hostname, i.GetPortAuth()))
+	tconf.AuthServers = append(tconf.AuthServers, *authServer)
+	tconf.Token = "token"
+	tconf.HostUUID = name
+	tconf.Hostname = name
+	tconf.DataDir = dataDir
+	tconf.CachePolicy = service.CachePolicy{Enabled: true}
+
+	tconf.Auth.Enabled = false
+
+	tconf.Proxy.Enabled = false
+
+	tconf.SSH.Enabled = true
+	tconf.SSH.Addr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", sshPort))
+
+	process, err := service.NewTeleport(tconf)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	i.Nodes = append(i.Nodes, process)
+
+	err = process.Start()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return process, nil
+}
+
+// StartNodeAndProxy starts SSH node and proxy and connects it to the cluster.
+func (i *TeleInstance) StartNodeAndProxy(name string, sshPort, proxyWebPort, proxySSHPort int) error {
 	dataDir, err := ioutil.TempDir("", "cluster-"+i.Secrets.SiteName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	tconf := service.MakeDefaultConfig()
-	tconf.HostUUID = name
-	tconf.Hostname = name
-	tconf.DataDir = dataDir
-	tconf.Auth.Enabled = false
-	tconf.Proxy.Enabled = true
-	tconf.SSH.Enabled = true
-	tconf.SSH.Addr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", sshPort))
+
 	authServer := utils.MustParseAddr(net.JoinHostPort(i.Hostname, i.GetPortAuth()))
 	tconf.AuthServers = append(tconf.AuthServers, *authServer)
 	tconf.Token = "token"
+	tconf.HostUUID = name
+	tconf.Hostname = name
+	tconf.DataDir = dataDir
+	tconf.CachePolicy = service.CachePolicy{Enabled: true}
+
+	tconf.Auth.Enabled = false
+
 	tconf.Proxy.Enabled = true
 	tconf.Proxy.SSHAddr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", proxySSHPort))
 	tconf.Proxy.WebAddr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", proxyWebPort))
 	tconf.Proxy.DisableReverseTunnel = true
 	tconf.Proxy.DisableWebService = true
-	// Enable caching
-	tconf.CachePolicy = service.CachePolicy{Enabled: true}
+
+	tconf.SSH.Enabled = true
+	tconf.SSH.Addr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", sshPort))
 
 	process, err := service.NewTeleport(tconf)
 	if err != nil {
@@ -531,6 +593,9 @@ type ClientConfig struct {
 	Port int
 	// Proxy is an optional alternative proxy to use
 	Proxy *ProxyConfig
+	// ForwardAgent controls if the client requests it's agent be forwarded to
+	// the server.
+	ForwardAgent bool
 }
 
 // NewClient returns a fully configured and pre-authenticated client
@@ -574,6 +639,7 @@ func (i *TeleInstance) NewClient(cfg ClientConfig) (tc *client.TeleportClient, e
 		InsecureSkipVerify: true,
 		KeysDir:            keyDir,
 		SiteName:           cfg.Cluster,
+		ForwardAgent:       cfg.ForwardAgent,
 	}
 	cconf.SetProxy(proxyHost, proxyWebPort, proxySSHPort)
 
@@ -721,6 +787,189 @@ func (p *proxyServer) Count() int {
 	p.Lock()
 	defer p.Unlock()
 	return p.count
+}
+
+// discardServer is a SSH server that discards SSH exec requests and starts
+// with the passed in host signer.
+type discardServer struct {
+	sshServer *sshutils.Server
+}
+
+func newDiscardServer(host string, port int, hostSigner ssh.Signer) (*discardServer, error) {
+	ds := &discardServer{}
+
+	// create underlying ssh server
+	sshServer, err := sshutils.NewServer(
+		"integration-discard-server",
+		utils.NetAddr{AddrNetwork: "tcp", Addr: fmt.Sprintf("%v:%v", host, port)},
+		ds,
+		[]ssh.Signer{hostSigner},
+		sshutils.AuthMethods{
+			PublicKey: ds.userKeyAuth,
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ds.sshServer = sshServer
+
+	return ds, nil
+}
+
+func (s *discardServer) userKeyAuth(c ssh.ConnMetadata, pubKey ssh.PublicKey) (*ssh.Permissions, error) {
+	return nil, nil
+}
+
+func (s *discardServer) Start() error {
+	return s.sshServer.Start()
+}
+
+func (s *discardServer) Stop() {
+	s.sshServer.Close()
+}
+
+func (s *discardServer) HandleNewChan(conn net.Conn, sconn *ssh.ServerConn, newChannel ssh.NewChannel) {
+	channel, reqs, err := newChannel.Accept()
+	if err != nil {
+		sconn.Close()
+		conn.Close()
+		return
+	}
+
+	go s.handleChannel(channel, reqs)
+}
+
+func (s *discardServer) handleChannel(channel ssh.Channel, reqs <-chan *ssh.Request) {
+	defer channel.Close()
+
+	for {
+		select {
+		case req := <-reqs:
+			if req == nil {
+				return
+			}
+			if req.Type == "exec" {
+				successPayload := ssh.Marshal(struct{ C uint32 }{C: uint32(0)})
+				channel.SendRequest("exit-status", false, successPayload)
+				if req.WantReply {
+					req.Reply(true, nil)
+				}
+				return
+			}
+			if req.WantReply {
+				req.Reply(true, nil)
+			}
+		}
+	}
+}
+
+// externalSSHCommand runs an external SSH command (if an external ssh binary
+// exists) with the passed in parameters.
+func externalSSHCommand(forwardAgent bool, socketPath string, proxyPort string, nodePort string, command string) (*exec.Cmd, error) {
+	var execArgs []string
+
+	// don't check the host certificate during tests
+	execArgs = append(execArgs, "-oStrictHostKeyChecking=no")
+	execArgs = append(execArgs, "-oUserKnownHostsFile=/dev/null")
+
+	// connect to node on the passed in port
+	execArgs = append(execArgs, "-p")
+	execArgs = append(execArgs, nodePort)
+
+	// build proxy command
+	var proxyCommand string
+	switch forwardAgent {
+	case true:
+		proxyCommand = fmt.Sprintf("ProxyCommand ssh -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null -oForwardAgent=yes -p %v %%r@localhost -s proxy:%%h:%%p", proxyPort)
+	case false:
+		proxyCommand = fmt.Sprintf("ProxyCommand ssh -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null -p %v %%r@localhost -s proxy:%%h:%%p", proxyPort)
+	}
+	execArgs = append(execArgs, "-o")
+	execArgs = append(execArgs, proxyCommand)
+
+	// add in the host the connect to and the command to run when connected
+	execArgs = append(execArgs, Host)
+	execArgs = append(execArgs, command)
+
+	// find the ssh binary
+	sshpath, err := exec.LookPath("ssh")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// create exec command and tell it where to find the ssh agent
+	cmd, err := exec.Command(sshpath, execArgs...), nil
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cmd.Env = []string{fmt.Sprintf("SSH_AUTH_SOCK=%v", socketPath)}
+
+	return cmd, nil
+}
+
+// createAgent creates a SSH agent with the passed in private key and
+// certificate that can be used in tests. This is useful so tests don't
+// clobber your system agent.
+func createAgent(me *user.User, privateKeyByte []byte, certificateBytes []byte) (*teleagent.AgentServer, string, string, error) {
+	// create a path to the unix socket
+	sockDir, err := ioutil.TempDir("", "int-test")
+	if err != nil {
+		return nil, "", "", trace.Wrap(err)
+	}
+	sockPath := filepath.Join(sockDir, "agent.sock")
+
+	uid, err := strconv.Atoi(me.Uid)
+	if err != nil {
+		return nil, "", "", trace.Wrap(err)
+	}
+	gid, err := strconv.Atoi(me.Gid)
+	if err != nil {
+		return nil, "", "", trace.Wrap(err)
+	}
+
+	// transform the key and certificate bytes into something the agent can understand
+	publicKey, _, _, _, err := ssh.ParseAuthorizedKey(certificateBytes)
+	if err != nil {
+		return nil, "", "", trace.Wrap(err)
+	}
+	privateKey, err := ssh.ParseRawPrivateKey(privateKeyByte)
+	if err != nil {
+		return nil, "", "", trace.Wrap(err)
+	}
+	agentKey := agent.AddedKey{
+		PrivateKey:       privateKey,
+		Certificate:      publicKey.(*ssh.Certificate),
+		Comment:          "",
+		LifetimeSecs:     0,
+		ConfirmBeforeUse: false,
+	}
+
+	// create a (unstarted) agent and add the key to it
+	teleAgent := teleagent.NewServer()
+	teleAgent.Add(agentKey)
+
+	// start the SSH agent
+	err = teleAgent.ListenUnixSocket(sockPath, uid, gid, 0600)
+	if err != nil {
+		return nil, "", "", trace.Wrap(err)
+	}
+	go teleAgent.Serve()
+
+	return teleAgent, sockDir, sockPath, nil
+}
+
+func closeAgent(teleAgent *teleagent.AgentServer, socketDirPath string) error {
+	err := teleAgent.Close()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = os.RemoveAll(socketDirPath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 func fatalIf(err error) {
