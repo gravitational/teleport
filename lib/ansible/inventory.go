@@ -25,7 +25,7 @@ import (
 )
 
 // Inventory matches the JSON struct needed for DynamicInventoryList
-type Inventory map[string]Group
+type Inventory map[string]interface{}
 
 // Group gather hosts and variables common to them
 type Group struct {
@@ -44,19 +44,30 @@ type Group struct {
 //             "a": true
 //         }
 //     },
+//     "_meta": {
+//         "hostvars": {}
+//     }
 // }
 // ```
-// TODO: Implement `_meta` and host variables?
 func DynamicInventoryList(nodes []services.Server) (string, error) {
 	hostsByLabels := bufferLabels(nodes)
 
-	var inventory = make(map[string]Group)
+	var inventory = make(map[string]interface{})
 	for labelDashValue, hosts := range hostsByLabels {
 		inventory[labelDashValue] = Group{
 			Hosts: hosts,
 			Vars:  make(map[string]string),
 		}
 	}
+
+	// Meta is a special group with information on each host
+	// this gonna become "_meta": { "hostvars": { "host": {"var": value}}}
+	// so the 2 top level (Meta and Hotvars) have only one key to match the struct
+	// yes, the type is stupid, but blame python devs not me
+	type Meta map[string]map[string]map[string]string
+	meta := make(Meta)
+	meta["hostvars"] = make(map[string]map[string]string)
+	inventory["_meta"] = meta
 	out, err := json.Marshal(inventory)
 	if err != nil {
 		return "", fmt.Errorf("cannot encode JSON objet: %s", err)
