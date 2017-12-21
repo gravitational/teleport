@@ -1434,7 +1434,8 @@ func (s *IntSuite) TestAuditOff(c *check.C) {
 	}
 
 	// audit log should have the fact that the session occured recorded in it
-	sessions, _ = site.GetSessions(defaults.Namespace)
+	sessions, err = site.GetSessions(defaults.Namespace)
+	c.Assert(err, check.IsNil)
 	c.Assert(len(sessions), check.Equals, 1)
 
 	// however, attempts to read the actual sessions should fail because it was
