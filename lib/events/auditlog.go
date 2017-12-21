@@ -545,12 +545,6 @@ func (l *AuditLog) LoggerFor(namespace string, sid session.ID) (SessionLogger, e
 		return nil, trace.BadParameter("missing parameter namespace")
 	}
 
-	// if we are not recording sessions, create a logger that discards all
-	// session data sent to it.
-	if l.RecordSessions == false {
-		return &discardSessionLogger{}, nil
-	}
-
 	logger, ok := l.loggers.Get(string(sid))
 	if ok {
 		sessionLogger, converted := logger.(SessionLogger)
@@ -578,6 +572,7 @@ func (l *AuditLog) LoggerFor(namespace string, sid session.ID) (SessionLogger, e
 		EventsFileName: l.sessionLogFn(namespace, sid),
 		StreamFileName: l.sessionStreamFn(namespace, sid),
 		Clock:          l.Clock,
+		RecordSessions: l.RecordSessions,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

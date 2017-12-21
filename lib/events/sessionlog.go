@@ -62,10 +62,14 @@ type DiskSessionLoggerConfig struct {
 	StreamFileName string
 	// Clock is the clock replacement
 	Clock clockwork.Clock
+	// RecordSessions controls if sessions are recorded along with audit events.
+	RecordSessions bool
 }
 
 // NewDiskSessionLogger creates new disk based session logger
 func NewDiskSessionLogger(cfg DiskSessionLoggerConfig) (*DiskSessionLogger, error) {
+	var err error
+
 	lastPrintEvent, err := readLastPrintEvent(cfg.EventsFileName)
 	if err != nil {
 		if !trace.IsNotFound(err) {
@@ -74,16 +78,24 @@ func NewDiskSessionLogger(cfg DiskSessionLoggerConfig) (*DiskSessionLogger, erro
 		// no last event is ok
 		lastPrintEvent = nil
 	}
-	// create a new session stream file:
-	fstream, err := os.OpenFile(cfg.StreamFileName, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
-	if err != nil {
-		return nil, trace.Wrap(err)
+
+	// if session recording is on, create a stream file that stores all the
+	// bytes of the session
+	var fstream *os.File
+	if cfg.RecordSessions {
+		fstream, err = os.OpenFile(cfg.StreamFileName, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
-	// create a new session file:
+
+	// create a new session file that stores all the audit events that occured
+	// related to the session
 	fevents, err := os.OpenFile(cfg.EventsFileName, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	sessionLogger := &DiskSessionLogger{
 		Entry: log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentAuditLog,
@@ -96,6 +108,7 @@ func NewDiskSessionLogger(cfg DiskSessionLoggerConfig) (*DiskSessionLogger, erro
 		eventsFile:     fevents,
 		clock:          cfg.Clock,
 		lastPrintEvent: lastPrintEvent,
+		recordSessions: cfg.RecordSessions,
 	}
 	return sessionLogger, nil
 }
@@ -122,6 +135,9 @@ type DiskSessionLogger struct {
 
 	// lastPrintEvent is the last written session event
 	lastPrintEvent *printEvent
+
+	// recordSessions controls if sessions are recorded along with audit events.
+	recordSessions bool
 }
 
 // LogEvent logs an event associated with this session
@@ -196,14 +212,18 @@ func (sl *DiskSessionLogger) Close() error {
 func (sl *DiskSessionLogger) Finalize() error {
 	sl.Lock()
 	defer sl.Unlock()
+
+	auditOpenFiles.Dec()
+
 	if sl.streamFile != nil {
-		auditOpenFiles.Dec()
-		sl.Debug("Finalize")
 		sl.streamFile.Close()
-		sl.eventsFile.Close()
 		sl.streamFile = nil
+	}
+	if sl.eventsFile != nil {
+		sl.eventsFile.Close()
 		sl.eventsFile = nil
 	}
+
 	return nil
 }
 
@@ -212,6 +232,11 @@ func (sl *DiskSessionLogger) Finalize() error {
 func (sl *DiskSessionLogger) WriteChunk(chunk *SessionChunk) (written int, err error) {
 	sl.Lock()
 	defer sl.Unlock()
+
+	// when session recording is turned off, don't record the session byte stream
+	if sl.recordSessions == false {
+		return len(chunk.Data), nil
+	}
 
 	if sl.streamFile == nil || sl.eventsFile == nil {
 		return 0, trace.BadParameter("session %v: attempt to write to a closed file", sl.sid)

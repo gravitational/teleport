@@ -158,17 +158,21 @@ func (a *AuditTestSuite) TestSessionRecordingOff(c *check.C) {
 	err = alog.EmitAuditEvent(SessionEndEvent, EventFields{SessionEventID: "200", EventLogin: "doggy", EventNamespace: defaults.Namespace})
 	c.Assert(err, check.IsNil)
 
-	// get all events from the audit log, we should have two
+	// get all events from the audit log, should have two events
 	found, err := alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), "")
 	c.Assert(err, check.IsNil)
 	c.Assert(found, check.HasLen, 2)
 	c.Assert(found[0].GetString(EventLogin), check.Equals, "doggy")
 	c.Assert(found[1].GetString(EventLogin), check.Equals, "doggy")
 
-	// inspect the session log for "200". it should be empty.
+	// inspect the session log for "200", should have two events
 	history, err := alog.GetSessionEvents(defaults.Namespace, "200", 0)
 	c.Assert(err, check.IsNil)
-	c.Assert(history, check.HasLen, 0)
+	c.Assert(history, check.HasLen, 2)
+
+	// try getting the session stream, should get an error
+	_, err = alog.GetSessionChunk(defaults.Namespace, "200", 0, 5000)
+	c.Assert(err, check.NotNil)
 }
 
 func (a *AuditTestSuite) TestBasicLogging(c *check.C) {
