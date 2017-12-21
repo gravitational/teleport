@@ -350,6 +350,11 @@ func prepareCommand(ctx *ServerContext) (*exec.Cmd, error) {
 	for n, v := range ctx.env {
 		c.Env = append(c.Env, fmt.Sprintf("%s=%s", n, v))
 	}
+	// if a terminal was allocated, apply terminal type variable
+	if ctx.session != nil {
+		c.Env = append(c.Env, fmt.Sprintf("TERM=%v", ctx.session.term.GetTermType()))
+	}
+
 	// apply SSH_xx environment variables
 	remoteHost, remotePort, err := net.SplitHostPort(ctx.Conn.RemoteAddr().String())
 	if err != nil {

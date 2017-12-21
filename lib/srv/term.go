@@ -72,11 +72,14 @@ type Terminal interface {
 	// and avoid extra system call.
 	GetTerminalParams() rsession.TerminalParams
 
-	// SetTermType sets the terminal type from "pty-req"
-	SetTermType(string)
-
 	// SetTerminalModes sets the terminal modes from "pty-req"
 	SetTerminalModes(ssh.TerminalModes)
+
+	// GetTermType gets the terminal type set in "pty-req"
+	GetTermType() string
+
+	// SetTermType sets the terminal type from "pty-req"
+	SetTermType(string)
 }
 
 // NewTerminal returns a new terminal. Terminal can be local or remote
@@ -113,7 +116,8 @@ type terminal struct {
 	pty *os.File
 	tty *os.File
 
-	params rsession.TerminalParams
+	termType string
+	params   rsession.TerminalParams
 }
 
 // NewLocalTerminal creates and returns a local PTY.
@@ -277,11 +281,17 @@ func (t *terminal) GetTerminalParams() rsession.TerminalParams {
 	return t.params
 }
 
+// GetTermType gets the terminal type set in "pty-req"
+func (t *terminal) GetTermType() string {
+	return t.termType
+}
+
 // SetTermType sets the terminal type from "req-pty" request.
 func (t *terminal) SetTermType(term string) {
-	if t.cmd != nil {
-		t.cmd.Env = append(t.cmd.Env, "TERM="+term)
+	if term == "" {
+		term = defaultTerm
 	}
+	t.termType = term
 }
 
 func (t *terminal) SetTerminalModes(termModes ssh.TerminalModes) {
@@ -465,7 +475,15 @@ func (t *remoteTerminal) GetTerminalParams() rsession.TerminalParams {
 	return t.params
 }
 
+// GetTermType gets the terminal type set in "pty-req"
+func (t *remoteTerminal) GetTermType() string {
+	return t.termType
+}
+
 func (t *remoteTerminal) SetTermType(term string) {
+	if term == "" {
+		term = defaultTerm
+	}
 	t.termType = term
 }
 

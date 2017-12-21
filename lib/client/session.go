@@ -190,7 +190,6 @@ func (ns *NodeSession) interactiveSession(callback interactiveCallback) error {
 	if termType == "" {
 		termType = teleport.SafeTerminalType
 	}
-	ns.env["TERM"] = termType
 	// create the server-side session:
 	sess, err := ns.createServerSession()
 	if err != nil {
