@@ -49,7 +49,7 @@ func (c *TokenCommand) Initialize(app *kingpin.Application, config *service.Conf
 }
 
 // TryRun takes the CLI command as an argument (like "nodes ls") and executes it.
-func (c *TokenCommand) TryRun(cmd string, client *auth.TunClient) (match bool, err error) {
+func (c *TokenCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
 	case c.tokenList.FullCommand():
 		err = c.List(client)
@@ -63,7 +63,7 @@ func (c *TokenCommand) TryRun(cmd string, client *auth.TunClient) (match bool, e
 }
 
 // onTokenList is called to execute "tokens del" command
-func (c *TokenCommand) Del(client *auth.TunClient) error {
+func (c *TokenCommand) Del(client auth.ClientI) error {
 	if c.token == "" {
 		return trace.Errorf("Need an argument: token")
 	}
@@ -75,7 +75,7 @@ func (c *TokenCommand) Del(client *auth.TunClient) error {
 }
 
 // onTokenList is called to execute "tokens ls" command
-func (c *TokenCommand) List(client *auth.TunClient) error {
+func (c *TokenCommand) List(client auth.ClientI) error {
 	tokens, err := client.GetTokens()
 	if err != nil {
 		return trace.Wrap(err)

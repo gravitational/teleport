@@ -53,7 +53,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authExport.Flag("keys", "if set, will print private keys").BoolVar(&a.exportPrivateKeys)
 	a.authExport.Flag("fingerprint", "filter authority by fingerprint").StringVar(&a.exportAuthorityFingerprint)
 	a.authExport.Flag("compat", "export cerfiticates compatible with specific version of Teleport").StringVar(&a.compatVersion)
-	a.authExport.Flag("type", "certificate type: 'user' or 'host'").StringVar(&a.authType)
+	a.authExport.Flag("type", "certificate type: 'user', 'host' or 'tls'").StringVar(&a.authType)
 
 	a.authGenerate = auth.Command("gen", "Generate a new SSH keypair").Hidden()
 	a.authGenerate.Flag("pub-key", "path to the public key").Required().StringVar(&a.genPubPath)
@@ -70,7 +70,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 
 // TryRun takes the CLI command as an argument (like "auth gen") and executes it
 // or returns match=false if 'cmd' does not belong to it
-func (a *AuthCommand) TryRun(cmd string, client *auth.TunClient) (match bool, err error) {
+func (a *AuthCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
 	case a.authGenerate.FullCommand():
 		err = a.GenerateKeys()
@@ -88,8 +88,31 @@ func (a *AuthCommand) TryRun(cmd string, client *auth.TunClient) (match bool, er
 // ExportAuthorities outputs the list of authorities in OpenSSH compatible formats
 // If --type flag is given, only prints keys for CAs of this type, otherwise
 // prints all keys
-func (a *AuthCommand) ExportAuthorities(client *auth.TunClient) error {
+func (a *AuthCommand) ExportAuthorities(client auth.ClientI) error {
 	var typesToExport []services.CertAuthType
+
+	// this means to export TLS authority
+	if a.authType == "tls" {
+		clusterName, err := client.GetDomainName()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		certAuthority, err := client.GetCertAuthority(
+			services.CertAuthID{Type: services.HostCA, DomainName: clusterName},
+			a.exportPrivateKeys)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if len(certAuthority.GetTLSKeyPairs()) != 1 {
+			return trace.BadParameter("expected one TLS key pair, got %v", len(certAuthority.GetTLSKeyPairs()))
+		}
+		keyPair := certAuthority.GetTLSKeyPairs()[0]
+		if a.exportPrivateKeys {
+			fmt.Println(string(keyPair.Key))
+		}
+		fmt.Println(string(keyPair.Cert))
+		return nil
+	}
 
 	// if no --type flag is given, export all types
 	if a.authType == "" {
@@ -202,7 +225,7 @@ func (a *AuthCommand) GenerateKeys() error {
 }
 
 // GenerateAndSignKeys generates a new keypair and signs it for role
-func (a *AuthCommand) GenerateAndSignKeys(clusterApi *auth.TunClient) error {
+func (a *AuthCommand) GenerateAndSignKeys(clusterApi auth.ClientI) error {
 	switch {
 	case a.genUser != "" && a.genHost == "":
 		return a.generateUserKeys(clusterApi)
@@ -213,7 +236,7 @@ func (a *AuthCommand) GenerateAndSignKeys(clusterApi *auth.TunClient) error {
 	}
 }
 
-func (a *AuthCommand) generateHostKeys(clusterApi *auth.TunClient) error {
+func (a *AuthCommand) generateHostKeys(clusterApi auth.ClientI) error {
 	// only format=openssh is supported
 	if a.outputFormat != client.IdentityFormatOpenSSH {
 		return trace.BadParameter("invalid --format flag %q, only %q is supported", a.outputFormat, client.IdentityFormatOpenSSH)
@@ -257,7 +280,7 @@ func (a *AuthCommand) generateHostKeys(clusterApi *auth.TunClient) error {
 	return nil
 }
 
-func (a *AuthCommand) generateUserKeys(clusterApi *auth.TunClient) error {
+func (a *AuthCommand) generateUserKeys(clusterApi auth.ClientI) error {
 	// parse compatibility parameter
 	compatibility, err := utils.CheckCompatibilityFlag(a.compatibility)
 	if err != nil {
@@ -313,7 +336,7 @@ func userCAFormat(ca services.CertAuthority, keyBytes []byte) (string, error) {
 //    @cert-authority *.cluster-a ssh-rsa AAA... type=host
 //
 // URL encoding is used to pass the CA type and allowed logins into the comment field.
-func hostCAFormat(ca services.CertAuthority, keyBytes []byte, client *auth.TunClient) (string, error) {
+func hostCAFormat(ca services.CertAuthority, keyBytes []byte, client auth.ClientI) (string, error) {
 	comment := url.Values{
 		"type": []string{string(ca.GetType())},
 	}

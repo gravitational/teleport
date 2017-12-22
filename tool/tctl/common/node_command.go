@@ -71,7 +71,7 @@ func (c *NodeCommand) Initialize(app *kingpin.Application, config *service.Confi
 }
 
 // TryRun takes the CLI command as an argument (like "nodes ls") and executes it.
-func (c *NodeCommand) TryRun(cmd string, client *auth.TunClient) (match bool, err error) {
+func (c *NodeCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
 	case c.nodeAdd.FullCommand():
 		err = c.Invite(client)
@@ -86,7 +86,7 @@ func (c *NodeCommand) TryRun(cmd string, client *auth.TunClient) (match bool, er
 
 // Invite generates a token which can be used to add another SSH node
 // to a cluster
-func (c *NodeCommand) Invite(client *auth.TunClient) error {
+func (c *NodeCommand) Invite(client auth.ClientI) error {
 	if c.count < 1 {
 		return trace.BadParameter("count should be > 0, got %v", c.count)
 	}
@@ -133,7 +133,7 @@ func (c *NodeCommand) Invite(client *auth.TunClient) error {
 
 // ListActive retreives the list of nodes who recently sent heartbeats to
 // to a cluster and prints it to stdout
-func (c *NodeCommand) ListActive(client *auth.TunClient) error {
+func (c *NodeCommand) ListActive(client auth.ClientI) error {
 	nodes, err := client.GetNodes(c.namespace)
 	if err != nil {
 		return trace.Wrap(err)

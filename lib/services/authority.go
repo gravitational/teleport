@@ -1,12 +1,14 @@
 package services
 
 import (
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -179,6 +181,69 @@ type CertAuthority interface {
 	V2() *CertAuthorityV2
 	// String returns human readable version of the CertAuthority
 	String() string
+	// TLSCA returns first TLS certificate authority from the list of key pairs
+	TLSCA() (*tlsca.CertAuthority, error)
+	// SetTLSKeyPairs sets TLS key pairs
+	SetTLSKeyPairs(keyPairs []TLSKeyPair)
+	// GetTLSKeyPairs returns first PEM encoded TLS cert
+	GetTLSKeyPairs() []TLSKeyPair
+}
+
+// CertPoolFromCertAuthorities returns certificate pools from TLS certificates
+// set up in the certificate authorities list
+func CertPoolFromCertAuthorities(cas []CertAuthority) (*x509.CertPool, error) {
+	certPool := x509.NewCertPool()
+	for _, ca := range cas {
+		keyPairs := ca.GetTLSKeyPairs()
+		if len(keyPairs) == 0 {
+			continue
+		}
+		for _, keyPair := range keyPairs {
+			cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			certPool.AddCert(cert)
+		}
+		return certPool, nil
+	}
+	return certPool, nil
+}
+
+// CertPool returns certificate pools from TLS certificates
+// set up in the certificate authority
+func CertPool(ca CertAuthority) (*x509.CertPool, error) {
+	keyPairs := ca.GetTLSKeyPairs()
+	if len(keyPairs) == 0 {
+		return nil, trace.BadParameter("certificate authority has no TLS certificates")
+	}
+	certPool := x509.NewCertPool()
+	for _, keyPair := range keyPairs {
+		cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		certPool.AddCert(cert)
+	}
+	return certPool, nil
+}
+
+// TLSCerts returns TLS certificates from CA
+func TLSCerts(ca CertAuthority) [][]byte {
+	pairs := ca.GetTLSKeyPairs()
+	out := make([][]byte, len(pairs))
+	for i, pair := range pairs {
+		out[i] = append([]byte{}, pair.Cert...)
+	}
+	return out
+}
+
+// TLSKeyPair is a TLS key pair
+type TLSKeyPair struct {
+	// Cert is a PEM encoded TLS cert
+	Cert []byte `json:"cert,omitempty"`
+	// Key is a PEM encoded TLS key
+	Key []byte `json:"key,omitempty"`
 }
 
 // NewCertAuthority returns new cert authority
@@ -216,7 +281,7 @@ func CertAuthoritiesToV1(in []CertAuthority) ([]CertAuthorityV1, error) {
 	return out, nil
 }
 
-// CertAuthorityV2 is version 1 resource spec for Cert Authority
+// CertAuthorityV2 is version 2 resource spec for Cert Authority
 type CertAuthorityV2 struct {
 	// Kind is a resource kind
 	Kind string `json:"kind"`
@@ -229,6 +294,24 @@ type CertAuthorityV2 struct {
 	// rawObject is object that is raw object stored in DB
 	// without any conversions applied, used in migrations
 	rawObject interface{}
+}
+
+// TLSCA returns TLS certificate authority
+func (c *CertAuthorityV2) TLSCA() (*tlsca.CertAuthority, error) {
+	if len(c.Spec.TLSKeyPairs) == 0 {
+		return nil, trace.BadParameter("no TLS key pairs found for certificate authority")
+	}
+	return tlsca.New(c.Spec.TLSKeyPairs[0].Cert, c.Spec.TLSKeyPairs[0].Key)
+}
+
+// SetTLSPrivateKey sets TLS key pairs
+func (c *CertAuthorityV2) SetTLSKeyPairs(pairs []TLSKeyPair) {
+	c.Spec.TLSKeyPairs = pairs
+}
+
+// GetTLSPrivateKey returns TLS key pairs
+func (c *CertAuthorityV2) GetTLSKeyPairs() []TLSKeyPair {
+	return c.Spec.TLSKeyPairs
 }
 
 // GetMetadata returns object metadata
@@ -455,6 +538,8 @@ type CertAuthoritySpecV2 struct {
 	Roles []string `json:"roles,omitempty"`
 	// RoleMap specifies role mappings to remote roles
 	RoleMap RoleMap `json:"role_map,omitempty"`
+	// TLS is a list of TLS key pairs
+	TLSKeyPairs []TLSKeyPair `json:"tls_key_pairs,omitempty"`
 }
 
 // CertAuthoritySpecV2Schema is JSON schema for cert authority V2
@@ -481,6 +566,17 @@ const CertAuthoritySpecV2Schema = `{
       "type": "array",
       "items": {
         "type": "string"
+      }
+    },
+    "tls_key_pairs":  {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+           "cert": {"type": "string"},
+           "key": {"type": "string"}
+        }
       }
     },
     "role_map": %v

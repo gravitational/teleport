@@ -64,7 +64,8 @@ func (s *MuxSuite) TestMultiplexing(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	mux, err := New(Config{
-		Listener: listener,
+		Listener:            listener,
+		EnableProxyProtocol: true,
 	})
 	c.Assert(err, check.IsNil)
 	go mux.Serve()
@@ -134,7 +135,8 @@ func (s *MuxSuite) TestProxy(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	mux, err := New(Config{
-		Listener: listener,
+		Listener:            listener,
+		EnableProxyProtocol: true,
 	})
 	c.Assert(err, check.IsNil)
 	go mux.Serve()
@@ -178,6 +180,59 @@ func (s *MuxSuite) TestProxy(c *check.C) {
 	c.Assert(out, check.Equals, remoteAddr.String())
 }
 
+// TestDisabledProxy makes sure the connection gets dropped
+// when Proxy line support protocol is turned off
+func (s *MuxSuite) TestDisabledProxy(c *check.C) {
+	ports, err := utils.GetFreeTCPPorts(1)
+	c.Assert(err, check.IsNil)
+
+	listener, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", ports[0]))
+	c.Assert(err, check.IsNil)
+
+	mux, err := New(Config{
+		Listener:            listener,
+		EnableProxyProtocol: false,
+	})
+	c.Assert(err, check.IsNil)
+	go mux.Serve()
+	defer mux.Close()
+
+	backend1 := &httptest.Server{
+		Listener: mux.TLS(),
+		Config: &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprintf(w, r.RemoteAddr)
+		}),
+		},
+	}
+	backend1.StartTLS()
+	defer backend1.Close()
+
+	remoteAddr := net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 8000}
+	proxyLine := ProxyLine{
+		Protocol:    TCP4,
+		Source:      remoteAddr,
+		Destination: net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 9000},
+	}
+
+	parsedURL, err := url.Parse(backend1.URL)
+	c.Assert(err, check.IsNil)
+
+	conn, err := net.Dial("tcp", parsedURL.Host)
+	c.Assert(err, check.IsNil)
+	defer conn.Close()
+	// send proxy line first before establishing TLS connection
+	_, err = fmt.Fprintf(conn, proxyLine.String())
+	c.Assert(err, check.IsNil)
+
+	// upgrade connection to TLS
+	tlsConn := tls.Client(conn, clientConfig(backend1))
+	defer tlsConn.Close()
+
+	// make sure the TLS call failed
+	_, err = utils.RoundtripWithConn(tlsConn)
+	c.Assert(err, check.NotNil)
+}
+
 // TestTimeout tests client timeout - client dials, but writes nothing
 // make sure server hangs up
 func (s *MuxSuite) TestTimeout(c *check.C) {
@@ -188,8 +243,9 @@ func (s *MuxSuite) TestTimeout(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	config := Config{
-		Listener:     listener,
-		ReadDeadline: time.Millisecond,
+		Listener:            listener,
+		ReadDeadline:        time.Millisecond,
+		EnableProxyProtocol: true,
 	}
 	mux, err := New(config)
 	c.Assert(err, check.IsNil)
@@ -233,7 +289,8 @@ func (s *MuxSuite) TestUnknownProtocol(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	mux, err := New(Config{
-		Listener: listener,
+		Listener:            listener,
+		EnableProxyProtocol: true,
 	})
 	c.Assert(err, check.IsNil)
 	go mux.Serve()

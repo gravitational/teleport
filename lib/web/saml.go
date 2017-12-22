@@ -135,6 +135,7 @@ func (m *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.P
 		Identity:          response.Identity,
 		Session:           response.Session,
 		Cert:              response.Cert,
+		TLSCert:           response.TLSCert,
 		HostSigners:       response.HostSigners,
 	})
 	if err != nil {

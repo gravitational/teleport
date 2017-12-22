@@ -4,7 +4,7 @@ FROM teleport-buildbox:latest
 
 # DEBUG=1 is needed for the Web UI to be loaded from static assets instead 
 # of the binary
-ENV DEBUG=1 GOPATH=/root/go PATH=$PATH:/root/go/src/github.com/gravitational/teleport/build
+ENV DEBUG=1 GOPATH=/root/go PATH=$PATH:/root/go/src/github.com/gravitational/teleport/build:/root/go/bin
 
 # htop is useful for testing terminal resizing
 RUN apt-get install -y htop vim screen; \
@@ -12,6 +12,9 @@ RUN apt-get install -y htop vim screen; \
 
 # allows ansible testing
 RUN apt-get install -y ansible
+
+# installs gops
+RUN go get -u github.com/google/gops
 
 VOLUME ["/teleport", "/var/lib/teleport"]
 COPY .bashrc /root/.bashrc

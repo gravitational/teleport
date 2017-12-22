@@ -33,16 +33,11 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
-	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/dir"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/services/suite"
 	sess "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/state"
@@ -58,26 +53,20 @@ import (
 func TestSrv(t *testing.T) { TestingT(t) }
 
 type SrvSuite struct {
-	srv           *Server
-	srvAddress    string
-	srvPort       string
-	srvHostPort   string
-	sessionServer sess.Service
-	clt           *ssh.Client
-	bk            backend.Backend
-	a             *auth.AuthServer
-	roleAuth      *auth.AuthWithRoles
-	alog          events.IAuditLog
-	up            *upack
-	signer        ssh.Signer
-	dir           string
-	user          string
-	testUser      string
-	domainName    string
-	freePorts     utils.PortList
-	access        services.Access
-	identity      services.Identity
-	trust         services.Trust
+	srv         *Server
+	srvAddress  string
+	srvPort     string
+	srvHostPort string
+	clt         *ssh.Client
+	up          *upack
+	signer      ssh.Signer
+	user        string
+	testUser    string
+	freePorts   utils.PortList
+	server      *auth.TestTLSServer
+	proxyClient *auth.Client
+	nodeClient  *auth.Client
+	adminClient *auth.Client
 }
 
 // teleportTestUser is additional user used for tests
@@ -97,101 +86,57 @@ func (s *SrvSuite) SetUpSuite(c *C) {
 const hostID = "00000000-0000-0000-0000-000000000000"
 
 func (s *SrvSuite) SetUpTest(c *C) {
-	var err error
-	s.dir = c.MkDir()
-
-	s.alog, err = events.NewAuditLog(events.AuditLogConfig{
-		DataDir: s.dir, RecordSessions: true})
-	c.Assert(err, IsNil)
-
 	u, err := user.Current()
 	c.Assert(err, IsNil)
 	s.user = u.Username
 
-	s.bk, err = dir.New(backend.Params{"path": s.dir})
-	c.Assert(err, IsNil)
-
-	s.access = local.NewAccessService(s.bk)
-	s.identity = local.NewIdentityService(s.bk)
-	s.trust = local.NewCAService(s.bk)
-
-	s.domainName = "localhost"
-	s.a = auth.NewAuthServer(&auth.InitConfig{
-		Backend:   s.bk,
-		Authority: authority.New(),
-		Identity:  s.identity,
-		Access:    s.access,
-	})
-
-	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		SessionRecording: services.RecordAtNode,
+	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+		ClusterName: "localhost",
+		Dir:         c.MkDir(),
 	})
 	c.Assert(err, IsNil)
-	err = s.a.SetClusterConfig(clusterConfig)
+	s.server, err = authServer.NewTestTLSServer()
 	c.Assert(err, IsNil)
 
-	// set cluster name
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
-		ClusterName: s.domainName,
-	})
-	c.Assert(err, IsNil)
-	err = s.a.SetClusterName(clusterName)
+	// create proxy client used in some tests
+	s.proxyClient, err = s.server.NewClient(auth.TestBuiltin(teleport.RoleProxy))
 	c.Assert(err, IsNil)
 
-	// set static tokens
-	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
-		StaticTokens: []services.ProvisionToken{},
-	})
+	// admin client is for admin actions, e.g. creating new users
+	s.adminClient, err = s.server.NewClient(auth.TestBuiltin(teleport.RoleAdmin))
 	c.Assert(err, IsNil)
-	err = s.a.SetStaticTokens(staticTokens)
-	c.Assert(err, IsNil)
-
-	sessionServer, err := sess.New(s.bk)
-	s.sessionServer = sessionServer
-	c.Assert(err, IsNil)
-
-	authorizer, err := auth.NewAuthorizer(s.access, s.identity, s.trust)
-	c.Assert(err, IsNil)
-
-	c.Assert(s.a.UpsertCertAuthority(suite.NewTestCA(services.UserCA, s.domainName)), IsNil)
-	c.Assert(s.a.UpsertCertAuthority(suite.NewTestCA(services.HostCA, s.domainName)), IsNil)
 
 	// set up SSH client using the user private key for signing
-	up, err := newUpack(s.user, []string{s.user}, s.a)
+	up, err := newUpack(s.user, []string{s.user}, s.adminClient)
 	c.Assert(err, IsNil)
-
-	ctx := context.WithValue(context.TODO(), auth.ContextUser, auth.LocalUser{Username: s.user})
-	authContext, err := authorizer.Authorize(ctx)
-	c.Assert(err, IsNil)
-
-	s.roleAuth = auth.NewAuthWithRoles(s.a, authContext.Checker, authContext.User, sessionServer, nil)
 
 	// set up host private key and certificate
-	hpriv, hpub, err := s.a.GenerateKeyPair("")
-	c.Assert(err, IsNil)
-	hcert, err := s.a.GenerateHostCert(hpub, hostID, s.domainName, nil, s.domainName, teleport.Roles{teleport.RoleAdmin}, 0)
+	certs, err := s.server.Auth().GenerateServerKeys(hostID, s.server.ClusterName(), teleport.Roles{teleport.RoleNode})
 	c.Assert(err, IsNil)
 
 	// set up user CA and set up a user that has access to the server
-	s.signer, err = sshutils.NewSigner(hpriv, hcert)
+	s.signer, err = sshutils.NewSigner(certs.Key, certs.Cert)
 	c.Assert(err, IsNil)
 
 	s.srvPort = s.freePorts.Pop()
 	s.srvAddress = "127.0.0.1:" + s.srvPort
 
-	s.srvHostPort = fmt.Sprintf("%v:%v", s.domainName, s.srvPort)
+	s.nodeClient, err = s.server.NewClient(auth.TestBuiltin(teleport.RoleNode))
+	c.Assert(err, IsNil)
+
+	s.srvHostPort = fmt.Sprintf("%v:%v", s.server.ClusterName(), s.srvPort)
 	srv, err := New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: s.srvAddress},
-		s.domainName,
+		s.server.ClusterName(),
 		[]ssh.Signer{s.signer},
-		s.roleAuth,
-		s.dir,
+		s.nodeClient,
+		c.MkDir(),
 		nil,
 		utils.NetAddr{},
 		SetNamespace(defaults.Namespace),
-		SetAuditLog(s.alog),
+		SetAuditLog(s.nodeClient),
 		SetShell("/bin/sh"),
-		SetSessionServer(sessionServer),
+		SetSessionServer(s.nodeClient),
 	)
 	c.Assert(err, IsNil)
 	s.srv = srv
@@ -217,11 +162,15 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(agent.ForwardToAgent(client, keyring), IsNil)
 	s.clt = client
+
 }
 
 func (s *SrvSuite) TearDownTest(c *C) {
 	if s.clt != nil {
 		c.Assert(s.clt.Close(), IsNil)
+	}
+	if s.server != nil {
+		c.Assert(s.server.Close(), IsNil)
 	}
 	if s.srv != nil {
 		c.Assert(s.srv.Close(), IsNil)
@@ -240,12 +189,12 @@ func (s *SrvSuite) TestAdvertiseAddr(c *C) {
 func (s *SrvSuite) TestAgentForwardPermission(c *C) {
 	// make sure the role does not allow agent forwarding
 	roleName := services.RoleNameForUser(s.user)
-	role, err := s.a.GetRole(roleName)
+	role, err := s.server.Auth().GetRole(roleName)
 	c.Assert(err, IsNil)
 	roleOptions := role.GetOptions()
 	roleOptions.Set(services.ForwardAgent, false)
 	role.SetOptions(roleOptions)
-	err = s.a.UpsertRole(role, backend.Forever)
+	err = s.server.Auth().UpsertRole(role, backend.Forever)
 	c.Assert(err, IsNil)
 
 	se, err := s.clt.NewSession()
@@ -266,12 +215,12 @@ func (s *SrvSuite) TestAgentForwardPermission(c *C) {
 // TestAgentForward tests agent forwarding via unix sockets
 func (s *SrvSuite) TestAgentForward(c *C) {
 	roleName := services.RoleNameForUser(s.user)
-	role, err := s.a.GetRole(roleName)
+	role, err := s.server.Auth().GetRole(roleName)
 	c.Assert(err, IsNil)
 	roleOptions := role.GetOptions()
 	roleOptions.Set(services.ForwardAgent, true)
 	role.SetOptions(roleOptions)
-	err = s.a.UpsertRole(role, backend.Forever)
+	err = s.server.Auth().UpsertRole(role, backend.Forever)
 	c.Assert(err, IsNil)
 
 	se, err := s.clt.NewSession()
@@ -338,7 +287,7 @@ func (s *SrvSuite) TestAgentForward(c *C) {
 }
 
 func (s *SrvSuite) TestAllowedUsers(c *C) {
-	up, err := newUpack(s.user, []string{s.user}, s.a)
+	up, err := newUpack(s.user, []string{s.user}, s.adminClient)
 	c.Assert(err, IsNil)
 
 	sshConfig := &ssh.ClientConfig{
@@ -354,7 +303,7 @@ func (s *SrvSuite) TestAllowedUsers(c *C) {
 	c.Assert(client.Close(), IsNil)
 
 	// now remove OS user from valid principals
-	up, err = newUpack(s.user, []string{"otheruser"}, s.a)
+	up, err = newUpack(s.user, []string{"otheruser"}, s.adminClient)
 	c.Assert(err, IsNil)
 
 	sshConfig = &ssh.ClientConfig{
@@ -384,7 +333,7 @@ func (s *SrvSuite) TestSessionHijack(c *C) {
 	}
 
 	// user 1 has access to the server
-	up, err := newUpack(s.user, []string{s.user}, s.a)
+	up, err := newUpack(s.user, []string{s.user}, s.adminClient)
 	c.Assert(err, IsNil)
 
 	// login with first user
@@ -412,7 +361,7 @@ func (s *SrvSuite) TestSessionHijack(c *C) {
 	c.Assert(err, IsNil)
 
 	// user 2 does not have s.user as a listed principal
-	up2, err := newUpack(teleportTestUser, []string{teleportTestUser}, s.a)
+	up2, err := newUpack(teleportTestUser, []string{teleportTestUser}, s.adminClient)
 	c.Assert(err, IsNil)
 
 	sshConfig2 := &ssh.ClientConfig{
@@ -499,55 +448,49 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	log.Infof("[TEST START] TestProxyReverseTunnel")
 
 	reverseTunnelPort := s.freePorts.Pop()
-	reverseTunnelAddress := utils.NetAddr{AddrNetwork: "tcp", Addr: fmt.Sprintf("%v:%v", s.domainName, reverseTunnelPort)}
+	reverseTunnelAddress := utils.NetAddr{AddrNetwork: "tcp", Addr: fmt.Sprintf("%v:%v", s.server.ClusterName(), reverseTunnelPort)}
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
-		ID:                    s.domainName,
+		ClientTLS:             s.proxyClient.TLSConfig(),
+		ID:                    hostID,
+		ClusterName:           s.server.ClusterName(),
 		ListenAddr:            reverseTunnelAddress,
 		HostSigners:           []ssh.Signer{s.signer},
-		LocalAuthClient:       s.roleAuth,
-		LocalAccessPoint:      s.roleAuth,
+		LocalAuthClient:       s.proxyClient,
+		LocalAccessPoint:      s.proxyClient,
 		NewCachingAccessPoint: state.NoCache,
-		DirectClusters:        []reversetunnel.DirectCluster{{Name: s.domainName, Client: s.roleAuth}},
+		DirectClusters:        []reversetunnel.DirectCluster{{Name: s.server.ClusterName(), Client: s.proxyClient}},
 	})
 	c.Assert(err, IsNil)
 	c.Assert(reverseTunnelServer.Start(), IsNil)
 
 	proxy, err := New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
-		s.domainName,
+		s.server.ClusterName(),
 		[]ssh.Signer{s.signer},
-		s.roleAuth,
-		s.dir,
+		s.proxyClient,
+		c.MkDir(),
 		nil,
 		utils.NetAddr{},
 		SetProxyMode(reverseTunnelServer),
-		SetSessionServer(s.sessionServer),
+		SetSessionServer(s.proxyClient),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(proxy.Start(), IsNil)
 
 	// set up SSH client using the user private key for signing
-	up, err := newUpack(s.user, []string{s.user}, s.a)
+	up, err := newUpack(s.user, []string{s.user}, s.adminClient)
 	c.Assert(err, IsNil)
-
-	tsrv := s.makeTunnel(c)
-	c.Assert(tsrv.Start(), IsNil)
-
-	tunClt, err := auth.NewTunClient("test",
-		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: tsrv.Addr()}}, hostID, []ssh.AuthMethod{ssh.PublicKeys(s.signer)})
-	c.Assert(err, IsNil)
-	defer tunClt.Close()
 
 	agentPool, err := reversetunnel.NewAgentPool(reversetunnel.AgentPoolConfig{
-		Client:      tunClt,
+		Client:      s.proxyClient,
 		HostSigners: []ssh.Signer{s.signer},
 		HostUUID:    hostID,
-		AccessPoint: tunClt,
+		AccessPoint: s.proxyClient,
 	})
 	c.Assert(err, IsNil)
 
-	err = tunClt.UpsertReverseTunnel(
-		services.NewReverseTunnel(s.domainName, []string{reverseTunnelAddress.String()}))
+	err = s.server.Auth().UpsertReverseTunnel(
+		services.NewReverseTunnel(s.server.ClusterName(), []string{reverseTunnelAddress.String()}))
 	c.Assert(err, IsNil)
 
 	err = agentPool.FetchAndSyncAgents()
@@ -558,10 +501,10 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		Context:       context.TODO(),
 		Addr:          reverseTunnelAddress,
 		RemoteCluster: "remote",
-		Username:      hostID,
+		Username:      fmt.Sprintf("%v.%v", hostID, s.server.ClusterName()),
 		Signers:       []ssh.Signer{s.signer},
-		Client:        tunClt,
-		AccessPoint:   tunClt,
+		Client:        s.proxyClient,
+		AccessPoint:   s.proxyClient,
 		EventsC:       eventsC,
 	})
 	c.Assert(err, IsNil)
@@ -580,7 +523,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		Auth: []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
 	}
 
-	_, err = newUpack("user1", []string{s.user}, s.a)
+	_, err = newUpack("user1", []string{s.user}, s.adminClient)
 	c.Assert(err, IsNil)
 
 	s.testClient(c, proxy.Addr(), s.srvAddress, s.srv.Addr(), sshConfig)
@@ -592,7 +535,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		utils.NetAddr{AddrNetwork: "tcp", Addr: bobAddr},
 		"bob",
 		[]ssh.Signer{s.signer},
-		s.roleAuth,
+		s.nodeClient,
 		c.MkDir(),
 		nil,
 		utils.NetAddr{},
@@ -608,7 +551,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 					Command: []string{"expr", "2", "+", "3"}},
 			},
 		),
-		SetSessionServer(s.sessionServer),
+		SetSessionServer(s.nodeClient),
 	)
 	srv2.uuid = bobAddr
 	c.Assert(err, IsNil)
@@ -655,7 +598,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	c.Assert(time.Since(sites[0].LastConnected).Seconds() < 5, Equals, true)
 	c.Assert(time.Since(sites[1].LastConnected).Seconds() < 5, Equals, true)
 
-	err = tunClt.DeleteReverseTunnel(s.domainName)
+	err = s.server.Auth().DeleteReverseTunnel(s.server.ClusterName())
 	c.Assert(err, IsNil)
 
 	err = agentPool.FetchAndSyncAgents()
@@ -668,16 +611,18 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 	reverseTunnelPort := s.freePorts.Pop()
 	reverseTunnelAddress := utils.NetAddr{
 		AddrNetwork: "tcp",
-		Addr:        fmt.Sprintf("%v:%v", s.domainName, reverseTunnelPort),
+		Addr:        fmt.Sprintf("%v:%v", s.server.ClusterName(), reverseTunnelPort),
 	}
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
-		ID:                    s.domainName,
+		ClusterName:           s.server.ClusterName(),
+		ClientTLS:             s.proxyClient.TLSConfig(),
+		ID:                    hostID,
 		ListenAddr:            reverseTunnelAddress,
 		HostSigners:           []ssh.Signer{s.signer},
-		LocalAuthClient:       s.roleAuth,
-		LocalAccessPoint:      s.roleAuth,
+		LocalAuthClient:       s.proxyClient,
+		LocalAccessPoint:      s.proxyClient,
 		NewCachingAccessPoint: state.NoCache,
-		DirectClusters:        []reversetunnel.DirectCluster{{Name: s.domainName, Client: s.roleAuth}},
+		DirectClusters:        []reversetunnel.DirectCluster{{Name: s.server.ClusterName(), Client: s.proxyClient}},
 	})
 	c.Assert(err, IsNil)
 
@@ -685,29 +630,21 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 
 	proxy, err := New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
-		s.domainName,
+		s.server.ClusterName(),
 		[]ssh.Signer{s.signer},
-		s.roleAuth,
-		s.dir,
+		s.proxyClient,
+		c.MkDir(),
 		nil,
 		utils.NetAddr{},
 		SetProxyMode(reverseTunnelServer),
-		SetSessionServer(s.sessionServer),
+		SetSessionServer(s.proxyClient),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(proxy.Start(), IsNil)
 
 	// set up SSH client using the user private key for signing
-	up, err := newUpack(s.user, []string{s.user}, s.a)
+	up, err := newUpack(s.user, []string{s.user}, s.adminClient)
 	c.Assert(err, IsNil)
-
-	tsrv := s.makeTunnel(c)
-	c.Assert(tsrv.Start(), IsNil)
-
-	tunClt, err := auth.NewTunClient("test",
-		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: tsrv.Addr()}}, hostID, []ssh.AuthMethod{ssh.PublicKeys(s.signer)})
-	c.Assert(err, IsNil)
-	defer tunClt.Close()
 
 	// start agent and load balance requests
 	eventsC := make(chan string, 2)
@@ -715,10 +652,10 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		Context:       context.TODO(),
 		Addr:          reverseTunnelAddress,
 		RemoteCluster: "remote",
-		Username:      hostID,
+		Username:      fmt.Sprintf("%v.%v", hostID, s.server.ClusterName()),
 		Signers:       []ssh.Signer{s.signer},
-		Client:        tunClt,
-		AccessPoint:   tunClt,
+		Client:        s.proxyClient,
+		AccessPoint:   s.proxyClient,
 		EventsC:       eventsC,
 	})
 	c.Assert(err, IsNil)
@@ -728,10 +665,10 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		Context:       context.TODO(),
 		Addr:          reverseTunnelAddress,
 		RemoteCluster: "remote",
-		Username:      hostID,
+		Username:      fmt.Sprintf("%v.%v", hostID, s.server.ClusterName()),
 		Signers:       []ssh.Signer{s.signer},
-		Client:        tunClt,
-		AccessPoint:   tunClt,
+		Client:        s.proxyClient,
+		AccessPoint:   s.proxyClient,
 		EventsC:       eventsC,
 	})
 	c.Assert(err, IsNil)
@@ -753,7 +690,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		Auth: []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
 	}
 
-	_, err = newUpack("user1", []string{s.user}, s.a)
+	_, err = newUpack("user1", []string{s.user}, s.adminClient)
 	c.Assert(err, IsNil)
 
 	for i := 0; i < 3; i++ {
@@ -772,51 +709,45 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 	reverseTunnelAddress := utils.NetAddr{
 		AddrNetwork: "tcp",
-		Addr:        fmt.Sprintf("%v:0", s.domainName),
+		Addr:        fmt.Sprintf("%v:0", s.server.ClusterName()),
 	}
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
-		ID:                    s.domainName,
+		ClientTLS:             s.proxyClient.TLSConfig(),
+		ID:                    hostID,
+		ClusterName:           s.server.ClusterName(),
 		ListenAddr:            reverseTunnelAddress,
 		HostSigners:           []ssh.Signer{s.signer},
-		LocalAuthClient:       s.roleAuth,
-		LocalAccessPoint:      s.roleAuth,
+		LocalAuthClient:       s.proxyClient,
+		LocalAccessPoint:      s.proxyClient,
 		NewCachingAccessPoint: state.NoCache,
-		DirectClusters:        []reversetunnel.DirectCluster{{Name: s.domainName, Client: s.roleAuth}},
+		DirectClusters:        []reversetunnel.DirectCluster{{Name: s.server.ClusterName(), Client: s.proxyClient}},
 	})
 	c.Assert(err, IsNil)
 
 	proxy, err := New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
-		s.domainName,
+		s.server.ClusterName(),
 		[]ssh.Signer{s.signer},
-		s.roleAuth,
-		s.dir,
+		s.proxyClient,
+		c.MkDir(),
 		nil,
 		utils.NetAddr{},
 		SetProxyMode(reverseTunnelServer),
-		SetSessionServer(s.sessionServer),
+		SetSessionServer(s.proxyClient),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(proxy.Start(), IsNil)
 
 	// set up SSH client using the user private key for signing
-	up, err := newUpack(s.user, []string{s.user}, s.a)
+	up, err := newUpack(s.user, []string{s.user}, s.adminClient)
 	c.Assert(err, IsNil)
-
-	tsrv := s.makeTunnel(c)
-	c.Assert(tsrv.Start(), IsNil)
-
-	tunClt, err := auth.NewTunClient("test",
-		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: tsrv.Addr()}}, hostID, []ssh.AuthMethod{ssh.PublicKeys(s.signer)})
-	c.Assert(err, IsNil)
-	defer tunClt.Close()
 
 	sshConfig := &ssh.ClientConfig{
 		User: s.user,
 		Auth: []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
 	}
 
-	_, err = newUpack("user1", []string{s.user}, s.a)
+	_, err = newUpack("user1", []string{s.user}, s.adminClient)
 	c.Assert(err, IsNil)
 
 	s.testClient(c, proxy.Addr(), s.srvAddress, s.srv.Addr(), sshConfig)
@@ -895,15 +826,15 @@ func (s *SrvSuite) TestLimiter(c *C) {
 	srvAddress := "127.0.0.1:" + s.freePorts.Pop()
 	srv, err := New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: srvAddress},
-		s.domainName,
+		s.server.ClusterName(),
 		[]ssh.Signer{s.signer},
-		s.roleAuth,
-		s.dir,
+		s.nodeClient,
+		c.MkDir(),
 		nil,
 		utils.NetAddr{},
 		SetLimiter(limiter),
 		SetShell("/bin/sh"),
-		SetSessionServer(s.sessionServer),
+		SetSessionServer(s.nodeClient),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(srv.Start(), IsNil)
@@ -983,7 +914,7 @@ func (s *SrvSuite) TestGlobalRequestRecordingProxy(c *C) {
 		SessionRecording: services.RecordAtNode,
 	})
 	c.Assert(err, IsNil)
-	err = s.a.SetClusterConfig(clusterConfig)
+	err = s.server.Auth().SetClusterConfig(clusterConfig)
 	c.Assert(err, IsNil)
 
 	// send the request again, we have cluster config and when we parse the
@@ -1000,7 +931,7 @@ func (s *SrvSuite) TestGlobalRequestRecordingProxy(c *C) {
 		SessionRecording: services.RecordAtProxy,
 	})
 	c.Assert(err, IsNil)
-	err = s.a.SetClusterConfig(clusterConfig)
+	err = s.server.Auth().SetClusterConfig(clusterConfig)
 	c.Assert(err, IsNil)
 
 	// send request again, now that we have cluster config and it's set to record
@@ -1038,7 +969,7 @@ type upack struct {
 	certSigner ssh.Signer
 }
 
-func newUpack(username string, allowedLogins []string, a *auth.AuthServer) (*upack, error) {
+func newUpack(username string, allowedLogins []string, a auth.ClientI) (*upack, error) {
 	upriv, upub, err := a.GenerateKeyPair("")
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1062,7 +993,7 @@ func newUpack(username string, allowedLogins []string, a *auth.AuthServer) (*upa
 		return nil, trace.Wrap(err)
 	}
 
-	ucert, err := a.GenerateUserCert(upub, user, allowedLogins, 0, true, true, teleport.CompatibilityNone)
+	ucert, err := a.GenerateUserCert(upub, user.GetName(), 5*time.Minute, teleport.CompatibilityNone)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1102,21 +1033,4 @@ func removeNL(v string) string {
 	v = strings.Replace(v, "\r", "", -1)
 	v = strings.Replace(v, "\n", "", -1)
 	return v
-}
-
-func (s *SrvSuite) makeTunnel(c *C) *auth.AuthTunnel {
-	authorizer, err := auth.NewAuthorizer(s.access, s.identity, s.trust)
-	c.Assert(err, IsNil)
-
-	tsrv, err := auth.NewTunnel(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
-		s.signer,
-		&auth.APIConfig{
-			AuthServer:     s.a,
-			AuditLog:       s.alog,
-			SessionService: s.sessionServer,
-			Authorizer:     authorizer,
-		})
-	c.Assert(err, IsNil)
-	return tsrv
 }

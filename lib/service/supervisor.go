@@ -21,8 +21,9 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 // Supervisor implements the simple service logic - registering
@@ -35,7 +36,7 @@ type Supervisor interface {
 
 	// RegisterFunc creates a service from function spec and registers
 	// it within the system
-	RegisterFunc(fn ServiceFunc)
+	RegisterFunc(name string, fn ServiceFunc)
 
 	// ServiceCount returns the number of registered and actively running
 	// services
@@ -65,7 +66,7 @@ type LocalSupervisor struct {
 	state int
 	sync.Mutex
 	wg           *sync.WaitGroup
-	services     []*Service
+	services     []Service
 	errors       []error
 	events       map[string]Event
 	eventsC      chan Event
@@ -76,7 +77,7 @@ type LocalSupervisor struct {
 // NewSupervisor returns new instance of initialized supervisor
 func NewSupervisor() Supervisor {
 	srv := &LocalSupervisor{
-		services:     []*Service{},
+		services:     []Service{},
 		wg:           &sync.WaitGroup{},
 		events:       map[string]Event{},
 		eventsC:      make(chan Event, 100),
@@ -99,14 +100,13 @@ func (e *Event) String() string {
 }
 
 func (s *LocalSupervisor) Register(srv Service) {
+	log.WithFields(logrus.Fields{"service": srv.Name()}).Debugf("Adding service to supervisor")
 	s.Lock()
 	defer s.Unlock()
-	s.services = append(s.services, &srv)
-
-	log.Debugf("[SUPERVISOR] Service %v added (%v)", srv, len(s.services))
+	s.services = append(s.services, srv)
 
 	if s.state == stateStarted {
-		s.serve(&srv)
+		s.serve(srv)
 	}
 }
 
@@ -117,31 +117,35 @@ func (s *LocalSupervisor) ServiceCount() int {
 	return len(s.services)
 }
 
-func (s *LocalSupervisor) RegisterFunc(fn ServiceFunc) {
-	s.Register(fn)
+// RegisterFunc creates a service from function spec and registers
+// it within the system
+func (s *LocalSupervisor) RegisterFunc(name string, fn ServiceFunc) {
+	s.Register(&LocalService{Function: fn, ServiceName: name})
 }
 
-func (s *LocalSupervisor) serve(srv *Service) {
-	// this func will be called _after_ a service stops running:
-	removeService := func() {
-		s.Lock()
-		defer s.Unlock()
-		for i, el := range s.services {
-			if el == srv {
-				s.services = append(s.services[:i], s.services[i+1:]...)
-				break
-			}
+// RemoveService removes service from supervisor tracking list
+func (s *LocalSupervisor) RemoveService(srv Service) error {
+	log = log.WithFields(logrus.Fields{"service": srv.Name()})
+	s.Lock()
+	defer s.Unlock()
+	for i, el := range s.services {
+		if el == srv {
+			s.services = append(s.services[:i], s.services[i+1:]...)
+			log.Debugf("Service is completed and removed.")
+			return nil
 		}
-		log.Debugf("[SUPERVISOR] Service %v is done (%v)", *srv, len(s.services))
 	}
+	log.Warningf("Service is completed but not found.")
+	return trace.NotFound("service %v is not found", srv)
+}
 
+func (s *LocalSupervisor) serve(srv Service) {
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
-		defer removeService()
-
-		log.Debugf("[SUPERVISOR] Service %v started (%v)", *srv, s.ServiceCount())
-		err := (*srv).Serve()
+		defer s.RemoveService(srv)
+		log.WithFields(logrus.Fields{"service": srv.Name()}).Debugf("Service has started.")
+		err := srv.Serve()
 		if err != nil {
 			utils.FatalError(err)
 		}
@@ -154,7 +158,7 @@ func (s *LocalSupervisor) Start() error {
 	s.state = stateStarted
 
 	if len(s.services) == 0 {
-		log.Warning("supervisor.Start(): nothing to run")
+		log.Warning("Supervisor has no services to run. Exiting.")
 		return nil
 	}
 
@@ -182,7 +186,7 @@ func (s *LocalSupervisor) BroadcastEvent(event Event) {
 	s.Lock()
 	defer s.Unlock()
 	s.events[event.Name] = event
-	log.Debugf("BroadcastEvent: %v", &event)
+	log.WithFields(logrus.Fields{"event": event.String()}).Debugf("Broadcasting event.")
 
 	go func() {
 		s.eventsC <- event
@@ -240,15 +244,41 @@ type waiter struct {
 	cancelC chan struct{}
 }
 
+// Service is a running teleport service function
 type Service interface {
+	// Serve starts the function
 	Serve() error
+	// String returns user-friendly description of service
+	String() string
+	// Name returns service name
+	Name() string
 }
 
+// LocalService is a locally defined service
+type LocalService struct {
+	// Function is a function to call
+	Function ServiceFunc
+	// ServiceName is a service name
+	ServiceName string
+}
+
+// Serve starts the function
+func (l *LocalService) Serve() error {
+	return l.Function()
+}
+
+// String returns user-friendly service name
+func (l *LocalService) String() string {
+	return l.ServiceName
+}
+
+// Name returns unique service name
+func (l *LocalService) Name() string {
+	return l.ServiceName
+}
+
+// ServiceFunc is a service function
 type ServiceFunc func() error
-
-func (s ServiceFunc) Serve() error {
-	return s()
-}
 
 const (
 	stateCreated = iota

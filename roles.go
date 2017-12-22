@@ -50,10 +50,25 @@ const (
 	// RoleNop is used for actions that already using external authz mechanisms
 	// e.g. tokens or passwords
 	RoleNop Role = "Nop"
+	// RoleRemoteProxy is a role for remote SSH proxy in the cluster
+	RoleRemoteProxy Role = "RemoteProxy"
 )
 
 // this constant exists for backwards compatibility reasons, needed to upgrade to 2.3
 const LegacyClusterTokenType Role = "Trustedcluster"
+
+// NewRoles return a list of roles from slice of strings
+func NewRoles(in []string) (Roles, error) {
+	var roles Roles
+	for _, val := range in {
+		role := Role(val)
+		if err := role.Check(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		roles = append(roles, role)
+	}
+	return roles, nil
+}
 
 // ParseRoles takes a comma-separated list of roles and returns a slice
 // of roles, or an error if parsing failed
@@ -76,6 +91,15 @@ func (roles Roles) Include(role Role) bool {
 		}
 	}
 	return false
+}
+
+// Slice returns roles as string slice
+func (roles Roles) StringSlice() []string {
+	s := make([]string, 0)
+	for _, r := range roles {
+		s = append(s, string(r))
+	}
+	return s
 }
 
 // Equals compares two sets of roles
@@ -101,12 +125,9 @@ func (roles Roles) Check() (err error) {
 	return nil
 }
 
+// String returns comma separated string with roles
 func (roles Roles) String() string {
-	s := make([]string, 0)
-	for _, r := range roles {
-		s = append(s, string(r))
-	}
-	return strings.Join(s, ",")
+	return strings.Join(roles.StringSlice(), ",")
 }
 
 // Set sets the value of the role from string, used to integrate with CLI tools
@@ -121,7 +142,7 @@ func (r *Role) Set(v string) error {
 
 // String returns debug-friendly representation of this role
 func (r *Role) String() string {
-	return fmt.Sprintf("%v", strings.ToUpper(string(*r)))
+	return fmt.Sprintf("%v", string(*r))
 }
 
 // Check checks if this a a valid role value, returns nil

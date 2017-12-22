@@ -29,6 +29,8 @@ type WebSession interface {
 	GetPub() []byte
 	// GetPriv returns private OpenSSH key used to auth with SSH nodes
 	GetPriv() []byte
+	// GetTLSCert returns PEM encoded TLS certificate associated with session
+	GetTLSCert() []byte
 	// BearerToken is a special bearer token used for additional
 	// bearer authentication
 	GetBearerToken() string
@@ -83,6 +85,8 @@ type WebSessionSpecV2 struct {
 	Pub []byte `json:"pub"`
 	// Priv is a private OpenSSH key used to auth with SSH nodes
 	Priv []byte `json:"priv,omitempty"`
+	// TLSCert is a TLS certificate used to auth with auth server
+	TLSCert []byte `json:"tls_cert,omitempty"`
 	// BearerToken is a special bearer token used for additional
 	// bearer authentication
 	BearerToken string `json:"bearer_token"`
@@ -140,6 +144,11 @@ func (ws *WebSessionV2) GetShortName() string {
 // GetName returns session name
 func (ws *WebSessionV2) GetName() string {
 	return ws.Metadata.Name
+}
+
+// GetTLSCert returns PEM encoded TLS certificate associated with session
+func (ws *WebSessionV2) GetTLSCert() []byte {
+	return ws.Spec.TLSCert
 }
 
 // GetPub is returns public certificate signed by auth server
@@ -203,6 +212,7 @@ const WebSessionSpecV2Schema = `{
     "user": {"type": "string"},
     "pub": {"type": "string"},
     "priv": {"type": "string"},
+    "tls_cert": {"type": "string"},
     "bearer_token": {"type": "string"},
     "bearer_token_expires": {"type": "string"},
     "expires": {"type": "string"}%v

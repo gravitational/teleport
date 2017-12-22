@@ -79,7 +79,6 @@ func SwitchLoggingtoSyslog() {
 	if err != nil {
 		// syslog not available
 		log.SetOutput(os.Stderr)
-		log.Warn("syslog not available. reverting to stderr")
 	} else {
 		// ... and disable stderr:
 		log.AddHook(hook)

@@ -18,7 +18,9 @@ package suite
 
 import (
 	"crypto/ecdsa"
+	"crypto/rsa"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/base64"
 	"sort"
 	"time"
@@ -28,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -39,26 +42,43 @@ import (
 
 // NewTestCA returns new test authority with a test key as a public and
 // signing key
-func NewTestCA(caType services.CertAuthType, domainName string) *services.CertAuthorityV2 {
-	keyBytes := fixtures.PEMBytes["rsa"]
-	key, err := ssh.ParsePrivateKey(keyBytes)
+func NewTestCA(caType services.CertAuthType, clusterName string, privateKeys ...[]byte) *services.CertAuthorityV2 {
+	// privateKeys is to specify another RSA private key
+	if len(privateKeys) == 0 {
+		privateKeys = [][]byte{fixtures.PEMBytes["rsa"]}
+	}
+	keyBytes := privateKeys[0]
+	rsaKey, err := ssh.ParseRawPrivateKey(keyBytes)
 	if err != nil {
 		panic(err)
 	}
-	pubKey := key.PublicKey()
+
+	signer, err := ssh.NewSignerFromKey(rsaKey)
+	if err != nil {
+		panic(err)
+	}
+
+	key, cert, err := tlsca.GenerateSelfSignedCAWithPrivateKey(rsaKey.(*rsa.PrivateKey), pkix.Name{
+		CommonName:   clusterName,
+		Organization: []string{clusterName},
+	}, nil, defaults.CATTL)
+	if err != nil {
+		panic(err)
+	}
 
 	return &services.CertAuthorityV2{
 		Kind:    services.KindCertAuthority,
 		Version: services.V2,
 		Metadata: services.Metadata{
-			Name:      domainName,
+			Name:      clusterName,
 			Namespace: defaults.Namespace,
 		},
 		Spec: services.CertAuthoritySpecV2{
 			Type:         caType,
-			ClusterName:  domainName,
-			CheckingKeys: [][]byte{ssh.MarshalAuthorizedKey(pubKey)},
+			ClusterName:  clusterName,
+			CheckingKeys: [][]byte{ssh.MarshalAuthorizedKey(signer.PublicKey())},
 			SigningKeys:  [][]byte{keyBytes},
+			TLSKeyPairs:  []services.TLSKeyPair{{Cert: cert, Key: key}},
 		},
 	}
 }
@@ -197,11 +217,12 @@ func (s *ServicesTestSuite) CertAuthCRUD(c *C) {
 	c.Assert(err, IsNil)
 	ca2 := *ca
 	ca2.Spec.SigningKeys = nil
-	c.Assert(cas[0], DeepEquals, &ca2)
+	ca2.Spec.TLSKeyPairs = []services.TLSKeyPair{{Cert: ca2.Spec.TLSKeyPairs[0].Cert}}
+	fixtures.DeepCompare(c, cas[0], &ca2)
 
 	cas, err = s.CAS.GetCertAuthorities(services.UserCA, true)
 	c.Assert(err, IsNil)
-	c.Assert(cas[0], DeepEquals, ca)
+	fixtures.DeepCompare(c, cas[0], ca)
 
 	err = s.CAS.DeleteCertAuthority(*ca.ID())
 	c.Assert(err, IsNil)
@@ -216,7 +237,8 @@ func newServer(kind, name, addr, namespace string) *services.ServerV2 {
 			Namespace: namespace,
 		},
 		Spec: services.ServerSpecV2{
-			Addr: addr,
+			Addr:       addr,
+			PublicAddr: addr,
 		},
 	}
 }
@@ -226,18 +248,18 @@ func (s *ServicesTestSuite) ServerCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 0)
 
-	srv := newServer(services.KindNode, "srv1", "localhost:2022", defaults.Namespace)
+	srv := newServer(services.KindNode, "srv1", "127.0.0.1:2022", defaults.Namespace)
 	c.Assert(s.PresenceS.UpsertNode(srv), IsNil)
 
 	out, err = s.PresenceS.GetNodes(srv.Metadata.Namespace)
 	c.Assert(err, IsNil)
-	c.Assert(out, DeepEquals, []services.Server{srv})
+	fixtures.DeepCompare(c, out, []services.Server{srv})
 
 	out, err = s.PresenceS.GetProxies()
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 0)
 
-	proxy := newServer(services.KindProxy, "proxy1", "localhost:2023", defaults.Namespace)
+	proxy := newServer(services.KindProxy, "proxy1", "127.0.0.1:2023", defaults.Namespace)
 	c.Assert(s.PresenceS.UpsertProxy(proxy), IsNil)
 
 	out, err = s.PresenceS.GetProxies()
@@ -248,7 +270,7 @@ func (s *ServicesTestSuite) ServerCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 0)
 
-	auth := newServer(services.KindAuthServer, "auth1", "localhost:2025", defaults.Namespace)
+	auth := newServer(services.KindAuthServer, "auth1", "127.0.0.1:2025", defaults.Namespace)
 	c.Assert(s.PresenceS.UpsertAuthServer(auth), IsNil)
 
 	out, err = s.PresenceS.GetAuthServers()
@@ -281,7 +303,7 @@ func (s *ServicesTestSuite) ReverseTunnelsCRUD(c *C) {
 
 	out, err = s.PresenceS.GetReverseTunnels()
 	c.Assert(err, IsNil)
-	c.Assert(out, DeepEquals, []services.ReverseTunnel{tunnel})
+	fixtures.DeepCompare(c, out, []services.ReverseTunnel{tunnel})
 
 	err = s.PresenceS.DeleteReverseTunnel(tunnel.Spec.ClusterName)
 	c.Assert(err, IsNil)

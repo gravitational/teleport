@@ -77,7 +77,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Confi
 }
 
 // TryRun takes the CLI command as an argument (like "users add") and executes it.
-func (u *UserCommand) TryRun(cmd string, client *auth.TunClient) (match bool, err error) {
+func (u *UserCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
 	case u.userAdd.FullCommand():
 		err = u.Add(client)
@@ -95,7 +95,7 @@ func (u *UserCommand) TryRun(cmd string, client *auth.TunClient) (match bool, er
 
 // Add creates a new sign-up token and prints a token URL to stdout.
 // A user is not created until he visits the sign-up URL and completes the process
-func (u *UserCommand) Add(client *auth.TunClient) error {
+func (u *UserCommand) Add(client auth.ClientI) error {
 	// if no local logins were specified, default to 'login'
 	if u.allowedLogins == "" {
 		u.allowedLogins = u.login
@@ -114,7 +114,7 @@ func (u *UserCommand) Add(client *auth.TunClient) error {
 	return nil
 }
 
-func (u *UserCommand) PrintSignupURL(client *auth.TunClient, token string, ttl time.Duration) {
+func (u *UserCommand) PrintSignupURL(client auth.ClientI, token string, ttl time.Duration) {
 	hostname := "your.teleport.proxy"
 
 	proxies, err := client.GetProxies()
@@ -135,7 +135,7 @@ func (u *UserCommand) PrintSignupURL(client *auth.TunClient, token string, ttl t
 }
 
 // Update updates existing user
-func (u *UserCommand) Update(client *auth.TunClient) error {
+func (u *UserCommand) Update(client auth.ClientI) error {
 	user, err := client.GetUser(u.login)
 	if err != nil {
 		return trace.Wrap(err)
@@ -155,7 +155,7 @@ func (u *UserCommand) Update(client *auth.TunClient) error {
 }
 
 // List prints all existing user accounts
-func (u *UserCommand) List(client *auth.TunClient) error {
+func (u *UserCommand) List(client auth.ClientI) error {
 	users, err := client.GetUsers()
 	if err != nil {
 		return trace.Wrap(err)
@@ -175,7 +175,7 @@ func (u *UserCommand) List(client *auth.TunClient) error {
 
 // Delete deletes teleport user(s). User IDs are passed as a comma-separated
 // list in UserCommand.login
-func (u *UserCommand) Delete(client *auth.TunClient) error {
+func (u *UserCommand) Delete(client auth.ClientI) error {
 	for _, l := range strings.Split(u.login, ",") {
 		if err := client.DeleteUser(l); err != nil {
 			return trace.Wrap(err)

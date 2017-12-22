@@ -17,6 +17,7 @@ limitations under the License.
 package common
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -30,7 +31,6 @@ import (
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 )
 
 // GlobalCLIFlags keeps the CLI flags that apply to all tctl commands
@@ -53,7 +53,7 @@ type CLICommand interface {
 
 	// TryRun is executed after the CLI parsing is done. The command must
 	// determine if selectedCommand belongs to it and return match=true
-	TryRun(selectedCommand string, c *auth.TunClient) (match bool, err error)
+	TryRun(selectedCommand string, c auth.ClientI) (match bool, err error)
 }
 
 // Run() is the same as 'make'. It helps to share the code between different
@@ -125,7 +125,7 @@ func Run(commands []CLICommand) {
 }
 
 // connectToAuthService creates a valid client connection to the auth service
-func connectToAuthService(cfg *service.Config) (client *auth.TunClient, err error) {
+func connectToAuthService(cfg *service.Config) (client auth.ClientI, err error) {
 	// connect to the local auth server by default:
 	cfg.Auth.Enabled = true
 	if len(cfg.AuthServers) == 0 {
@@ -142,22 +142,23 @@ func connectToAuthService(cfg *service.Config) (client *auth.TunClient, err erro
 		}
 		return nil, trace.Wrap(err)
 	}
-	client, err = auth.NewTunClient(
-		"tctl",
-		cfg.AuthServers,
-		cfg.HostUUID,
-		[]ssh.AuthMethod{ssh.PublicKeys(i.KeySigner)})
+	tlsConfig, err := i.TLSConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	client, err = auth.NewTLSClient(cfg.AuthServers, tlsConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// check connectivity by calling something on a clinet:
-	_, err = client.GetDialer()()
+	conn, err := client.GetDialer()(context.TODO())
 	if err != nil {
 		utils.Consolef(os.Stderr,
 			"Cannot connect to the auth server: %v.\nIs the auth server running on %v?", err, cfg.AuthServers[0].Addr)
 		os.Exit(1)
 	}
+	conn.Close()
 	return client, nil
 }
 

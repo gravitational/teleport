@@ -33,7 +33,7 @@ import (
 
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 // CreateGithubAuthRequest creates a new request for Github OAuth2 flow
@@ -51,7 +51,7 @@ func (s *AuthServer) CreateGithubAuthRequest(req services.GithubAuthRequest) (*s
 		return nil, trace.Wrap(err)
 	}
 	req.RedirectURL = client.AuthCodeURL(req.StateToken, "", "")
-	log.WithFields(log.Fields{trace.Component: "github"}).Debugf(
+	log.WithFields(logrus.Fields{trace.Component: "github"}).Debugf(
 		"Redirect URL: %v.", req.RedirectURL)
 	err = s.Identity.CreateGithubAuthRequest(req, defaults.GithubAuthRequestTTL)
 	if err != nil {
@@ -68,8 +68,10 @@ type GithubAuthResponse struct {
 	Identity services.ExternalIdentity `json:"identity"`
 	// Session is the created web session
 	Session services.WebSession `json:"session,omitempty"`
-	// Cert is the generated cert
+	// Cert is the generated SSH client certificate
 	Cert []byte `json:"cert,omitempty"`
+	// TLSCert is PEM encoded TLS client certificate
+	TLSCert []byte `json:"tls_cert,omitempty"`
 	// Req is the original auth request
 	Req services.GithubAuthRequest `json:"req"`
 	// HostSigners is a list of signing host public keys
@@ -79,7 +81,7 @@ type GithubAuthResponse struct {
 
 // ValidateGithubAuthCallback validates Github auth callback redirect
 func (s *AuthServer) ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, error) {
-	logger := log.WithFields(log.Fields{trace.Component: "github"})
+	logger := log.WithFields(logrus.Fields{trace.Component: "github"})
 	error := q.Get("error")
 	if error != "" {
 		return nil, trace.OAuth2(oauth2.ErrorInvalidRequest, error, q)
@@ -162,23 +164,19 @@ func (s *AuthServer) ValidateGithubAuthCallback(q url.Values) (*GithubAuthRespon
 	}
 	if len(req.PublicKey) != 0 {
 		certTTL := utils.MinTTL(defaults.OAuth2TTL, req.CertTTL)
-		allowedLogins, err := roles.CheckLoginDuration(
-			roles.AdjustSessionTTL(certTTL))
+		certs, err := s.generateUserCert(certRequest{
+			user:          user,
+			roles:         roles,
+			ttl:           certTTL,
+			publicKey:     req.PublicKey,
+			compatibility: req.Compatibility,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cert, err := s.GenerateUserCert(
-			req.PublicKey,
-			user,
-			allowedLogins,
-			certTTL,
-			roles.CanForwardAgents(),
-			roles.CanPortForward(),
-			req.Compatibility)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		response.Cert = cert
+		response.Cert = certs.ssh
+		response.TLSCert = certs.tls
+
 		authorities, err := s.GetCertAuthorities(services.HostCA, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -201,7 +199,7 @@ func (s *AuthServer) createGithubUser(connector services.GithubConnector, claims
 			"user %q does not belong to any teams configured in %q connector",
 			claims.Username, connector.GetName())
 	}
-	log.WithFields(log.Fields{trace.Component: "github"}).Debugf(
+	log.WithFields(logrus.Fields{trace.Component: "github"}).Debugf(
 		"Generating dynamic identity %v/%v with logins: %v.",
 		connector.GetName(), claims.Username, logins)
 	user, err := services.GetUserMarshaler().GenerateUser(&services.UserV2{
@@ -274,7 +272,7 @@ func populateGithubClaims(client githubAPIClientI) (*services.GithubClaims, erro
 		Username:            user.Login,
 		OrganizationToTeams: orgToTeams,
 	}
-	log.WithFields(log.Fields{trace.Component: "github"}).Debugf(
+	log.WithFields(logrus.Fields{trace.Component: "github"}).Debugf(
 		"Claims: %#v.", claims)
 	return claims, nil
 }

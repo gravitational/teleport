@@ -32,7 +32,7 @@ import (
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
-type ResourceCreateHandler func(*auth.TunClient, services.UnknownResource) error
+type ResourceCreateHandler func(auth.ClientI, services.UnknownResource) error
 type ResourceKind string
 
 // ResourceCommand implements `tctl get/create/list` commands for manipulating
@@ -93,7 +93,7 @@ func (g *ResourceCommand) Initialize(app *kingpin.Application, config *service.C
 
 // TryRun takes the CLI command as an argument (like "auth gen") and executes it
 // or returns match=false if 'cmd' does not belong to it
-func (g *ResourceCommand) TryRun(cmd string, client *auth.TunClient) (match bool, err error) {
+func (g *ResourceCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
 	// tctl get
 	case g.getCmd.FullCommand():
@@ -122,7 +122,7 @@ func (g *ResourceCommand) GetRef() services.Ref {
 }
 
 // Get prints one or many resources of a certain type
-func (g *ResourceCommand) Get(client *auth.TunClient) error {
+func (g *ResourceCommand) Get(client auth.ClientI) error {
 	collection, err := g.getCollection(client)
 	if err != nil {
 		return trace.Wrap(err)
@@ -142,7 +142,7 @@ func (g *ResourceCommand) Get(client *auth.TunClient) error {
 }
 
 // Create updates or insterts one or many resources
-func (u *ResourceCommand) Create(client *auth.TunClient) error {
+func (u *ResourceCommand) Create(client auth.ClientI) error {
 	reader, err := utils.OpenFile(u.filename)
 	if err != nil {
 		return trace.Wrap(err)
@@ -173,7 +173,7 @@ func (u *ResourceCommand) Create(client *auth.TunClient) error {
 }
 
 // createTrustedCluster implements `tctl create cluster.yaml` command
-func (u *ResourceCommand) createTrustedCluster(client *auth.TunClient, raw services.UnknownResource) error {
+func (u *ResourceCommand) createTrustedCluster(client auth.ClientI, raw services.UnknownResource) error {
 	tc, err := services.GetTrustedClusterMarshaler().Unmarshal(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -196,7 +196,7 @@ func (u *ResourceCommand) createTrustedCluster(client *auth.TunClient, raw servi
 	return nil
 }
 
-func (u *ResourceCommand) createGithubConnector(client *auth.TunClient, raw services.UnknownResource) error {
+func (u *ResourceCommand) createGithubConnector(client auth.ClientI, raw services.UnknownResource) error {
 	connector, err := services.GetGithubConnectorMarshaler().Unmarshal(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -220,7 +220,7 @@ func (u *ResourceCommand) createGithubConnector(client *auth.TunClient, raw serv
 }
 
 // createUser implements 'tctl create user.yaml' command
-func (u *ResourceCommand) createUser(client *auth.TunClient, raw services.UnknownResource) error {
+func (u *ResourceCommand) createUser(client auth.ClientI, raw services.UnknownResource) error {
 	user, err := services.GetUserMarshaler().UnmarshalUser(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -244,7 +244,7 @@ func (u *ResourceCommand) createUser(client *auth.TunClient, raw services.Unknow
 }
 
 // Delete deletes resource by name
-func (d *ResourceCommand) Delete(client *auth.TunClient) (err error) {
+func (d *ResourceCommand) Delete(client auth.ClientI) (err error) {
 	if d.ref.Kind == "" || d.ref.Name == "" {
 		return trace.BadParameter("provide a full resource name to delete, for example:\n$ tctl rm cluster/east\n")
 	}
