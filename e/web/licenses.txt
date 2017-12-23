@@ -36,7 +36,6 @@ LICENSES:
 │ ├── react-prop-types@0.4.0
 │ ├── react-router@3.0.1
 │ ├── react-slider@0.6.1
-│ ├── react-toastr@2.4.0
 │ ├── setimmediate@1.0.5
 │ ├── strict-uri-encode@1.1.0
 │ ├── ua-parser-js@0.7.14
@@ -265,10 +264,6 @@ react-router@3.0.1 [license(s): MIT]
 └── license files: MIT
 
 react-slider@0.6.1 [license(s): MIT]
-├── package.json:  MIT
-└── license files: MIT
-
-react-toastr@2.4.0 [license(s): MIT]
 ├── package.json:  MIT
 └── license files: MIT
 
