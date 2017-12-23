@@ -352,7 +352,7 @@ export class TtyPlayer extends Tty {
       return $.Deferred().resolve();
     } 
 
-    // fetch requests within given interval
+    // fetch events for given interval
     this._setStatusFlag({ isLoading: true });
     return this._eventProvider.fetchEvents(start, end).done(events => {
       this._setStatusFlag({ isReady: true });

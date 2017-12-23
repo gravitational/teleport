@@ -13,10 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-import keyMirror from 'keymirror'
 
-export default keyMirror({  
-  TLPT_PLAYER_INIT: null,
-  TLPT_PLAYER_CLOSE: null,
-  TLPT_PLAYER_SET_STATUS: null
-})
+export const TLPT_PLAYER_INIT = 'TLPT_PLAYER_INIT';
+export const TLPT_PLAYER_CLOSE = 'TLPT_PLAYER_CLOSE';
+export const TLPT_PLAYER_SET_STATUS = 'TLPT_PLAYER_SET_STATUS';

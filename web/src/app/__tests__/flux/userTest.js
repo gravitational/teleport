@@ -88,11 +88,12 @@ describe('flux/user/actions', () => {
   describe('login()', () => {
     const webApiUrl = '/v1/webapi/oidc/login/web?redirect_url=:redirect&connector_id=:providerName';
     const oidcSsoProvider = { name: 'microsoft', type: AuthProviderTypeEnum.OIDC, url: webApiUrl };
-    
-    it('should login with email', () => {
+    const defaultEntryRoute = history.ensureBaseUrl(cfg.routes.app);
+
+    it('should login with email', () => {      
       spyOn(auth, 'login').andReturn(Dfd().resolve(apiData.bearerToken));
-      actions.login(email, password);
-      expect(history.push).toHaveBeenCalledWith(cfg.routes.app, true);
+      actions.login(email, password);      
+      expect(history.push).toHaveBeenCalledWith(defaultEntryRoute, true);
     });
 
     it('should login with SSO', () => {
@@ -110,7 +111,7 @@ describe('flux/user/actions', () => {
 
       actions.loginWithU2f(email, password);
       expect(window.u2f.sign).toHaveBeenCalled();
-      expect(history.push).toHaveBeenCalledWith(cfg.routes.app, true);
+      expect(history.push).toHaveBeenCalledWith(defaultEntryRoute, true);
     });
 
     it('should handle loginAttemp states', () => {

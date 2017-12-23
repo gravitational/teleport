@@ -16,9 +16,8 @@ limitations under the License.
 
 import reactor from 'app/reactor';
 import auth from 'app/services/auth';
-import localStorage from 'app/services/localStorage';
 import history from 'app/services/history';
-import session, { BearerToken } from 'app/services/session';
+import session from 'app/services/session';
 import cfg from 'app/config';
 import api from 'app/services/api';
 import Logger from 'app/lib/logger';
@@ -43,19 +42,9 @@ const actions = {
   },
 
   ensureUser(nextState, replace, cb) {        
-    session.ensureSession()      
-      .fail(() => {                          
-        const redirectUrl = history.createRedirect(nextState.location);
-        const search = `?redirect_uri=${redirectUrl}`;        
-        // navigate to login
-        replace({
-          pathname: cfg.routes.login,
-          search
-        });                
-      })
-      .always(() => {
-        cb();
-      })
+    session.ensureSession(true).done(() => {
+      cb();
+    })
   },
   
   acceptInvite(name, psw, token, inviteToken){    
@@ -68,10 +57,9 @@ const actions = {
     return actions._handleAcceptInvitePromise(promise);
   },
   
-  loginWithSso(providerName, providerUrl) {
-    let redirectUrl = history.extractRedirect();
-    redirectUrl = history.ensureBaseUrl(redirectUrl);
-    history.push(cfg.api.getSsoUrl(providerUrl, providerName, redirectUrl), true);
+  loginWithSso(providerName, providerUrl) {        
+    const entryUrl = this._getEntryRoute();    
+    history.push(cfg.api.getSsoUrl(providerUrl, providerName, entryUrl), true);
   },
   
   loginWithU2f(user, password) {
@@ -131,10 +119,8 @@ const actions = {
   _handleLoginPromise(promise) {    
     status.loginStatus.start();
     promise
-      .done(json => {        
-        // needed for devServer only
-        localStorage.setBearerToken(new BearerToken(json))        
-        const url = history.extractRedirect();
+      .done(() => {                        
+        const url = this._getEntryRoute();
         history.push(url, true);        
       })
       .fail(err => {
@@ -142,7 +128,19 @@ const actions = {
         logger.error('login', err);
         status.loginStatus.fail(msg);        
       })
+  },
+
+  _getEntryRoute() {    
+    let entryUrl = history.getRedirectParam();
+    if (entryUrl) {
+      entryUrl = history.ensureSafeRoute(entryUrl);
+    } else {
+      entryUrl = cfg.routes.app;
+    }
+    
+    return history.ensureBaseUrl(entryUrl);
   }
+
 }
   
 export default actions;
