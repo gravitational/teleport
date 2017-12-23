@@ -24,8 +24,7 @@ describe('services/session', () => {
     
   beforeEach(() => {        
     spyOn(session, '_startSessionChecker');
-    spyOn(session, '_stopSessionChecker');    
-    spyOn(history, 'push');        
+    spyOn(session, '_stopSessionChecker');        
     spyOn(localStorage, 'clear');
   });
 
@@ -37,11 +36,12 @@ describe('services/session', () => {
   describe('logout()', () => {
     it('should clear localStorage, stop session checker, and redirect to login page', () => {      
       spyOn(api, 'delete').andReturn($.Deferred().resolve());      
+      spyOn(history, '_pageRefresh');      
       session.logout();      
       expect(api.delete).toHaveBeenCalledWith(cfg.api.sessionPath);  
       expect(session._stopSessionChecker).toHaveBeenCalled();      
       expect(localStorage.clear).toHaveBeenCalled();	    
-      expect(history.push).toHaveBeenCalledWith(cfg.routes.login, true);  
+      expect(history._pageRefresh).toHaveBeenCalledWith(cfg.routes.login);  
     });
   });
 
@@ -66,11 +66,13 @@ describe('services/session', () => {
       expect(newToken.created).toBeGreaterThan(0);
     });
 
-    it('should reject if token is invalid', () => {
+    it('should logout if bearer token is missing', () => {
       let wasRejected = false;
       spyOn(localStorage, 'getBearerToken').andReturn(null);
+      spyOn(session, 'logout');      
       session.ensureSession().fail(()=> wasRejected = true)
       expect(wasRejected).toBe(true);
+      expect(session.logout).toHaveBeenCalled();
     });
   });
 })

@@ -23,7 +23,6 @@ import './../assets/js/jquery-validate';
 import './../assets/js/datepicker';
 import 'buffer';
 import 'classnames';
-import 'keymirror';
 import 'moment';
 import 'nuclear-js';
 import 'react';

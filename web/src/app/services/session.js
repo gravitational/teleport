@@ -37,9 +37,9 @@ let sesstionCheckerTimerId = null;
 
 const session = {
 
-  logout() {        
+  logout(rememberLocation=false) {        
     api.delete(cfg.api.sessionPath).always(() => {
-      history.push(cfg.routes.login, true);
+      history.goToLogin(rememberLocation)      
     });
     
     this.clear();    
@@ -52,21 +52,24 @@ const session = {
     localStorage.clear();
   },
   
-  ensureSession(){
+  ensureSession(rememberLocation=false){
     this._stopSessionChecker();
     this._ensureLocalStorageSubscription();
 
     const token = this._getBearerToken();
-    if(!token){
+    if (!token) {
+      this.logout(rememberLocation);
       return $.Deferred().reject();
     }
 
     if(this._shouldRenewToken()){
-      return this._renewToken().done(this._startSessionChecker.bind(this));
-    }
-
-    this._startSessionChecker();
-    return $.Deferred().resolve(token)
+      return this._renewToken()
+        .done(this._startSessionChecker.bind(this))
+        .fail(() => this.logout(rememberLocation));
+    } else {
+      this._startSessionChecker();
+      return $.Deferred().resolve(token)      
+    }    
   },
   
   _getBearerToken(){
@@ -128,8 +131,7 @@ const session = {
   _renewToken(){        
     this._setAndBroadcastIsRenewing(true);        
     return api.post(cfg.api.renewTokenPath)
-      .then(this._receiveBearerToken.bind(this))
-      .fail(this.logout.bind(this))
+      .then(this._receiveBearerToken.bind(this))      
       .always(()=>{        
         this._setAndBroadcastIsRenewing(false);        
       })
