@@ -22,8 +22,8 @@ let _inst = null;
 
 const history = {
 
-  original(){
-    return _inst;
+  original(){    
+    return _inst;    
   },
 
   init(history=browserHistory){
@@ -43,19 +43,26 @@ const history = {
     this.original().goBack(number);
   },
       
-  createRedirect(location /* location || string */ ) {
-    let route = _inst.createHref(location);
-    let knownRoute = this.ensureSafeRoute(route);
-    return this.ensureBaseUrl(knownRoute);
+  goToLogin(rememberLocation) {    
+    let url = cfg.routes.login;
+    if (rememberLocation) {
+      const currentLoc = _inst.getCurrentLocation();
+      let redirectUrl = _inst.createHref(currentLoc);
+      redirectUrl = this.ensureSafeRoute(redirectUrl);
+      redirectUrl = this.ensureBaseUrl(redirectUrl);
+      url = `${url}?redirect_uri=${redirectUrl}`;      
+    }
+        
+    this._pageRefresh(url);    
   },
 
-  extractRedirect() {    
+  getRedirectParam() {    
     let loc = this.original().getCurrentLocation();
     if (loc.query && loc.query.redirect_uri) {      
-      return this.ensureSafeRoute(loc.query.redirect_uri);
+      return loc.query.redirect_uri;
     }
       
-    return cfg.routes.app;
+    return '';    
   },
 
   ensureSafeRoute(url) {    
@@ -65,8 +72,8 @@ const history = {
 
   ensureBaseUrl(url) {
     url = url || '';
-    if (url.indexOf(cfg.baseUrl) !== 0) {    
-      url = withBaseUrl(url);
+    if (url.indexOf(cfg.baseUrl) !== 0) {          
+      url = cfg.baseUrl + url;
     }
 
     return url;    
@@ -90,8 +97,6 @@ const history = {
     window.location.href = this.ensureBaseUrl(route);
   }
 }
-
-const withBaseUrl = url => cfg.baseUrl + url;
 
 const match = url => route => {
   let { remainingPathname } = matchPattern(route, url);            

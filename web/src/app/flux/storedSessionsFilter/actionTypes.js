@@ -14,10 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import keyMirror from 'keymirror'
-
-export default keyMirror({
-  TLPT_STORED_SESSINS_FILTER_SET_RANGE: null,
-  TLPT_STORED_SESSINS_FILTER_SET_STATUS: null,
-  TLPT_STORED_SESSINS_FILTER_RECEIVE_MORE: null
-})
+export const TLPT_STORED_SESSINS_FILTER_SET_RANGE = 'TLPT_STORED_SESSINS_FILTER_SET_RANGE';
+export const TLPT_STORED_SESSINS_FILTER_SET_STATUS = 'TLPT_STORED_SESSINS_FILTER_SET_STATUS';
+export const TLPT_STORED_SESSINS_FILTER_RECEIVE_MORE = 'TLPT_STORED_SESSINS_FILTER_RECEIVE_MORE';

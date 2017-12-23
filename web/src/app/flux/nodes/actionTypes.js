@@ -14,8 +14,4 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import keyMirror from 'keymirror'
-
-export default keyMirror({
-  TLPT_NODES_RECEIVE: null
-})
+export const TLPT_NODES_RECEIVE = 'TLPT_NODES_RECEIVE';

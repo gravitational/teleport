@@ -17,7 +17,6 @@
     "buffer": "4.5.0",
     "classnames": "^2.2.3",
     "font-awesome": "4.5.0",
-    "keymirror": "0.1.1",
     "moment": "2.12.0",
     "nuclear-js": "1.3.0",
     "nuclear-js-react-addons": "^0.4.1",

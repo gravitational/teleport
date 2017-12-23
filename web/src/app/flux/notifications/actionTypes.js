@@ -14,8 +14,5 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import keyMirror from 'keymirror'
+export const TLPT_NOTIFICATIONS_ADD = 'TLPT_NOTIFICATIONS_ADD';
 
-export default keyMirror({
-  TLPT_NOTIFICATIONS_ADD: null
-})
