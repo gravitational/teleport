@@ -277,7 +277,7 @@ func (proxy *ProxyClient) isRecordingProxy() (bool, error) {
 
 // dialAuthServer returns auth server connection forwarded via proxy
 func (proxy *ProxyClient) dialAuthServer(ctx context.Context, clusterName string) (net.Conn, error) {
-	log.Infof("[CLIENT] client=%v connecting to auth server on cluster ", proxy.clientAddr, clusterName)
+	log.Debugf("client=%v connecting to auth server on cluster ", proxy.clientAddr, clusterName)
 
 	address := "@" + clusterName
 

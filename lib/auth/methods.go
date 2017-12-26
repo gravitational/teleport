@@ -51,7 +51,7 @@ func (a *AuthenticateUserRequest) CheckAndSetDefaults() error {
 	if a.Username == "" {
 		return trace.BadParameter("missing parameter 'username'")
 	}
-	if a.Pass == nil && a.U2F == nil && a.OTP == nil {
+	if a.Pass == nil && a.U2F == nil && a.OTP == nil && a.Session == nil {
 		return trace.BadParameter("at least one authentication method is required")
 	}
 	return nil
@@ -330,10 +330,6 @@ func (s *AuthServer) ExchangeCerts(req ExchangeCertsRequest) (*ExchangeCertsResp
 		return nil, trace.Wrap(err)
 	}
 
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	remoteCA, err := s.findCertAuthorityByPublicKey(req.PublicKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -343,6 +339,24 @@ func (s *AuthServer) ExchangeCerts(req ExchangeCertsRequest) (*ExchangeCertsResp
 		return nil, trace.Wrap(err)
 	}
 
+	// make sure that cluster name in TLS cert is not the same as cluster name
+	cert, err := tlsca.ParseCertificatePEM(req.TLSCert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	remoteClusterName, err := tlsca.ClusterName(cert.Subject)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clusterName, err := s.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if remoteClusterName == clusterName.GetName() {
+		return nil, trace.BadParameter("remote cluster name can not be the same as local cluster name")
+	}
+
 	remoteCA.SetTLSKeyPairs([]services.TLSKeyPair{
 		{
 			Cert: req.TLSCert,
@@ -350,11 +364,6 @@ func (s *AuthServer) ExchangeCerts(req ExchangeCertsRequest) (*ExchangeCertsResp
 	})
 
 	err = s.UpsertCertAuthority(remoteCA)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	clusterName, err := s.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -37,7 +37,6 @@ func (s *MethodsSuite) SetUpSuite(c *check.C) {
 func (s *MethodsSuite) TestCheckPublicKeys(c *check.C) {
 
 	// same public keys match
-
 	ca1 := suite.NewTestCA(services.HostCA, "localhost")
 	err := CheckPublicKeysEqual(ca1.GetCheckingKeys()[0], ca1.GetTLSKeyPairs()[0].Cert)
 	c.Assert(err, check.IsNil)

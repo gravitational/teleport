@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
@@ -200,6 +201,25 @@ func (a *AuthServer) establishTrust(trustedCluster services.TrustedCluster) ([]s
 
 	// log the remote certificate authorities we are adding
 	log.Debugf("Received validate response; CAs=%v", validateResponse.CAs)
+
+	for _, ca := range validateResponse.CAs {
+		for _, keyPair := range ca.GetTLSKeyPairs() {
+			cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			remoteClusterName, err := tlsca.ClusterName(cert.Subject)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if remoteClusterName == domainName {
+				return nil, trace.BadParameter("remote cluster name can not be the same as local cluster name")
+			}
+			// TODO(klizhentas) in 2.5.0 prohibit adding trusted cluster resource name
+			// different from cluster name (we had no way of checking this before x509,
+			// because SSH CA was a public key, not a cert with metadata)
+		}
+	}
 
 	return validateResponse.CAs, nil
 }

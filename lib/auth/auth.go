@@ -402,6 +402,8 @@ func (s *AuthServer) WithUserLock(username string, authenticateFn func() error) 
 	return trace.AccessDenied(message)
 }
 
+// DELETE IN: 2.6.0
+// This method is no longer used in 2.5.0 and is replaced by AuthenticateUser methods
 func (s *AuthServer) SignIn(user string, password []byte) (services.WebSession, error) {
 	err := s.WithUserLock(user, func() error {
 		return s.CheckPasswordWOToken(user, password)

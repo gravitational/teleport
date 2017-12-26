@@ -400,6 +400,8 @@ func (a *AuthWithRoles) GetOTPData(user string) (string, []byte, error) {
 	return a.authServer.GetOTPData(user)
 }
 
+// DELETE IN: 2.6.0
+// This method is no longer used in 2.5.0 and is replaced by AuthenticateUser methods
 func (a *AuthWithRoles) SignIn(user string, password []byte) (services.WebSession, error) {
 	if err := a.currentUserAction(user); err != nil {
 		return nil, trace.Wrap(err)

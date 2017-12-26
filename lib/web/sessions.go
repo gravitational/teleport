@@ -350,6 +350,9 @@ func (c *SessionContext) GetAgent() (agent.Agent, *ssh.Certificate, error) {
 	if !ok {
 		return nil, nil, trace.BadParameter("expected certificate, got %T", pub)
 	}
+	if len(cert.ValidPrincipals) == 0 {
+		return nil, nil, trace.BadParameter("expected at least valid principal in certificate")
+	}
 	privateKey, err := ssh.ParseRawPrivateKey(c.sess.GetPriv())
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "failed to parse SSH private key")

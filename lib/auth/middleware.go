@@ -159,13 +159,10 @@ func (a *AuthMiddleware) GetUser(r *http.Request) (interface{}, error) {
 		}, nil
 	}
 	clientCert := peers[0]
-	if len(clientCert.Issuer.Organization) < 1 {
-		log.Warning("missing organization in issuer certificate %v", clientCert.Issuer)
-		return nil, trace.AccessDenied("access denied: invalid client certificate")
-	}
 	certClusterName, err := tlsca.ClusterName(clientCert.Issuer)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		log.Warning("Failed to parse client certificate %v.", err)
+		return nil, trace.AccessDenied("access denied: invalid client certificate")
 	}
 	localClusterName, err := a.AuthServer.GetDomainName()
 	if err != nil {

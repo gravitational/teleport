@@ -127,9 +127,8 @@ func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*AuthContext, error) {
 	}
 	if len(roleNames) == 0 {
 		return nil, trace.AccessDenied("no roles mapped for remote user %q from cluster %q", u.Username, u.ClusterName)
-	} else {
-		log.Debugf("Mapped roles %v of remote user %q to local roles %v.", u.RemoteRoles, u.Username, roleNames)
 	}
+	log.Debugf("Mapped roles %v of remote user %q to local roles %v.", u.RemoteRoles, u.Username, roleNames)
 	checker, err := services.FetchRoles(roleNames, a.access, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)

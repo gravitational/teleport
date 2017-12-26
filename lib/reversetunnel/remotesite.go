@@ -351,13 +351,15 @@ func (s *remoteSite) attemptCertExchange() error {
 	return err
 }
 
+// DELETE IN: 2.6.0
+// This logic is only relevant for upgrades from 2.5.0 to 2.6.0
 func (s *remoteSite) periodicAttemptCertExchange() {
 	ticker := time.NewTicker(defaults.NetworkBackoffDuration)
 	defer ticker.Stop()
 	if err := s.attemptCertExchange(); err != nil {
-		s.Warningf("attempt at cert exchange failed: %v", err)
+		s.Warningf("Attempt at cert exchange failed: %v.", err)
 	} else {
-		s.Debugf("certificate exchange has completed, going to force reconnect")
+		s.Debugf("Certificate exchange has completed, going to force reconnect.")
 		s.srv.RemoveSite(s.domainName)
 		s.Close()
 		return
@@ -373,7 +375,7 @@ func (s *remoteSite) periodicAttemptCertExchange() {
 			if err != nil {
 				s.Warningf("Could not perform certificate exchange: %v.", trace.DebugReport(err))
 			} else {
-				s.Debugf("certificate exchange has completed, going to force reconnect")
+				s.Debugf("Certificate exchange has completed, going to force reconnect.")
 				s.srv.RemoveSite(s.domainName)
 				s.Close()
 				return

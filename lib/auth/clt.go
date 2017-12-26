@@ -178,6 +178,9 @@ func NewClient(addr string, dialer Dialer, params ...roundtrip.ClientParam) (*Cl
 	}, nil
 }
 
+// DELETE IN: 2.6.0
+// GetDialer and AccessPoint SSH subsystem are no longer used in Teleport
+// as of 2.5.0 and should be removed.
 // GetDialer returns dialer that will connect to auth server API
 func (c *Client) GetDialer() AccessPointDialer {
 	return func(ctx context.Context) (conn net.Conn, err error) {

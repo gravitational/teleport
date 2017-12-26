@@ -103,15 +103,6 @@ func FromSubject(subject pkix.Name) (*Identity, error) {
 	return i, nil
 }
 
-// CSRRequest is a certificate signing request
-type CSRRequest struct {
-	// CSR is a encoded X.509 CSR
-	CSR []byte
-	// NotAfter is a time after which the issued certificate
-	// will be no longer valid
-	NotAfter time.Time `json:"not_after"`
-}
-
 // CertificateRequest is a X.509 signing certificate request
 type CertificateRequest struct {
 	// Clock is a clock used to get current or test time
@@ -181,24 +172,4 @@ func (ca *CertAuthority) GenerateCertificate(req CertificateRequest) ([]byte, er
 	}
 
 	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certBytes}), nil
-}
-
-// ProcessCSR processes Certificate signing request and generates certificate back
-// returns PEM encoded certificate in case if successfull
-func (ca *CertAuthority) ProcessCSR(clock clockwork.Clock, req CSRRequest) ([]byte, error) {
-	if ca.Signer == nil {
-		return nil, trace.BadParameter("this CA has no signer, can not process CSR")
-	}
-	csr, err := ParseCertificateRequestPEM(req.CSR)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return ca.GenerateCertificate(CertificateRequest{
-		Clock:     clock,
-		PublicKey: csr.PublicKey,
-		Subject:   csr.Subject,
-		NotAfter:  req.NotAfter,
-		DNSNames:  csr.DNSNames,
-	})
 }

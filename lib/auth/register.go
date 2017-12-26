@@ -66,7 +66,7 @@ func Register(dataDir, token string, id IdentityID, servers []utils.NetAddr) err
 		if err != nil {
 			return trace.Wrap(err, "failed to parse certificate at %v", certPath)
 		}
-		log.Infof("Securely joining remote cluster %v.", cert.Subject.CommonName)
+		log.Infof("Joining remote cluster %v.", cert.Subject.CommonName)
 		certPool := x509.NewCertPool()
 		certPool.AddCert(cert)
 		tlsConfig.RootCAs = certPool
