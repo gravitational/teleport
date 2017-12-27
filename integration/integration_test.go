@@ -748,7 +748,7 @@ func (s *IntSuite) TestTwoClusters(c *check.C) {
 						return nil
 					}
 				case <-stopCh:
-					return trace.BadParameter("unable to find %v events after 5s: %v", count)
+					return trace.BadParameter("unable to find %v events after 5s", count)
 				}
 			}
 		}
