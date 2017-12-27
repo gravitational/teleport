@@ -201,6 +201,10 @@ func NewServerContext(srv Server, conn *ssh.ServerConn, identityContext Identity
 	return ctx
 }
 
+func (c *ServerContext) ID() int {
+	return c.id
+}
+
 func (c *ServerContext) GetServer() Server {
 	return c.srv
 }
