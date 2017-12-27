@@ -186,7 +186,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	keys, err := s.a.RegisterUsingToken(tok, "bad-host-id", "bad-node-name", teleport.RoleProxy)
 	c.Assert(keys, IsNil)
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, `"bad-node-name" \[bad-host-id\] can not join the cluster, the token does not allow "Proxy" role`)
+	c.Assert(err, ErrorMatches, `node "bad-node-name" \[bad-host-id\] can not join the cluster, the token does not allow "Proxy" role`)
 
 	roles, err = s.a.ValidateToken(tok)
 	c.Assert(err, IsNil)
