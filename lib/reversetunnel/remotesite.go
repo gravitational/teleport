@@ -348,7 +348,7 @@ func (s *remoteSite) attemptCertExchange() error {
 		PublicKey: remoteCA.GetCheckingKeys()[0],
 		TLSCert:   re.TLSCert,
 	})
-	return err
+	return trace.Wrap(err)
 }
 
 // DELETE IN: 2.6.0

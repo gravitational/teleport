@@ -108,7 +108,7 @@ func (s *AuthServer) AuthenticateUser(req AuthenticateUserRequest) error {
 		if err != nil {
 			// provide obscure message on purpose, while logging the real
 			// error server side
-			log.Debugf("failed to authenticate: %v", err)
+			log.Debugf("Failed to authenticate: %v.", err)
 			return trace.AccessDenied("invalid username or password")
 		}
 		return nil
@@ -121,7 +121,7 @@ func (s *AuthServer) AuthenticateUser(req AuthenticateUserRequest) error {
 		if err != nil {
 			// provide obscure message on purpose, while logging the real
 			// error server side
-			log.Debugf("failed to authenticate: %v", err)
+			log.Debugf("Failed to authenticate: %v.", err)
 			return trace.AccessDenied("invalid U2F response")
 		}
 		return nil
@@ -132,7 +132,7 @@ func (s *AuthServer) AuthenticateUser(req AuthenticateUserRequest) error {
 		if err != nil {
 			// provide obscure message on purpose, while logging the real
 			// error server side
-			log.Debugf("failed to authenticate: %v", err)
+			log.Debugf("Failed to authenticate: %v.", err)
 			return trace.AccessDenied("invalid username, password or second factor")
 		}
 		return nil
@@ -253,7 +253,7 @@ func AuthoritiesToTrustedCerts(authorities []services.CertAuthority) []TrustedCe
 }
 
 // AuthenticateSSHUser authenticates web user, creates and  returns web session
-// in case if authentication is successfull
+// in case if authentication is successful
 func (s *AuthServer) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginResponse, error) {
 	if err := s.AuthenticateUser(req.AuthenticateUserRequest); err != nil {
 		return nil, trace.Wrap(err)

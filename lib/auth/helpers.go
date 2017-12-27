@@ -61,7 +61,7 @@ func (cfg *TestAuthServerConfig) CheckAndSetDefaults() error {
 // and test certificate authority key generation that speeds up
 // keygen by using the same private key
 type TestAuthServer struct {
-	// TestAuthServer config is ca onfiguration used for auth server setup
+	// TestAuthServer config is configuration used for auth server setup
 	TestAuthServerConfig
 	// AuthServer is an auth server
 	AuthServer *AuthServer
@@ -223,7 +223,7 @@ func (a *TestAuthServer) NewCertificate(identity TestIdentity) (*tls.Certificate
 		}
 		return &cert, nil
 	default:
-		return nil, trace.BadParameter("identity of unknown type is unsupported")
+		return nil, trace.BadParameter("identity of unknown type %T is unsupported", identity)
 	}
 }
 

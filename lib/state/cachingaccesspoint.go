@@ -419,7 +419,7 @@ func (cs *CachingAuthClient) GetCertAuthority(id services.CertAuthID, loadKeys b
 	if err := cs.trust.UpsertCertAuthority(ca); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return ca, err
+	return ca, nil
 }
 
 // GetCertAuthorities is a part of auth.AccessPoint implementation

@@ -436,7 +436,7 @@ func migrateRoles(asrv *AuthServer) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		log.Infof("Migrating role: %v to include port_forwarding and forward_agent option", role.GetName())
+		log.Infof("Migrating role: %v to include port_forwarding and forward_agent option.", role.GetName())
 	}
 
 	return nil
@@ -722,7 +722,7 @@ func ReadSSHIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 	role := roles[0]
 	clusterName := cert.Permissions.Extensions[utils.CertExtensionAuthority]
 	if clusterName == "" {
-		return nil, trace.BadParameter("misssing cert extension %v", utils.CertExtensionAuthority)
+		return nil, trace.BadParameter("missing cert extension %v", utils.CertExtensionAuthority)
 	}
 
 	return &Identity{

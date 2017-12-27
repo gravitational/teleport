@@ -18,7 +18,6 @@ package auth
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net/url"
 	"time"
@@ -233,8 +232,8 @@ func (a *AuthWithRoles) GenerateServerKeys(hostID string, nodeName string, roles
 		return nil, trace.Wrap(err)
 	}
 	// username is hostID + cluster name, so make sure server requests new keys for itself
-	if a.user.GetName() != fmt.Sprintf("%v.%v", hostID, clusterName) {
-		return nil, trace.AccessDenied("username mismatch %q and %q", a.user.GetName(), fmt.Sprintf("%v.%v", hostID, clusterName))
+	if a.user.GetName() != HostFQDN(hostID, clusterName) {
+		return nil, trace.AccessDenied("username mismatch %q and %q", a.user.GetName(), HostFQDN(hostID, clusterName))
 	}
 	existingRoles, err := teleport.NewRoles(a.user.GetRoles())
 	if err != nil {

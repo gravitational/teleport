@@ -285,7 +285,7 @@ func (fs *FSLocalKeyStore) GetCerts(proxy string) (*x509.CertPool, error) {
 			break
 		}
 		if block.Type != "CERTIFICATE" || len(block.Headers) != 0 {
-			log.Debugf("skipping PEM block type=%v headers=%v", block.Type, block.Headers)
+			log.Debugf("Skipping PEM block type=%v headers=%v.", block.Type, block.Headers)
 			continue
 		}
 
@@ -293,7 +293,7 @@ func (fs *FSLocalKeyStore) GetCerts(proxy string) (*x509.CertPool, error) {
 		if err != nil {
 			return nil, trace.BadParameter("failed to parse certificate: %v", err)
 		}
-		log.Debugf("Addding trusted cluster certificate authority %q to trusted pool.", cert.Issuer)
+		log.Debugf("Adding trusted cluster certificate authority %q to trusted pool.", cert.Issuer)
 		pool.AddCert(cert)
 	}
 	return pool, nil

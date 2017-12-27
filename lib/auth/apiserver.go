@@ -924,9 +924,12 @@ func (s *APIServer) registerNewAuthServer(auth ClientI, w http.ResponseWriter, r
 }
 
 type generateServerKeysReq struct {
-	HostID   string         `json:"host_id"`
-	NodeName string         `json:"node_name"`
-	Roles    teleport.Roles `json:"roles"`
+	// HostID is unique ID of the host
+	HostID string `json:"host_id"`
+	// NodeName is user friendly host name
+	NodeName string `json:"node_name"`
+	// Roles is a list of roles assigned to node
+	Roles teleport.Roles `json:"roles"`
 }
 
 func (s *APIServer) generateServerKeys(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {

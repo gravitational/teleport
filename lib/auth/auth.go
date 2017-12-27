@@ -214,7 +214,7 @@ func (s *AuthServer) GenerateHostCert(hostPublicKey []byte, hostID, nodeName str
 
 // certs is a pair of SSH and TLS certificates
 type certs struct {
-	// sshis PEM encoded SSH certificate
+	// ssh is PEM encoded SSH certificate
 	ssh []byte
 	// tls is PEM encoded TLS certificate
 	tls []byte
@@ -256,8 +256,7 @@ func (a *AuthServer) GenerateUserCerts(key []byte, username string, ttl time.Dur
 	return certs.ssh, certs.tls, nil
 }
 
-// generateUserCert generates user certificate, it takes pkey as a signing
-// private key (user certificate authority)
+// generateUserCert generates user certificates
 func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 	// reuse the same RSA keys for SSH and TLS keys
 	cryptoPubKey, err := sshutils.CryptoPublicKey(req.publicKey)
@@ -593,6 +592,11 @@ func (s *AuthServer) ClientCertPool() (*x509.CertPool, error) {
 	return pool, nil
 }
 
+// HostFQDN consits of host UUID and cluster name joined via .
+func HostFQDN(hostUUID, clusterName string) string {
+	return fmt.Sprintf("%v.%v", hostUUID, clusterName)
+}
+
 // GenerateServerKeys generates new host private keys and certificates (signed
 // by the host certificate authority) for a node.
 func (s *AuthServer) GenerateServerKeys(hostID string, nodeName string, roles teleport.Roles) (*PackedKeys, error) {
@@ -645,7 +649,7 @@ func (s *AuthServer) GenerateServerKeys(hostID string, nodeName string, roles te
 
 	// generate host TLS certificate
 	identity := tlsca.Identity{
-		Username: fmt.Sprintf("%v.%v", hostID, clusterName),
+		Username: HostFQDN(hostID, clusterName),
 		Groups:   roles.StringSlice(),
 	}
 	certRequest := tlsca.CertificateRequest{
@@ -724,7 +728,7 @@ func (s *AuthServer) checkTokenTTL(token string) bool {
 // If a token was generated with a TTL=0, it means it's a single-use token and it gets destroyed
 // after a successful registration.
 func (s *AuthServer) RegisterUsingToken(token, hostID string, nodeName string, role teleport.Role) (*PackedKeys, error) {
-	log.Infof("node %q [%v] trying to join with role: %v", nodeName, hostID, role)
+	log.Infof("Node %q [%v] is trying to join with role: %v.", nodeName, hostID, role)
 	if hostID == "" {
 		return nil, trace.BadParameter("HostID cannot be empty")
 	}
@@ -743,12 +747,12 @@ func (s *AuthServer) RegisterUsingToken(token, hostID string, nodeName string, r
 
 	// make sure the caller is requested wthe role allowed by the token
 	if !roles.Include(role) {
-		msg := fmt.Sprintf("%q [%v] can not join the cluster, the token does not allow %q role", nodeName, hostID, role)
+		msg := fmt.Sprintf("node %q [%v] can not join the cluster, the token does not allow %q role", nodeName, hostID, role)
 		log.Warn(msg)
 		return nil, trace.BadParameter(msg)
 	}
 	if !s.checkTokenTTL(token) {
-		return nil, trace.AccessDenied("%q [%v] can not join the cluster, token has expired", nodeName, hostID)
+		return nil, trace.AccessDenied("node %q [%v] can not join the cluster, token has expired", nodeName, hostID)
 	}
 
 	// generate and return host certificate and keys
@@ -756,7 +760,7 @@ func (s *AuthServer) RegisterUsingToken(token, hostID string, nodeName string, r
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Infof("node %q [%v] joined the cluster", nodeName, hostID)
+	log.Infof("Node %q [%v] has joined the cluster.", nodeName, hostID)
 	return keys, nil
 }
 

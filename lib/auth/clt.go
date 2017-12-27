@@ -105,7 +105,7 @@ func NewTLSClientWithDialer(dialContext DialContext, cfg *tls.Config, params ...
 		// notice that below roundtrip.Client is passed
 		// teleport.APIEndpoint as an address for the API server, this is
 		// to make sure client verifies the DNS name of the API server
-		// custom DialContext overrrides this DNS name to the real address
+		// custom DialContext overrides this DNS name to the real address
 		// in addition this dialer tries multiple adresses if provided
 		DialContext:           dialContext,
 		ResponseHeaderTimeout: defaults.DefaultDialTimeout,
