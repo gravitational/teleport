@@ -6,7 +6,9 @@ services:
   one:
     image: teleport:latest
     container_name: one
-    command: ${CONTAINERHOME}/build/teleport start -d -c ${CONTAINERHOME}/docker/one.yaml
+    command: ${CONTAINERHOME}/build/teleport start -d -c ${CONTAINERHOME}/docker/one.yaml --gops --gops-addr=127.0.0.1:4321
+    mem_limit: 300m
+    memswap_limit: 0
     ports:
       - "3080:3080"
       - "3023:3023"
@@ -27,9 +29,11 @@ services:
   one-node:
     image: teleport:latest
     container_name: one-node
-    command: ${CONTAINERHOME}/build/teleport start -d -c ${CONTAINERHOME}/docker/one-node.yaml
+    command: ${CONTAINERHOME}/build/teleport start -d -c ${CONTAINERHOME}/docker/one-node.yaml --gops --gops-addr=127.0.0.1:4321
     env_file: env.file
+    mem_limit: 300m
     volumes:
+      - ./data/one-node:/var/lib/teleport
       - ../:/root/go/src/github.com/gravitational/teleport
     networks:
       teleport:
@@ -41,7 +45,8 @@ services:
   one-proxy:
     image: teleport:latest
     container_name: one-proxy
-    command: ${CONTAINERHOME}/build/teleport start -d -c ${CONTAINERHOME}/docker/one-proxy.yaml
+    command: ${CONTAINERHOME}/build/teleport start -d -c ${CONTAINERHOME}/docker/one-proxy.yaml --gops --gops-addr=127.0.0.1:4321
+    mem_limit: 300m
     ports:
       - "4080:3080"
       - "4023:3023"
@@ -59,9 +64,10 @@ services:
   # two-auth is a auth server of the second cluster
   #
   two-auth:
+    mem_limit: 300m
     image: teleport:latest
     container_name: two-auth
-    command: ${CONTAINERHOME}/build/teleport start -d -c ${CONTAINERHOME}/docker/two-auth.yaml --insecure
+    command: ${CONTAINERHOME}/build/teleport start -d -c ${CONTAINERHOME}/docker/two-auth.yaml --insecure --gops --gops-addr=127.0.0.1:4321
     env_file: env.file
     volumes:
       - ./data/two/auth:/var/lib/teleport
@@ -74,9 +80,10 @@ services:
   # two-proxy is a proxy service for the second cluster
   #
   two-proxy:
+    mem_limit: 300m
     image: teleport:latest
     container_name: two-proxy
-    command: ${CONTAINERHOME}/build/teleport start -d -c ${CONTAINERHOME}/docker/two-proxy.yaml
+    command: ${CONTAINERHOME}/build/teleport start -d -c ${CONTAINERHOME}/docker/two-proxy.yaml --gops --gops-addr=127.0.0.1:4321
     env_file: env.file
     ports:
       - "5080:5080"
@@ -92,9 +99,10 @@ services:
   # two-node is a node service for the second cluster
   #
   two-node:
+    mem_limit: 300m
     image: teleport:latest
     container_name: two-node
-    command: ${CONTAINERHOME}/build/teleport start -d -c ${CONTAINERHOME}/docker/two-node.yaml
+    command: ${CONTAINERHOME}/build/teleport start -d -c ${CONTAINERHOME}/docker/two-node.yaml --gops --gops-addr=127.0.0.1:4321
     env_file: env.file
     volumes:
       - ./data/two/node:/var/lib/teleport

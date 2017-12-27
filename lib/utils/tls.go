@@ -43,26 +43,10 @@ func ListenTLS(address string, certFile, keyFile string) (net.Listener, error) {
 	return tls.Listen("tcp", address, tlsConfig)
 }
 
-
-// CreateTLSConfiguration sets up default TLS configuration
-func CreateTLSConfiguration(certFile, keyFile string) (*tls.Config, error) {
+// TLSConfig returns default TLS configuration with
+// strict TLS settings configured (e.g. min TLS1.2)
+func TLSConfig() *tls.Config {
 	config := &tls.Config{}
-
-	if _, err := os.Stat(certFile); err != nil {
-		return nil, trace.BadParameter("certificate is not accessible by '%v'", certFile)
-	}
-	if _, err := os.Stat(keyFile); err != nil {
-		return nil, trace.BadParameter("certificate is not accessible by '%v'", certFile)
-	}
-
-	log.Infof("[PROXY] TLS cert=%v key=%v", certFile, keyFile)
-	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	config.Certificates = []tls.Certificate{cert}
-
 	config.CipherSuites = []uint16{
 		tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
 		tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
@@ -81,6 +65,26 @@ func CreateTLSConfiguration(certFile, keyFile string) (*tls.Config, error) {
 	config.SessionTicketsDisabled = false
 	config.ClientSessionCache = tls.NewLRUClientSessionCache(
 		DefaultLRUCapacity)
+	return config
+}
+
+// CreateTLSConfiguration sets up default TLS configuration
+func CreateTLSConfiguration(certFile, keyFile string) (*tls.Config, error) {
+	config := TLSConfig()
+
+	if _, err := os.Stat(certFile); err != nil {
+		return nil, trace.BadParameter("certificate is not accessible by '%v'", certFile)
+	}
+	if _, err := os.Stat(keyFile); err != nil {
+		return nil, trace.BadParameter("certificate is not accessible by '%v'", certFile)
+	}
+
+	log.Infof("[PROXY] TLS cert=%v key=%v", certFile, keyFile)
+	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	config.Certificates = []tls.Certificate{cert}
 
 	return config, nil
 }

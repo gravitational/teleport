@@ -64,7 +64,7 @@ type AgentConfig struct {
 	// Signers contains authentication signers
 	Signers []ssh.Signer
 	// Client is a client to the local auth servers
-	Client *auth.TunClient
+	Client auth.ClientI
 	// AccessPoint is a caching access point to the local auth servers
 	AccessPoint auth.AccessPoint
 	// Context is a parent context
@@ -304,11 +304,16 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 	return conn, err
 }
 
+// DELETE IN: 2.6.0
+// proxyAccessPoint channel request is deprecated and not used by 2.5.0
+// clusters any more. New clusters communicate with auth servers directly
+// via dial-direct-tcipip
 func (a *Agent) proxyAccessPoint(ch ssh.Channel, req <-chan *ssh.Request) {
 	a.Debugf("proxyAccessPoint")
 	defer ch.Close()
 
-	conn, err := a.Client.GetDialer()()
+	// shall terminate TLS
+	conn, err := a.Client.GetDialer()(context.TODO())
 	if err != nil {
 		a.Warningf("error dialing: %v", err)
 		return
@@ -372,11 +377,6 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 	server := string(req.Payload)
 	var servers []string
 
-	// Deprecated: Remove in Teleport 2.5.
-	//   Starting with Teleport 2.4 the client now discovers the list of Auth
-	//   Servers and sends them via the transport request. So this block can be
-	//   be replaced just net.Dial.
-	//
 	// if the request is for the special string @remote-auth-server, then get the
 	// list of auth servers and return that. otherwise try and connect to the
 	// passed in server.

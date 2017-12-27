@@ -75,6 +75,10 @@ const (
 	// connection attempts
 	DefaultDialTimeout = 10 * time.Second
 
+	// HTTPIdleConnsPerHost specifies maximum idle connections per host
+	// in HTTP connection pool
+	HTTPIdleConnsPerHost = 5
+
 	// HTTPIdleTimeout is a default timeout for idle HTTP connections
 	HTTPIdleTimeout = 30 * time.Second
 
@@ -268,6 +272,9 @@ var (
 
 	// LicenseFile is the default name of the license file
 	LicenseFile = "license.pem"
+
+	// CACertFile is the default name of the certificate authority file to watch
+	CACertFile = "ca.cert"
 )
 
 const (
@@ -335,3 +342,11 @@ func makeAddr(host string, port int16) *utils.NetAddr {
 	}
 	return retval
 }
+
+const (
+	// RSABits is the default RSA bits for the private key
+	RSABits = 2048
+
+	// CATTL is a default lifetime of a CA certificate
+	CATTL = time.Hour * 24 * 365 * 10
+)

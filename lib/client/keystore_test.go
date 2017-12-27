@@ -17,16 +17,21 @@ limitations under the License.
 package client
 
 import (
+	"crypto/rsa"
+	"crypto/x509/pkix"
 	"fmt"
 	"os"
 	"time"
 
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
 	"gopkg.in/check.v1"
 )
@@ -35,9 +40,22 @@ type KeyStoreTestSuite struct {
 	storeDir string
 	store    *FSLocalKeyStore
 	keygen   *testauthority.Keygen
+	tlsca    *tlsca.CertAuthority
 }
 
 var _ = check.Suite(&KeyStoreTestSuite{})
+
+func newSelfSignedCA(privateKey []byte) (*tlsca.CertAuthority, error) {
+	rsaKey, err := ssh.ParseRawPrivateKey(privateKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	key, cert, err := tlsca.GenerateSelfSignedCAWithPrivateKey(rsaKey.(*rsa.PrivateKey), pkix.Name{
+		CommonName:   "localhost",
+		Organization: []string{"localhost"},
+	}, nil, defaults.CATTL)
+	return tlsca.New(cert, key)
+}
 
 func (s *KeyStoreTestSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests()
@@ -48,6 +66,9 @@ func (s *KeyStoreTestSuite) SetUpSuite(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(s.store, check.NotNil)
 	c.Assert(utils.IsDir(s.store.KeyDir), check.Equals, true)
+
+	s.tlsca, err = newSelfSignedCA(CAPriv)
+	c.Assert(err, check.IsNil)
 }
 
 func (s *KeyStoreTestSuite) TearDownSuite(c *check.C) {
@@ -174,6 +195,22 @@ func (s *KeyStoreTestSuite) makeSignedKey(c *check.C, makeExpired bool) *Key {
 	if makeExpired {
 		ttl = -ttl
 	}
+
+	// reuse the same RSA keys for SSH and TLS keys
+	cryptoPubKey, err := sshutils.CryptoPublicKey(pub)
+	c.Assert(err, check.IsNil)
+	clock := clockwork.NewRealClock()
+	identity := tlsca.Identity{
+		Username: username,
+	}
+	tlsCert, err := s.tlsca.GenerateCertificate(tlsca.CertificateRequest{
+		Clock:     clock,
+		PublicKey: cryptoPubKey,
+		Subject:   identity.Subject(),
+		NotAfter:  clock.Now().UTC().Add(ttl),
+	})
+	c.Assert(err, check.IsNil)
+
 	cert, err = s.keygen.GenerateUserCert(services.UserCertParams{
 		PrivateCASigningKey: CAPriv,
 		PublicUserKey:       pub,
@@ -185,9 +222,10 @@ func (s *KeyStoreTestSuite) makeSignedKey(c *check.C, makeExpired bool) *Key {
 	})
 	c.Assert(err, check.IsNil)
 	return &Key{
-		Priv: priv,
-		Pub:  pub,
-		Cert: cert,
+		Priv:    priv,
+		Pub:     pub,
+		Cert:    cert,
+		TLSCert: tlsCert,
 	}
 }
 

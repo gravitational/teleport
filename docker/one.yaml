@@ -33,4 +33,5 @@ ssh_service:
 
 proxy_service:
   enabled: yes
+  proxy_protocol: on
 

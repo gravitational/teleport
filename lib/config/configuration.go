@@ -331,6 +331,10 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	// apply "auth_service" section
+	cfg.Auth.EnableProxyProtocol, err = utils.ParseOnOff("proxy_protocol", fc.Auth.ProxyProtocol, true)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	if fc.Auth.ListenAddress != "" {
 		addr, err := utils.ParseHostPortAddr(fc.Auth.ListenAddress, int(defaults.AuthListenPort))
 		if err != nil {
@@ -339,7 +343,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Auth.SSHAddr = *addr
 		cfg.AuthServers = append(cfg.AuthServers, *addr)
 	}
-	// DEPRECATED: Remove the following message in Teleport 2.4
+	// DELETE IN: 2.4.0
 	if fc.Auth.DynamicConfig != nil {
 		warningMessage := "Dynamic configuration is no longer supported. Refer to " +
 			"Teleport documentation for more details: " +
@@ -364,7 +368,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		cfg.ReverseTunnels = append(cfg.ReverseTunnels, tun)
 	}
-	// DEPRECATED: Remove the following message in Teleport 2.4.
+	// DELETE IN: 2.4.0
 	if len(fc.Auth.TrustedClusters) > 0 {
 		warningMessage := "Configuring Trusted Clusters using file configuration has " +
 			"been deprecated, Trusted Clusters must now be configured using resources. " +
@@ -394,7 +398,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		cfg.Auth.Preference = authPreference
 
-		// DEPRECATED: Remove the following message in Teleport 2.4.
+		// DELETE IN: 2.4.0
 		if oidcConnector != nil {
 			warningMessage := "Configuring OIDC connectors using file configuration is " +
 				"no longer supported, OIDC connectors must be configured using resources. " +
