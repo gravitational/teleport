@@ -102,7 +102,7 @@ func (s *localSite) String() string {
 }
 
 func (s *localSite) GetStatus() string {
-	return RemoteSiteStatusOnline
+	return teleport.RemoteClusterStatusOnline
 }
 
 func (s *localSite) GetName() string {

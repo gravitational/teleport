@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -203,6 +204,7 @@ func (a *Agent) getState() string {
 
 // Close signals to close all connections and operations
 func (a *Agent) Close() error {
+	a.Info(string(debug.Stack()))
 	a.cancel()
 	return nil
 }
@@ -458,7 +460,7 @@ func (a *Agent) run() {
 	ticker, err := utils.NewSwitchTicker(defaults.FastAttempts,
 		defaults.NetworkRetryDuration, defaults.NetworkBackoffDuration)
 	if err != nil {
-		log.Errorf("failed to run: %v", err)
+		a.Errorf("Failed to run: %v.", err)
 		return
 	}
 	defer ticker.Stop()
@@ -475,7 +477,7 @@ func (a *Agent) run() {
 			select {
 			// abort if asked to stop:
 			case <-a.ctx.Done():
-				a.Debugf("agent has closed, exiting")
+				a.Debug("Agent has closed, exiting.")
 				return
 				// wait backoff on network retries
 			case <-ticker.Channel():
@@ -487,7 +489,7 @@ func (a *Agent) run() {
 		firstAttempt = false
 		if err != nil || conn == nil {
 			ticker.IncrementFailureCount()
-			a.Warningf("failed to create remote tunnel: %v, conn: %v", err, conn)
+			a.Warningf("Failed to create remote tunnel: %v, conn: %v.", err, conn)
 			continue
 		}
 
@@ -498,7 +500,7 @@ func (a *Agent) run() {
 			// we did not connect to a proxy in the discover list (which means we
 			// connected to a proxy we already have a connection to), try again
 			if !a.connectedToRightProxy() {
-				a.Debugf("missed, connected to %v instead of %v", a.getPrincipalsList(), Proxies(a.DiscoverProxies))
+				a.Debugf("Missed, connected to %v instead of %v.", a.getPrincipalsList(), Proxies(a.DiscoverProxies))
 				conn.Close()
 				continue
 			}
@@ -510,7 +512,7 @@ func (a *Agent) run() {
 			select {
 			case a.EventsC <- ConnectedEvent:
 			case <-a.ctx.Done():
-				a.Debugf("context is closing")
+				a.Debug("Context is closing.")
 				return
 			default:
 			}
@@ -650,15 +652,6 @@ const (
 	chanTransport        = "teleport-transport"
 	chanTransportDialReq = "teleport-transport-dial"
 	chanDiscovery        = "teleport-discovery"
-)
-
-const (
-	// RemoteSiteStatusOffline indicates that site is considered as
-	// offline, since it has missed a series of heartbeats
-	RemoteSiteStatusOffline = "offline"
-	// RemoteSiteStatusOnline indicates that site is sending heartbeats
-	// at expected interval
-	RemoteSiteStatusOnline = "online"
 )
 
 // RemoteAuthServer is a special non-resolvable address that indicates we want

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -37,6 +38,32 @@ type TunnelConnection interface {
 	String() string
 	// Clone returns a copy of this tunnel connection
 	Clone() TunnelConnection
+}
+
+// LatestTunnelConnection returns latest tunnel connection from the list
+// of tunnel connections, if no connections found, returns NotFound error
+func LatestTunnelConnection(conns []TunnelConnection) (TunnelConnection, error) {
+	var lastConn TunnelConnection
+	for i := range conns {
+		conn := conns[i]
+		if lastConn == nil || conn.GetLastHeartbeat().After(lastConn.GetLastHeartbeat()) {
+			lastConn = conn
+		}
+	}
+	if lastConn == nil {
+		return nil, trace.NotFound("no connections found")
+	}
+	return lastConn, nil
+}
+
+// IsTunnelConnectionStatus returns tunnel connection status based on the last
+// heartbeat time recorded for a connection
+func TunnelConnectionStatus(clock clockwork.Clock, conn TunnelConnection) string {
+	diff := clock.Now().Sub(conn.GetLastHeartbeat())
+	if diff < defaults.ReverseTunnelOfflineThreshold {
+		return teleport.RemoteClusterStatusOnline
+	}
+	return teleport.RemoteClusterStatusOffline
 }
 
 // MustCreateTunnelConnection returns new connection from V2 spec or panics if

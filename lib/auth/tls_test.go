@@ -197,6 +197,16 @@ func (s *TLSSuite) TestTunnelConnectionsCRUD(c *check.C) {
 	suite.TunnelConnectionsCRUD(c)
 }
 
+func (s *TLSSuite) TestRemoteClustersCRUD(c *check.C) {
+	clt, err := s.server.NewClient(TestAdmin())
+	c.Assert(err, check.IsNil)
+
+	suite := &suite.ServicesTestSuite{
+		PresenceS: clt,
+	}
+	suite.RemoteClustersCRUD(c)
+}
+
 func (s *TLSSuite) TestServersCRUD(c *check.C) {
 	clt, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)

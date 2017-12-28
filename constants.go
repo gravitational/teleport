@@ -266,3 +266,12 @@ const DefaultImplicitRole = "default-implicit-role"
 
 // APIDomain is a default domain name for Auth server API
 const APIDomain = "teleport.cluster.local"
+
+const (
+	// RemoteClusterStatusOffline indicates that cluster is considered as
+	// offline, since it has missed a series of heartbeats
+	RemoteClusterStatusOffline = "offline"
+	// RemoteClusterStatusOnline indicates that cluster is sending heartbeats
+	// at expected interval
+	RemoteClusterStatusOnline = "online"
+)

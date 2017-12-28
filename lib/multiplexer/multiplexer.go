@@ -27,6 +27,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"io"
 	"net"
 	"sync"
 	"time"
@@ -188,7 +189,9 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 	}
 	connWrapper, err := detect(conn, m.EnableProxyProtocol)
 	if err != nil {
-		m.Warning(trace.DebugReport(err))
+		if trace.Unwrap(err) != io.EOF {
+			m.Warning(trace.DebugReport(err))
+		}
 		conn.Close()
 		return
 	}

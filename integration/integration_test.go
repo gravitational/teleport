@@ -1075,6 +1075,180 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 	c.Assert(aux.Stop(true), check.IsNil)
 }
 
+// TestRemoteClusters tests disconnecting remote clusters
+// using remote cluster feature
+func (s *IntSuite) TestRemoteClusters(c *check.C) {
+	username := s.me.Username
+
+	clusterMain := "cluster-main"
+	clusterAux := "cluster-aux"
+	main := NewInstance(clusterMain, HostID, Host, s.getPorts(5), s.priv, s.pub)
+	aux := NewInstance(clusterAux, HostID, Host, s.getPorts(5), s.priv, s.pub)
+
+	// main cluster has a local user and belongs to role "main-devs"
+	mainDevs := "main-devs"
+	role, err := services.NewRole(mainDevs, services.RoleSpecV3{
+		Allow: services.RoleConditions{
+			Logins: []string{username},
+		},
+	})
+	c.Assert(err, check.IsNil)
+	main.AddUserWithRole(username, role)
+
+	// for role mapping test we turn on Web API on the main cluster
+	// as it's used
+	makeConfig := func(enableSSH bool) ([]*InstanceSecrets, *service.Config) {
+		tconf := service.MakeDefaultConfig()
+		tconf.SSH.Enabled = enableSSH
+		tconf.Console = nil
+		tconf.Proxy.DisableWebService = false
+		tconf.Proxy.DisableWebInterface = true
+		return nil, tconf
+	}
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	c.Assert(main.CreateEx(makeConfig(false)), check.IsNil)
+	c.Assert(aux.CreateEx(makeConfig(true)), check.IsNil)
+
+	// auxiliary cluster has a role aux-devs
+	// connect aux cluster to main cluster
+	// using trusted clusters, so remote user will be allowed to assume
+	// role specified by mapping remote role "devs" to local role "local-devs"
+	auxDevs := "aux-devs"
+	role, err = services.NewRole(auxDevs, services.RoleSpecV3{
+		Allow: services.RoleConditions{
+			Logins: []string{username},
+		},
+	})
+	c.Assert(err, check.IsNil)
+	err = aux.Process.GetAuthServer().UpsertRole(role, backend.Forever)
+	c.Assert(err, check.IsNil)
+	trustedClusterToken := "trusted-clsuter-token"
+	err = main.Process.GetAuthServer().UpsertToken(trustedClusterToken, []teleport.Role{teleport.RoleTrustedCluster}, backend.Forever)
+	c.Assert(err, check.IsNil)
+	trustedCluster := main.Secrets.AsTrustedCluster(trustedClusterToken, services.RoleMap{
+		{Remote: mainDevs, Local: []string{auxDevs}},
+	})
+
+	// modify trusted cluster resource name so it would not
+	// match the cluster name to check that it does not matter
+	trustedCluster.SetName(main.Secrets.SiteName + "-cluster")
+
+	c.Assert(main.Start(), check.IsNil)
+	c.Assert(aux.Start(), check.IsNil)
+
+	err = trustedCluster.CheckAndSetDefaults()
+	c.Assert(err, check.IsNil)
+
+	// try and upsert a trusted cluster
+	var upsertSuccess bool
+	for i := 0; i < 10; i++ {
+		log.Debugf("Will create trusted cluster %v, attempt %v", trustedCluster, i)
+		err = aux.Process.GetAuthServer().UpsertTrustedCluster(trustedCluster)
+		if err != nil {
+			if trace.IsConnectionProblem(err) {
+				log.Debugf("retrying on connection problem: %v", err)
+				continue
+			}
+			c.Fatalf("got non connection problem %v", err)
+		}
+		upsertSuccess = true
+		break
+	}
+	// make sure we upsert a trusted cluster
+	c.Assert(upsertSuccess, check.Equals, true)
+
+	nodePorts := s.getPorts(3)
+	sshPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
+	c.Assert(aux.StartNodeAndProxy("aux-node", sshPort, proxyWebPort, proxySSHPort), check.IsNil)
+
+	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
+	abortTime := time.Now().Add(time.Second * 10)
+	for len(main.Tunnel.GetSites()) < 2 && len(main.Tunnel.GetSites()) < 2 {
+		time.Sleep(time.Millisecond * 2000)
+		if time.Now().After(abortTime) {
+			c.Fatalf("two clusters do not see each other: tunnels are not working")
+		}
+	}
+
+	cmd := []string{"echo", "hello world"}
+	tc, err := main.NewClient(ClientConfig{Login: username, Cluster: clusterAux, Host: "127.0.0.1", Port: sshPort})
+	c.Assert(err, check.IsNil)
+	output := &bytes.Buffer{}
+	tc.Stdout = output
+	c.Assert(err, check.IsNil)
+	// try to execute an SSH command using the same old client  to Site-B
+	// "site-A" and "site-B" reverse tunnels are supposed to reconnect,
+	// and 'tc' (client) is also supposed to reconnect
+	for i := 0; i < 10; i++ {
+		time.Sleep(time.Millisecond * 50)
+		err = tc.SSH(context.TODO(), cmd, false)
+		if err == nil {
+			break
+		}
+	}
+	c.Assert(err, check.IsNil)
+	c.Assert(output.String(), check.Equals, "hello world\n")
+
+	// check that remote cluster has been provisioned
+	remoteClusters, err := main.Process.GetAuthServer().GetRemoteClusters()
+	c.Assert(err, check.IsNil)
+	c.Assert(remoteClusters, check.HasLen, 1)
+	c.Assert(remoteClusters[0].GetName(), check.Equals, clusterAux)
+
+	// after removing the remote cluster, the connection will start failing
+	err = main.Process.GetAuthServer().DeleteRemoteCluster(clusterAux)
+	c.Assert(err, check.IsNil)
+	for i := 0; i < 10; i++ {
+		time.Sleep(time.Millisecond * 50)
+		err = tc.SSH(context.TODO(), cmd, false)
+		if err != nil {
+			break
+		}
+	}
+	c.Assert(err, check.NotNil, check.Commentf("expected tunnel to close and SSH client to start failing"))
+
+	// remove trusted cluster from aux cluster side, and recrete right after
+	// this should re-establish connection
+	err = aux.Process.GetAuthServer().DeleteTrustedCluster(trustedCluster.GetName())
+	c.Assert(err, check.IsNil)
+	err = aux.Process.GetAuthServer().UpsertTrustedCluster(trustedCluster)
+	c.Assert(err, check.IsNil)
+
+	// check that remote cluster has been re-provisioned
+	remoteClusters, err = main.Process.GetAuthServer().GetRemoteClusters()
+	c.Assert(err, check.IsNil)
+	c.Assert(remoteClusters, check.HasLen, 1)
+	c.Assert(remoteClusters[0].GetName(), check.Equals, clusterAux)
+
+	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
+	abortTime = time.Now().Add(time.Second * 10)
+	for len(main.Tunnel.GetSites()) < 2 {
+		time.Sleep(time.Millisecond * 2000)
+		if time.Now().After(abortTime) {
+			c.Fatalf("two clusters do not see each other: tunnels are not working")
+		}
+	}
+
+	// connection and client should recover and work again
+	output = &bytes.Buffer{}
+	tc.Stdout = output
+	for i := 0; i < 10; i++ {
+		time.Sleep(time.Millisecond * 50)
+		err = tc.SSH(context.TODO(), cmd, false)
+		if err == nil {
+			break
+		}
+	}
+	c.Assert(err, check.IsNil)
+	c.Assert(output.String(), check.Equals, "hello world\n")
+
+	// stop clusters and remaining nodes
+	c.Assert(main.Stop(true), check.IsNil)
+	c.Assert(aux.Stop(true), check.IsNil)
+}
+
 // TestDiscovery tests case for multiple proxies and a reverse tunnel
 // agent that eventually connnects to the the right proxy
 func (s *IntSuite) TestDiscovery(c *check.C) {

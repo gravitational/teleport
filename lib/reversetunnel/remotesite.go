@@ -29,7 +29,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
-	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/roundtrip"
 	"github.com/jonboulle/clockwork"
 	oxyforward "github.com/mailgun/oxy/forward"
 	log "github.com/sirupsen/logrus"
@@ -57,6 +58,7 @@ type remoteSite struct {
 	transport   *http.Transport
 	connInfo    services.TunnelConnection
 	ctx         context.Context
+	cancel      context.CancelFunc
 	clock       clockwork.Clock
 
 	// certificateCache caches host certificates for the forwarding server.
@@ -147,6 +149,7 @@ func (s *remoteSite) Close() error {
 	s.Lock()
 	defer s.Unlock()
 
+	s.cancel()
 	for i := range s.connections {
 		s.connections[i].Close()
 	}
@@ -196,28 +199,15 @@ func (s *remoteSite) getLatestTunnelConnection() (services.TunnelConnection, err
 		s.Warningf("failed to fetch tunnel statuses: %v", err)
 		return nil, trace.Wrap(err)
 	}
-	var lastConn services.TunnelConnection
-	for i := range conns {
-		conn := conns[i]
-		if lastConn == nil || conn.GetLastHeartbeat().After(lastConn.GetLastHeartbeat()) {
-			lastConn = conn
-		}
-	}
-	if lastConn == nil {
-		return nil, trace.NotFound("no connections found")
-	}
-	return lastConn, nil
+	return services.LatestTunnelConnection(conns)
 }
 
 func (s *remoteSite) GetStatus() string {
 	connInfo, err := s.getLatestTunnelConnection()
 	if err != nil {
-		return RemoteSiteStatusOffline
+		return teleport.RemoteClusterStatusOffline
 	}
-	if s.isOnline(connInfo) {
-		return RemoteSiteStatusOnline
-	}
-	return RemoteSiteStatusOffline
+	return services.TunnelConnectionStatus(s.clock, connInfo)
 }
 
 func (s *remoteSite) copyConnInfo() services.TunnelConnection {
@@ -385,8 +375,7 @@ func (s *remoteSite) periodicAttemptCertExchange() {
 }
 
 func (s *remoteSite) isOnline(conn services.TunnelConnection) bool {
-	diff := s.clock.Now().Sub(conn.GetLastHeartbeat())
-	return diff < defaults.ReverseTunnelOfflineThreshold
+	return services.TunnelConnectionStatus(s.clock, conn) == teleport.RemoteClusterStatusOnline
 }
 
 // findDisconnectedProxies finds proxies that do not have inbound reverse tunnel

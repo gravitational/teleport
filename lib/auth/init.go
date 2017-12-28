@@ -369,6 +369,11 @@ func migrateLegacyResources(cfg InitConfig, asrv *AuthServer) error {
 		return trace.Wrap(err)
 	}
 
+	err = migrateRemoteClusters(asrv)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
@@ -437,6 +442,61 @@ func migrateRoles(asrv *AuthServer) error {
 			return trace.Wrap(err)
 		}
 		log.Infof("Migrating role: %v to include port_forwarding and forward_agent option.", role.GetName())
+	}
+
+	return nil
+}
+
+// DELETE IN: 2.6.0
+// This migration adds remote cluster resource migrating from 2.5.0
+// where the presence of remote cluster was identified only by presence
+// of host certificate authority with cluster name not equal local cluster name
+func migrateRemoteClusters(asrv *AuthServer) error {
+	clusterName, err := asrv.GetClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	certAuthorities, err := asrv.GetCertAuthorities(services.HostCA, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// loop over all roles and make sure any v3 roles have permit port
+	// forward and forward agent allowed
+	for _, certAuthority := range certAuthorities {
+		if certAuthority.GetName() == clusterName.GetClusterName() {
+			log.Debugf("Migrations: skipping local cluster cert authority %q.", certAuthority.GetName())
+			continue
+		}
+		// remote cluster already exists
+		_, err = asrv.GetRemoteCluster(certAuthority.GetName())
+		if err == nil {
+			log.Debugf("Migrations: remote cluster already exists for cert authority %q.", certAuthority.GetName())
+			continue
+		}
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+		// the cert authority is associated with trusted cluster
+		_, err = asrv.GetTrustedCluster(certAuthority.GetName())
+		if err == nil {
+			log.Debugf("Migrations: trusted cluster resource exists for cert authority %q.", certAuthority.GetName())
+			continue
+		}
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+		remoteCluster, err := services.NewRemoteCluster(certAuthority.GetName())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		err = asrv.CreateRemoteCluster(remoteCluster)
+		if err != nil {
+			if !trace.IsAlreadyExists(err) {
+				return trace.Wrap(err)
+			}
+		}
+		log.Infof("Migrations: added remote cluster resource for cert authority %q.", certAuthority.GetName())
 	}
 
 	return nil

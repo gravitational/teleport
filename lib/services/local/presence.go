@@ -480,10 +480,76 @@ func (s *PresenceService) DeleteAllTunnelConnections() error {
 	return err
 }
 
+// CreateRemoteCluster creates remote cluster
+func (s *PresenceService) CreateRemoteCluster(rc services.RemoteCluster) error {
+	data, err := json.Marshal(rc)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	ttl := backend.TTL(s.Clock(), rc.Expiry())
+	err = s.CreateVal([]string{remoteClustersPrefix}, rc.GetName(), []byte(data), ttl)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// GetRemoteClusters returns a list of remote clusters
+func (s *PresenceService) GetRemoteClusters() ([]services.RemoteCluster, error) {
+	keys, err := s.GetKeys([]string{remoteClustersPrefix})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clusters := make([]services.RemoteCluster, 0, len(keys))
+	for _, key := range keys {
+		data, err := s.GetVal([]string{remoteClustersPrefix}, key)
+		if err != nil {
+			if trace.IsNotFound(err) {
+				continue
+			}
+			return nil, trace.Wrap(err)
+		}
+		cluster, err := services.UnmarshalRemoteCluster(data)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		clusters = append(clusters, cluster)
+	}
+	return clusters, nil
+}
+
+// GetRemoteCluster returns a remote cluster by name
+func (s *PresenceService) GetRemoteCluster(clusterName string) (services.RemoteCluster, error) {
+	data, err := s.GetVal([]string{remoteClustersPrefix}, clusterName)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("remote cluster %q is not found", clusterName)
+		}
+		return nil, trace.Wrap(err)
+	}
+	return services.UnmarshalRemoteCluster(data)
+}
+
+// DeleteRemoteCluster deletes remote cluster by name
+func (s *PresenceService) DeleteRemoteCluster(clusterName string) error {
+	return s.DeleteKey([]string{remoteClustersPrefix}, clusterName)
+
+}
+
+// DeleteAllRemoteClusters deletes all remote clusters
+func (s *PresenceService) DeleteAllRemoteClusters() error {
+	err := s.DeleteBucket([]string{}, remoteClustersPrefix)
+	if trace.IsNotFound(err) {
+		return nil
+	}
+	return trace.Wrap(err)
+}
+
 const (
 	localClusterPrefix      = "localCluster"
 	reverseTunnelsPrefix    = "reverseTunnels"
 	tunnelConnectionsPrefix = "tunnelConnections"
+	remoteClustersPrefix    = "remoteClusters"
 	nodesPrefix             = "nodes"
 	namespacesPrefix        = "namespaces"
 	authServersPrefix       = "authservers"

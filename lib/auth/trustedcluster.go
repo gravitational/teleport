@@ -251,6 +251,87 @@ func (a *AuthServer) addCertAuthorities(trustedCluster services.TrustedCluster, 
 	return nil
 }
 
+// DeleteRemoteCluster deletes remote cluster resource, all certificate authorities
+// associated with it
+func (a *AuthServer) DeleteRemoteCluster(clusterName string) error {
+	// To make sure remote cluster exists - to protect against random
+	// clusterName requests (e.g. when clusterName is set to local cluster name)
+	_, err := a.Presence.GetRemoteCluster(clusterName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// delete cert authorities associated with the cluster
+	err = a.DeleteCertAuthority(services.CertAuthID{
+		Type:       services.HostCA,
+		DomainName: clusterName,
+	})
+	if err != nil {
+		// this method could have succeeded on the first call,
+		// but then if the remote cluster resource could not be deleted
+		// it would be impossible to delete the cluster after then
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	// there should be no User CA in trusted clusters on the main cluster side
+	// per standard automation but clean up just in case
+	err = a.DeleteCertAuthority(services.CertAuthID{
+		Type:       services.UserCA,
+		DomainName: clusterName,
+	})
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	return a.Presence.DeleteRemoteCluster(clusterName)
+}
+
+// GetRemoteCluster returns remote cluster by name
+func (a *AuthServer) GetRemoteCluster(clusterName string) (services.RemoteCluster, error) {
+	// To make sure remote cluster exists - to protect against random
+	// clusterName requests (e.g. when clusterName is set to local cluster name)
+	remoteCluster, err := a.Presence.GetRemoteCluster(clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.updateRemoteClusterStatus(remoteCluster); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return remoteCluster, nil
+}
+
+func (a *AuthServer) updateRemoteClusterStatus(remoteCluster services.RemoteCluster) error {
+	// fetch tunnel connections for the cluster to update runtime status
+	connections, err := a.GetTunnelConnections(remoteCluster.GetName())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	remoteCluster.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
+	lastConn, err := services.LatestTunnelConnection(connections)
+	if err == nil {
+		remoteCluster.SetConnectionStatus(services.TunnelConnectionStatus(a.clock, lastConn))
+		remoteCluster.SetLastHeartbeat(lastConn.GetLastHeartbeat())
+	}
+	return nil
+}
+
+// GetRemoteClusters returns remote clusters with udpated statuses
+func (a *AuthServer) GetRemoteClusters() ([]services.RemoteCluster, error) {
+	// To make sure remote cluster exists - to protect against random
+	// clusterName requests (e.g. when clusterName is set to local cluster name)
+	remoteClusters, err := a.Presence.GetRemoteClusters()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for i := range remoteClusters {
+		if err := a.updateRemoteClusterStatus(remoteClusters[i]); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return remoteClusters, nil
+}
+
 func (a *AuthServer) validateTrustedCluster(validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
 	domainName, err := a.GetDomainName()
 	if err != nil {
@@ -266,12 +347,29 @@ func (a *AuthServer) validateTrustedCluster(validateRequest *ValidateTrustedClus
 	// log the remote certificate authorities we are adding
 	log.Debugf("Received validate request: token=%v, CAs=%v", validateRequest.Token, validateRequest.CAs)
 
-	// token has been validated, upsert the given certificate authority
+	// add remote cluster resource to keep track of the remote cluster
+	var remoteClusterName string
 	for _, certAuthority := range validateRequest.CAs {
-		// don't add a ca with the same as as your own
+		// don't add a ca with the same as as local cluster name
 		if certAuthority.GetName() == domainName {
 			return nil, trace.AccessDenied("remote certificate authority has same name as cluster certificate authority: %v", domainName)
 		}
+		remoteClusterName = certAuthority.GetName()
+	}
+	remoteCluster, err := services.NewRemoteCluster(remoteClusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = a.CreateRemoteCluster(remoteCluster)
+	if err != nil {
+		if !trace.IsAlreadyExists(err) {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	// token has been validated, upsert the given certificate authority
+	for _, certAuthority := range validateRequest.CAs {
 		err = a.UpsertCertAuthority(certAuthority)
 		if err != nil {
 			return nil, trace.Wrap(err)

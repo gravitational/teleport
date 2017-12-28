@@ -1108,6 +1108,44 @@ func (a *AuthWithRoles) DeleteAllTunnelConnections() error {
 	return a.authServer.DeleteAllTunnelConnections()
 }
 
+func (a *AuthWithRoles) CreateRemoteCluster(conn services.RemoteCluster) error {
+	if err := a.action(defaults.Namespace, services.KindRemoteCluster, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.CreateRemoteCluster(conn)
+}
+
+func (a *AuthWithRoles) GetRemoteCluster(clusterName string) (services.RemoteCluster, error) {
+	if err := a.action(defaults.Namespace, services.KindRemoteCluster, services.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetRemoteCluster(clusterName)
+}
+
+func (a *AuthWithRoles) GetRemoteClusters() ([]services.RemoteCluster, error) {
+	if err := a.action(defaults.Namespace, services.KindRemoteCluster, services.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetRemoteClusters()
+}
+
+func (a *AuthWithRoles) DeleteRemoteCluster(clusterName string) error {
+	if err := a.action(defaults.Namespace, services.KindRemoteCluster, services.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteRemoteCluster(clusterName)
+}
+
+func (a *AuthWithRoles) DeleteAllRemoteClusters() error {
+	if err := a.action(defaults.Namespace, services.KindRemoteCluster, services.VerbList); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindRemoteCluster, services.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteAllRemoteClusters()
+}
+
 func (a *AuthWithRoles) Close() error {
 	return a.authServer.Close()
 }

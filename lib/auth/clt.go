@@ -686,6 +686,67 @@ func (c *Client) GetUserLoginAttempts(user string) ([]services.LoginAttempt, err
 	panic("not implemented")
 }
 
+// GetRemoteClusters returns a list of remote clusters
+func (c *Client) GetRemoteClusters() ([]services.RemoteCluster, error) {
+	out, err := c.Get(c.Endpoint("remoteclusters"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var items []json.RawMessage
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	conns := make([]services.RemoteCluster, len(items))
+	for i, raw := range items {
+		conn, err := services.UnmarshalRemoteCluster(raw)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		conns[i] = conn
+	}
+	return conns, nil
+}
+
+// GetRemoteCluster returns a remote cluster by name
+func (c *Client) GetRemoteCluster(clusterName string) (services.RemoteCluster, error) {
+	if clusterName == "" {
+		return nil, trace.BadParameter("missing cluster name")
+	}
+	out, err := c.Get(c.Endpoint("remoteclusters", clusterName), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return services.UnmarshalRemoteCluster(out.Bytes())
+}
+
+// DeleteRemoteCluster deletes remote cluster by name
+func (c *Client) DeleteRemoteCluster(clusterName string) error {
+	if clusterName == "" {
+		return trace.BadParameter("missing parameter cluster name")
+	}
+	_, err := c.Delete(c.Endpoint("remoteclusters", clusterName))
+	return trace.Wrap(err)
+}
+
+// DeleteAllRemoteClusters deletes all remote clusters
+func (c *Client) DeleteAllRemoteClusters() error {
+	_, err := c.Delete(c.Endpoint("remoteclusters"))
+	return trace.Wrap(err)
+}
+
+// CreateRemoteCluster creates remote cluster resource
+func (c *Client) CreateRemoteCluster(rc services.RemoteCluster) error {
+	data, err := services.MarshalRemoteCluster(rc)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	args := &createRemoteClusterRawReq{
+		RemoteCluster: data,
+	}
+	_, err = c.PostJSON(c.Endpoint("remoteclusters"), args)
+	return trace.Wrap(err)
+}
+
 // UpsertAuthServer is used by auth servers to report their presence
 // to other auth servers in form of hearbeat expiring after ttl period.
 func (c *Client) UpsertAuthServer(s services.Server) error {

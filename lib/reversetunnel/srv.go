@@ -219,25 +219,63 @@ func NewServer(cfg Config) (Server, error) {
 	srv.hostCertChecker = ssh.CertChecker{IsAuthority: srv.isHostAuthority}
 	srv.userCertChecker = ssh.CertChecker{IsAuthority: srv.isUserAuthority}
 	srv.srv = s
-	go srv.periodicFetchClusterPeers()
+	go srv.periodicFunctions()
 	return srv, nil
 }
 
-func (s *server) periodicFetchClusterPeers() {
+func remoteClustersMap(rc []services.RemoteCluster) map[string]services.RemoteCluster {
+	out := make(map[string]services.RemoteCluster)
+	for i := range rc {
+		out[rc[i].GetName()] = rc[i]
+	}
+	return out
+}
+
+// disconnectClusters disconnects reverse tunnel connections from remote clusters
+// that were deleted from the the local cluster side and cleans up in memory objects.
+// In this case all local trust has been deleted, so all the tunnel connections have to be dropped.
+func (s *server) disconnectClusters() error {
+	connectedRemoteClusters := s.getRemoteClusters()
+	if len(connectedRemoteClusters) == 0 {
+		return nil
+	}
+	remoteClusters, err := s.localAuthClient.GetRemoteClusters()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	remoteMap := remoteClustersMap(remoteClusters)
+	for _, cluster := range connectedRemoteClusters {
+		if _, ok := remoteMap[cluster.GetName()]; !ok {
+			s.Infof("Remote cluster %q has been deleted. Disconnecting it from the proxy.", cluster.GetName())
+			s.RemoveSite(cluster.GetName())
+			err := cluster.Close()
+			if err != nil {
+				s.Debugf("Failure closing cluster %q: %v.", cluster.GetName(), err)
+			}
+		}
+	}
+	return nil
+}
+
+func (s *server) periodicFunctions() {
 	ticker := time.NewTicker(defaults.ReverseTunnelAgentHeartbeatPeriod)
 	defer ticker.Stop()
 	if err := s.fetchClusterPeers(); err != nil {
-		s.Warningf("failed to fetch cluster peers: %v", err)
+		s.Warningf("Failed to fetch cluster peers: %v.", err)
 	}
 	for {
 		select {
 		case <-s.ctx.Done():
-			s.Debugf("closing")
+			s.Debugf("Closing.")
 			return
 		case <-ticker.C:
 			err := s.fetchClusterPeers()
 			if err != nil {
-				s.Warningf("failed to fetch cluster peers: %v", err)
+				s.Warningf("Failed to fetch cluster peers: %v.", err)
+			}
+			err = s.disconnectClusters()
+			if err != nil {
+				s.Warningf("Failed to disconnect clusters: %v.", err)
 			}
 		}
 	}
@@ -502,16 +540,16 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 		authDomain, ok := cert.Extensions[utils.CertExtensionAuthority]
 		if !ok || authDomain == "" {
 			err := trace.BadParameter("missing authority domainName parameter")
-			logger.Warningf("failed authenticate host, err: %v", err)
+			logger.Warningf("Failed to authenticate host, err: %v.", err)
 			return nil, err
 		}
 		err := s.hostCertChecker.CheckHostKey(conn.User(), conn.RemoteAddr(), key)
 		if err != nil {
-			logger.Warningf("failed authenticate host, err: %v", err)
+			logger.Warningf("Failed to authenticate host, err: %v.", err)
 			return nil, trace.Wrap(err)
 		}
 		if err := s.hostCertChecker.CheckCert(conn.User(), cert); err != nil {
-			logger.Warningf("failed to authenticate host err: %v", err)
+			logger.Warningf("Failed to authenticate host err: %v.", err)
 			return nil, trace.Wrap(err)
 		}
 		// this fixes possible injection attack
@@ -519,7 +557,7 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 		// pose as another. so we have to check that authority
 		// matches by some other way (in absence of x509 chains)
 		if err := s.checkTrustedKey(services.HostCA, authDomain, cert.SignatureKey); err != nil {
-			logger.Warningf("this claims to be signed as authDomain %v, but no matching signing keys found")
+			logger.Warningf("This client claims to be signed as cluster %q, but no matching signing keys found", authDomain)
 			return nil, trace.Wrap(err)
 		}
 		return &ssh.Permissions{
@@ -532,12 +570,12 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 	case ssh.UserCert:
 		_, err := s.userCertChecker.Authenticate(conn, key)
 		if err != nil {
-			logger.Warningf("failed to authenticate user, err: %v", err)
+			logger.Warningf("Failed to authenticate user, err: %v.", err)
 			return nil, err
 		}
 
 		if err := s.userCertChecker.CheckCert(conn.User(), cert); err != nil {
-			logger.Warningf("failed to authenticate user err: %v", err)
+			logger.Warningf("Failed to authenticate user err: %v.", err)
 			return nil, trace.Wrap(err)
 		}
 
@@ -555,7 +593,7 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 func (s *server) upsertSite(conn net.Conn, sshConn *ssh.ServerConn) (*remoteSite, *remoteConn, error) {
 	domainName := sshConn.Permissions.Extensions[extAuthority]
 	if strings.TrimSpace(domainName) == "" {
-		return nil, nil, trace.BadParameter("Cannot create reverse tunnel: empty domain name")
+		return nil, nil, trace.BadParameter("cannot create reverse tunnel: empty cluster name")
 	}
 
 	s.Lock()
@@ -584,7 +622,7 @@ func (s *server) upsertSite(conn net.Conn, sshConn *ssh.ServerConn) (*remoteSite
 		}
 		s.remoteSites = append(s.remoteSites, site)
 	}
-	site.Infof("connection <- %v, clusters: %d", conn.RemoteAddr(), len(s.remoteSites))
+	site.Infof("Connection <- %v, clusters: %d.", conn.RemoteAddr(), len(s.remoteSites))
 	// treat first connection as a registered heartbeat,
 	// otherwise the connection information will appear after initial
 	// heartbeat delay
@@ -611,6 +649,14 @@ func (s *server) GetSites() []RemoteSite {
 			out = append(out, cluster)
 		}
 	}
+	return out
+}
+
+func (s *server) getRemoteClusters() []*remoteSite {
+	s.RLock()
+	defer s.RUnlock()
+	out := make([]*remoteSite, len(s.remoteSites))
+	copy(out, s.remoteSites)
 	return out
 }
 
@@ -726,6 +772,7 @@ func newRemoteSite(srv *server, domainName string) (*remoteSite, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	closeContext, cancel := context.WithCancel(srv.ctx)
 	remoteSite := &remoteSite{
 		srv:        srv,
 		domainName: domainName,
@@ -736,8 +783,9 @@ func newRemoteSite(srv *server, domainName string) (*remoteSite, error) {
 				"cluster": domainName,
 			},
 		}),
-		ctx:   srv.ctx,
-		clock: srv.Clock,
+		ctx:    closeContext,
+		cancel: cancel,
+		clock:  srv.Clock,
 	}
 
 	// transport uses connection do dial out to the remote address
