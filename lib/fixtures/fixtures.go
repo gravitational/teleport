@@ -29,6 +29,11 @@ func ExpectAccessDenied(c *check.C, err error) {
 	c.Assert(trace.IsAccessDenied(err), check.Equals, true, check.Commentf("expected AccessDenied, got %T %#v at %v", err, err, string(debug.Stack())))
 }
 
+// ExpectAlreadyExists expects already exists error
+func ExpectAlreadyExists(c *check.C, err error) {
+	c.Assert(trace.IsAlreadyExists(err), check.Equals, true, check.Commentf("expected AlreadyExists, got %T %#v at %v", err, err, string(debug.Stack())))
+}
+
 // DeepCompare uses gocheck DeepEquals but provides nice diff if things are not equal
 func DeepCompare(c *check.C, a, b interface{}) {
 	d := &spew.ConfigState{Indent: " ", DisableMethods: true, DisablePointerMethods: true, DisablePointerAddresses: true}

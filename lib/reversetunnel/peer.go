@@ -98,7 +98,7 @@ func (p *clusterPeers) String() string {
 func (p *clusterPeers) GetStatus() string {
 	peer, err := p.pickPeer()
 	if err != nil {
-		return RemoteSiteStatusOffline
+		return teleport.RemoteClusterStatusOffline
 	}
 	return peer.GetStatus()
 }
@@ -165,9 +165,9 @@ func (s *clusterPeer) String() string {
 func (s *clusterPeer) GetStatus() string {
 	diff := time.Now().Sub(s.connInfo.GetLastHeartbeat())
 	if diff > defaults.ReverseTunnelOfflineThreshold {
-		return RemoteSiteStatusOffline
+		return teleport.RemoteClusterStatusOffline
 	}
-	return RemoteSiteStatusOnline
+	return teleport.RemoteClusterStatusOnline
 }
 
 func (s *clusterPeer) GetName() string {
@@ -183,4 +183,9 @@ func (s *clusterPeer) GetLastConnected() time.Time {
 // reverse proxy tunnel.
 func (s *clusterPeer) Dial(from, to net.Addr) (conn net.Conn, err error) {
 	return nil, trace.ConnectionProblem(nil, "unable to dial, this proxy %v has not been discovered yet, try again later", s)
+}
+
+// Close closes cluster peer connections
+func (s *clusterPeer) Close() error {
+	return nil
 }

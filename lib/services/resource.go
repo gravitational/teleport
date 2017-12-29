@@ -149,6 +149,10 @@ const (
 	// KindTunnelConection specifies connection of a reverse tunnel to proxy
 	KindTunnelConnection = "tunnel_connection"
 
+	// KindRemoteCluster represents remote cluster connected via reverse tunnel
+	// to proxy
+	KindRemoteCluster = "remote_cluster"
+
 	// V3 is the third version of resources.
 	V3 = "v3"
 
@@ -402,6 +406,8 @@ func ParseShortcut(in string) (string, error) {
 		return KindTrustedCluster, nil
 	case "cluster_authentication_preferences", "cap":
 		return KindClusterAuthPreference, nil
+	case "remote_cluster", "remote_clusters", "rc", "rcs":
+		return KindRemoteCluster, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %v", in)
 }

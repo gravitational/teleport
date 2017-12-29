@@ -280,6 +280,11 @@ func (d *ResourceCommand) Delete(client auth.ClientI) (err error) {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("trusted cluster %q has been deleted\n", d.ref.Name)
+	case services.KindRemoteCluster:
+		if err = client.DeleteRemoteCluster(d.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("remote cluster %q has been deleted\n", d.ref.Name)
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", d.ref.Kind)
 	}
@@ -406,6 +411,19 @@ func (g *ResourceCommand) getCollection(client auth.ClientI) (c ResourceCollecti
 			return nil, trace.Wrap(err)
 		}
 		return &trustedClusterCollection{trustedClusters: []services.TrustedCluster{trustedCluster}}, nil
+	case services.KindRemoteCluster:
+		if g.ref.Name == "" {
+			remoteClusters, err := client.GetRemoteClusters()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &remoteClusterCollection{remoteClusters: remoteClusters}, nil
+		}
+		remoteCluster, err := client.GetRemoteCluster(g.ref.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &remoteClusterCollection{remoteClusters: []services.RemoteCluster{remoteCluster}}, nil
 	}
 	return nil, trace.BadParameter("'%v' is not supported", g.ref.Kind)
 }

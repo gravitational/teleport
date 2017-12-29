@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 // TLSServerConfig is a configuration for TLS server
@@ -151,7 +150,6 @@ func (a *AuthMiddleware) GetUser(r *http.Request) (interface{}, error) {
 	// for connections without auth, but this is not active use-case
 	// therefore it is not allowed to reduce scope
 	if len(peers) == 0 {
-		log.WithFields(logrus.Fields{"type": "builtin", "roles": teleport.RoleNop}).Debug("Authenticated user.")
 		return BuiltinRole{
 			GetClusterConfig: a.AuthServer.getCachedClusterConfig,
 			Role:             teleport.RoleNop,
@@ -186,14 +184,12 @@ func (a *AuthMiddleware) GetUser(r *http.Request) (interface{}, error) {
 		// to get unrestricted access to the local cluster
 		systemRole := findSystemRole(identity.Groups)
 		if systemRole != nil {
-			log.WithFields(logrus.Fields{"type": "remote-builtin", "roles": identity.Groups, "cluster": certClusterName}).Debug("Authenticated user.")
 			return RemoteBuiltinRole{
 				Role:        *systemRole,
 				Username:    identity.Username,
 				ClusterName: certClusterName,
 			}, nil
 		}
-		log.WithFields(logrus.Fields{"user": identity.Username, "type": "remote", "roles": identity.Groups, "cluster": certClusterName}).Debug("Authenticated user.")
 		return RemoteUser{
 			ClusterName: certClusterName,
 			Username:    identity.Username,
@@ -207,14 +203,12 @@ func (a *AuthMiddleware) GetUser(r *http.Request) (interface{}, error) {
 	// in case if the system role is present, assume this is a service
 	// agent, e.g. Proxy, connecting to the cluster
 	if systemRole != nil {
-		log.WithFields(logrus.Fields{"type": "builtin", "roles": identity.Groups, "cluster": certClusterName}).Debug("Authenticated user.")
 		return BuiltinRole{
 			GetClusterConfig: a.AuthServer.getCachedClusterConfig,
 			Role:             *systemRole,
 			Username:         identity.Username,
 		}, nil
 	}
-	log.WithFields(logrus.Fields{"user": identity.Username, "type": "local", "cluster": certClusterName}).Debug("Authenticated user.")
 	// otherwise assume that is a local role, no need to pass the roles
 	// as it will be fetched from the local database
 	return LocalUser{

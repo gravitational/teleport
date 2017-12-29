@@ -240,10 +240,16 @@ type matchAgentFn func(a *Agent) bool
 func (m *AgentPool) closeAgentsIf(matchKey *agentKey, matchAgent matchAgentFn) {
 	if matchKey != nil {
 		m.agents[*matchKey] = filterAndClose(m.agents[*matchKey], matchAgent)
+		if len(m.agents[*matchKey]) == 0 {
+			delete(m.agents, *matchKey)
+		}
 		return
 	}
 	for key, agents := range m.agents {
 		m.agents[key] = filterAndClose(agents, matchAgent)
+		if len(m.agents[key]) == 0 {
+			delete(m.agents, key)
+		}
 	}
 }
 
@@ -252,7 +258,7 @@ func filterAndClose(agents []*Agent, matchAgent matchAgentFn) []*Agent {
 	for i := range agents {
 		agent := agents[i]
 		if matchAgent(agent) {
-			agent.Debugf("pool is closing agent")
+			agent.Debugf("Pool is closing agent.")
 			agent.Close()
 		} else {
 			filtered = append(filtered, agent)
@@ -278,7 +284,7 @@ func (m *AgentPool) pollAndSyncAgents() {
 			m.withLock(func() {
 				m.closeAgents(nil)
 			})
-			m.Debugf("closing")
+			m.Debugf("Closing.")
 			return
 		case <-ticker.C:
 			err := m.FetchAndSyncAgents()
@@ -305,7 +311,7 @@ func (m *AgentPool) addAgent(key agentKey, discoverProxies []services.Server) er
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	m.Debugf("adding %v", agent)
+	m.Debugf("Adding %v.", agent)
 	// start the agent in a goroutine. no need to handle Start() errors: Start() will be
 	// retrying itself until the agent is closed
 	go agent.Start()
@@ -336,7 +342,7 @@ func (m *AgentPool) reportStats() {
 			gauge.Set(float64(count))
 		}
 		if logReport {
-			m.WithFields(log.Fields{"target": key.domainName, "stats": countPerState}).Infof("outbound tunnel stats")
+			m.WithFields(log.Fields{"target": key.domainName, "stats": countPerState}).Info("Outbound tunnel stats.")
 		}
 	}
 }

@@ -22,11 +22,13 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
@@ -483,4 +485,50 @@ func formatTeamsToLogins(mappings []services.TeamMapping) string {
 			m.Organization, m.Team, strings.Join(m.Logins, ", ")))
 	}
 	return strings.Join(result, ", ")
+}
+
+type remoteClusterCollection struct {
+	remoteClusters []services.RemoteCluster
+}
+
+func (c *remoteClusterCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Name", "Status", "Last Heartbeat"})
+	for _, cluster := range c.remoteClusters {
+		lastHeartbeat := cluster.GetLastHeartbeat()
+		t.AddRow([]string{cluster.GetName(), cluster.GetConnectionStatus(), formatLastHeartbeat(lastHeartbeat)})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+func formatLastHeartbeat(t time.Time) string {
+	if t.IsZero() {
+		return "not available"
+	}
+	return utils.HumanTimeFormat(t)
+}
+
+func (c *remoteClusterCollection) writeJSON(w io.Writer) error {
+	data, err := json.MarshalIndent(c.toMarshal(), "", "    ")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = w.Write(data)
+	return trace.Wrap(err)
+}
+
+func (c *remoteClusterCollection) toMarshal() interface{} {
+	if len(c.remoteClusters) == 1 {
+		return c.remoteClusters[0]
+	}
+	return c.remoteClusters
+}
+
+func (c *remoteClusterCollection) writeYAML(w io.Writer) error {
+	data, err := yaml.Marshal(c.toMarshal())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = w.Write(data)
+	return trace.Wrap(err)
 }

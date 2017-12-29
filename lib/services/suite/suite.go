@@ -693,3 +693,48 @@ func (s *ServicesTestSuite) GithubConnectorCRUD(c *C) {
 	_, err = s.WebS.GetGithubConnector(connector.GetName(), true)
 	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("expected not found, got %T", err))
 }
+
+func (s *ServicesTestSuite) RemoteClustersCRUD(c *C) {
+	clusterName := "example.com"
+	out, err := s.PresenceS.GetRemoteClusters()
+	c.Assert(err, IsNil)
+	c.Assert(len(out), Equals, 0)
+
+	rc, err := services.NewRemoteCluster(clusterName)
+	c.Assert(err, IsNil)
+
+	rc.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
+
+	err = s.PresenceS.CreateRemoteCluster(rc)
+	c.Assert(err, IsNil)
+
+	err = s.PresenceS.CreateRemoteCluster(rc)
+	fixtures.ExpectAlreadyExists(c, err)
+
+	out, err = s.PresenceS.GetRemoteClusters()
+	c.Assert(err, IsNil)
+	c.Assert(len(out), Equals, 1)
+	fixtures.DeepCompare(c, out[0], rc)
+
+	err = s.PresenceS.DeleteAllRemoteClusters()
+	c.Assert(err, IsNil)
+
+	out, err = s.PresenceS.GetRemoteClusters()
+	c.Assert(err, IsNil)
+	c.Assert(len(out), Equals, 0)
+
+	// test delete individual connection
+	err = s.PresenceS.CreateRemoteCluster(rc)
+	c.Assert(err, IsNil)
+
+	out, err = s.PresenceS.GetRemoteClusters()
+	c.Assert(err, IsNil)
+	c.Assert(len(out), Equals, 1)
+	fixtures.DeepCompare(c, out[0], rc)
+
+	err = s.PresenceS.DeleteRemoteCluster(clusterName)
+	c.Assert(err, IsNil)
+
+	err = s.PresenceS.DeleteRemoteCluster(clusterName)
+	fixtures.ExpectNotFound(c, err)
+}

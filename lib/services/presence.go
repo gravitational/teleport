@@ -113,6 +113,21 @@ type Presence interface {
 
 	// DeleteAllTunnelConnections deletes all tunnel connections for cluster
 	DeleteAllTunnelConnections() error
+
+	// CreateRemoteCluster creates a remote cluster
+	CreateRemoteCluster(RemoteCluster) error
+
+	// GetRemoteClusters returns a list of remote clusters
+	GetRemoteClusters() ([]RemoteCluster, error)
+
+	// GetRemoteCluster returns a remote cluster by name
+	GetRemoteCluster(clusterName string) (RemoteCluster, error)
+
+	// DeleteRemoteCluster deletes remote cluster by name
+	DeleteRemoteCluster(clusterName string) error
+
+	// DeleteAllRemoteClusters deletes all remote clusters
+	DeleteAllRemoteClusters() error
 }
 
 // NewNamespace returns new namespace
