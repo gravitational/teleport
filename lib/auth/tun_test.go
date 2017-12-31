@@ -73,7 +73,10 @@ func (s *TunSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	s.alog, err = events.NewAuditLog(events.AuditLogConfig{
-		DataDir: s.dir, RecordSessions: true})
+		DataDir:        s.dir,
+		RecordSessions: true,
+		ServerID:       "sid1",
+	})
 	c.Assert(err, IsNil)
 
 	s.sessionServer, err = session.New(s.bk)

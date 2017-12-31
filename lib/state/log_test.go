@@ -60,6 +60,7 @@ func (s *CacheLogSuite) newSlice(data string) *events.SessionSlice {
 		Namespace: "ns",
 		SessionID: "s1",
 		Chunks:    []*events.SessionChunk{chunk},
+		Version:   events.V2,
 	}
 }
 

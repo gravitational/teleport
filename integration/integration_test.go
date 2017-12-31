@@ -28,6 +28,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -155,9 +156,9 @@ func (s *IntSuite) newTeleportWithConfig(c *check.C, logins []string, instanceSe
 	return t
 }
 
-// TestAudit creates a live session, records a bunch of data through it (>5MB)
+// TestAuditOn creates a live session, records a bunch of data through it
 // and then reads it back and compares against simulated reality.
-func (s *IntSuite) TestAudit(c *check.C) {
+func (s *IntSuite) TestAuditOn(c *check.C) {
 	var tests = []struct {
 		inRecordLocation string
 		inForwardAgent   bool
@@ -279,16 +280,6 @@ func (s *IntSuite) TestAudit(c *check.C) {
 		// make sure it's us who joined! :)
 		c.Assert(session.Parties[0].User, check.Equals, s.me.Username)
 
-		// lets add something to the session stream:
-		// write 1MB chunk
-		bigChunk := make([]byte, 1024*1024)
-		err = site.PostSessionChunk(defaults.Namespace, session.ID, bytes.NewReader(bigChunk))
-		c.Assert(err, check.Equals, nil)
-
-		// then add small prefix:
-		err = site.PostSessionChunk(defaults.Namespace, session.ID, bytes.NewBufferString("\nsuffix"))
-		c.Assert(err, check.Equals, nil)
-
 		// lets type "echo hi" followed by "enter" and then "exit" + "enter":
 		myTerm.Type("\aecho hi\n\r\aexit\n\r\a")
 
@@ -297,15 +288,17 @@ func (s *IntSuite) TestAudit(c *check.C) {
 
 		// read back the entire session (we have to try several times until we get back
 		// everything because the session is closing)
-		const expectedLen = 1048600
 		var sessionStream []byte
-		for i := 0; len(sessionStream) < expectedLen; i++ {
+		for i := 0; i < 5; i++ {
 			sessionStream, err = site.GetSessionChunk(defaults.Namespace, session.ID, 0, events.MaxChunkBytes)
 			c.Assert(err, check.IsNil)
+			if strings.Contains(string(sessionStream), "exit") {
+				break
+			}
 			time.Sleep(time.Millisecond * 250)
 			if i > 10 {
 				// session stream keeps coming back short
-				c.Fatalf("stream is too short: <%d", expectedLen)
+				c.Fatal("stream is not getting data")
 			}
 		}
 
@@ -316,11 +309,10 @@ func (s *IntSuite) TestAudit(c *check.C) {
 		// hi
 		// edsger ~: exit
 		// logout
-		// <1MB of zeros here>
-		// suffix
 		//
-		c.Assert(strings.Contains(string(sessionStream), "echo hi"), check.Equals, true)
-		c.Assert(strings.Contains(string(sessionStream), "\nsuffix"), check.Equals, true)
+		comment := check.Commentf("%q", string(sessionStream))
+		c.Assert(strings.Contains(string(sessionStream), "echo hi"), check.Equals, true, comment)
+		c.Assert(strings.Contains(string(sessionStream), "exit"), check.Equals, true, comment)
 
 		// now lets look at session events:
 		history, err := site.GetSessionEvents(defaults.Namespace, session.ID, 0)
@@ -364,18 +356,14 @@ func (s *IntSuite) TestAudit(c *check.C) {
 		}
 		c.Assert(start.GetString(events.SessionServerID), check.Equals, expectedServerID)
 
-		// find "\nsuffix" write and find our huge 1MB chunk
-		prefixFound, hugeChunkFound := false, false
+		// make sure data is recorded properly
+		out := &bytes.Buffer{}
 		for _, e := range history {
-			if getChunk(e, 10) == "\nsuffix" {
-				prefixFound = true
-			}
-			if e.GetInt("bytes") == 1048576 {
-				hugeChunkFound = true
-			}
+			out.WriteString(getChunk(e, 1000))
 		}
-		c.Assert(prefixFound, check.Equals, true)
-		c.Assert(hugeChunkFound, check.Equals, true)
+		recorded := replaceNewlines(out.String())
+		c.Assert(recorded, check.Matches, ".*exit.*")
+		c.Assert(recorded, check.Matches, ".*echo hi.*")
 
 		// there should alwys be 'session.end' event
 		end := findByType(events.SessionEndEvent)
@@ -394,6 +382,10 @@ func (s *IntSuite) TestAudit(c *check.C) {
 			c.Assert(e.GetTime("time").IsZero(), check.Equals, false)
 		}
 	}
+}
+
+func replaceNewlines(in string) string {
+	return regexp.MustCompile(`\r?\n`).ReplaceAllString(in, `\n`)
 }
 
 // TestInteroperability checks if Teleport and OpenSSH behave in the same way

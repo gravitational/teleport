@@ -19,6 +19,7 @@ package state
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"io/ioutil"
 	"time"
@@ -205,6 +206,8 @@ type CachingAuditLog struct {
 	throttleStart time.Time
 	waitCtx       context.Context
 	waitCtxCancel context.CancelFunc
+	lastChunk     *events.SessionChunk
+	eventIndex    int64
 }
 
 func (ll *CachingAuditLog) add(chunks []*events.SessionChunk) {
@@ -298,6 +301,14 @@ type flushOpts struct {
 	noRetry bool
 }
 
+func diff(before, after time.Time) int64 {
+	d := int64(after.Sub(before) / time.Millisecond)
+	if d < 0 {
+		return 0
+	}
+	return d
+}
+
 func (ll *CachingAuditLog) flush(opts flushOpts) {
 	if len(ll.chunks) == 0 {
 		return
@@ -308,10 +319,24 @@ func (ll *CachingAuditLog) flush(opts flushOpts) {
 		}
 	}
 	chunks := ll.reset()
+	for i := range chunks {
+		chunk := chunks[i]
+		chunk.EventIndex = ll.eventIndex
+		ll.eventIndex += 1
+		if chunk.EventType == events.SessionPrintEvent {
+			if ll.lastChunk != nil {
+				chunk.Offset = ll.lastChunk.Offset + int64(len(ll.lastChunk.Data))
+				chunk.Delay = diff(time.Unix(0, ll.lastChunk.Time), time.Unix(0, chunk.Time)) + ll.lastChunk.Delay
+				chunk.ChunkIndex = ll.lastChunk.ChunkIndex + 1
+			}
+			ll.lastChunk = chunk
+		}
+	}
 	slice := events.SessionSlice{
 		Namespace: ll.Namespace,
 		SessionID: ll.SessionID,
 		Chunks:    chunks,
+		Version:   events.V2,
 	}
 	err := ll.postSlice(slice)
 	if err == nil {
@@ -404,7 +429,18 @@ func (ll *CachingAuditLog) Close() error {
 }
 
 func (ll *CachingAuditLog) EmitAuditEvent(eventType string, fields events.EventFields) error {
-	return ll.Server.EmitAuditEvent(eventType, fields)
+	data, err := json.Marshal(fields)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	chunks := []*events.SessionChunk{
+		{
+			EventType: eventType,
+			Data:      data,
+			Time:      time.Now().UTC().UnixNano(),
+		},
+	}
+	return ll.post(chunks)
 }
 
 func (ll *CachingAuditLog) PostSessionChunk(namespace string, sid session.ID, reader io.Reader) error {
@@ -414,14 +450,18 @@ func (ll *CachingAuditLog) PostSessionChunk(namespace string, sid session.ID, re
 	}
 	chunks := []*events.SessionChunk{
 		{
-			Data: data,
-			Time: time.Now().UTC().UnixNano(),
+			EventType: events.SessionPrintEvent,
+			Data:      data,
+			Time:      time.Now().UTC().UnixNano(),
 		},
 	}
 	return ll.post(chunks)
 }
 
 func (ll *CachingAuditLog) PostSessionSlice(slice events.SessionSlice) error {
+	for i := range slice.Chunks {
+		slice.Chunks[i].EventType = events.SessionPrintEvent
+	}
 	return ll.post(slice.Chunks)
 }
 

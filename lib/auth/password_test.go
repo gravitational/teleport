@@ -106,10 +106,10 @@ func (s *PasswordSuite) TestTiming(c *C) {
 		elapsedNotExists = elapsedNotExists + elapsed
 	}
 
-	// elapsedDifference must be less than 20 ms
+	// elapsedDifference must be less than 40 ms (with some leeway for delays in runtime)
 	elapsedDifference := elapsedExists/10 - elapsedNotExists/10
-	comment := Commentf("elapsed difference (%v) greater than 30 ms", elapsedDifference)
-	c.Assert(elapsedDifference.Seconds() < 0.030, Equals, true, comment)
+	comment := Commentf("elapsed difference (%v) greater than 40 ms", elapsedDifference)
+	c.Assert(elapsedDifference.Seconds() < 0.040, Equals, true, comment)
 }
 
 func (s *PasswordSuite) TestChangePassword(c *C) {

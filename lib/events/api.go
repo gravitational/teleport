@@ -35,6 +35,9 @@ const (
 	RemoteAddr  = "addr.remote" // client (user's) address
 	EventCursor = "id"          // event ID (used as cursor value for enumeration, not stored)
 
+	// EventIndex is an event index as received from the logging server
+	EventIndex = "ei"
+
 	// EventNamespace is a namespace of the session event
 	EventNamespace = "namespace"
 
@@ -120,6 +123,14 @@ const (
 	// MaxChunkBytes defines the maximum size of a session stream chunk that
 	// can be requested via AuditLog.GetSessionChunk(). Set to 5MB
 	MaxChunkBytes = 1024 * 1024 * 5
+)
+
+const (
+	// V1 is the V1 version of slice chunks API,
+	// it is 0 because it was not defined before
+	V1 = 0
+	// V2 is the V2 version of slice chunks  API
+	V2 = 2
 )
 
 // IAuditLog is the primary (and the only external-facing) interface for AuditLogger.

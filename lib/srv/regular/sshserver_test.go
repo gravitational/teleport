@@ -473,6 +473,8 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		utils.NetAddr{},
 		SetProxyMode(reverseTunnelServer),
 		SetSessionServer(s.proxyClient),
+		SetAuditLog(s.nodeClient),
+		SetNamespace(defaults.Namespace),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(proxy.Start(), IsNil)
@@ -552,7 +554,10 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 			},
 		),
 		SetSessionServer(s.nodeClient),
+		SetAuditLog(s.nodeClient),
+		SetNamespace(defaults.Namespace),
 	)
+	c.Assert(err, IsNil)
 	srv2.uuid = bobAddr
 	c.Assert(err, IsNil)
 	c.Assert(srv2.Start(), IsNil)
@@ -638,6 +643,8 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		utils.NetAddr{},
 		SetProxyMode(reverseTunnelServer),
 		SetSessionServer(s.proxyClient),
+		SetAuditLog(s.nodeClient),
+		SetNamespace(defaults.Namespace),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(proxy.Start(), IsNil)
@@ -734,6 +741,8 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 		utils.NetAddr{},
 		SetProxyMode(reverseTunnelServer),
 		SetSessionServer(s.proxyClient),
+		SetAuditLog(s.nodeClient),
+		SetNamespace(defaults.Namespace),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(proxy.Start(), IsNil)
@@ -835,6 +844,8 @@ func (s *SrvSuite) TestLimiter(c *C) {
 		SetLimiter(limiter),
 		SetShell("/bin/sh"),
 		SetSessionServer(s.nodeClient),
+		SetAuditLog(s.nodeClient),
+		SetNamespace(defaults.Namespace),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(srv.Start(), IsNil)

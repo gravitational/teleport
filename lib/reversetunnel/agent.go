@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"runtime/debug"
 	"sync"
 	"time"
 
@@ -204,7 +203,6 @@ func (a *Agent) getState() string {
 
 // Close signals to close all connections and operations
 func (a *Agent) Close() error {
-	a.Info(string(debug.Stack()))
 	a.cancel()
 	return nil
 }

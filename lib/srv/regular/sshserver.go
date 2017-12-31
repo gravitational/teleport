@@ -294,6 +294,15 @@ func New(addr utils.NetAddr,
 		}
 	}
 
+	// TODO(klizhentas): replace function arguments with struct
+	if s.alog == nil {
+		return nil, trace.BadParameter("setup valid AuditLog parameter using SetAuditLog")
+	}
+
+	if s.namespace == "" {
+		return nil, trace.BadParameter("setup valid namespace parameter using SetNamespace")
+	}
+
 	var component string
 	if s.proxyMode {
 		component = teleport.ComponentProxy

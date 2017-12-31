@@ -390,6 +390,7 @@ func (process *TeleportProcess) initAuthService(authority sshca.Authority) error
 		auditConfig := events.AuditLogConfig{
 			DataDir:        filepath.Join(cfg.DataDir, "log"),
 			RecordSessions: recordSessions,
+			ServerID:       cfg.HostUUID,
 		}
 		if runtime.GOOS == teleport.LinuxOS {
 			// if the user member of adm linux group,
@@ -874,6 +875,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		regular.SetCiphers(cfg.Ciphers),
 		regular.SetKEXAlgorithms(cfg.KEXAlgorithms),
 		regular.SetMACAlgorithms(cfg.MACAlgorithms),
+		regular.SetNamespace(defaults.Namespace),
 	)
 	if err != nil {
 		return trace.Wrap(err)
