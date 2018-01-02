@@ -58,6 +58,15 @@ Vagrant.configure(2) do |config|
       v.memory = 512
   end if RUBY_PLATFORM=~/darwin/
 
+  # vmware_fusion:
+  config.vm.provider "vmware_fusion" do |v|
+      config.vm.box = "bento/debian-8"
+      config.vm.box_check_update = false
+      config.vm.synced_folder "../", "/home/vagrant/teleport"
+      config.vm.synced_folder "opt", "/opt"
+      v.cpus = 1
+      v.memory = 512
+  end if RUBY_PLATFORM=~/darwin/
 end
 
 
