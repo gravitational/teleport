@@ -383,13 +383,17 @@ func (c *SessionContext) Close() error {
 }
 
 // newSessionCache returns new instance of the session cache
-func newSessionCache(proxyClient auth.ClientI, clusterName string, servers []utils.NetAddr) (*sessionCache, error) {
+func newSessionCache(proxyClient auth.ClientI, servers []utils.NetAddr) (*sessionCache, error) {
+	clusterName, err := proxyClient.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	m, err := ttlmap.New(1024, ttlmap.CallOnExpire(closeContext))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	cache := &sessionCache{
-		clusterName: clusterName,
+		clusterName: clusterName.GetClusterName(),
 		proxyClient: proxyClient,
 		contexts:    m,
 		authServers: servers,
