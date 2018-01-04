@@ -601,3 +601,75 @@ func (s *TunSuite) TestSync(c *C) {
 	c.Assert(sorted[2].Addr, Equals, "2")
 	c.Assert(sorted[3].Addr, Equals, "3")
 }
+
+// TestEnforceSecondFactor tests that second factor is enforced on the auth server side
+// not just proxy side
+func (s *TunSuite) TestEnforceSecondFactor(c *C) {
+	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+		Type:         "local",
+		SecondFactor: "otp",
+	})
+	c.Assert(err, IsNil)
+	err = s.a.SetClusterAuthPreference(ap)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.a.UpsertCertAuthority(
+		suite.NewTestCA(services.UserCA, "localhost")), IsNil)
+
+	user := "foobar"
+	password := "bazqux"
+	mappings := []string{"admin", "db"}
+
+	token, err := s.a.CreateSignupToken(services.UserV1{Name: user, AllowedLogins: mappings})
+	c.Assert(err, IsNil)
+
+	authMethod, err := NewSignupTokenAuth(token)
+	c.Assert(err, IsNil)
+
+	clt, err := NewTunClient("test",
+		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user, authMethod)
+	c.Assert(err, IsNil)
+	defer clt.Close()
+
+	// check that the usernames are the same
+	userInToken, _, err := clt.GetSignupTokenData(token)
+	c.Assert(err, IsNil)
+	c.Assert(user, Equals, userInToken)
+
+	// get otp token
+	tokenData, err := s.a.Identity.GetSignupToken(token)
+	validToken, err := totp.GenerateCode(tokenData.OTPKey, time.Now())
+	c.Assert(err, IsNil)
+
+	// create a user
+	_, err = clt.CreateUserWithOTP(token, password, validToken)
+	c.Assert(err, IsNil)
+
+	// delete token so we can re-use it without messing with clocks
+	err = s.a.Identity.DeleteUsedTOTPToken(user)
+	c.Assert(err, IsNil)
+
+	// can't authenticate with without second factor
+	authMethod, err = NewWebPasswordWithoutOTPAuth(user, []byte(password))
+	c.Assert(err, IsNil)
+
+	clt, err = NewTunClient("test",
+		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user, authMethod)
+	c.Assert(err, IsNil)
+
+	_, err = clt.SignIn(user, []byte(password))
+	c.Assert(err, NotNil)
+
+	// can authenticate with without second factor
+	authMethod, err = NewWebPasswordAuth(user, []byte(password), validToken)
+	c.Assert(err, IsNil)
+
+	clt, err = NewTunClient("test",
+		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user, authMethod)
+	c.Assert(err, IsNil)
+	defer clt.Close()
+
+	ws, err := clt.SignIn(user, []byte(password))
+	c.Assert(err, IsNil)
+	c.Assert(ws, Not(Equals), "")
+}
