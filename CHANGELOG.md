@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.2.8
+
+Teleport 2.2.8 fixes a security vulnerability that allowed an attacker with
+direct network access to the Auth Server to write a client for the Auth Server
+that could by-pass second factor authentication.
+
+We strongly encourage anyone running Teleport 2.2 to upgrade their Auth Server
+to 2.2.8 to mitigate this issue.
+
+#### Bug Fixes
+
+* Don't allow second factor by-pass. [#1550](https://github.com/gravitational/teleport/pull/1550)
+
 ## 2.2.7
 
 #### Bug fixes
