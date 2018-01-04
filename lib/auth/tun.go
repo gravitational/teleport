@@ -526,7 +526,14 @@ func (s *AuthTunnel) passwordAuth(
 		return perms, nil
 	// user is trying to get in using their password only
 	case AuthWebPasswordWithoutOTP:
-		err := s.authServer.WithUserLock(conn.User(), func() error {
+		ap, err := s.authServer.GetAuthPreference()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if ap.GetSecondFactor() != teleport.OFF {
+			return nil, trace.AccessDenied("missing second factor")
+		}
+		err = s.authServer.WithUserLock(conn.User(), func() error {
 			return s.authServer.CheckPasswordWOToken(conn.User(), ab.Pass)
 		})
 		if err != nil {
