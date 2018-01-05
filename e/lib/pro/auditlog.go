@@ -5,6 +5,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"io"
 	"time"
 
@@ -69,20 +70,32 @@ func NewAuditLog(config AuditLogConfig) (*AuditLog, error) {
 func (l *AuditLog) EmitAuditEvent(eventType string, fields events.EventFields) error {
 	switch eventType {
 	case events.UserLoginEvent:
-		l.Debugf("recoding %q", eventType)
+		l.Debugf("Recoding audit event %q.", eventType)
 		l.Recorder.Record(types.NewUserLoginEvent(
 			l.anonymize(fields.GetString(events.EventUser))))
 	case events.SessionStartEvent:
-		l.Debugf("recoding %q", eventType)
+		l.Debugf("Recoding audit event %q.", eventType)
 		l.Recorder.Record(types.NewServerLoginEvent(
 			fields.GetString(events.SessionServerID)))
 	default:
-		l.Debugf("ignoring event %q", eventType)
+		l.Debugf("Ignoring event %q.", eventType)
 	}
 	return trace.Wrap(l.Inner.EmitAuditEvent(eventType, fields))
 }
 
 func (l *AuditLog) PostSessionSlice(slice events.SessionSlice) error {
+	for _, chunk := range slice.Chunks {
+		if chunk.EventType == events.SessionStartEvent {
+			var fields events.EventFields
+			if err := json.Unmarshal(chunk.Data, &fields); err != nil {
+				log.Warningf("Failed to unmarshal event: %v.", err)
+			} else {
+				l.Debugf("Recoding session event %q.", chunk.EventType)
+				l.Recorder.Record(types.NewServerLoginEvent(
+					fields.GetString(events.SessionServerID)))
+			}
+		}
+	}
 	return trace.Wrap(l.Inner.PostSessionSlice(slice))
 }
 
