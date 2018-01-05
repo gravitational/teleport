@@ -216,6 +216,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		regular.SetProxyMode(revTunServer),
 		regular.SetSessionServer(s.proxyClient),
 		regular.SetAuditLog(s.proxyClient),
+		regular.SetNamespace(defaults.Namespace),
 	)
 	c.Assert(err, IsNil)
 

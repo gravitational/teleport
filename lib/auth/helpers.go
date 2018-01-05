@@ -90,7 +90,10 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 
 	srv.AuditLog, err = events.NewAuditLog(events.AuditLogConfig{
-		DataDir: cfg.Dir, RecordSessions: true})
+		DataDir:        cfg.Dir,
+		RecordSessions: true,
+		ServerID:       cfg.ClusterName,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

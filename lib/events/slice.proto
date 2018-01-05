@@ -6,17 +6,32 @@ import "google/protobuf/empty.proto";
 
 // SessionSlice is a slice of submitted chunks
 message SessionSlice {
+    // Namespace is a session namespace
     string Namespace = 1;
+    // SessionID is a session ID associated with this chunk
     string SessionID = 2;
+    // Chunks is a list of submitted session chunks
     repeated SessionChunk Chunks = 3;
+    // Version specifies session slice version
+    int64 Version = 4;    
 }
 
 // SessionChunk is a chunk to be posted in the context of the session
 message SessionChunk {
     // Time is the occurence of this event
 	int64 Time = 2;
-    // Data is captured data
+    // Data is captured data, contains event fields in case of event, session data otherwise
     bytes Data = 3;
+    // EventType is event type
+    string EventType = 4;        
+    // EventIndex is the event global index
+    int64 EventIndex = 5;    
+    // Index is the autoincremented chunk index
+    int64 ChunkIndex = 6;
+    // Offset is an offset from the previous chunk in bytes
+    int64 Offset = 7;    
+    // Delay is a delay from the previous event in milliseconds
+    int64 Delay = 8;
 }
 
 service AuditLog {
