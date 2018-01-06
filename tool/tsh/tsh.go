@@ -32,6 +32,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -111,7 +112,8 @@ type CLIConf struct {
 	IdentityFileIn string
 	// Compatibility flags, --compat, specifies OpenSSH compatibility flags.
 	Compatibility string
-
+	// CertificateFormat defines the format of the user SSH certificate.
+	CertificateFormat string
 	// IdentityFileOut is an argument to -out flag
 	IdentityFileOut string
 	// IdentityFormat (used for --format flag for 'tsh login') defines which
@@ -155,7 +157,8 @@ func Run(args []string, underTest bool) {
 	app.Flag("cluster", "Specify the cluster to connect").Envar("TELEPORT_SITE").StringVar(&cf.SiteName)
 	app.Flag("ttl", "Minutes to live for a SSH session").Int32Var(&cf.MinsToLive)
 	app.Flag("identity", "Identity file").Short('i').StringVar(&cf.IdentityFileIn)
-	app.Flag("compat", "OpenSSH compatibility flag").StringVar(&cf.Compatibility)
+	app.Flag("compat", "OpenSSH compatibility flag").Hidden().StringVar(&cf.Compatibility)
+	app.Flag("cert-format", "SSH certificate format").StringVar(&cf.CertificateFormat)
 	app.Flag("insecure", "Do not verify server's certificate and host name. Use only in test environments").Default("false").BoolVar(&cf.InsecureSkipVerify)
 	app.Flag("auth", "Specify the type of authentication connector to use.").StringVar(&cf.AuthConnector)
 	app.Flag("namespace", "Namespace of the cluster").Default(defaults.Namespace).Hidden().StringVar(&cf.Namespace)
@@ -593,11 +596,11 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 	}
 
 	// parse compatibility parameter
-	compatibility, err := utils.CheckCompatibilityFlag(cf.Compatibility)
+	certificateFormat, err := parseCertificateCompatibilityFlag(cf.Compatibility, cf.CertificateFormat)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	c.Compatibility = compatibility
+	c.CertificateFormat = certificateFormat
 
 	// copy the authentication connector over
 	c.AuthConnector = cf.AuthConnector
@@ -606,6 +609,23 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 	c.ForwardAgent = cf.ForwardAgent
 
 	return client.NewClient(c)
+}
+
+func parseCertificateCompatibilityFlag(compatibility string, certificateFormat string) (string, error) {
+	switch {
+	// if nothing is passed in, the role will decide
+	case compatibility == "" && certificateFormat == "":
+		return teleport.CertificateFormatUnspecified, nil
+	// supporting the old --compat format for backward compatibility
+	case compatibility != "" && certificateFormat == "":
+		return utils.CheckCertificateFormatFlag(compatibility)
+	// new documented flag --cert-format
+	case compatibility == "" && certificateFormat != "":
+		return utils.CheckCertificateFormatFlag(certificateFormat)
+	// can not use both
+	default:
+		return "", trace.BadParameter("--compat or --cert-format must be specified")
+	}
 }
 
 // refuseArgs helper makes sure that 'args' (list of CLI arguments)

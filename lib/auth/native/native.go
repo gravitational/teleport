@@ -219,10 +219,11 @@ func (n *nauth) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
 		delete(cert.Permissions.Extensions, teleport.CertExtensionPermitPortForwarding)
 	}
 	if len(c.Roles) != 0 {
-		// if we are requesting a certificate with support for older versions of OpenSSH
-		// don't add roles to certificate extensions, due to a bug in <= OpenSSH 7.1
+		// only add roles to the certificate extensions if the standard format was
+		// requested. we allow the option to omit this to support older versions of
+		// OpenSSH due to a bug in <= OpenSSH 7.1
 		// https://bugzilla.mindrot.org/show_bug.cgi?id=2387
-		if c.Compatibility != teleport.CompatibilityOldSSH {
+		if c.CertificateFormat == teleport.CertificateFormatStandard {
 			roles, err := services.MarshalCertRoles(c.Roles)
 			if err != nil {
 				return nil, trace.Wrap(err)

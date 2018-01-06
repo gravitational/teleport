@@ -1016,7 +1016,7 @@ func newUpack(username string, allowedLogins []string, a auth.ClientI) (*upack, 
 		return nil, trace.Wrap(err)
 	}
 
-	ucert, err := a.GenerateUserCert(upub, user.GetName(), 5*time.Minute, teleport.CompatibilityNone)
+	ucert, err := a.GenerateUserCert(upub, user.GetName(), 5*time.Minute, teleport.CertificateFormatStandard)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -254,6 +254,9 @@ func (s *AuthInitSuite) TestClusterID(c *C) {
 	c.Assert(cc.GetClusterID(), Equals, clusterID)
 }
 
+// DELETE IN: 2.6.0
+// Migration of cert_format will be done in Teleport 2.5.0, so this test can
+// be removed in Teleport 2.6.0.
 func (s *AuthInitSuite) TestOptions(c *C) {
 	bk, err := boltbk.New(backend.Params{"path": c.MkDir()})
 	c.Assert(err, IsNil)
@@ -274,6 +277,7 @@ func (s *AuthInitSuite) TestOptions(c *C) {
 	})
 	c.Assert(err, IsNil)
 
+	// upsert role with no values for certificate format
 	role := services.NewAdminRole()
 	role.SetOptions(services.RoleOptions{
 		services.MaxSessionTTL: services.NewDuration(defaults.MaxCertDuration),
@@ -296,11 +300,7 @@ func (s *AuthInitSuite) TestOptions(c *C) {
 	role, err = authServer.GetRole(teleport.AdminRoleName)
 	c.Assert(err, IsNil)
 
-	portForward, err := role.GetOptions().GetBoolean(services.PortForwarding)
+	certificateFormat, err := role.GetOptions().GetString(services.CertificateFormat)
 	c.Assert(err, IsNil)
-	c.Assert(portForward, Equals, true)
-
-	forwardAgent, err := role.GetOptions().GetBoolean(services.ForwardAgent)
-	c.Assert(err, IsNil)
-	c.Assert(forwardAgent, Equals, true)
+	c.Assert(certificateFormat, Equals, teleport.CertificateFormatStandard)
 }
