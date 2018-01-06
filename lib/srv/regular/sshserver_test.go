@@ -444,6 +444,14 @@ func (s *SrvSuite) testClient(c *C, proxyAddr, targetAddr, remoteAddr string, ss
 	c.Assert(string(out), Equals, "hello\n")
 }
 
+func mustListen(a utils.NetAddr) net.Listener {
+	l, err := net.Listen("tcp", a.Addr)
+	if err != nil {
+		panic(err)
+	}
+	return l
+}
+
 func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	log.Infof("[TEST START] TestProxyReverseTunnel")
 
@@ -453,7 +461,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		ClientTLS:             s.proxyClient.TLSConfig(),
 		ID:                    hostID,
 		ClusterName:           s.server.ClusterName(),
-		ListenAddr:            reverseTunnelAddress,
+		Listener:              mustListen(reverseTunnelAddress),
 		HostSigners:           []ssh.Signer{s.signer},
 		LocalAuthClient:       s.proxyClient,
 		LocalAccessPoint:      s.proxyClient,
@@ -622,7 +630,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		ClusterName:           s.server.ClusterName(),
 		ClientTLS:             s.proxyClient.TLSConfig(),
 		ID:                    hostID,
-		ListenAddr:            reverseTunnelAddress,
+		Listener:              mustListen(reverseTunnelAddress),
 		HostSigners:           []ssh.Signer{s.signer},
 		LocalAuthClient:       s.proxyClient,
 		LocalAccessPoint:      s.proxyClient,
@@ -722,7 +730,7 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 		ClientTLS:             s.proxyClient.TLSConfig(),
 		ID:                    hostID,
 		ClusterName:           s.server.ClusterName(),
-		ListenAddr:            reverseTunnelAddress,
+		Listener:              mustListen(reverseTunnelAddress),
 		HostSigners:           []ssh.Signer{s.signer},
 		LocalAuthClient:       s.proxyClient,
 		LocalAccessPoint:      s.proxyClient,

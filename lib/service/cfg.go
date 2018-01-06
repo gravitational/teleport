@@ -210,6 +210,9 @@ type ProxyConfig struct {
 	// ReverseTunnelListenAddr is address where reverse tunnel dialers connect to
 	ReverseTunnelListenAddr utils.NetAddr
 
+	// EnableProxyProtocol enables proxy protocol support
+	EnableProxyProtocol bool
+
 	// WebAddr is address for web portal of the proxy
 	WebAddr utils.NetAddr
 

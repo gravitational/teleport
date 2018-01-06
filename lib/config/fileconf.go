@@ -654,14 +654,25 @@ type CommandLabel struct {
 	Period  time.Duration `yaml:"period"`
 }
 
-// Proxy is `proxy_service` section of the config file:
+// Proxy is a `proxy_service` section of the config file:
 type Proxy struct {
-	Service    `yaml:",inline"`
-	WebAddr    string `yaml:"web_listen_addr,omitempty"`
-	TunAddr    string `yaml:"tunnel_listen_addr,omitempty"`
-	KeyFile    string `yaml:"https_key_file,omitempty"`
-	CertFile   string `yaml:"https_cert_file,omitempty"`
+	// Service is a generic service configuration section
+	Service `yaml:",inline"`
+	// WebAddr is a web UI listen address
+	WebAddr string `yaml:"web_listen_addr,omitempty"`
+	// TunAddr is a reverse tunnel address
+	TunAddr string `yaml:"tunnel_listen_addr,omitempty"`
+	// KeyFile is a TLS key file
+	KeyFile string `yaml:"https_key_file,omitempty"`
+	// CertFile is a TLS Certificate file
+	CertFile string `yaml:"https_cert_file,omitempty"`
+	// PublicAddr is a publicly advertised address of the proxy
 	PublicAddr string `yaml:"public_addr,omitempty"`
+	// ProxyProtocol turns on support for HAProxy proxy protocol
+	// this is the option that has be turned on only by administrator,
+	// as only admin knows whether service is in front of trusted load balancer
+	// or not.
+	ProxyProtocol string `yaml:"proxy_protocol,omitempty"`
 }
 
 // ReverseTunnel is a SSH reverse tunnel maintained by one cluster's

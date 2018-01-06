@@ -53,6 +53,10 @@ type Config struct {
 	Clock clockwork.Clock
 	// EnableProxyProtocol enables proxy protocol
 	EnableProxyProtocol bool
+	// DisableSSH disables SSH socket
+	DisableSSH bool
+	// DisableTLS disables TLS socket
+	DisableTLS bool
 }
 
 // CheckAndSetDefaults verifies configuration and sets defaults
@@ -161,12 +165,12 @@ func (m *Mux) Serve() error {
 	for {
 		conn, err := m.Listener.Accept()
 		if err == nil {
+			if tcpConn, ok := conn.(*net.TCPConn); ok {
+				tcpConn.SetKeepAlive(true)
+				tcpConn.SetKeepAlivePeriod(3 * time.Minute)
+			}
 			go m.detectAndForward(conn)
 			continue
-		}
-		if tcpConn, ok := conn.(*net.TCPConn); ok {
-			tcpConn.SetKeepAlive(true)
-			tcpConn.SetKeepAlivePeriod(3 * time.Minute)
 		}
 		if m.isClosed() {
 			return nil
@@ -205,6 +209,11 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 
 	switch connWrapper.protocol {
 	case ProtoTLS:
+		if m.DisableTLS {
+			m.Debug("Closing TLS connection: TLS listener is disabled.")
+			conn.Close()
+			return
+		}
 		select {
 		case m.tlsListener.connC <- connWrapper:
 		case <-m.context.Done():
@@ -212,6 +221,11 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 			return
 		}
 	case ProtoSSH:
+		if m.DisableSSH {
+			m.Debug("Closing SSH connection: SSH listener is disabled.")
+			conn.Close()
+			return
+		}
 		select {
 		case m.sshListener.connC <- connWrapper:
 		case <-m.context.Done():

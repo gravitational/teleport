@@ -104,8 +104,8 @@ type Config struct {
 	// ClientTLS is a TLS config associated with this proxy
 	// used to connect to remote auth servers on remote clusters
 	ClientTLS *tls.Config
-	// ListenAddr is a listening address for reverse tunnel server
-	ListenAddr utils.NetAddr
+	// Listener is a listener address for reverse tunnel server
+	Listener net.Listener
 	// HostSigners is a list of host signers
 	HostSigners []ssh.Signer
 	// HostKeyCallback
@@ -152,8 +152,8 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	if cfg.ClientTLS == nil {
 		return trace.BadParameter("missing parameter ClientTLS")
 	}
-	if cfg.ListenAddr.IsEmpty() {
-		return trace.BadParameter("missing parameter ListenAddr")
+	if cfg.Listener == nil {
+		return trace.BadParameter("missing parameter Listener")
 	}
 	if cfg.Context == nil {
 		cfg.Context = context.TODO()
@@ -205,7 +205,9 @@ func NewServer(cfg Config) (Server, error) {
 	var err error
 	s, err := sshutils.NewServer(
 		teleport.ComponentReverseTunnelServer,
-		cfg.ListenAddr,
+		// TODO(klizhentas): improve interface, use struct instead of parameter list
+		// this address is not used
+		utils.NetAddr{Addr: "127.0.0.1:1", AddrNetwork: "tcp"},
 		srv,
 		cfg.HostSigners,
 		sshutils.AuthMethods{
@@ -404,7 +406,8 @@ func (s *server) Wait() {
 }
 
 func (s *server) Start() error {
-	return s.srv.Start()
+	go s.srv.Serve(s.Listener)
+	return nil
 }
 
 func (s *server) Close() error {

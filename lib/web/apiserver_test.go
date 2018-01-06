@@ -184,12 +184,12 @@ func (s *WebSuite) SetUpTest(c *C) {
 	s.proxyClient, err = s.server.NewClient(auth.TestBuiltin(teleport.RoleProxy))
 	c.Assert(err, IsNil)
 
+	revTunListener, err := net.Listen("tcp", fmt.Sprintf("%v:0", s.server.ClusterName()))
+	c.Assert(err, IsNil)
+
 	revTunServer, err := reversetunnel.NewServer(reversetunnel.Config{
-		ID: node.ID(),
-		ListenAddr: utils.NetAddr{
-			AddrNetwork: "tcp",
-			Addr:        fmt.Sprintf("%v:0", s.server.ClusterName()),
-		},
+		ID:                    node.ID(),
+		Listener:              revTunListener,
 		ClientTLS:             s.proxyClient.TLSConfig(),
 		ClusterName:           s.server.ClusterName(),
 		HostSigners:           []ssh.Signer{signer},
