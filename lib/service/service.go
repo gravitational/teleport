@@ -808,6 +808,99 @@ func (process *TeleportProcess) initProxy() error {
 	return nil
 }
 
+type proxyListeners struct {
+	mux           *multiplexer.Mux
+	web           net.Listener
+	reverseTunnel net.Listener
+}
+
+func (l *proxyListeners) Close() {
+	if l.mux != nil {
+		l.mux.Close()
+	}
+	if l.web != nil {
+		l.web.Close()
+	}
+	if l.reverseTunnel != nil {
+		l.reverseTunnel.Close()
+	}
+}
+
+// setupProxyListeners sets up web proxy listeners based on the configuration
+func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
+	cfg := process.Config
+	log.Debugf("Setup Proxy: Web Proxy Address: %v, Reverse Tunnel Proxy Address: %v", cfg.Proxy.WebAddr.Addr, cfg.Proxy.ReverseTunnelListenAddr.Addr)
+	var err error
+	var listeners proxyListeners
+	switch {
+	case cfg.Proxy.DisableWebService && cfg.Proxy.DisableReverseTunnel:
+		log.Debugf("Setup Proxy: Reverse tunnel proxy and web proxy are disabled.")
+		return &listeners, nil
+	case cfg.Proxy.ReverseTunnelListenAddr.Equals(cfg.Proxy.WebAddr):
+		log.Debugf("Setup Proxy: Reverse tunnel proxy and web proxy listen on the same port, multiplexing is on.")
+		listener, err := net.Listen("tcp", cfg.Proxy.WebAddr.Addr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		listeners.mux, err = multiplexer.New(multiplexer.Config{
+			EnableProxyProtocol: cfg.Proxy.EnableProxyProtocol,
+			Listener:            listener,
+			DisableTLS:          cfg.Proxy.DisableWebService,
+			DisableSSH:          cfg.Proxy.DisableReverseTunnel,
+		})
+		if err != nil {
+			listener.Close()
+			return nil, trace.Wrap(err)
+		}
+		listeners.web = listeners.mux.TLS()
+		listeners.reverseTunnel = listeners.mux.SSH()
+		go listeners.mux.Serve()
+		return &listeners, nil
+	case cfg.Proxy.EnableProxyProtocol && !cfg.Proxy.DisableWebService:
+		log.Debugf("Setup Proxy: Proxy protocol is enabled for web service, multiplexing is on.")
+		listener, err := net.Listen("tcp", cfg.Proxy.WebAddr.Addr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		listeners.mux, err = multiplexer.New(multiplexer.Config{
+			EnableProxyProtocol: cfg.Proxy.EnableProxyProtocol,
+			Listener:            listener,
+			DisableTLS:          false,
+			DisableSSH:          true,
+		})
+		if err != nil {
+			listener.Close()
+			return nil, trace.Wrap(err)
+		}
+		listeners.web = listeners.mux.TLS()
+		listeners.reverseTunnel, err = net.Listen("tcp", cfg.Proxy.ReverseTunnelListenAddr.Addr)
+		if err != nil {
+			listener.Close()
+			listeners.Close()
+			return nil, trace.Wrap(err)
+		}
+		go listeners.mux.Serve()
+		return &listeners, nil
+	default:
+		log.Debugf("Proxy reverse tunnel are listening on the separate ports")
+		if !cfg.Proxy.DisableReverseTunnel {
+			listeners.reverseTunnel, err = net.Listen("tcp", cfg.Proxy.ReverseTunnelListenAddr.Addr)
+			if err != nil {
+				listeners.Close()
+				return nil, trace.Wrap(err)
+			}
+		}
+		if !cfg.Proxy.DisableWebService {
+			listeners.web, err = net.Listen("tcp", cfg.Proxy.WebAddr.Addr)
+			if err != nil {
+				listeners.Close()
+				return nil, trace.Wrap(err)
+			}
+		}
+		return &listeners, nil
+	}
+}
+
 func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	var (
 		askedToExit = true
@@ -836,32 +929,111 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
-	tsrv, err := reversetunnel.NewServer(
-		reversetunnel.Config{
-			ID:                    process.Config.HostUUID,
-			ClusterName:           conn.Identity.Cert.Extensions[utils.CertExtensionAuthority],
-			ClientTLS:             tlsConfig,
-			ListenAddr:            cfg.Proxy.ReverseTunnelListenAddr,
-			HostSigners:           []ssh.Signer{conn.Identity.KeySigner},
-			LocalAuthClient:       conn.Client,
-			LocalAccessPoint:      accessPoint,
-			NewCachingAccessPoint: process.newLocalCache,
-			Limiter:               reverseTunnelLimiter,
-			DirectClusters: []reversetunnel.DirectCluster{
-				{
-					Name:   conn.Identity.Cert.Extensions[utils.CertExtensionAuthority],
-					Client: conn.Client,
-				},
-			},
-			Ciphers:       cfg.Ciphers,
-			KEXAlgorithms: cfg.KEXAlgorithms,
-			MACAlgorithms: cfg.MACAlgorithms,
-		})
+	listeners, err := process.setupProxyListeners()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	SSHProxy, err := regular.New(cfg.Proxy.SSHAddr,
+	// Register reverse tunnel agents pool
+	agentPool, err := reversetunnel.NewAgentPool(reversetunnel.AgentPoolConfig{
+		HostUUID:    conn.Identity.ID.HostUUID,
+		Client:      conn.Client,
+		AccessPoint: accessPoint,
+		HostSigners: []ssh.Signer{conn.Identity.KeySigner},
+		Cluster:     conn.Identity.Cert.Extensions[utils.CertExtensionAuthority],
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// register SSH reverse tunnel server that accepts connections
+	// from remote teleport nodes
+	var tsrv reversetunnel.Server
+	if !process.Config.Proxy.DisableReverseTunnel {
+		tsrv, err = reversetunnel.NewServer(
+			reversetunnel.Config{
+				ID:                    process.Config.HostUUID,
+				ClusterName:           conn.Identity.Cert.Extensions[utils.CertExtensionAuthority],
+				ClientTLS:             tlsConfig,
+				Listener:              listeners.reverseTunnel,
+				HostSigners:           []ssh.Signer{conn.Identity.KeySigner},
+				LocalAuthClient:       conn.Client,
+				LocalAccessPoint:      accessPoint,
+				NewCachingAccessPoint: process.newLocalCache,
+				Limiter:               reverseTunnelLimiter,
+				DirectClusters: []reversetunnel.DirectCluster{
+					{
+						Name:   conn.Identity.Cert.Extensions[utils.CertExtensionAuthority],
+						Client: conn.Client,
+					},
+				},
+				Ciphers:       cfg.Ciphers,
+				KEXAlgorithms: cfg.KEXAlgorithms,
+				MACAlgorithms: cfg.MACAlgorithms,
+			})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		process.RegisterFunc("proxy.reveresetunnel.server", func() error {
+			utils.Consolef(cfg.Console, "Starting reverse tunnel service is starting on %v using %v", cfg.Proxy.ReverseTunnelListenAddr.Addr, process.Config.CachePolicy)
+			if err := tsrv.Start(); err != nil {
+				utils.Consolef(cfg.Console, "Error: %v", err)
+				return trace.Wrap(err)
+			}
+			// notify parties that we've started reverse tunnel server
+			process.BroadcastEvent(Event{Name: ProxyReverseTunnelServerEvent, Payload: tsrv})
+			tsrv.Wait()
+			if askedToExit {
+				log.Infof("Reverse tunnel exited.")
+			}
+			return nil
+		})
+	}
+
+	// Register web proxy server
+	if !process.Config.Proxy.DisableWebService {
+		process.RegisterFunc("proxy.web", func() error {
+			utils.Consolef(cfg.Console, "Web proxy service is starting on %v.", cfg.Proxy.WebAddr.Addr)
+			webHandler, err := web.NewHandler(
+				web.Config{
+					Proxy:        tsrv,
+					AuthServers:  cfg.AuthServers[0],
+					DomainName:   cfg.Hostname,
+					ProxyClient:  conn.Client,
+					DisableUI:    process.Config.Proxy.DisableWebInterface,
+					ProxySSHAddr: cfg.Proxy.SSHAddr,
+					ProxyWebAddr: cfg.Proxy.WebAddr,
+				})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer webHandler.Close()
+
+			proxyLimiter.WrapHandle(webHandler)
+			process.BroadcastEvent(Event{Name: ProxyWebServerEvent, Payload: webHandler})
+
+			if !process.Config.Proxy.DisableTLS {
+				tlsConfig, err := utils.CreateTLSConfiguration(cfg.Proxy.TLSCert, cfg.Proxy.TLSKey)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				listeners.web = tls.NewListener(listeners.web, tlsConfig)
+			}
+			if err = http.Serve(listeners.web, proxyLimiter); err != nil {
+				if askedToExit {
+					log.Infof("Proxy web server exited.")
+					return nil
+				}
+				log.Error(err)
+			}
+			return nil
+		})
+	} else {
+		log.Infof("Web UI is disabled.")
+	}
+
+	// Register SSH proxy server - SSH jumphost proxy server
+	sshProxy, err := regular.New(cfg.Proxy.SSHAddr,
 		cfg.Hostname,
 		[]ssh.Signer{conn.Identity.KeySigner},
 		accessPoint,
@@ -881,94 +1053,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
-	// Register reverse tunnel agents pool
-	agentPool, err := reversetunnel.NewAgentPool(reversetunnel.AgentPoolConfig{
-		HostUUID:    conn.Identity.ID.HostUUID,
-		Client:      conn.Client,
-		AccessPoint: accessPoint,
-		HostSigners: []ssh.Signer{conn.Identity.KeySigner},
-		Cluster:     conn.Identity.Cert.Extensions[utils.CertExtensionAuthority],
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// register SSH reverse tunnel server that accepts connections
-	// from remote teleport nodes
-	if !process.Config.Proxy.DisableReverseTunnel {
-		process.RegisterFunc("proxy.reveresetunnel.server", func() error {
-			utils.Consolef(cfg.Console, "[PROXY] Reverse tunnel service is starting on %v using %v", cfg.Proxy.ReverseTunnelListenAddr.Addr, process.Config.CachePolicy)
-			if err := tsrv.Start(); err != nil {
-				utils.Consolef(cfg.Console, "[PROXY] Error: %v", err)
-				return trace.Wrap(err)
-			}
-			// notify parties that we've started reverse tunnel server
-			process.BroadcastEvent(Event{Name: ProxyReverseTunnelServerEvent, Payload: tsrv})
-			tsrv.Wait()
-			if askedToExit {
-				log.Infof("Reverse tunnel exited.")
-			}
-			return nil
-		})
-	}
-
-	// Register web proxy server
-	var webListener net.Listener
-	if !process.Config.Proxy.DisableWebService {
-		process.RegisterFunc("proxy.web", func() error {
-			utils.Consolef(cfg.Console, "[PROXY] Web proxy service is starting on %v", cfg.Proxy.WebAddr.Addr)
-			webHandler, err := web.NewHandler(
-				web.Config{
-					Proxy:        tsrv,
-					AuthServers:  cfg.AuthServers[0],
-					DomainName:   cfg.Hostname,
-					ProxyClient:  conn.Client,
-					DisableUI:    process.Config.Proxy.DisableWebInterface,
-					ProxySSHAddr: cfg.Proxy.SSHAddr,
-					ProxyWebAddr: cfg.Proxy.WebAddr,
-				})
-			if err != nil {
-				utils.Consolef(cfg.Console, "[PROXY] starting the web server: %v", err)
-				return trace.Wrap(err)
-			}
-			defer webHandler.Close()
-
-			proxyLimiter.WrapHandle(webHandler)
-			process.BroadcastEvent(Event{Name: ProxyWebServerEvent, Payload: webHandler})
-
-			log.Infof("init TLS listeners")
-			if !process.Config.Proxy.DisableTLS {
-				webListener, err = utils.ListenTLS(
-					cfg.Proxy.WebAddr.Addr,
-					cfg.Proxy.TLSCert,
-					cfg.Proxy.TLSKey)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-			} else {
-
-				webListener, err = net.Listen("tcp", cfg.Proxy.WebAddr.Addr)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-			}
-			if err = http.Serve(webListener, proxyLimiter); err != nil {
-				if askedToExit {
-					log.Infof("Proxy web server exited.")
-					return nil
-				}
-				log.Error(err)
-			}
-			return nil
-		})
-	} else {
-		log.Infof("Web UI is disabled.")
-	}
-
-	// Register ssh proxy server
 	process.RegisterFunc("proxy.ssh", func() error {
 		utils.Consolef(cfg.Console, "[PROXY] SSH proxy service is starting on %v", cfg.Proxy.SSHAddr.Addr)
-		if err := SSHProxy.Start(); err != nil {
+		if err := sshProxy.Start(); err != nil {
 			if askedToExit {
 				log.Infof("SSH proxy exited")
 				return nil
@@ -991,12 +1078,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	// execute this when process is asked to exit:
 	process.onExit(func(payload interface{}) {
-		tsrv.Close()
-		SSHProxy.Close()
-		agentPool.Stop()
-		if webListener != nil {
-			webListener.Close()
+		listeners.Close()
+		if tsrv != nil {
+			tsrv.Close()
 		}
+		sshProxy.Close()
+		agentPool.Stop()
 		log.Infof("Proxy service exited.")
 	})
 	return nil

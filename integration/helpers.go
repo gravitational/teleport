@@ -108,45 +108,63 @@ func (s *InstanceSecrets) String() string {
 	return string(bytes)
 }
 
+// InstanceConfig is an instance configuration
+type InstanceConfig struct {
+	// ClusterName is a cluster name of the instance
+	ClusterName string
+	// HostID is a host id of the instance
+	HostID string
+	// NodeName is a node name of the instance
+	NodeName string
+	// Ports is a list of assigned ports to use
+	Ports []int
+	// Priv is SSH private key of the instance
+	Priv []byte
+	// Pub is SSH public key of the instance
+	Pub []byte
+	// MultiplexProxy uses the same port for web and SSH reverse tunnel proxy
+	MultiplexProxy bool
+}
+
 // NewInstance creates a new Teleport process instance
-func NewInstance(clusterName string, hostID string, nodeName string, ports []int, priv, pub []byte) *TeleInstance {
+func NewInstance(cfg InstanceConfig) *TeleInstance {
 	var err error
-	if len(ports) < 5 {
-		fatalIf(fmt.Errorf("not enough free ports given: %v", ports))
+	if len(cfg.Ports) < 5 {
+		fatalIf(fmt.Errorf("not enough free ports given: %v", cfg.Ports))
 	}
-	if nodeName == "" {
-		nodeName, err = os.Hostname()
+	if cfg.NodeName == "" {
+		cfg.NodeName, err = os.Hostname()
 		fatalIf(err)
 	}
 	// generate instance secrets (keys):
 	keygen := native.New()
-	if priv == nil || pub == nil {
-		priv, pub, _ = keygen.GenerateKeyPair("")
+	if cfg.Priv == nil || cfg.Pub == nil {
+		cfg.Priv, cfg.Pub, _ = keygen.GenerateKeyPair("")
 	}
-	rsaKey, err := ssh.ParseRawPrivateKey(priv)
+	rsaKey, err := ssh.ParseRawPrivateKey(cfg.Priv)
 	fatalIf(err)
 
 	tlsCAKey, tlsCACert, err := tlsca.GenerateSelfSignedCAWithPrivateKey(rsaKey.(*rsa.PrivateKey), pkix.Name{
-		CommonName:   clusterName,
-		Organization: []string{clusterName},
+		CommonName:   cfg.ClusterName,
+		Organization: []string{cfg.ClusterName},
 	}, nil, defaults.CATTL)
 	fatalIf(err)
 
 	cert, err := keygen.GenerateHostCert(services.HostCertParams{
-		PrivateCASigningKey: priv,
-		PublicHostKey:       pub,
-		HostID:              hostID,
-		NodeName:            nodeName,
-		ClusterName:         clusterName,
+		PrivateCASigningKey: cfg.Priv,
+		PublicHostKey:       cfg.Pub,
+		HostID:              cfg.HostID,
+		NodeName:            cfg.NodeName,
+		ClusterName:         cfg.ClusterName,
 		Roles:               teleport.Roles{teleport.RoleAdmin},
 		TTL:                 time.Duration(time.Hour * 24),
 	})
 	fatalIf(err)
 	tlsCA, err := tlsca.New(tlsCACert, tlsCAKey)
 	fatalIf(err)
-	cryptoPubKey, err := sshutils.CryptoPublicKey(pub)
+	cryptoPubKey, err := sshutils.CryptoPublicKey(cfg.Pub)
 	identity := tlsca.Identity{
-		Username: fmt.Sprintf("%v.%v", hostID, clusterName),
+		Username: fmt.Sprintf("%v.%v", cfg.HostID, cfg.ClusterName),
 		Groups:   []string{string(teleport.RoleAdmin)},
 	}
 	clock := clockwork.NewRealClock()
@@ -159,19 +177,22 @@ func NewInstance(clusterName string, hostID string, nodeName string, ports []int
 	fatalIf(err)
 
 	i := &TeleInstance{
-		Ports:    ports,
-		Hostname: nodeName,
+		Ports:    cfg.Ports,
+		Hostname: cfg.NodeName,
 	}
 	secrets := InstanceSecrets{
-		SiteName:     clusterName,
-		PrivKey:      priv,
-		PubKey:       pub,
+		SiteName:     cfg.ClusterName,
+		PrivKey:      cfg.Priv,
+		PubKey:       cfg.Pub,
 		Cert:         cert,
 		TLSCACert:    tlsCACert,
 		TLSCert:      tlsCert,
-		ListenAddr:   net.JoinHostPort(nodeName, strconv.Itoa(ports[4])),
-		WebProxyAddr: net.JoinHostPort(nodeName, i.GetPortWeb()),
+		ListenAddr:   net.JoinHostPort(cfg.NodeName, i.GetPortReverseTunnel()),
+		WebProxyAddr: net.JoinHostPort(cfg.NodeName, i.GetPortWeb()),
 		Users:        make(map[string]*User),
+	}
+	if cfg.MultiplexProxy {
+		secrets.ListenAddr = secrets.WebProxyAddr
 	}
 	i.Secrets = secrets
 	return i
@@ -256,6 +277,10 @@ func (i *TeleInstance) GetPortProxy() string {
 
 func (i *TeleInstance) GetPortWeb() string {
 	return strconv.Itoa(i.Ports[3])
+}
+
+func (i *TeleInstance) GetPortReverseTunnel() string {
+	return strconv.Itoa(i.Ports[4])
 }
 
 // GetSiteAPI() is a helper which returns an API endpoint to a site with

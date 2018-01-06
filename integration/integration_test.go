@@ -114,7 +114,7 @@ func (s *IntSuite) SetUpSuite(c *check.C) {
 // newTeleport helper returns a running Teleport instance pre-configured
 // with the current user os.user.Current().
 func (s *IntSuite) newTeleport(c *check.C, logins []string, enableSSH bool) *TeleInstance {
-	t := NewInstance(Site, HostID, Host, s.getPorts(5), s.priv, s.pub)
+	t := NewInstance(InstanceConfig{ClusterName: Site, HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub})
 	// use passed logins, but use suite's default login if nothing was passed
 	if logins == nil || len(logins) == 0 {
 		logins = []string{s.me.Username}
@@ -135,7 +135,7 @@ func (s *IntSuite) newTeleport(c *check.C, logins []string, enableSSH bool) *Tel
 // Teleport instance with the passed in user, instance secrets, and Teleport
 // configuration.
 func (s *IntSuite) newTeleportWithConfig(c *check.C, logins []string, instanceSecrets []*InstanceSecrets, teleportConfig *service.Config) *TeleInstance {
-	t := NewInstance(Site, HostID, Host, s.getPorts(5), s.priv, s.pub)
+	t := NewInstance(InstanceConfig{ClusterName: Site, HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub})
 
 	// use passed logins, but use suite's default login if nothing was passed
 	if logins == nil || len(logins) == 0 {
@@ -617,8 +617,8 @@ func (s *IntSuite) TestTwoClusters(c *check.C) {
 
 		username := s.me.Username
 
-		a := NewInstance("site-A", HostID, Host, s.getPorts(5), s.priv, s.pub)
-		b := NewInstance("site-B", HostID, Host, s.getPorts(5), s.priv, s.pub)
+		a := NewInstance(InstanceConfig{ClusterName: "site-A", HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub})
+		b := NewInstance(InstanceConfig{ClusterName: "site-B", HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub})
 
 		a.AddUser(username, []string{username})
 		b.AddUser(username, []string{username})
@@ -776,8 +776,8 @@ func (s *IntSuite) TestTwoClustersProxy(c *check.C) {
 
 	username := s.me.Username
 
-	a := NewInstance("site-A", HostID, Host, s.getPorts(5), s.priv, s.pub)
-	b := NewInstance("site-B", HostID, Host, s.getPorts(5), s.priv, s.pub)
+	a := NewInstance(InstanceConfig{ClusterName: "site-A", HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub})
+	b := NewInstance(InstanceConfig{ClusterName: "site-B", HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub})
 
 	a.AddUser(username, []string{username})
 	b.AddUser(username, []string{username})
@@ -810,8 +810,8 @@ func (s *IntSuite) TestTwoClustersProxy(c *check.C) {
 func (s *IntSuite) TestHA(c *check.C) {
 	username := s.me.Username
 
-	a := NewInstance("cluster-a", HostID, Host, s.getPorts(5), s.priv, s.pub)
-	b := NewInstance("cluster-b", HostID, Host, s.getPorts(5), s.priv, s.pub)
+	a := NewInstance(InstanceConfig{ClusterName: "cluster-a", HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub})
+	b := NewInstance(InstanceConfig{ClusterName: "cluster-b", HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub})
 
 	a.AddUser(username, []string{username})
 	b.AddUser(username, []string{username})
@@ -879,8 +879,8 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 
 	clusterMain := "cluster-main"
 	clusterAux := "cluster-aux"
-	main := NewInstance(clusterMain, HostID, Host, s.getPorts(5), s.priv, s.pub)
-	aux := NewInstance(clusterAux, HostID, Host, s.getPorts(5), s.priv, s.pub)
+	main := NewInstance(InstanceConfig{ClusterName: clusterMain, HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub})
+	aux := NewInstance(InstanceConfig{ClusterName: clusterAux, HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub})
 
 	// main cluster has a local user and belongs to role "main-devs"
 	mainDevs := "main-devs"
@@ -1067,15 +1067,25 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 	c.Assert(aux.Stop(true), check.IsNil)
 }
 
-// TestRemoteClusters tests disconnecting remote clusters
-// using remote cluster feature
-func (s *IntSuite) TestRemoteClusters(c *check.C) {
+// TestTrustedClusters tests remote clusters scenarios
+// using trusted clusters feature
+func (s *IntSuite) TestTrustedClusters(c *check.C) {
+	s.trustedClusters(c, false)
+}
+
+// TestMultiplexingTrustedClusters tests remote clusters scenarios
+// using trusted clusters feature
+func (s *IntSuite) TestMultiplexingTrustedClusters(c *check.C) {
+	s.trustedClusters(c, true)
+}
+
+func (s *IntSuite) trustedClusters(c *check.C, multiplex bool) {
 	username := s.me.Username
 
 	clusterMain := "cluster-main"
 	clusterAux := "cluster-aux"
-	main := NewInstance(clusterMain, HostID, Host, s.getPorts(5), s.priv, s.pub)
-	aux := NewInstance(clusterAux, HostID, Host, s.getPorts(5), s.priv, s.pub)
+	main := NewInstance(InstanceConfig{ClusterName: clusterMain, HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub, MultiplexProxy: multiplex})
+	aux := NewInstance(InstanceConfig{ClusterName: clusterAux, HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub})
 
 	// main cluster has a local user and belongs to role "main-devs"
 	mainDevs := "main-devs"
@@ -1254,8 +1264,8 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 	go lb.Serve()
 	defer lb.Close()
 
-	remote := NewInstance("cluster-remote", HostID, Host, s.getPorts(5), s.priv, s.pub)
-	main := NewInstance("cluster-main", HostID, Host, s.getPorts(5), s.priv, s.pub)
+	remote := NewInstance(InstanceConfig{ClusterName: "cluster-remote", HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub})
+	main := NewInstance(InstanceConfig{ClusterName: "cluster-main", HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub})
 
 	remote.AddUser(username, []string{username})
 	main.AddUser(username, []string{username})

@@ -260,6 +260,11 @@ func (c *TrustedClusterV2) CheckAndSetDefaults() error {
 			},
 		}
 	}
+	// Imply that by default proxy listens on the same port for
+	// web and reverse tunnel connections
+	if c.Spec.ReverseTunnelAddress == "" {
+		c.Spec.ReverseTunnelAddress = c.Spec.ProxyAddress
+	}
 	if err := c.Spec.RoleMap.Check(); err != nil {
 		return trace.Wrap(err)
 	}
