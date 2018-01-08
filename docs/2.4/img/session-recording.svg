@@ -58,8 +58,11 @@
             <text id="Node" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="16" font-weight="400" fill="#4A4A4A">
                 <tspan x="418.144" y="13">Node</tspan>
             </text>
-            <text id="Audit" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="16" font-weight="400" fill="#4A4A4A">
-                <tspan x="418.592" y="337">Audit</tspan>
+            <text id="Auth" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="16" font-weight="400" fill="#4A4A4A">
+                <tspan x="420.816" y="337">Auth</tspan>
+            </text>
+            <text id="Audit" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="14" font-weight="400" fill="#787878">
+                <tspan x="421.018" y="292">Audit</tspan>
             </text>
             <text id="Client" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="16" font-weight="400" fill="#4A4A4A">
                 <tspan x="56.664" y="13">Client</tspan>
@@ -83,7 +86,7 @@
             </text>
             <path d="M438,96 L438,233" id="Line-3" stroke="#F5A623" stroke-width="2" fill="#F5A623" stroke-linecap="square"></path>
             <path id="Line-3-decoration-1" d="M438,233 L441,222.2 L435,222.2 L438,233 Z" stroke="#F5A623" stroke-width="2" fill="#F5A623" stroke-linecap="square"></path>
-            <rect id="Rectangle-16-Copy-3" fill="#FFFFFF" x="0" y="237" width="280" height="120"></rect>
+            <rect id="Rectangle-16-Copy-3" x="0" y="237" width="280" height="120"></rect>
             <rect id="Rectangle-4" fill="#B8E986" x="19" y="310" width="14" height="3"></rect>
             <rect id="Rectangle-4-Copy" fill="#F5A623" x="19" y="330" width="14" height="3"></rect>
             <text id="SSH-connection" font-family="HelveticaNeue, Helvetica Neue" font-size="14" font-weight="normal" fill="#787878">
