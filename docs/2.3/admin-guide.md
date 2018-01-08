@@ -284,17 +284,6 @@ auth_service:
     # certificates and keys (may need to wipe out /var/lib/teleport directory)
     cluster_name: "main"
 
-    # License file to start auth server with. Note that this setting is ignored
-    # in open-source Teleport and is required only for Teleport Pro, Business
-    # and Enterprise subscription plans.
-    #
-    # The path can be either absolute or relative to the configured `data_dir`
-    # and should point to the license file obtained from Teleport Download Portal.
-    #
-    # If not set, by default Teleport will look for the `license.pem` file in
-    # the configured `data_dir`.
-    license_file: /var/lib/teleport/license.pem
-
 # This section configures the 'node service':
 ssh_service:
     # Turns 'ssh' role on. Default is 'yes'
@@ -368,22 +357,6 @@ auth_service:
     second_factor: u2f
 ```
 
-**Github OAuth 2.0**
-
-This connector implements Github OAuth 2.0 authentication flow. Please refer
-to Github documentation on [Creating an OAuth App](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/)
-to learn how to create and register an OAuth app.
-
-Here is an example of this setting in the `teleport.yaml`:
-
-```yaml
-auth_service:
-  authentication:
-    type: github
-```
-
-See [Github OAuth 2.0](#github-oauth-20) for details on how to configure it.
-
 **SAML**
 
 This connector type implements SAML authentication. It can be configured
@@ -410,7 +383,6 @@ auth_service:
   authentication:
     type: oidc
 ```
-
 
 ## FIDO U2F
 
@@ -874,7 +846,6 @@ user               | A user record in the internal Teleport user DB.
 node               | A registered SSH node. The same record is displayed via `tctl nodes ls`
 trusted_cluster    | A trusted cluster. See [here](#trusted-clusters) for more details on connecting clusters together.
 role               | A role assumed by users. The open source Teleport only includes one role: "admin", but Enterprise teleport users can define their own roles.
-github             | A Github auth connector. See [here](#github-auth-connector) for details on configuring it.
 
 ## Trusted Clusters
 
@@ -1001,59 +972,6 @@ db2.east  3879d133-fe81-3212 10.0.5.3:3022  role=db-slave
 # SSH into any node in "east":
 $ tsh --cluster=east ssh root@db1.east
 ```
-
-## Github OAuth 2.0
-
-Teleport supports authentication and authorization via external identity
-providers such as Github. It can be configured by creating a Github connector
-resource:
-
-```bash
-# github.yaml
-kind: github
-version: v3
-metadata:
-  # connector name that will be used with `tsh login`
-  name: github
-spec:
-  # client ID of Github OAuth app
-  client_id: <client-id>
-  # client secret of Github OAuth app
-  client_secret: <client-secret>
-  # connector display name that will be shown on web UI login screen
-  display: Github
-  # callback URL that will be called after successful authentication
-  redirect_url: https://<proxy-address>/v1/webapi/github/callback
-  # mapping of org/team memberships onto allowed logins and roles
-  teams_to_logins:
-    - organization: octocats # Github organization name
-      team: admins # Github team name within that organization
-      # allowed logins for users in this org/team
-      logins:
-        - root
-```
-
-!!! note
-    For open-source Teleport the `logins` field contains a list of allowed
-    OS logins. For paid Teleport plans such as Enterprise, Pro or Business
-    that support role-based access control, the same field is treated as a
-    list of _roles_ that users from matching org/team assume after going
-    through the authorization flow.
-
-To obtain client ID and client secret, please follow Github documentation
-on how to [create and register an OAuth app](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/).
-Be sure to set the "Authorization callback URL" to the same value as `redirect_url`
-in the resource spec. Create the resource:
-
-```bash
-$ tctl create github.yaml
-```
-
-!!! tip
-    When going through the Github authentication flow for the first time,
-    the application must be granted the access to all organizations that
-    are present in the "teams to logins" mapping, otherwise Teleport will
-    not be able to determine team memberships for these orgs.
 
 ## HTTP CONNECT Proxies
 
@@ -1319,31 +1237,6 @@ Also, here's the example of the IAM policy to grant access to DynamoDB:
     ]
 }
 ```
-
-## License File
-
-Paid Teleport subscription plans such as Pro, Business and Enterprise require
-a valid license. The license file can be downloaded from the [Teleport Download
-Portal](https://dashboard.gravitational.com) dashboard which you signed up for
-when purchasing your subscription plan.
-
-The Teleport license file contains a X.509 certificate and the corresponding
-private key in PEM format. Place the downloaded file on Auth servers and set
-the `license_file` configuration parameter of your `teleport.yaml` to point to
-the file location:
-
-```bash
-auth_service:
-    license_file: /var/lib/teleport/license.pem
-```
-
-The `license_file` path can be either absolute or relative to the configured
-`data_dir`. If license file path is not set, Teleport will look for the
-`license.pem` file in the configured `data_dir`.
-
-!!! tip "NOTE":
-    Only Auth servers require the license. Proxies and Nodes that do not also
-    have Auth role enabled don't need the license.
 
 ## Troubleshooting
 

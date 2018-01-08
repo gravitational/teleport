@@ -63,6 +63,7 @@ full: all $(BUILDDIR)/webassets.zip
 	cat $(BUILDDIR)/webassets.zip >> $(BUILDDIR)/teleport
 	rm -fr $(BUILDDIR)/webassets.zip
 	zip -q -A $(BUILDDIR)/teleport
+	if [ -f e/Makefile ]; then $(MAKE) -C e full; fi
 
 
 .PHONY: clean

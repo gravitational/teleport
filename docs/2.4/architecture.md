@@ -322,6 +322,76 @@ cluster nodes (or any other restrictions enforced by the role). Teleport's user 
 [bug](https://bugzilla.mindrot.org/show_bug.cgi?id=2387) that treats any extension 
 as a critical one, breaking access to the cluster.
     
+## Audit Log
+
+The Teleport auth server keeps the audit log of SSH-related events that take
+place on any node with a Teleport cluster. It is important to understand that
+the SSH nodes emit audit events and submit them to the auth server. 
+
+!!! warning "Compatibility Warning":
+    Because all SSH events like `exec` or `session_start` are reported by the
+    Teleport node service, they will not be logged if you are using OpenSSH
+    `sshd` daemon on your nodes.
+
+Only an SSH server can report what's happening to the Teleport auth server.
+The audit log is a JSON file which is by default stored on the auth server's
+filesystem under `/var/lib/teleport/log`. The format of the file is documented
+in the [Admin Manual](admin-guide/#audit-log).
+
+Teleport users are encouraged to export the events into an external long term
+storage.
+
+!!! info "Deployment Considerations":
+    If multiple Teleport auth servers are used to service the same cluster (HA mode)
+    a network file system must be used for `/var/lib/teleport/log` to allow them
+    to combine all audit events into the same audit log.
+
+### Session Recording
+
+By default, destination nodes submit SSH session traffic to the auth server
+for storage. These recorded sessions can be replayed later via `tsh play` 
+command or in a web browser.
+
+Some Teleport users mistakenly believe that audit and session recording happen
+on the Teleport proxy server. This is not the case because a proxy cannot see
+the encrypted traffic, it is encrypted end-to-end, i.e. from an SSH client to
+an SSH server/node, see the diagram below:
+
+![session-recording-diagram](img/session-recording.svg)
+
+However, starting from Teleport 2.4 it is now possible to configure the
+Teleport proxy to enable the "recording proxy mode". In this mode the proxy
+terminates (decrypts) the SSH connection using the certificate supplied by the
+client via SSH agent forwarding and then establishes it's own SSH connection
+to the final destination server, effectively becoming an authorized "man in the
+middle". This allows the proxy server to forward SSH session data to the auth
+server to be recorded, as shown below:
+
+![recorindg-proxy](img/recording-proxy.svg)
+
+The recording proxy mode, although _less secure_, was added to allow Teleport
+users to enable session recording for OpenSSH's servers running `sshd` which is
+helpful when gradually transitioning large server fleets to Teleport.
+
+We consider the "recording proxy mode" to be less secure for two reasons:
+
+1. It grants additional privileges to the Teleport proxy. In the default mode the 
+   proxy stores no secrets and cannot "see" the decrypted data. This makes a proxy 
+   less critical to the security of the overall cluster. But if an attacker gains 
+   physical access to a proxy node running in the "recording" mode, they will be 
+   able to see the decrypted traffic and client keys stored in proxy's process memory.
+2. Recording proxy mode requires the SSH agent forwarding. Agent forwarding is required
+   because without it a proxy will not be able to establish the 2nd connection to the
+   destination node.
+
+But there are advantages of proxy-based session recording too. When sessions are recorded 
+at the nodes a root user can add iptables rules to prevent sessions logs from reaching 
+the Auth Server. With sessions recorded at the proxy, users with root privileges on nodes
+have no way of disabling the audit.
+
+See the [admin guide](admin-guide#recorded-sessions) to learn how to turn on the
+recording proxy mode.
+
 ## Teleport CLI Tools
 
 Teleport offers two command line tools. `tsh` is a client tool used by the end users, while
