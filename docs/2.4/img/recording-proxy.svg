@@ -109,8 +109,8 @@
                 <use fill="black" fill-opacity="1" filter="url(#filter-8)" xlink:href="#path-7"></use>
                 <use fill="#FFFFFF" fill-rule="evenodd" xlink:href="#path-7"></use>
             </g>
-            <text id="Audit" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="16" font-weight="400" fill="#4A4A4A">
-                <tspan x="239.592" y="338">Audit</tspan>
+            <text id="Auth" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="16" font-weight="400" fill="#4A4A4A">
+                <tspan x="241.816" y="338">Auth</tspan>
             </text>
             <g id="Group-2" transform="translate(239.000000, 238.000000)">
                 <path d="M0,36 C0,38.209139 8.954305,40 20,40 C31.045695,40 40,38.209139 40,36 L40,4 L0,4 L0,36 Z" id="Combined-Shape" fill="#F5A623"></path>
@@ -146,6 +146,9 @@
             <path d="M358.5,98.5 L358.5,115.5" id="Line-2-Copy" stroke="#CFCFCF" stroke-width="3" stroke-linecap="square" stroke-dasharray="1,5,1,5"></path>
             <path d="M277.5,76.5 L333.5,76.5" id="Line-4" stroke="#F5A623" stroke-width="3" fill="#F5A623" stroke-linecap="square"></path>
             <path id="Line-4-decoration-1" d="M333.5,76.5 L322.7,73.5 L322.7,79.5 L333.5,76.5 Z" stroke="#F5A623" stroke-width="3" fill="#F5A623" stroke-linecap="square"></path>
+            <text id="Audit-Copy" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="14" font-weight="400" fill="#787878">
+                <tspan x="241.018" y="293">Audit</tspan>
+            </text>
         </g>
     </g>
 </svg>
