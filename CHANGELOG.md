@@ -1,5 +1,35 @@
 # Changelog
 
+## 2.4.0
+
+This release adds two major new features and a few improvements and bugfixes.
+
+#### New Features
+
+* New Commercial Teleport Editions: "Pro" and "Business" allow users to
+  purchase a Teleport subscription without signing contracts.
+* Teleport now supports SSH session recording even for nodes running OpenSSH [#1327](https://github.com/gravitational/teleport/issues/1327)
+  This feature is called "recording proxy mode".
+* Users of open source edition of Teleport can now authenticate against Github [#1445](https://github.com/gravitational/teleport/issues/1445)
+* The Web UI now supports persistent URLs to Teleport nodes which can be
+  integrated into 3rd party web apps. [#1511](https://github.com/gravitational/teleport/issues/1511)
+* Session recording can now be turned off [#1430](https://github.com/gravitational/teleport/pull/1430)
+
+#### Deprecated Features
+
+* Teleport client `tsh` no longer supports being an SSH agent. We recommend
+  using build-in SSH agents for MacOS and Linux, like `ssh-agent` from
+  `openssh-client` package.
+
+#### Bug Fixes
+
+There have been numerous small usability and performance improvements, but some
+notable fixed bugs are listed below:
+
+* Resource (file descriptor) leak [#1433](https://github.com/gravitational/teleport/issues/1433)
+* Correct handling of the terminal type [#1402](https://github.com/gravitational/teleport/issues/1402)
+* Crash on startup [#1395](https://github.com/gravitational/teleport/issues/1395)
+
 ## 2.3.5
 
 This release is focused on fixing a few regressions in configuration and UI/UX.
