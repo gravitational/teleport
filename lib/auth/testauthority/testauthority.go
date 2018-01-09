@@ -56,6 +56,7 @@ func (n *Keygen) GenerateHostCert(c services.HostCertParams) ([]byte, error) {
 		validBefore = uint64(b.Unix())
 	}
 	principals := native.BuildPrincipals(c.HostID, c.NodeName, c.ClusterName, c.Roles)
+	principals = append(principals, c.Principals...)
 	cert := &ssh.Certificate{
 		ValidPrincipals: principals,
 		Key:             pubKey,
