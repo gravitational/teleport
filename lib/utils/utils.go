@@ -33,6 +33,19 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// StringsSet creates set of string (map[string]struct{})
+// from a list of strings
+func StringsSet(in []string) map[string]struct{} {
+	if in == nil {
+		return nil
+	}
+	out := make(map[string]struct{})
+	for _, v := range in {
+		out[v] = struct{}{}
+	}
+	return out
+}
+
 // ParseOnOff parses whether value is "on" or "off", parameterName is passed for error
 // reporting purposes, defaultValue is returned when no value is set
 func ParseOnOff(parameterName, val string, defaultValue bool) (bool, error) {
@@ -60,6 +73,18 @@ func IsGroupMember(gid int) (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+// Host extracts host from host:port string
+func Host(hostname string) (string, error) {
+	if hostname == "" {
+		return "", trace.BadParameter("missing parameter hostname")
+	}
+	if !strings.Contains(hostname, ":") {
+		return hostname, nil
+	}
+	host, _, err := SplitHostPort(hostname)
+	return host, err
 }
 
 // SplitHostPort splits host and port and checks that host is not empty

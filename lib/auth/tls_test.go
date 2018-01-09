@@ -521,20 +521,35 @@ func (s *TLSSuite) TestGenerateCerts(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	certs, err := hostClient.GenerateServerKeys(
-		hostID, s.server.AuthServer.ClusterName, teleport.Roles{teleport.RoleNode})
+		GenerateServerKeysRequest{
+			HostID:               hostID,
+			NodeName:             s.server.AuthServer.ClusterName,
+			Roles:                teleport.Roles{teleport.RoleNode},
+			AdditionalPrincipals: []string{"example.com"},
+		})
 	c.Assert(err, check.IsNil)
 
-	_, _, _, _, err = ssh.ParseAuthorizedKey(certs.Cert)
+	key, _, _, _, err := ssh.ParseAuthorizedKey(certs.Cert)
 	c.Assert(err, check.IsNil)
+	hostCert := key.(*ssh.Certificate)
+	comment := check.Commentf("can't find example.com in %v", hostCert.ValidPrincipals)
+	c.Assert(utils.SliceContainsStr(hostCert.ValidPrincipals, "example.com"), check.Equals, true, comment)
 
 	// attempt to elevate privileges by getting admin role in the certificate
 	_, err = hostClient.GenerateServerKeys(
-		hostID, s.server.AuthServer.ClusterName, teleport.Roles{teleport.RoleAdmin})
+		GenerateServerKeysRequest{
+			HostID:   hostID,
+			NodeName: s.server.AuthServer.ClusterName,
+			Roles:    teleport.Roles{teleport.RoleAdmin},
+		})
 	fixtures.ExpectAccessDenied(c, err)
 
 	// attempt to get certificate for different host id
-	_, err = hostClient.GenerateServerKeys(
-		"some-other-host-id", s.server.AuthServer.ClusterName, teleport.Roles{teleport.RoleNode})
+	_, err = hostClient.GenerateServerKeys(GenerateServerKeysRequest{
+		HostID:   "some-other-host-id",
+		NodeName: s.server.AuthServer.ClusterName,
+		Roles:    teleport.Roles{teleport.RoleNode},
+	})
 	fixtures.ExpectAccessDenied(c, err)
 
 	user1, userRole, err := CreateUserAndRole(clt, "user1", []string{"user1"})
