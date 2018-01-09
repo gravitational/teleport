@@ -146,7 +146,7 @@ func checkLicense(process *TeleportProcess, config *service.Config) (*license.Li
 		return nil, trace.AccessDenied(
 			fmt.Sprintf(errLicenseProduct, config.Auth.LicenseFile, name))
 	}
-	process.Infof("using %v license from %v",
+	process.Infof("Using %v license from %v.",
 		parsed.Payload.ProductName, config.Auth.LicenseFile)
 	return parsed, nil
 }

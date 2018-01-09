@@ -18,14 +18,14 @@ type Client interface {
 
 // client is the enterprise-specific auth client
 type client struct {
-	// TunClient is the OSS auth client
-	*auth.TunClient
+	// Client is the OSS auth client
+	*auth.Client
 }
 
 // NewClient returns a new enterprise auth client
-func NewClient(clt *auth.TunClient) (*client, error) {
+func NewClient(clt *auth.Client) (*client, error) {
 	return &client{
-		TunClient: clt,
+		Client: clt,
 	}, nil
 }
 
