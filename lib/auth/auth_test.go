@@ -22,6 +22,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
@@ -31,10 +33,9 @@ import (
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/trace"
-
 	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/oidc"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	. "gopkg.in/check.v1"
 )
@@ -183,7 +184,12 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(roles.Include(teleport.RoleProxy), Equals, false)
 
 	// unsuccessful registration (wrong role)
-	keys, err := s.a.RegisterUsingToken(tok, "bad-host-id", "bad-node-name", teleport.RoleProxy)
+	keys, err := s.a.RegisterUsingToken(RegisterUsingTokenRequest{
+		Token:    tok,
+		HostID:   "bad-host-id",
+		NodeName: "bad-node-name",
+		Role:     teleport.RoleProxy,
+	})
 	c.Assert(keys, IsNil)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `node "bad-node-name" \[bad-host-id\] can not join the cluster, the token does not allow "Proxy" role`)
@@ -198,14 +204,38 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(err, IsNil)
 
 	// use it twice:
-	_, err = s.a.RegisterUsingToken(multiUseToken, "once", "node-name", teleport.RoleProxy)
+	keys, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
+		Token:                multiUseToken,
+		HostID:               "once",
+		NodeName:             "node-name",
+		Role:                 teleport.RoleProxy,
+		AdditionalPrincipals: []string{"example.com"},
+	})
 	c.Assert(err, IsNil)
-	_, err = s.a.RegisterUsingToken(multiUseToken, "twice", "node-name", teleport.RoleProxy)
+
+	// along the way, make sure that additional principals work
+	key, _, _, _, err := ssh.ParseAuthorizedKey(keys.Cert)
+	c.Assert(err, IsNil)
+	hostCert := key.(*ssh.Certificate)
+	comment := Commentf("can't find example.com in %v", hostCert.ValidPrincipals)
+	c.Assert(utils.SliceContainsStr(hostCert.ValidPrincipals, "example.com"), Equals, true, comment)
+
+	_, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
+		Token:    multiUseToken,
+		HostID:   "twice",
+		NodeName: "node-name",
+		Role:     teleport.RoleProxy,
+	})
 	c.Assert(err, IsNil)
 
 	// try to use after TTL:
 	s.a.clock = clockwork.NewFakeClockAt(time.Now().UTC().Add(time.Hour + 1))
-	_, err = s.a.RegisterUsingToken(multiUseToken, "late.bird", "node-name", teleport.RoleProxy)
+	_, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
+		Token:    multiUseToken,
+		HostID:   "late.bird",
+		NodeName: "node-name",
+		Role:     teleport.RoleProxy,
+	})
 	c.Assert(err, ErrorMatches, `node "node-name" \[late.bird\] can not join the cluster, token has expired`)
 
 	// expired token should be gone now
@@ -220,9 +250,19 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(err, IsNil)
 	err = s.a.SetStaticTokens(st)
 	c.Assert(err, IsNil)
-	_, err = s.a.RegisterUsingToken("static-token-value", "static.host", "node-name", teleport.RoleProxy)
+	_, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
+		Token:    "static-token-value",
+		HostID:   "static.host",
+		NodeName: "node-name",
+		Role:     teleport.RoleProxy,
+	})
 	c.Assert(err, IsNil)
-	_, err = s.a.RegisterUsingToken("static-token-value", "wrong.role", "node-name", teleport.RoleAuth)
+	_, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
+		Token:    "static-token-value",
+		HostID:   "wrong.role",
+		NodeName: "node-name",
+		Role:     teleport.RoleAuth,
+	})
 	c.Assert(err, NotNil)
 	r, err := s.a.ValidateToken("static-token-value")
 	c.Assert(err, IsNil)
