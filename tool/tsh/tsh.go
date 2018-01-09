@@ -30,6 +30,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gravitational/teleport/lib/ansible"
+
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -120,6 +122,15 @@ type CLIConf struct {
 	// format to use with --out to store a fershly retreived certificate
 	IdentityFormat client.IdentityFileFormat
 
+	// OutputFormat is an argument to --format for 'tsh ls' that defines
+	// the output format to stdout
+	OutputFormat string
+
+	// Ansible flags for --list
+	AnsibleList bool
+	// Ansible flag for --host
+	AnsibleHost string
+
 	// AuthConnector is the name of the connector to use.
 	AuthConnector string
 }
@@ -191,6 +202,9 @@ func Run(args []string, underTest bool) {
 	// ls
 	ls := app.Command("ls", "List remote SSH nodes")
 	ls.Arg("labels", "List of labels to filter node list").StringVar(&cf.UserHost)
+	ls.Flag("format", "Format output. Possible values : json (compatible with ansible dynamic inventory), ansible-static (compatible with ansible static inventory").StringVar(&cf.OutputFormat)
+	ls.Flag("list", "Match Ansible Dynamic Inventory requirements").BoolVar(&cf.AnsibleList)
+	ls.Flag("host", "Match Ansible Dynamic Inventory requirements").StringVar(&cf.AnsibleHost)
 	// clusters
 	clusters := app.Command("clusters", "List available Teleport clusters")
 	clusters.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
@@ -371,13 +385,34 @@ func onListNodes(cf *CLIConf) {
 	if err != nil {
 		utils.FatalError(err)
 	}
-	t := asciitable.MakeTable([]string{"Node Name", "Node ID", "Address", "Labels"})
-	for _, n := range nodes {
-		t.AddRow([]string{
-			n.GetHostname(), n.GetName(), n.GetAddr(), n.LabelsString(),
-		})
+
+	// called with --host
+	if cf.AnsibleHost != "" {
+		ansible.DynamicInventoryHost(nodes, cf.AnsibleHost)
+		return
 	}
-	fmt.Println(t.AsBuffer().String())
+
+	switch cf.OutputFormat {
+	case "json":
+		jsonInventory, err := ansible.DynamicInventoryList(nodes)
+		if err != nil {
+			utils.FatalError(err)
+		}
+		fmt.Printf("%s", jsonInventory)
+	case "ansible-static":
+		ansible.StaticInventory(nodes)
+	case "":
+		t := asciitable.MakeTable([]string{"Node Name", "Node ID", "Address", "Labels"})
+		for _, n := range nodes {
+			t.AddRow([]string{
+				n.GetHostname(), n.GetName(), n.GetAddr(), n.LabelsString(),
+			})
+		}
+		fmt.Println(t.AsBuffer().String())
+	default:
+		// --format has been set to an unsupported value
+		utils.FatalError(fmt.Errorf("bad parameter for flag --host=%s: possible values are json,ansible-static", cf.OutputFormat))
+	}
 }
 
 // onListSites executes 'tsh sites' command
