@@ -97,10 +97,14 @@ func initServices(ctx context.Context, config *proConfig) (*Enforcer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	anonymizer, err := utils.NewHMACAnonymizer(clusterConfig.GetClusterID())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	auditLog, err := NewAuditLog(AuditLogConfig{
-		Inner:        config.Teleport.GetAuditLog(),
-		Recorder:     recorder,
-		AnonymizeKey: clusterConfig.GetClusterID(),
+		Inner:      config.Teleport.GetAuditLog(),
+		Recorder:   recorder,
+		Anonymizer: anonymizer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
