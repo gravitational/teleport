@@ -107,11 +107,13 @@ func bufferLabels(nodes []services.Server) map[string][]string {
 	for _, n := range nodes {
 		// get labels and add to groups
 		for label, val := range n.GetAllLabels() {
-			// groupName is of the form apache-2.2
-			groupName := label + "-" + val
-			// remove trailing port in host (if any)
-			IP := trimTrailingPort(n.GetAddr())
-			labelBuffer[groupName] = append(labelBuffer[groupName], IP)
+			if val != "" {
+				// groupName is of the form apache-2.2
+				groupName := label + "-" + val
+				// remove trailing port in host (if any)
+				IP := trimTrailingPort(n.GetAddr())
+				labelBuffer[groupName] = append(labelBuffer[groupName], IP)
+			}
 		}
 	}
 	return labelBuffer
