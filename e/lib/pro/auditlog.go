@@ -2,15 +2,13 @@ package pro
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/json"
 	"io"
 	"time"
 
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 
 	rclient "github.com/gravitational/reporting/client"
 	"github.com/gravitational/reporting/types"
@@ -34,8 +32,8 @@ type AuditLogConfig struct {
 	Inner events.IAuditLog
 	// Recorder is the underlying recording client
 	Recorder rclient.Client
-	// AnonymizeKey is used for anonymizing sent data
-	AnonymizeKey string
+	// Anonymizer is used for anonymizing sent data
+	Anonymizer utils.Anonymizer
 }
 
 // Check checks that the audit log config is valid
@@ -46,8 +44,8 @@ func (c *AuditLogConfig) Check() error {
 	if c.Recorder == nil {
 		return trace.BadParameter("missing Recorder")
 	}
-	if c.AnonymizeKey == "" {
-		return trace.BadParameter("missing AnonymizeKey")
+	if c.Anonymizer == nil {
+		return trace.BadParameter("missing Anonymizer")
 	}
 	return nil
 }
@@ -133,7 +131,5 @@ func (l *AuditLog) Close() error {
 
 // anonymize returns the anonymized hash of the provided data
 func (l *AuditLog) anonymize(data string) string {
-	h := hmac.New(sha256.New, []byte(l.AnonymizeKey))
-	h.Write([]byte(data))
-	return base64.StdEncoding.EncodeToString(h.Sum(nil))
+	return l.Anonymizer.Anonymize([]byte(data))
 }

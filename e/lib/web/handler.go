@@ -116,17 +116,18 @@ func (p *Plugin) deleteResourceHandle(w http.ResponseWriter, r *http.Request, pa
 
 // getLicenseCheckStatusHandle is GET handle that returns the license check status
 func (p *Plugin) getLicenseCheckStatusHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
-	client := p.ProxyClient
-	enterpriseClient, err := enterpriseAuth.NewClient(client.(*auth.TunClient))
+	client, ok := p.ProxyClient.(*auth.Client)
+	if !ok {
+		return nil, trace.BadParameter("expected *auth.Client, got: %T", client)
+	}
+	enterpriseClient, err := enterpriseAuth.NewClient(client)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	licenseCheckResult, err := enterpriseClient.GetLicenseCheckResult()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	return ui.NewLicenseCheckStatus(licenseCheckResult), nil
 }
 

@@ -97,10 +97,14 @@ func initServices(ctx context.Context, config *proConfig) (*Enforcer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	anonymizer, err := utils.NewHMACAnonymizer(clusterConfig.GetClusterID())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	auditLog, err := NewAuditLog(AuditLogConfig{
-		Inner:        config.Teleport.GetAuditLog(),
-		Recorder:     recorder,
-		AnonymizeKey: clusterConfig.GetClusterID(),
+		Inner:      config.Teleport.GetAuditLog(),
+		Recorder:   recorder,
+		Anonymizer: anonymizer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -142,7 +146,7 @@ func checkLicense(process *TeleportProcess, config *service.Config) (*license.Li
 		return nil, trace.AccessDenied(
 			fmt.Sprintf(errLicenseProduct, config.Auth.LicenseFile, name))
 	}
-	process.Infof("using %v license from %v",
+	process.Infof("Using %v license from %v.",
 		parsed.Payload.ProductName, config.Auth.LicenseFile)
 	return parsed, nil
 }

@@ -85,7 +85,7 @@ func NewEnforcer(ctx context.Context, config EnforcerConfig) (*Enforcer, error) 
 		}),
 	}
 	if !config.NoStart {
-		enforcer.Debug("starting enforcer")
+		enforcer.Debug("Starting enforcer.")
 		go enforcer.periodicHeartbeat(ctx)
 		go enforcer.enforcer(ctx)
 	}
@@ -103,7 +103,7 @@ func (e *Enforcer) enforcer(ctx context.Context) {
 				log.Error(trace.DebugReport(err))
 			}
 		case <-ctx.Done():
-			e.Debug("enforce loop is exiting")
+			e.Debug("Enforce loop is exiting.")
 			return
 		}
 	}
@@ -120,7 +120,7 @@ func (e *Enforcer) periodicHeartbeat(ctx context.Context) {
 				log.Debug(trace.DebugReport(err))
 			}
 		case <-ctx.Done():
-			e.Debug("heartbeat loop is exiting")
+			e.Debug("Heartbeat loop is exiting.")
 			return
 		}
 	}
@@ -224,7 +224,7 @@ var licenseCheckConnectionProblemText = fmt.Sprintf(
 	"Teleport has failed to contact the license server for more than %v "+
 		"consecutive hours. Please make sure the Teleport auth server machine "+
 		"is capable of connecting to %v. Otherwise, contact Gravitational "+
-		"support (%v)",
+		"support (%v).",
 	constants.MaxControlPlaneUnreachableHours,
 	constants.GravitationalDownloadPortalURL,
 	constants.GravitationalSupportURL)

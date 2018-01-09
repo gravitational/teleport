@@ -5,7 +5,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gravitational/reporting/types"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/e/lib/fixtures"
 	"github.com/gravitational/teleport/e/lib/pro"
@@ -14,6 +13,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/services"
 
+	"github.com/gravitational/reporting/types"
 	check "gopkg.in/check.v1"
 )
 
@@ -52,7 +52,8 @@ func (s *APISuite) SetUpSuite(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	InitPlugin(s.enforcer)
+	InitPlugin()
+	SetEnforcer(s.enforcer)
 
 	apiServer := auth.NewAPIServer(&auth.APIConfig{
 		AuthServer: authServer,
@@ -65,9 +66,7 @@ func (s *APISuite) TestHeartbeat(c *check.C) {
 	httpClient, err := auth.NewClient(s.apiServer.URL, nil)
 	c.Assert(err, check.IsNil)
 
-	client, err := NewClient(&auth.TunClient{
-		Client: *httpClient,
-	})
+	client, err := NewClient(httpClient)
 	c.Assert(err, check.IsNil)
 
 	heartbeat := types.NewHeartbeat()
