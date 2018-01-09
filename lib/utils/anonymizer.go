@@ -40,7 +40,7 @@ type hmacAnonymizer struct {
 // NewHMACAnonymizer returns a new HMAC-based anonymizer
 func NewHMACAnonymizer(key string) (*hmacAnonymizer, error) {
 	if strings.TrimSpace(key) == "" {
-		return nil, trace.BadParameter("hmac key must not be empty")
+		return nil, trace.BadParameter("HMAC key must not be empty")
 	}
 	return &hmacAnonymizer{
 		key: key,
