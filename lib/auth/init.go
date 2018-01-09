@@ -543,7 +543,11 @@ func initKeys(a *AuthServer, dataDir string, id IdentityID) (*Identity, error) {
 	}
 
 	if !keyExists || !sshCertExists || !tlsCertExists {
-		packedKeys, err := a.GenerateServerKeys(id.HostUUID, id.NodeName, teleport.Roles{id.Role})
+		packedKeys, err := a.GenerateServerKeys(GenerateServerKeysRequest{
+			HostID:   id.HostUUID,
+			NodeName: id.NodeName,
+			Roles:    teleport.Roles{id.Role},
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -608,6 +612,17 @@ type Identity struct {
 // HasTSLConfig returns true if this identity has TLS certificate and private key
 func (i *Identity) HasTLSConfig() bool {
 	return len(i.TLSCACertBytes) != 0 && len(i.TLSCertBytes) != 0 && len(i.TLSCACertBytes) != 0
+}
+
+// HasPrincipals returns whether identity has principals
+func (i *Identity) HasPrincipals(additionalPrincipals []string) bool {
+	set := utils.StringsSet(additionalPrincipals)
+	for _, principal := range i.Cert.ValidPrincipals {
+		if _, ok := set[principal]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 // TLSConfig returns TLS config for mutual TLS authentication

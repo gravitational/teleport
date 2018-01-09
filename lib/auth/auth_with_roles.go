@@ -214,9 +214,9 @@ func (a *AuthWithRoles) GenerateToken(roles teleport.Roles, ttl time.Duration) (
 	return a.authServer.GenerateToken(roles, ttl)
 }
 
-func (a *AuthWithRoles) RegisterUsingToken(token, hostID string, nodeName string, role teleport.Role) (*PackedKeys, error) {
+func (a *AuthWithRoles) RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedKeys, error) {
 	// tokens have authz mechanism  on their own, no need to check
-	return a.authServer.RegisterUsingToken(token, hostID, nodeName, role)
+	return a.authServer.RegisterUsingToken(req)
 }
 
 func (a *AuthWithRoles) RegisterNewAuthServer(token string) error {
@@ -226,24 +226,24 @@ func (a *AuthWithRoles) RegisterNewAuthServer(token string) error {
 
 // GenerateServerKeys generates new host private keys and certificates (signed
 // by the host certificate authority) for a node.
-func (a *AuthWithRoles) GenerateServerKeys(hostID string, nodeName string, roles teleport.Roles) (*PackedKeys, error) {
+func (a *AuthWithRoles) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys, error) {
 	clusterName, err := a.authServer.GetDomainName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	// username is hostID + cluster name, so make sure server requests new keys for itself
-	if a.user.GetName() != HostFQDN(hostID, clusterName) {
-		return nil, trace.AccessDenied("username mismatch %q and %q", a.user.GetName(), HostFQDN(hostID, clusterName))
+	if a.user.GetName() != HostFQDN(req.HostID, clusterName) {
+		return nil, trace.AccessDenied("username mismatch %q and %q", a.user.GetName(), HostFQDN(req.HostID, clusterName))
 	}
 	existingRoles, err := teleport.NewRoles(a.user.GetRoles())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	// prohibit privilege escalations through role changes
-	if !existingRoles.Equals(roles) {
-		return nil, trace.AccessDenied("roles do not match: %v and %v", existingRoles, roles)
+	if !existingRoles.Equals(req.Roles) {
+		return nil, trace.AccessDenied("roles do not match: %v and %v", existingRoles, req.Roles)
 	}
-	return a.authServer.GenerateServerKeys(hostID, nodeName, roles)
+	return a.authServer.GenerateServerKeys(req)
 }
 
 func (a *AuthWithRoles) UpsertNode(s services.Server) error {

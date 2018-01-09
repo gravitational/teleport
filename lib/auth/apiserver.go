@@ -892,24 +892,15 @@ func (s *APIServer) generateToken(auth ClientI, w http.ResponseWriter, r *http.R
 	return string(token), nil
 }
 
-type registerUsingTokenReq struct {
-	HostID   string        `json:"hostID"`
-	NodeName string        `json:"node_name"`
-	Role     teleport.Role `json:"role"`
-	Token    string        `json:"token"`
-}
-
 func (s *APIServer) registerUsingToken(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
-	var req *registerUsingTokenReq
+	var req RegisterUsingTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	keys, err := auth.RegisterUsingToken(req.Token, req.HostID, req.NodeName, req.Role)
+	keys, err := auth.RegisterUsingToken(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	return keys, nil
 }
 
@@ -929,22 +920,13 @@ func (s *APIServer) registerNewAuthServer(auth ClientI, w http.ResponseWriter, r
 	return message("ok"), nil
 }
 
-type generateServerKeysReq struct {
-	// HostID is unique ID of the host
-	HostID string `json:"host_id"`
-	// NodeName is user friendly host name
-	NodeName string `json:"node_name"`
-	// Roles is a list of roles assigned to node
-	Roles teleport.Roles `json:"roles"`
-}
-
 func (s *APIServer) generateServerKeys(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
-	var req *generateServerKeysReq
+	var req GenerateServerKeysRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	keys, err := auth.GenerateServerKeys(req.HostID, req.NodeName, req.Roles)
+	keys, err := auth.GenerateServerKeys(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
