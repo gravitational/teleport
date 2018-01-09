@@ -562,7 +562,7 @@ func (s *TLSSuite) TestGenerateCerts(c *check.C) {
 	nopClient, err := s.server.NewClient(TestNop())
 	c.Assert(err, check.IsNil)
 
-	_, err = nopClient.GenerateUserCert(pub, user1.GetName(), time.Hour, teleport.CompatibilityNone)
+	_, err = nopClient.GenerateUserCert(pub, user1.GetName(), time.Hour, teleport.CertificateFormatStandard)
 	c.Assert(err, check.NotNil)
 	fixtures.ExpectAccessDenied(c, err)
 	c.Assert(err, check.ErrorMatches, ".*cannot request a certificate for user1")
@@ -571,7 +571,7 @@ func (s *TLSSuite) TestGenerateCerts(c *check.C) {
 	userClient2, err := s.server.NewClient(TestUser(user2.GetName()))
 	c.Assert(err, check.IsNil)
 
-	_, err = userClient2.GenerateUserCert(pub, user1.GetName(), time.Hour, teleport.CompatibilityNone)
+	_, err = userClient2.GenerateUserCert(pub, user1.GetName(), time.Hour, teleport.CertificateFormatStandard)
 	c.Assert(err, check.NotNil)
 	fixtures.ExpectAccessDenied(c, err)
 	c.Assert(err, check.ErrorMatches, ".*cannot request a certificate for user1")
@@ -580,7 +580,7 @@ func (s *TLSSuite) TestGenerateCerts(c *check.C) {
 	userClient1, err := s.server.NewClient(TestUser(user1.GetName()))
 	c.Assert(err, check.IsNil)
 
-	cert, err := userClient1.GenerateUserCert(pub, user1.GetName(), 40*time.Hour, teleport.CompatibilityNone)
+	cert, err := userClient1.GenerateUserCert(pub, user1.GetName(), 40*time.Hour, teleport.CertificateFormatStandard)
 	c.Assert(err, check.IsNil)
 
 	parsedKey, _, _, _, err := ssh.ParseAuthorizedKey(cert)
@@ -601,7 +601,7 @@ func (s *TLSSuite) TestGenerateCerts(c *check.C) {
 	err = clt.UpsertRole(userRole, backend.Forever)
 	c.Assert(err, check.IsNil)
 
-	cert, err = userClient1.GenerateUserCert(pub, user1.GetName(), 1*time.Hour, teleport.CompatibilityNone)
+	cert, err = userClient1.GenerateUserCert(pub, user1.GetName(), 1*time.Hour, teleport.CertificateFormatStandard)
 	c.Assert(err, check.IsNil)
 	parsedKey, _, _, _, err = ssh.ParseAuthorizedKey(cert)
 	c.Assert(err, check.IsNil)
@@ -612,11 +612,72 @@ func (s *TLSSuite) TestGenerateCerts(c *check.C) {
 	c.Assert(exists, check.Equals, true)
 
 	// apply HTTP Auth to generate user cert:
-	cert, err = userClient1.GenerateUserCert(pub, user1.GetName(), time.Hour, teleport.CompatibilityNone)
+	cert, err = userClient1.GenerateUserCert(pub, user1.GetName(), time.Hour, teleport.CertificateFormatStandard)
 	c.Assert(err, check.IsNil)
 
 	_, _, _, _, err = ssh.ParseAuthorizedKey(cert)
 	c.Assert(err, check.IsNil)
+}
+
+// TestCertificateFormat makes sure that certificates are generated with the
+// correct format.
+func (s *TLSSuite) TestCertificateFormat(c *check.C) {
+	priv, pub, err := s.server.Auth().GenerateKeyPair("")
+	c.Assert(err, check.IsNil)
+
+	// make sure we can parse the private and public key
+	_, err = ssh.ParsePrivateKey(priv)
+	c.Assert(err, check.IsNil)
+	_, _, _, _, err = ssh.ParseAuthorizedKey(pub)
+	c.Assert(err, check.IsNil)
+
+	// create an admin client
+	clt, err := s.server.NewClient(TestAdmin())
+	c.Assert(err, check.IsNil)
+
+	// use admin client to create user and role
+	user, userRole, err := CreateUserAndRole(clt, "user", []string{"user"})
+	c.Assert(err, check.IsNil)
+
+	var tests = []struct {
+		inRoleCertificateFormat   string
+		inClientCertificateFormat string
+		outCertContainsRole       bool
+	}{
+		// 0 - take whatever the role has
+		{
+			teleport.CertificateFormatOldSSH,
+			teleport.CertificateFormatUnspecified,
+			false,
+		},
+		// 1 - override the role
+		{
+			teleport.CertificateFormatOldSSH,
+			teleport.CertificateFormatStandard,
+			true,
+		},
+	}
+
+	for _, tt := range tests {
+		roleOptions := userRole.GetOptions()
+		roleOptions.Set(services.CertificateFormat, tt.inRoleCertificateFormat)
+		userRole.SetOptions(roleOptions)
+		err := clt.UpsertRole(userRole, backend.Forever)
+		c.Assert(err, check.IsNil)
+
+		// get a user client
+		userClient, err := s.server.NewClient(TestUser(user.GetName()))
+		c.Assert(err, check.IsNil)
+
+		cert, err := userClient.GenerateUserCert(pub, user.GetName(), defaults.CertDuration, tt.inClientCertificateFormat)
+		c.Assert(err, check.IsNil)
+		parsedKey, _, _, _, err := ssh.ParseAuthorizedKey(cert)
+		c.Assert(err, check.IsNil)
+		parsedCert, _ := parsedKey.(*ssh.Certificate)
+
+		_, ok := parsedCert.Extensions[teleport.CertExtensionTeleportRoles]
+		c.Assert(ok, check.Equals, tt.outCertContainsRole)
+	}
 }
 
 // TestClusterConfigContext checks that the cluster configuration gets passed

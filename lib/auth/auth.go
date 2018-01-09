@@ -264,10 +264,14 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// create the user certificate
-	compatibility, err := utils.CheckCompatibilityFlag(req.compatibility)
+	// extract the passed in certificate format. if nothing was passed in, fetch
+	// the certificate format from the role.
+	certificateFormat, err := utils.CheckCertificateFormatFlag(req.compatibility)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if certificateFormat == teleport.CertificateFormatUnspecified {
+		certificateFormat = req.roles.CertificateFormat()
 	}
 
 	// adjust session ttl to the smaller of two values: the session
@@ -302,7 +306,7 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 		AllowedLogins:         allowedLogins,
 		TTL:                   sessionTTL,
 		Roles:                 req.user.GetRoles(),
-		Compatibility:         compatibility,
+		CertificateFormat:     certificateFormat,
 		PermitPortForwarding:  req.roles.CanPortForward(),
 		PermitAgentForwarding: req.roles.CanForwardAgents(),
 	})

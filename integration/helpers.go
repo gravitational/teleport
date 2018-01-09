@@ -431,7 +431,7 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 		}
 		// sign user's keys:
 		ttl := 24 * time.Hour
-		user.Key.Cert, user.Key.TLSCert, err = auth.GenerateUserCerts(user.Key.Pub, teleUser.GetName(), ttl, teleport.CompatibilityNone)
+		user.Key.Cert, user.Key.TLSCert, err = auth.GenerateUserCerts(user.Key.Pub, teleUser.GetName(), ttl, teleport.CertificateFormatStandard)
 		if err != nil {
 			return err
 		}
