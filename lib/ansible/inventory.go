@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/trace"
 )
 
 // Inventory matches the JSON struct needed for DynamicInventoryList
@@ -70,7 +71,7 @@ func DynamicInventoryList(nodes []services.Server) (string, error) {
 	inventory["_meta"] = meta
 	out, err := json.Marshal(inventory)
 	if err != nil {
-		return "", fmt.Errorf("cannot encode JSON objet: %s", err)
+		return "", trace.Wrap(err, "can not encode JSON object")
 	}
 	return string(out) + "\n", nil
 }
