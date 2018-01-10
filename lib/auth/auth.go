@@ -235,7 +235,7 @@ func (s *AuthServer) GenerateHostCert(hostPublicKey []byte, hostID, nodeName str
 
 // GenerateUserCert generates user certificate, it takes pkey as a signing
 // private key (user certificate authority)
-func (s *AuthServer) GenerateUserCert(key []byte, user services.User, allowedLogins []string, ttl time.Duration, canForwardAgents bool, canPortForward bool, compatibility string) ([]byte, error) {
+func (s *AuthServer) GenerateUserCert(key []byte, user services.User, allowedLogins []string, ttl time.Duration, canForwardAgents bool, canPortForward bool, certificateFormat string) ([]byte, error) {
 	domainName, err := s.GetDomainName()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -245,6 +245,7 @@ func (s *AuthServer) GenerateUserCert(key []byte, user services.User, allowedLog
 		DomainName: domainName,
 	}, true)
 	if err != nil {
+		fmt.Printf("--> here: %v\n", err)
 		return nil, trace.Wrap(err)
 	}
 	privateKey, err := ca.FirstSigningKey()
@@ -258,7 +259,7 @@ func (s *AuthServer) GenerateUserCert(key []byte, user services.User, allowedLog
 		AllowedLogins:         allowedLogins,
 		TTL:                   ttl,
 		Roles:                 user.GetRoles(),
-		Compatibility:         compatibility,
+		CertificateFormat:     certificateFormat,
 		PermitAgentForwarding: canForwardAgents,
 		PermitPortForwarding:  canPortForward,
 	})

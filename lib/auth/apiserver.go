@@ -772,11 +772,11 @@ func (s *APIServer) generateUserCert(auth ClientI, w http.ResponseWriter, r *htt
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	compatibility, err := utils.CheckCompatibilityFlag(req.Compatibility)
+	certificateFormat, err := utils.CheckCertificateFormatFlag(req.Compatibility)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cert, err := auth.GenerateUserCert(req.Key, req.User, req.TTL, compatibility)
+	cert, err := auth.GenerateUserCert(req.Key, req.User, req.TTL, certificateFormat)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -797,11 +797,11 @@ func (s *APIServer) generateUserCertBundle(auth ClientI, w http.ResponseWriter, 
 	}
 
 	// create the user certificate
-	compatibility, err := utils.CheckCompatibilityFlag(req.Compatibility)
+	certificateFormat, err := utils.CheckCertificateFormatFlag(req.Compatibility)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cert, err := auth.GenerateUserCert(req.Key, req.User, req.TTL, compatibility)
+	cert, err := auth.GenerateUserCert(req.Key, req.User, req.TTL, certificateFormat)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

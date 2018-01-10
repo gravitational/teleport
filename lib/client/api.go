@@ -180,8 +180,8 @@ type Config struct {
 	// by default does not use caching
 	CachePolicy *CachePolicy
 
-	// Compatibility specifies OpenSSH compatibility flags.
-	Compatibility string
+	// CertificateFormat is the format of the SSH certificate.
+	CertificateFormat string
 
 	// AuthConnector is the name of the authentication connector to use.
 	AuthConnector string
@@ -1161,7 +1161,7 @@ func (tc *TeleportClient) directLogin(secondFactorType string, pub []byte) (*SSH
 		tc.KeyTTL,
 		tc.InsecureSkipVerify,
 		certPool,
-		tc.Compatibility)
+		tc.CertificateFormat)
 
 	return response, trace.Wrap(err)
 }
@@ -1179,7 +1179,7 @@ func (tc *TeleportClient) ssoLogin(connectorID string, pub []byte, protocol stri
 		tc.InsecureSkipVerify,
 		loopbackPool(webProxyAddr),
 		protocol,
-		tc.Compatibility)
+		tc.CertificateFormat)
 	return response, trace.Wrap(err)
 }
 
@@ -1207,7 +1207,7 @@ func (tc *TeleportClient) u2fLogin(pub []byte) (*SSHLoginResponse, error) {
 		tc.KeyTTL,
 		tc.InsecureSkipVerify,
 		certPool,
-		tc.Compatibility)
+		tc.CertificateFormat)
 
 	return response, trace.Wrap(err)
 }

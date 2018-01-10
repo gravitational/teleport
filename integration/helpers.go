@@ -370,7 +370,7 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		user.Key.Cert, err = auth.GenerateUserCert(user.Key.Pub, teleUser, logins, ttl, true, true, teleport.CompatibilityNone)
+		user.Key.Cert, err = auth.GenerateUserCert(user.Key.Pub, teleUser, logins, ttl, true, true, teleport.CertificateFormatStandard)
 		if err != nil {
 			return err
 		}

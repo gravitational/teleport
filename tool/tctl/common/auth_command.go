@@ -259,7 +259,7 @@ func (a *AuthCommand) generateHostKeys(clusterApi *auth.TunClient) error {
 
 func (a *AuthCommand) generateUserKeys(clusterApi *auth.TunClient) error {
 	// parse compatibility parameter
-	compatibility, err := utils.CheckCompatibilityFlag(a.compatibility)
+	certificateFormat, err := utils.CheckCertificateFormatFlag(a.compatibility)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -271,7 +271,7 @@ func (a *AuthCommand) generateUserKeys(clusterApi *auth.TunClient) error {
 	}
 
 	// sign it and produce a cert:
-	key.Cert, err = clusterApi.GenerateUserCert(key.Pub, a.genUser, a.genTTL, compatibility)
+	key.Cert, err = clusterApi.GenerateUserCert(key.Pub, a.genUser, a.genTTL, certificateFormat)
 	if err != nil {
 		return trace.Wrap(err)
 	}

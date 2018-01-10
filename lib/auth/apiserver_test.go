@@ -269,7 +269,7 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 	authServer, userClient := s.newServerWithAuthorizer(c, authorizer)
 	defer authServer.Close()
 
-	cert, err = userClient.GenerateUserCert(pub, "user1", time.Hour, teleport.CompatibilityNone)
+	cert, err = userClient.GenerateUserCert(pub, "user1", time.Hour, teleport.CertificateFormatStandard)
 	c.Assert(err, NotNil)
 	c.Assert(err.Error(), Equals, "auth API: access denied [00]")
 
@@ -279,7 +279,7 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 	authServer2, userClient2 := s.newServerWithAuthorizer(c, authorizer)
 	defer authServer2.Close()
 
-	cert, err = userClient2.GenerateUserCert(pub, "user1", time.Hour, teleport.CompatibilityNone)
+	cert, err = userClient2.GenerateUserCert(pub, "user1", time.Hour, teleport.CertificateFormatStandard)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, ".*cannot request a certificate for user1")
 
@@ -289,7 +289,7 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 	authServer3, userClient3 := s.newServerWithAuthorizer(c, authorizer)
 	defer authServer3.Close()
 
-	cert, err = userClient3.GenerateUserCert(pub, "user1", 40*time.Hour, teleport.CompatibilityNone)
+	cert, err = userClient3.GenerateUserCert(pub, "user1", 40*time.Hour, teleport.CertificateFormatStandard)
 	c.Assert(err, IsNil)
 	parsedKey, _, _, _, err := ssh.ParseAuthorizedKey(cert)
 	c.Assert(err, IsNil)
@@ -314,7 +314,7 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 	authServer4, userClient4 := s.newServerWithAuthorizer(c, authorizer)
 	defer authServer4.Close()
 
-	cert, err = userClient4.GenerateUserCert(pub, "user1", 1*time.Hour, teleport.CompatibilityNone)
+	cert, err = userClient4.GenerateUserCert(pub, "user1", 1*time.Hour, teleport.CertificateFormatStandard)
 	c.Assert(err, IsNil)
 	parsedKey, _, _, _, err = ssh.ParseAuthorizedKey(cert)
 	c.Assert(err, IsNil)
@@ -325,11 +325,73 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 	c.Assert(exists, Equals, true)
 
 	// apply HTTP Auth to generate user cert:
-	cert, err = userClient3.GenerateUserCert(pub, "user1", time.Hour, teleport.CompatibilityNone)
+	cert, err = userClient3.GenerateUserCert(pub, "user1", time.Hour, teleport.CertificateFormatStandard)
 	c.Assert(err, IsNil)
 
 	_, _, _, _, err = ssh.ParseAuthorizedKey(cert)
 	c.Assert(err, IsNil)
+}
+
+// TestCertificateFormat makes sure that certificates are generated with the
+// correct format.
+func (s *APISuite) TestCertificateFormat(c *C) {
+	priv, pub, err := s.clt.GenerateKeyPair("")
+	c.Assert(err, IsNil)
+
+	// create a user ca for tests
+	c.Assert(s.clt.UpsertCertAuthority(
+		suite.NewTestCA(services.UserCA, "localhost")), IsNil)
+
+	// make sure we can parse the private and public key
+	_, err = ssh.ParsePrivateKey(priv)
+	c.Assert(err, IsNil)
+	_, _, _, _, err = ssh.ParseAuthorizedKey(pub)
+	c.Assert(err, IsNil)
+
+	// use admin client to create user and role
+	user, userRole := createUserAndRole(s.clt, "user", []string{"user"})
+
+	var tests = []struct {
+		inRoleCertificateFormat   string
+		inClientCertificateFormat string
+		outCertContainsRole       bool
+	}{
+		// 0 - take whatever the role has
+		{
+			teleport.CertificateFormatOldSSH,
+			teleport.CertificateFormatUnspecified,
+			false,
+		},
+		// 1 - override the role
+		{
+			teleport.CertificateFormatOldSSH,
+			teleport.CertificateFormatStandard,
+			true,
+		},
+	}
+
+	for _, tt := range tests {
+		roleOptions := userRole.GetOptions()
+		roleOptions.Set(services.CertificateFormat, tt.inRoleCertificateFormat)
+		userRole.SetOptions(roleOptions)
+		err := s.clt.UpsertRole(userRole, backend.Forever)
+		c.Assert(err, IsNil)
+
+		// get a user client
+		authorizer, err := NewUserAuthorizer("user", s.WebS, s.AccessS)
+		c.Assert(err, IsNil)
+		authServer, userClient := s.newServerWithAuthorizer(c, authorizer)
+		defer authServer.Close()
+
+		cert, err := userClient.GenerateUserCert(pub, user.GetName(), defaults.CertDuration, tt.inClientCertificateFormat)
+		c.Assert(err, IsNil)
+		parsedKey, _, _, _, err := ssh.ParseAuthorizedKey(cert)
+		c.Assert(err, IsNil)
+		parsedCert, _ := parsedKey.(*ssh.Certificate)
+
+		_, ok := parsedCert.Extensions[teleport.CertExtensionTeleportRoles]
+		c.Assert(ok, Equals, tt.outCertContainsRole)
+	}
 }
 
 func (s *APISuite) newServerWithAuthorizer(c *C, authz Authorizer) (*httptest.Server, *Client) {

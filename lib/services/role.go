@@ -91,9 +91,10 @@ func NewAdminRole() Role {
 		},
 		Spec: RoleSpecV3{
 			Options: RoleOptions{
-				MaxSessionTTL:  NewDuration(defaults.MaxCertDuration),
-				PortForwarding: true,
-				ForwardAgent:   true,
+				CertificateFormat: teleport.CertificateFormatStandard,
+				MaxSessionTTL:     NewDuration(defaults.MaxCertDuration),
+				PortForwarding:    true,
+				ForwardAgent:      true,
 			},
 			Allow: RoleConditions{
 				Namespaces: []string{defaults.Namespace},
@@ -139,9 +140,10 @@ func RoleForUser(u User) Role {
 		},
 		Spec: RoleSpecV3{
 			Options: RoleOptions{
-				MaxSessionTTL:  NewDuration(defaults.MaxCertDuration),
-				PortForwarding: true,
-				ForwardAgent:   true,
+				CertificateFormat: teleport.CertificateFormatStandard,
+				MaxSessionTTL:     NewDuration(defaults.MaxCertDuration),
+				PortForwarding:    true,
+				ForwardAgent:      true,
 			},
 			Allow: RoleConditions{
 				Namespaces: []string{defaults.Namespace},
@@ -217,6 +219,10 @@ const (
 	// PortForwarding defines if the certificate will have "permit-port-forwarding"
 	// in the certificate.
 	PortForwarding = "port_forwarding"
+
+	// CertificateFormat defines the format of the user certificate to allow
+	// compatibility with older versions of OpenSSH.
+	CertificateFormat = "cert_format"
 )
 
 const (
@@ -496,8 +502,9 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 	// make sure we have defaults for all fields
 	if r.Spec.Options == nil {
 		r.Spec.Options = map[string]interface{}{
-			MaxSessionTTL:  NewDuration(defaults.MaxCertDuration),
-			PortForwarding: true,
+			CertificateFormat: teleport.CertificateFormatStandard,
+			MaxSessionTTL:     NewDuration(defaults.MaxCertDuration),
+			PortForwarding:    true,
 		}
 	}
 	if r.Spec.Allow.Namespaces == nil {
@@ -1159,8 +1166,9 @@ func (r *RoleV2) V3() *RoleV3 {
 		Metadata: r.Metadata,
 		Spec: RoleSpecV3{
 			Options: RoleOptions{
-				MaxSessionTTL:  r.GetMaxSessionTTL(),
-				PortForwarding: true,
+				CertificateFormat: teleport.CertificateFormatStandard,
+				MaxSessionTTL:     r.GetMaxSessionTTL(),
+				PortForwarding:    true,
 			},
 			Allow: RoleConditions{
 				Logins:     r.GetLogins(),
@@ -1244,14 +1252,20 @@ type AccessChecker interface {
 	// for this role set, otherwise it returns ttl unchanged
 	AdjustSessionTTL(ttl time.Duration) time.Duration
 
-	// CheckAgentForward checks if the role can request agent forward for this user
+	// CheckAgentForward checks if the role can request agent forward for this
+	// user.
 	CheckAgentForward(login string) error
 
-	// CanForwardAgents returns true if this role set offers capability to forward agents
+	// CanForwardAgents returns true if this role set offers capability to forward
+	// agents.
 	CanForwardAgents() bool
 
 	// CanPortForward returns true if this RoleSet can forward ports.
 	CanPortForward() bool
+
+	// CertificateFormat returns the most permissive certificate format in a
+	// RoleSet.
+	CertificateFormat() string
 }
 
 // FromSpec returns new RoleSet created from spec
@@ -1479,6 +1493,48 @@ func (set RoleSet) CanPortForward() bool {
 		}
 	}
 	return false
+}
+
+// CertificateFormat returns the most permissive certificate format in a
+// RoleSet.
+func (set RoleSet) CertificateFormat() string {
+	var formats []string
+
+	for _, role := range set {
+		// get the certificate format for each individual role. if a role does not
+		// have a certificate format (like implicit roles) skip over it
+		certificateFormat, err := role.GetOptions().GetString(CertificateFormat)
+		if err != nil {
+			continue
+		}
+
+		formats = append(formats, certificateFormat)
+	}
+
+	// if no formats were found, return standard
+	if len(formats) == 0 {
+		return teleport.CertificateFormatStandard
+	}
+
+	// sort the slice so the most permissive is the first element
+	sort.Slice(formats, func(i, j int) bool {
+		return certificatePriority(formats[i]) < certificatePriority(formats[j])
+	})
+
+	return formats[0]
+}
+
+// certificatePriority returns the priority of the certificate format. The
+// most permissive has lowest value.
+func certificatePriority(s string) int {
+	switch s {
+	case teleport.CertificateFormatOldSSH:
+		return 0
+	case teleport.CertificateFormatStandard:
+		return 1
+	default:
+		return 2
+	}
 }
 
 // CheckAgentForward checks if the role can request to forward the SSH agent

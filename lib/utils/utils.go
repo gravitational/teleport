@@ -202,13 +202,13 @@ func SliceContainsStr(slice []string, value string) bool {
 	return false
 }
 
-// CheckCompatibilityFlag check that the compatibility flag is valid.
-func CheckCompatibilityFlag(s string) (string, error) {
+// CheckCertificateFormatFlag checks if the certificate format is valid.
+func CheckCertificateFormatFlag(s string) (string, error) {
 	switch s {
-	case teleport.CompatibilityNone, teleport.CompatibilityOldSSH:
+	case teleport.CertificateFormatStandard, teleport.CertificateFormatOldSSH, teleport.CertificateFormatUnspecified:
 		return s, nil
 	default:
-		return teleport.CompatibilityNone, trace.BadParameter("invalid compatibility parameter: %q", s)
+		return "", trace.BadParameter("invalid certificate format parameter: %q", s)
 	}
 }
 

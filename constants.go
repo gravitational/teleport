@@ -211,13 +211,17 @@ const (
 const MaxEnvironmentFileLines = 1000
 
 const (
-	// CompatibilityOldSSH is used to make Teleport interoperate with older
+	// CertificateFormatOldSSH is used to make Teleport interoperate with older
 	// versions of OpenSSH.
-	CompatibilityOldSSH = "oldssh"
+	CertificateFormatOldSSH = "oldssh"
 
-	// CompatibilityNone is used for normal Teleport operation without any
+	// CertificateFormatStandard is used for normal Teleport operation without any
 	// compatibility modes.
-	CompatibilityNone = ""
+	CertificateFormatStandard = "standard"
+
+	// CertificateFormatUnspecified is used to check if the format was specified
+	// or not.
+	CertificateFormatUnspecified = ""
 )
 
 const (
