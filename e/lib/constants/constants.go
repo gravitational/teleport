@@ -13,8 +13,6 @@ const (
 	// EnterprisePlan is the "enterprise" product name
 	EnterprisePlan = "Teleport Enterprise"
 
-	// ControlPlaneAPIHost is the control plane hostname
-	ControlPlaneAPIHost = "dashboard-api.gravitational.com"
 	// ControlPlaneAPIPort is the control plane API port
 	ControlPlaneAPIPort = 443
 
@@ -37,6 +35,8 @@ const (
 )
 
 var (
+	// ControlPlaneAPIHost is the control plane hostname
+	ControlPlaneAPIHost = "dashboard-api.gravitational.com"
 	// ControlPlaneAPIAddr is the control plane host:port
 	ControlPlaneAPIAddr = fmt.Sprintf("%v:%v", ControlPlaneAPIHost, ControlPlaneAPIPort)
 	// ControlPlaneAPIURL is the control plane API URL

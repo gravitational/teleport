@@ -1,7 +1,7 @@
 # This makefile usually runs as a sub-make by ../Makefile
 # But running regular 'make' and 'make clean' works.
 BUILDDIR ?= build
-BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s'
+BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s $(LDFLAGS)'
 RELEASE=teleport-ent-$(GITTAG)-$(ARCH)-bin
 
 LIBSE = $(shell find lib -type f -name '*.go')
