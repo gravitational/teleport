@@ -373,7 +373,7 @@ func (t *remoteTerminal) Run() error {
 		t.termType = defaultTerm
 	}
 
-	if err := t.session.RequestPty(t.termType, t.params.W, t.params.H, t.termModes); err != nil {
+	if err := t.session.RequestPty(t.termType, t.params.H, t.params.W, t.termModes); err != nil {
 		return trace.Wrap(err)
 	}
 
