@@ -74,6 +74,7 @@ func (s *MainTestSuite) TestMakeClient(c *check.C) {
 	// specific configuration
 	conf.MinsToLive = 5
 	conf.UserHost = "root@localhost"
+	conf.NodePort = 46528
 	conf.LocalForwardPorts = []string{"80:remote:180"}
 	tc, err = makeClient(&conf, true)
 	c.Assert(tc.Config.KeyTTL, check.Equals, time.Minute*time.Duration(conf.MinsToLive))

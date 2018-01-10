@@ -58,7 +58,7 @@ type CLIConf struct {
 	// TTL defines how long a session must be active (in minutes)
 	MinsToLive int32
 	// SSH Port on a remote SSH host
-	NodePort int16
+	NodePort int32
 	// Login on a remote SSH host
 	NodeLogin string
 	// InsecureSkipVerify bypasses verification of HTTPS certificate when talking to web proxy
@@ -171,7 +171,7 @@ func Run(args []string, underTest bool) {
 	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node")
 	ssh.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	ssh.Arg("command", "Command to execute on a remote host").StringsVar(&cf.RemoteCommand)
-	ssh.Flag("port", "SSH port on a remote host").Short('p').Int16Var(&cf.NodePort)
+	ssh.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
 	ssh.Flag("forward-agent", "Forward agent to target node").Short('A').BoolVar(&cf.ForwardAgent)
 	ssh.Flag("forward", "Forward localhost connections to remote server").Short('L').StringsVar(&cf.LocalForwardPorts)
 	ssh.Flag("local", "Execute command on localhost after connecting to SSH node").Default("false").BoolVar(&cf.LocalExec)
@@ -186,7 +186,7 @@ func Run(args []string, underTest bool) {
 	scp := app.Command("scp", "Secure file copy")
 	scp.Arg("from, to", "Source and destination to copy").Required().StringsVar(&cf.CopySpec)
 	scp.Flag("recursive", "Recursive copy of subdirectories").Short('r').BoolVar(&cf.RecursiveCopy)
-	scp.Flag("port", "Port to connect to on the remote host").Short('P').Int16Var(&cf.NodePort)
+	scp.Flag("port", "Port to connect to on the remote host").Short('P').Int32Var(&cf.NodePort)
 	scp.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
 	// ls
 	ls := app.Command("ls", "List remote SSH nodes")
@@ -210,7 +210,7 @@ func Run(args []string, underTest bool) {
 	bench := app.Command("bench", "Run shell or execute a command on a remote SSH node").Hidden()
 	bench.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	bench.Arg("command", "Command to execute on a remote host").Required().StringsVar(&cf.RemoteCommand)
-	bench.Flag("port", "SSH port on a remote host").Short('p').Int16Var(&cf.NodePort)
+	bench.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
 	bench.Flag("threads", "Concurrent threads to run").Default("10").IntVar(&cf.BenchThreads)
 	bench.Flag("duration", "Test duration").Default("1s").DurationVar(&cf.BenchDuration)
 	bench.Flag("rate", "Requests per second rate").Default("10").IntVar(&cf.BenchRate)
