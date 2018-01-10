@@ -336,7 +336,7 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		rsess.TerminalParams.W = int(winsize.Width - 1)
+		rsess.TerminalParams.W = int(winsize.Width)
 		rsess.TerminalParams.H = int(winsize.Height)
 	}
 	err := r.srv.GetSessionServer().CreateSession(rsess)
