@@ -190,11 +190,11 @@ func (a *AuthenticateSSHRequest) CheckAndSetDefaults() error {
 	if len(a.PublicKey) == 0 {
 		return trace.BadParameter("missing parameter 'public_key'")
 	}
-	compatibility, err := utils.CheckCompatibilityFlag(a.CompatibilityMode)
+	certificateFormat, err := utils.CheckCertificateFormatFlag(a.CompatibilityMode)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	a.CompatibilityMode = compatibility
+	a.CompatibilityMode = certificateFormat
 	return nil
 }
 

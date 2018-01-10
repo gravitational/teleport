@@ -216,7 +216,11 @@ func (a *TestAuthServer) NewCertificate(identity TestIdentity) (*tls.Certificate
 		}
 		return &cert, nil
 	case BuiltinRole:
-		keys, err := a.AuthServer.GenerateServerKeys(id.Username, id.Username, teleport.Roles{id.Role})
+		keys, err := a.AuthServer.GenerateServerKeys(GenerateServerKeysRequest{
+			HostID:   id.Username,
+			NodeName: id.Username,
+			Roles:    teleport.Roles{id.Role},
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -518,7 +522,11 @@ func (t *TestTLSServer) Stop() error {
 
 // NewServerIdentity generates new server identity, used in tests
 func NewServerIdentity(clt *AuthServer, hostID string, role teleport.Role) (*Identity, error) {
-	keys, err := clt.GenerateServerKeys(hostID, hostID, teleport.Roles{teleport.RoleAuth})
+	keys, err := clt.GenerateServerKeys(GenerateServerKeysRequest{
+		HostID:   hostID,
+		NodeName: hostID,
+		Roles:    teleport.Roles{teleport.RoleAuth},
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

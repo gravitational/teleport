@@ -1117,11 +1117,20 @@ $ tsh --cluster=east ssh root@db1.east
 ## Github OAuth 2.0
 
 Teleport supports authentication and authorization via external identity
-providers such as Github. It can be configured by creating a Github connector
-resource:
+providers such as Github. First, the Teleport auth service must be configured
+to use Github for authentication:
 
 ```bash
-# github.yaml
+# snippet from /etc/teleport.yaaml
+auth_service:
+  authentication:
+      type: github
+```
+
+Next step is to define a Github connector:
+
+```bash
+# Create a file called github.yaml:
 kind: github
 version: v3
 metadata:
@@ -1155,7 +1164,9 @@ spec:
 To obtain client ID and client secret, please follow Github documentation
 on how to [create and register an OAuth app](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/).
 Be sure to set the "Authorization callback URL" to the same value as `redirect_url`
-in the resource spec. Create the resource:
+in the resource spec. 
+
+Finally, create the connector using `tctl` [resource](#resources) management command:
 
 ```bash
 $ tctl create github.yaml

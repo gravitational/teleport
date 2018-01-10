@@ -152,19 +152,14 @@ func (s *NativeSuite) TestUserCertCompatibility(c *C) {
 		inCompatibility string
 		outHasRoles     bool
 	}{
-		// 0 - no compatibility, has roles
+		// 0 - standard, has roles
 		{
-			"",
+			teleport.CertificateFormatStandard,
 			true,
 		},
-		// 1 - no compatibility, has roles
+		// 1 - oldssh, no roles
 		{
-			"invalid",
-			true,
-		},
-		// 2 - compatibility, has roles
-		{
-			"oldssh",
+			teleport.CertificateFormatOldSSH,
 			false,
 		},
 	}
@@ -180,7 +175,7 @@ func (s *NativeSuite) TestUserCertCompatibility(c *C) {
 			AllowedLogins:         []string{"centos", "root"},
 			TTL:                   time.Hour,
 			Roles:                 []string{"foo"},
-			Compatibility:         tt.inCompatibility,
+			CertificateFormat:     tt.inCompatibility,
 			PermitAgentForwarding: true,
 			PermitPortForwarding:  true,
 		})

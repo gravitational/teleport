@@ -424,34 +424,28 @@ func (c *Client) GenerateToken(roles teleport.Roles, ttl time.Duration) (string,
 
 // RegisterUsingToken calls the auth service API to register a new node using a registration token
 // which was previously issued via GenerateToken.
-func (c *Client) RegisterUsingToken(token, hostID string, nodeName string, role teleport.Role) (*PackedKeys, error) {
-	out, err := c.PostJSON(c.Endpoint("tokens", "register"),
-		registerUsingTokenReq{
-			HostID:   hostID,
-			NodeName: nodeName,
-			Token:    token,
-			Role:     role,
-		})
+func (c *Client) RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedKeys, error) {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := c.PostJSON(c.Endpoint("tokens", "register"), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	var keys PackedKeys
 	if err := json.Unmarshal(out.Bytes(), &keys); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	return &keys, nil
 }
 
 // RenewCredentials returns a new set of credentials associated
 // with the server with the same privileges
-func (c *Client) GenerateServerKeys(hostID string, nodeName string, roles teleport.Roles) (*PackedKeys, error) {
-	out, err := c.PostJSON(c.Endpoint("server", "credentials"), generateServerKeysReq{
-		HostID:   hostID,
-		NodeName: nodeName,
-		Roles:    roles,
-	})
+func (c *Client) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys, error) {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := c.PostJSON(c.Endpoint("server", "credentials"), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2243,7 +2237,7 @@ type ProvisioningService interface {
 
 	// RegisterUsingToken calls the auth service API to register a new node via registration token
 	// which has been previously issued via GenerateToken
-	RegisterUsingToken(token, hostID string, nodeName string, role teleport.Role) (*PackedKeys, error)
+	RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedKeys, error)
 
 	// RegisterNewAuthServer is used to register new auth server with token
 	RegisterNewAuthServer(token string) error
@@ -2265,7 +2259,7 @@ type ClientI interface {
 	GetDomainName() (string, error)
 	// GenerateServerKeys generates new host private keys and certificates (signed
 	// by the host certificate authority) for a node
-	GenerateServerKeys(hostID string, nodeName string, roles teleport.Roles) (*PackedKeys, error)
+	GenerateServerKeys(GenerateServerKeysRequest) (*PackedKeys, error)
 	// DELETE IN: 2.6.0
 	// AccessPointDialer is no longer used for communication with auth server
 	// GetDialer returns dialer that will connect to auth server API

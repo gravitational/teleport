@@ -409,31 +409,25 @@ func migrateUsers(asrv *AuthServer) error {
 	return nil
 }
 
-// DELETE IN: 2.5.0
-// All users will be migrated to the new roles in Teleport 2.4.0, which means
-// this entire function can be removed in Teleport 2.5.0.
+// DELETE IN: 2.6.0
+// All users will be migrated to the new roles in Teleport 2.5.0, which means
+// this entire function can be removed in Teleport 2.6.0.
 func migrateRoles(asrv *AuthServer) error {
 	roles, err := asrv.GetRoles()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// loop over all roles and make sure any v3 roles have permit port
-	// forward and forward agent allowed
+	// loop over all roles and make sure any v3 roles have the default value for
+	// certificate format
 	for i, _ := range roles {
 		role := roles[i]
 
 		roleOptions := role.GetOptions()
 
-		_, err = roleOptions.GetBoolean(services.PortForwarding)
+		_, err = roleOptions.GetString(services.CertificateFormat)
 		if err != nil {
-			roleOptions.Set(services.PortForwarding, true)
-			role.SetOptions(roleOptions)
-		}
-
-		_, err := roleOptions.GetBoolean(services.ForwardAgent)
-		if err != nil {
-			roleOptions.Set(services.ForwardAgent, true)
+			roleOptions.Set(services.CertificateFormat, teleport.CertificateFormatStandard)
 			role.SetOptions(roleOptions)
 		}
 
@@ -441,7 +435,7 @@ func migrateRoles(asrv *AuthServer) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		log.Infof("Migrating role: %v to include port_forwarding and forward_agent option.", role.GetName())
+		log.Infof("Migrating role: %v to include default for the cert_format option.", role.GetName())
 	}
 
 	return nil
@@ -543,7 +537,11 @@ func initKeys(a *AuthServer, dataDir string, id IdentityID) (*Identity, error) {
 	}
 
 	if !keyExists || !sshCertExists || !tlsCertExists {
-		packedKeys, err := a.GenerateServerKeys(id.HostUUID, id.NodeName, teleport.Roles{id.Role})
+		packedKeys, err := a.GenerateServerKeys(GenerateServerKeysRequest{
+			HostID:   id.HostUUID,
+			NodeName: id.NodeName,
+			Roles:    teleport.Roles{id.Role},
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -608,6 +606,17 @@ type Identity struct {
 // HasTSLConfig returns true if this identity has TLS certificate and private key
 func (i *Identity) HasTLSConfig() bool {
 	return len(i.TLSCACertBytes) != 0 && len(i.TLSCertBytes) != 0 && len(i.TLSCACertBytes) != 0
+}
+
+// HasPrincipals returns whether identity has principals
+func (i *Identity) HasPrincipals(additionalPrincipals []string) bool {
+	set := utils.StringsSet(additionalPrincipals)
+	for _, principal := range i.Cert.ValidPrincipals {
+		if _, ok := set[principal]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 // TLSConfig returns TLS config for mutual TLS authentication
