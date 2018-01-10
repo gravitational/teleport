@@ -1,3 +1,10 @@
+# location of the test enterprise license file
+ENTERPRISE_LICENSE ?= ../e/fixtures/license-enterprise.pem
+# location of the test pro license file
+PRO_LICENSE ?= ../e/fixtures/license-pro.pem
+# whether to look for enterprise or pro license
+MODE ?= enterprise
+
 #
 # Default target starts two Teleport clusters
 #
@@ -53,14 +60,15 @@ setup-tc:
 delete-tc:
 	docker exec -i two-auth /bin/bash -c "tctl -c /root/go/src/github.com/gravitational/teleport/docker/two-auth.yaml rm tc/one"
 
-# location of test license file
-TEST_LICENSE ?= ../e/fixtures/license.pem
-
 .PHONY: check-license
 check-license:
-	@if [ -f $(TEST_LICENSE) ]; then \
-		mkdir -p ./data/one && cp $(TEST_LICENSE) ./data/one; \
-		mkdir -p ./data/two/auth && cp $(TEST_LICENSE) ./data/two/auth; \
+	@if [ $(MODE) = "enterprise" ] && [ -f $(ENTERPRISE_LICENSE) ]; then \
+		mkdir -p ./data/one && cp $(ENTERPRISE_LICENSE) ./data/one/license.pem; \
+		mkdir -p ./data/two/auth && cp $(ENTERPRISE_LICENSE) ./data/two/auth/license.pem; \
+	fi
+	@if [ $(MODE) = "pro" ] && [ -f $(PRO_LICENSE) ]; then \
+		mkdir -p ./data/one && cp $(PRO_LICENSE) ./data/one/license.pem; \
+		mkdir -p ./data/two/auth && cp $(PRO_LICENSE) ./data/two/auth/license.pem; \
 	fi
 
 .PHONY: build
