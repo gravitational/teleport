@@ -1228,16 +1228,17 @@ to verify that host's certificates are signed by the trusted CA key:
 $ cat cluster_node_keys >> ~/.ssh/known_hosts
 ```
 
-Make sure you are logged in and then launch `tsh` in the SSH agent mode:
+Make sure you are running OpenSSH's `ssh-agent`, and have logged in to the Teleport proxy:
 
 ```bash
-$ tsh --proxy=work.example.com agent
+$ eval `ssh-agent`
+$ tsh --proxy=work.example.com login
 ```
 
-`tsh agent` will print environment variables into the console. Copy and paste
-the output into the shell you will be using to connect to a Teleport node.
-The output exports the `SSH_AUTH_SOCK` and `SSH_AGENT_PID` environment variables
-that allow OpenSSH clients to find the SSH agent.
+`ssh-agent` will print environment variables into the console. Either `eval` the output
+as in the example above, or copy and paste the output into the shell you will be using to
+connect to a Teleport node. The output exports the `SSH_AUTH_SOCK` and `SSH_AGENT_PID`
+environment variables that allow OpenSSH clients to find the SSH agent.
 
 Lastly, configure the OpenSSH client to use the Teleport proxy when connecting
 to nodes with matching names. Edit `~/.ssh/config` for your user or
@@ -1245,14 +1246,14 @@ to nodes with matching names. Edit `~/.ssh/config` for your user or
 
 ```
 # work.example.com is the jump host (proxy). credentials will be obtained from the
-# teleport agent.
+# openssh agent.
 Host work.example.com
     HostName 192.168.1.2
     Port 3023
 
 # connect to nodes in the work.example.com cluster through the jump
 # host (proxy) using the same. credentials will be obtained from the
-# teleport agent.
+# openssh agent.
 Host *.work.example.com
     HostName %h
     Port 3022
@@ -1305,7 +1306,7 @@ To allow access for all users:
 
 Ansible uses the OpenSSH client by default. This makes it compatible with Teleport without any extra work, except configuring OpenSSH client to work with Teleport Proxy:
 
-* configure your OpenSSH to connect to Teleport proxy and user `tsh agent` socket
+* configure your OpenSSH to connect to Teleport proxy and use `ssh-agent` socket
 * enable scp mode in the Ansible config file (default is `/etc/ansible/ansible.cfg`):
 
 ```bash
