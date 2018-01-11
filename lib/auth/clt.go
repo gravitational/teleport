@@ -379,6 +379,11 @@ func (c *Client) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool) 
 	return services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(out.Bytes())
 }
 
+// GetAnyCertAuthority returns certificate authority by given id whether it's activated or not
+func (c *Client) GetAnyCertAuthority(id services.CertAuthID) (services.CertAuthority, error) {
+	return nil, trace.BadParameter("not implemented")
+}
+
 // DeleteCertAuthority deletes cert authority by ID
 func (c *Client) DeleteCertAuthority(id services.CertAuthID) error {
 	if err := id.Check(); err != nil {
@@ -550,6 +555,11 @@ func (c *Client) UpsertReverseTunnel(tunnel services.ReverseTunnel) error {
 	}
 	_, err = c.PostJSON(c.Endpoint("reversetunnels"), args)
 	return trace.Wrap(err)
+}
+
+// GetReverseTunnel returns reverse tunnel by name
+func (c *Client) GetReverseTunnel(name string) (services.ReverseTunnel, error) {
+	return nil, trace.BadParameter("not implemented")
 }
 
 // GetReverseTunnels returns the list of created reverse tunnels
@@ -2028,20 +2038,18 @@ func (c *Client) GetTrustedClusters() ([]services.TrustedCluster, error) {
 	return trustedClusters, nil
 }
 
-func (c *Client) UpsertTrustedCluster(trustedCluster services.TrustedCluster) error {
+func (c *Client) UpsertTrustedCluster(trustedCluster services.TrustedCluster) (services.TrustedCluster, error) {
 	trustedClusterBytes, err := services.GetTrustedClusterMarshaler().Marshal(trustedCluster)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-
-	_, err = c.PostJSON(c.Endpoint("trustedclusters"), &upsertTrustedClusterReq{
+	out, err := c.PostJSON(c.Endpoint("trustedclusters"), &upsertTrustedClusterReq{
 		TrustedCluster: trustedClusterBytes,
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-
-	return nil
+	return services.GetTrustedClusterMarshaler().Unmarshal(out.Bytes())
 }
 
 func (c *Client) ValidateTrustedCluster(validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
@@ -2255,7 +2263,11 @@ type ClientI interface {
 	session.Service
 	services.ClusterConfiguration
 
+	// ValidateTrustedCluster validates trusted cluster token with
+	// main cluster, in case if validation is successfull, main cluster
+	// adds remote cluster
 	ValidateTrustedCluster(*ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error)
+
 	GetDomainName() (string, error)
 	// GenerateServerKeys generates new host private keys and certificates (signed
 	// by the host certificate authority) for a node

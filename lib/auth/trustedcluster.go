@@ -35,20 +35,28 @@ import (
 )
 
 // UpsertTrustedCluster creates or toggles a Trusted Cluster relationship.
-func (a *AuthServer) UpsertTrustedCluster(trustedCluster services.TrustedCluster) error {
+func (a *AuthServer) UpsertTrustedCluster(trustedCluster services.TrustedCluster) (services.TrustedCluster, error) {
 	var exists bool
-	existingCluster, err := a.Presence.GetTrustedCluster(trustedCluster.GetName())
-	if err == nil {
-		exists = true
+
+	// it is recommended to omit trusted cluster name, because
+	// it will be always set to the cluster name as set by the cluster
+	var existingCluster services.TrustedCluster
+	var err error
+	if trustedCluster.GetName() != "" {
+		existingCluster, err = a.Presence.GetTrustedCluster(trustedCluster.GetName())
+		if err == nil {
+			exists = true
+		}
 	}
+
 	enable := trustedCluster.GetEnabled()
 
 	// if the trusted cluster already exists in the backend, make sure it's a
-	// valid state change we are trying to make
+	// valid state change client is trying to make
 	if exists == true {
 		err := existingCluster.CanChangeStateTo(trustedCluster)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	}
 
@@ -60,14 +68,14 @@ func (a *AuthServer) UpsertTrustedCluster(trustedCluster services.TrustedCluster
 		err := a.activateCertAuthority(trustedCluster)
 		if err != nil {
 			if trace.IsNotFound(err) {
-				return trace.BadParameter("enable only supported for Trusted Clusters created with Teleport 2.3 and above")
+				return nil, trace.BadParameter("enable only supported for Trusted Clusters created with Teleport 2.3 and above")
 			}
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		err = a.createReverseTunnel(trustedCluster)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	case exists == true && enable == false:
 		log.Debugf("Disabling existing Trusted Cluster relationship.")
@@ -75,58 +83,82 @@ func (a *AuthServer) UpsertTrustedCluster(trustedCluster services.TrustedCluster
 		err := a.deactivateCertAuthority(trustedCluster)
 		if err != nil {
 			if trace.IsNotFound(err) {
-				return trace.BadParameter("enable only supported for Trusted Clusters created with Teleport 2.3 and above")
+				return nil, trace.BadParameter("enable only supported for Trusted Clusters created with Teleport 2.3 and above")
 			}
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		err = a.DeleteReverseTunnel(trustedCluster.GetName())
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	case exists == false && enable == true:
 		log.Debugf("Creating enabled Trusted Cluster relationship.")
 
+		if err := a.checkLocalRoles(trustedCluster.GetRoleMap()); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		remoteCAs, err := a.establishTrust(trustedCluster)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
+
+		// force name of the trusted cluster resource
+		// to be equal to the name of the remote cluster it is connecting to
+		trustedCluster.SetName(remoteCAs[0].GetClusterName())
 
 		err = a.addCertAuthorities(trustedCluster, remoteCAs)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		err = a.createReverseTunnel(trustedCluster)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
+
 	case exists == false && enable == false:
 		log.Debugf("Creating disabled Trusted Cluster relationship.")
 
+		if err := a.checkLocalRoles(trustedCluster.GetRoleMap()); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		remoteCAs, err := a.establishTrust(trustedCluster)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
+
+		// force name to the name of the trusted cluster
+		trustedCluster.SetName(remoteCAs[0].GetClusterName())
 
 		err = a.addCertAuthorities(trustedCluster, remoteCAs)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		err = a.deactivateCertAuthority(trustedCluster)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	}
+	return a.Presence.UpsertTrustedCluster(trustedCluster)
+}
 
-	err = a.Presence.UpsertTrustedCluster(trustedCluster)
-	if err != nil {
-		return trace.Wrap(err)
+func (a *AuthServer) checkLocalRoles(roleMap services.RoleMap) error {
+	for _, mapping := range roleMap {
+		for _, localRole := range mapping.Local {
+			_, err := a.GetRole(localRole)
+			if err != nil {
+				if trace.IsNotFound(err) {
+					return trace.NotFound("a role %q referenced in a mapping %v:%v is not defined", localRole, mapping.Remote, mapping.Local)
+				}
+				return trace.Wrap(err)
+			}
+		}
 	}
-
 	return nil
-
 }
 
 // DeleteTrustedCluster removes services.CertAuthority, services.ReverseTunnel,

@@ -88,9 +88,9 @@ func (s *PresenceSuite) TestTrustedClusterCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// create trusted clusters
-	err = presenceBackend.UpsertTrustedCluster(tc)
+	_, err = presenceBackend.UpsertTrustedCluster(tc)
 	c.Assert(err, check.IsNil)
-	err = presenceBackend.UpsertTrustedCluster(stc)
+	_, err = presenceBackend.UpsertTrustedCluster(stc)
 	c.Assert(err, check.IsNil)
 
 	// get trusted cluster make sure it's correct

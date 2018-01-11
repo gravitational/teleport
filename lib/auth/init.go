@@ -496,6 +496,91 @@ func migrateRemoteClusters(asrv *AuthServer) error {
 	return nil
 }
 
+// DELETE IN: 2.6.0
+// migrateTrustedClusters renames the trusted cluster resource names
+// and certificate authorities names to equal to actual remote cluster name
+func migrateTrustedClusters(asrv *AuthServer) error {
+	trustedClusters, err := asrv.GetTrustedClusters()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// loop over all roles and make sure any v3 roles have permit port
+	// forward and forward agent allowed
+	for i := range trustedClusters {
+		trustedCluster := trustedClusters[i]
+
+		hostCA, err := asrv.GetAnyCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: trustedCluster.GetName()})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		userCA, err := asrv.GetAnyCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: trustedCluster.GetName()})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if hostCA.GetClusterName() == trustedCluster.GetName() {
+			log.Debugf("Migrations: skipping trusted cluster %q with name that already matches main cluster.", trustedCluster.GetName())
+			continue
+		}
+
+		var reverseTunnel services.ReverseTunnel
+		if trustedCluster.GetEnabled() {
+			reverseTunnel, err = asrv.GetReverseTunnel(trustedCluster.GetName())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
+		log.Debugf("Migrations: renaming trusted cluster %q to %q.", trustedCluster.GetName(), hostCA.GetClusterName())
+
+		oldName := trustedCluster.GetName()
+
+		trustedCluster.SetName(hostCA.GetClusterName())
+		_, err = asrv.Presence.UpsertTrustedCluster(trustedCluster)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		hostCA.SetName(hostCA.GetClusterName())
+		err = asrv.UpsertCertAuthority(hostCA)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		userCA.SetName(hostCA.GetClusterName())
+		err = asrv.UpsertCertAuthority(userCA)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if reverseTunnel != nil {
+			reverseTunnel.SetName(hostCA.GetClusterName())
+			if err := asrv.UpsertReverseTunnel(reverseTunnel); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
+		if !trustedCluster.GetEnabled() {
+			log.Debugf("Migrations: trusted cluster %q is deactivated, deactivating updated authorities for %q", oldName, trustedCluster.GetName())
+			err = asrv.DeactivateCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: trustedCluster.GetName()})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			err = asrv.DeactivateCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: trustedCluster.GetName()})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		if err := asrv.DeleteTrustedCluster(oldName); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
 // isFirstStart returns 'true' if the auth server is starting for the 1st time
 // on this server.
 func isFirstStart(authServer *AuthServer, cfg InitConfig) (bool, error) {

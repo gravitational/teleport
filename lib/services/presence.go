@@ -60,6 +60,9 @@ type Presence interface {
 	// UpsertReverseTunnel upserts reverse tunnel entry temporarily or permanently
 	UpsertReverseTunnel(tunnel ReverseTunnel) error
 
+	// GetReverseTunnel returns reverse tunnel by name
+	GetReverseTunnel(name string) (ReverseTunnel, error)
+
 	// GetReverseTunnels returns a list of registered servers
 	GetReverseTunnels() ([]ReverseTunnel, error)
 
@@ -85,7 +88,7 @@ type Presence interface {
 	DeleteNamespace(name string) error
 
 	// UpsertTrustedCluster creates or updates a TrustedCluster in the backend.
-	UpsertTrustedCluster(TrustedCluster) error
+	UpsertTrustedCluster(TrustedCluster) (TrustedCluster, error)
 
 	// GetTrustedCluster returns a single TrustedCluster by name.
 	GetTrustedCluster(string) (TrustedCluster, error)
