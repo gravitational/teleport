@@ -456,7 +456,7 @@ func (process *TeleportProcess) initAuthService(authority sshca.Authority) error
 	// second, create the API Server: it's actually a collection of API servers,
 	// each serving requests for a "role" which is assigned to every connected
 	// client based on their certificate (user, server, admin, etc)
-	sessionService, err := session.New(b)
+	sessionService, err := session.New(b, authServer.GetCachedClusterConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}

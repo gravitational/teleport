@@ -151,7 +151,7 @@ func (a *AuthMiddleware) GetUser(r *http.Request) (interface{}, error) {
 	// therefore it is not allowed to reduce scope
 	if len(peers) == 0 {
 		return BuiltinRole{
-			GetClusterConfig: a.AuthServer.getCachedClusterConfig,
+			GetClusterConfig: a.AuthServer.GetCachedClusterConfig,
 			Role:             teleport.RoleNop,
 			Username:         string(teleport.RoleNop),
 		}, nil
@@ -204,7 +204,7 @@ func (a *AuthMiddleware) GetUser(r *http.Request) (interface{}, error) {
 	// agent, e.g. Proxy, connecting to the cluster
 	if systemRole != nil {
 		return BuiltinRole{
-			GetClusterConfig: a.AuthServer.getCachedClusterConfig,
+			GetClusterConfig: a.AuthServer.GetCachedClusterConfig,
 			Role:             *systemRole,
 			Username:         identity.Username,
 		}, nil

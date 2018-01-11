@@ -425,7 +425,7 @@ func (s *TLSSuite) TestSyncCachedClusterConfig(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// check to make sure the cached value is the same
-	clusterConfig = authServer.getCachedClusterConfig()
+	clusterConfig = authServer.GetCachedClusterConfig()
 	c.Assert(clusterConfig.GetSessionRecording(), check.Equals, services.RecordAtNode)
 
 	// update cluster config to record at proxy
@@ -438,7 +438,7 @@ func (s *TLSSuite) TestSyncCachedClusterConfig(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// check to make sure the cached value was updated
-	clusterConfig = authServer.getCachedClusterConfig()
+	clusterConfig = authServer.GetCachedClusterConfig()
 	c.Assert(clusterConfig.GetSessionRecording(), check.Equals, services.RecordAtProxy)
 }
 

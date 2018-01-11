@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dir"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/jonboulle/clockwork"
 
@@ -54,7 +55,7 @@ func (s *SessionSuite) SetUpTest(c *C) {
 	s.bk = bk.(*dir.Backend)
 	s.bk.InternalClock = s.clock
 
-	srv, err := New(s.bk)
+	srv, err := New(s.bk, services.DefaultClusterConfig)
 	s.srv = srv.(*server)
 	c.Assert(err, IsNil)
 }
@@ -124,6 +125,19 @@ func (s *SessionSuite) TestSessionsCRUD(c *C) {
 	s2, err = s.srv.GetSession(defaults.Namespace, sess.ID)
 	c.Assert(err, IsNil)
 	c.Assert(s2, DeepEquals, &sess)
+
+	// change mode to recording proxy, GetSessions should be an empty list
+	getClusterConfigFunc := func() services.ClusterConfig {
+		clusterConfig := services.DefaultClusterConfig()
+		clusterConfig.SetSessionRecording(services.RecordAtProxy)
+		return clusterConfig
+	}
+	recordingSessionServer, err := New(s.bk, getClusterConfigFunc)
+	c.Assert(err, IsNil)
+
+	out, err = recordingSessionServer.GetSessions(defaults.Namespace)
+	c.Assert(err, IsNil)
+	c.Assert(out, HasLen, 0)
 }
 
 // TestSessionsInactivity makes sure that session will be marked
