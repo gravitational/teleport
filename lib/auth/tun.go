@@ -371,7 +371,7 @@ func (s *AuthTunnel) onAPIConnection(sconn *ssh.ServerConn, sshChan ssh.Channel,
 			return
 		}
 		builtin := BuiltinRole{
-			GetClusterConfig: s.authServer.getCachedClusterConfig,
+			GetClusterConfig: s.authServer.GetCachedClusterConfig,
 			Role:             systemRole,
 			Username:         sconn.Permissions.Extensions[ExtHost],
 		}

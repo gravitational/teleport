@@ -98,7 +98,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	srv.SessionServer, err = session.New(srv.Backend)
+	srv.SessionServer, err = session.New(srv.Backend, services.DefaultClusterConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

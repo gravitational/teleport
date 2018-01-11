@@ -1025,9 +1025,9 @@ func (a *AuthServer) syncCachedClusterConfigLoop() {
 	}
 }
 
-// getCachedClusterConfig returns a copy of cached services.ClusterConfig. If
+// GetCachedClusterConfig returns a copy of cached services.ClusterConfig. If
 // nothing is cached yet, a safe default is returned.
-func (a *AuthServer) getCachedClusterConfig() services.ClusterConfig {
+func (a *AuthServer) GetCachedClusterConfig() services.ClusterConfig {
 	a.cachedClusterConfigMu.RLock()
 	defer a.cachedClusterConfigMu.RUnlock()
 

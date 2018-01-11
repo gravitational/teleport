@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/trace"
@@ -237,16 +238,21 @@ type Service interface {
 	UpdateSession(req UpdateRequest) error
 }
 
+// GetClusterConfigFunc returns a cached services.ClusterConfig.
+type GetClusterConfigFunc func() services.ClusterConfig
+
 type server struct {
-	bk               backend.JSONCodec
-	activeSessionTTL time.Duration
+	bk                   backend.JSONCodec
+	getClusterConfigFunc GetClusterConfigFunc
+	activeSessionTTL     time.Duration
 }
 
 // New returns new session server that uses sqlite to manage
 // active sessions
-func New(bk backend.Backend) (Service, error) {
+func New(bk backend.Backend, getClusterConfigFunc GetClusterConfigFunc) (Service, error) {
 	s := &server{
-		bk: backend.JSONCodec{Backend: bk},
+		bk:                   backend.JSONCodec{Backend: bk},
+		getClusterConfigFunc: getClusterConfigFunc,
 	}
 	if s.activeSessionTTL == 0 {
 		s.activeSessionTTL = defaults.ActiveSessionTTL
@@ -267,6 +273,14 @@ func partiesBucket(namespace string, id ID) []string {
 func (s *server) GetSessions(namespace string) ([]Session, error) {
 	bucket := activeBucket(namespace)
 	out := make(Sessions, 0)
+
+	// when in recording mode, while active sessions (may) exist, none of them
+	// are joinable, so we return an empty list.
+	clusterConfig := s.getClusterConfigFunc()
+	if clusterConfig.GetSessionRecording() == services.RecordAtProxy {
+		log.Debugf("No active sessions to return when session recording occurs at the recording proxy.")
+		return out, nil
+	}
 
 	keys, err := s.bk.GetKeys(bucket)
 	if err != nil {

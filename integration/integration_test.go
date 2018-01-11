@@ -159,6 +159,8 @@ func (s *IntSuite) newTeleportWithConfig(c *check.C, logins []string, instanceSe
 // TestAuditOn creates a live session, records a bunch of data through it
 // and then reads it back and compares against simulated reality.
 func (s *IntSuite) TestAuditOn(c *check.C) {
+	now := time.Now().In(time.UTC).Round(time.Second)
+
 	var tests = []struct {
 		inRecordLocation string
 		inForwardAgent   bool
@@ -256,13 +258,41 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 			for {
 				select {
 				case <-tickCh:
-					sessions, err = site.GetSessions(defaults.Namespace)
+					eventWithID := func(site auth.ClientI, serverID string) (events.EventFields, error) {
+						eventsInSite, err := site.SearchSessionEvents(now, now.Add(1*time.Hour))
+						if err != nil {
+							return nil, trace.Wrap(err)
+						}
+						if len(eventsInSite) == 0 {
+							return nil, trace.NotFound("no events found")
+						}
+						for _, e := range eventsInSite {
+							if e.GetString(events.SessionServerID) == serverID {
+								return e, nil
+							}
+						}
+						return nil, trace.NotFound("matching event not found")
+					}
+
+					// look through the audit log for the exact session needed
+					serverID := nodeProcess.Config.HostUUID
+					if tt.inRecordLocation == services.RecordAtProxy {
+						serverID = t.Process.Config.HostUUID
+					}
+					startEvent, err := eventWithID(site, serverID)
+					if err != nil {
+						continue
+					}
+
+					sid, err := session.ParseID(startEvent.GetString("sid"))
 					if err != nil {
 						return nil, trace.Wrap(err)
 					}
-					if len(sessions) > 0 {
-						return &sessions[0], nil
+					sess, err := site.GetSession(defaults.Namespace, *sid)
+					if err != nil {
+						return nil, trace.Wrap(err)
 					}
+					return sess, nil
 				case <-stopCh:
 					return nil, trace.BadParameter("unable to find sessions after 10s (mode=%v)", tt.inRecordLocation)
 				}

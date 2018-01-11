@@ -79,7 +79,7 @@ func (s *TunSuite) SetUpTest(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	s.sessionServer, err = session.New(s.bk)
+	s.sessionServer, err = session.New(s.bk, services.DefaultClusterConfig)
 	c.Assert(err, IsNil)
 
 	access := local.NewAccessService(s.bk)
