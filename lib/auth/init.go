@@ -374,6 +374,11 @@ func migrateLegacyResources(cfg InitConfig, asrv *AuthServer) error {
 		return trace.Wrap(err)
 	}
 
+	err = migrateTrustedClusters(asrv)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
