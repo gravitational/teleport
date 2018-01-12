@@ -418,9 +418,13 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 		return
 	}
 
+	if conn == nil {
+		a.Warningf("No error, but conn is nil: %v", conn)
+	}
+
 	// successfully dialed
 	req.Reply(true, []byte("connected"))
-	a.Debugf("successfully dialed to %v, start proxying", server)
+	a.Debugf("Successfully dialed to %v, start proxying.", server)
 
 	wg := sync.WaitGroup{}
 	wg.Add(2)

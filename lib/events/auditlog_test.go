@@ -884,6 +884,44 @@ func (a *AuditTestSuite) TestAutoClose(c *check.C) {
 	c.Assert(history[1][SessionEventTimestamp], check.Equals, float64(firstDelay/time.Millisecond))
 	c.Assert(history[2][SessionEventTimestamp], check.Equals, float64((firstDelay+secondDelay)/time.Millisecond))
 
+	// Cleanup old playbacks
+	// Fetch chunks so playback directory will be populated
+	data, err := alog.GetSessionChunk(defaults.Namespace, session.ID(sessionID), 0, 5000)
+	c.Assert(err, check.IsNil)
+	c.Assert(string(data), check.Equals, "hellogood daytest")
+
+	// two files were unpacked in playback dir
+	c.Assert(listFiles(alog.playbackDir), check.HasLen, 2)
+
+	// first cleanup did not delete files
+	alog.Clock = clockwork.NewFakeClockAt(time.Now().UTC())
+	c.Assert(alog.cleanupOldPlaybacks(), check.IsNil)
+	c.Assert(listFiles(alog.playbackDir), check.HasLen, 2)
+
+	// Advance clock past cleanup TTL, files were cleaned up
+	alog.Clock = clockwork.NewFakeClockAt(time.Now().UTC().Add(alog.PlaybackRecycleTTL + time.Minute))
+	c.Assert(alog.cleanupOldPlaybacks(), check.IsNil)
+	c.Assert(listFiles(alog.playbackDir), check.HasLen, 0)
+}
+
+func listFiles(name string) []string {
+	df, err := os.Open(name)
+	if err != nil {
+		panic(err)
+	}
+	defer df.Close()
+	entries, err := df.Readdir(-1)
+	if err != nil {
+		panic(err)
+	}
+	var out []string
+	for i := range entries {
+		fi := entries[i]
+		if !fi.IsDir() {
+			out = append(out, fi.Name())
+		}
+	}
+	return out
 }
 
 // DELETE IN: 2.6.0

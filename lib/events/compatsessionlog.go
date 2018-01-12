@@ -17,7 +17,8 @@ limitations under the License.
 package events
 
 import (
-	"bytes"
+	"bufio"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -94,18 +95,35 @@ type CompatSessionLogger struct {
 	sync.Mutex
 
 	indexFile  *os.File
-	eventsFile *os.File
-	chunksFile *os.File
+	eventsFile *gzipWriter
+	chunksFile *gzipWriter
 
 	// lastPrintEvent is the last written session event
 	lastPrintEvent *printEvent
 }
 
+func (sl *CompatSessionLogger) flush() error {
+	var err, err2 error
+
+	if sl.RecordSessions && sl.chunksFile != nil {
+		err = sl.chunksFile.Flush()
+	}
+	if sl.eventsFile != nil {
+		err2 = sl.eventsFile.Flush()
+	}
+	return trace.NewAggregate(err, err2)
+}
+
 // LogEvent logs an event associated with this session
 func (sl *CompatSessionLogger) LogEvent(fields EventFields) error {
+	sl.Lock()
+	defer sl.Unlock()
+
 	if err := sl.openEventsFile(); err != nil {
 		return trace.Wrap(err)
 	}
+
+	sl.Debugf("LogEvent: %v to %v", fields, sl.eventsFile.file.Name())
 
 	if _, ok := fields[EventTime]; !ok {
 		fields[EventTime] = sl.Clock.Now().In(time.UTC).Round(time.Millisecond)
@@ -121,7 +139,7 @@ func (sl *CompatSessionLogger) LogEvent(fields EventFields) error {
 		return trace.Wrap(err)
 	}
 
-	return nil
+	return sl.flush()
 }
 
 // readLastEvent reads last event from the file, it opens
@@ -132,41 +150,29 @@ func readLastPrintEvent(fileName string) (*printEvent, error) {
 		return nil, trace.ConvertSystemError(err)
 	}
 	defer f.Close()
-	info, err := f.Stat()
+	reader, err := gzip.NewReader(f)
 	if err != nil {
-		return nil, trace.ConvertSystemError(err)
+		return nil, trace.Wrap(err)
 	}
-	if info.Size() == 0 {
-		return nil, trace.NotFound("no events found")
-	}
-	bufSize := int64(512)
-	if info.Size() < bufSize {
-		bufSize = info.Size()
-	}
-	buf := make([]byte, bufSize)
-	_, err = f.ReadAt(buf, info.Size()-bufSize)
-	if err != nil {
-		return nil, trace.ConvertSystemError(err)
-	}
-	lines := bytes.Split(buf, []byte("\n"))
-	if len(lines) == 0 {
-		return nil, trace.BadParameter("expected some lines, got %q", string(buf))
-	}
-	for i := len(lines) - 1; i > 0; i-- {
-		line := bytes.TrimSpace(lines[i])
-		if len(line) == 0 {
+	defer reader.Close()
+	scanner := bufio.NewScanner(reader)
+	var lastEvent *printEvent
+	for scanner.Scan() {
+		if len(scanner.Bytes()) == 0 {
 			continue
 		}
 		var event printEvent
-		if err = json.Unmarshal(line, &event); err != nil {
+		if err = json.Unmarshal(scanner.Bytes(), &event); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if event.Type != SessionPrintEvent {
-			continue
+		if event.Type == SessionPrintEvent {
+			lastEvent = &event
 		}
-		return &event, nil
 	}
-	return nil, trace.NotFound("no session print events found")
+	if lastEvent == nil {
+		return nil, trace.NotFound("no session print events found")
+	}
+	return lastEvent, nil
 }
 
 // Close is called when clients close on the requested "session writer".
@@ -182,6 +188,7 @@ func (sl *CompatSessionLogger) Close() error {
 func (sl *CompatSessionLogger) Finalize() error {
 	sl.Lock()
 	defer sl.Unlock()
+	sl.Debugf("Finalize")
 
 	auditOpenFiles.Dec()
 
@@ -200,11 +207,25 @@ func (sl *CompatSessionLogger) Finalize() error {
 	return nil
 }
 
-// WriteChunk takes a stream of bytes (usually the output from a session terminal)
-// and writes it into a "stream file", for future replay of interactive sessions.
-func (sl *CompatSessionLogger) WriteChunk(chunk *SessionChunk) (written int, err error) {
+// PostSessionSlice takes series of events associated with the session
+// and writes them to events files and data file for future replays
+func (sl *CompatSessionLogger) PostSessionSlice(slice SessionSlice) error {
 	sl.Lock()
 	defer sl.Unlock()
+
+	for i := range slice.Chunks {
+		_, err := sl.writeChunk(slice.Chunks[i])
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return sl.flush()
+}
+
+// writeChunk takes a stream of bytes (usually the output from a session terminal)
+// and writes it into a "stream file", for future replay of interactive sessions.
+func (sl *CompatSessionLogger) writeChunk(chunk *SessionChunk) (written int, err error) {
 
 	// when session recording is turned off, don't record the session byte stream
 	if sl.RecordSessions == false {
@@ -277,10 +298,11 @@ func (sl *CompatSessionLogger) openEventsFile() error {
 	}
 
 	// open new events file for writing
-	sl.eventsFile, err = os.OpenFile(eventsFileName, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
+	file, err := os.OpenFile(eventsFileName, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	sl.eventsFile = newGzipWriter(file)
 	return nil
 }
 
@@ -307,9 +329,10 @@ func (sl *CompatSessionLogger) openChunksFile() error {
 	}
 
 	// open new chunks file for writing
-	sl.chunksFile, err = os.OpenFile(chunksFileName, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
+	file, err := os.OpenFile(chunksFileName, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	sl.chunksFile = newGzipWriter(file)
 	return nil
 }
