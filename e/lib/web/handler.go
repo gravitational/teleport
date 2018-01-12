@@ -298,7 +298,7 @@ func upsertResource(unknownRes services.UnknownResource, client auth.ClientI) (i
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := client.UpsertTrustedCluster(tc); err != nil {
+		if _, err := client.UpsertTrustedCluster(tc); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		items, err := ui.ConvertTrustedClusters([]services.TrustedCluster{tc})
