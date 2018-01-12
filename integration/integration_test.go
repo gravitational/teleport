@@ -942,7 +942,7 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 	var upsertSuccess bool
 	for i := 0; i < 10; i++ {
 		log.Debugf("Will create trusted cluster %v, attempt %v", trustedCluster, i)
-		err = aux.Process.GetAuthServer().UpsertTrustedCluster(trustedCluster)
+		_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(trustedCluster)
 		if err != nil {
 			if trace.IsConnectionProblem(err) {
 				log.Debugf("retrying on connection problem: %v", err)
@@ -1147,7 +1147,7 @@ func (s *IntSuite) trustedClusters(c *check.C, multiplex bool) {
 	var upsertSuccess bool
 	for i := 0; i < 10; i++ {
 		log.Debugf("Will create trusted cluster %v, attempt %v", trustedCluster, i)
-		err = aux.Process.GetAuthServer().UpsertTrustedCluster(trustedCluster)
+		_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(trustedCluster)
 		if err != nil {
 			if trace.IsConnectionProblem(err) {
 				log.Debugf("retrying on connection problem: %v", err)
@@ -1215,7 +1215,7 @@ func (s *IntSuite) trustedClusters(c *check.C, multiplex bool) {
 	// this should re-establish connection
 	err = aux.Process.GetAuthServer().DeleteTrustedCluster(trustedCluster.GetName())
 	c.Assert(err, check.IsNil)
-	err = aux.Process.GetAuthServer().UpsertTrustedCluster(trustedCluster)
+	_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(trustedCluster)
 	c.Assert(err, check.IsNil)
 
 	// check that remote cluster has been re-provisioned

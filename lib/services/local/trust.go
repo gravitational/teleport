@@ -64,19 +64,18 @@ func (s *CA) DeleteCertAuthority(id services.CertAuthID) error {
 	if err := id.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	err := s.DeleteKey([]string{"authorities", string(id.Type)}, id.DomainName)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	// when removing a services.CertAuthority also remove any deactivated
 	// services.CertAuthority as well if they exist.
-	err = s.DeleteKey([]string{"authorities", "deactivated", string(id.Type)}, id.DomainName)
+	err := s.DeleteKey([]string{"authorities", "deactivated", string(id.Type)}, id.DomainName)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
 	}
-
+	err = s.DeleteKey([]string{"authorities", string(id.Type)}, id.DomainName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	return nil
 }
 
@@ -159,6 +158,26 @@ func (s *CA) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool) (ser
 		ca.SetTLSKeyPairs(keyPairs)
 	}
 	return ca, nil
+}
+
+// DELETE IN: 2.6.0
+// GetAnyCertAuthority returns activated or deactivated certificate authority
+// by given id whether it is activated or not. This method is used in migrations.
+func (s *CA) GetAnyCertAuthority(id services.CertAuthID) (services.CertAuthority, error) {
+	if err := id.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	data, err := s.GetVal([]string{"authorities", string(id.Type)}, id.DomainName)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+		data, err = s.GetVal([]string{"authorities", "deactivated", string(id.Type)}, id.DomainName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(data)
 }
 
 // GetCertAuthorities returns a list of authorities of a given type

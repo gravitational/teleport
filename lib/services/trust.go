@@ -49,6 +49,12 @@ type Trust interface {
 	// controls if signing keys are loaded
 	GetCertAuthority(id CertAuthID, loadSigningKeys bool) (CertAuthority, error)
 
+	// DELETE IN: 2.6.0
+	// GetAnyCertAuthority returns activated or deactivated certificate authority
+	// by given id whether it is activated or not. Signing keys are never loaded.
+	// This method is used in migrations.
+	GetAnyCertAuthority(id CertAuthID) (ca CertAuthority, error error)
+
 	// GetCertAuthorities returns a list of authorities of a given type
 	// loadSigningKeys controls whether signing keys should be loaded or not
 	GetCertAuthorities(caType CertAuthType, loadSigningKeys bool) ([]CertAuthority, error)

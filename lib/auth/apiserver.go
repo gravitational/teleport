@@ -440,12 +440,12 @@ func (s *APIServer) upsertTrustedCluster(auth ClientI, w http.ResponseWriter, r 
 		return nil, trace.Wrap(err)
 	}
 
-	err = auth.UpsertTrustedCluster(trustedCluster)
+	out, err := auth.UpsertTrustedCluster(trustedCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return message("ok"), nil
+	return rawMessage(services.GetTrustedClusterMarshaler().Marshal(out, services.WithVersion(version)))
 }
 
 func (s *APIServer) validateTrustedCluster(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {

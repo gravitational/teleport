@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/utils"
@@ -572,4 +573,131 @@ func (s *AuthSuite) TestUpdateConfig(c *C) {
 		Token: "bar",
 		Roles: teleport.Roles{teleport.Role("baz")},
 	}})
+}
+
+// TestMigrateRemote cluster creates remote cluster resource
+// after the migration
+func (s *AuthSuite) TestMigrateRemoteCluster(c *C) {
+	clusterName := "remote.example.com"
+
+	hostCA := suite.NewTestCA(services.HostCA, clusterName)
+	hostCA.SetName(clusterName)
+	c.Assert(s.a.UpsertCertAuthority(hostCA), IsNil)
+
+	err := migrateRemoteClusters(s.a)
+	c.Assert(err, IsNil)
+
+	remoteCluster, err := s.a.GetRemoteCluster(clusterName)
+	c.Assert(err, IsNil)
+	c.Assert(remoteCluster.GetName(), Equals, clusterName)
+}
+
+// TestMigrateEnabledTrustedCluster tests migrations of enabled trusted cluster
+func (s *AuthSuite) TestMigrateEnabledTrustedCluster(c *C) {
+	clusterName := "example.com"
+	resourceName := "trustedcluster1"
+
+	tunnel := services.NewReverseTunnel(resourceName, []string{"addr:5000"})
+	err := s.a.UpsertReverseTunnel(tunnel)
+	c.Assert(err, IsNil)
+
+	hostCA := suite.NewTestCA(services.HostCA, clusterName)
+	hostCA.SetName(resourceName)
+	c.Assert(s.a.UpsertCertAuthority(hostCA), IsNil)
+
+	userCA := suite.NewTestCA(services.UserCA, clusterName)
+	userCA.SetName(resourceName)
+	c.Assert(s.a.UpsertCertAuthority(userCA), IsNil)
+
+	tc, err := services.NewTrustedCluster(resourceName, services.TrustedClusterSpecV2{
+		Enabled:      true,
+		Token:        "shmoken",
+		ProxyAddress: "addr:5000",
+		RoleMap: services.RoleMap{
+			{Local: []string{"local"}, Remote: "remote"},
+		},
+	})
+	c.Assert(err, IsNil)
+	_, err = s.a.Presence.UpsertTrustedCluster(tc)
+	c.Assert(err, IsNil)
+
+	err = migrateTrustedClusters(s.a)
+	c.Assert(err, IsNil)
+
+	_, err = s.a.GetTrustedCluster(resourceName)
+	fixtures.ExpectNotFound(c, err)
+
+	_, err = s.a.GetTrustedCluster(clusterName)
+	c.Assert(err, IsNil)
+
+	_, err = s.a.GetCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: clusterName}, false)
+	c.Assert(err, IsNil)
+
+	_, err = s.a.GetCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: resourceName}, false)
+	fixtures.ExpectNotFound(c, err)
+
+	_, err = s.a.GetCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: clusterName}, false)
+	c.Assert(err, IsNil)
+
+	_, err = s.a.GetCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: resourceName}, false)
+	fixtures.ExpectNotFound(c, err)
+
+	_, err = s.a.GetReverseTunnel(resourceName)
+	fixtures.ExpectNotFound(c, err)
+
+	_, err = s.a.GetReverseTunnel(clusterName)
+	c.Assert(err, IsNil)
+}
+
+// TestMigrateDisabledTrustedCluster tests migrations of disabled trusted cluster
+func (s *AuthSuite) TestMigrateDisabledTrustedCluster(c *C) {
+	clusterName := "example.com"
+	resourceName := "trustedcluster1"
+
+	hostCA := suite.NewTestCA(services.HostCA, clusterName)
+	hostCA.SetName(resourceName)
+	c.Assert(s.a.UpsertCertAuthority(hostCA), IsNil)
+
+	userCA := suite.NewTestCA(services.UserCA, clusterName)
+	userCA.SetName(resourceName)
+	c.Assert(s.a.UpsertCertAuthority(userCA), IsNil)
+
+	err := s.a.DeactivateCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: resourceName})
+	c.Assert(err, IsNil)
+
+	err = s.a.DeactivateCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: resourceName})
+	c.Assert(err, IsNil)
+
+	tc, err := services.NewTrustedCluster(resourceName, services.TrustedClusterSpecV2{
+		Enabled:      false,
+		Token:        "shmoken",
+		ProxyAddress: "addr",
+		RoleMap: services.RoleMap{
+			{Local: []string{"local"}, Remote: "remote"},
+		},
+	})
+	c.Assert(err, IsNil)
+	_, err = s.a.Presence.UpsertTrustedCluster(tc)
+	c.Assert(err, IsNil)
+
+	err = migrateTrustedClusters(s.a)
+	c.Assert(err, IsNil)
+
+	_, err = s.a.GetTrustedCluster(resourceName)
+	fixtures.ExpectNotFound(c, err)
+
+	_, err = s.a.GetTrustedCluster(clusterName)
+	c.Assert(err, IsNil)
+
+	_, err = s.a.GetCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: clusterName}, false)
+	fixtures.ExpectNotFound(c, err)
+
+	_, err = s.a.GetCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: resourceName}, false)
+	fixtures.ExpectNotFound(c, err)
+
+	_, err = s.a.GetCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: clusterName}, false)
+	fixtures.ExpectNotFound(c, err)
+
+	_, err = s.a.GetCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: resourceName}, false)
+	fixtures.ExpectNotFound(c, err)
 }
