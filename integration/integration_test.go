@@ -347,14 +347,17 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 		c.Assert(start.GetString(events.SessionEventID) != "", check.Equals, true)
 		c.Assert(start.GetString(events.TerminalSize) != "", check.Equals, true)
 
-		// if session are being recorded at nodes, the event server_id field should contain
-		// the ID of the node. if sessions are being recorded at the proxy, then server_id
-		// should be that of the proxy
-		expectedServerID := nodeProcess.Config.HostUUID
-		if tt.inRecordLocation == services.RecordAtProxy {
-			expectedServerID = t.Process.Config.HostUUID
+		// if session are being recorded at nodes, then the event server_id field
+		// should contain the ID of the node. if sessions are being recorded at the
+		// proxy, then server_id is random so we can't check it, but it should not
+		// the server_id of any of the nodes we know about.
+		switch tt.inRecordLocation {
+		case services.RecordAtNode:
+			c.Assert(start.GetString(events.SessionServerID), check.Equals, nodeProcess.Config.HostUUID)
+		case services.RecordAtProxy:
+			c.Assert(start.GetString(events.SessionServerID), check.Not(check.Equals), nodeProcess.Config.HostUUID)
+			c.Assert(start.GetString(events.SessionServerID), check.Not(check.Equals), t.Process.Config.HostUUID)
 		}
-		c.Assert(start.GetString(events.SessionServerID), check.Equals, expectedServerID)
 
 		// make sure data is recorded properly
 		out := &bytes.Buffer{}
