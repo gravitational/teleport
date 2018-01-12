@@ -556,7 +556,6 @@ func (s *remoteSite) dialWithAgent(from, to net.Addr, userAgent agent.Agent) (ne
 	// sure that the session gets recorded in the local cluster instead of the
 	// remote cluster.
 	serverConfig := forward.ServerConfig{
-		ID:              s.srv.Config.ID,
 		AuthClient:      s.localClient,
 		UserAgent:       userAgent,
 		TargetConn:      targetConn,
