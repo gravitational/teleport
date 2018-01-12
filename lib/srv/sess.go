@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/state"
@@ -581,9 +582,21 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 
 	params := s.term.GetTerminalParams()
 
-	// start recording this session
+	// get the audit log. if the cluster is recording sessions at the proxy and
+	// this is a teleport node, then use a discard audit log because everything
+	// is being recorded at the proxy already.
 	auditLog := s.registry.srv.GetAuditLog()
-	var err error
+	clusterConfig, err := s.registry.srv.GetAccessPoint().GetClusterConfig()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	isRecordAtProxy := clusterConfig.GetSessionRecording() == services.RecordAtProxy
+	isTeleportNode := s.registry.srv.Component() == teleport.ComponentNode
+	if isRecordAtProxy && isTeleportNode {
+		auditLog = events.NewDiscardAuditLog()
+	}
+
+	// create the recorder for the session with the passed in audit log
 	s.recorder, err = newSessionRecorder(auditLog, ctx.srv.GetNamespace(), s.id)
 	if err != nil {
 		return trace.Wrap(err)
