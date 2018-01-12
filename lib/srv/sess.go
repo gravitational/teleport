@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/state"
@@ -582,6 +583,27 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 
 	params := s.term.GetTerminalParams()
 
+	// get the audit log. if the cluster is recording sessions at the proxy and
+	// this is a teleport node, then use a discard audit log because everything
+	// is being recorded at the proxy already.
+	auditLog := s.registry.srv.GetAuditLog()
+	clusterConfig, err := s.registry.srv.GetAccessPoint().GetClusterConfig()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	isRecordAtProxy := clusterConfig.GetSessionRecording() == services.RecordAtProxy
+	isTeleportNode := s.registry.srv.Component() == teleport.ComponentNode
+	if isRecordAtProxy && isTeleportNode {
+		auditLog = events.NewDiscardAuditLog()
+	}
+
+	// create the recorder for the session with the passed in audit log
+	s.recorder, err = newSessionRecorder(auditLog, ctx.srv.GetNamespace(), s.id)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	s.writer.addWriter("session-recorder", s.recorder, true)
+
 	// emit "new session created" event:
 	s.registry.srv.EmitAuditEvent(events.SessionStartEvent, events.EventFields{
 		events.EventNamespace:  ctx.srv.GetNamespace(),
@@ -593,17 +615,6 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 		events.RemoteAddr:      ctx.Conn.RemoteAddr().String(),
 		events.TerminalSize:    params.Serialize(),
 	})
-
-	// start recording this session
-	auditLog := s.registry.srv.GetAuditLog()
-	if auditLog != nil {
-		var err error
-		s.recorder, err = newSessionRecorder(auditLog, ctx.srv.GetNamespace(), s.id)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		s.writer.addWriter("session-recorder", s.recorder, true)
-	}
 
 	// start asynchronous loop of synchronizing session state with
 	// the session server (terminal size and activity)
