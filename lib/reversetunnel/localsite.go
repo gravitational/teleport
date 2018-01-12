@@ -175,7 +175,6 @@ func (s *localSite) dialWithAgent(from net.Addr, to net.Addr, userAgent agent.Ag
 	// don't need to close this server it will close and release all resources
 	// once conn is closed.
 	serverConfig := forward.ServerConfig{
-		ID:              s.srv.Config.ID,
 		AuthClient:      s.client,
 		UserAgent:       userAgent,
 		TargetConn:      targetConn,
