@@ -1198,6 +1198,8 @@ webpackJsonp([0],[
 
 	  auth: {},
 
+	  canJoinSessions: true,
+
 	  routes: {
 	    app: '/web',
 	    login: '/web/login',
@@ -11014,7 +11016,7 @@ webpackJsonp([0],[
 	  }
 
 	  InputSearch.prototype.componentDidMount = function componentDidMount() {
-	    // set cursor at the end
+	    // set cursor
 	    var $el = _reactDom2.default.findDOMNode(this);
 	    if ($el) {
 	      var $input = $el.querySelector('input');
@@ -15423,6 +15425,10 @@ webpackJsonp([0],[
 
 	var _clusterSelector2 = _interopRequireDefault(_clusterSelector);
 
+	var _config = __webpack_require__(228);
+
+	var _config2 = _interopRequireDefault(_config);
+
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -15537,7 +15543,7 @@ webpackJsonp([0],[
 	    var start = filter.start,
 	        end = filter.end;
 
-
+	    var canJoin = _config2.default.canJoinSessions;
 	    var searchValue = this.state.searchValue;
 
 	    var stored = storedSessions.filter(function (item) {
@@ -15598,7 +15604,7 @@ webpackJsonp([0],[
 	              { className: 'grv-sessions-col-sid' },
 	              ' Session ID '
 	            ),
-	            cell: _react2.default.createElement(_listItems.SessionIdCell, { data: data, container: this })
+	            cell: _react2.default.createElement(_listItems.SessionIdCell, { canJoin: canJoin, data: data, container: this })
 	          }),
 	          _react2.default.createElement(_table.Column, {
 	            header: _react2.default.createElement(
@@ -15702,6 +15708,10 @@ webpackJsonp([0],[
 	var _popover = __webpack_require__(486);
 
 	var _popover2 = _interopRequireDefault(_popover);
+
+	var _classnames = __webpack_require__(257);
+
+	var _classnames2 = _interopRequireDefault(_classnames);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -15818,32 +15828,40 @@ webpackJsonp([0],[
 
 	var SessionIdCell = function SessionIdCell(_ref5) {
 	  var rowIndex = _ref5.rowIndex,
+	      canJoin = _ref5.canJoin,
 	      data = _ref5.data,
 	      container = _ref5.container,
-	      props = _objectWithoutProperties(_ref5, ['rowIndex', 'data', 'container']);
+	      props = _objectWithoutProperties(_ref5, ['rowIndex', 'canJoin', 'data', 'container']);
 
 	  var _data$rowIndex2 = data[rowIndex],
 	      sessionUrl = _data$rowIndex2.sessionUrl,
 	      active = _data$rowIndex2.active,
 	      sid = _data$rowIndex2.sid;
 
-	  var _ref6 = active ? ['join', 'btn-warning'] : ['play', 'btn-primary'],
-	      actionText = _ref6[0],
-	      actionClass = _ref6[1];
-
+	  var isDisabled = active && !canJoin;
 	  var sidShort = sid.slice(0, 8);
+	  var actionText = active ? 'join' : 'play';
+
+	  var btnClass = (0, _classnames2.default)('btn btn-xs m-r-sm', {
+	    'btn-primary': !active,
+	    'btn-warning': active,
+	    'disabled': isDisabled
+	  });
+
 	  return _react2.default.createElement(
 	    _table.Cell,
 	    props,
 	    _react2.default.createElement(
 	      _layout2.default.Flex,
 	      { dir: 'row', align: 'center' },
-	      _react2.default.createElement(
+	      isDisabled && _react2.default.createElement(
+	        'button',
+	        { className: btnClass },
+	        actionText
+	      ),
+	      !isDisabled && _react2.default.createElement(
 	        _reactRouter.Link,
-	        {
-	          to: sessionUrl,
-	          className: "btn " + actionClass + " btn-xs m-r-sm",
-	          type: 'button' },
+	        { to: sessionUrl, className: btnClass, type: 'button' },
 	        actionText
 	      ),
 	      _react2.default.createElement(
@@ -15860,10 +15878,10 @@ webpackJsonp([0],[
 	  );
 	};
 
-	var NodeCell = function NodeCell(_ref7) {
-	  var rowIndex = _ref7.rowIndex,
-	      data = _ref7.data,
-	      props = _objectWithoutProperties(_ref7, ['rowIndex', 'data']);
+	var NodeCell = function NodeCell(_ref6) {
+	  var rowIndex = _ref6.rowIndex,
+	      data = _ref6.data,
+	      props = _objectWithoutProperties(_ref6, ['rowIndex', 'data']);
 
 	  var nodeDisplayText = data[rowIndex].nodeDisplayText;
 
