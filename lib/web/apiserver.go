@@ -610,14 +610,24 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		secondFactor = cap.GetSecondFactor()
 	}
 
+	// disable joining sessions if proxy session recording is enabled
+	var canJoinSessions = true
+	clsCfg, err := h.cfg.ProxyClient.GetClusterConfig()
+	if err != nil {
+		log.Errorf("Cannot retrieve ClusterConfig: %v.", err)
+	} else {
+		canJoinSessions = clsCfg.GetSessionRecording() != services.RecordAtProxy
+	}
+
 	authSettings := ui.WebConfigAuthSettings{
 		Providers:    authProviders,
 		SecondFactor: secondFactor,
 	}
 
 	webCfg := ui.WebConfig{
-		Auth:          authSettings,
-		ServerVersion: teleport.Version,
+		Auth:            authSettings,
+		ServerVersion:   teleport.Version,
+		CanJoinSessions: canJoinSessions,
 	}
 
 	out, err := json.Marshal(webCfg)

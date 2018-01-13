@@ -24,6 +24,7 @@ import { Table, Column, Cell, SortHeaderCell, SortTypes, EmptyIndicator } from '
 import { SessionIdCell, NodeCell, UsersCell, DateCreatedCell, DurationCell } from './listItems';
 import DateRangePicker from './../datePicker';
 import ClusterSelector from './../clusterSelector.jsx';
+import cfg from 'app/config';
 
 class SessionList extends React.Component {
 
@@ -101,7 +102,7 @@ class SessionList extends React.Component {
   render() {
     const { filter, storedSessions, activeSessions } = this.props;
     const { start, end } = filter;
-    
+    const canJoin = cfg.canJoinSessions;    
     const searchValue = this.state.searchValue;
 
     let stored = storedSessions.filter(
@@ -113,7 +114,7 @@ class SessionList extends React.Component {
 
     stored = this.sortAndFilter(stored);
     active = this.sortAndFilter(active);
-
+    
     // always display active sessions first    
     const data = [...active, ...stored];  
     return (
@@ -138,7 +139,7 @@ class SessionList extends React.Component {
               <Column
                 header={<Cell className="grv-sessions-col-sid"> Session ID </Cell> }
                 cell={
-                  <SessionIdCell data={data} container={this} />
+                  <SessionIdCell canJoin={canJoin} data={data} container={this} />
                 }
               />                                
               <Column

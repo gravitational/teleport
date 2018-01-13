@@ -21,6 +21,7 @@ import moment from 'moment';
 import Layout from 'app/components/layout';
 import MoreButton from 'app/components/moreButton';
 import Popover from 'app/components/popover';
+import classnames from 'classnames';
 
 const DateCreatedCell = ({ rowIndex, data, ...props }) => {
   let { createdDisplayText } = data[rowIndex];  
@@ -77,19 +78,27 @@ const sessionInfo = sid => (
   </Popover>
 );
 
-const SessionIdCell = ({ rowIndex, data, container, ...props }) => {
-  let { sessionUrl, active, sid } = data[rowIndex];
-  let [actionText, actionClass] = active ? ['join', 'btn-warning'] : ['play', 'btn-primary'];
-  let sidShort = sid.slice(0, 8);
+const SessionIdCell = ({ rowIndex, canJoin, data, container, ...props }) => {
+  const { sessionUrl, active, sid } = data[rowIndex];    
+  const isDisabled = active && !canJoin;
+  const sidShort = sid.slice(0, 8);  
+  const actionText = active ? 'join' : 'play';
+  
+  const btnClass = classnames('btn btn-xs m-r-sm', {
+    'btn-primary': !active,
+    'btn-warning': active,
+    'disabled': isDisabled
+  });    
+  
   return (
     <Cell {...props}>
       <Layout.Flex dir="row" align="center">
-        <Link 
-          to={sessionUrl}
-          className={"btn " + actionClass + " btn-xs m-r-sm"}
-          type="button">
+        {isDisabled && <button className={btnClass}>{actionText}</button> }
+        {!isDisabled && (
+          <Link to={sessionUrl} className={btnClass} type="button" >
             {actionText}
-        </Link>
+          </Link>
+        )}
         <span style={{ width: "75px" }}>{sidShort}</span>        
         <MoreButton.WithOverlay
           trigger="click"
