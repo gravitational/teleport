@@ -793,7 +793,7 @@ func (s *IntSuite) TestTwoClustersProxy(c *check.C) {
 
 	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
 	abortTime := time.Now().Add(time.Second * 10)
-	for len(b.Tunnel.GetSites()) < 2 && len(b.Tunnel.GetSites()) < 2 {
+	for len(a.Tunnel.GetSites()) < 2 && len(b.Tunnel.GetSites()) < 2 {
 		time.Sleep(time.Millisecond * 200)
 		if time.Now().After(abortTime) {
 			c.Fatalf("two sites do not see each other: tunnels are not working")
@@ -831,7 +831,7 @@ func (s *IntSuite) TestHA(c *check.C) {
 
 	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
 	abortTime := time.Now().Add(time.Second * 10)
-	for len(b.Tunnel.GetSites()) < 2 && len(b.Tunnel.GetSites()) < 2 {
+	for len(a.Tunnel.GetSites()) < 2 && len(b.Tunnel.GetSites()) < 2 {
 		time.Sleep(time.Millisecond * 2000)
 		if time.Now().After(abortTime) {
 			c.Fatalf("two sites do not see each other: tunnels are not working")
