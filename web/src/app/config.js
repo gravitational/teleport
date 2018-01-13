@@ -33,6 +33,8 @@ const cfg = {
   auth: {        
   },
 
+  canJoinSessions: true,
+
   routes: {
     app: '/web',
     login: '/web/login',    
@@ -152,8 +154,8 @@ const cfg = {
     const hostport = location.hostname+(location.port ? ':'+location.port: '');
     return `${prefix}${hostport}`;
   },
-
-  init(config={}){
+  
+  init(config = {}) {    
     $.extend(true, this, config);
   },
     
