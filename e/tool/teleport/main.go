@@ -18,12 +18,14 @@ func main() {
 	web.InitPlugin()
 	auth.InitPlugin()
 	modules.SetModules()
-	_, config := common.Run(common.Options{
+	executedCommand, config := common.Run(common.Options{
 		Args:     os.Args[1:],
 		InitOnly: true,
 	})
-	if err := run(config); err != nil {
-		utils.FatalError(err)
+	if executedCommand == "start" {
+		if err := run(config); err != nil {
+			utils.FatalError(err)
+		}
 	}
 }
 
