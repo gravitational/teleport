@@ -21,8 +21,7 @@ module.exports = function (config) {
     browsers: [],
     frameworks: [ 'mocha' ],
     reporters: [ 'spec' ],
-    files: [
-      'node_modules/phantomjs-polyfill/bind-polyfill.js',
+    files: [      
       'karma.test.files.js'
     ],
 
