@@ -259,9 +259,10 @@ func (s *IntSuite) TestAudit(c *check.C) {
 					if err != nil {
 						return nil, trace.Wrap(err)
 					}
-					if len(sessions) > 0 {
-						return &sessions[0], nil
+					if len(sessions) != 1 {
+						continue
 					}
+					return &sessions[0], nil
 				case <-stopCh:
 					return nil, trace.BadParameter("unable to find sessions after 10s (mode=%v)", tt.inRecordLocation)
 				}
