@@ -144,7 +144,7 @@ func LogoutFromEverywhere(username string) error {
 		return trace.Wrap(err)
 	}
 	if len(keys) == 0 {
-		fmt.Printf("%s is not logged in, but logging out of everywhere\n", username)
+		fmt.Printf("%s is not logged in, logging out of everywhere\n", username)
 		return agent.ClearAllKeys()
 	}
 	// ... and delete them:

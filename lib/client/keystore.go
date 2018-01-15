@@ -393,17 +393,16 @@ func (fs *FSLocalKeyStore) dirFor(hostname string) (string, error) {
 	return dirPath, nil
 }
 
-// CleanupAll
+// Cleanup cleans KeyDir
 func (fs *FSLocalKeyStore) Cleanup() error {
 
 	var err error
 
-	//Empty the content of keyDir and recreate it
 	if err = os.RemoveAll(fs.KeyDir); err != nil {
 		log.Error(err)
 		return err
 	}
-	//Now recreate initalize it
+
 	fs.KeyDir, err = initKeysDir(fs.KeyDir)
 
 	return err
