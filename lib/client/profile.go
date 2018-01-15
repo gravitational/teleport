@@ -126,6 +126,7 @@ func (cp *ClientProfile) SaveTo(filePath string, opts ProfileOptions) error {
 // by examining ~/.tsh and logs him out of them all
 func LogoutFromEverywhere(username string) error {
 	// if no --user flag was passed, get the current OS user:
+
 	if username == "" {
 		me, err := user.Current()
 		if err != nil {
@@ -143,11 +144,12 @@ func LogoutFromEverywhere(username string) error {
 		return trace.Wrap(err)
 	}
 	if len(keys) == 0 {
-		fmt.Printf("%s is not logged in\n", username)
-		return nil
+		fmt.Printf("%s is not logged in, but logging out of everywhere\n", username)
+		return agent.ClearAllKeys()
 	}
 	// ... and delete them:
 	for _, key := range keys {
+
 		err = agent.DeleteKey(key.ProxyHost, username)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error logging %s out of %s: %s\n",

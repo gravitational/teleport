@@ -77,6 +77,9 @@ type LocalKeyStore interface {
 	SaveCerts(proxy string, cas []auth.TrustedCerts) error
 	// GetCerts gets trusted TLS certificates of certificate authorities
 	GetCerts(proxy string) (*x509.CertPool, error)
+
+	//Cleanup the local store completely
+	Cleanup() error
 }
 
 // FSLocalKeyStore implements LocalKeyStore interface using the filesystem
@@ -388,6 +391,22 @@ func (fs *FSLocalKeyStore) dirFor(hostname string) (string, error) {
 		return "", trace.Wrap(err)
 	}
 	return dirPath, nil
+}
+
+// CleanupAll
+func (fs *FSLocalKeyStore) Cleanup() error {
+
+	var err error
+
+	//Empty the content of keyDir and recreate it
+	if err = os.RemoveAll(fs.KeyDir); err != nil {
+		log.Error(err)
+		return err
+	}
+	//Now recreate initalize it
+	fs.KeyDir, err = initKeysDir(fs.KeyDir)
+
+	return err
 }
 
 // initKeysDir initializes the keystore root directory. Usually it is ~/.tsh

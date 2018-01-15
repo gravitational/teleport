@@ -324,6 +324,16 @@ func (a *LocalKeyAgent) DeleteKey(proxyHost string, username string) error {
 	return nil
 }
 
+// ClearAllKeys Simply clears the keydir loggingout the user from all the sessions.
+func (a *LocalKeyAgent) ClearAllKeys() error {
+	// remove key from key store
+	err := a.keyStore.Cleanup()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 // AuthMethods returns the list of different authentication methods this agent supports
 // It returns two:
 //	  1. First to try is the external SSH agent
