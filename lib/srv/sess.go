@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/state"
@@ -340,12 +339,18 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 		rsess.TerminalParams.W = int(winsize.Width)
 		rsess.TerminalParams.H = int(winsize.Height)
 	}
-	err := r.srv.GetSessionServer().CreateSession(rsess)
+
+	// get the session server where session information lives. if the recording
+	// proxy is being used and this is a node, then a discard session server will
+	// be returned here.
+	sessionServer := r.srv.GetSessionServer()
+
+	err := sessionServer.CreateSession(rsess)
 	if err != nil {
 		if trace.IsAlreadyExists(err) {
 			// if session already exists, make sure they are compatible
 			// Login matches existing login
-			existing, err := r.srv.GetSessionServer().GetSession(r.srv.GetNamespace(), id)
+			existing, err := sessionServer.GetSession(r.srv.GetNamespace(), id)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -556,6 +561,8 @@ func (r *sessionRecorder) Close() error {
 
 // start starts a new interactive process (or a shell) in the current session
 func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
+	var err error
+
 	// create a new "party" (connected client)
 	p := newParty(s, ch, ctx)
 
@@ -565,7 +572,6 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 		s.term = ctx.GetTerm()
 		ctx.SetTerm(nil)
 	} else {
-		var err error
 		if s.term, err = NewTerminal(ctx); err != nil {
 			ctx.Infof("handleShell failed to create term: %v", err)
 			return trace.Wrap(err)
@@ -582,21 +588,10 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 
 	params := s.term.GetTerminalParams()
 
-	// get the audit log. if the cluster is recording sessions at the proxy and
-	// this is a teleport node, then use a discard audit log because everything
-	// is being recorded at the proxy already.
+	// get the audit log from the server and create a session recorder. this will
+	// be a discard audit log if the proxy is in recording mode and a teleport
+	// node so we don't create double recordings.
 	auditLog := s.registry.srv.GetAuditLog()
-	clusterConfig, err := s.registry.srv.GetAccessPoint().GetClusterConfig()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	isRecordAtProxy := clusterConfig.GetSessionRecording() == services.RecordAtProxy
-	isTeleportNode := s.registry.srv.Component() == teleport.ComponentNode
-	if isRecordAtProxy && isTeleportNode {
-		auditLog = events.NewDiscardAuditLog()
-	}
-
-	// create the recorder for the session with the passed in audit log
 	s.recorder, err = newSessionRecorder(auditLog, ctx.srv.GetNamespace(), s.id)
 	if err != nil {
 		return trace.Wrap(err)
