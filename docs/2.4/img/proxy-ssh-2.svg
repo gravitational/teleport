@@ -1,2 +1,201 @@
-<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="791px" height="104px" version="1.1" content="%3CmxGraphModel%20dx%3D%222640%22%20dy%3D%22529%22%20grid%3D%221%22%20gridSize%3D%2210%22%20guides%3D%221%22%20tooltips%3D%221%22%20connect%3D%221%22%20arrows%3D%221%22%20fold%3D%221%22%20page%3D%221%22%20pageScale%3D%221%22%20pageWidth%3D%22826%22%20pageHeight%3D%221169%22%20background%3D%22%23ffffff%22%20math%3D%220%22%3E%3Croot%3E%3CmxCell%20id%3D%220%22%2F%3E%3CmxCell%20id%3D%221%22%20parent%3D%220%22%2F%3E%3CmxCell%20id%3D%222%22%20value%3D%22%22%20style%3D%22endArrow%3Dclassic%3Bhtml%3D1%3BentryX%3D0.5%3BentryY%3D1%3Bcurved%3D0%3Bdashed%3D1%3Bplain-red%3BstrokeColor%3D%23FF0000%3BexitX%3D0.5%3BexitY%3D0%3B%22%20edge%3D%221%22%20source%3D%227%22%20target%3D%2213%22%20parent%3D%221%22%3E%3CmxGeometry%20x%3D%22-394.76190476190504%22%20y%3D%221886.238095238095%22%20width%3D%2250%22%20height%3D%2250%22%20as%3D%22geometry%22%3E%3CmxPoint%20x%3D%22-725%22%20y%3D%221896%22%20as%3D%22sourcePoint%22%2F%3E%3CmxPoint%20x%3D%22-653%22%20y%3D%221896%22%20as%3D%22targetPoint%22%2F%3E%3CArray%20as%3D%22points%22%2F%3E%3C%2FmxGeometry%3E%3C%2FmxCell%3E%3CmxCell%20id%3D%223%22%20style%3D%22edgeStyle%3Dnone%3Brounded%3D1%3Bhtml%3D1%3BexitX%3D0.967%3BexitY%3D0.284%3Bshadow%3D0%3BjettySize%3Dauto%3BorthogonalLoop%3D1%3BstrokeColor%3D%23FF0000%3BfontSize%3D13%3BfontColor%3D%234D4D4D%3BentryX%3D0.25%3BentryY%3D1%3Bdashed%3D1%3BexitPerimeter%3D0%3B%22%20edge%3D%221%22%20source%3D%229%22%20target%3D%227%22%20parent%3D%221%22%3E%3CmxGeometry%20x%3D%22-755.2380952380954%22%20y%3D%221870.0476190476188%22%20as%3D%22geometry%22%3E%3CmxPoint%20x%3D%22-668%22%20y%3D%221892%22%20as%3D%22targetPoint%22%2F%3E%3C%2FmxGeometry%3E%3C%2FmxCell%3E%3CmxCell%20id%3D%224%22%20value%3D%22%22%20style%3D%22group%22%20vertex%3D%221%22%20connectable%3D%220%22%20parent%3D%221%22%3E%3CmxGeometry%20x%3D%22-645%22%20y%3D%221855%22%20width%3D%22250%22%20height%3D%2262%22%20as%3D%22geometry%22%2F%3E%3C%2FmxCell%3E%3CmxCell%20id%3D%225%22%20value%3D%22%22%20style%3D%22whiteSpace%3Dwrap%3BfillColor%3D%23CCE5FF%3BstrokeColor%3Dnone%3Brounded%3D1%3BfontStyle%3D1%3Brotation%3D0%3Bdirection%3Dsouth%3BfontFamily%3DCourier%20New%3B%22%20vertex%3D%221%22%20parent%3D%224%22%3E%3CmxGeometry%20width%3D%22250%22%20height%3D%2262%22%20as%3D%22geometry%22%2F%3E%3C%2FmxCell%3E%3CmxCell%20id%3D%226%22%20value%3D%22%26lt%3Bdiv%20style%3D%26quot%3Btext-align%3A%20left%26quot%3B%26gt%3B%26lt%3Bspan%20style%3D%26quot%3Bfont-size%3A%2014px%20%3B%20line-height%3A%201.2%26quot%3B%26gt%3BProxy%20Service%26lt%3B%2Fspan%26gt%3B%26lt%3B%2Fdiv%26gt%3B%22%20style%3D%22text%3Bhtml%3D1%3BstrokeColor%3Dnone%3BfillColor%3Dnone%3Balign%3Dcenter%3BverticalAlign%3Dmiddle%3BwhiteSpace%3Dwrap%3Boverflow%3Dhidden%3BfontFamily%3DHelvetica%3BfontStyle%3D1%22%20vertex%3D%221%22%20parent%3D%224%22%3E%3CmxGeometry%20x%3D%2210%22%20y%3D%225%22%20width%3D%22230%22%20height%3D%2257%22%20as%3D%22geometry%22%2F%3E%3C%2FmxCell%3E%3CmxCell%20id%3D%227%22%20value%3D%22%22%20style%3D%22whiteSpace%3Dwrap%3BfillColor%3D%23CCE5FF%3BstrokeColor%3Dnone%3Brounded%3D1%3BfontStyle%3D1%3Brotation%3D0%3Bdirection%3Dsouth%3BfontFamily%3DCourier%20New%3B%22%20vertex%3D%221%22%20parent%3D%221%22%3E%3CmxGeometry%20x%3D%22-645%22%20y%3D%221855%22%20width%3D%22250%22%20height%3D%2262%22%20as%3D%22geometry%22%2F%3E%3C%2FmxCell%3E%3CmxCell%20id%3D%228%22%20value%3D%22%26lt%3Bdiv%20style%3D%26quot%3Btext-align%3A%20left%26quot%3B%26gt%3B%26lt%3Bspan%20style%3D%26quot%3Bfont-size%3A%2014px%20%3B%20line-height%3A%201.2%26quot%3B%26gt%3BProxy%20Service%26lt%3B%2Fspan%26gt%3B%26lt%3B%2Fdiv%26gt%3B%22%20style%3D%22text%3Bhtml%3D1%3BstrokeColor%3Dnone%3BfillColor%3Dnone%3Balign%3Dcenter%3BverticalAlign%3Dmiddle%3BwhiteSpace%3Dwrap%3Boverflow%3Dhidden%3BfontFamily%3DHelvetica%3BfontStyle%3D1%22%20vertex%3D%221%22%20parent%3D%221%22%3E%3CmxGeometry%20x%3D%22-635%22%20y%3D%221860%22%20width%3D%22230%22%20height%3D%2257%22%20as%3D%22geometry%22%2F%3E%3C%2FmxCell%3E%3CmxCell%20id%3D%229%22%20value%3D%22SSH%20client%22%20style%3D%22ellipse%3BwhiteSpace%3Dwrap%3BfillColor%3D%23CCE5FF%3BstrokeColor%3Dnone%3Brounded%3D1%3BfontStyle%3D1%3Brotation%3D0%3BfontSize%3D13%3BfontColor%3D%23000000%3B%22%20vertex%3D%221%22%20parent%3D%221%22%3E%3CmxGeometry%20x%3D%22-826%22%20y%3D%221850%22%20width%3D%2273%22%20height%3D%2271%22%20as%3D%22geometry%22%2F%3E%3C%2FmxCell%3E%3CmxCell%20id%3D%2210%22%20value%3D%22%22%20style%3D%22group%22%20vertex%3D%221%22%20connectable%3D%220%22%20parent%3D%221%22%3E%3CmxGeometry%20x%3D%22-288%22%20y%3D%221855%22%20width%3D%22250%22%20height%3D%2262%22%20as%3D%22geometry%22%2F%3E%3C%2FmxCell%3E%3CmxCell%20id%3D%2211%22%20value%3D%22%22%20style%3D%22whiteSpace%3Dwrap%3BfillColor%3D%23CCE5FF%3BstrokeColor%3Dnone%3Brounded%3D1%3BfontStyle%3D1%3Brotation%3D0%3Bdirection%3Dsouth%3BfontFamily%3DCourier%20New%3B%22%20vertex%3D%221%22%20parent%3D%2210%22%3E%3CmxGeometry%20width%3D%22250%22%20height%3D%2262%22%20as%3D%22geometry%22%2F%3E%3C%2FmxCell%3E%3CmxCell%20id%3D%2212%22%20value%3D%22%26lt%3Bdiv%20style%3D%26quot%3Btext-align%3A%20left%26quot%3B%26gt%3B%26lt%3Bspan%20style%3D%26quot%3Bline-height%3A%201.2%26quot%3B%26gt%3B%26lt%3Bfont%20style%3D%26quot%3Bfont-size%3A%2014px%26quot%3B%26gt%3BNode%20Service%26lt%3B%2Ffont%26gt%3B%26lt%3B%2Fspan%26gt%3B%26lt%3B%2Fdiv%26gt%3B%22%20style%3D%22text%3Bhtml%3D1%3BstrokeColor%3Dnone%3BfillColor%3Dnone%3Balign%3Dcenter%3BverticalAlign%3Dmiddle%3BwhiteSpace%3Dwrap%3Boverflow%3Dhidden%3BfontFamily%3DHelvetica%3BfontStyle%3D1%22%20vertex%3D%221%22%20parent%3D%2210%22%3E%3CmxGeometry%20x%3D%2210%22%20y%3D%225%22%20width%3D%22230%22%20height%3D%2257%22%20as%3D%22geometry%22%2F%3E%3C%2FmxCell%3E%3CmxCell%20id%3D%2213%22%20value%3D%22%22%20style%3D%22whiteSpace%3Dwrap%3BfillColor%3D%23CCE5FF%3BstrokeColor%3Dnone%3Brounded%3D1%3BfontStyle%3D1%3Brotation%3D0%3Bdirection%3Dsouth%3BfontFamily%3DCourier%20New%3B%22%20vertex%3D%221%22%20parent%3D%221%22%3E%3CmxGeometry%20x%3D%22-288%22%20y%3D%221855%22%20width%3D%22250%22%20height%3D%2262%22%20as%3D%22geometry%22%2F%3E%3C%2FmxCell%3E%3CmxCell%20id%3D%2214%22%20value%3D%22%26lt%3Bdiv%20style%3D%26quot%3Btext-align%3A%20left%26quot%3B%26gt%3B%26lt%3Bspan%20style%3D%26quot%3Bline-height%3A%201.2%26quot%3B%26gt%3B%26lt%3Bfont%20style%3D%26quot%3Bfont-size%3A%2014px%26quot%3B%26gt%3BNode%20Service%26lt%3B%2Ffont%26gt%3B%26lt%3B%2Fspan%26gt%3B%26lt%3B%2Fdiv%26gt%3B%22%20style%3D%22text%3Bhtml%3D1%3BstrokeColor%3Dnone%3BfillColor%3Dnone%3Balign%3Dcenter%3BverticalAlign%3Dmiddle%3BwhiteSpace%3Dwrap%3Boverflow%3Dhidden%3BfontFamily%3DHelvetica%3BfontStyle%3D1%22%20vertex%3D%221%22%20parent%3D%221%22%3E%3CmxGeometry%20x%3D%22-278%22%20y%3D%221860%22%20width%3D%22230%22%20height%3D%2257%22%20as%3D%22geometry%22%2F%3E%3C%2FmxCell%3E%3CmxCell%20id%3D%2215%22%20value%3D%221%22%20style%3D%22ellipse%3BwhiteSpace%3Dwrap%3BfillColor%3D%23EA6B66%3BstrokeColor%3Dnone%3Brounded%3D1%3BfontStyle%3D1%3Brotation%3D0%3BfontSize%3D14%3BfontColor%3D%23FFFFFF%3B%22%20vertex%3D%221%22%20parent%3D%221%22%3E%3CmxGeometry%20x%3D%22-724%22%20y%3D%221835%22%20width%3D%2229%22%20height%3D%2230%22%20as%3D%22geometry%22%2F%3E%3C%2FmxCell%3E%3CmxCell%20id%3D%2216%22%20style%3D%22edgeStyle%3Dnone%3Brounded%3D1%3Bhtml%3D1%3BexitX%3D1%3BexitY%3D1%3BentryX%3D1%3BentryY%3D1%3Bshadow%3D0%3BjettySize%3Dauto%3BorthogonalLoop%3D1%3BstrokeColor%3D%23FF0000%3BfontSize%3D13%3BfontColor%3D%234D4D4D%3B%22%20edge%3D%221%22%20source%3D%2215%22%20target%3D%2215%22%20parent%3D%221%22%3E%3CmxGeometry%20x%3D%22-699.047619047619%22%20y%3D%221860.5238095238096%22%20as%3D%22geometry%22%2F%3E%3C%2FmxCell%3E%3CmxCell%20id%3D%2217%22%20value%3D%223%22%20style%3D%22ellipse%3BwhiteSpace%3Dwrap%3BfillColor%3D%23EA6B66%3BstrokeColor%3Dnone%3Brounded%3D1%3BfontStyle%3D1%3Brotation%3D0%3BfontSize%3D14%3BfontColor%3D%23FFFFFF%3B%22%20vertex%3D%221%22%20parent%3D%221%22%3E%3CmxGeometry%20x%3D%22-355%22%20y%3D%221840%22%20width%3D%2229%22%20height%3D%2230%22%20as%3D%22geometry%22%2F%3E%3C%2FmxCell%3E%3CmxCell%20id%3D%2218%22%20value%3D%222%22%20style%3D%22ellipse%3BwhiteSpace%3Dwrap%3BfillColor%3D%23EA6B66%3BstrokeColor%3Dnone%3Brounded%3D1%3BfontStyle%3D1%3Brotation%3D0%3BfontSize%3D14%3BfontColor%3D%23FFFFFF%3B%22%20vertex%3D%221%22%20parent%3D%221%22%3E%3CmxGeometry%20x%3D%22-723%22%20y%3D%221906%22%20width%3D%2229%22%20height%3D%2230%22%20as%3D%22geometry%22%2F%3E%3C%2FmxCell%3E%3CmxCell%20id%3D%2219%22%20style%3D%22edgeStyle%3Dnone%3Brounded%3D1%3Bhtml%3D1%3BexitX%3D0.98%3BexitY%3D0.716%3Bshadow%3D0%3BjettySize%3Dauto%3BorthogonalLoop%3D1%3BstrokeColor%3D%23FF0000%3BfontSize%3D13%3BfontColor%3D%234D4D4D%3BentryX%3D0.75%3BentryY%3D1%3Bdashed%3D1%3BexitPerimeter%3D0%3B%22%20edge%3D%221%22%20source%3D%229%22%20target%3D%227%22%20parent%3D%221%22%3E%3CmxGeometry%20x%3D%22-754.2857142857144%22%20y%3D%221901%22%20as%3D%22geometry%22%3E%3CmxPoint%20x%3D%22-634.9302325581396%22%20y%3D%221880.6046511627906%22%20as%3D%22targetPoint%22%2F%3E%3CmxPoint%20x%3D%22-745.3953488372092%22%20y%3D%221880.139534883721%22%20as%3D%22sourcePoint%22%2F%3E%3C%2FmxGeometry%3E%3C%2FmxCell%3E%3C%2Froot%3E%3C%2FmxGraphModel%3E" style="background-color: rgb(255, 255, 255);"><defs/><g transform="translate(0.5,0.5)"><path d="M 431.24 51.24 L 531.54 51.24" fill="none" stroke="#ff0000" stroke-miterlimit="10" stroke-dasharray="3 3" pointer-events="none"/><path d="M 536.79 51.24 L 529.79 54.74 L 531.54 51.24 L 529.79 47.74 Z" fill="#ff0000" stroke="#ff0000" stroke-miterlimit="10" pointer-events="none"/><path d="M 70.76 35.05 L 174.87 35.5" fill="none" stroke="#ff0000" stroke-miterlimit="10" stroke-dasharray="3 3" pointer-events="none"/><path d="M 180.12 35.52 L 173.11 38.99 L 174.87 35.5 L 173.14 31.99 Z" fill="#ff0000" stroke="#ff0000" stroke-miterlimit="10" pointer-events="none"/><rect x="275" y="-74" width="62" height="250" rx="9.3" ry="9.3" fill="#cce5ff" stroke="none" transform="rotate(90,306,51)" pointer-events="none"/><g transform="translate(259.5,46.5)"><switch><foreignObject style="overflow:visible;" pointer-events="all" width="93" height="14" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: inline-block; font-size: 12px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; vertical-align: top; overflow: hidden; max-height: 53px; max-width: 226px; width: 93px; white-space: normal; font-weight: bold; text-align: center;"><div xmlns="http://www.w3.org/1999/xhtml" style="display:inline-block;text-align:inherit;text-decoration:inherit;"><div style="text-align: left"><span style="font-size: 14px ; line-height: 1.2">Proxy Service</span></div></div></div></foreignObject><text x="47" y="13" fill="#000000" text-anchor="middle" font-size="12px" font-family="Helvetica" font-weight="bold">[Not supported by viewer]</text></switch></g><ellipse cx="37" cy="51" rx="36.5" ry="35.5" fill="#cce5ff" stroke="none" pointer-events="none"/><g transform="translate(3.5,43.5)"><switch><foreignObject style="overflow:visible;" pointer-events="all" width="65" height="13" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: inline-block; font-size: 13px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; vertical-align: top; width: 65px; white-space: nowrap; font-weight: bold; text-align: center;"><div xmlns="http://www.w3.org/1999/xhtml" style="display:inline-block;text-align:inherit;text-decoration:inherit;">SSH client</div></div></foreignObject><text x="33" y="13" fill="#000000" text-anchor="middle" font-size="13px" font-family="Helvetica" font-weight="bold">SSH client</text></switch></g><rect x="632" y="-74" width="62" height="250" rx="9.3" ry="9.3" fill="#cce5ff" stroke="none" transform="rotate(90,663,51)" pointer-events="none"/><g transform="translate(618.5,46.5)"><switch><foreignObject style="overflow:visible;" pointer-events="all" width="89" height="14" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: inline-block; font-size: 12px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; vertical-align: top; overflow: hidden; max-height: 53px; max-width: 226px; width: 89px; white-space: normal; font-weight: bold; text-align: center;"><div xmlns="http://www.w3.org/1999/xhtml" style="display:inline-block;text-align:inherit;text-decoration:inherit;"><div style="text-align: left"><span style="line-height: 1.2"><font style="font-size: 14px">Node Service</font></span></div></div></div></foreignObject><text x="45" y="13" fill="#000000" text-anchor="middle" font-size="12px" font-family="Helvetica" font-weight="bold">[Not supported by viewer]</text></switch></g><ellipse cx="117" cy="15" rx="14.5" ry="15" fill="#ea6b66" stroke="none" pointer-events="none"/><g transform="translate(112.5,7.5)"><switch><foreignObject style="overflow:visible;" pointer-events="all" width="7" height="14" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: inline-block; font-size: 14px; font-family: Helvetica; color: rgb(255, 255, 255); line-height: 1.2; vertical-align: top; width: 9px; white-space: nowrap; font-weight: bold; text-align: center;"><div xmlns="http://www.w3.org/1999/xhtml" style="display:inline-block;text-align:inherit;text-decoration:inherit;">1</div></div></foreignObject><text x="4" y="14" fill="#FFFFFF" text-anchor="middle" font-size="14px" font-family="Helvetica" font-weight="bold">1</text></switch></g><path d="M 126.95 25.52 L 126.95 25.52" fill="none" stroke="#ff0000" stroke-miterlimit="10" pointer-events="none"/><path d="M 126.95 25.52 L 126.95 25.52 L 126.95 25.52 L 126.95 25.52 Z" fill="#ff0000" stroke="#ff0000" stroke-miterlimit="10" pointer-events="none"/><ellipse cx="486" cy="20" rx="14.5" ry="15" fill="#ea6b66" stroke="none" pointer-events="none"/><g transform="translate(481.5,12.5)"><switch><foreignObject style="overflow:visible;" pointer-events="all" width="7" height="14" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: inline-block; font-size: 14px; font-family: Helvetica; color: rgb(255, 255, 255); line-height: 1.2; vertical-align: top; width: 9px; white-space: nowrap; font-weight: bold; text-align: center;"><div xmlns="http://www.w3.org/1999/xhtml" style="display:inline-block;text-align:inherit;text-decoration:inherit;">3</div></div></foreignObject><text x="4" y="14" fill="#FFFFFF" text-anchor="middle" font-size="14px" font-family="Helvetica" font-weight="bold">3</text></switch></g><ellipse cx="118" cy="86" rx="14.5" ry="15" fill="#ea6b66" stroke="none" pointer-events="none"/><g transform="translate(113.5,78.5)"><switch><foreignObject style="overflow:visible;" pointer-events="all" width="7" height="14" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: inline-block; font-size: 14px; font-family: Helvetica; color: rgb(255, 255, 255); line-height: 1.2; vertical-align: top; width: 9px; white-space: nowrap; font-weight: bold; text-align: center;"><div xmlns="http://www.w3.org/1999/xhtml" style="display:inline-block;text-align:inherit;text-decoration:inherit;">2</div></div></foreignObject><text x="4" y="14" fill="#FFFFFF" text-anchor="middle" font-size="14px" font-family="Helvetica" font-weight="bold">2</text></switch></g><path d="M 71.71 66 L 174.87 66.45" fill="none" stroke="#ff0000" stroke-miterlimit="10" stroke-dasharray="3 3" pointer-events="none"/><path d="M 180.12 66.47 L 173.1 69.94 L 174.87 66.45 L 173.14 62.94 Z" fill="#ff0000" stroke="#ff0000" stroke-miterlimit="10" pointer-events="none"/></g></svg>
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="927px" height="360px" viewBox="0 0 927 360" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <!-- Generator: Sketch 47.1 (45422) - http://www.bohemiancoding.com/sketch -->
+    <title>proxy-ssh-2</title>
+    <desc>Created with Sketch.</desc>
+    <defs>
+        <rect id="path-1" x="0" y="0" width="181" height="106"></rect>
+        <rect id="path-2" x="68" y="135" width="245" height="109" rx="10"></rect>
+        <filter x="-11.4%" y="-18.3%" width="122.9%" height="151.4%" filterUnits="objectBoundingBox" id="filter-3">
+            <feOffset dx="0" dy="8" in="SourceAlpha" result="shadowOffsetOuter1"></feOffset>
+            <feGaussianBlur stdDeviation="8" in="shadowOffsetOuter1" result="shadowBlurOuter1"></feGaussianBlur>
+            <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.103742074 0" type="matrix" in="shadowBlurOuter1"></feColorMatrix>
+        </filter>
+        <rect id="path-4" x="0" y="0" width="181" height="109"></rect>
+        <rect id="path-5" x="0" y="19" width="181" height="88"></rect>
+        <filter x="-1.6%" y="-3.1%" width="103.2%" height="108.8%" filterUnits="objectBoundingBox" id="filter-6">
+            <feOffset dx="0" dy="1" in="SourceAlpha" result="shadowOffsetOuter1"></feOffset>
+            <feGaussianBlur stdDeviation="1" in="shadowOffsetOuter1" result="shadowBlurOuter1"></feGaussianBlur>
+            <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.5 0" type="matrix" in="shadowBlurOuter1" result="shadowMatrixOuter1"></feColorMatrix>
+            <feMerge>
+                <feMergeNode in="shadowMatrixOuter1"></feMergeNode>
+                <feMergeNode in="SourceGraphic"></feMergeNode>
+            </feMerge>
+        </filter>
+        <rect id="path-7" x="0" y="0" width="220" height="80" rx="10"></rect>
+        <filter x="-10.5%" y="-6.4%" width="121.1%" height="125.5%" filterUnits="objectBoundingBox" id="filter-8">
+            <feOffset dx="0" dy="1" in="SourceAlpha" result="shadowOffsetOuter1"></feOffset>
+            <feGaussianBlur stdDeviation="0.5" in="shadowOffsetOuter1" result="shadowBlurOuter1"></feGaussianBlur>
+            <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.5 0" type="matrix" in="shadowBlurOuter1" result="shadowMatrixOuter1"></feColorMatrix>
+            <feMerge>
+                <feMergeNode in="shadowMatrixOuter1"></feMergeNode>
+                <feMergeNode in="SourceGraphic"></feMergeNode>
+            </feMerge>
+        </filter>
+        <rect id="path-9" x="0" y="0" width="171" height="141" rx="10"></rect>
+        <filter x="-16.4%" y="-14.2%" width="132.7%" height="139.7%" filterUnits="objectBoundingBox" id="filter-10">
+            <feOffset dx="0" dy="8" in="SourceAlpha" result="shadowOffsetOuter1"></feOffset>
+            <feGaussianBlur stdDeviation="8" in="shadowOffsetOuter1" result="shadowBlurOuter1"></feGaussianBlur>
+            <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.103742074 0" type="matrix" in="shadowBlurOuter1"></feColorMatrix>
+        </filter>
+        <rect id="path-11" x="0" y="0" width="106" height="63"></rect>
+        <rect id="path-12" x="641" y="135" width="270" height="109" rx="10"></rect>
+        <filter x="-10.4%" y="-18.3%" width="120.7%" height="151.4%" filterUnits="objectBoundingBox" id="filter-13">
+            <feOffset dx="0" dy="8" in="SourceAlpha" result="shadowOffsetOuter1"></feOffset>
+            <feGaussianBlur stdDeviation="8" in="shadowOffsetOuter1" result="shadowBlurOuter1"></feGaussianBlur>
+            <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.103742074 0" type="matrix" in="shadowBlurOuter1"></feColorMatrix>
+        </filter>
+        <filter x="-1.5%" y="-3.1%" width="102.9%" height="108.8%" filterUnits="objectBoundingBox" id="filter-14">
+            <feOffset dx="0" dy="1" in="SourceAlpha" result="shadowOffsetOuter1"></feOffset>
+            <feGaussianBlur stdDeviation="1" in="shadowOffsetOuter1" result="shadowBlurOuter1"></feGaussianBlur>
+            <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.5 0" type="matrix" in="shadowBlurOuter1" result="shadowMatrixOuter1"></feColorMatrix>
+            <feMerge>
+                <feMergeNode in="shadowMatrixOuter1"></feMergeNode>
+                <feMergeNode in="SourceGraphic"></feMergeNode>
+            </feMerge>
+        </filter>
+        <rect id="path-15" x="0" y="0" width="239" height="80" rx="10"></rect>
+    </defs>
+    <g id="-" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="proxy-ssh-2">
+            <g id="comment-1" transform="translate(213.000000, 0.000000)">
+                <g id="Rectangle-16-Copy-2">
+                    <use fill="#EEF4F9" fill-rule="evenodd" xlink:href="#path-1"></use>
+                    <rect stroke="#D1EAFF" stroke-width="3" x="1.5" y="1.5" width="178" height="103"></rect>
+                </g>
+                <text id="SSH-client-connects" font-family="HelveticaNeue, Helvetica Neue" font-size="12" font-weight="normal" line-spacing="17">
+                    <tspan x="10" y="22" fill="#4A4A4A">SSH client connects to proxy </tspan>
+                    <tspan x="10" y="39" fill="#4A4A4A">and executes </tspan>
+                    <tspan x="85.348" y="39" fill="#D3000D">proxy</tspan>
+                    <tspan x="115.348" y="39" fill="#4A4A4A"> </tspan>
+                    <tspan x="10" y="56" fill="#4A4A4A">subsystem of the proxy's </tspan>
+                    <tspan x="10" y="73" fill="#4A4A4A">SSH server, providing target </tspan>
+                    <tspan x="10" y="90" fill="#4A4A4A">node's host and port location.  </tspan>
+                </text>
+                <polygon id="Triangle-2-Copy-2" stroke="#D1EAFF" fill="#D1EAFF" points="10.5 125 1 106 20 106"></polygon>
+                <g id="Rectangle-Copy-6">
+                    <use fill="black" fill-opacity="1" filter="url(#filter-3)" xlink:href="#path-2"></use>
+                    <use fill="#FFFFFF" fill-rule="evenodd" xlink:href="#path-2"></use>
+                </g>
+            </g>
+            <g id="comment-3" transform="translate(572.000000, 13.000000)">
+                <g id="Rectangle-16-Copy-3">
+                    <use fill="#EEF4F9" fill-rule="evenodd" xlink:href="#path-4"></use>
+                    <rect stroke="#D1EAFF" stroke-width="3" x="1.5" y="1.5" width="178" height="106"></rect>
+                </g>
+                <text id="SSH-client-uses-esta" font-family="Helvetica" font-size="12" font-weight="normal" line-spacing="18" fill="#4A4A4A">
+                    <tspan x="10" y="21">SSH client uses established </tspan>
+                    <tspan x="10" y="39">SSH tunnel to open a new </tspan>
+                    <tspan x="10" y="57">SSH connection and </tspan>
+                    <tspan x="10" y="75">authenticate with the target </tspan>
+                    <tspan x="10" y="93">node using its client certificate.  </tspan>
+                </text>
+                <polygon id="Triangle-2-Copy-3" stroke="#D1EAFF" fill="#D1EAFF" points="10.5 125 1 109 20 109"></polygon>
+            </g>
+            <g id="comment-2" transform="translate(211.000000, 253.000000)">
+                <g id="Rectangle-16-Copy-2">
+                    <use fill="#EEF4F9" fill-rule="evenodd" xlink:href="#path-5"></use>
+                    <rect stroke="#D1EAFF" stroke-width="3" x="1.5" y="20.5" width="178" height="85"></rect>
+                </g>
+                <polygon id="Triangle-2-Copy-2" stroke="#D1EAFF" fill="#D1EAFF" transform="translate(10.500000, 9.500000) rotate(-180.000000) translate(-10.500000, -9.500000) " points="10.5 19 1 0 20 0"></polygon>
+                <text id="Proxy-dials-to-the-t" font-family="HelveticaNeue, Helvetica Neue" font-size="12" font-weight="normal" line-spacing="17" fill="#4A4A4A">
+                    <tspan x="12" y="40">Proxy dials to the target TCP </tspan>
+                    <tspan x="12" y="57">address and starts </tspan>
+                    <tspan x="12" y="74">forwarding the traffic to the </tspan>
+                    <tspan x="12" y="91">client. </tspan>
+                    <tspan x="47.34" y="91" font-family="Helvetica"> </tspan>
+                </text>
+            </g>
+            <g id="teleport-proxy" filter="url(#filter-6)" transform="translate(294.000000, 150.000000)">
+                <g id="teleport-proxy-block">
+                    <g id="teleport-proxy">
+                        <g>
+                            <g id="Rectangle-17">
+                                <use fill="#FFFFFF" fill-rule="evenodd" xlink:href="#path-7"></use>
+                                <rect stroke="#40B6C6" stroke-width="3" x="1.5" y="1.5" width="217" height="77" rx="10"></rect>
+                            </g>
+                            <text id="Teleport-Proxy" fill="#4A4A4A" fill-rule="evenodd" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="16" font-weight="400" line-spacing="22">
+                                <tspan x="56.784" y="45.5238095">Teleport Proxy</tspan>
+                            </text>
+                        </g>
+                    </g>
+                </g>
+            </g>
+            <g id="teleport-proxy-copy-3" filter="url(#filter-8)" transform="translate(16.000000, 131.000000)">
+                <g id="Rectangle-Copy-6">
+                    <use fill="black" fill-opacity="1" filter="url(#filter-10)" xlink:href="#path-9"></use>
+                    <use fill="#FFFFFF" fill-rule="evenodd" xlink:href="#path-9"></use>
+                </g>
+            </g>
+            <g id="Group" transform="translate(45.000000, 154.000000)">
+                <g id="command-line-admin">
+                    <g id="monitor-with-terminal" transform="translate(1.000000, 0.000000)" stroke-width="1" fill-rule="evenodd">
+                        <g id="tctl">
+                            <g id="Rectangle-4-Copy-3">
+                                <use fill="#4A4A4A" fill-rule="evenodd" xlink:href="#path-11"></use>
+                                <rect stroke="#4A4A4A" stroke-width="0.5" x="0.25" y="0.25" width="105.5" height="62.5"></rect>
+                            </g>
+                            <rect id="Rectangle-18-Copy" fill="#D8D8D8" x="0" y="0" width="106" height="8"></rect>
+                            <circle id="Oval-Copy-3" fill="#4A4A4A" cx="24" cy="4" r="3"></circle>
+                            <circle id="Oval-Copy-4" fill="#4A4A4A" cx="15" cy="4" r="3"></circle>
+                            <circle id="Oval-Copy-5" fill="#4A4A4A" cx="7" cy="4" r="3"></circle>
+                            <rect id="Rectangle-19-Copy" fill="#4A4A4A" x="14" y="43" width="26" height="8"></rect>
+                            <text id="&gt;_" font-family="CourierNewPSMT, Courier New" font-size="18" font-weight="normal" fill="#FFFFFF">
+                                <tspan x="8" y="38">&gt;_</tspan>
+                            </text>
+                        </g>
+                    </g>
+                    <text id="Command-Line-Admin" font-family="Helvetica" font-size="14" font-weight="normal" fill="#4A4A4A">
+                        <tspan x="6.03125" y="86">Command Line </tspan>
+                        <tspan x="33.6586914" y="103">Admin </tspan>
+                    </text>
+                </g>
+                <path d="M108.5,48.5 L245.5,48.5" id="Line-Copy" stroke="#9B9B9B" fill="#9B9B9B" stroke-linecap="square"></path>
+                <path id="Line-Copy-decoration-1" d="M245.5,48.5 L234.7,45.5 L234.7,51.5 L245.5,48.5 Z" stroke="#9B9B9B" fill="#9B9B9B" stroke-linecap="square"></path>
+                <path d="M108.5,20.5 L245.5,20.5" id="Line" stroke="#9B9B9B" fill="#9B9B9B" stroke-linecap="square"></path>
+                <path id="Line-decoration-1" d="M245.5,20.5 L234.7,17.5 L234.7,23.5 L245.5,20.5 Z" stroke="#9B9B9B" fill="#9B9B9B" stroke-linecap="square"></path>
+            </g>
+            <g id="Rectangle-Copy-7">
+                <use fill="black" fill-opacity="1" filter="url(#filter-13)" xlink:href="#path-12"></use>
+                <use fill="#FFFFFF" fill-rule="evenodd" xlink:href="#path-12"></use>
+            </g>
+            <g id="Group-Copy-5" filter="url(#filter-14)" transform="translate(657.000000, 150.000000)">
+                <g id="teleport-node">
+                    <g id="Rectangle-17">
+                        <use fill="#FFFFFF" fill-rule="evenodd" xlink:href="#path-15"></use>
+                        <rect stroke="#3662A2" stroke-width="3" x="1.5" y="1.5" width="236" height="77" rx="10"></rect>
+                    </g>
+                    <text id="Teleport-Node" fill="#4A4A4A" fill-rule="evenodd" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="16" font-weight="400" line-spacing="22">
+                        <tspan x="69.996" y="45.5238095">Node Service</tspan>
+                    </text>
+                </g>
+            </g>
+            <path d="M512.5,189.5 L652.5,189.5" id="Line-Copy-2" stroke="#9B9B9B" fill="#9B9B9B" stroke-linecap="square"></path>
+            <path id="Line-Copy-2-decoration-1" d="M652.5,189.5 L641.7,186.5 L641.7,192.5 L652.5,189.5 Z" stroke="#9B9B9B" fill="#9B9B9B" stroke-linecap="square"></path>
+            <g id="circleNumber" transform="translate(204.000000, 133.000000)">
+                <g id="1-copy-2" transform="translate(5.000000, 5.000000)">
+                    <circle id="Oval-4" fill="#F26738" cx="13.5" cy="13.5" r="13.5"></circle>
+                    <text id="2" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="16" font-weight="400" fill="#FFFFFF">
+                        <tspan x="9.052" y="20">1</tspan>
+                    </text>
+                </g>
+            </g>
+            <g id="circleNumber" transform="translate(204.000000, 207.000000)">
+                <g id="1-copy-2" transform="translate(5.000000, 5.000000)">
+                    <circle id="Oval-4" fill="#F26738" cx="13.5" cy="13.5" r="13.5"></circle>
+                    <text id="2" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="16" font-weight="400" fill="#FFFFFF">
+                        <tspan x="9.052" y="20">2</tspan>
+                    </text>
+                </g>
+            </g>
+            <g id="circleNumber" transform="translate(564.000000, 148.000000)">
+                <g id="1-copy-2" transform="translate(5.000000, 5.000000)">
+                    <circle id="Oval-4" fill="#F26738" cx="13.5" cy="13.5" r="13.5"></circle>
+                    <text id="2" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="16" font-weight="400" fill="#FFFFFF">
+                        <tspan x="9.052" y="20">3</tspan>
+                    </text>
+                </g>
+            </g>
+        </g>
+    </g>
+</svg>
