@@ -22,7 +22,7 @@ import termGetters from 'app/flux/terminal/getters';
 import TtyAddressResolver from 'app/lib/term/ttyAddressResolver';
 import { initTerminal, updateRoute, close } from 'app/flux/terminal/actions';
 import { updateSession } from 'app/flux/sessions/actions';
-import { openPlayer } from 'app/flux/player/actions';
+import * as playerActions from 'app/flux/player/actions';
 import PartyListPanel from './../partyListPanel';
 
 import Indicator from './../indicator.jsx';
@@ -39,7 +39,7 @@ class TerminalHost extends React.Component {
   }  
 
   startNew = () => {
-    let newRouteParams = {
+    const newRouteParams = {
       ...this.props.routeParams,
       sid: undefined
     }      
@@ -47,9 +47,10 @@ class TerminalHost extends React.Component {
     updateRoute(newRouteParams);    
     initTerminal(newRouteParams);    
   }
-
+  
   replay = () => {
-    openPlayer(this.props.routeParams);
+    const { siteId, sid } = this.props.routeParams;
+    playerActions.open(siteId, sid);
   }
 
   render() {        
