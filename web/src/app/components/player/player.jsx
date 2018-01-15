@@ -25,7 +25,7 @@ import { ErrorIndicator, WarningIndicator } from './items';
 
 initScroll($);
 
-class TerminalPlayer extends GrvTerminal{
+class Terminal extends GrvTerminal{
   constructor(tty, el){
     super({ el, scrollBack: 1000 });    
     this.tty = tty;            
@@ -40,7 +40,7 @@ class TerminalPlayer extends GrvTerminal{
   }
 
   resize(cols, rows) {           
-    // ensure cursor is visible as xterm hides it on blur event
+    // ensure that cursor is visible as xterm hides it on blur event
     this.term.cursorState = 1;
     super.resize(cols, rows);        
     $(this._el).perfectScrollbar('update');
@@ -64,7 +64,7 @@ class Content extends React.Component {
 
   componentDidMount() {    
     const tty = this.props.tty;
-    this.terminal = new TerminalPlayer(tty, this.refs.container);
+    this.terminal = new Terminal(tty, this.refs.container);
     this.terminal.open();    
   }
   
@@ -73,7 +73,13 @@ class Content extends React.Component {
   }
 
   render() {
-    return (<div ref="container" />);
+    const isLoading = this.props.tty.isLoading;
+    // need to hide the terminal cursor while fetching for events
+    const style = {
+      visibility: isLoading ? "hidden" : "initial"
+    }
+
+    return (<div style={style} ref="container" />);
   }
 }
 
