@@ -165,6 +165,9 @@ const (
 	// amount of simultaneously processes concurrent sessions by the
 	// Audit log server, and 16K is OK for now
 	AuditLogSessions = 16384
+
+	// PlaybackRecycleTTL is the TTL for unpacked session playback files
+	PlaybackRecycleTTL = 3 * time.Hour
 )
 
 var (
