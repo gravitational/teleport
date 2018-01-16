@@ -1,2 +1,216 @@
-<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="434px" height="256px" version="1.1" content="%3CmxGraphModel%20dx%3D%222482%22%20dy%3D%22444%22%20grid%3D%221%22%20gridSize%3D%2210%22%20guides%3D%221%22%20tooltips%3D%221%22%20connect%3D%221%22%20arrows%3D%221%22%20fold%3D%221%22%20page%3D%221%22%20pageScale%3D%221%22%20pageWidth%3D%22826%22%20pageHeight%3D%221169%22%20background%3D%22%23ffffff%22%20math%3D%220%22%3E%3Croot%3E%3CmxCell%20id%3D%220%22%2F%3E%3CmxCell%20id%3D%221%22%20parent%3D%220%22%2F%3E%3CmxCell%20id%3D%222%22%20value%3D%22%22%20style%3D%22whiteSpace%3Dwrap%3BfillColor%3D%23CCE5FF%3BstrokeColor%3Dnone%3Brounded%3D1%3BfontStyle%3D1%3Brotation%3D0%3Bdirection%3Dsouth%3BfontFamily%3DCourier%20New%3B%22%20vertex%3D%221%22%20parent%3D%221%22%3E%3CmxGeometry%20x%3D%22-622%22%20y%3D%221736%22%20width%3D%22250%22%20height%3D%2262%22%20as%3D%22geometry%22%2F%3E%3C%2FmxCell%3E%3CmxCell%20id%3D%223%22%20value%3D%22%26lt%3Bdiv%20style%3D%26quot%3Btext-align%3A%20left%26quot%3B%26gt%3B%26lt%3Bspan%20style%3D%26quot%3Bfont-size%3A%2014px%20%3B%20line-height%3A%201.2%26quot%3B%26gt%3BAuth%20Service%26lt%3B%2Fspan%26gt%3B%26lt%3B%2Fdiv%26gt%3B%22%20style%3D%22text%3Bhtml%3D1%3BstrokeColor%3Dnone%3BfillColor%3Dnone%3Balign%3Dcenter%3BverticalAlign%3Dmiddle%3BwhiteSpace%3Dwrap%3Boverflow%3Dhidden%3BfontFamily%3DHelvetica%3BfontStyle%3D1%22%20vertex%3D%221%22%20parent%3D%221%22%3E%3CmxGeometry%20x%3D%22-610%22%20y%3D%221736%22%20width%3D%22230%22%20height%3D%2257%22%20as%3D%22geometry%22%2F%3E%3C%2FmxCell%3E%3CmxCell%20id%3D%224%22%20style%3D%22edgeStyle%3Dnone%3Brounded%3D1%3Bhtml%3D1%3BexitX%3D0.967%3BexitY%3D0.287%3Bshadow%3D0%3BjettySize%3Dauto%3BorthogonalLoop%3D1%3BstrokeColor%3D%23FF0000%3BfontSize%3D13%3BfontColor%3D%234D4D4D%3BentryX%3D0.25%3BentryY%3D1%3Bdashed%3D1%3BexitPerimeter%3D0%3B%22%20edge%3D%221%22%20source%3D%2210%22%20target%3D%228%22%20parent%3D%221%22%3E%3CmxGeometry%20x%3D%22-732.4000000000001%22%20y%3D%221580.4%22%20as%3D%22geometry%22%3E%3CmxPoint%20x%3D%22-645%22%20y%3D%221602%22%20as%3D%22targetPoint%22%2F%3E%3C%2FmxGeometry%3E%3C%2FmxCell%3E%3CmxCell%20id%3D%225%22%20value%3D%22%22%20style%3D%22group%22%20vertex%3D%221%22%20connectable%3D%220%22%20parent%3D%221%22%3E%3CmxGeometry%20x%3D%22-622%22%20y%3D%221565%22%20width%3D%22250%22%20height%3D%2262%22%20as%3D%22geometry%22%2F%3E%3C%2FmxCell%3E%3CmxCell%20id%3D%226%22%20value%3D%22%22%20style%3D%22whiteSpace%3Dwrap%3BfillColor%3D%23CCE5FF%3BstrokeColor%3Dnone%3Brounded%3D1%3BfontStyle%3D1%3Brotation%3D0%3Bdirection%3Dsouth%3BfontFamily%3DCourier%20New%3B%22%20vertex%3D%221%22%20parent%3D%225%22%3E%3CmxGeometry%20width%3D%22250%22%20height%3D%2262%22%20as%3D%22geometry%22%2F%3E%3C%2FmxCell%3E%3CmxCell%20id%3D%227%22%20value%3D%22%26lt%3Bdiv%20style%3D%26quot%3Btext-align%3A%20left%26quot%3B%26gt%3B%26lt%3Bspan%20style%3D%26quot%3Bfont-size%3A%2014px%20%3B%20line-height%3A%201.2%26quot%3B%26gt%3BProxy%20Service%26lt%3B%2Fspan%26gt%3B%26lt%3B%2Fdiv%26gt%3B%22%20style%3D%22text%3Bhtml%3D1%3BstrokeColor%3Dnone%3BfillColor%3Dnone%3Balign%3Dcenter%3BverticalAlign%3Dmiddle%3BwhiteSpace%3Dwrap%3Boverflow%3Dhidden%3BfontFamily%3DHelvetica%3BfontStyle%3D1%22%20vertex%3D%221%22%20parent%3D%225%22%3E%3CmxGeometry%20x%3D%2210%22%20y%3D%225%22%20width%3D%22230%22%20height%3D%2257%22%20as%3D%22geometry%22%2F%3E%3C%2FmxCell%3E%3CmxCell%20id%3D%228%22%20value%3D%22%22%20style%3D%22whiteSpace%3Dwrap%3BfillColor%3D%23CCE5FF%3BstrokeColor%3Dnone%3Brounded%3D1%3BfontStyle%3D1%3Brotation%3D0%3Bdirection%3Dsouth%3BfontFamily%3DCourier%20New%3B%22%20vertex%3D%221%22%20parent%3D%221%22%3E%3CmxGeometry%20x%3D%22-622%22%20y%3D%221565%22%20width%3D%22250%22%20height%3D%2262%22%20as%3D%22geometry%22%2F%3E%3C%2FmxCell%3E%3CmxCell%20id%3D%229%22%20value%3D%22%26lt%3Bdiv%20style%3D%26quot%3Btext-align%3A%20left%26quot%3B%26gt%3B%26lt%3Bspan%20style%3D%26quot%3Bfont-size%3A%2014px%20%3B%20line-height%3A%201.2%26quot%3B%26gt%3BProxy%20Service%26lt%3B%2Fspan%26gt%3B%26lt%3B%2Fdiv%26gt%3B%22%20style%3D%22text%3Bhtml%3D1%3BstrokeColor%3Dnone%3BfillColor%3Dnone%3Balign%3Dcenter%3BverticalAlign%3Dmiddle%3BwhiteSpace%3Dwrap%3Boverflow%3Dhidden%3BfontFamily%3DHelvetica%3BfontStyle%3D1%22%20vertex%3D%221%22%20parent%3D%221%22%3E%3CmxGeometry%20x%3D%22-612%22%20y%3D%221570%22%20width%3D%22230%22%20height%3D%2257%22%20as%3D%22geometry%22%2F%3E%3C%2FmxCell%3E%3CmxCell%20id%3D%2210%22%20value%3D%22TSH%20client%22%20style%3D%22ellipse%3BwhiteSpace%3Dwrap%3BfillColor%3D%23CCE5FF%3BstrokeColor%3Dnone%3Brounded%3D1%3BfontStyle%3D1%3Brotation%3D0%3BfontSize%3D13%3BfontColor%3D%23000000%3B%22%20vertex%3D%221%22%20parent%3D%221%22%3E%3CmxGeometry%20x%3D%22-803%22%20y%3D%221560%22%20width%3D%2273%22%20height%3D%2271%22%20as%3D%22geometry%22%2F%3E%3C%2FmxCell%3E%3CmxCell%20id%3D%2211%22%20style%3D%22edgeStyle%3Dnone%3Brounded%3D1%3Bhtml%3D1%3BexitX%3D0.25%3BexitY%3D1%3BentryX%3D0.25%3BentryY%3D0%3Bshadow%3D0%3BjettySize%3Dauto%3BorthogonalLoop%3D1%3BstrokeColor%3D%23FF0000%3BfontSize%3D13%3BfontColor%3D%234D4D4D%3Bdashed%3D1%3B%22%20edge%3D%221%22%20source%3D%229%22%20target%3D%223%22%20parent%3D%221%22%3E%3CmxGeometry%20x%3D%22-554.4000000000001%22%20y%3D%221627.1999999999998%22%20as%3D%22geometry%22%2F%3E%3C%2FmxCell%3E%3CmxCell%20id%3D%2212%22%20style%3D%22edgeStyle%3Dnone%3Brounded%3D1%3Bhtml%3D1%3BexitX%3D0.5%3BexitY%3D0%3Bshadow%3D0%3Bdashed%3D1%3BjettySize%3Dauto%3BorthogonalLoop%3D1%3BstrokeColor%3D%23FF0000%3BfontSize%3D13%3BfontColor%3D%234D4D4D%3B%22%20edge%3D%221%22%20source%3D%223%22%20parent%3D%221%22%3E%3CmxGeometry%20x%3D%22-497%22%20y%3D%221627%22%20as%3D%22geometry%22%3E%3CmxPoint%20x%3D%22-497%22%20y%3D%221627%22%20as%3D%22targetPoint%22%2F%3E%3C%2FmxGeometry%3E%3C%2FmxCell%3E%3CmxCell%20id%3D%2213%22%20value%3D%221%22%20style%3D%22ellipse%3BwhiteSpace%3Dwrap%3BfillColor%3D%23EA6B66%3BstrokeColor%3Dnone%3Brounded%3D1%3BfontStyle%3D1%3Brotation%3D0%3BfontSize%3D14%3BfontColor%3D%23FFFFFF%3B%22%20vertex%3D%221%22%20parent%3D%221%22%3E%3CmxGeometry%20x%3D%22-699%22%20y%3D%221545%22%20width%3D%2229%22%20height%3D%2230%22%20as%3D%22geometry%22%2F%3E%3C%2FmxCell%3E%3CmxCell%20id%3D%2214%22%20style%3D%22edgeStyle%3Dnone%3Brounded%3D1%3Bhtml%3D1%3BexitX%3D1%3BexitY%3D1%3BentryX%3D1%3BentryY%3D1%3Bshadow%3D0%3BjettySize%3Dauto%3BorthogonalLoop%3D1%3BstrokeColor%3D%23FF0000%3BfontSize%3D13%3BfontColor%3D%234D4D4D%3B%22%20edge%3D%221%22%20source%3D%2213%22%20target%3D%2213%22%20parent%3D%221%22%3E%3CmxGeometry%20x%3D%22-674.4000000000001%22%20y%3D%221570.4%22%20as%3D%22geometry%22%2F%3E%3C%2FmxCell%3E%3CmxCell%20id%3D%2215%22%20value%3D%224%22%20style%3D%22ellipse%3BwhiteSpace%3Dwrap%3BfillColor%3D%23EA6B66%3BstrokeColor%3Dnone%3Brounded%3D1%3BfontStyle%3D1%3Brotation%3D0%3BfontSize%3D14%3BfontColor%3D%23FFFFFF%3B%22%20vertex%3D%221%22%20parent%3D%221%22%3E%3CmxGeometry%20x%3D%22-699%22%20y%3D%221616%22%20width%3D%2229%22%20height%3D%2230%22%20as%3D%22geometry%22%2F%3E%3C%2FmxCell%3E%3CmxCell%20id%3D%2216%22%20value%3D%223%22%20style%3D%22ellipse%3BwhiteSpace%3Dwrap%3BfillColor%3D%23EA6B66%3BstrokeColor%3Dnone%3Brounded%3D1%3BfontStyle%3D1%3Brotation%3D0%3BfontSize%3D14%3BfontColor%3D%23FFFFFF%3B%22%20vertex%3D%221%22%20parent%3D%221%22%3E%3CmxGeometry%20x%3D%22-487%22%20y%3D%221659%22%20width%3D%2229%22%20height%3D%2230%22%20as%3D%22geometry%22%2F%3E%3C%2FmxCell%3E%3CmxCell%20id%3D%2217%22%20value%3D%222%22%20style%3D%22ellipse%3BwhiteSpace%3Dwrap%3BfillColor%3D%23EA6B66%3BstrokeColor%3Dnone%3Brounded%3D1%3BfontStyle%3D1%3Brotation%3D0%3BfontSize%3D14%3BfontColor%3D%23FFFFFF%3B%22%20vertex%3D%221%22%20parent%3D%221%22%3E%3CmxGeometry%20x%3D%22-588%22%20y%3D%221659%22%20width%3D%2229%22%20height%3D%2230%22%20as%3D%22geometry%22%2F%3E%3C%2FmxCell%3E%3CmxCell%20id%3D%2218%22%20style%3D%22edgeStyle%3Dnone%3Brounded%3D1%3Bhtml%3D1%3BexitX%3D0.75%3BexitY%3D1%3Bshadow%3D0%3BjettySize%3Dauto%3BorthogonalLoop%3D1%3BstrokeColor%3D%23FF0000%3BfontSize%3D13%3BfontColor%3D%234D4D4D%3Bdashed%3D1%3B%22%20edge%3D%221%22%20source%3D%228%22%20parent%3D%221%22%3E%3CmxGeometry%20x%3D%22-732%22%20y%3D%221611.6%22%20as%3D%22geometry%22%3E%3CmxPoint%20x%3D%22-732%22%20y%3D%221612%22%20as%3D%22targetPoint%22%2F%3E%3CmxPoint%20x%3D%22-720%22%20y%3D%221605.6%22%20as%3D%22sourcePoint%22%2F%3E%3C%2FmxGeometry%3E%3C%2FmxCell%3E%3C%2Froot%3E%3C%2FmxGraphModel%3E" style="background-color: rgb(255, 255, 255);"><defs/><g transform="translate(0.5,0.5)"><rect x="275" y="97" width="62" height="250" rx="9.3" ry="9.3" fill="#cce5ff" stroke="none" transform="rotate(90,306,222)" pointer-events="none"/><g transform="translate(265.5,212.5)"><switch><foreignObject style="overflow:visible;" pointer-events="all" width="85" height="14" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: inline-block; font-size: 12px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; vertical-align: top; overflow: hidden; max-height: 53px; max-width: 226px; width: 87px; white-space: normal; font-weight: bold; text-align: center;"><div xmlns="http://www.w3.org/1999/xhtml" style="display:inline-block;text-align:inherit;text-decoration:inherit;"><div style="text-align: left"><span style="font-size: 14px ; line-height: 1.2">Auth Service</span></div></div></div></foreignObject><text x="43" y="13" fill="#000000" text-anchor="middle" font-size="12px" font-family="Helvetica" font-weight="bold">[Not supported by viewer]</text></switch></g><path d="M 70.6 35.4 L 174.63 35.4" fill="none" stroke="#ff0000" stroke-miterlimit="10" stroke-dasharray="3 3" pointer-events="none"/><path d="M 179.88 35.4 L 172.88 38.9 L 174.63 35.4 L 172.88 31.9 Z" fill="#ff0000" stroke="#ff0000" stroke-miterlimit="10" pointer-events="none"/><rect x="275" y="-74" width="62" height="250" rx="9.3" ry="9.3" fill="#cce5ff" stroke="none" transform="rotate(90,306,51)" pointer-events="none"/><g transform="translate(259.5,46.5)"><switch><foreignObject style="overflow:visible;" pointer-events="all" width="93" height="14" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: inline-block; font-size: 12px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; vertical-align: top; overflow: hidden; max-height: 53px; max-width: 226px; width: 93px; white-space: normal; font-weight: bold; text-align: center;"><div xmlns="http://www.w3.org/1999/xhtml" style="display:inline-block;text-align:inherit;text-decoration:inherit;"><div style="text-align: left"><span style="font-size: 14px ; line-height: 1.2">Proxy Service</span></div></div></div></foreignObject><text x="47" y="13" fill="#000000" text-anchor="middle" font-size="12px" font-family="Helvetica" font-weight="bold">[Not supported by viewer]</text></switch></g><ellipse cx="37" cy="51" rx="36.5" ry="35.5" fill="#cce5ff" stroke="none" pointer-events="none"/><g transform="translate(4.5,43.5)"><switch><foreignObject style="overflow:visible;" pointer-events="all" width="63" height="13" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: inline-block; font-size: 13px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; vertical-align: top; width: 65px; white-space: nowrap; font-weight: bold; text-align: center;"><div xmlns="http://www.w3.org/1999/xhtml" style="display:inline-block;text-align:inherit;text-decoration:inherit;">TSH client</div></div></foreignObject><text x="32" y="13" fill="#000000" text-anchor="middle" font-size="13px" font-family="Helvetica" font-weight="bold">TSH client</text></switch></g><path d="M 248.6 82.2 L 250.48 184.63" fill="none" stroke="#ff0000" stroke-miterlimit="10" stroke-dasharray="3 3" pointer-events="none"/><path d="M 250.58 189.88 L 246.95 182.95 L 250.48 184.63 L 253.95 182.82 Z" fill="#ff0000" stroke="#ff0000" stroke-miterlimit="10" pointer-events="none"/><path d="M 308.2 191 L 306.13 88.37" fill="none" stroke="#ff0000" stroke-miterlimit="10" stroke-dasharray="3 3" pointer-events="none"/><path d="M 306.02 83.12 L 309.66 90.05 L 306.13 88.37 L 302.66 90.19 Z" fill="#ff0000" stroke="#ff0000" stroke-miterlimit="10" pointer-events="none"/><ellipse cx="119" cy="15" rx="14.5" ry="15" fill="#ea6b66" stroke="none" pointer-events="none"/><g transform="translate(114.5,7.5)"><switch><foreignObject style="overflow:visible;" pointer-events="all" width="7" height="14" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: inline-block; font-size: 14px; font-family: Helvetica; color: rgb(255, 255, 255); line-height: 1.2; vertical-align: top; width: 9px; white-space: nowrap; font-weight: bold; text-align: center;"><div xmlns="http://www.w3.org/1999/xhtml" style="display:inline-block;text-align:inherit;text-decoration:inherit;">1</div></div></foreignObject><text x="4" y="14" fill="#FFFFFF" text-anchor="middle" font-size="14px" font-family="Helvetica" font-weight="bold">1</text></switch></g><path d="M 128.6 25.4 L 128.6 25.4" fill="none" stroke="#ff0000" stroke-miterlimit="10" pointer-events="none"/><path d="M 128.6 25.4 L 128.6 25.4 L 128.6 25.4 L 128.6 25.4 Z" fill="#ff0000" stroke="#ff0000" stroke-miterlimit="10" pointer-events="none"/><ellipse cx="119" cy="86" rx="14.5" ry="15" fill="#ea6b66" stroke="none" pointer-events="none"/><g transform="translate(114.5,78.5)"><switch><foreignObject style="overflow:visible;" pointer-events="all" width="7" height="14" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: inline-block; font-size: 14px; font-family: Helvetica; color: rgb(255, 255, 255); line-height: 1.2; vertical-align: top; width: 9px; white-space: nowrap; font-weight: bold; text-align: center;"><div xmlns="http://www.w3.org/1999/xhtml" style="display:inline-block;text-align:inherit;text-decoration:inherit;">4</div></div></foreignObject><text x="4" y="14" fill="#FFFFFF" text-anchor="middle" font-size="14px" font-family="Helvetica" font-weight="bold">4</text></switch></g><ellipse cx="331" cy="129" rx="14.5" ry="15" fill="#ea6b66" stroke="none" pointer-events="none"/><g transform="translate(326.5,121.5)"><switch><foreignObject style="overflow:visible;" pointer-events="all" width="7" height="14" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: inline-block; font-size: 14px; font-family: Helvetica; color: rgb(255, 255, 255); line-height: 1.2; vertical-align: top; width: 9px; white-space: nowrap; font-weight: bold; text-align: center;"><div xmlns="http://www.w3.org/1999/xhtml" style="display:inline-block;text-align:inherit;text-decoration:inherit;">3</div></div></foreignObject><text x="4" y="14" fill="#FFFFFF" text-anchor="middle" font-size="14px" font-family="Helvetica" font-weight="bold">3</text></switch></g><ellipse cx="230" cy="129" rx="14.5" ry="15" fill="#ea6b66" stroke="none" pointer-events="none"/><g transform="translate(225.5,121.5)"><switch><foreignObject style="overflow:visible;" pointer-events="all" width="7" height="14" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: inline-block; font-size: 14px; font-family: Helvetica; color: rgb(255, 255, 255); line-height: 1.2; vertical-align: top; width: 9px; white-space: nowrap; font-weight: bold; text-align: center;"><div xmlns="http://www.w3.org/1999/xhtml" style="display:inline-block;text-align:inherit;text-decoration:inherit;">2</div></div></foreignObject><text x="4" y="14" fill="#FFFFFF" text-anchor="middle" font-size="14px" font-family="Helvetica" font-weight="bold">2</text></switch></g><path d="M 181 66.6 L 77.37 66.98" fill="none" stroke="#ff0000" stroke-miterlimit="10" stroke-dasharray="3 3" pointer-events="none"/><path d="M 72.12 67 L 79.11 63.47 L 77.37 66.98 L 79.13 70.47 Z" fill="#ff0000" stroke="#ff0000" stroke-miterlimit="10" pointer-events="none"/></g></svg>
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="931px" height="355px" viewBox="0 0 931 355" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <!-- Generator: Sketch 47.1 (45422) - http://www.bohemiancoding.com/sketch -->
+    <title>proxy-ssh-1</title>
+    <desc>Created with Sketch.</desc>
+    <defs>
+        <rect id="path-1" x="0" y="0" width="231" height="113"></rect>
+        <rect id="path-2" x="0" y="19" width="279" height="74"></rect>
+        <rect id="path-3" x="0" y="19" width="88" height="44"></rect>
+        <rect id="path-4" x="0" y="0" width="176" height="61"></rect>
+        <rect id="path-5" x="690" y="149" width="225" height="96" rx="10"></rect>
+        <filter x="-12.4%" y="-20.8%" width="124.9%" height="158.3%" filterUnits="objectBoundingBox" id="filter-6">
+            <feOffset dx="0" dy="8" in="SourceAlpha" result="shadowOffsetOuter1"></feOffset>
+            <feGaussianBlur stdDeviation="8" in="shadowOffsetOuter1" result="shadowBlurOuter1"></feGaussianBlur>
+            <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.103742074 0" type="matrix" in="shadowBlurOuter1"></feColorMatrix>
+        </filter>
+        <filter x="-1.8%" y="-3.6%" width="103.5%" height="110.0%" filterUnits="objectBoundingBox" id="filter-7">
+            <feOffset dx="0" dy="1" in="SourceAlpha" result="shadowOffsetOuter1"></feOffset>
+            <feGaussianBlur stdDeviation="1" in="shadowOffsetOuter1" result="shadowBlurOuter1"></feGaussianBlur>
+            <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.5 0" type="matrix" in="shadowBlurOuter1" result="shadowMatrixOuter1"></feColorMatrix>
+            <feMerge>
+                <feMergeNode in="shadowMatrixOuter1"></feMergeNode>
+                <feMergeNode in="SourceGraphic"></feMergeNode>
+            </feMerge>
+        </filter>
+        <path d="M10,0 L174.386719,0 L190,0 L190,0 C195.522847,-1.01453063e-15 200,4.4771525 200,10 L200,60 L200,60 C200,65.5228475 195.522847,70 190,70 L10,70 L10,70 C4.4771525,70 3.80527087e-15,65.5228475 -1.77635684e-15,60 L0,10 L0,10 C-6.76353751e-16,4.4771525 4.4771525,1.01453063e-15 10,0 Z" id="path-8"></path>
+        <rect id="path-9" x="331" y="143" width="245" height="109" rx="10"></rect>
+        <filter x="-11.4%" y="-18.3%" width="122.9%" height="151.4%" filterUnits="objectBoundingBox" id="filter-10">
+            <feOffset dx="0" dy="8" in="SourceAlpha" result="shadowOffsetOuter1"></feOffset>
+            <feGaussianBlur stdDeviation="8" in="shadowOffsetOuter1" result="shadowBlurOuter1"></feGaussianBlur>
+            <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.103742074 0" type="matrix" in="shadowBlurOuter1"></feColorMatrix>
+        </filter>
+        <filter x="-1.6%" y="-3.1%" width="103.2%" height="108.8%" filterUnits="objectBoundingBox" id="filter-11">
+            <feOffset dx="0" dy="1" in="SourceAlpha" result="shadowOffsetOuter1"></feOffset>
+            <feGaussianBlur stdDeviation="1" in="shadowOffsetOuter1" result="shadowBlurOuter1"></feGaussianBlur>
+            <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.5 0" type="matrix" in="shadowBlurOuter1" result="shadowMatrixOuter1"></feColorMatrix>
+            <feMerge>
+                <feMergeNode in="shadowMatrixOuter1"></feMergeNode>
+                <feMergeNode in="SourceGraphic"></feMergeNode>
+            </feMerge>
+        </filter>
+        <rect id="path-12" x="0" y="0" width="220" height="80" rx="10"></rect>
+        <filter x="-10.5%" y="-6.4%" width="121.1%" height="125.5%" filterUnits="objectBoundingBox" id="filter-13">
+            <feOffset dx="0" dy="1" in="SourceAlpha" result="shadowOffsetOuter1"></feOffset>
+            <feGaussianBlur stdDeviation="0.5" in="shadowOffsetOuter1" result="shadowBlurOuter1"></feGaussianBlur>
+            <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.5 0" type="matrix" in="shadowBlurOuter1" result="shadowMatrixOuter1"></feColorMatrix>
+            <feMerge>
+                <feMergeNode in="shadowMatrixOuter1"></feMergeNode>
+                <feMergeNode in="SourceGraphic"></feMergeNode>
+            </feMerge>
+        </filter>
+        <rect id="path-14" x="0" y="0" width="171" height="141" rx="10"></rect>
+        <filter x="-16.4%" y="-14.2%" width="132.7%" height="139.7%" filterUnits="objectBoundingBox" id="filter-15">
+            <feOffset dx="0" dy="8" in="SourceAlpha" result="shadowOffsetOuter1"></feOffset>
+            <feGaussianBlur stdDeviation="8" in="shadowOffsetOuter1" result="shadowBlurOuter1"></feGaussianBlur>
+            <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.103742074 0" type="matrix" in="shadowBlurOuter1"></feColorMatrix>
+        </filter>
+        <rect id="path-16" x="0" y="0" width="106" height="63"></rect>
+    </defs>
+    <g id="-" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="proxy-ssh-1">
+            <g id="comment-1" transform="translate(239.000000, 0.000000)">
+                <g id="Rectangle-16-Copy-2">
+                    <use fill="#EEF4F9" fill-rule="evenodd" xlink:href="#path-1"></use>
+                    <rect stroke="#D1EAFF" stroke-width="3" x="1.5" y="1.5" width="228" height="110"></rect>
+                </g>
+                <text id="TSH-client-or-TSH-ag" font-family="HelveticaNeue, Helvetica Neue" font-size="12" font-weight="normal" line-spacing="17" fill="#4A4A4A">
+                    <tspan x="17" y="25">TSH client or TSH agent generate </tspan>
+                    <tspan x="17" y="42">OpenSSH keypair and forward </tspan>
+                    <tspan x="17" y="59">generated public key and username, </tspan>
+                    <tspan x="17" y="76">password and second factor token </tspan>
+                    <tspan x="17" y="93">that are entered by user to the proxy.</tspan>
+                </text>
+                <polygon id="Triangle-2-Copy-2" stroke="#D1EAFF" fill="#D1EAFF" points="10.5 132 1 113 20 113"></polygon>
+            </g>
+            <g id="comment-3" transform="translate(628.000000, 262.000000)">
+                <g id="Rectangle-16-Copy-3">
+                    <use fill="#EEF4F9" fill-rule="evenodd" xlink:href="#path-2"></use>
+                    <rect stroke="#D1EAFF" stroke-width="3" x="1.5" y="20.5" width="276" height="71"></rect>
+                </g>
+                <text id="If-auth-server-accep" font-family="HelveticaNeue, Helvetica Neue" font-size="12" font-weight="normal" line-spacing="17" fill="#4A4A4A">
+                    <tspan x="15" y="42">If auth server accepts credentials, it generates </tspan>
+                    <tspan x="15" y="59">a new certificate signed by its user CA and </tspan>
+                    <tspan x="15" y="76">sends it back to the proxy.</tspan>
+                </text>
+                <polygon id="Triangle-2-Copy-3" stroke="#D1EAFF" fill="#D1EAFF" transform="translate(10.500000, 9.500000) rotate(-180.000000) translate(-10.500000, -9.500000) " points="10.5 19 1 0 20 0"></polygon>
+            </g>
+            <g id="comment-2" transform="translate(241.000000, 262.000000)">
+                <g id="Rectangle-16-Copy-3">
+                    <use fill="#EEF4F9" fill-rule="evenodd" xlink:href="#path-3"></use>
+                    <rect stroke="#D1EAFF" stroke-width="3" x="1.5" y="20.5" width="85" height="41"></rect>
+                </g>
+                <text id="Proxy." font-family="Helvetica" font-size="12" font-weight="normal" line-spacing="17" fill="#4A4A4A">
+                    <tspan x="27.4384766" y="45">Proxy.</tspan>
+                    <tspan x="60.5615234" y="45"> </tspan>
+                </text>
+                <polygon id="Triangle-2-Copy-3" stroke="#D1EAFF" fill="#D1EAFF" transform="translate(10.500000, 9.500000) rotate(-180.000000) translate(-10.500000, -9.500000) " points="10.5 19 1 0 20 0"></polygon>
+            </g>
+            <g id="comment-2-copy" transform="translate(628.000000, 52.000000)">
+                <g id="Rectangle-16-Copy-3">
+                    <use fill="#EEF4F9" fill-rule="evenodd" xlink:href="#path-4"></use>
+                    <rect stroke="#D1EAFF" stroke-width="3" x="1.5" y="1.5" width="173" height="58"></rect>
+                </g>
+                <text id="Proxy-forwards-reque" font-family="Helvetica" font-size="12" font-weight="normal" line-spacing="17" fill="#4A4A4A">
+                    <tspan x="19" y="26">Proxy forwards request to </tspan>
+                    <tspan x="19" y="43">the auth server.</tspan>
+                    <tspan x="101.722656" y="43">  </tspan>
+                </text>
+                <polygon id="Triangle-2-Copy-3" stroke="#D1EAFF" fill="#D1EAFF" transform="translate(10.500000, 70.500000) rotate(-360.000000) translate(-10.500000, -70.500000) " points="10.5 80 1 61 20 61"></polygon>
+            </g>
+            <g id="Rectangle-Copy-6">
+                <use fill="black" fill-opacity="1" filter="url(#filter-6)" xlink:href="#path-5"></use>
+                <use fill="#FFFFFF" fill-rule="evenodd" xlink:href="#path-5"></use>
+            </g>
+            <g id="auth-service" filter="url(#filter-7)" transform="translate(703.000000, 161.000000)">
+                <g id="auth-service-with-note">
+                    <g id="Rectangle-17">
+                        <use fill="#FFFFFF" fill-rule="evenodd" xlink:href="#path-8"></use>
+                        <path stroke="#E1584E" stroke-width="3" d="M10,1.5 C5.30557963,1.5 1.5,5.30557963 1.5,10 L1.5,60 C1.5,64.6944204 5.30557963,68.5 10,68.5 L190,68.5 C194.69442,68.5 198.5,64.6944204 198.5,60 L198.5,10 C198.5,5.30557963 194.69442,1.5 190,1.5 L10,1.5 Z"></path>
+                    </g>
+                    <text id="Auth-Service-telepor" fill="#4A4A4A" fill-rule="evenodd" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="16" font-weight="400" line-spacing="22">
+                        <tspan x="14" y="29">Auth Service</tspan>
+                        <tspan x="14" y="51" font-family="HelveticaNeue, Helvetica Neue" font-size="14" font-weight="normal">teleport start — roles=auth</tspan>
+                    </text>
+                </g>
+            </g>
+            <g id="Rectangle-Copy-6">
+                <use fill="black" fill-opacity="1" filter="url(#filter-10)" xlink:href="#path-9"></use>
+                <use fill="#FFFFFF" fill-rule="evenodd" xlink:href="#path-9"></use>
+            </g>
+            <g id="teleport-proxy" filter="url(#filter-11)" transform="translate(344.000000, 158.000000)">
+                <g id="teleport-proxy-block">
+                    <g id="teleport-proxy">
+                        <g>
+                            <g id="Rectangle-17">
+                                <use fill="#FFFFFF" fill-rule="evenodd" xlink:href="#path-12"></use>
+                                <rect stroke="#40B6C6" stroke-width="3" x="1.5" y="1.5" width="217" height="77" rx="10"></rect>
+                            </g>
+                            <text id="Teleport-Proxy" fill="#4A4A4A" fill-rule="evenodd" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="16" font-weight="400" line-spacing="22">
+                                <tspan x="56.784" y="45.5238095">Teleport Proxy</tspan>
+                            </text>
+                        </g>
+                    </g>
+                </g>
+            </g>
+            <g id="teleport-proxy-copy-3" filter="url(#filter-13)" transform="translate(16.000000, 140.000000)">
+                <g id="Rectangle-Copy-6">
+                    <use fill="black" fill-opacity="1" filter="url(#filter-15)" xlink:href="#path-14"></use>
+                    <use fill="#FFFFFF" fill-rule="evenodd" xlink:href="#path-14"></use>
+                </g>
+            </g>
+            <path d="M702,211 L565,211" id="Line-Copy-2" stroke="#9B9B9B" fill="#9B9B9B" stroke-linecap="square"></path>
+            <path id="Line-Copy-2-decoration-1" d="M565,211 L575.8,214 L575.8,208 L565,211 Z" stroke="#9B9B9B" fill="#9B9B9B" stroke-linecap="square"></path>
+            <path d="M564.5,182.5 L701.5,182.5" id="Line-Copy-3" stroke="#9B9B9B" fill="#9B9B9B" stroke-linecap="square"></path>
+            <path id="Line-Copy-3-decoration-1" d="M701.5,182.5 L690.7,179.5 L690.7,185.5 L701.5,182.5 Z" stroke="#9B9B9B" fill="#9B9B9B" stroke-linecap="square"></path>
+            <path d="M342.51649,211 L153,211" id="Line-Copy" stroke="#9B9B9B" fill="#9B9B9B" stroke-linecap="square"></path>
+            <path id="Line-Copy-decoration-1" d="M153,211 L163.8,214 L163.8,208 L153,211 Z" stroke="#9B9B9B" fill="#9B9B9B" stroke-linecap="square"></path>
+            <path d="M152.5,182.5 L341.5,182.5" id="Line" stroke="#9B9B9B" fill="#9B9B9B" stroke-linecap="square"></path>
+            <path id="Line-decoration-1" d="M341.5,182.5 L330.7,179.5 L330.7,185.5 L341.5,182.5 Z" stroke="#9B9B9B" fill="#9B9B9B" stroke-linecap="square"></path>
+            <g id="command-line-admin" transform="translate(45.000000, 163.000000)">
+                <g id="monitor-with-terminal" transform="translate(1.000000, 0.000000)" stroke-width="1" fill-rule="evenodd">
+                    <g id="tctl">
+                        <g id="Rectangle-4-Copy-3">
+                            <use fill="#4A4A4A" fill-rule="evenodd" xlink:href="#path-16"></use>
+                            <rect stroke="#4A4A4A" stroke-width="0.5" x="0.25" y="0.25" width="105.5" height="62.5"></rect>
+                        </g>
+                        <rect id="Rectangle-18-Copy" fill="#D8D8D8" x="0" y="0" width="106" height="8"></rect>
+                        <circle id="Oval-Copy-3" fill="#4A4A4A" cx="24" cy="4" r="3"></circle>
+                        <circle id="Oval-Copy-4" fill="#4A4A4A" cx="15" cy="4" r="3"></circle>
+                        <circle id="Oval-Copy-5" fill="#4A4A4A" cx="7" cy="4" r="3"></circle>
+                        <rect id="Rectangle-19-Copy" fill="#4A4A4A" x="14" y="43" width="26" height="8"></rect>
+                        <text id="&gt;_" font-family="CourierNewPSMT, Courier New" font-size="18" font-weight="normal" fill="#FFFFFF">
+                            <tspan x="8" y="38">&gt;_</tspan>
+                        </text>
+                    </g>
+                </g>
+                <text id="Command-Line-Admin" font-family="Helvetica" font-size="14" font-weight="normal" fill="#4A4A4A">
+                    <tspan x="6.03125" y="86">Command Line </tspan>
+                    <tspan x="33.6586914" y="103">Admin </tspan>
+                </text>
+            </g>
+            <g id="circleNumber" transform="translate(233.000000, 141.000000)">
+                <g id="1-copy-2" transform="translate(5.000000, 5.000000)">
+                    <circle id="Oval-4" fill="#F26738" cx="13.5" cy="13.5" r="13.5"></circle>
+                    <text id="2" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="16" font-weight="400" fill="#FFFFFF">
+                        <tspan x="9.052" y="20">1</tspan>
+                    </text>
+                </g>
+            </g>
+            <g id="circleNumber" transform="translate(619.000000, 141.000000)">
+                <g id="1-copy-2" transform="translate(5.000000, 5.000000)">
+                    <circle id="Oval-4" fill="#F26738" cx="13.5" cy="13.5" r="13.5"></circle>
+                    <text id="2" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="16" font-weight="400" fill="#FFFFFF">
+                        <tspan x="9.052" y="20">2</tspan>
+                    </text>
+                </g>
+            </g>
+            <g id="circleNumber" transform="translate(233.000000, 216.000000)">
+                <g id="1-copy-2" transform="translate(5.000000, 5.000000)">
+                    <circle id="Oval-4" fill="#F26738" cx="13.5" cy="13.5" r="13.5"></circle>
+                    <text id="2" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="16" font-weight="400" fill="#FFFFFF">
+                        <tspan x="9.052" y="20">4</tspan>
+                    </text>
+                </g>
+            </g>
+            <g id="circleNumber" transform="translate(620.000000, 216.000000)">
+                <g id="1-copy-2" transform="translate(5.000000, 5.000000)">
+                    <circle id="Oval-4" fill="#F26738" cx="13.5" cy="13.5" r="13.5"></circle>
+                    <text id="2" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="16" font-weight="400" fill="#FFFFFF">
+                        <tspan x="9.052" y="20">3</tspan>
+                    </text>
+                </g>
+            </g>
+        </g>
+    </g>
+</svg>

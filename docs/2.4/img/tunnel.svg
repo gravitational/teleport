@@ -1,35 +1,211 @@
-<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="598px" height="320px" version="1.1">
-    <defs/>
-    <g transform="translate(0.5,0.5)">
-    <path d="M 208 144 L 428 144 L 448 164 L 448 177 L 228 177 L 208 157 L 208 144 Z" fill="#f8cecc" stroke="#b85450" stroke-miterlimit="10" transform="rotate(90,328,160.5)" pointer-events="none"/>
-    <path d="M 228 177 L 228 164 L 208 144 M 228 164 L 448 164" fill="none" stroke="#b85450" stroke-miterlimit="10" transform="rotate(90,328,160.5)" pointer-events="none"/>
-    <g transform="translate(435.5,44.5)">
-        <switch>
-            <foreignObject style="overflow:visible;" pointer-events="all" width="140" height="22" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility">
-            <div xmlns="http://www.w3.org/1999/xhtml" style="display: inline-block; font-size: 20px; font-family: Helvetica; color: rgb(77, 77, 77); line-height: 1.2; vertical-align: top; overflow: hidden; max-height: 26px; max-width: 200px; width: 140px; white-space: normal; word-wrap: normal; font-weight: bold; text-align: center;">
-            <div xmlns="http://www.w3.org/1999/xhtml" style="display:inline-block;text-align:inherit;text-decoration:inherit;">"east" cluster</div></div>
-            </foreignObject>
-            
-            <text x="52" y="21" fill="#4D4D4D" text-anchor="middle" font-size="20px" font-family="Helvetica" font-weight="bold">"east" cluster</text>
-       </switch>
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1032px" height="300px" viewBox="0 0 1032 300" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <!-- Generator: Sketch 47.1 (45422) - http://www.bohemiancoding.com/sketch -->
+    <title>tunnel</title>
+    <desc>Created with Sketch.</desc>
+    <defs>
+        <rect id="path-1" x="0" y="54" width="194" height="187" rx="10"></rect>
+        <filter x="-14.4%" y="-10.7%" width="128.9%" height="129.9%" filterUnits="objectBoundingBox" id="filter-2">
+            <feOffset dx="0" dy="8" in="SourceAlpha" result="shadowOffsetOuter1"></feOffset>
+            <feGaussianBlur stdDeviation="8" in="shadowOffsetOuter1" result="shadowBlurOuter1"></feGaussianBlur>
+            <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.103742074 0" type="matrix" in="shadowBlurOuter1"></feColorMatrix>
+        </filter>
+        <rect id="path-3" x="221" y="65" width="168" height="107" rx="10"></rect>
+        <filter x="-16.7%" y="-18.7%" width="133.3%" height="152.3%" filterUnits="objectBoundingBox" id="filter-4">
+            <feOffset dx="0" dy="8" in="SourceAlpha" result="shadowOffsetOuter1"></feOffset>
+            <feGaussianBlur stdDeviation="8" in="shadowOffsetOuter1" result="shadowBlurOuter1"></feGaussianBlur>
+            <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.103742074 0" type="matrix" in="shadowBlurOuter1"></feColorMatrix>
+        </filter>
+        <rect id="path-5" x="607" y="65" width="168" height="107" rx="10"></rect>
+        <filter x="-16.7%" y="-18.7%" width="133.3%" height="152.3%" filterUnits="objectBoundingBox" id="filter-6">
+            <feOffset dx="0" dy="8" in="SourceAlpha" result="shadowOffsetOuter1"></feOffset>
+            <feGaussianBlur stdDeviation="8" in="shadowOffsetOuter1" result="shadowBlurOuter1"></feGaussianBlur>
+            <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.103742074 0" type="matrix" in="shadowBlurOuter1"></feColorMatrix>
+        </filter>
+        <rect id="path-7" x="806" y="54" width="194" height="187" rx="10"></rect>
+        <filter x="-14.4%" y="-10.7%" width="128.9%" height="129.9%" filterUnits="objectBoundingBox" id="filter-8">
+            <feOffset dx="0" dy="8" in="SourceAlpha" result="shadowOffsetOuter1"></feOffset>
+            <feGaussianBlur stdDeviation="8" in="shadowOffsetOuter1" result="shadowBlurOuter1"></feGaussianBlur>
+            <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.103742074 0" type="matrix" in="shadowBlurOuter1"></feColorMatrix>
+        </filter>
+        <filter x="-2.4%" y="-3.1%" width="104.8%" height="108.8%" filterUnits="objectBoundingBox" id="filter-9">
+            <feOffset dx="0" dy="1" in="SourceAlpha" result="shadowOffsetOuter1"></feOffset>
+            <feGaussianBlur stdDeviation="1" in="shadowOffsetOuter1" result="shadowBlurOuter1"></feGaussianBlur>
+            <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.5 0" type="matrix" in="shadowBlurOuter1" result="shadowMatrixOuter1"></feColorMatrix>
+            <feMerge>
+                <feMergeNode in="shadowMatrixOuter1"></feMergeNode>
+                <feMergeNode in="SourceGraphic"></feMergeNode>
+            </feMerge>
+        </filter>
+        <rect id="path-10" x="0" y="0" width="145" height="80" rx="10"></rect>
+        <filter x="-2.4%" y="-3.1%" width="104.8%" height="108.8%" filterUnits="objectBoundingBox" id="filter-11">
+            <feOffset dx="0" dy="1" in="SourceAlpha" result="shadowOffsetOuter1"></feOffset>
+            <feGaussianBlur stdDeviation="1" in="shadowOffsetOuter1" result="shadowBlurOuter1"></feGaussianBlur>
+            <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.5 0" type="matrix" in="shadowBlurOuter1" result="shadowMatrixOuter1"></feColorMatrix>
+            <feMerge>
+                <feMergeNode in="shadowMatrixOuter1"></feMergeNode>
+                <feMergeNode in="SourceGraphic"></feMergeNode>
+            </feMerge>
+        </filter>
+        <rect id="path-12" x="0" y="0" width="145" height="80" rx="10"></rect>
+        <rect id="path-13" x="0" y="0" width="145" height="51" rx="10"></rect>
+        <rect id="path-14" x="0" y="0" width="145" height="51" rx="10"></rect>
+        <rect id="path-15" x="0" y="0" width="145" height="51" rx="10"></rect>
+        <rect id="path-16" x="0" y="0" width="145" height="51" rx="10"></rect>
+        <rect id="path-17" x="0" y="0" width="145" height="51" rx="10"></rect>
+        <rect id="path-18" x="0" y="0" width="145" height="51" rx="10"></rect>
+    </defs>
+    <g id="-" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="tunnel">
+            <g id="firewall" transform="translate(16.000000, -4.000000)">
+                <g id="Rectangle-Copy-6">
+                    <use fill="black" fill-opacity="1" filter="url(#filter-2)" xlink:href="#path-1"></use>
+                    <use fill="#FFFFFF" fill-rule="evenodd" xlink:href="#path-1"></use>
+                </g>
+                <g id="Rectangle-Copy-7">
+                    <use fill="black" fill-opacity="1" filter="url(#filter-4)" xlink:href="#path-3"></use>
+                    <use fill="#FFFFFF" fill-rule="evenodd" xlink:href="#path-3"></use>
+                </g>
+                <g id="Rectangle-Copy-8">
+                    <use fill="black" fill-opacity="1" filter="url(#filter-6)" xlink:href="#path-5"></use>
+                    <use fill="#FFFFFF" fill-rule="evenodd" xlink:href="#path-5"></use>
+                </g>
+                <g id="Rectangle-Copy-6">
+                    <use fill="black" fill-opacity="1" filter="url(#filter-8)" xlink:href="#path-7"></use>
+                    <use fill="#FFFFFF" fill-rule="evenodd" xlink:href="#path-7"></use>
+                </g>
+                <text id="Firewall" font-family="HelveticaNeue-Bold, Helvetica Neue" font-size="16" font-weight="bold" line-spacing="18" fill="#4A4A4A">
+                    <tspan x="467" y="16">Firewall</tspan>
+                </text>
+            </g>
+            <text id="“main”-cluster" fill="#4A4A4A" font-family="HelveticaNeue-Bold, Helvetica Neue" font-size="16" font-weight="bold" line-spacing="18">
+                <tspan x="75" y="83">“main” cluster </tspan>
+            </text>
+            <text id="“east”-cluster" fill="#4A4A4A" font-family="HelveticaNeue-Bold, Helvetica Neue" font-size="16" font-weight="bold" line-spacing="18">
+                <tspan x="847" y="82">“east” cluster </tspan>
+            </text>
+            <g transform="translate(398.000000, 77.000000)">
+                <text id="Tunnel" font-family="HelveticaNeue-Bold, Helvetica Neue" font-size="14" font-weight="bold" line-spacing="18">
+                    <tspan x="38" y="14" fill="#4A4A4A">Tunnel</tspan>
+                    <tspan x="81.82" y="14" fill="#515151"> </tspan>
+                </text>
+                <path d="M30.1859928,23.1028825 L234,23.1028825 L234,53.7088147 L30.1859928,53.7088147 L30.1859928,60.4050676 L0,38.2025338 L30.1859928,16 L30.1859928,23.1028825 Z" id="Combined-Shape" stroke="#406591" stroke-width="5" stroke-dasharray="6,6,6,6"></path>
+                <path d="M10.5,38.5 L222.5,38.5" id="Line-2" stroke="#B8E986" stroke-width="3" fill="#F5A623" stroke-linecap="square"></path>
+                <path id="Line-2-decoration-1" d="M222.5,38.5 L211.7,35.5 L211.7,41.5 L222.5,38.5 Z" stroke="#B8E986" stroke-width="3" fill="#F5A623" stroke-linecap="square"></path>
+            </g>
+            <g id="east-cluster-arrows" transform="translate(783.000000, 113.000000)" stroke="#9B9B9B" stroke-width="2" stroke-linecap="square">
+                <path d="M27.5,3 L27.5,79" id="Line-Copy-5"></path>
+                <path d="M28,79 L85,79" id="Line-3-Copy"></path>
+                <path d="M51.0027775,1.5 L0.997500201,1.5" id="Line" fill="#9B9B9B"></path>
+                <path id="Line-decoration-1" d="M0.997500201,1.5 L11.7975002,4.5 L11.7975002,-1.5 L0.997500201,1.5 Z" fill="#9B9B9B"></path>
+                <path d="M29,41.5 L69,41.5" id="Line-3-Copy-2"></path>
+            </g>
+            <g id="main-cluster-arrows-" transform="translate(165.000000, 113.000000)" stroke="#9B9B9B" stroke-width="2" stroke-linecap="square">
+                <path d="M56.5,1 L56,80" id="Line-Copy-10"></path>
+                <path d="M32,1 L81.010203,1" id="Line-Copy" fill="#9B9B9B"></path>
+                <path id="Line-Copy-decoration-1" d="M81.010203,1 L70.210203,-2 L70.210203,4 L81.010203,1 Z" fill="#9B9B9B"></path>
+                <path d="M17,41.5 L56,41.5" id="Line-3"></path>
+                <path d="M0,80.5 L56,80.5" id="Line-3-Copy"></path>
+            </g>
+            <path d="M514,27.4736574 L514,296.504182" id="Line" stroke="#D0021B" stroke-width="5" stroke-linecap="square" stroke-dasharray="12,11,12,12"></path>
+            <g id="teleport-proxy" filter="url(#filter-9)" transform="translate(249.000000, 74.000000)">
+                <g id="teleport-proxy-block">
+                    <g id="teleport-proxy">
+                        <g>
+                            <g id="Rectangle-17">
+                                <use fill="#FFFFFF" fill-rule="evenodd" xlink:href="#path-10"></use>
+                                <rect stroke="#40B6C6" stroke-width="3" x="1.5" y="1.5" width="142" height="77" rx="10"></rect>
+                            </g>
+                            <text id="Teleport-Proxy" fill="#4A4A4A" fill-rule="evenodd" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="16" font-weight="400" line-spacing="22">
+                                <tspan x="22.684" y="45.5238095">Proxy service</tspan>
+                            </text>
+                        </g>
+                    </g>
+                </g>
+            </g>
+            <g id="teleport-proxy-copy" filter="url(#filter-11)" transform="translate(635.000000, 74.000000)">
+                <g id="teleport-proxy-block">
+                    <g id="teleport-proxy">
+                        <g>
+                            <g id="Rectangle-17">
+                                <use fill="#FFFFFF" fill-rule="evenodd" xlink:href="#path-12"></use>
+                                <rect stroke="#40B6C6" stroke-width="3" x="1.5" y="1.5" width="142" height="77" rx="10"></rect>
+                            </g>
+                            <text id="Teleport-Proxy" fill="#4A4A4A" fill-rule="evenodd" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="16" font-weight="400" line-spacing="22">
+                                <tspan x="22.684" y="45.5238095">Proxy service</tspan>
+                            </text>
+                        </g>
+                    </g>
+                </g>
+            </g>
+            <g id="Group-Copy-3" transform="translate(57.000000, 89.000000)">
+                <g id="node-service-with-note">
+                    <g id="Rectangle-17">
+                        <use fill="#FFFFFF" fill-rule="evenodd" xlink:href="#path-13"></use>
+                        <rect stroke="#3662A2" stroke-width="3" x="1.5" y="1.5" width="142" height="48" rx="10"></rect>
+                    </g>
+                    <text id="Node-Service-telepor" fill="#4A4A4A" fill-rule="evenodd" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="16" font-weight="400" line-spacing="22">
+                        <tspan x="18.8075314" y="28.1428571">Node Service</tspan>
+                    </text>
+                </g>
+            </g>
+            <g id="Group-Copy-6" transform="translate(831.000000, 89.000000)">
+                <g id="node-service-with-note">
+                    <g id="Rectangle-17">
+                        <use fill="#FFFFFF" fill-rule="evenodd" xlink:href="#path-14"></use>
+                        <rect stroke="#3662A2" stroke-width="3" x="1.5" y="1.5" width="142" height="48" rx="10"></rect>
+                    </g>
+                    <text id="Node-Service-telepor" fill="#4A4A4A" fill-rule="evenodd" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="16" font-weight="400" line-spacing="22">
+                        <tspan x="18.8075314" y="28.1428571">Node Service</tspan>
+                    </text>
+                </g>
+            </g>
+            <g id="Group-Copy-7" transform="translate(848.000000, 129.000000)">
+                <g id="node-service-with-note">
+                    <g id="Rectangle-17">
+                        <use fill="#FFFFFF" fill-rule="evenodd" xlink:href="#path-15"></use>
+                        <rect stroke="#3662A2" stroke-width="3" x="1.5" y="1.5" width="142" height="48" rx="10"></rect>
+                    </g>
+                    <text id="Node-Service-telepor" fill="#4A4A4A" fill-rule="evenodd" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="16" font-weight="400" line-spacing="22">
+                        <tspan x="18.8075314" y="28.1428571">Node Service</tspan>
+                    </text>
+                </g>
+            </g>
+            <g id="Group-Copy-8" transform="translate(865.000000, 166.000000)">
+                <g id="node-service-with-note">
+                    <g id="Rectangle-17">
+                        <use fill="#FFFFFF" fill-rule="evenodd" xlink:href="#path-16"></use>
+                        <rect stroke="#3662A2" stroke-width="3" x="1.5" y="1.5" width="142" height="48" rx="10"></rect>
+                    </g>
+                    <text id="Node-Service-telepor" fill="#4A4A4A" fill-rule="evenodd" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="16" font-weight="400" line-spacing="22">
+                        <tspan x="18.8075314" y="28.1428571">Node Service</tspan>
+                    </text>
+                </g>
+            </g>
+            <g id="Group-Copy-4" transform="translate(41.000000, 128.000000)">
+                <g id="node-service-with-note">
+                    <g id="Rectangle-17">
+                        <use fill="#FFFFFF" fill-rule="evenodd" xlink:href="#path-17"></use>
+                        <rect stroke="#3662A2" stroke-width="3" x="1.5" y="1.5" width="142" height="48" rx="10"></rect>
+                    </g>
+                    <text id="Node-Service-telepor" fill="#4A4A4A" fill-rule="evenodd" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="16" font-weight="400" line-spacing="22">
+                        <tspan x="18.8075314" y="28.1428571">Node Service</tspan>
+                    </text>
+                </g>
+            </g>
+            <g id="Group-Copy-5" transform="translate(24.000000, 166.000000)">
+                <g id="node-service-with-note">
+                    <g id="Rectangle-17">
+                        <use fill="#FFFFFF" fill-rule="evenodd" xlink:href="#path-18"></use>
+                        <rect stroke="#3662A2" stroke-width="3" x="1.5" y="1.5" width="142" height="48" rx="10"></rect>
+                    </g>
+                    <text id="Node-Service-telepor" fill="#4A4A4A" fill-rule="evenodd" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="16" font-weight="400" line-spacing="22">
+                        <tspan x="18.8075314" y="28.1428571">Node Service</tspan>
+                    </text>
+                </g>
+            </g>
+            <path d="M429.621094,135.373962 L430.673584,136.457275 C430.235447,136.576986 429.923048,136.636841 429.736389,136.636841 C429.54973,136.636841 429.248603,136.576986 428.833008,136.457275 L429.621094,135.373962 Z" id="Path-9" fill="#406591"></path>
+            <rect id="Rectangle" fill="#FFFFFF" transform="translate(430.989258, 94.534912) rotate(-45.000000) translate(-430.989258, -94.534912) " x="429.489258" y="94.0349121" width="3" height="1"></rect>
+        </g>
     </g>
-    <ellipse cx="156" cy="122" rx="30" ry="30" fill="#cce5ff" stroke="none" pointer-events="none"/>
-    <g transform="translate(138.5,115.5)">
-    <switch>
-        <foreignObject style="overflow:visible;" pointer-events="all" width="34" height="12" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: inline-block; font-size: 12px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; vertical-align: top; width: 34px; white-space: nowrap; word-wrap: normal; font-weight: bold; text-align: center;"><div xmlns="http://www.w3.org/1999/xhtml" style="display:inline-block;text-align:inherit;text-decoration:inherit;">Proxy</div></div></foreignObject><text x="17" y="12" fill="#000000" text-anchor="middle" font-size="12px" font-family="Helvetica" font-weight="bold">Proxy</text>
-    </switch>
-    </g>
-    
-    <g transform="translate(25.5,44.5)">
-    <switch>
-        <foreignObject style="overflow:visible;" pointer-events="all" width="136" height="22" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility">
-        <div xmlns="http://www.w3.org/1999/xhtml" style="display: inline-block; font-size: 20px; font-family: Helvetica; color: rgb(77, 77, 77); line-height: 1.2; vertical-align: top; overflow: hidden; max-height: 26px; max-width: 181px; width: 138px; white-space: normal; word-wrap: normal; font-weight: bold; text-align: center;">
-        <div xmlns="http://www.w3.org/1999/xhtml" style="display:inline-block;text-align:inherit;text-decoration:inherit;">"main" cluster</div>
-        </div>
-        </foreignObject>
-        <text x="68" y="21" fill="#4D4D4D" text-anchor="middle" font-size="20px" font-family="Helvetica" font-weight="bold">"main" cluster</text>
-    </switch>
-    </g>
-
-    <path d="M 176 106 L 406 106 L 406 82 L 446 122 L 406 162 L 406 138 L 176 138 L 176 122 Z" fill="#ffffcc" stroke="#cc6600" stroke-miterlimit="10" transform="translate(311,0)scale(-1,1)translate(-311,0)" pointer-events="none"/><ellipse cx="466" cy="122" rx="30" ry="30" fill="#cce5ff" stroke="none" pointer-events="none"/><g transform="translate(448.5,115.5)"><switch><foreignObject style="overflow:visible;" pointer-events="all" width="34" height="12" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: inline-block; font-size: 12px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; vertical-align: top; width: 34px; white-space: nowrap; word-wrap: normal; font-weight: bold; text-align: center;"><div xmlns="http://www.w3.org/1999/xhtml" style="display:inline-block;text-align:inherit;text-decoration:inherit;">Proxy</div></div></foreignObject><text x="17" y="12" fill="#000000" text-anchor="middle" font-size="12px" font-family="Helvetica" font-weight="bold">Proxy</text></switch></g><path d="M 196 122 L 425.9 122" fill="none" stroke="#cc0000" stroke-width="3" stroke-miterlimit="10" stroke-dasharray="9 9" pointer-events="none"/><path d="M 432.65 122 L 423.65 126.5 L 425.9 122 L 423.65 117.5 Z" fill="#cc0000" stroke="#cc0000" stroke-width="3" stroke-miterlimit="10" pointer-events="none"/><g transform="translate(294.5,6.5)"><switch><foreignObject style="overflow:visible;" pointer-events="all" width="67" height="19" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: inline-block; font-size: 18px; font-family: Helvetica; color: rgb(163, 0, 0); line-height: 1.2; vertical-align: top; overflow: hidden; max-height: 26px; max-width: 106px; width: 69px; white-space: normal; word-wrap: normal; font-weight: bold; text-align: center;"><div xmlns="http://www.w3.org/1999/xhtml" style="display:inline-block;text-align:inherit;text-decoration:inherit;">Firewall</div></div></foreignObject><text x="34" y="19" fill="#A30000" text-anchor="middle" font-size="18px" font-family="Helvetica" font-weight="bold">Firewall</text></switch></g><ellipse cx="566" cy="122" rx="30" ry="30" fill="#cce5ff" stroke="none" pointer-events="none"/><g transform="translate(550.5,115.5)"><switch><foreignObject style="overflow:visible;" pointer-events="all" width="30" height="12" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: inline-block; font-size: 12px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; vertical-align: top; width: 31px; white-space: nowrap; word-wrap: normal; font-weight: bold; text-align: center;"><div xmlns="http://www.w3.org/1999/xhtml" style="display:inline-block;text-align:inherit;text-decoration:inherit;">Node</div></div></foreignObject><text x="15" y="12" fill="#000000" text-anchor="middle" font-size="12px" font-family="Helvetica" font-weight="bold">Node</text></switch></g><ellipse cx="566" cy="192" rx="30" ry="30" fill="#cce5ff" stroke="none" pointer-events="none"/><g transform="translate(550.5,185.5)"><switch><foreignObject style="overflow:visible;" pointer-events="all" width="30" height="12" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: inline-block; font-size: 12px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; vertical-align: top; width: 31px; white-space: nowrap; word-wrap: normal; font-weight: bold; text-align: center;"><div xmlns="http://www.w3.org/1999/xhtml" style="display:inline-block;text-align:inherit;text-decoration:inherit;">Node</div></div></foreignObject><text x="15" y="12" fill="#000000" text-anchor="middle" font-size="12px" font-family="Helvetica" font-weight="bold">Node</text></switch></g><ellipse cx="566" cy="261" rx="30" ry="30" fill="#cce5ff" stroke="none" pointer-events="none"/><g transform="translate(550.5,254.5)"><switch><foreignObject style="overflow:visible;" pointer-events="all" width="30" height="12" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: inline-block; font-size: 12px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; vertical-align: top; width: 31px; white-space: nowrap; word-wrap: normal; font-weight: bold; text-align: center;"><div xmlns="http://www.w3.org/1999/xhtml" style="display:inline-block;text-align:inherit;text-decoration:inherit;">Node</div></div></foreignObject><text x="15" y="12" fill="#000000" text-anchor="middle" font-size="12px" font-family="Helvetica" font-weight="bold">Node</text></switch></g><path d="M 503.37 121.98 L 535.69 121.86" fill="none" stroke="#cc0000" stroke-miterlimit="10" stroke-dasharray="3 3" pointer-events="none"/><path d="M 498.12 122 L 505.11 118.47 L 503.37 121.98 L 505.13 125.47 Z" fill="#cc0000" stroke="#cc0000" stroke-miterlimit="10" pointer-events="none"/><path d="M 517 121 L 517 182 Q 517 192 526.5 192 L 536 192" fill="none" stroke="#cc0000" stroke-miterlimit="10" stroke-dasharray="3 3" pointer-events="none"/><path d="M 517 191 L 517 265 Q 517 275 526.5 275 L 536 275" fill="none" stroke="#cc0000" stroke-miterlimit="10" stroke-dasharray="3 3" pointer-events="none"/><ellipse cx="46" cy="261" rx="30" ry="30" fill="#cce5ff" stroke="none" pointer-events="none"/><g transform="translate(30.5,254.5)"><switch><foreignObject style="overflow:visible;" pointer-events="all" width="30" height="12" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: inline-block; font-size: 12px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; vertical-align: top; width: 31px; white-space: nowrap; word-wrap: normal; font-weight: bold; text-align: center;"><div xmlns="http://www.w3.org/1999/xhtml" style="display:inline-block;text-align:inherit;text-decoration:inherit;">Node</div></div></foreignObject><text x="15" y="12" fill="#000000" text-anchor="middle" font-size="12px" font-family="Helvetica" font-weight="bold">Node</text></switch></g><ellipse cx="46" cy="122" rx="30" ry="30" fill="#cce5ff" stroke="none" pointer-events="none"/><g transform="translate(30.5,115.5)"><switch><foreignObject style="overflow:visible;" pointer-events="all" width="30" height="12" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: inline-block; font-size: 12px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; vertical-align: top; width: 31px; white-space: nowrap; word-wrap: normal; font-weight: bold; text-align: center;"><div xmlns="http://www.w3.org/1999/xhtml" style="display:inline-block;text-align:inherit;text-decoration:inherit;">Node</div></div></foreignObject><text x="15" y="12" fill="#000000" text-anchor="middle" font-size="12px" font-family="Helvetica" font-weight="bold">Node</text></switch></g><ellipse cx="46" cy="192" rx="30" ry="30" fill="#cce5ff" stroke="none" pointer-events="none"/><g transform="translate(30.5,185.5)"><switch><foreignObject style="overflow:visible;" pointer-events="all" width="30" height="12" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: inline-block; font-size: 12px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; vertical-align: top; width: 31px; white-space: nowrap; word-wrap: normal; font-weight: bold; text-align: center;"><div xmlns="http://www.w3.org/1999/xhtml" style="display:inline-block;text-align:inherit;text-decoration:inherit;">Node</div></div></foreignObject><text x="15" y="12" fill="#000000" text-anchor="middle" font-size="12px" font-family="Helvetica" font-weight="bold">Node</text></switch></g><path d="M 96 181 L 96 254 Q 96 264 86 264 L 75 264" fill="none" stroke="#cc0000" stroke-miterlimit="10" stroke-dasharray="3 3" pointer-events="none"/><path d="M 119.63 121 L 76 121" fill="none" stroke="#cc0000" stroke-miterlimit="10" stroke-dasharray="3 3" pointer-events="none"/><path d="M 124.88 121 L 117.88 124.5 L 119.63 121 L 117.88 117.5 Z" fill="#cc0000" stroke="#cc0000" stroke-miterlimit="10" pointer-events="none"/><path d="M 97 122 L 97 181 Q 97 191 87.01 191.48 L 76 192" fill="none" stroke="#cc0000" stroke-miterlimit="10" stroke-dasharray="3 3" pointer-events="none"/><g transform="translate(235.5,82.5)"><switch><foreignObject style="overflow:visible;" pointer-events="all" width="51" height="16" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: inline-block; font-size: 16px; font-family: Helvetica; color: rgb(255, 153, 204); line-height: 1.2; vertical-align: top; overflow: hidden; max-height: 16px; max-width: 66px; width: 53px; white-space: normal; word-wrap: normal; text-align: center;"><div xmlns="http://www.w3.org/1999/xhtml" style="display:inline-block;text-align:inherit;text-decoration:inherit;"><b><font color="#ff8000">Tunnel</font></b></div></div></foreignObject><text x="26" y="16" fill="#FF99CC" text-anchor="middle" font-size="16px" font-family="Helvetica">[Not supported by viewer]</text></switch></g></g></svg>
+</svg>
