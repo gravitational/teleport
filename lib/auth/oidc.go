@@ -125,6 +125,24 @@ func (s *AuthServer) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*servi
 // returned by OIDC Provider, if everything checks out, auth server
 // will respond with OIDCAuthResponse, otherwise it will return error
 func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error) {
+	re, err := a.validateOIDCAuthCallback(q)
+	if err != nil {
+		a.EmitAuditEvent(events.UserLoginEvent, events.EventFields{
+			events.LoginMethod:        events.LoginMethodOIDC,
+			events.AuthAttemptSuccess: false,
+			events.AuthAttemptErr:     err.Error(),
+		})
+	} else {
+		a.EmitAuditEvent(events.UserLoginEvent, events.EventFields{
+			events.EventUser:          re.Username,
+			events.AuthAttemptSuccess: true,
+			events.LoginMethod:        events.LoginMethodOIDC,
+		})
+	}
+	return re, err
+}
+
+func (a *AuthServer) validateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error) {
 	if error := q.Get("error"); error != "" {
 		return nil, trace.OAuth2(oauth2.ErrorInvalidRequest, error, q)
 	}
@@ -250,10 +268,6 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 			response.HostSigners = append(response.HostSigners, authority)
 		}
 	}
-	a.EmitAuditEvent(events.UserLoginEvent, events.EventFields{
-		events.EventUser:   user.GetName(),
-		events.LoginMethod: events.LoginMethodOIDC,
-	})
 	return response, nil
 }
 
@@ -378,7 +392,7 @@ func (a *AuthServer) createOIDCUser(connector services.OIDCConnector, ident *oid
 	if existingUser != nil {
 		ref := user.GetCreatedBy().Connector
 		if !ref.IsSameProvider(existingUser.GetCreatedBy().Connector) {
-			return trace.AlreadyExists("user %q already exists and is not OIDC user",
+			return trace.AlreadyExists("user %q already exists and is not OIDC user, remove local user and try again",
 				existingUser.GetName())
 		}
 	}

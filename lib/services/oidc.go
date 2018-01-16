@@ -464,7 +464,7 @@ func (o *OIDCConnectorV2) RoleFromTemplate(claims jose.Claims) (Role, error) {
 		}
 	}
 
-	return nil, trace.BadParameter("no matching claim name/value, claims: %q", claims)
+	return nil, trace.BadParameter("no matching claim name/value, claims: %v", claims)
 }
 
 // Check returns nil if all parameters are great, err otherwise

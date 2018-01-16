@@ -101,10 +101,12 @@ func (m *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.P
 	if err != nil {
 		log.Warningf("error while processing callback: %v", err)
 
+		message := "Unable to process callback from SAML provider. Ask your system administrator to check audit logs for details."
+
 		// redirect to an error page
 		pathToError := url.URL{
 			Path:     "/web/msg/error/login_failed",
-			RawQuery: url.Values{"details": []string{"Unable to process callback from SAML provider."}}.Encode(),
+			RawQuery: url.Values{"details": []string{message}}.Encode(),
 		}
 		http.Redirect(w, r, pathToError.String(), http.StatusFound)
 		return nil, nil

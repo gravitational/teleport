@@ -80,7 +80,26 @@ type GithubAuthResponse struct {
 }
 
 // ValidateGithubAuthCallback validates Github auth callback redirect
-func (s *AuthServer) ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, error) {
+func (a *AuthServer) ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, error) {
+	re, err := a.validateGithubAuthCallback(q)
+	if err != nil {
+		a.EmitAuditEvent(events.UserLoginEvent, events.EventFields{
+			events.LoginMethod:        events.LoginMethodGithub,
+			events.AuthAttemptSuccess: false,
+			events.AuthAttemptErr:     err.Error(),
+		})
+	} else {
+		a.EmitAuditEvent(events.UserLoginEvent, events.EventFields{
+			events.EventUser:          re.Username,
+			events.AuthAttemptSuccess: true,
+			events.LoginMethod:        events.LoginMethodGithub,
+		})
+	}
+	return re, err
+}
+
+// ValidateGithubAuthCallback validates Github auth callback redirect
+func (s *AuthServer) validateGithubAuthCallback(q url.Values) (*GithubAuthResponse, error) {
 	logger := log.WithFields(logrus.Fields{trace.Component: "github"})
 	error := q.Get("error")
 	if error != "" {
@@ -185,10 +204,6 @@ func (s *AuthServer) ValidateGithubAuthCallback(q url.Values) (*GithubAuthRespon
 			response.HostSigners = append(response.HostSigners, authority)
 		}
 	}
-	s.EmitAuditEvent(events.UserLoginEvent, events.EventFields{
-		events.EventUser:   user.GetName(),
-		events.LoginMethod: events.LoginMethodGithub,
-	})
 	return response, nil
 }
 
