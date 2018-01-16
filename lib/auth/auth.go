@@ -339,10 +339,6 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	s.EmitAuditEvent(events.UserLoginEvent, events.EventFields{
-		events.EventUser:   req.user.GetName(),
-		events.LoginMethod: events.LoginMethodLocal,
-	})
 	return &certs{ssh: sshCert, tls: tlsCert}, nil
 }
 
