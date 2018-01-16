@@ -147,7 +147,7 @@ func (s *Server) Close() error {
 
 // Start starts server
 func (s *Server) Start() error {
-	if len(s.cmdLabels) > 0 {
+	if len(s.getCommandLabels()) > 0 {
 		s.updateLabels()
 	}
 	go s.heartbeatPresence()
@@ -447,7 +447,7 @@ func (s *Server) heartbeatPresence() {
 }
 
 func (s *Server) updateLabels() {
-	for name, label := range s.cmdLabels {
+	for name, label := range s.getCommandLabels() {
 		go s.periodicUpdateLabel(name, label.Clone())
 	}
 }
