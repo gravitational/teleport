@@ -124,6 +124,9 @@ func (s *Server) GetNamespace() string {
 }
 
 func (s *Server) GetAuditLog() events.IAuditLog {
+	if s.isAuditedAtProxy() {
+		return events.NewDiscardAuditLog()
+	}
 	return s.alog
 }
 
@@ -132,7 +135,28 @@ func (s *Server) GetAccessPoint() auth.AccessPoint {
 }
 
 func (s *Server) GetSessionServer() rsession.Service {
+	if s.isAuditedAtProxy() {
+		return rsession.NewDiscardSessionServer()
+	}
 	return s.sessionServer
+}
+
+// isAuditedAtProxy returns true if sessions are being recorded at the proxy
+// and this is a Teleport node.
+func (s *Server) isAuditedAtProxy() bool {
+	// always be safe, better to double record than not record at all
+	clusterConfig, err := s.GetAccessPoint().GetClusterConfig()
+	if err != nil {
+		return false
+	}
+
+	isRecordAtProxy := clusterConfig.GetSessionRecording() == services.RecordAtProxy
+	isTeleportNode := s.Component() == teleport.ComponentNode
+
+	if isRecordAtProxy && isTeleportNode {
+		return true
+	}
+	return false
 }
 
 // ServerOption is a functional option passed to the server
