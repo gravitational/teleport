@@ -61,8 +61,14 @@ var serverFixture = []services.Server{
 	},
 }
 
+<<<<<<< HEAD
 func TestDynamicInventoryHost(t *testing.T) {
 	jsonInventory, err := DynamicInventoryList(serverFixture)
+=======
+// A simple regression test to check for proper encoding
+func TestMarshalInventoryHost(t *testing.T) {
+	jsonInventory, err := MarshalInventory(serverFixture)
+>>>>>>> 65207966... Rename DynamicInventory to MarshalInventory
 	if err != nil {
 		t.Error(err)
 	}

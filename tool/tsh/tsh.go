@@ -388,13 +388,13 @@ func onListNodes(cf *CLIConf) {
 
 	// called with --host
 	if cf.AnsibleHost != "" {
-		ansible.DynamicInventoryHost(nodes, cf.AnsibleHost)
+		ansible.MarshalInventoryHost(nodes, cf.AnsibleHost)
 		return
 	}
 
 	switch cf.OutputFormat {
 	case "json":
-		jsonInventory, err := ansible.DynamicInventoryList(nodes)
+		jsonInventory, err := ansible.MarshalInventory(nodes)
 		if err != nil {
 			utils.FatalError(err)
 		}
