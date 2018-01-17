@@ -34,7 +34,7 @@ type Group struct {
 	Vars  map[string]string `json:"vars"`
 }
 
-// DynamicInventoryList returns a JSON-formated ouput compatible with Ansible --list flag
+// MarshalInventory returns a JSON-formated ouput compatible with Ansible --list flag
 //
 // The JSON output SHOULD HAVE the following format:
 // ```json
@@ -50,7 +50,7 @@ type Group struct {
 //     }
 // }
 // ```
-func DynamicInventoryList(nodes []services.Server) (string, error) {
+func MarshalInventory(nodes []services.Server) (string, error) {
 	hostsByLabels := bufferLabels(nodes)
 
 	var inventory = make(map[string]interface{})
@@ -76,12 +76,12 @@ func DynamicInventoryList(nodes []services.Server) (string, error) {
 	return string(out) + "\n", nil
 }
 
-// DynamicInventoryHost returns a JSON-formated ouput compatible with Ansible --host <string> flag
+// MarshalInventoryHost returns a JSON-formated ouput compatible with Ansible --host <string> flag
 //
 // (From ansible ref. doc)
 // When called with the arguments --host <hostname>, the script must print either an empty JSON hash/dictionary,
 // or a hash/dictionary of variables to make available to templates and playbooks.
-func DynamicInventoryHost(nodes []services.Server, host string) {
+func MarshalInventoryHost(nodes []services.Server, host string) {
 	// print an empty dic
 	fmt.Print("{\"\":\"\"}\n")
 }
