@@ -30,8 +30,10 @@ type Inventory map[string]interface{}
 
 // Group gather hosts and variables common to them
 type Group struct {
-	Hosts []string          `json:"hosts"`
-	Vars  map[string]string `json:"vars"`
+	// Hosts is an array of IPs or FDQNs
+	Hosts []string `json:"hosts"`
+	// Vars is a KV map of ansible variables
+	Vars map[string]string `json:"vars"`
 }
 
 // MarshalInventory returns a JSON-formated ouput compatible with Ansible --list flag
