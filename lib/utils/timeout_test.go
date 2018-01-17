@@ -69,7 +69,7 @@ func (s *TimeoutSuite) TestSlowOperation(c *check.C) {
 }
 
 func (s *TimeoutSuite) TestNormalOperation(c *check.C) {
-	client := newClient(time.Millisecond * 5)
+	client := newClient(time.Millisecond * 100)
 	resp, err := client.Get(s.server.URL + "/ping")
 	c.Assert(err, check.IsNil)
 	c.Assert(bodyText(resp), check.Equals, "pong")
