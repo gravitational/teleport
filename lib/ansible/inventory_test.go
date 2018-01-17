@@ -17,6 +17,7 @@ limitations under the License.
 package ansible
 
 import (
+	"bytes"
 	"encoding/json"
 	"testing"
 
@@ -68,13 +69,13 @@ func TestMarshalInventoryHost(t *testing.T) {
 		t.Error(err)
 	}
 
-	encodedJSON := `{"_meta":{"hostvars":{}},"os-coreos":{"hosts":["11.1.1.1"],"vars":{}},"os-gentoo":{"hosts":["198.145.29.83"],"vars":{}},"os-plan9":{"hosts":["8.8.4.4"],"vars":{}},"role-database":{"hosts":["11.1.1.1","8.8.4.4"],"vars":{}}}` + "\n"
+	encodedJSON := `{"_meta":{"hostvars":{}},"os-coreos":{"hosts":["11.1.1.1"],"vars":{}},"os-gentoo":{"hosts":["198.145.29.83"],"vars":{}},"os-plan9":{"hosts":["8.8.4.4"],"vars":{}},"role-database":{"hosts":["11.1.1.1","8.8.4.4"],"vars":{}}}`
 	var i Inventory
 	err = json.Unmarshal([]byte(encodedJSON), &i)
 	if err != nil {
 		t.Error("cannot unmarshal fixture, did the type change?")
 	}
-	if jsonInventory != encodedJSON {
-		t.Errorf("mismatch in json output\nGiven: %sExpct: %s", jsonInventory, encodedJSON)
+	if !bytes.Equal(jsonInventory, []byte(encodedJSON)) {
+		t.Errorf("mismatch in json output\nGiven: %s\nExpct: %s", jsonInventory, encodedJSON)
 	}
 }

@@ -390,7 +390,8 @@ func onListNodes(cf *CLIConf) {
 
 	// called with --host
 	if cf.AnsibleHost != "" {
-		ansible.MarshalInventoryHost(nodes, cf.AnsibleHost)
+		jsonHost := ansible.MarshalInventoryHost(nodes, cf.AnsibleHost)
+		fmt.Printf("%s\n", jsonHost)
 		return
 	}
 
@@ -400,7 +401,7 @@ func onListNodes(cf *CLIConf) {
 		if err != nil {
 			utils.FatalError(err)
 		}
-		fmt.Printf("%s", jsonInventory)
+		fmt.Printf("%s\n", jsonInventory)
 	case "ansible-static":
 		ansible.StaticInventory(nodes)
 	case "":
