@@ -67,8 +67,7 @@ func MarshalInventory(nodes []services.Server) (string, error) {
 	// this gonna become "_meta": { "hostvars": { "host": {"var": value}}}
 	// so the 2 top level (Meta and Hotvars) have only one key to match the struct
 	// yes, the type is stupid, but blame python devs not me
-	type Meta map[string]map[string]map[string]string
-	meta := make(Meta)
+	meta := make(map[string]map[string]map[string]string)
 	meta["hostvars"] = make(map[string]map[string]string)
 	inventory["_meta"] = meta
 	out, err := json.Marshal(inventory)
