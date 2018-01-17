@@ -51,3 +51,6 @@ docs/latest.yaml
 # terraform
 .terraform
 terraform.tfstate
+
+# OSX 
+.DS_Store
