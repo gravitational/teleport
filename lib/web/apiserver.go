@@ -813,10 +813,11 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 	if err != nil {
 		log.Warningf("[OIDC] Error while processing callback: %v", err)
 
+		message := "Unable to process callback from OIDC provider. Ask your system administrator to check audit logs for details."
 		// redirect to an error page
 		pathToError := url.URL{
 			Path:     "/web/msg/error/login_failed",
-			RawQuery: url.Values{"details": []string{"Unable to process callback from OIDC provider."}}.Encode(),
+			RawQuery: url.Values{"details": []string{message}}.Encode(),
 		}
 		http.Redirect(w, r, pathToError.String(), http.StatusFound)
 		return nil, nil

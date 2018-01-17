@@ -50,7 +50,7 @@ RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.0.16/etcd-v3.0.
      apt-get install -y net-tools tree)
 
 # Install Golang:
-RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/go1.8.3.linux-amd64.tar.gz | tar xz;\
+RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/go1.9.2.linux-amd64.tar.gz | tar xz;\
     mkdir -p /gopath/src/github.com/gravitational/teleport;\
     chmod a+w /gopath;\
     chmod a+w /var/lib;\

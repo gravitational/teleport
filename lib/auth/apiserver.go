@@ -1457,6 +1457,8 @@ type samlAuthRawResponse struct {
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []json.RawMessage `json:"host_signers"`
+	// TLSCert is TLS certificate authority certificate
+	TLSCert []byte `json:"tls_cert,omitempty"`
 }
 
 func (s *APIServer) validateSAMLResponse(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
@@ -1473,6 +1475,7 @@ func (s *APIServer) validateSAMLResponse(auth ClientI, w http.ResponseWriter, r 
 		Identity: response.Identity,
 		Cert:     response.Cert,
 		Req:      response.Req,
+		TLSCert:  response.TLSCert,
 	}
 	if response.Session != nil {
 		rawSession, err := services.GetWebSessionMarshaler().MarshalWebSession(response.Session, services.WithVersion(version))

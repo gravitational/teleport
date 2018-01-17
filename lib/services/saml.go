@@ -525,7 +525,7 @@ func (o *SAMLConnectorV2) RoleFromTemplate(assertionInfo saml2.AssertionInfo) (R
 		}
 	}
 
-	return nil, trace.BadParameter("no matching assertion name/value, assertions: %q", assertionMap)
+	return nil, trace.BadParameter("no matching assertion name/value, assertions: %v", assertionMap)
 }
 
 // GetServiceProvider initialises service provider spec from settings

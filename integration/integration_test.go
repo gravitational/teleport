@@ -260,9 +260,10 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 					if err != nil {
 						return nil, trace.Wrap(err)
 					}
-					if len(sessions) > 0 {
-						return &sessions[0], nil
+					if len(sessions) != 1 {
+						continue
 					}
+					return &sessions[0], nil
 				case <-stopCh:
 					return nil, trace.BadParameter("unable to find sessions after 10s (mode=%v)", tt.inRecordLocation)
 				}
@@ -289,16 +290,16 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 		// read back the entire session (we have to try several times until we get back
 		// everything because the session is closing)
 		var sessionStream []byte
-		for i := 0; i < 5; i++ {
+		for i := 0; i < 6; i++ {
 			sessionStream, err = site.GetSessionChunk(defaults.Namespace, session.ID, 0, events.MaxChunkBytes)
 			c.Assert(err, check.IsNil)
 			if strings.Contains(string(sessionStream), "exit") {
 				break
 			}
 			time.Sleep(time.Millisecond * 250)
-			if i > 10 {
+			if i >= 5 {
 				// session stream keeps coming back short
-				c.Fatal("stream is not getting data")
+				c.Fatal("stream is not getting data: %q", string(sessionStream))
 			}
 		}
 

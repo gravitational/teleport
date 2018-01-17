@@ -383,7 +383,11 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 	if server == RemoteAuthServer {
 		authServers, err := a.Client.GetAuthServers()
 		if err != nil {
-			a.Warningf("unable to find auth servers: %v", err)
+			a.Warningf("Unable retrieve list of remote Auth Servers: %v.", err)
+			return
+		}
+		if len(authServers) == 0 {
+			a.Warningf("No remote Auth Servers returned by client.")
 			return
 		}
 		for _, as := range authServers {
@@ -393,7 +397,7 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 		servers = append(servers, server)
 	}
 
-	a.Debugf("got out of band request %v", servers)
+	a.Debugf("Received out-of-band proxy transport request: %v", servers)
 
 	var conn net.Conn
 	var err error
@@ -418,9 +422,13 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 		return
 	}
 
+	if conn == nil {
+		a.Warningf("No error, but conn is nil: %v", conn)
+	}
+
 	// successfully dialed
 	req.Reply(true, []byte("connected"))
-	a.Debugf("successfully dialed to %v, start proxying", server)
+	a.Debugf("Successfully dialed to %v, start proxying.", server)
 
 	wg := sync.WaitGroup{}
 	wg.Add(2)
