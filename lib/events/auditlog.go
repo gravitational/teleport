@@ -462,21 +462,23 @@ func (l *AuditLog) findInFile(fn string, query url.Values) ([]EventFields, error
 	return retval, nil
 }
 
-// rotateLog() checks if the current log file is older than a given duration,
-// and if it is, closes it and opens a new one
+// rotateLog checks if the current log file is older than a given duration,
+// and if it is, closes it and opens a new one.
 func (l *AuditLog) rotateLog() (err error) {
+	l.Lock()
+	defer l.Unlock()
+
 	// determine the timestamp for the current log file
 	fileTime := l.Clock.Now().In(time.UTC).Round(l.RotationPeriod)
 
 	openLogFile := func() error {
-		l.Lock()
-		defer l.Unlock()
 		logfname := filepath.Join(l.DataDir,
-			fileTime.Format("2006-01-02.15:04:05")+LogfileExt)
+			fileTime.Format(defaults.AuditLogTimeFormat)+LogfileExt)
 		l.file, err = os.OpenFile(logfname, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
 		if err != nil {
 			log.Error(err)
 		}
+
 		l.fileTime = fileTime
 		return trace.Wrap(err)
 	}

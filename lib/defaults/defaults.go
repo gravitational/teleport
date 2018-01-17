@@ -161,6 +161,9 @@ const (
 	// amount of simultaneously processes concurrent sessions by the
 	// Audit log server, and 16K is OK for now
 	AuditLogSessions = 16384
+
+	// AuditLogTimeFormat is the format for the timestamp on audit log files.
+	AuditLogTimeFormat = "2006-01-02.15:04:05"
 )
 
 var (
