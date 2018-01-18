@@ -875,17 +875,12 @@ func (s *APIServer) generateUserCertBundle(auth ClientI, w http.ResponseWriter, 
 	}, nil
 }
 
-type generateTokenReq struct {
-	Roles teleport.Roles `json:"roles"`
-	TTL   time.Duration  `json:"ttl"`
-}
-
 func (s *APIServer) generateToken(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
-	var req *generateTokenReq
+	var req GenerateTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	token, err := auth.GenerateToken(req.Roles, req.TTL)
+	token, err := auth.GenerateToken(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

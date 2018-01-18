@@ -557,20 +557,42 @@ func (s *AuthServer) CreateWebSession(user string) (services.WebSession, error) 
 	return sess, nil
 }
 
-func (s *AuthServer) GenerateToken(roles teleport.Roles, ttl time.Duration) (string, error) {
-	for _, role := range roles {
+// GenerateTokenRequest is a request to generate auth token
+type GenerateTokenRequest struct {
+	// Token if provided sets the token value, otherwise will be auto generated
+	Token string `json:"token"`
+	// Roles is a list of roles this token authenticates as
+	Roles teleport.Roles `json:"roles"`
+	// TTL is a time to live for token
+	TTL time.Duration `json:"ttl"`
+}
+
+// CheckAndSetDefaults checks and sets default values of request
+func (req *GenerateTokenRequest) CheckAndSetDefaults() error {
+	for _, role := range req.Roles {
 		if err := role.Check(); err != nil {
-			return "", trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 	}
-	token, err := utils.CryptoRandomHex(TokenLenBytes)
-	if err != nil {
+	if req.Token == "" {
+		token, err := utils.CryptoRandomHex(TokenLenBytes)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		req.Token = token
+	}
+	return nil
+}
+
+// GenerateToken generates multi-purpose authentication token
+func (s *AuthServer) GenerateToken(req GenerateTokenRequest) (string, error) {
+	if err := req.CheckAndSetDefaults(); err != nil {
 		return "", trace.Wrap(err)
 	}
-	if err := s.Provisioner.UpsertToken(token, roles, ttl); err != nil {
-		return "", err
+	if err := s.Provisioner.UpsertToken(req.Token, req.Roles, req.TTL); err != nil {
+		return "", trace.Wrap(err)
 	}
-	return token, nil
+	return req.Token, nil
 }
 
 // ClientCertPool returns trusted x509 cerificate authority pool
