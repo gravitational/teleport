@@ -169,8 +169,8 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(len(btokens), Equals, 0)
 
-	// generate single-use token (TTL is 0)
-	tok, err := s.a.GenerateToken(teleport.Roles{teleport.RoleNode}, 0)
+	// generate persistent token
+	tok, err := s.a.GenerateToken(GenerateTokenRequest{Roles: teleport.Roles{teleport.RoleNode}})
 	c.Assert(err, IsNil)
 	c.Assert(len(tok), Equals, 2*TokenLenBytes)
 
@@ -198,8 +198,22 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	roles, err = s.a.ValidateToken(tok)
 	c.Assert(err, IsNil)
 
+	// generate predefined token
+	customToken := "custom token"
+	tok, err = s.a.GenerateToken(GenerateTokenRequest{Roles: teleport.Roles{teleport.RoleNode}, Token: customToken})
+	c.Assert(err, IsNil)
+	c.Assert(tok, Equals, customToken)
+
+	roles, err = s.a.ValidateToken(tok)
+	c.Assert(err, IsNil)
+	c.Assert(roles.Include(teleport.RoleNode), Equals, true)
+	c.Assert(roles.Include(teleport.RoleProxy), Equals, false)
+
+	err = s.a.DeleteToken(customToken)
+	c.Assert(err, IsNil)
+
 	// generate multi-use token with long TTL:
-	multiUseToken, err := s.a.GenerateToken(teleport.Roles{teleport.RoleProxy}, time.Hour)
+	multiUseToken, err := s.a.GenerateToken(GenerateTokenRequest{Roles: teleport.Roles{teleport.RoleProxy}, TTL: time.Hour})
 	c.Assert(err, IsNil)
 	_, err = s.a.ValidateToken(multiUseToken)
 	c.Assert(err, IsNil)
@@ -285,7 +299,7 @@ func (s *AuthSuite) TestBadTokens(c *C) {
 	c.Assert(err, NotNil)
 
 	// tampered
-	tok, err := s.a.GenerateToken(teleport.Roles{teleport.RoleAuth}, 0)
+	tok, err := s.a.GenerateToken(GenerateTokenRequest{Roles: teleport.Roles{teleport.RoleAuth}})
 	c.Assert(err, IsNil)
 
 	tampered := string(tok[0]+1) + tok[1:]

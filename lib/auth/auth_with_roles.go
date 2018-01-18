@@ -214,11 +214,11 @@ func (a *AuthWithRoles) DeactivateCertAuthority(id services.CertAuthID) error {
 	return trace.BadParameter("not implemented")
 }
 
-func (a *AuthWithRoles) GenerateToken(roles teleport.Roles, ttl time.Duration) (string, error) {
+func (a *AuthWithRoles) GenerateToken(req GenerateTokenRequest) (string, error) {
 	if err := a.action(defaults.Namespace, services.KindToken, services.VerbCreate); err != nil {
 		return "", trace.Wrap(err)
 	}
-	return a.authServer.GenerateToken(roles, ttl)
+	return a.authServer.GenerateToken(req)
 }
 
 func (a *AuthWithRoles) RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedKeys, error) {

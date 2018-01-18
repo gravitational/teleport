@@ -411,12 +411,10 @@ func (c *Client) DeactivateCertAuthority(id services.CertAuthID) error {
 // This token is used by SSH server to authenticate with Auth server
 // and get signed certificate and private key from the auth server.
 //
-// The token can be used only once.
-func (c *Client) GenerateToken(roles teleport.Roles, ttl time.Duration) (string, error) {
-	out, err := c.PostJSON(c.Endpoint("tokens"), generateTokenReq{
-		Roles: roles,
-		TTL:   ttl,
-	})
+// If token is not supplied, it will be auto generated and returned.
+// If TTL is not supplied, token will be valid until removed.
+func (c *Client) GenerateToken(req GenerateTokenRequest) (string, error) {
+	out, err := c.PostJSON(c.Endpoint("tokens"), req)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -2205,8 +2203,9 @@ type IdentityService interface {
 	// This token is used by SSH server to authenticate with Auth server
 	// and get signed certificate and private key from the auth server.
 	//
-	// The token can be used only once.
-	GenerateToken(roles teleport.Roles, ttl time.Duration) (string, error)
+	// If token is not supplied, it will be auto generated and returned.
+	// If TTL is not supplied, token will be valid until removed.
+	GenerateToken(GenerateTokenRequest) (string, error)
 
 	// GenerateKeyPair generates SSH private/public key pair optionally protected
 	// by password. If the pass parameter is an empty string, the key pair

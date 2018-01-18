@@ -288,7 +288,7 @@ func (s *TLSSuite) TestTokens(c *check.C) {
 	clt, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)
 
-	out, err := clt.GenerateToken(teleport.Roles{teleport.RoleNode}, 0)
+	out, err := clt.GenerateToken(GenerateTokenRequest{Roles: teleport.Roles{teleport.RoleNode}})
 	c.Assert(err, check.IsNil)
 	c.Assert(len(out), check.Not(check.Equals), 0)
 }
