@@ -1117,11 +1117,20 @@ $ tsh --cluster=east ssh root@db1.east
 ## Github OAuth 2.0
 
 Teleport supports authentication and authorization via external identity
-providers such as Github. It can be configured by creating a Github connector
-resource:
+providers such as Github. First, the Teleport auth service must be configured
+to use Github for authentication:
 
 ```bash
-# github.yaml
+# snippet from /etc/teleport.yaaml
+auth_service:
+  authentication:
+      type: github
+```
+
+Next step is to define a Github connector:
+
+```bash
+# Create a file called github.yaml:
 kind: github
 version: v3
 metadata:
@@ -1155,7 +1164,9 @@ spec:
 To obtain client ID and client secret, please follow Github documentation
 on how to [create and register an OAuth app](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/).
 Be sure to set the "Authorization callback URL" to the same value as `redirect_url`
-in the resource spec. Create the resource:
+in the resource spec. 
+
+Finally, create the connector using `tctl` [resource](#resources) management command:
 
 ```bash
 $ tctl create github.yaml
@@ -1217,16 +1228,17 @@ to verify that host's certificates are signed by the trusted CA key:
 $ cat cluster_node_keys >> ~/.ssh/known_hosts
 ```
 
-Make sure you are logged in and then launch `tsh` in the SSH agent mode:
+Make sure you are running OpenSSH's `ssh-agent`, and have logged in to the Teleport proxy:
 
 ```bash
-$ tsh --proxy=work.example.com agent
+$ eval `ssh-agent`
+$ tsh --proxy=work.example.com login
 ```
 
-`tsh agent` will print environment variables into the console. Copy and paste
-the output into the shell you will be using to connect to a Teleport node.
-The output exports the `SSH_AUTH_SOCK` and `SSH_AGENT_PID` environment variables
-that allow OpenSSH clients to find the SSH agent.
+`ssh-agent` will print environment variables into the console. Either `eval` the output
+as in the example above, or copy and paste the output into the shell you will be using to
+connect to a Teleport node. The output exports the `SSH_AUTH_SOCK` and `SSH_AGENT_PID`
+environment variables that allow OpenSSH clients to find the SSH agent.
 
 Lastly, configure the OpenSSH client to use the Teleport proxy when connecting
 to nodes with matching names. Edit `~/.ssh/config` for your user or
@@ -1234,14 +1246,14 @@ to nodes with matching names. Edit `~/.ssh/config` for your user or
 
 ```
 # work.example.com is the jump host (proxy). credentials will be obtained from the
-# teleport agent.
+# openssh agent.
 Host work.example.com
     HostName 192.168.1.2
     Port 3023
 
 # connect to nodes in the work.example.com cluster through the jump
 # host (proxy) using the same. credentials will be obtained from the
-# teleport agent.
+# openssh agent.
 Host *.work.example.com
     HostName %h
     Port 3022
@@ -1294,7 +1306,7 @@ To allow access for all users:
 
 Ansible uses the OpenSSH client by default. This makes it compatible with Teleport without any extra work, except configuring OpenSSH client to work with Teleport Proxy:
 
-* configure your OpenSSH to connect to Teleport proxy and user `tsh agent` socket
+* configure your OpenSSH to connect to Teleport proxy and use `ssh-agent` socket
 * enable scp mode in the Ansible config file (default is `/etc/ansible/ansible.cfg`):
 
 ```bash

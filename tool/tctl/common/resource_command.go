@@ -189,10 +189,15 @@ func (u *ResourceCommand) createTrustedCluster(client auth.ClientI, raw services
 	if u.force == false && exists {
 		return trace.AlreadyExists("trusted cluster '%s' already exists", name)
 	}
-	if err := client.UpsertTrustedCluster(tc); err != nil {
+
+	out, err := client.UpsertTrustedCluster(tc)
+	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("trusted cluster '%s' has been %s\n", name, UpsertVerb(exists))
+	if out.GetName() != tc.GetName() {
+		fmt.Printf("WARNING: trusted cluster %q resource has been renamed to match remote cluster name %q\n", name, out.GetName())
+	}
+	fmt.Printf("trusted cluster %q has been %v\n", out.GetName(), UpsertVerb(exists))
 	return nil
 }
 

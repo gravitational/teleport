@@ -88,8 +88,8 @@ func (a *AuthServer) buildSAMLRoles(connector services.SAMLConnector, assertionI
 	if len(roles) == 0 {
 		role, err := connector.RoleFromTemplate(assertionInfo)
 		if err != nil {
-			log.Warningf("[SAML] Unable to map claims to roles or role templates for %q: %v", connector.GetName(), err)
-			return nil, trace.AccessDenied("unable to map claims to roles or role templates for %q: %v", connector.GetName(), err)
+			log.Warningf("[SAML] Unable to map claims to roles for %q: %v", connector.GetName(), err)
+			return nil, trace.AccessDenied("unable to map claims to roles for %q: %v", connector.GetName(), err)
 		}
 
 		// figure out ttl for role. expires = now + ttl  =>  ttl = expires - now
@@ -172,7 +172,8 @@ func (a *AuthServer) createSAMLUser(connector services.SAMLConnector, assertionI
 	if existingUser != nil {
 		connectorRef := existingUser.GetCreatedBy().Connector
 		if connectorRef == nil || connectorRef.Type != teleport.ConnectorSAML || connectorRef.ID != connector.GetName() {
-			return trace.AlreadyExists("user %q already exists and is not SAML user", existingUser.GetName())
+			return trace.AlreadyExists("user %q already exists and is not SAML user, remove local user and try again.",
+				existingUser.GetName())
 		}
 	}
 
@@ -246,6 +247,24 @@ type SAMLAuthResponse struct {
 
 // ValidateSAMLResponse consumes attribute statements from SAML identity provider
 func (a *AuthServer) ValidateSAMLResponse(samlResponse string) (*SAMLAuthResponse, error) {
+	re, err := a.validateSAMLResponse(samlResponse)
+	if err != nil {
+		a.EmitAuditEvent(events.UserLoginEvent, events.EventFields{
+			events.LoginMethod:        events.LoginMethodSAML,
+			events.AuthAttemptSuccess: false,
+			events.AuthAttemptErr:     err.Error(),
+		})
+	} else {
+		a.EmitAuditEvent(events.UserLoginEvent, events.EventFields{
+			events.EventUser:          re.Username,
+			events.AuthAttemptSuccess: true,
+			events.LoginMethod:        events.LoginMethodSAML,
+		})
+	}
+	return re, err
+}
+
+func (a *AuthServer) validateSAMLResponse(samlResponse string) (*SAMLAuthResponse, error) {
 	requestID, err := parseSAMLInResponseTo(samlResponse)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -358,9 +377,5 @@ func (a *AuthServer) ValidateSAMLResponse(samlResponse string) (*SAMLAuthRespons
 			response.HostSigners = append(response.HostSigners, authority)
 		}
 	}
-	a.EmitAuditEvent(events.UserLoginEvent, events.EventFields{
-		events.EventUser:   user.GetName(),
-		events.LoginMethod: events.LoginMethodSAML,
-	})
 	return response, nil
 }

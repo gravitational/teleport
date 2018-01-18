@@ -172,6 +172,13 @@ func (a *AuthWithRoles) GetCertAuthority(id services.CertAuthID, loadKeys bool) 
 	return a.authServer.GetCertAuthority(id, loadKeys)
 }
 
+func (a *AuthWithRoles) GetAnyCertAuthority(id services.CertAuthID) (services.CertAuthority, error) {
+	if err := a.action(defaults.Namespace, services.KindCertAuthority, services.VerbReadNoSecrets); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetAnyCertAuthority(id)
+}
+
 func (a *AuthWithRoles) GetDomainName() (string, error) {
 	// anyone can read it, no harm in that
 	return a.authServer.GetDomainName()
@@ -214,9 +221,9 @@ func (a *AuthWithRoles) GenerateToken(roles teleport.Roles, ttl time.Duration) (
 	return a.authServer.GenerateToken(roles, ttl)
 }
 
-func (a *AuthWithRoles) RegisterUsingToken(token, hostID string, nodeName string, role teleport.Role) (*PackedKeys, error) {
+func (a *AuthWithRoles) RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedKeys, error) {
 	// tokens have authz mechanism  on their own, no need to check
-	return a.authServer.RegisterUsingToken(token, hostID, nodeName, role)
+	return a.authServer.RegisterUsingToken(req)
 }
 
 func (a *AuthWithRoles) RegisterNewAuthServer(token string) error {
@@ -226,24 +233,24 @@ func (a *AuthWithRoles) RegisterNewAuthServer(token string) error {
 
 // GenerateServerKeys generates new host private keys and certificates (signed
 // by the host certificate authority) for a node.
-func (a *AuthWithRoles) GenerateServerKeys(hostID string, nodeName string, roles teleport.Roles) (*PackedKeys, error) {
+func (a *AuthWithRoles) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys, error) {
 	clusterName, err := a.authServer.GetDomainName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	// username is hostID + cluster name, so make sure server requests new keys for itself
-	if a.user.GetName() != HostFQDN(hostID, clusterName) {
-		return nil, trace.AccessDenied("username mismatch %q and %q", a.user.GetName(), HostFQDN(hostID, clusterName))
+	if a.user.GetName() != HostFQDN(req.HostID, clusterName) {
+		return nil, trace.AccessDenied("username mismatch %q and %q", a.user.GetName(), HostFQDN(req.HostID, clusterName))
 	}
 	existingRoles, err := teleport.NewRoles(a.user.GetRoles())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	// prohibit privilege escalations through role changes
-	if !existingRoles.Equals(roles) {
-		return nil, trace.AccessDenied("roles do not match: %v and %v", existingRoles, roles)
+	if !existingRoles.Equals(req.Roles) {
+		return nil, trace.AccessDenied("roles do not match: %v and %v", existingRoles, req.Roles)
 	}
-	return a.authServer.GenerateServerKeys(hostID, nodeName, roles)
+	return a.authServer.GenerateServerKeys(req)
 }
 
 func (a *AuthWithRoles) UpsertNode(s services.Server) error {
@@ -311,6 +318,13 @@ func (a *AuthWithRoles) UpsertReverseTunnel(r services.ReverseTunnel) error {
 		return trace.Wrap(err)
 	}
 	return a.authServer.UpsertReverseTunnel(r)
+}
+
+func (a *AuthWithRoles) GetReverseTunnel(name string) (services.ReverseTunnel, error) {
+	if err := a.action(defaults.Namespace, services.KindReverseTunnel, services.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetReverseTunnel(name)
 }
 
 func (a *AuthWithRoles) GetReverseTunnels() ([]services.ReverseTunnel, error) {
@@ -1033,12 +1047,12 @@ func (a *AuthWithRoles) GetTrustedCluster(name string) (services.TrustedCluster,
 	return a.authServer.GetTrustedCluster(name)
 }
 
-func (a *AuthWithRoles) UpsertTrustedCluster(tc services.TrustedCluster) error {
+func (a *AuthWithRoles) UpsertTrustedCluster(tc services.TrustedCluster) (services.TrustedCluster, error) {
 	if err := a.action(defaults.Namespace, services.KindTrustedCluster, services.VerbCreate); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if err := a.action(defaults.Namespace, services.KindTrustedCluster, services.VerbUpdate); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	return a.authServer.UpsertTrustedCluster(tc)

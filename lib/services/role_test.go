@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
@@ -192,8 +193,9 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 				},
 				Spec: RoleSpecV3{
 					Options: RoleOptions{
-						MaxSessionTTL:  NewDuration(defaults.MaxCertDuration),
-						PortForwarding: true,
+						CertificateFormat: teleport.CertificateFormatStandard,
+						MaxSessionTTL:     NewDuration(defaults.MaxCertDuration),
+						PortForwarding:    true,
 					},
 					Allow: RoleConditions{
 						NodeLabels: map[string]string{Wildcard: Wildcard},
@@ -214,6 +216,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 		      "metadata": {"name": "name1"},
 		      "spec": {
                  "options": {
+                   "cert_format": "standard",
                    "max_session_ttl": "20h",
                    "port_forwarding": true
                  },
@@ -245,8 +248,9 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 				},
 				Spec: RoleSpecV3{
 					Options: RoleOptions{
-						MaxSessionTTL:  NewDuration(20 * time.Hour),
-						PortForwarding: true,
+						CertificateFormat: teleport.CertificateFormatStandard,
+						MaxSessionTTL:     NewDuration(20 * time.Hour),
+						PortForwarding:    true,
 					},
 					Allow: RoleConditions{
 						NodeLabels: map[string]string{"a": "b"},

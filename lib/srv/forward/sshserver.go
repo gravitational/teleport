@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/proxy"
 	"github.com/gravitational/trace"
 
+	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -105,7 +106,6 @@ type Server struct {
 
 // ServerConfig is the configuration needed to create an instance of a Server.
 type ServerConfig struct {
-	ID              string
 	AuthClient      auth.ClientI
 	UserAgent       agent.Agent
 	TargetConn      net.Conn
@@ -128,9 +128,6 @@ type ServerConfig struct {
 
 // CheckDefaults makes sure all required parameters are passed in.
 func (s *ServerConfig) CheckDefaults() error {
-	if s.ID == "" {
-		return trace.BadParameter("server ID is required")
-	}
 	if s.AuthClient == nil {
 		return trace.BadParameter("auth client required")
 	}
@@ -177,7 +174,7 @@ func New(c ServerConfig) (*Server, error) {
 				"dst-addr": c.DstAddr.String(),
 			},
 		}),
-		id:              c.ID,
+		id:              uuid.New(),
 		targetConn:      c.TargetConn,
 		serverConn:      serverConn,
 		clientConn:      clientConn,

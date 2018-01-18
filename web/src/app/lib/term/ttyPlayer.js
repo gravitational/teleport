@@ -23,21 +23,20 @@ import Logger from 'app/lib/logger';
 
 const logger = Logger.create('TtyPlayer');
 const STREAM_START_INDEX = 0;
-const PRE_FETCH_BUF_SIZE = 150;
 const URL_PREFIX_EVENTS = '/events';
 const PLAY_SPEED = 5;
-
 const Buffer = BufferModule.Buffer;
+
+export const MAX_SIZE = 5242880; // 5mg
 
 export class EventProvider{
   constructor({url}){
-    this.url = url;
-    this.buffSize = PRE_FETCH_BUF_SIZE;
+    this.url = url;    
     this.events = [];
   }
     
   getLengthInTime(){
-    var length = this.events.length;
+    const length = this.events.length;
     if(length === 0) {
       return 0;
     }
@@ -45,59 +44,62 @@ export class EventProvider{
     return this.events[length-1].msNormalized;
   }
 
-  init(){
-    return api.get(this.url + URL_PREFIX_EVENTS).done(json => {
+  init() {
+    const url = this.url + URL_PREFIX_EVENTS;
+    return api.get(url).then(json => {
       if (!json.events) {
         return;
       }
 
-      let events = this._createPrintEvents(json.events);
-      events = this._normalizeEventsByTime(events);
-      this.events = events;        
-    });
-  }
-
-  hasAll(start, end){
-    for(var i = start; i < end; i++){
-      if(this.events[i].data === null){
-        return false;
+      const events = this._createPrintEvents(json.events);
+      if (events.length === 0) {
+        return;
       }
-    }
-
-    return true;
-  }
-
-  sliceEvents(start, end) {
-    return this.events.slice(start, end);
-  }
-
-  fetchEvents(start, end){    
-    // TODO: uncomment it once partial fetch is implemented on the backend
-    return this._fetch(/*start, end*/)
-      .then(this.processByteStream.bind(this, start, this.events.length))
-      .then(()=> this.events.slice(start, end));          
-  }
-
-  processByteStream(start, end, byteStr){
-    let byteStrOffset = this.events[start].bytes;
-    this.events[start].data = byteStr.slice(0, byteStrOffset).toString('utf8');
-    for(var i = start+1; i < end; i++){
-      let {bytes} = this.events[i];
-      this.events[i].data = byteStr.slice(byteStrOffset, byteStrOffset + bytes).toString('utf8');
-      byteStrOffset += bytes;
-    }
-  }
-  
-  _fetch(){
-    const end = this.events.length - 1;
-    const offset = this.events[0].offset;
-    const bytes = this.events[end].offset - offset + this.events[end].bytes;
-    const url = `${this.url}/stream?offset=${offset}&bytes=${bytes}`;
-    return api.ajax({ url, processData: true, dataType: 'text' }).then(response => {                  
-      return new Buffer(response);
+      
+      this.events = this._normalizeEventsByTime(events);
+      return this._fetchBytes();
     });
   }
-  
+    
+  _fetchBytes() {    
+    // need to calclulate the size of the session in bytes to know how many 
+    // chunks to load due to maximum chunk size.
+    let offset = this.events[0].offset;
+    const end = this.events.length - 1;    
+    const totalSize = this.events[end].offset - offset + this.events[end].bytes;    
+    const chunkCount = Math.ceil(totalSize / MAX_SIZE);
+    const promises = [];
+    for (let i = 0; i < chunkCount; i++){      
+      const url = `${this.url}/stream?offset=${offset}&bytes=${MAX_SIZE}`;
+      promises.push(api.ajax({
+        url,
+        processData: true,
+        dataType: 'text'
+      }));
+
+      offset = offset + MAX_SIZE;
+    }
+    
+    // wait for all chunks to load and then merge all in one
+    return $.when(...promises)
+      .then((...responses) => {
+        responses = promises.length === 1 ? [[responses]] : responses;
+        const allBytes = responses.reduce((byteStr, r) => byteStr + r[0], '');
+        return new Buffer(allBytes);
+      })
+      .then(buffer => this._processByteStream(buffer));          
+  }
+
+  _processByteStream(buffer){
+    let byteStrOffset = this.events[0].bytes;    
+    this.events[0].data = buffer.slice(0, byteStrOffset).toString('utf8');
+    for(var i = 1; i < this.events.length; i++){
+      let {bytes} = this.events[i];
+      this.events[i].data = buffer.slice(byteStrOffset, byteStrOffset + bytes).toString('utf8');
+      byteStrOffset += bytes;
+    }    
+  }
+    
   _createPrintEvents(json) {          
     let w, h;
     let events = [];
@@ -146,17 +148,8 @@ export class EventProvider{
   _normalizeEventsByTime(events){    
     let cur = events[0];
     let tmp = [];
-    for(let i = 1; i < events.length; i++){
-      let sameSize = cur.w === events[i].w && cur.h === events[i].h;
-      let delay = events[i].ms - cur.ms;
-
-      // merge events with tiny delay
-      if(delay < 2 && sameSize ){
-        cur.bytes += events[i].bytes;
-        cur.msNormalized += delay;
-        continue;
-      }
-
+    for (let i = 1; i < events.length; i++){                  
+      let delay = events[i].ms - cur.ms;            
       // avoid long delays between chunks
       if(delay >= 25 && delay < 50){
         events[i].msNormalized = cur.msNormalized + 25;
@@ -232,15 +225,15 @@ export class TtyPlayer extends Tty {
         this._setStatusFlag({isReady: true});
       })
       .fail(err => {
-        logger.error('unable to init event provider', err);
-        this.handleError(err);        
+        logger.error('unable to init event provider', err);                
+        this.handleError(err);                          
       })
       .always(this._change.bind(this));
 
     this._change();
   }
 
-  handleError(err) {
+  handleError(err) {    
     this._setStatusFlag({
       isError: true,
       errText: api.getErrorText(err)
@@ -261,14 +254,13 @@ export class TtyPlayer extends Tty {
     if(newPos === undefined){
       newPos = this.current + 1;
     }
-
-    if(newPos > this.length){
-      newPos = this.length;
-      this.stop();
-    }
-
+    
     if(newPos < 0){
       newPos = 0;
+    }
+
+    if(newPos > this.length){      
+      this.stop();
     }
 
     const newEventIndex = this._getEventIndex(newPos) + 1;
@@ -282,25 +274,22 @@ export class TtyPlayer extends Tty {
     const isRewind = this.currentEventIndex > newEventIndex;
     
     try {            
-
-      // we cannot playback the content within terminal so instead we do this:
+      // we cannot playback the content within terminal so instead:
       // 1. tell terminal to reset.
       // 2. tell terminal to render 1 huge chunk that has everything up to current
-      // newEventIndex.
+      // location.
       if (isRewind) {        
         this.emit('reset');
       }
 
-      this._showChunk(isRewind ? 0 : this.currentEventIndex, newEventIndex)
-        .then(()=>{
-          this.currentEventIndex = newEventIndex;
-          this.current = newPos;
-          this._change();
-        })
-        .fail(err => {
-          logger.error('unable to process a chunk of session recording', err);
-          this.handleError(err);        
-        })
+      const from = isRewind ? 0 : this.currentEventIndex;
+      const to = newEventIndex;
+      const events = this._eventProvider.events.slice(from, to);      
+
+      this._display(events);
+      this.currentEventIndex = newEventIndex;
+      this.current = newPos;
+      this._change();
     }
     catch(err){
       logger.error('move', err);
@@ -343,23 +332,7 @@ export class TtyPlayer extends Tty {
   getEventCount() {
     return this._eventProvider.events.length;
   }
-
-  _showChunk(start, end) {          
-    // check if all events exist within given interval
-    if (this._eventProvider.hasAll(start, end)) {
-      const events = this._eventProvider.sliceEvents(start, end);      
-      this._display(events);
-      return $.Deferred().resolve();
-    } 
-
-    // fetch events for given interval
-    this._setStatusFlag({ isLoading: true });
-    return this._eventProvider.fetchEvents(start, end).done(events => {
-      this._setStatusFlag({ isReady: true });
-      this._display(events);
-    });
-  }
-
+  
   _display(events) {        
     const groups = [{
       data: [events[0].data],
@@ -369,7 +342,7 @@ export class TtyPlayer extends Tty {
 
     let cur = groups[0];
     
-    // group events based on screen size and merge by creating 1 event per each screen size
+    // group events by screen size and construct 1 chunk of data per group
     for(let i = 1; i < events.length; i++){
       if(cur.w === events[i].w && cur.h === events[i].h){
         cur.data.push(events[i].data)

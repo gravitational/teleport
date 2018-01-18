@@ -285,6 +285,15 @@ func (s *PresenceService) UpsertReverseTunnel(tunnel services.ReverseTunnel) err
 	return trace.Wrap(err)
 }
 
+// GetReverseTunnel returns reverse tunnel by name
+func (s *PresenceService) GetReverseTunnel(name string) (services.ReverseTunnel, error) {
+	data, err := s.GetVal([]string{reverseTunnelsPrefix}, name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return services.GetReverseTunnelMarshaler().UnmarshalReverseTunnel(data)
+}
+
 // GetReverseTunnels returns a list of registered servers
 func (s *PresenceService) GetReverseTunnels() ([]services.ReverseTunnel, error) {
 	keys, err := s.GetKeys([]string{reverseTunnelsPrefix})
@@ -293,15 +302,10 @@ func (s *PresenceService) GetReverseTunnels() ([]services.ReverseTunnel, error) 
 	}
 	tunnels := make([]services.ReverseTunnel, len(keys))
 	for i, key := range keys {
-		data, err := s.GetVal([]string{reverseTunnelsPrefix}, key)
+		tunnels[i], err = s.GetReverseTunnel(key)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		tunnel, err := services.GetReverseTunnelMarshaler().UnmarshalReverseTunnel(data)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		tunnels[i] = tunnel
 	}
 	// sorting helps with tests and makes it all deterministic
 	sort.Sort(services.SortedReverseTunnels(tunnels))
@@ -315,21 +319,20 @@ func (s *PresenceService) DeleteReverseTunnel(domainName string) error {
 }
 
 // UpsertTrustedCluster creates or updates a TrustedCluster in the backend.
-func (s *PresenceService) UpsertTrustedCluster(trustedCluster services.TrustedCluster) error {
+func (s *PresenceService) UpsertTrustedCluster(trustedCluster services.TrustedCluster) (services.TrustedCluster, error) {
 	if err := trustedCluster.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	data, err := services.GetTrustedClusterMarshaler().Marshal(trustedCluster)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	ttl := backend.TTL(s.Clock(), trustedCluster.Expiry())
 	err = s.UpsertVal([]string{"trustedclusters"}, trustedCluster.GetName(), []byte(data), ttl)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-
-	return nil
+	return trustedCluster, nil
 }
 
 // GetTrustedCluster returns a single TrustedCluster by name.

@@ -88,6 +88,7 @@ func (s *AuthSuite) GenerateUserCert(c *C) {
 		TTL:                 time.Hour,
 		PermitAgentForwarding: true,
 		PermitPortForwarding:  true,
+		CertificateFormat:     teleport.CertificateFormatStandard,
 	})
 	c.Assert(err, IsNil)
 
@@ -102,6 +103,7 @@ func (s *AuthSuite) GenerateUserCert(c *C) {
 		TTL:                 -20,
 		PermitAgentForwarding: true,
 		PermitPortForwarding:  true,
+		CertificateFormat:     teleport.CertificateFormatStandard,
 	})
 	c.Assert(err, NotNil)
 
@@ -113,6 +115,7 @@ func (s *AuthSuite) GenerateUserCert(c *C) {
 		TTL:                 0,
 		PermitAgentForwarding: true,
 		PermitPortForwarding:  true,
+		CertificateFormat:     teleport.CertificateFormatStandard,
 	})
 	c.Assert(err, NotNil)
 
@@ -124,6 +127,7 @@ func (s *AuthSuite) GenerateUserCert(c *C) {
 		TTL:                 time.Hour,
 		PermitAgentForwarding: true,
 		PermitPortForwarding:  true,
+		CertificateFormat:     teleport.CertificateFormatStandard,
 	})
 	c.Assert(err, IsNil)
 
@@ -136,6 +140,7 @@ func (s *AuthSuite) GenerateUserCert(c *C) {
 		TTL:                 time.Hour,
 		PermitAgentForwarding: true,
 		PermitPortForwarding:  true,
+		CertificateFormat:     teleport.CertificateFormatStandard,
 		Roles:                 inRoles,
 	})
 	c.Assert(err, IsNil)

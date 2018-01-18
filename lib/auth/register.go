@@ -33,8 +33,13 @@ import (
 
 // LocalRegister is used to generate host keys when a node or proxy is running within the same process
 // as the auth server. This method does not need to use provisioning tokens.
-func LocalRegister(dataDir string, id IdentityID, authServer *AuthServer) error {
-	keys, err := authServer.GenerateServerKeys(id.HostUUID, id.NodeName, teleport.Roles{id.Role})
+func LocalRegister(dataDir string, id IdentityID, authServer *AuthServer, additionalPrincipals []string) error {
+	keys, err := authServer.GenerateServerKeys(GenerateServerKeysRequest{
+		HostID:               id.HostUUID,
+		NodeName:             id.NodeName,
+		Roles:                teleport.Roles{id.Role},
+		AdditionalPrincipals: additionalPrincipals,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -44,7 +49,7 @@ func LocalRegister(dataDir string, id IdentityID, authServer *AuthServer) error 
 // Register is used to generate host keys when a node or proxy are running on different hosts
 // than the auth server. This method requires provisioning tokens to prove a valid auth server
 // was used to issue the joining request.
-func Register(dataDir, token string, id IdentityID, servers []utils.NetAddr) error {
+func Register(dataDir, token string, id IdentityID, servers []utils.NetAddr, additionalPrincipals []string) error {
 	tok, err := readToken(token)
 	if err != nil {
 		return trace.Wrap(err)
@@ -78,7 +83,13 @@ func Register(dataDir, token string, id IdentityID, servers []utils.NetAddr) err
 	defer client.Close()
 
 	// get the host certificate and keys
-	keys, err := client.RegisterUsingToken(tok, id.HostUUID, id.NodeName, id.Role)
+	keys, err := client.RegisterUsingToken(RegisterUsingTokenRequest{
+		Token:                tok,
+		HostID:               id.HostUUID,
+		NodeName:             id.NodeName,
+		Role:                 id.Role,
+		AdditionalPrincipals: additionalPrincipals,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -88,13 +99,17 @@ func Register(dataDir, token string, id IdentityID, servers []utils.NetAddr) err
 
 // ReRegister renews the certificates  and private keys based on the existing
 // identity ID
-func ReRegister(dataDir string, clt ClientI, id IdentityID) error {
+func ReRegister(dataDir string, clt ClientI, id IdentityID, additionalPrincipals []string) error {
 	hostID, err := id.HostID()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	keys, err := clt.GenerateServerKeys(
-		hostID, id.NodeName, teleport.Roles{id.Role})
+	keys, err := clt.GenerateServerKeys(GenerateServerKeysRequest{
+		HostID:               hostID,
+		NodeName:             id.NodeName,
+		Roles:                teleport.Roles{id.Role},
+		AdditionalPrincipals: additionalPrincipals,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}

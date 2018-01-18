@@ -264,10 +264,14 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// create the user certificate
-	compatibility, err := utils.CheckCompatibilityFlag(req.compatibility)
+	// extract the passed in certificate format. if nothing was passed in, fetch
+	// the certificate format from the role.
+	certificateFormat, err := utils.CheckCertificateFormatFlag(req.compatibility)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if certificateFormat == teleport.CertificateFormatUnspecified {
+		certificateFormat = req.roles.CertificateFormat()
 	}
 
 	// adjust session ttl to the smaller of two values: the session
@@ -302,7 +306,7 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 		AllowedLogins:         allowedLogins,
 		TTL:                   sessionTTL,
 		Roles:                 req.user.GetRoles(),
-		Compatibility:         compatibility,
+		CertificateFormat:     certificateFormat,
 		PermitPortForwarding:  req.roles.CanPortForward(),
 		PermitAgentForwarding: req.roles.CanForwardAgents(),
 	})
@@ -335,10 +339,6 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	s.EmitAuditEvent(events.UserLoginEvent, events.EventFields{
-		events.EventUser:   req.user.GetName(),
-		events.LoginMethod: events.LoginMethodLocal,
-	})
 	return &certs{ssh: sshCert, tls: tlsCert}, nil
 }
 
@@ -597,9 +597,36 @@ func HostFQDN(hostUUID, clusterName string) string {
 	return fmt.Sprintf("%v.%v", hostUUID, clusterName)
 }
 
+// GenerateServerKeysRequest is a request to generate server keys
+type GenerateServerKeysRequest struct {
+	// HostID is a unique ID of the host
+	HostID string `json:"host_id"`
+	// NodeName is a user friendly host name
+	NodeName string `json:"node_name"`
+	// Roles is a list of roles assigned to node
+	Roles teleport.Roles `json:"roles"`
+	// AdditionalPrincipals is a list of additional principals
+	// to include in OpenSSH and X509 certificates
+	AdditionalPrincipals []string `json:"additional_principals"`
+}
+
+// CheckAndSetDefaults checks and sets default values
+func (req *GenerateServerKeysRequest) CheckAndSetDefaults() error {
+	if req.HostID == "" {
+		return trace.BadParameter("missing parameter HostID")
+	}
+	if len(req.Roles) != 1 {
+		return trace.BadParameter("expected only one system role, got %v", len(req.Roles))
+	}
+	return nil
+}
+
 // GenerateServerKeys generates new host private keys and certificates (signed
 // by the host certificate authority) for a node.
-func (s *AuthServer) GenerateServerKeys(hostID string, nodeName string, roles teleport.Roles) (*PackedKeys, error) {
+func (s *AuthServer) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys, error) {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	clusterName, err := s.GetDomainName()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -636,33 +663,36 @@ func (s *AuthServer) GenerateServerKeys(hostID string, nodeName string, roles te
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	// generate hostSSH certificate
 	hostSSHCert, err := s.Authority.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: caPrivateKey,
 		PublicHostKey:       pubSSHKey,
-		HostID:              hostID,
-		NodeName:            nodeName,
+		HostID:              req.HostID,
+		NodeName:            req.NodeName,
 		ClusterName:         clusterName,
-		Roles:               roles,
+		Roles:               req.Roles,
+		Principals:          append([]string{}, req.AdditionalPrincipals...),
 	})
-
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	// generate host TLS certificate
 	identity := tlsca.Identity{
-		Username: HostFQDN(hostID, clusterName),
-		Groups:   roles.StringSlice(),
+		Username: HostFQDN(req.HostID, clusterName),
+		Groups:   req.Roles.StringSlice(),
 	}
 	certRequest := tlsca.CertificateRequest{
 		Clock:     s.clock,
 		PublicKey: cryptoPubKey,
 		Subject:   identity.Subject(),
 		NotAfter:  s.clock.Now().UTC().Add(defaults.CATTL),
+		DNSNames:  append([]string{}, req.AdditionalPrincipals...),
 	}
 	// HTTPS requests need to specify DNS name that should be present in the
 	// certificate as one of the DNS Names. It is not known in advance,
 	// that is why there is a default one for all certificates
-	if roles.Include(teleport.RoleAuth) || roles.Include(teleport.RoleAdmin) {
-		certRequest.DNSNames = []string{teleport.APIDomain}
+	if req.Roles.Include(teleport.RoleAuth) || req.Roles.Include(teleport.RoleAdmin) {
+		certRequest.DNSNames = append(certRequest.DNSNames, teleport.APIDomain)
 	}
 	hostTLSCert, err := tlsAuthority.GenerateCertificate(certRequest)
 	if err != nil {
@@ -720,6 +750,35 @@ func (s *AuthServer) checkTokenTTL(token string) bool {
 	return true
 }
 
+// RegisterUsingTokenRequest is a request to register with
+// auth server using authentication token
+type RegisterUsingTokenRequest struct {
+	// HostID is a unique host ID, usually a UUID
+	HostID string `json:"hostID"`
+	// NodeName is a node name
+	NodeName string `json:"node_name"`
+	// Role is a system role, e.g. Proxy
+	Role teleport.Role `json:"role"`
+	// Token is an authentication token
+	Token string `json:"token"`
+	// AdditionalPrincipals is a list of additional principals
+	AdditionalPrincipals []string `json:"additional_principals"`
+}
+
+// CheckAndSetDefaults checks for errors and sets defaults
+func (r *RegisterUsingTokenRequest) CheckAndSetDefaults() error {
+	if r.HostID == "" {
+		return trace.BadParameter("missing parameter HostID")
+	}
+	if r.Token == "" {
+		return trace.BadParameter("missing parameter Token")
+	}
+	if err := r.Role.Check(); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 // RegisterUsingToken adds a new node to the Teleport cluster using previously issued token.
 // A node must also request a specific role (and the role must match one of the roles
 // the token was generated for).
@@ -727,40 +786,41 @@ func (s *AuthServer) checkTokenTTL(token string) bool {
 // If a token was generated with a TTL, it gets enforced (can't register new nodes after TTL expires)
 // If a token was generated with a TTL=0, it means it's a single-use token and it gets destroyed
 // after a successful registration.
-func (s *AuthServer) RegisterUsingToken(token, hostID string, nodeName string, role teleport.Role) (*PackedKeys, error) {
-	log.Infof("Node %q [%v] is trying to join with role: %v.", nodeName, hostID, role)
-	if hostID == "" {
-		return nil, trace.BadParameter("HostID cannot be empty")
-	}
-
-	if err := role.Check(); err != nil {
+func (s *AuthServer) RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedKeys, error) {
+	log.Infof("Node %q [%v] is trying to join with role: %v.", req.NodeName, req.HostID, req.Role)
+	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// make sure the token is valid
-	roles, err := s.ValidateToken(token)
+	roles, err := s.ValidateToken(req.Token)
 	if err != nil {
-		msg := fmt.Sprintf("%q [%v] can not join the cluster with role %s, token error: %v", nodeName, hostID, role, err)
+		msg := fmt.Sprintf("%q [%v] can not join the cluster with role %s, token error: %v", req.NodeName, req.HostID, req.Role, err)
 		log.Warn(msg)
 		return nil, trace.AccessDenied(msg)
 	}
 
-	// make sure the caller is requested wthe role allowed by the token
-	if !roles.Include(role) {
-		msg := fmt.Sprintf("node %q [%v] can not join the cluster, the token does not allow %q role", nodeName, hostID, role)
+	// make sure the caller is requested the role allowed by the token
+	if !roles.Include(req.Role) {
+		msg := fmt.Sprintf("node %q [%v] can not join the cluster, the token does not allow %q role", req.NodeName, req.HostID, req.Role)
 		log.Warn(msg)
 		return nil, trace.BadParameter(msg)
 	}
-	if !s.checkTokenTTL(token) {
-		return nil, trace.AccessDenied("node %q [%v] can not join the cluster, token has expired", nodeName, hostID)
+	if !s.checkTokenTTL(req.Token) {
+		return nil, trace.AccessDenied("node %q [%v] can not join the cluster, token has expired", req.NodeName, req.HostID)
 	}
 
 	// generate and return host certificate and keys
-	keys, err := s.GenerateServerKeys(hostID, nodeName, teleport.Roles{role})
+	keys, err := s.GenerateServerKeys(GenerateServerKeysRequest{
+		HostID:               req.HostID,
+		NodeName:             req.NodeName,
+		Roles:                teleport.Roles{req.Role},
+		AdditionalPrincipals: req.AdditionalPrincipals,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Infof("Node %q [%v] has joined the cluster.", nodeName, hostID)
+	log.Infof("Node %q [%v] has joined the cluster.", req.NodeName, req.HostID)
 	return keys, nil
 }
 

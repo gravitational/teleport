@@ -152,7 +152,11 @@ func (s *WebSuite) SetUpTest(c *C) {
 	nodePort := s.freePorts[len(s.freePorts)-1]
 	s.freePorts = s.freePorts[:len(s.freePorts)-1]
 
-	certs, err := s.server.Auth().GenerateServerKeys(hostID, s.server.ClusterName(), teleport.Roles{teleport.RoleNode})
+	certs, err := s.server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
+		HostID:   hostID,
+		NodeName: s.server.ClusterName(),
+		Roles:    teleport.Roles{teleport.RoleNode},
+	})
 	c.Assert(err, IsNil)
 
 	signer, err := sshutils.NewSigner(certs.Key, certs.Cert)

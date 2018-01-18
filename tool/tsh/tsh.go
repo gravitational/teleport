@@ -32,6 +32,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -57,7 +58,7 @@ type CLIConf struct {
 	// TTL defines how long a session must be active (in minutes)
 	MinsToLive int32
 	// SSH Port on a remote SSH host
-	NodePort int16
+	NodePort int32
 	// Login on a remote SSH host
 	NodeLogin string
 	// InsecureSkipVerify bypasses verification of HTTPS certificate when talking to web proxy
@@ -111,7 +112,8 @@ type CLIConf struct {
 	IdentityFileIn string
 	// Compatibility flags, --compat, specifies OpenSSH compatibility flags.
 	Compatibility string
-
+	// CertificateFormat defines the format of the user SSH certificate.
+	CertificateFormat string
 	// IdentityFileOut is an argument to -out flag
 	IdentityFileOut string
 	// IdentityFormat (used for --format flag for 'tsh login') defines which
@@ -155,7 +157,8 @@ func Run(args []string, underTest bool) {
 	app.Flag("cluster", "Specify the cluster to connect").Envar("TELEPORT_SITE").StringVar(&cf.SiteName)
 	app.Flag("ttl", "Minutes to live for a SSH session").Int32Var(&cf.MinsToLive)
 	app.Flag("identity", "Identity file").Short('i').StringVar(&cf.IdentityFileIn)
-	app.Flag("compat", "OpenSSH compatibility flag").StringVar(&cf.Compatibility)
+	app.Flag("compat", "OpenSSH compatibility flag").Hidden().StringVar(&cf.Compatibility)
+	app.Flag("cert-format", "SSH certificate format").StringVar(&cf.CertificateFormat)
 	app.Flag("insecure", "Do not verify server's certificate and host name. Use only in test environments").Default("false").BoolVar(&cf.InsecureSkipVerify)
 	app.Flag("auth", "Specify the type of authentication connector to use.").StringVar(&cf.AuthConnector)
 	app.Flag("namespace", "Namespace of the cluster").Default(defaults.Namespace).Hidden().StringVar(&cf.Namespace)
@@ -168,7 +171,7 @@ func Run(args []string, underTest bool) {
 	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node")
 	ssh.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	ssh.Arg("command", "Command to execute on a remote host").StringsVar(&cf.RemoteCommand)
-	ssh.Flag("port", "SSH port on a remote host").Short('p').Int16Var(&cf.NodePort)
+	ssh.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
 	ssh.Flag("forward-agent", "Forward agent to target node").Short('A').BoolVar(&cf.ForwardAgent)
 	ssh.Flag("forward", "Forward localhost connections to remote server").Short('L').StringsVar(&cf.LocalForwardPorts)
 	ssh.Flag("local", "Execute command on localhost after connecting to SSH node").Default("false").BoolVar(&cf.LocalExec)
@@ -183,7 +186,7 @@ func Run(args []string, underTest bool) {
 	scp := app.Command("scp", "Secure file copy")
 	scp.Arg("from, to", "Source and destination to copy").Required().StringsVar(&cf.CopySpec)
 	scp.Flag("recursive", "Recursive copy of subdirectories").Short('r').BoolVar(&cf.RecursiveCopy)
-	scp.Flag("port", "Port to connect to on the remote host").Short('P').Int16Var(&cf.NodePort)
+	scp.Flag("port", "Port to connect to on the remote host").Short('P').Int32Var(&cf.NodePort)
 	scp.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
 	// ls
 	ls := app.Command("ls", "List remote SSH nodes")
@@ -207,7 +210,7 @@ func Run(args []string, underTest bool) {
 	bench := app.Command("bench", "Run shell or execute a command on a remote SSH node").Hidden()
 	bench.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	bench.Arg("command", "Command to execute on a remote host").Required().StringsVar(&cf.RemoteCommand)
-	bench.Flag("port", "SSH port on a remote host").Short('p').Int16Var(&cf.NodePort)
+	bench.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
 	bench.Flag("threads", "Concurrent threads to run").Default("10").IntVar(&cf.BenchThreads)
 	bench.Flag("duration", "Test duration").Default("1s").DurationVar(&cf.BenchDuration)
 	bench.Flag("rate", "Requests per second rate").Default("10").IntVar(&cf.BenchRate)
@@ -593,11 +596,11 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 	}
 
 	// parse compatibility parameter
-	compatibility, err := utils.CheckCompatibilityFlag(cf.Compatibility)
+	certificateFormat, err := parseCertificateCompatibilityFlag(cf.Compatibility, cf.CertificateFormat)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	c.Compatibility = compatibility
+	c.CertificateFormat = certificateFormat
 
 	// copy the authentication connector over
 	c.AuthConnector = cf.AuthConnector
@@ -606,6 +609,23 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 	c.ForwardAgent = cf.ForwardAgent
 
 	return client.NewClient(c)
+}
+
+func parseCertificateCompatibilityFlag(compatibility string, certificateFormat string) (string, error) {
+	switch {
+	// if nothing is passed in, the role will decide
+	case compatibility == "" && certificateFormat == "":
+		return teleport.CertificateFormatUnspecified, nil
+	// supporting the old --compat format for backward compatibility
+	case compatibility != "" && certificateFormat == "":
+		return utils.CheckCertificateFormatFlag(compatibility)
+	// new documented flag --cert-format
+	case compatibility == "" && certificateFormat != "":
+		return utils.CheckCertificateFormatFlag(certificateFormat)
+	// can not use both
+	default:
+		return "", trace.BadParameter("--compat or --cert-format must be specified")
+	}
 }
 
 // refuseArgs helper makes sure that 'args' (list of CLI arguments)

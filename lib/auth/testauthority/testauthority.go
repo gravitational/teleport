@@ -56,6 +56,7 @@ func (n *Keygen) GenerateHostCert(c services.HostCertParams) ([]byte, error) {
 		validBefore = uint64(b.Unix())
 	}
 	principals := native.BuildPrincipals(c.HostID, c.NodeName, c.ClusterName, c.Roles)
+	principals = append(principals, c.Principals...)
 	cert := &ssh.Certificate{
 		ValidPrincipals: principals,
 		Key:             pubKey,
@@ -107,11 +108,17 @@ func (n *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
 		delete(cert.Permissions.Extensions, teleport.CertExtensionPermitPortForwarding)
 	}
 	if len(c.Roles) != 0 {
-		roles, err := services.MarshalCertRoles(c.Roles)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		// only add roles to the certificate extensions if the standard format was
+		// requested. we allow the option to omit this to support older versions of
+		// OpenSSH due to a bug in <= OpenSSH 7.1
+		// https://bugzilla.mindrot.org/show_bug.cgi?id=2387
+		if c.CertificateFormat == teleport.CertificateFormatStandard {
+			roles, err := services.MarshalCertRoles(c.Roles)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			cert.Permissions.Extensions[teleport.CertExtensionTeleportRoles] = roles
 		}
-		cert.Permissions.Extensions[teleport.CertExtensionTeleportRoles] = roles
 	}
 	if err := cert.SignCert(rand.Reader, signer); err != nil {
 		return nil, err

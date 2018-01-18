@@ -24,6 +24,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -85,6 +86,25 @@ type SessionCreds struct {
 
 // AuthenticateUser authenticates user based on the request type
 func (s *AuthServer) AuthenticateUser(req AuthenticateUserRequest) error {
+	err := s.authenticateUser(req)
+	if err != nil {
+		s.EmitAuditEvent(events.UserLoginEvent, events.EventFields{
+			events.EventUser:          req.Username,
+			events.LoginMethod:        events.LoginMethodLocal,
+			events.AuthAttemptSuccess: false,
+			events.AuthAttemptErr:     err.Error(),
+		})
+	} else {
+		s.EmitAuditEvent(events.UserLoginEvent, events.EventFields{
+			events.EventUser:          req.Username,
+			events.LoginMethod:        events.LoginMethodLocal,
+			events.AuthAttemptSuccess: true,
+		})
+	}
+	return err
+}
+
+func (s *AuthServer) authenticateUser(req AuthenticateUserRequest) error {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -190,11 +210,11 @@ func (a *AuthenticateSSHRequest) CheckAndSetDefaults() error {
 	if len(a.PublicKey) == 0 {
 		return trace.BadParameter("missing parameter 'public_key'")
 	}
-	compatibility, err := utils.CheckCompatibilityFlag(a.CompatibilityMode)
+	certificateFormat, err := utils.CheckCertificateFormatFlag(a.CompatibilityMode)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	a.CompatibilityMode = compatibility
+	a.CompatibilityMode = certificateFormat
 	return nil
 }
 

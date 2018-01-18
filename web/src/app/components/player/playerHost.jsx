@@ -15,43 +15,28 @@ limitations under the License.
 */
 
 import React from 'react';
-import { connect } from 'nuclear-js-react-addons';
-import getters from 'app/flux/player/getters';
-import { initPlayer, close } from 'app/flux/player/actions';
-import Indicator from './../indicator.jsx';
-import { ErrorIndicator } from './items';
+import { close } from 'app/flux/player/actions';
 import { Player } from './player';
 import PartyListPanel from './../partyListPanel';
-
+import cfg from 'app/config';
 class PlayerHost extends React.Component {
-    
-  componentDidMount() {    
-    setTimeout(() => initPlayer(this.props.params), 0);    
+        
+  componentWillMount() {
+    const { sid, siteId } = this.props.params;        
+    this.url = cfg.api.getFetchSessionUrl({ siteId, sid });            
   }
 
-  render() {
-    const { store } = this.props;    
-    const isReady = store.isReady();
-    const isLoading = store.isLoading();
-    const isError = store.isError();
-    const errText = store.getErrorText();
-    const url = store.getStoredSessionUrl();
-    
+  render() {        
+    if (!this.url) {
+      return null;
+    }        
     return (
       <div className="grv-terminalhost grv-session-player">
         <PartyListPanel onClose={close} />         
-        {isLoading && <Indicator type="bounce" />}
-        {isError && <ErrorIndicator text={errText} />}
-        {isReady &&  <Player url={url}/>}
+        <Player url={this.url}/>
       </div>
     );
   }  
 }
 
-function mapStateToProps() {
-  return {    
-    store: getters.store
-  }
-}
-
-export default connect(mapStateToProps)(PlayerHost);
+export default PlayerHost;

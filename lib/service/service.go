@@ -195,7 +195,7 @@ func (process *TeleportProcess) GetIdentity(role teleport.Role) (i *auth.Identit
 
 // connectToAuthService attempts to login into the auth servers specified in the
 // configuration. Returns 'true' if successful
-func (process *TeleportProcess) connectToAuthService(role teleport.Role) (*Connector, error) {
+func (process *TeleportProcess) connectToAuthService(role teleport.Role, additionalPrincipals []string) (*Connector, error) {
 	identity, err := process.GetIdentity(role)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -223,7 +223,7 @@ func (process *TeleportProcess) connectToAuthService(role teleport.Role) (*Conne
 			return nil, trace.Wrap(err)
 		}
 		defer authClient.Close()
-		if err := auth.ReRegister(process.Config.DataDir, authClient, identity.ID); err != nil {
+		if err := auth.ReRegister(process.Config.DataDir, authClient, identity.ID, additionalPrincipals); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		if identity, err = process.readIdentity(role); err != nil {
@@ -239,6 +239,19 @@ func (process *TeleportProcess) connectToAuthService(role teleport.Role) (*Conne
 	client, err := auth.NewTLSClient(process.Config.AuthServers, tlsConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if len(additionalPrincipals) != 0 && !identity.HasPrincipals(additionalPrincipals) {
+		log.Infof("Identity %v needs principals %v, going to re-register.", identity.ID, additionalPrincipals)
+		if err := auth.ReRegister(process.Config.DataDir, client, identity.ID, additionalPrincipals); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if identity, err = process.readIdentity(role); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tlsConfig, err = identity.TLSConfig()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	// success ? we're logged in!
 	return &Connector{Client: client, Identity: identity}, nil
@@ -535,7 +548,7 @@ func (process *TeleportProcess) initAuthService(authority sshca.Authority) error
 	process.RegisterFunc("auth.heartbeat.broadcast", func() error {
 		// Heart beat auth server presence, this is not the best place for this
 		// logic, consolidate it into auth package later
-		connector, err := process.connectToAuthService(teleport.RoleAdmin)
+		connector, err := process.connectToAuthService(teleport.RoleAdmin, nil)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -642,7 +655,7 @@ func (process *TeleportProcess) newLocalCache(clt auth.ClientI, cacheName []stri
 // initSSH initializes the "node" role, i.e. a simple SSH server connected to the auth server.
 func (process *TeleportProcess) initSSH() error {
 	process.RegisterWithAuthServer(
-		process.Config.Token, teleport.RoleNode, SSHIdentityEvent)
+		process.Config.Token, teleport.RoleNode, SSHIdentityEvent, nil)
 	eventsC := make(chan Event)
 	process.WaitForEvent(SSHIdentityEvent, eventsC, make(chan struct{}))
 
@@ -722,7 +735,7 @@ func (process *TeleportProcess) initSSH() error {
 // RegisterWithAuthServer uses one time provisioning token obtained earlier
 // from the server to get a pair of SSH keys signed by Auth server host
 // certificate authority
-func (process *TeleportProcess) RegisterWithAuthServer(token string, role teleport.Role, eventName string) {
+func (process *TeleportProcess) RegisterWithAuthServer(token string, role teleport.Role, eventName string, additionalPrincipals []string) {
 	cfg := process.Config
 	identityID := auth.IdentityID{Role: role, HostUUID: cfg.HostUUID, NodeName: cfg.Hostname}
 
@@ -733,7 +746,7 @@ func (process *TeleportProcess) RegisterWithAuthServer(token string, role telepo
 	process.RegisterFunc(fmt.Sprintf("register.%v", strings.ToLower(role.String())), func() error {
 		retryTime := defaults.ServerHeartbeatTTL / 3
 		for {
-			connector, err := process.connectToAuthService(role)
+			connector, err := process.connectToAuthService(role, additionalPrincipals)
 			if err == nil {
 				process.BroadcastEvent(Event{Name: eventName, Payload: connector})
 				authClient = connector.Client
@@ -752,14 +765,14 @@ func (process *TeleportProcess) RegisterWithAuthServer(token string, role telepo
 				// Auth service is on the same host, no need to go though the invitation
 				// procedure
 				log.Debugf("This server has local Auth server started, using it to add role to the cluster.")
-				err = auth.LocalRegister(cfg.DataDir, identityID, process.getLocalAuth())
+				err = auth.LocalRegister(cfg.DataDir, identityID, process.getLocalAuth(), additionalPrincipals)
 			} else {
 				// Auth server is remote, so we need a provisioning token
 				if token == "" {
 					return trace.BadParameter("%v must join a cluster and needs a provisioning token", role)
 				}
 				log.Infof("Joining the cluster with a token %v.", token)
-				err = auth.Register(cfg.DataDir, token, identityID, cfg.AuthServers)
+				err = auth.Register(cfg.DataDir, token, identityID, cfg.AuthServers, additionalPrincipals)
 			}
 			if err != nil {
 				log.Errorf("Failed to join the cluster: %v.", err)
@@ -792,7 +805,16 @@ func (process *TeleportProcess) initProxy() error {
 		}
 	}
 
-	process.RegisterWithAuthServer(process.Config.Token, teleport.RoleProxy, ProxyIdentityEvent)
+	var additionalPrincipals []string
+	if process.Config.Proxy.PublicAddr.Addr != "" {
+		host, err := utils.Host(process.Config.Proxy.PublicAddr.Addr)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		additionalPrincipals = []string{host}
+	}
+
+	process.RegisterWithAuthServer(process.Config.Token, teleport.RoleProxy, ProxyIdentityEvent, additionalPrincipals)
 	process.RegisterFunc("proxy.init", func() error {
 		eventsC := make(chan Event)
 		process.WaitForEvent(ProxyIdentityEvent, eventsC, make(chan struct{}))

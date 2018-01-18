@@ -260,9 +260,10 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 					if err != nil {
 						return nil, trace.Wrap(err)
 					}
-					if len(sessions) > 0 {
-						return &sessions[0], nil
+					if len(sessions) != 1 {
+						continue
 					}
+					return &sessions[0], nil
 				case <-stopCh:
 					return nil, trace.BadParameter("unable to find sessions after 10s (mode=%v)", tt.inRecordLocation)
 				}
@@ -289,16 +290,16 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 		// read back the entire session (we have to try several times until we get back
 		// everything because the session is closing)
 		var sessionStream []byte
-		for i := 0; i < 5; i++ {
+		for i := 0; i < 6; i++ {
 			sessionStream, err = site.GetSessionChunk(defaults.Namespace, session.ID, 0, events.MaxChunkBytes)
 			c.Assert(err, check.IsNil)
 			if strings.Contains(string(sessionStream), "exit") {
 				break
 			}
 			time.Sleep(time.Millisecond * 250)
-			if i > 10 {
+			if i >= 5 {
 				// session stream keeps coming back short
-				c.Fatal("stream is not getting data")
+				c.Fatal("stream is not getting data: %q", string(sessionStream))
 			}
 		}
 
@@ -347,14 +348,17 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 		c.Assert(start.GetString(events.SessionEventID) != "", check.Equals, true)
 		c.Assert(start.GetString(events.TerminalSize) != "", check.Equals, true)
 
-		// if session are being recorded at nodes, the event server_id field should contain
-		// the ID of the node. if sessions are being recorded at the proxy, then server_id
-		// should be that of the proxy
-		expectedServerID := nodeProcess.Config.HostUUID
-		if tt.inRecordLocation == services.RecordAtProxy {
-			expectedServerID = t.Process.Config.HostUUID
+		// if session are being recorded at nodes, then the event server_id field
+		// should contain the ID of the node. if sessions are being recorded at the
+		// proxy, then server_id is random so we can't check it, but it should not
+		// the server_id of any of the nodes we know about.
+		switch tt.inRecordLocation {
+		case services.RecordAtNode:
+			c.Assert(start.GetString(events.SessionServerID), check.Equals, nodeProcess.Config.HostUUID)
+		case services.RecordAtProxy:
+			c.Assert(start.GetString(events.SessionServerID), check.Not(check.Equals), nodeProcess.Config.HostUUID)
+			c.Assert(start.GetString(events.SessionServerID), check.Not(check.Equals), t.Process.Config.HostUUID)
 		}
-		c.Assert(start.GetString(events.SessionServerID), check.Equals, expectedServerID)
 
 		// make sure data is recorded properly
 		out := &bytes.Buffer{}
@@ -790,7 +794,7 @@ func (s *IntSuite) TestTwoClustersProxy(c *check.C) {
 
 	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
 	abortTime := time.Now().Add(time.Second * 10)
-	for len(b.Tunnel.GetSites()) < 2 && len(b.Tunnel.GetSites()) < 2 {
+	for len(a.Tunnel.GetSites()) < 2 && len(b.Tunnel.GetSites()) < 2 {
 		time.Sleep(time.Millisecond * 200)
 		if time.Now().After(abortTime) {
 			c.Fatalf("two sites do not see each other: tunnels are not working")
@@ -828,7 +832,7 @@ func (s *IntSuite) TestHA(c *check.C) {
 
 	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
 	abortTime := time.Now().Add(time.Second * 10)
-	for len(b.Tunnel.GetSites()) < 2 && len(b.Tunnel.GetSites()) < 2 {
+	for len(a.Tunnel.GetSites()) < 2 && len(b.Tunnel.GetSites()) < 2 {
 		time.Sleep(time.Millisecond * 2000)
 		if time.Now().After(abortTime) {
 			c.Fatalf("two sites do not see each other: tunnels are not working")
@@ -942,7 +946,7 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 	var upsertSuccess bool
 	for i := 0; i < 10; i++ {
 		log.Debugf("Will create trusted cluster %v, attempt %v", trustedCluster, i)
-		err = aux.Process.GetAuthServer().UpsertTrustedCluster(trustedCluster)
+		_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(trustedCluster)
 		if err != nil {
 			if trace.IsConnectionProblem(err) {
 				log.Debugf("retrying on connection problem: %v", err)
@@ -1147,7 +1151,7 @@ func (s *IntSuite) trustedClusters(c *check.C, multiplex bool) {
 	var upsertSuccess bool
 	for i := 0; i < 10; i++ {
 		log.Debugf("Will create trusted cluster %v, attempt %v", trustedCluster, i)
-		err = aux.Process.GetAuthServer().UpsertTrustedCluster(trustedCluster)
+		_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(trustedCluster)
 		if err != nil {
 			if trace.IsConnectionProblem(err) {
 				log.Debugf("retrying on connection problem: %v", err)
@@ -1215,7 +1219,7 @@ func (s *IntSuite) trustedClusters(c *check.C, multiplex bool) {
 	// this should re-establish connection
 	err = aux.Process.GetAuthServer().DeleteTrustedCluster(trustedCluster.GetName())
 	c.Assert(err, check.IsNil)
-	err = aux.Process.GetAuthServer().UpsertTrustedCluster(trustedCluster)
+	_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(trustedCluster)
 	c.Assert(err, check.IsNil)
 
 	// check that remote cluster has been re-provisioned

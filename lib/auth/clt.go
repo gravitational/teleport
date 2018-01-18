@@ -379,6 +379,11 @@ func (c *Client) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool) 
 	return services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(out.Bytes())
 }
 
+// GetAnyCertAuthority returns certificate authority by given id whether it's activated or not
+func (c *Client) GetAnyCertAuthority(id services.CertAuthID) (services.CertAuthority, error) {
+	return nil, trace.BadParameter("not implemented")
+}
+
 // DeleteCertAuthority deletes cert authority by ID
 func (c *Client) DeleteCertAuthority(id services.CertAuthID) error {
 	if err := id.Check(); err != nil {
@@ -424,34 +429,28 @@ func (c *Client) GenerateToken(roles teleport.Roles, ttl time.Duration) (string,
 
 // RegisterUsingToken calls the auth service API to register a new node using a registration token
 // which was previously issued via GenerateToken.
-func (c *Client) RegisterUsingToken(token, hostID string, nodeName string, role teleport.Role) (*PackedKeys, error) {
-	out, err := c.PostJSON(c.Endpoint("tokens", "register"),
-		registerUsingTokenReq{
-			HostID:   hostID,
-			NodeName: nodeName,
-			Token:    token,
-			Role:     role,
-		})
+func (c *Client) RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedKeys, error) {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := c.PostJSON(c.Endpoint("tokens", "register"), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	var keys PackedKeys
 	if err := json.Unmarshal(out.Bytes(), &keys); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	return &keys, nil
 }
 
 // RenewCredentials returns a new set of credentials associated
 // with the server with the same privileges
-func (c *Client) GenerateServerKeys(hostID string, nodeName string, roles teleport.Roles) (*PackedKeys, error) {
-	out, err := c.PostJSON(c.Endpoint("server", "credentials"), generateServerKeysReq{
-		HostID:   hostID,
-		NodeName: nodeName,
-		Roles:    roles,
-	})
+func (c *Client) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys, error) {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := c.PostJSON(c.Endpoint("server", "credentials"), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -556,6 +555,11 @@ func (c *Client) UpsertReverseTunnel(tunnel services.ReverseTunnel) error {
 	}
 	_, err = c.PostJSON(c.Endpoint("reversetunnels"), args)
 	return trace.Wrap(err)
+}
+
+// GetReverseTunnel returns reverse tunnel by name
+func (c *Client) GetReverseTunnel(name string) (services.ReverseTunnel, error) {
+	return nil, trace.BadParameter("not implemented")
 }
 
 // GetReverseTunnels returns the list of created reverse tunnels
@@ -1449,6 +1453,7 @@ func (c *Client) ValidateSAMLResponse(re string) (*SAMLAuthResponse, error) {
 		Identity: rawResponse.Identity,
 		Cert:     rawResponse.Cert,
 		Req:      rawResponse.Req,
+		TLSCert:  rawResponse.TLSCert,
 	}
 	if len(rawResponse.Session) != 0 {
 		session, err := services.GetWebSessionMarshaler().UnmarshalWebSession(rawResponse.Session)
@@ -2034,20 +2039,18 @@ func (c *Client) GetTrustedClusters() ([]services.TrustedCluster, error) {
 	return trustedClusters, nil
 }
 
-func (c *Client) UpsertTrustedCluster(trustedCluster services.TrustedCluster) error {
+func (c *Client) UpsertTrustedCluster(trustedCluster services.TrustedCluster) (services.TrustedCluster, error) {
 	trustedClusterBytes, err := services.GetTrustedClusterMarshaler().Marshal(trustedCluster)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-
-	_, err = c.PostJSON(c.Endpoint("trustedclusters"), &upsertTrustedClusterReq{
+	out, err := c.PostJSON(c.Endpoint("trustedclusters"), &upsertTrustedClusterReq{
 		TrustedCluster: trustedClusterBytes,
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-
-	return nil
+	return services.GetTrustedClusterMarshaler().Unmarshal(out.Bytes())
 }
 
 func (c *Client) ValidateTrustedCluster(validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
@@ -2243,7 +2246,7 @@ type ProvisioningService interface {
 
 	// RegisterUsingToken calls the auth service API to register a new node via registration token
 	// which has been previously issued via GenerateToken
-	RegisterUsingToken(token, hostID string, nodeName string, role teleport.Role) (*PackedKeys, error)
+	RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedKeys, error)
 
 	// RegisterNewAuthServer is used to register new auth server with token
 	RegisterNewAuthServer(token string) error
@@ -2261,11 +2264,15 @@ type ClientI interface {
 	session.Service
 	services.ClusterConfiguration
 
+	// ValidateTrustedCluster validates trusted cluster token with
+	// main cluster, in case if validation is successfull, main cluster
+	// adds remote cluster
 	ValidateTrustedCluster(*ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error)
+
 	GetDomainName() (string, error)
 	// GenerateServerKeys generates new host private keys and certificates (signed
 	// by the host certificate authority) for a node
-	GenerateServerKeys(hostID string, nodeName string, roles teleport.Roles) (*PackedKeys, error)
+	GenerateServerKeys(GenerateServerKeysRequest) (*PackedKeys, error)
 	// DELETE IN: 2.6.0
 	// AccessPointDialer is no longer used for communication with auth server
 	// GetDialer returns dialer that will connect to auth server API

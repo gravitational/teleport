@@ -22,19 +22,21 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/trace"
-
 	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/oidc"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	. "gopkg.in/check.v1"
 )
@@ -183,7 +185,12 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(roles.Include(teleport.RoleProxy), Equals, false)
 
 	// unsuccessful registration (wrong role)
-	keys, err := s.a.RegisterUsingToken(tok, "bad-host-id", "bad-node-name", teleport.RoleProxy)
+	keys, err := s.a.RegisterUsingToken(RegisterUsingTokenRequest{
+		Token:    tok,
+		HostID:   "bad-host-id",
+		NodeName: "bad-node-name",
+		Role:     teleport.RoleProxy,
+	})
 	c.Assert(keys, IsNil)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `node "bad-node-name" \[bad-host-id\] can not join the cluster, the token does not allow "Proxy" role`)
@@ -198,14 +205,38 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(err, IsNil)
 
 	// use it twice:
-	_, err = s.a.RegisterUsingToken(multiUseToken, "once", "node-name", teleport.RoleProxy)
+	keys, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
+		Token:                multiUseToken,
+		HostID:               "once",
+		NodeName:             "node-name",
+		Role:                 teleport.RoleProxy,
+		AdditionalPrincipals: []string{"example.com"},
+	})
 	c.Assert(err, IsNil)
-	_, err = s.a.RegisterUsingToken(multiUseToken, "twice", "node-name", teleport.RoleProxy)
+
+	// along the way, make sure that additional principals work
+	key, _, _, _, err := ssh.ParseAuthorizedKey(keys.Cert)
+	c.Assert(err, IsNil)
+	hostCert := key.(*ssh.Certificate)
+	comment := Commentf("can't find example.com in %v", hostCert.ValidPrincipals)
+	c.Assert(utils.SliceContainsStr(hostCert.ValidPrincipals, "example.com"), Equals, true, comment)
+
+	_, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
+		Token:    multiUseToken,
+		HostID:   "twice",
+		NodeName: "node-name",
+		Role:     teleport.RoleProxy,
+	})
 	c.Assert(err, IsNil)
 
 	// try to use after TTL:
 	s.a.clock = clockwork.NewFakeClockAt(time.Now().UTC().Add(time.Hour + 1))
-	_, err = s.a.RegisterUsingToken(multiUseToken, "late.bird", "node-name", teleport.RoleProxy)
+	_, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
+		Token:    multiUseToken,
+		HostID:   "late.bird",
+		NodeName: "node-name",
+		Role:     teleport.RoleProxy,
+	})
 	c.Assert(err, ErrorMatches, `node "node-name" \[late.bird\] can not join the cluster, token has expired`)
 
 	// expired token should be gone now
@@ -220,9 +251,19 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(err, IsNil)
 	err = s.a.SetStaticTokens(st)
 	c.Assert(err, IsNil)
-	_, err = s.a.RegisterUsingToken("static-token-value", "static.host", "node-name", teleport.RoleProxy)
+	_, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
+		Token:    "static-token-value",
+		HostID:   "static.host",
+		NodeName: "node-name",
+		Role:     teleport.RoleProxy,
+	})
 	c.Assert(err, IsNil)
-	_, err = s.a.RegisterUsingToken("static-token-value", "wrong.role", "node-name", teleport.RoleAuth)
+	_, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
+		Token:    "static-token-value",
+		HostID:   "wrong.role",
+		NodeName: "node-name",
+		Role:     teleport.RoleAuth,
+	})
 	c.Assert(err, NotNil)
 	r, err := s.a.ValidateToken("static-token-value")
 	c.Assert(err, IsNil)
@@ -532,4 +573,131 @@ func (s *AuthSuite) TestUpdateConfig(c *C) {
 		Token: "bar",
 		Roles: teleport.Roles{teleport.Role("baz")},
 	}})
+}
+
+// TestMigrateRemote cluster creates remote cluster resource
+// after the migration
+func (s *AuthSuite) TestMigrateRemoteCluster(c *C) {
+	clusterName := "remote.example.com"
+
+	hostCA := suite.NewTestCA(services.HostCA, clusterName)
+	hostCA.SetName(clusterName)
+	c.Assert(s.a.UpsertCertAuthority(hostCA), IsNil)
+
+	err := migrateRemoteClusters(s.a)
+	c.Assert(err, IsNil)
+
+	remoteCluster, err := s.a.GetRemoteCluster(clusterName)
+	c.Assert(err, IsNil)
+	c.Assert(remoteCluster.GetName(), Equals, clusterName)
+}
+
+// TestMigrateEnabledTrustedCluster tests migrations of enabled trusted cluster
+func (s *AuthSuite) TestMigrateEnabledTrustedCluster(c *C) {
+	clusterName := "example.com"
+	resourceName := "trustedcluster1"
+
+	tunnel := services.NewReverseTunnel(resourceName, []string{"addr:5000"})
+	err := s.a.UpsertReverseTunnel(tunnel)
+	c.Assert(err, IsNil)
+
+	hostCA := suite.NewTestCA(services.HostCA, clusterName)
+	hostCA.SetName(resourceName)
+	c.Assert(s.a.UpsertCertAuthority(hostCA), IsNil)
+
+	userCA := suite.NewTestCA(services.UserCA, clusterName)
+	userCA.SetName(resourceName)
+	c.Assert(s.a.UpsertCertAuthority(userCA), IsNil)
+
+	tc, err := services.NewTrustedCluster(resourceName, services.TrustedClusterSpecV2{
+		Enabled:      true,
+		Token:        "shmoken",
+		ProxyAddress: "addr:5000",
+		RoleMap: services.RoleMap{
+			{Local: []string{"local"}, Remote: "remote"},
+		},
+	})
+	c.Assert(err, IsNil)
+	_, err = s.a.Presence.UpsertTrustedCluster(tc)
+	c.Assert(err, IsNil)
+
+	err = migrateTrustedClusters(s.a)
+	c.Assert(err, IsNil)
+
+	_, err = s.a.GetTrustedCluster(resourceName)
+	fixtures.ExpectNotFound(c, err)
+
+	_, err = s.a.GetTrustedCluster(clusterName)
+	c.Assert(err, IsNil)
+
+	_, err = s.a.GetCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: clusterName}, false)
+	c.Assert(err, IsNil)
+
+	_, err = s.a.GetCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: resourceName}, false)
+	fixtures.ExpectNotFound(c, err)
+
+	_, err = s.a.GetCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: clusterName}, false)
+	c.Assert(err, IsNil)
+
+	_, err = s.a.GetCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: resourceName}, false)
+	fixtures.ExpectNotFound(c, err)
+
+	_, err = s.a.GetReverseTunnel(resourceName)
+	fixtures.ExpectNotFound(c, err)
+
+	_, err = s.a.GetReverseTunnel(clusterName)
+	c.Assert(err, IsNil)
+}
+
+// TestMigrateDisabledTrustedCluster tests migrations of disabled trusted cluster
+func (s *AuthSuite) TestMigrateDisabledTrustedCluster(c *C) {
+	clusterName := "example.com"
+	resourceName := "trustedcluster1"
+
+	hostCA := suite.NewTestCA(services.HostCA, clusterName)
+	hostCA.SetName(resourceName)
+	c.Assert(s.a.UpsertCertAuthority(hostCA), IsNil)
+
+	userCA := suite.NewTestCA(services.UserCA, clusterName)
+	userCA.SetName(resourceName)
+	c.Assert(s.a.UpsertCertAuthority(userCA), IsNil)
+
+	err := s.a.DeactivateCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: resourceName})
+	c.Assert(err, IsNil)
+
+	err = s.a.DeactivateCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: resourceName})
+	c.Assert(err, IsNil)
+
+	tc, err := services.NewTrustedCluster(resourceName, services.TrustedClusterSpecV2{
+		Enabled:      false,
+		Token:        "shmoken",
+		ProxyAddress: "addr",
+		RoleMap: services.RoleMap{
+			{Local: []string{"local"}, Remote: "remote"},
+		},
+	})
+	c.Assert(err, IsNil)
+	_, err = s.a.Presence.UpsertTrustedCluster(tc)
+	c.Assert(err, IsNil)
+
+	err = migrateTrustedClusters(s.a)
+	c.Assert(err, IsNil)
+
+	_, err = s.a.GetTrustedCluster(resourceName)
+	fixtures.ExpectNotFound(c, err)
+
+	_, err = s.a.GetTrustedCluster(clusterName)
+	c.Assert(err, IsNil)
+
+	_, err = s.a.GetCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: clusterName}, false)
+	fixtures.ExpectNotFound(c, err)
+
+	_, err = s.a.GetCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: resourceName}, false)
+	fixtures.ExpectNotFound(c, err)
+
+	_, err = s.a.GetCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: clusterName}, false)
+	fixtures.ExpectNotFound(c, err)
+
+	_, err = s.a.GetCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: resourceName}, false)
+	fixtures.ExpectNotFound(c, err)
 }

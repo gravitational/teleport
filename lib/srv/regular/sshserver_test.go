@@ -111,7 +111,11 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	// set up host private key and certificate
-	certs, err := s.server.Auth().GenerateServerKeys(hostID, s.server.ClusterName(), teleport.Roles{teleport.RoleNode})
+	certs, err := s.server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
+		HostID:   hostID,
+		NodeName: s.server.ClusterName(),
+		Roles:    teleport.Roles{teleport.RoleNode},
+	})
 	c.Assert(err, IsNil)
 
 	// set up user CA and set up a user that has access to the server
@@ -1012,7 +1016,7 @@ func newUpack(username string, allowedLogins []string, a auth.ClientI) (*upack, 
 		return nil, trace.Wrap(err)
 	}
 
-	ucert, err := a.GenerateUserCert(upub, user.GetName(), 5*time.Minute, teleport.CompatibilityNone)
+	ucert, err := a.GenerateUserCert(upub, user.GetName(), 5*time.Minute, teleport.CertificateFormatStandard)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

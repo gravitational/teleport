@@ -5,8 +5,8 @@
 Teleport has completed several security audits from nationally recognized
 technology security companies.  So we are comfortable with the use of Teleport
 from a security perspective. However, Teleport is still a relatively young
-product so you may experience usability issues. We are actively 
-supporting Teleport and addressing any issues that are submitted to 
+product so you may experience usability issues. We are actively
+supporting Teleport and addressing any issues that are submitted to
 the [github repo](https://github.com/gravitational/teleport).
 
 ### Can I connect to nodes behind a firewall?
@@ -40,14 +40,14 @@ Gravitational offers this feature for the [commercial versions of Teleport](ente
 
 ### What is a commercial edition of Teleport?
 
-In addition to the [numerous advanced features](enterprise.md), the commercial Teleport license 
+In addition to the [numerous advanced features](enterprise.md), the commercial Teleport license
 also gives users the following:
 
 * Role-based access control, also known as [RBAC](enterprise#rbac)
 * Authentication via SAML and OpenID with providers like Okta, Active Directory, Auth0, etc.
 * Premium support.
 
-There are two commercial editions of Teleport: 
+There are two commercial editions of Teleport:
 
 * **Teleport Pro or Business** is for start-ups and smaller companies with up to 500 servers.
   Users can sign up for a subscription [on our web site](https://gravitational.com/teleport/).
@@ -70,7 +70,6 @@ Gravitational on every login event, which contains:
 
 * Anonymized user ID: SHA256 hash of a username with a randomly generated prefix.
 * Anonymized server ID: SHA256 hash of a server IP with a randomly generated prefix.
-* Anonymized cluster ID: SHA256 hash of a cluster name with a randomly generated prefix.
 
 This allows Teleport Pro to print a warning if users are exceeding the usage limits
 of their license. The reporting library code is [on Github](https://github.com/gravitational/reporting).
