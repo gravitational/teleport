@@ -1,17 +1,6 @@
 html {margin:0;padding:0;}
 body {background:#fff;font:normal 16px/28px "Colfax Regular", Helvetica;color:#515254;padding:0;
-	animation-name: load;
-	animation-timing-function: linear;
-	animation-duration: 1;
-	animation-iteration-count: 1;
-	-webkit-animation-name: load;
-	-webkit-animation-duration: 0.6s;
-	-webkit-animation-timing-function: linear;
-	-webkit-animation-iteration-count: 1;
-	-moz-animation-name: load;
-	-moz-animation-duration: 0.6s;
-	-moz-animation-timing-function: linear;
-	-moz-animation-iteration-count: 1;
+	
 }
 h1 {font:normal 40px/58px "Colfax Regular", Helvetica;color:#3d73ba;letter-spacing:-1px;}
 h3 {font:normal 22px/36px "Colfax Regular", Helvetica;width:90%;max-width:920px;margin:0 auto 20px auto;}

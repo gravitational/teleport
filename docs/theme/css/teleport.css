@@ -389,6 +389,13 @@ img[src$="grv-image-center-md"] {
     border-radius: 5px;
 }
 
+img[src$="grv-image-center-md"] {
+    max-width: 500px;
+    display: block;
+    margin: 0 auto;        
+    border-radius: 5px;
+}
+
 img[src$="grv-image-center-lg"] {
     max-width: 700px;
     display: block;

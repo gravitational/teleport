@@ -196,7 +196,7 @@ configurable key storage. The auth server also keeps the records of what has bee
 inside the cluster: it stores recordings of all SSH sessions in the configurable events 
 storage.
 
-![Teleport Auth](img/auth-server.svg)
+![Teleport Auth](img/auth-server.svg?style=grv-image-center-lg)
 
 When a new node joins the cluster, the auth server generates a new public / private keypair for 
 the node and signs its certificate.
@@ -357,7 +357,7 @@ on the Teleport proxy server. This is not the case because a proxy cannot see
 the encrypted traffic, it is encrypted end-to-end, i.e. from an SSH client to
 an SSH server/node, see the diagram below:
 
-![session-recording-diagram](img/session-recording.svg)
+![session-recording-diagram](img/session-recording.svg?style=grv-image-center-lg)
 
 However, starting from Teleport 2.4 it is now possible to configure the
 Teleport proxy to enable the "recording proxy mode". In this mode the proxy
@@ -367,7 +367,7 @@ to the final destination server, effectively becoming an authorized "man in the
 middle". This allows the proxy server to forward SSH session data to the auth
 server to be recorded, as shown below:
 
-![recorindg-proxy](img/recording-proxy.svg)
+![recorindg-proxy](img/recording-proxy.svg?style=grv-image-center-lg)
 
 The recording proxy mode, although _less secure_, was added to allow Teleport
 users to enable session recording for OpenSSH's servers running `sshd` which is
