@@ -1,7 +1,6 @@
 package client
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 	"os/user"
@@ -120,41 +119,4 @@ func (cp *ClientProfile) SaveTo(filePath string, opts ProfileOptions) error {
 		err = os.Symlink(filepath.Base(filePath), symlink)
 	}
 	return trace.Wrap(err)
-}
-
-// LogoutFromEverywhere looks at the list of proxy servers tsh is currently logged into
-// by examining ~/.tsh and logs him out of them all
-func LogoutFromEverywhere(username string) error {
-	// if no --user flag was passed, get the current OS user:
-	if username == "" {
-		me, err := user.Current()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		username = me.Username
-	}
-	// load all current keys:
-	agent, err := NewLocalAgent("", username)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	keys, err := agent.GetKeys(username)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if len(keys) == 0 {
-		fmt.Printf("%s is not logged in\n", username)
-		return nil
-	}
-	// ... and delete them:
-	for _, key := range keys {
-		err = agent.DeleteKey(key.ProxyHost, username)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error logging %s out of %s: %s\n",
-				username, key.ProxyHost, err)
-		} else {
-			fmt.Printf("logged %s out of %s\n", username, key.ProxyHost)
-		}
-	}
-	return nil
 }

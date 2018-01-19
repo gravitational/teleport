@@ -168,23 +168,21 @@ func (proxy *ProxyClient) ConnectToSite(ctx context.Context, quiet bool) (auth.C
 
 	tlsConfig := utils.TLSConfig()
 	localAgent := proxy.teleportClient.LocalAgent()
-	pool, err := localAgent.GetCerts(proxy.teleportClient.ProxyHost())
+	pool, err := localAgent.GetCerts()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	tlsConfig.RootCAs = pool
-	keys, err := localAgent.GetKeys(proxy.teleportClient.Username)
+	key, err := localAgent.GetKey()
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to fetch TLS keys for %v", proxy.teleportClient.Username)
+		return nil, trace.Wrap(err, "failed to fetch TLS key for %v", proxy.teleportClient.Username)
 	}
-	for _, key := range keys {
-		if len(key.TLSCert) != 0 {
-			tlsCert, err := tls.X509KeyPair(key.TLSCert, key.Priv)
-			if err != nil {
-				return nil, trace.Wrap(err, "failed to parse TLS cert and key")
-			}
-			tlsConfig.Certificates = append(tlsConfig.Certificates, tlsCert)
+	if len(key.TLSCert) != 0 {
+		tlsCert, err := tls.X509KeyPair(key.TLSCert, key.Priv)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to parse TLS cert and key")
 		}
+		tlsConfig.Certificates = append(tlsConfig.Certificates, tlsCert)
 	}
 	if len(tlsConfig.Certificates) == 0 {
 		return nil, trace.BadParameter("no TLS keys found for user %v, please relogin to get new credentials", proxy.teleportClient.Username)
