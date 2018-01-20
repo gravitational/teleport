@@ -389,7 +389,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		}
 	} else {
 		// initialize the local agent (auth agent which uses local SSH keys signed by the CA):
-		tc.localAgent, err = NewLocalAgent(c.KeysDir, c.Username)
+		tc.localAgent, err = NewLocalAgent(c.KeysDir, tc.ProxyHost(), c.Username)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1027,7 +1027,7 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 
 // Logout locates a certificate stored for a given proxy and deletes it
 func (tc *TeleportClient) Logout() error {
-	return trace.Wrap(tc.localAgent.DeleteKey(tc.ProxyHost(), tc.Config.Username))
+	return trace.Wrap(tc.localAgent.DeleteKey())
 }
 
 // Login logs the user into a Teleport cluster by talking to a Teleport proxy.
@@ -1098,13 +1098,13 @@ func (tc *TeleportClient) Login(activateKey bool) (*Key, error) {
 		}
 
 		// save the list of TLS CAs client trusts
-		err = tc.localAgent.SaveCerts(tc.ProxyHost(), response.HostSigners)
+		err = tc.localAgent.SaveCerts(response.HostSigners)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		// save the cert to the local storage (~/.tsh usually):
-		_, err = tc.localAgent.AddKey(tc.ProxyHost(), tc.Config.Username, key)
+		_, err = tc.localAgent.AddKey(key)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1144,7 +1144,7 @@ func (tc *TeleportClient) AddTrustedCA(ca services.CertAuthority) error {
 	// only host CA has TLS certificates, user CA will overwrite trusted certs
 	// to empty file if called
 	if ca.GetType() == services.HostCA {
-		err = tc.LocalAgent().SaveCerts(tc.ProxyHost(), auth.AuthoritiesToTrustedCerts([]services.CertAuthority{ca}))
+		err = tc.LocalAgent().SaveCerts(auth.AuthoritiesToTrustedCerts([]services.CertAuthority{ca}))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1154,7 +1154,7 @@ func (tc *TeleportClient) AddTrustedCA(ca services.CertAuthority) error {
 }
 
 func (tc *TeleportClient) AddKey(host string, key *Key) (*agent.AddedKey, error) {
-	return tc.localAgent.AddKey(host, tc.Username, key)
+	return tc.localAgent.AddKey(key)
 }
 
 // directLogin asks for a password + HOTP token, makes a request to CA via proxy

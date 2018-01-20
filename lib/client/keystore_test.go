@@ -43,6 +43,7 @@ type KeyStoreTestSuite struct {
 	tlsca    *tlsca.CertAuthority
 }
 
+var _ = fmt.Printf
 var _ = check.Suite(&KeyStoreTestSuite{})
 
 func newSelfSignedCA(privateKey []byte) (*tlsca.CertAuthority, error) {
@@ -81,6 +82,7 @@ func (s *KeyStoreTestSuite) SetUpTest(c *check.C) {
 
 func (s *KeyStoreTestSuite) TestListKeys(c *check.C) {
 	const keyNum = 5
+
 	// add 5 keys for "bob"
 	keys := make([]Key, keyNum)
 	for i := 0; i < keyNum; i++ {
@@ -95,17 +97,18 @@ func (s *KeyStoreTestSuite) TestListKeys(c *check.C) {
 	s.store.AddKey("sam.host", "sam", samKey)
 
 	// read all bob keys:
-	keys2, err := s.store.GetKeys("bob")
-	c.Assert(err, check.IsNil)
-	c.Assert(keys2, check.HasLen, keyNum)
-	c.Assert(keys2, check.DeepEquals, keys)
+	for i := 0; i < keyNum; i++ {
+		host := fmt.Sprintf("host-%v", i)
+		keys2, err := s.store.GetKey(host, "bob")
+		c.Assert(err, check.IsNil)
+		c.Assert(*keys2, check.DeepEquals, keys[i])
+	}
 
 	// read sam's key and make sure it's the same:
-	keys, err = s.store.GetKeys("sam")
+	skey, err := s.store.GetKey("sam.host", "sam")
 	c.Assert(err, check.IsNil)
-	c.Assert(keys, check.HasLen, 1)
-	c.Assert(samKey.Cert, check.DeepEquals, keys[0].Cert)
-	c.Assert(samKey.Pub, check.DeepEquals, keys[0].Pub)
+	c.Assert(samKey.Cert, check.DeepEquals, skey.Cert)
+	c.Assert(samKey.Pub, check.DeepEquals, skey.Pub)
 }
 
 func (s *KeyStoreTestSuite) TestKeyCRUD(c *check.C) {
@@ -120,7 +123,7 @@ func (s *KeyStoreTestSuite) TestKeyCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(key.EqualsTo(keyCopy), check.Equals, true)
 
-	// Delete & verify that its' gone
+	// Delete & verify that it's gone
 	err = s.store.DeleteKey("host.a", "bob")
 	c.Assert(err, check.IsNil)
 	keyCopy, err = s.store.GetKey("host.a", "bob")
@@ -133,18 +136,50 @@ func (s *KeyStoreTestSuite) TestKeyCRUD(c *check.C) {
 	c.Assert(trace.IsNotFound(err), check.Equals, true)
 }
 
+func (s *KeyStoreTestSuite) TestDeleteAll(c *check.C) {
+	key := s.makeSignedKey(c, false)
+
+	// add keys
+	err := s.store.AddKey("proxy.example.com", "foo", key)
+	c.Assert(err, check.IsNil)
+	err = s.store.AddKey("proxy.example.com", "bar", key)
+	c.Assert(err, check.IsNil)
+
+	// check keys exist
+	_, err = s.store.GetKey("proxy.example.com", "foo")
+	c.Assert(err, check.IsNil)
+	_, err = s.store.GetKey("proxy.example.com", "bar")
+	c.Assert(err, check.IsNil)
+
+	// delete all keys
+	err = s.store.DeleteKeys()
+	c.Assert(err, check.IsNil)
+
+	// verify keys gone
+	_, err = s.store.GetKey("proxy.example.com", "foo")
+	c.Assert(err, check.NotNil)
+	_, err = s.store.GetKey("proxy.example.com", "bar")
+	c.Assert(err, check.NotNil)
+}
+
 func (s *KeyStoreTestSuite) TestKeyExpiration(c *check.C) {
 	// make two keys: one is current, and the expire one
 	good := s.makeSignedKey(c, false)
+	good.ProxyHost = "good.host"
 	expired := s.makeSignedKey(c, true)
+	expired.ProxyHost = "expired.host"
 
 	s.store.AddKey("good.host", "sam", good)
 	s.store.AddKey("expired.host", "sam", expired)
 
-	// get all keys back. only "good" key should be returned:
-	keys, _ := s.store.GetKeys("sam")
-	c.Assert(keys, check.HasLen, 1)
-	c.Assert(keys[0].EqualsTo(good), check.Equals, true)
+	// only "good" key should be returned
+	goodKey, err := s.store.GetKey("good.host", "sam")
+	c.Assert(err, check.IsNil)
+	c.Assert(goodKey, check.DeepEquals, good)
+
+	// expired key should not be returned
+	_, err = s.store.GetKey("expired.host", "sam")
+	c.Assert(err, check.NotNil)
 }
 
 func (s *KeyStoreTestSuite) TestKnownHosts(c *check.C) {

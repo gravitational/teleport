@@ -343,21 +343,43 @@ func onLogin(cf *CLIConf) {
 func onLogout(cf *CLIConf) {
 	client.UnlinkCurrentProfile()
 
-	// logout from all
-	if cf.Proxy == "" {
-		client.LogoutFromEverywhere(cf.Username)
-	} else {
-		tc, err := makeClient(cf, true)
+	// get access to the file system key store in ~/.tsh
+	flka, err := client.NewFSLocalKeyStore(client.FullProfilePath(""))
+	if err != nil {
+		fmt.Printf("Unable to logout user: %v\n", err)
+		return
+	}
+
+	// extract the proxy name
+	proxyHost, _, err := net.SplitHostPort(cf.Proxy)
+	if err != nil {
+		proxyHost = cf.Proxy
+	}
+
+	switch {
+	// proxy and username for key to remove
+	case proxyHost != "" && cf.Username != "":
+		err = flka.DeleteKey(proxyHost, cf.Username)
 		if err != nil {
-			utils.FatalError(err)
-		}
-		if err = tc.Logout(); err != nil {
 			if trace.IsNotFound(err) {
-				utils.FatalError(trace.Errorf("you are not logged into proxy '%s'", cf.Proxy))
+				fmt.Printf("User %v already logged out from %v.\n", cf.Username, proxyHost)
+				return
 			}
-			utils.FatalError(err)
+			fmt.Printf("Unable to logout %v from %v: %v\n", cf.Username, proxyHost, err)
+			return
 		}
-		fmt.Printf("%s has logged out of %s\n", tc.Username, cf.SiteName)
+		fmt.Printf("Logged out %v from %v.\n", cf.Username, proxyHost)
+	// remove all keys
+	case proxyHost == "" && cf.Username == "":
+		err = flka.DeleteKeys()
+		if err != nil {
+			fmt.Printf("Unable to remove all keys: %v\n", err)
+			return
+		}
+		fmt.Printf("Logged out all users from all proxies.\n")
+	default:
+		fmt.Printf("Specify --proxy and --username to remove keys for specific user ")
+		fmt.Printf("from a proxy or neither to log out all users from all proxies.\n")
 	}
 }
 
