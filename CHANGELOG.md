@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.4.1
+
+This release is focused on fixing a few regressions in Teleport as well as
+adding a new feature.
+
+#### New Features
+
+* Exposed the `--compat` flag to Web UI users. [#1542](https://github.com/gravitational/teleport/issues/1542)
+
+#### Bug Fixes
+
+* Wrap lines correctly on initial login. [#1087](https://github.com/gravitational/teleport/issues/1087)
+* Accept port numbers larger than `32767`: [#1576](https://github.com/gravitational/teleport/issues/1576)
+* Don't show the `Join` button when using the recording proxy. [#1421](https://github.com/gravitational/teleport/issues/1421)
+* Don't double record sessions when using the recording proxy and Teleport nodes. [#1582](https://github.com/gravitational/teleport/issues/1582)
+* Fixed regressions in `tsh login` and `tsh logout`. [#1611](https://github.com/gravitational/teleport/issues/1611) [#1541](https://github.com/gravitational/teleport/issues/1541)
+
 ## 2.4.0
 
 This release adds two major new features and a few improvements and bugfixes.
@@ -75,7 +92,7 @@ This release is focused on fixing a few regressions in configuration and UI/UX.
 * Added CSRF protection to login endpoint. [#1356](https://github.com/gravitational/teleport/issues/1356)
 * Proxy subsystem handling is more robust. [#1336](https://github.com/gravitational/teleport/issues/1336)
 
-## 2.3 
+## 2.3
 
 This release focus was to increase Teleport user experience in the following areas:
 
@@ -92,7 +109,7 @@ This release focus was to increase Teleport user experience in the following are
 * CLI: `tsh login` supports exporting a user identity into a file to be used later with OpenSSH.
 * `tsh agent` command has been deprecated: users are expected to use native SSH Agents on their platforms.
 
-#### Teleport Enterprise 
+#### Teleport Enterprise
 
 * More granular RBAC rules [#1092](https://github.com/gravitational/teleport/issues/1092)
 * Role definitions now support templates. [#1120](https://github.com/gravitational/teleport/issues/1120)
