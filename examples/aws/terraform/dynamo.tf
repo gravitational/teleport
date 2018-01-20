@@ -1,11 +1,37 @@
-data "aws_caller_identity" "current" {}
+// Dynamodb is used as a backend for auth servers,
+// and only auth servers need access to the tables
+// all other components are stateless.
+resource "aws_dynamodb_table" "teleport" {
+  name           = "${var.cluster_name}"
+  read_capacity  = 20
+  write_capacity = 20
+  hash_key        = "HashKey"
+  range_key       = "FullPath"
 
-data "aws_region" "current" {
-  current = true
+  attribute {
+    name = "HashKey"
+    type = "S"
+  }
+
+  attribute {
+    name = "FullPath"
+    type = "S"
+  }
+
+  ttl {
+     attribute_name = "Expires"
+     enabled = true
+  }
+
+  tags {
+    TeleportCluster = "${var.cluster_name}"
+  }
 }
 
+// Autoscaler scales up/down the provisioned ops for
+// DynamoDB table based on the load.
 resource "aws_iam_role" "autoscaler" {
-  name = "${var.table_name}-autoscaler"
+  name = "${var.cluster_name}-autoscaler"
 
   assume_role_policy = <<EOF
 {
@@ -22,7 +48,7 @@ EOF
 }
 
 resource "aws_iam_role_policy" "autoscaler_dynamo" {
-  name = "${var.table_name}-autoscaler-dynamo"
+  name = "${var.cluster_name}-autoscaler-dynamo"
   role = "${aws_iam_role.autoscaler.id}"
 
   policy = <<EOF
@@ -35,7 +61,7 @@ resource "aws_iam_role_policy" "autoscaler_dynamo" {
                 "dynamodb:DescribeTable",
                 "dynamodb:UpdateTable"
             ],
-            "Resource": "arn:aws:dynamodb:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:table/${var.table_name}"
+            "Resource": "arn:aws:dynamodb:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:table/${var.cluster_name}"
         }
     ]
 }
@@ -43,7 +69,7 @@ EOF
 }
 
 resource "aws_iam_role_policy" "autoscaler_cloudwatch" {
-  name = "${var.table_name}-autoscaler-cloudwatch"
+  name = "${var.cluster_name}-autoscaler-cloudwatch"
   role = "${aws_iam_role.autoscaler.id}"
 
   policy = <<EOF
@@ -68,7 +94,7 @@ EOF
 resource "aws_appautoscaling_target" "read_target" {
   max_capacity       = "${var.autoscale_max_read_capacity}"
   min_capacity       = "${var.autoscale_min_read_capacity}"
-  resource_id        = "table/${var.table_name}"
+  resource_id        = "table/${var.cluster_name}"
   role_arn           = "${aws_iam_role.autoscaler.arn}"
   scalable_dimension = "dynamodb:table:ReadCapacityUnits"
   service_namespace  = "dynamodb"
@@ -93,7 +119,7 @@ resource "aws_appautoscaling_policy" "read_policy" {
 resource "aws_appautoscaling_target" "write_target" {
   max_capacity       = "${var.autoscale_max_write_capacity}"
   min_capacity       = "${var.autoscale_min_write_capacity}"
-  resource_id        = "table/${var.table_name}"
+  resource_id        = "table/${var.cluster_name}"
   role_arn           = "${aws_iam_role.autoscaler.arn}"
   scalable_dimension = "dynamodb:table:WriteCapacityUnits"
   service_namespace  = "dynamodb"
@@ -115,3 +141,4 @@ resource "aws_appautoscaling_policy" "write_policy" {
     target_value = "${var.autoscale_write_target}"
   }
 }
+
