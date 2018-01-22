@@ -113,6 +113,9 @@ type Config struct {
 	// Access is a service that controls access
 	Access services.Access
 
+	// ClusterConfiguration is a service that provides cluster configuration
+	ClusterConfiguration services.ClusterConfiguration
+
 	// Ciphers is a list of ciphers that the server supports. If omitted,
 	// the defaults will be used.
 	Ciphers []string
