@@ -467,7 +467,10 @@ func (c *connectionWrapper) Read(b []byte) (int, error) {
 	buff := make([]byte, MaxVersionStringBytes)
 	n, err := c.Conn.Read(buff)
 	if err != nil {
-		log.Error(err)
+		// EOF happens quite often, don't pollute the logs with EOF
+		if err != io.EOF {
+			log.Error(err)
+		}
 		return n, err
 	}
 	// chop off extra unused bytes at the end of the buffer:

@@ -148,7 +148,8 @@ func readToken(token string) (string, error) {
 	if err != nil {
 		return "", nil
 	}
-	return string(out), nil
+	// trim newlines as tokens in files tend to have newlines
+	return strings.TrimSpace(string(out)), nil
 }
 
 // PackedKeys is a collection of private key, SSH host certificate
