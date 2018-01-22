@@ -287,3 +287,8 @@ const (
 	// at expected interval
 	RemoteClusterStatusOnline = "online"
 )
+
+const (
+	// SharedDirMode is a mode for a directory shared with group
+	SharedDirMode = 0750
+)

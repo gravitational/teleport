@@ -639,9 +639,11 @@ func (process *TeleportProcess) newLocalCache(clt auth.ClientI, cacheName []stri
 	if !process.Config.CachePolicy.Enabled {
 		return clt, nil
 	}
-
 	path := filepath.Join(append([]string{process.Config.DataDir, "cache"}, cacheName...)...)
-	cacheBackend, err := dir.New(backend.Params{"path": path})
+	if err := os.MkdirAll(path, teleport.SharedDirMode); err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+	cacheBackend, err := boltbk.New(backend.Params{"path": path})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
