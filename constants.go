@@ -94,6 +94,14 @@ const (
 	// ComponentAuditLog is audit log component
 	ComponentAuditLog = "auditlog"
 
+	// ComponentKeyAgent is an agent that has loaded the sessions keys and
+	// certificates for a user connected to a proxy.
+	ComponentKeyAgent = "keyagent"
+
+	// ComponentKeyStore is all sessions keys and certificates a user has on disk
+	// for all proxies.
+	ComponentKeyStore = "keystore"
+
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
 

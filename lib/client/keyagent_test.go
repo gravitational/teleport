@@ -88,12 +88,12 @@ func (s *KeyAgentTestSuite) SetUpTest(c *check.C) {
 //     a teleport key with the teleport username.
 func (s *KeyAgentTestSuite) TestAddKey(c *check.C) {
 	// make a new local agent
-	lka, err := NewLocalAgent(s.keyDir, s.username)
+	lka, err := NewLocalAgent(s.keyDir, s.hostname, s.username)
 	c.Assert(err, check.IsNil)
 
 	// add the key to the local agent, this should write the key
 	// to disk as well as load it in the agent
-	_, err = lka.AddKey(s.hostname, s.username, s.key)
+	_, err = lka.AddKey(s.key)
 	c.Assert(err, check.IsNil)
 
 	// check that the key has been written to disk
@@ -133,7 +133,7 @@ func (s *KeyAgentTestSuite) TestAddKey(c *check.C) {
 	c.Assert(true, check.Equals, found)
 
 	// unload all keys for this user from the teleport agent and system agent
-	err = lka.UnloadKey(s.username)
+	err = lka.UnloadKey()
 	c.Assert(err, check.IsNil)
 }
 
@@ -147,11 +147,11 @@ func (s *KeyAgentTestSuite) TestLoadKey(c *check.C) {
 	userdata := []byte("hello, world")
 
 	// make a new local agent
-	lka, err := NewLocalAgent(s.keyDir, s.username)
+	lka, err := NewLocalAgent(s.keyDir, s.hostname, s.username)
 	c.Assert(err, check.IsNil)
 
 	// unload any keys that might be in the agent for this user
-	err = lka.UnloadKey(s.username)
+	err = lka.UnloadKey()
 	c.Assert(err, check.IsNil)
 
 	// get all the keys in the teleport and system agent
@@ -164,9 +164,9 @@ func (s *KeyAgentTestSuite) TestLoadKey(c *check.C) {
 
 	// load the key to the twice, this should only
 	// result in one key for this user in the agent
-	_, err = lka.LoadKey(s.username, *s.key)
+	_, err = lka.LoadKey(*s.key)
 	c.Assert(err, check.IsNil)
-	_, err = lka.LoadKey(s.username, *s.key)
+	_, err = lka.LoadKey(*s.key)
 	c.Assert(err, check.IsNil)
 
 	// get all the keys in the teleport and system agent
@@ -199,13 +199,13 @@ func (s *KeyAgentTestSuite) TestLoadKey(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// unload all keys from the teleport agent and system agent
-	err = lka.UnloadKey(s.username)
+	err = lka.UnloadKey()
 	c.Assert(err, check.IsNil)
 }
 
 func (s *KeyAgentTestSuite) TestHostVerification(c *check.C) {
 	// make a new local agent
-	lka, err := NewLocalAgent(s.keyDir, s.username)
+	lka, err := NewLocalAgent(s.keyDir, s.hostname, s.username)
 	c.Assert(err, check.IsNil)
 
 	// by default user has not refused any hosts:

@@ -27,13 +27,13 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-
-	"golang.org/x/crypto/ssh"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -52,82 +52,75 @@ const (
 	keyFilePerms os.FileMode = 0600
 )
 
-// LocalKeyStore interface allows for different storage back-ends for TSH to
-// load/save its keys
+// LocalKeyStore interface allows for different storage backends for tsh to
+// load/save its keys.
 //
 // The _only_ filesystem-based implementation of LocalKeyStore is declared
 // below (FSLocalKeyStore)
 type LocalKeyStore interface {
-	// client key management
-	GetKeys(username string) ([]Key, error)
-	AddKey(host string, username string, key *Key) error
-	GetKey(host string, username string) (*Key, error)
-	DeleteKey(host string, username string) error
+	// AddKey adds the given session key for the proxy and username to the
+	// storage backend.
+	AddKey(proxy string, username string, key *Key) error
 
-	// interface to known_hosts file:
+	// GetKey returns the session key for the given username and proxy.
+	GetKey(proxy string, username string) (*Key, error)
+
+	// DeleteKey removes a specific session key from a proxy.
+	DeleteKey(proxyHost string, username string) error
+
+	// DeleteKeys removes all session keys from disk.
+	DeleteKeys() error
+
+	// AddKnownHostKeys adds the public key to the list of known hosts for
+	// a hostname.
 	AddKnownHostKeys(hostname string, keys []ssh.PublicKey) error
+
+	// GetKnownHostKeys returns all public keys for a hostname.
 	GetKnownHostKeys(hostname string) ([]ssh.PublicKey, error)
 }
 
-// FSLocalKeyStore implements LocalKeyStore interface using the filesystem
+// FSLocalKeyStore implements LocalKeyStore interface using the filesystem.
 // Here's the file layout for the FS store:
+//
 // ~/.tsh/
-// ├── known_hosts   --> trusted certificate authorities (their keys) in a format similar to known_hosts
-// └── sessions      --> server-signed session keys
-//     └── host-a
-//     |   ├── cert
-//     |   ├── key
-//     |   └── pub
-//     └── host-b
-//         ├── cert
-//         ├── key
-//         └── pub
+// ├── known_hosts             --> trusted certificate authorities (their keys) in a format similar to known_hosts
+// └── keys
+//    ├── one.example.com
+//    │   ├── certs.pem
+//    │   ├── foo              --> RSA Private Key
+//    │   ├── foo-cert.pub     --> SSH certificate for proxies and nodes
+//    │   ├── foo.pub          --> Public Key
+//    │   └── foo-x509.pem     --> TLS client certificate for Auth Server
+//    └── two.example.com
+//        ├── certs.pem
+//        ├── bar
+//        ├── bar-cert.pub
+//        ├── bar.pub
+//        └── bar-x509.pem
 type FSLocalKeyStore struct {
-	LocalKeyStore
+	// log holds the structured logger.
+	log *logrus.Entry
 
-	// KeyDir is the directory where all keys are stored
+	// KeyDir is the directory where all keys are stored.
 	KeyDir string
 }
 
 // NewFSLocalKeyStore creates a new filesystem-based local keystore object
 // and initializes it.
 //
-// if dirPath is empty, sets it to ~/.tsh
+// If dirPath is empty, sets it to ~/.tsh.
 func NewFSLocalKeyStore(dirPath string) (s *FSLocalKeyStore, err error) {
 	dirPath, err = initKeysDir(dirPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return &FSLocalKeyStore{
+		log: logrus.WithFields(logrus.Fields{
+			trace.Component: teleport.ComponentKeyStore,
+		}),
 		KeyDir: dirPath,
 	}, nil
-}
-
-// GetKeys returns all user session keys stored in the store
-func (fs *FSLocalKeyStore) GetKeys(username string) (keys []Key, err error) {
-	dirPath := filepath.Join(fs.KeyDir, sessionKeyDir)
-	if !utils.IsDir(dirPath) {
-		return make([]Key, 0), nil
-	}
-	dirEntries, err := ioutil.ReadDir(dirPath)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	for _, fi := range dirEntries {
-		if !fi.IsDir() {
-			continue
-		}
-		k, err := fs.GetKey(fi.Name(), username)
-		if err != nil {
-			// if a key is reported as 'not found' it's probably because it expired
-			if !trace.IsNotFound(err) {
-				return nil, trace.Wrap(err)
-			}
-			continue
-		}
-		keys = append(keys, *k)
-	}
-	return keys, nil
 }
 
 // AddKey adds a new key to the session store. If a key for the host is already
@@ -141,7 +134,7 @@ func (fs *FSLocalKeyStore) AddKey(host, username string, key *Key) error {
 		fp := filepath.Join(dirPath, fname)
 		err := ioutil.WriteFile(fp, data, keyFilePerms)
 		if err != nil {
-			log.Error(err)
+			fs.log.Error(err)
 		}
 		return err
 	}
@@ -176,42 +169,60 @@ func (fs *FSLocalKeyStore) DeleteKey(host string, username string) error {
 	return nil
 }
 
+// DeleteKeys removes all session keys from disk.
+func (fs *FSLocalKeyStore) DeleteKeys() error {
+	dirPath := filepath.Join(fs.KeyDir, sessionKeyDir)
+
+	err := os.RemoveAll(dirPath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 // GetKey returns a key for a given host. If the key is not found,
 // returns trace.NotFound error.
-func (fs *FSLocalKeyStore) GetKey(host, username string) (*Key, error) {
-	dirPath, err := fs.dirFor(host)
+func (fs *FSLocalKeyStore) GetKey(proxyHost string, username string) (*Key, error) {
+	dirPath, err := fs.dirFor(proxyHost)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	_, err = ioutil.ReadDir(dirPath)
+	if err != nil {
+		return nil, trace.NotFound("no session keys for %v in %v", username, proxyHost)
+	}
+
 	certFile := filepath.Join(dirPath, username+fileExtCert)
 	cert, err := ioutil.ReadFile(certFile)
 	if err != nil {
-		log.Error(err)
+		fs.log.Error(err)
 		return nil, trace.Wrap(err)
 	}
+
 	pub, err := ioutil.ReadFile(filepath.Join(dirPath, username+fileExtPub))
 	if err != nil {
-		log.Error(err)
+		fs.log.Error(err)
 		return nil, trace.Wrap(err)
 	}
 	priv, err := ioutil.ReadFile(filepath.Join(dirPath, username))
 	if err != nil {
-		log.Error(err)
+		fs.log.Error(err)
 		return nil, trace.Wrap(err)
 	}
 
-	key := &Key{Pub: pub, Priv: priv, Cert: cert, ProxyHost: host}
+	key := &Key{Pub: pub, Priv: priv, Cert: cert, ProxyHost: proxyHost}
 
 	// expired certificate? this key won't be accepted anymore, lets delete it:
 	certExpiration, err := key.CertValidBefore()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Debugf("[KEYSTORE] Returning certificate %q valid until %q", certFile, certExpiration)
+	fs.log.Debugf("Returning certificate %q valid until %q", certFile, certExpiration)
 	if certExpiration.Before(time.Now()) {
-		log.Infof("[KEYSTORE] TTL expired (%v) for session key %v", certExpiration, dirPath)
+		fs.log.Infof("TTL expired (%v) for session key %v", certExpiration, dirPath)
 		os.RemoveAll(dirPath)
-		return nil, trace.NotFound("session keys for %s are not found", host)
+		return nil, trace.NotFound("session keys for %s are not found", proxyHost)
 	}
 	return key, nil
 }
@@ -237,7 +248,7 @@ func (fs *FSLocalKeyStore) AddKnownHostKeys(hostname string, hostKeys []ssh.Publ
 	}
 	// add every host key to the list of entries
 	for i := range hostKeys {
-		log.Debugf("adding known host %s with key: %v", hostname, sshutils.Fingerprint(hostKeys[i]))
+		fs.log.Debugf("Adding known host %s with key: %v", hostname, sshutils.Fingerprint(hostKeys[i]))
 		bytes := ssh.MarshalAuthorizedKey(hostKeys[i])
 		line := strings.TrimSpace(fmt.Sprintf("%s %s", hostname, bytes))
 		if _, exists := entries[line]; !exists {
@@ -297,11 +308,13 @@ func (fs *FSLocalKeyStore) GetKnownHostKeys(hostname string) ([]ssh.PublicKey, e
 }
 
 // dirFor is a helper function. It returns a directory where session keys
-// for a given host are stored
-func (fs *FSLocalKeyStore) dirFor(hostname string) (string, error) {
-	dirPath := filepath.Join(fs.KeyDir, sessionKeyDir, hostname)
+// for a given host are stored. fs.KeyDir is typically "~/.tsh", sessionKeyDir
+// is typically "keys", and proxyHost is typically something like
+// "proxy.example.com".
+func (fs *FSLocalKeyStore) dirFor(proxyHost string) (string, error) {
+	dirPath := filepath.Join(fs.KeyDir, sessionKeyDir, proxyHost)
 	if err := os.MkdirAll(dirPath, profileDirPerms); err != nil {
-		log.Error(err)
+		fs.log.Error(err)
 		return "", trace.Wrap(err)
 	}
 	return dirPath, nil
