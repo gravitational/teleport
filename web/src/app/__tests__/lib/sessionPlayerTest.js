@@ -77,8 +77,8 @@ describe('lib/term/ttyPlayer/eventProvider', () => {
       let events = provider._createPrintEvents(sample.events);
       events = provider._normalizeEventsByTime(events);
 
-      expect(events.length).toBe(101);
-      expect(events[100].msNormalized).toBe(1754);
+      expect(events.length).toBe(31);
+      expect(events[30].msNormalized).toBe(1744);
     });
   });
   

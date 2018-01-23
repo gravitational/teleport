@@ -17036,7 +17036,15 @@ webpackJsonp([0],[
 	    var cur = events[0];
 	    var tmp = [];
 	    for (var i = 1; i < events.length; i++) {
+	      var sameSize = cur.w === events[i].w && cur.h === events[i].h;
 	      var delay = events[i].ms - cur.ms;
+
+	      // merge events with tiny delay
+	      if (delay < 2 && sameSize) {
+	        cur.bytes += events[i].bytes;
+	        continue;
+	      }
+
 	      // avoid long delays between chunks
 	      if (delay >= 25 && delay < 50) {
 	        events[i].msNormalized = cur.msNormalized + 25;
