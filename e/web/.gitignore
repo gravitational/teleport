@@ -1,5 +1,5 @@
 node_modules
-telebase
+telebase*
 *.log
 /**/_tmp
 .vscode

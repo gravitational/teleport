@@ -4,16 +4,17 @@ RUN apt-get update && apt-get install -y python python-dev python-pip
 RUN mkdir -p /teleport/e/web
 COPY package*.json /teleport/e/web/
 
-VOLUME ["/teleport/web/"]
-VOLUME ["/teleport/e/web/dist"]
-
 WORKDIR /teleport/e/web
 
+# install npm modules
 RUN npm install
 
+# copy teleport dependencies 
+COPY telebase /teleport/e/web
+COPY telebase-examples /teleport/e/web
+
+# copy E files 
 COPY . /teleport/e/web
 
-ARG UID
-ARG GID
-
-RUN chown $UID:$GID /teleport -R
+# and build E
+RUN npm run build
