@@ -8,6 +8,10 @@ resource "aws_dynamodb_table" "teleport" {
   hash_key        = "HashKey"
   range_key       = "FullPath"
 
+  lifecycle {
+    ignore_changes = ["read_capacity", "write_capacity"]
+  }
+
   attribute {
     name = "HashKey"
     type = "S"

@@ -22,7 +22,7 @@ EOF
 // only on auth servers.
 resource "aws_iam_instance_profile" "proxy" {
   name       = "${var.cluster_name}-proxy"
-  role       = "${aws_iam_role.auth.name}"
+  role       = "${aws_iam_role.proxy.name}"
   depends_on = ["aws_iam_role_policy.proxy_ssm"]
 }
 
@@ -64,12 +64,20 @@ resource "aws_iam_role_policy" "proxy_ssm" {
         {
             "Effect": "Allow",
             "Action": [
-                "ssm:DescribeParameters",
                 "ssm:GetParameters",
                 "ssm:GetParametersByPath",
                 "ssm:GetParameter"
             ],
             "Resource": "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/teleport/${var.cluster_name}/tokens/proxy"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ssm:GetParameters",
+                "ssm:GetParametersByPath",
+                "ssm:GetParameter"
+            ],
+            "Resource": "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/teleport/${var.cluster_name}/ca"
         },
         {
          "Effect":"Allow",

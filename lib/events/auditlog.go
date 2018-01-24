@@ -631,8 +631,9 @@ func (l *AuditLog) emitAuditEvent(eventType string, fields EventFields) error {
 
 	// set event type and time:
 	fields[EventType] = eventType
-	fields[EventTime] = l.Clock.Now().In(time.UTC).Round(time.Second)
-
+	if _, ok := fields[EventTime]; !ok {
+		fields[EventTime] = l.Clock.Now().In(time.UTC).Round(time.Second)
+	}
 	// line is the text to be logged
 	line, err := json.Marshal(fields)
 	if err != nil {
@@ -870,6 +871,11 @@ func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, query string) ([]Event
 		}
 		events = append(events, found...)
 	}
+	// sort all accepted files by timestamp or by event index
+	// in case if events are associated with the same session, to make
+	// sure that events are not displayed out of order in case of multiple
+	// auth servers.
+	sort.Sort(byTimeAndIndex(events))
 	return events, nil
 }
 
@@ -898,6 +904,49 @@ type byDate []eventFile
 func (f byDate) Len() int           { return len(f) }
 func (f byDate) Less(i, j int) bool { return f[i].ModTime().Before(f[j].ModTime()) }
 func (f byDate) Swap(i, j int)      { f[i], f[j] = f[j], f[i] }
+
+// byTimeAndIndex sorts events by time extracting timestamp from JSON field
+// and if there are several session events with the same session
+// by event index, regardless of the time
+type byTimeAndIndex []EventFields
+
+func (f byTimeAndIndex) Len() int {
+	return len(f)
+}
+
+// getTime converts json time to string
+func getTime(v interface{}) time.Time {
+	sval, ok := v.(string)
+	if !ok {
+		return time.Time{}
+	}
+	t, err := time.Parse(time.RFC3339, sval)
+	if err != nil {
+		return time.Time{}
+	}
+	return t
+}
+
+func getEventIndex(v interface{}) float64 {
+	switch val := v.(type) {
+	case float64:
+		return val
+	}
+	return 0
+}
+
+func (f byTimeAndIndex) Less(i, j int) bool {
+	itime := getTime(f[i][EventTime])
+	jtime := getTime(f[j][EventTime])
+	if itime.Equal(jtime) && f[i][SessionEventID] == f[j][SessionEventID] {
+		return getEventIndex(f[i][EventIndex]) < getEventIndex(f[j][EventIndex])
+	}
+	return itime.Before(jtime)
+}
+
+func (f byTimeAndIndex) Swap(i, j int) {
+	f[i], f[j] = f[j], f[i]
+}
 
 // findInFile scans a given log file and returns events that fit the criteria
 // This simplistic implementation ONLY SEARCHES FOR EVENT TYPE(s)

@@ -1,7 +1,3 @@
-provider "aws" {
-  region     = "${var.region}"
-}
-
 // Region is AWS region, the region should support EFS
 variable "region" {
   type = "string"

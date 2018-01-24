@@ -452,15 +452,15 @@ func (a *AuditTestSuite) TestSearchTwoAuthServers(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(alog2.loggers.Len(), check.Equals, 1)
 
-	// emit next event 17 milliseconds later to the first auth server
+	// emit next event 17 milliseconds later to the second auth server
 	thirdMessage := []byte("test")
-	err = alog.PostSessionSlice(SessionSlice{
+	err = alog2.PostSessionSlice(SessionSlice{
 		Namespace: defaults.Namespace,
 		SessionID: sessionID,
 		Chunks: []*SessionChunk{
 			// notice how offsets are sent by the client
 			&SessionChunk{
-				Time:       time.Now().UTC().UnixNano(),
+				Time:       time.Now().Add(time.Hour).UTC().UnixNano(),
 				EventIndex: 3,
 				ChunkIndex: 2,
 				Offset:     int64(len(firstMessage) + len(secondMessage)),
@@ -469,6 +469,7 @@ func (a *AuditTestSuite) TestSearchTwoAuthServers(c *check.C) {
 			},
 			// emitting session end event should close the session
 			&SessionChunk{
+				Time:       time.Now().Add(time.Hour).UTC().UnixNano(),
 				EventIndex: 4,
 				EventType:  SessionEndEvent,
 				Data:       marshal(EventFields{EventLogin: "bob"}),
@@ -478,8 +479,8 @@ func (a *AuditTestSuite) TestSearchTwoAuthServers(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	// emitting session end event should close the session
-	c.Assert(alog.loggers.Len(), check.Equals, 0)
+	// emitting session end event should close the session on the second logger
+	c.Assert(alog2.loggers.Len(), check.Equals, 0)
 
 	// does not matter which audit server is accessed the results should be the same
 	for _, a := range []*AuditLog{alog, alog2} {
@@ -504,6 +505,119 @@ func (a *AuditTestSuite) TestSearchTwoAuthServers(c *check.C) {
 
 		// try searching (empty query means "anything")
 		found, err = alog.SearchEvents(startTime.Add(-time.Hour), startTime.Add(time.Hour), "")
+		c.Assert(err, check.IsNil)
+		c.Assert(len(found), check.Equals, 2) // total number of events logged in this test
+		c.Assert(found[0].GetString(EventType), check.Equals, SessionStartEvent, comment)
+		c.Assert(found[1].GetString(EventType), check.Equals, SessionEndEvent, comment)
+	}
+}
+
+// TestSearchTwoAuthServersSameTime tests search on two auth servers behind the load balancer handling the event stream
+// for the same session emitted around the same time
+func (a *AuditTestSuite) TestSearchTwoAuthServersSameTime(c *check.C) {
+	startTime := time.Now().UTC()
+
+	alog, err := NewAuditLog(AuditLogConfig{
+		DataDir:        a.dataDir,
+		RecordSessions: true,
+		ServerID:       "server1",
+	})
+	c.Assert(err, check.IsNil)
+
+	alog2, err := NewAuditLog(AuditLogConfig{
+		DataDir:        a.dataDir,
+		RecordSessions: true,
+		ServerID:       "server2",
+	})
+	c.Assert(err, check.IsNil)
+
+	sessionID := "100"
+	// start the session and emit data stream to it
+	firstMessage := []byte("hello")
+	now := time.Now().UTC().UnixNano()
+	err = alog.PostSessionSlice(SessionSlice{
+		Namespace: defaults.Namespace,
+		SessionID: sessionID,
+		Chunks: []*SessionChunk{
+			// start the seession
+			&SessionChunk{
+				Time:       now,
+				EventIndex: 0,
+				EventType:  SessionStartEvent,
+				Data:       marshal(EventFields{EventLogin: "bob"}),
+			},
+			// type "hello" into session "100"
+			&SessionChunk{
+				Time:       now,
+				EventIndex: 1,
+				ChunkIndex: 0,
+				Offset:     0,
+				EventType:  SessionPrintEvent,
+				Data:       firstMessage,
+			},
+		},
+		Version: V2,
+	})
+	c.Assert(err, check.IsNil)
+	c.Assert(alog.loggers.Len(), check.Equals, 1)
+
+	// send another event to the session via second auth server
+	secondMessage := []byte("good day")
+	err = alog2.PostSessionSlice(SessionSlice{
+		Namespace: defaults.Namespace,
+		SessionID: sessionID,
+		Chunks: []*SessionChunk{
+			// notice how offsets are sent by the client
+			&SessionChunk{
+				Time:       now,
+				EventIndex: 2,
+				ChunkIndex: 1,
+				Offset:     int64(len(firstMessage)),
+				EventType:  SessionPrintEvent,
+				Data:       secondMessage,
+			},
+		},
+		Version: V2,
+	})
+	c.Assert(err, check.IsNil)
+	c.Assert(alog2.loggers.Len(), check.Equals, 1)
+
+	// emit next event 17 milliseconds later to the second auth server
+	thirdMessage := []byte("test")
+	err = alog2.PostSessionSlice(SessionSlice{
+		Namespace: defaults.Namespace,
+		SessionID: sessionID,
+		Chunks: []*SessionChunk{
+			// notice how offsets are sent by the client
+			&SessionChunk{
+				Time:       now,
+				EventIndex: 3,
+				ChunkIndex: 2,
+				Offset:     int64(len(firstMessage) + len(secondMessage)),
+				EventType:  SessionPrintEvent,
+				Data:       thirdMessage,
+			},
+			// emitting session end event should close the session
+			&SessionChunk{
+				Time:       now,
+				EventIndex: 4,
+				EventType:  SessionEndEvent,
+				Data:       marshal(EventFields{EventLogin: "bob"}),
+			},
+		},
+		Version: V2,
+	})
+	c.Assert(err, check.IsNil)
+
+	// emitting session end event should close the session on the second logger
+	c.Assert(alog2.loggers.Len(), check.Equals, 0)
+
+	// does not matter which audit server is accessed the results should be the same
+	for _, a := range []*AuditLog{alog, alog2} {
+		comment := check.Commentf("auth server %v", a.ServerID)
+
+		// try searching (empty query means "anything")
+		found, err := alog.SearchEvents(startTime.Add(-time.Hour), startTime.Add(time.Hour), "")
 		c.Assert(err, check.IsNil)
 		c.Assert(len(found), check.Equals, 2) // total number of events logged in this test
 		c.Assert(found[0].GetString(EventType), check.Equals, SessionStartEvent, comment)

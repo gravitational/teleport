@@ -105,6 +105,40 @@ systemctl enable teleport
 systemctl start teleport
 
 
+# Script that makes sure that only one auth server processes
+# requests at a time, by using dynamodb-backed locking.
+# The lock is implemented as item in DynamoDB table:  {"Lock": "lock1", "Expires": "time", "Process": "server1"}
+# The auth server node either renews the lease if lock "Process" holds the server id as owner of the lock
+# or grabs the lock in case if expires column indicates that the lease has not been renewed after timeout.
+# This pattern can be implemented in many different ways, e.g. using ASG group of 1 as a separate process
+# or in Kubernetes as a deployment of scale 1.
+cat >/usr/local/bin/teleport-lock <<EOF
+#!/bin/bash
+set -x
+
+LOCK="/teleport/${cluster_name}"
+NOW=\$$(date +%s)
+TTL=\$$((\$$NOW+3660))
+PROCESS="$${LOCAL_HOSTNAME}"
+echo locking \$$PROCESS for \$$TTL
+
+# Either renew the lease if agent still holds it, or grab the lease if it's expired
+aws dynamodb put-item \
+    --region $${EC2_REGION} \
+    --table-name ${locks_table_name}\
+    --item  "{\"Lock\": {\"S\": \"/auth/servers\"}, \"Expires\": {\"S\": \"\$$TTL\"}, \"Process\": {\"S\": \"\$$PROCESS\"}}" \
+    --condition-expression="(attribute_not_exists(Expires) OR Expires <= :timestamp) OR Process = :process"\
+    --expression-attribute-values "{\":timestamp\":{\"S\":\"\$$NOW\"}, \":process\":{\"S\":\"\$$PROCESS\"}}"
+
+if [ \$$? -eq 0 ]; then
+    echo "Renewed or locked the lease for \$$PROCESS until $(date -d @\$$TTL)"
+else
+    echo "Could get renew lease, locked by other process"
+    exit 255
+fi
+EOF
+chmod 755 /usr/local/bin/teleport-lock
+
 # Install a service that rotates teleport join tokens.
 # Teleport join tokens are temporary authentication tokens
 # letting nodes and proxies to join to the cluster. Notice that timer
@@ -115,13 +149,21 @@ cat >/usr/local/bin/teleport-ssm-publish-tokens <<EOF
 set -e
 set -o pipefail
 
+# Proxy token authenticates proxies joining the cluster
 PROXY_TOKEN=\$$(uuid)
-tctl nodes add --roles=proxy --ttl=2h --token=\$${PROXY_TOKEN}
+tctl nodes add --roles=proxy --ttl=4h --token=\$${PROXY_TOKEN}
 aws ssm put-parameter --name /teleport/$${CLUSTER_NAME}/tokens/proxy --region $${EC2_REGION} --type="SecureString" --value="\$${PROXY_TOKEN}" --overwrite
 
+# Node token authenticates nodes joining the cluster
 NODE_TOKEN=\$$(uuid)
-tctl nodes add --roles=node --ttl=2h --token=\$${NODE_TOKEN}
+tctl nodes add --roles=node --ttl=4h --token=\$${NODE_TOKEN}
 aws ssm put-parameter --name /teleport/$${CLUSTER_NAME}/tokens/node --region $${EC2_REGION} --type="SecureString" --value="\$${NODE_TOKEN}" --overwrite
+
+# Export CA certificate to SSM parameter store
+# so nodes and proxies can check the identity of the auth server they are connecting to
+CERT=\$$(tctl auth export --type=tls)
+aws ssm put-parameter --name /teleport/$${CLUSTER_NAME}/ca --region $${EC2_REGION} --type="String" --value="\$${CERT}" --overwrite
+
 EOF
 chmod 755 /usr/local/bin/teleport-ssm-publish-tokens
 
@@ -132,6 +174,7 @@ Description=Service rotating teleport tokens
 
 [Service]
 Type=oneshot
+ExecStartPre=/usr/local/bin/teleport-lock
 ExecStart=/usr/local/bin/teleport-ssm-publish-tokens
 EOF
 
@@ -190,6 +233,7 @@ Description=Service getting teleport certificates
 
 [Service]
 Type=oneshot
+ExecStartPre=/usr/local/bin/teleport-lock
 ExecStart=/usr/local/bin/teleport-get-cert
 EOF
 

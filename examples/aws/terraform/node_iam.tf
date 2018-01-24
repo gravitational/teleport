@@ -21,7 +21,7 @@ EOF
 // Note that nodes are only allowed to read node SSM path.
 resource "aws_iam_instance_profile" "node" {
   name       = "${var.cluster_name}-node"
-  role       = "${aws_iam_role.auth.name}"
+  role       = "${aws_iam_role.node.name}"
   depends_on = ["aws_iam_role_policy.node_ssm"]
 }
 
@@ -36,12 +36,20 @@ resource "aws_iam_role_policy" "node_ssm" {
         {
             "Effect": "Allow",
             "Action": [
-                "ssm:DescribeParameters",
                 "ssm:GetParameters",
                 "ssm:GetParametersByPath",
                 "ssm:GetParameter"
             ],
             "Resource": "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/teleport/${var.cluster_name}/tokens/node"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ssm:GetParameters",
+                "ssm:GetParametersByPath",
+                "ssm:GetParameter"
+            ],
+            "Resource": "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/teleport/${var.cluster_name}/ca"
         },
         {
          "Effect":"Allow",

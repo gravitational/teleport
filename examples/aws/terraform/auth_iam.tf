@@ -68,10 +68,30 @@ resource "aws_iam_role_policy" "auth_dynamo" {
     "Version": "2012-10-17",
     "Statement": [
         {
-            "Sid": "AllAPIActionsOnBooks",
+            "Sid": "AllActionsOnTeleportDB",
             "Effect": "Allow",
             "Action": "dynamodb:*",
             "Resource": "arn:aws:dynamodb:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:table/${aws_dynamodb_table.teleport.name}"
+        }
+    ]
+}
+EOF
+}
+
+// Allow auth servers to update locks
+resource "aws_iam_role_policy" "auth_locks" {
+  name = "${var.cluster_name}-auth-locks"
+  role = "${aws_iam_role.auth.id}"
+
+  policy = <<EOF
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "AllActionsOnLocks",
+            "Effect": "Allow",
+            "Action": "dynamodb:*",
+            "Resource": "arn:aws:dynamodb:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:table/${aws_dynamodb_table.locks.name}"
         }
     ]
 }
