@@ -38,8 +38,11 @@ cat >/usr/local/bin/teleport-ssm-get-token <<EOF
 set -e
 set -o pipefail
 
-aws ssm get-parameter --with-decryption --name /teleport/${cluster_name}/tokens/node --region ${region} --query Parameter.Value --output text | xargs echo -n > /var/lib/teleport/token
+# Fetch token published by Auth server to SSM parameter store to join the cluster
+aws ssm get-parameter --with-decryption --name /teleport/${cluster_name}/tokens/node --region ${region} --query Parameter.Value --output text > /var/lib/teleport/token
 
+# Fetch Auth server CA certificate to validate the identity of the auth server
+aws ssm get-parameter --name /teleport/${cluster_name}/ca --region=${region} --query=Parameter.Value --output text > /var/lib/teleport/ca.cert
 EOF
 chmod 755 /usr/local/bin/teleport-ssm-get-token
 

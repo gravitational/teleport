@@ -4,7 +4,7 @@
 // write certificates to encrypted S3 bucket.
 resource "aws_autoscaling_group" "auth" {
   name                      = "${var.cluster_name}-auth"
-  max_size                  = 2
+  max_size                  = 5
   min_size                  = 1
   health_check_grace_period = 300
   health_check_type         = "EC2"
@@ -33,6 +33,7 @@ data "template_file" "auth_user_data" {
   template = "${file("auth-user-data.tpl")}"
 
   vars {
+    locks_table_name = "${aws_dynamodb_table.locks.name}"
     cluster_name = "${var.cluster_name}"
     efs_mount_point = "${aws_efs_file_system.auth.id}.efs.${var.region}.amazonaws.com"
     teleport_version = "${var.teleport_version}"

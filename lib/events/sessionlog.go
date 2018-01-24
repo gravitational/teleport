@@ -250,7 +250,7 @@ func (sl *DiskSessionLogger) PostSessionSlice(slice SessionSlice) error {
 		if slice.Chunks[i].EventType == SessionEndEvent {
 			defer sl.closeLogger()
 		}
-		_, err := sl.writeChunk(slice.Chunks[i])
+		_, err := sl.writeChunk(slice.SessionID, slice.Chunks[i])
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -258,7 +258,7 @@ func (sl *DiskSessionLogger) PostSessionSlice(slice SessionSlice) error {
 	return sl.flush()
 }
 
-func (sl *DiskSessionLogger) writeChunk(chunk *SessionChunk) (written int, err error) {
+func (sl *DiskSessionLogger) writeChunk(sessionID string, chunk *SessionChunk) (written int, err error) {
 
 	// this section enforces the following invariant:
 	// a single events file only contains successive events
@@ -268,15 +268,16 @@ func (sl *DiskSessionLogger) writeChunk(chunk *SessionChunk) (written int, err e
 		}
 	}
 	sl.lastEventIndex = chunk.EventIndex
-
+	eventStart := time.Unix(0, chunk.Time).In(time.UTC).Round(time.Millisecond)
 	if chunk.EventType != SessionPrintEvent {
 		var fields EventFields
 		err := json.Unmarshal(chunk.Data, &fields)
 		if err != nil {
 			return -1, trace.Wrap(err)
 		}
+		fields[SessionEventID] = sessionID
 		fields[EventIndex] = chunk.EventIndex
-		fields[EventTime] = sl.Clock.Now().In(time.UTC).Round(time.Millisecond)
+		fields[EventTime] = eventStart
 		fields[EventType] = chunk.EventType
 		data, err := json.Marshal(fields)
 		if err != nil {
@@ -290,7 +291,6 @@ func (sl *DiskSessionLogger) writeChunk(chunk *SessionChunk) (written int, err e
 	if !sl.RecordSessions {
 		return len(chunk.Data), nil
 	}
-	eventStart := time.Unix(0, chunk.Time).In(time.UTC).Round(time.Millisecond)
 	// this section enforces the following invariant:
 	// a single chunks file only contains successive chunks
 	if sl.lastChunkIndex == -1 || chunk.ChunkIndex-1 != sl.lastChunkIndex {

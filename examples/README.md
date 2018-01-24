@@ -9,3 +9,9 @@
 
 * `systemd` : Service file for systemd
 * `upstart` : Start-up script for [upstart](https://en.wikipedia.org/wiki/Upstart)
+
+## AWS examples
+
+* `aws` : Examples of provisioning Teleport on AWS.
+
+

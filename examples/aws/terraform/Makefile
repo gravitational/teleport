@@ -9,7 +9,7 @@ TF_VAR_teleport_version ?=
 TF_VAR_key_name ?=
 # Full absolute path to the license file for Teleport enterprise or pro
 TF_VAR_license_path ?=
-# AMI name to use, could be public or private, p
+# AMI name to use, could be public or private
 TF_VAR_ami_name ?=
 # Route 53 zone to use, should be the zone registered in AWS,
 # e.g. example.com

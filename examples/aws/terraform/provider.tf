@@ -16,4 +16,5 @@ variable "aws_max_retries" {
 
 provider "aws" {
   version                 = "~> 1.7"
+  region     = "${var.region}"
 }
