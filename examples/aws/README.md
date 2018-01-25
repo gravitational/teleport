@@ -56,6 +56,10 @@ export TF_VAR_s3_bucket_name="teleport.example.com"
 # Email of your support org, uset for letsencrypt cert registration process.
 export TF_VAR_email="support@example.com"
 
+# Setup grafana password for "admin" user. Grafana will
+# get served on https://teleport.example.com:8443 after install
+export TF_VAR_grafana_pass="setup some password here"
+
 # plan
 make plan
 ```

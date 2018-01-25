@@ -32,12 +32,17 @@ data "template_file" "node_user_data" {
     region = "${var.region}"
     cluster_name = "${var.cluster_name}"
     teleport_version = "${var.teleport_version}"
+    telegraf_version = "${var.telegraf_version}"
     auth_server_addr = "${aws_lb.auth.dns_name}:3025"
+    influxdb_addr = "http://${aws_lb.monitor.dns_name}:8086"
   }
 }
 
 resource "aws_launch_configuration" "node" {
-  name                        = "${var.cluster_name}-node"
+  lifecycle {
+    create_before_destroy = true
+  }
+  name_prefix                 = "${var.cluster_name}-node-"
   image_id                    = "${data.aws_ami.base.id}"
   instance_type               = "${var.node_instance_type}"
   user_data                   = "${data.template_file.node_user_data.rendered}"

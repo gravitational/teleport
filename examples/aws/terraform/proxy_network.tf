@@ -50,7 +50,7 @@ resource "aws_security_group_rule" "proxy_egress_allow_all_traffic" {
 
 // Load balancer for proxy server
 resource "aws_lb" "proxy" {
-  name            = "proxy-${var.cluster_name}"
+  name            = "${var.cluster_name}-proxy"
   internal        = false
   subnets         = ["${aws_subnet.public.*.id}"]
   load_balancer_type = "network"
@@ -63,7 +63,7 @@ resource "aws_lb" "proxy" {
 
 // Proxy is for SSH proxy - jumphost target endpoint.
 resource "aws_lb_target_group" "proxy_proxy" {
-  name     = "proxy-proxy-${var.cluster_name}"
+  name     = "${var.cluster_name}-proxy-proxy"
   port     = 3023
   vpc_id   = "${aws_vpc.teleport.id}"
   protocol = "TCP"
@@ -83,7 +83,7 @@ resource "aws_lb_listener" "proxy_proxy" {
 // This is address used for remote clusters to connect to and the users
 // accessing web UI.
 resource "aws_lb_target_group" "proxy_web" {
-  name     = "proxy-web-${var.cluster_name}"
+  name     = "${var.cluster_name}-proxy-web"
   port     = 3080
   vpc_id   = "${aws_vpc.teleport.id}"
   protocol = "TCP"
@@ -96,6 +96,26 @@ resource "aws_lb_listener" "proxy_web" {
 
   default_action {
     target_group_arn = "${aws_lb_target_group.proxy_web.arn}"
+    type             = "forward"
+  }
+}
+
+// This is a small hack to expose grafana over web port 8443
+// feel free to remove it or replace with something else
+resource "aws_lb_target_group" "proxy_grafana" {
+  name     = "${var.cluster_name}-proxy-grafana"
+  port     = 8443
+  vpc_id   = "${aws_vpc.teleport.id}"
+  protocol = "TCP"
+}
+
+resource "aws_lb_listener" "proxy_grafana" {
+  load_balancer_arn = "${aws_lb.proxy.arn}"
+  port              = "8443"
+  protocol          = "TCP"
+
+  default_action {
+    target_group_arn = "${aws_lb_target_group.proxy_grafana.arn}"
     type             = "forward"
   }
 }

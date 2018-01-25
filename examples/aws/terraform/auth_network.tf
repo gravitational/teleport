@@ -119,7 +119,7 @@ resource "aws_security_group_rule" "auth_egress_allow_all_traffic" {
 
 // Network load balancer for auth server.
 resource "aws_lb" "auth" {
-  name            = "auth-${var.cluster_name}"
+  name            = "${var.cluster_name}-auth"
   internal        = true
   subnets         = ["${aws_subnet.public.*.id}"]
   load_balancer_type = "network"
@@ -132,7 +132,7 @@ resource "aws_lb" "auth" {
 
 // Target group is associated with auto scale group
 resource "aws_lb_target_group" "auth" {
-  name     = "auth-${var.cluster_name}"
+  name     = "${var.cluster_name}-auth"
   port     = 3025
   vpc_id   = "${aws_vpc.teleport.id}"
   protocol = "TCP"
