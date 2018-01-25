@@ -110,3 +110,30 @@ variable "autoscale_max_write_capacity" {
   type = "string"
   default = 100
 }
+
+// InfluxDB and Telegraf versions
+variable "influxdb_version" {
+   type = "string"
+   default = "1.4.2"
+}
+
+variable "telegraf_version" {
+   type = "string"
+   default = "1.5.1-1"
+}
+
+variable "grafana_version" {
+   type = "string"
+   default = "4.6.3"
+}
+
+// Instance types used for proxy auto scale groups
+variable "monitor_instance_type" {
+  type = "string"
+  default = "m4.large"
+}
+
+// Password for grafana admin user
+variable "grafana_pass" {
+  type = "string"
+}

@@ -33,6 +33,7 @@ data "template_file" "auth_user_data" {
   template = "${file("auth-user-data.tpl")}"
 
   vars {
+    region = "${var.region}"
     locks_table_name = "${aws_dynamodb_table.locks.name}"
     cluster_name = "${var.cluster_name}"
     efs_mount_point = "${aws_efs_file_system.auth.id}.efs.${var.region}.amazonaws.com"
@@ -41,11 +42,16 @@ data "template_file" "auth_user_data" {
     email = "${var.email}"
     domain_name = "${var.route53_domain}"
     s3_bucket = "${var.s3_bucket_name}"
+    influxdb_addr = "http://${aws_lb.monitor.dns_name}:8086"
+    telegraf_version = "${var.telegraf_version}"
   }
 }
 
 resource "aws_launch_configuration" "auth" {
-  name                        = "${var.cluster_name}-auth"
+  lifecycle {
+    create_before_destroy = true
+  }
+  name_prefix                 = "${var.cluster_name}-auth-"
   image_id                    = "${data.aws_ami.base.id}"
   instance_type               = "${var.auth_instance_type}"
   user_data                   = "${data.template_file.auth_user_data.rendered}"

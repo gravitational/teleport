@@ -21,6 +21,9 @@ TF_VAR_route53_domain ?=
 TF_VAR_s3_bucket_name ?=
 # Email of your support org, uset for letsencrypt cert registration process.
 TF_VAR_email ?=
+# Setup grafana password for "admin" user. Grafana will
+# get served on https://cluster.example.com:8443 after install
+TF_VAR_grafana_pass ?=
 export
 
 # Plan launches terraform plan
