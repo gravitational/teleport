@@ -64,7 +64,7 @@ func (s *RoleSuite) TestRoleExtension(c *C) {
 	c.Assert(err, NotNil)
 }
 
-func (s *RoleSuite) TestRoleParse(c *C) {
+func (s *RoleSuite) TestCheckRules(c *C) {
 	testCases := []struct {
 		name         string
 		in           string
@@ -72,24 +72,6 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 		error        error
 		matchMessage string
 	}{
-		{
-			name:  "no input, should not parse",
-			in:    ``,
-			role:  RoleV3{},
-			error: trace.BadParameter("empty input"),
-		},
-		{
-			name:  "validation error, no name",
-			in:    `{}`,
-			role:  RoleV3{},
-			error: trace.BadParameter("failed to validate: name: name is required"),
-		},
-		{
-			name:  "validation error, no name",
-			in:    `{"kind": "role"}`,
-			role:  RoleV3{},
-			error: trace.BadParameter("failed to validate: name: name is required"),
-		},
 		{
 			name: "validation error, missing resources",
 			in: `{
@@ -180,6 +162,46 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 		    }`,
 			error:        trace.BadParameter(""),
 			matchMessage: ".*unsupported function: zzz.*",
+		},
+	}
+	for i, tc := range testCases {
+		comment := Commentf("test case %v %q", i, tc.name)
+
+		role, err := UnmarshalRole([]byte(tc.in))
+		c.Assert(err, IsNil, comment)
+		err = role.CheckRules()
+		c.Assert(err, NotNil, comment)
+		if tc.matchMessage != "" {
+			c.Assert(err.Error(), Matches, tc.matchMessage)
+		}
+	}
+}
+
+func (s *RoleSuite) TestRoleParse(c *C) {
+	testCases := []struct {
+		name         string
+		in           string
+		role         RoleV3
+		error        error
+		matchMessage string
+	}{
+		{
+			name:  "no input, should not parse",
+			in:    ``,
+			role:  RoleV3{},
+			error: trace.BadParameter("empty input"),
+		},
+		{
+			name:  "validation error, no name",
+			in:    `{}`,
+			role:  RoleV3{},
+			error: trace.BadParameter("failed to validate: name: name is required"),
+		},
+		{
+			name:  "validation error, no name",
+			in:    `{"kind": "role"}`,
+			role:  RoleV3{},
+			error: trace.BadParameter("failed to validate: name: name is required"),
 		},
 		{
 			name: "role with no spec still gets defaults",
