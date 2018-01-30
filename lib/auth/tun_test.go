@@ -85,12 +85,18 @@ func (s *TunSuite) SetUpTest(c *C) {
 	access := local.NewAccessService(s.bk)
 	identity := local.NewIdentityService(s.bk)
 
-	s.a = NewAuthServer(&InitConfig{
-		Backend:   s.bk,
-		Authority: authority.New(),
-		Access:    access,
-		Identity:  identity,
+	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
+		ClusterName: "localhost",
 	})
+	c.Assert(err, IsNil)
+	s.a, err = NewAuthServer(&InitConfig{
+		Backend:     s.bk,
+		Authority:   authority.New(),
+		Access:      access,
+		Identity:    identity,
+		ClusterName: clusterName,
+	})
+	c.Assert(err, IsNil)
 
 	// set cluster config
 	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
@@ -101,10 +107,6 @@ func (s *TunSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	// set cluster name
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
-		ClusterName: "localhost",
-	})
-	c.Assert(err, IsNil)
 	err = s.a.SetClusterName(clusterName)
 	c.Assert(err, IsNil)
 

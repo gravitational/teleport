@@ -139,7 +139,10 @@ func Init(cfg InitConfig, opts ...AuthServerOption) (*AuthServer, *Identity, err
 	defer cfg.Backend.ReleaseLock(domainName)
 
 	// check that user CA and host CA are present and set the certs if needed
-	asrv := NewAuthServer(&cfg, opts...)
+	asrv, err := NewAuthServer(&cfg, opts...)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 
 	// INTERNAL: Authorities (plus Roles) and ReverseTunnels don't follow the
 	// same pattern as the rest of the configuration (they are not configuration
@@ -185,11 +188,6 @@ func Init(cfg InitConfig, opts ...AuthServerOption) (*AuthServer, *Identity, err
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	err = asrv.syncCachedClusterConfig()
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	log.Infof("Updating cluster configuration: %v.", cfg.ClusterConfig)
 
 	// cluster name can only be set once. if it has already been set and we are
 	// trying to update it to something else, hard fail.

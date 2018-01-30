@@ -70,6 +70,7 @@ auth_service:
   listen_addr: 0.0.0.0:3025
 
   authentication:
+    second_factor: off
     type: oidc
 
   cluster_name: ${cluster_name}

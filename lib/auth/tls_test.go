@@ -414,34 +414,6 @@ func (s *TLSSuite) TestOTPCRUD(c *check.C) {
 	c.Assert(err, check.NotNil)
 }
 
-// TestSyncCachedClusterConfig tests behavior with cluster configuration
-func (s *TLSSuite) TestSyncCachedClusterConfig(c *check.C) {
-	// set cluster config to record at nodes
-	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		SessionRecording: services.RecordAtNode,
-	})
-	authServer := s.server.Auth()
-	err = authServer.SetClusterConfig(clusterConfig)
-	c.Assert(err, check.IsNil)
-
-	// check to make sure the cached value is the same
-	clusterConfig = authServer.getCachedClusterConfig()
-	c.Assert(clusterConfig.GetSessionRecording(), check.Equals, services.RecordAtNode)
-
-	// update cluster config to record at proxy
-	clusterConfig.SetSessionRecording(services.RecordAtProxy)
-	err = authServer.SetClusterConfig(clusterConfig)
-	c.Assert(err, check.IsNil)
-
-	// manually force synching cluster config
-	err = authServer.syncCachedClusterConfig()
-	c.Assert(err, check.IsNil)
-
-	// check to make sure the cached value was updated
-	clusterConfig = authServer.getCachedClusterConfig()
-	c.Assert(clusterConfig.GetSessionRecording(), check.Equals, services.RecordAtProxy)
-}
-
 // TestWebSessions tests web sessions flow for web user,
 // that logs in, extends web session and tries to perform administratvie action
 // but fails
@@ -702,10 +674,6 @@ func (s *TLSSuite) TestClusterConfigContext(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 	err = s.server.Auth().SetClusterConfig(clusterConfig)
-	c.Assert(err, check.IsNil)
-
-	// force a sync so the cached value gets updated
-	err = s.server.Auth().syncCachedClusterConfig()
 	c.Assert(err, check.IsNil)
 
 	// try and generate a host cert, now the proxy should be able to generate a

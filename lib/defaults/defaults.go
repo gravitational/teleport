@@ -67,6 +67,9 @@ const (
 	// CacheTTL is a default cache TTL for persistent node cache
 	CacheTTL = 20 * time.Hour
 
+	// RecentCacheTTL is a default cache TTL for recently accessed items
+	RecentCacheTTL = 2 * time.Second
+
 	// InviteTokenTTL sets the lifespan of tokens used for adding nodes and users
 	// to a cluster
 	InviteTokenTTL = 15 * time.Minute
@@ -165,6 +168,10 @@ const (
 	// amount of simultaneously processes concurrent sessions by the
 	// Audit log server, and 16K is OK for now
 	AuditLogSessions = 16384
+
+	// AccessPointCachedValues is the default maximum amount of cached values
+	// in access point
+	AccessPointCachedValues = 16384
 
 	// AuditLogTimeFormat is the format for the timestamp on audit log files.
 	AuditLogTimeFormat = "2006-01-02.15:04:05"

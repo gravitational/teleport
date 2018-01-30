@@ -157,7 +157,7 @@ func (b *BoltBackend) upsertVal(path []string, key string, val []byte, ttl time.
 func (b *BoltBackend) GetVal(path []string, key string) ([]byte, error) {
 	var val []byte
 	if err := b.getKey(path, key, &val); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(boltErr(err))
 	}
 	var k *kv
 	if err := json.Unmarshal(val, &k); err != nil {

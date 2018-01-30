@@ -57,17 +57,19 @@ func (s *PasswordSuite) SetUpTest(c *C) {
 	s.bk, err = boltbk.New(backend.Params{"path": c.MkDir()})
 	c.Assert(err, IsNil)
 
-	authConfig := &InitConfig{
-		Backend:   s.bk,
-		Authority: authority.New(),
-	}
-	s.a = NewAuthServer(authConfig)
-
 	// set cluster name
 	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
 		ClusterName: "me.localhost",
 	})
 	c.Assert(err, IsNil)
+	authConfig := &InitConfig{
+		ClusterName: clusterName,
+		Backend:     s.bk,
+		Authority:   authority.New(),
+	}
+	s.a, err = NewAuthServer(authConfig)
+	c.Assert(err, IsNil)
+
 	err = s.a.SetClusterName(clusterName)
 	c.Assert(err, IsNil)
 

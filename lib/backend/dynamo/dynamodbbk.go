@@ -435,6 +435,7 @@ func (b *DynamoDBBackend) GetKeys(path []string) ([]string, error) {
 // 	   overwrites it if 'overwrite' is true
 //     atomically returns AlreadyExists error if 'overwrite' is false
 func (b *DynamoDBBackend) createKey(fullPath string, val []byte, ttl time.Duration, overwrite bool) error {
+	start := time.Now()
 	r := record{
 		HashKey:   hashKey,
 		FullPath:  fullPath,
@@ -458,6 +459,7 @@ func (b *DynamoDBBackend) createKey(fullPath string, val []byte, ttl time.Durati
 	}
 	_, err = b.svc.PutItem(&input)
 	err = convertError(err)
+	b.Debugf("CreateVal(%v) in %v", fullPath, time.Now().Sub(start))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -609,11 +611,13 @@ func (b *DynamoDBBackend) getKey(fullPath string) (*record, error) {
 
 // GetVal retrieve a value from a key
 func (b *DynamoDBBackend) GetVal(path []string, key string) ([]byte, error) {
+	start := time.Now()
 	fullPath := b.fullPath(append(path, key)...)
 	r, err := b.getKey(fullPath)
 	if err != nil {
 		return nil, err
 	}
+	b.Debugf("GetVal(%v) in %v", fullPath, time.Now().Sub(start))
 	return r.Value, nil
 }
 

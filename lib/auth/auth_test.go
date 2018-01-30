@@ -60,17 +60,19 @@ func (s *AuthSuite) SetUpTest(c *C) {
 	s.bk, err = boltbk.New(backend.Params{"path": c.MkDir()})
 	c.Assert(err, IsNil)
 
-	authConfig := &InitConfig{
-		Backend:   s.bk,
-		Authority: authority.New(),
-	}
-	s.a = NewAuthServer(authConfig)
-
-	// set cluster name
 	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
 		ClusterName: "me.localhost",
 	})
 	c.Assert(err, IsNil)
+	authConfig := &InitConfig{
+		ClusterName: clusterName,
+		Backend:     s.bk,
+		Authority:   authority.New(),
+	}
+	s.a, err = NewAuthServer(authConfig)
+	c.Assert(err, IsNil)
+
+	// set cluster name
 	err = s.a.SetClusterName(clusterName)
 	c.Assert(err, IsNil)
 
@@ -537,19 +539,21 @@ func (s *AuthSuite) TestUpdateConfig(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(st.GetStaticTokens(), DeepEquals, []services.ProvisionToken{})
 
-	// use same backend but start a new auth server with different config.
-	authConfig := &InitConfig{
-		Backend:   s.bk,
-		Authority: authority.New(),
-	}
-	authServer := NewAuthServer(authConfig)
-
 	// try and set cluster name, this should fail because you can only set the
 	// cluster name once
 	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
 		ClusterName: "foo.localhost",
 	})
 	c.Assert(err, IsNil)
+	// use same backend but start a new auth server with different config.
+	authConfig := &InitConfig{
+		ClusterName: clusterName,
+		Backend:     s.bk,
+		Authority:   authority.New(),
+	}
+	authServer, err := NewAuthServer(authConfig)
+	c.Assert(err, IsNil)
+
 	err = authServer.SetClusterName(clusterName)
 	c.Assert(err, NotNil)
 	// try and set static tokens, this should be successful because the last
@@ -577,10 +581,7 @@ func (s *AuthSuite) TestUpdateConfig(c *C) {
 	}})
 
 	// check second auth server and make sure it also has the correct values
-	// (original cluster name, new static tokens)
-	cn, err = authServer.GetClusterName()
-	c.Assert(err, IsNil)
-	c.Assert(cn.GetClusterName(), Equals, "me.localhost")
+	// new static tokens
 	st, err = authServer.GetStaticTokens()
 	c.Assert(err, IsNil)
 	c.Assert(st.GetStaticTokens(), DeepEquals, []services.ProvisionToken{services.ProvisionToken{
