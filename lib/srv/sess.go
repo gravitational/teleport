@@ -614,18 +614,42 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 	// the session server (terminal size and activity)
 	go s.pollAndSync()
 
-	// Pipe session to shell and visa-versa capturing input and output
+	doneCh := make(chan bool, 1)
+
+	// copy everything from the pty to the writer. this lets us capture all input
+	// and output of the session (because input is echoed to stdout in the pty).
+	// the writer contains multiple writers: the session logger and a direct
+	// connection to members of the "party" (other people in the session).
 	s.term.AddParty(1)
 	go func() {
-		// notify terminal about a copy process going on
 		defer s.term.AddParty(-1)
-		io.Copy(s.writer, s.term.PTY())
-		log.Infof("session.io.copy() stopped")
+
+		_, err := io.Copy(s.writer, s.term.PTY())
+		log.Debugf("Copying from PTY to writer completed with error %v.", err)
+
+		// once everything has been copied, notify the goroutine below. if this code
+		// is running in a teleport node, when the exec.Cmd is done it will close
+		// the PTY, allowing io.Copy to return. if this is a teleport forwarding
+		// node, when the remote side closes the channel (which is what s.term.PTY()
+		// returns) io.Copy will return.
+		doneCh <- true
 	}()
 
-	// wait for the shell to complete:
+	// wait for exec.Cmd (or receipt of "exit-status" for a forwarding node),
+	// once it is received wait for the io.Copy above to finish, then broadcast
+	// the "exit-status" to the client.
 	go func() {
 		result, err := s.term.Wait()
+
+		// wait for copying from the pty to be complete or a timeout before
+		// broadcasting the result (which will close the pty) if it has not been
+		// closed already.
+		select {
+		case <-time.After(defaults.WaitCopyTimeout):
+			log.Errorf("Timed out waiting for PTY copy to finish, session data for %v may be missing.", s.id)
+		case <-doneCh:
+		}
+
 		if result != nil {
 			s.registry.broadcastResult(s.id, *result)
 		}
