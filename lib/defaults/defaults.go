@@ -164,6 +164,10 @@ const (
 
 	// AuditLogTimeFormat is the format for the timestamp on audit log files.
 	AuditLogTimeFormat = "2006-01-02.15:04:05"
+
+	// WaitCopyTimeout is how long Teleport will wait for a session to finish
+	// copying data from the PTY after "exit-status" has been received.
+	WaitCopyTimeout = 5 * time.Second
 )
 
 var (
