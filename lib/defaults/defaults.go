@@ -171,6 +171,10 @@ const (
 
 	// PlaybackRecycleTTL is the TTL for unpacked session playback files
 	PlaybackRecycleTTL = 3 * time.Hour
+
+	// WaitCopyTimeout is how long Teleport will wait for a session to finish
+	// copying data from the PTY after "exit-status" has been received.
+	WaitCopyTimeout = 5 * time.Second
 )
 
 var (
