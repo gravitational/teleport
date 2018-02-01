@@ -423,7 +423,7 @@ func (tc *TeleportClient) accessPoint(clt auth.AccessPoint, proxyHostPort string
 		SkipPreload:  true,
 		AccessPoint:  clt,
 		Backend:      cacheBackend,
-		CacheTTL:     tc.CachePolicy.CacheTTL,
+		CacheMaxTTL:  tc.CachePolicy.CacheTTL,
 		NeverExpires: tc.CachePolicy.NeverExpires,
 	})
 }
@@ -1068,6 +1068,9 @@ func (tc *TeleportClient) Login(activateKey bool) (*Key, error) {
 
 		// in this case identity is returned by the proxy
 		tc.Username = response.Username
+		if tc.localAgent != nil {
+			tc.localAgent.username = response.Username
+		}
 	case teleport.SAML:
 		response, err = tc.ssoLogin(pr.Auth.SAML.Name, key.Pub, teleport.SAML)
 		if err != nil {
@@ -1075,6 +1078,9 @@ func (tc *TeleportClient) Login(activateKey bool) (*Key, error) {
 		}
 		// in this case identity is returned by the proxy
 		tc.Username = response.Username
+		if tc.localAgent != nil {
+			tc.localAgent.username = response.Username
+		}
 	case teleport.Github:
 		response, err = tc.ssoLogin(pr.Auth.Github.Name, key.Pub, teleport.Github)
 		if err != nil {
@@ -1082,6 +1088,9 @@ func (tc *TeleportClient) Login(activateKey bool) (*Key, error) {
 		}
 		// in this case identity is returned by the proxy
 		tc.Username = response.Username
+		if tc.localAgent != nil {
+			tc.localAgent.username = response.Username
+		}
 	default:
 		return nil, trace.BadParameter("unsupported authentication type: %q", pr.Auth.Type)
 	}

@@ -26,9 +26,18 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// NewAdminContext returns new admin auth context
+func NewAdminContext() (*AuthContext, error) {
+	authContext, err := contextForBuiltinRole(nil, teleport.RoleAdmin, fmt.Sprintf("%v", teleport.RoleAdmin))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return authContext, nil
+}
+
 // NewRoleAuthorizer authorizes everyone as predefined role, used in tests
 func NewRoleAuthorizer(clusterConfig services.ClusterConfig, r teleport.Role) (Authorizer, error) {
-	authContext, err := contextForBuiltinRole(clusterConfig, r, fmt.Sprintf("test-%v", r))
+	authContext, err := contextForBuiltinRole(clusterConfig, r, fmt.Sprintf("%v", r))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -146,7 +155,11 @@ func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*AuthContext, error) {
 
 // authorizeBuiltinRole authorizes builtin role
 func (a *authorizer) authorizeBuiltinRole(r BuiltinRole) (*AuthContext, error) {
-	return contextForBuiltinRole(r.GetClusterConfig(), r.Role, r.Username)
+	config, err := r.GetClusterConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return contextForBuiltinRole(config, r.Role, r.Username)
 }
 
 func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*AuthContext, error) {
@@ -433,4 +446,4 @@ type RemoteUser struct {
 }
 
 // GetClusterConfigFunc returns a cached services.ClusterConfig.
-type GetClusterConfigFunc func() services.ClusterConfig
+type GetClusterConfigFunc func() (services.ClusterConfig, error)

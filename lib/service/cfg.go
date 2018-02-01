@@ -177,6 +177,17 @@ type CachePolicy struct {
 	// NeverExpires means that cache values without TTL
 	// set by the auth server won't expire
 	NeverExpires bool
+	// RecentTTL is the recently accessed items cache TTL
+	RecentTTL *time.Duration
+}
+
+// GetRecentTTL either returns TTL that was set,
+// or default recent TTL value
+func (c *CachePolicy) GetRecentTTL() time.Duration {
+	if c.RecentTTL == nil {
+		return defaults.RecentCacheTTL
+	}
+	return *c.RecentTTL
 }
 
 // String returns human-friendly representation of the policy
@@ -184,13 +195,19 @@ func (c CachePolicy) String() string {
 	if !c.Enabled {
 		return "no cache policy"
 	}
+	recentCachePolicy := ""
+	if c.GetRecentTTL() == 0 {
+		recentCachePolicy = "will not cache frequently accessed items"
+	} else {
+		recentCachePolicy = fmt.Sprintf("will cache frequently accessed items for %v", c.GetRecentTTL())
+	}
 	if c.NeverExpires {
-		return "never expiring cache policy"
+		return fmt.Sprintf("cache will not expire in case if connection to database is lost, %v", recentCachePolicy)
 	}
 	if c.TTL == 0 {
-		return fmt.Sprintf("cache policy with %v TTL", defaults.CacheTTL)
+		return fmt.Sprintf("cache will expire after connection to database is lost after %v, %v", defaults.CacheTTL, recentCachePolicy)
 	}
-	return fmt.Sprintf("cache policy with %v TTL", c.TTL)
+	return fmt.Sprintf("cache will expire after connection to database is lost after %v, %v", c.TTL, recentCachePolicy)
 }
 
 // ProxyConfig configures proy service

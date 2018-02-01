@@ -11,12 +11,16 @@ import (
 // is using local backend
 type CA struct {
 	backend.Backend
+	// getter is used to make batch requests to the backend.
+	getter backend.ItemsGetter
 }
 
 // NewCAService returns new instance of CAService
-func NewCAService(backend backend.Backend) *CA {
+func NewCAService(b backend.Backend) *CA {
+	getter, _ := b.(backend.ItemsGetter)
 	return &CA{
-		Backend: backend,
+		getter:  getter,
+		Backend: b,
 	}
 }
 
@@ -149,15 +153,20 @@ func (s *CA) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool) (ser
 	if err := ca.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !loadSigningKeys {
-		ca.SetSigningKeys(nil)
-		keyPairs := ca.GetTLSKeyPairs()
-		for i := range keyPairs {
-			keyPairs[i].Key = nil
-		}
-		ca.SetTLSKeyPairs(keyPairs)
-	}
+	setSigningKeys(ca, loadSigningKeys)
 	return ca, nil
+}
+
+func setSigningKeys(ca services.CertAuthority, loadSigningKeys bool) {
+	if loadSigningKeys {
+		return
+	}
+	ca.SetSigningKeys(nil)
+	keyPairs := ca.GetTLSKeyPairs()
+	for i := range keyPairs {
+		keyPairs[i].Key = nil
+	}
+	ca.SetTLSKeyPairs(keyPairs)
 }
 
 // DELETE IN: 2.6.0
@@ -187,6 +196,9 @@ func (s *CA) GetCertAuthorities(caType services.CertAuthType, loadSigningKeys bo
 	if err := caType.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if s.getter != nil {
+		return s.batchGetCertAuthorities(caType, loadSigningKeys)
+	}
 	domains, err := s.GetKeys([]string{"authorities", string(caType)})
 	if err != nil {
 		if trace.IsNotFound(err) {
@@ -200,6 +212,27 @@ func (s *CA) GetCertAuthorities(caType services.CertAuthType, loadSigningKeys bo
 			return nil, trace.Wrap(err)
 		}
 		cas = append(cas, ca)
+	}
+	return cas, nil
+}
+
+func (s *CA) batchGetCertAuthorities(caType services.CertAuthType, loadSigningKeys bool) ([]services.CertAuthority, error) {
+	bucket := []string{"authorities", string(caType)}
+	items, err := s.getter.GetItems(bucket)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cas := make([]services.CertAuthority, len(items))
+	for i, item := range items {
+		ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(item.Value)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := ca.Check(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		setSigningKeys(ca, loadSigningKeys)
+		cas[i] = ca
 	}
 	return cas, nil
 }

@@ -452,6 +452,7 @@ func (process *TeleportProcess) initAuthService(authority sshca.Authority) error
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	process.setLocalAuth(authServer)
 
 	// second, create the API Server: it's actually a collection of API servers,
@@ -473,6 +474,17 @@ func (process *TeleportProcess) initAuthService(authority sshca.Authority) error
 	}
 
 	sshLimiter, err := limiter.NewLimiter(cfg.Auth.Limiter)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// admin access point is a caching access point used for frequently
+	// accessed data by auth server, e.g. cert authorities, users and roles
+	adminAuthServer, err := auth.NewAdminAuthServer(authServer, sessionService, process.auditLog)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	adminAccessPoint, err := process.newLocalCache(adminAuthServer, []string{"auth"})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -534,6 +546,7 @@ func (process *TeleportProcess) initAuthService(authority sshca.Authority) error
 		TLS:           tlsConfig,
 		APIConfig:     *apiConf,
 		LimiterConfig: cfg.Auth.Limiter,
+		AccessPoint:   adminAccessPoint,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -648,10 +661,11 @@ func (process *TeleportProcess) newLocalCache(clt auth.ClientI, cacheName []stri
 		return nil, trace.Wrap(err)
 	}
 	return state.NewCachingAuthClient(state.Config{
-		AccessPoint:  clt,
-		Backend:      cacheBackend,
-		NeverExpires: process.Config.CachePolicy.NeverExpires,
-		CacheTTL:     process.Config.CachePolicy.TTL,
+		AccessPoint:    clt,
+		Backend:        cacheBackend,
+		NeverExpires:   process.Config.CachePolicy.NeverExpires,
+		RecentCacheTTL: process.Config.CachePolicy.GetRecentTTL(),
+		CacheMaxTTL:    process.Config.CachePolicy.TTL,
 	})
 }
 

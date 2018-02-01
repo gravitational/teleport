@@ -26,13 +26,14 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
-	"github.com/gravitational/teleport/lib/backend/dir"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
 	"gopkg.in/check.v1"
 )
 
@@ -129,12 +130,13 @@ func (s *ClusterSnapshotSuite) SetUpTest(c *check.C) {
 		StaticTokens: []services.ProvisionToken{},
 	})
 	c.Assert(err, check.IsNil)
-	s.authServer = auth.NewAuthServer(&auth.InitConfig{
+	s.authServer, err = auth.NewAuthServer(&auth.InitConfig{
 		Backend:      s.backend,
 		Authority:    testauthority.New(),
 		ClusterName:  clusterName,
 		StaticTokens: staticTokens,
 	})
+	c.Assert(err, check.IsNil)
 	err = s.authServer.UpsertNamespace(
 		services.NewNamespace(defaults.Namespace))
 	c.Assert(err, check.IsNil)
@@ -172,7 +174,7 @@ func (s *ClusterSnapshotSuite) TearDownTest(c *check.C) {
 }
 
 func (s *ClusterSnapshotSuite) TestEverything(c *check.C) {
-	cacheBackend, err := dir.New(backend.Params{"path": c.MkDir()})
+	cacheBackend, err := boltbk.New(backend.Params{"path": c.MkDir()})
 	c.Assert(err, check.IsNil)
 	snap, err := NewCachingAuthClient(Config{
 		AccessPoint: s.authServer,
@@ -210,7 +212,7 @@ func (s *ClusterSnapshotSuite) TestTry(c *check.C) {
 	success := func() error { successfullCalls++; return nil }
 	failure := func() error { failedCalls++; return trace.ConnectionProblem(nil, "lost uplink") }
 
-	cacheBackend, err := dir.New(backend.Params{"path": c.MkDir()})
+	cacheBackend, err := boltbk.New(backend.Params{"path": c.MkDir()})
 	c.Assert(err, check.IsNil)
 	ap, err := NewCachingAuthClient(Config{
 		AccessPoint: s.authServer,
@@ -240,4 +242,167 @@ func (s *ClusterSnapshotSuite) TestTry(c *check.C) {
 
 	c.Assert(successfullCalls, check.Equals, 2)
 	c.Assert(failedCalls, check.Equals, 2)
+}
+
+// TestRecentSingleValue tests recent cache for single value
+func (s *ClusterSnapshotSuite) TestRecentSingleValue(c *check.C) {
+	cacheBackend, err := boltbk.New(backend.Params{"path": c.MkDir()})
+	c.Assert(err, check.IsNil)
+
+	clock := clockwork.NewFakeClock()
+	recentTTL := time.Second
+	ap, err := NewCachingAuthClient(Config{
+		AccessPoint:    s.authServer,
+		Clock:          clock,
+		Backend:        cacheBackend,
+		RecentCacheTTL: recentTTL,
+	})
+	c.Assert(err, check.IsNil)
+
+	// role is not found
+	role, err := services.NewRole("test", services.RoleSpecV3{})
+	c.Assert(err, check.IsNil)
+	_, err = ap.GetRole(role.GetName())
+	fixtures.ExpectNotFound(c, err)
+
+	// update role on the backend
+	err = s.authServer.UpsertRole(role, 0)
+	c.Assert(err, check.IsNil)
+
+	// role is not found because recent cache is not expired yet
+	_, err = ap.GetRole(role.GetName())
+	fixtures.ExpectNotFound(c, err)
+
+	// now move time forward past expiration time
+	// and retrieve the value
+	clock.Advance(recentTTL + time.Millisecond)
+	out, err := ap.GetRole(role.GetName())
+	c.Assert(err, check.IsNil)
+	c.Assert(out.GetName(), check.Equals, role.GetName())
+
+	// Update role on the backend and hit it once more
+	role.SetLogins(services.Allow, []string{"test"})
+	err = s.authServer.UpsertRole(role, 0)
+	c.Assert(err, check.IsNil)
+
+	// old value
+	out, err = ap.GetRole(role.GetName())
+	c.Assert(err, check.IsNil)
+	c.Assert(out.GetLogins(services.Allow), check.HasLen, 0)
+
+	// advance, get new value
+	clock.Advance(recentTTL + time.Millisecond)
+	out, err = ap.GetRole(role.GetName())
+	c.Assert(err, check.IsNil)
+	c.Assert(out.GetLogins(services.Allow), check.DeepEquals, []string{"test"})
+
+	// shut down backend to get connection problem
+	s.backend.Close()
+	// advance past the recent cache, still get the cached value
+	clock.Advance(recentTTL + time.Millisecond)
+
+	out, err = ap.GetRole(role.GetName())
+	c.Assert(err, check.IsNil)
+	c.Assert(out.GetLogins(services.Allow), check.DeepEquals, []string{"test"})
+}
+
+func (s *ClusterSnapshotSuite) TestRecentCollection(c *check.C) {
+	cacheBackend, err := boltbk.New(backend.Params{"path": c.MkDir()})
+	c.Assert(err, check.IsNil)
+
+	clock := clockwork.NewFakeClock()
+	recentTTL := time.Second
+	ap, err := NewCachingAuthClient(Config{
+		AccessPoint:    s.authServer,
+		Clock:          clock,
+		Backend:        cacheBackend,
+		RecentCacheTTL: recentTTL,
+	})
+	c.Assert(err, check.IsNil)
+
+	// no roles found
+	role, err := services.NewRole("test", services.RoleSpecV3{})
+	c.Assert(err, check.IsNil)
+	roles, err := ap.GetRoles()
+	c.Assert(err, check.IsNil)
+	c.Assert(roles, check.HasLen, 0)
+
+	// update role on the backend
+	err = s.authServer.UpsertRole(role, 0)
+	c.Assert(err, check.IsNil)
+
+	// role is not found because recent cache is not expired yet
+	roles, err = ap.GetRoles()
+	c.Assert(roles, check.HasLen, 0)
+
+	// now move time forward past expiration time
+	// and retrieve the values both for single value
+	// and multiple values
+	clock.Advance(recentTTL + time.Millisecond)
+	roles, err = ap.GetRoles()
+	c.Assert(roles, check.HasLen, 1)
+
+	// The role can be retrieved from the cache
+	out, err := ap.GetRole(role.GetName())
+	c.Assert(err, check.IsNil)
+	c.Assert(out.GetName(), check.Equals, role.GetName())
+
+	// Update role on the backend and hit it once more
+	role.SetLogins(services.Allow, []string{"test"})
+	err = s.authServer.UpsertRole(role, 0)
+	c.Assert(err, check.IsNil)
+
+	// advance the clock, both list and single
+	// value return the same value
+	clock.Advance(recentTTL + time.Millisecond)
+	roles, err = ap.GetRoles()
+	c.Assert(roles[0].GetLogins(services.Allow), check.DeepEquals, []string{"test"})
+
+	out, err = ap.GetRole(role.GetName())
+	c.Assert(err, check.IsNil)
+	c.Assert(out.GetLogins(services.Allow), check.DeepEquals, []string{"test"})
+}
+
+// TestRecentConcurrency
+func (s *ClusterSnapshotSuite) TestRecentConcurrency(c *check.C) {
+	cacheBackend, err := boltbk.New(backend.Params{"path": c.MkDir()})
+	c.Assert(err, check.IsNil)
+
+	recentTTL := time.Second
+	ap, err := NewCachingAuthClient(Config{
+		AccessPoint:    s.authServer,
+		Backend:        cacheBackend,
+		RecentCacheTTL: recentTTL,
+	})
+	c.Assert(err, check.IsNil)
+
+	role, err := services.NewRole("test", services.RoleSpecV3{})
+	c.Assert(err, check.IsNil)
+	err = s.authServer.UpsertRole(role, 0)
+	c.Assert(err, check.IsNil)
+
+	count := 100
+	doneC := make(chan error, count)
+	for i := 0; i < count; i++ {
+		go func(i int) {
+			var err error
+			defer func() {
+				if err != nil {
+					log.Errorf("goroutine %v: %v", i, trace.DebugReport(err))
+				}
+				doneC <- err
+			}()
+			_, err = ap.GetRole(role.GetName())
+		}(i)
+	}
+
+	timeoutC := time.After(10 * time.Second)
+	for i := 0; i < count; i++ {
+		select {
+		case err := <-doneC:
+			c.Assert(err, check.IsNil)
+		case <-timeoutC:
+			c.Fatalf("timeout at %v gorotuine", i)
+		}
+	}
 }

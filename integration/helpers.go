@@ -454,7 +454,11 @@ func (i *TeleInstance) StartNode(name string, sshPort int) (*service.TeleportPro
 	tconf.HostUUID = name
 	tconf.Hostname = name
 	tconf.DataDir = dataDir
-	tconf.CachePolicy = service.CachePolicy{Enabled: true}
+	var ttl time.Duration
+	tconf.CachePolicy = service.CachePolicy{
+		Enabled:   true,
+		RecentTTL: &ttl,
+	}
 
 	tconf.Auth.Enabled = false
 
@@ -493,7 +497,11 @@ func (i *TeleInstance) StartNodeAndProxy(name string, sshPort, proxyWebPort, pro
 	tconf.HostUUID = name
 	tconf.Hostname = name
 	tconf.DataDir = dataDir
-	tconf.CachePolicy = service.CachePolicy{Enabled: true}
+	var ttl time.Duration
+	tconf.CachePolicy = service.CachePolicy{
+		Enabled:   true,
+		RecentTTL: &ttl,
+	}
 
 	tconf.Auth.Enabled = false
 

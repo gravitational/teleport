@@ -99,6 +99,23 @@ func New(params backend.Params) (backend.Backend, error) {
 	return bk, nil
 }
 
+// GetItems is a function that returns keys in batch
+func (bk *Backend) GetItems(bucket []string) ([]backend.Item, error) {
+	keys, err := bk.GetKeys(bucket)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var items []backend.Item
+	for _, key := range keys {
+		v, err := bk.GetVal(bucket, key)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		items = append(items, backend.Item{Key: key, Value: v})
+	}
+	return items, nil
+}
+
 // GetKeys returns a list of keys for a given path
 func (bk *Backend) GetKeys(bucket []string) ([]string, error) {
 	files, err := ioutil.ReadDir(path.Join(bk.RootDir, path.Join(bucket...)))

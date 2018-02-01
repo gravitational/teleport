@@ -20,6 +20,12 @@ resource "aws_autoscaling_group" "proxy" {
     propagate_at_launch = true
   }
 
+  tag {
+    key =  "TeleportRole"
+    value = "proxy"
+    propagate_at_launch = true
+  }
+
   // external autoscale algos can modify these values,
   // so ignore changes to them
   lifecycle {

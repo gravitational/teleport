@@ -37,6 +37,8 @@ type TLSServerConfig struct {
 	APIConfig
 	// LimiterConfig is limiter config
 	LimiterConfig limiter.LimiterConfig
+	// AccessPoint is caching access point
+	AccessPoint AccessPoint
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -54,8 +56,8 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	if len(c.TLS.Certificates) == 0 {
 		return trace.BadParameter("missing parameter TLS.Certificates")
 	}
-	if c.AuthServer == nil {
-		return trace.BadParameter("missing parameter AuthServer")
+	if c.AccessPoint == nil {
+		return trace.BadParameter("missing parameter AccessPoint")
 	}
 	return nil
 }
@@ -81,7 +83,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	// authMiddleware authenticates request assuming TLS client authentication
 	// adds authentication infromation to the context
 	// and passes it to the API server
-	authMiddleware := &AuthMiddleware{AuthServer: cfg.AuthServer}
+	authMiddleware := &AuthMiddleware{AccessPoint: cfg.AccessPoint}
 	authMiddleware.Wrap(NewAPIServer(&cfg.APIConfig))
 	// Wrap sets the next middleware in chain to the authMiddleware
 	limiter.WrapHandle(authMiddleware)
@@ -125,8 +127,8 @@ func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, 
 
 // AuthMiddleware is authentication middleware checking every request
 type AuthMiddleware struct {
-	// AuthServer is underlying auth server used to authenticate requests
-	AuthServer *AuthServer
+	// AccessPoint is a caching access point for auth server
+	AccessPoint AccessPoint
 	// Handler is HTTP handler called after the middleware checks requests
 	Handler http.Handler
 }
@@ -151,7 +153,7 @@ func (a *AuthMiddleware) GetUser(r *http.Request) (interface{}, error) {
 	// therefore it is not allowed to reduce scope
 	if len(peers) == 0 {
 		return BuiltinRole{
-			GetClusterConfig: a.AuthServer.getCachedClusterConfig,
+			GetClusterConfig: a.AccessPoint.GetClusterConfig,
 			Role:             teleport.RoleNop,
 			Username:         string(teleport.RoleNop),
 		}, nil
@@ -162,7 +164,7 @@ func (a *AuthMiddleware) GetUser(r *http.Request) (interface{}, error) {
 		log.Warning("Failed to parse client certificate %v.", err)
 		return nil, trace.AccessDenied("access denied: invalid client certificate")
 	}
-	localClusterName, err := a.AuthServer.GetDomainName()
+	localClusterName, err := a.AccessPoint.GetDomainName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -204,7 +206,7 @@ func (a *AuthMiddleware) GetUser(r *http.Request) (interface{}, error) {
 	// agent, e.g. Proxy, connecting to the cluster
 	if systemRole != nil {
 		return BuiltinRole{
-			GetClusterConfig: a.AuthServer.getCachedClusterConfig,
+			GetClusterConfig: a.AccessPoint.GetClusterConfig,
 			Role:             *systemRole,
 			Username:         identity.Username,
 		}, nil

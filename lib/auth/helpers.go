@@ -106,13 +106,24 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	access := local.NewAccessService(srv.Backend)
 	identity := local.NewIdentityService(srv.Backend)
 
-	srv.AuthServer = NewAuthServer(&InitConfig{
-		Backend:   srv.Backend,
-		Authority: authority.New(),
-		Access:    access,
-		Identity:  identity,
-		AuditLog:  srv.AuditLog,
+	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
+		ClusterName: cfg.ClusterName,
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	srv.AuthServer, err = NewAuthServer(&InitConfig{
+		ClusterName: clusterName,
+		Backend:     srv.Backend,
+		Authority:   authority.New(),
+		Access:      access,
+		Identity:    identity,
+		AuditLog:    srv.AuditLog,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// set cluster config
 	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
@@ -125,14 +136,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// set cluster name
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
-		ClusterName: srv.ClusterName,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	// set cluster name in the backend
 	err = srv.AuthServer.SetClusterName(clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -275,7 +279,6 @@ func (a *TestAuthServer) NewTestTLSServer() (*TestTLSServer, error) {
 		SessionService: a.SessionServer,
 		AuditLog:       a.AuditLog,
 	}
-
 	srv, err := NewTestTLSServer(TestTLSServerConfig{
 		APIConfig:  apiConfig,
 		AuthServer: a,
@@ -376,7 +379,14 @@ func NewTestTLSServer(cfg TestTLSServerConfig) (*TestTLSServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	accessPoint, err := NewAdminAuthServer(srv.AuthServer.AuthServer, srv.AuthServer.SessionServer, srv.AuthServer.AuditLog)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	srv.TLSServer, err = NewTLSServer(TLSServerConfig{
+		AccessPoint:   accessPoint,
 		TLS:           tlsConfig,
 		APIConfig:     *srv.APIConfig,
 		LimiterConfig: *srv.Limiter,

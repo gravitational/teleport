@@ -4,12 +4,16 @@
 resource "aws_instance" "bastion" {
   count                       = "1"
   ami                         = "${data.aws_ami.base.id}"
-  instance_type               = "t2.micro"
+  instance_type               = "t2.medium"
   key_name                    = "${var.key_name}"
   associate_public_ip_address = true
   source_dest_check           = false
   vpc_security_group_ids      = ["${aws_security_group.bastion.id}"]
   subnet_id                   = "${element(aws_subnet.public.*.id, 0)}"
+  tags {
+    TeleportCluster = "${var.cluster_name}"
+    TeleportRole = "bastion"
+  }
 }
 
 // Bastions are open to internet access

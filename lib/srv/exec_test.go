@@ -52,10 +52,11 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	c.Assert(err, check.IsNil)
-	a := auth.NewAuthServer(&auth.InitConfig{
+	a, err := auth.NewAuthServer(&auth.InitConfig{
 		Backend:   bk,
 		Authority: authority.New(),
 	})
+	c.Assert(err, check.IsNil)
 
 	// set cluster name
 	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{

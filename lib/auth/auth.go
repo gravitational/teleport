@@ -54,9 +54,12 @@ import (
 type AuthServerOption func(*AuthServer)
 
 // NewAuthServer creates and configures a new AuthServer instance
-func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
+func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) (*AuthServer, error) {
 	if cfg.Trust == nil {
 		cfg.Trust = local.NewCAService(cfg.Backend)
+	}
+	if cfg.ClusterName == nil {
+		return nil, trace.BadParameter("missing parameter ClusterName")
 	}
 	if cfg.Presence == nil {
 		cfg.Presence = local.NewPresenceService(cfg.Backend)
@@ -78,6 +81,7 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
 	}
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	as := AuthServer{
+		clusterName:          cfg.ClusterName,
 		bk:                   cfg.Backend,
 		Authority:            cfg.Authority,
 		Trust:                cfg.Trust,
@@ -101,12 +105,7 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
 		as.clock = clockwork.NewRealClock()
 	}
 
-	// start sync loop that keeps cluster config synced with what's in backend.
-	// this is used by the context passed in requests to always have a fresh copy
-	// of the cluster config without hammering the backend.
-	go as.syncCachedClusterConfigLoop()
-
-	return &as
+	return &as, nil
 }
 
 // AuthServer keeps the cluster together. It acts as a certificate authority (CA) for
@@ -126,11 +125,6 @@ type AuthServer struct {
 	closeCtx      context.Context
 	cancelFunc    context.CancelFunc
 
-	// cachedClusterConfig stores a cached copy of the cluster config to avoid
-	// hamming the backend with too many requests.
-	cachedClusterConfig   services.ClusterConfig
-	cachedClusterConfigMu sync.RWMutex
-
 	sshca.Authority
 
 	// AuthServiceName is a human-readable name of this CA. If several Auth services are running
@@ -145,6 +139,8 @@ type AuthServer struct {
 	services.Access
 	services.ClusterConfiguration
 	events.IAuditLog
+
+	clusterName services.ClusterName
 }
 
 func (a *AuthServer) Close() error {
@@ -165,15 +161,16 @@ func (a *AuthServer) SetAuditLog(auditLog events.IAuditLog) {
 	a.IAuditLog = auditLog
 }
 
+// GetClusterName returns the domain name that identifies this authority server.
+// Also known as "cluster name"
+func (a *AuthServer) GetClusterName() (services.ClusterName, error) {
+	return a.clusterName, nil
+}
+
 // GetDomainName returns the domain name that identifies this authority server.
 // Also known as "cluster name"
 func (a *AuthServer) GetDomainName() (string, error) {
-	cn, err := a.GetClusterName()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return cn.GetClusterName(), nil
+	return a.clusterName.GetClusterName(), nil
 }
 
 // GenerateHostCert uses the private key of the CA to sign the public key of the host
@@ -649,11 +646,6 @@ func (s *AuthServer) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedK
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clusterName, err := s.GetDomainName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// generate private key
 	privateKeyPEM, pubSSHKey, err := s.GenerateKeyPair("")
 	if err != nil {
@@ -669,10 +661,10 @@ func (s *AuthServer) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedK
 	// get the certificate authority that will be signing the public key of the host
 	ca, err := s.Trust.GetCertAuthority(services.CertAuthID{
 		Type:       services.HostCA,
-		DomainName: clusterName,
+		DomainName: s.clusterName.GetClusterName(),
 	}, true)
 	if err != nil {
-		return nil, trace.BadParameter("failed to load host CA for '%s': %v", clusterName, err)
+		return nil, trace.BadParameter("failed to load host CA for '%s': %v", s.clusterName, err)
 	}
 
 	tlsAuthority, err := ca.TLSCA()
@@ -691,7 +683,7 @@ func (s *AuthServer) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedK
 		PublicHostKey:       pubSSHKey,
 		HostID:              req.HostID,
 		NodeName:            req.NodeName,
-		ClusterName:         clusterName,
+		ClusterName:         s.clusterName.GetClusterName(),
 		Roles:               req.Roles,
 		Principals:          append([]string{}, req.AdditionalPrincipals...),
 	})
@@ -700,7 +692,7 @@ func (s *AuthServer) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedK
 	}
 	// generate host TLS certificate
 	identity := tlsca.Identity{
-		Username: HostFQDN(req.HostID, clusterName),
+		Username: HostFQDN(req.HostID, s.clusterName.GetClusterName()),
 		Groups:   req.Roles.StringSlice(),
 	}
 	certRequest := tlsca.CertificateRequest{
@@ -1021,56 +1013,6 @@ func (a *AuthServer) DeleteRole(name string) error {
 		}
 	}
 	return a.Access.DeleteRole(name)
-}
-
-// syncCachedClusterConfigLoop keeps updating the cached cluster config.
-func (a *AuthServer) syncCachedClusterConfigLoop() {
-	// update the cache at the same rate nodes heartbeat
-	ticker := time.NewTicker(defaults.ServerHeartbeatTTL)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-a.closeCtx.Done():
-			return
-		case <-ticker.C:
-			err := a.syncCachedClusterConfig()
-			if err != nil {
-				log.Warnf("Failed to sync cluster config: %v.", err)
-				continue
-			}
-		}
-	}
-}
-
-// getCachedClusterConfig returns a copy of cached services.ClusterConfig. If
-// nothing is cached yet, a safe default is returned.
-func (a *AuthServer) getCachedClusterConfig() services.ClusterConfig {
-	a.cachedClusterConfigMu.RLock()
-	defer a.cachedClusterConfigMu.RUnlock()
-
-	// if cache is empty, return a safe default
-	clusterConfig := a.cachedClusterConfig
-	if clusterConfig == nil {
-		return services.DefaultClusterConfig()
-	}
-
-	return a.cachedClusterConfig.Copy()
-}
-
-// syncCachedClusterConfig gets cluster config from the backend and updated
-// the cached value.
-func (a *AuthServer) syncCachedClusterConfig() error {
-	clusterConfig, err := a.GetClusterConfig()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	a.cachedClusterConfigMu.Lock()
-	defer a.cachedClusterConfigMu.Unlock()
-
-	a.cachedClusterConfig = clusterConfig
-	return nil
 }
 
 const (

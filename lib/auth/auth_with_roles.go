@@ -1172,6 +1172,22 @@ func (a *AuthWithRoles) WaitForDelivery(context.Context) error {
 	return nil
 }
 
+// NewAdminAuthServer returns auth server authorized as admin,
+// used for auth server cached access
+func NewAdminAuthServer(authServer *AuthServer, sessions session.Service, alog events.IAuditLog) (ClientI, error) {
+	ctx, err := NewAdminContext()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &AuthWithRoles{
+		authServer: authServer,
+		checker:    ctx.Checker,
+		user:       ctx.User,
+		alog:       alog,
+		sessions:   sessions,
+	}, nil
+}
+
 // NewAuthWithRoles creates new auth server with access control
 func NewAuthWithRoles(authServer *AuthServer,
 	checker services.AccessChecker,
