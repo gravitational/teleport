@@ -1705,13 +1705,14 @@ func (c *Client) GetSessionEvents(namespace string, sid session.ID, afterN int) 
 }
 
 // SearchEvents returns events that fit the criteria
-func (c *Client) SearchEvents(from, to time.Time, query string) ([]events.EventFields, error) {
+func (c *Client) SearchEvents(from, to time.Time, query string, limit int) ([]events.EventFields, error) {
 	q, err := url.ParseQuery(query)
 	if err != nil {
 		return nil, trace.BadParameter("query")
 	}
 	q.Set("from", from.Format(time.RFC3339))
 	q.Set("to", to.Format(time.RFC3339))
+	q.Set("limit", fmt.Sprintf("%v", limit))
 	response, err := c.Get(c.Endpoint("events"), q)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1724,10 +1725,11 @@ func (c *Client) SearchEvents(from, to time.Time, query string) ([]events.EventF
 }
 
 // SearchSessionEvents returns session related events to find completed sessions.
-func (c *Client) SearchSessionEvents(from, to time.Time) ([]events.EventFields, error) {
+func (c *Client) SearchSessionEvents(from, to time.Time, limit int) ([]events.EventFields, error) {
 	query := url.Values{
-		"to":   []string{to.Format(time.RFC3339)},
-		"from": []string{from.Format(time.RFC3339)},
+		"to":    []string{to.Format(time.RFC3339)},
+		"from":  []string{from.Format(time.RFC3339)},
+		"limit": []string{fmt.Sprintf("%v", limit)},
 	}
 
 	response, err := c.Get(c.Endpoint("events", "session"), query)

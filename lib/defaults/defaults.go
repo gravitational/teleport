@@ -127,6 +127,12 @@ const (
 	// MaxIterationLimit is max iteration limit
 	MaxIterationLimit = 1000
 
+	// EventsIterationLimit is a default limit if it's not set for events
+	EventsIterationLimit = 500
+
+	// EventsIterationLimit is max iteration limit for events
+	EventsMaxIterationLimit = 10000
+
 	// ActiveSessionTTL is a TTL when session is marked as inactive
 	ActiveSessionTTL = 30 * time.Second
 

@@ -120,26 +120,36 @@ func (a *AuditTestSuite) TestCompatComplexLogging(c *check.C) {
 
 	// try searching (in the future)
 	query := fmt.Sprintf("%s=%s", EventType, SessionStartEvent)
-	found, err := alog.SearchEvents(now.Add(time.Hour), now.Add(time.Hour), query)
+	found, err := alog.SearchEvents(now.Add(time.Hour), now.Add(time.Hour), query, 0)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(found), check.Equals, 0)
 
 	// try searching (wrong query)
-	found, err = alog.SearchEvents(now.Add(time.Hour), now.Add(time.Hour), "foo=bar")
+	found, err = alog.SearchEvents(now.Add(time.Hour), now.Add(time.Hour), "foo=bar", 0)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(found), check.Equals, 0)
 
 	// try searching (good query: for "session start")
-	found, err = alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), query)
+	found, err = alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), query, 0)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(found), check.Equals, 1)
 	c.Assert(found[0].GetString(EventLogin), check.Equals, "vincent")
 
 	// try searching (empty query means "anything")
-	found, err = alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), "")
+	found, err = alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), "", 0)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(found), check.Equals, 6) // total number of events logged in this test
 	c.Assert(found[0].GetString(EventLogin), check.Equals, "vincent")
+
+	// limit the events
+	found, err = alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), "", 1)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(found), check.Equals, 1) // total number is limited to 1
+
+	// limit the events
+	found, err = alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), "", 5)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(found), check.Equals, 5) // total number is limited to 1
 }
 
 // TestSessionsOnOneAuthServer tests scenario when there are two auth servers
@@ -488,27 +498,32 @@ func (a *AuditTestSuite) TestSearchTwoAuthServers(c *check.C) {
 
 		// search events, start time is in the future
 		query := fmt.Sprintf("%s=%s", EventType, SessionStartEvent)
-		found, err := a.SearchEvents(startTime.Add(time.Hour), startTime.Add(time.Hour), query)
+		found, err := a.SearchEvents(startTime.Add(time.Hour), startTime.Add(time.Hour), query, 0)
 		c.Assert(err, check.IsNil)
 		c.Assert(len(found), check.Equals, 0, comment)
 
 		// try searching (wrong query)
-		found, err = a.SearchEvents(startTime, startTime.Add(time.Hour), "foo=bar")
+		found, err = a.SearchEvents(startTime, startTime.Add(time.Hour), "foo=bar", 0)
 		c.Assert(err, check.IsNil)
 		c.Assert(len(found), check.Equals, 0, comment)
 
 		// try searching (good query: for "session start")
-		found, err = a.SearchEvents(startTime.Add(-time.Hour), startTime.Add(time.Hour), query)
+		found, err = a.SearchEvents(startTime.Add(-time.Hour), startTime.Add(time.Hour), query, 0)
 		c.Assert(err, check.IsNil)
 		c.Assert(len(found), check.Equals, 1, comment)
 		c.Assert(found[0].GetString(EventLogin), check.Equals, "bob", comment)
 
 		// try searching (empty query means "anything")
-		found, err = alog.SearchEvents(startTime.Add(-time.Hour), startTime.Add(time.Hour), "")
+		found, err = alog.SearchEvents(startTime.Add(-time.Hour), startTime.Add(time.Hour), "", 0)
 		c.Assert(err, check.IsNil)
 		c.Assert(len(found), check.Equals, 2) // total number of events logged in this test
 		c.Assert(found[0].GetString(EventType), check.Equals, SessionStartEvent, comment)
 		c.Assert(found[1].GetString(EventType), check.Equals, SessionEndEvent, comment)
+
+		// limit to 1
+		found, err = alog.SearchEvents(startTime.Add(-time.Hour), startTime.Add(time.Hour), "", 1)
+		c.Assert(err, check.IsNil)
+		c.Assert(len(found), check.Equals, 1) // total number of events logged in this test
 	}
 }
 
@@ -617,7 +632,7 @@ func (a *AuditTestSuite) TestSearchTwoAuthServersSameTime(c *check.C) {
 		comment := check.Commentf("auth server %v", a.ServerID)
 
 		// try searching (empty query means "anything")
-		found, err := alog.SearchEvents(startTime.Add(-time.Hour), startTime.Add(time.Hour), "")
+		found, err := alog.SearchEvents(startTime.Add(-time.Hour), startTime.Add(time.Hour), "", 0)
 		c.Assert(err, check.IsNil)
 		c.Assert(len(found), check.Equals, 2) // total number of events logged in this test
 		c.Assert(found[0].GetString(EventType), check.Equals, SessionStartEvent, comment)
@@ -673,7 +688,7 @@ func (a *AuditTestSuite) TestMigrationsToV2(c *check.C) {
 	c.Assert(events, check.HasLen, 3)
 
 	// global events were migrated
-	events, err = alog.SearchEvents(time.Time{}, time.Now().Add(time.Hour), "")
+	events, err = alog.SearchEvents(time.Time{}, time.Now().Add(time.Hour), "", 0)
 	c.Assert(err, check.IsNil)
 	c.Assert(events, check.HasLen, 3)
 
@@ -686,7 +701,7 @@ func (a *AuditTestSuite) TestMigrationsToV2(c *check.C) {
 	c.Assert(events, check.HasLen, 3)
 
 	// global events were migrated
-	events, err = alog.SearchEvents(time.Time{}, time.Now().Add(time.Hour), "")
+	events, err = alog.SearchEvents(time.Time{}, time.Now().Add(time.Hour), "", 0)
 	c.Assert(err, check.IsNil)
 	c.Assert(events, check.HasLen, 3)
 }
@@ -713,7 +728,7 @@ func (a *AuditTestSuite) TestCompatSessionRecordingOff(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// get all events from the audit log, should have two events
-	found, err := alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), "")
+	found, err := alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), "", 0)
 	c.Assert(err, check.IsNil)
 	c.Assert(found, check.HasLen, 2)
 	c.Assert(found[0].GetString(EventLogin), check.Equals, "doggy")
@@ -776,7 +791,7 @@ func (a *AuditTestSuite) TestSessionRecordingOff(c *check.C) {
 	c.Assert(alog.loggers.Len(), check.Equals, 0)
 
 	// get all events from the audit log, should have two events
-	found, err := alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), "")
+	found, err := alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), "", 0)
 	c.Assert(err, check.IsNil)
 	c.Assert(found, check.HasLen, 2)
 	c.Assert(found[0].GetString(EventLogin), check.Equals, username)

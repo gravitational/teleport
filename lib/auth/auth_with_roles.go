@@ -816,20 +816,20 @@ func (a *AuthWithRoles) GetSessionEvents(namespace string, sid session.ID, after
 	return a.alog.GetSessionEvents(namespace, sid, afterN)
 }
 
-func (a *AuthWithRoles) SearchEvents(from, to time.Time, query string) ([]events.EventFields, error) {
+func (a *AuthWithRoles) SearchEvents(from, to time.Time, query string, limit int) ([]events.EventFields, error) {
 	if err := a.action(defaults.Namespace, services.KindEvent, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return a.alog.SearchEvents(from, to, query)
+	return a.alog.SearchEvents(from, to, query, limit)
 }
 
-func (a *AuthWithRoles) SearchSessionEvents(from, to time.Time) ([]events.EventFields, error) {
+func (a *AuthWithRoles) SearchSessionEvents(from, to time.Time, limit int) ([]events.EventFields, error) {
 	if err := a.action(defaults.Namespace, services.KindSession, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return a.alog.SearchSessionEvents(from, to)
+	return a.alog.SearchSessionEvents(from, to, limit)
 }
 
 // GetNamespaces returns a list of namespaces

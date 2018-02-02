@@ -471,9 +471,9 @@ func (ll *CachingAuditLog) GetSessionChunk(string, session.ID, int, int) ([]byte
 func (ll *CachingAuditLog) GetSessionEvents(string, session.ID, int) ([]events.EventFields, error) {
 	return nil, errNotSupported
 }
-func (ll *CachingAuditLog) SearchEvents(time.Time, time.Time, string) ([]events.EventFields, error) {
+func (ll *CachingAuditLog) SearchEvents(time.Time, time.Time, string, int) ([]events.EventFields, error) {
 	return nil, errNotSupported
 }
-func (ll *CachingAuditLog) SearchSessionEvents(time.Time, time.Time) ([]events.EventFields, error) {
+func (ll *CachingAuditLog) SearchSessionEvents(time.Time, time.Time, int) ([]events.EventFields, error) {
 	return nil, errNotSupported
 }

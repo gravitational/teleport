@@ -87,10 +87,10 @@ func (d *MockAuditLog) GetSessionEvents(namespace string, sid session.ID, after 
 	return make([]EventFields, 0), nil
 }
 
-func (d *MockAuditLog) SearchEvents(fromUTC, toUTC time.Time, query string) ([]EventFields, error) {
+func (d *MockAuditLog) SearchEvents(fromUTC, toUTC time.Time, query string, limit int) ([]EventFields, error) {
 	return make([]EventFields, 0), nil
 }
 
-func (d *MockAuditLog) SearchSessionEvents(fromUTC, toUTC time.Time) ([]EventFields, error) {
+func (d *MockAuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int) ([]EventFields, error) {
 	return make([]EventFields, 0), nil
 }

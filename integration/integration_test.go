@@ -735,7 +735,7 @@ func (s *IntSuite) TestTwoClusters(c *check.C) {
 			for {
 				select {
 				case <-tickCh:
-					eventsInSite, err := site.SearchEvents(now, now.Add(1*time.Hour), execQuery)
+					eventsInSite, err := site.SearchEvents(now, now.Add(1*time.Hour), execQuery, 0)
 					if err != nil {
 						return trace.Wrap(err)
 					}

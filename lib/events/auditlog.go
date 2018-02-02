@@ -846,9 +846,16 @@ func (l *AuditLog) runMigrations() error {
 	return nil
 }
 
-// SearchEvents finds events. Results show up sorted by date (newest first)
-func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, query string) ([]EventFields, error) {
-	l.Debugf("SearchEvents(%v, %v, query=%v)", fromUTC, toUTC, query)
+// SearchEvents finds events. Results show up sorted by date (newest first),
+// limit is used when set to value > 0
+func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, query string, limit int) ([]EventFields, error) {
+	l.Debugf("SearchEvents(%v, %v, query=%v, limit=%v)", fromUTC, toUTC, query, limit)
+	if limit <= 0 {
+		limit = defaults.EventsIterationLimit
+	}
+	if limit > defaults.EventsMaxIterationLimit {
+		return nil, trace.BadParameter("limit %v exceeds max iteration limit %v", limit, defaults.MaxIterationLimit)
+	}
 	// how many days of logs to search?
 	days := int(toUTC.Sub(fromUTC).Hours() / 24)
 	if days < 0 {
@@ -862,14 +869,18 @@ func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, query string) ([]Event
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	var total int
 	// search within each file:
 	events := make([]EventFields, 0)
 	for i := range filtered {
-		found, err := l.findInFile(filtered[i].path, queryVals)
+		found, err := l.findInFile(filtered[i].path, queryVals, &total, limit)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		events = append(events, found...)
+		if limit > 0 && total >= limit {
+			break
+		}
 	}
 	// sort all accepted files by timestamp or by event index
 	// in case if events are associated with the same session, to make
@@ -880,8 +891,8 @@ func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, query string) ([]Event
 }
 
 // SearchSessionEvents searches for session related events. Used to find completed sessions.
-func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time) ([]EventFields, error) {
-	l.Debugf("SearchSessionEvents(%v, %v)", fromUTC, toUTC)
+func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int) ([]EventFields, error) {
+	l.Debugf("SearchSessionEvents(%v, %v, %v)", fromUTC, toUTC, limit)
 
 	// only search for specific event types
 	query := url.Values{}
@@ -890,7 +901,38 @@ func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time) ([]EventFields,
 		SessionEndEvent,
 	}
 
-	return l.SearchEvents(fromUTC, toUTC, query.Encode())
+	// because of the limit and distributed nature of auth server event
+	// logs, some events can be fetched with session end event and without
+	// session start event. to fix this, the code below filters out the events without
+	// start event to guarantee that all events in the range will get fetched
+	events, err := l.SearchEvents(fromUTC, toUTC, query.Encode(), limit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// filter out 'session end' events that do not
+	// have a corresponding 'session start' event
+	started := make(map[string]struct{}, len(events)/2)
+	filtered := make([]EventFields, 0, len(events))
+	for i := range events {
+		event := events[i]
+		eventType := event[EventType]
+		sessionID := event.GetString(SessionEventID)
+		if sessionID == "" {
+			continue
+		}
+		if eventType == SessionStartEvent {
+			started[sessionID] = struct{}{}
+			filtered = append(filtered, event)
+		}
+		if eventType == SessionEndEvent {
+			if _, ok := started[sessionID]; ok {
+				filtered = append(filtered, event)
+			}
+		}
+	}
+
+	return filtered, nil
 }
 
 type eventFile struct {
@@ -952,7 +994,7 @@ func (f byTimeAndIndex) Swap(i, j int) {
 // This simplistic implementation ONLY SEARCHES FOR EVENT TYPE(s)
 //
 // You can pass multiple types like "event=session.start&event=session.end"
-func (l *AuditLog) findInFile(fn string, query url.Values) ([]EventFields, error) {
+func (l *AuditLog) findInFile(fn string, query url.Values, total *int, limit int) ([]EventFields, error) {
 	l.Debugf("Called findInFile(%s, %v).", fn, query)
 	retval := make([]EventFields, 0)
 
@@ -998,6 +1040,10 @@ func (l *AuditLog) findInFile(fn string, query url.Values) ([]EventFields, error
 		}
 		if accepted || !doFilter {
 			retval = append(retval, ef)
+			*total += 1
+			if limit > 0 && *total >= limit {
+				break
+			}
 		}
 	}
 	return retval, nil
