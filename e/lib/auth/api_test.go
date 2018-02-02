@@ -32,14 +32,27 @@ func (s *APISuite) SetUpSuite(c *check.C) {
 	backend, err := boltbk.New(backend.Params{"path": dir})
 	c.Assert(err, check.IsNil)
 
-	authServer := auth.NewAuthServer(&auth.InitConfig{
-		Backend: backend,
+	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
+		ClusterName: "localhost",
 	})
+	c.Assert(err, check.IsNil)
+
+	authServer, err := auth.NewAuthServer(&auth.InitConfig{
+		Backend:     backend,
+		ClusterName: clusterName,
+	})
+	c.Assert(err, check.IsNil)
 
 	// set cluster config
 	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
 		SessionRecording: services.RecordAtNode,
 	})
+	c.Assert(err, check.IsNil)
+
+	err = authServer.SetClusterConfig(clusterConfig)
+	c.Assert(err, check.IsNil)
+
+	err = authServer.SetClusterName(clusterName)
 	c.Assert(err, check.IsNil)
 
 	authorizer, err := auth.NewRoleAuthorizer(clusterConfig, teleport.RoleAdmin)
