@@ -111,13 +111,13 @@ func (l *AuditLog) GetSessionEvents(namespace string, sid session.ID, after int)
 	return events, trace.Wrap(err)
 }
 
-func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, query string) ([]events.EventFields, error) {
-	events, err := l.Inner.SearchEvents(fromUTC, toUTC, query)
+func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, query string, limit int) ([]events.EventFields, error) {
+	events, err := l.Inner.SearchEvents(fromUTC, toUTC, query, limit)
 	return events, trace.Wrap(err)
 }
 
-func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time) ([]events.EventFields, error) {
-	events, err := l.Inner.SearchSessionEvents(fromUTC, toUTC)
+func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int) ([]events.EventFields, error) {
+	events, err := l.Inner.SearchSessionEvents(fromUTC, toUTC, limit)
 	return events, trace.Wrap(err)
 }
 
