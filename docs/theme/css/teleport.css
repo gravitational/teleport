@@ -21,7 +21,7 @@ a.button:hover {background:#3d73ba;color:#fff;}
 
 #get-started {text-align:center;border-top:1px solid #f0f4f5;padding-top:40px;}
 
-#quickstart, #installation {display:none;}
+/*#quickstart, #installation {display:none;}*/
 #quickstart, #installation, #overview {padding-top:50px;}
 
 div.github {margin:30px 0;display:block;}
@@ -154,6 +154,27 @@ a:visited{
     padding-left: 1.618em -4px
 }
 
+/* top-level menu */
+.wy-menu-vertical ul.subnav span {
+    font-size: 120%;
+    padding: 8px 15px;
+}
+
+.wy-menu-vertical li.current a {
+    border-right: solid 1px #c9c9c9;
+    padding: 0.4045em 3.427em;
+}
+
+/* 2nd level */
+.sidebar ul li.toctree-l1 > a {
+    padding-left: 2em;
+}
+
+/* 3rd level */
+.wy-menu-vertical li.toctree-l4 a {
+    padding-left: 3.5em;
+}
+
 .wy-menu-vertical li.on a:hover,.wy-menu-vertical li.current>a:hover {
     background: #fcfcfc
 }
@@ -168,7 +189,7 @@ a:visited{
 
 .wy-menu-vertical li ul {
     margin-bottom: 0;
-    display: none
+    /*display: none*/
 }
 
 .wy-menu-vertical .local-toc li ul {
@@ -177,8 +198,8 @@ a:visited{
 
 .wy-menu-vertical li ul li a {
     margin-bottom: 0;
-    color: #b3b3b3;
-    font-weight: normal
+    color: #3d73ba;
+    font-weight: normal;
 }
 
 .wy-menu-vertical a {

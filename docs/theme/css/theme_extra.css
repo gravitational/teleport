@@ -11,25 +11,6 @@ h3, h4, h5, h6 {
 }
 
 /*
- * Sphinx doesn't have support for section dividers like we do in
- * MkDocs, this styles the section titles in the nav
- *
- * https://github.com/mkdocs/mkdocs/issues/175
- */
-.wy-menu-vertical span {
-    line-height: 18px;
-    padding: 0.4045em 1.618em;
-    display: block;
-    position: relative;
-    font-size: 90%;
-    color: #838383;
-}
-
-.wy-menu-vertical .subnav a {
-    padding: 0.4045em 2.427em;
-}
-
-/*
  * Long navigations run off the bottom of the screen as the nav
  * area doesn't scroll.
  *
