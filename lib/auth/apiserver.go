@@ -1716,11 +1716,20 @@ func (s *APIServer) searchEvents(auth ClientI, w http.ResponseWriter, r *http.Re
 			return nil, trace.BadParameter("to")
 		}
 	}
-	// remove 'to' & 'from' fields, passing the rest of the query unmodified
+	var limit int
+	limitStr := query.Get("limit")
+	if limitStr != "" {
+		limit, err = strconv.Atoi(limitStr)
+		if err != nil {
+			return nil, trace.BadParameter("failed to parse limit: %q", limit)
+		}
+	}
+	// remove 'to', 'from' and 'limit' fields, passing the rest of the query unmodified
 	// to whatever pluggable search is implemented by the backend
 	query.Del("to")
 	query.Del("from")
-	eventsList, err := auth.SearchEvents(from, to, query.Encode())
+	query.Del("limit")
+	eventsList, err := auth.SearchEvents(from, to, query.Encode(), limit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1751,9 +1760,16 @@ func (s *APIServer) searchSessionEvents(auth ClientI, w http.ResponseWriter, r *
 			return nil, trace.BadParameter("to")
 		}
 	}
-
+	var limit int
+	limitStr := query.Get("limit")
+	if limitStr != "" {
+		limit, err = strconv.Atoi(limitStr)
+		if err != nil {
+			return nil, trace.BadParameter("failed to parse limit: %q", limit)
+		}
+	}
 	// only pull back start and end events to build list of completed sessions
-	eventsList, err := auth.SearchSessionEvents(from, to)
+	eventsList, err := auth.SearchSessionEvents(from, to, limit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -1643,7 +1643,7 @@ func (h *Handler) siteEventsGet(w http.ResponseWriter, r *http.Request, p httpro
 		}
 	}
 
-	el, err := clt.SearchSessionEvents(from, to)
+	el, err := clt.SearchSessionEvents(from, to, defaults.EventsIterationLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

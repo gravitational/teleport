@@ -40,9 +40,9 @@ func (d *DiscardAuditLog) GetSessionChunk(namespace string, sid session.ID, offs
 func (d *DiscardAuditLog) GetSessionEvents(namespace string, sid session.ID, after int) ([]EventFields, error) {
 	return make([]EventFields, 0), nil
 }
-func (d *DiscardAuditLog) SearchEvents(fromUTC, toUTC time.Time, query string) ([]EventFields, error) {
+func (d *DiscardAuditLog) SearchEvents(fromUTC, toUTC time.Time, query string, limit int) ([]EventFields, error) {
 	return make([]EventFields, 0), nil
 }
-func (d *DiscardAuditLog) SearchSessionEvents(fromUTC time.Time, toUTC time.Time) ([]EventFields, error) {
+func (d *DiscardAuditLog) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int) ([]EventFields, error) {
 	return make([]EventFields, 0), nil
 }

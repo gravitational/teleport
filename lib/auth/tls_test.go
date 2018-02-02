@@ -349,14 +349,14 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 	// try searching for events with no filter (empty query) - should get all 3 events:
 	to := time.Now().In(time.UTC).Add(time.Hour)
 	from := to.Add(-time.Hour * 2)
-	history, err := clt.SearchEvents(from, to, "")
+	history, err := clt.SearchEvents(from, to, "", 0)
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.NotNil)
 	c.Assert(len(history), check.Equals, 3)
 
 	// try searching for only "session.end" events (real query)
 	history, err = clt.SearchEvents(from, to,
-		fmt.Sprintf("%s=%s", events.EventType, events.SessionEndEvent))
+		fmt.Sprintf("%s=%s", events.EventType, events.SessionEndEvent), 0)
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.NotNil)
 	c.Assert(len(history), check.Equals, 1)
