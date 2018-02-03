@@ -44,11 +44,19 @@ var (
 			Help: "Number of access point requests",
 		},
 	)
-	cacheLatencies = prometheus.NewHistogram(
+	accessPointLatencies = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
 			Name: "access_point_latency_microseconds",
 			Help: "Latency for access point operations",
-			// Buckets in microsecnd latencies
+			// Buckets in microsecond latencies
+			Buckets: prometheus.ExponentialBuckets(5000, 1.5, 15),
+		},
+	)
+	cacheLatencies = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name: "access_point_cache_latency_microseconds",
+			Help: "Latency for access point cache operations",
+			// Buckets in microsecond latencies
 			Buckets: prometheus.ExponentialBuckets(5000, 1.5, 15),
 		},
 	)
@@ -57,6 +65,7 @@ var (
 func init() {
 	// Metrics have to be registered to be exposed:
 	prometheus.MustRegister(accessPointRequests)
+	prometheus.MustRegister(accessPointLatencies)
 	prometheus.MustRegister(cacheLatencies)
 }
 
@@ -805,6 +814,7 @@ func (cs *CachingAuthClient) setLastErrorTime(t time.Time) {
 // time is recorded. Future calls to f will be ingored until sufficient time passes
 // since th last error
 func (cs *CachingAuthClient) try(f func() error) error {
+	start := time.Now()
 	tooSoon := cs.getLastErrorTime().Add(defaults.NetworkRetryDuration).After(time.Now())
 	if tooSoon {
 		cs.Warnf("Backoff: using cached value due to recent errors.")
@@ -812,6 +822,7 @@ func (cs *CachingAuthClient) try(f func() error) error {
 	}
 	accessPointRequests.Inc()
 	err := trace.ConvertSystemError(f())
+	accessPointLatencies.Observe(mdiff(start))
 	if trace.IsConnectionProblem(err) {
 		cs.setLastErrorTime(time.Now())
 		cs.Warningf("Connection problem: failed connect to the auth servers, using local cache.")
