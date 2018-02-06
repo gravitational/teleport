@@ -10,7 +10,7 @@
 # Naming convention:
 #	for stable releases we use "1.0.0" format
 #   for pre-releases, we use   "1.0.0-beta.2" format
-VERSION=2.4.0
+VERSION=2.4.1
 
 # These are standard autotools variables, don't change them please
 BUILDDIR ?= build
@@ -35,7 +35,7 @@ TELEPORTVENDOR = $(shell find vendor -type f -name '*.go')
 
 #
 # 'make all' builds all 3 executables and plaaces them in a current directory
-# 
+#
 # IMPORTANT: the binaries will not contain the web UI assets and `teleport`
 #            won't start without setting the environment variable DEBUG=1
 #            This is the default build target for convenience of working on
@@ -55,7 +55,7 @@ $(BUILDDIR)/tsh: $(LIBS) $(TELEPORTSRC) $(TELEPORTVENDOR)
 	go build -o $(BUILDDIR)/tsh -i $(BUILDFLAGS) ./tool/tsh
 
 #
-# make full - builds the binary with the built-in web assets and places it 
+# make full - builds the binary with the built-in web assets and places it
 #     into $(BUILDDIR)
 #
 .PHONY:full
@@ -75,9 +75,9 @@ clean:
 	@if [ -f e/Makefile ]; then $(MAKE) -C e clean; fi
 
 #
-# make release - produces a binary release tarball 
-#	
-.PHONY: 
+# make release - produces a binary release tarball
+#
+.PHONY:
 export
 release: clean full
 	mkdir teleport
@@ -123,7 +123,7 @@ test: $(VERSRC)
 # integration tests. need a TTY to work and not compatible with a race detector
 #
 .PHONY: integration
-integration: 
+integration:
 	go test -v ./integration/... -check.v
 
 # This rule triggers re-generation of version.go and gitref.go if Makefile changes
@@ -224,7 +224,7 @@ goinstall:
 		github.com/gravitational/teleport/tool/teleport \
 		github.com/gravitational/teleport/tool/tctl
 
-# make install will installs system-wide teleport 
+# make install will installs system-wide teleport
 .PHONY: install
 install: build
 	@echo "\n** Make sure to run 'make install' as root! **\n"
