@@ -1,0 +1,115 @@
+# This is a naive deployment example
+# to highlight the most important upgrade points:
+#
+# * Ordering of the upgrades
+# * Scale down/ups of auth servers during upgrades
+#
+# Things to be done before this is production ready
+#
+# * Backup/restore of database before auth server upgrades
+# * Collaboration with load balancers to drain connections
+# * Health checks post auth server upgrade
+# * Rollbacks and restores from backups
+#
+- hosts: "auth, proxy, node"
+  name: Download new version of teleport to auth and proxies
+  become: yes
+  remote_user: admin
+  become_method: sudo
+  tasks:
+
+    - include: vars.yaml
+
+    - name: Download and unpack new version of teleport
+      get_url:
+        url: https://get.gravitational.com/teleport/{{teleport_version}}/teleport-ent-v{{teleport_version}}-linux-amd64-bin.tar.gz
+        dest: /tmp/teleport-ent-v{{teleport_version}}-linux-amd64-bin.tar.gz
+    - name: Unpack teleport binaries
+      unarchive:
+        extra_opts: ['--strip-components=1', '--show-stored-names']
+        exclude:
+          - "examples/*"
+          - "README.md"
+          - "VERSION"
+          - "INSTALL"
+          - "CHANGELOG"
+        src: /tmp/teleport-ent-v{{teleport_version}}-linux-amd64-bin.tar.gz
+        dest: /usr/local/bin
+        remote_src: yes
+        owner: "{{ 'root' if 'node' in group_names else 'teleport' }}"
+        group: "{{ 'root' if 'node' in group_names else 'teleport' }}"
+
+
+# Scale down all auth servers but the first one
+# The new auth server will run migrations, so during upgrade
+# there should be only one auth server available
+- hosts: "auth[1:]"
+  name: Scale down all auth servers but one
+  become: yes
+  remote_user: admin
+  become_method: sudo
+  tasks:
+
+    - include: vars.yaml
+
+    - name: Stop teleport
+      service:
+        name: teleport
+        state: stopped
+
+- hosts: "auth[0]"
+  name: Restart the first auth server
+  become: yes
+  remote_user: admin
+  become_method: sudo
+  tasks:
+
+    - include: vars.yaml
+
+    - name: Restart teleport
+      service:
+        name: teleport
+        state: restarted
+
+- hosts: "auth[1:]"
+  name: Restart the rest of auth servers
+  become: yes
+  remote_user: admin
+  become_method: sudo
+  tasks:
+
+    - include: vars.yaml
+
+    - name: Restart teleport
+      service:
+        name: teleport
+        state: restarted
+
+
+- hosts: "proxy"
+  name: Restart the proxies
+  become: yes
+  remote_user: admin
+  become_method: sudo
+  tasks:
+
+    - include: vars.yaml
+
+    - name: Restart teleport
+      service:
+        name: teleport
+        state: restarted
+
+- hosts: "node"
+  name: Restart the nodes
+  become: yes
+  remote_user: admin
+  become_method: sudo
+  tasks:
+
+    - include: vars.yaml
+
+    - name: Restart teleport
+      service:
+        name: teleport
+        state: restarted
