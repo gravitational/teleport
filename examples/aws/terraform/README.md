@@ -16,3 +16,35 @@ export TF_VAR_email="support@example.com"
 # plan
 make plan
 ```
+
+## Upgrade examples
+
+All examples are run from `ansible` directory and are to illustrate
+upgrade order of the provisioned infrastructure.
+
+**Install python deps**
+
+```
+pip install boto3==1.0.0 ansible==2.3.0.0
+```
+
+**Configure AWS**
+
+Make sure to configure [your aws creds](https://boto3.readthedocs.io/en/latest/guide/quickstart.html#configuration).
+
+**Generate SSH config**
+
+```
+# generate SSH config for ansible to go through bastion
+# this will write bastion
+python ec2.py --ssh --ssh-key=/path/to/key
+# make sure ansible works by pinging the nodes
+ansible -vvv -i ec2.py -u admin auth -m ping --private-key=/path/to/key
+```
+
+
+**Launch an upgrade**
+
+```
+ansible-playbook -vvv -i ec2.py --private-key=/path/to/key --extra-vars "teleport_version=2.5.0-beta.1" upgrade.yaml
+```

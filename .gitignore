@@ -54,3 +54,7 @@ terraform.tfstate
 
 # OSX 
 .DS_Store
+
+# ansible stuff
+ssh.config
+*.retry
