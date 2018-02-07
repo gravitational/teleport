@@ -190,6 +190,10 @@ type Config struct {
 
 	// AuthConnector is the name of the authentication connector to use.
 	AuthConnector string
+
+	// CheckVersions will check that client version is compatible
+	// with auth server version when connecting.
+	CheckVersions bool
 }
 
 // CachePolicy defines cache policy for local clients
@@ -1043,6 +1047,12 @@ func (tc *TeleportClient) Login(activateKey bool) (*Key, error) {
 	pr, err := Ping(httpsProxyHostPort, tc.InsecureSkipVerify, certPool, tc.AuthConnector)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if tc.CheckVersions {
+		if err := utils.CheckVersions(teleport.Version, pr.ServerVersion); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// generate a new keypair. the public key will be signed via proxy if client's

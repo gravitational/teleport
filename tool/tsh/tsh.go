@@ -123,6 +123,9 @@ type CLIConf struct {
 
 	// AuthConnector is the name of the connector to use.
 	AuthConnector string
+
+	// SkipVersionCheck skips version checking for client and server
+	SkipVersionCheck bool
 }
 
 func main() {
@@ -165,6 +168,7 @@ func Run(args []string, underTest bool) {
 	app.Flag("namespace", "Namespace of the cluster").Default(defaults.Namespace).Hidden().StringVar(&cf.Namespace)
 	app.Flag("gops", "Start gops endpoint on a given address").Hidden().BoolVar(&cf.Gops)
 	app.Flag("gops-addr", "Specify gops addr to listen on").Hidden().StringVar(&cf.GopsAddr)
+	app.Flag("skip-version-check", "Skip version checking between server and client.").Hidden().BoolVar(&cf.SkipVersionCheck)
 	debugMode := app.Flag("debug", "Verbose logging to stdout").Short('d').Bool()
 	app.HelpFlag.Short('h')
 	ver := app.Command("version", "Print the version")
@@ -618,6 +622,9 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 	if !cf.NoCache {
 		c.CachePolicy = &client.CachePolicy{}
 	}
+
+	// check version compatibility of the server and client
+	c.CheckVersions = !cf.SkipVersionCheck
 
 	// parse compatibility parameter
 	certificateFormat, err := parseCertificateCompatibilityFlag(cf.Compatibility, cf.CertificateFormat)
