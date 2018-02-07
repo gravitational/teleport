@@ -1,0 +1,238 @@
+
+$second_level_padding: 30px;
+$third_level_padding: 50px;
+
+
+div[role=navigation] hr {
+  margin: 10px 0px
+}
+
+/* Navigation Left Panel Overrides
+  -------------------------------------------------------------- */
+.wy-nav-content-wrap .wy-nav-top a:visited {
+  color: white;
+}
+
+.wy-nav-side {
+  background-color: white;
+}
+
+.wy-nav-content {
+  max-width: 1000px;
+  padding-left: 20px;
+  padding-top: 10px;
+  padding-right: 20px;
+  background-color: white !important;
+
+}
+
+/* Navigation Search Overrides
+-------------------------------------------------------------- */
+.wy-side-nav-search {
+  z-index: 200;
+  background-color: white;
+  text-align: center;
+  padding: 0.809em;
+  display: block;
+  color: #818284;
+  margin-bottom: 10px;
+
+  h3 {
+    margin: 0 0;
+    color: #3d73ba;
+    width: 100%
+  }
+
+  input[type=text] {
+    width: 100%;
+    border-radius: 0px;
+    padding: 6px 12px;
+    border-color: #b7bacb;    
+    box-shadow: none;
+  }
+  
+  img {
+    display: block;
+    margin: auto;
+    height: 130px;
+    width: 130px;
+    background-color: transparent;
+    padding: 5px;
+    border-radius: 0px;
+  }
+
+  >a, .wy-dropdown>a {
+    color: inherit;
+    font-size: 100%;
+    //font-weight: bold;
+    display: inline-block;
+    padding: 4px 6px;
+    margin-bottom: 0;
+
+    &:hover {
+      background: rgba(255,255,255,0.1)
+    }
+  }    
+}
+
+.wy-menu-vertical {
+  
+  li ul {
+    display: inherit;
+  }
+
+
+  li ul.subnav ul.subnav{
+    padding-left: 1em;
+  }
+
+  .toctree-l3 , .toctree-l1, .toctree-l4{
+    a:hover{
+      background: #d6d6d6;
+    }
+  }
+
+  ul {    
+    margin-bottom: 0;
+    display: block;
+    background: white;
+
+    /* top-level menu */
+    
+    &.subnav span {
+      padding: 12px 15px;
+      color: white;
+      width: 100%;
+      display: inline-block;
+      background-color: #4a90e3;
+    }
+
+    li {
+      border-top: 1px solid #e5e5ee;
+
+  
+      ul {
+        margin-bottom: 0;
+        
+        li a {
+          margin-bottom: 0;
+          color: #3d73ba;
+          font-weight: normal;
+        }
+      }
+
+      &:first-child {
+        border-top: 0
+      }
+      &.active a {
+        background: #e4e5ef;
+      }
+
+
+      &.toctree-l1 {
+        
+        &.current > a:after {
+          font-family: "FontAwesome";
+          content: "\f105";
+        }
+
+        >a {
+          padding-left: $second_level_padding;
+          background-color: white;
+          color: #5d5d5d;
+
+          &:after {
+            font-family: "FontAwesome";
+            float: right;
+            content: '\f107';
+            margin-right: 6px;
+          }
+        }
+      }
+          
+      &.divide-top {
+        border-top: solid 1px #404040
+      }
+      &.divide-bottom {
+        border-bottom: solid 1px #404040
+      }
+      &.current {
+        background: #e3e3e3;
+
+        a {
+          border-right: none;
+          padding-left: $third_level_padding;
+          
+          &.current {
+            color: #3d73ba;
+            font-weight: bold;
+            position: relative;            
+            border: none;
+            border-bottom: solid 1px #e5e5ee;
+            padding: 8px 15px 8px $second_level_padding;          
+          }
+        }
+                
+        ul {
+          display: block
+        }
+      }
+          
+      &.on a {
+        color: #3d73ba;        
+        position: relative;
+        background: #fcfcfc;
+        border: none;
+        border-bottom: solid 1px #e5e5ee;
+        padding: 8px 15px;
+
+        &:hover {
+          background: #fcfcfc
+        }
+      }
+      
+      /* 3rd level */
+      &.toctree-l4 a {
+        padding-left: 3.5em;
+      }
+      .toctree-l1.current ul {
+        background-color: #fafafe
+      }
+          
+      &.toctree-l2.current>a {
+        background: white;
+      }      
+    }
+
+    a {
+      padding: 8px 15px;
+      display: block;
+      &:hover {
+        background: #e4e5ef;
+      }
+    }
+  }
+  
+  .local-toc li ul {
+    display: block
+  }
+          
+  a {
+    display: inline-block;
+    line-height: 28px;
+    display: block;
+    position: relative;
+    font-size: 100%;
+    color: #818284;
+
+    &:hover {
+      background-color: #d6d6d6;
+      cursor: pointer
+    }
+    &:active {
+      background-color: #2980B9;
+      cursor: pointer;
+      color: #fff
+    }
+  }    
+}

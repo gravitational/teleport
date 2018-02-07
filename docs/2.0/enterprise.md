@@ -3,10 +3,6 @@
 This chapter covers Teleport features that are only available in the commercial
 edition of Teleport, called "Teleport Enterprise".
 
-!!! warning "Version Warning":
-    This chapter covers Teleport Enterprise 2.2. We highly recommend evaluating
-    the [latest](../docs/enterprise) version instead.
-
 Below is the full list of features that are only available to users of 
 Teleport Enterprise:
 

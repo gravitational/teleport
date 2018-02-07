@@ -1,0 +1,98 @@
+button,
+input,
+select,
+textarea {  
+  font-family: $font-family;
+  margin: 0; 
+}
+
+.btn {
+  box-shadow: none;
+}
+
+.wy-body-for-nav {
+  background-image: none;
+}
+
+.wy-plain-list-disc li, .rst-content .section ul li, .rst-content .toctree-wrapper ul li, article ul li {
+  padding-bottom: 5px;
+}
+
+#rtd-search-form {
+  input {
+    font-size: 16px;
+  }
+}
+
+.rst-content {
+  
+  table.docutils td {
+    overflow: hidden;
+    white-space: normal
+  }
+
+  blockquote {
+    border-left: 1px solid #ffa258;
+    padding-left: 5px;
+    padding-right: 20px;
+  
+    p {
+      color: #888;
+    }
+  }
+}
+
+.wy-table td,
+.wy-table th,
+.rst-content table.docutils td,
+.rst-content table.field-list td,
+.rst-content table.docutils th,
+.rst-content table.field-list th {
+  padding: 12px 16px;
+}
+
+.wy-nav-side {
+  height: 100%;
+  overflow-y: auto;
+}
+
+code {
+  white-space: pre;
+  &.cs, &.c {
+    font-weight: inherit;
+    font-style: inherit;
+  }
+}
+
+p code {
+  word-wrap: break-word;
+}
+
+.no-highlight {
+  display: block;
+  padding: 0.5em;
+  color: #333;
+}
+
+#mkdocs-search-results {
+    article h3{
+    margin-top: 23px;
+    border-top: 1px solid #E1E4E5;
+    padding-top: 24px;
+  }
+
+  article:first-child h3 {
+    border-top: none;
+  }
+}
+
+#mkdocs-search-query{
+  width: 100%;
+  border-radius: 0px;
+  padding: 6px 12px;
+  border-color: #D1D4D5;
+  box-shadow: none;
+  font-size: 16px;
+}
+
+

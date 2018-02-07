@@ -408,14 +408,6 @@ Teleport proxy serves the web UI on `https://proxyhost:3080`. The UI allows you 
 online nodes in a cluster, open web-based Terminal to them, see recorded sessions and replay them.
 You can also join other users via active sessions.
 
-You can copy & paste using the mouse. For working with a keyboard, Teleport employs `tmux`-like
-"prefix" mode. To enter prefix mode, press `Ctrl+A`.
-
-While in prefix mode, you can press `Ctrl+V` to paste, or enter text selection mode by pressing `[`.
-When in text selection mode, move around using `hjkl`, select text by toggling `space` and copy
-it via `Ctrl+C`.
-
-
 ## Using OpenSSH Client
 
 There are a few differences between Teleport's `tsh` and OpenSSH's `ssh` but most

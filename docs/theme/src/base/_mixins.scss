@@ -1,0 +1,32 @@
+$phone-breakpoint: 480px !default;
+$tablet-breakpoint: 800px !default;
+
+
+@mixin respond-to($media) {
+  @if $media == mobile {
+    @media handheld and (max-width: $phone-breakpoint),
+    screen and (max-device-width: $phone-breakpoint),
+    screen and (max-width: $tablet-breakpoint) {
+      @content;
+    }
+  }
+  @else if $media == phones {
+    @media handheld and (max-width: $phone-breakpoint),
+    screen and (max-device-width: $phone-breakpoint) {
+      @content;
+    }
+  }
+  @else if $media == tablets {
+    @media screen and (max-width: $tablet-breakpoint) {
+      @content;
+    }
+  }
+}
+
+
+@mixin retina {
+  @media (-webkit-min-device-pixel-ratio: 2),
+  (min-resolution: 192dpi) {
+    @content;
+  }
+}

@@ -1,0 +1,26 @@
+.admonition {
+  border-radius: 4px;
+
+  p.admonition-title {
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+  }
+  
+  code {
+    color: #404040;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    background: rgba(255, 255, 255, 0.7);
+  }
+
+  &.danger {
+    color: #c57317;
+  }
+  
+  &.tip {
+    background-color: #e1eff2;
+  
+    p.admonition-title {
+      background-color: #6eabb6;
+    }
+  }
+}

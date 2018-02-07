@@ -34,8 +34,8 @@ RUN apt-get install -q -y \
          python-pip \
          libyaml-dev \
          python-dev \
-         nginx \
-         zip; \
+         nginx \         
+         zip; \         
       apt-get -y autoclean; apt-get -y clean
 
 # Install mkDocs
@@ -55,6 +55,9 @@ RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/go1.9
     chmod a+w /gopath;\
     chmod a+w /var/lib;\
     chmod a-w /
+
+# Install SASS
+RUN  apt-get install -q -y ruby-sass
 
 ENV LANGUAGE="en_US.UTF-8" \
     LANG="en_US.UTF-8" \
