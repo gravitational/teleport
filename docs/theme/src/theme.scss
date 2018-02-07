@@ -32,12 +32,12 @@ textarea {
   }
 
   blockquote {
-    border-left: 1px solid #ffa258;
+    border-left: 1px solid $color-font-1;
     padding-left: 5px;
     padding-right: 20px;
   
     p {
-      color: #888;
+      color: $color-font-7;
     }
   }
 }
@@ -51,9 +51,27 @@ textarea {
   padding: 12px 16px;
 }
 
+.wy-table thead,
+.rst-content table.docutils thead,
+.rst-content table.field-list thead {
+  color: $color-font-8;
+}
+
+
 .wy-nav-side {
   height: 100%;
   overflow-y: auto;
+}
+
+@media screen and (min-width: 1400px) {
+  .wy-nav-content-wrap {
+      background: #fcfcfc;
+  }
+
+  .wy-nav-content {
+      margin: 0;
+      background: #fcfcfc
+  }
 }
 
 code {
@@ -71,13 +89,13 @@ p code {
 .no-highlight {
   display: block;
   padding: 0.5em;
-  color: #333;
+  color: $color-font-8;
 }
 
 #mkdocs-search-results {
     article h3{
     margin-top: 23px;
-    border-top: 1px solid #E1E4E5;
+    border-top: 1px solid $color-border-5;
     padding-top: 24px;
   }
 
@@ -90,7 +108,7 @@ p code {
   width: 100%;
   border-radius: 0px;
   padding: 6px 12px;
-  border-color: #D1D4D5;
+  border-color: $color-border-5;
   box-shadow: none;
   font-size: 16px;
 }

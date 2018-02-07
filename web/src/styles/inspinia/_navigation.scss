@@ -14,7 +14,7 @@
 
 .navbar-default .nav > li > a:hover, .navbar-default .nav > li > a:focus {
   background-color: darken($nav-bg, 3%);
-  color: white;
+  color: $color-bkg-5;
 }
 
 .nav .open > a, .nav .open > a:hover, .nav .open > a:focus {
@@ -280,12 +280,12 @@ body.mini-navbar .navbar-default .nav > li > .nav-second-level li a {
 
 .navbar-default .special_link a {
   background: $navy;
-  color: white;
+  color: $color-bkg-5;
 }
 
 .navbar-default .special_link a:hover {
   background: #17987e !important;
-  color: white;
+  color: $color-bkg-5;
 }
 
 .navbar-default .special_link a span.label {
@@ -295,12 +295,12 @@ body.mini-navbar .navbar-default .nav > li > .nav-second-level li a {
 
 .navbar-default .landing_link a {
   background: lighten($navy, 3%);
-  color: white;
+  color: $color-bkg-5;
 }
 
 .navbar-default .landing_link a:hover {
   background: $navy !important;
-  color: white;
+  color: $color-bkg-5;
 }
 
 .navbar-default .landing_link a span.label {
@@ -312,7 +312,7 @@ body.mini-navbar .navbar-default .nav > li > .nav-second-level li a {
   text-align: center;
   font-size: 18px;
   font-weight: 600;
-  color: white;
+  color: $color-bkg-5;
   display: none;
   padding: 18px 0;
 }

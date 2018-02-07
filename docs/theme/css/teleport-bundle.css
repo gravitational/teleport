@@ -8,7 +8,8 @@
 */
 html,
 body {
-  font-family: "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif; }
+  font-family: "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif;
+  color: #555555; }
 
 h1,
 h2 {
@@ -5192,10 +5193,22 @@ textarea {
 .rst-content table.field-list th {
   padding: 12px 16px; }
 
+.wy-table thead,
+.rst-content table.docutils thead,
+.rst-content table.field-list thead {
+  color: #333; }
+
 .wy-nav-side {
   height: 100%;
   overflow-y: auto; }
 
+@media screen and (min-width: 1400px) {
+  .wy-nav-content-wrap {
+    background: #fcfcfc; }
+
+  .wy-nav-content {
+    margin: 0;
+    background: #fcfcfc; } }
 code {
   white-space: pre; }
   code.cs, code.c {
@@ -5221,7 +5234,7 @@ p code {
   width: 100%;
   border-radius: 0px;
   padding: 6px 12px;
-  border-color: #D1D4D5;
+  border-color: #E1E4E5;
   box-shadow: none;
   font-size: 16px; }
 
@@ -5231,10 +5244,10 @@ div[role=navigation] hr {
 /* Navigation Left Panel Overrides
   -------------------------------------------------------------- */
 .wy-nav-content-wrap .wy-nav-top a:visited {
-  color: white; }
+  color: #fff; }
 
 .wy-nav-side {
-  background-color: white; }
+  background-color: #fff; }
 
 .wy-nav-content {
   max-width: 1000px;
@@ -5247,7 +5260,7 @@ div[role=navigation] hr {
 -------------------------------------------------------------- */
 .wy-side-nav-search {
   z-index: 200;
-  background-color: white;
+  background-color: #fff;
   text-align: center;
   padding: 0.809em;
   display: block;
@@ -5278,7 +5291,7 @@ div[role=navigation] hr {
     padding: 4px 6px;
     margin-bottom: 0; }
     .wy-side-nav-search > a:hover, .wy-side-nav-search .wy-dropdown > a:hover {
-      background: rgba(255, 255, 255, 0.1); }
+      background: #ffffff1a; }
 
 .wy-menu-vertical li ul {
   display: inherit; }
@@ -5289,11 +5302,11 @@ div[role=navigation] hr {
 .wy-menu-vertical ul {
   margin-bottom: 0;
   display: block;
-  background: white;
+  background: #fff;
   /* top-level menu */ }
   .wy-menu-vertical ul.subnav span {
     padding: 12px 15px;
-    color: white;
+    color: #fff;
     width: 100%;
     display: inline-block;
     background-color: #4a90e3; }
@@ -5315,7 +5328,7 @@ div[role=navigation] hr {
       content: "\f105"; }
     .wy-menu-vertical ul li.toctree-l1 > a {
       padding-left: 30px;
-      background-color: white;
+      background-color: #fff;
       color: #5d5d5d; }
       .wy-menu-vertical ul li.toctree-l1 > a:after {
         font-family: "FontAwesome";
@@ -5354,7 +5367,7 @@ div[role=navigation] hr {
     .wy-menu-vertical ul li .toctree-l1.current ul {
       background-color: #fafafe; }
     .wy-menu-vertical ul li.toctree-l2.current > a {
-      background: white; }
+      background: #fff; }
   .wy-menu-vertical ul a {
     padding: 8px 15px;
     display: block; }
@@ -5384,10 +5397,14 @@ div[role=navigation] hr {
     border-top-right-radius: 4px; }
   .admonition code {
     color: #404040;
-    border: 1px solid rgba(0, 0, 0, 0.2);
-    background: rgba(255, 255, 255, 0.7); }
+    border: 1px solid #00000033;
+    background: #ffffffb3; }
+  .admonition.warning .admonition-title {
+    background-color: #ffa258; }
   .admonition.danger {
     color: #c57317; }
+    .admonition.danger .admonition-title {
+      background-color: #e91e63; }
   .admonition.tip {
     background-color: #e1eff2; }
     .admonition.tip p.admonition-title {
@@ -5430,7 +5447,7 @@ img[src$="grv-image-center-lg"] {
   flex-wrap: wrap; }
   .grv-footer .footer-item {
     padding: 15px 15px 10px 15px;
-    border-right: 1px solid #dadaea;
+    border-right: 1px solid #E1E4E5;
     margin: 0 !important;
     min-height: 170px;
     min-width: 200px; }
@@ -5438,7 +5455,7 @@ img[src$="grv-image-center-lg"] {
       .grv-footer .footer-item {
         width: 100%;
         border: none;
-        border-bottom: 1px solid #dadaea; } }
+        border-bottom: 1px solid #E1E4E5; } }
     .grv-footer .footer-item:nth-child(3) {
       background: url(../img/bridge.svg) no-repeat center;
       background-size: contain; }

@@ -10,11 +10,11 @@ div[role=navigation] hr {
 /* Navigation Left Panel Overrides
   -------------------------------------------------------------- */
 .wy-nav-content-wrap .wy-nav-top a:visited {
-  color: white;
+  color: $color-bkg-5;
 }
 
 .wy-nav-side {
-  background-color: white;
+  background-color: $color-bkg-5;
 }
 
 .wy-nav-content {
@@ -22,7 +22,7 @@ div[role=navigation] hr {
   padding-left: 20px;
   padding-top: 10px;
   padding-right: 20px;
-  background-color: white !important;
+  background-color: $color-bkg-5 !important;
 
 }
 
@@ -30,16 +30,16 @@ div[role=navigation] hr {
 -------------------------------------------------------------- */
 .wy-side-nav-search {
   z-index: 200;
-  background-color: white;
+  background-color: $color-bkg-5;
   text-align: center;
   padding: 0.809em;
   display: block;
-  color: #818284;
+  color: $color-font-10;
   margin-bottom: 10px;
 
   h3 {
     margin: 0 0;
-    color: #3d73ba;
+    color: $color-font-4;
     width: 100%
   }
 
@@ -47,7 +47,7 @@ div[role=navigation] hr {
     width: 100%;
     border-radius: 0px;
     padding: 6px 12px;
-    border-color: #b7bacb;    
+    border-color: $color-border-2;
     box-shadow: none;
   }
   
@@ -63,14 +63,13 @@ div[role=navigation] hr {
 
   >a, .wy-dropdown>a {
     color: inherit;
-    font-size: 100%;
-    //font-weight: bold;
+    font-size: 100%;    
     display: inline-block;
     padding: 4px 6px;
     margin-bottom: 0;
 
     &:hover {
-      background: rgba(255,255,255,0.1)
+      background: $color-bkg-6;
     }
   }    
 }
@@ -88,27 +87,27 @@ div[role=navigation] hr {
 
   .toctree-l3 , .toctree-l1, .toctree-l4{
     a:hover{
-      background: #d6d6d6;
+      background: $color-bkg-7;
     }
   }
 
   ul {    
     margin-bottom: 0;
     display: block;
-    background: white;
+    background: $color-bkg-5;
 
     /* top-level menu */
     
     &.subnav span {
       padding: 12px 15px;
-      color: white;
+      color: $color-bkg-5;
       width: 100%;
       display: inline-block;
-      background-color: #4a90e3;
+      background-color: $color-bkg-12;
     }
 
     li {
-      border-top: 1px solid #e5e5ee;
+      border-top: 1px solid $color-border-4;
 
   
       ul {
@@ -116,7 +115,7 @@ div[role=navigation] hr {
         
         li a {
           margin-bottom: 0;
-          color: #3d73ba;
+          color: $color-font-4;
           font-weight: normal;
         }
       }
@@ -125,7 +124,7 @@ div[role=navigation] hr {
         border-top: 0
       }
       &.active a {
-        background: #e4e5ef;
+        background: $color-bkg-8;
       }
 
 
@@ -138,8 +137,8 @@ div[role=navigation] hr {
 
         >a {
           padding-left: $second_level_padding;
-          background-color: white;
-          color: #5d5d5d;
+          background-color: $color-bkg-5;
+          color: $color-font-5;
 
           &:after {
             font-family: "FontAwesome";
@@ -151,24 +150,24 @@ div[role=navigation] hr {
       }
           
       &.divide-top {
-        border-top: solid 1px #404040
+        border-top: solid 1px $color-border-3;
       }
       &.divide-bottom {
-        border-bottom: solid 1px #404040
+        border-bottom: solid 1px $color-border-3;
       }
       &.current {
-        background: #e3e3e3;
+        background: $color-bkg-9;
 
         a {
           border-right: none;
           padding-left: $third_level_padding;
           
           &.current {
-            color: #3d73ba;
+            color: $color-font-4;
             font-weight: bold;
             position: relative;            
             border: none;
-            border-bottom: solid 1px #e5e5ee;
+            border-bottom: solid 1px $color-border-4;
             padding: 8px 15px 8px $second_level_padding;          
           }
         }
@@ -179,15 +178,15 @@ div[role=navigation] hr {
       }
           
       &.on a {
-        color: #3d73ba;        
+        color: $color-font-4;        
         position: relative;
-        background: #fcfcfc;
+        background: $color-bkg-10;
         border: none;
-        border-bottom: solid 1px #e5e5ee;
+        border-bottom: solid 1px $color-border-4;
         padding: 8px 15px;
 
         &:hover {
-          background: #fcfcfc
+          background: $color-bkg-10;
         }
       }
       
@@ -196,11 +195,11 @@ div[role=navigation] hr {
         padding-left: 3.5em;
       }
       .toctree-l1.current ul {
-        background-color: #fafafe
+        background-color: $color-bkg-11;
       }
           
       &.toctree-l2.current>a {
-        background: white;
+        background: $color-bkg-5;
       }      
     }
 
@@ -208,7 +207,7 @@ div[role=navigation] hr {
       padding: 8px 15px;
       display: block;
       &:hover {
-        background: #e4e5ef;
+        background: $color-bkg-8;
       }
     }
   }
@@ -223,14 +222,14 @@ div[role=navigation] hr {
     display: block;
     position: relative;
     font-size: 100%;
-    color: #818284;
+    color: $color-font-10;
 
     &:hover {
-      background-color: #d6d6d6;
+      background-color: $color-bkg-7;
       cursor: pointer
     }
     &:active {
-      background-color: #2980B9;
+      background-color: $color-bkg-13;
       cursor: pointer;
       color: #fff
     }

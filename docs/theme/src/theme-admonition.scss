@@ -7,20 +7,29 @@
   }
   
   code {
-    color: #404040;
-    border: 1px solid rgba(0, 0, 0, 0.2);
-    background: rgba(255, 255, 255, 0.7);
+    color: $color-font-2;
+    border: 1px solid #00000033;
+    background: $color-bkg-2;
+  }
+
+  &.warning {
+    .admonition-title {
+      background-color: $color-font-1;
+    }
   }
 
   &.danger {
-    color: #c57317;
+    color: $color-font-3;
+    .admonition-title {
+      background-color: $color-bkg-14;
+    }
   }
   
   &.tip {
-    background-color: #e1eff2;
+    background-color: $color-bkg-4;
   
     p.admonition-title {
-      background-color: #6eabb6;
+      background-color: $color-bkg-3;
     }
   }
 }

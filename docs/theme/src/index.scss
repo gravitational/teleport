@@ -35,16 +35,16 @@ img[src$="grv-image-center-lg"] {
     padding-left: 5px;
   }
   .grv-current-ver {
-    color: #ffa258;
+    color: $color-font-1;
     display: inline-block;
     padding: 5px;
   }
 }
 
 .grv-footer {  
-  background-color: #f0f1f8;
+  background-color: $color-bkg-1;
   max-width: 1020px;
-  color: #6f6f6f;
+  color: $color-font-9;
   padding: 0;
   display: block;
   font-size: 13px;
@@ -55,7 +55,7 @@ img[src$="grv-image-center-lg"] {
   
   .footer-item {        
     padding: 15px 15px 10px 15px;
-    border-right: 1px solid #dadaea;    
+    border-right: 1px solid $color-border-5;    
     margin: 0 !important;
     min-height: 170px;
     min-width: 200px;
@@ -63,7 +63,7 @@ img[src$="grv-image-center-lg"] {
     @include respond-to('mobile') {
       width: 100%;
       border: none;
-      border-bottom: 1px solid #dadaea;
+      border-bottom: 1px solid $color-border-5;
     }
 
     &:nth-child(3) {      
