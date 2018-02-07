@@ -117,10 +117,16 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*userContex
 		SSHLogins:       logins,
 	}
 
-	// detect auth method for this user
-	identities := append(user.GetOIDCIdentities(), user.GetSAMLIdentities()...)
+	// local user
 	authType := authLocal
-	if len(identities) > 0 {
+
+	// check for any SSO identities
+	isSSO := len(user.GetOIDCIdentities()) > 0 ||
+		len(user.GetGithubIdentities()) > 0 ||
+		len(user.GetSAMLIdentities()) > 0
+
+	if isSSO {
+		// SSO user
 		authType = authSSO
 	}
 
