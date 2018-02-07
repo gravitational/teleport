@@ -19,6 +19,8 @@ package utils
 import (
 	"gopkg.in/check.v1"
 	"time"
+
+	"github.com/gravitational/trace"
 )
 
 type UtilsSuite struct {
@@ -71,4 +73,32 @@ func (s *UtilsSuite) TestMiscFunctions(c *check.C) {
 	c.Assert(Deduplicate([]string{}), check.DeepEquals, []string{})
 	c.Assert(Deduplicate([]string{"a", "b"}), check.DeepEquals, []string{"a", "b"})
 	c.Assert(Deduplicate([]string{"a", "b", "b", "a", "c"}), check.DeepEquals, []string{"a", "b", "c"})
+}
+
+// TestVersions tests versions compatibility checking
+func (s *UtilsSuite) TestVersions(c *check.C) {
+	testCases := []struct {
+		info   string
+		client string
+		server string
+		err    error
+	}{
+		{info: "same versions are ok", client: "1.0.0", server: "1.0.0"},
+		{info: "minor diff is ok if server is newer", client: "1.0.0", server: "1.1.0"},
+		{info: "minor diff is not ok if server is older", client: "1.1.0", server: "1.0.0", err: trace.BadParameter("")},
+		{info: "major diff is not ok", client: "5.1.0", server: "1.0.0", err: trace.BadParameter("")},
+		{info: "major diff is not ok", client: "1.1.0", server: "5.0.0", err: trace.BadParameter("")},
+		{info: "minor diff is ok if server is newer", client: "1.0.0-beta.1", server: "1.1.0-alpha.1"},
+		{info: "force pre-release versions too", client: "1.0.0-beta.2", server: "1.0.0-beta.1", err: trace.BadParameter("")},
+		{info: "older pre-release client is ok", client: "1.0.0-beta.1", server: "1.0.0-beta.12"},
+	}
+	for i, testCase := range testCases {
+		comment := check.Commentf("test case %v %q", i, testCase.info)
+		err := CheckVersions(testCase.client, testCase.server)
+		if testCase.err == nil {
+			c.Assert(err, check.IsNil, comment)
+		} else {
+			c.Assert(err, check.FitsTypeOf, testCase.err, comment)
+		}
+	}
 }

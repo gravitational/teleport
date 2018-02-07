@@ -168,7 +168,11 @@ func (u *ResourceCommand) Create(client auth.ClientI) error {
 		if !found {
 			return trace.BadParameter("creating resources of type %q is not supported", raw.Kind)
 		}
-		return creator(client, raw)
+		// only return in case of error, to create multiple resources
+		// in case if yaml spec is a list
+		if err := creator(client, raw); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 }
 
