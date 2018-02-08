@@ -21,11 +21,13 @@ extra_javascript: []
 extra:    
     version: 2.3
 pages:
-    - QuickStart Guide: quickstart.md
-    - Architecture: architecture.md
-    - User Manual: user-manual.md
-    - Admin Manual: admin-guide.md
-    - Teleport Enterprise: enterprise.md
-    - Teleport Enterprise - SAML: saml.md
-    - Teleport Enterprise- OIDC: oidc.md
-    - FAQ: faq.md
+    - Documentation:
+        - QuickStart Guide: quickstart.md
+        - Architecture: architecture.md
+        - User Manual: user-manual.md
+        - Admin Manual: admin-guide.md
+        - FAQ: faq.md
+    - Teleport Enterprise:
+        - Introduction: enterprise.md
+        - SAML Authentication: saml.md
+        - OIDC Authentication: oidc.md

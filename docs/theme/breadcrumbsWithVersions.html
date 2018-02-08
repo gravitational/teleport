@@ -4,62 +4,50 @@
 
     $(function(){               
         window.docVersions = window.docVersions || [];
-        var grv_current_ver = "{{ config.extra.version }}"
-        grv_current_ver = grv_current_ver || 'Current';
-
-        function removeDoubleSlash(str){
-            return str.replace(/\/\/+/g, '/');
-        }
-
-        function getVerUrl(currentVer, ver){
-            var suffix = currentVer + '/' +mkdocs_page_url;
-            suffix = removeDoubleSlash(suffix);
-            var index = window.location.href.indexOf(suffix);            
-            var baseUrl = window.location.href.substr(0, index);            
-            return baseUrl + removeDoubleSlash(ver + "/" + mkdocs_page_url);
-        }
-
-        function isCurrent(ver){            
-            let tmp = ver + '/' + mkdocs_page_url;
-            tmp = removeDoubleSlash(tmp);
-            return window.location.href.indexOf(tmp) !== -1;            
-        }
+        var grvCurrentVer = "{{ config.extra.version }}"                    
         
-        function getCurVer(){
-            for(var i = 0; i < docVersions.length; i++){
-                var ver = docVersions[i];
-                if(isCurrent(ver)){
-                    return ver;
-                }
-            }
-
-            return grv_current_ver;
+        function getVerUrl(ver){
+            return window.location.href.replace(grvCurrentVer, ver)            
         }
-
-        var currentVer = getCurVer();        
+                        
         var $ul = $(".grv-nav-versions");
 
         $ul.append("<li>Version&nbsp;</li>");
                             
         if(docVersions.length === 0){
-            $ul.append('<li class="grv-current-ver"> ' + currentVer + '</li>');            
+            $ul.append('<li class="grv-current-ver"> ' + grvCurrentVer + '</li>');            
         }
 
+        // show links to other versions
         for(var i = 0; i < docVersions.length; i++){
             var ver = docVersions[i];                        
             var $li = null;
-            if(ver === currentVer){
+            if(ver === grvCurrentVer){
                 $li = $('<li class="grv-current-ver"> ' + ver + '</li>');
             }else{
-                var baseUrl = getVerUrl(currentVer, ver);
+                var baseUrl = getVerUrl(ver);
                 $li = $('<li class="grv-ver"> <a href="' +baseUrl+'"> ' + ver + '</a></li>');
             }
 
             $ul.append($li);
         }
 
+        // add link to about us and insert a line separator
         $ul.append('<li class="wy-breadcrumbs-aside"> <a href="http://gravitational.com">About Us</a>  </li>');
-        $ul.append('<hr/>');        
+        $ul.append('<hr/>');   
+          
+        // show warning if older version
+        var isLatest = docVersions.length === 0 || grvCurrentVer === docVersions[docVersions.length-1];
+        if(!isLatest){
+            var latestVerUrl = getVerUrl(docVersions[docVersions.length-1]);
+            $ul.append(`
+                <div class="admonition warning" style="margin-bottom: 5px;">
+                <p class="admonition-title">Version Warning</p>
+                <p>This chapter covers Teleport ${grvCurrentVer}. We highly recommend evaluating
+                the <a href="${latestVerUrl}">latest</a> version instead.</p>
+                </div>
+            `);
+        }                
     });
        
    </script>
