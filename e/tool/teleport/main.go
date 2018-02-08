@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"os"
 
 	"github.com/gravitational/teleport/e/lib/auth"
@@ -38,5 +39,5 @@ func run(config *service.Config) error {
 	if err := teleport.Start(); err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(teleport.Wait())
+	return trace.Wrap(teleport.WaitForSignals(context.TODO()))
 }
