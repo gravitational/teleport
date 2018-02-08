@@ -17,6 +17,7 @@ limitations under the License.
 package reversetunnel
 
 import (
+	"context"
 	"net"
 	"time"
 
@@ -58,8 +59,10 @@ type Server interface {
 	RemoveSite(domainName string) error
 	// Start starts server
 	Start() error
-	// CLose closes server's socket
+	// Close closes server's operations immediately
 	Close() error
+	// Shutdown performs graceful server shutdown
+	Shutdown(context.Context) error
 	// Wait waits for server to close all outstanding operations
 	Wait()
 }

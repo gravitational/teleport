@@ -19,6 +19,7 @@ limitations under the License.
 package regular
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -169,6 +170,15 @@ func (s *Server) Close() error {
 	return s.srv.Close()
 }
 
+// Shutdown performs graceful shutdown
+func (s *Server) Shutdown(ctx context.Context) error {
+	// wait until connections drain off
+	err := s.srv.Shutdown(ctx)
+	s.closer.Close()
+	s.reg.Close()
+	return err
+}
+
 // Start starts server
 func (s *Server) Start() error {
 	if len(s.getCommandLabels()) > 0 {
@@ -178,9 +188,18 @@ func (s *Server) Start() error {
 	return s.srv.Start()
 }
 
+// Serve servers service on started listener
+func (s *Server) Serve(l net.Listener) error {
+	if len(s.getCommandLabels()) > 0 {
+		s.updateLabels()
+	}
+	go s.heartbeatPresence()
+	return s.srv.Serve(l)
+}
+
 // Wait waits until server stops
 func (s *Server) Wait() {
-	s.srv.Wait()
+	s.srv.Wait(context.TODO())
 }
 
 // SetShell sets default shell that will be executed for interactive

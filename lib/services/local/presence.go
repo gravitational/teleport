@@ -195,7 +195,7 @@ func (s *PresenceService) GetNodes(namespace string) ([]services.Server, error) 
 		}
 		servers = append(servers, server)
 	}
-	s.Infof("GetServers(%v) in %v", len(servers), time.Now().Sub(start))
+	s.Debugf("GetServers(%v) in %v", len(servers), time.Now().Sub(start))
 	// sorting helps with tests and makes it all deterministic
 	sort.Sort(services.SortedServers(servers))
 	return servers, nil
@@ -218,7 +218,7 @@ func (s *PresenceService) batchGetNodes(namespace string) ([]services.Server, er
 		servers[i] = server
 	}
 
-	s.Infof("GetServers(%v) in %v", len(servers), time.Now().Sub(start))
+	s.Debugf("GetServers(%v) in %v", len(servers), time.Now().Sub(start))
 	// sorting helps with tests and makes it all deterministic
 	sort.Sort(services.SortedServers(servers))
 	return servers, nil

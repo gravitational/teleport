@@ -66,6 +66,16 @@ func (s *AddrTestSuite) TestParse(c *C) {
 	c.Assert(addr.IsEmpty(), Equals, false)
 }
 
+func (s *AddrTestSuite) TestParseHTTP(c *C) {
+	addr, err := ParseAddr("http://one:25/path")
+	c.Assert(err, IsNil)
+	c.Assert(addr, NotNil)
+	c.Assert(addr.Addr, Equals, "one:25")
+	c.Assert(addr.Path, Equals, "/path")
+	c.Assert(addr.FullAddress(), Equals, "http://one:25")
+	c.Assert(addr.IsEmpty(), Equals, false)
+}
+
 func (s *AddrTestSuite) TestParseDefaults(c *C) {
 	addr, err := ParseAddr("host:25")
 	c.Assert(err, IsNil)

@@ -79,7 +79,6 @@ func CreateTLSConfiguration(certFile, keyFile string) (*tls.Config, error) {
 		return nil, trace.BadParameter("certificate is not accessible by '%v'", certFile)
 	}
 
-	log.Infof("[PROXY] TLS cert=%v key=%v", certFile, keyFile)
 	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
 		return nil, trace.Wrap(err)

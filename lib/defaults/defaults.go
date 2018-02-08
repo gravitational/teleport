@@ -92,6 +92,9 @@ const (
 	// the SSH connection open if there are no reads/writes happening over it.
 	DefaultIdleConnectionDuration = 20 * time.Minute
 
+	// ShutdownPollPeriod is a polling period for graceful shutdowns of SSH servers
+	ShutdownPollPeriod = 500 * time.Millisecond
+
 	// ReadHeadersTimeout is a default TCP timeout when we wait
 	// for the response headers to arrive
 	ReadHeadersTimeout = time.Second

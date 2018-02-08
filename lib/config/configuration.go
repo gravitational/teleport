@@ -75,15 +75,10 @@ type CommandLineFlags struct {
 
 	// --labels flag
 	Labels string
-	// --httpprofile hidden flag
-	HTTPProfileEndpoint bool
 	// --pid-file flag
 	PIDFile string
-	// Gops starts gops agent on a specified address
-	// if not specified, gops won't start
+	// Gops starts gops agent on a first available address
 	Gops bool
-	// GopsAddr specifies to gops addr to listen on
-	GopsAddr string
 	// DiagnosticAddr is listen address for diagnostic endpoint
 	DiagnosticAddr string
 	// PermitUserEnvironment enables reading of ~/.tsh/environment
@@ -664,6 +659,15 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	}
 	if err = ApplyFileConfig(fileConf, cfg); err != nil {
 		return trace.Wrap(err)
+	}
+
+	// apply diangostic address flag
+	if clf.DiagnosticAddr != "" {
+		addr, err := utils.ParseAddr(clf.DiagnosticAddr)
+		if err != nil {
+			return trace.Wrap(err, "failed to parse diag-addr")
+		}
+		cfg.DiagnosticAddr = *addr
 	}
 
 	// apply --insecure-no-tls flag:

@@ -16,6 +16,7 @@ limitations under the License.
 package sshutils
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"testing"
@@ -23,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 
 	"golang.org/x/crypto/ssh"
 	. "gopkg.in/check.v1"
@@ -73,6 +75,54 @@ func (s *ServerSuite) TestStartStop(c *C) {
 	c.Assert(called, Equals, true)
 }
 
+// TestShutdown tests graceul shutdown feature
+func (s *ServerSuite) TestShutdown(c *C) {
+	closeContext, cancel := context.WithCancel(context.TODO())
+	fn := NewChanHandlerFunc(func(_ net.Conn, conn *ssh.ServerConn, nch ssh.NewChannel) {
+		ch, _, err := nch.Accept()
+		defer ch.Close()
+		c.Assert(err, IsNil)
+		select {
+		case <-closeContext.Done():
+			conn.Close()
+		}
+	})
+
+	srv, err := NewServer(
+		"test",
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
+		fn,
+		s.signers,
+		AuthMethods{Password: pass("abc123")},
+		SetShutdownPollPeriod(10*time.Millisecond),
+	)
+	c.Assert(err, IsNil)
+	c.Assert(srv.Start(), IsNil)
+
+	clt, err := ssh.Dial("tcp", srv.Addr(), &ssh.ClientConfig{Auth: []ssh.AuthMethod{ssh.Password("abc123")}})
+	c.Assert(err, IsNil)
+	defer clt.Close()
+
+	// call new session to initiate opening new channel
+	clt.NewSession()
+
+	// context will timeout because there is a connection around
+	ctx, ctxc := context.WithTimeout(context.TODO(), 50*time.Millisecond)
+	defer ctxc()
+	c.Assert(trace.IsConnectionProblem(srv.Shutdown(ctx)), Equals, true)
+
+	// now shutdown will return
+	cancel()
+	ctx2, ctxc2 := context.WithTimeout(context.TODO(), time.Second)
+	defer ctxc2()
+	c.Assert(srv.Shutdown(ctx2), IsNil)
+
+	// shutdown is re-entrable
+	ctx3, ctxc3 := context.WithTimeout(context.TODO(), time.Second)
+	defer ctxc3()
+	c.Assert(srv.Shutdown(ctx3), IsNil)
+}
+
 func (s *ServerSuite) TestConfigureCiphers(c *C) {
 	called := false
 	fn := NewChanHandlerFunc(func(_ net.Conn, conn *ssh.ServerConn, nch ssh.NewChannel) {
@@ -117,7 +167,7 @@ func (s *ServerSuite) TestConfigureCiphers(c *C) {
 func wait(c *C, srv *Server) {
 	s := make(chan struct{})
 	go func() {
-		srv.Wait()
+		srv.Wait(context.TODO())
 		s <- struct{}{}
 	}()
 	select {

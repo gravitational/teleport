@@ -402,7 +402,7 @@ func (s *server) diffConns(newConns, existingConns map[string]services.TunnelCon
 }
 
 func (s *server) Wait() {
-	s.srv.Wait()
+	s.srv.Wait(context.TODO())
 }
 
 func (s *server) Start() error {
@@ -413,6 +413,11 @@ func (s *server) Start() error {
 func (s *server) Close() error {
 	s.cancel()
 	return s.srv.Close()
+}
+
+func (s *server) Shutdown(ctx context.Context) error {
+	s.cancel()
+	return s.srv.Shutdown(ctx)
 }
 
 func (s *server) HandleNewChan(conn net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel) {

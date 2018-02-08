@@ -24,7 +24,6 @@ limitations under the License.
 package auth
 
 import (
-	"context"
 	"crypto/x509"
 	"fmt"
 	"net/url"
@@ -79,7 +78,6 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) (*AuthServer, erro
 	if cfg.AuditLog == nil {
 		cfg.AuditLog = events.NewDiscardAuditLog()
 	}
-	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	as := AuthServer{
 		clusterName:          cfg.ClusterName,
 		bk:                   cfg.Backend,
@@ -95,8 +93,6 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) (*AuthServer, erro
 		oidcClients:          make(map[string]*oidcClient),
 		samlProviders:        make(map[string]*samlProvider),
 		githubClients:        make(map[string]*githubClient),
-		cancelFunc:           cancelFunc,
-		closeCtx:             closeCtx,
 	}
 	for _, o := range opts {
 		o(&as)
@@ -122,8 +118,6 @@ type AuthServer struct {
 	githubClients map[string]*githubClient
 	clock         clockwork.Clock
 	bk            backend.Backend
-	closeCtx      context.Context
-	cancelFunc    context.CancelFunc
 
 	sshca.Authority
 
@@ -144,7 +138,6 @@ type AuthServer struct {
 }
 
 func (a *AuthServer) Close() error {
-	a.cancelFunc()
 	if a.bk != nil {
 		return trace.Wrap(a.bk.Close())
 	}
