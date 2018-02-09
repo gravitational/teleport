@@ -30,8 +30,12 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
+
+var log = logrus.WithFields(logrus.Fields{
+	trace.Component: teleport.ComponentConnectProxy,
+})
 
 // NewClientConnWithDeadline establishes new client connection with specified deadline
 func NewClientConnWithDeadline(conn net.Conn, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
@@ -79,7 +83,7 @@ type proxyDial struct {
 // Dial first connects to a proxy, then uses the connection to establish a new
 // SSH connection.
 func (d proxyDial) Dial(network string, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
-	// build a proxy connection first
+	// Build a proxy connection first.
 	pconn, err := dialProxy(d.proxyHost, addr)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -87,7 +91,7 @@ func (d proxyDial) Dial(network string, addr string, config *ssh.ClientConfig) (
 	if config.Timeout > 0 {
 		pconn.SetReadDeadline(time.Now().Add(config.Timeout))
 	}
-	// do the same as ssh.Dial but pass in proxy connection
+	// Do the same as ssh.Dial but pass in proxy connection.
 	c, chans, reqs, err := ssh.NewClientConn(pconn, addr, config)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -103,16 +107,16 @@ func (d proxyDial) Dial(network string, addr string, config *ssh.ClientConfig) (
 // said proxy server. If neither variable is set, it will connect to the SSH
 // server directly.
 func DialerFromEnvironment() Dialer {
-	// try and get proxy addr from the environment
+	// Try and get proxy addr from the environment.
 	proxyAddr := getProxyAddress()
 
-	// if no proxy settings are in environment return regular ssh dialer,
-	// otherwise return a proxy dialer
+	// If no proxy settings are in environment return regular ssh dialer,
+	// otherwise return a proxy dialer.
 	if proxyAddr == "" {
-		log.Debugf("[HTTP PROXY] No proxy set in environment, returning direct dialer.")
+		log.Debugf("No proxy set in environment, returning direct dialer.")
 		return directDial{}
 	}
-	log.Debugf("[HTTP PROXY] Found proxy %q in environment, returning proxy dialer.", proxyAddr)
+	log.Debugf("Found proxy %q in environment, returning proxy dialer.", proxyAddr)
 	return proxyDial{proxyHost: proxyAddr}
 }
 
@@ -122,7 +126,7 @@ func dialProxy(proxyAddr string, addr string) (net.Conn, error) {
 	var d net.Dialer
 	conn, err := d.DialContext(ctx, "tcp", proxyAddr)
 	if err != nil {
-		log.Warnf("[HTTP PROXY] Unable to dial to proxy: %v: %v", proxyAddr, err)
+		log.Warnf("Unable to dial to proxy: %v: %v.", proxyAddr, err)
 		return nil, trace.ConvertSystemError(err)
 	}
 
@@ -134,24 +138,34 @@ func dialProxy(proxyAddr string, addr string) (net.Conn, error) {
 	}
 	err = connectReq.Write(conn)
 	if err != nil {
-		log.Warnf("[HTTP PROXY] Unable to write to proxy: %v", err)
+		log.Warnf("Unable to write to proxy: %v.", err)
 		return nil, trace.Wrap(err)
 	}
 
+	// Read in the response. http.ReadResponse will read in the status line, mime
+	// headers, and potentially part of the response body. the body itself will
+	// not be read, but kept around so it can be read later.
 	br := bufio.NewReader(conn)
 	resp, err := http.ReadResponse(br, connectReq)
 	if err != nil {
 		conn.Close()
-		log.Warnf("[HTTP PROXY] Unable to read response: %v", err)
+		log.Warnf("Unable to read response: %v.", err)
 		return nil, trace.Wrap(err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		f := strings.SplitN(resp.Status, " ", 2)
 		conn.Close()
-		return nil, trace.BadParameter("Unable to proxy connection, StatusCode %v: %v", resp.StatusCode, f[1])
+		return nil, trace.BadParameter("unable to proxy connection: %v", resp.Status)
 	}
 
-	return conn, nil
+	// Return a bufferedConn that wraps a net.Conn and a *bufio.Reader. this
+	// needs to be done because http.ReadResponse will buffer part of the
+	// response body in the *bufio.Reader that was passed in. reads must first
+	// come from anything buffered, then from the underlying connection otherwise
+	// data will be lost.
+	return &bufferedConn{
+		Conn:   conn,
+		reader: br,
+	}, nil
 }
 
 func getProxyAddress() string {
@@ -162,22 +176,20 @@ func getProxyAddress() string {
 		strings.ToLower(teleport.HTTPProxy),
 	}
 
-	l := log.WithFields(log.Fields{trace.Component: "http:proxy"})
-
 	for _, v := range envs {
 		addr := os.Getenv(v)
 		if addr != "" {
 			proxyaddr, err := parse(addr)
 			if err != nil {
-				l.Debugf("unable to parse environment variable %q: %q.", v, addr)
+				log.Debugf("Unable to parse environment variable %q: %q.", v, addr)
 				continue
 			}
-			l.Debugf("successfully parsed environment variable %q: %q to %q", v, addr, proxyaddr)
+			log.Debugf("Successfully parsed environment variable %q: %q to %q.", v, addr, proxyaddr)
 			return proxyaddr
 		}
 	}
 
-	l.Debugf("no valid environment variables found.")
+	log.Debugf("No valid environment variables found.")
 	return ""
 }
 
@@ -193,4 +205,22 @@ func parse(addr string) (string, error) {
 	}
 
 	return proxyurl.Host, nil
+}
+
+// bufferedConn is used when part of the data on a connection has already been
+// read by a *bufio.Reader. Reads will first try and read from the
+// *bufio.Reader and when everything has been read, reads will go to the
+// underlying connection.
+type bufferedConn struct {
+	net.Conn
+	reader *bufio.Reader
+}
+
+// Read first reads from the *bufio.Reader any data that has already been
+// buffered. Once all buffered data has been read, reads go to the net.Conn.
+func (bc *bufferedConn) Read(b []byte) (n int, err error) {
+	if bc.reader.Buffered() > 0 {
+		return bc.reader.Read(b)
+	}
+	return bc.Conn.Read(b)
 }
