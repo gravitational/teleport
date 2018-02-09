@@ -22,8 +22,14 @@ div[role=navigation] hr {
   padding-left: 20px;
   padding-top: 10px;
   padding-right: 20px;
+  margin: 0 !important;
   background-color: $color-bkg-5 !important;
+}
 
+@media screen and (min-width: 1400px) {
+  .wy-nav-content-wrap {
+      background: #fcfcfc;
+  }  
 }
 
 /* Navigation Search Overrides

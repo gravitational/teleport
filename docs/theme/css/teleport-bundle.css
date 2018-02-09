@@ -5223,12 +5223,16 @@ p code {
   padding: 0.5em;
   color: #333; }
 
-#mkdocs-search-results article h3 {
-  margin-top: 23px;
-  border-top: 1px solid #E1E4E5;
-  padding-top: 24px; }
-#mkdocs-search-results article:first-child h3 {
-  border-top: none; }
+#mkdocs-search-results {
+  margin-top: 0px; }
+  #mkdocs-search-results > p {
+    margin: 20px 0;
+    text-align: center; }
+  #mkdocs-search-results article h3 {
+    border-top: 1px solid #E1E4E5;
+    padding-top: 24px; }
+  #mkdocs-search-results article:first-child h3 {
+    border-top: none; }
 
 #mkdocs-search-query {
   width: 100%;
@@ -5254,8 +5258,12 @@ div[role=navigation] hr {
   padding-left: 20px;
   padding-top: 10px;
   padding-right: 20px;
+  margin: 0 !important;
   background-color: #fff !important; }
 
+@media screen and (min-width: 1400px) {
+  .wy-nav-content-wrap {
+    background: #fcfcfc; } }
 /* Navigation Search Overrides
 -------------------------------------------------------------- */
 .wy-side-nav-search {
