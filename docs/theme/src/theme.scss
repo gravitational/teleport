@@ -93,8 +93,14 @@ p code {
 }
 
 #mkdocs-search-results {
-    article h3{
-    margin-top: 23px;
+  margin-top: 0px;
+
+  > p {
+    margin: 20px 0; 
+    text-align: center;
+  }
+
+  article h3{    
     border-top: 1px solid $color-border-5;
     padding-top: 24px;
   }

@@ -128,32 +128,34 @@
         </div>
       </div>
 
+    {%- block grvfooter %}
     <!-- gravitational footer -->
       <div role="contentinfo" class="grv-footer">
         <div class="l-flex l-flex-wrap">
-            <div class="col-1 l-center footer-item">
-              <img class="footer-talk" src="../img/footer-talk.svg">
-              <p><a href="mailto:info@gravitational.com">info@gravitational.com</a></p>
-              <p>Phone: (855) 867-2538</p>
-            </div>
-            <div class="col-1 l-center footer-item">
-              <p>Want to know more:</p>
-              <p><a href="/about">Learn about us</a></p>
-              <p>Or, if you have time:</p>
-              <p><a href="http://blog.gravitational.com">Check out our blog</a></p>
-            </div>
-            <div class="col-1 l-center light footer-item">
-              <p></p>
-              <p>Oakland, California</p>
-              <p>USA</p>
-            </div>
-            <div class="col-1 l-center dark footer-item">
-              <p>© Gravitational, Inc.</p>
-              <p>All Rights Reserved</p>
-              <p><a href="/privacy">Privacy Policy</a></p>
-            </div>
-          </div>        
-        </div>    
+          <div class="col-1 l-center footer-item">
+            <img class="footer-talk" src="../img/footer-talk.svg">
+            <p><a href="mailto:info@gravitational.com">info@gravitational.com</a></p>
+            <p>Phone: (855) 867-2538</p>
+          </div>
+          <div class="col-1 l-center footer-item">
+            <p>Want to know more:</p>
+            <p><a href="/about">Learn about us</a></p>
+            <p>Or, if you have time:</p>
+            <p><a href="http://blog.gravitational.com">Check out our blog</a></p>
+          </div>
+          <div class="col-1 l-center light footer-item">
+            <p></p>
+            <p>Oakland, California</p>
+            <p>USA</p>
+          </div>
+          <div class="col-1 l-center dark footer-item">
+            <p>© Gravitational, Inc.</p>
+            <p>All Rights Reserved</p>
+            <p><a href="/privacy">Privacy Policy</a></p>
+          </div>
+        </div>        
+      </div>    
+      {% endblock %}
     </section>
   </div>
 
