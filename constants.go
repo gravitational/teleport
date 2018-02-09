@@ -102,6 +102,9 @@ const (
 	// for all proxies.
 	ComponentKeyStore = "keystore"
 
+	// ComponentConnectProxy is the HTTP CONNECT proxy used to tunnel connection.
+	ComponentConnectProxy = "http:proxy"
+
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
 

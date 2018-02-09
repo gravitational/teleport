@@ -716,7 +716,7 @@ type proxyServer struct {
 // the specified host. Also tracks the number of connections that it proxies for
 // debugging purposes.
 func (p *proxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// validate http connect parameters
+	// Validate http connect parameters.
 	if r.Method != http.MethodConnect {
 		trace.WriteError(w, trace.BadParameter("%v not supported", r.Method))
 		return
@@ -726,7 +726,20 @@ func (p *proxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// hijack request so we can get underlying connection
+	// Dial to the target host, this is done before hijacking the connection to
+	// ensure the target host is accessible.
+	dconn, err := net.Dial("tcp", r.Host)
+	if err != nil {
+		trace.WriteError(w, err)
+		return
+	}
+	defer dconn.Close()
+
+	// Once the client receives 200 OK, the rest of the data will no longer be
+	// http, but whatever protocol is being tunneled.
+	w.WriteHeader(http.StatusOK)
+
+	// Hijack request so we can get underlying connection.
 	hj, ok := w.(http.Hijacker)
 	if !ok {
 		trace.WriteError(w, trace.AccessDenied("unable to hijack connection"))
@@ -739,34 +752,12 @@ func (p *proxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer sconn.Close()
 
-	// dial to host we want to proxy connection to
-	dconn, err := net.Dial("tcp", r.Host)
-	if err != nil {
-		trace.WriteError(w, err)
-		return
-	}
-	defer dconn.Close()
-
-	// write 200 OK to the source, but don't close the connection
-	resp := &http.Response{
-		Status:     "OK",
-		StatusCode: 200,
-		Proto:      "HTTP/1.1",
-		ProtoMajor: 1,
-		ProtoMinor: 0,
-	}
-	err = resp.Write(sconn)
-	if err != nil {
-		trace.WriteError(w, err)
-		return
-	}
-
-	// success, we're proxying data now
+	// Success, we're proxying data now.
 	p.Lock()
 	p.count = p.count + 1
 	p.Unlock()
 
-	// copy from src to dst and dst to src
+	// Copy from src to dst and dst to src.
 	errc := make(chan error, 2)
 	replicate := func(dst io.Writer, src io.Reader) {
 		_, err := io.Copy(dst, src)
@@ -775,7 +766,7 @@ func (p *proxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	go replicate(sconn, dconn)
 	go replicate(dconn, sconn)
 
-	// wait until done, error, or 10 second
+	// Wait until done, error, or 10 second.
 	select {
 	case <-time.After(10 * time.Second):
 	case <-errc:
