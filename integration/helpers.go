@@ -482,15 +482,13 @@ func (i *TeleInstance) StartNode(name string, sshPort int) (*service.TeleportPro
 	}
 
 	// Start the process and block until the expected events have arrived.
-	_, err = startAndWait(process, expectedEvents)
+	receivedEvents, err := startAndWait(process, expectedEvents)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Wait a little bit longer because for some processes, we emit the event
-	// right before the service has started.
-	time.Sleep(250 * time.Millisecond)
-
+	log.Debugf("Teleport node (in instance %v) started: %v/%v events received.",
+		i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
 	return process, nil
 }
 
@@ -543,15 +541,13 @@ func (i *TeleInstance) StartNodeAndProxy(name string, sshPort, proxyWebPort, pro
 	}
 
 	// Start the process and block until the expected events have arrived.
-	_, err = startAndWait(process, expectedEvents)
+	receivedEvents, err := startAndWait(process, expectedEvents)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Wait a little bit longer because for some processes, we emit the event
-	// right before the service has started.
-	time.Sleep(250 * time.Millisecond)
-
+	log.Debugf("Teleport node and proxy (in instance %v) started: %v/%v events received.",
+		i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
 	return nil
 }
 
@@ -611,11 +607,13 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) error {
 	}
 
 	// Start the process and block until the expected events have arrived.
-	_, err = startAndWait(process, expectedEvents)
+	receivedEvents, err := startAndWait(process, expectedEvents)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	log.Debugf("Teleport proxy (in instance %v) started: %v/%v events received.",
+		i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
 	return nil
 }
 
@@ -690,11 +688,8 @@ func (i *TeleInstance) Start() error {
 		}
 	}
 
-	// Wait a little bit longer because for some processes, we emit the event
-	// right before the service has started.
-	time.Sleep(250 * time.Millisecond)
-	log.Debugf("Teleport instance %v started: %v/%v services started.", i.Secrets.SiteName, len(receivedEvents), len(expectedEvents))
-
+	log.Debugf("Teleport instance %v started: %v/%v events received.",
+		i.Secrets.SiteName, len(receivedEvents), len(expectedEvents))
 	return nil
 }
 
@@ -851,6 +846,12 @@ func startAndWait(process *service.TeleportProcess, expectedEvents []string) ([]
 				len(receivedEvents), len(expectedEvents), receivedEvents, expectedEvents)
 		}
 	}
+
+	// Not all services follow a non-blocking Start/Wait pattern. This means a
+	// *Ready event may be emit slightly before the service actually starts for
+	// blocking services. Long term those services should be re-factored, until
+	// then sleep for 250ms to handle this situation.
+	time.Sleep(250 * time.Millisecond)
 
 	return receivedEvents, nil
 }
