@@ -1310,12 +1310,20 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 	lb.AddBackend(*utils.MustParseAddr(fmt.Sprintf("127.0.0.1:%v", proxyReverseTunnelPort)))
 
 	// execute the connection via first proxy
-	cfg := ClientConfig{Login: username, Cluster: "cluster-remote", Host: "127.0.0.1", Port: remote.GetPortSSHInt()}
+	cfg := ClientConfig{
+		Login:   username,
+		Cluster: "cluster-remote",
+		Host:    "127.0.0.1",
+		Port:    remote.GetPortSSHInt(),
+	}
 	output, err := runCommand(main, []string{"echo", "hello world"}, cfg, 1)
 	c.Assert(err, check.IsNil)
 	c.Assert(output, check.Equals, "hello world\n")
 
-	// execute the connection via second proxy, should work
+	// Execute the connection via second proxy, should work. This command is
+	// tried 10 times with 250 millisecond delay between each attempt to allow
+	// the discovery request to be received and the connection added to the agent
+	// pool.
 	cfgProxy := ClientConfig{
 		Login:   username,
 		Cluster: "cluster-remote",
@@ -1339,7 +1347,10 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(output, check.Equals, "hello world\n")
 
-	// connect the main proxy back and make sure agents have reconnected over time
+	// Connect the main proxy back and make sure agents have reconnected over time.
+	// This command is tried 10 times with 250 millisecond delay between each
+	// attempt to allow the discovery request to be received and the connection
+	// added to the agent pool.
 	lb.AddBackend(mainProxyAddr)
 	output, err = runCommand(main, []string{"echo", "hello world"}, cfg, 10)
 	c.Assert(err, check.IsNil)
@@ -1625,9 +1636,10 @@ func (s *IntSuite) TestAuditOff(c *check.C) {
 	c.Assert(err, check.NotNil)
 }
 
-// runCommand is a shortcut for running SSH command, it creates
-// a client connected to proxy hosted by instance
-// and returns the result
+// runCommand is a shortcut for running SSH command, it creates a client
+// connected to proxy of the passed in instance, runs the command, and returns
+// the result. If multiple attempts are requested, a 250 millisecond delay is
+// added between them before giving up.
 func runCommand(instance *TeleInstance, cmd []string, cfg ClientConfig, attempts int) (string, error) {
 	tc, err := instance.NewClient(cfg)
 	if err != nil {
@@ -1640,7 +1652,7 @@ func runCommand(instance *TeleInstance, cmd []string, cfg ClientConfig, attempts
 		if err == nil {
 			break
 		}
-		time.Sleep(time.Millisecond * 50)
+		time.Sleep(250 * time.Millisecond)
 	}
 	return output.String(), trace.Wrap(err)
 }
