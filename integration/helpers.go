@@ -439,7 +439,7 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 	return nil
 }
 
-// StartNode starts SSH node and connects it to the cluster.
+// StartNode starts a SSH node and connects it to the cluster.
 func (i *TeleInstance) StartNode(name string, sshPort int) (*service.TeleportProcess, error) {
 	dataDir, err := ioutil.TempDir("", "cluster-"+i.Secrets.SiteName)
 	if err != nil {
@@ -467,22 +467,35 @@ func (i *TeleInstance) StartNode(name string, sshPort int) (*service.TeleportPro
 	tconf.SSH.Enabled = true
 	tconf.SSH.Addr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", sshPort))
 
+	// Create a new Teleport process and add it to the list of nodes that
+	// compose this "cluster".
 	process, err := service.NewTeleport(tconf)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	i.Nodes = append(i.Nodes, process)
 
-	err = process.Start()
+	// Build a list of expected events to wait for before unblocking based off
+	// the configuration passed in.
+	expectedEvents := []string{
+		service.NodeSSHReady,
+	}
+
+	// Start the process and block until the expected events have arrived.
+	_, err = startAndWait(process, expectedEvents)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	// Wait a little bit longer because for some processes, we emit the event
+	// right before the service has started.
+	time.Sleep(250 * time.Millisecond)
+
 	return process, nil
 }
 
-// StartNodeAndProxy starts SSH node and proxy and connects it to the cluster.
+// StartNodeAndProxy starts a SSH node and a Proxy Server and connects it to
+// the cluster.
 func (i *TeleInstance) StartNodeAndProxy(name string, sshPort, proxyWebPort, proxySSHPort int) error {
 	dataDir, err := ioutil.TempDir("", "cluster-"+i.Secrets.SiteName)
 	if err != nil {
@@ -514,12 +527,32 @@ func (i *TeleInstance) StartNodeAndProxy(name string, sshPort, proxyWebPort, pro
 	tconf.SSH.Enabled = true
 	tconf.SSH.Addr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", sshPort))
 
+	// Create a new Teleport process and add it to the list of nodes that
+	// compose this "cluster".
 	process, err := service.NewTeleport(tconf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	i.Nodes = append(i.Nodes, process)
-	return process.Start()
+
+	// Build a list of expected events to wait for before unblocking based off
+	// the configuration passed in.
+	expectedEvents := []string{
+		service.ProxySSHReady,
+		service.NodeSSHReady,
+	}
+
+	// Start the process and block until the expected events have arrived.
+	_, err = startAndWait(process, expectedEvents)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Wait a little bit longer because for some processes, we emit the event
+	// right before the service has started.
+	time.Sleep(250 * time.Millisecond)
+
+	return nil
 }
 
 // ProxyConfig is a set of configuration parameters for Proxy
@@ -534,37 +567,56 @@ type ProxyConfig struct {
 	ReverseTunnelPort int
 }
 
-// StartProxy starts proxy server and adds it to the cluster
+// StartProxy starts another Proxy Server and connects it to the cluster.
 func (i *TeleInstance) StartProxy(cfg ProxyConfig) error {
 	dataDir, err := ioutil.TempDir("", "cluster-"+i.Secrets.SiteName+"-"+cfg.Name)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	tconf := service.MakeDefaultConfig()
-	tconf.HostUUID = cfg.Name
-	tconf.Hostname = cfg.Name
-	tconf.DataDir = dataDir
-	tconf.Auth.Enabled = false
-	tconf.Proxy.Enabled = true
-	tconf.SSH.Enabled = false
+
 	authServer := utils.MustParseAddr(net.JoinHostPort(i.Hostname, i.GetPortAuth()))
 	tconf.AuthServers = append(tconf.AuthServers, *authServer)
+	tconf.CachePolicy = service.CachePolicy{Enabled: true}
+	tconf.DataDir = dataDir
+	tconf.HostUUID = cfg.Name
+	tconf.Hostname = cfg.Name
 	tconf.Token = "token"
+
+	tconf.Auth.Enabled = false
+
+	tconf.SSH.Enabled = false
+
 	tconf.Proxy.Enabled = true
 	tconf.Proxy.SSHAddr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", cfg.SSHPort))
 	tconf.Proxy.ReverseTunnelListenAddr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", cfg.ReverseTunnelPort))
 	tconf.Proxy.WebAddr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", cfg.WebPort))
 	tconf.Proxy.DisableReverseTunnel = false
 	tconf.Proxy.DisableWebService = true
-	// Enable caching
-	tconf.CachePolicy = service.CachePolicy{Enabled: true}
 
+	// Create a new Teleport process and add it to the list of nodes that
+	// compose this "cluster".
 	process, err := service.NewTeleport(tconf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	i.Nodes = append(i.Nodes, process)
-	return process.Start()
+
+	// Build a list of expected events to wait for before unblocking based off
+	// the configuration passed in.
+	expectedEvents := []string{
+		service.ProxyReverseTunnelReady,
+		service.ProxySSHReady,
+	}
+
+	// Start the process and block until the expected events have arrived.
+	_, err = startAndWait(process, expectedEvents)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // Reset re-creates the teleport instance based on the same configuration
@@ -602,8 +654,11 @@ func (i *TeleInstance) AddUser(username string, mappings []string) *User {
 	return user
 }
 
+// Start will start the TeleInstance and then block until it is ready to
+// process requests based off the passed in configuration.
 func (i *TeleInstance) Start() error {
-	// build a list of expected events based off the configuration passed in
+	// Build a list of expected events to wait for before unblocking based off
+	// the configuration passed in.
 	expectedEvents := []string{}
 	if i.Config.Auth.Enabled {
 		expectedEvents = append(expectedEvents, service.AuthSSHReady)
@@ -620,41 +675,23 @@ func (i *TeleInstance) Start() error {
 		expectedEvents = append(expectedEvents, service.NodeSSHReady)
 	}
 
-	// register to listen for all ready events on the broadcast channel
-	broadcastCh := make(chan service.Event)
-	for _, eventName := range expectedEvents {
-		i.Process.WaitForEvent(eventName, broadcastCh, make(chan struct{}))
-	}
-
-	// start the teleport process
-	err := i.Process.Start()
+	// Start the process and block until the expected events have arrived.
+	receivedEvents, err := startAndWait(i.Process, expectedEvents)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// wait for all events to arrive or a timeout. if all the expected events
-	// from above are not received, this instance will not start
-	receivedEvents := []string{}
-	timeoutCh := time.After(5 * time.Second)
-
-	for idx := 0; idx < len(expectedEvents); idx++ {
-		select {
-		case e := <-broadcastCh:
-			// if it's a reverse tunnel, save the server in the instance
-			ts, ok := e.Payload.(reversetunnel.Server)
-			if ok {
-				i.Tunnel = ts
-			}
-
-			// update list of events that have been received
-			receivedEvents = append(receivedEvents, e.Name)
-		case <-timeoutCh:
-			return trace.BadParameter("timed out, only %v/%v services started: %v", len(receivedEvents), len(expectedEvents), receivedEvents)
+	// Extract and set reversetunnel.Server upon receipt of a
+	// ProxyReverseTunnelReady event.
+	for _, re := range receivedEvents {
+		ts, ok := re.Payload.(reversetunnel.Server)
+		if ok {
+			i.Tunnel = ts
 		}
 	}
 
-	// wait a little bit longer because for some processes, we emit the event
-	// right before the service has started
+	// Wait a little bit longer because for some processes, we emit the event
+	// right before the service has started.
 	time.Sleep(250 * time.Millisecond)
 	log.Debugf("Teleport instance %v started: %v/%v services started.", i.Secrets.SiteName, len(receivedEvents), len(expectedEvents))
 
@@ -785,6 +822,37 @@ func (i *TeleInstance) Stop(removeData bool) error {
 		log.Infof("Teleport instance '%v' stopped!", i.Secrets.SiteName)
 	}()
 	return i.Process.Wait()
+}
+
+func startAndWait(process *service.TeleportProcess, expectedEvents []string) ([]service.Event, error) {
+	// register to listen for all ready events on the broadcast channel
+	broadcastCh := make(chan service.Event)
+	for _, eventName := range expectedEvents {
+		process.WaitForEvent(eventName, broadcastCh, make(chan struct{}))
+	}
+
+	// start the process
+	err := process.Start()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// wait for all events to arrive or a timeout. if all the expected events
+	// from above are not received, this instance will not start
+	receivedEvents := []service.Event{}
+	timeoutCh := time.After(10 * time.Second)
+
+	for idx := 0; idx < len(expectedEvents); idx++ {
+		select {
+		case e := <-broadcastCh:
+			receivedEvents = append(receivedEvents, e)
+		case <-timeoutCh:
+			return nil, trace.BadParameter("timed out, only %v/%v events received. received: %v, expected: %v",
+				len(receivedEvents), len(expectedEvents), receivedEvents, expectedEvents)
+		}
+	}
+
+	return receivedEvents, nil
 }
 
 type proxyServer struct {
