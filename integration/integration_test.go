@@ -717,7 +717,7 @@ func (s *IntSuite) TestTwoClusters(c *check.C) {
 		// "site-A" and "site-B" reverse tunnels are supposed to reconnect,
 		// and 'tc' (client) is also supposed to reconnect
 		for i := 0; i < 10; i++ {
-			time.Sleep(time.Millisecond * 5)
+			time.Sleep(250 * time.Millisecond)
 			err = tc.SSH(context.TODO(), cmd, false)
 			if err == nil {
 				break
