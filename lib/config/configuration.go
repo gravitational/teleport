@@ -710,6 +710,11 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		cfg.Hostname = clf.NodeName
 	}
 
+	// apply --pid-file flag
+	if clf.PIDFile != "" {
+		cfg.PIDFile = clf.PIDFile
+	}
+
 	// apply --token flag:
 	cfg.ApplyToken(clf.AuthToken)
 

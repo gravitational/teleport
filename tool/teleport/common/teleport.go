@@ -188,16 +188,6 @@ func OnStart(config *service.Config) error {
 		return trace.Wrap(err, "starting teleport")
 	}
 
-	// create the pid file
-	if config.PIDFile != "" {
-		f, err := os.OpenFile(config.PIDFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
-		if err != nil {
-			return trace.Wrap(err, "failed to create the PID file")
-		}
-		fmt.Fprintf(f, "%v", os.Getpid())
-		defer f.Close()
-	}
-
 	return srv.WaitForSignals(context.TODO())
 }
 

@@ -5,10 +5,10 @@
 resource "aws_autoscaling_group" "auth" {
   name                      = "${var.cluster_name}-auth"
   max_size                  = 5
-  min_size                  = 1
+  min_size                  = "${length(local.azs)}"
   health_check_grace_period = 300
   health_check_type         = "EC2"
-  desired_capacity          = 0
+  desired_capacity          = "${length(local.azs)}"
   force_delete              = false
   launch_configuration      = "${aws_launch_configuration.auth.name}"
   vpc_zone_identifier       = ["${aws_subnet.auth.*.id}"]
@@ -50,6 +50,7 @@ data "template_file" "auth_user_data" {
     s3_bucket = "${var.s3_bucket_name}"
     influxdb_addr = "http://${aws_lb.monitor.dns_name}:8086"
     telegraf_version = "${var.telegraf_version}"
+    teleport_uid = "${var.teleport_uid}"
   }
 }
 

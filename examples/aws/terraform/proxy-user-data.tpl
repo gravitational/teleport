@@ -13,9 +13,14 @@ curl $CURL_OPTS -o /tmp/telegraf.deb https://dl.influxdata.com/telegraf/releases
 dpkg -i /tmp/telegraf.deb
 rm -f /tmp/telegraf.deb
 
-# Create teleport user
-useradd -r teleport
+# Create teleport user. It is helpful to share the same UID
+# to have the same permissions on shared NFS volumes across auth servers and for consistency.
+useradd -r teleport -u ${teleport_uid}
 adduser teleport adm
+
+# Setup teleport run dir for pid files
+mkdir -p /var/run/teleport/
+chown -R teleport:adm /var/run/teleport
 
 # Setup teleport data dir used for transient storage
 mkdir -p /var/lib/teleport/
@@ -102,7 +107,8 @@ Restart=always
 RestartSec=5
 ExecStartPre=/usr/local/bin/teleport-ssm-get-token
 ExecStartPre=/usr/local/bin/aws s3 sync s3://${s3_bucket}/live/${domain_name} /var/lib/teleport
-ExecStart=/usr/local/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3434
+ExecStart=/usr/local/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3434 --pid-file=/var/run/teleport/teleport.pid
+PIDFile=/var/run/teleport/teleport.pid
 LimitNOFILE=65536
 
 [Install]

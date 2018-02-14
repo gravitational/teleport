@@ -3,6 +3,7 @@
 resource "aws_efs_file_system" "auth" {
   creation_token = "${var.cluster_name}"
   performance_mode = "${var.performance_mode}"
+  encrypted = "true"
 
   tags {
     TeleportCluster = "${var.cluster_name}"
