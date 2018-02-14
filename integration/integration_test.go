@@ -315,8 +315,45 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 		c.Assert(strings.Contains(string(sessionStream), "echo hi"), check.Equals, true, comment)
 		c.Assert(strings.Contains(string(sessionStream), "exit"), check.Equals, true, comment)
 
-		// now lets look at session events:
-		history, err := site.GetSessionEvents(defaults.Namespace, session.ID, 0)
+		// Wait until session.start, session.leave, and session.end events have arrived.
+		getSessions := func(site auth.ClientI) ([]events.EventFields, error) {
+			tickCh := time.Tick(500 * time.Millisecond)
+			stopCh := time.After(10 * time.Second)
+			for {
+				select {
+				case <-tickCh:
+					// Get all session events from the backend.
+					sessionEvents, err := site.GetSessionEvents(defaults.Namespace, session.ID, 0)
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+
+					// Look through all session events for the three wanted.
+					var hasStart bool
+					var hasEnd bool
+					var hasLeave bool
+					for _, se := range sessionEvents {
+						if se.GetType() == events.SessionStartEvent {
+							hasStart = true
+						}
+						if se.GetType() == events.SessionEndEvent {
+							hasEnd = true
+						}
+						if se.GetType() == events.SessionLeaveEvent {
+							hasLeave = true
+						}
+					}
+
+					// Make sure all three events were found.
+					if hasStart && hasEnd && hasLeave {
+						return sessionEvents, nil
+					}
+				case <-stopCh:
+					return nil, trace.BadParameter("unable to find all session events after 10s (mode=%v)", tt.inRecordLocation)
+				}
+			}
+		}
+		history, err := getSessions(site)
 		c.Assert(err, check.IsNil)
 
 		getChunk := func(e events.EventFields, maxlen int) string {

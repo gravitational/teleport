@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/state"
 	"github.com/gravitational/teleport/lib/utils"
@@ -127,6 +128,10 @@ type Config struct {
 	// Clock is a clock used in the server, set up to
 	// wall clock if not set
 	Clock clockwork.Clock
+
+	// KeyGen is a process wide key generator. It is shared to speed up
+	// generation of public/private keypairs.
+	KeyGen sshca.Authority
 
 	// Ciphers is a list of ciphers that the server supports. If omitted,
 	// the defaults will be used.
@@ -824,7 +829,7 @@ func newRemoteSite(srv *server, domainName string) (*remoteSite, error) {
 	// certificate cache is created in each site (instead of creating it in
 	// reversetunnel.server and passing it along) so that the host certificate
 	// is signed by the correct certificate authority.
-	certificateCache, err := NewHostCertificateCache(srv.localAuthClient)
+	certificateCache, err := NewHostCertificateCache(srv.Config.KeyGen, srv.localAuthClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
