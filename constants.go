@@ -105,6 +105,9 @@ const (
 	// ComponentConnectProxy is the HTTP CONNECT proxy used to tunnel connection.
 	ComponentConnectProxy = "http:proxy"
 
+	// ComponentKeyGen is the public/private keypair generator.
+	ComponentKeyGen = "keygen"
+
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
 

@@ -37,6 +37,9 @@ func New() *Keygen {
 	return &Keygen{}
 }
 
+func (n *Keygen) Close() {
+}
+
 func (n *Keygen) GetNewKeyPairFromPool() ([]byte, []byte, error) {
 	return n.GenerateKeyPair("")
 }

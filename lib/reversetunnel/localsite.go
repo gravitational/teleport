@@ -44,7 +44,7 @@ func newlocalSite(srv *server, domainName string, client auth.ClientI) (*localSi
 	// certificate cache is created in each site (instead of creating it in
 	// reversetunnel.server and passing it along) so that the host certificate
 	// is signed by the correct certificate authority.
-	certificateCache, err := NewHostCertificateCache(client)
+	certificateCache, err := NewHostCertificateCache(srv.Config.KeyGen, client)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

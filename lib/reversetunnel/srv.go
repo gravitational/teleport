@@ -122,6 +122,10 @@ type Config struct {
 	// wall clock if not set
 	Clock clockwork.Clock
 
+	// KeyGen is a process wide key generator. It is shared to speed up
+	// generation of public/private keypairs.
+	KeyGen auth.Authority
+
 	// Ciphers is a list of ciphers that the server supports. If omitted,
 	// the defaults will be used.
 	Ciphers []string
@@ -757,7 +761,7 @@ func newRemoteSite(srv *server, domainName string) (*remoteSite, error) {
 	// certificate cache is created in each site (instead of creating it in
 	// reversetunnel.server and passing it along) so that the host certificate
 	// is signed by the correct certificate authority.
-	certificateCache, err := NewHostCertificateCache(srv.localAuthClient)
+	certificateCache, err := NewHostCertificateCache(srv.Config.KeyGen, srv.localAuthClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

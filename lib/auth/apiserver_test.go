@@ -62,7 +62,7 @@ var _ = Suite(&APISuite{})
 
 func (s *APISuite) SetUpSuite(c *C) {
 	utils.InitLoggerForTests()
-	authority.PrecalculatedKeysNum = 1
+	authority.PrecomputedNum = 1
 }
 
 func (s *APISuite) SetUpTest(c *C) {

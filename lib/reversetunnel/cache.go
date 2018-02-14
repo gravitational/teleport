@@ -25,7 +25,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/gravitational/trace"
@@ -33,20 +32,23 @@ import (
 )
 
 type certificateCache struct {
-	mu         sync.Mutex
+	mu sync.Mutex
+
 	cache      *ttlmap.TTLMap
 	authClient auth.ClientI
+	keygen     auth.Authority
 }
 
 // NewHostCertificateCache creates a shared host certificate cache that is
 // used by the forwarding server.
-func NewHostCertificateCache(authClient auth.ClientI) (*certificateCache, error) {
+func NewHostCertificateCache(keygen auth.Authority, authClient auth.ClientI) (*certificateCache, error) {
 	cache, err := ttlmap.New(defaults.HostCertCacheSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &certificateCache{
+		keygen:     keygen,
 		cache:      cache,
 		authClient: authClient,
 	}, nil
@@ -120,11 +122,8 @@ func (c *certificateCache) set(principal string, certificate ssh.Signer, ttl tim
 // generateHostCert will generate a SSH host certificate for a given
 // principal.
 func (c *certificateCache) generateHostCert(principal string) (ssh.Signer, error) {
-	keygen := native.New()
-	defer keygen.Close()
-
 	// generate public/private keypair
-	privBytes, pubBytes, err := keygen.GenerateKeyPair("")
+	privBytes, pubBytes, err := c.keygen.GetNewKeyPairFromPool()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
