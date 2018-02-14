@@ -147,7 +147,7 @@ type TeleportProcess struct {
 	// identities of this process (credentials to auth sever, basically)
 	Identities map[teleport.Role]*auth.Identity
 	// registeredListeners keeps track of all listeners created by the process
-	// used to pass through the
+	// used to pass listeners to child processes during live reload
 	registeredListeners []RegisteredListener
 	// importedDescriptors is a list of imported file descriptors
 	// passed by the parent process
