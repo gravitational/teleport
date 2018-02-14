@@ -8,7 +8,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/constants"
 	"github.com/gravitational/teleport/e/lib/fixtures"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/boltbk"
+	"github.com/gravitational/teleport/lib/backend/dir"
 
 	"github.com/gravitational/reporting/types"
 	check "gopkg.in/check.v1"
@@ -23,9 +23,9 @@ type EnforcerSuite struct {
 var _ = check.Suite(&EnforcerSuite{})
 
 func (s *EnforcerSuite) SetUpSuite(c *check.C) {
-	dir := c.MkDir()
+	directory := c.MkDir()
 
-	backend, err := boltbk.New(backend.Params{"path": dir})
+	backend, err := dir.New(backend.Params{"path": directory})
 	c.Assert(err, check.IsNil)
 
 	s.enforcer, err = NewEnforcer(context.Background(), EnforcerConfig{

@@ -10,7 +10,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/pro"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/boltbk"
+	"github.com/gravitational/teleport/lib/backend/dir"
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/reporting/types"
@@ -27,9 +27,9 @@ type APISuite struct {
 var _ = check.Suite(&APISuite{})
 
 func (s *APISuite) SetUpSuite(c *check.C) {
-	dir := c.MkDir()
+	directory := c.MkDir()
 
-	backend, err := boltbk.New(backend.Params{"path": dir})
+	backend, err := dir.New(backend.Params{"path": directory})
 	c.Assert(err, check.IsNil)
 
 	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
