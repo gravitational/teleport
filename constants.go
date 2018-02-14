@@ -1,6 +1,7 @@
 package teleport
 
 import (
+	"strings"
 	"time"
 )
 
@@ -78,6 +79,9 @@ const (
 
 	// ComponentProxy is SSH proxy (SSH server forwarding connections)
 	ComponentProxy = "proxy"
+
+	// ComponentDiagnostic is a diagnostic service
+	ComponentDiagnostic = "diagnostic"
 
 	// ComponentTunClient is a tunnel client
 	ComponentTunClient = "client:tunnel"
@@ -200,6 +204,12 @@ const (
 	// Off means mode is off
 	Off = "off"
 )
+
+// Component generates "component:subcomponent1:subcomponent2" strings used
+// in debugging
+func Component(components ...string) string {
+	return strings.Join(components, ":")
+}
 
 const (
 	// AuthorizedKeys are public keys that check against User CAs.

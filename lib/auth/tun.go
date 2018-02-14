@@ -181,6 +181,14 @@ func (s *AuthTunnel) Close() error {
 	return nil
 }
 
+// Shutdown gracefully shuts down auth server
+func (s *AuthTunnel) Shutdown(ctx context.Context) error {
+	if s != nil && s.sshServer != nil {
+		return s.sshServer.Shutdown(ctx)
+	}
+	return nil
+}
+
 // HandleNewChan implements NewChanHandler interface: it gets called every time a new SSH
 // connection is established
 func (s *AuthTunnel) HandleNewChan(_ net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel) {

@@ -17,8 +17,8 @@ limitations under the License.
 package common
 
 import (
+	"context"
 	"fmt"
-	"net/http"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -33,9 +33,9 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/google/gops/agent"
-	"github.com/gravitational/roundtrip"
+
 	"github.com/gravitational/trace"
-	"github.com/prometheus/client_golang/prometheus"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -109,14 +109,10 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 		"Base64 encoded configuration string").Hidden().Envar(defaults.ConfigEnvar).
 		StringVar(&ccf.ConfigString)
 	start.Flag("labels", "List of labels for this node").StringVar(&ccf.Labels)
-	start.Flag("httpprofile",
-		"[DEPRECATED] Start profiling endpoint on localhost:6060").Hidden().BoolVar(&ccf.HTTPProfileEndpoint)
 	start.Flag("gops",
-		"Start gops endpoint on a given address").Hidden().BoolVar(&ccf.Gops)
-	start.Flag("gops-addr",
-		"Specify gops addr to listen on").Hidden().StringVar(&ccf.GopsAddr)
+		"Start gops troubleshooting endpoint on a first available adress.").BoolVar(&ccf.Gops)
 	start.Flag("diag-addr",
-		"Start diangonstic endpoint on this address").Hidden().StringVar(&ccf.DiagnosticAddr)
+		"Start diangonstic prometheus and healthz endpoint.").StringVar(&ccf.DiagnosticAddr)
 	start.Flag("permit-user-env",
 		"Enables reading of ~/.tsh/environment when creating a session").Hidden().BoolVar(&ccf.PermitUserEnvironment)
 	start.Flag("insecure",
@@ -155,29 +151,12 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 		if !options.InitOnly {
 			log.Debug(conf.DebugDumpToYAML())
 		}
-		if ccf.HTTPProfileEndpoint {
-			log.Warningf("http profile endpoint is deprecated, use gops instead")
-		}
 		if ccf.Gops {
-			log.Debugf("starting gops agent")
-			err := agent.Listen(&agent.Options{Addr: ccf.GopsAddr})
+			log.Debug("Starting gops agent.")
+			err := agent.Listen(&agent.Options{})
 			if err != nil {
 				log.Warningf("failed to start gops agent %v", err)
 			}
-		}
-		// collect and expose diagnostic endpoint
-		if ccf.DiagnosticAddr != "" {
-			mux := http.NewServeMux()
-			mux.Handle("/metrics", prometheus.Handler())
-			mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-				roundtrip.ReplyJSON(w, http.StatusOK, map[string]interface{}{"status": "ok"})
-			})
-			go func() {
-				err := http.ListenAndServe(ccf.DiagnosticAddr, mux)
-				if err != nil {
-					log.Warningf("diagnostic endpoint exited %v", err)
-				}
-			}()
 		}
 		if !options.InitOnly {
 			err = OnStart(conf)
@@ -194,7 +173,7 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 	if err != nil {
 		utils.FatalError(err)
 	}
-	log.Info("teleport: clean exit")
+	log.Debug("Clean exit.")
 	return command, conf
 }
 
@@ -219,7 +198,7 @@ func OnStart(config *service.Config) error {
 		defer f.Close()
 	}
 
-	return trace.Wrap(srv.Wait())
+	return srv.WaitForSignals(context.TODO())
 }
 
 // onStatus is the handler for "status" CLI command

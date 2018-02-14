@@ -17,7 +17,7 @@ limitations under the License.
 package service
 
 import (
-	"fmt"
+	"context"
 	"sync"
 
 	"github.com/gravitational/teleport/lib/utils"
@@ -52,6 +52,9 @@ type Supervisor interface {
 	// it's a combinatioin Start() and Wait()
 	Run() error
 
+	// Services returns list of running services
+	Services() []string
+
 	// BroadcastEvent generates event and broadcasts it to all
 	// interested parties
 	BroadcastEvent(Event)
@@ -71,18 +74,21 @@ type LocalSupervisor struct {
 	events       map[string]Event
 	eventsC      chan Event
 	eventWaiters map[string][]*waiter
-	closer       *utils.CloseBroadcaster
+	closeContext context.Context
+	signalClose  context.CancelFunc
 }
 
 // NewSupervisor returns new instance of initialized supervisor
 func NewSupervisor() Supervisor {
+	closeContext, cancel := context.WithCancel(context.TODO())
 	srv := &LocalSupervisor{
 		services:     []Service{},
 		wg:           &sync.WaitGroup{},
 		events:       map[string]Event{},
-		eventsC:      make(chan Event, 100),
+		eventsC:      make(chan Event, 1024),
 		eventWaiters: make(map[string][]*waiter),
-		closer:       utils.NewCloseBroadcaster(),
+		closeContext: closeContext,
+		signalClose:  cancel,
 	}
 	go srv.fanOut()
 	return srv
@@ -96,11 +102,11 @@ type Event struct {
 }
 
 func (e *Event) String() string {
-	return fmt.Sprintf("event(%v)", e.Name)
+	return e.Name
 }
 
 func (s *LocalSupervisor) Register(srv Service) {
-	log.WithFields(logrus.Fields{"service": srv.Name()}).Debugf("Adding service to supervisor")
+	log.WithFields(logrus.Fields{"service": srv.Name()}).Debugf("Adding service to supervisor.")
 	s.Lock()
 	defer s.Unlock()
 	s.services = append(s.services, srv)
@@ -125,7 +131,7 @@ func (s *LocalSupervisor) RegisterFunc(name string, fn ServiceFunc) {
 
 // RemoveService removes service from supervisor tracking list
 func (s *LocalSupervisor) RemoveService(srv Service) error {
-	log = log.WithFields(logrus.Fields{"service": srv.Name()})
+	log := log.WithFields(logrus.Fields{"service": srv.Name()})
 	s.Lock()
 	defer s.Unlock()
 	for i, el := range s.services {
@@ -169,8 +175,20 @@ func (s *LocalSupervisor) Start() error {
 	return nil
 }
 
+func (s *LocalSupervisor) Services() []string {
+	s.Lock()
+	defer s.Unlock()
+
+	out := make([]string, len(s.services))
+
+	for i, srv := range s.services {
+		out[i] = srv.Name()
+	}
+	return out
+}
+
 func (s *LocalSupervisor) Wait() error {
-	defer s.closer.Close()
+	defer s.signalClose()
 	s.wg.Wait()
 	return nil
 }
@@ -233,7 +251,7 @@ func (s *LocalSupervisor) fanOut() {
 			for _, waiter := range waiters {
 				go s.notifyWaiter(waiter, event)
 			}
-		case <-s.closer.C:
+		case <-s.closeContext.Done():
 			return
 		}
 	}

@@ -95,7 +95,9 @@ func (w *sessionStreamHandler) stream(ws *websocket.Conn) error {
 		// ask for any events than happened since the last call:
 		re, err := clt.GetSessionEvents(w.namespace, w.sessionID, eventsCursor+1)
 		if err != nil {
-			log.Error(err)
+			if !trace.IsNotFound(err) {
+				log.Error(err)
+			}
 			return emptyEventList
 		}
 		batchLen := len(re)

@@ -681,7 +681,6 @@ func (s *sessionCache) ValidateSession(user, sid string) (*SessionContext, error
 		// this means that someone has just inserted the context, so
 		// close our extra context and return
 		if trace.IsAlreadyExists(err) {
-			log.Infof("just created, returning the existing one")
 			defer c.Close()
 			return out, nil
 		}

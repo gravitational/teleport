@@ -212,7 +212,7 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 				select {
 				case <-tickCh:
 					nodesInSite, err := site.GetNodes(defaults.Namespace)
-					if err != nil {
+					if err != nil && !trace.IsNotFound(err) {
 						return trace.Wrap(err)
 					}
 					if got, want := len(nodesInSite), count; got == want {
@@ -497,6 +497,7 @@ func (s *IntSuite) TestInteractive(c *check.C) {
 		err = cl.SSH(context.TODO(), []string{}, false)
 		c.Assert(err, check.IsNil)
 		sessionEndC <- true
+
 	}
 
 	// PersonB: wait for a session to become available, then join:
@@ -533,6 +534,80 @@ func (s *IntSuite) TestInteractive(c *check.C) {
 	outputOfA := string(personA.Output(100))
 	outputOfB := string(personB.Output(100))
 	c.Assert(strings.Contains(outputOfA, outputOfB), check.Equals, true)
+}
+
+// TestShutdown tests scenario with a graceful shutdown,
+// that session will be working after
+func (s *IntSuite) TestShutdown(c *check.C) {
+	t := s.newTeleport(c, nil, true)
+
+	// get a reference to site obj:
+	site := t.GetSiteAPI(Site)
+	c.Assert(site, check.NotNil)
+
+	person := NewTerminal(250)
+
+	// commandsC receive commands
+	commandsC := make(chan string, 0)
+
+	// PersonA: SSH into the server, wait one second, then type some commands on stdin:
+	openSession := func() {
+		cl, err := t.NewClient(ClientConfig{Login: s.me.Username, Cluster: Site, Host: Host, Port: t.GetPortSSHInt()})
+		c.Assert(err, check.IsNil)
+		cl.Stdout = &person
+		cl.Stdin = &person
+
+		go func() {
+			for command := range commandsC {
+				person.Type(command)
+			}
+		}()
+
+		err = cl.SSH(context.TODO(), []string{}, false)
+		c.Assert(err, check.IsNil)
+	}
+
+	go openSession()
+
+	retry := func(command, pattern string) {
+		person.Type(command)
+		// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
+		abortTime := time.Now().Add(10 * time.Second)
+		var matched bool
+		var output string
+		for {
+			output = string(replaceNewlines(person.Output(1000)))
+			matched, _ = regexp.MatchString(pattern, output)
+			if matched {
+				break
+			}
+			time.Sleep(time.Millisecond * 200)
+			if time.Now().After(abortTime) {
+				c.Fatalf("failed to capture output: %v", pattern)
+			}
+		}
+		if !matched {
+			c.Fatalf("output %q does not match pattern %q", output, pattern)
+		}
+	}
+
+	retry("echo start \r\n", ".*start.*")
+
+	// initiate shutdown
+	ctx := context.TODO()
+	shutdownContext := t.Process.StartShutdown(ctx)
+
+	// make sure that terminal still works
+	retry("echo howdy \r\n", ".*howdy.*")
+
+	// now type exit and wait for shutdown to complete
+	person.Type("exit\n\r")
+
+	select {
+	case <-shutdownContext.Done():
+	case <-time.After(5 * time.Second):
+		c.Fatalf("failed to shut down the server")
+	}
 }
 
 // TestInvalidLogins validates that you can't login with invalid login or

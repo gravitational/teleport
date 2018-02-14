@@ -57,16 +57,58 @@ func (s *Suite) SetUpSuite(c *check.C) {
 	s.suite.B = s.bk
 }
 
-func (s *Suite) TestConcurrentDeleteBucket(c *check.C) {
+func (s *Suite) BenchmarkOperations(c *check.C) {
+	bucket := []string{"bench", "bucket"}
+	keys := []string{"key1", "key2", "key3", "key4", "key5"}
+	value1 := "some backend value, not large enough, but not small enought"
+	for i := 0; i < c.N; i++ {
+		for _, key := range keys {
+			err := s.bk.UpsertVal(bucket, key, []byte(value1), time.Hour)
+			c.Assert(err, check.IsNil)
+			bytes, err := s.bk.GetVal(bucket, key)
+			c.Assert(err, check.IsNil)
+			c.Assert(string(bytes), check.Equals, value1)
+			err = s.bk.DeleteKey(bucket, key)
+			c.Assert(err, check.IsNil)
+		}
+	}
+}
+
+func (s *Suite) TestConcurrentOperations(c *check.C) {
 	bucket := []string{"concurrent", "bucket"}
 
+	value1 := "this first value should not be corrupted by concurrent ops"
+	value2 := "this second value should not be corrupted too"
 	const attempts = 50
-	resultsC := make(chan struct{}, attempts*2)
+	resultsC := make(chan struct{}, attempts*4)
 	for i := 0; i < attempts; i++ {
 		go func(cnt int) {
-			err := s.bk.UpsertVal(bucket, "key", []byte("new-value"), backend.Forever)
+			err := s.bk.UpsertVal(bucket, "key", []byte(value1), time.Hour)
 			resultsC <- struct{}{}
 			c.Assert(err, check.IsNil)
+		}(i)
+
+		go func(cnt int) {
+			err := s.bk.CreateVal(bucket, "key", []byte(value2), time.Hour)
+			resultsC <- struct{}{}
+			if err != nil && !trace.IsAlreadyExists(err) {
+				c.Assert(err, check.IsNil)
+			}
+		}(i)
+
+		go func(cnt int) {
+			bytes, err := s.bk.GetVal(bucket, "key")
+			resultsC <- struct{}{}
+			if err != nil && !trace.IsNotFound(err) {
+				c.Assert(err, check.IsNil)
+			}
+			// make sure data is not corrupted along the way
+			if err == nil {
+				val := string(bytes)
+				if val != value1 && val != value2 {
+					c.Fatalf("expected one of %q or %q and got %q", value1, value2, val)
+				}
+			}
 		}(i)
 
 		go func(cnt int) {
@@ -76,7 +118,7 @@ func (s *Suite) TestConcurrentDeleteBucket(c *check.C) {
 		}(i)
 	}
 	timeoutC := time.After(3 * time.Second)
-	for i := 0; i < attempts*2; i++ {
+	for i := 0; i < attempts*4; i++ {
 		select {
 		case <-resultsC:
 		case <-timeoutC:

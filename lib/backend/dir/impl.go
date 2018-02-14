@@ -22,6 +22,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
@@ -160,11 +161,39 @@ func (bk *Backend) CreateVal(bucket []string, key string, val []byte, ttl time.D
 		return trace.ConvertSystemError(err)
 	}
 	defer f.Close()
+	if err := writeLock(f); err != nil {
+		return trace.Wrap(err)
+	}
+	defer unlock(f)
+	if err := f.Truncate(0); err != nil {
+		return trace.ConvertSystemError(err)
+	}
 	n, err := f.Write(val)
 	if err == nil && n < len(val) {
 		return trace.Wrap(io.ErrShortWrite)
 	}
 	return trace.Wrap(bk.applyTTL(dirPath, key, ttl))
+}
+
+func writeLock(f *os.File) error {
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	return nil
+}
+
+func readLock(f *os.File) error {
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_SH); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	return nil
+}
+
+func unlock(f *os.File) error {
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_UN); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	return nil
 }
 
 // UpsertVal updates or inserts value with a given TTL into a bucket
@@ -176,10 +205,25 @@ func (bk *Backend) UpsertVal(bucket []string, key string, val []byte, ttl time.D
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// create the (or overwrite existing) file (AKA "key"):
-	err = ioutil.WriteFile(path.Join(dirPath, key), val, defaultFileMode)
+	filename := path.Join(dirPath, key)
+	f, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE, defaultFileMode)
 	if err != nil {
+		if os.IsExist(err) {
+			return trace.AlreadyExists("%s/%s already exists", dirPath, key)
+		}
+		return trace.ConvertSystemError(err)
+	}
+	defer f.Close()
+	if err := writeLock(f); err != nil {
 		return trace.Wrap(err)
+	}
+	defer unlock(f)
+	if err := f.Truncate(0); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	n, err := f.Write(val)
+	if err == nil && n < len(val) {
+		return trace.Wrap(io.ErrShortWrite)
 	}
 	return trace.Wrap(bk.applyTTL(dirPath, key, ttl))
 }
@@ -187,6 +231,7 @@ func (bk *Backend) UpsertVal(bucket []string, key string, val []byte, ttl time.D
 // GetVal return a value for a given key in the bucket
 func (bk *Backend) GetVal(bucket []string, key string) ([]byte, error) {
 	dirPath := path.Join(path.Join(bk.RootDir, path.Join(bucket...)))
+	filename := path.Join(dirPath, key)
 	expired, err := bk.checkTTL(dirPath, key)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -195,17 +240,26 @@ func (bk *Backend) GetVal(bucket []string, key string) ([]byte, error) {
 		bk.DeleteKey(bucket, key)
 		return nil, trace.NotFound("key %q is not found", key)
 	}
-	fp := path.Join(dirPath, key)
-	bytes, err := ioutil.ReadFile(fp)
+	f, err := os.OpenFile(filename, os.O_RDONLY, defaultFileMode)
 	if err != nil {
 		// GetVal() on a bucket must return 'BadParameter' error:
-		if fi, _ := os.Stat(fp); fi != nil && fi.IsDir() {
+		if fi, _ := os.Stat(filename); fi != nil && fi.IsDir() {
 			return nil, trace.BadParameter("%q is not a valid key", key)
 		}
 		return nil, trace.ConvertSystemError(err)
 	}
-	// this could happen if we delete the file concurrently
-	// with the read, apparently we can read empty file back
+	defer f.Close()
+	if err := readLock(f); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer unlock(f)
+	bytes, err := ioutil.ReadAll(f)
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+	// this could happen when CreateKey or UpsertKey created a file
+	// but, GetVal managed to get readLock right after it,
+	// so there are no contents there
 	if len(bytes) == 0 {
 		return nil, trace.NotFound("key %q is not found", key)
 	}
@@ -215,13 +269,25 @@ func (bk *Backend) GetVal(bucket []string, key string) ([]byte, error) {
 // DeleteKey deletes a key in a bucket
 func (bk *Backend) DeleteKey(bucket []string, key string) error {
 	dirPath := path.Join(bk.RootDir, path.Join(bucket...))
+	filename := path.Join(dirPath, key)
+	f, err := os.OpenFile(filename, os.O_RDONLY, defaultFileMode)
+	if err != nil {
+		if fi, _ := os.Stat(filename); fi != nil && fi.IsDir() {
+			return trace.BadParameter("%q is not a valid key", key)
+		}
+		return trace.ConvertSystemError(err)
+	}
+	defer f.Close()
+	if err := writeLock(f); err != nil {
+		return trace.Wrap(err)
+	}
+	defer unlock(f)
 	if err := os.Remove(bk.ttlFile(dirPath, key)); err != nil {
 		if !os.IsNotExist(err) {
 			log.Warn(err)
 		}
 	}
-	return trace.ConvertSystemError(os.Remove(
-		path.Join(dirPath, key)))
+	return trace.ConvertSystemError(os.Remove(filename))
 }
 
 // DeleteBucket deletes the bucket by a given path
@@ -260,13 +326,34 @@ func removeFiles(dir string) error {
 				return err
 			}
 		} else if !fi.IsDir() {
-			err = os.Remove(path)
+			err = removeFile(path)
 			if err != nil {
-				err = trace.ConvertSystemError(err)
-				if !trace.IsNotFound(err) {
-					return err
-				}
+				return err
 			}
+		}
+	}
+	return nil
+}
+
+func removeFile(path string) error {
+	f, err := os.OpenFile(path, os.O_RDONLY, defaultFileMode)
+	err = trace.ConvertSystemError(err)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+		return nil
+	}
+	defer f.Close()
+	if err := writeLock(f); err != nil {
+		return trace.Wrap(err)
+	}
+	defer unlock(f)
+	err = os.Remove(path)
+	if err != nil {
+		err = trace.ConvertSystemError(err)
+		if !trace.IsNotFound(err) {
+			return err
 		}
 	}
 	return nil
