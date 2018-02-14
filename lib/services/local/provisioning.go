@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/trace"
 )
@@ -90,7 +89,11 @@ func (s *ProvisioningService) GetTokens() (tokens []services.ProvisionToken, err
 	for _, k := range keys {
 		tok, err := s.GetToken(k)
 		if err != nil {
-			log.Error(err)
+			// token could have expired
+			if !trace.IsNotFound(err) {
+				return nil, trace.Wrap(err)
+			}
+			continue
 		}
 		tokens = append(tokens, *tok)
 	}
