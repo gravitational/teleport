@@ -19,6 +19,12 @@ variable "teleport_version" {
   type = "string"
 }
 
+// Teleport UID is a UID for teleport user provisioned on the hosts
+variable "teleport_uid" {
+  type = "string"
+  default = "1007"
+}
+
 // Instance types used for authentication servers auto scale groups
 variable "auth_instance_type" {
   type = "string"

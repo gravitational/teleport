@@ -4,10 +4,10 @@
 resource "aws_autoscaling_group" "proxy" {
   name                      = "${var.cluster_name}-proxy"
   max_size                  = 5
-  min_size                  = 1
+  min_size                  = "${length(local.azs)}"
   health_check_grace_period = 300
   health_check_type         = "EC2"
-  desired_capacity          = 0
+  desired_capacity          = "${length(local.azs)}"
   force_delete              = false
   launch_configuration      = "${aws_launch_configuration.proxy.name}"
   vpc_zone_identifier       = ["${aws_subnet.public.*.id}"]
@@ -46,6 +46,7 @@ data "template_file" "proxy_user_data" {
     domain_name = "${var.route53_domain}"
     s3_bucket = "${var.s3_bucket_name}"
     telegraf_version = "${var.telegraf_version}"
+    teleport_uid = "${var.teleport_uid}"
   }
 }
 

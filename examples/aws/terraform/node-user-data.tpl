@@ -17,6 +17,10 @@ rm -f /tmp/telegraf.deb
 mkdir -p /var/lib/teleport/
 chown -R root:adm /var/lib/teleport
 
+# Setup teleport run dir for pid files
+mkdir -p /var/run/teleport/
+chown -R root:adm /var/run/teleport
+
 # Download and install teleport
 pushd /tmp
 curl $${CURL_OPTS} -o teleport.tar.gz https://get.gravitational.com/teleport/${teleport_version}/teleport-ent-v${teleport_version}-linux-amd64-bin.tar.gz
@@ -88,7 +92,9 @@ Type=simple
 Restart=always
 RestartSec=5
 ExecStartPre=/usr/local/bin/teleport-ssm-get-token
-ExecStart=/usr/local/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3434
+ExecStart=/usr/local/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3434 --pid-file=/var/run/teleport/teleport.pid
+ExecReload=/bin/kill -HUP \$$MAINPID
+PIDFile=/var/run/teleport/teleport.pid
 LimitNOFILE=65536
 
 [Install]

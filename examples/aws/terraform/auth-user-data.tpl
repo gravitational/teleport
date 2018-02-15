@@ -13,9 +13,18 @@ curl $CURL_OPTS -o /tmp/telegraf.deb https://dl.influxdata.com/telegraf/releases
 dpkg -i /tmp/telegraf.deb
 rm -f /tmp/telegraf.deb
 
-# Create teleport user
-useradd -r teleport
+# Create teleport user. It is helpful to share the same UID
+# to have the same permissions on shared NFS volumes across auth servers and for consistency.
+useradd -r teleport -u ${teleport_uid}
 adduser teleport adm
+
+# Setup teleport run dir for pid files
+mkdir -p /var/run/teleport/
+chown -R teleport:adm /var/run/teleport
+
+# Setup teleport auth server config file
+LOCAL_IP=`curl http://169.254.169.254/latest/meta-data/local-ipv4`
+LOCAL_HOSTNAME=`curl http://169.254.169.254/latest/meta-data/local-hostname`
 
 # Mount EFS for audit logs storage.
 # Teleport auth servers store audit logs on EFS shared file system
@@ -27,6 +36,13 @@ do
     echo "mount failed, try again after 1 second"
     sleep 1
 done
+
+# Set host UUID so auth server picks it up, as each auth server's
+# logs are stored in individual folder /var/lib/teleport/log/<host_uuid>/
+# and it will be easy to log forwarders to locate them on every auth server
+# note though, that host_uuid MUST be unique, otherwise all sorts of unintended
+# things will happen.
+echo $${LOCAL_HOSTNAME} > /var/lib/teleport/host_uuid
 chown -R teleport:adm /var/lib/teleport
 
 # Download and install teleport from official file server
@@ -44,10 +60,6 @@ python2.7 get-pip.py
 pip install awscli
 aws ssm get-parameter --with-decryption --name /teleport/${cluster_name}/license --region ${region} --query 'Parameter.Value' --output text > /var/lib/teleport/license.pem 
 chown -R teleport:adm /var/lib/teleport/license.pem
-
-# Setup teleport auth server config file
-LOCAL_IP=`curl http://169.254.169.254/latest/meta-data/local-ipv4`
-LOCAL_HOSTNAME=`curl http://169.254.169.254/latest/meta-data/local-hostname`
 
 # Teleport Auth server is using DynamoDB as a backend
 # On AWS, see dynamodb.tf for details
@@ -97,7 +109,9 @@ Group=adm
 Type=simple
 Restart=always
 RestartSec=5
-ExecStart=/usr/local/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3434
+ExecStart=/usr/local/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3434 --pid-file=/var/run/teleport/teleport.pid
+ExecReload=/bin/kill -HUP \$$MAINPID
+PIDFile=/var/run/teleport/teleport.pid
 LimitNOFILE=65536
 
 [Install]

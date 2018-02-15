@@ -7,15 +7,9 @@ resource "aws_dynamodb_table" "locks" {
   read_capacity  = 10
   write_capacity = 10
   hash_key        = "Lock"
-  range_key       = "Process"
 
   attribute {
     name = "Lock"
-    type = "S"
-  }
-
-  attribute {
-    name = "Process"
     type = "S"
   }
 

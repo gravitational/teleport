@@ -15,11 +15,11 @@ resource "aws_s3_bucket" "certs" {
 resource "aws_s3_bucket_object" "grafana_teleport_dashboard" {
   bucket = "${aws_s3_bucket.certs.bucket}"
   key    = "health-dashboard.json"
-  source = "../../../assets/monitoring/health-dashboard.json"
+  source = "./assets/health-dashboard.json"
 }
 
 resource "aws_s3_bucket_object" "grafana_teleport_nginx" {
   bucket = "${aws_s3_bucket.certs.bucket}"
   key    = "grafana-nginx.conf"
-  source = "./grafana-nginx.conf"
+  source = "./assets/grafana-nginx.conf"
 }

@@ -311,6 +311,16 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		}
 	}
 
+	// create the pid file
+	if cfg.PIDFile != "" {
+		f, err := os.OpenFile(cfg.PIDFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+		if err != nil {
+			return nil, trace.ConvertSystemError(err)
+		}
+		fmt.Fprintf(f, "%v", os.Getpid())
+		defer f.Close()
+	}
+
 	importedDescriptors, err := importFileDescriptors()
 	if err != nil {
 		return nil, trace.Wrap(err)
