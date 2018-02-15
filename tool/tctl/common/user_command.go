@@ -18,8 +18,6 @@ package common
 
 import (
 	"fmt"
-	"net"
-	"strconv"
 	"strings"
 	"time"
 
@@ -115,23 +113,11 @@ func (u *UserCommand) Add(client *auth.TunClient) error {
 }
 
 func (u *UserCommand) PrintSignupURL(client *auth.TunClient, token string, ttl time.Duration) {
-	hostname := "your.teleport.proxy"
+	url := web.CreateSignupLink(token)
 
-	proxies, err := client.GetProxies()
-	if err == nil {
-		if len(proxies) == 0 {
-			fmt.Printf("\x1b[1mWARNING\x1b[0m: this Teleport cluster does not have any proxy servers online.\nYou need to start some to be able to login.\n\n")
-		} else {
-			hostname = proxies[0].GetHostname()
-		}
-	}
-	_, proxyPort, err := net.SplitHostPort(u.config.Proxy.WebAddr.Addr)
-	if err != nil {
-		proxyPort = strconv.Itoa(defaults.HTTPListenPort)
-	}
-	url := web.CreateSignupLink(net.JoinHostPort(hostname, proxyPort), token)
-	fmt.Printf("Signup token has been created and is valid for %v hours. Share this URL with the user:\n%v\n\nNOTE: make sure '%s' is accessible!\n",
-		int(ttl/time.Hour), url, hostname)
+	fmt.Printf("Signup token has been created and is valid for %v hours. Share this URL with the user:\n%v\n\n",
+		int(ttl/time.Hour), url)
+	fmt.Printf("NOTE: Make sure <proxyhost> points at a Teleport proxy which users can access.\n")
 }
 
 // Update updates existing user

@@ -2022,8 +2022,8 @@ func ok() interface{} {
 
 // CreateSignupLink generates and returns a URL which is given to a new
 // user to complete registration with Teleport via Web UI
-func CreateSignupLink(hostPort string, token string) string {
-	return "https://" + hostPort + "/web/newuser/" + token
+func CreateSignupLink(token string) string {
+	return "https://<proxyhost>/web/newuser/" + token
 }
 
 type responseData struct {
