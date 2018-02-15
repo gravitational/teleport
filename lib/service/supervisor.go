@@ -131,17 +131,17 @@ func (s *LocalSupervisor) RegisterFunc(name string, fn ServiceFunc) {
 
 // RemoveService removes service from supervisor tracking list
 func (s *LocalSupervisor) RemoveService(srv Service) error {
-	log := log.WithFields(logrus.Fields{"service": srv.Name()})
+	l := logrus.WithFields(logrus.Fields{"service": srv.Name()})
 	s.Lock()
 	defer s.Unlock()
 	for i, el := range s.services {
 		if el == srv {
 			s.services = append(s.services[:i], s.services[i+1:]...)
-			log.Debugf("Service is completed and removed.")
+			l.Debugf("Service is completed and removed.")
 			return nil
 		}
 	}
-	log.Warningf("Service is completed but not found.")
+	l.Warningf("Service is completed but not found.")
 	return trace.NotFound("service %v is not found", srv)
 }
 
