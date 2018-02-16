@@ -153,3 +153,46 @@ func (s *APITestSuite) TestPortsParsing(c *check.C) {
 	c.Assert(ports, check.IsNil)
 	c.Assert(err, check.ErrorMatches, "^Invalid port forwarding spec: .foo.*")
 }
+
+func (s *APITestSuite) TestDynamicPortsParsing(c *check.C) {
+	// empty:
+	ports, err := ParseDynamicPortForwardSpec(nil)
+	c.Assert(ports, check.IsNil)
+	c.Assert(err, check.IsNil)
+	ports, err = ParseDynamicPortForwardSpec([]string{})
+	c.Assert(ports, check.IsNil)
+	c.Assert(err, check.IsNil)
+	// not empty (but valid)
+	spec := []string{
+		"8080",
+		":8080",
+		"10.0.10.1:8080",
+	}
+	ports, err = ParseDynamicPortForwardSpec(spec)
+	c.Assert(err, check.IsNil)
+	c.Assert(ports, check.HasLen, len(spec))
+	c.Assert(ports, check.DeepEquals, DynamicForwardedPorts{
+		{
+			SrcIP:   "127.0.0.1",
+			SrcPort: 8080,
+		},
+		{
+			SrcIP:   "",
+			SrcPort: 8080,
+		},
+		{
+			SrcIP:   "10.0.10.1",
+			SrcPort: 8080,
+		},
+	})
+	// back to strings:
+	clone := ports.ToStringSpec()
+	c.Assert(spec[0], check.Equals, clone[0])
+	c.Assert(spec[1], check.Equals, clone[1])
+
+	// parse invalid spec:
+	spec = []string{"foo", "bar"}
+	ports, err = ParseDynamicPortForwardSpec(spec)
+	c.Assert(ports, check.IsNil)
+	c.Assert(err, check.ErrorMatches, "^Invalid dynamic port forwarding spec: .foo.*")
+}
