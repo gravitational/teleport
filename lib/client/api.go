@@ -86,6 +86,27 @@ func (p *ForwardedPort) ToString() string {
 	return net.JoinHostPort(p.SrcIP, sport) + ":" + net.JoinHostPort(p.DestHost, dport)
 }
 
+// DynamicForwardedPort local port for dynamic application-level port forwarding.
+// Whenever a connection is made to this port, SOCKS5 protocol is used
+// to determine where to connect to from the remote machine.
+// More or less equivalent to OpenSSH's -D flag
+type DynamicForwardedPort struct {
+	SrcIP   string
+	SrcPort int
+}
+
+type DynamicForwardedPorts []DynamicForwardedPort
+
+// ToString() returns a string representation of a dynamic port spec, compatible
+// with OpenSSH's -D  flag, i.e. "src_host:src_port"
+func (p *DynamicForwardedPort) ToString() string {
+	sport := strconv.Itoa(p.SrcPort)
+	if utils.IsLocalhost(p.SrcIP) {
+		return sport
+	}
+	return net.JoinHostPort(p.SrcIP, sport)
+}
+
 // HostKeyCallback is called by SSH client when it needs to check
 // remote host key or certificate validity
 type HostKeyCallback func(host string, ip net.Addr, key ssh.PublicKey) error
@@ -160,6 +181,9 @@ type Config struct {
 	// Locally forwarded ports (parameters to -L ssh flag)
 	LocalForwardPorts ForwardedPorts
 
+	// Locally forwarded dynamic ports (parameters to -D ssh flag)
+	DynamicForwardedPorts DynamicForwardedPorts
+
 	// HostKeyCallback will be called to check host keys of the remote
 	// node, if not specified will be using CheckHostSignature function
 	// that uses local cache to validate hosts
@@ -230,6 +254,10 @@ func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 	c.Username = cp.Username
 	c.SiteName = cp.SiteName
 	c.LocalForwardPorts, err = ParsePortForwardSpec(cp.ForwardedPorts)
+	if err != nil {
+		log.Warnf("Error parsing user profile: %v", err)
+	}
+	c.DynamicForwardedPorts, err = ParseDynamicPortForwardSpec(cp.DynamicForwardedPorts)
 	if err != nil {
 		log.Warnf("Error parsing user profile: %v", err)
 	}
@@ -527,6 +555,15 @@ func (tc *TeleportClient) startPortForwarding(nodeClient *NodeClient) error {
 				return trace.Wrap(err)
 			}
 			go nodeClient.listenAndForward(socket, net.JoinHostPort(fp.DestHost, strconv.Itoa(fp.DestPort)))
+		}
+	}
+	if len(tc.Config.DynamicForwardedPorts) > 0 {
+		for _, fp := range tc.Config.DynamicForwardedPorts {
+			socket, err := net.Listen("tcp", net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort)))
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			go nodeClient.listenForDynamicForward(socket)
 		}
 	}
 	return nil
@@ -1444,7 +1481,7 @@ func runLocalCommand(command []string) error {
 	return cmd.Run()
 }
 
-// ToString() returns the same string spec which can be parsed by ParsePortForwardSpec
+// ToStringSpec() returns the same string spec which can be parsed by ParsePortForwardSpec
 func (fp ForwardedPorts) ToStringSpec() (retval []string) {
 	for _, p := range fp {
 		retval = append(retval, p.ToString())
@@ -1453,7 +1490,7 @@ func (fp ForwardedPorts) ToStringSpec() (retval []string) {
 }
 
 // ParsePortForwardSpec parses parameter to -L flag, i.e. strings like "[ip]:80:remote.host:3000"
-// The opposite of this function (spec generation) is ForwardedPorts.ToString()
+// The opposite of this function (spec generation) is ForwardedPorts.ToStringSpec()
 func ParsePortForwardSpec(spec []string) (ports ForwardedPorts, err error) {
 	if len(spec) == 0 {
 		return ports, nil
@@ -1477,6 +1514,41 @@ func ParsePortForwardSpec(spec []string) (ports ForwardedPorts, err error) {
 		}
 		p.DestHost = parts[2]
 		p.DestPort, err = strconv.Atoi(parts[3])
+		if err != nil {
+			return nil, fmt.Errorf(errTemplate, str)
+		}
+	}
+	return ports, nil
+}
+
+// ToStringSpec() returns the same string spec which can be parsed by ParseDynamicPortForwardSpec
+func (fp DynamicForwardedPorts) ToStringSpec() (retval []string) {
+	for _, p := range fp {
+		retval = append(retval, p.ToString())
+	}
+	return retval
+}
+
+// ParseDynamicPortForwardSpec parses parameter to -L flag, i.e. strings like "[ip]:80:remote.host:3000"
+// The opposite of this function (spec generation) is DynamicForwardPorts.ToStringSpec()
+func ParseDynamicPortForwardSpec(spec []string) (ports DynamicForwardedPorts, err error) {
+	if len(spec) == 0 {
+		return ports, nil
+	}
+	const errTemplate = "Invalid dynamic port forwarding spec: '%s'. Could be like `local.host:8080`"
+	ports = make(DynamicForwardedPorts, len(spec), len(spec))
+
+	for i, str := range spec {
+		parts := strings.Split(str, ":")
+		if len(parts) > 2 {
+			return nil, fmt.Errorf(errTemplate, str)
+		}
+		if len(parts) == 1 {
+			parts = append([]string{"127.0.0.1"}, parts...)
+		}
+		p := &ports[i]
+		p.SrcIP = parts[0]
+		p.SrcPort, err = strconv.Atoi(parts[1])
 		if err != nil {
 			return nil, fmt.Errorf(errTemplate, str)
 		}
