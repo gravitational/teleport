@@ -17,8 +17,12 @@ limitations under the License.
 package utils
 
 import (
-	"gopkg.in/check.v1"
+	"io/ioutil"
+	"path/filepath"
+	"strings"
 	"time"
+
+	"gopkg.in/check.v1"
 
 	"github.com/gravitational/trace"
 )
@@ -43,6 +47,15 @@ func (s *UtilsSuite) TestHostUUID(c *check.C) {
 	c.Assert(err, check.NotNil)
 	c.Assert(uuid, check.Equals, "")
 	c.Assert(err.Error(), check.Matches, "^.*no such file or directory.*$")
+
+	// newlines are getting ignored
+	dir = c.MkDir()
+	id := "id-with-newline\n"
+	err = ioutil.WriteFile(filepath.Join(dir, HostUUIDFile), []byte(id), 0666)
+	c.Assert(err, check.IsNil)
+	out, err := ReadHostUUID(dir)
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.Equals, strings.TrimSpace(id))
 }
 
 func (s *UtilsSuite) TestSelfSignedCert(c *check.C) {

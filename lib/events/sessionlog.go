@@ -62,8 +62,6 @@ type DiskSessionLoggerConfig struct {
 	Clock clockwork.Clock
 	// RecordSessions controls if sessions are recorded along with audit events.
 	RecordSessions bool
-	// AuditLog is the audit log
-	AuditLog *AuditLog
 }
 
 // NewDiskSessionLogger creates new disk based session logger
@@ -154,11 +152,15 @@ func (sl *DiskSessionLogger) finalize() error {
 	}
 
 	if sl.chunksFile != nil {
-		sl.chunksFile.Close()
+		if err := sl.chunksFile.Close(); err != nil {
+			log.Warningf("Failed closing chunks file: %v.", err)
+		}
 	}
 
 	if sl.eventsFile != nil {
-		sl.eventsFile.Close()
+		if err := sl.eventsFile.Close(); err != nil {
+			log.Warningf("Failed closing events file: %v.", err)
+		}
 	}
 
 	return nil
@@ -247,15 +249,26 @@ func (sl *DiskSessionLogger) PostSessionSlice(slice SessionSlice) error {
 	defer sl.Unlock()
 
 	for i := range slice.Chunks {
-		if slice.Chunks[i].EventType == SessionEndEvent {
-			defer sl.closeLogger()
-		}
 		_, err := sl.writeChunk(slice.SessionID, slice.Chunks[i])
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	return sl.flush()
+}
+
+func eventFromChunk(sessionID string, chunk *SessionChunk) (EventFields, error) {
+	var fields EventFields
+	eventStart := time.Unix(0, chunk.Time).In(time.UTC).Round(time.Millisecond)
+	err := json.Unmarshal(chunk.Data, &fields)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	fields[SessionEventID] = sessionID
+	fields[EventIndex] = chunk.EventIndex
+	fields[EventTime] = eventStart
+	fields[EventType] = chunk.EventType
+	return fields, nil
 }
 
 func (sl *DiskSessionLogger) writeChunk(sessionID string, chunk *SessionChunk) (written int, err error) {
@@ -270,23 +283,15 @@ func (sl *DiskSessionLogger) writeChunk(sessionID string, chunk *SessionChunk) (
 	sl.lastEventIndex = chunk.EventIndex
 	eventStart := time.Unix(0, chunk.Time).In(time.UTC).Round(time.Millisecond)
 	if chunk.EventType != SessionPrintEvent {
-		var fields EventFields
-		err := json.Unmarshal(chunk.Data, &fields)
+		fields, err := eventFromChunk(sessionID, chunk)
 		if err != nil {
 			return -1, trace.Wrap(err)
 		}
-		fields[SessionEventID] = sessionID
-		fields[EventIndex] = chunk.EventIndex
-		fields[EventTime] = eventStart
-		fields[EventType] = chunk.EventType
 		data, err := json.Marshal(fields)
 		if err != nil {
 			return -1, trace.Wrap(err)
 		}
-		if err := sl.AuditLog.emitAuditEvent(chunk.EventType, fields); err != nil {
-			return -1, trace.Wrap(err)
-		}
-		return fmt.Fprintln(sl.eventsFile, string(data))
+		return sl.eventsFile.Write(append(data, '\n'))
 	}
 	if !sl.RecordSessions {
 		return len(chunk.Data), nil
@@ -312,18 +317,11 @@ func (sl *DiskSessionLogger) writeChunk(sessionID string, chunk *SessionChunk) (
 	if err != nil {
 		return -1, trace.Wrap(err)
 	}
-	_, err = fmt.Fprintln(sl.eventsFile, string(bytes))
+	_, err = sl.eventsFile.Write(append(bytes, '\n'))
 	if err != nil {
 		return -1, trace.Wrap(err)
 	}
 	return sl.chunksFile.Write(chunk.Data)
-}
-
-func (sl *DiskSessionLogger) closeLogger() {
-	sl.AuditLog.removeLogger(sl.SessionID.String())
-	if err := sl.finalize(); err != nil {
-		log.Error(err)
-	}
 }
 
 func diff(before, after time.Time) int64 {
@@ -379,7 +377,7 @@ func (f *gzipWriter) Close() error {
 }
 
 func newGzipWriter(file *os.File) *gzipWriter {
-	w := gzip.NewWriter(file)
+	w, _ := gzip.NewWriterLevel(file, gzip.BestSpeed)
 	return &gzipWriter{
 		Writer: w,
 		file:   file,

@@ -233,7 +233,34 @@ func (l *AuditLog) PostSessionSlice(slice SessionSlice) error {
 		l.Errorf("failed to get logger: %v", trace.DebugReport(err))
 		return trace.BadParameter("audit.log: no session writer for %s", slice.SessionID)
 	}
-	return sl.PostSessionSlice(slice)
+	var errors []error
+	errors = append(errors, sl.PostSessionSlice(slice))
+	errors = append(errors, l.processSlice(sl, &slice))
+	return trace.NewAggregate(errors...)
+}
+
+func (l *AuditLog) processSlice(sl SessionLogger, slice *SessionSlice) error {
+	for _, chunk := range slice.Chunks {
+		if chunk.EventType == SessionPrintEvent || chunk.EventType == "" {
+			continue
+		}
+		if chunk.EventType == SessionEndEvent {
+			defer func() {
+				l.removeLogger(slice.SessionID)
+				if err := sl.Finalize(); err != nil {
+					log.Warningf("Failed to finalize logger: %v", trace.DebugReport(err))
+				}
+			}()
+		}
+		fields, err := eventFromChunk(slice.SessionID, chunk)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := l.emitAuditEvent(chunk.EventType, fields); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
 }
 
 // DELETE IN: 2.6.0
@@ -1159,7 +1186,6 @@ func (l *AuditLog) LoggerFor(namespace string, sid session.ID, compatibilityMode
 			DataDir:        sdir,
 			Clock:          l.Clock,
 			RecordSessions: l.RecordSessions,
-			AuditLog:       l,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
