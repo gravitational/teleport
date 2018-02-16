@@ -18,6 +18,7 @@ BINDIR ?= /usr/local/bin
 DATADIR ?= /usr/local/share/teleport
 ADDFLAGS ?=
 PWD ?= `pwd`
+GOCACHEDIR ?= `go env GOCACHE`
 TELEPORT_DEBUG ?= no
 GITTAG=v$(VERSION)
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s'
@@ -69,6 +70,7 @@ full: all $(BUILDDIR)/webassets.zip
 .PHONY: clean
 clean:
 	rm -rf $(BUILDDIR)
+	rm -rf $(GOCACHEDIR)
 	rm -rf teleport
 	rm -rf *.gz
 	rm -f gitref.go
