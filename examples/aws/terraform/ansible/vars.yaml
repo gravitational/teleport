@@ -2,6 +2,6 @@
 
 - name: Check if teleport_version is specified
   fail:
-    msg: "No teleport_version is specified"
-  when: teleport_version == ""
+    msg: "No teleport_version or teleport_path is specified"
+  when: teleport_version is not defined and teleport_path is not defined
 

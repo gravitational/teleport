@@ -6,7 +6,7 @@ services:
   one:
     image: teleport:latest
     container_name: one
-    command: ${CONTAINERHOME}/build/teleport start -d -c ${CONTAINERHOME}/docker/one.yaml --gops --gops-addr=127.0.0.1:4321
+    command: ${CONTAINERHOME}/build/teleport start -d -c ${CONTAINERHOME}/docker/one.yaml --gops
     mem_limit: 300m
     memswap_limit: 0
     ports:
@@ -29,7 +29,7 @@ services:
   one-node:
     image: teleport:latest
     container_name: one-node
-    command: ${CONTAINERHOME}/build/teleport start -d -c ${CONTAINERHOME}/docker/one-node.yaml --gops --gops-addr=127.0.0.1:4321
+    command: ${CONTAINERHOME}/build/teleport start -d -c ${CONTAINERHOME}/docker/one-node.yaml --gops
     env_file: env.file
     mem_limit: 300m
     volumes:
@@ -45,7 +45,7 @@ services:
   one-proxy:
     image: teleport:latest
     container_name: one-proxy
-    command: ${CONTAINERHOME}/build/teleport start -d -c ${CONTAINERHOME}/docker/one-proxy.yaml --gops --gops-addr=127.0.0.1:4321
+    command: ${CONTAINERHOME}/build/teleport start -d -c ${CONTAINERHOME}/docker/one-proxy.yaml --gops
     mem_limit: 300m
     ports:
       - "4080:3080"
@@ -67,7 +67,7 @@ services:
     mem_limit: 300m
     image: teleport:latest
     container_name: two-auth
-    command: ${CONTAINERHOME}/build/teleport start -d -c ${CONTAINERHOME}/docker/two-auth.yaml --insecure --gops --gops-addr=127.0.0.1:4321
+    command: ${CONTAINERHOME}/build/teleport start -d -c ${CONTAINERHOME}/docker/two-auth.yaml --insecure --gops
     env_file: env.file
     volumes:
       - ./data/two/auth:/var/lib/teleport
@@ -83,7 +83,7 @@ services:
     mem_limit: 300m
     image: teleport:latest
     container_name: two-proxy
-    command: ${CONTAINERHOME}/build/teleport start -d -c ${CONTAINERHOME}/docker/two-proxy.yaml --gops --gops-addr=127.0.0.1:4321
+    command: ${CONTAINERHOME}/build/teleport start -d -c ${CONTAINERHOME}/docker/two-proxy.yaml --gops
     env_file: env.file
     ports:
       - "5080:5080"
@@ -102,7 +102,7 @@ services:
     mem_limit: 300m
     image: teleport:latest
     container_name: two-node
-    command: ${CONTAINERHOME}/build/teleport start -d -c ${CONTAINERHOME}/docker/two-node.yaml --gops --gops-addr=127.0.0.1:4321
+    command: ${CONTAINERHOME}/build/teleport start -d -c ${CONTAINERHOME}/docker/two-node.yaml --gops
     env_file: env.file
     volumes:
       - ./data/two/node:/var/lib/teleport

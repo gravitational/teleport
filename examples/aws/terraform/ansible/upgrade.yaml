@@ -20,24 +20,46 @@
 
     - include: vars.yaml
 
-    - name: Download and unpack new version of teleport
-      get_url:
-        url: https://get.gravitational.com/teleport/{{teleport_version}}/teleport-ent-v{{teleport_version}}-linux-amd64-bin.tar.gz
-        dest: /tmp/teleport-ent-v{{teleport_version}}-linux-amd64-bin.tar.gz
-    - name: Unpack teleport binaries
-      unarchive:
-        extra_opts: ['--strip-components=1', '--show-stored-names']
-        exclude:
-          - "examples/*"
-          - "README.md"
-          - "VERSION"
-          - "INSTALL"
-          - "CHANGELOG"
-        src: /tmp/teleport-ent-v{{teleport_version}}-linux-amd64-bin.tar.gz
-        dest: /usr/local/bin
-        remote_src: yes
-        owner: "{{ 'root' if 'node' in group_names else 'teleport' }}"
-        group: "{{ 'root' if 'node' in group_names else 'teleport' }}"
+    - name: Copy gops to target box (for debugging)
+      when: gops_path is defined
+      block:
+      - copy:
+          src: "{{gops_path}}"
+          dest: /usr/local/bin
+          mode: 0755
+
+    - name: Copy binaries from local directory
+      when: teleport_path is defined
+      block:
+      - copy:
+          src: "{{teleport_path}}/teleport"
+          dest: /usr/local/bin
+
+      - copy:
+          src: "{{teleport_path}}/tctl"
+          dest: /usr/local/bin
+
+    - name: Copy binaries from official repository
+      when: teleport_version is defined
+      block:
+      - name: Download and unpack new version of teleport
+        get_url:
+          url: https://get.gravitational.com/teleport/{{teleport_version}}/teleport-ent-v{{teleport_version}}-linux-amd64-bin.tar.gz
+          dest: /tmp/teleport-ent-v{{teleport_version}}-linux-amd64-bin.tar.gz
+      - name: Unpack teleport binaries
+        unarchive:
+          extra_opts: ['--strip-components=1', '--show-stored-names']
+          exclude:
+            - "examples/*"
+            - "README.md"
+            - "VERSION"
+            - "INSTALL"
+            - "CHANGELOG"
+          src: /tmp/teleport-ent-v{{teleport_version}}-linux-amd64-bin.tar.gz
+          dest: /usr/local/bin
+          remote_src: yes
+          owner: "{{ 'root' if 'node' in group_names else 'teleport' }}"
+          group: "{{ 'root' if 'node' in group_names else 'teleport' }}"
 
 
 # Scale down all auth servers but the first one

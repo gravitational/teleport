@@ -397,7 +397,6 @@ func removeDuplicates(elements []record) []record {
 
 // GetItems is a function that retuns keys in batch
 func (b *DynamoDBBackend) GetItems(path []string) ([]backend.Item, error) {
-	start := time.Now()
 	fullPath := b.fullPath(path...)
 	records, err := b.getRecords(fullPath)
 	if err != nil {
@@ -410,14 +409,11 @@ func (b *DynamoDBBackend) GetItems(path []string) ([]backend.Item, error) {
 			Value: r.Value,
 		}
 	}
-	b.Debugf("GetItems(%v) in %v", fullPath, time.Now().Sub(start))
 	return values, nil
 }
 
 // GetKeys retrieve all keys matching specific path
 func (b *DynamoDBBackend) GetKeys(path []string) ([]string, error) {
-	start := time.Now()
-	fullPath := b.fullPath(path...)
 	records, err := b.getRecords(b.fullPath(path...))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -426,7 +422,6 @@ func (b *DynamoDBBackend) GetKeys(path []string) ([]string, error) {
 	for i, r := range records {
 		keys[i] = r.key
 	}
-	b.Debugf("GetKeys(%v) in %v", fullPath, time.Now().Sub(start))
 	return keys, nil
 }
 
@@ -435,7 +430,6 @@ func (b *DynamoDBBackend) GetKeys(path []string) ([]string, error) {
 // 	   overwrites it if 'overwrite' is true
 //     atomically returns AlreadyExists error if 'overwrite' is false
 func (b *DynamoDBBackend) createKey(fullPath string, val []byte, ttl time.Duration, overwrite bool) error {
-	start := time.Now()
 	r := record{
 		HashKey:   hashKey,
 		FullPath:  fullPath,
@@ -459,7 +453,6 @@ func (b *DynamoDBBackend) createKey(fullPath string, val []byte, ttl time.Durati
 	}
 	_, err = b.svc.PutItem(&input)
 	err = convertError(err)
-	b.Debugf("CreateVal(%v) in %v", fullPath, time.Now().Sub(start))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -611,13 +604,11 @@ func (b *DynamoDBBackend) getKey(fullPath string) (*record, error) {
 
 // GetVal retrieve a value from a key
 func (b *DynamoDBBackend) GetVal(path []string, key string) ([]byte, error) {
-	start := time.Now()
 	fullPath := b.fullPath(append(path, key)...)
 	r, err := b.getKey(fullPath)
 	if err != nil {
 		return nil, err
 	}
-	b.Debugf("GetVal(%v) in %v", fullPath, time.Now().Sub(start))
 	return r.Value, nil
 }
 

@@ -177,7 +177,7 @@ func ReadHostUUID(dataDir string) (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	return string(out), nil
+	return strings.TrimSpace(string(out)), nil
 }
 
 // WriteHostUUID writes host UUID into a file

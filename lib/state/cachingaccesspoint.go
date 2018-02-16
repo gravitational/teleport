@@ -773,11 +773,9 @@ func (cs *CachingAuthClient) useCache(p params) error {
 // using auth server
 func (cs *CachingAuthClient) fetch(p params) {
 	if cs.getRecentCache(p.key) {
-		cs.WithFields(log.Fields{"key": p.key}).Debugf("Recent cache hit.")
 		cs.useCache(p)
 		return
 	}
-	cs.WithFields(log.Fields{"key": p.key}).Debugf("Recent cache miss.")
 	// try fetching value from the auth server
 	err := cs.try(p.fetch)
 	if err == nil {
