@@ -41,7 +41,7 @@ var _ = fmt.Printf
 
 func (s *NativeSuite) SetUpSuite(c *C) {
 	utils.InitLoggerForTests()
-	PrecalculatedKeysNum = 1
+	PrecomputedNum = 1
 	s.suite = &test.AuthSuite{A: New()}
 }
 
