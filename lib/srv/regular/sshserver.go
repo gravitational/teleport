@@ -769,8 +769,8 @@ func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, identityContext
 	defer ctx.Debugf("direct-tcp closed")
 	defer ctx.Close()
 
-	srcAddr := fmt.Sprintf("%v:%d", req.Orig, req.OrigPort)
-	dstAddr := fmt.Sprintf("%v:%d", req.Host, req.Port)
+	srcAddr := net.JoinHostPort(req.Orig, strconv.Itoa(int(req.OrigPort)))
+	dstAddr := net.JoinHostPort(req.Host, strconv.Itoa(int(req.Port)))
 
 	// check if the role allows port forwarding for this user
 	err = s.authHandlers.CheckPortForward(dstAddr, ctx)

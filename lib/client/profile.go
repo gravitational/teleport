@@ -56,6 +56,8 @@ type ClientProfile struct {
 	// ForwardedPorts is the list of ports to forward to the target node.
 	ForwardedPorts []string `yaml:"forward_ports,omitempty"`
 
+	DynamicForwardedPorts []string `yaml:"dynamic_forward_ports,omitempty"`
+
 	// DELETE IN: 3.1.0
 	// The following fields have been deprecated and replaced with
 	// "proxy_web_addr" and "proxy_ssh_addr".
