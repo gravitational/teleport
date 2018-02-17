@@ -50,7 +50,16 @@ func (process *TeleportProcess) printShutdownStatus(ctx context.Context) {
 // Should not be called twice by the process.
 func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 	sigC := make(chan os.Signal, 1024)
-	signal.Notify(sigC, os.Interrupt, os.Kill, syscall.SIGTERM, syscall.SIGUSR2, syscall.SIGCHLD, syscall.SIGHUP)
+	signal.Notify(sigC,
+		syscall.SIGQUIT, // graceful shutdown
+		syscall.SIGTERM, // fast shutdown
+		syscall.SIGINT,  // fast shutdown
+		syscall.SIGKILL, // fast shutdown
+		syscall.SIGUSR1, // log process diagnostic info
+		syscall.SIGUSR2, // initiate process restart procedure
+		syscall.SIGHUP,  // graceful restart procedure
+		syscall.SIGCHLD, // collect child status
+	)
 
 	doneContext, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -62,15 +71,27 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 		select {
 		case signal := <-sigC:
 			switch signal {
-			case syscall.SIGTERM, syscall.SIGINT:
+			case syscall.SIGQUIT:
 				go process.printShutdownStatus(doneContext)
 				process.Shutdown(ctx)
 				log.Infof("All services stopped, exiting.")
 				return nil
-			case syscall.SIGKILL, syscall.SIGQUIT:
+			case syscall.SIGTERM, syscall.SIGKILL, syscall.SIGINT:
 				log.Infof("Got signal %q, exiting immediately.", signal)
 				process.Close()
 				return nil
+			case syscall.SIGUSR1:
+				// All programs placed diagnostics on the standard output.
+				// This had always caused trouble when the output was redirected into a file, but became intolerable
+				// when the output was sent to an unsuspecting process.
+				// Nevertheless, unwilling to violate the simplicity of the standard-input-standard-output model,
+				// people tolerated this state of affairs through v6. Shortly thereafter Dennis Ritchie cut the Gordian
+				// knot by introducing the standard error file.
+				// That was not quite enough. With pipelines diagnostics could come from any of several programs running simultaneously.
+				// Diagnostics needed to identify themselves.
+				// - Doug McIllroy, "A Research UNIX Reader: Annotated Excerpts from the Programmer’s Manual, 1971-1986"
+				log.Infof("Got signal %q, logging diagostic info to stderr.", signal)
+				writeDebugInfo(os.Stderr)
 			case syscall.SIGUSR2:
 				log.Infof("Got signal %q, forking a new process.", signal)
 				if err := process.forkChild(); err != nil {
