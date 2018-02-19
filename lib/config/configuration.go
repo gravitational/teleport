@@ -77,8 +77,6 @@ type CommandLineFlags struct {
 	Labels string
 	// --pid-file flag
 	PIDFile string
-	// Gops starts gops agent on a first available address
-	Gops bool
 	// DiagnosticAddr is listen address for diagnostic endpoint
 	DiagnosticAddr string
 	// PermitUserEnvironment enables reading of ~/.tsh/environment
@@ -679,6 +677,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	if clf.Debug {
 		cfg.Console = ioutil.Discard
 		utils.InitLogger(utils.LoggingForDaemon, log.DebugLevel)
+		cfg.Debug = clf.Debug
 	}
 
 	// apply --roles flag:

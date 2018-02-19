@@ -130,6 +130,10 @@ type Config struct {
 
 	// DiagnosticAddr is an address for diagnostic and healthz endpoint service
 	DiagnosticAddr utils.NetAddr
+
+	// Debug sets debugging mode, results in diagnostic address
+	// endpoint extended with additional /debug handlers
+	Debug bool
 }
 
 // ApplyToken assigns a given token to all internal services but only if token

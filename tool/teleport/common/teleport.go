@@ -32,8 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/google/gops/agent"
-
 	"github.com/gravitational/trace"
 
 	log "github.com/sirupsen/logrus"
@@ -109,10 +107,8 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 		"Base64 encoded configuration string").Hidden().Envar(defaults.ConfigEnvar).
 		StringVar(&ccf.ConfigString)
 	start.Flag("labels", "List of labels for this node").StringVar(&ccf.Labels)
-	start.Flag("gops",
-		"Start gops troubleshooting endpoint on a first available adress.").BoolVar(&ccf.Gops)
 	start.Flag("diag-addr",
-		"Start diangonstic prometheus and healthz endpoint.").StringVar(&ccf.DiagnosticAddr)
+		"Start diangonstic prometheus and healthz endpoint.").Hidden().StringVar(&ccf.DiagnosticAddr)
 	start.Flag("permit-user-env",
 		"Enables reading of ~/.tsh/environment when creating a session").Hidden().BoolVar(&ccf.PermitUserEnvironment)
 	start.Flag("insecure",
@@ -150,13 +146,6 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 		}
 		if !options.InitOnly {
 			log.Debug(conf.DebugDumpToYAML())
-		}
-		if ccf.Gops {
-			log.Debug("Starting gops agent.")
-			err := agent.Listen(&agent.Options{})
-			if err != nil {
-				log.Warningf("failed to start gops agent %v", err)
-			}
 		}
 		if !options.InitOnly {
 			err = OnStart(conf)
