@@ -560,6 +560,7 @@ func migrateTrustedClusters(asrv *AuthServer) error {
 
 		if reverseTunnel != nil {
 			reverseTunnel.SetName(hostCA.GetClusterName())
+			reverseTunnel.SetClusterName(hostCA.GetClusterName())
 			if err := asrv.UpsertReverseTunnel(reverseTunnel); err != nil {
 				return trace.Wrap(err)
 			}
