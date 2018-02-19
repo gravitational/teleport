@@ -14,6 +14,9 @@ import (
 type ProfileOptions int
 
 const (
+	// ProfileCreateNew creates new profile, but does not update current profile
+	ProfileCreateNew = 0
+	// ProfileMakeCurrent creates a new profile and makes it current
 	ProfileMakeCurrent = 1 << iota
 )
 

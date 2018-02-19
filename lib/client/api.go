@@ -209,7 +209,7 @@ func MakeDefaultConfig() *Config {
 func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 	profileDir = FullProfilePath(profileDir)
 	// read the profile:
-	cp, err := ProfileFromDir(profileDir, proxyName)
+	cp, err := ProfileFromDir(profileDir, ProxyHost(proxyName))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil
@@ -229,7 +229,7 @@ func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 
 // SaveProfile updates the given profiles directory with the current configuration
 // If profileDir is an empty string, the default ~/.tsh is used
-func (c *Config) SaveProfile(profileDir string) error {
+func (c *Config) SaveProfile(profileDir string, profileOptions ...ProfileOptions) error {
 	if c.ProxyHostPort == "" {
 		return nil
 	}
@@ -244,8 +244,17 @@ func (c *Config) SaveProfile(profileDir string) error {
 	cp.ForwardedPorts = c.LocalForwardPorts.ToStringSpec()
 	cp.SiteName = c.SiteName
 
-	// create a profile file:
-	if err := cp.SaveTo(profilePath, ProfileMakeCurrent); err != nil {
+	// create a profile file and set it current base on the option
+	var opts ProfileOptions
+	if len(profileOptions) == 0 {
+		// default behavior is to override the profile
+		opts = ProfileMakeCurrent
+	} else {
+		for _, flag := range profileOptions {
+			opts |= flag
+		}
+	}
+	if err := cp.SaveTo(profilePath, opts); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -257,9 +266,14 @@ func (c *Config) SetProxy(host string, webPort, sshPort int) {
 
 // ProxyHost returns the hostname of the proxy server (without any port numbers)
 func (c *Config) ProxyHost() string {
-	host, _, err := net.SplitHostPort(c.ProxyHostPort)
+	return ProxyHost(c.ProxyHostPort)
+}
+
+// ProxyHost returns the hostname of the proxy server (without any port numbers)
+func ProxyHost(proxyHost string) string {
+	host, _, err := net.SplitHostPort(proxyHost)
 	if err != nil {
-		return c.ProxyHostPort
+		return proxyHost
 	}
 	return host
 }
@@ -337,7 +351,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		log.Infof("no teleport login given. defaulting to %s", c.Username)
+		log.Infof("No teleport login given. defaulting to %s", c.Username)
 	}
 	if c.ProxyHostPort == "" {
 		return nil, trace.Errorf("No proxy address specified, missed --proxy flag?")
@@ -992,6 +1006,10 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 			fmt.Printf("Refusing to connect to untrusted proxy %v without --insecure flag\n", proxyAddr)
 		}
 		return nil, trace.Wrap(err)
+	}
+	// Save profile to record proxy credentials
+	if err := tc.SaveProfile("", ProfileCreateNew); err != nil {
+		log.Warningf("Failed to save profile: %v", err)
 	}
 	authMethod, err := key.AsAuthMethod()
 	if err != nil {
