@@ -181,7 +181,7 @@ func SetRequestHandler(req RequestHandler) ServerOption {
 
 func SetCiphers(ciphers []string) ServerOption {
 	return func(s *Server) error {
-		s.Debugf("supported ciphers: %q", ciphers)
+		s.Debugf("Supported ciphers: %q.", ciphers)
 		if ciphers != nil {
 			s.cfg.Ciphers = ciphers
 		}
@@ -191,7 +191,7 @@ func SetCiphers(ciphers []string) ServerOption {
 
 func SetKEXAlgorithms(kexAlgorithms []string) ServerOption {
 	return func(s *Server) error {
-		s.Debugf("supported KEX algorithms: %q", kexAlgorithms)
+		s.Debugf("Supported KEX algorithms: %q.", kexAlgorithms)
 		if kexAlgorithms != nil {
 			s.cfg.KeyExchanges = kexAlgorithms
 		}
@@ -201,7 +201,7 @@ func SetKEXAlgorithms(kexAlgorithms []string) ServerOption {
 
 func SetMACAlgorithms(macAlgorithms []string) ServerOption {
 	return func(s *Server) error {
-		s.Debugf("supported MAC algorithms: %q", macAlgorithms)
+		s.Debugf("Supported MAC algorithms: %q.", macAlgorithms)
 		if macAlgorithms != nil {
 			s.cfg.MACs = macAlgorithms
 		}
@@ -314,20 +314,20 @@ func (s *Server) acceptConnections() {
 	backoffTimer := time.NewTicker(5 * time.Second)
 	defer backoffTimer.Stop()
 	addr := s.Addr()
-	s.Debugf("listening on %v", addr)
+	s.Debugf("Listening on %v.", addr)
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
 			if s.isClosed() {
-				s.Debugf("server %v has closed", addr)
+				s.Debugf("Server %v has closed.", addr)
 				return
 			}
 			select {
 			case <-s.closeContext.Done():
-				s.Debugf("server %v has closed", addr)
+				s.Debugf("Server %v has closed.", addr)
 				return
 			case <-backoffTimer.C:
-				s.Debugf("backoff on network error: %v", err)
+				s.Debugf("Backoff on network error: %v.", err)
 			}
 		} else {
 			go s.handleConnection(conn)

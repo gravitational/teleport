@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync"
@@ -372,14 +373,29 @@ type gzipWriter struct {
 func (f *gzipWriter) Close() error {
 	var errors []error
 	errors = append(errors, f.Writer.Close())
+	f.Writer.Reset(ioutil.Discard)
+	writerPool.Put(f.Writer)
+	f.Writer = nil
 	errors = append(errors, f.file.Close())
 	return trace.NewAggregate(errors...)
 }
 
+// writerPool is a sync.Pool for shared gzip writers.
+// each gzip writer allocates a lot of memory
+// so it makes sense to reset the writer and reuse the
+// internal buffers to avoid too many objects on the heap
+var writerPool = sync.Pool{
+	New: func() interface{} {
+		w, _ := gzip.NewWriterLevel(ioutil.Discard, gzip.BestSpeed)
+		return w
+	},
+}
+
 func newGzipWriter(file *os.File) *gzipWriter {
-	w, _ := gzip.NewWriterLevel(file, gzip.BestSpeed)
+	g := writerPool.Get().(*gzip.Writer)
+	g.Reset(file)
 	return &gzipWriter{
-		Writer: w,
+		Writer: g,
 		file:   file,
 	}
 }
