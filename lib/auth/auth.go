@@ -248,13 +248,27 @@ func (s *AuthServer) GenerateUserCert(key []byte, user services.User, allowedLog
 		DomainName: domainName,
 	}, true)
 	if err != nil {
-		fmt.Printf("--> here: %v\n", err)
 		return nil, trace.Wrap(err)
 	}
 	privateKey, err := ca.FirstSigningKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// extract the passed in certificate format. if nothing was passed in, fetch
+	// the certificate format from the role.
+	checker, err := services.FetchRoles(user.GetRoles(), s, user.GetTraits())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	certificateFormat, err = utils.CheckCertificateFormatFlag(certificateFormat)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if certificateFormat == teleport.CertificateFormatUnspecified {
+		certificateFormat = checker.CertificateFormat()
+	}
+
 	cert, err := s.Authority.GenerateUserCert(services.UserCertParams{
 		PrivateCASigningKey:   privateKey,
 		PublicUserKey:         key,
