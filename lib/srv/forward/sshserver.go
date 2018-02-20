@@ -186,7 +186,10 @@ func New(c ServerConfig) (*Server, error) {
 		sessionServer:   c.AuthClient,
 	}
 
-	s.sessionRegistry = srv.NewSessionRegistry(s)
+	s.sessionRegistry, err = srv.NewSessionRegistry(s)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// common auth handlers
 	s.authHandlers = &srv.AuthHandlers{
