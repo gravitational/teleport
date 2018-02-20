@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/state"
@@ -740,12 +741,26 @@ func (s *session) getNamespace() string {
 	return s.registry.srv.GetNamespace()
 }
 
-// pollAndSync is a loop inside a goroutite which keeps synchronizing the terminal
-// size to what's in the session (so all connected parties have the same terminal size)
-// it also updates 'active' field on the session.
+// pollAndSync is a loops forever trying to sync terminal size to what's in
+// the session (so all connected parties have the same terminal size) and
+// update the "active" field of the session. If the session are recorded at
+// the proxy, then this function does nothing as it's counterpart in the proxy
+// will do this work.
 func (s *session) pollAndSync() {
 	log.Debugf("[session.registry] start pollAndSync()\b")
 	defer log.Debugf("[session.registry] end pollAndSync()\n")
+
+	// If sessions are being recorded at the proxy, an identical version of this
+	// goroutine is running in the proxy, which means it does not need to run here.
+	clusterConfig, err := s.registry.srv.GetAccessPoint().GetClusterConfig()
+	if err != nil {
+		log.Errorf("Unable to sync terminal size: %v.", err)
+		return
+	}
+	if clusterConfig.GetSessionRecording() == services.RecordAtProxy &&
+		s.registry.srv.Component() == teleport.ComponentNode {
+		return
+	}
 
 	ns := s.getNamespace()
 
