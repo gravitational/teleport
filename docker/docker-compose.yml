@@ -17,6 +17,7 @@ services:
     volumes:
       - ./data/one:/var/lib/teleport
       - ../:/root/go/src/github.com/gravitational/teleport
+      - certs:/mnt/shared/certs
     networks:
       teleport:
         ipv4_address: 172.10.1.1
@@ -38,6 +39,23 @@ services:
     networks:
       teleport:
         ipv4_address: 172.10.1.20
+
+  #
+  # one-node is a single-node Teleport cluster called "one" (runs all 3 roles: proxy, auth and node)
+  #
+  one-sshd:
+    image: teleport:latest
+    container_name: one-sshd
+    command: /usr/bin/start-sshd.sh
+    env_file: env.file
+    mem_limit: 300m
+    volumes:
+      - ./sshd/pam.d/ssh:/etc/pam.d/ssh
+      - ./sshd/etc/ssh/sshd_config:/etc/ssh/sshd_config
+      - certs:/mnt/shared/certs
+    networks:
+      teleport:
+        ipv4_address: 172.10.1.21
 
   #
   # one-proxy is a second xproxy of the first cluster
@@ -120,3 +138,7 @@ networks:
       - subnet: 172.10.1.0/16
         ip_range: 172.10.1.0/24
         gateway: 172.10.1.254
+
+
+volumes:
+  certs:

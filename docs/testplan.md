@@ -7,8 +7,7 @@ as well as an upgrade of the previous version of Teleport.
 - [ ] Adding nodes to a cluster
   - [ ] Adding Nodes via Valid Static Token
   - [ ] Adding Nodes via Valid Short-lived Tokens
-  - [ ] Adding Nodes via Invalid Static Token Fails
-  - [ ] Adding Nodes via Invalid Short-lived Tokens Fails
+  - [ ] Adding Nodes via Invalid Token Fails
   - [ ] Revoking Node Invitation
 
 - [ ] Labels
@@ -18,17 +17,22 @@ as well as an upgrade of the previous version of Teleport.
 - [ ] Trusted Clusters
   - [ ] Adding Trusted Cluster Valid Static Token
   - [ ] Adding Trusted Cluster Valid Short-lived Token
-  - [ ] Adding Trusted Cluster Invalid Static Token
-  - [ ] Adding Trusted Cluster Invalid Short-lived Token
+  - [ ] Adding Trusted Cluster Invalid Token
   - [ ] Removing Trusted Cluster
 
 - [ ] RBAC
+
+  Make sure that invalid and valid attempts are reflected in audit log.
+
   - [ ] Successfully connect to node with correct role
-  - [ ] Unsuccessfully connect to a role in an in-valid role
+  - [ ] Unsuccessfully connect to a node in a role restricting access by label
+  - [ ] Unsuccessfully connect to a node in a role restricting access by invalid SSH login
   - [ ] Allow/deny role option: SSH agent forwarding
   - [ ] Allow/deny role option: Port forwarding
 
 - [ ] Users
+With every user combination, try to login and signup with invalid second factor, invalid password to see how the system reacts.
+
   - [ ] Adding Users Password Only
   - [ ] Adding Users OTP
   - [ ] Adding Users U2F
@@ -58,12 +62,15 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] Failed login attempts are recorded
   - [ ] Interactive sessions have the correct Server ID
     - [ ] Server ID is the ID of the node in regular mode
-    - [ ] Server ID is of the proxy for proxy mode
+    - [ ] Server ID is randomly generated for proxy node
   - [ ] Exec commands are recorded
   - [ ] `scp` commands are recorded
   - [ ] Subsystem results are recorded
 
 - [ ] Interact with a cluster using `tsh`
+
+   These commands should ideally be tested for recording and non-recording modes as they are implemented in a different ways.
+
   - [ ] tsh ssh \<regular-node\>
   - [ ] tsh ssh \<node-remote-cluster\>
   - [ ] tsh ssh -A \<regular-node\>
@@ -82,6 +89,7 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] tsh clusters
 
 - [ ] Interact with a cluster using `ssh`
+   Make sure to test both recording and regular proxy modes.
   - [ ] ssh \<regular-node\>
   - [ ] ssh \<node-remote-cluster\>
   - [ ] ssh -A \<regular-node\>
@@ -115,6 +123,14 @@ interactive sessions the 12 combinations are below.
 - [ ] Connect to a Teleport node in a remote cluster using OpenSSH.
 - [ ] Connect to a Teleport node in a remote cluster using Teleport.
 - [ ] Connect to a Teleport node in a remote cluster using the Web UI.
+
+### Migrations
+
+* [ ] Migrate trusted clusters from 2.4.0 to 2.5.0
+  * [ ] Migrate auth server on main cluster, then rest of the servers on main cluster
+        SSH should work for both main and old clusters
+  * [ ] Migrate auth server on remote cluster, then rest of the remote cluster
+       SSH should work
 
 ### Command Templates
 
@@ -151,3 +167,4 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh -A -p 22 node.exa
 # the --cluster flag is used to connect to a node in a remote cluster.
 tsh --proxy=proxy.example.com --user=<username> --insecure --cluster=foo.com ssh -p 22 node.foo.com
 ```
+

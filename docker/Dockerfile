@@ -10,15 +10,15 @@ ENV DEBUG=1 GOPATH=/root/go PATH=$PATH:/root/go/src/github.com/gravitational/tel
 RUN apt-get install -y htop vim screen; \
     mkdir -p /root/go/src/github.com/gravitational/teleport 
 
-# allows ansible testing
-RUN apt-get install -y ansible
+# allows ansible and ssh testing
+RUN apt-get install -y ansible ssh inetutils-syslogd
 
-# installs gops
-RUN go get -u github.com/google/gops
+RUN mkdir /var/run/sshd
 
 VOLUME ["/teleport", "/var/lib/teleport"]
 COPY .bashrc /root/.bashrc
 COPY .screenrc /root/.screenrc
+COPY ./sshd/start.sh /usr/bin/start-sshd.sh
 
 # expose only proxy ports (SSH and HTTPS)
 EXPOSE 3023 3080
