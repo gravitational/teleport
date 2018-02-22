@@ -228,11 +228,11 @@ export class LoginInputForm extends React.Component {
               {this.renderNameAndPassFields()}
               {this.render2faFields()}
               {this.renderLoginBtn()}
-              {this.renderSsoBtns()}
-              {$error}
+              {this.renderSsoBtns()}              
             </div>
-          }
+          }          
         </form>        
+        {$error}
       </div>
     );
   }
