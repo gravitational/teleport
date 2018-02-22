@@ -60,9 +60,11 @@ func (s *AuthServer) ChangePassword(req services.ChangePasswordReq) error {
 // CheckPasswordWOToken checks just password without checking OTP tokens
 // used in case of SSH authentication, when token has been validated.
 func (s *AuthServer) CheckPasswordWOToken(user string, password []byte) error {
+	const errMsg = "invalid username or password"
+
 	err := services.VerifyPassword(password)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.BadParameter(errMsg)
 	}
 
 	hash, err := s.GetPasswordHash(user)
@@ -76,7 +78,7 @@ func (s *AuthServer) CheckPasswordWOToken(user string, password []byte) error {
 
 	if err = bcrypt.CompareHashAndPassword(hash, password); err != nil {
 		log.Debugf("Password for %q does not match", user)
-		return trace.BadParameter("invalid username or password")
+		return trace.BadParameter(errMsg)
 	}
 
 	return nil
@@ -112,7 +114,7 @@ func (s *AuthServer) CheckOTP(user string, otpToken string) error {
 
 		// look ahead n tokens to see if we can find a matching token
 		if !otp.Scan(otpToken, defaults.HOTPFirstTokensRange) {
-			return trace.AccessDenied("bad htop token")
+			return trace.BadParameter("bad one time token")
 		}
 
 		// we need to upsert the hotp state again because the
@@ -134,7 +136,7 @@ func (s *AuthServer) CheckOTP(user string, otpToken string) error {
 
 		// we use a constant time compare function to mitigate timing attacks
 		if subtle.ConstantTimeCompare([]byte(otpToken), []byte(usedToken)) == 1 {
-			return trace.AccessDenied("previously used totp token")
+			return trace.BadParameter("previously used totp token")
 		}
 
 		// we use totp.ValidateCustom over totp.Validate so we can use
@@ -147,10 +149,10 @@ func (s *AuthServer) CheckOTP(user string, otpToken string) error {
 		})
 		if err != nil {
 			log.Errorf("unable to validate token: %v", err)
-			return trace.AccessDenied("unable to validate token")
+			return trace.BadParameter("unable to validate token")
 		}
 		if !valid {
-			return trace.AccessDenied("invalid totp token")
+			return trace.BadParameter("invalid totp token")
 		}
 
 		// if we have a valid token, update the previously used token
