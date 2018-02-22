@@ -47,13 +47,13 @@ webpackJsonp([0],[
 
 	var _actions = __webpack_require__(284);
 
-	var _app = __webpack_require__(530);
+	var _app = __webpack_require__(531);
 
 	var _app2 = _interopRequireDefault(_app);
 
 	var _actions2 = __webpack_require__(239);
 
-	__webpack_require__(534);
+	__webpack_require__(535);
 
 	function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key]; } } newObj.default = obj; return newObj; } }
 
@@ -1783,10 +1783,10 @@ webpackJsonp([0],[
 	          this.renderNameAndPassFields(),
 	          this.render2faFields(),
 	          this.renderLoginBtn(),
-	          this.renderSsoBtns(),
-	          $error
+	          this.renderSsoBtns()
 	        )
-	      )
+	      ),
+	      $error
 	    );
 	  };
 
@@ -1940,27 +1940,6 @@ webpackJsonp([0],[
 	  },
 	  logout: function logout() {
 	    _session2.default.logout();
-	  },
-	  changePasswordWithU2f: function changePasswordWithU2f(oldPsw, newPsw) {
-	    var promise = _auth2.default.changePasswordWithU2f(oldPsw, newPsw);
-	    actions._handleChangePasswordPromise(promise);
-	  },
-	  changePassword: function changePassword(oldPass, newPass, token) {
-	    var promise = _auth2.default.changePassword(oldPass, newPass, token);
-	    actions._handleChangePasswordPromise(promise);
-	  },
-	  resetPasswordChangeAttempt: function resetPasswordChangeAttempt() {
-	    status.changePasswordStatus.clear();
-	  },
-	  _handleChangePasswordPromise: function _handleChangePasswordPromise(promise) {
-	    status.changePasswordStatus.start();
-	    return promise.done(function () {
-	      status.changePasswordStatus.success();
-	    }).fail(function (err) {
-	      var msg = _api2.default.getErrorText(err);
-	      logger.error('change password', err);
-	      status.changePasswordStatus.fail(msg);
-	    });
 	  },
 	  _handleAcceptInvitePromise: function _handleAcceptInvitePromise(promise) {
 	    status.signupStatus.start();
@@ -18186,7 +18165,9 @@ webpackJsonp([0],[
 
 	var _user = __webpack_require__(250);
 
-	var _actions = __webpack_require__(239);
+	var _actions = __webpack_require__(530);
+
+	var actions = _interopRequireWildcard(_actions);
 
 	var _layout = __webpack_require__(430);
 
@@ -18264,6 +18245,10 @@ webpackJsonp([0],[
 	        } else {
 	          _this.props.onChangePass(oldPass, newPass, token);
 	        }
+	      }
+	    }, _this.onKeyPress = function (e) {
+	      if (e.key === 'Enter' && e.target.value) {
+	        _this.onClick(e);
 	      }
 	    }, _temp), _possibleConstructorReturn(_this, _ret);
 	  }
@@ -18346,7 +18331,7 @@ webpackJsonp([0],[
 	        { className: 'm-b m-l-xl', style: { maxWidth: "500px" } },
 	        _react2.default.createElement(
 	          'form',
-	          { ref: 'form' },
+	          { ref: 'form', onKeyPress: this.onKeyPress },
 	          _react2.default.createElement(
 	            'div',
 	            null,
@@ -18384,8 +18369,7 @@ webpackJsonp([0],[
 	                    oldPass: e.target.value
 	                  });
 	                },
-	                className: 'form-control required',
-	                placeholder: '' })
+	                className: 'form-control required' })
 	            )
 	          ),
 	          isOtpEnabled && _react2.default.createElement(
@@ -18477,9 +18461,9 @@ webpackJsonp([0],[
 	function mapStateToProps() {
 	  return {
 	    auth2faType: _config2.default.getAuth2faType(),
-	    onChangePass: _actions.changePassword,
-	    onChangePassWithU2f: _actions.changePasswordWithU2f,
-	    onDestory: _actions.resetPasswordChangeAttempt
+	    onChangePass: actions.changePassword,
+	    onChangePassWithU2f: actions.changePasswordWithU2f,
+	    onDestory: actions.resetPasswordChangeAttempt
 	  };
 	}
 
@@ -18552,6 +18536,87 @@ webpackJsonp([0],[
 /* 530 */
 /***/ (function(module, exports, __webpack_require__) {
 
+	"use strict";
+
+	exports.__esModule = true;
+	exports.changePasswordWithU2f = changePasswordWithU2f;
+	exports.changePassword = changePassword;
+	exports.resetPasswordChangeAttempt = resetPasswordChangeAttempt;
+
+	var _auth = __webpack_require__(240);
+
+	var _auth2 = _interopRequireDefault(_auth);
+
+	var _api = __webpack_require__(241);
+
+	var _api2 = _interopRequireDefault(_api);
+
+	var _session = __webpack_require__(244);
+
+	var _session2 = _interopRequireDefault(_session);
+
+	var _logger = __webpack_require__(245);
+
+	var _logger2 = _interopRequireDefault(_logger);
+
+	var _actions = __webpack_require__(246);
+
+	var status = _interopRequireWildcard(_actions);
+
+	function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key]; } } newObj.default = obj; return newObj; } }
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	var logger = _logger2.default.create("flux/settingsAccount/actions"); /*
+	                                                                      Copyright 2015 Gravitational, Inc.
+	                                                                      
+	                                                                      Licensed under the Apache License, Version 2.0 (the "License");
+	                                                                      you may not use this file except in compliance with the License.
+	                                                                      You may obtain a copy of the License at
+	                                                                      
+	                                                                          http://www.apache.org/licenses/LICENSE-2.0
+	                                                                      
+	                                                                      Unless required by applicable law or agreed to in writing, software
+	                                                                      distributed under the License is distributed on an "AS IS" BASIS,
+	                                                                      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	                                                                      See the License for the specific language governing permissions and
+	                                                                      limitations under the License.
+	                                                                      */
+
+	function changePasswordWithU2f(oldPsw, newPsw) {
+	  var promise = _auth2.default.changePasswordWithU2f(oldPsw, newPsw);
+	  _handleChangePasswordPromise(promise);
+	}
+
+	function changePassword(oldPass, newPass, token) {
+	  var promise = _auth2.default.changePassword(oldPass, newPass, token);
+	  _handleChangePasswordPromise(promise);
+	}
+
+	function resetPasswordChangeAttempt() {
+	  status.changePasswordStatus.clear();
+	}
+
+	function _handleChangePasswordPromise(promise) {
+	  status.changePasswordStatus.start();
+	  return promise.done(function () {
+	    status.changePasswordStatus.success();
+	  }).fail(function (err) {
+	    var msg = _api2.default.getErrorText(err);
+	    logger.error("change password", err);
+	    status.changePasswordStatus.fail(msg);
+	    // logout a user in case of access denied error 
+	    // (most likely a user exceeded a number of allowed attempts)
+	    if (err.status == 403) {
+	      _session2.default.logout();
+	    }
+	  });
+	}
+
+/***/ }),
+/* 531 */
+/***/ (function(module, exports, __webpack_require__) {
+
 	'use strict';
 
 	exports.__esModule = true;
@@ -18570,11 +18635,11 @@ webpackJsonp([0],[
 
 	var _getters2 = _interopRequireDefault(_getters);
 
-	var _browser = __webpack_require__(531);
+	var _browser = __webpack_require__(532);
 
 	var _actions = __webpack_require__(284);
 
-	var _navLeftBar = __webpack_require__(532);
+	var _navLeftBar = __webpack_require__(533);
 
 	var _navLeftBar2 = _interopRequireDefault(_navLeftBar);
 
@@ -18670,7 +18735,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 531 */
+/* 532 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -18704,7 +18769,7 @@ webpackJsonp([0],[
 	var platform = exports.platform = detectPlatform();
 
 /***/ }),
-/* 532 */
+/* 533 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -18724,7 +18789,7 @@ webpackJsonp([0],[
 
 	var UserFlux = _interopRequireWildcard(_user);
 
-	var _appStore = __webpack_require__(533);
+	var _appStore = __webpack_require__(534);
 
 	var AppStore = _interopRequireWildcard(_appStore);
 
@@ -18811,7 +18876,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 533 */
+/* 534 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -18906,7 +18971,7 @@ webpackJsonp([0],[
 	});
 
 /***/ }),
-/* 534 */
+/* 535 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -18915,7 +18980,7 @@ webpackJsonp([0],[
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _store = __webpack_require__(535);
+	var _store = __webpack_require__(536);
 
 	var _store2 = _interopRequireDefault(_store);
 
@@ -18923,7 +18988,7 @@ webpackJsonp([0],[
 
 	var _store4 = _interopRequireDefault(_store3);
 
-	var _appStore = __webpack_require__(533);
+	var _appStore = __webpack_require__(534);
 
 	var _appStore2 = _interopRequireDefault(_appStore);
 
@@ -18931,7 +18996,7 @@ webpackJsonp([0],[
 
 	var _nodeStore2 = _interopRequireDefault(_nodeStore);
 
-	var _store5 = __webpack_require__(536);
+	var _store5 = __webpack_require__(537);
 
 	var _store6 = _interopRequireDefault(_store5);
 
@@ -18964,20 +19029,20 @@ webpackJsonp([0],[
 	  'tlpt': _appStore2.default,
 	  'tlpt_terminal': _store2.default,
 	  'tlpt_nodes': _nodeStore2.default,
-	  'tlpt_user': __webpack_require__(537),
-	  'tlpt_user_invite': __webpack_require__(538),
+	  'tlpt_user': __webpack_require__(538),
+	  'tlpt_user_invite': __webpack_require__(539),
 	  'tlpt_user_acl': _store4.default,
-	  'tlpt_sites': __webpack_require__(539),
+	  'tlpt_sites': __webpack_require__(540),
 	  'tlpt_status': _statusStore2.default,
-	  'tlpt_sessions_events': __webpack_require__(540),
-	  'tlpt_sessions_archived': __webpack_require__(541),
-	  'tlpt_sessions_active': __webpack_require__(542),
-	  'tlpt_sessions_filter': __webpack_require__(543),
-	  'tlpt_notifications': __webpack_require__(544)
+	  'tlpt_sessions_events': __webpack_require__(541),
+	  'tlpt_sessions_archived': __webpack_require__(542),
+	  'tlpt_sessions_active': __webpack_require__(543),
+	  'tlpt_sessions_filter': __webpack_require__(544),
+	  'tlpt_notifications': __webpack_require__(545)
 	});
 
 /***/ }),
-/* 535 */
+/* 536 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19109,7 +19174,7 @@ webpackJsonp([0],[
 	}
 
 /***/ }),
-/* 536 */
+/* 537 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19189,7 +19254,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 537 */
+/* 538 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19263,7 +19328,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 538 */
+/* 539 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19312,7 +19377,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 539 */
+/* 540 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19362,7 +19427,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 540 */
+/* 541 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19420,7 +19485,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 541 */
+/* 542 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19518,7 +19583,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 542 */
+/* 543 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19633,7 +19698,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 543 */
+/* 544 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19689,7 +19754,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 544 */
+/* 545 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19698,7 +19763,7 @@ webpackJsonp([0],[
 
 	var _nuclearJs = __webpack_require__(234);
 
-	var _actionTypes = __webpack_require__(545);
+	var _actionTypes = __webpack_require__(546);
 
 	/*
 	Copyright 2015 Gravitational, Inc.
@@ -19732,7 +19797,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 545 */
+/* 546 */
 /***/ (function(module, exports) {
 
 	'use strict';
