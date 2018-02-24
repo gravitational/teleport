@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -136,6 +137,8 @@ var (
 		"proxy_checks_host_keys": false,
 		"audit_table_name":       false,
 		"audit_sessions_uri":     false,
+		"pam":                    true,
+		"service_name":           false,
 	}
 )
 
@@ -647,6 +650,7 @@ type SSH struct {
 	Labels                map[string]string `yaml:"labels,omitempty"`
 	Commands              []CommandLabel    `yaml:"commands,omitempty"`
 	PermitUserEnvironment bool              `yaml:"permit_user_env,omitempty"`
+	PAM                   *PAM              `yaml:"pam,omitempty"`
 }
 
 // CommandLabel is `command` section of `ssh_service` in the config file
@@ -654,6 +658,28 @@ type CommandLabel struct {
 	Name    string        `yaml:"name"`
 	Command []string      `yaml:"command,flow"`
 	Period  time.Duration `yaml:"period"`
+}
+
+// PAM is configuration for Pluggable Authentication Modules (PAM).
+type PAM struct {
+	// Enabled controls if PAM will be used or not.
+	Enabled string `yaml:"enabled"`
+
+	// ServiceName is the name of the PAM policy to apply.
+	ServiceName string `yaml:"service_name"`
+}
+
+// Parse returns a parsed pam.Config.
+func (p *PAM) Parse() *pam.Config {
+	serviceName := p.ServiceName
+	if serviceName == "" {
+		serviceName = defaults.ServiceName
+	}
+
+	return &pam.Config{
+		Enabled:     isTrue(p.Enabled),
+		ServiceName: serviceName,
+	}
 }
 
 // Proxy is a `proxy_service` section of the config file:

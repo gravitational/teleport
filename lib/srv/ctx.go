@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -71,6 +72,9 @@ type Server interface {
 
 	// GetDataDir returns data directory of the server
 	GetDataDir() string
+
+	// GetPAM returns PAM configuration for this server.
+	GetPAM() (*pam.Config, error)
 }
 
 // IdentityContext holds all identity information associated with the user
@@ -208,6 +212,12 @@ func (c *ServerContext) ID() int {
 	return c.id
 }
 
+// SessionID returns the ID of the session in the context.
+func (c *ServerContext) SessionID() rsession.ID {
+	return c.session.id
+}
+
+// GetServer returns the underlying server which this context was created in.
 func (c *ServerContext) GetServer() Server {
 	return c.srv
 }

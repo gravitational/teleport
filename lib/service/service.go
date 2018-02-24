@@ -956,6 +956,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetCiphers(cfg.Ciphers),
 			regular.SetKEXAlgorithms(cfg.KEXAlgorithms),
 			regular.SetMACAlgorithms(cfg.MACAlgorithms),
+			regular.SetPAMConfig(cfg.SSH.PAM),
 		)
 		if err != nil {
 			return trace.Wrap(err)

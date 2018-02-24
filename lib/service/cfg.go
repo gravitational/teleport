@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -320,6 +321,9 @@ type SSHConfig struct {
 	Labels                map[string]string
 	CmdLabels             services.CommandLabels
 	PermitUserEnvironment bool
+
+	// PAM holds PAM configuration for Teleport.
+	PAM *pam.Config
 }
 
 // MakeDefaultConfig creates a new Config structure and populates it with defaults
@@ -376,4 +380,5 @@ func ApplyDefaults(cfg *Config) {
 	cfg.SSH.Addr = *defaults.SSHServerListenAddr()
 	cfg.SSH.Shell = defaults.DefaultShell
 	defaults.ConfigureLimiter(&cfg.SSH.Limiter)
+	cfg.SSH.PAM = &pam.Config{Enabled: false}
 }

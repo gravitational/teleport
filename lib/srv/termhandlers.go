@@ -18,7 +18,10 @@ package srv
 
 import (
 	"golang.org/x/crypto/ssh"
+	"io/ioutil"
 
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/pam"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/trace"
@@ -45,6 +48,32 @@ func (t *TermHandlers) HandleExec(ch ssh.Channel, req *ssh.Request, ctx *ServerC
 		return t.SessionRegistry.OpenSession(ch, req, ctx)
 	}
 
+	// If this code is running on a Teleport node and PAM is enabled, then open a
+	// PAM context.
+	var pamContext *pam.PAM
+	if ctx.srv.Component() == teleport.ComponentNode {
+		conf, err := t.SessionRegistry.srv.GetPAM()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if conf.Enabled == true {
+			// Note, stdout/stderr is discarded here, otherwise MOTD would be printed to
+			// the users screen during exec requests.
+			pamContext, err = pam.Open(&pam.Config{
+				ServiceName: conf.ServiceName,
+				Username:    ctx.Identity.Login,
+				Stdin:       ch,
+				Stderr:      ioutil.Discard,
+				Stdout:      ioutil.Discard,
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			ctx.Debugf("Opening PAM context for exec request %q.", execRequest.GetCommand())
+		}
+	}
+
 	// otherwise, regular execution
 	result, err := execRequest.Start(ch)
 	if err != nil {
@@ -65,6 +94,24 @@ func (t *TermHandlers) HandleExec(ch ssh.Channel, req *ssh.Request, ctx *ServerC
 		}
 		if result != nil {
 			ctx.SendExecResult(*result)
+		}
+
+		// If this code is running on a Teleport node and PAM is enabled, close the context.
+		if ctx.srv.Component() == teleport.ComponentNode {
+			conf, err := t.SessionRegistry.srv.GetPAM()
+			if err != nil {
+				ctx.Errorf("Unable to get PAM configuration from server: %v", err)
+				return
+			}
+
+			if conf.Enabled == true {
+				err = pamContext.Close()
+				if err != nil {
+					ctx.Errorf("Unable to close PAM context for exec request: %q: %v", execRequest.GetCommand(), err)
+					return
+				}
+				ctx.Debugf("Closing PAM context for exec request: %q.", execRequest.GetCommand())
+			}
 		}
 	}()
 

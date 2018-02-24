@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -462,6 +463,27 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	if fc.SSH.PermitUserEnvironment {
 		cfg.SSH.PermitUserEnvironment = true
+	}
+	if fc.SSH.PAM != nil {
+		cfg.SSH.PAM = fc.SSH.PAM.Parse()
+
+		// If PAM is enabled, make sure that Teleport was built with PAM support
+		// and the PAM library was found at runtime.
+		if cfg.SSH.PAM.Enabled {
+			if !pam.BuildHasPAM() {
+				errorMessage := "Unable to start Teleport: PAM was enabled in file configuration but this \n" +
+					"Teleport binary was built without PAM support. To continue either download a \n" +
+					"Teleport binary build with PAM support from https://gravitational.com/teleport \n" +
+					"or disable PAM in file configuration."
+				return trace.BadParameter(errorMessage)
+			}
+			if !pam.SystemHasPAM() {
+				errorMessage := "Unable to start Teleport: PAM was enabled in file configuration but this \n" +
+					"system does not have the needed PAM library installed. To continue either \n" +
+					"install libpam or disable PAM in file configuration."
+				return trace.BadParameter(errorMessage)
+			}
+		}
 	}
 
 	return nil

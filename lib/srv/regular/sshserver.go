@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
@@ -119,6 +120,9 @@ type Server struct {
 	// termHandlers are common terminal related handlers.
 	termHandlers *srv.TermHandlers
 
+	// pamConfig holds configuration for PAM.
+	pamConfig *pam.Config
+
 	// dataDir is a server local data directory
 	dataDir string
 }
@@ -148,6 +152,11 @@ func (s *Server) GetSessionServer() rsession.Service {
 		return rsession.NewDiscardSessionServer()
 	}
 	return s.sessionServer
+}
+
+// GetPAM returns the PAM configuration for this server.
+func (s *Server) GetPAM() (*pam.Config, error) {
+	return s.pamConfig, nil
 }
 
 // isAuditedAtProxy returns true if sessions are being recorded at the proxy
@@ -303,6 +312,13 @@ func SetKEXAlgorithms(kexAlgorithms []string) ServerOption {
 func SetMACAlgorithms(macAlgorithms []string) ServerOption {
 	return func(s *Server) error {
 		s.macAlgorithms = macAlgorithms
+		return nil
+	}
+}
+
+func SetPAMConfig(pamConfig *pam.Config) ServerOption {
+	return func(s *Server) error {
+		s.pamConfig = pamConfig
 		return nil
 	}
 }
@@ -703,6 +719,27 @@ func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, identityContext
 
 	ctx.Debugf("Opening direct-tcpip channel from %v to %v", srcAddr, dstAddr)
 
+	// If PAM is enabled check the account and open a session.
+	var pamContext *pam.PAM
+	if s.pamConfig.Enabled {
+		// Note, stdout/stderr is discarded here, otherwise MOTD would be printed to
+		// the users screen during port forwarding.
+		pamContext, err = pam.Open(&pam.Config{
+			ServiceName: s.pamConfig.ServiceName,
+			Username:    ctx.Identity.Login,
+			Stdin:       ch,
+			Stderr:      ioutil.Discard,
+			Stdout:      ioutil.Discard,
+		})
+		if err != nil {
+			ctx.Errorf("Unable to open PAM context for session: %v: %v", ctx.SessionID(), err)
+			ch.Stderr().Write([]byte(err.Error()))
+			return
+		}
+
+		ctx.Debugf("Opening PAM context for session %v", ctx.SessionID())
+	}
+
 	conn, err := net.Dial("tcp", dstAddr)
 	if err != nil {
 		ctx.Infof("Failed to connect to: %v: %v", dstAddr, err)
@@ -732,6 +769,16 @@ func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, identityContext
 		conn.Close()
 	}()
 	wg.Wait()
+
+	// If PAM is enabled, close the PAM context after port forwarding is complete.
+	if s.pamConfig.Enabled {
+		err = pamContext.Close()
+		if err != nil {
+			ctx.Errorf("Unable to close PAM context for session %v: %v.", ctx.SessionID(), err)
+			return
+		}
+		ctx.Debugf("Closing PAM context for session %v.", ctx.SessionID())
+	}
 }
 
 // handleTerminalResize is called by the web proxy via its SSH connection.
