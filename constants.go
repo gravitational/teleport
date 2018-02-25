@@ -118,6 +118,9 @@ const (
 	// ComponentKeyGen is the public/private keypair generator.
 	ComponentKeyGen = "keygen"
 
+	// ComponentSession is an active session.
+	ComponentSession = "session"
+
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
 

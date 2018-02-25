@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.4.2
+
+This release of Teleport focuses on bugfixes.
+
+#### Bug Fixes
+
+* Wait for copy to complete before propagating exit-status. [#1646](https://github.com/gravitational/teleport/issues/1646)
+* Don't discard initial bytes in HTTP CONNECT tunnel. [#1659](https://github.com/gravitational/teleport/issues/1659)
+* Pass caching key generator to services and use cache in recording proxy. [#1639](https://github.com/gravitational/teleport/issues/1639)
+* Only display "Change Password" in UI for local users. [#1669](https://github.com/gravitational/teleport/issues/1669)
+* Update Singup URL. [#1643](https://github.com/gravitational/teleport/issues/1643)
+* Improved Teleport version reporting. [#1538](https://github.com/gravitational/teleport/issues/1538)
+* Fixed regressions in terminal size handling and Trusted Clusters introduced in 2.4.1. [#1674](https://github.com/gravitational/teleport/issues/1674) [#1692](https://github.com/gravitational/teleport/issues/1692)
+
 ## 2.4.1
 
 This release is focused on fixing a few regressions in Teleport as well as

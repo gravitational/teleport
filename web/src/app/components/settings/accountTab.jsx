@@ -22,7 +22,7 @@ import { Auth2faTypeEnum } from 'app/services//enums';
 import * as Alerts from 'app/components/alerts';
 
 import { getters } from 'app/flux/user';
-import { changePassword, resetPasswordChangeAttempt, changePasswordWithU2f } from 'app/flux/user/actions';
+import * as actions from 'app/flux/settingsAccount/actions';
 import Layout from 'app/components/layout';
 
 const Separator = () => <div className="grv-settings-header-line-solid m-t-sm m-b-sm"/>;
@@ -87,6 +87,12 @@ class AccountTab extends React.Component {
       }                  
     }
   }
+  
+  onKeyPress = e => {        
+    if (e.key === 'Enter' && e.target.value) {              
+      this.onClick(e)
+    }        
+  }
 
   isValid() {
     const $form = $(this.refs.form);
@@ -121,7 +127,7 @@ class AccountTab extends React.Component {
         <h3 className="no-margins">Change Password</h3>
         <Separator />        
         <div className="m-b m-l-xl" style={{ maxWidth: "500px" }}>          
-          <form ref="form">
+          <form ref="form" onKeyPress={this.onKeyPress}>
             <div>          
               { isFailed && <Alerts.Danger className="m-b-sm"> {message} </Alerts.Danger> }
               { isSuccess && <Alerts.Success className="m-b-sm"> Your password has been changed </Alerts.Success> }
@@ -137,23 +143,23 @@ class AccountTab extends React.Component {
                   onChange={e => this.setState({
                     oldPass: e.target.value
                   })}
-                  className="form-control required"
-                  placeholder="" />
+                  className="form-control required"/>
               </div>
             </Layout.Flex>
-            {isOtpEnabled && <Layout.Flex dir="row" className="m-t-sm">
-              <Label text="2nd factor token:" />
-              <div style={{ flex: "1" }}>
-                <input autoComplete="off"
-                  style={{width: "100px"}}  
-                  value={this.state.token}
-                  onChange={e => this.setState({
-                    'token': e.target.value
-                  })}
-                  className="form-control required" name="token"
-                />
-              </div>
-            </Layout.Flex>
+            {isOtpEnabled &&
+              <Layout.Flex dir="row" className="m-t-sm">
+                <Label text="2nd factor token:" />
+                <div style={{ flex: "1" }}>
+                  <input autoComplete="off"
+                    style={{width: "100px"}}  
+                    value={this.state.token}
+                    onChange={e => this.setState({
+                      'token': e.target.value
+                    })}
+                    className="form-control required" name="token"
+                  />
+                </div>
+              </Layout.Flex>
             }  
             <Layout.Flex dir="row" className="m-t-lg">
               <Label text="New Password:" />
@@ -201,9 +207,9 @@ function mapFluxToProps() {
 function mapStateToProps() {
   return {
     auth2faType: cfg.getAuth2faType(),
-    onChangePass: changePassword,
-    onChangePassWithU2f: changePasswordWithU2f,
-    onDestory: resetPasswordChangeAttempt
+    onChangePass: actions.changePassword,
+    onChangePassWithU2f: actions.changePasswordWithU2f,
+    onDestory: actions.resetPasswordChangeAttempt
   }
 }
 

@@ -201,7 +201,8 @@ func (s *AuthServer) CreateUserWithOTP(token string, password string, otpToken s
 
 	err = s.CheckOTP(tokenData.User.Name, otpToken)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		log.Debugf("failed to validate a token: %v", err)
+		return nil, trace.AccessDenied("failed to validate a token")
 	}
 
 	err = s.UpsertPassword(tokenData.User.Name, []byte(password))

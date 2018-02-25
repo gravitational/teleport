@@ -21,6 +21,8 @@ type ReverseTunnel interface {
 	Resource
 	// GetClusterName returns name of the cluster
 	GetClusterName() string
+	// SetClusterName sets cluster name
+	SetClusterName(name string)
 	// GetDialAddrs returns list of dial addresses for this cluster
 	GetDialAddrs() []string
 	// Check checks tunnel for errors
@@ -112,6 +114,11 @@ func (r *ReverseTunnelV2) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// SetClusterName sets name of a cluster
+func (r *ReverseTunnelV2) SetClusterName(name string) {
+	r.Spec.ClusterName = name
 }
 
 // GetClusterName returns name of the cluster

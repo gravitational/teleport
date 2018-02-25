@@ -76,33 +76,6 @@ const actions = {
     session.logout();
   },
 
-  changePasswordWithU2f(oldPsw, newPsw) {
-    const promise = auth.changePasswordWithU2f(oldPsw, newPsw);
-    actions._handleChangePasswordPromise(promise);    
-  },
-
-  changePassword(oldPass, newPass, token){        
-    const promise = auth.changePassword(oldPass, newPass, token);
-    actions._handleChangePasswordPromise(promise);    
-  },
-
-  resetPasswordChangeAttempt() {
-    status.changePasswordStatus.clear();    
-  },
-
-  _handleChangePasswordPromise(promise) {
-    status.changePasswordStatus.start();    
-    return promise
-      .done(() => {                
-        status.changePasswordStatus.success();        
-      })
-      .fail(err => {
-        const msg = api.getErrorText(err);        
-        logger.error('change password', err);
-        status.changePasswordStatus.fail(msg);        
-      })        
-  },
-
   _handleAcceptInvitePromise(promise) {
     status.signupStatus.start();    
     return promise

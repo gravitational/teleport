@@ -353,7 +353,10 @@ func New(addr utils.NetAddr,
 		component = teleport.ComponentNode
 	}
 
-	s.reg = srv.NewSessionRegistry(s)
+	s.reg, err = srv.NewSessionRegistry(s)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// add in common auth handlers
 	s.authHandlers = &srv.AuthHandlers{
