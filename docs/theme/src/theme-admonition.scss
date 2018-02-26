@@ -1,11 +1,15 @@
+
+
 .admonition {
   border-radius: 4px;
+  background: white !important;
+  box-shadow: 0px 2px 1px rgba(0, 0, 0, .3) !important;
 
   p.admonition-title {
     border-top-left-radius: 4px;
     border-top-right-radius: 4px;
   }
-  
+
   code {
     color: $color-font-2;
     border: 1px solid #00000033;
@@ -14,7 +18,8 @@
 
   &.warning {
     .admonition-title {
-      background-color: $color-font-1;
+      background-color: red !important; //$color-font-1;
+
     }
   }
 
@@ -24,10 +29,11 @@
       background-color: $color-bkg-14;
     }
   }
-  
+
   &.tip {
     background-color: $color-bkg-4;
-  
+
+
     p.admonition-title {
       background-color: $color-bkg-3;
     }

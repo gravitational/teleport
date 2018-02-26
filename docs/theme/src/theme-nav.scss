@@ -29,7 +29,7 @@ div[role=navigation] hr {
 @media screen and (min-width: 1400px) {
   .wy-nav-content-wrap {
       background: #fcfcfc;
-  }  
+  }
 }
 
 /* Navigation Search Overrides
@@ -56,7 +56,7 @@ div[role=navigation] hr {
     border-color: $color-border-2;
     box-shadow: none;
   }
-  
+
   img {
     display: block;
     margin: auto;
@@ -69,7 +69,7 @@ div[role=navigation] hr {
 
   >a, .wy-dropdown>a {
     color: inherit;
-    font-size: 100%;    
+    font-size: 100%;
     display: inline-block;
     padding: 4px 6px;
     margin-bottom: 0;
@@ -77,11 +77,11 @@ div[role=navigation] hr {
     &:hover {
       background: $color-bkg-6;
     }
-  }    
+  }
 }
 
 .wy-menu-vertical {
-  
+
   li ul {
     display: inherit;
   }
@@ -97,13 +97,13 @@ div[role=navigation] hr {
     }
   }
 
-  ul {    
+  ul {
     margin-bottom: 0;
     display: block;
     background: $color-bkg-5;
 
     /* top-level menu */
-    
+
     &.subnav span {
       padding: 12px 15px;
       color: $color-bkg-5;
@@ -115,10 +115,10 @@ div[role=navigation] hr {
     li {
       border-top: 1px solid $color-border-4;
 
-  
+
       ul {
         margin-bottom: 0;
-        
+
         li a {
           margin-bottom: 0;
           color: $color-font-4;
@@ -135,7 +135,7 @@ div[role=navigation] hr {
 
 
       &.toctree-l1 {
-        
+
         &.current > a:after {
           font-family: "FontAwesome";
           content: "\f105";
@@ -154,7 +154,7 @@ div[role=navigation] hr {
           }
         }
       }
-          
+
       &.divide-top {
         border-top: solid 1px $color-border-3;
       }
@@ -167,24 +167,24 @@ div[role=navigation] hr {
         a {
           border-right: none;
           padding-left: $third_level_padding;
-          
+
           &.current {
             color: $color-font-4;
             font-weight: bold;
-            position: relative;            
+            position: relative;
             border: none;
             border-bottom: solid 1px $color-border-4;
-            padding: 8px 15px 8px $second_level_padding;          
+            padding: 8px 15px 8px $second_level_padding;
           }
         }
-                
+
         ul {
           display: block
         }
       }
-          
+
       &.on a {
-        color: $color-font-4;        
+        color: $color-font-4;
         position: relative;
         background: $color-bkg-10;
         border: none;
@@ -195,7 +195,7 @@ div[role=navigation] hr {
           background: $color-bkg-10;
         }
       }
-      
+
       /* 3rd level */
       &.toctree-l4 a {
         padding-left: 3.5em;
@@ -203,10 +203,10 @@ div[role=navigation] hr {
       .toctree-l1.current ul {
         background-color: $color-bkg-11;
       }
-          
+
       &.toctree-l2.current>a {
         background: $color-bkg-5;
-      }      
+      }
     }
 
     a {
@@ -217,11 +217,11 @@ div[role=navigation] hr {
       }
     }
   }
-  
+
   .local-toc li ul {
     display: block
   }
-          
+
   a {
     display: inline-block;
     line-height: 28px;
@@ -239,5 +239,5 @@ div[role=navigation] hr {
       cursor: pointer;
       color: #fff
     }
-  }    
+  }
 }

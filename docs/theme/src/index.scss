@@ -4,7 +4,7 @@
 @import "layout/grid";
 @import "layout/layout";
 
-// overrides 
+// overrides
 @import "theme";
 @import "theme-nav";
 @import "theme-admonition";
@@ -41,7 +41,7 @@ img[src$="grv-image-center-lg"] {
   }
 }
 
-.grv-footer {  
+.grv-footer {
   background-color: $color-bkg-1;
   max-width: 1020px;
   color: $color-font-9;
@@ -50,23 +50,23 @@ img[src$="grv-image-center-lg"] {
   font-size: 13px;
   margin-bottom: 0 !important;
 
-  max-width: 1000px;  
+  max-width: 1000px;
   flex-wrap: wrap;
-  
-  .footer-item {        
+
+  .footer-item {
     padding: 15px 15px 10px 15px;
-    border-right: 1px solid $color-border-5;    
+    border-right: 1px solid $color-border-5;
     margin: 0 !important;
     min-height: 170px;
     min-width: 200px;
-    
+
     @include respond-to('mobile') {
       width: 100%;
       border: none;
       border-bottom: 1px solid $color-border-5;
     }
 
-    &:nth-child(3) {      
+    &:nth-child(3) {
       background: url(../img/bridge.svg) no-repeat center;
       background-size: contain;
     }
@@ -74,18 +74,18 @@ img[src$="grv-image-center-lg"] {
     &:last-child {
       border-right: 0;
     }
-          
+
     p {
       line-height: 25px;
       font-size: 13px;
       margin: 0;
     }
-              
+
     img.footer-talk {
       width: 70px;
-      position: relative;        
+      position: relative;
       opacity: .3;
-    }  
+    }
 
-  }  
+  }
 }
