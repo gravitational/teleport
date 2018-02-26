@@ -14,7 +14,7 @@ TELEPORTSRCE = $(shell find tool/teleport -type f -name '*.go')
 .PHONY: all
 all:
 	$(MAKE) -C ..
-	go install $(BUILDFLAGS) ./lib/...
+	go install $(BUILDFLAGS) ./lib/... ./tool/...
 	make -j2 -s $(BUILDDIR)/tctl $(BUILDDIR)/teleport
 
 $(BUILDDIR)/tctl: $(LIBSE) $(OSSLIBS) $(TCTLSRC#)
