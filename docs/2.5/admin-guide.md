@@ -378,16 +378,18 @@ proxy_service:
 Teleport uses the concept of "authentication connectors" to authenticate users when
 they execute `tsh login` command. There are three types of authentication connectors:
 
-**Local**
+### Local Connector
 
 Local authentication is used to authenticate against a local Teleport user database. This database
 is managed by `tctl users` command. Teleport also supports second factor authentication
-(2FA) for the local connector. There are two types of 2FA:
+(2FA) for the local connector. There are three possible values (types) of 2FA:
 
-  * [TOTP](https://en.wikipedia.org/wiki/Time-based_One-time_Password_Algorithm)
-    is the default. You can use [Google Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator) or
+  * `otp` is the default. It implements [TOTP](https://en.wikipedia.org/wiki/Time-based_One-time_Password_Algorithm) 
+     standard. You can use [Google Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator) or
     [Authy](https://www.authy.com/) or any other TOTP client.
-  * [U2F](https://en.wikipedia.org/wiki/Universal_2nd_Factor) is the second.
+  * `u2f` implements [U2F](https://en.wikipedia.org/wiki/Universal_2nd_Factor) standard for utilizing hardware (USB)
+    keys for second factor.
+  * `off` turns off second factor authentication.
 
 Here is an example of this setting in the `teleport.yaml`:
 
@@ -398,7 +400,7 @@ auth_service:
     second_factor: u2f
 ```
 
-**Github OAuth 2.0**
+### Github OAuth 2.0 Connector
 
 This connector implements Github OAuth 2.0 authentication flow. Please refer
 to Github documentation on [Creating an OAuth App](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/)
@@ -414,7 +416,7 @@ auth_service:
 
 See [Github OAuth 2.0](#github-oauth-20) for details on how to configure it.
 
-**SAML**
+### SAML
 
 This connector type implements SAML authentication. It can be configured
 against any external identity manager like Okta or Auth0. This feature is
@@ -428,10 +430,10 @@ auth_service:
     type: saml
 ```
 
-**OIDC**
+### OIDC
 
-Teleport implements OpenID Connect (OIDC) authentication, which
-is similar to SAML in principle. This feature is only available for Teleport Enterprise.
+Teleport implements OpenID Connect (OIDC) authentication, which is similar to
+SAML in principle. This feature is only available for Teleport Enterprise.
 
 Here is an example of this setting in the `teleport.yaml`:
 
@@ -442,7 +444,7 @@ auth_service:
 ```
 
 
-**FIDO U2F**
+### FIDO U2F
 
 Teleport supports [FIDO U2F](https://www.yubico.com/about/background/fido/)
 hardware keys as a second authentication factor. To start using U2F:
