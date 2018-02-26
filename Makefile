@@ -43,8 +43,8 @@ TELEPORTVENDOR = $(shell find vendor -type f -name '*.go')
 #            a web UI.
 .PHONY: all
 all: $(VERSRC)
-	go install $(BUILDFLAGS) ./lib/...
-	$(MAKE) -s -j 4 $(BINARIES)
+	go install $(BUILDFLAGS) ./lib/... ./tool/...
+	$(MAKE) -s -j 3 $(BINARIES)
 
 $(BUILDDIR)/tctl: $(LIBS) $(TELEPORTSRC) $(TELEPORTVENDOR)
 	go build -o $(BUILDDIR)/tctl -i $(BUILDFLAGS) ./tool/tctl
