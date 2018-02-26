@@ -96,9 +96,9 @@ Teleport services listen on several ports. This table shows the default port num
 
 ## Configuration
 
-You should use a configuration file to configure the `teleport` daemon.
-But for simpler experimentation you can use command line flags to
-`teleport start` command. To see the list of flags:
+You should use a [configuration file](#configuration-file) to configure the `teleport` daemon. 
+But for simpler experimentation you can use command line flags to `teleport start`
+command. To see the list of flags:
 
 ```
 $ teleport start --help
@@ -344,6 +344,11 @@ proxy_service:
     # The HTTPS listen address to serve the Web UI and also to authenticate the
     # command line (CLI) users via password+HOTP
     web_listen_addr: 0.0.0.0:3080
+
+    # The DNS name the proxy server is accessible by cluster users. Defaults to 
+    # the proxy's hostname if not specified. It is highly recommended to set it
+    # to something meaningful when running multiple proxies behind a load balancer.
+    public_addr: teleport-proxy.example.com:3080
 
     # TLS certificate for the HTTPS connection. Configuring these properly is
     # critical for Teleport security.
