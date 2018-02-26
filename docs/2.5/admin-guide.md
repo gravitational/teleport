@@ -1461,6 +1461,74 @@ Also, here's the example of the IAM policy to grant access to DynamoDB:
 }
 ```
 
+## Upgrading Teleport
+
+Teleport is always a critical component of the infrastructure it runs on. This
+is why upgrading to a new version must be performed with caution. Teleport
+developers are committed to providing ease of upgrades, stability and standards
+compliance.
+
+However, Teleport is a much more capable system than a bare bones SSH server.
+It offers significant benefits on a cluster level and they add some complexity
+to to cluster upgrades. To ensure robust operation Teleport administrators must 
+follow the upgrade rules listed below.
+
+### Production Releases
+
+First of all, avoid running pre-releases (release candidates) in production
+environments. Teleport development team uses [Semantic Versioning](https://semver.org/) 
+which makes it easy to tell if a specific version is recommended for production use.
+
+### Component Compatibilitiy
+
+When running multiple binaries of Teleport within a cluster (nodes, proxies,
+clients, etc), the following rules apply:
+
+* Patch versions are always compatible, for example any 2.4.1 compoment will
+  work with any 2.4.3 component.
+* Other versions are always compatible with their **previous** release. This
+  means you must not attempt to upgrade from 2.3 straight to 2.5. You must
+  upgrade to 2.4 first.
+* Teleport clients (`tsh` for users and `tctl` for admins) sometimes cannot be
+  older than the auth or the proxy server. They will print an error if there's
+  incompatibility.
+
+### Upgrade Sequence
+
+When upgrading a single Teleport cluster:
+
+1. **Upgrade the auth server first**. The auth server keeps the cluster state and
+    if there are data format changes introduced in the new version this will
+    perform necessary migrations. 
+
+    !!! important "Important":
+        If several auth servers are running in HA configuration, for example in AWS
+        auto-scaling group, you have to shrink the group to **just one auth server** 
+        prior to performing an upgrade.
+
+2. Then, upgrade the proxy servers. The proxy servers are stateless and can be upgraded
+   in any sequence or at the same time.
+
+3. Finally, upgrade the SSH nodes in any sequence or at the same time.
+
+When upgrading multiple clusters:
+
+1. First, upgrade the main cluster i.e. the one whom other clusters trust.
+2. Upgrade trusted clutsers.
+
+### Daemon Restarts
+
+As covered in the [Teleport Daemon](#graceful-restarts) section, Teleport supports
+graceful restarts, i.e. to upgrade a host to a newer Teleport version, an administrator 
+must:
+
+1. Replace the Teleport binaries, usually `teleport` and `tctl`
+2. Execute `systemctl restart teleport`
+
+This will perform a graceful restart, i.e. the Teleport daemon will fork a new
+process to handle new incoming requests, leaving the old daemon process running
+until existing clients disconnect.
+
 ## License File
 
 Paid Teleport subscription plans such as Pro, Business and Enterprise require
