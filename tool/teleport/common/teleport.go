@@ -95,7 +95,7 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 		fmt.Sprintf("Address of the auth server [%s]", defaults.AuthConnectAddr().Addr)).
 		StringVar(&ccf.AuthServerAddr)
 	start.Flag("token",
-		"One-time token to register with an auth server [none]").
+		"Invitation token to register with an auth server [none]").
 		StringVar(&ccf.AuthToken)
 	start.Flag("nodename",
 		"Name of this node, defaults to hostname").
