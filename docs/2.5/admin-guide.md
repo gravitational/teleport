@@ -82,6 +82,23 @@ ExecStart=/usr/local/bin/teleport start --config=/etc/teleport.yaml
 WantedBy=multi-user.target
 ```
 
+### Graceful Restarts
+
+If using the systemd service unit file above, executing `systemctl restart teleport` 
+will perform a graceful restart, i.e. the Teleport daemon will fork a new
+process to handle new incoming requests, leaving the old daemon process running
+until existing clients disconnect.
+
+You can also perform a less automatic restarts/upgrades by sending `kill` signals
+to a Teleport daemon manually. 
+
+| Signal        | Teleport Daemon Behavior
+|---------------|---------------------------------------
+| `USR1`        | Dumps diagnostics/debugging information into syslog.
+| `TERM`, `INT`, `KILL` | Immediate non-graceful shutdown. All existing connections will be dropped.
+| `USR2`        | Forks a new Teleport daemon to serve new connections.
+| `HUP`         | Forks a new Teleport daemon to serve new connections **and** initiates the graceful shutdown of the existing process when there are no more clients connected to it.
+
 ### Ports
 
 Teleport services listen on several ports. This table shows the default port numbers.
@@ -96,9 +113,9 @@ Teleport services listen on several ports. This table shows the default port num
 
 ## Configuration
 
-You should use a configuration file to configure the `teleport` daemon.
-But for simpler experimentation you can use command line flags to
-`teleport start` command. To see the list of flags:
+You should use a [configuration file](#configuration-file) to configure the `teleport` daemon. 
+But for simpler experimentation you can use command line flags to `teleport start`
+command. To see the list of flags:
 
 ```
 $ teleport start --help
@@ -345,6 +362,11 @@ proxy_service:
     # command line (CLI) users via password+HOTP
     web_listen_addr: 0.0.0.0:3080
 
+    # The DNS name the proxy server is accessible by cluster users. Defaults to 
+    # the proxy's hostname if not specified. It is highly recommended to set it
+    # to something meaningful when running multiple proxies behind a load balancer.
+    public_addr: teleport-proxy.example.com:3080
+
     # TLS certificate for the HTTPS connection. Configuring these properly is
     # critical for Teleport security.
     https_key_file: /var/lib/teleport/webproxy_key.pem
@@ -356,16 +378,18 @@ proxy_service:
 Teleport uses the concept of "authentication connectors" to authenticate users when
 they execute `tsh login` command. There are three types of authentication connectors:
 
-**Local**
+### Local Connector
 
 Local authentication is used to authenticate against a local Teleport user database. This database
 is managed by `tctl users` command. Teleport also supports second factor authentication
-(2FA) for the local connector. There are two types of 2FA:
+(2FA) for the local connector. There are three possible values (types) of 2FA:
 
-  * [TOTP](https://en.wikipedia.org/wiki/Time-based_One-time_Password_Algorithm)
-    is the default. You can use [Google Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator) or
+  * `otp` is the default. It implements [TOTP](https://en.wikipedia.org/wiki/Time-based_One-time_Password_Algorithm) 
+     standard. You can use [Google Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator) or
     [Authy](https://www.authy.com/) or any other TOTP client.
-  * [U2F](https://en.wikipedia.org/wiki/Universal_2nd_Factor) is the second.
+  * `u2f` implements [U2F](https://en.wikipedia.org/wiki/Universal_2nd_Factor) standard for utilizing hardware (USB)
+    keys for second factor.
+  * `off` turns off second factor authentication.
 
 Here is an example of this setting in the `teleport.yaml`:
 
@@ -376,7 +400,7 @@ auth_service:
     second_factor: u2f
 ```
 
-**Github OAuth 2.0**
+### Github OAuth 2.0 Connector
 
 This connector implements Github OAuth 2.0 authentication flow. Please refer
 to Github documentation on [Creating an OAuth App](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/)
@@ -392,7 +416,7 @@ auth_service:
 
 See [Github OAuth 2.0](#github-oauth-20) for details on how to configure it.
 
-**SAML**
+### SAML
 
 This connector type implements SAML authentication. It can be configured
 against any external identity manager like Okta or Auth0. This feature is
@@ -406,10 +430,10 @@ auth_service:
     type: saml
 ```
 
-**OIDC**
+### OIDC
 
-Teleport implements OpenID Connect (OIDC) authentication, which
-is similar to SAML in principle. This feature is only available for Teleport Enterprise.
+Teleport implements OpenID Connect (OIDC) authentication, which is similar to
+SAML in principle. This feature is only available for Teleport Enterprise.
 
 Here is an example of this setting in the `teleport.yaml`:
 
@@ -420,7 +444,7 @@ auth_service:
 ```
 
 
-**FIDO U2F**
+### FIDO U2F
 
 Teleport supports [FIDO U2F](https://www.yubico.com/about/background/fido/)
 hardware keys as a second authentication factor. To start using U2F:
@@ -560,49 +584,44 @@ will be finalized and documented in the future versions. But fields like
 
 ## Adding Nodes to the Cluster
 
-Gravitational Teleport is a "clustered" SSH manager, meaning it only allows SSH
-access to nodes that had been previously granted cluster membership.
+Gravitational Teleport is a "clustered" SSH system, meaning it only allows SSH
+access to nodes (servers) that had been previously granted cluster membership.
 
-A cluster membership means that every node in a cluster has its own host
-certificate signed by the cluster's auth server.
-
-!!! tip "Note":
-	If interoperability with
-	OpenSSH is required, make sure the node name and DNS name match because OpenSSH
-	clients validate the DNS name against the node name presented on the certificate
-	when connecting to a Teleport node.
-
-A new Teleport node needs an "invite token" to join a cluster. An invite token
-also defines which role a new node can assume within a cluster: `auth`, `proxy` or
-`node`.
+A cluster membership means that a node receives its own host certificate signed 
+by the cluster's auth server. To receive a host certificate upon joining a cluster,
+a new Teleoprt host must present an "invite token". An invite token also defines 
+which role a new host can assume within a cluster: `auth`, `proxy` or `node`.
 
 There are two ways to create invitation tokens:
 
-* Static Tokens
-* Dynamic, Short-lived Tokens
+* **Static Tokens** are easy to use and somewhat less secure.
+* **Dynamic Tokens** are more secure but require more planning.
 
 ### Static Tokens
 
-You can pick your own tokens and add them to the auth server's config file:
+Static tokens are defined ahead of time by an administrator and stored 
+in the auth server's config file:
 
 ```bash
 # Config section in `/etc/teleport/teleport.yaml` file for the auth server
 auth_service:
     enabled: true
-    #
-    # statically assigned token: obviously we recommend a much harder to guess
-    # value than `xxxxx`, consider generating tokens using a tool like pwgen
-    #
     tokens:
-    - "proxy,node:xxxxxx"
+    # This static token allows new hosts to join the cluster as "proxy" or "node"
+    - "proxy,node:secret-token-value"
+    # A token can also be stored in a file. In this example the token for adding
+    # new auth servers is stored in /path/to/tokenfile
+    - "auth:/path/to/tokenfile"
 ```
 
-Now you can start a new Teleport node by setting its invitation token via `--token`
-flag to `xxxxxx`. This node will join the cluster as a regular node but also
-as a proxy server:
+Now, on a new host:
 
 ```bash
-$ teleport start --roles=node,proxy --token=xxxxx --auth-server=10.0.10.5
+# adding a new regular SSH node to the cluster:
+$ teleport start --roles=node --token=secret-token-value --auth-server=10.0.10.5
+
+# adding a new proxy service on the cluster:
+$ teleport start --roles=proxy --token=secret-token-value --auth-server=10.0.10.5
 ```
 
 ### Short-lived Tokens
@@ -611,19 +630,19 @@ A more secure way to add nodes to a cluster is to generate tokens as they are
 needed. Such token can be used multiple times until its time to live (TTL)
 expires.
 
-Use `tctl` tool to invite a new node into the cluster with `node` and `auth`
-roles:
+Use `tctl` tool to register a new invitation token, or it can also generate a new token
+for you). In the following example a new token is created with a TTL of 5 minutes:
+
+```bash
+$ tctl nodes add --ttl=5m --roles=node,proxy --token=secret-value
+The invite token: secret-value
+```
+
+If `--token` is not provided, `tctl` will generate one:
 
 ```bash
 $ tctl nodes add --ttl=5m --roles=node,proxy
 The invite token: 24be3e582c3805621658225f8c841d2002
-Run this on the new node to join the cluster:
-> teleport start --roles=node,proxy --token=24be3e582c3805621658225f8c841d2002 --auth-server=192.168.1.8:3025
-
-Please note:
-  - This invitation token will expire in 5 minutes
-  - 192.168.1.8:3025 must be reachable from the new node, see --advertise-ip server flag
-  - For tokens of type "trustedcluster", tctl needs to be used to create a TrustedCluster resource. See the Admin Guide for more details.
 ```
 
 As new nodes come online, they start sending ping requests every few seconds
@@ -1443,6 +1462,74 @@ Also, here's the example of the IAM policy to grant access to DynamoDB:
     ]
 }
 ```
+
+## Upgrading Teleport
+
+Teleport is always a critical component of the infrastructure it runs on. This
+is why upgrading to a new version must be performed with caution. Teleport
+developers are committed to providing ease of upgrades, stability and standards
+compliance.
+
+However, Teleport is a much more capable system than a bare bones SSH server.
+It offers significant benefits on a cluster level and they add some complexity
+to to cluster upgrades. To ensure robust operation Teleport administrators must 
+follow the upgrade rules listed below.
+
+### Production Releases
+
+First of all, avoid running pre-releases (release candidates) in production
+environments. Teleport development team uses [Semantic Versioning](https://semver.org/) 
+which makes it easy to tell if a specific version is recommended for production use.
+
+### Component Compatibilitiy
+
+When running multiple binaries of Teleport within a cluster (nodes, proxies,
+clients, etc), the following rules apply:
+
+* Patch versions are always compatible, for example any 2.4.1 compoment will
+  work with any 2.4.3 component.
+* Other versions are always compatible with their **previous** release. This
+  means you must not attempt to upgrade from 2.3 straight to 2.5. You must
+  upgrade to 2.4 first.
+* Teleport clients (`tsh` for users and `tctl` for admins) sometimes cannot be
+  older than the auth or the proxy server. They will print an error if there's
+  incompatibility.
+
+### Upgrade Sequence
+
+When upgrading a single Teleport cluster:
+
+1. **Upgrade the auth server first**. The auth server keeps the cluster state and
+    if there are data format changes introduced in the new version this will
+    perform necessary migrations. 
+
+    !!! important "Important":
+        If several auth servers are running in HA configuration, for example in AWS
+        auto-scaling group, you have to shrink the group to **just one auth server** 
+        prior to performing an upgrade.
+
+2. Then, upgrade the proxy servers. The proxy servers are stateless and can be upgraded
+   in any sequence or at the same time.
+
+3. Finally, upgrade the SSH nodes in any sequence or at the same time.
+
+When upgrading multiple clusters:
+
+1. First, upgrade the main cluster i.e. the one whom other clusters trust.
+2. Upgrade trusted clutsers.
+
+### Daemon Restarts
+
+As covered in the [Teleport Daemon](#graceful-restarts) section, Teleport supports
+graceful restarts, i.e. to upgrade a host to a newer Teleport version, an administrator 
+must:
+
+1. Replace the Teleport binaries, usually `teleport` and `tctl`
+2. Execute `systemctl restart teleport`
+
+This will perform a graceful restart, i.e. the Teleport daemon will fork a new
+process to handle new incoming requests, leaving the old daemon process running
+until existing clients disconnect.
 
 ## License File
 

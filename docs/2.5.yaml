@@ -1,0 +1,33 @@
+site_name: Gravitational Teleport
+site_url: https://gravitational.com/teleport
+repo_url: https://github.com/gravitational/teleport
+site_description: SSH infrastructure for Clusters and Teams
+site_author: Gravitational Inc
+copyright: Gravitational Inc, 2016-17
+
+# output directory:
+site_dir: ../build/docs/2.5
+docs_dir: "2.5"
+
+theme: readthedocs
+theme_dir: theme
+markdown_extensions:
+  - markdown_include.include
+  - admonition
+  - def_list
+  - footnotes
+extra_css: []
+extra_javascript: []
+extra:    
+    version: 2.5
+pages:
+    - Documentation:
+        - QuickStart Guide: quickstart.md
+        - Architecture: architecture.md
+        - User Manual: user-manual.md
+        - Admin Manual: admin-guide.md
+        - FAQ: faq.md
+    - Teleport Enterprise:
+        - Introduction: enterprise.md
+        - SAML Authentication: saml.md
+        - OIDC Authentication: oidc.md
