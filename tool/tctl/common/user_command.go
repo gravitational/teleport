@@ -113,7 +113,7 @@ func (u *UserCommand) Add(client auth.ClientI) error {
 }
 
 func (u *UserCommand) PrintSignupURL(client auth.ClientI, token string, ttl time.Duration) {
-	url := web.CreateSignupLink(token)
+	url := web.CreateSignupLink(client, token)
 
 	fmt.Printf("Signup token has been created and is valid for %v hours. Share this URL with the user:\n%v\n\n",
 		int(ttl/time.Hour), url)
