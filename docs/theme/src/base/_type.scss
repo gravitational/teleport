@@ -7,29 +7,29 @@ body {
 h1,
 h2 {
   color: $color-font-4;
-  font: normal 26px/36px $font-family;  
+  font: normal 26px/36px $font-family;
 }
 
 h1 {
-  font: normal 35px/58px $font-family;  
+  font: normal 35px/58px $font-family;
   line-height: 58px;
   margin-bottom: 10px;
 }
 
 h3 {
-  font: normal 22px/36px $font-family;  
+  font: normal 22px/36px $font-family;
   color: $color-font-4;
-  margin: 0 auto 20px auto;  
+  margin: 0 auto 20px auto;
   margin-bottom: 10px;
 }
 
 h4 {
-  font: normal 13px/22px $font-family;      
+  font: normal 13px/22px $font-family;
   color: $color-font-1;
   font-weight: bold;
   letter-spacing: 1px;
   margin-bottom: 10px;
-  text-transform: uppercase;  
+  text-transform: uppercase;
 }
 
 a {
@@ -53,7 +53,7 @@ a {
 pre {
   font: 14px monospace;
   line-height: 1.5;
-  margin-bottom: 1.5em
+  margin-bottom: 1.5em;
 }
 
 code {
@@ -64,4 +64,5 @@ code {
   -webkit-border-radius: 4px;
   border-radius: 4px;
   margin-bottom: 35px;
+  box-shadow: 0px 2px 1px rgba(0, 0, 0, .3) !important;
 }

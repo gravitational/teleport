@@ -29,7 +29,7 @@ h3 {
 
 h4 {
   font: normal 13px/22px "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif;
-  color: #ffa258;
+  color: #4A90E2;
   font-weight: bold;
   letter-spacing: 1px;
   margin-bottom: 10px;
@@ -55,12 +55,13 @@ pre {
 
 code {
   font-size: 14px;
-  background: #f1f1f1;
+  background: #ffffff;
   padding: 2px 4px;
   -moz-border-radius: 4px;
   -webkit-border-radius: 4px;
   border-radius: 4px;
-  margin-bottom: 35px; }
+  margin-bottom: 35px;
+  box-shadow: 0px 2px 1px rgba(0, 0, 0, 0.3) !important; }
 
 /*
 * FLEX BOX GRID
@@ -5179,7 +5180,7 @@ textarea {
   overflow: hidden;
   white-space: normal; }
 .rst-content blockquote {
-  border-left: 1px solid #ffa258;
+  border-left: 1px solid #4A90E2;
   padding-left: 5px;
   padding-right: 20px; }
   .rst-content blockquote p {
@@ -5399,24 +5400,26 @@ div[role=navigation] hr {
     color: #fff; }
 
 .admonition {
-  border-radius: 4px; }
+  border-radius: 4px;
+  background: white !important;
+  box-shadow: 0px 2px 1px rgba(0, 0, 0, 0.3) !important; }
   .admonition p.admonition-title {
     border-top-left-radius: 4px;
     border-top-right-radius: 4px; }
   .admonition code {
     color: #404040;
     border: 1px solid #00000033;
-    background: #ffffffb3; }
+    background: #ffffff; }
   .admonition.warning .admonition-title {
-    background-color: #ffa258; }
+    background-color: red !important; }
   .admonition.danger {
-    color: #c57317; }
+    color: #404040; }
     .admonition.danger .admonition-title {
-      background-color: #e91e63; }
+      background-color: #D0021B; }
   .admonition.tip {
-    background-color: #e1eff2; }
+    background-color: #FFFFFF; }
     .admonition.tip p.admonition-title {
-      background-color: #6eabb6; }
+      background-color: #EB572F; }
 
 img[src$="grv-image-center-md"] {
   max-width: 500px;
@@ -5439,7 +5442,7 @@ img[src$="grv-image-center-lg"] {
 .grv-nav-versions .grv-ver {
   padding-left: 5px; }
 .grv-nav-versions .grv-current-ver {
-  color: #ffa258;
+  color: #4A90E2;
   display: inline-block;
   padding: 5px; }
 
