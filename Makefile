@@ -18,6 +18,7 @@ BINDIR ?= /usr/local/bin
 DATADIR ?= /usr/local/share/teleport
 ADDFLAGS ?=
 PWD ?= `pwd`
+GOCACHEDIR ?= `go env GOCACHE`
 TELEPORT_DEBUG ?= no
 GITTAG=v$(VERSION)
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s'
@@ -42,8 +43,8 @@ TELEPORTVENDOR = $(shell find vendor -type f -name '*.go')
 #            a web UI.
 .PHONY: all
 all: $(VERSRC)
-	go install $(BUILDFLAGS) ./lib/...
-	$(MAKE) -s -j 4 $(BINARIES)
+	go install $(BUILDFLAGS) ./lib/... ./tool/...
+	$(MAKE) -s -j 3 $(BINARIES)
 
 $(BUILDDIR)/tctl: $(LIBS) $(TELEPORTSRC) $(TELEPORTVENDOR)
 	go build -o $(BUILDDIR)/tctl -i $(BUILDFLAGS) ./tool/tctl
@@ -69,6 +70,7 @@ full: all $(BUILDDIR)/webassets.zip
 .PHONY: clean
 clean:
 	rm -rf $(BUILDDIR)
+	rm -rf $(GOCACHEDIR)
 	rm -rf teleport
 	rm -rf *.gz
 	rm -f gitref.go
