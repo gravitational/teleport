@@ -111,7 +111,7 @@ Flags:
       --advertise-ip     IP to advertise to clients if running behind NAT
   -l, --listen-ip        IP address to bind to [0.0.0.0]
       --auth-server      Address of the auth server [127.0.0.1:3025]
-      --token            One-time token to register with an auth server [none]
+      --token            Invitation token to join a cluster [none]
       --nodename         Name of this node, defaults to hostname
   -c, --config           Path to a configuration file [/etc/teleport.yaml]
       --labels           List of labels for this node
@@ -173,7 +173,7 @@ teleport:
     # authentication (if using the default BoltDB back-end)
     data_dir: /var/lib/teleport
 
-    # one-time invitation token used to join a cluster. it is not used on 
+    # Invitation token used to join a cluster. it is not used on 
     # subsequent starts
     auth_token: xxxx-token-xxxx
 
