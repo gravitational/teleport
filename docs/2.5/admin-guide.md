@@ -82,6 +82,23 @@ ExecStart=/usr/local/bin/teleport start --config=/etc/teleport.yaml
 WantedBy=multi-user.target
 ```
 
+### Graceful Restarts
+
+If using the systemd service unit file above, executing `systemctl restart teleport` 
+will perform a graceful restart, i.e. the Teleport daemon will fork a new
+process to handle new incoming requests, leaving the old daemon process running
+until existing clients disconnect.
+
+You can also perform a less automatic restarts/upgrades by sending `kill` signals
+to a Teleport daemon manually. 
+
+| Signal        | Teleport Daemon Behavior
+|---------------|---------------------------------------
+| `USR1`        | Dumps diagnostics/debugging information into syslog.
+| `TERM`, `INT`, `KILL` | Immediate non-graceful shutdown. All existing connections will be dropped.
+| `USR2`        | Forks a new Teleport daemon to serve new connections.
+| `HUP`         | Forks a new Teleport daemon to serve new connections **and** initiates the graceful shutdown of the existing process when there are no more clients connected to it.
+
 ### Ports
 
 Teleport services listen on several ports. This table shows the default port numbers.
