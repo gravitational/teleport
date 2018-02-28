@@ -1,9 +1,9 @@
 button,
 input,
 select,
-textarea {  
+textarea {
   font-family: $font-family;
-  margin: 0; 
+  margin: 0;
 }
 
 .btn {
@@ -25,7 +25,7 @@ textarea {
 }
 
 .rst-content {
-  
+
   table.docutils td {
     overflow: hidden;
     white-space: normal
@@ -35,7 +35,7 @@ textarea {
     border-left: 1px solid $color-font-1;
     padding-left: 5px;
     padding-right: 20px;
-  
+
     p {
       color: $color-font-7;
     }
@@ -96,11 +96,11 @@ p code {
   margin-top: 0px;
 
   > p {
-    margin: 20px 0; 
+    margin: 20px 0;
     text-align: center;
   }
 
-  article h3{    
+  article h3{
     border-top: 1px solid $color-border-5;
     padding-top: 24px;
   }
@@ -118,5 +118,3 @@ p code {
   box-shadow: none;
   font-size: 16px;
 }
-
-
