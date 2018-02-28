@@ -75,6 +75,19 @@ certificates with a TTL (time to live) of 23 hours.
     This allows users to omit `--proxy` flag in subsequent tsh commands. For example 
     `tsh ssh user@host` will work.
 
+A Teleport cluster can be configured for multiple user identity sources. For
+example a cluster may have a local user called "admin" while regular users
+should [authenticate via Github](admin-guide.md#github-oauth-20). In this case you have to pass `--auth` flag to
+`tsh login` to specify which identity storage to use:
+
+```bash
+# Login using the local Teleport 'admin' user:
+$ tsh --proxy=proxy.example.com --auth=local --user=admin login
+
+# Login using Github's SAML provider (assuming the Github connector is called "github"):
+$ tsh --proxy=proxy.example.com --auth=github --user=admin login
+```
+
 ### SSH Agent Support
 
 If there is an [ssh agent](https://en.wikipedia.org/wiki/Ssh-agent) running, 
