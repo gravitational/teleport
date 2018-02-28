@@ -56,7 +56,7 @@ The following core concepts are integral to understanding the Teleport architect
 
 Teleport supports two types of user accounts: 
 
-* **Internal users** are created and stored in Teleport's own identitiy storage. A cluster
+* **Local users** are created and stored in Teleport's own identitiy storage. A cluster
   administrator has to create account entries for every Teleport user. 
   Teleport supports second factor authentication (2FA) and it is enforced by default. 
   There are two types of 2FA supported:
@@ -65,12 +65,16 @@ Teleport supports two types of user accounts:
       [Authy](https://www.authy.com/) or any other TOTP client.
     * [U2F](https://en.wikipedia.org/wiki/Universal_2nd_Factor).
 * **External users** are users stored elsewhere else within an organization. Examples include
-  Github, Active Directory (AD), LDAP server, OpenID/OAuth2 endpoint or behind SAML. 
+  Github, Active Directory (AD) or any identity store with an OpenID/OAuth2 or SAML endpoint.
 
 
 !!! tip "Version Warning": 
-    External user identities are only supported in Teleport Enterprise. Please
+    SAML, OIDC and Active Directory are only supported in Teleport Enterprise. Please
     take a look at [Teleport Enterprise](enterprise.md) chapter for more information.
+
+It is possible to have multiple identity sources configured for a Teleport cluster. In this 
+case an identity source (called "connector") will have to be passed to `tsh --auth=connector_name login`. 
+Local (AKA internal) users connector can be specified via `tsh --auth=local login`.
 
 ## Teleport Cluster
 
@@ -279,7 +283,7 @@ Teleport Proxy implements a special method to let clients get short lived certif
 1. TSH client or TSH agent generate OpenSSH keypair and forward generated public key and username, password and second factor token that are entered by user to the proxy.
 2. Proxy forwards request to the auth server.
 3. If auth server accepts credentials, it generates a new certificate signed by its user CA and sends it back to the proxy.
-4. Proxy 
+4. Proxy returns the user certificate to the client and client stores it in `~/.tsh/keys`
 
 #### Connecting to the nodes
 

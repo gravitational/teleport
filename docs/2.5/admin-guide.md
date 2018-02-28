@@ -1153,7 +1153,7 @@ Next step is to define a Github connector:
 kind: github
 version: v3
 metadata:
-  # connector name that will be used with `tsh login`
+  # connector name that will be used with `tsh --auth=github login`
   name: github
 spec:
   # client ID of Github OAuth app
