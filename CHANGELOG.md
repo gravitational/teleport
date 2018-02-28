@@ -3,7 +3,7 @@
 ## 2.5.0
 
 This is a major release of Teleport. Its goal is to make cloud-native
-deployments easier, numerous AWS users have contributed feedback to this
+deployments easier. Numerous AWS users have contributed feedback to this
 release, which includes:
 
 #### New Features
@@ -12,7 +12,7 @@ release, which includes:
   data directory when it's hosted on NFS (or AWS EFS). 
   [#1351](https://github.com/gravitational/teleport/issues/1351)
 
-* There is now the AWS reference deployment in `examples/aws` directory.  It
+* There is now an AWS reference deployment in `examples/aws` directory.  It
   uses Terraform and demonstrates how to deploy large Teleport clusters on AWS
   using best practices like auto-scaling groups, security groups, secrets
   management, load balancers, etc.
