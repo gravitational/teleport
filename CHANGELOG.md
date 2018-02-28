@@ -1,5 +1,81 @@
 # Changelog
 
+## 2.5.0
+
+This is a major release of Teleport. Its goal is to make cloud-native
+deployments easier. Numerous AWS users have contributed feedback to this
+release, which includes:
+
+#### New Features
+
+* Auth servers in highly available (HA) configuration can share the same `/var/lib/teleport`
+  data directory when it's hosted on NFS (or AWS EFS). 
+  [#1351](https://github.com/gravitational/teleport/issues/1351)
+
+* There is now an AWS reference deployment in `examples/aws` directory.  It
+  uses Terraform and demonstrates how to deploy large Teleport clusters on AWS
+  using best practices like auto-scaling groups, security groups, secrets
+  management, load balancers, etc.
+
+* The Teleport daemon now implements built-in connection draining which allows
+  zero-downtime upgrades. 
+  [See documentation](https://gravitational.com/teleport/docs/admin-guide/#graceful-restarts).
+
+* Dynamic join tokens for new nodes can now be explicitly set via `tctl node add --token`. 
+  This allows Teleport admins to use an external mechanism for generating
+  cluster invitation tokens. 
+  [#1615](https://github.com/gravitational/teleport/pull/1615)
+
+* Teleport now correctly manages certificates for accessing proxies behind a
+  load balancer with the same domain name. The new configuration parameter
+  `public_addr` must be used for this.
+  [#1174](https://github.com/gravitational/teleport/issues/1174).
+  
+#### Improvements
+
+* Switching to a new TLS-based auth server API improves performance of large clusters. 
+  [#1528](https://github.com/gravitational/teleport/issues/1528)
+
+* Session recordings are now compressed by default using gzip. This reduces storage
+  requirements by up to 80% in our real-world tests.
+  [#1579](https://github.com/gravitational/teleport/issues/1528)
+
+* More user-friendly authentication errors in Teleport audit log helps Teleport admins 
+  troubleshoot configuration errors when integrating with SAML/OIDC providers.
+  [#1554](https://github.com/gravitational/teleport/issues/1554), 
+  [#1553](https://github.com/gravitational/teleport/issues/1553), 
+  [#1599](https://github.com/gravitational/teleport/issues/1599)
+
+* `tsh` client will now report if a server's API is no longer compatible.
+
+#### Bug Fixes
+
+* `tsh logout` will now correctly log out from all active Teleport sessions. This is useful
+  for users who're connected to multiple Teleport clusters at the same time.
+  [#1541](https://github.com/gravitational/teleport/issues/1541)
+
+* When parsing YAML, Teleport now supports `--` list item separator to create
+  multiple resources with a single `tctl create` command. 
+  [#1663](https://github.com/gravitational/teleport/issues/1663)
+
+* Fixed a panic in the Web UI backend [#1558](https://github.com/gravitational/teleport/issues/1558)
+
+#### Behavior Changes
+
+Certain components of Teleport behave differently in version 2.5. It is important to
+note that these changes are not breaking Teleport functionality. They improve
+Teleport behavior on large clusters deployed on highly dynamic cloud
+environments such as AWS. This includes: 
+
+* Session list in the Web UI is now limited to 1,000 sessions.
+* The audit log and recorded session storage has been moved from `/var/lib/teleport/log`
+  to `/var/lib/teleport/log/<auth-server-id>`. This is related to [#1351](https://github.com/gravitational/teleport/issues/1351)
+  described above.
+* When connecting a trusted cluster users can no longer pick an arbitrary name for them.
+  Their own (local) names will be used, i.e. the `cluster_name` setting now defines how 
+  the cluster is seen from the outside.
+  [#1543](https://github.com/gravitational/teleport/issues/1543)
+
 ## 2.4.2
 
 This release of Teleport focuses on bugfixes.
