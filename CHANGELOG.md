@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.5
+## 2.5.0
 
 This is a major release of Teleport. Its goal is to make cloud-native
 deployments easier, numerous AWS users have contributed feedback to this
