@@ -29,7 +29,7 @@ h3 {
 
 h4 {
   font: normal 13px/22px "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif;
-  color: #ffa258;
+  color: #4A90E2;
   font-weight: bold;
   letter-spacing: 1px;
   margin-bottom: 10px;
@@ -55,12 +55,13 @@ pre {
 
 code {
   font-size: 14px;
-  background: #f1f1f1;
+  background: #ffffff;
   padding: 2px 4px;
   -moz-border-radius: 4px;
   -webkit-border-radius: 4px;
   border-radius: 4px;
-  margin-bottom: 35px; }
+  margin-bottom: 35px;
+  box-shadow: 0px 2px 1px rgba(0, 0, 0, 0.3) !important; }
 
 /*
 * FLEX BOX GRID
@@ -5179,7 +5180,7 @@ textarea {
   overflow: hidden;
   white-space: normal; }
 .rst-content blockquote {
-  border-left: 1px solid #ffa258;
+  border-left: 1px solid #4A90E2;
   padding-left: 5px;
   padding-right: 20px; }
   .rst-content blockquote p {
@@ -5398,25 +5399,28 @@ div[role=navigation] hr {
     cursor: pointer;
     color: #fff; }
 
-.admonition {
-  border-radius: 4px; }
-  .admonition p.admonition-title {
+.section .admonition {
+  border-radius: 4px;
+  background: white;
+  box-shadow: 0px 2px 1px rgba(0, 0, 0, 0.3); }
+  .section .admonition .admonition-title {
     border-top-left-radius: 4px;
-    border-top-right-radius: 4px; }
-  .admonition code {
+    border-top-right-radius: 4px;
+    background: #D0021B; }
+  .section .admonition code {
     color: #404040;
-    border: 1px solid #00000033;
-    background: #ffffffb3; }
-  .admonition.warning .admonition-title {
-    background-color: #ffa258; }
-  .admonition.danger {
-    color: #c57317; }
-    .admonition.danger .admonition-title {
-      background-color: #e91e63; }
-  .admonition.tip {
-    background-color: #e1eff2; }
-    .admonition.tip p.admonition-title {
-      background-color: #6eabb6; }
+    border: 1px solid #9e9e9e;
+    background: #ffffff; }
+  .section .admonition.warning .admonition-title {
+    background: #D0021B; }
+  .section .admonition.danger {
+    color: #404040; }
+    .section .admonition.danger .admonition-title {
+      background: #D0021B; }
+  .section .admonition.tip {
+    background: #FFFFFF; }
+    .section .admonition.tip p.admonition-title {
+      background: #4A90E2; }
 
 img[src$="grv-image-center-md"] {
   max-width: 500px;
@@ -5439,7 +5443,7 @@ img[src$="grv-image-center-lg"] {
 .grv-nav-versions .grv-ver {
   padding-left: 5px; }
 .grv-nav-versions .grv-current-ver {
-  color: #ffa258;
+  color: #4A90E2;
   display: inline-block;
   padding: 5px; }
 
