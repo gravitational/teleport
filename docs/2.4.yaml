@@ -19,15 +19,16 @@ markdown_extensions:
 extra_css: []
 extra_javascript: []
 extra:    
-    version: 2.4
+    version: 2.4    
 pages:
     - Documentation:
         - QuickStart Guide: quickstart.md
         - Architecture: architecture.md
         - User Manual: user-manual.md
         - Admin Manual: admin-guide.md
-        - FAQ: faq.md
+        - FAQ: faq.md                
     - Teleport Enterprise:
         - Introduction: enterprise.md
         - SAML Authentication: saml.md
         - OIDC Authentication: oidc.md
+    - Downloads: downloads.md        

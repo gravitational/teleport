@@ -9,7 +9,7 @@ cd $(dirname $0)
 rm -f latest.yaml
 
 # build css files
-sass -C --sourcemap=none theme/src/index.scss:theme/css/teleport-bundle.css
+sass -C --precision 9 --sourcemap=none theme/src/index.scss:theme/css/teleport-bundle.css
 
 for conf_file in $(ls *.yaml | sort); do
     echo "Building docs version --> $conf_file"

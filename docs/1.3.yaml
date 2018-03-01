@@ -26,4 +26,5 @@ pages:
         - Architecture: architecture.md
         - User Manual: user-manual.md
         - Admin Manual: admin-guide.md
-        - FAQ: faq.md
+        - FAQ: faq.md    
+    - Downloads: downloads.md        

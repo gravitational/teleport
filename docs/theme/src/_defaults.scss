@@ -1,0 +1,74 @@
+/*
+* Basic Defaults
+*
+*/
+
+
+$unit: 8px;
+
+$color-font-1: #ffa258;
+$color-font-2: #404040;
+$color-font-3: #c57317;
+$color-font-4: #3d73ba;
+$color-font-5: #5d5d5d;
+$color-font-7: #888;
+$color-font-8: #333;
+$color-font-9: #6f6f6f;
+$color-font-10: #818284;
+$color-font-11: #3362a0;
+$color-font-12: #fff;
+$color-font-13: #EF7C5C;
+
+$color-bkg-1: #f0f1f8;
+$color-bkg-2: #ffffffb3;
+$color-bkg-3: #6eabb6;
+$color-bkg-4: #e1eff2;
+$color-bkg-5: #fff;
+$color-bkg-6: #ffffff1a;
+$color-bkg-7: #d6d6d6;
+$color-bkg-8: #e4e5ef;
+$color-bkg-9: #e3e3e3;
+$color-bkg-10: #fcfcfc;
+$color-bkg-11: #fafafe;
+$color-bkg-12: #4a90e3;
+$color-bkg-13: #2980B9;
+$color-bkg-14: #e91e63;
+$color-bkg-15: #f1f1f1;
+
+$color-border-2: #b7bacb;    
+$color-border-3: #404040;
+$color-border-4: #e5e5ee;
+$color-border-5: #E1E4E5;
+
+$font-family: "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif;
+$gray-base: #222;
+$headings-color:  $color-font-4;
+$font-size-base: 16px;
+$font-size-h1: 32px;
+$font-size-h2: 24px; 
+$font-size-h3: 20px; 
+$font-size-h4: 16px;
+$font-size-h5: 14px !default;
+$font-size-h6: ceil((14px * 0.85)) !default; // ~12px
+$blockquote-font-size: 16px;
+
+$color-admonition-tip-bkg: #E7F0FB;
+$color-admonition-tip-header-bkg: #78A9E7;
+
+$color-admonition-warning-bkg: #FCE8E1;
+$color-admonition-warning-header-bkg: #EF7C5C;
+
+$color-admonition-danger-bkg: #FAE1E4;
+$color-admonition-danger-title-bkg: #E05869;
+
+
+/*
+* Z Indexes
+*
+*/
+
+$z-1: 1;
+$z-2: 2;
+$z-3: 3;
+$z-4: 4;
+$z-5: 5;
