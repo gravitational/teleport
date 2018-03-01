@@ -1,0 +1,45 @@
+.grv-markdown {   
+  @import "md-tables";
+
+  p{
+    margin-bottom: 24px;
+  }
+
+  blockquote {
+    border-left: 1px solid $color-font-1;
+    padding-left: 5px;
+    padding-right: 20px;
+  
+    p {
+      color: $color-font-7;
+    }
+  }
+
+  ul{
+    list-style: disc;
+    line-height: 24px;
+    margin-bottom: 24px;
+
+    p {
+      margin-bottom: 12px;
+    }
+
+    li {
+      padding-bottom: 5px;
+      p:last-child {
+        margin-bottom: 0
+      }
+      ul{
+        margin-bottom: 0;
+      }
+    }
+  }      
+
+  img {
+    max-width: 100%;
+    height: auto!important
+  }
+
+}
+
+@import "md-code";

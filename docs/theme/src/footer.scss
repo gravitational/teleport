@@ -1,0 +1,68 @@
+.grv-pagination {
+  //color: #999;
+  
+  p {
+    margin-bottom: 12px
+  }
+
+  .grv-pagination-buttons {
+    margin-top: 20px;
+    *zoom: 1;
+    &:before,
+    &:after {
+      display: table;
+      content: ""
+    }
+    &:after {
+      clear: both
+    }
+  }
+}
+
+.grv-footer {  
+  background-color: $color-bkg-1;
+  max-width: 1020px;
+  color: $color-font-9;
+  padding: 0;
+  display: block;
+  font-size: 13px;
+  margin-bottom: 0 !important;
+
+  max-width: 1000px;  
+  flex-wrap: wrap;
+  
+  .footer-item {        
+    padding: 15px 15px 10px 15px;
+    border-right: 1px solid $color-border-5;    
+    margin: 0 !important;
+    min-height: 170px;
+    min-width: 200px;
+    
+    @include respond-to('mobile') {
+      width: 100%;
+      border: none;
+      border-bottom: 1px solid $color-border-5;
+    }
+
+    &:nth-child(3) {      
+      background: url(../img/bridge.svg) no-repeat center;
+      background-size: contain;
+    }
+
+    &:last-child {
+      border-right: 0;
+    }
+          
+    p {
+      line-height: 25px;
+      font-size: 13px;
+      margin: 0;
+    }
+              
+    img.footer-talk {
+      width: 70px;
+      position: relative;        
+      opacity: .3;
+    }  
+  }  
+}

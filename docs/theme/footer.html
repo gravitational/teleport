@@ -1,13 +1,26 @@
-<footer>
-  {% if page.next_page or page.previous_page %}
-    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
-      {% if page.next_page %}
-        <a href="{{ page.next_page.url }}" class="btn btn-neutral float-right" title="{{ page.next_page.title }}">Next <span class="icon icon-circle-arrow-right"></span></a>
-      {% endif %}
-      {% if page.previous_page %}
-        <a href="{{ page.previous_page.url }}" class="btn btn-neutral" title="{{ page.previous_page.title }}"><span class="icon icon-circle-arrow-left"></span> Previous</a>
-      {% endif %}
-
-    </div>
-  {% endif %}
-</footer>
+ <!-- gravitational footer -->
+ <div class="grv-footer">
+    <div class="l-flex l-flex-wrap">
+        <div class="col-1 l-center footer-item">
+        <img class="footer-talk" src="../img/footer-talk.svg">
+        <p><a href="mailto:info@gravitational.com">info@gravitational.com</a></p>
+        <p>Phone: (855) 867-2538</p>
+        </div>
+        <div class="col-1 l-center footer-item">
+        <p>Want to know more:</p>
+        <p><a href="/about">Learn about us</a></p>
+        <p>Or, if you have time:</p>
+        <p><a href="http://blog.gravitational.com">Check out our blog</a></p>
+        </div>
+        <div class="col-1 l-center light footer-item">
+        <p></p>
+        <p>Oakland, California</p>
+        <p>USA</p>
+        </div>
+        <div class="col-1 l-center dark footer-item">
+        <p>© Gravitational, Inc.</p>
+        <p>All Rights Reserved</p>
+        <p><a href="/privacy">Privacy Policy</a></p>
+        </div>
+    </div>        
+</div>    

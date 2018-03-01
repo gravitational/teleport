@@ -11,6 +11,6 @@ cd $(dirname $0)
 trap "exit" INT TERM ERR
 trap "kill 0" EXIT
 
-sass -C --sourcemap=none --watch theme/src/index.scss:theme/css/teleport-bundle.css &
+sass -C --precision 9 --sourcemap=none --watch theme/src/index.scss:theme/css/teleport-bundle.css &
 mkdocs serve --livereload --config-file=latest.yaml --dev-addr=0.0.0.0:6600 &
 wait

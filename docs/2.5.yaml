@@ -31,3 +31,4 @@ pages:
         - Introduction: enterprise.md
         - SAML Authentication: saml.md
         - OIDC Authentication: oidc.md
+    - Downloads: downloads.md        

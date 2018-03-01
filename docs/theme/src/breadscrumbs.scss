@@ -1,0 +1,49 @@
+.grv-breadcrumbs{
+
+  hr {
+    margin: 10px 0px;
+    display: block;
+    height: 1px;
+    border: 0;
+    border-top: 1px solid #e1e4e5;
+    margin: 24px 0;
+    padding: 0;
+  }
+
+  .grv-breadcrumbs-content {
+    padding: 5px 0;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .grv-breadscrumbs-menu{
+    display: flex;
+    flex: 1;
+    justify-content: flex-end;
+  }
+
+  .grv-nav-versions {
+
+    display: flex;
+
+    .grv-ver {      
+      margin-right: 10px;
+    }
+    .grv-current-ver {
+      color: $color-font-1;      
+    }
+  }
+
+}
+
+@media screen and (max-width: 480px) {
+  .grv-breadscrumbs-menu {
+      display: none !important;
+  }  
+}
+
+@media print {
+  .grv-breadcrumbs {
+    display: none !important;
+  }
+}

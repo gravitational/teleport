@@ -1,0 +1,140 @@
+td,
+th,
+  {
+  padding: 12px 16px;
+}
+
+thead {
+  color: $color-font-8;
+  text-align: left;
+  vertical-align: bottom;
+  white-space: nowrap
+}
+
+td {
+  overflow: hidden;
+  white-space: normal
+}
+
+.table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  empty-cells: show;
+  margin-bottom: 24px
+}
+
+.table caption, 
+.table.field-list caption {
+  color: #333;
+  font: italic 85%/1 arial,sans-serif;
+  padding: 1em 0;
+  text-align: center
+}
+
+.table td, table.field-list td, 
+.table th, 
+.table.field-list th {
+  font-size: 90%;
+  margin: 0;
+  overflow: visible;
+  padding: 8px 16px
+}
+
+.table td:first-child, 
+.table.field-list td:first-child, 
+.table th:first-child,
+.table th:first-child,
+.table.field-list th:first-child {
+  border-left-width: 0;
+}
+
+.table thead,
+.table.docutils thead,
+.table.field-list thead {
+  color: #333;
+  text-align: left;
+  vertical-align: bottom;
+  white-space: nowrap
+}
+
+.table thead th,
+.table.field-list thead th {
+  font-weight: 700;
+  border-bottom: solid 2px #e1e4e5
+}
+
+.table td,
+.table.field-list td {
+  background-color: transparent;
+  vertical-align: middle
+}
+
+.table td p,
+.table.field-list td p {
+  line-height: 18px
+}
+
+.table td p:last-child,
+.table.field-list td p:last-child {
+  margin-bottom: 0
+}
+
+.table-odd td,
+.table-striped tr:nth-child(2n-1) td,
+.table.docutils:not(.field-list) tr:nth-child(2n-1) td {
+  background-color: #f3f6f6
+}
+
+.table-bordered-all,
+.table.docutils {
+  border: 1px solid #e1e4e5
+}
+
+.table.docutils td {
+  border-bottom: 1px solid #e1e4e5;
+  border-left: 1px solid #e1e4e5
+}
+
+.table-bordered-all tbody>tr:last-child td,
+.table.docutils tbody>tr:last-child td {
+  border-bottom-width: 0
+}
+
+.table-bordered {
+  border: 1px solid #e1e4e5
+}
+
+.table-bordered-rows td {
+  border-bottom: 1px solid #e1e4e5
+}
+
+.table-bordered-rows tbody>tr:last-child td {
+  border-bottom-width: 0
+}
+
+.table-horizontal tbody>tr:last-child td {
+  border-bottom-width: 0
+}
+
+.table-horizontal td,.wy-table-horizontal th {
+  border-width: 0 0 1px;
+  border-bottom: 1px solid #e1e4e5
+}
+
+.table-horizontal tbody>tr:last-child td {
+  border-bottom-width: 0
+}
+
+.table-responsive {
+  margin-bottom: 24px;
+  max-width: 100%;
+  overflow: auto
+}
+
+.table-responsive table {
+  margin-bottom: 0!important
+}
+
+.table-responsive table td,.table-responsive table th {
+  white-space: nowrap
+}

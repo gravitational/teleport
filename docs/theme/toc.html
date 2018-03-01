@@ -1,21 +1,21 @@
 {% if nav_item.children %}
     <ul class="subnav">
     {% if nav_item.title != "hidden" %}
-    <li><span>{{ nav_item.title }}</span></li>
+    <li class="grv-nav-left-item grv-nav-left-item-l1"><span>{{ nav_item.title }}</span></li>
         {% for nav_item in nav_item.children %}
             {% include 'toc.html' %}
         {% endfor %}
     </ul>
     {% endif %}
 {% else %}
-    <li class="toctree-l1 {% if nav_item.active%}current{%endif%}">
+    <li class="grv-nav-left-item toctree-l1 {% if nav_item.active%}current{%endif%}">
         <a class="{% if nav_item.active%}current{%endif%}" href="{{ nav_item.url }}">{{ nav_item.title }}</a>
         {% if nav_item == page %}
             <ul>
             {% for toc_item in page.toc %}
-                <li class="toctree-l3"><a href="{{ toc_item.url }}">{{ toc_item.title }}</a></li>
+                <li class="grv-nav-left-item toctree-l3"><a href="{{ toc_item.url }}">{{ toc_item.title }}</a></li>
                 {% for toc_item in toc_item.children %}
-                    <li><a class="toctree-l4" href="{{ toc_item.url }}">{{ toc_item.title }}</a></li>
+                    <li class="grv-nav-left-item" ><a class="toctree-l4" href="{{ toc_item.url }}">{{ toc_item.title }}</a></li>
                 {% endfor %}
             {% endfor %}
             </ul>
