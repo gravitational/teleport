@@ -93,6 +93,10 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 				log.Infof("Got signal %q, logging diagostic info to stderr.", signal)
 				writeDebugInfo(os.Stderr)
 			case syscall.SIGUSR2:
+				if !process.backendSupportsForks() {
+					log.Warningf("Process is using backend that does not support multiple processes, switch to another backend to use USR2.")
+					continue
+				}
 				log.Infof("Got signal %q, forking a new process.", signal)
 				if err := process.forkChild(); err != nil {
 					log.Infof("Failed to fork: %s", trace.DebugReport(err))
@@ -100,6 +104,10 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 					log.Infof("Successfully started new process.")
 				}
 			case syscall.SIGHUP:
+				if !process.backendSupportsForks() {
+					log.Warningf("Process is using backend that does not support multiple processes, switch to another backend to use HUP.")
+					continue
+				}
 				log.Infof("Got signal %q, performing graceful restart.", signal)
 				if err := process.forkChild(); err != nil {
 					log.Infof("Failed to fork: %s", trace.DebugReport(err))

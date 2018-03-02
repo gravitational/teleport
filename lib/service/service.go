@@ -169,6 +169,15 @@ func (process *TeleportProcess) GetBackend() backend.Backend {
 	return process.backend
 }
 
+func (process *TeleportProcess) backendSupportsForks() bool {
+	switch process.backend.(type) {
+	case *boltbk.BoltBackend:
+		return false
+	default:
+		return true
+	}
+}
+
 func (process *TeleportProcess) findStaticIdentity(id auth.IdentityID) (*auth.Identity, error) {
 	for i := range process.Config.Identities {
 		identity := process.Config.Identities[i]
