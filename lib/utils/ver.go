@@ -38,11 +38,12 @@ func CheckVersions(clientVersion, serverVersion string) error {
 	}
 
 	// for now only do simple check that client is not newer version
-	// than server
+	// than server, ignore patch versions
+
 	switch {
 	case serverSemver.Major != clientSemver.Major:
 		return trace.BadParameter("client version %q is not compatible server version %q, please make client and server versions use the same major versions", clientVersion, serverVersion)
-	case serverSemver.LessThan(*clientSemver):
+	case serverSemver.Minor < clientSemver.Minor:
 		return trace.BadParameter("client version %q is newer than server version %q, please downgrade client or upgrade server", clientVersion, serverVersion)
 		// for now let's not enforce minor versions diff as it's too harsh
 	}
