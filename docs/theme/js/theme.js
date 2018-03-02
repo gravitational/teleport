@@ -39,7 +39,7 @@ $(document).ready(function () {
   });
 
   // Close menu when you click a link.
-  $(document).on("click", ".wy-menu-vertical .current ul li a", function() {
+  $(document).on("click", ".grv-nav-left .current:first a", function() {
     $("[data-toggle='wy-nav-shift']").removeClass("shift");
     $("[data-toggle='rst-versions']").toggleClass("shift");
   });
@@ -184,14 +184,14 @@ function handleDownloads() {
     '<div class="section grv-downloads"> <div id="grv-download-id"/> </div>'
   );
 
-  $(".grv-nav-left-item.--downloads:first").addClass("current");
+  $(".grv-nav-left-item-header.--downloads:first").addClass("current");
   
   houstonCtrlLib.init(cfg);
   houstonCtrlLib.downloads.show("grv-download-id");
 }
 
 function handleNavScroll() {  
-  var $menus = $(".toctree-l1.current");  
+  var $menus = $(".grv-nav-left .current:first");  
   var $targets = $(".section.grv-markdown").find('[id]');
   var activeClass = '--active';
   var linkMap = {};

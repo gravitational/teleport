@@ -1,24 +1,45 @@
-{% if nav_item.children %}
-    <ul class="subnav">
-    {% if nav_item.title != "hidden" %}
-    <li class="grv-nav-left-item grv-nav-left-item-l1"><span>{{ nav_item.title }}</span></li>
-        {% for nav_item in nav_item.children %}
-            {% include 'toc.html' %}
-        {% endfor %}
-    </ul>
-    {% endif %}
-{% else %}
-    <li class="grv-nav-left-item toctree-l1 {% if nav_item.active%}current{%endif%}">
-        <a class="{% if nav_item.active%}current{%endif%}" href="{{ nav_item.url }}">{{ nav_item.title }}</a>
-        {% if nav_item == page %}
-            <ul>
-            {% for toc_item in page.toc %}
-                <li class="grv-nav-left-item toctree-l3"><a href="{{ toc_item.url }}">{{ toc_item.title }}</a></li>
-                {% for toc_item in toc_item.children %}
-                    <li class="grv-nav-left-item" ><a class="toctree-l4" href="{{ toc_item.url }}">{{ toc_item.title }}</a></li>
-                {% endfor %}
-            {% endfor %}
-            </ul>
-        {% endif %}
-    </li>
-{% endif %}
+<div class="current sidebar grv-nav-left">                      
+{% for nav_item in nav %}
+  {% if nav_item.children %}
+    <div class="grv-nav-left-level-1">        
+      <div class="grv-nav-left-item-header">
+        <span>{{ nav_item.title }}</span>
+      </div>        
+        {% for nav_item2 in nav_item.children %}          
+          <div class="grv-nav-left-level-2 {% if nav_item2.active%}current{%endif%} ">               
+            {% if nav_item2 == page %}          
+              <div class="grv-nav-left-item-header">
+                  <a href="{{ nav_item2.url }}">{{ nav_item2.title }}</a>
+              </div>                         
+              {% for nav_item3 in page.toc %}  
+                <div class="grv-nav-left-level-3">             
+                  <div class="grv-nav-left-item-header {% if nav_item3.active%}current{%endif%} "><a href="{{ nav_item3.url }}">{{ nav_item3.title }}</a></div>            
+                  {% for nav_item4 in nav_item3.children %}
+                      <div class="grv-nav-left-item" ><a  href="{{ nav_item4.url }}">{{ nav_item4.title }}</a></div>
+                  {% endfor %}               
+                </div>                          
+              {% endfor %}
+            {% endif %}            
+            {% if nav_item2 != page %}          
+              <div class="grv-nav-left-item-header" ><a  href="{{ nav_item2.url }}">{{ nav_item2.title }}</a></div>
+            {% endif %}      
+          </div> 
+        {% endfor %}         
+    </div>    
+  {% endif %}
+{% endfor %}
+  <div class="grv-nav-left-level-1">        
+    <div class="grv-nav-left-item-header">
+        <span> Downloads</span>
+    </div>        
+    <div class="grv-nav-left-level-2">        
+      <div class="grv-nav-left-item-header --downloads">
+          <a href="../downloads"> Releases</a>
+      </div>        
+    </div>        
+    <div class="grv-nav-left-level-2">        
+      <div class="grv-nav-left-item-header --downloads">
+        <a target="_blank" href="https://github.com/gravitational/teleport">Source code</a>
+    </div>        
+  </div>          
+</div>    
