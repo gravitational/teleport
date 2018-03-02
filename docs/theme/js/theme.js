@@ -92,9 +92,15 @@ window.SphinxRtdTheme = (function(jquery) {
 function handeBreadcrumbs() {
   var docVersions = window.grvConfig.docVersions || [];
   var docCurrentVer = window.grvConfig.docCurrentVer;
-
-  function getVerUrl(ver) {
-    return window.location.href.replace(docCurrentVer, ver);
+    
+  function getVerUrl(ver, isLatest) {
+    // looks for version number and replaces it with new value
+    // ex: http://host/docs/ver/1.2/review -> http://host/docs/ver/4.0
+    var reg = new RegExp("\/ver\/([0-9|\.]+(?=\/.))");
+    var url = window.location.href.replace(reg, '');
+    window.location.href.replace("\/ver\/([0-9|\.]+(?=\/.))/", '')                
+    var newPrefix = isLatest ? "" : "/ver/" + ver +"/";
+    return url.replace(mkdocs_page_url, newPrefix);    
   }
 
   var $versionList = $(
@@ -102,30 +108,24 @@ function handeBreadcrumbs() {
     ' <div class="m-r-sm"> Version </div >' +
     '</div>'
   );
-
-  if (docVersions.length === 0) {
-    $versionList.append(
-      '<div class="grv-current-ver m-r-sm">' + docCurrentVer + "</div>"
-    );
-  }
-
+  
   // show links to other versions
   for (var i = 0; i < docVersions.length; i++) {
     var ver = docVersions[i];
-    var $li = null;
-
-    if (ver === docCurrentVer) {
-      $li = $('<div class="grv-ver grv-current-ver" >' + ver + "</div>");
-    } else {
-      var baseUrl = getVerUrl(ver);
-      $li = $(
-        '<div class="grv-ver" > ' +
-        '  <a href="' + baseUrl + '" >' + ver + "</a>" +
-        '</div>'
-      );
+    var $li = null;    
+    var isCurrent = docCurrentVer === ver;
+    if (isCurrent) {
+      $versionList.append('<div class="grv-ver grv-current-ver" >' + ver + "</div>");
+      continue;
     }
-
-    $versionList.append($li);
+        
+    var isLatest = docVersions.indexOf(ver) === (docVersions.length - 1);
+    var baseUrl = getVerUrl(ver, isLatest);
+    $versionList.append(
+      '<div class="grv-ver" > ' +
+      '  <a href="' + baseUrl + '" >' + ver + "</a>" +
+      '</div>'
+    );        
   }
 
   var $content = $('<div class="grv-breadcrumbs-content"/>');
@@ -148,7 +148,7 @@ function handeBreadcrumbs() {
     docVersions.length === 0 ||
     docCurrentVer === docVersions[docVersions.length - 1];
   if (!isLatest) {
-    var latestVerUrl = getVerUrl(docVersions[docVersions.length - 1]);
+    var latestVerUrl = getVerUrl(docVersions[docVersions.length - 1], true);
     $breadcrumbs.append(
       '<div class="admonition warning" style="margin-bottom: 5px;"> ' +
       '   <p class="admonition-title">Version Warning</p> ' +
@@ -232,7 +232,7 @@ function handleNavScroll() {
     }
   }
   
-  function auto() {        
+  function updateMenu() {        
     for (var i = 0; i < $targets.length; i++) {            
       var id = $targets.eq(i).attr('id');
       if (checkVisible($targets.eq(i)) && hasMenuItem(id) ) {              
@@ -246,12 +246,12 @@ function handleNavScroll() {
   
   var hash = window.document.location.hash;
   if (!hash) {
-    auto();  
+    updateMenu();  
   } else {
     selectMenuItem(hash.replace('#', ''));
   } 
   
-  window.onscroll = debounce(auto, 50);      
+  window.onscroll = debounce(updateMenu, 50);      
 }
 
 $(document).ready(handeBreadcrumbs);
