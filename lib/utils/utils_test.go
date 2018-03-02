@@ -98,11 +98,11 @@ func (s *UtilsSuite) TestVersions(c *check.C) {
 	}{
 		{info: "same versions are ok", client: "1.0.0", server: "1.0.0"},
 		{info: "minor diff is ok if server is newer", client: "1.0.0", server: "1.1.0"},
+		{info: "minor diff is ok if server is newer even after one version", client: "1.0.0", server: "1.3.0"},
 		{info: "minor diff is not ok if server is older", client: "1.1.0", server: "1.0.0", err: trace.BadParameter("")},
 		{info: "major diff is not ok", client: "5.1.0", server: "1.0.0", err: trace.BadParameter("")},
 		{info: "major diff is not ok", client: "1.1.0", server: "5.0.0", err: trace.BadParameter("")},
 		{info: "minor diff is ok if server is newer", client: "1.0.0-beta.1", server: "1.1.0-alpha.1"},
-		{info: "force pre-release versions too", client: "1.0.0-beta.2", server: "1.0.0-beta.1", err: trace.BadParameter("")},
 		{info: "older pre-release client is ok", client: "1.0.0-beta.1", server: "1.0.0-beta.12"},
 	}
 	for i, testCase := range testCases {
