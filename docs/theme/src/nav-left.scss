@@ -1,6 +1,6 @@
 
-$second_level_padding: 30px;
-$third_level_padding: 50px;
+$second_level_padding: 25px;
+$third_level_padding: 40px;
 
 
 div[role=navigation] hr {
@@ -70,6 +70,8 @@ div[role=navigation] hr {
 
 .wy-menu-vertical {
 
+  font-size: 14px;
+
   ul,ol,dl {
     margin: 0;
     padding: 0;
@@ -106,7 +108,7 @@ div[role=navigation] hr {
 
     /* top-level menu */    
     .grv-nav-left-item-l1 {
-      padding: 12px 15px;
+      padding: 8px 15px;
       font-weight: bold;      
       color: $color-font-13;      
       width: 100%;
@@ -171,7 +173,7 @@ div[role=navigation] hr {
           &.current {   
             position: relative;            
             border: none;            
-            padding: 8px 15px 8px $second_level_padding;          
+            padding: 4px 15px 4px $second_level_padding;          
           }
         }
 
@@ -186,7 +188,7 @@ div[role=navigation] hr {
         background: $color-bkg-10;
         border: none;
         border-bottom: solid 1px $color-border-4;
-        padding: 8px 15px;
+        padding: 4px 15px;
 
         &:hover {
           background: $color-bkg-10;
@@ -207,7 +209,7 @@ div[role=navigation] hr {
     }
 
     a {
-      padding: 8px 15px;
+      padding: 4px 15px;
       display: block;
       &:hover {
         background: $color-bkg-8;
