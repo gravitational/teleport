@@ -767,6 +767,7 @@ func (s *AuthServer) NewWebSession(userName string) (services.WebSession, error)
 		PermitAgentForwarding: roles.CanForwardAgents(),
 		PermitPortForwarding:  roles.CanPortForward(),
 		Roles:                 user.GetRoles(),
+		CertificateFormat:     roles.CertificateFormat(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
