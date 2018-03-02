@@ -1,16 +1,12 @@
 
-$second_level_padding: 25px;
-$third_level_padding: 40px;
-
+$second_level_padding: 10px;
+$third_level_padding: 25px;
 
 div[role=navigation] hr {
   margin: 10px 0px
 }
 
-/* Navigation Left Panel Overrides
-  -------------------------------------------------------------- */
-
-/* Navigation Search Overrides
+/* Navigation Search 
 -------------------------------------------------------------- */
 .wy-side-nav-search {
   z-index: 200;
@@ -43,7 +39,7 @@ div[role=navigation] hr {
     background-color: transparent;
     padding: 5px;
     border-radius: 0px;
-  }
+  }    
 
   >a, .wy-dropdown>a {
     color: inherit;
@@ -58,6 +54,8 @@ div[role=navigation] hr {
   }
 }
 
+/* Navigation Left Panel
+  -------------------------------------------------------------- */
 @mixin make-active() {    
   font-weight: bold;                        
   &:before {
@@ -68,176 +66,108 @@ div[role=navigation] hr {
   }      
 }
 
-.wy-menu-vertical {
+$itemVertSpacing: 8px;
 
+.grv-nav-left{
   font-size: 14px;
-
-  ul,ol,dl {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    list-style-image: none
-  }
-
-  li {
-     list-style: none
-  }
   
-  li ul {
-    display: inherit;
-  }
-
-  li ul.subnav ul.subnav{
-    padding-left: 1em;
-  }
-
-  .toctree-l3 , .toctree-l1, .toctree-l4{
-    a:hover{
-      background: $color-bkg-7;
-    }
-  }
-  
-  .grv-nav-left-item{
-    border-top: 1px solid $color-border-4;
-  }
-
-  ul {
-    margin-bottom: 0;
+  .grv-nav-left-item-header > span {    
     display: block;
-    background: $color-bkg-5;
+    padding-top: $itemVertSpacing;
+    padding-bottom: $itemVertSpacing;
+  }
 
-    /* top-level menu */    
-    .grv-nav-left-item-l1 {
-      padding: 8px 15px;
-      font-weight: bold;      
-      color: $color-font-13;      
-      width: 100%;
-      display: inline-block;      
+  a {    
+    display: block;
+    position: relative;    
+    padding-top: $itemVertSpacing;
+    padding-bottom: $itemVertSpacing;
+
+    color: $color-font-5;    
+    &:hover, &:active, &:focus {
+      text-decoration: none;  
+    }    
+
+    &.--active{
+      @include make-active();
     }
-
-    .grv-nav-left-item.--downloads{
-      &.current a {
-        @include make-active();    
-      }
-
-      a {
-        color: inherit;
-        padding-left: $second_level_padding;
-      }
-    }
-    
-    li {        
-      ul {
-        margin-bottom: 0;
-
-        li a {
-          margin-bottom: 0;          
-          font-weight: normal;
-        }
-      }
+  }
       
-      &.active a {
-        background: $color-bkg-8;
-      }
+  .grv-nav-left-item, .grv-nav-left-item-header{
+    border-top: 1px solid $color-border-4;    
+    padding-right: 15px;
+    font-weight: normal;
+    padding-left: 1em;
 
-      &.toctree-l1 {
-
-        &.current > a:after {
-          font-family: "FontAwesome";
-          content: "\f105";
-        }
-
-        >a {
-          padding-left: $second_level_padding;
-          background-color: $color-bkg-5;          
-          &:after {
-            font-weight: bold;
-            font-family: "FontAwesome";
-            float: right;
-            content: '\f107';
-            margin-right: 6px;
-          }
-        }
-      }
-                
-      &.current {
-        background: $color-bkg-9;        
-        a {          
-          border-right: none;
-          padding-left: $third_level_padding;
-
-          &.--active{
-            @include make-active();
-          }
-                            
-          &.current {   
-            position: relative;            
-            border: none;            
-            padding: 4px 15px 4px $second_level_padding;          
-          }
-        }
-
-        ul {
-          display: block
-        }
-      }
-
-      &.on a {
-        color: $color-font-4;
-        position: relative;
-        background: $color-bkg-10;
-        border: none;
-        border-bottom: solid 1px $color-border-4;
-        padding: 4px 15px;
-
-        &:hover {
-          background: $color-bkg-10;
-        }
-      }
-
-      /* 3rd level */
-      &.toctree-l4 a {
-        padding-left: 3.5em;        
-      }
-      .toctree-l1.current ul {
-        background-color: $color-bkg-11;
-      }
-
-      &.toctree-l2.current>a {
-        background: $color-bkg-5;
-      }
-    }
-
-    a {
-      padding: 4px 15px;
-      display: block;
-      &:hover {
-        background: $color-bkg-8;
-      }
-    }
-  }
-
-  .local-toc li ul {
-    display: block
-  }
-
-  a {
-    display: inline-block;
-    line-height: 28px;
-    display: block;
-    position: relative;
-    font-size: 100%;    
-    color: $color-font-5;
-    
-    &:hover {
-      text-decoration: none;
+    &:hover {      
       background-color: $color-bkg-7;
       cursor: pointer
     }
-    &:active {
-      text-decoration: none;      
-      cursor: pointer;      
-    }
-  }
-}
 
+    &:active {      
+      cursor: pointer;      
+    }    
+  }
+  
+  .grv-nav-left-level-1{
+    padding: 0;
+    
+    > .grv-nav-left-item-header:first-child{            
+      color: $color-font-13;      
+      font-weight: bold;      
+      width: 100%;
+      display: inline-block;      
+
+      &:hover {
+        cursor: initial;
+        background-color: initial;
+      }
+    }    
+  }  
+  
+  .grv-nav-left-level-2{    
+    a {
+      padding-left: $second_level_padding;
+    }
+
+    > .grv-nav-left-item-header{
+      a:after {
+        font-weight: bold;
+        font-family: "FontAwesome";
+        float: right;
+        content: '\f107';
+        margin-right: 6px;
+      }
+    }
+
+    &.current > .grv-nav-left-item-header{
+        a:after {
+        font-family: "FontAwesome";
+        content: "\f105";
+      }     
+    }
+            
+    .grv-nav-left-level-3 {      
+      background-color: $color-bkg-11;
+      a {
+        padding-left: $third_level_padding;
+      }
+    }     
+        
+    // items with releases
+    .grv-nav-left-item-header.--downloads{
+      a {        
+        &:after{
+          content: '';
+        }
+      }      
+
+      &.current a {
+        @include make-active();    
+        &:after{
+          content: '';
+        }
+      }           
+    }
+  }       
+}

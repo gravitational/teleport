@@ -102,17 +102,8 @@
         {% include "searchbox.html" %}
       </div>
 
-      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="na$color-font-7vigation" aria-label="main navigation">
-        <ul class="current sidebar">
-          {% for nav_item in nav %}
-            {% if nav_item.title != "Downloads" %}
-            <li className="grv-nav-left-item grv-nav-left-level-1">{% include "toc.html" %}<li>
-            {% endif %}
-          {% endfor %}
-          <li class="grv-nav-left-item grv-nav-left-item-l1"><span> Downloads</span></li>
-          <li class="grv-nav-left-item --downloads"><a href="../downloads"> Releases</a></li>
-          <li class="grv-nav-left-item --downloads"><a target="_blank" href="https://github.com/gravitational/teleport">Source code</a></li>
-        </ul>
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="na$color-font-7vigation" aria-label="main navigation">                           
+        {% include "toc.html" %}                                
       </div>
       &nbsp;
     </nav>
