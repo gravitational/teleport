@@ -38,6 +38,11 @@ enter-one:
 enter-two:
 	docker exec -ti two-auth /bin/bash
 
+# `make enter-sshd` gives you shell inside sshd container
+.PHONY:enter-sshd
+enter-sshd:
+	docker exec -ti one-sshd /bin/bash
+
 # `make enter-two-proxy` gives you shell inside proxy server
 # of cluster "two"
 #
@@ -51,6 +56,10 @@ enter-two-proxy:
 .PHONY:enter-two-node
 enter-two-node:
 	docker exec -ti two-node /bin/bash
+
+.PHONY: export-certs
+export-certs:
+	docker exec -i one /bin/bash -c "tctl auth export --type=user | sed s/cert-authority\ // > /mnt/shared/certs/teleport.pub"
 
 .PHONY: setup-tc
 setup-tc:

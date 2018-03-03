@@ -16,7 +16,7 @@ from `$GOPATH/github.com/gravitational/teleport` (repository base dir).
 Type:
 
 ```bash
-$ make
+$ make up
 ```
 
 This will start two Teleport clusters:
@@ -30,6 +30,14 @@ Type:
 
 ```bash
 $ make stop
+```
+
+### SSH
+
+SSH container needs User CA authorities exported:
+
+```bash
+$ make export-certs
 ```
 
 ### Configuration
