@@ -645,7 +645,7 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionId string)
 		return trace.Wrap(err)
 	}
 	// request events for that session (to get timing data)
-	sessionEvents, err := site.GetSessionEvents(namespace, *sid, 0)
+	sessionEvents, err := site.GetSessionEvents(namespace, *sid, 0, true)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -68,6 +68,9 @@ type Server interface {
 
 	// GetSessionServer returns a session server.
 	GetSessionServer() rsession.Service
+
+	// GetDataDir returns data directory of the server
+	GetDataDir() string
 }
 
 // IdentityContext holds all identity information associated with the user

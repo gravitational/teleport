@@ -21,7 +21,7 @@
 
 [[projects]]
   name = "github.com/aws/aws-sdk-go"
-  packages = ["aws","aws/awserr","aws/awsutil","aws/client","aws/client/metadata","aws/corehandlers","aws/credentials","aws/credentials/ec2rolecreds","aws/credentials/endpointcreds","aws/credentials/stscreds","aws/defaults","aws/ec2metadata","aws/endpoints","aws/request","aws/session","aws/signer/v4","internal/shareddefaults","private/protocol","private/protocol/json/jsonutil","private/protocol/jsonrpc","private/protocol/query","private/protocol/query/queryutil","private/protocol/rest","private/protocol/xml/xmlutil","service/dynamodb","service/dynamodb/dynamodbattribute","service/sts"]
+  packages = ["aws","aws/awserr","aws/awsutil","aws/client","aws/client/metadata","aws/corehandlers","aws/credentials","aws/credentials/ec2rolecreds","aws/credentials/endpointcreds","aws/credentials/stscreds","aws/defaults","aws/ec2metadata","aws/endpoints","aws/request","aws/session","aws/signer/v4","internal/shareddefaults","private/protocol","private/protocol/json/jsonutil","private/protocol/jsonrpc","private/protocol/query","private/protocol/query/queryutil","private/protocol/rest","private/protocol/restxml","private/protocol/xml/xmlutil","service/dynamodb","service/dynamodb/dynamodbattribute","service/s3","service/s3/s3iface","service/s3/s3manager","service/sts"]
   revision = "a201bf33b18ad4ab54344e4bc26b87eb6ad37b8e"
   version = "v1.12.25"
 
@@ -405,6 +405,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "97a726bb183a88f10d511f1853d157e006b3a6a3a8d2887dddc0aa8f92506175"
+  inputs-digest = "43348de969afeba8e1ab0c22221ee1a15b09c40f24aa8b7b96945a0c6bc030b3"
   solver-name = "gps-cdcl"
   solver-version = 1

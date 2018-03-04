@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -134,6 +135,10 @@ type Config struct {
 	// Debug sets debugging mode, results in diagnostic address
 	// endpoint extended with additional /debug handlers
 	Debug bool
+
+	// UploadEventsC is a channel for upload events
+	// used in tests
+	UploadEventsC chan *events.UploadEvent
 }
 
 // ApplyToken assigns a given token to all internal services but only if token

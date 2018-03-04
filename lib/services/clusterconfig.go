@@ -56,6 +56,12 @@ type ClusterConfig interface {
 	// CheckAndSetDefaults checks and set default values for missing fields.
 	CheckAndSetDefaults() error
 
+	// GetAuditConfig returns audit settings
+	GetAuditConfig() AuditConfig
+
+	// SetAuditConfig sets audit config
+	SetAuditConfig(AuditConfig)
+
 	// Copy creates a copy of the resource and returns it.
 	Copy() ClusterConfig
 }
@@ -93,6 +99,36 @@ func DefaultClusterConfig() ClusterConfig {
 			ProxyChecksHostKeys: HostKeyCheckYes,
 		},
 	}
+}
+
+// AuditConfig represents audit log settings in the cluster
+type AuditConfig struct {
+	// Type is audit backend type
+	Type string `json:"type,omitempty"`
+	// Region is a region setting for audit sessions used by cloud providers
+	Region string `json:"region,omitempty"`
+	// AuditSessionsURI is a parameter where to upload sessions
+	AuditSessionsURI string `json:"audit_sessions_uri,omitempty"`
+	// AuditTableName is a DB table name used for audits
+	AuditTableName string `json:"audit_table_name,omitempty"`
+}
+
+// ShouldUploadSessions returns whether audit config
+// instructs server to upload sessions
+func (a AuditConfig) ShouldUploadSessions() bool {
+	return a.AuditSessionsURI != ""
+}
+
+// AuditConfigFromObject returns audit config from interface object
+func AuditConfigFromObject(in interface{}) (*AuditConfig, error) {
+	var cfg AuditConfig
+	if in == nil {
+		return &cfg, nil
+	}
+	if err := utils.ObjectToStruct(in, &cfg); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &cfg, nil
 }
 
 // ClusterConfigV3 implements the ClusterConfig interface.
@@ -144,6 +180,9 @@ type ClusterConfigSpecV3 struct {
 	// ProxyChecksHostKeys is used to control if the proxy will check host keys
 	// when in recording mode.
 	ProxyChecksHostKeys string `json:"proxy_checks_host_keys"`
+
+	// Audit is a section with audit config
+	Audit AuditConfig `json:"audit"`
 }
 
 // GetName returns the name of the cluster.
@@ -206,6 +245,16 @@ func (c *ClusterConfigV3) SetProxyChecksHostKeys(t string) {
 	c.Spec.ProxyChecksHostKeys = t
 }
 
+// GetAuditConfig returns audit settings
+func (c *ClusterConfigV3) GetAuditConfig() AuditConfig {
+	return c.Spec.Audit
+}
+
+// SetAuditConfig sets audit config
+func (c *ClusterConfigV3) SetAuditConfig(cfg AuditConfig) {
+	c.Spec.Audit = cfg
+}
+
 // CheckAndSetDefaults checks validity of all parameters and sets defaults.
 func (c *ClusterConfigV3) CheckAndSetDefaults() error {
 	// make sure we have defaults for all metadata fields
@@ -263,6 +312,24 @@ const ClusterConfigSpecSchemaTemplate = `{
     },
     "cluster_id": {
       "type": "string"
+    },
+    "audit": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string"
+         }, 
+        "region": {
+          "type": "string"
+         }, 
+        "audit_sessions_uri": {
+          "type": "string"
+         }, 
+        "audit_table_name": {
+          "type": "string"
+         }
+      }
     }%v
   }
 }`

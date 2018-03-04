@@ -1615,7 +1615,6 @@ const maxStreamBytes = 5 * 1024 * 1024
 //
 func (h *Handler) siteEventsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	query := r.URL.Query()
-	log.Infof("web.getEvents(%v)", r.URL.RawQuery)
 
 	clt, err := ctx.GetUserClient(site)
 	if err != nil {
@@ -1787,7 +1786,7 @@ func (h *Handler) siteSessionEventsGet(w http.ResponseWriter, r *http.Request, p
 	if !services.IsValidNamespace(namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
 	}
-	e, err := clt.GetSessionEvents(namespace, *sessionID, afterN)
+	e, err := clt.GetSessionEvents(namespace, *sessionID, afterN, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

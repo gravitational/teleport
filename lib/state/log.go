@@ -229,6 +229,7 @@ func NewCachingAuditLog(cfg CachingAuditLogConfig) (*CachingAuditLog, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	// context to wait for all tail data to arrive
 	waitCtx, waitCtxCancel := context.WithCancel(context.TODO())
 	// context to singal stops
@@ -342,7 +343,7 @@ func (ll *CachingAuditLog) flush(opts flushOpts) {
 	if err == nil {
 		return
 	}
-	log.Warningf("lost connection: %v", err)
+	log.Warningf("lost connection: %v", trace.DebugReport(err))
 	if opts.noRetry {
 		return
 	}
@@ -468,7 +469,7 @@ func (ll *CachingAuditLog) PostSessionSlice(slice events.SessionSlice) error {
 func (ll *CachingAuditLog) GetSessionChunk(string, session.ID, int, int) ([]byte, error) {
 	return nil, errNotSupported
 }
-func (ll *CachingAuditLog) GetSessionEvents(string, session.ID, int) ([]events.EventFields, error) {
+func (ll *CachingAuditLog) GetSessionEvents(string, session.ID, int, bool) ([]events.EventFields, error) {
 	return nil, errNotSupported
 }
 func (ll *CachingAuditLog) SearchEvents(time.Time, time.Time, string, int) ([]events.EventFields, error) {

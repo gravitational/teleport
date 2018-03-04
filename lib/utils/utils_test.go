@@ -18,9 +18,12 @@ package utils
 
 import (
 	"io/ioutil"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/gravitational/teleport"
 
 	"gopkg.in/check.v1"
 
@@ -110,6 +113,30 @@ func (s *UtilsSuite) TestVersions(c *check.C) {
 		err := CheckVersions(testCase.client, testCase.server)
 		if testCase.err == nil {
 			c.Assert(err, check.IsNil, comment)
+		} else {
+			c.Assert(err, check.FitsTypeOf, testCase.err, comment)
+		}
+	}
+}
+
+// TestParseSessionsURI parses sessions URI
+func (s *UtilsSuite) TestParseSessionsURI(c *check.C) {
+	testCases := []struct {
+		info string
+		in   string
+		url  *url.URL
+		err  error
+	}{
+		{info: "local default file system URI", in: "/home/log", url: &url.URL{Scheme: teleport.SchemeFile, Path: "/home/log"}},
+		{info: "explicit filesystem URI", in: "file:///home/log", url: &url.URL{Scheme: teleport.SchemeFile, Path: "/home/log"}},
+		{info: "S3 URI", in: "s3://my-bucket", url: &url.URL{Scheme: teleport.SchemeS3, Host: "my-bucket"}},
+	}
+	for i, testCase := range testCases {
+		comment := check.Commentf("test case %v %q", i, testCase.info)
+		out, err := ParseSessionsURI(testCase.in)
+		if testCase.err == nil {
+			c.Assert(err, check.IsNil, comment)
+			c.Assert(out, check.DeepEquals, testCase.url)
 		} else {
 			c.Assert(err, check.FitsTypeOf, testCase.err, comment)
 		}

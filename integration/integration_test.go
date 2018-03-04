@@ -1,5 +1,5 @@
 /*
-Copyright 2016 Gravitational, Inc.
+Copyright 2016-2018 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -162,16 +162,29 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 	var tests = []struct {
 		inRecordLocation string
 		inForwardAgent   bool
+		auditSessionsURI string
 	}{
+
 		// normal teleport
 		{
-			services.RecordAtNode,
-			false,
+			inRecordLocation: services.RecordAtNode,
+			inForwardAgent:   false,
 		},
 		// recording proxy
 		{
-			services.RecordAtProxy,
-			true,
+			inRecordLocation: services.RecordAtProxy,
+			inForwardAgent:   true,
+		},
+		// normal teleport with upload to file server
+		{
+			inRecordLocation: services.RecordAtNode,
+			inForwardAgent:   false,
+			auditSessionsURI: c.MkDir(),
+		},
+		{
+			inRecordLocation: services.RecordAtProxy,
+			inForwardAgent:   false,
+			auditSessionsURI: c.MkDir(),
 		},
 	}
 
@@ -179,6 +192,7 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 		makeConfig := func() (*check.C, []string, []*InstanceSecrets, *service.Config) {
 			clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
 				SessionRecording: tt.inRecordLocation,
+				Audit:            services.AuditConfig{AuditSessionsURI: tt.auditSessionsURI},
 			})
 			c.Assert(err, check.IsNil)
 
@@ -189,7 +203,6 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 			tconf.Proxy.DisableWebService = true
 			tconf.Proxy.DisableWebInterface = true
 			tconf.SSH.Enabled = true
-
 			return c, nil, nil, tconf
 		}
 		t := s.newTeleportWithConfig(makeConfig())
@@ -285,7 +298,29 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 		myTerm.Type("\aecho hi\n\r\aexit\n\r\a")
 
 		// wait for session to end:
-		<-endC
+		select {
+		case <-endC:
+		case <-time.After(10 * time.Second):
+			c.Fatalf("Timeout waiting for session to finish")
+		}
+
+		// wait for the upload of the right session to complete
+		if tt.auditSessionsURI != "" {
+			timeoutC := time.After(10 * time.Second)
+		loop:
+			for {
+				select {
+				case event := <-t.UploadEventsC:
+					if event.SessionID != string(session.ID) {
+						log.Debugf("Skipping mismatching session %v, expecting upload of %v.", event.SessionID, session.ID)
+						continue
+					}
+					break loop
+				case <-timeoutC:
+					c.Fatalf("Timeout waiting for upload of session %v to complete to %v", session.ID, tt.auditSessionsURI)
+				}
+			}
+		}
 
 		// read back the entire session (we have to try several times until we get back
 		// everything because the session is closing)
@@ -323,7 +358,7 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 				select {
 				case <-tickCh:
 					// Get all session events from the backend.
-					sessionEvents, err := site.GetSessionEvents(defaults.Namespace, session.ID, 0)
+					sessionEvents, err := site.GetSessionEvents(defaults.Namespace, session.ID, 0, false)
 					if err != nil {
 						return nil, trace.Wrap(err)
 					}
