@@ -17,7 +17,7 @@
     "buffer": "4.5.0",
     "classnames": "^2.2.3",
     "font-awesome": "4.5.0",
-    "moment": "2.12.0",
+    "moment": "2.19.3",
     "nuclear-js": "1.3.0",
     "nuclear-js-react-addons": "^0.4.1",
     "perfect-scrollbar": "^0.6.13",
