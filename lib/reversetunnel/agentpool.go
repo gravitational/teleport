@@ -240,10 +240,16 @@ type matchAgentFn func(a *Agent) bool
 func (m *AgentPool) closeAgentsIf(matchKey *agentKey, matchAgent matchAgentFn) {
 	if matchKey != nil {
 		m.agents[*matchKey] = filterAndClose(m.agents[*matchKey], matchAgent)
+		if len(m.agents[*matchKey]) == 0 {
+			delete(m.agents, *matchKey)
+		}
 		return
 	}
 	for key, agents := range m.agents {
 		m.agents[key] = filterAndClose(agents, matchAgent)
+		if len(m.agents[key]) == 0 {
+			delete(m.agents, key)
+		}
 	}
 }
 
