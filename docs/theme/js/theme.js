@@ -131,10 +131,7 @@ function handeBreadcrumbs() {
   var $content = $('<div class="grv-breadcrumbs-content"/>');
   $content.append($versionList);
   $content.append(    
-    '<div class="grv-breadscrumbs-menu"> ' +
-    '    <a class="grv-breadscrumbs-menu-item-downloads m-r-sm" ' +
-    '        href="../downloads">Downloads ' +
-    '    </a>  ' +
+    '<div class="grv-breadscrumbs-menu"> ' +    
     '    <a href="https://gravitational.com">About Us</a> ' +
     '</div>'
   );
@@ -166,28 +163,6 @@ function handleDefaultFocus() {
   } else {
     $('#rtd-search-form input').focus();
   }
-}
-
-function handleDownloads() {
-  if (!window.grvConfig.isDownloadPage) {
-    return;
-  }
-
-  const cfg = {
-    baseUrl: window.grvConfig.houstonUrl,
-    api: {
-      releasesPath: "/webapi/releases-oss?page=:pageN"
-    }
-  };
-  
-  $('.rst-content [role="main"]').append(
-    '<div class="section grv-downloads"> <div id="grv-download-id"/> </div>'
-  );
-
-  $(".grv-nav-left-item-header.--downloads:first").addClass("current");
-  
-  houstonCtrlLib.init(cfg);
-  houstonCtrlLib.downloads.show("grv-download-id");
 }
 
 function handleNavScroll() {  
@@ -255,6 +230,5 @@ function handleNavScroll() {
 }
 
 $(document).ready(handeBreadcrumbs);
-$(document).ready(handleDownloads);
 $(document).ready(handleDefaultFocus);
 $(document).ready(handleNavScroll);
