@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.4.3
+
+This release of Teleport focuses on bugfixes.
+
+#### Bug Fixes
+
+* Resolved "access denied" regression in Trusted Clusters. [#1733](https://github.com/gravitational/teleport/issues/1733)
+* Resolved toggling regression in Trusted Clusters. [#1751](https://github.com/gravitational/teleport/issues/1751)
+* Key written with wrong username to `~/.tsh`. [#1749](https://github.com/gravitational/teleport/issues/1749)
+
 ## 2.4.2
 
 This release of Teleport focuses on bugfixes.
