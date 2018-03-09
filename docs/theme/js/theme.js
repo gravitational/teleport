@@ -229,6 +229,15 @@ function handleNavScroll() {
   window.onscroll = debounce(updateMenu, 50);      
 }
 
+// append sub-anchors to the H2 and H3 elements for one-click linking:  
+function handleHeaderLinks(){  
+  $("h2, h3").each(function () {      
+    var $e = $(this);
+    $e.append("<a href='#" + $e.attr("id") + "'></a>");
+  });
+}
+
 $(document).ready(handeBreadcrumbs);
+$(document).ready(handleHeaderLinks);
 $(document).ready(handleDefaultFocus);
 $(document).ready(handleNavScroll);
