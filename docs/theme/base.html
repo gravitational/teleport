@@ -30,36 +30,26 @@
   <script src="{{ base_url }}/js/theme.js"></script>      
   
   <link rel="stylesheet" href="{{ base_url }}/css/houstonCtrlLib.css">
+  
+  {% if page %}      
 
-  {% if page %}
-  <script>
-    // current page data
-    var mkdocs_page_name = "{{ page.title }}";
-    var mkdocs_page_input_path = "{{ page.input_path }}";
-    var mkdocs_page_url = "{{ page.abs_url }}";        
-    
-    // configure UI components
-    window.grvConfig = window.grvConfig || {
-      docVersions:  ["1.3", "2.0", "2.3", "2.4"],
-      docCurrentVer:  "{{ config.extra.version }}",
-      showVersions: true,
-      isDownloadPage: false  
-    }
-    
-  </script>
-
-  {% if page.input_path == "downloads.md" %}                        
-    <script> 
-      window.grvConfig.showVersions = false;
-      window.grvConfig.isDownloadPage = true; 
+    <script>
+      // current page data
+      var mkdocs_page_name = "{{ page.title }}";
+      var mkdocs_page_input_path = "{{ page.input_path }}";
+      var mkdocs_page_url = "{{ page.abs_url }}";        
+      
+      // configure UI components
+      window.grvConfig = window.grvConfig || {
+        docVersions:  ["1.3", "2.0", "2.3", "2.4"],
+        docCurrentVer:  "{{ config.extra.version }}"        
+      }    
     </script>
-  {% endif %}
 
-  <style type="text/css">
-      h2[id] a, h3[id] a { border-bottom: none; text-decoration: none; color: #2980b9; }
-      h2[id]:hover a:before, h3[id]:hover a:before { content: " \00B6"; }
-  </style>
-
+    <style type="text/css">
+        h2[id] a, h3[id] a { border-bottom: none; text-decoration: none; color: #2980b9; }
+        h2[id]:hover a:before, h3[id]:hover a:before { content: " \00B6"; }
+    </style>
   {% endif %}
 
   {%- block extrahead %} {% endblock %}
@@ -95,7 +85,7 @@
         <a title="Multi-Region SSH" 
            href="http://gravitational.com/teleport" 
            class="teleport-logo">
-               <img src="../img/teleport-logo.svg">
+            <img src="{{ base_url }}/img/teleport-logo.svg">               
         </a>		  
         {% include "searchbox.html" %}
       </div>
