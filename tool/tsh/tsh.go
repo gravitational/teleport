@@ -343,13 +343,6 @@ func onLogin(cf *CLIConf) {
 func onLogout(cf *CLIConf) {
 	client.UnlinkCurrentProfile()
 
-	// get access to the file system key store in ~/.tsh
-	flka, err := client.NewFSLocalKeyStore(client.FullProfilePath(""))
-	if err != nil {
-		fmt.Printf("Unable to logout user: %v\n", err)
-		return
-	}
-
 	// extract the proxy name
 	proxyHost, _, err := net.SplitHostPort(cf.Proxy)
 	if err != nil {
@@ -359,26 +352,45 @@ func onLogout(cf *CLIConf) {
 	switch {
 	// proxy and username for key to remove
 	case proxyHost != "" && cf.Username != "":
-		err = flka.DeleteKey(proxyHost, cf.Username)
+		tc, err := makeClient(cf, true)
+		if err != nil {
+			utils.FatalError(err)
+			return
+		}
+
+		// Remove keys for this user from disk and running agent.
+		err = tc.Logout()
 		if err != nil {
 			if trace.IsNotFound(err) {
 				fmt.Printf("User %v already logged out from %v.\n", cf.Username, proxyHost)
-				return
+				os.Exit(1)
 			}
-			fmt.Printf("Unable to logout %v from %v: %v\n", cf.Username, proxyHost, err)
+			utils.FatalError(err)
 			return
 		}
 		fmt.Printf("Logged out %v from %v.\n", cf.Username, proxyHost)
 	// remove all keys
 	case proxyHost == "" && cf.Username == "":
-		err = flka.DeleteKeys()
+		// The makeClient function requires a proxy. However this value is not used
+		// because the user will be logged out from all proxies. Pass a dummy value
+		// to allow creation of the TeleportClient.
+		cf.Proxy = "dummy:1234"
+		tc, err := makeClient(cf, true)
 		if err != nil {
-			fmt.Printf("Unable to remove all keys: %v\n", err)
+			utils.FatalError(err)
 			return
 		}
+
+		// Remove all keys from disk and the running agent.
+		err = tc.LogoutAll()
+		if err != nil {
+			utils.FatalError(err)
+			return
+		}
+
 		fmt.Printf("Logged out all users from all proxies.\n")
 	default:
-		fmt.Printf("Specify --proxy and --username to remove keys for specific user ")
+		fmt.Printf("Specify --proxy and --user to remove keys for specific user ")
 		fmt.Printf("from a proxy or neither to log out all users from all proxies.\n")
 	}
 }

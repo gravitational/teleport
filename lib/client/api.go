@@ -1035,9 +1035,25 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 	return proxyClient, nil
 }
 
-// Logout locates a certificate stored for a given proxy and deletes it
+// Logout removes certificate and key for the currently logged in user from
+// the filesystem and agent.
 func (tc *TeleportClient) Logout() error {
-	return trace.Wrap(tc.localAgent.DeleteKey())
+	err := tc.localAgent.DeleteKey()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// LogoutAll removes all certificates for all users from the filesystem
+// and agent.
+func (tc *TeleportClient) LogoutAll() error {
+	err := tc.localAgent.DeleteKeys()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // Login logs the user into a Teleport cluster by talking to a Teleport proxy.

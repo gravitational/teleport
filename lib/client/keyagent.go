@@ -326,7 +326,8 @@ func (a *LocalKeyAgent) AddKey(key *Key) (*agent.AddedKey, error) {
 	return a.LoadKey(*key)
 }
 
-// DeleteKey removes the key from the key store as well as unloading the key from the agent.
+// DeleteKey removes the key from the key store as well as unloading the key
+// from the agent.
 func (a *LocalKeyAgent) DeleteKey() error {
 	// remove key from key store
 	err := a.keyStore.DeleteKey(a.proxyHost, a.username)
@@ -334,11 +335,31 @@ func (a *LocalKeyAgent) DeleteKey() error {
 		return trace.Wrap(err)
 	}
 
-	// remove any keys that are loaded for this user from the teleport and system agents
+	// remove any keys that are loaded for this user from the teleport and
+	// system agents
 	err = a.UnloadKey()
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	return nil
+}
+
+// DeleteKeys removes all keys from the keystore as well as unloads keys
+// from the agent.
+func (a *LocalKeyAgent) DeleteKeys() error {
+	// Remove keys from the filesystem.
+	err := a.keyStore.DeleteKeys()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Remove all keys from the Teleport and system agents.
+	err = a.UnloadKeys()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
