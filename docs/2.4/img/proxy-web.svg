@@ -150,11 +150,11 @@
             <path id="Line-decoration-1" d="M304.5,135.5 L293.7,132.5 L293.7,138.5 L304.5,135.5 Z" stroke="#9B9B9B" fill="#9B9B9B" stroke-linecap="square"></path>
             <path d="M525.5,134.5 L674.5,134.5" id="Line" stroke="#9B9B9B" fill="#9B9B9B" stroke-linecap="square"></path>
             <path id="Line-decoration-1" d="M674.5,134.5 L663.7,131.5 L663.7,137.5 L674.5,134.5 Z" stroke="#9B9B9B" fill="#9B9B9B" stroke-linecap="square"></path>
-            <g id="Group" transform="translate(395.000000, 176.000000)" stroke="#9B9B9B" stroke-linecap="square" fill="#9B9B9B">
-                <path d="M41,0.5 L41,149.5" id="Line"></path>
-                <path id="Line-decoration-1" d="M41,149.5 L44,138.7 L38,138.7 L41,149.5 Z"></path>
-                <path d="M1,150.5 L1,1.5" id="Line-Copy"></path>
-                <path id="Line-Copy-decoration-1" d="M1,1.5 L-2,12.3 L4,12.3 L1,1.5 Z"></path>
+            <g id="Group" transform="translate(396.000000, 176.000000)" stroke="#9B9B9B" stroke-linecap="square" fill="#9B9B9B">
+                <path d="M40,149.5 L40,0.5" id="Line"></path>
+                <path id="Line-decoration-1" d="M40,0.5 L37,11.3 L43,11.3 L40,0.5 Z"></path>
+                <path d="M1.80966353e-14,1.5 L0,150.5" id="Line-Copy"></path>
+                <path id="Line-Copy-decoration-1" d="M0,150.5 L3,139.7 L-3,139.7 L0,150.5 Z"></path>
             </g>
             <g id="circleNumber" transform="translate(214.000000, 94.000000)">
                 <g id="1-copy-2" transform="translate(5.000000, 5.000000)">
