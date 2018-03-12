@@ -53,7 +53,7 @@ docs/latest.yaml
 terraform.tfstate
 
 # OSX 
-.DS_Store
+**/.DS_Store
 
 # ansible stuff
 ssh.config
