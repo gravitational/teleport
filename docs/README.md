@@ -11,6 +11,7 @@ Look at `build.sh` script to see how it works.
 * Update [index.html](index.html) to redirect to the latest version automatically.
 * Update theme/base.html to add a new version to the Javascript arrray of versions
 * Create a new YAML file, like `5.5.1.yaml` if you are releasing version 5.5.1
+* Update `TELEPORT_DOCS_LATEST_VERSION` variable in `gravitational/web/Makefile` 
 
 ## Deploying
 
