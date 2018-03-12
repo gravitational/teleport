@@ -65,18 +65,20 @@ When experimenting you can quickly start `teleport` with verbose logging by typi
 
 ### Systemd Unit File
 
-In production, we recommend starting teleport daemon via an
-init system like `systemd`.  Here's the example of a systemd unit file:
+In production, we recommend starting teleport daemon via an init system like
+`systemd`. Here's the recommended Teleport service unit file for systemd:
 
-```
+```ini
 [Unit]
 Description=Teleport SSH Service
-After=network.target
+After=network.target 
 
 [Service]
 Type=simple
 Restart=on-failure
-ExecStart=/usr/local/bin/teleport start --config=/etc/teleport.yaml
+ExecStart=/usr/local/bin/teleport start --config=/etc/teleport.yaml --pid-file=/var/run/teleport.pid
+ExecReload=/bin/kill -HUP $MAINPID
+PIDFile=/var/run/teleport.pid
 
 [Install]
 WantedBy=multi-user.target
@@ -84,20 +86,24 @@ WantedBy=multi-user.target
 
 ### Graceful Restarts
 
-If using the systemd service unit file above, executing `systemctl restart teleport` 
+If using the systemd service unit file above, executing `systemctl reload teleport` 
 will perform a graceful restart, i.e. the Teleport daemon will fork a new
 process to handle new incoming requests, leaving the old daemon process running
 until existing clients disconnect.
 
+!!! warning "Version warning":
+    Graceful restarts only work if Teleport is deployed using network-based storage
+    like DynamoDB or etcd. Future versions of Teleport will not have this limitation.
+
 You can also perform a less automatic restarts/upgrades by sending `kill` signals
 to a Teleport daemon manually. 
 
-| Signal        | Teleport Daemon Behavior
-|---------------|---------------------------------------
-| `USR1`        | Dumps diagnostics/debugging information into syslog.
-| `TERM`, `INT`, `KILL` | Immediate non-graceful shutdown. All existing connections will be dropped.
-| `USR2`        | Forks a new Teleport daemon to serve new connections.
-| `HUP`         | Forks a new Teleport daemon to serve new connections **and** initiates the graceful shutdown of the existing process when there are no more clients connected to it.
+| Signal                  | Teleport Daemon Behavior
+|-------------------------|---------------------------------------
+| `USR1`                  | Dumps diagnostics/debugging information into syslog.
+| `TERM`, `INT` or `KILL` | Immediate non-graceful shutdown. All existing connections will be dropped.
+| `USR2`                  | Forks a new Teleport daemon to serve new connections.
+| `HUP`                   | Forks a new Teleport daemon to serve new connections **and** initiates the graceful shutdown of the existing process when there are no more clients connected to it.
 
 ### Ports
 
