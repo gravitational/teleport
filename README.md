@@ -1,4 +1,4 @@
-# Gravitational Teleport
+# Gravitational Teleport 
 
 Gravitational Teleport is a modern SSH server for remotely accessing clusters
 of Linux servers via SSH or HTTPS. It is intended to be used instead of `sshd`
