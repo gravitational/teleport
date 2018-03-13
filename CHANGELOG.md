@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.4.4
+
+This release of Teleport focuses on bugfixes.
+
+#### Bug Fixes
+
+* Resolved `tsh logout` regression. [#1541](https://github.com/gravitational/teleport/issues/1541)
+* Binaries for supported platforms all built with Go 1.9.2.
+
 ## 2.4.3
 
 This release of Teleport focuses on bugfixes.
