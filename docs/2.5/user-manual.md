@@ -438,7 +438,7 @@ of them can be made completely invisible.
   `~/.tsh`
 
 !!! tip "Tip": 
-    To avoid typing `tsh ssh user@host` when loggin inton servers, you can
+    To avoid typing `tsh ssh user@host` when logging into servers, you can
     create a symlink `ssh -> tsh` and execute the symlink. It will behave exactly 
     like a standard `ssh` command, i.e. `ssh login@host`. This is helpful with other 
     tools that expect `ssh` to just work.
