@@ -712,7 +712,7 @@ func (process *TeleportProcess) initAuthService() error {
 					srv.SetAddr(net.JoinHostPort(ip.String(), port))
 				}
 			}
-			log.Warnf("Parameter advertise_ip is not set for this auth server. Trying to guess the IP this server can be reached at: %v.", srv.GetAddr())
+			log.Warnf("auth_service: advertise_ip is not set. guessing %v.", srv.GetAddr())
 		}
 		// immediately register, and then keep repeating in a loop:
 		ticker := time.NewTicker(defaults.ServerHeartbeatTTL / 2)
