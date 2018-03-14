@@ -74,7 +74,7 @@ func (s *AuthServer) CreateSignupToken(userv1 services.UserV1, ttl time.Duration
 	// when unable to.
 	_, err := s.GetPasswordHash(user.GetName())
 	if err == nil {
-		return "", trace.BadParameter("user %q already exists", user)
+		return "", trace.BadParameter("user '%s' already exists", user.GetName())
 	}
 
 	token, err := utils.CryptoRandomHex(TokenLenBytes)
@@ -142,7 +142,7 @@ func (s *AuthServer) GetSignupTokenData(token string) (user string, qrCode []byt
 	// It's a TOCTOU bug in the making: https://en.wikipedia.org/wiki/Time_of_check_to_time_of_use
 	_, err = s.GetPasswordHash(tokenData.User.Name)
 	if err == nil {
-		return "", nil, trace.Errorf("can't add user %v: user already exists", tokenData.User)
+		return "", nil, trace.Errorf("user %q already exists", tokenData.User.Name)
 	}
 
 	return tokenData.User.Name, tokenData.OTPQRCode, nil
@@ -166,7 +166,7 @@ func (s *AuthServer) CreateSignupU2FRegisterRequest(token string) (u2fRegisterRe
 
 	_, err = s.GetPasswordHash(tokenData.User.Name)
 	if err == nil {
-		return nil, trace.AlreadyExists("can't add user %q, user already exists", tokenData.User)
+		return nil, trace.AlreadyExists("user %q already exists", tokenData.User.Name)
 	}
 
 	c, err := u2f.NewChallenge(universalSecondFactor.AppID, universalSecondFactor.Facets)
