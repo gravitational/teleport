@@ -29,5 +29,6 @@ pages:
         - FAQ: faq.md
     - Teleport Enterprise:
         - Introduction: enterprise.md
+        - RBAC: ssh_rbac.md
         - SAML Authentication: saml.md
         - OIDC Authentication: oidc.md

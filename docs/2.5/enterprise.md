@@ -15,6 +15,104 @@ overview of the Enterprise Edition features.
     If you are interested in Teleport Enterprise or Telekube, please reach out to
     `sales@gravitational.com` for more information.
 
+## External Identities
+
+Teleport Enterprise can authenticate users against a corporate identity
+management system and map user group membership to Teleport SSH roles. This
+allows to integrate the SSH access management into the same single sign on
+(SSO) system used by the rest of the organization.
+
+Examples of such systems include commercial solutions like [Okta](https://www.okta.com),
+[Auth0](https://auth0.com/), [SailPoint](https://www.sailpoint.com/), 
+[OneLogin](https://www.onelogin.com/) or [Active Directory](https://en.wikipedia.org/wiki/Active_Directory_Federation_Services), as 
+well as open source products like [Keycloak](http://www.keycloak.org).
+Other identity management systems are supported as long as they provide an
+SSO mechanism based on either [SAML](https://en.wikipedia.org/wiki/Security_Assertion_Markup_Language) 
+or [OAuth2/OpenID Connect](https://en.wikipedia.org/wiki/OpenID_Connect).
+
+
+### How does SSO work with SSH?
+
+From the user's perspective, nothing changes: they need to execute:
+
+```bash
+$ tsh login
+```
+
+... once a day to retreive their SSH certificate, assuming that Teleport is
+configured with a certificate TTL of 8 hours.
+
+`tsh login` will print a URL into the console, which will open an SSO login
+prompt, along with the 2FA as enforced by the SSO provider. If user supplies
+valid credentials into the SSO logon proess, Teleport will issue an SSH
+certificate.
+
+### Configuring SSO
+
+Teleport works with SSO providers by relying on a concept called
+_"authentication connector"_. An auth connector is a plugin which controls how
+a user logs in and which group he or she belongs to. 
+
+The following connectors are supported:
+
+* `local` connector type uses the built-in user database. This database can be
+  manipulated by `tctl users` command.
+* `saml` connector type uses [SAML protocol](https://en.wikipedia.org/wiki/Security_Assertion_Markup_Language)
+  to authenticate users and query their group membership.
+* `oidc` connector type uses [OpenID Connect protocol](https://en.wikipedia.org/wiki/OpenID_Connect) 
+  to authenticate users and query their group membership.
+
+To configure [SSO](https://en.wikipedia.org/wiki/Single_sign-on), a Teleport administrator must:
+
+* Update `/etc/teleport.yaml` on the auth server to set the default
+  authentication connector.
+* Define the connector [resource](admin-guide/#resources) and save it into 
+  a YAML file (like `connector.yaml`) 
+* Create the connector using `tctl create connector.yaml`.
+
+```bash
+# snippet from /etc/teleport.yaml on the auth server:
+auth_service:
+    # defines the default authentication connector type:
+    authentication:
+        type: saml 
+```
+
+An example of a connector:
+
+```
+# connector.yaml
+kind: saml
+version: v2
+metadata:
+  name: corporate
+spec:
+  # display allows to set the caption of the "login" button
+  # in the Web interface
+  display: "Login with Okta SSO"
+
+  acs: https://teleprot-proxy.example.com:3080/v1/webapi/saml/acs
+  attributes_to_roles:
+    - {name: "groups", value: "okta-admin", roles: ["admin"]}
+    - {name: "groups", value: "okta-dev", roles: ["dev"]}
+  entity_descriptor: |
+    <paste SAML XML contents here>
+```
+
+
+Teleport can also support multiple connectors. This works via supplying
+a connector name to `tsh login` via `--auth` argument:
+
+```bash
+$ tsh --proxy=proxy.example.com login --auth=corporate
+```
+
+Refer to the following chapters to configure authentication connectors of both
+SAML and OIDC types:
+
+* [SAML](saml.md) chapter includes examples for Okta, One Login and Active Directory.
+* [OpenID Connect (OIDC)](oidc.md) chapter covers generic OIDC providers.
+
 ## RBAC
 
 RBAC stands for `Role Based Access Control`, quoting
@@ -26,10 +124,18 @@ RBAC stands for `Role Based Access Control`, quoting
 > mandatory access control (MAC) or discretionary access control (DAC). RBAC is
 > sometimes referred to as role-based security.
 
+... in other words, RBAC allows Teleport administrators to more granular access
+control. An example of an RBAC policy can be:  _"admins can do anything, 
+developers must never touch production servers and interns can only SSH into
+staging servers as guests"_
+
+### How does it work?
+
 Every user in Teleport is **always** assigned a set of roles. The open source
-edition of Teleport automatically assigns every user to the "admin" role, but
-the Teleport Enterprise allows administrators to define their own roles with
-far greater control over the actions users have authorization to take.
+edition of Teleport automatically assigns every user to the built-in "admin"
+role, but the Teleport Enterprise allows administrators to define their own
+roles with far greater control over the actions users have authorization to
+take.
 
 Lets assume a company is using Active Directory to authenticate users and place
 them into groups. A typical enterprise deployment of Teleport in this scenario
@@ -55,165 +161,30 @@ roles in a Teleport cluster, an administrator can execute:
 $ tctl get roles
 ```
 
-By default there is always one role called "admin" which looks like this:
+Some of the permissions a role defines include:
 
-```bash
-kind: role
-version: v3
-metadata:
-  name: admin
-spec:
-  # SSH options used for user sessions 
-  options:
-    # max_session_ttl defines the TTL (time to live) of SSH certificates 
-    # issued to the users with this role.
-    max_session_ttl: 8h
+* Which SSH nodes a user can or cannot access. Teleport uses [node
+  labels](admin-guide/#labeling-nodes) to do this, i.e. some nodes can be
+  labeled "production" while others can be labeled "staging".
+* Is this user allowed to replay recorded sessions?
+* Is this user allowed to update cluster configuration?
+* Which UNIX logins this user is allowed to use when logging into servers?
 
-    # forward_agent controls either users are allowed to use SSH agent forwarding
-    forward_agent: true
-
-  # allow section declares a list of resource/verb combinations that are
-  # allowed for the users of this role. by default nothing is allowed.
-  allow:
-    # logins array defines the OS logins a user is allowed to use.
-    # A few special variables are supported here (see below)
-    logins: [root, '{{internal.logins}}']
-
-    # node labels that a user can connect to. The wildcard ('*') means "any node"
-    node_labels:
-      '*': '*'
-
-    # see below.
-    rules:
-    - resources: [role]
-      verbs: [list, create, read, update, delete]
-    - resources: [auth_connector]
-      verbs: [connect, list, create, read, update, delete]
-    - resources: [session]
-      verbs: [list, read]
-    - resources: [trusted_cluster]
-      verbs: [connect, list, create, read, update, delete]
-
-  # the deny section uses the identical format as the 'allow' section.
-  # the deny rules always override allow rules.
-  deny: {}
-```
-
-The following variables can be used with `logins` field:
-
-Variable                | Description
-------------------------|--------------------------
-`{{ internal.logins }}` | Substituted with "allowed logins" parameter used in 'tctl users add [login] <allowed logins>' command. This is applicable to the local user DB only.
-`{{ external.XYZ }}`    | For SAML-authenticated users this will get substituted with "XYZ" assertion value. For OIDC-authenticated users it will get substituted with "XYZ" claim value.
-
-Both variables above are there to deliver the same benefit: it allows Teleport
-administrators to define allowed OS logins via the user database, be it the
-local DB, or an identity manager behind a SAML or OIDC endpoint.
-
-#### Node Labels
-
-A user will only be granted access to a node if all of the labels defined in
-the role are present on the node. This effectively means we use an AND
-operator when evaluating access using labels. Two examples of using labels to
-restrict access:
-
-1. If you split your infrastructure at a macro level with the labels
-`environment: production` and `environment: staging` then you can create roles
-that only have access to one environment. Let's say you create an `intern`
-role with allow label `environment: staging` then interns will not have access
-to production servers.
-1. Like above, suppose you split your infrastructure at a macro level with the
-labels `environment: production` and `environment: staging`. In addition,
-within each environment you want to split the servers used by the frontend and
-backend teams, `team: frontend`, `team: backend`. If you have an intern that
-joins the frontend team that should only have access to staging, you would
-create a role with the following allow labels
-`environment: staging, team: frontend`. That would restrict users with the
-`intern` role to only staging servers the frontend team uses.
-
-#### Roles
-
-Each role contains two lists of rules: "allow" rules and "deny" rules. Deny
-rules get evaluated first, and a user gets "access denied" error if there's a
-allow rule match.
-
-Each rule consists of two lists: the list of resources and verbs. Here's an example of
-a rule describing "list" access to sessions and trusted cluters:
-
-```bash
-- resources: [session, trusted_cluster]
-  verbs: [connect, list, create, read, update, delete]
-```
-
-If this rule is declared in `deny` section of a role definition, it effectively
-prohibits users from getting a list of trusted clusters and sessions.
-
-## External Identities
-
-Teleport Enterprise can authenticate users against a corporate identity management
-system and map their group membership to Teleport SSH roles.
-
-Any identity management system can be used with Teleport as long as it implements a 
-single sign on (SSO) mechanism provided by enterprise identity management systems.
-
-
-Examples of such systems include commercial solutions like [Okta](https://www.okta.com) or 
-[Active Directory](https://en.wikipedia.org/wiki/Active_Directory_Federation_Services), as 
-well as open source products like [Keycloak](http://www.keycloak.org).
-
-Teleport can work with all of these protocols by relying on a concept called
-"authentication connector". An auth connector is a plugin which controls how a
-user logs in and which group he or she belongs to.
-
-The following connectors are supported:
-
-* `local`: connector type uses the built-in user database. This database can be
-  manipulated by `tctl users` command and it is the only connector type
-  supported by the open source Teleport.
-* `saml` : this connector type uses [SAML protocol](https://en.wikipedia.org/wiki/Security_Assertion_Markup_Language)
-  to authenticate users and query their group membership.
-* `oidc` : this connector type uses [OpenID Connect protocol](https://en.wikipedia.org/wiki/OpenID_Connect) 
-  to authenticate users and query their group membership.
-
-To configure the connector type, update the following section of an auth server:
-
-```bash
-# This section configures the 'auth service':
-auth_service:
-    # defines the authentication connector type:
-    authentication:
-        type: saml 
-```
-
-Teleport can also support multiple simultaneous connectors of the same type. 
-This works because every auth connector must have a name, and the desired
-connector can be selected via `--auth` argument:
-
-```bash
-# authenticates using the auth connector named 'corporate'
-$ tsh --proxy=proxy.example.com login --auth=corporate
-```
-
-The command above will print a URL which the user will have to visit to
-retreive an SSH certificate to be used to access SSH nodes.
-
-Refer to the following pages for detailed guides of how to configure authentication
-connectors of both SAML and OIDC types:
-
-* [OpenID Connect (OIDC)](oidc.md)
-* [Security Assertion Markup Language 2.0 (SAML 2.0)](saml.md)
+To learn more, take a look at [RBAC for SSH](ssh_rbac.md) chapter.
 
 ## Integration With Kubernetes
 
 Gravitational maintains a [Kubernetes](https://kubernetes.io/) distribution
 with Teleport Enterprise integrated, called [Telekube](http://gravitational.com/telekube/). 
-
 Telekube's aim is to dramatically lower the cost of Kubernetes management in a
 multi-region / multi-site environment. 
 
 Its highlights:
 
-* Quickly create Kubernetes clusters on any infrastructure.
+* Quickly create Kubernetes clusters on any infrastructure using a pre-defined
+  "snapshot" of a known cluster state. Each replica of the original cluster
+  will contain the same set of binaries, pre-installed components and
+  applications as the original cluster.
 * Every cluster includes an SSH bastion and can be managed remotely even if behind a firewall.
 * Every Kubernetes cluster becomes a Teleport cluster, with all Teleport
   capabilities like session recording, audit, etc.
