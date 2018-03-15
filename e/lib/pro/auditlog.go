@@ -106,8 +106,8 @@ func (l *AuditLog) GetSessionChunk(namespace string, sid session.ID, offsetBytes
 	return chunk, trace.Wrap(err)
 }
 
-func (l *AuditLog) GetSessionEvents(namespace string, sid session.ID, after int) ([]events.EventFields, error) {
-	events, err := l.Inner.GetSessionEvents(namespace, sid, after)
+func (l *AuditLog) GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]events.EventFields, error) {
+	events, err := l.Inner.GetSessionEvents(namespace, sid, after, includePrintEvents)
 	return events, trace.Wrap(err)
 }
 
