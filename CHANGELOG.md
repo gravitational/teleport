@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.4.5
+
+This release of Teleport fixes a regression in Teleport binaries.
+
+#### Bug Fixes
+
+* Binaries for macOS have been rebuilt to resolve "certificate signed by a unknown authority" issue.
+
 ## 2.4.4
 
 This release of Teleport focuses on bugfixes.
