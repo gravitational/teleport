@@ -723,7 +723,7 @@ func (s *session) removeParty(p *party) error {
 	storageRemove := func(db rsession.Service) {
 		dbSession, err := db.GetSession(ns, s.id)
 		if err != nil {
-			s.log.Error("Unable to get session %v: %v", s.id, err)
+			s.log.Errorf("Unable to get session %v: %v", s.id, err)
 			return
 		}
 		if dbSession != nil && dbSession.RemoveParty(p.id) {
