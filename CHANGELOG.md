@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.5.1
+
+This release of Teleport fixes a regression in Teleport binaries.
+
+#### Bug Fixes
+
+* Binaries for macOS have been rebuilt to resolve "certificate signed by a unknown authority" issue.
+
 ## 2.5.0
 
 This is a major release of Teleport. Its goal is to make cloud-native
@@ -75,6 +83,14 @@ environments such as AWS. This includes:
   Their own (local) names will be used, i.e. the `cluster_name` setting now defines how
   the cluster is seen from the outside.
   [#1543](https://github.com/gravitational/teleport/issues/1543)
+
+## 2.4.5
+
+This release of Teleport fixes a regression in Teleport binaries.
+
+#### Bug Fixes
+
+* Binaries for macOS have been rebuilt to resolve "certificate signed by a unknown authority" issue.
 
 ## 2.4.4
 
