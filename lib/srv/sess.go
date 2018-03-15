@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -344,11 +345,30 @@ type sessionRecorder struct {
 
 func newSessionRecorder(alog events.IAuditLog, ctx *ServerContext, sid rsession.ID) (*sessionRecorder, error) {
 	var auditLog events.IAuditLog
-	var err error
 	if alog == nil {
 		auditLog = &events.DiscardAuditLog{}
 	} else {
-		auditLog, err = state.NewCachingAuditLog(state.CachingAuditLogConfig{
+		clusterConfig, err := ctx.srv.GetAccessPoint().GetClusterConfig()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if clusterConfig.GetAuditConfig().ShouldUploadSessions() {
+			// in case of sessions upload, write sessions to local
+			// disk, and forward only audit events to the remote audit logger
+			forwarder, err := events.NewForwarder(events.ForwarderConfig{
+				SessionID:      sid,
+				ServerID:       "upload",
+				DataDir:        filepath.Join(ctx.srv.GetDataDir(), teleport.LogsDir),
+				RecordSessions: clusterConfig.GetSessionRecording() != services.RecordOff,
+				Namespace:      ctx.srv.GetNamespace(),
+				ForwardTo:      alog,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			alog = forwarder
+		}
+		cacher, err := state.NewCachingAuditLog(state.CachingAuditLogConfig{
 			Namespace: ctx.srv.GetNamespace(),
 			SessionID: string(sid),
 			Server:    alog,
@@ -356,6 +376,7 @@ func newSessionRecorder(alog events.IAuditLog, ctx *ServerContext, sid rsession.
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		auditLog = cacher
 	}
 	sr := &sessionRecorder{
 		log: logrus.WithFields(logrus.Fields{

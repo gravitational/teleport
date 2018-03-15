@@ -340,7 +340,7 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 	// ask for strictly session events:
-	e, err := clt.GetSessionEvents(defaults.Namespace, sess.ID, 0)
+	e, err := clt.GetSessionEvents(defaults.Namespace, sess.ID, 0, true)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(e), check.Equals, 2)
 	c.Assert(e[0].GetString("val"), check.Equals, "one")

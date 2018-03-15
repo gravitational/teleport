@@ -144,6 +144,8 @@ type Config struct {
 	// MACAlgorithms is a list of message authentication codes (MAC) that
 	// the server supports. If omitted the defaults will be used.
 	MACAlgorithms []string
+	// DataDir is a local server data directory
+	DataDir string
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -159,6 +161,9 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	}
 	if cfg.Listener == nil {
 		return trace.BadParameter("missing parameter Listener")
+	}
+	if cfg.DataDir == "" {
+		return trace.BadParameter("missing parameter DataDir")
 	}
 	if cfg.Context == nil {
 		cfg.Context = context.TODO()

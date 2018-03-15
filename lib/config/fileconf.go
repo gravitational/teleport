@@ -134,6 +134,8 @@ var (
 		"write_capacity_units":   false,
 		"license_file":           false,
 		"proxy_checks_host_keys": false,
+		"audit_table_name":       false,
+		"audit_sessions_uri":     false,
 	}
 )
 

@@ -83,7 +83,7 @@ func (d *MockAuditLog) GetSessionChunk(namespace string, sid session.ID, offsetB
 	return make([]byte, 0), nil
 }
 
-func (d *MockAuditLog) GetSessionEvents(namespace string, sid session.ID, after int) ([]EventFields, error) {
+func (d *MockAuditLog) GetSessionEvents(namespace string, sid session.ID, after int, fetchPrintEvents bool) ([]EventFields, error) {
 	return make([]EventFields, 0), nil
 }
 

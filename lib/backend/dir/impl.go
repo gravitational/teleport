@@ -22,15 +22,14 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"syscall"
 	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
-
-	log "github.com/sirupsen/logrus"
-
 	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -161,10 +160,10 @@ func (bk *Backend) CreateVal(bucket []string, key string, val []byte, ttl time.D
 		return trace.ConvertSystemError(err)
 	}
 	defer f.Close()
-	if err := writeLock(f); err != nil {
+	if err := utils.FSWriteLock(f); err != nil {
 		return trace.Wrap(err)
 	}
-	defer unlock(f)
+	defer utils.FSUnlock(f)
 	if err := f.Truncate(0); err != nil {
 		return trace.ConvertSystemError(err)
 	}
@@ -173,27 +172,6 @@ func (bk *Backend) CreateVal(bucket []string, key string, val []byte, ttl time.D
 		return trace.Wrap(io.ErrShortWrite)
 	}
 	return trace.Wrap(bk.applyTTL(dirPath, key, ttl))
-}
-
-func writeLock(f *os.File) error {
-	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
-		return trace.ConvertSystemError(err)
-	}
-	return nil
-}
-
-func readLock(f *os.File) error {
-	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_SH); err != nil {
-		return trace.ConvertSystemError(err)
-	}
-	return nil
-}
-
-func unlock(f *os.File) error {
-	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_UN); err != nil {
-		return trace.ConvertSystemError(err)
-	}
-	return nil
 }
 
 // UpsertVal updates or inserts value with a given TTL into a bucket
@@ -214,10 +192,10 @@ func (bk *Backend) UpsertVal(bucket []string, key string, val []byte, ttl time.D
 		return trace.ConvertSystemError(err)
 	}
 	defer f.Close()
-	if err := writeLock(f); err != nil {
+	if err := utils.FSWriteLock(f); err != nil {
 		return trace.Wrap(err)
 	}
-	defer unlock(f)
+	defer utils.FSUnlock(f)
 	if err := f.Truncate(0); err != nil {
 		return trace.ConvertSystemError(err)
 	}
@@ -249,10 +227,10 @@ func (bk *Backend) GetVal(bucket []string, key string) ([]byte, error) {
 		return nil, trace.ConvertSystemError(err)
 	}
 	defer f.Close()
-	if err := readLock(f); err != nil {
+	if err := utils.FSReadLock(f); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer unlock(f)
+	defer utils.FSUnlock(f)
 	bytes, err := ioutil.ReadAll(f)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
@@ -278,10 +256,10 @@ func (bk *Backend) DeleteKey(bucket []string, key string) error {
 		return trace.ConvertSystemError(err)
 	}
 	defer f.Close()
-	if err := writeLock(f); err != nil {
+	if err := utils.FSWriteLock(f); err != nil {
 		return trace.Wrap(err)
 	}
-	defer unlock(f)
+	defer utils.FSUnlock(f)
 	if err := os.Remove(bk.ttlFile(dirPath, key)); err != nil {
 		if !os.IsNotExist(err) {
 			log.Warn(err)
@@ -345,10 +323,10 @@ func removeFile(path string) error {
 		return nil
 	}
 	defer f.Close()
-	if err := writeLock(f); err != nil {
+	if err := utils.FSWriteLock(f); err != nil {
 		return trace.Wrap(err)
 	}
-	defer unlock(f)
+	defer utils.FSUnlock(f)
 	err = os.Remove(path)
 	if err != nil {
 		err = trace.ConvertSystemError(err)

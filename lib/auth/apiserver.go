@@ -1883,7 +1883,12 @@ func (s *APIServer) getSessionEvents(auth ClientI, w http.ResponseWriter, r *htt
 	if err != nil {
 		afterN = 0
 	}
-	return auth.GetSessionEvents(namespace, *sid, afterN)
+	includePrintEvents, err := strconv.ParseBool(r.URL.Query().Get("print"))
+	if err != nil {
+		includePrintEvents = false
+	}
+
+	return auth.GetSessionEvents(namespace, *sid, afterN, includePrintEvents)
 }
 
 type upsertNamespaceReq struct {

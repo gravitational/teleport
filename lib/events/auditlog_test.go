@@ -1,7 +1,24 @@
+/*
+Copyright 2015-2018 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package events
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -13,6 +30,7 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
@@ -97,7 +115,7 @@ func (a *AuditTestSuite) TestCompatComplexLogging(c *check.C) {
 	c.Assert(alog.loggers.Len(), check.Equals, 0)
 
 	// inspect session "200". it could have three events: join, print and leave:
-	history, err := alog.GetSessionEvents(defaults.Namespace, "200", 0)
+	history, err := alog.GetSessionEvents(defaults.Namespace, "200", 0, true)
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.HasLen, 3)
 	c.Assert(history[0][EventLogin], check.Equals, "doggy")
@@ -108,7 +126,7 @@ func (a *AuditTestSuite) TestCompatComplexLogging(c *check.C) {
 	c.Assert(history[2][EventType], check.Equals, SessionEndEvent)
 
 	// try the same, but with 'afterN', we should only get the 3rd event:
-	history2, err := alog.GetSessionEvents(defaults.Namespace, "200", 2)
+	history2, err := alog.GetSessionEvents(defaults.Namespace, "200", 2, true)
 	c.Assert(err, check.IsNil)
 	c.Assert(history2, check.HasLen, 1)
 	c.Assert(history2[0], check.DeepEquals, history[2])
@@ -211,7 +229,7 @@ func (a *AuditTestSuite) TestSessionsOnOneAuthServer(c *check.C) {
 	// does not matter which audit server is accessed the results should be the same
 	for _, a := range []*AuditLog{alog, alog2} {
 		// read the session bytes
-		history, err := a.GetSessionEvents(defaults.Namespace, session.ID(sessionID), 0)
+		history, err := a.GetSessionEvents(defaults.Namespace, session.ID(sessionID), 0, true)
 		c.Assert(err, check.IsNil)
 		c.Assert(history, check.HasLen, 3)
 
@@ -347,7 +365,7 @@ func (a *AuditTestSuite) TestSessionsTwoAuthServers(c *check.C) {
 	// does not matter which audit server is accessed the results should be the same
 	for _, a := range []*AuditLog{alog, alog2} {
 		// read the session bytes
-		history, err := a.GetSessionEvents(defaults.Namespace, session.ID(sessionID), 1)
+		history, err := a.GetSessionEvents(defaults.Namespace, session.ID(sessionID), 1, true)
 		c.Assert(err, check.IsNil)
 		c.Assert(history, check.HasLen, 4)
 
@@ -683,7 +701,7 @@ func (a *AuditTestSuite) TestMigrationsToV2(c *check.C) {
 
 	// sessions have been migrated
 	sid := "74a5fc73-e02c-11e7-aee2-0242ac0a0101"
-	events, err := alog.GetSessionEvents(defaults.Namespace, session.ID(sid), 0)
+	events, err := alog.GetSessionEvents(defaults.Namespace, session.ID(sid), 0, true)
 	c.Assert(err, check.IsNil)
 	c.Assert(events, check.HasLen, 3)
 
@@ -696,7 +714,7 @@ func (a *AuditTestSuite) TestMigrationsToV2(c *check.C) {
 	alog, err = a.makeLog(c, a.dataDir, false)
 	c.Assert(err, check.IsNil)
 
-	events, err = alog.GetSessionEvents(defaults.Namespace, session.ID(sid), 0)
+	events, err = alog.GetSessionEvents(defaults.Namespace, session.ID(sid), 0, true)
 	c.Assert(err, check.IsNil)
 	c.Assert(events, check.HasLen, 3)
 
@@ -735,7 +753,7 @@ func (a *AuditTestSuite) TestCompatSessionRecordingOff(c *check.C) {
 	c.Assert(found[1].GetString(EventLogin), check.Equals, "doggy")
 
 	// inspect the session log for "200", should have two events
-	history, err := alog.GetSessionEvents(defaults.Namespace, "200", 0)
+	history, err := alog.GetSessionEvents(defaults.Namespace, "200", 0, true)
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.HasLen, 2)
 
@@ -798,7 +816,7 @@ func (a *AuditTestSuite) TestSessionRecordingOff(c *check.C) {
 	c.Assert(found[1].GetString(EventLogin), check.Equals, username)
 
 	// inspect the session log for "200", should have two events
-	history, err := alog.GetSessionEvents(defaults.Namespace, session.ID(sessionID), 0)
+	history, err := alog.GetSessionEvents(defaults.Namespace, session.ID(sessionID), 0, true)
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.HasLen, 2)
 
@@ -878,7 +896,7 @@ func (a *AuditTestSuite) TestCompatAutoClose(c *check.C) {
 	c.Assert(alog.loggers.Len(), check.Equals, 0)
 
 	// read the session bytes
-	history, err := alog.GetSessionEvents(defaults.Namespace, "100", 1)
+	history, err := alog.GetSessionEvents(defaults.Namespace, "100", 1, true)
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.HasLen, 4)
 
@@ -999,7 +1017,7 @@ func (a *AuditTestSuite) TestAutoClose(c *check.C) {
 	c.Assert(alog.loggers.Len(), check.Equals, 0)
 
 	// read the session bytes
-	history, err := alog.GetSessionEvents(defaults.Namespace, session.ID(sessionID), 1)
+	history, err := alog.GetSessionEvents(defaults.Namespace, session.ID(sessionID), 1, true)
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.HasLen, 4)
 
@@ -1105,6 +1123,123 @@ func (a *AuditTestSuite) TestCloseOutstanding(c *check.C) {
 
 	alog.Close()
 	c.Assert(alog.loggers.Len(), check.Equals, 0)
+}
+
+// TestForwardAndUpload tests forwarding server and upload
+// server case
+func (a *AuditTestSuite) TestForwardAndUpload(c *check.C) {
+	storageDir := c.MkDir()
+	fileHandler, err := filesessions.NewHandler(filesessions.Config{
+		Directory: storageDir,
+	})
+
+	// start uploader and make sure it uploads event to the event
+	// storage
+
+	uploadDir := c.MkDir()
+	err = os.MkdirAll(filepath.Join(uploadDir, "upload", "sessions", defaults.Namespace), 0755)
+
+	fakeClock := clockwork.NewFakeClock()
+
+	alog, err := NewAuditLog(AuditLogConfig{
+		DataDir:        a.dataDir,
+		RecordSessions: true,
+		Clock:          fakeClock,
+		ServerID:       "remote",
+		UploadHandler:  fileHandler,
+	})
+	c.Assert(err, check.IsNil)
+
+	sessionID := session.ID("100")
+	forwarder, err := NewForwarder(ForwarderConfig{
+		Namespace:      defaults.Namespace,
+		SessionID:      sessionID,
+		ServerID:       "upload",
+		DataDir:        uploadDir,
+		RecordSessions: true,
+		ForwardTo:      alog,
+	})
+	c.Assert(err, check.IsNil)
+
+	// start the session and emit data stream to it and wrap it up
+	firstMessage := []byte("hello")
+	err = forwarder.PostSessionSlice(SessionSlice{
+		Namespace: defaults.Namespace,
+		SessionID: string(sessionID),
+		Chunks: []*SessionChunk{
+			// start the seession
+			&SessionChunk{
+				Time:       fakeClock.Now().UTC().UnixNano(),
+				EventIndex: 0,
+				EventType:  SessionStartEvent,
+				Data:       marshal(EventFields{EventLogin: "bob"}),
+			},
+			// type "hello" into session "100"
+			&SessionChunk{
+				Time:       fakeClock.Now().UTC().UnixNano(),
+				EventIndex: 1,
+				ChunkIndex: 0,
+				Offset:     0,
+				EventType:  SessionPrintEvent,
+				Data:       firstMessage,
+			},
+			// emitting session end event should close the session
+			&SessionChunk{
+				Time:       fakeClock.Now().UTC().UnixNano(),
+				EventIndex: 4,
+				EventType:  SessionEndEvent,
+				Data:       marshal(EventFields{EventLogin: "bob"}),
+			},
+		},
+		Version: V2,
+	})
+	c.Assert(err, check.IsNil)
+
+	// start uploader process
+	eventsC := make(chan *UploadEvent, 100)
+	uploader, err := NewUploader(UploaderConfig{
+		ServerID:   "upload",
+		DataDir:    uploadDir,
+		Clock:      fakeClock,
+		Namespace:  defaults.Namespace,
+		Context:    context.TODO(),
+		ScanPeriod: 100 * time.Millisecond,
+		Handler:    fileHandler,
+		AuditLog:   alog,
+		EventsC:    eventsC,
+	})
+	c.Assert(err, check.IsNil)
+
+	// scanner should upload the events
+	err = uploader.scan()
+	c.Assert(err, check.IsNil)
+
+	select {
+	case event := <-eventsC:
+		c.Assert(event, check.NotNil)
+		c.Assert(event.Error, check.IsNil)
+	case <-time.After(time.Second):
+		c.Fatalf("Timeout wating for the upload event")
+	}
+
+	// read the session bytes
+	history, err := alog.GetSessionEvents(defaults.Namespace, session.ID(sessionID), 0, true)
+	c.Assert(err, check.IsNil)
+	c.Assert(history, check.HasLen, 3)
+
+	// make sure offsets were properly set (0 for the first event and 5 bytes for hello):
+	c.Assert(history[1][SessionByteOffset], check.Equals, float64(0))
+	c.Assert(history[1][SessionEventTimestamp], check.Equals, float64(0))
+
+	// fetch all bytes
+	buff, err := alog.GetSessionChunk(defaults.Namespace, session.ID(sessionID), 0, 5000)
+	c.Assert(err, check.IsNil)
+	c.Assert(string(buff), check.Equals, string(firstMessage))
+
+	// with offset
+	buff, err = alog.GetSessionChunk(defaults.Namespace, session.ID(sessionID), 2, 5000)
+	c.Assert(err, check.IsNil)
+	c.Assert(string(buff), check.Equals, string(firstMessage[2:]))
 }
 
 func marshal(f EventFields) []byte {

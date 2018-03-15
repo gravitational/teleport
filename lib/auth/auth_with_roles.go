@@ -808,12 +808,12 @@ func (a *AuthWithRoles) GetSessionChunk(namespace string, sid session.ID, offset
 	return a.alog.GetSessionChunk(namespace, sid, offsetBytes, maxBytes)
 }
 
-func (a *AuthWithRoles) GetSessionEvents(namespace string, sid session.ID, afterN int) ([]events.EventFields, error) {
+func (a *AuthWithRoles) GetSessionEvents(namespace string, sid session.ID, afterN int, includePrintEvents bool) ([]events.EventFields, error) {
 	if err := a.action(namespace, services.KindSession, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return a.alog.GetSessionEvents(namespace, sid, afterN)
+	return a.alog.GetSessionEvents(namespace, sid, afterN, includePrintEvents)
 }
 
 func (a *AuthWithRoles) SearchEvents(from, to time.Time, query string, limit int) ([]events.EventFields, error) {

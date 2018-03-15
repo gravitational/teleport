@@ -118,6 +118,14 @@ type Server struct {
 
 	// termHandlers are common terminal related handlers.
 	termHandlers *srv.TermHandlers
+
+	// dataDir is a server local data directory
+	dataDir string
+}
+
+// GetDataDir returns server data dir
+func (s *Server) GetDataDir() string {
+	return s.dataDir
 }
 
 func (s *Server) GetNamespace() string {
@@ -325,6 +333,7 @@ func New(addr utils.NetAddr,
 		uuid:            uuid,
 		closer:          utils.NewCloseBroadcaster(),
 		clock:           clockwork.NewRealClock(),
+		dataDir:         dataDir,
 	}
 	s.limiter, err = limiter.NewLimiter(limiter.LimiterConfig{})
 	if err != nil {

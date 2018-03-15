@@ -100,3 +100,26 @@ func (s *ClusterConfigurationSuite) TestSessionRecording(c *check.C) {
 	recordingType = clusterConfig.GetSessionRecording()
 	c.Assert(recordingType, check.Equals, services.RecordAtProxy)
 }
+
+func (s *ClusterConfigurationSuite) TestAuditConfig(c *check.C) {
+	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{})
+	c.Assert(err, check.IsNil)
+
+	// default is to record at the node
+	clusterConfig, err = services.NewClusterConfig(services.ClusterConfigSpecV3{})
+	c.Assert(err, check.IsNil)
+
+	cfg := clusterConfig.GetAuditConfig()
+	c.Assert(cfg, check.DeepEquals, services.AuditConfig{})
+
+	// update sessions to be recorded at the proxy and check again
+	in := services.AuditConfig{
+		Region:           "us-west-1",
+		Type:             "dynamodb",
+		AuditSessionsURI: "file:///home/log",
+		AuditTableName:   "audit_table_name",
+	}
+	clusterConfig.SetAuditConfig(in)
+	out := clusterConfig.GetAuditConfig()
+	c.Assert(out, check.DeepEquals, in)
+}

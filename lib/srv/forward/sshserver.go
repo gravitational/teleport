@@ -102,6 +102,7 @@ type Server struct {
 	authService     auth.AccessPoint
 	sessionRegistry *srv.SessionRegistry
 	sessionServer   session.Service
+	dataDir         string
 }
 
 // ServerConfig is the configuration needed to create an instance of a Server.
@@ -124,12 +125,18 @@ type ServerConfig struct {
 	// MACAlgorithms is a list of message authentication codes (MAC) that
 	// the server supports. If omitted the defaults will be used.
 	MACAlgorithms []string
+
+	// DataDir is a local data directory used for local server storage
+	DataDir string
 }
 
 // CheckDefaults makes sure all required parameters are passed in.
 func (s *ServerConfig) CheckDefaults() error {
 	if s.AuthClient == nil {
 		return trace.BadParameter("auth client required")
+	}
+	if s.DataDir == "" {
+		return trace.BadParameter("missing parameter DataDir")
 	}
 	if s.UserAgent == nil {
 		return trace.BadParameter("user agent required to connect to remote host")
@@ -184,6 +191,7 @@ func New(c ServerConfig) (*Server, error) {
 		auditLog:        c.AuthClient,
 		authService:     c.AuthClient,
 		sessionServer:   c.AuthClient,
+		dataDir:         c.DataDir,
 	}
 
 	s.sessionRegistry, err = srv.NewSessionRegistry(s)
@@ -209,6 +217,11 @@ func New(c ServerConfig) (*Server, error) {
 	}
 
 	return s, nil
+}
+
+// GetDataDir returns server local storage
+func (s *Server) GetDataDir() string {
+	return s.dataDir
 }
 
 // ID returns the ID of the proxy that creates the in-memory forwarding server.

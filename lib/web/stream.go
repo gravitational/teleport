@@ -93,7 +93,7 @@ func (w *sessionStreamHandler) stream(ws *websocket.Conn) error {
 
 	pollEvents := func() []events.EventFields {
 		// ask for any events than happened since the last call:
-		re, err := clt.GetSessionEvents(w.namespace, w.sessionID, eventsCursor+1)
+		re, err := clt.GetSessionEvents(w.namespace, w.sessionID, eventsCursor+1, false)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				log.Error(err)

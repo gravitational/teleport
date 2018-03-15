@@ -407,10 +407,17 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 
+	auditConfig, err := services.AuditConfigFromObject(fc.Storage.Params)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	auditConfig.Type = fc.Storage.Type
+
 	// build cluster config from session recording and host key checking preferences
 	cfg.Auth.ClusterConfig, err = services.NewClusterConfig(services.ClusterConfigSpecV3{
 		SessionRecording:    fc.Auth.SessionRecording,
 		ProxyChecksHostKeys: fc.Auth.ProxyChecksHostKeys,
+		Audit:               *auditConfig,
 	})
 	if err != nil {
 		return trace.Wrap(err)

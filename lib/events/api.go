@@ -59,6 +59,11 @@ const (
 
 	// SessionEndEvent indicates that a session has ended
 	SessionEndEvent = "session.end"
+	// SessionUploadEvent indicates that session has been uploaded to the external storage
+	SessionUploadEvent = "session.upload"
+	// URL is used for a session upload URL
+	URL = "url"
+
 	SessionEventID  = "sid"
 	SessionServerID = "server_id"
 
@@ -164,7 +169,7 @@ type IAuditLog interface {
 	//
 	// This function is usually used in conjunction with GetSessionReader to
 	// replay recorded session streams.
-	GetSessionEvents(namespace string, sid session.ID, after int) ([]EventFields, error)
+	GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]EventFields, error)
 
 	// SearchEvents is a flexible way to find events. The format of a query string
 	// depends on the implementing backend. A recommended format is urlencoded

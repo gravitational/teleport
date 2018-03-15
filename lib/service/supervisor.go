@@ -20,6 +20,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -106,7 +107,7 @@ func (e *Event) String() string {
 }
 
 func (s *LocalSupervisor) Register(srv Service) {
-	log.WithFields(logrus.Fields{"service": srv.Name()}).Debugf("Adding service to supervisor.")
+	log.WithFields(logrus.Fields{"service": srv.Name(), trace.Component: teleport.ComponentProcess}).Debugf("Adding service to supervisor.")
 	s.Lock()
 	defer s.Unlock()
 	s.services = append(s.services, srv)
@@ -131,7 +132,7 @@ func (s *LocalSupervisor) RegisterFunc(name string, fn ServiceFunc) {
 
 // RemoveService removes service from supervisor tracking list
 func (s *LocalSupervisor) RemoveService(srv Service) error {
-	l := logrus.WithFields(logrus.Fields{"service": srv.Name()})
+	l := logrus.WithFields(logrus.Fields{"service": srv.Name(), trace.Component: teleport.ComponentProcess})
 	s.Lock()
 	defer s.Unlock()
 	for i, el := range s.services {

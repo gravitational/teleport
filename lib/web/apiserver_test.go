@@ -201,6 +201,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		LocalAccessPoint:      s.proxyClient,
 		NewCachingAccessPoint: state.NoCache,
 		DirectClusters:        []reversetunnel.DirectCluster{{Name: s.server.ClusterName(), Client: s.proxyClient}},
+		DataDir:               c.MkDir(),
 	})
 	c.Assert(err, IsNil)
 

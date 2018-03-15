@@ -158,6 +158,12 @@ const (
 	// LogRotationPeriod defines how frequently to rotate the audit log file
 	LogRotationPeriod = (time.Hour * 24)
 
+	// UploaderScanPeriod is a default uploader scan period
+	UploaderScanPeriod = 5 * time.Second
+
+	// UploaderConcurrentUploads is a default number of concurrent
+	UploaderConcurrentUploads = 10
+
 	// MaxLoginAttempts sets the max. number of allowed failed login attempts
 	// before a user account is locked for AccountLockInterval
 	MaxLoginAttempts int = 5

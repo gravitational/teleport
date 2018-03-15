@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/dir"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
@@ -70,6 +71,9 @@ type TeleInstance struct {
 	// Nodes is a list of additional nodes
 	// started with this instance
 	Nodes []*service.TeleportProcess
+
+	// UploadEventsC is a channel for upload events
+	UploadEventsC chan *events.UploadEvent
 }
 
 type User struct {
@@ -177,8 +181,9 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 	fatalIf(err)
 
 	i := &TeleInstance{
-		Ports:    cfg.Ports,
-		Hostname: cfg.NodeName,
+		Ports:         cfg.Ports,
+		Hostname:      cfg.NodeName,
+		UploadEventsC: make(chan *events.UploadEvent, 100),
 	}
 	secrets := InstanceSecrets{
 		SiteName:     cfg.ClusterName,
@@ -326,6 +331,7 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 		tconf = service.MakeDefaultConfig()
 	}
 	tconf.DataDir = dataDir
+	tconf.UploadEventsC = i.UploadEventsC
 	tconf.Auth.ClusterName, err = services.NewClusterName(services.ClusterNameSpecV2{
 		ClusterName: i.Secrets.SiteName,
 	})
@@ -454,6 +460,7 @@ func (i *TeleInstance) StartNode(name string, sshPort int) (*service.TeleportPro
 	tconf.HostUUID = name
 	tconf.Hostname = name
 	tconf.DataDir = dataDir
+	tconf.UploadEventsC = i.UploadEventsC
 	var ttl time.Duration
 	tconf.CachePolicy = service.CachePolicy{
 		Enabled:   true,
@@ -507,6 +514,7 @@ func (i *TeleInstance) StartNodeAndProxy(name string, sshPort, proxyWebPort, pro
 	tconf.Token = "token"
 	tconf.HostUUID = name
 	tconf.Hostname = name
+	tconf.UploadEventsC = i.UploadEventsC
 	tconf.DataDir = dataDir
 	var ttl time.Duration
 	tconf.CachePolicy = service.CachePolicy{
@@ -576,6 +584,7 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) error {
 	tconf.AuthServers = append(tconf.AuthServers, *authServer)
 	tconf.CachePolicy = service.CachePolicy{Enabled: true}
 	tconf.DataDir = dataDir
+	tconf.UploadEventsC = i.UploadEventsC
 	tconf.HostUUID = cfg.Name
 	tconf.Hostname = cfg.Name
 	tconf.Token = "token"

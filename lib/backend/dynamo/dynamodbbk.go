@@ -125,7 +125,7 @@ func GetName() string {
 // It's an implementation of backend API's NewFunc
 func New(params backend.Params) (backend.Backend, error) {
 	l := log.WithFields(log.Fields{trace.Component: BackendName})
-	l.Info("initializing backend")
+	l.Info("Initializing backend.")
 
 	var cfg *DynamoConfig
 	err := utils.ObjectToStruct(params, &cfg)
@@ -134,7 +134,7 @@ func New(params backend.Params) (backend.Backend, error) {
 		return nil, trace.BadParameter("DynamoDB configuration is invalid", err)
 	}
 
-	defer log.Debug("AWS session created")
+	defer l.Debug("AWS session is created.")
 
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -284,12 +284,12 @@ func (b *DynamoDBBackend) createTable(tableName string, rangeKey string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	log.Infof("[DynamoDB] waiting until table '%s' is created", tableName)
+	b.Infof("Waiting until table %q is created.", tableName)
 	err = b.svc.WaitUntilTableExists(&dynamodb.DescribeTableInput{
 		TableName: aws.String(tableName),
 	})
 	if err == nil {
-		log.Infof("[DynamoDB] Table '%s' has been created", tableName)
+		b.Infof("Table %q has been created.", tableName)
 	}
 	return trace.Wrap(err)
 }
