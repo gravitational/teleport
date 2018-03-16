@@ -193,7 +193,11 @@ func (process *TeleportProcess) readIdentity(role teleport.Role) (*auth.Identity
 	process.Lock()
 	defer process.Unlock()
 
-	id := auth.IdentityID{HostUUID: process.Config.HostUUID, Role: role}
+	id := auth.IdentityID{
+		Role:     role,
+		HostUUID: process.Config.HostUUID,
+		NodeName: process.Config.Hostname,
+	}
 	identity, err := auth.ReadIdentity(process.Config.DataDir, id)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -216,7 +220,11 @@ func (process *TeleportProcess) GetIdentity(role teleport.Role) (i *auth.Identit
 		return i, nil
 	}
 
-	id := auth.IdentityID{HostUUID: process.Config.HostUUID, Role: role}
+	id := auth.IdentityID{
+		Role:     role,
+		HostUUID: process.Config.HostUUID,
+		NodeName: process.Config.Hostname,
+	}
 	i, err = auth.ReadIdentity(process.Config.DataDir, id)
 	if err != nil {
 		if trace.IsNotFound(err) {
