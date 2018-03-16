@@ -120,7 +120,7 @@ func (a *AuditTestSuite) TestCompatComplexLogging(c *check.C) {
 
 	// try searching (in the future)
 	query := fmt.Sprintf("%s=%s", EventType, SessionStartEvent)
-	found, err := alog.SearchEvents(now.Add(time.Hour), now.Add(time.Hour), query, 0)
+	found, err := alog.SearchEvents(now.Add(48*time.Hour), now.Add(72*time.Hour), query, 0)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(found), check.Equals, 0)
 
@@ -498,7 +498,7 @@ func (a *AuditTestSuite) TestSearchTwoAuthServers(c *check.C) {
 
 		// search events, start time is in the future
 		query := fmt.Sprintf("%s=%s", EventType, SessionStartEvent)
-		found, err := a.SearchEvents(startTime.Add(time.Hour), startTime.Add(time.Hour), query, 0)
+		found, err := a.SearchEvents(startTime.Add(48*time.Hour), startTime.Add(72*time.Hour), query, 0)
 		c.Assert(err, check.IsNil)
 		c.Assert(len(found), check.Equals, 0, comment)
 
@@ -677,9 +677,20 @@ func (a *AuditTestSuite) TestMigrationsToV2(c *check.C) {
 		c.Assert(err, check.IsNil)
 	}
 
-	// create audit log with session recording disabled
-	alog, err := a.makeLog(c, a.dataDir, false)
+	eventsC := make(chan *AuditLogEvent, 100)
+	alog, err := NewAuditLog(AuditLogConfig{
+		DataDir:        a.dataDir,
+		RecordSessions: false,
+		ServerID:       "server1",
+		EventsC:        eventsC,
+	})
 	c.Assert(err, check.IsNil)
+
+	select {
+	case <-eventsC:
+	case <-time.After(time.Second):
+		c.Fatalf("Failed to wait for sessions migrations to complete.")
+	}
 
 	// sessions have been migrated
 	sid := "74a5fc73-e02c-11e7-aee2-0242ac0a0101"
