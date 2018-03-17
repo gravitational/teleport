@@ -924,7 +924,15 @@ func ReadIdentity(dataDir string, id IdentityID) (i *Identity, err error) {
 		}
 	}
 
-	return ReadIdentityFromKeyPair(keyBytes, sshCertBytes, tlsCertBytes, tlsCACertBytes)
+	identity, err := ReadIdentityFromKeyPair(keyBytes, sshCertBytes, tlsCertBytes, tlsCACertBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Inject nodename back into identity read from disk.
+	identity.ID.NodeName = id.NodeName
+
+	return identity, nil
 }
 
 // WriteIdentity writes identity keypair to disk
