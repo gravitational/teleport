@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.5.2
+
+This release of Teleport includes bug fixes and regression fixes.
+
+#### Bug Fixes
+
+* Run session migration in the background. [#1784](https://github.com/gravitational/teleport/pull/1784)
+* Include node name in regenerated host certificates. [#1786](https://github.com/gravitational/teleport/issues/1786)
+
 ## 2.5.1
 
 This release of Teleport fixes a regression in Teleport binaries.
