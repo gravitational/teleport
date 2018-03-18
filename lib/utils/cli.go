@@ -24,6 +24,7 @@ import (
 	"log/syslog"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/gravitational/teleport"
 
@@ -139,12 +140,16 @@ func UserMessageFromError(err error) string {
 
 // Consolef prints the same message to a 'ui console' (if defined) and also to
 // the logger with INFO priority
-func Consolef(w io.Writer, msg string, params ...interface{}) {
+func Consolef(w io.Writer, component string, msg string, params ...interface{}) {
+	entry := log.WithFields(log.Fields{
+		trace.Component: component,
+	})
 	msg = fmt.Sprintf(msg, params...)
+	entry.Info(msg)
 	if w != nil {
-		fmt.Fprintln(w, msg)
+		component := strings.ToUpper(component)
+		fmt.Fprintf(w, "[%v]%v%v\n", strings.ToUpper(component), strings.Repeat(" ", 8-len(component)), msg)
 	}
-	log.Info(msg)
 }
 
 // InitCLIParser configures kingpin command line args parser with
