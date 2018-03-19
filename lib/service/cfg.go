@@ -138,7 +138,7 @@ type Config struct {
 
 	// UploadEventsC is a channel for upload events
 	// used in tests
-	UploadEventsC chan *events.UploadEvent
+	UploadEventsC chan *events.UploadEvent `json:"-"`
 }
 
 // ApplyToken assigns a given token to all internal services but only if token

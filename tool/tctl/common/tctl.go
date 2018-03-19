@@ -154,8 +154,9 @@ func connectToAuthService(cfg *service.Config) (client auth.ClientI, err error) 
 	// check connectivity by calling something on a clinet:
 	conn, err := client.GetDialer()(context.TODO())
 	if err != nil {
-		utils.Consolef(os.Stderr,
-			"Cannot connect to the auth server: %v.\nIs the auth server running on %v?", err, cfg.AuthServers[0].Addr)
+		utils.Consolef(os.Stderr, teleport.ComponentClient,
+			"Cannot connect to the auth server: %v.\nIs the auth server running on %v?",
+			err, cfg.AuthServers[0].Addr)
 		os.Exit(1)
 	}
 	conn.Close()

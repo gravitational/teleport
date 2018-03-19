@@ -155,6 +155,11 @@ type TeleportProcess struct {
 	// importedDescriptors is a list of imported file descriptors
 	// passed by the parent process
 	importedDescriptors []FileDescriptor
+
+	// forkedPIDs is a collection of a teleport processes forked
+	// during restart used to collect their status in case if the
+	// child process crashed.
+	forkedPIDs []int
 }
 
 // GetAuthServer returns the process' auth server
@@ -700,7 +705,7 @@ func (process *TeleportProcess) initAuthService() error {
 	// requests to the Auth API
 	var authTunnel *auth.AuthTunnel
 	process.RegisterFunc("auth.ssh", func() error {
-		log.Infof("Auth SSH service is starting on %v", cfg.Auth.SSHAddr.Addr)
+		log.Infof("Auth SSH service is starting on %v.", cfg.Auth.SSHAddr.Addr)
 		authTunnel, err = auth.NewTunnel(
 			cfg.Auth.SSHAddr,
 			identity.KeySigner,
@@ -728,6 +733,8 @@ func (process *TeleportProcess) initAuthService() error {
 	})
 
 	process.RegisterFunc("auth.tls", func() error {
+		utils.Consolef(cfg.Console, teleport.ComponentAuth, "Auth service is starting on %v.", cfg.Auth.SSHAddr.Addr)
+
 		// since tlsServer.Serve is a blocking call, we emit this even right before
 		// the service has started
 		process.BroadcastEvent(Event{Name: AuthTLSReady, Payload: nil})
@@ -963,6 +970,7 @@ func (process *TeleportProcess) initSSH() error {
 		}
 
 		log.Infof("Service is starting on %v %v.", cfg.SSH.Addr.Addr, process.Config.CachePolicy)
+		utils.Consolef(cfg.Console, teleport.ComponentNode, "Service is starting on %v.", cfg.SSH.Addr.Addr)
 		go s.Serve(listener)
 
 		// broadcast that the node has started
@@ -1401,6 +1409,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(err)
 		}
 		process.RegisterFunc("proxy.reveresetunnel.server", func() error {
+			utils.Consolef(cfg.Console, teleport.ComponentProxy, "Reverse tunnel service is starting on %v.", cfg.Proxy.ReverseTunnelListenAddr.Addr)
 			log.Infof("Starting on %v using %v", cfg.Proxy.ReverseTunnelListenAddr.Addr, process.Config.CachePolicy)
 			if err := tsrv.Start(); err != nil {
 				log.Error(err)
@@ -1443,6 +1452,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			Handler: proxyLimiter,
 		}
 		process.RegisterFunc("proxy.web", func() error {
+			utils.Consolef(cfg.Console, teleport.ComponentProxy, "Web proxy service is starting on %v.", cfg.Proxy.WebAddr.Addr)
 			log.Infof("Web proxy service is starting on %v.", cfg.Proxy.WebAddr.Addr)
 			defer webHandler.Close()
 			process.BroadcastEvent(Event{Name: ProxyWebServerReady, Payload: webHandler})
@@ -1482,6 +1492,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	process.RegisterFunc("proxy.ssh", func() error {
+		utils.Consolef(cfg.Console, teleport.ComponentProxy, "SSH proxy service is starting on %v.", cfg.Proxy.SSHAddr.Addr)
 		log.Infof("SSH proxy service is starting on %v", cfg.Proxy.SSHAddr.Addr)
 		go sshProxy.Serve(listener)
 		// broadcast that the proxy ssh server has started
