@@ -10,25 +10,28 @@ OSSLIBS = $(shell find ../lib -type f -name '*.go')
 TCTLSRCE = $(shell find tool/tctl -type f -name '*.go')
 TELEPORTSRCE = $(shell find tool/teleport -type f -name '*.go')
 
+# PAM support will only be built into Teleport if headers exist at build time.
+ifneq ("$(wildcard /usr/include/security/pam_appl.h)","")
+PAMFLAGS = -tags pam
+endif
+
 # All builds all binaries
 .PHONY: all
 all:
 	$(MAKE) -C ..
-	go install $(BUILDFLAGS) ./lib/... ./tool/...
-	make -j2 -s $(BUILDDIR)/tctl $(BUILDDIR)/teleport
+	$(MAKE) -s -j 2 $(BUILDDIR)/teleport $(BUILDDIR)/tctl
 
-$(BUILDDIR)/tctl: $(LIBSE) $(OSSLIBS) $(TCTLSRC#)
-	go build -o $(BUILDDIR)/tctl -i $(BUILDFLAGS) ./tool/tctl
+$(BUILDDIR)/tctl: $(LIBSE) $(OSSLIBS) $(TCTLSRCE)
+	go build $(PAMFLAGS) -o $(BUILDDIR)/tctl -i $(BUILDFLAGS) ./tool/tctl
 
-$(BUILDDIR)/teleport: $(LIBS#) $(OSSLIBS) $(TELEPORTSRCE)
-	go build -o $(BUILDDIR)/teleport -i $(BUILDFLAGS) ./tool/teleport
+$(BUILDDIR)/teleport: $(LIBSE) $(OSSLIBS) $(TELEPORTSRCE)
+	go build $(PAMFLAGS) -o $(BUILDDIR)/teleport -i $(BUILDFLAGS) ./tool/teleport
 
 # make clean: cleans the build
 .PHONY: clean
 clean:
 	rm -rf $(BUILDDIR)
 	rm -rf *gz
-
 
 # make release - produces a binary release tarball
 # (must be run as a sub-make)
