@@ -113,11 +113,11 @@ func (u *UserCommand) Add(client auth.ClientI) error {
 }
 
 func (u *UserCommand) PrintSignupURL(client auth.ClientI, token string, ttl time.Duration) {
-	url := web.CreateSignupLink(client, token)
+	signupURL, proxyHost := web.CreateSignupLink(client, token)
 
 	fmt.Printf("Signup token has been created and is valid for %v hours. Share this URL with the user:\n%v\n\n",
-		int(ttl/time.Hour), url)
-	fmt.Printf("NOTE: Make sure <proxyhost> points at a Teleport proxy which users can access.\n")
+		int(ttl/time.Hour), signupURL)
+	fmt.Printf("NOTE: Make sure %v points at a Teleport proxy which users can access.\n", proxyHost)
 }
 
 // Update updates existing user

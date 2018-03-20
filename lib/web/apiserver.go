@@ -2023,7 +2023,7 @@ func ok() interface{} {
 
 // CreateSignupLink generates and returns a URL which is given to a new
 // user to complete registration with Teleport via Web UI
-func CreateSignupLink(client auth.ClientI, token string) string {
+func CreateSignupLink(client auth.ClientI, token string) (string, string) {
 	proxyHost := "<proxyhost>:3080"
 
 	proxies, err := client.GetProxies()
@@ -2044,7 +2044,7 @@ func CreateSignupLink(client auth.ClientI, token string) string {
 		Host:   proxyHost,
 		Path:   "web/newuser/" + token,
 	}
-	return u.String()
+	return u.String(), proxyHost
 }
 
 type responseData struct {
