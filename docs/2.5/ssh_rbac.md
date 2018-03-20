@@ -116,8 +116,8 @@ The following variables can be used with `logins` field:
 
 Variable                | Description
 ------------------------|--------------------------
-`{{ internal.logins }}` | Substituted with "allowed logins" parameter used in 'tctl users add [login] <allowed logins>' command. This is applicable to the local user DB only.
-`{{ external.XYZ }}`    | For SAML-authenticated users this will get substituted with "XYZ" assertion value. For OIDC-authenticated users it will get substituted with "XYZ" claim value.
+`{{ internal.logins }}` | Substituted with "allowed logins" parameter used in `tctl users add [user] <allowed logins>` command. This applies only to users stored in Teleport's own local database.
+`{{ external.xyz }}`    | Substituted with a value from an external [SSO provider](https://en.wikipedia.org/wiki/Single_sign-on). If using SAML, this will be expanded with "xyz" assertion value. For OIDC, this will be expanded a value of "xyz" claim.
 
 Both variables above are there to deliver the same benefit: it allows Teleport
 administrators to define allowed OS logins via the user database, be it the
@@ -132,16 +132,38 @@ operator when evaluating access using labels. Two examples of using labels to
 restrict access:
 
 1. If you split your infrastructure at a macro level with the labels
-`environment: production` and `environment: staging` then you can create roles
-that only have access to one environment. Let's say you create an `intern`
-role with allow label `environment: staging` then interns will not have access
-to production servers.
-1. Like above, suppose you split your infrastructure at a macro level with the
-labels `environment: production` and `environment: staging`. In addition,
-within each environment you want to split the servers used by the frontend and
-backend teams, `team: frontend`, `team: backend`. If you have an intern that
-joins the frontend team that should only have access to staging, you would
-create a role with the following allow labels
-`environment: staging, team: frontend`. That would restrict users with the
-`intern` role to only staging servers the frontend team uses.
+   `environment: production` and `environment: staging` then you can create
+   roles that only have access to one environment. Let's say you create an
+   `intern` role with allow label `environment: staging` then interns will not
+   have access to production servers.
 
+2. Like above, suppose you split your infrastructure at a macro level with the
+   labels `environment: production` and `environment: staging`. In addition,
+   within each environment you want to split the servers used by the frontend
+   and backend teams, `team: frontend`, `team: backend`. If you have an intern
+   that joins the frontend team that should only have access to staging, you
+   would create a role with the following allow labels `environment: staging,
+   team: frontend`. That would restrict users with the `intern` role to only
+   staging servers the frontend team uses.
+
+### Example
+
+The role below allows access to all nodes labeled "env=stage" except those that
+also have "worload=database" (these will always be denied).
+
+Access to any other nodes will be denied:
+
+```bash
+kind: role
+version: v3
+metadata:
+  name: example-role
+spec:
+  allow:
+    node_labels:
+      'env': 'stage'
+
+  deny:
+    node_labels:
+      'workload': 'database'
+```
