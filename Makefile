@@ -25,7 +25,7 @@ BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s'
 
 ARCH=`go env GOOS`-`go env GOARCH`
 RELEASE=teleport-$(GITTAG)-$(ARCH)-bin
-BINARIES=$(BUILDDIR)/tsh $(BUILDDIR)/teleport $(BUILDDIR)/tctl
+BINARIES=$(BUILDDIR)/teleport $(BUILDDIR)/tctl $(BUILDDIR)/tsh
 
 VERSRC = version.go gitref.go
 LIBS = $(shell find lib -type f -name '*.go') *.go
@@ -34,29 +34,37 @@ TELEPORTSRC = $(shell find tool/teleport -type f -name '*.go')
 TSHSRC = $(shell find tool/tsh -type f -name '*.go')
 TELEPORTVENDOR = $(shell find vendor -type f -name '*.go')
 
+# PAM support will only be built into Teleport if headers exist at build time.
+PAM_MESSAGE = "Building Teleport without PAM support."
+ifneq ("$(wildcard /usr/include/security/pam_appl.h)","")
+PAMFLAGS = -tags pam
+PAM_MESSAGE = "Building Teleport with PAM support."
+endif
+
 #
 # 'make all' builds all 3 executables and plaaces them in a current directory
-# 
+#
 # IMPORTANT: the binaries will not contain the web UI assets and `teleport`
 #            won't start without setting the environment variable DEBUG=1
 #            This is the default build target for convenience of working on
 #            a web UI.
+
 .PHONY: all
 all: $(VERSRC)
-	go install $(BUILDFLAGS) ./lib/... ./tool/...
+	@echo $(PAM_MESSAGE)
 	$(MAKE) -s -j 3 $(BINARIES)
 
 $(BUILDDIR)/tctl: $(LIBS) $(TELEPORTSRC) $(TELEPORTVENDOR)
-	go build -o $(BUILDDIR)/tctl -i $(BUILDFLAGS) ./tool/tctl
+	go build $(PAMFLAGS) -o $(BUILDDIR)/tctl -i $(BUILDFLAGS) ./tool/tctl
 
 $(BUILDDIR)/teleport: $(LIBS) $(TELEPORTSRC) $(TELEPORTVENDOR)
-	go build -o $(BUILDDIR)/teleport -i $(BUILDFLAGS) ./tool/teleport
+	go build $(PAMFLAGS) -o $(BUILDDIR)/teleport -i $(BUILDFLAGS) ./tool/teleport
 
 $(BUILDDIR)/tsh: $(LIBS) $(TELEPORTSRC) $(TELEPORTVENDOR)
-	go build -o $(BUILDDIR)/tsh -i $(BUILDFLAGS) ./tool/tsh
+	go build $(PAMFLAGS) -o $(BUILDDIR)/tsh -i $(BUILDFLAGS) ./tool/tsh
 
 #
-# make full - builds the binary with the built-in web assets and places it 
+# make full - builds the binary with the built-in web assets and places it
 #     into $(BUILDDIR)
 #
 .PHONY:full
@@ -65,7 +73,6 @@ full: all $(BUILDDIR)/webassets.zip
 	rm -fr $(BUILDDIR)/webassets.zip
 	zip -q -A $(BUILDDIR)/teleport
 	if [ -f e/Makefile ]; then $(MAKE) -C e full; fi
-
 
 .PHONY: clean
 clean:
@@ -78,9 +85,9 @@ clean:
 	@if [ -f e/Makefile ]; then $(MAKE) -C e clean; fi
 
 #
-# make release - produces a binary release tarball 
-#	
-.PHONY: 
+# make release - produces a binary release tarball
+#
+.PHONY:
 export
 release: clean full
 	mkdir teleport
@@ -126,8 +133,8 @@ test: $(VERSRC)
 # integration tests. need a TTY to work and not compatible with a race detector
 #
 .PHONY: integration
-integration: 
-	go test -v ./integration/... -check.v
+integration:
+	go test $(PAMFLAGS) -v ./integration/... -check.v
 
 # This rule triggers re-generation of version.go and gitref.go if Makefile changes
 $(VERSRC): Makefile
@@ -157,10 +164,6 @@ test-package: remove-temp-files
 .PHONY: test-grep-package
 test-grep-package: remove-temp-files
 	go test -v ./$(p) -check.f=$(e)
-
-.PHONY: test-dynamo
-test-dynamo:
-	go test -v ./lib/... -tags dynamodb
 
 .PHONY: cover-package
 cover-package: remove-temp-files
@@ -227,7 +230,7 @@ goinstall:
 		github.com/gravitational/teleport/tool/teleport \
 		github.com/gravitational/teleport/tool/tctl
 
-# make install will installs system-wide teleport 
+# make install will installs system-wide teleport
 .PHONY: install
 install: build
 	@echo "\n** Make sure to run 'make install' as root! **\n"

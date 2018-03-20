@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -588,6 +589,40 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 	// create a new "party" (connected client)
 	p := newParty(s, ch, ctx)
 
+	// get the audit log from the server and create a session recorder. this will
+	// be a discard audit log if the proxy is in recording mode and a teleport
+	// node so we don't create double recordings.
+	auditLog := s.registry.srv.GetAuditLog()
+	s.recorder, err = newSessionRecorder(auditLog, ctx, s.id)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	s.writer.addWriter("session-recorder", s.recorder, true)
+
+	// If this code is running on a Teleport node and PAM is enabled, then open a
+	// PAM context.
+	var pamContext *pam.PAM
+	if ctx.srv.Component() == teleport.ComponentNode {
+		conf, err := s.registry.srv.GetPAM()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if conf.Enabled == true {
+			pamContext, err = pam.Open(&pam.Config{
+				ServiceName: conf.ServiceName,
+				Username:    ctx.Identity.Login,
+				Stdin:       ch,
+				Stderr:      s.writer,
+				Stdout:      s.writer,
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			ctx.Debugf("Opening PAM context for session %v.", s.id)
+		}
+	}
+
 	// allocate a terminal or take the one previously allocated via a
 	// seaprate "allocate TTY" SSH request
 	if ctx.GetTerm() != nil {
@@ -609,16 +644,6 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 	}
 
 	params := s.term.GetTerminalParams()
-
-	// get the audit log from the server and create a session recorder. this will
-	// be a discard audit log if the proxy is in recording mode and a teleport
-	// node so we don't create double recordings.
-	auditLog := s.registry.srv.GetAuditLog()
-	s.recorder, err = newSessionRecorder(auditLog, ctx, s.id)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	s.writer.addWriter("session-recorder", s.recorder, true)
 
 	// emit "new session created" event:
 	s.recorder.alog.EmitAuditEvent(events.SessionStartEvent, events.EventFields{
@@ -670,6 +695,24 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 		case <-time.After(defaults.WaitCopyTimeout):
 			s.log.Errorf("Timed out waiting for PTY copy to finish, session data for %v may be missing.", s.id)
 		case <-doneCh:
+		}
+
+		// If this code is running on a Teleport node and PAM is enabled, close the context.
+		if ctx.srv.Component() == teleport.ComponentNode {
+			conf, err := s.registry.srv.GetPAM()
+			if err != nil {
+				ctx.Errorf("Unable to get PAM configuration from server: %v", err)
+				return
+			}
+
+			if conf.Enabled == true {
+				err = pamContext.Close()
+				if err != nil {
+					ctx.Errorf("Unable to close PAM context for session: %v: %v", s.id, err)
+					return
+				}
+				ctx.Debugf("Closing PAM context for session: %v.", s.id)
+			}
 		}
 
 		if result != nil {

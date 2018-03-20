@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
+	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -178,6 +179,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		regular.SetShell("/bin/sh"),
 		regular.SetSessionServer(nodeClient),
 		regular.SetAuditLog(nodeClient),
+		regular.SetPAMConfig(&pam.Config{Enabled: false}),
 	)
 	c.Assert(err, IsNil)
 	s.node = node

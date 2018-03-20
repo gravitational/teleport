@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -276,6 +277,12 @@ func (s *Server) GetAccessPoint() auth.AccessPoint {
 // GetSessionServer returns a session server.
 func (s *Server) GetSessionServer() session.Service {
 	return s.sessionServer
+}
+
+// GetPAM returns the PAM configuration for a server. Because the forwarding
+// server runs in-memory, it does not support PAM.
+func (s *Server) GetPAM() (*pam.Config, error) {
+	return nil, trace.BadParameter("PAM not supported by forwarding server")
 }
 
 // Dial returns the client connection created by pipeAddrConn.

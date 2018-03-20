@@ -25,7 +25,7 @@ build-binaries: bbox
 		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' all
 
 #
-# Builds a Docker container which is used for building official Teleport 
+# Builds a Docker container which is used for building official Teleport
 # binaries and docs
 #
 .PHONY:bbox
@@ -33,7 +33,7 @@ bbox:
 	docker build --build-arg UID=$$(id -u) --build-arg GID=$$(id -g) --tag $(BBOX) .
 
 #
-# Runs tests inside a build container 
+# Runs tests inside a build container
 #
 .PHONY:test
 test: bbox
@@ -82,7 +82,7 @@ enter: bbox
 # Create a teleport package using the build container
 #
 .PHONY:release
-release: 
+release:
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BBOX) \
 		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)"
 

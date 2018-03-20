@@ -310,6 +310,12 @@ var (
 )
 
 const (
+	// ServiceName is the default PAM policy to use if one is not passed in
+	// configuration.
+	ServiceName = "sshd"
+)
+
+const (
 	initError = "failure initializing default values"
 )
 

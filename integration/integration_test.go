@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -60,7 +61,7 @@ const (
 	HostID = "00000000-0000-0000-0000-000000000000"
 	Site   = "local-site"
 
-	AllocatePortsNum = 200
+	AllocatePortsNum = 300
 )
 
 type IntSuite struct {
@@ -1783,6 +1784,128 @@ func (s *IntSuite) TestAuditOff(c *check.C) {
 	c.Assert(err, check.NotNil)
 }
 
+// TestPAM checks that Teleport PAM integration works correctly. In this case
+// that means if the account and session modules return success, the user
+// should be allowed to log in. If either the account or session module does
+// not return success, the user should not be able to log in.
+func (s *IntSuite) TestPAM(c *check.C) {
+	// Check if TestPAM can run. For PAM tests to run, the binary must have been
+	// built with PAM support and the system running the tests must have libpam
+	// installed, and have the policy files installed. This test is always run
+	// in a container as part of the CI/CD pipeline. To run this test locally,
+	// install the pam_teleport.so module by running 'make && sudo make install'
+	// from the modules/pam_teleport directory. This will install the PAM module
+	// as well as the policy files.
+	if !pam.BuildHasPAM() || !pam.SystemHasPAM() || !hasPAMPolicy() {
+		skipMessage := "Skipping TestPAM: no policy found. To run PAM tests run " +
+			"'make && sudo make install' from the modules/pam_teleport directory."
+		c.Skip(skipMessage)
+	}
+
+	var tests = []struct {
+		inEnabled     bool
+		inServiceName string
+		outContains   []string
+		outError      bool
+	}{
+		// 0 - No PAM support, session should work but no PAM related output.
+		{
+			inEnabled:     false,
+			inServiceName: "",
+			outContains:   []string{},
+			outError:      false,
+		},
+		// 1 - PAM enabled, module account and session functions return success.
+		{
+			inEnabled:     true,
+			inServiceName: "teleport-success",
+			outContains: []string{
+				"Account opened successfully.",
+				"Session open successfully.",
+			},
+			outError: false,
+		},
+		// 2 - PAM enabled, module account functions fail.
+		{
+			inEnabled:     true,
+			inServiceName: "teleport-acct-failure",
+			outContains:   []string{},
+			outError:      true,
+		},
+		// 3 - PAM enabled, module session functions fail.
+		{
+			inEnabled:     true,
+			inServiceName: "teleport-session-failure",
+			outContains:   []string{},
+			outError:      true,
+		},
+	}
+
+	for _, tt := range tests {
+		// Create a teleport instance with auth, proxy, and node.
+		makeConfig := func() (*check.C, []string, []*InstanceSecrets, *service.Config) {
+			tconf := service.MakeDefaultConfig()
+			tconf.Console = nil
+			tconf.Auth.Enabled = true
+
+			tconf.Proxy.Enabled = true
+			tconf.Proxy.DisableWebService = true
+			tconf.Proxy.DisableWebInterface = true
+
+			tconf.SSH.Enabled = true
+			tconf.SSH.PAM.Enabled = tt.inEnabled
+			tconf.SSH.PAM.ServiceName = tt.inServiceName
+
+			return c, nil, nil, tconf
+		}
+		t := s.newTeleportWithConfig(makeConfig())
+		defer t.Stop(true)
+
+		termSession := NewTerminal(250)
+
+		// Create an interactive session and write something to the terminal.
+		ctx, cancel := context.WithCancel(context.Background())
+		go func() {
+			cl, err := t.NewClient(ClientConfig{
+				Login:   s.me.Username,
+				Cluster: Site,
+				Host:    Host,
+				Port:    t.GetPortSSHInt(),
+			})
+			c.Assert(err, check.IsNil)
+
+			cl.Stdout = &termSession
+			cl.Stdin = &termSession
+
+			termSession.Type("\aecho hi\n\r\aexit\n\r\a")
+			err = cl.SSH(context.TODO(), []string{}, false)
+
+			// If an error is expected (for example PAM does not allow a session to be
+			// created), this failure needs to be checked here.
+			if tt.outError {
+				c.Assert(err, check.NotNil)
+			} else {
+				c.Assert(err, check.IsNil)
+			}
+
+			cancel()
+		}()
+
+		// Wait for the session to end or timeout after 10 seconds.
+		select {
+		case <-time.After(10 * time.Second):
+			c.Fatalf("Timeout exceeded waiting for session to complete.")
+		case <-ctx.Done():
+		}
+
+		// If any output is expected, check to make sure it was output.
+		for _, expectedOutput := range tt.outContains {
+			output := string(termSession.Output(100))
+			c.Assert(strings.Contains(output, expectedOutput), check.Equals, true)
+		}
+	}
+}
+
 // runCommand is a shortcut for running SSH command, it creates a client
 // connected to proxy of the passed in instance, runs the command, and returns
 // the result. If multiple attempts are requested, a 250 millisecond delay is
@@ -1877,4 +2000,23 @@ func waitFor(c chan interface{}, timeout time.Duration) error {
 	case <-tick:
 		return fmt.Errorf("timeout waiting for event")
 	}
+}
+
+// hasPAMPolicy checks if the three policy files needed for tests exists. If
+// they do it returns true, otherwise returns false.
+func hasPAMPolicy() bool {
+	pamPolicyFiles := []string{
+		"/etc/pam.d/teleport-acct-failure",
+		"/etc/pam.d/teleport-session-failure",
+		"/etc/pam.d/teleport-success",
+	}
+
+	for _, fileName := range pamPolicyFiles {
+		_, err := os.Stat(fileName)
+		if os.IsNotExist(err) {
+			return false
+		}
+	}
+
+	return true
 }

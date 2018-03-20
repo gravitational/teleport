@@ -10,6 +10,11 @@ ENV DEBIAN_FRONTEND noninteractive
 ADD locale.gen /etc/locale.gen
 ADD profile /etc/profile
 
+COPY pam/pam_teleport.so /lib/x86_64-linux-gnu/security
+COPY pam/teleport-acct-failure /etc/pam.d
+COPY pam/teleport-session-failure /etc/pam.d
+COPY pam/teleport-success /etc/pam.d
+
 RUN (apt-get clean; \
 	 apt-get -q -y update --fix-missing; \
      apt-get -q -y update; \
@@ -27,6 +32,7 @@ RUN apt-get install -q -y \
          make \
          git \
          libc6-dev \
+         libpam-dev \
          gcc \
          tar \
          gzip \
@@ -34,8 +40,8 @@ RUN apt-get install -q -y \
          python-pip \
          libyaml-dev \
          python-dev \
-         nginx \         
-         zip; \         
+         nginx \
+         zip; \
       apt-get -y autoclean; apt-get -y clean
 
 # Install mkDocs

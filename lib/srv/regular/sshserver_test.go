@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	sess "github.com/gravitational/teleport/lib/session"
@@ -141,6 +142,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 		SetAuditLog(s.nodeClient),
 		SetShell("/bin/sh"),
 		SetSessionServer(s.nodeClient),
+		SetPAMConfig(&pam.Config{Enabled: false}),
 	)
 	c.Assert(err, IsNil)
 	s.srv = srv
@@ -488,6 +490,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		SetSessionServer(s.proxyClient),
 		SetAuditLog(s.nodeClient),
 		SetNamespace(defaults.Namespace),
+		SetPAMConfig(&pam.Config{Enabled: false}),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(proxy.Start(), IsNil)
@@ -569,6 +572,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		SetSessionServer(s.nodeClient),
 		SetAuditLog(s.nodeClient),
 		SetNamespace(defaults.Namespace),
+		SetPAMConfig(&pam.Config{Enabled: false}),
 	)
 	c.Assert(err, IsNil)
 	srv2.uuid = bobAddr
@@ -659,6 +663,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		SetSessionServer(s.proxyClient),
 		SetAuditLog(s.nodeClient),
 		SetNamespace(defaults.Namespace),
+		SetPAMConfig(&pam.Config{Enabled: false}),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(proxy.Start(), IsNil)
@@ -758,6 +763,7 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 		SetSessionServer(s.proxyClient),
 		SetAuditLog(s.nodeClient),
 		SetNamespace(defaults.Namespace),
+		SetPAMConfig(&pam.Config{Enabled: false}),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(proxy.Start(), IsNil)
@@ -861,6 +867,7 @@ func (s *SrvSuite) TestLimiter(c *C) {
 		SetSessionServer(s.nodeClient),
 		SetAuditLog(s.nodeClient),
 		SetNamespace(defaults.Namespace),
+		SetPAMConfig(&pam.Config{Enabled: false}),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(srv.Start(), IsNil)
