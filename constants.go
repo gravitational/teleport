@@ -83,6 +83,9 @@ const (
 	// ComponentDiagnostic is a diagnostic service
 	ComponentDiagnostic = "diagnostic"
 
+	// ComponentClient is a client
+	ComponentClient = "client"
+
 	// ComponentTunClient is a tunnel client
 	ComponentTunClient = "client:tunnel"
 

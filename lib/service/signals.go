@@ -49,6 +49,7 @@ func (process *TeleportProcess) printShutdownStatus(ctx context.Context) {
 // WaitForSignals waits for system signals and processes them.
 // Should not be called twice by the process.
 func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
+
 	sigC := make(chan os.Signal, 1024)
 	signal.Notify(sigC,
 		syscall.SIGQUIT, // graceful shutdown
@@ -120,9 +121,7 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 				log.Infof("All services stopped, exiting.")
 				return nil
 			case syscall.SIGCHLD:
-				log.Debugf("Child exited, got %q, collecting status.", signal)
-				var wait syscall.WaitStatus
-				syscall.Wait4(-1, &wait, syscall.WNOHANG, nil)
+				process.collectStatuses()
 			default:
 				log.Infof("Ignoring %q.", signal)
 			}
@@ -367,11 +366,68 @@ func (process *TeleportProcess) forkChild() error {
 		Files: files,
 		Sys:   &syscall.SysProcAttr{},
 	})
-
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
+	process.pushForkedPID(p.Pid)
 
 	log.WithFields(logrus.Fields{"pid": p.Pid}).Infof("Started new child process.")
 	return nil
+}
+
+// collectStatuses attempts to collect exit statuses from
+// forked teleport child processes.
+// If forked teleport process exited with an error during graceful
+// restart, parent process has to collect the child process status
+// otherwise the child process will become a zombie process.
+// Call Wait4(-1) is trying to collect status of any child
+// leads to warnings in logs, because other parts of the program could
+// have tried to collect the status of this process.
+// Instead this logic tries to collect statuses of the processes
+// forked during restart procedure.
+func (process *TeleportProcess) collectStatuses() {
+	pids := process.getForkedPIDs()
+	if len(pids) == 0 {
+		return
+	}
+	for _, pid := range pids {
+		var wait syscall.WaitStatus
+		rpid, err := syscall.Wait4(pid, &wait, syscall.WNOHANG, nil)
+		if err != nil {
+			log.Errorf("Wait call failed: %v.", err)
+			continue
+		}
+		if rpid == pid {
+			process.popForkedPID(pid)
+			log.Warningf("Forked teleport process %v has exited with status: %v.", pid, wait.ExitStatus())
+		}
+	}
+}
+
+func (process *TeleportProcess) pushForkedPID(pid int) {
+	process.Lock()
+	defer process.Unlock()
+	process.forkedPIDs = append(process.forkedPIDs, pid)
+}
+
+func (process *TeleportProcess) popForkedPID(pid int) {
+	process.Lock()
+	defer process.Unlock()
+	for i, p := range process.forkedPIDs {
+		if p == pid {
+			process.forkedPIDs = append(process.forkedPIDs[:i], process.forkedPIDs[i+1:]...)
+			return
+		}
+	}
+}
+
+func (process *TeleportProcess) getForkedPIDs() []int {
+	process.Lock()
+	defer process.Unlock()
+	if len(process.forkedPIDs) == 0 {
+		return nil
+	}
+	out := make([]int, len(process.forkedPIDs))
+	copy(out, process.forkedPIDs)
+	return out
 }

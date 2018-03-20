@@ -77,7 +77,7 @@ func (s *MainTestSuite) TestDefault(c *check.C) {
 	c.Assert(conf.SSH.Enabled, check.Equals, true)
 	c.Assert(conf.Proxy.Enabled, check.Equals, true)
 	c.Assert(conf.Console, check.Equals, os.Stdout)
-	c.Assert(log.GetLevel(), check.Equals, log.WarnLevel)
+	c.Assert(log.GetLevel(), check.Equals, log.ErrorLevel)
 }
 
 func (s *MainTestSuite) TestRolesFlag(c *check.C) {
