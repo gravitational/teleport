@@ -1266,7 +1266,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 	case cfg.Proxy.DisableWebService && cfg.Proxy.DisableReverseTunnel:
 		log.Debugf("Setup Proxy: Reverse tunnel proxy and web proxy are disabled.")
 		return &listeners, nil
-	case cfg.Proxy.ReverseTunnelListenAddr.Equals(cfg.Proxy.WebAddr):
+	case cfg.Proxy.ReverseTunnelListenAddr.Equals(cfg.Proxy.WebAddr) && !cfg.Proxy.DisableTLS:
 		log.Debugf("Setup Proxy: Reverse tunnel proxy and web proxy listen on the same port, multiplexing is on.")
 		listener, err := process.importOrCreateListener(teleport.Component(teleport.ComponentProxy, "tunnel", "web"), cfg.Proxy.WebAddr.Addr)
 		if err != nil {
@@ -1286,7 +1286,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 		listeners.reverseTunnel = listeners.mux.SSH()
 		go listeners.mux.Serve()
 		return &listeners, nil
-	case cfg.Proxy.EnableProxyProtocol && !cfg.Proxy.DisableWebService:
+	case cfg.Proxy.EnableProxyProtocol && !cfg.Proxy.DisableWebService && !cfg.Proxy.DisableTLS:
 		log.Debugf("Setup Proxy: Proxy protocol is enabled for web service, multiplexing is on.")
 		listener, err := process.importOrCreateListener(teleport.Component(teleport.ComponentProxy, "web"), cfg.Proxy.WebAddr.Addr)
 		if err != nil {
