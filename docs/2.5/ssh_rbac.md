@@ -11,7 +11,7 @@ RBAC is almost always used in conjunction with
 [SSO](https://en.wikipedia.org/wiki/Single_sign-on) but it also works with
 users stored in Teleport's internal database. 
 
-## How does it work?
+### How does it work?
 
 Lets assume a company is using [Okta](https://www.okta.com/) to authenticate users and place
 them into groups. A typical enterprise deployment of Teleport in this scenario
@@ -124,27 +124,18 @@ administrators to define allowed OS logins via the user database, be it the
 local DB, or an identity manager behind a SAML or OIDC endpoint.
 
 
-## Node Labels
+## RBAC for Hosts
 
-A user will only be granted access to a node if all of the labels defined in
-the role are present on the node. This effectively means we use an AND
-operator when evaluating access using labels. Two examples of using labels to
-restrict access:
+A Teleport role can also define which hosts (nodes) a user can have access to.
+This works by [labeling nodes](admin-guide/#labeling-nodes) and listing 
+allow/deny labels in a role definition. 
 
-1. If you split your infrastructure at a macro level with the labels
-   `environment: production` and `environment: staging` then you can create
-   roles that only have access to one environment. Let's say you create an
-   `intern` role with allow label `environment: staging` then interns will not
-   have access to production servers.
+Consider the following use case:
 
-2. Like above, suppose you split your infrastructure at a macro level with the
-   labels `environment: production` and `environment: staging`. In addition,
-   within each environment you want to split the servers used by the frontend
-   and backend teams, `team: frontend`, `team: backend`. If you have an intern
-   that joins the frontend team that should only have access to staging, you
-   would create a role with the following allow labels `environment: staging,
-   team: frontend`. That would restrict users with the `intern` role to only
-   staging servers the frontend team uses.
+The infrastructure is split into staging/production environments using labels
+like `environment=production` and `environment=staging`. You can create roles
+that only have access to one environment. Let's say you create an intern role
+with allow rule for label `environment=staging`.
 
 ### Example
 
@@ -167,3 +158,23 @@ spec:
     node_labels:
       'workload': 'database'
 ```
+
+!!! tip "Dynamic RBAC":
+    Remember that node labels can be dynamic, i.e. determined at runtime by an output
+    of an executable. In this case you can implement "permissions follow workload"
+    policy, i.e. any server where PostgreSQL is running becomes _automatically_
+    accessible only by the members of the "DBA" group and nobody else.
+
+
+## Q&A
+
+**Q:** But what if a node has multiple labels?
+
+**A:** In this case the access will be granted only if **all of the labels**
+defined in the role are present. This effectively means Teleport uses an "AND"
+operator when evaluating node-level access using labels. 
+
+**Q:** How can I use node-level RBAC with OpenSSH servers?
+
+**A:** No. OpenSSH servers running `sshd` do not have the ability to label
+themselves. This is one of the reasons to run Teleport SSH service instead.
