@@ -112,6 +112,7 @@ const (
 	AuthAttemptEvent   = "auth"
 	AuthAttemptSuccess = "success"
 	AuthAttemptErr     = "error"
+	AuthAttemptMessage = "message"
 
 	// SCPEvent means data transfer that occurred on the server
 	SCPEvent  = "scp"
