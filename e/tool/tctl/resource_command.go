@@ -90,15 +90,16 @@ func (cmd *ResourceCommandE) createConnector(client auth.ClientI, raw services.U
 
 	// SAML
 	case services.KindSAMLConnector:
+		// Create services.SAMLConnector from raw YAML to extract the connector name.
 		conn, err := services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(raw.Raw)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := conn.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
-		}
 		connectorName = conn.GetName()
-		_, err = client.GetSAMLConnector(connectorName, false)
+
+		// Check if this connector is already in the backend. If it is, and the force
+		// flag was not supplied, return an "connector already exists" error.
+		foundConn, err := client.GetSAMLConnector(connectorName, true)
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
@@ -106,9 +107,21 @@ func (cmd *ResourceCommandE) createConnector(client auth.ClientI, raw services.U
 		if cmd.base.IsForced() == false && exists {
 			return trace.AlreadyExists("connector '%s' already exists", connectorName)
 		}
+
+		// If the connector being pushed to the backend does not have a signing key
+		// in it and an existing connector was found in the backend, extract the
+		// signing key from the found connector and inject it into the connector
+		// being injected into the backend.
+		if conn.GetSigningKeyPair() == nil && exists {
+			conn.SetSigningKeyPair(foundConn.GetSigningKeyPair())
+		}
+		if err := conn.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
 		err = client.UpsertSAMLConnector(conn)
 
-		// OpenID connect
+	// OpenID connect
 	case services.KindOIDCConnector:
 		conn, err := services.GetOIDCConnectorMarshaler().UnmarshalOIDCConnector(raw.Raw)
 		if err != nil {
@@ -128,7 +141,7 @@ func (cmd *ResourceCommandE) createConnector(client auth.ClientI, raw services.U
 		}
 		err = client.UpsertOIDCConnector(conn)
 
-		// unknown connector type
+	// unknown connector type
 	default:
 		err = trace.BadParameter("unknown connector type: '%s'", raw.Kind)
 	}
