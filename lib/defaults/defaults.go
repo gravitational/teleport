@@ -76,7 +76,7 @@ const (
 
 	// DefaultDialTimeout is a default TCP dial timeout we set for our
 	// connection attempts
-	DefaultDialTimeout = 10 * time.Second
+	DefaultDialTimeout = 30 * time.Second
 
 	// HTTPIdleConnsPerHost specifies maximum idle connections per host
 	// in HTTP connection pool
