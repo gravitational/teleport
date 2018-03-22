@@ -133,7 +133,16 @@ func UserMessageFromError(err error) string {
 		return trace.DebugReport(err)
 	}
 	if err != nil {
-		return err.Error()
+		// If the error is a trace error, check if it has a user message embedded in
+		// it. If a user message is embedded in it, print the user message and the
+		// original error. Otherwise return the original with a generic "A fatal
+		// error occured" message.
+		if er, ok := err.(*trace.TraceErr); ok {
+			if er.Message != "" {
+				return fmt.Sprintf("%v: %v", er.Message, er.Err.Error())
+			}
+		}
+		return fmt.Sprintf("A fatal error occurred: %v", err.Error())
 	}
 	return ""
 }
