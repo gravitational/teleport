@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.5.3
+
+This release of Teleport focuses on bugfixes.
+
+#### Bug Fixes
+
+* Fix logging, collect status of forked processes. [#1785](https://github.com/gravitational/teleport/issues/1785) [#1776](https://github.com/gravitational/teleport/issues/1776)
+* Turn off proxy support when no-tls is used. [#1800](https://github.com/gravitational/teleport/issues/1800)
+* Correct the signup URL. [#1777](https://github.com/gravitational/teleport/issues/1777)
+* Fix GitHub team pagination issues. [#1734](https://github.com/gravitational/teleport/issues/1734)
+* Increase global dial timeout to 30 seconds. [#1760](https://github.com/gravitational/teleport/issues/1760)
+* Reuse existing singing key. [#1713](https://github.com/gravitational/teleport/issues/1713)
+* Don't panic on channel failures. [#1808](https://github.com/gravitational/teleport/pull/1808)
+
 ## 2.5.2
 
 This release of Teleport includes bug fixes and regression fixes.
@@ -92,6 +106,15 @@ environments such as AWS. This includes:
   Their own (local) names will be used, i.e. the `cluster_name` setting now defines how
   the cluster is seen from the outside.
   [#1543](https://github.com/gravitational/teleport/issues/1543)
+
+## 2.4.6
+
+This release of Teleport focuses on bugfixes.
+
+#### Bug Fixes
+
+* Increase global dial timeout to 30 seconds. [#1760](https://github.com/gravitational/teleport/issues/1760)
+* Don't panic on channel failures. [#1808](https://github.com/gravitational/teleport/pull/1808)
 
 ## 2.4.5
 
