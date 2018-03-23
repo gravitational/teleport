@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.4.6
+
+This release of Teleport focuses on bugfixes.
+
+#### Bug Fixes
+
+* Increase global dial timeout to 30 seconds. [#1760](https://github.com/gravitational/teleport/issues/1760)
+* Don't panic on channel failures. [#1808](https://github.com/gravitational/teleport/pull/1808)
+
 ## 2.4.5
 
 This release of Teleport fixes a regression in Teleport binaries.
