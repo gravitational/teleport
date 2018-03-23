@@ -3,7 +3,12 @@ package utils
 /*
 #include <signal.h>
 void resetInterruptSignalHandler() {
-signal(SIGINT, SIG_DFL);
+	struct sigaction act;
+	if (!sigaction(SIGINT, 0, &act) && act.sa_handler == SIG_IGN) {
+		// Reset the handler for SIGINT to system default.
+		// FIXME: Note, this will also overwrite runtime's signal handler
+		signal(SIGINT, SIG_DFL);
+	}
 }
 */
 import "C"
