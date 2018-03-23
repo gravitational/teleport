@@ -495,7 +495,9 @@ func (s *Server) handleChannel(ctx *srv.ServerContext, sconn *ssh.ServerConn, nc
 	case "session":
 		ch, requests, err := nch.Accept()
 		if err != nil {
-			s.log.Infof("Unable to accept channel: %v", err)
+			s.log.Warnf("Unable to accept channel: %v", err)
+			nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
+			return
 		}
 		go s.handleSessionRequests(ctx, sconn, ch, requests)
 	// port forwarding
@@ -504,10 +506,13 @@ func (s *Server) handleChannel(ctx *srv.ServerContext, sconn *ssh.ServerConn, nc
 		if err != nil {
 			s.log.Errorf("Failed to parse request data: %v, err: %v", string(nch.ExtraData()), err)
 			nch.Reject(ssh.UnknownChannelType, "failed to parse direct-tcpip request")
+			return
 		}
 		ch, _, err := nch.Accept()
 		if err != nil {
-			s.log.Infof("Unable to accept channel: %v", err)
+			s.log.Warnf("Unable to accept channel: %v", err)
+			nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
+			return
 		}
 		go s.handleDirectTCPIPRequest(ctx, sconn, ch, req)
 	default:
