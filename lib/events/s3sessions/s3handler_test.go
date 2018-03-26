@@ -46,6 +46,7 @@ func (s *S3Suite) SetUpSuite(c *check.C) {
 	var err error
 	s.HandlerSuite.Handler, err = NewHandler(Config{
 		Region: "us-west-1",
+		Path:   "/test/",
 		Bucket: fmt.Sprintf("teleport-test-%v", uuid.New()),
 	})
 	c.Assert(err, check.IsNil)

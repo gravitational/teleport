@@ -20,6 +20,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -40,6 +42,8 @@ type Config struct {
 	Bucket string
 	// Region is S3 bucket region
 	Region string
+	// Path is an optional bucket path
+	Path string
 	// Session is an optional existing AWS client session
 	Session *awssession.Session
 }
@@ -166,7 +170,10 @@ func (h *Handler) deleteBucket() error {
 }
 
 func (l *Handler) path(sessionID session.ID) string {
-	return string(sessionID) + ".tar"
+	if l.Path == "" {
+		return string(sessionID) + ".tar"
+	}
+	return strings.TrimPrefix(filepath.Join(l.Path, string(sessionID)+".tar"), "/")
 }
 
 // ensureBucket makes sure bucket exists, and if it does not, deletes it

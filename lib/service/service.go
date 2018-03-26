@@ -492,6 +492,7 @@ func initUploadHandler(auditConfig services.AuditConfig) (events.UploadHandler, 
 		return s3sessions.NewHandler(s3sessions.Config{
 			Bucket: uri.Host,
 			Region: auditConfig.Region,
+			Path:   uri.Path,
 		})
 	case teleport.SchemeFile:
 		return filesessions.NewHandler(filesessions.Config{
