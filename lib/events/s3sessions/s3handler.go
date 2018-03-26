@@ -176,13 +176,24 @@ func (l *Handler) path(sessionID session.ID) string {
 	return strings.TrimPrefix(filepath.Join(l.Path, string(sessionID)+".tar"), "/")
 }
 
-// ensureBucket makes sure bucket exists, and if it does not, deletes it
+// ensureBucket makes sure bucket exists, and if it does not, creates it
 func (h *Handler) ensureBucket() error {
+	_, err := h.client.HeadBucket(&s3.HeadBucketInput{
+		Bucket: aws.String(h.Bucket),
+	})
+	err = ConvertS3Error(err)
+	// assumes that bucket is administered by other entity
+	if err == nil {
+		return nil
+	}
+	if !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
 	input := &s3.CreateBucketInput{
 		Bucket: aws.String(h.Bucket),
 		ACL:    aws.String("private"),
 	}
-	_, err := h.client.CreateBucket(input)
+	_, err = h.client.CreateBucket(input)
 	err = ConvertS3Error(err, "bucket %v already exists", aws.String(h.Bucket))
 	if err != nil {
 		if !trace.IsAlreadyExists(err) {
