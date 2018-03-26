@@ -27,8 +27,8 @@ import log "github.com/sirupsen/logrus"
 // http://garethrees.org/2015/08/07/ping/
 // https://github.com/openssh/openssh-portable/commit/4e0f5e1ec9b6318ef251180dbca50eaa01f74536
 func ResetInterruptSignalHandler() {
-	result := C.resetInterruptSignalHandler()
-	if result != 0 {
-		log.Warnf("Failed to reset interrupt signal handler: %v.", result)
+	_, err := C.resetInterruptSignalHandler()
+	if err != nil {
+		log.Warnf("Failed to reset interrupt signal handler: %v.", err)
 	}
 }
