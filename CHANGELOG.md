@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.4.7
+
+This release of Teleport contains a bugfix.
+
+#### Bug Fixes
+
+* Only reset SIGINT handler if it has not been set to ignore. [#1814](https://github.com/gravitational/teleport/pull/1814)
+
 ## 2.4.6
 
 This release of Teleport focuses on bugfixes.
