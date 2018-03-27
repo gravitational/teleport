@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.5.4
+
+This release of Teleport focuses on bugfixes.
+
+#### Bug Fixes
+
+* Only reset SIGINT handler if it has not been set to ignore. [#1814](https://github.com/gravitational/teleport/pull/1814)
+* Improvement of user-visible errors. [#1798](https://github.com/gravitational/teleport/issues/1798) [#1779](https://github.com/gravitational/teleport/issues/1779)
+
 ## 2.5.3
 
 This release of Teleport focuses on bugfixes.
