@@ -52,15 +52,8 @@ endif
 .PHONY: all
 all: $(VERSRC)
 	@echo $(PAM_MESSAGE)
-	$(MAKE) -s -j 3 $(BINARIES)
-
-$(BUILDDIR)/tctl: $(LIBS) $(TELEPORTSRC) $(TELEPORTVENDOR)
-	go build $(PAMFLAGS) -o $(BUILDDIR)/tctl -i $(BUILDFLAGS) ./tool/tctl
-
-$(BUILDDIR)/teleport: $(LIBS) $(TELEPORTSRC) $(TELEPORTVENDOR)
 	go build $(PAMFLAGS) -o $(BUILDDIR)/teleport -i $(BUILDFLAGS) ./tool/teleport
-
-$(BUILDDIR)/tsh: $(LIBS) $(TELEPORTSRC) $(TELEPORTVENDOR)
+	go build $(PAMFLAGS) -o $(BUILDDIR)/tctl -i $(BUILDFLAGS) ./tool/tctl
 	go build $(PAMFLAGS) -o $(BUILDDIR)/tsh -i $(BUILDFLAGS) ./tool/tsh
 
 #
