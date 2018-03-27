@@ -19,8 +19,13 @@ endif
 .PHONY: all
 all:
 	$(MAKE) -C ..
-	go build $(PAMFLAGS) -o $(BUILDDIR)/teleport -i $(BUILDFLAGS) ./tool/teleport
+	$(MAKE) $(BUILDDIR)/teleport $(BUILDDIR)/tctl
+
+$(BUILDDIR)/tctl: $(LIBSE) $(OSSLIBS) $(TCTLSRCE)
 	go build $(PAMFLAGS) -o $(BUILDDIR)/tctl -i $(BUILDFLAGS) ./tool/tctl
+
+$(BUILDDIR)/teleport: $(LIBSE) $(OSSLIBS) $(TELEPORTSRCE)
+	go build $(PAMFLAGS) -o $(BUILDDIR)/teleport -i $(BUILDFLAGS) ./tool/teleport
 
 # make clean: cleans the build
 .PHONY: clean
