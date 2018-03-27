@@ -145,9 +145,6 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 			utils.FatalError(err)
 		}
 		if !options.InitOnly {
-			log.Debug(conf.DebugDumpToYAML())
-		}
-		if !options.InitOnly {
 			err = OnStart(conf)
 		}
 	case scpc.FullCommand():
@@ -170,11 +167,11 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 func OnStart(config *service.Config) error {
 	srv, err := service.NewTeleport(config)
 	if err != nil {
-		return trace.Wrap(err, "initializing teleport")
+		return trace.Wrap(err, "Initialization failed")
 	}
 
 	if err := srv.Start(); err != nil {
-		return trace.Wrap(err, "starting teleport")
+		return trace.Wrap(err, "Startup Failed")
 	}
 
 	return srv.WaitForSignals(context.TODO())
