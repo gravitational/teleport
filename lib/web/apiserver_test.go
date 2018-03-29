@@ -167,12 +167,13 @@ func (s *WebSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	// create SSH service:
+	nodeDataDir := c.MkDir()
 	node, err := regular.New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: fmt.Sprintf("127.0.0.1:%v", nodePort)},
 		s.server.ClusterName(),
 		[]ssh.Signer{signer},
 		nodeClient,
-		c.MkDir(),
+		nodeDataDir,
 		nil,
 		utils.NetAddr{},
 		regular.SetNamespace(defaults.Namespace),
@@ -185,6 +186,8 @@ func (s *WebSuite) SetUpTest(c *C) {
 	s.node = node
 	s.srvID = node.ID()
 	c.Assert(s.node.Start(), IsNil)
+
+	c.Assert(auth.CreateUploaderDir(nodeDataDir), IsNil)
 
 	// create reverse tunnel service:
 	s.proxyClient, err = s.server.NewClient(auth.TestBuiltin(teleport.RoleProxy))

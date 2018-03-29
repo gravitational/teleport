@@ -137,6 +137,11 @@ const (
 	V1 = 0
 	// V2 is the V2 version of slice chunks  API
 	V2 = 2
+	// V3 is almost like V2, but it assumes
+	// that session recordings are being uploaded
+	// at the end of the session, so it skips writing session event index
+	// on the fly
+	V3 = 3
 )
 
 // IAuditLog is the primary (and the only external-facing) interface for AuditLogger.
@@ -155,6 +160,9 @@ type IAuditLog interface {
 	// PostSessionChunk returns a writer which SSH nodes use to submit
 	// their live sessions into the session log
 	PostSessionChunk(namespace string, sid session.ID, reader io.Reader) error
+
+	// UploadSessionRecording uploads session recording to the audit server
+	UploadSessionRecording(r SessionRecording) error
 
 	// GetSessionChunk returns a reader which can be used to read a byte stream
 	// of a recorded session starting from 'offsetBytes' (pass 0 to start from the

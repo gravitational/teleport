@@ -130,12 +130,13 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	s.srvHostPort = fmt.Sprintf("%v:%v", s.server.ClusterName(), s.srvPort)
+	nodeDir := c.MkDir()
 	srv, err := New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: s.srvAddress},
 		s.server.ClusterName(),
 		[]ssh.Signer{s.signer},
 		s.nodeClient,
-		c.MkDir(),
+		nodeDir,
 		nil,
 		utils.NetAddr{},
 		SetNamespace(defaults.Namespace),
@@ -147,6 +148,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.srv = srv
 	s.srv.isTestStub = true
+	c.Assert(auth.CreateUploaderDir(nodeDir), IsNil)
 
 	c.Assert(s.srv.Start(), IsNil)
 	c.Assert(s.srv.registerServer(), IsNil)
@@ -854,12 +856,13 @@ func (s *SrvSuite) TestLimiter(c *C) {
 	c.Assert(err, IsNil)
 
 	srvAddress := "127.0.0.1:" + s.freePorts.Pop()
+	nodeStateDir := c.MkDir()
 	srv, err := New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: srvAddress},
 		s.server.ClusterName(),
 		[]ssh.Signer{s.signer},
 		s.nodeClient,
-		c.MkDir(),
+		nodeStateDir,
 		nil,
 		utils.NetAddr{},
 		SetLimiter(limiter),
@@ -871,6 +874,8 @@ func (s *SrvSuite) TestLimiter(c *C) {
 	)
 	c.Assert(err, IsNil)
 	c.Assert(srv.Start(), IsNil)
+
+	c.Assert(auth.CreateUploaderDir(nodeStateDir), IsNil)
 	defer srv.Close()
 
 	// maxConnection = 3

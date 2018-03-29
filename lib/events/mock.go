@@ -70,6 +70,10 @@ func (d *MockAuditLog) PostSessionChunk(namespace string, sid session.ID, reader
 	return nil
 }
 
+func (d *MockAuditLog) UploadSessionRecording(SessionRecording) error {
+	return nil
+}
+
 func (d *MockAuditLog) PostSessionSlice(slice SessionSlice) error {
 	if err := d.GetError(); err != nil {
 		d.FailedAttemptsC <- &slice

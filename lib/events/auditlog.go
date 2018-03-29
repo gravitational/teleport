@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -245,6 +246,56 @@ func (l *AuditLog) WaitForDelivery(context.Context) error {
 	return nil
 }
 
+// SessionRecording is a recording of a live session
+type SessionRecording struct {
+	// Namespace is a session namespace
+	Namespace string
+	// SessionID is a session ID
+	SessionID session.ID
+	// Recording is a packaged tarball recording
+	Recording io.Reader
+}
+
+// CheckAndSetDefaults checks and sets default parameters
+func (l *SessionRecording) CheckAndSetDefaults() error {
+	if l.Recording == nil {
+		return trace.BadParameter("missing parameter Recording")
+	}
+	if l.SessionID.IsZero() {
+		return trace.BadParameter("missing parameter session ID")
+	}
+	if l.Namespace == "" {
+		l.Namespace = defaults.Namespace
+	}
+	return nil
+}
+
+// UploadSessionRecording uploads session recording to the audit server
+// TODO(klizhentas) add protection against overwrites from different nodes
+func (l *AuditLog) UploadSessionRecording(r SessionRecording) error {
+	if err := r.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if l.UploadHandler == nil {
+		// unpack the tarball locally to sessions directory
+		err := utils.Extract(r.Recording, filepath.Join(l.DataDir, l.ServerID, SessionLogsDir, r.Namespace))
+		return trace.Wrap(err)
+	}
+	// use upload handler
+	start := time.Now()
+	url, err := l.UploadHandler.Upload(context.TODO(), r.SessionID, r.Recording)
+	if err != nil {
+		l.WithFields(log.Fields{"duration": time.Now().Sub(start), "session-id": r.SessionID}).Warningf("Session upload failed: %v", trace.DebugReport(err))
+		return trace.Wrap(err)
+	}
+	l.WithFields(log.Fields{"duration": time.Now().Sub(start), "session-id": r.SessionID}).Debugf("Session upload completed.")
+	return l.EmitAuditEvent(SessionUploadEvent, EventFields{
+		SessionEventID: string(r.SessionID),
+		URL:            url,
+		EventIndex:     math.MaxInt32,
+	})
+}
+
 // PostSessionSlice submits slice of session chunks to the audit log server.
 func (l *AuditLog) PostSessionSlice(slice SessionSlice) error {
 	if slice.Namespace == "" {
@@ -256,15 +307,26 @@ func (l *AuditLog) PostSessionSlice(slice SessionSlice) error {
 	if l.ExternalLog != nil {
 		return l.ExternalLog.PostSessionSlice(slice)
 	}
-	sl, err := l.LoggerFor(slice.Namespace, session.ID(slice.SessionID), slice.Version == V1)
-	if err != nil {
-		l.Errorf("failed to get logger: %v", trace.DebugReport(err))
-		return trace.BadParameter("audit.log: no session writer for %s", slice.SessionID)
+	// API prior to V3 was writing to audit log in real time
+	// V3 API has changed that, as session events and recording itself
+	// is shipped in one transaction. This solves many problems, as events
+	// are no longer fragmented across multiple auth servers behind the load balancer
+	// and there is no need to live-write the the session chunks and events
+	// for V3 API.
+	if slice.Version < V3 {
+		sl, err := l.LoggerFor(slice.Namespace, session.ID(slice.SessionID), slice.Version == V1)
+		if err != nil {
+			l.Errorf("failed to get logger: %v", trace.DebugReport(err))
+			return trace.BadParameter("audit.log: no session writer for %s", slice.SessionID)
+		}
+		var errors []error
+		errors = append(errors, sl.PostSessionSlice(slice))
+		errors = append(errors, l.processSlice(sl, &slice))
+		return trace.NewAggregate(errors...)
 	}
-	var errors []error
-	errors = append(errors, sl.PostSessionSlice(slice))
-	errors = append(errors, l.processSlice(sl, &slice))
-	return trace.NewAggregate(errors...)
+	// V3 API does not write session log to local session directory,
+	// instead it writes locally
+	return l.processSlice(nil, &slice)
 }
 
 func (l *AuditLog) processSlice(sl SessionLogger, slice *SessionSlice) error {
@@ -272,7 +334,9 @@ func (l *AuditLog) processSlice(sl SessionLogger, slice *SessionSlice) error {
 		if chunk.EventType == SessionPrintEvent || chunk.EventType == "" {
 			continue
 		}
-		if chunk.EventType == SessionEndEvent {
+		// session logger is optional for processSlice function
+		// only close it if necessary
+		if sl != nil && chunk.EventType == SessionEndEvent {
 			defer func() {
 				l.removeLogger(slice.SessionID)
 				if err := sl.Finalize(); err != nil {

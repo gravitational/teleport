@@ -478,3 +478,8 @@ func (ll *CachingAuditLog) SearchEvents(time.Time, time.Time, string, int) ([]ev
 func (ll *CachingAuditLog) SearchSessionEvents(time.Time, time.Time, int) ([]events.EventFields, error) {
 	return nil, errNotSupported
 }
+
+// UploadSessionRecording uploads session recording to the audit server
+func (ll *CachingAuditLog) UploadSessionRecording(events.SessionRecording) error {
+	return errNotSupported
+}

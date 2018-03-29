@@ -306,6 +306,10 @@ func (l *Log) PostSessionSlice(slice events.SessionSlice) error {
 	return nil
 }
 
+func (l *Log) UploadSessionRecording(events.SessionRecording) error {
+	return trace.BadParameter("not supported")
+}
+
 // PostSessionChunk returns a writer which SSH nodes use to submit
 // their live sessions into the session log
 func (l *Log) PostSessionChunk(namespace string, sid session.ID, reader io.Reader) error {
