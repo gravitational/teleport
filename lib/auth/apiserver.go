@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/gravitational/form"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
@@ -149,6 +150,7 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	srv.GET("/:version/namespaces/:namespace/sessions/:id", srv.withAuth(srv.getSession))
 	srv.POST("/:version/namespaces/:namespace/sessions/:id/slice", srv.withAuth(srv.postSessionSlice))
 	srv.POST("/:version/namespaces/:namespace/sessions/:id/stream", srv.withAuth(srv.postSessionChunk))
+	srv.POST("/:version/namespaces/:namespace/sessions/:id/recording", srv.withAuth(srv.uploadSessionRecording))
 	srv.GET("/:version/namespaces/:namespace/sessions/:id/stream", srv.withAuth(srv.getSessionChunk))
 	srv.GET("/:version/namespaces/:namespace/sessions/:id/events", srv.withAuth(srv.getSessionEvents))
 
@@ -1824,6 +1826,36 @@ func (s *APIServer) postSessionChunk(auth ClientI, w http.ResponseWriter, r *htt
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
 	}
 	if err = auth.PostSessionChunk(namespace, *sid, r.Body); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message("ok"), nil
+}
+
+// HTTP POST /:version/sessions/:id/recording
+func (s *APIServer) uploadSessionRecording(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	var files form.Files
+	var namespace, sid string
+
+	err := form.Parse(r,
+		form.FileSlice("recording", &files),
+		form.String("namespace", &namespace, form.Required()),
+		form.String("sid", &sid, form.Required()),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !services.IsValidNamespace(namespace) {
+		return nil, trace.BadParameter("invalid namespace %q", namespace)
+	}
+	if len(files) != 1 {
+		return nil, trace.BadParameter("expected a single file parameter but got %d", len(files))
+	}
+	defer files[0].Close()
+	if err = auth.UploadSessionRecording(events.SessionRecording{
+		SessionID: session.ID(sid),
+		Namespace: namespace,
+		Recording: files[0],
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil

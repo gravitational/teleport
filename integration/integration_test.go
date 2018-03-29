@@ -306,20 +306,18 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 		}
 
 		// wait for the upload of the right session to complete
-		if tt.auditSessionsURI != "" {
-			timeoutC := time.After(10 * time.Second)
-		loop:
-			for {
-				select {
-				case event := <-t.UploadEventsC:
-					if event.SessionID != string(session.ID) {
-						log.Debugf("Skipping mismatching session %v, expecting upload of %v.", event.SessionID, session.ID)
-						continue
-					}
-					break loop
-				case <-timeoutC:
-					c.Fatalf("Timeout waiting for upload of session %v to complete to %v", session.ID, tt.auditSessionsURI)
+		timeoutC := time.After(10 * time.Second)
+	loop:
+		for {
+			select {
+			case event := <-t.UploadEventsC:
+				if event.SessionID != string(session.ID) {
+					log.Debugf("Skipping mismatching session %v, expecting upload of %v.", event.SessionID, session.ID)
+					continue
 				}
+				break loop
+			case <-timeoutC:
+				c.Fatalf("Timeout waiting for upload of session %v to complete to %v", session.ID, tt.auditSessionsURI)
 			}
 		}
 

@@ -20,12 +20,15 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"net"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/gravitational/teleport"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
@@ -55,6 +58,12 @@ func (cfg *TestAuthServerConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter Dir")
 	}
 	return nil
+}
+
+// CreateUploaderDir creates directory for file uploader service
+func CreateUploaderDir(dir string) error {
+	return os.MkdirAll(filepath.Join(dir, teleport.LogsDir, teleport.ComponentUpload,
+		events.SessionLogsDir, defaults.Namespace), teleport.SharedDirMode)
 }
 
 // TestAuthServer is auth server using local filesystem backend

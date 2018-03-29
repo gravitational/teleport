@@ -100,8 +100,14 @@ func (l *Forwarder) PostSessionSlice(slice SessionSlice) error {
 		return nil
 	}
 	slice.Chunks = chunks
+	slice.Version = V3
 	err = l.ForwardTo.PostSessionSlice(slice)
 	return err
+}
+
+// UploadSessionRecording uploads session recording to the audit server
+func (l *Forwarder) UploadSessionRecording(r SessionRecording) error {
+	return l.ForwardTo.UploadSessionRecording(r)
 }
 
 // PostSessionChunk returns a writer which SSH nodes use to submit

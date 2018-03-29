@@ -800,6 +800,19 @@ func (a *AuthWithRoles) PostSessionChunk(namespace string, sid session.ID, reade
 	return a.alog.PostSessionChunk(namespace, sid, reader)
 }
 
+func (a *AuthWithRoles) UploadSessionRecording(r events.SessionRecording) error {
+	if err := r.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(r.Namespace, services.KindEvent, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(r.Namespace, services.KindEvent, services.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.alog.UploadSessionRecording(r)
+}
+
 func (a *AuthWithRoles) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
 	if err := a.action(namespace, services.KindSession, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)

@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -50,8 +49,6 @@ type UploadHandler interface {
 type UploadEvent struct {
 	// SessionID is a session ID
 	SessionID string
-	// URL is the upload URL
-	URL string
 	// Error is set in case if event resulted in error
 	Error error
 }
@@ -72,8 +69,6 @@ type UploaderConfig struct {
 	ScanPeriod time.Duration
 	// ConcurrentUploads sets up how many parallel uploads to schedule
 	ConcurrentUploads int
-	// Handler is upload handler supplied by user
-	Handler UploadHandler
 	// AuditLog is audit log client
 	AuditLog IAuditLog
 	// EventsC is an event channel used to signal events
@@ -94,9 +89,6 @@ func (cfg *UploaderConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.Namespace == "" {
 		return trace.BadParameter("missing parameter Namespace")
-	}
-	if cfg.Handler == nil {
-		return trace.BadParameter("missing parameter Handler")
 	}
 	if cfg.ConcurrentUploads <= 0 {
 		cfg.ConcurrentUploads = defaults.UploaderConcurrentUploads
@@ -248,20 +240,22 @@ func (u *Uploader) uploadFile(lockFilePath string, sessionID session.ID) error {
 		defer utils.FSUnlock(lockFile)
 
 		start := time.Now()
-		url, err := u.Handler.Upload(u.ctx, sessionID, reader)
+		err := u.AuditLog.UploadSessionRecording(SessionRecording{
+			Namespace: u.Namespace,
+			SessionID: sessionID,
+			Recording: reader,
+		})
 		if err != nil {
 			u.emitEvent(UploadEvent{
 				SessionID: string(sessionID),
 				Error:     err,
 			})
-			u.WithFields(log.Fields{"duration": time.Now().Sub(start), "session-id": sessionID}).Warningf("File upload failed: %v", trace.DebugReport(err))
+			u.WithFields(log.Fields{"duration": time.Now().Sub(start), "session-id": sessionID}).Warningf("Session upload failed: %v", trace.DebugReport(err))
 			return
 		}
-		u.WithFields(log.Fields{"duration": time.Now().Sub(start), "session-id": sessionID, URL: url}).Warningf("File upload completed.")
-		err = u.AuditLog.EmitAuditEvent(SessionUploadEvent, EventFields{SessionEventID: string(sessionID), URL: url, EventIndex: math.MaxInt32})
+		u.WithFields(log.Fields{"duration": time.Now().Sub(start), "session-id": sessionID}).Debugf("Session upload completed.")
 		u.emitEvent(UploadEvent{
 			SessionID: string(sessionID),
-			URL:       url,
 		})
 		if err != nil {
 			u.Warningf("Failed to post upload event: %v. Will retry next time.", trace.DebugReport(err))

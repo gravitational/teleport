@@ -1215,7 +1215,6 @@ func (a *AuditTestSuite) TestForwardAndUpload(c *check.C) {
 		Namespace:  defaults.Namespace,
 		Context:    context.TODO(),
 		ScanPeriod: 100 * time.Millisecond,
-		Handler:    fileHandler,
 		AuditLog:   alog,
 		EventsC:    eventsC,
 	})

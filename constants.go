@@ -130,6 +130,9 @@ const (
 	// Component pluggable authentication module (PAM)
 	ComponentPAM = "pam"
 
+	// ComponentUpload is a session recording upload server
+	ComponentUpload = "upload"
+
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
 

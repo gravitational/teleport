@@ -353,26 +353,23 @@ func newSessionRecorder(alog events.IAuditLog, ctx *ServerContext, sid rsession.
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if clusterConfig.GetAuditConfig().ShouldUploadSessions() {
-			// in case of sessions upload, write sessions to local
-			// disk, and forward only audit events to the remote audit logger
-			forwarder, err := events.NewForwarder(events.ForwarderConfig{
-				SessionID:      sid,
-				ServerID:       "upload",
-				DataDir:        filepath.Join(ctx.srv.GetDataDir(), teleport.LogsDir),
-				RecordSessions: clusterConfig.GetSessionRecording() != services.RecordOff,
-				Namespace:      ctx.srv.GetNamespace(),
-				ForwardTo:      alog,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			alog = forwarder
+		// always write sessions to local disk first
+		// forward them to auth server later
+		forwarder, err := events.NewForwarder(events.ForwarderConfig{
+			SessionID:      sid,
+			ServerID:       "upload",
+			DataDir:        filepath.Join(ctx.srv.GetDataDir(), teleport.LogsDir),
+			RecordSessions: clusterConfig.GetSessionRecording() != services.RecordOff,
+			Namespace:      ctx.srv.GetNamespace(),
+			ForwardTo:      alog,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 		cacher, err := state.NewCachingAuditLog(state.CachingAuditLogConfig{
 			Namespace: ctx.srv.GetNamespace(),
 			SessionID: string(sid),
-			Server:    alog,
+			Server:    forwarder,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

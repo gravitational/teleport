@@ -1065,22 +1065,6 @@ func (process *TeleportProcess) initUploaderService(accessPoint auth.AccessPoint
 	log := logrus.WithFields(logrus.Fields{
 		trace.Component: teleport.ComponentAuditLog,
 	})
-	clusterConfig, err := accessPoint.GetClusterConfig()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	auditConfig := clusterConfig.GetAuditConfig()
-	uploadHandler, err := initUploadHandler(auditConfig)
-	if err != nil {
-		if trace.IsNotFound(err) {
-			log.Infof("No session uploader specified, going to ship sessions to auth server.")
-			return nil
-		}
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-	}
-
 	// create folder for uploads
 	uid, gid, err := adminCreds()
 	if err != nil {
@@ -1088,7 +1072,7 @@ func (process *TeleportProcess) initUploaderService(accessPoint auth.AccessPoint
 	}
 
 	// prepare dirs for uploader
-	path := []string{process.Config.DataDir, teleport.LogsDir, "upload", events.SessionLogsDir, defaults.Namespace}
+	path := []string{process.Config.DataDir, teleport.LogsDir, teleport.ComponentUpload, events.SessionLogsDir, defaults.Namespace}
 	for i := 1; i < len(path); i++ {
 		dir := filepath.Join(path[:i+1]...)
 		log.Infof("Creating directory %v.", dir)
@@ -1108,13 +1092,10 @@ func (process *TeleportProcess) initUploaderService(accessPoint auth.AccessPoint
 		}
 	}
 
-	log.Infof("Uploader events: %v", process.Config.UploadEventsC)
-
 	uploader, err := events.NewUploader(events.UploaderConfig{
 		DataDir:   filepath.Join(process.Config.DataDir, teleport.LogsDir),
 		Namespace: defaults.Namespace,
-		ServerID:  "upload",
-		Handler:   uploadHandler,
+		ServerID:  teleport.ComponentUpload,
 		AuditLog:  auditLog,
 		EventsC:   process.Config.UploadEventsC,
 	})
