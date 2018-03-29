@@ -101,6 +101,10 @@ func (l *AuditLog) PostSessionChunk(namespace string, sid session.ID, reader io.
 	return trace.Wrap(l.Inner.PostSessionChunk(namespace, sid, reader))
 }
 
+func (l *AuditLog) UploadSessionRecording(r events.SessionRecording) error {
+	return trace.Wrap(l.Inner.UploadSessionRecording(r))
+}
+
 func (l *AuditLog) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
 	chunk, err := l.Inner.GetSessionChunk(namespace, sid, offsetBytes, maxBytes)
 	return chunk, trace.Wrap(err)
