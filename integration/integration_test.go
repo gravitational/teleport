@@ -1510,7 +1510,7 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 // TestExternalClient tests if we can connect to a node in a Teleport
 // cluster. Both normal and recording proxies are tested.
 func (s *IntSuite) TestExternalClient(c *check.C) {
-	// only run this test if we have access to the external ssh binary
+	// Only run this test if we have access to the external SSH binary.
 	_, err := exec.LookPath("ssh")
 	if err != nil {
 		c.Skip("Skipping TestExternalClient, no external SSH binary found.")
@@ -1524,46 +1524,46 @@ func (s *IntSuite) TestExternalClient(c *check.C) {
 		outError         bool
 		outExecOutput    string
 	}{
-		// record at the node, forward agent. will still work even though the agent
+		// Record at the node, forward agent. Will still work even though the agent
 		// will be rejected by the proxy (agent forwarding request rejection is a
-		// soft failure)
+		// soft failure).
 		{
-			services.RecordAtNode,
-			true,
-			"echo hello",
-			false,
-			"hello",
+			inRecordLocation: services.RecordAtNode,
+			inForwardAgent:   true,
+			inCommand:        "echo hello",
+			outError:         false,
+			outExecOutput:    "hello",
 		},
-		// record at the node, don't forward agent, will work. this is the normal
-		// teleport mode of operation.
+		// Record at the node, don't forward agent, will work. This is the normal
+		// Teleport mode of operation.
 		{
-			services.RecordAtNode,
-			false,
-			"echo hello",
-			false,
-			"hello",
+			inRecordLocation: services.RecordAtNode,
+			inForwardAgent:   false,
+			inCommand:        "echo hello",
+			outError:         false,
+			outExecOutput:    "hello",
 		},
-		// record at the proxy, forward agent. will work.
+		// Record at the proxy, forward agent. Will work.
 		{
-			services.RecordAtProxy,
-			true,
-			"echo hello",
-			false,
-			"hello",
+			inRecordLocation: services.RecordAtProxy,
+			inForwardAgent:   true,
+			inCommand:        "echo hello",
+			outError:         false,
+			outExecOutput:    "hello",
 		},
-		// record at the proxy, don't forward agent, request will fail because
+		// Record at the proxy, don't forward agent, request will fail because
 		// recording proxy requires an agent.
 		{
-			services.RecordAtProxy,
-			false,
-			"echo hello",
-			true,
-			"",
+			inRecordLocation: services.RecordAtProxy,
+			inForwardAgent:   false,
+			inCommand:        "echo hello",
+			outError:         true,
+			outExecOutput:    "",
 		},
 	}
 
 	for _, tt := range tests {
-		// create a teleport instance with auth, proxy, and node
+		// Create a Teleport instance with auth, proxy, and node.
 		makeConfig := func() (*check.C, []string, []*InstanceSecrets, *service.Config) {
 			clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
 				SessionRecording: tt.inRecordLocation,
@@ -1586,7 +1586,7 @@ func (s *IntSuite) TestExternalClient(c *check.C) {
 		t := s.newTeleportWithConfig(makeConfig())
 		defer t.Stop(true)
 
-		// start (and defer close) a agent that runs during this integration test
+		// Start (and defer close) a agent that runs during this integration test.
 		teleAgent, socketDirPath, socketPath, err := createAgent(
 			s.me,
 			t.Secrets.Users[s.me.Username].Key.Priv,
@@ -1594,22 +1594,122 @@ func (s *IntSuite) TestExternalClient(c *check.C) {
 		c.Assert(err, check.IsNil)
 		defer closeAgent(teleAgent, socketDirPath)
 
-		// create a *exec.Cmd that will execute the external ssh command
-		execCmd, err := externalSSHCommand(
-			tt.inForwardAgent,
-			socketPath,
-			t.GetPortProxy(),
-			t.GetPortSSH(),
-			tt.inCommand)
+		// Create a *exec.Cmd that will execute the external SSH command.
+		execCmd, err := externalSSHCommand(commandOptions{
+			forwardAgent: tt.inForwardAgent,
+			socketPath:   socketPath,
+			proxyPort:    t.GetPortProxy(),
+			nodePort:     t.GetPortSSH(),
+			command:      tt.inCommand,
+		})
 		c.Assert(err, check.IsNil)
 
-		// execute ssh command and check the output is what we expect
+		// Execute SSH command and check the output is what we expect.
 		output, err := execCmd.Output()
 		if tt.outError {
 			c.Assert(err, check.NotNil)
 		} else {
+			if err != nil {
+				// If an *exec.ExitError is returned, parse it and return stderr. If this
+				// is not done then c.Assert will just print a byte array for the error.
+				er, ok := err.(*exec.ExitError)
+				if ok {
+					c.Fatalf("Unexpected error: %v", string(er.Stderr))
+				}
+			}
 			c.Assert(err, check.IsNil)
 			c.Assert(strings.TrimSpace(string(output)), check.Equals, tt.outExecOutput)
+		}
+	}
+}
+
+// TestControlMaster checks if multiple SSH channels can be created over the
+// same connection. This is frequently used by tools like Ansible.
+func (s *IntSuite) TestControlMaster(c *check.C) {
+	// Only run this test if we have access to the external SSH binary.
+	_, err := exec.LookPath("ssh")
+	if err != nil {
+		c.Skip("Skipping TestControlMaster, no external SSH binary found.")
+		return
+	}
+
+	var tests = []struct {
+		inRecordLocation string
+	}{
+		// Run tests when Teleport is recording sessions at the node.
+		{
+			inRecordLocation: services.RecordAtNode,
+		},
+		// Run tests when Teleport is recording sessions at the proxy.
+		{
+			inRecordLocation: services.RecordAtProxy,
+		},
+	}
+
+	for _, tt := range tests {
+		controlDir, err := ioutil.TempDir("", "teleport-")
+		c.Assert(err, check.IsNil)
+		defer os.RemoveAll(controlDir)
+		controlPath := filepath.Join(controlDir, "control-path")
+
+		// Create a Teleport instance with auth, proxy, and node.
+		makeConfig := func() (*check.C, []string, []*InstanceSecrets, *service.Config) {
+			clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+				SessionRecording: tt.inRecordLocation,
+			})
+			c.Assert(err, check.IsNil)
+
+			tconf := service.MakeDefaultConfig()
+			tconf.Console = nil
+			tconf.Auth.Enabled = true
+			tconf.Auth.ClusterConfig = clusterConfig
+
+			tconf.Proxy.Enabled = true
+			tconf.Proxy.DisableWebService = true
+			tconf.Proxy.DisableWebInterface = true
+
+			tconf.SSH.Enabled = true
+
+			return c, nil, nil, tconf
+		}
+		t := s.newTeleportWithConfig(makeConfig())
+		defer t.Stop(true)
+
+		// Start (and defer close) a agent that runs during this integration test.
+		teleAgent, socketDirPath, socketPath, err := createAgent(
+			s.me,
+			t.Secrets.Users[s.me.Username].Key.Priv,
+			t.Secrets.Users[s.me.Username].Key.Cert)
+		c.Assert(err, check.IsNil)
+		defer closeAgent(teleAgent, socketDirPath)
+
+		// Create and run an exec command twice with the passed in ControlPath. This
+		// will cause re-use of the connection and creation of two sessions within
+		// the connection.
+		for i := 0; i < 2; i++ {
+			execCmd, err := externalSSHCommand(commandOptions{
+				forcePTY:     true,
+				forwardAgent: true,
+				controlPath:  controlPath,
+				socketPath:   socketPath,
+				proxyPort:    t.GetPortProxy(),
+				nodePort:     t.GetPortSSH(),
+				command:      "echo hello",
+			})
+			c.Assert(err, check.IsNil)
+
+			// Execute SSH command and check the output is what we expect.
+			output, err := execCmd.Output()
+			if err != nil {
+				// If an *exec.ExitError is returned, parse it and return stderr. If this
+				// is not done then c.Assert will just print a byte array for the error.
+				er, ok := err.(*exec.ExitError)
+				if ok {
+					c.Fatalf("Unexpected error: %v", string(er.Stderr))
+				}
+			}
+			c.Assert(err, check.IsNil)
+			c.Assert(strings.TrimSpace(string(output)), check.Equals, "hello")
 		}
 	}
 }
