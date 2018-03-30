@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"runtime/debug"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -1003,46 +1004,73 @@ func (s *discardServer) handleChannel(channel ssh.Channel, reqs <-chan *ssh.Requ
 	}
 }
 
+// commandOptions controls how the SSH command is built.
+type commandOptions struct {
+	forwardAgent bool
+	forcePTY     bool
+	controlPath  string
+	socketPath   string
+	proxyPort    string
+	nodePort     string
+	command      string
+}
+
 // externalSSHCommand runs an external SSH command (if an external ssh binary
 // exists) with the passed in parameters.
-func externalSSHCommand(forwardAgent bool, socketPath string, proxyPort string, nodePort string, command string) (*exec.Cmd, error) {
+func externalSSHCommand(o commandOptions) (*exec.Cmd, error) {
 	var execArgs []string
 
-	// don't check the host certificate during tests
+	// Don't check the host certificate as part of the testing an external SSH
+	// client, this is done elsewhere.
 	execArgs = append(execArgs, "-oStrictHostKeyChecking=no")
 	execArgs = append(execArgs, "-oUserKnownHostsFile=/dev/null")
 
-	// connect to node on the passed in port
-	execArgs = append(execArgs, "-p")
-	execArgs = append(execArgs, nodePort)
-
-	// build proxy command
-	var proxyCommand string
-	switch forwardAgent {
-	case true:
-		proxyCommand = fmt.Sprintf("ProxyCommand ssh -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null -oForwardAgent=yes -p %v %%r@localhost -s proxy:%%h:%%p", proxyPort)
-	case false:
-		proxyCommand = fmt.Sprintf("ProxyCommand ssh -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null -p %v %%r@localhost -s proxy:%%h:%%p", proxyPort)
+	// ControlMaster is often used by applications like Ansible.
+	if o.controlPath != "" {
+		execArgs = append(execArgs, "-oControlMaster=auto")
+		execArgs = append(execArgs, "-oControlPersist=1s")
+		execArgs = append(execArgs, "-oConnectTimeout=2")
+		execArgs = append(execArgs, fmt.Sprintf("-oControlPath=%v", o.controlPath))
 	}
-	execArgs = append(execArgs, "-o")
-	execArgs = append(execArgs, proxyCommand)
 
-	// add in the host the connect to and the command to run when connected
+	// The -tt flag is used to force PTY allocation. It's often used by
+	// applications like Ansible.
+	if o.forcePTY {
+		execArgs = append(execArgs, "-tt")
+	}
+
+	// Connect to node on the passed in port.
+	execArgs = append(execArgs, fmt.Sprintf("-p %v", o.nodePort))
+
+	// Build proxy command.
+	proxyCommand := []string{"ssh"}
+	proxyCommand = append(proxyCommand, "-oStrictHostKeyChecking=no")
+	proxyCommand = append(proxyCommand, "-oUserKnownHostsFile=/dev/null")
+	if o.forwardAgent {
+		proxyCommand = append(proxyCommand, "-oForwardAgent=yes")
+	}
+	proxyCommand = append(proxyCommand, fmt.Sprintf("-p %v", o.proxyPort))
+	proxyCommand = append(proxyCommand, `%r@localhost -s proxy:%h:%p`)
+
+	// Add in ProxyCommand option, needed for all Teleport connections.
+	execArgs = append(execArgs, fmt.Sprintf("-oProxyCommand=%v", strings.Join(proxyCommand, " ")))
+
+	// Add in the host to connect to and the command to run when connected.
 	execArgs = append(execArgs, Host)
-	execArgs = append(execArgs, command)
+	execArgs = append(execArgs, o.command)
 
-	// find the ssh binary
+	// Find the OpenSSH binary.
 	sshpath, err := exec.LookPath("ssh")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// create exec command and tell it where to find the ssh agent
+	// Create an exec.Command and tell it where to find the SSH agent.
 	cmd, err := exec.Command(sshpath, execArgs...), nil
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cmd.Env = []string{fmt.Sprintf("SSH_AUTH_SOCK=%v", socketPath)}
+	cmd.Env = []string{fmt.Sprintf("SSH_AUTH_SOCK=%v", o.socketPath)}
 
 	return cmd, nil
 }

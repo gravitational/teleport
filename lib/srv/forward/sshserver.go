@@ -67,14 +67,30 @@ type Server struct {
 
 	id string
 
+	// targetConn is the TCP connection to the remote host.
 	targetConn net.Conn
+
+	// clientConn is the client half of the pipe used to connect the client
+	// and server.
 	clientConn net.Conn
+
+	// serverConn is the server half of the pipe used to connect the client and
+	// server.
 	serverConn net.Conn
+
+	// sconn is an authenticated SSH connection from the server perspective.
+	sconn *ssh.ServerConn
+
+	// remoteClient exposes an API to SSH functionality like shells, port
+	// forwarding, subsystems.
+	remoteClient *ssh.Client
+
+	// identityContext holds identity information about the user that has
+	// authenticated on sconn (like system login, Teleport username, roles).
+	identityContext srv.IdentityContext
 
 	// userAgent is the SSH user agent that was forwarded to the proxy.
 	userAgent agent.Agent
-	// userAgentChannel is the channel over which communication with the agent occurs.
-	userAgentChannel ssh.Channel
 
 	// hostCertificate is the SSH host certificate this in-memory server presents
 	// to the client.
@@ -285,10 +301,10 @@ func (s *Server) Serve() {
 		s.log.Errorf("Unable to create server connection: %v.", err)
 		return
 	}
+	s.sconn = sconn
 
-	// take connection and build identity for the user from it to be passed
-	// along with context
-	identityContext, err := s.authHandlers.CreateIdentityContext(sconn)
+	// Take connection and extract identity information for the user from it.
+	s.identityContext, err = s.authHandlers.CreateIdentityContext(sconn)
 	if err != nil {
 		s.targetConn.Close()
 		s.clientConn.Close()
@@ -298,12 +314,12 @@ func (s *Server) Serve() {
 		return
 	}
 
-	// build a remote session to the remote node
+	// Connect and authenticate to the remote node.
 	s.log.Debugf("Creating remote connection to %v@%v", sconn.User(), s.clientConn.RemoteAddr().String())
-	remoteClient, remoteSession, err := s.newRemoteSession(sconn.User())
+	s.remoteClient, err = s.newRemoteClient(sconn.User())
 	if err != nil {
-		// reject the connection with an error so the client doesn't hang then
-		// close the connection
+		// Reject the connection with an error so the client doesn't hang then
+		// close the connection.
 		s.rejectChannel(chans, err)
 		sconn.Close()
 
@@ -315,39 +331,48 @@ func (s *Server) Serve() {
 		return
 	}
 
-	// create server context for this connection, it's closed when the
-	// connection is closed
-	ctx := srv.NewServerContext(s, sconn, identityContext)
-
-	ctx.RemoteClient = remoteClient
-	ctx.RemoteSession = remoteSession
-	ctx.SetAgent(s.userAgent, s.userAgentChannel)
-
-	ctx.AddCloser(sconn)
-	ctx.AddCloser(s.targetConn)
-	ctx.AddCloser(s.serverConn)
-	ctx.AddCloser(s.clientConn)
-	ctx.AddCloser(remoteSession)
-	ctx.AddCloser(remoteClient)
-
-	s.log.Debugf("Created connection context %v", ctx.ID())
-
-	// create a cancelable context and pass it to a keep alive loop. the keep
+	// Create a cancelable context and pass it to a keep alive loop. The keep
 	// alive loop will keep pinging the remote server and after it has missed a
 	// certain number of keep alive requests it will cancel the context which
 	// will close any listening goroutines.
 	heartbeatContext, cancel := context.WithCancel(context.Background())
-	go s.keepAliveLoop(ctx, sconn, cancel)
-	go s.handleConnection(ctx, heartbeatContext, sconn, chans, reqs)
+	go s.keepAliveLoop(cancel)
+	go s.handleConnection(heartbeatContext, chans, reqs)
+}
+
+// Close will close all underlying connections that the forwarding server holds.
+func (s *Server) Close() error {
+	conns := []io.Closer{
+		s.sconn,
+		s.clientConn,
+		s.serverConn,
+		s.targetConn,
+		s.remoteClient,
+	}
+
+	var errs []error
+
+	for _, c := range conns {
+		if c == nil {
+			continue
+		}
+
+		err := c.Close()
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	return trace.NewAggregate(errs...)
 }
 
 // newRemoteSession will create and return a *ssh.Client and *ssh.Session
 // with a remote host.
-func (s *Server) newRemoteSession(systemLogin string) (*ssh.Client, *ssh.Session, error) {
+func (s *Server) newRemoteClient(systemLogin string) (*ssh.Client, error) {
 	// the proxy will use the agent that has been forwarded to it as the auth
 	// method when connecting to the remote host
 	if s.userAgent == nil {
-		return nil, nil, trace.AccessDenied("agent must be forwarded to proxy")
+		return nil, trace.AccessDenied("agent must be forwarded to proxy")
 	}
 	authMethod := ssh.PublicKeysCallback(s.userAgent.Signers)
 
@@ -373,43 +398,38 @@ func (s *Server) newRemoteSession(systemLogin string) (*ssh.Client, *ssh.Session
 	dstAddr := s.targetConn.RemoteAddr().String()
 	client, err := proxy.NewClientConnWithDeadline(s.targetConn, dstAddr, clientConfig)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	session, err := client.NewSession()
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	return client, session, nil
+	return client, nil
 }
 
-func (s *Server) handleConnection(ctx *srv.ServerContext, heartbeatContext context.Context, sconn *ssh.ServerConn, chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request) {
-	defer s.log.Debugf("Closing connection context %v and releasing resources.", ctx.ID())
-	defer ctx.Close()
+func (s *Server) handleConnection(heartbeatContext context.Context, chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request) {
+	defer s.log.Debugf("Closing forwarding server connected to %v and releasing resources.", s.sconn.LocalAddr())
+	defer s.Close()
 
 	for {
 		select {
-		// global out-of-band requests
+		// Global out-of-band requests.
 		case newRequest := <-reqs:
 			if newRequest == nil {
 				return
 			}
-			go s.handleGlobalRequest(ctx, newRequest)
-		// channel requests
+			go s.handleGlobalRequest(newRequest)
+		// Channel requests.
 		case newChannel := <-chans:
 			if newChannel == nil {
 				return
 			}
-			go s.handleChannel(ctx, sconn, newChannel)
-		// if the heartbeats failed, we close everything and cleanup
+			go s.handleChannel(newChannel)
+		// If the heartbeats failed, close everything and cleanup.
 		case <-heartbeatContext.Done():
 			return
 		}
 	}
 }
 
-func (s *Server) keepAliveLoop(ctx *srv.ServerContext, sconn *ssh.ServerConn, cancel context.CancelFunc) {
+func (s *Server) keepAliveLoop(cancel context.CancelFunc) {
 	var missed int
 
 	// tick at 1/3 of the idle timeout duration
@@ -420,8 +440,8 @@ func (s *Server) keepAliveLoop(ctx *srv.ServerContext, sconn *ssh.ServerConn, ca
 		select {
 		case <-keepAliveTick.C:
 			// send a keep alive to the target node and the client to ensure both are alive.
-			proxyToNodeOk := s.sendKeepAliveWithTimeout(ctx.RemoteClient, defaults.ReadHeadersTimeout)
-			proxyToClientOk := s.sendKeepAliveWithTimeout(sconn, defaults.ReadHeadersTimeout)
+			proxyToNodeOk := s.sendKeepAliveWithTimeout(s.remoteClient, defaults.ReadHeadersTimeout)
+			proxyToClientOk := s.sendKeepAliveWithTimeout(s.sconn, defaults.ReadHeadersTimeout)
 			if proxyToNodeOk && proxyToClientOk {
 				missed = 0
 				continue
@@ -448,30 +468,32 @@ func (s *Server) rejectChannel(chans <-chan ssh.NewChannel, err error) {
 	}
 }
 
-func (s *Server) handleGlobalRequest(ctx *srv.ServerContext, req *ssh.Request) {
-	ok, err := ctx.RemoteSession.SendRequest(req.Type, req.WantReply, req.Payload)
+func (s *Server) handleGlobalRequest(req *ssh.Request) {
+	ok, payload, err := s.remoteClient.SendRequest(req.Type, req.WantReply, req.Payload)
 	if err != nil {
 		s.log.Warnf("Failed to forward global request %v: %v", req.Type, err)
 		return
 	}
+
 	if req.WantReply {
-		err = req.Reply(ok, nil)
+		err = req.Reply(ok, payload)
 		if err != nil {
 			s.log.Warnf("Failed to reply to global request: %v: %v", req.Type, err)
 		}
 	}
 }
 
-func (s *Server) handleChannel(ctx *srv.ServerContext, sconn *ssh.ServerConn, nch ssh.NewChannel) {
+func (s *Server) handleChannel(nch ssh.NewChannel) {
 	channelType := nch.ChannelType()
 
 	switch channelType {
-	// a client requested the terminal size to be sent along with every
-	// session message (Teleport-specific SSH channel for web-based terminals)
+	// A client requested the terminal size to be sent along with every
+	// session message (Teleport-specific SSH channel for web-based terminals).
 	case "x-teleport-request-resize-events":
 		ch, _, _ := nch.Accept()
-		go s.handleTerminalResize(sconn, ch)
-	// interactive sessions
+		go s.handleTerminalResize(ch)
+	// Channels of type "session" handle requests that are invovled in running
+	// commands on a server.
 	case "session":
 		ch, requests, err := nch.Accept()
 		if err != nil {
@@ -479,8 +501,8 @@ func (s *Server) handleChannel(ctx *srv.ServerContext, sconn *ssh.ServerConn, nc
 			nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
 			return
 		}
-		go s.handleSessionRequests(ctx, sconn, ch, requests)
-	// port forwarding
+		go s.handleSessionRequests(ch, requests)
+	// Channels of type "direct-tcpip" handles request for port forwarding.
 	case "direct-tcpip":
 		req, err := sshutils.ParseDirectTCPIPReq(nch.ExtraData())
 		if err != nil {
@@ -494,42 +516,48 @@ func (s *Server) handleChannel(ctx *srv.ServerContext, sconn *ssh.ServerConn, nc
 			nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
 			return
 		}
-		go s.handleDirectTCPIPRequest(ctx, sconn, ch, req)
+		go s.handleDirectTCPIPRequest(ch, req)
 	default:
 		nch.Reject(ssh.UnknownChannelType, fmt.Sprintf("unknown channel type: %v", channelType))
 	}
 }
 
 // handleDirectTCPIPRequest handles port forwarding requests.
-func (s *Server) handleDirectTCPIPRequest(ctx *srv.ServerContext, sconn *ssh.ServerConn, ch ssh.Channel, req *sshutils.DirectTCPIPReq) {
+func (s *Server) handleDirectTCPIPRequest(ch ssh.Channel, req *sshutils.DirectTCPIPReq) {
 	srcAddr := fmt.Sprintf("%v:%d", req.Orig, req.OrigPort)
 	dstAddr := fmt.Sprintf("%v:%d", req.Host, req.Port)
 
-	defer s.log.Debugf("Completing direct-tcpip request from %v to %v.", srcAddr, dstAddr)
+	// Create context for this channel. This context will be closed when
+	// forwarding is complete.
+	ctx := srv.NewServerContext(s, s.sconn, s.identityContext)
+	ctx.RemoteClient = s.remoteClient
+	defer ctx.Close()
 
-	// check if the role allows port forwarding for this user
+	// Check if the role allows port forwarding for this user.
 	err := s.authHandlers.CheckPortForward(dstAddr, ctx)
 	if err != nil {
 		ch.Stderr().Write([]byte(err.Error()))
 		return
 	}
 
-	s.log.Debugf("Opening direct-tcpip channel from %v to %v.", srcAddr, dstAddr)
+	s.log.Debugf("Opening direct-tcpip channel from %v to %v in context %v.", srcAddr, dstAddr, ctx.ID())
+	defer s.log.Debugf("Completing direct-tcpip request from %v to %v in context %v.", srcAddr, dstAddr, ctx.ID())
 
-	conn, err := ctx.RemoteClient.Dial("tcp", dstAddr)
+	// Create "direct-tcpip" channel from the remote host to the target host.
+	conn, err := s.remoteClient.Dial("tcp", dstAddr)
 	if err != nil {
 		ctx.Infof("Failed to connect to: %v: %v", dstAddr, err)
 		return
 	}
 	defer conn.Close()
 
-	// emit a port forwarding audit event
+	// Emit a port forwarding audit event.
 	s.EmitAuditEvent(events.PortForwardEvent, events.EventFields{
 		events.PortForwardAddr:    dstAddr,
 		events.PortForwardSuccess: true,
-		events.EventLogin:         ctx.Identity.Login,
-		events.LocalAddr:          sconn.LocalAddr().String(),
-		events.RemoteAddr:         sconn.RemoteAddr().String(),
+		events.EventLogin:         s.identityContext.Login,
+		events.LocalAddr:          s.sconn.LocalAddr().String(),
+		events.RemoteAddr:         s.sconn.RemoteAddr().String(),
 	})
 
 	wg := &sync.WaitGroup{}
@@ -554,10 +582,10 @@ func (s *Server) handleDirectTCPIPRequest(ctx *srv.ServerContext, sconn *ssh.Ser
 // by creating this new SSH channel, to start injecting the terminal size
 // into every SSH write back to it.
 //
-// this is the only way to make web-based terminal UI not break apart
-// when window changes its size
-func (s *Server) handleTerminalResize(sconn *ssh.ServerConn, ch ssh.Channel) {
-	err := s.sessionRegistry.PushTermSizeToParty(sconn, ch)
+// This is the only way to make web-based terminal UI not break apart
+// when window changes its size.
+func (s *Server) handleTerminalResize(channel ssh.Channel) {
+	err := s.sessionRegistry.PushTermSizeToParty(s.sconn, channel)
 	if err != nil {
 		s.log.Warnf("Unable to push terminal size to party: %v", err)
 	}
@@ -566,20 +594,33 @@ func (s *Server) handleTerminalResize(sconn *ssh.ServerConn, ch ssh.Channel) {
 // handleSessionRequests handles out of band session requests once the session
 // channel has been created this function's loop handles all the "exec",
 // "subsystem" and "shell" requests.
-func (s *Server) handleSessionRequests(ctx *srv.ServerContext, sconn *ssh.ServerConn, ch ssh.Channel, in <-chan *ssh.Request) {
-	defer s.log.Debugf("Closing session request to %v.", sconn.RemoteAddr())
-	defer ch.Close()
+func (s *Server) handleSessionRequests(ch ssh.Channel, in <-chan *ssh.Request) {
+	// Create context for this channel. This context will be closed when the
+	// session request is complete.
+	ctx := srv.NewServerContext(s, s.sconn, s.identityContext)
+	ctx.RemoteClient = s.remoteClient
+	ctx.AddCloser(ch)
+	defer ctx.Close()
 
-	s.log.Debugf("Opening session request to %v.", sconn.RemoteAddr())
+	// Create a "session" channel on the remote host.
+	remoteSession, err := s.remoteClient.NewSession()
+	if err != nil {
+		ch.Stderr().Write([]byte(err.Error()))
+		return
+	}
+	ctx.RemoteSession = remoteSession
+
+	s.log.Debugf("Opening session request to %v in context %v.", s.sconn.RemoteAddr(), ctx.ID())
+	defer s.log.Debugf("Closing session request to %v in context %v.", s.sconn.RemoteAddr(), ctx.ID())
 
 	for {
-		// update ctx with the session ID:
+		// Update the context with the session ID.
 		err := ctx.CreateOrJoinSession(s.sessionRegistry)
 		if err != nil {
 			errorMessage := fmt.Sprintf("unable to update context: %v", err)
 			ctx.Errorf("%v", errorMessage)
 
-			// write the error to channel and close it
+			// Write the error to channel and close it.
 			ch.Stderr().Write([]byte(errorMessage))
 			_, err := ch.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: teleport.RemoteCommandFailure}))
 			if err != nil {
@@ -590,15 +631,13 @@ func (s *Server) handleSessionRequests(ctx *srv.ServerContext, sconn *ssh.Server
 
 		select {
 		case result := <-ctx.SubsystemResultCh:
-			// this means that subsystem has finished executing and
-			// want us to close session and the channel
+			// Subsystem has finished executing, close the channel and session.
 			ctx.Debugf("Subsystem execution result: %v", result.Err)
-
 			return
 		case req := <-in:
 			if req == nil {
-				// this will happen when the client closes/drops the connection
-				ctx.Debugf("Client %v disconnected", sconn.RemoteAddr())
+				// The client has closed or dropped the connection.
+				ctx.Debugf("Client %v disconnected", s.sconn.RemoteAddr())
 				return
 			}
 			if err := s.dispatch(ch, req, ctx); err != nil {
@@ -611,8 +650,8 @@ func (s *Server) handleSessionRequests(ctx *srv.ServerContext, sconn *ssh.Server
 		case result := <-ctx.ExecResultCh:
 			ctx.Debugf("Exec request (%q) complete: %v", result.Command, result.Code)
 
-			// this means that exec process has finished and delivered the execution result,
-			// we send it back and close the session
+			// The exec process has finished and delivered the execution result, send
+			// the result back to the client, and close the session and channel.
 			_, err := ch.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: uint32(result.Code)}))
 			if err != nil {
 				ctx.Infof("Failed to send exit status for %v: %v", result.Command, err)
@@ -655,19 +694,19 @@ func (s *Server) dispatch(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerConte
 }
 
 func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) error {
-	// check if the user's RBAC role allows agent forwarding
+	// Check if the user's RBAC role allows agent forwarding.
 	err := s.authHandlers.CheckAgentForward(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// route authentication requests to the agent that was forwarded to the proxy
-	err = agent.ForwardToAgent(ctx.RemoteClient, ctx.GetAgent())
+	// Route authentication requests to the agent that was forwarded to the proxy.
+	err = agent.ForwardToAgent(ctx.RemoteClient, s.userAgent)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// make an "auth-agent-req@openssh.com" request on the target node
+	// Make an "auth-agent-req@openssh.com" request on the remote host.
 	err = agent.RequestAgentForwarding(ctx.RemoteSession)
 	if err != nil {
 		return trace.Wrap(err)
