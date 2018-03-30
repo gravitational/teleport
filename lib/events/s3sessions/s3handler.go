@@ -239,7 +239,7 @@ func ConvertS3Error(err error, args ...interface{}) error {
 	}
 	if aerr, ok := err.(awserr.Error); ok {
 		switch aerr.Code() {
-		case s3.ErrCodeNoSuchKey, s3.ErrCodeNoSuchBucket, s3.ErrCodeNoSuchUpload:
+		case s3.ErrCodeNoSuchKey, s3.ErrCodeNoSuchBucket, s3.ErrCodeNoSuchUpload, "NotFound":
 			return trace.NotFound(aerr.Error(), args...)
 		case s3.ErrCodeBucketAlreadyExists, s3.ErrCodeBucketAlreadyOwnedByYou:
 			return trace.AlreadyExists(aerr.Error(), args...)
