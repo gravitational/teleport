@@ -1,91 +1,110 @@
-.wy-body-for-nav {
+
+$top-menu-height: 92px;
+$max-width: 1250px;
+$content-padding-left: 320px;
+
+#grv-docs-top-menu{
+  height: $top-menu-height;
+  @include respond-to('mobile') {
+    height: initial;
+  }
+}
+
+.grv-nav-top{   
+  width: 100%;
+  position: relative;
+  .grv-nav-top-primary-wrapper,
+  .grv-nav-top-secondary-wrapper{
+    max-width: ($max-width + 30px) !important;
+  }    
+}
+ 
+.--mobile-nav-open{
+
+  &.grv-docs {
+    display: block;
+    overflow: auto;
+  }
+
+  .grv-content {
+    // fixes scrolling when menu is visible
+    height: initial;
+  }
+
+  .grv-content-nav{
+    display: block;    
+    position: static;
+    height: 100%;        
+    .grv-content-nav-body{
+      width: 100%;
+    }
+
+  }
+  .grv-content-body{
+    display: none;
+  }      
+}
+
+.grv-docs {    
+  display: flex;
+  position: relative;
+  height: 100%;
+  flex-direction: column;
   background-image: none;
   background: left repeat-y #fcfcfc; 
   background-size: 300px 1px
 }
 
-.wy-grid-for-nav {
-  position: absolute;
+.grv-content {
   width: 100%;
-  height: 100%
+  height: 100%;  
+  //position: relative;
 }
 
-.wy-nav-side {
-  height: 100%;
-  overflow-y: auto;
-  background-color: $color-bkg-5;
+.grv-content-nav {  
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 300px;  
-  min-height: 100%;
-  z-index: 200
-}
-
-.wy-nav-top {
-  display: none;
-  background: $color-bkg-13;
-  color: #fff;
-  padding: 0.4045em 0.809em;
-  position: relative;
-  line-height: 50px;
-  text-align: center;
-  font-size: 100%;
-  *zoom: 1;
-  &:before,
-  &:after {
-    display: table;
-    content: ""
-  }
-  &:after {
-    clear: both
-  }
-  a {
-    color: #fff;
-    font-weight: bold
-  }
+  height: calc(100% - #{$top-menu-height});
+  overflow-y: auto;
+  background-color: $color-bkg-10;    
+  min-width: 300px;    
+  display: flex;
+  flex-direction: column;
+  padding-left: calc((100% - #{$max-width})/2);
   
-  img {
-    margin-right: 12px;
-    height: 45px;
-    width: 45px;
-    background-color: #2980B9;
-    padding: 5px;
-    border-radius: 100%
-  }
-  i {
-    font-size: 30px;
-    float: left;
-    cursor: pointer
+  .grv-content-nav-body{
+    overflow: auto;
+    width: 300px;
   }
 }
 
-.wy-nav-content-wrap {
-  margin-left: 300px;
-  background: #fcfcfc;
-  min-height: 100%;
+.--fixed-left-nav {
+  .grv-content-nav {
+    position: fixed;
+    top: 0;
+    height: calc(100% - 0px);    
+  }
+}
 
+.grv-content-body {  
+  background: #fcfcfc;
+  //min-height: 100%;  
+  padding-left: calc((100% - #{$max-width})/2 + #{$content-padding-left} );    
   .wy-nav-top a:visited {
     color: $color-bkg-5;
   }
 }
 
-.wy-nav-content {
-  padding: 1.618em 3.236em;
+.grv-content-page {
+  position: relative;    
   height: 100%;
   max-width: 800px;
   margin: auto;
-  max-width: 1000px;
+  max-width: $document-max-width;
   padding-left: 20px;
   padding-top: 10px;
-  padding-right: 20px;
+  padding-right: 20px;  
   margin: 0 !important;
   background-color: $color-bkg-5 !important;
-}
-
-nav.stickynav {
-  position: fixed;
-  top: 0
 }
 
 #search-results {
@@ -114,42 +133,18 @@ nav.stickynav {
   }
 }
 
-@media screen and (max-width: 768px) {
-  .wy-body-for-nav {
-      background: #fcfcfc
-  }
-  .wy-nav-top {
-      display: block
-  }
-  .wy-nav-side {
-      left: -300px
-  }
-  .wy-nav-side.shift {
-      width: 85%;
-      left: 0
-  }
-  .wy-nav-content-wrap {
-      margin-left: 0
-  }
-  .wy-nav-content-wrap .wy-nav-content {
-      padding: 1.618em
-  }
-  .wy-nav-content-wrap.shift {
-      position: fixed;
-      min-width: 100%;
-      left: 85%;
-      top: 0;
-      height: 100%;
-      overflow: hidden
-  }
+@media screen and (max-width: $max-width) {
+  .grv-content-body{
+    padding-left: $content-padding-left;
+  }  
 }
 
-@media screen and (min-width: 1400px) {
-  .wy-nav-content-wrap {
-    background: #fcfcfc;
-  }
-  .wy-nav-content {
-      margin: 0;
-      background: #fcfcfc
-  }
+@media screen and (max-width: 768px) {
+  .grv-content-nav{
+    display: none;    
+  }  
+
+  .grv-content-body{
+    padding-left: 0;
+  }  
 }

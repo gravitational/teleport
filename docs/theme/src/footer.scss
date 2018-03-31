@@ -28,7 +28,7 @@
   font-size: 13px;
   margin-bottom: 0 !important;
 
-  max-width: 1000px;  
+  max-width: $document-max-width;
   flex-wrap: wrap;
   
   .footer-item {        
