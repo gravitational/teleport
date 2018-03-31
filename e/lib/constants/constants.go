@@ -12,6 +12,8 @@ const (
 	BusinessPlan = "Teleport Business"
 	// EnterprisePlan is the "enterprise" product name
 	EnterprisePlan = "Teleport Enterprise"
+	// EnterpriseAWSPlan is the "enterprise" product name for AWS Marketplace
+	EnterpriseAWSPlan = "Teleport Enterprise AWS"
 
 	// ControlPlaneAPIPort is the control plane API port
 	ControlPlaneAPIPort = 443

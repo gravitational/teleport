@@ -62,3 +62,28 @@ WZhnAoGBAK5Pi2GQhrO4WMCneiTtTbAtz4sQrIkLn25k8i0ogbUWAHrKUp0aLYSA
 BFKYBTHXhb/Fs1uEOwEsxVMU6SxfnwYZS9XG08PURasf/ooJx2/4GPCYhhEtrZm8
 5utxTzihcDnNNHmN7l8SYxnlU9M6epjoyzdwgL2TvGCnAbvGjoTW
 -----END RSA PRIVATE KEY-----`
+
+const (
+	// AWSDoc is AWS instance metadata document
+	AWSDoc = `{
+  "devpayProductCodes" : null,
+  "marketplaceProductCodes" : null,
+  "version" : "2017-09-30",
+  "instanceId" : "i-095aa02b39cb14231",
+  "billingProducts" : null,
+  "instanceType" : "t2.micro",
+  "availabilityZone" : "us-west-2b",
+  "kernelId" : null,
+  "ramdiskId" : null,
+  "accountId" : "126027368216",
+  "architecture" : "x86_64",
+  "imageId" : "ami-c250c8ba",
+  "pendingTime" : "2018-03-27T23:54:03Z",
+  "privateIp" : "10.0.1.213",
+  "region" : "us-west-2"
+}`
+	// AWSSig is AWS instance metadata signature
+	AWSSig = `NitpTNs510R4nTAvUIS+tUejufqLhoBF9U+JAHljvxY36xJxCF2ydn09bolF9Ou9UDfctD7utqg2
+cu+NIXKHje6yhppDqvTNCOsWQ0XqG7MigGucsEMl8CuV6/7liTL+W30lXKOALCIMuj44TlbXBdss
+ZGsf+dc/sUQeaNiG4zs=`
+)

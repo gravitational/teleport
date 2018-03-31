@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"path/filepath"
 
+	"github.com/gravitational/teleport/e/lib/aws"
 	"github.com/gravitational/teleport/e/lib/constants"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -142,6 +143,10 @@ func checkLicense(process *TeleportProcess, config *service.Config) (*license.Li
 	name := parsed.Payload.ProductName
 	switch name {
 	case constants.ProPlan, constants.BusinessPlan, constants.EnterprisePlan:
+	case constants.EnterpriseAWSPlan:
+		if err := aws.Verify(*parsed); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	default:
 		return nil, trace.AccessDenied(
 			fmt.Sprintf(errLicenseProduct, config.Auth.LicenseFile, name))

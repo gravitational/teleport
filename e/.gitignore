@@ -19,3 +19,7 @@ tmp
 
 # editors
 .vscode
+
+# test binaries produced by go
+*.test
+
