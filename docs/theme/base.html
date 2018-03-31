@@ -27,12 +27,11 @@
   <script src="{{ base_url }}/js/jquery-2.1.1.min.js"></script>
   <script type="text/javascript" src="{{ base_url }}/js/highlight.pack.js"></script>
   <script src="{{ base_url }}/js/base.js"></script>      
-  <script src="{{ base_url }}/js/theme.js"></script>      
-  
+  <script src="{{ base_url }}/js/theme.js"></script>          
+  <script src="{{ base_url }}/js/houstonCtrlLib.js"></script>      
   <link rel="stylesheet" href="{{ base_url }}/css/houstonCtrlLib.css">
-  
-  {% if page %}      
 
+  {% if page %}      
     <script>
       // current page data
       var mkdocs_page_name = "{{ page.title }}";
@@ -69,63 +68,45 @@
       ga('send', 'pageview');
   </script>
   {% endif %}
-</head>
-
-{% if page.input_path == "downloads.md" %}                    
-  <body class="wy-body-for-nav has-downloads" role="document"></body>
-{% else %}                          
-  <body class="wy-body-for-nav" role="document">
-{% endif %}
-
-  <div class="wy-grid-for-nav">
-
-    {# SIDE NAV, TOGGLES ON MOBILE #}
-    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
-      <div class="wy-side-nav-search">
-        <a title="Multi-Region SSH" 
-           href="http://gravitational.com/teleport" 
-           class="teleport-logo">
-            <img src="{{ base_url }}/img/teleport-logo.svg">               
-        </a>		  
-        {% include "searchbox.html" %}
+</head>  
+<body role="document">  
+  <div class="grv-docs">  
+      <div>
+        <div id="grv-docs-top-menu"></div>                 
       </div>
-
-      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="na$color-font-7vigation" aria-label="main navigation">                           
-        {% include "toc.html" %}                                
-      </div>
-      &nbsp;
-    </nav>
-
-    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
-
-      {# MOBILE NAV, TRIGGLES SIDE NAV ON TOGGLE #}
-      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
-        <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-        <a href="{{ nav.homepage.url }}">{{ config.site_name }}</a>
-      </nav>
-
-      {# PAGE CONTENT #}      
-      <div class="wy-nav-content">                          
-        <div class="rst-content">
-          {% include "breadcrumbs.html" %}
-          <div role="main">                            
-              <div class="section grv-markdown">
-                {% block content %}      
-                  {{ page.content }}                   
-                {% endblock %}
-              </div>            
-          </div>          
-          {%- block footer %}
-            {% include "pagination.html" %}
-          {% endblock %}
-        </div>        
-      </div>      
-      {%- block grvfooter %}
-        {% include "footer.html" %}    
-      {% endblock %}      
-    </section>
+    <div class="grv-content">      
+      {# SIDE NAV, TOGGLES ON MOBILE #}
+      <nav class="grv-content-nav">
+        <div class="grv-nav-search m-t-sm">        
+          {% include "searchbox.html" %}
+        </div>
+        <div class="grv-content-nav-body" data-spy="affix" role="na$color-font-7vigation">
+          {% include "toc.html" %}                                
+        </div>
+        &nbsp;
+      </nav>            
+      <section class="grv-content-body">                    
+        {# PAGE CONTENT #}              
+        <div class="grv-content-page">                          
+          <div class="rst-content">            
+            <div role="main">                            
+                <div class="section grv-markdown">
+                  {% block content %}      
+                    {{ page.content }}                   
+                  {% endblock %}
+                </div>            
+            </div>          
+            {%- block footer %}
+              {% include "pagination.html" %}
+            {% endblock %}
+          </div>        
+        </div>      
+        {%- block grvfooter %}
+          {% include "footer.html" %}    
+        {% endblock %}      
+      </section>
+    </div>
   </div>
-
 </body>
 </html>
 {% if page and page.is_homepage %}

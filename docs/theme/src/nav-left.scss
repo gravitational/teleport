@@ -1,16 +1,9 @@
 
 $second_level_padding: 10px;
 $third_level_padding: 25px;
+$itemVertSpacing: 8px;
 
-div[role=navigation] hr {
-  margin: 10px 0px
-}
-
-/* Navigation Search 
--------------------------------------------------------------- */
-.wy-side-nav-search {
-  z-index: 200;
-  background-color: $color-bkg-5;
+.grv-nav-search {    
   text-align: center;
   padding: 0.809em;
   display: block;
@@ -65,8 +58,6 @@ div[role=navigation] hr {
     content: "\f105";
   }      
 }
-
-$itemVertSpacing: 8px;
 
 .grv-nav-left{
   font-size: 14px;

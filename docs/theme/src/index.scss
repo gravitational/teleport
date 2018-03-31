@@ -5,7 +5,7 @@
 
 @import "admonition";
 @import "nav";
-@import "breadscrumbs";
+@import "ver-selector";
 @import "nav-left";
 @import "utils";
 @import "footer";
@@ -29,77 +29,31 @@ h1,h2,h3 {
 h1,
 h2 {
   &:not(:first-child) { 
-    margin-top: 30px;
+    margin-top: 50px;
   }
   margin-bottom: 20px;
 }
 
 h3 {  
+  margin-top: 30px;
   margin-bottom: 15px;
+}
+
+html{
+  height: 100%;
+  width: 100%;
+}
+
+body {  
+//  position: fixed;
+  height: 100%;
+  width: 100%;
 }
 
 .no-highlight {
   display: block;
   padding: 0.5em;
   color: $color-font-8;
-}
-
-.has-downloads{
-  .grv-breadcrumbs .admonition, 
-  .section.grv-markdown, 
-  .grv-footer, 
-  .grv-pagination, 
-  .grv-nav-versions {
-    display: none;
-  }  
-}
-.grv-downloads{
-  margin: 0;
-  padding:0px;
-  height: 100%;
-  width: 100%;
-  position: relative;
-  min-height: 500px;    
-    
-  .grv-portal-page-section.--first h2{
-    font-size: $font-size-h2 !important;
-    color: $headings-color  !important;
-  }
-    
-  .grv-ctrllib {
-
-    h3, h2, h1, h4 {
-      font-weight: normal !important;
-    }
-  
-    h3 {
-      font-size: $font-size-h3 !important;
-    }
-
-    h4 {
-      font-size: $font-size-h4 !important;
-    }
-
-    code {
-      font-size: 12px;
-    }
-    
-    .grv-release-popover-hash h3{
-      font-size: 12px !important;
-    }
-
-    .grv-markdown {
-      ul li {
-        padding: initial;
-      }
-    }
-    
-  }
-
-  .grv-line-solid {
-    height: 1px;
-    margin: 0 !important;
-  }
 }
 
 #rtd-search-form, #content_search {
@@ -134,12 +88,14 @@ h3 {
 }
 
 @media print {
-  .rst-versions,
+
+  .grv-content-body{
+    padding: 0;
+  }
+  
   footer,
-  .wy-nav-side {
+  #grv-docs-top-menu,  
+  .grv-content-nav  {
       display: none
-  }
-  .wy-nav-content-wrap {
-      margin-left: 0
-  }
+  }  
 }

@@ -1,0 +1,14 @@
+.grv-ver-selector{    
+  font-size: 90%;
+  text-align: end;
+  position: absolute;
+  top: 15px;
+  right: 20px;
+  select {    
+    width: 60px;       
+  }
+  
+  @include respond-to('mobile') {
+    display: none;
+  }
+}
