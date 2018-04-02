@@ -21748,7 +21748,7 @@ webpackJsonp([0],[
 	    this.session = new _brace2.default.EditSession(data);
 	    this.session.setOptions({ tabSize: 2, useSoftTabs: true });
 	    this.session.setUndoManager(undoManager);
-	    this.session.setUseWrapMode(true);
+	    this.session.setUseWrapMode(false);
 	    this.session.setMode("ace/mode/yaml");
 	    //this.editor.setTheme('ace/theme/iplastic');
 	    this.editor.setSession(this.session);
