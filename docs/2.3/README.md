@@ -31,7 +31,7 @@ within multiple organizations.
 ## Who Built Teleport?
 
 Teleport was created by [Gravitational Inc](https://gravitational.com). We have built Teleport 
-by borrowing from our previous experiences at Rackspace. It has been extracted from [Gravity](https://gravitational.com/vendors.html), our system for helping our clients to deploy 
+by borrowing from our previous experiences at Rackspace. It has been extracted from [Telekube](https://gravitational.com/telekube/), our system for helping our clients to deploy 
 and remotely manage their SaaS applications on many cloud regions or even on-premise.
 
 ## Resources
