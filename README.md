@@ -135,7 +135,7 @@ The latest stable Teleport build can be found in [Releases](https://github.com/g
 
 Teleport was created by [Gravitational Inc](https://gravitational.com). We have
 built Teleport by borrowing from our previous experiences at Rackspace. It has 
-been extracted from [Telekube](https://gravitational.com/product), our
+been extracted from [Telekube](https://gravitational.com/telekube/), our
 Kubernetes distribution optimized for deploying and remotely controlling complex 
 applications into multiple environments _at the same time_:
 
