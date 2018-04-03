@@ -1,7 +1,7 @@
 
 $top-menu-height: 92px;
 $max-width: 1100px;
-$content-padding-left: 320px;
+$content-padding-left: 330px;
 
 #grv-docs-top-menu{
   height: $top-menu-height;
@@ -12,11 +12,7 @@ $content-padding-left: 320px;
 
 .grv-nav-top{   
   width: 100%;
-  position: relative;
-  .grv-nav-top-primary-wrapper,
-  .grv-nav-top-secondary-wrapper{
-    max-width: ($max-width + 30px) !important;
-  }    
+  position: relative;  
 }
  
 .--mobile-nav-open{
@@ -53,7 +49,7 @@ $content-padding-left: 320px;
   background-color: $color-bkg-10;           
   display: flex;
   flex-direction: column;  
-  left: calc((100% - #{$max-width})/2);
+  left: calc((100% - #{$max-width})/2 + 20px);
   
   .grv-content-nav-body{
     overflow: auto;

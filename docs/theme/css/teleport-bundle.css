@@ -4765,9 +4765,6 @@ kbd {
 .grv-nav-top {
   width: 100%;
   position: relative; }
-  .grv-nav-top .grv-nav-top-primary-wrapper,
-  .grv-nav-top .grv-nav-top-secondary-wrapper {
-    max-width: 1130px !important; }
 
 .--mobile-nav-open.grv-docs {
   display: block;
@@ -4791,7 +4788,7 @@ kbd {
   background-color: #fcfcfc;
   display: flex;
   flex-direction: column;
-  left: calc((100% - 1100px)/2); }
+  left: calc((100% - 1100px)/2 + 20px); }
   .grv-content-nav .grv-content-nav-body {
     overflow: auto;
     width: 300px; }
@@ -10302,7 +10299,7 @@ img[src$="grv-image-center-lg"] {
   display: block;
   font-size: 13px;
   margin-bottom: 0 !important;
-  max-width: 750px;
+  max-width: 740px;
   flex-wrap: wrap; }
   .grv-footer .footer-item {
     padding: 15px 15px 10px 15px;
@@ -10380,7 +10377,7 @@ body {
 
 .grv-content-body {
   background: #fcfcfc;
-  padding-left: calc((100% - 1100px)/2 + 320px ); }
+  padding-left: calc((100% - 1100px)/2 + 330px ); }
   .grv-content-body .wy-nav-top a:visited {
     color: #fff; }
 
@@ -10389,7 +10386,7 @@ body {
   height: 100%;
   max-width: 800px;
   margin: auto;
-  max-width: 750px;
+  max-width: 740px;
   padding: 10px 20px 20px 20px;
   margin: 0 !important;
   background-color: #fff !important; }
@@ -10417,10 +10414,10 @@ body {
 
 @media screen and (max-width: 1100px) {
   .grv-content-nav {
-    left: 0px; }
+    left: 20px; }
 
   .grv-content-body {
-    padding-left: 320px; } }
+    padding-left: 330px; } }
 @media screen and (max-width: 768px) {
   .grv-content-nav {
     display: none; }
