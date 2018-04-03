@@ -1,6 +1,5 @@
 .grv-pagination {
-  //color: #999;
-  
+    
   p {
     margin-bottom: 12px
   }
@@ -35,8 +34,7 @@
     padding: 15px 15px 10px 15px;
     border-right: 1px solid $color-border-5;    
     margin: 0 !important;
-    min-height: 170px;
-    min-width: 200px;
+    min-height: 170px;    
     
     @include respond-to('mobile') {
       width: 100%;
