@@ -333,16 +333,6 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		}
 	}
 
-	// create the pid file
-	if cfg.PIDFile != "" {
-		f, err := os.OpenFile(cfg.PIDFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
-		if err != nil {
-			return nil, trace.ConvertSystemError(err)
-		}
-		fmt.Fprintf(f, "%v", os.Getpid())
-		defer f.Close()
-	}
-
 	importedDescriptors, err := importFileDescriptors()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -436,6 +426,23 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 
 	if !serviceStarted {
 		return nil, trace.BadParameter("all services failed to start")
+	}
+
+	if err := process.writeToSignalPipe(fmt.Sprintf("Process %v has started.", os.Getpid())); err != nil {
+		log.Warningf("Failed to write to signal pipe: %v", err)
+		// despite the failure, it's ok to proceed,
+		// it could mean that the parent process has crashed and the pipe
+		// is no longer valid.
+	}
+
+	// create the new pid file only after started successfully
+	if cfg.PIDFile != "" {
+		f, err := os.OpenFile(cfg.PIDFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+		if err != nil {
+			return nil, trace.ConvertSystemError(err)
+		}
+		fmt.Fprintf(f, "%v", os.Getpid())
+		defer f.Close()
 	}
 
 	return process, nil

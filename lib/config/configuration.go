@@ -175,6 +175,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		log.SetOutput(os.Stderr)
 	case "stdout", "out", "1":
 		log.SetOutput(os.Stdout)
+	case teleport.Syslog:
+		utils.SwitchLoggingtoSyslog()
 	default:
 		// assume it's a file path:
 		logFile, err := os.Create(fc.Logger.Output)
@@ -204,12 +206,6 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		return trace.Wrap(err)
 	}
 	cfg.CachePolicy = *cachePolicy
-
-	// TODO(klizhentas): Removed on sasha/ha?
-	// TODO(ekontsevoy): I would advise against it. syslog is the only logger which works with scp
-	if strings.ToLower(fc.Logger.Output) == "syslog" {
-		utils.SwitchLoggingtoSyslog()
-	}
 
 	// apply ciphers, kex algorithms, and mac algorithms
 	if fc.Ciphers != nil {

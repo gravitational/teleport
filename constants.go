@@ -212,6 +212,9 @@ const (
 
 	// Off means mode is off
 	Off = "off"
+
+	// Syslog is a mode for syslog logging
+	Syslog = "syslog"
 )
 
 // Component generates "component:subcomponent1:subcomponent2" strings used
