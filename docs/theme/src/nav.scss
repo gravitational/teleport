@@ -49,11 +49,11 @@ $content-padding-left: 320px;
   position: absolute;
   height: calc(100% - #{$top-menu-height});
   overflow-y: auto;
-  background-color: $color-bkg-10;    
-  //width: 300px;      
+  overflow-x: auto;
+  background-color: $color-bkg-10;           
   display: flex;
-  flex-direction: column;
-  padding-left: calc((100% - #{$max-width})/2);
+  flex-direction: column;  
+  left: calc((100% - #{$max-width})/2);
   
   .grv-content-nav-body{
     overflow: auto;

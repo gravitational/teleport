@@ -123,6 +123,10 @@ body {
 }
 
 @media screen and (max-width: $max-width) {
+  .grv-content-nav {
+    left: 0px;
+  }
+
   .grv-content-body{
     padding-left: $content-padding-left;
   }  

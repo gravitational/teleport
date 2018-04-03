@@ -4787,10 +4787,11 @@ kbd {
   position: absolute;
   height: calc(100% - 92px);
   overflow-y: auto;
+  overflow-x: auto;
   background-color: #fcfcfc;
   display: flex;
   flex-direction: column;
-  padding-left: calc((100% - 1100px)/2); }
+  left: calc((100% - 1100px)/2); }
   .grv-content-nav .grv-content-nav-body {
     overflow: auto;
     width: 300px; }
@@ -10415,6 +10416,9 @@ body {
     border-top: none; }
 
 @media screen and (max-width: 1100px) {
+  .grv-content-nav {
+    left: 0px; }
+
   .grv-content-body {
     padding-left: 320px; } }
 @media screen and (max-width: 768px) {
