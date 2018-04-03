@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.5.5
+
+This release of Teleport focuses on bugfixes.
+
+#### Bug Fixes
+
+* Allow creation of multiple sessions per connection (fixes Ansible issues with the recording proxy). [#1811](https://github.com/gravitational/teleport/issues/1811)
+
 ## 2.5.4
 
 This release of Teleport focuses on bugfixes.
