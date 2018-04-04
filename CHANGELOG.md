@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.5.6
+
+This release of Teleport focuses on bugfixes.
+
+#### Bug Fixes
+
+* Improvements to Teleport HUP signal handling for more reliable reload.  [#1844](https://github.com/gravitational/teleport/issues/1844)
+* Restore output format of `tctl nodes add --format=json`. [#1846](https://github.com/gravitational/teleport/issues/1846)
+
 ## 2.5.5
 
 This release of Teleport focuses on bugfixes.
