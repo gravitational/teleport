@@ -425,7 +425,7 @@ func onListSites(cf *CLIConf) {
 	if err != nil {
 		utils.FatalError(err)
 	}
-	proxyClient, err := tc.ConnectToProxy()
+	proxyClient, err := tc.ConnectToProxy(cf.Context)
 	if err != nil {
 		utils.FatalError(err)
 	}
@@ -458,7 +458,7 @@ func onSSH(cf *CLIConf) {
 	}
 
 	tc.Stdin = os.Stdin
-	if err = tc.SSH(context.TODO(), cf.RemoteCommand, cf.LocalExec); err != nil {
+	if err = tc.SSH(cf.Context, cf.RemoteCommand, cf.LocalExec); err != nil {
 		// exit with the same exit status as the failed command:
 		if tc.ExitStatus != 0 {
 			fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))

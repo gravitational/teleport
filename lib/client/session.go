@@ -388,17 +388,21 @@ func (ns *NodeSession) runShell(callback ShellCreatedCallback) error {
 	})
 }
 
-// runCommand executes a given command either in interactive (with terminal attached)
-// or non-intractive mode
-func (ns *NodeSession) runCommand(cmd []string, callback ShellCreatedCallback, interactive bool) error {
-	// stdin is not a terminal? refuse to allocate terminal on the server and go back
-	// to "non-interactive":
+// runCommand executes a "exec" request either in interactive mode (with a
+// TTY attached) or non-intractive mode (no TTY).
+func (ns *NodeSession) runCommand(ctx context.Context, cmd []string, callback ShellCreatedCallback, interactive bool) error {
+	// If stdin is not a terminal, refuse to allocate terminal on the server and
+	// fallback to non-interactive mode
 	if interactive && ns.stdin == os.Stdin && !term.IsTerminal(os.Stdin.Fd()) {
 		interactive = false
 		fmt.Fprintf(os.Stderr, "TTY will not be allocated on the server because stdin is not a terminal\n")
 	}
 
-	// interactive session:
+	// Start a interactive session ("exec" request with a TTY).
+	//
+	// Note that because a TTY was allocated, the terminal is in raw mode and any
+	// keyboard based signals will be propogated to the TTY on the server which is
+	// where all signal handling will occur.
 	if interactive {
 		return ns.interactiveSession(func(s *ssh.Session, term io.ReadWriteCloser) error {
 			err := s.Start(strings.Join(cmd, " "))
@@ -414,9 +418,45 @@ func (ns *NodeSession) runCommand(cmd []string, callback ShellCreatedCallback, i
 			return nil
 		})
 	}
-	// non-interactive session:
+
+	// Start a non-interactive session ("exec" request without TTY).
+	//
+	// Note that for non-interactive sessions upon receipt of SIGINT the client
+	// should send a SSH_MSG_DISCONNECT and shut itself down as gracefully as
+	// possible. This is what the RFC recommends and what OpenSSH does:
+	//
+	//  * https://tools.ietf.org/html/rfc4253#section-11.1
+	//  * https://github.com/openssh/openssh-portable/blob/05046d907c211cb9b4cd21b8eff9e7a46cd6c5ab/clientloop.c#L1195-L1444
+	//
+	// Unfortunately at the moment the Go SSH library Teleport uses does not
+	// support sending SSH_MSG_DISCONNECT. Instead we close the SSH channel and
+	// SSH client, and try and exit as gracefully as possible.
 	return ns.regularSession(func(s *ssh.Session) error {
-		return s.Run(strings.Join(cmd, " "))
+		var err error
+
+		runContext, cancel := context.WithCancel(context.Background())
+		go func() {
+			defer cancel()
+			err = s.Run(strings.Join(cmd, " "))
+		}()
+
+		select {
+		// Run returned a result, return that back to the caller.
+		case <-runContext.Done():
+			return trace.Wrap(err)
+		// The passed in context timed out. This is often due to the user hitting
+		// Ctrl-C.
+		case <-ctx.Done():
+			err = s.Close()
+			if err != nil {
+				log.Debugf("Unable to close SSH channel: %v", err)
+			}
+			err = ns.NodeClient().Client.Close()
+			if err != nil {
+				log.Debugf("Unable to close SSH client: %v", err)
+			}
+			return trace.ConnectionProblem(ctx.Err(), "connection canceled")
+		}
 	})
 }
 
