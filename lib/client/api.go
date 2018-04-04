@@ -482,7 +482,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	if !tc.Config.ProxySpecified() {
 		return trace.BadParameter("proxy server is not specified")
 	}
-	proxyClient, err := tc.ConnectToProxy()
+	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -499,13 +499,6 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	}
 	if len(nodeAddrs) == 0 {
 		return trace.BadParameter("no target host specified")
-	}
-	// more than one node for an interactive shell?
-	// that can't be!
-	if len(nodeAddrs) != 1 {
-		fmt.Printf(
-			"\x1b[1mWARNING\x1b[0m: multiple nodes match the label selector. Picking %v (first)\n",
-			nodeAddrs[0])
 	}
 	nodeClient, err := proxyClient.ConnectToNode(
 		ctx,
@@ -526,9 +519,18 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 		}
 		return runLocalCommand(command)
 	}
-	// execute command(s) or a shell on remote node(s)
+
+	// Issue "exec" request(s) to run on remote node(s).
 	if len(command) > 0 {
+		if len(nodeAddrs) > 1 {
+			fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes matched label selector, running command on all.")
+		}
 		return tc.runCommand(ctx, siteInfo.Name, nodeAddrs, proxyClient, command)
+	}
+
+	// Issue "shell" request to run single node.
+	if len(nodeAddrs) > 1 {
+		fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes match the label selector, picking first: %v\n", nodeAddrs[0])
 	}
 	return tc.runShell(nodeClient, nil)
 }
@@ -561,7 +563,7 @@ func (tc *TeleportClient) Join(ctx context.Context, namespace string, sessionID 
 	if !tc.Config.ProxySpecified() {
 		return trace.BadParameter("proxy server is not specified")
 	}
-	proxyClient, err := tc.ConnectToProxy()
+	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -636,7 +638,7 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionId string)
 		return fmt.Errorf("'%v' is not a valid session ID (must be GUID)", sid)
 	}
 	// connect to the auth server (site) who made the recording
-	proxyClient, err := tc.ConnectToProxy()
+	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -735,7 +737,7 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, recu
 		return trace.BadParameter("proxy server is not specified")
 	}
 	log.Infof("Connecting to proxy to copy (recursively=%v)...", recursive)
-	proxyClient, err := tc.ConnectToProxy()
+	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -843,7 +845,7 @@ func (tc *TeleportClient) ListNodes(ctx context.Context) ([]services.Server, err
 	}
 
 	// connect to the proxy and ask it to return a full list of servers
-	proxyClient, err := tc.ConnectToProxy()
+	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -884,7 +886,7 @@ func (tc *TeleportClient) runCommand(
 				return
 			}
 			defer nodeSession.Close()
-			if err = nodeSession.runCommand(command, tc.OnShellCreated, tc.Config.Interactive); err != nil {
+			if err = nodeSession.runCommand(ctx, command, tc.OnShellCreated, tc.Config.Interactive); err != nil {
 				originErr := trace.Unwrap(err)
 				exitErr, ok := originErr.(*ssh.ExitError)
 				if ok {
@@ -957,8 +959,35 @@ func (tc *TeleportClient) authMethods() []ssh.AuthMethod {
 	return m
 }
 
-// ConnectToProxy dials the proxy server and returns ProxyClient if successful
-func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
+// ConnectToProxy will dial to the proxy server and return a ProxyClient when
+// successful. If the passed in context is canceled, this function will return
+// a trace.ConnectionProblem right away.
+func (tc *TeleportClient) ConnectToProxy(ctx context.Context) (*ProxyClient, error) {
+	var err error
+	var proxyClient *ProxyClient
+
+	// Use connectContext and the cancel function to signal when a response is
+	// returned from connectToProxy.
+	connectContext, cancel := context.WithCancel(context.Background())
+	go func() {
+		defer cancel()
+		proxyClient, err = tc.connectToProxy()
+	}()
+
+	select {
+	// ConnectToProxy returned a result, return that back to the caller.
+	case <-connectContext.Done():
+		return proxyClient, trace.Wrap(err)
+	// The passed in context timed out. This is often due to the network being
+	// down and the user hitting Ctrl-C.
+	case <-ctx.Done():
+		return nil, trace.ConnectionProblem(ctx.Err(), "connection canceled")
+	}
+}
+
+// connectToProxy will dial to the proxy server and return a ProxyClient when
+// successful.
+func (tc *TeleportClient) connectToProxy() (*ProxyClient, error) {
 	var err error
 
 	proxyPrincipal := tc.getProxySSHPrincipal()
