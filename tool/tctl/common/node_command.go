@@ -157,7 +157,10 @@ func (c *NodeCommand) Invite(client auth.ClientI) error {
 				token, strings.ToLower(roles.String()), token, authServers[0].GetAddr(), int(c.ttl.Minutes()), authServers[0].GetAddr())
 		}
 	} else {
-		out, err := json.Marshal(token)
+		// Always return a list, otherwise we'll break users tooling. See #1846 for
+		// more details.
+		tokens := []string{token}
+		out, err := json.Marshal(tokens)
 		if err != nil {
 			return trace.Wrap(err, "failed to marshal token")
 		}
