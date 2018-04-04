@@ -100,7 +100,7 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 				}
 				log.Infof("Got signal %q, forking a new process.", signal)
 				if err := process.forkChild(); err != nil {
-					log.Infof("Failed to fork: %s", trace.DebugReport(err))
+					log.Warningf("Failed to fork: %v", err)
 				} else {
 					log.Infof("Successfully started new process.")
 				}
@@ -111,11 +111,10 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 				}
 				log.Infof("Got signal %q, performing graceful restart.", signal)
 				if err := process.forkChild(); err != nil {
-					log.Infof("Failed to fork: %s", trace.DebugReport(err))
-				} else {
-					log.Infof("Successfully started new process.")
+					log.Warningf("Failed to fork: %v", err)
+					continue
 				}
-				log.Infof("Shutting down gracefully.")
+				log.Infof("Successfully started new process, shutting down gracefully.")
 				go process.printShutdownStatus(doneContext)
 				process.Shutdown(ctx)
 				log.Infof("All services stopped, exiting.")
@@ -132,6 +131,39 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 			return nil
 		}
 	}
+}
+
+func (process *TeleportProcess) writeToSignalPipe(message string) error {
+	signalPipe, err := process.importSignalPipe()
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+		log.Debugf("No signal pipe to import, must be first Teleport process.")
+		return nil
+	}
+	defer signalPipe.Close()
+
+	messageSignalled, cancel := context.WithCancel(context.Background())
+	// Below the cancel is called second time, but it's ok.
+	// After the first call, subsequent calls to a CancelFunc do nothing.
+	defer cancel()
+	go func() {
+		_, err := signalPipe.Write([]byte(message))
+		if err != nil {
+			log.Debugf("Failed to write to pipe: %v", trace.DebugReport(err))
+			return
+		}
+		cancel()
+	}()
+
+	select {
+	case <-time.After(signalPipeTimeout):
+		return trace.BadParameter("Failed to write to parent process pipe")
+	case <-messageSignalled.Done():
+		log.Infof("Signalled success to parent process")
+	}
+	return nil
 }
 
 // closeImportedDescriptors closes imported but unused file descriptors,
@@ -164,6 +196,21 @@ func (process *TeleportProcess) importOrCreateListener(listenerType, address str
 	}
 	log.Infof("Service %v is creating new listener on %v.", listenerType, address)
 	return process.createListener(listenerType, address)
+}
+
+func (process *TeleportProcess) importSignalPipe() (*os.File, error) {
+	process.Lock()
+	defer process.Unlock()
+
+	for i := range process.importedDescriptors {
+		d := process.importedDescriptors[i]
+		if d.Type == signalPipeName {
+			process.importedDescriptors = append(process.importedDescriptors[:i], process.importedDescriptors[i+1:]...)
+			return d.File, nil
+		}
+	}
+
+	return nil, trace.NotFound("no file descriptor %v was found", signalPipeName)
 }
 
 // importListener imports listener passed by the parent process, if no listener is found
@@ -325,7 +372,22 @@ func filesFromString(in string) ([]FileDescriptor, error) {
 	return files, nil
 }
 
+const (
+	signalPipeName = "teleport-signal-pipe"
+	// signalPipeTimeout is a time parent process is expecting
+	// the child process to initialize and write back,
+	// or child process is blocked on write to the pipe
+	signalPipeTimeout = 5 * time.Second
+)
+
 func (process *TeleportProcess) forkChild() error {
+	readPipe, writePipe, err := os.Pipe()
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	defer readPipe.Close()
+	defer writePipe.Close()
+
 	path, err := execPath()
 	if err != nil {
 		return trace.Wrap(err)
@@ -345,6 +407,12 @@ func (process *TeleportProcess) forkChild() error {
 		return trace.Wrap(err)
 	}
 
+	listenerFiles = append(listenerFiles, FileDescriptor{
+		File:    writePipe,
+		Type:    signalPipeName,
+		Address: "127.0.0.1:0",
+	})
+
 	// These files will be passed to the child process
 	files := []*os.File{os.Stdin, os.Stdout, os.Stderr}
 	for _, f := range listenerFiles {
@@ -354,7 +422,7 @@ func (process *TeleportProcess) forkChild() error {
 	// Serialize files to JSON string representation
 	vals, err := filesToString(listenerFiles)
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 
 	log.Infof("Passing %s to child", vals)
@@ -370,8 +438,28 @@ func (process *TeleportProcess) forkChild() error {
 		return trace.ConvertSystemError(err)
 	}
 	process.pushForkedPID(p.Pid)
+	log.WithFields(logrus.Fields{"pid": p.Pid}).Infof("Forked new child process.")
 
-	log.WithFields(logrus.Fields{"pid": p.Pid}).Infof("Started new child process.")
+	messageReceived, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+	go func() {
+		data := make([]byte, 1024)
+		len, err := readPipe.Read(data)
+		if err != nil {
+			log.Debugf("Failed to read from pipe")
+			return
+		}
+		log.Infof("Received message from pid %v: %v", p.Pid, string(data[:len]))
+		cancel()
+	}()
+
+	select {
+	case <-time.After(signalPipeTimeout):
+		return trace.BadParameter("Failed waiting from process")
+	case <-messageReceived.Done():
+		log.WithFields(logrus.Fields{"pid": p.Pid}).Infof("Child process signals success.")
+	}
+
 	return nil
 }
 

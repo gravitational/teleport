@@ -231,6 +231,9 @@ const (
 
 	// LogsDir is a log subdirectory for events and logs
 	LogsDir = "log"
+
+	// Syslog is a mode for syslog logging
+	Syslog = "syslog"
 )
 
 // Component generates "component:subcomponent1:subcomponent2" strings used
