@@ -288,7 +288,7 @@
     font-size: 10px;
     -webkit-tap-highlight-color: transparent; }
   .grv-ctrllib body {
-    font-family: Helvetica Neue, Helvetica, Arial, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif;
     font-size: 14px;
     line-height: 1.428571429;
     color: #333333;
@@ -1287,7 +1287,7 @@
     display: none;
     max-width: 276px;
     padding: 1px;
-    font-family: Helvetica Neue, Helvetica, Arial, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif;
     font-style: normal;
     font-weight: normal;
     letter-spacing: normal;

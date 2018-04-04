@@ -108,8 +108,8 @@ function debounce(func, wait, immediate) {
 
 // toggles mobile menu 
 function handleNavTopMenu() {
-
-  const menuItems = [
+  var loc = window.location;
+  var menuItems = [
     {
       text: "documentation",
       link: "/teleport/docs/",
@@ -121,7 +121,7 @@ function handleNavTopMenu() {
     },  
     {
       text: "customer portal",
-      link: "https://dashboard.gravitational.com/web/"
+      link: loc.origin.replace(loc.host, 'dashboard.'+loc.host)
     }    
   ]
     
@@ -279,8 +279,7 @@ function handleVerSelector() {
     var ver = docVersions[i];
     var $li = null;    
     var isCurrent = docCurrentVer === ver;
-    if (isCurrent) {
-      //$versionList.append('<div class="grv-ver grv-current-ver" >' + ver + "</div>");
+    if (isCurrent) {      
       curValue = ver;
       $options.push('<option selected value="' + ver + '" >v' + ver + "</option>"  );        
       continue;
