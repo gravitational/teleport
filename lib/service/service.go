@@ -262,38 +262,7 @@ func (process *TeleportProcess) connectToAuthService(role teleport.Role, additio
 	}
 	tlsConfig, err := identity.TLSConfig()
 	if err != nil {
-		if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
-		// connect using legacy SSH and get new set of TLS credentials
-		storage := utils.NewFileAddrStorage(
-			filepath.Join(process.Config.DataDir, "authservers.json"))
-
-		authUser := identity.Cert.ValidPrincipals[0]
-		log.Infof("Connecting to the cluster as %v to fetch TLS certificates.", authUser)
-		authClient, err := auth.NewTunClient(
-			string(role),
-			process.Config.AuthServers,
-			authUser,
-			[]ssh.AuthMethod{ssh.PublicKeys(identity.KeySigner)},
-			auth.TunClientStorage(storage),
-			auth.TunDisableRefresh(),
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		defer authClient.Close()
-		if err := auth.ReRegister(process.Config.DataDir, authClient, identity.ID, additionalPrincipals); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if identity, err = process.readIdentity(role); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		tlsConfig, err = identity.TLSConfig()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		log.WithFields(logrus.Fields{"host": identity.ID.HostUUID, "role": identity.ID.Role}).Infof("Received new TLS identity.")
+		return nil, trace.Wrap(err)
 	}
 	log.Infof("Connecting to the cluster %v with TLS client certificate.", identity.ClusterName)
 	client, err := auth.NewTLSClient(process.Config.AuthServers, tlsConfig)
@@ -538,10 +507,8 @@ func initExternalLog(auditConfig services.AuditConfig) (events.IAuditLog, error)
 
 // initAuthService can be called to initialize auth server service
 func (process *TeleportProcess) initAuthService() error {
-	var (
-		askedToExit = false
-		err         error
-	)
+	var err error
+
 	cfg := process.Config
 
 	// Initialize the storage back-ends for keys, events and records
@@ -653,11 +620,6 @@ func (process *TeleportProcess) initAuthService() error {
 		AuditLog:       process.auditLog,
 	}
 
-	sshLimiter, err := limiter.NewLimiter(cfg.Auth.Limiter)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	// admin access point is a caching access point used for frequently
 	// accessed data by auth server, e.g. cert authorities, users and roles
 	adminAuthServer, err := auth.NewAdminAuthServer(authServer, sessionService, process.auditLog)
@@ -708,37 +670,6 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 	go mux.Serve()
-
-	// Register an SSH endpoint which is used to create an SSH tunnel to send HTTP
-	// requests to the Auth API
-	var authTunnel *auth.AuthTunnel
-	process.RegisterFunc("auth.ssh", func() error {
-		log.Infof("Auth SSH service is starting on %v.", cfg.Auth.SSHAddr.Addr)
-		authTunnel, err = auth.NewTunnel(
-			cfg.Auth.SSHAddr,
-			identity.KeySigner,
-			apiConf,
-			auth.SetLimiter(sshLimiter),
-		)
-		if err != nil {
-			log.Errorf("Error: %v", err)
-			return trace.Wrap(err)
-		}
-
-		// since authTunnel.Serve is a blocking call, we emit this even right before
-		// the service has started
-		process.BroadcastEvent(Event{Name: AuthSSHReady, Payload: nil})
-
-		if err := authTunnel.Serve(mux.SSH()); err != nil {
-			if askedToExit {
-				log.Infof("Auth tunnel exited.")
-				return nil
-			}
-			log.Errorf("Error: %v", err)
-			return trace.Wrap(err)
-		}
-		return nil
-	})
 
 	process.RegisterFunc("auth.tls", func() error {
 		utils.Consolef(cfg.Console, teleport.ComponentAuth, "Auth service is starting on %v.", cfg.Auth.SSHAddr.Addr)
@@ -837,12 +768,10 @@ func (process *TeleportProcess) initAuthService() error {
 		if payload == nil {
 			log.Info("Shutting down immediately.")
 			warnOnErr(tlsServer.Close())
-			warnOnErr(authTunnel.Close())
 		} else {
 			log.Info("Shutting down gracefully.")
 			ctx := payloadContext(payload)
 			warnOnErr(tlsServer.Shutdown(ctx))
-			warnOnErr(authTunnel.Shutdown(ctx))
 		}
 		log.Info("Exited.")
 	})

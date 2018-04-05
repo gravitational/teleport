@@ -304,45 +304,6 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 	return conn, err
 }
 
-// DELETE IN: 2.6.0
-// proxyAccessPoint channel request is deprecated and not used by 2.5.0
-// clusters any more. New clusters communicate with auth servers directly
-// via dial-direct-tcipip
-func (a *Agent) proxyAccessPoint(ch ssh.Channel, req <-chan *ssh.Request) {
-	a.Debugf("proxyAccessPoint")
-	defer ch.Close()
-
-	// shall terminate TLS
-	conn, err := a.Client.GetDialer()(context.TODO())
-	if err != nil {
-		a.Warningf("error dialing: %v", err)
-		return
-	}
-
-	// apply read/write timeouts to this connection that are 10x of what normal
-	// reverse tunnel ping is supposed to be:
-	conn = utils.ObeyIdleTimeout(conn,
-		defaults.ReverseTunnelAgentHeartbeatPeriod*10,
-		"reverse tunnel client")
-
-	wg := sync.WaitGroup{}
-	wg.Add(2)
-
-	go func() {
-		defer wg.Done()
-		defer conn.Close()
-		io.Copy(conn, ch)
-	}()
-
-	go func() {
-		defer wg.Done()
-		defer conn.Close()
-		io.Copy(ch, conn)
-	}()
-
-	wg.Wait()
-}
-
 // proxyTransport runs as a goroutine running inside a reverse tunnel client
 // and it establishes and maintains the following remote connection:
 //
@@ -548,7 +509,6 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	newAccesspointC := conn.HandleChannelOpen(chanAccessPoint)
 	newTransportC := conn.HandleChannelOpen(chanTransport)
 	newDiscoveryC := conn.HandleChannelOpen(chanDiscovery)
 
@@ -574,18 +534,6 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 			if req == nil {
 				return trace.ConnectionProblem(nil, "heartbeat: connection closed")
 			}
-		// new access point request:
-		case nch := <-newAccesspointC:
-			if nch == nil {
-				continue
-			}
-			a.Debugf("access point request: %v", nch.ChannelType())
-			ch, req, err := nch.Accept()
-			if err != nil {
-				a.Warningf("failed to accept request: %v", err)
-				continue
-			}
-			go a.proxyAccessPoint(ch, req)
 		// new transport request:
 		case nch := <-newTransportC:
 			if nch == nil {

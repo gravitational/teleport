@@ -178,27 +178,6 @@ func NewClient(addr string, dialer Dialer, params ...roundtrip.ClientParam) (*Cl
 	}, nil
 }
 
-// DELETE IN: 2.6.0
-// GetDialer and AccessPoint SSH subsystem are no longer used in Teleport
-// as of 2.5.0 and should be removed.
-// GetDialer returns dialer that will connect to auth server API
-func (c *Client) GetDialer() AccessPointDialer {
-	return func(ctx context.Context) (conn net.Conn, err error) {
-		conn, err = c.dialContext(ctx, "tcp", teleport.APIDomain)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return tls.Client(conn, c.tlsConfig), nil
-	}
-}
-
-// GetAgent creates an SSH key agent (similar object to what CLI uses), this
-// key agent fetches user keys directly from the auth server using a custom channel
-// created via "ReqWebSessionAgent" reguest
-func (c *Client) GetAgent() (AgentCloser, error) {
-	panic("not implemented")
-}
-
 func (c *Client) GetTransport() *http.Transport {
 	return c.transport
 }
@@ -2296,10 +2275,6 @@ type ClientI interface {
 	// GenerateServerKeys generates new host private keys and certificates (signed
 	// by the host certificate authority) for a node
 	GenerateServerKeys(GenerateServerKeysRequest) (*PackedKeys, error)
-	// DELETE IN: 2.6.0
-	// AccessPointDialer is no longer used for communication with auth server
-	// GetDialer returns dialer that will connect to auth server API
-	GetDialer() AccessPointDialer
 	// AuthenticateWebUser authenticates web user, creates and  returns web session
 	// in case if authentication is successfull
 	AuthenticateWebUser(req AuthenticateUserRequest) (services.WebSession, error)

@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
-	"golang.org/x/crypto/ssh"
 )
 
 // StringsSet creates set of string (map[string]struct{})
@@ -98,8 +97,6 @@ func SplitHostPort(hostname string) (string, string, error) {
 	}
 	return host, port, nil
 }
-
-type HostKeyCallback func(hostID string, remote net.Addr, key ssh.PublicKey) error
 
 func ReadPath(path string) ([]byte, error) {
 	s, err := filepath.Abs(path)

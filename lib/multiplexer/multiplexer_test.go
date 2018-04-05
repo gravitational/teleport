@@ -41,7 +41,7 @@ import (
 func Test(t *testing.T) { check.TestingT(t) }
 
 type MuxSuite struct {
-	signers []ssh.Signer
+	signer ssh.Signer
 }
 
 var _ = check.Suite(&MuxSuite{})
@@ -49,9 +49,10 @@ var _ = check.Suite(&MuxSuite{})
 func (s *MuxSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests()
 
-	pk, err := ssh.ParsePrivateKey(fixtures.PEMBytes["ecdsa"])
+	var err error
+
+	s.signer, err = ssh.ParsePrivateKey(fixtures.PEMBytes["ecdsa"])
 	c.Assert(err, check.IsNil)
-	s.signers = []ssh.Signer{pk}
 }
 
 // TestMultiplexing tests basic use case of multiplexing TLS
@@ -91,15 +92,16 @@ func (s *MuxSuite) TestMultiplexing(c *check.C) {
 		"test",
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		sshHandler,
-		s.signers,
+		[]ssh.Signer{s.signer},
 		sshutils.AuthMethods{Password: pass("abc123")},
 	)
 	c.Assert(err, check.IsNil)
 	go srv.Serve(mux.SSH())
 	defer srv.Close()
 	clt, err := ssh.Dial("tcp", listener.Addr().String(), &ssh.ClientConfig{
-		Auth:    []ssh.AuthMethod{ssh.Password("abc123")},
-		Timeout: time.Second,
+		Auth:            []ssh.AuthMethod{ssh.Password("abc123")},
+		Timeout:         time.Second,
+		HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
 	})
 	c.Assert(err, check.IsNil)
 	defer clt.Close()
@@ -337,8 +339,9 @@ func (s *MuxSuite) TestDisableSSH(c *check.C) {
 	defer backend1.Close()
 
 	_, err = ssh.Dial("tcp", listener.Addr().String(), &ssh.ClientConfig{
-		Auth:    []ssh.AuthMethod{ssh.Password("abc123")},
-		Timeout: time.Second,
+		Auth:            []ssh.AuthMethod{ssh.Password("abc123")},
+		Timeout:         time.Second,
+		HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
 	})
 	c.Assert(err, check.NotNil)
 
@@ -397,15 +400,16 @@ func (s *MuxSuite) TestDisableTLS(c *check.C) {
 		"test",
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		sshHandler,
-		s.signers,
+		[]ssh.Signer{s.signer},
 		sshutils.AuthMethods{Password: pass("abc123")},
 	)
 	c.Assert(err, check.IsNil)
 	go srv.Serve(mux.SSH())
 	defer srv.Close()
 	clt, err := ssh.Dial("tcp", listener.Addr().String(), &ssh.ClientConfig{
-		Auth:    []ssh.AuthMethod{ssh.Password("abc123")},
-		Timeout: time.Second,
+		Auth:            []ssh.AuthMethod{ssh.Password("abc123")},
+		Timeout:         time.Second,
+		HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
 	})
 	c.Assert(err, check.IsNil)
 	defer clt.Close()

@@ -162,8 +162,9 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	c.Assert(keyring.Add(addedKey), IsNil)
 	s.up = up
 	sshConfig := &ssh.ClientConfig{
-		User: s.user,
-		Auth: []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
+		User:            s.user,
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
+		HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
 	}
 
 	client, err := ssh.Dial("tcp", s.srv.Addr(), sshConfig)
@@ -273,8 +274,9 @@ func (s *SrvSuite) TestAgentForward(c *C) {
 	c.Assert(err, IsNil)
 
 	sshConfig := &ssh.ClientConfig{
-		User: s.user,
-		Auth: []ssh.AuthMethod{ssh.PublicKeys(signers...)},
+		User:            s.user,
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(signers...)},
+		HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
 	}
 
 	client, err := ssh.Dial("tcp", s.srv.Addr(), sshConfig)
@@ -299,8 +301,9 @@ func (s *SrvSuite) TestAllowedUsers(c *C) {
 	c.Assert(err, IsNil)
 
 	sshConfig := &ssh.ClientConfig{
-		User: s.user,
-		Auth: []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
+		User:            s.user,
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
+		HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
 	}
 
 	client, err := ssh.Dial("tcp", s.srv.Addr(), sshConfig)
@@ -315,8 +318,9 @@ func (s *SrvSuite) TestAllowedUsers(c *C) {
 	c.Assert(err, IsNil)
 
 	sshConfig = &ssh.ClientConfig{
-		User: s.user,
-		Auth: []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
+		User:            s.user,
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
+		HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
 	}
 
 	client, err = ssh.Dial("tcp", s.srv.Addr(), sshConfig)
@@ -346,8 +350,9 @@ func (s *SrvSuite) TestSessionHijack(c *C) {
 
 	// login with first user
 	sshConfig := &ssh.ClientConfig{
-		User: s.user,
-		Auth: []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
+		User:            s.user,
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
+		HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
 	}
 
 	client, err := ssh.Dial("tcp", s.srv.Addr(), sshConfig)
@@ -373,8 +378,9 @@ func (s *SrvSuite) TestSessionHijack(c *C) {
 	c.Assert(err, IsNil)
 
 	sshConfig2 := &ssh.ClientConfig{
-		User: teleportTestUser,
-		Auth: []ssh.AuthMethod{ssh.PublicKeys(up2.certSigner)},
+		User:            teleportTestUser,
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(up2.certSigner)},
+		HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
 	}
 
 	client2, err := ssh.Dial("tcp", s.srv.Addr(), sshConfig2)
@@ -539,8 +545,9 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	}
 
 	sshConfig := &ssh.ClientConfig{
-		User: s.user,
-		Auth: []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
+		User:            s.user,
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
+		HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
 	}
 
 	_, err = newUpack("user1", []string{s.user}, s.adminClient)
@@ -714,8 +721,9 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 	}
 
 	sshConfig := &ssh.ClientConfig{
-		User: s.user,
-		Auth: []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
+		User:            s.user,
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
+		HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
 	}
 
 	_, err = newUpack("user1", []string{s.user}, s.adminClient)
@@ -775,8 +783,9 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 	c.Assert(err, IsNil)
 
 	sshConfig := &ssh.ClientConfig{
-		User: s.user,
-		Auth: []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
+		User:            s.user,
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
+		HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
 	}
 
 	_, err = newUpack("user1", []string{s.user}, s.adminClient)
@@ -815,15 +824,19 @@ func (s *SrvSuite) TestNoAuth(c *C) {
 
 // TestPasswordAuth tries to log in with empty pass and should be rejected
 func (s *SrvSuite) TestPasswordAuth(c *C) {
-	config := &ssh.ClientConfig{Auth: []ssh.AuthMethod{ssh.Password("")}}
+	config := &ssh.ClientConfig{
+		Auth:            []ssh.AuthMethod{ssh.Password("")},
+		HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
+	}
 	_, err := ssh.Dial("tcp", s.srv.Addr(), config)
 	c.Assert(err, NotNil)
 }
 
 func (s *SrvSuite) TestClientDisconnect(c *C) {
 	config := &ssh.ClientConfig{
-		User: s.user,
-		Auth: []ssh.AuthMethod{ssh.PublicKeys(s.up.certSigner)},
+		User:            s.user,
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(s.up.certSigner)},
+		HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
 	}
 	clt, err := ssh.Dial("tcp", s.srv.Addr(), config)
 	c.Assert(clt, NotNil)
@@ -881,8 +894,9 @@ func (s *SrvSuite) TestLimiter(c *C) {
 	// maxConnection = 3
 	// current connections = 1 (one connection is opened from SetUpTest)
 	config := &ssh.ClientConfig{
-		User: s.user,
-		Auth: []ssh.AuthMethod{ssh.PublicKeys(s.up.certSigner)},
+		User:            s.user,
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(s.up.certSigner)},
+		HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
 	}
 
 	clt0, err := ssh.Dial("tcp", srv.Addr(), config)

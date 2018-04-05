@@ -669,7 +669,6 @@ func (i *TeleInstance) Start() error {
 	// the configuration passed in.
 	expectedEvents := []string{}
 	if i.Config.Auth.Enabled {
-		expectedEvents = append(expectedEvents, service.AuthSSHReady)
 		expectedEvents = append(expectedEvents, service.AuthTLSReady)
 	}
 	if i.Config.Proxy.Enabled {

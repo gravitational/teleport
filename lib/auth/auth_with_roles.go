@@ -1177,10 +1177,6 @@ func (a *AuthWithRoles) Close() error {
 	return a.authServer.Close()
 }
 
-func (a *AuthWithRoles) GetDialer() AccessPointDialer {
-	return nil
-}
-
 func (a *AuthWithRoles) WaitForDelivery(context.Context) error {
 	return nil
 }
