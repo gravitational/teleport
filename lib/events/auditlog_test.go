@@ -1205,6 +1205,7 @@ func (a *AuditTestSuite) TestForwardAndUpload(c *check.C) {
 		Version: V2,
 	})
 	c.Assert(err, check.IsNil)
+	c.Assert(forwarder.Close(), check.IsNil)
 
 	// start uploader process
 	eventsC := make(chan *UploadEvent, 100)

@@ -33,10 +33,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/state"
 
 	"github.com/gravitational/trace"
-
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 )
@@ -355,7 +353,7 @@ func newSessionRecorder(alog events.IAuditLog, ctx *ServerContext, sid rsession.
 		}
 		// always write sessions to local disk first
 		// forward them to auth server later
-		forwarder, err := events.NewForwarder(events.ForwarderConfig{
+		auditLog, err = events.NewForwarder(events.ForwarderConfig{
 			SessionID:      sid,
 			ServerID:       "upload",
 			DataDir:        filepath.Join(ctx.srv.GetDataDir(), teleport.LogsDir),
@@ -366,15 +364,6 @@ func newSessionRecorder(alog events.IAuditLog, ctx *ServerContext, sid rsession.
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cacher, err := state.NewCachingAuditLog(state.CachingAuditLogConfig{
-			Namespace: ctx.srv.GetNamespace(),
-			SessionID: string(sid),
-			Server:    forwarder,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		auditLog = cacher
 	}
 	sr := &sessionRecorder{
 		log: logrus.WithFields(logrus.Fields{
@@ -398,8 +387,9 @@ func (r *sessionRecorder) Write(data []byte) (int, error) {
 	copy(dataCopy, data)
 	// post the chunk of bytes to the audit log:
 	chunk := &events.SessionChunk{
-		Data: dataCopy,
-		Time: time.Now().UTC().UnixNano(),
+		EventType: events.SessionPrintEvent,
+		Data:      dataCopy,
+		Time:      time.Now().UTC().UnixNano(),
 	}
 	if err := r.alog.PostSessionSlice(events.SessionSlice{
 		Namespace: r.namespace,

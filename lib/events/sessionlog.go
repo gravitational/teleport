@@ -420,11 +420,16 @@ type gzipWriter struct {
 // Close closes gzip writer and file
 func (f *gzipWriter) Close() error {
 	var errors []error
-	errors = append(errors, f.Writer.Close())
-	f.Writer.Reset(ioutil.Discard)
-	writerPool.Put(f.Writer)
-	f.Writer = nil
-	errors = append(errors, f.file.Close())
+	if f.Writer != nil {
+		errors = append(errors, f.Writer.Close())
+		f.Writer.Reset(ioutil.Discard)
+		writerPool.Put(f.Writer)
+		f.Writer = nil
+	}
+	if f.file != nil {
+		errors = append(errors, f.file.Close())
+		f.file = nil
+	}
 	return trace.NewAggregate(errors...)
 }
 
@@ -457,8 +462,14 @@ type gzipReader struct {
 // Close closes file and gzip writer
 func (f *gzipReader) Close() error {
 	var errors []error
-	errors = append(errors, f.ReadCloser.Close())
-	errors = append(errors, f.file.Close())
+	if f.ReadCloser != nil {
+		errors = append(errors, f.ReadCloser.Close())
+		f.ReadCloser = nil
+	}
+	if f.file != nil {
+		errors = append(errors, f.file.Close())
+		f.file = nil
+	}
 	return trace.NewAggregate(errors...)
 }
 
