@@ -2,7 +2,9 @@ package events
 
 import (
 	"context"
+	"encoding/json"
 	"io"
+	"sync"
 	"time"
 
 	"github.com/gravitational/teleport/lib/session"
@@ -64,45 +66,99 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 type Forwarder struct {
 	ForwarderConfig
 	sessionLogger *DiskSessionLogger
+	lastChunk     *SessionChunk
+	eventIndex    int64
+	sync.Mutex
+	isClosed bool
 }
 
 // Closer releases connection and resources associated with log if any
 func (l *Forwarder) Close() error {
+	l.Lock()
+	defer l.Unlock()
+	if l.isClosed {
+		return nil
+	}
+	l.isClosed = true
 	return l.sessionLogger.Finalize()
 }
 
 // EmitAuditEvent emits audit event
 func (l *Forwarder) EmitAuditEvent(eventType string, fields EventFields) error {
-	return l.ForwardTo.EmitAuditEvent(eventType, fields)
+	data, err := json.Marshal(fields)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	chunks := []*SessionChunk{
+		{
+			EventType: eventType,
+			Data:      data,
+			Time:      time.Now().UTC().UnixNano(),
+		},
+	}
+	return l.PostSessionSlice(SessionSlice{
+		Namespace: l.Namespace,
+		SessionID: string(l.SessionID),
+		Version:   V3,
+		Chunks:    chunks,
+	})
 }
 
 // PostSessionSlice sends chunks of recorded session to the event log
 func (l *Forwarder) PostSessionSlice(slice SessionSlice) error {
-	err := l.sessionLogger.PostSessionSlice(slice)
+	// setup slice sets slice verison, properly numerates
+	// all chunks and
+	chunksWithoutPrintEvents, err := l.setupSlice(&slice)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// filter out chunks with session print events,
-	// as this logger forwards only audit events to the auth server
-	var chunks []*SessionChunk
-	for _, chunk := range slice.Chunks {
-		if chunk.EventType != SessionPrintEvent {
-			chunks = append(chunks, chunk)
-		}
-		if chunk.EventType == SessionEndEvent {
-			if err := l.sessionLogger.Finalize(); err != nil {
-				return trace.Wrap(err)
-			}
-		}
+
+	// log all events and session recording locally
+	err = l.sessionLogger.PostSessionSlice(slice)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 	// no chunks to post (all chunks are print events)
-	if len(chunks) == 0 {
+	if len(chunksWithoutPrintEvents) == 0 {
 		return nil
 	}
-	slice.Chunks = chunks
+	slice.Chunks = chunksWithoutPrintEvents
 	slice.Version = V3
 	err = l.ForwardTo.PostSessionSlice(slice)
 	return err
+}
+
+func (l *Forwarder) setupSlice(slice *SessionSlice) ([]*SessionChunk, error) {
+	l.Lock()
+	defer l.Unlock()
+
+	if l.isClosed {
+		return nil, trace.BadParameter("write on closed forwarder")
+	}
+
+	// setup chunk indexes
+	var chunks []*SessionChunk
+	for _, chunk := range slice.Chunks {
+		chunk.EventIndex = l.eventIndex
+		l.eventIndex += 1
+		switch chunk.EventType {
+		case "":
+			return nil, trace.BadParameter("missing event type")
+		case SessionPrintEvent:
+			// filter out chunks with session print events,
+			// as this logger forwards only audit events to the auth server
+			if l.lastChunk != nil {
+				chunk.Offset = l.lastChunk.Offset + int64(len(l.lastChunk.Data))
+				chunk.Delay = diff(time.Unix(0, l.lastChunk.Time), time.Unix(0, chunk.Time)) + l.lastChunk.Delay
+				chunk.ChunkIndex = l.lastChunk.ChunkIndex + 1
+			}
+			l.lastChunk = chunk
+		default:
+			chunks = append(chunks, chunk)
+		}
+	}
+
+	return chunks, nil
 }
 
 // UploadSessionRecording uploads session recording to the audit server
@@ -113,7 +169,7 @@ func (l *Forwarder) UploadSessionRecording(r SessionRecording) error {
 // PostSessionChunk returns a writer which SSH nodes use to submit
 // their live sessions into the session log
 func (l *Forwarder) PostSessionChunk(namespace string, sid session.ID, reader io.Reader) error {
-	return l.ForwardTo.PostSessionChunk(namespace, sid, reader)
+	return trace.BadParameter("not implemented")
 }
 
 // GetSessionChunk returns a reader which can be used to read a byte stream
