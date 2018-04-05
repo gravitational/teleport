@@ -17,7 +17,6 @@ limitations under the License.
 package common
 
 import (
-	"context"
 	"fmt"
 	"os"
 
@@ -151,15 +150,14 @@ func connectToAuthService(cfg *service.Config) (client auth.ClientI, err error) 
 		return nil, trace.Wrap(err)
 	}
 
-	// check connectivity by calling something on a clinet:
-	conn, err := client.GetDialer()(context.TODO())
+	// Check connectivity by calling something on the client.
+	_, err = client.GetClusterName()
 	if err != nil {
 		utils.Consolef(os.Stderr, teleport.ComponentClient,
 			"Cannot connect to the auth server: %v.\nIs the auth server running on %v?",
 			err, cfg.AuthServers[0].Addr)
 		os.Exit(1)
 	}
-	conn.Close()
 	return client, nil
 }
 

@@ -116,29 +116,6 @@ func ReRegister(dataDir string, clt ClientI, id IdentityID, additionalPrincipals
 	return writeKeys(dataDir, id, keys.Key, keys.Cert, keys.TLSCert, keys.TLSCACerts[0])
 }
 
-func RegisterNewAuth(domainName, token string, servers []utils.NetAddr) error {
-	tok, err := readToken(token)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	method, err := NewTokenAuth(domainName, tok)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	client, err := NewTunClient(
-		"auth.server.register",
-		servers,
-		domainName,
-		method)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer client.Close()
-
-	return client.RegisterNewAuthServer(tok)
-}
-
 func readToken(token string) (string, error) {
 	if !strings.HasPrefix(token, "/") {
 		return token, nil

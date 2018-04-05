@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -228,8 +229,8 @@ func NewServer(cfg Config) (Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	srv.hostCertChecker = ssh.CertChecker{IsAuthority: srv.isHostAuthority}
-	srv.userCertChecker = ssh.CertChecker{IsAuthority: srv.isUserAuthority}
+	srv.userCertChecker = ssh.CertChecker{IsUserAuthority: srv.isUserAuthority}
+	srv.hostCertChecker = ssh.CertChecker{IsHostAuthority: srv.isHostAuthority}
 	srv.srv = s
 	go srv.periodicFunctions()
 	return srv, nil
@@ -473,7 +474,7 @@ func (s *server) HandleNewChan(conn net.Conn, sconn *ssh.ServerConn, nch ssh.New
 
 // isHostAuthority is called during checking the client key, to see if the signing
 // key is the real host CA authority key.
-func (s *server) isHostAuthority(auth ssh.PublicKey) bool {
+func (s *server) isHostAuthority(auth ssh.PublicKey, address string) bool {
 	keys, err := s.getTrustedCAKeys(services.HostCA)
 	if err != nil {
 		s.Errorf("failed to retrieve trusted keys, err: %v", err)
@@ -561,7 +562,17 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 			logger.Warningf("Failed to authenticate host, err: %v.", err)
 			return nil, err
 		}
-		err := s.hostCertChecker.CheckHostKey(conn.User(), conn.RemoteAddr(), key)
+		// CheckHostKey expects the addr that is passed in to be in the format
+		// host:port. This is because this function is usually used by a client to
+		// check if the host it attempted to connect to presented a certificate for
+		// the host requested (this prevents man-in-the-middle attacks).
+		//
+		// In this situation however, it's a server essentially performing user
+		// authentication, but since it's machine-to-machine communication, the
+		// "user" is presenting a host certificate. To make CheckHostKey behave
+		// like Authenticate we pass in a addr in the host:port format it expects.
+		addr := formatAddr(conn.User())
+		err := s.hostCertChecker.CheckHostKey(addr, conn.RemoteAddr(), key)
 		if err != nil {
 			logger.Warningf("Failed to authenticate host, err: %v.", err)
 			return nil, trace.Wrap(err)
@@ -848,6 +859,29 @@ func newRemoteSite(srv *server, domainName string) (*remoteSite, error) {
 	}
 
 	return remoteSite, nil
+}
+
+// formatAddr adds :port to the passed in string if it's not in
+// host:port format.
+func formatAddr(s string) string {
+	i := strings.Index(s, ":")
+	if i == -1 {
+		return s + ":0"
+	}
+	if i == len(s)-1 {
+		return s[:len(s)-1] + ":0"
+	}
+
+	port, err := strconv.Atoi(s[i+1:])
+	if err != nil {
+		return s[:i] + ":0"
+	}
+
+	if port < 0 || port > 65535 {
+		return s[:i] + ":0"
+	}
+
+	return s
 }
 
 const (

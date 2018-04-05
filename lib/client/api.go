@@ -163,7 +163,7 @@ type Config struct {
 	// HostKeyCallback will be called to check host keys of the remote
 	// node, if not specified will be using CheckHostSignature function
 	// that uses local cache to validate hosts
-	HostKeyCallback HostKeyCallback
+	HostKeyCallback ssh.HostKeyCallback
 
 	// KeyDir defines where temporary session keys will be stored.
 	// if empty, they'll go to ~/.tsh

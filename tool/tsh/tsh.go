@@ -572,7 +572,7 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 			key          *client.Key
 			identityAuth ssh.AuthMethod
 			expiryDate   time.Time
-			hostAuthFunc client.HostKeyCallback
+			hostAuthFunc ssh.HostKeyCallback
 		)
 		// read the ID file and create an "auth method" from it:
 		key, hostAuthFunc, err = loadIdentity(cf.IdentityFileIn)
@@ -692,7 +692,7 @@ func refuseArgs(command string, args []string) {
 //
 // If the "host auth callback" is not returned, user will be prompted to
 // trust the proxy server.
-func loadIdentity(idFn string) (*client.Key, client.HostKeyCallback, error) {
+func loadIdentity(idFn string) (*client.Key, ssh.HostKeyCallback, error) {
 	logrus.Infof("Reading identity file: ", idFn)
 
 	f, err := os.Open(idFn)
@@ -754,7 +754,7 @@ func loadIdentity(idFn string) (*client.Key, client.HostKeyCallback, error) {
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	var hostAuthFunc client.HostKeyCallback = nil
+	var hostAuthFunc ssh.HostKeyCallback = nil
 	// validate CA (cluster) cert
 	if len(caCert) > 0 {
 		_, _, pkey, _, _, err := ssh.ParseKnownHosts(caCert)

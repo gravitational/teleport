@@ -167,7 +167,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		h.AuditLog.EmitAuditEvent(events.AuthAttemptEvent, fields)
 	}
 
-	certChecker := ssh.CertChecker{IsAuthority: h.IsUserAuthority}
+	certChecker := ssh.CertChecker{IsUserAuthority: h.IsUserAuthority}
 	permissions, err := certChecker.Authenticate(conn, key)
 	if err != nil {
 		recordFailedLogin(err)
