@@ -14,14 +14,12 @@ import (
 
 // State contains the state of a terminal.
 type State struct {
-	termios syscall.Termios
+	termios unix.Termios
 }
 
 // IsTerminal returns true if the given file descriptor is a terminal.
 func IsTerminal(fd int) bool {
-	// see: http://src.illumos.org/source/xref/illumos-gate/usr/src/lib/libbc/libc/gen/common/isatty.c
-	var termio unix.Termio
-	err := unix.IoctlSetTermio(fd, unix.TCGETA, &termio)
+	_, err := unix.IoctlGetTermio(fd, unix.TCGETA)
 	return err == nil
 }
 
@@ -70,4 +68,57 @@ func ReadPassword(fd int) ([]byte, error) {
 	}
 
 	return ret, nil
+}
+
+// MakeRaw puts the terminal connected to the given file descriptor into raw
+// mode and returns the previous state of the terminal so that it can be
+// restored.
+// see http://cr.illumos.org/~webrev/andy_js/1060/
+func MakeRaw(fd int) (*State, error) {
+	termios, err := unix.IoctlGetTermios(fd, unix.TCGETS)
+	if err != nil {
+		return nil, err
+	}
+
+	oldState := State{termios: *termios}
+
+	termios.Iflag &^= unix.IGNBRK | unix.BRKINT | unix.PARMRK | unix.ISTRIP | unix.INLCR | unix.IGNCR | unix.ICRNL | unix.IXON
+	termios.Oflag &^= unix.OPOST
+	termios.Lflag &^= unix.ECHO | unix.ECHONL | unix.ICANON | unix.ISIG | unix.IEXTEN
+	termios.Cflag &^= unix.CSIZE | unix.PARENB
+	termios.Cflag |= unix.CS8
+	termios.Cc[unix.VMIN] = 1
+	termios.Cc[unix.VTIME] = 0
+
+	if err := unix.IoctlSetTermios(fd, unix.TCSETS, termios); err != nil {
+		return nil, err
+	}
+
+	return &oldState, nil
+}
+
+// Restore restores the terminal connected to the given file descriptor to a
+// previous state.
+func Restore(fd int, oldState *State) error {
+	return unix.IoctlSetTermios(fd, unix.TCSETS, &oldState.termios)
+}
+
+// GetState returns the current state of a terminal which may be useful to
+// restore the terminal after a signal.
+func GetState(fd int) (*State, error) {
+	termios, err := unix.IoctlGetTermios(fd, unix.TCGETS)
+	if err != nil {
+		return nil, err
+	}
+
+	return &State{termios: *termios}, nil
+}
+
+// GetSize returns the dimensions of the given terminal.
+func GetSize(fd int) (width, height int, err error) {
+	ws, err := unix.IoctlGetWinsize(fd, unix.TIOCGWINSZ)
+	if err != nil {
+		return 0, 0, err
+	}
+	return int(ws.Col), int(ws.Row), nil
 }

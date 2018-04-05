@@ -40,9 +40,12 @@ func (t *testChecker) Check(dialAddr string, addr net.Addr, key PublicKey) error
 // therefore is buffered (net.Pipe deadlocks if both sides start with
 // a write.)
 func netPipe() (net.Conn, net.Conn, error) {
-	listener, err := net.Listen("tcp", ":0")
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		return nil, nil, err
+		listener, err = net.Listen("tcp", "[::1]:0")
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 	defer listener.Close()
 	c1, err := net.Dial("tcp", listener.Addr().String())
@@ -436,6 +439,7 @@ func testHandshakeErrorHandlingN(t *testing.T, readLimit, writeLimit int, couple
 	clientConf.SetDefaults()
 	clientConn := newHandshakeTransport(&errorKeyingTransport{b, -1, -1}, &clientConf, []byte{'a'}, []byte{'b'})
 	clientConn.hostKeyAlgorithms = []string{key.PublicKey().Type()}
+	clientConn.hostKeyCallback = InsecureIgnoreHostKey()
 	go clientConn.readLoop()
 	go clientConn.kexLoop()
 
@@ -523,5 +527,33 @@ func TestDisconnect(t *testing.T) {
 	_, err = trS.readPacket()
 	if err == nil {
 		t.Errorf("readPacket 3 succeeded")
+	}
+}
+
+func TestHandshakeRekeyDefault(t *testing.T) {
+	clientConf := &ClientConfig{
+		Config: Config{
+			Ciphers: []string{"aes128-ctr"},
+		},
+		HostKeyCallback: InsecureIgnoreHostKey(),
+	}
+	trC, trS, err := handshakePair(clientConf, "addr", false)
+	if err != nil {
+		t.Fatalf("handshakePair: %v", err)
+	}
+	defer trC.Close()
+	defer trS.Close()
+
+	trC.writePacket([]byte{msgRequestSuccess, 0, 0})
+	trC.Close()
+
+	rgb := (1024 + trC.readBytesLeft) >> 30
+	wgb := (1024 + trC.writeBytesLeft) >> 30
+
+	if rgb != 64 {
+		t.Errorf("got rekey after %dG read, want 64G", rgb)
+	}
+	if wgb != 64 {
+		t.Errorf("got rekey after %dG write, want 64G", wgb)
 	}
 }
