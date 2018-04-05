@@ -51,7 +51,7 @@ type ProxyClient struct {
 	hostLogin       string
 	proxyAddress    string
 	proxyPrincipal  string
-	hostKeyCallback utils.HostKeyCallback
+	hostKeyCallback ssh.HostKeyCallback
 	authMethod      ssh.AuthMethod
 	siteName        string
 	clientAddr      string

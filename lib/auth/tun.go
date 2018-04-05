@@ -154,8 +154,8 @@ func NewTunnel(addr utils.NetAddr,
 	if err != nil {
 		return nil, err
 	}
-	tunnel.userCertChecker = ssh.CertChecker{IsAuthority: tunnel.isUserAuthority}
-	tunnel.hostCertChecker = ssh.CertChecker{IsAuthority: tunnel.isHostAuthority}
+	tunnel.userCertChecker = ssh.CertChecker{IsUserAuthority: tunnel.isUserAuthority}
+	tunnel.hostCertChecker = ssh.CertChecker{IsHostAuthority: tunnel.isHostAuthority}
 	return tunnel, nil
 }
 
@@ -246,7 +246,7 @@ func (s *AuthTunnel) HandleNewChan(_ net.Conn, sconn *ssh.ServerConn, nch ssh.Ne
 
 // isHostAuthority is called during checking the client key, to see if the signing
 // key is the real host CA authority key.
-func (s *AuthTunnel) isHostAuthority(auth ssh.PublicKey) bool {
+func (s *AuthTunnel) isHostAuthority(auth ssh.PublicKey, address string) bool {
 	domainName, err := s.authServer.GetDomainName()
 	if err != nil {
 		return false

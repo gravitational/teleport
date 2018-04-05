@@ -126,7 +126,7 @@ type Agent struct {
 	AgentConfig
 	ctx             context.Context
 	cancel          context.CancelFunc
-	hostKeyCallback utils.HostKeyCallback
+	hostKeyCallback ssh.HostKeyCallback
 	authMethods     []ssh.AuthMethod
 	// state is the state of this agent
 	state string
