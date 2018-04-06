@@ -225,6 +225,10 @@ func Run(args []string, underTest bool) {
 	show := app.Command("show", "Read an identity from file and print to stdout").Hidden()
 	show.Arg("identity_file", "The file containing a public key or a certificate").Required().StringVar(&cf.IdentityFileIn)
 
+	// The status command shows which proxy the user is logged into and metadata
+	// about the certificate.
+	status := app.Command("status", "Show which proxy and certificates for user.")
+
 	// parse CLI commands+flags:
 	command, err := app.Parse(args)
 	if err != nil {
@@ -282,6 +286,8 @@ func Run(args []string, underTest bool) {
 		onLogout(&cf)
 	case show.FullCommand():
 		onShow(&cf)
+	case status.FullCommand():
+		onStatus(&cf)
 	}
 }
 
@@ -818,4 +824,74 @@ func onShow(cf *CLIConf) {
 		cert, priv, pub)
 
 	fmt.Printf("Fingerprint: %s\n", ssh.FingerprintSHA256(pub))
+}
+
+// onStatus command shows which proxy the user is logged into and metadata
+// about the certificate.
+func onStatus(cf *CLIConf) {
+	tc, err := makeClient(cf, true)
+	if err != nil {
+		utils.FatalError(err)
+	}
+
+	proxyClient, err := tc.ConnectToProxy(cf.Context)
+	if err != nil {
+		utils.FatalError(err)
+	}
+	defer proxyClient.Close()
+
+	// Query the Access Point for the list of roles for the current user.
+	cap, err := proxyClient.ClusterAccessPoint(context.Background(), true)
+	if err != nil {
+		utils.FatalError(err)
+	}
+	roles, err := cap.GetRoles()
+	if err != nil {
+		utils.FatalError(err)
+	}
+	var r []string
+	for _, role := range roles {
+		r = append(r, role.GetName())
+	}
+
+	// Get certificate for logged in user from the local agent.
+	key, err := tc.LocalAgent().GetKey()
+	if err != nil {
+		utils.FatalError(err)
+	}
+	publicKey, _, _, _, err := ssh.ParseAuthorizedKey(key.Cert)
+	if err != nil {
+		utils.FatalError(err)
+	}
+	cert, ok := publicKey.(*ssh.Certificate)
+	if !ok {
+		utils.FatalError(trace.BadParameter("no certificate found"))
+	}
+
+	// Extract from the certificate how much longer it will be valid for.
+	exp := time.Unix(int64(cert.ValidBefore), 0).Sub(time.Now())
+	expiresIn := exp.Round(time.Minute)
+
+	// Extract from the certificate the format and any extensions.
+	certFormat := teleport.CertificateFormatOldSSH
+	var extensions []string
+	for ext, _ := range cert.Extensions {
+		if ext == teleport.CertExtensionTeleportRoles {
+			certFormat = teleport.CertificateFormatStandard
+			continue
+		}
+		extensions = append(extensions, ext)
+	}
+
+	// Print output of the status command.
+	fmt.Printf("%v\n", tc.ProxyHost())
+	fmt.Println(strings.Repeat("-", len(tc.ProxyHost())+1))
+
+	fmt.Printf("User:       %v\n", tc.Username)
+	fmt.Printf("Roles:      %v\n", strings.Join(r, ", "))
+
+	fmt.Printf("Logins:     %v\n", strings.Join(cert.ValidPrincipals, ", "))
+	fmt.Printf("Expires:    %v\n", expiresIn)
+	fmt.Printf("Extensions: %v\n", strings.Join(extensions, ", "))
+	fmt.Printf("Format:     %v\n", certFormat)
 }
