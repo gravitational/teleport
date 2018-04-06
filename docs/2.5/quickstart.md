@@ -24,9 +24,9 @@ using Teleport's client-side tools:
 
 ## Installing and Starting
 
-Gravitational Teleport natively runs on most Linux distributions. You can
-download pre-built binaries from [here](https://github.com/gravitational/teleport/releases)
-or you can [build it from source](https://github.com/gravitational/teleport).
+Teleport natively runs on most Linux distributions. You can
+download pre-built binaries from [here](https://gravitational.com/teleport/download/)
+or you can [build it from source](https://github.com/gravitational/teleport/releases).
 
 After downloading the binary tarball, run:
 
@@ -101,7 +101,7 @@ Notice that `tsh` client always needs `--proxy` flag because all client connecti
 in Teleport always must to go via an SSH proxy, sometimes called an "SSH bastion".
 
 !!! warning "Warning":
-    For the purposes of this quickstart we are using the `-- insecure` flag however 
+    For the purposes of this quickstart we are using the `-- insecure` flag. However, 
     this should not be used in production. See [Admin Manual](admin-guide.md) for 
     more information on setting up Teleport in production.
 
@@ -231,12 +231,12 @@ We run a hosted example of Teleport at [teleconsole.com](https://www.teleconsole
 
 ## Running in Production
 
-We hope this quickstart guide has helped you to quickly set up and play with Teleport. For production environments we strongly recommend the following:
+We hope this quickstart guide has helped you to quickly set up and play with Teleport. For production environments, we strongly recommend the following:
 
 - Install HTTPS certificates for every Teleport proxy.
 - Run Teleport `auth` on isolated servers. The auth service can run in a 
   highly available (HA) configuration.
 - Use a configuration file instead of command line flags because it gives you 
-  more flexibility, for example for configuring HA clusters.
+  more flexibility.
 - Review the [Architecture Overview](architecture.md), [Admin Manual](admin-guide.md) and [User Manual](user-manual.md) for a better understanding of Teleport.
 

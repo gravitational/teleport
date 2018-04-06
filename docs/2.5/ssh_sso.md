@@ -1,9 +1,9 @@
-# SSO for SSH with Teleport
+# Single Sign-On (SSO) for SSH with Teleport
 
 ## Introduction
 
 The commercial edition of Teleport allows users to retreive their SSH
-credentials via a [single sign-on](https://en.wikipedia.org/wiki/Single_sign-on) 
+credentials through a [Single Sign-On](https://en.wikipedia.org/wiki/Single_sign-on) 
 (SSO) system used by the rest of the organization. 
 
 Examples of supported SSO systems include commercial solutions like [Okta](https://www.okta.com),
@@ -17,19 +17,17 @@ or [OAuth2/OpenID Connect](https://en.wikipedia.org/wiki/OpenID_Connect).
 
 ## How does SSO work with SSH?
 
-From the user's perspective they need to execute the following command:
+From the user's perspective they need to execute the following command to retreive their SSH certificate.
 
 ```bash
 $ tsh login
 ```
 
-... once a day to retreive their SSH certificate, assuming that Teleport is
-configured with a certificate TTL of 8 hours.
+Teleport can be configured with a certificate TTL to determine how often a user needs to log in.
 
 `tsh login` will print a URL into the console, which will open an SSO login
-prompt, along with the 2FA as enforced by the SSO provider. If user supplies
-valid credentials into the SSO logon proess, Teleport will issue an SSH
-certificate.
+prompt, along with the 2FA, as enforced by the SSO provider. If user supplies
+valid credentials, Teleport will issue an SSH certificate.
 
 ## Configuring SSO
 
@@ -41,9 +39,9 @@ The following connectors are supported:
 
 * `local` connector type uses the built-in user database. This database can be
   manipulated by `tctl users` command.
-* `saml` connector type uses [SAML protocol](https://en.wikipedia.org/wiki/Security_Assertion_Markup_Language)
+* `saml` connector type uses the [SAML protocol](https://en.wikipedia.org/wiki/Security_Assertion_Markup_Language)
   to authenticate users and query their group membership.
-* `oidc` connector type uses [OpenID Connect protocol](https://en.wikipedia.org/wiki/OpenID_Connect) 
+* `oidc` connector type uses the [OpenID Connect protocol](https://en.wikipedia.org/wiki/OpenID_Connect) 
   to authenticate users and query their group membership.
 
 To configure [SSO](https://en.wikipedia.org/wiki/Single_sign-on), a Teleport administrator must:
@@ -85,7 +83,7 @@ spec:
 
 ## Multiple SSO Providers
 
-Teleport can also support multiple connectors. This works via supplying
+Teleport can also support multiple connectors. This works by supplying
 a connector name to `tsh login` via `--auth` argument:
 
 ```bash

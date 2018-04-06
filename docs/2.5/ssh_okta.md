@@ -2,12 +2,11 @@
 
 This guide will cover how to configure [Okta](https://www.okta.com/) to issue
 SSH credentials to specific groups of users. When used in combination with role
-based access control (RBAC) it allows SSH administrators to define policies
+based access control (RBAC), it allows SSH administrators to define policies
 like:
 
 * Only members of "DBA" group can SSH into machines running PostgreSQL.
 * Developers must never SSH into production servers.
-* ... and many others.
 
 !!! warning "Version Warning":
     This guide requires a commercial edition of Teleport. The open source
