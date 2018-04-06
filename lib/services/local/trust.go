@@ -41,6 +41,9 @@ func (s *CA) CreateCertAuthority(ca services.CertAuthority) error {
 	ttl := backend.TTL(s.Clock(), ca.Expiry())
 	err = s.CreateVal([]string{"authorities", string(ca.GetType())}, ca.GetName(), data, ttl)
 	if err != nil {
+		if trace.IsAlreadyExists(err) {
+			return trace.AlreadyExists("cluster %q already exists", ca.GetName())
+		}
 		return trace.Wrap(err)
 	}
 	return nil
