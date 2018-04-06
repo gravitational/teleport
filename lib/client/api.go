@@ -12,7 +12,6 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
 */
 
 package client
@@ -27,12 +26,14 @@ import (
 	"io"
 	"io/ioutil"
 	"net"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
 	"os/user"
 	"path"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -210,6 +211,179 @@ func MakeDefaultConfig() *Config {
 		Stderr: os.Stderr,
 		Stdin:  os.Stdin,
 	}
+}
+
+// ProfileStatus combines metadata from the logged in profile and associated
+// SSH certificate.
+type ProfileStatus struct {
+	// ProxyURL is the URL the web client is accessible at.
+	ProxyURL url.URL
+
+	// Username is the Teleport username.
+	Username string
+
+	// Roles is a list of Teleport Roles this user has been assigned.
+	Roles []string
+
+	// Logins are the Linux accounts, also known as principals in OpenSSH terminology.
+	Logins []string
+
+	// ValidUntil is the time at which this SSH certificate will expire.
+	ValidUntil time.Time
+
+	// Extensions is a list of enabled SSH features for the certificate.
+	Extensions []string
+}
+
+// readProfile reads in the profile as well as the associated certificate
+// and returns a *ProfileStatus which can be used to print the status of the
+// profile.
+func readProfile(profileDir string, profileName string) (*ProfileStatus, error) {
+	var err error
+
+	// Read in the profile for this proxy.
+	profile, err := ProfileFromFile(filepath.Join(profileDir, profileName))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Read in the SSH certificate for the user logged into this proxy.
+	store, err := NewFSLocalKeyStore(profileDir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	keys, err := store.GetKey(profile.ProxyHost, profile.Username)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	publicKey, _, _, _, err := ssh.ParseAuthorizedKey(keys.Cert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cert, ok := publicKey.(*ssh.Certificate)
+	if !ok {
+		return nil, trace.BadParameter("no certificate found")
+	}
+
+	// Extract from the certificate how much longer it will be valid for.
+	validUntil := time.Unix(int64(cert.ValidBefore), 0)
+
+	// Extract roles from certificate. Note, if the certificate is in old format,
+	// this will be empty.
+	var roles []string
+	rawRoles, ok := cert.Extensions[teleport.CertExtensionTeleportRoles]
+	if ok {
+		roles, err = services.UnmarshalCertRoles(rawRoles)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	sort.Strings(roles)
+
+	// Extract extensions from certificate. This lists the abilities of the
+	// certificate (like can the user request a PTY, port forwarding, etc.)
+	var extensions []string
+	for ext, _ := range cert.Extensions {
+		if ext == teleport.CertExtensionTeleportRoles {
+			continue
+		}
+		extensions = append(extensions, ext)
+	}
+	sort.Strings(extensions)
+
+	return &ProfileStatus{
+		ProxyURL: url.URL{
+			Scheme: "https",
+			Host:   net.JoinHostPort(profile.ProxyHost, strconv.Itoa(profile.ProxyWebPort)),
+		},
+		Username:   profile.Username,
+		Logins:     cert.ValidPrincipals,
+		ValidUntil: validUntil,
+		Extensions: extensions,
+		Roles:      roles,
+	}, nil
+}
+
+// fullProfileName takes a profile directory and the host the user is trying
+// to connect to and returns the name of the profile file.
+func fullProfileName(profileDir string, proxyHost string) (string, error) {
+	var err error
+	var profileName string
+
+	// If no profile name was passed in, try and extract the active profile from
+	// the ~/.tsh/profile symlink. If one was passed in, append .yaml to name.
+	if proxyHost == "" {
+		profileName, err = os.Readlink(filepath.Join(profileDir, "profile"))
+		if err != nil {
+			return "", trace.ConvertSystemError(err)
+		}
+	} else {
+		profileName = proxyHost + ".yaml"
+	}
+
+	// Make sure the profile requested actually exists.
+	_, err = os.Stat(filepath.Join(profileDir, profileName))
+	if err != nil {
+		return "", trace.ConvertSystemError(err)
+	}
+
+	return profileName, nil
+}
+
+// Status returns the active profile as well as a list of available profiles.
+func Status(profileDir string, proxyHost string) (*ProfileStatus, []*ProfileStatus, error) {
+	var err error
+	var profile *ProfileStatus
+	var others []*ProfileStatus
+
+	// Construct the full path to the profile requested and make sure it exists.
+	profileDir = FullProfilePath(profileDir)
+	stat, err := os.Stat(profileDir)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	if !stat.IsDir() {
+		return nil, nil, trace.BadParameter("profile path not a directory")
+	}
+
+	// Construct the name of the profile requested. If an empty string was
+	// passed in, the name of the active profile will be extracted from the
+	// ~/.tsh/profile symlink.
+	profileName, err := fullProfileName(profileDir, proxyHost)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// Read in the active profile first.
+	profile, err = readProfile(profileDir, profileName)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// Next, get list of all other available profiles. Filter out logged in
+	// profile if it exists and return a slice of *ProfileStatus.
+	files, err := ioutil.ReadDir(profileDir)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+		if !strings.HasSuffix(file.Name(), ".yaml") {
+			continue
+		}
+		if file.Name() == profileName {
+			continue
+		}
+		ps, err := readProfile(profileDir, file.Name())
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		others = append(others, ps)
+	}
+
+	return profile, others, nil
 }
 
 // LoadProfile populates Config with the values stored in the given
