@@ -242,6 +242,9 @@ var (
 
 	// ReportingPeriod is a period for reports in logs
 	ReportingPeriod = 5 * time.Minute
+
+	// HighResPollingPeriod is a default high resolution polling period
+	HighResPollingPeriod = 10 * time.Second
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport
@@ -270,6 +273,10 @@ const (
 	// CertDuration is a default certificate duration
 	// 12 is default as it' longer than average working day (I hope so)
 	CertDuration = 12 * time.Hour
+	// RotationGracePeriod is a default rotation period for graceful
+	// certificate rotations, by default to set to maximum allowed user
+	// cert duration
+	RotationGracePeriod = MaxCertDuration
 )
 
 // list of roles teleport service can run as:

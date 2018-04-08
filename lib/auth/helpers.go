@@ -123,12 +123,13 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 
 	srv.AuthServer, err = NewAuthServer(&InitConfig{
-		ClusterName: clusterName,
-		Backend:     srv.Backend,
-		Authority:   authority.New(),
-		Access:      access,
-		Identity:    identity,
-		AuditLog:    srv.AuditLog,
+		ClusterName:            clusterName,
+		Backend:                srv.Backend,
+		Authority:              authority.New(),
+		Access:                 access,
+		Identity:               identity,
+		AuditLog:               srv.AuditLog,
+		SkipPeriodicOperations: true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -249,7 +250,7 @@ func (a *TestAuthServer) NewCertificate(identity TestIdentity) (*tls.Certificate
 
 // Clock returns clock used by auth server
 func (a *TestAuthServer) Clock() clockwork.Clock {
-	return a.AuthServer.clock
+	return a.AuthServer.GetClock()
 }
 
 // Trust adds other server host certificate authority as trusted
@@ -490,6 +491,17 @@ func (t *TestTLSServer) ClientTLSConfig(identity TestIdentity) (*tls.Config, err
 	return tlsConfig, nil
 }
 
+// CloneClient uses the same credentials as the passed client
+// but forces the client to be recreated
+func (t *TestTLSServer) CloneClient(clt *Client) *Client {
+	addr := []utils.NetAddr{{Addr: t.Addr().String(), AddrNetwork: t.Addr().Network()}}
+	newClient, err := NewTLSClient(addr, clt.TLSConfig())
+	if err != nil {
+		panic(err)
+	}
+	return newClient
+}
+
 // NewClient returns new client to test server authenticated with identity
 func (t *TestTLSServer) NewClient(identity TestIdentity) (*Client, error) {
 	tlsConfig, err := t.ClientTLSConfig(identity)
@@ -549,7 +561,7 @@ func NewServerIdentity(clt *AuthServer, hostID string, role teleport.Role) (*Ide
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return ReadIdentityFromKeyPair(keys.Key, keys.Cert, keys.TLSCert, keys.TLSCACerts[0])
+	return ReadIdentityFromKeyPair(keys.Key, keys.Cert, keys.TLSCert, keys.TLSCACerts)
 }
 
 // clt limits required interface to the necessary methods

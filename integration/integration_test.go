@@ -112,9 +112,9 @@ func (s *IntSuite) SetUpSuite(c *check.C) {
 	}
 }
 
-// newTeleport helper returns a running Teleport instance pre-configured
+// newTeleport helper returns a created but not started Teleport instance pre-configured
 // with the current user os.user.Current().
-func (s *IntSuite) newTeleport(c *check.C, logins []string, enableSSH bool) *TeleInstance {
+func (s *IntSuite) newUnstartedTeleport(c *check.C, logins []string, enableSSH bool) *TeleInstance {
 	t := NewInstance(InstanceConfig{ClusterName: Site, HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub})
 	// use passed logins, but use suite's default login if nothing was passed
 	if logins == nil || len(logins) == 0 {
@@ -126,6 +126,13 @@ func (s *IntSuite) newTeleport(c *check.C, logins []string, enableSSH bool) *Tel
 	if err := t.Create(nil, enableSSH, nil); err != nil {
 		c.Fatalf("Unexpected response from Create: %v", err)
 	}
+	return t
+}
+
+// newTeleport helper returns a running Teleport instance pre-configured
+// with the current user os.user.Current().
+func (s *IntSuite) newTeleport(c *check.C, logins []string, enableSSH bool) *TeleInstance {
+	t := s.newUnstartedTeleport(c, logins, enableSSH)
 	if err := t.Start(); err != nil {
 		c.Fatalf("Unexpected response from Start: %v", err)
 	}
@@ -148,10 +155,10 @@ func (s *IntSuite) newTeleportWithConfig(c *check.C, logins []string, instanceSe
 
 	// create a new teleport instance with passed in configuration
 	if err := t.CreateEx(instanceSecrets, teleportConfig); err != nil {
-		c.Fatalf("Unexpected response from CreateEx: %v", err)
+		c.Fatalf("Unexpected response from CreateEx: %v", trace.DebugReport(err))
 	}
 	if err := t.Start(); err != nil {
-		c.Fatalf("Unexpected response from Start: %v", err)
+		c.Fatalf("Unexpected response from Start: %v", trace.DebugReport(err))
 	}
 
 	return t
@@ -2002,6 +2009,520 @@ func (s *IntSuite) TestPAM(c *check.C) {
 			c.Assert(strings.Contains(output, expectedOutput), check.Equals, true)
 		}
 	}
+}
+
+// TestRotateSuccess tests full cycle cert authority rotation
+func (s *IntSuite) TestRotateSuccess(c *check.C) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tconf := rotationConfig(true)
+	t := NewInstance(InstanceConfig{ClusterName: Site, HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub})
+	logins := []string{s.me.Username}
+	for _, login := range logins {
+		t.AddUser(login, []string{login})
+	}
+	config, err := t.GenerateConfig(nil, tconf)
+	c.Assert(err, check.IsNil)
+
+	serviceC := make(chan *service.TeleportProcess, 20)
+
+	runCtx, runCancel := context.WithCancel(context.TODO())
+	go func() {
+		defer runCancel()
+		service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
+			svc, err := service.NewTeleport(cfg)
+			if err == nil {
+				serviceC <- svc
+			}
+			return svc, err
+		})
+	}()
+
+	l := log.WithFields(log.Fields{trace.Component: teleport.Component("test", "rotate")})
+
+	svc, err := waitForReload(serviceC, nil)
+	c.Assert(err, check.IsNil)
+
+	// Setup user in the cluster
+	err = SetupUser(svc, s.me.Username, nil)
+	c.Assert(err, check.IsNil)
+
+	// capture credentials before reload started to simulate old client
+	initialCreds, err := GenerateUserCreds(svc, s.me.Username)
+	c.Assert(err, check.IsNil)
+
+	l.Infof("Service started. Setting rotation state to %v", services.RotationPhaseUpdateClients)
+
+	// start rotation
+	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+		TargetPhase: services.RotationPhaseUpdateClients,
+		Mode:        services.RotationModeManual,
+	})
+	c.Assert(err, check.IsNil)
+
+	// wait until service reload
+	svc, err = waitForReload(serviceC, svc)
+	c.Assert(err, check.IsNil)
+
+	cfg := ClientConfig{
+		Login: s.me.Username,
+		Host:  "127.0.0.1",
+		Port:  t.GetPortSSHInt(),
+	}
+	clt, err := t.NewClientWithCreds(cfg, *initialCreds)
+	c.Assert(err, check.IsNil)
+
+	// client works as is before servers have been rotated
+	err = runAndMatch(clt, 3, []string{"echo", "hello world"}, ".*hello world.*")
+	c.Assert(err, check.IsNil)
+
+	l.Infof("Service reloaded. Setting rotation state to %v", services.RotationPhaseUpdateServers)
+
+	// move to the next phase
+	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+		TargetPhase: services.RotationPhaseUpdateServers,
+		Mode:        services.RotationModeManual,
+	})
+	c.Assert(err, check.IsNil)
+
+	// wait until service reloaded
+	svc, err = waitForReload(serviceC, svc)
+	c.Assert(err, check.IsNil)
+
+	// new credentials will work from this phase to others
+	newCreds, err := GenerateUserCreds(svc, s.me.Username)
+	c.Assert(err, check.IsNil)
+
+	clt, err = t.NewClientWithCreds(cfg, *newCreds)
+	c.Assert(err, check.IsNil)
+
+	// new client works
+	err = runAndMatch(clt, 3, []string{"echo", "hello world"}, ".*hello world.*")
+	c.Assert(err, check.IsNil)
+
+	l.Infof("Service reloaded. Setting rotation state to %v.", services.RotationPhaseStandby)
+
+	// complete rotation
+	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+		TargetPhase: services.RotationPhaseStandby,
+		Mode:        services.RotationModeManual,
+	})
+	c.Assert(err, check.IsNil)
+
+	// wait until service reloaded
+	svc, err = waitForReload(serviceC, svc)
+	c.Assert(err, check.IsNil)
+
+	// new client still works
+	err = runAndMatch(clt, 3, []string{"echo", "hello world"}, ".*hello world.*")
+	c.Assert(err, check.IsNil)
+
+	l.Infof("Service reloaded. Rotation has completed. Shuttting down service.")
+
+	// shut down the service
+	cancel()
+	// close the service without waiting for the connections to drain
+	svc.Close()
+
+	select {
+	case <-runCtx.Done():
+	case <-time.After(20 * time.Second):
+		c.Fatalf("failed to shut down the server")
+	}
+}
+
+// TestRotateRollback tests cert authority rollback
+func (s *IntSuite) TestRotateRollback(c *check.C) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tconf := rotationConfig(true)
+	t := NewInstance(InstanceConfig{ClusterName: Site, HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub})
+	logins := []string{s.me.Username}
+	for _, login := range logins {
+		t.AddUser(login, []string{login})
+	}
+	config, err := t.GenerateConfig(nil, tconf)
+	c.Assert(err, check.IsNil)
+
+	serviceC := make(chan *service.TeleportProcess, 20)
+
+	runCtx, runCancel := context.WithCancel(context.TODO())
+	go func() {
+		defer runCancel()
+		service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
+			svc, err := service.NewTeleport(cfg)
+			if err == nil {
+				serviceC <- svc
+			}
+			return svc, err
+		})
+	}()
+
+	l := log.WithFields(log.Fields{trace.Component: teleport.Component("test", "rotate")})
+
+	svc, err := waitForReload(serviceC, nil)
+	c.Assert(err, check.IsNil)
+
+	// Setup user in the cluster
+	err = SetupUser(svc, s.me.Username, nil)
+	c.Assert(err, check.IsNil)
+
+	// capture credentials before reload started to simulate old client
+	initialCreds, err := GenerateUserCreds(svc, s.me.Username)
+	c.Assert(err, check.IsNil)
+
+	l.Infof("Service started. Setting rotation state to %v", services.RotationPhaseUpdateClients)
+
+	// start rotation
+	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+		TargetPhase: services.RotationPhaseUpdateClients,
+		Mode:        services.RotationModeManual,
+	})
+	c.Assert(err, check.IsNil)
+
+	// wait until service reload
+	svc, err = waitForReload(serviceC, svc)
+	c.Assert(err, check.IsNil)
+
+	cfg := ClientConfig{
+		Login: s.me.Username,
+		Host:  "127.0.0.1",
+		Port:  t.GetPortSSHInt(),
+	}
+	clt, err := t.NewClientWithCreds(cfg, *initialCreds)
+	c.Assert(err, check.IsNil)
+
+	// client works as is before servers have been rotated
+	err = runAndMatch(clt, 3, []string{"echo", "hello world"}, ".*hello world.*")
+	c.Assert(err, check.IsNil)
+
+	l.Infof("Service reloaded. Setting rotation state to %v", services.RotationPhaseUpdateServers)
+
+	// move to the next phase
+	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+		TargetPhase: services.RotationPhaseUpdateServers,
+		Mode:        services.RotationModeManual,
+	})
+	c.Assert(err, check.IsNil)
+
+	// wait until service reloaded
+	svc, err = waitForReload(serviceC, svc)
+	c.Assert(err, check.IsNil)
+
+	l.Infof("Service reloaded. Setting rotation state to %v.", services.RotationPhaseRollback)
+
+	// complete rotation
+	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+		TargetPhase: services.RotationPhaseRollback,
+		Mode:        services.RotationModeManual,
+	})
+	c.Assert(err, check.IsNil)
+
+	// wait until service reloaded
+	svc, err = waitForReload(serviceC, svc)
+	c.Assert(err, check.IsNil)
+
+	// old client works
+	err = runAndMatch(clt, 3, []string{"echo", "hello world"}, ".*hello world.*")
+	c.Assert(err, check.IsNil)
+
+	l.Infof("Service reloaded. Rotation has completed. Shuttting down service.")
+
+	// shut down the service
+	cancel()
+	// close the service without waiting for the connections to drain
+	svc.Close()
+
+	select {
+	case <-runCtx.Done():
+	case <-time.After(20 * time.Second):
+		c.Fatalf("failed to shut down the server")
+	}
+}
+
+// TestRotateTrustedClusters tests CA rotation support for trusted clusters
+func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	clusterMain := "rotate-main"
+	clusterAux := "rotate-aux"
+
+	tconf := rotationConfig(false)
+	main := NewInstance(InstanceConfig{ClusterName: clusterMain, HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub})
+	aux := NewInstance(InstanceConfig{ClusterName: clusterAux, HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub})
+
+	logins := []string{s.me.Username}
+	for _, login := range logins {
+		main.AddUser(login, []string{login})
+	}
+	config, err := main.GenerateConfig(nil, tconf)
+	c.Assert(err, check.IsNil)
+
+	serviceC := make(chan *service.TeleportProcess, 20)
+	runCtx, runCancel := context.WithCancel(context.TODO())
+	go func() {
+		defer runCancel()
+		service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
+			svc, err := service.NewTeleport(cfg)
+			if err == nil {
+				serviceC <- svc
+			}
+			return svc, err
+		})
+	}()
+
+	l := log.WithFields(log.Fields{trace.Component: teleport.Component("test", "rotate")})
+
+	svc, err := waitForReload(serviceC, nil)
+	c.Assert(err, check.IsNil)
+
+	// main cluster has a local user and belongs to role "main-devs"
+	mainDevs := "main-devs"
+	role, err := services.NewRole(mainDevs, services.RoleSpecV3{
+		Allow: services.RoleConditions{
+			Logins: []string{s.me.Username},
+		},
+	})
+	c.Assert(err, check.IsNil)
+
+	err = SetupUser(svc, s.me.Username, []services.Role{role})
+	c.Assert(err, check.IsNil)
+
+	// create auxillary cluster and setup trust
+	c.Assert(aux.CreateEx(nil, rotationConfig(false)), check.IsNil)
+
+	// auxiliary cluster has a role aux-devs
+	// connect aux cluster to main cluster
+	// using trusted clusters, so remote user will be allowed to assume
+	// role specified by mapping remote role "devs" to local role "local-devs"
+	auxDevs := "aux-devs"
+	role, err = services.NewRole(auxDevs, services.RoleSpecV3{
+		Allow: services.RoleConditions{
+			Logins: []string{s.me.Username},
+		},
+	})
+	c.Assert(err, check.IsNil)
+	err = aux.Process.GetAuthServer().UpsertRole(role, backend.Forever)
+	c.Assert(err, check.IsNil)
+	trustedClusterToken := "trusted-clsuter-token"
+	err = svc.GetAuthServer().UpsertToken(trustedClusterToken, []teleport.Role{teleport.RoleTrustedCluster}, backend.Forever)
+	c.Assert(err, check.IsNil)
+	trustedCluster := main.Secrets.AsTrustedCluster(trustedClusterToken, services.RoleMap{
+		{Remote: mainDevs, Local: []string{auxDevs}},
+	})
+	c.Assert(aux.Start(), check.IsNil)
+
+	// try and upsert a trusted cluster
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+	var upsertSuccess bool
+	for i := 0; i < 10; i++ {
+		log.Debugf("Will create trusted cluster %v, attempt %v", trustedCluster, i)
+		_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(trustedCluster)
+		if err != nil {
+			if trace.IsConnectionProblem(err) {
+				log.Debugf("retrying on connection problem: %v", err)
+				continue
+			}
+			c.Fatalf("got non connection problem %v", err)
+		}
+		upsertSuccess = true
+		break
+	}
+	// make sure we upsert a trusted cluster
+	c.Assert(upsertSuccess, check.Equals, true)
+
+	// capture credentials before has reload started to simulate old client
+	initialCreds, err := GenerateUserCreds(svc, s.me.Username)
+	c.Assert(err, check.IsNil)
+
+	// credentials should work
+	cfg := ClientConfig{
+		Login:   s.me.Username,
+		Host:    "127.0.0.1",
+		Cluster: clusterAux,
+		Port:    aux.GetPortSSHInt(),
+	}
+	clt, err := main.NewClientWithCreds(cfg, *initialCreds)
+	c.Assert(err, check.IsNil)
+
+	err = runAndMatch(clt, 6, []string{"echo", "hello world"}, ".*hello world.*")
+	c.Assert(err, check.IsNil)
+
+	l.Infof("Service started. Setting rotation state to %v", services.RotationPhaseUpdateClients)
+
+	// start rotation
+	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+		TargetPhase: services.RotationPhaseUpdateClients,
+		Mode:        services.RotationModeManual,
+	})
+	c.Assert(err, check.IsNil)
+
+	// wait until service reload
+	svc, err = waitForReload(serviceC, svc)
+	c.Assert(err, check.IsNil)
+
+	// waitForPhase waits until aux cluster detects the rotation
+	waitForPhase := func(phase string) error {
+		var lastPhase string
+		for i := 0; i < 10; i++ {
+			ca, err := aux.Process.GetAuthServer().GetCertAuthority(services.CertAuthID{
+				Type:       services.HostCA,
+				DomainName: clusterMain,
+			}, false)
+			c.Assert(err, check.IsNil)
+			if ca.GetRotation().Phase == phase {
+				return nil
+			}
+			lastPhase = phase
+			time.Sleep(tconf.PollingPeriod / 2)
+		}
+		return trace.CompareFailed("failed to converge to phase %q, last phase %q", phase, lastPhase)
+	}
+
+	err = waitForPhase(services.RotationPhaseUpdateClients)
+	c.Assert(err, check.IsNil)
+
+	// old client should work as is
+	err = runAndMatch(clt, 6, []string{"echo", "hello world"}, ".*hello world.*")
+	c.Assert(err, check.IsNil)
+
+	l.Infof("Service reloaded. Setting rotation state to %v", services.RotationPhaseUpdateServers)
+
+	// move to the next phase
+	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+		TargetPhase: services.RotationPhaseUpdateServers,
+		Mode:        services.RotationModeManual,
+	})
+	c.Assert(err, check.IsNil)
+
+	// wait until service reloaded
+	svc, err = waitForReload(serviceC, svc)
+	c.Assert(err, check.IsNil)
+
+	err = waitForPhase(services.RotationPhaseUpdateServers)
+	c.Assert(err, check.IsNil)
+
+	// new credentials will work from this phase to others
+	newCreds, err := GenerateUserCreds(svc, s.me.Username)
+	c.Assert(err, check.IsNil)
+
+	clt, err = main.NewClientWithCreds(cfg, *newCreds)
+	c.Assert(err, check.IsNil)
+
+	// new client works
+	err = runAndMatch(clt, 3, []string{"echo", "hello world"}, ".*hello world.*")
+	c.Assert(err, check.IsNil)
+
+	l.Infof("Service reloaded. Setting rotation state to %v.", services.RotationPhaseStandby)
+
+	// complete rotation
+	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+		TargetPhase: services.RotationPhaseStandby,
+		Mode:        services.RotationModeManual,
+	})
+	c.Assert(err, check.IsNil)
+
+	// wait until service reloaded
+	svc, err = waitForReload(serviceC, svc)
+	c.Assert(err, check.IsNil)
+
+	err = waitForPhase(services.RotationPhaseStandby)
+	c.Assert(err, check.IsNil)
+
+	// new client still works
+	err = runAndMatch(clt, 3, []string{"echo", "hello world"}, ".*hello world.*")
+	c.Assert(err, check.IsNil)
+
+	l.Infof("Service reloaded. Rotation has completed. Shuttting down service.")
+
+	// shut down the service
+	cancel()
+	// close the service without waiting for the connections to drain
+	svc.Close()
+
+	select {
+	case <-runCtx.Done():
+	case <-time.After(20 * time.Second):
+		c.Fatalf("failed to shut down the server")
+	}
+}
+
+// rotationConfig sets up default config used for CA rotation tests
+func rotationConfig(disableWebService bool) *service.Config {
+	tconf := service.MakeDefaultConfig()
+	tconf.SSH.Enabled = true
+	tconf.Proxy.DisableWebService = disableWebService
+	tconf.Proxy.DisableWebInterface = true
+	tconf.PollingPeriod = 500 * time.Millisecond
+	tconf.ClientTimeout = time.Second
+	tconf.ShutdownTimeout = 2 * tconf.ClientTimeout
+	return tconf
+}
+
+// waitForReload waits for multiple events to happen:
+//
+// 1. new service to be created and started
+// 2. old service, if present to shut down
+//
+// this helper function allows to serialize tests for reloads.
+func waitForReload(serviceC chan *service.TeleportProcess, old *service.TeleportProcess) (*service.TeleportProcess, error) {
+	var svc *service.TeleportProcess
+	select {
+	case svc = <-serviceC:
+	case <-time.After(60 * time.Second):
+		return nil, trace.BadParameter("timeout waiting for service to start")
+	}
+
+	eventC := make(chan service.Event, 1)
+	svc.WaitForEvent(context.TODO(), service.TeleportReadyEvent, eventC)
+	select {
+	case <-eventC:
+
+	case <-time.After(20 * time.Second):
+		return nil, trace.BadParameter("timeout waiting for service to broadcast ready status")
+	}
+
+	// if old service is present, wait for it to complete shut down procedure
+	if old != nil {
+		ctx, cancel := context.WithCancel(context.TODO())
+		go func() {
+			defer cancel()
+			old.Supervisor.Wait()
+		}()
+		select {
+		case <-ctx.Done():
+		case <-time.After(60 * time.Second):
+			return nil, trace.BadParameter("timeout waiting for old service to stop")
+		}
+	}
+	return svc, nil
+
+}
+
+// runAndMatch runs command and makes sure it matches the pattern
+func runAndMatch(tc *client.TeleportClient, attempts int, command []string, pattern string) error {
+	output := &bytes.Buffer{}
+	tc.Stdout = output
+	var err error
+	for i := 0; i < attempts; i++ {
+		err = tc.SSH(context.TODO(), command, false)
+		if err != nil {
+			continue
+		}
+		out := output.String()
+		out = string(replaceNewlines(out))
+		matched, _ := regexp.MatchString(pattern, out)
+		if matched {
+			return nil
+		}
+		err = trace.CompareFailed("output %q did not match pattern %q", out, pattern)
+		time.Sleep(250 * time.Millisecond)
+	}
+	return err
 }
 
 // runCommand is a shortcut for running SSH command, it creates a client

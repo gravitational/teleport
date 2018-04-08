@@ -60,6 +60,10 @@ func (s *BoltSuite) TestBasicCRUD(c *C) {
 	s.suite.BasicCRUD(c)
 }
 
+func (s *BoltSuite) TestCompareAndSwap(c *C) {
+	s.suite.CompareAndSwap(c)
+}
+
 func (s *BoltSuite) TestExpiration(c *C) {
 	s.suite.Expiration(c)
 }

@@ -471,6 +471,51 @@ func (b *DynamoDBBackend) UpsertVal(path []string, key string, val []byte, ttl t
 	return b.createKey(fullPath, val, ttl, true)
 }
 
+// CompareAndSwapVal compares and swap values in atomic operation
+func (b *DynamoDBBackend) CompareAndSwapVal(path []string, key string, val []byte, prevVal []byte, ttl time.Duration) error {
+	if len(prevVal) == 0 {
+		return trace.BadParameter("missing prevVal parameter, to atomically create item, use CreateVal method")
+	}
+	fullPath := b.fullPath(append(path, key)...)
+	r := record{
+		HashKey:   hashKey,
+		FullPath:  fullPath,
+		Value:     val,
+		TTL:       ttl,
+		Timestamp: time.Now().UTC().Unix(),
+	}
+	if ttl != backend.Forever {
+		r.Expires = aws.Int64(b.clock.Now().UTC().Add(ttl).Unix())
+	}
+	av, err := dynamodbattribute.MarshalMap(r)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	input := dynamodb.PutItemInput{
+		Item:      av,
+		TableName: aws.String(b.Tablename),
+	}
+	input.SetConditionExpression("#v = :prev")
+	input.SetExpressionAttributeNames(map[string]*string{
+		"#v": aws.String("Value"),
+	})
+	input.SetExpressionAttributeValues(map[string]*dynamodb.AttributeValue{
+		":prev": &dynamodb.AttributeValue{
+			B: prevVal,
+		},
+	})
+	_, err = b.svc.PutItem(&input)
+	err = convertError(err)
+	if err != nil {
+		// in this case let's use more specific compare failed error
+		if trace.IsAlreadyExists(err) {
+			return trace.CompareFailed(err.Error())
+		}
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 const delayBetweenLockAttempts = 100 * time.Millisecond
 
 // AcquireLock for a token

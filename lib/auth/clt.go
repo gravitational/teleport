@@ -97,6 +97,20 @@ func NewAddrDialer(addrs []utils.NetAddr) DialContext {
 	}
 }
 
+// ClientTimeout sets idle and dial timeouts of the HTTP transport
+// used by the client.
+func ClientTimeout(timeout time.Duration) roundtrip.ClientParam {
+	return func(c *roundtrip.Client) error {
+		transport, ok := (c.HTTPClient().Transport).(*http.Transport)
+		if !ok {
+			return nil
+		}
+		transport.IdleConnTimeout = timeout
+		transport.ResponseHeaderTimeout = timeout
+		return nil
+	}
+}
+
 // NewTLSClientWithDialer returns new TLS client that uses mutual TLS authenticate
 // and dials the remote server using dialer
 func NewTLSClientWithDialer(dialContext DialContext, cfg *tls.Config, params ...roundtrip.ClientParam) (*Client, error) {
@@ -127,11 +141,11 @@ func NewTLSClientWithDialer(dialContext DialContext, cfg *tls.Config, params ...
 		}
 	}
 
-	params = append(params, roundtrip.HTTPClient(&http.Client{
-		Transport: transport,
-	}))
-
-	roundtripClient, err := roundtrip.NewClient("https://"+teleport.APIDomain, CurrentVersion, params...)
+	clientParams := append(
+		[]roundtrip.ClientParam{roundtrip.HTTPClient(&http.Client{Transport: transport})},
+		params...,
+	)
+	roundtripClient, err := roundtrip.NewClient("https://"+teleport.APIDomain, CurrentVersion, clientParams...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -303,6 +317,32 @@ func (c *Client) CreateCertAuthority(ca services.CertAuthority) error {
 	return trace.BadParameter("not implemented")
 }
 
+// RotateCertAuthority starts or restarts certificate authority rotation process.
+func (c *Client) RotateCertAuthority(req RotateRequest) error {
+	caType := "all"
+	if req.Type != "" {
+		caType = string(req.Type)
+	}
+	_, err := c.PostJSON(c.Endpoint("authorities", caType, "rotate"), req)
+	return trace.Wrap(err)
+}
+
+// RotateExternalCertAuthority rotates external certificate authority,
+// this method is used to update only public keys and certificates of the
+// the certificate authorities of trusted clusters.
+func (c *Client) RotateExternalCertAuthority(ca services.CertAuthority) error {
+	if err := ca.Check(); err != nil {
+		return trace.Wrap(err)
+	}
+	data, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(ca)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = c.PostJSON(c.Endpoint("authorities", string(ca.GetType()), "rotate", "external"),
+		&rotateExternalCertAuthorityRawReq{CA: data})
+	return trace.Wrap(err)
+}
+
 // UpsertCertAuthority updates or inserts new cert authority
 func (c *Client) UpsertCertAuthority(ca services.CertAuthority) error {
 	if err := ca.Check(); err != nil {
@@ -315,6 +355,12 @@ func (c *Client) UpsertCertAuthority(ca services.CertAuthority) error {
 	_, err = c.PostJSON(c.Endpoint("authorities", string(ca.GetType())),
 		&upsertCertAuthorityRawReq{CA: data})
 	return trace.Wrap(err)
+}
+
+// CompareAndSwapCertAuthority updates existing cert authority if the existing cert authority
+// value matches the value stored in the backend.
+func (c *Client) CompareAndSwapCertAuthority(new, existing services.CertAuthority) error {
+	return trace.BadParameter("this function is not supported on the client")
 }
 
 // GetCertAuthorities returns a list of certificate authorities
@@ -356,11 +402,6 @@ func (c *Client) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool) 
 		return nil, trace.Wrap(err)
 	}
 	return services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(out.Bytes())
-}
-
-// GetAnyCertAuthority returns certificate authority by given id whether it's activated or not
-func (c *Client) GetAnyCertAuthority(id services.CertAuthID) (services.CertAuthority, error) {
-	return nil, trace.BadParameter("not implemented")
 }
 
 // DeleteCertAuthority deletes cert authority by ID
@@ -923,23 +964,6 @@ func (c *Client) CreateWebSession(user string) (services.WebSession, error) {
 		return nil, trace.Wrap(err)
 	}
 	return services.GetWebSessionMarshaler().UnmarshalWebSession(out.Bytes())
-}
-
-// DELETE IN: 2.6.0
-// ExchangeCerts exchanges TLS certificates for established host certificate authorities
-func (c *Client) ExchangeCerts(req ExchangeCertsRequest) (*ExchangeCertsResponse, error) {
-	out, err := c.PostJSON(
-		c.Endpoint("exchangecerts"),
-		req,
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var re ExchangeCertsResponse
-	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &re, nil
 }
 
 // AuthenticateWebUser authenticates web user, creates and  returns web session
@@ -2266,6 +2290,14 @@ type ClientI interface {
 	session.Service
 	services.ClusterConfiguration
 
+	// RotateCertAuthority starts or restarts certificate authority rotation process.
+	RotateCertAuthority(req RotateRequest) error
+
+	// RotateExternalCertAuthority rotates external certificate authority,
+	// this method is used to update only public keys and certificates of the
+	// the certificate authorities of trusted clusters.
+	RotateExternalCertAuthority(ca services.CertAuthority) error
+
 	// ValidateTrustedCluster validates trusted cluster token with
 	// main cluster, in case if validation is successfull, main cluster
 	// adds remote cluster
@@ -2281,8 +2313,4 @@ type ClientI interface {
 	// AuthenticateSSHUser authenticates SSH console user, creates and  returns a pair of signed TLS and SSH
 	// short lived certificates as a result
 	AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginResponse, error)
-
-	// DELETE IN: 2.6.0
-	// ExchangeCerts exchanges TLS certificates between host certificate authorities of trusted clusters
-	ExchangeCerts(req ExchangeCertsRequest) (*ExchangeCertsResponse, error)
 }

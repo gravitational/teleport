@@ -4,19 +4,13 @@
 [[projects]]
   branch = "master"
   name = "github.com/Azure/go-ansiterm"
-  packages = [
-    ".",
-    "winterm"
-  ]
+  packages = [".","winterm"]
   revision = "19f72df4d05d31cbe1c56bfc8045c96babff6c7e"
 
 [[projects]]
   branch = "master"
   name = "github.com/alecthomas/template"
-  packages = [
-    ".",
-    "parse"
-  ]
+  packages = [".","parse"]
   revision = "a0175ee3bccc567396460bf5acd36800cb10c49c"
 
 [[projects]]
@@ -27,39 +21,7 @@
 
 [[projects]]
   name = "github.com/aws/aws-sdk-go"
-  packages = [
-    "aws",
-    "aws/awserr",
-    "aws/awsutil",
-    "aws/client",
-    "aws/client/metadata",
-    "aws/corehandlers",
-    "aws/credentials",
-    "aws/credentials/ec2rolecreds",
-    "aws/credentials/endpointcreds",
-    "aws/credentials/stscreds",
-    "aws/defaults",
-    "aws/ec2metadata",
-    "aws/endpoints",
-    "aws/request",
-    "aws/session",
-    "aws/signer/v4",
-    "internal/shareddefaults",
-    "private/protocol",
-    "private/protocol/json/jsonutil",
-    "private/protocol/jsonrpc",
-    "private/protocol/query",
-    "private/protocol/query/queryutil",
-    "private/protocol/rest",
-    "private/protocol/restxml",
-    "private/protocol/xml/xmlutil",
-    "service/dynamodb",
-    "service/dynamodb/dynamodbattribute",
-    "service/s3",
-    "service/s3/s3iface",
-    "service/s3/s3manager",
-    "service/sts"
-  ]
+  packages = ["aws","aws/awserr","aws/awsutil","aws/client","aws/client/metadata","aws/corehandlers","aws/credentials","aws/credentials/ec2rolecreds","aws/credentials/endpointcreds","aws/credentials/stscreds","aws/defaults","aws/ec2metadata","aws/endpoints","aws/request","aws/session","aws/signer/v4","internal/shareddefaults","private/protocol","private/protocol/json/jsonutil","private/protocol/jsonrpc","private/protocol/query","private/protocol/query/queryutil","private/protocol/rest","private/protocol/restxml","private/protocol/xml/xmlutil","service/dynamodb","service/dynamodb/dynamodbattribute","service/s3","service/s3/s3iface","service/s3/s3manager","service/sts"]
   revision = "a201bf33b18ad4ab54344e4bc26b87eb6ad37b8e"
   version = "v1.12.25"
 
@@ -81,18 +43,8 @@
 
 [[projects]]
   name = "github.com/boombuler/barcode"
-  packages = [
-    ".",
-    "qr",
-    "utils"
-  ]
+  packages = [".","qr","utils"]
   revision = "fe0f26ff6d26693948ee8189aa064ee8c54141fa"
-
-[[projects]]
-  name = "github.com/cenkalti/backoff"
-  packages = ["."]
-  revision = "61153c768f31ee5f130071d08fc82b85208528de"
-  version = "v1.1.0"
 
 [[projects]]
   name = "github.com/codahale/hdrhistogram"
@@ -101,28 +53,14 @@
 
 [[projects]]
   name = "github.com/coreos/etcd"
-  packages = [
-    "client",
-    "pkg/pathutil",
-    "pkg/srv",
-    "pkg/tlsutil",
-    "pkg/transport",
-    "pkg/types",
-    "version"
-  ]
+  packages = ["client","pkg/pathutil","pkg/srv","pkg/tlsutil","pkg/transport","pkg/types","version"]
   revision = "9d43462d174c664f5edf313dec0de31e1ef4ed47"
   version = "v3.2.6"
 
 [[projects]]
   branch = "master"
   name = "github.com/coreos/go-oidc"
-  packages = [
-    "http",
-    "jose",
-    "key",
-    "oauth2",
-    "oidc"
-  ]
+  packages = ["http","jose","key","oauth2","oidc"]
   revision = "e51edf2e47e65e5708600d4da6fca1388ee437b4"
   source = "github.com/gravitational/go-oidc"
 
@@ -134,11 +72,7 @@
 
 [[projects]]
   name = "github.com/coreos/pkg"
-  packages = [
-    "health",
-    "httputil",
-    "timeutil"
-  ]
+  packages = ["health","httputil","timeutil"]
   revision = "1914e367e85eaf0c25d495b48e060dfe6190f8d0"
 
 [[projects]]
@@ -177,31 +111,18 @@
 
 [[projects]]
   name = "github.com/golang/protobuf"
-  packages = [
-    "jsonpb",
-    "proto",
-    "protoc-gen-go/descriptor",
-    "ptypes/any",
-    "ptypes/empty"
-  ]
+  packages = ["jsonpb","proto","protoc-gen-go/descriptor","ptypes/any","ptypes/empty"]
   revision = "8ee79997227bf9b34611aee7946ae64735e6fd93"
 
 [[projects]]
   name = "github.com/google/gops"
-  packages = [
-    "agent",
-    "internal",
-    "signal"
-  ]
+  packages = ["agent","internal","signal"]
   revision = "fa6968806ca68b7db113256f300d82b5206a2c3c"
   version = "v0.3.1"
 
 [[projects]]
   name = "github.com/gravitational/configure"
-  packages = [
-    "cstrings",
-    "jsonschema"
-  ]
+  packages = ["cstrings","jsonschema"]
   revision = "1db4b84fe9dbbbaf40827aa714dcca17b368de2c"
 
 [[projects]]
@@ -218,20 +139,13 @@
 
 [[projects]]
   name = "github.com/gravitational/license"
-  packages = [
-    ".",
-    "constants"
-  ]
+  packages = [".","constants"]
   revision = "102213511ace56c97ccf1eef645835e16f84d130"
   version = "0.0.4"
 
 [[projects]]
   name = "github.com/gravitational/reporting"
-  packages = [
-    ".",
-    "client",
-    "types"
-  ]
+  packages = [".","client","types"]
   revision = "3c4a4e96fb5896e14fe29da7fcce14b8d93f3965"
   version = "0.0.4"
 
@@ -255,12 +169,7 @@
 
 [[projects]]
   name = "github.com/grpc-ecosystem/grpc-gateway"
-  packages = [
-    "runtime",
-    "runtime/internal",
-    "third_party/googleapis/google/api",
-    "utilities"
-  ]
+  packages = ["runtime","runtime/internal","third_party/googleapis/google/api","utilities"]
   revision = "a8f25bd1ab549f8b87afd48aa9181221e9d439bb"
   version = "v1.1.0"
 
@@ -299,10 +208,7 @@
 
 [[projects]]
   name = "github.com/mailgun/lemma"
-  packages = [
-    "random",
-    "secret"
-  ]
+  packages = ["random","secret"]
   revision = "e8b0cd607f5855f9a4a33f8ae5d033178f559964"
   version = "0.0.2"
 
@@ -319,10 +225,7 @@
 [[projects]]
   branch = "alexander/copy"
   name = "github.com/mailgun/oxy"
-  packages = [
-    "forward",
-    "utils"
-  ]
+  packages = ["forward","utils"]
   revision = "0c3e45a1f7b20e1f818612ad4f42abfc0923f3d5"
 
 [[projects]]
@@ -343,11 +246,7 @@
 [[projects]]
   branch = "master"
   name = "github.com/mdp/rsc"
-  packages = [
-    "gf256",
-    "qr",
-    "qr/coding"
-  ]
+  packages = ["gf256","qr","qr/coding"]
   revision = "90f07065088deccf50b28eb37c93dad3078c0f3c"
 
 [[projects]]
@@ -364,11 +263,7 @@
 
 [[projects]]
   name = "github.com/pquerna/otp"
-  packages = [
-    ".",
-    "hotp",
-    "totp"
-  ]
+  packages = [".","hotp","totp"]
   revision = "54653902c20e47f3417541d35435cb6d6162e28a"
 
 [[projects]]
@@ -385,11 +280,7 @@
 
 [[projects]]
   name = "github.com/prometheus/common"
-  packages = [
-    "expfmt",
-    "internal/bitbucket.org/ww/goautoneg",
-    "model"
-  ]
+  packages = ["expfmt","internal/bitbucket.org/ww/goautoneg","model"]
   revision = "50022896a67062a54a54f268fb6fe4bf90b34859"
 
 [[projects]]
@@ -399,20 +290,13 @@
 
 [[projects]]
   name = "github.com/russellhaering/gosaml2"
-  packages = [
-    ".",
-    "types"
-  ]
+  packages = [".","types"]
   revision = "8908227c114abe0b63b1f0606abae72d11bf632a"
 
 [[projects]]
   branch = "master"
   name = "github.com/russellhaering/goxmldsig"
-  packages = [
-    ".",
-    "etreeutils",
-    "types"
-  ]
+  packages = [".","etreeutils","types"]
   revision = "605161228693b2efadce55323c9c661a40c5fbaa"
 
 [[projects]]
@@ -422,10 +306,7 @@
 
 [[projects]]
   name = "github.com/sirupsen/logrus"
-  packages = [
-    ".",
-    "hooks/syslog"
-  ]
+  packages = [".","hooks/syslog"]
   revision = "8ab1e1b91d5f1a6124287906f8b0402844d3a2b3"
   source = "github.com/gravitational/logrus"
   version = "1.0.0"
@@ -443,18 +324,14 @@
 
 [[projects]]
   name = "github.com/vulcand/oxy"
-  packages = [
-    "connlimit",
-    "ratelimit",
-    "utils"
-  ]
+  packages = ["connlimit","ratelimit","utils"]
   revision = "5725fecc9a4f3aa6fdc3ffd29cef771241809add"
 
 [[projects]]
   name = "github.com/vulcand/predicate"
-  packages = ["."]
-  revision = "939c094524d124c55fa8afe0e077701db4a865e2"
-  version = "v1.0.0"
+  packages = [".","builder"]
+  revision = "8fbfb3ab0e94276b6b58bec378600829adc7a203"
+  version = "v1.1.0"
 
 [[projects]]
   name = "github.com/xeipuuv/gojsonpointer"
@@ -475,64 +352,23 @@
 [[projects]]
   branch = "master"
   name = "golang.org/x/crypto"
-  packages = [
-    "bcrypt",
-    "blowfish",
-    "curve25519",
-    "ed25519",
-    "ed25519/internal/edwards25519",
-    "internal/chacha20",
-    "nacl/secretbox",
-    "poly1305",
-    "salsa20/salsa",
-    "ssh",
-    "ssh/agent",
-    "ssh/terminal"
-  ]
+  packages = ["bcrypt","blowfish","curve25519","ed25519","ed25519/internal/edwards25519","internal/chacha20","nacl/secretbox","poly1305","salsa20/salsa","ssh","ssh/agent","ssh/terminal"]
   revision = "b2aa35443fbc700ab74c586ae79b81c171851023"
 
 [[projects]]
   name = "golang.org/x/net"
-  packages = [
-    "context",
-    "http2",
-    "http2/hpack",
-    "idna",
-    "internal/timeseries",
-    "lex/httplex",
-    "trace",
-    "websocket"
-  ]
+  packages = ["context","http2","http2/hpack","idna","internal/timeseries","lex/httplex","trace","websocket"]
   revision = "48359f4f600b3a2d5cf657458e3f940021631a56"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/sys"
-  packages = [
-    "unix",
-    "windows"
-  ]
+  packages = ["unix","windows"]
   revision = "1d206c9fa8975fb4cf00df1dc8bf3283dc24ba0e"
 
 [[projects]]
   name = "golang.org/x/text"
-  packages = [
-    "encoding",
-    "encoding/internal",
-    "encoding/internal/identifier",
-    "encoding/unicode",
-    "internal/gen",
-    "internal/triegen",
-    "internal/ucd",
-    "internal/utf8internal",
-    "runes",
-    "secure/bidirule",
-    "transform",
-    "unicode/bidi",
-    "unicode/cldr",
-    "unicode/norm",
-    "unicode/rangetable"
-  ]
+  packages = ["encoding","encoding/internal","encoding/internal/identifier","encoding/unicode","internal/gen","internal/triegen","internal/ucd","internal/utf8internal","runes","secure/bidirule","transform","unicode/bidi","unicode/cldr","unicode/norm","unicode/rangetable"]
   revision = "19e51611da83d6be54ddafce4a4af510cb3e9ea4"
 
 [[projects]]
@@ -543,23 +379,7 @@
 
 [[projects]]
   name = "google.golang.org/grpc"
-  packages = [
-    ".",
-    "codes",
-    "connectivity",
-    "credentials",
-    "grpclb/grpc_lb_v1",
-    "grpclog",
-    "internal",
-    "keepalive",
-    "metadata",
-    "naming",
-    "peer",
-    "stats",
-    "status",
-    "tap",
-    "transport"
-  ]
+  packages = [".","codes","connectivity","credentials","grpclb/grpc_lb_v1","grpclog","internal","keepalive","metadata","naming","peer","stats","status","tap","transport"]
   revision = "b3ddf786825de56a4178401b7e174ee332173b66"
   version = "v1.5.2"
 
@@ -581,6 +401,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "43348de969afeba8e1ab0c22221ee1a15b09c40f24aa8b7b96945a0c6bc030b3"
+  inputs-digest = "600efc6f221f0a0c99270cf1caa4d7bf3e607974c5e52c8b7ba3210bee185ec9"
   solver-name = "gps-cdcl"
   solver-version = 1

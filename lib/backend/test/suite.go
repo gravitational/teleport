@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/fixtures"
 
 	"github.com/gravitational/trace"
 	. "gopkg.in/check.v1"
@@ -113,6 +114,35 @@ func (s *BackendSuite) BasicCRUD(c *C) {
 	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
 	_, err = s.B.GetVal([]string{"a", "c"}, "ykey")
 	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
+}
+
+// CompareAndSwap tests compare and swap functionality
+func (s *BackendSuite) CompareAndSwap(c *C) {
+	bucket := []string{"test", "cas"}
+
+	// compare and swap on non existing operation will fail
+	err := s.B.CompareAndSwapVal(bucket, "one", []byte("1"), []byte("2"), backend.Forever)
+	fixtures.ExpectCompareFailed(c, err)
+
+	err = s.B.CreateVal(bucket, "one", []byte("1"), backend.Forever)
+	c.Assert(err, IsNil)
+
+	// success CAS!
+	err = s.B.CompareAndSwapVal(bucket, "one", []byte("2"), []byte("1"), backend.Forever)
+	c.Assert(err, IsNil)
+
+	val, err := s.B.GetVal(bucket, "one")
+	c.Assert(err, IsNil)
+	c.Assert(string(val), Equals, "2")
+
+	// value has been updated - not '1' any more
+	err = s.B.CompareAndSwapVal(bucket, "one", []byte("3"), []byte("1"), backend.Forever)
+	fixtures.ExpectCompareFailed(c, err)
+
+	// existing value has not been changed by the failed CAS operation
+	val, err = s.B.GetVal(bucket, "one")
+	c.Assert(err, IsNil)
+	c.Assert(string(val), Equals, "2")
 }
 
 // BatchCRUD tests batch CRUD operations if supported by the backend

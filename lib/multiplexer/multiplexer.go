@@ -32,6 +32,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/gravitational/trace"
@@ -57,6 +58,8 @@ type Config struct {
 	DisableSSH bool
 	// DisableTLS disables TLS socket
 	DisableTLS bool
+	// ID is an identifier used for debugging purposes
+	ID string
 }
 
 // CheckAndSetDefaults verifies configuration and sets defaults
@@ -86,7 +89,7 @@ func New(cfg Config) (*Mux, error) {
 	waitContext, waitCancel := context.WithCancel(context.TODO())
 	return &Mux{
 		Entry: log.WithFields(log.Fields{
-			trace.Component: "mux",
+			trace.Component: teleport.Component("mx", cfg.ID),
 		}),
 		Config:      cfg,
 		context:     ctx,

@@ -66,6 +66,7 @@ type Server struct {
 	srv           *sshutils.Server
 	hostSigner    ssh.Signer
 	shell         string
+	getRotation   RotationGetter
 	authService   auth.AccessPoint
 	reg           *srv.SessionRegistry
 	sessionServer rsession.Service
@@ -219,6 +220,17 @@ func (s *Server) Wait() {
 	s.srv.Wait(context.TODO())
 }
 
+// RotationGetter returns rotation state
+type RotationGetter func(role teleport.Role) (*services.Rotation, error)
+
+// SetRotationGetter sets rotation state getter
+func SetRotationGetter(getter RotationGetter) ServerOption {
+	return func(s *Server) error {
+		s.getRotation = getter
+		return nil
+	}
+}
+
 // SetShell sets default shell that will be executed for interactive
 // sessions
 func SetShell(shell string) ServerOption {
@@ -239,7 +251,10 @@ func SetSessionServer(sessionServer rsession.Service) ServerOption {
 // SetProxyMode starts this server in SSH proxying mode
 func SetProxyMode(tsrv reversetunnel.Server) ServerOption {
 	return func(s *Server) error {
-		s.proxyMode = (tsrv != nil)
+		// always set proxy mode to true,
+		// because in some tests reverse tunnel is disabled,
+		// but proxy is still used without it.
+		s.proxyMode = true
 		s.proxyTun = tsrv
 		return nil
 	}
@@ -466,7 +481,14 @@ func (s *Server) AdvertiseAddr() string {
 	return net.JoinHostPort(s.getAdvertiseIP().String(), port)
 }
 
-func (s *Server) getInfo() services.Server {
+func (s *Server) getRole() teleport.Role {
+	if s.proxyMode {
+		return teleport.RoleProxy
+	}
+	return teleport.RoleNode
+}
+
+func (s *Server) getInfo() *services.ServerV2 {
 	return &services.ServerV2{
 		Kind:    services.KindNode,
 		Version: services.V2,
@@ -486,6 +508,16 @@ func (s *Server) getInfo() services.Server {
 // registerServer attempts to register server in the cluster
 func (s *Server) registerServer() error {
 	server := s.getInfo()
+	if s.getRotation != nil {
+		rotation, err := s.getRotation(s.getRole())
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				log.Warningf("Failed to get rotation state: %v", err)
+			}
+		} else {
+			server.Spec.Rotation = *rotation
+		}
+	}
 	server.SetTTL(s.clock, defaults.ServerHeartbeatTTL)
 	if !s.proxyMode {
 		return trace.Wrap(s.authService.UpsertNode(server))

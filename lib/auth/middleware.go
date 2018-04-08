@@ -39,6 +39,8 @@ type TLSServerConfig struct {
 	LimiterConfig limiter.LimiterConfig
 	// AccessPoint is caching access point
 	AccessPoint AccessPoint
+	// Component is used for debugging purposes
+	Component string
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -89,6 +91,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	limiter.WrapHandle(authMiddleware)
 	// force client auth if given
 	cfg.TLS.ClientAuth = tls.VerifyClientCertIfGiven
+
 	server := &TLSServer{
 		TLSServerConfig: cfg,
 		Server: &http.Server{
@@ -146,6 +149,10 @@ func (a *AuthMiddleware) GetUser(r *http.Request) (interface{}, error) {
 		// https://github.com/kubernetes/kubernetes/pull/34524/files#diff-2b283dde198c92424df5355f39544aa4R59
 		return nil, trace.AccessDenied("access denied: intermediaries are not supported")
 	}
+	localClusterName, err := a.AccessPoint.GetDomainName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	// with no client authentication in place, middleware
 	// assumes not-privileged Nop role.
 	// it theoretically possible to use bearer token auth even
@@ -156,6 +163,7 @@ func (a *AuthMiddleware) GetUser(r *http.Request) (interface{}, error) {
 			GetClusterConfig: a.AccessPoint.GetClusterConfig,
 			Role:             teleport.RoleNop,
 			Username:         string(teleport.RoleNop),
+			ClusterName:      localClusterName,
 		}, nil
 	}
 	clientCert := peers[0]
@@ -164,10 +172,7 @@ func (a *AuthMiddleware) GetUser(r *http.Request) (interface{}, error) {
 		log.Warning("Failed to parse client certificate %v.", err)
 		return nil, trace.AccessDenied("access denied: invalid client certificate")
 	}
-	localClusterName, err := a.AccessPoint.GetDomainName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+
 	identity, err := tlsca.FromSubject(clientCert.Subject)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -209,6 +214,7 @@ func (a *AuthMiddleware) GetUser(r *http.Request) (interface{}, error) {
 			GetClusterConfig: a.AccessPoint.GetClusterConfig,
 			Role:             *systemRole,
 			Username:         identity.Username,
+			ClusterName:      localClusterName,
 		}, nil
 	}
 	// otherwise assume that is a local role, no need to pass the roles

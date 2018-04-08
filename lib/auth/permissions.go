@@ -24,11 +24,12 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
+	"github.com/vulcand/predicate/builder"
 )
 
 // NewAdminContext returns new admin auth context
 func NewAdminContext() (*AuthContext, error) {
-	authContext, err := contextForBuiltinRole(nil, teleport.RoleAdmin, fmt.Sprintf("%v", teleport.RoleAdmin))
+	authContext, err := contextForBuiltinRole("", nil, teleport.RoleAdmin, fmt.Sprintf("%v", teleport.RoleAdmin))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -36,8 +37,8 @@ func NewAdminContext() (*AuthContext, error) {
 }
 
 // NewRoleAuthorizer authorizes everyone as predefined role, used in tests
-func NewRoleAuthorizer(clusterConfig services.ClusterConfig, r teleport.Role) (Authorizer, error) {
-	authContext, err := contextForBuiltinRole(clusterConfig, r, fmt.Sprintf("%v", r))
+func NewRoleAuthorizer(clusterName string, clusterConfig services.ClusterConfig, r teleport.Role) (Authorizer, error) {
+	authContext, err := contextForBuiltinRole(clusterName, clusterConfig, r, fmt.Sprintf("%v", r))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -159,15 +160,13 @@ func (a *authorizer) authorizeBuiltinRole(r BuiltinRole) (*AuthContext, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return contextForBuiltinRole(config, r.Role, r.Username)
+	return contextForBuiltinRole(r.ClusterName, config, r.Role, r.Username)
 }
 
 func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*AuthContext, error) {
 	if r.Role != teleport.RoleProxy {
 		return nil, trace.AccessDenied("access denied for remote %v connecting to cluster", r.Role)
 	}
-	// TODO(klizhentas): allow remote proxy to update the cluster's certificate authorities
-	// during certificates renewal
 	roles, err := services.FromSpec(
 		string(teleport.RoleRemoteProxy),
 		services.RoleSpecV3{
@@ -183,6 +182,17 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*AuthConte
 					services.NewRule(services.KindReverseTunnel, services.RO()),
 					services.NewRule(services.KindTunnelConnection, services.RO()),
 					services.NewRule(services.KindClusterConfig, services.RO()),
+					// this rule allows remote proxy to update the cluster's certificate authorities
+					// during certificates renewal
+					{
+						Resources: []string{services.KindCertAuthority},
+						// It is important that remote proxy can only rotate
+						// existing certificate authority, and not create or update new ones
+						Verbs: []string{services.VerbRead, services.VerbRotate},
+						// allow administrative access to the certificate authority names
+						// matching the cluster name only
+						Where: builder.Equals(services.ResourceNameExpr, builder.String(r.ClusterName)).String(),
+					},
 				},
 			},
 		})
@@ -201,7 +211,7 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*AuthConte
 }
 
 // GetCheckerForBuiltinRole returns checkers for embedded builtin role
-func GetCheckerForBuiltinRole(clusterConfig services.ClusterConfig, role teleport.Role) (services.AccessChecker, error) {
+func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.ClusterConfig, role teleport.Role) (services.AccessChecker, error) {
 	switch role {
 	case teleport.RoleAuth:
 		return services.FromSpec(
@@ -272,6 +282,23 @@ func GetCheckerForBuiltinRole(clusterConfig services.ClusterConfig, role telepor
 							services.NewRule(services.KindTunnelConnection, services.RW()),
 							services.NewRule(services.KindHostCert, services.RW()),
 							services.NewRule(services.KindRemoteCluster, services.RO()),
+							// this rule allows local proxy to update the remote cluster's host certificate authorities
+							// during certificates renewal
+							{
+								Resources: []string{services.KindCertAuthority},
+								Verbs:     []string{services.VerbCreate, services.VerbRead, services.VerbUpdate},
+								// allow administrative access to the host certificate authorities
+								// matching any cluster name except local
+								Where: builder.And(
+									builder.Equals(services.CertAuthorityTypeExpr, builder.String(string(services.HostCA))),
+									builder.Not(
+										builder.Equals(
+											services.ResourceNameExpr,
+											builder.String(clusterName),
+										),
+									),
+								).String(),
+							},
 						},
 					},
 				})
@@ -305,6 +332,23 @@ func GetCheckerForBuiltinRole(clusterConfig services.ClusterConfig, role telepor
 						services.NewRule(services.KindStaticTokens, services.RO()),
 						services.NewRule(services.KindTunnelConnection, services.RW()),
 						services.NewRule(services.KindRemoteCluster, services.RO()),
+						// this rule allows local proxy to update the remote cluster's host certificate authorities
+						// during certificates renewal
+						{
+							Resources: []string{services.KindCertAuthority},
+							Verbs:     []string{services.VerbCreate, services.VerbRead, services.VerbUpdate},
+							// allow administrative access to the certificate authority names
+							// matching any cluster name except local
+							Where: builder.And(
+								builder.Equals(services.CertAuthorityTypeExpr, builder.String(string(services.HostCA))),
+								builder.Not(
+									builder.Equals(
+										services.ResourceNameExpr,
+										builder.String(clusterName),
+									),
+								),
+							).String(),
+						},
 					},
 				},
 			})
@@ -367,8 +411,8 @@ func GetCheckerForBuiltinRole(clusterConfig services.ClusterConfig, role telepor
 	return nil, trace.NotFound("%v is not reconginzed", role.String())
 }
 
-func contextForBuiltinRole(clusterConfig services.ClusterConfig, r teleport.Role, username string) (*AuthContext, error) {
-	checker, err := GetCheckerForBuiltinRole(clusterConfig, r)
+func contextForBuiltinRole(clusterName string, clusterConfig services.ClusterConfig, r teleport.Role, username string) (*AuthContext, error) {
+	checker, err := GetCheckerForBuiltinRole(clusterName, clusterConfig, r)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -417,6 +461,9 @@ type BuiltinRole struct {
 
 	// Username is for authentication tracking purposes
 	Username string
+
+	// ClusterName is the name of the local cluster
+	ClusterName string
 }
 
 // RemoteBuiltinRole is the role of the remote (service connecting via trusted cluster link)
@@ -428,17 +475,17 @@ type RemoteBuiltinRole struct {
 	// Username is for authentication tracking purposes
 	Username string
 
-	// ClusterName is the name of the remote cluster
+	// ClusterName is the name of the remote cluster.
 	ClusterName string
 }
 
-// RemoteUser defines encoded remote user
+// RemoteUser defines encoded remote user.
 type RemoteUser struct {
 	// Username is a name of the remote user
 	Username string `json:"username"`
 
-	// ClusterName is a name of the remote cluster
-	// of the user
+	// ClusterName is the name of the remote cluster
+	// of the user.
 	ClusterName string `json:"cluster_name"`
 
 	// RemoteRoles is optional list of remote roles

@@ -174,11 +174,11 @@ func (s *ServicesTestSuite) UsersCRUD(c *C) {
 	userSlicesEqual(c, u, []services.User{newUser("user2", nil)})
 
 	err = s.WebS.DeleteUser("user1")
-	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("unexpected %T %#v", err, err))
+	fixtures.ExpectNotFound(c, err)
 
 	// bad username
 	err = s.WebS.UpsertUser(newUser("", nil))
-	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("expected bad parameter error, got %T", err))
+	fixtures.ExpectBadParameter(c, err)
 }
 
 func (s *ServicesTestSuite) LoginAttempts(c *C) {
@@ -226,6 +226,26 @@ func (s *ServicesTestSuite) CertAuthCRUD(c *C) {
 
 	err = s.CAS.DeleteCertAuthority(*ca.ID())
 	c.Assert(err, IsNil)
+
+	// test compare and swap
+	ca = NewTestCA(services.UserCA, "example.com")
+	c.Assert(s.CAS.CreateCertAuthority(ca), IsNil)
+
+	clock := clockwork.NewFakeClock()
+	newCA := *ca
+	rotation := services.Rotation{
+		State:       services.RotationStateInProgress,
+		CurrentID:   "id1",
+		GracePeriod: services.NewDuration(time.Hour),
+		Started:     clock.Now(),
+	}
+	newCA.SetRotation(rotation)
+
+	err = s.CAS.CompareAndSwapCertAuthority(&newCA, ca)
+
+	out, err = s.CAS.GetCertAuthority(ca.GetID(), true)
+	c.Assert(err, IsNil)
+	fixtures.DeepCompare(c, &newCA, out)
 }
 
 func newServer(kind, name, addr, namespace string) *services.ServerV2 {

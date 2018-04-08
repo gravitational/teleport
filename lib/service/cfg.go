@@ -140,6 +140,21 @@ type Config struct {
 	// UploadEventsC is a channel for upload events
 	// used in tests
 	UploadEventsC chan *events.UploadEvent `json:"-"`
+
+	// FileDescriptors is an optional list of file descriptors for the process
+	// to inherit and use for listeners, used for in-process updates.
+	FileDescriptors []FileDescriptor
+
+	// PollingPeriod is set to override default internal polling periods
+	// of sync agents, used to speed up integration tests.
+	PollingPeriod time.Duration
+
+	// ClientTimeout is set to override default client timeouts
+	// used by internal clients, used to speed up integration tests.
+	ClientTimeout time.Duration
+
+	// ShutdownTimeout is set to override default shutdown timeout.
+	ShutdownTimeout time.Duration
 }
 
 // ApplyToken assigns a given token to all internal services but only if token

@@ -28,6 +28,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/predicate"
+	"github.com/vulcand/predicate/builder"
 )
 
 // RuleContext specifies context passed to the
@@ -38,18 +39,47 @@ type RuleContext interface {
 	GetIdentifier(fields []string) (interface{}, error)
 	// String returns human friendly representation of a context
 	String() string
+	// GetResource returns resource if specified in the context,
+	// if unpecified, returns error.
+	GetResource() (Resource, error)
 }
 
-// NewWhereParser returns standard parser for `where` section in access rules
+var (
+	// ResourceNameExpr is the identifer that specifies resource name.
+	ResourceNameExpr = builder.Identifier("resource.metadata.name")
+	// CertAuthorityTypeExpr is a function call that returns
+	// cert authority type.
+	CertAuthorityTypeExpr = builder.Identifier(`system.catype()`)
+)
+
+// NewWhereParser returns standard parser for `where` section in access rules.
 func NewWhereParser(ctx RuleContext) (predicate.Parser, error) {
 	return predicate.NewParser(predicate.Def{
 		Operators: predicate.Operators{
 			AND: predicate.And,
 			OR:  predicate.Or,
+			NOT: predicate.Not,
 		},
 		Functions: map[string]interface{}{
 			"equals":   predicate.Equals,
 			"contains": predicate.Contains,
+			// system.catype is a function that returns cert authority type,
+			// it returns empty values for unrecognized values to
+			// pass static rule checks.
+			"system.catype": func() (interface{}, error) {
+				resource, err := ctx.GetResource()
+				if err != nil {
+					if trace.IsNotFound(err) {
+						return "", nil
+					}
+					return nil, trace.Wrap(err)
+				}
+				ca, ok := resource.(CertAuthority)
+				if !ok {
+					return "", nil
+				}
+				return string(ca.GetType()), nil
+			},
 		},
 		GetIdentifier: ctx.GetIdentifier,
 		GetProperty:   predicate.GetStringMapValue,
@@ -123,6 +153,15 @@ const (
 	// ResourceIdentifier represents resource registered identifer in the rules
 	ResourceIdentifier = "resource"
 )
+
+// GetResource returns resource specified in the context,
+// returns error if not specified.
+func (ctx *Context) GetResource() (Resource, error) {
+	if ctx.Resource == nil {
+		return nil, trace.NotFound("resource is not set in the context")
+	}
+	return ctx.Resource, nil
+}
 
 // GetIdentifier returns identifier defined in a context
 func (ctx *Context) GetIdentifier(fields []string) (interface{}, error) {

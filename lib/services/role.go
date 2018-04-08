@@ -1637,7 +1637,7 @@ func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource
 	}
 
 	log.Infof("[RBAC] %s access to %s [namespace %s] denied for %v: no allow rule matched", verb, resource, namespace, set)
-	return trace.AccessDenied("access denied to perform action '%s' on %s", verb, resource)
+	return trace.AccessDenied("access denied to perform action %q on %q", verb, resource)
 }
 
 // ProcessNamespace sets default namespace in case if namespace is empty

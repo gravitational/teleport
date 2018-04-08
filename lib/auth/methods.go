@@ -17,8 +17,6 @@ limitations under the License.
 package auth
 
 import (
-	"bytes"
-	"crypto/rsa"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -26,7 +24,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -306,143 +303,4 @@ func (s *AuthServer) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginR
 		TLSCert:     certs.tls,
 		HostSigners: AuthoritiesToTrustedCerts(hostCertAuthorities),
 	}, nil
-}
-
-// DELETE IN: 2.6.0
-// This method is used only for upgrades from 2.4.0 to 2.5.0
-// ExchangeCertsRequest is a request to exchange TLS certificates
-// for clusters that already trust each other
-type ExchangeCertsRequest struct {
-	// PublicKey is public key of the trusted certificate authority
-	PublicKey []byte `json:"public_key"`
-	// TLSCert is TLS certificate associated with the public key
-	TLSCert []byte `json:"tls_cert"`
-}
-
-// CheckAndSetDefaults checks and sets default values
-func (req *ExchangeCertsRequest) CheckAndSetDefaults() error {
-	if len(req.PublicKey) == 0 {
-		return trace.BadParameter("missing parameter 'public_key'")
-	}
-	if len(req.TLSCert) == 0 {
-		return trace.BadParameter("missing parameter 'tls_cert'")
-	}
-	return nil
-}
-
-// DELETE IN: 2.6.0
-// ExchangeCertsResponse is a resposne to exchange certificates request
-type ExchangeCertsResponse struct {
-	// TLSCert is a PEM encoded certificate of a local certificate authority
-	TLSCert []byte `json:"tls_cert"`
-}
-
-// DELETE IN: 2.6.0
-// This method is used to ugprade from 2.4.0 to 2.5.0
-// ExchangeCerts is a method to exchange TLS certificates between certificate authorities
-// of the trusted clusters. A remote auth server that wishes to exchange TLS certs with a local auth server
-// sends a request that consists of a public key already trusted by the local server and
-// TLS certificate for the public key. The local server ensures that the TLS certificate
-// was issued to the public key that is already trusted preventing random certificates
-// to be injected by the remote server. This is a minor security enforcement.
-func (s *AuthServer) ExchangeCerts(req ExchangeCertsRequest) (*ExchangeCertsResponse, error) {
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	remoteCA, err := s.findCertAuthorityByPublicKey(req.PublicKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := CheckPublicKeysEqual(req.PublicKey, req.TLSCert); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// make sure that cluster name in TLS cert is not the same as cluster name
-	cert, err := tlsca.ParseCertificatePEM(req.TLSCert)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	remoteClusterName, err := tlsca.ClusterName(cert.Subject)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	clusterName, err := s.GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if remoteClusterName == clusterName.GetName() {
-		return nil, trace.BadParameter("remote cluster name can not be the same as local cluster name")
-	}
-
-	remoteCA.SetTLSKeyPairs([]services.TLSKeyPair{
-		{
-			Cert: req.TLSCert,
-		},
-	})
-
-	err = s.UpsertCertAuthority(remoteCA)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	thisHostCA, err := s.GetCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: clusterName.GetClusterName()}, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &ExchangeCertsResponse{
-		TLSCert: thisHostCA.GetTLSKeyPairs()[0].Cert,
-	}, nil
-
-}
-
-func (s *AuthServer) findCertAuthorityByPublicKey(publicKey []byte) (services.CertAuthority, error) {
-	authorities, err := s.GetCertAuthorities(services.HostCA, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	for _, ca := range authorities {
-		for _, key := range ca.GetCheckingKeys() {
-			if bytes.Equal(key, publicKey) {
-				return ca, nil
-			}
-		}
-	}
-	return nil, trace.NotFound("certificate authority with public key is not found")
-}
-
-// CheckPublicKeysEqual compares RSA based SSH certificate with the
-// TLS certificate, returns nil if both certificates are using the same public
-// key and refer to the same cluster name, error otherwise
-func CheckPublicKeysEqual(sshKeyBytes []byte, certBytes []byte) error {
-	cert, err := tlsca.ParseCertificatePEM(certBytes)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	certPublicKey, ok := cert.PublicKey.(*rsa.PublicKey)
-	if !ok {
-		return trace.BadParameter("expected RSA public key, got %T", cert.PublicKey)
-	}
-	publicKey, _, _, _, err := ssh.ParseAuthorizedKey(sshKeyBytes)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	cryptoPubKey, ok := publicKey.(ssh.CryptoPublicKey)
-	if !ok {
-		return trace.BadParameter("unexpected key type: %T", publicKey)
-	}
-	rsaPublicKey, ok := cryptoPubKey.CryptoPublicKey().(*rsa.PublicKey)
-	if !ok {
-		return trace.BadParameter("unexpected key type: %T", publicKey)
-	}
-	if certPublicKey.E != rsaPublicKey.E {
-		return trace.CompareFailed("different public keys")
-	}
-	if certPublicKey.N.Cmp(rsaPublicKey.N) != 0 {
-		return trace.CompareFailed("different public keys")
-	}
-	return nil
 }
