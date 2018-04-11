@@ -29,5 +29,10 @@ pages:
         - FAQ: faq.md
     - Teleport Enterprise:
         - Introduction: enterprise.md
-        - SAML Authentication: saml.md
-        - OIDC Authentication: oidc.md
+        - RBAC: ssh_rbac.md
+        - Single sign-on (SSO): ssh_sso.md
+    - Guides:
+        - Okta: ssh_okta.md
+        - Active Directory (ADFS): ssh_adfs.md
+        - One Login: ssh_one_login.md
+        - OIDC: oidc.md

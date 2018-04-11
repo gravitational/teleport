@@ -1,29 +1,32 @@
-# OpenID Connect (OIDC)
+# OAuth2 / OpenID Connect (OIDC) Authentication for SSH
 
-Teleport supports [OpenID Connect](http://openid.net/connect/) (also known as
-`OIDC`) to provide external authentication using commercial OpenID providers
-like [Auth0](https://auth0.com) as well as open source identity managers like
-[Keycloak](http://www.keycloak.org).
+This guide will cover how to configure an SSO provider using [OpenID Connect](http://openid.net/connect/) 
+(also known as OIDC) to issue SSH credentials to a specific groups of users.
+When used in combination with role based access control (RBAC) it allows SSH
+administrators to define policies like:
 
-### Enable OIDC Authentication
+* Only members of "DBA" group can SSH into machines running PostgreSQL.
+* Developers must never SSH into production servers.
+* ... and many others.
+
+!!! warning "Version Warning":
+    This guide requires a commercial edition of Teleport. The open source
+    edition of Teleport only supports [Github](admin-guide/#github-oauth-20) as
+    an SSO provider.
+
+## Enable OIDC Authentication
 
 First, configure Teleport auth server to use OIDC authentication instead of the local
 user database. Update `/etc/teleport.yaml` as show below and restart the
 teleport daemon.
 
 ```bash
-...
 auth_service:
-    # Turns 'auth' role on. Default is 'yes'
-    enabled: yes
-
-    # defines the types and second factors the auth server supports
     authentication:
         type: oidc
-...
 ```
 
-### Identity Providers
+## Identity Providers
 
 Register Teleport with the external identity provider you will be using and
 obtain your `client_id` and `client_secret`. This information should be
@@ -36,7 +39,7 @@ documented on the identity providers website. Here are a few links:
 Add your OIDC connector information to `teleport.yaml`. A few examples are
 provided below.
 
-### OIDC Redirect URL
+## OIDC Redirect URL
 
 OIDC relies on HTTP re-directs to return control back to Teleport after
 authentication is complete. The redirect URL must be selected by a Teleport
@@ -45,7 +48,7 @@ administrator in advance.
 If the Teleport web proxy is running on `proxy.example.com` host, the redirect URL 
 should be `https://proxy.example.com:3080/v1/webapi/oidc/callback`
 
-### OIDC connector configuration
+## OIDC connector configuration
 
 The next step is to add an OIDC connector to Teleport. The connectors are manipulated
 via `tctl` [resource commands](admin-guide#resources). To create a new connector,
@@ -89,7 +92,7 @@ Create the connector:
 $ tctl create oidc-connector.yaml
 ```
 
-### Create Roles
+## Create Teleport Roles
 
 The next step is to define Teleport roles. They are created using the same 
 `tctl` [resource commands](admin-guide#resources) as we used for the auth
@@ -182,7 +185,7 @@ spec:
        roles: [ "user" ]
 ```
 
-### Login
+## Testing
 
 For the Web UI, if the above configuration were real, you would see a button
 that says `Login with Example`. Simply click on that and you will be
@@ -193,3 +196,20 @@ For console login, you simple type `tsh --proxy <proxy-addr> ssh <server-addr>`
 and a browser window should automatically open taking you to the login page for
 your identity provider. `tsh` will also output a link the login page of the
 identity provider if you are not automatically redirected.
+
+## Troubleshooting
+
+If you get "access denied errors" the number one place to check is the audit
+log on the Teleport auth server. It is located in `/var/lib/teleport/log` by
+default and it will contain the detailed reason why a user's login was denied.
+
+Some errors (like filesystem permissions or misconfigured network) can be
+diagnosed using Teleport's `stderr` log, which is usually available via:
+
+```bash
+$ sudo journalctl -fu teleport
+```
+
+If you wish to increase the verbocity of Teleport's syslog, you can pass
+`--debug` flag to `teleport start` command.
+
