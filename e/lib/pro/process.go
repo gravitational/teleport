@@ -86,8 +86,8 @@ func initServices(ctx context.Context, config *proConfig) (*Enforcer, error) {
 	}
 	recorder, err := reporting.NewClient(ctx,
 		reporting.ClientConfig{
-			ServerAddr:  constants.ControlPlaneAPIAddr,
-			ServerName:  constants.ControlPlaneAPIHost,
+			ServerAddr:  constants.GetControlPlaneAPIAddr(),
+			ServerName:  constants.GetControlPlaneAPIHost(),
 			Certificate: *certificate,
 			Insecure:    config.Insecure,
 		})
