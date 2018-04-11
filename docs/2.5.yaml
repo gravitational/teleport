@@ -22,6 +22,7 @@ extra:
     version: 2.5
 pages:
     - Documentation:
+        - Introduction: intro.md
         - QuickStart Guide: quickstart.md
         - Architecture: architecture.md
         - User Manual: user-manual.md
