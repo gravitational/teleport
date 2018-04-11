@@ -1,7 +1,6 @@
 package constants
 
 import (
-	"fmt"
 	"time"
 )
 
@@ -15,8 +14,11 @@ const (
 	// EnterpriseAWSPlan is the "enterprise" product name for AWS Marketplace
 	EnterpriseAWSPlan = "Teleport Enterprise AWS"
 
-	// ControlPlaneAPIPort is the control plane API port
-	ControlPlaneAPIPort = 443
+	// controlPlaneAPIPort is the default control plane API port
+	controlPlaneAPIPort = "443"
+
+	// controlPlaneAPIHost is the default control plane hostname
+	controlPlaneAPIHost = "dashboard-api.gravitational.com"
 
 	// MaxControlPlaneUnreachableHours is the number hours after which failure
 	// to contact the control plane violates Terms of Service
@@ -37,12 +39,11 @@ const (
 )
 
 var (
-	// ControlPlaneAPIHost is the control plane hostname
-	ControlPlaneAPIHost = "dashboard-api.gravitational.com"
-	// ControlPlaneAPIAddr is the control plane host:port
-	ControlPlaneAPIAddr = fmt.Sprintf("%v:%v", ControlPlaneAPIHost, ControlPlaneAPIPort)
-	// ControlPlaneAPIURL is the control plane API URL
-	ControlPlaneAPIURL = fmt.Sprintf("https://%v/api", ControlPlaneAPIAddr)
+
+	// apiHostEnvVar is used to "flip" the URL of Houston API to
+	// point it to staging/development servers
+	apiHostEnvVar = "HOUSTON_HOSTPORT"
+
 	// ProPlans is a list of plans that enable "pro" mode
 	ProPlans = []string{ProPlan, BusinessPlan}
 )

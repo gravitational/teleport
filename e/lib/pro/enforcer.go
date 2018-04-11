@@ -63,7 +63,7 @@ func NewEnforcer(ctx context.Context, config EnforcerConfig) (*Enforcer, error) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsConfig.ServerName = constants.ControlPlaneAPIHost
+	tlsConfig.ServerName = constants.GetControlPlaneAPIHost()
 	if config.Insecure {
 		tlsConfig.InsecureSkipVerify = config.Insecure
 	}
@@ -73,7 +73,7 @@ func NewEnforcer(ctx context.Context, config EnforcerConfig) (*Enforcer, error) 
 		},
 	}
 	client, err := client.NewWebClient(
-		constants.ControlPlaneAPIURL, roundtrip.HTTPClient(httpClient))
+		constants.GetControlPlaneAPIURL(), roundtrip.HTTPClient(httpClient))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
