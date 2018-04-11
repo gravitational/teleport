@@ -1,14 +1,18 @@
-#Introduction to Teleport documentation
+# Introduction 
 
-Welcome to the Teleport documentation! Teleport is available through the free, open sourced edition ("Teleport OSS Edition") or a commercial edition ("Teleport Enterprise Edition"). 
-
-The OSS Edition is [open sourced on Github](https://github.com/gravitational/teleport) if you want to dive into the code. These documents are available in [the Github repository](https://github.com/gravitational/teleport/tree/master/docs) so feel free to create an issue or pull request if you have comments. 
-
-Teleport Enterprise is built around the open-source core, with the added benefits of role-based access control (RBAC) and easy integration with identity managers for single sign-on (SSO). Because the majority of documentation between the OSS Edition and the Commercial Edition overlaps we have separated out the documentation that is specific to Teleport Enterprise. 
+Welcome to the Teleport documentation! Teleport is available through the free,
+open source edition ("Teleport OSS Edition") or a commercial edition
+("Teleport Enterprise Edition"). 
 
 Below is a brief summary of the documentation available here. 
 
-## General Teleport Documentation
+## OSS Teleport 
+
+The Open Source (OSS) Edition is [on Github](https://github.com/gravitational/teleport) 
+if you want to dive into the
+code. These documentation is also available in [the Github
+repository](https://github.com/gravitational/teleport/tree/master/docs) so feel
+free to create an issue or pull request if you have comments. 
 
 - [Quickstart Guide](https://gravitational.com/teleport/docs/quickstart/) - A quick tutorial to show off the basic capabilities of Teleport. A good place to start if you want to jump right in.
 - [Architecture](https://gravitational.com/teleport/docs/architecture/) - This section covers the underlying design principles of Teleport and a detailed description of Teleport architecture. A good place to learn about Teleport's design and how it works.
@@ -16,7 +20,13 @@ Below is a brief summary of the documentation available here.
 - [Admin Manual](https://gravitational.com/teleport/docs/admin-guide/) - This manual covers installation and configuration of Teleport and the ongoing management of Teleport.
 - [FAQ](https://gravitational.com/teleport/docs/faq/) - Common questions about Teleport.
 
-## Teleport Enterprise Documentation
+## Teleport Enterprise
+
+Teleport Enterprise is built around the open-source core, with the added
+benefits of role-based access control (RBAC) and easy integration with identity
+managers for single sign-on (SSO). Because the majority of documentation
+between the OSS Edition and the Commercial Edition overlaps we have separated
+out the documentation that is specific to Teleport Enterprise. 
 
 - [Teleport Enterprise Introduction](https://gravitational.com/teleport/docs/enterprise/) - Overview of the additional capabilities of Teleport Enterprise.
 - [RBAC for SSH](https://gravitational.com/teleport/docs/ssh_rbac/) - Details on how Teleport Enterprise provides role based access controls (RBAC) for SSH.
@@ -24,7 +34,7 @@ Below is a brief summary of the documentation available here.
 
 ## Guides
 
-- [Okta Integration](https://gravitational.com/teleport/docs/ssh_okta/) - How to integrate Teleport Enterprise with Okta.
+- [Okta Integration](ssh_okta) - How to integrate Teleport Enterprise with Okta.
 - [ADFS Integration](https://gravitational.com/teleport/docs/ssh_adfs/) - How to integrate Teleport Enterprise with Active Directory.
 - [One Login Integration](https://gravitational.com/teleport/docs/ssh_one_login/) - How to integrate Teleport Enterprise with One Login.
 - [OIDC Integration](https://gravitational.com/teleport/docs/oidc/) - How to integrate Teleport Enterprise with identity providers using OpenID Connect (OIDC) / OAuth2.
