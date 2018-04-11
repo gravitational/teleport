@@ -6,14 +6,14 @@ import (
 	"os"
 )
 
-// GetControlPlaneAPIHost() returns the host name of the Houston API
+// GetControlPlaneAPIHost returns the host name of the Houston API
 // server
 func GetControlPlaneAPIHost() string {
 	host, _, _ := net.SplitHostPort(GetControlPlaneAPIAddr())
 	return host
 }
 
-// GetControlPlaneAPIAddr() returns the host name + port of the houston
+// GetControlPlaneAPIAddr returns the host name + port of the houston
 // API server
 func GetControlPlaneAPIAddr() string {
 	var (
@@ -37,7 +37,7 @@ func GetControlPlaneAPIAddr() string {
 	return net.JoinHostPort(host, port)
 }
 
-// GetControlPlaneAPIURL() returns the full URL of the houston API
+// GetControlPlaneAPIURL returns the full URL of the houston API
 // server
 func GetControlPlaneAPIURL() string {
 	return fmt.Sprintf("https://%v/api", GetControlPlaneAPIAddr())
