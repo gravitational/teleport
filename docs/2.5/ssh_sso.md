@@ -1,4 +1,4 @@
-# Single Sign-On (SSO) for SSH with Teleport
+# Single Sign-On (SSO) for SSH
 
 ## Introduction
 

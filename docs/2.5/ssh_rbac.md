@@ -1,4 +1,4 @@
-# Role Based Access Control (RBAC) for SSH with Teleport
+# Role Based Access Control for SSH
 
 ## Introduction
 
