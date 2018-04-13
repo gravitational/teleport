@@ -349,6 +349,11 @@ ssh_service:
     # set to false, can be set true here or as a command line flag.
     permit_user_env: false
 
+    # configures PAM integration. see below for more details.
+    pam:
+        enabled: no
+        service_name: teleport
+
 # This section configures the 'proxy servie'
 proxy_service:
     # Turns 'proxy' role on. Default is 'yes'
@@ -1253,6 +1258,30 @@ value is `host:port`, Teleport will prepend `http`.
     `localhost` and `127.0.0.1` are invalid values for the proxy host. If for
     some reason your proxy runs locally, you'll need to provide some other DNS
     name or a private IP address for it.
+
+## PAM Integration
+
+Teleport SSH daemon can be configured to integrate with [PAM](https://en.wikipedia.org/wiki/Linux_PAM)
+This allows Teleport to create user sessions using PAM session profiles.
+
+To enable PAM on a given Linux machine, update `/etc/teleport.yaml` with:
+
+```bash
+teleport:
+   ssh_service:
+      pam:
+         # "no" by default
+         enabled: yes
+         # use /etc/pam.d/sshd configuration (the default)
+         service_name: "sshd"
+```
+
+Please note that most Linux distributions come with a number of PAM services in
+`/etc/pam.d` and Teleport will try to use `sshd` by default, which will be
+removed if you uninstall `openssh-server` package. We recommend creating your
+own PAM service file like `/etc/pam.d/teleport` and specifying it as
+`service_name` above.
+
 
 ## Using Teleport with OpenSSH
 
