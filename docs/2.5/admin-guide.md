@@ -930,6 +930,25 @@ $ ssh-add -L
     desktops like Ubuntu, does not support SSH certificates. We recommend using
     the `ssh-agent` command from `openssh-client` package.
 
+### OpenSSH Rate Limiting
+
+When using configuring a Teleport proxy in "recording mode" be aware of
+OpenSSH built-in rate limiting. On large number of proxy connections you
+may encounter errors like:
+
+```bash
+channel 0: open failed: connect failed: ssh: handshake failed: EOF
+```
+
+See `MaxStartups` setting in `man sshd_config`. This setting means that by
+default OpenSSH only allows 10 unauthenticated connections at a time and starts
+dropping connections 30% of the time when the number of connections goes over
+10 and when it hits 100 authentication connections, all new connections are
+dropped.
+
+To increase the concurrency level, increase the value to something like
+MaxStartups 50:30:100. This allows 50 concurrent connections and a max of 100.
+
 ## Resources
 
 A Teleport administrator has two tools to configure a Teleport cluster: the
@@ -1137,6 +1156,16 @@ db2.east  3879d133-fe81-3212 10.0.5.3:3022  role=db-slave
 
 # SSH into any node in "east":
 $ tsh --cluster=east ssh root@db1.east
+```
+
+### Disabling Trust
+
+To temporarily disable trust between clusters, i.e. to disconnect the "east"
+cluster from "main", edit the YAML definition of the trusted cluster resource
+and set `enabled` to "false", then update it:
+
+```bash
+$ tctl create --force cluster.yaml
 ```
 
 ## Github OAuth 2.0

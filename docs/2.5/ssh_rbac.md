@@ -167,6 +167,24 @@ spec:
     policy, i.e. any server where PostgreSQL is running becomes _automatically_
     accessible only by the members of the "DBA" group and nobody else.
 
+## RBAC for Sessions
+
+As shown in the role example above, a Teleport administrator can restrict
+access to user sessions using the following rule:
+
+```bash
+rules:
+  - resources: [session]
+    verbs: [list, read]
+```
+
+* "list" determines if a user is allowed to see the list of past sessions.
+* "read" determines if a user is allowed to replay a session.
+
+It's possible to restrict "list" but to allow "read" (in this case a user will
+be able to replay a session using `tsh play` if they know the session ID)
+
+
 
 ## FAQ
 
