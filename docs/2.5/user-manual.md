@@ -56,19 +56,38 @@ $ tsh ssh --proxy=work.example.com --user=joe root@node
 $ tsh ssh --proxy=work.example.com node
 ```
 
-`tsh login` log a user into a cluster and stores the user certificate 
-in `~/.tsh` directory as well as in the [ssh agent](https://en.wikipedia.org/wiki/Ssh-agent), 
-if there is one running:
+## Logging In
 
-```
+To retreive a user's certificate, execute:
+
+```bash
+# Full form:
+$ tsh login --proxy=proxy_host:<https_proxy_port>,<ssh_proxy_port>
+
+# Using default ports:
 $ tsh login --proxy=work.example.com
+
+# Using custom HTTPS port:
+$ tsh login --proxy=work.example.com:5000
+
+# Using custom SSH proxy port:
+$ tsh login --proxy=work.example.com:,23
 ```
+
+Port               | Description
+-------------------|-------------------------------------
+https_proxy_port   | the HTTPS port the proxy host is listening to. defaults to 3080.
+ssh_proxy_port     | the SSH port the proxy is listening to. defaults to 3023.
+
+
+The login command retreives a user's certificate and stores it 
+in `~/.tsh` directory as well as in the [ssh agent](https://en.wikipedia.org/wiki/Ssh-agent), 
+if there is one running.
 
 This allows you authenticate just once, maybe at the beginning of the day. 
 Subsequent `tsh ssh` commands will run without asking for credentials
 until the temporary certificate expires. By default Teleport issues user
 certificates with a TTL (time to live) of 23 hours.
-
 
 !!! tip "Tip": 
     It is recommended to always use `tsh login` before using any other `tsh` commands.
@@ -84,7 +103,7 @@ should [authenticate via Github](admin-guide.md#github-oauth-20). In this case y
 # Login using the local Teleport 'admin' user:
 $ tsh --proxy=proxy.example.com --auth=local --user=admin login
 
-# Login using Github's SAML provider (assuming the Github connector is called "github"):
+# Login using Github as an SSO provider, assuming the Github connector is called "github"
 $ tsh --proxy=proxy.example.com --auth=github --user=admin login
 ```
 
