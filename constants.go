@@ -336,3 +336,10 @@ const (
 	// SharedDirMode is a mode for a directory shared with group
 	SharedDirMode = 0750
 )
+
+const (
+	// WindowChangeRequest is sent by servers to clients when the server
+	// side PTY has changed size. It is to inform clients to update their own PTY
+	// size.
+	WindowChangeRequest = "x-teleport-window-change"
+)

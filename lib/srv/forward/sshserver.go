@@ -507,13 +507,8 @@ func (s *Server) handleChannel(nch ssh.NewChannel) {
 	channelType := nch.ChannelType()
 
 	switch channelType {
-	// A client requested the terminal size to be sent along with every
-	// session message (Teleport-specific SSH channel for web-based terminals).
-	case "x-teleport-request-resize-events":
-		ch, _, _ := nch.Accept()
-		go s.handleTerminalResize(ch)
 	// Channels of type "session" handle requests that are invovled in running
-	// commands on a server.
+	// commands on a server, subsystem requests, and agent forwarding.
 	case "session":
 		ch, requests, err := nch.Accept()
 		if err != nil {
@@ -549,12 +544,17 @@ func (s *Server) handleDirectTCPIPRequest(ch ssh.Channel, req *sshutils.DirectTC
 
 	// Create context for this channel. This context will be closed when
 	// forwarding is complete.
-	ctx := srv.NewServerContext(s, s.sconn, s.identityContext)
+	ctx, err := srv.NewServerContext(s, s.sconn, s.identityContext)
+	if err != nil {
+		ctx.Errorf("Unable to create connection context: %v.", err)
+		ch.Stderr().Write([]byte("Unable to create connection context."))
+		return
+	}
 	ctx.RemoteClient = s.remoteClient
 	defer ctx.Close()
 
 	// Check if the role allows port forwarding for this user.
-	err := s.authHandlers.CheckPortForward(dstAddr, ctx)
+	err = s.authHandlers.CheckPortForward(dstAddr, ctx)
 	if err != nil {
 		ch.Stderr().Write([]byte(err.Error()))
 		return
@@ -597,27 +597,18 @@ func (s *Server) handleDirectTCPIPRequest(ch ssh.Channel, req *sshutils.DirectTC
 	wg.Wait()
 }
 
-// handleTerminalResize is called by the web proxy via its SSH connection.
-// when a web browser connects to the web API, the web proxy asks us,
-// by creating this new SSH channel, to start injecting the terminal size
-// into every SSH write back to it.
-//
-// This is the only way to make web-based terminal UI not break apart
-// when window changes its size.
-func (s *Server) handleTerminalResize(channel ssh.Channel) {
-	err := s.sessionRegistry.PushTermSizeToParty(s.sconn, channel)
-	if err != nil {
-		s.log.Warnf("Unable to push terminal size to party: %v", err)
-	}
-}
-
 // handleSessionRequests handles out of band session requests once the session
 // channel has been created this function's loop handles all the "exec",
 // "subsystem" and "shell" requests.
 func (s *Server) handleSessionRequests(ch ssh.Channel, in <-chan *ssh.Request) {
 	// Create context for this channel. This context will be closed when the
 	// session request is complete.
-	ctx := srv.NewServerContext(s, s.sconn, s.identityContext)
+	ctx, err := srv.NewServerContext(s, s.sconn, s.identityContext)
+	if err != nil {
+		ctx.Errorf("Unable to create connection context: %v.", err)
+		ch.Stderr().Write([]byte("Unable to create connection context."))
+		return
+	}
 	ctx.RemoteClient = s.remoteClient
 	ctx.AddCloser(ch)
 	defer ctx.Close()

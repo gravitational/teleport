@@ -224,10 +224,6 @@ var (
 	// session will be considered idle
 	SessionIdlePeriod = SessionRefreshPeriod * 10
 
-	// TerminalSizeRefreshPeriod is how frequently clients who share sessions sync up
-	// their terminal sizes
-	TerminalSizeRefreshPeriod = 2 * time.Second
-
 	// NewtworkBackoffDuration is a standard backoff on network requests
 	// usually is slow, e.g. once in 30 seconds
 	NetworkBackoffDuration = time.Second * 30
