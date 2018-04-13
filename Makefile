@@ -53,13 +53,13 @@ all: $(VERSRC)
 	@echo $(PAM_MESSAGE)
 	$(MAKE) $(BINARIES)
 
-$(BUILDDIR)/tctl: $(LIBS) $(TELEPORTSRC) $(TELEPORTVENDOR)
+$(BUILDDIR)/tctl: $(LIBS) $(TCTLSRC) $(TELEPORTVENDOR)
 	go build $(PAMFLAGS) -o $(BUILDDIR)/tctl -i $(BUILDFLAGS) ./tool/tctl
 
 $(BUILDDIR)/teleport: $(LIBS) $(TELEPORTSRC) $(TELEPORTVENDOR)
 	go build $(PAMFLAGS) -o $(BUILDDIR)/teleport -i $(BUILDFLAGS) ./tool/teleport
 
-$(BUILDDIR)/tsh: $(LIBS) $(TELEPORTSRC) $(TELEPORTVENDOR)
+$(BUILDDIR)/tsh: $(LIBS) $(TSHSRC) $(TELEPORTVENDOR)
 	go build $(PAMFLAGS) -o $(BUILDDIR)/tsh -i $(BUILDFLAGS) ./tool/tsh
 
 #
