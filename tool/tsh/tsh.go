@@ -226,6 +226,10 @@ func Run(args []string, underTest bool) {
 	show := app.Command("show", "Read an identity from file and print to stdout").Hidden()
 	show.Arg("identity_file", "The file containing a public key or a certificate").Required().StringVar(&cf.IdentityFileIn)
 
+	// The status command shows which proxy the user is logged into and metadata
+	// about the certificate.
+	status := app.Command("status", "Display the list of proxy servers and retrieved certificates")
+
 	// parse CLI commands+flags:
 	command, err := app.Parse(args)
 	if err != nil {
@@ -283,6 +287,8 @@ func Run(args []string, underTest bool) {
 		onLogout(&cf)
 	case show.FullCommand():
 		onShow(&cf)
+	case status.FullCommand():
+		onStatus(&cf)
 	}
 }
 
@@ -819,4 +825,54 @@ func onShow(cf *CLIConf) {
 		cert, priv, pub)
 
 	fmt.Printf("Fingerprint: %s\n", ssh.FingerprintSHA256(pub))
+}
+
+// printStatus prints the status of the profile.
+func printStatus(p *client.ProfileStatus, isActive bool) {
+	var prefix string
+	if isActive {
+		prefix = "> "
+	} else {
+		prefix = "  "
+	}
+	duration := p.ValidUntil.Sub(time.Now())
+	humanDuration := "EXPIRED"
+	if duration.Nanoseconds() > 0 {
+		humanDuration = fmt.Sprintf("valid for %v", duration.Round(time.Minute))
+	}
+
+	fmt.Printf("%vProfile URL:  %v\n", prefix, p.ProxyURL.String())
+	fmt.Printf("  Logged in as: %v\n", p.Username)
+	fmt.Printf("  Roles:        %v*\n", strings.Join(p.Roles, ", "))
+	fmt.Printf("  Logins:       %v\n", strings.Join(p.Logins, ", "))
+	fmt.Printf("  Valid until:  %v [%v]\n", p.ValidUntil, humanDuration)
+	fmt.Printf("  Extensions:   %v\n\n", strings.Join(p.Extensions, ", "))
+}
+
+// onStatus command shows which proxy the user is logged into and metadata
+// about the certificate.
+func onStatus(cf *CLIConf) {
+	// Get the status of the active profile ~/.tsh/profile as well as the status
+	// of any other proxies the user is logged into.
+	profile, profiles, err := client.Status("", cf.Proxy)
+	if err != nil {
+		utils.FatalError(err)
+	}
+
+	// Print the active profile.
+	if profile != nil {
+		printStatus(profile, true)
+	}
+
+	// Print all other profiles.
+	for _, p := range profiles {
+		printStatus(p, false)
+	}
+
+	// If we are printing profile, add a note that even though roles are listed
+	// here, they are only available in Enterprise.
+	if profile != nil || len(profiles) > 0 {
+		fmt.Printf("\n* RBAC is only available in Teleport Enterprise\n")
+		fmt.Printf("  https://gravitaitonal.com/teleport/docs/enteprise\n")
+	}
 }

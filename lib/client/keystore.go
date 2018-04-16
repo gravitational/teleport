@@ -27,7 +27,6 @@ import (
 	"os/user"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"golang.org/x/crypto/ssh"
 
@@ -233,7 +232,6 @@ func (fs *FSLocalKeyStore) GetKey(proxyHost string, username string) (*Key, erro
 
 	key := &Key{Pub: pub, Priv: priv, Cert: cert, ProxyHost: proxyHost, TLSCert: tlsCert}
 
-	// expired certificate? this key won't be accepted anymore, lets delete it:
 	certExpiration, err := key.CertValidBefore()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -242,12 +240,13 @@ func (fs *FSLocalKeyStore) GetKey(proxyHost string, username string) (*Key, erro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	fs.log.Debugf("Returning certificate %q valid until %q,  TLS certificate %q valid until %q", certFile, certExpiration, tlsCertFile, tlsCertExpiration)
-	if certExpiration.Before(time.Now()) || tlsCertExpiration.Before(time.Now()) {
-		fs.log.Infof("TTL expired (%v) or (%v)  for session key %v", certExpiration, tlsCertExpiration, dirPath)
-		os.RemoveAll(dirPath)
-		return nil, trace.NotFound("session keys for %s are not found", proxyHost)
-	}
+
+	// TODO(russjones): Note, we may be returning expired certificates here, that
+	// is okay. If the certificates is expired, it's the responsibility of the
+	// TeleportClient to perform cleanup of the certificates and the profile.
+	fs.log.Debugf("Returning SSH certificate %q valid until %q, TLS certificate %q valid until %q",
+		certFile, certExpiration, tlsCertFile, tlsCertExpiration)
+
 	return key, nil
 }
 
