@@ -10,6 +10,8 @@
 @import "utils";
 @import "footer";
 
+$content-padding-left: 320px;
+
 p {
   line-height: 24px;
 }
@@ -20,6 +22,7 @@ h4 {
   letter-spacing: 1px;
   margin-bottom: 10px;
   text-transform: uppercase;  
+  margin-top: 20px;
 }
 
 h1,h2,h3 {
@@ -89,6 +92,30 @@ body {
   padding: 10px 20px 20px 20px;  
   margin: 0 !important;
   background-color: $color-bkg-5 !important;
+}
+
+.grv-content-nav {  
+  position: absolute;
+  height: calc(100% - #{$top-menu-height});
+  overflow-y: auto;
+  overflow-x: auto;
+  background-color: $color-bkg-10;           
+  display: flex;
+  flex-direction: column;  
+  left: calc((100% - #{$max-width})/2 + 20px);
+  
+  .grv-content-nav-body{
+    overflow: auto;
+    width: 280px;
+  }
+}
+
+.--fixed-left-nav {
+  .grv-content-nav {
+    position: fixed;
+    top: 0;
+    height: calc(100% - 0px);    
+  }
 }
 
 #rtd-search-form, #content_search {

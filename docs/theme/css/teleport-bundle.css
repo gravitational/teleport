@@ -4689,7 +4689,7 @@ pre {
   pre code {
     font-size: inherit;
     color: inherit;
-    white-space: pre-wrap;
+    white-space: pre;
     background: #f1f1f1;
     border-radius: 4px;
     overflow-x: auto;
@@ -4779,24 +4779,6 @@ kbd {
     width: 100%; }
 .--mobile-nav-open .grv-content-body {
   display: none; }
-
-.grv-content-nav {
-  position: absolute;
-  height: calc(100% - 92px);
-  overflow-y: auto;
-  overflow-x: auto;
-  background-color: #fcfcfc;
-  display: flex;
-  flex-direction: column;
-  left: calc((100% - 1100px)/2 + 20px); }
-  .grv-content-nav .grv-content-nav-body {
-    overflow: auto;
-    width: 300px; }
-
-.--fixed-left-nav .grv-content-nav {
-  position: fixed;
-  top: 0;
-  height: calc(100% - 0px); }
 
 .grv-ver-selector {
   font-size: 90%;
@@ -10299,7 +10281,7 @@ img[src$="grv-image-center-lg"] {
   display: block;
   font-size: 13px;
   margin-bottom: 0 !important;
-  max-width: 740px;
+  max-width: 750px;
   flex-wrap: wrap; }
   .grv-footer .footer-item {
     padding: 15px 15px 10px 15px;
@@ -10333,7 +10315,8 @@ h4 {
   font-weight: bold;
   letter-spacing: 1px;
   margin-bottom: 10px;
-  text-transform: uppercase; }
+  text-transform: uppercase;
+  margin-top: 20px; }
 
 h1, h2, h3 {
   font-weight: normal; }
@@ -10377,7 +10360,7 @@ body {
 
 .grv-content-body {
   background: #fcfcfc;
-  padding-left: calc((100% - 1100px)/2 + 330px ); }
+  padding-left: calc((100% - 1100px)/2 + 320px ); }
   .grv-content-body .wy-nav-top a:visited {
     color: #fff; }
 
@@ -10386,10 +10369,28 @@ body {
   height: 100%;
   max-width: 800px;
   margin: auto;
-  max-width: 740px;
+  max-width: 750px;
   padding: 10px 20px 20px 20px;
   margin: 0 !important;
   background-color: #fff !important; }
+
+.grv-content-nav {
+  position: absolute;
+  height: calc(100% - 92px);
+  overflow-y: auto;
+  overflow-x: auto;
+  background-color: #fcfcfc;
+  display: flex;
+  flex-direction: column;
+  left: calc((100% - 1100px)/2 + 20px); }
+  .grv-content-nav .grv-content-nav-body {
+    overflow: auto;
+    width: 280px; }
+
+.--fixed-left-nav .grv-content-nav {
+  position: fixed;
+  top: 0;
+  height: calc(100% - 0px); }
 
 #rtd-search-form input, #content_search input {
   outline: none;
@@ -10417,7 +10418,7 @@ body {
     left: 20px; }
 
   .grv-content-body {
-    padding-left: 330px; } }
+    padding-left: 320px; } }
 @media screen and (max-width: 768px) {
   .grv-content-nav {
     display: none; }
