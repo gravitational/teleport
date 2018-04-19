@@ -31,13 +31,13 @@ func main() {
 }
 
 func run(config *service.Config) error {
-	teleport, err := pro.NewTeleport(config)
-	if err != nil {
-		return trace.Wrap(err)
+	newTeleport := func(cfg *service.Config) (service.Process, error) {
+		teleport, err := pro.NewTeleport(cfg)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		auth.SetEnforcer(teleport.Enforcer)
+		return teleport, nil
 	}
-	auth.SetEnforcer(teleport.Enforcer)
-	if err := teleport.Start(); err != nil {
-		return trace.Wrap(err)
-	}
-	return trace.Wrap(teleport.WaitForSignals(context.TODO()))
+	return service.Run(context.TODO(), *config, newTeleport)
 }

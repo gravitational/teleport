@@ -18,6 +18,7 @@ func main() {
 		&common.NodeCommand{},
 		&common.TokenCommand{},
 		&common.AuthCommand{},
+		&common.StatusCommand{},
 		&ResourceCommandE{},
 		&SAMLCommand{},
 	}
