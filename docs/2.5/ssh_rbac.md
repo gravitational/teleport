@@ -84,10 +84,10 @@ spec:
     # issued to the users with this role.
     max_session_ttl: 8h
 
-    # forward_agent controls if users are allowed to use SSH agent forwarding
+    # forward_agent controls whether SSH agent forwarding is allowed
     forward_agent: true
 
-    # port_forwarding controls if users are allowed to use SSH port forwarding
+    # port_forwarding controls whether TCP port forwarding is allowed
     port_forwarding: true
 
   # allow section declares a list of resource/verb combinations that are
@@ -127,6 +127,17 @@ Variable                | Description
 Both variables above are there to deliver the same benefit: it allows Teleport
 administrators to define allowed OS logins via the user database, be it the
 local DB, or an identity manager behind a SAML or OIDC endpoint.
+
+### Role Options
+
+As shown above, a role can define certain restrictions on SSH sessions initiated by users.
+The table below documents the behavior of each option if multiple roles are assigned to a user.
+
+Option       | Description                          | Multi-role behavior
+-------------|--------------------------------------|---------------------
+`max_session_ttl`   | Max. time to live (TTL) of a user's SSH certificates | The shortest TTL wins
+`forward_agent`     | Allow SSH agent forwarding      | Logical "OR" i.e. if any role allows agent forwarding, it's allowed
+`port_forwarding`   | Allow TCP port forwarding       | Logical "OR" i.e. if any role allows port forwarding, it's allowed
 
 
 ## RBAC for Hosts
