@@ -78,14 +78,17 @@ version: v3
 metadata:
   name: admin
 spec:
-  # SSH options used for user sessions 
+  # SSH options used for user sessions with default values:
   options:
     # max_session_ttl defines the TTL (time to live) of SSH certificates 
     # issued to the users with this role.
     max_session_ttl: 8h
 
-    # forward_agent controls either users are allowed to use SSH agent forwarding
+    # forward_agent controls if users are allowed to use SSH agent forwarding
     forward_agent: true
+
+    # port_forwarding controls if users are allowed to use SSH port forwarding
+    port_forwarding: true
 
   # allow section declares a list of resource/verb combinations that are
   # allowed for the users of this role. by default nothing is allowed.
