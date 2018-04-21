@@ -1,8 +1,10 @@
-# Teleport Enterprise Features
+# Teleport Enterprise
 
-This section covers Teleport features that are only available in the commercial
-edition of Teleport, called "Teleport Enterprise". The table below gives a quick 
-overview of the Enterprise features.
+The impatient users can proceed to play with the [Quick Start Guide of Teleport Enterprise](quickstart-enterprise).
+
+This chapter covers Teleport Enterprise, the commercial product build around
+open source Teleport core. The table below gives a quick overview of the
+benefits of Teleport Enterprise.
 
 |Teleport Enterprise Feature|Description
 ---------|--------------

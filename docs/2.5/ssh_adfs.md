@@ -113,7 +113,16 @@ spec:
     logins: [ "{{external.username}}", ubuntu ]
 ```
 
-Next create a SAML connector [resource](admin-guide#resources):
+This role declares:
+
+* Devs are only allowed to login to nodes labelled with `access: relaxed` label. 
+* Developers can log in as `ubuntu` user
+* Notice `{{external.username}}` login. It configures Teleport to look at
+  _"username"_ ADFS claim and use that field as an allowed login for each user.
+* Developers also do not have any "allow rules" i.e. they will not be able to
+  see/replay past sessions or re-configure the Teleport cluster.
+
+Next, create a SAML connector [resource](admin-guide#resources):
 
 ```bash
 kind: saml
