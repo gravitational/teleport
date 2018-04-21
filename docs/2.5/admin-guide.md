@@ -1035,7 +1035,26 @@ user               | A user record in the internal Teleport user DB.
 node               | A registered SSH node. The same record is displayed via `tctl nodes ls`
 trusted_cluster    | A trusted cluster. See [here](#trusted-clusters) for more details on connecting clusters together.
 role               | A role assumed by users. The open source Teleport only includes one role: "admin", but Enterprise teleport users can define their own roles.
+saml               | A SAML auth connector. ([Teleport Enterprise](ssh_sso/) only).
+oidc               | An OIDC auth connector. ([Teleport Enterprise](ssh_sso/) only).
 github             | A Github auth connector. See [here](#github-auth-connector) for details on configuring it.
+
+
+### Examples:
+
+```bash
+# list all SAML connectors:
+$ tctl get saml
+
+# dump a SAML connector called "okta":
+$ tctl get saml/okta
+
+# delete a SAML connector called "okta":
+$ tctl rm saml/okta
+
+# delete a local user called "admin":
+$ tctl rm users/admin
+```
 
 ## Trusted Clusters
 
