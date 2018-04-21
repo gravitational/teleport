@@ -3,21 +3,25 @@
 Welcome to the Teleport Quick Start Guide!
 
 The goal of this document is to show off the basic capabilities of Teleport. 
-There are three types of services Teleport nodes can run: `nodes`, `proxies` and `auth servers`.
+There are three types of services Teleport nodes can run: `nodes`, `proxies`
+and `auth servers`.
 
-- Auth servers are the core of a cluster. Auth servers store user accounts and provide authentication and authorization services for every node and every user in a cluster.
-- Nodes are regular SSH nodes, similar to the `sshd` daemon you may be familiar with. When a node receives
-  a connection request, the request is authenticated through the cluster's auth server.
-- Proxies route client connection requests to the appropriate node and serve a Web UI 
-  which can also be used to log into SSH nodes. Every client-to-node connection in 
-  Teleport must be routed via a proxy.
+- **Auth servers** are the core of a cluster. Auth servers store user accounts
+  and provide authentication and authorization services for every node and
+  every user in a cluster.
+- **Proxy servers** route client connection requests to the appropriate node
+  and serve a Web UI which can also be used to log into SSH nodes. Every
+  client-to-node connection in Teleport must be routed via a proxy.
+- **Nodes** are regular SSH nodes, similar to the `sshd` daemon you may be
+  familiar with. When a node receives a connection request, the request is
+  authenticated through the cluster's auth server.
 
 The `teleport` daemon runs all three of these services by default. This Quick Start Guide will
 be using this default behavior to create a cluster and interact with it
 using Teleport's client-side tools:
 
-| Tool           | Description
-|----------------|------------------------------------------------------------------------
+| Tool    | Description
+|---------|-------------
 | tctl    | Cluster administration tool used to invite nodes to a cluster and manage user accounts.
 | tsh     | Similar in principle to OpenSSH's `ssh`. Used to login into remote SSH nodes, list and search for nodes in a cluster, securely upload/download files, etc.
 | browser | You can use your web browser to login into any Teleport node by opening `https://<proxy-host>:3080`.

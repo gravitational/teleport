@@ -23,13 +23,14 @@ extra:
 pages:
     - Documentation:
         - Introduction: intro.md
-        - QuickStart Guide: quickstart.md
+        - Quick Start Guide: quickstart.md
         - Architecture: architecture.md
         - User Manual: user-manual.md
         - Admin Manual: admin-guide.md
         - FAQ: faq.md
     - Teleport Enterprise:
         - Introduction: enterprise.md
+        - Quick Start Guide: quickstart-enterprise.md
         - RBAC: ssh_rbac.md
         - Single sign-on (SSO): ssh_sso.md
     - Guides:
