@@ -105,9 +105,9 @@ Notice that `tsh` client always needs `--proxy` flag because all client connecti
 in Teleport always must to go via an SSH proxy, sometimes called an "SSH bastion".
 
 !!! warning "Warning":
-    For the purposes of this quickstart we are using the `-- insecure` flag. However, 
-    this should not be used in production. See [Admin Manual](admin-guide.md) for 
-    more information on setting up Teleport in production.
+    For the purposes of this quickstart we are using the `--insecure` flag which allows
+    us to skip configuring the HTTP/TLS certificate for Teleport proxy.
+    Never use `--insecure` in production. You must configure the HTTP/TLS proxy certificate.
 
 If successful, `tsh login` command will receive a user certificate for a given proxy
 and will store it in `~/.tsh/keys/<proxy>` directory.
@@ -228,10 +228,6 @@ $ tsh --proxy=teleport.example.com join 7645d523-60cb-436d-b732-99c5df14b7c4
 
 !!! tip "NOTE": 
     For this to work, both of you must have proper user mappings allowing you access `db` under the same OS user.
-
-## Hosted Teleport (Teleconsole)
-
-We run a hosted example of Teleport at [teleconsole.com](https://www.teleconsole.com/). You can use it to see how Teleport might work without having to set it up for yourself. It's just an easy way to share your terminal with your friends to show Teleport in action.
 
 ## Running in Production
 

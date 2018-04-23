@@ -1,6 +1,6 @@
 # Teleport Enterprise Quick Start
 
-Welcome to the Quick Start Guide to Teleport Enterprise! 
+Welcome to the Quick Start Guide for Teleport Enterprise. 
 
 The goal of this document is to show off the basic capabilities of Teleport.
 There are three types of services Teleport nodes can run: `nodes`, `proxies`
@@ -30,31 +30,25 @@ interact with it using Teleport's client-side tools:
 
 You will need to have access to the [customer portal](https://dashboard.gravitational.com) 
 to download the software. You will also need three computers: two servers and
-one client (probably a laptop) to complete this tutorial. Lets assume the servers will have
+one client (probably a laptop) to complete this tutorial. Lets assume the servers have
 the following DNS names and IPs:
 
 Server Name    |  IP Address    | Purpose
 ---------------|----------------|--------------
 _"auth.example.com"_  | 10.1.1.10      | This server will be used to run all three Teleport services: auth, proxy and node.
-_"node.example.com"_  | 10.1.1.11      | This server will only run the SSH service. Vast majority of servers in production will be nodes.
+_"node.example.com"_  | 10.1.1.11      | This server will only run the SSH service. The vast majority of servers in production will be nodes.
 
 This Quick Start Guide assumes that the both servers are running a [systemd-based](https://www.freedesktop.org/wiki/Software/systemd/) 
 Linux distribution such as Debian, Ubuntu or a RHEL deriviative.
 
 ## Installing
 
-To start using Teleport Enterprise you will need to:
-
-* Download the binaries
-* Download the license file
-* Read this documentation
-
-You can download both the binaries and the license file from the [customer portal](https://dashboard.gravitational.com).
+To start using Teleport Enterprise, you will need to Download the binaries and the license file from the [customer portal](https://dashboard.gravitational.com).
 After downloading the binary tarball, run:
 
 ```bash
-$ tar -xzf teleport-binary-release.tar.gz
-$ cd teleport
+$ tar -xzf teleport-ent-binary-release.tar.gz
+$ cd teleport-ent
 ```
 
 * Copy `teleport` and `tctl` binaries to a bin directory (we suggest `/usr/local/bin`) on the auth server.
@@ -135,7 +129,7 @@ $ sudo systemctl start teleport
 ```
 
 Teleport daemon should start and you can use `netstat -lptne` to make sure that
-it's listening on [TCP/IP ports](admin-guide/#ports). On _auth.example.com_ it should 
+it's listening on [TCP/IP ports](admin-guide/#ports). On _auth.example.com_, it should 
 look something like this:
 
 ```bash
@@ -162,8 +156,158 @@ See [troubleshooting](#troubleshooting) section at the bottom if something is no
 
 ## Adding Users
 
-[TBD]
+This portion of the Quick Start Guide should be performed on the auth server, i.e.
+on _auth.example.com_
 
+Every user in a Teleport cluster must be assigned at least one role. By
+default, Teleport comes with one pre-configured role called "admin". You can
+see it's definition by executing `sudo tctl get roles/admin > admin-role.yaml`. 
+
+The output will look like this (re-formatted here to use compact YAML
+representation for brevity):
+
+```bash
+kind: role
+version: v3
+metadata:
+  name: admin
+spec:
+  options:
+    cert_format: standard
+    forward_agent: true
+    max_session_ttl: 30h0m0s
+    port_forwarding: true
+  # allow rules:
+  allow:
+    logins:
+    - '{{internal.logins}}'
+    - root
+    node_labels:
+      '*': '*'
+    rules:
+    - resources: [role]
+      verbs: [list, create, read, update, delete]
+    - resources: [auth_connector]
+      verbs: [list, create, read, update, delete]
+    - resources: [session]
+      verbs: [list, read]
+    - resources: [trusted_cluster]
+      verbs: [list, create, read, update, delete]
+  # no deny rules are present, the admin role must have access to everything)
+  deny: {}
+```
+
+Pay attention to the _allow/logins_ field in the role definition: by default, this
+role only allows SSH logins as `root@host`. 
+
+!!! note "Note"
+    Ignore `{{internal.logins}}` "allowed login" for now. It exists for
+    compatibility purposes when upgrading existing open source Teleport
+    clusters. 
+
+You probably want to replace "root" with something else. Let's assume there will 
+be a local UNIX account called "admin" on all hosts. In this case you cand 
+dump the role definition YAML into _admin-role.yaml_ file and update "allow/logins" 
+to look like this:
+
+```bash
+allow:
+   logins: [admin]
+```
+
+Then send it back into Teleport:
+
+```bash
+$ sudo tctl create -f admin-role.yaml
+```
+
+Now, lets create a new Teleport user "joe" with "admin" role:
+
+```bash
+$ sudo tctl users add --roles=admin joe
+
+Signup token has been created and is valid for 1 hours. Share this URL with the user:
+https://auth.example.com:3080/web/newuser/22e3acb6a0c2cde22f13bdc879ff9d2a
+```
+
+Share the generated sign-up URL with Joe and let him pick a password and configure
+the second factor authentication. We recommend [Google Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator) 
+which is available for both Android and iPhone.
+
+## Assigning Roles
+
+To update user's roles, dump the user resoure into a file:
+
+```
+$ sudo tctl get users/joe > joe.yaml
+```
+
+Edit the YAML file and update the "roles" array.
+Then, re-insert it back:
+
+```
+$ sudo tctl create -f joe.yaml
+```
+
+## Logging In
+
+Joe now has a local account on a Teleport cluster. The local account is good for
+administrative purposes but regular users of Teleport Enterprise should be using 
+a Single Sign-On (SSO) mechanism.
+
+But first, lets see how Joe can log into the Teleport cluster. He can do this 
+on his client laptop:
+
+```bash
+$ tsh --proxy=auth.example.com --insecure login --user=joe
+```
+
+Note that "--user=joe" part can be omitted if `$USER` environment variable is "joe". 
+
+Notice that `tsh` client always needs `--proxy` flag because all client connections
+in Teleport always must to go through an SSH proxy, sometimes called an "SSH bastion".
+
+!!! warning "Warning":
+    For the purposes of this quickstart we are using the `--insecure` flag which allows
+    us to skip configuring the HTTP/TLS certificate for Teleport proxy.
+    Never use `--insecure` in production. You must configure the HTTP/TLS proxy certificate.
+
+If successful, `tsh login` command will receive Joe's user certificate and will
+store it in `~/.tsh/keys/<proxy>` directory.
+
+With a certificate in place, Joe can now interact with the Teleport cluster:
+
+```bash
+# SSH into any host behind the proxy:
+$ tsh ssh node.example.com
+
+# See what hosts are available behind the proxy:
+$ tsh ls
+
+# Log out (this will remove the user certificate from ~/.tsh)
+$ tsh logout
+```
+
+## Configuring SSO
+
+The local account is good for administrative purposes but regular users of
+Teleport Enterprise should be using a Single Sign-On (SSO) mechanism commonly
+availalbe by SSO providers that commonly implement SAML or OIDC protocols.
+
+
+Take a look at the [SSH via Single Sign-on](ssh_sso/) chapter learn the basics of integrating
+Teleport with SSO providers. We have the following detailed guides for
+configuring SSO providers:
+
+* [Okta](ssh_okta/)
+* [Active Directory](ssh_adfs/)
+* [One Login](ssh_one_login/)
+* [Github](admin-guide/#github-oauth-20)
+
+Any SAML-compliant provider can be configured with Teleport by following the
+same steps.  There are Teleport Enterprise customers who are using Oracle IDM,
+SailPoint and others. 
+    
 ## Troubleshooting
 
 If Teleport services do not start, take a look at the syslog:
@@ -181,6 +325,6 @@ Usually the error will be reported there. Common reasons for failure are:
 
 ## Getting Help
 
-If something is not working, please reach out to us by creating a ticket via [customer portal](https://dashboard.gravitational.com/).
-Customers who have purchased the premium support package, or submit a message
-to the Slack channel.
+If something is not working, please reach out to us by creating a ticket in your [customer portal](https://dashboard.gravitational.com/).
+Customers who have purchased the premium support package can also ping us through
+your Slack channel.

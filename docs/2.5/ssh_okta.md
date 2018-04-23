@@ -117,10 +117,7 @@ spec:
         verbs: ["*"]
 ```
 
-Devs are only allowed to login to nodes labelled with `access: relaxed`
-teleport label. Developers can log in as either `ubuntu` to a username that
-arrives in their assertions. Developers also do not have any rules needed to
-obtain admin access.
+The developer role:
 
 ```bash
 kind: "role"
@@ -135,8 +132,15 @@ spec:
     node_labels:
       access: relaxed
 ```
-    
-**Notice:** Replace `ubuntu` with linux login available on your servers!
+
+* Devs are only allowed to login to nodes labelled with `access: relaxed` label. 
+* Developers can log in as `ubuntu` user
+* Notice `{{external.username}}` login. It configures Teleport to look at
+  _"username"_ Okta claim and use that field as an allowed login for each user.
+* Developers also do not have any "allow rules" i.e. they will not be able to
+  see/replay past sessions or re-configure the Teleport cluster.
+
+Now, create both roles on the auth server:
 
 ```bash
 $ tctl create admin.yaml

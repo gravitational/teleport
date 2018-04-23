@@ -62,7 +62,7 @@ auth_service:
 
 An example of a connector:
 
-```
+```bash
 # connector.yaml
 kind: saml
 version: v2
@@ -81,13 +81,42 @@ spec:
     <paste SAML XML contents here>
 ```
 
+* See [examples/resources](https://github.com/gravitational/teleport/tree/master/examples/resources) 
+  directory in Teleport github repository for examples of possible connectors.
+
+### User Logins
+
+Often it is required to restrict SSO users to their unique UNIX logins when they
+connect to Teleport nodes. To support this:
+
+* Use the SSO provider to create a field called _"unix_login"_ (you can use other name). 
+* Make sure it's exposed as a claim via SAML/OIDC.
+* Update a Teleport SSH role to include `{{external.unix_login}}` variable into the list of allowed logins:
+
+```bash
+kind: role
+version: v3
+metadata:
+  name: sso_user
+spec:
+  allow:
+    logins:
+    - '{{external.unix_login}}'
+    node_labels:
+      '*': '*'
+```
+
 ## Multiple SSO Providers
 
 Teleport can also support multiple connectors. This works by supplying
 a connector name to `tsh login` via `--auth` argument:
 
 ```bash
-$ tsh --proxy=proxy.example.com login --auth=corporate
+# use "okta" SAML connector:
+$ tsh --proxy=proxy.example.com login --auth=okta
+
+# use local Teleport user DB:
+$ tsh --proxy=proxy.example.com login --auth=local --user=admin
 ```
 
 Refer to the following guides to configure authentication connectors of both
@@ -97,4 +126,23 @@ SAML and OIDC types:
 * [SSH Authentication with OneLogin](ssh_one_login)
 * [SSH Authentication with ADFS](ssh_adfs)
 * [SSH Authentication with OAuth2 / OpenID Connect](oidc)
+
+## Troubleshooting
+
+Troubleshooting SSO configuration can be challenging. Usually a Teleport administrator 
+must be able to:
+
+* Ensure that HTTP/TLS certificates are configured properly for both Teleport
+  proxy and the SSO provider.
+* Be able to see what SAML/OIDC claims and values are getting exported and passed 
+  by the SSO provider to Teleport.
+* Be able to see how Teleport maps the received claims to role mappings as defined
+  in the connector.
+
+If something is not working, we recommend to:
+
+* Double-check the host names, tokens and TCP ports in a connector definition.
+* Look into Teleport's audit log for claim mapping problems. It is usually stored on the
+  auth server in the `/var/lib/teleport/log` directory.
+
 

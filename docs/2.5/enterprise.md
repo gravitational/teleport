@@ -1,9 +1,10 @@
 # Teleport Enterprise
 
-The impatient users can proceed to play with the [Quick Start Guide of Teleport Enterprise](quickstart-enterprise).
+This section will give an overview of Teleport Enterprise, the commercial product built around
+the open source Teleport core. For those that want to jump right in, you can play with 
+the [Quick Start Guide of Teleport Enterprise](quickstart-enterprise).
 
-This chapter covers Teleport Enterprise, the commercial product build around
-open source Teleport core. The table below gives a quick overview of the
+The table below gives a quick overview of the
 benefits of Teleport Enterprise.
 
 |Teleport Enterprise Feature|Description
