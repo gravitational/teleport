@@ -1,9 +1,15 @@
 # Trusted Clusters
 
 If you haven't already looked at the introduction to [Trusted Clusters](admin-guide.md#trusted-clusters) 
-it would be helpful to go over it before continuing with this guide.
+in the Admin Guide we recommend you review that for an overview before continuing with this guide.
 
-This guide covers the following topics:
+The Trusted Clusters chapter in the Admin Guide
+offers an example of a simple configuration which:
+
+* Uses a static cluster join token defined in a configuration file.
+* Does not cover inter-cluster role based access control (RBAC).
+
+This guide's focus is on more in-depth coverage of trusted clusters features and will cover the following topics:
 
 * How to add and remove trusted clusters using CLI commands.
 * Enable/disable trust between clusters.
@@ -12,13 +18,13 @@ This guide covers the following topics:
 ## Introduction 
 
 As explained in the [architecture document](architecture/#core-concepts),
-Teleport allows to partition a compute infrastructure into multiple clusters.
+Teleport can partition compute infrastructure into multiple clusters.
 A cluster is a group of SSH nodes connected to the cluster's _auth server_
 acting as a certificate authority (CA) for all users and nodes.
 
-To retrieve an SSH certificate users must authenticate with a cluster through a
+To retrieve an SSH certificate, users must authenticate with a cluster through a
 _proxy server_. So if users want to connect to nodes belonging to different
-clusters, they would normally have to use different `--proxy` flag for each
+clusters, they would normally have to use different `--proxy` flags for each
 cluster. This is not always convenient.
 
 The concept of _trusted clusters_ allows Teleport administrators to connect
@@ -26,7 +32,7 @@ multiple clusters together and establish trust between them. Trusted clusters
 allow users of one cluster to seamlessly SSH into the nodes of another cluster
 without having to "hop" between proxy servers. Moreover, users don't even need
 to have a direct connection to other clusters' proxy servers. The user
-experience will look like this:
+experience looks like this:
 
 ```bash
 # login using the "main" cluster credentials:
@@ -43,19 +49,8 @@ $ tsh --cluster=east ssh host
 $ tsh clusters
 ```
 
-Trusted clusters also have their own restrictions on user access, i.e.  the
+Trusted clusters also have their own restrictions on user access, i.e. 
 _permissions mapping_ takes place. 
-
-
-### Simple Configuration
-
-The [trusted clusters](admin-guide.md#trusted-clusters) chapter of the admin guide
-offers an example of a simple configuration which:
-
-* Uses a static cluster join token defined in a configuration file.
-* Does not cover inter-cluster role based access control (RBAC).
-
-This guide's focus is on more in-depth coverage of trusted clusters features.
 
 ## Join Tokens
 
@@ -63,7 +58,7 @@ Lets start with the diagram of how connection between two clusters is establishe
 
 ![Tunnels](img/tunnel.svg)
 
-The first step in establishing a secure tunnel between two clusters is for
+The first step in establishing a secure tunnel between two clusters is for the
 _trusting_ cluster "east" to connect to the _trusted_ cluster "main". When this
 happens for _the first time_, clusters know nothing about each other, thus a
 shared secret needs to exist in order for "main" to accept the connection from
@@ -95,7 +90,7 @@ This token can be used unlimited number of times.
 
 ### Dynamic Tokens
 
-Creating a token dynamically via a CLI tool offers the advantage of applying a
+Creating a token dynamically with a CLI tool offers the advantage of applying a
 time to live (TTL) interval on it, i.e. it will be impossible to re-use such
 token after a specified period of time.
 
@@ -129,7 +124,7 @@ the _trusted_ cluster "main", it needs a way to configure which users from
 "main" should be allowed in and what permissions should they have. Teleport
 Enterprise uses _role mapping_ to achieve this.
 
-Consider the following facts:
+Consider the following:
 
 * Both clusters "main" and "east" have their own locally defined roles.
 * Every user in Teleport Enterprise is assigned a role. 
@@ -138,13 +133,13 @@ Consider the following facts:
 
 ### Example 
 
-Lets make a few assumptions for this examlpe:
+Lets make a few assumptions for this example:
 
 * The cluster "main" has two roles: _user_ for regular users and _admin_ for
   local administrators.
 
 * We want administrators from "main" (but not regular users!) to have
-  restricted access to "east". Perhaps we want to deny them access to machines
+  restricted access to "east". We want to deny them access to machines
   with "environment=production" label.
 
 First, we need to create a special role for main users on "east":
@@ -165,7 +160,7 @@ First, we need to create a special role for main users on "east":
         "environment": "production"
 ```
 
-Now we need to establish trust between roles "main:admin" and "east:mainuser". This is 
+Now, we need to establish trust between roles "main:admin" and "east:mainuser". This is 
 done by creating a trusted cluster [resource](admin-guide/#resources) on "east"
 which looks like this:
 
@@ -195,14 +190,53 @@ role_map:
     local: [mainuser]
 ```
 
+## Using Trusted Clusters
+
+Now an admin from the main cluster can now see and access the "east" cluster:
+
+```bash
+# login into the main cluster:
+$ tsh --proxy=proxy.main login admin
+```
+
+```bash
+# see the list of available clusters
+$ tsh clusters
+
+Cluster Name   Status
+------------   ------
+main           online
+east           online
+```
+
+```bash
+# see the list of machines (nodes) behind the eastern cluster:
+$ tsh --cluster=east ls
+
+Node Name Node ID            Address        Labels
+--------- ------------------ -------------- -----------
+db1.east  cf7cc5cd-935e-46f1 10.0.5.2:3022  role=db-master
+db2.east  3879d133-fe81-3212 10.0.5.3:3022  role=db-slave
+```
+
+```bash
+# SSH into any node in "east":
+$ tsh --cluster=east ssh root@db1.east
+```
+
 To disable a trusted cluster on the east side, set "enabled" to false in the cluster 
 resoure file and type `tctl create -f main-cluster.yaml` 
+
+
+!!! tip "Note":
+    Trusted clusters work only one way. So, in the example above users from "east" 
+	cannot see or connect to the nodes in "main".
 
 ## How does it work?
 
 At a first glance, Trusted Clusters in combination with RBAC may seem
-complicated. In reality it is quite simple and because it's based on SSH
-certificate-based authentication which is easy to reason about:
+complicated. However, it is based on SSH
+certificate-based authentication which is fairly easy to reason about:
 
 One can think of an SSH certificate as a "permit" issued and time-stamped by a
 certificate authority. A certificate contains three important pieces of data:
@@ -258,12 +292,12 @@ how your network security groups are configured on AWS.
 ### Access Problems
 
 Troubleshooting access denied messages can be challenging. A Teleport administrator
-should be able to see the following:
+should check to see the following:
 
 * Which groups a user is assigned on "main" when they retreive their SSH
   certificate via `tsh login`.
 * How "east" performs group mappping when a user from "main" tries to connect.
 
-Both of these facts are reflected in the Teleport audit log. By default it is
+Both of these facts are reflected in the Teleport audit log. By default, it is
 stored in `/var/lib/teleport/log` on a _auth_ server of a cluster. Check the
 audit log messages on both clusters to get answers for the questions above.
