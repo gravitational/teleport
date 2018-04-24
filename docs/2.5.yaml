@@ -38,3 +38,4 @@ pages:
         - Active Directory (ADFS): ssh_adfs.md
         - One Login: ssh_one_login.md
         - OIDC: oidc.md
+        - Trusted Clusters: trustedclusters.md
