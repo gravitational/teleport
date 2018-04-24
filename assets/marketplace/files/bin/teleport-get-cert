@@ -1,0 +1,26 @@
+#!/bin/bash
+# This script uses DNS-01 challenge, which means that users
+# have to control route53 zone as it modifes zone records
+# to prove to letsencrypt that they own the domain.
+
+set -e
+set -x
+
+# Source variables set up by cloudformation template
+. /etc/teleport.d/conf
+
+PATH_TO_CHECK="s3://${TELEPORT_S3_BUCKET}/live/${TELEPORT_DOMAIN_NAME}/fullchain.pem"
+
+has_fullchain=$(aws s3 ls ${PATH_TO_CHECK} | wc -l)
+if [ $has_fullchain -gt 0 ]
+then
+  echo "${PATH_TO_CHECK} already exists"
+  exit 0
+fi
+
+echo "No certs/keys found in ${TELEPORT_S3_BUCKET}. Going to request certificate for ${TELEPORT_DOMAIN_NAME}."
+certbot certonly -n --agree-tos --email ${TELEPORT_DOMAIN_ADMIN_EMAIL} --dns-route53 -d ${TELEPORT_DOMAIN_NAME}
+echo "Got certificate for ${TELEPORT_DOMAIN_NAME}. Syncing to S3."
+
+aws s3 sync /etc/letsencrypt/ s3://${TELEPORT_S3_BUCKET} --sse=AES256
+

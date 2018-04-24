@@ -1,0 +1,1073 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Teleport OSS License
+Parameters:
+  KeyName:
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instances
+    Type: AWS::EC2::KeyPair::KeyName
+
+  InstanceType:
+    Description: WebServer EC2 instance type    
+    ConstraintDescription: must be a valid EC2 instance type.
+    Type: String    
+    Default: t2.micro
+    AllowedValues:
+    - t2.micro
+
+  DomainName:
+    ConstraintDescription: Teleport Web UI Domain Name
+    Description: Name of the domain name to use for Teleport
+    Type: String
+
+  DomainAdminEmail:
+    ConstraintDescription: Teleport Domain Admin email
+    Description: Name of Domain Name admin for Letsencrypt
+    Type: String
+
+  HostedZoneID:
+    ConstraintDescription: ID of the hosted zone with Teleport domain
+    Description: ID of the hosted zone of teleport domain
+    Type: String
+
+  CIDRVPC:
+    Type: String
+    Default: 10.0.0.0/16
+
+  CIDRProxyA:
+    Type: String
+    Default: 10.0.0.0/24
+
+  CIDRProxyB:
+    Type: String
+    Default: 10.0.1.0/24
+
+  CIDRAuthA:
+    Type: String
+    Default: 10.0.2.0/24
+
+  CIDRAuthB:
+    Type: String
+    Default: 10.0.3.0/24
+
+  CIDRNodeA:
+    Type: String
+    Default: 10.0.4.0/24
+
+  CIDRNodeB:
+    Type: String
+    Default: 10.0.5.0/24
+
+Mappings:
+  AWSInstanceType2Arch:
+    t2.micro: {Arch: HVM64}
+
+  AWSRegionArch2AMI:
+    eu-west-1: {HVM64 : ami-b4d188cd}
+    us-east-1: {HVM64 : ami-2010b95d}
+    us-east-2: {HVM64 : ami-c50434a0}
+    us-west-2: {HVM64 : ami-e9741291}
+
+Resources:
+  # Internet gateway is a routing target for 
+  # internet routeable target
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+      - Key: Cluster
+        Value: {Ref: DomainName}
+
+  # Attach this gateway to VPC
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: {Ref: InternetGateway}
+      VpcId: {Ref: VPC}
+
+  # VPC is a virtual private cloud
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: {Ref: CIDRVPC}
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+
+  # VPC Routing table that sets up default
+  # route to use internet gateway,
+  # subnets using this table are public subnets
+  # from AWS perspective
+  PublicRoutingTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: {Ref: VPC}
+      Tags:
+      - Key: Cluster
+        Value: {Ref: DomainName}
+      - Key: Type
+        Value: Public
+
+  # Public routing table routes all packets
+  # to the internet.
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGateway
+    Properties:
+      RouteTableId: {Ref: PublicRoutingTable}
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId:
+        Ref: InternetGateway
+
+  # ProxySubnetA is a public subnet
+  # used by proxy in the first availability zone
+  ProxySubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: VPC
+      CidrBlock: {Ref: CIDRProxyA}
+      AvailabilityZone:
+        Fn::Select: [0, {'Fn::GetAZs': ''}]
+
+  ProxySubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: {Ref: ProxySubnetA}
+      RouteTableId: {Ref: PublicRoutingTable}
+
+  ProxySubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: VPC
+      CidrBlock: {Ref: CIDRProxyB}
+      AvailabilityZone:
+        Fn::Select: [1, {'Fn::GetAZs': ''}]
+
+  ProxySubnetBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: {Ref: ProxySubnetB}
+      RouteTableId: {Ref: PublicRoutingTable}
+
+  # Elastic IP in the first AZ
+  EIPA:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  # NAT gateway in the first AZ
+  NATA:
+    DependsOn: InternetGatewayAttachment
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId:
+        Fn::GetAtt:
+          - EIPA
+          - AllocationId
+      SubnetId:
+        Ref: ProxySubnetA
+
+  # VPC Routing table that is using NAT gateway
+  PrivateRoutingTableA:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: {Ref: VPC}
+      Tags:
+      - Key: Cluster
+        Value: {Ref: DomainName}
+      - Key: Type
+        Value: Private
+
+  # Public routing table routes all packets
+  # to the internet via NAT gateway
+  PrivateRouteA:
+    Type: AWS::EC2::Route
+    DependsOn: NATA
+    Properties:
+      RouteTableId: {Ref: PrivateRoutingTableA}
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId:
+        Ref: NATA
+
+  # AuthSubnetA is a private subnet
+  # used by auth in the first availability zone
+  AuthSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: VPC
+      CidrBlock: {Ref: CIDRAuthA}
+      AvailabilityZone:
+        Fn::Select: [0, {'Fn::GetAZs': ''}]
+
+  # Associate auth subnet with a routing table
+  AuthSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: {Ref: AuthSubnetA}
+      RouteTableId: {Ref: PrivateRoutingTableA}
+
+  # NodeSubnetA is a private subnet
+  # used by nodes in the first availability zone
+  NodeSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: VPC
+      CidrBlock: {Ref: CIDRNodeA}
+      AvailabilityZone:
+        Fn::Select: [0, {'Fn::GetAZs': ''}]
+
+  # Associate auth subnet with a routing table
+  NodeSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: {Ref: NodeSubnetA}
+      RouteTableId: {Ref: PrivateRoutingTableA}
+
+  # Elastic IP in the second AZ
+  EIPB:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  # NAT gateway in the first AZ
+  NATB:
+    DependsOn: InternetGatewayAttachment
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId:
+        Fn::GetAtt:
+          - EIPB
+          - AllocationId
+      SubnetId:
+        # Has to be an IP address from the public subnet
+        Ref: ProxySubnetB
+
+  # VPC Routing table that is using NAT gateway
+  PrivateRoutingTableB:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: {Ref: VPC}
+      Tags:
+      - Key: Cluster
+        Value: {Ref: DomainName}
+      - Key: Type
+        Value: Private
+
+  # Public routing table routes all packets
+  # to the internet via NAT gateway
+  PrivateRouteB:
+    Type: AWS::EC2::Route
+    DependsOn: NATB
+    Properties:
+      RouteTableId: {Ref: PrivateRoutingTableB}
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId:
+        Ref: NATB
+
+  # AuthSubnetB is a private subnet
+  # used by auth in the first availability zone
+  AuthSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: VPC
+      CidrBlock: {Ref: CIDRAuthB}
+      AvailabilityZone:
+        Fn::Select: [1, {'Fn::GetAZs': ''}]
+
+  # Associate private subnet with a routing table B
+  AuthSubnetARouteTableAssociationB:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: {Ref: AuthSubnetB}
+      RouteTableId: {Ref: PrivateRoutingTableB}
+
+  # NodeSubnetB is a private subnet
+  # used by nodes in the first availability zone
+  NodeSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: VPC
+      CidrBlock: {Ref: CIDRNodeB}
+      AvailabilityZone:
+        Fn::Select: [1, {'Fn::GetAZs': ''}]
+
+  # Associate private subnet with a routing table B
+  NodeSubnetARouteTableAssociationB:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: {Ref: NodeSubnetB}
+      RouteTableId: {Ref: PrivateRoutingTableB}
+
+  # Auth server setup
+  AuthSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: {Ref: VPC}
+      GroupDescription: Allow proxy and auth server access
+      SecurityGroupIngress:
+
+        - IpProtocol: tcp
+          Description: SSH admin access is allowed from proxies
+          FromPort: 22
+          ToPort: 22
+          SourceSecurityGroupId: {Ref: ProxySecurityGroup}
+
+          # This rule is relaxed to allow VPC peered nodes
+          # to talk to auth services
+        - IpProtocol: tcp
+          Description: Everyone is welcome to use auth service API.
+          FromPort: 3025
+          ToPort: 3025
+          CidrIp: 0.0.0.0/0
+
+
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          Description: Egress is allowed anywhere
+          FromPort: 0
+          ToPort: 0
+          CidrIp: 0.0.0.0/0
+
+  # Nodes could be only accessed from proxies
+  NodeSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: {Ref: VPC}
+      GroupDescription: Allow proxy access
+      SecurityGroupIngress:
+
+        - IpProtocol: tcp
+          Description: SSH keypair access is allowed from proxies
+          FromPort: 22
+          ToPort: 22
+          SourceSecurityGroupId: {Ref: ProxySecurityGroup}
+
+        - IpProtocol: tcp
+          Description: Teleport SSH access is allowed from proxies
+          FromPort: 3022
+          ToPort: 3022
+          SourceSecurityGroupId: {Ref: ProxySecurityGroup}
+
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          Description: Egress is allowed anywhere
+          FromPort: 0
+          ToPort: 0
+          CidrIp: 0.0.0.0/0
+
+  AuthLB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internal
+      Type: network
+      LoadBalancerAttributes:
+        - Key: load_balancing.cross_zone.enabled
+          Value: 'true'
+      Subnets:
+        - Ref: AuthSubnetA
+        - Ref: AuthSubnetB
+
+  AuthLBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+      - Type: forward
+        TargetGroupArn:
+          Ref: AuthTargetGroup
+      LoadBalancerArn:
+        Ref: AuthLB
+      Port: 3025
+      Protocol: TCP
+
+  AuthTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 30
+      HealthCheckProtocol: TCP
+      HealthCheckTimeoutSeconds: 10
+      HealthyThresholdCount: 4
+      UnhealthyThresholdCount: 4
+      Port: 3025
+      Protocol: TCP
+      VpcId: {Ref: VPC}
+
+  AuthLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    DependsOn:
+      - NATA
+      - NATB
+    Properties:
+      KeyName:
+        Ref: KeyName
+      # This line finds appropriate image ID based on the arch, region and instance type using FindInMap function
+      ImageId: !FindInMap [AWSRegionArch2AMI, !Ref 'AWS::Region', !FindInMap [AWSInstanceType2Arch, !Ref InstanceType, Arch]]
+      UserData:
+        Fn::Base64:
+          # Fn:Sub accepts two parameters as a list, the first one is the template
+          # the second parameter is a dictionary with template-local variables
+          Fn::Sub:
+          - |
+            #!/bin/bash -xe
+
+            # Indicate that this ami is auth for all systemd units
+            echo "auth" >> /etc/teleport.d/role.auth
+
+            # Set some instance specific environment variables configurations for systemd configuration file
+            cat >> /etc/teleport.d/conf <<EOF
+            EC2_REGION=${AWS::Region}
+            TELEPORT_CLUSTER_NAME=${DomainName}
+            TELEPORT_DOMAIN_NAME=${DomainName}
+            TELEPORT_S3_BUCKET=${LocalBucketName}
+            TELEPORT_ROLE=auth
+            TELEPORT_LOCKS_TABLE_NAME=${LocalLocksTableName}
+            TELEPORT_TABLE_NAME=${LocalMainTableName}
+            TELEPORT_EVENTS_TABLE_NAME=${LocalEventsTableName}
+            TELEPORT_DOMAIN_ADMIN_EMAIL=${DomainAdminEmail}
+            TELEPORT_SSM_KEY_ARN=${LocalKeyARN}
+            EOF
+
+            # Generate config and start proxy service
+            /usr/bin/teleport-generate-config
+            systemctl enable teleport-ssm-publish-tokens.service teleport-ssm-publish-tokens.timer teleport-get-cert.service teleport-get-cert.timer teleport-renew-cert.service teleport-renew-cert.timer
+            systemctl start --no-block teleport-auth teleport-ssm-publish-tokens.timer teleport-get-cert.timer teleport-renew-cert.timer
+
+            # Check the status a couple of times until the teleport service starts or fails
+            for i in {1..10}; do systemctl status teleport-auth && break || sleep 10; done
+
+            # Get the last measure to collect status
+            systemctl status teleport-auth
+
+            # Signal the status of the teleport auth service on cfn-signal
+            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource AuthASG --region ${AWS::Region}
+          - {
+            LocalMainTableName: !Select [1, !Split ["/", !GetAtt MainTable.Arn]],
+            LocalLocksTableName: !Select [1, !Split ["/", !GetAtt LocksTable.Arn]],
+            LocalEventsTableName: !Select [1, !Split ["/", !GetAtt EventsTable.Arn]],
+            LocalBucketName: !Select [1, !Split [":::", !GetAtt Bucket.Arn]],
+            LocalKeyARN: !GetAtt Key.Arn
+            }
+      SecurityGroups:
+        - Ref: AuthSecurityGroup
+      InstanceType: {Ref: InstanceType}
+      IamInstanceProfile: {Ref: AuthInstanceProfile}
+      # Proxies have to have public IP address in order
+      # to be reachable from the internet according to this
+      # article: https://aws.amazon.com/premiumsupport/knowledge-center/public-load-balancer-private-ec2/
+      AssociatePublicIpAddress: false
+
+  AuthASG:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    DependsOn: InternetGatewayAttachment
+    CreationPolicy:
+      ResourceSignal:
+        Count: 2
+        Timeout: PT10M
+    UpdatePolicy:
+      AutoScalingRollingUpdate:
+        MaxBatchSize: 2
+        MinInstancesInService: 0
+        MinSuccessfulInstancesPercent: 100
+        PauseTime: PT5M
+        WaitOnResourceSignals: true
+    Properties:
+      # Use IDs of the subnets created in two AZs
+      # to let AWS know we want instances to be placed
+      # in those subnets.
+      VPCZoneIdentifier:
+        - {Ref: AuthSubnetA}
+        - {Ref: AuthSubnetB}
+      LaunchConfigurationName: {Ref: AuthLaunchConfig}
+      MinSize: 2
+      MaxSize: 2
+      TargetGroupARNs:
+        - {Ref: AuthTargetGroup}
+
+  #
+  # Proxy Setup
+  #
+  ProxySecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: {Ref: VPC}
+      GroupDescription: Allow proxy and auth server access
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          Description: SSH emergency access
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+
+        - IpProtocol: tcp
+          Description: Port for SSH clients
+          FromPort: 3023
+          ToPort: 3023
+          CidrIp: 0.0.0.0/0
+
+        - IpProtocol: tcp
+          Description: Port for remote trusted clusters
+          FromPort: 3024
+          ToPort: 3024
+          CidrIp: 0.0.0.0/0
+
+        - IpProtocol: tcp
+          Description: Port for HTTPS connections
+          FromPort: 3080
+          ToPort: 3080
+          CidrIp: 0.0.0.0/0
+
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          Description: Egress is allowed anywhere
+          FromPort: 0
+          ToPort: 0
+          CidrIp: 0.0.0.0/0
+
+  ProxyLB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Type: network
+      LoadBalancerAttributes:
+        - Key: load_balancing.cross_zone.enabled
+          Value: 'true'        
+      Subnets:
+        - Ref: ProxySubnetA
+        - Ref: ProxySubnetB
+
+  # Create A DNS entry pointing to load balancer
+  ProxyDNS:
+    Type: AWS::Route53::RecordSetGroup
+    Properties:
+      HostedZoneId: !Ref HostedZoneID
+      Comment: Zone Alias for DNS
+      RecordSets:
+      - Name: !Ref DomainName
+        Type: A
+        AliasTarget:
+          HostedZoneId: !GetAtt ProxyLB.CanonicalHostedZoneID
+          DNSName: !GetAtt ProxyLB.DNSName
+
+  ProxyLBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+      - Type: forward
+        TargetGroupArn:
+          Ref: ProxyWebTargetGroup
+      LoadBalancerArn:
+        Ref: ProxyLB
+      Port: '443'
+      Protocol: TCP
+
+  ProxyWebTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 30
+      HealthCheckProtocol: TCP
+      HealthCheckTimeoutSeconds: 10
+      HealthyThresholdCount: 4
+      UnhealthyThresholdCount: 4
+      Port: 3080
+      Protocol: TCP
+      VpcId: {Ref: VPC}
+
+  ProxyLaunchConfig: 
+    Type: AWS::AutoScaling::LaunchConfiguration
+    DependsOn:
+      - InternetGatewayAttachment
+    Properties: 
+      KeyName: 
+        Ref: KeyName
+      # This line finds appropriate image ID based on the arch, region and instance type using FindInMap function
+      ImageId: !FindInMap [AWSRegionArch2AMI, !Ref 'AWS::Region', !FindInMap [AWSInstanceType2Arch, !Ref InstanceType, Arch]]  
+      UserData:
+        Fn::Base64:
+          # Fn:Sub accepts two parameters as a list, the first one is the template
+          # the second parameter is a dictionary with template-local variables
+          Fn::Sub:
+          - |
+            #!/bin/bash -xe
+
+            # Indicate that this ami is proxy for all systemd units
+            echo "proxy" >> /etc/teleport.d/role.proxy
+
+            # Set some instance specific environment variables configurations for systemd configuration file
+            cat >> /etc/teleport.d/conf <<EOF
+            EC2_REGION=${AWS::Region}
+            TELEPORT_CLUSTER_NAME=${DomainName}
+            TELEPORT_DOMAIN_NAME=${DomainName}
+            TELEPORT_S3_BUCKET=${LocalBucketName}
+            TELEPORT_ROLE=proxy
+            TELEPORT_AUTH_SERVER_LB=${LocalAuthServerLB}
+            TELEPORT_SSM_KEY_ARN=${LocalKeyARN}
+            EOF
+
+            # Generate config and start proxy service
+            /usr/bin/teleport-generate-config
+            systemctl enable teleport-proxy.service teleport-check-cert.service teleport-check-cert.timer
+            systemctl start --no-block teleport-proxy.service teleport-check-cert.timer
+
+            # Check the status a couple of times until the teleport service starts or fails
+            # Teleport proxy can take some time to start as it waits for letsencrypt cert
+            # to be provisioned.
+            for i in {1..40}; do systemctl status teleport-proxy && break || sleep 30; done
+
+            # Get the last measure to collect status
+            systemctl status teleport-proxy
+
+            # Signal the status of the teleport auth service on cfn-signal
+            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ProxyASG --region ${AWS::Region}
+          - {
+            LocalAuthServerLB: !GetAtt AuthLB.DNSName,
+            LocalKeyARN: !GetAtt Key.Arn,
+            LocalBucketName: !Select [1, !Split [":::", !GetAtt Bucket.Arn]]
+            }
+      SecurityGroups: 
+        - Ref: ProxySecurityGroup
+      InstanceType: {Ref: InstanceType}
+      # Proxies have to have public IP address in order
+      # to be reachable from the internet according to this 
+      # article: https://aws.amazon.com/premiumsupport/knowledge-center/public-load-balancer-private-ec2/
+      AssociatePublicIpAddress: true
+      # IamInstance profile is an instance profile of the proxy
+      IamInstanceProfile: {Ref: ProxyInstanceProfile}
+
+  ProxyASG: 
+    Type: AWS::AutoScaling::AutoScalingGroup
+    DependsOn: InternetGatewayAttachment
+    CreationPolicy:
+      ResourceSignal:
+        Count: 2
+        Timeout: PT20M
+    UpdatePolicy:
+      AutoScalingRollingUpdate:
+        MaxBatchSize: 1
+        MinInstancesInService: 1
+        MinSuccessfulInstancesPercent: 100
+        PauseTime: PT10M
+        WaitOnResourceSignals: true
+    Properties:
+      # Use IDs of the subnets created in two AZs
+      # to let AWS know we want instances to be placed
+      # in those subnets.
+      VPCZoneIdentifier:
+        - {Ref: ProxySubnetA}
+        - {Ref: ProxySubnetB}
+      LaunchConfigurationName: {Ref: ProxyLaunchConfig}
+      MinSize: 2
+      MaxSize: 2
+      TargetGroupARNs:
+        - {Ref: ProxyWebTargetGroup}
+
+
+  NodeLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    DependsOn:
+      - InternetGatewayAttachment
+    Properties:
+      KeyName:
+        Ref: KeyName
+      # This line finds appropriate image ID based on the arch, region and instance type using FindInMap function
+      ImageId: !FindInMap [AWSRegionArch2AMI, !Ref 'AWS::Region', !FindInMap [AWSInstanceType2Arch, !Ref InstanceType, Arch]]
+      UserData:
+        Fn::Base64:
+          # Fn:Sub accepts two parameters as a list, the first one is the template
+          # the second parameter is a dictionary with template-local variables
+          Fn::Sub:
+          - |
+            #!/bin/bash -xe
+
+            # Indicate that this ami is node for all systemd units
+            echo "node" >> /etc/teleport.d/role.node
+
+            # Set some instance specific environment variables configurations for systemd configuration file
+            cat >> /etc/teleport.d/conf <<EOF
+            EC2_REGION=${AWS::Region}
+            TELEPORT_CLUSTER_NAME=${DomainName}
+            TELEPORT_DOMAIN_NAME=${DomainName}
+            TELEPORT_S3_BUCKET=${LocalBucketName}
+            TELEPORT_ROLE=node
+            TELEPORT_AUTH_SERVER_LB=${LocalAuthServerLB}
+            TELEPORT_SSM_KEY_ARN=${LocalKeyARN}
+            EOF
+
+            # Generate config and start proxy service
+            /usr/bin/teleport-generate-config
+            systemctl enable teleport-node.service
+            systemctl start --no-block teleport-node.service
+          - {
+            LocalAuthServerLB: !GetAtt AuthLB.DNSName,
+            LocalKeyARN: !GetAtt Key.Arn,
+            LocalBucketName: !Select [1, !Split [":::", !GetAtt Bucket.Arn]]
+            }
+      SecurityGroups:
+        - Ref: NodeSecurityGroup
+      InstanceType: {Ref: InstanceType}
+      AssociatePublicIpAddress: false
+      # IamInstance profile is an instance profile of the proxy
+      IamInstanceProfile: {Ref: NodeInstanceProfile}
+
+  NodeASG:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      # Use IDs of the subnets created in two AZs
+      # to let AWS know we want instances to be placed
+      # in those subnets.
+      VPCZoneIdentifier:
+        - {Ref: NodeSubnetA}
+        - {Ref: NodeSubnetB}
+      LaunchConfigurationName: {Ref: NodeLaunchConfig}
+      MinSize: 2
+      MaxSize: 2
+
+  AuthRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: "Allow"
+            Principal:
+              Service:
+                - "ec2.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+
+  # Allows auth server to publish join tokens
+  # to SSM parameter store
+  AuthPolicies:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Join ["-", [!Ref AuthRole, "ssm"]]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          # Allow auth server to publish join tokens to SSM parameter store
+          -
+            Effect: "Allow"
+            Resource: !Join ["", ["arn:aws:ssm:", !Ref "AWS::Region", ":", !Ref "AWS::AccountId", ":parameter/teleport/", !Ref DomainName, "/*"]]
+            Action:
+            - "ssm:DescribeParameters"
+            - "ssm:GetParameters"
+            - "ssm:GetParametersByPath"
+            - "ssm:GetParameter"
+            - "ssm:PutParameter"
+            - "ssm:DeleteParameter"
+          # Allow auth server to control main dynamo db table
+          -
+            Effect: "Allow"
+            Resource: !GetAtt MainTable.Arn
+            Action:
+            - "dynamodb:*"
+
+          # Allow auth server to control audit dynamo db table
+          # and it's secondary indexes
+          -
+            Effect: "Allow"
+            Resource: !GetAtt EventsTable.Arn
+            Action:
+            - "dynamodb:*"
+
+          -
+            Effect: "Allow"
+            Resource: !Join ["", [!GetAtt EventsTable.Arn, "/index/*"]]
+            Action:
+            - "dynamodb:*"
+
+          # Allow auth server to control locks dynamo db table
+          -
+            Effect: "Allow"
+            Resource: !GetAtt LocksTable.Arn
+            Action:
+            - "dynamodb:*"
+
+          # Auth server is allowed to read and write from the bucket
+          -
+            Effect: "Allow"
+            Resource: !GetAtt Bucket.Arn
+            Action:
+            - "s3:ListBucket"
+
+          -
+            Effect: "Allow"
+            Resource: !Join ["/", [!GetAtt Bucket.Arn, "*"]]
+            Action:
+            - "s3:GetObject"
+            - "s3:PutObject"
+
+          # Allow to list hosted zone changes
+          -
+            Effect: "Allow"
+            Resource: "*"
+            Action:
+            - "route53:ListHostedZones"
+            - "route53:GetChange"
+
+          # Allow auth server to modify record sets (for DNS-01 letsencrypt challenge)
+          # DNS-01 is the most reliable challenge up to date, that's why we are using it
+          -
+            Effect: "Allow"
+            Resource: !Join ["/", ["arn:aws:route53:::hostedzone", !Ref HostedZoneID]]
+            Action:
+            - "route53:ChangeResourceRecordSets"
+      Roles:
+      - {Ref: AuthRole}
+  AuthInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+      - {Ref: AuthRole}
+
+  ProxyRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: "Allow"
+            Principal:
+              Service:
+                - "ec2.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+
+  # Allows proxies to read tokens from SSM parameter store
+  # And read certs from encrypted S3 bucket
+  ProxyPolicies:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Join ["-", [!Ref ProxyRole, "ssm"]]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          # Allow proxy to read tokens and CA from SSM parameter store
+          -
+            Effect: "Allow"
+            Resource: !Join ["", ["arn:aws:ssm:", !Ref "AWS::Region", ":", !Ref "AWS::AccountId", ":parameter/teleport/", !Ref DomainName, "/tokens/proxy"]]
+            Action:
+            - "ssm:GetParameters"
+            - "ssm:GetParametersByPath"
+            - "ssm:GetParameter"
+
+          # Allow proxy to read tokens and CA from SSM parameter store
+          -
+            Effect: "Allow"
+            Resource: !Join ["", ["arn:aws:ssm:", !Ref "AWS::Region", ":", !Ref "AWS::AccountId", ":parameter/teleport/", !Ref DomainName, "/ca"]]
+            Action:
+            - "ssm:GetParameters"
+            - "ssm:GetParametersByPath"
+            - "ssm:GetParameter"
+
+          # Allow auth server to read from S3 bucket
+          -
+            Effect: "Allow"
+            Resource: !GetAtt Bucket.Arn
+            Action:
+            - "s3:ListBucket"
+
+          -
+            Effect: "Allow"
+            Resource: !Join ["/", [!GetAtt Bucket.Arn, "*"]]
+            Action:
+            - "s3:GetObject"
+
+      Roles:
+      - {Ref: ProxyRole}
+  ProxyInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+      - {Ref: ProxyRole}
+
+  NodeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: "Allow"
+            Principal:
+              Service:
+                - "ec2.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+
+  # Allows nodes to read SSM parameter store
+  # join tokens
+  NodePolicies:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Join ["-", [!Ref ProxyRole, "ssm"]]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          # Allow proxy to read tokens and CA from SSM parameter store
+          -
+            Effect: "Allow"
+            Resource: !Join ["", ["arn:aws:ssm:", !Ref "AWS::Region", ":", !Ref "AWS::AccountId", ":parameter/teleport/", !Ref DomainName, "/tokens/node"]]
+            Action:
+            - "ssm:GetParameters"
+            - "ssm:GetParametersByPath"
+            - "ssm:GetParameter"
+
+          # Allow proxy to read tokens and CA from SSM parameter store
+          -
+            Effect: "Allow"
+            Resource: !Join ["", ["arn:aws:ssm:", !Ref "AWS::Region", ":", !Ref "AWS::AccountId", ":parameter/teleport/", !Ref DomainName, "/ca"]]
+            Action:
+            - "ssm:GetParameters"
+            - "ssm:GetParametersByPath"
+            - "ssm:GetParameter"
+
+      Roles:
+      - {Ref: NodeRole}
+  NodeInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+      - {Ref: NodeRole}
+
+  Key:
+    Type: "AWS::KMS::Key"
+    Properties:
+      Description: "SSM Key used by Teleport"
+      KeyPolicy: 
+        Version: "2012-10-17"
+        Id: "key-default-1"
+        Statement: 
+          - 
+            Sid: "Allow administration of the key"
+            Effect: "Allow"
+            Principal: 
+              AWS: !Join ["", ["arn:aws:sts::", !Ref "AWS::AccountId", ":root"]]
+            Action: 
+            - "kms:Create*"
+            - "kms:Describe*"
+            - "kms:Enable*"
+            - "kms:List*"
+            - "kms:Put*"
+            - "kms:Update*"
+            - "kms:Revoke*"
+            - "kms:Disable*"
+            - "kms:Get*"
+            - "kms:Delete*"
+            - "kms:ScheduleKeyDeletion"
+            - "kms:CancelKeyDeletion"
+            Resource: "*"
+        
+          - 
+            Sid: "Allow auth use of the key"
+            Effect: "Allow"
+            Principal: 
+              AWS: !GetAtt AuthRole.Arn
+            Action: 
+              - "kms:Encrypt"
+              - "kms:Decrypt"
+              - "kms:ReEncrypt*"
+              - "kms:GenerateDataKey*"
+              - "kms:DescribeKey"
+            Resource: "*"
+
+          -
+            Sid: "Allow proxy use of the key"
+            Effect: "Allow"
+            Principal:
+              AWS: !GetAtt ProxyRole.Arn
+            Action:
+              - "kms:Decrypt"
+              - "kms:DescribeKey"
+            Resource: "*"
+
+          -
+            Sid: "Allow node use of the key"
+            Effect: "Allow"
+            Principal:
+              AWS: !GetAtt NodeRole.Arn
+            Action:
+              - "kms:Decrypt"
+              - "kms:DescribeKey"
+            Resource: "*"
+
+
+  # MainTable is a main dynamodb table
+  # where teleport stores all relevant state
+  MainTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      KeySchema:
+      - {AttributeName: "HashKey", KeyType: "HASH"}
+      - {AttributeName: "FullPath", KeyType: "RANGE"}
+
+      ProvisionedThroughput: {ReadCapacityUnits: 20, WriteCapacityUnits: 20}
+      AttributeDefinitions:
+      - {AttributeName: "HashKey", AttributeType: "S"}
+      - {AttributeName: "FullPath", AttributeType: "S"}
+      
+      TimeToLiveSpecification: {AttributeName: "Expires", Enabled: "true"}
+      # Server side encrypt all the data for this table
+      SSESpecification: {SSEEnabled: true}
+
+  # LocksTable is a dynamodb table that is 
+  # used as a distributed lock between auth servers
+  # trying to renew and manage letsencrypt certificate
+  LocksTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      KeySchema:
+      - {AttributeName: "Lock", KeyType: "HASH"}
+
+      ProvisionedThroughput: {ReadCapacityUnits: 5, WriteCapacityUnits: 5}
+      AttributeDefinitions:
+      - {AttributeName: "Lock", AttributeType: "S"}
+
+      TimeToLiveSpecification: {AttributeName: "Expires", Enabled: "true"}
+
+  # EventsTable is a dynamodb table that is
+  # used to store teleport audit log events
+  EventsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      KeySchema:
+      - {AttributeName: "SessionID", KeyType: "HASH"}
+      - {AttributeName: "EventIndex", KeyType: "RANGE"}
+
+      ProvisionedThroughput: {ReadCapacityUnits: 20, WriteCapacityUnits: 20}
+      AttributeDefinitions:
+      - {AttributeName: "SessionID", AttributeType: "S"}
+      - {AttributeName: "EventIndex", AttributeType: "N"}
+      - {AttributeName: "EventNamespace", AttributeType: "S"}
+      - {AttributeName: "CreatedAt", AttributeType: "N"}
+
+      TimeToLiveSpecification: {AttributeName: "Expires", Enabled: "true"}
+
+      GlobalSecondaryIndexes:
+      - IndexName: "timesearch"
+        KeySchema:
+        - AttributeName: "EventNamespace"
+          KeyType: "HASH"
+        - AttributeName: "CreatedAt"
+          KeyType: "RANGE"
+        Projection:
+          ProjectionType: "ALL"
+        ProvisionedThroughput:
+          ReadCapacityUnits: 20
+          WriteCapacityUnits: 20
+
+  # Bucket is used to publish letsencrypt certs
+  # and store recorded SSH sessions
+  Bucket:
+    Type: AWS::S3::Bucket
+    # Cloudformation can't delete non-empty bucket
+    DeletionPolicy: Retain    
+    Properties:
+      VersioningConfiguration: {Status: Enabled}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+        - ServerSideEncryptionByDefault: {SSEAlgorithm: AES256}

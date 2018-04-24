@@ -1,0 +1,7 @@
+[Unit]
+Description=Service getting teleport certificates
+
+[Service]
+Type=oneshot
+ExecStartPre=/usr/bin/teleport-lock
+ExecStart=/usr/bin/teleport-get-cert

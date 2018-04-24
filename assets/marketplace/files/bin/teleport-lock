@@ -1,0 +1,31 @@
+#!/bin/bash
+#
+# Locking service makes sure that there is only one auth server performing certain action,
+# for example renewing or getting letsencrypt certificates
+
+set -x
+set -e
+
+# Source variables set up by cloudformation template
+. /etc/teleport.d/conf
+
+LOCK="/teleport/${TELEPORT_CLUSTER_NAME}"
+NOW=$(date +%s)
+TTL=$(($NOW+3660))
+PROCESS=$(curl http://169.254.169.254/latest/meta-data/local-hostname)
+echo Locking $PROCESS for $TTL.
+
+# Either renew the lease if agent still holds it, or grab the lease if it's expired
+aws dynamodb put-item \
+    --region ${EC2_REGION} \
+    --table-name ${TELEPORT_LOCKS_TABLE_NAME}\
+    --item  "{\"Lock\": {\"S\": \"/auth/servers\"}, \"Expires\": {\"S\": \"$TTL\"}, \"Process\": {\"S\": \"$PROCESS\"}}" \
+    --condition-expression="(attribute_not_exists(Expires) OR Expires <= :timestamp) OR Process = :process"\
+    --expression-attribute-values "{\":timestamp\":{\"S\":\"$NOW\"}, \":process\":{\"S\":\"$PROCESS\"}}"
+
+if [ $? -eq 0 ]; then
+    echo "Renewed or locked the lease for $PROCESS until $(date -d @$TTL)"
+else
+    echo "Could get renew lease, locked by other process"
+    exit 255
+fi
