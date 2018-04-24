@@ -1,0 +1,8 @@
+[Unit]
+Description=Timer rotating teleport certificates
+ConditionPathExists=/etc/teleport.d/role.auth
+
+[Timer]
+OnBootSec=20min
+OnCalendar=hourly
+Persistent=true

@@ -1,0 +1,24 @@
+#!/bin/bash
+
+# This script is called hourly to check if the certificate
+# has been renewed on S3 and if it has been renewed, restart teleport proxies
+
+set -x
+
+# Source variables set up by cloudformation template
+. /etc/teleport.d/conf
+
+TMPDIR=$(mktemp -d)
+trap "{ rm -rf $TMPDIR; }" EXIT
+
+aws s3 sync s3://${TELEPORT_S3_BUCKET}/live/${TELEPORT_DOMAIN_NAME} $TMPDIR
+
+# Check if the file has been updated in S3 compare to the copy in use
+cmp --silent /var/lib/teleport/fullchain.pem $TMPDIR/fullchain.pem > /dev/null
+if [ $? -eq 0 ]; then
+    echo "Certificates are equal, nothing to do"
+else
+    echo "Certificates are different, going to update and restart proxy"
+    su teleport -c "aws s3 sync --exact-timestamps s3://${TELEPORT_S3_BUCKET}/live/${TELEPORT_DOMAIN_NAME} /var/lib/teleport"
+    systemctl reload teleport-proxy.service
+fi

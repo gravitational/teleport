@@ -1,0 +1,9 @@
+[Unit]
+Description=Service rotating teleport certificates
+ConditionPathExists=/etc/teleport.d/role.auth
+
+[Service]
+Type=oneshot
+ExecStartPre=/usr/bin/teleport-lock
+ExecStart=/usr/bin/teleport-renew-cert
+

@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# This script is called hourly to check if the certificate
+# needs renewal, and renews the cert after that
+
+set -e
+set -x
+
+# Source variables set up by cloudformation template
+. /etc/teleport.d/conf
+
+# This is called periodically, if renewal is successfull
+# certs are uploaded to the S3 Bucket
+certbot renew --deploy-hook=/usr/bin/teleport-upload-cert

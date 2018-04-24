@@ -1,0 +1,76 @@
+{
+  "variables": {
+    "vpc": "{{env `BUILD_VPC_ID`}}",
+    "subnet": "{{env `BUILD_SUBNET_ID`}}",
+    "aws_region": "{{env `AWS_REGION`}}",
+    "destination_regions": "{{env `DESTINATION_REGIONS`}}",
+    "instance_type": "{{env `INSTANCE_TYPE`}}",
+    "teleport_version": "{{env `TELEPORT_VERSION`}}",
+    "teleport_uid": "{{env `TELEPORT_UID`}}",
+    "teleport_type": "{{env `TELEPORT_TYPE`}}",
+    "ami_name": "gravitational-teleport-{{env `TELEPORT_TYPE`}}-{{env `TELEPORT_VERSION`}}"
+  },
+  "builders": [{
+    "name": "Teleport AWS Linux",
+    "ami_description": "Teleport OSS Linux using AWS Linux AMI",
+    "type": "amazon-ebs",
+    "region": "{{user `aws_region`}}",
+    "source_ami_filter": {
+        "filters": {
+            "virtualization-type": "hvm",
+            "name": "amzn2-ami*-ebs",
+            "root-device-type": "ebs"
+        },
+        "owners": ["137112412989", "591542846629", "801119661308",
+                   "102837901569", "013907871322", "206029621532",
+                   "286198878708", "443319210888"],
+        "most_recent": true
+    },
+    "instance_type": "{{user `instance_type`}}",
+    "ssh_username": "ec2-user",
+    "ami_name": "{{user `ami_name` | clean_ami_name}}",
+    "ssh_pty" : true,
+    "associate_public_ip_address": true,
+    "vpc_id": "{{user `vpc`}}",
+    "subnet_id": "{{user `subnet`}}",
+    "ami_regions": "{{user `destination_regions`}}",
+    "tags": {
+      "Name": "{{user `ami_name`}}"
+    },
+    "run_tags": {
+      "Name": "{{user `ami_name`}}"
+    },
+    "run_volume_tags": {
+      "Name": "{{user `ami_name`}}"
+    },
+    "snapshot_tags": {
+      "Name": "{{user `ami_name`}}"
+    }
+  }],
+  "provisioners": [{
+      "inline": [
+        "mkdir /tmp/files"
+      ],
+      "type": "shell"
+  },{
+    "type": "file",
+    "source": "files/",
+    "destination": "/tmp/files"
+  },{
+      "inline": [
+        "sudo cp /tmp/files/system/* /etc/systemd/system/",
+        "sudo cp /tmp/files/bin/* /usr/bin/"
+      ],
+      "type": "shell"
+  },
+  {
+    "type": "shell",
+    "script": "files/install.sh",
+    "execute_command": "chmod +x {{ .Path }}; echo 'root' | {{.Vars}} sudo -S -E bash -eux '{{.Path}}'",
+    "environment_vars": [
+      "TELEPORT_UID={{user `teleport_uid`}}",
+      "TELEPORT_VERSION={{user `teleport_version`}}",
+      "TELEPORT_TYPE={{user `teleport_type`}}"
+    ]
+  }]
+}

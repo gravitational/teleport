@@ -1,0 +1,8 @@
+[Unit]
+Description=Timer checking if teleport cert has been updated
+ConditionPathExists=/etc/teleport.d/role.proxy
+
+[Timer]
+OnBootSec=20min
+OnCalendar=hourly
+Persistent=true
