@@ -23,7 +23,7 @@ A cluster is a group of SSH nodes connected to the cluster's _auth server_
 acting as a certificate authority (CA) for all users and nodes.
 
 To retrieve an SSH certificate, users must authenticate with a cluster through a
-_proxy server_. So if users want to connect to nodes belonging to different
+_proxy server_. So, if users want to connect to nodes belonging to different
 clusters, they would normally have to use different `--proxy` flags for each
 cluster. This is not always convenient.
 
@@ -101,8 +101,7 @@ of cluster "main":
 $ tctl nodes add --ttl=5m --roles=trustedcluster --token=join-token
 ``` 
 
-Yes, this is not a typo: a remote _trusting_ cluster adds itself to a _trusted_ cluster
-using the same node authentication mechanism.
+Users of Teleport will recognize that this is the same way you would add any node to a cluster.
 
 * The token created above can be used multiple times and has an expiration time of 5 minutes.
 * If you omit the `--token` flag `tctl` will generate one for you.
@@ -224,13 +223,21 @@ db2.east  3879d133-fe81-3212 10.0.5.3:3022  role=db-slave
 $ tsh --cluster=east ssh root@db1.east
 ```
 
-To disable a trusted cluster on the east side, set "enabled" to false in the cluster 
-resoure file and type `tctl create -f main-cluster.yaml` 
-
 
 !!! tip "Note":
     Trusted clusters work only one way. So, in the example above users from "east" 
 	cannot see or connect to the nodes in "main".
+
+### Disabling Trust
+
+To temporarily disable trust between clusters, i.e. to disconnect the "east"
+cluster from "main", edit the YAML definition of the trusted cluster resource
+and set `enabled` to "false", then update it:
+
+```bash
+$ tctl create --force cluster.yaml
+```
+
 
 ## How does it work?
 
@@ -254,14 +261,23 @@ from "main" connects to "east", the auth server of "east" does three checks:
 
 ## Troubleshooting
 
-There are two types of problems Teleport administrators can run into when configuring 
+There are three common types of problems Teleport administrators can run into when configuring 
 trust between two clusters:
+
+* **HTTPS configuration**: when the main cluster uses a self-sgined or invalid HTTPS certificate.
 
 * **Connectivity problems**: when a trusting cluster "east" does not show up in
   `tsh clusters` output on "main".
 
 * **Access problems**: when users from "main" get "access denied" error messages
   trying to connect to nodes on "east".
+
+### HTTPS configuration
+
+If the web_proxy_addr endpoint of the main cluster uses a self-signed or invalid HTTPS certificate, 
+you will get an error: "the trusted cluster uses misconfigured HTTP/TLS certificate". For ease of 
+testing the teleport daemon of "east" can be started with  `--insecure` CLI flag to accept 
+self-signed certificates. Make sure to configure HTTPS properly and remove the insecure flag for production use.
 
 ### Connectivity Problems
 
