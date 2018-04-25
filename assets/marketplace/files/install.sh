@@ -16,7 +16,7 @@ CURL_OPTS="-L --retry 100 --retry-delay 0 --connect-timeout 10 --max-time 300"
 # remove it if you don't need letsencrypt.
 curl ${CURL_OPTS} -O https://bootstrap.pypa.io/get-pip.py
 python2.7 get-pip.py
-pip install awscli requests[security]==2.18.4
+pip install -I awscli requests[security]==2.18.4
 pip install certbot==0.21.0 certbot-dns-route53==0.21.0
 
 # Create teleport user. It is helpful to share the same UID
