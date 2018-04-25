@@ -248,24 +248,25 @@ which is fairly easy to reason about:
 One can think of an SSH certificate as a "permit" issued and time-stamped by a
 certificate authority. A certificate contains four important pieces of data:
 
-* List of host identities (UNIX logins) a user can assume, they are called
-  "principals" in the certificate.
+* List of allowed UNIX logins a user can use. They are called "principals" in
+  the certificate.
 * Signature of the certificate authority who issued it (the _auth_ server)
 * Metadata (certificate extensions): additional data protected by the signature
-  above. Teleport uses metadata to store the list of user roles and SSH
+  above. Teleport uses the metadata to store the list of user roles and SSH
   options like "permit-agent-forwarding".
 * The expiration date.
 
-Every role is encoded in a certifiate as yet another principal. When a user
-from "main" connects to "east", the auth server of "east" does three checks:
+Try executing `tsh status` right after `tsh login` to see all these fields in the
+client certificate.
+
+When a user from "main" tries to connect to a node inside "east" cluster, her
+certificate is presented to the auth server of "east" and it performs the
+following checks:
 
 * Checks that the certificate signature matches one of the trusted clusters.
 * Tries to find a local role which maps to the list of principals found in the certificate.
 * Checks if the local role allows the requested identity (UNIX login) to have access.
 * Checks that the certificate is not expired.
-
-Try executing `tsh status` right after `tsh login` to see all these fields in the
-client certificate.
 
 ## Troubleshooting
 
