@@ -26,8 +26,6 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -59,22 +57,13 @@ type TerminalRequest struct {
 	InteractiveCommand []string `json:"-"`
 }
 
-// NodeProvider is a provider of nodes for namespace
-type NodeProvider interface {
-	GetNodes(namespace string) ([]services.Server, error)
-}
-
 // newTerminal creates a web-based terminal based on WebSockets and returns a new
 // TerminalHandler
-func NewTerminal(req TerminalRequest, provider NodeProvider, ctx *SessionContext) (*TerminalHandler, error) {
+func NewTerminal(req TerminalRequest, ctx *SessionContext) (*TerminalHandler, error) {
 	// make sure whatever session is requested is a valid session
 	_, err := session.ParseID(string(req.SessionID))
 	if err != nil {
 		return nil, trace.BadParameter("sid: invalid session id")
-	}
-
-	if req.Server == "" {
-		return nil, trace.BadParameter("server: missing server")
 	}
 
 	if req.Login == "" {
@@ -84,14 +73,9 @@ func NewTerminal(req TerminalRequest, provider NodeProvider, ctx *SessionContext
 		return nil, trace.BadParameter("term: bad term dimensions")
 	}
 
-	servers, err := provider.GetNodes(req.Namespace)
+	hostName, hostPort, err := parseTerminalHostPort(req.Server)
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	hostName, hostPort, err := resolveHostPort(req.Server, servers)
-	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.BadParameter("invalid server name %q: %v", req.Server, err)
 	}
 
 	return &TerminalHandler{
@@ -238,35 +222,29 @@ func (t *TerminalHandler) Run(w http.ResponseWriter, r *http.Request) {
 	ws.ServeHTTP(w, r)
 }
 
-// resolveHostPort parses an input value and attempts to resolve hostname and port of requested server
-func resolveHostPort(value string, existingServers []services.Server) (string, int, error) {
-	var hostName = ""
-	// if port is 0, it means the client wants us to figure out which port to use
-	var hostPort = 0
+// parseTerminalHostPort parses given server name and returns host and port
+func parseTerminalHostPort(servername string) (string, int, error) {
+	// 0 tells the proxy subsystem to figure out which port to use
+	var defaultPort = 0
 
-	// check if server exists by comparing its UUID or hostname
-	for i := range existingServers {
-		node := existingServers[i]
-		if node.GetName() == value || strings.EqualFold(node.GetHostname(), value) {
-			hostName = node.GetHostname()
-			break
-		}
+	if servername == "" {
+		return "", 0, trace.BadParameter("empty hostname")
 	}
 
-	// if server is not found, parse SSH connection string (for joining an unlisted SSH server)
-	if hostName == "" {
-		hostName = value
-		host, port, err := net.SplitHostPort(value)
-		if err != nil {
-			hostPort = defaults.SSHDefaultPort
-		} else {
-			hostName = host
-			hostPort, err = strconv.Atoi(port)
-			if err != nil {
-				return "", 0, trace.BadParameter("server: invalid port", err)
-			}
-		}
+	// if port is missing, return server name as is with default port
+	if !strings.Contains(servername, ":") {
+		return servername, defaultPort, nil
 	}
 
-	return hostName, hostPort, nil
+	host, port, err := utils.SplitHostPort(servername)
+	if err != nil {
+		return "", 0, trace.Wrap(err)
+	}
+
+	hostPort, err := strconv.Atoi(port)
+	if err != nil {
+		return "", 0, trace.BadParameter("invalid port: %q", port)
+	}
+
+	return host, hostPort, nil
 }

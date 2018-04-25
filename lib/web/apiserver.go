@@ -1393,12 +1393,7 @@ func (h *Handler) siteNodeConnect(
 	req.ProxyHostPort = h.ProxyHostPort()
 	req.Cluster = site.GetName()
 
-	clt, err := ctx.GetUserClient(site)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	term, err := NewTerminal(*req, clt, ctx)
+	term, err := NewTerminal(*req, ctx)
 	if err != nil {
 		log.Errorf("[WEB] Unable to create terminal: %v", err)
 		return nil, trace.Wrap(err)
