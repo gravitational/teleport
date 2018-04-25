@@ -23,10 +23,8 @@ import (
 	"net"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -84,12 +82,7 @@ func NewTerminal(req TerminalRequest, provider NodeProvider, ctx *SessionContext
 		return nil, trace.BadParameter("term: bad term dimensions")
 	}
 
-	servers, err := provider.GetNodes(req.Namespace)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	hostName, hostPort, err := resolveHostPort(req.Server, servers)
+	hostName, hostPort, err := parseServerHostPort(req.Server)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -238,34 +231,18 @@ func (t *TerminalHandler) Run(w http.ResponseWriter, r *http.Request) {
 	ws.ServeHTTP(w, r)
 }
 
-// resolveHostPort parses an input value and attempts to resolve hostname and port of requested server
-func resolveHostPort(value string, existingServers []services.Server) (string, int, error) {
-	var hostName = ""
-	// if port is 0, it means the client wants us to figure out which port to use
+// parseServerHostPort parses given server name and returns host and port
+func parseServerHostPort(servername string) (string, int, error) {
+	// 0 tells the proxy subsystem to figure out which port to use
 	var hostPort = 0
-
-	// check if server exists by comparing its UUID or hostname
-	for i := range existingServers {
-		node := existingServers[i]
-		if node.GetName() == value || strings.EqualFold(node.GetHostname(), value) {
-			hostName = node.GetHostname()
-			break
-		}
+	hostName, port, err := net.SplitHostPort(servername)
+	if err != nil {
+		return servername, hostPort, nil
 	}
 
-	// if server is not found, parse SSH connection string (for joining an unlisted SSH server)
-	if hostName == "" {
-		hostName = value
-		host, port, err := net.SplitHostPort(value)
-		if err != nil {
-			hostPort = defaults.SSHDefaultPort
-		} else {
-			hostName = host
-			hostPort, err = strconv.Atoi(port)
-			if err != nil {
-				return "", 0, trace.BadParameter("server: invalid port", err)
-			}
-		}
+	hostPort, err = strconv.Atoi(port)
+	if err != nil {
+		return "", 0, trace.BadParameter("server: invalid port %v", err)
 	}
 
 	return hostName, hostPort, nil
