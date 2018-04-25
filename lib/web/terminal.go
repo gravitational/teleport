@@ -23,9 +23,9 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -57,22 +57,13 @@ type TerminalRequest struct {
 	InteractiveCommand []string `json:"-"`
 }
 
-// NodeProvider is a provider of nodes for namespace
-type NodeProvider interface {
-	GetNodes(namespace string) ([]services.Server, error)
-}
-
 // newTerminal creates a web-based terminal based on WebSockets and returns a new
 // TerminalHandler
-func NewTerminal(req TerminalRequest, provider NodeProvider, ctx *SessionContext) (*TerminalHandler, error) {
+func NewTerminal(req TerminalRequest, ctx *SessionContext) (*TerminalHandler, error) {
 	// make sure whatever session is requested is a valid session
 	_, err := session.ParseID(string(req.SessionID))
 	if err != nil {
 		return nil, trace.BadParameter("sid: invalid session id")
-	}
-
-	if req.Server == "" {
-		return nil, trace.BadParameter("server: missing server")
 	}
 
 	if req.Login == "" {
@@ -82,9 +73,9 @@ func NewTerminal(req TerminalRequest, provider NodeProvider, ctx *SessionContext
 		return nil, trace.BadParameter("term: bad term dimensions")
 	}
 
-	hostName, hostPort, err := parseServerHostPort(req.Server)
+	hostName, hostPort, err := parseTerminalHostPort(req.Server)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.BadParameter("invalid server name %q: %v", req.Server, err)
 	}
 
 	return &TerminalHandler{
@@ -231,19 +222,29 @@ func (t *TerminalHandler) Run(w http.ResponseWriter, r *http.Request) {
 	ws.ServeHTTP(w, r)
 }
 
-// parseServerHostPort parses given server name and returns host and port
-func parseServerHostPort(servername string) (string, int, error) {
+// parseTerminalHostPort parses given server name and returns host and port
+func parseTerminalHostPort(servername string) (string, int, error) {
 	// 0 tells the proxy subsystem to figure out which port to use
-	var hostPort = 0
-	hostName, port, err := net.SplitHostPort(servername)
-	if err != nil {
-		return servername, hostPort, nil
+	var defaultPort = 0
+
+	if servername == "" {
+		return "", 0, trace.BadParameter("empty hostname")
 	}
 
-	hostPort, err = strconv.Atoi(port)
-	if err != nil {
-		return "", 0, trace.BadParameter("server: invalid port %v", err)
+	// if port is missing, return server name as is with default port
+	if !strings.Contains(servername, ":") {
+		return servername, defaultPort, nil
 	}
 
-	return hostName, hostPort, nil
+	host, port, err := utils.SplitHostPort(servername)
+	if err != nil {
+		return "", 0, trace.Wrap(err)
+	}
+
+	hostPort, err := strconv.Atoi(port)
+	if err != nil {
+		return "", 0, trace.BadParameter("invalid port: %q", port)
+	}
+
+	return host, hostPort, nil
 }
