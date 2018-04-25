@@ -107,12 +107,25 @@ $ tsh --proxy=proxy.example.com --auth=local --user=admin login
 $ tsh --proxy=proxy.example.com --auth=github --user=admin login
 ```
 
+### Inspecting SSH Certificate
+
+To inspect the SSH certificates in `~/.tsh` a user may execute the following command:
+
+```bash
+$ tsh status
+
+> Profile URL:  https://proxy.example.com:3080
+  Logged in as: johndoe
+  Roles:        admin*
+  Logins:       root, admin, guest
+  Valid until:  2017-04-25 15:02:30 -0700 PDT [valid for 1h0m0s]
+  Extensions:   permit-agent-forwarding, permit-port-forwarding, permit-pty
+```
+
 ### SSH Agent Support
 
 If there is an [ssh agent](https://en.wikipedia.org/wiki/Ssh-agent) running, 
-`tsh login` will store the user certificate in the agent. 
-
-This can be verified via:
+`tsh login` will store the user certificate in the agent. This can be verified via:
 
 ```bash
 $ ssh-add -L

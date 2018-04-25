@@ -242,22 +242,30 @@ $ tctl create --force cluster.yaml
 ## How does it work?
 
 At a first glance, Trusted Clusters in combination with RBAC may seem
-complicated. However, it is based on SSH
-certificate-based authentication which is fairly easy to reason about:
+complicated. However, it is based on certificate-based SSH authentication 
+which is fairly easy to reason about:
 
 One can think of an SSH certificate as a "permit" issued and time-stamped by a
-certificate authority. A certificate contains three important pieces of data:
+certificate authority. A certificate contains four important pieces of data:
 
-* List of identities you can assume (usually called "principals")
-* Expiration date
+* List of host identities (UNIX logins) a user can assume, they are called
+  "principals" in the certificate.
 * Signature of the certificate authority who issued it (the _auth_ server)
+* Metadata (certificate extensions): additional data protected by the signature
+  above. Teleport uses metadata to store the list of user roles and SSH
+  options like "permit-agent-forwarding".
+* The expiration date.
 
 Every role is encoded in a certifiate as yet another principal. When a user
 from "main" connects to "east", the auth server of "east" does three checks:
 
-* Checks that the certificate signature matches one of the trusted clusters
-* Checks that the certificate is not expired
-* Tries to find a local role which maps to the list of principals found in the certificate
+* Checks that the certificate signature matches one of the trusted clusters.
+* Tries to find a local role which maps to the list of principals found in the certificate.
+* Checks if the local role allows the requested identity (UNIX login) to have access.
+* Checks that the certificate is not expired.
+
+Try executing `tsh status` right after `tsh login` to see all these fields in the
+client certificate.
 
 ## Troubleshooting
 
@@ -274,7 +282,7 @@ trust between two clusters:
 
 ### HTTPS configuration
 
-If the web_proxy_addr endpoint of the main cluster uses a self-signed or invalid HTTPS certificate, 
+If the `web_proxy_addr` endpoint of the main cluster uses a self-signed or invalid HTTPS certificate, 
 you will get an error: "the trusted cluster uses misconfigured HTTP/TLS certificate". For ease of 
 testing the teleport daemon of "east" can be started with  `--insecure` CLI flag to accept 
 self-signed certificates. Make sure to configure HTTPS properly and remove the insecure flag for production use.
@@ -310,10 +318,11 @@ how your network security groups are configured on AWS.
 Troubleshooting access denied messages can be challenging. A Teleport administrator
 should check to see the following:
 
-* Which groups a user is assigned on "main" when they retreive their SSH
-  certificate via `tsh login`.
-* How "east" performs group mappping when a user from "main" tries to connect.
-
-Both of these facts are reflected in the Teleport audit log. By default, it is
-stored in `/var/lib/teleport/log` on a _auth_ server of a cluster. Check the
-audit log messages on both clusters to get answers for the questions above.
+* Which roles a user is assigned on "main" when they retreive their SSH
+  certificate via `tsh login`. You can inspect the retreived certificate with
+  `tsh status` command on the client side.
+* Which roles a user is assigned on "east" when the role mapping takes place.
+  The role mapping result is reflected in the Teleport audit log. By default,
+  it is stored in `/var/lib/teleport/log` on a _auth_ server of a cluster.
+  Check the audit log messages on both clusters to get answers for the
+  questions above.
