@@ -90,7 +90,8 @@ const (
 
 	// DefaultIdleConnectionDuration indicates for how long Teleport will hold
 	// the SSH connection open if there are no reads/writes happening over it.
-	DefaultIdleConnectionDuration = 20 * time.Minute
+	// 15 minutes default is compliant with PCI DSS standards
+	DefaultIdleConnectionDuration = 15 * time.Minute
 
 	// ShutdownPollPeriod is a polling period for graceful shutdowns of SSH servers
 	ShutdownPollPeriod = 500 * time.Millisecond
