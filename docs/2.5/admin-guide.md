@@ -1029,15 +1029,15 @@ spec:
 
 Here's the list of resources currently exposed via `tctl`:
 
-Resource Kind      | Description
--------------------|--------------
-user               | A user record in the internal Teleport user DB.
-node               | A registered SSH node. The same record is displayed via `tctl nodes ls`
-trusted_cluster    | A trusted cluster. See [here](#trusted-clusters) for more details on connecting clusters together.
-role               | A role assumed by users. The open source Teleport only includes one role: "admin", but Enterprise teleport users can define their own roles.
-saml               | A SAML auth connector. ([Teleport Enterprise](ssh_sso/) only).
-oidc               | An OIDC auth connector. ([Teleport Enterprise](ssh_sso/) only).
-github             | A Github auth connector. See [here](#github-auth-connector) for details on configuring it.
+Resource Kind   | Description
+----------------|--------------
+user            | A user record in the internal Teleport user DB.
+node            | A registered SSH node. The same record is displayed via `tctl nodes ls`
+cluster         | A trusted cluster. See [here](#trusted-clusters) for more details on connecting clusters together.
+role            | A role assumed by users. The open source Teleport only includes one role: "admin", but Enterprise teleport users can define their own roles.
+saml            | A SAML auth connector. ([Teleport Enterprise](ssh_sso/) only).
+oidc            | An OIDC auth connector. ([Teleport Enterprise](ssh_sso/) only).
+github          | A Github auth connector. See [here](#github-auth-connector) for details on configuring it.
 
 
 ### Examples:
@@ -1058,40 +1058,77 @@ $ tctl rm users/admin
 
 ## Trusted Clusters
 
-Teleport allows to partition your infrastructure into multiple clusters. Some clusters can be
-located behind firewalls without any open ports. They can also have their own restrictions on
-which users have access.
+As explained in the [architecture document](architecture/#core-concepts),
+Teleport can partition compute infrastructure into multiple clusters.
+A cluster is a group of SSH nodes connected to the cluster's _auth server_
+acting as a certificate authority (CA) for all users and nodes.
 
-A Teleport Cluster has a name and is managed by a
-`teleport` daemon with "auth service" enabled.
+To retrieve an SSH certificate, users must authenticate with a cluster through a
+_proxy server_. So, if users want to connect to nodes belonging to different
+clusters, they would normally have to use different `--proxy` flag for each
+cluster. This is not always convenient.
 
-Let's assume we need to access servers behind a firewall and we only want Teleport
-user "john" to have access to them. We already have our primary Teleport cluster and our
-users set up. Say this primary cluster is called `main`, and the behind-the-firewall cluster
-is called `east` as shown on this diagram:
+The concept of _trusted clusters_ allows Teleport administrators to connect
+multiple clusters together and establish trust between them. Trusted clusters
+allow users of one cluster to seamlessly SSH into the nodes of another cluster
+without having to "hop" between proxy servers. Moreover, users don't even need
+to have a direct connection to other clusters' proxy servers. The user
+experience looks like this:
 
-![Tunels](img/tunnel.svg)
+```bash
+# login using the "main" cluster credentials:
+$ tsh login --proxy=main.example.com
+
+# SSH into some host inside the "main" cluster:
+$ tsh ssh host
+
+# SSH into the host located in another cluster called "east"
+# The connection is established through main.example.com:
+$ tsh --cluster=east ssh host
+
+# See what other clusters are available
+$ tsh clusters
+```
+
+Trusted clusters also have their own restrictions on user access, i.e.  the
+_permissions mapping_ takes place. 
+
+### Connectivity
+
+The design of trusted clusters allows Teleport users to connect to compute
+infrastructure located behind firewalls without any open TCP ports. The real
+world usage examples of this capability include:
+
+* Managed service providers (MSP) remotely managing infrastructure of their clients.
+* Device manufacturers remotely maintaining computing appliances
+  deployed on premises.
+* Large cloud software vendors manage multiple data centers using a common proxy.
+
+Let's take a look at how a connection is established between "main" trusted cluster 
+and its _trusting_ cluster called "east":
+
+![Tunnels](img/tunnel.svg)
 
 This setup works as follows:
 
-1. "East" creates an outbound reverse SSH tunnel to "main" and keeps it open.
-2. "East" and "main" must trust each other, they are "trusted clusters" because
-   "main" must authenticate "east" (cluster-to-cluster authentication) when the
-   tunnel is established, and "east" must trust users connecting from "main"
-   (user authentication).
-3. Users of "main" must use `tsh --cluster=east` flag if they want to connect to any nodes in "east".
-4. Users of "main" can see other trusted clusters connected to "main" by running `tsh clusters`
+1. "East" creates an outbound reverse SSH tunnel to "main" and keeps this connection open.
+2. From east's perspective, "main" is the _trusted cluster_ because "east" must
+   allow users from "main" to access its nodes.
+3. When a user tries to connect to a node inside "east" using _main.example.com_ 
+   the reverse tunnel from step 1 is used to establish this connection (green line).
 
 ### Example Configuration
 
-Creating trust between two clusters is easy. Here are the steps:
+Connecting two clusters together is similar to [adding a node](#adding-nodes-to-the-cluster) 
+to a cluster:
 
-1. The main cluster needs to define a "cluster join token" in its config file.
-   This token is used for establishing the _initial_ trust between "main" and
-   new clusters.
-2. The administrator of the eastern cluster must create a "trusted cluster" [resource](#resources).
+1. The _trusted_ cluster "main" needs to have a cluster join token. A token can
+   be statically defined via `/etc/teleport.yaml` configuration file or dynamically
+   created with the `tctl` CLI tool.
+2. The administrator of the _trusting_ cluster "east" must create a trusted
+   cluster [resource](#resources) with a `tctl` CLI tool.
 
-Below is the snippet from the auth server configuration for the "main" cluster:
+Lets define a static cluster join token using the configuration file:
 
 ```bash
 # fragment of /etc/teleport.yaml:
@@ -1102,17 +1139,14 @@ auth_service:
 ```
 
 The snippet above states that another Teleport cluster can establish a reverse
-tunnel to "main" if it knows the secret, the cluster join token is declared in the
-`tokens` section.
+tunnel to "main" if it knows the secret token.
 
 !!! tip "Tip":
     The permission to establish a reverse tunnel is the only action "east" is
-    permitted to. Trusted clusters work only one way: users from "east" cannot
+    permitted to perform. Trusted clusters work only one way: users from "east" cannot
     connect to the nodes in "main".
 
-Now, with the main cluster prepared to allow remote clusters to connect to it,
-lets configure "east". The administrator of "east" must create the following
-resource file:
+Now, the administrator of "east" must create the following resource file:
 
 ```bash
 # cluster.yaml
@@ -1129,13 +1163,13 @@ spec:
   token: secret-token-to-add-new-clusters
   # the address in 'host:port' form of the reverse tunnel listening port on the
   # "master" proxy server:
-  tunnel_addr: proxy.main:3024
+  tunnel_addr: main.example.com:3024
   # the address in 'host:port' form of the web listening port on the
   # "master" proxy server:
-  web_proxy_addr: proxy.main:3080
+  web_proxy_addr: main.example.com:3080
 ```
 
-... and create it:
+Then, use `tctl create` to add the file:
 
 ```bash
 $ tctl create cluster.yaml
@@ -1147,10 +1181,10 @@ list of available clusters.
 !!! warning "HTTPS configuration":
     If the `web_proxy_addr` endpoint of the main cluster uses a self-signed or
     invalid HTTPS certificate, you will get an error: _"the trusted cluster
-    uses misconfigured HTTP/TLS certificate"_. For ease of testing the
-    teleport daemon of "east" can be started with `--insecure` CLI flag to
-    accept self-signed certificates. Make sure to configure HTTPS properly and
-    remove the insecure flag for production use.
+    uses misconfigured HTTP/TLS certificate"_. For ease of testing the teleport
+    daemon of "east" can be started with `--insecure` CLI flag to accept
+    self-signed certificates. Make sure to configure HTTPS properly and remove
+    the insecure flag for production use.
 
 ### Using Trusted Clusters
 
@@ -1190,7 +1224,17 @@ and set `enabled` to "false", then update it:
 
 ```bash
 $ tctl create --force cluster.yaml
+
 ```
+
+### Advanced Configuration
+
+Take a look at [Trusted Clusters Guide](trustedclusters) to learn more about
+advanced topics:
+
+* Using dynamic cluster join tokens instead of pre-defined static tokens for
+  enhanced security.
+* Defining role-mapping between clusters (Teleport Enterprise only).
 
 ## Github OAuth 2.0
 
