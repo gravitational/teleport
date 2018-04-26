@@ -264,7 +264,8 @@ func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *S
 	// If sessions are being recorded at the proxy, sessions can not be shared.
 	// In that situation, PTY size information does not need to be propagated
 	// back to all clients and we can return right away.
-	if ctx.ClusterConfig.GetSessionRecording() == services.RecordAtProxy {
+	clusterConfig := ctx.GetServer().GetClusterConfig()
+	if clusterConfig.GetSessionRecording() == services.RecordAtProxy {
 		return nil
 	}
 
@@ -345,7 +346,7 @@ func newSessionRecorder(alog events.IAuditLog, ctx *ServerContext, sid rsession.
 			SessionID:      sid,
 			ServerID:       "upload",
 			DataDir:        filepath.Join(ctx.srv.GetDataDir(), teleport.LogsDir),
-			RecordSessions: ctx.ClusterConfig.GetSessionRecording() != services.RecordOff,
+			RecordSessions: ctx.GetServer().GetClusterConfig().GetSessionRecording() != services.RecordOff,
 			Namespace:      ctx.srv.GetNamespace(),
 			ForwardTo:      alog,
 		})
@@ -780,7 +781,8 @@ func (s *session) getNamespace() string {
 func (s *session) activeHeartbeat(ctx *ServerContext) {
 	// If sessions are being recorded at the proxy, an identical version of this
 	// goroutine is running in the proxy, which means it does not need to run here.
-	if ctx.ClusterConfig.GetSessionRecording() == services.RecordAtProxy &&
+	clusterConfig := ctx.GetServer().GetClusterConfig()
+	if clusterConfig.GetSessionRecording() == services.RecordAtProxy &&
 		s.registry.srv.Component() == teleport.ComponentNode {
 		return
 	}

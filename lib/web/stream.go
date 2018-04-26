@@ -144,6 +144,7 @@ func (w *sessionStreamHandler) stream(ws *websocket.Conn) error {
 				log.Errorf("Unable to send server list event to web client: %v.", err)
 				continue
 			}
+		// Stream is closing.
 		case <-w.closeC:
 			log.Infof("Exiting event stream to web client.")
 			return nil

@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/pam"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -120,6 +121,10 @@ type Server struct {
 	sessionRegistry *srv.SessionRegistry
 	sessionServer   session.Service
 	dataDir         string
+
+	// clusterConfig is the cluster configuration at the time the in-memory
+	// server is created.
+	clusterConfig services.ClusterConfig
 }
 
 // ServerConfig is the configuration needed to create an instance of a Server.
@@ -145,6 +150,10 @@ type ServerConfig struct {
 
 	// DataDir is a local data directory used for local server storage
 	DataDir string
+
+	// ClusterConfig is the cluster configuration at the time the in-memory
+	// server is created.
+	ClusterConfig services.ClusterConfig
 }
 
 // CheckDefaults makes sure all required parameters are passed in.
@@ -169,6 +178,9 @@ func (s *ServerConfig) CheckDefaults() error {
 	}
 	if s.HostCertificate == nil {
 		return trace.BadParameter("host certificate required to act on behalf of remote host")
+	}
+	if s.ClusterConfig == nil {
+		return trace.BadParameter("cluster configuration is required")
 	}
 
 	return nil
@@ -209,6 +221,7 @@ func New(c ServerConfig) (*Server, error) {
 		authService:     c.AuthClient,
 		sessionServer:   c.AuthClient,
 		dataDir:         c.DataDir,
+		clusterConfig:   c.ClusterConfig,
 	}
 
 	s.sessionRegistry, err = srv.NewSessionRegistry(s)
@@ -216,19 +229,20 @@ func New(c ServerConfig) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// common auth handlers
+	// Common auth handlers.
 	s.authHandlers = &srv.AuthHandlers{
 		Entry: log.WithFields(log.Fields{
 			trace.Component:       teleport.ComponentForwardingNode,
 			trace.ComponentFields: log.Fields{},
 		}),
-		Server:      nil,
+		Server:      s,
+		ServerInfo:  nil,
 		Component:   teleport.ComponentForwardingNode,
 		AuditLog:    c.AuthClient,
 		AccessPoint: c.AuthClient,
 	}
 
-	// common term handlers
+	// Common term handlers.
 	s.termHandlers = &srv.TermHandlers{
 		SessionRegistry: s.sessionRegistry,
 	}
@@ -299,6 +313,11 @@ func (s *Server) GetSessionServer() session.Service {
 // server runs in-memory, it does not support PAM.
 func (s *Server) GetPAM() (*pam.Config, error) {
 	return nil, trace.BadParameter("PAM not supported by forwarding server")
+}
+
+// GetClusterConfig returns a cached services.ClusterConfig for this cluster.
+func (s *Server) GetClusterConfig() services.ClusterConfig {
+	return s.clusterConfig
 }
 
 // Dial returns the client connection created by pipeAddrConn.
@@ -544,17 +563,12 @@ func (s *Server) handleDirectTCPIPRequest(ch ssh.Channel, req *sshutils.DirectTC
 
 	// Create context for this channel. This context will be closed when
 	// forwarding is complete.
-	ctx, err := srv.NewServerContext(s, s.sconn, s.identityContext)
-	if err != nil {
-		ctx.Errorf("Unable to create connection context: %v.", err)
-		ch.Stderr().Write([]byte("Unable to create connection context."))
-		return
-	}
+	ctx := srv.NewServerContext(s, s.sconn, s.identityContext)
 	ctx.RemoteClient = s.remoteClient
 	defer ctx.Close()
 
 	// Check if the role allows port forwarding for this user.
-	err = s.authHandlers.CheckPortForward(dstAddr, ctx)
+	err := s.authHandlers.CheckPortForward(dstAddr, ctx)
 	if err != nil {
 		ch.Stderr().Write([]byte(err.Error()))
 		return
@@ -603,12 +617,7 @@ func (s *Server) handleDirectTCPIPRequest(ch ssh.Channel, req *sshutils.DirectTC
 func (s *Server) handleSessionRequests(ch ssh.Channel, in <-chan *ssh.Request) {
 	// Create context for this channel. This context will be closed when the
 	// session request is complete.
-	ctx, err := srv.NewServerContext(s, s.sconn, s.identityContext)
-	if err != nil {
-		ctx.Errorf("Unable to create connection context: %v.", err)
-		ch.Stderr().Write([]byte("Unable to create connection context."))
-		return
-	}
+	ctx := srv.NewServerContext(s, s.sconn, s.identityContext)
 	ctx.RemoteClient = s.remoteClient
 	ctx.AddCloser(ch)
 	defer ctx.Close()

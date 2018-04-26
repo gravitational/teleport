@@ -67,6 +67,9 @@ type Server interface {
 	// GetAccessPoint returns an auth.AccessPoint for this cluster.
 	GetAccessPoint() auth.AccessPoint
 
+	// GetClusterConfig returns a cached services.ClusterConfig for this cluster.
+	GetClusterConfig() services.ClusterConfig
+
 	// GetSessionServer returns a session server.
 	GetSessionServer() rsession.Service
 
@@ -172,10 +175,6 @@ type ServerContext struct {
 	// ClusterName is the name of the cluster current user is authenticated with.
 	ClusterName string
 
-	// ClusterConfig holds the cluster configuration at the time this context was
-	// created.
-	ClusterConfig services.ClusterConfig
-
 	// RemoteClient holds a SSH client to a remote server. Only used by the
 	// recording proxy.
 	RemoteClient *ssh.Client
@@ -187,12 +186,7 @@ type ServerContext struct {
 
 // NewServerContext creates a new *ServerContext which is used to pass and
 // manage resources.
-func NewServerContext(srv Server, conn *ssh.ServerConn, identityContext IdentityContext) (*ServerContext, error) {
-	clusterConfig, err := srv.GetAccessPoint().GetClusterConfig()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+func NewServerContext(srv Server, conn *ssh.ServerConn, identityContext IdentityContext) *ServerContext {
 	ctx := &ServerContext{
 		id:                int(atomic.AddInt32(&ctxID, int32(1))),
 		env:               make(map[string]string),
@@ -201,7 +195,6 @@ func NewServerContext(srv Server, conn *ssh.ServerConn, identityContext Identity
 		ExecResultCh:      make(chan ExecResult, 10),
 		SubsystemResultCh: make(chan SubsystemResult, 10),
 		ClusterName:       conn.Permissions.Extensions[utils.CertTeleportClusterName],
-		ClusterConfig:     clusterConfig,
 		Identity:          identityContext,
 	}
 
@@ -216,7 +209,7 @@ func NewServerContext(srv Server, conn *ssh.ServerConn, identityContext Identity
 		},
 	})
 
-	return ctx, nil
+	return ctx
 }
 
 func (c *ServerContext) ID() int {

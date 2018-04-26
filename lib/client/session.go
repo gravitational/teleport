@@ -309,7 +309,7 @@ func (ns *NodeSession) updateTerminalSize(s *ssh.Session) {
 			currSize, err := term.GetWinsize(0)
 			if err != nil {
 				log.Warnf("Unable to get window size: %v.", err)
-				break
+				continue
 			}
 
 			// Terminal size has not changed, don't do anything.
@@ -366,6 +366,8 @@ func (ns *NodeSession) updateTerminalSize(s *ssh.Session) {
 			os.Stdout.Write([]byte(fmt.Sprintf("\x1b[8;%d;%dt", lastSize.Height, lastSize.Width)))
 
 			log.Debugf("Updated window size from to %v due to remote window change.", currSize, lastSize)
+
+		// The session was closed.
 		case <-ns.closer.C:
 			return
 		}

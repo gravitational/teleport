@@ -961,15 +961,17 @@ func (s *SrvSuite) TestServerAliveInterval(c *C) {
 // TestGlobalRequestRecordingProxy simulates sending a global out-of-band
 // recording-proxy@teleport.com request.
 func (s *SrvSuite) TestGlobalRequestRecordingProxy(c *C) {
-	// set cluster config to record at the node
+	// Set cluster config to record at the node.
 	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
 		SessionRecording: services.RecordAtNode,
 	})
 	c.Assert(err, IsNil)
 	err = s.server.Auth().SetClusterConfig(clusterConfig)
 	c.Assert(err, IsNil)
+	err = s.srv.syncCachedClusterConfig()
+	c.Assert(err, IsNil)
 
-	// send the request again, we have cluster config and when we parse the
+	// Send the request again, we have cluster config and when we parse the
 	// response, it should be false because recording is occuring at the node.
 	ok, responseBytes, err := s.clt.SendRequest(teleport.RecordingProxyReqType, true, nil)
 	c.Assert(err, IsNil)
@@ -978,15 +980,17 @@ func (s *SrvSuite) TestGlobalRequestRecordingProxy(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(response, Equals, false)
 
-	// set cluster config to record at the proxy
+	// Set cluster config to record at the proxy.
 	clusterConfig, err = services.NewClusterConfig(services.ClusterConfigSpecV3{
 		SessionRecording: services.RecordAtProxy,
 	})
 	c.Assert(err, IsNil)
 	err = s.server.Auth().SetClusterConfig(clusterConfig)
 	c.Assert(err, IsNil)
+	err = s.srv.syncCachedClusterConfig()
+	c.Assert(err, IsNil)
 
-	// send request again, now that we have cluster config and it's set to record
+	// Send request again, now that we have cluster config and it's set to record
 	// at the proxy, we should return true and when we parse the payload it should
 	// also be true
 	ok, responseBytes, err = s.clt.SendRequest(teleport.RecordingProxyReqType, true, nil)

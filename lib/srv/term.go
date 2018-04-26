@@ -93,7 +93,8 @@ func NewTerminal(ctx *ServerContext) (Terminal, error) {
 
 	// If this is not a Teleport node, find out what mode the cluster is in and
 	// return the correct terminal.
-	if ctx.ClusterConfig.GetSessionRecording() == services.RecordAtProxy {
+	clusterConfig := ctx.GetServer().GetClusterConfig()
+	if clusterConfig.GetSessionRecording() == services.RecordAtProxy {
 		return newRemoteTerminal(ctx)
 	}
 	return newLocalTerminal(ctx)

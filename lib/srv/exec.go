@@ -87,7 +87,8 @@ func NewExecRequest(ctx *ServerContext, command string) (Exec, error) {
 
 	// When in recording mode, return an *remoteExec which will execute the
 	// command on a remote host. This is used by in-memory forwarding nodes.
-	if ctx.ClusterConfig.GetSessionRecording() == services.RecordAtProxy {
+	clusterConfig := ctx.GetServer().GetClusterConfig()
+	if clusterConfig.GetSessionRecording() == services.RecordAtProxy {
 		return &remoteExec{
 			ctx:     ctx,
 			command: command,

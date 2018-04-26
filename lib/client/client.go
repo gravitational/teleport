@@ -444,13 +444,14 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress string,
 	return nc, nil
 }
 
+// handleGlobalRequests processes global requests for the connection.
 func (c *NodeClient) handleGlobalRequests(ctx context.Context, requestCh <-chan *ssh.Request) {
 	for {
 		select {
 		case r := <-requestCh:
 			// When the channel is closing, nil is returned.
 			if r == nil {
-				break
+				return
 			}
 
 			switch r.Type {
@@ -467,7 +468,7 @@ func (c *NodeClient) handleGlobalRequests(ctx context.Context, requestCh <-chan 
 				r.Reply(false, nil)
 			}
 		case <-ctx.Done():
-			break
+			return
 		}
 	}
 }

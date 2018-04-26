@@ -125,6 +125,11 @@ type Server struct {
 
 	// dataDir is a server local data directory
 	dataDir string
+
+	// cachedClusterConfig stores a cached copy of the cluster config to avoid
+	// hamming the backend with too many requests.
+	cachedClusterConfig   services.ClusterConfig
+	cachedClusterConfigMu sync.RWMutex
 }
 
 // GetDataDir returns server data dir
@@ -159,22 +164,71 @@ func (s *Server) GetPAM() (*pam.Config, error) {
 	return s.pamConfig, nil
 }
 
+// GetClusterConfig returns a cached services.ClusterConfig for this cluster.
+func (s *Server) GetClusterConfig() services.ClusterConfig {
+	return s.getCachedClusterConfig()
+}
+
 // isAuditedAtProxy returns true if sessions are being recorded at the proxy
 // and this is a Teleport node.
 func (s *Server) isAuditedAtProxy() bool {
-	// always be safe, better to double record than not record at all
-	clusterConfig, err := s.GetAccessPoint().GetClusterConfig()
-	if err != nil {
-		return false
-	}
-
-	isRecordAtProxy := clusterConfig.GetSessionRecording() == services.RecordAtProxy
+	isRecordAtProxy := s.GetClusterConfig().GetSessionRecording() == services.RecordAtProxy
 	isTeleportNode := s.Component() == teleport.ComponentNode
 
 	if isRecordAtProxy && isTeleportNode {
 		return true
 	}
 	return false
+}
+
+// syncCachedClusterConfigLoop keeps updating the cached cluster config.
+func (s *Server) syncCachedClusterConfigLoop() {
+	// Update the cache at the same rate nodes heartbeat.
+	tickerCh := time.NewTicker(defaults.ServerHeartbeatTTL)
+	defer tickerCh.Stop()
+
+	for {
+		select {
+		case <-s.closer.C:
+			return
+		case <-tickerCh.C:
+			err := s.syncCachedClusterConfig()
+			if err != nil {
+				log.Warnf("Failed to sync cluster config: %v.", err)
+				continue
+			}
+		}
+	}
+}
+
+// getCachedClusterConfig returns a copy of cached services.ClusterConfig. If
+// nothing is cached yet, a safe default is returned.
+func (s *Server) getCachedClusterConfig() services.ClusterConfig {
+	s.cachedClusterConfigMu.RLock()
+	defer s.cachedClusterConfigMu.RUnlock()
+
+	// If the cache is empty, return a safe default.
+	clusterConfig := s.cachedClusterConfig
+	if clusterConfig == nil {
+		return services.DefaultClusterConfig()
+	}
+
+	return s.cachedClusterConfig.Copy()
+}
+
+// syncCachedClusterConfig gets cluster config from the backend and updated
+// the cached value.
+func (s *Server) syncCachedClusterConfig() error {
+	clusterConfig, err := s.authService.GetClusterConfig()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.cachedClusterConfigMu.Lock()
+	defer s.cachedClusterConfigMu.Unlock()
+
+	s.cachedClusterConfig = clusterConfig
+	return nil
 }
 
 // ServerOption is a functional option passed to the server
@@ -196,21 +250,46 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	return err
 }
 
-// Start starts server
-func (s *Server) Start() error {
+func (s *Server) startLoops() error {
 	if len(s.getCommandLabels()) > 0 {
 		s.updateLabels()
 	}
+
+	// Keep heartbeating back that this node is up to the auth server.
 	go s.heartbeatPresence()
+
+	// Do a blocking sync of the cluster configuration so it starts with the
+	// correct configuration.
+	err := s.syncCachedClusterConfig()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Loop forever in the background syncing the cluster configuration in the
+	// backend with a local copy. This is for performance because the cluster
+	// configuration is frequently fetched during login.
+	go s.syncCachedClusterConfigLoop()
+
+	return nil
+}
+
+// Start starts server.
+func (s *Server) Start() error {
+	err := s.startLoops()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	return s.srv.Start()
 }
 
-// Serve servers service on started listener
+// Serve servers service on started listener.
 func (s *Server) Serve(l net.Listener) error {
-	if len(s.getCommandLabels()) > 0 {
-		s.updateLabels()
+	err := s.startLoops()
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	go s.heartbeatPresence()
+
 	return s.srv.Serve(l)
 }
 
@@ -383,19 +462,20 @@ func New(addr utils.NetAddr,
 		return nil, trace.Wrap(err)
 	}
 
-	// add in common auth handlers
+	// Add in common auth handlers.
 	s.authHandlers = &srv.AuthHandlers{
 		Entry: log.WithFields(log.Fields{
 			trace.Component:       component,
 			trace.ComponentFields: log.Fields{},
 		}),
-		Server:      s.getInfo(),
+		Server:      s,
+		ServerInfo:  s.getInfo(),
 		Component:   component,
 		AuditLog:    s.alog,
 		AccessPoint: s.authService,
 	}
 
-	// common term handlers
+	// Common term handlers.
 	s.termHandlers = &srv.TermHandlers{
 		SessionRegistry: s.reg,
 	}
@@ -710,13 +790,7 @@ func (s *Server) HandleNewChan(nc net.Conn, sconn *ssh.ServerConn, nch ssh.NewCh
 func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, identityContext srv.IdentityContext, ch ssh.Channel, req *sshutils.DirectTCPIPReq) {
 	// Create context for this channel. This context will be closed when
 	// forwarding is complete.
-	ctx, err := srv.NewServerContext(s, sconn, identityContext)
-	if err != nil {
-		ctx.Errorf("Unable to create connection context: %v.", err)
-		ch.Stderr().Write([]byte("Unable to create connection context."))
-		return
-	}
-
+	ctx := srv.NewServerContext(s, sconn, identityContext)
 	ctx.IsTestStub = s.isTestStub
 	ctx.AddCloser(ch)
 	defer ctx.Debugf("direct-tcp closed")
@@ -726,7 +800,7 @@ func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, identityContext
 	dstAddr := fmt.Sprintf("%v:%d", req.Host, req.Port)
 
 	// check if the role allows port forwarding for this user
-	err = s.authHandlers.CheckPortForward(dstAddr, ctx)
+	err := s.authHandlers.CheckPortForward(dstAddr, ctx)
 	if err != nil {
 		ch.Stderr().Write([]byte(err.Error()))
 		return
@@ -802,12 +876,7 @@ func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, identityContext
 func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, identityContext srv.IdentityContext, ch ssh.Channel, in <-chan *ssh.Request) {
 	// Create context for this channel. This context will be closed when the
 	// session request is complete.
-	ctx, err := srv.NewServerContext(s, sconn, identityContext)
-	if err != nil {
-		ctx.Errorf("Unable to create connection context: %v.", err)
-		ch.Stderr().Write([]byte("Unable to create connection context."))
-		return
-	}
+	ctx := srv.NewServerContext(s, sconn, identityContext)
 	ctx.IsTestStub = s.isTestStub
 	ctx.AddCloser(ch)
 	defer ctx.Close()
@@ -960,7 +1029,7 @@ func (s *Server) handleAgentForwardNode(req *ssh.Request, ctx *srv.ServerContext
 func (s *Server) handleAgentForwardProxy(req *ssh.Request, ctx *srv.ServerContext) error {
 	// Forwarding an agent to the proxy is only supported when the proxy is in
 	// recording mode.
-	if ctx.ClusterConfig.GetSessionRecording() != services.RecordAtProxy {
+	if s.GetClusterConfig().GetSessionRecording() != services.RecordAtProxy {
 		return trace.BadParameter("agent forwarding to proxy only supported in recording mode")
 	}
 
@@ -1042,20 +1111,10 @@ func (s *Server) handleRecordingProxy(req *ssh.Request) {
 	log.Debugf("Global request (%v, %v) received", req.Type, req.WantReply)
 
 	if req.WantReply {
-		// get the cluster config, if we can't get it, reply false
-		clusterConfig, err := s.authService.GetClusterConfig()
-		if err != nil {
-			err := req.Reply(false, nil)
-			if err != nil {
-				log.Warnf("Unable to respond to global request (%v, %v): %v", req.Type, req.WantReply, err)
-			}
-			return
-		}
-
-		// reply true that we were able to process the message and reply with a
-		// bool if we are in recording mode or not
-		recordingProxy = clusterConfig.GetSessionRecording() == services.RecordAtProxy
-		err = req.Reply(true, []byte(strconv.FormatBool(recordingProxy)))
+		// Reply true that we were able to process the message and reply with a
+		// bool if we are in recording mode or not.
+		recordingProxy = s.GetClusterConfig().GetSessionRecording() == services.RecordAtProxy
+		err := req.Reply(true, []byte(strconv.FormatBool(recordingProxy)))
 		if err != nil {
 			log.Warnf("Unable to respond to global request (%v, %v): %v: %v", req.Type, req.WantReply, recordingProxy, err)
 			return
