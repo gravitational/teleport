@@ -26,7 +26,6 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -73,10 +72,6 @@ func NewTerminal(req TerminalRequest, provider NodeProvider, ctx *SessionContext
 		return nil, trace.BadParameter("sid: invalid session id")
 	}
 
-	if req.Server == "" {
-		return nil, trace.BadParameter("server: missing server")
-	}
-
 	if req.Login == "" {
 		return nil, trace.BadParameter("login: missing login")
 	}
@@ -89,9 +84,9 @@ func NewTerminal(req TerminalRequest, provider NodeProvider, ctx *SessionContext
 		return nil, trace.Wrap(err)
 	}
 
-	hostName, hostPort, err := resolveHostPort(req.Server, servers)
+	hostName, hostPort, err := resolveServerHostPort(req.Server, servers)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.BadParameter("invalid server name %q: %v", req.Server, err)
 	}
 
 	return &TerminalHandler{
@@ -238,35 +233,37 @@ func (t *TerminalHandler) Run(w http.ResponseWriter, r *http.Request) {
 	ws.ServeHTTP(w, r)
 }
 
-// resolveHostPort parses an input value and attempts to resolve hostname and port of requested server
-func resolveHostPort(value string, existingServers []services.Server) (string, int, error) {
-	var hostName = ""
+// resolveServerHostPort parses server name  and attempts to resolve hostname and port
+func resolveServerHostPort(servername string, existingServers []services.Server) (string, int, error) {
 	// if port is 0, it means the client wants us to figure out which port to use
-	var hostPort = 0
+	var defaultPort = 0
 
-	// check if server exists by comparing its UUID or hostname
+	if servername == "" {
+		return "", defaultPort, trace.BadParameter("empty server name")
+	}
+
+	// check if servername is UUID
 	for i := range existingServers {
 		node := existingServers[i]
-		if node.GetName() == value || strings.EqualFold(node.GetHostname(), value) {
-			hostName = node.GetHostname()
-			break
+		if node.GetName() == servername {
+			return node.GetHostname(), defaultPort, nil
 		}
 	}
 
-	// if server is not found, parse SSH connection string (for joining an unlisted SSH server)
-	if hostName == "" {
-		hostName = value
-		host, port, err := net.SplitHostPort(value)
-		if err != nil {
-			hostPort = defaults.SSHDefaultPort
-		} else {
-			hostName = host
-			hostPort, err = strconv.Atoi(port)
-			if err != nil {
-				return "", 0, trace.BadParameter("server: invalid port", err)
-			}
-		}
+	if !strings.Contains(servername, ":") {
+		return servername, defaultPort, nil
 	}
 
-	return hostName, hostPort, nil
+	// check for explicitly specified port
+	host, portString, err := utils.SplitHostPort(servername)
+	if err != nil {
+		return "", defaultPort, trace.Wrap(err)
+	}
+
+	port, err := strconv.Atoi(portString)
+	if err != nil {
+		return "", defaultPort, trace.BadParameter("invalid port: %v", err)
+	}
+
+	return host, port, nil
 }
