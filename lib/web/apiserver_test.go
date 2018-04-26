@@ -755,47 +755,181 @@ func (s *WebSuite) TestSiteNodeConnectInvalidSessionID(c *C) {
 	c.Assert(err, NotNil)
 }
 
+func (s *WebSuite) TestResolveServerHostPort(c *C) {
+	sampleNode := services.ServerV2{}
+	sampleNode.SetName("eca53e45-86a9-11e7-a893-0242ac0a0101")
+	sampleNode.Spec.Hostname = "nodehostname"
+
+	// valid cases
+	validCases := []struct {
+		server       string
+		nodes        []services.Server
+		expectedHost string
+		expectedPort int
+	}{
+		{
+			server:       "localhost",
+			expectedHost: "localhost",
+			expectedPort: 0,
+		},
+		{
+			server:       "localhost:8080",
+			expectedHost: "localhost",
+			expectedPort: 8080,
+		},
+		{
+			server:       "eca53e45-86a9-11e7-a893-0242ac0a0101",
+			nodes:        []services.Server{&sampleNode},
+			expectedHost: "nodehostname",
+			expectedPort: 0,
+		},
+	}
+
+	// invalid cases
+	invalidCases := []struct {
+		server      string
+		expectedErr string
+	}{
+		{
+			server:      ":22",
+			expectedErr: "empty hostname",
+		},
+		{
+			server:      ":",
+			expectedErr: "empty hostname",
+		},
+		{
+			server:      "",
+			expectedErr: "empty server name",
+		},
+		{
+			server:      "host:",
+			expectedErr: "invalid port",
+		},
+		{
+			server:      "host:port",
+			expectedErr: "invalid port",
+		},
+	}
+
+	for _, testCase := range validCases {
+		host, port, err := resolveServerHostPort(testCase.server, testCase.nodes)
+		c.Assert(err, IsNil, Commentf(testCase.server))
+		c.Assert(host, Equals, testCase.expectedHost)
+		c.Assert(port, Equals, testCase.expectedPort)
+	}
+
+	for _, testCase := range invalidCases {
+		_, _, err := resolveServerHostPort(testCase.server, nil)
+		c.Assert(err, NotNil, Commentf(testCase.expectedErr))
+		c.Assert(err, ErrorMatches, ".*"+testCase.expectedErr+".*")
+	}
+
+}
+
 func (s *WebSuite) TestNewTerminalHandler(c *C) {
-	var emptyNodes = []services.ServerV2{}
+	validNode := services.ServerV2{}
+	validNode.SetName("eca53e45-86a9-11e7-a893-0242ac0a0101")
+	validNode.Spec.Hostname = "nodehostname"
 
-	v2node := services.ServerV2{}
-	v2node.SetName("nodename")
-	v2node.Spec.Hostname = "nodehostname"
+	validServer := "localhost"
+	validLogin := "root"
+	validSID := session.ID("eca53e45-86a9-11e7-a893-0242ac0a0101")
+	validParams := session.TerminalParams{
+		H: 1,
+		W: 1,
+	}
 
-	// valid inputs
-	handler, err := s.makeTerminalHandler("root", "localhost", emptyNodes)
-	c.Assert(err, IsNil)
-	c.Assert(handler.params.Login, Equals, "root")
-	c.Assert(handler.hostName, Equals, "localhost")
-	c.Assert(handler.hostPort, Equals, 22)
+	makeProvider := func(server services.ServerV2) NodeProvider {
+		return nodeProviderMock(func() []services.Server {
+			return []services.Server{&server}
+		})
+	}
 
-	handler, err = s.makeTerminalHandler("root", "localhost:8080", emptyNodes)
-	c.Assert(err, IsNil)
-	c.Assert(handler.hostName, Equals, "localhost")
-	c.Assert(handler.hostPort, Equals, 8080)
+	// valid cases
+	validCases := []struct {
+		req          TerminalRequest
+		nodeProvider NodeProvider
+		expectedHost string
+		expectedPort int
+	}{
+		{
+			req: TerminalRequest{
+				Login:     validLogin,
+				Server:    validServer,
+				SessionID: validSID,
+				Term:      validParams,
+			},
+			nodeProvider: makeProvider(validNode),
+			expectedHost: validServer,
+			expectedPort: 0,
+		},
+		{
+			req: TerminalRequest{
+				Login:     validLogin,
+				Server:    "eca53e45-86a9-11e7-a893-0242ac0a0101",
+				SessionID: validSID,
+				Term:      validParams,
+			},
+			nodeProvider: makeProvider(validNode),
+			expectedHost: "nodehostname",
+			expectedPort: 0,
+		},
+	}
 
-	handler, err = s.makeTerminalHandler("root", "nodename", []services.ServerV2{v2node})
-	c.Assert(err, IsNil)
-	c.Assert(handler.hostName, Equals, "nodehostname")
-	c.Assert(handler.hostPort, Equals, 0)
+	// invalid cases
+	invalidCases := []struct {
+		req          TerminalRequest
+		nodeProvider NodeProvider
+		expectedErr  string
+	}{
+		{
+			expectedErr:  "invalid session",
+			nodeProvider: makeProvider(validNode),
+			req: TerminalRequest{
+				SessionID: "",
+				Login:     validLogin,
+				Server:    validServer,
+				Term:      validParams,
+			},
+		},
+		{
+			expectedErr:  "bad term dimensions",
+			nodeProvider: makeProvider(validNode),
+			req: TerminalRequest{
+				SessionID: validSID,
+				Login:     validLogin,
+				Server:    validServer,
+				Term: session.TerminalParams{
+					H: -1,
+					W: 0,
+				},
+			},
+		},
+		{
+			expectedErr:  "invalid server name",
+			nodeProvider: makeProvider(validNode),
+			req: TerminalRequest{
+				Server:    "localhost:port",
+				SessionID: validSID,
+				Login:     validLogin,
+				Term:      validParams,
+			},
+		},
+	}
 
-	handler, err = s.makeTerminalHandler("root", "nodehostname", []services.ServerV2{v2node})
-	c.Assert(err, IsNil)
-	c.Assert(handler.hostName, Equals, "nodehostname")
-	c.Assert(handler.hostPort, Equals, 0)
+	for _, testCase := range validCases {
+		term, err := NewTerminal(testCase.req, testCase.nodeProvider, nil)
+		c.Assert(err, IsNil)
+		c.Assert(term.params, DeepEquals, testCase.req)
+		c.Assert(term.hostName, Equals, testCase.expectedHost)
+		c.Assert(term.hostPort, Equals, testCase.expectedPort)
+	}
 
-	handler, err = s.makeTerminalHandler("root", "NODEhostname", []services.ServerV2{v2node})
-	c.Assert(err, IsNil)
-	c.Assert(handler.hostName, Equals, "nodehostname")
-	c.Assert(handler.hostPort, Equals, 0)
-
-	// invalid inputs
-	handler, err = s.makeTerminalHandler("", "localhost", emptyNodes)
-	c.Assert(err, NotNil)
-	handler, err = s.makeTerminalHandler("root", "", emptyNodes)
-	c.Assert(err, NotNil)
-	handler, err = s.makeTerminalHandler("root", "locahost:invalid_port", emptyNodes)
-	c.Assert(err, NotNil)
+	for _, testCase := range invalidCases {
+		_, err := NewTerminal(testCase.req, testCase.nodeProvider, nil)
+		c.Assert(err, ErrorMatches, ".*"+testCase.expectedErr+".*")
+	}
 }
 
 func (s *WebSuite) makeTerminal(pack *authPack, opts ...session.ID) (*websocket.Conn, error) {
@@ -1345,27 +1479,6 @@ type nodeProviderMock func() []services.Server
 
 func (mock nodeProviderMock) GetNodes(namespace string) ([]services.Server, error) {
 	return mock(), nil
-}
-
-func (s *WebSuite) makeTerminalHandler(login string, server string, v2Servers []services.ServerV2) (*TerminalHandler, error) {
-	var req = TerminalRequest{
-		Login:  login,
-		Server: server,
-	}
-
-	req.SessionID = "eca53e45-86a9-11e7-a893-0242ac0a0101"
-	req.Term.H = 1
-	req.Term.W = 1
-
-	var servers = []services.Server{}
-	return NewTerminal(req, nodeProviderMock(func() []services.Server {
-		for _, s := range v2Servers {
-			servers = append(servers, &s)
-		}
-
-		return servers
-	}), nil)
-
 }
 
 func (s *WebSuite) login(clt *client.WebClient, cookieToken string, reqToken string, reqData interface{}) (*roundtrip.Response, error) {
