@@ -515,8 +515,12 @@ type TeleportClient struct {
 	localAgent *LocalKeyAgent
 
 	// OnShellCreated gets called when the shell is created. It's
-	// safe to keep it nil
+	// safe to keep it nil.
 	OnShellCreated ShellCreatedCallback
+
+	// windowChangeRequests is a channel used to inform clients about changes
+	// that have occured to the window size.
+	windowChangeRequests chan session.WindowChangeRequest
 }
 
 // ShellCreatedCallback can be supplied for every teleport client. It will
@@ -564,6 +568,12 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	if tc.Stdin == nil {
 		tc.Stdin = os.Stdin
 	}
+
+	// Create a buffered channel to hold window change requests. This channel
+	// must be buffered because the SSH connection directly feeds into it. Delays
+	// in pulling messages off the global SSH request channel could lead to the
+	// connection hanging.
+	tc.windowChangeRequests = make(chan session.WindowChangeRequest, 10)
 
 	// sometimes we need to use external auth without using local auth
 	// methods, e.g. in automation daemons
@@ -1495,6 +1505,17 @@ func (tc *TeleportClient) u2fLogin(pub []byte) (*auth.SSHLoginResponse, error) {
 		tc.CertificateFormat)
 
 	return response, trace.Wrap(err)
+}
+
+// SendWindowChangeRequest adds a session.WindowChangeRequest to the channel.
+func (tc *TeleportClient) SendWindowChangeRequest(wc session.WindowChangeRequest) {
+	tc.windowChangeRequests <- wc
+}
+
+// WindowChangeRequests returns a channel that can be used to listen for
+// changes to the window size from the session on the backend.
+func (tc *TeleportClient) WindowChangeRequests() <-chan session.WindowChangeRequest {
+	return tc.windowChangeRequests
 }
 
 // loopbackPool reads trusted CAs if it finds it in a predefined location

@@ -40,8 +40,11 @@ import (
 type AuthHandlers struct {
 	*log.Entry
 
-	// Server is the services.Server in the backend.
-	Server services.Server
+	// Server is an interface for the actual server in memory.
+	Server Server
+
+	// ServerInfo is the services.Server in the backend.
+	ServerInfo services.Server
 
 	// Component is the type of SSH server (node, proxy, or recording proxy).
 	Component string
@@ -240,11 +243,6 @@ func (h *AuthHandlers) HostKeyAuth(hostport string, remote net.Addr, key ssh.Pub
 		},
 	})
 
-	clusterConfig, err := h.AccessPoint.GetClusterConfig()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	cert, ok := key.(*ssh.Certificate)
 	if ok {
 		err := h.IsHostAuthority(hostport, remote, cert)
@@ -255,7 +253,8 @@ func (h *AuthHandlers) HostKeyAuth(hostport string, remote net.Addr, key ssh.Pub
 		return nil
 	}
 
-	// if we are strictly checking host keys then reject this request right away
+	// If we are strictly checking host keys then reject this request right away.
+	clusterConfig := h.Server.GetClusterConfig()
 	if clusterConfig.GetProxyChecksHostKeys() == services.HostKeyCheckYes {
 		return trace.AccessDenied("remote host presented a public key, expected a host certificate")
 	}
@@ -321,7 +320,7 @@ func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName strin
 	}
 
 	// check if roles allow access to server
-	if err := roles.CheckAccessToServer(osUser, h.Server); err != nil {
+	if err := roles.CheckAccessToServer(osUser, h.ServerInfo); err != nil {
 		return trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
 			teleportUser, ca.GetClusterName(), osUser, clusterName, err)
 	}

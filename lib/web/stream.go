@@ -17,6 +17,7 @@ limitations under the License.
 package web
 
 import (
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -67,9 +68,9 @@ func (w *sessionStreamHandler) Close() error {
 	return nil
 }
 
-// sessionStreamPollPeriod defines how frequently web sessions are
-// sent new events
-var sessionStreamPollPeriod = time.Second
+// sessionStreamPollPeriod defines how frequently web sessions are sent new
+// events.
+var sessionStreamPollPeriod = 5 * time.Second
 
 // stream runs in a loop generating "something changed" events for a
 // given active WebSession
@@ -88,71 +89,67 @@ func (w *sessionStreamHandler) stream(ws *websocket.Conn) error {
 		io.Copy(ioutil.Discard, ws)
 	}()
 
-	eventsCursor := -1
-	emptyEventList := make([]events.EventFields, 0)
+	// Ticker used to send list of servers to web client periodically.
+	tickerCh := time.NewTicker(w.pollPeriod)
+	defer tickerCh.Stop()
 
-	pollEvents := func() []events.EventFields {
-		// ask for any events than happened since the last call:
-		re, err := clt.GetSessionEvents(w.namespace, w.sessionID, eventsCursor+1, false)
-		if err != nil {
-			if !trace.IsNotFound(err) {
-				log.Error(err)
-			}
-			return emptyEventList
-		}
-		batchLen := len(re)
-		if batchLen == 0 {
-			return emptyEventList
-		}
-		// advance the cursor, so next time we'll ask for the latest:
-		eventsCursor = re[batchLen-1].GetInt(events.EventCursor)
-		return re
-	}
-
-	ticker := time.NewTicker(w.pollPeriod)
-	defer ticker.Stop()
 	defer w.Close()
 
-	// keep polling in a loop:
+	c, err := w.ctx.getTerminal(w.sessionID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	for {
-		// wait for next timer tick or a signal to abort:
 		select {
-		case <-ticker.C:
+		// Push the new window size to the web client.
+		case wc := <-c.teleportClient.WindowChangeRequests():
+			win := wc.TerminalParams.Winsize()
+
+			// Convert the window change request into something that looks like an
+			// Audit Event for compatibility and send over the websocket.
+			streamEvents := &sessionStreamEvent{
+				Events: []events.EventFields{
+					events.EventFields{
+						events.EventType:      events.ResizeEvent,
+						events.SessionEventID: wc.SessionID,
+						events.EventTime:      wc.Time.String(),
+						events.TerminalSize:   fmt.Sprintf("%d:%d", win.Width, win.Height),
+					},
+				},
+			}
+			log.Debugf("Sending window change %v for %v to web client.", win, wc.SessionID)
+
+			err = websocket.JSON.Send(ws, streamEvents)
+			if err != nil {
+				log.Errorf("Unable to send window change event over websocket: %v", err)
+				continue
+			}
+		// Periodically send list of servers to the web client.
+		case <-tickerCh.C:
+			servers, err := clt.GetNodes(w.namespace)
+			if err != nil {
+				log.Errorf("Unable to fetch list of nodes: %v.", err)
+				continue
+			}
+
+			// Send list of server to the web client.
+			streamEvents := &sessionStreamEvent{
+				Servers: services.ServersToV1(servers),
+			}
+			log.Debugf("Sending server list (%v) to web client.", len(servers))
+
+			err = websocket.JSON.Send(ws, streamEvents)
+			if err != nil {
+				log.Errorf("Unable to send server list event to web client: %v.", err)
+				continue
+			}
+		// Stream is closing.
 		case <-w.closeC:
-			log.Infof("[web] session.stream() exited")
+			log.Infof("Exiting event stream to web client.")
 			return nil
 		}
 
-		newEvents := pollEvents()
-		sess, err := clt.GetSession(w.namespace, w.sessionID)
-		if err != nil {
-			if trace.IsNotFound(err) {
-				continue
-			}
-			log.Error(err)
-		}
-		if sess == nil {
-			log.Warningf("invalid session ID: %v", w.sessionID)
-			continue
-		}
-		servers, err := clt.GetNodes(w.namespace)
-		if err != nil {
-			log.Error(err)
-		}
-		if len(newEvents) > 0 {
-			log.Infof("[WEB] streaming for %v. Events: %v, Nodes: %v, Parties: %v",
-				w.sessionID, len(newEvents), len(servers), len(sess.Parties))
-		}
-
-		// push events to the web client
-		event := &sessionStreamEvent{
-			Events:  newEvents,
-			Session: sess,
-			Servers: services.ServersToV1(servers),
-		}
-		if err := websocket.JSON.Send(ws, event); err != nil {
-			log.Error(err)
-		}
 	}
 }
 

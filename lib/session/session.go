@@ -19,6 +19,7 @@ limitations under the License.
 package session
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"time"
@@ -439,6 +440,42 @@ func NewTerminalParamsFromInt(w int, h int) (*TerminalParams, error) {
 		return nil, trace.BadParameter("bad height")
 	}
 	return &TerminalParams{W: int(w), H: int(h)}, nil
+}
+
+// WindowChangeRequest represents the structure passed by Teleport to clients
+// when the remote PTY size changes.
+type WindowChangeRequest struct {
+	// SessionID is the session for which this window change occured.
+	SessionID string `json:"sid"`
+
+	// Time is when this window change occured.
+	Time time.Time `json:"time"`
+
+	// TerminalParams is the current size of the remote PTY.
+	TerminalParams TerminalParams `json:"term"`
+}
+
+// NewWindowChangeRequest returns a new WindowChangeRequest from bytes.
+func NewWindowChangeRequest(b []byte) (WindowChangeRequest, error) {
+	var wc WindowChangeRequest
+
+	err := json.Unmarshal(b, &wc)
+	if err != nil {
+		return WindowChangeRequest{}, trace.Wrap(err)
+	}
+
+	return wc, nil
+}
+
+// Serialize returns byte representation of WindowChange that can be sent
+// over the wire.
+func (w WindowChangeRequest) Serialize() ([]byte, error) {
+	wc, err := json.Marshal(w)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return wc, nil
 }
 
 const (

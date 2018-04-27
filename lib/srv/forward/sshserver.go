@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/pam"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -120,6 +121,10 @@ type Server struct {
 	sessionRegistry *srv.SessionRegistry
 	sessionServer   session.Service
 	dataDir         string
+
+	// clusterConfig is the cluster configuration at the time the in-memory
+	// server is created.
+	clusterConfig services.ClusterConfig
 }
 
 // ServerConfig is the configuration needed to create an instance of a Server.
@@ -145,6 +150,10 @@ type ServerConfig struct {
 
 	// DataDir is a local data directory used for local server storage
 	DataDir string
+
+	// ClusterConfig is the cluster configuration at the time the in-memory
+	// server is created.
+	ClusterConfig services.ClusterConfig
 }
 
 // CheckDefaults makes sure all required parameters are passed in.
@@ -169,6 +178,9 @@ func (s *ServerConfig) CheckDefaults() error {
 	}
 	if s.HostCertificate == nil {
 		return trace.BadParameter("host certificate required to act on behalf of remote host")
+	}
+	if s.ClusterConfig == nil {
+		return trace.BadParameter("cluster configuration is required")
 	}
 
 	return nil
@@ -209,6 +221,7 @@ func New(c ServerConfig) (*Server, error) {
 		authService:     c.AuthClient,
 		sessionServer:   c.AuthClient,
 		dataDir:         c.DataDir,
+		clusterConfig:   c.ClusterConfig,
 	}
 
 	s.sessionRegistry, err = srv.NewSessionRegistry(s)
@@ -216,19 +229,20 @@ func New(c ServerConfig) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// common auth handlers
+	// Common auth handlers.
 	s.authHandlers = &srv.AuthHandlers{
 		Entry: log.WithFields(log.Fields{
 			trace.Component:       teleport.ComponentForwardingNode,
 			trace.ComponentFields: log.Fields{},
 		}),
-		Server:      nil,
+		Server:      s,
+		ServerInfo:  nil,
 		Component:   teleport.ComponentForwardingNode,
 		AuditLog:    c.AuthClient,
 		AccessPoint: c.AuthClient,
 	}
 
-	// common term handlers
+	// Common term handlers.
 	s.termHandlers = &srv.TermHandlers{
 		SessionRegistry: s.sessionRegistry,
 	}
@@ -299,6 +313,11 @@ func (s *Server) GetSessionServer() session.Service {
 // server runs in-memory, it does not support PAM.
 func (s *Server) GetPAM() (*pam.Config, error) {
 	return nil, trace.BadParameter("PAM not supported by forwarding server")
+}
+
+// GetClusterConfig returns a cached services.ClusterConfig for this cluster.
+func (s *Server) GetClusterConfig() services.ClusterConfig {
+	return s.clusterConfig
 }
 
 // Dial returns the client connection created by pipeAddrConn.
@@ -507,13 +526,8 @@ func (s *Server) handleChannel(nch ssh.NewChannel) {
 	channelType := nch.ChannelType()
 
 	switch channelType {
-	// A client requested the terminal size to be sent along with every
-	// session message (Teleport-specific SSH channel for web-based terminals).
-	case "x-teleport-request-resize-events":
-		ch, _, _ := nch.Accept()
-		go s.handleTerminalResize(ch)
 	// Channels of type "session" handle requests that are invovled in running
-	// commands on a server.
+	// commands on a server, subsystem requests, and agent forwarding.
 	case "session":
 		ch, requests, err := nch.Accept()
 		if err != nil {
@@ -595,20 +609,6 @@ func (s *Server) handleDirectTCPIPRequest(ch ssh.Channel, req *sshutils.DirectTC
 	}()
 
 	wg.Wait()
-}
-
-// handleTerminalResize is called by the web proxy via its SSH connection.
-// when a web browser connects to the web API, the web proxy asks us,
-// by creating this new SSH channel, to start injecting the terminal size
-// into every SSH write back to it.
-//
-// This is the only way to make web-based terminal UI not break apart
-// when window changes its size.
-func (s *Server) handleTerminalResize(channel ssh.Channel) {
-	err := s.sessionRegistry.PushTermSizeToParty(s.sconn, channel)
-	if err != nil {
-		s.log.Warnf("Unable to push terminal size to party: %v", err)
-	}
 }
 
 // handleSessionRequests handles out of band session requests once the session

@@ -67,6 +67,9 @@ type Server interface {
 	// GetAccessPoint returns an auth.AccessPoint for this cluster.
 	GetAccessPoint() auth.AccessPoint
 
+	// GetClusterConfig returns a cached services.ClusterConfig for this cluster.
+	GetClusterConfig() services.ClusterConfig
+
 	// GetSessionServer returns a session server.
 	GetSessionServer() rsession.Service
 
@@ -205,6 +208,7 @@ func NewServerContext(srv Server, conn *ssh.ServerConn, identityContext Identity
 			"id":           ctx.id,
 		},
 	})
+
 	return ctx
 }
 

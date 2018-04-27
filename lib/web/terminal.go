@@ -112,6 +112,8 @@ type TerminalHandler struct {
 	hostPort int
 	// sshClient is initialized after an SSH connection to a node is established
 	sshSession *ssh.Session
+
+	teleportClient *client.TeleportClient
 }
 
 func (t *TerminalHandler) Close() error {
@@ -207,6 +209,8 @@ func (t *TerminalHandler) Run(w http.ResponseWriter, r *http.Request) {
 			errToTerm(err, ws)
 			return
 		}
+		t.teleportClient = tc
+
 		// this callback will execute when a shell is created, it will give
 		// us a reference to ssh.Client object
 		tc.OnShellCreated = func(s *ssh.Session, c *ssh.Client, _ io.ReadWriteCloser) (bool, error) {

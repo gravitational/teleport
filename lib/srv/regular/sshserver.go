@@ -125,6 +125,11 @@ type Server struct {
 
 	// dataDir is a server local data directory
 	dataDir string
+
+	// cachedClusterConfig stores a cached copy of the cluster config to avoid
+	// hamming the backend with too many requests.
+	cachedClusterConfig   services.ClusterConfig
+	cachedClusterConfigMu sync.RWMutex
 }
 
 // GetDataDir returns server data dir
@@ -159,22 +164,71 @@ func (s *Server) GetPAM() (*pam.Config, error) {
 	return s.pamConfig, nil
 }
 
+// GetClusterConfig returns a cached services.ClusterConfig for this cluster.
+func (s *Server) GetClusterConfig() services.ClusterConfig {
+	return s.getCachedClusterConfig()
+}
+
 // isAuditedAtProxy returns true if sessions are being recorded at the proxy
 // and this is a Teleport node.
 func (s *Server) isAuditedAtProxy() bool {
-	// always be safe, better to double record than not record at all
-	clusterConfig, err := s.GetAccessPoint().GetClusterConfig()
-	if err != nil {
-		return false
-	}
-
-	isRecordAtProxy := clusterConfig.GetSessionRecording() == services.RecordAtProxy
+	isRecordAtProxy := s.GetClusterConfig().GetSessionRecording() == services.RecordAtProxy
 	isTeleportNode := s.Component() == teleport.ComponentNode
 
 	if isRecordAtProxy && isTeleportNode {
 		return true
 	}
 	return false
+}
+
+// syncCachedClusterConfigLoop keeps updating the cached cluster config.
+func (s *Server) syncCachedClusterConfigLoop() {
+	// Update the cache at the same rate nodes heartbeat.
+	tickerCh := time.NewTicker(defaults.ServerHeartbeatTTL)
+	defer tickerCh.Stop()
+
+	for {
+		select {
+		case <-s.closer.C:
+			return
+		case <-tickerCh.C:
+			err := s.syncCachedClusterConfig()
+			if err != nil {
+				log.Warnf("Failed to sync cluster config: %v.", err)
+				continue
+			}
+		}
+	}
+}
+
+// getCachedClusterConfig returns a copy of cached services.ClusterConfig. If
+// nothing is cached yet, a safe default is returned.
+func (s *Server) getCachedClusterConfig() services.ClusterConfig {
+	s.cachedClusterConfigMu.RLock()
+	defer s.cachedClusterConfigMu.RUnlock()
+
+	// If the cache is empty, return a safe default.
+	clusterConfig := s.cachedClusterConfig
+	if clusterConfig == nil {
+		return services.DefaultClusterConfig()
+	}
+
+	return s.cachedClusterConfig.Copy()
+}
+
+// syncCachedClusterConfig gets cluster config from the backend and updated
+// the cached value.
+func (s *Server) syncCachedClusterConfig() error {
+	clusterConfig, err := s.authService.GetClusterConfig()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.cachedClusterConfigMu.Lock()
+	defer s.cachedClusterConfigMu.Unlock()
+
+	s.cachedClusterConfig = clusterConfig
+	return nil
 }
 
 // ServerOption is a functional option passed to the server
@@ -196,21 +250,46 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	return err
 }
 
-// Start starts server
-func (s *Server) Start() error {
+func (s *Server) startLoops() error {
 	if len(s.getCommandLabels()) > 0 {
 		s.updateLabels()
 	}
+
+	// Keep heartbeating back that this node is up to the auth server.
 	go s.heartbeatPresence()
+
+	// Do a blocking sync of the cluster configuration so it starts with the
+	// correct configuration.
+	err := s.syncCachedClusterConfig()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Loop forever in the background syncing the cluster configuration in the
+	// backend with a local copy. This is for performance because the cluster
+	// configuration is frequently fetched during login.
+	go s.syncCachedClusterConfigLoop()
+
+	return nil
+}
+
+// Start starts server.
+func (s *Server) Start() error {
+	err := s.startLoops()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	return s.srv.Start()
 }
 
-// Serve servers service on started listener
+// Serve servers service on started listener.
 func (s *Server) Serve(l net.Listener) error {
-	if len(s.getCommandLabels()) > 0 {
-		s.updateLabels()
+	err := s.startLoops()
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	go s.heartbeatPresence()
+
 	return s.srv.Serve(l)
 }
 
@@ -383,19 +462,20 @@ func New(addr utils.NetAddr,
 		return nil, trace.Wrap(err)
 	}
 
-	// add in common auth handlers
+	// Add in common auth handlers.
 	s.authHandlers = &srv.AuthHandlers{
 		Entry: log.WithFields(log.Fields{
 			trace.Component:       component,
 			trace.ComponentFields: log.Fields{},
 		}),
-		Server:      s.getInfo(),
+		Server:      s,
+		ServerInfo:  s.getInfo(),
 		Component:   component,
 		AuditLog:    s.alog,
 		AccessPoint: s.authService,
 	}
 
-	// common term handlers
+	// Common term handlers.
 	s.termHandlers = &srv.TermHandlers{
 		SessionRegistry: s.reg,
 	}
@@ -658,10 +738,15 @@ func (s *Server) HandleNewChan(nc net.Conn, sconn *ssh.ServerConn, nch ssh.NewCh
 
 	channelType := nch.ChannelType()
 	if s.proxyMode {
-		if channelType == "session" { // interactive sessions
+		// Channels of type "session" handle requests that are invovled in running
+		// commands on a server. In the case of proxy mode subsystem and agent
+		// forwarding requests occur over the "session" channel.
+		if channelType == "session" {
 			ch, requests, err := nch.Accept()
 			if err != nil {
-				log.Infof("could not accept channel (%s)", err)
+				log.Warnf("Unable to accept channel: %v", err)
+				nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
+				return
 			}
 			go s.handleSessionRequests(sconn, identityContext, ch, requests)
 		} else {
@@ -671,26 +756,29 @@ func (s *Server) HandleNewChan(nc net.Conn, sconn *ssh.ServerConn, nch ssh.NewCh
 	}
 
 	switch channelType {
-	// a client requested the terminal size to be sent along with every
-	// session message (Teleport-specific SSH channel for web-based terminals)
-	case "x-teleport-request-resize-events":
-		ch, _, _ := nch.Accept()
-		go s.handleTerminalResize(sconn, ch)
-	case "session": // interactive sessions
+	// Channels of type "session" handle requests that are invovled in running
+	// commands on a server, subsystem requests, and agent forwarding.
+	case "session":
 		ch, requests, err := nch.Accept()
 		if err != nil {
-			log.Infof("could not accept channel (%s)", err)
+			log.Warnf("Unable to accept channel: %v", err)
+			nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
+			return
 		}
 		go s.handleSessionRequests(sconn, identityContext, ch, requests)
-	case "direct-tcpip": //port forwarding
+	// Channels of type "direct-tcpip" handles request for port forwarding.
+	case "direct-tcpip":
 		req, err := sshutils.ParseDirectTCPIPReq(nch.ExtraData())
 		if err != nil {
-			log.Errorf("failed to parse request data: %v, err: %v", string(nch.ExtraData()), err)
+			log.Errorf("Failed to parse request data: %v, err: %v", string(nch.ExtraData()), err)
 			nch.Reject(ssh.UnknownChannelType, "failed to parse direct-tcpip request")
+			return
 		}
 		ch, _, err := nch.Accept()
 		if err != nil {
-			log.Infof("could not accept channel (%s)", err)
+			log.Warnf("Unable to accept channel: %v", err)
+			nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
+			return
 		}
 		go s.handleDirectTCPIPRequest(sconn, identityContext, ch, req)
 	default:
@@ -698,9 +786,10 @@ func (s *Server) HandleNewChan(nc net.Conn, sconn *ssh.ServerConn, nch ssh.NewCh
 	}
 }
 
-// handleDirectTCPIPRequest does the port forwarding
+// handleDirectTCPIPRequest handles port forwarding requests.
 func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, identityContext srv.IdentityContext, ch ssh.Channel, req *sshutils.DirectTCPIPReq) {
-	// ctx holds the connection context and keeps track of the associated resources
+	// Create context for this channel. This context will be closed when
+	// forwarding is complete.
 	ctx := srv.NewServerContext(s, sconn, identityContext)
 	ctx.IsTestStub = s.isTestStub
 	ctx.AddCloser(ch)
@@ -781,24 +870,12 @@ func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, identityContext
 	}
 }
 
-// handleTerminalResize is called by the web proxy via its SSH connection.
-// when a web browser connects to the web API, the web proxy asks us,
-// by creating this new SSH channel, to start injecting the terminal size
-// into every SSH write back to it.
-//
-// this is the only way to make web-based terminal UI not break apart
-// when window changes its size
-func (s *Server) handleTerminalResize(sconn *ssh.ServerConn, ch ssh.Channel) {
-	err := s.reg.PushTermSizeToParty(sconn, ch)
-	if err != nil {
-		log.Warnf("Unable to push terminal size to party: %v", err)
-	}
-}
-
-// handleSessionRequests handles out of band session requests once the session channel has been created
-// this function's loop handles all the "exec", "subsystem" and "shell" requests.
+// handleSessionRequests handles out of band session requests once the session
+// channel has been created this function's loop handles all the "exec",
+// "subsystem" and "shell" requests.
 func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, identityContext srv.IdentityContext, ch ssh.Channel, in <-chan *ssh.Request) {
-	// ctx holds the connection context and keeps track of the associated resources
+	// Create context for this channel. This context will be closed when the
+	// session request is complete.
 	ctx := srv.NewServerContext(s, sconn, identityContext)
 	ctx.IsTestStub = s.isTestStub
 	ctx.AddCloser(ch)
@@ -950,29 +1027,27 @@ func (s *Server) handleAgentForwardNode(req *ssh.Request, ctx *srv.ServerContext
 // requests should never fail, all errors should be logged and we should
 // continue processing requests.
 func (s *Server) handleAgentForwardProxy(req *ssh.Request, ctx *srv.ServerContext) error {
-	// we only support agent forwarding at the proxy when the proxy is in recording mode
-	clusterConfig, err := s.GetAccessPoint().GetClusterConfig()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if clusterConfig.GetSessionRecording() != services.RecordAtProxy {
+	// Forwarding an agent to the proxy is only supported when the proxy is in
+	// recording mode.
+	if s.GetClusterConfig().GetSessionRecording() != services.RecordAtProxy {
 		return trace.BadParameter("agent forwarding to proxy only supported in recording mode")
 	}
 
-	// check if the user's RBAC role allows agent forwarding
-	err = s.authHandlers.CheckAgentForward(ctx)
+	// Check if the user's RBAC role allows agent forwarding.
+	err := s.authHandlers.CheckAgentForward(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// open a channel to the client where the client will serve an agent
+	// Open a channel to the client where the client will serve an agent.
 	authChannel, _, err := ctx.Conn.OpenChannel(sshutils.AuthAgentRequest, nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// we save the agent so it can be used when we make a proxy subsystem request
-	// later and use it to build a remote connection to the target node.
+	// Save the agent so it can be used when making a proxy subsystem request
+	// later. It will also be used when building a remote connection to the
+	// target node.
 	ctx.SetAgent(agent.NewClient(authChannel), authChannel)
 
 	return nil
@@ -1036,20 +1111,10 @@ func (s *Server) handleRecordingProxy(req *ssh.Request) {
 	log.Debugf("Global request (%v, %v) received", req.Type, req.WantReply)
 
 	if req.WantReply {
-		// get the cluster config, if we can't get it, reply false
-		clusterConfig, err := s.authService.GetClusterConfig()
-		if err != nil {
-			err := req.Reply(false, nil)
-			if err != nil {
-				log.Warnf("Unable to respond to global request (%v, %v): %v", req.Type, req.WantReply, err)
-			}
-			return
-		}
-
-		// reply true that we were able to process the message and reply with a
-		// bool if we are in recording mode or not
-		recordingProxy = clusterConfig.GetSessionRecording() == services.RecordAtProxy
-		err = req.Reply(true, []byte(strconv.FormatBool(recordingProxy)))
+		// Reply true that we were able to process the message and reply with a
+		// bool if we are in recording mode or not.
+		recordingProxy = s.GetClusterConfig().GetSessionRecording() == services.RecordAtProxy
+		err := req.Reply(true, []byte(strconv.FormatBool(recordingProxy)))
 		if err != nil {
 			log.Warnf("Unable to respond to global request (%v, %v): %v: %v", req.Type, req.WantReply, recordingProxy, err)
 			return

@@ -507,18 +507,22 @@ func (s *remoteSite) DialAuthServer() (conn net.Conn, err error) {
 // located in a remote connected site, the connection goes through the
 // reverse proxy tunnel.
 func (s *remoteSite) Dial(from net.Addr, to net.Addr, userAgent agent.Agent) (net.Conn, error) {
+	// Fetch the cluster configuration at the start of a dial. This will both be
+	// used to check what mode the cluster is in, and if sessions are recorded
+	// at the proxy, it will be passed to the in-memory server so a cached copy
+	// can be used for the duration of that connection.
 	clusterConfig, err := s.localAccessPoint.GetClusterConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// if the proxy is in recording mode use the agent to dial and build a
-	// in-memory forwarding server
+	// If the proxy is in recording mode use the agent to dial and build a
+	// in-memory forwarding server.
 	if clusterConfig.GetSessionRecording() == services.RecordAtProxy {
 		if userAgent == nil {
 			return nil, trace.BadParameter("user agent missing")
 		}
-		return s.dialWithAgent(from, to, userAgent)
+		return s.dialWithAgent(from, to, userAgent, clusterConfig)
 	}
 	return s.dial(from, to)
 }
@@ -534,10 +538,10 @@ func (s *remoteSite) dial(from, to net.Addr) (net.Conn, error) {
 	return conn, nil
 }
 
-func (s *remoteSite) dialWithAgent(from, to net.Addr, userAgent agent.Agent) (net.Conn, error) {
+func (s *remoteSite) dialWithAgent(from, to net.Addr, userAgent agent.Agent, clusterConfig services.ClusterConfig) (net.Conn, error) {
 	s.Debugf("Dialing with an agent from %v to %v", from, to)
 
-	// get a host certificate for the forwarding node from the cache
+	// Get a host certificate for the forwarding node from the cache.
 	hostCertificate, err := s.certificateCache.GetHostCertificate(to.String())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -548,11 +552,11 @@ func (s *remoteSite) dialWithAgent(from, to net.Addr, userAgent agent.Agent) (ne
 		return nil, trace.Wrap(err)
 	}
 
-	// create a forwarding server that serves a single ssh connection on it. we
+	// Create a forwarding server that serves a single ssh connection on it. we
 	// don't need to close this server it will close and release all resources
 	// once conn is closed.
 	//
-	// note, a localClient is passed to the forwarding server, that's to make
+	// Note: A localClient is passed to the forwarding server, that's to make
 	// sure that the session gets recorded in the local cluster instead of the
 	// remote cluster.
 	serverConfig := forward.ServerConfig{
@@ -566,6 +570,7 @@ func (s *remoteSite) dialWithAgent(from, to net.Addr, userAgent agent.Agent) (ne
 		KEXAlgorithms:   s.srv.Config.KEXAlgorithms,
 		MACAlgorithms:   s.srv.Config.MACAlgorithms,
 		DataDir:         s.srv.Config.DataDir,
+		ClusterConfig:   clusterConfig,
 	}
 	remoteServer, err := forward.New(serverConfig)
 	if err != nil {
@@ -573,7 +578,7 @@ func (s *remoteSite) dialWithAgent(from, to net.Addr, userAgent agent.Agent) (ne
 	}
 	go remoteServer.Serve()
 
-	// return a connection to the forwarding server
+	// Return a connection to the forwarding server.
 	conn, err := remoteServer.Dial()
 	if err != nil {
 		return nil, trace.Wrap(err)
