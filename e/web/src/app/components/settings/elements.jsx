@@ -13,12 +13,18 @@ export const NewButton = props => (
 )
 
 export const EmptyList = ({canCreate=true, onClick}) => (
-  <Box> 
-    <div className="text-center" style={{ minHeight: "50px", margin: "25px auto", maxWidth: "600px" }}>
+  <EmptyBox> 
+    <div className="text-center">
       <p>
-        <strong>You do not have anything here</strong>
+        You do not have anything here
       </p>      
       <NewButton enabled={canCreate}text="Create" onClick={onClick}/>                  
     </div>    
-  </Box>  
+  </EmptyBox>  
 );
+
+export const EmptyBox = props => (
+  <Box className="grv-settings-empty">
+    {props.children}
+  </Box>
+)

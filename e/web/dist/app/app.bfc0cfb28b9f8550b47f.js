@@ -51,11 +51,11 @@ webpackJsonp([0],[
 
 	var _config2 = _interopRequireDefault(_config);
 
-	var _app = __webpack_require__(624);
+	var _app = __webpack_require__(625);
 
 	var _app2 = _interopRequireDefault(_app);
 
-	__webpack_require__(630);
+	__webpack_require__(631);
 
 	function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key]; } } newObj.default = obj; return newObj; } }
 
@@ -19149,9 +19149,7 @@ webpackJsonp([0],[
 	*/
 
 	_config2.default.init({
-
-	  clusterDocLink: 'http://gravitational.com/teleport/docs/admin-guide/#trusted-clusters',
-	  oidcDocLink: 'http://gravitational.com/teleport/docs/admin-guide/#openid-oauth2',
+	  trustedClusterDocLink: 'https://gravitational.com/teleport/docs/admin-guide/#trusted-clusters',
 	  routes: {
 	    settingsBase: '/web/settings',
 	    settingsAuth: '/web/settings/auth',
@@ -19294,7 +19292,7 @@ webpackJsonp([0],[
 
 	var _settingsClusters2 = _interopRequireDefault(_settingsClusters);
 
-	var _settingsRoles = __webpack_require__(618);
+	var _settingsRoles = __webpack_require__(619);
 
 	var _settingsRoles2 = _interopRequireDefault(_settingsRoles);
 
@@ -20780,7 +20778,7 @@ webpackJsonp([0],[
 	'use strict';
 
 	exports.__esModule = true;
-	exports.EmptyList = exports.NewButton = undefined;
+	exports.EmptyBox = exports.EmptyList = exports.NewButton = undefined;
 
 	var _react = __webpack_require__(2);
 
@@ -20814,22 +20812,26 @@ webpackJsonp([0],[
 	      canCreate = _ref$canCreate === undefined ? true : _ref$canCreate,
 	      onClick = _ref.onClick;
 	  return _react2.default.createElement(
-	    _box2.default,
+	    EmptyBox,
 	    null,
 	    _react2.default.createElement(
 	      'div',
-	      { className: 'text-center', style: { minHeight: "50px", margin: "25px auto", maxWidth: "600px" } },
+	      { className: 'text-center' },
 	      _react2.default.createElement(
 	        'p',
 	        null,
-	        _react2.default.createElement(
-	          'strong',
-	          null,
-	          'You do not have anything here'
-	        )
+	        'You do not have anything here'
 	      ),
 	      _react2.default.createElement(NewButton, { enabled: canCreate, text: 'Create', onClick: onClick })
 	    )
+	  );
+	};
+
+	var EmptyBox = exports.EmptyBox = function EmptyBox(props) {
+	  return _react2.default.createElement(
+	    _box2.default,
+	    { className: 'grv-settings-empty' },
+	    props.children
 	  );
 	};
 
@@ -41940,7 +41942,7 @@ webpackJsonp([0],[
 /* 609 */
 /***/ (function(module, exports) {
 
-	module.exports = "# \n# Example resource for a SAML connector\n# This connector can be used for SAML endpoints like Okta\n#\nkind: saml\nversion: v2\nmetadata:\n  # the name of the connector\n  name: new_saml_connector\nspec:\n  # display allows to set the caption of the \"login\" button\n  # in the Web interface\n  display: \"Login with SSO\"\n  # acs is the Assertion Consumer Service URL. This should be the address of\n  # the Teleport proxy that your identity provider will communicate with.\n  acs: https://teleport-proxy.example.com:3080/v1/webapi/saml/acs\n  attributes_to_roles:\n    - {name: \"groups\", value: \"okta-admin\", roles: [\"admin\"]}\n    - {name: \"groups\", value: \"okta-dev\", roles: [\"dev\"]}\n  entity_descriptor: |\n    <paste SAML XML contents here>\n"
+	module.exports = "# \n# Example resource for a SAML connector\n# This connector can be used for SAML endpoints like Okta\n#\nkind: saml\nversion: v2\nmetadata:\n  # the name of the connector\n  name: new_saml_connector\nspec:\n  # display allows to set the caption of the \"login\" button\n  # in the Web interface\n  display: \"Login with SSO\"\n  # acs is the Assertion Consumer Service URL. This should be the address of\n  # the Teleport proxy that your identity provider will communicate with.\n  acs: https://teleport-proxy.example.com:3080/v1/webapi/saml/acs\n  attributes_to_roles:\n    - {name: \"groups\", value: \"okta-admin\", roles: [\"admin\"]}\n    - {name: \"groups\", value: \"okta-dev\", roles: [\"dev\"]}\n  # Note that the entire XML document is indented by 4 spaces. This is\n  # required because the pipe symbol indicates what follows is raw text.\n  entity_descriptor: |\n    <md:EntityDescriptor xmlns:md=\"urn:oasis:names:tc:SAML:2.0:metadata\" entityID=\"http://www.example.com/00000000000000000000\">\n      <md:IDPSSODescriptor WantAuthnRequestsSigned=\"false\" protocolSupportEnumeration=\"urn:oasis:names:tc:SAML:2.0:protocol\">\n        <md:KeyDescriptor use=\"signing\">\n          <ds:KeyInfo xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\">\n            <ds:X509Data>\n              <ds:X509Certificate>Lu4bLZ57YSPClo5x1RHtXihqSdBfwqTU1tiPnL3i5QrHAXnyrmwscJ1VnutbfaTWCsPlICYQAVin\n    vSAArSQU5WTjvZut9UeEenrYY72xDCLNe5vHimOEHFRvPeP626vx7/gkKSSL5F0Se+YYhLLCWcz8\n    DYrQn41YZb72PBt5T0vIRS3FMZOYz55Ww8XbIWAwIKKmRfm00bPpMYPTD34ZCnVGTXSkHzHDCehu\n    pQMug4IpWIcy45ffbi6sXoFD1ud8vG8H0RFhUk8MBFSCSsYHkrgz5cB8sbPLs0PocxN/nYIFJ2A1\n    U68y2d3U/ClLfOb/kh4w3EcKvqtSwsMdLgxHjrDGtPgiAZDJhriZnpCQ0WvgBcAOYjRjsFncTRWH\n    DqpTXsQzjkRa3A/KD3pA6bd5aYSF21nKAR7aVj7Aq0ogWEb4owZL5/W2lEnuwKSfGcnrz6GmJSaT\n    113wKahleH/VPb1KoaGJ81h5Om1DZI3ohYuxQYC/jwDhOlPXpdECkJe11gSTp34WQ1a93uSYkGo9\n    MZ/7WI2LXpD6pjGtz5YSVKR1naj2pci5jwGi86KwL2MqXX288vguvGqcGZXUwi+383Ct99WLBNgo\n    9A6kIFvexILcscyeKthsoBGzu+MBipoGnSYuw+vlSa/0jIoluQqYpqYIg7ZBWoOjrKDDFdv01BtL\n    nnVBFR43wCIm77obPQ5+103KYWcs42wpAxtX78HdlTav/D35D45GnGxM/fadpth65BSejgoPnd+z\n    MXwMOv2W8B+fuolEcQGLrXw+mHtc2p3A7XKGhexY5A+FkSlAs3RMa0weizcylDlW2vj7ksdmZ/Ag\n    AQ6EetT85DS6gV9wn3pBaWRhFU/OqFT/PezFcnxjiHVwfil+G9nhYhmjaspLqSLTkGPnyYabReZw\n    ZtnSnKnWfwEr5GDqfYxHkBdZUtiofNhu/K/gs/aLTGoxWVac6F9y1xzXYnXPEPkmNsFfwn/H+LuL\n    M01dKisWCfMPHCeBTxKSMB3IrixUym64cxlqkvk/rPXrUcktfvPhd/1I9jWIzQwPfbWyW9wpYzBm\n    xYqZ1MocFyZhfh1UHOwaOiMlgAlOTDn6irtT1BW/a45nAkCl8jqgFKPSJ6kusj+HffSL6xDQJ0vA\n    L5BGENThmToTm7euueLzYY0JDqhqo18wnha5MSCJtB3dcqKTeK+jiyF7FRHfZt/qJolXCufZyN48\n    DQGrdrUjjolHvE8jmtgPkYuq9pdTciUnJIQN8vtQ/tOgk0Ui3n03FSM0YNARyaTZ0vgj+GLfGMc6\n    VFKf6t/sSgFO8W4dgi2e0VwryOd8Etrq5NFul</ds:X509Certificate>\n            </ds:X509Data>\n          </ds:KeyInfo>\n        </md:KeyDescriptor>\n        <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>\n        <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>\n        <md:SingleSignOnService Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST\" Location=\"https://www.example.com/app/teleport/00000000000000000000\"/>\n        <md:SingleSignOnService Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect\" Location=\"https://www.example.com/app/teleport/00000000000000000000\"/>\n      </md:IDPSSODescriptor>\n    </md:EntityDescriptor>\n"
 
 /***/ }),
 /* 610 */
@@ -42254,6 +42256,10 @@ webpackJsonp([0],[
 
 	var actions = _interopRequireWildcard(_actions);
 
+	var _button = __webpack_require__(593);
+
+	var _button2 = _interopRequireDefault(_button);
+
 	var _configItemList = __webpack_require__(586);
 
 	var _configItemList2 = _interopRequireDefault(_configItemList);
@@ -42264,7 +42270,9 @@ webpackJsonp([0],[
 
 	var _configDeleteDialog2 = _interopRequireDefault(_configDeleteDialog);
 
-	var _elements = __webpack_require__(587);
+	var _links = __webpack_require__(618);
+
+	var Links = _interopRequireWildcard(_links);
 
 	var _configAddEdit = __webpack_require__(597);
 
@@ -42275,6 +42283,8 @@ webpackJsonp([0],[
 	var _changeTracker2 = _interopRequireDefault(_changeTracker);
 
 	var _examples = __webpack_require__(607);
+
+	var _elements = __webpack_require__(587);
 
 	function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key]; } } newObj.default = obj; return newObj; } }
 
@@ -42346,7 +42356,34 @@ webpackJsonp([0],[
 	      return _react2.default.createElement(
 	        _changeTracker2.default,
 	        props,
-	        _react2.default.createElement(_elements.EmptyList, { canCreate: canCreate, onClick: this.onNewItem })
+	        _react2.default.createElement(
+	          _elements.EmptyBox,
+	          null,
+	          _react2.default.createElement(
+	            'p',
+	            null,
+	            'This tab is used to establish trust with other Teleport clusters. Click "Connect" to connect to another trusted cluster. This will allow users of the trusted cluster to access this cluster. To learn more about trusted clusters',
+	            _react2.default.createElement(
+	              Links.DocsTrustedCluster,
+	              null,
+	              ' click here.'
+	            )
+	          ),
+	          _react2.default.createElement(
+	            'div',
+	            { className: 'text-center' },
+	            _react2.default.createElement(
+	              _button2.default,
+	              {
+	                size: 'sm',
+	                isDisabled: !canCreate,
+	                onClick: this.onNewItem,
+	                className: 'text-center grv-settings-res-new m-t btn-default' },
+	              _react2.default.createElement('i', { className: 'fa fa-plug m-r-xs' }),
+	              'Connect'
+	            )
+	          )
+	        )
 	      );
 	    }
 
@@ -42409,6 +42446,35 @@ webpackJsonp([0],[
 	'use strict';
 
 	exports.__esModule = true;
+	exports.DocsTrustedCluster = undefined;
+
+	var _react = __webpack_require__(2);
+
+	var _react2 = _interopRequireDefault(_react);
+
+	var _config = __webpack_require__(563);
+
+	var _config2 = _interopRequireDefault(_config);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	var DocsTrustedCluster = exports.DocsTrustedCluster = function DocsTrustedCluster(props) {
+	  return _react2.default.createElement(
+	    'a',
+	    { href: _config2.default.trustedClusterDocLink, target: '_blank' },
+	    ' ',
+	    props.children,
+	    ' '
+	  );
+	};
+
+/***/ }),
+/* 619 */
+/***/ (function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	exports.__esModule = true;
 
 	var _featureSettings = __webpack_require__(540);
 
@@ -42418,9 +42484,9 @@ webpackJsonp([0],[
 
 	var _config2 = _interopRequireDefault(_config);
 
-	var _actions2 = __webpack_require__(619);
+	var _actions2 = __webpack_require__(620);
 
-	var _tabRoles = __webpack_require__(622);
+	var _tabRoles = __webpack_require__(623);
 
 	var _tabRoles2 = _interopRequireDefault(_tabRoles);
 
@@ -42491,7 +42557,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 619 */
+/* 620 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -42518,13 +42584,13 @@ webpackJsonp([0],[
 
 	var backend = _interopRequireWildcard(_backend);
 
-	var _actionTypes = __webpack_require__(620);
+	var _actionTypes = __webpack_require__(621);
 
 	var AT = _interopRequireWildcard(_actionTypes);
 
 	var _actions2 = __webpack_require__(576);
 
-	var _store = __webpack_require__(621);
+	var _store = __webpack_require__(622);
 
 	function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key]; } } newObj.default = obj; return newObj; } }
 
@@ -42593,7 +42659,7 @@ webpackJsonp([0],[
 	}
 
 /***/ }),
-/* 620 */
+/* 621 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -42605,7 +42671,7 @@ webpackJsonp([0],[
 	var DELETE_ROLE = exports.DELETE_ROLE = 'SETTINGS_ROLES_DELETE';
 
 /***/ }),
-/* 621 */
+/* 622 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -42619,7 +42685,7 @@ webpackJsonp([0],[
 
 	var _nuclearJs = __webpack_require__(241);
 
-	var _actionTypes = __webpack_require__(620);
+	var _actionTypes = __webpack_require__(621);
 
 	var AT = _interopRequireWildcard(_actionTypes);
 
@@ -42654,7 +42720,7 @@ webpackJsonp([0],[
 	});
 
 /***/ }),
-/* 622 */
+/* 623 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -42669,7 +42735,7 @@ webpackJsonp([0],[
 
 	var _connect2 = _interopRequireDefault(_connect);
 
-	var _getters = __webpack_require__(623);
+	var _getters = __webpack_require__(624);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
@@ -42679,7 +42745,7 @@ webpackJsonp([0],[
 
 	var _actions = __webpack_require__(576);
 
-	var _actions2 = __webpack_require__(619);
+	var _actions2 = __webpack_require__(620);
 
 	var actions = _interopRequireWildcard(_actions2);
 
@@ -42814,7 +42880,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 623 */
+/* 624 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -42830,7 +42896,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 624 */
+/* 625 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -42843,7 +42909,7 @@ webpackJsonp([0],[
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _app = __webpack_require__(625);
+	var _app = __webpack_require__(626);
 
 	var _app2 = _interopRequireDefault(_app);
 
@@ -42861,11 +42927,11 @@ webpackJsonp([0],[
 
 	var _indicator2 = _interopRequireDefault(_indicator);
 
-	var _licenseStatusDialog = __webpack_require__(628);
+	var _licenseStatusDialog = __webpack_require__(629);
 
 	var _licenseStatusDialog2 = _interopRequireDefault(_licenseStatusDialog);
 
-	var _getters3 = __webpack_require__(629);
+	var _getters3 = __webpack_require__(630);
 
 	var licenseGetters = _interopRequireWildcard(_getters3);
 
@@ -42961,7 +43027,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 625 */
+/* 626 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -42982,11 +43048,11 @@ webpackJsonp([0],[
 
 	var _getters2 = _interopRequireDefault(_getters);
 
-	var _browser = __webpack_require__(626);
+	var _browser = __webpack_require__(627);
 
 	var _actions = __webpack_require__(285);
 
-	var _navLeftBar = __webpack_require__(627);
+	var _navLeftBar = __webpack_require__(628);
 
 	var _navLeftBar2 = _interopRequireDefault(_navLeftBar);
 
@@ -43082,7 +43148,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 626 */
+/* 627 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -43116,7 +43182,7 @@ webpackJsonp([0],[
 	var platform = exports.platform = detectPlatform();
 
 /***/ }),
-/* 627 */
+/* 628 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -43223,7 +43289,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 628 */
+/* 629 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -43323,7 +43389,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 629 */
+/* 630 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -43332,7 +43398,7 @@ webpackJsonp([0],[
 	var store = exports.store = ['tlp_license_status'];
 
 /***/ }),
-/* 630 */
+/* 631 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -43341,7 +43407,7 @@ webpackJsonp([0],[
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _storeDialogs = __webpack_require__(631);
+	var _storeDialogs = __webpack_require__(632);
 
 	var _storeDialogs2 = _interopRequireDefault(_storeDialogs);
 
@@ -43349,7 +43415,7 @@ webpackJsonp([0],[
 
 	var _store2 = _interopRequireDefault(_store);
 
-	var _store3 = __webpack_require__(621);
+	var _store3 = __webpack_require__(622);
 
 	var _store4 = _interopRequireDefault(_store3);
 
@@ -43357,7 +43423,7 @@ webpackJsonp([0],[
 
 	var _store6 = _interopRequireDefault(_store5);
 
-	var _store7 = __webpack_require__(632);
+	var _store7 = __webpack_require__(633);
 
 	var _store8 = _interopRequireDefault(_store7);
 
@@ -43388,7 +43454,7 @@ webpackJsonp([0],[
 	});
 
 /***/ }),
-/* 631 */
+/* 632 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -43446,7 +43512,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 632 */
+/* 633 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
