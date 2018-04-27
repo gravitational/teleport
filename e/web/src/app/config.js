@@ -17,10 +17,8 @@ limitations under the License.
 import telecfg from 'telebase-app/config';
 import { formatPattern } from 'telebase-app/lib/patternUtils';
 
-telecfg.init({
-
-  clusterDocLink: 'http://gravitational.com/teleport/docs/admin-guide/#trusted-clusters',
-  oidcDocLink: 'http://gravitational.com/teleport/docs/admin-guide/#openid-oauth2',  
+telecfg.init({  
+  trustedClusterDocLink: 'https://gravitational.com/teleport/docs/admin-guide/#trusted-clusters',  
   routes: {        
     settingsBase: '/web/settings',        
     settingsAuth: '/web/settings/auth',

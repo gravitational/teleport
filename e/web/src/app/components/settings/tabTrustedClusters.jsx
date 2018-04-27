@@ -3,14 +3,16 @@ import connect from 'telebase-app/components/connect';
 import getters from 'app/flux/settingsClusters/getters';
 import userAclGetters from 'telebase-app/flux/userAcl/getters';
 import * as actions from 'app/flux/settingsClusters/actions';
+import Button from 'app/components/common/button';
 import ConfigItemList from './configItemList';
 import {openDeleteDialog} from 'app/flux/settingsDialogs/actions';
 import ConfigDeleteDialog from './configDeleteDialog';
-import { EmptyList } from './elements';
+import * as Links from './links';
 import ConfidAddEdit from './configAddEdit';
 import ChangeTracker from './../changeTracker';
 import { trustedClusterTemplate } from './examples';
-  
+import { EmptyBox } from './elements';
+
 class TrustedClusters extends React.Component {
 
   state = {}
@@ -50,18 +52,35 @@ class TrustedClusters extends React.Component {
     const curItem = store.getCurItem();
     const items = store.getItems();
     const access = userAclStore.getClusterAccess();
-    const canCreate = access.create;
-
+    const canCreate = access.create
+    
     const props = {
       ref: e => this.refTracker = e,
       className: "grv-settings-tab",
       route: this.props.route
     }
-
+    
     if(!curItem){
       return (
-        <ChangeTracker {...props}>         
-          <EmptyList canCreate={canCreate} onClick={this.onNewItem}/>
+        <ChangeTracker {...props}>                   
+          <EmptyBox>             
+            <p>                              
+              This tab is used to establish trust with other Teleport clusters. 
+              Click "Connect" to connect to another trusted cluster. This will 
+              allow users of the trusted cluster to access this cluster. 
+              To learn more about trusted clusters 
+              <Links.DocsTrustedCluster> click here.</Links.DocsTrustedCluster>                
+            </p>      
+            <div className="text-center">
+              <Button
+                size="sm"        
+                isDisabled={!canCreate}        
+                onClick={this.onNewItem}
+                className="text-center grv-settings-res-new m-t btn-default">
+                <i className="fa fa-plug m-r-xs"/>Connect
+              </Button>             
+            </div>                
+          </EmptyBox>  
         </ChangeTracker>
       )
     }
