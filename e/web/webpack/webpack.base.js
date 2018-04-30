@@ -79,6 +79,11 @@ module.exports = {
       loader: "file-loader?name=/assets/img/img-[hash:6].[ext]"
     },
 
+    examples: {
+      test: /\.(yaml)$/,
+      loader: "raw-loader"
+    },
+
     js: js,
 
     scss: {

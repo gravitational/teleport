@@ -33,6 +33,7 @@ var cfg = {
     loaders: [
       baseCfg.loaders.fonts,
       baseCfg.loaders.svg,
+      baseCfg.loaders.examples,
       baseCfg.loaders.images,
       baseCfg.loaders.js({withHot: true}),
       baseCfg.loaders.scss

@@ -67,7 +67,17 @@ func (p *Plugin) upsertResourceHandle(w http.ResponseWriter, r *http.Request, pa
 		return nil, trace.Wrap(err)
 	}
 
-	rawRes, err := extractMetadata(itemToUpsert.Content)
+	rawRes, err := extractResourceInfo(itemToUpsert.Content)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = validateKind(rawRes.Kind, itemToUpsert.Kind)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = validateMetadata(*rawRes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -83,11 +93,6 @@ func (p *Plugin) upsertResourceHandle(w http.ResponseWriter, r *http.Request, pa
 
 	if !exists && r.Method == http.MethodPut {
 		return nil, trace.NotFound("Cannot find resource with a name %q", rawRes.Metadata.Name)
-	}
-
-	err = validateKind(rawRes.Kind, itemToUpsert.Kind)
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	items, err := upsertResource(*rawRes, client)
@@ -298,10 +303,11 @@ func upsertResource(unknownRes services.UnknownResource, client auth.ClientI) (i
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if _, err := client.UpsertTrustedCluster(tc); err != nil {
+		var upserted services.TrustedCluster
+		if upserted, err = client.UpsertTrustedCluster(tc); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		items, err := ui.ConvertTrustedClusters([]services.TrustedCluster{tc})
+		items, err := ui.ConvertTrustedClusters([]services.TrustedCluster{upserted})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -326,6 +332,10 @@ func checkIfResourceExists(unknownRes services.UnknownResource, client auth.Clie
 	case services.KindRole:
 		_, err = client.GetRole(unknownRes.Metadata.Name)
 	case services.KindTrustedCluster:
+		// trusted cluster name will be automatically resolved
+		if unknownRes.Metadata.Name == "" {
+			return false, nil
+		}
 		_, err = client.GetTrustedCluster(unknownRes.Metadata.Name)
 	default:
 		return false, trace.BadParameter(getInvalidKindMessage(unknownRes.Kind))
@@ -336,6 +346,16 @@ func checkIfResourceExists(unknownRes services.UnknownResource, client auth.Clie
 	}
 
 	return err == nil, nil
+}
+
+// validateMetadata verifies resource metadata
+func validateMetadata(unknownRes services.UnknownResource) error {
+	// since trusted cluster allows empty names, ignore this check
+	if unknownRes.Kind == services.KindTrustedCluster {
+		return nil
+	}
+
+	return unknownRes.Metadata.CheckAndSetDefaults()
 }
 
 // validateKind verifies that given resource kind matches its expected value.
@@ -359,8 +379,8 @@ func getInvalidKindMessage(kind string) string {
 	return fmt.Sprintf("resources of kind %q are not supported", kind)
 }
 
-// extractMetadata extracts resource meta information
-func extractMetadata(yaml string) (*services.UnknownResource, error) {
+// extractResourceInfo extracts resource information
+func extractResourceInfo(yaml string) (*services.UnknownResource, error) {
 	var unknownRes services.UnknownResource
 	reader := strings.NewReader(yaml)
 	decoder := kyaml.NewYAMLOrJSONDecoder(reader, 32*1024)

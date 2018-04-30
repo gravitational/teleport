@@ -3,19 +3,19 @@ import $ from 'jQuery';
 
 const GrvDialogDefaultHeader = ({title}) => <h2 className="m-t-xs">{title}</h2>;
 
-const GrvDialogHeader = React.createClass({
+export const GrvDialogHeader = React.createClass({
   render(){
     return ( <div>{this.props.children}</div> )
   }
 });
 
-const GrvDialogContent = React.createClass({
+export const GrvDialogContent = React.createClass({
   render(){
     return ( <div>{this.props.children}</div> )
   }
 });
 
-const GrvDialogFooter = React.createClass({
+export const GrvDialogFooter = React.createClass({
   render(){
     let {onClose, children} = this.props;
     let $content = children;
@@ -35,7 +35,7 @@ const GrvDialogFooter = React.createClass({
   }
 });
 
-const GrvDialog = React.createClass({
+export const GrvDialog = React.createClass({
 
   componentWillUnmount(){
     $(this.refs.modal).modal('hide');
@@ -92,10 +92,3 @@ const GrvDialog = React.createClass({
     );
   }
 });
-
-module.exports = {
-  GrvDialogHeader,
-  GrvDialogContent,
-  GrvDialogFooter,
-  GrvDialog
-}

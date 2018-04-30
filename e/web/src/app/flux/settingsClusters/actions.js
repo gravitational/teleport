@@ -1,7 +1,7 @@
 import Logger from 'telebase-app/lib/logger';
 
 import { ResourceEnum } from 'app/services/enums';
-import { saveClusterStatus } from 'app/flux/status/actions';
+import { saveClusterStatus, deleteResourceStatus } from 'app/flux/status/actions';
 import reactor from 'app/reactor';
 import * as backend from 'app/services/backend';
 import { closeDeleteDialog } from './../settingsDialogs/actions';
@@ -51,16 +51,16 @@ export function deleteCluster(clusterRec) {
     closeDeleteDialog();      
     reactor.dispatch(AT.DELETE_CLUSTER, id);
     setCurCluster(next);
-    saveClusterStatus.success();    
+    deleteResourceStatus.success();    
   });
   
-  saveClusterStatus.start();  
+  deleteResourceStatus.start();  
   backend.remove(TRUSTED_CLUSTER, name)      
     .done(updateStore)
     .fail(err => {
       const msg = backend.getErrorText(err);
       logger.error('deleteCluster()', err);
-      saveClusterStatus.fail(msg);      
+      deleteResourceStatus.fail(msg);      
     });        
 }
 

@@ -12180,12 +12180,6 @@ webpackJsonp([0],[
 	    }).fail(function (err) {
 	      logger.error('fetchActiveSessions', err);
 	    });
-	  },
-	  updateSession: function updateSession(_ref) {
-	    var siteId = _ref.siteId,
-	        json = _ref.json;
-
-	    _reactor2.default.dispatch(_actionTypes.UPDATE_ACTIVE_SESSION, { siteId: siteId, json: json });
 	  }
 	};
 
@@ -12835,11 +12829,9 @@ webpackJsonp([0],[
 
 	var _actions = __webpack_require__(427);
 
-	var _actions2 = __webpack_require__(291);
+	var _actions2 = __webpack_require__(431);
 
-	var _actions3 = __webpack_require__(431);
-
-	var playerActions = _interopRequireWildcard(_actions3);
+	var playerActions = _interopRequireWildcard(_actions2);
 
 	var _partyListPanel = __webpack_require__(433);
 
@@ -13000,19 +12992,13 @@ webpackJsonp([0],[
 	    return _react2.default.createElement('div', { ref: 'container' });
 	  };
 
-	  TerminalContainer.prototype.receiveEvents = function receiveEvents(data) {
-	    var hasEnded = data.events.some(function (item) {
+	  TerminalContainer.prototype.receiveEvents = function receiveEvents(events) {
+	    var hasEnded = events.some(function (item) {
 	      return item.event === _enums.EventTypeEnum.END;
 	    });
 	    if (hasEnded) {
 	      (0, _actions.close)();
 	    }
-
-	    // update participant list
-	    (0, _actions2.updateSession)({
-	      siteId: this.props.store.getClusterName(),
-	      json: data.session
-	    });
 	  };
 
 	  return TerminalContainer;
@@ -13905,8 +13891,9 @@ webpackJsonp([0],[
 	  TtyEvents.prototype._onReceiveMessage = function _onReceiveMessage(message) {
 	    try {
 	      var json = JSON.parse(message.data);
-	      this._processResize(json.events);
-	      this.emit('data', json);
+	      var events = json.events || [];
+	      this._processResize(events);
+	      this.emit('data', events);
 	    } catch (err) {
 	      logger.error('failed to parse event stream data', err);
 	    }
@@ -21328,6 +21315,9 @@ webpackJsonp([0],[
 
 	'use strict';
 
+	exports.__esModule = true;
+	exports.GrvDialog = exports.GrvDialogFooter = exports.GrvDialogContent = exports.GrvDialogHeader = undefined;
+
 	var _react = __webpack_require__(2);
 
 	var _react2 = _interopRequireDefault(_react);
@@ -21347,7 +21337,7 @@ webpackJsonp([0],[
 	  );
 	};
 
-	var GrvDialogHeader = _react2.default.createClass({
+	var GrvDialogHeader = exports.GrvDialogHeader = _react2.default.createClass({
 	  displayName: 'GrvDialogHeader',
 	  render: function render() {
 	    return _react2.default.createElement(
@@ -21358,7 +21348,7 @@ webpackJsonp([0],[
 	  }
 	});
 
-	var GrvDialogContent = _react2.default.createClass({
+	var GrvDialogContent = exports.GrvDialogContent = _react2.default.createClass({
 	  displayName: 'GrvDialogContent',
 	  render: function render() {
 	    return _react2.default.createElement(
@@ -21369,7 +21359,7 @@ webpackJsonp([0],[
 	  }
 	});
 
-	var GrvDialogFooter = _react2.default.createClass({
+	var GrvDialogFooter = exports.GrvDialogFooter = _react2.default.createClass({
 	  displayName: 'GrvDialogFooter',
 	  render: function render() {
 	    var _props = this.props,
@@ -21393,7 +21383,7 @@ webpackJsonp([0],[
 	  }
 	});
 
-	var GrvDialog = _react2.default.createClass({
+	var GrvDialog = exports.GrvDialog = _react2.default.createClass({
 	  displayName: 'GrvDialog',
 	  componentWillUnmount: function componentWillUnmount() {
 	    (0, _jQuery2.default)(this.refs.modal).modal('hide');
@@ -21461,13 +21451,6 @@ webpackJsonp([0],[
 	    );
 	  }
 	});
-
-	module.exports = {
-	  GrvDialogHeader: GrvDialogHeader,
-	  GrvDialogContent: GrvDialogContent,
-	  GrvDialogFooter: GrvDialogFooter,
-	  GrvDialog: GrvDialog
-	};
 
 /***/ }),
 /* 596 */
@@ -42149,15 +42132,15 @@ webpackJsonp([0],[
 	      (0, _actions2.closeDeleteDialog)();
 	      _reactor2.default.dispatch(AT.DELETE_CLUSTER, id);
 	      setCurCluster(next);
-	      _actions.saveClusterStatus.success();
+	      _actions.deleteResourceStatus.success();
 	    });
 	  };
 
-	  _actions.saveClusterStatus.start();
+	  _actions.deleteResourceStatus.start();
 	  backend.remove(TRUSTED_CLUSTER, name).done(updateStore).fail(function (err) {
 	    var msg = backend.getErrorText(err);
 	    logger.error('deleteCluster()', err);
-	    _actions.saveClusterStatus.fail(msg);
+	    _actions.deleteResourceStatus.fail(msg);
 	  });
 	}
 

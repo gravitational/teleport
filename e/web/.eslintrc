@@ -28,8 +28,8 @@
     "comma-dangle": 0,
     "no-mixed-spaces-and-tabs": 0,        
     "no-alert": 0,
-    "import/default": 0,
-    "import/named": 0,
+    "import/default": 1,
+    "import/named": 1,
     "no-underscore-dangle": 0,
     "no-case-declarations": 0,
     "strict": 0,
@@ -56,5 +56,5 @@
         "config": "webpack/webpack.config.dev.js"
       }
     }
-  }
+  }      
 }
