@@ -1,0 +1,31 @@
+#!groovy
+pipeline {
+    agent any
+    options {
+        disableConcurrentBuilds()
+        ansiColor(colorMapName: 'XTerm')
+    }
+    stages {
+        stage('Run Packer, CloudFormation and wait for stack to be ready') {
+            steps { 
+                script {
+                    sh 'make jenkins-test-start'
+                }
+            }
+        }
+        stage('curl Teleport Web UI') {
+            steps {
+                script {
+                    sh 'curl https://jenkins-teleport-quickstart-test-stack.gravitational.io/web/login'"
+                }
+            }
+        }
+        stage('Take stack down and wait for destruction') {
+            steps { 
+                script {
+                    sh 'make jenkins-test-stop'
+                }
+            }
+        }
+    }
+}
