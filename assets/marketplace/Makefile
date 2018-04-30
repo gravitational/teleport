@@ -31,20 +31,51 @@ STACK_PARAMS ?=
 
 # License S3 URI for enterprise builds, e.g. s3://example.com/path/to/license
 TELEPORT_LICENSE_URI ?=
+
+# Generate timestamp for builds
+BUILD_TIMESTAMP := $(shell TZ=UTC /bin/date "+%Y%m%d-%H%M%S%Z")
+
+# Jenkins test CloudFormation stack name
+JENKINS_TEST_STACK_NAME := jenkins-teleport-quickstart-test-stack
 export
 
 .PHONY: oss
 oss: TELEPORT_TYPE=oss
 oss:
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE)"
-	packer build -force template.json
+	@echo "Build Timestamp: $(BUILD_TIMESTAMP)"
+	packer build -force -var build_timestamp=$(BUILD_TIMESTAMP) template.json
+	$(file > files/build/oss_build_timestamp.txt,$(BUILD_TIMESTAMP))
 
 .PHONY: ent
 ent: TELEPORT_TYPE=ent
 ent: check-ent-vars
 	aws s3 cp $(TELEPORT_LICENSE_URI) files/system/license.pem
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE)"
-	packer build -force template.json
+	@echo "Build Timestamp: $(BUILD_TIMESTAMP)"
+	packer build -force -var build_timestamp=$(BUILD_TIMESTAMP) template.json
+	$(file > files/build/ent_build_timestamp.txt,$(BUILD_TIMESTAMP))
+
+.PHONY: update-ami-ids-oss
+update-ami-ids-oss:
+	files/update-ami-ids.sh oss
+
+.PHONY: update-ami-ids-ent
+update-ami-ids-ent:
+	files/update-ami-ids.sh ent
+
+.PHONY: jenkins-test-start
+jenkins-test-start: TELEPORT_TYPE=oss
+jenkins-test-start:
+	$(MAKE) $(TELEPORT_TYPE)
+	$(MAKE) update-ami-ids-$(TELEPORT_TYPE)
+	$(MAKE) jenkins-create-stack
+	$(MAKE) jenkins-wait-for-stack-creation
+
+.PHONY: jenkins-test-stop
+jenkins-test-stop:
+	$(MAKE) jenkins-delete-stack
+	$(MAKE) jenkins-wait-for-stack-deletion
 
 .PHONY: validate-template
 validate-template:
@@ -55,18 +86,44 @@ create-stack:
 	$(MAKE) validate-template
 	aws --region=$(AWS_REGION) cloudformation create-stack --capabilities CAPABILITY_IAM --stack-name $(STACK) --template-body file://./oss.yaml --parameters $(STACK_PARAMS) 
 
+.PHONY: jenkins-create-stack
+jenkins-create-stack:
+	$(MAKE) validate-template
+	aws --region=$(AWS_REGION) cloudformation create-stack --capabilities CAPABILITY_IAM --stack-name $(JENKINS_TEST_STACK_NAME) --template-body file://./oss.yaml --parameters file://./files/build/jenkins-parameters.json
+
+.PHONY: jenkins-wait-for-stack-creation
+jenkins-wait-for-stack-creation:
+	aws cloudformation wait stack-create-complete --stack-name $(JENKINS_TEST_STACK_NAME)
+
 .PHONY: update-stack
 update-stack:
 	$(MAKE) validate-template
 	aws --region=$(AWS_REGION) cloudformation update-stack --capabilities CAPABILITY_IAM --stack-name $(STACK) --template-body file://./oss.yaml --parameters $(STACK_PARAMS)
 
+.PHONY: jenkins-update-stack
+jenkins-update-stack:
+	$(MAKE) validate-template
+	aws --region=$(AWS_REGION) cloudformation update-stack --capabilities CAPABILITY_IAM --stack-name $(JENKINS_TEST_STACK_NAME) --template-body file://./oss.yaml --parameters file://./files/build/jenkins-parameters.json
+
 .PHONY: describe-stack
 describe-stack:
 	aws --region=$(AWS_REGION) cloudformation describe-stacks --stack-name $(STACK)
 
+.PHONY: jenkins-describe-stack
+jenkins-describe-stack:
+	@aws --region=$(AWS_REGION) cloudformation describe-stacks --stack-name $(JENKINS_TEST_STACK_NAME)
+
 .PHONY: delete-stack
 delete-stack:
 	aws --region=$(AWS_REGION) cloudformation delete-stack --stack-name $(STACK)
+
+.PHONY: jenkins-delete-stack
+jenkins-delete-stack:
+	aws --region=$(AWS_REGION) cloudformation delete-stack --stack-name $(JENKINS_TEST_STACK_NAME)
+
+.PHONY: jenkins-wait-for-stack-deletion
+jenkins-wait-for-stack-deletion:
+	aws cloudformation wait stack-delete-complete --stack-name $(JENKINS_TEST_STACK_NAME)
 
 .PHONY: check-ent-vars
 check-ent-vars:

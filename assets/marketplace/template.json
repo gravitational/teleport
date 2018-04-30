@@ -35,7 +35,8 @@
     "subnet_id": "{{user `subnet`}}",
     "ami_regions": "{{user `destination_regions`}}",
     "tags": {
-      "Name": "{{user `ami_name`}}"
+      "Name": "{{user `ami_name`}}",
+      "BuildTimestamp": "{{user `build_timestamp`}}"
     },
     "run_tags": {
       "Name": "{{user `ami_name`}}"
