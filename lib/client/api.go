@@ -518,9 +518,9 @@ type TeleportClient struct {
 	// safe to keep it nil.
 	OnShellCreated ShellCreatedCallback
 
-	// windowChangeRequests is a channel used to inform clients about changes
-	// that have occured to the window size.
-	windowChangeRequests chan session.WindowChangeRequest
+	// eventsCh is a channel used to inform clients about events have that
+	// occured during the session.
+	eventsCh chan events.EventFields
 }
 
 // ShellCreatedCallback can be supplied for every teleport client. It will
@@ -569,11 +569,11 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		tc.Stdin = os.Stdin
 	}
 
-	// Create a buffered channel to hold window change requests. This channel
-	// must be buffered because the SSH connection directly feeds into it. Delays
-	// in pulling messages off the global SSH request channel could lead to the
-	// connection hanging.
-	tc.windowChangeRequests = make(chan session.WindowChangeRequest, 10)
+	// Create a buffered channel to hold events that occured during this session.
+	// This channel must be buffered because the SSH connection directly feeds
+	// into it. Delays in pulling messages off the global SSH request channel
+	// could lead to the connection hanging.
+	tc.eventsCh = make(chan events.EventFields, 1024)
 
 	// sometimes we need to use external auth without using local auth
 	// methods, e.g. in automation daemons
@@ -1507,15 +1507,29 @@ func (tc *TeleportClient) u2fLogin(pub []byte) (*auth.SSHLoginResponse, error) {
 	return response, trace.Wrap(err)
 }
 
-// SendWindowChangeRequest adds a session.WindowChangeRequest to the channel.
-func (tc *TeleportClient) SendWindowChangeRequest(wc session.WindowChangeRequest) {
-	tc.windowChangeRequests <- wc
+// SendEvent adds a events.EventFields to the channel.
+func (tc *TeleportClient) SendEvent(ctx context.Context, e events.EventFields) error {
+	doneContext, cancel := context.WithCancel(context.Background())
+
+	go func() {
+		tc.eventsCh <- e
+		cancel()
+	}()
+
+	for {
+		select {
+		case <-doneContext.Done():
+			return nil
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		}
+	}
 }
 
-// WindowChangeRequests returns a channel that can be used to listen for
-// changes to the window size from the session on the backend.
-func (tc *TeleportClient) WindowChangeRequests() <-chan session.WindowChangeRequest {
-	return tc.windowChangeRequests
+// EventsChannel returns a channel that can be used to listen for events that
+// occur for this session.
+func (tc *TeleportClient) EventsChannel() <-chan events.EventFields {
+	return tc.eventsCh
 }
 
 // loopbackPool reads trusted CAs if it finds it in a predefined location

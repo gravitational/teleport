@@ -135,10 +135,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		}
 	}
 
-	if h.sessionStreamPollPeriod == 0 {
-		h.sessionStreamPollPeriod = sessionStreamPollPeriod
-	}
-
 	if h.clock == nil {
 		h.clock = clockwork.NewRealClock()
 	}
@@ -1414,9 +1410,9 @@ func (h *Handler) siteNodeConnect(
 // sessionStreamEvent is sent over the session stream socket, it contains
 // last events that occurred (only new events are sent)
 type sessionStreamEvent struct {
-	Events  []events.EventFields `json:"events"`
-	Session *session.Session     `json:"session"`
-	Servers []services.ServerV1  `json:"servers"`
+	Events []events.EventFields `json:"events"`
+	//Session *session.Session     `json:"session"`
+	//Servers []services.ServerV1  `json:"servers"`
 }
 
 // siteSessionStream returns a stream of events related to the session
@@ -1437,8 +1433,7 @@ func (h *Handler) siteSessionStream(w http.ResponseWriter, r *http.Request, p ht
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
 	}
 
-	connect, err := newSessionStreamHandler(namespace,
-		*sessionID, ctx, site, h.sessionStreamPollPeriod)
+	connect, err := newSessionStreamHandler(namespace, *sessionID, ctx, site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -18,6 +18,7 @@ package srv
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -245,15 +246,19 @@ func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *S
 	}
 	sid := ctx.session.id
 
-	// Report the updated window size to the event log (this is so the sessions
-	// can be replayed correctly).
-	ctx.session.recorder.alog.EmitAuditEvent(events.ResizeEvent, events.EventFields{
+	// Build the resize event.
+	resizeEvent := events.EventFields{
+		events.EventType:      events.ResizeEvent,
 		events.EventNamespace: s.srv.GetNamespace(),
 		events.SessionEventID: sid,
 		events.EventLogin:     ctx.Identity.Login,
 		events.EventUser:      ctx.Identity.TeleportUser,
 		events.TerminalSize:   params.Serialize(),
-	})
+	}
+
+	// Report the updated window size to the event log (this is so the sessions
+	// can be replayed correctly).
+	ctx.session.recorder.alog.EmitAuditEvent(events.ResizeEvent, resizeEvent)
 
 	// Update the size of the server side PTY.
 	err := ctx.session.term.SetWinSize(params)
@@ -277,24 +282,19 @@ func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *S
 			continue
 		}
 
-		// Create and serialize message to be sent to client.
-		wc := rsession.WindowChangeRequest{
-			SessionID:      sid.String(),
-			Time:           time.Now(),
-			TerminalParams: params,
-		}
-		wcMessage, err := wc.Serialize()
+		eventPayload, err := json.Marshal(resizeEvent)
 		if err != nil {
-			s.log.Warnf("Unable to serialize window change parameters for %v: %v.", p.sconn.RemoteAddr(), err)
+			s.log.Warnf("Unable to marshal resize event for %v: %v.", p.sconn.RemoteAddr(), err)
 			continue
 		}
 
 		// Send the message as a global request.
-		_, _, err = p.sconn.SendRequest(teleport.WindowChangeRequest, false, wcMessage)
+		_, _, err = p.sconn.SendRequest(teleport.SessionEvent, false, eventPayload)
 		if err != nil {
-			s.log.Warnf("Unable to send window change notification to %v: %v.", p.sconn.RemoteAddr(), err)
+			s.log.Warnf("Unable to resize event to %v: %v.", p.sconn.RemoteAddr(), err)
+			continue
 		}
-		s.log.Debugf("Sent %v window change notification to %v.", params, p.sconn.RemoteAddr())
+		s.log.Debugf("Sent resize event %v to %v.", params, p.sconn.RemoteAddr())
 	}
 
 	return nil

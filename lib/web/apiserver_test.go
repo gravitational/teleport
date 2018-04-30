@@ -103,7 +103,7 @@ func (s *WebSuite) SetUpSuite(c *C) {
 	debugAssetsPath = "../../web/dist"
 	os.Setenv(teleport.DebugEnvVar, "true")
 
-	sessionStreamPollPeriod = time.Millisecond
+	//sessionStreamPollPeriod = time.Millisecond
 	s.mockU2F, err = mocku2f.Create()
 	c.Assert(err, IsNil)
 	c.Assert(s.mockU2F, NotNil)

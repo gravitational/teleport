@@ -34,8 +34,8 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
@@ -450,24 +450,32 @@ func (c *NodeClient) handleGlobalRequests(ctx context.Context, requestCh <-chan 
 		case r := <-requestCh:
 			// When the channel is closing, nil is returned.
 			if r == nil {
-				break
+				return
 			}
 
 			switch r.Type {
-			case teleport.WindowChangeRequest:
-				// Parse window change request and write to the channel.
-				wc, err := session.NewWindowChangeRequest(r.Payload)
+			case teleport.SessionEvent:
+				// Parse event and create events.EventFields that can be consumed directly
+				// by caller.
+				var e events.EventFields
+				err := json.Unmarshal(r.Payload, &e)
 				if err != nil {
-					log.Warnf("Unable to parse window change request: %v: %v.", string(r.Payload), err)
+					log.Warnf("Unable to parse event: %v: %v.", string(r.Payload), err)
 					continue
 				}
-				c.TC.SendWindowChangeRequest(wc)
+
+				// Send event to event channel.
+				err = c.TC.SendEvent(ctx, e)
+				if err != nil {
+					log.Warnf("Unable to send event %v: %v.", string(r.Payload), err)
+					continue
+				}
 			default:
 				// This handles keepalive messages and matches the behaviour of OpenSSH.
 				r.Reply(false, nil)
 			}
 		case <-ctx.Done():
-			break
+			return
 		}
 	}
 }

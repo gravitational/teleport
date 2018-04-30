@@ -338,8 +338,7 @@ const (
 )
 
 const (
-	// WindowChangeRequest is sent by servers to clients when the server
-	// side PTY has changed size. It is to inform clients to update their own PTY
-	// size.
-	WindowChangeRequest = "x-teleport-window-change"
+	// SessionEvent is sent by servers to clients when an audit event occurs on
+	// the session.
+	SessionEvent = "x-teleport-event"
 )

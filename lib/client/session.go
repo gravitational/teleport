@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -309,7 +310,7 @@ func (ns *NodeSession) updateTerminalSize(s *ssh.Session) {
 			currSize, err := term.GetWinsize(0)
 			if err != nil {
 				log.Warnf("Unable to get window size: %v.", err)
-				break
+				continue
 			}
 
 			// Terminal size has not changed, don't do anything.
@@ -334,10 +335,22 @@ func (ns *NodeSession) updateTerminalSize(s *ssh.Session) {
 
 			lastSize = currSize
 
-		// Extract and store size as it comes from the remote server.
-		case wc := <-ns.nodeClient.TC.WindowChangeRequests():
-			lastSize = wc.TerminalParams.Winsize()
-			log.Debugf("Recevied window size %v from node in session.\n", lastSize, wc.SessionID)
+		// Extract "resize" events in the stream and store the last window size.
+		case event := <-ns.nodeClient.TC.EventsChannel():
+			// Only "resize" events are important, all others can be ignored.
+			if event.GetType() != events.ResizeEvent {
+				fmt.Printf("Ignoring %v event\r\n", event.GetType())
+				continue
+			}
+
+			terminalParams, err := session.UnmarshalTerminalParams(event.GetString(events.TerminalSize))
+			if err != nil {
+				log.Warnf("Unable to unmarshal terminal parameters: %v.", err)
+				continue
+			}
+
+			lastSize = terminalParams.Winsize()
+			log.Debugf("Recevied window size %v from node in session.\n", lastSize, event.GetString(events.SessionEventID))
 
 		// Update size of local terminal with the last size received from remote server.
 		case <-tickerCh.C:

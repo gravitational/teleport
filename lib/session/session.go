@@ -19,9 +19,10 @@ limitations under the License.
 package session
 
 import (
-	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
@@ -155,10 +156,33 @@ func (p *Party) String() string {
 	)
 }
 
-// TerminalParams holds parameters of the terminal used in session
+// TerminalParams holds the terminal size in a session.
 type TerminalParams struct {
 	W int `json:"w"`
 	H int `json:"h"`
+}
+
+// UnmarshalTerminalParams takes a serialized string that contains the
+// terminal parameters and returns a *TerminalParams.
+func UnmarshalTerminalParams(s string) (*TerminalParams, error) {
+	parts := strings.Split(s, ":")
+	if len(parts) != 2 {
+		return nil, trace.BadParameter("failed to unmarshal: too many parts")
+	}
+
+	w, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	h, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &TerminalParams{
+		W: w,
+		H: h,
+	}, nil
 }
 
 // Serialize is a more strict version of String(): it returns a string
@@ -442,41 +466,41 @@ func NewTerminalParamsFromInt(w int, h int) (*TerminalParams, error) {
 	return &TerminalParams{W: int(w), H: int(h)}, nil
 }
 
-// WindowChangeRequest represents the structure passed by Teleport to clients
-// when the remote PTY size changes.
-type WindowChangeRequest struct {
-	// SessionID is the session for which this window change occured.
-	SessionID string `json:"sid"`
-
-	// Time is when this window change occured.
-	Time time.Time `json:"time"`
-
-	// TerminalParams is the current size of the remote PTY.
-	TerminalParams TerminalParams `json:"term"`
-}
-
-// NewWindowChangeRequest returns a new WindowChangeRequest from bytes.
-func NewWindowChangeRequest(b []byte) (WindowChangeRequest, error) {
-	var wc WindowChangeRequest
-
-	err := json.Unmarshal(b, &wc)
-	if err != nil {
-		return WindowChangeRequest{}, trace.Wrap(err)
-	}
-
-	return wc, nil
-}
-
-// Serialize returns byte representation of WindowChange that can be sent
-// over the wire.
-func (w WindowChangeRequest) Serialize() ([]byte, error) {
-	wc, err := json.Marshal(w)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return wc, nil
-}
+//// WindowChangeRequest represents the structure passed by Teleport to clients
+//// when the remote PTY size changes.
+//type WindowChangeRequest struct {
+//	// SessionID is the session for which this window change occured.
+//	SessionID string `json:"sid"`
+//
+//	// Time is when this window change occured.
+//	Time time.Time `json:"time"`
+//
+//	// TerminalParams is the current size of the remote PTY.
+//	TerminalParams TerminalParams `json:"term"`
+//}
+//
+//// NewWindowChangeRequest returns a new WindowChangeRequest from bytes.
+//func NewWindowChangeRequest(b []byte) (WindowChangeRequest, error) {
+//	var wc WindowChangeRequest
+//
+//	err := json.Unmarshal(b, &wc)
+//	if err != nil {
+//		return WindowChangeRequest{}, trace.Wrap(err)
+//	}
+//
+//	return wc, nil
+//}
+//
+//// Serialize returns byte representation of WindowChange that can be sent
+//// over the wire.
+//func (w WindowChangeRequest) Serialize() ([]byte, error) {
+//	wc, err := json.Marshal(w)
+//	if err != nil {
+//		return nil, trace.Wrap(err)
+//	}
+//
+//	return wc, nil
+//}
 
 const (
 	minSize = 1

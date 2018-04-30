@@ -17,45 +17,45 @@ limitations under the License.
 package web
 
 import (
-	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"sync"
 	"time"
 
+	"golang.org/x/net/websocket"
+
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 
 	"github.com/gravitational/trace"
+
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/net/websocket"
 )
 
-func newSessionStreamHandler(namespace string, sessionID session.ID, ctx *SessionContext, site reversetunnel.RemoteSite, pollPeriod time.Duration) (*sessionStreamHandler, error) {
+func newSessionStreamHandler(namespace string, sessionID session.ID, ctx *SessionContext, site reversetunnel.RemoteSite) (*sessionStreamHandler, error) {
 	return &sessionStreamHandler{
-		pollPeriod: pollPeriod,
-		sessionID:  sessionID,
-		ctx:        ctx,
-		site:       site,
-		closeC:     make(chan bool),
-		namespace:  namespace,
+		sessionID: sessionID,
+		ctx:       ctx,
+		site:      site,
+		closeC:    make(chan bool),
+		namespace: namespace,
 	}, nil
 }
 
 // sessionStreamHandler streams events related to some particular session
 // as a stream of JSON encoded event packets
 type sessionStreamHandler struct {
-	closeOnce  sync.Once
-	pollPeriod time.Duration
-	ctx        *SessionContext
-	site       reversetunnel.RemoteSite
-	namespace  string
-	sessionID  session.ID
-	closeC     chan bool
-	ws         *websocket.Conn
+	closeOnce sync.Once
+	ctx       *SessionContext
+	site      reversetunnel.RemoteSite
+	namespace string
+	sessionID session.ID
+	closeC    chan bool
+	ws        *websocket.Conn
 }
 
 func (w *sessionStreamHandler) Close() error {
@@ -68,82 +68,107 @@ func (w *sessionStreamHandler) Close() error {
 	return nil
 }
 
-// sessionStreamPollPeriod defines how frequently web sessions are sent new
-// events.
-var sessionStreamPollPeriod = 5 * time.Second
+func (w *sessionStreamHandler) pollEvents(authClient auth.ClientI, cursor int) ([]events.EventFields, int, error) {
+	// Poll for events since the last call (cursor location).
+	sessionEvents, err := authClient.GetSessionEvents(w.namespace, w.sessionID, cursor+1, false)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return nil, 0, trace.Wrap(err)
+		}
+		return nil, 0, trace.NotFound("no events from cursor: %v", cursor)
+	}
 
-// stream runs in a loop generating "something changed" events for a
-// given active WebSession
-//
-// The events are fed to a web client via the websocket
+	// Get the batch size to see if any events were returned.
+	batchLen := len(sessionEvents)
+	if batchLen == 0 {
+		return nil, 0, trace.NotFound("no events from cursor: %v", cursor)
+	}
+
+	// Advance the cursor.
+	newCursor := sessionEvents[batchLen-1].GetInt(events.EventCursor)
+
+	// Filter out any resize events as we get them over push notifications.
+	var filteredEvents []events.EventFields
+	for _, event := range sessionEvents {
+		if event.GetType() == events.ResizeEvent {
+			continue
+		}
+		filteredEvents = append(filteredEvents, event)
+	}
+
+	return filteredEvents, newCursor, nil
+}
+
+// stream returns a stream of events that occur during this session.
 func (w *sessionStreamHandler) stream(ws *websocket.Conn) error {
 	w.ws = ws
-	clt, err := w.site.GetClient()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// spin up a goroutine to detect closed socket by reading
-	// from it
+
+	// Spin up a goroutine to detect closed socket by reading from it.
 	go func() {
 		defer w.Close()
 		io.Copy(ioutil.Discard, ws)
 	}()
-
-	// Ticker used to send list of servers to web client periodically.
-	tickerCh := time.NewTicker(w.pollPeriod)
-	defer tickerCh.Stop()
-
 	defer w.Close()
 
+	// Extract a Teleport client from the terminal.
 	c, err := w.ctx.getTerminal(w.sessionID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	teleportClient := c.teleportClient
+
+	// Get access to Auth Client to fetch sessions from the backend. An Auth
+	// Client and a cursor are used to keep track of where we are in the event
+	// stream. This is to find "session.end" events.
+	authClient, err := w.site.GetClient()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	var cursor int = -1
+
+	tickerCh := time.NewTicker(defaults.SessionRefreshPeriod)
+	defer tickerCh.Stop()
 
 	for {
 		select {
-		// Push the new window size to the web client.
-		case wc := <-c.teleportClient.WindowChangeRequests():
-			win := wc.TerminalParams.Winsize()
-
-			// Convert the window change request into something that looks like an
-			// Audit Event for compatibility and send over the websocket.
+		// Send push events that come over the events channel to the web client.
+		case event := <-teleportClient.EventsChannel():
 			streamEvents := &sessionStreamEvent{
-				Events: []events.EventFields{
-					events.EventFields{
-						events.EventType:      events.ResizeEvent,
-						events.SessionEventID: wc.SessionID,
-						events.EventTime:      wc.Time.String(),
-						events.TerminalSize:   fmt.Sprintf("%d:%d", win.Width, win.Height),
-					},
-				},
+				Events: []events.EventFields{event},
 			}
-			log.Debugf("Sending window change %v for %v to web client.", win, wc.SessionID)
+			log.Debugf("Sending %v event to web client.", event.GetType())
 
 			err = websocket.JSON.Send(ws, streamEvents)
 			if err != nil {
-				log.Errorf("Unable to send window change event over websocket: %v", err)
+				log.Errorf("Unable to %v event to web client: %v.", event.GetType(), err)
 				continue
 			}
-		// Periodically send list of servers to the web client.
+		// Poll for events to send to the web client. This is for events that can
+		// not be sent over the events channel (like "session.end" which lingers for
+		// a while after all party members have left).
 		case <-tickerCh.C:
-			servers, err := clt.GetNodes(w.namespace)
+			// Fetch all session events from the backend.
+			sessionEvents, cur, err := w.pollEvents(authClient, cursor)
 			if err != nil {
-				log.Errorf("Unable to fetch list of nodes: %v.", err)
+				if !trace.IsNotFound(err) {
+					log.Errorf("Unable to poll for events: %v.", err)
+					continue
+				}
 				continue
 			}
 
-			// Send list of server to the web client.
-			streamEvents := &sessionStreamEvent{
-				Servers: services.ServersToV1(servers),
-			}
-			log.Debugf("Sending server list (%v) to web client.", len(servers))
+			// Update the cursor location.
+			cursor = cur
 
-			err = websocket.JSON.Send(ws, streamEvents)
+			// Send all events to the web client.
+			err = websocket.JSON.Send(ws, &sessionStreamEvent{
+				Events: sessionEvents,
+			})
 			if err != nil {
-				log.Errorf("Unable to send server list event to web client: %v.", err)
+				log.Warnf("Unable to send %v events to web client: %v.", len(sessionEvents), err)
 				continue
 			}
+		// Close the stream, the session is over.
 		case <-w.closeC:
 			log.Infof("Exiting event stream to web client.")
 			return nil
