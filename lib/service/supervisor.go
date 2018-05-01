@@ -18,10 +18,10 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -57,15 +57,58 @@ type Supervisor interface {
 	Services() []string
 
 	// BroadcastEvent generates event and broadcasts it to all
-	// interested parties
+	// subscribed parties.
 	BroadcastEvent(Event)
 
 	// WaitForEvent waits for event to be broadcasted, if the event
-	// was already broadcasted, payloadC will receive current event immediately
-	// CLose 'cancelC' channel to force WaitForEvent to return prematurely
-	WaitForEvent(name string, eventC chan Event, cancelC chan struct{})
+	// was already broadcasted, eventC will receive current event immediately.
+	WaitForEvent(ctx context.Context, name string, eventC chan Event)
+
+	// RegisterEventMapping registers event mapping -
+	// when the sequence in the event mapping triggers, the
+	// outbound event will be generated.
+	RegisterEventMapping(EventMapping)
+
+	// ExitContext returns context that will be closed when
+	// TeleportExitEvent is broadcasted.
+	ExitContext() context.Context
+
+	// ReloadContext returns context that will be closed when
+	// TeleportReloadEvent is broadcasted.
+	ReloadContext() context.Context
 }
 
+// EventMapping maps a sequence of incoming
+// events and if triggered, generates an out event.
+type EventMapping struct {
+	// In is the incoming event sequence.
+	In []string
+	// Out is the outbound event to generate.
+	Out string
+}
+
+// String returns user-friendly representation of the mapping.
+func (e EventMapping) String() string {
+	return fmt.Sprintf("EventMapping(in=%v, out=%v)", e.In, e.Out)
+}
+
+func (e EventMapping) matches(currentEvent string, m map[string]Event) bool {
+	// existing events that have been fired should match
+	for _, in := range e.In {
+		if _, ok := m[in]; !ok {
+			return false
+		}
+	}
+	// current event that is firing should match one of the expected events
+	for _, in := range e.In {
+		if currentEvent == in {
+			return true
+		}
+	}
+	return false
+}
+
+// LocalSupervisor is a Teleport's implementation of the Supervisor interface.
 type LocalSupervisor struct {
 	state int
 	sync.Mutex
@@ -75,14 +118,30 @@ type LocalSupervisor struct {
 	events       map[string]Event
 	eventsC      chan Event
 	eventWaiters map[string][]*waiter
+
 	closeContext context.Context
 	signalClose  context.CancelFunc
+
+	// exitContext is closed when someone emits Exit event
+	exitContext context.Context
+	signalExit  context.CancelFunc
+
+	reloadContext context.Context
+	signalReload  context.CancelFunc
+
+	eventMappings []EventMapping
+	id            string
 }
 
 // NewSupervisor returns new instance of initialized supervisor
-func NewSupervisor() Supervisor {
+func NewSupervisor(id string) Supervisor {
 	closeContext, cancel := context.WithCancel(context.TODO())
+
+	exitContext, signalExit := context.WithCancel(context.TODO())
+	reloadContext, signalReload := context.WithCancel(context.TODO())
+
 	srv := &LocalSupervisor{
+		id:           id,
 		services:     []Service{},
 		wg:           &sync.WaitGroup{},
 		events:       map[string]Event{},
@@ -90,6 +149,12 @@ func NewSupervisor() Supervisor {
 		eventWaiters: make(map[string][]*waiter),
 		closeContext: closeContext,
 		signalClose:  cancel,
+
+		exitContext: exitContext,
+		signalExit:  signalExit,
+
+		reloadContext: reloadContext,
+		signalReload:  signalReload,
 	}
 	go srv.fanOut()
 	return srv
@@ -132,7 +197,7 @@ func (s *LocalSupervisor) RegisterFunc(name string, fn ServiceFunc) {
 
 // RemoveService removes service from supervisor tracking list
 func (s *LocalSupervisor) RemoveService(srv Service) error {
-	l := logrus.WithFields(logrus.Fields{"service": srv.Name(), trace.Component: teleport.ComponentProcess})
+	l := logrus.WithFields(logrus.Fields{"service": srv.Name(), trace.Component: teleport.Component(teleport.ComponentProcess, s.id)})
 	s.Lock()
 	defer s.Unlock()
 	for i, el := range s.services {
@@ -151,10 +216,15 @@ func (s *LocalSupervisor) serve(srv Service) {
 	go func() {
 		defer s.wg.Done()
 		defer s.RemoveService(srv)
-		log.WithFields(logrus.Fields{"service": srv.Name()}).Debugf("Service has started.")
+		l := log.WithFields(logrus.Fields{"service": srv.Name(), trace.Component: teleport.Component(teleport.ComponentProcess, s.id)})
+		l.Debugf("Service has started.")
 		err := srv.Serve()
 		if err != nil {
-			utils.FatalError(err)
+			if err == ErrTeleportExited {
+				l.Infof("Teleport process has shut down.")
+			} else {
+				l.Warningf("Teleport process has exited with error: %v", err)
+			}
 		}
 	}()
 }
@@ -201,22 +271,75 @@ func (s *LocalSupervisor) Run() error {
 	return s.Wait()
 }
 
+// ExitContext returns context that will be closed when
+// TeleportExitEvent is broadcasted.
+func (s *LocalSupervisor) ExitContext() context.Context {
+	return s.exitContext
+}
+
+// ReloadContext returns context that will be closed when
+// TeleportReloadEvent is broadcasted.
+func (s *LocalSupervisor) ReloadContext() context.Context {
+	return s.reloadContext
+}
+
+// BroadcastEvent generates event and broadcasts it to all
+// subscribed parties.
 func (s *LocalSupervisor) BroadcastEvent(event Event) {
 	s.Lock()
 	defer s.Unlock()
+
+	switch event.Name {
+	case TeleportExitEvent:
+		s.signalExit()
+	case TeleportReloadEvent:
+		s.signalReload()
+	}
+
 	s.events[event.Name] = event
-	log.WithFields(logrus.Fields{"event": event.String()}).Debugf("Broadcasting event.")
+	log.WithFields(logrus.Fields{"event": event.String(), trace.Component: teleport.Component(teleport.ComponentProcess, s.id)}).Debugf("Broadcasting event.")
 
 	go func() {
-		s.eventsC <- event
+		select {
+		case s.eventsC <- event:
+		case <-s.closeContext.Done():
+			return
+		}
 	}()
+
+	for _, m := range s.eventMappings {
+		if m.matches(event.Name, s.events) {
+			mappedEvent := Event{Name: m.Out}
+			s.events[mappedEvent.Name] = mappedEvent
+			go func(e Event) {
+				select {
+				case s.eventsC <- e:
+				case <-s.closeContext.Done():
+					return
+				}
+			}(mappedEvent)
+			log.WithFields(logrus.Fields{"in": event.String(), "out": m.String(), trace.Component: teleport.Component(teleport.ComponentProcess, s.id)}).Debugf("Broadcasting mapped event.")
+		}
+	}
 }
 
-func (s *LocalSupervisor) WaitForEvent(name string, eventC chan Event, cancelC chan struct{}) {
+// RegisterEventMapping registers event mapping -
+// when the sequence in the event mapping triggers, the
+// outbound event will be generated.
+func (s *LocalSupervisor) RegisterEventMapping(m EventMapping) {
 	s.Lock()
 	defer s.Unlock()
 
-	waiter := &waiter{eventC: eventC, cancelC: cancelC}
+	s.eventMappings = append(s.eventMappings, m)
+}
+
+// WaitForEvent waits for event to be broadcasted, if the event
+// was already broadcasted, eventC will receive current event immediately.
+func (s *LocalSupervisor) WaitForEvent(ctx context.Context, name string, eventC chan Event) {
+	s.Lock()
+	defer s.Unlock()
+
+	waiter := &waiter{eventC: eventC, context: ctx}
 	event, ok := s.events[name]
 	if ok {
 		go s.notifyWaiter(waiter, event)
@@ -240,7 +363,7 @@ func (s *LocalSupervisor) getWaiters(name string) []*waiter {
 func (s *LocalSupervisor) notifyWaiter(w *waiter, event Event) {
 	select {
 	case w.eventC <- event:
-	case <-w.cancelC:
+	case <-w.context.Done():
 	}
 }
 
@@ -260,7 +383,7 @@ func (s *LocalSupervisor) fanOut() {
 
 type waiter struct {
 	eventC  chan Event
-	cancelC chan struct{}
+	context context.Context
 }
 
 // Service is a running teleport service function

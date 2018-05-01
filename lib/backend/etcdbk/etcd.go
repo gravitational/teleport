@@ -166,6 +166,26 @@ func (b *bk) CreateVal(path []string, key string, val []byte, ttl time.Duration)
 	return trace.Wrap(convertErr(err))
 }
 
+// CompareAndSwapVal compares and swap values in atomic operation,
+// succeeds if prevVal matches the value stored in the databases,
+// requires prevVal as a non-empty value. Returns trace.CompareFailed
+// in case if value did not match
+func (b *bk) CompareAndSwapVal(path []string, key string, val []byte, prevVal []byte, ttl time.Duration) error {
+	if len(prevVal) == 0 {
+		return trace.BadParameter("missing prevVal parameter, to atomically create item, use CreateVal method")
+	}
+	encodedPrev := base64.StdEncoding.EncodeToString(prevVal)
+	_, err := b.api.Set(
+		context.Background(),
+		b.key(append(path, key)...), base64.StdEncoding.EncodeToString(val),
+		&client.SetOptions{PrevValue: encodedPrev, PrevExist: client.PrevExist, TTL: ttl})
+	err = convertErr(err)
+	if trace.IsNotFound(err) {
+		return trace.CompareFailed(err.Error())
+	}
+	return trace.Wrap(err)
+}
+
 // maxOptimisticAttempts is the number of attempts optimistic locking
 const maxOptimisticAttempts = 5
 

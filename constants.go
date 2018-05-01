@@ -53,10 +53,10 @@ const (
 
 const (
 	// ComponentAuthority is a TLS and an SSH certificate authority
-	ComponentAuthority = "authority"
+	ComponentAuthority = "ca"
 
 	// ComponentProcess is a main control process
-	ComponentProcess = "process"
+	ComponentProcess = "proc"
 
 	// ComponentReverseTunnelServer is reverse tunnel server
 	// that together with agent establish a bi-directional SSH revers tunnel
@@ -81,7 +81,7 @@ const (
 	ComponentProxy = "proxy"
 
 	// ComponentDiagnostic is a diagnostic service
-	ComponentDiagnostic = "diagnostic"
+	ComponentDiagnostic = "diag"
 
 	// ComponentClient is a client
 	ComponentClient = "client"
@@ -105,7 +105,7 @@ const (
 	ComponentRemoteSubsystem = "subsystem:remote"
 
 	// ComponentAuditLog is audit log component
-	ComponentAuditLog = "auditlog"
+	ComponentAuditLog = "audit"
 
 	// ComponentKeyAgent is an agent that has loaded the sessions keys and
 	// certificates for a user connected to a proxy.
@@ -234,6 +234,15 @@ const (
 
 	// Syslog is a mode for syslog logging
 	Syslog = "syslog"
+
+	// HumanDateFormat is a human readable date formatting
+	HumanDateFormat = "Jan _2 15:04 UTC"
+
+	// HumanDateFormatSeconds is a human readable date formatting with seconds
+	HumanDateFormatSeconds = "Jan _2 15:04:05 UTC"
+
+	// HumanDateFormatMilli is a human readable date formatting with milliseconds
+	HumanDateFormatMilli = "Jan _2 15:04:05.000 UTC"
 )
 
 // Component generates "component:subcomponent1:subcomponent2" strings used

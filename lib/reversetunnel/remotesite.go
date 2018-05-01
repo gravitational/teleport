@@ -76,6 +76,12 @@ type remoteSite struct {
 	// remoteAccessPoint provides access to a cached subset of the Auth Server API of
 	// the remote cluster this site belongs to.
 	remoteAccessPoint auth.AccessPoint
+
+	// remoteCA is the last remote certificate authority recorded by the client.
+	// It is used to detect CA rotation status changes. If the rotation
+	// state has been changed, the tunnel will reconnect to re-create the client
+	// with new settings.
+	remoteCA services.CertAuthority
 }
 
 func (s *remoteSite) getRemoteClient() (auth.ClientI, bool, error) {
@@ -287,6 +293,24 @@ func (s *remoteSite) GetLastConnected() time.Time {
 	return connInfo.GetLastHeartbeat()
 }
 
+func (s *remoteSite) compareAndSwapCertAuthority(ca services.CertAuthority) error {
+	s.Lock()
+	defer s.Unlock()
+
+	if s.remoteCA == nil {
+		s.remoteCA = ca
+		return nil
+	}
+
+	rotation := s.remoteCA.GetRotation()
+	if rotation.Matches(ca.GetRotation()) {
+		s.remoteCA = ca
+		return nil
+	}
+	s.remoteCA = ca
+	return trace.CompareFailed("remote certificate authority rotation has been updated")
+}
+
 func (s *remoteSite) periodicSendDiscoveryRequests() {
 	ticker := time.NewTicker(defaults.ReverseTunnelAgentHeartbeatPeriod)
 	defer ticker.Stop()
@@ -307,68 +331,86 @@ func (s *remoteSite) periodicSendDiscoveryRequests() {
 	}
 }
 
-// DELETE IN: 2.6.0
-// attemptCertExchange tries to exchange TLS certificates with remote
-// clusters that have upgraded to 2.5.0
-func (s *remoteSite) attemptCertExchange() error {
-	// this logic is explicitly using the local non cached
-	// client as it has to have write access to the auth server
-	localCA, err := s.localClient.GetCertAuthority(services.CertAuthID{
+// updateCertAuthorities updates local and remote cert authorities
+func (s *remoteSite) updateCertAuthorities() error {
+	// update main cluster cert authorities on the remote side
+	// remote side makes sure that only relevant fields
+	// are updated
+	hostCA, err := s.localClient.GetCertAuthority(services.CertAuthID{
 		Type:       services.HostCA,
 		DomainName: s.srv.ClusterName,
 	}, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	re, err := s.remoteClient.ExchangeCerts(auth.ExchangeCertsRequest{
-		PublicKey: localCA.GetCheckingKeys()[0],
-		TLSCert:   localCA.GetTLSKeyPairs()[0].Cert,
-	})
+	err = s.remoteClient.RotateExternalCertAuthority(hostCA)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	remoteCA, err := s.localClient.GetCertAuthority(services.CertAuthID{
+
+	userCA, err := s.localClient.GetCertAuthority(services.CertAuthID{
+		Type:       services.UserCA,
+		DomainName: s.srv.ClusterName,
+	}, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = s.remoteClient.RotateExternalCertAuthority(userCA)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// update remote cluster's host cert authoritiy on a local cluster
+	// local proxy is authorized to perform this operation only for
+	// host authorities of remote clusters.
+	remoteCA, err := s.remoteClient.GetCertAuthority(services.CertAuthID{
 		Type:       services.HostCA,
 		DomainName: s.domainName,
 	}, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = s.localClient.ExchangeCerts(auth.ExchangeCertsRequest{
-		PublicKey: remoteCA.GetCheckingKeys()[0],
-		TLSCert:   re.TLSCert,
-	})
-	return trace.Wrap(err)
-}
 
-// DELETE IN: 2.6.0
-// This logic is only relevant for upgrades from 2.5.0 to 2.6.0
-func (s *remoteSite) periodicAttemptCertExchange() {
-	ticker := time.NewTicker(defaults.NetworkBackoffDuration)
-	defer ticker.Stop()
-	if err := s.attemptCertExchange(); err != nil {
-		s.Warningf("Attempt at cert exchange failed: %v.", err)
-	} else {
-		s.Debugf("Certificate exchange has completed, going to force reconnect.")
-		s.srv.RemoveSite(s.domainName)
-		s.Close()
-		return
+	if remoteCA.GetClusterName() != s.domainName {
+		return trace.BadParameter(
+			"remote cluster sent different cluster name %v instead of expected one %v",
+			remoteCA.GetClusterName(), s.domainName)
+	}
+	err = s.localClient.UpsertCertAuthority(remoteCA)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
+	return s.compareAndSwapCertAuthority(remoteCA)
+}
+
+func (s *remoteSite) periodicUpdateCertAuthorities() {
+	s.Debugf("Ticking with period %v", s.srv.PollingPeriod)
+	ticker := time.NewTicker(s.srv.PollingPeriod)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-s.ctx.Done():
 			s.Debugf("Context is closing.")
 			return
 		case <-ticker.C:
-			err := s.attemptCertExchange()
+			err := s.updateCertAuthorities()
 			if err != nil {
-				s.Warningf("Could not perform certificate exchange: %v.", trace.DebugReport(err))
+				switch {
+				case trace.IsNotFound(err):
+					s.Debugf("Remote cluster %v does not support cert authorities rotation yet.", s.domainName)
+				case trace.IsCompareFailed(err):
+					s.Infof("Remote cluster has updated certificate authorities, going to force reconnect.")
+					s.srv.RemoveSite(s.domainName)
+					s.Close()
+					return
+				case trace.IsConnectionProblem(err):
+					s.Debugf("Remote cluster %v is offline.", s.domainName)
+				default:
+					s.Warningf("Could not perform cert authorities updated: %v.", trace.DebugReport(err))
+				}
 			} else {
-				s.Debugf("Certificate exchange has completed, going to force reconnect.")
-				s.srv.RemoveSite(s.domainName)
-				s.Close()
-				return
+				s.Debugf("Certificate authorities updated.")
 			}
 		}
 	}

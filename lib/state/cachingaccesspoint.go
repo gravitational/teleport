@@ -19,6 +19,7 @@ package state
 
 import (
 	"fmt"
+	"io"
 	"strings"
 	"sync"
 	"time"
@@ -819,7 +820,15 @@ func (cs *CachingAuthClient) try(f func() error) error {
 		return trace.ConnectionProblem(fmt.Errorf("backoff"), "backing off due to recent errors")
 	}
 	accessPointRequests.Inc()
-	err := trace.ConvertSystemError(f())
+	err := f()
+	if err != nil {
+		// EOF in this context means connection problem
+		if trace.Unwrap(err) == io.EOF {
+			err = trace.ConnectionProblem(trace.Unwrap(err), "EOF")
+		} else {
+			err = trace.ConvertSystemError(err)
+		}
+	}
 	accessPointLatencies.Observe(mdiff(start))
 	if trace.IsConnectionProblem(err) {
 		cs.setLastErrorTime(time.Now())

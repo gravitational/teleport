@@ -89,6 +89,14 @@ func (s *Suite) TestConcurrentOperations(c *check.C) {
 		}(i)
 
 		go func(cnt int) {
+			err := s.bk.CompareAndSwapVal(bucket, "key", []byte(value2), []byte(value1), time.Hour)
+			resultsC <- struct{}{}
+			if err != nil && !trace.IsCompareFailed(err) {
+				c.Assert(err, check.IsNil)
+			}
+		}(i)
+
+		go func(cnt int) {
 			err := s.bk.CreateVal(bucket, "key", []byte(value2), time.Hour)
 			resultsC <- struct{}{}
 			if err != nil && !trace.IsAlreadyExists(err) {
@@ -113,18 +121,24 @@ func (s *Suite) TestConcurrentOperations(c *check.C) {
 
 		go func(cnt int) {
 			err := s.bk.DeleteBucket([]string{"concurrent"}, "bucket")
+			if err != nil && !trace.IsNotFound(err) {
+				c.Assert(err, check.IsNil)
+			}
 			resultsC <- struct{}{}
-			c.Assert(err, check.IsNil)
 		}(i)
 	}
 	timeoutC := time.After(3 * time.Second)
-	for i := 0; i < attempts*4; i++ {
+	for i := 0; i < attempts*5; i++ {
 		select {
 		case <-resultsC:
 		case <-timeoutC:
 			c.Fatalf("timeout waiting for goroutines to finish")
 		}
 	}
+}
+
+func (s *Suite) TestCompareAndSwap(c *check.C) {
+	s.suite.CompareAndSwap(c)
 }
 
 func (s *Suite) TestCreateAndRead(c *check.C) {

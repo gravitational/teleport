@@ -19,6 +19,8 @@ package auth
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -44,8 +46,9 @@ import (
 func TestAPI(t *testing.T) { TestingT(t) }
 
 type AuthSuite struct {
-	bk backend.Backend
-	a  *AuthServer
+	bk      backend.Backend
+	a       *AuthServer
+	dataDir string
 }
 
 var _ = Suite(&AuthSuite{})
@@ -57,7 +60,8 @@ func (s *AuthSuite) SetUpSuite(c *C) {
 
 func (s *AuthSuite) SetUpTest(c *C) {
 	var err error
-	s.bk, err = boltbk.New(backend.Params{"path": c.MkDir()})
+	s.dataDir = c.MkDir()
+	s.bk, err = boltbk.New(backend.Params{"path": s.dataDir})
 	c.Assert(err, IsNil)
 
 	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
@@ -65,9 +69,10 @@ func (s *AuthSuite) SetUpTest(c *C) {
 	})
 	c.Assert(err, IsNil)
 	authConfig := &InitConfig{
-		ClusterName: clusterName,
-		Backend:     s.bk,
-		Authority:   authority.New(),
+		ClusterName:            clusterName,
+		Backend:                s.bk,
+		Authority:              authority.New(),
+		SkipPeriodicOperations: true,
 	}
 	s.a, err = NewAuthServer(authConfig)
 	c.Assert(err, IsNil)
@@ -144,7 +149,7 @@ func (s *AuthSuite) TestUserLock(c *C) {
 	c.Assert(ws, NotNil)
 
 	fakeClock := clockwork.NewFakeClock()
-	s.a.clock = fakeClock
+	s.a.SetClock(fakeClock)
 
 	for i := 0; i <= defaults.MaxLoginAttempts; i++ {
 		_, err = s.a.SignIn(user, []byte("wrong pass"))
@@ -246,7 +251,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(err, IsNil)
 
 	// try to use after TTL:
-	s.a.clock = clockwork.NewFakeClockAt(time.Now().UTC().Add(time.Hour + 1))
+	s.a.SetClock(clockwork.NewFakeClockAt(time.Now().UTC().Add(time.Hour + 1)))
 	_, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
 		Token:    multiUseToken,
 		HostID:   "late.bird",
@@ -547,9 +552,10 @@ func (s *AuthSuite) TestUpdateConfig(c *C) {
 	c.Assert(err, IsNil)
 	// use same backend but start a new auth server with different config.
 	authConfig := &InitConfig{
-		ClusterName: clusterName,
-		Backend:     s.bk,
-		Authority:   authority.New(),
+		ClusterName:            clusterName,
+		Backend:                s.bk,
+		Authority:              authority.New(),
+		SkipPeriodicOperations: true,
 	}
 	authServer, err := NewAuthServer(authConfig)
 	c.Assert(err, IsNil)
@@ -590,129 +596,74 @@ func (s *AuthSuite) TestUpdateConfig(c *C) {
 	}})
 }
 
-// TestMigrateRemote cluster creates remote cluster resource
-// after the migration
-func (s *AuthSuite) TestMigrateRemoteCluster(c *C) {
-	clusterName := "remote.example.com"
+// TestMigrateIdentity tests migration of the identity
+func (s *AuthSuite) TestMigrateIdentity(c *C) {
+	c.Assert(s.a.UpsertCertAuthority(
+		suite.NewTestCA(services.UserCA, "me.localhost")), IsNil)
 
-	hostCA := suite.NewTestCA(services.HostCA, clusterName)
-	hostCA.SetName(clusterName)
-	c.Assert(s.a.UpsertCertAuthority(hostCA), IsNil)
+	c.Assert(s.a.UpsertCertAuthority(
+		suite.NewTestCA(services.HostCA, "me.localhost")), IsNil)
 
-	err := migrateRemoteClusters(s.a)
-	c.Assert(err, IsNil)
-
-	remoteCluster, err := s.a.GetRemoteCluster(clusterName)
-	c.Assert(err, IsNil)
-	c.Assert(remoteCluster.GetName(), Equals, clusterName)
-}
-
-// TestMigrateEnabledTrustedCluster tests migrations of enabled trusted cluster
-func (s *AuthSuite) TestMigrateEnabledTrustedCluster(c *C) {
-	clusterName := "example.com"
-	resourceName := "trustedcluster1"
-
-	tunnel := services.NewReverseTunnel(resourceName, []string{"addr:5000"})
-	err := s.a.UpsertReverseTunnel(tunnel)
-	c.Assert(err, IsNil)
-
-	hostCA := suite.NewTestCA(services.HostCA, clusterName)
-	hostCA.SetName(resourceName)
-	c.Assert(s.a.UpsertCertAuthority(hostCA), IsNil)
-
-	userCA := suite.NewTestCA(services.UserCA, clusterName)
-	userCA.SetName(resourceName)
-	c.Assert(s.a.UpsertCertAuthority(userCA), IsNil)
-
-	tc, err := services.NewTrustedCluster(resourceName, services.TrustedClusterSpecV2{
-		Enabled:      true,
-		Token:        "shmoken",
-		ProxyAddress: "addr:5000",
-		RoleMap: services.RoleMap{
-			{Local: []string{"local"}, Remote: "remote"},
-		},
+	role := teleport.RoleAdmin
+	id := IdentityID{
+		HostUUID: "test",
+		NodeName: "test",
+		Role:     role,
+	}
+	packedKeys, err := s.a.GenerateServerKeys(GenerateServerKeysRequest{
+		HostID:   id.HostUUID,
+		NodeName: id.NodeName,
+		Roles:    teleport.Roles{id.Role},
 	})
 	c.Assert(err, IsNil)
-	_, err = s.a.Presence.UpsertTrustedCluster(tc)
+	err = writeKeys(s.dataDir, id, packedKeys.Key, packedKeys.Cert, packedKeys.TLSCert, packedKeys.TLSCACerts[0])
 	c.Assert(err, IsNil)
 
-	err = migrateTrustedClusters(s.a)
+	oldid, err := readIdentityCompat(s.dataDir, id)
 	c.Assert(err, IsNil)
 
-	_, err = s.a.GetTrustedCluster(resourceName)
+	// migrate identities to the new format
+	err = migrateIdentities(s.dataDir)
+	c.Assert(err, IsNil)
+
+	// identity has been migrated, old identity has been removed
+	_, err = readIdentityCompat(s.dataDir, id)
 	fixtures.ExpectNotFound(c, err)
 
-	_, err = s.a.GetTrustedCluster(clusterName)
+	newid, err := ReadLocalIdentity(filepath.Join(s.dataDir, teleport.ComponentProcess), id)
+	newid.ID.NodeName = id.NodeName
 	c.Assert(err, IsNil)
 
-	_, err = s.a.GetCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: clusterName}, false)
+	fixtures.DeepCompare(c, newid, oldid)
+
+	// migrate identities to the new format does nothing
+	// if migration has already happened
+	err = migrateIdentities(s.dataDir)
 	c.Assert(err, IsNil)
 
-	_, err = s.a.GetCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: resourceName}, false)
-	fixtures.ExpectNotFound(c, err)
-
-	_, err = s.a.GetCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: clusterName}, false)
+	newid, err = ReadLocalIdentity(filepath.Join(s.dataDir, teleport.ComponentProcess), id)
+	newid.ID.NodeName = id.NodeName
 	c.Assert(err, IsNil)
 
-	_, err = s.a.GetCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: resourceName}, false)
-	fixtures.ExpectNotFound(c, err)
-
-	_, err = s.a.GetReverseTunnel(resourceName)
-	fixtures.ExpectNotFound(c, err)
-
-	_, err = s.a.GetReverseTunnel(clusterName)
-	c.Assert(err, IsNil)
+	fixtures.DeepCompare(c, newid, oldid)
 }
 
-// TestMigrateDisabledTrustedCluster tests migrations of disabled trusted cluster
-func (s *AuthSuite) TestMigrateDisabledTrustedCluster(c *C) {
-	clusterName := "example.com"
-	resourceName := "trustedcluster1"
+// writeKeys saves the key/cert pair for a given domain onto disk. This usually means the
+// domain trusts us (signed our public key)
+func writeKeys(dataDir string, id IdentityID, key []byte, sshCert []byte, tlsCert []byte, tlsCACert []byte) error {
+	path := keysPath(dataDir, id)
 
-	hostCA := suite.NewTestCA(services.HostCA, clusterName)
-	hostCA.SetName(resourceName)
-	c.Assert(s.a.UpsertCertAuthority(hostCA), IsNil)
-
-	userCA := suite.NewTestCA(services.UserCA, clusterName)
-	userCA.SetName(resourceName)
-	c.Assert(s.a.UpsertCertAuthority(userCA), IsNil)
-
-	err := s.a.DeactivateCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: resourceName})
-	c.Assert(err, IsNil)
-
-	err = s.a.DeactivateCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: resourceName})
-	c.Assert(err, IsNil)
-
-	tc, err := services.NewTrustedCluster(resourceName, services.TrustedClusterSpecV2{
-		Enabled:      false,
-		Token:        "shmoken",
-		ProxyAddress: "addr",
-		RoleMap: services.RoleMap{
-			{Local: []string{"local"}, Remote: "remote"},
-		},
-	})
-	c.Assert(err, IsNil)
-	_, err = s.a.Presence.UpsertTrustedCluster(tc)
-	c.Assert(err, IsNil)
-
-	err = migrateTrustedClusters(s.a)
-	c.Assert(err, IsNil)
-
-	_, err = s.a.GetTrustedCluster(resourceName)
-	fixtures.ExpectNotFound(c, err)
-
-	_, err = s.a.GetTrustedCluster(clusterName)
-	c.Assert(err, IsNil)
-
-	_, err = s.a.GetCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: clusterName}, false)
-	fixtures.ExpectNotFound(c, err)
-
-	_, err = s.a.GetCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: resourceName}, false)
-	fixtures.ExpectNotFound(c, err)
-
-	_, err = s.a.GetCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: clusterName}, false)
-	fixtures.ExpectNotFound(c, err)
-
-	_, err = s.a.GetCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: resourceName}, false)
-	fixtures.ExpectNotFound(c, err)
+	if err := ioutil.WriteFile(path.key, key, teleport.FileMaskOwnerOnly); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := ioutil.WriteFile(path.sshCert, sshCert, teleport.FileMaskOwnerOnly); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := ioutil.WriteFile(path.tlsCert, tlsCert, teleport.FileMaskOwnerOnly); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := ioutil.WriteFile(path.tlsCACert, tlsCACert, teleport.FileMaskOwnerOnly); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }

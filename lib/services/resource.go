@@ -153,6 +153,12 @@ const (
 	// to proxy
 	KindRemoteCluster = "remote_cluster"
 
+	// KindIdenity is local on disk identity resource
+	KindIdentity = "identity"
+
+	// KindState is local on disk process state
+	KindState = "state"
+
 	// V3 is the third version of resources.
 	V3 = "v3"
 
@@ -182,6 +188,10 @@ const (
 
 	// VerbDelete is used to remove an object.
 	VerbDelete = "delete"
+
+	// VerbRotate is used to rotate certificate authorities
+	// used only internally
+	VerbRotate = "rotate"
 )
 
 func collectOptions(opts []MarshalOption) (*MarshalConfig, error) {

@@ -764,7 +764,7 @@ func (k *KeyPair) Identity() (*auth.Identity, error) {
 	} else {
 		certBytes = []byte(k.Cert)
 	}
-	return auth.ReadIdentityFromKeyPair(keyBytes, certBytes, []byte(k.TLSCert), []byte(k.TLSCACert))
+	return auth.ReadIdentityFromKeyPair(keyBytes, certBytes, []byte(k.TLSCert), [][]byte{[]byte(k.TLSCACert)})
 }
 
 // Authority is a host or user certificate authority that

@@ -41,6 +41,10 @@ type AuthWithRoles struct {
 	alog       events.IAuditLog
 }
 
+func (a *AuthWithRoles) actionWithContext(ctx *services.Context, namespace string, resource string, action string) error {
+	return a.checker.CheckAccessToRule(ctx, namespace, resource, action)
+}
+
 func (a *AuthWithRoles) action(namespace string, resource string, action string) error {
 	return a.checker.CheckAccessToRule(&services.Context{User: a.user}, namespace, resource, action)
 }
@@ -91,16 +95,6 @@ func (a *AuthWithRoles) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLog
 	return a.authServer.AuthenticateSSHUser(req)
 }
 
-// ExchangeCerts exchanges TLS certificates for established host certificate authorities
-func (a *AuthWithRoles) ExchangeCerts(req ExchangeCertsRequest) (*ExchangeCertsResponse, error) {
-	// exchange request has it's own authentication, however this limits the requests
-	// types to proxies to make it harder to break
-	if !a.checker.HasRole(string(teleport.RoleProxy)) {
-		return nil, trace.AccessDenied("this request can be only executed by proxy")
-	}
-	return a.authServer.ExchangeCerts(req)
-}
-
 func (a *AuthWithRoles) GetSessions(namespace string) ([]session.Session, error) {
 	if err := a.action(namespace, services.KindSSHSession, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)
@@ -134,14 +128,59 @@ func (a *AuthWithRoles) CreateCertAuthority(ca services.CertAuthority) error {
 	return trace.BadParameter("not implemented")
 }
 
-func (a *AuthWithRoles) UpsertCertAuthority(ca services.CertAuthority) error {
+// RotateCertAuthority starts or restarts certificate authority rotation process.
+func (a *AuthWithRoles) RotateCertAuthority(req RotateRequest) error {
+	if err := req.CheckAndSetDefaults(a.authServer.clock); err != nil {
+		return trace.Wrap(err)
+	}
 	if err := a.action(defaults.Namespace, services.KindCertAuthority, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.action(defaults.Namespace, services.KindCertAuthority, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
+	return a.authServer.RotateCertAuthority(req)
+}
+
+// RotateExternalCertAuthority rotates external certificate authority,
+// this method is called by a remote trusted cluster and is used to update
+// only public keys and certificates of the certificate authority.
+func (a *AuthWithRoles) RotateExternalCertAuthority(ca services.CertAuthority) error {
+	if ca == nil {
+		return trace.BadParameter("missing certificate authority")
+	}
+	ctx := &services.Context{User: a.user, Resource: ca}
+	if err := a.actionWithContext(ctx, defaults.Namespace, services.KindCertAuthority, services.VerbRotate); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.RotateExternalCertAuthority(ca)
+}
+
+// UpsertCertAuthority updates existing cert authority or updates the existing one.
+func (a *AuthWithRoles) UpsertCertAuthority(ca services.CertAuthority) error {
+	if ca == nil {
+		return trace.BadParameter("missing certificate authority")
+	}
+	ctx := &services.Context{User: a.user, Resource: ca}
+	if err := a.actionWithContext(ctx, defaults.Namespace, services.KindCertAuthority, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.actionWithContext(ctx, defaults.Namespace, services.KindCertAuthority, services.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
 	return a.authServer.UpsertCertAuthority(ca)
+}
+
+// CompareAndSwapCertAuthority updates existing cert authority if the existing cert authority
+// value matches the value stored in the backend.
+func (a *AuthWithRoles) CompareAndSwapCertAuthority(new, existing services.CertAuthority) error {
+	if err := a.action(defaults.Namespace, services.KindCertAuthority, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindCertAuthority, services.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.CompareAndSwapCertAuthority(new, existing)
 }
 
 func (a *AuthWithRoles) GetCertAuthorities(caType services.CertAuthType, loadKeys bool) ([]services.CertAuthority, error) {
@@ -156,7 +195,6 @@ func (a *AuthWithRoles) GetCertAuthorities(caType services.CertAuthType, loadKey
 			return nil, trace.Wrap(err)
 		}
 	}
-
 	return a.authServer.GetCertAuthorities(caType, loadKeys)
 }
 
@@ -170,13 +208,6 @@ func (a *AuthWithRoles) GetCertAuthority(id services.CertAuthID, loadKeys bool) 
 		}
 	}
 	return a.authServer.GetCertAuthority(id, loadKeys)
-}
-
-func (a *AuthWithRoles) GetAnyCertAuthority(id services.CertAuthID) (services.CertAuthority, error) {
-	if err := a.action(defaults.Namespace, services.KindCertAuthority, services.VerbReadNoSecrets); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.authServer.GetAnyCertAuthority(id)
 }
 
 func (a *AuthWithRoles) GetDomainName() (string, error) {

@@ -17,6 +17,7 @@ limitations under the License.
 package boltbk
 
 import (
+	"bytes"
 	"encoding/json"
 	"path/filepath"
 	"sort"
@@ -138,6 +139,51 @@ func (b *BoltBackend) CreateVal(bucket []string, key string, val []byte, ttl tim
 		return trace.Wrap(err)
 	}
 	err = b.createKey(bucket, key, bytes)
+	return trace.Wrap(err)
+}
+
+// CompareAndSwapVal compares and swap values in atomic operation,
+// succeeds if prevData matches the value stored in the databases,
+// requires prevData as a non-empty value. Returns trace.CompareFailed
+// in case if value did not match
+func (b *BoltBackend) CompareAndSwapVal(bucket []string, key string, newData []byte, prevData []byte, ttl time.Duration) error {
+	if len(prevData) == 0 {
+		return trace.BadParameter("missing prevData parameter, to atomically create item, use CreateVal method")
+	}
+	v := &kv{
+		Created: b.clock.Now().UTC(),
+		Value:   newData,
+		TTL:     ttl,
+	}
+	newEncodedData, err := json.Marshal(v)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = b.db.Update(func(tx *bolt.Tx) error {
+		bkt, err := GetBucket(tx, bucket)
+		if err != nil {
+			if trace.IsNotFound(err) {
+				return trace.CompareFailed("key %q is not found", key)
+			}
+			return trace.Wrap(err)
+		}
+		currentData := bkt.Get([]byte(key))
+		if currentData == nil {
+			_, err := GetBucket(tx, append(bucket, key))
+			if err == nil {
+				return trace.BadParameter("key %q is a bucket", key)
+			}
+			return trace.CompareFailed("%v %v is not found", bucket, key)
+		}
+		var currentVal kv
+		if err := json.Unmarshal(currentData, &currentVal); err != nil {
+			return trace.Wrap(err)
+		}
+		if bytes.Compare(prevData, currentVal.Value) != 0 {
+			return trace.CompareFailed("%q is not matching expected value", key)
+		}
+		return boltErr(bkt.Put([]byte(key), newEncodedData))
+	})
 	return trace.Wrap(err)
 }
 

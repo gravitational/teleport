@@ -165,16 +165,7 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 
 // OnStart is the handler for "start" CLI command
 func OnStart(config *service.Config) error {
-	srv, err := service.NewTeleport(config)
-	if err != nil {
-		return trace.Wrap(err, "Initialization failed")
-	}
-
-	if err := srv.Start(); err != nil {
-		return trace.Wrap(err, "Startup Failed")
-	}
-
-	return srv.WaitForSignals(context.TODO())
+	return service.Run(context.TODO(), *config, nil)
 }
 
 // onStatus is the handler for "status" CLI command

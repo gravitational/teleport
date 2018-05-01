@@ -32,6 +32,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -113,6 +114,15 @@ const (
 	// TeleportExitEvent is generated when the Teleport process begins closing
 	// all listening sockets and exiting.
 	TeleportExitEvent = "TeleportExit"
+
+	// TeleportReloadEvent is generated to trigger in-process teleport
+	// service reload - all servers and clients will be re-created
+	// in a graceful way.
+	TeleportReloadEvent = "TeleportReload"
+
+	// TeleportReadyEvent is generated to signal that all teleport
+	// internal components have started successfully.
+	TeleportReadyEvent = "TeleportReady"
 )
 
 // RoleConfig is a configuration for a server role (either proxy or node)
@@ -128,8 +138,38 @@ type RoleConfig struct {
 // Connector has all resources process needs to connect
 // to other parts of the cluster: client and identity
 type Connector struct {
-	Identity *auth.Identity
-	Client   *auth.Client
+	// ClientIdentity is the identity to be used in internal cluster
+	// clients to the auth service.
+	ClientIdentity *auth.Identity
+	// ServerIdentity is the identity to be used in servers - serving SSH
+	// and x509 certificates to clients.
+	ServerIdentity *auth.Identity
+	// Client is authenticated client with credentials from ClientIdenity.
+	Client *auth.Client
+	// AuthServer is auth server, used in connectors created for auth
+	// service components.
+	AuthServer *auth.AuthServer
+}
+
+// ReRegister receives new identity credentials for proxy, node and auth.
+// In case if auth servers, the role is 'TeleportAdmin' and instead of using
+// TLS client this method uses the local auth server.
+func (c *Connector) ReRegister(additionalPrincipals []string) (*auth.Identity, error) {
+	if c.ClientIdentity.ID.Role == teleport.RoleAdmin || c.ClientIdentity.ID.Role == teleport.RoleAuth {
+		return auth.GenerateIdentity(c.AuthServer, c.ClientIdentity.ID, additionalPrincipals)
+	}
+	return auth.ReRegister(c.Client, c.ClientIdentity.ID, additionalPrincipals)
+}
+
+// GetCertAuthority returns cert authority by ID.
+// In case if auth servers, the role is 'TeleportAdmin' and instead of using
+// TLS client this method uses the local auth server.
+func (c *Connector) GetCertAuthority(id services.CertAuthID, loadPrivateKeys bool) (services.CertAuthority, error) {
+	if c.ClientIdentity.ID.Role == teleport.RoleAdmin || c.ClientIdentity.ID.Role == teleport.RoleAuth {
+		return c.AuthServer.GetCertAuthority(id, loadPrivateKeys)
+	} else {
+		return c.Client.GetCertAuthority(id, loadPrivateKeys)
+	}
 }
 
 // TeleportProcess structure holds the state of the Teleport daemon, controlling
@@ -149,6 +189,10 @@ type TeleportProcess struct {
 
 	// identities of this process (credentials to auth sever, basically)
 	Identities map[teleport.Role]*auth.Identity
+
+	// connectors is a list of connected clients and their identities
+	connectors map[teleport.Role]*Connector
+
 	// registeredListeners keeps track of all listeners created by the process
 	// used to pass listeners to child processes during live reload
 	registeredListeners []RegisteredListener
@@ -160,6 +204,25 @@ type TeleportProcess struct {
 	// during restart used to collect their status in case if the
 	// child process crashed.
 	forkedPIDs []int
+
+	// storage is a server local storage
+	storage *auth.ProcessStorage
+
+	// id is a process id - used to identify different processes
+	// during in-process reloads.
+	id string
+
+	// Entry is a process-local log entry.
+	*logrus.Entry
+}
+
+// processIndex is an internal process index
+// to help differentiate between two different teleport processes
+// during in-process reload.
+var processID int32 = 0
+
+func nextProcessID() int32 {
+	return atomic.AddInt32(&processID, 1)
 }
 
 // GetAuthServer returns the process' auth server
@@ -196,22 +259,25 @@ func (process *TeleportProcess) findStaticIdentity(id auth.IdentityID) (*auth.Id
 	return nil, trace.NotFound("identity %v not found", &id)
 }
 
-// readIdentity reads identity from disk and resets the local state
-func (process *TeleportProcess) readIdentity(role teleport.Role) (*auth.Identity, error) {
+// getConnectors returns a copy of the identities registered for auth server
+func (process *TeleportProcess) getConnectors() []*Connector {
 	process.Lock()
 	defer process.Unlock()
 
-	id := auth.IdentityID{
-		Role:     role,
-		HostUUID: process.Config.HostUUID,
-		NodeName: process.Config.Hostname,
+	out := make([]*Connector, 0, len(process.connectors))
+	for role := range process.connectors {
+		out = append(out, process.connectors[role])
 	}
-	identity, err := auth.ReadIdentity(process.Config.DataDir, id)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	process.Identities[role] = identity
-	return identity, nil
+	return out
+}
+
+// addConnector adds connector to registered connectors list,
+// it will overwrite the connector for the same role
+func (process *TeleportProcess) addConnector(connector *Connector) {
+	process.Lock()
+	defer process.Unlock()
+
+	process.connectors[connector.ClientIdentity.ID.Role] = connector
 }
 
 // GetIdentity returns the process identity (credentials to the auth server) for a given
@@ -227,67 +293,180 @@ func (process *TeleportProcess) GetIdentity(role teleport.Role) (i *auth.Identit
 	if found {
 		return i, nil
 	}
-
+	i, err = process.storage.ReadIdentity(auth.IdentityCurrent, role)
 	id := auth.IdentityID{
 		Role:     role,
 		HostUUID: process.Config.HostUUID,
 		NodeName: process.Config.Hostname,
 	}
-	i, err = auth.ReadIdentity(process.Config.DataDir, id)
 	if err != nil {
-		if trace.IsNotFound(err) {
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+		if role == teleport.RoleAdmin {
+			// for admin identity use local auth server
+			// because admin identity is requested by auth server
+			// itself
+			principals, err := process.getAdditionalPrincipals(role)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			i, err = auth.GenerateIdentity(process.localAuth, id, principals)
+		} else {
 			// try to locate static identity provided in the file
 			i, err = process.findStaticIdentity(id)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			log.Infof("Found static identity %v in the config file, writing to disk.", &id)
-			if err = auth.WriteIdentity(process.Config.DataDir, i); err != nil {
+			process.Infof("Found static identity %v in the config file, writing to disk.", &id)
+			if err = process.storage.WriteIdentity(auth.IdentityCurrent, *i); err != nil {
 				return nil, trace.Wrap(err)
 			}
-		} else {
-			return nil, trace.Wrap(err)
 		}
 	}
 	process.Identities[role] = i
 	return i, nil
 }
 
-// connectToAuthService attempts to login into the auth servers specified in the
-// configuration. Returns 'true' if successful
-func (process *TeleportProcess) connectToAuthService(role teleport.Role, additionalPrincipals []string) (*Connector, error) {
-	identity, err := process.GetIdentity(role)
-	if err != nil {
-		return nil, trace.Wrap(err)
+// Process is a interface for processes
+type Process interface {
+	// Closer closes all resources used by the process
+	io.Closer
+	// Start starts the process in a non-blocking way
+	Start() error
+	// WaitForSignals waits for and handles system process signals.
+	WaitForSignals(context.Context) error
+	// ExportFileDescriptors exports service listeners
+	// file descriptors used by the process.
+	ExportFileDescriptors() ([]FileDescriptor, error)
+	// Shutdown starts graceful shutdown of the process,
+	// blocks until all resources are freed and go-routines are
+	// shut down.
+	Shutdown(context.Context)
+	// WaitForEvent waits for event to occur, sends event to the channel,
+	// this is a non-blocking function.
+	WaitForEvent(ctx context.Context, name string, eventC chan Event)
+	// WaitWithContext waits for the service to stop. This is a blocking
+	// function.
+	WaitWithContext(ctx context.Context)
+}
+
+// NewProcess is a function that creates new teleport from config
+type NewProcess func(cfg *Config) (Process, error)
+
+func newTeleportProcess(cfg *Config) (Process, error) {
+	return NewTeleport(cfg)
+}
+
+// Run starts teleport processes, waits for signals
+// and handles internal process reloads.
+func Run(ctx context.Context, cfg Config, newTeleport NewProcess) error {
+	if newTeleport == nil {
+		newTeleport = newTeleportProcess
 	}
-	tlsConfig, err := identity.TLSConfig()
+	copyCfg := cfg
+	srv, err := newTeleport(&copyCfg)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err, "initialization failed")
 	}
-	log.Infof("Connecting to the cluster %v with TLS client certificate.", identity.ClusterName)
-	client, err := auth.NewTLSClient(process.Config.AuthServers, tlsConfig)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if srv == nil {
+		return trace.BadParameter("process has returned nil server")
 	}
-	if len(additionalPrincipals) != 0 && !identity.HasPrincipals(additionalPrincipals) {
-		log.Infof("Identity %v needs principals %v, going to re-register.", identity.ID, additionalPrincipals)
-		if err := auth.ReRegister(process.Config.DataDir, client, identity.ID, additionalPrincipals); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if identity, err = process.readIdentity(role); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		tlsConfig, err = identity.TLSConfig()
+	if err := srv.Start(); err != nil {
+		return trace.Wrap(err, "startup failed")
+	}
+	// Wait and reload until called exit.
+	for {
+		srv, err = waitAndReload(ctx, cfg, srv, newTeleport)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			// This error means that was a clean shutdown
+			// an no reload is necessary.
+			if err == ErrTeleportExited {
+				return nil
+			}
+			return trace.Wrap(err)
 		}
 	}
-	// success ? we're logged in!
-	return &Connector{Client: client, Identity: identity}, nil
+}
+
+func waitAndReload(ctx context.Context, cfg Config, srv Process, newTeleport NewProcess) (Process, error) {
+	err := srv.WaitForSignals(ctx)
+	if err == nil {
+		return nil, ErrTeleportExited
+	}
+	if err != ErrTeleportReloading {
+		return nil, trace.Wrap(err)
+	}
+	log.Infof("Started in-process service reload.")
+	fileDescriptors, err := srv.ExportFileDescriptors()
+	if err != nil {
+		warnOnErr(srv.Close())
+		return nil, trace.Wrap(err)
+	}
+	newCfg := cfg
+	newCfg.FileDescriptors = fileDescriptors
+	newSrv, err := newTeleport(&newCfg)
+	if err != nil {
+		warnOnErr(srv.Close())
+		return nil, trace.Wrap(err, "failed to create a new service")
+	}
+	log.Infof("Created new process.")
+	if err := newSrv.Start(); err != nil {
+		warnOnErr(srv.Close())
+		return nil, trace.Wrap(err, "failed to start a new service")
+	}
+	// Wait for the new server to report that it has started
+	// before shutting down the old one.
+	startTimeoutCtx, startCancel := context.WithTimeout(ctx, signalPipeTimeout)
+	defer startCancel()
+	eventC := make(chan Event, 1)
+	newSrv.WaitForEvent(startTimeoutCtx, TeleportReadyEvent, eventC)
+	select {
+	case <-eventC:
+		log.Infof("New service has started successfully.")
+	case <-startTimeoutCtx.Done():
+		warnOnErr(newSrv.Close())
+		warnOnErr(srv.Close())
+		return nil, trace.BadParameter("the new service has failed to start")
+	}
+	shutdownTimeout := cfg.ShutdownTimeout
+	if shutdownTimeout == 0 {
+		// The default shutdown timeout is very generous to avoid disrupting
+		// longer running connections.
+		shutdownTimeout = defaults.DefaultIdleConnectionDuration
+	}
+	log.Infof("Shutting down the old service with timeout %v.", shutdownTimeout)
+	// After the new process has started, initiate the graceful shutdown of the old process
+	// new process could have generated connections to the new process's server
+	// so not all connections can be kept forever.
+	timeoutCtx, cancel := context.WithTimeout(ctx, shutdownTimeout)
+	defer cancel()
+	srv.Shutdown(timeoutCtx)
+	if timeoutCtx.Err() == context.DeadlineExceeded {
+		// The new serivce can start initiating connections to the old service
+		// keeping it from shutting down gracefully, or some external
+		// connections can keep hanging the old auth service and prevent
+		// the services from shutting down, so abort the graceful way
+		// after some time to keep going.
+		log.Infof("Some connections to the old service were aborted after timeout of %v.", shutdownTimeout)
+		// Make sure that all parts of the service have exited, this function
+		// can not allow execution to continue if the shutdown is not complete,
+		// otherwise subsequent Run executions will hold system resources in case
+		// if old versions of the service are not exiting completely.
+		timeoutCtx, cancel := context.WithTimeout(ctx, shutdownTimeout)
+		defer cancel()
+		srv.WaitWithContext(timeoutCtx)
+		if timeoutCtx.Err() == context.DeadlineExceeded {
+			return nil, trace.BadParameter("the old service has failed to exit.")
+		}
+	} else {
+		log.Infof("The old service was successfully shut down gracefully.")
+	}
+	return newSrv, nil
 }
 
 // NewTeleport takes the daemon configuration, instantiates all required services
-// and starts them under a supervisor, returning the supervisor object
+// and starts them under a supervisor, returning the supervisor object.
 func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	// before we do anything reset the SIGINT handler back to the default
 	system.ResetInterruptSignalHandler()
@@ -305,9 +484,11 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		}
 	}
 
-	importedDescriptors, err := importFileDescriptors()
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if len(cfg.FileDescriptors) == 0 {
+		cfg.FileDescriptors, err = importFileDescriptors()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// if there's no host uuid initialized yet, try to read one from the
@@ -345,13 +526,26 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		}
 	}
 
+	storage, err := auth.NewProcessStorage(filepath.Join(cfg.DataDir, teleport.ComponentProcess))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	processID := fmt.Sprintf("%v", nextProcessID())
 	process := &TeleportProcess{
 		Clock:               clockwork.NewRealClock(),
-		Supervisor:          NewSupervisor(),
+		Supervisor:          NewSupervisor(processID),
 		Config:              cfg,
 		Identities:          make(map[teleport.Role]*auth.Identity),
-		importedDescriptors: importedDescriptors,
+		connectors:          make(map[teleport.Role]*Connector),
+		importedDescriptors: cfg.FileDescriptors,
+		storage:             storage,
+		id:                  processID,
 	}
+
+	process.Entry = logrus.WithFields(logrus.Fields{
+		trace.Component: teleport.Component(teleport.ComponentProcess, process.id),
+	})
 
 	serviceStarted := false
 
@@ -368,6 +562,22 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	if cfg.Keygen == nil {
 		cfg.Keygen = native.New()
 	}
+
+	// Produce global TeleportReadyEvent
+	// when all components have started
+	eventMapping := EventMapping{
+		Out: TeleportReadyEvent,
+	}
+	if cfg.Auth.Enabled {
+		eventMapping.In = append(eventMapping.In, AuthTLSReady)
+	}
+	if cfg.SSH.Enabled {
+		eventMapping.In = append(eventMapping.In, NodeSSHReady)
+	}
+	if cfg.Proxy.Enabled {
+		eventMapping.In = append(eventMapping.In, ProxySSHReady)
+	}
+	process.RegisterEventMapping(eventMapping)
 
 	if cfg.Auth.Enabled {
 		if err := process.initAuthService(); err != nil {
@@ -388,6 +598,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	}
 
 	if cfg.Proxy.Enabled {
+		eventMapping.In = append(eventMapping.In, ProxySSHReady)
 		if err := process.initProxy(); err != nil {
 			return nil, err
 		}
@@ -395,6 +606,8 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	} else {
 		warnOnErr(process.closeImportedDescriptors(teleport.ComponentProxy))
 	}
+
+	process.RegisterFunc("common.rotate", process.periodicSyncRotationState)
 
 	if !serviceStarted {
 		return nil, trace.BadParameter("all services failed to start")
@@ -410,14 +623,34 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		defer f.Close()
 	}
 
+	// notify parent process that this process has started
+	go process.notifyParent()
+
+	return process, nil
+}
+
+// notifyParent notifies parent process that this process has started
+// by writing to in-memory pipe used by communication channel.
+func (process *TeleportProcess) notifyParent() {
+	ctx, cancel := context.WithTimeout(process.ExitContext(), signalPipeTimeout)
+	defer cancel()
+
+	eventC := make(chan Event, 1)
+	process.WaitForEvent(ctx, TeleportReadyEvent, eventC)
+	select {
+	case <-eventC:
+		process.Infof("New service has started successfully.")
+	case <-ctx.Done():
+		process.Errorf("Timeout waiting for process to start: %v", ctx.Err())
+		return
+	}
+
 	if err := process.writeToSignalPipe(fmt.Sprintf("Process %v has started.", os.Getpid())); err != nil {
-		log.Warningf("Failed to write to signal pipe: %v", err)
+		process.Warningf("Failed to write to signal pipe: %v", err)
 		// despite the failure, it's ok to proceed,
 		// it could mean that the parent process has crashed and the pipe
 		// is no longer valid.
 	}
-
-	return process, nil
 }
 
 func (process *TeleportProcess) setLocalAuth(a *auth.AuthServer) {
@@ -527,7 +760,7 @@ func (process *TeleportProcess) initAuthService() error {
 		warningMessage := "Warning: Teleport audit and session recording have been " +
 			"turned off. This is dangerous, you will not be able to view audit events " +
 			"or save and playback recorded sessions."
-		log.Warn(warningMessage)
+		process.Warn(warningMessage)
 	} else {
 		// check if session recording has been disabled. note, we will continue
 		// logging audit events, we just won't record sessions.
@@ -537,7 +770,7 @@ func (process *TeleportProcess) initAuthService() error {
 
 			warningMessage := "Warning: Teleport session recording have been turned off. " +
 				"This is dangerous, you will not be able to save and playback sessions."
-			log.Warn(warningMessage)
+			process.Warn(warningMessage)
 		}
 
 		auditConfig := cfg.Auth.ClusterConfig.GetAuditConfig()
@@ -573,7 +806,7 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 
 	// first, create the AuthServer
-	authServer, identity, err := auth.Init(auth.InitConfig{
+	authServer, err := auth.Init(auth.InitConfig{
 		Backend:              b,
 		Authority:            cfg.Keygen,
 		ClusterConfiguration: cfg.ClusterConfiguration,
@@ -601,6 +834,11 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 
 	process.setLocalAuth(authServer)
+
+	connector, err := process.connectToAuthService(teleport.RoleAdmin)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	// second, create the API Server: it's actually a collection of API servers,
 	// each serving requests for a "role" which is assigned to every connected
@@ -632,11 +870,11 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 
 	log := logrus.WithFields(logrus.Fields{
-		trace.Component: teleport.ComponentAuth,
+		trace.Component: teleport.Component(teleport.ComponentAuth, process.id),
 	})
 
 	// Register TLS endpoint of the auth service
-	tlsConfig, err := identity.TLSConfig()
+	tlsConfig, err := connector.ServerIdentity.TLSConfig()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -645,11 +883,11 @@ func (process *TeleportProcess) initAuthService() error {
 		APIConfig:     *apiConf,
 		LimiterConfig: cfg.Auth.Limiter,
 		AccessPoint:   adminAccessPoint,
+		Component:     teleport.Component(teleport.ComponentAuth, process.id),
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	// auth server listens on SSH and TLS, reusing the same socket
 	listener, err := process.importOrCreateListener(teleport.ComponentAuth, cfg.Auth.SSHAddr.Addr)
 	if err != nil {
@@ -664,31 +902,29 @@ func (process *TeleportProcess) initAuthService() error {
 	mux, err := multiplexer.New(multiplexer.Config{
 		EnableProxyProtocol: cfg.Auth.EnableProxyProtocol,
 		Listener:            listener,
+		ID:                  teleport.Component(process.id),
 	})
 	if err != nil {
 		listener.Close()
 		return trace.Wrap(err)
 	}
 	go mux.Serve()
-
 	process.RegisterFunc("auth.tls", func() error {
 		utils.Consolef(cfg.Console, teleport.ComponentAuth, "Auth service is starting on %v.", cfg.Auth.SSHAddr.Addr)
 
 		// since tlsServer.Serve is a blocking call, we emit this even right before
 		// the service has started
 		process.BroadcastEvent(Event{Name: AuthTLSReady, Payload: nil})
-
 		err := tlsServer.Serve(mux.TLS())
 		if err != nil && err != http.ErrServerClosed {
 			log.Warningf("TLS server exited with error: %v.", err)
 		}
 		return nil
 	})
-
 	process.RegisterFunc("auth.heartbeat.broadcast", func() error {
 		// Heart beat auth server presence, this is not the best place for this
 		// logic, consolidate it into auth package later
-		connector, err := process.connectToAuthService(teleport.RoleAdmin, nil)
+		connector, err := process.connectToAuthService(teleport.RoleAdmin)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -699,9 +935,6 @@ func (process *TeleportProcess) initAuthService() error {
 		})
 		return nil
 	})
-
-	closeContext, signalClose := context.WithCancel(context.TODO())
-
 	process.RegisterFunc("auth.heartbeat", func() error {
 		srv := services.ServerV2{
 			Kind:    services.KindAuthServer,
@@ -740,13 +973,21 @@ func (process *TeleportProcess) initAuthService() error {
 		defer ticker.Stop()
 	announce:
 		for {
+			state, err := process.storage.GetState(teleport.RoleAdmin)
+			if err != nil {
+				if !trace.IsNotFound(err) {
+					log.Warningf("Failed to get rotation state: %v.", err)
+				}
+			} else {
+				srv.Spec.Rotation = state.Spec.Rotation
+			}
 			srv.SetTTL(process, defaults.ServerHeartbeatTTL)
-			err := authServer.UpsertAuthServer(&srv)
+			err = authServer.UpsertAuthServer(&srv)
 			if err != nil {
 				log.Warningf("Failed to announce presence: %v.", err)
 			}
 			select {
-			case <-closeContext.Done():
+			case <-process.ExitContext().Done():
 				break announce
 			case <-ticker.C:
 			}
@@ -754,17 +995,18 @@ func (process *TeleportProcess) initAuthService() error {
 		log.Infof("Heartbeat to other auth servers exited.")
 		return nil
 	})
-
 	// execute this when process is asked to exit:
 	process.onExit("auth.shutdown", func(payload interface{}) {
-		// as a last resort, at least close listeners (e.g. panic)
-		if listener != nil {
-			defer listener.Close()
-		}
+		// The listeners have to be closed here, because if shutdown
+		// was called before the start of the http server,
+		// the http server would have not started tracking the listeners
+		// and http.Shutdown will do nothing.
 		if mux != nil {
-			defer mux.Close()
+			warnOnErr(mux.Close())
 		}
-		signalClose()
+		if listener != nil {
+			warnOnErr(listener.Close())
+		}
 		if payload == nil {
 			log.Info("Shutting down immediately.")
 			warnOnErr(tlsServer.Close())
@@ -793,7 +1035,7 @@ func payloadContext(payload interface{}) context.Context {
 func (process *TeleportProcess) onExit(serviceName string, callback func(interface{})) {
 	process.RegisterFunc(serviceName, func() error {
 		eventC := make(chan Event)
-		process.WaitForEvent(TeleportExitEvent, eventC, make(chan struct{}))
+		process.WaitForEvent(context.TODO(), TeleportExitEvent, eventC)
 		select {
 		case event := <-eventC:
 			callback(event.Payload)
@@ -825,22 +1067,36 @@ func (process *TeleportProcess) newLocalCache(clt auth.ClientI, cacheName []stri
 	})
 }
 
+func (process *TeleportProcess) getRotation(role teleport.Role) (*services.Rotation, error) {
+	state, err := process.storage.GetState(role)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &state.Spec.Rotation, nil
+}
+
 // initSSH initializes the "node" role, i.e. a simple SSH server connected to the auth server.
 func (process *TeleportProcess) initSSH() error {
-	process.RegisterWithAuthServer(
-		process.Config.Token, teleport.RoleNode, SSHIdentityEvent, nil)
+	process.registerWithAuthServer(teleport.RoleNode, SSHIdentityEvent)
 	eventsC := make(chan Event)
-	process.WaitForEvent(SSHIdentityEvent, eventsC, make(chan struct{}))
+	process.WaitForEvent(process.ExitContext(), SSHIdentityEvent, eventsC)
 
 	var s *regular.Server
 
 	log := logrus.WithFields(logrus.Fields{
-		trace.Component: teleport.ComponentNode,
+		trace.Component: teleport.Component(teleport.ComponentNode, process.id),
 	})
 
 	process.RegisterFunc("ssh.node", func() error {
-		event := <-eventsC
-		log.Infof("Received event %q.", event.Name)
+		var event Event
+		select {
+		case event = <-eventsC:
+			log.Debugf("Received event %q.", event.Name)
+		case <-process.ExitContext().Done():
+			log.Debugf("Process is exiting.")
+			return nil
+		}
+
 		conn, ok := (event.Payload).(*Connector)
 		if !ok {
 			return trace.BadParameter("unsupported connector type: %T", event.Payload)
@@ -878,7 +1134,7 @@ func (process *TeleportProcess) initSSH() error {
 
 		s, err = regular.New(cfg.SSH.Addr,
 			cfg.Hostname,
-			[]ssh.Signer{conn.Identity.KeySigner},
+			[]ssh.Signer{conn.ServerIdentity.KeySigner},
 			authClient,
 			cfg.DataDir,
 			cfg.AdvertiseIP,
@@ -894,6 +1150,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetKEXAlgorithms(cfg.KEXAlgorithms),
 			regular.SetMACAlgorithms(cfg.MACAlgorithms),
 			regular.SetPAMConfig(cfg.SSH.PAM),
+			regular.SetRotationGetter(process.getRotation),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -938,54 +1195,34 @@ func (process *TeleportProcess) initSSH() error {
 	return nil
 }
 
-// RegisterWithAuthServer uses one time provisioning token obtained earlier
+// registerWithAuthServer uses one time provisioning token obtained earlier
 // from the server to get a pair of SSH keys signed by Auth server host
 // certificate authority
-func (process *TeleportProcess) RegisterWithAuthServer(token string, role teleport.Role, eventName string, additionalPrincipals []string) {
-	cfg := process.Config
-	identityID := auth.IdentityID{Role: role, HostUUID: cfg.HostUUID, NodeName: cfg.Hostname}
-
-	// this means the server has not been initialized yet, we are starting
-	// the registering client that attempts to connect to the auth server
-	// and provision the keys
+func (process *TeleportProcess) registerWithAuthServer(role teleport.Role, eventName string) {
 	var authClient *auth.Client
 	process.RegisterFunc(fmt.Sprintf("register.%v", strings.ToLower(role.String())), func() error {
 		retryTime := defaults.ServerHeartbeatTTL / 3
 		for {
-			connector, err := process.connectToAuthService(role, additionalPrincipals)
+			connector, err := process.connectToAuthService(role)
 			if err == nil {
 				process.BroadcastEvent(Event{Name: eventName, Payload: connector})
 				authClient = connector.Client
 				return nil
 			}
+			// in between attempts, check if teleport is shutting down
+			select {
+			case <-process.ExitContext().Done():
+				process.Infof("%v stopping connection attempts, teleport is shutting down.", role)
+				return ErrTeleportExited
+			default:
+			}
 			if trace.IsConnectionProblem(err) {
-				log.Infof("%v failed attempt connecting to auth server: %v", role, err)
+				process.Infof("%v failed attempt connecting to auth server: %v.", role, err)
 				time.Sleep(retryTime)
 				continue
 			}
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)
-			}
-			//  we haven't connected yet, so we expect the token to exist
-			if process.getLocalAuth() != nil {
-				// Auth service is on the same host, no need to go though the invitation
-				// procedure
-				log.Debugf("This server has local Auth server started, using it to add role to the cluster.")
-				err = auth.LocalRegister(cfg.DataDir, identityID, process.getLocalAuth(), additionalPrincipals)
-			} else {
-				// Auth server is remote, so we need a provisioning token
-				if token == "" {
-					return trace.BadParameter("%v must join a cluster and needs a provisioning token", role)
-				}
-				log.Infof("Joining the cluster with a token %v.", token)
-				err = auth.Register(cfg.DataDir, token, identityID, cfg.AuthServers, additionalPrincipals)
-			}
-			if err != nil {
-				log.Errorf("Failed to join the cluster: %v.", err)
-				time.Sleep(retryTime)
-			} else {
-				log.Infof("%v has successfully registered with the cluster.", role)
-				continue
 			}
 		}
 	})
@@ -999,7 +1236,7 @@ func (process *TeleportProcess) RegisterWithAuthServer(token string, role telepo
 
 func (process *TeleportProcess) initUploaderService(accessPoint auth.AccessPoint, auditLog events.IAuditLog) error {
 	log := logrus.WithFields(logrus.Fields{
-		trace.Component: teleport.ComponentAuditLog,
+		trace.Component: teleport.Component(teleport.ComponentAuditLog, process.id),
 	})
 	// create folder for uploads
 	uid, gid, err := adminCreds()
@@ -1084,7 +1321,7 @@ func (process *TeleportProcess) initDiagnosticService() error {
 	}
 
 	log := logrus.WithFields(logrus.Fields{
-		trace.Component: teleport.ComponentDiagnostic,
+		trace.Component: teleport.Component(teleport.ComponentDiagnostic, process.id),
 	})
 
 	log.Infof("Starting diagnostic service on %v.", process.Config.DiagnosticAddr.Addr)
@@ -1111,6 +1348,23 @@ func (process *TeleportProcess) initDiagnosticService() error {
 	return nil
 }
 
+// getAdditionalPrincipals returns a list of additional principals to add
+// to role's service certificate.
+func (process *TeleportProcess) getAdditionalPrincipals(role teleport.Role) ([]string, error) {
+	var principals []string
+	if process.Config.Hostname != "" {
+		principals = append(principals, process.Config.Hostname)
+	}
+	if process.Config.Proxy.PublicAddr.Addr != "" {
+		host, err := utils.Host(process.Config.Proxy.PublicAddr.Addr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		principals = append(principals, host)
+	}
+	return principals, nil
+}
+
 // initProxy gets called if teleport runs with 'proxy' role enabled.
 // this means it will do two things:
 //    1. serve a web UI
@@ -1124,23 +1378,20 @@ func (process *TeleportProcess) initProxy() error {
 			return trace.Wrap(err)
 		}
 	}
-
-	var additionalPrincipals []string
-	if process.Config.Proxy.PublicAddr.Addr != "" {
-		host, err := utils.Host(process.Config.Proxy.PublicAddr.Addr)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		additionalPrincipals = []string{host}
-	}
-
-	process.RegisterWithAuthServer(process.Config.Token, teleport.RoleProxy, ProxyIdentityEvent, additionalPrincipals)
+	process.registerWithAuthServer(teleport.RoleProxy, ProxyIdentityEvent)
 	process.RegisterFunc("proxy.init", func() error {
 		eventsC := make(chan Event)
-		process.WaitForEvent(ProxyIdentityEvent, eventsC, make(chan struct{}))
+		process.WaitForEvent(process.ExitContext(), ProxyIdentityEvent, eventsC)
 
-		event := <-eventsC
-		log.Debugf("Received event %q.", event.Name)
+		var event Event
+		select {
+		case event = <-eventsC:
+			process.Debugf("Received event %q.", event.Name)
+		case <-process.ExitContext().Done():
+			process.Debugf("Process is exiting.")
+			return nil
+		}
+
 		conn, ok := (event.Payload).(*Connector)
 		if !ok {
 			return trace.BadParameter("unsupported connector type: %T", event.Payload)
@@ -1177,15 +1428,15 @@ func (l *proxyListeners) Close() {
 // setupProxyListeners sets up web proxy listeners based on the configuration
 func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 	cfg := process.Config
-	log.Debugf("Setup Proxy: Web Proxy Address: %v, Reverse Tunnel Proxy Address: %v", cfg.Proxy.WebAddr.Addr, cfg.Proxy.ReverseTunnelListenAddr.Addr)
+	process.Debugf("Setup Proxy: Web Proxy Address: %v, Reverse Tunnel Proxy Address: %v", cfg.Proxy.WebAddr.Addr, cfg.Proxy.ReverseTunnelListenAddr.Addr)
 	var err error
 	var listeners proxyListeners
 	switch {
 	case cfg.Proxy.DisableWebService && cfg.Proxy.DisableReverseTunnel:
-		log.Debugf("Setup Proxy: Reverse tunnel proxy and web proxy are disabled.")
+		process.Debugf("Setup Proxy: Reverse tunnel proxy and web proxy are disabled.")
 		return &listeners, nil
 	case cfg.Proxy.ReverseTunnelListenAddr.Equals(cfg.Proxy.WebAddr) && !cfg.Proxy.DisableTLS:
-		log.Debugf("Setup Proxy: Reverse tunnel proxy and web proxy listen on the same port, multiplexing is on.")
+		process.Debugf("Setup Proxy: Reverse tunnel proxy and web proxy listen on the same port, multiplexing is on.")
 		listener, err := process.importOrCreateListener(teleport.Component(teleport.ComponentProxy, "tunnel", "web"), cfg.Proxy.WebAddr.Addr)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1195,6 +1446,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 			Listener:            listener,
 			DisableTLS:          cfg.Proxy.DisableWebService,
 			DisableSSH:          cfg.Proxy.DisableReverseTunnel,
+			ID:                  teleport.Component(teleport.ComponentProxy, "tunnel", "web", process.id),
 		})
 		if err != nil {
 			listener.Close()
@@ -1205,7 +1457,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 		go listeners.mux.Serve()
 		return &listeners, nil
 	case cfg.Proxy.EnableProxyProtocol && !cfg.Proxy.DisableWebService && !cfg.Proxy.DisableTLS:
-		log.Debugf("Setup Proxy: Proxy protocol is enabled for web service, multiplexing is on.")
+		process.Debugf("Setup Proxy: Proxy protocol is enabled for web service, multiplexing is on.")
 		listener, err := process.importOrCreateListener(teleport.Component(teleport.ComponentProxy, "web"), cfg.Proxy.WebAddr.Addr)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1215,6 +1467,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 			Listener:            listener,
 			DisableTLS:          false,
 			DisableSSH:          true,
+			ID:                  teleport.Component(teleport.ComponentProxy, "web", process.id),
 		})
 		if err != nil {
 			listener.Close()
@@ -1230,7 +1483,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 		go listeners.mux.Serve()
 		return &listeners, nil
 	default:
-		log.Debugf("Proxy reverse tunnel are listening on the separate ports")
+		process.Debugf("Proxy reverse tunnel are listening on the separate ports.")
 		if !cfg.Proxy.DisableReverseTunnel {
 			listeners.reverseTunnel, err = process.importOrCreateListener(teleport.Component(teleport.ComponentProxy, "tunnel"), cfg.Proxy.ReverseTunnelListenAddr.Addr)
 			if err != nil {
@@ -1271,7 +1524,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
-	tlsConfig, err := conn.Identity.TLSConfig()
+	clientTLSConfig, err := conn.ClientIdentity.TLSConfig()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1283,18 +1536,18 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	// Register reverse tunnel agents pool
 	agentPool, err := reversetunnel.NewAgentPool(reversetunnel.AgentPoolConfig{
-		HostUUID:    conn.Identity.ID.HostUUID,
+		HostUUID:    conn.ServerIdentity.ID.HostUUID,
 		Client:      conn.Client,
 		AccessPoint: accessPoint,
-		HostSigners: []ssh.Signer{conn.Identity.KeySigner},
-		Cluster:     conn.Identity.Cert.Extensions[utils.CertExtensionAuthority],
+		HostSigners: []ssh.Signer{conn.ServerIdentity.KeySigner},
+		Cluster:     conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	log := logrus.WithFields(logrus.Fields{
-		trace.Component: teleport.ComponentReverseTunnelServer,
+		trace.Component: teleport.Component(teleport.ComponentReverseTunnelServer, process.id),
 	})
 
 	// register SSH reverse tunnel server that accepts connections
@@ -1304,17 +1557,17 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		tsrv, err = reversetunnel.NewServer(
 			reversetunnel.Config{
 				ID:                    process.Config.HostUUID,
-				ClusterName:           conn.Identity.Cert.Extensions[utils.CertExtensionAuthority],
-				ClientTLS:             tlsConfig,
+				ClusterName:           conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
+				ClientTLS:             clientTLSConfig,
 				Listener:              listeners.reverseTunnel,
-				HostSigners:           []ssh.Signer{conn.Identity.KeySigner},
+				HostSigners:           []ssh.Signer{conn.ServerIdentity.KeySigner},
 				LocalAuthClient:       conn.Client,
 				LocalAccessPoint:      accessPoint,
 				NewCachingAccessPoint: process.newLocalCache,
 				Limiter:               reverseTunnelLimiter,
 				DirectClusters: []reversetunnel.DirectCluster{
 					{
-						Name:   conn.Identity.Cert.Extensions[utils.CertExtensionAuthority],
+						Name:   conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
 						Client: conn.Client,
 					},
 				},
@@ -1323,6 +1576,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				KEXAlgorithms: cfg.KEXAlgorithms,
 				MACAlgorithms: cfg.MACAlgorithms,
 				DataDir:       process.Config.DataDir,
+				PollingPeriod: process.Config.PollingPeriod,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -1392,7 +1646,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 	sshProxy, err := regular.New(cfg.Proxy.SSHAddr,
 		cfg.Hostname,
-		[]ssh.Signer{conn.Identity.KeySigner},
+		[]ssh.Signer{conn.ServerIdentity.KeySigner},
 		accessPoint,
 		cfg.DataDir,
 		nil,
@@ -1405,6 +1659,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		regular.SetKEXAlgorithms(cfg.KEXAlgorithms),
 		regular.SetMACAlgorithms(cfg.MACAlgorithms),
 		regular.SetNamespace(defaults.Namespace),
+		regular.SetRotationGetter(process.getRotation),
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1421,7 +1676,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	process.RegisterFunc("proxy.reversetunnel.agent", func() error {
 		log := logrus.WithFields(logrus.Fields{
-			trace.Component: teleport.ComponentReverseTunnelAgent,
+			trace.Component: teleport.Component(teleport.ComponentReverseTunnelAgent, process.id),
 		})
 		log.Infof("Starting reverse tunnel agent pool.")
 		if err := agentPool.Start(); err != nil {
@@ -1466,7 +1721,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 func warnOnErr(err error) {
 	if err != nil {
-		log.Errorf("Error while performing operation: %v", err)
+		// don't warn on double close, happens sometimes when closing
+		// calling accept on a closed listener
+		if strings.Contains(err.Error(), "use of closed network connection") {
+			return
+		}
+		log.Warningf("Got error while cleaning up: %v.", err)
 	}
 }
 
@@ -1496,6 +1756,19 @@ func (process *TeleportProcess) initAuthStorage() (bk backend.Backend, err error
 	return bk, nil
 }
 
+// WaitWithContext waits until all internal services stop.
+func (process *TeleportProcess) WaitWithContext(ctx context.Context) {
+	local, cancel := context.WithCancel(ctx)
+	go func() {
+		defer cancel()
+		process.Supervisor.Wait()
+	}()
+	select {
+	case <-local.Done():
+		return
+	}
+}
+
 // StartShutdown launches non-blocking graceful shutdown process that signals
 // completion, returns context that will be closed once the shutdown is done
 func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Context {
@@ -1504,11 +1777,11 @@ func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Conte
 	go func() {
 		defer cancel()
 		process.Supervisor.Wait()
-		log.Debugf("All supervisor functions are completed.")
+		process.Debugf("All supervisor functions are completed.")
 		localAuth := process.getLocalAuth()
 		if localAuth != nil {
 			if err := process.localAuth.Close(); err != nil {
-				log.Warningf("Failed closing auth server: %v", trace.DebugReport(err))
+				process.Warningf("Failed closing auth server: %v.", err)
 			}
 		}
 	}()
@@ -1522,7 +1795,7 @@ func (process *TeleportProcess) Shutdown(ctx context.Context) {
 	// wait until parent context closes
 	select {
 	case <-localCtx.Done():
-		log.Debugf("Process completed.")
+		process.Debugf("Process completed.")
 	}
 }
 
@@ -1532,12 +1805,17 @@ func (process *TeleportProcess) Close() error {
 
 	process.Config.Keygen.Close()
 
+	var errors []error
 	localAuth := process.getLocalAuth()
 	if localAuth != nil {
-		return trace.Wrap(process.localAuth.Close())
+		errors = append(errors, process.localAuth.Close())
 	}
 
-	return nil
+	if process.storage != nil {
+		errors = append(errors, process.storage.Close())
+	}
+
+	return trace.NewAggregate(errors...)
 }
 
 func validateConfig(cfg *Config) error {
@@ -1570,6 +1848,10 @@ func validateConfig(cfg *Config) error {
 		if err := tun.Check(); err != nil {
 			return trace.Wrap(err)
 		}
+	}
+
+	if cfg.PollingPeriod == 0 {
+		cfg.PollingPeriod = defaults.HighResPollingPeriod
 	}
 
 	cfg.SSH.Namespace = services.ProcessNamespace(cfg.SSH.Namespace)

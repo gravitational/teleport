@@ -66,6 +66,32 @@ func (s *CA) UpsertCertAuthority(ca services.CertAuthority) error {
 	return nil
 }
 
+// CompareAndSwapCertAuthority updates the cert authority value
+// if the existing value matches existing parameter, returns nil if succeeds,
+// trace.CompareFailed otherwise.
+func (s *CA) CompareAndSwapCertAuthority(new, existing services.CertAuthority) error {
+	if err := new.Check(); err != nil {
+		return trace.Wrap(err)
+	}
+	newData, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(new)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	existingData, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(existing)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	ttl := backend.TTL(s.Clock(), new.Expiry())
+	err = s.CompareAndSwapVal([]string{"authorities", string(new.GetType())}, new.GetName(), newData, existingData, ttl)
+	if err != nil {
+		if trace.IsCompareFailed(err) {
+			return trace.CompareFailed("cluster %v settings have been updated, try again", new.GetName())
+		}
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 // DeleteCertAuthority deletes particular certificate authority
 func (s *CA) DeleteCertAuthority(id services.CertAuthID) error {
 	if err := id.Check(); err != nil {
@@ -170,26 +196,6 @@ func setSigningKeys(ca services.CertAuthority, loadSigningKeys bool) {
 		keyPairs[i].Key = nil
 	}
 	ca.SetTLSKeyPairs(keyPairs)
-}
-
-// DELETE IN: 2.6.0
-// GetAnyCertAuthority returns activated or deactivated certificate authority
-// by given id whether it is activated or not. This method is used in migrations.
-func (s *CA) GetAnyCertAuthority(id services.CertAuthID) (services.CertAuthority, error) {
-	if err := id.Check(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	data, err := s.GetVal([]string{"authorities", string(id.Type)}, id.DomainName)
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
-		data, err = s.GetVal([]string{"authorities", "deactivated", string(id.Type)}, id.DomainName)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	return services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(data)
 }
 
 // GetCertAuthorities returns a list of authorities of a given type

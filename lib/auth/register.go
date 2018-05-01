@@ -33,7 +33,7 @@ import (
 
 // LocalRegister is used to generate host keys when a node or proxy is running within the same process
 // as the auth server. This method does not need to use provisioning tokens.
-func LocalRegister(dataDir string, id IdentityID, authServer *AuthServer, additionalPrincipals []string) error {
+func LocalRegister(id IdentityID, authServer *AuthServer, additionalPrincipals []string) (*Identity, error) {
 	keys, err := authServer.GenerateServerKeys(GenerateServerKeysRequest{
 		HostID:               id.HostUUID,
 		NodeName:             id.NodeName,
@@ -41,27 +41,26 @@ func LocalRegister(dataDir string, id IdentityID, authServer *AuthServer, additi
 		AdditionalPrincipals: additionalPrincipals,
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return writeKeys(dataDir, id, keys.Key, keys.Cert, keys.TLSCert, keys.TLSCACerts[0])
+	return ReadIdentityFromKeyPair(keys.Key, keys.Cert, keys.TLSCert, keys.TLSCACerts)
 }
 
 // Register is used to generate host keys when a node or proxy are running on different hosts
 // than the auth server. This method requires provisioning tokens to prove a valid auth server
 // was used to issue the joining request.
-func Register(dataDir, token string, id IdentityID, servers []utils.NetAddr, additionalPrincipals []string) error {
+func Register(dataDir, token string, id IdentityID, servers []utils.NetAddr, additionalPrincipals []string) (*Identity, error) {
 	tok, err := readToken(token)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	tlsConfig := utils.TLSConfig()
 	certPath := filepath.Join(dataDir, defaults.CACertFile)
 	certBytes, err := utils.ReadPath(certPath)
 	if err != nil {
-		// DELETE IN: 2.6.0
 		// Only support secure cluster joins in the next releases
 		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		message := fmt.Sprintf(`Your configuration is insecure! Registering without TLS certificate authority, to fix this warning add ca.cert to %v, you can get ca.cert using 'tctl auth export --type=tls > ca.cert'`, dataDir)
 		log.Warning(message)
@@ -69,7 +68,7 @@ func Register(dataDir, token string, id IdentityID, servers []utils.NetAddr, add
 	} else {
 		cert, err := tlsca.ParseCertificatePEM(certBytes)
 		if err != nil {
-			return trace.Wrap(err, "failed to parse certificate at %v", certPath)
+			return nil, trace.Wrap(err, "failed to parse certificate at %v", certPath)
 		}
 		log.Infof("Joining remote cluster %v.", cert.Subject.CommonName)
 		certPool := x509.NewCertPool()
@@ -78,7 +77,7 @@ func Register(dataDir, token string, id IdentityID, servers []utils.NetAddr, add
 	}
 	client, err := NewTLSClient(servers, tlsConfig)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	defer client.Close()
 
@@ -91,18 +90,17 @@ func Register(dataDir, token string, id IdentityID, servers []utils.NetAddr, add
 		AdditionalPrincipals: additionalPrincipals,
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return writeKeys(dataDir, id, keys.Key, keys.Cert, keys.TLSCert, keys.TLSCACerts[0])
+	return ReadIdentityFromKeyPair(keys.Key, keys.Cert, keys.TLSCert, keys.TLSCACerts)
 }
 
-// ReRegister renews the certificates  and private keys based on the existing
-// identity ID
-func ReRegister(dataDir string, clt ClientI, id IdentityID, additionalPrincipals []string) error {
+// ReRegister renews the certificates and private keys based on the client's existing identity.
+func ReRegister(clt ClientI, id IdentityID, additionalPrincipals []string) (*Identity, error) {
 	hostID, err := id.HostID()
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	keys, err := clt.GenerateServerKeys(GenerateServerKeysRequest{
 		HostID:               hostID,
@@ -111,9 +109,9 @@ func ReRegister(dataDir string, clt ClientI, id IdentityID, additionalPrincipals
 		AdditionalPrincipals: additionalPrincipals,
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return writeKeys(dataDir, id, keys.Key, keys.Cert, keys.TLSCert, keys.TLSCACerts[0])
+	return ReadIdentityFromKeyPair(keys.Key, keys.Cert, keys.TLSCert, keys.TLSCACerts)
 }
 
 func readToken(token string) (string, error) {

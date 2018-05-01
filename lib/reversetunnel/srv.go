@@ -147,6 +147,9 @@ type Config struct {
 	MACAlgorithms []string
 	// DataDir is a local server data directory
 	DataDir string
+	// PollingPeriod specifies polling period for internal sync
+	// goroutines, used to speed up sync-ups in tests.
+	PollingPeriod time.Duration
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -168,6 +171,9 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	}
 	if cfg.Context == nil {
 		cfg.Context = context.TODO()
+	}
+	if cfg.PollingPeriod == 0 {
+		cfg.PollingPeriod = defaults.HighResPollingPeriod
 	}
 	if cfg.Limiter == nil {
 		var err error
@@ -827,7 +833,7 @@ func newRemoteSite(srv *server, domainName string) (*remoteSite, error) {
 	remoteSite.localClient = srv.localAuthClient
 	remoteSite.localAccessPoint = srv.localAccessPoint
 
-	clt, isLegacyRemoteCluster, err := remoteSite.getRemoteClient()
+	clt, _, err := remoteSite.getRemoteClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -852,11 +858,7 @@ func newRemoteSite(srv *server, domainName string) (*remoteSite, error) {
 	remoteSite.certificateCache = certificateCache
 
 	go remoteSite.periodicSendDiscoveryRequests()
-
-	// if remote cluster is legacy, attempt periodic certificate exchanges
-	if isLegacyRemoteCluster {
-		go remoteSite.periodicAttemptCertExchange()
-	}
+	go remoteSite.periodicUpdateCertAuthorities()
 
 	return remoteSite, nil
 }

@@ -24,8 +24,10 @@ limitations under the License.
 package auth
 
 import (
+	"context"
 	"crypto/x509"
 	"fmt"
+	"math/rand"
 	"net/url"
 	"sync"
 	"time"
@@ -78,6 +80,7 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) (*AuthServer, erro
 	if cfg.AuditLog == nil {
 		cfg.AuditLog = events.NewDiscardAuditLog()
 	}
+	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	as := AuthServer{
 		clusterName:          cfg.ClusterName,
 		bk:                   cfg.Backend,
@@ -93,12 +96,20 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) (*AuthServer, erro
 		oidcClients:          make(map[string]*oidcClient),
 		samlProviders:        make(map[string]*samlProvider),
 		githubClients:        make(map[string]*githubClient),
+		cancelFunc:           cancelFunc,
+		closeCtx:             closeCtx,
 	}
 	for _, o := range opts {
 		o(&as)
 	}
 	if as.clock == nil {
 		as.clock = clockwork.NewRealClock()
+	}
+	if !cfg.SkipPeriodicOperations {
+		log.Infof("Auth server is running periodic operations.")
+		go as.runPeriodicOperations()
+	} else {
+		log.Infof("Auth server is skipping periodic operations.")
 	}
 
 	return &as, nil
@@ -119,6 +130,9 @@ type AuthServer struct {
 	clock         clockwork.Clock
 	bk            backend.Backend
 
+	closeCtx   context.Context
+	cancelFunc context.CancelFunc
+
 	sshca.Authority
 
 	// AuthServiceName is a human-readable name of this CA. If several Auth services are running
@@ -135,17 +149,58 @@ type AuthServer struct {
 	events.IAuditLog
 
 	clusterName services.ClusterName
+
+	// privateKey is used in tests to use pre-generated private keys
+	privateKey []byte
+}
+
+// runPeriodicOperations runs some periodic bookkeeping operations
+// performed by auth server
+func (a *AuthServer) runPeriodicOperations() {
+	// run periodic functions with a semi-random period
+	// to avoid contention on the database in case if there are multiple
+	// auth servers running - so they don't compete trying
+	// to update the same resources.
+	r := rand.New(rand.NewSource(a.GetClock().Now().UnixNano()))
+	period := defaults.HighResPollingPeriod + time.Duration(r.Intn(int(defaults.HighResPollingPeriod/time.Second)))*time.Second
+	log.Debugf("Ticking with period: %v.", period)
+	ticker := time.NewTicker(period)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-a.closeCtx.Done():
+			return
+		case <-ticker.C:
+			err := a.autoRotateCertAuthorities()
+			if err != nil {
+				if trace.IsCompareFailed(err) {
+					log.Debugf("Cert authority has been updated concurrently: %v.", err)
+				} else {
+					log.Errorf("Failed to perform cert rotation check: %v.", err)
+				}
+			}
+		}
+	}
 }
 
 func (a *AuthServer) Close() error {
+	a.cancelFunc()
 	if a.bk != nil {
 		return trace.Wrap(a.bk.Close())
 	}
 	return nil
 }
 
+func (a *AuthServer) GetClock() clockwork.Clock {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	return a.clock
+}
+
 // SetClock sets clock, used in tests
 func (a *AuthServer) SetClock(clock clockwork.Clock) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
 	a.clock = clock
 }
 
@@ -303,7 +358,11 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	hostCA, err := s.Trust.GetCertAuthority(services.CertAuthID{
+	// CHANGE IN (2.7.0) Use user CA and not host CA here,
+	// currently host CA is used for backwards compatibility,
+	// because pre 2.6.0 remote clusters did not have TLS CA
+	// in user certificate authorities.
+	userCA, err := s.Trust.GetCertAuthority(services.CertAuthID{
 		Type:       services.HostCA,
 		DomainName: clusterName,
 	}, true)
@@ -311,7 +370,7 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 		return nil, trace.Wrap(err)
 	}
 	// generate TLS certificate
-	tlsAuthority, err := hostCA.TLSCA()
+	tlsAuthority, err := userCA.TLSCA()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -588,10 +647,18 @@ func (s *AuthServer) GenerateToken(req GenerateTokenRequest) (string, error) {
 // ClientCertPool returns trusted x509 cerificate authority pool
 func (s *AuthServer) ClientCertPool() (*x509.CertPool, error) {
 	pool := x509.NewCertPool()
-	authorities, err := s.GetCertAuthorities(services.HostCA, false)
+	var authorities []services.CertAuthority
+	hostCAs, err := s.GetCertAuthorities(services.HostCA, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	userCAs, err := s.GetCertAuthorities(services.UserCA, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	authorities = append(authorities, hostCAs...)
+	authorities = append(authorities, userCAs...)
+
 	for _, auth := range authorities {
 		for _, keyPair := range auth.GetTLSKeyPairs() {
 			cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)

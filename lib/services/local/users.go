@@ -178,7 +178,7 @@ func (s *IdentityService) DeleteUser(user string) error {
 	err := s.DeleteBucket([]string{"web", "users"}, user)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return trace.NotFound(fmt.Sprintf("user '%v' is not found", user))
+			return trace.NotFound("user %q is not found", user)
 		}
 	}
 	return trace.Wrap(err)

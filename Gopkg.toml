@@ -36,7 +36,7 @@ ignored = ["github.com/Sirupsen/logrus"]
 
 [[constraint]]
   name = "github.com/vulcand/predicate"
-  version = "v1.0.0"
+  version = "v1.1.0"
 
 [[constraint]]
   name = "github.com/docker/docker"

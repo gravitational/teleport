@@ -249,6 +249,8 @@ type ServerSpecV2 struct {
 	Hostname string `json:"hostname"`
 	// CmdLabels is server dynamic labels
 	CmdLabels map[string]CommandLabelV2 `json:"cmd_labels,omitempty"`
+	// Rotation specifies server rotatoin status
+	Rotation Rotation `json:"rotation,omitempty"`
 }
 
 // ServerSpecV2Schema is JSON schema for server
@@ -279,7 +281,8 @@ const ServerSpecV2Schema = `{
           }
         }
       }
-    }
+    },
+    "rotation": %v
   }
 }`
 
@@ -423,7 +426,7 @@ func (c *CommandLabels) SetEnv(v string) error {
 // GetServerSchema returns role schema with optionally injected
 // schema for extensions
 func GetServerSchema() string {
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, ServerSpecV2Schema, DefaultDefinitions)
+	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, fmt.Sprintf(ServerSpecV2Schema, RotationSchema), DefaultDefinitions)
 }
 
 // UnmarshalServerResource unmarshals role from JSON or YAML,

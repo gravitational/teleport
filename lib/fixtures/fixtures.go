@@ -11,27 +11,27 @@ import (
 
 // ExpectNotFound expects not found error
 func ExpectNotFound(c *check.C, err error) {
-	c.Assert(trace.IsNotFound(err), check.Equals, true, check.Commentf("expected NotFound, got %T %#v at %v", err, err, string(debug.Stack())))
+	c.Assert(trace.IsNotFound(err), check.Equals, true, check.Commentf("expected NotFound, got %T %v at %v", trace.Unwrap(err), err, string(debug.Stack())))
 }
 
 // ExpectBadParameter expects bad parameter error
 func ExpectBadParameter(c *check.C, err error) {
-	c.Assert(trace.IsBadParameter(err), check.Equals, true, check.Commentf("expected BadParameter, got %T %#v at %v", err, err, string(debug.Stack())))
+	c.Assert(trace.IsBadParameter(err), check.Equals, true, check.Commentf("expected BadParameter, got %T %v at %v", trace.Unwrap(err), err, string(debug.Stack())))
 }
 
 // ExpectCompareFailed expects compare failed error
 func ExpectCompareFailed(c *check.C, err error) {
-	c.Assert(trace.IsCompareFailed(err), check.Equals, true, check.Commentf("expected CompareFailed, got %T %#v at %v", err, err, string(debug.Stack())))
+	c.Assert(trace.IsCompareFailed(err), check.Equals, true, check.Commentf("expected CompareFailed, got %T %v at %v", trace.Unwrap(err), err, string(debug.Stack())))
 }
 
 // ExpectAccessDenied expects error to be access denied
 func ExpectAccessDenied(c *check.C, err error) {
-	c.Assert(trace.IsAccessDenied(err), check.Equals, true, check.Commentf("expected AccessDenied, got %T %#v at %v", err, err, string(debug.Stack())))
+	c.Assert(trace.IsAccessDenied(err), check.Equals, true, check.Commentf("expected AccessDenied, got %T %v at %v", trace.Unwrap(err), err, string(debug.Stack())))
 }
 
 // ExpectAlreadyExists expects already exists error
 func ExpectAlreadyExists(c *check.C, err error) {
-	c.Assert(trace.IsAlreadyExists(err), check.Equals, true, check.Commentf("expected AlreadyExists, got %T %#v at %v", err, err, string(debug.Stack())))
+	c.Assert(trace.IsAlreadyExists(err), check.Equals, true, check.Commentf("expected AlreadyExists, got %T %v at %v", trace.Unwrap(err), err, string(debug.Stack())))
 }
 
 // DeepCompare uses gocheck DeepEquals but provides nice diff if things are not equal

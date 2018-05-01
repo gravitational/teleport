@@ -47,6 +47,11 @@ type Backend interface {
 	UpsertVal(bucket []string, key string, val []byte, ttl time.Duration) error
 	// GetVal return a value for a given key in the bucket
 	GetVal(path []string, key string) ([]byte, error)
+	// CompareAndSwapVal compares and swaps values in atomic operation,
+	// succeeds if prevVal matches the value stored in the database,
+	// requires prevVal as a non-empty value. Returns trace.CompareFailed
+	// in case if value did not match.
+	CompareAndSwapVal(bucket []string, key string, val []byte, prevVal []byte, ttl time.Duration) error
 	// DeleteKey deletes a key in a bucket
 	DeleteKey(bucket []string, key string) error
 	// DeleteBucket deletes the bucket by a given path

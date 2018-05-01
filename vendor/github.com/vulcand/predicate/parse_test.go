@@ -30,6 +30,7 @@ func (s *PredicateSuite) getParserWithOpts(c *check.C, getID GetIdentifierFn, ge
 			NEQ: numberNEQ,
 			LE:  numberLE,
 			GE:  numberGE,
+			NOT: numberNOT,
 		},
 		Functions: map[string]interface{}{
 			"DivisibleBy":        divisibleBy,
@@ -38,6 +39,12 @@ func (s *PredicateSuite) getParserWithOpts(c *check.C, getID GetIdentifierFn, ge
 			"number.DivisibleBy": divisibleBy,
 			"Equals":             Equals,
 			"Contains":           Contains,
+			"fnreturn": func(arg interface{}) (interface{}, error) {
+				return arg, nil
+			},
+			"fnerr": func(arg interface{}) (interface{}, error) {
+				return nil, trace.BadParameter("don't like this parameter")
+			},
 		},
 		GetIdentifier: getID,
 		GetProperty:   getProperty,
@@ -56,6 +63,35 @@ func (s *PredicateSuite) TestSinglePredicate(c *check.C) {
 	fn := pr.(numberPredicate)
 	c.Assert(fn(2), check.Equals, true)
 	c.Assert(fn(3), check.Equals, false)
+}
+
+func (s *PredicateSuite) TestSinglePredicateNot(c *check.C) {
+	p := s.getParser(c)
+
+	pr, err := p.Parse("!DivisibleBy(2)")
+	c.Assert(err, check.IsNil)
+	c.Assert(pr, check.FitsTypeOf, divisibleBy(2))
+	fn := pr.(numberPredicate)
+	c.Assert(fn(2), check.Equals, false)
+	c.Assert(fn(3), check.Equals, true)
+}
+
+func (s *PredicateSuite) TestSinglePredicateWithFunc(c *check.C) {
+	p := s.getParser(c)
+
+	pr, err := p.Parse("DivisibleBy(fnreturn(2))")
+	c.Assert(err, check.IsNil)
+	c.Assert(pr, check.FitsTypeOf, divisibleBy(2))
+	fn := pr.(numberPredicate)
+	c.Assert(fn(2), check.Equals, true)
+	c.Assert(fn(3), check.Equals, false)
+}
+
+func (s *PredicateSuite) TestSinglePredicateWithFuncErr(c *check.C) {
+	p := s.getParser(c)
+
+	_, err := p.Parse("DivisibleBy(fnerr(2))")
+	c.Assert(err, check.NotNil)
 }
 
 func (s *PredicateSuite) TestModulePredicate(c *check.C) {
@@ -380,7 +416,6 @@ func (s *PredicateSuite) TestUnhappyCases(c *check.C) {
 		"Remainder(banana)",       // unsupported argument
 		"Remainder(1, 2)",         // unsupported arguments count
 		"Remainder(Len)",          // unsupported argument
-		`Remainder(Len("Ho"))`,    // unsupported argument
 		"Bla(1)",                  // unknown method call
 		"0.2 && Remainder(1)",     // unsupported value
 		`Len("Ho") && 0.2`,        // unsupported value
@@ -402,6 +437,12 @@ type numberMapper func(v int) int
 func divisibleBy(divisor int) numberPredicate {
 	return func(v int) bool {
 		return v%divisor == 0
+	}
+}
+
+func numberNOT(a numberPredicate) numberPredicate {
+	return func(v int) bool {
+		return !a(v)
 	}
 }
 
