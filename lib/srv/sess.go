@@ -783,7 +783,7 @@ func (s *session) removePartyMember(party *party) {
 	s.Lock()
 	defer s.Unlock()
 
-	delete(s.parties, p.id)
+	delete(s.parties, party.id)
 }
 
 // removeParty removes the party from the in-memory map that holds all party

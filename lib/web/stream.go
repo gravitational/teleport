@@ -17,7 +17,6 @@ limitations under the License.
 package web
 
 import (
-	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"

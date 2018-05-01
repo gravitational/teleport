@@ -45,6 +45,7 @@ import (
 type NodeSession struct {
 	// namespace is a session this namespace belongs to
 	namespace string
+
 	// id is the Teleport session ID
 	id session.ID
 
@@ -295,7 +296,7 @@ func (ns *NodeSession) updateTerminalSize(s *ssh.Session) {
 
 	// Sync the local terminal with size received from the remote server every
 	// two seconds. If we try and do it live, synchronization jitters occur.
-	tickerCh := time.NewTicker(defaults.SessionRefreshPeriod)
+	tickerCh := time.NewTicker(defaults.TerminalResizePeriod)
 	defer tickerCh.Stop()
 
 	for {
