@@ -17,6 +17,7 @@ limitations under the License.
 package web
 
 import (
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -90,7 +91,8 @@ func (w *sessionStreamHandler) pollEvents(authClient auth.ClientI, cursor int) (
 	// Filter out any resize events as we get them over push notifications.
 	var filteredEvents []events.EventFields
 	for _, event := range sessionEvents {
-		if event.GetType() == events.ResizeEvent {
+		if event.GetType() == events.ResizeEvent ||
+			event.GetType() == events.SessionJoinEvent {
 			continue
 		}
 		filteredEvents = append(filteredEvents, event)

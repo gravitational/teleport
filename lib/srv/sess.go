@@ -111,19 +111,47 @@ func (s *SessionRegistry) Close() {
 	s.log.Debugf("Closing Session Registry.")
 }
 
-// joinShell either joins an existing session or starts a new shell
+// emitSessionJoinEvent emits a session join event to both the Audit Log as
+// well as sending a "x-teleport-event" global request on the SSH connection.
+func (s *SessionRegistry) emitSessionJoinEvent(ctx *ServerContext) {
+	sessionJoinEvent := events.EventFields{
+		events.EventType:       events.SessionJoinEvent,
+		events.SessionEventID:  string(ctx.session.id),
+		events.EventNamespace:  s.srv.GetNamespace(),
+		events.EventLogin:      ctx.Identity.Login,
+		events.EventUser:       ctx.Identity.TeleportUser,
+		events.LocalAddr:       ctx.Conn.LocalAddr().String(),
+		events.RemoteAddr:      ctx.Conn.RemoteAddr().String(),
+		events.SessionServerID: ctx.srv.ID(),
+	}
+
+	// Emit session join event to Audit Log.
+	ctx.session.recorder.alog.EmitAuditEvent(events.SessionJoinEvent, sessionJoinEvent)
+
+	// Notify all members of the party that a new member has joined over the
+	// "x-teleport-event" channel.
+	for _, p := range s.getParties(ctx) {
+		eventPayload, err := json.Marshal(sessionJoinEvent)
+		if err != nil {
+			s.log.Warnf("Unable to marshal %v for %v: %v.", events.SessionJoinEvent, p.sconn.RemoteAddr(), err)
+			continue
+		}
+		_, _, err = p.sconn.SendRequest(teleport.SessionEvent, false, eventPayload)
+		if err != nil {
+			s.log.Warnf("Unable to send %v to %v: %v.", events.SessionJoinEvent, p.sconn.RemoteAddr(), err)
+			continue
+		}
+		s.log.Debugf("Sent %v to %v.", events.SessionJoinEvent, p.sconn.RemoteAddr())
+	}
+}
+
+// OpenSession either joins an existing session or starts a new session.
 func (s *SessionRegistry) OpenSession(ch ssh.Channel, req *ssh.Request, ctx *ServerContext) error {
 	if ctx.session != nil {
-		// emit "joined session" event:
-		ctx.session.recorder.alog.EmitAuditEvent(events.SessionJoinEvent, events.EventFields{
-			events.SessionEventID:  string(ctx.session.id),
-			events.EventNamespace:  s.srv.GetNamespace(),
-			events.EventLogin:      ctx.Identity.Login,
-			events.EventUser:       ctx.Identity.TeleportUser,
-			events.LocalAddr:       ctx.Conn.LocalAddr().String(),
-			events.RemoteAddr:      ctx.Conn.RemoteAddr().String(),
-			events.SessionServerID: ctx.srv.ID(),
-		})
+		// Emit session join event to both the Audit Log as well as over the
+		// "x-teleport-event" channel in the SSH connection.
+		s.emitSessionJoinEvent(ctx)
+
 		ctx.Infof("Joining existing session %v.", ctx.session.id)
 		_, err := ctx.session.join(ch, req, ctx)
 		return trace.Wrap(err)
@@ -151,7 +179,38 @@ func (s *SessionRegistry) OpenSession(ch ssh.Channel, req *ssh.Request, ctx *Ser
 	return nil
 }
 
-// leaveSession removes the given party from this session
+// emitSessionLeaveEvent emits a session leave event to both the Audit Log as
+// well as sending a "x-teleport-event" global request on the SSH connection.
+func (s *SessionRegistry) emitSessionLeaveEvent(party *party) {
+	sessionLeaveEvent := events.EventFields{
+		events.EventType:       events.SessionLeaveEvent,
+		events.SessionEventID:  string(party.ctx.session.id),
+		events.EventUser:       party.user,
+		events.SessionServerID: party.serverID,
+		events.EventNamespace:  s.srv.GetNamespace(),
+	}
+
+	// Emit session leave event to Audit Log.
+	party.ctx.session.recorder.alog.EmitAuditEvent(events.SessionLeaveEvent, sessionLeaveEvent)
+
+	// Notify all members of the party that a new member has left over the
+	// "x-teleport-event" channel.
+	for _, p := range s.getParties(party.ctx) {
+		eventPayload, err := json.Marshal(sessionLeaveEvent)
+		if err != nil {
+			s.log.Warnf("Unable to marshal %v for %v: %v.", events.SessionJoinEvent, p.sconn.RemoteAddr(), err)
+			continue
+		}
+		_, _, err = p.sconn.SendRequest(teleport.SessionEvent, false, eventPayload)
+		if err != nil {
+			s.log.Warnf("Unable to send %v to %v: %v.", events.SessionJoinEvent, p.sconn.RemoteAddr(), err)
+			continue
+		}
+		s.log.Debugf("Sent %v to %v.", events.SessionJoinEvent, p.sconn.RemoteAddr())
+	}
+}
+
+// leaveSession removes the given party from this session.
 func (s *SessionRegistry) leaveSession(party *party) error {
 	sess := party.s
 	s.Lock()
@@ -162,13 +221,9 @@ func (s *SessionRegistry) leaveSession(party *party) error {
 		return trace.Wrap(err)
 	}
 
-	// emit "session leave" event (party left the session)
-	sess.recorder.alog.EmitAuditEvent(events.SessionLeaveEvent, events.EventFields{
-		events.SessionEventID:  string(sess.id),
-		events.EventUser:       party.user,
-		events.SessionServerID: party.serverID,
-		events.EventNamespace:  s.srv.GetNamespace(),
-	})
+	// Emit session leave event to both the Audit Log as well as over the
+	// "x-teleport-event" channel in the SSH connection.
+	s.emitSessionLeaveEvent(party)
 
 	// this goroutine runs for a short amount of time only after a session
 	// becomes empty (no parties). It allows session to "linger" for a bit
@@ -521,10 +576,12 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 	return sess, nil
 }
 
-// isLingering returns 'true' if every party has left this session
+// isLingering returns true if every party has left this session. Occurs
+// under a lock.
 func (s *session) isLingering() bool {
 	s.Lock()
 	defer s.Unlock()
+
 	return len(s.parties) == 0
 }
 
@@ -632,8 +689,9 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 		events.TerminalSize:    params.Serialize(),
 	})
 
-	// Start a heartbeat that marks this session as active in the backend.
-	go s.activeHeartbeat(ctx)
+	// Start a heartbeat that marks this session as active with current members
+	// of party in the backend.
+	go s.heartbeat(ctx)
 
 	doneCh := make(chan bool, 1)
 
@@ -719,41 +777,25 @@ func (s *session) String() string {
 	return fmt.Sprintf("session(id=%v, parties=%v)", s.id, len(s.parties))
 }
 
-// removeParty removes the party from two places:
-//   1. from in-memory dictionary inside of this session
-//   2. from sessin server's storage
+// removePartyMember removes participant from in-memory representation of
+// party members. Occurs under a lock.
+func (s *session) removePartyMember(party *party) {
+	s.Lock()
+	defer s.Unlock()
+
+	delete(s.parties, p.id)
+}
+
+// removeParty removes the party from the in-memory map that holds all party
+// members.
 func (s *session) removeParty(p *party) error {
 	p.ctx.Infof("Removing party %v from session %v", p, s.id)
 
-	ns := s.getNamespace()
+	// Removes participant from in-memory map of party members.
+	s.removePartyMember(p)
 
-	// in-memory locked remove:
-	lockedRemove := func() {
-		s.Lock()
-		defer s.Unlock()
-		delete(s.parties, p.id)
-		s.writer.deleteWriter(string(p.id))
-	}
-	lockedRemove()
+	s.writer.deleteWriter(string(p.id))
 
-	// remove from the session server (asynchronously)
-	storageRemove := func(db rsession.Service) {
-		dbSession, err := db.GetSession(ns, s.id)
-		if err != nil {
-			s.log.Errorf("Unable to get session %v: %v", s.id, err)
-			return
-		}
-		if dbSession != nil && dbSession.RemoveParty(p.id) {
-			db.UpdateSession(rsession.UpdateRequest{
-				ID:        dbSession.ID,
-				Parties:   &dbSession.Parties,
-				Namespace: ns,
-			})
-		}
-	}
-	if s.registry.srv.GetSessionServer() != nil {
-		go storageRemove(s.registry.srv.GetSessionServer())
-	}
 	return nil
 }
 
@@ -773,11 +815,31 @@ func (s *session) getNamespace() string {
 	return s.registry.srv.GetNamespace()
 }
 
-// activeHeartbeat continued to update the session and mark it as active in
-// the backend as long as the session is not closed. If the session are
-// recorded at the proxy, then this function does nothing as it's counterpart
+// exportPartyMembers exports participants in the in-memory map of party
+// members. Occurs under a lock.
+func (s *session) exportPartyMembers() []rsession.Party {
+	s.Lock()
+	defer s.Unlock()
+
+	var partyList []rsession.Party
+	for _, p := range s.parties {
+		partyList = append(partyList, rsession.Party{
+			ID:         p.id,
+			User:       p.user,
+			ServerID:   p.serverID,
+			RemoteAddr: p.site,
+			LastActive: p.getLastActive(),
+		})
+	}
+
+	return partyList
+}
+
+// heartbeat will loop as long as the session is not closed and mark it as
+// active and update the list of party members. If the session are recorded at
+// the proxy, then this function does nothing as it's counterpart
 // in the proxy will do this work.
-func (s *session) activeHeartbeat(ctx *ServerContext) {
+func (s *session) heartbeat(ctx *ServerContext) {
 	// If sessions are being recorded at the proxy, an identical version of this
 	// goroutine is running in the proxy, which means it does not need to run here.
 	if ctx.ClusterConfig.GetSessionRecording() == services.RecordAtProxy &&
@@ -802,12 +864,14 @@ func (s *session) activeHeartbeat(ctx *ServerContext) {
 	for {
 		select {
 		case <-tickerCh.C:
+			partyList := s.exportPartyMembers()
+
 			var active = true
 			err := sessionServer.UpdateSession(rsession.UpdateRequest{
 				Namespace: s.getNamespace(),
 				ID:        s.id,
 				Active:    &active,
-				Parties:   nil,
+				Parties:   &partyList,
 			})
 			if err != nil {
 				s.log.Warnf("Unable to update session %v as active: %v", s.id, err)
@@ -818,6 +882,15 @@ func (s *session) activeHeartbeat(ctx *ServerContext) {
 	}
 }
 
+// addPartyMember adds participant to in-memory map of party members. Occurs
+// under a lock.
+func (s *session) addPartyMember(p *party) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.parties[p.id] = p
+}
+
 // addParty is called when a new party joins the session.
 func (s *session) addParty(p *party) error {
 	if s.login != p.login {
@@ -826,9 +899,11 @@ func (s *session) addParty(p *party) error {
 			s.login, p.login, s.id)
 	}
 
-	s.parties[p.id] = p
-	// write last chunk (so the newly joined parties won't stare
-	// at a blank screen)
+	// Adds participant to in-memory map of party members.
+	s.addPartyMember(p)
+
+	// Write last chunk (so the newly joined parties won't stare at a blank
+	// screen).
 	getRecentWrite := func() []byte {
 		s.writer.Lock()
 		defer s.writer.Unlock()
@@ -840,39 +915,14 @@ func (s *session) addParty(p *party) error {
 	}
 	p.Write(getRecentWrite())
 
-	// register this party as one of the session writers
-	// (output will go to it)
+	// Register this party as one of the session writers (output will go to it).
 	s.writer.addWriter(string(p.id), p, true)
 	p.ctx.AddCloser(p)
 	s.term.AddParty(1)
 
-	// update session on the session server
-	storageUpdate := func(db rsession.Service) {
-		dbSession, err := db.GetSession(s.getNamespace(), s.id)
-		if err != nil {
-			s.log.Errorf("Unable to get session %v: %v", s.id, err)
-			return
-		}
-		dbSession.Parties = append(dbSession.Parties, rsession.Party{
-			ID:         p.id,
-			User:       p.user,
-			ServerID:   p.serverID,
-			RemoteAddr: p.site,
-			LastActive: p.getLastActive(),
-		})
-		db.UpdateSession(rsession.UpdateRequest{
-			ID:        dbSession.ID,
-			Parties:   &dbSession.Parties,
-			Namespace: s.getNamespace(),
-		})
-	}
-	if s.registry.srv.GetSessionServer() != nil {
-		go storageUpdate(s.registry.srv.GetSessionServer())
-	}
-
 	s.log.Infof("New party %v joined session: %v", p.String(), s.id)
 
-	// this goroutine keeps pumping party's input into the session
+	// This goroutine keeps pumping party's input into the session.
 	go func() {
 		defer s.term.AddParty(-1)
 		_, err := io.Copy(s.term.PTY(), p)

@@ -337,9 +337,8 @@ func (ns *NodeSession) updateTerminalSize(s *ssh.Session) {
 
 		// Extract "resize" events in the stream and store the last window size.
 		case event := <-ns.nodeClient.TC.EventsChannel():
-			// Only "resize" events are important, all others can be ignored.
+			// Only "resize" events are important to tsh, all others can be ignored.
 			if event.GetType() != events.ResizeEvent {
-				fmt.Printf("Ignoring %v event\r\n", event.GetType())
 				continue
 			}
 
