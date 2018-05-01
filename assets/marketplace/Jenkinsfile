@@ -7,9 +7,11 @@ pipeline {
     }
     stages {
         stage('Run Packer, CloudFormation and wait for stack to be ready') {
-            steps { 
-                script {
-                    sh 'make jenkins-test-start'
+            steps {
+                dir('assets/marketplace') {
+                    script {
+                        sh 'make jenkins-test-start'
+                    }
                 }
             }
         }
@@ -26,9 +28,11 @@ pipeline {
             }
         }
         //stage('Take stack down and wait for destruction') {
-        //    steps { 
-        //        script {
-        //            sh 'make jenkins-test-stop'
+        //    steps {
+        //        dir('assets/marketplace') {
+        //            script {
+        //                sh 'make jenkins-test-stop'
+        //            }
         //        }
         //    }
         //}
