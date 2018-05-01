@@ -13,19 +13,24 @@ pipeline {
                 }
             }
         }
-        stage('curl Teleport Web UI') {
+        stage('Wait for Teleport Web UI to come up') {
             steps {
-                script {
-                    sh 'curl https://jenkins-teleport-quickstart-test-stack.gravitational.io/web/login'"
+                timeout(5) {
+                    waitUntil {
+                        script {
+                            def r = sh script: 'wget -q https://jenkins-teleport-quickstart-test-stack.gravitational.io/web/login', returnStatus: true
+                            return (r == 0);
+                        }
+                    }
                 }
             }
         }
-        stage('Take stack down and wait for destruction') {
-            steps { 
-                script {
-                    sh 'make jenkins-test-stop'
-                }
-            }
-        }
+        //stage('Take stack down and wait for destruction') {
+        //    steps { 
+        //        script {
+        //            sh 'make jenkins-test-stop'
+        //        }
+        //    }
+        //}
     }
 }
