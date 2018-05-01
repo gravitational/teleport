@@ -6,11 +6,39 @@ pipeline {
         ansiColor(colorMapName: 'XTerm')
     }
     stages {
-        stage('Run Packer, CloudFormation and wait for stack to be ready') {
+        stage('Create build directory') {
             steps {
                 dir('assets/marketplace') {
                     script {
-                        sh 'make jenkins-test-start'
+                        sh 'mkdir -p build'
+                    }
+                }
+            }
+        }
+        stage('Run Packer') {
+            steps {
+                dir('assets/marketplace') {
+                    script {
+                        sh 'make oss'
+                    }
+                }
+            }
+        }
+        stage('Update AMI IDs)') {
+            steps {
+                dir('assets/marketplace') {
+                    script {
+                        sh 'make update-ami-ids-oss'
+                    }
+                }
+            }
+        }
+       stage('Run Cloudformation and wait for stack') {
+            steps {
+                dir('assets/marketplace') {
+                    script {
+                        sh 'make jenkins-create-stack'
+                        sh 'make jenkins-wait-for-stack-creation'
                     }
                 }
             }
