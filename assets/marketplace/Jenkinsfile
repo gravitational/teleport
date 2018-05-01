@@ -6,9 +6,9 @@ pipeline {
         ansiColor(colorMapName: 'XTerm')
     }
     stages {
-        stage('Create build directory') {
+        stage('Create files/build directory') {
             steps {
-                dir('assets/marketplace') {
+                dir('assets/marketplace/files') {
                     script {
                         sh 'mkdir -p build'
                     }
