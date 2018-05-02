@@ -19,8 +19,10 @@ import connect from './../connect';
 import { fetchSiteEventsWithinTimeRange } from 'app/flux/storedSessionsFilter/actions';
 import { storedSessionList, activeSessionList } from 'app/flux/sessions/getters';
 import { filter } from 'app/flux/storedSessionsFilter/getters';
+import appGetters from 'app/flux/app/getters';
 import AjaxPoller from './../dataProvider.jsx';
 import SessionList from './sessionList.jsx';
+import { DocumentTitle } from './../documentTitle';
 import withStorage from './../withStorage.jsx';
 
 class Sessions extends React.Component {
@@ -30,23 +32,27 @@ class Sessions extends React.Component {
   }
 
   render() {            
-    const { storedSessions, activeSessions, storedSessionsFilter } = this.props;
+    const { siteId, storedSessions, activeSessions, storedSessionsFilter } = this.props;
+    const title = `${siteId} · Sessions`;
     return (      
-      <div className="grv-page grv-sessions">                                      
-        <SessionList
-          storage={this.props.storage}  
-          activeSessions={activeSessions}
-          storedSessions={storedSessions}
-          filter={storedSessionsFilter}
-        />
-        <AjaxPoller onFetch={this.refresh} />        
-      </div>        
+      <DocumentTitle title={title}>
+        <div className="grv-page grv-sessions">
+          <SessionList
+            storage={this.props.storage}
+            activeSessions={activeSessions}
+            storedSessions={storedSessions}
+            filter={storedSessionsFilter}
+          />
+          <AjaxPoller onFetch={this.refresh} />
+        </div>
+      </DocumentTitle>  
     );
   }
 }
 
 function mapFluxToProps() {
   return {    
+    siteId: appGetters.siteId,
     activeSessions: activeSessionList,
     storedSessions: storedSessionList,
     storedSessionsFilter: filter

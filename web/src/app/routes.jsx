@@ -18,11 +18,11 @@ import cfg from './config';
 import LoginContainer from './components/user/login.jsx';
 import InviteUser from './components/user/invite.jsx';
 import * as Message from './components/msgPage.jsx';
-import DocumentTitle from './components/documentTitle';
+import { RouteDocumentTitle } from './components/documentTitle';
 
 export function addRoutes(routesToAdd = []) {  
   return [{
-    component: DocumentTitle,
+    component: RouteDocumentTitle,
     childRoutes: [
       { path: cfg.routes.error, title: "Error", component: Message.ErrorPage },
       { path: cfg.routes.info, title: "Info", component: Message.InfoPage },

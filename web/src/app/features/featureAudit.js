@@ -51,7 +51,7 @@ class AuditFeature extends FeatureBase {
     const auditRoutes = [
       {
         path: cfg.routes.sessions,
-        title: "Stored Sessions",
+        title: "Sessions",
         component: this.withMe(Sessions)
       }, {
         path: cfg.routes.player,

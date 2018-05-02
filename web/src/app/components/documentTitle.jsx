@@ -14,9 +14,37 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import React from 'react';
+
 const DEFAULT_TITLE = 'Teleport by Gravitational';
 
-const DocumentTitle = props => {
+export class DocumentTitle extends React.Component {
+
+  componentWillReceiveProps(nextProps) {    
+    if (this.getTitle() !== nextProps.title) {
+      this.setTitle(nextProps.title);
+    }
+  }
+  
+  componentDidMount() {
+    this.setTitle(this.props.title);
+  }
+
+  getTitle() {
+    return document.title;
+  }
+
+  setTitle(title) {
+    document.title = title;
+  }
+
+  render() {    
+    return this.props.children;
+  }
+
+}
+
+export const RouteDocumentTitle = props => {
   let title = DEFAULT_TITLE
   let routes = props.routes || [];
   for (let i = routes.length - 1; i > 0; i--) {
@@ -30,5 +58,3 @@ const DocumentTitle = props => {
 
   return props.children;
 }
-
-export default DocumentTitle;

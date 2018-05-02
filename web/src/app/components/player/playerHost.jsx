@@ -18,7 +18,9 @@ import React from 'react';
 import { close } from 'app/flux/player/actions';
 import { Player } from './player';
 import PartyListPanel from './../partyListPanel';
+import { DocumentTitle } from './../documentTitle';
 import cfg from 'app/config';
+
 class PlayerHost extends React.Component {
         
   componentWillMount() {
@@ -30,11 +32,16 @@ class PlayerHost extends React.Component {
     if (!this.url) {
       return null;
     }        
+
+    const { siteId } = this.props.params;        
+    const title = `${siteId} · Player`;
     return (
-      <div className="grv-terminalhost grv-session-player">
-        <PartyListPanel onClose={close} />         
-        <Player url={this.url}/>
-      </div>
+      <DocumentTitle title={title}>
+        <div className="grv-terminalhost grv-session-player">
+          <PartyListPanel onClose={close} />         
+          <Player url={this.url}/>
+        </div>
+      </DocumentTitle>
     );
   }  
 }
