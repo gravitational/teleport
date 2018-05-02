@@ -9,37 +9,31 @@ pipeline {
         stage('Create files/build directory') {
             steps {
                 dir('assets/marketplace/files') {
-                    script {
-                        sh 'mkdir -p build'
-                    }
+                    sh 'mkdir -p build'
                 }
             }
         }
         stage('Run Packer') {
             steps {
                 dir('assets/marketplace') {
-                    script {
-                        sh 'make oss'
-                    }
+                    sh 'make oss'
+                    stash includes: '**/files/build/oss_build_timestamp.txt', name: 'timestamp'
                 }
             }
         }
         stage('Update AMI IDs)') {
             steps {
                 dir('assets/marketplace') {
-                    script {
-                        sh 'make update-ami-ids-oss'
-                    }
+                    unstash 'timestamp'
+                    sh 'make update-ami-ids-oss'
                 }
             }
         }
        stage('Run Cloudformation and wait for stack') {
             steps {
                 dir('assets/marketplace') {
-                    script {
-                        sh 'make jenkins-create-stack'
-                        sh 'make jenkins-wait-for-stack-creation'
-                    }
+                    sh 'make jenkins-create-stack'
+                    sh 'make jenkins-wait-for-stack-creation'
                 }
             }
         }
