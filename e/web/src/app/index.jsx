@@ -24,7 +24,7 @@ import history from 'telebase-app/services/history';
 import FeatureActivator from 'telebase-app/featureActivator';
 import { addRoutes } from 'telebase-app/routes';
 import * as Features from 'telebase-app/features';
-import { ensureUser } from 'telebase-app/flux/user/actions';
+import userActions from 'telebase-app/flux/user/actions';
 import 'telebase-app/flux';
 
 // app imports
@@ -52,7 +52,7 @@ const onEnterApp = nextState => {
 
 const appRoutes = [{               
   path: cfg.routes.app,
-  onEnter: ensureUser,
+  onEnter: userActions.ensureUser,
   component: TeleportE,        
   childRoutes:  [{
     onEnter: onEnterApp,
