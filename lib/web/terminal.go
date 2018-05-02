@@ -25,16 +25,21 @@ import (
 	"strconv"
 	"strings"
 
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/net/websocket"
+	"golang.org/x/text/encoding"
+	"golang.org/x/text/encoding/unicode"
+
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
+
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/net/websocket"
 )
 
 // TerminalRequest describes a request to crate a web-based terminal
@@ -114,6 +119,30 @@ type TerminalHandler struct {
 	sshSession *ssh.Session
 
 	teleportClient *client.TeleportClient
+
+	streamContext context.Context
+	streamCancel  context.CancelFunc
+
+	request *http.Request
+}
+
+// Run creates a new websocket connection to the SSH server and runs
+// the "loop" piping the input/output of the SSH session into the
+// js-based terminal.
+func (t *TerminalHandler) Serve(w http.ResponseWriter, r *http.Request) {
+	t.request = r
+
+	// this is to make sure we close web socket connections once
+	// sessionContext that owns them expires
+	t.ctx.AddClosers(t)
+	defer t.ctx.RemoveCloser(t)
+
+	// TODO(klizhentas)
+	// we instantiate a server explicitly here instead of using
+	// websocket.HandlerFunc to set empty origin checker
+	// make sure we check origin when in prod mode
+	ws := &websocket.Server{Handler: t.handler}
+	ws.ServeHTTP(w, r)
 }
 
 func (t *TerminalHandler) Close() error {
@@ -123,15 +152,136 @@ func (t *TerminalHandler) Close() error {
 	if t.sshSession != nil {
 		t.sshSession.Close()
 	}
+
+	// If the terminal handler was closed (most likely due to the *SessionContext
+	// closing) then the stream should be closed as well.
+	t.streamCancel()
+
 	return nil
 }
 
-// resizePTYWindow is called when a brower resizes its window. Now the node
-// needs to be notified via SSH
-func (t *TerminalHandler) resizePTYWindow(params session.TerminalParams) error {
+func (t *TerminalHandler) handler(ws *websocket.Conn) {
+	tc, err := t.makeClient(ws)
+	if err != nil {
+		errToTerm(err, ws)
+		return
+	}
+
+	t.streamContext, t.streamCancel = context.WithCancel(context.Background())
+
+	go t.streamTerminal(ws, tc)
+	go t.streamEvents(ws, tc)
+
+	// Block until streaming is complete (terminal session is over)
+	<-t.streamContext.Done()
+}
+
+func (t *TerminalHandler) makeClient(ws *websocket.Conn) (*client.TeleportClient, error) {
+	agent, cert, err := t.ctx.GetAgent()
+	if err != nil {
+		return nil, trace.BadParameter("failed to get user credentials: %v", err)
+	}
+
+	signers, err := agent.Signers()
+	if err != nil {
+		return nil, trace.BadParameter("failed to get user credentials: %v", err)
+	}
+
+	tlsConfig, err := t.ctx.ClientTLSConfig()
+	if err != nil {
+		return nil, trace.BadParameter("failed to get client TLS config: %v", err)
+	}
+
+	//output := utils.NewWebSockWrapper(ws, utils.WebSocketTextMode)
+	output := newWebsocketWrapper(ws)
+	clientConfig := &client.Config{
+		SkipLocalAuth:    true,
+		ForwardAgent:     true,
+		Agent:            agent,
+		TLS:              tlsConfig,
+		AuthMethods:      []ssh.AuthMethod{ssh.PublicKeys(signers...)},
+		DefaultPrincipal: cert.ValidPrincipals[0],
+		HostLogin:        t.params.Login,
+		Username:         t.ctx.user,
+		Namespace:        t.params.Namespace,
+		Stdout:           output,
+		Stderr:           output,
+		Stdin:            ws,
+		SiteName:         t.params.Cluster,
+		ProxyHostPort:    t.params.ProxyHostPort,
+		Host:             t.hostName,
+		HostPort:         t.hostPort,
+		Env:              map[string]string{sshutils.SessionEnvVar: string(t.params.SessionID)},
+		HostKeyCallback:  func(string, net.Addr, ssh.PublicKey) error { return nil },
+		ClientAddr:       t.request.RemoteAddr,
+	}
+	if len(t.params.InteractiveCommand) > 0 {
+		clientConfig.Interactive = true
+	}
+
+	tc, err := client.NewClient(clientConfig)
+	if err != nil {
+		return nil, trace.BadParameter("failed to create client: %v", err)
+	}
+
+	// Save the *ssh.Session after the shell has been created. The session is
+	// used to update all other parties window size to that of the web client and
+	// to allow future window changes.
+	tc.OnShellCreated = func(s *ssh.Session, c *ssh.Client, _ io.ReadWriteCloser) (bool, error) {
+		t.sshSession = s
+		t.windowChange(t.params.Term)
+		return false, nil
+	}
+
+	return tc, nil
+}
+
+func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.TeleportClient) {
+	defer t.streamCancel()
+
+	// Establish SSH connection to the server. This function will block until
+	// either an error occurs or it completes successfully.
+	err := tc.SSH(t.streamContext, t.params.InteractiveCommand, false)
+	if err != nil {
+		log.Warningf("failed to SSH: %v", err)
+		errToTerm(err, ws)
+	}
+}
+
+type auditEvent struct {
+	Type    string             `json:"type"`
+	Payload events.EventFields `json:"payload"`
+}
+
+func (t *TerminalHandler) streamEvents(ws *websocket.Conn, tc *client.TeleportClient) {
+	for {
+		select {
+		case event := <-tc.EventsChannel():
+			e := auditEvent{
+				Type:    "audit",
+				Payload: event,
+			}
+			log.Debugf("Sending audit event %v to web client.", event.GetType())
+
+			err := websocket.JSON.Send(ws, e)
+			if err != nil {
+				log.Errorf("Unable to %v event to web client: %v.", event.GetType(), err)
+				continue
+			}
+		case <-t.streamContext.Done():
+			fmt.Printf("--> stream closing.\n")
+			return
+		}
+	}
+}
+
+// windowChange is called when the browser window is resized. It sends a
+// "window-change" channel request to the server.
+func (t *TerminalHandler) windowChange(params session.TerminalParams) error {
 	if t.sshSession == nil {
 		return nil
 	}
+
 	_, err := t.sshSession.SendRequest(
 		// send SSH "window resized" SSH request:
 		sshutils.WindowChangeRequest,
@@ -144,97 +294,13 @@ func (t *TerminalHandler) resizePTYWindow(params session.TerminalParams) error {
 	if err != nil {
 		log.Error(err)
 	}
+
 	return trace.Wrap(err)
 }
 
-// Run creates a new websocket connection to the SSH server and runs
-// the "loop" piping the input/output of the SSH session into the
-// js-based terminal.
-func (t *TerminalHandler) Run(w http.ResponseWriter, r *http.Request) {
-	errToTerm := func(err error, w io.Writer) {
-		fmt.Fprintf(w, "%s\n\r", err.Error())
-		log.Error(err)
-	}
-	webSocketLoop := func(ws *websocket.Conn) {
-		agent, cert, err := t.ctx.GetAgent()
-		if err != nil {
-			log.Warningf("failed to get user credentials: %v", err)
-			errToTerm(err, ws)
-			return
-		}
-
-		signers, err := agent.Signers()
-		if err != nil {
-			log.Warningf("failed to get user credentials: %v", err)
-			errToTerm(err, ws)
-			return
-		}
-
-		tlsConfig, err := t.ctx.ClientTLSConfig()
-		if err != nil {
-			log.Warningf("failed to get client TLS config: %v", err)
-			errToTerm(err, ws)
-			return
-		}
-
-		// create teleport client:
-		output := utils.NewWebSockWrapper(ws, utils.WebSocketTextMode)
-		clientConfig := &client.Config{
-			SkipLocalAuth:    true,
-			ForwardAgent:     true,
-			Agent:            agent,
-			TLS:              tlsConfig,
-			AuthMethods:      []ssh.AuthMethod{ssh.PublicKeys(signers...)},
-			DefaultPrincipal: cert.ValidPrincipals[0],
-			HostLogin:        t.params.Login,
-			Username:         t.ctx.user,
-			Namespace:        t.params.Namespace,
-			Stdout:           output,
-			Stderr:           output,
-			Stdin:            ws,
-			SiteName:         t.params.Cluster,
-			ProxyHostPort:    t.params.ProxyHostPort,
-			Host:             t.hostName,
-			HostPort:         t.hostPort,
-			Env:              map[string]string{sshutils.SessionEnvVar: string(t.params.SessionID)},
-			HostKeyCallback:  func(string, net.Addr, ssh.PublicKey) error { return nil },
-			ClientAddr:       r.RemoteAddr,
-		}
-		if len(t.params.InteractiveCommand) > 0 {
-			clientConfig.Interactive = true
-		}
-		tc, err := client.NewClient(clientConfig)
-		if err != nil {
-			log.Warningf("failed to create client: %v", err)
-			errToTerm(err, ws)
-			return
-		}
-		t.teleportClient = tc
-
-		// this callback will execute when a shell is created, it will give
-		// us a reference to ssh.Client object
-		tc.OnShellCreated = func(s *ssh.Session, c *ssh.Client, _ io.ReadWriteCloser) (bool, error) {
-			t.sshSession = s
-			t.resizePTYWindow(t.params.Term)
-			return false, nil
-		}
-		if err = tc.SSH(context.TODO(), t.params.InteractiveCommand, false); err != nil {
-			log.Warningf("failed to SSH: %v", err)
-			errToTerm(err, ws)
-			return
-		}
-	}
-	// this is to make sure we close web socket connections once
-	// sessionContext that owns them expires
-	t.ctx.AddClosers(t)
-	defer t.ctx.RemoveCloser(t)
-
-	// TODO(klizhentas)
-	// we instantiate a server explicitly here instead of using
-	// websocket.HandlerFunc to set empty origin checker
-	// make sure we check origin when in prod mode
-	ws := &websocket.Server{Handler: webSocketLoop}
-	ws.ServeHTTP(w, r)
+func errToTerm(err error, w io.Writer) {
+	fmt.Fprintf(w, "%s\n\r", err.Error())
+	//log.Error(err)
 }
 
 // resolveServerHostPort parses server name  and attempts to resolve hostname and port
@@ -270,4 +336,78 @@ func resolveServerHostPort(servername string, existingServers []services.Server)
 	}
 
 	return host, port, nil
+}
+
+type rawEvent struct {
+	Type    string `json:"type"`
+	Payload []byte `json:"payload"`
+}
+
+type websocketWrapper struct {
+	//io.ReadWriteCloser
+	//sync.Mutex
+
+	ws *websocket.Conn
+	//mode WebSocketMode
+
+	encoder *encoding.Encoder
+	decoder *encoding.Decoder
+}
+
+func newWebsocketWrapper(ws *websocket.Conn) *websocketWrapper {
+	if ws == nil {
+		return nil
+	}
+	return &websocketWrapper{
+		ws: ws,
+		//mode:    m,
+		encoder: unicode.UTF8.NewEncoder(),
+		decoder: unicode.UTF8.NewDecoder(),
+	}
+}
+
+func (w *websocketWrapper) Write(data []byte) (n int, err error) {
+	encodedBytes, err := w.encoder.Bytes(data)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	e := rawEvent{
+		Type:    "raw",
+		Payload: encodedBytes,
+	}
+
+	err = websocket.JSON.Send(w.ws, e)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	return len(data), nil
+}
+
+func (w *websocketWrapper) Read(out []byte) (n int, err error) {
+	var utf8 string
+	err = websocket.Message.Receive(w.ws, &utf8)
+	if err != nil {
+		if err == io.EOF {
+			return 0, io.EOF
+		}
+		return 0, trace.Wrap(err)
+	}
+
+	var data []byte
+	data, err = w.decoder.Bytes([]byte(utf8))
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	if len(out) < len(data) {
+		log.Warningf("websocket failed to receive everything: %d vs %d", len(out), len(data))
+	}
+
+	return copy(out, data), nil
+}
+
+func (w *websocketWrapper) Close() error {
+	return w.ws.Close()
 }

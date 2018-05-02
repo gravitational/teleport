@@ -1402,7 +1402,7 @@ func (h *Handler) siteNodeConnect(
 
 	// start the websocket session with a web-based terminal:
 	log.Infof("[WEB] getting terminal to '%#v'", req)
-	term.Run(w, r)
+	term.Serve(w, r)
 
 	return nil, nil
 }
@@ -1423,29 +1423,29 @@ type sessionStreamEvent struct {
 // json events
 //
 func (h *Handler) siteSessionStream(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	sessionID, err := session.ParseID(p.ByName("sid"))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	//sessionID, err := session.ParseID(p.ByName("sid"))
+	//if err != nil {
+	//	return nil, trace.Wrap(err)
+	//}
 
-	namespace := p.ByName("namespace")
-	if !services.IsValidNamespace(namespace) {
-		return nil, trace.BadParameter("invalid namespace %q", namespace)
-	}
+	//namespace := p.ByName("namespace")
+	//if !services.IsValidNamespace(namespace) {
+	//	return nil, trace.BadParameter("invalid namespace %q", namespace)
+	//}
 
-	connect, err := newSessionStreamHandler(namespace, *sessionID, ctx, site)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// this is to make sure we close web socket connections once
-	// sessionContext that owns them expires
-	ctx.AddClosers(connect)
-	defer func() {
-		connect.Close()
-		ctx.RemoveCloser(connect)
-	}()
+	//connect, err := newSessionStreamHandler(namespace, *sessionID, ctx, site)
+	//if err != nil {
+	//	return nil, trace.Wrap(err)
+	//}
+	//// this is to make sure we close web socket connections once
+	//// sessionContext that owns them expires
+	//ctx.AddClosers(connect)
+	//defer func() {
+	//	connect.Close()
+	//	ctx.RemoveCloser(connect)
+	//}()
 
-	connect.Handler().ServeHTTP(w, r)
+	//connect.Handler().ServeHTTP(w, r)
 	return nil, nil
 }
 

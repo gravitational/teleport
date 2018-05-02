@@ -85,7 +85,7 @@ func (c *SessionContext) UpdateSessionTerminal(siteAPI auth.ClientI, namespace s
 	}
 
 	// Issue the "window-change" SSH request to the remote terminal.
-	err = term.resizePTYWindow(params)
+	err = term.windowChange(params)
 	if err != nil {
 		return trace.Wrap(err)
 	}
