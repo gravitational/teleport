@@ -539,8 +539,8 @@ func (i *Identity) HasTLSConfig() bool {
 
 // HasPrincipals returns whether identity has principals
 func (i *Identity) HasPrincipals(additionalPrincipals []string) bool {
-	set := utils.StringsSet(additionalPrincipals)
-	for _, principal := range i.Cert.ValidPrincipals {
+	set := utils.StringsSet(i.Cert.ValidPrincipals)
+	for _, principal := range additionalPrincipals {
 		if _, ok := set[principal]; !ok {
 			return false
 		}

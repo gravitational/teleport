@@ -19,7 +19,6 @@ package service
 import (
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"path/filepath"
 	"time"
@@ -62,9 +61,9 @@ type Config struct {
 	// for teleport roles, this is helpful when server is preconfigured
 	Identities []*auth.Identity
 
-	// AdvertiseIP is used to "publish" an alternative IP address this node
+	// AdvertiseIP is used to "publish" an alternative IP address or hostname this node
 	// can be reached on, if running behind NAT
-	AdvertiseIP net.IP
+	AdvertiseIP string
 
 	// CachePolicy sets caching policy for nodes and proxies
 	// in case if they loose connection to auth servers
@@ -275,8 +274,9 @@ type ProxyConfig struct {
 
 	Limiter limiter.LimiterConfig
 
-	// PublicAddr is the public address the Teleport UI can be accessed at.
-	PublicAddr utils.NetAddr
+	// PublicAddrs is a list of the public addresses the Teleport UI can be accessed at,
+	// it also affects the SSH host principals and DNS names added to the SSH and TLS certs.
+	PublicAddrs []utils.NetAddr
 }
 
 // AuthConfig is a configuration of the auth server
@@ -324,6 +324,9 @@ type AuthConfig struct {
 
 	// LicenseFile is a full path to the license file
 	LicenseFile string
+
+	// PublicAddrs affects the SSH host principals and DNS names added to the SSH and TLS certs.
+	PublicAddrs []utils.NetAddr
 }
 
 // SSHConfig configures SSH server node role
@@ -339,6 +342,9 @@ type SSHConfig struct {
 
 	// PAM holds PAM configuration for Teleport.
 	PAM *pam.Config
+
+	// PublicAddrs affects the SSH host principals and DNS names added to the SSH and TLS certs.
+	PublicAddrs []utils.NetAddr
 }
 
 // MakeDefaultConfig creates a new Config structure and populates it with defaults

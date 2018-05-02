@@ -79,7 +79,7 @@ type Server struct {
 	proxyMode bool
 	proxyTun  reversetunnel.Server
 
-	advertiseIP     net.IP
+	advertiseIP     string
 	proxyPublicAddr utils.NetAddr
 
 	// server UUID gets generated once on the first start and never changes
@@ -344,7 +344,7 @@ func New(addr utils.NetAddr,
 	signers []ssh.Signer,
 	authService auth.AccessPoint,
 	dataDir string,
-	advertiseIP net.IP,
+	advertiseIP string,
 	proxyPublicAddr utils.NetAddr,
 	options ...ServerOption) (*Server, error) {
 
@@ -458,13 +458,13 @@ func (s *Server) PermitUserEnvironment() bool {
 	return s.permitUserEnvironment
 }
 
-func (s *Server) setAdvertiseIP(ip net.IP) {
+func (s *Server) setAdvertiseIP(ip string) {
 	s.Lock()
 	defer s.Unlock()
 	s.advertiseIP = ip
 }
 
-func (s *Server) getAdvertiseIP() net.IP {
+func (s *Server) getAdvertiseIP() string {
 	s.Lock()
 	defer s.Unlock()
 	return s.advertiseIP
@@ -474,11 +474,20 @@ func (s *Server) getAdvertiseIP() net.IP {
 // as, in "ip:host" form
 func (s *Server) AdvertiseAddr() string {
 	// set if we have explicit --advertise-ip option
-	if s.getAdvertiseIP() == nil {
+	advertiseIP := s.getAdvertiseIP()
+	if advertiseIP == "" {
 		return s.addr.Addr
 	}
 	_, port, _ := net.SplitHostPort(s.addr.Addr)
-	return net.JoinHostPort(s.getAdvertiseIP().String(), port)
+	ahost, aport, err := utils.ParseAdvertiseAddr(advertiseIP)
+	if err != nil {
+		log.Warningf("Failed to parse advertise address %q, %v, using default value %q.", advertiseIP, err, s.addr.Addr)
+		return s.addr.Addr
+	}
+	if aport == "" {
+		aport = port
+	}
+	return fmt.Sprintf("%v:%v", ahost, aport)
 }
 
 func (s *Server) getRole() teleport.Role {

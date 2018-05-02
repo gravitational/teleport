@@ -219,7 +219,7 @@ func (process *TeleportProcess) periodicSyncRotationState() error {
 	process.WaitForEvent(process.ExitContext(), TeleportReadyEvent, eventC)
 	select {
 	case <-eventC:
-		process.Infof("The new service has started successfully. Starting syncing rotation status.")
+		process.Infof("The new service has started successfully. Starting syncing rotation status with period %v.", process.Config.PollingPeriod)
 	case <-process.ExitContext().Done():
 		process.Infof("Periodic rotation sync has exited.")
 		return nil
@@ -296,14 +296,16 @@ func (process *TeleportProcess) syncServiceRotationState(ca services.CertAuthori
 func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2, remote services.Rotation) (bool, error) {
 	id := conn.ClientIdentity.ID
 	local := localState.Spec.Rotation
-	if local.Matches(remote) {
-		// nothing to do, local state and rotation state are in sync
-		return false, nil
-	}
 
 	additionalPrincipals, err := process.getAdditionalPrincipals(id.Role)
 	if err != nil {
 		return false, trace.Wrap(err)
+	}
+	principalsChanged := len(additionalPrincipals) != 0 && !conn.ServerIdentity.HasPrincipals(additionalPrincipals)
+
+	if local.Matches(remote) && !principalsChanged {
+		// nothing to do, local state and rotation state are in sync
+		return false, nil
 	}
 
 	storage := process.storage
@@ -330,8 +332,8 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 		// that the old node came up and missed the whole rotation
 		// rollback cycle.
 		case "", services.RotationStateStandby:
-			if len(additionalPrincipals) != 0 && !conn.ServerIdentity.HasPrincipals(additionalPrincipals) {
-				process.Infof("%v has updated principals to %q, going to request new principals and update")
+			if principalsChanged {
+				process.Infof("Service %v has updated principals to %q, going to request new principals and update.", id.Role, additionalPrincipals)
 				identity, err := conn.ReRegister(additionalPrincipals)
 				if err != nil {
 					return false, trace.Wrap(err)
