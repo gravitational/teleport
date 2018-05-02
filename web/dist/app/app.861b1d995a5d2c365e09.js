@@ -1441,8 +1441,6 @@ webpackJsonp([0],[
 
 	var _documentTitle = __webpack_require__(267);
 
-	var _documentTitle2 = _interopRequireDefault(_documentTitle);
-
 	function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key]; } } newObj.default = obj; return newObj; } }
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
@@ -1451,7 +1449,7 @@ webpackJsonp([0],[
 	  var routesToAdd = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : [];
 
 	  return [{
-	    component: _documentTitle2.default,
+	    component: _documentTitle.RouteDocumentTitle,
 	    childRoutes: [{ path: _config2.default.routes.error, title: "Error", component: Message.ErrorPage }, { path: _config2.default.routes.info, title: "Info", component: Message.InfoPage }, { path: _config2.default.routes.login, title: "Login", component: _login2.default }, { path: _config2.default.routes.newUser, component: _invite2.default }, { path: _config2.default.routes.app, onEnter: function onEnter(localtion, replace) {
 	        return replace(_config2.default.routes.nodes);
 	      } }].concat(routesToAdd, [{ path: '*', component: Message.NotFound }])
@@ -10129,30 +10127,76 @@ webpackJsonp([0],[
 
 /***/ }),
 /* 267 */
-/***/ (function(module, exports) {
+/***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
-	/*
-	Copyright 2015 Gravitational, Inc.
+	exports.RouteDocumentTitle = exports.DocumentTitle = undefined;
 
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
+	var _react = __webpack_require__(2);
 
-	    http://www.apache.org/licenses/LICENSE-2.0
+	var _react2 = _interopRequireDefault(_react);
 
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; } /*
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Copyright 2015 Gravitational, Inc.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Licensed under the Apache License, Version 2.0 (the "License");
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               you may not use this file except in compliance with the License.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               You may obtain a copy of the License at
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   http://www.apache.org/licenses/LICENSE-2.0
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Unless required by applicable law or agreed to in writing, software
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               distributed under the License is distributed on an "AS IS" BASIS,
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               See the License for the specific language governing permissions and
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               limitations under the License.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               */
 
 	var DEFAULT_TITLE = 'Teleport by Gravitational';
 
-	var DocumentTitle = function DocumentTitle(props) {
+	var DocumentTitle = exports.DocumentTitle = function (_React$Component) {
+	  _inherits(DocumentTitle, _React$Component);
+
+	  function DocumentTitle() {
+	    _classCallCheck(this, DocumentTitle);
+
+	    return _possibleConstructorReturn(this, _React$Component.apply(this, arguments));
+	  }
+
+	  DocumentTitle.prototype.componentWillReceiveProps = function componentWillReceiveProps(nextProps) {
+	    if (this.getTitle() !== nextProps.title) {
+	      this.setTitle(nextProps.title);
+	    }
+	  };
+
+	  DocumentTitle.prototype.componentDidMount = function componentDidMount() {
+	    this.setTitle(this.props.title);
+	  };
+
+	  DocumentTitle.prototype.getTitle = function getTitle() {
+	    return document.title;
+	  };
+
+	  DocumentTitle.prototype.setTitle = function setTitle(title) {
+	    document.title = title;
+	  };
+
+	  DocumentTitle.prototype.render = function render() {
+	    return this.props.children;
+	  };
+
+	  return DocumentTitle;
+	}(_react2.default.Component);
+
+	var RouteDocumentTitle = exports.RouteDocumentTitle = function RouteDocumentTitle(props) {
 	  var title = DEFAULT_TITLE;
 	  var routes = props.routes || [];
 	  for (var i = routes.length - 1; i > 0; i--) {
@@ -10166,9 +10210,6 @@ webpackJsonp([0],[
 
 	  return props.children;
 	};
-
-	exports.default = DocumentTitle;
-	module.exports = exports['default'];
 
 /***/ }),
 /* 268 */
@@ -10329,6 +10370,8 @@ webpackJsonp([0],[
 
 	var _nodeList2 = _interopRequireDefault(_nodeList);
 
+	var _documentTitle = __webpack_require__(267);
+
 	var _store = __webpack_require__(412);
 
 	var _withStorage = __webpack_require__(414);
@@ -10336,22 +10379,6 @@ webpackJsonp([0],[
 	var _withStorage2 = _interopRequireDefault(_withStorage);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
 
 	var Nodes = function Nodes(props) {
 	  var siteNodes = props.siteNodes,
@@ -10363,19 +10390,38 @@ webpackJsonp([0],[
 
 	  var logins = aclStore.getSshLogins().toJS();
 	  var nodeRecords = siteNodes.toJS();
+	  var title = siteId + ' \xB7 Nodes';
 	  return _react2.default.createElement(
 	    'div',
 	    { className: 'grv-page' },
-	    _react2.default.createElement(_nodeList2.default, {
-	      sshHistory: sshHistory,
-	      storage: storage,
-	      siteId: siteId,
-	      sites: sites,
-	      nodeRecords: nodeRecords,
-	      logins: logins
-	    })
+	    _react2.default.createElement(
+	      _documentTitle.DocumentTitle,
+	      { title: title },
+	      _react2.default.createElement(_nodeList2.default, {
+	        sshHistory: sshHistory,
+	        storage: storage,
+	        siteId: siteId,
+	        sites: sites,
+	        nodeRecords: nodeRecords,
+	        logins: logins
+	      })
+	    )
 	  );
-	};
+	}; /*
+	   Copyright 2015 Gravitational, Inc.
+	   
+	   Licensed under the Apache License, Version 2.0 (the "License");
+	   you may not use this file except in compliance with the License.
+	   You may obtain a copy of the License at
+	   
+	       http://www.apache.org/licenses/LICENSE-2.0
+	   
+	   Unless required by applicable law or agreed to in writing, software
+	   distributed under the License is distributed on an "AS IS" BASIS,
+	   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	   See the License for the specific language governing permissions and
+	   limitations under the License.
+	   */
 
 	function mapStateToProps() {
 	  return {
@@ -15097,7 +15143,7 @@ webpackJsonp([0],[
 
 	    var auditRoutes = [{
 	      path: _config2.default.routes.sessions,
-	      title: "Stored Sessions",
+	      title: "Sessions",
 	      component: _this.withMe(_main2.default)
 	    }, {
 	      path: _config2.default.routes.player,
@@ -15147,6 +15193,10 @@ webpackJsonp([0],[
 
 	var _getters2 = __webpack_require__(448);
 
+	var _getters3 = __webpack_require__(273);
+
+	var _getters4 = _interopRequireDefault(_getters3);
+
 	var _dataProvider = __webpack_require__(450);
 
 	var _dataProvider2 = _interopRequireDefault(_dataProvider);
@@ -15154,6 +15204,8 @@ webpackJsonp([0],[
 	var _sessionList = __webpack_require__(451);
 
 	var _sessionList2 = _interopRequireDefault(_sessionList);
+
+	var _documentTitle = __webpack_require__(267);
 
 	var _withStorage = __webpack_require__(414);
 
@@ -15200,20 +15252,26 @@ webpackJsonp([0],[
 
 	  Sessions.prototype.render = function render() {
 	    var _props = this.props,
+	        siteId = _props.siteId,
 	        storedSessions = _props.storedSessions,
 	        activeSessions = _props.activeSessions,
 	        storedSessionsFilter = _props.storedSessionsFilter;
 
+	    var title = siteId + ' \xB7 Sessions';
 	    return _react2.default.createElement(
-	      'div',
-	      { className: 'grv-page grv-sessions' },
-	      _react2.default.createElement(_sessionList2.default, {
-	        storage: this.props.storage,
-	        activeSessions: activeSessions,
-	        storedSessions: storedSessions,
-	        filter: storedSessionsFilter
-	      }),
-	      _react2.default.createElement(_dataProvider2.default, { onFetch: this.refresh })
+	      _documentTitle.DocumentTitle,
+	      { title: title },
+	      _react2.default.createElement(
+	        'div',
+	        { className: 'grv-page grv-sessions' },
+	        _react2.default.createElement(_sessionList2.default, {
+	          storage: this.props.storage,
+	          activeSessions: activeSessions,
+	          storedSessions: storedSessions,
+	          filter: storedSessionsFilter
+	        }),
+	        _react2.default.createElement(_dataProvider2.default, { onFetch: this.refresh })
+	      )
 	    );
 	  };
 
@@ -15222,6 +15280,7 @@ webpackJsonp([0],[
 
 	function mapFluxToProps() {
 	  return {
+	    siteId: _getters4.default.siteId,
 	    activeSessions: _getters.activeSessionList,
 	    storedSessions: _getters.storedSessionList,
 	    storedSessionsFilter: _getters2.filter
@@ -16750,6 +16809,8 @@ webpackJsonp([0],[
 
 	var _partyListPanel2 = _interopRequireDefault(_partyListPanel);
 
+	var _documentTitle = __webpack_require__(267);
+
 	var _config = __webpack_require__(228);
 
 	var _config2 = _interopRequireDefault(_config);
@@ -16797,11 +16858,19 @@ webpackJsonp([0],[
 	    if (!this.url) {
 	      return null;
 	    }
+
+	    var siteId = this.props.params.siteId;
+
+	    var title = siteId + ' \xB7 Player';
 	    return _react2.default.createElement(
-	      'div',
-	      { className: 'grv-terminalhost grv-session-player' },
-	      _react2.default.createElement(_partyListPanel2.default, { onClose: _actions.close }),
-	      _react2.default.createElement(_player.Player, { url: this.url })
+	      _documentTitle.DocumentTitle,
+	      { title: title },
+	      _react2.default.createElement(
+	        'div',
+	        { className: 'grv-terminalhost grv-session-player' },
+	        _react2.default.createElement(_partyListPanel2.default, { onClose: _actions.close }),
+	        _react2.default.createElement(_player.Player, { url: this.url })
+	      )
 	    );
 	  };
 
