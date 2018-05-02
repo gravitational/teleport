@@ -1,4 +1,4 @@
-FROM quay.io/gravitational/mkdocs-base
+FROM quay.io/gravitational/mkdocs-base:0.16.1
 
 ARG UID
 ARG GID
