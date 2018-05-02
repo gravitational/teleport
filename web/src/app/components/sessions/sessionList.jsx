@@ -126,7 +126,7 @@ class SessionList extends React.Component {
             </div>            
             <div className="grv-flex">              
               <ClusterSelector/>
-              <InputSearch value={searchValue} onChange={this.onSearchChange} />
+              <InputSearch autoFocus={true} value={searchValue} onChange={this.onSearchChange} />
               <div className="m-l-sm">
                 <DateRangePicker startDate={start} endDate={end} onChange={this.onRangePickerChange} />
               </div>

@@ -16,8 +16,8 @@ limitations under the License.
 
 import React from 'react';
 import classnames from 'classnames';
-const logoSvg = require('assets/img/svg/grv-tlpt-logo-full.svg');
-const closeSvg = require('assets/img/svg/grv-icon-close.svg');
+const logoSvg = require('assets/img/grv-tlpt-logo-full.svg');
+const closeSvg = require('assets/img/grv-icon-close.svg');
 
 const TeleportLogo = () => (
   <svg className="grv-icon-logo-tlpt"><use xlinkHref={logoSvg}/></svg>

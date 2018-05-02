@@ -125,5 +125,5 @@ server.app.get(ROOT +'/*', serveHTML());
 server.app.get(ROOT, serveHTML());
 
 server.listen(PORT, "0.0.0.0", function() {
-  console.log('Dev Server is up and running: https://location:' + PORT + '/web/');
+  console.log('Dev Server is up and running: https://localhost:' + PORT + '/web/');
 });

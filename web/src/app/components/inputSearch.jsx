@@ -49,14 +49,14 @@ class InputSearch extends React.Component {
     }
   }
 
-  render() {
-    let { className = '' } = this.props;
+  render() {    
+    let { className = '', autoFocus = false } = this.props;
     className = `grv-search input-group-sm ${className}`;
 
     return (
       <div className={className}>
         <input placeholder="Search..." className="form-control"
-          autoFocus
+          autoFocus={autoFocus}
           value={this.state.value}
           onChange={this.onChange} />
       </div>

@@ -13,6 +13,10 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
-module.exports.getters = require('./getters');
-module.exports.actions = require('./actions');
+import reactor from 'app/reactor';
+import { ADD_ITEM } from './actionTypes';
+    
+export const saveSshLogin = ({login, serverId, siteId}) => {  
+  reactor.dispatch(ADD_ITEM, {login, serverId, siteId} );
+}
+    

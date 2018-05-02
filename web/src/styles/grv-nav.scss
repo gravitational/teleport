@@ -14,28 +14,33 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-.grv-nav{
+.grv-nav {
   background-color: #2f4050;
   max-width: 70px;
   overflow: hidden;
-
   .nav {
-
-    > li.active{
+    >li.active {
       border: none;
       background-color: #293846;
     }
-
-    li:hover{
+    li a {
+      color: $nav-text-color;
+      font-weight: 600;
+      padding: 14px 20px 14px 25px;
+      &:focus,
+      &:hover {
+        background-color: #293846;
+        color: #fff
+      }
+      i {
+        margin-right: 6px;
+      }
     }
-
-    li:first-child{
+    li:first-child {
       margin: 20px 0 15px 0;
     }
-
-    .fa{
+    .fa {
       font-size: 20px;
     }
   }
-
 }

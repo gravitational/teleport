@@ -25,8 +25,9 @@ import cfg from 'app/config';
 import { initAppStatus } from 'app/flux/status/actions';
 import { fetchNodes } from './../nodes/actions';
 import { fetchActiveSessions } from 'app/flux/sessions/actions';
+import Logger from 'app/lib/logger';
 
-const logger = require('app/lib/logger').create('flux/app');
+const logger = Logger.create('flux/app');
 
 export function addNavItem(item) {
   reactor.dispatch(ADD_NAV_ITEM, item);

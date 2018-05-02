@@ -31,9 +31,11 @@ const store = Store({
   }
 });
 
-reactor.registerStores({  
-  [STORE_NAME]: store
-});
+export const register = reactor => {
+  reactor.registerStores({  
+    [STORE_NAME]: store
+  });
+}
 
 export const storage = {
   

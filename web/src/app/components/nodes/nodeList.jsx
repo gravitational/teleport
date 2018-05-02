@@ -201,9 +201,9 @@ class NodeList extends React.Component {
   }
 
   render() {      
-    const { nodeRecords, logins, onLoginClick } = this.props;       
+    const { sshHistory, siteId, nodeRecords, logins, onLoginClick } = this.props;       
     const searchValue = this.state.filter;
-    const data = this.sortAndFilter(nodeRecords);                                     
+    const data = this.sortAndFilter(nodeRecords);                                         
     return (
       <div className="grv-nodes m-t">                
         <div className="grv-flex grv-header" style={{ justifyContent: "space-between" }}>                    
@@ -211,7 +211,11 @@ class NodeList extends React.Component {
           <div className="grv-flex">          
             <ClusterSelector/>  
             <InputSearch value={searchValue} onChange={this.onFilterChange} />                        
-            <InputSshServer onEnter={this.onSshInputEnter} />            
+            <InputSshServer
+              autoFocus={true}  
+              clusterId={siteId}
+              sshHistory={sshHistory}
+              onEnter={this.onSshInputEnter} />            
           </div>          
         </div>
         <div className="m-t">

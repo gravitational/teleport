@@ -22,7 +22,7 @@ describe('components/user/login', () => {
     reactor.reset();
   })
   
-  it('should login using username and password', () => {        
+  it('should login with username and password', () => {        
     let props = getProps({      
       auth2faType: enums.Auth2faTypeEnum.DISABLED
     });

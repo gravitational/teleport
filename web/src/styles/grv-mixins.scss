@@ -14,5 +14,22 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-export const TLPT_NOTIFICATIONS_ADD = 'TLPT_NOTIFICATIONS_ADD';
-
+@mixin withMonoFont($className) {
+  .--isLinux {
+    #{$className} {
+      font-family: $grv-font-mono-linux;
+    }
+  }
+  
+  .--isWin {
+    #{$className} {
+      font-family: $grv-font-mono-win;
+      }
+    }
+  
+  .--isMac {
+    #{$className} {
+      font-family: $grv-font-mono-mac;
+    }
+  }  
+}

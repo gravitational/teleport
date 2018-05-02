@@ -15,33 +15,23 @@ limitations under the License.
 */
 
 import React from 'react';
-import reactor from 'app/reactor';
 import siteGetters from 'app/flux/sites/getters';
 import appGetters from 'app/flux/app/getters';
 import DropDown from './dropdown.jsx';
 import { setSiteId, refresh } from 'app/flux/app/actions';
 import { isUUID } from 'app/lib/objectUtils';
+import { connect } from 'nuclear-js-react-addons';
 
-const ClusterSelector = React.createClass({
-
-  mixins: [reactor.ReactMixin],
-
-  getDataBindings() {
-    return {                  
-      sites: siteGetters.sites,
-      siteId: appGetters.siteId
-    }
-  },
-  
-  onChangeSite(value) {
+class ClusterSelector extends React.Component {
+    
+  onChangeSite = value => {
     setSiteId(value);      
     refresh();
-  },
+  }
 
   render() {
-    let { sites, siteId } = this.state;
-    
-    let siteOptions = sites.map(s => ({
+    const { sites, siteId } = this.props;    
+    const siteOptions = sites.map(s => ({
       label: s.name,
       value: s.name
     }));
@@ -64,6 +54,15 @@ const ClusterSelector = React.createClass({
       </div>                                                                              
     );
   }
-});
+}
 
-export default ClusterSelector;
+function mapStateToProps() {
+  return {    
+    sites: siteGetters.sites,
+    siteId: appGetters.siteId
+  }
+}
+
+export default connect(mapStateToProps)(ClusterSelector);
+
+

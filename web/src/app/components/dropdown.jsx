@@ -87,7 +87,9 @@ class DropDown extends React.Component {
     return (
       <div className={mainClass}>
         <div className = "dropdown" >
-          <div className={btnClass} type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true">
+          <div className={btnClass}
+            type="button"
+            data-toggle="dropdown">
             <div className={valueClass}>
               <span style={{textOverflow: "ellipsis", overflow: "hidden"}}>{displayValue}</span>
               <span className="caret m-l-sm"></span>
@@ -95,7 +97,11 @@ class DropDown extends React.Component {
           </div>
           {$menu}          
         </div>
-        <input className={classRules} value={hiddenValue} type="hidden" ref="input" name={name}/>
+        <input className={classRules}
+          value={hiddenValue}
+          type="hidden"
+          ref="input"
+          name={name} />
       </div>
     )
   }

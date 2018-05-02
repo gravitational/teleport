@@ -39,21 +39,21 @@ webpackJsonp([0],[
 
 	var Features = _interopRequireWildcard(_features);
 
-	var _settings = __webpack_require__(546);
+	var _settings = __webpack_require__(549);
 
-	var _featureActivator = __webpack_require__(540);
+	var _featureActivator = __webpack_require__(543);
 
 	var _featureActivator2 = _interopRequireDefault(_featureActivator);
 
 	var _actions = __webpack_require__(284);
 
-	var _app = __webpack_require__(552);
+	var _app = __webpack_require__(555);
 
 	var _app2 = _interopRequireDefault(_app);
 
 	var _actions2 = __webpack_require__(239);
 
-	__webpack_require__(556);
+	__webpack_require__(559);
 
 	function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key]; } } newObj.default = obj; return newObj; } }
 
@@ -3745,12 +3745,10 @@ webpackJsonp([0],[
 /***/ (function(module, exports, __webpack_require__) {
 
 	/**
-	 *  Copyright (c) 2014-2015, Facebook, Inc.
-	 *  All rights reserved.
+	 * Copyright (c) 2014-present, Facebook, Inc.
 	 *
-	 *  This source code is licensed under the BSD-style license found in the
-	 *  LICENSE file in the root directory of this source tree. An additional grant
-	 *  of patent rights can be found in the PATENTS file in the same directory.
+	 * This source code is licensed under the MIT license found in the
+	 * LICENSE file in the root directory of this source tree.
 	 */
 
 	(function (global, factory) {
@@ -10185,11 +10183,11 @@ webpackJsonp([0],[
 
 	var _featureSsh2 = _interopRequireDefault(_featureSsh);
 
-	var _featureAudit = __webpack_require__(441);
+	var _featureAudit = __webpack_require__(444);
 
 	var _featureAudit2 = _interopRequireDefault(_featureAudit);
 
-	var _featureSettings = __webpack_require__(539);
+	var _featureSettings = __webpack_require__(542);
 
 	var _featureSettings2 = _interopRequireDefault(_featureSettings);
 
@@ -10229,13 +10227,13 @@ webpackJsonp([0],[
 
 	var _main2 = _interopRequireDefault(_main);
 
-	var _featureBase = __webpack_require__(414);
+	var _featureBase = __webpack_require__(416);
 
 	var _featureBase2 = _interopRequireDefault(_featureBase);
 
 	var _actions = __webpack_require__(284);
 
-	var _terminalHost = __webpack_require__(417);
+	var _terminalHost = __webpack_require__(419);
 
 	var _terminalHost2 = _interopRequireDefault(_terminalHost);
 
@@ -10331,14 +10329,33 @@ webpackJsonp([0],[
 
 	var _nodeList2 = _interopRequireDefault(_nodeList);
 
-	var _withStorage = __webpack_require__(412);
+	var _store = __webpack_require__(412);
+
+	var _withStorage = __webpack_require__(414);
 
 	var _withStorage2 = _interopRequireDefault(_withStorage);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
+	/*
+	Copyright 2015 Gravitational, Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	    http://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+	*/
+
 	var Nodes = function Nodes(props) {
 	  var siteNodes = props.siteNodes,
+	      sshHistory = props.sshHistory,
 	      aclStore = props.aclStore,
 	      sites = props.sites,
 	      siteId = props.siteId,
@@ -10350,6 +10367,7 @@ webpackJsonp([0],[
 	    'div',
 	    { className: 'grv-page' },
 	    _react2.default.createElement(_nodeList2.default, {
+	      sshHistory: sshHistory,
 	      storage: storage,
 	      siteId: siteId,
 	      sites: sites,
@@ -10357,27 +10375,14 @@ webpackJsonp([0],[
 	      logins: logins
 	    })
 	  );
-	}; /*
-	   Copyright 2015 Gravitational, Inc.
-	   
-	   Licensed under the Apache License, Version 2.0 (the "License");
-	   you may not use this file except in compliance with the License.
-	   You may obtain a copy of the License at
-	   
-	       http://www.apache.org/licenses/LICENSE-2.0
-	   
-	   Unless required by applicable law or agreed to in writing, software
-	   distributed under the License is distributed on an "AS IS" BASIS,
-	   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	   See the License for the specific language governing permissions and
-	   limitations under the License.
-	   */
+	};
 
 	function mapStateToProps() {
 	  return {
 	    siteId: _getters6.default.siteId,
 	    siteNodes: _getters4.default.siteNodes,
-	    aclStore: _getters2.default.userAcl
+	    aclStore: _getters2.default.userAcl,
+	    sshHistory: _store.getters.store
 	  };
 	}
 
@@ -10785,6 +10790,8 @@ webpackJsonp([0],[
 
 	  NodeList.prototype.render = function render() {
 	    var _props3 = this.props,
+	        sshHistory = _props3.sshHistory,
+	        siteId = _props3.siteId,
 	        nodeRecords = _props3.nodeRecords,
 	        logins = _props3.logins,
 	        onLoginClick = _props3.onLoginClick;
@@ -10807,7 +10814,11 @@ webpackJsonp([0],[
 	          { className: 'grv-flex' },
 	          _react2.default.createElement(_clusterSelector2.default, null),
 	          _react2.default.createElement(_inputSearch2.default, { value: searchValue, onChange: this.onFilterChange }),
-	          _react2.default.createElement(_inputSshServer2.default, { onEnter: this.onSshInputEnter })
+	          _react2.default.createElement(_inputSshServer2.default, {
+	            autoFocus: true,
+	            clusterId: siteId,
+	            sshHistory: sshHistory,
+	            onEnter: this.onSshInputEnter })
 	        )
 	      ),
 	      _react2.default.createElement(
@@ -11013,8 +11024,11 @@ webpackJsonp([0],[
 	  };
 
 	  InputSearch.prototype.render = function render() {
-	    var _props$className = this.props.className,
-	        className = _props$className === undefined ? '' : _props$className;
+	    var _props = this.props,
+	        _props$className = _props.className,
+	        className = _props$className === undefined ? '' : _props$className,
+	        _props$autoFocus = _props.autoFocus,
+	        autoFocus = _props$autoFocus === undefined ? false : _props$autoFocus;
 
 	    className = 'grv-search input-group-sm ' + className;
 
@@ -11022,7 +11036,7 @@ webpackJsonp([0],[
 	      'div',
 	      { className: className },
 	      _react2.default.createElement('input', { placeholder: 'Search...', className: 'form-control',
-	        autoFocus: true,
+	        autoFocus: autoFocus,
 	        value: this.state.value,
 	        onChange: this.onChange })
 	    );
@@ -11074,6 +11088,12 @@ webpackJsonp([0],[
 
 	var SSH_STR_REGEX = /(^\w+\@(\w|\.|\-)+(:\d+)*$)|(^$)/;
 	var PLACEHOLDER_TEXT = 'login@host';
+	var DEFAULT_HISTORY_INDEX = -1;
+
+	var KeyEnum = {
+	  UP: 38,
+	  DOWN: 40
+	};
 
 	var InputSshServer = function (_React$Component) {
 	  _inherits(InputSshServer, _React$Component);
@@ -11087,14 +11107,41 @@ webpackJsonp([0],[
 	      args[_key] = arguments[_key];
 	    }
 
-	    return _ret = (_temp = (_this = _possibleConstructorReturn(this, _React$Component.call.apply(_React$Component, [this].concat(args))), _this), _this.state = {
-	      hasErrors: false
+	    return _ret = (_temp = (_this = _possibleConstructorReturn(this, _React$Component.call.apply(_React$Component, [this].concat(args))), _this), _this.prevLoginIndex = DEFAULT_HISTORY_INDEX, _this.state = {
+	      hasErrors: false,
+	      value: ''
 	    }, _this.onChange = function (e) {
 	      var value = e.target.value;
 	      var isValid = _this.isValid(value);
 	      if (isValid && _this.state.hasErrors === true) {
-	        _this.setState({ hasErrors: false });
+	        _this.setState({
+	          hasErrors: false,
+	          value: value
+	        });
 	      }
+
+	      _this.setState({ value: value });
+	    }, _this.onKeyUp = function (e) {
+	      if (_this.getPrevLogins().length === 0) {
+	        return;
+	      }
+
+	      var dir = 0;
+	      var keyCode = e.which;
+	      if (keyCode === KeyEnum.UP) {
+	        dir = 1;
+	      }
+
+	      if (keyCode === KeyEnum.DOWN) {
+	        dir = -1;
+	      }
+
+	      if (dir === 0) {
+	        return;
+	      }
+
+	      var login = _this.getNextLogin(dir);
+	      _this.setState({ value: login });
 	    }, _this.onKeyPress = function (e) {
 	      var value = e.target.value;
 	      var isValid = _this.isValid(value);
@@ -11111,33 +11158,79 @@ webpackJsonp([0],[
 	    }, _temp), _possibleConstructorReturn(_this, _ret);
 	  }
 
+	  InputSshServer.prototype.setDefaultPrevIndex = function setDefaultPrevIndex() {
+	    this.prevLoginIndex = DEFAULT_HISTORY_INDEX;
+	  };
+
+	  InputSshServer.prototype.componentWillReceiveProps = function componentWillReceiveProps(nextProps) {
+	    if (nextProps.clusterId !== this.props.clusterId || nextProps.sshHistory !== this.props.sshHistory) {
+	      this.setDefaultPrevIndex();
+	      this.setState({ value: '' });
+	    }
+	  };
+
+	  InputSshServer.prototype.getPrevLogins = function getPrevLogins() {
+	    var _props = this.props,
+	        sshHistory = _props.sshHistory,
+	        clusterId = _props.clusterId;
+
+	    return sshHistory.getPrevLogins(clusterId);
+	  };
+
+	  InputSshServer.prototype.getNextLogin = function getNextLogin(dir) {
+	    var logins = this.getPrevLogins();
+
+	    if (logins.length === 0) {
+	      return '';
+	    }
+
+	    var index = this.prevLoginIndex + dir;
+
+	    if (index < 0) {
+	      this.setDefaultPrevIndex();
+	      return '';
+	    }
+
+	    if (index >= logins.length) {
+	      index = this.prevLoginIndex;
+	    } else {
+	      this.prevLoginIndex = index;
+	    }
+
+	    return logins[this.prevLoginIndex];
+	  };
+
 	  InputSshServer.prototype.isValid = function isValid(value) {
 	    var match = SSH_STR_REGEX.exec(value);
 	    return !!match;
 	  };
 
 	  InputSshServer.prototype.render = function render() {
-	    var className = (0, _classnames2.default)('grv-sshserver-input', { '--error': this.state.hasErrors });
+	    var _this2 = this;
+
+	    var _state = this.state,
+	        value = _state.value,
+	        hasErrors = _state.hasErrors;
+	    var _props$autoFocus = this.props.autoFocus,
+	        autoFocus = _props$autoFocus === undefined ? false : _props$autoFocus;
+
+	    var className = (0, _classnames2.default)('grv-sshserver-input', { '--error': hasErrors });
 	    return _react2.default.createElement(
 	      'div',
 	      { className: className },
 	      _react2.default.createElement(
 	        'div',
-	        { className: 'm-l input-group input-group-sm', title: 'login to SSH server' },
-	        _react2.default.createElement('input', { className: 'form-control',
+	        { className: 'm-l input-group-sm', title: 'login to SSH server' },
+	        _react2.default.createElement('input', { ref: function ref(e) {
+	            _this2.inputRef = e;
+	          }, className: 'form-control',
 	          placeholder: PLACEHOLDER_TEXT,
+	          value: value,
+	          autoFocus: autoFocus,
 	          onChange: this.onChange,
+	          onKeyUp: this.onKeyUp,
 	          onKeyPress: this.onKeyPress
-	        }),
-	        _react2.default.createElement(
-	          'span',
-	          { className: 'input-group-btn' },
-	          _react2.default.createElement(
-	            'button',
-	            { className: 'btn btn-sm btn-white', onClick: this.onKeyPress },
-	            _react2.default.createElement('i', { className: 'fa fa-terminal text-muted' })
-	          )
-	        )
+	        })
 	      ),
 	      _react2.default.createElement(
 	        'label',
@@ -11150,6 +11243,11 @@ webpackJsonp([0],[
 	  return InputSshServer;
 	}(_react2.default.Component);
 
+	InputSshServer.propTypes = {
+	  sshHistory: _react.PropTypes.object.isRequired,
+	  clusterId: _react.PropTypes.string.isRequired,
+	  onEnter: _react.PropTypes.func.isRequired
+	};
 	exports.default = InputSshServer;
 	module.exports = exports['default'];
 
@@ -11405,10 +11503,6 @@ webpackJsonp([0],[
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _reactor = __webpack_require__(233);
-
-	var _reactor2 = _interopRequireDefault(_reactor);
-
 	var _getters = __webpack_require__(282);
 
 	var _getters2 = _interopRequireDefault(_getters);
@@ -11425,29 +11519,52 @@ webpackJsonp([0],[
 
 	var _objectUtils = __webpack_require__(277);
 
+	var _nuclearJsReactAddons = __webpack_require__(219);
+
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-	var ClusterSelector = _react2.default.createClass({
-	  displayName: 'ClusterSelector',
+	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
+	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
 
-	  mixins: [_reactor2.default.ReactMixin],
+	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; } /*
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Copyright 2015 Gravitational, Inc.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Licensed under the Apache License, Version 2.0 (the "License");
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               you may not use this file except in compliance with the License.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               You may obtain a copy of the License at
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   http://www.apache.org/licenses/LICENSE-2.0
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Unless required by applicable law or agreed to in writing, software
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               distributed under the License is distributed on an "AS IS" BASIS,
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               See the License for the specific language governing permissions and
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               limitations under the License.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               */
 
-	  getDataBindings: function getDataBindings() {
-	    return {
-	      sites: _getters2.default.sites,
-	      siteId: _getters4.default.siteId
-	    };
-	  },
-	  onChangeSite: function onChangeSite(value) {
-	    (0, _actions.setSiteId)(value);
-	    (0, _actions.refresh)();
-	  },
-	  render: function render() {
-	    var _state = this.state,
-	        sites = _state.sites,
-	        siteId = _state.siteId;
+	var ClusterSelector = function (_React$Component) {
+	  _inherits(ClusterSelector, _React$Component);
 
+	  function ClusterSelector() {
+	    var _temp, _this, _ret;
+
+	    _classCallCheck(this, ClusterSelector);
+
+	    for (var _len = arguments.length, args = Array(_len), _key = 0; _key < _len; _key++) {
+	      args[_key] = arguments[_key];
+	    }
+
+	    return _ret = (_temp = (_this = _possibleConstructorReturn(this, _React$Component.call.apply(_React$Component, [this].concat(args))), _this), _this.onChangeSite = function (value) {
+	      (0, _actions.setSiteId)(value);
+	      (0, _actions.refresh)();
+	    }, _temp), _possibleConstructorReturn(_this, _ret);
+	  }
+
+	  ClusterSelector.prototype.render = function render() {
+	    var _props = this.props,
+	        sites = _props.sites,
+	        siteId = _props.siteId;
 
 	    var siteOptions = sites.map(function (s) {
 	      return {
@@ -11477,24 +11594,19 @@ webpackJsonp([0],[
 	        options: siteOptions
 	      })
 	    );
-	  }
-	}); /*
-	    Copyright 2015 Gravitational, Inc.
-	    
-	    Licensed under the Apache License, Version 2.0 (the "License");
-	    you may not use this file except in compliance with the License.
-	    You may obtain a copy of the License at
-	    
-	        http://www.apache.org/licenses/LICENSE-2.0
-	    
-	    Unless required by applicable law or agreed to in writing, software
-	    distributed under the License is distributed on an "AS IS" BASIS,
-	    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	    See the License for the specific language governing permissions and
-	    limitations under the License.
-	    */
+	  };
 
-	exports.default = ClusterSelector;
+	  return ClusterSelector;
+	}(_react2.default.Component);
+
+	function mapStateToProps() {
+	  return {
+	    sites: _getters2.default.sites,
+	    siteId: _getters4.default.siteId
+	  };
+	}
+
+	exports.default = (0, _nuclearJsReactAddons.connect)(mapStateToProps)(ClusterSelector);
 	module.exports = exports['default'];
 
 /***/ }),
@@ -11684,7 +11796,9 @@ webpackJsonp([0],[
 	        { className: 'dropdown' },
 	        _react2.default.createElement(
 	          'div',
-	          { className: btnClass, type: 'button', 'data-toggle': 'dropdown', 'aria-haspopup': 'true', 'aria-expanded': 'true' },
+	          { className: btnClass,
+	            type: 'button',
+	            'data-toggle': 'dropdown' },
 	          _react2.default.createElement(
 	            'div',
 	            { className: valueClass },
@@ -11698,7 +11812,11 @@ webpackJsonp([0],[
 	        ),
 	        $menu
 	      ),
-	      _react2.default.createElement('input', { className: classRules, value: hiddenValue, type: 'hidden', ref: 'input', name: name })
+	      _react2.default.createElement('input', { className: classRules,
+	        value: hiddenValue,
+	        type: 'hidden',
+	        ref: 'input',
+	        name: name })
 	    );
 	  };
 
@@ -11753,23 +11871,29 @@ webpackJsonp([0],[
 
 	var _actions3 = __webpack_require__(290);
 
+	var _logger = __webpack_require__(245);
+
+	var _logger2 = _interopRequireDefault(_logger);
+
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-	var logger = __webpack_require__(245).create('flux/app'); /*
-	                                                           Copyright 2015 Gravitational, Inc.
-	                                                           
-	                                                           Licensed under the Apache License, Version 2.0 (the "License");
-	                                                           you may not use this file except in compliance with the License.
-	                                                           You may obtain a copy of the License at
-	                                                           
-	                                                               http://www.apache.org/licenses/LICENSE-2.0
-	                                                           
-	                                                           Unless required by applicable law or agreed to in writing, software
-	                                                           distributed under the License is distributed on an "AS IS" BASIS,
-	                                                           WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	                                                           See the License for the specific language governing permissions and
-	                                                           limitations under the License.
-	                                                           */
+	/*
+	Copyright 2015 Gravitational, Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	    http://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+	*/
+
+	var logger = _logger2.default.create('flux/app');
 
 	function addNavItem(item) {
 	  _reactor2.default.dispatch(_actionTypes.ADD_NAV_ITEM, item);
@@ -12227,6 +12351,129 @@ webpackJsonp([0],[
 	'use strict';
 
 	exports.__esModule = true;
+	exports.getters = exports.register = exports.SshHistoryRec = undefined;
+
+	var _nuclearJs = __webpack_require__(234);
+
+	var _immutable = __webpack_require__(253);
+
+	var _actionTypes = __webpack_require__(413);
+
+	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; } /*
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Copyright 2015 Gravitational, Inc.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Licensed under the Apache License, Version 2.0 (the "License");
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               you may not use this file except in compliance with the License.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               You may obtain a copy of the License at
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   http://www.apache.org/licenses/LICENSE-2.0
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Unless required by applicable law or agreed to in writing, software
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               distributed under the License is distributed on an "AS IS" BASIS,
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               See the License for the specific language governing permissions and
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               limitations under the License.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               */
+
+	var STORE_NAME = 'tlpt_ssh_history';
+
+	var SshHistoryRec = exports.SshHistoryRec = function (_Record) {
+	  _inherits(SshHistoryRec, _Record);
+
+	  function SshHistoryRec(params) {
+	    _classCallCheck(this, SshHistoryRec);
+
+	    return _possibleConstructorReturn(this, _Record.call(this, params));
+	  }
+
+	  SshHistoryRec.prototype.getPrevLogins = function getPrevLogins(siteId) {
+	    return this.clusterLogins.get(siteId) || [];
+	  };
+
+	  SshHistoryRec.prototype.addLoginString = function addLoginString(_ref) {
+	    var login = _ref.login,
+	        serverId = _ref.serverId,
+	        siteId = _ref.siteId;
+
+	    var logins = this.getIn(['clusterLogins', siteId]);
+	    if (!logins) {
+	      logins = [];
+	    }
+
+	    var loginStr = login + '@' + serverId;
+	    var exists = logins.some(function (i) {
+	      return i === loginStr;
+	    });
+
+	    if (exists) {
+	      return this;
+	    }
+
+	    logins.unshift(loginStr);
+	    return this.setIn(['clusterLogins', siteId], logins);
+	  };
+
+	  return SshHistoryRec;
+	}((0, _immutable.Record)({
+	  clusterLogins: new _immutable.Map()
+	}));
+
+	var store = (0, _nuclearJs.Store)({
+	  getInitialState: function getInitialState() {
+	    return new SshHistoryRec();
+	  },
+	  initialize: function initialize() {
+	    this.on(_actionTypes.ADD_ITEM, function (state, params) {
+	      return state.addLoginString(params);
+	    });
+	  }
+	});
+
+	var register = exports.register = function register(reactor) {
+	  var _reactor$registerStor;
+
+	  reactor.registerStores((_reactor$registerStor = {}, _reactor$registerStor[STORE_NAME] = store, _reactor$registerStor));
+	};
+
+	var getters = exports.getters = {
+	  store: [STORE_NAME]
+	};
+
+/***/ }),
+/* 413 */
+/***/ (function(module, exports) {
+
+	'use strict';
+
+	exports.__esModule = true;
+	/*
+	Copyright 2015 Gravitational, Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	    http://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+	*/
+	var ADD_ITEM = exports.ADD_ITEM = 'TLPT_SSH_HISTORY';
+
+/***/ }),
+/* 414 */
+/***/ (function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	exports.__esModule = true;
 
 	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
@@ -12234,7 +12481,7 @@ webpackJsonp([0],[
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _store = __webpack_require__(413);
+	var _store = __webpack_require__(415);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -12285,29 +12532,13 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 413 */
+/* 415 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
-	exports.storage = undefined;
-
-	var _reactor$registerStor; /*
-	                           Copyright 2015 Gravitational, Inc.
-	                           
-	                           Licensed under the Apache License, Version 2.0 (the "License");
-	                           you may not use this file except in compliance with the License.
-	                           You may obtain a copy of the License at
-	                           
-	                               http://www.apache.org/licenses/LICENSE-2.0
-	                           
-	                           Unless required by applicable law or agreed to in writing, software
-	                           distributed under the License is distributed on an "AS IS" BASIS,
-	                           WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	                           See the License for the specific language governing permissions and
-	                           limitations under the License.
-	                           */
+	exports.storage = exports.register = undefined;
 
 	var _nuclearJs = __webpack_require__(234);
 
@@ -12316,6 +12547,22 @@ webpackJsonp([0],[
 	var _reactor2 = _interopRequireDefault(_reactor);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	/*
+	Copyright 2015 Gravitational, Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	    http://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+	*/
 
 	var SET = 'MISC_SET';
 	var STORE_NAME = 'tlpt_misc';
@@ -12334,7 +12581,11 @@ webpackJsonp([0],[
 	  }
 	});
 
-	_reactor2.default.registerStores((_reactor$registerStor = {}, _reactor$registerStor[STORE_NAME] = store, _reactor$registerStor));
+	var register = exports.register = function register(reactor) {
+	  var _reactor$registerStor;
+
+	  reactor.registerStores((_reactor$registerStor = {}, _reactor$registerStor[STORE_NAME] = store, _reactor$registerStor));
+	};
 
 	var storage = exports.storage = {
 	  save: function save(key, payload) {
@@ -12346,7 +12597,7 @@ webpackJsonp([0],[
 	};
 
 /***/ }),
-/* 414 */
+/* 416 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -12363,7 +12614,7 @@ webpackJsonp([0],[
 
 	var _lodash = __webpack_require__(275);
 
-	var _withFeature = __webpack_require__(415);
+	var _withFeature = __webpack_require__(417);
 
 	var _withFeature2 = _interopRequireDefault(_withFeature);
 
@@ -12479,7 +12730,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 415 */
+/* 417 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -12496,7 +12747,7 @@ webpackJsonp([0],[
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _indicator = __webpack_require__(416);
+	var _indicator = __webpack_require__(418);
 
 	var _indicator2 = _interopRequireDefault(_indicator);
 
@@ -12604,7 +12855,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 416 */
+/* 418 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -12685,7 +12936,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 417 */
+/* 419 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -12700,37 +12951,37 @@ webpackJsonp([0],[
 
 	var _nuclearJsReactAddons = __webpack_require__(219);
 
-	var _enums = __webpack_require__(418);
+	var _enums = __webpack_require__(420);
 
-	var _terminal = __webpack_require__(419);
+	var _terminal = __webpack_require__(421);
 
 	var _terminal2 = _interopRequireDefault(_terminal);
 
-	var _getters = __webpack_require__(424);
+	var _getters = __webpack_require__(426);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
-	var _ttyAddressResolver = __webpack_require__(425);
+	var _ttyAddressResolver = __webpack_require__(427);
 
 	var _ttyAddressResolver2 = _interopRequireDefault(_ttyAddressResolver);
 
-	var _actions = __webpack_require__(426);
+	var _actions = __webpack_require__(428);
 
 	var _actions2 = __webpack_require__(290);
 
-	var _actions3 = __webpack_require__(430);
+	var _actions3 = __webpack_require__(433);
 
 	var playerActions = _interopRequireWildcard(_actions3);
 
-	var _partyListPanel = __webpack_require__(432);
+	var _partyListPanel = __webpack_require__(435);
 
 	var _partyListPanel2 = _interopRequireDefault(_partyListPanel);
 
-	var _indicator = __webpack_require__(416);
+	var _indicator = __webpack_require__(418);
 
 	var _indicator2 = _interopRequireDefault(_indicator);
 
-	var _terminalPartyList = __webpack_require__(433);
+	var _terminalPartyList = __webpack_require__(436);
 
 	var _terminalPartyList2 = _interopRequireDefault(_terminalPartyList);
 
@@ -12968,7 +13219,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 418 */
+/* 420 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -13002,22 +13253,22 @@ webpackJsonp([0],[
 	};
 
 /***/ }),
-/* 419 */
+/* 421 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _xterm = __webpack_require__(420);
+	var _xterm = __webpack_require__(422);
 
 	var _xterm2 = _interopRequireDefault(_xterm);
 
-	var _tty = __webpack_require__(421);
+	var _tty = __webpack_require__(423);
 
 	var _tty2 = _interopRequireDefault(_tty);
 
-	var _ttyEvents = __webpack_require__(423);
+	var _ttyEvents = __webpack_require__(425);
 
 	var _ttyEvents2 = _interopRequireDefault(_ttyEvents);
 
@@ -13243,8 +13494,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 420 */,
-/* 421 */
+/* 422 */,
+/* 423 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -13253,9 +13504,9 @@ webpackJsonp([0],[
 
 	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
-	var _events = __webpack_require__(422);
+	var _events = __webpack_require__(424);
 
-	var _enums = __webpack_require__(418);
+	var _enums = __webpack_require__(420);
 
 	var _api = __webpack_require__(241);
 
@@ -13394,7 +13645,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 422 */
+/* 424 */
 /***/ (function(module, exports) {
 
 	// Copyright Joyent, Inc. and other Node contributors.
@@ -13701,18 +13952,18 @@ webpackJsonp([0],[
 
 
 /***/ }),
-/* 423 */
+/* 425 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _events = __webpack_require__(422);
+	var _events = __webpack_require__(424);
 
 	var _lodash = __webpack_require__(275);
 
-	var _enums = __webpack_require__(418);
+	var _enums = __webpack_require__(420);
 
 	var _logger = __webpack_require__(245);
 
@@ -13821,7 +14072,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 424 */
+/* 426 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -13849,7 +14100,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 425 */
+/* 427 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -13935,13 +14186,12 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 426 */
+/* 428 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
-	exports.updateRoute = exports.close = exports.initTerminal = undefined;
 
 	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; /*
 	                                                                                                                                                                                                                                                                  Copyright 2015 Gravitational, Inc.
@@ -13959,6 +14209,10 @@ webpackJsonp([0],[
 	                                                                                                                                                                                                                                                                  limitations under the License.
 	                                                                                                                                                                                                                                                                  */
 
+
+	exports.initTerminal = initTerminal;
+	exports.close = close;
+	exports.updateRoute = updateRoute;
 
 	var _reactor = __webpack_require__(233);
 
@@ -13980,13 +14234,15 @@ webpackJsonp([0],[
 
 	var _logger2 = _interopRequireDefault(_logger);
 
-	var _nodeStore = __webpack_require__(427);
+	var _nodeStore = __webpack_require__(429);
 
-	var _getters = __webpack_require__(428);
+	var _getters = __webpack_require__(430);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
-	var _actionTypes = __webpack_require__(429);
+	var _actionTypes = __webpack_require__(431);
+
+	var _actions = __webpack_require__(432);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -13996,7 +14252,7 @@ webpackJsonp([0],[
 	  return _reactor2.default.dispatch(_actionTypes.TLPT_TERMINAL_SET_STATUS, json);
 	};
 
-	var initStore = function initStore(params) {
+	function initStore(params) {
 	  var serverId = params.serverId;
 
 	  var server = (0, _nodeStore.getNodeStore)().findServer(serverId);
@@ -14004,9 +14260,9 @@ webpackJsonp([0],[
 	  _reactor2.default.dispatch(_actionTypes.TLPT_TERMINAL_INIT, _extends({}, params, {
 	    hostname: hostname
 	  }));
-	};
+	}
 
-	var createSid = function createSid(routeParams) {
+	function createSid(routeParams) {
 	  var login = routeParams.login,
 	      siteId = routeParams.siteId;
 
@@ -14021,9 +14277,9 @@ webpackJsonp([0],[
 	  };
 
 	  return _api2.default.post(_config2.default.api.getSiteSessionUrl(siteId), data);
-	};
+	}
 
-	var initTerminal = exports.initTerminal = function initTerminal(routeParams) {
+	function initTerminal(routeParams) {
 	  logger.info('attempt to open a terminal', routeParams);
 
 	  var sid = routeParams.sid;
@@ -14052,24 +14308,26 @@ webpackJsonp([0],[
 	    initStore(newRouteParams);
 	    setStatus({ isReady: true });
 	    updateRoute(newRouteParams);
+
+	    (0, _actions.saveSshLogin)(routeParams);
 	  }).fail(function (err) {
 	    var errorText = _api2.default.getErrorText(err);
 	    setStatus({ isError: true, errorText: errorText });
 	  });
-	};
+	}
 
-	var close = exports.close = function close() {
+	function close() {
 	  _reactor2.default.dispatch(_actionTypes.TLPT_TERMINAL_CLOSE);
 	  _history2.default.push(_config2.default.routes.nodes);
-	};
+	}
 
-	var updateRoute = exports.updateRoute = function updateRoute(newRouteParams) {
+	function updateRoute(newRouteParams) {
 	  var routeUrl = _config2.default.getTerminalLoginUrl(newRouteParams);
 	  _history2.default.push(routeUrl);
-	};
+	}
 
 /***/ }),
-/* 427 */
+/* 429 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -14187,7 +14445,7 @@ webpackJsonp([0],[
 	});
 
 /***/ }),
-/* 428 */
+/* 430 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -14202,7 +14460,7 @@ webpackJsonp([0],[
 
 	var _config2 = _interopRequireDefault(_config);
 
-	var _enums = __webpack_require__(418);
+	var _enums = __webpack_require__(420);
 
 	var _reactor = __webpack_require__(233);
 
@@ -14210,7 +14468,7 @@ webpackJsonp([0],[
 
 	var _objectUtils = __webpack_require__(277);
 
-	var _nodeStore = __webpack_require__(427);
+	var _nodeStore = __webpack_require__(429);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -14367,7 +14625,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 429 */
+/* 431 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -14393,7 +14651,47 @@ webpackJsonp([0],[
 	var TLPT_TERMINAL_SET_STATUS = exports.TLPT_TERMINAL_SET_STATUS = 'TLPT_TERMINAL_SET_STATUS';
 
 /***/ }),
-/* 430 */
+/* 432 */
+/***/ (function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	exports.__esModule = true;
+	exports.saveSshLogin = undefined;
+
+	var _reactor = __webpack_require__(233);
+
+	var _reactor2 = _interopRequireDefault(_reactor);
+
+	var _actionTypes = __webpack_require__(413);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	/*
+	Copyright 2015 Gravitational, Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	    http://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+	*/
+	var saveSshLogin = exports.saveSshLogin = function saveSshLogin(_ref) {
+	    var login = _ref.login,
+	        serverId = _ref.serverId,
+	        siteId = _ref.siteId;
+
+	    _reactor2.default.dispatch(_actionTypes.ADD_ITEM, { login: login, serverId: serverId, siteId: siteId });
+	};
+
+/***/ }),
+/* 433 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -14410,7 +14708,7 @@ webpackJsonp([0],[
 
 	var _config2 = _interopRequireDefault(_config);
 
-	var _store = __webpack_require__(431);
+	var _store = __webpack_require__(434);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -14440,7 +14738,7 @@ webpackJsonp([0],[
 	}
 
 /***/ }),
-/* 431 */
+/* 434 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -14565,7 +14863,7 @@ webpackJsonp([0],[
 	});
 
 /***/ }),
-/* 432 */
+/* 435 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -14632,7 +14930,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 433 */
+/* 436 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -14643,13 +14941,13 @@ webpackJsonp([0],[
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _reactAddonsCssTransitionGroup = __webpack_require__(434);
+	var _reactAddonsCssTransitionGroup = __webpack_require__(437);
 
 	var _reactAddonsCssTransitionGroup2 = _interopRequireDefault(_reactAddonsCssTransitionGroup);
 
 	var _nuclearJsReactAddons = __webpack_require__(219);
 
-	var _getters = __webpack_require__(428);
+	var _getters = __webpack_require__(430);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
@@ -14706,14 +15004,14 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 434 */,
-/* 435 */,
-/* 436 */,
 /* 437 */,
 /* 438 */,
 /* 439 */,
 /* 440 */,
-/* 441 */
+/* 441 */,
+/* 442 */,
+/* 443 */,
+/* 444 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -14724,17 +15022,17 @@ webpackJsonp([0],[
 
 	var _config2 = _interopRequireDefault(_config);
 
-	var _featureBase = __webpack_require__(414);
+	var _featureBase = __webpack_require__(416);
 
 	var _featureBase2 = _interopRequireDefault(_featureBase);
 
 	var _actions = __webpack_require__(284);
 
-	var _main = __webpack_require__(442);
+	var _main = __webpack_require__(445);
 
 	var _main2 = _interopRequireDefault(_main);
 
-	var _playerHost = __webpack_require__(507);
+	var _playerHost = __webpack_require__(510);
 
 	var _playerHost2 = _interopRequireDefault(_playerHost);
 
@@ -14742,9 +15040,9 @@ webpackJsonp([0],[
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _actions2 = __webpack_require__(444);
+	var _actions2 = __webpack_require__(447);
 
-	var _store = __webpack_require__(431);
+	var _store = __webpack_require__(434);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -14828,7 +15126,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 442 */
+/* 445 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -14839,25 +15137,25 @@ webpackJsonp([0],[
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _connect = __webpack_require__(443);
+	var _connect = __webpack_require__(446);
 
 	var _connect2 = _interopRequireDefault(_connect);
 
-	var _actions = __webpack_require__(444);
+	var _actions = __webpack_require__(447);
 
-	var _getters = __webpack_require__(428);
+	var _getters = __webpack_require__(430);
 
-	var _getters2 = __webpack_require__(445);
+	var _getters2 = __webpack_require__(448);
 
-	var _dataProvider = __webpack_require__(447);
+	var _dataProvider = __webpack_require__(450);
 
 	var _dataProvider2 = _interopRequireDefault(_dataProvider);
 
-	var _sessionList = __webpack_require__(448);
+	var _sessionList = __webpack_require__(451);
 
 	var _sessionList2 = _interopRequireDefault(_sessionList);
 
-	var _withStorage = __webpack_require__(412);
+	var _withStorage = __webpack_require__(414);
 
 	var _withStorage2 = _interopRequireDefault(_withStorage);
 
@@ -14936,7 +15234,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 443 */
+/* 446 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15093,7 +15391,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 444 */
+/* 447 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15104,11 +15402,11 @@ webpackJsonp([0],[
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _getters = __webpack_require__(445);
+	var _getters = __webpack_require__(448);
 
 	var _actions = __webpack_require__(290);
 
-	var _actionTypes = __webpack_require__(446);
+	var _actionTypes = __webpack_require__(449);
 
 	var _logger = __webpack_require__(245);
 
@@ -15158,7 +15456,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 445 */
+/* 448 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -15190,7 +15488,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 446 */
+/* 449 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -15217,7 +15515,7 @@ webpackJsonp([0],[
 	var TLPT_STORED_SESSINS_FILTER_RECEIVE_MORE = exports.TLPT_STORED_SESSINS_FILTER_RECEIVE_MORE = 'TLPT_STORED_SESSINS_FILTER_RECEIVE_MORE';
 
 /***/ }),
-/* 447 */
+/* 450 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15296,7 +15594,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 448 */
+/* 451 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15319,13 +15617,13 @@ webpackJsonp([0],[
 
 	var _objectUtils = __webpack_require__(277);
 
-	var _storedSessionsFilter = __webpack_require__(449);
+	var _storedSessionsFilter = __webpack_require__(452);
 
 	var _table = __webpack_require__(280);
 
-	var _listItems = __webpack_require__(450);
+	var _listItems = __webpack_require__(453);
 
-	var _datePicker = __webpack_require__(506);
+	var _datePicker = __webpack_require__(509);
 
 	var _datePicker2 = _interopRequireDefault(_datePicker);
 
@@ -15491,7 +15789,7 @@ webpackJsonp([0],[
 	            'div',
 	            { className: 'grv-flex' },
 	            _react2.default.createElement(_clusterSelector2.default, null),
-	            _react2.default.createElement(_inputSearch2.default, { value: searchValue, onChange: this.onSearchChange }),
+	            _react2.default.createElement(_inputSearch2.default, { autoFocus: true, value: searchValue, onChange: this.onSearchChange }),
 	            _react2.default.createElement(
 	              'div',
 	              { className: 'm-l-sm' },
@@ -15561,7 +15859,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 449 */
+/* 452 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15581,11 +15879,11 @@ webpackJsonp([0],[
 	See the License for the specific language governing permissions and
 	limitations under the License.
 	*/
-	module.exports.getters = __webpack_require__(445);
-	module.exports.actions = __webpack_require__(444);
+	module.exports.getters = __webpack_require__(448);
+	module.exports.actions = __webpack_require__(447);
 
 /***/ }),
-/* 450 */
+/* 453 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15605,15 +15903,15 @@ webpackJsonp([0],[
 
 	var _moment2 = _interopRequireDefault(_moment);
 
-	var _layout = __webpack_require__(451);
+	var _layout = __webpack_require__(454);
 
 	var _layout2 = _interopRequireDefault(_layout);
 
-	var _moreButton = __webpack_require__(452);
+	var _moreButton = __webpack_require__(455);
 
 	var _moreButton2 = _interopRequireDefault(_moreButton);
 
-	var _popover = __webpack_require__(505);
+	var _popover = __webpack_require__(508);
 
 	var _popover2 = _interopRequireDefault(_popover);
 
@@ -15808,7 +16106,7 @@ webpackJsonp([0],[
 	exports.NodeCell = NodeCell;
 
 /***/ }),
-/* 451 */
+/* 454 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15920,7 +16218,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 452 */
+/* 455 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15935,7 +16233,7 @@ webpackJsonp([0],[
 
 	var _classnames2 = _interopRequireDefault(_classnames);
 
-	var _overlayTrigger = __webpack_require__(453);
+	var _overlayTrigger = __webpack_require__(456);
 
 	var _overlayTrigger2 = _interopRequireDefault(_overlayTrigger);
 
@@ -15983,7 +16281,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 453 */
+/* 456 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15998,7 +16296,7 @@ webpackJsonp([0],[
 
 	var _reactDom2 = _interopRequireDefault(_reactDom);
 
-	var _reactOverlays = __webpack_require__(454);
+	var _reactOverlays = __webpack_require__(457);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -16140,9 +16438,6 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 454 */,
-/* 455 */,
-/* 456 */,
 /* 457 */,
 /* 458 */,
 /* 459 */,
@@ -16191,7 +16486,10 @@ webpackJsonp([0],[
 /* 502 */,
 /* 503 */,
 /* 504 */,
-/* 505 */
+/* 505 */,
+/* 506 */,
+/* 507 */,
+/* 508 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16312,7 +16610,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 506 */
+/* 509 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16433,7 +16731,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 507 */
+/* 510 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16444,11 +16742,11 @@ webpackJsonp([0],[
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _actions = __webpack_require__(430);
+	var _actions = __webpack_require__(433);
 
-	var _player = __webpack_require__(508);
+	var _player = __webpack_require__(511);
 
-	var _partyListPanel = __webpack_require__(432);
+	var _partyListPanel = __webpack_require__(435);
 
 	var _partyListPanel2 = _interopRequireDefault(_partyListPanel);
 
@@ -16514,7 +16812,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 508 */
+/* 511 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16526,7 +16824,7 @@ webpackJsonp([0],[
 
 	var _jQuery2 = _interopRequireDefault(_jQuery);
 
-	var _jquery = __webpack_require__(509);
+	var _jquery = __webpack_require__(512);
 
 	var _jquery2 = _interopRequireDefault(_jquery);
 
@@ -16538,21 +16836,21 @@ webpackJsonp([0],[
 
 	var _reactDom2 = _interopRequireDefault(_reactDom);
 
-	var _reactSlider = __webpack_require__(531);
+	var _reactSlider = __webpack_require__(534);
 
 	var _reactSlider2 = _interopRequireDefault(_reactSlider);
 
-	var _terminal = __webpack_require__(419);
+	var _terminal = __webpack_require__(421);
 
 	var _terminal2 = _interopRequireDefault(_terminal);
 
-	var _ttyPlayer = __webpack_require__(532);
+	var _ttyPlayer = __webpack_require__(535);
 
-	var _indicator = __webpack_require__(416);
+	var _indicator = __webpack_require__(418);
 
 	var _indicator2 = _interopRequireDefault(_indicator);
 
-	var _items = __webpack_require__(538);
+	var _items = __webpack_require__(541);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -16809,9 +17107,6 @@ webpackJsonp([0],[
 	}(_react2.default.Component);
 
 /***/ }),
-/* 509 */,
-/* 510 */,
-/* 511 */,
 /* 512 */,
 /* 513 */,
 /* 514 */,
@@ -16832,7 +17127,10 @@ webpackJsonp([0],[
 /* 529 */,
 /* 530 */,
 /* 531 */,
-/* 532 */
+/* 532 */,
+/* 533 */,
+/* 534 */,
+/* 535 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16844,7 +17142,7 @@ webpackJsonp([0],[
 
 	var _jQuery2 = _interopRequireDefault(_jQuery);
 
-	var _buffer = __webpack_require__(533);
+	var _buffer = __webpack_require__(536);
 
 	var _buffer2 = _interopRequireDefault(_buffer);
 
@@ -16852,11 +17150,11 @@ webpackJsonp([0],[
 
 	var _api2 = _interopRequireDefault(_api);
 
-	var _tty = __webpack_require__(421);
+	var _tty = __webpack_require__(423);
 
 	var _tty2 = _interopRequireDefault(_tty);
 
-	var _enums = __webpack_require__(418);
+	var _enums = __webpack_require__(420);
 
 	var _logger = __webpack_require__(245);
 
@@ -17329,12 +17627,12 @@ webpackJsonp([0],[
 	exports.Buffer = Buffer;
 
 /***/ }),
-/* 533 */,
-/* 534 */,
-/* 535 */,
 /* 536 */,
 /* 537 */,
-/* 538 */
+/* 538 */,
+/* 539 */,
+/* 540 */,
+/* 541 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	"use strict";
@@ -17394,7 +17692,7 @@ webpackJsonp([0],[
 	};
 
 /***/ }),
-/* 539 */
+/* 542 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -17402,11 +17700,11 @@ webpackJsonp([0],[
 	exports.__esModule = true;
 	exports.SettingsFeatureBase = undefined;
 
-	var _featureBase = __webpack_require__(414);
+	var _featureBase = __webpack_require__(416);
 
 	var _featureBase2 = _interopRequireDefault(_featureBase);
 
-	var _featureActivator = __webpack_require__(540);
+	var _featureActivator = __webpack_require__(543);
 
 	var _featureActivator2 = _interopRequireDefault(_featureActivator);
 
@@ -17416,13 +17714,13 @@ webpackJsonp([0],[
 
 	var _config2 = _interopRequireDefault(_config);
 
-	var _main = __webpack_require__(541);
+	var _main = __webpack_require__(544);
 
 	var _main2 = _interopRequireDefault(_main);
 
-	var _actions2 = __webpack_require__(543);
+	var _actions2 = __webpack_require__(546);
 
-	var _settings = __webpack_require__(545);
+	var _settings = __webpack_require__(548);
 
 	var _settings2 = _interopRequireDefault(_settings);
 
@@ -17537,7 +17835,7 @@ webpackJsonp([0],[
 	exports.default = SettingsFeature;
 
 /***/ }),
-/* 540 */
+/* 543 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -17649,7 +17947,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 541 */
+/* 544 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -17664,7 +17962,7 @@ webpackJsonp([0],[
 
 	var _reactRouter = __webpack_require__(164);
 
-	var _getters = __webpack_require__(542);
+	var _getters = __webpack_require__(545);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
@@ -17765,7 +18063,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 542 */
+/* 545 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -17793,7 +18091,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 543 */
+/* 546 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -17806,11 +18104,11 @@ webpackJsonp([0],[
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _getters = __webpack_require__(542);
+	var _getters = __webpack_require__(545);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
-	var _actionTypes = __webpack_require__(544);
+	var _actionTypes = __webpack_require__(547);
 
 	var AT = _interopRequireWildcard(_actionTypes);
 
@@ -17853,7 +18151,7 @@ webpackJsonp([0],[
 	}
 
 /***/ }),
-/* 544 */
+/* 547 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -17880,7 +18178,7 @@ webpackJsonp([0],[
 	var SET_RES_TO_DELETE = exports.SET_RES_TO_DELETE = 'SETTINGS_SET_RES_TO_DELETE';
 
 /***/ }),
-/* 545 */
+/* 548 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -17891,7 +18189,7 @@ webpackJsonp([0],[
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _connect = __webpack_require__(443);
+	var _connect = __webpack_require__(446);
 
 	var _connect2 = _interopRequireDefault(_connect);
 
@@ -17899,7 +18197,7 @@ webpackJsonp([0],[
 
 	var Messages = _interopRequireWildcard(_msgPage);
 
-	var _getters = __webpack_require__(542);
+	var _getters = __webpack_require__(545);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
@@ -17976,7 +18274,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 546 */
+/* 549 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -17984,11 +18282,11 @@ webpackJsonp([0],[
 	exports.__esModule = true;
 	exports.createSettings = exports.append = undefined;
 
-	var _featureSettingsAccount = __webpack_require__(547);
+	var _featureSettingsAccount = __webpack_require__(550);
 
 	var _featureSettingsAccount2 = _interopRequireDefault(_featureSettingsAccount);
 
-	var _featureSettings = __webpack_require__(539);
+	var _featureSettings = __webpack_require__(542);
 
 	var _featureSettings2 = _interopRequireDefault(_featureSettings);
 
@@ -18026,26 +18324,26 @@ webpackJsonp([0],[
 	};
 
 /***/ }),
-/* 547 */
+/* 550 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _flags = __webpack_require__(548);
+	var _flags = __webpack_require__(551);
 
 	var featureFlags = _interopRequireWildcard(_flags);
 
-	var _featureSettings = __webpack_require__(539);
+	var _featureSettings = __webpack_require__(542);
 
 	var _config = __webpack_require__(228);
 
 	var _config2 = _interopRequireDefault(_config);
 
-	var _actions = __webpack_require__(543);
+	var _actions = __webpack_require__(546);
 
-	var _accountTab = __webpack_require__(549);
+	var _accountTab = __webpack_require__(552);
 
 	var _accountTab2 = _interopRequireDefault(_accountTab);
 
@@ -18124,7 +18422,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 548 */
+/* 551 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -18153,7 +18451,7 @@ webpackJsonp([0],[
 	  */
 
 /***/ }),
-/* 549 */
+/* 552 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -18170,7 +18468,7 @@ webpackJsonp([0],[
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _connect = __webpack_require__(443);
+	var _connect = __webpack_require__(446);
 
 	var _connect2 = _interopRequireDefault(_connect);
 
@@ -18180,17 +18478,17 @@ webpackJsonp([0],[
 
 	var _enums = __webpack_require__(264);
 
-	var _alerts = __webpack_require__(550);
+	var _alerts = __webpack_require__(553);
 
 	var Alerts = _interopRequireWildcard(_alerts);
 
 	var _user = __webpack_require__(250);
 
-	var _actions = __webpack_require__(551);
+	var _actions = __webpack_require__(554);
 
 	var actions = _interopRequireWildcard(_actions);
 
-	var _layout = __webpack_require__(451);
+	var _layout = __webpack_require__(454);
 
 	var _layout2 = _interopRequireDefault(_layout);
 
@@ -18492,7 +18790,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 550 */
+/* 553 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -18554,7 +18852,7 @@ webpackJsonp([0],[
 	};
 
 /***/ }),
-/* 551 */
+/* 554 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	"use strict";
@@ -18635,7 +18933,7 @@ webpackJsonp([0],[
 	}
 
 /***/ }),
-/* 552 */
+/* 555 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -18656,21 +18954,21 @@ webpackJsonp([0],[
 
 	var _getters2 = _interopRequireDefault(_getters);
 
-	var _browser = __webpack_require__(553);
+	var _browser = __webpack_require__(556);
 
 	var _actions = __webpack_require__(284);
 
-	var _navLeftBar = __webpack_require__(554);
+	var _navLeftBar = __webpack_require__(557);
 
 	var _navLeftBar2 = _interopRequireDefault(_navLeftBar);
 
-	var _dataProvider = __webpack_require__(447);
+	var _dataProvider = __webpack_require__(450);
 
 	var _dataProvider2 = _interopRequireDefault(_dataProvider);
 
 	var _msgPage = __webpack_require__(266);
 
-	var _indicator = __webpack_require__(416);
+	var _indicator = __webpack_require__(418);
 
 	var _indicator2 = _interopRequireDefault(_indicator);
 
@@ -18756,7 +19054,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 553 */
+/* 556 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -18790,7 +19088,7 @@ webpackJsonp([0],[
 	var platform = exports.platform = detectPlatform();
 
 /***/ }),
-/* 554 */
+/* 557 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -18810,7 +19108,7 @@ webpackJsonp([0],[
 
 	var UserFlux = _interopRequireWildcard(_user);
 
-	var _appStore = __webpack_require__(555);
+	var _appStore = __webpack_require__(558);
 
 	var AppStore = _interopRequireWildcard(_appStore);
 
@@ -18897,7 +19195,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 555 */
+/* 558 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -18992,7 +19290,7 @@ webpackJsonp([0],[
 	});
 
 /***/ }),
-/* 556 */
+/* 559 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19001,23 +19299,23 @@ webpackJsonp([0],[
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _store = __webpack_require__(557);
+	var _store = __webpack_require__(560);
 
 	var _store2 = _interopRequireDefault(_store);
 
-	var _store3 = __webpack_require__(431);
+	var _store3 = __webpack_require__(434);
 
 	var _store4 = _interopRequireDefault(_store3);
 
-	var _appStore = __webpack_require__(555);
+	var _appStore = __webpack_require__(558);
 
 	var _appStore2 = _interopRequireDefault(_appStore);
 
-	var _nodeStore = __webpack_require__(427);
+	var _nodeStore = __webpack_require__(429);
 
 	var _nodeStore2 = _interopRequireDefault(_nodeStore);
 
-	var _store5 = __webpack_require__(558);
+	var _store5 = __webpack_require__(561);
 
 	var _store6 = _interopRequireDefault(_store5);
 
@@ -19025,45 +19323,48 @@ webpackJsonp([0],[
 
 	var _statusStore2 = _interopRequireDefault(_statusStore);
 
-	__webpack_require__(413);
+	var _store7 = __webpack_require__(412);
+
+	var _store8 = __webpack_require__(415);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-	/*
-	Copyright 2015 Gravitational, Inc.
+	(0, _store7.register)(_reactor2.default); /*
+	                                          Copyright 2015 Gravitational, Inc.
+	                                          
+	                                          Licensed under the Apache License, Version 2.0 (the "License");
+	                                          you may not use this file except in compliance with the License.
+	                                          You may obtain a copy of the License at
+	                                          
+	                                              http://www.apache.org/licenses/LICENSE-2.0
+	                                          
+	                                          Unless required by applicable law or agreed to in writing, software
+	                                          distributed under the License is distributed on an "AS IS" BASIS,
+	                                          WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	                                          See the License for the specific language governing permissions and
+	                                          limitations under the License.
+	                                          */
 
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
+	(0, _store8.register)(_reactor2.default);
 
 	_reactor2.default.registerStores({
 	  'tlpt_settings': _store6.default,
 	  'tlpt': _appStore2.default,
 	  'tlpt_terminal': _store2.default,
 	  'tlpt_nodes': _nodeStore2.default,
-	  'tlpt_user': __webpack_require__(559),
-	  'tlpt_user_invite': __webpack_require__(560),
+	  'tlpt_user': __webpack_require__(562),
+	  'tlpt_user_invite': __webpack_require__(563),
 	  'tlpt_user_acl': _store4.default,
-	  'tlpt_sites': __webpack_require__(561),
+	  'tlpt_sites': __webpack_require__(564),
 	  'tlpt_status': _statusStore2.default,
-	  'tlpt_sessions_events': __webpack_require__(562),
-	  'tlpt_sessions_archived': __webpack_require__(563),
-	  'tlpt_sessions_active': __webpack_require__(564),
-	  'tlpt_sessions_filter': __webpack_require__(565),
-	  'tlpt_notifications': __webpack_require__(566)
+	  'tlpt_sessions_events': __webpack_require__(565),
+	  'tlpt_sessions_archived': __webpack_require__(566),
+	  'tlpt_sessions_active': __webpack_require__(567),
+	  'tlpt_sessions_filter': __webpack_require__(568)
 	});
 
 /***/ }),
-/* 557 */
+/* 560 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19083,7 +19384,7 @@ webpackJsonp([0],[
 
 	var _localStorage2 = _interopRequireDefault(_localStorage);
 
-	var _actionTypes = __webpack_require__(429);
+	var _actionTypes = __webpack_require__(431);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -19195,7 +19496,7 @@ webpackJsonp([0],[
 	}
 
 /***/ }),
-/* 558 */
+/* 561 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19206,7 +19507,7 @@ webpackJsonp([0],[
 
 	var _immutable = __webpack_require__(253);
 
-	var _actionTypes = __webpack_require__(544);
+	var _actionTypes = __webpack_require__(547);
 
 	var AT = _interopRequireWildcard(_actionTypes);
 
@@ -19275,7 +19576,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 559 */
+/* 562 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19349,7 +19650,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 560 */
+/* 563 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19398,7 +19699,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 561 */
+/* 564 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19448,7 +19749,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 562 */
+/* 565 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19506,7 +19807,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 563 */
+/* 566 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19519,7 +19820,7 @@ webpackJsonp([0],[
 
 	var _actionTypes = __webpack_require__(411);
 
-	var _enums = __webpack_require__(418);
+	var _enums = __webpack_require__(420);
 
 	/*
 	Copyright 2015 Gravitational, Inc.
@@ -19604,7 +19905,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 564 */
+/* 567 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19719,7 +20020,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 565 */
+/* 568 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19748,7 +20049,7 @@ webpackJsonp([0],[
 
 	var moment = __webpack_require__(291);
 
-	var _require2 = __webpack_require__(446),
+	var _require2 = __webpack_require__(449),
 	    TLPT_STORED_SESSINS_FILTER_SET_RANGE = _require2.TLPT_STORED_SESSINS_FILTER_SET_RANGE;
 
 	exports.default = Store({
@@ -19773,74 +20074,6 @@ webpackJsonp([0],[
 	  return state.merge(newState);
 	}
 	module.exports = exports['default'];
-
-/***/ }),
-/* 566 */
-/***/ (function(module, exports, __webpack_require__) {
-
-	'use strict';
-
-	exports.__esModule = true;
-
-	var _nuclearJs = __webpack_require__(234);
-
-	var _actionTypes = __webpack_require__(567);
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	exports.default = (0, _nuclearJs.Store)({
-	  getInitialState: function getInitialState() {
-	    return new _nuclearJs.Immutable.OrderedMap();
-	  },
-	  initialize: function initialize() {
-	    this.on(_actionTypes.TLPT_NOTIFICATIONS_ADD, addNotification);
-	  }
-	});
-
-
-	function addNotification(state, message) {
-	  return state.set(state.size, message);
-	}
-	module.exports = exports['default'];
-
-/***/ }),
-/* 567 */
-/***/ (function(module, exports) {
-
-	'use strict';
-
-	exports.__esModule = true;
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	var TLPT_NOTIFICATIONS_ADD = exports.TLPT_NOTIFICATIONS_ADD = 'TLPT_NOTIFICATIONS_ADD';
 
 /***/ })
 ]);

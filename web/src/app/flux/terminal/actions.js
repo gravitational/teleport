@@ -21,12 +21,13 @@ import Logger from 'app/lib/logger';
 import { getNodeStore } from './../nodes/nodeStore';
 import sessionGetters from './../sessions/getters';
 import { TLPT_TERMINAL_INIT, TLPT_TERMINAL_CLOSE, TLPT_TERMINAL_SET_STATUS } from './actionTypes';
+import { saveSshLogin } from './../sshHistory/actions';
 
 const logger = Logger.create('flux/terminal');
 
 const setStatus = json => reactor.dispatch(TLPT_TERMINAL_SET_STATUS, json);    
 
-const initStore = params => {
+function initStore(params) {
   const { serverId } = params;
   const server = getNodeStore().findServer(serverId);  
   const hostname = server ? server.hostname : '';
@@ -36,9 +37,9 @@ const initStore = params => {
   });
 }
 
-const createSid = routeParams => {
-  let { login, siteId } = routeParams;
-  let data = {
+function createSid(routeParams) {  
+  const { login, siteId } = routeParams;
+  const data = {
     session: {
       terminal_params: {
         w: 45,
@@ -51,15 +52,15 @@ const createSid = routeParams => {
   return api.post(cfg.api.getSiteSessionUrl(siteId), data);    
 }
     
-export const initTerminal = routeParams => {
+export function initTerminal(routeParams) {  
   logger.info('attempt to open a terminal', routeParams);    
   
-  let { sid } = routeParams;
+  const { sid } = routeParams;
   
   setStatus({ isLoading: true });
   
   if (sid) {                  
-    let activeSession = reactor.evaluate(sessionGetters.activeSessionById(sid));
+    const activeSession = reactor.evaluate(sessionGetters.activeSessionById(sid));
     if (activeSession) {      
       // init store with existing sid
       initStore(routeParams);
@@ -73,14 +74,16 @@ export const initTerminal = routeParams => {
   
   createSid(routeParams)
     .done(json => {
-      let sid = json.session.id;
-      let newRouteParams = {
+      const sid = json.session.id;
+      const newRouteParams = {
         ...routeParams,
         sid
       };        
       initStore(newRouteParams)
       setStatus({ isReady: true });
       updateRoute(newRouteParams);                    
+
+      saveSshLogin(routeParams);
     })
     .fail(err => {
       let errorText = api.getErrorText(err);
@@ -88,12 +91,12 @@ export const initTerminal = routeParams => {
     });  
 }
     
-export const close = () => {    
+export function close() {    
   reactor.dispatch(TLPT_TERMINAL_CLOSE);      
   history.push(cfg.routes.nodes);      
 }
 
-export const updateRoute = newRouteParams => {    
+export function updateRoute(newRouteParams) {    
   let routeUrl = cfg.getTerminalLoginUrl(newRouteParams);                                    
   history.push(routeUrl);      
 }  

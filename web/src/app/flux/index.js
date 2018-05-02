@@ -21,13 +21,17 @@ import appStore from './app/appStore';
 import nodeStore from './nodes/nodeStore';
 import settingsStore from './settings/store';
 import StatusStore from './status/statusStore';
-import './misc/store';
+import { register as registerSshHistory } from './sshHistory/store';
+import { register as registerMisc } from './misc/store';
+
+registerSshHistory(reactor);
+registerMisc(reactor);
 
 reactor.registerStores({
   'tlpt_settings': settingsStore,  
   'tlpt': appStore,    
   'tlpt_terminal': termStore,
-  'tlpt_nodes': nodeStore,
+  'tlpt_nodes': nodeStore,  
   'tlpt_user': require('./user/userStore'),  
   'tlpt_user_invite': require('./user/userInviteStore'),
   'tlpt_user_acl': userAcl,
@@ -36,6 +40,5 @@ reactor.registerStores({
   'tlpt_sessions_events': require('./sessions/eventStore'),
   'tlpt_sessions_archived': require('./sessions/archivedSessionStore'),
   'tlpt_sessions_active': require('./sessions/activeSessionStore'),
-  'tlpt_sessions_filter': require('./storedSessionsFilter/storedSessionFilterStore'),
-  'tlpt_notifications': require('./notifications/notificationStore')
+  'tlpt_sessions_filter': require('./storedSessionsFilter/storedSessionFilterStore')  
 });

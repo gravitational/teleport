@@ -35,20 +35,4 @@ limitations under the License.
  }
 }
 
-.--isLinux {
-  .terminal{
-    font-family: $grv-font-mono-linux;
-  }
-}
-
-.--isWin {
-  .terminal{
-    font-family: $grv-font-mono-win;
-  }
-}
-
-.--isMac {
-  .terminal{
-    font-family: $grv-font-mono-mac;
-  }
-}
+@include withMonoFont(".grv-terminal .terminal");
