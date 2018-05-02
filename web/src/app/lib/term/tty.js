@@ -16,7 +16,6 @@ limitations under the License.
 
 import BufferModule from 'buffer/';
 import { EventEmitter } from 'events';
-import api from 'app/services/api';
 import Logger from './../logger';
 import { EventTypeEnum, StatusCodeEnum } from './enums';
 
@@ -64,19 +63,27 @@ class Tty extends EventEmitter {
     this.socket.onclose = this._onCloseConnection;
   }
   
-  send(data){
-    this.socket.send(data);
+  send(data) {    
+    const msg = {
+      type: "raw",
+      payload: Buffer(data, 'utf8').toString('base64')
+    }
+
+    this.socket.send(JSON.stringify(msg));
   }
 
-  requestResize(w, h){    
-    const url = this._addressResolver.getResizeReqUrl();
-    const payload = { 
-      terminal_params: { w, h } 
-    };
-
-    logger.info('requesting new screen size', `w:${w} and h:${h}`);        
-    return api.put(url, payload)      
-      .fail(err => logger.error('requestResize', err));
+  requestResize(w, h){                        
+    const msg = {
+      type: "resize.request",
+      payload: {
+        event: EventTypeEnum.RESIZE,
+        width: w,
+        height: h,
+        size: `${w}:${h}`
+      }
+    }
+    
+    this.socket.send(JSON.stringify(msg));    
   }
 
   _flushBuffer() {    
@@ -111,7 +118,7 @@ class Tty extends EventEmitter {
 
   _onReceiveData(ev) {
     let msg = JSON.parse(ev.data);
-    //console.log("EVENT: ", a)    
+    //console.log("EVENT: ", msg)    
     if (msg.type === 'audit') {
       this._processEvent(msg.payload);
       return;

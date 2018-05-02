@@ -13242,10 +13242,6 @@ webpackJsonp([0],[
 
 	var _events = __webpack_require__(427);
 
-	var _api = __webpack_require__(241);
-
-	var _api2 = _interopRequireDefault(_api);
-
 	var _logger = __webpack_require__(245);
 
 	var _logger2 = _interopRequireDefault(_logger);
@@ -13323,19 +13319,26 @@ webpackJsonp([0],[
 	  };
 
 	  Tty.prototype.send = function send(data) {
-	    this.socket.send(data);
+	    var msg = {
+	      type: "raw",
+	      payload: Buffer(data, 'utf8').toString('base64')
+	    };
+
+	    this.socket.send(JSON.stringify(msg));
 	  };
 
 	  Tty.prototype.requestResize = function requestResize(w, h) {
-	    var url = this._addressResolver.getResizeReqUrl();
-	    var payload = {
-	      terminal_params: { w: w, h: h }
+	    var msg = {
+	      type: "resize.request",
+	      payload: {
+	        event: _enums.EventTypeEnum.RESIZE,
+	        width: w,
+	        height: h,
+	        size: w + ':' + h
+	      }
 	    };
 
-	    logger.info('requesting new screen size', 'w:' + w + ' and h:' + h);
-	    return _api2.default.put(url, payload).fail(function (err) {
-	      return logger.error('requestResize', err);
-	    });
+	    this.socket.send(JSON.stringify(msg));
 	  };
 
 	  Tty.prototype._flushBuffer = function _flushBuffer() {
@@ -13370,7 +13373,7 @@ webpackJsonp([0],[
 
 	  Tty.prototype._onReceiveData = function _onReceiveData(ev) {
 	    var msg = JSON.parse(ev.data);
-	    //console.log("EVENT: ", a)    
+	    //console.log("EVENT: ", msg)    
 	    if (msg.type === 'audit') {
 	      this._processEvent(msg.payload);
 	      return;
