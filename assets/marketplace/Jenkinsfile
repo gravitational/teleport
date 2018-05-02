@@ -17,14 +17,16 @@ pipeline {
             steps {
                 dir('assets/marketplace') {
                     sh 'make oss'
-                    stash includes: 'files/build/oss_build_timestamp.txt', name: 'timestamp'
+                    //stash includes: 'files/build/oss_build_timestamp.txt', name: 'timestamp'
+                    sh 'ls -l'
+                    sh 'pwd'
                 }
             }
         }
         stage('Update AMI IDs)') {
             steps {
                 dir('assets/marketplace') {
-                    unstash 'timestamp'
+                    //unstash 'timestamp'
                     sh 'make update-ami-ids-oss'
                 }
             }
