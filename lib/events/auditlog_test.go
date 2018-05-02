@@ -1233,24 +1233,61 @@ func (a *AuditTestSuite) TestForwardAndUpload(c *check.C) {
 		c.Fatalf("Timeout wating for the upload event")
 	}
 
-	// read the session bytes
-	history, err := alog.GetSessionEvents(defaults.Namespace, session.ID(sessionID), 0, true)
-	c.Assert(err, check.IsNil)
-	c.Assert(history, check.HasLen, 3)
+	compare := func() error {
+		history, err := alog.GetSessionEvents(defaults.Namespace, session.ID(sessionID), 0, true)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if len(history) != 3 {
+			return trace.BadParameter("expected history of 3, got %v", len(history))
+		}
 
-	// make sure offsets were properly set (0 for the first event and 5 bytes for hello):
-	c.Assert(history[1][SessionByteOffset], check.Equals, float64(0))
-	c.Assert(history[1][SessionEventTimestamp], check.Equals, float64(0))
+		// make sure offsets were properly set (0 for the first event and 5 bytes for hello):
+		if history[1][SessionByteOffset].(float64) != float64(0) {
+			return trace.BadParameter("expected offset of 0, got %v", history[1][SessionByteOffset])
+		}
+		if history[1][SessionEventTimestamp].(float64) != float64(0) {
+			return trace.BadParameter("expected timestamp of 0, got %v", history[1][SessionEventTimestamp])
+		}
 
-	// fetch all bytes
-	buff, err := alog.GetSessionChunk(defaults.Namespace, session.ID(sessionID), 0, 5000)
-	c.Assert(err, check.IsNil)
-	c.Assert(string(buff), check.Equals, string(firstMessage))
+		// fetch all bytes
+		buff, err := alog.GetSessionChunk(defaults.Namespace, session.ID(sessionID), 0, 5000)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if string(buff) != string(firstMessage) {
+			return trace.CompareFailed("%q != %q", string(buff), string(firstMessage))
+		}
 
-	// with offset
-	buff, err = alog.GetSessionChunk(defaults.Namespace, session.ID(sessionID), 2, 5000)
-	c.Assert(err, check.IsNil)
-	c.Assert(string(buff), check.Equals, string(firstMessage[2:]))
+		// with offset
+		buff, err = alog.GetSessionChunk(defaults.Namespace, session.ID(sessionID), 2, 5000)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if string(buff) != string(firstMessage[2:]) {
+			return trace.CompareFailed("%q != %q", string(buff), string(firstMessage[2:]))
+		}
+		return nil
+	}
+
+	// trigger several parallel downloads, they should not fail
+	iterations := 50
+	resultsC := make(chan error, iterations)
+	for i := 0; i < iterations; i++ {
+		go func() {
+			resultsC <- compare()
+		}()
+	}
+
+	timeout := time.After(time.Second)
+	for i := 0; i < iterations; i++ {
+		select {
+		case err := <-resultsC:
+			c.Assert(err, check.IsNil)
+		case <-timeout:
+			c.Fatalf("timeout waiting for goroutines to finish")
+		}
+	}
 }
 
 func marshal(f EventFields) []byte {
