@@ -6,18 +6,18 @@ pipeline {
         ansiColor(colorMapName: 'XTerm')
     }
     stages {
-        stage('Create files/build directory') {
-            steps {
-                dir('assets/marketplace/files') {
-                    sh 'mkdir -p build'
-                }
-            }
-        }
+        //stage('Create files/build directory') {
+        //    steps {
+        //        dir('assets/marketplace/files') {
+        //            sh 'mkdir -p build'
+        //        }
+        //    }
+        //}
         stage('Run Packer') {
             steps {
                 dir('assets/marketplace') {
                     sh 'make oss'
-                    stash includes: '**/files/build/oss_build_timestamp.txt', name: 'timestamp'
+                    stash includes: 'files/build/oss_build_timestamp.txt', name: 'timestamp'
                 }
             }
         }

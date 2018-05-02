@@ -43,8 +43,9 @@ export
 oss: TELEPORT_TYPE=oss
 oss:
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE)"
-	@echo "Build Timestamp: $(BUILD_TIMESTAMP)"
+	@echo "BUILD_TIMESTAMP=$(BUILD_TIMESTAMP)"
 	packer build -force -var build_timestamp=$(BUILD_TIMESTAMP) template.json
+	mkdir -p files/build
 	$(file > files/build/oss_build_timestamp.txt,$(BUILD_TIMESTAMP))
 
 .PHONY: ent
@@ -52,8 +53,9 @@ ent: TELEPORT_TYPE=ent
 ent: check-ent-vars
 	aws s3 cp $(TELEPORT_LICENSE_URI) files/system/license.pem
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE)"
-	@echo "Build Timestamp: $(BUILD_TIMESTAMP)"
+	@echo "BUILD_TIMESTAMP=$(BUILD_TIMESTAMP)"
 	packer build -force -var build_timestamp=$(BUILD_TIMESTAMP) template.json
+	mkdir -p files/build
 	$(file > files/build/ent_build_timestamp.txt,$(BUILD_TIMESTAMP))
 
 .PHONY: update-ami-ids-oss
