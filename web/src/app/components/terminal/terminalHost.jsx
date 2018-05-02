@@ -105,8 +105,7 @@ class TerminalContainer extends React.Component {
       el: this.refs.container,
       addressResolver      
     });
-    
-    this.terminal.ttyEvents.on('data', this.receiveEvents.bind(this));
+        
     this.terminal.open();
   }
   

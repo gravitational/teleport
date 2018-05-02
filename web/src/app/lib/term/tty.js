@@ -14,10 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import BufferModule from 'buffer/';
 import { EventEmitter } from 'events';
-import { StatusCodeEnum } from './enums';
 import api from 'app/services/api';
 import Logger from './../logger';
+import { EventTypeEnum, StatusCodeEnum } from './enums';
+
+const Buffer = BufferModule.Buffer;
 
 const logger = Logger.create('Tty');
 
@@ -107,12 +110,33 @@ class Tty extends EventEmitter {
   }
 
   _onReceiveData(ev) {
+    let msg = JSON.parse(ev.data);
+    //console.log("EVENT: ", a)    
+    if (msg.type === 'audit') {
+      this._processEvent(msg.payload);
+      return;
+    }
+    
+    let data = Buffer(msg.payload, 'base64').toString('utf8');
     if (this._buffered) {
-      this._pushToBuffer(ev.data);
+      this._pushToBuffer(data);
     } else {
-      this.emit('data', ev.data);            
+      this.emit('data', data);            
     }
   }
+
+  _processEvent(event) {
+    if (event.event === EventTypeEnum.RESIZE) {
+      this._processResize(event);      
+    }
+  }
+        
+  _processResize(event) {    
+    let [w, h] = event.size.split(':');
+    w = Number(w);
+    h = Number(h);
+    this.emit('resize', { w, h });
+  }  
 }
 
 export default Tty;

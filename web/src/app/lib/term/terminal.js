@@ -15,7 +15,6 @@ limitations under the License.
 */
 import XTerm from 'xterm/dist/xterm';
 import Tty from './tty';
-import TtyEvents from './ttyEvents';
 import {debounce, isNumber} from 'lodash';
 import Logger from 'app/lib/logger';
 
@@ -33,8 +32,7 @@ class TtyTerminal {
   constructor(options){
     const { addressResolver, el, scrollBack = 1000 } = options;    
     this._el = el;
-    this.tty = new Tty(addressResolver);
-    this.ttyEvents = new TtyEvents(addressResolver);
+    this.tty = new Tty(addressResolver);    
     this.scrollBack = scrollBack
     this.rows = undefined;
     this.cols = undefined;
@@ -76,15 +74,12 @@ class TtyTerminal {
 
     // subscribe tty resize event (used by session player)
     this.tty.on('resize', ({h, w}) => this.resize(w, h));        
-    // subscribe to session resize events (triggered by other participants)
-    this.ttyEvents.on('resize', ({h, w}) => this.resize(w, h));    
-
+        
     this.connect();    
   }
   
   connect(){    
-    this.tty.connect(this.cols, this.rows);
-    this.ttyEvents.connect();
+    this.tty.connect(this.cols, this.rows);    
   }
 
   destroy() {
@@ -148,9 +143,7 @@ class TtyTerminal {
 
   _disconnect() {        
     this.tty.disconnect();
-    this.tty.removeAllListeners();    
-    this.ttyEvents.disconnect();
-    this.ttyEvents.removeAllListeners();    
+    this.tty.removeAllListeners();        
   }
 
   _requestResize(){
