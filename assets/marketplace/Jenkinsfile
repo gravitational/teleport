@@ -19,6 +19,8 @@ pipeline {
                     sh 'make oss'
                     //stash includes: 'files/build/oss_build_timestamp.txt', name: 'timestamp'
                     sh 'ls -l'
+                    sh 'ls -l files'
+                    sh 'ls -l files/build'
                     sh 'pwd'
                 }
             }
