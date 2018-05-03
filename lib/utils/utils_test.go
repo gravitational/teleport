@@ -142,3 +142,38 @@ func (s *UtilsSuite) TestParseSessionsURI(c *check.C) {
 		}
 	}
 }
+
+// TestParseAdvertiseAddr tests parsing of advertise address
+func (s *UtilsSuite) TestParseAdvertiseAddr(c *check.C) {
+	testCases := []struct {
+		info string
+		in   string
+		host string
+		port string
+		err  error
+	}{
+		{info: "ok address", in: "192.168.1.1", host: "192.168.1.1"},
+		{info: "trim space", in: "   192.168.1.1    ", host: "192.168.1.1"},
+		{info: "multicast address", in: "224.0.0.0", err: trace.BadParameter("")},
+		{info: "multicast address", in: "   224.0.0.0   ", err: trace.BadParameter("")},
+		{info: "ok address and port", in: "192.168.1.1:22", host: "192.168.1.1", port: "22"},
+		{info: "ok address and bad port", in: "192.168.1.1:b", err: trace.BadParameter("")},
+		{info: "ok host", in: "localhost", host: "localhost"},
+		{info: "ok host and port", in: "localhost:33", host: "localhost", port: "33"},
+		{info: "missing host ", in: ":33", err: trace.BadParameter("")},
+		{info: "missing port", in: "localhost:", err: trace.BadParameter("")},
+		{info: "ipv6 address", in: "2001:0db8:85a3:0000:0000:8a2e:0370:7334", host: "2001:0db8:85a3:0000:0000:8a2e:0370:7334"},
+		{info: "ipv6 address and port", in: "[2001:0db8:85a3:0000:0000:8a2e:0370:7334]:443", host: "2001:0db8:85a3:0000:0000:8a2e:0370:7334", port: "443"},
+	}
+	for i, testCase := range testCases {
+		comment := check.Commentf("test case %v %q", i, testCase.info)
+		host, port, err := ParseAdvertiseAddr(testCase.in)
+		if testCase.err == nil {
+			c.Assert(err, check.IsNil, comment)
+			c.Assert(host, check.Equals, testCase.host)
+			c.Assert(port, check.Equals, testCase.port)
+		} else {
+			c.Assert(err, check.FitsTypeOf, testCase.err, comment)
+		}
+	}
+}

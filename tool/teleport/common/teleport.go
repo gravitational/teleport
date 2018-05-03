@@ -86,7 +86,7 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 		"Full path to the PID file. By default no PID file will be created").StringVar(&ccf.PIDFile)
 	start.Flag("advertise-ip",
 		"IP to advertise to clients if running behind NAT").
-		IPVar(&ccf.AdvertiseIP)
+		StringVar(&ccf.AdvertiseIP)
 	start.Flag("listen-ip",
 		fmt.Sprintf("IP address to bind to [%s]", defaults.BindIP)).
 		Short('l').
@@ -159,7 +159,6 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 	if err != nil {
 		utils.FatalError(err)
 	}
-	log.Debug("Clean exit.")
 	return command, conf
 }
 

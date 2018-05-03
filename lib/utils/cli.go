@@ -139,10 +139,10 @@ func UserMessageFromError(err error) string {
 		// error occured" message.
 		if er, ok := err.(*trace.TraceErr); ok {
 			if er.Message != "" {
-				return fmt.Sprintf("%v: %v", er.Message, er.Err.Error())
+				return fmt.Sprintf("error: %v", er.Message)
 			}
 		}
-		return fmt.Sprintf("A fatal error occurred: %v", err.Error())
+		return fmt.Sprintf("error: %v", err.Error())
 	}
 	return ""
 }
