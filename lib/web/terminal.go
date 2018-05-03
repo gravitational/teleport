@@ -237,6 +237,9 @@ func (t *TerminalHandler) handler(ws *websocket.Conn) {
 			t.eventCancel()
 		case <-t.eventContext.Done():
 		}
+
+		log.Debugf("Closing websocket stream to web client.")
+		return
 	}
 }
 
@@ -379,7 +382,6 @@ func (t *TerminalHandler) streamEvents(ws *websocket.Conn, tc *client.TeleportCl
 				}
 			}
 		case <-t.eventContext.Done():
-			log.Debugf("Closing audit event stream to web client.")
 			return
 		}
 	}
