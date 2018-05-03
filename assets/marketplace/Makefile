@@ -96,11 +96,11 @@ jenkins-create-stack:
 
 .PHONY: jenkins-wait-for-stack-creation
 jenkins-wait-for-stack-creation:
-	aws cloudformation wait stack-create-complete --stack-name $(JENKINS_TEST_STACK_NAME)
+	aws --region=$(AWS_REGION) cloudformation wait stack-create-complete --stack-name $(JENKINS_TEST_STACK_NAME)
 
 .PHONY: jenkins-wait-for-stack-creation-debug
 jenkins-wait-for-stack-creation:
-	aws cloudformation wait stack-create-complete --stack-name $(JENKINS_TEST_STACK_NAME) --debug
+	aws --region=$(AWS_REGION) cloudformation wait stack-create-complete --stack-name $(JENKINS_TEST_STACK_NAME) --debug
 
 .PHONY: update-stack
 update-stack:
@@ -130,7 +130,7 @@ jenkins-delete-stack:
 
 .PHONY: jenkins-wait-for-stack-deletion
 jenkins-wait-for-stack-deletion:
-	aws cloudformation wait stack-delete-complete --stack-name $(JENKINS_TEST_STACK_NAME)
+	aws --region=$(AWS_REGION) cloudformation wait stack-delete-complete --stack-name $(JENKINS_TEST_STACK_NAME)
 
 .PHONY: check-ent-vars
 check-ent-vars:
