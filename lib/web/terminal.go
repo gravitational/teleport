@@ -262,7 +262,7 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn) (*client.TeleportClient
 
 	// Create a wrapped websocket to wrap/unwrap the envelope used to
 	// communicate over the websocket.
-	socketWrapper := newWebsocketWrapper(ws, t)
+	wrappedSock := newWrappedSocket(ws, t)
 
 	clientConfig := &client.Config{
 		SkipLocalAuth:    true,
@@ -274,9 +274,9 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn) (*client.TeleportClient
 		HostLogin:        t.params.Login,
 		Username:         t.ctx.user,
 		Namespace:        t.params.Namespace,
-		Stdout:           socketWrapper,
-		Stderr:           socketWrapper,
-		Stdin:            socketWrapper,
+		Stdout:           wrappedSock,
+		Stderr:           wrappedSock,
+		Stdin:            wrappedSock,
 		SiteName:         t.params.Cluster,
 		ProxyHostPort:    t.params.ProxyHostPort,
 		Host:             t.hostName,
@@ -485,9 +485,9 @@ func resolveServerHostPort(servername string, existingServers []services.Server)
 	return host, port, nil
 }
 
-// websocketWrapper wraps and unwraps the envelope that is used to send events
+// wrappedSocket wraps and unwraps the envelope that is used to send events
 // over the websocket.
-type websocketWrapper struct {
+type wrappedSocket struct {
 	ws       *websocket.Conn
 	terminal *TerminalHandler
 
@@ -495,11 +495,11 @@ type websocketWrapper struct {
 	decoder *encoding.Decoder
 }
 
-func newWebsocketWrapper(ws *websocket.Conn, terminal *TerminalHandler) *websocketWrapper {
+func newWrappedSocket(ws *websocket.Conn, terminal *TerminalHandler) *wrappedSocket {
 	if ws == nil {
 		return nil
 	}
-	return &websocketWrapper{
+	return &wrappedSocket{
 		ws:       ws,
 		terminal: terminal,
 		encoder:  unicode.UTF8.NewEncoder(),
@@ -508,7 +508,7 @@ func newWebsocketWrapper(ws *websocket.Conn, terminal *TerminalHandler) *websock
 }
 
 // Write wraps the data bytes in a "raw" envelope and sends.
-func (w *websocketWrapper) Write(data []byte) (n int, err error) {
+func (w *wrappedSocket) Write(data []byte) (n int, err error) {
 	encodedBytes, err := w.encoder.Bytes(data)
 	if err != nil {
 		return 0, trace.Wrap(err)
@@ -529,7 +529,7 @@ func (w *websocketWrapper) Write(data []byte) (n int, err error) {
 
 // Read unwraps the envelope and either fills out the passed in bytes or
 // performs an action on the connection (sending window-change request).
-func (w *websocketWrapper) Read(out []byte) (n int, err error) {
+func (w *wrappedSocket) Read(out []byte) (n int, err error) {
 	var ue unknownEnvelope
 	err = websocket.JSON.Receive(w.ws, &ue)
 	if err != nil {
@@ -581,7 +581,7 @@ func (w *websocketWrapper) Read(out []byte) (n int, err error) {
 }
 
 // Close the websocket.
-func (w *websocketWrapper) Close() error {
+func (w *wrappedSocket) Close() error {
 	return w.ws.Close()
 }
 
