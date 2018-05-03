@@ -44,7 +44,7 @@ oss: TELEPORT_TYPE=oss
 oss:
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE)"
 	@echo "BUILD_TIMESTAMP=$(BUILD_TIMESTAMP)"
-	#packer build -force -var build_timestamp=$(BUILD_TIMESTAMP) template.json
+	packer build -force -var build_timestamp=$(BUILD_TIMESTAMP) template.json
 	@echo "$(BUILD_TIMESTAMP)" > files/build/oss_build_timestamp.txt
 
 .PHONY: ent
