@@ -171,12 +171,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.GET("/webapi/sites/:site/namespaces/:namespace/nodes", h.WithClusterAuth(h.siteNodesGet))
 
 	// active sessions handlers
-	h.GET("/webapi/sites/:site/namespaces/:namespace/connect", h.WithClusterAuth(h.siteNodeConnect))                       // connect to an active session (via websocket)
-	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions", h.WithClusterAuth(h.siteSessionsGet))                      // get active list of sessions
-	h.POST("/webapi/sites/:site/namespaces/:namespace/sessions", h.WithClusterAuth(h.siteSessionGenerate))                 // create active session metadata
-	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid", h.WithClusterAuth(h.siteSessionGet))                  // get active session metadata
-	h.PUT("/webapi/sites/:site/namespaces/:namespace/sessions/:sid", h.WithClusterAuth(h.siteSessionUpdate))               // update active session metadata (parameters)
-	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/events/stream", h.WithClusterAuth(h.siteSessionStream)) // get active session's byte stream (from events)
+	h.GET("/webapi/sites/:site/namespaces/:namespace/connect", h.WithClusterAuth(h.siteNodeConnect))       // connect to an active session (via websocket)
+	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions", h.WithClusterAuth(h.siteSessionsGet))      // get active list of sessions
+	h.POST("/webapi/sites/:site/namespaces/:namespace/sessions", h.WithClusterAuth(h.siteSessionGenerate)) // create active session metadata
+	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid", h.WithClusterAuth(h.siteSessionGet))  // get active session metadata
 
 	// recorded sessions handlers
 	h.GET("/webapi/sites/:site/events", h.WithClusterAuth(h.siteEventsGet))                                            // get recorded list of sessions (from events)
@@ -1394,7 +1392,7 @@ func (h *Handler) siteNodeConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	term, err := NewTerminal(*req, clt, ctx)
+	term, err := NewTerminal(*req, clt, ctx, site)
 	if err != nil {
 		log.Errorf("[WEB] Unable to create terminal: %v", err)
 		return nil, trace.Wrap(err)
@@ -1404,48 +1402,6 @@ func (h *Handler) siteNodeConnect(
 	log.Infof("[WEB] getting terminal to '%#v'", req)
 	term.Serve(w, r)
 
-	return nil, nil
-}
-
-// sessionStreamEvent is sent over the session stream socket, it contains
-// last events that occurred (only new events are sent)
-type sessionStreamEvent struct {
-	Events []events.EventFields `json:"events"`
-	//Session *session.Session     `json:"session"`
-	//Servers []services.ServerV1  `json:"servers"`
-}
-
-// siteSessionStream returns a stream of events related to the session
-//
-// GET /v1/webapi/sites/:site/namespaces/:namespace/sessions/:sid/events/stream?access_token=bearer_token
-//
-// Successful response is a websocket stream that allows read write to the server and returns
-// json events
-//
-func (h *Handler) siteSessionStream(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	//sessionID, err := session.ParseID(p.ByName("sid"))
-	//if err != nil {
-	//	return nil, trace.Wrap(err)
-	//}
-
-	//namespace := p.ByName("namespace")
-	//if !services.IsValidNamespace(namespace) {
-	//	return nil, trace.BadParameter("invalid namespace %q", namespace)
-	//}
-
-	//connect, err := newSessionStreamHandler(namespace, *sessionID, ctx, site)
-	//if err != nil {
-	//	return nil, trace.Wrap(err)
-	//}
-	//// this is to make sure we close web socket connections once
-	//// sessionContext that owns them expires
-	//ctx.AddClosers(connect)
-	//defer func() {
-	//	connect.Close()
-	//	ctx.RemoveCloser(connect)
-	//}()
-
-	//connect.Handler().ServeHTTP(w, r)
 	return nil, nil
 }
 
@@ -1489,48 +1445,6 @@ func (h *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p 
 
 type siteSessionUpdateReq struct {
 	TerminalParams session.TerminalParams `json:"terminal_params"`
-}
-
-// siteSessionUpdate udpdates the site session
-//
-// PUT /v1/webapi/sites/:site/sessions/:sid
-//
-// Request body:
-//
-// {"terminal_params": {"w": 100, "h": 100}}
-//
-// Response body:
-//
-// {"message": "ok"}
-//
-func (h *Handler) siteSessionUpdate(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	sessionID, err := session.ParseID(p.ByName("sid"))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var req *siteSessionUpdateReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	siteAPI, err := site.GetClient()
-	if err != nil {
-		log.Error(err)
-		return nil, trace.Wrap(err)
-	}
-
-	namespace := p.ByName("namespace")
-	if !services.IsValidNamespace(namespace) {
-		return nil, trace.BadParameter("invalid namespace %q", namespace)
-	}
-
-	err = ctx.UpdateSessionTerminal(siteAPI, namespace, *sessionID, req.TerminalParams)
-	if err != nil {
-		log.Error(err)
-		return nil, trace.Wrap(err)
-	}
-	return ok(), nil
 }
 
 type siteSessionsGetResponse struct {

@@ -26,22 +26,23 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
+
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 	"github.com/tstranex/u2f"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
 )
 
 // SessionContext is a context associated with users'
@@ -58,39 +59,6 @@ type SessionContext struct {
 	parent    *sessionCache
 	closers   []io.Closer
 	tc        *client.TeleportClient
-}
-
-// getTerminal finds and returns an active web terminal for a given session:
-func (c *SessionContext) getTerminal(sessionID session.ID) (*TerminalHandler, error) {
-	c.Lock()
-	defer c.Unlock()
-
-	for _, closer := range c.closers {
-		term, ok := closer.(*TerminalHandler)
-		if ok && term.params.SessionID == sessionID {
-			return term, nil
-		}
-	}
-	return nil, trace.NotFound("no connected streams")
-}
-
-// UpdateSessionTerminal issues a "window-change" request on the terminal
-// associated with this session when the browser window has changed size.
-func (c *SessionContext) UpdateSessionTerminal(siteAPI auth.ClientI, namespace string, sid session.ID, params session.TerminalParams) error {
-	// Fetch the remote terminal in the session from the session ID.
-	term, err := c.getTerminal(sid)
-	if err != nil {
-		log.Error(err)
-		return trace.Wrap(err)
-	}
-
-	// Issue the "window-change" SSH request to the remote terminal.
-	err = term.windowChange(params)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
 }
 
 func (c *SessionContext) AddClosers(closers ...io.Closer) {
