@@ -38,14 +38,15 @@ for REGION in ${REGION_LIST}; do
     echo "${REGION}=${AMI_ID}" >> ${BUILD_DIR}/amis.txt
 done
 
+# Update Cloudformation OSS YAML file with 
 for REGION in ${REGION_LIST}; do
-    CURRENT_AMI_ID=$(grep ${REGION} ${YAML_PATH}/oss.yaml | awk -F: '{print $3}' | tr -d ' ' | tr -d '}')
+    CURRENT_AMI_ID=$(grep ${REGION} ${YAML_PATH}/${RUN_MODE}.yaml | awk -F: '{print $3}' | tr -d ' ' | tr -d '}')
     NEW_AMI_ID=$(grep ${REGION} ${BUILD_DIR}/amis.txt | awk -F= '{print $2}')
     if [[ "${NEW_AMI_ID}" == "" || "${NEW_AMI_ID}" == "null" ]]; then
         echo "Error: cannot get AMI ID for ${REGION}"
         exit 2
     elif [[ "${NEW_AMI_ID}" != "${CURRENT_AMI_ID}" ]]; then
-        sed -i "s/${CURRENT_AMI_ID}/${NEW_AMI_ID}/g" ${YAML_PATH}/oss.yaml
+        sed -i "s/${CURRENT_AMI_ID}/${NEW_AMI_ID}/g" ${YAML_PATH}/${RUN_MODE}.yaml
         echo "AMI ID for ${REGION} changed from ${CURRENT_AMI_ID} to ${NEW_AMI_ID}"
     fi
 done
