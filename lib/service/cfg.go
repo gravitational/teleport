@@ -27,7 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/boltbk"
+	"github.com/gravitational/teleport/lib/backend/dir"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -378,8 +378,8 @@ func ApplyDefaults(cfg *Config) {
 	// defaults for the auth service:
 	cfg.Auth.Enabled = true
 	cfg.Auth.SSHAddr = *defaults.AuthListenAddr()
-	cfg.Auth.StorageConfig.Type = boltbk.GetName()
-	cfg.Auth.StorageConfig.Params = backend.Params{"path": cfg.DataDir}
+	cfg.Auth.StorageConfig.Type = dir.GetName()
+	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
 	cfg.Auth.StaticTokens = services.DefaultStaticTokens()
 	cfg.Auth.ClusterConfig = services.DefaultClusterConfig()
 	defaults.ConfigureLimiter(&cfg.Auth.Limiter)

@@ -28,6 +28,9 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/boltbk"
+	"github.com/gravitational/teleport/lib/backend/dir"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/service"
@@ -335,6 +338,61 @@ func (s *ConfigTestSuite) TestApplyConfig(c *check.C) {
 	c.Assert(cfg.Proxy.Enabled, check.Equals, true)
 	c.Assert(cfg.Proxy.WebAddr.FullAddress(), check.Equals, "tcp://webhost:3080")
 	c.Assert(cfg.Proxy.ReverseTunnelListenAddr.FullAddress(), check.Equals, "tcp://tunnelhost:1001")
+}
+
+func (s *ConfigTestSuite) TestBackendDefaults(c *check.C) {
+	read := func(val string) *service.Config {
+		// default value is dir backend
+		conf, err := ReadConfig(bytes.NewBufferString(val))
+		c.Assert(err, check.IsNil)
+		c.Assert(conf, check.NotNil)
+
+		cfg := service.MakeDefaultConfig()
+		err = ApplyFileConfig(conf, cfg)
+		c.Assert(err, check.IsNil)
+		return cfg
+	}
+
+	// default value is dir backend
+	cfg := read(`teleport:
+  data_dir: /var/lib/teleport
+`)
+
+	c.Assert(cfg.Auth.StorageConfig.Type, check.Equals, dir.GetName())
+	c.Assert(cfg.Auth.StorageConfig.Params[defaults.BackendPath], check.Equals, filepath.Join("/var/lib/teleport", defaults.BackendDir))
+
+	// with dir backend, if no path is specified, a good one is picked
+	cfg = read(`teleport:
+  data_dir: /var/lib/teleport
+  storage:
+    type: dir
+`)
+
+	c.Assert(cfg.Auth.StorageConfig.Type, check.Equals, dir.GetName())
+	c.Assert(cfg.Auth.StorageConfig.Params[defaults.BackendPath], check.Equals, filepath.Join("/var/lib/teleport", defaults.BackendDir))
+
+	// with dir backend, custom path is honored
+	cfg = read(`teleport:
+  data_dir: /var/lib/teleport
+  storage:
+    type: dir
+    path: /var/lib/teleport/mybackend
+`)
+
+	c.Assert(cfg.Auth.StorageConfig.Type, check.Equals, dir.GetName())
+	c.Assert(cfg.Auth.StorageConfig.Params[defaults.BackendPath], check.Equals, "/var/lib/teleport/mybackend")
+
+	// if there was a prior usage of bolt, bolt is picked as a default value
+	tempDir := c.MkDir()
+	_, err := boltbk.New(backend.Params{defaults.BackendPath: tempDir})
+	c.Assert(err, check.IsNil)
+
+	cfg = read(fmt.Sprintf(`teleport:
+  data_dir: %v
+`, tempDir))
+
+	c.Assert(cfg.Auth.StorageConfig.Type, check.Equals, boltbk.GetName())
+	c.Assert(cfg.Auth.StorageConfig.Params[defaults.BackendPath], check.Equals, tempDir)
 }
 
 // TestParseKey ensures that keys are parsed correctly if they are in
