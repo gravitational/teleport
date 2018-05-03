@@ -943,6 +943,12 @@ list of available clusters.
     accept self-signed certificates. Make sure to configure HTTPS properly and
     remove the insecure flag for production use.
 
+!!! warning "Version Warning":
+    Trusted cluster configuration in Teleport 2.3 is not backwards compatible
+    with 2.2! If you are migrating from 2.2 it's recommended to delete a trusted
+    cluster resource, then upgrade both clusters to 2.3 and re-establish trust
+    by following the instructions above.
+
 ### Using Trusted Clusters
 
 It's worth repeating: the users of "east" cannot see or connect to the main
