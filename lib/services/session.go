@@ -29,6 +29,8 @@ type WebSession interface {
 	GetPub() []byte
 	// GetPriv returns private OpenSSH key used to auth with SSH nodes
 	GetPriv() []byte
+	// SetPriv sets private key
+	SetPriv([]byte)
 	// GetTLSCert returns PEM encoded TLS certificate associated with session
 	GetTLSCert() []byte
 	// BearerToken is a special bearer token used for additional
@@ -159,6 +161,11 @@ func (ws *WebSessionV2) GetPub() []byte {
 // GetPriv returns private OpenSSH key used to auth with SSH nodes
 func (ws *WebSessionV2) GetPriv() []byte {
 	return ws.Spec.Priv
+}
+
+// SetPriv sets private key
+func (ws *WebSessionV2) SetPriv(priv []byte) {
+	ws.Spec.Priv = priv
 }
 
 // BearerToken is a special bearer token used for additional

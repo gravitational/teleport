@@ -759,7 +759,7 @@ func removeIdentityCompat(dataDir string, id IdentityID) error {
 	return nil
 }
 
-// DELETE IN: 2.6.0
+// DELETE IN: 2.7.0
 // NOTE: Sadly, our integration tests depend on this logic
 // because they create remote cluster resource. Our integration
 // tests should be migrated to use trusted clusters instead of manually

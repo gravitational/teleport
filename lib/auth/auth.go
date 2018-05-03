@@ -405,7 +405,8 @@ func (s *AuthServer) WithUserLock(username string, authenticateFn func() error) 
 	}
 	status := user.GetStatus()
 	if status.IsLocked && status.LockExpires.After(s.clock.Now().UTC()) {
-		return trace.AccessDenied("user %v is locked until %v", user, utils.HumanTimeFormat(status.LockExpires))
+		return trace.AccessDenied("%v exceeds %v failed login attempts, locked until %v",
+			user.GetName(), defaults.MaxLoginAttempts, utils.HumanTimeFormat(status.LockExpires))
 	}
 	fnErr := authenticateFn()
 	if fnErr == nil {
@@ -448,22 +449,6 @@ func (s *AuthServer) WithUserLock(username string, authenticateFn func() error) 
 		return trace.Wrap(fnErr)
 	}
 	return trace.AccessDenied(message)
-}
-
-// DELETE IN: 2.6.0
-// This method is no longer used in 2.5.0 and is replaced by AuthenticateUser methods
-func (s *AuthServer) SignIn(user string, password []byte) (services.WebSession, error) {
-	err := s.WithUserLock(user, func() error {
-		return s.CheckPasswordWOToken(user, password)
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	s.EmitAuditEvent(events.UserLoginEvent, events.EventFields{
-		events.EventUser:   user,
-		events.LoginMethod: events.LoginMethodLocal,
-	})
-	return s.PreAuthenticatedSignIn(user)
 }
 
 // PreAuthenticatedSignIn is for 2-way authentication methods like U2F where the password is

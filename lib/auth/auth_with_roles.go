@@ -18,7 +18,6 @@ package auth
 
 import (
 	"context"
-	"io"
 	"net/url"
 	"time"
 
@@ -444,15 +443,6 @@ func (a *AuthWithRoles) GetOTPData(user string) (string, []byte, error) {
 	return a.authServer.GetOTPData(user)
 }
 
-// DELETE IN: 2.6.0
-// This method is no longer used in 2.5.0 and is replaced by AuthenticateUser methods
-func (a *AuthWithRoles) SignIn(user string, password []byte) (services.WebSession, error) {
-	if err := a.currentUserAction(user); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.authServer.SignIn(user, password)
-}
-
 func (a *AuthWithRoles) PreAuthenticatedSignIn(user string) (services.WebSession, error) {
 	if err := a.currentUserAction(user); err != nil {
 		return nil, trace.Wrap(err)
@@ -532,41 +522,6 @@ func (a *AuthWithRoles) GenerateHostCert(
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.GenerateHostCert(key, hostID, nodeName, principals, clusterName, roles, ttl)
-}
-
-func (a *AuthWithRoles) GenerateUserCert(key []byte, username string, ttl time.Duration, compatibility string) ([]byte, error) {
-	if err := a.currentUserAction(username); err != nil {
-		return nil, trace.AccessDenied("%v cannot request a certificate for %v", a.user.GetName(), username)
-	}
-	// notice that user requesting the certificate and the user currently
-	// authenticated may differ (e.g. admin generates certificate for the user scenario)
-	// so we fetch user's permissions
-	checker := a.checker
-	var user services.User
-	var err error
-	if a.user.GetName() != username {
-		user, err = a.GetUser(username)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		checker, err = services.FetchRoles(user.GetRoles(), a.authServer, user.GetTraits())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		user = a.user
-	}
-	certs, err := a.authServer.generateUserCert(certRequest{
-		user:          user,
-		roles:         checker,
-		ttl:           ttl,
-		compatibility: compatibility,
-		publicKey:     key,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return certs.ssh, nil
 }
 
 func (a *AuthWithRoles) CreateSignupToken(user services.UserV1, ttl time.Duration) (token string, e error) {
@@ -819,16 +774,6 @@ func (a *AuthWithRoles) PostSessionSlice(slice events.SessionSlice) error {
 		return trace.Wrap(err)
 	}
 	return a.alog.PostSessionSlice(slice)
-}
-
-func (a *AuthWithRoles) PostSessionChunk(namespace string, sid session.ID, reader io.Reader) error {
-	if err := a.action(namespace, services.KindEvent, services.VerbCreate); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := a.action(namespace, services.KindEvent, services.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.alog.PostSessionChunk(namespace, sid, reader)
 }
 
 func (a *AuthWithRoles) UploadSessionRecording(r events.SessionRecording) error {
