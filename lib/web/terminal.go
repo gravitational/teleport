@@ -176,10 +176,13 @@ func (t *TerminalHandler) Serve(w http.ResponseWriter, r *http.Request) {
 	t.ctx.AddClosers(t)
 	defer t.ctx.RemoveCloser(t)
 
-	// TODO(klizhentas)
-	// we instantiate a server explicitly here instead of using
-	// websocket.HandlerFunc to set empty origin checker
-	// make sure we check origin when in prod mode
+	// We initial a server explicitly here instead of using websocket.HandlerFunc
+	// to set an empty origin checker (this is to make our lives easier in tests).
+	// The main use of the origin checker is to enforce the browsers same-origin
+	// policy. That does not matter here because even if malicious Javascript
+	// would try and open a websocket the request to this endpoint requires the
+	// bearer token to be in the URL so it would not be sent along by default
+	// like cookies are.
 	ws := &websocket.Server{Handler: t.handler}
 	ws.ServeHTTP(w, r)
 }
