@@ -73,7 +73,7 @@ class TtyTerminal {
     this.tty.on('data', this._processData.bind(this));    
 
     // subscribe tty resize event (used by session player)
-    this.tty.on('resize', ({h, w}) => this.resize(w, h));        
+    this.tty.on('audit.resize', ({h, w}) => this.term.resize(w, h));        
         
     this.connect();    
   }

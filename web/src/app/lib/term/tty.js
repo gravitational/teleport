@@ -134,16 +134,18 @@ class Tty extends EventEmitter {
 
   _processEvent(event) {
     if (event.event === EventTypeEnum.RESIZE) {
-      this._processResize(event);      
+      let [w, h] = event.size.split(':');
+      w = Number(w);
+      h = Number(h);
+      this.emit('audit.resize', { w, h });
+      return;
     }
-  }
-        
-  _processResize(event) {    
-    let [w, h] = event.size.split(':');
-    w = Number(w);
-    h = Number(h);
-    this.emit('resize', { w, h });
-  }  
+
+    if (event.event === EventTypeEnum.END) {
+      this.emit('audit.end', event);
+      return;
+    }
+  }      
 }
 
 export default Tty;
