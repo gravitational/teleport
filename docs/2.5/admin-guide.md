@@ -1117,6 +1117,13 @@ This setup works as follows:
 3. When a user tries to connect to a node inside "east" using _main.example.com_ 
    the reverse tunnel from step 1 is used to establish this connection (green line).
 
+!!! tip "Load Balancers":
+    The scheme above also works even if the "main" cluster uses multiple
+    proxies behind a load balancer (LB) or a DNS entry with multiple values.
+    This works by "east" establishing a tunnel to _every_ proxy in "main",
+    assuming that an LB uses round-robin or a similar non-sticky balancing
+    algorithm.
+
 ### Example Configuration
 
 Connecting two clusters together is similar to [adding a node](#adding-nodes-to-the-cluster) 
