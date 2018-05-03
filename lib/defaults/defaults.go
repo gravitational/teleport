@@ -224,7 +224,7 @@ var (
 	//
 	// TODO(klizhentas): All polling periods should go away once backend supports
 	// events.
-	SessionRefreshPeriod = 5 * time.Second
+	SessionRefreshPeriod = 2 * time.Second
 
 	// SessionIdlePeriod is the period of inactivity after which the
 	// session will be considered idle

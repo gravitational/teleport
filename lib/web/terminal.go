@@ -393,8 +393,6 @@ func (t *TerminalHandler) pollEvents(cursor int) ([]events.EventFields, int, err
 	var filteredEvents []events.EventFields
 	for _, event := range sessionEvents {
 		if event.GetType() == events.ResizeEvent ||
-			event.GetType() == events.SessionJoinEvent ||
-			event.GetType() == events.SessionLeaveEvent ||
 			event.GetType() == events.SessionPrintEvent {
 			continue
 		}
