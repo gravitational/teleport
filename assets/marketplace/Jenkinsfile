@@ -29,17 +29,12 @@ pipeline {
         //}
        stage('Run Cloudformation and wait for stack') {
             environment {
-                CLOUDFORMATION_PARAMETERS = credentials('7d731ad8-ed03-4e42-a411-605c40c182f6')
+                JENKINS_CLOUDFORMATION_PARAMETERS_PATH = credentials('7d731ad8-ed03-4e42-a411-605c40c182f6')
             }
             steps {
                 dir('assets/marketplace') {
-                    sh """
-                    cat << EOF > files/build/jenkins-parameters.json
-                    ${CLOUDFORMATION_PARAMETERS}
-EOF
-                    make jenkins-create-stack
-                    make jenkins-wait-for-stack-creation
-                    """
+                    sh 'make jenkins-create-stack'
+                    sh 'make jenkins-wait-for-stack-creation'
                 }
             }
         }
