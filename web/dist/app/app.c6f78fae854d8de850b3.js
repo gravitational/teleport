@@ -12059,12 +12059,6 @@ webpackJsonp([0],[
 	    }).fail(function (err) {
 	      logger.error('fetchActiveSessions', err);
 	    });
-	  },
-	  updateSession: function updateSession(_ref) {
-	    var siteId = _ref.siteId,
-	        json = _ref.json;
-
-	    _reactor2.default.dispatch(_actionTypes.UPDATE_ACTIVE_SESSION, { siteId: siteId, json: json });
 	  }
 	};
 
@@ -12215,7 +12209,6 @@ webpackJsonp([0],[
 	*/
 
 	var RECEIVE_ACTIVE_SESSIONS = exports.RECEIVE_ACTIVE_SESSIONS = 'TLPT_SESSIONS_RECEIVE_ACTIVE';
-	var UPDATE_ACTIVE_SESSION = exports.UPDATE_ACTIVE_SESSION = 'TLPT_SESSIONS_UPDATE_ACTIVE';
 	var RECEIVE_SITE_EVENTS = exports.RECEIVE_SITE_EVENTS = 'TLPT_SESSIONS_RECEIVE_EVENTS';
 
 /***/ }),
@@ -12989,6 +12982,7 @@ webpackJsonp([0],[
 
 	var EventTypeEnum = exports.EventTypeEnum = {
 	  START: 'session.start',
+	  JOIN: 'session.join',
 	  END: 'session.end',
 	  PRINT: 'print',
 	  RESIZE: 'resize'
@@ -13099,10 +13093,10 @@ webpackJsonp([0],[
 	    this.tty.on('data', this._processData.bind(this));
 
 	    // subscribe tty resize event (used by session player)
-	    this.tty.on('resize', function (_ref) {
+	    this.tty.on('audit.resize', function (_ref) {
 	      var h = _ref.h,
 	          w = _ref.w;
-	      return _this.resize(w, h);
+	      return _this.term.resize(w, h);
 	    });
 
 	    this.connect();
@@ -13389,18 +13383,20 @@ webpackJsonp([0],[
 
 	  Tty.prototype._processEvent = function _processEvent(event) {
 	    if (event.event === _enums.EventTypeEnum.RESIZE) {
-	      this._processResize(event);
+	      var _event$size$split = event.size.split(':'),
+	          w = _event$size$split[0],
+	          h = _event$size$split[1];
+
+	      w = Number(w);
+	      h = Number(h);
+	      this.emit('audit.resize', { w: w, h: h });
+	      return;
 	    }
-	  };
 
-	  Tty.prototype._processResize = function _processResize(event) {
-	    var _event$size$split = event.size.split(':'),
-	        w = _event$size$split[0],
-	        h = _event$size$split[1];
-
-	    w = Number(w);
-	    h = Number(h);
-	    this.emit('resize', { w: w, h: h });
+	    if (event.event === _enums.EventTypeEnum.END) {
+	      this.emit('audit.end', event);
+	      return;
+	    }
 	  };
 
 	  return Tty;
@@ -19557,22 +19553,13 @@ webpackJsonp([0],[
 	  },
 	  initialize: function initialize() {
 	    this.on(_actionTypes.RECEIVE_ACTIVE_SESSIONS, receive);
-	    this.on(_actionTypes.UPDATE_ACTIVE_SESSION, updateSession);
 	  }
 	});
 
 
-	function updateSession(state, _ref) {
+	function receive(state, _ref) {
 	  var siteId = _ref.siteId,
 	      json = _ref.json;
-
-	  var rec = createSessionRec(siteId, json);
-	  return rec.equals(state.get(rec.id)) ? state : state.set(rec.id, rec);
-	}
-
-	function receive(state, _ref2) {
-	  var siteId = _ref2.siteId,
-	      json = _ref2.json;
 
 	  var jsonArray = json || [];
 	  var newState = defaultState().withMutations(function (newState) {

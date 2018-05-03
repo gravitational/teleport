@@ -16,6 +16,7 @@ limitations under the License.
 
 export const EventTypeEnum = {
   START: 'session.start',
+  JOIN: 'session.join',
   END: 'session.end',
   PRINT: 'print',
   RESIZE: 'resize'
