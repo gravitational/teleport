@@ -38,7 +38,7 @@ for REGION in ${REGION_LIST}; do
     echo "${REGION}=${AMI_ID}" >> ${BUILD_DIR}/amis.txt
 done
 
-# Update Cloudformation OSS YAML file with 
+# Update Cloudformation YAML file with new AMI IDs
 for REGION in ${REGION_LIST}; do
     CURRENT_AMI_ID=$(grep ${REGION} ${YAML_PATH}/${RUN_MODE}.yaml | awk -F: '{print $3}' | tr -d ' ' | tr -d '}')
     NEW_AMI_ID=$(grep ${REGION} ${BUILD_DIR}/amis.txt | awk -F= '{print $2}')
