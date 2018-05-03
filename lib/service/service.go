@@ -1757,7 +1757,7 @@ func warnOnErr(err error) {
 // initAuthStorage initializes the storage backend for the auth service.
 func (process *TeleportProcess) initAuthStorage() (bk backend.Backend, err error) {
 	bc := &process.Config.Auth.StorageConfig
-
+	process.Debugf("Using %v backend.", bc.Type)
 	switch bc.Type {
 	// legacy bolt backend:
 	case boltbk.GetName():

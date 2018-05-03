@@ -36,6 +36,8 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/boltbk"
+	"github.com/gravitational/teleport/lib/backend/dir"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -166,6 +168,27 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	// if a backend is specified, override the defaults
 	if fc.Storage.Type != "" {
 		cfg.Auth.StorageConfig = fc.Storage
+		// backend is specified, but no path is set, set a reasonable default
+		_, pathSet := cfg.Auth.StorageConfig.Params[defaults.BackendPath]
+		if cfg.Auth.StorageConfig.Type == dir.GetName() && !pathSet {
+			if cfg.Auth.StorageConfig.Params == nil {
+				cfg.Auth.StorageConfig.Params = make(backend.Params)
+			}
+			cfg.Auth.StorageConfig.Params[defaults.BackendPath] = filepath.Join(cfg.DataDir, defaults.BackendDir)
+		}
+	} else {
+		// bolt backend is deprecated, but is picked if it was setup before
+		exists, err := boltbk.Exists(cfg.DataDir)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if exists {
+			cfg.Auth.StorageConfig.Type = boltbk.GetName()
+			cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: cfg.DataDir}
+		} else {
+			cfg.Auth.StorageConfig.Type = dir.GetName()
+			cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
+		}
 	}
 
 	// apply logger settings
@@ -788,7 +811,6 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		cfg.Auth.StorageConfig.Params = backend.Params{}
 	}
 	cfg.Auth.StorageConfig.Params["data_dir"] = cfg.DataDir
-
 	// command line flag takes precedence over file config
 	if clf.PermitUserEnvironment {
 		cfg.SSH.PermitUserEnvironment = true
