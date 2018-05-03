@@ -148,13 +148,19 @@ func (s *SessionRegistry) emitSessionJoinEvent(ctx *ServerContext) {
 // OpenSession either joins an existing session or starts a new session.
 func (s *SessionRegistry) OpenSession(ch ssh.Channel, req *ssh.Request, ctx *ServerContext) error {
 	if ctx.session != nil {
+		ctx.Infof("Joining existing session %v.", ctx.session.id)
+
+		// Update the in-memory data structure that a party member has joined.
+		_, err := ctx.session.join(ch, req, ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		// Emit session join event to both the Audit Log as well as over the
 		// "x-teleport-event" channel in the SSH connection.
 		s.emitSessionJoinEvent(ctx)
 
-		ctx.Infof("Joining existing session %v.", ctx.session.id)
-		_, err := ctx.session.join(ch, req, ctx)
-		return trace.Wrap(err)
+		return nil
 	}
 	// session not found? need to create one. start by getting/generating an ID for it
 	sid, found := ctx.GetEnv(sshutils.SessionEnvVar)
@@ -216,14 +222,14 @@ func (s *SessionRegistry) leaveSession(party *party) error {
 	s.Lock()
 	defer s.Unlock()
 
-	// remove from in-memory representation of the session:
-	if err := sess.removeParty(party); err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Emit session leave event to both the Audit Log as well as over the
 	// "x-teleport-event" channel in the SSH connection.
 	s.emitSessionLeaveEvent(party)
+
+	// Remove member from in-members representation of party.
+	if err := sess.removeParty(party); err != nil {
+		return trace.Wrap(err)
+	}
 
 	// this goroutine runs for a short amount of time only after a session
 	// becomes empty (no parties). It allows session to "linger" for a bit

@@ -152,11 +152,17 @@ type TerminalHandler struct {
 	// teleportClient is the client used to form the connection.
 	teleportClient *client.TeleportClient
 
-	// streamContext is used to signal when the stream is closing.
-	streamContext context.Context
+	// terminalContext is used to signal when the terminal sesson is closing.
+	terminalContext context.Context
 
-	// streamCancel is used to signal when the stream is closing.
-	streamCancel context.CancelFunc
+	// terminalCancel is used to signal when the terminal session is closing.
+	terminalCancel context.CancelFunc
+
+	// eventContext is used to signal when the event stream is closing.
+	eventContext context.Context
+
+	// eventCancel is used to signal when the event is closing.
+	eventCancel context.CancelFunc
 
 	// request is the HTTP request that initiated the websocket connection.
 	request *http.Request
@@ -201,7 +207,7 @@ func (t *TerminalHandler) Close() error {
 
 	// If the terminal handler was closed (most likely due to the *SessionContext
 	// closing) then the stream should be closed as well.
-	t.streamCancel()
+	t.terminalCancel()
 
 	return nil
 }
@@ -218,16 +224,26 @@ func (t *TerminalHandler) handler(ws *websocket.Conn) {
 		return
 	}
 
-	// A streamContext will be used to signal to the audit event loop when the
-	// session is complete.
-	t.streamContext, t.streamCancel = context.WithCancel(context.Background())
+	// Create two contexts for signaling. The first
+	t.terminalContext, t.terminalCancel = context.WithCancel(context.Background())
+	t.eventContext, t.eventCancel = context.WithCancel(context.Background())
 
 	// Pump raw terminal in/out and audit events into the websocket.
 	go t.streamTerminal(ws, tc)
 	go t.streamEvents(ws, tc)
 
-	// Block until streaming is complete (terminal session is over)
-	<-t.streamContext.Done()
+	// Block until the terminal session is complete.
+	<-t.terminalContext.Done()
+
+	// Block until the session end event is sent or a timeout occurs.
+	timeoutCh := time.After(defaults.HTTPIdleTimeout)
+	for {
+		select {
+		case <-timeoutCh:
+			t.eventCancel()
+		case <-t.eventContext.Done():
+		}
+	}
 }
 
 // makeClient builds a *client.TeleportClient for the connection.
@@ -296,11 +312,11 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn) (*client.TeleportClient
 // streamTerminal opens a SSH connection to the remote host and streams
 // events back to the web client.
 func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.TeleportClient) {
-	defer t.streamCancel()
+	defer t.terminalCancel()
 
 	// Establish SSH connection to the server. This function will block until
 	// either an error occurs or it completes successfully.
-	err := tc.SSH(t.streamContext, t.params.InteractiveCommand, false)
+	err := tc.SSH(t.terminalContext, t.params.InteractiveCommand, false)
 	if err != nil {
 		log.Warningf("failed to SSH: %v", err)
 		errToTerm(err, ws)
@@ -356,12 +372,19 @@ func (t *TerminalHandler) streamEvents(ws *websocket.Conn, tc *client.TeleportCl
 					Payload: sessionEvent,
 				}
 				err = websocket.JSON.Send(ws, ee)
+				if err != nil {
+					log.Warnf("Unable to send %v events to web client: %v.", len(sessionEvents), err)
+					continue
+				}
+
+				// The session end event was sent over the websocket, we can now close the
+				// websocket.
+				if sessionEvent.GetType() == events.SessionEndEvent {
+					t.eventCancel()
+					return
+				}
 			}
-			if err != nil {
-				log.Warnf("Unable to send %v events to web client: %v.", len(sessionEvents), err)
-				continue
-			}
-		case <-t.streamContext.Done():
+		case <-t.eventContext.Done():
 			log.Debugf("Closing audit event stream to web client.")
 			return
 		}
@@ -393,6 +416,8 @@ func (t *TerminalHandler) pollEvents(cursor int) ([]events.EventFields, int, err
 	var filteredEvents []events.EventFields
 	for _, event := range sessionEvents {
 		if event.GetType() == events.ResizeEvent ||
+			event.GetType() == events.SessionJoinEvent ||
+			event.GetType() == events.SessionLeaveEvent ||
 			event.GetType() == events.SessionPrintEvent {
 			continue
 		}
