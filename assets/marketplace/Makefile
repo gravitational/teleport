@@ -67,19 +67,6 @@ update-ami-ids-oss:
 update-ami-ids-ent:
 	files/update-ami-ids.sh ent
 
-.PHONY: jenkins-test-start
-jenkins-test-start: TELEPORT_TYPE=oss
-jenkins-test-start:
-	$(MAKE) $(TELEPORT_TYPE)
-	$(MAKE) update-ami-ids-$(TELEPORT_TYPE)
-	$(MAKE) jenkins-create-stack
-	$(MAKE) jenkins-wait-for-stack-creation
-
-.PHONY: jenkins-test-stop
-jenkins-test-stop:
-	$(MAKE) jenkins-delete-stack
-	$(MAKE) jenkins-wait-for-stack-deletion
-
 .PHONY: validate-template
 validate-template:
 	aws cloudformation validate-template --template-body file://./oss.yaml
@@ -88,6 +75,19 @@ validate-template:
 create-stack:
 	$(MAKE) validate-template
 	aws --region=$(AWS_REGION) cloudformation create-stack --capabilities CAPABILITY_IAM --stack-name $(STACK) --template-body file://./oss.yaml --parameters $(STACK_PARAMS) 
+
+.PHONY: update-stack
+update-stack:
+	$(MAKE) validate-template
+	aws --region=$(AWS_REGION) cloudformation update-stack --capabilities CAPABILITY_IAM --stack-name $(STACK) --template-body file://./oss.yaml --parameters $(STACK_PARAMS)
+
+.PHONY: describe-stack
+describe-stack:
+	aws --region=$(AWS_REGION) cloudformation describe-stacks --stack-name $(STACK)
+
+.PHONY: delete-stack
+delete-stack:
+	aws --region=$(AWS_REGION) cloudformation delete-stack --stack-name $(STACK)
 
 .PHONY: jenkins-create-stack
 jenkins-create-stack:
@@ -98,27 +98,9 @@ jenkins-create-stack:
 jenkins-wait-for-stack-creation:
 	aws --region=$(AWS_REGION) cloudformation wait stack-create-complete --stack-name $(JENKINS_TEST_STACK_NAME)
 
-.PHONY: update-stack
-update-stack:
-	$(MAKE) validate-template
-	aws --region=$(AWS_REGION) cloudformation update-stack --capabilities CAPABILITY_IAM --stack-name $(STACK) --template-body file://./oss.yaml --parameters $(STACK_PARAMS)
-
-.PHONY: jenkins-update-stack
-jenkins-update-stack:
-	$(MAKE) validate-template
-	aws --region=$(AWS_REGION) cloudformation update-stack --capabilities CAPABILITY_IAM --stack-name $(JENKINS_TEST_STACK_NAME) --template-body file://./oss.yaml --parameters file://$(JENKINS_CLOUDFORMATION_PARAMETERS_PATH)
-
-.PHONY: describe-stack
-describe-stack:
-	aws --region=$(AWS_REGION) cloudformation describe-stacks --stack-name $(STACK)
-
 .PHONY: jenkins-describe-stack
 jenkins-describe-stack:
 	@aws --region=$(AWS_REGION) cloudformation describe-stacks --stack-name $(JENKINS_TEST_STACK_NAME)
-
-.PHONY: delete-stack
-delete-stack:
-	aws --region=$(AWS_REGION) cloudformation delete-stack --stack-name $(STACK)
 
 .PHONY: jenkins-delete-stack
 jenkins-delete-stack:
