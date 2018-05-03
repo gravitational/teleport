@@ -13,27 +13,27 @@ pipeline {
                 }
             }
         }
-        //stage('Run Packer') {
-        //    steps {
-        //        dir('assets/marketplace') {
-        //            sh 'make oss'
-        //        }
-        //    }
-        //}
-        //stage('Update AMI IDs)') {
-        //    steps {
-        //        dir('assets/marketplace') {
-        //            sh 'make update-ami-ids-oss'
-        //        }
-        //    }
-        //}
-       stage('Run Cloudformation and wait for stack') {
+        stage('Run Packer') {
+            steps {
+                dir('assets/marketplace') {
+                    sh 'make oss'
+                }
+            }
+        }
+        stage('Update AMI IDs)') {
+            steps {
+                dir('assets/marketplace') {
+                    sh 'make update-ami-ids-oss'
+                }
+            }
+        }
+        stage('Run Cloudformation and wait for stack') {
             environment {
                 JENKINS_CLOUDFORMATION_PARAMETERS_PATH = credentials('7d731ad8-ed03-4e42-a411-605c40c182f6')
             }
             steps {
                 dir('assets/marketplace') {
-                    //sh 'make jenkins-create-stack'
+                    sh 'make jenkins-create-stack'
                     sh 'make jenkins-wait-for-stack-creation'
                 }
             }
@@ -50,14 +50,15 @@ pipeline {
                 }
             }
         }
-        //stage('Take stack down and wait for destruction') {
-        //    steps {
-        //        dir('assets/marketplace') {
-        //            script {
-        //                sh 'make jenkins-test-stop'
-        //            }
-        //        }
-        //    }
-        //}
+        stage('Take stack down and wait for destruction') {
+            steps {
+                dir('assets/marketplace') {
+                    script {
+                        sh 'make jenkins-delete-stack'
+                        sh 'make jenkins-wait-for-stack-deletion'
+                    }
+                }
+            }
+        }
     }
 }
