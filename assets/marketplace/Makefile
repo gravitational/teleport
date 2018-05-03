@@ -98,6 +98,10 @@ jenkins-create-stack:
 jenkins-wait-for-stack-creation:
 	aws cloudformation wait stack-create-complete --stack-name $(JENKINS_TEST_STACK_NAME)
 
+.PHONY: jenkins-wait-for-stack-creation-debug
+jenkins-wait-for-stack-creation:
+	aws cloudformation wait stack-create-complete --stack-name $(JENKINS_TEST_STACK_NAME) --debug
+
 .PHONY: update-stack
 update-stack:
 	$(MAKE) validate-template
