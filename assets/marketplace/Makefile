@@ -37,6 +37,9 @@ BUILD_TIMESTAMP := $(shell TZ=UTC /bin/date "+%Y%m%d-%H%M%S%Z")
 
 # Jenkins test CloudFormation stack name
 JENKINS_TEST_STACK_NAME := jenkins-teleport-quickstart-test-stack
+
+# Jenkins Cloudformation parameters path
+JENKINS_CLOUDFORMATION_PARAMETERS_PATH ?= ./files/build/jenkins-parameters.json
 export
 
 .PHONY: oss
@@ -89,7 +92,7 @@ create-stack:
 .PHONY: jenkins-create-stack
 jenkins-create-stack:
 	$(MAKE) validate-template
-	aws --region=$(AWS_REGION) cloudformation create-stack --capabilities CAPABILITY_IAM --stack-name $(JENKINS_TEST_STACK_NAME) --template-body file://./oss.yaml --parameters file://./files/build/jenkins-parameters.json
+	aws --region=$(AWS_REGION) cloudformation create-stack --capabilities CAPABILITY_IAM --stack-name $(JENKINS_TEST_STACK_NAME) --template-body file://./oss.yaml --parameters file://$(JENKINS_CLOUDFORMATION_PARAMETERS_PATH)
 
 .PHONY: jenkins-wait-for-stack-creation
 jenkins-wait-for-stack-creation:
@@ -103,7 +106,7 @@ update-stack:
 .PHONY: jenkins-update-stack
 jenkins-update-stack:
 	$(MAKE) validate-template
-	aws --region=$(AWS_REGION) cloudformation update-stack --capabilities CAPABILITY_IAM --stack-name $(JENKINS_TEST_STACK_NAME) --template-body file://./oss.yaml --parameters file://./files/build/jenkins-parameters.json
+	aws --region=$(AWS_REGION) cloudformation update-stack --capabilities CAPABILITY_IAM --stack-name $(JENKINS_TEST_STACK_NAME) --template-body file://./oss.yaml --parameters file://$(JENKINS_CLOUDFORMATION_PARAMETERS_PATH)
 
 .PHONY: describe-stack
 describe-stack:
