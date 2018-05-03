@@ -13,20 +13,20 @@ pipeline {
                 }
             }
         }
-        stage('Run Packer') {
-            steps {
-                dir('assets/marketplace') {
-                    sh 'make oss'
-                }
-            }
-        }
-        stage('Update AMI IDs)') {
-            steps {
-                dir('assets/marketplace') {
-                    sh 'make update-ami-ids-oss'
-                }
-            }
-        }
+        //stage('Run Packer') {
+        //    steps {
+        //        dir('assets/marketplace') {
+        //            sh 'make oss'
+        //        }
+        //    }
+        //}
+        //stage('Update AMI IDs)') {
+        //    steps {
+        //        dir('assets/marketplace') {
+        //            sh 'make update-ami-ids-oss'
+        //        }
+        //    }
+        //}
        stage('Run Cloudformation and wait for stack') {
             steps {
                 dir('assets/marketplace') {
