@@ -60,7 +60,7 @@ type CommandLineFlags struct {
 	// --listen-ip flag
 	ListenIP net.IP
 	// --advertise-ip flag
-	AdvertiseIP net.IP
+	AdvertiseIP string
 	// --config flag
 	ConfigFile string
 	// ConfigString is a base64 encoded configuration string
@@ -133,8 +133,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 
 	// apply "advertise_ip" setting:
 	advertiseIP := fc.AdvertiseIP
-	if advertiseIP != nil {
-		if err := validateAdvertiseIP(advertiseIP); err != nil {
+	if advertiseIP != "" {
+		if _, _, err := utils.ParseAdvertiseAddr(advertiseIP); err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.AdvertiseIP = advertiseIP
@@ -276,12 +276,12 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		cfg.Proxy.ReverseTunnelListenAddr = *addr
 	}
-	if fc.Proxy.PublicAddr != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.PublicAddr, int(defaults.HTTPListenPort))
+	if len(fc.Proxy.PublicAddr) != 0 {
+		addrs, err := fc.Proxy.PublicAddr.Addrs(defaults.HTTPListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		cfg.Proxy.PublicAddr = *addr
+		cfg.Proxy.PublicAddrs = addrs
 	}
 	if fc.Proxy.KeyFile != "" {
 		if !fileExists(fc.Proxy.KeyFile) {
@@ -361,6 +361,13 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 		cfg.ReverseTunnels = append(cfg.ReverseTunnels, tun)
+	}
+	if len(fc.Auth.PublicAddr) != 0 {
+		addrs, err := fc.Auth.PublicAddr.Addrs(defaults.AuthListenPort)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Auth.PublicAddrs = addrs
 	}
 	// DELETE IN: 2.4.0
 	if len(fc.Auth.TrustedClusters) > 0 {
@@ -481,7 +488,13 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 			}
 		}
 	}
-
+	if len(fc.SSH.PublicAddr) != 0 {
+		addrs, err := fc.SSH.PublicAddr.Addrs(defaults.SSHServerListenPort)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.SSH.PublicAddrs = addrs
+	}
 	return nil
 }
 
@@ -748,8 +761,8 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	}
 
 	// --advertise-ip flag
-	if clf.AdvertiseIP != nil {
-		if err := validateAdvertiseIP(clf.AdvertiseIP); err != nil {
+	if clf.AdvertiseIP != "" {
+		if _, _, err := utils.ParseAdvertiseAddr(clf.AdvertiseIP); err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.AdvertiseIP = clf.AdvertiseIP
@@ -898,13 +911,6 @@ func validateRoles(roles string) error {
 		default:
 			return trace.Errorf("unknown role: '%s'", role)
 		}
-	}
-	return nil
-}
-
-func validateAdvertiseIP(advertiseIP net.IP) error {
-	if advertiseIP.IsLoopback() || advertiseIP.IsUnspecified() || advertiseIP.IsMulticast() {
-		return trace.BadParameter("unreachable advertise IP: %v", advertiseIP)
 	}
 	return nil
 }

@@ -949,12 +949,20 @@ func (process *TeleportProcess) initAuthService() error {
 			},
 		}
 		host, port, err := net.SplitHostPort(srv.GetAddr())
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		// advertise-ip is explicitly set:
-		if process.Config.AdvertiseIP != nil {
+		if process.Config.AdvertiseIP != "" {
+			ahost, aport, err := utils.ParseAdvertiseAddr(process.Config.AdvertiseIP)
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			srv.SetAddr(fmt.Sprintf("%v:%v", process.Config.AdvertiseIP.String(), port))
+			// if port is not set in the advertise addr, use the default one
+			if aport == "" {
+				aport = port
+			}
+			srv.SetAddr(fmt.Sprintf("%v:%v", ahost, aport))
 		} else {
 			// advertise-ip is not set, while the CA is listening on 0.0.0.0? lets try
 			// to guess the 'advertise ip' then:
@@ -1075,6 +1083,13 @@ func (process *TeleportProcess) getRotation(role teleport.Role) (*services.Rotat
 	return &state.Spec.Rotation, nil
 }
 
+func (process *TeleportProcess) proxyPublicAddr() utils.NetAddr {
+	if len(process.Config.Proxy.PublicAddrs) == 0 {
+		return utils.NetAddr{}
+	}
+	return process.Config.Proxy.PublicAddrs[0]
+}
+
 // initSSH initializes the "node" role, i.e. a simple SSH server connected to the auth server.
 func (process *TeleportProcess) initSSH() error {
 	process.registerWithAuthServer(teleport.RoleNode, SSHIdentityEvent)
@@ -1138,7 +1153,7 @@ func (process *TeleportProcess) initSSH() error {
 			authClient,
 			cfg.DataDir,
 			cfg.AdvertiseIP,
-			cfg.Proxy.PublicAddr,
+			process.proxyPublicAddr(),
 			regular.SetLimiter(limiter),
 			regular.SetShell(cfg.SSH.Shell),
 			regular.SetAuditLog(conn.Client),
@@ -1349,14 +1364,23 @@ func (process *TeleportProcess) initDiagnosticService() error {
 }
 
 // getAdditionalPrincipals returns a list of additional principals to add
-// to role's service certificate.
+// to role's service certificates.
 func (process *TeleportProcess) getAdditionalPrincipals(role teleport.Role) ([]string, error) {
 	var principals []string
 	if process.Config.Hostname != "" {
 		principals = append(principals, process.Config.Hostname)
 	}
-	if process.Config.Proxy.PublicAddr.Addr != "" {
-		host, err := utils.Host(process.Config.Proxy.PublicAddr.Addr)
+	var addrs []utils.NetAddr
+	switch role {
+	case teleport.RoleProxy:
+		addrs = process.Config.Proxy.PublicAddrs
+	case teleport.RoleAuth, teleport.RoleAdmin:
+		addrs = process.Config.Auth.PublicAddrs
+	case teleport.RoleNode:
+		addrs = process.Config.SSH.PublicAddrs
+	}
+	for _, addr := range addrs {
+		host, err := utils.Host(addr.Addr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1649,8 +1673,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		[]ssh.Signer{conn.ServerIdentity.KeySigner},
 		accessPoint,
 		cfg.DataDir,
-		nil,
-		cfg.Proxy.PublicAddr,
+		"",
+		process.proxyPublicAddr(),
 		regular.SetLimiter(proxyLimiter),
 		regular.SetProxyMode(tsrv),
 		regular.SetSessionServer(conn.Client),

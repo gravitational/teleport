@@ -137,7 +137,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 		[]ssh.Signer{s.signer},
 		s.nodeClient,
 		nodeDir,
-		nil,
+		"",
 		utils.NetAddr{},
 		SetNamespace(defaults.Namespace),
 		SetAuditLog(s.nodeClient),
@@ -188,9 +188,9 @@ func (s *SrvSuite) TearDownTest(c *C) {
 
 func (s *SrvSuite) TestAdvertiseAddr(c *C) {
 	c.Assert(strings.Index(s.srv.AdvertiseAddr(), "127.0.0.1:"), Equals, 0)
-	s.srv.setAdvertiseIP(net.ParseIP("10.10.10.1"))
+	s.srv.setAdvertiseIP("10.10.10.1")
 	c.Assert(strings.Index(s.srv.AdvertiseAddr(), "10.10.10.1:"), Equals, 0)
-	s.srv.setAdvertiseIP(nil)
+	s.srv.setAdvertiseIP("")
 }
 
 // TestAgentForwardPermission makes sure if RBAC rules don't allow agent
@@ -492,7 +492,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		[]ssh.Signer{s.signer},
 		s.proxyClient,
 		c.MkDir(),
-		nil,
+		"",
 		utils.NetAddr{},
 		SetProxyMode(reverseTunnelServer),
 		SetSessionServer(s.proxyClient),
@@ -564,7 +564,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		[]ssh.Signer{s.signer},
 		s.nodeClient,
 		c.MkDir(),
-		nil,
+		"",
 		utils.NetAddr{},
 		SetShell("/bin/sh"),
 		SetLabels(
@@ -666,7 +666,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		[]ssh.Signer{s.signer},
 		s.proxyClient,
 		c.MkDir(),
-		nil,
+		"",
 		utils.NetAddr{},
 		SetProxyMode(reverseTunnelServer),
 		SetSessionServer(s.proxyClient),
@@ -767,7 +767,7 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 		[]ssh.Signer{s.signer},
 		s.proxyClient,
 		c.MkDir(),
-		nil,
+		"",
 		utils.NetAddr{},
 		SetProxyMode(reverseTunnelServer),
 		SetSessionServer(s.proxyClient),
@@ -876,7 +876,7 @@ func (s *SrvSuite) TestLimiter(c *C) {
 		[]ssh.Signer{s.signer},
 		s.nodeClient,
 		nodeStateDir,
-		nil,
+		"",
 		utils.NetAddr{},
 		SetLimiter(limiter),
 		SetShell("/bin/sh"),

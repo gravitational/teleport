@@ -32,6 +32,36 @@ import (
 	"github.com/pborman/uuid"
 )
 
+// ParseAdvertiseAddress validates advertise address,
+// makes sure it's not an unreachable or multicast address
+// returns address split into host and port, port could be empty
+// if not specified
+func ParseAdvertiseAddr(advertiseIP string) (string, string, error) {
+	advertiseIP = strings.TrimSpace(advertiseIP)
+	host := advertiseIP
+	port := ""
+	if len(net.ParseIP(host)) == 0 && strings.Contains(advertiseIP, ":") {
+		var err error
+		host, port, err = net.SplitHostPort(advertiseIP)
+		if err != nil {
+			return "", "", trace.BadParameter("failed to parse address %q", advertiseIP)
+		}
+		if _, err := strconv.Atoi(port); err != nil {
+			return "", "", trace.BadParameter("bad port %q, expected integer", port)
+		}
+		if host == "" {
+			return "", "", trace.BadParameter("missing host parameter")
+		}
+	}
+	ip := net.ParseIP(host)
+	if len(ip) != 0 {
+		if ip.IsLoopback() || ip.IsUnspecified() || ip.IsMulticast() {
+			return "", "", trace.BadParameter("unreachable advertise IP: %v", advertiseIP)
+		}
+	}
+	return host, port, nil
+}
+
 // StringsSet creates set of string (map[string]struct{})
 // from a list of strings
 func StringsSet(in []string) map[string]struct{} {

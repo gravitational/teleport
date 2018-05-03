@@ -21,7 +21,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io/ioutil"
-	"net"
 	"os"
 	"path/filepath"
 	"testing"
@@ -313,6 +312,7 @@ func (s *ConfigTestSuite) TestApplyConfig(c *check.C) {
 	conf, err := ReadConfig(bytes.NewBufferString(SmallConfigString))
 	c.Assert(err, check.IsNil)
 	c.Assert(conf, check.NotNil)
+	c.Assert(conf.Proxy.PublicAddr, check.DeepEquals, Strings{"web3:443"})
 
 	cfg := service.MakeDefaultConfig()
 	err = ApplyFileConfig(conf, cfg)
@@ -330,7 +330,7 @@ func (s *ConfigTestSuite) TestApplyConfig(c *check.C) {
 		},
 	})
 	c.Assert(cfg.Auth.ClusterName.GetClusterName(), check.Equals, "magadan")
-	c.Assert(cfg.AdvertiseIP, check.DeepEquals, net.ParseIP("10.10.10.1"))
+	c.Assert(cfg.AdvertiseIP, check.Equals, "10.10.10.1")
 
 	c.Assert(cfg.Proxy.Enabled, check.Equals, true)
 	c.Assert(cfg.Proxy.WebAddr.FullAddress(), check.Equals, "tcp://webhost:3080")
@@ -406,7 +406,7 @@ func checkStaticConfig(c *check.C, conf *FileConfig) {
 	c.Assert(conf.Proxy.Configured(), check.Equals, false) // Missing "proxy_service" section must lead to 'not configured'
 	c.Assert(conf.Proxy.Enabled(), check.Equals, true)     // Missing "proxy_service" section must lead to 'true'
 	c.Assert(conf.Proxy.Disabled(), check.Equals, false)   // Missing "proxy_service" does NOT mean it's been disabled
-	c.Assert(conf.AdvertiseIP.String(), check.Equals, "10.10.10.1")
+	c.Assert(conf.AdvertiseIP, check.Equals, "10.10.10.1:3022")
 	c.Assert(conf.PIDFile, check.Equals, "/var/run/teleport.pid")
 
 	c.Assert(conf.Limits.MaxConnections, check.Equals, int64(90))
@@ -427,6 +427,9 @@ func checkStaticConfig(c *check.C, conf *FileConfig) {
 	c.Assert(conf.SSH.Commands[1].Name, check.Equals, "date")
 	c.Assert(conf.SSH.Commands[1].Command, check.DeepEquals, []string{"/bin/date"})
 	c.Assert(conf.SSH.Commands[1].Period.Nanoseconds(), check.Equals, int64(20000000))
+	c.Assert(conf.SSH.PublicAddr, check.DeepEquals, Strings{
+		"luna3:22",
+	})
 
 	c.Assert(conf.Global.Keys[0].PrivateKey, check.Equals, "private key")
 	c.Assert(conf.Global.Keys[0].Cert, check.Equals, "node.cert")
@@ -450,6 +453,10 @@ func checkStaticConfig(c *check.C, conf *FileConfig) {
 	})
 	c.Assert(conf.Auth.StaticTokens, check.DeepEquals,
 		StaticTokens{"proxy,node:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "auth:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
+
+	c.Assert(conf.Auth.PublicAddr, check.DeepEquals, Strings{
+		"auth.default.svc.cluster.local:3080",
+	})
 
 	policy, err := conf.CachePolicy.Parse()
 	c.Assert(err, check.IsNil)
