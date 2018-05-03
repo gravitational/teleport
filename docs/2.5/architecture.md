@@ -190,7 +190,7 @@ Let's explore each of the Teleport services in detail.
 The auth server acts as a certificate authority (CA) of the cluster. Teleport security is 
 based on SSH certificates and every certificate must be signed by the cluster auth server.
 
-There are two types of certificates the auth server can sign:
+There are two types of [certificates](#certificates) the auth server can sign:
 
 * **Host certificates** are used to add new nodes to a cluster.
 * **User certificates** are used to authenticate users when they try to log into a cluster node.
@@ -301,16 +301,32 @@ Once the client has obtained a short lived certificate, it can use it to authent
 
 ## Certificates
 
-Teleport uses standard Open SSH certificates for client and host authentication.
+Teleport uses standard SSH certificates for client and host authentication. 
 
-### Node Certificates
+One can think of an SSH certificate as a "permit" issued and time-stamped by a
+certificate authority. A certificate contains four important pieces of data:
 
-Nodes, proxies and auth servers use certificates signed by the cluster's auth server
-to authenticate when joining the cluster. Teleport does not allow SSH sessions into nodes 
-that are not cluster members.
+* List of principals (identities) this certificate belongs to.
+* Signature of the certificate authority who issued it, i.e. the _auth server_.
+* The expiration date, also known as "time to live" or simply TTL.
+* Additional data, often stored as a certificate extension.
 
-A node certificate contains the node's role (like `proxy`, `auth` or `node`) as
-a certificate extension (opaque signed string). All nodes in the cluster can
+One can think of a Teleport _auth server_ as a certificate authority (CA) of a
+cluster which issues certificates. But reality is a bit more complicated,
+because cluster hosts need their own certificates too, therefore there are two
+CAs inside the _auth server_ per cluster:
+
+* **Host CA** issues host certificates.
+* **User CA** issues user certificates.
+
+### Host Certificates
+
+All hosts (i.e. nodes, proxies and auth servers) always use host certificates
+signed by the auth server's host CA to authenticate to join the cluster.
+Teleport does not allow SSH sessions into nodes that are not cluster members.
+
+A host certificate contains the node's role (like `proxy`, `auth` or `node`) as
+a certificate extension (opaque signed string). All hosts in a cluster can
 connect to auth server's HTTP API via SSH tunnel that checks each connecting
 client's certificate and role to enforce access control (e.g. client connection
 using node's certificate won't be able to add and delete users, and can only
@@ -318,14 +334,36 @@ get auth servers registered in the cluster).
 
 ### User Certificates
 
-When an auth server generates a user certificate, it uses the information provided
-by the cluster administrator about the role assigned to this user.
+The _auth server_ uses its _user CA_ to issue user certificates. In addition to
+user's identity, user certificates also contain user roles and SSH options,
+like "permit-agent-forwarding".
 
-A user role can restrict user logins to specific OS logins or to a subset of 
-cluster nodes (or any other restrictions enforced by the role). Teleport's user name is stored in a certificate's key id field. User's certificates do not use any cert extensions as a workaround to the 
-[bug](https://bugzilla.mindrot.org/show_bug.cgi?id=2387) that treats any extension 
-as a critical one, breaking access to the cluster.
-    
+This additional data is stored as certificate extensions and is protected by the CA
+signature. 
+
+### Certificate Rotation
+
+By default all user certificates have an expiration date, also known as time to
+live (TTL). This TTL can be configured by a Teleport administrator. But the
+host certificates issued by an _auth server_ are valid indefinitely by default.
+
+Teleport supports certificate rotation, i.e. the process of invalidating _all_
+previously issued certificates regardless of their TTL. Certificate rotation is
+triggered by `tctl auth rotate` command. When this command is invoked by a Teleport
+administrator on one of cluster's _auth servers_, the following happens:
+
+* A new certificate authority (CA) key is generated.
+* The old CA will be considered valid _alongside_ the new CA for some period of
+  time. This period of time is called _grace period_.
+* During the grace period all previously issued certificates will be considered
+  valid, assuming their TTL isn't expired.
+* After the grace period is over, the certificates issued by the old CA are no
+  longer accepted.
+
+This process is repeated twice, for both the host CA and the user CA. Take a
+look at the [admin guide](admin-guide.md#certificate-rotation) to learn how to
+use certificate rotation in practice.
+
 ## Audit Log
 
 The Teleport auth server keeps the audit log of SSH-related events that take
