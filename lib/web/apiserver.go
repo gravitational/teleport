@@ -1392,7 +1392,7 @@ func (h *Handler) siteNodeConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	term, err := NewTerminal(*req, clt, ctx, site)
+	term, err := NewTerminal(*req, clt, ctx)
 	if err != nil {
 		log.Errorf("[WEB] Unable to create terminal: %v", err)
 		return nil, trace.Wrap(err)

@@ -32,11 +32,9 @@ import (
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/unicode"
 
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -75,14 +73,15 @@ type TerminalRequest struct {
 	InteractiveCommand []string `json:"-"`
 }
 
-// NodeProvider is a provider of nodes for namespace
-type NodeProvider interface {
+// AuthProvider is a subset of the full Auth API.
+type AuthProvider interface {
 	GetNodes(namespace string) ([]services.Server, error)
+	GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]events.EventFields, error)
 }
 
 // newTerminal creates a web-based terminal based on WebSockets and returns a
 // new TerminalHandler.
-func NewTerminal(req TerminalRequest, provider NodeProvider, ctx *SessionContext, site reversetunnel.RemoteSite) (*TerminalHandler, error) {
+func NewTerminal(req TerminalRequest, authProvider AuthProvider, ctx *SessionContext) (*TerminalHandler, error) {
 	// Make sure whatever session is requested is a valid session.
 	_, err := session.ParseID(string(req.SessionID))
 	if err != nil {
@@ -96,7 +95,7 @@ func NewTerminal(req TerminalRequest, provider NodeProvider, ctx *SessionContext
 		return nil, trace.BadParameter("term: bad term dimensions")
 	}
 
-	servers, err := provider.GetNodes(req.Namespace)
+	servers, err := authProvider.GetNodes(req.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -106,19 +105,14 @@ func NewTerminal(req TerminalRequest, provider NodeProvider, ctx *SessionContext
 		return nil, trace.BadParameter("invalid server name %q: %v", req.Server, err)
 	}
 
-	authClient, err := site.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return &TerminalHandler{
-		namespace:  req.Namespace,
-		sessionID:  req.SessionID,
-		params:     req,
-		ctx:        ctx,
-		hostName:   hostName,
-		hostPort:   hostPort,
-		authClient: authClient,
+		namespace:    req.Namespace,
+		sessionID:    req.SessionID,
+		params:       req,
+		ctx:          ctx,
+		hostName:     hostName,
+		hostPort:     hostPort,
+		authProvider: authProvider,
 	}, nil
 }
 
@@ -167,8 +161,8 @@ type TerminalHandler struct {
 	// request is the HTTP request that initiated the websocket connection.
 	request *http.Request
 
-	// authClient is used to fetch sessions from the backend.
-	authClient auth.ClientI
+	// authProvider is used to fetch nodes and sessions from the backend.
+	authProvider AuthProvider
 }
 
 // Serve builds a connect to the remote node and then pumps back two types of
@@ -395,7 +389,7 @@ func (t *TerminalHandler) streamEvents(ws *websocket.Conn, tc *client.TeleportCl
 // SSH events channel. Eventually this function will be removed completely.
 func (t *TerminalHandler) pollEvents(cursor int) ([]events.EventFields, int, error) {
 	// Poll for events since the last call (cursor location).
-	sessionEvents, err := t.authClient.GetSessionEvents(t.namespace, t.sessionID, cursor+1, false)
+	sessionEvents, err := t.authProvider.GetSessionEvents(t.namespace, t.sessionID, cursor+1, false)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, 0, trace.Wrap(err)
