@@ -16,12 +16,10 @@ limitations under the License.
 
 import React from 'react';
 import { connect } from 'nuclear-js-react-addons';
-import { EventTypeEnum } from 'app/lib/term/enums';
 import Terminal from 'app/lib/term/terminal';
 import termGetters from 'app/flux/terminal/getters';
 import TtyAddressResolver from 'app/lib/term/ttyAddressResolver';
 import { initTerminal, updateRoute, close } from 'app/flux/terminal/actions';
-import { updateSession } from 'app/flux/sessions/actions';
 import * as playerActions from 'app/flux/player/actions';
 import PartyListPanel from './../partyListPanel';
 
@@ -107,6 +105,7 @@ class TerminalContainer extends React.Component {
     });
         
     this.terminal.open();
+    this.terminal.tty.on('audit.end', close);   
   }
   
   componentWillUnmount() {
@@ -119,20 +118,7 @@ class TerminalContainer extends React.Component {
 
   render() {
     return ( <div ref="container"/> );
-  }
-
-  receiveEvents(data) {            
-    let hasEnded = data.events.some(item => item.event === EventTypeEnum.END);    
-    if (hasEnded) {
-      close();
-    }
-
-    // update participant list
-    updateSession({      
-      siteId: this.props.store.getClusterName(),
-      json: data.session      
-    })                                  
-  }
+  }                   
 }
 
 const ErrorIndicator = ({ text }) => (

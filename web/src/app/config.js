@@ -76,9 +76,7 @@ const cfg = {
     siteEventSessionFilterPath: `/v1/webapi/sites/:siteId/sessions`,
     siteEventsFilterPath: `/v1/webapi/sites/:siteId/events?event=session.start&event=session.end&from=:start&to=:end`,
     ttyWsAddr: ':fqdm/v1/webapi/sites/:cluster/connect?access_token=:token&params=:params',
-    ttyEventWsAddr: ':fqdm/v1/webapi/sites/:cluster/sessions/:sid/events/stream?access_token=:token',      
-    ttyResizeUrl: '/v1/webapi/sites/:cluster/sessions/:sid',
-
+        
     getSiteUrl(siteId) {              
       return formatPattern(cfg.api.sitePath, { siteId });  
     },

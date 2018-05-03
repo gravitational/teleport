@@ -24,9 +24,7 @@ export default class AddressResolver {
     },
     sid: null,
     clusterName: null,
-    ttyUrl: null,
-    ttyEventUrl: null,
-    ttyResizeUrl: null
+    ttyUrl: null    
   }
 
   constructor(params){
@@ -47,15 +45,7 @@ export default class AddressResolver {
     const encoded = window.encodeURI(params);    
     return this.format(ttyUrl).replace(':params', encoded);    
   }
-
-  getEventProviderConnStr(){
-    return this.format(this._params.ttyEventUrl);      
-  }
-
-  getResizeReqUrl(){        
-    return this.format(this._params.ttyResizeUrl);      
-  }
-
+    
   format(url){
     return url
       .replace(':fqdm', cfg.getWsHostName()) 

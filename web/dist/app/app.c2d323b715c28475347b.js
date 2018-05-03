@@ -1244,8 +1244,6 @@ webpackJsonp([0],[
 	    siteEventSessionFilterPath: '/v1/webapi/sites/:siteId/sessions',
 	    siteEventsFilterPath: '/v1/webapi/sites/:siteId/events?event=session.start&event=session.end&from=:start&to=:end',
 	    ttyWsAddr: ':fqdm/v1/webapi/sites/:cluster/connect?access_token=:token&params=:params',
-	    ttyEventWsAddr: ':fqdm/v1/webapi/sites/:cluster/sessions/:sid/events/stream?access_token=:token',
-	    ttyResizeUrl: '/v1/webapi/sites/:cluster/sessions/:sid',
 
 	    getSiteUrl: function getSiteUrl(siteId) {
 	      return (0, _patternUtils.formatPattern)(cfg.api.sitePath, { siteId: siteId });
@@ -12691,9 +12689,7 @@ webpackJsonp([0],[
 
 	var _nuclearJsReactAddons = __webpack_require__(219);
 
-	var _enums = __webpack_require__(418);
-
-	var _terminal = __webpack_require__(419);
+	var _terminal = __webpack_require__(418);
 
 	var _terminal2 = _interopRequireDefault(_terminal);
 
@@ -12707,11 +12703,9 @@ webpackJsonp([0],[
 
 	var _actions = __webpack_require__(430);
 
-	var _actions2 = __webpack_require__(290);
+	var _actions2 = __webpack_require__(434);
 
-	var _actions3 = __webpack_require__(434);
-
-	var playerActions = _interopRequireWildcard(_actions3);
+	var playerActions = _interopRequireWildcard(_actions2);
 
 	var _partyListPanel = __webpack_require__(436);
 
@@ -12857,6 +12851,7 @@ webpackJsonp([0],[
 	    });
 
 	    this.terminal.open();
+	    this.terminal.tty.on('audit.end', _actions.close);
 	  };
 
 	  TerminalContainer.prototype.componentWillUnmount = function componentWillUnmount() {
@@ -12869,21 +12864,6 @@ webpackJsonp([0],[
 
 	  TerminalContainer.prototype.render = function render() {
 	    return _react2.default.createElement('div', { ref: 'container' });
-	  };
-
-	  TerminalContainer.prototype.receiveEvents = function receiveEvents(data) {
-	    var hasEnded = data.events.some(function (item) {
-	      return item.event === _enums.EventTypeEnum.END;
-	    });
-	    if (hasEnded) {
-	      (0, _actions.close)();
-	    }
-
-	    // update participant list
-	    (0, _actions2.updateSession)({
-	      siteId: this.props.store.getClusterName(),
-	      json: data.session
-	    });
 	  };
 
 	  return TerminalContainer;
@@ -12959,52 +12939,17 @@ webpackJsonp([0],[
 
 /***/ }),
 /* 418 */
-/***/ (function(module, exports) {
-
-	'use strict';
-
-	exports.__esModule = true;
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	var EventTypeEnum = exports.EventTypeEnum = {
-	  START: 'session.start',
-	  JOIN: 'session.join',
-	  END: 'session.end',
-	  PRINT: 'print',
-	  RESIZE: 'resize'
-	};
-
-	var StatusCodeEnum = exports.StatusCodeEnum = {
-	  NORMAL: 1000
-	};
-
-/***/ }),
-/* 419 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _xterm = __webpack_require__(420);
+	var _xterm = __webpack_require__(419);
 
 	var _xterm2 = _interopRequireDefault(_xterm);
 
-	var _tty = __webpack_require__(421);
+	var _tty = __webpack_require__(420);
 
 	var _tty2 = _interopRequireDefault(_tty);
 
@@ -13220,8 +13165,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 420 */,
-/* 421 */
+/* 419 */,
+/* 420 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -13230,17 +13175,17 @@ webpackJsonp([0],[
 
 	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
-	var _buffer = __webpack_require__(422);
+	var _buffer = __webpack_require__(421);
 
 	var _buffer2 = _interopRequireDefault(_buffer);
 
-	var _events = __webpack_require__(427);
+	var _events = __webpack_require__(426);
 
 	var _logger = __webpack_require__(245);
 
 	var _logger2 = _interopRequireDefault(_logger);
 
-	var _enums = __webpack_require__(418);
+	var _enums = __webpack_require__(427);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -13406,12 +13351,12 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
+/* 421 */,
 /* 422 */,
 /* 423 */,
 /* 424 */,
 /* 425 */,
-/* 426 */,
-/* 427 */
+/* 426 */
 /***/ (function(module, exports) {
 
 	// Copyright Joyent, Inc. and other Node contributors.
@@ -13718,6 +13663,41 @@ webpackJsonp([0],[
 
 
 /***/ }),
+/* 427 */
+/***/ (function(module, exports) {
+
+	'use strict';
+
+	exports.__esModule = true;
+	/*
+	Copyright 2015 Gravitational, Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	    http://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+	*/
+
+	var EventTypeEnum = exports.EventTypeEnum = {
+	  START: 'session.start',
+	  JOIN: 'session.join',
+	  END: 'session.end',
+	  PRINT: 'print',
+	  RESIZE: 'resize'
+	};
+
+	var StatusCodeEnum = exports.StatusCodeEnum = {
+	  NORMAL: 1000
+	};
+
+/***/ }),
 /* 428 */
 /***/ (function(module, exports) {
 
@@ -13788,9 +13768,7 @@ webpackJsonp([0],[
 	      },
 	      sid: null,
 	      clusterName: null,
-	      ttyUrl: null,
-	      ttyEventUrl: null,
-	      ttyResizeUrl: null
+	      ttyUrl: null
 	    };
 
 	    this._params = _extends({}, params);
@@ -13811,14 +13789,6 @@ webpackJsonp([0],[
 
 	    var encoded = window.encodeURI(params);
 	    return this.format(ttyUrl).replace(':params', encoded);
-	  };
-
-	  AddressResolver.prototype.getEventProviderConnStr = function getEventProviderConnStr() {
-	    return this.format(this._params.ttyEventUrl);
-	  };
-
-	  AddressResolver.prototype.getResizeReqUrl = function getResizeReqUrl() {
-	    return this.format(this._params.ttyResizeUrl);
 	  };
 
 	  AddressResolver.prototype.format = function format(url) {
@@ -14099,7 +14069,7 @@ webpackJsonp([0],[
 
 	var _config2 = _interopRequireDefault(_config);
 
-	var _enums = __webpack_require__(418);
+	var _enums = __webpack_require__(427);
 
 	var _reactor = __webpack_require__(233);
 
@@ -16439,7 +16409,7 @@ webpackJsonp([0],[
 
 	var _reactSlider2 = _interopRequireDefault(_reactSlider);
 
-	var _terminal = __webpack_require__(419);
+	var _terminal = __webpack_require__(418);
 
 	var _terminal2 = _interopRequireDefault(_terminal);
 
@@ -16741,7 +16711,7 @@ webpackJsonp([0],[
 
 	var _jQuery2 = _interopRequireDefault(_jQuery);
 
-	var _buffer = __webpack_require__(422);
+	var _buffer = __webpack_require__(421);
 
 	var _buffer2 = _interopRequireDefault(_buffer);
 
@@ -16749,11 +16719,11 @@ webpackJsonp([0],[
 
 	var _api2 = _interopRequireDefault(_api);
 
-	var _tty = __webpack_require__(421);
+	var _tty = __webpack_require__(420);
 
 	var _tty2 = _interopRequireDefault(_tty);
 
-	var _enums = __webpack_require__(418);
+	var _enums = __webpack_require__(427);
 
 	var _logger = __webpack_require__(245);
 
@@ -17172,7 +17142,7 @@ webpackJsonp([0],[
 	          w = _groups$_i.w;
 
 	      if (str.length > 0) {
-	        this.emit('resize', { h: h, w: w });
+	        this.emit('audit.resize', { h: h, w: w });
 	        this.emit('data', str);
 	      }
 	    }
@@ -19031,8 +19001,6 @@ webpackJsonp([0],[
 	      sid: this.sid,
 	      token: accessToken,
 	      ttyUrl: _config2.default.api.ttyWsAddr,
-	      ttyEventUrl: _config2.default.api.ttyEventWsAddr,
-	      ttyResizeUrl: _config2.default.api.ttyResizeUrl,
 	      cluster: this.siteId,
 	      getTarget: function getTarget() {
 	        return { server_id: server_id };
@@ -19411,7 +19379,7 @@ webpackJsonp([0],[
 
 	var _actionTypes = __webpack_require__(411);
 
-	var _enums = __webpack_require__(418);
+	var _enums = __webpack_require__(427);
 
 	/*
 	Copyright 2015 Gravitational, Inc.

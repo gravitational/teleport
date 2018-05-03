@@ -370,7 +370,7 @@ export class TtyPlayer extends Tty {
       const str = groups[i].data.join('');
       const {h, w} = groups[i];
       if (str.length > 0) {                        
-        this.emit('resize', { h, w });                
+        this.emit('audit.resize', { h, w });                
         this.emit('data', str);        
       }
     }
