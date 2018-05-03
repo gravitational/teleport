@@ -45,7 +45,7 @@ oss:
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE)"
 	@echo "BUILD_TIMESTAMP=$(BUILD_TIMESTAMP)"
 	#packer build -force -var build_timestamp=$(BUILD_TIMESTAMP) template.json
-	$(file > files/build/oss_build_timestamp.txt,$(BUILD_TIMESTAMP))
+	@echo "$(BUILD_TIMESTAMP)" > files/build/oss_build_timestamp.txt
 
 .PHONY: ent
 ent: TELEPORT_TYPE=ent
@@ -54,7 +54,7 @@ ent: check-ent-vars
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE)"
 	@echo "BUILD_TIMESTAMP=$(BUILD_TIMESTAMP)"
 	packer build -force -var build_timestamp=$(BUILD_TIMESTAMP) template.json
-	$(file > files/build/ent_build_timestamp.txt,$(BUILD_TIMESTAMP))
+	@echo "$(BUILD_TIMESTAMP)" > files/build/ent_build_timestamp.txt
 
 .PHONY: update-ami-ids-oss
 update-ami-ids-oss:
