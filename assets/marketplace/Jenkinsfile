@@ -34,7 +34,7 @@ pipeline {
             steps {
                 dir('assets/marketplace') {
                     //sh 'make jenkins-create-stack'
-                    sh 'make jenkins-wait-for-stack-creation-debug'
+                    sh 'make jenkins-wait-for-stack-creation'
                 }
             }
         }
