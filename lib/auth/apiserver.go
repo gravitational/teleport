@@ -74,6 +74,7 @@ func NewAPIServer(config *APIConfig) http.Handler {
 
 	// Generating certificates for user and host authorities
 	srv.POST("/:version/ca/host/certs", srv.withAuth(srv.generateHostCert))
+	srv.POST("/:version/ca/user/certs", srv.withAuth(srv.generateUserCert))
 
 	// Operations on users
 	srv.GET("/:version/users", srv.withAuth(srv.getUsers))
@@ -551,6 +552,29 @@ func (s *APIServer) getWebSession(auth ClientI, w http.ResponseWriter, r *http.R
 		}, nil
 	}
 	return rawMessage(services.GetWebSessionMarshaler().MarshalWebSession(sess, services.WithVersion(version)))
+}
+
+type generateUserCertReq struct {
+	Key           []byte        `json:"key"`
+	User          string        `json:"user"`
+	TTL           time.Duration `json:"ttl"`
+	Compatibility string        `json:"compatibility,omitempty"`
+}
+
+func (s *APIServer) generateUserCert(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
+	var req *generateUserCertReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	certificateFormat, err := utils.CheckCertificateFormatFlag(req.Compatibility)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cert, err := auth.GenerateUserCert(req.Key, req.User, req.TTL, certificateFormat)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return string(cert), nil
 }
 
 type signInReq struct {

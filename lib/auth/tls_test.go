@@ -966,6 +966,72 @@ func (s *TLSSuite) TestGenerateCerts(c *check.C) {
 		Roles:    teleport.Roles{teleport.RoleNode},
 	})
 	fixtures.ExpectAccessDenied(c, err)
+
+	user1, userRole, err := CreateUserAndRole(s.server.Auth(), "user1", []string{"user1"})
+	c.Assert(err, check.IsNil)
+
+	user2, _, err := CreateUserAndRole(s.server.Auth(), "user2", []string{"user2"})
+	c.Assert(err, check.IsNil)
+
+	// unauthenticated client should NOT be able to generate a user cert without auth
+	nopClient, err := s.server.NewClient(TestNop())
+	c.Assert(err, check.IsNil)
+
+	_, err = nopClient.GenerateUserCert(pub, user1.GetName(), time.Hour, teleport.CertificateFormatStandard)
+	c.Assert(err, check.NotNil)
+	fixtures.ExpectAccessDenied(c, err)
+	c.Assert(err, check.ErrorMatches, ".*cannot request a certificate for user1")
+
+	// Users don't match
+	userClient2, err := s.server.NewClient(TestUser(user2.GetName()))
+	c.Assert(err, check.IsNil)
+
+	_, err = userClient2.GenerateUserCert(pub, user1.GetName(), time.Hour, teleport.CertificateFormatStandard)
+	c.Assert(err, check.NotNil)
+	fixtures.ExpectAccessDenied(c, err)
+	c.Assert(err, check.ErrorMatches, ".*cannot request a certificate for user1")
+
+	// should not be able to generate cert for longer than duration
+	userClient1, err := s.server.NewClient(TestUser(user1.GetName()))
+	c.Assert(err, check.IsNil)
+
+	cert, err := userClient1.GenerateUserCert(pub, user1.GetName(), 40*time.Hour, teleport.CertificateFormatStandard)
+	c.Assert(err, check.IsNil)
+
+	parsedKey, _, _, _, err := ssh.ParseAuthorizedKey(cert)
+	c.Assert(err, check.IsNil)
+	parsedCert, _ := parsedKey.(*ssh.Certificate)
+	validBefore := time.Unix(int64(parsedCert.ValidBefore), 0)
+	diff := validBefore.Sub(time.Now())
+	c.Assert(diff < defaults.MaxCertDuration, check.Equals, true, check.Commentf("expected %v < %v", diff, defaults.CertDuration))
+
+	// user should have agent forwarding (default setting)
+	_, exists := parsedCert.Extensions[teleport.CertExtensionPermitAgentForwarding]
+	c.Assert(exists, check.Equals, true)
+
+	// now update role to permit agent forwarding
+	roleOptions := userRole.GetOptions()
+	roleOptions.Set(services.ForwardAgent, true)
+	userRole.SetOptions(roleOptions)
+	err = s.server.Auth().UpsertRole(userRole, backend.Forever)
+	c.Assert(err, check.IsNil)
+
+	cert, err = userClient1.GenerateUserCert(pub, user1.GetName(), 1*time.Hour, teleport.CertificateFormatStandard)
+	c.Assert(err, check.IsNil)
+	parsedKey, _, _, _, err = ssh.ParseAuthorizedKey(cert)
+	c.Assert(err, check.IsNil)
+	parsedCert, _ = parsedKey.(*ssh.Certificate)
+
+	// user should get agent forwarding
+	_, exists = parsedCert.Extensions[teleport.CertExtensionPermitAgentForwarding]
+	c.Assert(exists, check.Equals, true)
+
+	// apply HTTP Auth to generate user cert:
+	cert, err = userClient1.GenerateUserCert(pub, user1.GetName(), time.Hour, teleport.CertificateFormatStandard)
+	c.Assert(err, check.IsNil)
+
+	_, _, _, _, err = ssh.ParseAuthorizedKey(cert)
+	c.Assert(err, check.IsNil)
 }
 
 // TestCertificateFormat makes sure that certificates are generated with the

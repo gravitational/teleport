@@ -524,6 +524,41 @@ func (a *AuthWithRoles) GenerateHostCert(
 	return a.authServer.GenerateHostCert(key, hostID, nodeName, principals, clusterName, roles, ttl)
 }
 
+func (a *AuthWithRoles) GenerateUserCert(key []byte, username string, ttl time.Duration, compatibility string) ([]byte, error) {
+	if err := a.currentUserAction(username); err != nil {
+		return nil, trace.AccessDenied("%v cannot request a certificate for %v", a.user.GetName(), username)
+	}
+	// notice that user requesting the certificate and the user currently
+	// authenticated may differ (e.g. admin generates certificate for the user scenario)
+	// so we fetch user's permissions
+	checker := a.checker
+	var user services.User
+	var err error
+	if a.user.GetName() != username {
+		user, err = a.GetUser(username)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		checker, err = services.FetchRoles(user.GetRoles(), a.authServer, user.GetTraits())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		user = a.user
+	}
+	certs, err := a.authServer.generateUserCert(certRequest{
+		user:          user,
+		roles:         checker,
+		ttl:           ttl,
+		compatibility: compatibility,
+		publicKey:     key,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return certs.ssh, nil
+}
+
 func (a *AuthWithRoles) CreateSignupToken(user services.UserV1, ttl time.Duration) (token string, e error) {
 	if err := a.action(defaults.Namespace, services.KindUser, services.VerbCreate); err != nil {
 		return "", trace.Wrap(err)

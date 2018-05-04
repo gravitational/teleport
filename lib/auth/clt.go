@@ -1105,6 +1105,27 @@ func (c *Client) GetSignupTokenData(token string) (user string, otpQRCode []byte
 	return tokenData.User, tokenData.QRImg, nil
 }
 
+// GenerateUserCert takes the public key in the OpenSSH `authorized_keys` plain
+// text format, signs it using User Certificate Authority signing key and
+// returns the resulting certificate.
+func (c *Client) GenerateUserCert(key []byte, user string, ttl time.Duration, compatibility string) ([]byte, error) {
+	out, err := c.PostJSON(c.Endpoint("ca", "user", "certs"),
+		generateUserCertReq{
+			Key:           key,
+			User:          user,
+			TTL:           ttl,
+			Compatibility: compatibility,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var cert string
+	if err := json.Unmarshal(out.Bytes(), &cert); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return []byte(cert), nil
+}
+
 // GetSignupU2FRegisterRequest generates sign request for user trying to sign up with invite tokenx
 func (c *Client) GetSignupU2FRegisterRequest(token string) (u2fRegisterRequest *u2f.RegisterRequest, e error) {
 	out, err := c.Get(c.Endpoint("u2f", "signuptokens", token), url.Values{})
@@ -2132,6 +2153,11 @@ type IdentityService interface {
 	// plain text format, signs it using Host Certificate Authority private key and returns the
 	// resulting certificate.
 	GenerateHostCert(key []byte, hostID, nodeName string, principals []string, clusterName string, roles teleport.Roles, ttl time.Duration) ([]byte, error)
+
+	// GenerateUserCert takes the public key in the OpenSSH `authorized_keys`
+	// plain text format, signs it using User Certificate Authority signing key and returns the
+	// resulting certificate.
+	GenerateUserCert(key []byte, user string, ttl time.Duration, compatibility string) ([]byte, error)
 
 	// GetSignupTokenData returns token data for a valid token
 	GetSignupTokenData(token string) (user string, otpQRCode []byte, e error)
