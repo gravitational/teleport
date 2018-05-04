@@ -39,25 +39,25 @@ webpackJsonp([0],[
 
 	var _actions2 = _interopRequireDefault(_actions);
 
-	__webpack_require__(549);
+	__webpack_require__(548);
 
-	var _actions3 = __webpack_require__(560);
+	var _actions3 = __webpack_require__(559);
 
-	var _features2 = __webpack_require__(568);
+	var _features2 = __webpack_require__(567);
 
-	var _reactor = __webpack_require__(566);
+	var _reactor = __webpack_require__(565);
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _config = __webpack_require__(564);
+	var _config = __webpack_require__(563);
 
 	var _config2 = _interopRequireDefault(_config);
 
-	var _app = __webpack_require__(626);
+	var _app = __webpack_require__(625);
 
 	var _app2 = _interopRequireDefault(_app);
 
-	__webpack_require__(632);
+	__webpack_require__(631);
 
 	function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key]; } } newObj.default = obj; return newObj; } }
 
@@ -1253,8 +1253,6 @@ webpackJsonp([0],[
 	    siteEventSessionFilterPath: '/v1/webapi/sites/:siteId/sessions',
 	    siteEventsFilterPath: '/v1/webapi/sites/:siteId/events?event=session.start&event=session.end&from=:start&to=:end',
 	    ttyWsAddr: ':fqdm/v1/webapi/sites/:cluster/connect?access_token=:token&params=:params',
-	    ttyEventWsAddr: ':fqdm/v1/webapi/sites/:cluster/sessions/:sid/events/stream?access_token=:token',
-	    ttyResizeUrl: '/v1/webapi/sites/:cluster/sessions/:sid',
 
 	    getSiteUrl: function getSiteUrl(siteId) {
 	      return (0, _patternUtils.formatPattern)(cfg.api.sitePath, { siteId: siteId });
@@ -10347,11 +10345,11 @@ webpackJsonp([0],[
 
 	var _featureSsh2 = _interopRequireDefault(_featureSsh);
 
-	var _featureAudit = __webpack_require__(445);
+	var _featureAudit = __webpack_require__(449);
 
 	var _featureAudit2 = _interopRequireDefault(_featureAudit);
 
-	var _featureSettings = __webpack_require__(543);
+	var _featureSettings = __webpack_require__(542);
 
 	var _featureSettings2 = _interopRequireDefault(_featureSettings);
 
@@ -12354,12 +12352,6 @@ webpackJsonp([0],[
 	    }).fail(function (err) {
 	      logger.error('fetchActiveSessions', err);
 	    });
-	  },
-	  updateSession: function updateSession(_ref) {
-	    var siteId = _ref.siteId,
-	        json = _ref.json;
-
-	    _reactor2.default.dispatch(_actionTypes.UPDATE_ACTIVE_SESSION, { siteId: siteId, json: json });
 	  }
 	};
 
@@ -12510,7 +12502,6 @@ webpackJsonp([0],[
 	*/
 
 	var RECEIVE_ACTIVE_SESSIONS = exports.RECEIVE_ACTIVE_SESSIONS = 'TLPT_SESSIONS_RECEIVE_ACTIVE';
-	var UPDATE_ACTIVE_SESSION = exports.UPDATE_ACTIVE_SESSION = 'TLPT_SESSIONS_UPDATE_ACTIVE';
 	var RECEIVE_SITE_EVENTS = exports.RECEIVE_SITE_EVENTS = 'TLPT_SESSIONS_RECEIVE_EVENTS';
 
 /***/ }),
@@ -13120,29 +13111,27 @@ webpackJsonp([0],[
 
 	var _nuclearJsReactAddons = __webpack_require__(219);
 
-	var _enums = __webpack_require__(421);
-
-	var _terminal = __webpack_require__(422);
+	var _terminal = __webpack_require__(421);
 
 	var _terminal2 = _interopRequireDefault(_terminal);
 
-	var _getters = __webpack_require__(427);
+	var _enums = __webpack_require__(430);
+
+	var _getters = __webpack_require__(431);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
-	var _ttyAddressResolver = __webpack_require__(428);
+	var _ttyAddressResolver = __webpack_require__(432);
 
 	var _ttyAddressResolver2 = _interopRequireDefault(_ttyAddressResolver);
 
-	var _actions = __webpack_require__(429);
+	var _actions = __webpack_require__(433);
 
-	var _actions2 = __webpack_require__(291);
+	var _actions2 = __webpack_require__(438);
 
-	var _actions3 = __webpack_require__(434);
+	var playerActions = _interopRequireWildcard(_actions2);
 
-	var playerActions = _interopRequireWildcard(_actions3);
-
-	var _partyListPanel = __webpack_require__(436);
+	var _partyListPanel = __webpack_require__(440);
 
 	var _partyListPanel2 = _interopRequireDefault(_partyListPanel);
 
@@ -13150,7 +13139,7 @@ webpackJsonp([0],[
 
 	var _indicator2 = _interopRequireDefault(_indicator);
 
-	var _terminalPartyList = __webpack_require__(437);
+	var _terminalPartyList = __webpack_require__(441);
 
 	var _terminalPartyList2 = _interopRequireDefault(_terminalPartyList);
 
@@ -13285,8 +13274,8 @@ webpackJsonp([0],[
 	      addressResolver: addressResolver
 	    });
 
-	    this.terminal.ttyEvents.on('data', this.receiveEvents.bind(this));
 	    this.terminal.open();
+	    this.terminal.tty.on(_enums.TermEventEnum.CLOSE, _actions.close);
 	  };
 
 	  TerminalContainer.prototype.componentWillUnmount = function componentWillUnmount() {
@@ -13299,21 +13288,6 @@ webpackJsonp([0],[
 
 	  TerminalContainer.prototype.render = function render() {
 	    return _react2.default.createElement('div', { ref: 'container' });
-	  };
-
-	  TerminalContainer.prototype.receiveEvents = function receiveEvents(data) {
-	    var hasEnded = data.events.some(function (item) {
-	      return item.event === _enums.EventTypeEnum.END;
-	    });
-	    if (hasEnded) {
-	      (0, _actions.close)();
-	    }
-
-	    // update participant list
-	    (0, _actions2.updateSession)({
-	      siteId: this.props.store.getClusterName(),
-	      json: data.session
-	    });
 	  };
 
 	  return TerminalContainer;
@@ -13389,63 +13363,27 @@ webpackJsonp([0],[
 
 /***/ }),
 /* 421 */
-/***/ (function(module, exports) {
-
-	'use strict';
-
-	exports.__esModule = true;
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	var EventTypeEnum = exports.EventTypeEnum = {
-	  START: 'session.start',
-	  END: 'session.end',
-	  PRINT: 'print',
-	  RESIZE: 'resize'
-	};
-
-	var StatusCodeEnum = exports.StatusCodeEnum = {
-	  NORMAL: 1000
-	};
-
-/***/ }),
-/* 422 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _xterm = __webpack_require__(423);
+	var _xterm = __webpack_require__(422);
 
 	var _xterm2 = _interopRequireDefault(_xterm);
 
-	var _tty = __webpack_require__(424);
+	var _tty = __webpack_require__(423);
 
 	var _tty2 = _interopRequireDefault(_tty);
-
-	var _ttyEvents = __webpack_require__(426);
-
-	var _ttyEvents2 = _interopRequireDefault(_ttyEvents);
 
 	var _lodash = __webpack_require__(276);
 
 	var _logger = __webpack_require__(234);
 
 	var _logger2 = _interopRequireDefault(_logger);
+
+	var _enums = __webpack_require__(430);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -13487,7 +13425,6 @@ webpackJsonp([0],[
 
 	    this._el = el;
 	    this.tty = new _tty2.default(addressResolver);
-	    this.ttyEvents = new _ttyEvents2.default(addressResolver);
 	    this.scrollBack = scrollBack;
 	    this.rows = undefined;
 	    this.cols = undefined;
@@ -13522,20 +13459,14 @@ webpackJsonp([0],[
 	    window.addEventListener('resize', this.debouncedResize);
 
 	    // subscribe to tty
-	    this.tty.on('reset', this.reset.bind(this));
-	    this.tty.on('close', this._processClose.bind(this));
-	    this.tty.on('data', this._processData.bind(this));
+	    this.tty.on(_enums.TermEventEnum.RESET, this.reset.bind(this));
+	    this.tty.on(_enums.TermEventEnum.CONN_CLOSE, this._processClose.bind(this));
+	    this.tty.on(_enums.TermEventEnum.DATA, this._processData.bind(this));
 
 	    // subscribe tty resize event (used by session player)
-	    this.tty.on('resize', function (_ref) {
+	    this.tty.on(_enums.TermEventEnum.RESIZE, function (_ref) {
 	      var h = _ref.h,
 	          w = _ref.w;
-	      return _this.resize(w, h);
-	    });
-	    // subscribe to session resize events (triggered by other participants)
-	    this.ttyEvents.on('resize', function (_ref2) {
-	      var h = _ref2.h,
-	          w = _ref2.w;
 	      return _this.resize(w, h);
 	    });
 
@@ -13544,7 +13475,6 @@ webpackJsonp([0],[
 
 	  TtyTerminal.prototype.connect = function connect() {
 	    this.tty.connect(this.cols, this.rows);
-	    this.ttyEvents.connect();
 	  };
 
 	  TtyTerminal.prototype.destroy = function destroy() {
@@ -13610,8 +13540,6 @@ webpackJsonp([0],[
 	  TtyTerminal.prototype._disconnect = function _disconnect() {
 	    this.tty.disconnect();
 	    this.tty.removeAllListeners();
-	    this.ttyEvents.disconnect();
-	    this.ttyEvents.removeAllListeners();
 	  };
 
 	  TtyTerminal.prototype._requestResize = function _requestResize() {
@@ -13663,8 +13591,8 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 423 */,
-/* 424 */
+/* 422 */,
+/* 423 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -13673,17 +13601,17 @@ webpackJsonp([0],[
 
 	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
-	var _events = __webpack_require__(425);
+	var _buffer = __webpack_require__(424);
 
-	var _enums = __webpack_require__(421);
+	var _buffer2 = _interopRequireDefault(_buffer);
 
-	var _api = __webpack_require__(243);
-
-	var _api2 = _interopRequireDefault(_api);
+	var _events = __webpack_require__(429);
 
 	var _logger = __webpack_require__(234);
 
 	var _logger2 = _interopRequireDefault(_logger);
+
+	var _enums = __webpack_require__(430);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -13706,6 +13634,8 @@ webpackJsonp([0],[
 	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               See the License for the specific language governing permissions and
 	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               limitations under the License.
 	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               */
+
+	var Decoder = _buffer2.default.Buffer;
 
 	var logger = _logger2.default.create('Tty');
 
@@ -13754,23 +13684,32 @@ webpackJsonp([0],[
 	  };
 
 	  Tty.prototype.send = function send(data) {
-	    this.socket.send(data);
+	    var msg = {
+	      type: "raw",
+	      payload: Decoder(data, 'utf8').toString('base64')
+	    };
+
+	    this.socket.send(JSON.stringify(msg));
 	  };
 
 	  Tty.prototype.requestResize = function requestResize(w, h) {
-	    var url = this._addressResolver.getResizeReqUrl();
-	    var payload = {
-	      terminal_params: { w: w, h: h }
+	    var msg = {
+	      type: "resize.request",
+	      payload: {
+	        event: _enums.EventTypeEnum.RESIZE,
+	        width: w,
+	        height: h,
+	        size: w + ':' + h
+	      }
 	    };
 
 	    logger.info('requesting new screen size', 'w:' + w + ' and h:' + h);
-	    return _api2.default.put(url, payload).fail(function (err) {
-	      return logger.error('requestResize', err);
-	    });
+
+	    this.socket.send(JSON.stringify(msg));
 	  };
 
 	  Tty.prototype._flushBuffer = function _flushBuffer() {
-	    this.emit('data', this._attachSocketBuffer);
+	    this.emit(_enums.TermEventEnum.DATA, this._attachSocketBuffer);
 	    this._attachSocketBuffer = null;
 	    clearTimeout(this._attachSocketBufferTimer);
 	    this._attachSocketBufferTimer = null;
@@ -13795,15 +13734,44 @@ webpackJsonp([0],[
 	    this.socket.onmessage = null;
 	    this.socket.onclose = null;
 	    this.socket = null;
-	    this.emit('close', e);
+	    this.emit(_enums.TermEventEnum.CONN_CLOSE, e);
 	    logger.info('websocket is closed');
 	  };
 
 	  Tty.prototype._onReceiveData = function _onReceiveData(ev) {
-	    if (this._buffered) {
-	      this._pushToBuffer(ev.data);
-	    } else {
-	      this.emit('data', ev.data);
+	    try {
+	      var msg = JSON.parse(ev.data);
+	      if (msg.type === 'audit') {
+	        this._processEvent(msg.payload);
+	        return;
+	      }
+
+	      var data = Decoder(msg.payload, 'base64').toString('utf8');
+	      if (this._buffered) {
+	        this._pushToBuffer(data);
+	      } else {
+	        this.emit(_enums.TermEventEnum.DATA, data);
+	      }
+	    } catch (err) {
+	      logger.error('failed to parse incoming message.', err);
+	    }
+	  };
+
+	  Tty.prototype._processEvent = function _processEvent(event) {
+	    if (event.event === _enums.EventTypeEnum.RESIZE) {
+	      var _event$size$split = event.size.split(':'),
+	          w = _event$size$split[0],
+	          h = _event$size$split[1];
+
+	      w = Number(w);
+	      h = Number(h);
+	      this.emit(_enums.TermEventEnum.RESIZE, { w: w, h: h });
+	      return;
+	    }
+
+	    if (event.event === _enums.EventTypeEnum.END) {
+	      this.emit(_enums.TermEventEnum.CLOSE, event);
+	      return;
 	    }
 	  };
 
@@ -13814,7 +13782,12 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 425 */
+/* 424 */,
+/* 425 */,
+/* 426 */,
+/* 427 */,
+/* 428 */,
+/* 429 */
 /***/ (function(module, exports) {
 
 	// Copyright Joyent, Inc. and other Node contributors.
@@ -14121,127 +14094,50 @@ webpackJsonp([0],[
 
 
 /***/ }),
-/* 426 */
-/***/ (function(module, exports, __webpack_require__) {
+/* 430 */
+/***/ (function(module, exports) {
 
 	'use strict';
 
 	exports.__esModule = true;
+	/*
+	Copyright 2015 Gravitational, Inc.
 
-	var _events = __webpack_require__(425);
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
 
-	var _lodash = __webpack_require__(276);
+	    http://www.apache.org/licenses/LICENSE-2.0
 
-	var _enums = __webpack_require__(421);
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+	*/
 
-	var _logger = __webpack_require__(234);
+	var EventTypeEnum = exports.EventTypeEnum = {
+	  START: 'session.start',
+	  JOIN: 'session.join',
+	  END: 'session.end',
+	  PRINT: 'print',
+	  RESIZE: 'resize'
+	};
 
-	var _logger2 = _interopRequireDefault(_logger);
+	var TermEventEnum = exports.TermEventEnum = {
+	  RESIZE: 'terminal.resize',
+	  CLOSE: 'terminal.close',
+	  RESET: 'terminal.reset',
+	  DATA: 'terminal.data',
+	  CONN_CLOSE: 'connection.close'
+	};
 
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; } /*
-	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Copyright 2015 Gravitational, Inc.
-	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
-	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Licensed under the Apache License, Version 2.0 (the "License");
-	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               you may not use this file except in compliance with the License.
-	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               You may obtain a copy of the License at
-	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
-	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   http://www.apache.org/licenses/LICENSE-2.0
-	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
-	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Unless required by applicable law or agreed to in writing, software
-	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               distributed under the License is distributed on an "AS IS" BASIS,
-	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               See the License for the specific language governing permissions and
-	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               limitations under the License.
-	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               */
-
-	var logger = _logger2.default.create('TtyEvents');
-
-	var TtyEvents = function (_EventEmitter) {
-	  _inherits(TtyEvents, _EventEmitter);
-
-	  function TtyEvents(addressResolver) {
-	    _classCallCheck(this, TtyEvents);
-
-	    var _this = _possibleConstructorReturn(this, _EventEmitter.call(this));
-
-	    _this.socket = null;
-	    _this._addressResolver = null;
-
-	    _this._addressResolver = addressResolver;
-	    return _this;
-	  }
-
-	  TtyEvents.prototype.connect = function connect() {
-	    var connStr = this._addressResolver.getEventProviderConnStr();
-	    this.socket = new WebSocket(connStr);
-	    this.socket.onmessage = this._onReceiveMessage.bind(this);
-	    this.socket.onclose = this._onCloseConnection.bind(this);
-	    this.socket.onopen = function () {
-	      logger.info('websocket is open');
-	    };
-	  };
-
-	  TtyEvents.prototype.disconnect = function disconnect() {
-	    var reasonCode = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : _enums.StatusCodeEnum.NORMAL;
-
-	    if (this.socket !== null) {
-	      this.socket.close(reasonCode);
-	    }
-	  };
-
-	  TtyEvents.prototype._onCloseConnection = function _onCloseConnection(e) {
-	    this.socket.onmessage = null;
-	    this.socket.onopen = null;
-	    this.socket.onclose = null;
-	    this.emit('close', e);
-	    logger.info('websocket is closed');
-	  };
-
-	  TtyEvents.prototype._onReceiveMessage = function _onReceiveMessage(message) {
-	    try {
-	      var json = JSON.parse(message.data);
-	      this._processResize(json.events);
-	      this.emit('data', json);
-	    } catch (err) {
-	      logger.error('failed to parse event stream data', err);
-	    }
-	  };
-
-	  TtyEvents.prototype._processResize = function _processResize(events) {
-	    events = events || [];
-	    // filter resize events 
-	    var resizes = events.filter(function (item) {
-	      return item.event === _enums.EventTypeEnum.RESIZE;
-	    });
-
-	    (0, _lodash.sortBy)(resizes, ['ms']);
-
-	    if (resizes.length > 0) {
-	      // get values from the last resize event
-	      var _resizes$size$split = resizes[resizes.length - 1].size.split(':'),
-	          w = _resizes$size$split[0],
-	          h = _resizes$size$split[1];
-
-	      w = Number(w);
-	      h = Number(h);
-	      this.emit('resize', { w: w, h: h });
-	    }
-	  };
-
-	  return TtyEvents;
-	}(_events.EventEmitter);
-
-	exports.default = TtyEvents;
-	module.exports = exports['default'];
+	var StatusCodeEnum = exports.StatusCodeEnum = {
+	  NORMAL: 1000
+	};
 
 /***/ }),
-/* 427 */
+/* 431 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -14269,7 +14165,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 428 */
+/* 432 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -14311,9 +14207,7 @@ webpackJsonp([0],[
 	      },
 	      sid: null,
 	      clusterName: null,
-	      ttyUrl: null,
-	      ttyEventUrl: null,
-	      ttyResizeUrl: null
+	      ttyUrl: null
 	    };
 
 	    this._params = _extends({}, params);
@@ -14336,14 +14230,6 @@ webpackJsonp([0],[
 	    return this.format(ttyUrl).replace(':params', encoded);
 	  };
 
-	  AddressResolver.prototype.getEventProviderConnStr = function getEventProviderConnStr() {
-	    return this.format(this._params.ttyEventUrl);
-	  };
-
-	  AddressResolver.prototype.getResizeReqUrl = function getResizeReqUrl() {
-	    return this.format(this._params.ttyResizeUrl);
-	  };
-
 	  AddressResolver.prototype.format = function format(url) {
 	    return url.replace(':fqdm', _config2.default.getWsHostName()).replace(':token', this._params.token).replace(':cluster', this._params.cluster).replace(':sid', this._params.sid);
 	  };
@@ -14355,7 +14241,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 429 */
+/* 433 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -14403,15 +14289,15 @@ webpackJsonp([0],[
 
 	var _logger2 = _interopRequireDefault(_logger);
 
-	var _nodeStore = __webpack_require__(430);
+	var _nodeStore = __webpack_require__(434);
 
-	var _getters = __webpack_require__(431);
+	var _getters = __webpack_require__(435);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
-	var _actionTypes = __webpack_require__(432);
+	var _actionTypes = __webpack_require__(436);
 
-	var _actions = __webpack_require__(433);
+	var _actions = __webpack_require__(437);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -14496,7 +14382,7 @@ webpackJsonp([0],[
 	}
 
 /***/ }),
-/* 430 */
+/* 434 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -14614,7 +14500,7 @@ webpackJsonp([0],[
 	});
 
 /***/ }),
-/* 431 */
+/* 435 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -14629,7 +14515,7 @@ webpackJsonp([0],[
 
 	var _config2 = _interopRequireDefault(_config);
 
-	var _enums = __webpack_require__(421);
+	var _enums = __webpack_require__(430);
 
 	var _reactor = __webpack_require__(240);
 
@@ -14637,7 +14523,7 @@ webpackJsonp([0],[
 
 	var _objectUtils = __webpack_require__(278);
 
-	var _nodeStore = __webpack_require__(430);
+	var _nodeStore = __webpack_require__(434);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -14794,7 +14680,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 432 */
+/* 436 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -14820,7 +14706,7 @@ webpackJsonp([0],[
 	var TLPT_TERMINAL_SET_STATUS = exports.TLPT_TERMINAL_SET_STATUS = 'TLPT_TERMINAL_SET_STATUS';
 
 /***/ }),
-/* 433 */
+/* 437 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -14860,7 +14746,7 @@ webpackJsonp([0],[
 	};
 
 /***/ }),
-/* 434 */
+/* 438 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -14877,7 +14763,7 @@ webpackJsonp([0],[
 
 	var _config2 = _interopRequireDefault(_config);
 
-	var _store = __webpack_require__(435);
+	var _store = __webpack_require__(439);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -14907,7 +14793,7 @@ webpackJsonp([0],[
 	}
 
 /***/ }),
-/* 435 */
+/* 439 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15032,7 +14918,7 @@ webpackJsonp([0],[
 	});
 
 /***/ }),
-/* 436 */
+/* 440 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15099,7 +14985,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 437 */
+/* 441 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15110,13 +14996,13 @@ webpackJsonp([0],[
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _reactAddonsCssTransitionGroup = __webpack_require__(438);
+	var _reactAddonsCssTransitionGroup = __webpack_require__(442);
 
 	var _reactAddonsCssTransitionGroup2 = _interopRequireDefault(_reactAddonsCssTransitionGroup);
 
 	var _nuclearJsReactAddons = __webpack_require__(219);
 
-	var _getters = __webpack_require__(431);
+	var _getters = __webpack_require__(435);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
@@ -15173,14 +15059,14 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 438 */,
-/* 439 */,
-/* 440 */,
-/* 441 */,
 /* 442 */,
 /* 443 */,
 /* 444 */,
-/* 445 */
+/* 445 */,
+/* 446 */,
+/* 447 */,
+/* 448 */,
+/* 449 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15197,11 +15083,11 @@ webpackJsonp([0],[
 
 	var _actions = __webpack_require__(285);
 
-	var _main = __webpack_require__(446);
+	var _main = __webpack_require__(450);
 
 	var _main2 = _interopRequireDefault(_main);
 
-	var _playerHost = __webpack_require__(511);
+	var _playerHost = __webpack_require__(515);
 
 	var _playerHost2 = _interopRequireDefault(_playerHost);
 
@@ -15209,9 +15095,9 @@ webpackJsonp([0],[
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _actions2 = __webpack_require__(448);
+	var _actions2 = __webpack_require__(452);
 
-	var _store = __webpack_require__(435);
+	var _store = __webpack_require__(439);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -15295,7 +15181,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 446 */
+/* 450 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15306,25 +15192,25 @@ webpackJsonp([0],[
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _connect = __webpack_require__(447);
+	var _connect = __webpack_require__(451);
 
 	var _connect2 = _interopRequireDefault(_connect);
 
-	var _actions = __webpack_require__(448);
+	var _actions = __webpack_require__(452);
 
-	var _getters = __webpack_require__(431);
+	var _getters = __webpack_require__(435);
 
-	var _getters2 = __webpack_require__(449);
+	var _getters2 = __webpack_require__(453);
 
 	var _getters3 = __webpack_require__(274);
 
 	var _getters4 = _interopRequireDefault(_getters3);
 
-	var _dataProvider = __webpack_require__(451);
+	var _dataProvider = __webpack_require__(455);
 
 	var _dataProvider2 = _interopRequireDefault(_dataProvider);
 
-	var _sessionList = __webpack_require__(452);
+	var _sessionList = __webpack_require__(456);
 
 	var _sessionList2 = _interopRequireDefault(_sessionList);
 
@@ -15416,7 +15302,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 447 */
+/* 451 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15573,7 +15459,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 448 */
+/* 452 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15584,11 +15470,11 @@ webpackJsonp([0],[
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _getters = __webpack_require__(449);
+	var _getters = __webpack_require__(453);
 
 	var _actions = __webpack_require__(291);
 
-	var _actionTypes = __webpack_require__(450);
+	var _actionTypes = __webpack_require__(454);
 
 	var _logger = __webpack_require__(234);
 
@@ -15638,7 +15524,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 449 */
+/* 453 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -15670,7 +15556,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 450 */
+/* 454 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -15697,7 +15583,7 @@ webpackJsonp([0],[
 	var TLPT_STORED_SESSINS_FILTER_RECEIVE_MORE = exports.TLPT_STORED_SESSINS_FILTER_RECEIVE_MORE = 'TLPT_STORED_SESSINS_FILTER_RECEIVE_MORE';
 
 /***/ }),
-/* 451 */
+/* 455 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15776,7 +15662,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 452 */
+/* 456 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -15799,13 +15685,13 @@ webpackJsonp([0],[
 
 	var _objectUtils = __webpack_require__(278);
 
-	var _storedSessionsFilter = __webpack_require__(453);
+	var _storedSessionsFilter = __webpack_require__(457);
 
 	var _table = __webpack_require__(281);
 
-	var _listItems = __webpack_require__(454);
+	var _listItems = __webpack_require__(458);
 
-	var _datePicker = __webpack_require__(510);
+	var _datePicker = __webpack_require__(514);
 
 	var _datePicker2 = _interopRequireDefault(_datePicker);
 
@@ -16041,7 +15927,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 453 */
+/* 457 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16061,11 +15947,11 @@ webpackJsonp([0],[
 	See the License for the specific language governing permissions and
 	limitations under the License.
 	*/
-	module.exports.getters = __webpack_require__(449);
-	module.exports.actions = __webpack_require__(448);
+	module.exports.getters = __webpack_require__(453);
+	module.exports.actions = __webpack_require__(452);
 
 /***/ }),
-/* 454 */
+/* 458 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16085,15 +15971,15 @@ webpackJsonp([0],[
 
 	var _moment2 = _interopRequireDefault(_moment);
 
-	var _layout = __webpack_require__(455);
+	var _layout = __webpack_require__(459);
 
 	var _layout2 = _interopRequireDefault(_layout);
 
-	var _moreButton = __webpack_require__(456);
+	var _moreButton = __webpack_require__(460);
 
 	var _moreButton2 = _interopRequireDefault(_moreButton);
 
-	var _popover = __webpack_require__(509);
+	var _popover = __webpack_require__(513);
 
 	var _popover2 = _interopRequireDefault(_popover);
 
@@ -16288,7 +16174,7 @@ webpackJsonp([0],[
 	exports.NodeCell = NodeCell;
 
 /***/ }),
-/* 455 */
+/* 459 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16400,7 +16286,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 456 */
+/* 460 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16415,7 +16301,7 @@ webpackJsonp([0],[
 
 	var _classnames2 = _interopRequireDefault(_classnames);
 
-	var _overlayTrigger = __webpack_require__(457);
+	var _overlayTrigger = __webpack_require__(461);
 
 	var _overlayTrigger2 = _interopRequireDefault(_overlayTrigger);
 
@@ -16463,7 +16349,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 457 */
+/* 461 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16478,7 +16364,7 @@ webpackJsonp([0],[
 
 	var _reactDom2 = _interopRequireDefault(_reactDom);
 
-	var _reactOverlays = __webpack_require__(458);
+	var _reactOverlays = __webpack_require__(462);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -16620,10 +16506,6 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 458 */,
-/* 459 */,
-/* 460 */,
-/* 461 */,
 /* 462 */,
 /* 463 */,
 /* 464 */,
@@ -16671,7 +16553,11 @@ webpackJsonp([0],[
 /* 506 */,
 /* 507 */,
 /* 508 */,
-/* 509 */
+/* 509 */,
+/* 510 */,
+/* 511 */,
+/* 512 */,
+/* 513 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16792,7 +16678,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 510 */
+/* 514 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16913,7 +16799,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 511 */
+/* 515 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -16924,11 +16810,11 @@ webpackJsonp([0],[
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _actions = __webpack_require__(434);
+	var _actions = __webpack_require__(438);
 
-	var _player = __webpack_require__(512);
+	var _player = __webpack_require__(516);
 
-	var _partyListPanel = __webpack_require__(436);
+	var _partyListPanel = __webpack_require__(440);
 
 	var _partyListPanel2 = _interopRequireDefault(_partyListPanel);
 
@@ -17004,7 +16890,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 512 */
+/* 516 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -17016,7 +16902,7 @@ webpackJsonp([0],[
 
 	var _jQuery2 = _interopRequireDefault(_jQuery);
 
-	var _jquery = __webpack_require__(513);
+	var _jquery = __webpack_require__(517);
 
 	var _jquery2 = _interopRequireDefault(_jquery);
 
@@ -17028,21 +16914,21 @@ webpackJsonp([0],[
 
 	var _reactDom2 = _interopRequireDefault(_reactDom);
 
-	var _reactSlider = __webpack_require__(535);
+	var _reactSlider = __webpack_require__(539);
 
 	var _reactSlider2 = _interopRequireDefault(_reactSlider);
 
-	var _terminal = __webpack_require__(422);
+	var _terminal = __webpack_require__(421);
 
 	var _terminal2 = _interopRequireDefault(_terminal);
 
-	var _ttyPlayer = __webpack_require__(536);
+	var _ttyPlayer = __webpack_require__(540);
 
 	var _indicator = __webpack_require__(419);
 
 	var _indicator2 = _interopRequireDefault(_indicator);
 
-	var _items = __webpack_require__(542);
+	var _items = __webpack_require__(541);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -17299,10 +17185,6 @@ webpackJsonp([0],[
 	}(_react2.default.Component);
 
 /***/ }),
-/* 513 */,
-/* 514 */,
-/* 515 */,
-/* 516 */,
 /* 517 */,
 /* 518 */,
 /* 519 */,
@@ -17322,7 +17204,11 @@ webpackJsonp([0],[
 /* 533 */,
 /* 534 */,
 /* 535 */,
-/* 536 */
+/* 536 */,
+/* 537 */,
+/* 538 */,
+/* 539 */,
+/* 540 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -17334,7 +17220,7 @@ webpackJsonp([0],[
 
 	var _jQuery2 = _interopRequireDefault(_jQuery);
 
-	var _buffer = __webpack_require__(537);
+	var _buffer = __webpack_require__(424);
 
 	var _buffer2 = _interopRequireDefault(_buffer);
 
@@ -17342,11 +17228,11 @@ webpackJsonp([0],[
 
 	var _api2 = _interopRequireDefault(_api);
 
-	var _tty = __webpack_require__(424);
+	var _tty = __webpack_require__(423);
 
 	var _tty2 = _interopRequireDefault(_tty);
 
-	var _enums = __webpack_require__(421);
+	var _enums = __webpack_require__(430);
 
 	var _logger = __webpack_require__(234);
 
@@ -17429,6 +17315,8 @@ webpackJsonp([0],[
 	    var end = this.events.length - 1;
 	    var totalSize = this.events[end].offset - offset + this.events[end].bytes;
 	    var chunkCount = Math.ceil(totalSize / MAX_SIZE);
+
+	    // now create a fetch request for each chunk
 	    var promises = [];
 	    for (var i = 0; i < chunkCount; i++) {
 	      var url = this.url + '/stream?offset=' + offset + '&bytes=' + MAX_SIZE;
@@ -17441,7 +17329,7 @@ webpackJsonp([0],[
 	      offset = offset + MAX_SIZE;
 	    }
 
-	    // wait for all chunks to load and then merge all in one
+	    // wait for all chunks and then merge all in one
 	    return _jQuery2.default.when.apply(_jQuery2.default, promises).then(function () {
 	      for (var _len = arguments.length, responses = Array(_len), _key = 0; _key < _len; _key++) {
 	        responses[_key] = arguments[_key];
@@ -17610,11 +17498,6 @@ webpackJsonp([0],[
 	  // override
 
 
-	  TtyPlayer.prototype.resize = function resize() {};
-
-	  // override
-
-
 	  TtyPlayer.prototype.connect = function connect() {
 	    var _this4 = this;
 
@@ -17679,7 +17562,7 @@ webpackJsonp([0],[
 	      // 2. tell terminal to render 1 huge chunk that has everything up to current
 	      // location.
 	      if (isRewind) {
-	        this.emit('reset');
+	        this.emit(_enums.TermEventEnum.RESET);
 	      }
 
 	      var from = isRewind ? 0 : this.currentEventIndex;
@@ -17712,7 +17595,7 @@ webpackJsonp([0],[
 	    // start from the beginning if at the end
 	    if (this.current === this.length) {
 	      this.current = STREAM_START_INDEX;
-	      this.emit('reset');
+	      this.emit(_enums.TermEventEnum.RESET);
 	    }
 
 	    this.timer = setInterval(this.move.bind(this), PLAY_SPEED);
@@ -17765,8 +17648,8 @@ webpackJsonp([0],[
 	          w = _groups$_i.w;
 
 	      if (str.length > 0) {
-	        this.emit('resize', { h: h, w: w });
-	        this.emit('data', str);
+	        this.emit(_enums.TermEventEnum.RESIZE, { h: h, w: w });
+	        this.emit(_enums.TermEventEnum.DATA, str);
 	      }
 	    }
 	  };
@@ -17819,12 +17702,7 @@ webpackJsonp([0],[
 	exports.Buffer = Buffer;
 
 /***/ }),
-/* 537 */,
-/* 538 */,
-/* 539 */,
-/* 540 */,
-/* 541 */,
-/* 542 */
+/* 541 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	"use strict";
@@ -17884,7 +17762,7 @@ webpackJsonp([0],[
 	};
 
 /***/ }),
-/* 543 */
+/* 542 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -17906,13 +17784,13 @@ webpackJsonp([0],[
 
 	var _config2 = _interopRequireDefault(_config);
 
-	var _main = __webpack_require__(544);
+	var _main = __webpack_require__(543);
 
 	var _main2 = _interopRequireDefault(_main);
 
-	var _actions2 = __webpack_require__(546);
+	var _actions2 = __webpack_require__(545);
 
-	var _settings = __webpack_require__(548);
+	var _settings = __webpack_require__(547);
 
 	var _settings2 = _interopRequireDefault(_settings);
 
@@ -18027,7 +17905,7 @@ webpackJsonp([0],[
 	exports.default = SettingsFeature;
 
 /***/ }),
-/* 544 */
+/* 543 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -18042,7 +17920,7 @@ webpackJsonp([0],[
 
 	var _reactRouter = __webpack_require__(164);
 
-	var _getters = __webpack_require__(545);
+	var _getters = __webpack_require__(544);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
@@ -18143,7 +18021,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 545 */
+/* 544 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -18171,7 +18049,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 546 */
+/* 545 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -18184,11 +18062,11 @@ webpackJsonp([0],[
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _getters = __webpack_require__(545);
+	var _getters = __webpack_require__(544);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
-	var _actionTypes = __webpack_require__(547);
+	var _actionTypes = __webpack_require__(546);
 
 	var AT = _interopRequireWildcard(_actionTypes);
 
@@ -18231,7 +18109,7 @@ webpackJsonp([0],[
 	}
 
 /***/ }),
-/* 547 */
+/* 546 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -18258,7 +18136,7 @@ webpackJsonp([0],[
 	var SET_RES_TO_DELETE = exports.SET_RES_TO_DELETE = 'SETTINGS_SET_RES_TO_DELETE';
 
 /***/ }),
-/* 548 */
+/* 547 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -18269,7 +18147,7 @@ webpackJsonp([0],[
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _connect = __webpack_require__(447);
+	var _connect = __webpack_require__(451);
 
 	var _connect2 = _interopRequireDefault(_connect);
 
@@ -18277,7 +18155,7 @@ webpackJsonp([0],[
 
 	var Messages = _interopRequireWildcard(_msgPage);
 
-	var _getters = __webpack_require__(545);
+	var _getters = __webpack_require__(544);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
@@ -18354,7 +18232,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 549 */
+/* 548 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -18363,23 +18241,23 @@ webpackJsonp([0],[
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _store = __webpack_require__(550);
+	var _store = __webpack_require__(549);
 
 	var _store2 = _interopRequireDefault(_store);
 
-	var _store3 = __webpack_require__(435);
+	var _store3 = __webpack_require__(439);
 
 	var _store4 = _interopRequireDefault(_store3);
 
-	var _appStore = __webpack_require__(551);
+	var _appStore = __webpack_require__(550);
 
 	var _appStore2 = _interopRequireDefault(_appStore);
 
-	var _nodeStore = __webpack_require__(430);
+	var _nodeStore = __webpack_require__(434);
 
 	var _nodeStore2 = _interopRequireDefault(_nodeStore);
 
-	var _store5 = __webpack_require__(552);
+	var _store5 = __webpack_require__(551);
 
 	var _store6 = _interopRequireDefault(_store5);
 
@@ -18416,19 +18294,19 @@ webpackJsonp([0],[
 	  'tlpt': _appStore2.default,
 	  'tlpt_terminal': _store2.default,
 	  'tlpt_nodes': _nodeStore2.default,
-	  'tlpt_user': __webpack_require__(553),
-	  'tlpt_user_invite': __webpack_require__(554),
+	  'tlpt_user': __webpack_require__(552),
+	  'tlpt_user_invite': __webpack_require__(553),
 	  'tlpt_user_acl': _store4.default,
-	  'tlpt_sites': __webpack_require__(555),
+	  'tlpt_sites': __webpack_require__(554),
 	  'tlpt_status': _statusStore2.default,
-	  'tlpt_sessions_events': __webpack_require__(556),
-	  'tlpt_sessions_archived': __webpack_require__(557),
-	  'tlpt_sessions_active': __webpack_require__(558),
-	  'tlpt_sessions_filter': __webpack_require__(559)
+	  'tlpt_sessions_events': __webpack_require__(555),
+	  'tlpt_sessions_archived': __webpack_require__(556),
+	  'tlpt_sessions_active': __webpack_require__(557),
+	  'tlpt_sessions_filter': __webpack_require__(558)
 	});
 
 /***/ }),
-/* 550 */
+/* 549 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -18448,7 +18326,7 @@ webpackJsonp([0],[
 
 	var _localStorage2 = _interopRequireDefault(_localStorage);
 
-	var _actionTypes = __webpack_require__(432);
+	var _actionTypes = __webpack_require__(436);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -18504,8 +18382,6 @@ webpackJsonp([0],[
 	      sid: this.sid,
 	      token: accessToken,
 	      ttyUrl: _config2.default.api.ttyWsAddr,
-	      ttyEventUrl: _config2.default.api.ttyEventWsAddr,
-	      ttyResizeUrl: _config2.default.api.ttyResizeUrl,
 	      cluster: this.siteId,
 	      getTarget: function getTarget() {
 	        return { server_id: server_id };
@@ -18560,7 +18436,7 @@ webpackJsonp([0],[
 	}
 
 /***/ }),
-/* 551 */
+/* 550 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -18655,7 +18531,7 @@ webpackJsonp([0],[
 	});
 
 /***/ }),
-/* 552 */
+/* 551 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -18666,7 +18542,7 @@ webpackJsonp([0],[
 
 	var _immutable = __webpack_require__(254);
 
-	var _actionTypes = __webpack_require__(547);
+	var _actionTypes = __webpack_require__(546);
 
 	var AT = _interopRequireWildcard(_actionTypes);
 
@@ -18735,7 +18611,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 553 */
+/* 552 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -18809,7 +18685,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 554 */
+/* 553 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -18858,7 +18734,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 555 */
+/* 554 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -18908,7 +18784,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 556 */
+/* 555 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -18966,7 +18842,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 557 */
+/* 556 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -18979,7 +18855,7 @@ webpackJsonp([0],[
 
 	var _actionTypes = __webpack_require__(412);
 
-	var _enums = __webpack_require__(421);
+	var _enums = __webpack_require__(430);
 
 	/*
 	Copyright 2015 Gravitational, Inc.
@@ -19064,7 +18940,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 558 */
+/* 557 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19121,22 +18997,13 @@ webpackJsonp([0],[
 	  },
 	  initialize: function initialize() {
 	    this.on(_actionTypes.RECEIVE_ACTIVE_SESSIONS, receive);
-	    this.on(_actionTypes.UPDATE_ACTIVE_SESSION, updateSession);
 	  }
 	});
 
 
-	function updateSession(state, _ref) {
+	function receive(state, _ref) {
 	  var siteId = _ref.siteId,
 	      json = _ref.json;
-
-	  var rec = createSessionRec(siteId, json);
-	  return rec.equals(state.get(rec.id)) ? state : state.set(rec.id, rec);
-	}
-
-	function receive(state, _ref2) {
-	  var siteId = _ref2.siteId,
-	      json = _ref2.json;
 
 	  var jsonArray = json || [];
 	  var newState = defaultState().withMutations(function (newState) {
@@ -19179,7 +19046,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 559 */
+/* 558 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19208,7 +19075,7 @@ webpackJsonp([0],[
 
 	var moment = __webpack_require__(292);
 
-	var _require2 = __webpack_require__(450),
+	var _require2 = __webpack_require__(454),
 	    TLPT_STORED_SESSINS_FILTER_SET_RANGE = _require2.TLPT_STORED_SESSINS_FILTER_SET_RANGE;
 
 	exports.default = Store({
@@ -19235,7 +19102,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 560 */
+/* 559 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19251,11 +19118,11 @@ webpackJsonp([0],[
 
 	var _actions2 = __webpack_require__(247);
 
-	var _backend = __webpack_require__(561);
+	var _backend = __webpack_require__(560);
 
 	var backend = _interopRequireWildcard(_backend);
 
-	var _actions3 = __webpack_require__(565);
+	var _actions3 = __webpack_require__(564);
 
 	function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key]; } } newObj.default = obj; return newObj; } }
 
@@ -19277,7 +19144,7 @@ webpackJsonp([0],[
 	}
 
 /***/ }),
-/* 561 */
+/* 560 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19291,13 +19158,13 @@ webpackJsonp([0],[
 	exports.remove = remove;
 	exports.fetchLicenseStatus = fetchLicenseStatus;
 
-	var _api = __webpack_require__(562);
+	var _api = __webpack_require__(561);
 
 	var _api2 = _interopRequireDefault(_api);
 
-	var _enums = __webpack_require__(563);
+	var _enums = __webpack_require__(562);
 
-	var _config = __webpack_require__(564);
+	var _config = __webpack_require__(563);
 
 	var _config2 = _interopRequireDefault(_config);
 
@@ -19341,7 +19208,7 @@ webpackJsonp([0],[
 	var getErrorText = exports.getErrorText = _api2.default.getErrorText;
 
 /***/ }),
-/* 562 */
+/* 561 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19373,7 +19240,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 563 */
+/* 562 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -19422,7 +19289,7 @@ webpackJsonp([0],[
 	};
 
 /***/ }),
-/* 564 */
+/* 563 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19458,6 +19325,7 @@ webpackJsonp([0],[
 	  trustedClusterDocLink: 'https://gravitational.com/teleport/docs/admin-guide/#trusted-clusters',
 	  routes: {
 	    settingsBase: '/web/settings',
+	    setdssfngsBase: '/web/settings',
 	    settingsAuth: '/web/settings/auth',
 	    settingsRoles: '/web/settings/roles',
 	    settingsCluster: '/web/settings/clusters'
@@ -19489,7 +19357,7 @@ webpackJsonp([0],[
 	exports.default = _config2.default;
 
 /***/ }),
-/* 565 */
+/* 564 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19501,15 +19369,15 @@ webpackJsonp([0],[
 
 	var _logger2 = _interopRequireDefault(_logger);
 
-	var _reactor = __webpack_require__(566);
+	var _reactor = __webpack_require__(565);
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _backend = __webpack_require__(561);
+	var _backend = __webpack_require__(560);
 
 	var resApi = _interopRequireWildcard(_backend);
 
-	var _actionTypes = __webpack_require__(567);
+	var _actionTypes = __webpack_require__(566);
 
 	var AT = _interopRequireWildcard(_actionTypes);
 
@@ -19539,7 +19407,7 @@ webpackJsonp([0],[
 	}
 
 /***/ }),
-/* 566 */
+/* 565 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19571,7 +19439,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 567 */
+/* 566 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -19580,7 +19448,7 @@ webpackJsonp([0],[
 	var RECEIVE_STATUS = exports.RECEIVE_STATUS = 'SETTINGS_LICENSE_STATUS_RECEIVE';
 
 /***/ }),
-/* 568 */
+/* 567 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19588,17 +19456,17 @@ webpackJsonp([0],[
 	exports.__esModule = true;
 	exports.createSettings = undefined;
 
-	var _settings = __webpack_require__(569);
+	var _settings = __webpack_require__(568);
 
-	var _settingsAuth = __webpack_require__(575);
+	var _settingsAuth = __webpack_require__(574);
 
 	var _settingsAuth2 = _interopRequireDefault(_settingsAuth);
 
-	var _settingsClusters = __webpack_require__(613);
+	var _settingsClusters = __webpack_require__(612);
 
 	var _settingsClusters2 = _interopRequireDefault(_settingsClusters);
 
-	var _settingsRoles = __webpack_require__(620);
+	var _settingsRoles = __webpack_require__(619);
 
 	var _settingsRoles2 = _interopRequireDefault(_settingsRoles);
 
@@ -19614,7 +19482,7 @@ webpackJsonp([0],[
 	};
 
 /***/ }),
-/* 569 */
+/* 568 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19622,11 +19490,11 @@ webpackJsonp([0],[
 	exports.__esModule = true;
 	exports.createSettings = exports.append = undefined;
 
-	var _featureSettingsAccount = __webpack_require__(570);
+	var _featureSettingsAccount = __webpack_require__(569);
 
 	var _featureSettingsAccount2 = _interopRequireDefault(_featureSettingsAccount);
 
-	var _featureSettings = __webpack_require__(543);
+	var _featureSettings = __webpack_require__(542);
 
 	var _featureSettings2 = _interopRequireDefault(_featureSettings);
 
@@ -19664,26 +19532,26 @@ webpackJsonp([0],[
 	};
 
 /***/ }),
-/* 570 */
+/* 569 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _flags = __webpack_require__(571);
+	var _flags = __webpack_require__(570);
 
 	var featureFlags = _interopRequireWildcard(_flags);
 
-	var _featureSettings = __webpack_require__(543);
+	var _featureSettings = __webpack_require__(542);
 
 	var _config = __webpack_require__(228);
 
 	var _config2 = _interopRequireDefault(_config);
 
-	var _actions = __webpack_require__(546);
+	var _actions = __webpack_require__(545);
 
-	var _accountTab = __webpack_require__(572);
+	var _accountTab = __webpack_require__(571);
 
 	var _accountTab2 = _interopRequireDefault(_accountTab);
 
@@ -19762,7 +19630,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 571 */
+/* 570 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19791,7 +19659,7 @@ webpackJsonp([0],[
 	  */
 
 /***/ }),
-/* 572 */
+/* 571 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -19808,7 +19676,7 @@ webpackJsonp([0],[
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _connect = __webpack_require__(447);
+	var _connect = __webpack_require__(451);
 
 	var _connect2 = _interopRequireDefault(_connect);
 
@@ -19818,17 +19686,17 @@ webpackJsonp([0],[
 
 	var _enums = __webpack_require__(265);
 
-	var _alerts = __webpack_require__(573);
+	var _alerts = __webpack_require__(572);
 
 	var Alerts = _interopRequireWildcard(_alerts);
 
 	var _user = __webpack_require__(251);
 
-	var _actions = __webpack_require__(574);
+	var _actions = __webpack_require__(573);
 
 	var actions = _interopRequireWildcard(_actions);
 
-	var _layout = __webpack_require__(455);
+	var _layout = __webpack_require__(459);
 
 	var _layout2 = _interopRequireDefault(_layout);
 
@@ -20130,7 +19998,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 573 */
+/* 572 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -20192,7 +20060,7 @@ webpackJsonp([0],[
 	};
 
 /***/ }),
-/* 574 */
+/* 573 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	"use strict";
@@ -20273,28 +20141,28 @@ webpackJsonp([0],[
 	}
 
 /***/ }),
-/* 575 */
+/* 574 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _featureSettings = __webpack_require__(543);
+	var _featureSettings = __webpack_require__(542);
 
-	var _actions = __webpack_require__(546);
+	var _actions = __webpack_require__(545);
 
-	var _config = __webpack_require__(564);
+	var _config = __webpack_require__(563);
 
 	var _config2 = _interopRequireDefault(_config);
 
-	var _actions2 = __webpack_require__(576);
+	var _actions2 = __webpack_require__(575);
 
-	var _tabAuth = __webpack_require__(584);
+	var _tabAuth = __webpack_require__(583);
 
 	var _tabAuth2 = _interopRequireDefault(_tabAuth);
 
-	var _featureFlags = __webpack_require__(612);
+	var _featureFlags = __webpack_require__(611);
 
 	var flags = _interopRequireWildcard(_featureFlags);
 
@@ -20359,7 +20227,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 576 */
+/* 575 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -20374,25 +20242,25 @@ webpackJsonp([0],[
 
 	var _logger2 = _interopRequireDefault(_logger);
 
-	var _reactor = __webpack_require__(566);
+	var _reactor = __webpack_require__(565);
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _enums = __webpack_require__(563);
+	var _enums = __webpack_require__(562);
 
-	var _backend = __webpack_require__(561);
+	var _backend = __webpack_require__(560);
 
 	var backend = _interopRequireWildcard(_backend);
 
-	var _actions = __webpack_require__(577);
+	var _actions = __webpack_require__(576);
 
-	var _store = __webpack_require__(581);
+	var _store = __webpack_require__(580);
 
-	var _actionTypes = __webpack_require__(582);
+	var _actionTypes = __webpack_require__(581);
 
 	var AT = _interopRequireWildcard(_actionTypes);
 
-	var _actions2 = __webpack_require__(579);
+	var _actions2 = __webpack_require__(578);
 
 	function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key]; } } newObj.default = obj; return newObj; } }
 
@@ -20462,7 +20330,7 @@ webpackJsonp([0],[
 	}
 
 /***/ }),
-/* 577 */
+/* 576 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -20471,15 +20339,15 @@ webpackJsonp([0],[
 	exports.openDeleteDialog = openDeleteDialog;
 	exports.closeDeleteDialog = closeDeleteDialog;
 
-	var _reactor = __webpack_require__(566);
+	var _reactor = __webpack_require__(565);
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _actionTypes = __webpack_require__(578);
+	var _actionTypes = __webpack_require__(577);
 
 	var AT = _interopRequireWildcard(_actionTypes);
 
-	var _actions = __webpack_require__(579);
+	var _actions = __webpack_require__(578);
 
 	function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key]; } } newObj.default = obj; return newObj; } }
 
@@ -20495,7 +20363,7 @@ webpackJsonp([0],[
 	}
 
 /***/ }),
-/* 578 */
+/* 577 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -20504,7 +20372,7 @@ webpackJsonp([0],[
 	var SET_RES_TO_DELETE = exports.SET_RES_TO_DELETE = 'SETTINGS_SET_RES_TO_DELETE';
 
 /***/ }),
-/* 579 */
+/* 578 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -20514,7 +20382,7 @@ webpackJsonp([0],[
 
 	var _actions = __webpack_require__(247);
 
-	var _constants = __webpack_require__(580);
+	var _constants = __webpack_require__(579);
 
 	var RT = _interopRequireWildcard(_constants);
 
@@ -20526,7 +20394,7 @@ webpackJsonp([0],[
 	var deleteResourceStatus = exports.deleteResourceStatus = (0, _actions.makeStatus)(RT.TRYING_TO_DELETE_RESOURCE);
 
 /***/ }),
-/* 580 */
+/* 579 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -20538,7 +20406,7 @@ webpackJsonp([0],[
 	var TRYING_TO_DELETE_RESOURCE = exports.TRYING_TO_DELETE_RESOURCE = 'TRYING_TO_DELETE_RESOURCE';
 
 /***/ }),
-/* 581 */
+/* 580 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -20546,17 +20414,17 @@ webpackJsonp([0],[
 	exports.__esModule = true;
 	exports.getAuthStore = getAuthStore;
 
-	var _reactor = __webpack_require__(566);
+	var _reactor = __webpack_require__(565);
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
 	var _nuclearJs = __webpack_require__(241);
 
-	var _actionTypes = __webpack_require__(582);
+	var _actionTypes = __webpack_require__(581);
 
 	var AT = _interopRequireWildcard(_actionTypes);
 
-	var _records = __webpack_require__(583);
+	var _records = __webpack_require__(582);
 
 	function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key]; } } newObj.default = obj; return newObj; } }
 
@@ -20587,7 +20455,7 @@ webpackJsonp([0],[
 	});
 
 /***/ }),
-/* 582 */
+/* 581 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -20599,7 +20467,7 @@ webpackJsonp([0],[
 	var DELETE_CONN = exports.DELETE_CONN = 'SETTINGS_AUTH_DELETE';
 
 /***/ }),
-/* 583 */
+/* 582 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -20770,7 +20638,7 @@ webpackJsonp([0],[
 	}));
 
 /***/ }),
-/* 584 */
+/* 583 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -20781,7 +20649,7 @@ webpackJsonp([0],[
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _connect = __webpack_require__(447);
+	var _connect = __webpack_require__(451);
 
 	var _connect2 = _interopRequireDefault(_connect);
 
@@ -20789,35 +20657,35 @@ webpackJsonp([0],[
 
 	var _getters2 = _interopRequireDefault(_getters);
 
-	var _authGetters = __webpack_require__(585);
+	var _authGetters = __webpack_require__(584);
 
 	var _authGetters2 = _interopRequireDefault(_authGetters);
 
-	var _actions = __webpack_require__(577);
+	var _actions = __webpack_require__(576);
 
-	var _actions2 = __webpack_require__(576);
+	var _actions2 = __webpack_require__(575);
 
 	var actions = _interopRequireWildcard(_actions2);
 
-	var _configItemList = __webpack_require__(587);
+	var _configItemList = __webpack_require__(586);
 
 	var _configItemList2 = _interopRequireDefault(_configItemList);
 
-	var _configDeleteDialog = __webpack_require__(595);
+	var _configDeleteDialog = __webpack_require__(594);
 
 	var _configDeleteDialog2 = _interopRequireDefault(_configDeleteDialog);
 
-	var _configAddEdit = __webpack_require__(598);
+	var _configAddEdit = __webpack_require__(597);
 
 	var _configAddEdit2 = _interopRequireDefault(_configAddEdit);
 
-	var _elements = __webpack_require__(588);
+	var _elements = __webpack_require__(587);
 
-	var _changeTracker = __webpack_require__(606);
+	var _changeTracker = __webpack_require__(605);
 
 	var _changeTracker2 = _interopRequireDefault(_changeTracker);
 
-	var _examples = __webpack_require__(608);
+	var _examples = __webpack_require__(607);
 
 	function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key]; } } newObj.default = obj; return newObj; } }
 
@@ -20933,14 +20801,14 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 585 */
+/* 584 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _getters = __webpack_require__(586);
+	var _getters = __webpack_require__(585);
 
 	exports.default = {
 	  saveAttempt: _getters.saveAuthProviderAttempt,
@@ -20949,7 +20817,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 586 */
+/* 585 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -20959,7 +20827,7 @@ webpackJsonp([0],[
 
 	var _getters = __webpack_require__(252);
 
-	var _constants = __webpack_require__(580);
+	var _constants = __webpack_require__(579);
 
 	var RT = _interopRequireWildcard(_constants);
 
@@ -20971,7 +20839,7 @@ webpackJsonp([0],[
 	var deleteResourceAttempt = exports.deleteResourceAttempt = (0, _getters.makeGetter)(RT.TRYING_TO_DELETE_RESOURCE);
 
 /***/ }),
-/* 587 */
+/* 586 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -20986,7 +20854,7 @@ webpackJsonp([0],[
 
 	var _classnames2 = _interopRequireDefault(_classnames);
 
-	var _elements = __webpack_require__(588);
+	var _elements = __webpack_require__(587);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -21078,7 +20946,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 588 */
+/* 587 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -21090,11 +20958,11 @@ webpackJsonp([0],[
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _box = __webpack_require__(589);
+	var _box = __webpack_require__(588);
 
 	var _box2 = _interopRequireDefault(_box);
 
-	var _button = __webpack_require__(594);
+	var _button = __webpack_require__(593);
 
 	var _button2 = _interopRequireDefault(_button);
 
@@ -21142,7 +21010,7 @@ webpackJsonp([0],[
 	};
 
 /***/ }),
-/* 589 */
+/* 588 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -21155,13 +21023,13 @@ webpackJsonp([0],[
 
 	var _react2 = _interopRequireDefault(_react);
 
-	__webpack_require__(590);
+	__webpack_require__(589);
 
-	var _layout = __webpack_require__(592);
+	var _layout = __webpack_require__(591);
 
 	var _layout2 = _interopRequireDefault(_layout);
 
-	var _separator = __webpack_require__(593);
+	var _separator = __webpack_require__(592);
 
 	var _separator2 = _interopRequireDefault(_separator);
 
@@ -21233,14 +21101,14 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 590 */
+/* 589 */
 /***/ (function(module, exports) {
 
 	// removed by extract-text-webpack-plugin
 
 /***/ }),
-/* 591 */,
-/* 592 */
+/* 590 */,
+/* 591 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -21338,7 +21206,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 593 */
+/* 592 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -21368,7 +21236,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 594 */
+/* 593 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -21470,7 +21338,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 595 */
+/* 594 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -21481,25 +21349,25 @@ webpackJsonp([0],[
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _alerts = __webpack_require__(573);
+	var _alerts = __webpack_require__(572);
 
 	var Alerts = _interopRequireWildcard(_alerts);
 
-	var _enums = __webpack_require__(563);
+	var _enums = __webpack_require__(562);
 
-	var _button = __webpack_require__(594);
+	var _button = __webpack_require__(593);
 
 	var _button2 = _interopRequireDefault(_button);
 
-	var _dialog = __webpack_require__(596);
+	var _dialog = __webpack_require__(595);
 
 	var _nuclearJsReactAddons = __webpack_require__(219);
 
-	var _getters = __webpack_require__(597);
+	var _getters = __webpack_require__(596);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
-	var _actions = __webpack_require__(577);
+	var _actions = __webpack_require__(576);
 
 	function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key]; } } newObj.default = obj; return newObj; } }
 
@@ -21629,7 +21497,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 596 */
+/* 595 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -21772,14 +21640,14 @@ webpackJsonp([0],[
 	});
 
 /***/ }),
-/* 597 */
+/* 596 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _getters = __webpack_require__(586);
+	var _getters = __webpack_require__(585);
 
 	exports.default = {
 	  dialogsStore: ['tlp_settings_dialogs'],
@@ -21788,7 +21656,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 598 */
+/* 597 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -21803,23 +21671,23 @@ webpackJsonp([0],[
 
 	var _classnames2 = _interopRequireDefault(_classnames);
 
-	var _alerts = __webpack_require__(573);
+	var _alerts = __webpack_require__(572);
 
 	var Alerts = _interopRequireWildcard(_alerts);
 
-	var _layout = __webpack_require__(592);
+	var _layout = __webpack_require__(591);
 
 	var _layout2 = _interopRequireDefault(_layout);
 
-	var _button = __webpack_require__(594);
+	var _button = __webpack_require__(593);
 
 	var _button2 = _interopRequireDefault(_button);
 
-	var _yamlEditor = __webpack_require__(599);
+	var _yamlEditor = __webpack_require__(598);
 
 	var _yamlEditor2 = _interopRequireDefault(_yamlEditor);
 
-	var _withChangeTracker = __webpack_require__(605);
+	var _withChangeTracker = __webpack_require__(604);
 
 	var _withChangeTracker2 = _interopRequireDefault(_withChangeTracker);
 
@@ -21989,7 +21857,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 599 */
+/* 598 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -22000,13 +21868,13 @@ webpackJsonp([0],[
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _brace = __webpack_require__(600);
+	var _brace = __webpack_require__(599);
 
 	var _brace2 = _interopRequireDefault(_brace);
 
-	__webpack_require__(603);
+	__webpack_require__(602);
 
-	__webpack_require__(604);
+	__webpack_require__(603);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -22127,7 +21995,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 600 */
+/* 599 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	/* ***** BEGIN LICENSE BLOCK *****
@@ -25843,7 +25711,7 @@ webpackJsonp([0],[
 	    if (!global || !global.document)
 	        return;
 	    
-	    options.packaged = packaged || acequire.packaged || module.packaged || (global.define && __webpack_require__(601).packaged);
+	    options.packaged = packaged || acequire.packaged || module.packaged || (global.define && __webpack_require__(600).packaged);
 
 	    var scriptOptions = {};
 	    var scriptUrl = "";
@@ -38927,7 +38795,7 @@ webpackJsonp([0],[
 
 	    try {
 	            var workerSrc = mod.src;
-	    var Blob = __webpack_require__(602);
+	    var Blob = __webpack_require__(601);
 	    var blob = new Blob([ workerSrc ], { type: 'application/javascript' });
 	    var blobUrl = (window.URL || window.webkitURL).createObjectURL(blob);
 
@@ -41141,7 +41009,7 @@ webpackJsonp([0],[
 	exports.acequire = acequire;
 
 	if (true)
-	    exports.define = __webpack_require__(601);
+	    exports.define = __webpack_require__(600);
 	exports.edit = function(el) {
 	    if (typeof el == "string") {
 	        var _id = el;
@@ -41208,14 +41076,14 @@ webpackJsonp([0],[
 	module.exports = window.ace.acequire("ace/ace");
 
 /***/ }),
-/* 601 */
+/* 600 */
 /***/ (function(module, exports) {
 
 	module.exports = function() { throw new Error("define cannot be used indirect"); };
 
 
 /***/ }),
-/* 602 */
+/* 601 */
 /***/ (function(module, exports) {
 
 	/* WEBPACK VAR INJECTION */(function(global) {module.exports = get_blob()
@@ -41250,7 +41118,7 @@ webpackJsonp([0],[
 	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }())))
 
 /***/ }),
-/* 603 */
+/* 602 */
 /***/ (function(module, exports) {
 
 	ace.define("ace/mode/yaml_highlight_rules",["require","exports","module","ace/lib/oop","ace/mode/text_highlight_rules"], function(acequire, exports, module) {
@@ -41513,7 +41381,7 @@ webpackJsonp([0],[
 
 
 /***/ }),
-/* 604 */
+/* 603 */
 /***/ (function(module, exports) {
 
 	ace.define("ace/ext/searchbox",["require","exports","module","ace/lib/dom","ace/lib/lang","ace/lib/event","ace/keyboard/hash_handler","ace/lib/keys"], function(acequire, exports, module) {
@@ -41935,7 +41803,7 @@ webpackJsonp([0],[
 	            
 
 /***/ }),
-/* 605 */
+/* 604 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -41998,7 +41866,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 606 */
+/* 605 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -42009,7 +41877,7 @@ webpackJsonp([0],[
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _confirmChangesDialog = __webpack_require__(607);
+	var _confirmChangesDialog = __webpack_require__(606);
 
 	var _confirmChangesDialog2 = _interopRequireDefault(_confirmChangesDialog);
 
@@ -42137,7 +42005,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 607 */
+/* 606 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -42148,11 +42016,11 @@ webpackJsonp([0],[
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _button = __webpack_require__(594);
+	var _button = __webpack_require__(593);
 
 	var _button2 = _interopRequireDefault(_button);
 
-	var _dialog = __webpack_require__(596);
+	var _dialog = __webpack_require__(595);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -42220,40 +42088,40 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 608 */
+/* 607 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
-	var roleTemplate = __webpack_require__(609);
-	var authTemplate = __webpack_require__(610);
-	var trustedClusterTemplate = __webpack_require__(611);
+	var roleTemplate = __webpack_require__(608);
+	var authTemplate = __webpack_require__(609);
+	var trustedClusterTemplate = __webpack_require__(610);
 
 	exports.roleTemplate = roleTemplate;
 	exports.authTemplate = authTemplate;
 	exports.trustedClusterTemplate = trustedClusterTemplate;
 
 /***/ }),
-/* 609 */
+/* 608 */
 /***/ (function(module, exports) {
 
 	module.exports = "#\n# Example resource for a role\n#\nkind: role\nversion: v3\nmetadata:\n  # insert the name of your role here:\n  name: role_name\nspec:\n  # SSH options used for user sessions \n  options:\n    # max_session_ttl defines the TTL (time to live) of SSH certificates \n    # issued to the users with this role.\n    max_session_ttl: 30h0m0s\n\n    # forward_agent turns on/off SSH agent forwarding\n    forward_agent: true\n\n  # allow section declares a list of resource/verb combinations that are\n  # allowed for the users of this role. by default nothing is allowed.\n  allow:\n    # logins array defines the OS logins a user is allowed to use.\n    # A few special variables are supported here (see below)\n    logins: [root, '{{internal.logins}}']\n\n    # node labels that a user can connect to. The wildcard ('*') means \"any node\"\n    node_labels:\n      '*': '*'\n\n    # see below.\n    rules:\n    - resources: [role]\n      verbs: [list, create, read, update, delete]\n    - resources: [auth_connector]\n      verbs: [connect, list, create, read, update, delete]\n    - resources: [session]\n      verbs: [list, read]\n    - resources: [trusted_cluster]\n      verbs: [connect, list, create, read, update, delete]\n\n  # the deny section uses the identical format as the 'allow' section.\n  # the deny rules always override allow rules.\n  deny: {}\n"
 
 /***/ }),
-/* 610 */
+/* 609 */
 /***/ (function(module, exports) {
 
 	module.exports = "# \n# Example resource for a SAML connector\n# This connector can be used for SAML endpoints like Okta\n#\nkind: saml\nversion: v2\nmetadata:\n  # the name of the connector\n  name: new_saml_connector\nspec:\n  # display allows to set the caption of the \"login\" button\n  # in the Web interface\n  display: \"Login with SSO\"\n  # acs is the Assertion Consumer Service URL. This should be the address of\n  # the Teleport proxy that your identity provider will communicate with.\n  acs: https://teleport-proxy.example.com:3080/v1/webapi/saml/acs\n  attributes_to_roles:\n    - {name: \"groups\", value: \"okta-admin\", roles: [\"admin\"]}\n    - {name: \"groups\", value: \"okta-dev\", roles: [\"dev\"]}\n  # Note that the entire XML document is indented by 4 spaces. This is\n  # required because the pipe symbol indicates what follows is raw text.\n  entity_descriptor: |\n    <md:EntityDescriptor xmlns:md=\"urn:oasis:names:tc:SAML:2.0:metadata\" entityID=\"http://www.example.com/00000000000000000000\">\n      <md:IDPSSODescriptor WantAuthnRequestsSigned=\"false\" protocolSupportEnumeration=\"urn:oasis:names:tc:SAML:2.0:protocol\">\n        <md:KeyDescriptor use=\"signing\">\n          <ds:KeyInfo xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\">\n            <ds:X509Data>\n              <ds:X509Certificate>Lu4bLZ57YSPClo5x1RHtXihqSdBfwqTU1tiPnL3i5QrHAXnyrmwscJ1VnutbfaTWCsPlICYQAVin\n    vSAArSQU5WTjvZut9UeEenrYY72xDCLNe5vHimOEHFRvPeP626vx7/gkKSSL5F0Se+YYhLLCWcz8\n    DYrQn41YZb72PBt5T0vIRS3FMZOYz55Ww8XbIWAwIKKmRfm00bPpMYPTD34ZCnVGTXSkHzHDCehu\n    pQMug4IpWIcy45ffbi6sXoFD1ud8vG8H0RFhUk8MBFSCSsYHkrgz5cB8sbPLs0PocxN/nYIFJ2A1\n    U68y2d3U/ClLfOb/kh4w3EcKvqtSwsMdLgxHjrDGtPgiAZDJhriZnpCQ0WvgBcAOYjRjsFncTRWH\n    DqpTXsQzjkRa3A/KD3pA6bd5aYSF21nKAR7aVj7Aq0ogWEb4owZL5/W2lEnuwKSfGcnrz6GmJSaT\n    113wKahleH/VPb1KoaGJ81h5Om1DZI3ohYuxQYC/jwDhOlPXpdECkJe11gSTp34WQ1a93uSYkGo9\n    MZ/7WI2LXpD6pjGtz5YSVKR1naj2pci5jwGi86KwL2MqXX288vguvGqcGZXUwi+383Ct99WLBNgo\n    9A6kIFvexILcscyeKthsoBGzu+MBipoGnSYuw+vlSa/0jIoluQqYpqYIg7ZBWoOjrKDDFdv01BtL\n    nnVBFR43wCIm77obPQ5+103KYWcs42wpAxtX78HdlTav/D35D45GnGxM/fadpth65BSejgoPnd+z\n    MXwMOv2W8B+fuolEcQGLrXw+mHtc2p3A7XKGhexY5A+FkSlAs3RMa0weizcylDlW2vj7ksdmZ/Ag\n    AQ6EetT85DS6gV9wn3pBaWRhFU/OqFT/PezFcnxjiHVwfil+G9nhYhmjaspLqSLTkGPnyYabReZw\n    ZtnSnKnWfwEr5GDqfYxHkBdZUtiofNhu/K/gs/aLTGoxWVac6F9y1xzXYnXPEPkmNsFfwn/H+LuL\n    M01dKisWCfMPHCeBTxKSMB3IrixUym64cxlqkvk/rPXrUcktfvPhd/1I9jWIzQwPfbWyW9wpYzBm\n    xYqZ1MocFyZhfh1UHOwaOiMlgAlOTDn6irtT1BW/a45nAkCl8jqgFKPSJ6kusj+HffSL6xDQJ0vA\n    L5BGENThmToTm7euueLzYY0JDqhqo18wnha5MSCJtB3dcqKTeK+jiyF7FRHfZt/qJolXCufZyN48\n    DQGrdrUjjolHvE8jmtgPkYuq9pdTciUnJIQN8vtQ/tOgk0Ui3n03FSM0YNARyaTZ0vgj+GLfGMc6\n    VFKf6t/sSgFO8W4dgi2e0VwryOd8Etrq5NFul</ds:X509Certificate>\n            </ds:X509Data>\n          </ds:KeyInfo>\n        </md:KeyDescriptor>\n        <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>\n        <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>\n        <md:SingleSignOnService Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST\" Location=\"https://www.example.com/app/teleport/00000000000000000000\"/>\n        <md:SingleSignOnService Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect\" Location=\"https://www.example.com/app/teleport/00000000000000000000\"/>\n      </md:IDPSSODescriptor>\n    </md:EntityDescriptor>\n"
 
 /***/ }),
-/* 611 */
+/* 610 */
 /***/ (function(module, exports) {
 
 	module.exports = "# \n# Example resource for a trusted cluster with RBAC\n#\n# IMPORTANT: only one field (enabled) can be changed after a cluster is created.\n# \nkind: trusted_cluster\nversion: v2\nmetadata:\n  # the name of a trusted cluster \n  name: new_trusted_cluster\nspec:\n  # this field allows to create tunnels that are disabled, but can be enabled later.\n  # this is the only field that can be changed later.\n  enabled: true\n  # the token expected by the \"main\" cluster:\n  token: secret-token-to-add-new-clusters\n  # the address in 'host:port' form of the reverse tunnel listening port on the\n  # \"master\" proxy server:\n  tunnel_addr: proxy.main:3024\n  # the address in 'host:port' form of the web listening port on the\n  # \"master\" proxy server:\n  web_proxy_addr: proxy.main:3080\n  # RBAC for trusted clusters: it says that the users who have the role 'admin'\n  # on a remote cluster will be mapped to the local role 'guest'\n  role_map:\n  - local: [guest]\n    remote: admin\n"
 
 /***/ }),
-/* 612 */
+/* 611 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -42263,7 +42131,7 @@ webpackJsonp([0],[
 	exports.isRolesEnabled = isRolesEnabled;
 	exports.isAuthConnectorsEnabled = isAuthConnectorsEnabled;
 
-	var _store = __webpack_require__(435);
+	var _store = __webpack_require__(439);
 
 	function isTrustedClrsEnabled() {
 	  return (0, _store.getAcl)().getClusterAccess().list;
@@ -42278,28 +42146,28 @@ webpackJsonp([0],[
 	}
 
 /***/ }),
-/* 613 */
+/* 612 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _featureSettings = __webpack_require__(543);
+	var _featureSettings = __webpack_require__(542);
 
-	var _actions = __webpack_require__(546);
+	var _actions = __webpack_require__(545);
 
-	var _config = __webpack_require__(564);
+	var _config = __webpack_require__(563);
 
 	var _config2 = _interopRequireDefault(_config);
 
-	var _actions2 = __webpack_require__(614);
+	var _actions2 = __webpack_require__(613);
 
-	var _tabTrustedClusters = __webpack_require__(617);
+	var _tabTrustedClusters = __webpack_require__(616);
 
 	var _tabTrustedClusters2 = _interopRequireDefault(_tabTrustedClusters);
 
-	var _featureFlags = __webpack_require__(612);
+	var _featureFlags = __webpack_require__(611);
 
 	var flags = _interopRequireWildcard(_featureFlags);
 
@@ -42367,7 +42235,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 614 */
+/* 613 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -42382,23 +42250,23 @@ webpackJsonp([0],[
 
 	var _logger2 = _interopRequireDefault(_logger);
 
-	var _enums = __webpack_require__(563);
+	var _enums = __webpack_require__(562);
 
-	var _actions = __webpack_require__(579);
+	var _actions = __webpack_require__(578);
 
-	var _reactor = __webpack_require__(566);
+	var _reactor = __webpack_require__(565);
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _backend = __webpack_require__(561);
+	var _backend = __webpack_require__(560);
 
 	var backend = _interopRequireWildcard(_backend);
 
-	var _actions2 = __webpack_require__(577);
+	var _actions2 = __webpack_require__(576);
 
-	var _store = __webpack_require__(615);
+	var _store = __webpack_require__(614);
 
-	var _actionTypes = __webpack_require__(616);
+	var _actionTypes = __webpack_require__(615);
 
 	var AT = _interopRequireWildcard(_actionTypes);
 
@@ -42470,7 +42338,7 @@ webpackJsonp([0],[
 	}
 
 /***/ }),
-/* 615 */
+/* 614 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -42478,17 +42346,17 @@ webpackJsonp([0],[
 	exports.__esModule = true;
 	exports.getClusterStore = getClusterStore;
 
-	var _reactor = __webpack_require__(566);
+	var _reactor = __webpack_require__(565);
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
 	var _nuclearJs = __webpack_require__(241);
 
-	var _actionTypes = __webpack_require__(616);
+	var _actionTypes = __webpack_require__(615);
 
 	var AT = _interopRequireWildcard(_actionTypes);
 
-	var _records = __webpack_require__(583);
+	var _records = __webpack_require__(582);
 
 	function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key]; } } newObj.default = obj; return newObj; } }
 
@@ -42519,7 +42387,7 @@ webpackJsonp([0],[
 	});
 
 /***/ }),
-/* 616 */
+/* 615 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -42531,7 +42399,7 @@ webpackJsonp([0],[
 	var DELETE_CLUSTER = exports.DELETE_CLUSTER = 'SETTINGS_TRUSTED_CLRS_DELETE';
 
 /***/ }),
-/* 617 */
+/* 616 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -42542,11 +42410,11 @@ webpackJsonp([0],[
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _connect = __webpack_require__(447);
+	var _connect = __webpack_require__(451);
 
 	var _connect2 = _interopRequireDefault(_connect);
 
-	var _getters = __webpack_require__(618);
+	var _getters = __webpack_require__(617);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
@@ -42554,39 +42422,39 @@ webpackJsonp([0],[
 
 	var _getters4 = _interopRequireDefault(_getters3);
 
-	var _actions = __webpack_require__(614);
+	var _actions = __webpack_require__(613);
 
 	var actions = _interopRequireWildcard(_actions);
 
-	var _button = __webpack_require__(594);
+	var _button = __webpack_require__(593);
 
 	var _button2 = _interopRequireDefault(_button);
 
-	var _configItemList = __webpack_require__(587);
+	var _configItemList = __webpack_require__(586);
 
 	var _configItemList2 = _interopRequireDefault(_configItemList);
 
-	var _actions2 = __webpack_require__(577);
+	var _actions2 = __webpack_require__(576);
 
-	var _configDeleteDialog = __webpack_require__(595);
+	var _configDeleteDialog = __webpack_require__(594);
 
 	var _configDeleteDialog2 = _interopRequireDefault(_configDeleteDialog);
 
-	var _links = __webpack_require__(619);
+	var _links = __webpack_require__(618);
 
 	var Links = _interopRequireWildcard(_links);
 
-	var _configAddEdit = __webpack_require__(598);
+	var _configAddEdit = __webpack_require__(597);
 
 	var _configAddEdit2 = _interopRequireDefault(_configAddEdit);
 
-	var _changeTracker = __webpack_require__(606);
+	var _changeTracker = __webpack_require__(605);
 
 	var _changeTracker2 = _interopRequireDefault(_changeTracker);
 
-	var _examples = __webpack_require__(608);
+	var _examples = __webpack_require__(607);
 
-	var _elements = __webpack_require__(588);
+	var _elements = __webpack_require__(587);
 
 	function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key]; } } newObj.default = obj; return newObj; } }
 
@@ -42726,14 +42594,14 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 618 */
+/* 617 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _getters = __webpack_require__(586);
+	var _getters = __webpack_require__(585);
 
 	exports.default = {
 	  saveAttempt: _getters.saveClusterAttempt,
@@ -42742,7 +42610,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 619 */
+/* 618 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -42754,7 +42622,7 @@ webpackJsonp([0],[
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _config = __webpack_require__(564);
+	var _config = __webpack_require__(563);
 
 	var _config2 = _interopRequireDefault(_config);
 
@@ -42771,28 +42639,28 @@ webpackJsonp([0],[
 	};
 
 /***/ }),
-/* 620 */
+/* 619 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _featureSettings = __webpack_require__(543);
+	var _featureSettings = __webpack_require__(542);
 
-	var _actions = __webpack_require__(546);
+	var _actions = __webpack_require__(545);
 
-	var _config = __webpack_require__(564);
+	var _config = __webpack_require__(563);
 
 	var _config2 = _interopRequireDefault(_config);
 
-	var _actions2 = __webpack_require__(621);
+	var _actions2 = __webpack_require__(620);
 
-	var _tabRoles = __webpack_require__(624);
+	var _tabRoles = __webpack_require__(623);
 
 	var _tabRoles2 = _interopRequireDefault(_tabRoles);
 
-	var _featureFlags = __webpack_require__(612);
+	var _featureFlags = __webpack_require__(611);
 
 	var flags = _interopRequireWildcard(_featureFlags);
 
@@ -42859,7 +42727,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 621 */
+/* 620 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -42874,25 +42742,25 @@ webpackJsonp([0],[
 
 	var _logger2 = _interopRequireDefault(_logger);
 
-	var _reactor = __webpack_require__(566);
+	var _reactor = __webpack_require__(565);
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _actions = __webpack_require__(579);
+	var _actions = __webpack_require__(578);
 
-	var _enums = __webpack_require__(563);
+	var _enums = __webpack_require__(562);
 
-	var _backend = __webpack_require__(561);
+	var _backend = __webpack_require__(560);
 
 	var backend = _interopRequireWildcard(_backend);
 
-	var _actionTypes = __webpack_require__(622);
+	var _actionTypes = __webpack_require__(621);
 
 	var AT = _interopRequireWildcard(_actionTypes);
 
-	var _actions2 = __webpack_require__(577);
+	var _actions2 = __webpack_require__(576);
 
-	var _store = __webpack_require__(623);
+	var _store = __webpack_require__(622);
 
 	function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key]; } } newObj.default = obj; return newObj; } }
 
@@ -42961,7 +42829,7 @@ webpackJsonp([0],[
 	}
 
 /***/ }),
-/* 622 */
+/* 621 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -42973,7 +42841,7 @@ webpackJsonp([0],[
 	var DELETE_ROLE = exports.DELETE_ROLE = 'SETTINGS_ROLES_DELETE';
 
 /***/ }),
-/* 623 */
+/* 622 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -42981,17 +42849,17 @@ webpackJsonp([0],[
 	exports.__esModule = true;
 	exports.getRoleStore = getRoleStore;
 
-	var _reactor = __webpack_require__(566);
+	var _reactor = __webpack_require__(565);
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
 	var _nuclearJs = __webpack_require__(241);
 
-	var _actionTypes = __webpack_require__(622);
+	var _actionTypes = __webpack_require__(621);
 
 	var AT = _interopRequireWildcard(_actionTypes);
 
-	var _records = __webpack_require__(583);
+	var _records = __webpack_require__(582);
 
 	function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key]; } } newObj.default = obj; return newObj; } }
 
@@ -43022,7 +42890,7 @@ webpackJsonp([0],[
 	});
 
 /***/ }),
-/* 624 */
+/* 623 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -43033,11 +42901,11 @@ webpackJsonp([0],[
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _connect = __webpack_require__(447);
+	var _connect = __webpack_require__(451);
 
 	var _connect2 = _interopRequireDefault(_connect);
 
-	var _getters = __webpack_require__(625);
+	var _getters = __webpack_require__(624);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
@@ -43045,31 +42913,31 @@ webpackJsonp([0],[
 
 	var _getters4 = _interopRequireDefault(_getters3);
 
-	var _actions = __webpack_require__(577);
+	var _actions = __webpack_require__(576);
 
-	var _actions2 = __webpack_require__(621);
+	var _actions2 = __webpack_require__(620);
 
 	var actions = _interopRequireWildcard(_actions2);
 
-	var _configItemList = __webpack_require__(587);
+	var _configItemList = __webpack_require__(586);
 
 	var _configItemList2 = _interopRequireDefault(_configItemList);
 
-	var _configDeleteDialog = __webpack_require__(595);
+	var _configDeleteDialog = __webpack_require__(594);
 
 	var _configDeleteDialog2 = _interopRequireDefault(_configDeleteDialog);
 
-	var _elements = __webpack_require__(588);
+	var _elements = __webpack_require__(587);
 
-	var _configAddEdit = __webpack_require__(598);
+	var _configAddEdit = __webpack_require__(597);
 
 	var _configAddEdit2 = _interopRequireDefault(_configAddEdit);
 
-	var _changeTracker = __webpack_require__(606);
+	var _changeTracker = __webpack_require__(605);
 
 	var _changeTracker2 = _interopRequireDefault(_changeTracker);
 
-	var _examples = __webpack_require__(608);
+	var _examples = __webpack_require__(607);
 
 	function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key]; } } newObj.default = obj; return newObj; } }
 
@@ -43182,14 +43050,14 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 625 */
+/* 624 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
 
-	var _getters = __webpack_require__(586);
+	var _getters = __webpack_require__(585);
 
 	exports.default = {
 	  saveAttempt: _getters.saveRoleAttempt,
@@ -43198,7 +43066,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 626 */
+/* 625 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -43211,7 +43079,7 @@ webpackJsonp([0],[
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _app = __webpack_require__(627);
+	var _app = __webpack_require__(626);
 
 	var _app2 = _interopRequireDefault(_app);
 
@@ -43219,7 +43087,7 @@ webpackJsonp([0],[
 
 	var _getters2 = _interopRequireDefault(_getters);
 
-	var _connect = __webpack_require__(447);
+	var _connect = __webpack_require__(451);
 
 	var _connect2 = _interopRequireDefault(_connect);
 
@@ -43229,11 +43097,11 @@ webpackJsonp([0],[
 
 	var _indicator2 = _interopRequireDefault(_indicator);
 
-	var _licenseStatusDialog = __webpack_require__(630);
+	var _licenseStatusDialog = __webpack_require__(629);
 
 	var _licenseStatusDialog2 = _interopRequireDefault(_licenseStatusDialog);
 
-	var _getters3 = __webpack_require__(631);
+	var _getters3 = __webpack_require__(630);
 
 	var licenseGetters = _interopRequireWildcard(_getters3);
 
@@ -43329,7 +43197,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 627 */
+/* 626 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -43350,15 +43218,15 @@ webpackJsonp([0],[
 
 	var _getters2 = _interopRequireDefault(_getters);
 
-	var _browser = __webpack_require__(628);
+	var _browser = __webpack_require__(627);
 
 	var _actions = __webpack_require__(285);
 
-	var _navLeftBar = __webpack_require__(629);
+	var _navLeftBar = __webpack_require__(628);
 
 	var _navLeftBar2 = _interopRequireDefault(_navLeftBar);
 
-	var _dataProvider = __webpack_require__(451);
+	var _dataProvider = __webpack_require__(455);
 
 	var _dataProvider2 = _interopRequireDefault(_dataProvider);
 
@@ -43427,7 +43295,7 @@ webpackJsonp([0],[
 	      return _react2.default.createElement(
 	        'div',
 	        { className: className },
-	        _react2.default.createElement(_dataProvider2.default, { onFetch: _actions.refresh, time: 4000 }),
+	        _react2.default.createElement(_dataProvider2.default, { onFetch: _actions.refresh, time: 3000 }),
 	        this.props.CurrentSessionHost,
 	        _react2.default.createElement(_navLeftBar2.default, { router: router }),
 	        this.props.children
@@ -43450,7 +43318,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 628 */
+/* 627 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -43484,7 +43352,7 @@ webpackJsonp([0],[
 	var platform = exports.platform = detectPlatform();
 
 /***/ }),
-/* 629 */
+/* 628 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -43504,7 +43372,7 @@ webpackJsonp([0],[
 
 	var UserFlux = _interopRequireWildcard(_user);
 
-	var _appStore = __webpack_require__(551);
+	var _appStore = __webpack_require__(550);
 
 	var AppStore = _interopRequireWildcard(_appStore);
 
@@ -43591,7 +43459,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 630 */
+/* 629 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -43602,7 +43470,7 @@ webpackJsonp([0],[
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _button = __webpack_require__(594);
+	var _button = __webpack_require__(593);
 
 	var _button2 = _interopRequireDefault(_button);
 
@@ -43610,7 +43478,7 @@ webpackJsonp([0],[
 
 	var _classnames2 = _interopRequireDefault(_classnames);
 
-	var _dialog = __webpack_require__(596);
+	var _dialog = __webpack_require__(595);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -43691,7 +43559,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 631 */
+/* 630 */
 /***/ (function(module, exports) {
 
 	'use strict';
@@ -43700,32 +43568,32 @@ webpackJsonp([0],[
 	var store = exports.store = ['tlp_license_status'];
 
 /***/ }),
-/* 632 */
+/* 631 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
 
-	var _reactor = __webpack_require__(566);
+	var _reactor = __webpack_require__(565);
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _storeDialogs = __webpack_require__(633);
+	var _storeDialogs = __webpack_require__(632);
 
 	var _storeDialogs2 = _interopRequireDefault(_storeDialogs);
 
-	var _store = __webpack_require__(581);
+	var _store = __webpack_require__(580);
 
 	var _store2 = _interopRequireDefault(_store);
 
-	var _store3 = __webpack_require__(623);
+	var _store3 = __webpack_require__(622);
 
 	var _store4 = _interopRequireDefault(_store3);
 
-	var _store5 = __webpack_require__(615);
+	var _store5 = __webpack_require__(614);
 
 	var _store6 = _interopRequireDefault(_store5);
 
-	var _store7 = __webpack_require__(634);
+	var _store7 = __webpack_require__(633);
 
 	var _store8 = _interopRequireDefault(_store7);
 
@@ -43756,7 +43624,7 @@ webpackJsonp([0],[
 	});
 
 /***/ }),
-/* 633 */
+/* 632 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -43767,7 +43635,7 @@ webpackJsonp([0],[
 
 	var _immutable = __webpack_require__(254);
 
-	var _actionTypes = __webpack_require__(578);
+	var _actionTypes = __webpack_require__(577);
 
 	var AT = _interopRequireWildcard(_actionTypes);
 
@@ -43814,7 +43682,7 @@ webpackJsonp([0],[
 	module.exports = exports['default'];
 
 /***/ }),
-/* 634 */
+/* 633 */
 /***/ (function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -43823,7 +43691,7 @@ webpackJsonp([0],[
 
 	var _nuclearJs = __webpack_require__(241);
 
-	var _actionTypes = __webpack_require__(567);
+	var _actionTypes = __webpack_require__(566);
 
 	var AT = _interopRequireWildcard(_actionTypes);
 
