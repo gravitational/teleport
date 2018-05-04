@@ -2,8 +2,9 @@
 pipeline {
     agent any
     options {
-        disableConcurrentBuilds()
         ansiColor(colorMapName: 'XTerm')
+        disableConcurrentBuilds()
+        timestamps()
     }
     stages {
         stage('Create files/build directory') {
