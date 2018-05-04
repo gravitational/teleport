@@ -3,7 +3,6 @@ package pro
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"time"
 
 	"github.com/gravitational/teleport/lib/events"
@@ -95,10 +94,6 @@ func (l *AuditLog) PostSessionSlice(slice events.SessionSlice) error {
 		}
 	}
 	return trace.Wrap(l.Inner.PostSessionSlice(slice))
-}
-
-func (l *AuditLog) PostSessionChunk(namespace string, sid session.ID, reader io.Reader) error {
-	return trace.Wrap(l.Inner.PostSessionChunk(namespace, sid, reader))
 }
 
 func (l *AuditLog) UploadSessionRecording(r events.SessionRecording) error {
