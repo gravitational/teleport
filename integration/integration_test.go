@@ -2377,7 +2377,7 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 			if ca.GetRotation().Phase == phase {
 				return nil
 			}
-			lastPhase = phase
+			lastPhase = ca.GetRotation().Phase
 			time.Sleep(tconf.PollingPeriod / 2)
 		}
 		return trace.CompareFailed("failed to converge to phase %q, last phase %q", phase, lastPhase)
