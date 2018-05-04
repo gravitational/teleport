@@ -376,7 +376,7 @@ func (g *ResourceCommand) getCollection(client auth.ClientI) (c ResourceCollecti
 		}
 		return &serverCollection{servers: servers}, nil
 	case services.KindProxy:
-		servers, err := client.GetAuthServers()
+		servers, err := client.GetProxies()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

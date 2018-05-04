@@ -3,7 +3,6 @@ package events
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"sync"
 	"time"
 
@@ -164,12 +163,6 @@ func (l *Forwarder) setupSlice(slice *SessionSlice) ([]*SessionChunk, error) {
 // UploadSessionRecording uploads session recording to the audit server
 func (l *Forwarder) UploadSessionRecording(r SessionRecording) error {
 	return l.ForwardTo.UploadSessionRecording(r)
-}
-
-// PostSessionChunk returns a writer which SSH nodes use to submit
-// their live sessions into the session log
-func (l *Forwarder) PostSessionChunk(namespace string, sid session.ID, reader io.Reader) error {
-	return trace.BadParameter("not implemented")
 }
 
 // GetSessionChunk returns a reader which can be used to read a byte stream

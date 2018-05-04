@@ -19,6 +19,7 @@ package boltbk
 import (
 	"bytes"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"sort"
 	"sync"
@@ -58,6 +59,24 @@ type BoltBackend struct {
 // as shown in 'storage/type' section of Teleport YAML config
 func GetName() string {
 	return "bolt"
+}
+
+// Exists returns true if backend has been used before
+func Exists(path string) (bool, error) {
+	path, err := filepath.Abs(filepath.Join(path, keysBoltFile))
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	f, err := os.Open(path)
+	err = trace.ConvertSystemError(err)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return false, nil
+		}
+		return false, trace.Wrap(err)
+	}
+	defer f.Close()
+	return true, nil
 }
 
 // New initializes and returns a fully created BoltDB backend. It's

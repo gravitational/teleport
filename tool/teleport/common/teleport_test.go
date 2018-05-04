@@ -18,7 +18,6 @@ package common
 
 import (
 	"io/ioutil"
-	"net"
 	"os"
 	"path/filepath"
 	"testing"
@@ -119,7 +118,7 @@ func (s *MainTestSuite) TestConfigFile(c *check.C) {
 	c.Assert(log.GetLevel(), check.Equals, log.DebugLevel)
 	c.Assert(conf.Hostname, check.Equals, "hvostongo.example.org")
 	c.Assert(conf.Token, check.Equals, "xxxyyy")
-	c.Assert(conf.AdvertiseIP, check.DeepEquals, net.ParseIP("10.5.5.5"))
+	c.Assert(conf.AdvertiseIP, check.DeepEquals, "10.5.5.5")
 	c.Assert(conf.SSH.Labels, check.DeepEquals, map[string]string{"a": "a1", "b": "b1"})
 }
 

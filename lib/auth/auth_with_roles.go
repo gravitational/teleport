@@ -18,7 +18,6 @@ package auth
 
 import (
 	"context"
-	"io"
 	"net/url"
 	"time"
 
@@ -444,15 +443,6 @@ func (a *AuthWithRoles) GetOTPData(user string) (string, []byte, error) {
 	return a.authServer.GetOTPData(user)
 }
 
-// DELETE IN: 2.6.0
-// This method is no longer used in 2.5.0 and is replaced by AuthenticateUser methods
-func (a *AuthWithRoles) SignIn(user string, password []byte) (services.WebSession, error) {
-	if err := a.currentUserAction(user); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.authServer.SignIn(user, password)
-}
-
 func (a *AuthWithRoles) PreAuthenticatedSignIn(user string) (services.WebSession, error) {
 	if err := a.currentUserAction(user); err != nil {
 		return nil, trace.Wrap(err)
@@ -819,16 +809,6 @@ func (a *AuthWithRoles) PostSessionSlice(slice events.SessionSlice) error {
 		return trace.Wrap(err)
 	}
 	return a.alog.PostSessionSlice(slice)
-}
-
-func (a *AuthWithRoles) PostSessionChunk(namespace string, sid session.ID, reader io.Reader) error {
-	if err := a.action(namespace, services.KindEvent, services.VerbCreate); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := a.action(namespace, services.KindEvent, services.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.alog.PostSessionChunk(namespace, sid, reader)
 }
 
 func (a *AuthWithRoles) UploadSessionRecording(r events.SessionRecording) error {

@@ -36,6 +36,8 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/boltbk"
+	"github.com/gravitational/teleport/lib/backend/dir"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -60,7 +62,7 @@ type CommandLineFlags struct {
 	// --listen-ip flag
 	ListenIP net.IP
 	// --advertise-ip flag
-	AdvertiseIP net.IP
+	AdvertiseIP string
 	// --config flag
 	ConfigFile string
 	// ConfigString is a base64 encoded configuration string
@@ -133,8 +135,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 
 	// apply "advertise_ip" setting:
 	advertiseIP := fc.AdvertiseIP
-	if advertiseIP != nil {
-		if err := validateAdvertiseIP(advertiseIP); err != nil {
+	if advertiseIP != "" {
+		if _, _, err := utils.ParseAdvertiseAddr(advertiseIP); err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.AdvertiseIP = advertiseIP
@@ -166,6 +168,27 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	// if a backend is specified, override the defaults
 	if fc.Storage.Type != "" {
 		cfg.Auth.StorageConfig = fc.Storage
+		// backend is specified, but no path is set, set a reasonable default
+		_, pathSet := cfg.Auth.StorageConfig.Params[defaults.BackendPath]
+		if cfg.Auth.StorageConfig.Type == dir.GetName() && !pathSet {
+			if cfg.Auth.StorageConfig.Params == nil {
+				cfg.Auth.StorageConfig.Params = make(backend.Params)
+			}
+			cfg.Auth.StorageConfig.Params[defaults.BackendPath] = filepath.Join(cfg.DataDir, defaults.BackendDir)
+		}
+	} else {
+		// bolt backend is deprecated, but is picked if it was setup before
+		exists, err := boltbk.Exists(cfg.DataDir)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if exists {
+			cfg.Auth.StorageConfig.Type = boltbk.GetName()
+			cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: cfg.DataDir}
+		} else {
+			cfg.Auth.StorageConfig.Type = dir.GetName()
+			cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
+		}
 	}
 
 	// apply logger settings
@@ -276,12 +299,12 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		cfg.Proxy.ReverseTunnelListenAddr = *addr
 	}
-	if fc.Proxy.PublicAddr != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.PublicAddr, int(defaults.HTTPListenPort))
+	if len(fc.Proxy.PublicAddr) != 0 {
+		addrs, err := fc.Proxy.PublicAddr.Addrs(defaults.HTTPListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		cfg.Proxy.PublicAddr = *addr
+		cfg.Proxy.PublicAddrs = addrs
 	}
 	if fc.Proxy.KeyFile != "" {
 		if !fileExists(fc.Proxy.KeyFile) {
@@ -337,12 +360,13 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Auth.SSHAddr = *addr
 		cfg.AuthServers = append(cfg.AuthServers, *addr)
 	}
-	// DELETE IN: 2.4.0
+	// DELETE IN: 2.7.0
+	// We have converted this warning to error
 	if fc.Auth.DynamicConfig != nil {
 		warningMessage := "Dynamic configuration is no longer supported. Refer to " +
 			"Teleport documentation for more details: " +
 			"http://gravitational.com/teleport/docs/admin-guide"
-		log.Warnf(warningMessage)
+		return trace.BadParameter(warningMessage)
 	}
 	// INTERNAL: Authorities (plus Roles) and ReverseTunnels don't follow the
 	// same pattern as the rest of the configuration (they are not configuration
@@ -361,6 +385,13 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 		cfg.ReverseTunnels = append(cfg.ReverseTunnels, tun)
+	}
+	if len(fc.Auth.PublicAddr) != 0 {
+		addrs, err := fc.Auth.PublicAddr.Addrs(defaults.AuthListenPort)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Auth.PublicAddrs = addrs
 	}
 	// DELETE IN: 2.4.0
 	if len(fc.Auth.TrustedClusters) > 0 {
@@ -481,7 +512,13 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 			}
 		}
 	}
-
+	if len(fc.SSH.PublicAddr) != 0 {
+		addrs, err := fc.SSH.PublicAddr.Addrs(defaults.SSHServerListenPort)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.SSH.PublicAddrs = addrs
+	}
 	return nil
 }
 
@@ -748,8 +785,8 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	}
 
 	// --advertise-ip flag
-	if clf.AdvertiseIP != nil {
-		if err := validateAdvertiseIP(clf.AdvertiseIP); err != nil {
+	if clf.AdvertiseIP != "" {
+		if _, _, err := utils.ParseAdvertiseAddr(clf.AdvertiseIP); err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.AdvertiseIP = clf.AdvertiseIP
@@ -775,7 +812,6 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		cfg.Auth.StorageConfig.Params = backend.Params{}
 	}
 	cfg.Auth.StorageConfig.Params["data_dir"] = cfg.DataDir
-
 	// command line flag takes precedence over file config
 	if clf.PermitUserEnvironment {
 		cfg.SSH.PermitUserEnvironment = true
@@ -898,13 +934,6 @@ func validateRoles(roles string) error {
 		default:
 			return trace.Errorf("unknown role: '%s'", role)
 		}
-	}
-	return nil
-}
-
-func validateAdvertiseIP(advertiseIP net.IP) error {
-	if advertiseIP.IsLoopback() || advertiseIP.IsUnspecified() || advertiseIP.IsMulticast() {
-		return trace.BadParameter("unreachable advertise IP: %v", advertiseIP)
 	}
 	return nil
 }

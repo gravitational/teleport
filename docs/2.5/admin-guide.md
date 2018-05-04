@@ -1117,6 +1117,13 @@ This setup works as follows:
 3. When a user tries to connect to a node inside "east" using _main.example.com_ 
    the reverse tunnel from step 1 is used to establish this connection (green line).
 
+!!! tip "Load Balancers":
+    The scheme above also works even if the "main" cluster uses multiple
+    proxies behind a load balancer (LB) or a DNS entry with multiple values.
+    This works by "east" establishing a tunnel to _every_ proxy in "main",
+    assuming that an LB uses round-robin or a similar non-sticky balancing
+    algorithm.
+
 ### Example Configuration
 
 Connecting two clusters together is similar to [adding a node](#adding-nodes-to-the-cluster) 
@@ -1448,6 +1455,59 @@ To allow access for all users:
   * Update `sshd` configuration (usually `/etc/ssh/sshd_config`) to point to this
   file: `TrustedUserCAKeys /etc/ssh/teleport-user-ca.pub`
 
+## Certificate Rotation
+
+Take a look at the [Certificates chapter](architecture.md#certificates) in the
+architecture document to learn how the certificate rotation works. This section
+will show you how to implement certificate rotation in practice.
+
+The easiest way to start the rotation is to execute this command on a cluster's
+_auth server_:
+
+```bash
+$ tctl auth rotate
+```
+
+This will trigger a rotation process for both hosts and users whith a _grace
+period_ of 48 hours.
+
+This can be customized, i.e.
+
+```bash
+# rotate only user certificates with a grace period of 200 hours:
+$ tctl auth rotate --type=user --grace-period=200h
+
+# rotate only host certificates with a grace period of 8 hours:
+$ tctl auth rotate --type=host --grace-period=8h
+```
+
+The rotation takes time, especially for hosts, because each node in a cluster
+needs to be notified that a rotation is taking place and request a new
+certificate for itself before the grace period ends. If the grace period is 
+set to "0h" (zero hours) it means that all previously issued certificates
+become invalid immediately.
+
+!!! warning "Warning":
+    Be careful when choosing a grace period when rotating host certificates.
+    The grace period needs to be long enough for all nodes in a cluster to
+    request a new certificate. If some nodes go offline during the rotation and
+    come back only after the grace period has ended, they will be forced to
+    leave the cluster, i.e. no users will no longer be allowed to SSH into
+    them. 
+
+To check the status of certificate rotation:
+
+```bash
+$ tctl status
+```
+
+!!! danger "Danger":
+    Certificate rotation can only be used with clusters running version 2.6 of
+    Teleport or newer. If trusted clusters are used, make sure _all_ connected 
+    clusters are running version 2.6+. If one of the trusted clusters is running
+    an older version of Teleport the trust/connection to that cluster will be
+    lost.
+
 ## Integrating with Ansible
 
 Ansible uses the OpenSSH client by default. This makes it compatible with Teleport without any extra work, except configuring OpenSSH client to work with Teleport Proxy:
@@ -1470,11 +1530,13 @@ But if high availability cannot be provided by the infrastructue (perhaps
 you're running Teleport on a bare metal cluster), you can configure Teleport
 to run in a highly available fashion.
 
-#### Run multiple instances of Teleport Auth Server
+### Auth Server HA
 
-  For this to work you must switch to a highly available secrets back-end first.
-  Also, you must tell each node in a cluster that there are
-  more than one auth server available. The are two ways to do this:
+Run multiple instances of Teleport Auth Server.
+
+For this to work you must switch to a highly available secrets back-end first.
+Also, you must tell each node in a cluster that there are
+more than one auth server available. The are two ways to do this:
 
   * Use a load balancer to create a single auth API access point (AP) and
     specify this AP in `auth_servers` section of Teleport configuration for
@@ -1486,7 +1548,9 @@ to run in a highly available fashion.
 attention needs to be paid to keep their configuration identical. Settings
 like `cluster_name`, `tokens`, `storage`, etc must be the same.
 
-#### Run multiple instances of Teleport Proxy
+### Teleport Proxy HA
+
+Run multiple instances of Teleport Proxy.
 
 The Teleport Proxy is stateless which makes running multiple instances trivial.
 If using the [default configuration](#ports), configure your load balancer to

@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"net"
 	"os"
 	"strings"
 	"time"
@@ -354,7 +353,7 @@ type Global struct {
 	Limits      ConnectionLimits `yaml:"connection_limits,omitempty"`
 	Logger      Log              `yaml:"log,omitempty"`
 	Storage     backend.Config   `yaml:"storage,omitempty"`
-	AdvertiseIP net.IP           `yaml:"advertise_ip,omitempty"`
+	AdvertiseIP string           `yaml:"advertise_ip,omitempty"`
 	CachePolicy CachePolicy      `yaml:"cache,omitempty"`
 	SeedConfig  *bool            `yaml:"seed_config,omitempty"`
 
@@ -518,6 +517,10 @@ type Auth struct {
 	// it here overrides defaults.
 	// Deprecated: Remove in Teleport 2.4.1.
 	DynamicConfig *bool `yaml:"dynamic_config,omitempty"`
+
+	// PublicAddr sets SSH host principals and TLS DNS names to auth
+	// server certificates
+	PublicAddr Strings `yaml:"public_addr,omitempty"`
 }
 
 // TrustedCluster struct holds configuration values under "trusted_clusters" key
@@ -651,6 +654,8 @@ type SSH struct {
 	Commands              []CommandLabel    `yaml:"commands,omitempty"`
 	PermitUserEnvironment bool              `yaml:"permit_user_env,omitempty"`
 	PAM                   *PAM              `yaml:"pam,omitempty"`
+	// PublicAddr sets SSH host principals for SSH service
+	PublicAddr Strings `yaml:"public_addr,omitempty"`
 }
 
 // CommandLabel is `command` section of `ssh_service` in the config file
@@ -695,7 +700,7 @@ type Proxy struct {
 	// CertFile is a TLS Certificate file
 	CertFile string `yaml:"https_cert_file,omitempty"`
 	// PublicAddr is a publicly advertised address of the proxy
-	PublicAddr string `yaml:"public_addr,omitempty"`
+	PublicAddr Strings `yaml:"public_addr,omitempty"`
 	// ProxyProtocol turns on support for HAProxy proxy protocol
 	// this is the option that has be turned on only by administrator,
 	// as only admin knows whether service is in front of trusted load balancer
@@ -937,4 +942,42 @@ func (u *U2F) Parse() (*services.U2F, error) {
 		AppID:  appID,
 		Facets: facets,
 	}, nil
+}
+
+// Strings is a list of string that can unmarshal from list or a single yaml value
+type Strings []string
+
+// UnmarshalYAML is used to allow Strings to unmarshal from
+// scalar string value or from the list
+func (s *Strings) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	// try unmarshal as string
+	var val string
+	err := unmarshal(&val)
+	if err == nil {
+		*s = []string{val}
+		return nil
+	}
+
+	// try unmarshal as slice
+	var slice []string
+	err = unmarshal(&slice)
+	if err == nil {
+		*s = slice
+		return nil
+	}
+
+	return err
+}
+
+// Addrs returns strings list converted to address list
+func (s Strings) Addrs(defaultPort int) ([]utils.NetAddr, error) {
+	addrs := make([]utils.NetAddr, len(s))
+	for i, val := range s {
+		addr, err := utils.ParseHostPortAddr(val, defaultPort)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		addrs[i] = *addr
+	}
+	return addrs, nil
 }

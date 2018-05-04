@@ -21,7 +21,7 @@ const StaticConfigString = `
 #
 teleport:
   nodename: edsger.example.com
-  advertise_ip: 10.10.10.1
+  advertise_ip: 10.10.10.1:3022
   pid_file: /var/run/teleport.pid
   auth_servers:
     - auth0.server.example.org:3024
@@ -77,6 +77,7 @@ auth_service:
         addresses: ["com-1", "com-2"]
       - domain_name: tunnel.example.org
         addresses: ["org-1"]
+  public_addr: ["auth.default.svc.cluster.local:3080"]
 
 ssh_service:
   enabled: no
@@ -91,6 +92,7 @@ ssh_service:
   - name: date
     command: [/bin/date]
     period: 20ms
+  public_addr: "luna3:22"
 `
 
 const SmallConfigString = `
@@ -129,6 +131,7 @@ proxy_service:
   enabled: yes
   web_listen_addr: webhost
   tunnel_listen_addr: tunnelhost:1001
+  public_addr: web3:443
 `
 
 // LegacyAuthenticationSection is the deprecated format for authentication method. We still

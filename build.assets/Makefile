@@ -102,7 +102,6 @@ enter-docs: docsbox
 #
 .PHONY:run-docs
 run-docs: docsbox
-	@echo -e "\n\n----> LIVE EDIT HERE: http://localhost:6600/admin-guide/\n"
 	docker run -ti $(NOROOT) \
 		-v $$(pwd)/..:$(DOCSDIR) \
 		-v /tmp:/tmp \

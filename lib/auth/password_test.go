@@ -221,10 +221,5 @@ func (s *PasswordSuite) prepareForPasswordChange(user string, pass []byte, secon
 		return req, err
 	}
 
-	_, err = s.a.SignIn(user, pass)
-	if err != nil {
-		return req, err
-	}
-
 	return req, nil
 }

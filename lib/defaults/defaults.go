@@ -52,6 +52,12 @@ const (
 	// Default DB to use for persisting state. Another options is "etcd"
 	BackendType = "bolt"
 
+	// BackendDir is a default backend subdirectory
+	BackendDir = "backend"
+
+	// BackendPath is a default backend path parameter
+	BackendPath = "path"
+
 	// Name of events bolt database file stored in DataDir
 	EventsBoltFile = "events.db"
 
