@@ -50,15 +50,15 @@ pipeline {
                 }
             }
         }
-        stage('Take stack down and wait for destruction') {
-            steps {
-                dir('assets/marketplace') {
-                    script {
-                        sh 'make jenkins-delete-stack'
-                        sh 'make jenkins-wait-for-stack-deletion'
-                    }
+    }
+    post {
+        always {
+            dir('assets/marketplace') {
+                script {
+                    sh 'make jenkins-delete-stack'
+                    sh 'make jenkins-wait-for-stack-deletion'
                 }
-            }
+            }            
         }
     }
 }
