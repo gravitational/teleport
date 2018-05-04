@@ -351,6 +351,9 @@ func Status(profileDir string, proxyHost string) (*ProfileStatus, []*ProfileStat
 	// ~/.tsh/profile symlink.
 	profileName, err := fullProfileName(profileDir, proxyHost)
 	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, nil, trace.NotFound("not logged in")
+		}
 		return nil, nil, trace.Wrap(err)
 	}
 
