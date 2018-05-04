@@ -2,7 +2,6 @@ package events
 
 import (
 	"context"
-	"io"
 	"time"
 
 	"github.com/gravitational/teleport/lib/session"
@@ -26,9 +25,6 @@ func (d *DiscardAuditLog) Close() error {
 }
 
 func (d *DiscardAuditLog) EmitAuditEvent(eventType string, fields EventFields) error {
-	return nil
-}
-func (d *DiscardAuditLog) PostSessionChunk(namespace string, sid session.ID, reader io.Reader) error {
 	return nil
 }
 func (d *DiscardAuditLog) PostSessionSlice(SessionSlice) error {

@@ -18,6 +18,7 @@ package auth
 
 import (
 	"encoding/base32"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"time"
@@ -726,28 +727,59 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	c.Assert(out, check.DeepEquals, []session.Session{sess})
+	marshal := func(f events.EventFields) []byte {
+		data, err := json.Marshal(f)
+		if err != nil {
+			panic(err)
+		}
+		return data
+	}
 
 	// emit two events: "one" and "two" for this session, and event "three"
 	// for some other session
-	err = clt.EmitAuditEvent(events.SessionStartEvent, events.EventFields{
-		events.SessionEventID: sess.ID,
-		events.EventNamespace: defaults.Namespace,
-		"val": "one",
+	err = clt.PostSessionSlice(events.SessionSlice{
+		Namespace: defaults.Namespace,
+		SessionID: string(sess.ID),
+		Chunks: []*events.SessionChunk{
+			&events.SessionChunk{
+				Time:       time.Now().UTC().UnixNano(),
+				EventIndex: 0,
+				EventType:  events.SessionStartEvent,
+				Data:       marshal(events.EventFields{events.EventLogin: "bob", "val": "one"}),
+			},
+			&events.SessionChunk{
+				Time:       time.Now().UTC().UnixNano(),
+				EventIndex: 1,
+				EventType:  events.SessionEndEvent,
+				Data:       marshal(events.EventFields{events.EventLogin: "bob", "val": "two"}),
+			},
+		},
+		Version: events.V2,
 	})
 	c.Assert(err, check.IsNil)
-	err = clt.EmitAuditEvent(events.SessionStartEvent, events.EventFields{
-		events.SessionEventID: sess.ID,
-		events.EventNamespace: defaults.Namespace,
-		"val": "two",
-	})
-	c.Assert(err, check.IsNil)
+
 	anotherSessionID := session.NewID()
-	err = clt.EmitAuditEvent(events.SessionEndEvent, events.EventFields{
-		events.SessionEventID: anotherSessionID,
-		"val": "three",
-		events.EventNamespace: defaults.Namespace,
+	err = clt.PostSessionSlice(events.SessionSlice{
+		Namespace: defaults.Namespace,
+		SessionID: string(anotherSessionID),
+		Chunks: []*events.SessionChunk{
+			&events.SessionChunk{
+				Time:       time.Now().UTC().UnixNano(),
+				EventIndex: 0,
+				EventType:  events.SessionStartEvent,
+				Data:       marshal(events.EventFields{events.EventLogin: "alice", "val": "three"}),
+			},
+			&events.SessionChunk{
+				Time:       time.Now().UTC().UnixNano(),
+				EventIndex: 1,
+				EventType:  events.SessionEndEvent,
+				Data:       marshal(events.EventFields{events.EventLogin: "alice", "val": "three"}),
+			},
+		},
+		Version: events.V2,
 	})
 	c.Assert(err, check.IsNil)
+
 	// ask for strictly session events:
 	e, err := clt.GetSessionEvents(defaults.Namespace, sess.ID, 0, true)
 	c.Assert(err, check.IsNil)
@@ -761,16 +793,22 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 	history, err := clt.SearchEvents(from, to, "", 0)
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.NotNil)
-	c.Assert(len(history), check.Equals, 3)
+	c.Assert(len(history), check.Equals, 4)
 
 	// try searching for only "session.end" events (real query)
 	history, err = clt.SearchEvents(from, to,
 		fmt.Sprintf("%s=%s", events.EventType, events.SessionEndEvent), 0)
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.NotNil)
-	c.Assert(len(history), check.Equals, 1)
-	c.Assert(history[0].GetString(events.SessionEventID), check.Equals, string(anotherSessionID))
-	c.Assert(history[0].GetString("val"), check.Equals, "three")
+	c.Assert(len(history), check.Equals, 2)
+	var found bool
+	for _, event := range history {
+		if event.GetString(events.SessionEventID) == string(anotherSessionID) {
+			found = true
+			c.Assert(event.GetString("val"), check.Equals, "three")
+		}
+	}
+	c.Assert(found, check.Equals, true)
 }
 
 func (s *TLSSuite) TestOTPCRUD(c *check.C) {
@@ -892,10 +930,6 @@ func (s *TLSSuite) TestGenerateCerts(c *check.C) {
 	_, _, _, _, err = ssh.ParseAuthorizedKey(pub)
 	c.Assert(err, check.IsNil)
 
-	// make sure we can parse the private and public key
-	clt, err := s.server.NewClient(TestAdmin())
-	c.Assert(err, check.IsNil)
-
 	// generate server keys for node
 	hostID := "00000000-0000-0000-0000-000000000000"
 	hostClient, err := s.server.NewClient(TestIdentity{I: BuiltinRole{Username: hostID, Role: teleport.RoleNode}})
@@ -933,10 +967,10 @@ func (s *TLSSuite) TestGenerateCerts(c *check.C) {
 	})
 	fixtures.ExpectAccessDenied(c, err)
 
-	user1, userRole, err := CreateUserAndRole(clt, "user1", []string{"user1"})
+	user1, userRole, err := CreateUserAndRole(s.server.Auth(), "user1", []string{"user1"})
 	c.Assert(err, check.IsNil)
 
-	user2, _, err := CreateUserAndRole(clt, "user2", []string{"user2"})
+	user2, _, err := CreateUserAndRole(s.server.Auth(), "user2", []string{"user2"})
 	c.Assert(err, check.IsNil)
 
 	// unauthenticated client should NOT be able to generate a user cert without auth
@@ -979,7 +1013,7 @@ func (s *TLSSuite) TestGenerateCerts(c *check.C) {
 	roleOptions := userRole.GetOptions()
 	roleOptions.Set(services.ForwardAgent, true)
 	userRole.SetOptions(roleOptions)
-	err = clt.UpsertRole(userRole, backend.Forever)
+	err = s.server.Auth().UpsertRole(userRole, backend.Forever)
 	c.Assert(err, check.IsNil)
 
 	cert, err = userClient1.GenerateUserCert(pub, user1.GetName(), 1*time.Hour, teleport.CertificateFormatStandard)
@@ -1012,12 +1046,12 @@ func (s *TLSSuite) TestCertificateFormat(c *check.C) {
 	_, _, _, _, err = ssh.ParseAuthorizedKey(pub)
 	c.Assert(err, check.IsNil)
 
-	// create an admin client
-	clt, err := s.server.NewClient(TestAdmin())
+	// use admin client to create user and role
+	user, userRole, err := CreateUserAndRole(s.server.Auth(), "user", []string{"user"})
 	c.Assert(err, check.IsNil)
 
-	// use admin client to create user and role
-	user, userRole, err := CreateUserAndRole(clt, "user", []string{"user"})
+	pass := []byte("very secure password")
+	err = s.server.Auth().UpsertPassword(user.GetName(), pass)
 	c.Assert(err, check.IsNil)
 
 	var tests = []struct {
@@ -1043,16 +1077,27 @@ func (s *TLSSuite) TestCertificateFormat(c *check.C) {
 		roleOptions := userRole.GetOptions()
 		roleOptions.Set(services.CertificateFormat, tt.inRoleCertificateFormat)
 		userRole.SetOptions(roleOptions)
-		err := clt.UpsertRole(userRole, backend.Forever)
+		err := s.server.Auth().UpsertRole(userRole, backend.Forever)
 		c.Assert(err, check.IsNil)
 
-		// get a user client
-		userClient, err := s.server.NewClient(TestUser(user.GetName()))
+		proxyClient, err := s.server.NewClient(TestBuiltin(teleport.RoleProxy))
 		c.Assert(err, check.IsNil)
 
-		cert, err := userClient.GenerateUserCert(pub, user.GetName(), defaults.CertDuration, tt.inClientCertificateFormat)
+		// authentication attempt fails with password auth only
+		re, err := proxyClient.AuthenticateSSHUser(AuthenticateSSHRequest{
+			AuthenticateUserRequest: AuthenticateUserRequest{
+				Username: user.GetName(),
+				Pass: &PassCreds{
+					Password: pass,
+				},
+			},
+			CompatibilityMode: tt.inClientCertificateFormat,
+			TTL:               defaults.CertDuration,
+			PublicKey:         pub,
+		})
 		c.Assert(err, check.IsNil)
-		parsedKey, _, _, _, err := ssh.ParseAuthorizedKey(cert)
+
+		parsedKey, _, _, _, err := ssh.ParseAuthorizedKey(re.Cert)
 		c.Assert(err, check.IsNil)
 		parsedCert, _ := parsedKey.(*ssh.Certificate)
 

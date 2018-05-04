@@ -86,11 +86,6 @@ const (
 	// with the Auth Server.
 	SSHIdentityEvent = "SSHIdentity"
 
-	// DELETE IN: 2.6.0
-	// AuthSSHReady is generated when the Auth Server has initialized the
-	// HTTP-over-SSH endpoint and is ready to start accepting connections.
-	AuthSSHReady = "AuthSSHReady"
-
 	// AuthTLSReady is generated when the Auth Server has initialized the
 	// TLS Mutual Auth endpoint and is ready to start accepting connections.
 	AuthTLSReady = "AuthTLSReady"

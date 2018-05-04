@@ -126,7 +126,7 @@ func (s *AuthServer) authenticateUser(req AuthenticateUserRequest) error {
 			// provide obscure message on purpose, while logging the real
 			// error server side
 			log.Debugf("Failed to authenticate: %v.", err)
-			return trace.AccessDenied("invalid username or password")
+			return trace.AccessDenied(err.Error())
 		}
 		return nil
 	case req.U2F != nil:

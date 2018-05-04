@@ -22,7 +22,6 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -893,34 +892,6 @@ func (c *Client) CheckPassword(user string, password []byte, otpToken string) er
 	return trace.Wrap(err)
 }
 
-// SignIn checks if the web access password is valid, and if it is valid
-// returns a secure web session id.
-func (c *Client) SignIn(user string, password []byte) (services.WebSession, error) {
-	out, err := c.PostJSON(
-		c.Endpoint("users", user, "web", "signin"),
-		signInReq{
-			Password: string(password),
-		},
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return services.GetWebSessionMarshaler().UnmarshalWebSession(out.Bytes())
-}
-
-// PreAuthenticatedSignIn is for 2-way authentication methods like U2F where the password is
-// already checked before issuing the second factor challenge
-func (c *Client) PreAuthenticatedSignIn(user string) (services.WebSession, error) {
-	out, err := c.Get(
-		c.Endpoint("users", user, "web", "signin", "preauth"),
-		url.Values{},
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return services.GetWebSessionMarshaler().UnmarshalWebSession(out.Bytes())
-}
-
 // GetU2FSignRequest generates request for user trying to authenticate with U2F token
 func (c *Client) GetU2FSignRequest(user string, password []byte) (*u2f.SignRequest, error) {
 	out, err := c.PostJSON(
@@ -1099,55 +1070,6 @@ func (c *Client) GenerateHostCert(
 	return []byte(cert), nil
 }
 
-// DELETE IN: 2.6.0
-// This code is obsolete due to TLS refactoring
-// GenerateUserCert takes the public key in the OpenSSH `authorized_keys` plain
-// text format, signs it using User Certificate Authority signing key and
-// returns the resulting certificate.
-func (c *Client) GenerateUserCert(key []byte, user string, ttl time.Duration, compatibility string) ([]byte, error) {
-	out, err := c.PostJSON(c.Endpoint("ca", "user", "certs"),
-		generateUserCertReq{
-			Key:           key,
-			User:          user,
-			TTL:           ttl,
-			Compatibility: compatibility,
-		})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var cert string
-	if err := json.Unmarshal(out.Bytes(), &cert); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return []byte(cert), nil
-}
-
-// DELETE IN: 2.6.0
-// This code is obsolete due to TLS refactoring
-// GenerateUserCertBundle takes the public key in the OpenSSH `authorized_keys`
-// plain text format, signs it using User Certificate Authority signing key and
-// returns the resulting certificate. It also includes the host certificate that
-// can be added to the known_hosts file.
-func (c *Client) GenerateUserCertBundle(key []byte, user string, ttl time.Duration, compatibility string) ([]byte, []services.CertAuthorityV1, error) {
-	out, err := c.PostJSON(c.Endpoint("ca", "user", "certs", "bundle"),
-		generateUserCertReq{
-			Key:           key,
-			User:          user,
-			TTL:           ttl,
-			Compatibility: compatibility,
-		})
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	var br sshUserCertBundleResponse
-	if err := json.Unmarshal(out.Bytes(), &br); err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	return br.Cert, br.HostSigners, nil
-}
-
 // CreateSignupToken creates one time token for creating account for the user
 // For each token it creates username and otp generator
 func (c *Client) CreateSignupToken(user services.UserV1, ttl time.Duration) (string, error) {
@@ -1181,6 +1103,27 @@ func (c *Client) GetSignupTokenData(token string) (user string, otpQRCode []byte
 	}
 
 	return tokenData.User, tokenData.QRImg, nil
+}
+
+// GenerateUserCert takes the public key in the OpenSSH `authorized_keys` plain
+// text format, signs it using User Certificate Authority signing key and
+// returns the resulting certificate.
+func (c *Client) GenerateUserCert(key []byte, user string, ttl time.Duration, compatibility string) ([]byte, error) {
+	out, err := c.PostJSON(c.Endpoint("ca", "user", "certs"),
+		generateUserCertReq{
+			Key:           key,
+			User:          user,
+			TTL:           ttl,
+			Compatibility: compatibility,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var cert string
+	if err := json.Unmarshal(out.Bytes(), &cert); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return []byte(cert), nil
 }
 
 // GetSignupU2FRegisterRequest generates sign request for user trying to sign up with invite tokenx
@@ -1608,32 +1551,6 @@ func (c *Client) EmitAuditEvent(eventType string, fields events.EventFields) err
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-// PostSessionChunk allows clients to submit session stream chunks to the audit log
-// (part of evets.IAuditLog interface)
-//
-// The data is POSTed to HTTP server as a simple binary body (no encodings of any
-// kind are needed)
-func (c *Client) PostSessionChunk(namespace string, sid session.ID, reader io.Reader) error {
-	if namespace == "" {
-		return trace.BadParameter(MissingNamespaceError)
-	}
-	r, err := http.NewRequest("POST", c.Endpoint("namespaces", namespace, "sessions", string(sid), "stream"), reader)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	r.Header.Set("Content-Type", "application/octet-stream")
-	c.Client.SetAuthHeader(r.Header)
-	re, err := c.Client.HTTPClient().Do(r)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// we **must** consume response by reading all of its body, otherwise the http
-	// client will allocate a new connection for subsequent requests
-	defer re.Body.Close()
-	responseBytes, _ := ioutil.ReadAll(re.Body)
-	return trace.ReadError(re.StatusCode, responseBytes)
 }
 
 // PostSessionSlice allows clients to submit session stream chunks to the audit log
@@ -2190,9 +2107,6 @@ type IdentityService interface {
 	// CreateUserWithU2FToken creates user account with provided token and U2F sign response
 	CreateUserWithU2FToken(token string, password string, u2fRegisterResponse u2f.RegisterResponse) (services.WebSession, error)
 
-	// PreAuthenticatedSignIn is used get web session for a user that is already authenticated
-	PreAuthenticatedSignIn(user string) (services.WebSession, error)
-
 	// GetUser returns user by name
 	GetUser(name string) (services.User, error)
 
@@ -2210,10 +2124,6 @@ type IdentityService interface {
 
 	// CheckPassword checks if the suplied web access password is valid.
 	CheckPassword(user string, password []byte, otpToken string) error
-
-	// SignIn checks if the web access password is valid, and if it is valid
-	// returns a secure web session id.
-	SignIn(user string, password []byte) (services.WebSession, error)
 
 	// CreateUserWithOTP creates account with provided token and password.
 	// Account username and OTP key are taken from token data.
@@ -2303,7 +2213,9 @@ type ClientI interface {
 	// adds remote cluster
 	ValidateTrustedCluster(*ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error)
 
+	// GetDomainName returns auth server cluster name
 	GetDomainName() (string, error)
+
 	// GenerateServerKeys generates new host private keys and certificates (signed
 	// by the host certificate authority) for a node
 	GenerateServerKeys(GenerateServerKeysRequest) (*PackedKeys, error)

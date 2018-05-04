@@ -380,7 +380,7 @@ func newSessionRecorder(alog events.IAuditLog, ctx *ServerContext, sid rsession.
 func (r *sessionRecorder) Write(data []byte) (int, error) {
 	// we are copying buffer to prevent data corruption:
 	// io.Copy allocates single buffer and calls multiple writes in a loop
-	// our PostSessionChunk is async and sends reader wrapping buffer
+	// our PostSessionSlice is async and sends reader wrapping buffer
 	// to the channel. This can lead to cases when the buffer is re-used
 	// and data is corrupted unless we copy the data buffer in the first place
 	dataCopy := make([]byte, len(data))

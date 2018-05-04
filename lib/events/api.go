@@ -154,12 +154,11 @@ type IAuditLog interface {
 	// EmitAuditEvent emits audit event
 	EmitAuditEvent(eventType string, fields EventFields) error
 
+	// DELETE IN: 2.7.0
+	// This method is no longer necessary as nodes and proxies >= 2.7.0
+	// use UploadSessionRecording method.
 	// PostSessionSlice sends chunks of recorded session to the event log
 	PostSessionSlice(SessionSlice) error
-
-	// PostSessionChunk returns a writer which SSH nodes use to submit
-	// their live sessions into the session log
-	PostSessionChunk(namespace string, sid session.ID, reader io.Reader) error
 
 	// UploadSessionRecording uploads session recording to the audit server
 	UploadSessionRecording(r SessionRecording) error

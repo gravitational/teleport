@@ -18,7 +18,6 @@ package events
 
 import (
 	"context"
-	"io"
 	"sync"
 	"time"
 
@@ -63,10 +62,6 @@ func (d *MockAuditLog) Close() error {
 }
 
 func (d *MockAuditLog) EmitAuditEvent(eventType string, fields EventFields) error {
-	return nil
-}
-
-func (d *MockAuditLog) PostSessionChunk(namespace string, sid session.ID, reader io.Reader) error {
 	return nil
 }
 

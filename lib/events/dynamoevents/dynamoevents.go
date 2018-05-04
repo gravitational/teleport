@@ -20,7 +20,6 @@ package dynamoevents
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"net/url"
 	"sort"
 	"time"
@@ -308,12 +307,6 @@ func (l *Log) PostSessionSlice(slice events.SessionSlice) error {
 
 func (l *Log) UploadSessionRecording(events.SessionRecording) error {
 	return trace.BadParameter("not supported")
-}
-
-// PostSessionChunk returns a writer which SSH nodes use to submit
-// their live sessions into the session log
-func (l *Log) PostSessionChunk(namespace string, sid session.ID, reader io.Reader) error {
-	return trace.BadParameter("this method is deprecated")
 }
 
 // GetSessionChunk returns a reader which can be used to read a byte stream

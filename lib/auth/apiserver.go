@@ -75,7 +75,6 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	// Generating certificates for user and host authorities
 	srv.POST("/:version/ca/host/certs", srv.withAuth(srv.generateHostCert))
 	srv.POST("/:version/ca/user/certs", srv.withAuth(srv.generateUserCert))
-	srv.POST("/:version/ca/user/certs/bundle", srv.withAuth(srv.generateUserCertBundle))
 
 	// Operations on users
 	srv.GET("/:version/users", srv.withAuth(srv.getUsers))
@@ -90,8 +89,6 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	srv.PUT("/:version/users/:user/web/password", srv.withAuth(srv.changePassword))
 	srv.POST("/:version/users/:user/web/password", srv.withAuth(srv.upsertPassword))
 	srv.POST("/:version/users/:user/web/password/check", srv.withAuth(srv.checkPassword))
-	srv.POST("/:version/users/:user/web/signin", srv.withAuth(srv.signIn))
-	srv.GET("/:version/users/:user/web/signin/preauth", srv.withAuth(srv.preAuthenticatedSignIn))
 	srv.POST("/:version/users/:user/web/sessions", srv.withAuth(srv.createWebSession))
 	srv.POST("/:version/users/:user/web/authenticate", srv.withAuth(srv.authenticateWebUser))
 	srv.POST("/:version/users/:user/ssh/authenticate", srv.withAuth(srv.authenticateSSHUser))
@@ -147,7 +144,6 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	srv.GET("/:version/namespaces/:namespace/sessions", srv.withAuth(srv.getSessions))
 	srv.GET("/:version/namespaces/:namespace/sessions/:id", srv.withAuth(srv.getSession))
 	srv.POST("/:version/namespaces/:namespace/sessions/:id/slice", srv.withAuth(srv.postSessionSlice))
-	srv.POST("/:version/namespaces/:namespace/sessions/:id/stream", srv.withAuth(srv.postSessionChunk))
 	srv.POST("/:version/namespaces/:namespace/sessions/:id/recording", srv.withAuth(srv.uploadSessionRecording))
 	srv.GET("/:version/namespaces/:namespace/sessions/:id/stream", srv.withAuth(srv.getSessionChunk))
 	srv.GET("/:version/namespaces/:namespace/sessions/:id/events", srv.withAuth(srv.getSessionEvents))
@@ -558,31 +554,31 @@ func (s *APIServer) getWebSession(auth ClientI, w http.ResponseWriter, r *http.R
 	return rawMessage(services.GetWebSessionMarshaler().MarshalWebSession(sess, services.WithVersion(version)))
 }
 
-type signInReq struct {
-	Password string `json:"password"`
+type generateUserCertReq struct {
+	Key           []byte        `json:"key"`
+	User          string        `json:"user"`
+	TTL           time.Duration `json:"ttl"`
+	Compatibility string        `json:"compatibility,omitempty"`
 }
 
-func (s *APIServer) signIn(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *signInReq
+func (s *APIServer) generateUserCert(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
+	var req *generateUserCertReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	user := p.ByName("user")
-	sess, err := auth.SignIn(user, []byte(req.Password))
+	certificateFormat, err := utils.CheckCertificateFormatFlag(req.Compatibility)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return rawMessage(services.GetWebSessionMarshaler().MarshalWebSession(sess, services.WithVersion(version)))
+	cert, err := auth.GenerateUserCert(req.Key, req.User, req.TTL, certificateFormat)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return string(cert), nil
 }
 
-func (s *APIServer) preAuthenticatedSignIn(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	user := p.ByName("user")
-	sess, err := auth.PreAuthenticatedSignIn(user)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return rawMessage(services.GetWebSessionMarshaler().MarshalWebSession(sess, services.WithVersion(version)))
+type signInReq struct {
+	Password string `json:"password"`
 }
 
 func (s *APIServer) u2fSignRequest(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
@@ -802,69 +798,6 @@ func (s *APIServer) generateHostCert(auth ClientI, w http.ResponseWriter, r *htt
 	}
 
 	return string(cert), nil
-}
-
-type generateUserCertReq struct {
-	Key           []byte        `json:"key"`
-	User          string        `json:"user"`
-	TTL           time.Duration `json:"ttl"`
-	Compatibility string        `json:"compatibility,omitempty"`
-}
-
-func (s *APIServer) generateUserCert(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
-	var req *generateUserCertReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	certificateFormat, err := utils.CheckCertificateFormatFlag(req.Compatibility)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	cert, err := auth.GenerateUserCert(req.Key, req.User, req.TTL, certificateFormat)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return string(cert), nil
-}
-
-type sshUserCertBundleResponse struct {
-	Username    string                     `json:"username"`
-	Cert        []byte                     `json:"cert"`
-	HostSigners []services.CertAuthorityV1 `json:"host_signers"`
-}
-
-func (s *APIServer) generateUserCertBundle(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
-	var req *generateUserCertReq
-
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// create the user certificate
-	certificateFormat, err := utils.CheckCertificateFormatFlag(req.Compatibility)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	cert, err := auth.GenerateUserCert(req.Key, req.User, req.TTL, certificateFormat)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// get the host ca
-	hostSigners, err := auth.GetCertAuthorities(services.HostCA, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	signers, err := services.CertAuthoritiesToV1(hostSigners)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &sshUserCertBundleResponse{
-		Username:    req.User,
-		Cert:        cert,
-		HostSigners: signers,
-	}, nil
 }
 
 func (s *APIServer) generateToken(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
@@ -1830,22 +1763,6 @@ func (s *APIServer) postSessionSlice(auth ClientI, w http.ResponseWriter, r *htt
 		return nil, trace.BadParameter("failed to unmarshal %v", err)
 	}
 	if err := auth.PostSessionSlice(slice); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-// HTTP POST /:version/sessions/:id/stream
-func (s *APIServer) postSessionChunk(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	sid, err := session.ParseID(p.ByName("id"))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	namespace := p.ByName("namespace")
-	if !services.IsValidNamespace(namespace) {
-		return nil, trace.BadParameter("invalid namespace %q", namespace)
-	}
-	if err = auth.PostSessionChunk(namespace, *sid, r.Body); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
