@@ -217,7 +217,10 @@ func (a *AuthCommand) ExportAuthorities(client auth.ClientI) error {
 
 // GenerateKeys generates a new keypair
 func (a *AuthCommand) GenerateKeys() error {
-	keygen := native.New()
+	keygen, err := native.New(native.PrecomputeKeys(0))
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	defer keygen.Close()
 	privBytes, pubBytes, err := keygen.GenerateKeyPair("")
 	if err != nil {

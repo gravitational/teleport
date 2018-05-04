@@ -555,7 +555,17 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	// Create a process wide key generator that will be shared. This is so the
 	// key generator can pre-generate keys and share these across services.
 	if cfg.Keygen == nil {
-		cfg.Keygen = native.New()
+		precomputeCount := native.PrecomputedNum
+		// in case if not auth or proxy services are enabled,
+		// there is no need to precompute any SSH keys in the pool
+		if !cfg.Auth.Enabled && !cfg.Proxy.Enabled {
+			precomputeCount = 0
+		}
+		var err error
+		cfg.Keygen, err = native.New(native.PrecomputeKeys(precomputeCount))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// Produce global TeleportReadyEvent
