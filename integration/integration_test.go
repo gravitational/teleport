@@ -2525,6 +2525,120 @@ func runAndMatch(tc *client.TeleportClient, attempts int, command []string, patt
 	return err
 }
 
+// TestWindowChange checks if custom Teleport window change requests are sent
+// when the server side PTY changes its size.
+func (s *IntSuite) TestWindowChange(c *check.C) {
+	t := s.newTeleport(c, nil, true)
+	defer t.Stop(true)
+
+	site := t.GetSiteAPI(Site)
+	c.Assert(site, check.NotNil)
+
+	personA := NewTerminal(250)
+	personB := NewTerminal(250)
+
+	// openSession will open a new session on a server.
+	openSession := func() {
+		cl, err := t.NewClient(ClientConfig{
+			Login:   s.me.Username,
+			Cluster: Site,
+			Host:    Host,
+			Port:    t.GetPortSSHInt(),
+		})
+		c.Assert(err, check.IsNil)
+
+		cl.Stdout = &personA
+		cl.Stdin = &personA
+
+		err = cl.SSH(context.TODO(), []string{}, false)
+		c.Assert(err, check.IsNil)
+	}
+
+	// joinSession will join the existing session on a server.
+	joinSession := func() {
+		// Find the existing session in the backend.
+		var sessionID string
+		for {
+			time.Sleep(time.Millisecond)
+			sessions, _ := site.GetSessions(defaults.Namespace)
+			if len(sessions) == 0 {
+				continue
+			}
+			sessionID = string(sessions[0].ID)
+			break
+		}
+
+		cl, err := t.NewClient(ClientConfig{
+			Login:   s.me.Username,
+			Cluster: Site,
+			Host:    Host,
+			Port:    t.GetPortSSHInt(),
+		})
+		c.Assert(err, check.IsNil)
+
+		cl.Stdout = &personB
+		cl.Stdin = &personB
+
+		// Change the size of the window immediately after it is created.
+		cl.OnShellCreated = func(s *ssh.Session, c *ssh.Client, terminal io.ReadWriteCloser) (exit bool, err error) {
+			err = s.WindowChange(48, 160)
+			if err != nil {
+				return true, trace.Wrap(err)
+			}
+			return false, nil
+		}
+
+		for i := 0; i < 10; i++ {
+			err = cl.Join(context.TODO(), defaults.Namespace, session.ID(sessionID), &personB)
+			if err == nil {
+				break
+			}
+		}
+		c.Assert(err, check.IsNil)
+	}
+
+	// waitForOutput checks the output of the passed in terminal of a string until
+	// some timeout has occured.
+	waitForOutput := func(t Terminal, s string) error {
+		tickerCh := time.Tick(500 * time.Millisecond)
+		timeoutCh := time.After(30 * time.Second)
+		for {
+			select {
+			case <-tickerCh:
+				if strings.Contains(t.Output(500), s) {
+					return nil
+				}
+			case <-timeoutCh:
+				return trace.BadParameter("timed out waiting for output")
+			}
+		}
+
+	}
+
+	// Open session, the initial size will be 80x24.
+	go openSession()
+
+	// Use the "printf" command to print the terminal size on the screen and
+	// make sure it is 80x25.
+	personA.Type("\aprintf '%s %s\n' $(tput cols) $(tput lines)\n\r\a")
+	err := waitForOutput(personA, "80 25")
+	c.Assert(err, check.IsNil)
+
+	// As soon as person B joins the session, the terminal is resized to 160x48.
+	// Have another user join the session. As soon as the second shell is
+	// created, the window is resized to 160x48 (see joinSession implementation).
+	go joinSession()
+
+	// Use the "printf" command to print the window size again and make sure it's
+	// 160x48.
+	personA.Type("\aprintf '%s %s\n' $(tput cols) $(tput lines)\n\r\a")
+	err = waitForOutput(personA, "160 48")
+	c.Assert(err, check.IsNil)
+
+	// Close the session.
+	personA.Type("\aexit\r\n\a")
+}
+
 // runCommand is a shortcut for running SSH command, it creates a client
 // connected to proxy of the passed in instance, runs the command, and returns
 // the result. If multiple attempts are requested, a 250 millisecond delay is

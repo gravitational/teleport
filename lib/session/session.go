@@ -21,6 +21,8 @@ package session
 import (
 	"fmt"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
@@ -154,10 +156,33 @@ func (p *Party) String() string {
 	)
 }
 
-// TerminalParams holds parameters of the terminal used in session
+// TerminalParams holds the terminal size in a session.
 type TerminalParams struct {
 	W int `json:"w"`
 	H int `json:"h"`
+}
+
+// UnmarshalTerminalParams takes a serialized string that contains the
+// terminal parameters and returns a *TerminalParams.
+func UnmarshalTerminalParams(s string) (*TerminalParams, error) {
+	parts := strings.Split(s, ":")
+	if len(parts) != 2 {
+		return nil, trace.BadParameter("failed to unmarshal: too many parts")
+	}
+
+	w, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	h, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &TerminalParams{
+		W: w,
+		H: h,
+	}, nil
 }
 
 // Serialize is a more strict version of String(): it returns a string
