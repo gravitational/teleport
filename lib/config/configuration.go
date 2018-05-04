@@ -360,12 +360,13 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Auth.SSHAddr = *addr
 		cfg.AuthServers = append(cfg.AuthServers, *addr)
 	}
-	// DELETE IN: 2.4.0
+	// DELETE IN: 2.7.0
+	// We have converted this warning to error
 	if fc.Auth.DynamicConfig != nil {
 		warningMessage := "Dynamic configuration is no longer supported. Refer to " +
 			"Teleport documentation for more details: " +
 			"http://gravitational.com/teleport/docs/admin-guide"
-		log.Warnf(warningMessage)
+		return trace.BadParameter(warningMessage)
 	}
 	// INTERNAL: Authorities (plus Roles) and ReverseTunnels don't follow the
 	// same pattern as the rest of the configuration (they are not configuration

@@ -88,6 +88,15 @@ func (s *AuthSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	err = s.a.SetStaticTokens(staticTokens)
 	c.Assert(err, IsNil)
+
+	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+		Type:         teleport.Local,
+		SecondFactor: teleport.OFF,
+	})
+	c.Assert(err, IsNil)
+
+	err = s.a.SetAuthPreference(authPreference)
+	c.Assert(err, IsNil)
 }
 
 func (s *AuthSuite) TestSessions(c *C) {
@@ -100,7 +109,10 @@ func (s *AuthSuite) TestSessions(c *C) {
 	user := "user1"
 	pass := []byte("abc123")
 
-	ws, err := s.a.SignIn(user, pass)
+	ws, err := s.a.AuthenticateWebUser(AuthenticateUserRequest{
+		Username: user,
+		Pass:     &PassCreds{Password: pass},
+	})
 	c.Assert(err, NotNil)
 
 	_, _, err = CreateUserAndRole(s.a, user, []string{user})
@@ -109,13 +121,17 @@ func (s *AuthSuite) TestSessions(c *C) {
 	err = s.a.UpsertPassword(user, pass)
 	c.Assert(err, IsNil)
 
-	ws, err = s.a.SignIn(user, pass)
+	ws, err = s.a.AuthenticateWebUser(AuthenticateUserRequest{
+		Username: user,
+		Pass:     &PassCreds{Password: pass},
+	})
 	c.Assert(err, IsNil)
 	c.Assert(ws, NotNil)
 
 	out, err := s.a.GetWebSessionInfo(user, ws.GetName())
 	c.Assert(err, IsNil)
-	c.Assert(out, DeepEquals, ws)
+	ws.SetPriv(nil)
+	fixtures.DeepCompare(c, ws, out)
 
 	err = s.a.DeleteWebSession(user, ws.GetName())
 	c.Assert(err, IsNil)
@@ -134,7 +150,10 @@ func (s *AuthSuite) TestUserLock(c *C) {
 	user := "user1"
 	pass := []byte("abc123")
 
-	ws, err := s.a.SignIn(user, pass)
+	ws, err := s.a.AuthenticateWebUser(AuthenticateUserRequest{
+		Username: user,
+		Pass:     &PassCreds{Password: pass},
+	})
 	c.Assert(err, NotNil)
 
 	_, _, err = CreateUserAndRole(s.a, user, []string{user})
@@ -144,7 +163,10 @@ func (s *AuthSuite) TestUserLock(c *C) {
 	c.Assert(err, IsNil)
 
 	// successful log in
-	ws, err = s.a.SignIn(user, pass)
+	ws, err = s.a.AuthenticateWebUser(AuthenticateUserRequest{
+		Username: user,
+		Pass:     &PassCreds{Password: pass},
+	})
 	c.Assert(err, IsNil)
 	c.Assert(ws, NotNil)
 
@@ -152,18 +174,27 @@ func (s *AuthSuite) TestUserLock(c *C) {
 	s.a.SetClock(fakeClock)
 
 	for i := 0; i <= defaults.MaxLoginAttempts; i++ {
-		_, err = s.a.SignIn(user, []byte("wrong pass"))
+		_, err = s.a.AuthenticateWebUser(AuthenticateUserRequest{
+			Username: user,
+			Pass:     &PassCreds{Password: []byte("wrong pass")},
+		})
 		c.Assert(err, NotNil)
 	}
 
 	// make sure user is locked
-	_, err = s.a.SignIn(user, pass)
+	_, err = s.a.AuthenticateWebUser(AuthenticateUserRequest{
+		Username: user,
+		Pass:     &PassCreds{Password: pass},
+	})
 	c.Assert(err, ErrorMatches, ".*locked.*")
 
 	// advance time and make sure we can login again
 	fakeClock.Advance(defaults.AccountLockInterval + time.Second)
 
-	_, err = s.a.SignIn(user, pass)
+	_, err = s.a.AuthenticateWebUser(AuthenticateUserRequest{
+		Username: user,
+		Pass:     &PassCreds{Password: pass},
+	})
 	c.Assert(err, IsNil)
 }
 

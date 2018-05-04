@@ -224,9 +224,6 @@ func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
 	if err := os.MkdirAll(auditDir, *cfg.DirMask); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
-	if err := al.runMigrations(); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	// create a directory for session logs:
 	sessionDir := filepath.Join(cfg.DataDir, cfg.ServerID, SessionLogsDir, defaults.Namespace)
 	if err := os.MkdirAll(sessionDir, *cfg.DirMask); err != nil {
@@ -250,7 +247,6 @@ func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
 			return nil, trace.ConvertSystemError(err)
 		}
 	}
-	go al.backgroundMigrateSessions()
 	go al.periodicCloseInactiveLoggers()
 	go al.periodicCleanupPlaybacks()
 	return al, nil
@@ -321,6 +317,9 @@ func (l *AuditLog) PostSessionSlice(slice SessionSlice) error {
 	if l.ExternalLog != nil {
 		return l.ExternalLog.PostSessionSlice(slice)
 	}
+	if slice.Version < V2 {
+		return trace.BadParameter("audit log rejected V1 log entry, upgrade your components.")
+	}
 	// API prior to V3 was writing to audit log in real time
 	// V3 API has changed that, as session events and recording itself
 	// is shipped in one transaction. This solves many problems, as events
@@ -328,7 +327,7 @@ func (l *AuditLog) PostSessionSlice(slice SessionSlice) error {
 	// and there is no need to live-write the the session chunks and events
 	// for V3 API.
 	if slice.Version < V3 {
-		sl, err := l.LoggerFor(slice.Namespace, session.ID(slice.SessionID), slice.Version == V1)
+		sl, err := l.LoggerFor(slice.Namespace, session.ID(slice.SessionID))
 		if err != nil {
 			l.Errorf("failed to get logger: %v", trace.DebugReport(err))
 			return trace.BadParameter("audit.log: no session writer for %s", slice.SessionID)
@@ -367,25 +366,6 @@ func (l *AuditLog) processSlice(sl SessionLogger, slice *SessionSlice) error {
 		}
 	}
 	return nil
-}
-
-// DELETE IN: 2.6.0
-// This method is no longer used in 2.5.0
-// PostSessionChunk writes a new chunk of session stream into the audit log
-func (l *AuditLog) PostSessionChunk(namespace string, sid session.ID, reader io.Reader) error {
-	tmp, err := utils.ReadAll(reader, 16*1024)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	chunk := &SessionChunk{
-		Time: l.Clock.Now().In(time.UTC).UnixNano(),
-		Data: tmp,
-	}
-	return l.PostSessionSlice(SessionSlice{
-		Namespace: namespace,
-		SessionID: string(sid),
-		Chunks:    []*SessionChunk{chunk},
-	})
 }
 
 func (l *AuditLog) getAuthServers() ([]string, error) {
@@ -870,28 +850,6 @@ func (l *AuditLog) EmitAuditEvent(eventType string, fields EventFields) error {
 		return trace.Wrap(err)
 	}
 
-	// DELETE IN: 2.6.0
-	// if this event is associated with a session -> forward it to the session log as well
-	// this means that this is a legacy client, so audit logger is going to use compatibility mode logger
-	sessionID := fields.GetString(SessionEventID)
-
-	if sessionID != "" && eventType != SessionUploadEvent {
-		sl, err := l.LoggerFor(fields.GetString(EventNamespace), session.ID(sessionID), true)
-		if err == nil {
-			if err := sl.LogEvent(fields); err != nil {
-				l.Warningf("Failed to log event: %v.", err)
-			}
-			// Session ended? Get rid of the session logger then:
-			if eventType == SessionEndEvent {
-				l.removeLogger(sessionID)
-				if err := sl.Finalize(); err != nil {
-					log.Error(err)
-				}
-			}
-		} else {
-			l.Errorf("failed to get logger: %v", trace.DebugReport(err))
-		}
-	}
 	return nil
 }
 
@@ -1128,35 +1086,6 @@ func listDir(dir string) ([]os.FileInfo, error) {
 		return nil, trace.ConvertSystemError(err)
 	}
 	return entries, nil
-}
-
-// DELETE IN: 2.6.0 this is a background session migration process
-// as session migrations can take a long time, we process
-// sesions chunk by chunk
-func (l *AuditLog) backgroundMigrateSessions() {
-	// migrate sessions directory
-	if err := l.migrateSessionsDir(); err != nil {
-		l.Errorf("Failed to migrate sessions directory: %v", trace.DebugReport(err))
-	}
-}
-
-// DELETE IN: 2.6.0
-// runMigrations runs migrations for audit logs format
-func (l *AuditLog) runMigrations() error {
-	// move audit log files to the auth server id
-	fileInfos, err := listDir(l.DataDir)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	for _, fi := range fileInfos {
-		if !fi.IsDir() {
-			if err := l.moveAuditLogFile(fi.Name()); err != nil {
-				return trace.Wrap(err)
-			}
-		}
-	}
-
-	return nil
 }
 
 // SearchEvents finds events. Results show up sorted by date (newest first),
@@ -1434,7 +1363,7 @@ func (l *AuditLog) Close() error {
 
 // LoggerFor creates a logger for a specified session. Session loggers allow
 // to group all events into special "session log files" for easier audit
-func (l *AuditLog) LoggerFor(namespace string, sid session.ID, compatibilityMode bool) (SessionLogger, error) {
+func (l *AuditLog) LoggerFor(namespace string, sid session.ID) (SessionLogger, error) {
 	l.Lock()
 	defer l.Unlock()
 
@@ -1464,39 +1393,20 @@ func (l *AuditLog) LoggerFor(namespace string, sid session.ID, compatibilityMode
 			return nil, trace.ConvertSystemError(err)
 		}
 	}
-	// DELETE IN: 2.6.0
-	// Compatibility mode is required for migration from 2.5.0 to 2.6.0
-	if compatibilityMode {
-		l.Debugf("Using compatibility mode logger for session id %v.", sid)
-		sessionLogger, err := NewCompatSessionLogger(CompatSessionLoggerConfig{
-			SessionID:      sid,
-			DataDir:        sdir,
-			Clock:          l.Clock,
-			RecordSessions: l.RecordSessions,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		l.loggers.Set(string(sid), sessionLogger, l.SessionIdlePeriod)
-		auditOpenFiles.Inc()
-		return sessionLogger, nil
-	} else {
-		sessionLogger, err := NewDiskSessionLogger(DiskSessionLoggerConfig{
-			SessionID:      sid,
-			Namespace:      namespace,
-			ServerID:       l.ServerID,
-			DataDir:        l.DataDir,
-			Clock:          l.Clock,
-			RecordSessions: l.RecordSessions,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		l.loggers.Set(string(sid), sessionLogger, l.SessionIdlePeriod)
-		auditOpenFiles.Inc()
-		return sessionLogger, nil
+	sessionLogger, err := NewDiskSessionLogger(DiskSessionLoggerConfig{
+		SessionID:      sid,
+		Namespace:      namespace,
+		ServerID:       l.ServerID,
+		DataDir:        l.DataDir,
+		Clock:          l.Clock,
+		RecordSessions: l.RecordSessions,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-
+	l.loggers.Set(string(sid), sessionLogger, l.SessionIdlePeriod)
+	auditOpenFiles.Inc()
+	return sessionLogger, nil
 }
 
 func (l *AuditLog) closeSessionLogger(key string, val interface{}) {
