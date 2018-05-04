@@ -707,7 +707,7 @@ func (r *Rotation) CheckAndSetDefaults(clock clockwork.Clock) error {
 // even time periods between rotation phases.
 func GenerateSchedule(clock clockwork.Clock, gracePeriod time.Duration) (*RotationSchedule, error) {
 	if gracePeriod <= 0 {
-		return nil, trace.BadParameter("bad grace period %q, provide value >= 0", gracePeriod)
+		return nil, trace.BadParameter("invalid grace period %q, provide value >= 0", gracePeriod)
 	}
 	return &RotationSchedule{
 		UpdateServers: clock.Now().UTC().Add(gracePeriod / 2).UTC(),
