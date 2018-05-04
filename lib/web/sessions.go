@@ -26,22 +26,23 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
+
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 	"github.com/tstranex/u2f"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
 )
 
 // SessionContext is a context associated with users'
@@ -57,43 +58,7 @@ type SessionContext struct {
 	remoteClt map[string]auth.ClientI
 	parent    *sessionCache
 	closers   []io.Closer
-}
-
-// getTerminal finds and returns an active web terminal for a given session:
-func (c *SessionContext) getTerminal(sessionID session.ID) (*TerminalHandler, error) {
-	c.Lock()
-	defer c.Unlock()
-
-	for _, closer := range c.closers {
-		term, ok := closer.(*TerminalHandler)
-		if ok && term.params.SessionID == sessionID {
-			return term, nil
-		}
-	}
-	return nil, trace.NotFound("no connected streams")
-}
-
-// UpdateSessionTerminal is called when a browser window is resized and
-// we need to update PTY on the server side
-func (c *SessionContext) UpdateSessionTerminal(
-	siteAPI auth.ClientI, namespace string, sessionID session.ID, params session.TerminalParams) error {
-
-	// update the session size on the auth server's side
-	err := siteAPI.UpdateSession(session.UpdateRequest{
-		ID:             sessionID,
-		TerminalParams: &params,
-		Namespace:      namespace,
-	})
-	if err != nil {
-		log.Error(err)
-	}
-	// update the server-side PTY to match the browser window size
-	term, err := c.getTerminal(sessionID)
-	if err != nil {
-		log.Error(err)
-		return trace.Wrap(err)
-	}
-	return trace.Wrap(term.resizePTYWindow(params))
+	tc        *client.TeleportClient
 }
 
 func (c *SessionContext) AddClosers(closers ...io.Closer) {

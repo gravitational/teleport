@@ -76,8 +76,8 @@ type Exec interface {
 
 // NewExecRequest creates a new local or remote Exec.
 func NewExecRequest(ctx *ServerContext, command string) (Exec, error) {
-	// doesn't matter what mode the cluster is in, if this is a teleport node
-	// return a local *localExec
+	// It doesn't matter what mode the cluster is in, if this is a Teleport node
+	// return a local *localExec.
 	if ctx.srv.Component() == teleport.ComponentNode {
 		return &localExec{
 			Ctx:     ctx,
@@ -85,14 +85,9 @@ func NewExecRequest(ctx *ServerContext, command string) (Exec, error) {
 		}, nil
 	}
 
-	clusterConfig, err := ctx.srv.GetAccessPoint().GetClusterConfig()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// when in recording mode, return an *remoteExec which will execute the
-	// command on a remote host. used by forwarding nodes.
-	if clusterConfig.GetSessionRecording() == services.RecordAtProxy {
+	// When in recording mode, return an *remoteExec which will execute the
+	// command on a remote host. This is used by in-memory forwarding nodes.
+	if ctx.ClusterConfig.GetSessionRecording() == services.RecordAtProxy {
 		return &remoteExec{
 			ctx:     ctx,
 			command: command,
@@ -100,8 +95,8 @@ func NewExecRequest(ctx *ServerContext, command string) (Exec, error) {
 		}, nil
 	}
 
-	// otherwise return a *localExec which will execute locally on the server.
-	// used by the regular teleport nodes.
+	// Otherwise return a *localExec which will execute locally on the server.
+	// used by the regular Teleport nodes.
 	return &localExec{
 		Ctx:     ctx,
 		Command: command,

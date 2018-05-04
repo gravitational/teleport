@@ -518,8 +518,12 @@ type TeleportClient struct {
 	localAgent *LocalKeyAgent
 
 	// OnShellCreated gets called when the shell is created. It's
-	// safe to keep it nil
+	// safe to keep it nil.
 	OnShellCreated ShellCreatedCallback
+
+	// eventsCh is a channel used to inform clients about events have that
+	// occured during the session.
+	eventsCh chan events.EventFields
 }
 
 // ShellCreatedCallback can be supplied for every teleport client. It will
@@ -567,6 +571,12 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	if tc.Stdin == nil {
 		tc.Stdin = os.Stdin
 	}
+
+	// Create a buffered channel to hold events that occured during this session.
+	// This channel must be buffered because the SSH connection directly feeds
+	// into it. Delays in pulling messages off the global SSH request channel
+	// could lead to the connection hanging.
+	tc.eventsCh = make(chan events.EventFields, 1024)
 
 	// sometimes we need to use external auth without using local auth
 	// methods, e.g. in automation daemons
@@ -1498,6 +1508,24 @@ func (tc *TeleportClient) u2fLogin(pub []byte) (*auth.SSHLoginResponse, error) {
 		tc.CertificateFormat)
 
 	return response, trace.Wrap(err)
+}
+
+// SendEvent adds a events.EventFields to the channel.
+func (tc *TeleportClient) SendEvent(ctx context.Context, e events.EventFields) error {
+	// Try and send the event to the eventsCh. If blocking, keep blocking until
+	// the passed in context in canceled.
+	select {
+	case tc.eventsCh <- e:
+		return nil
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	}
+}
+
+// EventsChannel returns a channel that can be used to listen for events that
+// occur for this session.
+func (tc *TeleportClient) EventsChannel() <-chan events.EventFields {
+	return tc.eventsCh
 }
 
 // loopbackPool reads trusted CAs if it finds it in a predefined location

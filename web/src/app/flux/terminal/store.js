@@ -53,9 +53,7 @@ export class TermRec extends Record({
       login: this.login,
       sid: this.sid,
       token: accessToken,
-      ttyUrl: cfg.api.ttyWsAddr,
-      ttyEventUrl: cfg.api.ttyEventWsAddr,
-      ttyResizeUrl: cfg.api.ttyResizeUrl,
+      ttyUrl: cfg.api.ttyWsAddr,      
       cluster: this.siteId,
       getTarget() {
         return { server_id };

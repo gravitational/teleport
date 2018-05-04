@@ -1617,8 +1617,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	// Register web proxy server
 	var webServer *http.Server
+	var webHandler *web.RewritingHandler
 	if !process.Config.Proxy.DisableWebService {
-		webHandler, err := web.NewHandler(
+		webHandler, err = web.NewHandler(
 			web.Config{
 				Proxy:        tsrv,
 				AuthServers:  cfg.AuthServers[0],
@@ -1718,6 +1719,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			if webServer != nil {
 				warnOnErr(webServer.Close())
 			}
+			if webHandler != nil {
+				warnOnErr(webHandler.Close())
+			}
 			warnOnErr(sshProxy.Close())
 		} else {
 			log.Infof("Shutting down gracefully.")
@@ -1728,6 +1732,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			warnOnErr(sshProxy.Shutdown(ctx))
 			if webServer != nil {
 				warnOnErr(webServer.Shutdown(ctx))
+			}
+			if webHandler != nil {
+				warnOnErr(webHandler.Close())
 			}
 		}
 		log.Infof("Exited.")

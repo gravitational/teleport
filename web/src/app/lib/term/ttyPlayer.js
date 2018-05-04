@@ -18,7 +18,7 @@ import $ from 'jQuery';
 import BufferModule from 'buffer/';
 import api from 'app/services/api';
 import Tty from './tty';
-import { EventTypeEnum } from './enums';
+import { EventTypeEnum, TermEventEnum } from './enums';
 import Logger from 'app/lib/logger';
 
 const logger = Logger.create('TtyPlayer');
@@ -68,6 +68,8 @@ export class EventProvider{
     const end = this.events.length - 1;    
     const totalSize = this.events[end].offset - offset + this.events[end].bytes;    
     const chunkCount = Math.ceil(totalSize / MAX_SIZE);
+
+    // now create a fetch request for each chunk
     const promises = [];
     for (let i = 0; i < chunkCount; i++){      
       const url = `${this.url}/stream?offset=${offset}&bytes=${MAX_SIZE}`;
@@ -80,7 +82,7 @@ export class EventProvider{
       offset = offset + MAX_SIZE;
     }
     
-    // wait for all chunks to load and then merge all in one
+    // wait for all chunks and then merge all in one
     return $.when(...promises)
       .then((...responses) => {
         responses = promises.length === 1 ? [[responses]] : responses;
@@ -219,11 +221,7 @@ export class TtyPlayer extends Tty {
   // override
   send(){
   }
-
-  // override
-  resize(){
-  }
-
+  
   // override
   connect(){
     this._setStatusFlag({isLoading: true});
@@ -287,7 +285,7 @@ export class TtyPlayer extends Tty {
       // 2. tell terminal to render 1 huge chunk that has everything up to current
       // location.
       if (isRewind) {        
-        this.emit('reset');
+        this.emit(TermEventEnum.RESET);
       }
 
       const from = isRewind ? 0 : this.currentEventIndex;
@@ -321,7 +319,7 @@ export class TtyPlayer extends Tty {
     // start from the beginning if at the end
     if(this.current === this.length){
       this.current = STREAM_START_INDEX;
-      this.emit('reset');
+      this.emit(TermEventEnum.RESET);
     }
 
     this.timer = setInterval(this.move.bind(this), PLAY_SPEED);
@@ -370,8 +368,8 @@ export class TtyPlayer extends Tty {
       const str = groups[i].data.join('');
       const {h, w} = groups[i];
       if (str.length > 0) {                        
-        this.emit('resize', { h, w });                
-        this.emit('data', str);        
+        this.emit(TermEventEnum.RESIZE, { h, w });                
+        this.emit(TermEventEnum.DATA, str);        
       }
     }
   }

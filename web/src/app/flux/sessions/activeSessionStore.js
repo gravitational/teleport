@@ -17,9 +17,7 @@ limitations under the License.
 import { Store, toImmutable } from 'nuclear-js';
 import { Record, List } from 'immutable';
 
-import {
-  RECEIVE_ACTIVE_SESSIONS,
-  UPDATE_ACTIVE_SESSION } from './actionTypes';
+import { RECEIVE_ACTIVE_SESSIONS } from './actionTypes';
 
 const ActiveSessionRec = Record({ 
   id: undefined,
@@ -48,14 +46,9 @@ export default Store({
 
   initialize() {    
     this.on(RECEIVE_ACTIVE_SESSIONS, receive);
-    this.on(UPDATE_ACTIVE_SESSION, updateSession);
   }
 })
 
-function updateSession(state, { siteId, json }) {
-  const rec = createSessionRec(siteId, json);    
-  return rec.equals(state.get(rec.id)) ? state : state.set(rec.id, rec);
-}
 
 function receive(state, { siteId, json }) {
   const jsonArray = json || [];

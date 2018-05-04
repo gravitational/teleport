@@ -221,18 +221,20 @@ var (
 	// their stored list of auth servers
 	AuthServersRefreshPeriod = 30 * time.Second
 
-	// SessionRefreshPeriod is how often tsh polls information about session
-	// TODO(klizhentas) all polling periods should go away once backend
-	// releases events
+	// TerminalResizePeriod is how long tsh waits before updating the size of the
+	// terminal window.
+	TerminalResizePeriod = 2 * time.Second
+
+	// SessionRefreshPeriod is how often session data is updated on the backend.
+	// The web client polls this information about session to update the UI.
+	//
+	// TODO(klizhentas): All polling periods should go away once backend supports
+	// events.
 	SessionRefreshPeriod = 2 * time.Second
 
 	// SessionIdlePeriod is the period of inactivity after which the
 	// session will be considered idle
 	SessionIdlePeriod = SessionRefreshPeriod * 10
-
-	// TerminalSizeRefreshPeriod is how frequently clients who share sessions sync up
-	// their terminal sizes
-	TerminalSizeRefreshPeriod = 2 * time.Second
 
 	// NewtworkBackoffDuration is a standard backoff on network requests
 	// usually is slow, e.g. once in 30 seconds
@@ -398,4 +400,16 @@ const (
 
 	// CATTL is a default lifetime of a CA certificate
 	CATTL = time.Hour * 24 * 365 * 10
+)
+
+const (
+	// AuditEnvelopeType is sending a audit event over the websocket to the web client.
+	AuditEnvelopeType = "audit"
+
+	// RawEnvelopeType is sending raw terminal bytes over the websocket to the web
+	// client.
+	RawEnvelopeType = "raw"
+
+	// ResizeRequestEnvelopeType is receiving a resize request.
+	ResizeRequestEnvelopeType = "resize.request"
 )
