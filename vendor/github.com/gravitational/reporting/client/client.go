@@ -105,22 +105,20 @@ func (c *client) receiveAndFlushEvents() {
 		case event := <-c.eventsCh:
 			if len(c.events) >= flushCount {
 				if err := c.flush(); err != nil {
-					log.Errorf("events queue full and failed to flush events, discarding %v: %v",
-						event, trace.DebugReport(err))
+					log.Debugf("Events queue full and failed to flush events, discarding %v: %v.",
+						event, err)
 					continue
 				}
 			}
 			c.events = append(c.events, event)
 		case <-ticker.C:
 			if err := c.flush(); err != nil {
-				log.Errorf("failed to flush events: %v",
-					trace.DebugReport(err))
+				log.Debugf("Failed to flush events: %v.", err)
 			}
 		case <-c.ctx.Done():
-			log.Debug("reporting client is shutting down")
+			log.Debug("Reporting client is shutting down.")
 			if err := c.flush(); err != nil {
-				log.Errorf("failed to flush events: %v",
-					trace.DebugReport(err))
+				log.Debugf("Failed to flush events: %v.", err)
 			}
 			return
 		}

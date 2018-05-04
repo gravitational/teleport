@@ -146,7 +146,7 @@ ignored = ["github.com/Sirupsen/logrus"]
 
 [[constraint]]
   name = "github.com/gravitational/reporting"
-  version = "0.0.4"
+  version = "0.0.5"
 
 [[constraint]]
   name = "github.com/gravitational/license"
