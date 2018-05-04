@@ -102,6 +102,12 @@ limitations under the License.
   position: relative;
   width: 300px;
   float: right;  
+    
+
+  input {
+    padding-top: 7px !important;
+  }
+
   .grv-sshserver-input-errors{
     display: none;
     font-size: 10px;
