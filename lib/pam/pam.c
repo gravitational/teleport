@@ -29,7 +29,7 @@ char *library_name()
 #ifdef __APPLE__
     return "libpam.dylib";
 #else
-    return "libpam.so";
+    return "libpam.so.0";
 #endif
 }
 
