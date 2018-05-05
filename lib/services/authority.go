@@ -322,12 +322,15 @@ func (c *CertAuthorityV2) Clone() CertAuthority {
 
 // GetRotation returns rotation state.
 func (c *CertAuthorityV2) GetRotation() Rotation {
-	return c.Spec.Rotation
+	if c.Spec.Rotation == nil {
+		return Rotation{}
+	}
+	return *c.Spec.Rotation
 }
 
 // SetRotation sets rotation state.
 func (c *CertAuthorityV2) SetRotation(r Rotation) {
-	c.Spec.Rotation = r
+	c.Spec.Rotation = &r
 }
 
 // TLSCA returns TLS certificate authority
@@ -768,7 +771,7 @@ type CertAuthoritySpecV2 struct {
 	// TLS is a list of TLS key pairs
 	TLSKeyPairs []TLSKeyPair `json:"tls_key_pairs,omitempty"`
 	// Rotation is a status of the certificate authority rotation
-	Rotation Rotation `json:"rotation,omitempty"`
+	Rotation *Rotation `json:"rotation,omitempty"`
 }
 
 // CertAuthoritySpecV2Schema is JSON schema for cert authority V2
