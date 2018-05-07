@@ -62,6 +62,25 @@ func (process *TeleportProcess) connect(role teleport.Role) (*Connector, error) 
 		return &Connector{Client: client, ClientIdentity: identity, ServerIdentity: identity}, nil
 	case services.RotationStateInProgress:
 		switch rotation.Phase {
+		case services.RotationPhaseInit:
+			// Both clients and servers are using old credentials,
+			// this phase exists for remote clusters to propagate information about the new CA
+			if role == teleport.RoleAdmin || role == teleport.RoleAuth {
+				return &Connector{
+					ClientIdentity: identity,
+					ServerIdentity: identity,
+					AuthServer:     process.getLocalAuth(),
+				}, nil
+			}
+			client, err := process.newClient(process.Config.AuthServers, identity)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &Connector{
+				Client:         client,
+				ClientIdentity: identity,
+				ServerIdentity: identity,
+			}, nil
 		case services.RotationPhaseUpdateClients:
 			// Clients should use updated credentials,
 			// while servers should use old credentials to answer auth requests.
@@ -230,17 +249,25 @@ func (process *TeleportProcess) periodicSyncRotationState() error {
 	for {
 		select {
 		case <-t.C:
-			needsReload, err := process.syncRotationState()
+			status, err := process.syncRotationState()
 			if err != nil {
 				if trace.IsConnectionProblem(err) {
 					process.Warningf("Connection problem: sync rotation state: %v.", err)
 				} else {
 					process.Warningf("Failed to sync rotation state: %v.", err)
 				}
-			} else if needsReload {
-				process.Debugf("Sync rotation state detected cert authority reload. Triggering reload process.")
-				process.BroadcastEvent(Event{Name: TeleportReloadEvent})
-				return nil
+			} else {
+				if status.phaseChanged || status.needsReload {
+					process.Debugf("Sync rotation state detected cert authority reload phase update.")
+				}
+				if status.phaseChanged {
+					process.BroadcastEvent(Event{Name: TeleportPhaseChangeEvent})
+				}
+				if status.needsReload {
+					process.Debugf("Triggering reload process.")
+					process.BroadcastEvent(Event{Name: TeleportReloadEvent})
+					return nil
+				}
 			}
 		case <-process.ExitContext().Done():
 			process.Infof("Periodic rotation sync has exited because the process is shutting down.")
@@ -251,10 +278,10 @@ func (process *TeleportProcess) periodicSyncRotationState() error {
 
 // syncRotationState compares cluster rotation state with the state of
 // internal services and performs the rotation if necessary.
-func (process *TeleportProcess) syncRotationState() (bool, error) {
+func (process *TeleportProcess) syncRotationState() (*rotationStatus, error) {
 	connectors := process.getConnectors()
 	if len(connectors) == 0 {
-		return false, trace.BadParameter("no connectors found")
+		return nil, trace.BadParameter("no connectors found")
 	}
 	// it is important to use the same view of the certificate authority
 	// for all internal services at the same time, so that the same
@@ -266,46 +293,57 @@ func (process *TeleportProcess) syncRotationState() (bool, error) {
 		Type:       services.HostCA,
 	}, false)
 	if err != nil {
-		return false, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	var needsReload bool
+	var status rotationStatus
 	for _, conn := range connectors {
-		reload, err := process.syncServiceRotationState(ca, conn)
+		serviceStatus, err := process.syncServiceRotationState(ca, conn)
 		if err != nil {
-			return false, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
-		if reload {
-			needsReload = true
+		if serviceStatus.needsReload {
+			status.needsReload = true
+		}
+		if serviceStatus.phaseChanged {
+			status.phaseChanged = true
 		}
 	}
-	return needsReload, nil
+	return &status, nil
 }
 
 // syncServiceRotationState syncs up rotation state for internal services (Auth, Proxy, Node) and
 // if necessary, updates credentials. Returns true if the service will need to reload.
-func (process *TeleportProcess) syncServiceRotationState(ca services.CertAuthority, conn *Connector) (bool, error) {
+func (process *TeleportProcess) syncServiceRotationState(ca services.CertAuthority, conn *Connector) (*rotationStatus, error) {
 	state, err := process.storage.GetState(conn.ClientIdentity.ID.Role)
 	if err != nil {
-		return false, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	ret, err := process.rotate(conn, *state, ca.GetRotation())
-	return ret, err
+	return process.rotate(conn, *state, ca.GetRotation())
+}
+
+type rotationStatus struct {
+	// needsReload means that phase has been updated
+	// and teleport process has to reload
+	needsReload bool
+	// phaseChanged means that teleport phase has been updated,
+	// but teleport does not need reload
+	phaseChanged bool
 }
 
 // rotate is called to check if rotation should be triggered.
-func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2, remote services.Rotation) (bool, error) {
+func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2, remote services.Rotation) (*rotationStatus, error) {
 	id := conn.ClientIdentity.ID
 	local := localState.Spec.Rotation
 
 	additionalPrincipals, err := process.getAdditionalPrincipals(id.Role)
 	if err != nil {
-		return false, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	principalsChanged := len(additionalPrincipals) != 0 && !conn.ServerIdentity.HasPrincipals(additionalPrincipals)
 
 	if local.Matches(remote) && !principalsChanged {
 		// nothing to do, local state and rotation state are in sync
-		return false, nil
+		return &rotationStatus{}, nil
 	}
 
 	storage := process.storage
@@ -336,71 +374,84 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 				process.Infof("Service %v has updated principals to %q, going to request new principals and update.", id.Role, additionalPrincipals)
 				identity, err := conn.ReRegister(additionalPrincipals)
 				if err != nil {
-					return false, trace.Wrap(err)
+					return nil, trace.Wrap(err)
 				}
 				err = storage.WriteIdentity(auth.IdentityCurrent, *identity)
 				if err != nil {
-					return false, trace.Wrap(err)
+					return nil, trace.Wrap(err)
 				}
-				return true, nil
+				return &rotationStatus{needsReload: true}, nil
 			}
-			return false, nil
+			return &rotationStatus{}, nil
 		case services.RotationStateInProgress:
 			// Rollback phase has been completed, all services
 			// will receive new identities.
 			if local.Phase != services.RotationPhaseRollback && local.CurrentID != remote.CurrentID {
-				return false, trace.CompareFailed(outOfSync, id.Role, remote, local, id.Role)
+				return nil, trace.CompareFailed(outOfSync, id.Role, remote, local, id.Role)
 			}
 			identity, err := conn.ReRegister(additionalPrincipals)
 			if err != nil {
-				return false, trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
 			err = writeStateAndIdentity(auth.IdentityCurrent, identity)
 			if err != nil {
-				return false, trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
-			return true, nil
+			return &rotationStatus{needsReload: true}, nil
 		default:
-			return false, trace.BadParameter("unsupported state: %q", localState)
+			return nil, trace.BadParameter("unsupported state: %q", localState)
 		}
 	case services.RotationStateInProgress:
 		switch remote.Phase {
 		case services.RotationPhaseStandby, "":
 			// There is nothing to do.
-			return false, nil
-		case services.RotationPhaseUpdateClients:
+			return &rotationStatus{}, nil
+		case services.RotationPhaseInit:
 			// Only allow transition in case if local rotation state is standby
 			// so this server is in the "clean" state.
 			if local.State != services.RotationStateStandby && local.State != "" {
-				return false, trace.CompareFailed(outOfSync, id.Role, remote, local, id.Role)
+				return nil, trace.CompareFailed(outOfSync, id.Role, remote, local, id.Role)
+			}
+			// only update local phase, there is no need to reload
+			localState.Spec.Rotation = remote
+			err = storage.WriteState(id.Role, localState)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &rotationStatus{phaseChanged: true}, nil
+		case services.RotationPhaseUpdateClients:
+			// Allow transition to this phase only if the previous
+			// phase was "Init".
+			if local.Phase != services.RotationPhaseInit && local.CurrentID != remote.CurrentID {
+				return nil, trace.CompareFailed(outOfSync, id.Role, remote, local, id.Role)
 			}
 			identity, err := conn.ReRegister(additionalPrincipals)
 			if err != nil {
-				return false, trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
 			err = writeStateAndIdentity(auth.IdentityReplacement, identity)
 			if err != nil {
-				return false, trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
 			// Require reload of teleport process to update client and servers.
-			return true, nil
+			return &rotationStatus{needsReload: true}, nil
 		case services.RotationPhaseUpdateServers:
 			// Allow transition to this phase only if the previous
 			// phase was "Update clients".
 			if local.Phase != services.RotationPhaseUpdateClients && local.CurrentID != remote.CurrentID {
-				return false, trace.CompareFailed(outOfSync, id.Role, remote, local, id.Role)
+				return nil, trace.CompareFailed(outOfSync, id.Role, remote, local, id.Role)
 			}
 			// Write the replacement identity as a current identity and reload the server.
 			replacement, err := storage.ReadIdentity(auth.IdentityReplacement, id.Role)
 			if err != nil {
-				return false, trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
 			err = writeStateAndIdentity(auth.IdentityCurrent, replacement)
 			if err != nil {
-				return false, trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
 			// Require reload of teleport process to update servers.
-			return true, nil
+			return &rotationStatus{needsReload: true}, nil
 		case services.RotationPhaseRollback:
 			// Allow transition to this phase from any other local phase
 			// because it will be widely used to recover cluster state to
@@ -408,19 +459,19 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 			// credentials signed by the "old" CA.
 			identity, err := conn.ReRegister(additionalPrincipals)
 			if err != nil {
-				return false, trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
 			err = writeStateAndIdentity(auth.IdentityCurrent, identity)
 			if err != nil {
-				return false, trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
 			// Require reload of teleport process to update servers.
-			return true, nil
+			return &rotationStatus{needsReload: true}, nil
 		default:
-			return false, trace.BadParameter("unsupported phase: %q", remote.Phase)
+			return nil, trace.BadParameter("unsupported phase: %q", remote.Phase)
 		}
 	default:
-		return false, trace.BadParameter("unsupported state: %q", remote.State)
+		return nil, trace.BadParameter("unsupported state: %q", remote.State)
 	}
 }
 

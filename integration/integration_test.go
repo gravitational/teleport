@@ -2013,6 +2013,12 @@ func (s *IntSuite) TestPAM(c *check.C) {
 
 // TestRotateSuccess tests full cycle cert authority rotation
 func (s *IntSuite) TestRotateSuccess(c *check.C) {
+	for i := 0; i < getIterations(); i++ {
+		s.rotateSuccess(c)
+	}
+}
+
+func (s *IntSuite) rotateSuccess(c *check.C) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -2041,7 +2047,7 @@ func (s *IntSuite) TestRotateSuccess(c *check.C) {
 
 	l := log.WithFields(log.Fields{trace.Component: teleport.Component("test", "rotate")})
 
-	svc, err := waitForReload(serviceC, nil)
+	svc, err := waitForProcessStart(serviceC)
 	c.Assert(err, check.IsNil)
 
 	// Setup user in the cluster
@@ -2055,6 +2061,17 @@ func (s *IntSuite) TestRotateSuccess(c *check.C) {
 	l.Infof("Service started. Setting rotation state to %v", services.RotationPhaseUpdateClients)
 
 	// start rotation
+	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+		TargetPhase: services.RotationPhaseInit,
+		Mode:        services.RotationModeManual,
+	})
+	c.Assert(err, check.IsNil)
+
+	// wait until service phase update to be broadcasted (init phase does not trigger reload)
+	err = waitForProcessEvent(svc, service.TeleportPhaseChangeEvent, 10*time.Second)
+	c.Assert(err, check.IsNil)
+
+	// update clients
 	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
 		TargetPhase: services.RotationPhaseUpdateClients,
 		Mode:        services.RotationModeManual,
@@ -2134,6 +2151,12 @@ func (s *IntSuite) TestRotateSuccess(c *check.C) {
 
 // TestRotateRollback tests cert authority rollback
 func (s *IntSuite) TestRotateRollback(c *check.C) {
+	for i := 0; i < getIterations(); i++ {
+		s.rotateRollback(c)
+	}
+}
+
+func (s *IntSuite) rotateRollback(c *check.C) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -2162,7 +2185,7 @@ func (s *IntSuite) TestRotateRollback(c *check.C) {
 
 	l := log.WithFields(log.Fields{trace.Component: teleport.Component("test", "rotate")})
 
-	svc, err := waitForReload(serviceC, nil)
+	svc, err := waitForProcessStart(serviceC)
 	c.Assert(err, check.IsNil)
 
 	// Setup user in the cluster
@@ -2173,7 +2196,19 @@ func (s *IntSuite) TestRotateRollback(c *check.C) {
 	initialCreds, err := GenerateUserCreds(svc, s.me.Username)
 	c.Assert(err, check.IsNil)
 
-	l.Infof("Service started. Setting rotation state to %v", services.RotationPhaseUpdateClients)
+	l.Infof("Service started. Setting rotation state to %v", services.RotationPhaseInit)
+
+	// start rotation
+	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+		TargetPhase: services.RotationPhaseInit,
+		Mode:        services.RotationModeManual,
+	})
+	c.Assert(err, check.IsNil)
+
+	err = waitForProcessEvent(svc, service.TeleportPhaseChangeEvent, 10*time.Second)
+	c.Assert(err, check.IsNil)
+
+	l.Infof("Setting rotation state to %v", services.RotationPhaseUpdateClients)
 
 	// start rotation
 	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
@@ -2242,8 +2277,30 @@ func (s *IntSuite) TestRotateRollback(c *check.C) {
 	}
 }
 
+// getIterations provides a simple way to add iterations to the test
+// by setting environment variable "ITERATIONS", by default it returns 1
+func getIterations() int {
+	out := os.Getenv("ITERATIONS")
+	if out == "" {
+		return 1
+	}
+	iter, err := strconv.Atoi(out)
+	if err != nil {
+		panic(err)
+	}
+	log.Debugf("Starting tests with %v iterations.", iter)
+	return iter
+}
+
 // TestRotateTrustedClusters tests CA rotation support for trusted clusters
 func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
+	for i := 0; i < getIterations(); i++ {
+		s.rotateTrustedClusters(c)
+	}
+}
+
+// rotateTrustedClusters tests CA rotation support for trusted clusters
+func (s *IntSuite) rotateTrustedClusters(c *check.C) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -2276,7 +2333,7 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 
 	l := log.WithFields(log.Fields{trace.Component: teleport.Component("test", "rotate")})
 
-	svc, err := waitForReload(serviceC, nil)
+	svc, err := waitForProcessStart(serviceC)
 	c.Assert(err, check.IsNil)
 
 	// main cluster has a local user and belongs to role "main-devs"
@@ -2352,17 +2409,17 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 	err = runAndMatch(clt, 6, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
-	l.Infof("Service started. Setting rotation state to %v", services.RotationPhaseUpdateClients)
+	l.Infof("Setting rotation state to %v", services.RotationPhaseInit)
 
 	// start rotation
 	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
-		TargetPhase: services.RotationPhaseUpdateClients,
+		TargetPhase: services.RotationPhaseInit,
 		Mode:        services.RotationModeManual,
 	})
 	c.Assert(err, check.IsNil)
 
-	// wait until service reload
-	svc, err = waitForReload(serviceC, svc)
+	// wait until service phase update to be broadcasted (init phase does not trigger reload)
+	err = waitForProcessEvent(svc, service.TeleportPhaseChangeEvent, 10*time.Second)
 	c.Assert(err, check.IsNil)
 
 	// waitForPhase waits until aux cluster detects the rotation
@@ -2382,6 +2439,20 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 		}
 		return trace.CompareFailed("failed to converge to phase %q, last phase %q", phase, lastPhase)
 	}
+
+	err = waitForPhase(services.RotationPhaseInit)
+	c.Assert(err, check.IsNil)
+
+	// update clients
+	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+		TargetPhase: services.RotationPhaseUpdateClients,
+		Mode:        services.RotationModeManual,
+	})
+	c.Assert(err, check.IsNil)
+
+	// wait until service reloaded
+	svc, err = waitForReload(serviceC, svc)
+	c.Assert(err, check.IsNil)
 
 	err = waitForPhase(services.RotationPhaseUpdateClients)
 	c.Assert(err, check.IsNil)
@@ -2461,6 +2532,29 @@ func rotationConfig(disableWebService bool) *service.Config {
 	tconf.ClientTimeout = time.Second
 	tconf.ShutdownTimeout = 2 * tconf.ClientTimeout
 	return tconf
+}
+
+// waitForProcessEvent waits for process event to occur or timeout
+func waitForProcessEvent(svc *service.TeleportProcess, event string, timeout time.Duration) error {
+	eventC := make(chan service.Event, 1)
+	svc.WaitForEvent(context.TODO(), event, eventC)
+	select {
+	case <-eventC:
+		return nil
+	case <-time.After(timeout):
+		return trace.BadParameter("timeout waiting for service to broadcast event %v", event)
+	}
+}
+
+// waitForProcessStart is waiting for the process to start
+func waitForProcessStart(serviceC chan *service.TeleportProcess) (*service.TeleportProcess, error) {
+	var svc *service.TeleportProcess
+	select {
+	case svc = <-serviceC:
+	case <-time.After(60 * time.Second):
+		return nil, trace.BadParameter("timeout waiting for service to start")
+	}
+	return svc, nil
 }
 
 // waitForReload waits for multiple events to happen:
