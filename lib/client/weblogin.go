@@ -18,6 +18,7 @@ limitations under the License.
 package client
 
 import (
+	"context"
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
@@ -128,7 +129,7 @@ type sealData struct {
 }
 
 // SSHAgentSSOLogin is used by SSH Agent (tsh) to login using OpenID connect
-func SSHAgentSSOLogin(proxyAddr, connectorID string, pubKey []byte, ttl time.Duration, insecure bool, pool *x509.CertPool, protocol string, compatibility string) (*auth.SSHLoginResponse, error) {
+func SSHAgentSSOLogin(ctx context.Context, proxyAddr, connectorID string, pubKey []byte, ttl time.Duration, insecure bool, pool *x509.CertPool, protocol string, compatibility string) (*auth.SSHLoginResponse, error) {
 	clt, proxyURL, err := initClient(proxyAddr, insecure, pool)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -239,14 +240,17 @@ func SSHAgentSSOLogin(proxyAddr, connectorID string, pubKey []byte, ttl time.Dur
 
 	select {
 	case err := <-errorC:
-		log.Debugf("got error: %v", err)
+		log.Debugf("Got an error: %v.", err)
 		return nil, trace.Wrap(err)
 	case response := <-waitC:
-		log.Debugf("got response")
+		log.Debugf("Got response from browser.")
 		return response, nil
 	case <-time.After(60 * time.Second):
-		log.Debugf("got timeout waiting for callback")
-		return nil, trace.Wrap(trace.Errorf("timeout waiting for callback"))
+		log.Debugf("Timed out waiting for callback.")
+		return nil, trace.Wrap(trace.Errorf("timed out waiting for callback"))
+	case <-ctx.Done():
+		log.Debugf("Canceled by user.")
+		return nil, trace.Wrap(ctx.Err())
 	}
 }
 

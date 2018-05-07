@@ -1158,7 +1158,7 @@ func (tc *TeleportClient) ConnectToProxy(ctx context.Context) (*ProxyClient, err
 	connectContext, cancel := context.WithCancel(context.Background())
 	go func() {
 		defer cancel()
-		proxyClient, err = tc.connectToProxy()
+		proxyClient, err = tc.connectToProxy(ctx)
 	}()
 
 	select {
@@ -1174,7 +1174,7 @@ func (tc *TeleportClient) ConnectToProxy(ctx context.Context) (*ProxyClient, err
 
 // connectToProxy will dial to the proxy server and return a ProxyClient when
 // successful.
-func (tc *TeleportClient) connectToProxy() (*ProxyClient, error) {
+func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, error) {
 	var err error
 
 	proxyPrincipal := tc.getProxySSHPrincipal()
@@ -1226,7 +1226,7 @@ func (tc *TeleportClient) connectToProxy() (*ProxyClient, error) {
 	}
 	// if we get here, it means we failed to authenticate using stored keys
 	// and we need to ask for the login information
-	key, err := tc.Login(true)
+	key, err := tc.Login(ctx, true)
 	if err != nil {
 		// we need to communicate directly to user here,
 		// otherwise user will see endless loop with no explanation
@@ -1289,7 +1289,7 @@ func (tc *TeleportClient) LogoutAll() error {
 // If 'activateKey' is true, saves the received session cert into the local
 // keystore (and into the ssh-agent) for future use.
 //
-func (tc *TeleportClient) Login(activateKey bool) (*Key, error) {
+func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, error) {
 	httpsProxyHostPort := tc.Config.ProxyWebHostPort()
 	certPool := loopbackPool(httpsProxyHostPort)
 
@@ -1321,7 +1321,7 @@ func (tc *TeleportClient) Login(activateKey bool) (*Key, error) {
 			return nil, trace.Wrap(err)
 		}
 	case teleport.OIDC:
-		response, err = tc.ssoLogin(pr.Auth.OIDC.Name, key.Pub, teleport.OIDC)
+		response, err = tc.ssoLogin(ctx, pr.Auth.OIDC.Name, key.Pub, teleport.OIDC)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1332,7 +1332,7 @@ func (tc *TeleportClient) Login(activateKey bool) (*Key, error) {
 			tc.localAgent.username = response.Username
 		}
 	case teleport.SAML:
-		response, err = tc.ssoLogin(pr.Auth.SAML.Name, key.Pub, teleport.SAML)
+		response, err = tc.ssoLogin(ctx, pr.Auth.SAML.Name, key.Pub, teleport.SAML)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1342,7 +1342,7 @@ func (tc *TeleportClient) Login(activateKey bool) (*Key, error) {
 			tc.localAgent.username = response.Username
 		}
 	case teleport.Github:
-		response, err = tc.ssoLogin(pr.Auth.Github.Name, key.Pub, teleport.Github)
+		response, err = tc.ssoLogin(ctx, pr.Auth.Github.Name, key.Pub, teleport.Github)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1465,11 +1465,12 @@ func (tc *TeleportClient) directLogin(secondFactorType string, pub []byte) (*aut
 }
 
 // samlLogin opens browser window and uses OIDC or SAML redirect cycle with browser
-func (tc *TeleportClient) ssoLogin(connectorID string, pub []byte, protocol string) (*auth.SSHLoginResponse, error) {
+func (tc *TeleportClient) ssoLogin(ctx context.Context, connectorID string, pub []byte, protocol string) (*auth.SSHLoginResponse, error) {
 	log.Debugf("samlLogin start")
 	// ask the CA (via proxy) to sign our public key:
 	webProxyAddr := tc.Config.ProxyWebHostPort()
 	response, err := SSHAgentSSOLogin(
+		ctx,
 		webProxyAddr,
 		connectorID,
 		pub,
