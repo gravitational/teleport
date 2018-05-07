@@ -632,14 +632,14 @@ func (w *wrappedSocket) Close() error {
 
 // eventEnvelope is used to send/receive audit events.
 type eventEnvelope struct {
-	Type    string             `json:"type"`
-	Payload events.EventFields `json:"payload"`
+	Type    string             `json:"t"`
+	Payload events.EventFields `json:"p"`
 }
 
 // rawEnvelope is used to send/receive terminal bytes.
 type rawEnvelope struct {
-	Type    string `json:"type"`
-	Payload []byte `json:"payload"`
+	Type    string `json:"t"`
+	Payload []byte `json:"p"`
 }
 
 // unknownEnvelope is used to figure out the type of data being unmarshaled.
@@ -649,7 +649,7 @@ type unknownEnvelope struct {
 }
 
 type envelopeHeader struct {
-	Type string `json:"type"`
+	Type string `json:"t"`
 }
 
 func (u *unknownEnvelope) UnmarshalJSON(raw []byte) error {

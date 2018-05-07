@@ -952,7 +952,7 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 	params, err := session.NewTerminalParamsFromInt(300, 120)
 	c.Assert(err, IsNil)
 	websocket.JSON.Send(ws2, eventEnvelope{
-		Type: "resize.request",
+		Type: defaults.ResizeRequestEnvelopeType,
 		Payload: events.EventFields{
 			events.EventType:      events.ResizeEvent,
 			events.EventNamespace: defaults.Namespace,
@@ -1470,7 +1470,7 @@ func (s *WebSuite) waitForRawEvent(ws *websocket.Conn, timeout time.Duration) er
 			if err != nil {
 				continue
 			}
-			if ue.Type == "raw" {
+			if ue.Type == defaults.RawEnvelopeType {
 				doneCancel()
 				return
 			}
@@ -1503,7 +1503,7 @@ func (s *WebSuite) waitForResizeEvent(ws *websocket.Conn, timeout time.Duration)
 				continue
 			}
 
-			if ue.Type != "audit" {
+			if ue.Type != defaults.AuditEnvelopeType {
 				continue
 			}
 
@@ -1513,7 +1513,7 @@ func (s *WebSuite) waitForResizeEvent(ws *websocket.Conn, timeout time.Duration)
 				continue
 			}
 
-			if ee.Payload.GetType() == "resize" {
+			if ee.Payload.GetType() == events.ResizeEvent {
 				doneCancel()
 				return
 			}
