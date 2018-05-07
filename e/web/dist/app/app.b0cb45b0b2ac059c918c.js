@@ -13685,8 +13685,8 @@ webpackJsonp([0],[
 
 	  Tty.prototype.send = function send(data) {
 	    var msg = {
-	      type: "raw",
-	      payload: Decoder(data, 'utf8').toString('base64')
+	      t: "r",
+	      p: Decoder(data, 'utf8').toString('base64')
 	    };
 
 	    this.socket.send(JSON.stringify(msg));
@@ -13694,8 +13694,8 @@ webpackJsonp([0],[
 
 	  Tty.prototype.requestResize = function requestResize(w, h) {
 	    var msg = {
-	      type: "resize.request",
-	      payload: {
+	      t: "r.r",
+	      p: {
 	        event: _enums.EventTypeEnum.RESIZE,
 	        width: w,
 	        height: h,
@@ -13741,12 +13741,15 @@ webpackJsonp([0],[
 	  Tty.prototype._onReceiveData = function _onReceiveData(ev) {
 	    try {
 	      var msg = JSON.parse(ev.data);
-	      if (msg.type === 'audit') {
-	        this._processEvent(msg.payload);
+	      var msgType = msg.t;
+	      var msgPayload = msg.p;
+
+	      if (msgType === 'a') {
+	        this._processEvent(msgPayload);
 	        return;
 	      }
 
-	      var data = Decoder(msg.payload, 'base64').toString('utf8');
+	      var data = Decoder(msgPayload, 'base64').toString('utf8');
 	      if (this._buffered) {
 	        this._pushToBuffer(data);
 	      } else {
@@ -19325,7 +19328,6 @@ webpackJsonp([0],[
 	  trustedClusterDocLink: 'https://gravitational.com/teleport/docs/admin-guide/#trusted-clusters',
 	  routes: {
 	    settingsBase: '/web/settings',
-	    setdssfngsBase: '/web/settings',
 	    settingsAuth: '/web/settings/auth',
 	    settingsRoles: '/web/settings/roles',
 	    settingsCluster: '/web/settings/clusters'
