@@ -146,8 +146,8 @@
 [[projects]]
   name = "github.com/gravitational/reporting"
   packages = [".","client","types"]
-  revision = "3c4a4e96fb5896e14fe29da7fcce14b8d93f3965"
-  version = "0.0.4"
+  revision = "fe493568c7c889c311d1b85c15b408f8b3fcc8ff"
+  version = "0.0.5"
 
 [[projects]]
   branch = "master"
@@ -401,6 +401,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "600efc6f221f0a0c99270cf1caa4d7bf3e607974c5e52c8b7ba3210bee185ec9"
+  inputs-digest = "524e883afcbde8a816f2a8f79f83f6d21108450220141d189232b38566edaa35"
   solver-name = "gps-cdcl"
   solver-version = 1

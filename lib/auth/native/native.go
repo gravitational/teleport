@@ -51,34 +51,59 @@ type keyPair struct {
 
 // keygen is a key generator that precomputes keys to provide quick access to
 // public/private key pairs.
-type keygen struct {
+type Keygen struct {
 	keysCh chan keyPair
 
-	ctx    context.Context
-	cancel context.CancelFunc
+	ctx             context.Context
+	cancel          context.CancelFunc
+	precomputeCount int
+}
+
+// KeygenOption is a functional optional argument for key generator
+type KeygenOption func(k *Keygen) error
+
+// PrecomputeKeys sets up a number of private keys to pre-compute
+// in background, 0 disables the process
+func PrecomputeKeys(count int) KeygenOption {
+	return func(k *Keygen) error {
+		k.precomputeCount = count
+		return nil
+	}
 }
 
 // New returns a new key generator.
-func New() *keygen {
+func New(opts ...KeygenOption) (*Keygen, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	k := &keygen{
-		keysCh: make(chan keyPair, PrecomputedNum),
-		ctx:    ctx,
-		cancel: cancel,
+	k := &Keygen{
+		ctx:             ctx,
+		cancel:          cancel,
+		precomputeCount: PrecomputedNum,
 	}
-	go k.precomputeKeys()
+	for _, opt := range opts {
+		if err := opt(k); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 
-	return k
+	if k.precomputeCount > 0 {
+		log.Debugf("SSH cert authority is going to pre-compute %v keys.", k.precomputeCount)
+		k.keysCh = make(chan keyPair, k.precomputeCount)
+		go k.precomputeKeys()
+	} else {
+		log.Debugf("SSH cert authority started with no keys pre-compute.")
+	}
+
+	return k, nil
 }
 
 // Close stops the precomputation of keys (if enabled) and releases all resources.
-func (k *keygen) Close() {
+func (k *Keygen) Close() {
 	k.cancel()
 }
 
 // GetNewKeyPairFromPool returns precomputed key pair from the pool.
-func (k *keygen) GetNewKeyPairFromPool() ([]byte, []byte, error) {
+func (k *Keygen) GetNewKeyPairFromPool() ([]byte, []byte, error) {
 	select {
 	case key := <-k.keysCh:
 		return key.privPem, key.pubBytes, nil
@@ -88,7 +113,7 @@ func (k *keygen) GetNewKeyPairFromPool() ([]byte, []byte, error) {
 }
 
 // precomputeKeys continues loops forever trying to compute cache key pairs.
-func (k *keygen) precomputeKeys() {
+func (k *Keygen) precomputeKeys() {
 	for {
 		privPem, pubBytes, err := GenerateKeyPair("")
 		if err != nil {
@@ -135,13 +160,13 @@ func GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
 
 // GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to
 // execute.
-func (k *keygen) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
+func (k *Keygen) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
 	return GenerateKeyPair(passphrase)
 }
 
 // GenerateHostCert generates a host certificate with the passed in parameters.
 // The private key of the CA to sign the certificate must be provided.
-func (k *keygen) GenerateHostCert(c services.HostCertParams) ([]byte, error) {
+func (k *Keygen) GenerateHostCert(c services.HostCertParams) ([]byte, error) {
 	if err := c.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -191,7 +216,7 @@ func (k *keygen) GenerateHostCert(c services.HostCertParams) ([]byte, error) {
 
 // GenerateUserCert generates a host certificate with the passed in parameters.
 // The private key of the CA to sign the certificate must be provided.
-func (k *keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
+func (k *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
 	if c.TTL < defaults.MinCertDuration {
 		return nil, trace.BadParameter("wrong certificate TTL")
 	}

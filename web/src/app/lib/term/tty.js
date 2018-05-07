@@ -14,10 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import BufferModule from 'buffer/';
 import { EventEmitter } from 'events';
-import { StatusCodeEnum } from './enums';
-import api from 'app/services/api';
 import Logger from './../logger';
+import { EventTypeEnum, TermEventEnum, StatusCodeEnum } from './enums';
+
+const Decoder = BufferModule.Buffer;
 
 const logger = Logger.create('Tty');
 
@@ -60,24 +62,34 @@ class Tty extends EventEmitter {
     this.socket.onmessage = this._onReceiveData;        
     this.socket.onclose = this._onCloseConnection;
   }
-  
-  send(data){
-    this.socket.send(data);
+    
+  send(data) {    
+    const msg = {
+      type: "raw",
+      payload: Decoder(data, 'utf8').toString('base64')
+    }
+
+    this.socket.send(JSON.stringify(msg));
   }
 
-  requestResize(w, h){    
-    const url = this._addressResolver.getResizeReqUrl();
-    const payload = { 
-      terminal_params: { w, h } 
-    };
-
+  requestResize(w, h){                        
+    const msg = {
+      type: "resize.request",
+      payload: {
+        event: EventTypeEnum.RESIZE,
+        width: w,
+        height: h,
+        size: `${w}:${h}`
+      }
+    }
+    
     logger.info('requesting new screen size', `w:${w} and h:${h}`);        
-    return api.put(url, payload)      
-      .fail(err => logger.error('requestResize', err));
+
+    this.socket.send(JSON.stringify(msg));    
   }
 
   _flushBuffer() {    
-    this.emit('data', this._attachSocketBuffer);      
+    this.emit(TermEventEnum.DATA, this._attachSocketBuffer);      
     this._attachSocketBuffer = null;
     clearTimeout(this._attachSocketBufferTimer);
     this._attachSocketBufferTimer = null;    
@@ -102,17 +114,43 @@ class Tty extends EventEmitter {
     this.socket.onmessage = null;
     this.socket.onclose = null;
     this.socket = null;
-    this.emit('close', e);      
+    this.emit(TermEventEnum.CONN_CLOSE, e);      
     logger.info('websocket is closed');
   }
 
-  _onReceiveData(ev) {
-    if (this._buffered) {
-      this._pushToBuffer(ev.data);
-    } else {
-      this.emit('data', ev.data);            
+  _onReceiveData(ev) {        
+    try {
+      const msg = JSON.parse(ev.data);
+      if (msg.type === 'audit') {
+        this._processEvent(msg.payload);
+        return;
+      }
+      
+      const data = Decoder(msg.payload, 'base64').toString('utf8');
+      if (this._buffered) {
+        this._pushToBuffer(data);
+      } else {
+        this.emit(TermEventEnum.DATA, data);
+      }
+    } catch (err) {
+      logger.error('failed to parse incoming message.', err);
     }
   }
+
+  _processEvent(event) {
+    if (event.event === EventTypeEnum.RESIZE) {
+      let [w, h] = event.size.split(':');
+      w = Number(w);
+      h = Number(h);
+      this.emit(TermEventEnum.RESIZE, { w, h });
+      return;
+    }
+
+    if (event.event === EventTypeEnum.END) {
+      this.emit(TermEventEnum.CLOSE, event);
+      return;
+    }
+  }      
 }
 
 export default Tty;

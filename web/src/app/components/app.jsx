@@ -49,7 +49,7 @@ class App extends Component {
     if (isSuccess) {
       return (
         <div className={className}>
-          <AjaxPoller onFetch={refresh} time={4000}/>          
+          <AjaxPoller onFetch={refresh} time={3000}/>
           {this.props.CurrentSessionHost}
           <NavLeftBar router={router}/>
           {this.props.children}
