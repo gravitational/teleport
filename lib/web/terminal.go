@@ -19,7 +19,6 @@ package web
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -225,7 +224,10 @@ func (t *TerminalHandler) handler(ws *websocket.Conn) {
 	// the terminal.
 	tc, err := t.makeClient(ws)
 	if err != nil {
-		errToTerm(err, ws)
+		er := errToTerm(err, ws)
+		if er != nil {
+			log.Warnf("Unable to send error to terminal: %v: %v.", err, er)
+		}
 		return
 	}
 
@@ -326,8 +328,11 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 	// either an error occurs or it completes successfully.
 	err := tc.SSH(t.terminalContext, t.params.InteractiveCommand, false)
 	if err != nil {
-		log.Warningf("failed to SSH: %v", err)
-		errToTerm(err, ws)
+		log.Warnf("Unable to stream terminal: %v.", err)
+		er := errToTerm(err, ws)
+		if er != nil {
+			log.Warnf("Unable to send error to terminal: %v: %v.", err, er)
+		}
 	}
 }
 
@@ -456,8 +461,28 @@ func (t *TerminalHandler) windowChange(params *session.TerminalParams) error {
 }
 
 // errToTerm displays an error in the terminal window.
-func errToTerm(err error, w io.Writer) {
-	fmt.Fprintf(w, "%s\r\n", err.Error())
+func errToTerm(err error, w io.Writer) error {
+	// Replace \n with \r\n so the message correctly aligned.
+	r := strings.NewReplacer("\r\n", "\r\n", "\n", "\r\n")
+	errMessage := []byte(r.Replace(err.Error()))
+
+	// Create an envelope that contains the error message.
+	re := rawEnvelope{
+		Type:    defaults.RawEnvelopeType,
+		Payload: errMessage,
+	}
+	b, err := json.Marshal(re)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Write the error to the websocket.
+	_, err = w.Write(b)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // resolveServerHostPort parses server name and attempts to resolve hostname
