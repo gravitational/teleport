@@ -65,8 +65,8 @@ class Tty extends EventEmitter {
     
   send(data) {    
     const msg = {
-      type: "raw",
-      payload: Decoder(data, 'utf8').toString('base64')
+      t: "r",
+      p: Decoder(data, 'utf8').toString('base64')
     }
 
     this.socket.send(JSON.stringify(msg));
@@ -74,8 +74,8 @@ class Tty extends EventEmitter {
 
   requestResize(w, h){                        
     const msg = {
-      type: "resize.request",
-      payload: {
+      t: "r.r",
+      p: {
         event: EventTypeEnum.RESIZE,
         width: w,
         height: h,
@@ -121,12 +121,15 @@ class Tty extends EventEmitter {
   _onReceiveData(ev) {        
     try {
       const msg = JSON.parse(ev.data);
-      if (msg.type === 'audit') {
-        this._processEvent(msg.payload);
+      const msgType = msg.t;
+      const msgPayload = msg.p;
+
+      if (msgType === 'a') {
+        this._processEvent(msgPayload);
         return;
       }
       
-      const data = Decoder(msg.payload, 'base64').toString('utf8');
+      const data = Decoder(msgPayload, 'base64').toString('utf8');
       if (this._buffered) {
         this._pushToBuffer(data);
       } else {
