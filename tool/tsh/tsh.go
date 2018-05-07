@@ -333,7 +333,7 @@ func onLogin(cf *CLIConf) {
 	makeIdentityFile := (cf.IdentityFileOut != "")
 	activateKey := !makeIdentityFile
 
-	if key, err = tc.Login(activateKey); err != nil {
+	if key, err = tc.Login(cf.Context, activateKey); err != nil {
 		utils.FatalError(err)
 	}
 	if makeIdentityFile {
