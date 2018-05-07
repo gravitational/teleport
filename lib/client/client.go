@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
@@ -63,6 +64,7 @@ type NodeClient struct {
 	Namespace string
 	Client    *ssh.Client
 	Proxy     *ProxyClient
+	TC        *TeleportClient
 }
 
 // GetSites returns list of the "sites" (AKA teleport clusters) connected to the proxy
@@ -420,9 +422,62 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress string,
 		return nil, trace.Wrap(err)
 	}
 
-	client := ssh.NewClient(conn, chans, reqs)
+	// We pass an empty channel which we close right away to ssh.NewClient
+	// because the client need to handle requests itself.
+	emptyCh := make(chan *ssh.Request)
+	close(emptyCh)
 
-	return &NodeClient{Client: client, Proxy: proxy, Namespace: defaults.Namespace}, nil
+	client := ssh.NewClient(conn, chans, emptyCh)
+
+	nc := &NodeClient{
+		Client:    client,
+		Proxy:     proxy,
+		Namespace: defaults.Namespace,
+		TC:        proxy.teleportClient,
+	}
+
+	// Start a goroutine that will run for the duration of the client to process
+	// global requests from the client. Teleport clients will use this to update
+	// terminal sizes when the remote PTY size has changed.
+	go nc.handleGlobalRequests(ctx, reqs)
+
+	return nc, nil
+}
+
+func (c *NodeClient) handleGlobalRequests(ctx context.Context, requestCh <-chan *ssh.Request) {
+	for {
+		select {
+		case r := <-requestCh:
+			// When the channel is closing, nil is returned.
+			if r == nil {
+				return
+			}
+
+			switch r.Type {
+			case teleport.SessionEvent:
+				// Parse event and create events.EventFields that can be consumed directly
+				// by caller.
+				var e events.EventFields
+				err := json.Unmarshal(r.Payload, &e)
+				if err != nil {
+					log.Warnf("Unable to parse event: %v: %v.", string(r.Payload), err)
+					continue
+				}
+
+				// Send event to event channel.
+				err = c.TC.SendEvent(ctx, e)
+				if err != nil {
+					log.Warnf("Unable to send event %v: %v.", string(r.Payload), err)
+					continue
+				}
+			default:
+				// This handles keepalive messages and matches the behaviour of OpenSSH.
+				r.Reply(false, nil)
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 // newClientConn is a wrapper around ssh.NewClientConn
@@ -504,18 +559,18 @@ func (client *NodeClient) Download(remoteSourcePath, localDestinationPath string
 // scp runs remote scp command(shellCmd) on the remote server and
 // runs local scp handler using scpConf
 func (client *NodeClient) scp(scpCommand scp.Command, shellCmd string, errWriter io.Writer) error {
-	session, err := client.Client.NewSession()
+	s, err := client.Client.NewSession()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer session.Close()
+	defer s.Close()
 
-	stdin, err := session.StdinPipe()
+	stdin, err := s.StdinPipe()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	stdout, err := session.StdoutPipe()
+	stdout, err := s.StdoutPipe()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -537,7 +592,7 @@ func (client *NodeClient) scp(scpCommand scp.Command, shellCmd string, errWriter
 		close(closeC)
 	}()
 
-	runErr := session.Run(shellCmd)
+	runErr := s.Run(shellCmd)
 	if runErr != nil && err == nil {
 		err = runErr
 	}

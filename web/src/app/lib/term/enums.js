@@ -16,9 +16,18 @@ limitations under the License.
 
 export const EventTypeEnum = {
   START: 'session.start',
+  JOIN: 'session.join',
   END: 'session.end',
   PRINT: 'print',
   RESIZE: 'resize'
+}
+
+export const TermEventEnum = {
+  RESIZE: 'terminal.resize',
+  CLOSE: 'terminal.close',
+  RESET: 'terminal.reset',
+  DATA: 'terminal.data',  
+  CONN_CLOSE: 'connection.close'  
 }
 
 export const StatusCodeEnum = {

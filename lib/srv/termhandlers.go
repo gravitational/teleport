@@ -180,22 +180,16 @@ func (t *TermHandlers) HandleShell(ch ssh.Channel, req *ssh.Request, ctx *Server
 }
 
 // HandleWinChange handles requests of type "window-change" which update the
-// size of the TTY running on the server.
+// size of the PTY running on the server and update any other members in the
+// party.
 func (t *TermHandlers) HandleWinChange(ch ssh.Channel, req *ssh.Request, ctx *ServerContext) error {
 	params, err := parseWinChange(req)
 	if err != nil {
-		ctx.Error(err)
 		return trace.Wrap(err)
 	}
 
-	term := ctx.GetTerm()
-	if term != nil {
-		err = term.SetWinSize(*params)
-		if err != nil {
-			ctx.Errorf("Unable to set window size: %v", err)
-		}
-	}
-
+	// Update any other members in the party that the window size has changed
+	// and to update their terminal windows accordingly.
 	err = t.SessionRegistry.NotifyWinChange(*params, ctx)
 	if err != nil {
 		return trace.Wrap(err)

@@ -345,3 +345,9 @@ const (
 	// SharedDirMode is a mode for a directory shared with group
 	SharedDirMode = 0750
 )
+
+const (
+	// SessionEvent is sent by servers to clients when an audit event occurs on
+	// the session.
+	SessionEvent = "x-teleport-event"
+)

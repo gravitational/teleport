@@ -16,7 +16,8 @@ limitations under the License.
 import api from 'app/services/api';
 import $ from 'jQuery';
 import expect, { spyOn } from 'expect';
-import {EventProvider, TtyPlayer, MAX_SIZE, Buffer } from 'app/lib/term/ttyPlayer';
+import { EventProvider, TtyPlayer, MAX_SIZE, Buffer } from 'app/lib/term/ttyPlayer';
+import { TermEventEnum } from 'app/lib/term/enums';
 import sample from './streamData';
 
 const Dfd = $.Deferred;
@@ -163,7 +164,7 @@ describe('lib/ttyPlayer', () => {
     });
 
     it('should move by 1 position when called w/o params', cb => {
-      tty.on('data', data=>{
+      tty.on(TermEventEnum.DATA, data=>{
         expect(data.length).toBe(42);
         cb();
       });
@@ -172,7 +173,7 @@ describe('lib/ttyPlayer', () => {
     });
 
     it('should move from 1 to 478 position (forward)', cb => {
-      tty.on('data', data=>{
+      tty.on(TermEventEnum.DATA, data=>{
         cb();
         expect(data.length).toBe(11246);
       });
@@ -182,7 +183,7 @@ describe('lib/ttyPlayer', () => {
 
     it('should move from 478 to 1 position (back)', cb => {
       tty.current = 478;
-      tty.on('data', data=>{
+      tty.on(TermEventEnum.DATA, data=>{
         cb();
         expect(data.length).toEqual(42);
       });

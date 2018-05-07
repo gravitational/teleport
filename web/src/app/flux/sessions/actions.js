@@ -22,8 +22,7 @@ import appGetters from 'app/flux/app/getters';
 import Logger from 'app/lib/logger';
 import {
   RECEIVE_ACTIVE_SESSIONS,  
-  RECEIVE_SITE_EVENTS,
-  UPDATE_ACTIVE_SESSION  
+  RECEIVE_SITE_EVENTS,  
 } from './actionTypes';
 
 const logger = Logger.create('Modules/Sessions');
@@ -69,10 +68,6 @@ const actions = {
       .fail(err => {        
         logger.error('fetchActiveSessions', err);
       });
-  },
-  
-  updateSession({ siteId, json }){
-    reactor.dispatch(UPDATE_ACTIVE_SESSION, { siteId, json });
   }
 }
 

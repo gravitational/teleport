@@ -15,9 +15,9 @@ limitations under the License.
 */
 import XTerm from 'xterm/dist/xterm';
 import Tty from './tty';
-import TtyEvents from './ttyEvents';
 import {debounce, isNumber} from 'lodash';
 import Logger from 'app/lib/logger';
+import { TermEventEnum } from './enums';
 
 const logger = Logger.create('lib/term/terminal');
 const DISCONNECT_TXT = 'disconnected';
@@ -34,7 +34,6 @@ class TtyTerminal {
     const { addressResolver, el, scrollBack = 1000 } = options;    
     this._el = el;
     this.tty = new Tty(addressResolver);
-    this.ttyEvents = new TtyEvents(addressResolver);
     this.scrollBack = scrollBack
     this.rows = undefined;
     this.cols = undefined;
@@ -70,24 +69,21 @@ class TtyTerminal {
     window.addEventListener('resize', this.debouncedResize);
 
     // subscribe to tty
-    this.tty.on('reset', this.reset.bind(this));    
-    this.tty.on('close', this._processClose.bind(this));
-    this.tty.on('data', this._processData.bind(this));    
+    this.tty.on(TermEventEnum.RESET, this.reset.bind(this));    
+    this.tty.on(TermEventEnum.CONN_CLOSE, this._processClose.bind(this));
+    this.tty.on(TermEventEnum.DATA, this._processData.bind(this));    
 
     // subscribe tty resize event (used by session player)
-    this.tty.on('resize', ({h, w}) => this.resize(w, h));        
-    // subscribe to session resize events (triggered by other participants)
-    this.ttyEvents.on('resize', ({h, w}) => this.resize(w, h));    
+    this.tty.on(TermEventEnum.RESIZE, ({h, w}) => this.resize(w, h));        
 
     this.connect();    
   }
   
   connect(){    
     this.tty.connect(this.cols, this.rows);
-    this.ttyEvents.connect();
   }
 
-  destroy() {
+  destroy() {    
     window.removeEventListener('resize', this.debouncedResize);
     this._disconnect();
     if(this.term !== null){
@@ -148,9 +144,7 @@ class TtyTerminal {
 
   _disconnect() {        
     this.tty.disconnect();
-    this.tty.removeAllListeners();    
-    this.ttyEvents.disconnect();
-    this.ttyEvents.removeAllListeners();    
+    this.tty.removeAllListeners();
   }
 
   _requestResize(){
