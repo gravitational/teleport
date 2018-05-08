@@ -235,16 +235,6 @@ func (u *ResourceCommand) createUser(client auth.ClientI, raw services.UnknownRe
 		return trace.Wrap(err)
 	}
 	userName := user.GetName()
-	// see if a user with such name exists:
-	_, err = client.GetUser(userName)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// only 'update' is supported (resources API do not support generating
-	// invitation tokens, 2FA and sign-up URLs)
-	if u.force == false {
-		return trace.BadParameter("you must use 'tctl users add' to create new users")
-	}
 	if err := client.UpsertUser(user); err != nil {
 		return trace.Wrap(err)
 	}
