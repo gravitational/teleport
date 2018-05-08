@@ -269,6 +269,26 @@ func SliceContainsStr(slice []string, value string) bool {
 	return false
 }
 
+// RemoveFromSlice makes a copy of the slice and removes the passed in values from the copy.
+func RemoveFromSlice(slice []string, values ...string) []string {
+	output := make([]string, 0, len(slice))
+
+	remove := make(map[string]bool)
+	for _, value := range values {
+		remove[value] = true
+	}
+
+	for _, s := range slice {
+		_, ok := remove[s]
+		if ok {
+			continue
+		}
+		output = append(output, s)
+	}
+
+	return output
+}
+
 // CheckCertificateFormatFlag checks if the certificate format is valid.
 func CheckCertificateFormatFlag(s string) (string, error) {
 	switch s {

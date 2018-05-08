@@ -356,10 +356,21 @@ func MakeDefaultConfig() (config *Config) {
 
 // ApplyDefaults applies default values to the existing config structure
 func ApplyDefaults(cfg *Config) {
-	// get defaults for cipher, kex algorithms, and mac algorithms from
+	// Get defaults for Cipher, Kex algorithms, and MAC algorithms from
 	// golang.org/x/crypto/ssh default config.
 	var sc ssh.Config
 	sc.SetDefaults()
+
+	// Remove insecure and (borderline insecure) cryptographic primitives from
+	// default configuration. These can still be added back in file configuration by
+	// users, but not supported by default by Teleport. See #1856 for more
+	// details.
+	kex := utils.RemoveFromSlice(sc.KeyExchanges,
+		defaults.DiffieHellmanGroup1SHA1,
+		defaults.DiffieHellmanGroup14SHA1)
+	macs := utils.RemoveFromSlice(sc.MACs,
+		defaults.HMACSHA1,
+		defaults.HMACSHA196)
 
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -372,8 +383,8 @@ func ApplyDefaults(cfg *Config) {
 	cfg.DataDir = defaults.DataDir
 	cfg.Console = os.Stdout
 	cfg.Ciphers = sc.Ciphers
-	cfg.KEXAlgorithms = sc.KeyExchanges
-	cfg.MACAlgorithms = sc.MACs
+	cfg.KEXAlgorithms = kex
+	cfg.MACAlgorithms = macs
 
 	// defaults for the auth service:
 	cfg.Auth.Enabled = true
