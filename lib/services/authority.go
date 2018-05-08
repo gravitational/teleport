@@ -322,12 +322,15 @@ func (c *CertAuthorityV2) Clone() CertAuthority {
 
 // GetRotation returns rotation state.
 func (c *CertAuthorityV2) GetRotation() Rotation {
-	return c.Spec.Rotation
+	if c.Spec.Rotation == nil {
+		return Rotation{}
+	}
+	return *c.Spec.Rotation
 }
 
 // SetRotation sets rotation state.
 func (c *CertAuthorityV2) SetRotation(r Rotation) {
-	c.Spec.Rotation = r
+	c.Spec.Rotation = &r
 }
 
 // TLSCA returns TLS certificate authority
@@ -569,6 +572,12 @@ const (
 	// RotationPhaseStandby is the initial phase of the rotation
 	// it means no operations have started.
 	RotationPhaseStandby = "standby"
+	// RotationPhaseInit = is a phase of the rotation
+	// when new certificate authoirty is issued, but not used
+	// It is necessary for remote trusted clusters to fetch the
+	// new certificate authority, otherwise the new clients
+	// will reject it
+	RotationPhaseInit = "init"
 	// RotationPhaseUpdateClients is a phase of the rotation
 	// when client credentials will have to be updated and reloaded
 	// but servers will use and respond with old credentials
@@ -590,6 +599,7 @@ const (
 
 // RotatePhases lists all supported rotation phases
 var RotatePhases = []string{
+	RotationPhaseInit,
 	RotationPhaseStandby,
 	RotationPhaseUpdateClients,
 	RotationPhaseUpdateServers,
@@ -707,10 +717,11 @@ func (r *Rotation) CheckAndSetDefaults(clock clockwork.Clock) error {
 // even time periods between rotation phases.
 func GenerateSchedule(clock clockwork.Clock, gracePeriod time.Duration) (*RotationSchedule, error) {
 	if gracePeriod <= 0 {
-		return nil, trace.BadParameter("bad grace period %q, provide value >= 0", gracePeriod)
+		return nil, trace.BadParameter("invalid grace period %q, provide value > 0", gracePeriod)
 	}
 	return &RotationSchedule{
-		UpdateServers: clock.Now().UTC().Add(gracePeriod / 2).UTC(),
+		UpdateClients: clock.Now().UTC().Add(gracePeriod / 3).UTC(),
+		UpdateServers: clock.Now().UTC().Add((gracePeriod * 2) / 3).UTC(),
 		Standby:       clock.Now().UTC().Add(gracePeriod).UTC(),
 	}, nil
 }
@@ -718,6 +729,8 @@ func GenerateSchedule(clock clockwork.Clock, gracePeriod time.Duration) (*Rotati
 // RotationSchedule is a rotation schedule setting time switches
 // for different phases.
 type RotationSchedule struct {
+	// UpdateClients specifies time to switch to the "Update clients" phase
+	UpdateClients time.Time `json:"update_clients,omitempty"`
 	// UpdateServers specifies time to switch to the "Update servers" phase.
 	UpdateServers time.Time `json:"update_servers,omitempty"`
 	// Standby specifies time to switch to the "Standby" phase.
@@ -768,7 +781,7 @@ type CertAuthoritySpecV2 struct {
 	// TLS is a list of TLS key pairs
 	TLSKeyPairs []TLSKeyPair `json:"tls_key_pairs,omitempty"`
 	// Rotation is a status of the certificate authority rotation
-	Rotation Rotation `json:"rotation,omitempty"`
+	Rotation *Rotation `json:"rotation,omitempty"`
 }
 
 // CertAuthoritySpecV2Schema is JSON schema for cert authority V2
@@ -828,6 +841,7 @@ const RotationSchema = `{
     "schedule": {
       "type": "object",
       "properties": {
+        "update_clients": {"type": "string"},
         "update_servers": {"type": "string"},
         "standby": {"type": "string"}
       }

@@ -404,12 +404,12 @@ const (
 
 const (
 	// AuditEnvelopeType is sending a audit event over the websocket to the web client.
-	AuditEnvelopeType = "audit"
+	AuditEnvelopeType = "a"
 
 	// RawEnvelopeType is sending raw terminal bytes over the websocket to the web
 	// client.
-	RawEnvelopeType = "raw"
+	RawEnvelopeType = "r"
 
 	// ResizeRequestEnvelopeType is receiving a resize request.
-	ResizeRequestEnvelopeType = "resize.request"
+	ResizeRequestEnvelopeType = "r.r"
 )
