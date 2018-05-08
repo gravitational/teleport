@@ -441,10 +441,6 @@ func (a *AuthServer) validateTrustedClusterToken(token string) error {
 		return trace.AccessDenied("role does not match")
 	}
 
-	if !a.checkTokenTTL(token) {
-		return trace.AccessDenied("expired token")
-	}
-
 	return nil
 }
 
