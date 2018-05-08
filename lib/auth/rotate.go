@@ -75,7 +75,7 @@ func (r *RotateRequest) CheckAndSetDefaults(clock clockwork.Clock) error {
 	if r.TargetPhase == "" {
 		// if phase if not set, imply that the first meaningful phase
 		// is set as a target phase
-		r.TargetPhase = services.RotationPhaseUpdateClients
+		r.TargetPhase = services.RotationPhaseInit
 	}
 	// if mode is not set, default to manual (as it's safer)
 	if r.Mode == "" {
@@ -139,7 +139,16 @@ type rotationReq struct {
 //
 // * Standby - no action is taken.
 //
-// * Update Clients - new CA is issued, all internal system clients
+// * Init - New CAs are issued, but all internal system clients
+// and servers are still using the old certificates. New CAs are trusted,
+// but are not used. New components that are joining the cluster
+// are issued certificates signed by "old" CAs.
+//
+// This phase is necessary for remote clusters to fetch new certificate authorities,
+// otherwise remote clusters will be locked out, because they won't have a chance
+// to discover the new certificate authorities to be issued.
+//
+// * Update Clients - All internal system clients
 // have to reconnect and receive the new credentials, but all servers
 // TLS, SSH and Proxies will still use old credentials.
 // Certs from old CA and new CA are trusted within the system.
@@ -295,6 +304,18 @@ func (a *AuthServer) autoRotate(ca services.CertAuthority) error {
 	logger := log.WithFields(logrus.Fields{"type": ca.GetType()})
 	var req *rotationReq
 	switch rotation.Phase {
+	case services.RotationPhaseInit:
+		if rotation.Schedule.UpdateClients.After(a.clock.Now()) {
+			return nil
+		}
+		req = &rotationReq{
+			clock:       a.clock,
+			ca:          ca,
+			targetPhase: services.RotationPhaseUpdateClients,
+			mode:        services.RotationModeAuto,
+			gracePeriod: rotation.GracePeriod.Duration,
+			schedule:    rotation.Schedule,
+		}
 	case services.RotationPhaseUpdateClients:
 		if rotation.Schedule.UpdateServers.After(a.clock.Now()) {
 			return nil
@@ -322,7 +343,7 @@ func (a *AuthServer) autoRotate(ca services.CertAuthority) error {
 	default:
 		return trace.BadParameter("phase is not supported: %q", rotation.Phase)
 	}
-	logger.Infof("Setting rotation phase %q", req.targetPhase)
+	logger.Infof("Setting rotation phase to %q", req.targetPhase)
 	rotated, err := processRotationRequest(*req)
 	if err != nil {
 		return trace.Wrap(err)
@@ -341,11 +362,9 @@ func processRotationRequest(req rotationReq) (services.CertAuthority, error) {
 	ca := req.ca.Clone()
 
 	switch req.targetPhase {
-	// This is the first stage of the rotation - new certificate authorities
-	// are being generated, clients will start using new credentials
-	// and servers will use the existing credentials, but will trust clients
-	// with both old and new credentials.
-	case services.RotationPhaseUpdateClients:
+	case services.RotationPhaseInit:
+		// This is the first stage of the rotation - new certificate authorities
+		// are being generated, but no components are using them yet
 		switch rotation.State {
 		case services.RotationStateStandby, "":
 		default:
@@ -355,9 +374,24 @@ func processRotationRequest(req rotationReq) (services.CertAuthority, error) {
 			return nil, trace.Wrap(err)
 		}
 		return ca, nil
+	case services.RotationPhaseUpdateClients:
+		// Update client phase clients will start using new credentials
+		// and servers will use the existing credentials, but will trust clients
+		// with both old and new credentials.
+		if rotation.Phase != services.RotationPhaseInit {
+			return nil, trace.BadParameter(
+				"can only switch to phase %v from %v, current phase is %v",
+				services.RotationPhaseUpdateClients,
+				services.RotationPhaseInit,
+				rotation.Phase)
+		}
+		if err := updateClients(ca, req.mode); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return ca, nil
+	case services.RotationPhaseUpdateServers:
 		// Update server phase uses the new credentials both for servers
 		// and clients, but still trusts clients with old credentials.
-	case services.RotationPhaseUpdateServers:
 		if rotation.Phase != services.RotationPhaseUpdateClients {
 			return nil, trace.BadParameter(
 				"can only switch to phase %v from %v, current phase is %v",
@@ -371,11 +405,11 @@ func processRotationRequest(req rotationReq) (services.CertAuthority, error) {
 		rotation.Mode = req.mode
 		ca.SetRotation(rotation)
 		return ca, nil
+	case services.RotationPhaseRollback:
 		// Rollback moves back both clients and servers to use the old credentials
 		// but will trust new credentials.
-	case services.RotationPhaseRollback:
 		switch rotation.Phase {
-		case services.RotationPhaseUpdateClients, services.RotationPhaseUpdateServers:
+		case services.RotationPhaseInit, services.RotationPhaseUpdateClients, services.RotationPhaseUpdateServers:
 			if err := startRollingBackRotation(ca); err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -383,9 +417,9 @@ func processRotationRequest(req rotationReq) (services.CertAuthority, error) {
 		default:
 			return nil, trace.BadParameter("can not transition to phase %q from %q phase.", req.targetPhase, rotation.Phase)
 		}
+	case services.RotationPhaseStandby:
 		// Transition to the standby phase moves rotation process
 		// to standby, servers will only trust one certificate authority.
-	case services.RotationPhaseStandby:
 		switch rotation.Phase {
 		case services.RotationPhaseUpdateServers, services.RotationPhaseRollback:
 			if err := completeRotation(req.clock, ca); err != nil {
@@ -482,15 +516,42 @@ func startNewRotation(req rotationReq, ca services.CertAuthority) error {
 		rotation.State = services.RotationStateStandby
 		rotation.Phase = services.RotationPhaseStandby
 	} else {
-		// Rotation sets the first key to be the new key
-		// and keep only public keys/certs for the new CA.
-		signingKeys = [][]byte{sshPrivPEM, signingKeys[0]}
-		checkingKeys = [][]byte{sshPubPEM, checkingKeys[0]}
-		oldKeyPair := keyPairs[0]
-		keyPairs = []services.TLSKeyPair{*tlsKeyPair, oldKeyPair}
+		// Initial phase of rotation keeps old CAs as primary signing key
+		// pairs, and generates new CAs that are trusted, but not used in the cluster.
+		signingKeys = [][]byte{signingKeys[0], sshPrivPEM}
+		checkingKeys = [][]byte{checkingKeys[0], sshPubPEM}
+		keyPairs = []services.TLSKeyPair{keyPairs[0], *tlsKeyPair}
 		rotation.State = services.RotationStateInProgress
-		rotation.Phase = services.RotationPhaseUpdateClients
+		rotation.Phase = services.RotationPhaseInit
 	}
+
+	ca.SetSigningKeys(signingKeys)
+	ca.SetCheckingKeys(checkingKeys)
+	ca.SetTLSKeyPairs(keyPairs)
+	ca.SetRotation(rotation)
+	return nil
+}
+
+// updateClients swaps old and new cert authorities:
+//
+// * old CAs exist and are trusted, but are not used for signing
+// * the new CAs are now used for signing
+// * remote components will reload with new certificates used for client connections
+//
+func updateClients(ca services.CertAuthority, mode string) error {
+	rotation := ca.GetRotation()
+
+	signingKeys := ca.GetSigningKeys()
+	checkingKeys := ca.GetCheckingKeys()
+	keyPairs := ca.GetTLSKeyPairs()
+
+	signingKeys = [][]byte{signingKeys[1], signingKeys[0]}
+	checkingKeys = [][]byte{checkingKeys[1], checkingKeys[0]}
+
+	keyPairs = []services.TLSKeyPair{keyPairs[1], keyPairs[0]}
+	rotation.State = services.RotationStateInProgress
+	rotation.Phase = services.RotationPhaseUpdateClients
+	rotation.Mode = mode
 
 	ca.SetSigningKeys(signingKeys)
 	ca.SetCheckingKeys(checkingKeys)

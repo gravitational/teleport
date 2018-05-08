@@ -132,6 +132,15 @@ func (s *TLSSuite) TestRemoteRotation(c *check.C) {
 	err = remoteServer.AuthServer.RotateCertAuthority(RotateRequest{
 		Type:        services.HostCA,
 		GracePeriod: &gracePeriod,
+		TargetPhase: services.RotationPhaseInit,
+		Mode:        services.RotationModeManual,
+	})
+	c.Assert(err, check.IsNil)
+
+	// moves to update clients
+	err = remoteServer.AuthServer.RotateCertAuthority(RotateRequest{
+		Type:        services.HostCA,
+		GracePeriod: &gracePeriod,
 		TargetPhase: services.RotationPhaseUpdateClients,
 		Mode:        services.RotationModeManual,
 	})
@@ -216,7 +225,7 @@ func (s *TLSSuite) TestLocalProxyPermissions(c *check.C) {
 
 // TestAutoRotation tests local automatic rotation
 func (s *TLSSuite) TestAutoRotation(c *check.C) {
-	clock := clockwork.NewFakeClockAt(time.Now())
+	clock := clockwork.NewFakeClockAt(time.Now().Add(-2 * time.Hour))
 	s.server.Auth().SetClock(clock)
 
 	// create proxy client
@@ -237,6 +246,18 @@ func (s *TLSSuite) TestAutoRotation(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
+	// advance rotation by clock
+	clock.Advance(gracePeriod/3 + time.Minute)
+	err = s.server.Auth().autoRotateCertAuthorities()
+	c.Assert(err, check.IsNil)
+
+	ca, err := s.server.Auth().GetCertAuthority(services.CertAuthID{
+		DomainName: s.server.ClusterName(),
+		Type:       services.HostCA,
+	}, false)
+	c.Assert(err, check.IsNil)
+	c.Assert(ca.GetRotation().Phase, check.Equals, services.RotationPhaseUpdateClients)
+
 	// old clients should work
 	_, err = s.server.CloneClient(proxy).GetNodes(defaults.Namespace)
 	c.Assert(err, check.IsNil)
@@ -245,15 +266,12 @@ func (s *TLSSuite) TestAutoRotation(c *check.C) {
 	newProxy, err := s.server.NewClient(TestBuiltin(teleport.RoleProxy))
 	c.Assert(err, check.IsNil)
 
-	_, err = newProxy.GetNodes(defaults.Namespace)
-	c.Assert(err, check.IsNil)
-
 	// advance rotation by clock
-	clock.Advance(gracePeriod/2 + time.Minute)
+	clock.Advance((gracePeriod*2)/3 + time.Minute)
 	err = s.server.Auth().autoRotateCertAuthorities()
 	c.Assert(err, check.IsNil)
 
-	ca, err := s.server.Auth().GetCertAuthority(services.CertAuthID{
+	ca, err = s.server.Auth().GetCertAuthority(services.CertAuthID{
 		DomainName: s.server.ClusterName(),
 		Type:       services.HostCA,
 	}, false)
@@ -265,11 +283,14 @@ func (s *TLSSuite) TestAutoRotation(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// new clients work as well
-	_, err = s.server.CloneClient(newProxy).GetNodes(defaults.Namespace)
+	newProxy, err = s.server.NewClient(TestBuiltin(teleport.RoleProxy))
+	c.Assert(err, check.IsNil)
+
+	_, err = newProxy.GetNodes(defaults.Namespace)
 	c.Assert(err, check.IsNil)
 
 	// complete rotation - advance rotation by clock
-	clock.Advance(gracePeriod/2 + time.Minute)
+	clock.Advance(gracePeriod/3 + time.Minute)
 	err = s.server.Auth().autoRotateCertAuthorities()
 	ca, err = s.server.Auth().GetCertAuthority(services.CertAuthID{
 		DomainName: s.server.ClusterName(),
@@ -296,7 +317,7 @@ func (s *TLSSuite) TestAutoRotation(c *check.C) {
 // when user intervenes with rollback and rotation gets switched
 // to manual mode
 func (s *TLSSuite) TestAutoFallback(c *check.C) {
-	clock := clockwork.NewFakeClockAt(time.Now())
+	clock := clockwork.NewFakeClockAt(time.Now().Add(-2 * time.Hour))
 	s.server.Auth().SetClock(clock)
 
 	// create proxy client just for test purposes
@@ -315,6 +336,11 @@ func (s *TLSSuite) TestAutoFallback(c *check.C) {
 		GracePeriod: &gracePeriod,
 		Mode:        services.RotationModeAuto,
 	})
+	c.Assert(err, check.IsNil)
+
+	// advance rotation by clock
+	clock.Advance(gracePeriod/3 + time.Minute)
+	err = s.server.Auth().autoRotateCertAuthorities()
 	c.Assert(err, check.IsNil)
 
 	ca, err := s.server.Auth().GetCertAuthority(services.CertAuthID{
@@ -366,6 +392,19 @@ func (s *TLSSuite) TestManualRotation(c *check.C) {
 	fixtures.ExpectBadParameter(c, err)
 
 	// starts rotation
+	err = s.server.Auth().RotateCertAuthority(RotateRequest{
+		Type:        services.HostCA,
+		GracePeriod: &gracePeriod,
+		TargetPhase: services.RotationPhaseInit,
+		Mode:        services.RotationModeManual,
+	})
+	c.Assert(err, check.IsNil)
+
+	// old clients should work
+	_, err = s.server.CloneClient(proxy).GetNodes(defaults.Namespace)
+	c.Assert(err, check.IsNil)
+
+	// clients reconnect
 	err = s.server.Auth().RotateCertAuthority(RotateRequest{
 		Type:        services.HostCA,
 		GracePeriod: &gracePeriod,
@@ -446,6 +485,16 @@ func (s *TLSSuite) TestRollback(c *check.C) {
 	// starts rotation
 	gracePeriod := time.Hour
 	s.server.Auth().privateKey = fixtures.PEMBytes["rsa2"]
+
+	err = s.server.Auth().RotateCertAuthority(RotateRequest{
+		Type:        services.HostCA,
+		GracePeriod: &gracePeriod,
+		TargetPhase: services.RotationPhaseInit,
+		Mode:        services.RotationModeManual,
+	})
+	c.Assert(err, check.IsNil)
+
+	// move to update clients phase
 	err = s.server.Auth().RotateCertAuthority(RotateRequest{
 		Type:        services.HostCA,
 		GracePeriod: &gracePeriod,

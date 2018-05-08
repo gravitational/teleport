@@ -115,6 +115,10 @@ const (
 	// in a graceful way.
 	TeleportReloadEvent = "TeleportReload"
 
+	// TeleportPhaseChangeEvent is generated to indidate that teleport
+	// CA rotation phase has been updated, used in tests
+	TeleportPhaseChangeEvent = "TeleportPhaseChange"
+
 	// TeleportReadyEvent is generated to signal that all teleport
 	// internal components have started successfully.
 	TeleportReadyEvent = "TeleportReady"
