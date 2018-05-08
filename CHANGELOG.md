@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.5.7
+
+This release of Teleport focuses on bugfixes.
+
+#### Bug Fixes
+
+* Allow creation of users from `tctl create`. [#1949](https://github.com/gravitational/teleport/pull/1949)
+
 ## 2.5.6
 
 This release of Teleport focuses on bugfixes.
