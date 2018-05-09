@@ -1,0 +1,65 @@
+#!groovy
+pipeline {
+    agent any
+    options {
+        ansiColor(colorMapName: 'XTerm')
+        disableConcurrentBuilds()
+        timestamps()
+    }
+    stages {
+        stage('Create files/build directory') {
+            steps {
+                dir('assets/marketplace') {
+                    sh 'mkdir -p files/build'
+                }
+            }
+        }
+        stage('Run Packer') {
+            steps {
+                dir('assets/marketplace') {
+                    sh 'make oss'
+                }
+            }
+        }
+        stage('Update AMI IDs)') {
+            steps {
+                dir('assets/marketplace') {
+                    sh 'make update-ami-ids-oss'
+                }
+            }
+        }
+        stage('Run Cloudformation and wait for stack') {
+            environment {
+                JENKINS_CLOUDFORMATION_PARAMETERS_PATH = credentials('7d731ad8-ed03-4e42-a411-605c40c182f6')
+            }
+            steps {
+                dir('assets/marketplace') {
+                    sh 'make jenkins-create-stack'
+                    sh 'make jenkins-wait-for-stack-creation'
+                }
+            }
+        }
+        stage('Wait for Teleport Web UI to come up') {
+            steps {
+                timeout(5) {
+                    waitUntil {
+                        script {
+                            def r = sh script: 'wget -q https://jenkins-teleport-quickstart-test-stack.gravitational.io/web/login', returnStatus: true
+                            return (r == 0);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    post {
+        always {
+            dir('assets/marketplace') {
+                script {
+                    sh 'make jenkins-delete-stack'
+                    sh 'make jenkins-wait-for-stack-deletion'
+                }
+            }            
+        }
+    }
+}
