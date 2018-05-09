@@ -768,41 +768,44 @@ func (s *AuthServer) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedK
 
 // ValidateToken takes a provisioning token value and finds if it's valid. Returns
 // a list of roles this token allows its owner to assume, or an error if the token
-// cannot be found
+// cannot be found.
 func (s *AuthServer) ValidateToken(token string) (roles teleport.Roles, e error) {
 	tkns, err := s.GetStaticTokens()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// look at static tokens first:
+	// First check if the token is a static token. If it is, return right away.
+	// Static tokens have no expiration.
 	for _, st := range tkns.GetStaticTokens() {
 		if st.Token == token {
 			return st.Roles, nil
 		}
 	}
-	// look at the tokens in the token storage
+
+	// If it's not a static token, check if it's a ephemeral token in the backend.
+	// If a ephemeral token is found, make sure it's still valid.
 	tok, err := s.Provisioner.GetToken(token)
 	if err != nil {
-		log.Info(err)
-		return nil, trace.Errorf("token not recognized")
+		return nil, trace.Wrap(err)
 	}
+	if !s.checkTokenTTL(tok) {
+		return nil, trace.AccessDenied("token expired")
+	}
+
 	return tok.Roles, nil
 }
 
-// enforceTokenTTL deletes the given token if it's TTL is over. Returns 'false'
-// if this token cannot be used
-func (s *AuthServer) checkTokenTTL(token string) bool {
-	// look at the tokens in the token storage
-	tok, err := s.Provisioner.GetToken(token)
-	if err != nil {
-		log.Warn(err)
-		return true
-	}
+// checkTokenTTL checks if the token is still valid. If it is not, the token
+// is removed from the backend and returns false. Otherwise returns true.
+func (s *AuthServer) checkTokenTTL(tok *services.ProvisionToken) bool {
 	now := s.clock.Now().UTC()
 	if tok.Expires.Before(now) {
-		if err = s.DeleteToken(token); err != nil {
-			log.Error(err)
+		err := s.DeleteToken(tok.Token)
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				log.Warnf("Unable to delete token from backend: %v.", err)
+			}
 		}
 		return false
 	}
@@ -864,9 +867,6 @@ func (s *AuthServer) RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedK
 		msg := fmt.Sprintf("node %q [%v] can not join the cluster, the token does not allow %q role", req.NodeName, req.HostID, req.Role)
 		log.Warn(msg)
 		return nil, trace.BadParameter(msg)
-	}
-	if !s.checkTokenTTL(req.Token) {
-		return nil, trace.AccessDenied("node %q [%v] can not join the cluster, token has expired", req.NodeName, req.HostID)
 	}
 
 	// generate and return host certificate and keys

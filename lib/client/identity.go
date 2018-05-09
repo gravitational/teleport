@@ -100,6 +100,9 @@ func MakeIdentityFile(filePath string, key *Key, format IdentityFileFormat) (err
 		if err != nil {
 			return trace.Wrap(err)
 		}
+	default:
+		return trace.BadParameter("unsupported identity format: %q, use either %q or %q",
+			format, IdentityFormatFile, IdentityFormatOpenSSH)
 	}
 	return nil
 }

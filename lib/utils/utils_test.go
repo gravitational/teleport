@@ -89,6 +89,13 @@ func (s *UtilsSuite) TestMiscFunctions(c *check.C) {
 	c.Assert(Deduplicate([]string{}), check.DeepEquals, []string{})
 	c.Assert(Deduplicate([]string{"a", "b"}), check.DeepEquals, []string{"a", "b"})
 	c.Assert(Deduplicate([]string{"a", "b", "b", "a", "c"}), check.DeepEquals, []string{"a", "b", "c"})
+
+	// RemoveFromSlice
+	c.Assert(RemoveFromSlice([]string{}, "a"), check.DeepEquals, []string{})
+	c.Assert(RemoveFromSlice([]string{"a"}, "a"), check.DeepEquals, []string{})
+	c.Assert(RemoveFromSlice([]string{"a", "b"}, "a"), check.DeepEquals, []string{"b"})
+	c.Assert(RemoveFromSlice([]string{"a", "b"}, "b"), check.DeepEquals, []string{"a"})
+	c.Assert(RemoveFromSlice([]string{"a", "a", "b"}, "a"), check.DeepEquals, []string{"b"})
 }
 
 // TestVersions tests versions compatibility checking
