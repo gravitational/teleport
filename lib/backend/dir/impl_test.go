@@ -44,16 +44,20 @@ var _ = check.Suite(&Suite{clock: clockwork.NewFakeClock()})
 func TestFSBackend(t *testing.T) { check.TestingT(t) }
 
 func (s *Suite) SetUpSuite(c *check.C) {
+	var err error
+
 	dirName := c.MkDir()
-	bk, err := New(backend.Params{"path": dirName})
-	bk.(*Backend).InternalClock = s.clock
+	s.bk, err = New(backend.Params{"path": dirName})
+
+	sb, ok := s.bk.(*backend.Sanitizer)
+	c.Assert(ok, check.Equals, true)
+	sb.Backend().(*Backend).InternalClock = s.clock
 
 	c.Assert(err, check.IsNil)
 
 	// backend must create the dir:
 	c.Assert(utils.IsDir(dirName), check.Equals, true)
 
-	s.bk = bk
 	s.suite.B = s.bk
 }
 
