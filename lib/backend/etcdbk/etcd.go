@@ -88,7 +88,9 @@ func New(params backend.Params) (backend.Backend, error) {
 	if err = b.reconnect(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return b, nil
+
+	// Wrap backend in a input sanitizer and return it.
+	return backend.NewSanitizer(b), nil
 }
 
 // Validate checks if all the parameters are present/valid

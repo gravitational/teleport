@@ -291,30 +291,11 @@ type OIDCAuthResponse struct {
 	HostSigners []services.CertAuthority `json:"host_signers"`
 }
 
-// buildRoles takes a connector and claims and returns a slice of roles. If the claims
-// match a concrete roles in the connector, those roles are returned directly. If the
-// claims match a template role in the connector, then that role is first created from
-// the template, then returned.
-func (a *AuthServer) buildRoles(connector services.OIDCConnector, ident *oidc.Identity, claims jose.Claims) ([]string, error) {
+// buildOIDCRoles takes a connector and claims and returns a slice of roles.
+func (a *AuthServer) buildOIDCRoles(connector services.OIDCConnector, claims jose.Claims) ([]string, error) {
 	roles := connector.MapClaims(claims)
 	if len(roles) == 0 {
-		role, err := connector.RoleFromTemplate(claims)
-		if err != nil {
-			log.Warningf("[OIDC] Unable to map claims to roles or role templates for %q: %v", connector.GetName(), err)
-			return nil, trace.AccessDenied("unable to map claims to roles or role templates for %q: %v", connector.GetName(), err)
-		}
-
-		// figure out ttl for role. expires = now + ttl  =>  ttl = expires - now
-		ttl := ident.ExpiresAt.Sub(a.clock.Now())
-
-		// upsert templated role
-		err = a.Access.UpsertRole(role, ttl)
-		if err != nil {
-			log.Warningf("[OIDC] Unable to upsert templated role for connector: %q: %v", connector.GetName(), err)
-			return nil, trace.AccessDenied("unable to upsert templated role: %q: %v", connector.GetName(), err)
-		}
-
-		roles = []string{role.GetName()}
+		return nil, trace.AccessDenied("unable to map claims to role for connector: %v", connector.GetName())
 	}
 
 	return roles, nil
@@ -340,7 +321,7 @@ func claimsToTraitMap(claims jose.Claims) map[string][]string {
 }
 
 func (a *AuthServer) createOIDCUser(connector services.OIDCConnector, ident *oidc.Identity, claims jose.Claims) error {
-	roles, err := a.buildRoles(connector, ident, claims)
+	roles, err := a.buildOIDCRoles(connector, claims)
 	if err != nil {
 		return trace.Wrap(err)
 	}

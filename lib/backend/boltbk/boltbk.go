@@ -106,11 +106,13 @@ func New(params backend.Params) (backend.Backend, error) {
 		}
 		return nil, trace.Wrap(err)
 	}
-	return &BoltBackend{
+
+	// Wrap the backend in a input sanitizer and return it.
+	return backend.NewSanitizer(&BoltBackend{
 		locks: make(map[string]time.Time),
 		clock: clockwork.NewRealClock(),
 		db:    db,
-	}, nil
+	}), nil
 }
 
 // Clock returns clock assigned to the backend

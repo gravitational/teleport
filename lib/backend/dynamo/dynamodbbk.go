@@ -198,7 +198,9 @@ func New(params backend.Params) (backend.Backend, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return b, nil
+
+	// Wrap backend in a input sanitizer and return it.
+	return backend.NewSanitizer(b), nil
 }
 
 type tableStatus int
