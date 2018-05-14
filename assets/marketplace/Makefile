@@ -40,6 +40,9 @@ JENKINS_TEST_STACK_NAME := jenkins-teleport-quickstart-test-stack
 
 # Jenkins Cloudformation parameters path
 JENKINS_CLOUDFORMATION_PARAMETERS_PATH ?= ./files/build/jenkins-parameters.json
+
+# YAML filename
+CF_YAML_FILENAME ?= ./oss.yaml
 export
 
 .PHONY: oss
@@ -69,17 +72,34 @@ update-ami-ids-ent:
 
 .PHONY: validate-template
 validate-template:
-	aws cloudformation validate-template --template-body file://./oss.yaml
+	aws cloudformation validate-template --template-body file://$(CF_YAML_FILENAME)
+
+.PHONY: validate-template-existing-vpc
+validate-template-existing-vpc: CF_YAML_FILENAME=./oss-existingvpc.yaml
+validate-template-existing-vpc:
+	$(MAKE) validate-template
 
 .PHONY: create-stack
 create-stack:
 	$(MAKE) validate-template
-	aws --region=$(AWS_REGION) cloudformation create-stack --capabilities CAPABILITY_IAM --stack-name $(STACK) --template-body file://./oss.yaml --parameters $(STACK_PARAMS) 
+	aws --region=$(AWS_REGION) cloudformation create-stack --capabilities CAPABILITY_IAM --stack-name $(STACK) --template-body file://$(CF_YAML_FILENAME) --parameters $(STACK_PARAMS)
+
+.PHONY: create-stack-existing-vpc
+create-stack-existing-vpc: CF_YAML_FILENAME=./oss-existingvpc.yaml
+create-stack-existing-vpc:
+	$(MAKE) validate-template-existing-vpc
+	$(MAKE) create-stack
 
 .PHONY: update-stack
 update-stack:
 	$(MAKE) validate-template
-	aws --region=$(AWS_REGION) cloudformation update-stack --capabilities CAPABILITY_IAM --stack-name $(STACK) --template-body file://./oss.yaml --parameters $(STACK_PARAMS)
+	aws --region=$(AWS_REGION) cloudformation update-stack --capabilities CAPABILITY_IAM --stack-name $(STACK) --template-body file://$(CF_YAML_FILENAME) --parameters $(STACK_PARAMS)
+
+.PHONY: update-stack-existing-vpc
+update-stack-existing-vpc: CF_YAML_FILENAME=./oss-existingvpc.yaml
+update-stack-existing-vpc:
+	$(MAKE) validate-template-existing-vpc
+	$(MAKE) update-stack
 
 .PHONY: describe-stack
 describe-stack:
@@ -92,7 +112,7 @@ delete-stack:
 .PHONY: jenkins-create-stack
 jenkins-create-stack:
 	$(MAKE) validate-template
-	aws --region=$(AWS_REGION) cloudformation create-stack --capabilities CAPABILITY_IAM --stack-name $(JENKINS_TEST_STACK_NAME) --template-body file://./oss.yaml --parameters file://$(JENKINS_CLOUDFORMATION_PARAMETERS_PATH)
+	aws --region=$(AWS_REGION) cloudformation create-stack --capabilities CAPABILITY_IAM --stack-name $(JENKINS_TEST_STACK_NAME) --template-body file://$(CF_YAML_FILENAME) --parameters file://$(JENKINS_CLOUDFORMATION_PARAMETERS_PATH)
 
 .PHONY: jenkins-wait-for-stack-creation
 jenkins-wait-for-stack-creation:
