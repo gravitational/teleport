@@ -83,14 +83,6 @@ Resources:
       InternetGatewayId: {Ref: InternetGateway}
       VpcId: {Ref: VPC}
 
-  # VPC is a virtual private cloud # TODO remove
-  #VPC:
-  #  Type: AWS::EC2::VPC
-  #  Properties:
-  #    CidrBlock: {Ref: CIDRVPC}
-  #    EnableDnsSupport: true
-  #    EnableDnsHostnames: true
-
   # VPC Routing table that sets up default
   # route to use internet gateway,
   # subnets using this table are public subnets
