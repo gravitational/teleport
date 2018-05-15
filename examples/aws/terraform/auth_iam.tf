@@ -58,7 +58,7 @@ resource "aws_iam_role_policy" "auth_ssm" {
 EOF
 }
 
-// Auth server uses DynamoDB as a backend, and this is to allow read/write from the table.
+// Auth server uses DynamoDB as a backend, and this is to allow read/write from the dynamo tables
 resource "aws_iam_role_policy" "auth_dynamo" {
   name = "${var.cluster_name}-auth-dynamo"
   role = "${aws_iam_role.auth.id}"
@@ -72,6 +72,18 @@ resource "aws_iam_role_policy" "auth_dynamo" {
             "Effect": "Allow",
             "Action": "dynamodb:*",
             "Resource": "arn:aws:dynamodb:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:table/${aws_dynamodb_table.teleport.name}"
+        },
+        {
+            "Sid": "AllActionsOnTeleportEventsDB",
+            "Effect": "Allow",
+            "Action": "dynamodb:*",
+            "Resource": "arn:aws:dynamodb:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:table/${aws_dynamodb_table.teleport_events.name}"
+        },
+        {
+            "Sid": "AllActionsOnTeleportEventsIndexDB",
+            "Effect": "Allow",
+            "Action": "dynamodb:*",
+            "Resource": "arn:aws:dynamodb:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:table/${aws_dynamodb_table.teleport_events.name}/index/*"
         }
     ]
 }
