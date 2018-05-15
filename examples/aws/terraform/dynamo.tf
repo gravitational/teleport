@@ -7,6 +7,9 @@ resource "aws_dynamodb_table" "teleport" {
   write_capacity = 20
   hash_key        = "HashKey"
   range_key       = "FullPath"
+  server_side_encryption {
+    enabled = true
+  }
 
   lifecycle {
     ignore_changes = ["read_capacity", "write_capacity"]
@@ -20,6 +23,61 @@ resource "aws_dynamodb_table" "teleport" {
   attribute {
     name = "FullPath"
     type = "S"
+  }
+
+  ttl {
+     attribute_name = "Expires"
+     enabled = true
+  }
+
+  tags {
+    TeleportCluster = "${var.cluster_name}"
+  }
+}
+
+// Dynamodb events table stores events
+resource "aws_dynamodb_table" "teleport_events" {
+  name           = "${var.cluster_name}-events"
+  read_capacity  = 20
+  write_capacity = 20
+  hash_key        = "SessionID"
+  range_key       = "EventIndex"
+
+  server_side_encryption {
+    enabled = true
+  }
+
+  global_secondary_index {
+    name               = "timesearch"
+    hash_key           = "EventNamespace"
+    range_key          = "CreatedAt"
+    write_capacity     = 20
+    read_capacity      = 20
+    projection_type    = "ALL"
+  }
+
+  lifecycle {
+    ignore_changes = ["read_capacity", "write_capacity"]
+  }
+
+  attribute {
+    name = "SessionID"
+    type = "S"
+  }
+
+  attribute {
+    name = "EventIndex"
+    type = "N"
+  }
+
+  attribute {
+    name = "EventNamespace"
+    type = "S"
+  }
+
+  attribute {
+    name = "CreatedAt"
+    type = "N"
   }
 
   ttl {

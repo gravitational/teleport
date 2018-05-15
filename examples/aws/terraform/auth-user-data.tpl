@@ -22,20 +22,13 @@ adduser teleport adm
 mkdir -p /var/run/teleport/
 chown -R teleport:adm /var/run/teleport
 
+# Setup teleport data dir used for transient storage
+mkdir -p /var/lib/teleport/
+chown -R teleport:adm /var/lib/teleport
+
 # Setup teleport auth server config file
 LOCAL_IP=`curl http://169.254.169.254/latest/meta-data/local-ipv4`
 LOCAL_HOSTNAME=`curl http://169.254.169.254/latest/meta-data/local-hostname`
-
-# Mount EFS for audit logs storage.
-# Teleport auth servers store audit logs on EFS shared file system
-apt-get install -y nfs-common
-mkdir -p /var/lib/teleport/log
-echo "${efs_mount_point}:/ /var/lib/teleport/log nfs4 nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2 0 0" >> /etc/fstab
-until mount -a -t nfs4
-do
-    echo "mount failed, try again after 1 second"
-    sleep 1
-done
 
 # Set host UUID so auth server picks it up, as each auth server's
 # logs are stored in individual folder /var/lib/teleport/log/<host_uuid>/
@@ -76,6 +69,8 @@ teleport:
     type: dynamodb
     region: ${region}
     table_name: ${dynamo_table_name}
+    audit_table_name: ${dynamo_events_table_name}
+    audit_sessions_uri: s3://${s3_bucket}/records
 
 auth_service:
   enabled: yes
