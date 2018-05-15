@@ -74,17 +74,13 @@ After stack has been provisioned, login to the AWS Console and capture the IP ad
 
 ```
 ssh -i key.pem -o ProxyCommand="ssh -i key.pem -W %h:%p ec2-user@PROXY_SERVER" ec2-user@$AUTH_SERVER
-```
 
 # For OSS
 
-```
 sudo -u teleport tctl users add bob bob
-```
 
 # For Enterprise
 
-```
 sudo -u teleport tctl users add bob --roles=admin
 ```
 
