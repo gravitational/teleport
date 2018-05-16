@@ -74,6 +74,7 @@ update-ami-ids-ent:
 validate-template:
 	aws cloudformation validate-template --template-body file://$(CF_YAML_FILENAME)
 
+
 # Stack functionality
 # Create
 .PHONY: create-stack
@@ -85,11 +86,6 @@ create-stack:
 create-stack-vpc: CF_YAML_FILENAME=./oss-vpc.yaml
 create-stack-vpc:
 	$(MAKE) create-stack
-
-.PHONY: create-stack-with-params-from-file
-create-stack-with-params-from-file:
-	$(MAKE) validate-template
-	aws --region=$(AWS_REGION) cloudformation create-stack --capabilities CAPABILITY_IAM --stack-name $(STACK) --template-body file://$(CF_YAML_FILENAME) --parameters file://$(STACK_PARAMS_FILE)
 
 # Update
 .PHONY: update-stack
