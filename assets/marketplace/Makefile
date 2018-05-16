@@ -74,61 +74,104 @@ update-ami-ids-ent:
 validate-template:
 	aws cloudformation validate-template --template-body file://$(CF_YAML_FILENAME)
 
-.PHONY: validate-template-existing-vpc
-validate-template-existing-vpc: CF_YAML_FILENAME=./oss-existingvpc.yaml
-validate-template-existing-vpc:
-	$(MAKE) validate-template
-
+# Stack functionality
+# Create
 .PHONY: create-stack
 create-stack:
 	$(MAKE) validate-template
 	aws --region=$(AWS_REGION) cloudformation create-stack --capabilities CAPABILITY_IAM --stack-name $(STACK) --template-body file://$(CF_YAML_FILENAME) --parameters $(STACK_PARAMS)
 
-.PHONY: create-stack-existing-vpc
-create-stack-existing-vpc: CF_YAML_FILENAME=./oss-existingvpc.yaml
-create-stack-existing-vpc:
-	$(MAKE) validate-template-existing-vpc
+.PHONY: create-stack-vpc
+create-stack-vpc: CF_YAML_FILENAME=./oss-vpc.yaml
+create-stack-vpc:
 	$(MAKE) create-stack
 
+.PHONY: create-stack-with-params-from-file
+create-stack-with-params-from-file:
+	$(MAKE) validate-template
+	aws --region=$(AWS_REGION) cloudformation create-stack --capabilities CAPABILITY_IAM --stack-name $(STACK) --template-body file://$(CF_YAML_FILENAME) --parameters file://$(STACK_PARAMS_FILE)
+
+# Update
 .PHONY: update-stack
 update-stack:
 	$(MAKE) validate-template
 	aws --region=$(AWS_REGION) cloudformation update-stack --capabilities CAPABILITY_IAM --stack-name $(STACK) --template-body file://$(CF_YAML_FILENAME) --parameters $(STACK_PARAMS)
 
-.PHONY: update-stack-existing-vpc
-update-stack-existing-vpc: CF_YAML_FILENAME=./oss-existingvpc.yaml
-update-stack-existing-vpc:
-	$(MAKE) validate-template-existing-vpc
+.PHONY: update-stack-vpc
+update-stack-vpc: CF_YAML_FILENAME=./oss-vpc.yaml
+update-stack-vpc:
 	$(MAKE) update-stack
 
+# Describe
 .PHONY: describe-stack
 describe-stack:
-	aws --region=$(AWS_REGION) cloudformation describe-stacks --stack-name $(STACK)
+	@aws --region=$(AWS_REGION) cloudformation describe-stacks --stack-name $(STACK)
 
+.PHONY: describe-stack-outputs
+describe-stack-outputs:
+	@aws --region=$(AWS_REGION) cloudformation describe-stacks --stack-name $(STACK) --query 'Stacks[].Outputs[]'
+
+# Delete
 .PHONY: delete-stack
 delete-stack:
 	aws --region=$(AWS_REGION) cloudformation delete-stack --stack-name $(STACK)
 
+# Jenkins helpers
 .PHONY: jenkins-create-stack
 jenkins-create-stack:
 	$(MAKE) validate-template
 	aws --region=$(AWS_REGION) cloudformation create-stack --capabilities CAPABILITY_IAM --stack-name $(JENKINS_TEST_STACK_NAME) --template-body file://$(CF_YAML_FILENAME) --parameters file://$(JENKINS_CLOUDFORMATION_PARAMETERS_PATH)
 
+.PHONY: jenkins-create-stack-vpc
+jenkins-create-stack-vpc: CF_YAML_FILENAME=./oss-vpc.yaml
+jenkins-create-stack-vpc: JENKINS_TEST_STACK_NAME=jenkins-test-stack-vpc
+jenkins-create-stack-vpc:
+	$(MAKE) jenkins-create-stack
+
 .PHONY: jenkins-wait-for-stack-creation
 jenkins-wait-for-stack-creation:
 	aws --region=$(AWS_REGION) cloudformation wait stack-create-complete --stack-name $(JENKINS_TEST_STACK_NAME)
+
+.PHONY: jenkins-wait-for-stack-creation-vpc
+jenkins-wait-for-stack-creation-vpc: JENKINS_TEST_STACK_NAME=jenkins-test-stack-vpc
+jenkins-wait-for-stack-creation-vpc:
+	$(MAKE) jenkins-wait-for-stack-creation
 
 .PHONY: jenkins-describe-stack
 jenkins-describe-stack:
 	@aws --region=$(AWS_REGION) cloudformation describe-stacks --stack-name $(JENKINS_TEST_STACK_NAME)
 
+.PHONY: jenkins-describe-stack-outputs
+jenkins-describe-stack-outputs:
+	@aws --region=$(AWS_REGION) cloudformation describe-stacks --stack-name $(JENKINS_TEST_STACK_NAME) --query 'Stacks[].Outputs[]'
+
+.PHONY: jenkins-describe-stack-vpc
+jenkins-describe-stack-vpc: JENKINS_TEST_STACK_NAME=jenkins-test-stack-vpc
+jenkins-describe-stack-vpc:
+	$(MAKE) jenkins-describe-stack
+
+.PHONY: jenkins-describe-stack-vpc-outputs
+jenkins-describe-stack-vpc-outputs: JENKINS_TEST_STACK_NAME=jenkins-test-stack-vpc
+jenkins-describe-stack-vpc-outputs:
+	$(MAKE) jenkins-describe-stack-outputs
+
 .PHONY: jenkins-delete-stack
 jenkins-delete-stack:
 	aws --region=$(AWS_REGION) cloudformation delete-stack --stack-name $(JENKINS_TEST_STACK_NAME)
 
+.PHONY: jenkins-delete-stack-vpc
+jenkins-delete-stack-vpc: JENKINS_TEST_STACK_NAME=jenkins-test-stack-vpc
+jenkins-delete-stack-vpc:
+	$(MAKE) jenkins-delete-stack
+
 .PHONY: jenkins-wait-for-stack-deletion
 jenkins-wait-for-stack-deletion:
 	aws --region=$(AWS_REGION) cloudformation wait stack-delete-complete --stack-name $(JENKINS_TEST_STACK_NAME)
+
+.PHONY: jenkins-wait-for-stack-deletion-vpc
+jenkins-wait-for-stack-deletion-vpc: JENKINS_TEST_STACK_NAME=jenkins-test-stack-vpc
+jenkins-wait-for-stack-deletion-vpc:
+	$(MAKE) jenkins-wait-for-stack-deletion
 
 .PHONY: check-ent-vars
 check-ent-vars:

@@ -34,38 +34,30 @@ make oss
 make update-ami-ids-oss
 ```
 
-**Launch a dev cloudformation stack which creates its own VPC**
-
-Fill out the values in the second line for `STACK_PARAMS` then run `make create-stack`.
-
-```
-export STACK=test1
-export STACK_PARAMS="ParameterKey=KeyName,ParameterValue=KeyName ParameterKey=DomainName,ParameterValue=teleport.example.com ParameterKey=DomainAdminEmail,ParameterValue=admin@example.com ParameterKey=HostedZoneID,ParameterValue=AWSZONEID"
-make create-stack
-```
-
 **Launch a dev cloudformation stack using an existing VPC**
 
 When using an existing VPC it must have both DNS support and DNS hostnames enabled.
 
-The deployment needs six CIDR subnets provided which are inside the VPC's CIDR range. Each subnet needs at least two addresses available.
+The deployment needs six VPC subnet IDs provided - two public (for the proxy) and four private (for auth and nodes).
+For redundancy, the subnets should be split across availability zones - odd numbers in AZ A and even numbers in AZ B, for example.
+
+Replace the placeholder values in the exports below.
 
 ```
 export STACK=test1
 export STACK_PARAMS="\
-ParameterKey=VPC,ParameterValue=EXISTINGVPCID \
-ParameterKey=CIDRVPC,ParameterValue=10.0.0.0/16 \
-ParameterKey=CIDRProxyA,ParameterValue=10.0.252.0/25 \
-ParameterKey=CIDRProxyB,ParameterValue=10.0.252.128/25 \
-ParameterKey=CIDRAuthA,ParameterValue=10.0.253.0/25 \
-ParameterKey=CIDRAuthB,ParameterValue=10.0.253.128/25 \
-ParameterKey=CIDRNodeA,ParameterValue=10.0.254.0/25 \
-ParameterKey=CIDRNodeB,ParameterValue=10.0.254.128/25 \
+ParameterKey=VPCID,ParameterValue=EXISTING_VPC_ID \
+ParameterKey=ProxySubnetA,ParameterValue=PUBLIC_SUBNET_ID_1 \
+ParameterKey=ProxySubnetB,ParameterValue=PUBLIC_SUBNET_ID_2 \
+ParameterKey=AuthSubnetA,ParameterValue=PRIVATE_SUBNET_ID_1 \
+ParameterKey=AuthSubnetB,ParameterValue=PRIVATE_SUBNET_ID_2 \
+ParameterKey=NodeSubnetA,ParameterValue=PRIVATE_SUBNET_ID_3 \
+ParameterKey=NodeSubnetB,ParameterValue=PRIVATE_SUBNET_ID_4 \
 ParameterKey=KeyName,ParameterValue=KeyName \
 ParameterKey=DomainName,ParameterValue=teleport.example.com \
 ParameterKey=DomainAdminEmail,ParameterValue=admin@example.com \
-ParameterKey=HostedZoneID,ParameterValue=AWSZONEID"
-make create-stack-existing-vpc
+ParameterKey=HostedZoneID,ParameterValue=AWS_ZONE_ID"
+make create-stack
 ```
 
 ## Usage instructions

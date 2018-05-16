@@ -47,9 +47,9 @@ for REGION in ${REGION_LIST}; do
         exit 2
     elif [[ "${NEW_AMI_ID}" != "${CURRENT_AMI_ID}" ]]; then
         sed -i "s/${CURRENT_AMI_ID}/${NEW_AMI_ID}/g" ${YAML_PATH}/${RUN_MODE}.yaml
-        if [[ "${RUN_MODE}" == "oss" ]]; then
-            sed -i "s/${CURRENT_AMI_ID}/${NEW_AMI_ID}/g" ${YAML_PATH}/oss-existingvpc.yaml
-        fi
+        #if [[ "${RUN_MODE}" == "oss" ]]; then # TODO remove
+        #    sed -i "s/${CURRENT_AMI_ID}/${NEW_AMI_ID}/g" ${YAML_PATH}/oss-vpc.yaml
+        #fi
         echo "AMI ID for ${REGION} changed from ${CURRENT_AMI_ID} to ${NEW_AMI_ID}"
     fi
 done

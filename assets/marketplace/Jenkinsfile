@@ -34,6 +34,17 @@ pipeline {
             }
             steps {
                 dir('assets/marketplace') {
+                    sh 'make jenkins-create-stack-vpc'
+                    sh 'make jenkins-wait-for-stack-creation-vpc'
+                    // get VPC stack outputs as a JSON list of {ParameterKey: key, ParameterValue: value} pairs
+                    // write this to vpc.json
+                    sh "make jenkins-describe-stack-outputs | jq -r 'map ( { ParameterKey: ( .OutputKey | tostring ), ParameterValue: ( .OutputValue | tostring) } )' > vpc.json"
+                    // use jq to combine Jenkins JSON stack parameters and vpc.json into one list of pairs
+                    sh "jq -s add ${JENKINS_CLOUDFORMATION_PARAMETERS_PATH} vpc.json > full-parameters.json"
+                    sh "cat full-parameters.json"
+                    // update path to parameters file
+                    sh "export JENKINS_CLOUDFORMATION_PARAMETERS_PATH=full-parameters.json"
+                    // create ASG stack
                     sh 'make jenkins-create-stack'
                     sh 'make jenkins-wait-for-stack-creation'
                 }
@@ -56,8 +67,12 @@ pipeline {
         always {
             dir('assets/marketplace') {
                 script {
-                    sh 'make jenkins-delete-stack'
-                    sh 'make jenkins-wait-for-stack-deletion'
+                    // we want to run all these shutdown steps in order regardless of success/failure (in case part of the ASG fails)
+                    // so we use '|| true' to suppress return codes > 0
+                    sh 'make jenkins-delete-stack || true'
+                    sh 'make jenkins-wait-for-stack-deletion || true'
+                    sh 'make jenkins-delete-stack-vpc || true'
+                    sh 'make jenkins-wait-for-stack-deletion-vpc || true'
                 }
             }            
         }
