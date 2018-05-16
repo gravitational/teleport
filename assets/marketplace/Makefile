@@ -36,7 +36,7 @@ TELEPORT_LICENSE_URI ?=
 BUILD_TIMESTAMP := $(shell TZ=UTC /bin/date "+%Y%m%d-%H%M%S%Z")
 
 # Jenkins test CloudFormation stack name
-JENKINS_TEST_STACK_NAME := jenkins-teleport-quickstart-test-stack
+JENKINS_TEST_STACK_NAME ?= jenkins-teleport-quickstart-test-stack
 
 # Jenkins Cloudformation parameters path
 JENKINS_CLOUDFORMATION_PARAMETERS_PATH ?= ./files/build/jenkins-parameters.json
