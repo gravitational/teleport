@@ -107,6 +107,12 @@ describe-stack:
 describe-stack-outputs:
 	@aws --region=$(AWS_REGION) cloudformation describe-stacks --stack-name $(STACK) --query 'Stacks[].Outputs[]'
 
+.PHONY: describe-stack-outputs-vpc
+describe-stack-outputs-vpc: JENKINS_TEST_STACK_NAME=jenkins-teleport-quickstart-test-stack-vpc
+describe-stack-outputs-vpc:
+	@aws --region=$(AWS_REGION) cloudformation describe-stacks --stack-name $(STACK) --query 'Stacks[].Outputs[]'
+
+
 # Delete
 .PHONY: delete-stack
 delete-stack:
@@ -120,7 +126,7 @@ jenkins-create-stack:
 
 .PHONY: jenkins-create-stack-vpc
 jenkins-create-stack-vpc: CF_YAML_FILENAME=./oss-vpc.yaml
-jenkins-create-stack-vpc: JENKINS_TEST_STACK_NAME=jenkins-test-stack-vpc
+jenkins-create-stack-vpc: JENKINS_TEST_STACK_NAME=jenkins-teleport-quickstart-test-stack-vpc
 jenkins-create-stack-vpc:
 	$(MAKE) jenkins-create-stack
 
@@ -129,7 +135,7 @@ jenkins-wait-for-stack-creation:
 	aws --region=$(AWS_REGION) cloudformation wait stack-create-complete --stack-name $(JENKINS_TEST_STACK_NAME)
 
 .PHONY: jenkins-wait-for-stack-creation-vpc
-jenkins-wait-for-stack-creation-vpc: JENKINS_TEST_STACK_NAME=jenkins-test-stack-vpc
+jenkins-wait-for-stack-creation-vpc: JENKINS_TEST_STACK_NAME=jenkins-teleport-quickstart-test-stack-vpc
 jenkins-wait-for-stack-creation-vpc:
 	$(MAKE) jenkins-wait-for-stack-creation
 
@@ -142,12 +148,12 @@ jenkins-describe-stack-outputs:
 	@aws --region=$(AWS_REGION) cloudformation describe-stacks --stack-name $(JENKINS_TEST_STACK_NAME) --query 'Stacks[].Outputs[]'
 
 .PHONY: jenkins-describe-stack-vpc
-jenkins-describe-stack-vpc: JENKINS_TEST_STACK_NAME=jenkins-test-stack-vpc
+jenkins-describe-stack-vpc: JENKINS_TEST_STACK_NAME=jenkins-teleport-quickstart-test-stack-vpc
 jenkins-describe-stack-vpc:
 	$(MAKE) jenkins-describe-stack
 
-.PHONY: jenkins-describe-stack-vpc-outputs
-jenkins-describe-stack-vpc-outputs: JENKINS_TEST_STACK_NAME=jenkins-test-stack-vpc
+.PHONY: jenkins-describe-stack-outputs-vpc
+jenkins-describe-stack-vpc-outputs: JENKINS_TEST_STACK_NAME=jenkins-teleport-quickstart-test-stack-vpc
 jenkins-describe-stack-vpc-outputs:
 	$(MAKE) jenkins-describe-stack-outputs
 
@@ -156,7 +162,7 @@ jenkins-delete-stack:
 	aws --region=$(AWS_REGION) cloudformation delete-stack --stack-name $(JENKINS_TEST_STACK_NAME)
 
 .PHONY: jenkins-delete-stack-vpc
-jenkins-delete-stack-vpc: JENKINS_TEST_STACK_NAME=jenkins-test-stack-vpc
+jenkins-delete-stack-vpc: JENKINS_TEST_STACK_NAME=jenkins-teleport-quickstart-test-stack-vpc
 jenkins-delete-stack-vpc:
 	$(MAKE) jenkins-delete-stack
 
