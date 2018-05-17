@@ -81,9 +81,11 @@ const (
 	// connection attempts
 	DefaultDialTimeout = 30 * time.Second
 
-	// HTTPIdleConnsPerHost specifies maximum idle connections per host
-	// in HTTP connection pool
-	HTTPIdleConnsPerHost = 5
+	// HTTPMaxIdleConns is the max idle connections across all hosts.
+	HTTPMaxIdleConns = 2000
+
+	// HTTPMaxIdleConnsPerHost is the max idle connections per-host.
+	HTTPMaxIdleConnsPerHost = 1000
 
 	// HTTPIdleTimeout is a default timeout for idle HTTP connections
 	HTTPIdleTimeout = 30 * time.Second

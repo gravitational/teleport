@@ -123,10 +123,16 @@ func NewTLSClientWithDialer(dialContext DialContext, cfg *tls.Config, params ...
 		DialContext:           dialContext,
 		ResponseHeaderTimeout: defaults.DefaultDialTimeout,
 		TLSClientConfig:       cfg,
-		MaxIdleConnsPerHost:   defaults.HTTPIdleConnsPerHost,
+
+		// Increase the size of the connection pool. This substantially improves the
+		// performance of Teleport under load as it reduces the number of TLS
+		// handshakes performed.
+		MaxIdleConns:        defaults.HTTPMaxIdleConns,
+		MaxIdleConnsPerHost: defaults.HTTPMaxIdleConnsPerHost,
+
 		// IdleConnTimeout defines the maximum amount of time before idle connections
 		// are closed. Leaving this unset will lead to connections open forever and
-		// will cause memory leaks in a long running process
+		// will cause memory leaks in a long running process.
 		IdleConnTimeout: defaults.HTTPIdleTimeout,
 	}
 	// this logic is necessary to force client to always send certificate
