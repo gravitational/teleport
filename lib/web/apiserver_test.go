@@ -392,6 +392,11 @@ func (s *WebSuite) TestNewUser(c *C) {
 	token, err := s.roleAuth.CreateSignupToken(services.UserV1{Name: "bob", AllowedLogins: []string{s.user}}, 0)
 	c.Assert(err, IsNil)
 
+	// Save the original signup token, after GET /v2/webapi/users/invites/<token>
+	// this should change.
+	ost, err := s.roleAuth.GetSignupToken(token)
+	c.Assert(err, IsNil)
+
 	tokens, err := s.roleAuth.GetTokens()
 	c.Assert(err, IsNil)
 	c.Assert(len(tokens), Equals, 1)
@@ -406,10 +411,14 @@ func (s *WebSuite) TestNewUser(c *C) {
 	c.Assert(out.User, Equals, "bob")
 	c.Assert(out.InviteToken, Equals, token)
 
-	// TODO(rjones) replaced GetSignupTokenData with GetSignupToken
-	tokenData, err := s.roleAuth.GetSignupToken(token)
+	st, err := s.roleAuth.GetSignupToken(token)
 	c.Assert(err, IsNil)
-	validToken, err := totp.GenerateCode(tokenData.OTPKey, time.Now())
+
+	// Make sure that the signup token changed after rending the endpoint
+	// GET /v2/webapi/users/invites/<token> above.
+	c.Assert(st, Not(Equals), ost)
+
+	validToken, err := totp.GenerateCode(st.OTPKey, time.Now())
 	c.Assert(err, IsNil)
 
 	tempPass := "abc123"
