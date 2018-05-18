@@ -82,6 +82,11 @@ func (s *AuthServer) CreateSignupToken(userv1 services.UserV1, ttl time.Duration
 		return "", trace.Wrap(err)
 	}
 
+	// This OTP secret and QR code are never actually used. The OTP secret and
+	// QR code are rotated every time the signup link is show to the user, see
+	// the "GetSignupTokenData" function for details on why this is done. We
+	// generate a OTP token because it causes no harm and makes tests easier to
+	// write.
 	accountName := user.GetName() + "@" + s.AuthServiceName
 	otpKey, otpQRCode, err := s.initializeTOTP(accountName)
 	if err != nil {
@@ -131,21 +136,57 @@ func (s *AuthServer) initializeTOTP(accountName string) (key string, qr []byte, 
 	return otpKey.Secret(), otpQRBuf.Bytes(), nil
 }
 
-// GetSignupTokenData returns token data for a valid token
+// rotateAndFetchSignupToken rotates the signup token everytime it's fetched.
+// This ensures that an attacker that gains the signup link can not view it,
+// extract the OTP key from the QR code, then allow the user to signup with
+// the same OTP token.
+func (s *AuthServer) rotateAndFetchSignupToken(token string) (*services.SignupToken, error) {
+	var err error
+
+	// Fetch original signup token.
+	st, err := s.GetSignupToken(token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Generate and set new OTP code for user in *services.SignupToken.
+	accountName := st.User.V2().GetName() + "@" + s.AuthServiceName
+	st.OTPKey, st.OTPQRCode, err = s.initializeTOTP(accountName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Upsert token into backend.
+	err = s.UpsertSignupToken(token, *st, st.Expires.Sub(s.clock.Now()))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return st, nil
+}
+
+// GetSignupTokenData returns token data (username and QR code bytes) for a
+// valid signup token.
 func (s *AuthServer) GetSignupTokenData(token string) (user string, qrCode []byte, err error) {
-	tokenData, err := s.GetSignupToken(token)
+	// Rotate OTP secret before the signup data is fetched (signup page is
+	// rendered). This mitigates attacks where an attacker just views the signup
+	// link, extracts the OTP secret from the QR code, then closes the window.
+	// Then when the user signs up later, the attacker has access to the OTP
+	// secret.
+	st, err := s.rotateAndFetchSignupToken(token)
 	if err != nil {
 		return "", nil, trace.Wrap(err)
 	}
 
-	// TODO(rjones): Remove this check and use compare and swap in the Create* functions below.
-	// It's a TOCTOU bug in the making: https://en.wikipedia.org/wiki/Time_of_check_to_time_of_use
-	_, err = s.GetPasswordHash(tokenData.User.Name)
+	// TODO(rjones): Remove this check and use compare and swap in the Create*
+	// functions below. It's a TOCTOU bug in the making:
+	// https://en.wikipedia.org/wiki/Time_of_check_to_time_of_use
+	_, err = s.GetPasswordHash(st.User.Name)
 	if err == nil {
-		return "", nil, trace.Errorf("user %q already exists", tokenData.User.Name)
+		return "", nil, trace.Errorf("user %q already exists", st.User.Name)
 	}
 
-	return tokenData.User.Name, tokenData.OTPQRCode, nil
+	return st.User.Name, st.OTPQRCode, nil
 }
 
 func (s *AuthServer) CreateSignupU2FRegisterRequest(token string) (u2fRegisterRequest *u2f.RegisterRequest, e error) {
