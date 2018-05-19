@@ -1,0 +1,31 @@
+teleport:
+  log:
+    output: stderr
+    severity: DEBUG
+
+  data_dir: /var/lib/teleport
+  storage:
+    type: dir
+
+auth_service:
+  enabled: yes
+  license_file: /var/lib/license/license-enterprise.pem
+
+  authentication:
+    type: oidc
+
+  public_addr: lens.gravitational.co:3025
+  cluster_name: lens.gravitational.co
+
+ssh_service:
+  enabled: yes
+  public_addr: lens.gravitational.co:3022
+
+proxy_service:
+  enabled: yes
+  public_addr: lens.gravitational.co:443
+  web_listen_addr: 0.0.0.0:8080
+  listen_addr: 0.0.0.0:3023
+  kube_listen_addr: 0.0.0.0:3026  
+  https_key_file: /var/lib/certs/key
+  https_cert_file: /var/lib/certs/crt

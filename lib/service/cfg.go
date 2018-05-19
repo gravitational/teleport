@@ -260,6 +260,12 @@ type ProxyConfig struct {
 	// EnableProxyProtocol enables proxy protocol support
 	EnableProxyProtocol bool
 
+	// KubeListenAddr is address where reverse tunnel dialers connect to
+	KubeListenAddr utils.NetAddr
+
+	// KubeAPIAddr is address of kubernetes API server
+	KubeAPIAddr utils.NetAddr
+
 	// WebAddr is address for web portal of the proxy
 	WebAddr utils.NetAddr
 

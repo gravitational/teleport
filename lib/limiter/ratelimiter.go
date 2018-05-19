@@ -22,11 +22,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/oxy/ratelimit"
+	"github.com/gravitational/oxy/utils"
 	"github.com/gravitational/trace"
 	"github.com/mailgun/timetools"
 	"github.com/mailgun/ttlmap"
-	"github.com/vulcand/oxy/ratelimit"
-	"github.com/vulcand/oxy/utils"
 )
 
 // RateLimiter controls connection rate, it uses token bucket algo

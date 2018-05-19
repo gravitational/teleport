@@ -68,6 +68,9 @@ const (
 	// to bypass firewall restrictions
 	ComponentReverseTunnelAgent = "proxy:agent"
 
+	// ComponentKube is a kubernetes proxy
+	ComponentKube = "proxy:kube"
+
 	// ComponentAuth is the cluster CA node (auth server API)
 	ComponentAuth = "auth"
 
@@ -344,10 +347,39 @@ const (
 const (
 	// SharedDirMode is a mode for a directory shared with group
 	SharedDirMode = 0750
+
+	// PrivateDirMode is a mode for private directories
+	PrivateDirMode = 0700
 )
 
 const (
 	// SessionEvent is sent by servers to clients when an audit event occurs on
 	// the session.
 	SessionEvent = "x-teleport-event"
+)
+
+const (
+	// EnvKubeConfig is environment variable for kubeconfig
+	EnvKubeConfig = "KUBECONFIG"
+
+	// KubeConfigDir is a default directory where k8s stores its user local config
+	KubeConfigDir = ".kube"
+
+	// KubeConfigFile is a default filename where k8s stores its user local config
+	KubeConfigFile = "config"
+
+	// EnvHome is home environment variable
+	EnvHome = "HOME"
+
+	// KubeServiceAddr is an address for kubernetes endpoint service
+	KubeServiceAddr = "kubernetes.default.svc.cluster.local:443"
+
+	// KubeCAPath is a hardcode of mounted CA inside every pod of K8s
+	KubeCAPath = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+
+	// KubeKindCSR is a certificate signing requests
+	KubeKindCSR = "CertificateSigningRequest"
+
+	// KubeMetadataNameSelector is a selector for name metadata in API requests
+	KubeMetadataNameSelector = "metadata.name"
 )

@@ -88,6 +88,8 @@ var (
 		"web_listen_addr":        true,
 		"tunnel_listen_addr":     true,
 		"ssh_listen_addr":        true,
+		"kube_listen_addr":       true,
+		"kube_api_addr":          true,
 		"listen_addr":            true,
 		"https_key_file":         true,
 		"https_cert_file":        true,
@@ -695,6 +697,10 @@ type Proxy struct {
 	WebAddr string `yaml:"web_listen_addr,omitempty"`
 	// TunAddr is a reverse tunnel address
 	TunAddr string `yaml:"tunnel_listen_addr,omitempty"`
+	// KubeAddr is a proxy address for kubernetes
+	KubeAddr string `yaml:"kube_listen_addr,omitempty"`
+	// KubeAPIAddr is an address of a kubernetes API server
+	KubeAPIAddr string `yaml:"kube_api_addr,omitempty"`
 	// KeyFile is a TLS key file
 	KeyFile string `yaml:"https_key_file,omitempty"`
 	// CertFile is a TLS Certificate file

@@ -37,9 +37,9 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
+	oxyforward "github.com/gravitational/oxy/forward"
 	"github.com/gravitational/roundtrip"
 	"github.com/jonboulle/clockwork"
-	oxyforward "github.com/mailgun/oxy/forward"
 	log "github.com/sirupsen/logrus"
 )
 

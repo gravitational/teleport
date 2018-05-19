@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/dynamoevents"
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/events/s3sessions"
+	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -1444,6 +1445,7 @@ type proxyListeners struct {
 	mux           *multiplexer.Mux
 	web           net.Listener
 	reverseTunnel net.Listener
+	kube          net.Listener
 }
 
 func (l *proxyListeners) Close() {
@@ -1456,6 +1458,9 @@ func (l *proxyListeners) Close() {
 	if l.reverseTunnel != nil {
 		l.reverseTunnel.Close()
 	}
+	if l.kube != nil {
+		l.kube.Close()
+	}
 }
 
 // setupProxyListeners sets up web proxy listeners based on the configuration
@@ -1464,6 +1469,16 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 	process.Debugf("Setup Proxy: Web Proxy Address: %v, Reverse Tunnel Proxy Address: %v", cfg.Proxy.WebAddr.Addr, cfg.Proxy.ReverseTunnelListenAddr.Addr)
 	var err error
 	var listeners proxyListeners
+
+	if !cfg.Proxy.KubeListenAddr.IsEmpty() {
+		process.Debugf("Setup Proxy: turning on Kubernetes proxy.")
+		listener, err := process.importOrCreateListener(teleport.Component(teleport.ComponentProxy, "kube"), cfg.Proxy.KubeListenAddr.Addr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		listeners.kube = listener
+	}
+
 	switch {
 	case cfg.Proxy.DisableWebService && cfg.Proxy.DisableReverseTunnel:
 		process.Debugf("Setup Proxy: Reverse tunnel proxy and web proxy are disabled.")
@@ -1721,10 +1736,64 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return nil
 	})
 
+	var kubeServer *kubeproxy.TLSServer
+	if listeners.kube != nil && !process.Config.Proxy.DisableReverseTunnel {
+		authorizer, err := auth.NewAuthorizer(conn.Client, conn.Client, conn.Client)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// Register TLS endpoint of the Kube proxy service
+		tlsConfig, err := conn.ServerIdentity.TLSConfig()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		kubeServer, err = kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
+			ForwarderConfig: kubeproxy.ForwarderConfig{
+				Namespace:   defaults.Namespace,
+				Keygen:      cfg.Keygen,
+				ClusterName: conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
+				Tunnel:      tsrv,
+				Auth:        authorizer,
+				Client:      conn.Client,
+				DataDir:     cfg.DataDir,
+				AccessPoint: accessPoint,
+				AuditLog:    conn.Client,
+				ServerID:    cfg.HostUUID,
+				TargetAddr:  cfg.Proxy.KubeAPIAddr.Addr,
+			},
+			TLS:           tlsConfig,
+			LimiterConfig: cfg.Proxy.Limiter,
+			AccessPoint:   accessPoint,
+			Component:     teleport.Component(teleport.ComponentProxy, teleport.ComponentKube),
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		process.RegisterFunc("proxy.kube", func() error {
+			log := logrus.WithFields(logrus.Fields{
+				trace.Component: teleport.Component(teleport.ComponentKube),
+			})
+			log.Infof("Starting Kube proxy.")
+			err := kubeServer.Serve(listeners.kube)
+			if err != nil && err != http.ErrServerClosed {
+				log.Warningf("Kube TLS server exited with error: %v.", err)
+			}
+			return nil
+		})
+	}
+
 	// execute this when process is asked to exit:
 	process.onExit("proxy.shutdown", func(payload interface{}) {
 		agentPool.Stop()
 		defer listeners.Close()
+		// Need to shut down this listener first, because
+		// in case of graceful shutdown, if tls server was not called
+		// the shutdown could be doing nothing, as server has not
+		// started tracking the listener first. It's ok to close listener
+		// several times.
+		if listeners.kube != nil {
+			listeners.kube.Close()
+		}
 		if payload == nil {
 			log.Infof("Shutting down immediately.")
 			if tsrv != nil {
@@ -1737,6 +1806,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				warnOnErr(webHandler.Close())
 			}
 			warnOnErr(sshProxy.Close())
+			if kubeServer != nil {
+				warnOnErr(kubeServer.Close())
+			}
 		} else {
 			log.Infof("Shutting down gracefully.")
 			ctx := payloadContext(payload)
@@ -1746,6 +1818,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			warnOnErr(sshProxy.Shutdown(ctx))
 			if webServer != nil {
 				warnOnErr(webServer.Shutdown(ctx))
+			}
+			if kubeServer != nil {
+				warnOnErr(kubeServer.Shutdown(ctx))
 			}
 			if webHandler != nil {
 				warnOnErr(webHandler.Close())

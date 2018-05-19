@@ -495,8 +495,13 @@ func (a *AuthWithRoles) GetUsers() ([]services.User, error) {
 }
 
 func (a *AuthWithRoles) GetUser(name string) (services.User, error) {
-	if err := a.currentUserAction(name); err != nil {
-		return nil, trace.Wrap(err)
+	// TODO(klizhentas) before merge, check security implications of this change,
+	// it looks harmless enough, but make sure there is no leakage of secrets here
+	// make sure that GetUser is safe to call, and it should never leak any secrets
+	if err := a.action(defaults.Namespace, services.KindUser, services.VerbRead); err != nil {
+		if err := a.currentUserAction(name); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	return a.authServer.Identity.GetUser(name)
 }
@@ -1182,6 +1187,16 @@ func (a *AuthWithRoles) DeleteAllRemoteClusters() error {
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteAllRemoteClusters()
+}
+
+// ProcessKubeCSR processes CSR request against Kubernetes CA, returns
+// signed certificate if sucessfull.
+func (a *AuthWithRoles) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
+	// limits the requests types to proxies to make it harder to break
+	if !a.checker.HasRole(string(teleport.RoleProxy)) {
+		return nil, trace.AccessDenied("this request can be only executed by proxy")
+	}
+	return a.authServer.ProcessKubeCSR(req)
 }
 
 func (a *AuthWithRoles) Close() error {

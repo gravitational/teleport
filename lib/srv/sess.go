@@ -17,7 +17,6 @@ limitations under the License.
 package srv
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -126,7 +125,7 @@ func (s *SessionRegistry) emitSessionJoinEvent(ctx *ServerContext) {
 	}
 
 	// Emit session join event to Audit Log.
-	ctx.session.recorder.alog.EmitAuditEvent(events.SessionJoinEvent, sessionJoinEvent)
+	ctx.session.recorder.AuditLog.EmitAuditEvent(events.SessionJoinEvent, sessionJoinEvent)
 
 	// Notify all members of the party that a new member has joined over the
 	// "x-teleport-event" channel.
@@ -197,7 +196,7 @@ func (s *SessionRegistry) emitSessionLeaveEvent(party *party) {
 	}
 
 	// Emit session leave event to Audit Log.
-	party.s.recorder.alog.EmitAuditEvent(events.SessionLeaveEvent, sessionLeaveEvent)
+	party.s.recorder.AuditLog.EmitAuditEvent(events.SessionLeaveEvent, sessionLeaveEvent)
 
 	// Notify all members of the party that a new member has left over the
 	// "x-teleport-event" channel.
@@ -253,7 +252,7 @@ func (s *SessionRegistry) leaveSession(party *party) error {
 		s.Unlock()
 
 		// send an event indicating that this session has ended
-		sess.recorder.alog.EmitAuditEvent(events.SessionEndEvent, events.EventFields{
+		sess.recorder.AuditLog.EmitAuditEvent(events.SessionEndEvent, events.EventFields{
 			events.SessionEventID: string(sess.id),
 			events.EventUser:      party.user,
 			events.EventNamespace: s.srv.GetNamespace(),
@@ -322,7 +321,7 @@ func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *S
 
 	// Report the updated window size to the event log (this is so the sessions
 	// can be replayed correctly).
-	ctx.session.recorder.alog.EmitAuditEvent(events.ResizeEvent, resizeEvent)
+	ctx.session.recorder.AuditLog.EmitAuditEvent(events.ResizeEvent, resizeEvent)
 
 	// Update the size of the server side PTY.
 	err := ctx.session.term.SetWinSize(params)
@@ -381,100 +380,6 @@ func (s *SessionRegistry) findSession(id rsession.ID) (*session, bool) {
 	return sess, found
 }
 
-// sessionRecorder implements io.Writer to be plugged into the multi-writer
-// associated with every session. It forwards session stream to the audit log
-type sessionRecorder struct {
-	// log holds the structured logger
-	log *logrus.Entry
-
-	// alog is the audit log to store session chunks
-	alog events.IAuditLog
-
-	// sid defines the session to record
-	sid rsession.ID
-
-	// namespace is session namespace
-	namespace string
-}
-
-func newSessionRecorder(alog events.IAuditLog, ctx *ServerContext, sid rsession.ID) (*sessionRecorder, error) {
-	var err error
-	var auditLog events.IAuditLog
-	if alog == nil {
-		auditLog = &events.DiscardAuditLog{}
-	} else {
-		// Always write sessions to local disk first, then forward them to the Auth
-		// Server later.
-		auditLog, err = events.NewForwarder(events.ForwarderConfig{
-			SessionID:      sid,
-			ServerID:       "upload",
-			DataDir:        filepath.Join(ctx.srv.GetDataDir(), teleport.LogsDir),
-			RecordSessions: ctx.ClusterConfig.GetSessionRecording() != services.RecordOff,
-			Namespace:      ctx.srv.GetNamespace(),
-			ForwardTo:      alog,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	sr := &sessionRecorder{
-		log: logrus.WithFields(logrus.Fields{
-			trace.Component: teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
-		}),
-		alog:      auditLog,
-		sid:       sid,
-		namespace: ctx.srv.GetNamespace(),
-	}
-	return sr, nil
-}
-
-// Write takes a chunk and writes it into the audit log
-func (r *sessionRecorder) Write(data []byte) (int, error) {
-	// we are copying buffer to prevent data corruption:
-	// io.Copy allocates single buffer and calls multiple writes in a loop
-	// our PostSessionSlice is async and sends reader wrapping buffer
-	// to the channel. This can lead to cases when the buffer is re-used
-	// and data is corrupted unless we copy the data buffer in the first place
-	dataCopy := make([]byte, len(data))
-	copy(dataCopy, data)
-	// post the chunk of bytes to the audit log:
-	chunk := &events.SessionChunk{
-		EventType: events.SessionPrintEvent,
-		Data:      dataCopy,
-		Time:      time.Now().UTC().UnixNano(),
-	}
-	if err := r.alog.PostSessionSlice(events.SessionSlice{
-		Namespace: r.namespace,
-		SessionID: string(r.sid),
-		Chunks:    []*events.SessionChunk{chunk},
-	}); err != nil {
-		r.log.Error(trace.DebugReport(err))
-	}
-	return len(data), nil
-}
-
-// Close closes audit log caching forwarder.
-func (r *sessionRecorder) Close() error {
-	var errors []error
-	err := r.alog.Close()
-	errors = append(errors, err)
-
-	// wait until all events from recorder get flushed, it is important
-	// to do so before we send SessionEndEvent to advise the audit log
-	// to release resources associated with this session.
-	// not doing so will not result in memory leak, but could result
-	// in missing playback events
-	context, cancel := context.WithTimeout(context.TODO(), defaults.ReadHeadersTimeout)
-	defer cancel() // releases resources if slowOperation completes before timeout elapses
-	err = r.alog.WaitForDelivery(context)
-	if err != nil {
-		errors = append(errors, err)
-		r.log.Warnf("Timeout waiting for session to flush events: %v", trace.DebugReport(err))
-	}
-
-	return trace.NewAggregate(errors...)
-}
-
 // session struct describes an active (in progress) SSH session. These sessions
 // are managed by 'SessionRegistry' containers which are attached to SSH servers.
 type session struct {
@@ -516,7 +421,7 @@ type session struct {
 
 	closeOnce sync.Once
 
-	recorder *sessionRecorder
+	recorder *events.SessionRecorder
 }
 
 // newSession creates a new session with a given ID within a given context.
@@ -634,7 +539,14 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 	// be a discard audit log if the proxy is in recording mode and a teleport
 	// node so we don't create double recordings.
 	auditLog := s.registry.srv.GetAuditLog()
-	s.recorder, err = newSessionRecorder(auditLog, ctx, s.id)
+	s.recorder, err = events.NewSessionRecorder(events.SessionRecorderConfig{
+		DataDir:        filepath.Join(ctx.srv.GetDataDir(), teleport.LogsDir),
+		SessionID:      s.id,
+		Namespace:      ctx.srv.GetNamespace(),
+		RecordSessions: ctx.ClusterConfig.GetSessionRecording() != services.RecordOff,
+		Component:      teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
+		ForwardTo:      auditLog,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -687,7 +599,7 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 	params := s.term.GetTerminalParams()
 
 	// emit "new session created" event:
-	s.recorder.alog.EmitAuditEvent(events.SessionStartEvent, events.EventFields{
+	s.recorder.AuditLog.EmitAuditEvent(events.SessionStartEvent, events.EventFields{
 		events.EventNamespace:  ctx.srv.GetNamespace(),
 		events.SessionEventID:  string(s.id),
 		events.SessionServerID: ctx.srv.ID(),

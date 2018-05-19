@@ -57,7 +57,7 @@ func (r *contextAuthorizer) Authorize(ctx context.Context) (*AuthContext, error)
 }
 
 // NewUserAuthorizer authorizes everyone as predefined local user
-func NewUserAuthorizer(username string, identity services.Identity, access services.Access) (Authorizer, error) {
+func NewUserAuthorizer(username string, identity services.UserGetter, access services.Access) (Authorizer, error) {
 	authContext, err := contextForLocalUser(username, identity, access)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -66,7 +66,7 @@ func NewUserAuthorizer(username string, identity services.Identity, access servi
 }
 
 // NewAuthorizer returns new authorizer using backends
-func NewAuthorizer(access services.Access, identity services.Identity, trust services.Trust) (Authorizer, error) {
+func NewAuthorizer(access services.Access, identity services.UserGetter, trust services.Trust) (Authorizer, error) {
 	if access == nil {
 		return nil, trace.BadParameter("missing parameter access")
 	}
@@ -88,7 +88,7 @@ type Authorizer interface {
 // authorizer creates new local authorizer
 type authorizer struct {
 	access   services.Access
-	identity services.Identity
+	identity services.UserGetter
 	trust    services.Trust
 }
 
@@ -427,7 +427,7 @@ func contextForBuiltinRole(clusterName string, clusterConfig services.ClusterCon
 	}, nil
 }
 
-func contextForLocalUser(username string, identity services.Identity, access services.Access) (*AuthContext, error) {
+func contextForLocalUser(username string, identity services.UserGetter, access services.Access) (*AuthContext, error) {
 	user, err := identity.GetUser(username)
 	if err != nil {
 		return nil, trace.Wrap(err)
