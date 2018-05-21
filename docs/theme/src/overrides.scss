@@ -1,0 +1,20 @@
+.grv-mobile-nav-active{
+  // override shared nav styles
+  .grv-mob-nav-top {
+    margin-bottom: -20px;
+
+
+    .grv-mob-nav-top-primary-item-title {
+      a {
+        color: #455A64;
+        text-decoration: underline;
+      }
+    }
+  }  
+  .grv-mob-nav-top-primary-item.--active{
+    margin-bottom: 0;
+  }
+  .grv-backdrop, .grv-nav-top-secondary{
+    display: none!important;
+  }
+}
