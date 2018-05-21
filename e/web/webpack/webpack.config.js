@@ -41,7 +41,7 @@ var cfg = {
     baseCfg.plugins.extractCss,
     baseCfg.plugins.createIndexHtml,
     baseCfg.plugins.vendorBundle,
-    baseCfg.plugins.uglify({onlyVendor: true})
+    baseCfg.plugins.uglify()
  ]
 
 };

@@ -1,18 +1,1 @@
-webpackJsonp([1],{
-
-/***/ 0:
-/***/ (function(module, exports, __webpack_require__) {
-
-	module.exports = __webpack_require__(634);
-
-
-/***/ }),
-
-/***/ 634:
-/***/ (function(module, exports) {
-
-	// removed by extract-text-webpack-plugin
-
-/***/ })
-
-});
+webpackJsonp([1],{0:function(n,o,c){n.exports=c(634)},634:function(n,o){}});
