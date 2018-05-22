@@ -153,8 +153,8 @@ jenkins-describe-stack-vpc:
 	$(MAKE) jenkins-describe-stack
 
 .PHONY: jenkins-describe-stack-outputs-vpc
-jenkins-describe-stack-vpc-outputs: JENKINS_TEST_STACK_NAME=jenkins-teleport-quickstart-test-stack-vpc
-jenkins-describe-stack-vpc-outputs:
+jenkins-describe-stack-outputs-vpc: JENKINS_TEST_STACK_NAME=jenkins-teleport-quickstart-test-stack-vpc
+jenkins-describe-stack-outputs-vpc:
 	$(MAKE) jenkins-describe-stack-outputs
 
 .PHONY: jenkins-delete-stack
