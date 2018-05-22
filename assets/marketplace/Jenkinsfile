@@ -43,7 +43,7 @@ pipeline {
                     sh "jq -s add ${BASE_JENKINS_CLOUDFORMATION_PARAMETERS} vpc.json > full-parameters.json"
                     sh "cat full-parameters.json"
                     // update path to parameters file and create ASG stack
-                    sh "JENKINS_CLOUDFORMATION_PARAMETERS_PATH=full-parameters.json make jenkins-create-stack'
+                    sh 'JENKINS_CLOUDFORMATION_PARAMETERS_PATH=full-parameters.json make jenkins-create-stack'
                     sh 'make jenkins-wait-for-stack-creation'
                 }
             }
