@@ -14,20 +14,20 @@ pipeline {
                 }
             }
         }
-        //stage('Run Packer') {
-        //    steps {
-        //        dir('assets/marketplace') {
-        //            sh 'make oss'
-        //        }
-        //    }
-        //}
-        //stage('Update AMI IDs)') {
-        //    steps {
-        //        dir('assets/marketplace') {
-        //            sh 'make update-ami-ids-oss'
-        //        }
-        //    }
-        //}
+        stage('Run Packer') {
+            steps {
+                dir('assets/marketplace') {
+                    sh 'make oss'
+                }
+            }
+        }
+        stage('Update AMI IDs)') {
+            steps {
+                dir('assets/marketplace') {
+                    sh 'make update-ami-ids-oss'
+                }
+            }
+        }
         stage('Run Cloudformation and wait for stack') {
             environment {
                 JENKINS_CLOUDFORMATION_PARAMETERS_PATH = credentials('7d731ad8-ed03-4e42-a411-605c40c182f6')
@@ -61,18 +61,18 @@ pipeline {
             }
         }
     }
-    //post {
-    //    always {
-    //        dir('assets/marketplace') {
-    //            script {
-    //                // we want to run all these shutdown steps in order regardless of success/failure (in case part of the ASG fails)
-    //                // so we use '|| true' to suppress return codes > 0
-    //                sh 'make jenkins-delete-stack || true'
-    //                sh 'make jenkins-wait-for-stack-deletion || true'
-    //                sh 'make jenkins-delete-stack-vpc || true'
-    //                sh 'make jenkins-wait-for-stack-deletion-vpc || true'
-    //            }
-    //        }            
-    //    }
-    //}
+    post {
+        always {
+            dir('assets/marketplace') {
+                script {
+                    // we want to run all these shutdown steps in order regardless of success/failure (in case part of the ASG fails)
+                    // so we use '|| true' to suppress return codes > 0
+                    sh 'make jenkins-delete-stack || true'
+                    sh 'make jenkins-wait-for-stack-deletion || true'
+                    sh 'make jenkins-delete-stack-vpc || true'
+                    sh 'make jenkins-wait-for-stack-deletion-vpc || true'
+                }
+            }            
+        }
+    }
 }
