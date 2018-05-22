@@ -30,7 +30,7 @@ pipeline {
         }
         stage('Run Cloudformation and wait for stack') {
             environment {
-                JENKINS_CLOUDFORMATION_PARAMETERS_PATH = credentials('7d731ad8-ed03-4e42-a411-605c40c182f6')
+                BASE_JENKINS_CLOUDFORMATION_PARAMETERS = credentials('7d731ad8-ed03-4e42-a411-605c40c182f6')
             }
             steps {
                 dir('assets/marketplace') {
@@ -40,12 +40,10 @@ pipeline {
                     // write this to vpc.json
                     sh "make jenkins-describe-stack-outputs-vpc | jq -r 'map ( { ParameterKey: ( .OutputKey | tostring ), ParameterValue: ( .OutputValue | tostring) } )' > vpc.json"
                     // use jq to combine Jenkins JSON stack parameters and vpc.json into one list of pairs
-                    sh "jq -s add ${JENKINS_CLOUDFORMATION_PARAMETERS_PATH} vpc.json > full-parameters.json"
+                    sh "jq -s add ${BASE_JENKINS_CLOUDFORMATION_PARAMETERS} vpc.json > full-parameters.json"
                     sh "cat full-parameters.json"
-                    // update path to parameters file
-                    sh "export JENKINS_CLOUDFORMATION_PARAMETERS_PATH=full-parameters.json"
-                    // create ASG stack
-                    sh 'make jenkins-create-stack'
+                    // update path to parameters file and create ASG stack
+                    sh "JENKINS_CLOUDFORMATION_PARAMETERS_PATH=full-parameters.json make jenkins-create-stack'
                     sh 'make jenkins-wait-for-stack-creation'
                 }
             }
