@@ -19,11 +19,13 @@ package dynamo
 
 import (
 	"fmt"
+	"net/http"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -161,6 +163,17 @@ func New(params backend.Params) (backend.Backend, error) {
 		creds := credentials.NewStaticCredentials(cfg.AccessKey, cfg.SecretKey, "")
 		sess.Config.Credentials = creds
 	}
+
+	// Increase the size of the connection pool. This substantially improves the
+	// performance of Teleport under load as it reduces the number of TLS
+	// handshakes performed.
+	httpClient := &http.Client{
+		Transport: &http.Transport{
+			MaxIdleConns:        defaults.HTTPMaxIdleConns,
+			MaxIdleConnsPerHost: defaults.HTTPMaxIdleConnsPerHost,
+		},
+	}
+	sess.Config.HTTPClient = httpClient
 
 	// create DynamoDB service:
 	b.svc = dynamodb.New(sess)

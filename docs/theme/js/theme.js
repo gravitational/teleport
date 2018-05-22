@@ -106,59 +106,6 @@ function debounce(func, wait, immediate) {
 	};
 };
 
-// toggles mobile menu 
-function handleNavTopMenu() {
-  var loc = window.location;
-  var menuItems = [
-    {
-      text: "documentation",
-      link: "/teleport/docs/",
-      isActive: true
-    },
-    {
-      text: "downloads",
-      link: "/teleport/download/"
-    },  
-    {
-      text: "customer portal",
-      link: loc.origin.replace(loc.host, 'dashboard.'+loc.host)
-    }    
-  ]
-    
-  window.houstonCtrlLib.navTop.show({
-    baseUrl: window.location.origin,
-    menuItems: menuItems,
-    id: 'grv-docs-top-menu'
-  })    
-
-  var classOpen = "--mobile-nav-open";
-  var $navLeft = $(".grv-nav-left");  
-  var $container = $(".grv-docs");
-  
-  function hideMenu() {    
-    if ($container.hasClass(classOpen)) {
-      $(".grv-nav-mobile-btn").click();
-    }  
-  }
-  
-  // hide menu when menu item is selected
-  $navLeft.click(function () {
-    hideMenu();
-  });
-
-  // hide menu when resizing the window
-  window.addEventListener('resize', debounce(hideMenu, 100));
-
-  // open menu on hamburger click
-  $(".grv-nav-mobile-btn").click(function () {        
-    if ($container.hasClass(classOpen)) {
-      $container.removeClass(classOpen)
-    } else {
-      $container.addClass(classOpen);
-    };
-  })  
-}
-
 // highlights code sections
 function handleHighlighting() {
   hljs.initHighlightingOnLoad();
@@ -245,6 +192,10 @@ function handleNavScroll() {
 function handleStickyNav() {    
   var $content = $(".grv-content");
   function onScroll(e) {              
+    if ($(".grv-mobile-nav-active").length > 0) {
+      return;
+    }
+
     if (window.scrollY > 90) {
       $content.addClass("--fixed-left-nav");
     } else {
@@ -325,6 +276,15 @@ function handleHeaderLinks(){
   });
 }
 
+function handleTeleportMenu(){  
+  $('.grv-nav-top-secondary-item.--docs').addClass('--active');        
+  $(".grv-nav-left a").click(function (e) {
+    if ($(".grv-mobile-nav-active").length > 0 && e.target.href ) {
+      $(".grv-nav-top-primary-mobile-trigger").click();
+    }
+  });
+}
+
 function init(fn, description) {
   try {
     fn()
@@ -333,9 +293,9 @@ function init(fn, description) {
   }
 }
 
-$(document).ready(function () {
+$(document).ready(function () {  
+  init(handleTeleportMenu, "handleTeleportMenu");  
   init(handleHeaderLinks, "handleHeaderLinks");  
-  init(handleNavTopMenu, "handleNavTopMenu");
   init(handleVerSelector, "handleVerSelector");
   init(handleStickyNav, "handleStickyNav");
   init(handleHighlighting, "handleHighlighting");    

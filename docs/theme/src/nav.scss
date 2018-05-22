@@ -1,6 +1,6 @@
 
 $top-menu-height: 92px;
-$max-width: 1100px;
+$max-width: 1200px;
 
 #grv-docs-top-menu{
   height: $top-menu-height;
@@ -14,8 +14,8 @@ $max-width: 1100px;
   position: relative;  
 }
  
-.--mobile-nav-open{
-
+.grv-mobile-nav-active{
+  
   &.grv-docs {
     display: block;
     overflow: auto;

@@ -1,0 +1,795 @@
+
+
+<style>
+  /*
+  * Basic Defaults
+  *
+  */
+  /*
+  * Z Indexes
+  *
+  */
+  /*
+  * Colors
+  *
+  */
+  .grv-nav-top {
+    position: relative;
+    background: linear-gradient(-190deg, rgba(12, 29, 49, 0.87), rgba(74, 112, 157, 0.87));
+    background-repeat: no-repeat;
+    background-color: #0C1D31; }
+  
+  .grv-nav-top-primary {
+    width: 100%;
+    background-color: #0C1D31; }
+    .grv-nav-top-primary .grv-nav-top-primary-logo {
+      margin: 0; }
+      .grv-nav-top-primary .grv-nav-top-primary-logo a {
+        color: white;
+        text-decoration: none;
+        font-size: 18px; }
+    .grv-nav-top-primary .grv-nav-top-primary-item {
+      padding: 5px 20px;
+      margin-left: 30px;
+      position: relative;
+      color: white;
+      font-size: 14px; }
+      .grv-nav-top-primary .grv-nav-top-primary-item .text-format {
+        color: white; }
+      .grv-nav-top-primary .grv-nav-top-primary-item.\--active, .grv-nav-top-primary .grv-nav-top-primary-item:hover {
+        background: #ffffff3d;
+        cursor: pointer; }
+      .grv-nav-top-primary .grv-nav-top-primary-item > a {
+        color: white;
+        text-decoration: none; }
+        .grv-nav-top-primary .grv-nav-top-primary-item > a:hover {
+          text-decoration: underline; }
+    .grv-nav-top-primary .grv-nav-top-primary-wrapper {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 30px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      color: white;
+      height: 56px; }
+      @media screen and (max-width: 480px), screen and (max-device-width: 480px), screen and (max-width: 800px) {
+        .grv-nav-top-primary .grv-nav-top-primary-wrapper {
+          padding: 0 15px; } }
+      .grv-nav-top-primary .grv-nav-top-primary-wrapper .grv-nav-top-primary-content {
+        display: flex;
+        flex: 1;
+        align-items: center; }
+        @media screen and (max-width: 480px), screen and (max-device-width: 480px), screen and (max-width: 800px) {
+          .grv-nav-top-primary .grv-nav-top-primary-wrapper .grv-nav-top-primary-content {
+            display: none; } }
+    .grv-nav-top-primary .grv-nav-top-primary-mobile-trigger {
+      background: none;
+      border: none;
+      color: #FFF;
+      display: none;
+      height: 100%;
+      outline: none;
+      padding: 0 16px;
+      position: absolute;
+      right: 0;
+      top: 0;
+      transition: all .3;
+      z-index: 1; }
+      .grv-nav-top-primary .grv-nav-top-primary-mobile-trigger i {
+        font-size: 24px; }
+      .grv-nav-top-primary .grv-nav-top-primary-mobile-trigger:hover {
+        background: rgba(255, 255, 255, 0.24);
+        cursor: pointer; }
+      @media screen and (max-width: 480px), screen and (max-device-width: 480px), screen and (max-width: 800px) {
+        .grv-nav-top-primary .grv-nav-top-primary-mobile-trigger {
+          display: block; } }
+  
+  /*
+  * Secondary menu
+  */
+  .grv-nav-top-secondary {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    border-bottom: 2px solid #e7eaec; }
+    .grv-nav-top-secondary .grv-nav-top-secondary-wrapper {
+      max-width: 1200px;
+      width: 100%;
+      padding: 0 30px;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      min-height: 48px; }
+      @media screen and (max-width: 480px), screen and (max-device-width: 480px), screen and (max-width: 800px) {
+        .grv-nav-top-secondary .grv-nav-top-secondary-wrapper {
+          flex-direction: column;
+          justify-content: center; } }
+      .grv-nav-top-secondary .grv-nav-top-secondary-wrapper .grv-nav-top-secondary-logo {
+        font-size: 0px;
+        margin-right: 68px; }
+        @media screen and (max-width: 480px), screen and (max-device-width: 480px), screen and (max-width: 800px) {
+          .grv-nav-top-secondary .grv-nav-top-secondary-wrapper .grv-nav-top-secondary-logo {
+            margin-top: 10px; } }
+        @media screen and (max-width: 480px), screen and (max-device-width: 480px) {
+          .grv-nav-top-secondary .grv-nav-top-secondary-wrapper .grv-nav-top-secondary-logo {
+            margin: 0; } }
+        .grv-nav-top-secondary .grv-nav-top-secondary-wrapper .grv-nav-top-secondary-logo a {
+          display: block;
+          width: 120px;
+          height: 40px; }
+        .grv-nav-top-secondary .grv-nav-top-secondary-wrapper .grv-nav-top-secondary-logo svg {
+          fill: #0C1D31;
+          width: 100%;
+          height: 100%; }
+      .grv-nav-top-secondary .grv-nav-top-secondary-wrapper .grv-nav-top-secondary-content {
+        display: flex;
+        flex: 1;
+        flex-wrap: wrap; }
+        @media screen and (max-width: 480px), screen and (max-device-width: 480px) {
+          .grv-nav-top-secondary .grv-nav-top-secondary-wrapper .grv-nav-top-secondary-content {
+            display: none; } }
+        .grv-nav-top-secondary .grv-nav-top-secondary-wrapper .grv-nav-top-secondary-content .grv-nav-top-secondary-item {
+          margin-right: 40px;
+          font-size: 14px;
+          padding: 14px 0 10px 0;
+          text-align: center;
+          align-self: center; }
+          @media screen and (max-width: 900px) {
+            .grv-nav-top-secondary .grv-nav-top-secondary-wrapper .grv-nav-top-secondary-content .grv-nav-top-secondary-item {
+              margin-right: 20px;
+              font-size: 12px; } }
+          .grv-nav-top-secondary .grv-nav-top-secondary-wrapper .grv-nav-top-secondary-content .grv-nav-top-secondary-item.\--sales {
+            color: white;
+            border-radius: 3px;
+            align-self: center;
+            flex: 1;
+            display: flex;
+            justify-content: flex-end;
+            padding: 10px 0;
+            margin: 0; }
+            @media screen and (max-width: 480px), screen and (max-device-width: 480px), screen and (max-width: 800px) {
+              .grv-nav-top-secondary .grv-nav-top-secondary-wrapper .grv-nav-top-secondary-content .grv-nav-top-secondary-item.\--sales {
+                display: none; } }
+            .grv-nav-top-secondary .grv-nav-top-secondary-wrapper .grv-nav-top-secondary-content .grv-nav-top-secondary-item.\--sales .grv-nav-top-secondary-button {
+              background-color: #F2673A;
+              color: white;
+              font-size: 12px;
+              padding: 5px 14px;
+              border-radius: 4px;
+              text-decoration: none;
+              display: block;
+              font-size: 75%; }
+              .grv-nav-top-secondary .grv-nav-top-secondary-wrapper .grv-nav-top-secondary-content .grv-nav-top-secondary-item.\--sales .grv-nav-top-secondary-button:hover {
+                text-decoration: none; }
+          .grv-nav-top-secondary .grv-nav-top-secondary-wrapper .grv-nav-top-secondary-content .grv-nav-top-secondary-item.\--active {
+            font-weight: bold;
+            border-bottom: 4px solid #F2673A;
+            margin-bottom: -4px; }
+          .grv-nav-top-secondary .grv-nav-top-secondary-wrapper .grv-nav-top-secondary-content .grv-nav-top-secondary-item:hover a {
+            text-decoration: underline; }
+          .grv-nav-top-secondary .grv-nav-top-secondary-wrapper .grv-nav-top-secondary-content .grv-nav-top-secondary-item a {
+            color: #0C1D31;
+            text-decoration: none; }
+  
+  .grv-nav-top-primary-item.\--active .grv-nav-top-primary-dropdown,
+  .grv-nav-top-primary-item:hover .grv-nav-top-primary-dropdown {
+    display: block; }
+  
+  .grv-nav-top-primary-dropdown {
+    background: #FFF;
+    border-radius: 2px;
+    box-shadow: 0 0 16px rgba(0, 0, 0, 0.12), 0 16px 16px rgba(0, 0, 0, 0.24);
+    color: #78919D;
+    display: none;
+    right: -100px;
+    top: 45px;
+    list-style-type: none;
+    margin: 0;
+    padding: 0;
+    position: absolute;
+    width: 328px;
+    z-index: 2; }
+    @media screen and (max-width: 480px), screen and (max-device-width: 480px), screen and (max-width: 800px) {
+      .grv-nav-top-primary-dropdown {
+        border-radius: 0;
+        position: relative;
+        left: 0;
+        box-shadow: none;
+        width: 100%; } }
+    .grv-nav-top-primary-dropdown .grv-nav-top-primary-dropdown-arrow {
+      height: 20px;
+      width: 100%;
+      position: absolute;
+      margin-top: -20px; }
+      .grv-nav-top-primary-dropdown .grv-nav-top-primary-dropdown-arrow .grv-nav-top-primary-dropdown-arrow-content {
+        height: 0;
+        width: 0;
+        position: absolute;
+        z-index: 1;
+        border-left: 12px solid transparent;
+        border-right: 12px solid transparent;
+        border-bottom: 12px solid #FFF;
+        top: 10px;
+        right: 150px; }
+    .grv-nav-top-primary-dropdown .grv-nav-top-primary-dropdown-item {
+      border-bottom: 1px solid #edf0f28f;
+      margin: 0;
+      font-size: 14px; }
+      .grv-nav-top-primary-dropdown .grv-nav-top-primary-dropdown-item:hover {
+        background-color: aliceblue; }
+      .grv-nav-top-primary-dropdown .grv-nav-top-primary-dropdown-item:last-child {
+        border: none; }
+      .grv-nav-top-primary-dropdown .grv-nav-top-primary-dropdown-item a {
+        color: #555555;
+        display: block;
+        padding: 16px;
+        text-decoration: none; }
+      .grv-nav-top-primary-dropdown .grv-nav-top-primary-dropdown-item strong {
+        color: #F2673A;
+        display: block;
+        margin-bottom: 8px;
+        text-transform: uppercase; }
+      .grv-nav-top-primary-dropdown .grv-nav-top-primary-dropdown-item em {
+        font-style: normal;
+        line-height: 20px;
+        margin: 0; }
+  
+  /*
+  * Mobile Menu
+  */
+  .grv-mob-nav-top {
+    position: relative;
+    display: none; }
+    .grv-mob-nav-top .grv-mov-nav-back {
+      color: #455A64;
+      display: none;
+      text-transform: uppercase;
+      font-size: 14px;
+      border-bottom: 1px solid #e7eaec;
+      padding: 10px 0 15px 0; }
+      .grv-mob-nav-top .grv-mov-nav-back:hover {
+        cursor: pointer; }
+      .grv-mob-nav-top .grv-mov-nav-back:before {
+        font-family: "FontAwesome";
+        content: "\F104"; }
+    .grv-mob-nav-top .grv-mob-nav-top-primary-item-title {
+      color: #455A64;
+      text-transform: uppercase; }
+      .grv-mob-nav-top .grv-mob-nav-top-primary-item-title:hover {
+        cursor: pointer; }
+    .grv-mob-nav-top.\--second-level-active .grv-mov-nav-back {
+      display: block; }
+    .grv-mob-nav-top.\--second-level-active .grv-mob-nav-top-primary-item {
+      display: none; }
+      .grv-mob-nav-top.\--second-level-active .grv-mob-nav-top-primary-item.\--active {
+        display: block !important;
+        padding: 0; }
+        .grv-mob-nav-top.\--second-level-active .grv-mob-nav-top-primary-item.\--active .grv-mob-nav-top-secondary-content {
+          display: initial !important; }
+        .grv-mob-nav-top.\--second-level-active .grv-mob-nav-top-primary-item.\--active .grv-mob-nav-top-primary-item-title {
+          display: none; }
+    .grv-mob-nav-top .grv-mob-nav-top-primary {
+      width: 100%; }
+      .grv-mob-nav-top .grv-mob-nav-top-primary .grv-mob-nav-top-primary-item {
+        position: relative;
+        font-size: 14px;
+        margin: 0px;
+        padding: 10px 0; }
+        .grv-mob-nav-top .grv-mob-nav-top-primary .grv-mob-nav-top-primary-item.\--has-sub-menu .grv-mob-nav-top-primary-item-title:after {
+          font-family: "FontAwesome";
+          content: "\F105"; }
+        .grv-mob-nav-top .grv-mob-nav-top-primary .grv-mob-nav-top-primary-item > a:hover {
+          text-decoration: underline; }
+      .grv-mob-nav-top .grv-mob-nav-top-primary .grv-mob-nav-top-primary-wrapper {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 10px 15px; }
+        .grv-mob-nav-top .grv-mob-nav-top-primary .grv-mob-nav-top-primary-wrapper .grv-mob-nav-top-primary-content {
+          display: flex;
+          flex: 1;
+          flex-direction: column;
+          opacity: 1; }
+      .grv-mob-nav-top .grv-mob-nav-top-primary .grv-mob-nav-top-secondary-content {
+        display: none;
+        background: #FFF;
+        border-radius: 2px;
+        color: #78919D;
+        list-style-type: none;
+        margin: 0;
+        padding: 0;
+        margin-top: 10px;
+        width: 328px;
+        z-index: 2;
+        border-radius: 0;
+        position: relative;
+        left: 0;
+        box-shadow: none;
+        width: 100%; }
+        .grv-mob-nav-top .grv-mob-nav-top-primary .grv-mob-nav-top-secondary-content .grv-mob-nav-top-secondary-item {
+          border-bottom: 1px solid #edf0f28f;
+          margin: 0;
+          font-size: 14px;
+          padding: 10px 0; }
+          .grv-mob-nav-top .grv-mob-nav-top-primary .grv-mob-nav-top-secondary-content .grv-mob-nav-top-secondary-item:last-child {
+            border: none; }
+          .grv-mob-nav-top .grv-mob-nav-top-primary .grv-mob-nav-top-secondary-content .grv-mob-nav-top-secondary-item a {
+            color: #555555;
+            display: block;
+            text-decoration: none; }
+          .grv-mob-nav-top .grv-mob-nav-top-primary .grv-mob-nav-top-secondary-content .grv-mob-nav-top-secondary-item strong {
+            color: #F2673A;
+            display: block;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            margin: 4px 0; }
+          .grv-mob-nav-top .grv-mob-nav-top-primary .grv-mob-nav-top-secondary-content .grv-mob-nav-top-secondary-item em {
+            font-style: normal;
+            line-height: 20px;
+            margin: 0; }
+  
+  .grv-mobile-nav-active .grv-nav-top {
+    z-index: 2; }
+  
+  .grv-mobile-nav-active .grv-mob-nav-top {
+    display: block;
+    z-index: 2; }
+  
+  .grv-mobile-nav-active .grv-backdrop {
+    position: fixed;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    background-color: white; }
+  
+  </style>    	
+  <div class="grv-shared-nav ">  
+    <nav id="id-grv-nav-top" class="grv-nav-top">
+    <div class="grv-nav-top-primary">
+      <div class="grv-nav-top-primary-wrapper">
+        <div class="grv-nav-top-primary-logo">
+          <a href="https://gravitational.com/">          
+            GRAVITATIONAL
+          </a>
+        </div>
+        <div class="grv-nav-top-primary-content">
+          <div class="grv-nav-top-primary-item">
+            <div class="">PRODUCTS</div>
+            <ul class="grv-nav-top-primary-dropdown">
+              <li class="grv-nav-top-primary-dropdown-arrow">
+                <span class="grv-nav-top-primary-dropdown-arrow-content" />
+              </li>
+              <li class="grv-nav-top-primary-dropdown-item ">              
+                <a href="https://gravitational.com/teleport/">          
+                  <strong>Teleport</strong>
+                  <em>Multi-Region SSH for Distributed Server Clusters</em>
+                </a>
+              </li>
+              <li class="grv-nav-top-primary-dropdown-item ">              
+                <a href="https://gravitational.com/telekube/">          
+                  <strong>Telekube</strong>
+                  <em>Multi-Region Automation for Distributed Kubernetes Deployments</em>
+                </a>
+              </li>
+            </ul>
+          </div>
+          <div class="grv-nav-top-primary-item">
+            <div class="">SOLUTIONS</div>
+            <ul class="grv-nav-top-primary-dropdown">
+              <li class="grv-nav-top-primary-dropdown-arrow">
+                <span class="grv-nav-top-primary-dropdown-arrow-content" />
+              </li>
+              <li class="grv-nav-top-primary-dropdown-item ">
+                <a href="https://gravitational.com/solutions/private-saas/">                        
+                  <strong>Private SaaS</strong>
+                  <em>Deliver your SaaS offering to Enterprise Buyers on Private Clouds or On-Premise</em>
+                </a>
+              </li>
+              <li class="grv-nav-top-primary-dropdown-item ">
+                <a href="https://gravitational.com/solutions/msp/">
+                  <strong>Managed Services Providers</strong>
+                  <em>Scale your Managed Services across your distributed customer base</em>
+                </a>
+              </li>
+              <li class="grv-nav-top-primary-dropdown-item ">
+                <a href="https://gravitational.com/solutions/edge/">                        
+                  <strong>Edge Computing Systems</strong>
+                  <em>Unified access patterns and ops automation across edge computing systems</em>
+                </a>
+              </li>
+            </ul>
+          </div>
+          <div class="grv-nav-top-primary-item ">
+            <a href="https://gravitational.com/about/">                        
+              COMPANY
+            </a>
+          </div>
+        </div>      
+        <button class="grv-nav-top-primary-mobile-trigger">
+          <i class="fa fa-bars"></i>        
+        </button>
+      </div>    
+    </div>  
+  </nav>
+    
+    <div id="mobile-menu"></div>  
+    <nav class="grv-nav-top-secondary">    
+    <div class="grv-nav-top-secondary-wrapper">                
+      <div class="grv-nav-top-secondary-logo">
+        <a href="https://gravitational.com/teleport/">
+          <svg viewBox="0 0 160 38" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">    
+    <title>teleport logo</title>        
+    <g id="logo-teleport_teleport_outlined">
+      <g id="logo-teleport_telekube-copy">
+        <g id="logo-teleport_teleport-logo" fill-rule="nonzero">
+          <g id="logo-teleport_Layer_2">
+            <g id="logo-teleport_Group">
+              <path d="M17.9602388,8.14109859 C15.0283881,8.14109859 12.3702985,9.32873239 10.4448358,11.246662 C8.51937313,13.1645915 7.32707463,15.8122817 7.32707463,18.7323944 C7.32707463,21.652507 8.51937313,24.2999296 10.4448358,26.2181268 C12.3702985,28.1357887 15.0283881,29.3234225 17.9602388,29.3234225 C20.8918209,29.3234225 23.5499104,28.1357887 25.4753731,26.2181268 C27.4005672,24.2999296 28.5928657,21.652507 28.5928657,18.7323944 C28.5928657,15.8122817 27.4005672,13.1643239 25.4753731,11.246662 C23.5493731,9.32873239 20.8918209,8.14109859 17.9602388,8.14109859 L17.9602388,8.14109859 Z M22.4731343,15.8441268 L19.2172836,15.8441268 L19.2172836,24.9962394 L16.7026567,24.9962394 L16.7026567,15.8441268 L13.4465373,15.8441268 L13.4465373,13.6283521 L22.473403,13.6283521 L22.473403,15.8441268 L22.4731343,15.8441268 L22.4731343,15.8441268 Z"
+                id="logo-teleport_Shape"></path>
+              <path d="M35.8412239,24.689831 C35.802,24.5429155 35.7138806,24.4096479 35.5846567,24.3175915 L33.7763284,22.7547746 L31.9682687,21.192493 C32.0327463,20.8427324 32.0743881,20.4801268 32.0993731,20.112169 C32.1248955,19.7447465 32.1340299,19.3719718 32.1340299,19.0045493 C32.1340299,18.6365915 32.1248955,18.2643521 32.0993731,17.8963944 C32.0741194,17.5287042 32.0327463,17.1655634 31.9682687,16.8160704 L33.7763284,15.2535211 L35.5846567,13.6909718 C35.7138806,13.5989155 35.8022687,13.4659155 35.8412239,13.3187324 C35.8801791,13.1715493 35.8707761,13.0109859 35.8062985,12.8635352 C35.4368955,11.733169 34.9342388,10.6300986 34.3270746,9.58670423 C33.7204478,8.54357746 33.0103881,7.55985915 32.2259104,6.66846479 C32.1152239,6.53974648 31.9814328,6.45223944 31.8385075,6.41343662 C31.6958507,6.3743662 31.5429851,6.38373239 31.3957612,6.44795775 L29.1164776,7.23846479 L26.8377313,8.02870423 C26.2746269,7.56895775 25.6749851,7.15550704 25.0452537,6.79022535 C24.4149851,6.42494366 23.7551642,6.10783099 23.0722388,5.84102817 L22.6203582,3.48823944 L22.1679403,1.1354507 C22.1402687,0.988267606 22.0615522,0.845901408 21.9508657,0.735647887 C21.8401791,0.625394366 21.6972537,0.547253521 21.5400896,0.528788732 C20.358806,0.289816901 19.1592537,0.170464789 17.9597015,0.170464789 C16.7601493,0.170464789 15.560597,0.289816901 14.3793134,0.528788732 C14.2224179,0.547253521 14.0794925,0.625394366 13.9685373,0.735647887 C13.8578507,0.845901408 13.779403,0.988267606 13.7517313,1.1354507 L13.2995821,3.48850704 L12.8474328,5.84156338 C12.1645075,6.1083662 11.4955522,6.42547887 10.8609851,6.79076056 C10.2266866,7.15604225 9.62677612,7.56949296 9.08220896,8.02923944 L6.80292537,7.239 L4.52364179,6.44849296 C4.37614925,6.384 4.2238209,6.37490141 4.08089552,6.41397183 C3.93770149,6.45304225 3.80391045,6.54028169 3.69322388,6.669 C2.90901493,7.56066197 2.19841791,8.54411268 1.59152239,9.58723944 C0.984895522,10.6303662 0.481970149,11.7337042 0.112835821,12.8640704 C0.0480895522,13.0112535 0.0389552239,13.1720845 0.0784477612,13.319 C0.117671642,13.4659155 0.205253731,13.5991831 0.334477612,13.6912394 L2.14307463,15.2537887 L3.95167164,16.816338 C3.88719403,17.1655634 3.84555224,17.5287042 3.82029851,17.8963944 C3.79477612,18.2640845 3.78564179,18.6365915 3.78564179,19.0040141 C3.78564179,19.3714366 3.79477612,19.7444789 3.82002985,20.1116338 C3.84528358,20.4795915 3.88692537,20.8421972 3.95140299,21.1919577 L2.14307463,22.7542394 L0.334746269,24.3173239 C0.205791045,24.4093803 0.117940299,24.5426479 0.0787164179,24.6895634 C0.0394925373,24.8367465 0.0486268657,24.9973099 0.113104478,25.1442254 C0.482238806,26.275662 0.985164179,27.3784648 1.59179104,28.4213239 C2.19868657,29.4641831 2.90901493,30.4479014 3.69349254,31.3395634 C3.80444776,31.4680141 3.93823881,31.5557887 4.08116418,31.5945915 C4.22435821,31.633662 4.37641791,31.6242958 4.5241791,31.5600704 L6.80346269,30.7692958 L9.08274627,29.9790563 C9.62704478,30.4388028 10.2269552,30.8527887 10.8615224,31.2180704 C11.4958209,31.5830845 12.1650448,31.9001972 12.8477015,32.1667324 L13.2998507,34.5203239 L13.752,36.8733803 C13.7796716,37.0202958 13.8581194,37.1629296 13.968806,37.2731831 C14.0794925,37.383169 14.2226866,37.4618451 14.3795821,37.4797746 C14.9700896,37.5900282 15.560597,37.6772676 16.1556716,37.7369437 C16.7507463,37.7968873 17.3506567,37.829 17.9602388,37.829 C18.5692836,37.829 19.1686567,37.7968873 19.7642687,37.7369437 C20.3596119,37.6772676 20.9495821,37.5900282 21.5400896,37.4797746 C21.6972537,37.4618451 21.8401791,37.383169 21.9508657,37.2731831 C22.0618209,37.1629296 22.14,37.0202958 22.1679403,36.8733803 L22.6203582,34.5203239 L23.0725075,32.1667324 C23.7554328,31.9001972 24.4152537,31.5830845 25.0452537,31.2180704 C25.6749851,30.8527887 26.2748955,30.4388028 26.8377313,29.9790563 L29.1167463,30.7692958 L31.3957612,31.5600704 C31.543791,31.6242958 31.6958507,31.6331268 31.8390448,31.5945915 C31.9817015,31.5555211 32.1154925,31.4680141 32.2261791,31.3395634 C33.0106567,30.4479014 33.7209851,29.4641831 34.3276119,28.4213239 C34.9345075,27.3784648 35.4374328,26.2748592 35.8068358,25.1442254 C35.8713134,24.9975775 35.8809851,24.8367465 35.8412239,24.689831 L35.8412239,24.689831 Z M26.233791,26.9743803 C24.1138209,29.0860563 21.1870746,30.3935775 17.9594328,30.3935775 C14.7315224,30.3935775 11.8047761,29.0857887 9.68480597,26.9743803 C7.56537313,24.8627042 6.25244776,21.9474085 6.25244776,18.7323944 C6.25244776,15.5171127 7.56537313,12.6018169 9.68534328,10.4901408 C11.8053134,8.37846479 14.7320597,7.07067606 17.9602388,7.07067606 C21.1878806,7.07067606 24.1143582,8.37846479 26.234597,10.4901408 C28.3545672,12.6018169 29.6672239,15.5171127 29.6672239,18.7323944 C29.6672239,21.9474085 28.3540299,24.8627042 26.233791,26.9743803 L26.233791,26.9743803 Z"
+                id="logo-teleport_Shape"></path>
+            </g>
+          </g>
+        </g>
+        <g id="logo-teleport_tel-copy" transform="translate(43.000000, 2.000000)">
+          <g id="logo-teleport_new-logo">
+            <path d="M7.01660156,27 L7.01660156,9.15820312 L0.64453125,9.15820312 L0.64453125,5.52539062 L17.7099609,5.52539062 L17.7099609,9.15820312 L11.3525391,9.15820312 L11.3525391,27 L7.01660156,27 Z M27.0607422,22.0488281 L31.1623047,22.7373047 C30.6349583,24.2412185 29.8024471,25.3862265 28.6647461,26.1723633 C27.5270451,26.9585 26.1037195,27.3515625 24.3947266,27.3515625 C21.6896349,27.3515625 19.6877018,26.4677823 18.3888672,24.7001953 C17.3634714,23.2841726 16.8507812,21.4970811 16.8507812,19.3388672 C16.8507812,16.7607293 17.5246026,14.7417065 18.8722656,13.2817383 C20.2199286,11.82177 21.9240131,11.0917969 23.9845703,11.0917969 C26.299035,11.0917969 28.1251886,11.8559494 29.4630859,13.3842773 C30.8009832,14.9126053 31.4406253,17.2538905 31.3820312,20.4082031 L21.0695312,20.4082031 C21.0988283,21.6289124 21.4308562,22.5786099 22.065625,23.2573242 C22.7003938,23.9360385 23.4914015,24.2753906 24.4386719,24.2753906 C25.0832063,24.2753906 25.6251931,24.0996111 26.0646484,23.7480469 C26.5041038,23.3964826 26.8361317,22.830082 27.0607422,22.0488281 Z M27.2951172,17.8886719 C27.2658202,16.6972597 26.9582061,15.791507 26.3722656,15.1713867 C25.7863252,14.5512664 25.0734417,14.2412109 24.2335937,14.2412109 C23.3351518,14.2412109 22.5929717,14.5683561 22.0070312,15.2226562 C21.4210908,15.8769564 21.1330078,16.7656194 21.1427734,17.8886719 L27.2951172,17.8886719 Z M34.5365234,27 L34.5365234,5.52539062 L38.6527344,5.52539062 L38.6527344,27 L34.5365234,27 Z M51.6802734,22.0488281 L55.7818359,22.7373047 C55.2544895,24.2412185 54.4219783,25.3862265 53.2842773,26.1723633 C52.1465763,26.9585 50.7232507,27.3515625 49.0142578,27.3515625 C46.3091662,27.3515625 44.307233,26.4677823 43.0083984,24.7001953 C41.9830027,23.2841726 41.4703125,21.4970811 41.4703125,19.3388672 C41.4703125,16.7607293 42.1441339,14.7417065 43.4917969,13.2817383 C44.8394599,11.82177 46.5435444,11.0917969 48.6041016,11.0917969 C50.9185663,11.0917969 52.7447199,11.8559494 54.0826172,13.3842773 C55.4205145,14.9126053 56.0601565,17.2538905 56.0015625,20.4082031 L45.6890625,20.4082031 C45.7183595,21.6289124 46.0503874,22.5786099 46.6851562,23.2573242 C47.319925,23.9360385 48.1109328,24.2753906 49.0582031,24.2753906 C49.7027376,24.2753906 50.2447244,24.0996111 50.6841797,23.7480469 C51.123635,23.3964826 51.4556629,22.830082 51.6802734,22.0488281 Z M51.9146484,17.8886719 C51.8853514,16.6972597 51.5777373,15.791507 50.9917969,15.1713867 C50.4058564,14.5512664 49.6929729,14.2412109 48.853125,14.2412109 C47.954683,14.2412109 47.2125029,14.5683561 46.6265625,15.2226562 C46.0406221,15.8769564 45.752539,16.7656194 45.7623047,17.8886719 L51.9146484,17.8886719 Z M59.0388672,11.4433594 L62.8767578,11.4433594 L62.8767578,13.7285156 C63.3748072,12.9472617 64.0486286,12.3125024 64.8982422,11.8242188 C65.7478558,11.3359351 66.6902292,11.0917969 67.7253906,11.0917969 C69.5320403,11.0917969 71.0652281,11.7997976 72.325,13.2158203 C73.5847719,14.631843 74.2146484,16.6044795 74.2146484,19.1337891 C74.2146484,21.7314583 73.5798891,23.7504811 72.3103516,25.190918 C71.040814,26.6313549 69.5027434,27.3515625 67.6960937,27.3515625 C66.8367144,27.3515625 66.0579136,27.1806658 65.359668,26.8388672 C64.6614223,26.4970686 63.9265663,25.911137 63.1550781,25.0810547 L63.1550781,32.9179688 L59.0388672,32.9179688 L59.0388672,11.4433594 Z M63.1111328,18.9580078 C63.1111328,20.7060634 63.457809,21.9975544 64.1511719,22.8325195 C64.8445347,23.6674846 65.6892528,24.0849609 66.6853516,24.0849609 C67.6423876,24.0849609 68.4382781,23.701664 69.0730469,22.9350586 C69.7078157,22.1684532 70.0251953,20.9111416 70.0251953,19.1630859 C70.0251953,17.5322184 69.6980501,16.321293 69.04375,15.5302734 C68.3894498,14.7392539 67.5789111,14.34375 66.6121094,14.34375 C65.606245,14.34375 64.7712924,14.7319297 64.1072266,15.5083008 C63.4431607,16.2846719 63.1111328,17.4345627 63.1111328,18.9580078 Z M76.3291015,19.0019531 C76.3291015,17.6347588 76.6660122,16.3115298 77.3398437,15.0322266 C78.0136752,13.7529233 78.9682555,12.7763706 80.2036133,12.1025391 C81.438971,11.4287076 82.8183517,11.0917969 84.3417969,11.0917969 C86.6953243,11.0917969 88.6240159,11.8559494 90.1279297,13.3842773 C91.6318434,14.9126053 92.383789,16.8437383 92.383789,19.1777344 C92.383789,21.5312618 91.6245193,23.4819259 90.105957,25.0297852 C88.5873947,26.5776445 86.6757928,27.3515625 84.3710937,27.3515625 C82.9453054,27.3515625 81.5854557,27.0293001 80.2915039,26.3847656 C78.9975521,25.7402312 78.0136752,24.7954164 77.3398437,23.550293 C76.6660122,22.3051696 76.3291015,20.7890714 76.3291015,19.0019531 Z M80.5478515,19.2216797 C80.5478515,20.7646562 80.9140588,21.946285 81.6464844,22.7666016 C82.3789099,23.5869182 83.2822212,23.9970703 84.3564453,23.9970703 C85.4306694,23.9970703 86.3315393,23.5869182 87.059082,22.7666016 C87.7866247,21.946285 88.1503906,20.7548906 88.1503906,19.1923828 C88.1503906,17.6689377 87.7866247,16.4970744 87.059082,15.6767578 C86.3315393,14.8564412 85.4306694,14.4462891 84.3564453,14.4462891 C83.2822212,14.4462891 82.3789099,14.8564412 81.6464844,15.6767578 C80.9140588,16.4970744 80.5478515,17.6787032 80.5478515,19.2216797 Z M99.346875,27 L95.230664,27 L95.230664,11.4433594 L99.0539062,11.4433594 L99.0539062,13.6552734 C99.7082064,12.6103463 100.296579,11.9218767 100.819043,11.5898438 C101.341507,11.2578108 101.934762,11.0917969 102.598828,11.0917969 C103.536333,11.0917969 104.439644,11.3505833 105.308789,11.8681641 L104.034375,15.4570312 C103.341012,15.0078103 102.696487,14.7832031 102.100781,14.7832031 C101.524606,14.7832031 101.03633,14.9418929 100.635937,15.2592773 C100.235545,15.5766617 99.9206066,16.1503865 99.6911133,16.9804688 C99.4616199,17.810551 99.346875,19.5488149 99.346875,22.1953125 L99.346875,27 Z M115.915039,11.4433594 L115.915039,14.7246094 L113.102539,14.7246094 L113.102539,20.9941406 C113.102539,22.2636782 113.129394,23.0034169 113.183105,23.2133789 C113.236817,23.4233409 113.358886,23.596679 113.549316,23.7333984 C113.739747,23.8701179 113.971678,23.9384766 114.245117,23.9384766 C114.625978,23.9384766 115.177731,23.8066419 115.900391,23.5429688 L116.251953,26.7363281 C115.294917,27.1464864 114.210944,27.3515625 113,27.3515625 C112.257809,27.3515625 111.58887,27.227052 110.993164,26.9780273 C110.397458,26.7290027 109.960451,26.4067403 109.682129,26.0112305 C109.403807,25.6157207 109.210938,25.0810581 109.103516,24.4072266 C109.015625,23.9287085 108.97168,22.9619213 108.97168,21.5068359 L108.97168,14.7246094 L107.082031,14.7246094 L107.082031,11.4433594 L108.97168,11.4433594 L108.97168,8.35253906 L113.102539,5.95019531 L113.102539,11.4433594 L115.915039,11.4433594 Z"
+              id="logo-teleport_Teleport"></path>
+          </g>
+        </g>
+      </g>
+    </g>      
+  </svg>               
+        </a>  
+      </div>
+      <div class="grv-nav-top-secondary-content">
+        <div class="grv-nav-top-secondary-item --overview">
+          <a href="https://gravitational.com/teleport/">
+            OVERVIEW
+          </a>
+        </div>    
+        <div class="grv-nav-top-secondary-item --benefits">
+            <a href="https://gravitational.com/teleport/benefits/">
+              BENEFITS
+            </a>
+          </div>  
+        <div class="grv-nav-top-secondary-item --docs">
+          <a href="https://gravitational.com/teleport/docs/">
+            DOCS
+          </a>
+        </div>
+        <div class="grv-nav-top-secondary-item --download">
+          <a href="https://gravitational.com/teleport/download/">
+            DOWNLOADS
+          </a>
+        </div>
+        <div class="grv-nav-top-secondary-item --portal">
+            <a href="https://dashboard.gravitational.com/web/">
+              CUSTOMER PORTAL
+            </a>
+          </div>
+        <div class="grv-nav-top-secondary-item --sales">
+          <a href="https://gravitational.com/teleport/demo/" class="grv-nav-top-secondary-button">
+            TALK TO SALES
+          </a>
+        </div>
+      </div>    
+    </div>    
+  </nav>  
+      
+  </div>
+  
+  <script>
+  
+    
+    var defaultMobileMenuItems = [{
+      title: 'PRODUCTS',
+      items: [
+        {
+          title: 'Teleport',
+          desc: 'Multi-Region SSH for Distributed Server Clusters',
+          url: 'https://gravitational.com/teleport/',
+        },
+        {
+          title: 'Telekube',
+          url: 'https://gravitational.com/telekube/',
+          desc: 'Multi-Region Automation for Distributed Kubernetes Deployments'
+        }
+      ]
+    },
+    {
+      title: 'SOLUTIONS',
+      items: [
+        {
+          title: 'Private SaaS',
+          desc: 'Deliver your SaaS offering to Enterprise Buyers on Private Clouds or On-Premise',
+          url: 'https://gravitational.com/solutions/private-saas/',
+        },
+        {
+          title: 'Managed Services Providers',
+          url: 'https://gravitational.com/solutions/msp/',
+          desc: 'Scale your Managed Services across your distributed customer base'
+        },
+        {
+          title: 'Edge Computing Systems',
+          url: 'https://gravitational.com/solutions/edge/',
+          desc: 'Unified access patterns and ops automation across edge computing systems'
+        }
+      ]
+    },
+    {
+      title: `<a href="https://gravitational.com/about/">COMPANY</a>`
+    }];
+    
+    // teleport menu items
+    var teleportMobileMenuItem = {    
+        title: 'Teleport',
+        items: [
+          {
+            title: 'OVERVIEW',
+            url: 'https://gravitational.com/teleport/'
+          },
+          {
+            title: 'BENEFITS',
+            url: 'https://gravitational.com/teleport/benefits/'
+          },
+          {
+            title: 'DOCS',
+            url: 'https://gravitational.com/teleport/docs/'
+          },
+          {
+            title: 'DOWNLOADS',
+            url: 'https://gravitational.com/teleport/download/'
+          },
+          {
+            title: 'CUSTOMER PORTAL',
+            url: 'https://dashboard.gravitational.com/web/'
+          },
+          {
+            title: 'TALK TO SALES',
+            url: 'https://gravitational.com/teleport/demo/'
+          },
+        ]
+      };
+    
+    
+    window.grvMobileMenu = {
+  
+      _classItemTitle: 'grv-mob-nav-top-primary-item-title',
+  
+      _classItem: 'grv-mob-nav-top-primary-item',
+  
+      _classActiveItem: '--active',
+  
+      _classNameMenuOpen: 'grv-mobile-nav-active',
+  
+      _className2ndLevelOpen: '--second-level-active',
+  
+      _classNameParent: 'grv-mob-nav-top',
+  
+      _classHasSubMenu: '--has-sub-menu',
+  
+      _parent: null,
+      
+      _findParent: function(el, className){
+        var parent = el;
+        while(parent){
+          if(parent.classList.contains(className)){
+            return parent;
+          }
+  
+          parent = parent.parentElement;
+        }
+  
+        return null;
+      },
+  
+      _removeClass: function(className){
+        this._parent.classList.remove(className);
+        var els = this._parent.getElementsByClassName(className);
+        for(var i = 0; i < els.length; i++){
+          els[i].classList.remove(className);
+        }
+      },
+  
+      _newSubMenuItem: function(subMenuItem){
+        var title = subMenuItem.title || '';
+        var desc = subMenuItem.desc || '';
+        var url = subMenuItem.url || '';
+        return `
+          <li class="grv-mob-nav-top-secondary-item">
+            <a href="${url}">
+              <strong>${title}</strong>
+            <em>${desc}</em>
+            </a>
+          </li>`
+      },
+  
+      _newSubMenu: function(items){
+        var self = this;
+        var itemTmpls = items.map(i => {
+          return self._newSubMenuItem(i);
+        });
+  
+        var itemStr = itemTmpls.join('');
+        return `
+          <ul class="grv-mob-nav-top-secondary-content">                            
+            ${itemStr}
+          </ul>`;
+      },
+  
+      _newMenuItem: function(menuItem){
+        var title = menuItem.title;
+        var submenuItems = menuItem.items;
+        var hasSubmenu = !!submenuItems;
+        var arrowClass = hasSubmenu ? this._classHasSubMenu : '';
+        var submenu = '';        
+        if (submenuItems) {
+          submenu = this._newSubMenu(submenuItems);
+        }    
+        return `
+          <div class="grv-mob-nav-top-primary-item ${arrowClass}">
+            <div class="grv-mob-nav-top-primary-item-title">
+              ${title}        
+            </div>
+            ${submenu}
+          </div>`;        
+      },
+  
+      _newMenu: function(el){     
+        this._ensureBackdrop();
+        this._append(el,`
+        <nav class="grv-mob-nav-top">        
+          <div class="grv-mob-nav-top-primary">
+            <div class="grv-mob-nav-top-primary-wrapper">                
+              <div class="grv-mov-nav-back">        
+                  Back
+              </div>
+              <div class="grv-mob-nav-top-primary-content">                        
+              </div>        
+            </div>    
+          </div>  
+        </nav>`);
+      },
+  
+      _append: function(el, html){
+        var div = document.createElement('div');
+        div.innerHTML = html;            
+        el.appendChild(div.children[0]);
+      },
+  
+      _ensureBackdrop: function(){      
+        var div = document.createElement('div');
+        div.innerHTML = `<div class="grv-backdrop"> </div>`;
+        document.body.prepend(div.children[0]);
+      },
+      
+      addItem: function(item){      
+        var itemHtml = this._newMenuItem(item);
+        var div = document.createElement('div');
+        div.innerHTML = itemHtml;      
+        var content = this._parent.getElementsByClassName('grv-mob-nav-top-primary-content')[0];
+        content.appendChild(div.children[0]);
+      },
+  
+      addMainItems: function(){      
+        var self = this;
+        defaultMobileMenuItems.forEach(function(item){
+          self.addItem(item);
+        });      
+      },
+  
+      addTeleportItems: function(){                  
+        this.addItem(teleportMobileMenuItem);      
+      },
+  
+      show: function(){      
+        document.body.classList.add(this._classNameMenuOpen);    
+      },
+  
+      hide: function(){
+        document.body.classList.remove(this._classNameMenuOpen);        
+      },
+  
+      toggle: function(){      
+        if (document.body.classList.contains(this._classNameMenuOpen)){
+          this.hide();
+        }else{
+          this.show();
+        }      
+      },
+  
+      init: function(container){      
+        this._newMenu(container);
+        this._parent = container.children[0];      
+        this._initEventHandlers();
+      },
+      
+      _closeSubMenu: function(){
+        this._removeClass(this._classActiveItem);
+        this._removeClass(this._className2ndLevelOpen);      
+      },
+  
+      _makeResizeHandler: function(){
+        var prevWidth = window.innerWidth;
+        var self = this;      
+        return function(){
+          // automatically hide the menu if window width increased
+          if ( window.innerWidth > prevWidth ){
+            self.hide();          
+          }
+  
+          prevWidth = window.innerWidth;                
+        }      
+      },
+  
+      _handleClick: function(e){      
+        var backBtn = this._findParent(e.target, 'grv-mov-nav-back');
+        if(backBtn){
+          this._closeSubMenu();
+          return;        
+        }
+              
+        var menuItem = this._findParent(e.target, this._classHasSubMenu);      
+        if(menuItem){
+          this._parent.classList.add(this._className2ndLevelOpen);      
+          menuItem.classList.add(this._classActiveItem);
+        
+        }      
+      },
+      
+      _initEventHandlers: function(){      
+        this._parent.onclick = this._handleClick.bind(this);
+        window.addEventListener('resize', this._makeResizeHandler());
+  
+        var els = document.getElementsByClassName('grv-nav-top-primary-mobile-trigger');
+        if (els.length === 0){
+          console.error('Unable to find mobile menu trigger');      
+          return;
+        }
+  
+        els[0].onclick = this.toggle.bind(this);
+      }
+    };
+  
+    
+    window.grvNav = {
+      
+      _defaultCompanyUrl: 'https://gravitational.com',
+    
+      getCompanySiteUrl: function(){      
+        var baseUrl = window.location.origin;
+        var loc = window.location;
+        var vals = loc.host.split('.').reverse();
+  
+        if (vals[1]) {
+          return loc.origin.replace(loc.host, vals[1] + '.' + vals[0]);   
+        }
+          
+        return baseUrl; 
+      },
+          
+      adjustUrls: function(){                                
+        var linkSelector = '.grv-mob-nav-top a, .grv-nav-top a, .grv-nav-top-secondary a';
+        var companySiteUrl = this.getCompanySiteUrl();    
+        var navLinks = document.querySelectorAll(linkSelector);
+        for(var i = 0; i < navLinks.length; i ++){
+          navLinks[i].href = navLinks[i].href.replace(
+            this._defaultCompanyUrl, 
+            companySiteUrl);
+        }          
+      }
+    }
+                  
+  </script>
+  <script>
+    try {    
+      var container = document.getElementById("mobile-menu")
+      grvMobileMenu.init(container);           
+      grvMobileMenu.addMainItems();           
+      grvMobileMenu.addTeleportItems();
+      grvNav.adjustUrls();
+    }catch(err){
+      console.error('failed to init nav menu', err)
+    }
+  </script>
