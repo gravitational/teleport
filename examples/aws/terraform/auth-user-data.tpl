@@ -162,17 +162,17 @@ set -o pipefail
 
 # Proxy token authenticates proxies joining the cluster
 PROXY_TOKEN=\$$(uuid)
-tctl nodes add --roles=proxy --ttl=4h --token=\$${PROXY_TOKEN}
+/usr/local/bin/tctl nodes add --roles=proxy --ttl=4h --token=\$${PROXY_TOKEN}
 aws ssm put-parameter --name /teleport/${cluster_name}/tokens/proxy --region ${region} --type="SecureString" --value="\$${PROXY_TOKEN}" --overwrite
 
 # Node token authenticates nodes joining the cluster
 NODE_TOKEN=\$$(uuid)
-tctl nodes add --roles=node --ttl=4h --token=\$${NODE_TOKEN}
+/usr/local/bin/tctl nodes add --roles=node --ttl=4h --token=\$${NODE_TOKEN}
 aws ssm put-parameter --name /teleport/${cluster_name}/tokens/node --region ${region} --type="SecureString" --value="\$${NODE_TOKEN}" --overwrite
 
 # Export CA certificate to SSM parameter store
 # so nodes and proxies can check the identity of the auth server they are connecting to
-CERT=\$$(tctl auth export --type=tls)
+CERT=\$$(/usr/local/bin/tctl auth export --type=tls)
 aws ssm put-parameter --name /teleport/${cluster_name}/ca --region ${region} --type="String" --value="\$${CERT}" --overwrite
 
 EOF
