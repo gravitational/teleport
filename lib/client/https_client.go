@@ -18,30 +18,36 @@ limitations under the License.
 package client
 
 import (
-	"crypto/tls"
 	"crypto/x509"
 	"net/http"
 	"net/url"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 )
 
 func NewInsecureWebClient() *http.Client {
+	tlsConfig := utils.TLSConfig()
+	tlsConfig.InsecureSkipVerify = true
+
 	return &http.Client{
 		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			TLSClientConfig: tlsConfig,
 		},
 	}
 }
 
 func newClientWithPool(pool *x509.CertPool) *http.Client {
+	tlsConfig := utils.TLSConfig()
+	tlsConfig.RootCAs = pool
+
 	return &http.Client{
 		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{RootCAs: pool},
+			TLSClientConfig: tlsConfig,
 		},
 	}
 }
