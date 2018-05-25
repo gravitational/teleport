@@ -18,7 +18,6 @@ limitations under the License.
 package auth
 
 import (
-	"crypto/tls"
 	"encoding/json"
 	"net/http"
 	"net/url"
@@ -29,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
@@ -455,13 +455,17 @@ func (s *AuthServer) sendValidateRequestToProxy(host string, validateRequest *Va
 	if lib.IsInsecureDevMode() {
 		log.Warn("The setting insecureSkipVerify is used to communicate with proxy. Make sure you intend to run Teleport in insecure mode!")
 
-		// get the default transport (so we can get the proxy from environment)
-		// but disable tls certificate checking.
+		// Get the default transport, this allows picking up proxy from the
+		// environment.
 		tr, ok := http.DefaultTransport.(*http.Transport)
 		if !ok {
 			return nil, trace.BadParameter("unable to get default transport")
 		}
-		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+
+		// Disable certificate checking while in debug mode.
+		tlsConfig := utils.TLSConfig()
+		tlsConfig.InsecureSkipVerify = true
+		tr.TLSClientConfig = tlsConfig
 
 		insecureWebClient := &http.Client{
 			Transport: tr,
