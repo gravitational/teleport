@@ -45,6 +45,7 @@ pipeline {
                     // update path to parameters file and create ASG stack
                     sh 'JENKINS_CLOUDFORMATION_PARAMETERS_PATH=full-parameters.json make jenkins-create-stack'
                     sh 'make jenkins-wait-for-stack-creation'
+                    sh 'make jenkins-get-s3-bucket-id > s3-bucket-id'
                 }
             }
         }
@@ -71,6 +72,7 @@ pipeline {
                     sh 'make jenkins-wait-for-stack-deletion || true'
                     sh 'make jenkins-delete-stack-vpc || true'
                     sh 'make jenkins-wait-for-stack-deletion-vpc || true'
+                    sh 'make jenkins-delete-s3-bucket || true'
                 }
             }            
         }

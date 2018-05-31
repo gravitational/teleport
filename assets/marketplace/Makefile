@@ -43,6 +43,12 @@ JENKINS_CLOUDFORMATION_PARAMETERS_PATH ?= ./files/build/jenkins-parameters.json
 
 # YAML filename
 CF_YAML_FILENAME ?= ./oss.yaml
+
+# S3 Bucket ID
+S3_BUCKET_ID ?=
+
+# S3 Bucket filename
+S3_BUCKET_FILENAME ?= s3-bucket-id
 export
 
 .PHONY: oss
@@ -87,6 +93,7 @@ create-stack-vpc: CF_YAML_FILENAME=./oss-vpc.yaml
 create-stack-vpc:
 	$(MAKE) create-stack
 
+
 # Update
 .PHONY: update-stack
 update-stack:
@@ -97,6 +104,7 @@ update-stack:
 update-stack-vpc: CF_YAML_FILENAME=./oss-vpc.yaml
 update-stack-vpc:
 	$(MAKE) update-stack
+
 
 # Describe
 .PHONY: describe-stack
@@ -156,6 +164,20 @@ jenkins-describe-stack-vpc:
 jenkins-describe-stack-outputs-vpc: JENKINS_TEST_STACK_NAME=jenkins-teleport-quickstart-test-stack-vpc
 jenkins-describe-stack-outputs-vpc:
 	@$(MAKE) -s jenkins-describe-stack-outputs
+
+.PHONY: jenkins-get-s3-bucket-id
+jenkins-get-s3-bucket-id:
+	@$(MAKE) -s jenkins-describe-stack-outputs | jq -r '.[] | select(.OutputKey == "S3Bucket") | .OutputValue'
+
+.PHONY: jenkins-write-s3-bucket-file
+jenkins-write-s3-bucket-file:
+	@$(MAKE) -s jenkins-get-s3-bucket-id > $(S3_BUCKET_FILE)
+
+.PHONY: jenkins-delete-s3-bucket
+jenkins-delete-s3-bucket: export S3_BUCKET_ID=$(shell cat $(S3_BUCKET_FILE))
+jenkins-delete-s3-bucket:
+	files/s3-delete-all-object-versions.sh $(S3_BUCKET_ID)
+	aws s3api delete-bucket --region=$(AWS_REGION) --bucket $(S3_BUCKET_ID)
 
 .PHONY: jenkins-delete-stack
 jenkins-delete-stack:
