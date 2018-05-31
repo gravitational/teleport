@@ -49,7 +49,7 @@ pipeline {
                     sh 'cat generated-domain-name'
                     // update path to parameters file and create ASG stack
                     sh 'JENKINS_CLOUDFORMATION_PARAMETERS_PATH=full-parameters.json make jenkins-create-stack'
-                    //sh 'make jenkins-wait-for-stack-creation'
+                    sh 'make jenkins-wait-for-stack-creation'
                     sh 'make jenkins-get-s3-bucket-id > s3-bucket-id'
                     sh 'cat s3-bucket-id'
                 }
