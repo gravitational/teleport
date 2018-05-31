@@ -14,20 +14,20 @@ pipeline {
                 }
             }
         }
-        stage('Run Packer') {
-            steps {
-                dir('assets/marketplace') {
-                    sh 'make oss'
-                }
-            }
-        }
-        stage('Update AMI IDs)') {
-            steps {
-                dir('assets/marketplace') {
-                    sh 'make update-ami-ids-oss'
-                }
-            }
-        }
+        //stage('Run Packer') {
+        //    steps {
+        //        dir('assets/marketplace') {
+        //            sh 'make oss'
+        //        }
+        //    }
+        //}
+        //stage('Update AMI IDs)') {
+        //    steps {
+        //        dir('assets/marketplace') {
+        //            sh 'make update-ami-ids-oss'
+        //        }
+        //    }
+        //}
         stage('Run Cloudformation and wait for stack') {
             environment {
                 JENKINS_CLOUDFORMATION_PARAMETERS_PATH = credentials('7d731ad8-ed03-4e42-a411-605c40c182f6')
@@ -42,7 +42,7 @@ pipeline {
                     // use jq to combine Jenkins JSON stack parameters and vpc.json into one list of pairs
                     sh "jq -s add ${JENKINS_CLOUDFORMATION_PARAMETERS_PATH} vpc.json > full-parameters.json"
                     // generate 16 random characters and update the domain name we're using
-                    sh 'RANDOM_STRING=$(dd if=/dev/urandom bs=16 | tr -dc "a-zA-Z0-9" | fold -w 16 | head -n 1) sed -i "s/jenkins-teleport-quickstart-test-stack.gravitational.io/jenkins-teleport-quickstart-test-${RANDOM_STRING}.gravitational.io/g" full-parameters.json'
+                    sh 'RANDOM_STRING=$(dd if=/dev/urandom bs=128 count=1 | tr -dc "a-zA-Z0-9" | fold -w 16 | head -n 1) sed -i "s/jenkins-teleport-quickstart-test-stack.gravitational.io/jenkins-teleport-quickstart-test-${RANDOM_STRING}.gravitational.io/g" full-parameters.json'
                     sh 'jq -r \'.[] | select(.ParameterKey == "DomainName") | .ParameterValue\' files/build/jenkins-parameters.json > generated-domain-name'
                     sh 'cat full-parameters.json'
                     // update path to parameters file and create ASG stack
