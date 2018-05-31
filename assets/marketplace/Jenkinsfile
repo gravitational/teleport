@@ -42,7 +42,7 @@ pipeline {
                     // use jq to combine Jenkins JSON stack parameters and vpc.json into one list of pairs
                     sh "jq -s add ${JENKINS_CLOUDFORMATION_PARAMETERS_PATH} vpc.json > full-parameters.json"
                     // generate 16 random characters and update the domain name we're using (beware: there is a 64 character limit on the common name field)
-                    sh 'dd if=/dev/urandom bs=128 count=1 | tr -dc "a-zA-Z0-9" | fold -w 16 | head -n 1 > random-string'
+                    sh 'dd if=/dev/urandom bs=128 count=1 | tr -dc "a-z0-9" | fold -w 16 | head -n 1 > random-string'
                     sh 'sed -i "s/jenkins-teleport-quickstart-test-stack.gravitational.io/jenkins-teleport-quickstart-$(cat random-string).gravitational.io/g" full-parameters.json'
                     sh 'jq -r \'.[] | select(.ParameterKey == "DomainName") | .ParameterValue\' full-parameters.json > generated-domain-name'
                     sh 'cat full-parameters.json'
