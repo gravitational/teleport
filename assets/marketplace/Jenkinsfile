@@ -43,8 +43,9 @@ pipeline {
                     sh "jq -s add ${JENKINS_CLOUDFORMATION_PARAMETERS_PATH} vpc.json > full-parameters.json"
                     // generate 16 random characters and update the domain name we're using
                     sh 'RANDOM_STRING=$(dd if=/dev/urandom bs=128 count=1 | tr -dc "a-zA-Z0-9" | fold -w 16 | head -n 1) sed -i "s/jenkins-teleport-quickstart-test-stack.gravitational.io/jenkins-teleport-quickstart-test-${RANDOM_STRING}.gravitational.io/g" full-parameters.json'
-                    sh 'jq -r \'.[] | select(.ParameterKey == "DomainName") | .ParameterValue\' files/build/jenkins-parameters.json > generated-domain-name'
+                    sh 'jq -r \'.[] | select(.ParameterKey == "DomainName") | .ParameterValue\' full-parameters.json > generated-domain-name'
                     sh 'cat full-parameters.json'
+                    sh 'cat generated-domain-name'
                     // update path to parameters file and create ASG stack
                     sh 'JENKINS_CLOUDFORMATION_PARAMETERS_PATH=full-parameters.json make jenkins-create-stack'
                     sh 'make jenkins-wait-for-stack-creation'
