@@ -41,6 +41,9 @@ pipeline {
                     sh "make jenkins-describe-stack-outputs-vpc | jq -r 'map ( { ParameterKey: ( .OutputKey | tostring ), ParameterValue: ( .OutputValue | tostring) } )' > vpc.json"
                     // use jq to combine Jenkins JSON stack parameters and vpc.json into one list of pairs
                     sh "jq -s add ${JENKINS_CLOUDFORMATION_PARAMETERS_PATH} vpc.json > full-parameters.json"
+                    // generate 16 random characters and update the domain name we're using
+                    sh "RANDOM_STRING=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 16 | head -n 1) sed -i 's/jenkins-teleport-quickstart-test-stack.gravitational.io/jenkins-teleport-quickstart-test-${RANDOM_STRING}.gravitational.io/g' full-parameters.json"
+                    sh "jq -r '.[] | select(.ParameterKey == \"DomainName\") | .ParameterValue' files/build/jenkins-parameters.json > generated-domain-name"
                     sh "cat full-parameters.json"
                     // update path to parameters file and create ASG stack
                     sh 'JENKINS_CLOUDFORMATION_PARAMETERS_PATH=full-parameters.json make jenkins-create-stack'
@@ -54,7 +57,7 @@ pipeline {
                 timeout(5) {
                     waitUntil {
                         script {
-                            def r = sh script: 'wget -q https://jenkins-teleport-quickstart-test-stack.gravitational.io/web/login', returnStatus: true
+                            def r = sh script: 'GENERATED_DOMAIN_NAME=$(cat generated-domain-name) wget -q https://${GENERATED_DOMAIN_NAME}/web/login', returnStatus: true
                             return (r == 0);
                         }
                     }
