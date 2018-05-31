@@ -43,23 +43,29 @@ func ListenTLS(address string, certFile, keyFile string) (net.Listener, error) {
 	return tls.Listen("tcp", address, tlsConfig)
 }
 
-// TLSConfig returns default TLS configuration with
-// strict TLS settings configured (e.g. min TLS1.2)
+// TLSConfig returns default TLS configuration strong defaults.
 func TLSConfig() *tls.Config {
 	config := &tls.Config{}
+
+	// Only support modern ciphers (Chacha20 and AES GCM). Key exchanges which
+	// support perfect forward secrecy (ECDHE) have priority over those that do
+	// not (RSA).
 	config.CipherSuites = []uint16{
-		tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+		tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
+		tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
+
 		tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+		tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
 
-		tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
-		tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+		tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+		tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
 
-		tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
-		tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
-
-		tls.TLS_RSA_WITH_AES_256_CBC_SHA,
-		tls.TLS_RSA_WITH_AES_128_CBC_SHA,
+		tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
+		tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
 	}
+
+	// Pick the servers preferred ciphersuite, not the clients.
+	config.PreferServerCipherSuites = true
 
 	config.MinVersion = tls.VersionTLS12
 	config.SessionTicketsDisabled = false

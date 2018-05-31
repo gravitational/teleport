@@ -79,30 +79,11 @@ func (s *AuthServer) getSAMLProvider(conn services.SAMLConnector) (*saml2.SAMLSe
 	return serviceProvider, nil
 }
 
-// buildSAMLRoles takes a connector and claims and returns a slice of roles. If the claims
-// match a concrete roles in the connector, those roles are returned directly. If the
-// claims match a template role in the connector, then that role is first created from
-// the template, then returned.
-func (a *AuthServer) buildSAMLRoles(connector services.SAMLConnector, assertionInfo saml2.AssertionInfo, expiresAt time.Time) ([]string, error) {
+// buildSAMLRoles takes a connector and claims and returns a slice of roles.
+func (a *AuthServer) buildSAMLRoles(connector services.SAMLConnector, assertionInfo saml2.AssertionInfo) ([]string, error) {
 	roles := connector.MapAttributes(assertionInfo)
 	if len(roles) == 0 {
-		role, err := connector.RoleFromTemplate(assertionInfo)
-		if err != nil {
-			log.Warningf("[SAML] Unable to map claims to roles for %q: %v", connector.GetName(), err)
-			return nil, trace.AccessDenied("unable to map claims to roles for %q: %v", connector.GetName(), err)
-		}
-
-		// figure out ttl for role. expires = now + ttl  =>  ttl = expires - now
-		ttl := expiresAt.Sub(a.clock.Now())
-
-		// upsert templated role
-		err = a.Access.UpsertRole(role, ttl)
-		if err != nil {
-			log.Warningf("[SAML] Unable to upsert templated role for connector: %q: %v", connector.GetName(), err)
-			return nil, trace.AccessDenied("unable to upsert templated role: %q: %v", connector.GetName(), err)
-		}
-
-		roles = []string{role.GetName()}
+		return nil, trace.AccessDenied("unable to map attributes to role for connector: %v", connector.GetName())
 	}
 
 	return roles, nil
@@ -125,7 +106,7 @@ func assertionsToTraitMap(assertionInfo saml2.AssertionInfo) map[string][]string
 }
 
 func (a *AuthServer) createSAMLUser(connector services.SAMLConnector, assertionInfo saml2.AssertionInfo, expiresAt time.Time) error {
-	roles, err := a.buildSAMLRoles(connector, assertionInfo, expiresAt)
+	roles, err := a.buildSAMLRoles(connector, assertionInfo)
 	if err != nil {
 		return trace.Wrap(err)
 	}

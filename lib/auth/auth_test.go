@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/coreos/go-oidc/jose"
-	"github.com/coreos/go-oidc/oidc"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	. "gopkg.in/check.v1"
@@ -237,7 +236,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(err, IsNil)
 
 	// generate predefined token
-	customToken := "custom token"
+	customToken := "custom-token"
 	tok, err = s.a.GenerateToken(GenerateTokenRequest{Roles: teleport.Roles{teleport.RoleNode}, Token: customToken})
 	c.Assert(err, IsNil)
 	c.Assert(tok, Equals, customToken)
@@ -363,13 +362,8 @@ func (s *AuthSuite) TestBuildRolesInvalid(c *C) {
 	claims.Add("nickname", "foo")
 	claims.Add("full_name", "foo bar")
 
-	// create an identity for the ttl
-	ident := &oidc.Identity{
-		ExpiresAt: time.Now().Add(1 * time.Minute),
-	}
-
 	// try and build roles should be invalid since we have no mappings
-	_, err := s.a.buildRoles(oidcConnector, ident, claims)
+	_, err := s.a.buildOIDCRoles(oidcConnector, claims)
 	c.Assert(err, NotNil)
 }
 
@@ -398,72 +392,11 @@ func (s *AuthSuite) TestBuildRolesStatic(c *C) {
 	claims.Add("nickname", "foo")
 	claims.Add("full_name", "foo bar")
 
-	// create an identity for the ttl
-	ident := &oidc.Identity{
-		ExpiresAt: time.Now().Add(1 * time.Minute),
-	}
-
 	// build roles and check that we mapped to "user" role
-	roles, err := s.a.buildRoles(oidcConnector, ident, claims)
+	roles, err := s.a.buildOIDCRoles(oidcConnector, claims)
 	c.Assert(err, IsNil)
 	c.Assert(roles, HasLen, 1)
 	c.Assert(roles[0], Equals, "user")
-}
-
-func (s *AuthSuite) TestBuildRolesTemplate(c *C) {
-	// create a connector
-	oidcConnector := services.NewOIDCConnector("example", services.OIDCConnectorSpecV2{
-		IssuerURL:    "https://www.exmaple.com",
-		ClientID:     "example-client-id",
-		ClientSecret: "example-client-secret",
-		RedirectURL:  "https://localhost:3080/v1/webapi/oidc/callback",
-		Display:      "sign in with example.com",
-		Scope:        []string{"foo", "bar"},
-		ClaimsToRoles: []services.ClaimMapping{
-			services.ClaimMapping{
-				Claim: "roles",
-				Value: "teleport-user",
-				RoleTemplate: &services.RoleV2{
-					Kind:    services.KindRole,
-					Version: services.V2,
-					Metadata: services.Metadata{
-						Name:      `{{index . "email"}}`,
-						Namespace: defaults.Namespace,
-					},
-					Spec: services.RoleSpecV2{
-						MaxSessionTTL: services.NewDuration(90 * 60 * time.Minute),
-						Logins:        []string{`{{index . "nickname"}}`, `root`},
-						NodeLabels:    map[string]string{"*": "*"},
-						Namespaces:    []string{"*"},
-					},
-				},
-			},
-		},
-	})
-
-	// create some claims
-	var claims = make(jose.Claims)
-	claims.Add("roles", "teleport-user")
-	claims.Add("email", "foo@example.com")
-	claims.Add("nickname", "foo")
-	claims.Add("full_name", "foo bar")
-
-	// create an identity for the ttl
-	ident := &oidc.Identity{
-		ExpiresAt: time.Now().Add(1 * time.Minute),
-	}
-
-	// build roles
-	roles, err := s.a.buildRoles(oidcConnector, ident, claims)
-	c.Assert(err, IsNil)
-
-	// check that the newly created role was both returned and upserted into the backend
-	r, err := s.a.GetRoles()
-	c.Assert(err, IsNil)
-	c.Assert(r, HasLen, 1)
-	c.Assert(r[0].GetName(), Equals, "foo@example.com")
-	c.Assert(roles, HasLen, 1)
-	c.Assert(roles[0], Equals, "foo@example.com")
 }
 
 func (s *AuthSuite) TestValidateACRValues(c *C) {

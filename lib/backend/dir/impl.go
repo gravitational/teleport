@@ -97,7 +97,9 @@ func New(params backend.Params) (backend.Backend, error) {
 	if err := os.MkdirAll(locksDir, defaultDirMode); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
-	return bk, nil
+
+	// Wrap the backend in a input sanitizer and return it.
+	return backend.NewSanitizer(bk), nil
 }
 
 // GetItems is a function that returns keys in batch

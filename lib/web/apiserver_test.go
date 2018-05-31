@@ -351,6 +351,11 @@ func (s *WebSuite) TestNewUser(c *C) {
 	token, err := s.server.Auth().CreateSignupToken(services.UserV1{Name: "bob", AllowedLogins: []string{s.user}}, 0)
 	c.Assert(err, IsNil)
 
+	// Save the original signup token, after GET /v2/webapi/users/invites/<token>
+	// this should change.
+	ost, err := s.server.Auth().GetSignupToken(token)
+	c.Assert(err, IsNil)
+
 	tokens, err := s.server.Auth().GetTokens()
 	c.Assert(err, IsNil)
 	c.Assert(len(tokens), Equals, 1)
@@ -365,10 +370,14 @@ func (s *WebSuite) TestNewUser(c *C) {
 	c.Assert(out.User, Equals, "bob")
 	c.Assert(out.InviteToken, Equals, token)
 
-	// TODO(rjones) replaced GetSignupTokenData with GetSignupToken
-	tokenData, err := s.server.Auth().GetSignupToken(token)
+	st, err := s.server.Auth().GetSignupToken(token)
 	c.Assert(err, IsNil)
-	validToken, err := totp.GenerateCode(tokenData.OTPKey, time.Now())
+
+	// Make sure that the signup token changed after rending the endpoint
+	// GET /v2/webapi/users/invites/<token> above.
+	c.Assert(st, Not(Equals), ost)
+
+	validToken, err := totp.GenerateCode(st.OTPKey, time.Now())
 	c.Assert(err, IsNil)
 
 	tempPass := "abc123"
@@ -1433,7 +1442,6 @@ func (s *WebSuite) makeTerminal(pack *authPack, opts ...session.ID) (*websocket.
 	return ws, nil
 }
 
-//func (s *WebSuite) waitForOutput(conn *websocket.Conn, substr string) error {
 func (s *WebSuite) waitForOutput(conn *wrappedSocket, substr string) error {
 	tickerCh := time.Tick(250 * time.Millisecond)
 	timeoutCh := time.After(10 * time.Second)

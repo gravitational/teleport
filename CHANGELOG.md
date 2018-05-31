@@ -1,5 +1,65 @@
 # Changelog
 
+## 2.6.0
+
+This release of Teleport brings new features, significant performance and
+usability improvements as well usual bugfixes.
+
+During this release cycle, the Teleport source code has been audited for
+security vulnerabilities by Cure53 and this release (2.6.0) contains patches
+for the discovered problems.
+
+#### New Features
+
+* Support for DynamoDB for storing the audit log events. [#1755](https://github.com/gravitational/teleport/issues/1755)
+* Support for Amazon S3 for storing the recorded SSH sessions. [#1755](https://github.com/gravitational/teleport/issues/1755)
+* Support for rotating certificate authorities (CA rotation). [#1899] (https://github.com/gravitational/teleport/pull/1899)
+* Integration with Linux PAM (pluggable authentication modules) subsystem. [#742](https://github.com/gravitational/teleport/issues/742) and [#1766](https://github.com/gravitational/teleport/issues/1766)
+* The new CLI command `tsh status` shows users which Teleport clusters they are authenticated with. [#1628](https://github.com/gravitational/teleport/issues/1628)
+
+Additionally, Teleport 2.6.0 has been submitted to the AWS marketplace. Soon
+AWS users will be able to create properly configured, secure and highly
+available Teleport clusters with ease.
+
+#### Configuration Changes
+
+* Role templates (depreciated in Teleport 2.3) were fully removed. We recommend
+  migrating to role variables which are documented [here](https://gravitational.com/teleport/docs/ssh_rbac/#roles)
+
+* Resource names (like roles, connectors, trusted clusters) can no longer
+  contain unicode or other special characters. Update the names of all user
+  created resources to only include characters, hyphens, and dots.
+
+* `advertise_ip` has been deprecated and replaced with `public_addr` setting. See [#1803](https://github.com/gravitational/teleport/issues/1803)
+  The existing configuration files will still work, but we advise Teleport
+  administrators to update it to reflect the new format.
+
+* Teleport no longer uses `boltdb` back-end for storing cluster state _by
+  default_.  The new default is called `dir` and it uses simple JSON files
+  stored in `/var/lib/teleport/backend`. This change applies to brand new
+  Teleport installations, the existing clusters will continue to use `boltdb`.
+
+* The default set of enabled cryptographic primitives has been
+  updated to reflect the latest state of SSH and TLS security. [#1856](https://github.com/gravitational/teleport/issues/1856).
+
+#### Bug Fixes
+
+The list of most visible bug fixes in this release:
+
+* `tsh` now properly handles Ctrl+C [#1882](https://github.com/gravitational/teleport/issues/1882)
+* High CPU utilization on ARM platforms during daemon start-up. [#1886](https://github.com/gravitational/teleport/issues/1886)
+* Terminal window size can get out of sync on AWS. [#1874](https://github.com/gravitational/teleport/issues/1874)
+* Some CLI commands print errors twice. [#1889](https://github.com/gravitational/teleport/issues/1889)
+* SSH session playback can be interrupted for long sessions. [#1774](https://github.com/gravitational/teleport/issues/1774)
+* Processing `HUP` UNIX signal is unreliable when `teleport` daemon runs under `systemd`. [#1844](https://github.com/gravitational/teleport/issues/1844)
+
+You can see the full list of 2.6.0 changes [here](https://github.com/gravitational/teleport/milestone/22?closed=1).
+
+#### Upgrading
+
+Follow the [recommended upgrade procedure](https://gravitational.com/teleport/docs/admin-guide/#upgrading-teleport)
+to upgrade to this version.
+
 ## 2.5.7
 
 This release of Teleport focuses on bugfixes.

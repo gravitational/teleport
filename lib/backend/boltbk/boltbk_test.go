@@ -28,7 +28,7 @@ import (
 func TestBolt(t *testing.T) { TestingT(t) }
 
 type BoltSuite struct {
-	bk    *BoltBackend
+	bk    backend.Backend
 	suite test.BackendSuite
 }
 
@@ -39,14 +39,14 @@ func (s *BoltSuite) SetUpSuite(c *C) {
 }
 
 func (s *BoltSuite) SetUpTest(c *C) {
+	var err error
+
 	dir := c.MkDir()
-	bk, err := New(backend.Params{
+	s.bk, err = New(backend.Params{
 		"path": dir,
 	})
 	c.Assert(err, IsNil)
-	c.Assert(bk, NotNil)
-
-	s.bk, _ = bk.(*BoltBackend)
+	c.Assert(s.bk, NotNil)
 
 	s.suite.ChangesC = make(chan interface{})
 	s.suite.B = s.bk

@@ -168,3 +168,92 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh -A -p 22 node.exa
 tsh --proxy=proxy.example.com --user=<username> --insecure --cluster=foo.com ssh -p 22 node.foo.com
 ```
 
+## Web UI
+
+- [ ] Creating a new SSH session.
+  
+    Open a terminal to existing server    
+    - [ ] Verify that input/output works as expected by typing on the keyboard.
+    - [ ] Verify that participant indicator is shown.
+    - [ ] Verify that window resize works.
+    - [ ] Verify that terminal is automatically closed after session ends (by typing `exit`)          
+
+    Open a terminal to non-existing server
+    - [ ] Verify that connection error is shown to the user.
+   
+- [ ] Joining an existing SSH session.
+
+    Start a new session then copy the session URL and open it in another tab.
+
+    - [ ] Should be able to join an existing session.
+    - [ ] Should be able to see what another participant is typing.
+    - [ ] Should display the correct number of participants.
+    - [ ] Verify that resize works in both terminals. Use midnight commander (`apt-get install mc`) as it clearly shows the actual screen of the terminal.
+
+    Start a new session and then open the Sessions Page in another tab:
+
+    - [ ] Should see 1 active session and participant.
+    - [ ] Should be able to join this session by clicking on "Join" button.
+
+    Join a session that has ended:
+
+    - [ ] Should see a message saying that this session has ended.
+    - [ ] Should see 2 buttons: "Start new" and "Replay". Verify that both work as expected.
+
+- [ ] Node List.
+
+    Open the Node List page.
+    
+    - [ ] Verify that sorting works.
+    - [ ] Verify that dynamic labels are getting updated.
+    - [ ] Verify that login dropdown control shows the correct list of available logins.
+    - [ ] Verify that search works.
+    - [ ] Verify that ssh control works (input validation).
+    - [ ] Verify that cluster dropdown control shows the correct list of clusters.
+
+
+- [ ] Session List (stored sessions).
+
+    Open the Sessions page.
+
+    - [ ] Verify that it displays the list of stored sessions.
+    - [ ] Should be able to open a session player by clicking on "Play" button.
+    - [ ] Verify that all columns display correct information.
+    - [ ] Verify that date-picker works.
+    - [ ] Verify that search works.
+
+    Create a new session and open the Session List in another browser window.
+
+    - [ ] Verify that this session is shown as active in the Session List.
+    - [ ] Verify that "Join" button works.
+
+
+- [ ] Invite
+
+    Create user invite URL and use this URL to:
+
+    - [ ] Verify that invite works with OTP enabled.
+    - [ ] Verify that invite works with U2F enabled.
+    - [ ] Verify that invite works with 2nd factor disabled.
+
+
+- [ ] Expired Invite
+
+    Create invalid or expired invite URL.
+
+    - [ ] Verify that "Invite code has expired" message is displayed.
+
+
+- [ ] User lock
+
+    Open a login screen.
+
+    - [ ] Verify that a user gets locked after several unsuccessful attempts.
+
+
+- [ ] Login redirects.
+
+    Log out and then navigate to Nodes list.
+
+    - [ ] Verify that a user is redirected to the login page.
+    - [ ] Verify that after successful login, a user is redirected to the Node List.

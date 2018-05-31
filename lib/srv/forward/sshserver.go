@@ -211,6 +211,12 @@ func New(c ServerConfig) (*Server, error) {
 		dataDir:         c.DataDir,
 	}
 
+	// Set the ciphers, KEX, and MACs that the in-memory server will send to the
+	// client in its SSH_MSG_KEXINIT.
+	s.ciphers = c.Ciphers
+	s.kexAlgorithms = c.KEXAlgorithms
+	s.macAlgorithms = c.MACAlgorithms
+
 	s.sessionRegistry, err = srv.NewSessionRegistry(s)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -307,10 +313,23 @@ func (s *Server) Dial() (net.Conn, error) {
 }
 
 func (s *Server) Serve() {
-	config := &ssh.ServerConfig{
-		PublicKeyCallback: s.authHandlers.UserKeyAuth,
-	}
+	config := &ssh.ServerConfig{}
+
+	// Configure callback for user certificate authentication.
+	config.PublicKeyCallback = s.authHandlers.UserKeyAuth
+
+	// Set host certificate the in-memory server will present to clients.
 	config.AddHostKey(s.hostCertificate)
+
+	// Set the ciphers, KEX, and MACs that the client will send to the target
+	// server in its SSH_MSG_KEXINIT.
+	config.Ciphers = s.ciphers
+	config.KeyExchanges = s.kexAlgorithms
+	config.MACs = s.macAlgorithms
+
+	s.log.Debugf("Supported ciphers: %q.", s.ciphers)
+	s.log.Debugf("Supported KEX algorithms: %q.", s.kexAlgorithms)
+	s.log.Debugf("Supported MAC algorithms: %q.", s.macAlgorithms)
 
 	sconn, chans, reqs, err := ssh.NewServerConn(s.serverConn, config)
 	if err != nil {
@@ -405,15 +424,11 @@ func (s *Server) newRemoteClient(systemLogin string) (*ssh.Client, error) {
 		Timeout:         defaults.DefaultDialTimeout,
 	}
 
-	if len(s.ciphers) > 0 {
-		clientConfig.Ciphers = s.ciphers
-	}
-	if len(s.kexAlgorithms) > 0 {
-		clientConfig.KeyExchanges = s.kexAlgorithms
-	}
-	if len(s.macAlgorithms) > 0 {
-		clientConfig.MACs = s.macAlgorithms
-	}
+	// Ciphers, KEX, and MACs preferences are honored by both the in-memory
+	// server as well as the client in the connection to the target node.
+	clientConfig.Ciphers = s.ciphers
+	clientConfig.KeyExchanges = s.kexAlgorithms
+	clientConfig.MACs = s.macAlgorithms
 
 	dstAddr := s.targetConn.RemoteAddr().String()
 	client, err := proxy.NewClientConnWithDeadline(s.targetConn, dstAddr, clientConfig)

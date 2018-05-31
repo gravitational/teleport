@@ -760,7 +760,7 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 			s.registry.broadcastResult(s.id, *result)
 		}
 		if err != nil {
-			s.log.Errorf("Shell exited with error: %v", err)
+			s.log.Infof("Shell exited with error: %v", err)
 		} else {
 			// no error? this means the command exited cleanly: no need
 			// for this session to "linger" after this.
