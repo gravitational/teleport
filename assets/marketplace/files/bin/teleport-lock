@@ -26,6 +26,6 @@ aws dynamodb put-item \
 if [ $? -eq 0 ]; then
     echo "Renewed or locked the lease for $PROCESS until $(date -d @$TTL)"
 else
-    echo "Could get renew lease, locked by other process"
+    echo "Could not get renew lease, locked by other process"
     exit 255
 fi

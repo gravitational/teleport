@@ -604,7 +604,8 @@ Resources:
             # Check the status a couple of times until the teleport service starts or fails
             # Teleport proxy can take some time to start as it waits for letsencrypt cert
             # to be provisioned.
-            for i in {1..40}; do systemctl status teleport-proxy && break || sleep 30; done
+            # TODO change this back to 40, turned up to get extra time to debug
+            for i in {1..340}; do systemctl status teleport-proxy && break || sleep 30; done
 
             # Get the last measure to collect status
             systemctl status teleport-proxy
