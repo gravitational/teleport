@@ -167,7 +167,7 @@ jenkins-describe-stack-outputs-vpc:
 
 .PHONY: jenkins-get-s3-bucket-id
 jenkins-get-s3-bucket-id:
-	@$(MAKE) -s jenkins-describe-stack-outputs | jq -r '.[] | select(.OutputKey == "S3Bucket") | .OutputValue'
+	@$(MAKE) -s jenkins-describe-stack-outputs | jq -r '.[] | select(.OutputKey == "BucketID") | .OutputValue'
 
 .PHONY: jenkins-write-s3-bucket-file
 jenkins-write-s3-bucket-file:

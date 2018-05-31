@@ -62,7 +62,7 @@ pipeline {
                         script {
                             dir('assets/marketplace') {
                                 sh 'cat generated-domain-name'
-                                def r = sh script: 'GENERATED_DOMAIN_NAME=$(cat generated-domain-name) wget -q https://${GENERATED_DOMAIN_NAME}/web/login', returnStatus: true
+                                def r = sh script: 'GENERATED_DOMAIN_NAME=$(cat generated-domain-name) wget -q https://$GENERATED_DOMAIN_NAME/web/login', returnStatus: true
                                 return (r == 0);
                             }
                         }
