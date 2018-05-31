@@ -34,8 +34,8 @@ pipeline {
             }
             steps {
                 dir('assets/marketplace') {
-                    sh 'make jenkins-create-stack-vpc'
-                    sh 'make jenkins-wait-for-stack-creation-vpc'
+                    //sh 'make jenkins-create-stack-vpc'
+                    //sh 'make jenkins-wait-for-stack-creation-vpc'
                     // get VPC stack outputs as a JSON list of {ParameterKey: key, ParameterValue: value} pairs
                     // write this to vpc.json
                     sh 'make jenkins-describe-stack-outputs-vpc | jq -r "map ( { ParameterKey: ( .OutputKey | tostring ), ParameterValue: ( .OutputValue | tostring) } )" > vpc.json'
