@@ -49,8 +49,9 @@ pipeline {
                     sh 'cat generated-domain-name'
                     // update path to parameters file and create ASG stack
                     sh 'JENKINS_CLOUDFORMATION_PARAMETERS_PATH=full-parameters.json make jenkins-create-stack'
-                    sh 'make jenkins-wait-for-stack-creation'
+                    //sh 'make jenkins-wait-for-stack-creation'
                     sh 'make jenkins-get-s3-bucket-id > s3-bucket-id'
+                    sh 'cat s3-bucket-id'
                 }
             }
         }
@@ -59,8 +60,11 @@ pipeline {
                 timeout(5) {
                     waitUntil {
                         script {
-                            def r = sh script: 'GENERATED_DOMAIN_NAME=$(cat generated-domain-name) wget -q https://${GENERATED_DOMAIN_NAME}/web/login', returnStatus: true
-                            return (r == 0);
+                            dir('assets/marketplace') {
+                                sh 'cat generated-domain-name'
+                                def r = sh script: 'GENERATED_DOMAIN_NAME=$(cat generated-domain-name) wget -q https://${GENERATED_DOMAIN_NAME}/web/login', returnStatus: true
+                                return (r == 0);
+                            }
                         }
                     }
                 }
