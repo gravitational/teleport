@@ -10,9 +10,9 @@ BUILD_SUBNET_ID ?=
 AWS_REGION ?= us-west-2
 
 # Teleport version
-TELEPORT_VERSION ?= 2.6.0-alpha.8
+TELEPORT_VERSION ?= 2.6.0
 
-# Teleport UID is a UID of a non-privileged user ID of a teleport
+# Teleport UID is the UID of a non-privileged 'teleport' user
 TELEPORT_UID ?= 1007
 
 # Instance type is a single value, sorry
@@ -36,10 +36,16 @@ TELEPORT_LICENSE_URI ?=
 BUILD_TIMESTAMP := $(shell TZ=UTC /bin/date "+%Y%m%d-%H%M%S%Z")
 
 # Jenkins test CloudFormation stack name
-JENKINS_TEST_STACK_NAME := jenkins-teleport-quickstart-test-stack
+JENKINS_TEST_STACK_NAME ?= jenkins-teleport-quickstart-test-stack
 
 # Jenkins Cloudformation parameters path
 JENKINS_CLOUDFORMATION_PARAMETERS_PATH ?= ./files/build/jenkins-parameters.json
+
+# YAML filename
+CF_YAML_FILENAME ?= ./oss.yaml
+
+# S3 Bucket ID
+S3_BUCKET_ID ?=
 export
 
 .PHONY: oss
@@ -69,46 +75,120 @@ update-ami-ids-ent:
 
 .PHONY: validate-template
 validate-template:
-	aws cloudformation validate-template --template-body file://./oss.yaml
+	aws cloudformation validate-template --template-body file://$(CF_YAML_FILENAME)
 
+
+# Stack functionality
+# Create
 .PHONY: create-stack
 create-stack:
 	$(MAKE) validate-template
-	aws --region=$(AWS_REGION) cloudformation create-stack --capabilities CAPABILITY_IAM --stack-name $(STACK) --template-body file://./oss.yaml --parameters $(STACK_PARAMS) 
+	aws --region=$(AWS_REGION) cloudformation create-stack --capabilities CAPABILITY_IAM --stack-name $(STACK) --template-body file://$(CF_YAML_FILENAME) --parameters $(STACK_PARAMS)
 
+.PHONY: create-stack-vpc
+create-stack-vpc: CF_YAML_FILENAME=./oss-vpc.yaml
+create-stack-vpc:
+	$(MAKE) create-stack
+
+
+# Update
 .PHONY: update-stack
 update-stack:
 	$(MAKE) validate-template
-	aws --region=$(AWS_REGION) cloudformation update-stack --capabilities CAPABILITY_IAM --stack-name $(STACK) --template-body file://./oss.yaml --parameters $(STACK_PARAMS)
+	aws --region=$(AWS_REGION) cloudformation update-stack --capabilities CAPABILITY_IAM --stack-name $(STACK) --template-body file://$(CF_YAML_FILENAME) --parameters $(STACK_PARAMS)
 
+.PHONY: update-stack-vpc
+update-stack-vpc: CF_YAML_FILENAME=./oss-vpc.yaml
+update-stack-vpc:
+	$(MAKE) update-stack
+
+
+# Describe
 .PHONY: describe-stack
 describe-stack:
-	aws --region=$(AWS_REGION) cloudformation describe-stacks --stack-name $(STACK)
+	@aws --region=$(AWS_REGION) cloudformation describe-stacks --stack-name $(STACK)
 
+.PHONY: describe-stack-outputs
+describe-stack-outputs:
+	@aws --region=$(AWS_REGION) cloudformation describe-stacks --stack-name $(STACK) --query 'Stacks[].Outputs[]'
+
+.PHONY: describe-stack-outputs-vpc
+describe-stack-outputs-vpc: JENKINS_TEST_STACK_NAME=jenkins-teleport-quickstart-test-stack-vpc
+describe-stack-outputs-vpc:
+	@aws --region=$(AWS_REGION) cloudformation describe-stacks --stack-name $(STACK) --query 'Stacks[].Outputs[]'
+
+
+# Delete
 .PHONY: delete-stack
 delete-stack:
 	aws --region=$(AWS_REGION) cloudformation delete-stack --stack-name $(STACK)
 
+
+# Jenkins helpers
 .PHONY: jenkins-create-stack
 jenkins-create-stack:
 	$(MAKE) validate-template
-	aws --region=$(AWS_REGION) cloudformation create-stack --capabilities CAPABILITY_IAM --stack-name $(JENKINS_TEST_STACK_NAME) --template-body file://./oss.yaml --parameters file://$(JENKINS_CLOUDFORMATION_PARAMETERS_PATH)
+	aws --region=$(AWS_REGION) cloudformation create-stack --capabilities CAPABILITY_IAM --stack-name $(JENKINS_TEST_STACK_NAME) --template-body file://$(CF_YAML_FILENAME) --parameters file://$(JENKINS_CLOUDFORMATION_PARAMETERS_PATH)
+
+.PHONY: jenkins-create-stack-vpc
+jenkins-create-stack-vpc: CF_YAML_FILENAME=./oss-vpc.yaml
+jenkins-create-stack-vpc: JENKINS_TEST_STACK_NAME=jenkins-teleport-quickstart-test-stack-vpc
+jenkins-create-stack-vpc:
+	$(MAKE) jenkins-create-stack
 
 .PHONY: jenkins-wait-for-stack-creation
 jenkins-wait-for-stack-creation:
 	aws --region=$(AWS_REGION) cloudformation wait stack-create-complete --stack-name $(JENKINS_TEST_STACK_NAME)
 
+.PHONY: jenkins-wait-for-stack-creation-vpc
+jenkins-wait-for-stack-creation-vpc: JENKINS_TEST_STACK_NAME=jenkins-teleport-quickstart-test-stack-vpc
+jenkins-wait-for-stack-creation-vpc:
+	$(MAKE) jenkins-wait-for-stack-creation
+
 .PHONY: jenkins-describe-stack
 jenkins-describe-stack:
 	@aws --region=$(AWS_REGION) cloudformation describe-stacks --stack-name $(JENKINS_TEST_STACK_NAME)
+
+.PHONY: jenkins-describe-stack-outputs
+jenkins-describe-stack-outputs:
+	@aws --region=$(AWS_REGION) cloudformation describe-stacks --stack-name $(JENKINS_TEST_STACK_NAME) --query 'Stacks[].Outputs[]'
+
+.PHONY: jenkins-describe-stack-vpc
+jenkins-describe-stack-vpc: JENKINS_TEST_STACK_NAME=jenkins-teleport-quickstart-test-stack-vpc
+jenkins-describe-stack-vpc:
+	$(MAKE) jenkins-describe-stack
+
+.PHONY: jenkins-describe-stack-outputs-vpc
+jenkins-describe-stack-outputs-vpc: JENKINS_TEST_STACK_NAME=jenkins-teleport-quickstart-test-stack-vpc
+jenkins-describe-stack-outputs-vpc:
+	@$(MAKE) -s jenkins-describe-stack-outputs
+
+.PHONY: jenkins-get-s3-bucket-id
+jenkins-get-s3-bucket-id:
+	@$(MAKE) -s jenkins-describe-stack-outputs | jq -r '.[] | select(.OutputKey == "S3BucketID") | .OutputValue'
+
+.PHONY: jenkins-delete-s3-bucket
+jenkins-delete-s3-bucket:
+	files/s3-delete-all-object-versions.sh $(S3_BUCKET_ID)
+	aws s3api delete-bucket --region=$(AWS_REGION) --bucket $(S3_BUCKET_ID)
 
 .PHONY: jenkins-delete-stack
 jenkins-delete-stack:
 	aws --region=$(AWS_REGION) cloudformation delete-stack --stack-name $(JENKINS_TEST_STACK_NAME)
 
+.PHONY: jenkins-delete-stack-vpc
+jenkins-delete-stack-vpc: JENKINS_TEST_STACK_NAME=jenkins-teleport-quickstart-test-stack-vpc
+jenkins-delete-stack-vpc:
+	$(MAKE) jenkins-delete-stack
+
 .PHONY: jenkins-wait-for-stack-deletion
 jenkins-wait-for-stack-deletion:
 	aws --region=$(AWS_REGION) cloudformation wait stack-delete-complete --stack-name $(JENKINS_TEST_STACK_NAME)
+
+.PHONY: jenkins-wait-for-stack-deletion-vpc
+jenkins-wait-for-stack-deletion-vpc: JENKINS_TEST_STACK_NAME=jenkins-test-stack-vpc
+jenkins-wait-for-stack-deletion-vpc:
+	$(MAKE) jenkins-wait-for-stack-deletion
 
 .PHONY: check-ent-vars
 check-ent-vars:

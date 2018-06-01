@@ -1,0 +1,338 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Teleport OSS License
+Parameters:
+  KeyName:
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instances
+    Type: AWS::EC2::KeyPair::KeyName
+
+  InstanceType:
+    Description: Teleport EC2 instance type    
+    ConstraintDescription: must be a valid EC2 instance type.
+    Type: String    
+    Default: t2.micro
+    AllowedValues:
+    - t2.micro
+
+  DomainName:
+    ConstraintDescription: Teleport Web UI Domain Name
+    Description: Name of the domain name to use for Teleport
+    Type: String
+
+  DomainAdminEmail:
+    ConstraintDescription: Teleport Domain Admin email
+    Description: Name of Domain Name admin for Letsencrypt
+    Type: String
+
+  HostedZoneID:
+    ConstraintDescription: ID of the hosted zone with Teleport domain
+    Description: ID of the hosted zone of teleport domain
+    Type: String
+
+  CIDRVPC:
+    Type: String
+    Default: 10.0.0.0/16
+
+  CIDRProxyA:
+    Type: String
+    Default: 10.0.0.0/24
+
+  CIDRProxyB:
+    Type: String
+    Default: 10.0.1.0/24
+
+  CIDRAuthA:
+    Type: String
+    Default: 10.0.2.0/24
+
+  CIDRAuthB:
+    Type: String
+    Default: 10.0.3.0/24
+
+  CIDRNodeA:
+    Type: String
+    Default: 10.0.4.0/24
+
+  CIDRNodeB:
+    Type: String
+    Default: 10.0.5.0/24
+
+Resources:
+  # Internet gateway is a routing target for 
+  # internet routeable target
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+      - Key: Cluster
+        Value: {Ref: DomainName}
+
+  # Attach this gateway to VPC
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: {Ref: InternetGateway}
+      VpcId: {Ref: VPC}
+
+  # VPC is a virtual private cloud
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: {Ref: CIDRVPC}
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+
+  # VPC Routing table that sets up default
+  # route to use internet gateway,
+  # subnets using this table are public subnets
+  # from AWS perspective
+  PublicRoutingTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: {Ref: VPC}
+      Tags:
+      - Key: Cluster
+        Value: {Ref: DomainName}
+      - Key: Type
+        Value: Public
+
+  # Public routing table routes all packets
+  # to the internet.
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGateway
+    Properties:
+      RouteTableId: {Ref: PublicRoutingTable}
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId:
+        Ref: InternetGateway
+
+  # ProxySubnetA is a public subnet
+  # used by proxy in the first availability zone
+  ProxySubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: VPC
+      CidrBlock: {Ref: CIDRProxyA}
+      AvailabilityZone:
+        Fn::Select: [0, {'Fn::GetAZs': ''}]
+
+  ProxySubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: {Ref: ProxySubnetA}
+      RouteTableId: {Ref: PublicRoutingTable}
+
+  ProxySubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: VPC
+      CidrBlock: {Ref: CIDRProxyB}
+      AvailabilityZone:
+        Fn::Select: [1, {'Fn::GetAZs': ''}]
+
+  ProxySubnetBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: {Ref: ProxySubnetB}
+      RouteTableId: {Ref: PublicRoutingTable}
+
+  # Elastic IP in the first AZ
+  EIPA:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  # NAT gateway in the first AZ
+  NATA:
+    DependsOn: InternetGatewayAttachment
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId:
+        Fn::GetAtt:
+          - EIPA
+          - AllocationId
+      SubnetId:
+        Ref: ProxySubnetA
+
+  # VPC Routing table that is using NAT gateway
+  PrivateRoutingTableA:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: {Ref: VPC}
+      Tags:
+      - Key: Cluster
+        Value: {Ref: DomainName}
+      - Key: Type
+        Value: Private
+
+  # Public routing table routes all packets
+  # to the internet via NAT gateway
+  PrivateRouteA:
+    Type: AWS::EC2::Route
+    DependsOn: NATA
+    Properties:
+      RouteTableId: {Ref: PrivateRoutingTableA}
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId:
+        Ref: NATA
+
+  # AuthSubnetA is a private subnet
+  # used by auth in the first availability zone
+  AuthSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: VPC
+      CidrBlock: {Ref: CIDRAuthA}
+      AvailabilityZone:
+        Fn::Select: [0, {'Fn::GetAZs': ''}]
+
+  # Associate auth subnet with a routing table
+  AuthSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: {Ref: AuthSubnetA}
+      RouteTableId: {Ref: PrivateRoutingTableA}
+
+  # NodeSubnetA is a private subnet
+  # used by nodes in the first availability zone
+  NodeSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: VPC
+      CidrBlock: {Ref: CIDRNodeA}
+      AvailabilityZone:
+        Fn::Select: [0, {'Fn::GetAZs': ''}]
+
+  # Associate auth subnet with a routing table
+  NodeSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: {Ref: NodeSubnetA}
+      RouteTableId: {Ref: PrivateRoutingTableA}
+
+  # Elastic IP in the second AZ
+  EIPB:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  # NAT gateway in the first AZ
+  NATB:
+    DependsOn: InternetGatewayAttachment
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId:
+        Fn::GetAtt:
+          - EIPB
+          - AllocationId
+      SubnetId:
+        # Has to be an IP address from the public subnet
+        Ref: ProxySubnetB
+
+  # VPC Routing table that is using NAT gateway
+  PrivateRoutingTableB:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: {Ref: VPC}
+      Tags:
+      - Key: Cluster
+        Value: {Ref: DomainName}
+      - Key: Type
+        Value: Private
+
+  # Public routing table routes all packets
+  # to the internet via NAT gateway
+  PrivateRouteB:
+    Type: AWS::EC2::Route
+    DependsOn: NATB
+    Properties:
+      RouteTableId: {Ref: PrivateRoutingTableB}
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId:
+        Ref: NATB
+
+  # AuthSubnetB is a private subnet
+  # used by auth in the first availability zone
+  AuthSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: VPC
+      CidrBlock: {Ref: CIDRAuthB}
+      AvailabilityZone:
+        Fn::Select: [1, {'Fn::GetAZs': ''}]
+
+  # Associate private subnet with a routing table B
+  AuthSubnetARouteTableAssociationB:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: {Ref: AuthSubnetB}
+      RouteTableId: {Ref: PrivateRoutingTableB}
+
+  # NodeSubnetB is a private subnet
+  # used by nodes in the first availability zone
+  NodeSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: VPC
+      CidrBlock: {Ref: CIDRNodeB}
+      AvailabilityZone:
+        Fn::Select: [1, {'Fn::GetAZs': ''}]
+
+  # Associate private subnet with a routing table B
+  NodeSubnetARouteTableAssociationB:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: {Ref: NodeSubnetB}
+      RouteTableId: {Ref: PrivateRoutingTableB}
+
+Outputs:
+  VPC:
+    Description: The ID of the created VPC
+    Value:
+      Ref: VPC
+    Export:
+      Name: VPCID
+  ProxySubnetA:
+    Description: The ID of ProxySubnetA (public)
+    Value:
+      Ref: ProxySubnetA
+    Export:
+      Name: ProxySubnetAID
+  ProxySubnetB:
+    Description: The ID of ProxySubnetB (public)
+    Value:
+      Ref: ProxySubnetB
+    Export:
+      Name: ProxySubnetBID
+  AuthSubnetA:
+    Description: The ID of AuthSubnetA (private)
+    Value:
+      Ref: AuthSubnetA
+    Export:
+      Name: AuthSubnetAID
+  AuthSubnetB:
+    Description: The ID of AuthSubnetB (private)
+    Value:
+      Ref: AuthSubnetB
+    Export:
+      Name: AuthSubnetBID
+  NodeSubnetA:
+    Description: The ID of NodeSubnetA (private)
+    Value:
+      Ref: NodeSubnetA
+    Export:
+      Name: NodeSubnetAID
+  NodeSubnetB:
+    Description: The ID of NodeSubnetB (private)
+    Value:
+      Ref: NodeSubnetB
+    Export:
+      Name: NodeSubnetBID
+

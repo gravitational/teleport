@@ -34,6 +34,7 @@
     "vpc_id": "{{user `vpc`}}",
     "subnet_id": "{{user `subnet`}}",
     "ami_regions": "{{user `destination_regions`}}",
+    "force_delete_snapshot": "true",
     "tags": {
       "Name": "{{user `ami_name`}}",
       "BuildTimestamp": "{{user `build_timestamp`}}"
