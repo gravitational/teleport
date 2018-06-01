@@ -42,7 +42,7 @@ JENKINS_TEST_STACK_NAME ?= jenkins-teleport-quickstart-test-stack
 JENKINS_CLOUDFORMATION_PARAMETERS_PATH ?= ./files/build/jenkins-parameters.json
 
 # YAML filename
-CF_YAML_FILENAME ?= ./oss.yaml
+CF_YAML_FILENAME ?= ./oss-existingvpc.yaml
 
 # S3 Bucket ID
 S3_BUCKET_ID ?=
@@ -167,7 +167,7 @@ jenkins-describe-stack-outputs-vpc:
 
 .PHONY: jenkins-get-s3-bucket-id
 jenkins-get-s3-bucket-id:
-	@$(MAKE) -s jenkins-describe-stack-outputs | jq -r '.[] | select(.OutputKey == "BucketID") | .OutputValue'
+	@$(MAKE) -s jenkins-describe-stack-outputs | jq -r '.[] | select(.OutputKey == "S3BucketID") | .OutputValue'
 
 .PHONY: jenkins-write-s3-bucket-file
 jenkins-write-s3-bucket-file:

@@ -832,3 +832,12 @@ Resources:
       BucketEncryption:
         ServerSideEncryptionConfiguration:
         - ServerSideEncryptionByDefault: {SSEAlgorithm: AES256}
+
+Outputs:
+  S3BucketID:
+    Description: The ID of the created S3 bucket
+    Value:
+      Ref: Bucket
+    Export:
+      Name: S3BucketID
+

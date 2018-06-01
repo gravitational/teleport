@@ -59,10 +59,10 @@ pipeline {
             steps {
                 timeout(5) {
                     waitUntil {
-                        script {
-                            dir('assets/marketplace') {
+                        dir('assets/marketplace') {
+                            script {
                                 sh 'cat generated-domain-name'
-                                def r = sh script: 'GENERATED_DOMAIN_NAME=$(cat generated-domain-name) wget -q https://$GENERATED_DOMAIN_NAME/web/login', returnStatus: true
+                                def r = sh script: 'wget -q https://$(cat generated-domain-name)/web/login', returnStatus: true
                                 return (r == 0);
                             }
                         }
@@ -71,19 +71,19 @@ pipeline {
             }
         }
     }
-    //post {
-    //    always {
-    //        dir('assets/marketplace') {
-    //            script {
-    //                // we want to run all these shutdown steps in order regardless of success/failure (in case part of the ASG fails)
-    //                // so we use '|| true' to suppress return codes > 0
-    //                sh 'make jenkins-delete-stack || true'
-    //                sh 'make jenkins-wait-for-stack-deletion || true'
-    //                sh 'make jenkins-delete-stack-vpc || true'
-    //                sh 'make jenkins-wait-for-stack-deletion-vpc || true'
-    //                sh 'make jenkins-delete-s3-bucket || true'
-    //            }
-    //        }            
-    //    }
-    //}
+    post {
+        always {
+            dir('assets/marketplace') {
+                script {
+                    // we want to run all these shutdown steps in order regardless of success/failure (in case part of the ASG fails)
+                    // so we use '|| true' to suppress return codes > 0
+                    sh 'make jenkins-delete-stack || true'
+                    sh 'make jenkins-wait-for-stack-deletion || true'
+                    //sh 'make jenkins-delete-stack-vpc || true'
+                    //sh 'make jenkins-wait-for-stack-deletion-vpc || true'
+                    sh 'S3_BUCKET_ID=$(cat s3-bucket-id) make jenkins-delete-s3-bucket || true'
+                }
+            }            
+        }
+    }
 }
