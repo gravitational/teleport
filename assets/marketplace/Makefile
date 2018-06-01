@@ -10,9 +10,9 @@ BUILD_SUBNET_ID ?=
 AWS_REGION ?= us-west-2
 
 # Teleport version
-TELEPORT_VERSION ?= 2.6.0-alpha.8
+TELEPORT_VERSION ?= 2.6.0
 
-# Teleport UID is a UID of a non-privileged user ID of a teleport
+# Teleport UID is the UID of a non-privileged 'teleport' user
 TELEPORT_UID ?= 1007
 
 # Instance type is a single value, sorry
@@ -46,9 +46,6 @@ CF_YAML_FILENAME ?= ./oss.yaml
 
 # S3 Bucket ID
 S3_BUCKET_ID ?=
-
-# S3 Bucket filename
-S3_BUCKET_FILENAME ?= s3-bucket-id
 export
 
 .PHONY: oss
@@ -126,6 +123,7 @@ describe-stack-outputs-vpc:
 delete-stack:
 	aws --region=$(AWS_REGION) cloudformation delete-stack --stack-name $(STACK)
 
+
 # Jenkins helpers
 .PHONY: jenkins-create-stack
 jenkins-create-stack:
@@ -168,10 +166,6 @@ jenkins-describe-stack-outputs-vpc:
 .PHONY: jenkins-get-s3-bucket-id
 jenkins-get-s3-bucket-id:
 	@$(MAKE) -s jenkins-describe-stack-outputs | jq -r '.[] | select(.OutputKey == "S3BucketID") | .OutputValue'
-
-.PHONY: jenkins-write-s3-bucket-file
-jenkins-write-s3-bucket-file:
-	@$(MAKE) -s jenkins-get-s3-bucket-id > $(S3_BUCKET_FILE)
 
 .PHONY: jenkins-delete-s3-bucket
 jenkins-delete-s3-bucket:
