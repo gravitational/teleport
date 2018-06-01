@@ -27,7 +27,7 @@ import (
 const errorMessage = "invalid path, path can only be composed of characters, hyphens, slashes, and dots"
 
 // whitelistPattern is the pattern of allowed characters for the path.
-var whitelistPattern = regexp.MustCompile(`^[0-9A-Za-z/_:.-]*$`)
+var whitelistPattern = regexp.MustCompile(`^[0-9A-Za-z@/_:.-]*$`)
 
 // isPathSafe checks if the passed in path conforms to a whitelist.
 func isPathSafe(s string) error {
