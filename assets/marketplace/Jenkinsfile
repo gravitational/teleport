@@ -34,8 +34,8 @@ pipeline {
             }
             steps {
                 dir('assets/marketplace') {
-                    //sh 'make jenkins-create-stack-vpc'
-                    //sh 'make jenkins-wait-for-stack-creation-vpc'
+                    sh 'make jenkins-create-stack-vpc'
+                    sh 'make jenkins-wait-for-stack-creation-vpc'
                     // get VPC stack outputs as a JSON list of {ParameterKey: key, ParameterValue: value} pairs
                     // write this to vpc.json
                     sh 'make jenkins-describe-stack-outputs-vpc | jq -r "map ( { ParameterKey: ( .OutputKey | tostring ), ParameterValue: ( .OutputValue | tostring) } )" > vpc.json'
@@ -79,8 +79,8 @@ pipeline {
                     // so we use '|| true' to suppress return codes > 0
                     sh 'make jenkins-delete-stack || true'
                     sh 'make jenkins-wait-for-stack-deletion || true'
-                    //sh 'make jenkins-delete-stack-vpc || true'
-                    //sh 'make jenkins-wait-for-stack-deletion-vpc || true'
+                    sh 'make jenkins-delete-stack-vpc || true'
+                    sh 'make jenkins-wait-for-stack-deletion-vpc || true'
                     sh 'S3_BUCKET_ID=$(cat s3-bucket-id) make jenkins-delete-s3-bucket || true'
                 }
             }            
