@@ -4,6 +4,10 @@ if [[ "${AWS_REGION}" == "" ]]; then
     exit 1
 fi
 bucket=$1
+if [[ "${bucket}" == "" ]]; then
+    echo "Usage: $(basename $0) <bucket>"
+    exit 1
+fi
 
 set -e
 echo "Removing all versions from ${bucket}"

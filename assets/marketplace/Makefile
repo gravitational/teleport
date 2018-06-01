@@ -42,7 +42,7 @@ JENKINS_TEST_STACK_NAME ?= jenkins-teleport-quickstart-test-stack
 JENKINS_CLOUDFORMATION_PARAMETERS_PATH ?= ./files/build/jenkins-parameters.json
 
 # YAML filename
-CF_YAML_FILENAME ?= ./oss-existingvpc.yaml
+CF_YAML_FILENAME ?= ./oss.yaml
 
 # S3 Bucket ID
 S3_BUCKET_ID ?=
