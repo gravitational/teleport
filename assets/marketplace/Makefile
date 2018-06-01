@@ -174,7 +174,6 @@ jenkins-write-s3-bucket-file:
 	@$(MAKE) -s jenkins-get-s3-bucket-id > $(S3_BUCKET_FILE)
 
 .PHONY: jenkins-delete-s3-bucket
-jenkins-delete-s3-bucket: export S3_BUCKET_ID=$(shell cat $(S3_BUCKET_FILE))
 jenkins-delete-s3-bucket:
 	files/s3-delete-all-object-versions.sh $(S3_BUCKET_ID)
 	aws s3api delete-bucket --region=$(AWS_REGION) --bucket $(S3_BUCKET_ID)
