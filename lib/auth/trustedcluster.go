@@ -450,7 +450,9 @@ func (s *AuthServer) sendValidateRequestToProxy(host string, validateRequest *Va
 		Host:   host,
 	}
 
-	var opts []roundtrip.ClientParam
+	opts := []roundtrip.ClientParam{
+		roundtrip.SanitizerEnabled(true),
+	}
 
 	if lib.IsInsecureDevMode() {
 		log.Warn("The setting insecureSkipVerify is used to communicate with proxy. Make sure you intend to run Teleport in insecure mode!")

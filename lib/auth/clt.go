@@ -147,7 +147,10 @@ func NewTLSClientWithDialer(dialContext DialContext, cfg *tls.Config, params ...
 	}
 
 	clientParams := append(
-		[]roundtrip.ClientParam{roundtrip.HTTPClient(&http.Client{Transport: transport})},
+		[]roundtrip.ClientParam{
+			roundtrip.HTTPClient(&http.Client{Transport: transport}),
+			roundtrip.SanitizerEnabled(true),
+		},
 		params...,
 	)
 	roundtripClient, err := roundtrip.NewClient("https://"+teleport.APIDomain, CurrentVersion, clientParams...)
@@ -181,6 +184,7 @@ func NewClient(addr string, dialer Dialer, params ...roundtrip.ClientParam) (*Cl
 		roundtrip.HTTPClient(&http.Client{
 			Transport: transport,
 		}),
+		roundtrip.SanitizerEnabled(true),
 		// TODO (ekontsevoy) this tracer pollutes the logs making it harder to work
 		// on issues that have nothing to do with the auth API, consider activating it
 		// via special environment variable?

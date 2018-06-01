@@ -39,6 +39,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -92,6 +93,15 @@ func CookieJar(jar http.CookieJar) ClientParam {
 	}
 }
 
+// SanitizerEnabled will enable the input sanitizer which passes the URL
+// path through a strict whitelist.
+func SanitizerEnabled(sanitizerEnabled bool) ClientParam {
+	return func(c *Client) error {
+		c.sanitizerEnabled = sanitizerEnabled
+		return nil
+	}
+}
+
 // Client is a wrapper holding HTTP client. It hold target server address and a version prefix,
 // and provides common features for building HTTP client wrappers.
 type Client struct {
@@ -107,6 +117,9 @@ type Client struct {
 	jar http.CookieJar
 	// newTracer creates new request tracer
 	newTracer NewTracer
+	// sanitizerEnabled will enable the input sanitizer which passes the URL
+	// path through a strict whitelist.
+	sanitizerEnabled bool
 }
 
 // NewClient returns a new instance of roundtrip.Client, or nil and error
@@ -157,15 +170,17 @@ func (c *Client) Endpoint(params ...string) string {
 // c.PostForm(c.Endpoint("users"), url.Values{"name": []string{"John"}})
 //
 func (c *Client) PostForm(endpoint string, vals url.Values, files ...File) (*Response, error) {
-	// Make sure the requested path is safe.
-	err := isPathSafe(endpoint)
-	if err != nil {
-		return nil, err
+	// If the sanitizer is enabled, make sure the requested path is safe.
+	if c.sanitizerEnabled {
+		err := isPathSafe(endpoint)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return c.RoundTrip(func() (*http.Response, error) {
 		if len(files) == 0 {
-			req, err := http.NewRequest("POST", endpoint, strings.NewReader(vals.Encode()))
+			req, err := http.NewRequest(http.MethodPost, endpoint, strings.NewReader(vals.Encode()))
 			if err != nil {
 				return nil, err
 			}
@@ -173,40 +188,35 @@ func (c *Client) PostForm(endpoint string, vals url.Values, files ...File) (*Res
 			c.addAuth(req)
 			return c.client.Do(req)
 		}
-		body := &bytes.Buffer{}
-		writer := multipart.NewWriter(body)
 
-		// write simple fields
-		for name, vals := range vals {
-			for _, val := range vals {
-				if err := writer.WriteField(name, val); err != nil {
-					return nil, err
-				}
-			}
-		}
+		var buf bytes.Buffer
+		buf.Grow(bufferSize)
 
-		// add files
-		for _, f := range files {
-			w, err := writer.CreateFormFile(f.Name, f.Filename)
-			if err != nil {
-				return nil, err
-			}
-			_, err = io.Copy(w, f.Reader)
-			if err != nil {
-				return nil, err
-			}
-		}
-		boundary := writer.Boundary()
-		if err := writer.Close(); err != nil {
+		// Cache file reads in case we reach the memory limit
+		// and need to rewind
+		buffers := newBuffersFromFiles(files)
+		writer := multipart.NewWriter(&limitWriter{&buf, bufferSize})
+		err := writeForm(writer, vals, buffers...)
+		writer.Close()
+		if err != nil && err != errShortWrite {
 			return nil, err
 		}
-		req, err := http.NewRequest("POST", endpoint, body)
+
+		if err == errShortWrite {
+			// Switch to io.Pipe as the data is larger than the memory limit
+			for i := range buffers {
+				buffers[i].rewind()
+			}
+			return c.writeWithPipe(endpoint, vals, buffers...)
+		}
+
+		req, err := http.NewRequest(http.MethodPost, endpoint, &buf)
 		if err != nil {
 			return nil, err
 		}
 		c.addAuth(req)
 		req.Header.Set("Content-Type",
-			fmt.Sprintf(`multipart/form-data;boundary="%v"`, boundary))
+			fmt.Sprintf(`multipart/form-data;boundary="%v"`, writer.Boundary()))
 		return c.client.Do(req)
 	})
 }
@@ -216,16 +226,18 @@ func (c *Client) PostForm(endpoint string, vals url.Values, files ...File) (*Res
 // c.PostJSON(c.Endpoint("users"), map[string]string{"name": "alice@example.com"})
 //
 func (c *Client) PostJSON(endpoint string, data interface{}) (*Response, error) {
-	// Make sure the requested path is safe.
-	err := isPathSafe(endpoint)
-	if err != nil {
-		return nil, err
+	// If the sanitizer is enabled, make sure the requested path is safe.
+	if c.sanitizerEnabled {
+		err := isPathSafe(endpoint)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	tracer := c.newTracer()
 	return tracer.Done(c.RoundTrip(func() (*http.Response, error) {
 		data, err := json.Marshal(data)
-		req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(data))
+		req, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewBuffer(data))
 		if err != nil {
 			return nil, err
 		}
@@ -241,16 +253,45 @@ func (c *Client) PostJSON(endpoint string, data interface{}) (*Response, error) 
 // c.PutJSON(c.Endpoint("users"), map[string]string{"name": "alice@example.com"})
 //
 func (c *Client) PutJSON(endpoint string, data interface{}) (*Response, error) {
-	// Make sure the requested path is safe.
-	err := isPathSafe(endpoint)
-	if err != nil {
-		return nil, err
+	// If the sanitizer is enabled, make sure the requested path is safe.
+	if c.sanitizerEnabled {
+		err := isPathSafe(endpoint)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	tracer := c.newTracer()
 	return tracer.Done(c.RoundTrip(func() (*http.Response, error) {
 		data, err := json.Marshal(data)
-		req, err := http.NewRequest("PUT", endpoint, bytes.NewBuffer(data))
+		req, err := http.NewRequest(http.MethodPut, endpoint, bytes.NewBuffer(data))
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Content-Type", "application/json")
+		c.addAuth(req)
+		tracer.Start(req)
+		return c.client.Do(req)
+	}))
+}
+
+// PatchJSON posts JSON "application/json" encoded request body and "PATCH" method
+//
+// c.PatchJSON(c.Endpoint("users"), map[string]string{"name": "alice@example.com"})
+//
+func (c *Client) PatchJSON(endpoint string, data interface{}) (*Response, error) {
+	// If the sanitizer is enabled, make sure the requested path is safe.
+	if c.sanitizerEnabled {
+		err := isPathSafe(endpoint)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	tracer := c.newTracer()
+	return tracer.Done(c.RoundTrip(func() (*http.Response, error) {
+		data, err := json.Marshal(data)
+		req, err := http.NewRequest(http.MethodPatch, endpoint, bytes.NewBuffer(data))
 		if err != nil {
 			return nil, err
 		}
@@ -266,15 +307,17 @@ func (c *Client) PutJSON(endpoint string, data interface{}) (*Response, error) {
 // re, err := c.Delete(c.Endpoint("users", "id1"))
 //
 func (c *Client) Delete(endpoint string) (*Response, error) {
-	// Make sure the requested path is safe.
-	err := isPathSafe(endpoint)
-	if err != nil {
-		return nil, err
+	// If the sanitizer is enabled, make sure the requested path is safe.
+	if c.sanitizerEnabled {
+		err := isPathSafe(endpoint)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	tracer := c.newTracer()
 	return tracer.Done(c.RoundTrip(func() (*http.Response, error) {
-		req, err := http.NewRequest("DELETE", endpoint, nil)
+		req, err := http.NewRequest(http.MethodDelete, endpoint, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -302,10 +345,12 @@ func (c *Client) DeleteWithParams(endpoint string, params url.Values) (*Response
 // re, err := c.Get(c.Endpoint("users"), url.Values{"name": []string{"John"}})
 //
 func (c *Client) Get(endpoint string, params url.Values) (*Response, error) {
-	// Make sure the requested path is safe.
-	err := isPathSafe(endpoint)
-	if err != nil {
-		return nil, err
+	// If the sanitizer is enabled, make sure the requested path is safe.
+	if c.sanitizerEnabled {
+		err := isPathSafe(endpoint)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	baseUrl, err := url.Parse(endpoint)
@@ -315,7 +360,7 @@ func (c *Client) Get(endpoint string, params url.Values) (*Response, error) {
 	baseUrl.RawQuery = params.Encode()
 	tracer := c.newTracer()
 	return tracer.Done(c.RoundTrip(func() (*http.Response, error) {
-		req, err := http.NewRequest("GET", baseUrl.String(), nil)
+		req, err := http.NewRequest(http.MethodGet, baseUrl.String(), nil)
 		if err != nil {
 			return nil, err
 		}
@@ -330,10 +375,12 @@ func (c *Client) Get(endpoint string, params url.Values) (*Response, error) {
 // f, err := c.GetFile("files", "report.txt") // returns "/v1/files/report.txt"
 //
 func (c *Client) GetFile(endpoint string, params url.Values) (*FileResponse, error) {
-	// Make sure the requested path is safe.
-	err := isPathSafe(endpoint)
-	if err != nil {
-		return nil, err
+	// If the sanitizer is enabled, make sure the requested path is safe.
+	if c.sanitizerEnabled {
+		err := isPathSafe(endpoint)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	baseUrl, err := url.Parse(endpoint)
@@ -341,7 +388,7 @@ func (c *Client) GetFile(endpoint string, params url.Values) (*FileResponse, err
 		return nil, err
 	}
 	baseUrl.RawQuery = params.Encode()
-	req, err := http.NewRequest("GET", baseUrl.String(), nil)
+	req, err := http.NewRequest(http.MethodGet, baseUrl.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -371,10 +418,12 @@ type ReadSeekCloser interface {
 // to seek to various positions in the file, this means that server
 // has to support the flags `Range` and `Content-Range`
 func (c *Client) OpenFile(endpoint string, params url.Values) (ReadSeekCloser, error) {
-	// Make sure the requested path is safe.
-	err := isPathSafe(endpoint)
-	if err != nil {
-		return nil, err
+	// If the sanitizer is enabled, make sure the requested path is safe.
+	if c.sanitizerEnabled {
+		err := isPathSafe(endpoint)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	u, err := url.Parse(endpoint)
@@ -423,6 +472,27 @@ func (c *Client) addAuth(r *http.Request) {
 	if c.auth != nil {
 		r.Header.Set("Authorization", c.auth.String())
 	}
+}
+
+func (c *Client) writeWithPipe(endpoint string, vals url.Values, buffers ...fileBuffer) (*http.Response, error) {
+	r, w := io.Pipe()
+	writer := multipart.NewWriter(w)
+
+	go func() {
+		err := writeForm(writer, vals, buffers...)
+		writer.Close()
+		w.CloseWithError(err)
+	}()
+
+	req, err := http.NewRequest(http.MethodPost, endpoint, r)
+	if err != nil {
+		r.Close()
+		return nil, err
+	}
+
+	c.addAuth(req)
+	req.Header.Set("Content-Type", fmt.Sprintf(`multipart/form-data;boundary="%v"`, writer.Boundary()))
+	return c.client.Do(req)
 }
 
 // Response indicates HTTP server response
@@ -522,3 +592,95 @@ type bearerAuth struct {
 func (b *bearerAuth) String() string {
 	return "Bearer " + b.token
 }
+
+func writeForm(writer *multipart.Writer, vals url.Values, files ...fileBuffer) error {
+	// write simple fields
+	for name, vals := range vals {
+		for _, val := range vals {
+			if err := writer.WriteField(name, val); err != nil {
+				return err
+			}
+		}
+	}
+
+	// add files
+	for _, file := range files {
+		output, err := file.create(writer)
+		if err != nil {
+			return err
+		}
+		_, err = io.Copy(output, file)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// newBuffersFromFiles wraps the specified files with a reader
+// that caches data into a memory buffer
+func newBuffersFromFiles(files []File) []fileBuffer {
+	buffers := make([]fileBuffer, 0, len(files))
+	for _, file := range files {
+		buffers = append(buffers, newFileBuffer(file))
+	}
+	return buffers
+}
+
+// newFileBuffer creates a buffer for reading from the specified File file
+func newFileBuffer(file File) fileBuffer {
+	buf := &bytes.Buffer{}
+	return fileBuffer{
+		Reader: io.TeeReader(file.Reader, buf),
+		File:   file,
+		cache:  buf,
+	}
+}
+
+// Read reads data from the underlying reader into the specified array p
+func (r fileBuffer) Read(p []byte) (n int, err error) {
+	return r.Reader.Read(p)
+}
+
+func (r *fileBuffer) create(w *multipart.Writer) (io.Writer, error) {
+	return w.CreateFormFile(r.Name, r.Filename)
+}
+
+// rewind resets this fileBuffer to read from the beginning
+func (r *fileBuffer) rewind() {
+	r.Reader = io.MultiReader(r.cache, r.File.Reader)
+}
+
+// fileBuffer is a File wrapper that buffers data from the specified File
+type fileBuffer struct {
+	io.Reader
+	File
+	cache *bytes.Buffer
+}
+
+func (r *limitWriter) Write(p []byte) (n int, err error) {
+	if int64(len(p)) > r.maxBytes {
+		p = p[:r.maxBytes]
+		err = errShortWrite
+	}
+	var errWrite error
+	n, errWrite = r.Writer.Write(p)
+	r.maxBytes -= int64(n)
+	if errWrite != nil {
+		err = errWrite
+	}
+	return n, err
+}
+
+// limitWriter is an io.Writer that aborts with errShortWrite
+// if more than maxBytes bytes are written
+type limitWriter struct {
+	io.Writer
+	maxBytes int64
+}
+
+var errShortWrite = errors.New("short write")
+
+// bufferSize specifies the upper bound on the data before PostForm switches
+// to io.Pipe to avoid reading larger files into memory
+const bufferSize = 1024 << 10 // 1 MiB
