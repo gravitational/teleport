@@ -53,6 +53,7 @@ func newClientWithPool(pool *x509.CertPool) *http.Client {
 }
 
 func NewWebClient(url string, opts ...roundtrip.ClientParam) (*WebClient, error) {
+	opts = append(opts, roundtrip.SanitizerEnabled(true))
 	clt, err := roundtrip.NewClient(url, teleport.WebAPIVersion, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
