@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.6.1
+
+This release of Teleport focuses on bugfixes.
+
+#### Bug Fixes
+
+* Use ciphers, KEX, and MAC algorithms from Teleport configuration in reverse tunnel server. [#1984](https://github.com/gravitational/teleport/pull/1984) 
+* Update path sanitizer it allow `@`. [#1985](https://github.com/gravitational/teleport/pull/1985)
+
 ## 2.6.0
 
 This release of Teleport brings new features, significant performance and
