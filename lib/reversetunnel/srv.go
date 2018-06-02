@@ -145,6 +145,7 @@ type Config struct {
 	// MACAlgorithms is a list of message authentication codes (MAC) that
 	// the server supports. If omitted the defaults will be used.
 	MACAlgorithms []string
+
 	// DataDir is a local server data directory
 	DataDir string
 	// PollingPeriod specifies polling period for internal sync
@@ -231,6 +232,9 @@ func NewServer(cfg Config) (Server, error) {
 			PublicKey: srv.keyAuth,
 		},
 		sshutils.SetLimiter(cfg.Limiter),
+		sshutils.SetCiphers(cfg.Ciphers),
+		sshutils.SetKEXAlgorithms(cfg.KEXAlgorithms),
+		sshutils.SetMACAlgorithms(cfg.MACAlgorithms),
 	)
 	if err != nil {
 		return nil, err
