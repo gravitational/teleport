@@ -61,6 +61,9 @@ func MakeHandler(fn HandlerFunc) httprouter.Handle {
 // MakeStdHandler returns a new http.Handle func from http.HandlerFunc
 func MakeStdHandler(fn StdHandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// ensure that neither proxies nor browsers cache http traffic
+		SetNoCacheHeaders(w.Header())
+
 		out, err := fn(w, r)
 		if err != nil {
 			trace.WriteError(w, err)

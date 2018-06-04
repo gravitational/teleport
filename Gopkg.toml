@@ -30,9 +30,6 @@ ignored = ["github.com/Sirupsen/logrus"]
   name = "github.com/alecthomas/units"
   branch = "master"
 
-[[constraint]]
-  name = "k8s.io/apimachinery"
-  revision = "1fd2e63a9a370677308a42f24fd40c86438afddf"
 
 [[constraint]]
   name = "github.com/vulcand/predicate"
@@ -107,8 +104,8 @@ ignored = ["github.com/Sirupsen/logrus"]
   version = ">=0.0.2, <=1.0.0-gc98f59f"
 
 [[constraint]]
-  branch = "alexander/copy"
-  name = "github.com/mailgun/oxy"
+  version = "1.0.1"
+  name = "github.com/gravitational/oxy"
 
 [[constraint]]
   name = "github.com/pborman/uuid"
@@ -151,3 +148,16 @@ ignored = ["github.com/Sirupsen/logrus"]
 [[constraint]]
   name = "github.com/gravitational/license"
   version = "0.0.4"
+  
+[[override]]
+  name = "k8s.io/api"
+  branch = "release-1.9"
+
+[[override]]
+  name = "k8s.io/apimachinery"
+  branch = "release-1.9"
+
+[[constraint]]
+  version = "6.0.0"
+  name = "k8s.io/client-go"
+ 

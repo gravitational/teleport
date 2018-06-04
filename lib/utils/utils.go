@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2015-2018 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -31,6 +31,16 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
 )
+
+// AsBool converts string to bool, in case of the value is empty
+// or unknown, defaults to false
+func AsBool(v string) bool {
+	if v == "" {
+		return false
+	}
+	out, _ := strconv.ParseBool(v)
+	return out
+}
 
 // ParseAdvertiseAddress validates advertise address,
 // makes sure it's not an unreachable or multicast address

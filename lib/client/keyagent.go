@@ -243,6 +243,10 @@ func (a *LocalKeyAgent) GetCerts() (*x509.CertPool, error) {
 	return a.keyStore.GetCerts(a.proxyHost)
 }
 
+func (a *LocalKeyAgent) GetCertsPEM() ([]byte, error) {
+	return a.keyStore.GetCertsPEM(a.proxyHost)
+}
+
 // UserRefusedHosts returns 'true' if a user refuses connecting to remote hosts
 // when prompted during host authorization
 func (a *LocalKeyAgent) UserRefusedHosts() bool {

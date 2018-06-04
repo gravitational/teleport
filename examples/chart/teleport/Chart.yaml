@@ -1,0 +1,6 @@
+name: teleport
+version: 0.0.1
+description: Teleport Enterprise
+keywords:
+  - Teleport Enterprise
+tillerVersion: ">=2.8.0"

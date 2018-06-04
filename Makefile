@@ -10,7 +10,7 @@
 # Naming convention:
 #	for stable releases we use "1.0.0" format
 #   for pre-releases, we use   "1.0.0-beta.2" format
-VERSION=2.6.0
+VERSION=2.7.0-alpha.1
 
 # These are standard autotools variables, don't change them please
 BUILDDIR ?= build
@@ -28,11 +28,6 @@ RELEASE=teleport-$(GITTAG)-$(ARCH)-bin
 BINARIES=$(BUILDDIR)/teleport $(BUILDDIR)/tctl $(BUILDDIR)/tsh
 
 VERSRC = version.go gitref.go
-LIBS = $(shell find lib -type f -name '*.go') *.go
-TCTLSRC = $(shell find tool/tctl -type f -name '*.go')
-TELEPORTSRC = $(shell find tool/teleport -type f -name '*.go')
-TSHSRC = $(shell find tool/tsh -type f -name '*.go')
-TELEPORTVENDOR = $(shell find vendor -type f -name '*.go')
 
 # PAM support will only be built into Teleport if headers exist at build time.
 PAM_MESSAGE = "Building Teleport without PAM support."
@@ -53,13 +48,21 @@ all: $(VERSRC)
 	@echo $(PAM_MESSAGE)
 	$(MAKE) $(BINARIES)
 
-$(BUILDDIR)/tctl: $(LIBS) $(TCTLSRC) $(TELEPORTVENDOR)
+# By making these 3 targets below (tsh, tctl and teleport) PHONY we are solving
+# several problems:
+# * Build will rely on go build internal caching https://golang.org/doc/go1.10 at all times
+# * Manual change detection was broken on a large dependency tree
+# If you are considering changing this behavior, please consult with dev team first
+.PHONY: $(BUILDDIR)/tctl
+$(BUILDDIR)/tctl:
 	go build $(PAMFLAGS) -o $(BUILDDIR)/tctl -i $(BUILDFLAGS) ./tool/tctl
 
-$(BUILDDIR)/teleport: $(LIBS) $(TELEPORTSRC) $(TELEPORTVENDOR)
+.PHONY: $(BUILDDIR)/teleport
+$(BUILDDIR)/teleport:
 	go build $(PAMFLAGS) -o $(BUILDDIR)/teleport -i $(BUILDFLAGS) ./tool/teleport
 
-$(BUILDDIR)/tsh: $(LIBS) $(TSHSRC) $(TELEPORTVENDOR)
+.PHONY: $(BUILDDIR)/tsh
+$(BUILDDIR)/tsh:
 	go build $(PAMFLAGS) -o $(BUILDDIR)/tsh -i $(BUILDFLAGS) ./tool/tsh
 
 #
@@ -238,3 +241,19 @@ install: build
 	cp -f $(BUILDDIR)/teleport  $(BINDIR)/
 	mkdir -p $(DATADIR)
 
+
+.PHONY: image
+image:
+	if [ -f e/Makefile ]; then $(MAKE) -C e image; fi
+
+.PHONY: publish
+publish:
+	if [ -f e/Makefile ]; then $(MAKE) -C e publish; fi
+
+.PHONY: print-version
+print-version:
+	@echo $(VERSION)
+
+.PHONY: chart-ent
+chart-ent:
+	$(MAKE) -C e chart

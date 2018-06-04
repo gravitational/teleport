@@ -19,11 +19,13 @@ package auth
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"net"
 	"net/http"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/gravitational/trace"
@@ -250,4 +252,31 @@ func (a *AuthMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// determine authenticated user based on the request parameters
 	requestWithContext := r.WithContext(context.WithValue(baseContext, ContextUser, user))
 	a.Handler.ServeHTTP(w, requestWithContext)
+}
+
+// ClientCertPool returns trusted x509 cerificate authority pool
+func ClientCertPool(client AccessPoint) (*x509.CertPool, error) {
+	pool := x509.NewCertPool()
+	var authorities []services.CertAuthority
+	hostCAs, err := client.GetCertAuthorities(services.HostCA, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	userCAs, err := client.GetCertAuthorities(services.UserCA, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	authorities = append(authorities, hostCAs...)
+	authorities = append(authorities, userCAs...)
+
+	for _, auth := range authorities {
+		for _, keyPair := range auth.GetTLSKeyPairs() {
+			cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			pool.AddCert(cert)
+		}
+	}
+	return pool, nil
 }

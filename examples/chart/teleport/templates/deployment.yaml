@@ -1,0 +1,52 @@
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: {{ .Chart.Name }}
+  labels:
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}  
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+        release: {{ .Release.Name }}
+        heritage: {{ .Release.Service }}          
+    spec:
+      serviceAccount: {{ .Chart.Name }}
+      containers:
+      - name: teleport
+        image: quay.io/gravitational/teleport-ent:{{ .Chart.Version }}
+        imagePullPolicy: Always
+        resources:
+          requests:
+            cpu: 1m        
+        ports:
+        - containerPort: 8080
+          name: keygen
+        volumeMounts:
+        - mountPath: /var/lib/certs
+          name: tls-web
+          readOnly: true
+        - mountPath: /etc/teleport
+          name: config
+          readOnly: true
+        - mountPath: /var/lib/license
+          name: license
+          readOnly: true
+        - mountPath: /var/lib/teleport
+          name: storage
+      volumes:
+      - name: tls-web
+        secret:
+          secretName: tls-web
+      - name: license
+        secret:
+          secretName: license
+      - name: config
+        configMap:
+          name: {{ template "fullname" . }}
+      - name: storage
+        emptyDir: {}
+    
