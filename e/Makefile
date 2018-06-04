@@ -4,11 +4,6 @@ BUILDDIR ?= build
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s $(LDFLAGS)'
 RELEASE=teleport-ent-$(GITTAG)-$(ARCH)-bin
 
-LIBSE = $(shell find lib -type f -name '*.go')
-OSSLIBS = $(shell find ../lib -type f -name '*.go')
-
-TCTLSRCE = $(shell find tool/tctl -type f -name '*.go')
-TELEPORTSRCE = $(shell find tool/teleport -type f -name '*.go')
 
 # PAM support will only be built into Teleport if headers exist at build time.
 ifneq ("$(wildcard /usr/include/security/pam_appl.h)","")
@@ -21,10 +16,17 @@ all:
 	$(MAKE) -C ..
 	$(MAKE) $(BUILDDIR)/teleport $(BUILDDIR)/tctl
 
-$(BUILDDIR)/tctl: $(LIBSE) $(OSSLIBS) $(TCTLSRCE)
+# By making these 3 targets below (tsh, tctl and teleport) PHONY we are solving
+# several problems:
+# * Build will rely on go build internal caching https://golang.org/doc/go1.10 at all times
+# * Manual change detection was broken on a large dependency tree
+# If you are considering changing this behavior, please consult with dev team first
+.PHONY: $(BUILDDIR)/tctl
+$(BUILDDIR)/tctl:
 	go build $(PAMFLAGS) -o $(BUILDDIR)/tctl -i $(BUILDFLAGS) ./tool/tctl
 
-$(BUILDDIR)/teleport: $(LIBSE) $(OSSLIBS) $(TELEPORTSRCE)
+.PHONY: $(BUILDDIR)/teleport
+$(BUILDDIR)/teleport:
 	go build $(PAMFLAGS) -o $(BUILDDIR)/teleport -i $(BUILDFLAGS) ./tool/teleport
 
 # make clean: cleans the build
@@ -77,3 +79,44 @@ endif
 test:
 	go test -v ./lib/... && \
 	go vet ./lib/...
+
+.PHONY: image
+image: release
+	cp ../build.assets/charts/Dockerfile $(BUILDDIR)/
+	cd $(BUILDDIR) && docker build . -t quay.io/gravitational/teleport-ent:$(VERSION)	
+
+.PHONY: publish
+publish:
+	docker push quay.io/gravitational/teleport-ent:$(VERSION)
+
+# Build chart
+.PHONY: chart
+chart: VERSION := $(shell $(MAKE) -s -C .. print-version)
+chart:
+	rm -f teleport-$(VERSION).tgz
+	helm package ../examples/chart/teleport --version=$(VERSION)
+
+# install-chart
+.PHONY:
+install-chart: VERSION := $(shell $(MAKE) -s -C .. print-version)
+install-chart: chart
+	helm init
+	helm install teleport-$(VERSION).tgz -n teleport
+
+# debug-chart
+.PHONY:
+debug-chart: VERSION := $(shell $(MAKE) -s -C .. print-version)
+debug-chart:
+	helm init
+	helm install --dry-run --debug teleport-$(VERSION).tgz -n teleport
+
+# uninstall-chart
+.PHONY:
+uninstall-chart:
+	helm del --purge teleport
+
+# upgrade chart
+.PHONY:
+upgrade-chart: VERSION := $(shell $(MAKE) -s -C .. print-version)
+upgrade-chart: chart
+	helm upgrade teleport teleport-$(VERSION).tgz
