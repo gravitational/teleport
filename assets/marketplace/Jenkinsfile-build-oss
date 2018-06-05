@@ -1,0 +1,21 @@
+#!groovy
+pipeline {
+    agent any
+    options {
+        ansiColor(colorMapName: 'XTerm')
+        disableConcurrentBuilds()
+        timestamps()
+    }
+    parameters {
+        string(name: 'version', defaultValue: '2.6.1', description: 'Teleport version to build')
+    }
+    stages {
+        stage('Run Packer to build specified version') {
+            steps {
+                dir('assets/marketplace') {
+                    sh 'BUILD_AMI_NAME=cloudformation-gravitational-teleport-oss-${params.version} TELEPORT_VERSION=${params.version} make oss-name-build'
+                }
+            }
+        }
+    }
+}
