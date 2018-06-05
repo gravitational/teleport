@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	kubeclient "github.com/gravitational/teleport/lib/kube/client"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -340,6 +341,11 @@ func onLogin(cf *CLIConf) {
 		client.MakeIdentityFile(cf.IdentityFileOut, key, cf.IdentityFormat)
 		fmt.Printf("\nThe certificate has been written to %s\n", cf.IdentityFileOut)
 		return
+	}
+
+	// update kubernetes config file
+	if err := kubeclient.UpdateKubeconfig(tc); err != nil {
+		utils.FatalError(err)
 	}
 
 	// regular login (without -i flag)

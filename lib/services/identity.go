@@ -28,17 +28,35 @@ import (
 
 	"github.com/gokyle/hotp"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/tstranex/u2f"
 	"golang.org/x/crypto/ssh"
 )
 
-// Identity is responsible for managing user entries
+// UserGetter is responsible for getting users
+type UserGetter interface {
+	// GetUser returns a user by name
+	GetUser(user string) (User, error)
+}
+
+// Identity is responsible for managing user entries and external identities
 type Identity interface {
 	// GetUsers returns a list of users registered with the local auth server
 	GetUsers() ([]User, error)
 
 	// DeleteAllUsers deletes all users
 	DeleteAllUsers() error
+
+	// CreateUser creates user if it does not exist
+	CreateUser(user User) error
+
+	// UpsertUser updates parameters about user
+	UpsertUser(user User) error
+
+	UserGetter
+
+	// DeleteUser deletes a user with all the keys from the backend
+	DeleteUser(user string) error
 
 	// AddUserLoginAttempt logs user login attempt
 	AddUserLoginAttempt(user string, attempt LoginAttempt, ttl time.Duration) error
@@ -50,15 +68,6 @@ type Identity interface {
 	// called after successful login.
 	DeleteUserLoginAttempts(user string) error
 
-	// CreateUser creates user if it does not exist
-	CreateUser(user User) error
-
-	// UpsertUser updates parameters about user
-	UpsertUser(user User) error
-
-	// GetUser returns a user by name
-	GetUser(user string) (User, error)
-
 	// GetUserByOIDCIdentity returns a user by its specified OIDC Identity, returns first
 	// user specified with this identity
 	GetUserByOIDCIdentity(id ExternalIdentity) (User, error)
@@ -69,9 +78,6 @@ type Identity interface {
 
 	// GetUserByGithubIdentity returns a user by its specified Github identity
 	GetUserByGithubIdentity(id ExternalIdentity) (User, error)
-
-	// DeleteUser deletes a user with all the keys from the backend
-	DeleteUser(user string) error
 
 	// UpsertPasswordHash upserts user password hash
 	UpsertPasswordHash(user string, hash []byte) error
@@ -202,7 +208,7 @@ type Identity interface {
 	// DeleteGithubConnector deletes a Github connector by its name
 	DeleteGithubConnector(name string) error
 	// CreateGithubAuthRequest creates a new auth request for Github OAuth2 flow
-	CreateGithubAuthRequest(req GithubAuthRequest, ttl time.Duration) error
+	CreateGithubAuthRequest(req GithubAuthRequest) error
 	// GetGithubAuthRequest retrieves Github auth request by the token
 	GetGithubAuthRequest(stateToken string) (*GithubAuthRequest, error)
 }
@@ -294,6 +300,27 @@ type GithubAuthRequest struct {
 	ClientRedirectURL string `json:"client_redirect_url"`
 	// Compatibility specifies OpenSSH compatibility flags
 	Compatibility string `json:"compatibility,omitempty"`
+	// Expires is a global expiry time header can be set on any resource in the system.
+	Expires *time.Time `json:"expires,omitempty"`
+}
+
+// SetTTL sets Expires header using realtime clock
+func (r *GithubAuthRequest) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+	expireTime := clock.Now().UTC().Add(ttl)
+	r.Expires = &expireTime
+}
+
+// SetExpiry sets expiry time for the object
+func (r *GithubAuthRequest) SetExpiry(expires time.Time) {
+	r.Expires = &expires
+}
+
+// Expires returns object expiry setting.
+func (r *GithubAuthRequest) Expiry() time.Time {
+	if r.Expires == nil {
+		return time.Time{}
+	}
+	return *r.Expires
 }
 
 // Check makes sure the request is valid

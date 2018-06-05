@@ -45,6 +45,9 @@ const (
 	// run behind an environment/firewall which only allows outgoing connections)
 	SSHProxyTunnelListenPort = 3024
 
+	// KubeProxyListenPort is a default port for kubernetes proxies
+	KubeProxyListenPort = 3026
+
 	// When running as a "SSH Proxy" this port will be used to
 	// serve auth requests.
 	AuthListenPort = 3025
@@ -203,6 +206,12 @@ const (
 	// WaitCopyTimeout is how long Teleport will wait for a session to finish
 	// copying data from the PTY after "exit-status" has been received.
 	WaitCopyTimeout = 5 * time.Second
+
+	// ClientCacheSize is the size of the RPC clients expiring cache
+	ClientCacheSize = 1024
+
+	// CSRSignTimeout is a default timeout for CSR request to be processed by K8s
+	CSRSignTimeout = 30 * time.Second
 )
 
 var (

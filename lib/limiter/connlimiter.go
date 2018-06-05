@@ -20,10 +20,10 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/gravitational/oxy/connlimit"
+	"github.com/gravitational/oxy/utils"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
-	"github.com/vulcand/oxy/connlimit"
-	"github.com/vulcand/oxy/utils"
 )
 
 // ConnectionsLimiter is a network connection limiter and tracker

@@ -275,6 +275,11 @@ type Role interface {
 	GetRules(rct RoleConditionType) []Rule
 	// SetRules sets an allow or deny rule.
 	SetRules(rct RoleConditionType, rules []Rule)
+
+	// GetKubeGroups returns kubernetes groups
+	GetKubeGroups(RoleConditionType) []string
+	// SetKubeGroups sets kubernetes groups for allow or deny condition.
+	SetKubeGroups(RoleConditionType, []string)
 }
 
 // ApplyTraits applies the passed in traits to any variables within the role
@@ -432,6 +437,25 @@ func (r *RoleV3) SetLogins(rct RoleConditionType, logins []string) {
 		r.Spec.Allow.Logins = lcopy
 	} else {
 		r.Spec.Deny.Logins = lcopy
+	}
+}
+
+// GetKubeGroups returns kubernetes groups
+func (r *RoleV3) GetKubeGroups(rct RoleConditionType) []string {
+	if rct == Allow {
+		return r.Spec.Allow.KubeGroups
+	}
+	return r.Spec.Deny.KubeGroups
+}
+
+// SetKubeGroups sets kubernetes groups for allow or deny condition.
+func (r *RoleV3) SetKubeGroups(rct RoleConditionType, groups []string) {
+	lcopy := utils.CopyStrings(groups)
+
+	if rct == Allow {
+		r.Spec.Allow.KubeGroups = lcopy
+	} else {
+		r.Spec.Deny.KubeGroups = lcopy
 	}
 }
 
@@ -696,6 +720,9 @@ type RoleConditions struct {
 	// Rules is a list of rules and their access levels. Rules are a high level
 	// construct used for access control.
 	Rules []Rule `json:"rules,omitempty"`
+
+	// KubeGroups is a list of kubernetes groups
+	KubeGroups []string `json:"kube_groups,omitempty"`
 }
 
 // Equals returns true if the role conditions (logins, namespaces, labels,
@@ -1254,6 +1281,10 @@ type AccessChecker interface {
 	// returns a combined list of allowed logins.
 	CheckLoginDuration(ttl time.Duration) ([]string, error)
 
+	// CheckKubeGroups check if role can login into kubernetes
+	// and returns a combined list of allowed groups
+	CheckKubeGroups(ttl time.Duration) ([]string, error)
+
 	// AdjustSessionTTL will reduce the requested ttl to lowest max allowed TTL
 	// for this role set, otherwise it returns ttl unchanged
 	AdjustSessionTTL(ttl time.Duration) time.Duration
@@ -1424,6 +1455,37 @@ func (set RoleSet) AdjustSessionTTL(ttl time.Duration) time.Duration {
 		}
 	}
 	return ttl
+}
+
+// CheckKubeGroups check if role can login into kubernetes
+// and returns a combined list of allowed groups
+func (set RoleSet) CheckKubeGroups(ttl time.Duration) ([]string, error) {
+	groups := make(map[string]bool)
+	var matchedTTL bool
+	for _, role := range set {
+		maxSessionTTL, err := role.GetOptions().GetDuration(MaxSessionTTL)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if ttl <= maxSessionTTL.Duration && maxSessionTTL.Duration != 0 {
+			matchedTTL = true
+
+			for _, group := range role.GetKubeGroups(Allow) {
+				groups[group] = true
+			}
+		}
+	}
+	if !matchedTTL {
+		return nil, trace.AccessDenied("this user cannot request kubernetes access for %v", ttl)
+	}
+	if len(groups) == 0 {
+		return nil, trace.AccessDenied("this user cannot request kubernetes access, has no assigned groups")
+	}
+	out := make([]string, 0, len(groups))
+	for group := range groups {
+		out = append(out, group)
+	}
+	return out, nil
 }
 
 // CheckLoginDuration checks if role set can login up to given duration and
@@ -1729,6 +1791,10 @@ const RoleSpecV3SchemaDefinitions = `
         }
       },
       "logins": {
+        "type": "array",
+        "items": { "type": "string" }
+      },
+      "kube_groups": {
         "type": "array",
         "items": { "type": "string" }
       },

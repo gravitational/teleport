@@ -62,6 +62,9 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	}
 	srv.Router = *httprouter.New()
 
+	// Kubernetes extensions
+	srv.POST("/:version/kube/csr", srv.withAuth(srv.processKubeCSR))
+
 	// Operations on certificate authorities
 	srv.GET("/:version/domain", srv.withAuth(srv.getDomainName))
 
@@ -229,8 +232,7 @@ type HandlerWithAuthFunc func(auth ClientI, w http.ResponseWriter, r *http.Reque
 func (s *APIServer) withAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 	const accessDeniedMsg = "auth API: access denied "
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-		// SSH-to-HTTP gateway (tun server) expects the auth
-		// context to be set by SSH server
+		// HTTPS server expects auth  context to be set by the auth middleware
 		authContext, err := s.Authorizer.Authorize(r.Context())
 		if err != nil {
 			// propagate connection problem error so we can differentiate
@@ -2241,6 +2243,21 @@ func (s *APIServer) deleteAllRemoteClusters(auth ClientI, w http.ResponseWriter,
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
+}
+
+func (s *APIServer) processKubeCSR(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	var req KubeCSR
+
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	re, err := auth.ProcessKubeCSR(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return re, nil
 }
 
 func message(msg string) map[string]interface{} {

@@ -26,14 +26,26 @@ import (
 )
 
 const (
-	// Common event fields:
-	EventType   = "event"       // event type/kind
-	EventTime   = "time"        // event time
-	EventLogin  = "login"       // OS login
-	EventUser   = "user"        // teleport user
-	LocalAddr   = "addr.local"  // address on the host
-	RemoteAddr  = "addr.remote" // client (user's) address
-	EventCursor = "id"          // event ID (used as cursor value for enumeration, not stored)
+	// EventType is event type/kind
+	EventType = "event"
+	// EventTime is event time
+	EventTime = "time"
+	// EventLogin is OS login
+	EventLogin = "login"
+	// EventUser is teleport user name
+	EventUser = "user"
+	// EventProtocol specifies protocol that was captured
+	EventProtocol = "proto"
+	// EventProtocolsSSH specifies SSH as a type of captured protocol
+	EventProtocolSSH = "ssh"
+	// EventProtocolKube specifies kubernetes as a type of captured protocol
+	EventProtocolKube = "kube"
+	// LocalAddr is a target address on the host
+	LocalAddr = "addr.local"
+	// RemoteAddr is a client (user's) address
+	RemoteAddr = "addr.remote"
+	// EventCursor is an event ID (used as cursor value for enumeration, not stored)
+	EventCursor = "id"
 
 	// EventIndex is an event index as received from the logging server
 	EventIndex = "ei"

@@ -299,6 +299,20 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		cfg.Proxy.ReverseTunnelListenAddr = *addr
 	}
+	if fc.Proxy.KubeAddr != "" {
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.KubeAddr, int(defaults.KubeProxyListenPort))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.KubeListenAddr = *addr
+	}
+	if fc.Proxy.KubeAPIAddr != "" {
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.KubeAPIAddr, 443)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.KubeAPIAddr = *addr
+	}
 	if len(fc.Proxy.PublicAddr) != 0 {
 		addrs, err := fc.Proxy.PublicAddr.Addrs(defaults.HTTPListenPort)
 		if err != nil {

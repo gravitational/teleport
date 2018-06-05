@@ -87,6 +87,9 @@ type LocalKeyStore interface {
 
 	// GetCerts gets trusted TLS certificates of certificate authorities.
 	GetCerts(proxy string) (*x509.CertPool, error)
+
+	// GetCertsPEM gets trusted TLS certificates of certificate authorities.
+	GetCertsPEM(proxy string) ([]byte, error)
 }
 
 // FSLocalKeyStore implements LocalKeyStore interface using the filesystem.
@@ -275,6 +278,15 @@ func (fs *FSLocalKeyStore) SaveCerts(proxy string, cas []auth.TrustedCerts) erro
 		}
 	}
 	return nil
+}
+
+// GetCertsPEM returns trusted TLS certificates of certificate authorities PEM block
+func (fs *FSLocalKeyStore) GetCertsPEM(proxy string) ([]byte, error) {
+	dir, err := fs.dirFor(proxy)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ioutil.ReadFile(filepath.Join(dir, fileNameTLSCerts))
 }
 
 // GetCerts returns trusted TLS certificates of certificate authorities

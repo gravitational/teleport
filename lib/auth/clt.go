@@ -236,6 +236,23 @@ func (c *Client) Delete(u string) (*roundtrip.Response, error) {
 	return httplib.ConvertResponse(c.Client.Delete(u))
 }
 
+// ProcessKubeCSR processes CSR request against Kubernetes CA, returns
+// signed certificate if sucessfull.
+func (c *Client) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := c.PostJSON(c.Endpoint("kube", "csr"), req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var re KubeCSRResponse
+	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &re, nil
+}
+
 // GetSessions returns a list of active sessions in the cluster
 // as reported by auth server
 func (c *Client) GetSessions(namespace string) ([]session.Session, error) {
@@ -2235,4 +2252,8 @@ type ClientI interface {
 	// AuthenticateSSHUser authenticates SSH console user, creates and  returns a pair of signed TLS and SSH
 	// short lived certificates as a result
 	AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginResponse, error)
+
+	// ProcessKubeCSR processes CSR request against Kubernetes CA, returns
+	// signed certificate if sucessfull.
+	ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error)
 }

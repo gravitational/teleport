@@ -22,8 +22,47 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 )
+
+// EnsureLocalPath makes sure the path exists, or, if omitted results in the subpath in
+// default gravity config directory, e.g.
+//
+// EnsureLocalPath("/custom/myconfig", ".gravity", "config") -> /custom/myconfig
+// EnsureLocalPath("", ".gravity", "config") -> ${HOME}/.gravity/config
+//
+// It also makes sure that base dir exists
+func EnsureLocalPath(customPath string, defaultLocalDir, defaultLocalPath string) (string, error) {
+	if customPath == "" {
+		homeDir := os.Getenv(teleport.EnvHome)
+		if homeDir == "" {
+			return "", trace.BadParameter("no path provided and environment variable %v is not not set", teleport.EnvHome)
+		}
+		customPath = filepath.Join(homeDir, defaultLocalDir, defaultLocalPath)
+	}
+	baseDir := filepath.Dir(customPath)
+	_, err := StatDir(baseDir)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			if err := MkdirAll(baseDir, teleport.PrivateDirMode); err != nil {
+				return "", trace.Wrap(err)
+			}
+		} else {
+			return "", trace.Wrap(err)
+		}
+	}
+	return customPath, nil
+}
+
+// MkdirAll creates directory and subdirectories
+func MkdirAll(targetDirectory string, mode os.FileMode) error {
+	err := os.MkdirAll(targetDirectory, mode)
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	return nil
+}
 
 // RemoveDirCloser removes directory and all it's contents
 // when Close is called
