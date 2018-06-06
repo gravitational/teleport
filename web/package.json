@@ -65,7 +65,6 @@
     "karma-spec-reporter": "0.0.24",
     "karma-webpack": "^1.7.0",
     "mocha": "^2.0.1",
-    "node-inspector": "^1.0.0",
     "node-sass": "^4.5.2",
     "raw-loader": "^0.5.1",
     "react-addons-test-utils": "15.1.0",
