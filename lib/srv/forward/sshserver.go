@@ -40,7 +40,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/pborman/uuid"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 // Server is a forwarding server. Server is used to create a single in-memory
@@ -64,7 +64,7 @@ import (
 //   	return nil, trace.Wrap(err)
 //   }
 type Server struct {
-	log *log.Entry
+	log *logrus.Entry
 
 	id string
 
@@ -120,6 +120,11 @@ type Server struct {
 	sessionRegistry *srv.SessionRegistry
 	sessionServer   session.Service
 	dataDir         string
+
+	// closeContext and closeCancel are used to signal when the in-memory
+	// server is closing and all blocking goroutines should unblock.
+	closeContext context.Context
+	closeCancel  context.CancelFunc
 }
 
 // ServerConfig is the configuration needed to create an instance of a Server.
@@ -176,13 +181,13 @@ func (s *ServerConfig) CheckDefaults() error {
 
 // New creates a new unstarted Server.
 func New(c ServerConfig) (*Server, error) {
-	// check and make sure we everything we need to build a forwarding node
+	// Check and make sure we everything we need to build a forwarding node.
 	err := c.CheckDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// build a pipe connection to hook up the client and the server. we save both
+	// Build a pipe connection to hook up the client and the server. we save both
 	// here and will pass them along to the context when we create it so they
 	// can be closed by the context.
 	serverConn, clientConn := utils.DualPipeNetConn(c.SrcAddr, c.DstAddr)
@@ -191,7 +196,7 @@ func New(c ServerConfig) (*Server, error) {
 	}
 
 	s := &Server{
-		log: log.WithFields(log.Fields{
+		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.ComponentForwardingNode,
 			trace.ComponentFields: map[string]string{
 				"src-addr": c.SrcAddr.String(),
@@ -222,11 +227,11 @@ func New(c ServerConfig) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// common auth handlers
+	// Common auth handlers.
 	s.authHandlers = &srv.AuthHandlers{
-		Entry: log.WithFields(log.Fields{
+		Entry: logrus.WithFields(logrus.Fields{
 			trace.Component:       teleport.ComponentForwardingNode,
-			trace.ComponentFields: log.Fields{},
+			trace.ComponentFields: logrus.Fields{},
 		}),
 		Server:      nil,
 		Component:   teleport.ComponentForwardingNode,
@@ -234,10 +239,14 @@ func New(c ServerConfig) (*Server, error) {
 		AccessPoint: c.AuthClient,
 	}
 
-	// common term handlers
+	// Common term handlers.
 	s.termHandlers = &srv.TermHandlers{
 		SessionRegistry: s.sessionRegistry,
 	}
+
+	// Create a close context that is used internally to signal when the server
+	// is closing and for any blocking goroutines to unblock.
+	s.closeContext, s.closeCancel = context.WithCancel(context.Background())
 
 	return s, nil
 }
@@ -370,13 +379,11 @@ func (s *Server) Serve() {
 		return
 	}
 
-	// Create a cancelable context and pass it to a keep alive loop. The keep
-	// alive loop will keep pinging the remote server and after it has missed a
-	// certain number of keep alive requests it will cancel the context which
-	// will close any listening goroutines.
-	heartbeatContext, cancel := context.WithCancel(context.Background())
-	go s.keepAliveLoop(cancel)
-	go s.handleConnection(heartbeatContext, chans, reqs)
+	// The keep-alive loop will keep pinging the remote server and after it has
+	// missed a certain number of keep alive requests it will cancel the
+	// closeContext which signals the server to shutdown.
+	go s.keepAliveLoop()
+	go s.handleConnection(chans, reqs)
 }
 
 // Close will close all underlying connections that the forwarding server holds.
@@ -401,6 +408,10 @@ func (s *Server) Close() error {
 			errs = append(errs, err)
 		}
 	}
+
+	// Signal to waiting goroutines that the server is closing (for example,
+	// the keep alive loop).
+	s.closeCancel()
 
 	return trace.NewAggregate(errs...)
 }
@@ -439,7 +450,7 @@ func (s *Server) newRemoteClient(systemLogin string) (*ssh.Client, error) {
 	return client, nil
 }
 
-func (s *Server) handleConnection(heartbeatContext context.Context, chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request) {
+func (s *Server) handleConnection(chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request) {
 	defer s.log.Debugf("Closing forwarding server connected to %v and releasing resources.", s.sconn.LocalAddr())
 	defer s.Close()
 
@@ -457,24 +468,25 @@ func (s *Server) handleConnection(heartbeatContext context.Context, chans <-chan
 				return
 			}
 			go s.handleChannel(newChannel)
-		// If the heartbeats failed, close everything and cleanup.
-		case <-heartbeatContext.Done():
+		// If the server is closing (either the heartbeat failed or Close() was
+		// called, exit out of the connection handler loop.
+		case <-s.closeContext.Done():
 			return
 		}
 	}
 }
 
-func (s *Server) keepAliveLoop(cancel context.CancelFunc) {
+func (s *Server) keepAliveLoop() {
 	var missed int
 
-	// tick at 1/3 of the idle timeout duration
-	keepAliveTick := time.NewTicker(defaults.DefaultIdleConnectionDuration / 3)
-	defer keepAliveTick.Stop()
+	// Tick at 1/3 of the idle timeout duration.
+	tickerCh := time.NewTicker(defaults.DefaultIdleConnectionDuration / 3)
+	defer tickerCh.Stop()
 
 	for {
 		select {
-		case <-keepAliveTick.C:
-			// send a keep alive to the target node and the client to ensure both are alive.
+		case <-tickerCh.C:
+			// Send a keep alive to the target node and the client to ensure both are alive.
 			proxyToNodeOk := s.sendKeepAliveWithTimeout(s.remoteClient, defaults.ReadHeadersTimeout)
 			proxyToClientOk := s.sendKeepAliveWithTimeout(s.sconn, defaults.ReadHeadersTimeout)
 			if proxyToNodeOk && proxyToClientOk {
@@ -482,13 +494,17 @@ func (s *Server) keepAliveLoop(cancel context.CancelFunc) {
 				continue
 			}
 
-			// if we miss 3 in a row the connections dead, call cancel and cleanup
+			// If 3 keep alives are missed, the connection is dead, call cancel and cleanup.
 			missed += 1
 			if missed == 3 {
-				s.log.Infof("Missed %v keep alive messages, closing connection", missed)
-				cancel()
+				s.log.Infof("Missed %v keep alive messages, closing connection.", missed)
+				s.closeCancel()
 				return
 			}
+		// If Close() was called on the server (connection is done) then no more
+		// need to wait for keep alives.
+		case <-s.closeContext.Done():
+			return
 		}
 	}
 }
