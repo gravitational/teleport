@@ -391,9 +391,9 @@ func (c *TrustedClusterV2) CanChangeStateTo(t TrustedCluster) error {
 
 	if c.GetEnabled() == t.GetEnabled() {
 		if t.GetEnabled() == true {
-			return trace.BadParameter("trusted cluster is already enabled")
+			return trace.AlreadyExists("trusted cluster is already enabled")
 		}
-		return trace.BadParameter("trusted cluster state is already disabled")
+		return trace.AlreadyExists("trusted cluster state is already disabled")
 	}
 
 	return nil

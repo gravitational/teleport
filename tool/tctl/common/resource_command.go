@@ -196,12 +196,20 @@ func (u *ResourceCommand) createTrustedCluster(client auth.ClientI, raw services
 
 	out, err := client.UpsertTrustedCluster(tc)
 	if err != nil {
-		return trace.Wrap(err)
+		// If force is used and UpsertTrustedCluster returns trace.AlreadyExists,
+		// this means the user tried to upsert a cluster whose exact match already
+		// exists in the backend, nothing needs to occur other than happy message
+		// that the trusted cluster has been created.
+		if u.force && trace.IsAlreadyExists(err) {
+			out = tc
+		} else {
+			return trace.Wrap(err)
+		}
 	}
 	if out.GetName() != tc.GetName() {
 		fmt.Printf("WARNING: trusted cluster %q resource has been renamed to match remote cluster name %q\n", name, out.GetName())
 	}
-	fmt.Printf("trusted cluster %q has been %v\n", out.GetName(), UpsertVerb(exists))
+	fmt.Printf("trusted cluster %q has been %v\n", out.GetName(), UpsertVerb(exists, u.force))
 	return nil
 }
 
@@ -224,7 +232,7 @@ func (u *ResourceCommand) createGithubConnector(client auth.ClientI, raw service
 		return trace.Wrap(err)
 	}
 	fmt.Printf("github connector %q has been %s\n",
-		connector.GetName(), UpsertVerb(exists))
+		connector.GetName(), UpsertVerb(exists, u.force))
 	return nil
 }
 
@@ -433,10 +441,18 @@ const (
 	formatJSON = "json"
 )
 
-func UpsertVerb(exists bool) string {
-	if exists {
+func UpsertVerb(exists bool, force bool) string {
+	switch {
+	case exists == true && force == true:
+		return "created"
+	case exists == false && force == true:
+		return "created"
+	case exists == true && force == false:
 		return "updated"
-	} else {
+	case exists == false && force == false:
 		return "created"
 	}
+
+	// Can never reach here, but the compiler complains.
+	return "unknown"
 }
