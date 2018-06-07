@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log/syslog"
 	"os"
 	"strconv"
 	"strings"
@@ -31,7 +30,6 @@ import (
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
-	logrusSyslog "github.com/sirupsen/logrus/hooks/syslog"
 )
 
 type LoggingPurpose int
@@ -71,20 +69,6 @@ func InitLogger(purpose LoggingPurpose, level log.Level) {
 
 func InitLoggerForTests() {
 	InitLogger(LoggingForTests, log.DebugLevel)
-}
-
-// SwitchLoggingtoSyslog tells the logger to send the output to syslog
-func SwitchLoggingtoSyslog() {
-	log.StandardLogger().SetHooks(make(log.LevelHooks))
-	hook, err := logrusSyslog.NewSyslogHook("", "", syslog.LOG_WARNING, "")
-	if err != nil {
-		// syslog not available
-		log.SetOutput(os.Stderr)
-	} else {
-		// ... and disable stderr:
-		log.AddHook(hook)
-		log.SetOutput(ioutil.Discard)
-	}
 }
 
 // FatalError is for CLI front-ends: it detects gravitational/trace debugging

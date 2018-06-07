@@ -27,7 +27,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -154,8 +156,20 @@ func SSHAgentSSOLogin(ctx context.Context, proxyAddr, connectorID string, pubKey
 	proxyURL.Path = "/web/msg/info/login_success"
 	redirectSuccessURL := proxyURL.String()
 
+	var ssoLoginURL string
+
 	makeHandler := func(fn func(http.ResponseWriter, *http.Request) (*auth.SSHLoginResponse, error)) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/login" {
+				if ssoLoginURL == "" {
+					http.Error(w, "SSO Login URL is undefined", http.StatusInternalServerError)
+				} else {
+					http.Redirect(w, r, ssoLoginURL, http.StatusFound)
+				}
+
+				return
+			}
+
 			response, err := fn(w, r)
 			if err != nil {
 				if trace.IsNotFound(err) {
@@ -225,15 +239,29 @@ func SSHAgentSSOLogin(ctx context.Context, proxyAddr, connectorID string, pubKey
 		return nil, trace.Wrap(err)
 	}
 
-	fmt.Printf("If browser window does not open automatically, open it by clicking on the link:\n %v\n", re.RedirectURL)
+	ssoLoginURL = re.RedirectURL
 
-	var command = "sensible-browser"
-	if runtime.GOOS == "darwin" {
-		command = "open"
+	var execCmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		loginRedirectURL := server.URL + "/login"
+		fmt.Printf("If browser window does not open automatically, open it by clicking on the link:\n %v\n", loginRedirectURL)
+		execCmd = exec.Command(filepath.Join(os.Getenv("SYSTEMROOT"), "System32", "rundll32.exe"), "url.dll,FileProtocolHandler", loginRedirectURL)
+	} else {
+		fmt.Printf("If browser window does not open automatically, open it by clicking on the link:\n %v\n", re.RedirectURL)
+
+		var command = "sensible-browser"
+		if runtime.GOOS == "darwin" {
+			command = "open"
+		}
+
+		path, err := exec.LookPath(command)
+		if err == nil {
+			execCmd = exec.Command(path, re.RedirectURL)
+		}
 	}
-	path, err := exec.LookPath(command)
-	if err == nil {
-		exec.Command(path, re.RedirectURL).Start()
+
+	if execCmd != nil {
+		execCmd.Start()
 	}
 
 	log.Infof("waiting for response on %v", server.URL)
