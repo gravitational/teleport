@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/state"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/agentconn"
 
 	"github.com/docker/docker/pkg/term"
 	"github.com/gravitational/trace"
@@ -1688,7 +1689,7 @@ func connectToSSHAgent() agent.Agent {
 		return nil
 	}
 
-	conn, err := net.Dial("unix", socketPath)
+	conn, err := agentconn.DialAgent(socketPath)
 	if err != nil {
 		log.Errorf("[KEY AGENT] Unable to connect to SSH agent on socket: %q.", socketPath)
 		return nil
@@ -1733,7 +1734,7 @@ func (tc *TeleportClient) AskPassword() (pwd string, err error) {
 // passwordFromConsole reads from stdin without echoing typed characters to stdout
 func passwordFromConsole() (string, error) {
 	fd := syscall.Stdin
-	state, err := terminal.GetState(fd)
+	state, err := terminal.GetState(int(fd))
 
 	// intercept Ctr+C and restore terminal
 	sigCh := make(chan os.Signal, 1)
@@ -1745,7 +1746,7 @@ func passwordFromConsole() (string, error) {
 		go func() {
 			select {
 			case <-sigCh:
-				terminal.Restore(fd, state)
+				terminal.Restore(int(fd), state)
 				os.Exit(1)
 			case <-closeCh:
 			}
@@ -1755,7 +1756,7 @@ func passwordFromConsole() (string, error) {
 		close(closeCh)
 	}()
 
-	bytes, err := terminal.ReadPassword(fd)
+	bytes, err := terminal.ReadPassword(int(fd))
 	return string(bytes), err
 }
 
