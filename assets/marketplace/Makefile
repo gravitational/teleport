@@ -6,6 +6,9 @@ BUILD_VPC_ID ?=
 # VPC subnet used for builds
 BUILD_SUBNET_ID ?=
 
+# Override for AMI name if needed
+BUILD_AMI_NAME ?=
+
 # Default build region
 AWS_REGION ?= us-west-2
 
@@ -56,6 +59,12 @@ oss:
 	packer build -force -var build_timestamp=$(BUILD_TIMESTAMP) template.json
 	@echo "$(BUILD_TIMESTAMP)" > files/build/oss_build_timestamp.txt
 
+.PHONY: oss-name-build
+oss-name-build: TELEPORT_TYPE=oss
+oss-name-build:
+	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE) with name $(BUILD_AMI_NAME)"
+	packer build -force -var ami_name=$(BUILD_AMI_NAME) template.json
+
 .PHONY: ent
 ent: TELEPORT_TYPE=ent
 ent: check-ent-vars
@@ -64,6 +73,14 @@ ent: check-ent-vars
 	@echo "BUILD_TIMESTAMP=$(BUILD_TIMESTAMP)"
 	packer build -force -var build_timestamp=$(BUILD_TIMESTAMP) template.json
 	@echo "$(BUILD_TIMESTAMP)" > files/build/ent_build_timestamp.txt
+
+.PHONY: ent-name-build
+ent-name-build: TELEPORT_TYPE=ent
+ent-name-build: check-ent-vars
+ent-name-build:
+	aws s3 cp $(TELEPORT_LICENSE_URI) files/system/license.pem
+	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE) with name $(BUILD_AMI_NAME)"
+	packer build -force -var ami_name=$(BUILD_AMI_NAME) template.json
 
 .PHONY: update-ami-ids-oss
 update-ami-ids-oss:
