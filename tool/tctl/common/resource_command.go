@@ -72,6 +72,7 @@ func (g *ResourceCommand) Initialize(app *kingpin.Application, config *service.C
 		services.KindUser:            g.createUser,
 		services.KindTrustedCluster:  g.createTrustedCluster,
 		services.KindGithubConnector: g.createGithubConnector,
+		services.KindCertAuthority:   g.createCertAuthority,
 	}
 	g.config = config
 
@@ -210,6 +211,19 @@ func (u *ResourceCommand) createTrustedCluster(client auth.ClientI, raw services
 		fmt.Printf("WARNING: trusted cluster %q resource has been renamed to match remote cluster name %q\n", name, out.GetName())
 	}
 	fmt.Printf("trusted cluster %q has been %v\n", out.GetName(), UpsertVerb(exists, u.force))
+	return nil
+}
+
+// createCertAuthority creates certificate authority
+func (u *ResourceCommand) createCertAuthority(client auth.ClientI, raw services.UnknownResource) error {
+	certAuthority, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := client.UpsertCertAuthority(certAuthority); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("certificate authority '%s' has been updated\n", certAuthority.GetName())
 	return nil
 }
 
