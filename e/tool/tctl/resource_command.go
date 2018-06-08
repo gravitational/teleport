@@ -75,7 +75,7 @@ func (cmd *ResourceCommandE) createRole(client auth.ClientI, raw services.Unknow
 	if err := client.UpsertRole(role, backend.Forever); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("role '%s' has been %s\n", roleName, common.UpsertVerb(roleExists))
+	fmt.Printf("role '%s' has been %s\n", roleName, common.UpsertVerb(roleExists, cmd.base.IsForced()))
 	return nil
 }
 
@@ -149,6 +149,6 @@ func (cmd *ResourceCommandE) createConnector(client auth.ClientI, raw services.U
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("authentication connector '%s' has been %s\n", connectorName, common.UpsertVerb(exists))
+	fmt.Printf("authentication connector '%s' has been %s\n", connectorName, common.UpsertVerb(exists, cmd.base.IsForced()))
 	return nil
 }
