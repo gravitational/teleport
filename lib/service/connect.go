@@ -23,7 +23,7 @@ func (process *TeleportProcess) connectToAuthService(role teleport.Role) (*Conne
 	return connector, nil
 }
 
-func (process *TeleportProcess) connect(role teleport.Role) (*Connector, error) {
+func (process *TeleportProcess) connect(role teleport.Role) (conn *Connector, err error) {
 	state, err := process.storage.GetState(role)
 	if err != nil {
 		if !trace.IsNotFound(err) {
@@ -178,7 +178,13 @@ func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector
 			return nil, trace.BadParameter("%v must join a cluster and needs a provisioning token", role)
 		}
 		process.Infof("Joining the cluster with a token %v.", process.Config.Token)
-		identity, err = auth.Register(process.Config.DataDir, process.Config.Token, id, process.Config.AuthServers, additionalPrincipals)
+		identity, err = auth.Register(
+			process.Config.DataDir,
+			process.Config.Token,
+			id,
+			process.Config.AuthServers,
+			additionalPrincipals,
+			process.Config.CipherSuites)
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -476,7 +482,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 }
 
 func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity *auth.Identity) (*auth.Client, error) {
-	tlsConfig, err := identity.TLSConfig()
+	tlsConfig, err := identity.TLSConfig(process.Config.CipherSuites)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -170,7 +170,9 @@ func (proxy *ProxyClient) ConnectToSite(ctx context.Context, quiet bool) (auth.C
 		return auth.NewTLSClientWithDialer(dialer, proxy.teleportClient.TLS)
 	}
 
-	tlsConfig := utils.TLSConfig()
+	// Because Teleport clients can't be configured (yet), they take the default
+	// list of cipher suites from Go.
+	tlsConfig := utils.TLSConfig(nil)
 	localAgent := proxy.teleportClient.LocalAgent()
 	pool, err := localAgent.GetCerts()
 	if err != nil {

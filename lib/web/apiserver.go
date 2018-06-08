@@ -20,6 +20,7 @@ package web
 
 import (
 	"compress/gzip"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -101,6 +102,9 @@ type Config struct {
 	ProxySSHAddr utils.NetAddr
 	// ProxyWebAddr points to the web (HTTPS) address of the proxy
 	ProxyWebAddr utils.NetAddr
+
+	// ClientTLSConfig is the TLS configuration the client uses.
+	ClientTLSConfig *tls.Config
 }
 
 type RewritingHandler struct {
@@ -119,7 +123,7 @@ func (r *RewritingHandler) Close() error {
 // NewHandler returns a new instance of web proxy handler
 func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	const apiPrefix = "/" + teleport.WebAPIVersion
-	lauth, err := newSessionCache(cfg.ProxyClient, []utils.NetAddr{cfg.AuthServers})
+	lauth, err := newSessionCache(cfg.ProxyClient, []utils.NetAddr{cfg.AuthServers}, cfg.ClientTLSConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

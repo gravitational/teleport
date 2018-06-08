@@ -159,6 +159,9 @@ type AuthServer struct {
 
 	// kubeCACertPath is a path to kubernetes certificate authority
 	kubeCACertPath string
+
+	// cipherSuites is a list of ciphersuites that the auth server supports.
+	cipherSuites []uint16
 }
 
 // runPeriodicOperations runs some periodic bookkeeping operations

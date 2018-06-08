@@ -144,6 +144,7 @@ var (
 		"service_name":            false,
 		"client_idle_timeout":     false,
 		"disconnect_expired_cert": false,
+		"ciphersuites":            false,
 	}
 )
 
@@ -368,15 +369,19 @@ type Global struct {
 	// by looking into certificate
 	Keys []KeyPair `yaml:"keys,omitempty"`
 
-	// Ciphers is a list of ciphers that the server supports. If omitted,
+	// CipherSuites is a list of TLS ciphersuites that Teleport supports. If
+	// omitted, a Teleport selected list of defaults will be used.
+	CipherSuites []string `yaml:"ciphersuites,omitempty"`
+
+	// Ciphers is a list of SSH ciphers that the server supports. If omitted,
 	// the defaults will be used.
 	Ciphers []string `yaml:"ciphers,omitempty"`
 
-	// KEXAlgorithms is a list of key exchange (KEX) algorithms that the
+	// KEXAlgorithms is a list of SSH key exchange (KEX) algorithms that the
 	// server supports. If omitted, the defaults will be used.
 	KEXAlgorithms []string `yaml:"kex_algos,omitempty"`
 
-	// MACAlgorithms is a list of message authentication codes (MAC) that
+	// MACAlgorithms is a list of SSH message authentication codes (MAC) that
 	// the server supports. If omitted the defaults will be used.
 	MACAlgorithms []string `yaml:"mac_algos,omitempty"`
 }

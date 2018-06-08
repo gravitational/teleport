@@ -213,7 +213,7 @@ func (c *SessionContext) ClientTLSConfig(clusterName ...string) (*tls.Config, er
 		}
 	}
 
-	tlsConfig := utils.TLSConfig()
+	tlsConfig := c.parent.clientTLSConfig.Clone()
 	tlsCert, err := tls.X509KeyPair(c.sess.GetTLSCert(), c.sess.GetPriv())
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to parse TLS cert and key")
@@ -348,7 +348,7 @@ func (c *SessionContext) Close() error {
 }
 
 // newSessionCache returns new instance of the session cache
-func newSessionCache(proxyClient auth.ClientI, servers []utils.NetAddr) (*sessionCache, error) {
+func newSessionCache(proxyClient auth.ClientI, servers []utils.NetAddr, clientTLSConfig *tls.Config) (*sessionCache, error) {
 	clusterName, err := proxyClient.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -358,11 +358,12 @@ func newSessionCache(proxyClient auth.ClientI, servers []utils.NetAddr) (*sessio
 		return nil, trace.Wrap(err)
 	}
 	cache := &sessionCache{
-		clusterName: clusterName.GetClusterName(),
-		proxyClient: proxyClient,
-		contexts:    m,
-		authServers: servers,
-		closer:      utils.NewCloseBroadcaster(),
+		clusterName:     clusterName.GetClusterName(),
+		proxyClient:     proxyClient,
+		contexts:        m,
+		authServers:     servers,
+		closer:          utils.NewCloseBroadcaster(),
+		clientTLSConfig: clientTLSConfig,
 	}
 	// periodically close expired and unused sessions
 	go cache.expireSessions()
@@ -378,6 +379,9 @@ type sessionCache struct {
 	authServers []utils.NetAddr
 	closer      *utils.CloseBroadcaster
 	clusterName string
+
+	// clientTLSConfig is the TLS configuration the client uses.
+	clientTLSConfig *tls.Config
 }
 
 // Close closes all allocated resources and stops goroutines
@@ -615,7 +619,7 @@ func (s *sessionCache) ValidateSession(user, sid string) (*SessionContext, error
 		return nil, trace.Wrap(err)
 	}
 
-	tlsConfig := utils.TLSConfig()
+	tlsConfig := s.clientTLSConfig.Clone()
 	tlsCert, err := tls.X509KeyPair(sess.GetTLSCert(), sess.GetPriv())
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to parse TLS cert and key")

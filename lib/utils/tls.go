@@ -35,8 +35,8 @@ import (
 // ListenTLS sets up TLS listener for the http handler, starts listening
 // on a TCP socket and returns the socket which is ready to be used
 // for http.Serve
-func ListenTLS(address string, certFile, keyFile string) (net.Listener, error) {
-	tlsConfig, err := CreateTLSConfiguration(certFile, keyFile)
+func ListenTLS(address string, certFile, keyFile string, cipherSuites []uint16) (net.Listener, error) {
+	tlsConfig, err := CreateTLSConfiguration(certFile, keyFile, cipherSuites)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -44,24 +44,13 @@ func ListenTLS(address string, certFile, keyFile string) (net.Listener, error) {
 }
 
 // TLSConfig returns default TLS configuration strong defaults.
-func TLSConfig() *tls.Config {
+func TLSConfig(cipherSuites []uint16) *tls.Config {
 	config := &tls.Config{}
 
-	// Only support modern ciphers (Chacha20 and AES GCM). Key exchanges which
-	// support perfect forward secrecy (ECDHE) have priority over those that do
-	// not (RSA).
-	config.CipherSuites = []uint16{
-		tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
-		tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
-
-		tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-		tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-
-		tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-		tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
-
-		tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
-		tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
+	// If ciphers suites were passed in, use them. Otherwise use the the
+	// Go defaults.
+	if len(cipherSuites) > 0 {
+		config.CipherSuites = cipherSuites
 	}
 
 	// Pick the servers preferred ciphersuite, not the clients.
@@ -75,8 +64,8 @@ func TLSConfig() *tls.Config {
 }
 
 // CreateTLSConfiguration sets up default TLS configuration
-func CreateTLSConfiguration(certFile, keyFile string) (*tls.Config, error) {
-	config := TLSConfig()
+func CreateTLSConfiguration(certFile, keyFile string, cipherSuites []uint16) (*tls.Config, error) {
+	config := TLSConfig(cipherSuites)
 
 	if _, err := os.Stat(certFile); err != nil {
 		return nil, trace.BadParameter("certificate is not accessible by '%v'", certFile)
@@ -160,9 +149,68 @@ func GenerateSelfSignedCert(hostNames []string) (*TLSCredentials, error) {
 	}, nil
 }
 
+// CipherSuiteMapping transforms Teleport formatted cipher suites strings
+// into uint16 IDs.
+func CipherSuiteMapping(cipherSuites []string) ([]uint16, error) {
+	out := make([]uint16, 0, len(cipherSuites))
+
+	for _, cs := range cipherSuites {
+		c, ok := cipherSuiteMapping[cs]
+		if !ok {
+			return nil, trace.BadParameter("cipher suite not supported: %v", cs)
+		}
+
+		out = append(out, c)
+	}
+
+	return out, nil
+}
+
+// cipherSuiteMapping is the mapping between Teleport formatted cipher
+// suites strings and uint16 IDs.
+var cipherSuiteMapping map[string]uint16 = map[string]uint16{
+	"tls-rsa-with-aes-128-cbc-sha":            tls.TLS_RSA_WITH_AES_128_CBC_SHA,
+	"tls-rsa-with-aes-256-cbc-sha":            tls.TLS_RSA_WITH_AES_256_CBC_SHA,
+	"tls-rsa-with-aes-128-cbc-sha256":         tls.TLS_RSA_WITH_AES_128_CBC_SHA256,
+	"tls-rsa-with-aes-128-gcm-sha256":         tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
+	"tls-rsa-with-aes-256-gcm-sha384":         tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
+	"tls-ecdhe-ecdsa-with-aes-128-cbc-sha":    tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+	"tls-ecdhe-ecdsa-with-aes-256-cbc-sha":    tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
+	"tls-ecdhe-rsa-with-aes-128-cbc-sha":      tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+	"tls-ecdhe-rsa-with-aes-256-cbc-sha":      tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+	"tls-ecdhe-ecdsa-with-aes-128-cbc-sha256": tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,
+	"tls-ecdhe-rsa-with-aes-128-cbc-sha256":   tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
+	"tls-ecdhe-rsa-with-aes-128-gcm-sha256":   tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+	"tls-ecdhe-ecdsa-with-aes-128-gcm-sha256": tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+	"tls-ecdhe-rsa-with-aes-256-gcm-sha384":   tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+	"tls-ecdhe-ecdsa-with-aes-256-gcm-sha384": tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+	"tls-ecdhe-rsa-with-chacha20-poly1305":    tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
+	"tls-ecdhe-ecdsa-with-chacha20-poly1305":  tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
+}
+
 const (
 	// DefaultLRUCapacity is a capacity for LRU session cache
 	DefaultLRUCapacity = 1024
 	// DefaultCertTTL sets the TTL of the self-signed certificate (1 year)
 	DefaultCertTTL = (24 * time.Hour) * 365
 )
+
+// DefaultCipherSuites returns the default list of cipher suites that
+// Teleport supports. By default Teleport only support modern ciphers
+// (Chacha20 and AES GCM). Key exchanges which support perfect forward
+// secrecy (ECDHE) have priority over those that do not (RSA).
+func DefaultCipherSuites() []uint16 {
+	return []uint16{
+		tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
+		tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
+
+		tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+		tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+
+		tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+		tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+
+		tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
+		tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
+	}
+}

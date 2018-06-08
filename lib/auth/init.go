@@ -126,6 +126,9 @@ type InitConfig struct {
 
 	// KubeCACertPath is an optional path to kubernetes CA certificate authority
 	KubeCACertPath string
+
+	// CipherSuites is a list of ciphersuites that the auth server supports.
+	CipherSuites []uint16
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -149,6 +152,9 @@ func Init(cfg InitConfig, opts ...AuthServerOption) (*AuthServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Set the ciphersuites that this auth server supports.
+	asrv.cipherSuites = cfg.CipherSuites
 
 	// INTERNAL: Authorities (plus Roles) and ReverseTunnels don't follow the
 	// same pattern as the rest of the configuration (they are not configuration
@@ -553,8 +559,8 @@ func (i *Identity) HasPrincipals(additionalPrincipals []string) bool {
 
 // TLSConfig returns TLS config for mutual TLS authentication
 // can return NotFound error if there are no TLS credentials setup for identity
-func (i *Identity) TLSConfig() (*tls.Config, error) {
-	tlsConfig := utils.TLSConfig()
+func (i *Identity) TLSConfig(cipherSuites []uint16) (*tls.Config, error) {
+	tlsConfig := utils.TLSConfig(cipherSuites)
 	if !i.HasTLSConfig() {
 		return nil, trace.NotFound("no TLS credentials setup for this identity")
 	}
@@ -655,7 +661,9 @@ func ReadTLSIdentityFromKeyPair(keyBytes, certBytes []byte, caCertsBytes [][]byt
 		TLSCertBytes:    certBytes,
 		TLSCACertsBytes: caCertsBytes,
 	}
-	_, err = identity.TLSConfig()
+	// The passed in ciphersuites don't appear to matter here since the returned
+	// *tls.Config is never actually used?
+	_, err = identity.TLSConfig(utils.DefaultCipherSuites())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

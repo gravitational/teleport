@@ -50,6 +50,8 @@ type TestAuthServerConfig struct {
 	// AcceptedUsage is an optional list of restricted
 	// server usage
 	AcceptedUsage []string
+	// CipherSuites is the list of ciphers that the server supports.
+	CipherSuites []uint16
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -59,6 +61,9 @@ func (cfg *TestAuthServerConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.Dir == "" {
 		return trace.BadParameter("missing parameter Dir")
+	}
+	if len(cfg.CipherSuites) == 0 {
+		cfg.CipherSuites = utils.DefaultCipherSuites()
 	}
 	return nil
 }
@@ -338,7 +343,7 @@ func (a *TestAuthServer) NewTestTLSServer() (*TestTLSServer, error) {
 // NewRemoteClient creates new client to the remote server using identity
 // generated for this certificate authority
 func (a *TestAuthServer) NewRemoteClient(identity TestIdentity, addr net.Addr, pool *x509.CertPool) (*Client, error) {
-	tlsConfig := utils.TLSConfig()
+	tlsConfig := utils.TLSConfig(a.CipherSuites)
 	cert, err := a.NewCertificate(identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -423,7 +428,7 @@ func NewTestTLSServer(cfg TestTLSServerConfig) (*TestTLSServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	// Register TLS endpoint of the auth service
-	tlsConfig, err := srv.Identity.TLSConfig()
+	tlsConfig, err := srv.Identity.TLSConfig(srv.AuthServer.CipherSuites)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -489,7 +494,7 @@ func TestBuiltin(role teleport.Role) TestIdentity {
 
 // NewClientFromWebSession returns new authenticated client from web session
 func (t *TestTLSServer) NewClientFromWebSession(sess services.WebSession) (*Client, error) {
-	tlsConfig, err := t.Identity.TLSConfig()
+	tlsConfig, err := t.Identity.TLSConfig(t.AuthServer.CipherSuites)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -504,7 +509,7 @@ func (t *TestTLSServer) NewClientFromWebSession(sess services.WebSession) (*Clie
 
 // CertPool returns cert pool that auth server represents
 func (t *TestTLSServer) CertPool() (*x509.CertPool, error) {
-	tlsConfig, err := t.Identity.TLSConfig()
+	tlsConfig, err := t.Identity.TLSConfig(t.AuthServer.CipherSuites)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -513,7 +518,7 @@ func (t *TestTLSServer) CertPool() (*x509.CertPool, error) {
 
 // ClientTLSConfig returns client TLS config based on the identity
 func (t *TestTLSServer) ClientTLSConfig(identity TestIdentity) (*tls.Config, error) {
-	tlsConfig, err := t.Identity.TLSConfig()
+	tlsConfig, err := t.Identity.TLSConfig(t.AuthServer.CipherSuites)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

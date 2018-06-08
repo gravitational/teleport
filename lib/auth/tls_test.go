@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/base32"
 	"encoding/json"
 	"fmt"
@@ -1485,6 +1486,33 @@ func (s *TLSSuite) TestLoginAttempts(c *check.C) {
 	loginAttempts, err = s.server.Auth().GetUserLoginAttempts(user)
 	c.Assert(err, check.IsNil)
 	c.Assert(loginAttempts, check.HasLen, 0)
+}
+
+// TestCipherSuites makes sure that clients with invalid cipher suites can
+// not connect.
+func (s *TLSSuite) TestCipherSuites(c *check.C) {
+	otherServer, err := s.server.AuthServer.NewTestTLSServer()
+	c.Assert(err, check.IsNil)
+	defer otherServer.Close()
+
+	// Create a client with ciphersuites that the server does not support.
+	tlsConfig, err := s.server.ClientTLSConfig(TestNop())
+	c.Assert(err, check.IsNil)
+	tlsConfig.CipherSuites = []uint16{
+		tls.TLS_RSA_WITH_AES_128_CBC_SHA,
+		tls.TLS_RSA_WITH_AES_256_CBC_SHA,
+	}
+
+	addrs := []utils.NetAddr{
+		utils.FromAddr(otherServer.Listener.Addr()),
+		utils.FromAddr(s.server.Listener.Addr()),
+	}
+	client, err := NewTLSClient(addrs, tlsConfig)
+	c.Assert(err, check.IsNil)
+
+	// Requests should fail.
+	_, err = client.GetDomainName()
+	c.Assert(err, check.NotNil)
 }
 
 // TestTLSFailover tests client failover between two tls servers

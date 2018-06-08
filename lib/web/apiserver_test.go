@@ -212,11 +212,16 @@ func (s *WebSuite) SetUpTest(c *C) {
 	)
 	c.Assert(err, IsNil)
 
+	tlsConfig := &tls.Config{
+		CipherSuites: utils.DefaultCipherSuites(),
+	}
+
 	handler, err := NewHandler(Config{
-		Proxy:       revTunServer,
-		AuthServers: utils.FromAddr(s.server.Addr()),
-		DomainName:  s.server.ClusterName(),
-		ProxyClient: s.proxyClient,
+		Proxy:           revTunServer,
+		AuthServers:     utils.FromAddr(s.server.Addr()),
+		DomainName:      s.server.ClusterName(),
+		ProxyClient:     s.proxyClient,
+		ClientTLSConfig: tlsConfig,
 	}, SetSessionStreamPollPeriod(200*time.Millisecond))
 	c.Assert(err, IsNil)
 

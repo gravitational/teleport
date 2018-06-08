@@ -142,7 +142,7 @@ func connectToAuthService(cfg *service.Config) (client auth.ClientI, err error) 
 		}
 		return nil, trace.Wrap(err)
 	}
-	tlsConfig, err := i.TLSConfig()
+	tlsConfig, err := i.TLSConfig(cfg.CipherSuites)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

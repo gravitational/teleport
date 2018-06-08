@@ -117,15 +117,19 @@ type Config struct {
 	// ClusterConfiguration is a service that provides cluster configuration
 	ClusterConfiguration services.ClusterConfiguration
 
-	// Ciphers is a list of ciphers that the server supports. If omitted,
+	// CipherSuites is a list of TLS ciphersuites that Teleport supports. If
+	// omitted, a Teleport selected list of defaults will be used.
+	CipherSuites []uint16
+
+	// Ciphers is a list of SSH ciphers that the server supports. If omitted,
 	// the defaults will be used.
 	Ciphers []string
 
-	// KEXAlgorithms is a list of key exchange (KEX) algorithms that the
+	// KEXAlgorithms is a list of SSH key exchange (KEX) algorithms that the
 	// server supports. If omitted, the defaults will be used.
 	KEXAlgorithms []string
 
-	// MACAlgorithms is a list of message authentication codes (MAC) that
+	// MACAlgorithms is a list of SSH message authentication codes (MAC) that
 	// the server supports. If omitted the defaults will be used.
 	MACAlgorithms []string
 
@@ -395,6 +399,7 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Hostname = hostname
 	cfg.DataDir = defaults.DataDir
 	cfg.Console = os.Stdout
+	cfg.CipherSuites = utils.DefaultCipherSuites()
 	cfg.Ciphers = sc.Ciphers
 	cfg.KEXAlgorithms = kex
 	cfg.MACAlgorithms = macs

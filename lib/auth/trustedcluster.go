@@ -470,7 +470,7 @@ func (s *AuthServer) sendValidateRequestToProxy(host string, validateRequest *Va
 		}
 
 		// Disable certificate checking while in debug mode.
-		tlsConfig := utils.TLSConfig()
+		tlsConfig := utils.TLSConfig(s.cipherSuites)
 		tlsConfig.InsecureSkipVerify = true
 		tr.TLSClientConfig = tlsConfig
 

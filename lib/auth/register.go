@@ -49,12 +49,12 @@ func LocalRegister(id IdentityID, authServer *AuthServer, additionalPrincipals [
 // Register is used to generate host keys when a node or proxy are running on different hosts
 // than the auth server. This method requires provisioning tokens to prove a valid auth server
 // was used to issue the joining request.
-func Register(dataDir, token string, id IdentityID, servers []utils.NetAddr, additionalPrincipals []string) (*Identity, error) {
+func Register(dataDir, token string, id IdentityID, servers []utils.NetAddr, additionalPrincipals []string, cipherSuites []uint16) (*Identity, error) {
 	tok, err := readToken(token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsConfig := utils.TLSConfig()
+	tlsConfig := utils.TLSConfig(cipherSuites)
 	certPath := filepath.Join(dataDir, defaults.CACertFile)
 	certBytes, err := utils.ReadPath(certPath)
 	if err != nil {

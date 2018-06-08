@@ -899,6 +899,7 @@ func (process *TeleportProcess) initAuthService() error {
 		OIDCConnectors:       cfg.OIDCConnectors,
 		AuditLog:             process.auditLog,
 		KubeCACertPath:       cfg.Auth.KubeCACertPath,
+		CipherSuites:         cfg.CipherSuites,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -945,7 +946,7 @@ func (process *TeleportProcess) initAuthService() error {
 	})
 
 	// Register TLS endpoint of the auth service
-	tlsConfig, err := connector.ServerIdentity.TLSConfig()
+	tlsConfig, err := connector.ServerIdentity.TLSConfig(cfg.CipherSuites)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1656,7 +1657,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
-	clientTLSConfig, err := conn.ClientIdentity.TLSConfig()
+	clientTLSConfig, err := conn.ClientIdentity.TLSConfig(cfg.CipherSuites)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1735,13 +1736,14 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if !process.Config.Proxy.DisableWebService {
 		webHandler, err = web.NewHandler(
 			web.Config{
-				Proxy:        tsrv,
-				AuthServers:  cfg.AuthServers[0],
-				DomainName:   cfg.Hostname,
-				ProxyClient:  conn.Client,
-				DisableUI:    process.Config.Proxy.DisableWebInterface,
-				ProxySSHAddr: cfg.Proxy.SSHAddr,
-				ProxyWebAddr: cfg.Proxy.WebAddr,
+				Proxy:           tsrv,
+				AuthServers:     cfg.AuthServers[0],
+				DomainName:      cfg.Hostname,
+				ProxyClient:     conn.Client,
+				DisableUI:       process.Config.Proxy.DisableWebInterface,
+				ProxySSHAddr:    cfg.Proxy.SSHAddr,
+				ProxyWebAddr:    cfg.Proxy.WebAddr,
+				ClientTLSConfig: clientTLSConfig,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -1749,7 +1751,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		proxyLimiter.WrapHandle(webHandler)
 		if !process.Config.Proxy.DisableTLS {
 			log.Infof("Using TLS cert %v, key %v", cfg.Proxy.TLSCert, cfg.Proxy.TLSKey)
-			tlsConfig, err := utils.CreateTLSConfiguration(cfg.Proxy.TLSCert, cfg.Proxy.TLSKey)
+			tlsConfig, err := utils.CreateTLSConfiguration(cfg.Proxy.TLSCert, cfg.Proxy.TLSKey, cfg.CipherSuites)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -1829,7 +1831,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(err)
 		}
 		// Register TLS endpoint of the Kube proxy service
-		tlsConfig, err := conn.ServerIdentity.TLSConfig()
+		tlsConfig, err := conn.ServerIdentity.TLSConfig(cfg.CipherSuites)
 		if err != nil {
 			return trace.Wrap(err)
 		}
