@@ -72,13 +72,26 @@ func (a *AuthWithRoles) authConnectorAction(namespace string, resource string, v
 	return nil
 }
 
+// hasBuiltinRole checks the type of the role set returned and the name.
+// Returns true if role set is builtin and the name matches.
+func (a *AuthWithRoles) hasBuiltinRole(name string) bool {
+	if _, ok := a.checker.(BuiltinRoleSet); !ok {
+		return false
+	}
+	if !a.checker.HasRole(name) {
+		return false
+	}
+
+	return true
+}
+
 // AuthenticateWebUser authenticates web user, creates and  returns web session
 // in case if authentication is successfull
 func (a *AuthWithRoles) AuthenticateWebUser(req AuthenticateUserRequest) (services.WebSession, error) {
 	// authentication request has it's own authentication, however this limits the requests
 	// types to proxies to make it harder to break
-	if !a.checker.HasRole(string(teleport.RoleProxy)) {
-		return nil, trace.AccessDenied("this request can be only executed by proxy")
+	if !a.hasBuiltinRole(string(teleport.RoleProxy)) {
+		return nil, trace.AccessDenied("this request can be only executed by a proxy")
 	}
 	return a.authServer.AuthenticateWebUser(req)
 }
@@ -88,8 +101,8 @@ func (a *AuthWithRoles) AuthenticateWebUser(req AuthenticateUserRequest) (servic
 func (a *AuthWithRoles) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginResponse, error) {
 	// authentication request has it's own authentication, however this limits the requests
 	// types to proxies to make it harder to break
-	if !a.checker.HasRole(string(teleport.RoleProxy)) {
-		return nil, trace.AccessDenied("this request can be only executed by proxy")
+	if !a.hasBuiltinRole(string(teleport.RoleProxy)) {
+		return nil, trace.AccessDenied("this request can be only executed by a proxy")
 	}
 	return a.authServer.AuthenticateSSHUser(req)
 }
@@ -525,37 +538,35 @@ func (a *AuthWithRoles) GenerateHostCert(
 }
 
 func (a *AuthWithRoles) GenerateUserCert(key []byte, username string, ttl time.Duration, compatibility string) ([]byte, error) {
-	if err := a.currentUserAction(username); err != nil {
-		return nil, trace.AccessDenied("%v cannot request a certificate for %v", a.user.GetName(), username)
+	// This endpoint is only accessible to tctl.
+	if !a.hasBuiltinRole(string(teleport.RoleAdmin)) {
+		return nil, trace.AccessDenied("this request can be only executed by an admin")
 	}
-	// notice that user requesting the certificate and the user currently
-	// authenticated may differ (e.g. admin generates certificate for the user scenario)
-	// so we fetch user's permissions
-	checker := a.checker
-	var user services.User
-	var err error
-	if a.user.GetName() != username {
-		user, err = a.GetUser(username)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		checker, err = services.FetchRoles(user.GetRoles(), a.authServer, user.GetTraits())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		user = a.user
+
+	// Extract the user and role set for whom the certificate will be generated.
+	user, err := a.GetUser(username)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+	checker, err := services.FetchRoles(user.GetRoles(), a.authServer, user.GetTraits())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Generate certificate, note that the roles TTL will be ignored because
+	// the request is coming from "tctl auth sign" itself.
 	certs, err := a.authServer.generateUserCert(certRequest{
-		user:          user,
-		roles:         checker,
-		ttl:           ttl,
-		compatibility: compatibility,
-		publicKey:     key,
+		user:            user,
+		roles:           checker,
+		ttl:             ttl,
+		compatibility:   compatibility,
+		publicKey:       key,
+		overrideRoleTTL: true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return certs.ssh, nil
 }
 

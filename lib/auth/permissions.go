@@ -143,12 +143,13 @@ func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*AuthContext, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// The user is prefixed with "remote-" and suffixed with cluster name with
+	// the hope that it does not match a real local user.
 	user, err := services.NewUser(fmt.Sprintf("remote-%v-%v", u.Username, u.ClusterName))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &AuthContext{
-		// this is done on purpose to make sure user does not match some real local user
 		User:    user,
 		Checker: checker,
 	}, nil
@@ -211,7 +212,7 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*AuthConte
 }
 
 // GetCheckerForBuiltinRole returns checkers for embedded builtin role
-func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.ClusterConfig, role teleport.Role) (services.AccessChecker, error) {
+func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.ClusterConfig, role teleport.Role) (services.RoleSet, error) {
 	switch role {
 	case teleport.RoleAuth:
 		return services.FromSpec(
@@ -423,7 +424,7 @@ func contextForBuiltinRole(clusterName string, clusterConfig services.ClusterCon
 	user.SetRoles([]string{string(r)})
 	return &AuthContext{
 		User:    user,
-		Checker: checker,
+		Checker: BuiltinRoleSet{checker},
 	}, nil
 }
 
@@ -464,6 +465,12 @@ type BuiltinRole struct {
 
 	// ClusterName is the name of the local cluster
 	ClusterName string
+}
+
+// BuiltinRoleSet wraps a services.RoleSet. The type is used to determine if
+// the role is builtin or not.
+type BuiltinRoleSet struct {
+	services.RoleSet
 }
 
 // RemoteBuiltinRole is the role of the remote (service connecting via trusted cluster link)
