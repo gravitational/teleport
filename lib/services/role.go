@@ -119,7 +119,7 @@ func NewImplicitRole() Role {
 		},
 		Spec: RoleSpecV3{
 			Options: RoleOptions{
-				MaxSessionTTL: NewDuration(defaults.MaxCertDuration),
+				MaxSessionTTL: MaxDuration(),
 			},
 			Allow: RoleConditions{
 				Namespaces: []string{defaults.Namespace},
