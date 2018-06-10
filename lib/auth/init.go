@@ -123,6 +123,9 @@ type InitConfig struct {
 	// SkipPeriodicOperations turns off periodic operations
 	// used in tests that don't need periodc operations.
 	SkipPeriodicOperations bool
+
+	// KubeCACertPath is an optional path to kubernetes CA certificate authority
+	KubeCACertPath string
 }
 
 // Init instantiates and configures an instance of AuthServer

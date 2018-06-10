@@ -251,7 +251,6 @@ func (f *Forwarder) setupContext(ctx auth.AuthContext) (*authContext, error) {
 
 	// adjust session ttl to the smaller of two values: the session
 	// ttl requested in tsh or the session ttl for the role.
-	// TODO(klizhentas) before merge, figure out the right TTL
 	sessionTTL := roles.AdjustSessionTTL(time.Hour)
 
 	// check signing TTL and return a list of allowed logins
@@ -275,6 +274,7 @@ func (f *Forwarder) setupContext(ctx auth.AuthContext) (*authContext, error) {
 // exec forwards all exec requests to the target server, captures
 // all output from the session
 func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (interface{}, error) {
+	f.Debugf("Exec %v.", req.URL.String())
 	clusterConfig, err := f.AccessPoint.GetClusterConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -375,7 +375,6 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	f.Debugf("Started streaming.")
 	streamOptions := proxy.options()
 
 	if request.tty {
@@ -425,6 +424,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 
 // portForward starts port forwarding to the remote cluster
 func (f *Forwarder) portForward(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (interface{}, error) {
+	f.Debugf("Port forward: %v.", req.URL.String())
 	sess, err := f.getOrCreateClusterSession(*ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)

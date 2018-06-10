@@ -838,6 +838,7 @@ func (process *TeleportProcess) initAuthService() error {
 		AuthPreference:       cfg.Auth.Preference,
 		OIDCConnectors:       cfg.OIDCConnectors,
 		AuditLog:             process.auditLog,
+		KubeCACertPath:       cfg.Auth.KubeCACertPath,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1773,7 +1774,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			log := logrus.WithFields(logrus.Fields{
 				trace.Component: teleport.Component(teleport.ComponentKube),
 			})
-			log.Infof("Starting Kube proxy.")
+			log.Infof("Starting Kube proxy on %v.", cfg.Proxy.KubeListenAddr.Addr)
 			err := kubeServer.Serve(listeners.kube)
 			if err != nil && err != http.ErrServerClosed {
 				log.Warningf("Kube TLS server exited with error: %v.", err)

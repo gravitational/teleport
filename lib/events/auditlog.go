@@ -383,7 +383,14 @@ func (l *AuditLog) getAuthServers() ([]string, error) {
 	for i := range entries {
 		fi := entries[i]
 		if fi.IsDir() {
-			authServers = append(authServers, filepath.Base(fi.Name()))
+			fileName := filepath.Base(fi.Name())
+			// TODO: this is not the best solution because these names
+			// can be colliding with customer-picked names, so consider
+			// moving the folders to a folder level up and keep the servers
+			// one small
+			if fileName != PlaybackDir && fileName != teleport.ComponentUpload {
+				authServers = append(authServers, fileName)
+			}
 		}
 	}
 	return authServers, nil
