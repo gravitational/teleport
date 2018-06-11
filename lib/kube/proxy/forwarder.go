@@ -443,6 +443,7 @@ func (f *Forwarder) portForward(ctx *authContext, w http.ResponseWriter, req *ht
 			events.PortForwardAddr:    addr,
 			events.PortForwardSuccess: success,
 			events.EventLogin:         ctx.User.GetName(),
+			events.EventUser:          ctx.User.GetName(),
 			events.LocalAddr:          sess.targetAddr,
 			events.RemoteAddr:         req.RemoteAddr,
 		})
