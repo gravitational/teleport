@@ -108,6 +108,7 @@ func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext) error {
 			events.PortForwardSuccess: false,
 			events.PortForwardErr:     systemErrorMessage,
 			events.EventLogin:         ctx.Identity.Login,
+			events.EventUser:          ctx.Identity.TeleportUser,
 			events.LocalAddr:          ctx.Conn.LocalAddr().String(),
 			events.RemoteAddr:         ctx.Conn.RemoteAddr().String(),
 		})

@@ -808,6 +808,7 @@ func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, identityContext
 		events.PortForwardAddr:    dstAddr,
 		events.PortForwardSuccess: true,
 		events.EventLogin:         ctx.Identity.Login,
+		events.EventUser:          ctx.Identity.TeleportUser,
 		events.LocalAddr:          sconn.LocalAddr().String(),
 		events.RemoteAddr:         sconn.RemoteAddr().String(),
 	})
