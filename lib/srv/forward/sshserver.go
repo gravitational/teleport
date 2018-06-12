@@ -591,6 +591,7 @@ func (s *Server) handleDirectTCPIPRequest(ch ssh.Channel, req *sshutils.DirectTC
 		events.PortForwardAddr:    dstAddr,
 		events.PortForwardSuccess: true,
 		events.EventLogin:         s.identityContext.Login,
+		events.EventUser:          s.identityContext.TeleportUser,
 		events.LocalAddr:          s.sconn.LocalAddr().String(),
 		events.RemoteAddr:         s.sconn.RemoteAddr().String(),
 	})
