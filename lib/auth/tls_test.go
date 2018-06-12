@@ -1029,7 +1029,7 @@ func (s *TLSSuite) TestGenerateCerts(c *check.C) {
 	_, err = nopClient.GenerateUserCert(pub, user1.GetName(), time.Hour, teleport.CertificateFormatStandard)
 	c.Assert(err, check.NotNil)
 	fixtures.ExpectAccessDenied(c, err)
-	c.Assert(err, check.ErrorMatches, ".*cannot request a certificate for user1")
+	c.Assert(err, check.ErrorMatches, "this request can be only executed by an admin")
 
 	// Users don't match
 	userClient2, err := s.server.NewClient(TestUser(user2.GetName()))
@@ -1038,13 +1038,13 @@ func (s *TLSSuite) TestGenerateCerts(c *check.C) {
 	_, err = userClient2.GenerateUserCert(pub, user1.GetName(), time.Hour, teleport.CertificateFormatStandard)
 	c.Assert(err, check.NotNil)
 	fixtures.ExpectAccessDenied(c, err)
-	c.Assert(err, check.ErrorMatches, ".*cannot request a certificate for user1")
+	c.Assert(err, check.ErrorMatches, "this request can be only executed by an admin")
 
-	// should not be able to generate cert for longer than duration
-	userClient1, err := s.server.NewClient(TestUser(user1.GetName()))
+	// Admin should be allowed to generate certs with TTL longer than max.
+	adminClient, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)
 
-	cert, err := userClient1.GenerateUserCert(pub, user1.GetName(), 40*time.Hour, teleport.CertificateFormatStandard)
+	cert, err := adminClient.GenerateUserCert(pub, user1.GetName(), 40*time.Hour, teleport.CertificateFormatStandard)
 	c.Assert(err, check.IsNil)
 
 	parsedKey, _, _, _, err := ssh.ParseAuthorizedKey(cert)
@@ -1052,7 +1052,7 @@ func (s *TLSSuite) TestGenerateCerts(c *check.C) {
 	parsedCert, _ := parsedKey.(*ssh.Certificate)
 	validBefore := time.Unix(int64(parsedCert.ValidBefore), 0)
 	diff := validBefore.Sub(time.Now())
-	c.Assert(diff < defaults.MaxCertDuration, check.Equals, true, check.Commentf("expected %v < %v", diff, defaults.CertDuration))
+	c.Assert(diff > defaults.MaxCertDuration, check.Equals, true, check.Commentf("expected %v > %v", diff, defaults.CertDuration))
 
 	// user should have agent forwarding (default setting)
 	_, exists := parsedCert.Extensions[teleport.CertExtensionPermitAgentForwarding]
@@ -1065,7 +1065,7 @@ func (s *TLSSuite) TestGenerateCerts(c *check.C) {
 	err = s.server.Auth().UpsertRole(userRole, backend.Forever)
 	c.Assert(err, check.IsNil)
 
-	cert, err = userClient1.GenerateUserCert(pub, user1.GetName(), 1*time.Hour, teleport.CertificateFormatStandard)
+	cert, err = adminClient.GenerateUserCert(pub, user1.GetName(), 1*time.Hour, teleport.CertificateFormatStandard)
 	c.Assert(err, check.IsNil)
 	parsedKey, _, _, _, err = ssh.ParseAuthorizedKey(cert)
 	c.Assert(err, check.IsNil)
@@ -1076,7 +1076,7 @@ func (s *TLSSuite) TestGenerateCerts(c *check.C) {
 	c.Assert(exists, check.Equals, true)
 
 	// apply HTTP Auth to generate user cert:
-	cert, err = userClient1.GenerateUserCert(pub, user1.GetName(), time.Hour, teleport.CertificateFormatStandard)
+	cert, err = adminClient.GenerateUserCert(pub, user1.GetName(), time.Hour, teleport.CertificateFormatStandard)
 	c.Assert(err, check.IsNil)
 
 	_, _, _, _, err = ssh.ParseAuthorizedKey(cert)

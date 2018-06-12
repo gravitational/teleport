@@ -555,8 +555,6 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	}
 	if c.KeyTTL == 0 {
 		c.KeyTTL = defaults.CertDuration
-	} else if c.KeyTTL > defaults.MaxCertDuration || c.KeyTTL < defaults.MinCertDuration {
-		return nil, trace.BadParameter("invalid requested cert TTL")
 	}
 	c.Namespace = services.ProcessNamespace(c.Namespace)
 

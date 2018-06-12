@@ -276,6 +276,10 @@ type certRequest struct {
 	publicKey []byte
 	// compatibility is compatibility mode
 	compatibility string
+	// overrideRoleTTL is used for requests when the requested TTL should not be
+	// adjusted based off the role of the user. This is used by tctl to allow
+	// creating long lived user certs.
+	overrideRoleTTL bool
 }
 
 // GenerateUserCerts is used to generate user certificate, used internally for tests
@@ -319,14 +323,33 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 		certificateFormat = req.roles.CertificateFormat()
 	}
 
-	// adjust session ttl to the smaller of two values: the session
-	// ttl requested in tsh or the session ttl for the role.
-	sessionTTL := req.roles.AdjustSessionTTL(req.ttl)
+	var sessionTTL time.Duration
+	var allowedLogins []string
 
-	// check signing TTL and return a list of allowed logins
-	allowedLogins, err := req.roles.CheckLoginDuration(sessionTTL)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// If the role TTL is ignored, do not restrict session TTL and allowed logins.
+	// The only caller setting this parameter should be "tctl auth sign".
+	// Otherwise set the session TTL to the smallest of all roles and
+	// then only grant access to allowed logins based on that.
+	if req.overrideRoleTTL {
+		// Take whatever was passed in. Pass in 0 to CheckLoginDuration so all
+		// logins are returned for the role set.
+		sessionTTL = req.ttl
+		allowedLogins, err = req.roles.CheckLoginDuration(0)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		// Adjust session TTL to the smaller of two values: the session TTL
+		// requested in tsh or the session TTL for the role.
+		sessionTTL = req.roles.AdjustSessionTTL(req.ttl)
+
+		// Return a list of logins that meet the session TTL limit. This means if
+		// the requested session TTL is larger than the max session TTL for a login,
+		// that login will not be included in the list of allowed logins.
+		allowedLogins, err = req.roles.CheckLoginDuration(sessionTTL)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	clusterName, err := s.GetDomainName()
