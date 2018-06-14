@@ -1,12 +1,26 @@
 # Changelog
 
+## 2.6.2
+
+This release of Teleport focuses on bugfixes.
+
+#### Bug Fixes
+
+* Reduced go routine usage by the forwarding proxy. [#1966](https://github.com/gravitational/teleport/issues/1966)
+* Teleport no longer sends full version in the SSH handshake. [#970](https://github.com/gravitational/teleport/issues/970)
+* Force flag works correctly for Trusted Clusters. [#1871](https://github.com/gravitational/teleport/issues/1871)
+* Allow manual creation of Certificate Authorities. [#2001](https://github.com/gravitational/teleport/pull/2001)
+* Include Teleport username in port forwarding events. [#2004](https://github.com/gravitational/teleport/pull/2004)
+* Allow `tctl auth sign` to create user certificate with arbitrary TTL values. [#1745](https://github.com/gravitational/teleport/issues/1745)
+* Upgrade to Go 1.10.3. [#2008](https://github.com/gravitational/teleport/pull/2008)
+
 ## 2.6.1
 
 This release of Teleport focuses on bugfixes.
 
 #### Bug Fixes
 
-* Use ciphers, KEX, and MAC algorithms from Teleport configuration in reverse tunnel server. [#1984](https://github.com/gravitational/teleport/pull/1984) 
+* Use ciphers, KEX, and MAC algorithms from Teleport configuration in reverse tunnel server. [#1984](https://github.com/gravitational/teleport/pull/1984)
 * Update path sanitizer it allow `@`. [#1985](https://github.com/gravitational/teleport/pull/1985)
 
 ## 2.6.0
