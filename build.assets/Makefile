@@ -9,9 +9,17 @@ DOCSDIR=/teleport
 
 HOSTNAME=buildbox
 SRCDIR=/gopath/src/github.com/gravitational/teleport
-DOCKERFLAGS=--rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME)
+DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME)
 ADDFLAGS=-ldflags -w
 NOROOT=-u $$(id -u):$$(id -g)
+KUBECONFIG ?=
+TEST_KUBE ?=
+
+ifneq ("$(KUBECONFIG)","")
+DOCKERFLAGS := $(DOCKERFLAGS) -v $(KUBECONFIG):/mnt/kube/config -e KUBECONFIG=/mnt/kube/config -e TEST_KUBE=$(TEST_KUBE)
+endif
+export
+
 
 #
 # Build 'teleport' release inside a docker container
@@ -70,7 +78,7 @@ test: bbox
 .PHONY:integration
 integration: bbox
 	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BBOX) \
- 		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' integration"
+		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' integration"
 
 #
 # Builds docs
