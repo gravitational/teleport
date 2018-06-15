@@ -36,6 +36,10 @@ PAMFLAGS = -tags pam
 PAM_MESSAGE = "Building Teleport with PAM support."
 endif
 
+KUBECONFIG ?=
+TEST_KUBE ?=
+export
+
 #
 # 'make all' builds all 3 executables and plaaces them in a current directory
 #
@@ -136,6 +140,7 @@ test: $(VERSRC)
 #
 .PHONY: integration
 integration:
+	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
 	go test $(PAMFLAGS) -v ./integration/... -check.v
 
 # This rule triggers re-generation of version.go and gitref.go if Makefile changes
