@@ -69,6 +69,7 @@ type TeleInstance struct {
 	Process *service.TeleportProcess
 	Config  *service.Config
 	Tunnel  reversetunnel.Server
+	Pool    *reversetunnel.AgentPool
 
 	// Nodes is a list of additional nodes
 	// started with this instance
@@ -776,6 +777,7 @@ func (i *TeleInstance) Start() error {
 	if i.Config.Proxy.Enabled {
 		expectedEvents = append(expectedEvents, service.ProxyReverseTunnelReady)
 		expectedEvents = append(expectedEvents, service.ProxySSHReady)
+		expectedEvents = append(expectedEvents, service.ProxyAgentPoolReady)
 		if !i.Config.Proxy.DisableWebService {
 			expectedEvents = append(expectedEvents, service.ProxyWebServerReady)
 		}
@@ -790,12 +792,20 @@ func (i *TeleInstance) Start() error {
 		return trace.Wrap(err)
 	}
 
-	// Extract and set reversetunnel.Server upon receipt of a
-	// ProxyReverseTunnelReady event.
+	// Extract and set reversetunnel.Server and reversetunnel.AgentPool upon
+	// receipt of a ProxyReverseTunnelReady and ProxyAgentPoolReady respectivly.
 	for _, re := range receivedEvents {
-		ts, ok := re.Payload.(reversetunnel.Server)
-		if ok {
-			i.Tunnel = ts
+		switch re.Name {
+		case service.ProxyReverseTunnelReady:
+			ts, ok := re.Payload.(reversetunnel.Server)
+			if ok {
+				i.Tunnel = ts
+			}
+		case service.ProxyAgentPoolReady:
+			ap, ok := re.Payload.(*reversetunnel.AgentPool)
+			if ok {
+				i.Pool = ap
+			}
 		}
 	}
 
@@ -912,6 +922,27 @@ func (i *TeleInstance) NewClient(cfg ClientConfig) (*client.TeleportClient, erro
 		}
 	}
 	return tc, nil
+}
+
+// StopProxy loops over the extra nodes in a TeleInstance and stops all
+// nodes where the proxy server is enabled.
+func (i *TeleInstance) StopProxy() error {
+	var errors []error
+
+	for _, p := range i.Nodes {
+		if p.Config.Proxy.Enabled {
+			if err := p.Close(); err != nil {
+				errors = append(errors, err)
+				log.Errorf("Failed closing extra proxy: %v.", err)
+			}
+			if err := p.Wait(); err != nil {
+				errors = append(errors, err)
+				log.Errorf("Failed to stop extra proxy: %v.", err)
+			}
+		}
+	}
+
+	return trace.NewAggregate(errors...)
 }
 
 // StopNodes stops additional nodes

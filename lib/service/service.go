@@ -98,6 +98,11 @@ const (
 	// reverse tunnel server and is ready to start accepting connections.
 	ProxyReverseTunnelReady = "ProxyReverseTunnelReady"
 
+	// ProxyAgentPoolReady is generated when the proxy has initialized the agent
+	// pool (pool of connections from a remote cluster to a main cluster) and is
+	// ready to start accepting connections.
+	ProxyAgentPoolReady = "ProxyAgentPoolReady"
+
 	// ProxySSHReady is generated when the proxy has initialized a SSH server
 	// and is ready to start accepting connections.
 	ProxySSHReady = "ProxySSHReady"
@@ -1717,6 +1722,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			log.Errorf("Failed to start: %v.", err)
 			return trace.Wrap(err)
 		}
+		process.BroadcastEvent(Event{Name: ProxyAgentPoolReady, Payload: agentPool})
 		agentPool.Wait()
 		return nil
 	})
