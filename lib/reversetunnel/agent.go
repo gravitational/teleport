@@ -53,6 +53,9 @@ const (
 	agentStateConnected = "connected"
 	// agentStateDiscovered means that agent has discovered the right proxy
 	agentStateDiscovered = "discovered"
+	// agentStateDisconnected means that the agent has disconnected from the
+	// proxy and this agent and be removed from the pool.
+	agentStateDisconnected = "disconnected"
 )
 
 // AgentConfig holds configuration for agent
@@ -371,7 +374,7 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 		}
 
 		// log the reason we were not able to connect
-		log.Debugf(trace.DebugReport(err))
+		a.Debugf(trace.DebugReport(err))
 	}
 
 	// if we were not able to connect to any server, write the last connection
@@ -411,86 +414,65 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 	wg.Wait()
 }
 
-// run is the main agent loop, constantly tries to re-establish
-// the connection until stopped. It has several operation modes:
-// at first it tries to connect with fast retries on errors,
-// but after a certain threshold it slows down retry pace
-// by switching to longer delays between retries.
+// run is the main agent loop. It tries to establish a connection to the
+// remote proxy and then process requests that come over the tunnel.
 //
-// Once run connects to a proxy it starts processing requests
-// from the proxy via SSH channels opened by the remote Proxy.
+// Once run connects to a proxy it starts processing requests from the proxy
+// via SSH channels opened by the remote Proxy.
 //
-// Agent sends periodic heartbeats back to the Proxy
-// and that is how Proxy determines disconnects.
-//
+// Agent sends periodic heartbeats back to the Proxy and that is how Proxy
+// determines disconnects.
 func (a *Agent) run() {
-	ticker, err := utils.NewSwitchTicker(defaults.FastAttempts,
-		defaults.NetworkRetryDuration, defaults.NetworkBackoffDuration)
-	if err != nil {
-		a.Errorf("Failed to run: %v.", err)
+	defer a.setState(agentStateDisconnected)
+
+	if len(a.DiscoverProxies) != 0 {
+		a.setStateAndPrincipals(agentStateDiscovering, nil)
+	} else {
+		a.setStateAndPrincipals(agentStateConnecting, nil)
+	}
+
+	// Try and connect to remote cluster.
+	conn, err := a.connect()
+	if err != nil || conn == nil {
+		a.Warningf("Failed to create remote tunnel: %v, conn: %v.", err, conn)
 		return
 	}
-	defer ticker.Stop()
-	firstAttempt := true
-	for {
-		if len(a.DiscoverProxies) != 0 {
-			a.setStateAndPrincipals(agentStateDiscovering, nil)
-		} else {
-			a.setStateAndPrincipals(agentStateConnecting, nil)
-		}
 
-		// ignore timer and context on the first attempt
-		if !firstAttempt {
-			select {
-			// abort if asked to stop:
-			case <-a.ctx.Done():
-				a.Debug("Agent has closed, exiting.")
-				return
-				// wait backoff on network retries
-			case <-ticker.Channel():
-			}
-		}
+	// Successfully connected to remote cluster.
+	a.Infof("Connected to %s", conn.RemoteAddr())
+	if len(a.DiscoverProxies) != 0 {
+		// If not connected to a proxy in the discover list (which means we
+		// connected to a proxy we already have a connection to), try again.
+		if !a.connectedToRightProxy() {
+			a.Debugf("Missed, connected to %v instead of %v.", a.getPrincipalsList(), Proxies(a.DiscoverProxies))
 
-		// try and connect to remote cluster
-		conn, err := a.connect()
-		firstAttempt = false
-		if err != nil || conn == nil {
-			ticker.IncrementFailureCount()
-			a.Warningf("Failed to create remote tunnel: %v, conn: %v.", err, conn)
-			continue
+			conn.Close()
+			return
 		}
+		a.setState(agentStateDiscovered)
+	} else {
+		a.setState(agentStateConnected)
+	}
 
-		// successfully connected to remote cluster
-		ticker.Reset()
-		a.Infof("connected to %s", conn.RemoteAddr())
-		if len(a.DiscoverProxies) != 0 {
-			// we did not connect to a proxy in the discover list (which means we
-			// connected to a proxy we already have a connection to), try again
-			if !a.connectedToRightProxy() {
-				a.Debugf("Missed, connected to %v instead of %v.", a.getPrincipalsList(), Proxies(a.DiscoverProxies))
-				conn.Close()
-				continue
-			}
-			a.setState(agentStateDiscovered)
-		} else {
-			a.setState(agentStateConnected)
+	// Notify waiters that the agent has connected.
+	if a.EventsC != nil {
+		select {
+		case a.EventsC <- ConnectedEvent:
+		case <-a.ctx.Done():
+			a.Debug("Context is closing.")
+			return
+		default:
 		}
-		if a.EventsC != nil {
-			select {
-			case a.EventsC <- ConnectedEvent:
-			case <-a.ctx.Done():
-				a.Debug("Context is closing.")
-				return
-			default:
-			}
-		}
-		// start heartbeat even if error happened, it will reconnect
-		// when this happens, this is #1 issue we have right now with Teleport. So we are making
-		// it EASY to see in the logs. This condition should never be permanent (repeats
-		// every XX seconds)
-		if err := a.processRequests(conn); err != nil {
-			log.Warn(err)
-		}
+	}
+
+	// A connection has been established start processing requests. Note that
+	// this function blocks while the connection is up. It will unblock when
+	// the connection is closed either due to intermittent connectivity issues
+	// or permanent loss of a proxy.
+	err = a.processRequests(conn)
+	if err != nil {
+		a.Warnf("Unable to continue processesing requests: %v.", err)
+		return
 	}
 }
 
@@ -525,7 +507,7 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 			bytes, _ := a.Clock.Now().UTC().MarshalText()
 			_, err := hb.SendRequest("ping", false, bytes)
 			if err != nil {
-				log.Error(err)
+				a.Error(err)
 				return trace.Wrap(err)
 			}
 			a.Debugf("ping -> %v", conn.RemoteAddr())
