@@ -80,6 +80,9 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) (*AuthServer, erro
 	if cfg.AuditLog == nil {
 		cfg.AuditLog = events.NewDiscardAuditLog()
 	}
+	if cfg.KubeCACertPath == "" {
+		cfg.KubeCACertPath = teleport.KubeCAPath
+	}
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	as := AuthServer{
 		clusterName:          cfg.ClusterName,
@@ -98,6 +101,7 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) (*AuthServer, erro
 		githubClients:        make(map[string]*githubClient),
 		cancelFunc:           cancelFunc,
 		closeCtx:             closeCtx,
+		kubeCACertPath:       cfg.KubeCACertPath,
 	}
 	for _, o := range opts {
 		o(&as)
@@ -152,6 +156,9 @@ type AuthServer struct {
 
 	// privateKey is used in tests to use pre-generated private keys
 	privateKey []byte
+
+	// kubeCACertPath is a path to kubernetes certificate authority
+	kubeCACertPath string
 }
 
 // runPeriodicOperations runs some periodic bookkeeping operations

@@ -3,6 +3,7 @@ package authority
 import (
 	"context"
 	"io/ioutil"
+	"os"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -28,12 +29,12 @@ type Cert struct {
 
 // ProcessCSR processes CSR request with local k8s certificate authority
 // and returns certificate PEM signed by CA
-func ProcessCSR(csrPEM []byte) (*Cert, error) {
-	caPEM, err := ioutil.ReadFile(teleport.KubeCAPath)
+func ProcessCSR(csrPEM []byte, caCertPath string) (*Cert, error) {
+	caPEM, err := ioutil.ReadFile(caCertPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clt, _, err := kubeutils.GetKubeClient("")
+	clt, _, err := kubeutils.GetKubeClient(os.Getenv(teleport.EnvKubeConfig))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -50,7 +50,7 @@ func (s *AuthServer) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cert, err := authority.ProcessCSR(req.CSR)
+	cert, err := authority.ProcessCSR(req.CSR, s.kubeCACertPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

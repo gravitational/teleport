@@ -333,6 +333,9 @@ type AuthConfig struct {
 
 	// PublicAddrs affects the SSH host principals and DNS names added to the SSH and TLS certs.
 	PublicAddrs []utils.NetAddr
+
+	// KubeCACertPath is a path to kubernetes CA certificate file
+	KubeCACertPath string
 }
 
 // SSHConfig configures SSH server node role

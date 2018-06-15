@@ -380,6 +380,18 @@ const (
 	// KubeKindCSR is a certificate signing requests
 	KubeKindCSR = "CertificateSigningRequest"
 
+	// KubeKindPod is a kubernetes pod
+	KubeKindPod = "Pod"
+
 	// KubeMetadataNameSelector is a selector for name metadata in API requests
 	KubeMetadataNameSelector = "metadata.name"
+
+	// KubeMetadataLabelSelector is a selector for label
+	KubeMetadataLabelSelector = "metadata.label"
+
+	// KubeRunTests turns on kubernetes tests
+	KubeRunTests = "TEST_KUBE"
+
+	// KubeSystemMasters is a name of the builtin kubernets group for master nodes
+	KubeSystemMasters = "system:masters"
 )

@@ -199,10 +199,37 @@ func (p *PortList) Pop() string {
 	return val
 }
 
+// PopInt returns a value from the list, it panics if not enough values
+// were allocated
+func (p *PortList) PopInt() int {
+	i, err := strconv.Atoi(p.Pop())
+	if err != nil {
+		panic(err)
+	}
+	return i
+}
+
+// PopIntSlice returns a slice of values from the list, it panics if not enough
+// ports were allocated
+func (p *PortList) PopIntSlice(num int) []int {
+	ports := make([]int, num)
+	for i := range ports {
+		ports[i] = p.PopInt()
+	}
+	return ports
+}
+
+// PortStartingNumber is a starting port number for tests
+const PortStartingNumber = 20000
+
 // GetFreeTCPPorts returns n ports starting from port 20000.
-func GetFreeTCPPorts(n int) (PortList, error) {
+func GetFreeTCPPorts(n int, offset ...int) (PortList, error) {
 	list := make(PortList, 0, n)
-	for i := 20000; i < 20000+n; i++ {
+	start := PortStartingNumber
+	if len(offset) != 0 {
+		start = offset[0]
+	}
+	for i := start; i < start+n; i++ {
 		list = append(list, strconv.Itoa(i))
 	}
 	return list, nil
