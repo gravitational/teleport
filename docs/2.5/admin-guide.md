@@ -733,8 +733,7 @@ turing        d52527f9-b260    10.1.0.5:3022   kernel=3.19.0-56,uptime=up 1 hour
 
 ## Audit Log
 
-Teleport logs every SSH event into its audit log. The log is stored on the auth server(s)
-in the `data_dir` location, under `log` subdirectory.
+Teleport logs every SSH event into its audit log. 
 
 There are two components of the audit log:
 
@@ -743,6 +742,10 @@ There are two components of the audit log:
 2. **Recorded Sessions:** Every SSH shell session is recorded and can be replayed
    later. The recording by default is done by the nodes themselves, but can be configured
    to be done by the proxy.
+
+By default the audit log is stored on the auth server(s) in the `data_dir` location, under 
+`log` subdirectory. Starting with Teleport 2.6 AWS users can configure Teleport to store
+the audit log events in [DynamoDB](#using-dynamodb) and interactive sessions in AWS S3.
 
 Refer to the "Audit Log" chapter in the [Teleport Architecture](architecture#audit-log) to 
 learn more about how the audit Log and session recording are designed.
@@ -1589,7 +1592,7 @@ To configure Teleport for using etcd as a storage back-end:
 * Deploy several auth servers connected to etcd back-end.
 * Deploy several proxy nodes that have `auth_servers` pointed to list of auth servers to connect to.
 
-```yaml
+```bash
 teleport:
   storage:
      type: etcd
@@ -1617,7 +1620,7 @@ teleport:
 If you are running Teleport on AWS, you can use [DynamoDB](https://aws.amazon.com/dynamodb/)
 as a storage back-end to achieve high availability.
 
-To configure Teleport to use DynamoDB as a storage back-end:
+To configure Teleport to use DynamoDB as a storage back-end for storing the cluster state:
 
 * Make sure you have AWS access key and a secret key which give you access to
   DynamoDB account. If you're using (as recommended) an IAM role for this, the policy
@@ -1627,18 +1630,39 @@ To configure Teleport to use DynamoDB as a storage back-end:
 * Deploy several auth servers connected to DynamoDB storage back-end.
 * Deploy several proxy nodes that have `auth_servers` pointed to list of Auth servers to connect to.
 
-```yaml
+```bash
 teleport:
   storage:
     type: dynamodb
     region: eu-west-1
     table_name: teleport.state
+
+    # Authentication settings are optional (see below)
     access_key: BKZA3H2LOKJ1QJ3YF21A
     secret_key: Oc20333k293SKwzraT3ah3Rv1G3/97POQb3eGziSZ
+
+    # Audit log configuration (starting with Teleport 2.6)
+    audit_table_name: teleport.events
+    audit_sessions_uri: s3://example.com/teleport.events
 ```
 
-Replace `region` and `table_name` with your own settings. Teleport will create the table automatically.
-Also, here's the example of the IAM policy to grant access to DynamoDB:
+* Replace `region` and `table_name` with your own settings. Teleport will
+  create the table automatically.
+* The AWS authentication setting below can be omitted if the machine itself is
+  running on an EC2 instance with an IAM role.
+* Audit log settings above are optional. If specified, Teleport will store the
+  audit log in DyamoDB and the session recordings **must** be stored in an S3
+  bucket, i.e. both `audit_xxx` settings must be present. If they are not set,
+  Teleport will default to a local file system for the audit log, i.e.
+  `/var/lib/teleport/log` on an auth server.
+* If DynamoDB is used for the audit log, the logged events will be stored with
+  a TTL of 1 year. Currently this TTL is not configurable.
+
+!!! warning "Access to DynamoDB":
+    Make sure that the IAM role assigned to Teleport is configured with the
+    sufficient access to MongoDB. Below is the example of the IAM policy you
+    can use:
+
 
 ```json
 {
