@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ template "fullname" . }}
+  name: {{ template "teleport.fullname" . }}
   labels:
     heritage: {{ .Release.Service }}
     release: {{ .Release.Name }}
@@ -9,4 +9,4 @@ metadata:
     app: {{ .Chart.Name }}
 data:
   teleport.yaml: |
-{{ .Files.Get "config/teleport.yaml" | indent 4 }}
+{{ toYaml .Values.config | indent 4 }}
