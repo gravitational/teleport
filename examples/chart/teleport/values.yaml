@@ -1,0 +1,189 @@
+image:
+  repository: quay.io/gravitational/teleport-ent
+  tag: 2.7.0-alpha.3
+  pullPolicy: IfNotPresent
+  # Optionally specify an array of imagePullSecrets.
+  # Secrets must be manually created in the namespace.
+  # ref: https://kubernetes.io/docs/concepts/containers/images/#specifying-imagepullsecrets-on-a-pod
+  pullSecrets:
+  # - name: myRegistryKeySecretName
+
+# Pod annotations
+annotations: {}
+## See https://github.com/uswitch/kiam#overview
+## To enable AWS API access from teleport, use kube2iam or kiam, annotate the namespace, and then set something like:
+# iam.amazonaws.com/role: teleport-dynamodb-and-s3-access
+
+## Affinity for pod assignment
+## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+# affinity: {}
+#
+## For the sake of security, make specific node group(s) dedicated to Teleport
+#   nodeAffinity:
+#     requiredDuringSchedulingIgnoredDuringExecution:
+#       nodeSelectorTerms:
+#       - matchExpressions:
+#         - key: gravitational.io/dedicated
+#           operator: In
+#           values:
+#           - teleport
+#
+## For high availability, distribute teleport pods to nodes as evenly as possible
+#   podAntiAffinity:
+#     preferredDuringSchedulingIgnoredDuringExecution:
+#     - podAffinityTerm:
+#         labelSelector:
+#           matchExpressions:
+#           - key: app
+#             operator: In
+#             values:
+#             - teleport
+#         topologyKey: kubernetes.io/hostname
+
+# Tolerations for pod assignment
+# Ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+tolerations: []
+#
+# - key: "dedicated"
+#   operator: "Equal"
+#   value: "teleport"
+#   effect: "NoExecute"
+# - key: "dedicated"
+#   operator: "Equal"
+#   value: "teleport"
+#   effect: "NoSchedule"
+
+service:
+  type: ClusterIP
+  ports:
+    proxyweb:
+      port: 3080
+      targetPort: 3080
+      protocol: TCP
+    authssh:
+      port: 3025
+      targetPort: 3025
+      protocol: TCP
+    proxykube:
+      port: 3026
+      targetPort: 3026
+      protocol: TCP
+    proxyssh:
+      port: 3023
+      targetPort: 3023
+      protocol: TCP
+  annotations: {}
+  ## See https://github.com/kubernetes-incubator/external-dns/blob/master/docs/tutorials/aws-sd.md#verify-that-externaldns-works-service-example
+  # Set something like the below in order to instruct external-dns to create a Route53 record set for your ELB on AWS:
+  # external-dns.alpha.kubernetes.io/hostname: teleport.my-org.com
+
+# Use ingress in addition to service to terminate TLS outside of Teleport while using external-dns
+# You can safely use `service` only and disable `ingress`, when you just want to terminate TLS outside of Teleporty
+ingress:
+  enabled: false
+  # annotations:
+  #   kubernetes.io/ingress.class: nginx
+  #   # See https://cert-manager.readthedocs.io/en/latest/reference/ingress-shim.html#supported-annotations
+  #   kubernetes.io/tls-acme: "true"
+  # hosts:
+  #   teleport.example.com:
+  #   - /
+  # # Secrets must be manually created in the namespace
+  # tls:
+  #  - secretName: teleport-ingress-tls
+  #    hosts:
+  #    - teleport.example.com
+
+ports:
+  proxyweb:
+    containerPort: 3080
+  authssh:
+    containerPort: 3025
+  proxykube:
+    containerPort: 3026
+  proxyssh:
+    containerPort: 3023
+  nodessh:
+    containerPort: 3022
+  proxytunnel:
+    containerPort: 3024
+
+# Teleport Proxy configuration
+proxy:
+  tls:
+    # We assume TLS is terminated in front of the proxy by default
+    enabled: true
+
+# See the admin guide for full details
+# https://gravitational.com/teleport/docs/admin-guide/#configuration-file
+config:
+  teleport:
+    log:
+      output: stderr
+      severity: DEBUG
+    data_dir: /var/lib/teleport
+    storage:
+      type: dir
+
+  auth_service:
+    enabled: yes
+    license_file: /var/lib/license/license-enterprise.pem
+    authentication:
+      type: oidc
+    public_addr: teleport.example.com:3025
+    cluster_name: lens.gravitational.co
+
+  ssh_service:
+    enabled: yes
+    public_addr: teleport.example.com:3022
+
+  proxy_service:
+    enabled: yes
+    public_addr: teleport.example.com
+    web_listen_addr: 0.0.0.0:3080
+    listen_addr: 0.0.0.0:3023
+    kube_listen_addr: 0.0.0.0:3026
+    https_key_file: /var/lib/certs/tls.key
+    https_cert_file: /var/lib/certs/tls.crt
+
+## Additional container arguments
+extraArgs: []
+
+# A map of additional environment variables
+extraVars: {}
+  # Provide the path to your own CA cert if you would like to use to
+  # validate the certificate chain presented by the proxy
+  # SSL_CERT_FILE: "/var/lib/ca-certs/ca.pem"
+
+# Add additional volumes and mounts, for example to read other log files on the host
+extraVolumes: []
+  # - name: ca-certs
+  #   configMap:
+  #     name: ca-certs
+extraVolumeMounts: []
+  # - name: ca-certs
+  #   mountPath: /var/lib/ca-certs
+  #   readOnly: true
+
+resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #  cpu: 100m
+  #  memory: 200Mi
+  # requests:
+  #  cpu: 100m
+  #  memory: 100Mi
+
+rbac:
+  # Specifies whether RBAC resources should be created
+  create: true
+
+serviceAccount:
+  # Specifies whether a ServiceAccount should be created
+  create: true
+  # The name of the ServiceAccount to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name:

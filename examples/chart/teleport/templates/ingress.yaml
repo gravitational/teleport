@@ -1,0 +1,36 @@
+{{- $servicePort := .Values.service.ports.proxyweb.port -}}
+{{- $serviceName := include "teleport.fullname" . -}}
+{{- if .Values.ingress.enabled }}
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: {{ include "teleport.fullname" . }}
+  annotations:
+{{ toYaml .Values.ingress.annotations | indent 4 }}
+  labels:
+    app: {{ template "teleport.fullname" . }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+{{- if .Values.ingress.labels }}
+{{ toYaml .Values.ingress.labels | indent 4 }}
+{{- end }}
+spec:
+  rules:
+  {{- range $host, $paths := .Values.ingress.hosts }}
+  - host: {{ $host }}
+    http:
+      paths:
+      {{- range $paths }}
+      - path: {{ . }}
+        backend:
+          serviceName: {{ $serviceName }}
+          servicePort: {{ $servicePort }}
+      {{- end -}}
+  {{- end -}}
+  {{- if .Values.ingress.tls }}
+  tls:
+{{ toYaml .Values.ingress.tls | indent 4 }}
+  {{- end -}}
+{{- end -}}
