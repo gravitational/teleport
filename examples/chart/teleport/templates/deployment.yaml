@@ -1,34 +1,56 @@
 apiVersion: apps/v1beta1
 kind: Deployment
 metadata:
-  name: {{ .Chart.Name }}
+  name: {{ template "teleport.fullname" . }}
   labels:
+    app: {{ template "teleport.name" . }}
+    chart: {{ template "teleport.chart" . }}
     release: {{ .Release.Name }}
-    heritage: {{ .Release.Service }}  
+    heritage: {{ .Release.Service }}
 spec:
   replicas: 1
   template:
     metadata:
       labels:
-        app: {{ .Chart.Name }}
+        app: {{ template "teleport.name" . }}
         release: {{ .Release.Name }}
-        heritage: {{ .Release.Service }}          
+        heritage: {{ .Release.Service }}
+      annotations:
+        checksum/config: {{ toYaml .Values.config | sha256sum }}
+{{- if .Values.annotations }}
+{{ toYaml .Values.annotations | indent 8 }}
+{{- end }}
     spec:
-      serviceAccount: {{ .Chart.Name }}
       containers:
-      - name: teleport
-        image: quay.io/gravitational/teleport-ent:{{ .Chart.Version }}
-        imagePullPolicy: Always
-        resources:
-          requests:
-            cpu: 1m        
+      - name: {{ .Chart.Name }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        args:
+{{- if .Values.extraArgs }}
+{{ toYaml .Values.extraArgs | indent 8 }}
+{{- end }
+{{- if not .Values.proxy.tls.enabled }}
+        - --insecure-no-tls
+{{- end }}
+        env:
+{{- range $key, $value := .Values.extraVars }}
+        - name: {{ $key }}
+          value: {{ $value }}
+{{- end }}
+        # See https://gravitational.com/teleport/docs/admin-guide/#ports
         ports:
-        - containerPort: 8080
-          name: keygen
+{{- range $key, $port := .Values.ports }}
+        - name: {{ $key }}
+{{ toYaml $port | indent 10 }}
+{{- end }}
+        resources:
+{{ toYaml .Values.resources | indent 10 }}
         volumeMounts:
+{{- if .Values.proxy.tls.enabled }}
         - mountPath: /var/lib/certs
           name: tls-web
           readOnly: true
+{{- end }}
         - mountPath: /etc/teleport
           name: config
           readOnly: true
@@ -37,16 +59,36 @@ spec:
           readOnly: true
         - mountPath: /var/lib/teleport
           name: storage
+{{- if .Values.extraVolumeMounts }}
+{{ toYaml .Values.extraVolumeMounts | indent 8 }}
+{{- end }}
       volumes:
+{{- if .Values.proxy.tls.enabled }}
       - name: tls-web
         secret:
           secretName: tls-web
+{{- end }}
       - name: license
         secret:
           secretName: license
       - name: config
         configMap:
-          name: {{ template "fullname" . }}
+          name: {{ template "teleport.fullname" . }}
       - name: storage
         emptyDir: {}
-    
+{{- if .Values.extraVolumes }}
+{{ toYaml .Values.extraVolumes | indent 6 }}
+{{- end }}
+{{- if .Values.image.pullSecrets }}
+      imagePullSecrets:
+{{ toYaml .Values.image.pullSecrets | indent 6 }}
+{{- end }}
+{{- if .Values.affinity }}
+      affinity:
+{{ toYaml .Values.affinity | indent 8 }}
+{{- end }}
+{{- if .Values.tolerations }}
+      tolerations:
+{{ toYaml .Values.tolerations | indent 6 }}
+{{- end }}
+      serviceAccountName: {{ template "teleport.serviceAccountName" . }}

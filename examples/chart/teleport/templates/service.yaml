@@ -1,25 +1,26 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Chart.Name }}
+  name: {{ template "teleport.fullname" . }}
+  labels:
+    app: {{ template "teleport.name" . }}
+    chart: {{ template "teleport.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+{{- if .Values.service.labels }}
+{{ toYaml .Values.service.annotations | indent 4 }}
+{{- end }}
+{{- if .Values.service.annotations }}
+  annotations:
+{{ toYaml .Values.service.annotations | indent 4 }}
+{{- end }}
 spec:
-  type: LoadBalancer
+  type: {{ .Values.service.type }}
   ports:
-  - name: web
-    port: 443
-    targetPort: 8080
-    protocol: TCP
-  - name: api
-    port: 3025
-    targetPort: 3025
-    protocol: TCP
-  - name: proxy-ssh
-    port: 3023
-    targetPort: 3023
-    protocol: TCP
-  - name: proxy-kube
-    port: 3026
-    targetPort: 3026
-    protocol: TCP
+  {{- range $key, $value := .Values.service.ports }}
+    - name: {{ $key }}
+{{ toYaml $value | indent 6 }}
+  {{- end }}
   selector:
-    app: {{ .Chart.Name }}
+    app: {{ template "teleport.name" . }}
+    release: {{ .Release.Name }}
