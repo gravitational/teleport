@@ -579,6 +579,34 @@ func userKey(username string) string {
 	return strings.Join([]string{"users", username}, "/")
 }
 
+// GetUser is a part of auth.AccessPoint implementation.
+func (cs *CachingAuthClient) GetUser(name string) (user services.User, err error) {
+	cs.fetch(params{
+		key: userKey(name),
+		fetch: func() error {
+			user, err = cs.ap.GetUser(name)
+			return err
+		},
+		useCache: func() error {
+			user, err = cs.identity.GetUser(name)
+			return err
+		},
+		updateCache: func() (keys []string, cerr error) {
+			if err := cs.identity.DeleteUser(name); err != nil {
+				if !trace.IsNotFound(err) {
+					return nil, trace.Wrap(err)
+				}
+			}
+			cs.setTTL(user)
+			if err := cs.identity.UpsertUser(user); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return
+		},
+	})
+	return
+}
+
 // GetUsers is a part of auth.AccessPoint implementation
 func (cs *CachingAuthClient) GetUsers() (users []services.User, err error) {
 	cs.fetch(params{
