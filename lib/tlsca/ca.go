@@ -69,6 +69,8 @@ type Identity struct {
 	Username string
 	// Groups is a list of groups (Teleport roles) encoded in the identity
 	Groups []string
+	// Usage is a list of usage restrictions encoded in the identity
+	Usage []string
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -88,6 +90,7 @@ func (id *Identity) Subject() pkix.Name {
 		CommonName: id.Username,
 	}
 	subject.Organization = append([]string{}, id.Groups...)
+	subject.OrganizationalUnit = append([]string{}, id.Usage...)
 	return subject
 }
 
@@ -96,6 +99,7 @@ func FromSubject(subject pkix.Name) (*Identity, error) {
 	i := &Identity{
 		Username: subject.CommonName,
 		Groups:   subject.Organization,
+		Usage:    subject.OrganizationalUnit,
 	}
 	if err := i.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -151,7 +155,8 @@ func (ca *CertAuthority) GenerateCertificate(req CertificateRequest) ([]byte, er
 		"dns_names":   req.DNSNames,
 		"common_name": req.Subject.CommonName,
 		"org":         req.Subject.Organization,
-	}).Infof("Generating TLS certificate.")
+		"org_unit":    req.Subject.OrganizationalUnit,
+	}).Infof("Generating TLS certificate %v.", req)
 
 	template := &x509.Certificate{
 		SerialNumber: serialNumber,

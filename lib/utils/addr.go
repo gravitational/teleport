@@ -168,6 +168,14 @@ func ParseHostPortAddr(hostport string, defaultPort int) (*NetAddr, error) {
 	return ParseAddr(fmt.Sprintf("tcp://%s", net.JoinHostPort(host, port)))
 }
 
+// DialAddrFromListenAddr returns dial address from listen address
+func DialAddrFromListenAddr(listenAddr NetAddr) NetAddr {
+	if listenAddr.IsEmpty() {
+		return listenAddr
+	}
+	return NetAddr{Addr: ReplaceLocalhost(listenAddr.Addr, "127.0.0.1")}
+}
+
 func NewNetAddrVal(defaultVal NetAddr, val *NetAddr) *NetAddrVal {
 	*val = defaultVal
 	return (*NetAddrVal)(val)
