@@ -25,25 +25,21 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 // PresenceService records and reports the presence of all components
 // of the cluster - Nodes, Proxies and SSH nodes
 type PresenceService struct {
-	*log.Entry
+	log *logrus.Entry
 	backend.Backend
-	// getter is used to make batch requests to the backend.
-	getter backend.ItemsGetter
 }
 
 // NewPresenceService returns new presence service instance
 func NewPresenceService(b backend.Backend) *PresenceService {
-	getter, _ := b.(backend.ItemsGetter)
 	return &PresenceService{
-		Entry:   log.WithFields(log.Fields{trace.Component: "Presence"}),
+		log:     logrus.WithFields(logrus.Fields{trace.Component: "Presence"}),
 		Backend: b,
-		getter:  getter,
 	}
 }
 
@@ -172,43 +168,17 @@ func (s *PresenceService) GetNodes(namespace string) ([]services.Server, error) 
 	if namespace == "" {
 		return nil, trace.BadParameter("missing namespace value")
 	}
-	if s.getter != nil {
-		return s.batchGetNodes(namespace)
-	}
-	start := time.Now()
-	keys, err := s.GetKeys([]string{namespacesPrefix, namespace, nodesPrefix})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	servers := make([]services.Server, 0, len(keys))
-	for _, key := range keys {
-		data, err := s.GetVal([]string{namespacesPrefix, namespace, nodesPrefix}, key)
-		if err != nil {
-			if trace.IsNotFound(err) {
-				continue
-			}
-			return nil, trace.Wrap(err)
-		}
-		server, err := services.GetServerMarshaler().UnmarshalServer(data, services.KindNode)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		servers = append(servers, server)
-	}
-	s.Debugf("GetServers(%v) in %v", len(servers), time.Now().Sub(start))
-	// sorting helps with tests and makes it all deterministic
-	sort.Sort(services.SortedServers(servers))
-	return servers, nil
-}
 
-// batchGetNodes returns a list of registered servers by using fast batch get
-func (s *PresenceService) batchGetNodes(namespace string) ([]services.Server, error) {
 	start := time.Now()
+
+	// Get all items in the bucket.
 	bucket := []string{namespacesPrefix, namespace, nodesPrefix}
-	items, err := s.getter.GetItems(bucket)
+	items, err := s.GetItems(bucket)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Marshal values into a []services.Server slice.
 	servers := make([]services.Server, len(items))
 	for i, item := range items {
 		server, err := services.GetServerMarshaler().UnmarshalServer(item.Value, services.KindNode)
@@ -218,9 +188,8 @@ func (s *PresenceService) batchGetNodes(namespace string) ([]services.Server, er
 		servers[i] = server
 	}
 
-	s.Debugf("GetServers(%v) in %v", len(servers), time.Now().Sub(start))
-	// sorting helps with tests and makes it all deterministic
-	sort.Sort(services.SortedServers(servers))
+	s.log.Debugf("GetServers(%v) in %v", len(servers), time.Now().Sub(start))
+
 	return servers, nil
 }
 
@@ -409,7 +378,7 @@ func (s *PresenceService) GetTunnelConnection(clusterName, connectionName string
 	}
 	conn, err := services.UnmarshalTunnelConnection(data)
 	if err != nil {
-		log.Debugf("got some problem with data: %q", string(data))
+		s.log.Debugf("got some problem with data: %q", string(data))
 	}
 	return conn, err
 }

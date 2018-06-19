@@ -125,6 +125,32 @@ func (b *BoltBackend) Close() error {
 	return b.db.Close()
 }
 
+// GetItems fetches keys and values and returns them to the caller.
+func (b *BoltBackend) GetItems(path []string) ([]backend.Item, error) {
+	keys, err := b.GetKeys(path)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// This is a very inefficient approach. It's here to satisfy the
+	// backend.Backend interface since the Bolt backend is slated for removal
+	// in 2.7.0 anyway.
+	items := make([]backend.Item, 0, len(keys))
+	for _, e := range keys {
+		val, err := b.GetVal(path, e)
+		if err != nil {
+			continue
+		}
+
+		items = append(items, backend.Item{
+			Key:   e,
+			Value: val,
+		})
+	}
+
+	return items, nil
+}
+
 func (b *BoltBackend) GetKeys(path []string) ([]string, error) {
 	keys, err := b.getKeys(path)
 	if err != nil {
