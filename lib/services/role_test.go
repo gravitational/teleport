@@ -910,6 +910,14 @@ func (s *RoleSuite) TestApplyTraits(c *C) {
 			[]string{`{{external.foo}}`, "bar"},
 			[]string{"bar"},
 		},
+		// 7 - invalid unix login
+		{
+			map[string][]string{
+				"foo": []string{"-foo"},
+			},
+			[]string{`{{external.foo}}`, "bar"},
+			[]string{"bar"},
+		},
 	}
 
 	for i, tt := range tests {
@@ -951,6 +959,11 @@ func (s *RoleSuite) TestCheckAndSetDefaults(c *C) {
 		// 2 - valid syntax
 		{
 			[]string{"{{foo.bar}}"},
+			false,
+		},
+		// 3 - valid syntax
+		{
+			[]string{`{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}`},
 			false,
 		},
 	}

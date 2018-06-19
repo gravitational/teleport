@@ -285,31 +285,43 @@ func ApplyTraits(r Role, traits map[string][]string) Role {
 
 		var outLogins []string
 		for _, login := range inLogins {
-			// extract the variablePrefix and variableName from the role variable
+			// Extract the variablePrefix and variableName from the role variable.
 			variablePrefix, variableName, err := parse.IsRoleVariable(login)
 
-			// if we didn't find a variable (found a normal login) then append it and
-			// go on to the next login
+			// If a variable was not found check if it's a valid Unix login. If it is
+			// a valid Unix login add it to the list of logins, otherwise skip.
 			if trace.IsNotFound(err) {
+				if !cstrings.IsValidUnixUser(login) {
+					log.Debugf("Skipping login %v, not a valid Unix login.", login)
+					continue
+				}
 				outLogins = append(outLogins, login)
 				continue
 			}
 
-			// for internal traits, we only support internal.logins at the moment
+			// For internal traits, only internal.logins is supported at the moment.
 			if variablePrefix == teleport.TraitInternalPrefix {
 				if variableName != teleport.TraitLogins {
 					continue
 				}
 			}
 
-			// if we can't find the variable in the traits, skip it
-			variableValue, ok := traits[variableName]
+			// If the variable is not found in the traits, skip it.
+			variableValues, ok := traits[variableName]
 			if !ok {
 				continue
 			}
 
-			// we found the variable in the traits, append it to the list of logins
-			outLogins = append(outLogins, variableValue...)
+			// Filter out logins that come from variables that are not valid Unix logins.
+			for _, variableValue := range variableValues {
+				if !cstrings.IsValidUnixUser(variableValue) {
+					log.Debugf("Skipping login %v, not a valid Unix login.", variableValue)
+					continue
+				}
+
+				// A valid variable was found in the traits, append it to the list of logins.
+				outLogins = append(outLogins, variableValue)
+			}
 		}
 
 		r.SetLogins(condition, utils.Deduplicate(outLogins))
@@ -545,9 +557,6 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 	for _, login := range r.Spec.Allow.Logins {
 		if login == Wildcard {
 			return trace.BadParameter("wildcard matcher is not allowed in logins")
-		}
-		if !cstrings.IsValidUnixUser(login) {
-			return trace.BadParameter("%q is not a valid user name", login)
 		}
 	}
 	for key, val := range r.Spec.Allow.NodeLabels {
@@ -1145,9 +1154,6 @@ func (r *RoleV2) CheckAndSetDefaults() error {
 	for _, login := range r.Spec.Logins {
 		if login == Wildcard {
 			return trace.BadParameter("wildcard matcher is not allowed in logins")
-		}
-		if !cstrings.IsValidUnixUser(login) {
-			return trace.BadParameter("'%v' is not a valid user name", login)
 		}
 	}
 	for key, val := range r.Spec.NodeLabels {
