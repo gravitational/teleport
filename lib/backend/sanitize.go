@@ -69,6 +69,15 @@ func (s *Sanitizer) GetKeys(bucket []string) ([]string, error) {
 	return s.backend.GetKeys(bucket)
 }
 
+// GetItems returns a list of items (key value pairs) for a bucket.
+func (s *Sanitizer) GetItems(bucket []string) ([]Item, error) {
+	if !isSliceSafe(bucket) {
+		return nil, trace.BadParameter(errorMessage)
+	}
+
+	return s.backend.GetItems(bucket)
+}
+
 // CreateVal creates value with a given TTL and key in the bucket. If the
 // value already exists, returns trace.AlreadyExistsError.
 func (s *Sanitizer) CreateVal(bucket []string, key string, val []byte, ttl time.Duration) error {

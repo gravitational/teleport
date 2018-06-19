@@ -11,15 +11,11 @@ import (
 // is using local backend
 type CA struct {
 	backend.Backend
-	// getter is used to make batch requests to the backend.
-	getter backend.ItemsGetter
 }
 
 // NewCAService returns new instance of CAService
 func NewCAService(b backend.Backend) *CA {
-	getter, _ := b.(backend.ItemsGetter)
 	return &CA{
-		getter:  getter,
 		Backend: b,
 	}
 }
@@ -201,36 +197,18 @@ func setSigningKeys(ca services.CertAuthority, loadSigningKeys bool) {
 // GetCertAuthorities returns a list of authorities of a given type
 // loadSigningKeys controls whether signing keys should be loaded or not
 func (s *CA) GetCertAuthorities(caType services.CertAuthType, loadSigningKeys bool) ([]services.CertAuthority, error) {
-	cas := []services.CertAuthority{}
 	if err := caType.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if s.getter != nil {
-		return s.batchGetCertAuthorities(caType, loadSigningKeys)
-	}
-	domains, err := s.GetKeys([]string{"authorities", string(caType)})
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return cas, nil
-		}
-		return nil, trace.Wrap(err)
-	}
-	for _, domain := range domains {
-		ca, err := s.GetCertAuthority(services.CertAuthID{DomainName: domain, Type: caType}, loadSigningKeys)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		cas = append(cas, ca)
-	}
-	return cas, nil
-}
 
-func (s *CA) batchGetCertAuthorities(caType services.CertAuthType, loadSigningKeys bool) ([]services.CertAuthority, error) {
+	// Get all items in the bucket.
 	bucket := []string{"authorities", string(caType)}
-	items, err := s.getter.GetItems(bucket)
+	items, err := s.GetItems(bucket)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Marshal values into a []services.CertAuthority slice.
 	cas := make([]services.CertAuthority, len(items))
 	for i, item := range items {
 		ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(item.Value)
@@ -243,5 +221,6 @@ func (s *CA) batchGetCertAuthorities(caType services.CertAuthType, loadSigningKe
 		setSigningKeys(ca, loadSigningKeys)
 		cas[i] = ca
 	}
+
 	return cas, nil
 }

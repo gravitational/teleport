@@ -103,6 +103,10 @@ func (n *nopBackend) GetKeys(bucket []string) ([]string, error) {
 	return []string{"foo"}, nil
 }
 
+func (n *nopBackend) GetItems(bucket []string) ([]Item, error) {
+	return []Item{Item{Key: "foo", Value: []byte("bar")}}, nil
+}
+
 func (n *nopBackend) CreateVal(bucket []string, key string, val []byte, ttl time.Duration) error {
 	return nil
 }
