@@ -21,6 +21,7 @@ import (
 )
 
 func main() {
+	// test
 	commands := []common.CLICommand{
 		&common.UserCommand{},
 		&common.NodeCommand{},
