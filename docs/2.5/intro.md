@@ -1,14 +1,14 @@
 # Introduction 
 
 Welcome to the Teleport documentation! Teleport is available through the free,
-open source edition ("Teleport OSS Edition") or a commercial edition
+open source edition ("Teleport Community Edition") or a commercial edition
 ("Teleport Enterprise Edition"). 
 
 Below is a brief summary of the documentation available here. 
 
-## OSS Teleport 
+## Teleport Community 
 
-The Open Source (OSS) Edition is [on Github](https://github.com/gravitational/teleport) 
+The Community Edition is [on Github](https://github.com/gravitational/teleport) 
 if you want to dive into the
 code. These documentation is also available in [the Github
 repository](https://github.com/gravitational/teleport/tree/master/docs) so feel
@@ -22,10 +22,10 @@ free to create an issue or pull request if you have comments.
 
 ## Teleport Enterprise
 
-Teleport Enterprise is built around the open-source core, with the added
+Teleport Enterprise is built around the open-source core in Teleport Community, with the added
 benefits of role-based access control (RBAC) and easy integration with identity
 managers for single sign-on (SSO). Because the majority of documentation
-between the OSS Edition and the Commercial Edition overlaps we have separated
+between the Community Edition and the commercial, Enterprise Edition overlaps we have separated
 out the documentation that is specific to Teleport Enterprise. 
 
 - [Teleport Enterprise Introduction](enterprise) - Overview of the additional capabilities of Teleport Enterprise.
