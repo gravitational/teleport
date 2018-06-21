@@ -1462,6 +1462,10 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 	// add second proxy as a backend to the load balancer
 	lb.AddBackend(*utils.MustParseAddr(fmt.Sprintf("127.0.0.1:%v", proxyReverseTunnelPort)))
 
+	// At this point the remote cluster should be connected to two proxies in
+	// the main cluster.
+	waitForProxyCount(remote, "cluster-main", 2)
+
 	// execute the connection via first proxy
 	cfg := ClientConfig{
 		Login:   username,
@@ -1509,9 +1513,33 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(output, check.Equals, "hello world\n")
 
-	// stop cluster and remaining nodes
+	// Stop one of proxies on the main cluster.
+	err = main.StopProxy()
+	c.Assert(err, check.IsNil)
+
+	// Wait for the remote cluster to detect the outbound connection is gone.
+	waitForProxyCount(remote, "cluster-main", 1)
+
+	// Stop both clusters and remaining nodes.
 	c.Assert(remote.Stop(true), check.IsNil)
 	c.Assert(main.Stop(true), check.IsNil)
+}
+
+// waitForProxyCount waits a set time for the proxy count in clusterName to
+// reach some value.
+func waitForProxyCount(t *TeleInstance, clusterName string, count int) error {
+	var counts map[string]int
+
+	for i := 0; i < 20; i++ {
+		counts = t.Pool.Counts()
+		if counts[clusterName] == count {
+			return nil
+		}
+
+		time.Sleep(250 * time.Millisecond)
+	}
+
+	return trace.BadParameter("proxy count on %v: %v", clusterName, counts[clusterName])
 }
 
 // TestExternalClient tests if we can connect to a node in a Teleport
