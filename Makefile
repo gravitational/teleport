@@ -249,10 +249,13 @@ install: build
 
 .PHONY: image
 image:
+	cp ./build.assets/charts/Dockerfile $(BUILDDIR)/
+	cd $(BUILDDIR) && docker build . -t quay.io/gravitational/teleport:$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e image; fi
 
 .PHONY: publish
 publish:
+	docker push quay.io/gravitational/teleport:$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e publish; fi
 
 .PHONY: print-version
