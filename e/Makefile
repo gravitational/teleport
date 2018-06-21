@@ -81,7 +81,7 @@ test:
 	go vet ./lib/...
 
 .PHONY: image
-image: release
+image:
 	cp ../build.assets/charts/Dockerfile $(BUILDDIR)/
 	cd $(BUILDDIR) && docker build . -t quay.io/gravitational/teleport-ent:$(VERSION)	
 
