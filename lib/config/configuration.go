@@ -374,6 +374,10 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Auth.SSHAddr = *addr
 		cfg.AuthServers = append(cfg.AuthServers, *addr)
 	}
+	// passhtrough custom certificate authority file
+	if fc.Auth.KubeCACertFile != "" {
+		cfg.Auth.KubeCACertPath = fc.Auth.KubeCACertFile
+	}
 	// DELETE IN: 2.7.0
 	// We have converted this warning to error
 	if fc.Auth.DynamicConfig != nil {

@@ -21,6 +21,7 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/limiter"
 
@@ -91,7 +92,10 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	// authMiddleware authenticates request assuming TLS client authentication
 	// adds authentication infromation to the context
 	// and passes it to the API server
-	authMiddleware := &auth.AuthMiddleware{AccessPoint: cfg.AccessPoint}
+	authMiddleware := &auth.AuthMiddleware{
+		AccessPoint:   cfg.AccessPoint,
+		AcceptedUsage: []string{teleport.UsageKubeOnly},
+	}
 	authMiddleware.Wrap(fwd)
 	// Wrap sets the next middleware in chain to the authMiddleware
 	limiter.WrapHandle(authMiddleware)

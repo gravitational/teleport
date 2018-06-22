@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
@@ -32,7 +33,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"k8s.io/apimachinery/pkg/util/httpstream"
-	streamspdy "k8s.io/apimachinery/pkg/util/httpstream/spdy"
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/transport/spdy"
 	utilexec "k8s.io/client-go/util/exec"
@@ -63,6 +63,9 @@ type ForwarderConfig struct {
 	AuditLog events.IAuditLog
 	// ServerID is a unique ID of a proxy server
 	ServerID string
+	// ClusterOverride if set, routes all requests
+	// to the cluster name, used in tests
+	ClusterOverride string
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -131,7 +134,9 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 	fwd.NotFound = fwd.withAuthStd(fwd.catchAll)
 
 	fwd.Debugf("Forwarder started, going to forward kubernetes requests to https://%v", cfg.TargetAddr)
-
+	if cfg.ClusterOverride != "" {
+		fwd.Debugf("Cluster override is set, forwarder will send all requests to remote cluster %v.", cfg.ClusterOverride)
+	}
 	return fwd, nil
 }
 
@@ -161,23 +166,33 @@ type authContext struct {
 }
 
 func (c authContext) String() string {
-	return fmt.Sprintf("user: %v, groups: %v, cluster: %v", c.User.GetName(), c.kubeGroups, c.cluster.name)
+	return fmt.Sprintf("user: %v, groups: %v, cluster: %v", c.User.GetName(), c.kubeGroups, c.cluster.GetName())
 }
 
 func (c *authContext) key() string {
-	return fmt.Sprintf("%v:%v:%v", c.cluster.name, c.User.GetName(), c.kubeGroups)
+	return fmt.Sprintf("%v:%v:%v", c.cluster.GetName(), c.User.GetName(), c.kubeGroups)
 }
 
 // cluster represents cluster information, name of the cluster
 // target address and custom dialer
 type cluster struct {
-	name       string
+	remoteAddr utils.NetAddr
+	reversetunnel.RemoteSite
 	targetAddr string
 }
 
 func (c *cluster) Dial(_, _ string) (net.Conn, error) {
-	conn, err := net.Dial("tcp", c.targetAddr)
-	return conn, err
+	return c.RemoteSite.Dial(
+		&c.remoteAddr,
+		&utils.NetAddr{AddrNetwork: "tcp", Addr: c.targetAddr},
+		nil)
+}
+
+func (c *cluster) DialWithContext(ctx context.Context, _, _ string) (net.Conn, error) {
+	return c.RemoteSite.Dial(
+		&c.remoteAddr,
+		&utils.NetAddr{AddrNetwork: "tcp", Addr: c.targetAddr},
+		nil)
 }
 
 // handlerWithAuthFunc is http handler with passed auth context
@@ -190,10 +205,13 @@ type handlerWithAuthFuncStd func(ctx *authContext, w http.ResponseWriter, r *htt
 func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 	const accessDeniedMsg = "[00] access denied"
 
+	var isRemoteUser bool
 	userTypeI := req.Context().Value(auth.ContextUser)
 	switch userTypeI.(type) {
-	// limit access to local users only, later add remote user
 	case auth.LocalUser:
+
+	case auth.RemoteUser:
+		isRemoteUser = true
 	default:
 		f.Warningf("Denying proxy access to unsupported user type: %T.", userTypeI)
 		return nil, trace.AccessDenied(accessDeniedMsg)
@@ -215,9 +233,9 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 			return nil, trace.AccessDenied(accessDeniedMsg)
 		}
 	}
-	authContext, err := f.setupContext(*userContext)
+	authContext, err := f.setupContext(*userContext, req, isRemoteUser)
 	if err != nil {
-		f.Warn(trace.DebugReport(err))
+		f.Warn(err.Error())
 		return nil, trace.AccessDenied(accessDeniedMsg)
 	}
 	return authContext, nil
@@ -243,11 +261,8 @@ func (f *Forwarder) withAuth(handler handlerWithAuthFunc) httprouter.Handle {
 	})
 }
 
-func (f *Forwarder) setupContext(ctx auth.AuthContext) (*authContext, error) {
-	roles, err := services.FetchRoles(ctx.User.GetRoles(), f.Client, ctx.User.GetTraits())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+func (f *Forwarder) setupContext(ctx auth.AuthContext, req *http.Request, isRemoteUser bool) (*authContext, error) {
+	roles := ctx.Checker
 
 	// adjust session ttl to the smaller of two values: the session
 	// ttl requested in tsh or the session ttl for the role.
@@ -259,16 +274,43 @@ func (f *Forwarder) setupContext(ctx auth.AuthContext) (*authContext, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return &authContext{
+	var isRemoteCluster bool
+	targetCluster, err := f.Tunnel.GetSite(f.ClusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, remoteCluster := range f.Tunnel.GetSites() {
+		if strings.HasSuffix(req.Host, remoteCluster.GetName()+".") {
+			f.Debugf("Going to proxy to cluster: %v based on matching host suffix %v.", remoteCluster.GetName(), req.Host)
+			targetCluster = remoteCluster
+			isRemoteCluster = remoteCluster.GetName() != f.ClusterName
+			break
+		}
+		if f.ClusterOverride != "" && f.ClusterOverride == remoteCluster.GetName() {
+			f.Debugf("Going to proxy to cluster: %v based on override %v.", remoteCluster.GetName(), f.ClusterOverride)
+			targetCluster = remoteCluster
+			isRemoteCluster = remoteCluster.GetName() != f.ClusterName
+			f.Debugf("Override isRemoteCluster: %v %v %v", isRemoteCluster, remoteCluster.GetName(), f.ClusterName)
+			break
+		}
+	}
+	if targetCluster.GetName() != f.ClusterName && isRemoteUser {
+		return nil, trace.AccessDenied("access denied: remote user can not access remote cluster")
+	}
+	authCtx := &authContext{
 		sessionTTL:  sessionTTL,
 		AuthContext: ctx,
 		kubeGroups:  kubeGroups,
-		// TODO: derive cluster name and target addr from the target host name
 		cluster: cluster{
-			name:       f.ClusterName,
+			remoteAddr: utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
+			RemoteSite: targetCluster,
 			targetAddr: f.TargetAddr,
 		},
-	}, nil
+	}
+	if isRemoteCluster {
+		authCtx.cluster.targetAddr = reversetunnel.RemoteKubeProxy
+	}
+	return authCtx, nil
 }
 
 // exec forwards all exec requests to the target server, captures
@@ -494,14 +536,12 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 }
 
 func (f *Forwarder) getExecutor(sess *clusterSession, req *http.Request) (remotecommand.Executor, error) {
-	upgradeRoundTripper := streamspdy.NewRoundTripper(sess.tlsConfig, true)
+	upgradeRoundTripper := NewSpdyRoundTripperWithDialer(req.Context(), sess.cluster.DialWithContext, sess.tlsConfig, true)
 	return remotecommand.NewSPDYExecutorForTransports(upgradeRoundTripper, upgradeRoundTripper, req.Method, req.URL)
 }
 
 func (f *Forwarder) getDialer(sess *clusterSession, req *http.Request) (httpstream.Dialer, error) {
-	// Q: how to pass my dialer here?
-	// A: the only option is to fork the SpdyRoundTripper
-	upgradeRoundTripper := streamspdy.NewSpdyRoundTripper(sess.tlsConfig, true)
+	upgradeRoundTripper := NewSpdyRoundTripperWithDialer(req.Context(), sess.cluster.DialWithContext, sess.tlsConfig, true)
 
 	client := &http.Client{
 		Transport: upgradeRoundTripper,
@@ -540,7 +580,8 @@ func (f *Forwarder) getClusterSession(ctx authContext) *clusterSession {
 func (f *Forwarder) newClusterSession(ctx authContext) (*clusterSession, error) {
 	response, err := f.requestCertificate(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		f.Warningf("Failed to get certificate for %v: %v.", ctx, err)
+		return nil, trace.AccessDenied("access denied: failed to authenticate with kubernetes server")
 	}
 
 	cert, err := tls.X509KeyPair(response.cert, response.key)
@@ -549,9 +590,11 @@ func (f *Forwarder) newClusterSession(ctx authContext) (*clusterSession, error) 
 	}
 
 	pool := x509.NewCertPool()
-	ok := pool.AppendCertsFromPEM(response.ca)
-	if !ok {
-		return nil, trace.BadParameter("failed to append certs from PEM")
+	for _, certAuthority := range response.certAuthorities {
+		ok := pool.AppendCertsFromPEM(certAuthority)
+		if !ok {
+			return nil, trace.BadParameter("failed to append certs from PEM")
+		}
 	}
 
 	tlsConfig := &tls.Config{
@@ -606,9 +649,9 @@ func (f *Forwarder) newTransport(dial DialFunc, tlsConfig *tls.Config) *http.Tra
 }
 
 type bundle struct {
-	cert []byte
-	key  []byte
-	ca   []byte
+	cert            []byte
+	key             []byte
+	certAuthorities [][]byte
 }
 
 func (f *Forwarder) requestCertificate(ctx authContext) (*bundle, error) {
@@ -636,15 +679,17 @@ func (f *Forwarder) requestCertificate(ctx authContext) (*bundle, error) {
 	csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes})
 
 	response, err := f.Client.ProcessKubeCSR(auth.KubeCSR{
-		CSR: csrPEM,
+		Username:    ctx.User.GetName(),
+		ClusterName: ctx.cluster.GetName(),
+		CSR:         csrPEM,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	f.Debugf("Received valid K8s cert for %v.", ctx)
 	return &bundle{
-		cert: response.Cert,
-		ca:   response.CA,
-		key:  keyPEM,
+		cert:            response.Cert,
+		certAuthorities: response.CertAuthorities,
+		key:             keyPEM,
 	}, nil
 }

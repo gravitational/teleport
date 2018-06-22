@@ -90,6 +90,7 @@ var (
 		"ssh_listen_addr":        true,
 		"kube_listen_addr":       true,
 		"kube_api_addr":          true,
+		"kube_ca_cert_file":      true,
 		"listen_addr":            true,
 		"https_key_file":         true,
 		"https_cert_file":        true,
@@ -523,6 +524,9 @@ type Auth struct {
 	// PublicAddr sets SSH host principals and TLS DNS names to auth
 	// server certificates
 	PublicAddr Strings `yaml:"public_addr,omitempty"`
+
+	// KubeCACertFile is a path to kubernetes certificate authority certificate file
+	KubeCACertFile string `yaml:"kube_ca_cert_file,omitempty"`
 }
 
 // TrustedCluster struct holds configuration values under "trusted_clusters" key
