@@ -59,15 +59,15 @@ all: $(VERSRC)
 # If you are considering changing this behavior, please consult with dev team first
 .PHONY: $(BUILDDIR)/tctl
 $(BUILDDIR)/tctl:
-	go build $(PAMFLAGS) -o $(BUILDDIR)/tctl -i $(BUILDFLAGS) ./tool/tctl
+	go build $(PAMFLAGS) -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
 $(BUILDDIR)/teleport:
-	go build $(PAMFLAGS) -o $(BUILDDIR)/teleport -i $(BUILDFLAGS) ./tool/teleport
+	go build $(PAMFLAGS) -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
 .PHONY: $(BUILDDIR)/tsh
 $(BUILDDIR)/tsh:
-	go build $(PAMFLAGS) -o $(BUILDDIR)/tsh -i $(BUILDFLAGS) ./tool/tsh
+	go build $(PAMFLAGS) -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
 
 #
 # make full - builds the binary with the built-in web assets and places it
