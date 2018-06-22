@@ -23,11 +23,11 @@ all:
 # If you are considering changing this behavior, please consult with dev team first
 .PHONY: $(BUILDDIR)/tctl
 $(BUILDDIR)/tctl:
-	go build $(PAMFLAGS) -o $(BUILDDIR)/tctl -i $(BUILDFLAGS) ./tool/tctl
+	go build $(PAMFLAGS) -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
 $(BUILDDIR)/teleport:
-	go build $(PAMFLAGS) -o $(BUILDDIR)/teleport -i $(BUILDFLAGS) ./tool/teleport
+	go build $(PAMFLAGS) -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
 # make clean: cleans the build
 .PHONY: clean
