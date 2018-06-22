@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.6.4
+## 2.6.5
 
 This release of Teleport focuses on bugfixes.
 
