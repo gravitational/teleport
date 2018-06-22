@@ -65,7 +65,7 @@ func ParseAdvertiseAddr(advertiseIP string) (string, string, error) {
 	}
 	ip := net.ParseIP(host)
 	if len(ip) != 0 {
-		if ip.IsLoopback() || ip.IsUnspecified() || ip.IsMulticast() {
+		if ip.IsUnspecified() || ip.IsMulticast() {
 			return "", "", trace.BadParameter("unreachable advertise IP: %v", advertiseIP)
 		}
 	}
