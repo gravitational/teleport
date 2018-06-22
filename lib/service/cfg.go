@@ -266,6 +266,10 @@ type ProxyConfig struct {
 	// KubeAPIAddr is address of kubernetes API server
 	KubeAPIAddr utils.NetAddr
 
+	// KubeClusterOverride causes all traffic to go to a specific remote
+	// cluster, used only in tests
+	KubeClusterOverride string
+
 	// WebAddr is address for web portal of the proxy
 	WebAddr utils.NetAddr
 

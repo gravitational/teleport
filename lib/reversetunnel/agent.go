@@ -85,6 +85,8 @@ type AgentConfig struct {
 	Clock clockwork.Clock
 	// EventsC is an optional events channel, used for testing purposes
 	EventsC chan string
+	// KubeDialAddr is a dial address for kubernetes proxy
+	KubeDialAddr utils.NetAddr
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -344,7 +346,8 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 	// if the request is for the special string @remote-auth-server, then get the
 	// list of auth servers and return that. otherwise try and connect to the
 	// passed in server.
-	if server == RemoteAuthServer {
+	switch server {
+	case RemoteAuthServer:
 		authServers, err := a.Client.GetAuthServers()
 		if err != nil {
 			a.Warningf("Unable retrieve list of remote Auth Servers: %v.", err)
@@ -357,7 +360,14 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 		for _, as := range authServers {
 			servers = append(servers, as.GetAddr())
 		}
-	} else {
+	case RemoteKubeProxy:
+		// kubernetes is not configured, reject the connection
+		if a.KubeDialAddr.IsEmpty() {
+			req.Reply(false, []byte("connection rejected: configure kubernetes proxy for this cluster."))
+			return
+		}
+		servers = append(servers, a.KubeDialAddr.Addr)
+	default:
 		servers = append(servers, server)
 	}
 
@@ -590,6 +600,12 @@ const (
 	chanDiscovery        = "teleport-discovery"
 )
 
-// RemoteAuthServer is a special non-resolvable address that indicates we want
-// a connection to the remote auth server.
-const RemoteAuthServer = "@remote-auth-server"
+const (
+	// RemoteAuthServer is a special non-resolvable address that indicates client
+	// requests  a connection to the remote auth server.
+	RemoteAuthServer = "@remote-auth-server"
+	// RemoteKubeProxy is a special non-resolvable address that indicates that clients
+	// requests a connection to the remote kubernetes proxy.
+	// This has to be a valid domain name, so it lacks @
+	RemoteKubeProxy = "remote.kube.proxy.teleport.cluster.local"
+)

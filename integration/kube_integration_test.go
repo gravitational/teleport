@@ -35,8 +35,10 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
@@ -342,6 +344,214 @@ func (s *KubeSuite) TestKubePortForward(c *check.C) {
 	addr, err := resolver.LookupHost(context.TODO(), "kubernetes.default.svc.cluster.local")
 	c.Assert(err, check.IsNil)
 	c.Assert(len(addr), check.Not(check.Equals), 0)
+}
+
+// TestKubeTrustedClusters tests scenario with trusted clsuters
+func (s *KubeSuite) TestKubeTrustedClusters(c *check.C) {
+
+	clusterMain := "cluster-main"
+	mainConf := s.teleKubeConfig(Host)
+	main := NewInstance(InstanceConfig{
+		ClusterName: clusterMain,
+		HostID:      HostID,
+		NodeName:    Host,
+		Ports:       s.ports.PopIntSlice(5),
+		Priv:        s.priv,
+		Pub:         s.pub,
+	})
+
+	// main cluster has a role and user called main-kube
+	username := s.me.Username
+	mainRole, err := services.NewRole("main-kube", services.RoleSpecV3{
+		Allow: services.RoleConditions{
+			Logins:     []string{username},
+			KubeGroups: []string{teleport.KubeSystemMasters},
+		},
+	})
+	main.AddUserWithRole(username, mainRole)
+
+	clusterAux := "cluster-aux"
+	auxConf := s.teleKubeConfig(Host)
+	aux := NewInstance(InstanceConfig{
+		ClusterName: clusterAux,
+		HostID:      HostID,
+		NodeName:    Host,
+		Ports:       s.ports.PopIntSlice(5),
+		Priv:        s.priv,
+		Pub:         s.pub,
+	})
+
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	// route allt he traffic to the aux cluster
+	mainConf.Proxy.KubeClusterOverride = clusterAux
+	err = main.CreateEx(nil, mainConf)
+	c.Assert(err, check.IsNil)
+
+	err = aux.CreateEx(nil, auxConf)
+	c.Assert(err, check.IsNil)
+
+	// auxiliary cluster has a role aux-kube
+	// connect aux cluster to main cluster
+	// using trusted clusters, so remote user will be allowed to assume
+	// role specified by mapping remote role "aux-kube" to local role "main-kube"
+	auxRole, err := services.NewRole("aux-kube", services.RoleSpecV3{
+		Allow: services.RoleConditions{
+			Logins:     []string{username},
+			KubeGroups: []string{teleport.KubeSystemMasters},
+		},
+	})
+	c.Assert(err, check.IsNil)
+	err = aux.Process.GetAuthServer().UpsertRole(auxRole, backend.Forever)
+	c.Assert(err, check.IsNil)
+	trustedClusterToken := "trusted-clsuter-token"
+	err = main.Process.GetAuthServer().UpsertToken(trustedClusterToken, []teleport.Role{teleport.RoleTrustedCluster}, backend.Forever)
+	c.Assert(err, check.IsNil)
+	trustedCluster := main.Secrets.AsTrustedCluster(trustedClusterToken, services.RoleMap{
+		{Remote: mainRole.GetName(), Local: []string{auxRole.GetName()}},
+	})
+	c.Assert(err, check.IsNil)
+
+	// start both clusters
+	err = main.Start()
+	c.Assert(err, check.IsNil)
+	defer main.Stop(true)
+
+	err = aux.Start()
+	c.Assert(err, check.IsNil)
+	defer aux.Stop(true)
+
+	// try and upsert a trusted cluster
+	var upsertSuccess bool
+	for i := 0; i < 10; i++ {
+		log.Debugf("Will create trusted cluster %v, attempt %v", trustedCluster, i)
+		_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(trustedCluster)
+		if err != nil {
+			if trace.IsConnectionProblem(err) {
+				log.Debugf("retrying on connection problem: %v", err)
+				continue
+			}
+			c.Fatalf("got non connection problem %v", err)
+		}
+		upsertSuccess = true
+		break
+	}
+	// make sure we upsert a trusted cluster
+	c.Assert(upsertSuccess, check.Equals, true)
+
+	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
+	abortTime := time.Now().Add(time.Second * 10)
+	for len(main.Tunnel.GetSites()) < 2 && len(main.Tunnel.GetSites()) < 2 {
+		time.Sleep(time.Millisecond * 2000)
+		if time.Now().After(abortTime) {
+			c.Fatalf("two clusters do not see each other: tunnels are not working")
+		}
+	}
+
+	// set up kube configuration using main proxy
+	proxyClient, proxyClientConfig, err := kubeProxyClient(main, username)
+	c.Assert(err, check.IsNil)
+
+	// try get request to fetch available pods
+	pods, err := proxyClient.Core().Pods(kubeSystemNamespace).List(metav1.ListOptions{
+		LabelSelector: kubeDNSLabels.AsSelector().String(),
+	})
+	c.Assert(len(pods.Items), check.Not(check.Equals), int(0))
+
+	// Exec through proxy and collect output
+	pod := pods.Items[0]
+
+	out := &bytes.Buffer{}
+	err = kubeExec(proxyClientConfig, kubeExecArgs{
+		podName:      pod.Name,
+		podNamespace: pod.Namespace,
+		container:    kubeDNSContainer,
+		command:      []string{"/bin/cat", teleport.KubeCAPath},
+		stdout:       out,
+	})
+	c.Assert(err, check.IsNil)
+	// this is the same certificate authority file fetched
+	// during suite setup process, so the output should be identical)
+	data := out.Bytes()
+	c.Assert(string(data), check.Equals, string(s.kubeCACert))
+
+	// interactive command, allocate pty
+	term := NewTerminal(250)
+	// lets type "echo hi" followed by "enter" and then "exit" + "enter":
+	term.Type("\aecho hi\n\r\aexit\n\r\a")
+
+	out = &bytes.Buffer{}
+	err = kubeExec(proxyClientConfig, kubeExecArgs{
+		podName:      pod.Name,
+		podNamespace: pod.Namespace,
+		container:    kubeDNSContainer,
+		command:      []string{"/bin/sh"},
+		stdout:       out,
+		tty:          true,
+		stdin:        &term,
+	})
+	c.Assert(err, check.IsNil)
+
+	// verify the session stream output
+	sessionStream := out.String()
+	comment := check.Commentf("%q", sessionStream)
+	c.Assert(strings.Contains(sessionStream, "echo hi"), check.Equals, true, comment)
+	c.Assert(strings.Contains(sessionStream, "exit"), check.Equals, true, comment)
+
+	// verify traffic capture and upload, wait for the upload to hit
+	var sessionID string
+	timeoutC := time.After(10 * time.Second)
+loop:
+	for {
+		select {
+		case event := <-main.UploadEventsC:
+			sessionID = event.SessionID
+			break loop
+		case <-timeoutC:
+			c.Fatalf("Timeout waiting for upload of session to complete")
+		}
+	}
+
+	// read back the entire session and verify that it matches the stated output
+	capturedStream, err := main.Process.GetAuthServer().GetSessionChunk(defaults.Namespace, session.ID(sessionID), 0, events.MaxChunkBytes)
+	c.Assert(err, check.IsNil)
+
+	c.Assert(string(capturedStream), check.Equals, sessionStream)
+
+	// forward local port to target port 53 of the dnsmasq container
+	localPort := s.ports.Pop()
+
+	forwarder, err := newPortForwarder(proxyClientConfig, kubePortForwardArgs{
+		ports:        []string{fmt.Sprintf("%v:53", localPort)},
+		podName:      pod.Name,
+		podNamespace: pod.Namespace,
+	})
+	c.Assert(err, check.IsNil)
+	go func() {
+		err := forwarder.ForwardPorts()
+		if err != nil {
+			c.Fatalf("Forward ports exited with error: %v.", err)
+		}
+	}()
+
+	select {
+	case <-time.After(5 * time.Second):
+		c.Fatalf("Timeout waiting for port forwarding.")
+	case <-forwarder.readyC:
+	}
+	defer close(forwarder.stopC)
+
+	resolver := &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+			return net.Dial("tcp", fmt.Sprintf("localhost:%v", localPort))
+		},
+	}
+	addr, err := resolver.LookupHost(context.TODO(), "kubernetes.default.svc.cluster.local")
+	c.Assert(err, check.IsNil)
+	c.Assert(len(addr), check.Not(check.Equals), 0)
+
 }
 
 // teleKubeConfig sets up teleport with kubernetes turned on

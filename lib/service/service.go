@@ -1389,7 +1389,7 @@ func (process *TeleportProcess) getAdditionalPrincipals(role teleport.Role) ([]s
 	var addrs []utils.NetAddr
 	switch role {
 	case teleport.RoleProxy:
-		addrs = process.Config.Proxy.PublicAddrs
+		addrs = append(process.Config.Proxy.PublicAddrs, utils.NetAddr{Addr: reversetunnel.RemoteKubeProxy})
 	case teleport.RoleAuth, teleport.RoleAdmin:
 		addrs = process.Config.Auth.PublicAddrs
 	case teleport.RoleNode:
@@ -1590,11 +1590,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	// Register reverse tunnel agents pool
 	agentPool, err := reversetunnel.NewAgentPool(reversetunnel.AgentPoolConfig{
-		HostUUID:    conn.ServerIdentity.ID.HostUUID,
-		Client:      conn.Client,
-		AccessPoint: accessPoint,
-		HostSigners: []ssh.Signer{conn.ServerIdentity.KeySigner},
-		Cluster:     conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
+		HostUUID:     conn.ServerIdentity.ID.HostUUID,
+		Client:       conn.Client,
+		AccessPoint:  accessPoint,
+		HostSigners:  []ssh.Signer{conn.ServerIdentity.KeySigner},
+		Cluster:      conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
+		KubeDialAddr: utils.DialAddrFromListenAddr(cfg.Proxy.KubeListenAddr),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1756,17 +1757,18 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 		kubeServer, err = kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 			ForwarderConfig: kubeproxy.ForwarderConfig{
-				Namespace:   defaults.Namespace,
-				Keygen:      cfg.Keygen,
-				ClusterName: conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
-				Tunnel:      tsrv,
-				Auth:        authorizer,
-				Client:      conn.Client,
-				DataDir:     cfg.DataDir,
-				AccessPoint: accessPoint,
-				AuditLog:    conn.Client,
-				ServerID:    cfg.HostUUID,
-				TargetAddr:  cfg.Proxy.KubeAPIAddr.Addr,
+				Namespace:       defaults.Namespace,
+				Keygen:          cfg.Keygen,
+				ClusterName:     conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
+				Tunnel:          tsrv,
+				Auth:            authorizer,
+				Client:          conn.Client,
+				DataDir:         cfg.DataDir,
+				AccessPoint:     accessPoint,
+				AuditLog:        conn.Client,
+				ServerID:        cfg.HostUUID,
+				TargetAddr:      cfg.Proxy.KubeAPIAddr.Addr,
+				ClusterOverride: cfg.Proxy.KubeClusterOverride,
 			},
 			TLS:           tlsConfig,
 			LimiterConfig: cfg.Proxy.Limiter,
@@ -1845,7 +1847,7 @@ func warnOnErr(err error) {
 	if err != nil {
 		// don't warn on double close, happens sometimes when closing
 		// calling accept on a closed listener
-		if strings.Contains(err.Error(), "use of closed network connection") {
+		if strings.Contains(err.Error(), teleport.UseOfClosedNetworkConnection) {
 			return
 		}
 		log.Warningf("Got error while cleaning up: %v.", err)

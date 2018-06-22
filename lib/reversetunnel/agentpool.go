@@ -79,6 +79,8 @@ type AgentPoolConfig struct {
 	// Clock is a clock used to get time, if not set,
 	// system clock is used
 	Clock clockwork.Clock
+	// KubeDialAddr is an address of a kubernetes proxy
+	KubeDialAddr utils.NetAddr
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -307,6 +309,7 @@ func (m *AgentPool) addAgent(key agentKey, discoverProxies []services.Server) er
 		Context:         m.ctx,
 		DiscoveryC:      m.discoveryC,
 		DiscoverProxies: discoverProxies,
+		KubeDialAddr:    m.cfg.KubeDialAddr,
 	})
 	if err != nil {
 		return trace.Wrap(err)

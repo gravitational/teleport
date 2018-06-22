@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 )
@@ -43,6 +44,9 @@ type TLSServerConfig struct {
 	AccessPoint AccessPoint
 	// Component is used for debugging purposes
 	Component string
+	// AcceptedUsage restricts authentication
+	// to a subset of certificates based on the metadata
+	AcceptedUsage []string
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -87,7 +91,10 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	// authMiddleware authenticates request assuming TLS client authentication
 	// adds authentication infromation to the context
 	// and passes it to the API server
-	authMiddleware := &AuthMiddleware{AccessPoint: cfg.AccessPoint}
+	authMiddleware := &AuthMiddleware{
+		AccessPoint:   cfg.AccessPoint,
+		AcceptedUsage: cfg.AcceptedUsage,
+	}
 	authMiddleware.Wrap(NewAPIServer(&cfg.APIConfig))
 	// Wrap sets the next middleware in chain to the authMiddleware
 	limiter.WrapHandle(authMiddleware)
@@ -136,6 +143,13 @@ type AuthMiddleware struct {
 	AccessPoint AccessPoint
 	// Handler is HTTP handler called after the middleware checks requests
 	Handler http.Handler
+	// AcceptedUsage restricts authentication
+	// to a subset of certificates based on certificate metadata,
+	// for example middleware can reject certificates with mismatching usage.
+	// If empty, will only accept certificates with non-limited usage,
+	// if set, will accept certificates with non-limited usage,
+	// and usage exactly matching the specified values.
+	AcceptedUsage []string
 }
 
 // Wrap sets next handler in chain
@@ -179,6 +193,17 @@ func (a *AuthMiddleware) GetUser(r *http.Request) (interface{}, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// If there is any restriction on the certificate usage
+	// reject the API server request. This is done so some classes
+	// of certificates issued for kubernetes usage by proxy, can not be used
+	// against auth server. Later on we can extend more
+	// advanced cert usage, but for now this is the safest option.
+	if len(identity.Usage) != 0 && !utils.StringSlicesEqual(a.AcceptedUsage, identity.Usage) {
+		log.Warningf("Restricted certificate of user %q with usage %v rejected while accessing the auth endpoint with acceptable usage %v.",
+			identity.Username, identity.Usage, a.AcceptedUsage)
+		return nil, trace.AccessDenied("access denied: invalid client certificate")
+	}
+
 	// this block assumes interactive user from remote cluster
 	// based on the remote certificate authority cluster name encoded in
 	// x509 organization name. This is a safe check because:

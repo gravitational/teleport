@@ -56,7 +56,6 @@ func ProcessCSR(csrPEM []byte, caCertPath string) (*Cert, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	// Delete CSR as it seems to be hanging forever if not deleted manually.
 	defer func() {
 		if err := requests.Delete(id, &metav1.DeleteOptions{}); err != nil {

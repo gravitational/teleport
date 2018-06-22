@@ -287,6 +287,11 @@ type certRequest struct {
 	// adjusted based off the role of the user. This is used by tctl to allow
 	// creating long lived user certs.
 	overrideRoleTTL bool
+	// usage is a list of acceptable usages to be encoded in X509 certificate,
+	// is used to limit ways the certificate can be used, for example
+	// the cert can be only used against kubernetes endpoint, and not auth endpoint,
+	// no usage means unrestricted (to keep backwards compatibility)
+	usage []string
 }
 
 // GenerateUserCerts is used to generate user certificate, used internally for tests
@@ -407,6 +412,7 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 	identity := tlsca.Identity{
 		Username: req.user.GetName(),
 		Groups:   req.roles.RoleNames(),
+		Usage:    req.usage,
 	}
 	certRequest := tlsca.CertificateRequest{
 		Clock:     s.clock,
