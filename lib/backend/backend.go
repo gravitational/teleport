@@ -39,6 +39,8 @@ const (
 type Backend interface {
 	// GetKeys returns a list of keys for a given path
 	GetKeys(bucket []string) ([]string, error)
+	// GetItems returns a list of items (key value pairs) for a bucket.
+	GetItems(bucket []string) ([]Item, error)
 	// CreateVal creates value with a given TTL and key in the bucket
 	// if the value already exists, it must return trace.AlreadyExistsError
 	CreateVal(bucket []string, key string, val []byte, ttl time.Duration) error
@@ -66,19 +68,12 @@ type Backend interface {
 	Clock() clockwork.Clock
 }
 
-// Item is a pair of key and value
+// Item is a pair of key and value.
 type Item struct {
-	// Key is an item key
+	// Key is an item key.
 	Key string
-	// Value is an item value
+	// Value is an item value.
 	Value []byte
-}
-
-// ItemsGetter is an interface that allows gettings all
-// items in the bucket at once
-type ItemsGetter interface {
-	// GetItems returns a list of items - key value pairs
-	GetItems(bucket []string) ([]Item, error)
 }
 
 // backend.Params type defines a flexible unified back-end configuration API.

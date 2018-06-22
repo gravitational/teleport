@@ -107,6 +107,10 @@ func (s *EtcdSuite) TestBasicCRUD(c *C) {
 	s.suite.BasicCRUD(c)
 }
 
+func (s *EtcdSuite) TestBatchCRUD(c *C) {
+	s.suite.BatchCRUD(c)
+}
+
 func (s *EtcdSuite) TestCompareAndSwap(c *C) {
 	s.suite.CompareAndSwap(c)
 }

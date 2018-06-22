@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.6.3
+
+This release of Teleport focuses on bugfixes.
+
+#### Bug Fixes
+
+* Remote clusters no longer try to re-connect to proxies that have been permanently removed. [#2023](https://github.com/gravitational/teleport/issues/2023)
+* Speed up login on systems with many users. [#2021](https://github.com/gravitational/teleport/issues/2021)
+* Improve overall performance of the etcd backend. [#2030](https://github.com/gravitational/teleport/issues/2030)
+* Role login validation now applies after variables have been substituted. [#2022](https://github.com/gravitational/teleport/issues/2022)
+
 ## 2.6.2
 
 This release of Teleport focuses on bugfixes.

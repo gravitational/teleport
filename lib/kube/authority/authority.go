@@ -49,7 +49,7 @@ func ProcessCSR(csrPEM []byte, caCertPath string) (*Cert, error) {
 			Usages: []certificates.KeyUsage{
 				certificates.UsageDigitalSignature,
 				certificates.UsageKeyEncipherment,
-				certificates.UsageServerAuth,
+				certificates.UsageClientAuth,
 			},
 		},
 	})
