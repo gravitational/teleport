@@ -54,13 +54,13 @@ all: $(VERSRC)
 	$(MAKE) $(BINARIES)
 
 $(BUILDDIR)/tctl: $(LIBS) $(TCTLSRC) $(TELEPORTVENDOR)
-	go build $(PAMFLAGS) -o $(BUILDDIR)/tctl -i $(BUILDFLAGS) ./tool/tctl
+	go build $(PAMFLAGS) -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
 
 $(BUILDDIR)/teleport: $(LIBS) $(TELEPORTSRC) $(TELEPORTVENDOR)
-	go build $(PAMFLAGS) -o $(BUILDDIR)/teleport -i $(BUILDFLAGS) ./tool/teleport
+	go build $(PAMFLAGS) -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
 $(BUILDDIR)/tsh: $(LIBS) $(TSHSRC) $(TELEPORTVENDOR)
-	go build $(PAMFLAGS) -o $(BUILDDIR)/tsh -i $(BUILDFLAGS) ./tool/tsh
+	go build $(PAMFLAGS) -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
 
 #
 # make full - builds the binary with the built-in web assets and places it
