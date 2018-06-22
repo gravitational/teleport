@@ -508,8 +508,10 @@ func (a *AuthWithRoles) GetUsers() ([]services.User, error) {
 }
 
 func (a *AuthWithRoles) GetUser(name string) (services.User, error) {
-	if err := a.currentUserAction(name); err != nil {
-		return nil, trace.Wrap(err)
+	if err := a.action(defaults.Namespace, services.KindUser, services.VerbRead); err != nil {
+		if err := a.currentUserAction(name); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	return a.authServer.Identity.GetUser(name)
 }
