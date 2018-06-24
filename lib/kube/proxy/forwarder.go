@@ -280,7 +280,7 @@ func (f *Forwarder) setupContext(ctx auth.AuthContext, req *http.Request, isRemo
 		return nil, trace.Wrap(err)
 	}
 	for _, remoteCluster := range f.Tunnel.GetSites() {
-		if strings.HasSuffix(req.Host, remoteCluster.GetName()+".") {
+		if strings.HasPrefix(req.Host, remoteCluster.GetName()+".") {
 			f.Debugf("Going to proxy to cluster: %v based on matching host suffix %v.", remoteCluster.GetName(), req.Host)
 			targetCluster = remoteCluster
 			isRemoteCluster = remoteCluster.GetName() != f.ClusterName
@@ -561,9 +561,9 @@ type clusterSession struct {
 func (f *Forwarder) getOrCreateClusterSession(ctx authContext) (*clusterSession, error) {
 	client := f.getClusterSession(ctx)
 	if client != nil {
-		f.Debugf("Returning existing creds for %v.", ctx)
 		return client, nil
 	}
+	f.Debugf("Requesting new creds for %v.", ctx)
 	return f.newClusterSession(ctx)
 }
 

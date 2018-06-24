@@ -37,9 +37,10 @@ type ClientProfile struct {
 	//
 	// proxy configuration
 	//
-	ProxyHost    string `yaml:"proxy_host,omitempty"`
-	ProxySSHPort int    `yaml:"proxy_port,omitempty"`
-	ProxyWebPort int    `yaml:"proxy_web_port,omitempty"`
+	ProxyHost     string `yaml:"proxy_host,omitempty"`
+	ProxySSHPort  int    `yaml:"proxy_port,omitempty"`
+	ProxyWebPort  int    `yaml:"proxy_web_port,omitempty"`
+	ProxyKubePort int    `yaml:"proxy_kube_port,omitempty"`
 
 	//
 	// auth/identity

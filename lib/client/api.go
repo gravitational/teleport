@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/moby/moby/pkg/term"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
@@ -233,6 +234,14 @@ type ProfileStatus struct {
 
 	// Extensions is a list of enabled SSH features for the certificate.
 	Extensions []string
+
+	// Cluster is a selected cluster
+	Cluster string
+}
+
+// IsExpired returns true if profile is not expired yet
+func (p *ProfileStatus) IsExpired(clock clockwork.Clock) bool {
+	return p.ValidUntil.Sub(clock.Now()) <= 0
 }
 
 // readProfile reads in the profile as well as the associated certificate
@@ -301,6 +310,7 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 		ValidUntil: validUntil,
 		Extensions: extensions,
 		Roles:      roles,
+		Cluster:    profile.SiteName,
 	}, nil
 }
 
@@ -335,6 +345,15 @@ func Status(profileDir string, proxyHost string) (*ProfileStatus, []*ProfileStat
 	var err error
 	var profile *ProfileStatus
 	var others []*ProfileStatus
+
+	// remove ports from proxy host, because profile name is stored
+	// by host name
+	if proxyHost != "" {
+		proxyHost, err = utils.Host(proxyHost)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	}
 
 	// Construct the full path to the profile requested and make sure it exists.
 	profileDir = FullProfilePath(profileDir)
@@ -381,6 +400,11 @@ func Status(profileDir string, proxyHost string) (*ProfileStatus, []*ProfileStat
 		}
 		ps, err := readProfile(profileDir, file.Name())
 		if err != nil {
+			// parts of profile are missing?
+			// status skips these files
+			if trace.IsNotFound(err) {
+				continue
+			}
 			return nil, nil, trace.Wrap(err)
 		}
 		others = append(others, ps)
@@ -403,7 +427,7 @@ func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 		return trace.Wrap(err)
 	}
 	// apply the profile to the current configuration:
-	c.SetProxy(cp.ProxyHost, cp.ProxyWebPort, cp.ProxySSHPort)
+	c.SetProxy(cp.ProxyHost, cp.ProxyWebPort, cp.ProxySSHPort, cp.ProxyKubePort)
 	c.Username = cp.Username
 	c.SiteName = cp.SiteName
 	c.LocalForwardPorts, err = ParsePortForwardSpec(cp.ForwardedPorts)
@@ -427,6 +451,7 @@ func (c *Config) SaveProfile(profileDir string, profileOptions ...ProfileOptions
 	cp.Username = c.Username
 	cp.ProxySSHPort = c.ProxySSHPort()
 	cp.ProxyWebPort = c.ProxyWebPort()
+	cp.ProxyKubePort = c.ProxyKubePort()
 	cp.ForwardedPorts = c.LocalForwardPorts.ToStringSpec()
 	cp.SiteName = c.SiteName
 
@@ -446,8 +471,12 @@ func (c *Config) SaveProfile(profileDir string, profileOptions ...ProfileOptions
 	return nil
 }
 
-func (c *Config) SetProxy(host string, webPort, sshPort int) {
-	c.ProxyHostPort = fmt.Sprintf("%s:%d,%d", host, webPort, sshPort)
+func (c *Config) SetProxy(host string, webPort, sshPort, kubePort int) {
+	if kubePort != 0 {
+		c.ProxyHostPort = fmt.Sprintf("%s:%d,%d,%d", host, webPort, sshPort, kubePort)
+	} else {
+		c.ProxyHostPort = fmt.Sprintf("%s:%d,%d", host, webPort, sshPort)
+	}
 }
 
 // ProxyHost returns the hostname of the proxy server (without any port numbers)
@@ -470,6 +499,10 @@ func (c *Config) ProxySSHHostPort() string {
 
 func (c *Config) ProxyWebHostPort() string {
 	return net.JoinHostPort(c.ProxyHost(), strconv.Itoa(c.ProxyWebPort()))
+}
+
+func (c *Config) ProxyKubeHostPort() string {
+	return net.JoinHostPort(c.ProxyHost(), strconv.Itoa(c.ProxyKubePort()))
 }
 
 // ProxyWebPort returns the port number of teleport HTTP proxy stored in the config
@@ -500,6 +533,23 @@ func (c *Config) ProxySSHPort() (retval int) {
 			retval, err = strconv.Atoi(ports[1])
 			if err != nil {
 				log.Warnf("invalid proxy SSH port: '%v': %v", ports, err)
+			}
+		}
+	}
+	return retval
+}
+
+// ProxyKubePort returns the port number of teleport Kubernetes proxy stored in the config
+// usually 3026 by default.
+func (c *Config) ProxyKubePort() (retval int) {
+	retval = defaults.KubeProxyListenPort
+	_, port, err := net.SplitHostPort(c.ProxyHostPort)
+	if err == nil && len(port) > 0 {
+		ports := strings.Split(port, ",")
+		if len(ports) > 2 {
+			retval, err = strconv.Atoi(ports[2])
+			if err != nil {
+				log.Warnf("invalid proxy Kubernetes port: '%v': %v", ports, err)
 			}
 		}
 	}

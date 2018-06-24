@@ -10,5 +10,11 @@ EXAMPLES:
   $ tsh --proxy=host.example.com:8080,8023 login    
   
   Use port 8080 and 3023 (default) for SSH proxy:
-  $ tsh --proxy=host.example.com:8080 login`
+  $ tsh --proxy=host.example.com:8080 login
+
+  Login and select cluster "two":
+  $ tsh --proxy=host.example.com login two
+
+  Select cluster "two" using existing credentials and proxy:
+  $ tsh login two`
 )
