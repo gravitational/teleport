@@ -6,8 +6,8 @@ of Linux administration.
 
 ## Installing
 
-To install Teleport using the official binaries from [Github releases](https://github.com/gravitational/teleport/releases)
-simply download the tarball and run:
+To install Teleport using the official binaries from [Teleport Downloads](https://gravitational.com/teleport/download/)
+section on our web site and run:
 
 ```
 $ tar -xzf teleport-binary-release.tar.gz
