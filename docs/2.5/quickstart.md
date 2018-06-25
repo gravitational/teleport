@@ -30,7 +30,7 @@ using Teleport's client-side tools:
 
 Teleport natively runs on most Linux distributions. You can
 download pre-built binaries from [here](https://gravitational.com/teleport/download/)
-or you can [build it from source](https://github.com/gravitational/teleport/releases).
+or you can [build it from source](https://github.com/gravitational/teleport).
 
 After downloading the binary tarball, run:
 

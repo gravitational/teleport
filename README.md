@@ -32,7 +32,7 @@ implementation and it is _fully compatible with OpenSSH_ and can be used with
 
 ## Installing and Running
 
-Download the [latest binary release](https://github.com/gravitational/teleport/releases), 
+Download the [latest binary release](https://gravitational.com/teleport/download/), 
 unpack the .tar.gz and run `sudo ./install`. This will copy Teleport binaries into 
 `/usr/local/bin`.
 
@@ -125,7 +125,7 @@ usability issues.  We are actively supporting Teleport and addressing any
 issues that are submitted to this repo. Ask questions, send pull requests,
 report issues and don't be shy! :)
 
-The latest stable Teleport build can be found in [Releases](https://github.com/gravitational/teleport/releases)
+The latest stable Teleport build can be found in [Releases](https://gravitational.com/teleport/download/)
 
 ## Known Issues
 
