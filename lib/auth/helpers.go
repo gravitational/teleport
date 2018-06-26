@@ -47,6 +47,9 @@ type TestAuthServerConfig struct {
 	ClusterName string
 	// Dir is directory for local backend
 	Dir string
+	// AcceptedUsage is an optional list of restricted
+	// server usage
+	AcceptedUsage []string
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -246,6 +249,7 @@ func GenerateCertificate(authServer *AuthServer, identity TestIdentity) ([]byte,
 			user:      user,
 			roles:     roles,
 			ttl:       identity.TTL,
+			usage:     identity.AcceptedUsage,
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -321,8 +325,9 @@ func (a *TestAuthServer) NewTestTLSServer() (*TestTLSServer, error) {
 		AuditLog:       a.AuditLog,
 	}
 	srv, err := NewTestTLSServer(TestTLSServerConfig{
-		APIConfig:  apiConfig,
-		AuthServer: a,
+		APIConfig:     apiConfig,
+		AuthServer:    a,
+		AcceptedUsage: a.AcceptedUsage,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -356,6 +361,8 @@ type TestTLSServerConfig struct {
 	Limiter *limiter.LimiterConfig
 	// Listener is a listener to serve requests on
 	Listener net.Listener
+	// AcceptedUsage is a list of accepted usage restrictions
+	AcceptedUsage []string
 }
 
 // Auth returns auth server used by this TLS server
@@ -431,6 +438,7 @@ func NewTestTLSServer(cfg TestTLSServerConfig) (*TestTLSServer, error) {
 		TLS:           tlsConfig,
 		APIConfig:     *srv.APIConfig,
 		LimiterConfig: *srv.Limiter,
+		AcceptedUsage: cfg.AcceptedUsage,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -443,8 +451,9 @@ func NewTestTLSServer(cfg TestTLSServerConfig) (*TestTLSServer, error) {
 
 // TestIdentity is test identity spec used to generate identities in tests
 type TestIdentity struct {
-	I   interface{}
-	TTL time.Duration
+	I             interface{}
+	TTL           time.Duration
+	AcceptedUsage []string
 }
 
 // TestUser returns TestIdentity for local user
