@@ -103,6 +103,64 @@ func (s *TLSSuite) TestRemoteBuiltinRole(c *check.C) {
 	fixtures.ExpectAccessDenied(c, err)
 }
 
+// TestAcceptedUsage tests scenario when server is set up
+// to accept certificates with certain usage metadata restrictions
+// encoded
+func (s *TLSSuite) TestAcceptedUsage(c *check.C) {
+	server, err := NewTestAuthServer(TestAuthServerConfig{
+		Dir:           c.MkDir(),
+		ClusterName:   "remote",
+		AcceptedUsage: []string{"usage:k8s"},
+	})
+	c.Assert(err, check.IsNil)
+
+	user, _, err := CreateUserAndRole(server.AuthServer, "user", []string{"role"})
+	c.Assert(err, check.IsNil)
+
+	tlsServer, err := server.NewTestTLSServer()
+	c.Assert(err, check.IsNil)
+	defer tlsServer.Close()
+
+	// Unrestricted clients can use restricted servers
+	client, err := tlsServer.NewClient(TestUser(user.GetName()))
+	c.Assert(err, check.IsNil)
+
+	// certificate authority is not recognized, because
+	// the trust has not been established yet
+	_, err = client.GetNodes(defaults.Namespace)
+	c.Assert(err, check.IsNil)
+
+	// restricted clients can use restricted servers if restrictions
+	// exactly match
+	identity := TestUser(user.GetName())
+	identity.AcceptedUsage = []string{"usage:k8s"}
+	client, err = tlsServer.NewClient(identity)
+	c.Assert(err, check.IsNil)
+
+	_, err = client.GetNodes(defaults.Namespace)
+	c.Assert(err, check.IsNil)
+
+	// restricted clients can will be rejected if usage does not match
+	identity = TestUser(user.GetName())
+	identity.AcceptedUsage = []string{"usage:extra"}
+	client, err = tlsServer.NewClient(identity)
+	c.Assert(err, check.IsNil)
+
+	_, err = client.GetNodes(defaults.Namespace)
+	fixtures.ExpectAccessDenied(c, err)
+
+	// restricted clients can will be rejected, for now if there is any mismatch,
+	// including extra usage.
+	identity = TestUser(user.GetName())
+	identity.AcceptedUsage = []string{"usage:k8s", "usage:unknown"}
+	client, err = tlsServer.NewClient(identity)
+	c.Assert(err, check.IsNil)
+
+	_, err = client.GetNodes(defaults.Namespace)
+	fixtures.ExpectAccessDenied(c, err)
+
+}
+
 // TestRemoteRotation tests remote builtin role
 // that attempts certificate authority rotation
 func (s *TLSSuite) TestRemoteRotation(c *check.C) {
