@@ -43,7 +43,7 @@ func (s *APITestSuite) TestConfig(c *check.C) {
 	c.Assert(conf.ProxySSHHostPort(), check.Equals, "example.org:3023")
 	c.Assert(conf.ProxyWebHostPort(), check.Equals, "example.org:3080")
 
-	conf.SetProxy("example.org", 100, 200)
+	conf.SetProxy("example.org", 100, 200, 0)
 	c.Assert(conf.ProxyWebHostPort(), check.Equals, "example.org:100")
 	c.Assert(conf.ProxySSHHostPort(), check.Equals, "example.org:200")
 
@@ -54,6 +54,12 @@ func (s *APITestSuite) TestConfig(c *check.C) {
 	conf.ProxyHostPort = "example.org:,200"
 	c.Assert(conf.ProxySSHHostPort(), check.Equals, "example.org:200")
 	c.Assert(conf.ProxyWebHostPort(), check.Equals, "example.org:3080")
+
+	conf.SetProxy("example.org", 100, 200, 300)
+	c.Assert(conf.ProxyWebHostPort(), check.Equals, "example.org:100")
+	c.Assert(conf.ProxySSHHostPort(), check.Equals, "example.org:200")
+	c.Assert(conf.ProxyKubeHostPort(), check.Equals, "example.org:300")
+
 }
 
 func (s *APITestSuite) TestNew(c *check.C) {
