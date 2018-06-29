@@ -649,6 +649,7 @@ func (f *Forwarder) newClusterSession(ctx authContext) (*clusterSession, error) 
 	tlsConfig.BuildNameToCertificate()
 
 	fwd, err := forward.New(
+		forward.FlushInterval(100*time.Millisecond),
 		forward.RoundTripper(f.newTransport(ctx.cluster.Dial, tlsConfig)),
 		forward.WebsocketDial(ctx.cluster.Dial),
 		forward.Logger(logrus.StandardLogger()),

@@ -104,7 +104,7 @@ ignored = ["github.com/Sirupsen/logrus"]
   version = ">=0.0.2, <=1.0.0-gc98f59f"
 
 [[constraint]]
-  version = "1.0.1"
+  version = "1.0.2"
   name = "github.com/gravitational/oxy"
 
 [[constraint]]
