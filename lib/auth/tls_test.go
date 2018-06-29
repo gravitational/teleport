@@ -85,13 +85,13 @@ func (s *TLSSuite) TestRemoteBuiltinRole(c *check.C) {
 
 	// certificate authority is not recognized, because
 	// the trust has not been established yet
-	_, err = remoteProxy.GetNodes(defaults.Namespace)
+	_, err = remoteProxy.GetNodes(defaults.Namespace, services.SkipValidation())
 	c.Assert(err, check.ErrorMatches, ".*bad certificate.*")
 
 	// after trust is established, things are good
 	err = s.server.AuthServer.Trust(remoteServer, nil)
 
-	_, err = remoteProxy.GetNodes(defaults.Namespace)
+	_, err = remoteProxy.GetNodes(defaults.Namespace, services.SkipValidation())
 	c.Assert(err, check.IsNil)
 
 	// remote auth server will get rejected even with established trust
@@ -178,11 +178,11 @@ func (s *TLSSuite) TestRemoteRotation(c *check.C) {
 		TestBuiltin(teleport.RoleProxy), s.server.Addr(), certPool)
 	c.Assert(err, check.IsNil)
 
-	_, err = newRemoteProxy.GetNodes(defaults.Namespace)
+	_, err = newRemoteProxy.GetNodes(defaults.Namespace, services.SkipValidation())
 	c.Assert(err, check.IsNil)
 
 	// old proxy client is still trusted
-	_, err = s.server.CloneClient(remoteProxy).GetNodes(defaults.Namespace)
+	_, err = s.server.CloneClient(remoteProxy).GetNodes(defaults.Namespace, services.SkipValidation())
 	c.Assert(err, check.IsNil)
 }
 
@@ -233,7 +233,7 @@ func (s *TLSSuite) TestAutoRotation(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// client works before rotation is initiated
-	_, err = proxy.GetNodes(defaults.Namespace)
+	_, err = proxy.GetNodes(defaults.Namespace, services.SkipValidation())
 	c.Assert(err, check.IsNil)
 
 	// starts rotation
@@ -259,7 +259,7 @@ func (s *TLSSuite) TestAutoRotation(c *check.C) {
 	c.Assert(ca.GetRotation().Phase, check.Equals, services.RotationPhaseUpdateClients)
 
 	// old clients should work
-	_, err = s.server.CloneClient(proxy).GetNodes(defaults.Namespace)
+	_, err = s.server.CloneClient(proxy).GetNodes(defaults.Namespace, services.SkipValidation())
 	c.Assert(err, check.IsNil)
 
 	// new clients work as well
@@ -279,14 +279,14 @@ func (s *TLSSuite) TestAutoRotation(c *check.C) {
 	c.Assert(ca.GetRotation().Phase, check.Equals, services.RotationPhaseUpdateServers)
 
 	// old clients should work
-	_, err = s.server.CloneClient(proxy).GetNodes(defaults.Namespace)
+	_, err = s.server.CloneClient(proxy).GetNodes(defaults.Namespace, services.SkipValidation())
 	c.Assert(err, check.IsNil)
 
 	// new clients work as well
 	newProxy, err = s.server.NewClient(TestBuiltin(teleport.RoleProxy))
 	c.Assert(err, check.IsNil)
 
-	_, err = newProxy.GetNodes(defaults.Namespace)
+	_, err = newProxy.GetNodes(defaults.Namespace, services.SkipValidation())
 	c.Assert(err, check.IsNil)
 
 	// complete rotation - advance rotation by clock
@@ -305,11 +305,11 @@ func (s *TLSSuite) TestAutoRotation(c *check.C) {
 	// connection instead of re-using the one from pool
 	// this is not going to be a problem in real teleport
 	// as it reloads the full server after reload
-	_, err = s.server.CloneClient(proxy).GetNodes(defaults.Namespace)
+	_, err = s.server.CloneClient(proxy).GetNodes(defaults.Namespace, services.SkipValidation())
 	c.Assert(err, check.ErrorMatches, ".*bad certificate.*")
 
 	// new clients work
-	_, err = s.server.CloneClient(newProxy).GetNodes(defaults.Namespace)
+	_, err = s.server.CloneClient(newProxy).GetNodes(defaults.Namespace, services.SkipValidation())
 	c.Assert(err, check.IsNil)
 }
 
@@ -325,7 +325,7 @@ func (s *TLSSuite) TestAutoFallback(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// client works before rotation is initiated
-	_, err = proxy.GetNodes(defaults.Namespace)
+	_, err = proxy.GetNodes(defaults.Namespace, services.SkipValidation())
 	c.Assert(err, check.IsNil)
 
 	// starts rotation
@@ -377,7 +377,7 @@ func (s *TLSSuite) TestManualRotation(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// client works before rotation is initiated
-	_, err = proxy.GetNodes(defaults.Namespace)
+	_, err = proxy.GetNodes(defaults.Namespace, services.SkipValidation())
 	c.Assert(err, check.IsNil)
 
 	// can't jump to mid-phase
@@ -401,7 +401,7 @@ func (s *TLSSuite) TestManualRotation(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// old clients should work
-	_, err = s.server.CloneClient(proxy).GetNodes(defaults.Namespace)
+	_, err = s.server.CloneClient(proxy).GetNodes(defaults.Namespace, services.SkipValidation())
 	c.Assert(err, check.IsNil)
 
 	// clients reconnect
@@ -414,14 +414,14 @@ func (s *TLSSuite) TestManualRotation(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// old clients should work
-	_, err = s.server.CloneClient(proxy).GetNodes(defaults.Namespace)
+	_, err = s.server.CloneClient(proxy).GetNodes(defaults.Namespace, services.SkipValidation())
 	c.Assert(err, check.IsNil)
 
 	// new clients work as well
 	newProxy, err := s.server.NewClient(TestBuiltin(teleport.RoleProxy))
 	c.Assert(err, check.IsNil)
 
-	_, err = newProxy.GetNodes(defaults.Namespace)
+	_, err = newProxy.GetNodes(defaults.Namespace, services.SkipValidation())
 	c.Assert(err, check.IsNil)
 
 	// can't jump to standy
@@ -443,11 +443,11 @@ func (s *TLSSuite) TestManualRotation(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// old clients should work
-	_, err = s.server.CloneClient(proxy).GetNodes(defaults.Namespace)
+	_, err = s.server.CloneClient(proxy).GetNodes(defaults.Namespace, services.SkipValidation())
 	c.Assert(err, check.IsNil)
 
 	// new clients work as well
-	_, err = s.server.CloneClient(newProxy).GetNodes(defaults.Namespace)
+	_, err = s.server.CloneClient(newProxy).GetNodes(defaults.Namespace, services.SkipValidation())
 	c.Assert(err, check.IsNil)
 
 	// complete rotation
@@ -464,11 +464,11 @@ func (s *TLSSuite) TestManualRotation(c *check.C) {
 	// connection instead of re-using the one from pool
 	// this is not going to be a problem in real teleport
 	// as it reloads the full server after reload
-	_, err = s.server.CloneClient(proxy).GetNodes(defaults.Namespace)
+	_, err = s.server.CloneClient(proxy).GetNodes(defaults.Namespace, services.SkipValidation())
 	c.Assert(err, check.ErrorMatches, ".*bad certificate.*")
 
 	// new clients work
-	_, err = s.server.CloneClient(newProxy).GetNodes(defaults.Namespace)
+	_, err = s.server.CloneClient(newProxy).GetNodes(defaults.Namespace, services.SkipValidation())
 	c.Assert(err, check.IsNil)
 }
 
@@ -479,7 +479,7 @@ func (s *TLSSuite) TestRollback(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// client works before rotation is initiated
-	_, err = proxy.GetNodes(defaults.Namespace)
+	_, err = proxy.GetNodes(defaults.Namespace, services.SkipValidation())
 	c.Assert(err, check.IsNil)
 
 	// starts rotation
@@ -507,7 +507,7 @@ func (s *TLSSuite) TestRollback(c *check.C) {
 	newProxy, err := s.server.NewClient(TestBuiltin(teleport.RoleProxy))
 	c.Assert(err, check.IsNil)
 
-	_, err = newProxy.GetNodes(defaults.Namespace)
+	_, err = newProxy.GetNodes(defaults.Namespace, services.SkipValidation())
 	c.Assert(err, check.IsNil)
 
 	// advance rotation:
@@ -530,7 +530,7 @@ func (s *TLSSuite) TestRollback(c *check.C) {
 
 	// new clients work, server still accepts the creds
 	// because new clients should re-register and receive new certs
-	_, err = s.server.CloneClient(newProxy).GetNodes(defaults.Namespace)
+	_, err = s.server.CloneClient(newProxy).GetNodes(defaults.Namespace, services.SkipValidation())
 	c.Assert(err, check.IsNil)
 
 	// can't jump to other phases
@@ -552,11 +552,11 @@ func (s *TLSSuite) TestRollback(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// clients with new creds will no longer work
-	_, err = s.server.CloneClient(newProxy).GetNodes(defaults.Namespace)
+	_, err = s.server.CloneClient(newProxy).GetNodes(defaults.Namespace, services.SkipValidation())
 	c.Assert(err, check.ErrorMatches, ".*bad certificate.*")
 
 	// clients with old creds will still work
-	_, err = s.server.CloneClient(proxy).GetNodes(defaults.Namespace)
+	_, err = s.server.CloneClient(proxy).GetNodes(defaults.Namespace, services.SkipValidation())
 	c.Assert(err, check.IsNil)
 }
 
@@ -616,7 +616,7 @@ func (s *TLSSuite) TestNopUser(c *check.C) {
 	_, err = client.GetUsers()
 	fixtures.ExpectAccessDenied(c, err)
 
-	_, err = client.GetNodes(defaults.Namespace)
+	_, err = client.GetNodes(defaults.Namespace, services.SkipValidation())
 	fixtures.ExpectAccessDenied(c, err)
 }
 

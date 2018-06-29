@@ -47,6 +47,9 @@ type Backend interface {
 	// UpsertVal updates or inserts value with a given TTL into a bucket
 	// ForeverTTL for no TTL
 	UpsertVal(bucket []string, key string, val []byte, ttl time.Duration) error
+	// UpsertItems updates or inserts all passed in backend.Items (with a TTL)
+	// into the given bucket.
+	UpsertItems(bucket []string, items []Item) error
 	// GetVal return a value for a given key in the bucket
 	GetVal(path []string, key string) ([]byte, error)
 	// CompareAndSwapVal compares and swaps values in atomic operation,
@@ -74,6 +77,8 @@ type Item struct {
 	Key string
 	// Value is an item value.
 	Value []byte
+	// TTL is the expire time for the item.
+	TTL time.Duration
 }
 
 // backend.Params type defines a flexible unified back-end configuration API.

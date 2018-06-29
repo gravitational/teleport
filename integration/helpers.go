@@ -462,7 +462,7 @@ func (i *TeleInstance) GenerateConfig(trustedSecrets []*InstanceSecrets, tconf *
 	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.SSHAddr)
 	tconf.Auth.StorageConfig = backend.Config{
 		Type:   dir.GetName(),
-		Params: backend.Params{"path": dataDir},
+		Params: backend.Params{"path": dataDir + string(os.PathListSeparator) + defaults.BackendDir},
 	}
 
 	tconf.Keygen = testauthority.New()

@@ -480,6 +480,10 @@ func (b *DynamoDBBackend) CreateVal(path []string, key string, val []byte, ttl t
 	return b.createKey(fullPath, val, ttl, false)
 }
 
+func (b *DynamoDBBackend) UpsertItems(bucket []string, items []backend.Item) error {
+	return trace.BadParameter("not implemented")
+}
+
 // UpsertVal update or create a key with defined value (refresh TTL if already exist)
 func (b *DynamoDBBackend) UpsertVal(path []string, key string, val []byte, ttl time.Duration) error {
 	fullPath := b.fullPath(append(path, key)...)
