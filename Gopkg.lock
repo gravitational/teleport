@@ -2,12 +2,6 @@
 
 
 [[projects]]
-  name = "cloud.google.com/go"
-  packages = ["compute/metadata"]
-  revision = "0fd7230b2a7505833d5f69b75cbd6c9582401479"
-  version = "v0.23.0"
-
-[[projects]]
   branch = "master"
   name = "github.com/Azure/go-ansiterm"
   packages = [
@@ -651,7 +645,6 @@
   name = "golang.org/x/net"
   packages = [
     "context",
-    "context/ctxhttp",
     "http2",
     "http2/hpack",
     "idna",
@@ -661,18 +654,6 @@
     "websocket"
   ]
   revision = "48359f4f600b3a2d5cf657458e3f940021631a56"
-
-[[projects]]
-  branch = "master"
-  name = "golang.org/x/oauth2"
-  packages = [
-    ".",
-    "google",
-    "internal",
-    "jws",
-    "jwt"
-  ]
-  revision = "1e0a3fa8ba9a5c9eb35c271780101fdaf1b205d7"
 
 [[projects]]
   branch = "master"
@@ -704,23 +685,6 @@
     "width"
   ]
   revision = "19e51611da83d6be54ddafce4a4af510cb3e9ea4"
-
-[[projects]]
-  name = "google.golang.org/appengine"
-  packages = [
-    ".",
-    "internal",
-    "internal/app_identity",
-    "internal/base",
-    "internal/datastore",
-    "internal/log",
-    "internal/modules",
-    "internal/remote_api",
-    "internal/urlfetch",
-    "urlfetch"
-  ]
-  revision = "150dc57a1b433e64154302bdc40b6bb8aefa313a"
-  version = "v1.0.0"
 
 [[projects]]
   branch = "master"
@@ -882,10 +846,8 @@
     "kubernetes/typed/storage/v1alpha1",
     "kubernetes/typed/storage/v1beta1",
     "pkg/version",
-    "plugin/pkg/client/auth/gcp",
     "rest",
     "rest/watch",
-    "third_party/forked/golang/template",
     "tools/auth",
     "tools/clientcmd",
     "tools/clientcmd/api",
@@ -901,8 +863,7 @@
     "util/exec",
     "util/flowcontrol",
     "util/homedir",
-    "util/integer",
-    "util/jsonpath"
+    "util/integer"
   ]
   revision = "78700dec6369ba22221b72770783300f143df150"
   version = "v6.0.0"
@@ -916,6 +877,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "27cc87b56a789ad4cd6b07e910c2159416d60dc89e45b1a5f834cbc256957b21"
+  inputs-digest = "69c3266db32c74686e2638a6b374cc681d5bd6e7ff06bfe7e076e304cfbe4613"
   solver-name = "gps-cdcl"
   solver-version = 1
