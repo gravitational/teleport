@@ -115,6 +115,10 @@ func (n *nopBackend) UpsertVal(bucket []string, key string, val []byte, ttl time
 	return nil
 }
 
+func (n *nopBackend) UpsertItems(bucket []string, items []Item) error {
+	return nil
+}
+
 func (n *nopBackend) GetVal(path []string, key string) ([]byte, error) {
 	return []byte("foo"), nil
 }

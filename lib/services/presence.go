@@ -23,22 +23,25 @@ import (
 // Presence records and reports the presence of all components
 // of the cluster - Nodes, Proxies and SSH nodes
 type Presence interface {
-
 	// UpsertLocalClusterName upserts local domain
 	UpsertLocalClusterName(name string) error
 
 	// GetLocalClusterName upserts local domain
 	GetLocalClusterName() (string, error)
 
-	// GetNodes returns a list of registered servers
-	GetNodes(namespace string) ([]Server, error)
+	// GetNodes returns a list of registered servers. Schema validation can be
+	// skipped to improve performance.
+	GetNodes(namespace string, opts ...MarshalOption) ([]Server, error)
 
-	// DeleteAllNodes deletes all nodes in a namespace
+	// DeleteAllNodes deletes all nodes in a namespace.
 	DeleteAllNodes(namespace string) error
 
-	// UpsertNode registers node presence, permanently if ttl is 0 or
-	// for the specified duration with second resolution if it's >= 1 second
+	// UpsertNode registers node presence, permanently if TTL is 0 or for the
+	// specified duration with second resolution if it's >= 1 second.
 	UpsertNode(server Server) error
+
+	// UpsertNodes bulk inserts nodes.
+	UpsertNodes(namespace string, servers []Server) error
 
 	// GetAuthServers returns a list of registered servers
 	GetAuthServers() ([]Server, error)

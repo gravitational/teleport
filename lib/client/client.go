@@ -120,10 +120,12 @@ func (proxy *ProxyClient) FindServersByLabels(ctx context.Context, namespace str
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	siteNodes, err := site.GetNodes(namespace)
+
+	siteNodes, err := site.GetNodes(namespace, services.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	// look at every node on this site and see which ones match:
 	for _, node := range siteNodes {
 		if node.MatchAgainst(labels) {

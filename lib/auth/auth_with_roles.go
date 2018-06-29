@@ -296,6 +296,17 @@ func (a *AuthWithRoles) GenerateServerKeys(req GenerateServerKeysRequest) (*Pack
 	return a.authServer.GenerateServerKeys(req)
 }
 
+// UpsertNodes bulk upserts nodes into the backend.
+func (a *AuthWithRoles) UpsertNodes(namespace string, servers []services.Server) error {
+	if err := a.action(namespace, services.KindNode, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(namespace, services.KindNode, services.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.UpsertNodes(namespace, servers)
+}
+
 func (a *AuthWithRoles) UpsertNode(s services.Server) error {
 	if err := a.action(s.GetNamespace(), services.KindNode, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
@@ -306,11 +317,11 @@ func (a *AuthWithRoles) UpsertNode(s services.Server) error {
 	return a.authServer.UpsertNode(s)
 }
 
-func (a *AuthWithRoles) GetNodes(namespace string) ([]services.Server, error) {
+func (a *AuthWithRoles) GetNodes(namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
 	if err := a.action(namespace, services.KindNode, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetNodes(namespace)
+	return a.authServer.GetNodes(namespace, opts...)
 }
 
 func (a *AuthWithRoles) UpsertAuthServer(s services.Server) error {

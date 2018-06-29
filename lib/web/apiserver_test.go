@@ -1382,7 +1382,7 @@ type authProviderMock struct {
 	server services.ServerV2
 }
 
-func (mock authProviderMock) GetNodes(n string) ([]services.Server, error) {
+func (mock authProviderMock) GetNodes(n string, opts ...services.MarshalOption) ([]services.Server, error) {
 	return []services.Server{&mock.server}, nil
 }
 

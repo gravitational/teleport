@@ -563,27 +563,57 @@ func (c *Client) UpsertNode(s services.Server) error {
 	return trace.Wrap(err)
 }
 
+// UpsertNodes bulk inserts nodes.
+func (c *Client) UpsertNodes(namespace string, servers []services.Server) error {
+	if namespace == "" {
+		return trace.BadParameter("missing node namespace")
+	}
+
+	bytes, err := services.GetServerMarshaler().MarshalServers(servers)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	args := &upsertNodesReq{
+		Namespace: namespace,
+		Nodes:     bytes,
+	}
+	_, err = c.PutJSON(c.Endpoint("namespaces", namespace, "nodes"), args)
+	return trace.Wrap(err)
+}
+
 // GetNodes returns the list of servers registered in the cluster.
-func (c *Client) GetNodes(namespace string) ([]services.Server, error) {
+func (c *Client) GetNodes(namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
 	if namespace == "" {
 		return nil, trace.BadParameter(MissingNamespaceError)
 	}
-	out, err := c.Get(c.Endpoint("namespaces", namespace, "nodes"), url.Values{})
+	cfg, err := services.CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	out, err := c.Get(c.Endpoint("namespaces", namespace, "nodes"), url.Values{
+		"skip_validation": []string{fmt.Sprintf("%t", cfg.SkipValidation)},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	var items []json.RawMessage
 	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	re := make([]services.Server, len(items))
 	for i, raw := range items {
-		s, err := services.GetServerMarshaler().UnmarshalServer(raw, services.KindNode)
+		s, err := services.GetServerMarshaler().UnmarshalServer(
+			raw,
+			services.KindNode,
+			opts...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		re[i] = s
 	}
+
 	return re, nil
 }
 

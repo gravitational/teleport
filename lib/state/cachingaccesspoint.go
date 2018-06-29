@@ -12,7 +12,6 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
 */
 
 package state
@@ -185,7 +184,7 @@ func (cs *CachingAuthClient) fetchAll() error {
 	errors = append(errors, err)
 	if err == nil {
 		for _, ns := range namespaces {
-			_, err = cs.GetNodes(ns.Metadata.Name)
+			_, err = cs.GetNodes(ns.Metadata.Name, services.SkipValidation())
 			errors = append(errors, err)
 		}
 	}
@@ -392,15 +391,15 @@ func nodeKey(namespace, name string) string {
 }
 
 // GetNodes is a part of auth.AccessPoint implementation
-func (cs *CachingAuthClient) GetNodes(namespace string) (nodes []services.Server, err error) {
+func (cs *CachingAuthClient) GetNodes(namespace string, opts ...services.MarshalOption) (nodes []services.Server, err error) {
 	cs.fetch(params{
 		key: nodesKey(namespace),
 		fetch: func() error {
-			nodes, err = cs.ap.GetNodes(namespace)
+			nodes, err = cs.ap.GetNodes(namespace, opts...)
 			return err
 		},
 		useCache: func() error {
-			nodes, err = cs.presence.GetNodes(namespace)
+			nodes, err = cs.presence.GetNodes(namespace, opts...)
 			return err
 		},
 		updateCache: func() (keys []string, cerr error) {
@@ -411,10 +410,10 @@ func (cs *CachingAuthClient) GetNodes(namespace string) (nodes []services.Server
 			}
 			for _, node := range nodes {
 				cs.setTTL(node)
-				if err := cs.presence.UpsertNode(node); err != nil {
-					return nil, trace.Wrap(err)
-				}
 				keys = append(keys, nodeKey(namespace, node.GetName()))
+			}
+			if err := cs.presence.UpsertNodes(namespace, nodes); err != nil {
+				return nil, trace.Wrap(err)
 			}
 			return
 		},
