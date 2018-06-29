@@ -88,6 +88,14 @@ func Logger(l utils.Logger) optSetter {
 	}
 }
 
+// FlushInterval sets flush interval for streaming response
+func FlushInterval(t time.Duration) optSetter {
+	return func(f *Forwarder) error {
+		f.httpForwarder.flushInterval = t
+		return nil
+	}
+}
+
 // Forwarder wraps two traffic forwarding implementations: HTTP and websockets.
 // It decides based on the specified request which implementation to use
 type Forwarder struct {
@@ -105,9 +113,10 @@ type handlerContext struct {
 // httpForwarder is a handler that can reverse proxy
 // HTTP traffic
 type httpForwarder struct {
-	roundTripper http.RoundTripper
-	rewriter     ReqRewriter
-	passHost     bool
+	roundTripper  http.RoundTripper
+	rewriter      ReqRewriter
+	passHost      bool
+	flushInterval time.Duration
 }
 
 // websocketForwarder is a handler that can reverse proxy
@@ -173,23 +182,23 @@ func (f *httpForwarder) serveHTTP(w http.ResponseWriter, req *http.Request, ctx 
 	}
 
 	if req.TLS != nil {
-		ctx.log.Infof("Round trip: %v, code: %v, duration: %v tls:version: %x, tls:resume:%t, tls:csuite:%x, tls:server:%v",
-			req.URL, response.StatusCode, time.Now().UTC().Sub(start),
+		ctx.log.Infof("Round trip: %v %v, code: %v, duration: %v tls:version: %x, tls:resume:%t, tls:csuite:%x, tls:server:%v",
+			req.Method, req.URL, response.StatusCode, time.Now().UTC().Sub(start),
 			req.TLS.Version,
 			req.TLS.DidResume,
 			req.TLS.CipherSuite,
 			req.TLS.ServerName)
 	} else {
-		ctx.log.Infof("Round trip: %v, code: %v, duration: %v",
-			req.URL, response.StatusCode, time.Now().UTC().Sub(start))
+		ctx.log.Infof("Round trip: %v %v, code: %v, duration: %v",
+			req.Method, req.URL, response.StatusCode, time.Now().UTC().Sub(start))
 	}
 
 	utils.CopyHeaders(w.Header(), response.Header)
 	w.WriteHeader(response.StatusCode)
-	written, err := io.Copy(w, response.Body)
+	written, err := copyResponse(ctx, f.flushInterval, w, response.Body)
 	defer response.Body.Close()
 
-	if err != nil {
+	if err != nil && err != io.EOF {
 		ctx.log.Errorf("Error copying upstream response Body: %v", err)
 		ctx.errHandler.ServeHTTP(w, req, err)
 		return

@@ -265,11 +265,72 @@ func (s *FwdSuite) TestForwardedProto(c *C) {
 	c.Assert(strings.Contains(buf.String(), "tls"), Equals, true)
 }
 
+func (s *FwdSuite) TestFlush(c *C) {
+	srv := testutils.NewHandler(func(w http.ResponseWriter, req *http.Request) {
+		h := w.(http.Hijacker)
+		conn, _, _ := h.Hijack()
+		defer conn.Close()
+		data := "HTTP/1.1 200 OK\r\n" +
+			"Transfer-Encoding: chunked\r\n" +
+			"\r\n" +
+			"0a\r\n" +
+			"Body here\n\r\n"
+		fmt.Fprintf(conn, data)
+		time.Sleep(50 * time.Millisecond)
+		data = "09\r\n" +
+			"continued\r\n" +
+			"0\r\n" +
+			"\r\n"
+		fmt.Fprintf(conn, data)
+	})
+	defer srv.Close()
+
+	// Without flush interval this proxying fails, because client fails
+	// to receive data on the wire before request closes
+	f, err := New(FlushInterval(time.Millisecond))
+	c.Assert(err, IsNil)
+
+	proxy := testutils.NewHandler(func(w http.ResponseWriter, req *http.Request) {
+		req.URL = testutils.ParseURI(srv.URL)
+		f.ServeHTTP(w, req)
+	})
+	defer proxy.Close()
+
+	request, err := http.NewRequest("GET", proxy.URL, nil)
+	c.Assert(err, IsNil)
+	re, err := http.DefaultClient.Do(request)
+	c.Assert(err, IsNil)
+	buffer := make([]byte, 4096)
+loop:
+	for {
+		n, err := re.Body.Read(buffer)
+		if n != 0 {
+			val := string(buffer[:n])
+			// found the frame
+			if val == "continued" {
+				break loop
+			}
+		}
+		if err != nil {
+			c.Fatalf("Timeout waiting for the frame to arrive: %v", err)
+		}
+	}
+}
+
 func (s *FwdSuite) TestChunkedResponseConversion(c *C) {
 	srv := testutils.NewHandler(func(w http.ResponseWriter, req *http.Request) {
 		h := w.(http.Hijacker)
 		conn, _, _ := h.Hijack()
-		fmt.Fprintf(conn, "HTTP/1.0 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\ntest\r\n5\r\ntest1\r\n5\r\ntest2\r\n0\r\n\r\n")
+		data := "HTTP/1.1 200 OK\r\n" +
+			"Transfer-Encoding: chunked\r\n" +
+			"\r\n" +
+			"0a\r\n" +
+			"Body here\n\r\n" +
+			"09\r\n" +
+			"continued\r\n" +
+			"0\r\n" +
+			"\r\n"
+		fmt.Fprintf(conn, data)
 		conn.Close()
 	})
 	defer srv.Close()
@@ -285,9 +346,10 @@ func (s *FwdSuite) TestChunkedResponseConversion(c *C) {
 
 	re, body, err := testutils.Get(proxy.URL)
 	c.Assert(err, IsNil)
-	c.Assert(string(body), Equals, "testtest1test2")
+	expected := "Body here\ncontinued"
+	c.Assert(string(body), Equals, expected)
 	c.Assert(re.StatusCode, Equals, http.StatusOK)
-	c.Assert(re.Header.Get("Content-Length"), Equals, fmt.Sprintf("%d", len("testtest1test2")))
+	c.Assert(re.Header.Get("Content-Length"), Equals, fmt.Sprintf("%d", len(expected)))
 }
 
 func (s *FwdSuite) TestDetectsWebsocketRequest(c *C) {

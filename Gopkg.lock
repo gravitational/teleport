@@ -321,8 +321,8 @@
     "ratelimit",
     "utils"
   ]
-  revision = "5ee2776d4b3845fcc956508a171bbf1cbdb4fe1a"
-  version = "1.0.1"
+  revision = "e4a7e35311e6c4da4cf9e73c6a3d8cf523937211"
+  version = "1.0.2"
 
 [[projects]]
   name = "github.com/gravitational/reporting"
@@ -916,6 +916,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "4d680ed328cd1c599ebb3fd0e75e13b10482761fb3775badafbccd2a0ce3e2ab"
+  inputs-digest = "27cc87b56a789ad4cd6b07e910c2159416d60dc89e45b1a5f834cbc256957b21"
   solver-name = "gps-cdcl"
   solver-version = 1
