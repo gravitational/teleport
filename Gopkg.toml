@@ -22,6 +22,11 @@
 
 ignored = ["github.com/Sirupsen/logrus"]
 
+[prune]
+  go-tests = true
+  unused-packages = true
+  non-go = true
+
 [[constraint]]
   name = "github.com/alecthomas/template"
   branch = "master"
