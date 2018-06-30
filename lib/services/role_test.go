@@ -849,79 +849,146 @@ func (s *RoleSuite) TestCheckRuleSorting(c *C) {
 }
 
 func (s *RoleSuite) TestApplyTraits(c *C) {
-	var tests = []struct {
-		inTraits  map[string][]string
+	type rule struct {
 		inLogins  []string
 		outLogins []string
+		inLabels  map[string]string
+		outLabels map[string]string
+	}
+	var tests = []struct {
+		comment  string
+		inTraits map[string][]string
+		allow    rule
+		deny     rule
 	}{
-		// 0 - substitute in allow rule
+
 		{
-			map[string][]string{
+			comment: "substitute in allow rule",
+			inTraits: map[string][]string{
 				"foo": []string{"bar"},
 			},
-			[]string{`{{external.foo}}`, "root"},
-			[]string{"bar", "root"},
+			allow: rule{
+				inLogins:  []string{`{{external.foo}}`, "root"},
+				outLogins: []string{"bar", "root"},
+			},
 		},
-		// 1 - substitute in deny rule
 		{
-			map[string][]string{
+			comment: "substitute in deny rule",
+			inTraits: map[string][]string{
 				"foo": []string{"bar"},
 			},
-			[]string{`{{external.foo}}`},
-			[]string{"bar"},
+			deny: rule{
+				inLogins:  []string{`{{external.foo}}`},
+				outLogins: []string{"bar"},
+			},
 		},
-		// 2 - no variable in logins
+
 		{
-			map[string][]string{
+			comment: "no variable in logins",
+			inTraits: map[string][]string{
 				"foo": []string{"bar"},
 			},
-			[]string{"root"},
-			[]string{"root"},
+			allow: rule{
+				inLogins:  []string{"root"},
+				outLogins: []string{"root"},
+			},
 		},
-		// 3 - invalid variable in logins gets passed along
+
 		{
-			map[string][]string{
+			comment: "invalid variable in logins gets passed along",
+			inTraits: map[string][]string{
 				"foo": []string{"bar"},
 			},
-			[]string{`external.foo}}`},
-			[]string{`external.foo}}`},
+			allow: rule{
+				inLogins:  []string{`external.foo}}`},
+				outLogins: []string{`external.foo}}`},
+			},
 		},
-		// 4 - variable in logins, none in traits
 		{
-			map[string][]string{
+			comment: "variable in logins, none in traits",
+			inTraits: map[string][]string{
 				"foo": []string{"bar"},
 			},
-			[]string{`{{internal.bar}}`, "root"},
-			[]string{"root"},
+			allow: rule{
+				inLogins:  []string{`{{internal.bar}}`, "root"},
+				outLogins: []string{"root"},
+			},
 		},
-		// 5 - multiple variables in traits
 		{
-			map[string][]string{
+			comment: "multiple variables in traits",
+			inTraits: map[string][]string{
 				"logins": []string{"bar", "baz"},
 			},
-			[]string{`{{internal.logins}}`, "root"},
-			[]string{"bar", "baz", "root"},
+			allow: rule{
+				inLogins:  []string{`{{internal.logins}}`, "root"},
+				outLogins: []string{"bar", "baz", "root"},
+			},
 		},
-		// 6 - deduplicate
 		{
-			map[string][]string{
+			comment: "deduplicate",
+			inTraits: map[string][]string{
 				"foo": []string{"bar"},
 			},
-			[]string{`{{external.foo}}`, "bar"},
-			[]string{"bar"},
+			allow: rule{
+				inLogins:  []string{`{{external.foo}}`, "bar"},
+				outLogins: []string{"bar"},
+			},
 		},
-		// 7 - invalid unix login
 		{
-			map[string][]string{
+			comment: "invalid unix login",
+			inTraits: map[string][]string{
 				"foo": []string{"-foo"},
 			},
-			[]string{`{{external.foo}}`, "bar"},
-			[]string{"bar"},
+			allow: rule{
+				inLogins:  []string{`{{external.foo}}`, "bar"},
+				outLogins: []string{"bar"},
+			},
+		},
+		{
+			comment: "label substitute in allow and deny rule",
+			inTraits: map[string][]string{
+				"foo":   []string{"bar"},
+				"hello": []string{"there"},
+			},
+			allow: rule{
+				inLabels:  map[string]string{`{{external.foo}}`: "{{external.hello}}"},
+				outLabels: map[string]string{`bar`: "there"},
+			},
+			deny: rule{
+				inLabels:  map[string]string{`{{external.hello}}`: "{{external.foo}}"},
+				outLabels: map[string]string{`there`: "bar"},
+			},
+		},
+
+		{
+			comment: "missing node variables are set to empty during substitution",
+			inTraits: map[string][]string{
+				"foo": []string{"bar"},
+			},
+			allow: rule{
+				inLabels: map[string]string{
+					`{{external.foo}}`:     "value",
+					`{{external.missing}}`: "missing",
+					`missing`:              "{{external.missing}}",
+				},
+				outLabels: map[string]string{`bar`: "value", "missing": "", "": "missing"},
+			},
+		},
+
+		{
+			comment: "the first variable value is picked for labels",
+			inTraits: map[string][]string{
+				"foo": []string{"bar", "baz"},
+			},
+			allow: rule{
+				inLabels:  map[string]string{`{{external.foo}}`: "value"},
+				outLabels: map[string]string{`bar`: "value"},
+			},
 		},
 	}
 
 	for i, tt := range tests {
-		comment := Commentf("Test %v", i)
+		comment := Commentf("Test %v %v", i, tt.comment)
 
 		role := &RoleV3{
 			Kind:    KindRole,
@@ -932,12 +999,22 @@ func (s *RoleSuite) TestApplyTraits(c *C) {
 			},
 			Spec: RoleSpecV3{
 				Allow: RoleConditions{
-					Logins: tt.inLogins,
+					Logins:     tt.allow.inLogins,
+					NodeLabels: tt.allow.inLabels,
+				},
+				Deny: RoleConditions{
+					Logins:     tt.deny.inLogins,
+					NodeLabels: tt.deny.inLabels,
 				},
 			},
 		}
+
 		outRole := role.ApplyTraits(tt.inTraits)
-		c.Assert(outRole.GetLogins(Allow), DeepEquals, tt.outLogins, comment)
+		c.Assert(outRole.GetLogins(Allow), DeepEquals, tt.allow.outLogins, comment)
+		c.Assert(outRole.GetNodeLabels(Allow), DeepEquals, tt.allow.outLabels, comment)
+
+		c.Assert(outRole.GetLogins(Deny), DeepEquals, tt.deny.outLogins, comment)
+		c.Assert(outRole.GetNodeLabels(Deny), DeepEquals, tt.deny.outLabels, comment)
 	}
 }
 
