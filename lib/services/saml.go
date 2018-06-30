@@ -421,7 +421,7 @@ func (o *SAMLConnectorV2) GetAttributes() []string {
 	return utils.Deduplicate(out)
 }
 
-// MapClaims maps claims to roles
+// MapClaims maps SAML attributes to roles
 func (o *SAMLConnectorV2) MapAttributes(assertionInfo saml2.AssertionInfo) []string {
 	var roles []string
 	for _, mapping := range o.Spec.AttributesToRoles {
@@ -429,9 +429,23 @@ func (o *SAMLConnectorV2) MapAttributes(assertionInfo saml2.AssertionInfo) []str
 			if attr.Name != mapping.Name {
 				continue
 			}
+		mappingLoop:
 			for _, value := range attr.Values {
-				if value.Value == mapping.Value {
-					roles = append(roles, mapping.Roles...)
+				for _, role := range mapping.Roles {
+					outRole, err := utils.ReplaceRegexp(mapping.Value, role, value.Value)
+					switch {
+					case err != nil:
+						if !trace.IsNotFound(err) {
+							log.Debugf("Failed to match expression %v, replace with: %v input: %v, err: %v", mapping.Value, role, value.Value, err)
+						}
+						// if value input did not match, no need to apply
+						// to all roles
+						continue mappingLoop
+					case outRole == "":
+						// skip empty role matches
+					case outRole != "":
+						roles = append(roles, outRole)
+					}
 				}
 			}
 		}
@@ -781,7 +795,7 @@ type AttributeMapping struct {
 	Name string `json:"name"`
 	// Value is attribute statement value to match
 	Value string `json:"value"`
-	// Roles is a list of teleport roles to match
+	// Roles is a list of teleport roles to map to
 	Roles []string `json:"roles,omitempty"`
 	// RoleTemplate is a template for a role that will be filled
 	// with data from claims.

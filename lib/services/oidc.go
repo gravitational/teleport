@@ -31,6 +31,7 @@ import (
 	"github.com/coreos/go-oidc/jose"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
 )
 
 // OIDCConnector specifies configuration for Open ID Connect compatible external
@@ -371,15 +372,28 @@ func (o *OIDCConnectorV2) MapClaims(claims jose.Claims) []string {
 			if claimName != mapping.Claim {
 				continue
 			}
+			var claimValues []string
 			claimValue, ok, _ := claims.StringClaim(claimName)
-			if ok && claimValue == mapping.Value {
-				roles = append(roles, mapping.Roles...)
-			}
-			claimValues, ok, _ := claims.StringsClaim(claimName)
 			if ok {
-				for _, claimValue := range claimValues {
-					if claimValue == mapping.Value {
-						roles = append(roles, mapping.Roles...)
+				claimValues = []string{claimValue}
+			} else {
+				claimValues, _, _ = claims.StringsClaim(claimName)
+			}
+		claimLoop:
+			for _, claimValue := range claimValues {
+				for _, role := range mapping.Roles {
+					outRole, err := utils.ReplaceRegexp(mapping.Value, role, claimValue)
+					switch {
+					case err != nil:
+						if trace.IsNotFound(err) {
+							log.Debugf("Failed to match expression %v, replace with: %v input: %v, err: %v", mapping.Value, role, claimValue, err)
+						}
+						// this claim value clearly did not match, move on to another
+						continue claimLoop
+						// skip empty replacement or empty role
+					case outRole == "":
+					case outRole != "":
+						roles = append(roles, outRole)
 					}
 				}
 			}

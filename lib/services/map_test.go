@@ -128,6 +128,55 @@ func (s *RoleMapSuite) TestRoleMap(c *check.C) {
 				{Remote: Wildcard, Local: []string{"local-logs"}},
 			},
 		},
+		{
+			name:   "pattern capture match",
+			remote: []string{"remote-devs"},
+			local:  []string{"local-devs"},
+			roleMap: RoleMap{
+				{Remote: "remote-(*)", Local: []string{"local-$1"}},
+			},
+		},
+		{
+			name:   "passthrough match",
+			remote: []string{"remote-devs"},
+			local:  []string{"remote-devs"},
+			roleMap: RoleMap{
+				{Remote: "(.*)", Local: []string{"$1"}},
+			},
+		},
+		{
+			name:   "partial match",
+			remote: []string{"remote-devs", "something-else"},
+			local:  []string{"remote-devs"},
+			roleMap: RoleMap{
+				{Remote: "^(remote-.*)$", Local: []string{"$1"}},
+			},
+		},
+		{
+			name:   "partial empty expand section is removed",
+			remote: []string{"remote-devs"},
+			local:  []string{"remote-devs", "remote-"},
+			roleMap: RoleMap{
+				{Remote: "^(remote-.*)$", Local: []string{"$1", "remote-$2", "$2"}},
+			},
+		},
+		{
+			name:   "multiple matches yuield different results",
+			remote: []string{"remote-devs"},
+			local:  []string{"remote-devs", "test"},
+			roleMap: RoleMap{
+				{Remote: "^(remote-.*)$", Local: []string{"$1"}},
+				{Remote: `\Aremote-.*`, Local: []string{"test"}},
+			},
+		},
+		{
+			name:   "different expand groups can be referred",
+			remote: []string{"remote-devs"},
+			local:  []string{"remote-devs", "devs"},
+			roleMap: RoleMap{
+				{Remote: "^(remote-(.*))$", Local: []string{"$1", "$2"}},
+			},
+		},
 	}
 
 	for _, tc := range testCases {

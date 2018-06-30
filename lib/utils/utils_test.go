@@ -184,3 +184,184 @@ func (s *UtilsSuite) TestParseAdvertiseAddr(c *check.C) {
 		}
 	}
 }
+
+// TestReplaceGlobWildcard tests replacement of glob-style wildcard values
+// with regular expression compatible value
+func (s *UtilsSuite) TestReplaceGlobWildcard(c *check.C) {
+	testCases := []struct {
+		comment string
+		in      string
+		out     string
+	}{
+		{
+			comment: "simple values are not replaced",
+			in:      "value-value",
+			out:     "value-value",
+		},
+		{
+			comment: "wildcard and start of string is replaced with regexp wildcard expression",
+			in:      "*",
+			out:     ".*",
+		},
+		{
+			comment: "wildcard is replaced with regexp wildcard expression",
+			in:      "a-*-b-*",
+			out:     "a-.*-b-.*",
+		},
+		{
+			comment: "wildcard in regexp is not replaced",
+			in:      "a-.*-b-*",
+			out:     "a-.*-b-.*",
+		},
+	}
+	for i, testCase := range testCases {
+		comment := check.Commentf("test case %v %v", i, testCase.comment)
+		out := ReplaceGlobWildcard(testCase.in)
+		c.Assert(out, check.Equals, testCase.out, comment)
+	}
+}
+
+// TestReplaceRegexp tests regexp-style replacement of values
+func (s *UtilsSuite) TestReplaceRegexp(c *check.C) {
+	testCases := []struct {
+		comment string
+		expr    string
+		replace string
+		in      string
+		out     string
+		err     error
+	}{
+		{
+			comment: "simple values are replaced directly",
+			expr:    "value",
+			replace: "value",
+			in:      "value",
+			out:     "value",
+		},
+		{
+			comment: "no match returns explicit not found error",
+			expr:    "value",
+			replace: "value",
+			in:      "val",
+			err:     trace.NotFound(""),
+		},
+		{
+			comment: "empty value is no match",
+			expr:    "",
+			replace: "value",
+			in:      "value",
+			err:     trace.NotFound(""),
+		},
+		{
+			comment: "bad regexp results in bad parameter error",
+			expr:    "((",
+			replace: "value",
+			in:      "val",
+			err:     trace.BadParameter(""),
+		},
+		{
+			comment: "full match is supported",
+			expr:    "^value$",
+			replace: "value",
+			in:      "value",
+			out:     "value",
+		},
+		{
+			comment: "wildcard replaces to itself",
+			expr:    "(*)",
+			replace: "$1",
+			in:      "value",
+			out:     "value",
+		},
+		{
+			comment: "wildcard replaces to predefined value",
+			expr:    "*",
+			replace: "boo",
+			in:      "different",
+			out:     "boo",
+		},
+		{
+			comment: "wildcard replaces empty string to predefined value",
+			expr:    "*",
+			replace: "boo",
+			in:      "",
+			out:     "boo",
+		},
+		{
+			comment: "regexp wildcard replaces to itself",
+			expr:    "(.*)",
+			replace: "$1",
+			in:      "value",
+			out:     "value",
+		},
+		{
+			comment: "partial conversions are supported",
+			expr:    "test-(.*)",
+			replace: "replace-$1",
+			in:      "test-hello",
+			out:     "replace-hello",
+		},
+		{
+			comment: "partial conversions are supported",
+			expr:    "test-(.*)",
+			replace: "replace-$1",
+			in:      "test-hello",
+			out:     "replace-hello",
+		},
+	}
+	for i, testCase := range testCases {
+		comment := check.Commentf("test case %v %v", i, testCase.comment)
+		out, err := ReplaceRegexp(testCase.expr, testCase.replace, testCase.in)
+		if testCase.err == nil {
+			c.Assert(err, check.IsNil)
+			c.Assert(out, check.Equals, testCase.out, comment)
+		} else {
+			c.Assert(err, check.FitsTypeOf, testCase.err, comment)
+		}
+	}
+}
+
+// TestContainsExpansion tests whether string contains expansion value
+func (s *UtilsSuite) TestContainsExpansion(c *check.C) {
+	testCases := []struct {
+		comment  string
+		val      string
+		contains bool
+	}{
+		{
+			comment:  "detect simple expansion",
+			val:      "$1",
+			contains: true,
+		},
+		{
+			comment:  "escaping is honored",
+			val:      "$$",
+			contains: false,
+		},
+		{
+			comment:  "escaping is honored",
+			val:      "$$$$",
+			contains: false,
+		},
+		{
+			comment:  "escaping is honored",
+			val:      "$$$$$",
+			contains: false,
+		},
+		{
+			comment:  "escaping and expansion",
+			val:      "$$$$$1",
+			contains: true,
+		},
+		{
+			comment:  "expansion with brackets",
+			val:      "${100}",
+			contains: true,
+		},
+	}
+	for i, testCase := range testCases {
+		comment := check.Commentf("test case %v %v", i, testCase.comment)
+		contains := ContainsExpansion(testCase.val)
+		c.Assert(contains, check.Equals, testCase.contains, comment)
+	}
+}
