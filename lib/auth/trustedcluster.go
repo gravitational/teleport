@@ -149,6 +149,11 @@ func (a *AuthServer) UpsertTrustedCluster(trustedCluster services.TrustedCluster
 func (a *AuthServer) checkLocalRoles(roleMap services.RoleMap) error {
 	for _, mapping := range roleMap {
 		for _, localRole := range mapping.Local {
+			// expansion means dynamic mapping is in place,
+			// so local role is undefined
+			if utils.ContainsExpansion(localRole) {
+				continue
+			}
 			_, err := a.GetRole(localRole)
 			if err != nil {
 				if trace.IsNotFound(err) {

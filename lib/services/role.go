@@ -290,30 +290,11 @@ func ApplyTraits(r Role, traits map[string][]string) Role {
 
 		var outLogins []string
 		for _, login := range inLogins {
-			// Extract the variablePrefix and variableName from the role variable.
-			variablePrefix, variableName, err := parse.IsRoleVariable(login)
-
-			// If a variable was not found check if it's a valid Unix login. If it is
-			// a valid Unix login add it to the list of logins, otherwise skip.
-			if trace.IsNotFound(err) {
-				if !cstrings.IsValidUnixUser(login) {
-					log.Debugf("Skipping login %v, not a valid Unix login.", login)
-					continue
+			variableValues, err := applyValueTraits(login, traits)
+			if err != nil {
+				if !trace.IsNotFound(err) {
+					log.Debugf("Skipping login %v: %v.", login, err)
 				}
-				outLogins = append(outLogins, login)
-				continue
-			}
-
-			// For internal traits, only internal.logins is supported at the moment.
-			if variablePrefix == teleport.TraitInternalPrefix {
-				if variableName != teleport.TraitLogins {
-					continue
-				}
-			}
-
-			// If the variable is not found in the traits, skip it.
-			variableValues, ok := traits[variableName]
-			if !ok {
 				continue
 			}
 
@@ -330,9 +311,82 @@ func ApplyTraits(r Role, traits map[string][]string) Role {
 		}
 
 		r.SetLogins(condition, utils.Deduplicate(outLogins))
+
+		// apply templates to kubernetes groups
+		inKubeGroups := r.GetKubeGroups(condition)
+		var outKubeGroups []string
+		for _, group := range inKubeGroups {
+			variableValues, err := applyValueTraits(group, traits)
+			if err != nil {
+				if !trace.IsNotFound(err) {
+					log.Debugf("Skipping kube group %v: %v.", group, err)
+				}
+				continue
+			}
+			outKubeGroups = append(outKubeGroups, variableValues...)
+		}
+		r.SetKubeGroups(condition, utils.Deduplicate(outKubeGroups))
+
+		inLabels := r.GetNodeLabels(condition)
+		// to avoid unnecessary allocations
+		if inLabels != nil {
+			outLabels := make(map[string]string, len(inLabels))
+
+			// every key will be mapped to the first value
+			for key, val := range inLabels {
+				keyVars, err := applyValueTraits(key, traits)
+				if err != nil {
+					// empty key will not match anything
+					log.Debugf("Setting empty node label pair %q -> %q: %v", key, val, err)
+					keyVars = []string{""}
+				}
+
+				valVars, err := applyValueTraits(val, traits)
+				if err != nil {
+					log.Debugf("Setting empty node label value %q -> %q: %v", key, val, err)
+					// empty value will not match anything
+					valVars = []string{""}
+				}
+
+				outLabels[keyVars[0]] = valVars[0]
+			}
+			r.SetNodeLabels(condition, outLabels)
+		}
 	}
 
 	return r
+}
+
+// applyValueTraits applies the passed in traits to the variable,
+// returns BadParameter in case if referenced variable is unsupported,
+// returns NotFound in case if referenced trait is missing,
+// mapped list of values otherwise, the function guarantees to return
+// at least one value in case if return value is nil
+func applyValueTraits(val string, traits map[string][]string) ([]string, error) {
+	// Extract the variablePrefix and variableName from the role variable.
+	variablePrefix, variableName, err := parse.IsRoleVariable(val)
+
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+		return []string{val}, nil
+	}
+
+	// For internal traits, only internal.logins is supported at the moment.
+	if variablePrefix == teleport.TraitInternalPrefix {
+		if variableName != teleport.TraitLogins {
+			return nil, trace.BadParameter("unsupported variable %q", variableName)
+		}
+	}
+
+	// If the variable is not found in the traits, skip it.
+	variableValues, ok := traits[variableName]
+	if !ok || len(variableValues) == 0 {
+		return nil, trace.NotFound("variable %q not found in traits", variableName)
+	}
+
+	return append([]string{}, variableValues...), nil
 }
 
 // RoleV3 represents role resource specification
