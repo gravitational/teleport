@@ -181,6 +181,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/events", h.WithClusterAuth(h.siteSessionEventsGet)) // get recorded session's timing information (from events)
 	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/stream", h.siteSessionStreamGet)                    // get recorded session's bytes (from events)
 
+	// scp file transfer
+	h.GET("/webapi/sites/:site/namespaces/:namespace/nodes/:node/:login/scp/*filepath", h.WithClusterAuth(h.downloadFile))
+	h.POST("/webapi/sites/:site/namespaces/:namespace/nodes/:node/:login/scp/*filepath", h.WithClusterAuth(h.uploadFile))
+
 	// OIDC related callback handlers
 	h.GET("/webapi/oidc/login/web", httplib.MakeHandler(h.oidcLoginWeb))
 	h.POST("/webapi/oidc/login/console", httplib.MakeHandler(h.oidcLoginConsole))
@@ -1900,6 +1904,7 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 			logger.Warningf("no auth headers %v", err)
 			return nil, trace.AccessDenied("need auth")
 		}
+
 		if creds.Password != ctx.GetWebSession().GetBearerToken() {
 			logger.Warningf("bad bearer token")
 			return nil, trace.AccessDenied("bad bearer token")
