@@ -24,31 +24,33 @@ import NavLeftBar from './navLeftBar';
 import AjaxPoller from './dataProvider.jsx';
 import { Failed } from './msgPage.jsx';
 import Indicator from './indicator.jsx';
+import FileTransfer from './files';
 
 class App extends Component {
-      
-  render() {    
+
+  render() {
     const { router, initAttempt } = this.props;
     const { isProcessing, isSuccess, isFailed, message } = initAttempt;
-        
-    if (isProcessing) {      
+
+    if (isProcessing) {
       return <Indicator type={'bounce'} />
     }
 
-    
+
     if (isFailed) {
       return <Failed message={message}/>
     }
-    
+
     const className = classnames('grv-tlpt grv-flex grv-flex-row', {
       '--isLinux': platform.isLinux,
       '--isWin': platform.isWin,
-      '--isMac': platform.isMac      
+      '--isMac': platform.isMac
     })
 
     if (isSuccess) {
       return (
         <div className={className}>
+          <FileTransfer/>
           <AjaxPoller onFetch={refresh} time={3000}/>
           {this.props.CurrentSessionHost}
           <NavLeftBar router={router}/>
@@ -62,8 +64,8 @@ class App extends Component {
 }
 
 function mapStateToProps() {
-  return {    
-    initAttempt: appGetters.initAttempt      
+  return {
+    initAttempt: appGetters.initAttempt
   }
 }
 

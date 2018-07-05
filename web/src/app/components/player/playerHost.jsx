@@ -17,33 +17,44 @@ limitations under the License.
 import React from 'react';
 import { close } from 'app/flux/player/actions';
 import { Player } from './player';
-import PartyListPanel from './../partyListPanel';
 import { DocumentTitle } from './../documentTitle';
+import { CloseIcon } from './../icons';
 import cfg from 'app/config';
 
 class PlayerHost extends React.Component {
-        
+
   componentWillMount() {
-    const { sid, siteId } = this.props.params;        
-    this.url = cfg.api.getFetchSessionUrl({ siteId, sid });            
+    const { sid, siteId } = this.props.params;
+    this.url = cfg.api.getFetchSessionUrl({ siteId, sid });
   }
 
-  render() {        
+  render() {
     if (!this.url) {
       return null;
-    }        
+    }
 
-    const { siteId } = this.props.params;        
+    const { siteId } = this.props.params;
     const title = `${siteId} · Player`;
     return (
       <DocumentTitle title={title}>
         <div className="grv-terminalhost grv-session-player">
-          <PartyListPanel onClose={close} />         
+          <div className="grv-session-player-actions m-t-md">
+            <div title="Close" style={closeTextStyle} onClick={close}>
+              <CloseIcon />
+            </div>
+          </div>
           <Player url={this.url}/>
         </div>
       </DocumentTitle>
     );
-  }  
+  }
+}
+
+const closeTextStyle = {
+  width: "30px",
+  height: "30px",
+  display: "block",
+  margin: "0 auto"
 }
 
 export default PlayerHost;

@@ -20,47 +20,75 @@ import Terminal from 'app/lib/term/terminal';
 import { TermEventEnum } from 'app/lib/term/enums';
 import termGetters from 'app/flux/terminal/getters';
 import TtyAddressResolver from 'app/lib/term/ttyAddressResolver';
-import { initTerminal, updateRoute, close } from 'app/flux/terminal/actions';
+import * as terminalActions  from 'app/flux/terminal/actions';
 import * as playerActions from 'app/flux/player/actions';
-import PartyListPanel from './../partyListPanel';
+import * as ftActions from 'app/flux/fileTransfer/actions';
+import LeftMenu from './terminalActionBar';
 
 
 import Indicator from './../indicator.jsx';
 import PartyList from './terminalPartyList';
 
 class TerminalHost extends React.Component {
-    
+
   constructor(props){
-    super(props)        
+    super(props)
   }
 
-  componentDidMount() {    
-    setTimeout(() => initTerminal(this.props.routeParams), 0);        
-  }  
+  componentDidMount() {
+    setTimeout(() => terminalActions.initTerminal(this.props.routeParams), 0);
+  }
+
+  componentWillUnmount() {
+    ftActions.closeFileTransfer()
+  }
+
+  openFileTransferDialog = isUpload => {
+    const routeParams = this.props.routeParams;
+    const params = {
+      siteId: routeParams.siteId,
+      nodeId: routeParams.serverId,
+      login: routeParams.login
+    }
+
+    if (isUpload) {
+      ftActions.openUploadDialog(params);
+    } else {
+      ftActions.openDownloadDialog(params);
+    }
+  }
+
+  openUploadDialog = () => {
+    this.openFileTransferDialog(true);
+  }
+
+  openDownloadDialog = () => {
+    this.openFileTransferDialog(false);
+  }
 
   startNew = () => {
     const newRouteParams = {
       ...this.props.routeParams,
       sid: undefined
-    }      
-  
-    updateRoute(newRouteParams);    
-    initTerminal(newRouteParams);    
+    }
+
+    terminalActions.updateRoute(newRouteParams);
+    terminalActions.initTerminal(newRouteParams);
   }
-  
+
   replay = () => {
     const { siteId, sid } = this.props.routeParams;
     playerActions.open(siteId, sid);
   }
 
-  render() {        
-    let { store } = this.props;            
+  render() {
+    let { store } = this.props;
     let { status, sid } = store;
     let serverLabel = store.getServerLabel();
-    
+
     let $content = null;
     let $leftPanelContent = null;
-            
+
     if (status.isLoading) {
       $content = (<Indicator type="bounce" />);
     }
@@ -76,40 +104,40 @@ class TerminalHost extends React.Component {
           onNew={this.startNew} />);
     }
 
-    if (status.isReady) {      
+    if (status.isReady) {
       document.title = serverLabel;
       $content = (<TerminalContainer store={store}/>)
       $leftPanelContent = (<PartyList sid={sid} />);
-    } 
-            
+    }
+
     return (
       <div className="grv-terminalhost">
-        <PartyListPanel onClose={close}>
+        <LeftMenu>
           {$leftPanelContent}
-        </PartyListPanel>
+        </LeftMenu>
         <div className="grv-terminalhost-server-info">
            <h3>{serverLabel}</h3>
         </div>
-        {$content}               
+        {$content}
      </div>
     );
   }
 }
 
 class TerminalContainer extends React.Component {
-  
-  componentDidMount() {                
-    const options = this.props.store.getTtyParams();                
-    const addressResolver = new TtyAddressResolver(options);    
+
+  componentDidMount() {
+    const options = this.props.store.getTtyParams();
+    const addressResolver = new TtyAddressResolver(options);
     this.terminal = new Terminal({
       el: this.refs.container,
-      addressResolver      
+      addressResolver
     });
 
     this.terminal.open();
     this.terminal.tty.on(TermEventEnum.CLOSE, close);
   }
-  
+
   componentWillUnmount() {
     this.terminal.destroy();
   }
@@ -134,11 +162,11 @@ const ErrorIndicator = ({ text }) => (
 )
 
 const SidNotFoundError = ({onNew, onReplay}) => (
-  <div className="grv-terminalhost-indicator-error">    
+  <div className="grv-terminalhost-indicator-error">
     <div className="text-center">
-      <strong>The session is no longer active</strong>    
+      <strong>The session is no longer active</strong>
       <div className="m-t">
-        <button onClick={onNew} className="btn btn-sm btn-primary m-r"> Start New </button>        
+        <button onClick={onNew} className="btn btn-sm btn-primary m-r"> Start New </button>
         <button onClick={onReplay} className="btn btn-sm btn-primary"> Replay </button>
       </div>
     </div>
@@ -146,8 +174,8 @@ const SidNotFoundError = ({onNew, onReplay}) => (
 )
 
 function mapStateToProps() {
-  return {    
-    store: termGetters.store      
+  return {
+    store: termGetters.store
   }
 }
 

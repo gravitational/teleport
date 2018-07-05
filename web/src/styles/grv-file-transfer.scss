@@ -1,0 +1,93 @@
+.grv-file-transfer {
+  position: absolute;
+  max-height: 500px;
+  width: 600px;
+  background-color: #090B0A;
+  z-index: 4;
+  right: 0px;
+  color: white;
+
+  display: flex;
+  flex-direction: column;
+
+  $textColor: #28FE14;
+
+  .btn-file-transfer {
+    @include button-variant($textColor, #020303, #324148);
+    //min-width: 100px;
+    text-transform: uppercase;
+  }
+
+  .grv-file-transfer-input{
+    background-color: #151d20;
+    border-color: #020303;
+    color: $textColor;
+    @extend .form-control;
+    &:focus {
+      border-color: #8a8c8b !important;
+    }
+  }
+
+  .grv-file-transfer-download{
+    display: flex;
+  }
+
+  .grv-file-transfer-text{
+    color: $textColor;
+  }
+
+  .grv-file-transfer-content{
+    overflow: auto;
+    margin: 5px 0 10px 0;
+    overflow: auto;
+    flex: 1;
+    max-height: 150px;
+  }
+
+  .grv-file-transfer-file-list-cols{
+    display: flex;
+    :nth-child(1){
+      width: 400px;
+    }
+
+    :nth-child(2){
+      width: 100px;
+      text-align: center;
+    }
+  }
+
+  .grv-file-transfer-file-list-item{
+    display: flex;
+    margin: 0px 0 10px 0;
+
+    .grv-file-transfer-file-status{
+      text-align: center;
+      width: 100px;
+      color: #8e9497;
+    }
+
+    .grv-file-transfer-file-path{
+      width: 400px;
+      word-wrap: break-word;
+      word-break: break-all;
+      color: #8e9497;
+    }
+
+    .grv-file-transfer-file-close{
+      width: 40px;
+      text-align: center;
+      a{
+        color: $dark-gray;
+      }
+
+    }
+
+    &.--failed{
+      .grv-file-transfer-file-path,
+      .grv-file-transfer-file-status{
+        color: $red;
+      }
+    }
+
+  }
+}
