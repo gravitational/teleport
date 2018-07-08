@@ -128,6 +128,11 @@ type Server struct {
 	dataDir string
 }
 
+// GetClock returns server clock implementation
+func (s *Server) GetClock() clockwork.Clock {
+	return s.clock
+}
+
 // GetDataDir returns server data dir
 func (s *Server) GetDataDir() string {
 	return s.dataDir
@@ -822,7 +827,7 @@ func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, identityContext
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		io.Copy(conn, ch)
+		io.Copy(conn, srv.NewTrackingReader(ctx, ch))
 		conn.Close()
 	}()
 	wg.Wait()

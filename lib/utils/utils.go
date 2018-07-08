@@ -38,8 +38,21 @@ func AsBool(v string) bool {
 	if v == "" {
 		return false
 	}
-	out, _ := strconv.ParseBool(v)
+	out, _ := ParseBool(v)
 	return out
+}
+
+// ParseBool parses string as boolean value,
+// returns error in case if value is not recognized
+func ParseBool(value string) (bool, error) {
+	switch strings.ToLower(value) {
+	case "yes", "yeah", "y", "true", "1", "on":
+		return true, nil
+	case "no", "nope", "n", "false", "0", "off":
+		return false, nil
+	default:
+		return false, trace.BadParameter("unsupported value: %q", value)
+	}
 }
 
 // ParseAdvertiseAddress validates advertise address,

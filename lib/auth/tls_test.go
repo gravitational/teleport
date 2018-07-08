@@ -1118,7 +1118,7 @@ func (s *TLSSuite) TestGenerateCerts(c *check.C) {
 
 	// now update role to permit agent forwarding
 	roleOptions := userRole.GetOptions()
-	roleOptions.Set(services.ForwardAgent, true)
+	roleOptions.ForwardAgent = services.NewBool(true)
 	userRole.SetOptions(roleOptions)
 	err = s.server.Auth().UpsertRole(userRole, backend.Forever)
 	c.Assert(err, check.IsNil)
@@ -1182,7 +1182,7 @@ func (s *TLSSuite) TestCertificateFormat(c *check.C) {
 
 	for _, tt := range tests {
 		roleOptions := userRole.GetOptions()
-		roleOptions.Set(services.CertificateFormat, tt.inRoleCertificateFormat)
+		roleOptions.CertificateFormat = tt.inRoleCertificateFormat
 		userRole.SetOptions(roleOptions)
 		err := s.server.Auth().UpsertRole(userRole, backend.Forever)
 		c.Assert(err, check.IsNil)

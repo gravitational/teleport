@@ -119,6 +119,61 @@ func (s *ConfigTestSuite) TestSampleConfig(c *check.C) {
 	c.Assert(lib.IsInsecureDevMode(), check.Equals, false)
 }
 
+// TestBooleanParsing tests that boolean options
+// are parsed properly
+func (s *ConfigTestSuite) TestBooleanParsing(c *check.C) {
+	testCases := []struct {
+		s string
+		b bool
+	}{
+		{s: "true", b: true},
+		{s: "'true'", b: true},
+		{s: "yes", b: true},
+		{s: "'yes'", b: true},
+		{s: "'1'", b: true},
+		{s: "1", b: true},
+		{s: "no", b: false},
+		{s: "0", b: false},
+	}
+	for i, tc := range testCases {
+		comment := check.Commentf("test case %v", i)
+		conf, err := ReadFromString(base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf(`
+teleport:
+  advertise_ip: 10.10.10.1
+auth_service:
+  enabled: yes
+  disconnect_expired_cert: %v
+`, tc.s))))
+		c.Assert(err, check.IsNil)
+		c.Assert(conf.Auth.DisconnectExpiredCert.Value(), check.Equals, tc.b, comment)
+	}
+}
+
+// TestDurationParsing tests that duration options
+// are parsed properly
+func (s *ConfigTestSuite) TestDuration(c *check.C) {
+	testCases := []struct {
+		s string
+		d time.Duration
+	}{
+		{s: "1s", d: time.Second},
+		{s: "never", d: 0},
+		{s: "'1m'", d: time.Minute},
+	}
+	for i, tc := range testCases {
+		comment := check.Commentf("test case %v", i)
+		conf, err := ReadFromString(base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf(`
+teleport:
+  advertise_ip: 10.10.10.1
+auth_service:
+  enabled: yes
+  client_idle_timeout: %v
+`, tc.s))))
+		c.Assert(err, check.IsNil)
+		c.Assert(conf.Auth.ClientIdleTimeout.Value(), check.Equals, tc.d, comment)
+	}
+}
+
 func (s *ConfigTestSuite) TestConfigReading(c *check.C) {
 	// non-existing file:
 	conf, err := ReadFromFile("/heaven/trees/apple.ymL")
@@ -149,6 +204,8 @@ func (s *ConfigTestSuite) TestConfigReading(c *check.C) {
 	c.Assert(conf.Auth.Enabled(), check.Equals, true)
 	c.Assert(conf.Auth.ListenAddress, check.Equals, "tcp://auth")
 	c.Assert(conf.Auth.LicenseFile, check.Equals, "lic.pem")
+	c.Assert(conf.Auth.DisconnectExpiredCert.Value(), check.Equals, true)
+	c.Assert(conf.Auth.ClientIdleTimeout.Value(), check.Equals, 17*time.Second)
 	c.Assert(conf.SSH.Configured(), check.Equals, true)
 	c.Assert(conf.SSH.Enabled(), check.Equals, true)
 	c.Assert(conf.SSH.ListenAddress, check.Equals, "tcp://ssh")
@@ -575,6 +632,8 @@ func makeConfigFixture() string {
 	conf.Auth.EnabledFlag = "Yeah"
 	conf.Auth.ListenAddress = "tcp://auth"
 	conf.Auth.LicenseFile = "lic.pem"
+	conf.Auth.ClientIdleTimeout = services.NewDuration(17 * time.Second)
+	conf.Auth.DisconnectExpiredCert = services.NewBool(true)
 
 	// ssh service:
 	conf.SSH.EnabledFlag = "true"

@@ -183,19 +183,19 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 		},
 		{
 			name: "role with no spec still gets defaults",
-			in:   `{"kind": "role", "version": "v3", "metadata": {"name": "name1"}, "spec": {}}`,
+			in:   `{"kind": "role", "version": "v3", "metadata": {"name": "defrole"}, "spec": {}}`,
 			role: RoleV3{
 				Kind:    KindRole,
 				Version: V3,
 				Metadata: Metadata{
-					Name:      "name1",
+					Name:      "defrole",
 					Namespace: defaults.Namespace,
 				},
 				Spec: RoleSpecV3{
 					Options: RoleOptions{
 						CertificateFormat: teleport.CertificateFormatStandard,
 						MaxSessionTTL:     NewDuration(defaults.MaxCertDuration),
-						PortForwarding:    true,
+						PortForwarding:    NewBoolOption(true),
 					},
 					Allow: RoleConditions{
 						NodeLabels: map[string]string{Wildcard: Wildcard},
@@ -218,7 +218,9 @@ func (s *RoleSuite) TestRoleParse(c *C) {
                  "options": {
                    "cert_format": "standard",
                    "max_session_ttl": "20h",
-                   "port_forwarding": true
+                   "port_forwarding": true,
+                   "client_idle_timeout": "17m",
+                   "disconnect_expired_cert": "yes"
                  },
                  "allow": {
                    "node_labels": {"a": "b"},
@@ -248,9 +250,83 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 				},
 				Spec: RoleSpecV3{
 					Options: RoleOptions{
-						CertificateFormat: teleport.CertificateFormatStandard,
-						MaxSessionTTL:     NewDuration(20 * time.Hour),
-						PortForwarding:    true,
+						CertificateFormat:     teleport.CertificateFormatStandard,
+						MaxSessionTTL:         NewDuration(20 * time.Hour),
+						PortForwarding:        NewBoolOption(true),
+						ClientIdleTimeout:     NewDuration(17 * time.Minute),
+						DisconnectExpiredCert: NewBool(true),
+					},
+					Allow: RoleConditions{
+						NodeLabels: map[string]string{"a": "b"},
+						Namespaces: []string{"default"},
+						Rules: []Rule{
+							Rule{
+								Resources: []string{KindRole},
+								Verbs:     []string{VerbRead, VerbList},
+								Where:     "contains(user.spec.traits[\"groups\"], \"prod\")",
+								Actions: []string{
+									"log(\"info\", \"log entry\")",
+								},
+							},
+						},
+					},
+					Deny: RoleConditions{
+						Namespaces: []string{defaults.Namespace},
+						Logins:     []string{"c"},
+					},
+				},
+			},
+			error: nil,
+		},
+		{
+			name: "alternative options forma",
+			in: `{
+		      "kind": "role",
+		      "version": "v3",
+		      "metadata": {"name": "name1"},
+		      "spec": {
+                 "options": {
+                   "cert_format": "standard",
+                   "max_session_ttl": "20h",
+                   "port_forwarding": "yes",
+                   "forward_agent": "yes",
+                   "client_idle_timeout": "never",
+                   "disconnect_expired_cert": "no"
+                 },
+                 "allow": {
+                   "node_labels": {"a": "b"},
+                   "namespaces": ["default"],
+                   "rules": [
+                     {
+                       "resources": ["role"],
+                       "verbs": ["read", "list"],
+                       "where": "contains(user.spec.traits[\"groups\"], \"prod\")",
+                       "actions": [
+                          "log(\"info\", \"log entry\")"
+                       ]
+                     }
+                   ]
+                 },
+                 "deny": {
+                   "logins": ["c"]
+                 }
+		      }
+		    }`,
+			role: RoleV3{
+				Kind:    KindRole,
+				Version: V3,
+				Metadata: Metadata{
+					Name:      "name1",
+					Namespace: defaults.Namespace,
+				},
+				Spec: RoleSpecV3{
+					Options: RoleOptions{
+						CertificateFormat:     teleport.CertificateFormatStandard,
+						ForwardAgent:          NewBool(true),
+						MaxSessionTTL:         NewDuration(20 * time.Hour),
+						PortForwarding:        NewBoolOption(true),
+						ClientIdleTimeout:     NewDuration(0),
+						DisconnectExpiredCert: NewBool(false),
 					},
 					Allow: RoleConditions{
 						NodeLabels: map[string]string{"a": "b"},
@@ -293,7 +369,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 
 			role2, err := UnmarshalRole(out)
 			c.Assert(err, IsNil, comment)
-			c.Assert(*role2, DeepEquals, tc.role, comment)
+			fixtures.DeepCompare(c, *role2, tc.role)
 		}
 	}
 }
