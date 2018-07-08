@@ -93,8 +93,8 @@ func NewAdminRole() Role {
 			Options: RoleOptions{
 				CertificateFormat: teleport.CertificateFormatStandard,
 				MaxSessionTTL:     NewDuration(defaults.MaxCertDuration),
-				PortForwarding:    true,
-				ForwardAgent:      true,
+				PortForwarding:    NewBoolOption(true),
+				ForwardAgent:      NewBool(true),
 			},
 			Allow: RoleConditions{
 				Namespaces: []string{defaults.Namespace},
@@ -142,8 +142,8 @@ func RoleForUser(u User) Role {
 			Options: RoleOptions{
 				CertificateFormat: teleport.CertificateFormatStandard,
 				MaxSessionTTL:     NewDuration(defaults.MaxCertDuration),
-				PortForwarding:    true,
-				ForwardAgent:      true,
+				PortForwarding:    NewBoolOption(true),
+				ForwardAgent:      NewBool(true),
 			},
 			Allow: RoleConditions{
 				Namespaces: []string{defaults.Namespace},
@@ -205,25 +205,6 @@ type Access interface {
 	// DeleteRole deletes role by name
 	DeleteRole(name string) error
 }
-
-// TODO: [ev] can we please define a RoleOption type (instead of using strings)
-// and use RoleOption prefix for naming these? It's impossible right now to find
-// all possible role options.
-const (
-	// ForwardAgent is SSH agent forwarding.
-	ForwardAgent = "forward_agent"
-
-	// MaxSessionTTL defines how long a SSH session can last for.
-	MaxSessionTTL = "max_session_ttl"
-
-	// PortForwarding defines if the certificate will have "permit-port-forwarding"
-	// in the certificate.
-	PortForwarding = "port_forwarding"
-
-	// CertificateFormat defines the format of the user certificate to allow
-	// compatibility with older versions of OpenSSH.
-	CertificateFormat = "cert_format"
-)
 
 const (
 	// Allow is the set of conditions that allow access.
@@ -484,7 +465,7 @@ func (r *RoleV3) GetOptions() RoleOptions {
 
 // SetOptions sets role options.
 func (r *RoleV3) SetOptions(options RoleOptions) {
-	r.Spec.Options = utils.CopyStringMapInterface(options)
+	r.Spec.Options = options
 }
 
 // GetLogins gets system logins for allow or deny condition.
@@ -590,12 +571,14 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 	}
 
 	// make sure we have defaults for all fields
-	if r.Spec.Options == nil {
-		r.Spec.Options = map[string]interface{}{
-			CertificateFormat: teleport.CertificateFormatStandard,
-			MaxSessionTTL:     NewDuration(defaults.MaxCertDuration),
-			PortForwarding:    true,
-		}
+	if r.Spec.Options.CertificateFormat == "" {
+		r.Spec.Options.CertificateFormat = teleport.CertificateFormatStandard
+	}
+	if r.Spec.Options.MaxSessionTTL.Value() == 0 {
+		r.Spec.Options.MaxSessionTTL = NewDuration(defaults.MaxCertDuration)
+	}
+	if r.Spec.Options.PortForwarding == nil {
+		r.Spec.Options.PortForwarding = NewBoolOption(true)
 	}
 	if r.Spec.Allow.Namespaces == nil {
 		r.Spec.Allow.Namespaces = []string{defaults.Namespace}
@@ -620,15 +603,8 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 	}
 
 	// check and correct the session ttl
-	maxSessionTTL, err := r.Spec.Options.GetDuration(MaxSessionTTL)
-	if err != nil {
-		return trace.BadParameter("invalid duration: %v", err)
-	}
-	if maxSessionTTL.Duration == 0 {
-		r.Spec.Options.Set(MaxSessionTTL, NewDuration(defaults.MaxCertDuration))
-	}
-	if maxSessionTTL.Duration < defaults.MinCertDuration {
-		return trace.BadParameter("maximum session TTL can not be less than, minimal certificate duration")
+	if r.Spec.Options.MaxSessionTTL.Value() <= 0 {
+		r.Spec.Options.MaxSessionTTL = NewDuration(defaults.MaxCertDuration)
 	}
 
 	// restrict wildcards
@@ -673,100 +649,40 @@ type RoleSpecV3 struct {
 	Deny RoleConditions `json:"deny,omitempty"`
 }
 
-// RoleOptions are key/value pairs that always exist for a role.
-type RoleOptions map[string]interface{}
+// RoleOptions is a set of role options
+type RoleOptions struct {
+	// ForwardAgent is SSH agent forwarding.
+	ForwardAgent Bool `json:"forward_agent"`
 
-// UnmarshalJSON is used when parsing RoleV3 to convert MaxSessionTTL into the
-// correct type.
-func (o *RoleOptions) UnmarshalJSON(data []byte) error {
-	var raw map[string]interface{}
-	err := json.Unmarshal(data, &raw)
-	if err != nil {
-		return err
-	}
+	// MaxSessionTTL defines how long a SSH session can last for.
+	MaxSessionTTL Duration `json:"max_session_ttl"`
 
-	rmap := make(map[string]interface{})
-	for k, v := range raw {
-		switch k {
-		case MaxSessionTTL:
-			d, err := time.ParseDuration(v.(string))
-			if err != nil {
-				return err
-			}
-			rmap[MaxSessionTTL] = NewDuration(d)
-		default:
-			rmap[k] = v
-		}
-	}
+	// PortForwarding defines if the certificate will have "permit-port-forwarding"
+	// in the certificate. PortForwarding is "yes" if not set,
+	// that's why this is a pointer
+	PortForwarding *Bool `json:"port_forwarding,omitempty"`
 
-	*o = rmap
-	return nil
-}
+	// CertificateFormat defines the format of the user certificate to allow
+	// compatibility with older versions of OpenSSH.
+	CertificateFormat string `json:"cert_format"`
 
-// Set an option key/value pair.
-func (o RoleOptions) Set(key string, value interface{}) {
-	o[key] = value
-}
+	// ClientIdleTimeout sets disconnect clients on idle timeout behavior,
+	// if set to 0 means do not disconnect, otherwise is set to the idle
+	// duration.
+	ClientIdleTimeout Duration `json:"client_idle_timeout"`
 
-// Get returns the option as an interface{}, it is the responsibility of the
-// caller to convert to the correct type.
-func (o RoleOptions) Get(key string) (interface{}, error) {
-	valueI, ok := o[key]
-	if !ok {
-		return nil, trace.NotFound("key %q not found in options", key)
-	}
-
-	return valueI, nil
-}
-
-// GetString returns the option as a string or returns an error.
-func (o RoleOptions) GetString(key string) (string, error) {
-	valueI, ok := o[key]
-	if !ok {
-		return "", trace.NotFound("key %q not found in options", key)
-	}
-
-	value, ok := valueI.(string)
-	if !ok {
-		return "", trace.BadParameter("type %T for key %q is not a string", valueI, key)
-	}
-
-	return value, nil
-}
-
-// GetBoolean returns the option as a bool or returns an error.
-func (o RoleOptions) GetBoolean(key string) (bool, error) {
-	valueI, ok := o[key]
-	if !ok {
-		return false, trace.NotFound("key %q not found in options", key)
-	}
-
-	value, ok := valueI.(bool)
-	if !ok {
-		return false, trace.BadParameter("type %T for key %q is not a bool", valueI, key)
-	}
-
-	return value, nil
-}
-
-// GetDuration returns the option as a services.Duration or returns an error.
-func (o RoleOptions) GetDuration(key string) (Duration, error) {
-	valueI, ok := o[key]
-	if !ok {
-		return NewDuration(defaults.MinCertDuration), trace.NotFound("key %q not found in options", key)
-	}
-
-	value, ok := valueI.(Duration)
-	if !ok {
-		return NewDuration(defaults.MinCertDuration), trace.BadParameter("type %T for key %q is not a Duration", valueI, key)
-	}
-
-	return value, nil
+	// DisconnectExpiredCert sets disconnect clients on expired certificates.
+	DisconnectExpiredCert Bool `json:"disconnect_expired_cert"`
 }
 
 // Equals checks if all the key/values in the RoleOptions map match.
 func (o RoleOptions) Equals(other RoleOptions) bool {
-	return utils.InterfaceMapsEqual(o, other)
+	return (o.ForwardAgent.Value() == other.ForwardAgent.Value() &&
+		o.MaxSessionTTL.Value() == other.MaxSessionTTL.Value() &&
+		BoolOption(o.PortForwarding).Value() == BoolOption(other.PortForwarding).Value() &&
+		o.CertificateFormat == other.CertificateFormat &&
+		o.ClientIdleTimeout.Value() == other.ClientIdleTimeout.Value() &&
+		o.DisconnectExpiredCert.Value() == other.DisconnectExpiredCert.Value())
 }
 
 // RoleConditions is a set of conditions that must all match to be allowed or
@@ -1212,7 +1128,7 @@ func (r *RoleV2) CheckAndSetDefaults() error {
 		r.Spec.MaxSessionTTL.Duration = defaults.MaxCertDuration
 	}
 	if r.Spec.MaxSessionTTL.Duration < defaults.MinCertDuration {
-		return trace.BadParameter("maximum session TTL can not be less than")
+		return trace.BadParameter("maximum session TTL can not be less than %v", defaults.MinCertDuration)
 	}
 	if r.Spec.Namespaces == nil {
 		r.Spec.Namespaces = []string{defaults.Namespace}
@@ -1255,7 +1171,7 @@ func (r *RoleV2) V3() *RoleV3 {
 			Options: RoleOptions{
 				CertificateFormat: teleport.CertificateFormatStandard,
 				MaxSessionTTL:     r.GetMaxSessionTTL(),
-				PortForwarding:    true,
+				PortForwarding:    NewBoolOption(true),
 			},
 			Allow: RoleConditions{
 				Logins:     r.GetLogins(),
@@ -1268,7 +1184,7 @@ func (r *RoleV2) V3() *RoleV3 {
 
 	// translate old v2 agent forwarding to a v3 option
 	if r.CanForwardAgent() {
-		role.Spec.Options[ForwardAgent] = true
+		role.Spec.Options.ForwardAgent = NewBool(true)
 	}
 
 	// translate old v2 resources to v3 rules
@@ -1348,6 +1264,15 @@ type AccessChecker interface {
 	// AdjustSessionTTL will reduce the requested ttl to lowest max allowed TTL
 	// for this role set, otherwise it returns ttl unchanged
 	AdjustSessionTTL(ttl time.Duration) time.Duration
+
+	// AdjustClientIdleTimeout adjusts requested idle timeout
+	// to the lowest max allowed timeout, the most restricive
+	// option will be picked
+	AdjustClientIdleTimeout(ttl time.Duration) time.Duration
+
+	// AdjustDisconnectExpiredCert adjusts the value based on the role set
+	// the most restrictive option will be picked
+	AdjustDisconnectExpiredCert(disconnect bool) bool
 
 	// CheckAgentForward checks if the role can request agent forward for this
 	// user.
@@ -1503,18 +1428,52 @@ func (set RoleSet) HasRole(role string) bool {
 }
 
 // AdjustSessionTTL will reduce the requested ttl to lowest max allowed TTL
-// for this role set, otherwise it returns ttl unchanges
+// for this role set, otherwise it returns ttl unchanged
 func (set RoleSet) AdjustSessionTTL(ttl time.Duration) time.Duration {
 	for _, role := range set {
-		maxSessionTTL, err := role.GetOptions().GetDuration(MaxSessionTTL)
-		if err != nil {
-			continue
-		}
-		if ttl > maxSessionTTL.Duration {
-			ttl = maxSessionTTL.Duration
+		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
+		if maxSessionTTL != 0 && ttl > maxSessionTTL {
+			ttl = maxSessionTTL
 		}
 	}
 	return ttl
+}
+
+// AdjustClientIdleTimeout adjusts requested idle timeout
+// to the lowest max allowed timeout, the most restrictive
+// option will be picked, negative values will be assumed as 0
+func (set RoleSet) AdjustClientIdleTimeout(timeout time.Duration) time.Duration {
+	if timeout < 0 {
+		timeout = 0
+	}
+	for _, role := range set {
+		roleTimeout := role.GetOptions().ClientIdleTimeout
+		// 0 means not set, so it can't be most restrictive, disregard it too
+		if roleTimeout.Duration <= 0 {
+			continue
+		}
+		switch {
+		// in case if timeout is 0, means that incoming value
+		// does not restrict the idle timeout, pick any other value
+		// set by the role
+		case timeout == 0:
+			timeout = roleTimeout.Duration
+		case roleTimeout.Duration < timeout:
+			timeout = roleTimeout.Duration
+		}
+	}
+	return timeout
+}
+
+// AdjustDisconnectExpiredCert adjusts the value based on the role set
+// the most restrictive option will be picked
+func (set RoleSet) AdjustDisconnectExpiredCert(disconnect bool) bool {
+	for _, role := range set {
+		if role.GetOptions().DisconnectExpiredCert.Value() {
+			disconnect = true
+		}
+	}
+	return disconnect
 }
 
 // CheckKubeGroups check if role can login into kubernetes
@@ -1523,13 +1482,9 @@ func (set RoleSet) CheckKubeGroups(ttl time.Duration) ([]string, error) {
 	groups := make(map[string]bool)
 	var matchedTTL bool
 	for _, role := range set {
-		maxSessionTTL, err := role.GetOptions().GetDuration(MaxSessionTTL)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if ttl <= maxSessionTTL.Duration && maxSessionTTL.Duration != 0 {
+		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
+		if ttl <= maxSessionTTL && maxSessionTTL != 0 {
 			matchedTTL = true
-
 			for _, group := range role.GetKubeGroups(Allow) {
 				groups[group] = true
 			}
@@ -1554,11 +1509,8 @@ func (set RoleSet) CheckLoginDuration(ttl time.Duration) ([]string, error) {
 	logins := make(map[string]bool)
 	var matchedTTL bool
 	for _, role := range set {
-		maxSessionTTL, err := role.GetOptions().GetDuration(MaxSessionTTL)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if ttl <= maxSessionTTL.Duration && maxSessionTTL.Duration != 0 {
+		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
+		if ttl <= maxSessionTTL && maxSessionTTL != 0 {
 			matchedTTL = true
 
 			for _, login := range role.GetLogins(Allow) {
@@ -1622,11 +1574,7 @@ func (set RoleSet) CheckAccessToServer(login string, s Server) error {
 // CanForwardAgents returns true if role set allows forwarding agents.
 func (set RoleSet) CanForwardAgents() bool {
 	for _, role := range set {
-		forwardAgent, err := role.GetOptions().GetBoolean(ForwardAgent)
-		if err != nil {
-			return false
-		}
-		if forwardAgent == true {
+		if role.GetOptions().ForwardAgent.Value() {
 			return true
 		}
 	}
@@ -1636,11 +1584,7 @@ func (set RoleSet) CanForwardAgents() bool {
 // CanPortForward returns true if a role in the RoleSet allows port forwarding.
 func (set RoleSet) CanPortForward() bool {
 	for _, role := range set {
-		portForwarding, err := role.GetOptions().GetBoolean(PortForwarding)
-		if err != nil {
-			return false
-		}
-		if portForwarding == true {
+		if BoolOption(role.GetOptions().PortForwarding).Value() {
 			return true
 		}
 	}
@@ -1655,8 +1599,8 @@ func (set RoleSet) CertificateFormat() string {
 	for _, role := range set {
 		// get the certificate format for each individual role. if a role does not
 		// have a certificate format (like implicit roles) skip over it
-		certificateFormat, err := role.GetOptions().GetString(CertificateFormat)
-		if err != nil {
+		certificateFormat := role.GetOptions().CertificateFormat
+		if certificateFormat == "" {
 			continue
 		}
 
@@ -1697,11 +1641,7 @@ func (set RoleSet) CheckAgentForward(login string) error {
 	// in the first place.
 	for _, role := range set {
 		for _, l := range role.GetLogins(Allow) {
-			forwardAgent, err := role.GetOptions().GetBoolean(ForwardAgent)
-			if err != nil {
-				return trace.AccessDenied("unable to parse ForwardAgent: %v", err)
-			}
-			if forwardAgent && l == login {
+			if role.GetOptions().ForwardAgent.Value() && l == login {
 				return nil
 			}
 		}
@@ -1780,6 +1720,87 @@ func NewDuration(d time.Duration) Duration {
 	return Duration{Duration: d}
 }
 
+// NewBool returns Bool struct based on bool value
+func NewBool(b bool) Bool {
+	return Bool{bool: b}
+}
+
+// NewBoolOption returns Bool struct based on bool value
+func NewBoolOption(b bool) *Bool {
+	return &Bool{bool: b}
+}
+
+// BoolOption converts bool pointer to Bool value
+// returns equivalent of false if not set
+func BoolOption(v *Bool) Bool {
+	if v == nil {
+		return Bool{}
+	}
+	return *v
+}
+
+// Bool is a wrapper around boolean values
+type Bool struct {
+	bool
+}
+
+// Value returns boolean value of the wrapper
+func (b Bool) Value() bool {
+	return b.bool
+}
+
+// MarshalJSON marshals Duration to string
+func (b Bool) MarshalJSON() ([]byte, error) {
+	return json.Marshal(fmt.Sprintf("%t", b.bool))
+}
+
+// UnmarshalJSON unmarshals JSON from string or bool,
+// in case if value is missing or not recognized, defaults to false
+func (b *Bool) UnmarshalJSON(data []byte) error {
+	if len(data) == 0 {
+		return nil
+	}
+	// check if it's a bool variable
+	if err := json.Unmarshal(data, &b.bool); err == nil {
+		return nil
+	}
+	// also support string variables
+	var stringVar string
+	if err := json.Unmarshal(data, &stringVar); err != nil {
+		return trace.Wrap(err)
+	}
+	v, err := utils.ParseBool(stringVar)
+	if err != nil {
+		b.bool = false
+		return nil
+	}
+	b.bool = v
+	return nil
+}
+
+// MarshalYAML marshals bool into yaml value
+func (b Bool) MarshalYAML() (interface{}, error) {
+	return b.bool, nil
+}
+
+func (b *Bool) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var boolVar bool
+	if err := unmarshal(&boolVar); err == nil {
+		b.bool = boolVar
+	}
+	var stringVar string
+	if err := unmarshal(&stringVar); err != nil {
+		return trace.Wrap(err)
+	}
+	v, err := utils.ParseBool(stringVar)
+	if err != nil {
+		b.bool = v
+		return nil
+	}
+	b.bool = v
+	return nil
+}
+
 // Duration is a wrapper around duration to set up custom marshal/unmarshal
 type Duration struct {
 	time.Duration
@@ -1788,6 +1809,11 @@ type Duration struct {
 // MarshalJSON marshals Duration to string
 func (d Duration) MarshalJSON() ([]byte, error) {
 	return json.Marshal(fmt.Sprintf("%v", d.Duration))
+}
+
+// Value returns time.Duration value of this wrapper
+func (d Duration) Value() time.Duration {
+	return d.Duration
 }
 
 // UnmarshalJSON marshals Duration to string
@@ -1799,12 +1825,22 @@ func (d *Duration) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &stringVar); err != nil {
 		return trace.Wrap(err)
 	}
-	out, err := time.ParseDuration(stringVar)
-	if err != nil {
-		return trace.BadParameter(err.Error())
+	if stringVar == teleport.DurationNever {
+		d.Duration = 0
+	} else {
+		out, err := time.ParseDuration(stringVar)
+		if err != nil {
+			return trace.BadParameter(err.Error())
+		}
+		d.Duration = out
 	}
-	d.Duration = out
 	return nil
+}
+
+// MarshalYAML marshals duration into YAML value,
+// encodes it as a string in format "1m"
+func (d Duration) MarshalYAML() (interface{}, error) {
+	return fmt.Sprintf("%v", d.Duration), nil
 }
 
 func (d *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
@@ -1812,11 +1848,15 @@ func (d *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal(&stringVar); err != nil {
 		return trace.Wrap(err)
 	}
-	out, err := time.ParseDuration(stringVar)
-	if err != nil {
-		return trace.BadParameter(err.Error())
+	if stringVar == teleport.DurationNever {
+		d.Duration = 0
+	} else {
+		out, err := time.ParseDuration(stringVar)
+		if err != nil {
+			return trace.BadParameter(err.Error())
+		}
+		d.Duration = out
 	}
-	d.Duration = out
 	return nil
 }
 

@@ -302,6 +302,9 @@ const (
 	// CertificateFormatUnspecified is used to check if the format was specified
 	// or not.
 	CertificateFormatUnspecified = ""
+
+	// DurationNever is human friendly shortcut that is interpreted as a Duration of 0
+	DurationNever = "never"
 )
 
 const (

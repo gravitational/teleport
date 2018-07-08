@@ -17,10 +17,12 @@ limitations under the License.
 package srv
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -33,8 +35,9 @@ import (
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -75,6 +78,9 @@ type Server interface {
 
 	// GetPAM returns PAM configuration for this server.
 	GetPAM() (*pam.Config, error)
+
+	// GetClock returns a clock setup for the server
+	GetClock() clockwork.Clock
 }
 
 // IdentityContext holds all identity information associated with the user
@@ -96,6 +102,10 @@ type IdentityContext struct {
 	// RoleSet is the roles this Teleport user is associated with. RoleSet is
 	// used to check RBAC permissions.
 	RoleSet services.RoleSet
+
+	// CertValidBefore is set to the expiry time of a certificate, or
+	// empty, if cert does not expire
+	CertValidBefore time.Time
 }
 
 // GetCertificate parses the SSH certificate bytes and returns a *ssh.Certificate.
@@ -183,6 +193,23 @@ type ServerContext struct {
 	// RemoteSession holds a SSH session to a remote server. Only used by the
 	// recording proxy.
 	RemoteSession *ssh.Session
+
+	// clientLastActive records the last time there was activity from the client
+	clientLastActive time.Time
+
+	// disconnectExpiredCert is set to time when/if the certificate should
+	// be disconnected, set to empty if no disconect is necessary
+	disconnectExpiredCert time.Time
+
+	// clientIdleTimeout is set to the timeout on
+	// on client inactivity, set to 0 if not setup
+	clientIdleTimeout time.Duration
+
+	// cancelContext signals closure to all outstanding operations
+	cancelContext context.Context
+
+	// cancel is called whenever server context is closed
+	cancel context.CancelFunc
 }
 
 // NewServerContext creates a new *ServerContext which is used to pass and
@@ -192,6 +219,8 @@ func NewServerContext(srv Server, conn *ssh.ServerConn, identityContext Identity
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	cancelContext, cancel := context.WithCancel(context.TODO())
 
 	ctx := &ServerContext{
 		id:                int(atomic.AddInt32(&ctxID, int32(1))),
@@ -203,18 +232,37 @@ func NewServerContext(srv Server, conn *ssh.ServerConn, identityContext Identity
 		ClusterName:       conn.Permissions.Extensions[utils.CertTeleportClusterName],
 		ClusterConfig:     clusterConfig,
 		Identity:          identityContext,
+		clientIdleTimeout: identityContext.RoleSet.AdjustClientIdleTimeout(clusterConfig.GetClientIdleTimeout()),
+		cancelContext:     cancelContext,
+		cancel:            cancel,
 	}
 
+	disconnectExpiredCert := identityContext.RoleSet.AdjustDisconnectExpiredCert(clusterConfig.GetDisconnectExpiredCert())
+	if !identityContext.CertValidBefore.IsZero() && disconnectExpiredCert {
+		ctx.disconnectExpiredCert = identityContext.CertValidBefore
+	}
+
+	fields := log.Fields{
+		"local":        conn.LocalAddr(),
+		"remote":       conn.RemoteAddr(),
+		"login":        ctx.Identity.Login,
+		"teleportUser": ctx.Identity.TeleportUser,
+		"id":           ctx.id,
+	}
+	if !ctx.disconnectExpiredCert.IsZero() {
+		fields["cert"] = ctx.disconnectExpiredCert
+	}
+	if ctx.clientIdleTimeout != 0 {
+		fields["idle"] = ctx.clientIdleTimeout
+	}
 	ctx.Entry = log.WithFields(log.Fields{
-		trace.Component: srv.Component(),
-		trace.ComponentFields: log.Fields{
-			"local":        conn.LocalAddr(),
-			"remote":       conn.RemoteAddr(),
-			"login":        ctx.Identity.Login,
-			"teleportUser": ctx.Identity.TeleportUser,
-			"id":           ctx.id,
-		},
+		trace.Component:       srv.Component(),
+		trace.ComponentFields: fields,
 	})
+
+	if !ctx.disconnectExpiredCert.IsZero() || ctx.clientIdleTimeout != 0 {
+		go ctx.periodicCheckDisconnect()
+	}
 
 	return ctx, nil
 }
@@ -263,6 +311,86 @@ func (c *ServerContext) CreateOrJoinSession(reg *SessionRegistry) error {
 	}
 
 	return nil
+}
+
+func (c *ServerContext) periodicCheckDisconnect() {
+	var certTime <-chan time.Time
+	if !c.disconnectExpiredCert.IsZero() {
+		t := time.NewTimer(c.disconnectExpiredCert.Sub(c.srv.GetClock().Now().UTC()))
+		defer t.Stop()
+		certTime = t.C
+	}
+
+	var idleTimer *time.Timer
+	var idleTime <-chan time.Time
+	if c.clientIdleTimeout != 0 {
+		idleTimer = time.NewTimer(c.clientIdleTimeout)
+		idleTime = idleTimer.C
+	}
+
+	for {
+		select {
+		// certificate has expired, disconnect
+		case <-certTime:
+			event := events.EventFields{
+				events.EventType:       events.ClientDisconnectEvent,
+				events.EventLogin:      c.Identity.Login,
+				events.EventUser:       c.Identity.TeleportUser,
+				events.LocalAddr:       c.Conn.LocalAddr().String(),
+				events.RemoteAddr:      c.Conn.RemoteAddr().String(),
+				events.SessionServerID: c.srv.ID(),
+				events.Reason:          fmt.Sprintf("client certificate expired at %v", c.clientLastActive),
+			}
+			c.srv.EmitAuditEvent(events.ClientDisconnectEvent, event)
+			c.Debugf("Disconnecting client: %v", event[events.Reason])
+			c.Conn.Close()
+			return
+		case <-idleTime:
+			now := c.srv.GetClock().Now()
+			clientLastActive := c.GetClientLastActive()
+			c.Debugf("client last active %v, client idle timeout %v", clientLastActive, c.clientIdleTimeout)
+			if now.Sub(clientLastActive) >= c.clientIdleTimeout {
+				event := events.EventFields{
+					events.EventLogin:      c.Identity.Login,
+					events.EventUser:       c.Identity.TeleportUser,
+					events.LocalAddr:       c.Conn.LocalAddr().String(),
+					events.RemoteAddr:      c.Conn.RemoteAddr().String(),
+					events.SessionServerID: c.srv.ID(),
+				}
+				if clientLastActive.IsZero() {
+					event[events.Reason] = "client reported no activity"
+				} else {
+					event[events.Reason] = fmt.Sprintf("client is idle for %v, exceeded idle timeout of %v",
+						now.Sub(clientLastActive), c.clientIdleTimeout)
+				}
+				c.Debugf("Disconnecting client: %v", event[events.Reason])
+				c.srv.EmitAuditEvent(events.ClientDisconnectEvent, event)
+				c.Conn.Close()
+				return
+			}
+			c.Debugf("Next check in %v", c.clientIdleTimeout-now.Sub(clientLastActive))
+			idleTimer = time.NewTimer(c.clientIdleTimeout - now.Sub(clientLastActive))
+			idleTime = idleTimer.C
+		case <-c.cancelContext.Done():
+			c.Debugf("Releasing associated resources - context has been closed.")
+			return
+		}
+	}
+}
+
+// GetClientLastActive returns time when client was last active
+func (c *ServerContext) GetClientLastActive() time.Time {
+	c.RLock()
+	defer c.RUnlock()
+	return c.clientLastActive
+}
+
+// UpdateClientActivity sets last recorded client activity associated with this context
+// either channel or session
+func (c *ServerContext) UpdateClientActivity() {
+	c.Lock()
+	defer c.Unlock()
+	c.clientLastActive = c.srv.GetClock().Now().UTC()
 }
 
 // AddCloser adds any closer in ctx that will be called
@@ -348,6 +476,7 @@ func (c *ServerContext) takeClosers() []io.Closer {
 }
 
 func (c *ServerContext) Close() error {
+	c.cancel()
 	return closeAll(c.takeClosers()...)
 }
 
@@ -424,4 +553,25 @@ type closerFunc func() error
 
 func (f closerFunc) Close() error {
 	return f()
+}
+
+// NewTrackingReader returns a new instance of
+// activity tracking reader.
+func NewTrackingReader(ctx *ServerContext, r io.Reader) *TrackingReader {
+	return &TrackingReader{ctx: ctx, r: r}
+}
+
+// TrackingReader wraps the writer
+// and every time write occurs, updates
+// the activity in the server context
+type TrackingReader struct {
+	ctx *ServerContext
+	r   io.Reader
+}
+
+// Read passes the read through to internal
+// reader, and updates activity of the server context
+func (a *TrackingReader) Read(b []byte) (int, error) {
+	a.ctx.UpdateClientActivity()
+	return a.r.Read(b)
 }
