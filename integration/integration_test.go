@@ -491,26 +491,26 @@ func (s *IntSuite) TestInteroperability(c *check.C) {
 		// 0 - echo "1\n2\n" | ssh localhost "cat -"
 		// this command can be used to copy files by piping stdout to stdin over ssh.
 		{
-			"cat -",
-			"1\n2\n",
-			"1\n2\n",
-			false,
+			inCommand:   "cat -",
+			inStdin:     "1\n2\n",
+			outContains: "1\n2\n",
+			outFile:     false,
 		},
 		// 1 - ssh -tt locahost '/bin/sh -c "mkdir -p /tmp && echo a > /tmp/file.txt"'
 		// programs like ansible execute commands like this
 		{
-			fmt.Sprintf(`/bin/sh -c "mkdir -p /tmp && echo a > %v"`, tempfile),
-			"",
-			"a",
-			true,
+			inCommand:   fmt.Sprintf(`/bin/sh -c "mkdir -p /tmp && echo a > %v"`, tempfile),
+			inStdin:     "",
+			outContains: "a",
+			outFile:     true,
 		},
 		// 2 - ssh localhost tty
 		// should print "not a tty"
 		{
-			"tty",
-			"",
-			"not a tty",
-			false,
+			inCommand:   "tty",
+			inStdin:     "",
+			outContains: "not a tty",
+			outFile:     false,
 		},
 	}
 
@@ -521,7 +521,7 @@ func (s *IntSuite) TestInteroperability(c *check.C) {
 
 		// hook up stdin and stdout to a buffer for reading and writing
 		inbuf := bytes.NewReader([]byte(tt.inStdin))
-		outbuf := &bytes.Buffer{}
+		outbuf := utils.NewSyncBuffer()
 		cl.Stdin = inbuf
 		cl.Stdout = outbuf
 		cl.Stderr = outbuf
@@ -685,6 +685,153 @@ func (s *IntSuite) TestShutdown(c *check.C) {
 	case <-shutdownContext.Done():
 	case <-time.After(5 * time.Second):
 		c.Fatalf("failed to shut down the server")
+	}
+}
+
+type disconnectTestCase struct {
+	recordingMode     string
+	options           services.RoleOptions
+	disconnectTimeout time.Duration
+}
+
+// TestDisconnectScenarios tests multiple scenarios with client disconnects
+func (s *IntSuite) TestDisconnectScenarios(c *check.C) {
+
+	testCases := []disconnectTestCase{
+		{
+			recordingMode: services.RecordAtNode,
+			options: services.RoleOptions{
+				ClientIdleTimeout: services.NewDuration(500 * time.Millisecond),
+			},
+			disconnectTimeout: time.Second,
+		},
+		{
+			recordingMode: services.RecordAtProxy,
+			options: services.RoleOptions{
+				ClientIdleTimeout: services.NewDuration(500 * time.Millisecond),
+			},
+			disconnectTimeout: time.Second,
+		},
+		{
+			recordingMode: services.RecordAtNode,
+			options: services.RoleOptions{
+				DisconnectExpiredCert: services.NewBool(true),
+				MaxSessionTTL:         services.NewDuration(2 * time.Second),
+			},
+			disconnectTimeout: 4 * time.Second,
+		},
+		{
+			recordingMode: services.RecordAtProxy,
+			options: services.RoleOptions{
+				DisconnectExpiredCert: services.NewBool(true),
+				MaxSessionTTL:         services.NewDuration(2 * time.Second),
+			},
+			disconnectTimeout: 4 * time.Second,
+		},
+	}
+	for _, tc := range testCases {
+		s.runDisconnectTest(c, tc)
+	}
+}
+
+func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
+	t := NewInstance(InstanceConfig{
+		ClusterName: Site,
+		HostID:      HostID,
+		NodeName:    Host,
+		Ports:       s.getPorts(5),
+		Priv:        s.priv,
+		Pub:         s.pub,
+	})
+
+	// devs role gets disconnected after 1 second idle time
+	username := s.me.Username
+	role, err := services.NewRole("devs", services.RoleSpecV3{
+		Options: tc.options,
+		Allow: services.RoleConditions{
+			Logins: []string{username},
+		},
+	})
+	c.Assert(err, check.IsNil)
+	t.AddUserWithRole(username, role)
+
+	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+		SessionRecording: services.RecordAtNode,
+	})
+	c.Assert(err, check.IsNil)
+
+	cfg := service.MakeDefaultConfig()
+	cfg.Auth.Enabled = true
+	cfg.Auth.ClusterConfig = clusterConfig
+	cfg.Proxy.DisableWebService = true
+	cfg.Proxy.DisableWebInterface = true
+	cfg.Proxy.Enabled = true
+	cfg.SSH.Enabled = true
+
+	c.Assert(t.CreateEx(nil, cfg), check.IsNil)
+	c.Assert(t.Start(), check.IsNil)
+	defer t.Stop(true)
+
+	// get a reference to site obj:
+	site := t.GetSiteAPI(Site)
+	c.Assert(site, check.NotNil)
+
+	person := NewTerminal(250)
+
+	// commandsC receive commands
+	commandsC := make(chan string, 0)
+
+	// PersonA: SSH into the server, wait one second, then type some commands on stdin:
+	sessionCtx, sessionCancel := context.WithCancel(context.TODO())
+	openSession := func() {
+		defer sessionCancel()
+		cl, err := t.NewClient(ClientConfig{Login: username, Cluster: Site, Host: Host, Port: t.GetPortSSHInt()})
+		c.Assert(err, check.IsNil)
+		cl.Stdout = &person
+		cl.Stdin = &person
+
+		go func() {
+			for command := range commandsC {
+				person.Type(command)
+			}
+		}()
+
+		err = cl.SSH(context.TODO(), []string{}, false)
+		if err != nil && err != io.EOF {
+			c.Fatalf("expected EOF or nil, got %v instead", err)
+		}
+	}
+
+	go openSession()
+
+	retry := func(command, pattern string) {
+		person.Type(command)
+		abortTime := time.Now().Add(10 * time.Second)
+		var matched bool
+		var output string
+		for {
+			output = string(replaceNewlines(person.Output(1000)))
+			matched, _ = regexp.MatchString(pattern, output)
+			if matched {
+				break
+			}
+			time.Sleep(time.Millisecond * 200)
+			if time.Now().After(abortTime) {
+				c.Fatalf("failed to capture output: %v", pattern)
+			}
+		}
+		if !matched {
+			c.Fatalf("output %q does not match pattern %q", output, pattern)
+		}
+	}
+
+	retry("echo start \r\n", ".*start.*")
+	time.Sleep(tc.disconnectTimeout)
+	select {
+	case <-time.After(tc.disconnectTimeout):
+		c.Fatalf("timeout waiting for session to exit")
+	case <-sessionCtx.Done():
+		// session closed
 	}
 }
 
@@ -1509,7 +1656,7 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 	// attempt to allow the discovery request to be received and the connection
 	// added to the agent pool.
 	lb.AddBackend(mainProxyAddr)
-	output, err = runCommand(main, []string{"echo", "hello world"}, cfg, 10)
+	output, err = runCommand(main, []string{"echo", "hello world"}, cfg, 20)
 	c.Assert(err, check.IsNil)
 	c.Assert(output, check.Equals, "hello world\n")
 

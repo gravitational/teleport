@@ -429,7 +429,9 @@ func (s *ServicesTestSuite) RolesCRUD(c *C) {
 		},
 		Spec: services.RoleSpecV3{
 			Options: services.RoleOptions{
-				services.MaxSessionTTL: services.Duration{Duration: time.Hour},
+				MaxSessionTTL:     services.Duration{Duration: time.Hour},
+				PortForwarding:    services.NewBoolOption(true),
+				CertificateFormat: teleport.CertificateFormatStandard,
 			},
 			Allow: services.RoleConditions{
 				Logins:     []string{"root", "bob"},
@@ -448,7 +450,7 @@ func (s *ServicesTestSuite) RolesCRUD(c *C) {
 	c.Assert(err, IsNil)
 	rout, err := s.Access.GetRole(role.Metadata.Name)
 	c.Assert(err, IsNil)
-	c.Assert(rout, DeepEquals, &role)
+	fixtures.DeepCompare(c, rout, &role)
 
 	role.Spec.Allow.Logins = []string{"bob"}
 	err = s.Access.UpsertRole(&role, backend.Forever)

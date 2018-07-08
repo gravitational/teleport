@@ -76,6 +76,14 @@ const (
 	// SessionLeaveEvent indicates that someone left a session
 	SessionLeaveEvent = "session.leave"
 
+	// ClientDisconnectEvent is emitted when client is disconnected
+	// by the server due to inactivity or any other reason
+	ClientDisconnectEvent = "client.disconnect"
+
+	// Reason is a field that specifies reason for event, e.g. in disconnect
+	// event it explains why server disconnected the client
+	Reason = "reason"
+
 	// UserLoginEvent indicates that a user logged into web UI or via tsh
 	UserLoginEvent = "user.login"
 	// LoginMethod is the event field indicating how the login was performed

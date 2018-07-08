@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/proxy"
 	"github.com/gravitational/trace"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
 	"github.com/sirupsen/logrus"
 )
@@ -125,6 +126,8 @@ type Server struct {
 	// server is closing and all blocking goroutines should unblock.
 	closeContext context.Context
 	closeCancel  context.CancelFunc
+
+	clock clockwork.Clock
 }
 
 // ServerConfig is the configuration needed to create an instance of a Server.
@@ -150,6 +153,9 @@ type ServerConfig struct {
 
 	// DataDir is a local data directory used for local server storage
 	DataDir string
+
+	// Clock is an optoinal clock to override default real time clock
+	Clock clockwork.Clock
 }
 
 // CheckDefaults makes sure all required parameters are passed in.
@@ -174,6 +180,9 @@ func (s *ServerConfig) CheckDefaults() error {
 	}
 	if s.HostCertificate == nil {
 		return trace.BadParameter("host certificate required to act on behalf of remote host")
+	}
+	if s.Clock == nil {
+		s.Clock = clockwork.NewRealClock()
 	}
 
 	return nil
@@ -214,6 +223,7 @@ func New(c ServerConfig) (*Server, error) {
 		authService:     c.AuthClient,
 		sessionServer:   c.AuthClient,
 		dataDir:         c.DataDir,
+		clock:           c.Clock,
 	}
 
 	// Set the ciphers, KEX, and MACs that the in-memory server will send to the
@@ -319,6 +329,11 @@ func (s *Server) GetPAM() (*pam.Config, error) {
 // Dial returns the client connection created by pipeAddrConn.
 func (s *Server) Dial() (net.Conn, error) {
 	return s.clientConn, nil
+}
+
+// GetClock returns server clock implementation
+func (s *Server) GetClock() clockwork.Clock {
+	return s.clock
 }
 
 func (s *Server) Serve() {
@@ -635,6 +650,9 @@ func (s *Server) handleDirectTCPIPRequest(ch ssh.Channel, req *sshutils.DirectTC
 func (s *Server) handleSessionRequests(ch ssh.Channel, in <-chan *ssh.Request) {
 	// Create context for this channel. This context will be closed when the
 	// session request is complete.
+	// There is no need for the forwarding server to initiate disconnects,
+	// based on teleport business logic, because this logic is already
+	// done on the server's terminating side.
 	ctx, err := srv.NewServerContext(s, s.sconn, s.identityContext)
 	if err != nil {
 		ctx.Errorf("Unable to create connection context: %v.", err)
