@@ -21,6 +21,7 @@ import (
 	"net"
 	"os"
 	"os/user"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 
@@ -70,6 +71,9 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 	certificate, err := identity.GetCertificate()
 	if err != nil {
 		return IdentityContext{}, trace.Wrap(err)
+	}
+	if certificate.ValidBefore != 0 {
+		identity.CertValidBefore = time.Unix(int64(certificate.ValidBefore), 0)
 	}
 
 	certAuthority, err := h.authorityForCert(services.UserCA, certificate.SignatureKey)
