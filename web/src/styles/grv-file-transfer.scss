@@ -1,0 +1,105 @@
+.grv-file-transfer {
+  position: absolute;
+  max-height: 500px;
+  width: 600px;
+  background-color: #090B0A;
+  z-index: 4;
+  right: 0px;
+  color: white;
+
+  display: flex;
+  flex-direction: column;
+
+  .grv-file-transfer-btn {
+    @include button-variant($grv-color-file-text, #151d20, $grv-color-file-text);
+//    text-transform: uppercase;
+    border-radius: 0;
+  }
+
+  .grv-file-transfer-input{
+    background-color: #151d20;
+    border-color: #020303;
+    color: $grv-color-file-text;
+    @extend .form-control;
+    &:focus {
+      border-color: $grv-color-file-text !important;
+
+    }
+  }
+
+  .grv-file-transfer-download{
+    display: flex;
+  }
+
+  .grv-file-transfer-text{
+    color: $grv-color-file-text;
+  }
+
+  .grv-file-transfer-content{
+    overflow: auto;
+    margin: 5px 0 10px 0;
+    overflow: auto;
+    flex: 1;
+    max-height: 150px;
+  }
+
+  .grv-file-transfer-file-list-cols{
+    display: flex;
+    :nth-child(1){
+      width: 400px;
+    }
+
+    :nth-child(2){
+      width: 100px;
+      text-align: center;
+    }
+  }
+
+  .grv-file-transfer-file-list-item{
+    display: flex;
+    margin: 0px 0 10px 0;
+
+    .grv-file-transfer-file-status{
+      text-align: center;
+      width: 100px;
+      color: #8e9497;
+    }
+
+    .grv-file-transfer-file-path{
+      width: 400px;
+      word-wrap: break-word;
+      word-break: break-all;
+      color: #8e9497;
+    }
+
+    .grv-file-transfer-file-close{
+      width: 40px;
+      text-align: center;
+      a{
+        color: $dark-gray;
+      }
+
+    }
+
+    &.--failed{
+      .grv-file-transfer-file-path,
+      .grv-file-transfer-file-status{
+        color: $red;
+      }
+    }
+
+  }
+}
+
+.grv-file-transfer-upload-selected-files{
+  text-align: center;
+  background-color: #151d20;
+  padding: 30px 15px;
+  color: $grv-color-file-text;
+  text-transform: uppercase;
+
+  a{
+    color: $grv-color-file-text;
+    text-decoration: underline;
+  }
+}

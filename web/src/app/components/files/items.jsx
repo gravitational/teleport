@@ -15,29 +15,10 @@ limitations under the License.
 */
 
 import React from 'react';
-import { CloseIcon } from './icons';
+import classnames from 'classnames';
 
-const closeTextStyle = {
-  width: "30px",
-  height: "30px",
-  display: "block",
-  margin: "0 auto"
-}
-
-const PartyListPanel = ({onClose, children}) => {      
-  return (
-    <div className="grv-terminal-participans">
-      <ul className="nav">
-        <li title="Close">          
-          <div style={closeTextStyle} onClick={onClose}>
-            <CloseIcon />
-          </div>          
-        </li>
-      </ul>
-      { children ? <hr className="grv-divider" /> : null }
-      { children }      
-    </div>
-  )
-};
-
-export default PartyListPanel;
+export const Text = props => (
+  <div className={classnames('grv-file-transfer-text', props.className)}>
+    {props.children}
+  </div>
+)

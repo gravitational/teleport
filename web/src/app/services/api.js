@@ -19,67 +19,72 @@ import localStorage from './localStorage';
 
 const api = {
 
-  put(path, data, withToken){
-    return api.ajax({url: path, data: JSON.stringify(data), type: 'PUT'}, withToken);
+  put(path, data){
+    return api.ajax({url: path, data: JSON.stringify(data), type: 'PUT'});
   },
 
-  post(path, data, withToken){
-    return api.ajax({url: path, data: JSON.stringify(data), type: 'POST'}, withToken);
+  post(path, data){
+    return api.ajax({url: path, data: JSON.stringify(data), type: 'POST'});
   },
 
-  delete(path, data, withToken){
-    return api.ajax({url: path, data: JSON.stringify(data), type: 'DELETE'}, withToken);
+  delete(path, data){
+    return api.ajax({url: path, data: JSON.stringify(data), type: 'DELETE'});
   },
 
   get(path){
     return api.ajax({url: path});
   },
 
-  ajax(cfg, withToken = true){
-    var defaultCfg = {            
+  ajax(cfg){
+    const defaultCfg = {
       cache: false,
       type: 'GET',
-      contentType: 'application/json; charset=utf-8',
       dataType: 'json',
-      beforeSend: function (xhr) {                
-        xhr.setRequestHeader('X-CSRF-Token', getXCSRFToken());
-        if (withToken) {
-          const bearerToken = localStorage.getBearerToken() || {};
-          const { accessToken } = bearerToken;
-          xhr.setRequestHeader('Authorization', 'Bearer ' + accessToken);                    
-        }
-      }
+      contentType: 'application/json; charset=utf-8',
+      beforeSend: xhr => this.setAuthHeaders(xhr)
     }
 
     return $.ajax($.extend({}, defaultCfg, cfg));
   },
 
   getErrorText(err){
-    let msg = 'Unknown error';                  
-    
+    let msg = 'Unknown error';
+
     if (err instanceof Error) {
       return err.message || msg;
     }
-      
+
     if(err.responseJSON && err.responseJSON.message){
       return err.responseJSON.message;
     }
-      
+
     if (err.responseJSON && err.responseJSON.error) {
       return err.responseJSON.error.message || msg;
     }
-    
+
     if (err.responseText) {
       return err.responseText;
     }
 
     return msg;
-  }    
-}
+  },
 
-const getXCSRFToken = () => {
-  const metaTag = document.querySelector('[name=grv_csrf_token]'); 
-  return metaTag ? metaTag.content : ''
+  setAuthHeaders(xhr) {
+    const accessToken = this.getAccessToken();
+    const csrfToken = this.getXCSRFToken();
+    xhr.setRequestHeader('X-CSRF-Token', csrfToken);
+    xhr.setRequestHeader('Authorization', 'Bearer ' + accessToken);
+  },
+
+  getAccessToken(){
+    const bearerToken = localStorage.getBearerToken() || {};
+    return bearerToken.accessToken
+  },
+
+  getXCSRFToken(){
+    const metaTag = document.querySelector('[name=grv_csrf_token]');
+    return metaTag ? metaTag.content : ''
+  }
 }
 
 export default api;
