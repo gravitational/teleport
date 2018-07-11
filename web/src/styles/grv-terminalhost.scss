@@ -1,3 +1,6 @@
+$unit: 8px;
+$color-dark: #263238;
+
 .grv-terminalhost-indicator-error{
   justify-content: center;
   display: flex;
@@ -9,21 +12,22 @@
 }
 
 .grv-terminalhost{
-  padding: 40px 25px 10px 90px;
+  padding: $unit $unit $unit ($unit * 7);
   position: fixed;
   height: 100%;
   width: 100%;
   display: block;
-  background-color: $grv-color-bg-term;
+  background-color: $color-dark;
   z-index: 1;
 }
 
 .grv-terminal-actions{
-  margin-left: -70px;
-  width: 50px;
+  width: $unit * 4;
   position: absolute;
+  top: $unit;
+  bottom: $unit;
+  left: $unit;
   display: flex;
-  height: calc(100% - 60px);
   flex-direction: column;
 
   .grv-terminal-actions-files {

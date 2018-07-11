@@ -90,7 +90,7 @@ export class File extends Component {
         </div>
         <div className="grv-file-transfer-file-close">
           <a onClick={this.onRemove}>
-            <i className="fa fa-times" aria-hidden="true"></i>
+            <i className="fa fa-stop-circle-o" aria-hidden="true"></i>
           </a>
         </div>
       </div>

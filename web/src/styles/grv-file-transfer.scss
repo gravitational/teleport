@@ -1,41 +1,82 @@
-.grv-file-transfer {
+$unit: 8px;
+$file-transfer: '.grv-file-transfer';
+$color-terminal: #28FE14;
+$color-dark-gray: #37474F;
+$color-dark: #263238;
+$font-family: "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif;
+
+#{$file-transfer} {
+  box-shadow: 0 0 ($unit * 4) rgba(0, 0, 0, .12), 0 ($unit * 4) ($unit * 4) rgba(0, 0, 0, .24);
+  border-radius: 4px;
+  font-family: $font-family;
   position: absolute;
-  max-height: 500px;
   width: 600px;
   background-color: #090B0A;
   z-index: 4;
-  right: 0px;
+  right: $unit * 2;
+  top: $unit * 2;
   color: white;
-
   display: flex;
   flex-direction: column;
+  padding: $unit * 2;
 
-  .grv-file-transfer-btn {
-    @include button-variant($grv-color-file-text, #151d20, $grv-color-file-text);
-//    text-transform: uppercase;
-    border-radius: 0;
+  #{$file-transfer}-title {
+    color: $color-terminal;
+    font-size: 11px;
+    font-family: $font-family;
+    line-height: $unit * 2;
+    margin: 0 0 $unit 0;
   }
 
-  .grv-file-transfer-input{
-    background-color: #151d20;
-    border-color: #020303;
-    color: $grv-color-file-text;
-    @extend .form-control;
-    &:focus {
-      border-color: $grv-color-file-text !important;
+  #{$file-transfer}-close {
+    border: none;
+    border-radius: 2px;
+    background: none;
+    color: $color-dark-gray;
+    font-family: arial;
+    height: $unit * 3;
+    outline: none;
+    position: absolute;
+    right: $unit;
+    top: $unit;
+    transition: all .3s;
+    width: $unit * 3;
+    z-index: 1;
 
+    &:hover, &:focus {
+      background: rgba($color-dark, .56);
+      color: rgba(#FFF, .87);
     }
   }
 
-  .grv-file-transfer-download{
+  #{$file-transfer}-btn {
+    @include button-variant($grv-color-file-text, #151d20, $grv-color-file-text);
+    text-transform: uppercase;
+    border-radius: 0;
+  }
+
+  #{$file-transfer}-input{
+    background-color: rgba($color-dark, .56);
+    border-color: rgba($color-dark, .56);
+    color: $grv-color-file-text;
+
+    @extend .form-control;
+    &:focus {
+      background: $color-dark-gray;
+      border-color: $grv-color-file-text !important;
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, .24);
+    }
+  }
+
+  #{$file-transfer}-download{
     display: flex;
   }
 
-  .grv-file-transfer-text{
+  #{$file-transfer}-text{
     color: $grv-color-file-text;
   }
 
-  .grv-file-transfer-content{
+  #{$file-transfer}-content{
     overflow: auto;
     margin: 5px 0 10px 0;
     overflow: auto;
@@ -43,7 +84,7 @@
     max-height: 150px;
   }
 
-  .grv-file-transfer-file-list-cols{
+  #{$file-transfer}-file-list-cols{
     display: flex;
     :nth-child(1){
       width: 400px;
@@ -55,24 +96,24 @@
     }
   }
 
-  .grv-file-transfer-file-list-item{
+  #{$file-transfer}-file-list-item{
     display: flex;
     margin: 0px 0 10px 0;
 
-    .grv-file-transfer-file-status{
+    #{$file-transfer}-file-status{
       text-align: center;
       width: 100px;
       color: #8e9497;
     }
 
-    .grv-file-transfer-file-path{
+    #{$file-transfer}-file-path{
       width: 400px;
       word-wrap: break-word;
       word-break: break-all;
       color: #8e9497;
     }
 
-    .grv-file-transfer-file-close{
+    #{$file-transfer}-file-close{
       width: 40px;
       text-align: center;
       a{
@@ -82,8 +123,8 @@
     }
 
     &.--failed{
-      .grv-file-transfer-file-path,
-      .grv-file-transfer-file-status{
+      #{$file-transfer}-file-path,
+      #{$file-transfer}-file-status{
         color: $red;
       }
     }
@@ -91,15 +132,24 @@
   }
 }
 
-.grv-file-transfer-upload-selected-files{
+#{$file-transfer}-upload-selected-files{
+  border: 1px dashed $color-dark-gray;
+  border-radius: 2px;
+  font-size: 12px;
   text-align: center;
-  background-color: #151d20;
+  background-color: rgba($color-dark, .56);
   padding: 30px 15px;
   color: $grv-color-file-text;
   text-transform: uppercase;
+  transition: all .3s;
+
+  &:hover {
+    border: 1px dashed rgba(#FFF, .56);
+    background: $color-dark-gray;
+  }
 
   a{
-    color: $grv-color-file-text;
+    color: $color-terminal;
     text-decoration: underline;
   }
 }

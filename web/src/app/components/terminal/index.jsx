@@ -83,9 +83,6 @@ class Page extends React.Component {
         <LeftMenu>
           {$leftPanelContent}
         </LeftMenu>
-        <div className="grv-terminalhost-server-info">
-           <h3>{title}</h3>
-        </div>
         {$content}
      </div>
     );

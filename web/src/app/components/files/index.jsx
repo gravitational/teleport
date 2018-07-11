@@ -105,16 +105,15 @@ class FileTransfer extends Component {
     const { files } = this.state;
     const { isUpload } = store;
     return (
-      <div className="grv-file-transfer p-sm">
+      <div className="grv-file-transfer">
+        <button onClick={onClose} className="grv-file-transfer-close">
+          <i className="fa fa-times" aria-hidden="true"></i>
+        </button>
+
         {!isUpload && <DownloadFileInput onClick={this.onDownloadFile} />}
         {isUpload && <UploadFileInput onSelect={this.onUploadFiles} /> }
+
         <ProgressList files={files} onRemove={this.onRemoveFile}/>
-        <div className="grv-file-transfer-footer">
-          <button onClick={onClose}
-            className="btn btn-sm  grv-file-transfer-btn">
-            Close
-          </button>
-        </div>
       </div>
     );
   }
@@ -138,9 +137,8 @@ const ProgressList = ({ files, onRemove }) => {
   });
 
   return (
-    <div className="m-t-sm">
-      <div className="grv-file-transfer-header m-b-sm">
-      </div>
+    <div>
+      <div className="grv-file-transfer-header"></div>
       <div className="grv-file-transfer-file-list-cols">
         <Text> File </Text>
         <Text>Status </Text>

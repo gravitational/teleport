@@ -47,10 +47,8 @@ export class DownloadFileInput extends React.Component {
   render() {
     const isBtnDisabled = !this.state.path;
     return (
-      <div className="grv-file-transfer-header m-b">
-        <Text className="m-b">
-          <h4>DOWNLOAD A FILE</h4>
-        </Text>
+      <div className="grv-file-transfer-header">
+        <h4 className="grv-file-transfer-title">DOWNLOAD A FILE</h4>
         <Text className="m-b-xs">
           Full path of file
         </Text>
@@ -147,10 +145,8 @@ export class UploadFileInput extends React.Component {
     const hasFiles = files.length > 0;
 
     return (
-      <div className="grv-file-transfer-header m-b">
-        <Text className="m-b">
-          <h4>UPLOAD FILES</h4>
-        </Text>
+      <div className="grv-file-transfer-header">
+        <h4 className="grv-file-transfer-title">UPLOAD FILES</h4>
         <Text className="m-b-xs">
           Enter the location to upload files
         </Text>
