@@ -282,6 +282,8 @@ func (i *ExternalIdentity) Check() error {
 type GithubAuthRequest struct {
 	// ConnectorID is the name of the connector to use
 	ConnectorID string `json:"connector_id"`
+	// Type is opaque string that helps callbacks identify the request type
+	Type string `json:"type"`
 	// StateToken is used to validate the request
 	StateToken string `json:"state_token"`
 	// CSRFToken is used to protect against CSRF attacks
