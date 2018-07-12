@@ -387,7 +387,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 			role.String(),
 			services.RoleSpecV3{
 				Options: services.RoleOptions{
-					services.MaxSessionTTL: services.MaxDuration(),
+					MaxSessionTTL: services.MaxDuration(),
 				},
 				Allow: services.RoleConditions{
 					Namespaces: []string{services.Wildcard},

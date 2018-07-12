@@ -78,6 +78,8 @@ auth_service:
       - domain_name: tunnel.example.org
         addresses: ["org-1"]
   public_addr: ["auth.default.svc.cluster.local:3080"]
+  disconnect_expired_cert: yes
+  client_idle_timeout: 17s
 
 ssh_service:
   enabled: no

@@ -62,6 +62,18 @@ type ClusterConfig interface {
 	// SetAuditConfig sets audit config
 	SetAuditConfig(AuditConfig)
 
+	// GetClientIdleTimeout returns client idle timeout setting
+	GetClientIdleTimeout() time.Duration
+
+	// SetClientIdleTimeout sets client idle timeout setting
+	SetClientIdleTimeout(t time.Duration)
+
+	// GetDisconnectExpiredCert returns disconnect expired certificate setting
+	GetDisconnectExpiredCert() bool
+
+	// SetDisconnectExpiredCert sets disconnect client with expired certificate setting
+	SetDisconnectExpiredCert(bool)
+
 	// Copy creates a copy of the resource and returns it.
 	Copy() ClusterConfig
 }
@@ -183,6 +195,13 @@ type ClusterConfigSpecV3 struct {
 
 	// Audit is a section with audit config
 	Audit AuditConfig `json:"audit"`
+
+	// ClientIdleTimeout sets global cluster default setting for client idle timeouts
+	ClientIdleTimeout Duration `json:"client_idle_timeout"`
+
+	// DisconnectExpiredCert provides disconnect expired certificate setting -
+	// if true, connections with expired client certificates will get disconnected
+	DisconnectExpiredCert Bool `json:"disconnect_expired_cert"`
 }
 
 // GetName returns the name of the cluster.
@@ -253,6 +272,26 @@ func (c *ClusterConfigV3) GetAuditConfig() AuditConfig {
 // SetAuditConfig sets audit config
 func (c *ClusterConfigV3) SetAuditConfig(cfg AuditConfig) {
 	c.Spec.Audit = cfg
+}
+
+// GetClientIdleTimeout returns client idle timeout setting
+func (c *ClusterConfigV3) GetClientIdleTimeout() time.Duration {
+	return c.Spec.ClientIdleTimeout.Duration
+}
+
+// SetClientIdleTimeout sets client idle timeout setting
+func (c *ClusterConfigV3) SetClientIdleTimeout(d time.Duration) {
+	c.Spec.ClientIdleTimeout.Duration = d
+}
+
+// GetDisconnectExpiredCert returns disconnect expired certificate setting
+func (c *ClusterConfigV3) GetDisconnectExpiredCert() bool {
+	return c.Spec.DisconnectExpiredCert.bool
+}
+
+// SetDisconnectExpiredCert sets disconnect client with expired certificate setting
+func (c *ClusterConfigV3) SetDisconnectExpiredCert(b bool) {
+	c.Spec.DisconnectExpiredCert.bool = b
 }
 
 // CheckAndSetDefaults checks validity of all parameters and sets defaults.

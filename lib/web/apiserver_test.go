@@ -331,7 +331,7 @@ func (s *WebSuite) createUser(c *C, user string, login string, pass string, otpS
 	role := services.RoleForUser(teleUser)
 	role.SetLogins(services.Allow, []string{login})
 	options := role.GetOptions()
-	options[services.ForwardAgent] = true
+	options.ForwardAgent = services.NewBool(true)
 	role.SetOptions(options)
 	err = s.server.Auth().UpsertRole(role, backend.Forever)
 	c.Assert(err, IsNil)
@@ -438,7 +438,7 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 
 	role, err := services.NewRole(connector.GetAttributesToRoles()[0].Roles[0], services.RoleSpecV3{
 		Options: services.RoleOptions{
-			services.MaxSessionTTL: services.NewDuration(defaults.MaxCertDuration),
+			MaxSessionTTL: services.NewDuration(defaults.MaxCertDuration),
 		},
 		Allow: services.RoleConditions{
 			NodeLabels: map[string]string{services.Wildcard: services.Wildcard},

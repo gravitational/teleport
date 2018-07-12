@@ -187,16 +187,16 @@ func (t *proxySubsys) Start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Requ
 			site = sites[0]
 			t.log.Debugf("Cluster not specified. connecting to default='%s'", site.GetName())
 		}
-		return t.proxyToHost(site, clientAddr, ch)
+		return t.proxyToHost(ctx, site, clientAddr, ch)
 	}
 	// connect to a site's auth server:
-	return t.proxyToSite(site, clientAddr, ch)
+	return t.proxyToSite(ctx, site, clientAddr, ch)
 }
 
 // proxyToSite establishes a proxy connection from the connected SSH client to the
 // auth server of the requested remote site
 func (t *proxySubsys) proxyToSite(
-	site reversetunnel.RemoteSite, remoteAddr net.Addr, ch ssh.Channel) error {
+	ctx *srv.ServerContext, site reversetunnel.RemoteSite, remoteAddr net.Addr, ch ssh.Channel) error {
 
 	conn, err := site.DialAuthServer()
 	if err != nil {
@@ -218,7 +218,7 @@ func (t *proxySubsys) proxyToSite(
 			t.close(err)
 		}()
 		defer conn.Close()
-		_, err = io.Copy(conn, ch)
+		_, err = io.Copy(conn, srv.NewTrackingReader(ctx, ch))
 
 	}()
 
@@ -228,7 +228,7 @@ func (t *proxySubsys) proxyToSite(
 // proxyToHost establishes a proxy connection from the connected SSH client to the
 // requested remote node (t.host:t.port) via the given site
 func (t *proxySubsys) proxyToHost(
-	site reversetunnel.RemoteSite, remoteAddr net.Addr, ch ssh.Channel) error {
+	ctx *srv.ServerContext, site reversetunnel.RemoteSite, remoteAddr net.Addr, ch ssh.Channel) error {
 	//
 	// first, lets fetch a list of servers at the given site. this allows us to
 	// match the given "host name" against node configuration (their 'nodename' setting)
@@ -324,7 +324,7 @@ func (t *proxySubsys) proxyToHost(
 			t.close(err)
 		}()
 		defer conn.Close()
-		_, err = io.Copy(conn, ch)
+		_, err = io.Copy(conn, srv.NewTrackingReader(ctx, ch))
 	}()
 
 	return nil

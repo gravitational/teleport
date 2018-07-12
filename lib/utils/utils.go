@@ -32,6 +32,19 @@ import (
 	"github.com/pborman/uuid"
 )
 
+// ParseBool parses string as boolean value,
+// returns error in case if value is not recognized
+func ParseBool(value string) (bool, error) {
+	switch strings.ToLower(value) {
+	case "yes", "yeah", "y", "true", "1", "on":
+		return true, nil
+	case "no", "nope", "n", "false", "0", "off":
+		return false, nil
+	default:
+		return false, trace.BadParameter("unsupported value: %q", value)
+	}
+}
+
 // ParseAdvertiseAddress validates advertise address,
 // makes sure it's not an unreachable or multicast address
 // returns address split into host and port, port could be empty
