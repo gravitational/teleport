@@ -198,7 +198,7 @@ teleport:
     nodename: graviton
 
     # Data directory where Teleport keeps its data, like keys/users for
-    # authentication (if using the default BoltDB back-end)
+    # authentication (if using the default directory-based back-end)
     data_dir: /var/lib/teleport
 
     # Invitation token used to join a cluster. it is not used on
@@ -227,10 +227,14 @@ teleport:
         output: stderr
         severity: ERROR
 
-    # Type of storage used for keys. You need to configure this to use etcd
-    # backend if you want to run Teleport in HA configuration.
+    # Type of a storage back-end used for storing Teleport state on a machine. 
+    # (keys, certificates, etc)
     storage:
-        type: bolt
+        # "dir" is the default. Configure this to be a network-based backend 
+        # (like DynamoDB or etcd) if you want to run Teleport in HA configuration.
+        type: dir
+        # defaults to data_dir from above
+        path: /var/lib/teleport
 
     # Cipher algorithms that the server supports. This section only needs to be
     # set if you want to override the defaults.
