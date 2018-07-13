@@ -81,6 +81,9 @@ type Server interface {
 
 	// GetClock returns a clock setup for the server
 	GetClock() clockwork.Clock
+
+	// GetInfo returns a services.Server that represents this server.
+	GetInfo() services.Server
 }
 
 // IdentityContext holds all identity information associated with the user
