@@ -31,6 +31,10 @@ type Server interface {
 	GetCmdLabels() map[string]CommandLabel
 	// GetPublicAddr is an optional field that returns the public address this cluster can be reached at.
 	GetPublicAddr() string
+	// GetRotation gets the state of certificate authority rotation.
+	GetRotation() Rotation
+	// SetRotation sets the state of certificate authority rotation.
+	SetRotation(Rotation)
 	// String returns string representation of the server
 	String() string
 	// SetAddr sets server address
@@ -153,6 +157,16 @@ func (s *ServerV2) GetAddr() string {
 // GetPublicAddr is an optional field that returns the public address this cluster can be reached at.
 func (s *ServerV2) GetPublicAddr() string {
 	return s.Spec.PublicAddr
+}
+
+// GetRotation gets the state of certificate authority rotation.
+func (s *ServerV2) GetRotation() Rotation {
+	return s.Spec.Rotation
+}
+
+// SetRotation sets the state of certificate authority rotation.
+func (s *ServerV2) SetRotation(r Rotation) {
+	s.Spec.Rotation = r
 }
 
 // GetHostname returns server hostname

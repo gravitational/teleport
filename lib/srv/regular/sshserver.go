@@ -404,7 +404,7 @@ func New(addr utils.NetAddr,
 			trace.Component:       component,
 			trace.ComponentFields: log.Fields{},
 		}),
-		Server:      s.getInfo(),
+		Server:      s,
 		Component:   component,
 		AuditLog:    s.alog,
 		AccessPoint: s.authService,
@@ -497,7 +497,8 @@ func (s *Server) getRole() teleport.Role {
 	return teleport.RoleNode
 }
 
-func (s *Server) getInfo() *services.ServerV2 {
+// GetInfo returns a services.Server that represents this server.
+func (s *Server) GetInfo() services.Server {
 	return &services.ServerV2{
 		Kind:    services.KindNode,
 		Version: services.V2,
@@ -516,7 +517,7 @@ func (s *Server) getInfo() *services.ServerV2 {
 
 // registerServer attempts to register server in the cluster
 func (s *Server) registerServer() error {
-	server := s.getInfo()
+	server := s.GetInfo()
 	if s.getRotation != nil {
 		rotation, err := s.getRotation(s.getRole())
 		if err != nil {
@@ -524,7 +525,7 @@ func (s *Server) registerServer() error {
 				log.Warningf("Failed to get rotation state: %v", err)
 			}
 		} else {
-			server.Spec.Rotation = *rotation
+			server.SetRotation(*rotation)
 		}
 	}
 	server.SetTTL(s.clock, defaults.ServerHeartbeatTTL)

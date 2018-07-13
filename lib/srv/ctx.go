@@ -75,6 +75,9 @@ type Server interface {
 
 	// GetPAM returns PAM configuration for this server.
 	GetPAM() (*pam.Config, error)
+
+	// GetInfo returns a services.Server that represents this server.
+	GetInfo() services.Server
 }
 
 // IdentityContext holds all identity information associated with the user

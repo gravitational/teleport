@@ -41,7 +41,7 @@ type AuthHandlers struct {
 	*log.Entry
 
 	// Server is the services.Server in the backend.
-	Server services.Server
+	Server Server
 
 	// Component is the type of SSH server (node, proxy, or recording proxy).
 	Component string
@@ -322,7 +322,7 @@ func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName strin
 	}
 
 	// check if roles allow access to server
-	if err := roles.CheckAccessToServer(osUser, h.Server); err != nil {
+	if err := roles.CheckAccessToServer(osUser, h.Server.GetInfo()); err != nil {
 		return trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
 			teleportUser, ca.GetClusterName(), osUser, clusterName, err)
 	}

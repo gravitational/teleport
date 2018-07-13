@@ -74,6 +74,11 @@ type SrvSuite struct {
 // teleportTestUser is additional user used for tests
 const teleportTestUser = "teleport-test"
 
+// wildcardAllow is used in tests to allow access to all labels.
+var wildcardAllow map[string]string = map[string]string{
+	services.Wildcard: services.Wildcard,
+}
+
 var _ = Suite(&SrvSuite{})
 
 func (s *SrvSuite) SetUpSuite(c *C) {
@@ -109,7 +114,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	// set up SSH client using the user private key for signing
-	up, err := s.newUpack(s.user, []string{s.user})
+	up, err := s.newUpack(s.user, []string{s.user}, wildcardAllow)
 	c.Assert(err, IsNil)
 
 	// set up host private key and certificate
@@ -145,6 +150,14 @@ func (s *SrvSuite) SetUpTest(c *C) {
 		SetShell("/bin/sh"),
 		SetSessionServer(s.nodeClient),
 		SetPAMConfig(&pam.Config{Enabled: false}),
+		SetLabels(
+			map[string]string{"foo": "bar"},
+			services.CommandLabels{
+				"baz": &services.CommandLabelV2{
+					Period:  services.NewDuration(time.Millisecond),
+					Command: []string{"expr", "1", "+", "3"}},
+			},
+		),
 	)
 	c.Assert(err, IsNil)
 	s.srv = srv
@@ -298,7 +311,7 @@ func (s *SrvSuite) TestAgentForward(c *C) {
 }
 
 func (s *SrvSuite) TestAllowedUsers(c *C) {
-	up, err := s.newUpack(s.user, []string{s.user})
+	up, err := s.newUpack(s.user, []string{s.user}, wildcardAllow)
 	c.Assert(err, IsNil)
 
 	sshConfig := &ssh.ClientConfig{
@@ -315,7 +328,7 @@ func (s *SrvSuite) TestAllowedUsers(c *C) {
 	c.Assert(client.Close(), IsNil)
 
 	// now remove OS user from valid principals
-	up, err = s.newUpack(s.user, []string{"otheruser"})
+	up, err = s.newUpack(s.user, []string{"otheruser"}, wildcardAllow)
 	c.Assert(err, IsNil)
 
 	sshConfig = &ssh.ClientConfig{
@@ -326,6 +339,52 @@ func (s *SrvSuite) TestAllowedUsers(c *C) {
 
 	client, err = ssh.Dial("tcp", s.srv.Addr(), sshConfig)
 	c.Assert(err, NotNil)
+}
+
+func (s *SrvSuite) TestAllowedLabels(c *C) {
+	var tests = []struct {
+		inLabelMap map[string]string
+		outError   bool
+	}{
+		// Valid static label.
+		{
+			inLabelMap: map[string]string{"foo": "bar"},
+			outError:   false,
+		},
+		// Invalid static label.
+		{
+			inLabelMap: map[string]string{"foo": "baz"},
+			outError:   true,
+		},
+		// Valid dynamic label.
+		{
+			inLabelMap: map[string]string{"baz": "4"},
+			outError:   false,
+		},
+		// Invalid dynamic label.
+		{
+			inLabelMap: map[string]string{"baz": "5"},
+			outError:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		up, err := s.newUpack(s.user, []string{s.user}, tt.inLabelMap)
+		c.Assert(err, IsNil)
+
+		sshConfig := &ssh.ClientConfig{
+			User:            s.user,
+			Auth:            []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
+			HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
+		}
+
+		_, err = ssh.Dial("tcp", s.srv.Addr(), sshConfig)
+		if tt.outError {
+			c.Assert(err, NotNil)
+		} else {
+			c.Assert(err, IsNil)
+		}
+	}
 }
 
 func (s *SrvSuite) TestInvalidSessionID(c *C) {
@@ -346,7 +405,7 @@ func (s *SrvSuite) TestSessionHijack(c *C) {
 	}
 
 	// user 1 has access to the server
-	up, err := s.newUpack(s.user, []string{s.user})
+	up, err := s.newUpack(s.user, []string{s.user}, wildcardAllow)
 	c.Assert(err, IsNil)
 
 	// login with first user
@@ -375,7 +434,7 @@ func (s *SrvSuite) TestSessionHijack(c *C) {
 	c.Assert(err, IsNil)
 
 	// user 2 does not have s.user as a listed principal
-	up2, err := s.newUpack(teleportTestUser, []string{teleportTestUser})
+	up2, err := s.newUpack(teleportTestUser, []string{teleportTestUser}, wildcardAllow)
 	c.Assert(err, IsNil)
 
 	sshConfig2 := &ssh.ClientConfig{
@@ -505,7 +564,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	c.Assert(proxy.Start(), IsNil)
 
 	// set up SSH client using the user private key for signing
-	up, err := s.newUpack(s.user, []string{s.user})
+	up, err := s.newUpack(s.user, []string{s.user}, wildcardAllow)
 	c.Assert(err, IsNil)
 
 	agentPool, err := reversetunnel.NewAgentPool(reversetunnel.AgentPoolConfig{
@@ -551,7 +610,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
 	}
 
-	_, err = s.newUpack("user1", []string{s.user})
+	_, err = s.newUpack("user1", []string{s.user}, wildcardAllow)
 	c.Assert(err, IsNil)
 
 	s.testClient(c, proxy.Addr(), s.srvAddress, s.srv.Addr(), sshConfig)
@@ -679,7 +738,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 	c.Assert(proxy.Start(), IsNil)
 
 	// set up SSH client using the user private key for signing
-	up, err := s.newUpack(s.user, []string{s.user})
+	up, err := s.newUpack(s.user, []string{s.user}, wildcardAllow)
 	c.Assert(err, IsNil)
 
 	// start agent and load balance requests
@@ -727,7 +786,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
 	}
 
-	_, err = s.newUpack("user1", []string{s.user})
+	_, err = s.newUpack("user1", []string{s.user}, wildcardAllow)
 	c.Assert(err, IsNil)
 
 	for i := 0; i < 3; i++ {
@@ -780,7 +839,7 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 	c.Assert(proxy.Start(), IsNil)
 
 	// set up SSH client using the user private key for signing
-	up, err := s.newUpack(s.user, []string{s.user})
+	up, err := s.newUpack(s.user, []string{s.user}, wildcardAllow)
 	c.Assert(err, IsNil)
 
 	sshConfig := &ssh.ClientConfig{
@@ -789,7 +848,7 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 		HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
 	}
 
-	_, err = s.newUpack("user1", []string{s.user})
+	_, err = s.newUpack("user1", []string{s.user}, wildcardAllow)
 	c.Assert(err, IsNil)
 
 	s.testClient(c, proxy.Addr(), s.srvAddress, s.srv.Addr(), sshConfig)
@@ -1022,7 +1081,7 @@ type upack struct {
 	certSigner ssh.Signer
 }
 
-func (s *SrvSuite) newUpack(username string, allowedLogins []string) (*upack, error) {
+func (s *SrvSuite) newUpack(username string, allowedLogins []string, allowedLabels map[string]string) (*upack, error) {
 	auth := s.server.Auth()
 	upriv, upub, err := auth.GenerateKeyPair("")
 	if err != nil {
@@ -1037,6 +1096,7 @@ func (s *SrvSuite) newUpack(username string, allowedLogins []string) (*upack, er
 	rules = append(rules, services.NewRule(services.Wildcard, services.RW()))
 	role.SetRules(services.Allow, rules)
 	role.SetLogins(services.Allow, allowedLogins)
+	role.SetNodeLabels(services.Allow, allowedLabels)
 	err = auth.UpsertRole(role, backend.Forever)
 	if err != nil {
 		return nil, trace.Wrap(err)
