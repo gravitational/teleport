@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/pam"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -243,7 +244,7 @@ func New(c ServerConfig) (*Server, error) {
 			trace.Component:       teleport.ComponentForwardingNode,
 			trace.ComponentFields: logrus.Fields{},
 		}),
-		Server:      nil,
+		Server:      s,
 		Component:   teleport.ComponentForwardingNode,
 		AuditLog:    c.AuthClient,
 		AccessPoint: c.AuthClient,
@@ -324,6 +325,21 @@ func (s *Server) GetSessionServer() session.Service {
 // server runs in-memory, it does not support PAM.
 func (s *Server) GetPAM() (*pam.Config, error) {
 	return nil, trace.BadParameter("PAM not supported by forwarding server")
+}
+
+// GetInfo returns a services.Server that represents this server.
+func (s *Server) GetInfo() services.Server {
+	return &services.ServerV2{
+		Kind:    services.KindNode,
+		Version: services.V2,
+		Metadata: services.Metadata{
+			Name:      s.ID(),
+			Namespace: s.GetNamespace(),
+		},
+		Spec: services.ServerSpecV2{
+			Addr: s.AdvertiseAddr(),
+		},
+	}
 }
 
 // Dial returns the client connection created by pipeAddrConn.
