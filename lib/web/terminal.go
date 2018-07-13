@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -258,46 +257,27 @@ func (t *TerminalHandler) handler(ws *websocket.Conn) {
 
 // makeClient builds a *client.TeleportClient for the connection.
 func (t *TerminalHandler) makeClient(ws *websocket.Conn) (*client.TeleportClient, error) {
-	agent, cert, err := t.ctx.GetAgent()
+	clientConfig, err := makeTeleportClientConfig(t.ctx)
 	if err != nil {
-		return nil, trace.BadParameter("failed to get user credentials: %v", err)
-	}
-
-	signers, err := agent.Signers()
-	if err != nil {
-		return nil, trace.BadParameter("failed to get user credentials: %v", err)
-	}
-
-	tlsConfig, err := t.ctx.ClientTLSConfig()
-	if err != nil {
-		return nil, trace.BadParameter("failed to get client TLS config: %v", err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Create a wrapped websocket to wrap/unwrap the envelope used to
 	// communicate over the websocket.
 	wrappedSock := newWrappedSocket(ws, t)
+	clientConfig.ForwardAgent = true
+	clientConfig.HostLogin = t.params.Login
+	clientConfig.Namespace = t.params.Namespace
+	clientConfig.Stdout = wrappedSock
+	clientConfig.Stderr = wrappedSock
+	clientConfig.Stdin = wrappedSock
+	clientConfig.SiteName = t.params.Cluster
+	clientConfig.ProxyHostPort = t.params.ProxyHostPort
+	clientConfig.Host = t.hostName
+	clientConfig.HostPort = t.hostPort
+	clientConfig.Env = map[string]string{sshutils.SessionEnvVar: string(t.params.SessionID)}
+	clientConfig.ClientAddr = t.request.RemoteAddr
 
-	clientConfig := &client.Config{
-		SkipLocalAuth:    true,
-		ForwardAgent:     true,
-		Agent:            agent,
-		TLS:              tlsConfig,
-		AuthMethods:      []ssh.AuthMethod{ssh.PublicKeys(signers...)},
-		DefaultPrincipal: cert.ValidPrincipals[0],
-		HostLogin:        t.params.Login,
-		Username:         t.ctx.user,
-		Namespace:        t.params.Namespace,
-		Stdout:           wrappedSock,
-		Stderr:           wrappedSock,
-		Stdin:            wrappedSock,
-		SiteName:         t.params.Cluster,
-		ProxyHostPort:    t.params.ProxyHostPort,
-		Host:             t.hostName,
-		HostPort:         t.hostPort,
-		Env:              map[string]string{sshutils.SessionEnvVar: string(t.params.SessionID)},
-		HostKeyCallback:  func(string, net.Addr, ssh.PublicKey) error { return nil },
-		ClientAddr:       t.request.RemoteAddr,
-	}
 	if len(t.params.InteractiveCommand) > 0 {
 		clientConfig.Interactive = true
 	}
