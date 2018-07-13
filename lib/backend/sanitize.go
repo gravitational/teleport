@@ -104,6 +104,21 @@ func (s *Sanitizer) UpsertVal(bucket []string, key string, val []byte, ttl time.
 	return s.backend.UpsertVal(bucket, key, val, ttl)
 }
 
+// UpsertItems updates or inserts all passed in backend.Items (with a TTL)
+// into the given bucket.
+func (s *Sanitizer) UpsertItems(bucket []string, items []Item) error {
+	if !isSliceSafe(bucket) {
+		return trace.BadParameter(errorMessage)
+	}
+	for _, e := range items {
+		if !isStringSafe(e.Key) {
+			return trace.BadParameter(errorMessage)
+		}
+	}
+
+	return s.backend.UpsertItems(bucket, items)
+}
+
 // GetVal returns a value for a given key in the bucket.
 func (s *Sanitizer) GetVal(bucket []string, key string) ([]byte, error) {
 	if !isSliceSafe(bucket) {

@@ -103,6 +103,7 @@ func NewAPIServer(config *APIConfig) http.Handler {
 
 	// Servers and presence heartbeat
 	srv.POST("/:version/namespaces/:namespace/nodes", srv.withAuth(srv.upsertNode))
+	srv.PUT("/:version/namespaces/:namespace/nodes", srv.withAuth(srv.upsertNodes))
 	srv.GET("/:version/namespaces/:namespace/nodes", srv.withAuth(srv.getNodes))
 	srv.POST("/:version/authservers", srv.withAuth(srv.upsertAuthServer))
 	srv.GET("/:version/authservers", srv.withAuth(srv.getAuthServers))
@@ -315,6 +316,34 @@ func (s *APIServer) upsertServer(auth ClientI, role teleport.Role, w http.Respon
 	return message("ok"), nil
 }
 
+type upsertNodesReq struct {
+	Nodes     json.RawMessage `json:"nodes"`
+	Namespace string          `json:"namespace"`
+}
+
+// upsertNodes is used to bulk insert nodes into the backend.
+func (s *APIServer) upsertNodes(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	var req upsertNodesReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !services.IsValidNamespace(req.Namespace) {
+		return nil, trace.BadParameter("invalid namespace %q", req.Namespace)
+	}
+
+	nodes, err := services.GetServerMarshaler().UnmarshalServers(req.Nodes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = auth.UpsertNodes(req.Namespace, nodes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return message("ok"), nil
+}
+
 // upsertNode is called by remote SSH nodes when they ping back into the auth service
 func (s *APIServer) upsertNode(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	return s.upsertServer(auth, teleport.RoleNode, w, r, p, version)
@@ -326,7 +355,16 @@ func (s *APIServer) getNodes(auth ClientI, w http.ResponseWriter, r *http.Reques
 	if !services.IsValidNamespace(namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
 	}
-	servers, err := auth.GetNodes(namespace)
+	skipValidation, _, err := httplib.ParseBool(r.URL.Query(), "skip_validation")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var opts []services.MarshalOption
+	if skipValidation {
+		opts = append(opts, services.SkipValidation())
+	}
+
+	servers, err := auth.GetNodes(namespace, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

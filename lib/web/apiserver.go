@@ -1340,7 +1340,7 @@ func (h *Handler) siteNodesGet(w http.ResponseWriter, r *http.Request, p httprou
 	if !services.IsValidNamespace(namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
 	}
-	servers, err := clt.GetNodes(namespace)
+	servers, err := clt.GetNodes(namespace, services.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

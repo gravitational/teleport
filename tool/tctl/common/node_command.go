@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
 )
 
@@ -172,7 +173,7 @@ func (c *NodeCommand) Invite(client auth.ClientI) error {
 // ListActive retreives the list of nodes who recently sent heartbeats to
 // to a cluster and prints it to stdout
 func (c *NodeCommand) ListActive(client auth.ClientI) error {
-	nodes, err := client.GetNodes(c.namespace)
+	nodes, err := client.GetNodes(c.namespace, services.SkipValidation())
 	if err != nil {
 		return trace.Wrap(err)
 	}

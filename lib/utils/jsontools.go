@@ -20,7 +20,10 @@ import (
 	"bytes"
 	"unicode"
 
+	"github.com/gravitational/trace"
+
 	"github.com/ghodss/yaml"
+	"github.com/json-iterator/go"
 )
 
 // ToJSON converts a single YAML document into a JSON document
@@ -48,4 +51,29 @@ func hasJSONPrefix(buf []byte) bool {
 func hasPrefix(buf []byte, prefix []byte) bool {
 	trim := bytes.TrimLeftFunc(buf, unicode.IsSpace)
 	return bytes.HasPrefix(trim, prefix)
+}
+
+// FastUnmarshal uses the json-iterator library for fast JSON unmarshalling.
+// Note, this function marshals floats with 6 digits precision.
+func FastUnmarshal(data []byte, v interface{}) error {
+	iter := jsoniter.ConfigFastest.BorrowIterator(data)
+	defer jsoniter.ConfigFastest.ReturnIterator(iter)
+
+	iter.ReadVal(v)
+	if iter.Error != nil {
+		return trace.Wrap(iter.Error)
+	}
+
+	return nil
+}
+
+// FastMarshal uses the json-iterator library for fast JSON marshalling.
+// Note, this function marshals floats with 6 digits precision.
+func FastMarshal(v interface{}) ([]byte, error) {
+	data, err := jsoniter.ConfigFastest.Marshal(v)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return data, nil
 }
