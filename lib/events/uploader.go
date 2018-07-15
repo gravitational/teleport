@@ -148,7 +148,7 @@ func (u *Uploader) Serve() error {
 			u.Debugf("Uploader is exiting.")
 			return nil
 		case <-t.C:
-			if err := u.scan(); err != nil {
+			if err := u.Scan(); err != nil {
 				if trace.Unwrap(err) != errContext {
 					u.Warningf("Uploader scan failed: %v", trace.DebugReport(err))
 				}
@@ -268,7 +268,8 @@ func (u *Uploader) uploadFile(lockFilePath string, sessionID session.ID) error {
 	return nil
 }
 
-func (u *Uploader) scan() error {
+// Scan scans the directory and uploads recordings
+func (u *Uploader) Scan() error {
 	df, err := os.Open(u.scanDir)
 	err = trace.ConvertSystemError(err)
 	if err != nil {

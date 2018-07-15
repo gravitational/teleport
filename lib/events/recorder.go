@@ -18,6 +18,7 @@ package events
 
 import (
 	"context"
+	"io"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -30,9 +31,38 @@ import (
 
 // SessionRecorder implements io.Writer to be plugged into the multi-writer
 // associated with every session. It forwards session stream to the audit log
-type SessionRecorder struct {
-	// SessionRecorderConfig specifies session recorder configuration
-	SessionRecorderConfig
+type SessionRecorder interface {
+	io.Writer
+	io.Closer
+	// GetAuditLog returns audit log associated with this log
+	GetAuditLog() IAuditLog
+}
+
+// DiscardRecorder discards all writes
+type DiscardRecorder struct {
+	DiscardAuditLog
+}
+
+// Write acks all writes but discards them
+func (*DiscardRecorder) Write(b []byte) (int, error) {
+	return len(b), nil
+}
+
+// Close does nothing and always succeeds
+func (*DiscardRecorder) Close() error {
+	return nil
+}
+
+// GetAuditLog returns audit log associated with this recorder
+func (d *DiscardRecorder) GetAuditLog() IAuditLog {
+	return &d.DiscardAuditLog
+}
+
+// ForwardRecorder implements io.Writer to be plugged into the multi-writer
+// associated with every session. It forwards session stream to the audit log
+type ForwardRecorder struct {
+	// ForwardRecorderConfig specifies session recorder configuration
+	ForwardRecorderConfig
 
 	// Entry holds the structured logger
 	*logrus.Entry
@@ -41,8 +71,8 @@ type SessionRecorder struct {
 	AuditLog IAuditLog
 }
 
-// SessionRecorderConfig specifies config for session recording
-type SessionRecorderConfig struct {
+// ForwardRecorderConfig specifies config for session recording
+type ForwardRecorderConfig struct {
 	// DataDir is a data directory to record
 	DataDir string
 
@@ -62,7 +92,7 @@ type SessionRecorderConfig struct {
 	ForwardTo IAuditLog
 }
 
-func (cfg *SessionRecorderConfig) CheckAndSetDefaults() error {
+func (cfg *ForwardRecorderConfig) CheckAndSetDefaults() error {
 	if cfg.DataDir == "" {
 		return trace.BadParameter("missing parameter DataDir")
 	}
@@ -78,8 +108,8 @@ func (cfg *SessionRecorderConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// NewSessionReccorder returns a new instance of session recorder
-func NewSessionRecorder(cfg SessionRecorderConfig) (*SessionRecorder, error) {
+// NewForwardRecorder returns a new instance of session recorder
+func NewForwardRecorder(cfg ForwardRecorderConfig) (*ForwardRecorder, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -98,8 +128,8 @@ func NewSessionRecorder(cfg SessionRecorderConfig) (*SessionRecorder, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	sr := &SessionRecorder{
-		SessionRecorderConfig: cfg,
+	sr := &ForwardRecorder{
+		ForwardRecorderConfig: cfg,
 		Entry: logrus.WithFields(logrus.Fields{
 			trace.Component: cfg.Component,
 		}),
@@ -108,8 +138,13 @@ func NewSessionRecorder(cfg SessionRecorderConfig) (*SessionRecorder, error) {
 	return sr, nil
 }
 
+// GetAuditLog returns audit log associated with this recorder
+func (r *ForwardRecorder) GetAuditLog() IAuditLog {
+	return r.AuditLog
+}
+
 // Write takes a chunk and writes it into the audit log
-func (r *SessionRecorder) Write(data []byte) (int, error) {
+func (r *ForwardRecorder) Write(data []byte) (int, error) {
 	// we are copying buffer to prevent data corruption:
 	// io.Copy allocates single buffer and calls multiple writes in a loop
 	// our PostSessionSlice is async and sends reader wrapping buffer
@@ -133,8 +168,8 @@ func (r *SessionRecorder) Write(data []byte) (int, error) {
 	return len(data), nil
 }
 
-// Close closes audit log caching forwarder.
-func (r *SessionRecorder) Close() error {
+// Close closes audit log session recorder
+func (r *ForwardRecorder) Close() error {
 	var errors []error
 	err := r.AuditLog.Close()
 	errors = append(errors, err)

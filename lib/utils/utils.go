@@ -17,6 +17,7 @@ limitations under the License.
 package utils
 
 import (
+	"encoding/json"
 	"io"
 	"io/ioutil"
 	"net"
@@ -347,6 +348,63 @@ func CheckCertificateFormatFlag(s string) (string, error) {
 	default:
 		return "", trace.BadParameter("invalid certificate format parameter: %q", s)
 	}
+}
+
+// Strings is a list of string that can unmarshal from list of strings
+// or a scalar string from scalar yaml or json property
+type Strings []string
+
+// UnmarshalJSON unmarshals scalar string or strings slice to Strings
+func (s *Strings) UnmarshalJSON(data []byte) error {
+	if len(data) == 0 {
+		return nil
+	}
+	var stringVar string
+	if err := json.Unmarshal(data, &stringVar); err == nil {
+		*s = []string{stringVar}
+		return nil
+	}
+	var stringsVar []string
+	if err := json.Unmarshal(data, &stringsVar); err != nil {
+		return trace.Wrap(err)
+	}
+	*s = stringsVar
+	return nil
+}
+
+// UnmarshalYAML is used to allow Strings to unmarshal from
+// scalar string value or from the list
+func (s *Strings) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	// try unmarshal as string
+	var val string
+	err := unmarshal(&val)
+	if err == nil {
+		*s = []string{val}
+		return nil
+	}
+
+	// try unmarshal as slice
+	var slice []string
+	err = unmarshal(&slice)
+	if err == nil {
+		*s = slice
+		return nil
+	}
+
+	return err
+}
+
+// Addrs returns strings list converted to address list
+func (s Strings) Addrs(defaultPort int) ([]NetAddr, error) {
+	addrs := make([]NetAddr, len(s))
+	for i, val := range s {
+		addr, err := ParseHostPortAddr(val, defaultPort)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		addrs[i] = *addr
+	}
+	return addrs, nil
 }
 
 const (

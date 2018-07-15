@@ -360,14 +360,14 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		context:            req.Context(),
 	}
 
-	var recorder *events.SessionRecorder
+	var recorder events.SessionRecorder
 	sessionID := session.NewID()
 	if request.tty {
 		// create session recorder
 		// get the audit log from the server and create a session recorder. this will
 		// be a discard audit log if the proxy is in recording mode and a teleport
 		// node so we don't create double recordings.
-		recorder, err = events.NewSessionRecorder(events.SessionRecorderConfig{
+		recorder, err = events.NewForwardRecorder(events.ForwardRecorderConfig{
 			DataDir:        filepath.Join(f.DataDir, teleport.LogsDir),
 			SessionID:      sessionID,
 			Namespace:      f.Namespace,
@@ -397,7 +397,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 
 			// Report the updated window size to the event log (this is so the sessions
 			// can be replayed correctly).
-			recorder.AuditLog.EmitAuditEvent(events.ResizeEvent, resizeEvent)
+			recorder.GetAuditLog().EmitAuditEvent(events.ResizeEvent, resizeEvent)
 		}
 	}
 
@@ -413,7 +413,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			W: 100,
 			H: 100,
 		}
-		recorder.AuditLog.EmitAuditEvent(events.SessionStartEvent, events.EventFields{
+		recorder.GetAuditLog().EmitAuditEvent(events.SessionStartEvent, events.EventFields{
 			events.EventProtocol:   events.EventProtocolKube,
 			events.EventNamespace:  f.Namespace,
 			events.SessionEventID:  string(sessionID),
@@ -456,7 +456,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 
 	if request.tty {
 		// send an event indicating that this session has ended
-		recorder.AuditLog.EmitAuditEvent(events.SessionEndEvent, events.EventFields{
+		recorder.GetAuditLog().EmitAuditEvent(events.SessionEndEvent, events.EventFields{
 			events.EventProtocol:  events.EventProtocolKube,
 			events.SessionEventID: sessionID,
 			events.EventUser:      ctx.User.GetName(),
