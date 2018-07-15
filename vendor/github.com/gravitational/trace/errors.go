@@ -146,6 +146,43 @@ func IsBadParameter(e error) bool {
 	return ok
 }
 
+// NotImplemented returns a new instance of NotImplementedError
+func NotImplemented(message string, args ...interface{}) error {
+	return WrapWithMessage(&NotImplementedError{
+		Message: fmt.Sprintf(message, args...),
+	}, message, args...)
+}
+
+// NotImplementedError defines an error condition to describe the result
+// of a call to an unimplemented API
+type NotImplementedError struct {
+	Message string `json:"message"`
+}
+
+// Error returns log friendly description of an error
+func (e *NotImplementedError) Error() string {
+	return e.Message
+}
+
+// OrigError returns original error
+func (e *NotImplementedError) OrigError() error {
+	return e
+}
+
+// IsNotImplementedError indicates that this error is of NotImplementedError type
+func (e *NotImplementedError) IsNotImplementedError() bool {
+	return true
+}
+
+// IsNotImplemented returns whether this error is of NotImplementedError type
+func IsNotImplemented(e error) bool {
+	type ni interface {
+		IsNotImplementedError() bool
+	}
+	err, ok := Unwrap(e).(ni)
+	return ok && err.IsNotImplementedError()
+}
+
 // CompareFailed returns new instance of CompareFailedError
 func CompareFailed(message string, args ...interface{}) error {
 	return WrapWithMessage(&CompareFailedError{Message: fmt.Sprintf(message, args...)}, message, args...)
@@ -338,8 +375,8 @@ func IsLimitExceeded(e error) bool {
 // TrustError indicates trust-related validation error (e.g. untrusted cert)
 type TrustError struct {
 	// Err is original error
-	Err     error `json:"error"`
-	Message string
+	Err     error  `json:"-"`
+	Message string `json:"message"`
 }
 
 // Error returns log-friendly error description

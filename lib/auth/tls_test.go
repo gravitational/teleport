@@ -17,10 +17,13 @@ limitations under the License.
 package auth
 
 import (
+	"context"
 	"encoding/base32"
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"os"
+	"path/filepath"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -784,9 +787,22 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 		return data
 	}
 
+	uploadDir := c.MkDir()
+
 	// emit two events: "one" and "two" for this session, and event "three"
 	// for some other session
-	err = clt.PostSessionSlice(events.SessionSlice{
+	err = os.MkdirAll(filepath.Join(uploadDir, "upload", "sessions", defaults.Namespace), 0755)
+	forwarder, err := events.NewForwarder(events.ForwarderConfig{
+		Namespace:      defaults.Namespace,
+		SessionID:      sess.ID,
+		ServerID:       teleport.ComponentUpload,
+		DataDir:        uploadDir,
+		RecordSessions: true,
+		ForwardTo:      clt,
+	})
+	c.Assert(err, check.IsNil)
+
+	err = forwarder.PostSessionSlice(events.SessionSlice{
 		Namespace: defaults.Namespace,
 		SessionID: string(sess.ID),
 		Chunks: []*events.SessionChunk{
@@ -803,11 +819,21 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 				Data:       marshal(events.EventFields{events.EventLogin: "bob", "val": "two"}),
 			},
 		},
-		Version: events.V2,
+		Version: events.V3,
 	})
 	c.Assert(err, check.IsNil)
+	c.Assert(forwarder.Close(), check.IsNil)
 
 	anotherSessionID := session.NewID()
+	forwarder, err = events.NewForwarder(events.ForwarderConfig{
+		Namespace:      defaults.Namespace,
+		SessionID:      sess.ID,
+		ServerID:       teleport.ComponentUpload,
+		DataDir:        uploadDir,
+		RecordSessions: true,
+		ForwardTo:      clt,
+	})
+	c.Assert(err, check.IsNil)
 	err = clt.PostSessionSlice(events.SessionSlice{
 		Namespace: defaults.Namespace,
 		SessionID: string(anotherSessionID),
@@ -825,9 +851,34 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 				Data:       marshal(events.EventFields{events.EventLogin: "alice", "val": "three"}),
 			},
 		},
-		Version: events.V2,
+		Version: events.V3,
 	})
 	c.Assert(err, check.IsNil)
+	c.Assert(forwarder.Close(), check.IsNil)
+
+	// start uploader process
+	eventsC := make(chan *events.UploadEvent, 100)
+	uploader, err := events.NewUploader(events.UploaderConfig{
+		ServerID:   "upload",
+		DataDir:    uploadDir,
+		Namespace:  defaults.Namespace,
+		Context:    context.TODO(),
+		ScanPeriod: 100 * time.Millisecond,
+		AuditLog:   clt,
+		EventsC:    eventsC,
+	})
+	c.Assert(err, check.IsNil)
+	err = uploader.Scan()
+	c.Assert(err, check.IsNil)
+
+	// scanner should upload the events
+	select {
+	case event := <-eventsC:
+		c.Assert(event, check.NotNil)
+		c.Assert(event.Error, check.IsNil)
+	case <-time.After(time.Second):
+		c.Fatalf("Timeout wating for the upload event")
+	}
 
 	// ask for strictly session events:
 	e, err := clt.GetSessionEvents(defaults.Namespace, sess.ID, 0, true)
