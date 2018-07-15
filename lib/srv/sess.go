@@ -125,7 +125,7 @@ func (s *SessionRegistry) emitSessionJoinEvent(ctx *ServerContext) {
 	}
 
 	// Emit session join event to Audit Log.
-	ctx.session.recorder.AuditLog.EmitAuditEvent(events.SessionJoinEvent, sessionJoinEvent)
+	ctx.session.recorder.GetAuditLog().EmitAuditEvent(events.SessionJoinEvent, sessionJoinEvent)
 
 	// Notify all members of the party that a new member has joined over the
 	// "x-teleport-event" channel.
@@ -196,7 +196,7 @@ func (s *SessionRegistry) emitSessionLeaveEvent(party *party) {
 	}
 
 	// Emit session leave event to Audit Log.
-	party.s.recorder.AuditLog.EmitAuditEvent(events.SessionLeaveEvent, sessionLeaveEvent)
+	party.s.recorder.GetAuditLog().EmitAuditEvent(events.SessionLeaveEvent, sessionLeaveEvent)
 
 	// Notify all members of the party that a new member has left over the
 	// "x-teleport-event" channel.
@@ -252,7 +252,7 @@ func (s *SessionRegistry) leaveSession(party *party) error {
 		s.Unlock()
 
 		// send an event indicating that this session has ended
-		sess.recorder.AuditLog.EmitAuditEvent(events.SessionEndEvent, events.EventFields{
+		sess.recorder.GetAuditLog().EmitAuditEvent(events.SessionEndEvent, events.EventFields{
 			events.SessionEventID: string(sess.id),
 			events.EventUser:      party.user,
 			events.EventNamespace: s.srv.GetNamespace(),
@@ -321,7 +321,7 @@ func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *S
 
 	// Report the updated window size to the event log (this is so the sessions
 	// can be replayed correctly).
-	ctx.session.recorder.AuditLog.EmitAuditEvent(events.ResizeEvent, resizeEvent)
+	ctx.session.recorder.GetAuditLog().EmitAuditEvent(events.ResizeEvent, resizeEvent)
 
 	// Update the size of the server side PTY.
 	err := ctx.session.term.SetWinSize(params)
@@ -421,7 +421,7 @@ type session struct {
 
 	closeOnce sync.Once
 
-	recorder *events.SessionRecorder
+	recorder events.SessionRecorder
 }
 
 // newSession creates a new session with a given ID within a given context.
@@ -528,6 +528,11 @@ func (s *session) Close() error {
 	return nil
 }
 
+func isDiscardAuditLog(alog events.IAuditLog) bool {
+	_, ok := alog.(*events.DiscardAuditLog)
+	return ok
+}
+
 // start starts a new interactive process (or a shell) in the current session
 func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 	var err error
@@ -539,16 +544,20 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 	// be a discard audit log if the proxy is in recording mode and a teleport
 	// node so we don't create double recordings.
 	auditLog := s.registry.srv.GetAuditLog()
-	s.recorder, err = events.NewSessionRecorder(events.SessionRecorderConfig{
-		DataDir:        filepath.Join(ctx.srv.GetDataDir(), teleport.LogsDir),
-		SessionID:      s.id,
-		Namespace:      ctx.srv.GetNamespace(),
-		RecordSessions: ctx.ClusterConfig.GetSessionRecording() != services.RecordOff,
-		Component:      teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
-		ForwardTo:      auditLog,
-	})
-	if err != nil {
-		return trace.Wrap(err)
+	if auditLog == nil || isDiscardAuditLog(auditLog) {
+		s.recorder = &events.DiscardRecorder{}
+	} else {
+		s.recorder, err = events.NewForwardRecorder(events.ForwardRecorderConfig{
+			DataDir:        filepath.Join(ctx.srv.GetDataDir(), teleport.LogsDir),
+			SessionID:      s.id,
+			Namespace:      ctx.srv.GetNamespace(),
+			RecordSessions: ctx.ClusterConfig.GetSessionRecording() != services.RecordOff,
+			Component:      teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
+			ForwardTo:      auditLog,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	s.writer.addWriter("session-recorder", s.recorder, true)
 
@@ -599,7 +608,7 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 	params := s.term.GetTerminalParams()
 
 	// emit "new session created" event:
-	s.recorder.AuditLog.EmitAuditEvent(events.SessionStartEvent, events.EventFields{
+	s.recorder.GetAuditLog().EmitAuditEvent(events.SessionStartEvent, events.EventFields{
 		events.EventNamespace:  ctx.srv.GetNamespace(),
 		events.SessionEventID:  string(s.id),
 		events.SessionServerID: ctx.srv.ID(),

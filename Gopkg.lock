@@ -338,8 +338,8 @@
 [[projects]]
   name = "github.com/gravitational/trace"
   packages = ["."]
-  revision = "0bd13642feb8f57acc0d8e3a568edc34e05a74b9"
-  version = "1.1.3"
+  revision = "3318e711adee0b3f48d3399ebf5aaddf329a2b4f"
+  version = "1.1.5"
 
 [[projects]]
   name = "github.com/gravitational/ttlmap"
@@ -879,6 +879,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "dc5a18582036cab4d73a614a940bcb5138ca769a5e1427e7aec4dd85d68228ad"
+  inputs-digest = "7fb0202a49ed7fb0c258b7738e4d2a8c96c8a76c2d1151295102df98385ba8cf"
   solver-name = "gps-cdcl"
   solver-version = 1
