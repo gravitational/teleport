@@ -121,7 +121,12 @@ type AuditConfig struct {
 	Region string `json:"region,omitempty"`
 	// AuditSessionsURI is a parameter where to upload sessions
 	AuditSessionsURI string `json:"audit_sessions_uri,omitempty"`
+	// AuditEventsURI is a parameter with all supported outputs
+	// for audit events
+	AuditEventsURI utils.Strings `json:"audit_events_uri,omitempty"`
 	// AuditTableName is a DB table name used for audits
+	// Deprecated in favor of AuditEventsURI
+	// DELETE IN (3.1.0)
 	AuditTableName string `json:"audit_table_name,omitempty"`
 }
 

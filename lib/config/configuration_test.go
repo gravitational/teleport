@@ -372,7 +372,7 @@ func (s *ConfigTestSuite) TestApplyConfig(c *check.C) {
 	conf, err := ReadConfig(bytes.NewBufferString(SmallConfigString))
 	c.Assert(err, check.IsNil)
 	c.Assert(conf, check.NotNil)
-	c.Assert(conf.Proxy.PublicAddr, check.DeepEquals, Strings{"web3:443"})
+	c.Assert(conf.Proxy.PublicAddr, check.DeepEquals, utils.Strings{"web3:443"})
 
 	cfg := service.MakeDefaultConfig()
 	err = ApplyFileConfig(conf, cfg)
@@ -542,7 +542,7 @@ func checkStaticConfig(c *check.C, conf *FileConfig) {
 	c.Assert(conf.SSH.Commands[1].Name, check.Equals, "date")
 	c.Assert(conf.SSH.Commands[1].Command, check.DeepEquals, []string{"/bin/date"})
 	c.Assert(conf.SSH.Commands[1].Period.Nanoseconds(), check.Equals, int64(20000000))
-	c.Assert(conf.SSH.PublicAddr, check.DeepEquals, Strings{
+	c.Assert(conf.SSH.PublicAddr, check.DeepEquals, utils.Strings{
 		"luna3:22",
 	})
 
@@ -569,7 +569,7 @@ func checkStaticConfig(c *check.C, conf *FileConfig) {
 	c.Assert(conf.Auth.StaticTokens, check.DeepEquals,
 		StaticTokens{"proxy,node:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "auth:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
 
-	c.Assert(conf.Auth.PublicAddr, check.DeepEquals, Strings{
+	c.Assert(conf.Auth.PublicAddr, check.DeepEquals, utils.Strings{
 		"auth.default.svc.cluster.local:3080",
 	})
 

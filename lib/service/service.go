@@ -724,32 +724,69 @@ func initUploadHandler(auditConfig services.AuditConfig) (events.UploadHandler, 
 	default:
 		return nil, trace.BadParameter(
 			"unsupported scheme for audit_sesions_uri: %q, currently supported schemes are %q and %q",
-			uri.Scheme, teleport.SchemeS3)
+			uri.Scheme, teleport.SchemeS3, teleport.SchemeFile)
 	}
 }
 
 // initExternalLog initializes external storage, if the storage is not
 // setup, returns nil
 func initExternalLog(auditConfig services.AuditConfig) (events.IAuditLog, error) {
-	if auditConfig.Type == "" {
-		if auditConfig.AuditTableName != "" {
-			return nil, trace.BadParameter("no storage type defined for table name %q in config %#v", auditConfig.AuditTableName, auditConfig)
-		}
-		return nil, trace.NotFound("no external log is defined")
+	if auditConfig.AuditTableName != "" {
+		auditConfig.AuditEventsURI = append(auditConfig.AuditEventsURI, fmt.Sprintf("%v://%v", dynamo.GetName(), auditConfig.AuditTableName))
 	}
-	if auditConfig.AuditTableName == "" {
-		return nil, trace.NotFound("no external log is defined")
-	}
-	if auditConfig.Type != dynamo.GetName() {
-		return nil, trace.BadParameter("unsupported events backend %q, the only supported backend is %q", auditConfig.Type, dynamo.GetName())
-	}
-	if !auditConfig.ShouldUploadSessions() {
+	if len(auditConfig.AuditEventsURI) > 0 && !auditConfig.ShouldUploadSessions() {
 		return nil, trace.BadParameter("please specify audit_sessions_uri when using external audit backends")
 	}
-	return dynamoevents.New(dynamoevents.Config{
-		Tablename: auditConfig.AuditTableName,
-		Region:    auditConfig.Region,
-	})
+	var hasNonFileLog bool
+	var loggers []events.IAuditLog
+	for _, eventsURI := range auditConfig.AuditEventsURI {
+		uri, err := utils.ParseSessionsURI(eventsURI)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		switch uri.Scheme {
+		case dynamo.GetName():
+			hasNonFileLog = true
+			logger, err := dynamoevents.New(dynamoevents.Config{
+				Tablename: uri.Host,
+				Region:    auditConfig.Region,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			loggers = append(loggers, logger)
+		case teleport.SchemeFile:
+			logger, err := events.NewFileLog(events.FileLogConfig{
+				Dir: uri.Path,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			loggers = append(loggers, logger)
+		default:
+			return nil, trace.BadParameter(
+				"unsupported scheme for audit_events_uri: %q, currently supported schemes are %q and %q",
+				uri.Scheme, dynamo.GetName(), teleport.SchemeFile)
+		}
+	}
+	// only file external loggers are prohibited (they are not supposed
+	// to be used on their own, only in combo with external loggers)
+	// they also don't implement certain features, so they are going
+	// to be inefficient
+	switch len(loggers) {
+	case 0:
+		return nil, trace.NotFound("no external log is defined")
+	case 1:
+		if !hasNonFileLog {
+			return nil, trace.BadParameter("file:// log can not be used on it's own, can be only used in combination with external session logs, e.g. dynamodb://")
+		}
+		return loggers[0], nil
+	default:
+		if !hasNonFileLog {
+			return nil, trace.BadParameter("file:// log can not be used on it's own, can be only used in combination with external session logs, e.g. dynamodb://")
+		}
+		return events.NewMultiLog(loggers...), nil
+	}
 }
 
 // initAuthService can be called to initialize auth server service

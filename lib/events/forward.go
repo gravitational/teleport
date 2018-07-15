@@ -9,6 +9,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
 // ForwarderConfig forwards session log events
@@ -26,6 +27,8 @@ type ForwarderConfig struct {
 	Namespace string
 	// ForwardTo is the audit log to forward non-print events to
 	ForwardTo IAuditLog
+	// Clock is a clock to set for tests
+	Clock clockwork.Clock
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -35,6 +38,9 @@ func (s *ForwarderConfig) CheckAndSetDefaults() error {
 	}
 	if s.DataDir == "" {
 		return trace.BadParameter("missing data dir")
+	}
+	if s.Clock == nil {
+		s.Clock = clockwork.NewRealClock()
 	}
 	return nil
 }
@@ -50,6 +56,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 		RecordSessions: cfg.RecordSessions,
 		Namespace:      cfg.Namespace,
 		ServerID:       cfg.ServerID,
+		Clock:          cfg.Clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

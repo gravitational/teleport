@@ -22,31 +22,33 @@ func WriteError(w http.ResponseWriter, err error) {
 			err = errors[0]
 		}
 	}
-	writeError(w, err)
+	replyJSON(w, ErrorToCode(err), err)
 }
 
 // ErrorToCode returns an appropriate HTTP status code based on the provided error type
 func ErrorToCode(err error) int {
-	if IsNotFound(err) {
-		return http.StatusNotFound
-	} else if IsBadParameter(err) || IsOAuth2(err) {
-		return http.StatusBadRequest
-	} else if IsCompareFailed(err) {
-		return http.StatusPreconditionFailed
-	} else if IsAccessDenied(err) {
-		return http.StatusForbidden
-	} else if IsAlreadyExists(err) {
-		return http.StatusConflict
-	} else if IsLimitExceeded(err) {
-		return http.StatusTooManyRequests
-	} else if IsConnectionProblem(err) {
+	switch {
+	case IsAggregate(err):
 		return http.StatusGatewayTimeout
+	case IsNotFound(err):
+		return http.StatusNotFound
+	case IsBadParameter(err) || IsOAuth2(err):
+		return http.StatusBadRequest
+	case IsNotImplemented(err):
+		return http.StatusNotImplemented
+	case IsCompareFailed(err):
+		return http.StatusPreconditionFailed
+	case IsAccessDenied(err):
+		return http.StatusForbidden
+	case IsAlreadyExists(err):
+		return http.StatusConflict
+	case IsLimitExceeded(err):
+		return http.StatusTooManyRequests
+	case IsConnectionProblem(err):
+		return http.StatusGatewayTimeout
+	default:
+		return http.StatusInternalServerError
 	}
-	return http.StatusInternalServerError
-}
-
-func writeError(w http.ResponseWriter, err error) {
-	replyJSON(w, ErrorToCode(err), err)
 }
 
 // ReadError converts http error to internal error type
@@ -59,6 +61,8 @@ func ReadError(statusCode int, re []byte) error {
 		e = &NotFoundError{Message: string(re)}
 	case http.StatusBadRequest:
 		e = &BadParameterError{Message: string(re)}
+	case http.StatusNotImplemented:
+		e = &NotImplementedError{Message: string(re)}
 	case http.StatusPreconditionFailed:
 		e = &CompareFailedError{Message: string(re)}
 	case http.StatusForbidden:

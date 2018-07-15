@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Gravitational, Inc.
+Copyright 2017-2018 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,10 +23,12 @@ import (
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dir"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"gopkg.in/check.v1"
+	"gopkg.in/yaml.v2"
 )
 
 type ClusterConfigurationSuite struct {
@@ -118,8 +120,43 @@ func (s *ClusterConfigurationSuite) TestAuditConfig(c *check.C) {
 		Type:             "dynamodb",
 		AuditSessionsURI: "file:///home/log",
 		AuditTableName:   "audit_table_name",
+		AuditEventsURI:   []string{"dynamodb://audit_table_name", "file:///home/log"},
 	}
 	clusterConfig.SetAuditConfig(in)
 	out := clusterConfig.GetAuditConfig()
-	c.Assert(out, check.DeepEquals, in)
+	fixtures.DeepCompare(c, out, in)
+
+	config := `
+region: 'us-west-1'
+type: 'dynamodb'
+audit_sessions_uri: file:///home/log
+audit_table_name: audit_table_name
+audit_events_uri: ['dynamodb://audit_table_name', 'file:///home/log']
+`
+	var data map[string]interface{}
+	err = yaml.Unmarshal([]byte(config), &data)
+	c.Assert(err, check.IsNil)
+
+	out2, err := services.AuditConfigFromObject(data)
+	c.Assert(err, check.IsNil)
+	fixtures.DeepCompare(c, *out2, in)
+
+	config = `
+region: 'us-west-1'
+type: 'dir'
+audit_sessions_uri: file:///home/log
+audit_events_uri: 'dynamodb://audit_table_name'
+`
+	data = nil
+	err = yaml.Unmarshal([]byte(config), &data)
+	c.Assert(err, check.IsNil)
+
+	out2, err = services.AuditConfigFromObject(data)
+	c.Assert(err, check.IsNil)
+	fixtures.DeepCompare(c, *out2, services.AuditConfig{
+		Region:           "us-west-1",
+		Type:             "dir",
+		AuditSessionsURI: "file:///home/log",
+		AuditEventsURI:   []string{"dynamodb://audit_table_name"},
+	})
 }

@@ -397,10 +397,15 @@ type sessionRecorder struct {
 	namespace string
 }
 
+func isDiscardAuditLog(alog events.IAuditLog) bool {
+	_, ok := alog.(*events.DiscardAuditLog)
+	return ok
+}
+
 func newSessionRecorder(alog events.IAuditLog, ctx *ServerContext, sid rsession.ID) (*sessionRecorder, error) {
 	var err error
 	var auditLog events.IAuditLog
-	if alog == nil {
+	if alog == nil || isDiscardAuditLog(alog) {
 		auditLog = &events.DiscardAuditLog{}
 	} else {
 		// Always write sessions to local disk first, then forward them to the Auth

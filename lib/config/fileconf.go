@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2015-2018 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -136,6 +136,7 @@ var (
 		"proxy_checks_host_keys":  false,
 		"audit_table_name":        false,
 		"audit_sessions_uri":      false,
+		"audit_events_uri":        false,
 		"pam":                     true,
 		"service_name":            false,
 		"client_idle_timeout":     false,
@@ -521,7 +522,7 @@ type Auth struct {
 
 	// PublicAddr sets SSH host principals and TLS DNS names to auth
 	// server certificates
-	PublicAddr Strings `yaml:"public_addr,omitempty"`
+	PublicAddr utils.Strings `yaml:"public_addr,omitempty"`
 
 	// ClientIdleTimeout sets global cluster default setting for client idle timeouts
 	ClientIdleTimeout services.Duration `yaml:"client_idle_timeout"`
@@ -663,7 +664,7 @@ type SSH struct {
 	PermitUserEnvironment bool              `yaml:"permit_user_env,omitempty"`
 	PAM                   *PAM              `yaml:"pam,omitempty"`
 	// PublicAddr sets SSH host principals for SSH service
-	PublicAddr Strings `yaml:"public_addr,omitempty"`
+	PublicAddr utils.Strings `yaml:"public_addr,omitempty"`
 }
 
 // CommandLabel is `command` section of `ssh_service` in the config file
@@ -708,7 +709,7 @@ type Proxy struct {
 	// CertFile is a TLS Certificate file
 	CertFile string `yaml:"https_cert_file,omitempty"`
 	// PublicAddr is a publicly advertised address of the proxy
-	PublicAddr Strings `yaml:"public_addr,omitempty"`
+	PublicAddr utils.Strings `yaml:"public_addr,omitempty"`
 	// ProxyProtocol turns on support for HAProxy proxy protocol
 	// this is the option that has be turned on only by administrator,
 	// as only admin knows whether service is in front of trusted load balancer
@@ -950,42 +951,4 @@ func (u *U2F) Parse() (*services.U2F, error) {
 		AppID:  appID,
 		Facets: facets,
 	}, nil
-}
-
-// Strings is a list of string that can unmarshal from list or a single yaml value
-type Strings []string
-
-// UnmarshalYAML is used to allow Strings to unmarshal from
-// scalar string value or from the list
-func (s *Strings) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	// try unmarshal as string
-	var val string
-	err := unmarshal(&val)
-	if err == nil {
-		*s = []string{val}
-		return nil
-	}
-
-	// try unmarshal as slice
-	var slice []string
-	err = unmarshal(&slice)
-	if err == nil {
-		*s = slice
-		return nil
-	}
-
-	return err
-}
-
-// Addrs returns strings list converted to address list
-func (s Strings) Addrs(defaultPort int) ([]utils.NetAddr, error) {
-	addrs := make([]utils.NetAddr, len(s))
-	for i, val := range s {
-		addr, err := utils.ParseHostPortAddr(val, defaultPort)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		addrs[i] = *addr
-	}
-	return addrs, nil
 }
