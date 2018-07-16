@@ -315,6 +315,14 @@ auth_service:
     #    "off"   : session recording is turned off
     session_recording: "node"
 
+    # Determines if idle clients will be forcefully disconnected from any node
+    # in a cluster. Examples: "30m", "1h" or "1h30m"
+    client_idle_timeout: never
+
+    # Determines if the clients will be forcefully disconnected when their
+    # certificates expire in the middle of an active SSH session. (default is 'no')
+    disconnect_expired_cert: no
+
     # License file to start auth server with. Note that this setting is ignored
     # in open-source Teleport and is required only for Teleport Pro, Business
     # and Enterprise subscription plans.

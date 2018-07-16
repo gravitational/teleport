@@ -90,11 +90,21 @@ spec:
     # port_forwarding controls whether TCP port forwarding is allowed
     port_forwarding: true
 
+    # determines if idle clients will be forcefully disconnected from any node
+    # in a cluster. this option overrides the global cluster setting. 
+    # Examples: "30m", "1h" or "1h30m"
+    client_idle_timeout: never
+
+    # determines if the clients will be forcefully disconnected when their
+    # certificates expire in the middle of an active SSH session. 
+    # this option overrides the global cluster setting.
+    disconnect_expired_cert: no
+
   # allow section declares a list of resource/verb combinations that are
   # allowed for the users of this role. by default nothing is allowed.
   allow:
     # logins array defines the OS logins a user is allowed to use.
-    # A few special variables are supported here (see below)
+    # a few special variables are supported here (see below)
     logins: [root, '{{internal.logins}}']
 
     # node labels that a user can connect to. The wildcard ('*') means "any node"
@@ -133,11 +143,13 @@ local DB, or an identity manager behind a SAML or OIDC endpoint.
 As shown above, a role can define certain restrictions on SSH sessions initiated by users.
 The table below documents the behavior of each option if multiple roles are assigned to a user.
 
-Option       | Description                          | Multi-role behavior
--------------|--------------------------------------|---------------------
-`max_session_ttl`   | Max. time to live (TTL) of a user's SSH certificates | The shortest TTL wins
-`forward_agent`     | Allow SSH agent forwarding      | Logical "OR" i.e. if any role allows agent forwarding, it's allowed
-`port_forwarding`   | Allow TCP port forwarding       | Logical "OR" i.e. if any role allows port forwarding, it's allowed
+Option                    | Description                          | Multi-role behavior
+--------------------------|--------------------------------------|---------------------
+`max_session_ttl`         | Max. time to live (TTL) of a user's SSH certificates | The shortest TTL wins
+`forward_agent`           | Allow SSH agent forwarding         | Logical "OR" i.e. if any role allows agent forwarding, it's allowed
+`port_forwarding`         | Allow TCP port forwarding          | Logical "OR" i.e. if any role allows port forwarding, it's allowed
+`client_idle_timeout`     | Forcefully terminate active SSH sessions after an idle interval | The shortest timeout value wins, i.e. the most restrictive value is selected
+`disconnect_expired_cert` | Forcefully terminate active SSH sessions when a client certificate expires | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination
 
 
 ## RBAC for Hosts
