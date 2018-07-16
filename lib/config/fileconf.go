@@ -378,14 +378,6 @@ type CachePolicy struct {
 	TTL string `yaml:"ttl,omitempty"`
 }
 
-func isTrue(v string) bool {
-	switch v {
-	case "yes", "yeah", "y", "true", "1":
-		return true
-	}
-	return false
-}
-
 func isNever(v string) bool {
 	switch v {
 	case "never", "no", "0":
@@ -396,7 +388,7 @@ func isNever(v string) bool {
 
 // Enabled determines if a given "_service" section has been set to 'true'
 func (c *CachePolicy) Enabled() bool {
-	return c.EnabledFlag == "" || isTrue(c.EnabledFlag)
+	return c.EnabledFlag == "" || utils.IsTrue(c.EnabledFlag)
 }
 
 // NeverExpires returns if cache never expires by itself

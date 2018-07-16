@@ -33,6 +33,16 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// IsTrue returns true if v matches teleport's convention
+// of string values "yes" and similar
+func IsTrue(v string) bool {
+	switch v {
+	case "yes", "yeah", "y", "true", "1":
+		return true
+	}
+	return false
+}
+
 // IsGroupMember returns whether currently logged user is a member of a group
 func IsGroupMember(gid int) (bool, error) {
 	groups, err := os.Getgroups()

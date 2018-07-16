@@ -421,17 +421,36 @@ func (o *SAMLConnectorV2) GetAttributes() []string {
 	return utils.Deduplicate(out)
 }
 
-// MapClaims maps claims to roles
+func (o *SAMLConnectorV2) splitCSV() bool {
+	for _, f := range o.Spec.ParseFlags {
+		if f == teleport.CSV {
+			return true
+		}
+	}
+	return false
+}
+
+// MapAttributes maps attribute statements to roles
 func (o *SAMLConnectorV2) MapAttributes(assertionInfo saml2.AssertionInfo) []string {
 	var roles []string
+	splitCSV := o.splitCSV()
 	for _, mapping := range o.Spec.AttributesToRoles {
 		for _, attr := range assertionInfo.Values {
 			if attr.Name != mapping.Name {
 				continue
 			}
 			for _, value := range attr.Values {
-				if value.Value == mapping.Value {
-					roles = append(roles, mapping.Roles...)
+				if splitCSV {
+					subvals := strings.Split(value.Value, ",")
+					for _, val := range subvals {
+						if strings.TrimSpace(val) == mapping.Value {
+							roles = append(roles, mapping.Roles...)
+						}
+					}
+				} else {
+					if value.Value == mapping.Value {
+						roles = append(roles, mapping.Roles...)
+					}
 				}
 			}
 		}
@@ -739,6 +758,10 @@ type SAMLConnectorSpecV2 struct {
 	SigningKeyPair *SigningKeyPair `json:"signing_key_pair,omitempty"`
 	// Provider is the external identity provider.
 	Provider string `json:"provider,omitempty"`
+	// ParseFlags adds additional processing to attribute statement values
+	// for mapping, by default does nothing, also support comma separated
+	// split with value set to 'csv'
+	ParseFlags []string `json:"parse_flags,omitempty"`
 }
 
 // SAMLConnectorSpecV2Schema is a JSON Schema for SAML Connector
@@ -757,6 +780,7 @@ var SAMLConnectorSpecV2Schema = fmt.Sprintf(`{
     "service_provider_issuer": {"type": "string"},
     "entity_descriptor": {"type": "string"},
     "entity_descriptor_url": {"type": "string"},
+    "parse_flags": {"type": "array", "items": {"type": "string"}},
     "attributes_to_roles": {
       "type": "array",
       "items": %v
