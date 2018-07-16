@@ -153,7 +153,7 @@ ignored = ["github.com/Sirupsen/logrus"]
 [[constraint]]
   name = "github.com/gravitational/license"
   version = "0.0.4"
-  
+
 [[override]]
   name = "k8s.io/api"
   branch = "release-1.9"
@@ -165,4 +165,7 @@ ignored = ["github.com/Sirupsen/logrus"]
 [[constraint]]
   version = "6.0.0"
   name = "k8s.io/client-go"
- 
+
+[[constraint]]
+  name = "github.com/golang/protobuf"
+  version = "=v1.1.0"

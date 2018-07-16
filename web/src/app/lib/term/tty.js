@@ -14,12 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import BufferModule from 'buffer/';
 import { EventEmitter } from 'events';
 import Logger from './../logger';
 import { EventTypeEnum, TermEventEnum, StatusCodeEnum } from './enums';
-
-const Decoder = BufferModule.Buffer;
+import { Protobuf, MessageTypeEnum } from './protobuf';
 
 const logger = Logger.create('Tty');
 
@@ -35,64 +33,61 @@ class Tty extends EventEmitter {
   _attachSocketBufferTimer;
   _addressResolver = null;
 
-  constructor(addressResolver, props = {}) {    
-    super();  
+  constructor(addressResolver, props = {}) {
+    super();
     const options = {
       ...defaultOptions,
       ...props
     }
-    
-    this._addressResolver = addressResolver;        
-    this._buffered = options.buffered; 
+
+    this._addressResolver = addressResolver;
+    this._buffered = options.buffered;
+    this._proto = new Protobuf();
     this._onOpenConnection = this._onOpenConnection.bind(this);
     this._onCloseConnection = this._onCloseConnection.bind(this);
-    this._onReceiveData = this._onReceiveData.bind(this);
+    this._onMessage = this._onMessage.bind(this);
   }
 
   disconnect(reasonCode = StatusCodeEnum.NORMAL) {
     if (this.socket !== null) {
       this.socket.close(reasonCode);
-    }  
+    }
   }
-  
+
   connect(w, h) {
     const connStr = this._addressResolver.getConnStr(w, h);
     this.socket = new WebSocket(connStr);
+    this.socket.binaryType = 'arraybuffer';
     this.socket.onopen = this._onOpenConnection;
-    this.socket.onmessage = this._onReceiveData;        
+    this.socket.onmessage = this._onMessage;
     this.socket.onclose = this._onCloseConnection;
   }
-    
-  send(data) {    
-    const msg = {
-      t: "r",
-      p: Decoder(data, 'utf8').toString('base64')
-    }
 
-    this.socket.send(JSON.stringify(msg));
+  send(data) {
+    var msg = this._proto.encodeRawMessage(data);
+    var bytearray = new Uint8Array(msg);
+    this.socket.send(bytearray.buffer);
   }
 
-  requestResize(w, h){                        
-    const msg = {
-      t: "r.r",
-      p: {
-        event: EventTypeEnum.RESIZE,
-        width: w,
-        height: h,
-        size: `${w}:${h}`
-      }
-    }
-    
-    logger.info('requesting new screen size', `w:${w} and h:${h}`);        
+  requestResize(w, h){
+    logger.info('requesting new screen size', `w:${w} and h:${h}`);
+    var data = JSON.stringify({
+      event: EventTypeEnum.RESIZE,
+      width: w,
+      height: h,
+      size: `${w}:${h}`
+    })
 
-    this.socket.send(JSON.stringify(msg));    
+    var encoded = this._proto.encodeResizeMessage(data);
+    var bytearray = new Uint8Array(encoded);
+    this.socket.send(bytearray.buffer);
   }
 
-  _flushBuffer() {    
-    this.emit(TermEventEnum.DATA, this._attachSocketBuffer);      
+  _flushBuffer() {
+    this.emit(TermEventEnum.DATA, this._attachSocketBuffer);
     this._attachSocketBuffer = null;
     clearTimeout(this._attachSocketBufferTimer);
-    this._attachSocketBufferTimer = null;    
+    this._attachSocketBufferTimer = null;
   }
 
   _pushToBuffer(data) {
@@ -114,46 +109,45 @@ class Tty extends EventEmitter {
     this.socket.onmessage = null;
     this.socket.onclose = null;
     this.socket = null;
-    this.emit(TermEventEnum.CONN_CLOSE, e);      
+    this.emit(TermEventEnum.CONN_CLOSE, e);
     logger.info('websocket is closed');
   }
 
-  _onReceiveData(ev) {        
+  _onMessage(ev) {
     try {
-      const msg = JSON.parse(ev.data);
-      const msgType = msg.t;
-      const msgPayload = msg.p;
-
-      if (msgType === 'a') {
-        this._processEvent(msgPayload);
-        return;
-      }
-      
-      const data = Decoder(msgPayload, 'base64').toString('utf8');
-      if (this._buffered) {
-        this._pushToBuffer(data);
-      } else {
-        this.emit(TermEventEnum.DATA, data);
+      const uintArray = new Uint8Array(ev.data);
+      const msg = this._proto.decode(uintArray);
+      switch (msg.type) {
+        case MessageTypeEnum.AUDIT:
+          this._processAuditPayload(msg.payload);
+          break;
+        case MessageTypeEnum.SESSION_END:
+          this.emit(TermEventEnum.CLOSE, msg.payload);
+          break;
+        case MessageTypeEnum.RAW:
+          if (this._buffered) {
+            this._pushToBuffer(msg.payload);
+          } else {
+            this.emit(TermEventEnum.DATA, msg.payload);
+          }
+          break;
+        default:
+          throw Error('unknown message type', msg.type);
       }
     } catch (err) {
       logger.error('failed to parse incoming message.', err);
     }
   }
 
-  _processEvent(event) {
+  _processAuditPayload(payload) {
+    const event = JSON.parse(payload);
     if (event.event === EventTypeEnum.RESIZE) {
       let [w, h] = event.size.split(':');
       w = Number(w);
       h = Number(h);
       this.emit(TermEventEnum.RESIZE, { w, h });
-      return;
     }
-
-    if (event.event === EventTypeEnum.END) {
-      this.emit(TermEventEnum.CLOSE, event);
-      return;
-    }
-  }      
+  }
 }
 
 export default Tty;
