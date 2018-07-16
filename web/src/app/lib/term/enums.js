@@ -26,8 +26,8 @@ export const TermEventEnum = {
   RESIZE: 'terminal.resize',
   CLOSE: 'terminal.close',
   RESET: 'terminal.reset',
-  DATA: 'terminal.data',  
-  CONN_CLOSE: 'connection.close'  
+  DATA: 'terminal.data',
+  CONN_CLOSE: 'connection.close'
 }
 
 export const StatusCodeEnum = {

@@ -66,6 +66,7 @@ import (
 
 	"github.com/beevik/etree"
 	"github.com/gokyle/hotp"
+	"github.com/golang/protobuf/proto"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
 	"github.com/tstranex/u2f"
@@ -960,15 +961,20 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 	// because resize events are not sent back to the originator.
 	params, err := session.NewTerminalParamsFromInt(300, 120)
 	c.Assert(err, IsNil)
-	websocket.JSON.Send(ws2, eventEnvelope{
-		Type: defaults.ResizeRequestEnvelopeType,
-		Payload: events.EventFields{
-			events.EventType:      events.ResizeEvent,
-			events.EventNamespace: defaults.Namespace,
-			events.SessionEventID: sid.String(),
-			events.TerminalSize:   params.Serialize(),
-		},
+	data, err := json.Marshal(events.EventFields{
+		events.EventType:      events.ResizeEvent,
+		events.EventNamespace: defaults.Namespace,
+		events.SessionEventID: sid.String(),
+		events.TerminalSize:   params.Serialize(),
 	})
+	envelope := &Envelope{
+		Version: defaults.WebsocketVersion,
+		Type:    defaults.WebsocketResize,
+		Payload: string(data),
+	}
+	envelopeBytes, err := proto.Marshal(envelope)
+	c.Assert(err, IsNil)
+	websocket.Message.Send(ws2, envelopeBytes)
 
 	// This time the first terminal will see the resize event.
 	err = s.waitForResizeEvent(ws1, 5*time.Second)
@@ -1473,12 +1479,19 @@ func (s *WebSuite) waitForRawEvent(ws *websocket.Conn, timeout time.Duration) er
 		for {
 			time.Sleep(250 * time.Millisecond)
 
-			var ue unknownEnvelope
-			err := websocket.JSON.Receive(ws, &ue)
+			var raw []byte
+			err := websocket.Message.Receive(ws, &raw)
 			if err != nil {
 				continue
 			}
-			if ue.Type == defaults.RawEnvelopeType {
+
+			var envelope Envelope
+			err = proto.Unmarshal(raw, &envelope)
+			if err != nil {
+				continue
+			}
+
+			if envelope.GetType() == defaults.WebsocketRaw {
 				doneCancel()
 				return
 			}
@@ -1505,23 +1518,29 @@ func (s *WebSuite) waitForResizeEvent(ws *websocket.Conn, timeout time.Duration)
 		for {
 			time.Sleep(250 * time.Millisecond)
 
-			var ue unknownEnvelope
-			err := websocket.JSON.Receive(ws, &ue)
+			var raw []byte
+			err := websocket.Message.Receive(ws, &raw)
 			if err != nil {
 				continue
 			}
 
-			if ue.Type != defaults.AuditEnvelopeType {
-				continue
-			}
-
-			var ee eventEnvelope
-			err = json.Unmarshal(ue.Raw, &ee)
+			var envelope Envelope
+			err = proto.Unmarshal(raw, &envelope)
 			if err != nil {
 				continue
 			}
 
-			if ee.Payload.GetType() == events.ResizeEvent {
+			if envelope.GetType() != defaults.WebsocketAudit {
+				continue
+			}
+
+			var e events.EventFields
+			err = json.Unmarshal([]byte(envelope.GetPayload()), &e)
+			if err != nil {
+				continue
+			}
+
+			if e.GetType() == events.ResizeEvent {
 				doneCancel()
 				return
 			}

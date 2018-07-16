@@ -136,6 +136,9 @@ const (
 	// ComponentUpload is a session recording upload server
 	ComponentUpload = "upload"
 
+	// ComponentWebsocket is websocket server that the web client connects to.
+	ComponentWebsocket = "websocket"
+
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
 

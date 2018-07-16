@@ -30,6 +30,7 @@ import (
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/unicode"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -40,7 +41,8 @@ import (
 
 	"github.com/gravitational/trace"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/golang/protobuf/proto"
+	"github.com/sirupsen/logrus"
 )
 
 // TerminalRequest describes a request to create a web-based terminal
@@ -111,6 +113,9 @@ func NewTerminal(req TerminalRequest, authProvider AuthProvider, ctx *SessionCon
 	}
 
 	return &TerminalHandler{
+		log: logrus.WithFields(logrus.Fields{
+			trace.Component: teleport.ComponentWebsocket,
+		}),
 		namespace:      req.Namespace,
 		sessionID:      req.SessionID,
 		params:         req,
@@ -119,12 +124,17 @@ func NewTerminal(req TerminalRequest, authProvider AuthProvider, ctx *SessionCon
 		hostPort:       hostPort,
 		authProvider:   authProvider,
 		sessionTimeout: req.SessionTimeout,
+		encoder:        unicode.UTF8.NewEncoder(),
+		decoder:        unicode.UTF8.NewDecoder(),
 	}, nil
 }
 
 // TerminalHandler connects together an SSH session with a web-based
 // terminal via a web socket.
 type TerminalHandler struct {
+	// log holds the structured logger.
+	log *logrus.Entry
+
 	// namespace is node namespace.
 	namespace string
 
@@ -158,12 +168,6 @@ type TerminalHandler struct {
 	// terminalCancel is used to signal when the terminal session is closing.
 	terminalCancel context.CancelFunc
 
-	// eventContext is used to signal when the event stream is closing.
-	eventContext context.Context
-
-	// eventCancel is used to signal when the event is closing.
-	eventCancel context.CancelFunc
-
 	// request is the HTTP request that initiated the websocket connection.
 	request *http.Request
 
@@ -172,6 +176,12 @@ type TerminalHandler struct {
 
 	// sessionTimeout is how long to wait for the session end event to arrive.
 	sessionTimeout time.Duration
+
+	// encoder is used to encode strings into UTF-8.
+	encoder *encoding.Encoder
+
+	// decoder is used to decode UTF-8 strings.
+	decoder *encoding.Decoder
 }
 
 // Serve builds a connect to the remote node and then pumps back two types of
@@ -223,16 +233,17 @@ func (t *TerminalHandler) handler(ws *websocket.Conn) {
 	// the terminal.
 	tc, err := t.makeClient(ws)
 	if err != nil {
-		er := errToTerm(err, ws)
+		er := t.errToTerm(err, ws)
 		if er != nil {
-			log.Warnf("Unable to send error to terminal: %v: %v.", err, er)
+			t.log.Warnf("Unable to send error to terminal: %v: %v.", err, er)
 		}
 		return
 	}
 
-	// Create two contexts for signaling. The first
+	// Create a context for signaling when the terminal session is over.
 	t.terminalContext, t.terminalCancel = context.WithCancel(context.Background())
-	t.eventContext, t.eventCancel = context.WithCancel(context.Background())
+
+	t.log.Debugf("Creating websocket stream for %v.", t.sessionID)
 
 	// Pump raw terminal in/out and audit events into the websocket.
 	go t.streamTerminal(ws, tc)
@@ -240,19 +251,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn) {
 
 	// Block until the terminal session is complete.
 	<-t.terminalContext.Done()
-
-	// Block until the session end event is sent or a timeout occurs.
-	timeoutCh := time.After(t.sessionTimeout)
-	for {
-		select {
-		case <-timeoutCh:
-			t.eventCancel()
-		case <-t.eventContext.Done():
-		}
-
-		log.Debugf("Closing websocket stream to web client.")
-		return
-	}
+	t.log.Debugf("Closing websocket stream for %v.", t.sessionID)
 }
 
 // makeClient builds a *client.TeleportClient for the connection.
@@ -308,115 +307,77 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 	// either an error occurs or it completes successfully.
 	err := tc.SSH(t.terminalContext, t.params.InteractiveCommand, false)
 	if err != nil {
-		log.Warnf("Unable to stream terminal: %v.", err)
-		er := errToTerm(err, ws)
+		t.log.Warnf("Unable to stream terminal: %v.", err)
+		er := t.errToTerm(err, ws)
 		if er != nil {
-			log.Warnf("Unable to send error to terminal: %v: %v.", err, er)
+			t.log.Warnf("Unable to send error to terminal: %v: %v.", err, er)
 		}
+		return
 	}
+
+	// Send close envelope to web terminal upon exit without an error.
+	envelope := &Envelope{
+		Version: defaults.WebsocketVersion,
+		Type:    defaults.WebsocketClose,
+		Payload: "",
+	}
+	envelopeBytes, err := proto.Marshal(envelope)
+	if err != nil {
+		t.log.Errorf("Unable to marshal close event for web client.")
+		return
+	}
+	err = websocket.Message.Send(ws, envelopeBytes)
+	if err != nil {
+		t.log.Errorf("Unable to send close event to web client.")
+		return
+	}
+	t.log.Debugf("Sent close event to web client.")
 }
 
-// streamEvents receives events over the SSH connection (as well as periodic
-// polling) to update the client with relevant audit events.
+// streamEvents receives events over the SSH connection and forwards them to
+// the web client.
 func (t *TerminalHandler) streamEvents(ws *websocket.Conn, tc *client.TeleportClient) {
-	// A cursor are used to keep track of where we are in the event stream. This
-	// is to find "session.end" events.
-	var cursor int = -1
-
-	tickerCh := time.NewTicker(defaults.SessionRefreshPeriod)
-	defer tickerCh.Stop()
-
 	for {
 		select {
 		// Send push events that come over the events channel to the web client.
 		case event := <-tc.EventsChannel():
-			e := eventEnvelope{
-				Type:    defaults.AuditEnvelopeType,
-				Payload: event,
-			}
-			log.Debugf("Sending audit event %v to web client.", event.GetType())
-
-			err := websocket.JSON.Send(ws, e)
+			data, err := json.Marshal(event)
 			if err != nil {
-				log.Errorf("Unable to %v event to web client: %v.", event.GetType(), err)
-				continue
-			}
-		// Poll for events to send to the web client. This is for events that can
-		// not be sent over the events channel (like "session.end" which lingers for
-		// a while after all party members have left).
-		case <-tickerCh.C:
-			// Fetch all session events from the backend.
-			sessionEvents, cur, err := t.pollEvents(cursor)
-			if err != nil {
-				if !trace.IsNotFound(err) {
-					log.Errorf("Unable to poll for events: %v.", err)
-					continue
-				}
+				t.log.Errorf("Unable to marshal audit event %v: %v.", event.GetType(), err)
 				continue
 			}
 
-			// Update the cursor location.
-			cursor = cur
+			t.log.Debugf("Sending audit event %v to web client.", event.GetType())
 
-			// Send all events to the web client.
-			for _, sessionEvent := range sessionEvents {
-				ee := eventEnvelope{
-					Type:    defaults.AuditEnvelopeType,
-					Payload: sessionEvent,
-				}
-				err = websocket.JSON.Send(ws, ee)
-				if err != nil {
-					log.Warnf("Unable to send %v events to web client: %v.", len(sessionEvents), err)
-					continue
-				}
-
-				// The session end event was sent over the websocket, we can now close the
-				// websocket.
-				if sessionEvent.GetType() == events.SessionEndEvent {
-					t.eventCancel()
-					return
-				}
+			// UTF-8 encode the error message and then wrap it in a raw envelope.
+			encodedPayload, err := t.encoder.String(string(data))
+			if err != nil {
+				t.log.Debugf("Unable to send audit event %v to web client: %v.", event.GetType(), err)
+				continue
 			}
-		case <-t.eventContext.Done():
+			envelope := &Envelope{
+				Version: defaults.WebsocketVersion,
+				Type:    defaults.WebsocketAudit,
+				Payload: encodedPayload,
+			}
+			envelopeBytes, err := proto.Marshal(envelope)
+			if err != nil {
+				t.log.Debugf("Unable to send audit event %v to web client: %v.", event.GetType(), err)
+				continue
+			}
+
+			// Send bytes over the websocket to the web client.
+			err = websocket.Message.Send(ws, envelopeBytes)
+			if err != nil {
+				t.log.Errorf("Unable to send audit event %v to web client: %v.", event.GetType(), err)
+				continue
+			}
+		// Once the terminal stream is over (and the close envelope has been sent),
+		// close stop streaming envelopes.
+		case <-t.terminalContext.Done():
 			return
 		}
 	}
-}
-
-// pollEvents polls the backend for events that don't get pushed over the
-// SSH events channel. Eventually this function will be removed completely.
-func (t *TerminalHandler) pollEvents(cursor int) ([]events.EventFields, int, error) {
-	// Poll for events since the last call (cursor location).
-	sessionEvents, err := t.authProvider.GetSessionEvents(t.namespace, t.sessionID, cursor+1, false)
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return nil, 0, trace.Wrap(err)
-		}
-		return nil, 0, trace.NotFound("no events from cursor: %v", cursor)
-	}
-
-	// Get the batch size to see if any events were returned.
-	batchLen := len(sessionEvents)
-	if batchLen == 0 {
-		return nil, 0, trace.NotFound("no events from cursor: %v", cursor)
-	}
-
-	// Advance the cursor.
-	newCursor := sessionEvents[batchLen-1].GetInt(events.EventCursor)
-
-	// Filter out any resize events as we get them over push notifications.
-	var filteredEvents []events.EventFields
-	for _, event := range sessionEvents {
-		if event.GetType() == events.ResizeEvent ||
-			event.GetType() == events.SessionJoinEvent ||
-			event.GetType() == events.SessionLeaveEvent ||
-			event.GetType() == events.SessionPrintEvent {
-			continue
-		}
-		filteredEvents = append(filteredEvents, event)
-	}
-
-	return filteredEvents, newCursor, nil
 }
 
 // windowChange is called when the browser window is resized. It sends a
@@ -434,30 +395,35 @@ func (t *TerminalHandler) windowChange(params *session.TerminalParams) error {
 			H: uint32(params.H),
 		}))
 	if err != nil {
-		log.Error(err)
+		t.log.Error(err)
 	}
 
 	return trace.Wrap(err)
 }
 
 // errToTerm displays an error in the terminal window.
-func errToTerm(err error, w io.Writer) error {
+func (t *TerminalHandler) errToTerm(err error, w io.Writer) error {
 	// Replace \n with \r\n so the message correctly aligned.
 	r := strings.NewReplacer("\r\n", "\r\n", "\n", "\r\n")
-	errMessage := []byte(r.Replace(err.Error()))
+	errMessage := r.Replace(err.Error())
 
-	// Create an envelope that contains the error message.
-	re := rawEnvelope{
-		Type:    defaults.RawEnvelopeType,
-		Payload: errMessage,
+	// UTF-8 encode the error message and then wrap it in a raw envelope.
+	encodedPayload, err := t.encoder.String(errMessage)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	b, err := json.Marshal(re)
+	envelope := &Envelope{
+		Version: defaults.WebsocketVersion,
+		Type:    defaults.WebsocketRaw,
+		Payload: encodedPayload,
+	}
+	envelopeBytes, err := proto.Marshal(envelope)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Write the error to the websocket.
-	_, err = w.Write(b)
+	// Send bytes over the websocket to the web client.
+	_, err = w.Write(envelopeBytes)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -525,17 +491,23 @@ func newWrappedSocket(ws *websocket.Conn, terminal *TerminalHandler) *wrappedSoc
 
 // Write wraps the data bytes in a raw envelope and sends.
 func (w *wrappedSocket) Write(data []byte) (n int, err error) {
-	encodedBytes, err := w.encoder.Bytes(data)
+	// UTF-8 encode data and wrap it in a raw envelope.
+	encodedPayload, err := w.encoder.String(string(data))
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	envelope := &Envelope{
+		Version: defaults.WebsocketVersion,
+		Type:    defaults.WebsocketRaw,
+		Payload: encodedPayload,
+	}
+	envelopeBytes, err := proto.Marshal(envelope)
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
 
-	e := rawEnvelope{
-		Type:    defaults.RawEnvelopeType,
-		Payload: encodedBytes,
-	}
-
-	err = websocket.JSON.Send(w.ws, e)
+	// Send bytes over the websocket to the web client.
+	err = websocket.Message.Send(w.ws, envelopeBytes)
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
@@ -546,8 +518,8 @@ func (w *wrappedSocket) Write(data []byte) (n int, err error) {
 // Read unwraps the envelope and either fills out the passed in bytes or
 // performs an action on the connection (sending window-change request).
 func (w *wrappedSocket) Read(out []byte) (n int, err error) {
-	var ue unknownEnvelope
-	err = websocket.JSON.Receive(w.ws, &ue)
+	var bytes []byte
+	err = websocket.Message.Receive(w.ws, &bytes)
 	if err != nil {
 		if err == io.EOF {
 			return 0, io.EOF
@@ -555,37 +527,42 @@ func (w *wrappedSocket) Read(out []byte) (n int, err error) {
 		return 0, trace.Wrap(err)
 	}
 
-	switch ue.Type {
-	case defaults.RawEnvelopeType:
-		var re rawEnvelope
-		err := json.Unmarshal(ue.Raw, &re)
-		if err != nil {
-			return 0, trace.Wrap(err)
-		}
+	var envelope Envelope
+	err = proto.Unmarshal(bytes, &envelope)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
 
-		var data []byte
-		data, err = w.decoder.Bytes(re.Payload)
-		if err != nil {
-			return 0, trace.Wrap(err)
-		}
+	var data []byte
+	data, err = w.decoder.Bytes([]byte(envelope.GetPayload()))
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
 
+	if len(data) < 1 {
+		return 0, trace.BadParameter("frame must have length of at least 1")
+	}
+
+	switch string(envelope.GetType()) {
+	case defaults.WebsocketRaw:
 		if len(out) < len(data) {
-			log.Warningf("websocket failed to receive everything: %d vs %d", len(out), len(data))
+			if w.terminal != nil {
+				w.terminal.log.Warnf("websocket failed to receive everything: %d vs %d", len(out), len(data))
+			}
 		}
-
 		return copy(out, data), nil
-	case defaults.ResizeRequestEnvelopeType:
+	case defaults.WebsocketResize:
 		if w.terminal == nil {
 			return 0, nil
 		}
 
-		var ee eventEnvelope
-		err := json.Unmarshal(ue.Raw, &ee)
+		var e events.EventFields
+		err := json.Unmarshal(data, &e)
 		if err != nil {
 			return 0, trace.Wrap(err)
 		}
 
-		params, err := session.UnmarshalTerminalParams(ee.Payload.GetString("size"))
+		params, err := session.UnmarshalTerminalParams(e.GetString("size"))
 		if err != nil {
 			return 0, trace.Wrap(err)
 		}
@@ -596,7 +573,7 @@ func (w *wrappedSocket) Read(out []byte) (n int, err error) {
 
 		return 0, nil
 	default:
-		return 0, trace.BadParameter("unknown envelope type")
+		return 0, trace.BadParameter("unknown prefix type: %v", envelope.GetType())
 	}
 }
 
@@ -608,37 +585,4 @@ func (w *wrappedSocket) SetReadDeadline(t time.Time) error {
 // Close the websocket.
 func (w *wrappedSocket) Close() error {
 	return w.ws.Close()
-}
-
-// eventEnvelope is used to send/receive audit events.
-type eventEnvelope struct {
-	Type    string             `json:"t"`
-	Payload events.EventFields `json:"p"`
-}
-
-// rawEnvelope is used to send/receive terminal bytes.
-type rawEnvelope struct {
-	Type    string `json:"t"`
-	Payload []byte `json:"p"`
-}
-
-// unknownEnvelope is used to figure out the type of data being unmarshaled.
-type unknownEnvelope struct {
-	envelopeHeader
-	Raw []byte
-}
-
-type envelopeHeader struct {
-	Type string `json:"t"`
-}
-
-func (u *unknownEnvelope) UnmarshalJSON(raw []byte) error {
-	var eh envelopeHeader
-	if err := json.Unmarshal(raw, &eh); err != nil {
-		return err
-	}
-	u.Type = eh.Type
-	u.Raw = make([]byte, len(raw))
-	copy(u.Raw, raw)
-	return nil
 }

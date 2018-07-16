@@ -414,15 +414,21 @@ const (
 )
 
 const (
-	// AuditEnvelopeType is sending a audit event over the websocket to the web client.
-	AuditEnvelopeType = "a"
+	// WebsocketVersion is the version of the protocol.
+	WebsocketVersion = "1"
 
-	// RawEnvelopeType is sending raw terminal bytes over the websocket to the web
+	// WebsocketClose is sent when the SSH session is over without any errors.
+	WebsocketClose = "c"
+
+	// WebsocketAudit is sending a audit event over the websocket to the web client.
+	WebsocketAudit = "a"
+
+	// WebsocketRaw is sending raw terminal bytes over the websocket to the web
 	// client.
-	RawEnvelopeType = "r"
+	WebsocketRaw = "r"
 
-	// ResizeRequestEnvelopeType is receiving a resize request.
-	ResizeRequestEnvelopeType = "r.r"
+	// WebsocketResize is receiving a resize request.
+	WebsocketResize = "w"
 )
 
 // The following are cryptographic primitives Teleport does not support in
