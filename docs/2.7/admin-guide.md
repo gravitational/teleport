@@ -117,6 +117,19 @@ Teleport services listen on several ports. This table shows the default port num
 |3025      | Auth       | SSH port used by the Auth Service to serve its API to other nodes in a cluster.
 |3080      | Proxy      | HTTPS connection to authenticate `tsh` users and web users into the cluster. The same connection is used to serve a Web UI.
 
+### Filesystem Layout
+
+By default, a Teleport node has the following files present:
+
+Full path                    | Purpose
+-----------------------------|---------------------------
+`/etc/teleport.yaml`         | Teleport configuration file (optional).
+`/usr/local/bin/teleport`    | Teleport daemon binary.
+`/usr/local/bin/tctl`        | Teleport admin tool. It is only needed for auth servers.
+`/var/lib/teleport`          | Teleport data directory. Nodes keep their keys and certificates there. Auth servers store the audit log and the cluster keys there, but the audit log storage can be further confnigured via `auth_service` section in the config file.
+
+The location of all of them is configurable.
+
 ## Configuration
 
 You should use a [configuration file](#configuration-file) to configure the `teleport` daemon. 
@@ -197,8 +210,8 @@ teleport:
     # by default it's equal to hostname
     nodename: graviton
 
-    # Data directory where Teleport keeps its data, like keys/users for
-    # authentication (if using the default BoltDB back-end)
+    # Data directory where Teleport daemon keeps its data. 
+    # See "Filesystem Layout" section above for more details.
     data_dir: /var/lib/teleport
 
     # Invitation token used to join a cluster. it is not used on
@@ -311,9 +324,13 @@ auth_service:
 
     # Optional setting for configuring session recording. Possible values are:
     #    "node"  : sessions will be recorded on the node level  (the default)
-    #    "proxy" : recording on the proxy level, see "recording proxy mode" in "Audit Log" section
+    #    "proxy" : recording on the proxy level, see "recording proxy mode" section.
     #    "off"   : session recording is turned off
     session_recording: "node"
+
+    # This setting determines if a Teleport proxy performs strict host key checks.
+    # Only applicable if session_recording=proxy, see "recording proxy mode" for details.
+    proxy_checks_host_keys: yes
 
     # Determines if SSH sessions to cluster nodes are forcefully terminated 
     # after no activity from a client (idle client).
@@ -515,7 +532,10 @@ tsh --proxy <proxy-addr> ssh <hostname>
 ## Adding and Deleting Users
 
 This section covers internal user identities, i.e. user accounts created and
-stored in Teleport's internal storage.
+stored in Teleport's internal storage. Most production users of Teleport use
+_external_ users via [Github](#github-oauth-20) or [Okta](ssh_okta) or any
+other SSO provider (Teleport Enterprise supports any SAML or OIDC compliant
+identity provider)
 
 A user identity in Teleport exists in the scope of a cluster. The member nodes
 of a cluster have multiple OS users on them. A Teleport administrator assigns
@@ -761,7 +781,12 @@ learn more about how the audit Log and session recording are designed.
 
 ### SSH Events
 
-The event log is stored in `data_dir` under `log` directory, usually it is `/var/lib/teleport/log`.
+Teleport supports multiple storage back-ends for storing the SSH events. The section below
+uses the `dir` backend as an example, but see [DynamoDB](#using-dynamodb) or [etcd](#using-etcd) 
+chapters on how to configure the SSH events and recorded sessions to be stored
+on a network storage.
+
+By default, the event log is stored in `data_dir` under `log` directory, usually it is `/var/lib/teleport/log`.
 Each day is represented as a file:
 
 ```bash
@@ -823,6 +848,9 @@ user.login      | A user logged into web UI or via tsh. The following fields wil
 
 In addition to logging `session.start` and `session.end` events, Teleport also records the entire
 stream of bytes going to/from standard input and standard output of an SSH session.
+
+Teleport can store the recorded sessions in an [AWS S3 bucket](#using-dynamodb) or in a local
+filesystem (including NFS).
 
 The recorded sessions are stored as raw bytes in the `sessions` directory under `log`.
 Each session consists of two files, both are named after the session ID:
@@ -1627,9 +1655,8 @@ teleport:
 ### Using DynamoDB
 
 If you are running Teleport on AWS, you can use [DynamoDB](https://aws.amazon.com/dynamodb/)
-as a storage back-end to achieve high availability.
-
-To configure Teleport to use DynamoDB as a storage back-end for storing the cluster state:
+as a storage back-end to achieve high availability. To configure Teleport to
+use DynamoDB:
 
 * Make sure you have AWS access key and a secret key which give you access to
   DynamoDB account. If you're using (as recommended) an IAM role for this, the policy
@@ -1637,7 +1664,8 @@ To configure Teleport to use DynamoDB as a storage back-end for storing the clus
 * Configure all Teleport Auth servers to use DynamoDB back-end in the "storage" section
   of `teleport.yaml` as shown below.
 * Deploy several auth servers connected to DynamoDB storage back-end.
-* Deploy several proxy nodes that have `auth_servers` pointed to list of Auth servers to connect to.
+* Deploy several proxy nodes.
+* Make sure that all Teleport nodes have `auth_servers` configuration setting populated with the auth servers.
 
 ```bash
 teleport:
@@ -1650,7 +1678,7 @@ teleport:
     access_key: BKZA3H2LOKJ1QJ3YF21A
     secret_key: Oc20333k293SKwzraT3ah3Rv1G3/97POQb3eGziSZ
 
-    # Audit log configuration (starting with Teleport 2.6)
+    # Audit log configuration
     audit_table_name: teleport.events
     audit_sessions_uri: s3://example.com/teleport.events
 ```
