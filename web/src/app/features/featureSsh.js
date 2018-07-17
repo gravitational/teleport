@@ -18,7 +18,7 @@ import cfg from 'app/config'
 import Nodes from 'app/components/nodes/main';
 import FeatureBase from './../featureBase';
 import { addNavItem } from './../flux/app/actions';
-import TerminalHost from '../components/terminal/terminalHost.jsx';
+import Index from '../components/terminal';
 
 const sshRoutes = [
   {
@@ -29,7 +29,7 @@ const sshRoutes = [
     path: cfg.routes.terminal,
     title: "Terminal",
     components: {
-      CurrentSessionHost: TerminalHost
+      CurrentSessionHost: Index
     }
   }
 ]
@@ -42,14 +42,14 @@ const sshNavItem = {
 
 class SshFeature extends FeatureBase {
 
-  constructor(routes) {        
-    super();        
-    routes.push(...sshRoutes);        
+  constructor(routes) {
+    super();
+    routes.push(...sshRoutes);
   }
-    
-  onload() {                  
-    addNavItem(sshNavItem);        
-  }  
+
+  onload() {
+    addNavItem(sshNavItem);
+  }
 }
 
 export default SshFeature;

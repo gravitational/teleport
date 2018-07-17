@@ -1,0 +1,80 @@
+/*
+Copyright 2018 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+import React from 'react';
+import { Text } from './items';
+
+export class FileDownloadSelector extends React.Component {
+
+  state = {
+    path: ''
+  }
+
+  onChangePath = e => {
+    this.setState({
+      path: e.target.value
+    })
+  }
+
+  onDownload = () => {
+    if (this.state.path) {
+      this.props.onDownload(this.state.path)
+      this.inputRef.value = "";
+      this.setState({
+        path: ''
+      })
+    }
+  }
+
+  onKeyDown = event => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      event.stopPropagation();
+      this.onDownload();
+    }
+  }
+
+  render() {
+    const { path } = this.state;
+    const isBtnDisabled = !path;
+    return (
+      <div className="grv-file-transfer-header m-b">
+        <Text className="m-b">
+          <h4>DOWNLOAD A FILE</h4>
+        </Text>
+        <Text className="m-b-xs">
+          Full path of file
+        </Text>
+        <div className="grv-file-transfer-download">
+          <input onChange={this.onChangePath}
+            ref={e => this.inputRef = e}
+            value={path}
+            className="grv-file-transfer-input m-r-sm"
+            placeholder="Fully qualified file path"
+            autoFocus
+            onKeyDown={this.onKeyDown}
+          />
+          <button className="btn btn-sm grv-file-transfer-btn"
+            style={{width:"105px"}}
+            disabled={isBtnDisabled}
+            onClick={this.onDownload}>
+            Download
+          </button>
+        </div>
+      </div>
+    )
+  }
+}

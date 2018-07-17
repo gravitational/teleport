@@ -20,31 +20,32 @@ import { connect } from 'nuclear-js-react-addons';
 import sessionGetters from 'app/flux/sessions/getters';
 import {UserIcon} from './../icons.jsx';
 
-const PartyList = props => {  
+const PartyList = props => {
   let parties = props.parties || [];
   let userIcons = parties.map((item, index)=>(
-    <li key={index} className="animated">
+    <div key={index} className="animated m-t">
       <UserIcon colorIndex={index}
         isDark={true}
         name={item.user} />
-    </li>
+    </div>
   ));
 
   return (
-    <ReactCSSTransitionGroup className="nav" component='ul'
+    <ReactCSSTransitionGroup className="m-t" component='div'
       transitionEnterTimeout={500}
       transitionLeaveTimeout={500}
       transitionName={{
         enter: "fadeIn",
         leave: "fadeOut"
       }}>
+      <hr className="grv-divider m-t" />
       {userIcons}
     </ReactCSSTransitionGroup>
   )
 }
 
-function mapStateToProps(props) {  
-  return {    
+function mapStateToProps(props) {
+  return {
     parties: sessionGetters.activePartiesById(props.sid)
   }
 }
