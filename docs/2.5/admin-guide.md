@@ -117,6 +117,20 @@ Teleport services listen on several ports. This table shows the default port num
 |3025      | Auth       | SSH port used by the Auth Service to serve its API to other nodes in a cluster.
 |3080      | Proxy      | HTTPS connection to authenticate `tsh` users and web users into the cluster. The same connection is used to serve a Web UI.
 
+
+### Filesystem Layout
+
+By default, a Teleport node has the following files present:
+
+Full path                    | Purpose
+-----------------------------|---------------------------
+`/etc/teleport.yaml`         | Teleport configuration file (optional).
+`/usr/local/bin/teleport`    | Teleport daemon binary.
+`/usr/local/bin/tctl`        | Teleport admin tool. It is only needed for auth servers.
+`/var/lib/teleport`          | Teleport data directory. Nodes keep their keys and certificates there. Auth servers store the audit log and the cluster keys there, but the audit log storage can be further confnigured via `auth_service` section in the config file.
+
+The location of all of them is configurable.
+
 ## Configuration
 
 You should use a [configuration file](#configuration-file) to configure the `teleport` daemon. 
@@ -197,8 +211,7 @@ teleport:
     # by default it's equal to hostname
     nodename: graviton
 
-    # Data directory where Teleport keeps its data, like keys/users for
-    # authentication (if using the default directory-based back-end)
+    # Data directory where Teleport keeps its data
     data_dir: /var/lib/teleport
 
     # Invitation token used to join a cluster. it is not used on
