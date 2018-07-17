@@ -90,14 +90,14 @@ spec:
     # port_forwarding controls whether TCP port forwarding is allowed
     port_forwarding: true
 
-    # determines if idle clients will be forcefully disconnected from any node
-    # in a cluster. this option overrides the global cluster setting. 
-    # Examples: "30m", "1h" or "1h30m"
+    # determines if SSH sessions to cluster nodes are forcefully terminated 
+    # after no activity from a client (idle client). it overrides the global 
+    # cluster setting. examples: "30m", "1h" or "1h30m"
     client_idle_timeout: never
 
     # determines if the clients will be forcefully disconnected when their
     # certificates expire in the middle of an active SSH session. 
-    # this option overrides the global cluster setting.
+    # it overrides the global cluster setting.
     disconnect_expired_cert: no
 
   # allow section declares a list of resource/verb combinations that are

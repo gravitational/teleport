@@ -315,8 +315,9 @@ auth_service:
     #    "off"   : session recording is turned off
     session_recording: "node"
 
-    # Determines if idle clients will be forcefully disconnected from any node
-    # in a cluster. Examples: "30m", "1h" or "1h30m"
+    # Determines if SSH sessions to cluster nodes are forcefully terminated 
+    # after no activity from a client (idle client).
+    # Examples: "30m", "1h" or "1h30m"
     client_idle_timeout: never
 
     # Determines if the clients will be forcefully disconnected when their
