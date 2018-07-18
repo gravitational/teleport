@@ -57,7 +57,7 @@ class Transfer extends EventEmitter {
   }
 
   handleError(xhr) {
-    const errText = getErrorText(xhr);
+    const errText = getErrorText(xhr.response);
     this.emit('error', new Error(errText));
   }
 

@@ -53,7 +53,7 @@ const cfg = {
   },
 
   api: {
-    scp: '/v1/webapi/sites/:siteId/nodes/:serverId/:login/scp',
+    scp: '/v1/webapi/sites/:siteId/nodes/:serverId/:login/scp?location=:location&filename=:filename',
     ssoOidc: '/v1/webapi/oidc/login/web?redirect_url=:redirect&connector_id=:providerName',
     ssoSaml: '/v1/webapi/saml/sso?redirect_url=:redirect&connector_id=:providerName',
     renewTokenPath:'/v1/webapi/sessions/renew',
@@ -102,8 +102,8 @@ const cfg = {
       return formatPattern(cfg.api.sessionEventsPath, {sid, siteId});
     },
 
-    getScpUrl({ siteId, serverId, login }) {
-      return formatPattern(cfg.api.scp, {siteId, serverId, login});
+    getScpUrl({ siteId, serverId, login, location, filename }) {
+      return formatPattern(cfg.api.scp, {siteId, serverId, login, location, filename});
     },
 
     getFetchSessionsUrl(siteId){

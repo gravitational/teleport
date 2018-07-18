@@ -17,10 +17,6 @@ limitations under the License.
 import React, { PropTypes } from 'react';
 import { Text } from './items';
 
-const defaultState = () => ({
-  files: [],
-  remoteLocation: "./"
-})
 
 export class FileUploadSelector extends React.Component {
 
@@ -28,7 +24,10 @@ export class FileUploadSelector extends React.Component {
     onUpload: PropTypes.func.isRequired,
   }
 
-  state = defaultState()
+  state = {
+    files: [],
+    remoteLocation: "~/"
+  }
 
   componentWillUnmount() {
     document.removeEventListener('drop', this.onDocumentDrop);
@@ -67,16 +66,16 @@ export class FileUploadSelector extends React.Component {
 
   onUpload = () => {
     let { files, remoteLocation } = this.state;
-    if (remoteLocation && remoteLocation[remoteLocation.length - 1] !== '/') {
+    // if multiple files selected, ensure that we are uploading to a directory
+    if (files.length > 1 && remoteLocation[remoteLocation.length - 1] !== '/') {
       remoteLocation = remoteLocation + '/';
     }
 
     for (var i = 0; i < files.length; i++) {
-      const name = remoteLocation + files[i].name;
-      this.props.onUpload(name, files[i]);
+      this.props.onUpload(remoteLocation, files[i].name, files[i]);
     }
 
-    this.setState(defaultState())
+    this.setState({ files: [] });
     this.setFocus();
   }
 
@@ -129,12 +128,28 @@ export class FileUploadSelector extends React.Component {
     return (
       <div className="grv-file-transfer-header m-b">
         <Text className="m-b">
-          <h4>UPLOAD FILES</h4>
-        </Text>
-        <Text className="m-b-xs">
-          Enter the location to upload files
+          <h4>SCP UPLOAD</h4>
         </Text>
         <div className="grv-file-transfer-upload">
+          <div className="grv-file-transfer-upload-selected-files"
+            ref={ e => this.refDropzone = e }
+            onDragOver={e => e.preventDefault()}
+            onDrop={this.onDrop}
+          >
+            {!hasFiles &&
+              <div>
+                <a onClick={this.onOpenFilePicker}>Select files</a> to upload or drag & drop them here
+              </div>
+            }
+            {hasFiles &&
+              <div>
+                <a onClick={this.onOpenFilePicker}> {files.length} files selected </a>
+              </div>
+            }
+          </div>
+          <Text className="m-b-xs m-t" >
+            Upload destination
+          </Text>
           <div style={{ display: "flex" }}>
             <input className="grv-file-transfer-input m-r-sm"
               ref={e => this.inputRef = e}
@@ -151,22 +166,6 @@ export class FileUploadSelector extends React.Component {
               onClick={this.onUpload}>
               Upload
             </button>
-          </div>
-          <div className="grv-file-transfer-upload-selected-files m-t"
-            ref={ e => this.refDropzone = e }
-            onDragOver={e => e.preventDefault()}
-            onDrop={this.onDrop}
-          >
-            {!hasFiles &&
-              <div>
-                <a onClick={this.onOpenFilePicker}>Select files</a> or place them here
-              </div>
-            }
-            {hasFiles &&
-              <div>
-                <a onClick={this.onOpenFilePicker}> {files.length} files selected </a>
-              </div>
-            }
           </div>
           <input ref={e => this.fileSelectorRef = e} type="file"
             multiple
