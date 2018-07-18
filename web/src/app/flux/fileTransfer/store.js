@@ -71,7 +71,7 @@ export class FileTransferStore extends Record({
     return new FileTransferStore();
   }
 
-  makeUrl(fileName) {
+  makeUrl(location, filename) {
     const {
       siteId,
       serverId,
@@ -80,14 +80,10 @@ export class FileTransferStore extends Record({
     let url = cfg.api.getScpUrl({
       siteId,
       serverId,
-      login
+      login,
+      location,
+      filename
     });
-
-    if (fileName.indexOf('/') === 0) {
-      url = `${url}/absolute${fileName}`
-    } else {
-      url = `${url}/relative/${fileName}`
-    }
 
     return url;
   }
@@ -97,8 +93,8 @@ export class FileTransferStore extends Record({
     return this.set('files', files);
   }
 
-  addFile({ name, blob, isUpload }) {
-    const url = this.makeUrl(name);
+  addFile({ location, name, blob, isUpload }) {
+    const url = this.makeUrl(location, name);
     const file = new File({
       url,
       name,

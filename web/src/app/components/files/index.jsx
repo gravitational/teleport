@@ -27,20 +27,21 @@ export class FileTransferDialog extends Component {
     onClose: PropTypes.func.isRequired
   }
 
-  transfer(name, isUpload, blob) {
+  transfer(location, name, isUpload, blob=[]) {
     this.props.onTransfer({
+      location,
       name,
       isUpload,
       blob
     })
   }
 
-  onDownload = fileName => {
-    this.transfer(fileName, false, [])
+  onDownload = location => {
+    this.transfer(location, location, false)
   }
 
-  onUpload = (remoteLocation, blob) => {
-    this.transfer(remoteLocation, true, blob);
+  onUpload = (location, filename, blob) => {
+    this.transfer(location, filename, true, blob);
   }
 
   onKeyDown = e => {

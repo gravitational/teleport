@@ -42,6 +42,8 @@ const (
 type HTTPTransferRequest struct {
 	// RemoteLocation is a destination location of the file
 	RemoteLocation string
+	// FileName is a file name
+	FileName string
 	// HTTPRequest is HTTP request
 	HTTPRequest *http.Request
 	// HTTPRequest is HTTP request
@@ -69,9 +71,12 @@ func CreateHTTPUpload(req HTTPTransferRequest) (Command, error) {
 		return nil, trace.BadParameter("missing parameter HTTPRequest")
 	}
 
-	dir, filename, err := req.parseRemoteLocation()
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if req.FileName == "" {
+		return nil, trace.BadParameter("missing file name")
+	}
+
+	if req.RemoteLocation == "" {
+		return nil, trace.BadParameter("missing remote location")
 	}
 
 	contentLength := req.HTTPRequest.Header.Get("Content-Length")
@@ -82,20 +87,21 @@ func CreateHTTPUpload(req HTTPTransferRequest) (Command, error) {
 
 	fs := &httpFileSystem{
 		reader:   req.HTTPRequest.Body,
-		fileName: filename,
+		fileName: req.FileName,
 		fileSize: fileSize,
 	}
 
 	flags := Flags{
-		Target: []string{dir},
+		// scp treats it as a list of files to upload
+		Target: []string{req.FileName},
 	}
 
 	cfg := Config{
-		User:           req.User,
 		Flags:          flags,
 		FileSystem:     fs,
+		User:           req.User,
 		ProgressWriter: req.Progress,
-		RemoteLocation: dir,
+		RemoteLocation: req.RemoteLocation,
 		AuditLog:       req.AuditLog,
 	}
 

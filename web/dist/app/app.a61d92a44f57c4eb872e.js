@@ -1221,7 +1221,7 @@ webpackJsonp([0],[
 	  },
 
 	  api: {
-	    scp: '/v1/webapi/sites/:siteId/nodes/:serverId/:login/scp',
+	    scp: '/v1/webapi/sites/:siteId/nodes/:serverId/:login/scp?location=:location&filename=:filename',
 	    ssoOidc: '/v1/webapi/oidc/login/web?redirect_url=:redirect&connector_id=:providerName',
 	    ssoSaml: '/v1/webapi/saml/sso?redirect_url=:redirect&connector_id=:providerName',
 	    renewTokenPath: '/v1/webapi/sessions/renew',
@@ -1278,9 +1278,11 @@ webpackJsonp([0],[
 	    getScpUrl: function getScpUrl(_ref3) {
 	      var siteId = _ref3.siteId,
 	          serverId = _ref3.serverId,
-	          login = _ref3.login;
+	          login = _ref3.login,
+	          location = _ref3.location,
+	          filename = _ref3.filename;
 
-	      return (0, _patternUtils.formatPattern)(cfg.api.scp, { siteId: siteId, serverId: serverId, login: login });
+	      return (0, _patternUtils.formatPattern)(cfg.api.scp, { siteId: siteId, serverId: serverId, login: login, location: location, filename: filename });
 	    },
 	    getFetchSessionsUrl: function getFetchSessionsUrl(siteId) {
 	      return (0, _patternUtils.formatPattern)(cfg.api.siteEventSessionFilterPath, { siteId: siteId });
@@ -13457,7 +13459,7 @@ webpackJsonp([0],[
 	    return new FileTransferStore();
 	  };
 
-	  FileTransferStore.prototype.makeUrl = function makeUrl(fileName) {
+	  FileTransferStore.prototype.makeUrl = function makeUrl(location, filename) {
 	    var siteId = this.siteId,
 	        serverId = this.serverId,
 	        login = this.login;
@@ -13466,14 +13468,10 @@ webpackJsonp([0],[
 	    var url = _config2.default.api.getScpUrl({
 	      siteId: siteId,
 	      serverId: serverId,
-	      login: login
+	      login: login,
+	      location: location,
+	      filename: filename
 	    });
-
-	    if (fileName.indexOf('/') === 0) {
-	      url = url + '/absolute' + fileName;
-	    } else {
-	      url = url + '/relative/' + fileName;
-	    }
 
 	    return url;
 	  };
@@ -13484,11 +13482,12 @@ webpackJsonp([0],[
 	  };
 
 	  FileTransferStore.prototype.addFile = function addFile(_ref2) {
-	    var name = _ref2.name,
+	    var location = _ref2.location,
+	        name = _ref2.name,
 	        blob = _ref2.blob,
 	        isUpload = _ref2.isUpload;
 
-	    var url = this.makeUrl(name);
+	    var url = this.makeUrl(location, name);
 	    var file = new File({
 	      url: url,
 	      name: name,
@@ -15934,10 +15933,10 @@ webpackJsonp([0],[
 	      args[_key] = arguments[_key];
 	    }
 
-	    return _ret = (_temp = (_this = _possibleConstructorReturn(this, _Component.call.apply(_Component, [this].concat(args))), _this), _this.onDownload = function (fileName) {
-	      _this.transfer(fileName, false, []);
-	    }, _this.onUpload = function (remoteLocation, blob) {
-	      _this.transfer(remoteLocation, true, blob);
+	    return _ret = (_temp = (_this = _possibleConstructorReturn(this, _Component.call.apply(_Component, [this].concat(args))), _this), _this.onDownload = function (location) {
+	      _this.transfer(location, location, false);
+	    }, _this.onUpload = function (location, filename, blob) {
+	      _this.transfer(location, filename, true, blob);
 	    }, _this.onKeyDown = function (e) {
 	      // escape
 	      if (e.keyCode !== 27) {
@@ -15960,8 +15959,11 @@ webpackJsonp([0],[
 	    }, _temp), _possibleConstructorReturn(_this, _ret);
 	  }
 
-	  FileTransferDialog.prototype.transfer = function transfer(name, isUpload, blob) {
+	  FileTransferDialog.prototype.transfer = function transfer(location, name, isUpload) {
+	    var blob = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : [];
+
 	    this.props.onTransfer({
+	      location: location,
 	      name: name,
 	      isUpload: isUpload,
 	      blob: blob
@@ -16094,13 +16096,13 @@ webpackJsonp([0],[
 	        _react2.default.createElement(
 	          'h4',
 	          null,
-	          'DOWNLOAD A FILE'
+	          'SCP DOWNLOAD'
 	        )
 	      ),
 	      _react2.default.createElement(
 	        _items.Text,
 	        { className: 'm-b-xs' },
-	        'Full path of file'
+	        'File path'
 	      ),
 	      _react2.default.createElement(
 	        'div',
@@ -16210,13 +16212,6 @@ webpackJsonp([0],[
 	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               limitations under the License.
 	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               */
 
-	var defaultState = function defaultState() {
-	  return {
-	    files: [],
-	    remoteLocation: "./"
-	  };
-	};
-
 	var FileUploadSelector = exports.FileUploadSelector = function (_React$Component) {
 	  _inherits(FileUploadSelector, _React$Component);
 
@@ -16229,7 +16224,10 @@ webpackJsonp([0],[
 	      args[_key] = arguments[_key];
 	    }
 
-	    return _ret = (_temp = (_this = _possibleConstructorReturn(this, _React$Component.call.apply(_React$Component, [this].concat(args))), _this), _this.state = defaultState(), _this.onFileSelected = function (e) {
+	    return _ret = (_temp = (_this = _possibleConstructorReturn(this, _React$Component.call.apply(_React$Component, [this].concat(args))), _this), _this.state = {
+	      files: [],
+	      remoteLocation: "~/"
+	    }, _this.onFileSelected = function (e) {
 	      _this.addFiles([], e.target.files);
 	      _this.inputRef.focus();
 	    }, _this.onFilePathChanged = function (e) {
@@ -16240,17 +16238,17 @@ webpackJsonp([0],[
 	      var _this$state = _this.state,
 	          files = _this$state.files,
 	          remoteLocation = _this$state.remoteLocation;
+	      // if multiple files selected, ensure that we are uploading to a directory
 
-	      if (remoteLocation && remoteLocation[remoteLocation.length - 1] !== '/') {
+	      if (files.length > 1 && remoteLocation[remoteLocation.length - 1] !== '/') {
 	        remoteLocation = remoteLocation + '/';
 	      }
 
 	      for (var i = 0; i < files.length; i++) {
-	        var name = remoteLocation + files[i].name;
-	        _this.props.onUpload(name, files[i]);
+	        _this.props.onUpload(remoteLocation, files[i].name, files[i]);
 	      }
 
-	      _this.setState(defaultState());
+	      _this.setState({ files: [] });
 	      _this.setFocus();
 	    }, _this.onOpenFilePicker = function () {
 	      // reset all selected files
@@ -16335,17 +16333,50 @@ webpackJsonp([0],[
 	        _react2.default.createElement(
 	          'h4',
 	          null,
-	          'UPLOAD FILES'
+	          'SCP UPLOAD'
 	        )
-	      ),
-	      _react2.default.createElement(
-	        _items.Text,
-	        { className: 'm-b-xs' },
-	        'Enter the location to upload files'
 	      ),
 	      _react2.default.createElement(
 	        'div',
 	        { className: 'grv-file-transfer-upload' },
+	        _react2.default.createElement(
+	          'div',
+	          { className: 'grv-file-transfer-upload-selected-files',
+	            ref: function ref(e) {
+	              return _this2.refDropzone = e;
+	            },
+	            onDragOver: function onDragOver(e) {
+	              return e.preventDefault();
+	            },
+	            onDrop: this.onDrop
+	          },
+	          !hasFiles && _react2.default.createElement(
+	            'div',
+	            null,
+	            _react2.default.createElement(
+	              'a',
+	              { onClick: this.onOpenFilePicker },
+	              'Select files'
+	            ),
+	            ' to upload or drag & drop them here'
+	          ),
+	          hasFiles && _react2.default.createElement(
+	            'div',
+	            null,
+	            _react2.default.createElement(
+	              'a',
+	              { onClick: this.onOpenFilePicker },
+	              ' ',
+	              files.length,
+	              ' files selected '
+	            )
+	          )
+	        ),
+	        _react2.default.createElement(
+	          _items.Text,
+	          { className: 'm-b-xs m-t' },
+	          'Upload destination'
+	        ),
 	        _react2.default.createElement(
 	          'div',
 	          { style: { display: "flex" } },
@@ -16367,39 +16398,6 @@ webpackJsonp([0],[
 	              disabled: isDldBtnDisabled,
 	              onClick: this.onUpload },
 	            'Upload'
-	          )
-	        ),
-	        _react2.default.createElement(
-	          'div',
-	          { className: 'grv-file-transfer-upload-selected-files m-t',
-	            ref: function ref(e) {
-	              return _this2.refDropzone = e;
-	            },
-	            onDragOver: function onDragOver(e) {
-	              return e.preventDefault();
-	            },
-	            onDrop: this.onDrop
-	          },
-	          !hasFiles && _react2.default.createElement(
-	            'div',
-	            null,
-	            _react2.default.createElement(
-	              'a',
-	              { onClick: this.onOpenFilePicker },
-	              'Select files'
-	            ),
-	            ' or place them here'
-	          ),
-	          hasFiles && _react2.default.createElement(
-	            'div',
-	            null,
-	            _react2.default.createElement(
-	              'a',
-	              { onClick: this.onOpenFilePicker },
-	              ' ',
-	              files.length,
-	              ' files selected '
-	            )
 	          )
 	        ),
 	        _react2.default.createElement('input', { ref: function ref(e) {
@@ -16727,7 +16725,7 @@ webpackJsonp([0],[
 	  };
 
 	  Transfer.prototype.handleError = function handleError(xhr) {
-	    var errText = getErrorText(xhr);
+	    var errText = getErrorText(xhr.response);
 	    this.emit('error', new Error(errText));
 	  };
 

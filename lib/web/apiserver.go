@@ -182,8 +182,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/stream", h.siteSessionStreamGet)                    // get recorded session's bytes (from events)
 
 	// scp file transfer
-	h.GET("/webapi/sites/:site/namespaces/:namespace/nodes/:server/:login/scp/*filepath", h.WithClusterAuth(h.transferFile))
-	h.POST("/webapi/sites/:site/namespaces/:namespace/nodes/:server/:login/scp/*filepath", h.WithClusterAuth(h.transferFile))
+	h.GET("/webapi/sites/:site/namespaces/:namespace/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
+	h.POST("/webapi/sites/:site/namespaces/:namespace/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
 
 	// OIDC related callback handlers
 	h.GET("/webapi/oidc/login/web", httplib.MakeHandler(h.oidcLoginWeb))

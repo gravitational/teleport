@@ -53,10 +53,10 @@ export class FileDownloadSelector extends React.Component {
     return (
       <div className="grv-file-transfer-header m-b">
         <Text className="m-b">
-          <h4>DOWNLOAD A FILE</h4>
+          <h4>SCP DOWNLOAD</h4>
         </Text>
         <Text className="m-b-xs">
-          Full path of file
+          File path
         </Text>
         <div className="grv-file-transfer-download">
           <input onChange={this.onChangePath}

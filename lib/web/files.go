@@ -19,7 +19,6 @@ package web
 import (
 	"context"
 	"net/http"
-	"strings"
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
@@ -41,16 +40,20 @@ type fileTransferRequest struct {
 	namespace string
 	// Cluster is the name of the remote cluster to connect to.
 	cluster string
-	// Cluster is the name of the remote cluster to connect to.
-	remoteFilePath string
+	// remoteLocation is file remote location
+	remoteLocation string
+	// filename is a file name
+	filename string
 }
 
 func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	query := r.URL.Query()
 	req := fileTransferRequest{
 		login:          p.ByName("login"),
 		namespace:      p.ByName("namespace"),
 		server:         p.ByName("server"),
-		remoteFilePath: p.ByName("filepath"),
+		remoteLocation: query.Get("location"),
+		filename:       query.Get("filename"),
 	}
 
 	clt, err := ctx.GetUserClient(site)
@@ -86,13 +89,8 @@ type fileTransfer struct {
 }
 
 func (f *fileTransfer) download(req fileTransferRequest, w http.ResponseWriter) error {
-	remoteDest, err := f.resolveRemoteDest(req.remoteFilePath)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	cmd, err := scp.CreateHTTPDownload(scp.HTTPTransferRequest{
-		RemoteLocation: remoteDest,
+		RemoteLocation: req.remoteLocation,
 		HTTPResponse:   w,
 		User:           f.ctx.GetUser(),
 	})
@@ -114,13 +112,9 @@ func (f *fileTransfer) download(req fileTransferRequest, w http.ResponseWriter) 
 }
 
 func (f *fileTransfer) upload(req fileTransferRequest, httpReq *http.Request) error {
-	remoteDest, err := f.resolveRemoteDest(req.remoteFilePath)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	cmd, err := scp.CreateHTTPUpload(scp.HTTPTransferRequest{
-		RemoteLocation: remoteDest,
+		RemoteLocation: req.remoteLocation,
+		FileName:       req.filename,
 		HTTPRequest:    httpReq,
 		User:           f.ctx.GetUser(),
 	})
@@ -178,18 +172,4 @@ func (f *fileTransfer) createClient(req fileTransferRequest) (*client.TeleportCl
 	}
 
 	return tc, nil
-}
-
-func (f *fileTransfer) resolveRemoteDest(filepath string) (string, error) {
-	if strings.HasPrefix(filepath, "/absolute/") {
-		remoteDest := strings.TrimPrefix(filepath, "/absolute/")
-		return "/" + remoteDest, nil
-	}
-
-	if strings.HasPrefix(filepath, "/relative/") {
-		remoteDest := strings.TrimPrefix(filepath, "/relative/")
-		return "./" + remoteDest, nil
-	}
-
-	return "", trace.BadParameter("invalid remote file path: %q", filepath)
 }
