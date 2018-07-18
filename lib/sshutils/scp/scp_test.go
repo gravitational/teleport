@@ -47,8 +47,6 @@ func (s *SCPSuite) SetUpSuite(c *C) {
 
 func (s *SCPSuite) TestHTTPSendFile(c *C) {
 	outdir := c.MkDir()
-	newFileRemoteLocation := filepath.Join(outdir, "new-file")
-
 	expectedBytes := []byte("hello")
 	buf := bytes.NewReader(expectedBytes)
 	req, err := http.NewRequest("POST", "/", buf)
@@ -59,14 +57,15 @@ func (s *SCPSuite) TestHTTPSendFile(c *C) {
 	stdOut := bytes.NewBufferString("")
 	cmd, err := CreateHTTPUpload(
 		HTTPTransferRequest{
-			RemoteLocation: newFileRemoteLocation,
+			FileName:       "filename",
+			RemoteLocation: outdir,
 			HTTPRequest:    req,
 			Progress:       stdOut,
 			User:           "test-user",
 		})
 	c.Assert(err, IsNil)
 	s.runSCP(c, cmd, "scp", "-v", "-t", outdir)
-	bytesReceived, err := ioutil.ReadFile(newFileRemoteLocation)
+	bytesReceived, err := ioutil.ReadFile(filepath.Join(outdir, "filename"))
 	c.Assert(err, IsNil)
 	c.Assert(string(bytesReceived), Equals, string(expectedBytes))
 }
