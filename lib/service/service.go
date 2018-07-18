@@ -713,15 +713,26 @@ func initUploadHandler(auditConfig services.AuditConfig) (events.UploadHandler, 
 
 	switch uri.Scheme {
 	case teleport.SchemeS3:
-		return s3sessions.NewHandler(s3sessions.Config{
+		handler, err := s3sessions.NewHandler(s3sessions.Config{
 			Bucket: uri.Host,
 			Region: auditConfig.Region,
 			Path:   uri.Path,
 		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return handler, nil
 	case teleport.SchemeFile:
-		return filesessions.NewHandler(filesessions.Config{
+		if err := os.MkdirAll(uri.Path, teleport.SharedDirMode); err != nil {
+			return nil, trace.ConvertSystemError(err)
+		}
+		handler, err := filesessions.NewHandler(filesessions.Config{
 			Directory: uri.Path,
 		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return handler, nil
 	default:
 		return nil, trace.BadParameter(
 			"unsupported scheme for audit_sesions_uri: %q, currently supported schemes are %q and %q",
@@ -733,7 +744,11 @@ func initUploadHandler(auditConfig services.AuditConfig) (events.UploadHandler, 
 // setup, returns nil
 func initExternalLog(auditConfig services.AuditConfig) (events.IAuditLog, error) {
 	if auditConfig.AuditTableName != "" {
-		auditConfig.AuditEventsURI = append(auditConfig.AuditEventsURI, fmt.Sprintf("%v://%v", dynamo.GetName(), auditConfig.AuditTableName))
+		log.Warningf("Please note that 'audit_table_name' is deprecated and will be removed in several releases. Use audit_events_uri: '%v://%v' instead.", dynamo.GetName(), auditConfig.AuditTableName)
+		if len(auditConfig.AuditEventsURI) != 0 {
+			return nil, trace.BadParameter("Detected configuration specifying 'audit_table_name' and 'audit_events_uri' at the same time. Please migrate your config to use 'audit_events_uri' only.")
+		}
+		auditConfig.AuditEventsURI = []string{fmt.Sprintf("%v://%v", dynamo.GetName(), auditConfig.AuditTableName)}
 	}
 	if len(auditConfig.AuditEventsURI) > 0 && !auditConfig.ShouldUploadSessions() {
 		return nil, trace.BadParameter("please specify audit_sessions_uri when using external audit backends")
@@ -757,6 +772,9 @@ func initExternalLog(auditConfig services.AuditConfig) (events.IAuditLog, error)
 			}
 			loggers = append(loggers, logger)
 		case teleport.SchemeFile:
+			if err := os.MkdirAll(uri.Path, teleport.SharedDirMode); err != nil {
+				return nil, trace.ConvertSystemError(err)
+			}
 			logger, err := events.NewFileLog(events.FileLogConfig{
 				Dir: uri.Path,
 			})
