@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -41,9 +42,8 @@ func (s *Config) CheckAndSetDefaults() error {
 	if s.Directory == "" {
 		return trace.BadParameter("missing parameter Directory")
 	}
-	_, err := os.Stat(s.Directory)
-	if err != nil {
-		return trace.ConvertSystemError(err)
+	if !utils.IsDir(s.Directory) {
+		return trace.BadParameter("path %q does not exist or is not a directory", s.Directory)
 	}
 	return nil
 }
