@@ -1810,6 +1810,12 @@ When upgrading a single Teleport cluster:
         auto-scaling group, you have to shrink the group to **just one auth server** 
         prior to performing an upgrade.
 
+    !!! important "Important":
+        While Teleport will attempt to perform any necessary migrations, as a
+        precaution we recommend users create a backup of their backend before
+        upgrading the Auth Server. This allows safe rollback in-case the
+        migration itself fails.    
+
 2. Then, upgrade the proxy servers. The proxy servers are stateless and can be upgraded
    in any sequence or at the same time.
 
