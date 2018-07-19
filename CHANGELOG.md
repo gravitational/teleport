@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.6.7
+
+This release of Teleport focuses on bugfixes.
+
+#### Bug Fixes
+
+* Resolved dynamic label regression. [#2056](https://github.com/gravitational/teleport/issues/2056)
+
 ## 2.6.5
 
 This release of Teleport focuses on bugfixes.
