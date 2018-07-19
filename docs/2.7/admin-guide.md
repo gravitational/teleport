@@ -240,10 +240,19 @@ teleport:
         output: stderr
         severity: ERROR
 
-    # Type of storage used for keys. You need to configure this to use etcd
-    # backend if you want to run Teleport in HA configuration.
+    # Type of storage used for keys. You need to configure this to use etcd or 
+    # a DynamoDB backend if you want to run Teleport in HA configuration.
     storage:
-        type: bolt
+        # By default teleport uses the `data_dir` directory on a local filesystem
+        type: dir
+
+        # Array of locations where the audit log events will be stored. by
+        # default they are stored in `/var/lib/teleport/log`
+        audit_events_uri: [file:///var/lib/teleport/log, dynamo://events_table_name]
+
+        # Use this setting to configure teleport to store the recorded sessions in
+        # an AWS S3 bucket. see "Using Amazon S3" chapter for more information.
+        audit_sessions_uri: s3://name-of-s3-bucket
 
     # Cipher algorithms that the server supports. This section only needs to be
     # set if you want to override the defaults.
@@ -762,9 +771,7 @@ turing        d52527f9-b260    10.1.0.5:3022   kernel=3.19.0-56,uptime=up 1 hour
 
 ## Audit Log
 
-Teleport logs every SSH event into its audit log. 
-
-There are two components of the audit log:
+Teleport logs every SSH event into its audit log. There are two components of the audit log:
 
 1. **SSH Events:** Teleport logs events like successful user logins along with
    the metadata like remote IP address, time and the sesion ID.
@@ -772,21 +779,22 @@ There are two components of the audit log:
    later. The recording by default is done by the nodes themselves, but can be configured
    to be done by the proxy.
 
-By default the audit log is stored on the auth server(s) in the `data_dir` location, under 
-`log` subdirectory. Starting with Teleport 2.6 AWS users can configure Teleport to store
-the audit log events in [DynamoDB](#using-dynamodb) and interactive sessions in AWS S3.
-
-Refer to the "Audit Log" chapter in the [Teleport Architecture](architecture#audit-log) to 
-learn more about how the audit Log and session recording are designed.
+Refer to the "Audit Log" chapter in the [Teleport Architecture](architecture#audit-log) 
+to learn more about how the audit Log and session recording are designed.
 
 ### SSH Events
 
 Teleport supports multiple storage back-ends for storing the SSH events. The section below
-uses the `dir` backend as an example, but see [DynamoDB](#using-dynamodb) or [etcd](#using-etcd) 
-chapters on how to configure the SSH events and recorded sessions to be stored
-on a network storage.
+uses the `dir` backend as an example. `dir` backend uses the local filesystem of an
+auth server using the configurable `data_dir` directory.
 
-By default, the event log is stored in `data_dir` under `log` directory, usually it is `/var/lib/teleport/log`.
+For highly available (HA) configuration users can refer to [DynamoDB](#using-dynamodb) or [etcd](#using-etcd) 
+chapters on how to configure the SSH events and recorded sessions to be stored
+on a network storage. It is even possible to store the audit log in multiple places at the same time, 
+see `audit_events_uri` setting for how to do that.
+
+Let's examing the Teleport audit log using the `dir` backend. The event log is
+stored in `data_dir` under `log` directory, usually `/var/lib/teleport/log`. 
 Each day is represented as a file:
 
 ```bash
@@ -1561,6 +1569,10 @@ scp_if_ssh = True
 
 ## High Availability
 
+!!! tip "Tip":
+    Before continuing, please make sure to take a look at the [cluster state chapter](architecture/#cluster-state)
+    in Teleport Architecture document.
+
 Usually there are two ways to achieve high availability. You can "outsource"
 this function to the infrastructure, for example by using a highly available
 network-based disk volumes (similar to AWS EBS) and by migrating a failed VM to
@@ -1652,11 +1664,48 @@ teleport:
      insecure: false
 ```
 
+### Using Amazon S3
+
+!!! tip "Tip":
+    Before continuing, please make sure to take a look at the [cluster state chapter](architecture/#cluster-state)
+    in Teleport Architecture document.
+
+S3 buckets can be used as a storage for the recorded sessions. S3 cannot
+store the audit log or the cluster state. Below is an example of how to
+configure a Teleport auth server to store the recorded sessions in an S3
+bucket:
+
+```bash
+teleport:
+  storage:
+      # These two settings instruct Teleport to use a specified
+      # S3 bucket
+      region: us-west-1
+      audit_sessions_uri: s3://uri-of-the-bucket
+
+      # Authentication settings are optional (see below)
+      access_key: BKZA3H2LOKJ1QJ3YF21A
+      secret_key: Oc20333k293SKwzraT3ah3Rv1G3/97POQb3eGziSZ
+```
+
+The AWS authentication settings above can be omitted if the machine itself is
+running on an EC2 instance with an IAM role.
+
 ### Using DynamoDB
 
+!!! tip "Tip":
+    Before continuing, please make sure to take a look at the [cluster state chapter](architecture/#cluster-state)
+    in Teleport Architecture document.
+
 If you are running Teleport on AWS, you can use [DynamoDB](https://aws.amazon.com/dynamodb/)
-as a storage back-end to achieve high availability. To configure Teleport to
-use DynamoDB:
+as a storage back-end to achieve high availability. DynamoDB back-end supports two types
+of Teleport data:
+
+* Cluster state
+* Audit log events
+
+DynamoDB cannot store the recorded sessions. You are advised to use AWS S3 for that as shown above.
+To configure Teleport to use DynamoDB:
 
 * Make sure you have AWS access key and a secret key which give you access to
   DynamoDB account. If you're using (as recommended) an IAM role for this, the policy
@@ -1672,20 +1721,21 @@ teleport:
   storage:
     type: dynamodb
     region: eu-west-1
-    table_name: teleport.state
 
     # Authentication settings are optional (see below)
     access_key: BKZA3H2LOKJ1QJ3YF21A
     secret_key: Oc20333k293SKwzraT3ah3Rv1G3/97POQb3eGziSZ
 
-    # Audit log configuration
-    audit_table_name: teleport.events
+    # This setting configures Teleport to send the audit events in two places: in a DynamoDB table
+    # and also keep a copy on a local filesystem.
+    audit_events_uri:  [file:///var/lib/teleport/audit/events, dynamo://table_name]
+    # This setting configures Teleport to save the recorded sessions in an S3 bucket:
     audit_sessions_uri: s3://example.com/teleport.events
 ```
 
 * Replace `region` and `table_name` with your own settings. Teleport will
   create the table automatically.
-* The AWS authentication setting below can be omitted if the machine itself is
+* The AWS authentication setting above can be omitted if the machine itself is
   running on an EC2 instance with an IAM role.
 * Audit log settings above are optional. If specified, Teleport will store the
   audit log in DyamoDB and the session recordings **must** be stored in an S3
