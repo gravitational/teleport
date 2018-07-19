@@ -54,8 +54,8 @@ import (
 	"github.com/mailgun/lemma/secret"
 	"github.com/mailgun/ttlmap"
 	log "github.com/sirupsen/logrus"
-
 	"github.com/tstranex/u2f"
+	"golang.org/x/crypto/ssh"
 )
 
 // Handler is HTTP web proxy handler
@@ -180,6 +180,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.GET("/webapi/sites/:site/events", h.WithClusterAuth(h.siteEventsGet))                                            // get recorded list of sessions (from events)
 	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/events", h.WithClusterAuth(h.siteSessionEventsGet)) // get recorded session's timing information (from events)
 	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/stream", h.siteSessionStreamGet)                    // get recorded session's bytes (from events)
+
+	// scp file transfer
+	h.GET("/webapi/sites/:site/namespaces/:namespace/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
+	h.POST("/webapi/sites/:site/namespaces/:namespace/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
 
 	// OIDC related callback handlers
 	h.GET("/webapi/oidc/login/web", httplib.MakeHandler(h.oidcLoginWeb))
@@ -1900,6 +1904,7 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 			logger.Warningf("no auth headers %v", err)
 			return nil, trace.AccessDenied("need auth")
 		}
+
 		if creds.Password != ctx.GetWebSession().GetBearerToken() {
 			logger.Warningf("bad bearer token")
 			return nil, trace.AccessDenied("bad bearer token")
@@ -1962,4 +1967,35 @@ type responseData struct {
 
 func makeResponse(items interface{}) (interface{}, error) {
 	return responseData{Items: items}, nil
+}
+
+// makeTeleportClientConfig creates default teleport client configuration
+// that is used to initiate an SSH terminal session or SCP file transfer
+func makeTeleportClientConfig(ctx *SessionContext) (*client.Config, error) {
+	agent, cert, err := ctx.GetAgent()
+	if err != nil {
+		return nil, trace.BadParameter("failed to get user credentials: %v", err)
+	}
+
+	signers, err := agent.Signers()
+	if err != nil {
+		return nil, trace.BadParameter("failed to get user credentials: %v", err)
+	}
+
+	tlsConfig, err := ctx.ClientTLSConfig()
+	if err != nil {
+		return nil, trace.BadParameter("failed to get client TLS config: %v", err)
+	}
+
+	config := &client.Config{
+		Username:         ctx.user,
+		Agent:            agent,
+		SkipLocalAuth:    true,
+		TLS:              tlsConfig,
+		AuthMethods:      []ssh.AuthMethod{ssh.PublicKeys(signers...)},
+		DefaultPrincipal: cert.ValidPrincipals[0],
+		HostKeyCallback:  func(string, net.Addr, ssh.PublicKey) error { return nil },
+	}
+
+	return config, nil
 }

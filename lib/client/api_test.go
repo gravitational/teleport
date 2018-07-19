@@ -17,9 +17,11 @@ limitations under the License.
 package client
 
 import (
-	"github.com/gravitational/teleport/lib/utils"
-	"gopkg.in/check.v1"
 	"testing"
+
+	"github.com/gravitational/teleport/lib/utils"
+
+	"gopkg.in/check.v1"
 )
 
 // register test suite
@@ -97,23 +99,6 @@ func (s *APITestSuite) TestParseLabels(c *check.C) {
 	m, err = ParseLabelSpec(`type="database",role,master`)
 	c.Assert(m, check.IsNil)
 	c.Assert(err, check.NotNil)
-}
-
-func (s *APITestSuite) TestSCPParsing(c *check.C) {
-	user, host, dest := parseSCPDestination("root@remote.host:/etc/nginx.conf")
-	c.Assert(user, check.Equals, "root")
-	c.Assert(host, check.Equals, "remote.host")
-	c.Assert(dest, check.Equals, "/etc/nginx.conf")
-
-	user, host, dest = parseSCPDestination("remote.host:/etc/nginx.co:nf")
-	c.Assert(user, check.Equals, "")
-	c.Assert(host, check.Equals, "remote.host")
-	c.Assert(dest, check.Equals, "/etc/nginx.co:nf")
-
-	user, host, dest = parseSCPDestination("remote.host:")
-	c.Assert(user, check.Equals, "")
-	c.Assert(host, check.Equals, "remote.host")
-	c.Assert(dest, check.Equals, ".")
 }
 
 func (s *APITestSuite) TestPortsParsing(c *check.C) {

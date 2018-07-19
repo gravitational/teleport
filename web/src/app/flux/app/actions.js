@@ -34,28 +34,28 @@ export function addNavItem(item) {
 }
 
 export function setSiteId(siteId) {
-  reactor.dispatch(SET_SITE_ID, siteId);    
+  reactor.dispatch(SET_SITE_ID, siteId);
 }
 
-export function initApp(siteId, featureActivator) {         
-  initAppStatus.start();  
-  // get the list of available clusters        
-  return fetchInitData(siteId)  
+export function initApp(siteId, featureActivator) {
+  initAppStatus.start();
+  // get the list of available clusters
+  return fetchInitData(siteId)
     .done(() => {
       featureActivator.onload();
-      initAppStatus.success();      
+      initAppStatus.success();
     })
-    .fail(err => {      
+    .fail(err => {
       let msg = api.getErrorText(err);
       initAppStatus.fail(msg);
-    })      
+    })
 }
 
 export function refresh() {
-  return $.when(      
+  return $.when(
     fetchActiveSessions(),
     fetchNodes()
-  )    
+  )
 }
 
 export function fetchInitData(siteId) {
@@ -64,30 +64,30 @@ export function fetchInitData(siteId) {
       const selectedCluster = siteId || masterSiteId;
       setSiteId(selectedCluster);
       return $.when(fetchNodes(), fetchActiveSessions());
-    });  
+    });
 }
 
 export function fetchSites(){
   return api.get(cfg.api.sitesBasePath)
     .then(json => {
       let masterSiteId = null;
-      let sites = json.sites;     
+      let sites = json.sites;
       if (sites) {
         masterSiteId = sites[0].name;
       }
-              
+
       reactor.dispatch(RECEIVE_CLUSTERS, sites);
-      
+
       return masterSiteId;
   })
-  .fail(err => {      
+  .fail(err => {
     logger.error('fetchSites', err);
-  })    
+  })
 }
 
 export function  fetchUserContext(){
-  return api.get(cfg.api.userContextPath).done(json=>{      
+  return api.get(cfg.api.userContextPath).done(json=>{
     reactor.dispatch(RECEIVE_USER, { name: json.userName, authType: json.authType });
     reactor.dispatch(RECEIVE_USERACL, json.userAcl);
-  })    
-}      
+  })
+}
