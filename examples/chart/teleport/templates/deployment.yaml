@@ -28,7 +28,7 @@ spec:
         args:
 {{- if .Values.extraArgs }}
 {{ toYaml .Values.extraArgs | indent 8 }}
-{{- end }
+{{- end }}
 {{- if not .Values.proxy.tls.enabled }}
         - --insecure-no-tls
 {{- end }}
