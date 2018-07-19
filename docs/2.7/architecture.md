@@ -141,17 +141,21 @@ server to be stored.
 ![Teleport Everything](img/everything.svg)
 
 
-### Cluster State
+## Cluster State
 
 Each cluster node is completely stateless and holds no secrets such as keys, passwords, etc. 
 The persistent state of a Teleport cluster is kept by the auth server. There are three types
 of data stored by the auth server:
 
-* **Key storage**. As described above, a Teleport cluster is a set of machines whose public keys are 
-  signed by the same certificate authority (CA), with the auth server acting as the CA of a cluster.
-  The auth server stores its own keys in a key storage. Teleport supports multiple storage back-ends
-  to store secrets, including the file-based storage or databases like [BoltDB](https://github.com/boltdb/bolt), 
-  [DynamoDB](https://aws.amazon.com/dynamodb/) or [etcd](https://github.com/coreos/etcd). Implementing another key storage backend is simple, see `lib/backend` directory in Teleport source code.
+* **Cluster State**. A Teleport cluster is a set of machines whose public keys
+  are signed by the same certificate authority (CA), with the auth server
+  acting as the CA of a cluster. The auth server stores its own keys in a cluster state
+  storage. Also, all of cluster dynamic configuration is stored there as well, including:
+    * Node membership information and online/offline status for each node.
+    * List of active sessions.
+    * List of locally stored users.
+    * [RBAC](ssh_rbac) configuration (roles and permissions).
+    * Other dynamic configuration.
 
 * **Audit Log**. When users log into a Teleport cluster, execute remote commands and logout,
   that activity is recorded in the audit log. See [Audit Log](admin-guide.md#audit-log) 
@@ -159,8 +163,31 @@ of data stored by the auth server:
   
 * **Recorded Sessions**. When Teleport users launch remote shells via `tsh ssh` command, their 
   interactive sessions are recorded and stored by the auth server. Each recorded 
-  session is a file which is saved in `/var/lib/teleport`, by default.
+  session is a file which is saved in `/var/lib/teleport`, by default but can also be 
+  saved in an [AWS S3](https://aws.amazon.com/s3/) bucket.
 
+### Storage Back-Ends
+
+Different types of cluster data can be configured with different storage back-ends as shown
+in the table below:
+
+Data Type        | Supported Back-ends       | Notes
+-----------------|---------------------------|---------
+Cluster state    | `dir`, `etcd`, `dynamodb` | If multi-server (HA) configuration is used with `dir` backend, users must use NFS or similar networked filesystem to keep the `data_dir` in sync between the auth servers.
+Audit Log Events | `dir`, `dynamodb`         | If `dynamodb` is used for the audit log events, `s3` back-end **must** be used for the recorded sessions.
+Recorded Sessions| `dir`, `s3`               | `s3` is mandatory if `dynamodb` is used for the audit log.
+
+!!! tip "Trivia":
+    The reason Teleport designers split the audit log events and the recorded
+    sessions into different back-ends is because of the nature of the data. A
+    recorded session is a compressed binary stream (blob) while the event is a
+    well-defined JSON structure. `dir` works well enough for both in small
+    deployments, but large clusters require specialized data stores: S3 is
+    perfect for uploading session blobs, while DynamoDB or `etcd` are better
+    suited to store the cluster state.
+
+The combination of DynamoDB + S3 is especially popular among AWS users because it allows them to 
+run Teleport clusters completely devoid of local state.
 
 ## Teleport Services
 
