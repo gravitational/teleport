@@ -77,4 +77,28 @@ limitations under the License.
       margin-top: 4px;
     }
   }
+
+  .grv-session-player-actions{
+    margin-left: -70px;
+    width: 50px;
+    position: absolute;
+    display: flex;
+    height: calc(100% - 60px);
+    flex-direction: column;
+
+    .grv-icon-close{
+      fill: $red;
+      &:hover{
+        fill: darken($red, 2%);
+        cursor: pointer;
+      }
+    }
+
+    .grv-divider{
+      background-color: #3B3838;
+      border-color: #3B3838;
+    }
+  }
+
+
 }

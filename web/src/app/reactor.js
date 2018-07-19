@@ -16,12 +16,36 @@ limitations under the License.
 
 import { Reactor } from 'nuclear-js'
 
-const __DEV__ = process.env.NODE_ENV === 'development';
+const CSS = 'color: blue';
 
-const reactor = new Reactor({
-  debug: __DEV__
-})
+// reactor options
+const options = {
+  debug: process.env.NODE_ENV === 'development'
+}
 
+const logger = {
+  dispatchStart(reactorState, actionType, payload) {
+    console.log(`%creactor.dispatch("${actionType}", `, CSS, payload, `)`);
+  },
+
+  dispatchError: function (reactorState, error) {
+    console.debug('Dispatch error: ' + error)
+  },
+
+  dispatchEnd(reactorState, state, dirtyStores) {
+    const stateChanges = state.filter((val, key) => dirtyStores.contains(key));
+    console.log('%cupdated store -> ',
+      CSS,
+      stateChanges.toJS())
+  }
+}
+
+if (options.debug) {
+  options.logger = logger
+}
+
+const reactor = new Reactor(options)
 window.reactor = reactor;
 
 export default reactor
+

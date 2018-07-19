@@ -22,32 +22,32 @@ import cfg from 'app/config';
 import api from 'app/services/api';
 import Logger from 'app/lib/logger';
 import * as status from './../status/actions';
-import { RECEIVE_INVITE } from './actionTypes';  
+import { RECEIVE_INVITE } from './actionTypes';
 
 const logger = Logger.create('flux/user/actions');
 
 const actions = {
-  
+
   fetchInvite(inviteToken){
     const path = cfg.api.getInviteUrl(inviteToken);
-    status.fetchInviteStatus.start();    
+    status.fetchInviteStatus.start();
     api.get(path).done(invite => {
-      status.fetchInviteStatus.success();      
+      status.fetchInviteStatus.success();
       reactor.dispatch(RECEIVE_INVITE, invite);
     })
     .fail(err => {
-      let msg = api.getErrorText(err);      
-      status.fetchInviteStatus.fail(msg);      
+      let msg = api.getErrorText(err);
+      status.fetchInviteStatus.fail(msg);
     });
   },
 
-  ensureUser(nextState, replace, cb) {        
+  ensureUser(nextState, replace, cb) {
     session.ensureSession(true).done(() => {
       cb();
     })
   },
-  
-  acceptInvite(name, psw, token, inviteToken){    
+
+  acceptInvite(name, psw, token, inviteToken){
     const promise = auth.acceptInvite(name, psw, token, inviteToken);
     actions._handleAcceptInvitePromise(promise);
   },
@@ -56,12 +56,12 @@ const actions = {
     const promise = auth.acceptInviteWithU2f(name, psw, inviteToken);
     return actions._handleAcceptInvitePromise(promise);
   },
-  
-  loginWithSso(providerName, providerUrl) {        
-    const entryUrl = this._getEntryRoute();    
+
+  loginWithSso(providerName, providerUrl) {
+    const entryUrl = this._getEntryRoute();
     history.push(cfg.api.getSsoUrl(providerUrl, providerName, entryUrl), true);
   },
-  
+
   loginWithU2f(user, password) {
     const promise = auth.loginWithU2f(user, password);
     actions._handleLoginPromise(promise);
@@ -69,7 +69,7 @@ const actions = {
 
   login(user, password, token) {
     const promise = auth.login(user, password, token);
-    actions._handleLoginPromise(promise);              
+    actions._handleLoginPromise(promise);
   },
 
   logout() {
@@ -77,43 +77,43 @@ const actions = {
   },
 
   _handleAcceptInvitePromise(promise) {
-    status.signupStatus.start();    
+    status.signupStatus.start();
     return promise
-      .done(() => {                
-        history.push(cfg.routes.app, true);        
+      .done(() => {
+        history.push(cfg.routes.app, true);
       })
       .fail(err => {
-        const msg = api.getErrorText(err);        
-        logger.error('accept invite', err);        
+        const msg = api.getErrorText(err);
+        logger.error('accept invite', err);
         status.signupStatus.fail(msg);
-      })        
+      })
   },
 
-  _handleLoginPromise(promise) {    
+  _handleLoginPromise(promise) {
     status.loginStatus.start();
     promise
-      .done(() => {                        
+      .done(() => {
         const url = this._getEntryRoute();
-        history.push(url, true);        
+        history.push(url, true);
       })
       .fail(err => {
         const msg = api.getErrorText(err);
         logger.error('login', err);
-        status.loginStatus.fail(msg);        
+        status.loginStatus.fail(msg);
       })
   },
 
-  _getEntryRoute() {    
+  _getEntryRoute() {
     let entryUrl = history.getRedirectParam();
     if (entryUrl) {
       entryUrl = history.ensureSafeRoute(entryUrl);
     } else {
       entryUrl = cfg.routes.app;
     }
-    
+
     return history.ensureBaseUrl(entryUrl);
   }
 
 }
-  
+
 export default actions;

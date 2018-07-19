@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/shell"
+	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/state"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -905,6 +906,58 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionId string)
 	return trace.Wrap(err)
 }
 
+// ExecuteSCP executes SCP command. It executes scp.Command using
+// lower-level API integrations that mimic SCP CLI command behavior
+func (tc *TeleportClient) ExecuteSCP(ctx context.Context, cmd scp.Command) (err error) {
+	// connect to proxy first:
+	if !tc.Config.ProxySpecified() {
+		return trace.BadParameter("proxy server is not specified")
+	}
+
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	clusterInfo, err := proxyClient.currentCluster()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// which nodes are we executing this commands on?
+	nodeAddrs, err := tc.getTargetNodes(ctx, proxyClient)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(nodeAddrs) == 0 {
+		return trace.BadParameter("no target host specified")
+	}
+
+	nodeClient, err := proxyClient.ConnectToNode(
+		ctx,
+		nodeAddrs[0]+"@"+tc.Namespace+"@"+clusterInfo.Name,
+		tc.Config.HostLogin,
+		false)
+	if err != nil {
+		tc.ExitStatus = 1
+		return trace.Wrap(err)
+	}
+
+	err = nodeClient.ExecuteSCP(cmd)
+	if err != nil {
+		// converts SSH error code to tc.ExitStatus
+		exitError, _ := trace.Unwrap(err).(*ssh.ExitError)
+		if exitError != nil {
+			tc.ExitStatus = exitError.ExitStatus()
+		}
+		return err
+
+	}
+
+	return nil
+}
+
 // SCP securely copies file(s) from one SSH server to another
 func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, recursive bool, quiet bool) (err error) {
 	if len(args) < 2 {
@@ -953,7 +1006,7 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, recu
 	}
 	// upload:
 	if isRemoteDest(last) {
-		login, host, dest := parseSCPDestination(last)
+		login, host, dest := scp.ParseSCPDestination(last)
 		if login != "" {
 			tc.HostLogin = login
 		}
@@ -963,16 +1016,32 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, recu
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
 		// copy everything except the last arg (that's destination)
 		for _, src := range args[:len(args)-1] {
-			err = client.Upload(src, dest, recursive, tc.Stderr, progressWriter)
+			scpConfig := scp.Config{
+				User:           tc.Username,
+				ProgressWriter: progressWriter,
+				RemoteLocation: dest,
+				Flags: scp.Flags{
+					Target:    []string{src},
+					Recursive: recursive,
+				},
+			}
+
+			cmd, err := scp.CreateUploadCommand(scpConfig)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			err = client.ExecuteSCP(cmd)
 			if err != nil {
 				return onError(err)
 			}
 		}
 		// download:
 	} else {
-		login, host, src := parseSCPDestination(first)
+		login, host, src := scp.ParseSCPDestination(first)
 		addr := net.JoinHostPort(host, strconv.Itoa(port))
 		if login != "" {
 			tc.HostLogin = login
@@ -983,35 +1052,28 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, recu
 		}
 		// copy everything except the last arg (that's destination)
 		for _, dest := range args[1:] {
-			err = client.Download(src, dest, recursive, tc.Stderr, progressWriter)
+			scpConfig := scp.Config{
+				User: tc.Username,
+				Flags: scp.Flags{
+					Recursive: recursive,
+					Target:    []string{dest},
+				},
+				RemoteLocation: src,
+				ProgressWriter: progressWriter,
+			}
+
+			cmd, err := scp.CreateDownloadCommand(scpConfig)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			err = client.ExecuteSCP(cmd)
 			if err != nil {
 				return onError(err)
 			}
 		}
 	}
 	return nil
-}
-
-// parseSCPDestination takes a string representing a remote resource for SCP
-// to download/upload, like "user@host:/path/to/resource.txt" and returns
-// 3 components of it
-func parseSCPDestination(s string) (login, host, dest string) {
-	parts := strings.SplitN(s, "@", 2)
-	if len(parts) > 1 {
-		login = parts[0]
-		host = parts[1]
-	} else {
-		host = parts[0]
-	}
-	parts = strings.SplitN(host, ":", 2)
-	if len(parts) > 1 {
-		host = parts[0]
-		dest = parts[1]
-	}
-	if len(dest) == 0 {
-		dest = "."
-	}
-	return login, host, dest
 }
 
 func isRemoteDest(name string) bool {

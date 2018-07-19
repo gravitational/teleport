@@ -522,45 +522,14 @@ func (proxy *ProxyClient) Close() error {
 	return proxy.Client.Close()
 }
 
-// Upload uploads local file(s) or to the remote server's destination path
-func (client *NodeClient) Upload(srcPath, rDestPath string, recursive bool, stderr, progressWriter io.Writer) error {
-	scpConf := scp.Command{
-		Source:    true,
-		Recursive: recursive,
-		Target:    []string{srcPath},
-		Terminal:  progressWriter,
+// ExecuteSCP runs remote scp command(shellCmd) on the remote server and
+// runs local scp handler using SCP Command
+func (client *NodeClient) ExecuteSCP(cmd scp.Command) error {
+	shellCmd, err := cmd.GetRemoteShellCmd()
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	// "impersonate" scp to a server
-	shellCmd := "/usr/bin/scp -t"
-	if recursive {
-		shellCmd += " -r"
-	}
-	shellCmd += (" " + rDestPath)
-	return client.scp(scpConf, shellCmd, stderr)
-}
-
-// Download downloads file or dir from the remote server
-func (client *NodeClient) Download(remoteSourcePath, localDestinationPath string, recursive bool, stderr, progressWriter io.Writer) error {
-	scpConf := scp.Command{
-		Sink:      true,
-		Recursive: recursive,
-		Target:    []string{localDestinationPath},
-		Terminal:  progressWriter,
-	}
-
-	// "impersonate" scp to a server
-	shellCmd := "/usr/bin/scp -f"
-	if recursive {
-		shellCmd += " -r"
-	}
-	shellCmd += (" " + remoteSourcePath)
-	return client.scp(scpConf, shellCmd, stderr)
-}
-
-// scp runs remote scp command(shellCmd) on the remote server and
-// runs local scp handler using scpConf
-func (client *NodeClient) scp(scpCommand scp.Command, shellCmd string, errWriter io.Writer) error {
 	s, err := client.Client.NewSession()
 	if err != nil {
 		return trace.Wrap(err)
@@ -587,7 +556,7 @@ func (client *NodeClient) scp(scpCommand scp.Command, shellCmd string, errWriter
 
 	closeC := make(chan interface{}, 1)
 	go func() {
-		if err = scpCommand.Execute(ch); err != nil {
+		if err = cmd.Execute(ch); err != nil {
 			log.Error(err)
 		}
 		stdin.Close()
