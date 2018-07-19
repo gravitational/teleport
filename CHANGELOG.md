@@ -1,5 +1,40 @@
 # Changelog
 
+## 2.7.0
+
+The primary goal of 2.7.0 release was to address the community feedback and
+improve the performance and flexibility when running Teleport clusters with
+large number of nodes.
+
+#### New Features
+
+* The Web UI now includes `scp` (secure copy) functionality. This allows
+  Windows users and other users of the Web UI to upload/download files into SSH
+  nodes using a web browser.
+* Fine-grained control over forceful session termination has been added. It is
+  now possible to: 
+  * Forcefully disconnect idle clients (no client activity) after a specified
+    timeout.
+  * Forcefully disconnect clients when their certificates expire in the
+    middle of an active SSH session. See [#1935](https://github.com/gravitational/teleport/issues/1935)
+
+#### Performance Improvements
+
+* Performance of SSH login commands have been improved on large clusters
+  (thousands of nodes). [#2061](https://github.com/gravitational/teleport/issues/2061)
+* DynamoDB storage back-end performance has been improved. [#2021](https://github.com/gravitational/teleport/issues/2021)
+* Performance of session recording via a proxy has been improved [#1966](https://github.com/gravitational/teleport/issues/1966)
+* Connections between trusted clusters are managed better [#2023](https://github.com/gravitational/teleport/issues/2023)
+
+#### Bug Fixes
+
+As awlays, this release contains several bug fixes. The full list can be seen [here](https://github.com/gravitational/teleport/milestone/25?closed=1)
+Here are some notable ones:
+
+* It is now possible to issue certificates with a long TTL via admin's `auth sign` tool.
+  Previously they were limited to 30 hours for undocumented reason. [1745](https://github.com/gravitational/teleport/issues/1745)
+* Dynamic label values were shown as empty strings. [2056](https://github.com/gravitational/teleport/issues/2056)
+
 ## 2.6.5
 
 This release of Teleport focuses on bugfixes.
