@@ -131,7 +131,7 @@ config:
     authentication:
       type: oidc
     public_addr: teleport.example.com:3025
-    cluster_name: lens.gravitational.co
+    cluster_name: teleport.example.com
 
   ssh_service:
     enabled: yes
