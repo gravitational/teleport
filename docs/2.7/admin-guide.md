@@ -1578,7 +1578,7 @@ this function to the infrastructure, for example by using a highly available
 network-based disk volumes (similar to AWS EBS) and by migrating a failed VM to
 a new host. In this scenario there's nothing Teleport-specific to be done.
 
-But if high availability cannot be provided by the infrastructue (perhaps
+But if high availability cannot be provided by the infrastructure (perhaps
 you're running Teleport on a bare metal cluster), you can configure Teleport
 to run in a highly available fashion.
 
