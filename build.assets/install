@@ -13,4 +13,7 @@ VARDIR=/var/lib/teleport
 [ ! $(id -u) != "0" ] || { echo "ERROR: You must be root"; exit 1; }
 cd $(dirname $0)
 mkdir -p $VARDIR $BINDIR
-cp -f teleport tctl tsh $BINDIR/
+cp -f teleport tctl tsh $BINDIR/ || exit 1
+
+echo "Teleport binaries have been copied to $BINDIR"
+echo "To configure the systemd service for Teleport take a look at examples/systemd/README.md"
