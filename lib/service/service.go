@@ -1396,6 +1396,33 @@ func (process *TeleportProcess) initDiagnosticService() error {
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		roundtrip.ReplyJSON(w, http.StatusOK, map[string]interface{}{"status": "ok"})
 	})
+
+	log := logrus.WithFields(logrus.Fields{
+		trace.Component: teleport.Component(teleport.ComponentDiagnostic, process.id),
+	})
+	var ready int64
+	process.RegisterFunc("diagnostic.readyz", func() error {
+		eventC := make(chan Event, 1)
+		process.WaitForEvent(process.ExitContext(), TeleportReadyEvent, eventC)
+		select {
+		case <-eventC:
+			atomic.StoreInt64(&ready, 1)
+			log.Infof("Detected that service started and joined the cluster successfully.")
+		case <-process.ExitContext().Done():
+			log.Debugf("Teleport is exiting, returning.")
+		}
+		return nil
+	})
+
+	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
+		isReady := atomic.LoadInt64(&ready)
+		if isReady == 1 {
+			roundtrip.ReplyJSON(w, http.StatusOK, map[string]interface{}{"status": "ok"})
+		} else {
+			roundtrip.ReplyJSON(w, http.StatusServiceUnavailable, map[string]interface{}{"status": "teleport is is not ready, check logs for details"})
+		}
+	})
+
 	listener, err := process.importOrCreateListener(teleport.ComponentDiagnostic, process.Config.DiagnosticAddr.Addr)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1405,10 +1432,6 @@ func (process *TeleportProcess) initDiagnosticService() error {
 	server := &http.Server{
 		Handler: mux,
 	}
-
-	log := logrus.WithFields(logrus.Fields{
-		trace.Component: teleport.Component(teleport.ComponentDiagnostic, process.id),
-	})
 
 	log.Infof("Starting diagnostic service on %v.", process.Config.DiagnosticAddr.Addr)
 
