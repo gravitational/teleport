@@ -45,6 +45,10 @@ type clusterPeers struct {
 	peers       map[string]*clusterPeer
 }
 
+func (p *clusterPeers) GetTunnelsCount() int {
+	return len(p.peers)
+}
+
 func (p *clusterPeers) pickPeer() (*clusterPeer, error) {
 	var currentPeer *clusterPeer
 	for _, peer := range p.peers {

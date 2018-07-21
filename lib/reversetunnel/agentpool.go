@@ -30,19 +30,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
-)
-
-var (
-	tunnelStats = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "tunnels",
-			Help: "Number of tunnels per state",
-		},
-		[]string{"cluster", "state"},
-	)
 )
 
 // AgentPool manages the pool of outbound reverse tunnel agents.
@@ -349,14 +338,20 @@ func (m *AgentPool) reportStats() {
 	for key, agents := range m.agents {
 		m.Debugf("Outbound tunnel for %v connected to %v proxies.", key.domainName, len(agents))
 
-		countPerState := make(map[string]int)
+		countPerState := map[string]int{
+			agentStateConnecting:   0,
+			agentStateDiscovering:  0,
+			agentStateConnected:    0,
+			agentStateDiscovered:   0,
+			agentStateDisconnected: 0,
+		}
 		for _, a := range agents {
 			countPerState[a.getState()] += 1
 		}
 		for state, count := range countPerState {
-			gauge, err := tunnelStats.GetMetricWithLabelValues(key.domainName, state)
+			gauge, err := trustedClustersStats.GetMetricWithLabelValues(key.domainName, state)
 			if err != nil {
-				m.Warningf("%v", err)
+				m.Warningf("Failed to get gauge: %v.", err)
 				continue
 			}
 			gauge.Set(float64(count))

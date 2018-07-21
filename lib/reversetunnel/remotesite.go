@@ -120,6 +120,11 @@ func (s *remoteSite) authServerContextDialer(ctx context.Context, network, addre
 	return s.DialAuthServer()
 }
 
+// GetTunnelsCount always returns 0 for local cluster
+func (s *remoteSite) GetTunnelsCount() int {
+	return s.connectionCount()
+}
+
 func (s *remoteSite) CachingAccessPoint() (auth.AccessPoint, error) {
 	return s.remoteAccessPoint, nil
 }

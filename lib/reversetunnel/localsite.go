@@ -89,6 +89,11 @@ type localSite struct {
 	certificateCache *certificateCache
 }
 
+// GetTunnelsCount always returns 1 for local cluster
+func (s *localSite) GetTunnelsCount() int {
+	return 1
+}
+
 func (s *localSite) CachingAccessPoint() (auth.AccessPoint, error) {
 	return s.accessPoint, nil
 }

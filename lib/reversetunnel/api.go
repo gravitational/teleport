@@ -46,6 +46,9 @@ type RemoteSite interface {
 	// CachingAccessPoint returns access point that is lightweight
 	// but is resilient to auth server crashes
 	CachingAccessPoint() (auth.AccessPoint, error)
+	// GetTunnelsCount returns the amount of active inbound tunnels
+	// from the remote cluster
+	GetTunnelsCount() int
 }
 
 // Server is a TCP/IP SSH server which listens on an SSH endpoint and remote/local
