@@ -647,6 +647,16 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 // notifyParent notifies parent process that this process has started
 // by writing to in-memory pipe used by communication channel.
 func (process *TeleportProcess) notifyParent() {
+	signalPipe, err := process.importSignalPipe()
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			process.Warningf("Failed to import signal pipe")
+		}
+		process.Debugf("No signal pipe to import, must be first Teleport process.")
+		return
+	}
+	defer signalPipe.Close()
+
 	ctx, cancel := context.WithTimeout(process.ExitContext(), signalPipeTimeout)
 	defer cancel()
 
@@ -656,11 +666,14 @@ func (process *TeleportProcess) notifyParent() {
 	case <-eventC:
 		process.Infof("New service has started successfully.")
 	case <-ctx.Done():
-		process.Errorf("Timeout waiting for process to start: %v", ctx.Err())
+		process.Errorf("Timeout waiting for a forked process to start: %v. Initiating self-shutdown.", ctx.Err())
+		if err := process.Close(); err != nil {
+			process.Warningf("Failed to shutdown process: %v.", err)
+		}
 		return
 	}
 
-	if err := process.writeToSignalPipe(fmt.Sprintf("Process %v has started.", os.Getpid())); err != nil {
+	if err := process.writeToSignalPipe(signalPipe, fmt.Sprintf("Process %v has started.", os.Getpid())); err != nil {
 		process.Warningf("Failed to write to signal pipe: %v", err)
 		// despite the failure, it's ok to proceed,
 		// it could mean that the parent process has crashed and the pipe

@@ -146,17 +146,7 @@ var ErrTeleportReloading = &trace.CompareFailedError{Message: "teleport process 
 // ErrTeleportExited means that teleport has exited
 var ErrTeleportExited = &trace.CompareFailedError{Message: "teleport process has shutdown"}
 
-func (process *TeleportProcess) writeToSignalPipe(message string) error {
-	signalPipe, err := process.importSignalPipe()
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-		process.Debugf("No signal pipe to import, must be first Teleport process.")
-		return nil
-	}
-	defer signalPipe.Close()
-
+func (process *TeleportProcess) writeToSignalPipe(signalPipe *os.File, message string) error {
 	messageSignalled, cancel := context.WithCancel(context.Background())
 	// Below the cancel is called second time, but it's ok.
 	// After the first call, subsequent calls to a CancelFunc do nothing.
@@ -164,7 +154,7 @@ func (process *TeleportProcess) writeToSignalPipe(message string) error {
 	go func() {
 		_, err := signalPipe.Write([]byte(message))
 		if err != nil {
-			process.Debugf("Failed to write to pipe: %v", trace.DebugReport(err))
+			process.Debugf("Failed to write to pipe: %v.", trace.DebugReport(err))
 			return
 		}
 		cancel()
@@ -172,9 +162,9 @@ func (process *TeleportProcess) writeToSignalPipe(message string) error {
 
 	select {
 	case <-time.After(signalPipeTimeout):
-		return trace.BadParameter("Failed to write to parent process pipe")
+		return trace.BadParameter("Failed to write to parent process pipe.")
 	case <-messageSignalled.Done():
-		process.Infof("Signalled success to parent process")
+		process.Infof("Signalled success to parent process.")
 	}
 	return nil
 }
