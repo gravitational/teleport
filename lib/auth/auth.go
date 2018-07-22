@@ -396,12 +396,8 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// CHANGE IN (2.7.0) Use user CA and not host CA here,
-	// currently host CA is used for backwards compatibility,
-	// because pre 2.6.0 remote clusters did not have TLS CA
-	// in user certificate authorities.
 	userCA, err := s.Trust.GetCertAuthority(services.CertAuthID{
-		Type:       services.HostCA,
+		Type:       services.UserCA,
 		DomainName: clusterName,
 	}, true)
 	if err != nil {
