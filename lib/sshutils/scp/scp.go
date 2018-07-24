@@ -177,6 +177,7 @@ func CreateCommand(cfg Config) (Command, error) {
 			"RemoteAddr":     cfg.Flags.RemoteAddr,
 			"Target":         cfg.Flags.Target,
 			"User":           cfg.User,
+			"RunOnServer":    cfg.RunOnServer,
 			"RemoteLocation": cfg.RemoteLocation,
 		},
 	})

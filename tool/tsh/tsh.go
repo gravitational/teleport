@@ -584,6 +584,7 @@ func onSCP(cf *CLIConf) {
 	if err := tc.SCP(context.TODO(), cf.CopySpec, int(cf.NodePort), cf.RecursiveCopy, cf.Quiet); err != nil {
 		// exit with the same exit status as the failed command:
 		if tc.ExitStatus != 0 {
+			fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
 			os.Exit(tc.ExitStatus)
 		} else {
 			utils.FatalError(err)
