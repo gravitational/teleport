@@ -232,7 +232,7 @@ func onSCP(scpFlags *scp.Flags) (err error) {
 
 	scpCfg := scp.Config{
 		Flags:       *scpFlags,
-		User:        user.Name,
+		User:        user.Username,
 		RunOnServer: true,
 	}
 
