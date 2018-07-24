@@ -193,10 +193,11 @@ func (bk *Backend) GetItems(bucket []string) ([]backend.Item, error) {
 		}
 	}
 
-	// Sort and return results.
+	// Sort items and remove any duplicates.
 	sort.Slice(out, func(i, j int) bool {
 		return out[i].Key < out[j].Key
 	})
+	out = removeDuplicates(out)
 
 	return out, nil
 }
@@ -626,4 +627,27 @@ func suffix(pathToBucket string, bucketPrefix string) (string, error) {
 	}
 
 	return vals[0], nil
+}
+
+// removeDuplicates removes any duplicate items from the passed in slice. This
+// is to ensure that partial matches don't result in multiple values returned.
+// This is consistent with our DynamoDB implementation.
+func removeDuplicates(items []backend.Item) []backend.Item {
+	// Use map to record duplicates as we find them.
+	encountered := map[string]bool{}
+	result := make([]backend.Item, 0, len(items))
+
+	// Loop over all items, if it has not been seen before, append to result.
+	for _, e := range items {
+		_, ok := encountered[e.Key]
+		if !ok {
+			// Record this element as an encountered element.
+			encountered[e.Key] = true
+
+			// Append to result slice.
+			result = append(result, e)
+		}
+	}
+
+	return result
 }
