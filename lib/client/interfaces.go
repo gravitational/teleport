@@ -19,11 +19,14 @@ package client
 import (
 	"bytes"
 	"fmt"
+	"runtime"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/gravitational/trace"
+
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 )
@@ -46,16 +49,6 @@ type Key struct {
 
 // AsAgentKeys converts client.Key struct to a []*agent.AddedKey. All elements
 // of the []*agent.AddedKey slice need to be loaded into the agent!
-//
-// This is done because OpenSSH clients older than OpenSSH 7.3/7.3p1
-// (2016-08-01) have a bug in how they use certificates that have been loaded
-// in an agent. Specifically when you add a certificate to an agent, you can't
-// just embed the private key within the certificate, you have to add the
-// certificate and private key to the agent separately. Teleport works around
-// this behavior to ensure OpenSSH interoperability.
-//
-// For more details see the following: https://bugzilla.mindrot.org/show_bug.cgi?id=2550
-// WARNING: callers expect the returned slice to be __exactly as it is__
 func (k *Key) AsAgentKeys() ([]*agent.AddedKey, error) {
 	// unmarshal certificate bytes into a ssh.PublicKey
 	publicKey, _, _, _, err := ssh.ParseAuthorizedKey(k.Cert)
@@ -72,7 +65,31 @@ func (k *Key) AsAgentKeys() ([]*agent.AddedKey, error) {
 	// put a teleport identifier along with the teleport user into the comment field
 	comment := fmt.Sprintf("teleport:%v", publicKey.(*ssh.Certificate).KeyId)
 
-	// return a certificate (with embedded private key) as well as a private key
+	// On Windows, return the certificate with the private key embedded.
+	if runtime.GOOS == teleport.WindowsOS {
+		return []*agent.AddedKey{
+			&agent.AddedKey{
+				PrivateKey:       privateKey,
+				Certificate:      publicKey.(*ssh.Certificate),
+				Comment:          comment,
+				LifetimeSecs:     0,
+				ConfirmBeforeUse: false,
+			},
+		}, nil
+	}
+
+	// On Unix, return the certificate (with embedded private key) as well as
+	// a private key.
+	//
+	// This is done because OpenSSH clients older than OpenSSH 7.3/7.3p1
+	// (2016-08-01) have a bug in how they use certificates that have been loaded
+	// in an agent. Specifically when you add a certificate to an agent, you can't
+	// just embed the private key within the certificate, you have to add the
+	// certificate and private key to the agent separately. Teleport works around
+	// this behavior to ensure OpenSSH interoperability.
+	//
+	// For more details see the following: https://bugzilla.mindrot.org/show_bug.cgi?id=2550
+	// WARNING: callers expect the returned slice to be __exactly as it is__
 	return []*agent.AddedKey{
 		&agent.AddedKey{
 			PrivateKey:       privateKey,

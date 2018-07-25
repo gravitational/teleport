@@ -12,7 +12,6 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
 */
 
 package client
@@ -27,20 +26,19 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+
 	"github.com/mailgun/lemma/secret"
 	log "github.com/sirupsen/logrus"
-
 	"github.com/tstranex/u2f"
 )
 
@@ -156,20 +154,8 @@ func SSHAgentSSOLogin(ctx context.Context, proxyAddr, connectorID string, pubKey
 	proxyURL.Path = "/web/msg/info/login_success"
 	redirectSuccessURL := proxyURL.String()
 
-	var ssoLoginURL string
-
 	makeHandler := func(fn func(http.ResponseWriter, *http.Request) (*auth.SSHLoginResponse, error)) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path == "/login" {
-				if ssoLoginURL == "" {
-					http.Error(w, "SSO Login URL is undefined", http.StatusInternalServerError)
-				} else {
-					http.Redirect(w, r, ssoLoginURL, http.StatusFound)
-				}
-
-				return
-			}
-
 			response, err := fn(w, r)
 			if err != nil {
 				if trace.IsNotFound(err) {
@@ -239,32 +225,37 @@ func SSHAgentSSOLogin(ctx context.Context, proxyAddr, connectorID string, pubKey
 		return nil, trace.Wrap(err)
 	}
 
-	ssoLoginURL = re.RedirectURL
-
+	// If a command was found to launch the browser, create and start it.
 	var execCmd *exec.Cmd
-	if runtime.GOOS == "windows" {
-		loginRedirectURL := server.URL + "/login"
-		fmt.Printf("If browser window does not open automatically, open it by clicking on the link:\n %v\n", loginRedirectURL)
-		execCmd = exec.Command(filepath.Join(os.Getenv("SYSTEMROOT"), "System32", "rundll32.exe"), "url.dll,FileProtocolHandler", loginRedirectURL)
-	} else {
-		fmt.Printf("If browser window does not open automatically, open it by clicking on the link:\n %v\n", re.RedirectURL)
-
-		var command = "sensible-browser"
-		if runtime.GOOS == "darwin" {
-			command = "open"
+	switch runtime.GOOS {
+	// macOS.
+	case teleport.DarwinOS:
+		path, err := exec.LookPath(teleport.OpenBrowserDarwin)
+		if err == nil {
+			execCmd = exec.Command(path, re.RedirectURL)
 		}
-
-		path, err := exec.LookPath(command)
+	// Windows.
+	case teleport.WindowsOS:
+		path, err := exec.LookPath(teleport.OpenBrowserWindows)
+		if err == nil {
+			execCmd = exec.Command(path, "url.dll,FileProtocolHandler", re.RedirectURL)
+		}
+	// Linux or any other operating sytem.
+	default:
+		path, err := exec.LookPath(teleport.OpenBrowserLinux)
 		if err == nil {
 			execCmd = exec.Command(path, re.RedirectURL)
 		}
 	}
-
 	if execCmd != nil {
 		execCmd.Start()
 	}
 
-	log.Infof("waiting for response on %v", server.URL)
+	// Print to screen in-case the command that launches the browser did not run.
+	fmt.Printf("If browser window does not open automatically, open it by ")
+	fmt.Printf("clicking on the link:\n %v\n", re.RedirectURL)
+
+	log.Infof("Waiting for response at: %v.", server.URL)
 
 	select {
 	case err := <-errorC:

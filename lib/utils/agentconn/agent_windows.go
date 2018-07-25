@@ -1,5 +1,7 @@
+// +build windows
+
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2018 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,31 +16,26 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package shell
+package agentconn
 
 import (
+	"net"
+
+	"github.com/gravitational/teleport/lib/defaults"
+
 	"github.com/gravitational/trace"
 
-	"github.com/sirupsen/logrus"
+	"github.com/Microsoft/go-winio"
 )
 
-const (
-	DefaultShell = "/bin/sh"
-)
-
-// GetLoginShell determines the login shell for a given username.
-func GetLoginShell(username string) (string, error) {
-	var err error
-	var shellcmd string
-
-	shellcmd, err = getLoginShell(username)
+// Dial creates net.Conn to a SSH agent listening on a Windows named pipe.
+// This is behind a build flag because winio.DialPipe is only available on
+// Windows.
+func Dial(socket string) (net.Conn, error) {
+	conn, err := winio.DialPipe(defaults.WindowsOpenSSHNamedPipe, nil)
 	if err != nil {
-		if !trace.IsNotFound(err) {
-			logrus.Warnf("No shell specified for %v, using default %v.", username, DefaultShell)
-			return DefaultShell, nil
-		}
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return shellcmd, nil
+	return conn, nil
 }
