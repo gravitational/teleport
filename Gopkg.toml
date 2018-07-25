@@ -20,21 +20,25 @@
 #  name = "github.com/x/y"
 #  version = "2.4.0"
 
+
+ignored = ["github.com/Sirupsen/logrus"]
+
 [prune]
   go-tests = true
   unused-packages = true
   non-go = true
 
-ignored = ["github.com/Sirupsen/logrus"]
-
-[[constraint]]
+[[override]]
   name = "github.com/alecthomas/template"
   branch = "master"
 
-[[constraint]]
+[[override]]
   name = "github.com/alecthomas/units"
   branch = "master"
 
+[[override]]
+  name = "github.com/cenkalti/backoff"
+  version = ">=1.0.0, <=19.0.0-g5d150e7"
 
 [[constraint]]
   name = "github.com/vulcand/predicate"
@@ -42,7 +46,7 @@ ignored = ["github.com/Sirupsen/logrus"]
 
 [[constraint]]
   name = "github.com/docker/docker"
-  revision = "1009e6a40b295187e038b67e184e9c0384d95538"
+  revision = "1ef1cc8388165b2b848f9b3f53ec91c87de09f63"
 
 [[constraint]]
   name = "github.com/aws/aws-sdk-go"
@@ -51,10 +55,6 @@ ignored = ["github.com/Sirupsen/logrus"]
 [[constraint]]
   name = "github.com/boltdb/bolt"
   version = ">=1.0.0, <=111.0.0-g04a3e85"
-
-[[constraint]]
-  name = "github.com/cenkalti/backoff"
-  version = ">=1.0.0, <=19.0.0-g5d150e7"
 
 [[constraint]]
   name = "github.com/coreos/etcd"

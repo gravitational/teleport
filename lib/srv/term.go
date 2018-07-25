@@ -30,9 +30,9 @@ import (
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 
+	"github.com/docker/docker/pkg/term"
 	"github.com/gravitational/trace"
 	"github.com/kr/pty"
-	"github.com/moby/moby/pkg/term"
 	log "github.com/sirupsen/logrus"
 )
 
