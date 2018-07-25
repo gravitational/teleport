@@ -49,7 +49,13 @@ func InitLogger(purpose LoggingPurpose, level log.Level) {
 
 	switch purpose {
 	case LoggingForCLI:
-		SwitchLoggingtoSyslog()
+		// If debug logging was asked for on the CLI, then write logs to stderr.
+		// Otherwise discard all logs.
+		if level == log.DebugLevel {
+			log.SetOutput(os.Stderr)
+		} else {
+			log.SetOutput(ioutil.Discard)
+		}
 	case LoggingForDaemon:
 		log.SetOutput(os.Stderr)
 	case LoggingForTests:

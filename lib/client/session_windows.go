@@ -1,40 +1,62 @@
+// +build windows
+
+/*
+Copyright 2018 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package client
 
 import (
-  "io"
-  "os"
-  "os/signal"
-  "syscall"
+	"context"
+	"io"
 
-  "golang.org/x/crypto/ssh"
+	"github.com/gravitational/teleport/lib/session"
 
-  log "github.com/sirupsen/logrus"
+	"github.com/gravitational/trace"
 )
 
-func (ns *NodeSession) updateTerminalSize(s *ssh.Session) {
-  return
+// NodeSession is a bare minimum implementation to get Windows to compile.
+// This sits behind a build flag because github.com/docker/docker/pkg/term
+// on Windows does not support "SetWinsize". Because tsh on Windows does not
+// support "tsh ssh" this code will never be called.
+type NodeSession struct {
+	ExitMsg string
 }
 
-// watchSignals register UNIX signal handlers and properly terminates a remote shell session
-// must be called as a goroutine right after a remote shell is created
-func (ns *NodeSession) watchSignals(shell io.Writer) {
-	exitSignals := make(chan os.Signal, 1)
-	// catch SIGTERM
-	signal.Notify(exitSignals, syscall.SIGTERM)
-	go func() {
-		defer ns.closer.Close()
-		<-exitSignals
-	}()
-	// Catch Ctrl-C signal
-	ctrlCSignal := make(chan os.Signal, 1)
-	signal.Notify(ctrlCSignal, syscall.SIGINT)
-	go func() {
-		for {
-			<-ctrlCSignal
-			_, err := shell.Write([]byte{3})
-			if err != nil {
-				log.Errorf(err.Error())
-			}
-		}
-	}()
+func newSession(client *NodeClient,
+	joinSession *session.Session,
+	env map[string]string,
+	stdin io.Reader,
+	stdout io.Writer,
+	stderr io.Writer) (*NodeSession, error) {
+
+	return nil, trace.BadParameter("sessions not supported on Windows")
+}
+
+func (ns *NodeSession) runCommand(ctx context.Context, cmd []string, callback ShellCreatedCallback, interactive bool) error {
+	return trace.BadParameter("sessions not supported on Windows")
+}
+
+func (ns *NodeSession) runShell(callback ShellCreatedCallback) error {
+	return trace.BadParameter("sessions not supported on Windows")
+}
+
+func (ns *NodeSession) NodeClient() *NodeClient {
+	return nil
+}
+
+func (ns *NodeSession) Close() error {
+	return trace.BadParameter("sessions not supported on Windows")
 }

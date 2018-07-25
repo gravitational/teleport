@@ -439,3 +439,7 @@ const (
 	HMACSHA1                 = "hmac-sha1"
 	HMACSHA196               = "hmac-sha1-96"
 )
+
+// WindowsOpenSSHNamedPipe is the address of the named pipe that the
+// OpenSSH agent is on.
+const WindowsOpenSSHNamedPipe = `\\.\pipe\openssh-ssh-agent`

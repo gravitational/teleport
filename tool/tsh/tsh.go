@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -244,6 +245,16 @@ func Run(args []string, underTest bool) {
 	// The status command shows which proxy the user is logged into and metadata
 	// about the certificate.
 	status := app.Command("status", "Display the list of proxy servers and retrieved certificates")
+
+	// On Windows, hide the "ssh", "join", "play", "scp", and "bench" commands
+	// because they all use a terminal.
+	if runtime.GOOS == teleport.WindowsOS {
+		ssh.Hidden()
+		join.Hidden()
+		play.Hidden()
+		scp.Hidden()
+		bench.Hidden()
+	}
 
 	// parse CLI commands+flags:
 	command, err := app.Parse(args)

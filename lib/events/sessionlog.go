@@ -17,6 +17,7 @@ limitations under the License.
 package events
 
 import (
+	"archive/tar"
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
@@ -134,6 +135,25 @@ func (sl *DiskSessionLogger) LogEvent(fields EventFields) error {
 // when the session logger is closed
 func (sl *DiskSessionLogger) Close() error {
 	return nil
+}
+
+func openFileForTar(filename string) (*tar.Header, io.ReadCloser, error) {
+	fi, err := os.Stat(filename)
+	if err != nil {
+		return nil, nil, trace.ConvertSystemError(err)
+	}
+
+	header, err := tar.FileInfoHeader(fi, "")
+	if err != nil {
+		return nil, nil, trace.ConvertSystemError(err)
+	}
+
+	f, err := os.Open(filename)
+	if err != nil {
+		return nil, nil, trace.ConvertSystemError(err)
+	}
+
+	return header, f, nil
 }
 
 // Finalize is called by the session when it's closing. This is where we're

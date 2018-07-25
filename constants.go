@@ -211,8 +211,14 @@ const (
 	// LinuxAdminGID is the ID of the standard adm group on linux
 	LinuxAdminGID = 4
 
-	// LinuxOS is the name of the linux OS
+	// LinuxOS is the GOOS constant used for Linux.
 	LinuxOS = "linux"
+
+	// WindowsOS is the GOOS constant used for Microsoft Windows.
+	WindowsOS = "windows"
+
+	// DarwinOS is the GOOS constant for Apple macOS/darwin.
+	DarwinOS = "darwin"
 
 	// DirMaskSharedGroup is the mask for a directory accessible
 	// by the owner and group
@@ -377,6 +383,9 @@ const (
 	// EnvHome is home environment variable
 	EnvHome = "HOME"
 
+	// EnvUserProfile is the home directory environment variable on Windows.
+	EnvUserProfile = "USERPROFILE"
+
 	// KubeServiceAddr is an address for kubernetes endpoint service
 	KubeServiceAddr = "kubernetes.default.svc.cluster.local:443"
 
@@ -410,4 +419,15 @@ const (
 	// UseOfClosedNetworkConnection is a special string some parts of
 	// go standard lib are using that is the only way to identify some errors
 	UseOfClosedNetworkConnection = "use of closed network connection"
+)
+
+const (
+	// OpenBrowserLinux is the command used to open a web browser on Linux.
+	OpenBrowserLinux = "sensible-browser"
+
+	// OpenBrowserDarwin is the command used to open a web browser on macOS/Darwin.
+	OpenBrowserDarwin = "open"
+
+	// OpenBrowserWindows is the command used to open a web browser on Windows.
+	OpenBrowserWindows = "rundll32.exe"
 )

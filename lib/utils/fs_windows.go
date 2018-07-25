@@ -1,21 +1,45 @@
+// +build windows
+
 package utils
 
-import "os"
+/*
+Copyright 2018 Gravitational, Inc.
 
-// For the moment, these functions are no-ops that should be replaced with a
-// native implementation in the future.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+import (
+	"os"
+
+	"github.com/gravitational/trace"
+)
+
+// FSWriteLock not supported on Windows.
 func FSWriteLock(f *os.File) error {
-  return nil
+	return trace.BadParameter("file locking not supported on Windows")
 }
 
+// FSTryWriteLock not supported on Windows.
 func FSTryWriteLock(f *os.File) error {
-	return nil
+	return trace.BadParameter("file locking not supported on Windows")
 }
 
+// FSReadLock not supported on Windows.
 func FSReadLock(f *os.File) error {
-	return nil
+	return trace.BadParameter("file locking not supported on Windows")
 }
 
+// FSUnlock not supported on Windows.
 func FSUnlock(f *os.File) error {
-	return nil
+	return trace.BadParameter("file locking not supported on Windows")
 }

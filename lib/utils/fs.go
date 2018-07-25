@@ -20,6 +20,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
@@ -34,7 +35,7 @@ import (
 // It also makes sure that base dir exists
 func EnsureLocalPath(customPath string, defaultLocalDir, defaultLocalPath string) (string, error) {
 	if customPath == "" {
-		homeDir := os.Getenv(teleport.EnvHome)
+		homeDir := getHomeDir()
 		if homeDir == "" {
 			return "", trace.BadParameter("no path provided and environment variable %v is not not set", teleport.EnvHome)
 		}
@@ -155,4 +156,17 @@ func StatDir(path string) (os.FileInfo, error) {
 		return nil, trace.BadParameter("%v is not a directory", path)
 	}
 	return fi, nil
+}
+
+// getHomeDir returns the home directory based off the OS.
+func getHomeDir() string {
+	switch runtime.GOOS {
+	case teleport.LinuxOS:
+		return os.Getenv(teleport.EnvHome)
+	case teleport.DarwinOS:
+		return os.Getenv(teleport.EnvHome)
+	case teleport.WindowsOS:
+		return os.Getenv(teleport.EnvUserProfile)
+	}
+	return ""
 }
