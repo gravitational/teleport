@@ -16059,18 +16059,14 @@ webpackJsonp([0],[
 	    }
 
 	    return _ret = (_temp = (_this = _possibleConstructorReturn(this, _React$Component.call.apply(_React$Component, [this].concat(args))), _this), _this.state = {
-	      path: ''
+	      path: '~/'
 	    }, _this.onChangePath = function (e) {
 	      _this.setState({
 	        path: e.target.value
 	      });
 	    }, _this.onDownload = function () {
-	      if (_this.state.path) {
+	      if (_this.isValidPath(_this.state.path)) {
 	        _this.props.onDownload(_this.state.path);
-	        _this.inputRef.value = "";
-	        _this.setState({
-	          path: ''
-	        });
 	      }
 	    }, _this.onKeyDown = function (event) {
 	      if (event.key === 'Enter') {
@@ -16081,12 +16077,22 @@ webpackJsonp([0],[
 	    }, _temp), _possibleConstructorReturn(_this, _ret);
 	  }
 
+	  FileDownloadSelector.prototype.isValidPath = function isValidPath(path) {
+	    return path && path[path.length - 1] !== '/';
+	  };
+
+	  FileDownloadSelector.prototype.moveCaretAtEnd = function moveCaretAtEnd(e) {
+	    var tmp = e.target.value;
+	    e.target.value = '';
+	    e.target.value = tmp;
+	  };
+
 	  FileDownloadSelector.prototype.render = function render() {
 	    var _this2 = this;
 
 	    var path = this.state.path;
 
-	    var isBtnDisabled = !path;
+	    var isBtnDisabled = !this.isValidPath(path);
 	    return _react2.default.createElement(
 	      'div',
 	      { className: 'grv-file-transfer-header m-b' },
@@ -16115,6 +16121,7 @@ webpackJsonp([0],[
 	          className: 'grv-file-transfer-input m-r-sm',
 	          placeholder: 'Fully qualified file path',
 	          autoFocus: true,
+	          onFocus: this.moveCaretAtEnd,
 	          onKeyDown: this.onKeyDown
 	        }),
 	        _react2.default.createElement(
@@ -16131,6 +16138,10 @@ webpackJsonp([0],[
 
 	  return FileDownloadSelector;
 	}(_react2.default.Component);
+
+	FileDownloadSelector.propTypes = {
+	  onDownload: _react.PropTypes.func.isRequired
+	};
 
 /***/ }),
 /* 457 */
@@ -16238,11 +16249,6 @@ webpackJsonp([0],[
 	      var _this$state = _this.state,
 	          files = _this$state.files,
 	          remoteLocation = _this$state.remoteLocation;
-	      // if multiple files selected, ensure that we are uploading to a directory
-
-	      if (files.length > 1 && remoteLocation[remoteLocation.length - 1] !== '/') {
-	        remoteLocation = remoteLocation + '/';
-	      }
 
 	      for (var i = 0; i < files.length; i++) {
 	        _this.props.onUpload(remoteLocation, files[i].name, files[i]);
