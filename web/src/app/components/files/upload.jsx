@@ -17,7 +17,6 @@ limitations under the License.
 import React, { PropTypes } from 'react';
 import { Text } from './items';
 
-
 export class FileUploadSelector extends React.Component {
 
   static propTypes = {
@@ -65,14 +64,12 @@ export class FileUploadSelector extends React.Component {
   }
 
   onUpload = () => {
-    let { files, remoteLocation } = this.state;
-    // if multiple files selected, ensure that we are uploading to a directory
-    if (files.length > 1 && remoteLocation[remoteLocation.length - 1] !== '/') {
-      remoteLocation = remoteLocation + '/';
-    }
-
+    const { files, remoteLocation } = this.state;
     for (var i = 0; i < files.length; i++) {
-      this.props.onUpload(remoteLocation, files[i].name, files[i]);
+      this.props.onUpload(
+        remoteLocation,
+        files[i].name,
+        files[i]);
     }
 
     this.setState({ files: [] });
