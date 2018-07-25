@@ -8,7 +8,7 @@
     ".",
     "winterm"
   ]
-  revision = "19f72df4d05d31cbe1c56bfc8045c96babff6c7e"
+  revision = "d6e3b3328b783f23731bc4d058875b0371ff8109"
 
 [[projects]]
   name = "github.com/PuerkitoBio/purell"
@@ -154,10 +154,12 @@
   version = "v1.1.0"
 
 [[projects]]
-  branch = "master"
   name = "github.com/docker/docker"
-  packages = ["pkg/term/windows"]
-  revision = "b8571fd81c7d2223c9ecbf799c693e3ef1daaea9"
+  packages = [
+    "pkg/term",
+    "pkg/term/windows"
+  ]
+  revision = "1ef1cc8388165b2b848f9b3f53ec91c87de09f63"
 
 [[projects]]
   branch = "master"
@@ -477,12 +479,6 @@
     "qr/coding"
   ]
   revision = "90f07065088deccf50b28eb37c93dad3078c0f3c"
-
-[[projects]]
-  name = "github.com/moby/moby"
-  packages = ["pkg/term"]
-  revision = "092cba3727bb9b4a2f0e922cd6c0f93ea270e363"
-  version = "v1.13.1"
 
 [[projects]]
   name = "github.com/modern-go/concurrent"
@@ -879,6 +875,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "7fb0202a49ed7fb0c258b7738e4d2a8c96c8a76c2d1151295102df98385ba8cf"
+  inputs-digest = "e63ac036833b1848d367e291f3bfbbcea896b83ea0751c4b47246220e74d4b0d"
   solver-name = "gps-cdcl"
   solver-version = 1

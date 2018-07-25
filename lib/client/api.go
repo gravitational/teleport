@@ -52,9 +52,9 @@ import (
 	"github.com/gravitational/teleport/lib/state"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/docker/docker/pkg/term"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/moby/moby/pkg/term"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
