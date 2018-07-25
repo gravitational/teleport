@@ -14,13 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
+import React, { PropTypes } from 'react';
 import { Text } from './items';
 
 export class FileDownloadSelector extends React.Component {
 
+  static propTypes = {
+    onDownload: PropTypes.func.isRequired,
+  }
+
   state = {
-    path: ''
+    path: '~/'
   }
 
   onChangePath = e => {
@@ -29,13 +33,13 @@ export class FileDownloadSelector extends React.Component {
     })
   }
 
+  isValidPath(path) {
+    return path && path[path.length - 1] !== '/';
+  }
+
   onDownload = () => {
-    if (this.state.path) {
+    if (this.isValidPath(this.state.path)) {
       this.props.onDownload(this.state.path)
-      this.inputRef.value = "";
-      this.setState({
-        path: ''
-      })
     }
   }
 
@@ -47,9 +51,15 @@ export class FileDownloadSelector extends React.Component {
     }
   }
 
+  moveCaretAtEnd(e) {
+    const tmp = e.target.value;
+    e.target.value = '';
+    e.target.value = tmp;
+  }
+
   render() {
     const { path } = this.state;
-    const isBtnDisabled = !path;
+    const isBtnDisabled = !this.isValidPath(path);
     return (
       <div className="grv-file-transfer-header m-b">
         <Text className="m-b">
@@ -65,6 +75,7 @@ export class FileDownloadSelector extends React.Component {
             className="grv-file-transfer-input m-r-sm"
             placeholder="Fully qualified file path"
             autoFocus
+            onFocus={this.moveCaretAtEnd}
             onKeyDown={this.onKeyDown}
           />
           <button className="btn btn-sm grv-file-transfer-btn"

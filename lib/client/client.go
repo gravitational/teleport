@@ -564,10 +564,11 @@ func (client *NodeClient) ExecuteSCP(cmd scp.Command) error {
 	}()
 
 	runErr := s.Run(shellCmd)
-	if runErr != nil && err == nil {
+	<-closeC
+
+	if runErr != nil && (err == nil || trace.IsEOF(err)) {
 		err = runErr
 	}
-	<-closeC
 	if trace.IsEOF(err) {
 		err = nil
 	}
