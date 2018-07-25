@@ -33,6 +33,7 @@ import (
 	"os/user"
 	"path"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -665,7 +666,10 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 
 // accessPoint returns access point based on the cache policy
 func (tc *TeleportClient) accessPoint(clt auth.AccessPoint, proxyHostPort string, clusterName string) (auth.AccessPoint, error) {
-	if tc.CachePolicy == nil {
+	// If no caching policy was set or on Windows (where Teleport does not
+	// support file locking at the moment), return direct access to the access
+	// point.
+	if tc.CachePolicy == nil || runtime.GOOS == teleport.WindowsOS {
 		log.Debugf("not using caching access point")
 		return clt, nil
 	}
@@ -1681,15 +1685,10 @@ func loopbackPool(proxyAddr string) *x509.CertPool {
 	return certPool
 }
 
-// connects to a local SSH agent
+// connectToSSHAgent connects to the local SSH agent and returns a agent.Agent.
 func connectToSSHAgent() agent.Agent {
 	socketPath := os.Getenv(teleport.SSHAuthSock)
-	if socketPath == "" {
-		log.Infof("[KEY AGENT] %v is not set. Try running eval `ssh-agent` and trying again.", teleport.SSHAuthSock)
-		return nil
-	}
-
-	conn, err := agentconn.DialAgent(socketPath)
+	conn, err := agentconn.Dial(socketPath)
 	if err != nil {
 		log.Errorf("[KEY AGENT] Unable to connect to SSH agent on socket: %q.", socketPath)
 		return nil
