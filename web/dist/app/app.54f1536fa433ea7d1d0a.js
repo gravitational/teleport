@@ -9743,7 +9743,6 @@ webpackJsonp([0],[
 	        { className: 'form-group' },
 	        _react2.default.createElement('input', {
 	          disabled: true,
-	          autoFocus: true,
 	          value: this.state.userName,
 	          onChange: function onChange(e) {
 	            return _this3.onChangeState('userName', e.target.value);
@@ -9760,6 +9759,7 @@ webpackJsonp([0],[
 	          onChange: function onChange(e) {
 	            return _this3.onChangeState('password', e.target.value);
 	          },
+	          autoFocus: true,
 	          ref: 'password',
 	          type: 'password',
 	          name: 'password',
@@ -16119,7 +16119,6 @@ webpackJsonp([0],[
 	          },
 	          value: path,
 	          className: 'grv-file-transfer-input m-r-sm',
-	          placeholder: 'Fully qualified file path',
 	          autoFocus: true,
 	          onFocus: this.moveCaretAtEnd,
 	          onKeyDown: this.onKeyDown
@@ -16391,7 +16390,6 @@ webpackJsonp([0],[
 	              return _this2.inputRef = e;
 	            },
 	            value: remoteLocation,
-	            placeholder: '',
 	            autoFocus: true,
 	            onFocus: this.moveCaretAtEnd,
 	            onChange: this.onFilePathChanged,
