@@ -73,7 +73,6 @@ export class FileDownloadSelector extends React.Component {
             ref={e => this.inputRef = e}
             value={path}
             className="grv-file-transfer-input m-r-sm"
-            placeholder="Fully qualified file path"
             autoFocus
             onFocus={this.moveCaretAtEnd}
             onKeyDown={this.onKeyDown}
