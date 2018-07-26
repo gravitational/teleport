@@ -151,7 +151,6 @@ export class FileUploadSelector extends React.Component {
             <input className="grv-file-transfer-input m-r-sm"
               ref={e => this.inputRef = e}
               value={remoteLocation}
-              placeholder=""
               autoFocus
               onFocus={this.moveCaretAtEnd}
               onChange={this.onFilePathChanged}

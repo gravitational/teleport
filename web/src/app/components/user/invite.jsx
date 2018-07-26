@@ -36,19 +36,19 @@ export class Invite extends React.Component {
   componentDidMount(){
     actions.fetchInvite(this.props.params.inviteToken);
   }
-      
-  onSubmitWithU2f = (username, password) => {    
+
+  onSubmitWithU2f = (username, password) => {
     actions.acceptInviteWithU2f(username, password, this.props.params.inviteToken);
   }
 
-  onSubmit = (username, password, token) => {    
+  onSubmit = (username, password, token) => {
     actions.acceptInvite(username, password, token, this.props.params.inviteToken);
   }
 
   render() {
-    const { fetchingInvite, invite, attemp } = this.props;                
+    const { fetchingInvite, invite, attemp } = this.props;
     const auth2faType = cfg.getAuth2faType();
-            
+
     if(fetchingInvite.isFailed){
       return <ExpiredLink/>
     }
@@ -56,29 +56,29 @@ export class Invite extends React.Component {
     if(!invite) {
       return null;
     }
-    
+
     let containerClass = classnames('grv-invite-content grv-flex', {
       '---with-2fa-data': needs2fa(auth2faType)
     })
-    
+
     return (
       <div className="grv-invite text-center">
-        <TeleportLogo />                
+        <TeleportLogo />
         <div className={containerClass}>
           <div className="grv-flex-column">
-            <InviteInputForm              
-              auth2faType={auth2faType}              
+            <InviteInputForm
+              auth2faType={auth2faType}
               attemp={attemp}
-              invite={invite}              
+              invite={invite}
               onSubmitWithU2f={this.onSubmitWithU2f}
-              onSubmit={this.onSubmit}                          
+              onSubmit={this.onSubmit}
             />
             <InviteFooter auth2faType={auth2faType}/>
           </div>
           <Invite2faData
             auth2faType={auth2faType}
-            qr={invite.qr} />          
-        </div>        
+            qr={invite.qr} />
+        </div>
       </div>
     );
   }
@@ -86,9 +86,9 @@ export class Invite extends React.Component {
 
 export class InviteInputForm extends React.Component {
 
-  static propTypes = {    
+  static propTypes = {
     auth2faType: React.PropTypes.string,
-    authType: React.PropTypes.string,  
+    authType: React.PropTypes.string,
     onSubmitWithU2f: React.PropTypes.func.isRequired,
     onSubmit: React.PropTypes.func.isRequired,
     attemp: React.PropTypes.object.isRequired
@@ -100,10 +100,10 @@ export class InviteInputForm extends React.Component {
       userName: this.props.invite.user,
       password: '',
       passwordConfirmed: '',
-      token: ''  
+      token: ''
     }
   }
-  
+
   componentDidMount(){
     $(this.refs.form).validate({
       rules:{
@@ -125,17 +125,17 @@ export class InviteInputForm extends React.Component {
       }
     })
   }
-  
-  onSubmit = e => {    
-    e.preventDefault();    
+
+  onSubmit = e => {
+    e.preventDefault();
     if (this.isValid()) {
       let { userName, password, token } = this.state;
       this.props.onSubmit(userName, password, token);
     }
   }
 
-  onSubmitWithU2f = e => {    
-    e.preventDefault();    
+  onSubmitWithU2f = e => {
+    e.preventDefault();
     if (this.isValid()) {
       let { userName, password } = this.state;
       this.props.onSubmitWithU2f(userName, password);
@@ -147,19 +147,18 @@ export class InviteInputForm extends React.Component {
       [propName]: value
     });
   }
-        
+
   isValid() {
     var $form = $(this.refs.form);
     return $form.length === 0 || $form.valid();
   }
-      
-  renderNameAndPassFields() {    
+
+  renderNameAndPassFields() {
     return (
       <div>
         <div className="form-group">
           <input
-            disabled  
-            autoFocus                        
+            disabled
             value={this.state.userName}
             onChange={e => this.onChangeState('userName', e.target.value)}
             className="form-control required"
@@ -170,6 +169,7 @@ export class InviteInputForm extends React.Component {
           <input
             value={this.state.password}
             onChange={e => this.onChangeState('password', e.target.value)}
+            autoFocus
             ref="password"
             type="password"
             name="password"
@@ -177,14 +177,14 @@ export class InviteInputForm extends React.Component {
             placeholder="Password"/>
         </div>
         <div className="form-group">
-          <input            
+          <input
             value={this.state.passwordConfirmed}
             onChange={e => this.onChangeState('passwordConfirmed', e.target.value)}
             type="password"
             name="passwordConfirmed"
             className="form-control"
             placeholder="Password confirm"/>
-          </div>          
+          </div>
       </div>
     )
   }
@@ -205,11 +205,11 @@ export class InviteInputForm extends React.Component {
       )
     }
 
-    return null;            
+    return null;
   }
 
-  renderSubmitBtn() {    
-    let { isProcessing } = this.props.attemp;        
+  renderSubmitBtn() {
+    let { isProcessing } = this.props.attemp;
     let $helpBlock = isProcessing && this.props.auth2faType === Auth2faTypeEnum.UTF ? (
       <div className="help-block">
         Insert your U2F key and press the button on the key
@@ -229,20 +229,20 @@ export class InviteInputForm extends React.Component {
           className="btn btn-primary block full-width m-b">
           Sign up
         </button>
-        {$helpBlock}        
+        {$helpBlock}
       </div>
-    );        
+    );
   }
-      
-  render() {            
-    const { isFailed, message } = this.props.attemp;        
+
+  render() {
+    const { isFailed, message } = this.props.attemp;
     const $error = isFailed ? <ErrorMessage message={message} /> : null;
     return (
       <form ref="form" className="grv-invite-input-form">
         <h3> Get started with Teleport </h3>
-        {this.renderNameAndPassFields()}    
+        {this.renderNameAndPassFields()}
         {this.render2faFields()}
-        {this.renderSubmitBtn()}                                  
+        {this.renderSubmitBtn()}
         {$error}
       </form>
     );
@@ -253,7 +253,7 @@ const Invite2faData = ({auth2faType, qr}) => {
   if (!needs2fa(auth2faType)) {
     return null;
   }
-  
+
   if (auth2faType === Auth2faTypeEnum.OTP) {
     return (
       <div className="grv-flex-column grv-invite-barcode">
@@ -269,7 +269,7 @@ const Invite2faData = ({auth2faType, qr}) => {
     return (
       <div className="grv-flex-column">
         <h3>Insert your U2F key </h3>
-        <div className="m-t-md">Press the button on the U2F key after you press the sign up button</div>        
+        <div className="m-t-md">Press the button on the U2F key after you press the sign up button</div>
 
         <div className="m-t text-muted">
           <small>Click
@@ -289,7 +289,7 @@ const InviteFooter = ({auth2faType}) => {
   const $googleHint = auth2faType === Auth2faTypeEnum.OTP ? <GoogleAuthInfo /> : null;
   return (
     <div>
-      {$googleHint}      
+      {$googleHint}
     </div>
   )
 }
@@ -299,7 +299,7 @@ function mapStateToProps() {
       invite: getters.invite,
       attemp: getters.attemp,
       fetchingInvite: getters.fetchingInvite
-    }  
+    }
 }
 
 export default connect(mapStateToProps)(Invite);
