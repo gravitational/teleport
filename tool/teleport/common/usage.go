@@ -22,7 +22,7 @@ Examples:
 
 > teleport start --roles=node --auth-server=10.1.0.1 --token=xyz --nodename=db
   Starts a node named 'db' running in strictly SSH mode role, joining the cluster 
-  serviced by the auth server running on 10.5.0.2
+  serviced by the auth server running on 10.1.0.1
 
 > teleport start --roles=node --auth-server=10.1.0.1 --labels=db=master
   Same as the above, but the node runs with db=master label and can be connected
