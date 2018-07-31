@@ -169,3 +169,7 @@ ignored = ["github.com/Sirupsen/logrus"]
 [[constraint]]
   name = "github.com/golang/protobuf"
   version = "=v1.1.0"
+
+[[constraint]]
+  name = "github.com/Microsoft/go-winio"
+  version = "=v0.4.9"
