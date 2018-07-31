@@ -14,6 +14,7 @@ ADDFLAGS=-ldflags -w
 NOROOT=-u $$(id -u):$$(id -g)
 KUBECONFIG ?=
 TEST_KUBE ?=
+OS ?= $(shell go env GOOS)
 
 ifneq ("$(KUBECONFIG)","")
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(KUBECONFIG):/mnt/kube/config -e KUBECONFIG=/mnt/kube/config -e TEST_KUBE=$(TEST_KUBE)
@@ -132,5 +133,4 @@ enter: bbox
 .PHONY:release
 release:
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BBOX) \
-		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)"
-
+		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS)
