@@ -707,11 +707,6 @@ exec            | Remote command has been executed via SSH, like `tsh ssh root@n
 scp             | Remote file copy has been executed. The following fields will be logged: `{"path": "/path/to/file.txt", "len": 32344, "action": "read" }`
 resize          | Terminal has been resized.
 
-!!! tip "Note":
-    The commercial Teleport edition called "Teleport Enterprise" supports native
-    audit log exporting into external systems like Splunk, AlertLogic and others.
-    Take a look at [Teleport Enterprise](enterprise.md) section to learn more.
-
 ### Recorded Sessions
 
 In addition to logging `session.start` and `session.end` events, Teleport also records the entire

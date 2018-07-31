@@ -772,11 +772,6 @@ scp             | Remote file copy has been executed. The following fields will 
 resize          | Terminal has been resized.
 user.login      | A user logged into web UI or via tsh. The following fields will be logged: `{"user": "alice@example.com", "method": "local"}`.
 
-!!! tip "Note":
-    The commercial Teleport edition called "Teleport Enterprise" supports native
-    audit log exporting into external systems like Splunk, AlertLogic and others.
-    Take a look at [Teleport Enterprise](enterprise.md) section to learn more.
-
 ### Recorded Sessions
 
 In addition to logging `session.start` and `session.end` events, Teleport also records the entire
