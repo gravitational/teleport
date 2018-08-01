@@ -27,7 +27,7 @@ import Layout from 'app/components/layout';
 
 const Separator = () => <div className="grv-settings-header-line-solid m-t-sm m-b-sm"/>;
 
-const Label = ({text}) => ( 
+const Label = ({text}) => (
   <label style={{ width: "150px", fontWeight: "normal" }} className=" m-t-xs"> {text} </label>
 )
 
@@ -45,11 +45,11 @@ class AccountTab extends React.Component {
     onChangePass: React.PropTypes.func.isRequired,
     onChangePassWithU2f: React.PropTypes.func.isRequired
   }
-  
+
   hasBeenClicked = false;
 
   state = { ...defaultState };
-  
+
   componentDidMount() {
     $(this.refs.form).validate({
       rules: {
@@ -74,24 +74,24 @@ class AccountTab extends React.Component {
   componentWillUnmount() {
     this.props.onDestory && this.props.onDestory();
   }
-  
+
   onClick = e => {
     e.preventDefault();
     if (this.isValid()) {
-      const { oldPass, newPass, token } = this.state;      
+      const { oldPass, newPass, token } = this.state;
       this.hasBeenClicked = true;
       if (this.props.auth2faType === Auth2faTypeEnum.UTF) {
         this.props.onChangePassWithU2f(oldPass, newPass);
       } else {
         this.props.onChangePass(oldPass, newPass, token);
-      }                  
+      }
     }
   }
-  
-  onKeyPress = e => {        
-    if (e.key === 'Enter' && e.target.value) {              
+
+  onKeyPress = e => {
+    if (e.key === 'Enter' && e.target.value) {
       this.onClick(e)
-    }        
+    }
   }
 
   isValid() {
@@ -100,7 +100,7 @@ class AccountTab extends React.Component {
   }
 
   componentWillReceiveProps(nextProps) {
-    const { isSuccess } = nextProps.attempt;    
+    const { isSuccess } = nextProps.attempt;
     if (isSuccess && this.hasBeenClicked) {
       // reset all input fields on success
       this.hasBeenClicked = false;
@@ -117,29 +117,29 @@ class AccountTab extends React.Component {
   }
 
   render() {
-    const isOtpEnabled = this.isOtp();  
-    const { isFailed, isProcessing, isSuccess, message } = this.props.attempt;    
+    const isOtpEnabled = this.isOtp();
+    const { isFailed, isProcessing, isSuccess, message } = this.props.attempt;
     const { oldPass, newPass, newPassConfirmed } = this.state;
     const waitForU2fKeyResponse = isProcessing && this.isU2f()
-    
+
     return (
       <div title="Change Password" className="m-t-sm grv-settings-account">
         <h3 className="no-margins">Change Password</h3>
-        <Separator />        
-        <div className="m-b m-l-xl" style={{ maxWidth: "500px" }}>          
+        <Separator />
+        <div className="m-b m-l-xl" style={{ maxWidth: "500px" }}>
           <form ref="form" onKeyPress={this.onKeyPress}>
-            <div>          
+            <div>
               { isFailed && <Alerts.Danger className="m-b-sm"> {message} </Alerts.Danger> }
               { isSuccess && <Alerts.Success className="m-b-sm"> Your password has been changed </Alerts.Success> }
               { waitForU2fKeyResponse && <Alerts.Info className="m-b-sm"> Insert your U2F key and press the button on the key </Alerts.Info> }
-            </div>                                 
+            </div>
             <Layout.Flex dir="row" className="m-t">
               <Label text="Current Password:" />
               <div style={{ flex: "1" }}>
                 <input
                   autoFocus
                   type="password"
-                  value={oldPass}                  
+                  value={oldPass}
                   onChange={e => this.setState({
                     oldPass: e.target.value
                   })}
@@ -151,7 +151,7 @@ class AccountTab extends React.Component {
                 <Label text="2nd factor token:" />
                 <div style={{ flex: "1" }}>
                   <input autoComplete="off"
-                    style={{width: "100px"}}  
+                    style={{width: "100px"}}
                     value={this.state.token}
                     onChange={e => this.setState({
                       'token': e.target.value
@@ -160,7 +160,7 @@ class AccountTab extends React.Component {
                   />
                 </div>
               </Layout.Flex>
-            }  
+            }
             <Layout.Flex dir="row" className="m-t-lg">
               <Label text="New Password:" />
               <div style={{ flex: "1" }}>
@@ -187,9 +187,9 @@ class AccountTab extends React.Component {
                   })}
                   name="newPassConfirmed"
                   className="form-control"
-                />                
+                />
               </div>
-            </Layout.Flex>            
+            </Layout.Flex>
           </form>
         </div>
         <button disabled={isProcessing} onClick={this.onClick} type="submit" className="btn btn-sm btn-primary block" >Update</button>
@@ -197,9 +197,9 @@ class AccountTab extends React.Component {
     )
   }
 }
-  
+
 function mapFluxToProps() {
-  return {        
+  return {
     attempt: getters.pswChangeAttempt
   }
 }
