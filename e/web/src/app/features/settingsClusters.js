@@ -1,5 +1,6 @@
 import { SettingsFeatureBase } from 'telebase-app/features/settings/featureSettings';
 import { addNavItem } from 'telebase-app/flux/settings/actions';
+import { withDocTitle } from 'telebase-app/components/documentTitle';
 
 import cfg from './../config'
 import { fetchTrustedClusters } from './../flux/settingsClusters/actions';
@@ -8,19 +9,18 @@ import * as flags from './featureFlags';
 
 class TrustedClustersFeature extends SettingsFeatureBase {
 
-  constructor(routes) {        
+  constructor(routes) {
     super();
     const route = {
-      title: 'Trusted Clusters',  
       path: cfg.routes.settingsCluster,
-      component: super.withMe(TrustedClusters)
+      component: super.withMe(withDocTitle('Trusted Clusters', TrustedClusters))
     };
 
-    routes.push(route);        
+    routes.push(route);
   }
-  
-  componentDidMount() {    
-    this.init()    
+
+  componentDidMount() {
+    this.init()
   }
 
   isEnabled(){
@@ -28,27 +28,27 @@ class TrustedClustersFeature extends SettingsFeatureBase {
   }
 
   init(){
-    if (this.wasInitialized()) {    
+    if (this.wasInitialized()) {
       return;
-    }  
-    
+    }
+
     this.startProcessing();
     fetchTrustedClusters()
       .done(this.stopProcessing.bind(this))
-      .fail(this.handleError.bind(this))                      
+      .fail(this.handleError.bind(this))
   }
-    
-  onload() {             
-    const navItem = {      
+
+  onload() {
+    const navItem = {
       to: cfg.routes.settingsCluster,
-      title: "Trusted Clusters"  
+      title: "Trusted Clusters"
     }
-    
+
     if (this.isEnabled()) {
       addNavItem(navItem);
       this.init();
-    }      
-  }  
+    }
+  }
 }
 
 export default TrustedClustersFeature;

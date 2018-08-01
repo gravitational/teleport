@@ -1,5 +1,6 @@
 import { SettingsFeatureBase } from 'telebase-app/features/settings/featureSettings';
 import { addNavItem } from 'telebase-app/flux/settings/actions';
+import { withDocTitle } from 'telebase-app/components/documentTitle';
 
 import cfg from './../config'
 import { fetchRoles } from './../flux/settingsRoles/actions';
@@ -8,46 +9,45 @@ import * as flags from './featureFlags';
 
 class RolesFeature extends SettingsFeatureBase {
 
-  constructor(routes) {        
+  constructor(routes) {
     super();
     const route = {
-      title: 'Roles',  
       path: cfg.routes.settingsRoles,
-      component: super.withMe(SettingsRoles)
+      component: super.withMe(withDocTitle('Roles', SettingsRoles))
     };
 
-    routes.push(route);        
+    routes.push(route);
   }
 
-  componentDidMount() {    
-    this.init()    
+  componentDidMount() {
+    this.init()
   }
 
   init(){
-    if (this.wasInitialized()) {    
+    if (this.wasInitialized()) {
       return;
-    }  
-    
-    this.startProcessing();    
+    }
+
+    this.startProcessing();
     fetchRoles()
       .done(this.stopProcessing.bind(this))
-      .fail(this.handleError.bind(this))                         
+      .fail(this.handleError.bind(this))
   }
 
   isEnabled(){
     return flags.isRolesEnabled();
   }
-  
-  onload() {                
-    const navItem = {      
+
+  onload() {
+    const navItem = {
       to: cfg.routes.settingsRoles,
-      title: "Roles"  
+      title: "Roles"
     }
 
     if (this.isEnabled()) {
-      addNavItem(navItem);    
-    }                
-  }  
+      addNavItem(navItem);
+    }
+  }
 }
 
 export default RolesFeature;

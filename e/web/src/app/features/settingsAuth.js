@@ -1,5 +1,6 @@
 import { SettingsFeatureBase } from 'telebase-app/features/settings/featureSettings';
 import { addNavItem } from 'telebase-app/flux/settings/actions';
+import { withDocTitle } from 'telebase-app/components/documentTitle';
 
 import cfg from 'app/config'
 import { fetchAuthProviders } from './../flux/settingsAuth/actions';
@@ -7,24 +8,23 @@ import SettingsAuth from '../components/settings/tabAuth'
 import * as flags from './featureFlags';
 class OAuthFeature extends SettingsFeatureBase {
 
-  constructor(routes) {        
+  constructor(routes) {
     super();
     const route = {
-      title: 'Auth. Connectors',  
       path: cfg.routes.settingsAuth,
-      component: super.withMe(SettingsAuth)
+      component: super.withMe(withDocTitle('Auth. Connectors', SettingsAuth))
     };
 
-    routes.push(route);        
+    routes.push(route);
   }
-    
-  componentDidMount() {    
-    this.init()    
+
+  componentDidMount() {
+    this.init()
   }
 
   init(){
-    if (!this.wasInitialized()) {                  
-      this.startProcessing();    
+    if (!this.wasInitialized()) {
+      this.startProcessing();
       fetchAuthProviders()
         .done(this.stopProcessing.bind(this))
         .fail(this.handleError.bind(this))
@@ -35,16 +35,16 @@ class OAuthFeature extends SettingsFeatureBase {
     return flags.isAuthConnectorsEnabled();
   }
 
-  onload() {             
-    const navItem = {      
+  onload() {
+    const navItem = {
       to: cfg.routes.settingsAuth,
-      title: "Auth. Connectors"  
-    }        
+      title: "Auth. Connectors"
+    }
     if (this.isEnabled()) {
       addNavItem(navItem);
       this.init();
-    }                
-  }  
+    }
+  }
 }
 
 export default OAuthFeature;
