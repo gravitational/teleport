@@ -16,16 +16,14 @@ limitations under the License.
 
 import React from 'react';
 
-const DEFAULT_TITLE = 'Teleport by Gravitational';
-
 export class DocumentTitle extends React.Component {
 
-  componentWillReceiveProps(nextProps) {    
-    if (this.getTitle() !== nextProps.title) {
-      this.setTitle(nextProps.title);
+  componentDidUpdate(prevProps) {
+    if (prevProps.title !== this.props.title) {
+      this.setTitle(this.props.title);
     }
   }
-  
+
   componentDidMount() {
     this.setTitle(this.props.title);
   }
@@ -38,23 +36,29 @@ export class DocumentTitle extends React.Component {
     document.title = title;
   }
 
-  render() {    
+  render() {
     return this.props.children;
   }
-
 }
 
-export const RouteDocumentTitle = props => {
-  let title = DEFAULT_TITLE
-  let routes = props.routes || [];
-  for (let i = routes.length - 1; i > 0; i--) {
-    if (routes[i].title) {
-      title = routes[i].title;
-      break;
+export const withDocTitle = (title, component) => {
+
+  return class WithWindowTitle extends React.Component{
+
+    static displayName = `withDocTitleWrapper`
+
+    componentDidMount() {
+      this.setTitle(title);
+    }
+
+    setTitle(title) {
+      document.title = title;
+    }
+
+    render() {
+      return React.createElement(component, {
+        ...this.props,
+      });
     }
   }
-
-  document.title = title;
-
-  return props.children;
 }

@@ -23,9 +23,11 @@ import actions from 'app/flux/user/actions';
 import { getters } from 'app/flux/user';
 import { Auth2faTypeEnum } from 'app/services/enums';
 import { ExpiredLink } from './../msgPage';
+import { withDocTitle } from './../documentTitle';
 import { TeleportLogo } from './../icons.jsx';
 import GoogleAuthInfo from './googleAuthLogo';
 import { ErrorMessage } from './items';
+
 
 const U2F_HELP_URL = 'https://support.google.com/accounts/answer/6103523?hl=en';
 
@@ -302,4 +304,4 @@ function mapStateToProps() {
     }
 }
 
-export default connect(mapStateToProps)(Invite);
+export default withDocTitle("Invite", connect(mapStateToProps)(Invite));

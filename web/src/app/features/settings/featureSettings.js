@@ -38,13 +38,13 @@ export class SettingsFeatureBase extends FeatureBase {
     super(props)
   }
 
-  isEnabled() {    
+  isEnabled() {
     return true;
   }
 }
 
 export default class SettingsFeature extends FeatureBase {
-  
+
   featureActivator = new FeatureActivator();
 
   childRoutes = [];
@@ -57,35 +57,34 @@ export default class SettingsFeature extends FeatureBase {
     this.featureActivator.register(feature)
   }
 
-  constructor(routes) {        
-    super(API.TRYING_TO_INIT_SETTINGS);    
+  constructor(routes) {
+    super(API.TRYING_TO_INIT_SETTINGS);
     const settingsRoutes =  {
       path: cfg.routes.settingsBase,
-      title: 'Settings',  
       component: super.withMe(Settings),
-      indexRoute: {     
+      indexRoute: {
         // need index component to handle default redirect to available nested feature
         component: SettingsIndex
-      },  
+      },
       childRoutes: this.childRoutes
     }
 
-    routes.push(settingsRoutes);        
+    routes.push(settingsRoutes);
   }
 
-  componentDidMount() {                
-    try{      
-      initSettings(this.featureActivator);               
+  componentDidMount() {
+    try{
+      initSettings(this.featureActivator);
     }catch(err){
       this.handleError(err);
-    }    
+    }
   }
 
-  onload() {                 
+  onload() {
     const features = this.featureActivator.getFeatures();
     const some = features.some(f => f.isEnabled());
     if(some){
-      addNavItem(settingsNavItem); 
-    }    
-  }  
+      addNavItem(settingsNavItem);
+    }
+  }
 }

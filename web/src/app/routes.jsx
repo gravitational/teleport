@@ -18,19 +18,15 @@ import cfg from './config';
 import LoginContainer from './components/user/login.jsx';
 import InviteUser from './components/user/invite.jsx';
 import * as Message from './components/msgPage.jsx';
-import { RouteDocumentTitle } from './components/documentTitle';
 
-export function addRoutes(routesToAdd = []) {  
-  return [{
-    component: RouteDocumentTitle,
-    childRoutes: [
-      { path: cfg.routes.error, title: "Error", component: Message.ErrorPage },
-      { path: cfg.routes.info, title: "Info", component: Message.InfoPage },
-      { path: cfg.routes.login, title: "Login", component: LoginContainer },
+export function addRoutes(routesToAdd = []) {
+  return [
+      { path: cfg.routes.error, component: Message.ErrorPage },
+      { path: cfg.routes.info, component: Message.InfoPage },
+      { path: cfg.routes.login, component: LoginContainer },
       { path: cfg.routes.newUser, component: InviteUser },
       { path: cfg.routes.app, onEnter: (localtion, replace) => replace(cfg.routes.nodes) },
-      ...routesToAdd,      
-      { path: '*', component: Message.NotFound }
-    ]
-  }];
+      ...routesToAdd,
+      { path: '*', component: Message.NotFoundPage }
+  ];
 }

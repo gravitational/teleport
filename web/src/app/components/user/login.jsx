@@ -22,43 +22,44 @@ import actions from 'app/flux/user/actions';
 import { getters } from 'app/flux/user';
 import GoogleAuthInfo from './googleAuthLogo';
 import cfg from 'app/config';
-import { ErrorMessage } from './items';
 import { TeleportLogo } from './../icons.jsx';
+import { withDocTitle } from './../documentTitle';
+import { ErrorMessage } from './items';
 import { SsoBtnList } from './ssoBtnList';
 import { Auth2faTypeEnum } from 'app/services/enums';
 
 export class Login extends React.Component {
-  
-  onLoginWithSso = ssoProvider => {            
-    actions.loginWithSso(ssoProvider.name, ssoProvider.url);      
+
+  onLoginWithSso = ssoProvider => {
+    actions.loginWithSso(ssoProvider.name, ssoProvider.url);
   }
 
-  onLoginWithU2f = (username, password) => {              
+  onLoginWithU2f = (username, password) => {
     actions.loginWithU2f(username, password);
   }
 
-  onLogin = (username, password, token) => {    
+  onLogin = (username, password, token) => {
     actions.login(username, password, token);
   }
-  
-  render() {  
+
+  render() {
     let {attemp} = this.props;
-    let authProviders = cfg.getAuthProviders();    
+    let authProviders = cfg.getAuthProviders();
     let auth2faType = cfg.getAuth2faType();
-        
+
     return (
       <div className="grv-login text-center">
         <TeleportLogo/>
         <div className="grv-content grv-flex">
-          <div className="grv-flex-column">            
+          <div className="grv-flex-column">
             <LoginInputForm
-              authProviders={authProviders}  
-              auth2faType={auth2faType}              
+              authProviders={authProviders}
+              auth2faType={auth2faType}
               onLoginWithSso={this.onLoginWithSso}
               onLoginWithU2f={this.onLoginWithU2f}
-              onLogin={this.onLogin}              
+              onLogin={this.onLogin}
               attemp={attemp}
-            />                            
+            />
             <LoginFooter auth2faType={auth2faType}/>
           </div>
         </div>
@@ -69,9 +70,9 @@ export class Login extends React.Component {
 
 export class LoginInputForm extends React.Component {
 
-  static propTypes = {  
+  static propTypes = {
     authProviders: React.PropTypes.array,
-    auth2faType: React.PropTypes.string,    
+    auth2faType: React.PropTypes.string,
     onLoginWithSso: React.PropTypes.func.isRequired,
     onLoginWithU2f: React.PropTypes.func.isRequired,
     onLogin: React.PropTypes.func.isRequired,
@@ -80,30 +81,30 @@ export class LoginInputForm extends React.Component {
 
   constructor(props) {
     super(props)
-    this.state = {      
+    this.state = {
       user: '',
       password: '',
-      token: ''      
-    }    
+      token: ''
+    }
   }
-  
-  onLogin = e =>  {    
-    e.preventDefault();    
+
+  onLogin = e =>  {
+    e.preventDefault();
     if (this.isValid()) {
       let { user, password, token } = this.state;
       this.props.onLogin(user, password, token);
     }
   }
 
-  onLoginWithU2f = e => {    
-    e.preventDefault();    
+  onLoginWithU2f = e => {
+    e.preventDefault();
     if (this.isValid()) {
       let { user, password } = this.state;
       this.props.onLoginWithU2f(user, password);
     }
   }
-      
-  onLoginWithSso = ssoProvider => {     
+
+  onLoginWithSso = ssoProvider => {
     this.props.onLoginWithSso(ssoProvider);
   }
 
@@ -117,20 +118,20 @@ export class LoginInputForm extends React.Component {
     var $form = $(this.refs.form);
     return $form.length === 0 || $form.valid();
   }
-  
+
   needs2fa() {
     return !!this.props.auth2faType && this.props.auth2faType !== Auth2faTypeEnum.DISABLED;
   }
 
   needsSso() {
-    return this.props.authProviders && this.props.authProviders.length > 0;    
+    return this.props.authProviders && this.props.authProviders.length > 0;
   }
 
   render2faFields() {
     if (!this.needs2fa() || this.props.auth2faType !== Auth2faTypeEnum.OTP) {
       return null;
     }
-        
+
     return (
       <div className="form-group">
         <input
@@ -143,13 +144,13 @@ export class LoginInputForm extends React.Component {
       </div>
     )
   }
-  
-  renderNameAndPassFields() {    
+
+  renderNameAndPassFields() {
     return (
       <div>
         <div className="form-group">
           <input
-            autoFocus            
+            autoFocus
             value={this.state.user}
             onChange={e => this.onChangeState('user', e.target.value)}
             className="form-control required"
@@ -169,8 +170,8 @@ export class LoginInputForm extends React.Component {
     )
   }
 
-  renderLoginBtn() {    
-    let { isProcessing } = this.props.attemp;        
+  renderLoginBtn() {
+    let { isProcessing } = this.props.attemp;
     let $helpBlock = isProcessing && this.props.auth2faType === Auth2faTypeEnum.UTF ? (
       <div className="help-block">
         Insert your U2F key and press the button on the key
@@ -190,34 +191,34 @@ export class LoginInputForm extends React.Component {
           className="btn btn-primary block full-width m-b">
           Login
         </button>
-        {$helpBlock}        
+        {$helpBlock}
       </div>
-    );        
+    );
   }
 
-  renderSsoBtns() {    
+  renderSsoBtns() {
     let { authProviders, attemp } = this.props;
     if (!this.needsSso()) {
       return null;
     }
-        
+
     return (
       <SsoBtnList
         prefixText="Login with "
         isDisabled={attemp.isProcessing}
         providers={authProviders}
         onClick={this.onLoginWithSso} />
-    )    
+    )
   }
 
   render() {
-    let { isFailed, message } = this.props.attemp;                    
+    let { isFailed, message } = this.props.attemp;
     let $error = isFailed ? (
-      <ErrorMessage message={message}/>      
+      <ErrorMessage message={message}/>
     ) : null;
 
     let hasAnyAuth = !!cfg.auth;
-    
+
     return (
       <div>
         <form ref="form" className="grv-login-input-form">
@@ -228,10 +229,10 @@ export class LoginInputForm extends React.Component {
               {this.renderNameAndPassFields()}
               {this.render2faFields()}
               {this.renderLoginBtn()}
-              {this.renderSsoBtns()}              
+              {this.renderSsoBtns()}
             </div>
-          }          
-        </form>        
+          }
+        </form>
         {$error}
       </div>
     );
@@ -252,10 +253,10 @@ const LoginFooter = ({auth2faType}) => {
   )
 }
 
-function mapStateToProps() {  
-  return {        
-    attemp: getters.loginAttemp 
+function mapStateToProps() {
+  return {
+    attemp: getters.loginAttemp
   }
 }
 
-export default connect(mapStateToProps)(Login);
+export default withDocTitle("Login", connect(mapStateToProps)(Login));

@@ -19,22 +19,22 @@ import { SettingsFeatureBase }  from './featureSettings';
 import cfg from 'app/config'
 import { addNavItem } from './../../flux/settings/actions';
 import SettingsAccount from './../../components/settings/accountTab'
+import { withDocTitle } from './../../components/documentTitle';
 
 const featureUrl = cfg.routes.settingsAccount;
 
 class AccountFeature extends SettingsFeatureBase {
 
-  constructor(routes) {        
+  constructor(routes) {
     super();
     const route = {
-      title: 'Account',  
       path: featureUrl,
-      component: this.withMe(SettingsAccount)
+      component: this.withMe(withDocTitle('Account', SettingsAccount))
     };
 
-    routes.push(route);        
+    routes.push(route);
   }
-      
+
   isEnabled() {
     return featureFlags.isAccountEnabled()
   }
@@ -42,22 +42,22 @@ class AccountFeature extends SettingsFeatureBase {
   init(){
     if (!this.wasInitialized()) {
       this.stopProcessing();
-    }      
+    }
   }
 
-  onload() {                 
+  onload() {
     if (!this.isEnabled()) {
       return;
     }
 
-    const navItem = {      
+    const navItem = {
       to: featureUrl,
-      title: "Account"  
-    }        
-        
+      title: "Account"
+    }
+
     addNavItem(navItem);
-    this.init();                                  
-  }  
+    this.init();
+  }
 }
 
 export default AccountFeature;
