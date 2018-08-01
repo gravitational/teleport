@@ -59,13 +59,13 @@
     "file-loader": "^0.8.5",
     "html-webpack-plugin": "^2.8.1",
     "ignore-loader": "^0.1.2",
-    "karma": "^0.13.8",
+    "karma": "2.0.5",
     "karma-chrome-launcher": "^0.2.0",
     "karma-mocha": "^0.2.0",
     "karma-mocha-reporter": "^1.1.1",
     "karma-spec-reporter": "0.0.24",
     "karma-webpack": "^1.7.0",
-    "mocha": "^2.0.1",
+    "mocha": "4.0.0",
     "node-sass": "^4.5.2",
     "raw-loader": "^0.5.1",
     "react-addons-test-utils": "15.1.0",
@@ -77,7 +77,6 @@
     "svg-sprite-loader": "0.0.18",
     "url-loader": "^0.5.7",
     "webpack": "^1.4.13",
-    "webpack-dev-middleware": "^1.5.1",
     "webpack-dev-server": "^1.16.1"
   }
 }
