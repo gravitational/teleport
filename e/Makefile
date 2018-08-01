@@ -2,7 +2,7 @@
 # But running regular 'make' and 'make clean' works.
 BUILDDIR ?= build
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s $(LDFLAGS)'
-RELEASE=teleport-ent-$(GITTAG)-$(ARCH)-bin
+RELEASE=teleport-ent-$(GITTAG)-$(OS)-$(ARCH)-bin
 
 
 # PAM support will only be built into Teleport if headers exist at build time.
@@ -65,6 +65,9 @@ $(BUILDDIR)/webassets.zip:
 
 .PHONY: check-build-vars
 check-build-vars:
+ifndef OS
+	$(error OS is not set)
+endif
 ifndef ARCH
 	$(error ARCH is not set)
 endif
