@@ -49,6 +49,11 @@ func (s *AddrTestSuite) TestParseHostPort(c *C) {
 	addr, err = ParseHostPortAddr("localhost", -1)
 	c.Assert(err, NotNil)
 	c.Assert(addr, IsNil)
+
+	// redundant scheme + missing port
+	addr, err = ParseHostPortAddr("https://localhost", -1)
+	c.Assert(err, NotNil)
+	c.Assert(addr, IsNil)
 }
 
 func (s *AddrTestSuite) TestEmpty(c *C) {
