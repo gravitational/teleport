@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.6.8
+
+This release of Teleport focuses on bugfixes.
+
+#### Bug Fixes
+
+* Rollback to Go 1.9.7 for users with custom CA running into `x509: certificate signed by unknown authority`.
+
 ## 2.6.7
 
 This release of Teleport focuses on bugfixes.
