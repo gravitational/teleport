@@ -2,7 +2,6 @@ package authority
 
 import (
 	"context"
-	"io/ioutil"
 	"os"
 	"time"
 
@@ -29,11 +28,7 @@ type Cert struct {
 
 // ProcessCSR processes CSR request with local k8s certificate authority
 // and returns certificate PEM signed by CA
-func ProcessCSR(csrPEM []byte, caCertPath string) (*Cert, error) {
-	caPEM, err := ioutil.ReadFile(caCertPath)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+func ProcessCSR(csrPEM []byte, caPEM []byte) (*Cert, error) {
 	clt, _, err := kubeutils.GetKubeClient(os.Getenv(teleport.EnvKubeConfig))
 	if err != nil {
 		return nil, trace.Wrap(err)

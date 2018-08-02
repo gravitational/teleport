@@ -383,8 +383,9 @@ func (s *KubeSuite) TestKubeTrustedClusters(c *check.C) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
 
-	// route allt he traffic to the aux cluster
-	mainConf.Proxy.KubeClusterOverride = clusterAux
+	// route all the traffic to the aux cluster
+	mainConf.Proxy.Kube.Enabled = true
+	mainConf.Proxy.Kube.ClusterOverride = clusterAux
 	err = main.CreateEx(nil, mainConf)
 	c.Assert(err, check.IsNil)
 
@@ -563,8 +564,9 @@ func (s *KubeSuite) teleKubeConfig(hostname string) *service.Config {
 	tconf.ShutdownTimeout = 2 * tconf.ClientTimeout
 
 	// set kubernetes specific parameters
-	tconf.Proxy.KubeListenAddr.Addr = net.JoinHostPort(hostname, s.ports.Pop())
-	tconf.Proxy.KubeAPIAddr.Addr = s.kubeAPIHost
+	tconf.Proxy.Kube.Enabled = true
+	tconf.Proxy.Kube.ListenAddr.Addr = net.JoinHostPort(hostname, s.ports.Pop())
+	tconf.Proxy.Kube.APIAddr.Addr = s.kubeAPIHost
 	tconf.Auth.KubeCACertPath = s.kubeCACertPath
 
 	return tconf
@@ -620,7 +622,7 @@ func kubeProxyClient(t *TeleInstance, username string) (*kubernetes.Clientset, *
 		KeyData:  key,
 	}
 	config := &rest.Config{
-		Host:            "https://" + t.Config.Proxy.KubeListenAddr.Addr,
+		Host:            "https://" + t.Config.Proxy.Kube.ListenAddr.Addr,
 		TLSClientConfig: tlsClientConfig,
 	}
 	client, err := kubernetes.NewForConfig(config)

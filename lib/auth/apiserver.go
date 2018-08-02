@@ -2032,7 +2032,7 @@ func (s *APIServer) setClusterConfig(auth ClientI, w http.ResponseWriter, r *htt
 		return nil, trace.Wrap(err)
 	}
 
-	return message(fmt.Sprintf("cluster config set: %+v", cc)), nil
+	return message("cluster config set"), nil
 }
 
 func (s *APIServer) getClusterName(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {

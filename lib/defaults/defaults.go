@@ -379,6 +379,11 @@ func ProxyListenAddr() *utils.NetAddr {
 	return makeAddr(BindIP, SSHProxyListenPort)
 }
 
+// KubeProxyListenAddr returns the default listening address for the Kubernetes Proxy service
+func KubeProxyListenAddr() *utils.NetAddr {
+	return makeAddr(BindIP, KubeProxyListenPort)
+}
+
 // ProxyWebListenAddr returns the default listening address for the Web-based SSH Proxy service
 func ProxyWebListenAddr() *utils.NetAddr {
 	return makeAddr(BindIP, HTTPListenPort)

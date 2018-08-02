@@ -33,8 +33,14 @@ import (
 type RemoteSite interface {
 	// DialAuthServer returns a net.Conn to the Auth Server of a site.
 	DialAuthServer() (net.Conn, error)
-	// Dial dials any address within the site network.
+	// Dial dials any address within the site network, in terminating
+	// mode it uses local instance of forwarding server to terminate
+	// and record the connection
 	Dial(fromAddr, toAddr net.Addr, userAgent agent.Agent) (net.Conn, error)
+	// DialTCP dials any address within the site network,
+	// ignores recording mode and always uses TCP dial, used
+	// in components that need direct dialer.
+	DialTCP(fromAddr, toAddr net.Addr) (net.Conn, error)
 	// GetLastConnected returns last time the remote site was seen connected
 	GetLastConnected() time.Time
 	// GetName returns site name (identified by authority domain's name)

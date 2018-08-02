@@ -38,6 +38,29 @@ type NetAddr struct {
 	Path string `json:"path,omitempty"`
 }
 
+// Host returns host part of address without port
+func (a *NetAddr) Host() string {
+	host, _, err := net.SplitHostPort(a.Addr)
+	if err != nil {
+		return a.Addr
+	}
+	return host
+}
+
+// Port returns defaultPort if no port is set or is invalid,
+// the real port otherwise
+func (a *NetAddr) Port(defaultPort int) int {
+	_, port, err := net.SplitHostPort(a.Addr)
+	if err != nil {
+		return defaultPort
+	}
+	porti, err := strconv.Atoi(port)
+	if err != nil {
+		return defaultPort
+	}
+	return porti
+}
+
 // Equals returns true if address is equal to other
 func (a *NetAddr) Equals(other NetAddr) bool {
 	return a.Addr == other.Addr && a.AddrNetwork == other.AddrNetwork && a.Path == other.Path
@@ -113,16 +136,15 @@ func (a *NetAddr) Set(s string) error {
 // ParseAddr takes strings like "tcp://host:port/path" and returns
 // *NetAddr or an error
 func ParseAddr(a string) (*NetAddr, error) {
+	if a == "" {
+		return nil, trace.BadParameter("missing parameter address")
+	}
 	if !strings.Contains(a, "://") {
-		host, port, err := net.SplitHostPort(a)
-		if err != nil {
-			return nil, trace.BadParameter("invalid network address: '%v', expecting host:port", a)
-		}
-		return &NetAddr{Addr: fmt.Sprintf("%v:%v", host, port), AddrNetwork: "tcp"}, nil
+		return &NetAddr{Addr: a, AddrNetwork: "tcp"}, nil
 	}
 	u, err := url.Parse(a)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse '%v':%v", a, err)
+		return nil, trace.BadParameter("failed to parse %q: %v", a, err)
 	}
 	switch u.Scheme {
 	case "tcp":
@@ -155,17 +177,16 @@ func FromAddr(a net.Addr) NetAddr {
 //
 // If defaultPort == -1 it expects 'hostport' string to have it
 func ParseHostPortAddr(hostport string, defaultPort int) (*NetAddr, error) {
-	host, port, err := net.SplitHostPort(hostport)
+	addr, err := ParseAddr(hostport)
 	if err != nil {
-		if defaultPort > 0 {
-			host, port, err = net.SplitHostPort(
-				net.JoinHostPort(hostport, strconv.Itoa(defaultPort)))
-		}
-		if err != nil {
-			return nil, trace.Errorf("failed to parse '%v': %v", hostport, err)
-		}
+		return nil, trace.Wrap(err)
 	}
-	return ParseAddr(fmt.Sprintf("tcp://%s", net.JoinHostPort(host, port)))
+	// port is required but not set
+	if defaultPort == -1 && addr.Addr == addr.Host() {
+		return nil, trace.BadParameter("missing port in address %q", hostport)
+	}
+	addr.Addr = fmt.Sprintf("%v:%v", addr.Host(), addr.Port(defaultPort))
+	return addr, nil
 }
 
 // DialAddrFromListenAddr returns dial address from listen address

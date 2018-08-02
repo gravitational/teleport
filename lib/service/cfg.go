@@ -241,7 +241,7 @@ func (c CachePolicy) String() string {
 	return fmt.Sprintf("cache that will expire after connection to database is lost after %v, %v", c.TTL, recentCachePolicy)
 }
 
-// ProxyConfig configures proy service
+// ProxyConfig specifies configuration for proxy service
 type ProxyConfig struct {
 	// Enabled turns proxy role on or off for this process
 	Enabled bool
@@ -264,16 +264,6 @@ type ProxyConfig struct {
 	// EnableProxyProtocol enables proxy protocol support
 	EnableProxyProtocol bool
 
-	// KubeListenAddr is address where reverse tunnel dialers connect to
-	KubeListenAddr utils.NetAddr
-
-	// KubeAPIAddr is address of kubernetes API server
-	KubeAPIAddr utils.NetAddr
-
-	// KubeClusterOverride causes all traffic to go to a specific remote
-	// cluster, used only in tests
-	KubeClusterOverride string
-
 	// WebAddr is address for web portal of the proxy
 	WebAddr utils.NetAddr
 
@@ -290,6 +280,32 @@ type ProxyConfig struct {
 
 	// PublicAddrs is a list of the public addresses the Teleport UI can be accessed at,
 	// it also affects the SSH host principals and DNS names added to the SSH and TLS certs.
+	PublicAddrs []utils.NetAddr
+
+	// Kube specifies kubernetes proxy configuration
+	Kube KubeProxyConfig
+}
+
+// KubeProxyConfig specifies configuration for proxy service
+type KubeProxyConfig struct {
+	// Enabled turns kubernetes proxy role on or off for this process
+	Enabled bool
+
+	// ListenAddr is address where reverse tunnel dialers connect to
+	ListenAddr utils.NetAddr
+
+	// KubeAPIAddr is address of kubernetes API server
+	APIAddr utils.NetAddr
+
+	// ClusterOverride causes all traffic to go to a specific remote
+	// cluster, used only in tests
+	ClusterOverride string
+
+	// CACert is a PEM encoded kubernetes CA certificate
+	CACert []byte
+
+	// PublicAddrs is a list of the public addresses the Teleport Kube proxy can be accessed by,
+	// it also affects the host principals and routing logic
 	PublicAddrs []utils.NetAddr
 }
 
@@ -342,7 +358,7 @@ type AuthConfig struct {
 	// PublicAddrs affects the SSH host principals and DNS names added to the SSH and TLS certs.
 	PublicAddrs []utils.NetAddr
 
-	// KubeCACertPath is a path to kubernetes CA certificate file
+	// KubeCACertPath is a path to kubernetes CA certificate
 	KubeCACertPath string
 }
 
@@ -424,6 +440,10 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Proxy.WebAddr = *defaults.ProxyWebListenAddr()
 	cfg.Proxy.ReverseTunnelListenAddr = *defaults.ReverseTunnellListenAddr()
 	defaults.ConfigureLimiter(&cfg.Proxy.Limiter)
+
+	// defaults for the Kubernetes proxy service
+	cfg.Proxy.Kube.Enabled = false
+	cfg.Proxy.Kube.ListenAddr = *defaults.KubeProxyListenAddr()
 
 	// defaults for the SSH service:
 	cfg.SSH.Enabled = true

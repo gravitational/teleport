@@ -278,8 +278,32 @@ func SSHAgentSSOLogin(ctx context.Context, proxyAddr, connectorID string, pubKey
 type PingResponse struct {
 	// Auth contains the forms of authentication the auth server supports.
 	Auth AuthenticationSettings `json:"auth"`
+	// Proxy contains the proxy settings.
+	Proxy ProxySettings `json:"proxy"`
 	// ServerVersion is the version of Teleport that is running.
 	ServerVersion string `json:"server_version"`
+}
+
+// ProxySettings contains basic information about proxy settings
+type ProxySettings struct {
+	// Kube is a kubernetes specific proxy section
+	Kube KubeProxySettings `json:"kube"`
+	// SSH is SSH specific proxy settings
+	SSH SSHProxySettings `json:"ssh"`
+}
+
+// KubeProxySettings is kubernetes proxy settings
+type KubeProxySettings struct {
+	// Enabled is true when kubernetes proxy is enabled
+	Enabled bool `json:"enabled,omitempty"`
+	// PublicAddr is a kubernetes proxy public address if set
+	PublicAddr string `json:"public_addr,omitempty"`
+}
+
+// SSHProxySettings is SSH specific proxy settings
+type SSHProxySettings struct {
+	// ListenAddr is SSH listen address
+	ListenAddr string `json:"listen_addr,omitempty"`
 }
 
 // PingResponse contains the form of authentication the auth server supports.

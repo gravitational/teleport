@@ -20,11 +20,12 @@ func UpdateKubeconfig(tc *client.TeleportClient) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	clusterName := tc.ProxyHost()
-	if tc.SiteName != "" && tc.SiteName != clusterName {
-		clusterName = fmt.Sprintf("%v.%v", tc.SiteName, tc.ProxyHost())
+
+	clusterName, proxyPort := tc.KubeProxyHostPort()
+	if tc.SiteName != "" {
+		clusterName = fmt.Sprintf("%v.%v", tc.SiteName, clusterName)
 	}
-	clusterAddr := fmt.Sprintf("https://%v:%v", clusterName, tc.ProxyKubePort())
+	clusterAddr := fmt.Sprintf("https://%v:%v", clusterName, proxyPort)
 
 	creds, err := tc.LocalAgent().GetKey()
 	if err != nil {

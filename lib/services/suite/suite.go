@@ -89,6 +89,7 @@ type ServicesTestSuite struct {
 	PresenceS     services.Presence
 	ProvisioningS services.Provisioner
 	WebS          services.Identity
+	ConfigS       services.ClusterConfiguration
 	ChangesC      chan interface{}
 }
 
@@ -333,13 +334,13 @@ func (s *ServicesTestSuite) ReverseTunnelsCRUD(c *C) {
 	c.Assert(len(out), Equals, 0)
 
 	err = s.PresenceS.UpsertReverseTunnel(newReverseTunnel("", []string{"127.0.0.1:1234"}))
-	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%#v", err))
+	fixtures.ExpectBadParameter(c, err)
 
-	err = s.PresenceS.UpsertReverseTunnel(newReverseTunnel("example.com", []string{"bad address"}))
-	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%#v", err))
+	err = s.PresenceS.UpsertReverseTunnel(newReverseTunnel("example.com", []string{""}))
+	fixtures.ExpectBadParameter(c, err)
 
 	err = s.PresenceS.UpsertReverseTunnel(newReverseTunnel("example.com", []string{}))
-	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%#v", err))
+	fixtures.ExpectBadParameter(c, err)
 }
 
 func (s *ServicesTestSuite) PasswordHashCRUD(c *C) {
@@ -759,4 +760,22 @@ func (s *ServicesTestSuite) RemoteClustersCRUD(c *C) {
 
 	err = s.PresenceS.DeleteRemoteCluster(clusterName)
 	fixtures.ExpectNotFound(c, err)
+}
+
+// AuthPreference tests authentication preference service
+func (s *ServicesTestSuite) AuthPreference(c *C) {
+	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+		Type:         "local",
+		SecondFactor: "otp",
+	})
+	c.Assert(err, IsNil)
+
+	err = s.ConfigS.SetAuthPreference(ap)
+	c.Assert(err, IsNil)
+
+	gotAP, err := s.ConfigS.GetAuthPreference()
+	c.Assert(err, IsNil)
+
+	c.Assert(gotAP.GetType(), Equals, "local")
+	c.Assert(gotAP.GetSecondFactor(), Equals, "otp")
 }

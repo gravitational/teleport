@@ -142,9 +142,16 @@ config:
     public_addr: teleport.example.com
     web_listen_addr: 0.0.0.0:3080
     listen_addr: 0.0.0.0:3023
-    kube_listen_addr: 0.0.0.0:3026
     https_key_file: /var/lib/certs/tls.key
     https_cert_file: /var/lib/certs/tls.crt
+    # kubernetes section configures
+    # kubernetes proxy protocol support
+    kubernetes:
+      enabled: yes
+      listen_addr: 0.0.0.0:3026
+      # public_addr is used to set values
+      # setup in kubeconfig after tsh login
+      # public_addr: [kubeproxy.example.com:443]
 
 ## Additional container arguments
 extraArgs: []
