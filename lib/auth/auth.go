@@ -83,6 +83,7 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) (*AuthServer, erro
 	if cfg.KubeCACertPath == "" {
 		cfg.KubeCACertPath = teleport.KubeCAPath
 	}
+
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	as := AuthServer{
 		clusterName:          cfg.ClusterName,
@@ -157,11 +158,11 @@ type AuthServer struct {
 	// privateKey is used in tests to use pre-generated private keys
 	privateKey []byte
 
-	// kubeCACertPath is a path to kubernetes certificate authority
-	kubeCACertPath string
-
 	// cipherSuites is a list of ciphersuites that the auth server supports.
 	cipherSuites []uint16
+
+	// kubeCACertPath is a path to PEM encoded kubernetes CA certificate
+	kubeCACertPath string
 }
 
 // runPeriodicOperations runs some periodic bookkeeping operations

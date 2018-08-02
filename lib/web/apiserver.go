@@ -105,6 +105,9 @@ type Config struct {
 
 	// ClientTLSConfig is the TLS configuration the client uses.
 	ClientTLSConfig *tls.Config
+
+	// ProxySettings is a settings communicated to proxy
+	ProxySettings client.ProxySettings
 }
 
 type RewritingHandler struct {
@@ -500,6 +503,7 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 
 	return client.PingResponse{
 		Auth:          defaultSettings,
+		Proxy:         h.cfg.ProxySettings,
 		ServerVersion: teleport.Version,
 	}, nil
 }
@@ -513,43 +517,39 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 		return nil, trace.Wrap(err)
 	}
 
+	response := &client.PingResponse{
+		Proxy:         h.cfg.ProxySettings,
+		ServerVersion: teleport.Version,
+	}
+
 	if connectorName == teleport.Local {
 		as, err := localSettings(h.cfg.ProxyClient, cap)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		return &client.PingResponse{
-			Auth:          as,
-			ServerVersion: teleport.Version,
-		}, nil
+		response.Auth = as
+		return response, nil
 	}
 
 	// first look for a oidc connector with that name
 	oidcConnector, err := authClient.GetOIDCConnector(connectorName, false)
 	if err == nil {
-		return &client.PingResponse{
-			Auth:          oidcSettings(oidcConnector, cap),
-			ServerVersion: teleport.Version,
-		}, nil
+		response.Auth = oidcSettings(oidcConnector, cap)
+		return response, nil
 	}
 
 	// if no oidc connector was found, look for a saml connector
 	samlConnector, err := authClient.GetSAMLConnector(connectorName, false)
 	if err == nil {
-		return &client.PingResponse{
-			Auth:          samlSettings(samlConnector, cap),
-			ServerVersion: teleport.Version,
-		}, nil
+		response.Auth = samlSettings(samlConnector, cap)
+		return response, nil
 	}
 
 	// look for github connector
 	githubConnector, err := authClient.GetGithubConnector(connectorName, false)
 	if err == nil {
-		return &client.PingResponse{
-			Auth:          githubSettings(githubConnector, cap),
-			ServerVersion: teleport.Version,
-		}, nil
+		response.Auth = githubSettings(githubConnector, cap)
+		return response, nil
 	}
 
 	return nil, trace.BadParameter("invalid connector name %v", connectorName)

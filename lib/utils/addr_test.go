@@ -39,6 +39,12 @@ func (s *AddrTestSuite) TestParseHostPort(c *C) {
 	c.Assert(addr.AddrNetwork, Equals, "tcp")
 	c.Assert(addr.Addr, Equals, "localhost:22")
 
+	// scheme + existing port
+	addr, err = ParseHostPortAddr("https://localhost", 443)
+	c.Assert(err, IsNil)
+	c.Assert(addr.AddrNetwork, Equals, "https")
+	c.Assert(addr.Addr, Equals, "localhost:443")
+
 	// success
 	addr, err = ParseHostPortAddr("localhost", 1111)
 	c.Assert(err, IsNil)
@@ -49,6 +55,10 @@ func (s *AddrTestSuite) TestParseHostPort(c *C) {
 	addr, err = ParseHostPortAddr("localhost", -1)
 	c.Assert(err, NotNil)
 	c.Assert(addr, IsNil)
+
+	// scheme + missing port
+	_, err = ParseHostPortAddr("https://localhost", -1)
+	c.Assert(err, NotNil)
 }
 
 func (s *AddrTestSuite) TestEmpty(c *C) {
@@ -64,6 +74,32 @@ func (s *AddrTestSuite) TestParse(c *C) {
 	c.Assert(addr.Path, Equals, "/path")
 	c.Assert(addr.FullAddress(), Equals, "tcp://one:25")
 	c.Assert(addr.IsEmpty(), Equals, false)
+	c.Assert(addr.Host(), Equals, "one")
+	c.Assert(addr.Port(0), Equals, 25)
+}
+
+func (s *AddrTestSuite) TestParseIPV6(c *C) {
+	addr, err := ParseAddr("[::1]:49870")
+	c.Assert(err, IsNil)
+	c.Assert(addr, NotNil)
+	c.Assert(addr.Addr, Equals, "[::1]:49870")
+	c.Assert(addr.Path, Equals, "")
+	c.Assert(addr.FullAddress(), Equals, "tcp://[::1]:49870")
+	c.Assert(addr.IsEmpty(), Equals, false)
+	c.Assert(addr.Host(), Equals, "::1")
+	c.Assert(addr.Port(0), Equals, 49870)
+}
+
+func (s *AddrTestSuite) TestParseEmptyPort(c *C) {
+	addr, err := ParseAddr("one")
+	c.Assert(err, IsNil)
+	c.Assert(addr, NotNil)
+	c.Assert(addr.Addr, Equals, "one")
+	c.Assert(addr.Path, Equals, "")
+	c.Assert(addr.FullAddress(), Equals, "tcp://one")
+	c.Assert(addr.IsEmpty(), Equals, false)
+	c.Assert(addr.Host(), Equals, "one")
+	c.Assert(addr.Port(443), Equals, 443)
 }
 
 func (s *AddrTestSuite) TestParseHTTP(c *C) {

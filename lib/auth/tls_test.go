@@ -708,6 +708,16 @@ func (s *TLSSuite) TestReadOwnRole(c *check.C) {
 	fixtures.ExpectAccessDenied(c, err)
 }
 
+func (s *TLSSuite) TestAuthPreference(c *check.C) {
+	clt, err := s.server.NewClient(TestAdmin())
+	c.Assert(err, check.IsNil)
+
+	suite := &suite.ServicesTestSuite{
+		ConfigS: clt,
+	}
+	suite.AuthPreference(c)
+}
+
 func (s *TLSSuite) TestTunnelConnectionsCRUD(c *check.C) {
 	clt, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)

@@ -205,17 +205,15 @@ type cluster struct {
 }
 
 func (c *cluster) Dial(_, _ string) (net.Conn, error) {
-	return c.RemoteSite.Dial(
+	return c.RemoteSite.DialTCP(
 		&c.remoteAddr,
-		&utils.NetAddr{AddrNetwork: "tcp", Addr: c.targetAddr},
-		nil)
+		&utils.NetAddr{AddrNetwork: "tcp", Addr: c.targetAddr})
 }
 
 func (c *cluster) DialWithContext(ctx context.Context, _, _ string) (net.Conn, error) {
-	return c.RemoteSite.Dial(
+	return c.RemoteSite.DialTCP(
 		&c.remoteAddr,
-		&utils.NetAddr{AddrNetwork: "tcp", Addr: c.targetAddr},
-		nil)
+		&utils.NetAddr{AddrNetwork: "tcp", Addr: c.targetAddr})
 }
 
 // handlerWithAuthFunc is http handler with passed auth context
@@ -304,7 +302,7 @@ func (f *Forwarder) setupContext(ctx auth.AuthContext, req *http.Request, isRemo
 	}
 	for _, remoteCluster := range f.Tunnel.GetSites() {
 		if strings.HasPrefix(req.Host, remoteCluster.GetName()+".") {
-			f.Debugf("Going to proxy to cluster: %v based on matching host suffix %v.", remoteCluster.GetName(), req.Host)
+			f.Debugf("Going to proxy to cluster: %v based on matching host prefix %v.", remoteCluster.GetName(), req.Host)
 			targetCluster = remoteCluster
 			isRemoteCluster = remoteCluster.GetName() != f.ClusterName
 			break

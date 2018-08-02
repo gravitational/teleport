@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/dir"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"gopkg.in/check.v1"
@@ -65,23 +66,11 @@ func (s *ClusterConfigurationSuite) TearDownTest(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
-func (s *ClusterConfigurationSuite) TestCycle(c *check.C) {
-	caps := NewClusterConfigurationService(s.bk)
-
-	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
-		Type:         "local",
-		SecondFactor: "otp",
-	})
-	c.Assert(err, check.IsNil)
-
-	err = caps.SetAuthPreference(ap)
-	c.Assert(err, check.IsNil)
-
-	gotAP, err := caps.GetAuthPreference()
-	c.Assert(err, check.IsNil)
-
-	c.Assert(gotAP.GetType(), check.Equals, "local")
-	c.Assert(gotAP.GetSecondFactor(), check.Equals, "otp")
+func (s *ClusterConfigurationSuite) TestAuthPreference(c *check.C) {
+	suite := &suite.ServicesTestSuite{
+		ConfigS: NewClusterConfigurationService(s.bk),
+	}
+	suite.AuthPreference(c)
 }
 
 func (s *ClusterConfigurationSuite) TestSessionRecording(c *check.C) {

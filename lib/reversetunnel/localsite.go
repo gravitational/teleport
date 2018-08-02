@@ -152,10 +152,10 @@ func (s *localSite) Dial(from net.Addr, to net.Addr, userAgent agent.Agent) (net
 		return s.dialWithAgent(from, to, userAgent)
 	}
 
-	return s.dial(from, to)
+	return s.DialTCP(from, to)
 }
 
-func (s *localSite) dial(from net.Addr, to net.Addr) (net.Conn, error) {
+func (s *localSite) DialTCP(from net.Addr, to net.Addr) (net.Conn, error) {
 	s.log.Debugf("Dialing from %v to %v", from, to)
 
 	return net.DialTimeout(to.Network(), to.String(), defaults.DefaultDialTimeout)

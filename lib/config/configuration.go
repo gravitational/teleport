@@ -307,20 +307,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		cfg.Proxy.ReverseTunnelListenAddr = *addr
 	}
-	if fc.Proxy.KubeAddr != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.KubeAddr, int(defaults.KubeProxyListenPort))
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		cfg.Proxy.KubeListenAddr = *addr
-	}
-	if fc.Proxy.KubeAPIAddr != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.KubeAPIAddr, 443)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		cfg.Proxy.KubeAPIAddr = *addr
-	}
+
 	if len(fc.Proxy.PublicAddr) != 0 {
 		addrs, err := fc.Proxy.PublicAddr.Addrs(defaults.HTTPListenPort)
 		if err != nil {
@@ -369,7 +356,35 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Proxy.TLSCert = fc.Proxy.CertFile
 	}
 
+	// apply kubernetes proxy config
+	cfg.Proxy.Kube.Enabled = fc.Proxy.Kube.Enabled()
+	if fc.Proxy.Kube.ListenAddress != "" {
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.Kube.ListenAddress, int(defaults.KubeProxyListenPort))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.Kube.ListenAddr = *addr
+	}
+	if fc.Proxy.Kube.APIAddr != "" {
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.Kube.APIAddr, 443)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.Kube.APIAddr = *addr
+	}
+	if len(fc.Proxy.Kube.PublicAddr) != 0 {
+		addrs, err := fc.Proxy.Kube.PublicAddr.Addrs(defaults.KubeProxyListenPort)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.Kube.PublicAddrs = addrs
+	}
+
 	// apply "auth_service" section
+	// passhtrough custom certificate authority file
+	if fc.Auth.KubeCACertFile != "" {
+		cfg.Auth.KubeCACertPath = fc.Auth.KubeCACertFile
+	}
 	cfg.Auth.EnableProxyProtocol, err = utils.ParseOnOff("proxy_protocol", fc.Auth.ProxyProtocol, true)
 	if err != nil {
 		return trace.Wrap(err)
@@ -382,10 +397,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Auth.SSHAddr = *addr
 		cfg.AuthServers = append(cfg.AuthServers, *addr)
 	}
-	// passhtrough custom certificate authority file
-	if fc.Auth.KubeCACertFile != "" {
-		cfg.Auth.KubeCACertPath = fc.Auth.KubeCACertFile
-	}
+
 	// DELETE IN: 2.7.0
 	// We have converted this warning to error
 	if fc.Auth.DynamicConfig != nil {

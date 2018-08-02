@@ -66,6 +66,8 @@ var (
 		"ssh_service":             true,
 		"proxy_service":           true,
 		"auth_service":            true,
+		"kubernetes":              true,
+		"kubernetes_ca_cert_file": true,
 		"auth_token":              true,
 		"auth_servers":            true,
 		"domain_name":             true,
@@ -88,10 +90,9 @@ var (
 		"web_listen_addr":         true,
 		"tunnel_listen_addr":      true,
 		"ssh_listen_addr":         true,
-		"kube_listen_addr":        true,
-		"kube_api_addr":           true,
-		"kube_ca_cert_file":       true,
 		"listen_addr":             true,
+		"api_addr":                false,
+		"ca_cert_file":            false,
 		"https_key_file":          true,
 		"https_cert_file":         true,
 		"advertise_ip":            true,
@@ -532,15 +533,17 @@ type Auth struct {
 	// server certificates
 	PublicAddr utils.Strings `yaml:"public_addr,omitempty"`
 
-	// KubeCACertFile is a path to kubernetes certificate authority certificate file
-	KubeCACertFile string `yaml:"kube_ca_cert_file,omitempty"`
-
 	// ClientIdleTimeout sets global cluster default setting for client idle timeouts
 	ClientIdleTimeout services.Duration `yaml:"client_idle_timeout"`
 
 	// DisconnectExpiredCert provides disconnect expired certificate setting -
 	// if true, connections with expired client certificates will get disconnected
 	DisconnectExpiredCert services.Bool `yaml:"disconnect_expired_cert"`
+
+	// KubeCACertFile is a path to kubernetes certificate authority certificate file,
+	// used in cases when auth server is deployed outside of the kubernetes
+	// cluster.
+	KubeCACertFile string `yaml:"kubernetes_ca_cert_file,omitempty"`
 }
 
 // TrustedCluster struct holds configuration values under "trusted_clusters" key
@@ -715,10 +718,6 @@ type Proxy struct {
 	WebAddr string `yaml:"web_listen_addr,omitempty"`
 	// TunAddr is a reverse tunnel address
 	TunAddr string `yaml:"tunnel_listen_addr,omitempty"`
-	// KubeAddr is a proxy address for kubernetes
-	KubeAddr string `yaml:"kube_listen_addr,omitempty"`
-	// KubeAPIAddr is an address of a kubernetes API server
-	KubeAPIAddr string `yaml:"kube_api_addr,omitempty"`
 	// KeyFile is a TLS key file
 	KeyFile string `yaml:"https_key_file,omitempty"`
 	// CertFile is a TLS Certificate file
@@ -730,6 +729,18 @@ type Proxy struct {
 	// as only admin knows whether service is in front of trusted load balancer
 	// or not.
 	ProxyProtocol string `yaml:"proxy_protocol,omitempty"`
+	// Kube configures kubernetes protocol support of the proxy
+	Kube Kube `yaml:"kubernetes,omitempty"`
+}
+
+// Kube is a `kubernetes_service`
+type Kube struct {
+	// Service is a generic service configuration section
+	Service `yaml:",inline"`
+	// KubeAPIAddr is an address of a target kubernetes API server
+	APIAddr string `yaml:"api_addr,omitempty"`
+	// PublicAddr is a publicly advertised address of the kubernetes proxy
+	PublicAddr utils.Strings `yaml:"public_addr,omitempty"`
 }
 
 // ReverseTunnel is a SSH reverse tunnel maintained by one cluster's

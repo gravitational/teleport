@@ -116,9 +116,12 @@ type Config struct {
 	// port setting via -p flag, otherwise '0' is passed which means "use server default"
 	HostPort int
 
-	// ProxyHostPort is a host or IP of the proxy (with optional ":ssh_port,https_port").
+	// ProxyHostPort is a host or IP of the proxy (with optional ":https_port,ssh_port,kube_port").
 	// The value is taken from the --proxy flag and can look like --proxy=host:5025,5080
 	ProxyHostPort string
+
+	// KubeProxyAddr is a kubernetes proxy address in host:port format
+	KubeProxyAddr string
 
 	// KeyTTL is a time to live for the temporary SSH keypair to remain valid:
 	KeyTTL time.Duration
@@ -437,7 +440,8 @@ func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 		return trace.Wrap(err)
 	}
 	// apply the profile to the current configuration:
-	c.SetProxy(cp.ProxyHost, cp.ProxyWebPort, cp.ProxySSHPort, cp.ProxyKubePort)
+	c.SetProxy(cp.ProxyHost, cp.ProxyWebPort, cp.ProxySSHPort)
+	c.KubeProxyAddr = cp.KubeProxyAddr
 	c.Username = cp.Username
 	c.SiteName = cp.SiteName
 	c.LocalForwardPorts, err = ParsePortForwardSpec(cp.ForwardedPorts)
@@ -461,7 +465,7 @@ func (c *Config) SaveProfile(profileDir string, profileOptions ...ProfileOptions
 	cp.Username = c.Username
 	cp.ProxySSHPort = c.ProxySSHPort()
 	cp.ProxyWebPort = c.ProxyWebPort()
-	cp.ProxyKubePort = c.ProxyKubePort()
+	cp.KubeProxyAddr = c.KubeProxyAddr
 	cp.ForwardedPorts = c.LocalForwardPorts.ToStringSpec()
 	cp.SiteName = c.SiteName
 
@@ -481,12 +485,19 @@ func (c *Config) SaveProfile(profileDir string, profileOptions ...ProfileOptions
 	return nil
 }
 
-func (c *Config) SetProxy(host string, webPort, sshPort, kubePort int) {
-	if kubePort != 0 {
-		c.ProxyHostPort = fmt.Sprintf("%s:%d,%d,%d", host, webPort, sshPort, kubePort)
-	} else {
-		c.ProxyHostPort = fmt.Sprintf("%s:%d,%d", host, webPort, sshPort)
+func (c *Config) SetProxy(host string, webPort, sshPort int) {
+	c.ProxyHostPort = fmt.Sprintf("%s:%d,%d", host, webPort, sshPort)
+}
+
+// KubeProxyHostPort returns kubernetes proxy host and port
+func (c *Config) KubeProxyHostPort() (string, int) {
+	if c.KubeProxyAddr != "" {
+		addr, err := utils.ParseAddr(c.KubeProxyAddr)
+		if err == nil {
+			return addr.Host(), addr.Port(defaults.KubeProxyListenPort)
+		}
 	}
+	return c.ProxyHost(), defaults.KubeProxyListenPort
 }
 
 // ProxyHost returns the hostname of the proxy server (without any port numbers)
@@ -511,10 +522,6 @@ func (c *Config) ProxyWebHostPort() string {
 	return net.JoinHostPort(c.ProxyHost(), strconv.Itoa(c.ProxyWebPort()))
 }
 
-func (c *Config) ProxyKubeHostPort() string {
-	return net.JoinHostPort(c.ProxyHost(), strconv.Itoa(c.ProxyKubePort()))
-}
-
 // ProxyWebPort returns the port number of teleport HTTP proxy stored in the config
 // usually 3080 by default.
 func (c *Config) ProxyWebPort() (retval int) {
@@ -532,9 +539,9 @@ func (c *Config) ProxyWebPort() (retval int) {
 	return retval
 }
 
-// ProxySSHPort returns the port number of teleport SSH proxy stored in the config
+// proxySSHPort returns the port number of teleport SSH proxy stored in the config
 // usually 3023 by default.
-func (c *Config) ProxySSHPort() (retval int) {
+func (c *Config) proxySSHPort() (retval int, exists bool) {
 	retval = defaults.SSHProxyListenPort
 	_, port, err := net.SplitHostPort(c.ProxyHostPort)
 	if err == nil && len(port) > 0 {
@@ -545,25 +552,16 @@ func (c *Config) ProxySSHPort() (retval int) {
 				log.Warnf("invalid proxy SSH port: '%v': %v", ports, err)
 			}
 		}
+		return retval, true
 	}
-	return retval
+	return retval, false
 }
 
-// ProxyKubePort returns the port number of teleport Kubernetes proxy stored in the config
-// usually 3026 by default.
-func (c *Config) ProxyKubePort() (retval int) {
-	retval = defaults.KubeProxyListenPort
-	_, port, err := net.SplitHostPort(c.ProxyHostPort)
-	if err == nil && len(port) > 0 {
-		ports := strings.Split(port, ",")
-		if len(ports) > 2 {
-			retval, err = strconv.Atoi(ports[2])
-			if err != nil {
-				log.Warnf("invalid proxy Kubernetes port: '%v': %v", ports, err)
-			}
-		}
-	}
-	return retval
+// ProxySSHPort returns the port number of teleport SSH proxy stored in the config
+// usually 3023 by default.
+func (c *Config) ProxySSHPort() int {
+	port, _ := c.proxySSHPort()
+	return port
 }
 
 // ProxySpecified returns true if proxy has been specified
@@ -1427,6 +1425,10 @@ func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, er
 		}
 	}
 
+	if err := tc.applyProxySettings(pr.Proxy); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// generate a new keypair. the public key will be signed via proxy if client's
 	// password+OTP are valid
 	key, err := NewKey()
@@ -1501,6 +1503,34 @@ func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, er
 		}
 	}
 	return key, nil
+}
+
+// applyProxySettings updates configuration changes based on the advertised
+// proxy settings, user supplied values take precendence - will be preserved
+// if set
+func (tc *TeleportClient) applyProxySettings(proxySettings ProxySettings) error {
+	if proxySettings.Kube.Enabled && proxySettings.Kube.PublicAddr != "" && tc.KubeProxyAddr == "" {
+		_, err := utils.ParseAddr(proxySettings.Kube.PublicAddr)
+		if err != nil {
+			return trace.BadParameter(
+				"failed to parse value received from the server: %q, contact your administrator for help",
+				proxySettings.Kube.PublicAddr)
+		}
+		tc.KubeProxyAddr = proxySettings.Kube.PublicAddr
+	}
+	if proxySettings.SSH.ListenAddr != "" {
+		addr, err := utils.ParseAddr(proxySettings.SSH.ListenAddr)
+		if err != nil {
+			return trace.BadParameter(
+				"failed to parse value received from the server: %q, contact your administrator for help",
+				proxySettings.SSH.ListenAddr)
+		}
+		_, exists := tc.proxySSHPort()
+		if !exists {
+			tc.ProxyHostPort = fmt.Sprintf("%s:%d,%d", tc.ProxyHost(), tc.ProxyWebPort(), addr.Port(defaults.SSHProxyListenPort))
+		}
+	}
+	return nil
 }
 
 func (tc *TeleportClient) localLogin(secondFactor string, pub []byte) (*auth.SSHLoginResponse, error) {

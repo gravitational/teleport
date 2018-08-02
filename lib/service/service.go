@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/dir"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/dynamoevents"
@@ -911,8 +912,8 @@ func (process *TeleportProcess) initAuthService() error {
 		AuthPreference:       cfg.Auth.Preference,
 		OIDCConnectors:       cfg.OIDCConnectors,
 		AuditLog:             process.auditLog,
-		KubeCACertPath:       cfg.Auth.KubeCACertPath,
 		CipherSuites:         cfg.CipherSuites,
+		KubeCACertPath:       cfg.Auth.KubeCACertPath,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1482,6 +1483,7 @@ func (process *TeleportProcess) getAdditionalPrincipals(role teleport.Role) ([]s
 	switch role {
 	case teleport.RoleProxy:
 		addrs = append(process.Config.Proxy.PublicAddrs, utils.NetAddr{Addr: reversetunnel.RemoteKubeProxy})
+		addrs = append(addrs, process.Config.Proxy.Kube.PublicAddrs...)
 	case teleport.RoleAuth, teleport.RoleAdmin:
 		addrs = process.Config.Auth.PublicAddrs
 	case teleport.RoleNode:
@@ -1568,9 +1570,9 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 	var err error
 	var listeners proxyListeners
 
-	if !cfg.Proxy.KubeListenAddr.IsEmpty() {
+	if cfg.Proxy.Kube.Enabled {
 		process.Debugf("Setup Proxy: turning on Kubernetes proxy.")
-		listener, err := process.importOrCreateListener(teleport.Component(teleport.ComponentProxy, "kube"), cfg.Proxy.KubeListenAddr.Addr)
+		listener, err := process.importOrCreateListener(teleport.Component(teleport.ComponentProxy, "kube"), cfg.Proxy.Kube.ListenAddr.Addr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1687,7 +1689,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		AccessPoint:  accessPoint,
 		HostSigners:  []ssh.Signer{conn.ServerIdentity.KeySigner},
 		Cluster:      conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
-		KubeDialAddr: utils.DialAddrFromListenAddr(cfg.Proxy.KubeListenAddr),
+		KubeDialAddr: utils.DialAddrFromListenAddr(cfg.Proxy.Kube.ListenAddr),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1747,6 +1749,17 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	var webServer *http.Server
 	var webHandler *web.RewritingHandler
 	if !process.Config.Proxy.DisableWebService {
+		proxySettings := client.ProxySettings{
+			Kube: client.KubeProxySettings{
+				Enabled: cfg.Proxy.Kube.Enabled,
+			},
+			SSH: client.SSHProxySettings{
+				ListenAddr: cfg.Proxy.SSHAddr.String(),
+			},
+		}
+		if len(cfg.Proxy.Kube.PublicAddrs) > 0 {
+			proxySettings.Kube.PublicAddr = cfg.Proxy.Kube.PublicAddrs[0].String()
+		}
 		webHandler, err = web.NewHandler(
 			web.Config{
 				Proxy:           tsrv,
@@ -1757,6 +1770,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				ProxySSHAddr:    cfg.Proxy.SSHAddr,
 				ProxyWebAddr:    cfg.Proxy.WebAddr,
 				ClientTLSConfig: clientTLSConfig,
+				ProxySettings:   proxySettings,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -1860,8 +1874,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				AccessPoint:     accessPoint,
 				AuditLog:        conn.Client,
 				ServerID:        cfg.HostUUID,
-				TargetAddr:      cfg.Proxy.KubeAPIAddr.Addr,
-				ClusterOverride: cfg.Proxy.KubeClusterOverride,
+				TargetAddr:      cfg.Proxy.Kube.APIAddr.Addr,
+				ClusterOverride: cfg.Proxy.Kube.ClusterOverride,
 			},
 			TLS:           tlsConfig,
 			LimiterConfig: cfg.Proxy.Limiter,
@@ -1875,7 +1889,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			log := logrus.WithFields(logrus.Fields{
 				trace.Component: teleport.Component(teleport.ComponentKube),
 			})
-			log.Infof("Starting Kube proxy on %v.", cfg.Proxy.KubeListenAddr.Addr)
+			log.Infof("Starting Kube proxy on %v.", cfg.Proxy.Kube.ListenAddr.Addr)
 			err := kubeServer.Serve(listeners.kube)
 			if err != nil && err != http.ErrServerClosed {
 				log.Warningf("Kube TLS server exited with error: %v.", err)

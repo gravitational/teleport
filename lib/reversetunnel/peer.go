@@ -127,6 +127,10 @@ func (p *clusterPeers) DialAuthServer() (net.Conn, error) {
 // located in a remote connected site, the connection goes through the
 // reverse proxy tunnel.
 func (p *clusterPeers) Dial(from, to net.Addr, userAgent agent.Agent) (conn net.Conn, err error) {
+	return p.DialTCP(from, to)
+}
+
+func (p *clusterPeers) DialTCP(from, to net.Addr) (conn net.Conn, err error) {
 	return nil, trace.ConnectionProblem(nil, "unable to dial, this proxy has not been discovered yet, try again later")
 }
 

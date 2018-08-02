@@ -567,10 +567,10 @@ func (s *remoteSite) Dial(from net.Addr, to net.Addr, userAgent agent.Agent) (ne
 		}
 		return s.dialWithAgent(from, to, userAgent)
 	}
-	return s.dial(from, to)
+	return s.DialTCP(from, to)
 }
 
-func (s *remoteSite) dial(from, to net.Addr) (net.Conn, error) {
+func (s *remoteSite) DialTCP(from, to net.Addr) (net.Conn, error) {
 	s.Debugf("Dialing from %v to %v", from, to)
 
 	conn, err := s.connThroughTunnel(chanTransportDialReq, to.String())

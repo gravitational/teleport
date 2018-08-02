@@ -17,6 +17,8 @@ limitations under the License.
 package auth
 
 import (
+	"io/ioutil"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/authority"
@@ -61,8 +63,12 @@ func (s *AuthServer) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 
 	// generate cluster with local kubernetes cluster
 	if req.ClusterName == s.clusterName.GetClusterName() {
+		caPEM, err := ioutil.ReadFile(s.kubeCACertPath)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		log.Debugf("Generating certificate with local Kubernetes cluster.")
-		cert, err := authority.ProcessCSR(req.CSR, s.kubeCACertPath)
+		cert, err := authority.ProcessCSR(req.CSR, caPEM)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

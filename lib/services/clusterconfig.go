@@ -363,16 +363,22 @@ const ClusterConfigSpecSchemaTemplate = `{
       "properties": {
         "type": {
           "type": "string"
-         }, 
+        },
         "region": {
           "type": "string"
-         }, 
+        },
+        "audit_events_uri": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "audit_sessions_uri": {
           "type": "string"
-         }, 
+        },
         "audit_table_name": {
           "type": "string"
-         }
+        }
       }
     }%v
   }
