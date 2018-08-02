@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.7.1
+
+This release of Teleport focuses on bugfixes.
+
+#### Bug Fixes
+
+* Rollback to Go 1.9.7 for users with custom CA running into `x509: certificate signed by unknown authority`.
+
 ## 2.7.0
 
 The primary goal of 2.7.0 release was to address the community feedback and improve the performance and flexibility when running Teleport clusters with large number of nodes.
@@ -28,6 +36,14 @@ As awlays, this release contains several bug fixes. The full list can be seen [h
 #### Upgrading
 
 Follow the [recommended upgrade procedure](https://gravitational.com/teleport/docs/admin-guide/#upgrading-teleport) to upgrade to this version.
+
+## 2.6.8
+
+This release of Teleport focuses on bugfixes.
+
+#### Bug Fixes
+
+* Rollback to Go 1.9.7 for users with custom CA running into `x509: certificate signed by unknown authority`.
 
 ## 2.6.7
 
