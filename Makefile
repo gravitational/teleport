@@ -23,8 +23,8 @@ TELEPORT_DEBUG ?= no
 GITTAG=v$(VERSION)
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s'
 
-OS ?= $(shell go env GOOS)
-ARCH ?= $(shell go env GOARCH)
+OS ?= `go env GOOS`
+ARCH ?= `go env GOARCH`
 RELEASE=teleport-$(GITTAG)-$(OS)-$(ARCH)-bin
 
 # On Windows only build tsh. On all other platforms build teleport, tctl,

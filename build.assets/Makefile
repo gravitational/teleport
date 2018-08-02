@@ -14,7 +14,6 @@ ADDFLAGS=-ldflags -w
 NOROOT=-u $$(id -u):$$(id -g)
 KUBECONFIG ?=
 TEST_KUBE ?=
-OS ?= $(shell go env GOOS)
 
 ifneq ("$(KUBECONFIG)","")
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(KUBECONFIG):/mnt/kube/config -e KUBECONFIG=/mnt/kube/config -e TEST_KUBE=$(TEST_KUBE)
@@ -132,5 +131,14 @@ enter: bbox
 #
 .PHONY:release
 release:
+	echo "--> build.assets: OS=$(OS)"
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BBOX) \
-		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS)
+		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)"
+
+#
+# Create a Windows Teleport package using the build container.
+#
+.PHONY:release-windows
+release-windows:
+	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BBOX) \
+		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=windows
