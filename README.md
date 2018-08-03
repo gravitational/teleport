@@ -117,8 +117,12 @@ You can also reach the Gravitational team through their [website](https://gravit
 ## Is Teleport Secure and Production Ready?
 
 Teleport has completed several security audits from the nationally recognized
-technology security companies. Some of them have been [made public](https://gravitational.com/blog/teleport-release-2-2/). 
+technology security companies. [Some](https://gravitational.com/blog/teleport-release-2-2/) of 
+[them](https://gravitational.com/blog/teleport-security-audit/) have been made public. 
 We are comfortable with the use of Teleport from a security perspective.
+
+You can see the list of companies who use Teleport in production on the Teleport 
+[product page](https://gravitational.com/teleport#customerlist).
 
 However, Teleport is still a relatively young product so you may experience
 usability issues.  We are actively supporting Teleport and addressing any
