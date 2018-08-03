@@ -1,4 +1,4 @@
-module.exports = {  
+module.exports = {
     "events": [
       {
         "addr.local": "127.0.0.1:3022",
@@ -929,10 +929,16 @@ module.exports = {
         "sid": "4bac8c61-15f6-11e6-a2e6-f0def19340e2",
         "time": "2016-05-09T14:57:52.403Z",
         "user": "akontsevoy"
+      },  {
+        "event": "session.end",
+        "id": 123,
+        "sid": "4bac8c61-15f6-11e6-a2e6-f0def19340e2",
+        "time": "2016-05-09T15:00:52.403Z",
+        "user": "akontsevoy"
       }
     ],
-    
-  data: 
+
+  data:
 `]0;akontsevoy@x220: ~akontsevoy@x220:~$ mc
 [?1049h[1;25r[4l[25;1H(B[m[37m[40m(B[m[39;49m
 [K
