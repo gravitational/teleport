@@ -628,7 +628,6 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 
 	webCfg := ui.WebConfig{
 		Auth:            authSettings,
-		ServerVersion:   teleport.Version,
 		CanJoinSessions: canJoinSessions,
 	}
 
