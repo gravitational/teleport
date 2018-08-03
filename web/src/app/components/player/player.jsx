@@ -27,22 +27,22 @@ initScroll($);
 
 class Terminal extends GrvTerminal{
   constructor(tty, el){
-    super({ el, scrollBack: 1000 });    
-    this.tty = tty;            
+    super({ el, scrollBack: 1000 });
+    this.tty = tty;
   }
 
-  connect(){    
+  connect(){
   }
 
   open() {
-    super.open();              
+    super.open();
     $(this._el).perfectScrollbar();
   }
 
-  resize(cols, rows) {           
+  resize(cols, rows) {
     // ensure that cursor is visible as xterm hides it on blur event
     this.term.cursorState = 1;
-    super.resize(cols, rows);        
+    super.resize(cols, rows);
     $(this._el).perfectScrollbar('update');
   }
 
@@ -59,17 +59,17 @@ class Terminal extends GrvTerminal{
 class Content extends React.Component {
 
   static propTypes = {
-    tty: React.PropTypes.object.isRequired    
+    tty: React.PropTypes.object.isRequired
   }
 
-  componentDidMount() {    
+  componentDidMount() {
     const tty = this.props.tty;
     this.terminal = new Terminal(tty, this.refs.container);
-    this.terminal.open();    
+    this.terminal.open();
   }
-  
-  componentWillUnmount() {    
-    this.terminal.destroy();        
+
+  componentWillUnmount() {
+    this.terminal.destroy();
   }
 
   render() {
@@ -84,15 +84,15 @@ class Content extends React.Component {
 }
 
 class ControlPanel extends React.Component {
-    
-  componentDidMount() {    
+
+  componentDidMount() {
     const el = ReactDOM.findDOMNode(this)
     const btn = el.querySelector('.grv-session-player-controls button');
-    btn && btn.focus();    
+    btn && btn.focus();
   }
-     
+
   render() {
-    const { isPlaying, min, max, value, onChange, onToggle, time } = this.props;      
+    const { isPlaying, min, max, value, onChange, onToggle, time } = this.props;
     const btnClass = isPlaying ? 'fa fa-stop' : 'fa fa-play';
     return (
       <div className="grv-session-player-controls">
@@ -111,7 +111,7 @@ class ControlPanel extends React.Component {
             className="grv-slider" />
         </div>
       </div>
-    )  
+    )
   }
 }
 
@@ -127,9 +127,9 @@ export class Player extends React.Component {
   calculateState(){
     return {
       eventCount: this.tty.getEventCount(),
-      length: this.tty.length,
+      duration: this.tty.duration,
       min: 1,
-      time: this.tty.getCurrentTime(),      
+      time: this.tty.getCurrentTime(),
       isLoading: this.tty.isLoading,
       isPlaying: this.tty.isPlaying,
       isError: this.tty.isError,
@@ -138,20 +138,20 @@ export class Player extends React.Component {
       canPlay: this.tty.length > 1
     };
   }
-  
-  componentDidMount() {        
-    this.tty.on('change', this.updateState)    
+
+  componentDidMount() {
+    this.tty.on('change', this.updateState)
     this.tty.connect();
     this.tty.play();
   }
-  
+
   componentWillUnmount() {
     this.tty.stop();
-    this.tty.removeAllListeners();    
+    this.tty.removeAllListeners();
   }
 
   updateState = () => {
-    const newState = this.calculateState();      
+    const newState = this.calculateState();
     this.setState(newState);
   }
 
@@ -166,8 +166,8 @@ export class Player extends React.Component {
   onMove = value => {
     this.tty.move(value);
   }
-  
-  render() {    
+
+  render() {
     const {
       isPlaying,
       isLoading,
@@ -175,34 +175,34 @@ export class Player extends React.Component {
       errText,
       time,
       min,
-      length,
-      current,      
+      duration,
+      current,
       eventCount
     } = this.state;
-        
+
     if (isError) {
       return <ErrorIndicator text={errText} />
     }
-    
+
     if (!isLoading && eventCount === 0 ) {
       return <WarningIndicator text="The recording for this session is not available." />
     }
-        
+
     return (
-      <div className="grv-session-player-content">                
-        <Content tty={this.tty} />    
-        {isLoading && <Indicator />}            
+      <div className="grv-session-player-content">
+        <Content tty={this.tty} />
+        {isLoading && <Indicator />}
         {eventCount > 0 && (
-          <ControlPanel 
+          <ControlPanel
             isPlaying={isPlaying}
             time={time}
-            min={min}            
-            max={length}
+            min={min}
+            max={duration}
             value={current}
             onToggle={this.onTogglePlayStop}
-            onChange={this.onMove}/>)                              
-        }  
-      </div>     
+            onChange={this.onMove}/>)
+        }
+      </div>
      );
   }
 }

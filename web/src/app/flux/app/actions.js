@@ -85,9 +85,10 @@ export function fetchSites(){
   })
 }
 
-export function  fetchUserContext(){
+export function fetchUserContext(){
   return api.get(cfg.api.userContextPath).done(json=>{
     reactor.dispatch(RECEIVE_USER, { name: json.userName, authType: json.authType });
     reactor.dispatch(RECEIVE_USERACL, json.userAcl);
+    logger.info("Teleport ver:", json.version);
   })
 }

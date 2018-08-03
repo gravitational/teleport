@@ -30,78 +30,72 @@ describe('lib/term/ttyPlayer/eventProvider', () => {
 
   describe('new()', () => {
     it('should create an instance', () => {
-      var provider = new EventProvider({url: 'sample.com'});
-      expect(provider.events).toEqual([]);      
+      const provider = new EventProvider({url: 'sample.com'});
+      expect(provider.events).toEqual([]);
     });
   });
 
   describe('init()', () => {
     it('should load events and initialize itself', function () {
-      var provider = new EventProvider({url: 'sample.com'});
+      const provider = new EventProvider({url: 'sample.com'});
       spyOn(api, 'get').andReturn(Dfd().resolve(sample))
-      spyOn(provider, '_createPrintEvents').andCallThrough();
+      spyOn(provider, '_createEvents').andCallThrough();
       spyOn(provider, '_normalizeEventsByTime').andCallThrough();
-      spyOn(provider, '_fetchBytes').andReturn(Dfd().resolve());
+      spyOn(provider, '_fetchContent').andReturn(Dfd().resolve());
+      spyOn(provider, '_populatePrintEvents');
 
       provider.init();
       expect(api.get).toHaveBeenCalledWith('sample.com/events');
-      expect(provider._createPrintEvents).toHaveBeenCalledWith(sample.events);
+      expect(provider._createEvents).toHaveBeenCalledWith(sample.events);
       expect(provider._normalizeEventsByTime).toHaveBeenCalled();
-      expect(provider._fetchBytes).toHaveBeenCalled();
+      expect(provider._fetchContent).toHaveBeenCalled();
+      expect(provider._populatePrintEvents).toHaveBeenCalled();
     });
   });
 
-  describe('_createPrintEvents()', () => {
-    it('should filter json data for print events and create event objects', () => {
+  describe('_createEvents()', () => {
+    it('should create event objects', () => {
       const provider = new EventProvider({ url: 'sample.com' });
-      const events = provider._createPrintEvents(sample.events);
+      const events = provider._createEvents(sample.events);
       const eventObj = {
-        displayTime: "00:45",
-        ms: 4524,
-        msNormalized: 4524,
-        bytes: 183,
-        offset: 144056,
+        eventType: 'print',
+        displayTime: '00:45',
+        ms: 4523,
+        bytes: 6516,
+        offset: 137723,
         data: null,
         w: 115,
         h: 23,
-        time: new Date("2016-05-09T14:57:51.243Z")
+        time: new Date("2016-05-09T14:57:51.238Z"),
+        msNormalized: 1744,
       };
-      
-      expect(events.length).toBe(101);
-      expect(events[100]).toEqual(eventObj);
+
+      expect(events.length).toBe(32);
+      expect(events[30]).toEqual(eventObj);
     });
   });
 
-  describe('_normalizeEventsByTime()', () => {
-    it('should adjust time for a better replay by shortening delays between events', () => {
-      const provider = new EventProvider({url: 'sample.com'});
-      let events = provider._createPrintEvents(sample.events);
-      events = provider._normalizeEventsByTime(events);
 
-      expect(events.length).toBe(31);
-      expect(events[30].msNormalized).toBe(1744);
-    });
-  });
-  
-  describe('fetchBytes()', () => {        
-    it('should be able to fetch and then procces the byte stream', () => {            
+  describe('fetchContent()', () => {
+    it('should fetch session content', () => {
       const provider = new EventProvider({url: 'sample.com'});
-      const events = provider._createPrintEvents(sample.events);
       const expectedReq = {
         dataType: 'text',
         processData: true,
         url: `sample.com/stream?offset=0&bytes=${MAX_SIZE}`
       }
-      
-      provider.events = provider._normalizeEventsByTime(events);
+
+      spyOn(provider, '_fetchEvents').andReturn(Dfd().resolve(provider._createEvents(sample.events)));
       spyOn(api, 'ajax').andReturn(Dfd().resolve(sample.data))
-      provider._fetchBytes();      
+      provider.init();
       expect(api.ajax).toHaveBeenCalledWith(expectedReq);
-      
-      const buf = new Buffer(sample.data);                        
-      const event = provider.events[provider.events.length-1];
-      const expectedChunk = buf.slice(event.offset, event.offset + event.bytes).toString('utf8');                  
-      expect(event.data).toEqual(expectedChunk);
+
+      const buf = new Buffer(sample.data);
+      const lastEvent = provider.events[provider.events.length-2];
+      const expectedChunk = buf.slice(
+        lastEvent.offset,
+        lastEvent.offset + lastEvent.bytes).toString('utf8');
+      expect(lastEvent.data).toEqual(expectedChunk);
     });
   });
 });
@@ -114,19 +108,19 @@ describe('lib/ttyPlayer', () => {
 
   describe('new()', () => {
     it('should create an instance', () => {
-      var ttyPlayer = new TtyPlayer({url: 'testSid'});
+      const ttyPlayer = new TtyPlayer({url: 'testSid'});
       expect(ttyPlayer.isReady).toBe(false);
       expect(ttyPlayer.isPlaying).toBe(false);
       expect(ttyPlayer.isError).toBe(false);
       expect(ttyPlayer.isLoading).toBe(true);
-      expect(ttyPlayer.length).toBe(-1);
+      expect(ttyPlayer.duration).toBe(0);
       expect(ttyPlayer.current).toBe(0);
     });
   });
 
   describe('connect()', () => {
     it('should initialize event provider', cb => {
-      var ttyPlayer = new TtyPlayer({url: 'testSid'});
+      const ttyPlayer = new TtyPlayer({url: 'testSid'});
       spyOn(ttyPlayer._eventProvider, 'init').andReturn(Dfd().resolve(sample));
       ttyPlayer.on('change', cb);
       ttyPlayer.connect();
@@ -136,17 +130,17 @@ describe('lib/ttyPlayer', () => {
 
     it('should indicate its loading status', cb => {
       spyOn(api, 'get').andReturn($.Deferred());
-      var ttyPlayer = new TtyPlayer({url: 'testSid'});
+      const ttyPlayer = new TtyPlayer({url: 'testSid'});
       ttyPlayer.on('change', cb);
       ttyPlayer.connect();
       expect(ttyPlayer.isLoading).toBe(true);
     });
 
-    it('should indicate its error status', cb => {      
+    it('should indicate its error status', cb => {
       spyOn(api, 'get').andReturn($.Deferred().reject(new Error('!!!')));
-      var ttyPlayer = new TtyPlayer({url: 'testSid'});
+      const ttyPlayer = new TtyPlayer({url: 'testSid'});
       ttyPlayer.on('change', cb);
-      ttyPlayer.connect();      
+      ttyPlayer.connect();
       expect(ttyPlayer.isError).toBe(true);
     });
 
@@ -192,7 +186,7 @@ describe('lib/ttyPlayer', () => {
     });
 
     it('should stop playing if new position is greater than session length', cb => {
-      let someBigNumber = 1000;
+      const someBigNumber = 1000;
       tty.on('change', cb);
       tty.move(someBigNumber);
       expect(tty.isPlaying).toBe(false);
