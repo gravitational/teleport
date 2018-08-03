@@ -12054,6 +12054,7 @@ webpackJsonp([0],[
 	  return _api2.default.get(_config2.default.api.userContextPath).done(function (json) {
 	    _reactor2.default.dispatch(_actionTypes3.RECEIVE_USER, { name: json.userName, authType: json.authType });
 	    _reactor2.default.dispatch(_actionTypes4.RECEIVE_USERACL, json.userAcl);
+	    logger.info("Teleport ver:", json.version);
 	  });
 	}
 
@@ -18934,7 +18935,7 @@ webpackJsonp([0],[
 	  Player.prototype.calculateState = function calculateState() {
 	    return {
 	      eventCount: this.tty.getEventCount(),
-	      length: this.tty.length,
+	      duration: this.tty.duration,
 	      min: 1,
 	      time: this.tty.getCurrentTime(),
 	      isLoading: this.tty.isLoading,
@@ -18965,7 +18966,7 @@ webpackJsonp([0],[
 	        errText = _state.errText,
 	        time = _state.time,
 	        min = _state.min,
-	        length = _state.length,
+	        duration = _state.duration,
 	        current = _state.current,
 	        eventCount = _state.eventCount;
 
@@ -18987,7 +18988,7 @@ webpackJsonp([0],[
 	        isPlaying: isPlaying,
 	        time: time,
 	        min: min,
-	        max: length,
+	        max: duration,
 	        value: current,
 	        onToggle: this.onTogglePlayStop,
 	        onChange: this.onMove })
@@ -19091,45 +19092,53 @@ webpackJsonp([0],[
 	    this.events = [];
 	  }
 
-	  EventProvider.prototype.getLengthInTime = function getLengthInTime() {
-	    var length = this.events.length;
-	    if (length === 0) {
+	  EventProvider.prototype.getDuration = function getDuration() {
+	    var eventCount = this.events.length;
+	    if (eventCount === 0) {
 	      return 0;
 	    }
 
-	    return this.events[length - 1].msNormalized;
+	    return this.events[eventCount - 1].msNormalized;
 	  };
 
 	  EventProvider.prototype.init = function init() {
 	    var _this = this;
 
-	    var url = this.url + URL_PREFIX_EVENTS;
-	    return _api2.default.get(url).then(function (json) {
-	      if (!json.events) {
+	    return this._fetchEvents().then(function (events) {
+	      _this.events = events;
+	      var printEvents = _this.events.filter(onlyPrintEvents);
+	      if (printEvents.length === 0) {
 	        return;
 	      }
 
-	      var events = _this._createPrintEvents(json.events);
-	      if (events.length === 0) {
-	        return;
-	      }
-
-	      _this.events = _this._normalizeEventsByTime(events);
-	      return _this._fetchBytes();
+	      return _this._fetchContent(printEvents).then(function (buffer) {
+	        _this._populatePrintEvents(buffer, printEvents);
+	      });
 	    });
 	  };
 
-	  EventProvider.prototype._fetchBytes = function _fetchBytes() {
+	  EventProvider.prototype._fetchEvents = function _fetchEvents() {
 	    var _this2 = this;
 
-	    // need to calclulate the size of the session in bytes to know how many 
+	    var url = this.url + URL_PREFIX_EVENTS;
+	    return _api2.default.get(url).then(function (json) {
+	      if (!json.events) {
+	        return [];
+	      }
+
+	      return _this2._createEvents(json.events);
+	    });
+	  };
+
+	  EventProvider.prototype._fetchContent = function _fetchContent(events) {
+	    // calclulate the size of the session in bytes to know how many
 	    // chunks to load due to maximum chunk size.
-	    var offset = this.events[0].offset;
-	    var end = this.events.length - 1;
-	    var totalSize = this.events[end].offset - offset + this.events[end].bytes;
+	    var offset = events[0].offset;
+	    var end = events.length - 1;
+	    var totalSize = events[end].offset - offset + events[end].bytes;
 	    var chunkCount = Math.ceil(totalSize / MAX_SIZE);
 
-	    // now create a fetch request for each chunk
+	    // create a fetch request for each chunk
 	    var promises = [];
 	    for (var i = 0; i < chunkCount; i++) {
 	      var url = this.url + '/stream?offset=' + offset + '&bytes=' + MAX_SIZE;
@@ -19142,7 +19151,7 @@ webpackJsonp([0],[
 	      offset = offset + MAX_SIZE;
 	    }
 
-	    // wait for all chunks and then merge all in one
+	    // fetch all session chunks and then merge them in one
 	    return _jQuery2.default.when.apply(_jQuery2.default, promises).then(function () {
 	      for (var _len = arguments.length, responses = Array(_len), _key = 0; _key < _len; _key++) {
 	        responses[_key] = arguments[_key];
@@ -19153,23 +19162,21 @@ webpackJsonp([0],[
 	        return byteStr + r[0];
 	      }, '');
 	      return new Buffer(allBytes);
-	    }).then(function (buffer) {
-	      return _this2._processByteStream(buffer);
 	    });
 	  };
 
-	  EventProvider.prototype._processByteStream = function _processByteStream(buffer) {
-	    var byteStrOffset = this.events[0].bytes;
-	    this.events[0].data = buffer.slice(0, byteStrOffset).toString('utf8');
-	    for (var i = 1; i < this.events.length; i++) {
-	      var bytes = this.events[i].bytes;
+	  EventProvider.prototype._populatePrintEvents = function _populatePrintEvents(buffer, events) {
+	    var byteStrOffset = events[0].bytes;
+	    events[0].data = buffer.slice(0, byteStrOffset).toString('utf8');
+	    for (var i = 1; i < events.length; i++) {
+	      var bytes = events[i].bytes;
 
-	      this.events[i].data = buffer.slice(byteStrOffset, byteStrOffset + bytes).toString('utf8');
+	      events[i].data = buffer.slice(byteStrOffset, byteStrOffset + bytes).toString('utf8');
 	      byteStrOffset += bytes;
 	    }
 	  };
 
-	  EventProvider.prototype._createPrintEvents = function _createPrintEvents(json) {
+	  EventProvider.prototype._createEvents = function _createEvents(json) {
 	    var w = void 0,
 	        h = void 0;
 	    var events = [];
@@ -19194,23 +19201,31 @@ webpackJsonp([0],[
 
 	      // session has ended, stop here
 	      if (event === _enums.EventTypeEnum.END) {
+	        var start = new Date(events[0].time);
+	        var end = new Date(time);
+	        var duration = end.getTime() - start.getTime();
+	        var _displayTime = this._formatDisplayTime(duration);
+	        events.push({
+	          eventType: event,
+	          displayTime: _displayTime,
+	          ms: duration,
+	          time: new Date(time)
+	        });
+
 	        break;
 	      }
 
-	      // process only PRINT events      
+	      // process only PRINT events
 	      if (event !== _enums.EventTypeEnum.PRINT) {
 	        continue;
 	      }
 
 	      var displayTime = this._formatDisplayTime(ms);
 
-	      // use smaller numbers
-	      ms = ms > 0 ? Math.floor(ms / 10) : 0;
-
 	      events.push({
+	        eventType: _enums.EventTypeEnum.PRINT,
 	        displayTime: displayTime,
 	        ms: ms,
-	        msNormalized: ms,
 	        bytes: bytes,
 	        offset: offset,
 	        data: null,
@@ -19220,10 +19235,19 @@ webpackJsonp([0],[
 	      });
 	    }
 
-	    return events;
+	    return this._normalizeEventsByTime(events);
 	  };
 
 	  EventProvider.prototype._normalizeEventsByTime = function _normalizeEventsByTime(events) {
+	    if (!events || events.length === 0) {
+	      return [];
+	    }
+
+	    events.forEach(function (e) {
+	      e.ms = e.ms > 0 ? Math.floor(e.ms / 10) : 0;
+	      e.msNormalized = e.ms;
+	    });
+
 	    var cur = events[0];
 	    var tmp = [];
 	    for (var i = 1; i < events.length; i++) {
@@ -19237,15 +19261,7 @@ webpackJsonp([0],[
 	      }
 
 	      // avoid long delays between chunks
-	      if (delay >= 25 && delay < 50) {
-	        events[i].msNormalized = cur.msNormalized + 25;
-	      } else if (delay >= 50 && delay < 100) {
-	        events[i].msNormalized = cur.msNormalized + 50;
-	      } else if (delay >= 100) {
-	        events[i].msNormalized = cur.msNormalized + 100;
-	      } else {
-	        events[i].msNormalized = cur.msNormalized + delay;
-	      }
+	      events[i].msNormalized = cur.msNormalized + shortenTime(delay);
 
 	      tmp.push(cur);
 	      cur = events[i];
@@ -19279,6 +19295,22 @@ webpackJsonp([0],[
 	  return EventProvider;
 	}();
 
+	function shortenTime(value) {
+	  if (value >= 25 && value < 50) {
+	    return 25;
+	  } else if (value >= 50 && value < 100) {
+	    return 50;
+	  } else if (value >= 100) {
+	    return 100;
+	  } else {
+	    return value;
+	  }
+	}
+
+	function onlyPrintEvents(e) {
+	  return e.eventType === _enums.EventTypeEnum.PRINT;
+	}
+
 	var TtyPlayer = exports.TtyPlayer = function (_Tty) {
 	  _inherits(TtyPlayer, _Tty);
 
@@ -19291,7 +19323,7 @@ webpackJsonp([0],[
 
 	    _this3.currentEventIndex = 0;
 	    _this3.current = 0;
-	    _this3.length = -1;
+	    _this3.duration = 0;
 	    _this3.isPlaying = false;
 	    _this3.isError = false;
 	    _this3.isReady = false;
@@ -19336,7 +19368,7 @@ webpackJsonp([0],[
 	  TtyPlayer.prototype._init = function _init() {
 	    var _this5 = this;
 
-	    this.length = this._eventProvider.getLengthInTime();
+	    this.duration = this._eventProvider.getDuration();
 	    this._eventProvider.events.forEach(function (item) {
 	      return _this5._posToEventIndexMap.push(item.msNormalized);
 	    });
@@ -19355,7 +19387,7 @@ webpackJsonp([0],[
 	      newPos = 0;
 	    }
 
-	    if (newPos > this.length) {
+	    if (newPos > this.duration) {
 	      this.stop();
 	    }
 
@@ -19381,8 +19413,9 @@ webpackJsonp([0],[
 	      var from = isRewind ? 0 : this.currentEventIndex;
 	      var to = newEventIndex;
 	      var events = this._eventProvider.events.slice(from, to);
+	      var printEvents = events.filter(onlyPrintEvents);
 
-	      this._display(events);
+	      this._display(printEvents);
 	      this.currentEventIndex = newEventIndex;
 	      this.current = newPos;
 	      this._change();
@@ -19406,7 +19439,7 @@ webpackJsonp([0],[
 	    this.isPlaying = true;
 
 	    // start from the beginning if at the end
-	    if (this.current === this.length) {
+	    if (this.current >= this.duration) {
 	      this.current = STREAM_START_INDEX;
 	      this.emit(_enums.TermEventEnum.RESET);
 	    }
@@ -19430,6 +19463,10 @@ webpackJsonp([0],[
 	  };
 
 	  TtyPlayer.prototype._display = function _display(events) {
+	    if (!events || events.length === 0) {
+	      return;
+	    }
+
 	    var groups = [{
 	      data: [events[0].data],
 	      w: events[0].w,
@@ -19477,6 +19514,7 @@ webpackJsonp([0],[
 	        _newStatus$errText = newStatus.errText,
 	        errText = _newStatus$errText === undefined ? '' : _newStatus$errText;
 
+
 	    this.isReady = isReady;
 	    this.isError = isError;
 	    this.isLoading = isLoading;
@@ -19513,6 +19551,69 @@ webpackJsonp([0],[
 
 	exports.default = TtyPlayer;
 	exports.Buffer = Buffer;
+
+	/* const mamaData = atob('cm9vdEB0MS1tYXN0ZXI6fiMgDRtbS3Jvb3RAdDEtbWFzdGVyOn4jIA==');
+
+	const mamaEvents = [{
+	      "addr.local": "127.0.0.1:3022",
+	      "addr.remote": "xxx.xxx.xxx.xxx:47452",
+	      "ei": 0,
+	      "event": "session.start",
+	      "id": 0,
+	      "login": "root",
+	      "namespace": "default",
+	      "server_id": "5cd9de35-3432-4926-af05-c326b5bb8329",
+	      "sid": "d30ae7e7-92b4-11e8-93f5-525400432101",
+	      "size": "80:25",
+	      "time": "2018-07-28T22:23:17.502Z",
+	      "user": "alex-kovoy"
+	  }, {
+	      "bytes": 18,
+	      "ci": 0,
+	      "ei": 1,
+	      "event": "print",
+	      "id": 1,
+	      "ms": 0,
+	      "offset": 0,
+	      "time": "2018-07-28T22:23:17.518Z"
+	  }, {
+	      "ei": 2,
+	      "event": "resize",
+	      "id": 2,
+	      "login": "root",
+	      "namespace": "default",
+	      "sid": "d30ae7e7-92b4-11e8-93f5-525400432101",
+	      "size": "162:62",
+	      "time": "2018-07-28T22:23:17.536Z",
+	      "user": "alex-kovoy"
+	  }, {
+	      "bytes": 22,
+	      "ci": 1,
+	      "ei": 3,
+	      "event": "print",
+	      "id": 3,
+	      "ms": 19,
+	      "offset": 18,
+	      "time": "2018-07-28T22:23:17.537Z"
+	  }, {
+	      "ei": 4,
+	      "event": "session.leave",
+	      "id": 4,
+	      "namespace": "default",
+	      "server_id": "5cd9de35-3432-4926-af05-c326b5bb8329",
+	      "sid": "d30ae7e7-92b4-11e8-93f5-525400432101",
+	      "time": "2018-07-28T22:23:42.972Z",
+	      "user": "alex-kovoy"
+	  }, {
+	      "ei": 5,
+	      "event": "session.end",
+	      "id": 5,
+	      "namespace": "default",
+	      "sid": "d30ae7e7-92b4-11e8-93f5-525400432101",
+	      "time": "2018-07-28T22:24:02.973Z",
+	      "user": "alex-kovoy"
+	  }]
+	 */
 
 /***/ }),
 /* 553 */
