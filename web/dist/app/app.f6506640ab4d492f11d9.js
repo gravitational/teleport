@@ -19204,10 +19204,8 @@ webpackJsonp([0],[
 	        var start = new Date(events[0].time);
 	        var end = new Date(time);
 	        var duration = end.getTime() - start.getTime();
-	        var _displayTime = this._formatDisplayTime(duration);
 	        events.push({
 	          eventType: event,
-	          displayTime: _displayTime,
 	          ms: duration,
 	          time: new Date(time)
 	        });
@@ -19220,11 +19218,8 @@ webpackJsonp([0],[
 	        continue;
 	      }
 
-	      var displayTime = this._formatDisplayTime(ms);
-
 	      events.push({
 	        eventType: _enums.EventTypeEnum.PRINT,
-	        displayTime: displayTime,
 	        ms: ms,
 	        bytes: bytes,
 	        offset: offset,
@@ -19244,6 +19239,7 @@ webpackJsonp([0],[
 	    }
 
 	    events.forEach(function (e) {
+	      e.displayTime = formatDisplayTime(e.ms);
 	      e.ms = e.ms > 0 ? Math.floor(e.ms / 10) : 0;
 	      e.msNormalized = e.ms;
 	    });
@@ -19274,26 +19270,26 @@ webpackJsonp([0],[
 	    return tmp;
 	  };
 
-	  EventProvider.prototype._formatDisplayTime = function _formatDisplayTime(ms) {
-	    if (ms < 0) {
-	      return '00:00';
-	    }
-
-	    var totalSec = Math.floor(ms / 1000);
-	    var totalDays = totalSec % 31536000 % 86400;
-	    var h = Math.floor(totalDays / 3600);
-	    var m = Math.floor(totalDays % 3600 / 60);
-	    var s = totalDays % 3600 % 60;
-
-	    m = m > 9 ? m : '0' + m;
-	    s = s > 9 ? s : '0' + s;
-	    h = h > 0 ? h + ':' : '';
-
-	    return '' + h + m + ':' + s;
-	  };
-
 	  return EventProvider;
 	}();
+
+	function formatDisplayTime(ms) {
+	  if (ms <= 0) {
+	    return '00:00';
+	  }
+
+	  var totalSec = Math.floor(ms / 1000);
+	  var totalDays = totalSec % 31536000 % 86400;
+	  var h = Math.floor(totalDays / 3600);
+	  var m = Math.floor(totalDays % 3600 / 60);
+	  var s = totalDays % 3600 % 60;
+
+	  m = m > 9 ? m : '0' + m;
+	  s = s > 9 ? s : '0' + s;
+	  h = h > 0 ? h + ':' : '';
+
+	  return '' + h + m + ':' + s;
+	}
 
 	function shortenTime(value) {
 	  if (value >= 25 && value < 50) {
@@ -19551,69 +19547,6 @@ webpackJsonp([0],[
 
 	exports.default = TtyPlayer;
 	exports.Buffer = Buffer;
-
-	/* const mamaData = atob('cm9vdEB0MS1tYXN0ZXI6fiMgDRtbS3Jvb3RAdDEtbWFzdGVyOn4jIA==');
-
-	const mamaEvents = [{
-	      "addr.local": "127.0.0.1:3022",
-	      "addr.remote": "xxx.xxx.xxx.xxx:47452",
-	      "ei": 0,
-	      "event": "session.start",
-	      "id": 0,
-	      "login": "root",
-	      "namespace": "default",
-	      "server_id": "5cd9de35-3432-4926-af05-c326b5bb8329",
-	      "sid": "d30ae7e7-92b4-11e8-93f5-525400432101",
-	      "size": "80:25",
-	      "time": "2018-07-28T22:23:17.502Z",
-	      "user": "alex-kovoy"
-	  }, {
-	      "bytes": 18,
-	      "ci": 0,
-	      "ei": 1,
-	      "event": "print",
-	      "id": 1,
-	      "ms": 0,
-	      "offset": 0,
-	      "time": "2018-07-28T22:23:17.518Z"
-	  }, {
-	      "ei": 2,
-	      "event": "resize",
-	      "id": 2,
-	      "login": "root",
-	      "namespace": "default",
-	      "sid": "d30ae7e7-92b4-11e8-93f5-525400432101",
-	      "size": "162:62",
-	      "time": "2018-07-28T22:23:17.536Z",
-	      "user": "alex-kovoy"
-	  }, {
-	      "bytes": 22,
-	      "ci": 1,
-	      "ei": 3,
-	      "event": "print",
-	      "id": 3,
-	      "ms": 19,
-	      "offset": 18,
-	      "time": "2018-07-28T22:23:17.537Z"
-	  }, {
-	      "ei": 4,
-	      "event": "session.leave",
-	      "id": 4,
-	      "namespace": "default",
-	      "server_id": "5cd9de35-3432-4926-af05-c326b5bb8329",
-	      "sid": "d30ae7e7-92b4-11e8-93f5-525400432101",
-	      "time": "2018-07-28T22:23:42.972Z",
-	      "user": "alex-kovoy"
-	  }, {
-	      "ei": 5,
-	      "event": "session.end",
-	      "id": 5,
-	      "namespace": "default",
-	      "sid": "d30ae7e7-92b4-11e8-93f5-525400432101",
-	      "time": "2018-07-28T22:24:02.973Z",
-	      "user": "alex-kovoy"
-	  }]
-	 */
 
 /***/ }),
 /* 553 */
