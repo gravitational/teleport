@@ -17,6 +17,7 @@ limitations under the License.
 package ui
 
 import (
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -57,6 +58,8 @@ type userContext struct {
 	Name string `json:"userName"`
 	// ACL contains user access control list
 	ACL userACL `json:"userAcl"`
+	// Version is the version of Teleport that is running.
+	Version string `json:"version"`
 }
 
 func getLogins(roleSet services.RoleSet) []string {
@@ -134,5 +137,6 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*userContex
 		Name:     user.GetName(),
 		ACL:      acl,
 		AuthType: authType,
+		Version:  teleport.Version,
 	}, nil
 }

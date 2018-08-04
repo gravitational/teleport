@@ -37,8 +37,6 @@ const (
 type WebConfig struct {
 	// Auth contains Teleport auth. preferences
 	Auth WebConfigAuthSettings `json:"auth,omitempty"`
-	// ServerVersion is the version of Teleport that is running.
-	ServerVersion string `json:"serverVersion"`
 	// CanJoinSessions disables joining sessions
 	CanJoinSessions bool `json:"canJoinSessions"`
 }
