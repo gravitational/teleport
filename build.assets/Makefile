@@ -122,7 +122,7 @@ enter: bbox
 # Create a teleport package using the build container
 #
 .PHONY:release
-release:
+release: bbox
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BBOX) \
 		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)"
 
