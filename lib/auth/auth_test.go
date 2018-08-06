@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/utils"
@@ -610,6 +611,28 @@ func (s *AuthSuite) TestMigrateIdentity(c *C) {
 	c.Assert(err, IsNil)
 
 	fixtures.DeepCompare(c, newid, oldid)
+}
+
+// TestMigrateAdminRole tests migration of the admin role
+func (s *AuthSuite) TestMigrateAdminRole(c *C) {
+	defaultRole := services.NewAdminRole()
+	defaultRole.SetKubeGroups(services.Allow, nil)
+	err := s.a.UpsertRole(defaultRole, backend.Forever)
+	c.Assert(err, IsNil)
+
+	err = migrateAdminRole(s.a)
+	c.Assert(err, IsNil)
+
+	out, err := s.a.GetRole(defaultRole.GetName())
+	c.Assert(err, IsNil)
+	c.Assert(out.GetKubeGroups(services.Allow), DeepEquals, modules.GetModules().DefaultKubeGroups())
+
+	// second call does nothing
+	err = migrateAdminRole(s.a)
+	c.Assert(err, IsNil)
+	out, err = s.a.GetRole(defaultRole.GetName())
+	c.Assert(err, IsNil)
+	c.Assert(out.GetKubeGroups(services.Allow), DeepEquals, modules.GetModules().DefaultKubeGroups())
 }
 
 // writeKeys saves the key/cert pair for a given domain onto disk. This usually means the

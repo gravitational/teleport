@@ -475,6 +475,10 @@ type UserV1 struct {
 	// user is allowed to login as
 	AllowedLogins []string `json:"allowed_logins"`
 
+	// KubeGroups represents a list of kubernetes groups
+	// this teleport user is allowed to assume
+	KubeGroups []string `json:"kubernetes_groups,omitempty"`
+
 	// OIDCIdentities lists associated OpenID Connect identities
 	// that let user log in using externally verified identity
 	OIDCIdentities []ExternalIdentity `json:"oidc_identities"`
@@ -532,7 +536,8 @@ func (u *UserV1) V2() *UserV2 {
 			CreatedBy:      u.CreatedBy,
 			Roles:          u.Roles,
 			Traits: map[string][]string{
-				teleport.TraitLogins: u.AllowedLogins,
+				teleport.TraitLogins:     u.AllowedLogins,
+				teleport.TraitKubeGroups: u.KubeGroups,
 			},
 		},
 		rawObject: *u,

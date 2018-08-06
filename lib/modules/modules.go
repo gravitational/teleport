@@ -33,14 +33,16 @@ type Modules interface {
 	EmptyRolesHandler() error
 	// DefaultAllowedLogins returns default allowed logins for a new admin role
 	DefaultAllowedLogins() []string
+	// DefaultKubeGroups returns default kuberentes groups for a new admin role
+	DefaultKubeGroups() []string
 	// PrintVersion prints teleport version
 	PrintVersion()
 	// RolesFromLogins returns roles for external user based on the logins
 	// extracted from the connector
 	RolesFromLogins([]string) []string
 	// TraitsFromLogins returns traits for external user based on the logins
-	// extracted from the connector
-	TraitsFromLogins([]string) map[string][]string
+	// and kubernetes groups extracted from the connector
+	TraitsFromLogins([]string, []string) map[string][]string
 }
 
 // SetModules sets the modules interface
@@ -65,9 +67,14 @@ func (p *defaultModules) EmptyRolesHandler() error {
 	return nil
 }
 
+// DefaultKubeGroups returns default kuberentes groups for a new admin role
+func (p *defaultModules) DefaultKubeGroups() []string {
+	return []string{teleport.TraitInternalKubeGroupsVariable}
+}
+
 // DefaultAllowedLogins returns allowed logins for a new admin role
 func (p *defaultModules) DefaultAllowedLogins() []string {
-	return []string{teleport.TraitInternalRoleVariable}
+	return []string{teleport.TraitInternalLoginsVariable}
 }
 
 // PrintVersion prints teleport version
@@ -92,9 +99,10 @@ func (p *defaultModules) RolesFromLogins(logins []string) []string {
 // extracted from the connector
 //
 // By default logins are treated as allowed logins user traits.
-func (p *defaultModules) TraitsFromLogins(logins []string) map[string][]string {
+func (p *defaultModules) TraitsFromLogins(logins []string, kubeGroups []string) map[string][]string {
 	return map[string][]string{
-		teleport.TraitLogins: logins,
+		teleport.TraitLogins:     logins,
+		teleport.TraitKubeGroups: kubeGroups,
 	}
 }
 

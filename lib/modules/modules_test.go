@@ -36,14 +36,18 @@ func (s *ModulesSuite) TestDefaultModules(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	logins := GetModules().DefaultAllowedLogins()
-	c.Assert(logins, check.DeepEquals, []string{teleport.TraitInternalRoleVariable})
+	c.Assert(logins, check.DeepEquals, []string{teleport.TraitInternalLoginsVariable})
+
+	kubeGroups := GetModules().DefaultKubeGroups()
+	c.Assert(kubeGroups, check.DeepEquals, []string{teleport.TraitInternalKubeGroupsVariable})
 
 	roles := GetModules().RolesFromLogins([]string{"root"})
 	c.Assert(roles, check.DeepEquals, []string{teleport.AdminRoleName})
 
-	traits := GetModules().TraitsFromLogins([]string{"root"})
+	traits := GetModules().TraitsFromLogins([]string{"root"}, []string{"system:masters"})
 	c.Assert(traits, check.DeepEquals, map[string][]string{
-		teleport.TraitLogins: []string{"root"},
+		teleport.TraitLogins:     []string{"root"},
+		teleport.TraitKubeGroups: []string{"system:masters"},
 	})
 }
 
@@ -59,7 +63,7 @@ func (s *ModulesSuite) TestTestModules(c *check.C) {
 	roles := GetModules().RolesFromLogins([]string{"root"})
 	c.Assert(roles, check.DeepEquals, []string{"root"})
 
-	traits := GetModules().TraitsFromLogins([]string{"root"})
+	traits := GetModules().TraitsFromLogins([]string{"root"}, []string{"system:masters"})
 	c.Assert(traits, check.IsNil)
 }
 
@@ -73,12 +77,16 @@ func (p *testModules) DefaultAllowedLogins() []string {
 	return []string{"a", "b"}
 }
 
+func (p *testModules) DefaultKubeGroups() []string {
+	return []string{"kube:test"}
+}
+
 func (p *testModules) PrintVersion() {}
 
 func (p *testModules) RolesFromLogins(logins []string) []string {
 	return logins
 }
 
-func (p *testModules) TraitsFromLogins(logins []string) map[string][]string {
+func (p *testModules) TraitsFromLogins(logins []string, kubeGroups []string) map[string][]string {
 	return nil
 }

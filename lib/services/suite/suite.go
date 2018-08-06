@@ -681,6 +681,7 @@ func (s *ServicesTestSuite) GithubConnectorCRUD(c *C) {
 					Organization: "gravitational",
 					Team:         "admins",
 					Logins:       []string{"admin"},
+					KubeGroups:   []string{"system:masters"},
 				},
 			},
 		},
