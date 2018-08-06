@@ -325,9 +325,17 @@ const (
 	// allowed logins.
 	TraitLogins = "logins"
 
-	// TraitInternalRoleVariable is the role variable used to store allowed
+	// TraitKubeGroups is the name the role variable used to store
+	// allowed kubernetes groups
+	TraitKubeGroups = "kubernetes_groups"
+
+	// TraitInternalLoginsVariable is the variable used to store allowed
 	// logins for local accounts.
-	TraitInternalRoleVariable = "{{internal.logins}}"
+	TraitInternalLoginsVariable = "{{internal.logins}}"
+
+	// TraitInternalKubeGroupsVariable is the variable used to store allowed
+	// kubernetes groups for local accounts.
+	TraitInternalKubeGroupsVariable = "{{internal.kubernetes_groups}}"
 )
 
 // SCP is Secure Copy.

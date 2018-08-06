@@ -22,10 +22,9 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/davecgh/go-spew/spew"
-	"github.com/kylelemons/godebug/diff"
 	. "gopkg.in/check.v1"
 )
 
@@ -95,6 +94,7 @@ func (s *MigrationsSuite) TestMigrateUsers(c *C) {
 	in := &UserV1{
 		Name:           "alice",
 		AllowedLogins:  []string{"admin", "centos"},
+		KubeGroups:     []string{"system:masters"},
 		OIDCIdentities: []ExternalIdentity{{Username: "alice@example.com", ConnectorID: "example"}},
 		Status: LoginStatus{
 			IsLocked:    true,
@@ -122,15 +122,16 @@ func (s *MigrationsSuite) TestMigrateUsers(c *C) {
 			Expires:        in.Expires,
 			CreatedBy:      in.CreatedBy,
 			Traits: map[string][]string{
-				"logins": in.AllowedLogins,
+				"logins":            in.AllowedLogins,
+				"kubernetes_groups": in.KubeGroups,
 			},
 		},
 		rawObject: *in,
 	}
-	c.Assert(out.rawObject, DeepEquals, *in)
-	c.Assert(out.Metadata, DeepEquals, expected.Metadata)
-	c.Assert(out.Spec, DeepEquals, expected.Spec)
-	c.Assert(out, DeepEquals, expected)
+	fixtures.DeepCompare(c, out.rawObject, *in)
+	fixtures.DeepCompare(c, out.Metadata, expected.Metadata)
+	fixtures.DeepCompare(c, out.Spec, expected.Spec)
+	fixtures.DeepCompare(c, out, expected)
 
 	data, err := json.Marshal(in)
 	c.Assert(err, IsNil)
@@ -144,11 +145,10 @@ func (s *MigrationsSuite) TestMigrateUsers(c *C) {
 	out3, err := GetUserMarshaler().UnmarshalUser(data)
 	c.Assert(err, IsNil)
 
-	d := &spew.ConfigState{Indent: " ", DisableMethods: true, DisablePointerMethods: true, DisablePointerAddresses: true}
 	expected.rawObject = nil
 	obj := out3.(*UserV2)
 	obj.rawObject = nil
-	c.Assert(obj, DeepEquals, expected, Commentf("%v", diff.Diff(d.Sdump(obj), d.Sdump(expected))))
+	fixtures.DeepCompare(c, obj, expected)
 
 	// test backwards compatibility
 	data, err = GetUserMarshaler().MarshalUser(expected, WithVersion(V1))
@@ -156,7 +156,8 @@ func (s *MigrationsSuite) TestMigrateUsers(c *C) {
 	var out4 UserV1
 	json.Unmarshal(data, &out4)
 	in.AllowedLogins = nil
-	c.Assert(out4, DeepEquals, *in, Commentf("%v", diff.Diff(d.Sdump(obj), d.Sdump(*in))))
+	in.KubeGroups = nil
+	fixtures.DeepCompare(c, out4, *in)
 }
 
 func (s *MigrationsSuite) TestMigrateReverseTunnels(c *C) {

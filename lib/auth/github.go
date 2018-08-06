@@ -212,7 +212,7 @@ func (s *AuthServer) validateGithubAuthCallback(q url.Values) (*GithubAuthRespon
 }
 
 func (s *AuthServer) createGithubUser(connector services.GithubConnector, claims services.GithubClaims) error {
-	logins := connector.MapClaims(claims)
+	logins, kubeGroups := connector.MapClaims(claims)
 	if len(logins) == 0 {
 		return trace.BadParameter(
 			"user %q does not belong to any teams configured in %q connector",
@@ -230,7 +230,7 @@ func (s *AuthServer) createGithubUser(connector services.GithubConnector, claims
 		},
 		Spec: services.UserSpecV2{
 			Roles:   modules.GetModules().RolesFromLogins(logins),
-			Traits:  modules.GetModules().TraitsFromLogins(logins),
+			Traits:  modules.GetModules().TraitsFromLogins(logins, kubeGroups),
 			Expires: s.clock.Now().UTC().Add(defaults.OAuth2TTL),
 			GithubIdentities: []services.ExternalIdentity{{
 				ConnectorID: connector.GetName(),

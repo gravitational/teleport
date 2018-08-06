@@ -104,6 +104,7 @@ func NewAdminRole() Role {
 		},
 	}
 	role.SetLogins(Allow, modules.GetModules().DefaultAllowedLogins())
+	role.SetKubeGroups(Allow, modules.GetModules().DefaultKubeGroups())
 	return role
 }
 
@@ -354,9 +355,9 @@ func applyValueTraits(val string, traits map[string][]string) ([]string, error) 
 		return []string{val}, nil
 	}
 
-	// For internal traits, only internal.logins is supported at the moment.
+	// For internal traits, only internal.logins and internal.kubernetes_groups is supported at the moment.
 	if variablePrefix == teleport.TraitInternalPrefix {
-		if variableName != teleport.TraitLogins {
+		if variableName != teleport.TraitLogins && variableName != teleport.TraitKubeGroups {
 			return nil, trace.BadParameter("unsupported variable %q", variableName)
 		}
 	}
@@ -701,7 +702,7 @@ type RoleConditions struct {
 	Rules []Rule `json:"rules,omitempty"`
 
 	// KubeGroups is a list of kubernetes groups
-	KubeGroups []string `json:"kube_groups,omitempty"`
+	KubeGroups []string `json:"kubernetes_groups,omitempty"`
 }
 
 // Equals returns true if the role conditions (logins, namespaces, labels,
@@ -1894,7 +1895,7 @@ const RoleSpecV3SchemaDefinitions = `
         "type": "array",
         "items": { "type": "string" }
       },
-      "kube_groups": {
+      "kubernetes_groups": {
         "type": "array",
         "items": { "type": "string" }
       },

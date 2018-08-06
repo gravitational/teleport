@@ -38,6 +38,7 @@ type UserCommand struct {
 	config        *service.Config
 	login         string
 	allowedLogins string
+	kubeGroups    string
 	roles         string
 	identities    []string
 	ttl           time.Duration
@@ -57,6 +58,8 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Confi
 	u.userAdd.Arg("account", "Teleport user account name").Required().StringVar(&u.login)
 	u.userAdd.Arg("local-logins", "Local UNIX users this account can log in as [login]").
 		Default("").StringVar(&u.allowedLogins)
+	u.userAdd.Flag("k8s-groups", "Kubernetes groups to assign to a user.").
+		Default("").StringVar(&u.kubeGroups)
 	u.userAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v hour, maximum is %v hours",
 		int(defaults.SignupTokenTTL/time.Hour), int(defaults.MaxSignupTokenTTL/time.Hour))).
 		Default(fmt.Sprintf("%v", defaults.SignupTokenTTL)).DurationVar(&u.ttl)
@@ -98,9 +101,14 @@ func (u *UserCommand) Add(client auth.ClientI) error {
 	if u.allowedLogins == "" {
 		u.allowedLogins = u.login
 	}
+	var kubeGroups []string
+	if u.kubeGroups != "" {
+		kubeGroups = strings.Split(u.kubeGroups, ",")
+	}
 	user := services.UserV1{
 		Name:          u.login,
 		AllowedLogins: strings.Split(u.allowedLogins, ","),
+		KubeGroups:    kubeGroups,
 	}
 	token, err := client.CreateSignupToken(user, u.ttl)
 	if err != nil {

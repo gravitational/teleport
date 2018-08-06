@@ -397,6 +397,10 @@ func migrateLegacyResources(cfg InitConfig, asrv *AuthServer) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	err = migrateAdminRole(asrv)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	return nil
 }
 
@@ -465,6 +469,20 @@ func migrateUsers(asrv *AuthServer) error {
 	}
 
 	return nil
+}
+
+func migrateAdminRole(asrv *AuthServer) error {
+	defaultRole := services.NewAdminRole()
+	role, err := asrv.GetRole(defaultRole.GetName())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(role.GetKubeGroups(services.Allow)) != 0 {
+		return nil
+	}
+	log.Infof("Migrating default admin role, adding default kubernetes groups.")
+	role.SetKubeGroups(services.Allow, defaultRole.GetKubeGroups(services.Allow))
+	return asrv.UpsertRole(role, backend.Forever)
 }
 
 // isFirstStart returns 'true' if the auth server is starting for the 1st time
