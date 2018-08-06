@@ -23,10 +23,15 @@ func (p *enterpriseModules) EmptyRolesHandler() error {
 	return trace.BadParameter("missing 'role_map' parameter")
 }
 
+// DefaultKubeGroups returns default kuberentes groups for a new admin role
+func (p *enterpriseModules) DefaultKubeGroups() []string {
+	return []string{teleport.TraitInternalKubeGroupsVariable}
+}
+
 // DefaultAllowedLogins returns allowed logins for a new admin role, for
 // enterprise it includes "root" as well
 func (p *enterpriseModules) DefaultAllowedLogins() []string {
-	return []string{teleport.TraitInternalRoleVariable, teleport.Root}
+	return []string{teleport.TraitInternalLoginsVariable, teleport.Root}
 }
 
 // PrintVersion prints teleport version, for enterprise it includes
@@ -51,6 +56,6 @@ func (p *enterpriseModules) RolesFromLogins(logins []string) []string {
 // extracted from the connector
 //
 // For Enterprise edition "logins" are used as role names so traits are empty
-func (p *enterpriseModules) TraitsFromLogins(logins []string) map[string][]string {
+func (p *enterpriseModules) TraitsFromLogins(logins []string, kubeGroups []string) map[string][]string {
 	return nil
 }

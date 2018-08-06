@@ -55,7 +55,7 @@ func (s *APISuite) SetUpSuite(c *check.C) {
 	err = authServer.SetClusterName(clusterName)
 	c.Assert(err, check.IsNil)
 
-	authorizer, err := auth.NewRoleAuthorizer(clusterConfig, teleport.RoleAdmin)
+	authorizer, err := auth.NewRoleAuthorizer(clusterName.GetName(), clusterConfig, teleport.RoleAdmin)
 	c.Assert(err, check.IsNil)
 
 	s.enforcer, err = pro.NewEnforcer(context.Background(), pro.EnforcerConfig{
