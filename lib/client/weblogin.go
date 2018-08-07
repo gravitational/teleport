@@ -225,6 +225,14 @@ func SSHAgentSSOLogin(ctx context.Context, proxyAddr, connectorID string, pubKey
 		return nil, trace.Wrap(err)
 	}
 
+	// Start a HTTP server on the client that re-directs to the SAML provider.
+	// This creates nice short URLs and also works around some platforms (like
+	// Windows) that truncate long URLs before passing them to the default browser.
+	redir := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, re.RedirectURL, http.StatusFound)
+	}))
+	defer redir.Close()
+
 	// If a command was found to launch the browser, create and start it.
 	var execCmd *exec.Cmd
 	switch runtime.GOOS {
@@ -232,19 +240,19 @@ func SSHAgentSSOLogin(ctx context.Context, proxyAddr, connectorID string, pubKey
 	case teleport.DarwinOS:
 		path, err := exec.LookPath(teleport.OpenBrowserDarwin)
 		if err == nil {
-			execCmd = exec.Command(path, re.RedirectURL)
+			execCmd = exec.Command(path, redir.URL)
 		}
 	// Windows.
 	case teleport.WindowsOS:
 		path, err := exec.LookPath(teleport.OpenBrowserWindows)
 		if err == nil {
-			execCmd = exec.Command(path, "url.dll,FileProtocolHandler", re.RedirectURL)
+			execCmd = exec.Command(path, "url.dll,FileProtocolHandler", redir.URL)
 		}
 	// Linux or any other operating sytem.
 	default:
 		path, err := exec.LookPath(teleport.OpenBrowserLinux)
 		if err == nil {
-			execCmd = exec.Command(path, re.RedirectURL)
+			execCmd = exec.Command(path, redir.URL)
 		}
 	}
 	if execCmd != nil {
@@ -253,7 +261,7 @@ func SSHAgentSSOLogin(ctx context.Context, proxyAddr, connectorID string, pubKey
 
 	// Print to screen in-case the command that launches the browser did not run.
 	fmt.Printf("If browser window does not open automatically, open it by ")
-	fmt.Printf("clicking on the link:\n %v\n", re.RedirectURL)
+	fmt.Printf("clicking on the link:\n %v\n", redir.URL)
 
 	log.Infof("Waiting for response at: %v.", server.URL)
 
