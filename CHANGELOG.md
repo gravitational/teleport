@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.6.9
+
+This release of Teleport focuses on bugfixes.
+
+#### Bug Fixes
+
+* Fixed issue in Teleport 2.6.8 where rollback to Go 1.9.7 was not complete for `linux-amd64` binaries.
+
 ## 2.6.8
 
 This release of Teleport focuses on bugfixes.
