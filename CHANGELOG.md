@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.7.2
+
+This release of Teleport focuses on bugfixes.
+
+#### Bug Fixes
+
+* Fixed issue in Teleport 2.7.2 where rollback to Go 1.9.7 was not complete for `linux-amd64` binaries.
+
 ## 2.7.1
 
 This release of Teleport focuses on bugfixes.
@@ -36,6 +44,14 @@ As awlays, this release contains several bug fixes. The full list can be seen [h
 #### Upgrading
 
 Follow the [recommended upgrade procedure](https://gravitational.com/teleport/docs/admin-guide/#upgrading-teleport) to upgrade to this version.
+
+## 2.6.9
+
+This release of Teleport focuses on bugfixes.
+
+#### Bug Fixes
+
+* Fixed issue in Teleport 2.6.8 where rollback to Go 1.9.7 was not complete for `linux-amd64` binaries.
 
 ## 2.6.8
 
