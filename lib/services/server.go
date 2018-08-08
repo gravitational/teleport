@@ -278,12 +278,14 @@ const ServerSpecV2Schema = `{
     "hostname": {"type": "string"},
     "labels": {
       "type": "object",
+      "additionalProperties": false,
       "patternProperties": {
         "^.*$":  { "type": "string" }
       }
     },
     "cmd_labels": {
       "type": "object",
+      "additionalProperties": false,
       "patternProperties": {
         "^.*$": {
           "type": "object",
