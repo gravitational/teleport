@@ -65,7 +65,7 @@ Teleport supports two types of user accounts:
       [Authy](https://www.authy.com/) or any other TOTP client.
     * [U2F](https://en.wikipedia.org/wiki/Universal_2nd_Factor).
 * **External users** are users stored elsewhere else within an organization. Examples include
-  Github, Active Directory (AD), LDAP server, OpenID/OAuth2 endpoint or behind SAML. 
+  Github, Active Directory (AD), OpenID/OAuth2 endpoint or behind SAML. 
 
 
 !!! tip "Version Warning": 

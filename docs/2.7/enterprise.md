@@ -10,7 +10,7 @@ benefits of Teleport Enterprise.
 |Teleport Enterprise Feature|Description
 ---------|--------------
 |[Role Based Access Control (RBAC)](#rbac)|Allows Teleport administrators to define User Roles and restrict each role to specific actions. RBAC also allows administrators to partition cluster nodes into groups with different access permissions.
-|[Single Sign-On (SSO)](#sso)| Allows Teleport to integrate with existing enterprise identity systems. Examples include Active Directory, Github, Google Apps and numerous identity middleware solutions like Auth0, Okta, and so on. Teleport supports LDAP, SAML and OAuth/OpenID Connect protocols to interact with them.
+|[Single Sign-On (SSO)](#sso)| Allows Teleport to integrate with existing enterprise identity systems. Examples include Active Directory, Github, Google Apps and numerous identity middleware solutions like Auth0, Okta, and so on. Teleport supports SAML and OAuth/OpenID Connect protocols to interact with them.
 |[Integration with Kubernetes](#integration-with-kubernetes)| Teleport embedded into Kubernetes is available as a separate offering called [Telekube](http://gravitational.com/telekube/). Telekube allows users to define and enfroce company-wide policies like "Developers Must Never Have Access to Production Data" and Telekube will enforce these rules on both the SSH and Kubernetes API level. Another use case of Telekube is to run Kubernetes clusters on multi-region infrastructure, even in behind-firewalls environments. 
 |Commercial Support | In addition to these features, Teleport Enterprise also comes with a premium support SLA with guaranteed response times. 
 
