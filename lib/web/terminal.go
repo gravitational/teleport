@@ -233,7 +233,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn) {
 	// the terminal.
 	tc, err := t.makeClient(ws)
 	if err != nil {
-		er := t.errToTerm(err, ws)
+		er := t.sendError(err, ws)
 		if er != nil {
 			t.log.Warnf("Unable to send error to terminal: %v: %v.", err, er)
 		}
@@ -308,7 +308,7 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 	err := tc.SSH(t.terminalContext, t.params.InteractiveCommand, false)
 	if err != nil {
 		t.log.Warnf("Unable to stream terminal: %v.", err)
-		er := t.errToTerm(err, ws)
+		er := t.sendError(err, ws)
 		if er != nil {
 			t.log.Warnf("Unable to send error to terminal: %v: %v.", err, er)
 		}
@@ -401,16 +401,24 @@ func (t *TerminalHandler) windowChange(params *session.TerminalParams) error {
 	return trace.Wrap(err)
 }
 
-// errToTerm displays an error in the terminal window.
-func (t *TerminalHandler) errToTerm(err error, w io.Writer) error {
+// sendError displays an error in the terminal window.
+func (t *TerminalHandler) sendError(err error, ws *websocket.Conn) error {
 	// Replace \n with \r\n so the message correctly aligned.
 	r := strings.NewReplacer("\r\n", "\r\n", "\n", "\r\n")
 	errMessage := r.Replace(err.Error())
-
-	// UTF-8 encode the error message and then wrap it in a raw envelope.
-	encodedPayload, err := t.encoder.String(errMessage)
+	_, err = t.sendText([]byte(errMessage), ws)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (t *TerminalHandler) sendText(data []byte, ws *websocket.Conn) (n int, err error) {
+	// UTF-8 encode data and wrap it in a raw envelope.
+	encodedPayload, err := t.encoder.String(string(data))
+	if err != nil {
+		return 0, trace.Wrap(err)
 	}
 	envelope := &Envelope{
 		Version: defaults.WebsocketVersion,
@@ -419,16 +427,16 @@ func (t *TerminalHandler) errToTerm(err error, w io.Writer) error {
 	}
 	envelopeBytes, err := proto.Marshal(envelope)
 	if err != nil {
-		return trace.Wrap(err)
+		return 0, trace.Wrap(err)
 	}
 
 	// Send bytes over the websocket to the web client.
-	_, err = w.Write(envelopeBytes)
+	err = websocket.Message.Send(ws, envelopeBytes)
 	if err != nil {
-		return trace.Wrap(err)
+		return 0, trace.Wrap(err)
 	}
 
-	return nil
+	return len(data), nil
 }
 
 // resolveServerHostPort parses server name and attempts to resolve hostname
@@ -472,9 +480,6 @@ func resolveServerHostPort(servername string, existingServers []services.Server)
 type wrappedSocket struct {
 	ws       *websocket.Conn
 	terminal *TerminalHandler
-
-	encoder *encoding.Encoder
-	decoder *encoding.Decoder
 }
 
 func newWrappedSocket(ws *websocket.Conn, terminal *TerminalHandler) *wrappedSocket {
@@ -484,35 +489,12 @@ func newWrappedSocket(ws *websocket.Conn, terminal *TerminalHandler) *wrappedSoc
 	return &wrappedSocket{
 		ws:       ws,
 		terminal: terminal,
-		encoder:  unicode.UTF8.NewEncoder(),
-		decoder:  unicode.UTF8.NewDecoder(),
 	}
 }
 
 // Write wraps the data bytes in a raw envelope and sends.
 func (w *wrappedSocket) Write(data []byte) (n int, err error) {
-	// UTF-8 encode data and wrap it in a raw envelope.
-	encodedPayload, err := w.encoder.String(string(data))
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-	envelope := &Envelope{
-		Version: defaults.WebsocketVersion,
-		Type:    defaults.WebsocketRaw,
-		Payload: encodedPayload,
-	}
-	envelopeBytes, err := proto.Marshal(envelope)
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-
-	// Send bytes over the websocket to the web client.
-	err = websocket.Message.Send(w.ws, envelopeBytes)
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-
-	return len(data), nil
+	return w.terminal.sendText(data, w.ws)
 }
 
 // Read unwraps the envelope and either fills out the passed in bytes or
@@ -534,7 +516,7 @@ func (w *wrappedSocket) Read(out []byte) (n int, err error) {
 	}
 
 	var data []byte
-	data, err = w.decoder.Bytes([]byte(envelope.GetPayload()))
+	data, err = w.terminal.decoder.Bytes([]byte(envelope.GetPayload()))
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}

@@ -40,6 +40,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/net/websocket"
+	"golang.org/x/text/encoding/unicode"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
@@ -996,7 +997,10 @@ func (s *WebSuite) TestTerminal(c *C) {
 	defer ws.Close()
 
 	// Create a wrapped connection that gives access to the terminal stream.
-	term := newWrappedSocket(ws, nil)
+	term := newWrappedSocket(ws, &TerminalHandler{
+		encoder: unicode.UTF8.NewEncoder(),
+		decoder: unicode.UTF8.NewDecoder(),
+	})
 
 	_, err = io.WriteString(term, "echo vinsong\r\n")
 	c.Assert(err, IsNil)
@@ -1011,7 +1015,10 @@ func (s *WebSuite) TestWebAgentForward(c *C) {
 	defer ws.Close()
 
 	// Create a wrapped connection that gives access to the terminal stream.
-	term := newWrappedSocket(ws, nil)
+	term := newWrappedSocket(ws, &TerminalHandler{
+		encoder: unicode.UTF8.NewEncoder(),
+		decoder: unicode.UTF8.NewDecoder(),
+	})
 
 	_, err = io.WriteString(term, "echo $SSH_AUTH_SOCK\r\n")
 	c.Assert(err, IsNil)
@@ -1029,7 +1036,10 @@ func (s *WebSuite) TestActiveSessions(c *C) {
 	defer ws.Close()
 
 	// Create a wrapped connection that gives access to the terminal stream.
-	term := newWrappedSocket(ws, nil)
+	term := newWrappedSocket(ws, &TerminalHandler{
+		encoder: unicode.UTF8.NewEncoder(),
+		decoder: unicode.UTF8.NewDecoder(),
+	})
 
 	// To make sure we have a session.
 	_, err = io.WriteString(term, "echo vinsong\r\n")
@@ -1067,7 +1077,10 @@ func (s *WebSuite) TestCloseConnectionsOnLogout(c *C) {
 	defer ws.Close()
 
 	// Create a wrapped connection that gives access to the terminal stream.
-	term := newWrappedSocket(ws, nil)
+	term := newWrappedSocket(ws, &TerminalHandler{
+		encoder: unicode.UTF8.NewEncoder(),
+		decoder: unicode.UTF8.NewDecoder(),
+	})
 
 	// to make sure we have a session
 	_, err = io.WriteString(term, "expr 137 + 39\r\n")
