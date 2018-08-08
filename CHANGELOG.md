@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.7.3
+
+This release of Teleport focuses on bugfixes.
+
+#### Bug Fixes
+
+* Fixed issue that cause `failed executing request: user agent missing` missing error when upgrading from 2.6.
+
 ## 2.7.2
 
 This release of Teleport focuses on bugfixes.
