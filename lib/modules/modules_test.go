@@ -81,6 +81,10 @@ func (p *testModules) DefaultKubeGroups() []string {
 	return []string{"kube:test"}
 }
 
+func (p *testModules) SupportsKubernetes() bool {
+	return true
+}
+
 func (p *testModules) PrintVersion() {}
 
 func (p *testModules) RolesFromLogins(logins []string) []string {

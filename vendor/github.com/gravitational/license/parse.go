@@ -30,13 +30,25 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// ParseString parses the license from the provided string
+// ParseString parses the license from the provided string,
+// assumes default payload is encoded in the license and parses it
 func ParseString(pem string) (*License, error) {
+	return ParseLicensePEM([]byte(pem), ParseOptions{ParsePayload: true})
+}
+
+// ParseOptions specifies parsing and validation options
+type ParseOptions struct {
+	// ParsePayload turns on parsing of payload
+	ParsePayload bool
+}
+
+// ParseLicensePEM parses license PEM, parses payload on demand
+func ParseLicensePEM(pem []byte, opts ParseOptions) (*License, error) {
 	certPEM, keyPEM, err := SplitPEM([]byte(pem))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	certificateBytes, privateBytes, err := parseCertificatePEM(pem)
+	certificateBytes, privateBytes, err := parseCertificatePEM(string(pem))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -44,7 +56,21 @@ func ParseString(pem string) (*License, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	payload, err := parsePayloadFromX509(certificate)
+	rawPayload, err := getRawPayloadFromX509(certificate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	license := License{
+		Cert:       certificate,
+		CertPEM:    certPEM,
+		KeyPEM:     keyPEM,
+		RawPayload: rawPayload,
+	}
+	if !opts.ParsePayload {
+		return &license, nil
+	}
+	payload, err := unmarshalPayload(rawPayload)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -60,12 +86,8 @@ func ParseString(pem string) (*License, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
-	return &License{
-		Cert:    certificate,
-		Payload: *payload,
-		CertPEM: certPEM,
-		KeyPEM:  keyPEM,
-	}, nil
+	license.Payload = *payload
+	return &license, nil
 }
 
 // ParseX509 parses the license from the provided x509 certificate
@@ -101,20 +123,35 @@ func MakeTLSConfig(license License) (*tls.Config, error) {
 	}, nil
 }
 
-// parsePayloadFromX509 parses the extension with license payload from the
+// getRawPayloadFromX509 returns the payload in the extension of the
 // provided x509 certificate
-func parsePayloadFromX509(cert *x509.Certificate) (*Payload, error) {
+func getRawPayloadFromX509(cert *x509.Certificate) ([]byte, error) {
 	for _, ext := range cert.Extensions {
 		if ext.Id.Equal(constants.LicenseASN1ExtensionID) {
-			var p Payload
-			if err := json.Unmarshal(ext.Value, &p); err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &p, nil
+			return ext.Value, nil
 		}
 	}
 	return nil, trace.NotFound(
 		"certificate does not contain extension with license payload")
+}
+
+// unmarshalPayload unmarshals payload encoded in license
+func unmarshalPayload(raw []byte) (*Payload, error) {
+	var p Payload
+	if err := json.Unmarshal(raw, &p); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &p, nil
+}
+
+// parsePayloadFromX509 parses the extension with license payload from the
+// provided x509 certificate
+func parsePayloadFromX509(cert *x509.Certificate) (*Payload, error) {
+	raw, err := getRawPayloadFromX509(cert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return unmarshalPayload(raw)
 }
 
 // parseCertificatePEM parses the concatenated certificate/private key in PEM format
