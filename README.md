@@ -45,6 +45,14 @@ $ sudo teleport start
 In a production environment Teleport must run as root. But to play, just do `chown $USER /var/lib/teleport` 
 and run it under `$USER`, in this case you will not be able to login as someone else though.
 
+If you wish to deploy Teleport inside a Docker container:
+
+```
+# This command will pull the Teleport container image for version 2.7.3
+# Replace 2.7.3 with the version you need:
+$ docker pull quay.io/gravitational/teleport:2.7.3
+```
+
 ## Building Teleport
 
 Teleport source code consists of the actual Teleport daemon binary written in Golang, and also

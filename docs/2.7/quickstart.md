@@ -60,6 +60,14 @@ At this point you should see Teleport print listening IPs of all 3 services into
 
 Congratulations - you are now running Teleport! 
 
+If you wish to deploy Teleport inside a Docker container:
+
+```
+# This command will pull the Teleport container image for version 2.7.3
+# Replace 2.7.3 with the version you need:
+$ docker pull quay.io/gravitational/teleport:2.7.3
+```
+
 ## Creating Users
 
 Teleport users are defined on a cluster level and every Teleport user must be associated with
