@@ -40,6 +40,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/net/websocket"
+	"golang.org/x/text/encoding/unicode"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
@@ -60,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/lib/state"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/ui"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
@@ -828,7 +830,6 @@ func (s *WebSuite) TestNewTerminalHandler(c *C) {
 		H: 1,
 		W: 1,
 	}
-	validTimeout := 1 * time.Second
 
 	makeProvider := func(server services.ServerV2) AuthProvider {
 		return authProviderMock{
@@ -845,11 +846,10 @@ func (s *WebSuite) TestNewTerminalHandler(c *C) {
 	}{
 		{
 			req: TerminalRequest{
-				Login:          validLogin,
-				Server:         validServer,
-				SessionID:      validSID,
-				Term:           validParams,
-				SessionTimeout: validTimeout,
+				Login:     validLogin,
+				Server:    validServer,
+				SessionID: validSID,
+				Term:      validParams,
 			},
 			authProvider: makeProvider(validNode),
 			expectedHost: validServer,
@@ -857,11 +857,10 @@ func (s *WebSuite) TestNewTerminalHandler(c *C) {
 		},
 		{
 			req: TerminalRequest{
-				Login:          validLogin,
-				Server:         "eca53e45-86a9-11e7-a893-0242ac0a0101",
-				SessionID:      validSID,
-				Term:           validParams,
-				SessionTimeout: validTimeout,
+				Login:     validLogin,
+				Server:    "eca53e45-86a9-11e7-a893-0242ac0a0101",
+				SessionID: validSID,
+				Term:      validParams,
 			},
 			authProvider: makeProvider(validNode),
 			expectedHost: "nodehostname",
@@ -879,11 +878,10 @@ func (s *WebSuite) TestNewTerminalHandler(c *C) {
 			expectedErr:  "invalid session",
 			authProvider: makeProvider(validNode),
 			req: TerminalRequest{
-				SessionID:      "",
-				Login:          validLogin,
-				Server:         validServer,
-				Term:           validParams,
-				SessionTimeout: validTimeout,
+				SessionID: "",
+				Login:     validLogin,
+				Server:    validServer,
+				Term:      validParams,
 			},
 		},
 		{
@@ -897,18 +895,16 @@ func (s *WebSuite) TestNewTerminalHandler(c *C) {
 					H: -1,
 					W: 0,
 				},
-				SessionTimeout: validTimeout,
 			},
 		},
 		{
 			expectedErr:  "invalid server name",
 			authProvider: makeProvider(validNode),
 			req: TerminalRequest{
-				Server:         "localhost:port",
-				SessionID:      validSID,
-				Login:          validLogin,
-				Term:           validParams,
-				SessionTimeout: validTimeout,
+				Server:    "localhost:port",
+				SessionID: validSID,
+				Login:     validLogin,
+				Term:      validParams,
 			},
 		},
 	}
@@ -995,13 +991,14 @@ func (s *WebSuite) TestTerminal(c *C) {
 	c.Assert(err, IsNil)
 	defer ws.Close()
 
-	// Create a wrapped connection that gives access to the terminal stream.
-	term := newWrappedSocket(ws, nil)
-
-	_, err = io.WriteString(term, "echo vinsong\r\n")
+	termHandler := newTerminalHandler()
+	stream, err := termHandler.asTerminalStream(ws)
 	c.Assert(err, IsNil)
 
-	err = s.waitForOutput(term, "vinsong")
+	_, err = io.WriteString(stream, "echo vinsong\r\n")
+	c.Assert(err, IsNil)
+
+	err = s.waitForOutput(stream, "vinsong")
 	c.Assert(err, IsNil)
 }
 
@@ -1010,13 +1007,14 @@ func (s *WebSuite) TestWebAgentForward(c *C) {
 	c.Assert(err, IsNil)
 	defer ws.Close()
 
-	// Create a wrapped connection that gives access to the terminal stream.
-	term := newWrappedSocket(ws, nil)
-
-	_, err = io.WriteString(term, "echo $SSH_AUTH_SOCK\r\n")
+	termHandler := newTerminalHandler()
+	stream, err := termHandler.asTerminalStream(ws)
 	c.Assert(err, IsNil)
 
-	err = s.waitForOutput(term, "/")
+	_, err = io.WriteString(stream, "echo $SSH_AUTH_SOCK\r\n")
+	c.Assert(err, IsNil)
+
+	err = s.waitForOutput(stream, "/")
 	c.Assert(err, IsNil)
 }
 
@@ -1028,15 +1026,16 @@ func (s *WebSuite) TestActiveSessions(c *C) {
 	c.Assert(err, IsNil)
 	defer ws.Close()
 
-	// Create a wrapped connection that gives access to the terminal stream.
-	term := newWrappedSocket(ws, nil)
+	termHandler := newTerminalHandler()
+	stream, err := termHandler.asTerminalStream(ws)
+	c.Assert(err, IsNil)
 
 	// To make sure we have a session.
-	_, err = io.WriteString(term, "echo vinsong\r\n")
+	_, err = io.WriteString(stream, "echo vinsong\r\n")
 	c.Assert(err, IsNil)
 
 	// Make sure server has replied.
-	err = s.waitForOutput(term, "vinsong")
+	err = s.waitForOutput(stream, "vinsong")
 	c.Assert(err, IsNil)
 
 	// Make sure this session appears in the list of active sessions.
@@ -1066,16 +1065,17 @@ func (s *WebSuite) TestCloseConnectionsOnLogout(c *C) {
 	c.Assert(err, IsNil)
 	defer ws.Close()
 
-	// Create a wrapped connection that gives access to the terminal stream.
-	term := newWrappedSocket(ws, nil)
+	termHandler := newTerminalHandler()
+	stream, err := termHandler.asTerminalStream(ws)
+	c.Assert(err, IsNil)
 
 	// to make sure we have a session
-	_, err = io.WriteString(term, "expr 137 + 39\r\n")
+	_, err = io.WriteString(stream, "expr 137 + 39\r\n")
 	c.Assert(err, IsNil)
 
 	// make sure server has replied
 	out := make([]byte, 100)
-	term.Read(out)
+	stream.Read(out)
 
 	_, err = pack.clt.Delete(
 		pack.clt.Endpoint("webapi", "sessions"))
@@ -1086,7 +1086,7 @@ func (s *WebSuite) TestCloseConnectionsOnLogout(c *C) {
 	errC := make(chan error)
 	go func() {
 		for {
-			_, err := term.Read(out)
+			_, err := stream.Read(out)
 			if err != nil {
 				errC <- err
 			}
@@ -1421,8 +1421,7 @@ func (s *WebSuite) makeTerminal(pack *authPack, opts ...session.ID) (*websocket.
 			W: 100,
 			H: 100,
 		},
-		SessionID:      sessionID,
-		SessionTimeout: 500 * time.Millisecond,
+		SessionID: sessionID,
 	})
 	if err != nil {
 		return nil, err
@@ -1453,7 +1452,7 @@ func (s *WebSuite) makeTerminal(pack *authPack, opts ...session.ID) (*websocket.
 	return ws, nil
 }
 
-func (s *WebSuite) waitForOutput(conn *wrappedSocket, substr string) error {
+func (s *WebSuite) waitForOutput(stream *terminalStream, substr string) error {
 	tickerCh := time.Tick(250 * time.Millisecond)
 	timeoutCh := time.After(10 * time.Second)
 
@@ -1461,7 +1460,7 @@ func (s *WebSuite) waitForOutput(conn *wrappedSocket, substr string) error {
 		select {
 		case <-tickerCh:
 			out := make([]byte, 100)
-			_, err := conn.Read(out)
+			_, err := stream.Read(out)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -1620,4 +1619,12 @@ func removeSpace(in string) string {
 		in = strings.Replace(in, c, " ", -1)
 	}
 	return strings.TrimSpace(in)
+}
+
+func newTerminalHandler() TerminalHandler {
+	return TerminalHandler{
+		log: logrus.WithFields(logrus.Fields{}),
+		encoder: unicode.UTF8.NewEncoder(),
+		decoder: unicode.UTF8.NewDecoder(),
+	}
 }

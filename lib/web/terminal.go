@@ -71,9 +71,6 @@ type TerminalRequest struct {
 
 	// InteractiveCommand is a command to execut.e
 	InteractiveCommand []string `json:"-"`
-
-	// SessionTimeout is how long to wait for the session end event to arrive.
-	SessionTimeout time.Duration
 }
 
 // AuthProvider is a subset of the full Auth API.
@@ -82,12 +79,9 @@ type AuthProvider interface {
 	GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]events.EventFields, error)
 }
 
-// newTerminal creates a web-based terminal based on WebSockets and returns a
+// NewTerminal creates a web-based terminal based on WebSockets and returns a
 // new TerminalHandler.
 func NewTerminal(req TerminalRequest, authProvider AuthProvider, ctx *SessionContext) (*TerminalHandler, error) {
-	if req.SessionTimeout == 0 {
-		req.SessionTimeout = defaults.HTTPIdleTimeout
-	}
 
 	// Make sure whatever session is requested is a valid session.
 	_, err := session.ParseID(string(req.SessionID))
@@ -116,16 +110,13 @@ func NewTerminal(req TerminalRequest, authProvider AuthProvider, ctx *SessionCon
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.ComponentWebsocket,
 		}),
-		namespace:      req.Namespace,
-		sessionID:      req.SessionID,
-		params:         req,
-		ctx:            ctx,
-		hostName:       hostName,
-		hostPort:       hostPort,
-		authProvider:   authProvider,
-		sessionTimeout: req.SessionTimeout,
-		encoder:        unicode.UTF8.NewEncoder(),
-		decoder:        unicode.UTF8.NewDecoder(),
+		params:       req,
+		ctx:          ctx,
+		hostName:     hostName,
+		hostPort:     hostPort,
+		authProvider: authProvider,
+		encoder:      unicode.UTF8.NewEncoder(),
+		decoder:      unicode.UTF8.NewDecoder(),
 	}, nil
 }
 
@@ -134,12 +125,6 @@ func NewTerminal(req TerminalRequest, authProvider AuthProvider, ctx *SessionCon
 type TerminalHandler struct {
 	// log holds the structured logger.
 	log *logrus.Entry
-
-	// namespace is node namespace.
-	namespace string
-
-	// sessionID is a Teleport session ID to join as.
-	sessionID session.ID
 
 	// params is the initial PTY size.
 	params TerminalRequest
@@ -168,14 +153,8 @@ type TerminalHandler struct {
 	// terminalCancel is used to signal when the terminal session is closing.
 	terminalCancel context.CancelFunc
 
-	// request is the HTTP request that initiated the websocket connection.
-	request *http.Request
-
 	// authProvider is used to fetch nodes and sessions from the backend.
 	authProvider AuthProvider
-
-	// sessionTimeout is how long to wait for the session end event to arrive.
-	sessionTimeout time.Duration
 
 	// encoder is used to encode strings into UTF-8.
 	encoder *encoding.Encoder
@@ -188,8 +167,6 @@ type TerminalHandler struct {
 // events: raw input/output events for what's happening on the terminal itself
 // and audit log events relevant to this session.
 func (t *TerminalHandler) Serve(w http.ResponseWriter, r *http.Request) {
-	t.request = r
-
 	// This allows closing of the websocket if the user logs out before exiting
 	// the session.
 	t.ctx.AddClosers(t)
@@ -233,7 +210,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn) {
 	// the terminal.
 	tc, err := t.makeClient(ws)
 	if err != nil {
-		er := t.errToTerm(err, ws)
+		er := t.writeError(err, ws)
 		if er != nil {
 			t.log.Warnf("Unable to send error to terminal: %v: %v.", err, er)
 		}
@@ -243,7 +220,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn) {
 	// Create a context for signaling when the terminal session is over.
 	t.terminalContext, t.terminalCancel = context.WithCancel(context.Background())
 
-	t.log.Debugf("Creating websocket stream for %v.", t.sessionID)
+	t.log.Debugf("Creating websocket stream for %v.", t.params.SessionID)
 
 	// Pump raw terminal in/out and audit events into the websocket.
 	go t.streamTerminal(ws, tc)
@@ -251,7 +228,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn) {
 
 	// Block until the terminal session is complete.
 	<-t.terminalContext.Done()
-	t.log.Debugf("Closing websocket stream for %v.", t.sessionID)
+	t.log.Debugf("Closing websocket stream for %v.", t.params.SessionID)
 }
 
 // makeClient builds a *client.TeleportClient for the connection.
@@ -261,21 +238,25 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn) (*client.TeleportClient
 		return nil, trace.Wrap(err)
 	}
 
-	// Create a wrapped websocket to wrap/unwrap the envelope used to
+	// Create a terminal stream that wraps/unwraps the envelope used to
 	// communicate over the websocket.
-	wrappedSock := newWrappedSocket(ws, t)
+	stream, err := t.asTerminalStream(ws)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	clientConfig.ForwardAgent = true
 	clientConfig.HostLogin = t.params.Login
 	clientConfig.Namespace = t.params.Namespace
-	clientConfig.Stdout = wrappedSock
-	clientConfig.Stderr = wrappedSock
-	clientConfig.Stdin = wrappedSock
+	clientConfig.Stdout = stream
+	clientConfig.Stderr = stream
+	clientConfig.Stdin = stream
 	clientConfig.SiteName = t.params.Cluster
 	clientConfig.ProxyHostPort = t.params.ProxyHostPort
 	clientConfig.Host = t.hostName
 	clientConfig.HostPort = t.hostPort
 	clientConfig.Env = map[string]string{sshutils.SessionEnvVar: string(t.params.SessionID)}
-	clientConfig.ClientAddr = t.request.RemoteAddr
+	clientConfig.ClientAddr = ws.Request().RemoteAddr
 
 	if len(t.params.InteractiveCommand) > 0 {
 		clientConfig.Interactive = true
@@ -308,7 +289,7 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 	err := tc.SSH(t.terminalContext, t.params.InteractiveCommand, false)
 	if err != nil {
 		t.log.Warnf("Unable to stream terminal: %v.", err)
-		er := t.errToTerm(err, ws)
+		er := t.writeError(err, ws)
 		if er != nil {
 			t.log.Warnf("Unable to send error to terminal: %v: %v.", err, er)
 		}
@@ -401,29 +382,12 @@ func (t *TerminalHandler) windowChange(params *session.TerminalParams) error {
 	return trace.Wrap(err)
 }
 
-// errToTerm displays an error in the terminal window.
-func (t *TerminalHandler) errToTerm(err error, w io.Writer) error {
+// writeError displays an error in the terminal window.
+func (t *TerminalHandler) writeError(err error, ws *websocket.Conn) error {
 	// Replace \n with \r\n so the message correctly aligned.
 	r := strings.NewReplacer("\r\n", "\r\n", "\n", "\r\n")
 	errMessage := r.Replace(err.Error())
-
-	// UTF-8 encode the error message and then wrap it in a raw envelope.
-	encodedPayload, err := t.encoder.String(errMessage)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	envelope := &Envelope{
-		Version: defaults.WebsocketVersion,
-		Type:    defaults.WebsocketRaw,
-		Payload: encodedPayload,
-	}
-	envelopeBytes, err := proto.Marshal(envelope)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Send bytes over the websocket to the web client.
-	_, err = w.Write(envelopeBytes)
+	_, err = t.write([]byte(errMessage), ws)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -467,32 +431,9 @@ func resolveServerHostPort(servername string, existingServers []services.Server)
 	return host, port, nil
 }
 
-// wrappedSocket wraps and unwraps the envelope that is used to send events
-// over the websocket.
-type wrappedSocket struct {
-	ws       *websocket.Conn
-	terminal *TerminalHandler
-
-	encoder *encoding.Encoder
-	decoder *encoding.Decoder
-}
-
-func newWrappedSocket(ws *websocket.Conn, terminal *TerminalHandler) *wrappedSocket {
-	if ws == nil {
-		return nil
-	}
-	return &wrappedSocket{
-		ws:       ws,
-		terminal: terminal,
-		encoder:  unicode.UTF8.NewEncoder(),
-		decoder:  unicode.UTF8.NewDecoder(),
-	}
-}
-
-// Write wraps the data bytes in a raw envelope and sends.
-func (w *wrappedSocket) Write(data []byte) (n int, err error) {
+func (t *TerminalHandler) write(data []byte, ws *websocket.Conn) (n int, err error) {
 	// UTF-8 encode data and wrap it in a raw envelope.
-	encodedPayload, err := w.encoder.String(string(data))
+	encodedPayload, err := t.encoder.String(string(data))
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
@@ -507,7 +448,7 @@ func (w *wrappedSocket) Write(data []byte) (n int, err error) {
 	}
 
 	// Send bytes over the websocket to the web client.
-	err = websocket.Message.Send(w.ws, envelopeBytes)
+	err = websocket.Message.Send(ws, envelopeBytes)
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
@@ -517,9 +458,9 @@ func (w *wrappedSocket) Write(data []byte) (n int, err error) {
 
 // Read unwraps the envelope and either fills out the passed in bytes or
 // performs an action on the connection (sending window-change request).
-func (w *wrappedSocket) Read(out []byte) (n int, err error) {
+func (t *TerminalHandler) read(out []byte, ws *websocket.Conn) (n int, err error) {
 	var bytes []byte
-	err = websocket.Message.Receive(w.ws, &bytes)
+	err = websocket.Message.Receive(ws, &bytes)
 	if err != nil {
 		if err == io.EOF {
 			return 0, io.EOF
@@ -534,7 +475,7 @@ func (w *wrappedSocket) Read(out []byte) (n int, err error) {
 	}
 
 	var data []byte
-	data, err = w.decoder.Bytes([]byte(envelope.GetPayload()))
+	data, err = t.decoder.Bytes([]byte(envelope.GetPayload()))
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
@@ -546,16 +487,10 @@ func (w *wrappedSocket) Read(out []byte) (n int, err error) {
 	switch string(envelope.GetType()) {
 	case defaults.WebsocketRaw:
 		if len(out) < len(data) {
-			if w.terminal != nil {
-				w.terminal.log.Warnf("websocket failed to receive everything: %d vs %d", len(out), len(data))
-			}
+			t.log.Warnf("websocket failed to receive everything: %d vs %d", len(out), len(data))
 		}
 		return copy(out, data), nil
 	case defaults.WebsocketResize:
-		if w.terminal == nil {
-			return 0, nil
-		}
-
 		var e events.EventFields
 		err := json.Unmarshal(data, &e)
 		if err != nil {
@@ -569,7 +504,7 @@ func (w *wrappedSocket) Read(out []byte) (n int, err error) {
 
 		// Send the window change request in a goroutine so reads are not blocked
 		// by network connectivity issues.
-		go w.terminal.windowChange(params)
+		go t.windowChange(params)
 
 		return 0, nil
 	default:
@@ -577,12 +512,38 @@ func (w *wrappedSocket) Read(out []byte) (n int, err error) {
 	}
 }
 
+func (t *TerminalHandler) asTerminalStream(ws *websocket.Conn) (*terminalStream, error) {
+	if ws == nil {
+		return nil, trace.BadParameter("missing parameter ws")
+	}
+	return &terminalStream{
+		ws:       ws,
+		terminal: t,
+	}, nil
+}
+
+type terminalStream struct {
+	ws       *websocket.Conn
+	terminal *TerminalHandler
+}
+
+// Write wraps the data bytes in a raw envelope and sends.
+func (w *terminalStream) Write(data []byte) (n int, err error) {
+	return w.terminal.write(data, w.ws)
+}
+
+// Read unwraps the envelope and either fills out the passed in bytes or
+// performs an action on the connection (sending window-change request).
+func (w *terminalStream) Read(out []byte) (n int, err error) {
+	return w.terminal.read(out, w.ws)
+}
+
 // SetReadDeadline sets the network read deadline on the underlying websocket.
-func (w *wrappedSocket) SetReadDeadline(t time.Time) error {
+func (w *terminalStream) SetReadDeadline(t time.Time) error {
 	return w.ws.SetReadDeadline(t)
 }
 
 // Close the websocket.
-func (w *wrappedSocket) Close() error {
+func (w *terminalStream) Close() error {
 	return w.ws.Close()
 }
