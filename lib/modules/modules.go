@@ -43,6 +43,8 @@ type Modules interface {
 	// TraitsFromLogins returns traits for external user based on the logins
 	// and kubernetes groups extracted from the connector
 	TraitsFromLogins([]string, []string) map[string][]string
+	// SupportsKubernetes returns true if this cluster supports kubernetes
+	SupportsKubernetes() bool
 }
 
 // SetModules sets the modules interface
@@ -104,6 +106,11 @@ func (p *defaultModules) TraitsFromLogins(logins []string, kubeGroups []string) 
 		teleport.TraitLogins:     logins,
 		teleport.TraitKubeGroups: kubeGroups,
 	}
+}
+
+// SupportsKubernetes returns true if this cluster supports kubernetes
+func (p *defaultModules) SupportsKubernetes() bool {
+	return true
 }
 
 var (

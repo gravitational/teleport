@@ -29,6 +29,8 @@ type License struct {
 	Cert *x509.Certificate
 	// Payload is the license payload
 	Payload Payload
+	// RawPayload contains raw license payload
+	RawPayload []byte
 	// CertPEM is the certificate part of the license in PEM format
 	CertPEM []byte
 	// KeyPEM is the private key part of the license in PEM Format,
