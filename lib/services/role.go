@@ -1750,9 +1750,9 @@ func (b Bool) Value() bool {
 	return b.bool
 }
 
-// MarshalJSON marshals Duration to string
+// MarshalJSON marshals boolean value.
 func (b Bool) MarshalJSON() ([]byte, error) {
-	return json.Marshal(fmt.Sprintf("%t", b.bool))
+	return json.Marshal(b.bool)
 }
 
 // UnmarshalJSON unmarshals JSON from string or bool,
@@ -1868,8 +1868,14 @@ const RoleSpecV3SchemaTemplate = `{
     "max_session_ttl": { "type": "string" },
     "options": {
       "type": "object",
-      "patternProperties": {
-        "^[a-zA-Z/.0-9_]$": { "type": "string" }
+      "additionalProperties": false,
+      "properties": {
+        "forward_agent": { "type": ["boolean", "string"] },
+        "max_session_ttl": { "type": "string" },
+        "port_forwarding": { "type": ["boolean", "string"] },
+        "cert_format": { "type": "string" },
+        "client_idle_timeout": { "type": "string" },
+        "disconnect_expired_cert": { "type": ["boolean", "string"] }
       }
     },
     "allow": { "$ref": "#/definitions/role_condition" },
@@ -1887,8 +1893,9 @@ const RoleSpecV3SchemaDefinitions = `
       },
       "node_labels": {
         "type": "object",
+        "additionalProperties": false,
         "patternProperties": {
-          "^[a-zA-Z/.0-9_]$": { "type": "string" }
+          "^[a-zA-Z/.0-9_*]+$": { "type": "string" }
         }
       },
       "logins": {

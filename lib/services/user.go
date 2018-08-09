@@ -315,8 +315,14 @@ const UserSpecV2SchemaTemplate = `{
     },
     "traits": {
       "type": "object",
+      "additionalProperties": false,
       "patternProperties": {
-        "^[a-zA-Z/.0-9_]$":  { "type": "array", "items": {"type": "string"} }
+        "^[a-zA-Z/.0-9_]+$": {
+          "type": ["array", "null"],
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
     "oidc_identities": {
