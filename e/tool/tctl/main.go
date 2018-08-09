@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	modules.SetModules()
+	modules.SetModules(nil)
 	commands := []common.CLICommand{
 		&UserCommandE{},
 		&common.NodeCommand{},

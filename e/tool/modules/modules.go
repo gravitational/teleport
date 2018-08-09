@@ -4,23 +4,31 @@ import (
 	"fmt"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/e/lib/featureflags"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/trace"
 )
 
 // SetModules installs modules that provide custom behavior for the
 // enterprise compared to the open-source version
-func SetModules() {
-	modules.SetModules(&enterpriseModules{})
+func SetModules(flags featureflags.Flags) {
+	modules.SetModules(&enterpriseModules{flags: flags})
 }
 
 // enterpriseModules implements pluggable enterprise teleport logic
-type enterpriseModules struct{}
+type enterpriseModules struct {
+	flags featureflags.Flags
+}
 
 // EmptyRolesHandler is called when a new trusted cluster with empty roles
 // is created, for enterprise it returns an error as roles are mandatory
 func (p *enterpriseModules) EmptyRolesHandler() error {
 	return trace.BadParameter("missing 'role_map' parameter")
+}
+
+// SupportsKubernetes returns true if this cluster supports kubernetes
+func (p *enterpriseModules) SupportsKubernetes() bool {
+	return p.flags.GetSupportsKubernetes().Value()
 }
 
 // DefaultKubeGroups returns default kuberentes groups for a new admin role

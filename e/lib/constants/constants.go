@@ -43,7 +43,4 @@ var (
 	// apiHostEnvVar is used to "flip" the URL of Houston API to
 	// point it to staging/development servers
 	apiHostEnvVar = "HOUSTON_HOSTPORT"
-
-	// ProPlans is a list of plans that enable "pro" mode
-	ProPlans = []string{ProPlan, BusinessPlan}
 )

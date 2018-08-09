@@ -18,7 +18,6 @@ import (
 func main() {
 	web.InitPlugin()
 	auth.InitPlugin()
-	modules.SetModules()
 	executedCommand, config := common.Run(common.Options{
 		Args:     os.Args[1:],
 		InitOnly: true,
@@ -36,6 +35,7 @@ func run(config *service.Config) error {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		modules.SetModules(teleport.Flags)
 		auth.SetEnforcer(teleport.Enforcer)
 		return teleport, nil
 	}
