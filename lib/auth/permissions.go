@@ -392,7 +392,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 				Allow: services.RoleConditions{
 					Namespaces: []string{services.Wildcard},
 					Logins:     []string{},
-					NodeLabels: map[string]string{services.Wildcard: services.Wildcard},
+					NodeLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
 					Rules: []services.Rule{
 						services.NewRule(services.Wildcard, services.RW()),
 					},
