@@ -75,8 +75,8 @@ type SrvSuite struct {
 const teleportTestUser = "teleport-test"
 
 // wildcardAllow is used in tests to allow access to all labels.
-var wildcardAllow map[string]string = map[string]string{
-	services.Wildcard: services.Wildcard,
+var wildcardAllow = services.Labels{
+	services.Wildcard: []string{services.Wildcard},
 }
 
 var _ = Suite(&SrvSuite{})
@@ -343,27 +343,27 @@ func (s *SrvSuite) TestAllowedUsers(c *C) {
 
 func (s *SrvSuite) TestAllowedLabels(c *C) {
 	var tests = []struct {
-		inLabelMap map[string]string
+		inLabelMap services.Labels
 		outError   bool
 	}{
 		// Valid static label.
 		{
-			inLabelMap: map[string]string{"foo": "bar"},
+			inLabelMap: services.Labels{"foo": []string{"bar"}},
 			outError:   false,
 		},
 		// Invalid static label.
 		{
-			inLabelMap: map[string]string{"foo": "baz"},
+			inLabelMap: services.Labels{"foo": []string{"baz"}},
 			outError:   true,
 		},
 		// Valid dynamic label.
 		{
-			inLabelMap: map[string]string{"baz": "4"},
+			inLabelMap: services.Labels{"baz": []string{"4"}},
 			outError:   false,
 		},
 		// Invalid dynamic label.
 		{
-			inLabelMap: map[string]string{"baz": "5"},
+			inLabelMap: services.Labels{"baz": []string{"5"}},
 			outError:   true,
 		},
 	}
@@ -1081,7 +1081,7 @@ type upack struct {
 	certSigner ssh.Signer
 }
 
-func (s *SrvSuite) newUpack(username string, allowedLogins []string, allowedLabels map[string]string) (*upack, error) {
+func (s *SrvSuite) newUpack(username string, allowedLogins []string, allowedLabels services.Labels) (*upack, error) {
 	auth := s.server.Auth()
 	upriv, upub, err := auth.GenerateKeyPair("")
 	if err != nil {
