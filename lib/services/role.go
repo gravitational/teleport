@@ -98,7 +98,7 @@ func NewAdminRole() Role {
 			},
 			Allow: RoleConditions{
 				Namespaces: []string{defaults.Namespace},
-				NodeLabels: map[string]string{Wildcard: Wildcard},
+				NodeLabels: Labels{Wildcard: []string{Wildcard}},
 				Rules:      CopyRulesSlice(AdminUserRules),
 			},
 		},
@@ -148,7 +148,7 @@ func RoleForUser(u User) Role {
 			},
 			Allow: RoleConditions{
 				Namespaces: []string{defaults.Namespace},
-				NodeLabels: map[string]string{Wildcard: Wildcard},
+				NodeLabels: Labels{Wildcard: []string{Wildcard}},
 				Rules:      CopyRulesSlice(AdminUserRules),
 			},
 		},
@@ -170,7 +170,7 @@ func RoleForCertAuthority(ca CertAuthority) Role {
 			},
 			Allow: RoleConditions{
 				Namespaces: []string{defaults.Namespace},
-				NodeLabels: map[string]string{Wildcard: Wildcard},
+				NodeLabels: Labels{Wildcard: []string{Wildcard}},
 				Rules:      CopyRulesSlice(DefaultCertAuthorityRules),
 			},
 		},
@@ -249,9 +249,9 @@ type Role interface {
 	SetNamespaces(RoleConditionType, []string)
 
 	// GetNodeLabels gets the map of node labels this role is allowed or denied access to.
-	GetNodeLabels(RoleConditionType) map[string]string
+	GetNodeLabels(RoleConditionType) Labels
 	// SetNodeLabels sets the map of node labels this role is allowed or denied access to.
-	SetNodeLabels(RoleConditionType, map[string]string)
+	SetNodeLabels(RoleConditionType, Labels)
 
 	// GetRules gets all allow or deny rules.
 	GetRules(rct RoleConditionType) []Rule
@@ -312,25 +312,28 @@ func ApplyTraits(r Role, traits map[string][]string) Role {
 		inLabels := r.GetNodeLabels(condition)
 		// to avoid unnecessary allocations
 		if inLabels != nil {
-			outLabels := make(map[string]string, len(inLabels))
+			outLabels := make(Labels, len(inLabels))
 
 			// every key will be mapped to the first value
-			for key, val := range inLabels {
+			for key, vals := range inLabels {
 				keyVars, err := applyValueTraits(key, traits)
 				if err != nil {
 					// empty key will not match anything
-					log.Debugf("Setting empty node label pair %q -> %q: %v", key, val, err)
+					log.Debugf("Setting empty node label pair %q -> %q: %v", key, vals, err)
 					keyVars = []string{""}
 				}
 
-				valVars, err := applyValueTraits(val, traits)
-				if err != nil {
-					log.Debugf("Setting empty node label value %q -> %q: %v", key, val, err)
-					// empty value will not match anything
-					valVars = []string{""}
+				var values []string
+				for _, val := range vals {
+					valVars, err := applyValueTraits(val, traits)
+					if err != nil {
+						log.Debugf("Setting empty node label value %q -> %q: %v", key, val, err)
+						// empty value will not match anything
+						valVars = []string{""}
+					}
+					values = append(values, valVars...)
 				}
-
-				outLabels[keyVars[0]] = valVars[0]
+				outLabels[keyVars[0]] = utils.Deduplicate(values)
 			}
 			r.SetNodeLabels(condition, outLabels)
 		}
@@ -400,7 +403,7 @@ func (r *RoleV3) Equals(other Role) bool {
 		if !utils.StringSlicesEqual(r.GetNamespaces(condition), other.GetNamespaces(condition)) {
 			return false
 		}
-		if !utils.StringMapsEqual(r.GetNodeLabels(condition), other.GetNodeLabels(condition)) {
+		if !r.GetNodeLabels(condition).Equals(other.GetNodeLabels(condition)) {
 			return false
 		}
 		if !RuleSlicesEqual(r.GetRules(condition), other.GetRules(condition)) {
@@ -527,7 +530,7 @@ func (r *RoleV3) SetNamespaces(rct RoleConditionType, namespaces []string) {
 }
 
 // GetNodeLabels gets the map of node labels this role is allowed or denied access to.
-func (r *RoleV3) GetNodeLabels(rct RoleConditionType) map[string]string {
+func (r *RoleV3) GetNodeLabels(rct RoleConditionType) Labels {
 	if rct == Allow {
 		return r.Spec.Allow.NodeLabels
 	}
@@ -535,13 +538,11 @@ func (r *RoleV3) GetNodeLabels(rct RoleConditionType) map[string]string {
 }
 
 // SetNodeLabels sets the map of node labels this role is allowed or denied access to.
-func (r *RoleV3) SetNodeLabels(rct RoleConditionType, labels map[string]string) {
-	lcopy := utils.CopyStringMap(labels)
-
+func (r *RoleV3) SetNodeLabels(rct RoleConditionType, labels Labels) {
 	if rct == Allow {
-		r.Spec.Allow.NodeLabels = lcopy
+		r.Spec.Allow.NodeLabels = labels.Clone()
 	} else {
-		r.Spec.Deny.NodeLabels = lcopy
+		r.Spec.Deny.NodeLabels = labels.Clone()
 	}
 }
 
@@ -585,7 +586,7 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 		r.Spec.Allow.Namespaces = []string{defaults.Namespace}
 	}
 	if r.Spec.Allow.NodeLabels == nil {
-		r.Spec.Allow.NodeLabels = map[string]string{Wildcard: Wildcard}
+		r.Spec.Allow.NodeLabels = Labels{Wildcard: []string{Wildcard}}
 	}
 	if r.Spec.Deny.Namespaces == nil {
 		r.Spec.Deny.Namespaces = []string{defaults.Namespace}
@@ -615,7 +616,7 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 		}
 	}
 	for key, val := range r.Spec.Allow.NodeLabels {
-		if key == Wildcard && val != Wildcard {
+		if key == Wildcard && (len(val) != 1 || val[0] != Wildcard) {
 			return trace.BadParameter("selector *:<val> is not supported")
 		}
 	}
@@ -694,8 +695,9 @@ type RoleConditions struct {
 	// Namespaces is a list of namespaces (used to partition a cluster). The
 	// field should be called "namespaces" when it returns in Teleport 2.4.
 	Namespaces []string `json:"-"`
+
 	// NodeLabels is a map of node labels (used to dynamically grant access to nodes).
-	NodeLabels map[string]string `json:"node_labels,omitempty"`
+	NodeLabels Labels `json:"node_labels,omitempty"`
 
 	// Rules is a list of rules and their access levels. Rules are a high level
 	// construct used for access control.
@@ -714,7 +716,7 @@ func (r *RoleConditions) Equals(o RoleConditions) bool {
 	if !utils.StringSlicesEqual(r.Namespaces, o.Namespaces) {
 		return false
 	}
-	if !utils.StringMapsEqual(r.NodeLabels, o.NodeLabels) {
+	if !r.NodeLabels.Equals(o.NodeLabels) {
 		return false
 	}
 	if len(r.Rules) != len(o.Rules) {
@@ -1177,7 +1179,7 @@ func (r *RoleV2) V3() *RoleV3 {
 			Allow: RoleConditions{
 				Logins:     r.GetLogins(),
 				Namespaces: r.GetNamespaces(),
-				NodeLabels: r.GetNodeLabels(),
+				NodeLabels: scalarLabels(r.GetNodeLabels()).labels(),
 			},
 		},
 		rawObject: *r,
@@ -1392,17 +1394,23 @@ func MatchNamespace(selector []string, namespace string) bool {
 }
 
 // MatchLabels matches selector against target
-func MatchLabels(selector map[string]string, target map[string]string) bool {
+func MatchLabels(selector Labels, target map[string]string) bool {
 	// empty selector matches nothing
 	if len(selector) == 0 {
 		return false
 	}
 	// *: * matches everything even empty target set
-	if selector[Wildcard] == Wildcard {
+	selectorValues := selector[Wildcard]
+	if len(selectorValues) == 1 && selectorValues[0] == Wildcard {
 		return true
 	}
-	for key, val := range selector {
-		if targetVal, ok := target[key]; !ok || (val != targetVal && val != Wildcard) {
+	// otherwise perform full match
+	for key, selectorValues := range selector {
+		targetVal, hasKey := target[key]
+		if !hasKey {
+			return false
+		}
+		if !utils.SliceContainsStr(selectorValues, Wildcard) && !utils.SliceContainsStr(selectorValues, targetVal) {
 			return false
 		}
 	}
@@ -1740,6 +1748,50 @@ func BoolOption(v *Bool) Bool {
 	return *v
 }
 
+// Labels is a wrapper around map
+// that can marshal and unmarshal itself
+// from scalar and list values
+type Labels map[string]utils.Strings
+
+// Clone returns non-shallow copy of the labels set
+func (l Labels) Clone() Labels {
+	if l == nil {
+		return nil
+	}
+	out := make(Labels, len(l))
+	for key, vals := range l {
+		cvals := make([]string, len(vals))
+		copy(cvals, vals)
+		out[key] = cvals
+	}
+	return out
+}
+
+// Equals returns true if two label sets are equal
+func (l Labels) Equals(o Labels) bool {
+	if len(l) != len(o) {
+		return false
+	}
+	for key := range l {
+		if !utils.StringSlicesEqual(l[key], o[key]) {
+			return false
+		}
+	}
+	return true
+}
+
+// scalarLabels is a key value map
+// with scalar values
+type scalarLabels map[string]string
+
+func (l scalarLabels) labels() Labels {
+	out := make(Labels, len(l))
+	for key, val := range l {
+		out[key] = []string{val}
+	}
+	return out
+}
+
 // Bool is a wrapper around boolean values
 type Bool struct {
 	bool
@@ -1788,6 +1840,7 @@ func (b *Bool) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var boolVar bool
 	if err := unmarshal(&boolVar); err == nil {
 		b.bool = boolVar
+		return nil
 	}
 	var stringVar string
 	if err := unmarshal(&stringVar); err != nil {
@@ -1895,7 +1948,7 @@ const RoleSpecV3SchemaDefinitions = `
         "type": "object",
         "additionalProperties": false,
         "patternProperties": {
-          "^[a-zA-Z/.0-9_*]+$": { "type": "string" }
+          "^[a-zA-Z/.0-9_*]+$": { "anyOf": [{"type": "string"}, { "type": "array", "items": {"type": "string"}}]}
         }
       },
       "logins": {
