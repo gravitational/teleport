@@ -357,6 +357,26 @@ func (s *Strings) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return err
 }
 
+// MarshalJSON marshals to scalar value
+// if there is only one value in the list
+// to list otherwise
+func (s Strings) MarshalJSON() ([]byte, error) {
+	if len(s) == 1 {
+		return json.Marshal(s[0])
+	}
+	return json.Marshal([]string(s))
+}
+
+// MarshalYAML marshals to scalar value
+// if there is only one value in the list,
+// marshals to list otherwise
+func (s Strings) MarshalYAML() (interface{}, error) {
+	if len(s) == 1 {
+		return s[0], nil
+	}
+	return []string(s), nil
+}
+
 // Addrs returns strings list converted to address list
 func (s Strings) Addrs(defaultPort int) ([]NetAddr, error) {
 	addrs := make([]NetAddr, len(s))

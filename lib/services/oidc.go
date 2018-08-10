@@ -64,8 +64,6 @@ type OIDCConnector interface {
 	GetClaims() []string
 	// MapClaims maps claims to roles
 	MapClaims(claims jose.Claims) []string
-	// RoleFromTemplate creates a role from a template and claims.
-	RoleFromTemplate(claims jose.Claims) (Role, error)
 	// Check checks OIDC connector for errors
 	Check() error
 	// CheckAndSetDefaults checks and set default values for any missing fields.
@@ -434,51 +432,6 @@ func executeSliceTemplate(raw []string, claims jose.Claims) ([]string, error) {
 	}
 
 	return sl, nil
-}
-
-// RoleFromTemplate creates a role from a template and claims.
-func (o *OIDCConnectorV2) RoleFromTemplate(claims jose.Claims) (Role, error) {
-	for _, mapping := range o.Spec.ClaimsToRoles {
-		for claimName := range claims {
-			// claim name doesn't match
-			if claimName != mapping.Claim {
-				continue
-			}
-
-			// claim value doesn't match
-			claimValue, ok, _ := claims.StringClaim(claimName)
-			if ok && claimValue != mapping.Value {
-				continue
-			}
-
-			// claim name and value match, if a role template exists, execute template
-			roleTemplate := mapping.RoleTemplate
-			if roleTemplate != nil {
-				// at the moment, only allow templating for role name and logins
-				executedName, err := executeStringTemplate(roleTemplate.GetName(), claims)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				executedLogins, err := executeSliceTemplate(roleTemplate.GetLogins(), claims)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				roleTemplate.SetName(executedName)
-				roleTemplate.SetLogins(executedLogins)
-
-				// check all fields and make sure we have have a valid role
-				err = roleTemplate.CheckAndSetDefaults()
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				return roleTemplate.V3(), nil
-			}
-		}
-	}
-
-	return nil, trace.BadParameter("no matching claim name/value, claims: %v", claims)
 }
 
 // Check returns nil if all parameters are great, err otherwise

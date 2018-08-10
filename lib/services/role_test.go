@@ -198,7 +198,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 						PortForwarding:    NewBoolOption(true),
 					},
 					Allow: RoleConditions{
-						NodeLabels: map[string]string{Wildcard: Wildcard},
+						NodeLabels: Labels{Wildcard: []string{Wildcard}},
 						Namespaces: []string{defaults.Namespace},
 					},
 					Deny: RoleConditions{
@@ -257,7 +257,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 						DisconnectExpiredCert: NewBool(true),
 					},
 					Allow: RoleConditions{
-						NodeLabels: map[string]string{"a": "b"},
+						NodeLabels: Labels{"a": []string{"b"}},
 						Namespaces: []string{"default"},
 						Rules: []Rule{
 							Rule{
@@ -279,7 +279,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 			error: nil,
 		},
 		{
-			name: "alternative options forma",
+			name: "alternative options form",
 			in: `{
 		      "kind": "role",
 		      "version": "v3",
@@ -329,7 +329,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 						DisconnectExpiredCert: NewBool(false),
 					},
 					Allow: RoleConditions{
-						NodeLabels: map[string]string{"a": "b"},
+						NodeLabels: Labels{"a": []string{"b"}},
 						Namespaces: []string{"default"},
 						Rules: []Rule{
 							Rule{
@@ -341,6 +341,61 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 								},
 							},
 						},
+					},
+					Deny: RoleConditions{
+						Namespaces: []string{defaults.Namespace},
+						Logins:     []string{"c"},
+					},
+				},
+			},
+			error: nil,
+		},
+		{
+			name: "non-scalar and scalar values of labels",
+			in: `{
+		      "kind": "role",
+		      "version": "v3",
+		      "metadata": {"name": "name1"},
+		      "spec": {
+                 "options": {
+                   "cert_format": "standard",
+                   "max_session_ttl": "20h",
+                   "port_forwarding": "yes",
+                   "forward_agent": "yes",
+                   "client_idle_timeout": "never",
+                   "disconnect_expired_cert": "no"
+                 },
+                 "allow": {
+                   "node_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]}
+                 },
+                 "deny": {
+                   "logins": ["c"]
+                 }
+		      }
+		    }`,
+			role: RoleV3{
+				Kind:    KindRole,
+				Version: V3,
+				Metadata: Metadata{
+					Name:      "name1",
+					Namespace: defaults.Namespace,
+				},
+				Spec: RoleSpecV3{
+					Options: RoleOptions{
+						CertificateFormat:     teleport.CertificateFormatStandard,
+						ForwardAgent:          NewBool(true),
+						MaxSessionTTL:         NewDuration(20 * time.Hour),
+						PortForwarding:        NewBoolOption(true),
+						ClientIdleTimeout:     NewDuration(0),
+						DisconnectExpiredCert: NewBool(false),
+					},
+					Allow: RoleConditions{
+						NodeLabels: Labels{
+							"a":    []string{"b"},
+							"key":  []string{"val"},
+							"key2": []string{"val2", "val3"},
+						},
+						Namespaces: []string{"default"},
 					},
 					Deny: RoleConditions{
 						Namespaces: []string{defaults.Namespace},
@@ -374,6 +429,22 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 	}
 }
 
+// TestLabelCompatibility makes sure that labels
+// are serialized in format understood by older servers with
+// scalar labels
+func (s *RoleSuite) TestLabelCompatibility(c *C) {
+	labels := Labels{
+		"key": []string{"val"},
+	}
+	data, err := json.Marshal(labels)
+	c.Assert(err, IsNil)
+
+	var out map[string]string
+	err = json.Unmarshal(data, &out)
+	c.Assert(err, IsNil)
+	c.Assert(out, DeepEquals, map[string]string{"key": "val"})
+}
+
 func (s *RoleSuite) TestCheckAccess(c *C) {
 	type check struct {
 		server    Server
@@ -402,12 +473,12 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 	}
 	testCases := []struct {
 		name   string
-		roles  []RoleV2
+		roles  []RoleV3
 		checks []check
 	}{
 		{
 			name:  "empty role set has access to nothing",
-			roles: []RoleV2{},
+			roles: []RoleV3{},
 			checks: []check{
 				{server: serverA, login: "root", hasAccess: false},
 				{server: serverB, login: "root", hasAccess: false},
@@ -416,17 +487,21 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 		},
 		{
 			name: "role is limited to default namespace",
-			roles: []RoleV2{
-				RoleV2{
+			roles: []RoleV3{
+				RoleV3{
 					Metadata: Metadata{
 						Name:      "name1",
 						Namespace: defaults.Namespace,
 					},
-					Spec: RoleSpecV2{
-						MaxSessionTTL: Duration{20 * time.Hour},
-						Logins:        []string{"admin"},
-						NodeLabels:    map[string]string{Wildcard: Wildcard},
-						Namespaces:    []string{defaults.Namespace},
+					Spec: RoleSpecV3{
+						Options: RoleOptions{
+							MaxSessionTTL: Duration{20 * time.Hour},
+						},
+						Allow: RoleConditions{
+							Namespaces: []string{defaults.Namespace},
+							Logins:     []string{"admin"},
+							NodeLabels: Labels{Wildcard: []string{Wildcard}},
+						},
 					},
 				},
 			},
@@ -441,17 +516,50 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 		},
 		{
 			name: "role is limited to labels in default namespace",
-			roles: []RoleV2{
-				RoleV2{
+			roles: []RoleV3{
+				RoleV3{
 					Metadata: Metadata{
 						Name:      "name1",
 						Namespace: defaults.Namespace,
 					},
-					Spec: RoleSpecV2{
-						MaxSessionTTL: Duration{20 * time.Hour},
-						Logins:        []string{"admin"},
-						NodeLabels:    map[string]string{"role": "worker"},
-						Namespaces:    []string{defaults.Namespace},
+					Spec: RoleSpecV3{
+						Options: RoleOptions{
+							MaxSessionTTL: Duration{20 * time.Hour},
+						},
+						Allow: RoleConditions{
+							Logins:     []string{"admin"},
+							NodeLabels: Labels{"role": []string{"worker"}},
+							Namespaces: []string{defaults.Namespace},
+						},
+					},
+				},
+			},
+			checks: []check{
+				{server: serverA, login: "root", hasAccess: false},
+				{server: serverA, login: "admin", hasAccess: false},
+				{server: serverB, login: "root", hasAccess: false},
+				{server: serverB, login: "admin", hasAccess: true},
+				{server: serverC, login: "root", hasAccess: false},
+				{server: serverC, login: "admin", hasAccess: false},
+			},
+		},
+		{
+			name: "role matches any label out of multiple labels",
+			roles: []RoleV3{
+				RoleV3{
+					Metadata: Metadata{
+						Name:      "name1",
+						Namespace: defaults.Namespace,
+					},
+					Spec: RoleSpecV3{
+						Options: RoleOptions{
+							MaxSessionTTL: Duration{20 * time.Hour},
+						},
+						Allow: RoleConditions{
+							Logins:     []string{"admin"},
+							NodeLabels: Labels{"role": []string{"worker2", "worker"}},
+							Namespaces: []string{defaults.Namespace},
+						},
 					},
 				},
 			},
@@ -466,29 +574,37 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 		},
 		{
 			name: "one role is more permissive than another",
-			roles: []RoleV2{
-				RoleV2{
+			roles: []RoleV3{
+				RoleV3{
 					Metadata: Metadata{
 						Name:      "name1",
 						Namespace: defaults.Namespace,
 					},
-					Spec: RoleSpecV2{
-						MaxSessionTTL: Duration{20 * time.Hour},
-						Logins:        []string{"admin"},
-						NodeLabels:    map[string]string{"role": "worker"},
-						Namespaces:    []string{defaults.Namespace},
+					Spec: RoleSpecV3{
+						Options: RoleOptions{
+							MaxSessionTTL: Duration{20 * time.Hour},
+						},
+						Allow: RoleConditions{
+							Logins:     []string{"admin"},
+							NodeLabels: Labels{"role": []string{"worker"}},
+							Namespaces: []string{defaults.Namespace},
+						},
 					},
 				},
-				RoleV2{
+				RoleV3{
 					Metadata: Metadata{
 						Name:      "name1",
 						Namespace: defaults.Namespace,
 					},
-					Spec: RoleSpecV2{
-						MaxSessionTTL: Duration{20 * time.Hour},
-						Logins:        []string{"root", "admin"},
-						NodeLabels:    map[string]string{Wildcard: Wildcard},
-						Namespaces:    []string{Wildcard},
+					Spec: RoleSpecV3{
+						Options: RoleOptions{
+							MaxSessionTTL: Duration{20 * time.Hour},
+						},
+						Allow: RoleConditions{
+							Logins:     []string{"root", "admin"},
+							NodeLabels: Labels{Wildcard: []string{Wildcard}},
+							Namespaces: []string{Wildcard},
+						},
 					},
 				},
 			},
@@ -506,7 +622,7 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 
 		var set RoleSet
 		for i := range tc.roles {
-			set = append(set, tc.roles[i].V3())
+			set = append(set, &tc.roles[i])
 		}
 		for j, check := range tc.checks {
 			comment := Commentf("test case %v '%v', check %v", i, tc.name, j)
@@ -928,8 +1044,8 @@ func (s *RoleSuite) TestApplyTraits(c *C) {
 	type rule struct {
 		inLogins  []string
 		outLogins []string
-		inLabels  map[string]string
-		outLabels map[string]string
+		inLabels  Labels
+		outLabels Labels
 	}
 	var tests = []struct {
 		comment  string
@@ -1027,12 +1143,12 @@ func (s *RoleSuite) TestApplyTraits(c *C) {
 				"hello": []string{"there"},
 			},
 			allow: rule{
-				inLabels:  map[string]string{`{{external.foo}}`: "{{external.hello}}"},
-				outLabels: map[string]string{`bar`: "there"},
+				inLabels:  Labels{`{{external.foo}}`: []string{"{{external.hello}}"}},
+				outLabels: Labels{`bar`: []string{"there"}},
 			},
 			deny: rule{
-				inLabels:  map[string]string{`{{external.hello}}`: "{{external.foo}}"},
-				outLabels: map[string]string{`there`: "bar"},
+				inLabels:  Labels{`{{external.hello}}`: []string{"{{external.foo}}"}},
+				outLabels: Labels{`there`: []string{"bar"}},
 			},
 		},
 
@@ -1042,23 +1158,38 @@ func (s *RoleSuite) TestApplyTraits(c *C) {
 				"foo": []string{"bar"},
 			},
 			allow: rule{
-				inLabels: map[string]string{
-					`{{external.foo}}`:     "value",
-					`{{external.missing}}`: "missing",
-					`missing`:              "{{external.missing}}",
+				inLabels: Labels{
+					`{{external.foo}}`:     []string{"value"},
+					`{{external.missing}}`: []string{"missing"},
+					`missing`:              []string{"{{external.missing}}", "othervalue"},
 				},
-				outLabels: map[string]string{`bar`: "value", "missing": "", "": "missing"},
+				outLabels: Labels{
+					`bar`:     []string{"value"},
+					"missing": []string{"", "othervalue"},
+					"":        []string{"missing"},
+				},
 			},
 		},
 
 		{
-			comment: "the first variable value is picked for labels",
+			comment: "the first variable value is picked for label keys",
 			inTraits: map[string][]string{
 				"foo": []string{"bar", "baz"},
 			},
 			allow: rule{
-				inLabels:  map[string]string{`{{external.foo}}`: "value"},
-				outLabels: map[string]string{`bar`: "value"},
+				inLabels:  Labels{`{{external.foo}}`: []string{"value"}},
+				outLabels: Labels{`bar`: []string{"value"}},
+			},
+		},
+
+		{
+			comment: "all values are expanded for label values",
+			inTraits: map[string][]string{
+				"foo": []string{"bar", "baz"},
+			},
+			allow: rule{
+				inLabels:  Labels{`key`: []string{`{{external.foo}}`}},
+				outLabels: Labels{`key`: []string{"bar", "baz"}},
 			},
 		},
 	}

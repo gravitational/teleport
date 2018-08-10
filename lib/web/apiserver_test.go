@@ -441,7 +441,7 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 			MaxSessionTTL: services.NewDuration(defaults.MaxCertDuration),
 		},
 		Allow: services.RoleConditions{
-			NodeLabels: map[string]string{services.Wildcard: services.Wildcard},
+			NodeLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
 			Namespaces: []string{defaults.Namespace},
 			Rules: []services.Rule{
 				services.NewRule(services.Wildcard, services.RW()),

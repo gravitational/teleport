@@ -435,7 +435,7 @@ func (s *ServicesTestSuite) RolesCRUD(c *C) {
 			},
 			Allow: services.RoleConditions{
 				Logins:     []string{"root", "bob"},
-				NodeLabels: map[string]string{services.Wildcard: services.Wildcard},
+				NodeLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
 				Namespaces: []string{defaults.Namespace},
 				Rules: []services.Rule{
 					services.NewRule(services.KindRole, services.RO()),
