@@ -383,15 +383,15 @@
   revision = "52bc17adf63c0807b5e5b5d91350703630f621c7"
 
 [[projects]]
-  digest = "1:f82c3a66e29eb16ac26b0508e0fd067daee39664037034dbd783ee16c2c15aab"
+  digest = "1:831cd0cb1deb569f446e75a733c084e5909be572e6fed997b3dfdaffd696695d"
   name = "github.com/gravitational/license"
   packages = [
     ".",
     "constants",
   ]
   pruneopts = "NUT"
-  revision = "102213511ace56c97ccf1eef645835e16f84d130"
-  version = "0.0.4"
+  revision = "2cbce27028027ca78b910dd46b9b25aebaa7396f"
+  version = "0.0.5"
 
 [[projects]]
   digest = "1:9f8b10110aeb7160b903de8bc72e11df95302b090d8a5d345a07144415d3bd35"

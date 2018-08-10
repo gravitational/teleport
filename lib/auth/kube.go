@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/authority"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 
@@ -57,6 +58,10 @@ type KubeCSRResponse struct {
 // ProcessKubeCSR processes CSR request against Kubernetes CA, returns
 // signed certificate if sucessfull.
 func (s *AuthServer) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
+	if !modules.GetModules().SupportsKubernetes() {
+		return nil, trace.AccessDenied(
+			"this teleport cluster does not support kubernetes, please contact system administrator for support")
+	}
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}

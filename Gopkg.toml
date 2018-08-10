@@ -152,7 +152,7 @@ ignored = ["github.com/Sirupsen/logrus"]
 
 [[constraint]]
   name = "github.com/gravitational/license"
-  version = "0.0.4"
+  version = "0.0.5"
 
 [[override]]
   name = "k8s.io/api"
