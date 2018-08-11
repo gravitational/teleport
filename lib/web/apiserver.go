@@ -1334,14 +1334,17 @@ type nodeWithSessions struct {
 	Sessions []session.Session `json:"sessions"`
 }
 
-func (h *Handler) siteNodesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	clt, err := site.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+func (h *Handler) siteNodesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	namespace := p.ByName("namespace")
 	if !services.IsValidNamespace(namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
+	}
+
+	// Get a client to the Auth Server with the logged in users identity. The
+	// identity of the logged in user is used to fetch the list of nodes.
+	clt, err := ctx.GetUserClient(site)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	servers, err := clt.GetNodes(namespace, services.SkipValidation())
 	if err != nil {

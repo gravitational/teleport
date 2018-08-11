@@ -139,6 +139,9 @@ const (
 	// ComponentWebsocket is websocket server that the web client connects to.
 	ComponentWebsocket = "websocket"
 
+	// ComponentRBAC is role-based access control.
+	ComponentRBAC = "rbac"
+
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
 

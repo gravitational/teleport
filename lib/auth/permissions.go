@@ -207,7 +207,7 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*AuthConte
 	user.SetRoles([]string{string(teleport.RoleRemoteProxy)})
 	return &AuthContext{
 		User:    user,
-		Checker: roles,
+		Checker: RemoteBuiltinRoleSet{roles},
 	}, nil
 }
 
@@ -470,6 +470,12 @@ type BuiltinRole struct {
 // BuiltinRoleSet wraps a services.RoleSet. The type is used to determine if
 // the role is builtin or not.
 type BuiltinRoleSet struct {
+	services.RoleSet
+}
+
+// BuiltinRoleSet wraps a services.RoleSet. The type is used to determine if
+// the role is a remote builtin or not.
+type RemoteBuiltinRoleSet struct {
 	services.RoleSet
 }
 

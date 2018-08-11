@@ -169,8 +169,6 @@ func (s *PresenceService) GetNodes(namespace string, opts ...services.MarshalOpt
 		return nil, trace.BadParameter("missing namespace value")
 	}
 
-	start := time.Now()
-
 	// Get all items in the bucket.
 	bucket := []string{namespacesPrefix, namespace, nodesPrefix}
 	items, err := s.GetItems(bucket)
@@ -190,8 +188,6 @@ func (s *PresenceService) GetNodes(namespace string, opts ...services.MarshalOpt
 		}
 		servers[i] = server
 	}
-
-	s.log.Debugf("GetServers(%v) in %v.", len(servers), time.Now().Sub(start))
 
 	return servers, nil
 }
