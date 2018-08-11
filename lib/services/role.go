@@ -1372,49 +1372,53 @@ func NewRoleSet(roles ...Role) RoleSet {
 // RoleSet is a set of roles that implements access control functionality
 type RoleSet []Role
 
-// MatchLogin returns true if attempted login matches any of the logins
-func MatchLogin(logins []string, login string) bool {
-	for _, l := range logins {
-		if l == login {
-			return true
-		}
-	}
-	return false
-}
-
 // MatchNamespace returns true if given list of namespace matches
-// target namespace, wildcard matches everything
-func MatchNamespace(selector []string, namespace string) bool {
-	for _, n := range selector {
+// target namespace, wildcard matches everything.
+func MatchNamespace(selectors []string, namespace string) (bool, string) {
+	for _, n := range selectors {
 		if n == namespace || n == Wildcard {
-			return true
+			return true, "matched"
 		}
 	}
-	return false
+	return false, fmt.Sprintf("no match, role selectors %v, server namespace: %v", selectors, namespace)
 }
 
-// MatchLabels matches selector against target
-func MatchLabels(selector Labels, target map[string]string) bool {
-	// empty selector matches nothing
-	if len(selector) == 0 {
-		return false
+// MatchLogin returns true if attempted login matches any of the logins.
+func MatchLogin(selectors []string, login string) (bool, string) {
+	for _, l := range selectors {
+		if l == login {
+			return true, "matched"
+		}
 	}
-	// *: * matches everything even empty target set
+	return false, fmt.Sprintf("no match, role selectors %v, login: %v", selectors, login)
+}
+
+// MatchLabels matches selector against target. Empty selector matches
+// nothing, wildcard matches everything.
+func MatchLabels(selector Labels, target map[string]string) (bool, string) {
+	// Empty selector matches nothing.
+	if len(selector) == 0 {
+		return false, "no match, empty selector"
+	}
+
+	// *: * matches everything even empty target set.
 	selectorValues := selector[Wildcard]
 	if len(selectorValues) == 1 && selectorValues[0] == Wildcard {
-		return true
+		return true, "matched"
 	}
-	// otherwise perform full match
+
+	// Perform full match.
 	for key, selectorValues := range selector {
 		targetVal, hasKey := target[key]
 		if !hasKey {
-			return false
+			return false, fmt.Sprintf("no key match: '%v'", key)
 		}
 		if !utils.SliceContainsStr(selectorValues, Wildcard) && !utils.SliceContainsStr(selectorValues, targetVal) {
-			return false
+			return false, fmt.Sprintf("no value match: got '%v' want: '%v'", targetVal, selectorValues)
 		}
 	}
-	return true
+
+	return true, "matched"
 }
 
 // RoleNames returns a slice with role names
@@ -1543,41 +1547,52 @@ func (set RoleSet) CheckLoginDuration(ttl time.Duration) ([]string, error) {
 // CheckAccessToServer checks if a role has access to a node. Deny rules are
 // checked first then allow rules. Access to a node is determined by
 // namespaces, labels, and logins.
+//
+// Note, logging in this function only happens in debug mode, this is because
+// adding logging to this function (which is called on every server returned
+// by GetNodes) can slow down this function by 50x for large clusters!
 func (set RoleSet) CheckAccessToServer(login string, s Server) error {
 	var errs []error
 
-	// check deny rules first: a single matching namespace, label, or login from
+	// Check deny rules first: a single matching namespace, label, or login from
 	// the deny role set prohibits access.
 	for _, role := range set {
-		matchNamespace := MatchNamespace(role.GetNamespaces(Deny), s.GetNamespace())
-		matchLabels := MatchLabels(role.GetNodeLabels(Deny), s.GetAllLabels())
-		matchLogin := MatchLogin(role.GetLogins(Deny), login)
+		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Deny), s.GetNamespace())
+		matchLabels, labelsMessage := MatchLabels(role.GetNodeLabels(Deny), s.GetAllLabels())
+		matchLogin, loginMessage := MatchLogin(role.GetLogins(Deny), login)
 		if matchNamespace && (matchLabels || matchLogin) {
-			errorMessage := fmt.Sprintf("role %v denied access to node %v: deny rule matched; match(namespace=%v, label=%v, login=%v)",
-				role.GetName(), s.GetHostname(), matchNamespace, matchLabels, matchLogin)
-			log.Warnf("[RBAC] Denied access to server: " + errorMessage)
-			return trace.AccessDenied(errorMessage)
+			if log.GetLevel() == log.DebugLevel {
+				log.WithFields(log.Fields{
+					trace.Component: teleport.ComponentRBAC,
+				}).Debugf("Access to node %v denied, deny rule in %v matched; match(namespace=%v, label=%v, login=%v)",
+					s.GetHostname(), role.GetName(), namespaceMessage, labelsMessage, loginMessage)
+			}
+			return trace.AccessDenied("access to server denied")
 		}
 	}
 
-	// check allow rules: namespace, label, and login have to all match in
+	// Check allow rules: namespace, label, and login have to all match in
 	// one role in the role set to be granted access.
 	for _, role := range set {
-		matchNamespace := MatchNamespace(role.GetNamespaces(Allow), s.GetNamespace())
-		matchLabels := MatchLabels(role.GetNodeLabels(Allow), s.GetAllLabels())
-		matchLogin := MatchLogin(role.GetLogins(Allow), login)
+		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Allow), s.GetNamespace())
+		matchLabels, labelsMessage := MatchLabels(role.GetNodeLabels(Allow), s.GetAllLabels())
+		matchLogin, loginMessage := MatchLogin(role.GetLogins(Allow), login)
 		if matchNamespace && matchLabels && matchLogin {
 			return nil
 		}
-
-		errorMessage := fmt.Sprintf("role %v denied access: allow rules did not match; match(namespace=%v, label=%v, login=%v)",
-			role.GetName(), matchNamespace, matchLabels, matchLogin)
-		errs = append(errs, trace.AccessDenied(errorMessage))
+		if log.GetLevel() == log.DebugLevel {
+			deniedError := trace.AccessDenied("role=%v, match(namespace=%v, label=%v, login=%v)",
+				role.GetName(), namespaceMessage, labelsMessage, loginMessage)
+			errs = append(errs, deniedError)
+		}
 	}
 
-	errorMessage := fmt.Sprintf("access to node %v is denied to role(s): %v", s.GetHostname(), errs)
-	log.Warnf("[RBAC] Denied access to server: " + errorMessage)
-	return trace.AccessDenied(errorMessage)
+	if log.GetLevel() == log.DebugLevel {
+		log.WithFields(log.Fields{
+			trace.Component: teleport.ComponentRBAC,
+		}).Debugf("Access to node %v denied, no allow rule matched; %v", s.GetHostname(), errs)
+	}
+	return trace.AccessDenied("access to server denied")
 }
 
 // CanForwardAgents returns true if role set allows forwarding agents.
@@ -1680,7 +1695,7 @@ func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource
 	}
 	// check deny: a single match on a deny rule prohibits access
 	for _, role := range set {
-		matchNamespace := MatchNamespace(role.GetNamespaces(Deny), ProcessNamespace(namespace))
+		matchNamespace, _ := MatchNamespace(role.GetNamespaces(Deny), ProcessNamespace(namespace))
 		if matchNamespace {
 			matched, err := MakeRuleSet(role.GetRules(Deny)).Match(whereParser, actionsParser, resource, verb)
 			if err != nil {
@@ -1695,7 +1710,7 @@ func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource
 
 	// check allow: if rule matches, grant access to resource
 	for _, role := range set {
-		matchNamespace := MatchNamespace(role.GetNamespaces(Allow), ProcessNamespace(namespace))
+		matchNamespace, _ := MatchNamespace(role.GetNamespaces(Allow), ProcessNamespace(namespace))
 		if matchNamespace {
 			match, err := MakeRuleSet(role.GetRules(Allow)).Match(whereParser, actionsParser, resource, verb)
 			if err != nil {

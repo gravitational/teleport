@@ -29,6 +29,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
+
+	"github.com/sirupsen/logrus"
 	"github.com/tstranex/u2f"
 )
 
@@ -76,6 +78,19 @@ func (a *AuthWithRoles) authConnectorAction(namespace string, resource string, v
 // Returns true if role set is builtin and the name matches.
 func (a *AuthWithRoles) hasBuiltinRole(name string) bool {
 	if _, ok := a.checker.(BuiltinRoleSet); !ok {
+		return false
+	}
+	if !a.checker.HasRole(name) {
+		return false
+	}
+
+	return true
+}
+
+// hasRemoteBuiltinRole checks the type of the role set returned and the name.
+// Returns true if role set is remote builtin and the name matches.
+func (a *AuthWithRoles) hasRemoteBuiltinRole(name string) bool {
+	if _, ok := a.checker.(RemoteBuiltinRoleSet); !ok {
 		return false
 	}
 	if !a.checker.HasRole(name) {
@@ -317,11 +332,78 @@ func (a *AuthWithRoles) UpsertNode(s services.Server) error {
 	return a.authServer.UpsertNode(s)
 }
 
+// filterNodes filters nodes based off the role of the logged in user.
+func (a *AuthWithRoles) filterNodes(nodes []services.Server) ([]services.Server, error) {
+	// For certain built-in roles, continue to allow access and return the full
+	// set of nodes to not break existing clusters during migration. This is
+	// also used by the proxy to cache a list of all nodes for it's smart
+	// resolution.
+	if a.hasBuiltinRole(string(teleport.RoleAdmin)) ||
+		a.hasBuiltinRole(string(teleport.RoleProxy)) ||
+		a.hasRemoteBuiltinRole(string(teleport.RoleRemoteProxy)) {
+		return nodes, nil
+	}
+
+	// Fetch services.RoleSet for the identity of the logged in user.
+	roles, err := services.FetchRoles(a.user.GetRoles(), a.authServer, a.user.GetTraits())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Extract all unique allowed logins across all roles.
+	allowedLogins := make(map[string]bool)
+	for _, role := range roles {
+		for _, login := range role.GetLogins(services.Allow) {
+			allowedLogins[login] = true
+		}
+	}
+
+	// Loop over all nodes and check if the caller has access.
+	filteredNodes := make([]services.Server, 0, len(nodes))
+NextNode:
+	for _, node := range nodes {
+		for login, _ := range allowedLogins {
+			err := roles.CheckAccessToServer(login, node)
+			if err == nil {
+				filteredNodes = append(filteredNodes, node)
+				continue NextNode
+			}
+		}
+	}
+
+	return filteredNodes, nil
+}
+
 func (a *AuthWithRoles) GetNodes(namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
 	if err := a.action(namespace, services.KindNode, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetNodes(namespace, opts...)
+
+	// Fetch full list of nodes in the backend.
+	startFetch := time.Now()
+	nodes, err := a.authServer.GetNodes(namespace, opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	elapsedFetch := time.Since(startFetch)
+
+	// Filter nodes to return the ones for the connected identity.
+	startFilter := time.Now()
+	filteredNodes, err := a.filterNodes(nodes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	elapsedFilter := time.Since(startFilter)
+
+	log.WithFields(logrus.Fields{
+		"user":           a.user.GetName(),
+		"elapsed_fetch":  elapsedFetch,
+		"elapsed_filter": elapsedFilter,
+	}).Debugf(
+		"GetServers(%v->%v) in %v.",
+		len(nodes), len(filteredNodes), elapsedFetch+elapsedFilter)
+
+	return filteredNodes, nil
 }
 
 func (a *AuthWithRoles) UpsertAuthServer(s services.Server) error {

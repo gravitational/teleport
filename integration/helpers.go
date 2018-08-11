@@ -552,33 +552,24 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 }
 
 // StartNode starts a SSH node and connects it to the cluster.
-func (i *TeleInstance) StartNode(name string, sshPort int) (*service.TeleportProcess, error) {
+func (i *TeleInstance) StartNode(tconf *service.Config) (*service.TeleportProcess, error) {
 	dataDir, err := ioutil.TempDir("", "cluster-"+i.Secrets.SiteName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	tconf := service.MakeDefaultConfig()
+	tconf.DataDir = dataDir
 
 	authServer := utils.MustParseAddr(net.JoinHostPort(i.Hostname, i.GetPortAuth()))
 	tconf.AuthServers = append(tconf.AuthServers, *authServer)
 	tconf.Token = "token"
-	tconf.HostUUID = name
-	tconf.Hostname = name
-	tconf.DataDir = dataDir
 	tconf.UploadEventsC = i.UploadEventsC
 	var ttl time.Duration
 	tconf.CachePolicy = service.CachePolicy{
 		Enabled:   true,
 		RecentTTL: &ttl,
 	}
-
 	tconf.Auth.Enabled = false
-
 	tconf.Proxy.Enabled = false
-
-	tconf.SSH.Enabled = true
-	tconf.SSH.Addr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", sshPort))
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".

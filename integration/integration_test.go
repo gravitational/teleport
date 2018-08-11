@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http/httptest"
 	"net/url"
 	"os"
@@ -216,8 +217,20 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 		t := s.newTeleportWithConfig(makeConfig())
 		defer t.Stop(true)
 
+		// Start a node.
 		nodeSSHPort := s.getPorts(1)[0]
-		nodeProcess, err := t.StartNode("node", nodeSSHPort)
+		nodeConfig := func() *service.Config {
+			tconf := service.MakeDefaultConfig()
+
+			tconf.HostUUID = "node"
+			tconf.Hostname = "node"
+
+			tconf.SSH.Enabled = true
+			tconf.SSH.Addr.Addr = net.JoinHostPort(t.Hostname, fmt.Sprintf("%v", nodeSSHPort))
+
+			return tconf
+		}
+		nodeProcess, err := t.StartNode(nodeConfig())
 		c.Assert(err, check.IsNil)
 
 		// get access to a authClient for the cluster
@@ -2906,6 +2919,141 @@ func (s *IntSuite) TestWindowChange(c *check.C) {
 
 	// Close the session.
 	personA.Type("\aexit\r\n\a")
+}
+
+// TestList checks that the list of servers returned is identity aware.
+func (s *IntSuite) TestList(c *check.C) {
+	// Create and start a Teleport cluster with auth, proxy, and node.
+	makeConfig := func() (*check.C, []string, []*InstanceSecrets, *service.Config) {
+		clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+			SessionRecording: services.RecordOff,
+		})
+		c.Assert(err, check.IsNil)
+
+		tconf := service.MakeDefaultConfig()
+		tconf.Hostname = "server-01"
+		tconf.Auth.Enabled = true
+		tconf.Auth.ClusterConfig = clusterConfig
+		tconf.Proxy.Enabled = true
+		tconf.Proxy.DisableWebService = true
+		tconf.Proxy.DisableWebInterface = true
+		tconf.SSH.Enabled = true
+		tconf.SSH.Labels = map[string]string{
+			"role": "worker",
+		}
+
+		return c, nil, nil, tconf
+	}
+	t := s.newTeleportWithConfig(makeConfig())
+	defer t.Stop(true)
+
+	// Create and start a Teleport node.
+	nodeSSHPort := s.getPorts(1)[0]
+	nodeConfig := func() *service.Config {
+		tconf := service.MakeDefaultConfig()
+		tconf.Hostname = "server-02"
+		tconf.SSH.Enabled = true
+		tconf.SSH.Addr.Addr = net.JoinHostPort(t.Hostname, fmt.Sprintf("%v", nodeSSHPort))
+		tconf.SSH.Labels = map[string]string{
+			"role": "database",
+		}
+
+		return tconf
+	}
+	_, err := t.StartNode(nodeConfig())
+	c.Assert(err, check.IsNil)
+
+	// Get an auth client to the cluster.
+	clt := t.GetSiteAPI(Site)
+	c.Assert(clt, check.NotNil)
+
+	// Wait 10 seconds for both nodes to show up to make sure they both have
+	// registered themselves.
+	waitForNodes := func(clt auth.ClientI, count int) error {
+		tickCh := time.Tick(500 * time.Millisecond)
+		stopCh := time.After(10 * time.Second)
+		for {
+			select {
+			case <-tickCh:
+				nodesInCluster, err := clt.GetNodes(defaults.Namespace, services.SkipValidation())
+				if err != nil && !trace.IsNotFound(err) {
+					return trace.Wrap(err)
+				}
+				if got, want := len(nodesInCluster), count; got == want {
+					return nil
+				}
+			case <-stopCh:
+				return trace.BadParameter("waited 10s, did find %v nodes", count)
+			}
+		}
+	}
+	err = waitForNodes(clt, 2)
+	c.Assert(err, check.IsNil)
+
+	var tests = []struct {
+		inRoleName string
+		inLabels   services.Labels
+		inLogin    string
+		outNodes   []string
+	}{
+		// 0 - Role has label "role:worker", only server-01 is returned.
+		{
+			inRoleName: "worker-only",
+			inLogin:    "foo",
+			inLabels:   services.Labels{"role": []string{"worker"}},
+			outNodes:   []string{"server-01"},
+		},
+		// 1 - Role has label "role:database", only server-02 is returned.
+		{
+			inRoleName: "database-only",
+			inLogin:    "bar",
+			inLabels:   services.Labels{"role": []string{"database"}},
+			outNodes:   []string{"server-02"},
+		},
+		// 2 - Role has wildcard label, all nodes are returned server-01 and server-2.
+		{
+			inRoleName: "worker-and-database",
+			inLogin:    "baz",
+			inLabels:   services.Labels{services.Wildcard: []string{services.Wildcard}},
+			outNodes:   []string{"server-01", "server-02"},
+		},
+	}
+
+	for _, tt := range tests {
+		// Create role with logins and labels for this test.
+		role, err := services.NewRole(tt.inRoleName, services.RoleSpecV3{
+			Allow: services.RoleConditions{
+				Logins:     []string{tt.inLogin},
+				NodeLabels: tt.inLabels,
+			},
+		})
+		c.Assert(err, check.IsNil)
+
+		// Create user, role, and generate credentials.
+		err = SetupUser(t.Process, tt.inLogin, []services.Role{role})
+		c.Assert(err, check.IsNil)
+		initialCreds, err := GenerateUserCreds(t.Process, tt.inLogin)
+		c.Assert(err, check.IsNil)
+
+		// Create a Teleport client.
+		cfg := ClientConfig{
+			Login: tt.inLogin,
+			Port:  t.GetPortSSHInt(),
+		}
+		userClt, err := t.NewClientWithCreds(cfg, *initialCreds)
+		c.Assert(err, check.IsNil)
+
+		// Get list of nodes and check that the returned nodes match the
+		// expected nodes.
+		nodes, err := userClt.ListNodes(context.Background())
+		c.Assert(err, check.IsNil)
+		for _, node := range nodes {
+			ok := utils.SliceContainsStr(tt.outNodes, node.GetHostname())
+			if !ok {
+				c.Fatalf("Got nodes: %v, want: %v.", nodes, tt.outNodes)
+			}
+		}
+	}
 }
 
 // runCommand is a shortcut for running SSH command, it creates a client
