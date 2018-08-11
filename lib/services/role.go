@@ -616,7 +616,7 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 		}
 	}
 	for key, val := range r.Spec.Allow.NodeLabels {
-		if key == Wildcard && (len(val) != 1 || val[0] != Wildcard) {
+		if key == Wildcard && !(len(val) == 1 && val[0] == Wildcard) {
 			return trace.BadParameter("selector *:<val> is not supported")
 		}
 	}

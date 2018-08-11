@@ -573,6 +573,35 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 			},
 		},
 		{
+			name: "node_labels with emtpy list value matches nothing",
+			roles: []RoleV3{
+				RoleV3{
+					Metadata: Metadata{
+						Name:      "name1",
+						Namespace: defaults.Namespace,
+					},
+					Spec: RoleSpecV3{
+						Options: RoleOptions{
+							MaxSessionTTL: Duration{20 * time.Hour},
+						},
+						Allow: RoleConditions{
+							Logins:     []string{"admin"},
+							NodeLabels: Labels{"role": []string{}},
+							Namespaces: []string{defaults.Namespace},
+						},
+					},
+				},
+			},
+			checks: []check{
+				{server: serverA, login: "root", hasAccess: false},
+				{server: serverA, login: "admin", hasAccess: false},
+				{server: serverB, login: "root", hasAccess: false},
+				{server: serverB, login: "admin", hasAccess: false},
+				{server: serverC, login: "root", hasAccess: false},
+				{server: serverC, login: "admin", hasAccess: false},
+			},
+		},
+		{
 			name: "one role is more permissive than another",
 			roles: []RoleV3{
 				RoleV3{
