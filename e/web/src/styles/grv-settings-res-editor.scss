@@ -5,13 +5,14 @@
   max-width: 600px;
 }
 
-.grv-settings-res-editor{      
+.grv-settings-res-editor{
   .grv-alert-danger, .grv-alert-info {
     padding: 5px 10px;
   }
 
   .ace_editor {
     font-size: 10pt;
-    font-family: Menlo,Liberation Mono,monospace;
   }
 }
+
+@include withMonoFont(".grv-settings-res-editor .ace_editor");
