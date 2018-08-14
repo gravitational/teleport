@@ -357,6 +357,12 @@ const ClusterConfigSpecSchemaTemplate = `{
     "cluster_id": {
       "type": "string"
     },
+    "client_idle_timeout": {
+      "type": "string"
+    },
+    "disconnect_expired_cert": {
+      "anyOf": [{"type": "string"}, { "type": "boolean"}]
+    },
     "audit": {
       "type": "object",
       "additionalProperties": false,
