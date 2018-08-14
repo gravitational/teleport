@@ -10726,11 +10726,11 @@ webpackJsonp([0],[
 	        rowIndex = _props.rowIndex;
 	    var _data$rowIndex = data[rowIndex],
 	        siteId = _data$rowIndex.siteId,
-	        hostname = _data$rowIndex.hostname;
+	        id = _data$rowIndex.id;
 
 	    return _config2.default.getTerminalLoginUrl({
 	      siteId: siteId,
-	      serverId: hostname,
+	      serverId: id,
 	      login: login
 	    });
 	  };
@@ -10763,22 +10763,14 @@ webpackJsonp([0],[
 	      _react2.default.createElement(
 	        'div',
 	        { style: { display: "flex" } },
-	        _react2.default.createElement(
+	        logins.length === 0 && _react2.default.createElement(EmptyValue, { text: 'No assigned logins' }),
+	        logins.length > 0 && _react2.default.createElement(
 	          'div',
 	          { style: { display: "flex" }, className: 'btn-group' },
-	          logins.length > 0 && _react2.default.createElement(
+	          _react2.default.createElement(
 	            _reactRouter.Link,
 	            { className: 'btn btn-xs btn-primary', to: defaultTermUrl },
 	            defaultLogin
-	          ),
-	          logins.length === 0 && _react2.default.createElement(
-	            'div',
-	            { className: 'btn btn-xs btn-white' },
-	            _react2.default.createElement(
-	              'span',
-	              { className: 'text-muted' },
-	              ' Empty '
-	            )
 	          ),
 	          _react2.default.createElement(
 	            'button',
