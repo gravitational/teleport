@@ -718,6 +718,16 @@ func (s *TLSSuite) TestAuthPreference(c *check.C) {
 	suite.AuthPreference(c)
 }
 
+func (s *TLSSuite) TestClusterConfig(c *check.C) {
+	clt, err := s.server.NewClient(TestAdmin())
+	c.Assert(err, check.IsNil)
+
+	suite := &suite.ServicesTestSuite{
+		ConfigS: clt,
+	}
+	suite.ClusterConfig(c)
+}
+
 func (s *TLSSuite) TestTunnelConnectionsCRUD(c *check.C) {
 	clt, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)

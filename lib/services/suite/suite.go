@@ -780,3 +780,29 @@ func (s *ServicesTestSuite) AuthPreference(c *C) {
 	c.Assert(gotAP.GetType(), Equals, "local")
 	c.Assert(gotAP.GetSecondFactor(), Equals, "otp")
 }
+
+// ClusterConfig tests cluster configuration
+func (s *ServicesTestSuite) ClusterConfig(c *C) {
+	config, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+		ClientIdleTimeout:     services.NewDuration(17 * time.Second),
+		DisconnectExpiredCert: services.NewBool(true),
+		ClusterID:             "27",
+		SessionRecording:      services.RecordAtProxy,
+		Audit: services.AuditConfig{
+			Region:           "us-west-1",
+			Type:             "dynamodb",
+			AuditSessionsURI: "file:///home/log",
+			AuditTableName:   "audit_table_name",
+			AuditEventsURI:   []string{"dynamodb://audit_table_name", "file:///home/log"},
+		},
+	})
+	c.Assert(err, IsNil)
+
+	err = s.ConfigS.SetClusterConfig(config)
+	c.Assert(err, IsNil)
+
+	gotConfig, err := s.ConfigS.GetClusterConfig()
+	c.Assert(err, IsNil)
+
+	fixtures.DeepCompare(c, config, gotConfig)
+}
