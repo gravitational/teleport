@@ -72,6 +72,10 @@ service:
       port: 3023
       targetPort: 3023
       protocol: TCP
+    proxytunnel:
+      port: 3024
+      targetPort: 3024
+      protocol: TCP
   annotations: {}
   ## See https://github.com/kubernetes-incubator/external-dns/blob/master/docs/tutorials/aws-sd.md#verify-that-externaldns-works-service-example
   # Set something like the below in order to instruct external-dns to create a Route53 record set for your ELB on AWS:
