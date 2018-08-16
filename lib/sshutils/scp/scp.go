@@ -309,18 +309,6 @@ func (cmd *command) sendDir(r *reader, ch io.ReadWriter, fileInfo FileInfo) erro
 }
 
 func (cmd *command) sendFile(r *reader, ch io.ReadWriter, fileInfo FileInfo) error {
-	// log audit event:
-	if cmd.AuditLog != nil {
-		cmd.AuditLog.EmitAuditEvent(events.SCPEvent, events.EventFields{
-			events.SCPPath:    fileInfo.GetPath(),
-			events.SCPLengh:   fileInfo.GetSize(),
-			events.LocalAddr:  cmd.Flags.LocalAddr,
-			events.RemoteAddr: cmd.Flags.RemoteAddr,
-			events.EventUser:  cmd.User,
-			events.SCPAction:  "upload",
-		})
-	}
-
 	reader, err := cmd.FileSystem.OpenFile(fileInfo.GetPath())
 	if err != nil {
 		return trace.Wrap(err)
@@ -454,18 +442,6 @@ func (cmd *command) receiveFile(st *state, fc newFileCmd, ch io.ReadWriter) erro
 	// report progress:
 	if cmd.ProgressWriter != nil {
 		defer fmt.Fprintf(cmd.ProgressWriter, "<- %s (%d)\n", path, fc.Length)
-	}
-
-	// log audit event:
-	if cmd.AuditLog != nil {
-		cmd.AuditLog.EmitAuditEvent(events.SCPEvent, events.EventFields{
-			events.LocalAddr:  cmd.Flags.LocalAddr,
-			events.RemoteAddr: cmd.Flags.RemoteAddr,
-			events.EventUser:  cmd.User,
-			events.SCPPath:    path,
-			events.SCPLengh:   fc.Length,
-			events.SCPAction:  "download",
-		})
 	}
 
 	defer writer.Close()
