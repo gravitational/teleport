@@ -136,6 +136,9 @@ const (
 	// ComponentUpload is a session recording upload server
 	ComponentUpload = "upload"
 
+	// ComponentWeb is a web server
+	ComponentWeb = "web"
+
 	// ComponentWebsocket is websocket server that the web client connects to.
 	ComponentWebsocket = "websocket"
 
