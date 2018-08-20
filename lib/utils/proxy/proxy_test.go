@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package proxy
 
 import (
@@ -40,51 +41,82 @@ func (s *ProxySuite) SetUpTest(c *check.C)     {}
 func (s *ProxySuite) TearDownTest(c *check.C)  {}
 
 func (s *ProxySuite) TestGetProxyAddress(c *check.C) {
+	type env struct {
+		name string
+		val  string
+	}
 	var tests = []struct {
-		inEnvName    string
-		inEnvValue   string
-		outProxyAddr string
+		info       string
+		env        []env
+		targetAddr string
+		proxyAddr  string
 	}{
-		// 0 - valid, can be raw host:port
 		{
-			"http_proxy",
-			"proxy:1234",
-			"proxy:1234",
+			info:       "valid, can be raw host:port",
+			env:        []env{{name: "http_proxy", val: "proxy:1234"}},
+			proxyAddr:  "proxy:1234",
+			targetAddr: "192.168.1.1:3030",
 		},
-		// 1 - valid, raw host:port works for https
 		{
-			"HTTPS_PROXY",
-			"proxy:1234",
-			"proxy:1234",
+			info:       "valid, raw host:port works for https",
+			env:        []env{{name: "HTTPS_PROXY", val: "proxy:1234"}},
+			proxyAddr:  "proxy:1234",
+			targetAddr: "192.168.1.1:3030",
 		},
-		// 2 - valid, correct full url
 		{
-			"https_proxy",
-			"https://proxy:1234",
-			"proxy:1234",
+			info:       "valid, correct full url",
+			env:        []env{{name: "https_proxy", val: "https://proxy:1234"}},
+			proxyAddr:  "proxy:1234",
+			targetAddr: "192.168.1.1:3030",
 		},
-		// 3 - valid, http endpoint can be set in https_proxy
 		{
-			"https_proxy",
-			"http://proxy:1234",
-			"proxy:1234",
+			info:       "valid, http endpoint can be set in https_proxy",
+			env:        []env{{name: "https_proxy", val: "http://proxy:1234"}},
+			proxyAddr:  "proxy:1234",
+			targetAddr: "192.168.1.1:3030",
+		},
+		{
+			info: "valid, http endpoint can be set in https_proxy, but no_proxy override matches domain",
+			env: []env{
+				{name: "https_proxy", val: "http://proxy:1234"},
+				{name: "no_proxy", val: "proxy"}},
+			proxyAddr:  "",
+			targetAddr: "proxy:1234",
+		},
+		{
+			info: "valid, http endpoint can be set in https_proxy, but no_proxy override matches ip",
+			env: []env{
+				{name: "https_proxy", val: "http://proxy:1234"},
+				{name: "no_proxy", val: "192.168.1.1"}},
+			proxyAddr:  "",
+			targetAddr: "192.168.1.1:1234",
+		},
+		{
+			info: "valid, http endpoint can be set in https_proxy, but no_proxy override matches subdomain",
+			env: []env{
+				{name: "https_proxy", val: "http://proxy:1234"},
+				{name: "no_proxy", val: ".example.com"}},
+			proxyAddr:  "",
+			targetAddr: "bla.example.com:1234",
 		},
 	}
 
 	for i, tt := range tests {
-		comment := check.Commentf("Test %v", i)
+		comment := check.Commentf("Test %v %v", i, tt.info)
 
 		unsetEnv()
-		os.Setenv(tt.inEnvName, tt.inEnvValue)
-		p := getProxyAddress()
+		for _, env := range tt.env {
+			os.Setenv(env.name, env.val)
+		}
+		p := getProxyAddress(tt.targetAddr)
 		unsetEnv()
 
-		c.Assert(p, check.Equals, tt.outProxyAddr, comment)
+		c.Assert(p, check.Equals, tt.proxyAddr, comment)
 	}
 }
 
 func unsetEnv() {
-	for _, envname := range []string{"http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"} {
+	for _, envname := range []string{"http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "no_proxy"} {
 		os.Unsetenv(envname)
 	}
 }
