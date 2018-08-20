@@ -135,10 +135,12 @@ const (
 	AuthAttemptMessage = "message"
 
 	// SCPEvent means data transfer that occurred on the server
-	SCPEvent  = "scp"
-	SCPPath   = "path"
-	SCPLengh  = "len"
-	SCPAction = "action"
+	SCPEvent    = "scp"
+	SCPPath     = "path"
+	SCPLengh    = "len"
+	SCPAction   = "action"
+	SCPUpload   = "upload"
+	SCPDownload = "download"
 
 	// ResizeEvent means that some user resized PTY on the client
 	ResizeEvent  = "resize"
