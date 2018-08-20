@@ -85,7 +85,9 @@ func getLogins(roleSet services.RoleSet) []string {
 
 func hasAccess(roleSet services.RoleSet, ctx *services.Context, kind string, verbs ...string) bool {
 	for _, verb := range verbs {
-		err := roleSet.CheckAccessToRule(ctx, defaults.Namespace, kind, verb)
+		// Since this check occurs often and it does not imply the caller is trying
+		// to access any resource, silence any logging done on the proxy.
+		err := roleSet.CheckAccessToRule(ctx, defaults.Namespace, kind, verb, true)
 		if err != nil {
 			return false
 		}

@@ -1762,15 +1762,15 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 		webHandler, err = web.NewHandler(
 			web.Config{
-				Proxy:           tsrv,
-				AuthServers:     cfg.AuthServers[0],
-				DomainName:      cfg.Hostname,
-				ProxyClient:     conn.Client,
-				DisableUI:       process.Config.Proxy.DisableWebInterface,
-				ProxySSHAddr:    cfg.Proxy.SSHAddr,
-				ProxyWebAddr:    cfg.Proxy.WebAddr,
-				ClientTLSConfig: clientTLSConfig,
-				ProxySettings:   proxySettings,
+				Proxy:         tsrv,
+				AuthServers:   cfg.AuthServers[0],
+				DomainName:    cfg.Hostname,
+				ProxyClient:   conn.Client,
+				DisableUI:     process.Config.Proxy.DisableWebInterface,
+				ProxySSHAddr:  cfg.Proxy.SSHAddr,
+				ProxyWebAddr:  cfg.Proxy.WebAddr,
+				ProxySettings: proxySettings,
+				CipherSuites:  cfg.CipherSuites,
 			})
 		if err != nil {
 			return trace.Wrap(err)
