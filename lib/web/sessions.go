@@ -213,7 +213,7 @@ func (c *SessionContext) ClientTLSConfig(clusterName ...string) (*tls.Config, er
 		}
 	}
 
-	tlsConfig := c.parent.clientTLSConfig.Clone()
+	tlsConfig := utils.TLSConfig(c.parent.cipherSuites)
 	tlsCert, err := tls.X509KeyPair(c.sess.GetTLSCert(), c.sess.GetPriv())
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to parse TLS cert and key")
@@ -348,7 +348,7 @@ func (c *SessionContext) Close() error {
 }
 
 // newSessionCache returns new instance of the session cache
-func newSessionCache(proxyClient auth.ClientI, servers []utils.NetAddr, clientTLSConfig *tls.Config) (*sessionCache, error) {
+func newSessionCache(proxyClient auth.ClientI, servers []utils.NetAddr, cipherSuites []uint16) (*sessionCache, error) {
 	clusterName, err := proxyClient.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -358,12 +358,12 @@ func newSessionCache(proxyClient auth.ClientI, servers []utils.NetAddr, clientTL
 		return nil, trace.Wrap(err)
 	}
 	cache := &sessionCache{
-		clusterName:     clusterName.GetClusterName(),
-		proxyClient:     proxyClient,
-		contexts:        m,
-		authServers:     servers,
-		closer:          utils.NewCloseBroadcaster(),
-		clientTLSConfig: clientTLSConfig,
+		clusterName:  clusterName.GetClusterName(),
+		proxyClient:  proxyClient,
+		contexts:     m,
+		authServers:  servers,
+		closer:       utils.NewCloseBroadcaster(),
+		cipherSuites: cipherSuites,
 	}
 	// periodically close expired and unused sessions
 	go cache.expireSessions()
@@ -380,8 +380,8 @@ type sessionCache struct {
 	closer      *utils.CloseBroadcaster
 	clusterName string
 
-	// clientTLSConfig is the TLS configuration the client uses.
-	clientTLSConfig *tls.Config
+	// cipherSuites is the list of supported TLS cipher suites.
+	cipherSuites []uint16
 }
 
 // Close closes all allocated resources and stops goroutines
@@ -618,8 +618,7 @@ func (s *sessionCache) ValidateSession(user, sid string) (*SessionContext, error
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	tlsConfig := s.clientTLSConfig.Clone()
+	tlsConfig := utils.TLSConfig(s.cipherSuites)
 	tlsCert, err := tls.X509KeyPair(sess.GetTLSCert(), sess.GetPriv())
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to parse TLS cert and key")

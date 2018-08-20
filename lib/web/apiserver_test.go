@@ -214,16 +214,12 @@ func (s *WebSuite) SetUpTest(c *C) {
 	)
 	c.Assert(err, IsNil)
 
-	tlsConfig := &tls.Config{
-		CipherSuites: utils.DefaultCipherSuites(),
-	}
-
 	handler, err := NewHandler(Config{
-		Proxy:           revTunServer,
-		AuthServers:     utils.FromAddr(s.server.Addr()),
-		DomainName:      s.server.ClusterName(),
-		ProxyClient:     s.proxyClient,
-		ClientTLSConfig: tlsConfig,
+		Proxy:        revTunServer,
+		AuthServers:  utils.FromAddr(s.server.Addr()),
+		DomainName:   s.server.ClusterName(),
+		ProxyClient:  s.proxyClient,
+		CipherSuites: utils.DefaultCipherSuites(),
 	}, SetSessionStreamPollPeriod(200*time.Millisecond))
 	c.Assert(err, IsNil)
 
@@ -1623,7 +1619,7 @@ func removeSpace(in string) string {
 
 func newTerminalHandler() TerminalHandler {
 	return TerminalHandler{
-		log: logrus.WithFields(logrus.Fields{}),
+		log:     logrus.WithFields(logrus.Fields{}),
 		encoder: unicode.UTF8.NewEncoder(),
 		decoder: unicode.UTF8.NewDecoder(),
 	}

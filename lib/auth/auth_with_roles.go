@@ -43,11 +43,11 @@ type AuthWithRoles struct {
 }
 
 func (a *AuthWithRoles) actionWithContext(ctx *services.Context, namespace string, resource string, action string) error {
-	return a.checker.CheckAccessToRule(ctx, namespace, resource, action)
+	return a.checker.CheckAccessToRule(ctx, namespace, resource, action, false)
 }
 
 func (a *AuthWithRoles) action(namespace string, resource string, action string) error {
-	return a.checker.CheckAccessToRule(&services.Context{User: a.user}, namespace, resource, action)
+	return a.checker.CheckAccessToRule(&services.Context{User: a.user}, namespace, resource, action, false)
 }
 
 // currentUserAction is a special checker that allows certain actions for users
@@ -58,7 +58,7 @@ func (a *AuthWithRoles) currentUserAction(username string) error {
 		return nil
 	}
 	return a.checker.CheckAccessToRule(&services.Context{User: a.user},
-		defaults.Namespace, services.KindUser, services.VerbCreate)
+		defaults.Namespace, services.KindUser, services.VerbCreate, false)
 }
 
 // authConnectorAction is a special checker that grants access to auth
@@ -66,8 +66,8 @@ func (a *AuthWithRoles) currentUserAction(username string) error {
 // If not, it checks if the requester has the meta KindAuthConnector access
 // (which grants access to all connectors).
 func (a *AuthWithRoles) authConnectorAction(namespace string, resource string, verb string) error {
-	if err := a.checker.CheckAccessToRule(&services.Context{User: a.user}, namespace, resource, verb); err != nil {
-		if err := a.checker.CheckAccessToRule(&services.Context{User: a.user}, namespace, services.KindAuthConnector, verb); err != nil {
+	if err := a.checker.CheckAccessToRule(&services.Context{User: a.user}, namespace, resource, verb, false); err != nil {
+		if err := a.checker.CheckAccessToRule(&services.Context{User: a.user}, namespace, services.KindAuthConnector, verb, false); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -601,11 +601,8 @@ func (a *AuthWithRoles) GetUsers() ([]services.User, error) {
 }
 
 func (a *AuthWithRoles) GetUser(name string) (services.User, error) {
-	// TODO(klizhentas) before merge, check security implications of this change,
-	// it looks harmless enough, but make sure there is no leakage of secrets here
-	// make sure that GetUser is safe to call, and it should never leak any secrets
-	if err := a.action(defaults.Namespace, services.KindUser, services.VerbRead); err != nil {
-		if err := a.currentUserAction(name); err != nil {
+	if err := a.currentUserAction(name); err != nil {
+		if err := a.action(defaults.Namespace, services.KindUser, services.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
