@@ -295,7 +295,7 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 func (a *Agent) connect() (conn *ssh.Client, err error) {
 	for _, authMethod := range a.authMethods {
 		// if http_proxy is set, dial through the proxy
-		dialer := proxy.DialerFromEnvironment()
+		dialer := proxy.DialerFromEnvironment(a.Addr.Addr)
 		conn, err = dialer.Dial(a.Addr.AddrNetwork, a.Addr.Addr, &ssh.ClientConfig{
 			User:            a.Username,
 			Auth:            []ssh.AuthMethod{authMethod},

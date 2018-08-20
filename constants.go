@@ -41,6 +41,10 @@ const (
 
 	// HTTPProxy is an environment variable pointing to a HTTP proxy.
 	HTTPProxy = "HTTP_PROXY"
+
+	// NoProxy is an environment variable matching the cases
+	// when HTTPS_PROXY or HTTP_PROXY is ignored
+	NoProxy = "NO_PROXY"
 )
 
 const (
@@ -135,6 +139,9 @@ const (
 
 	// ComponentUpload is a session recording upload server
 	ComponentUpload = "upload"
+
+	// ComponentWeb is a web server
+	ComponentWeb = "web"
 
 	// ComponentWebsocket is websocket server that the web client connects to.
 	ComponentWebsocket = "websocket"
