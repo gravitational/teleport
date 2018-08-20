@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.7.4
+
+This release of Teleport focuses on bugfixes.
+
+#### Bug Fixes
+
+* Fixed issues with `client_idle_timeout`. [#2166](https://github.com/gravitational/teleport/issues/2166)
+* Added support for scalar and list values for `node_labels` in roles. [#2136](https://github.com/gravitational/teleport/issues/2136)
+* Improved font support on Ubuntu.
+
 ## 2.7.3
 
 This release of Teleport focuses on bugfixes.

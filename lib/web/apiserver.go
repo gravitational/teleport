@@ -1585,10 +1585,16 @@ type siteSessionStreamGetResponse struct {
 // with Content-Type of application/octet-stream, gzipped with up to 95%
 // compression ratio.
 func (h *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	httplib.SetNoCacheHeaders(w.Header())
+	logger := log.WithFields(log.Fields{
+		trace.Component: teleport.ComponentWeb,
+	})
+
 	var site reversetunnel.RemoteSite
 	onError := func(err error) {
-		w.Header().Set("Content-Type", "text/json")
-		trace.WriteError(w, err)
+		logger.Debugf("Unable to retrieve session chunk: %v.", err)
+		w.WriteHeader(trace.ErrorToCode(err))
+		w.Write([]byte(err.Error()))
 	}
 	// authenticate first:
 	ctx, err := h.AuthenticateRequest(w, r, true)
@@ -1688,9 +1694,13 @@ type eventsListGetResponse struct {
 // {"events": [{...}, {...}, ...}
 //
 func (h *Handler) siteSessionEventsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	logger := log.WithFields(log.Fields{
+		trace.Component: teleport.ComponentWeb,
+	})
+
 	sessionID, err := session.ParseID(p.ByName("sid"))
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.BadParameter("invalid session ID %q", p.ByName("sid"))
 	}
 
 	clt, err := ctx.GetUserClient(site)
@@ -1707,6 +1717,11 @@ func (h *Handler) siteSessionEventsGet(w http.ResponseWriter, r *http.Request, p
 	}
 	e, err := clt.GetSessionEvents(namespace, *sessionID, afterN, true)
 	if err != nil {
+		logger.Debugf("Unable to find events for session %v: %v.", sessionID, err)
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("Unable to find events for session %q", sessionID)
+		}
+
 		return nil, trace.Wrap(err)
 	}
 	return eventsListGetResponse{Events: e}, nil
