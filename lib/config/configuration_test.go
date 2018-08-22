@@ -450,6 +450,13 @@ func (s *ConfigTestSuite) TestBackendDefaults(c *check.C) {
 
 	c.Assert(cfg.Auth.StorageConfig.Type, check.Equals, boltbk.GetName())
 	c.Assert(cfg.Auth.StorageConfig.Params[defaults.BackendPath], check.Equals, tempDir)
+
+	// kubernetes proxy is disabled by default
+	cfg = read(`teleport:
+  data_dir: /var/lib/teleport
+`)
+
+	c.Assert(cfg.Proxy.Kube.Enabled, check.Equals, false)
 }
 
 // TestParseKey ensures that keys are parsed correctly if they are in
