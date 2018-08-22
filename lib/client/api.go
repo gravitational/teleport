@@ -551,8 +551,8 @@ func (c *Config) proxySSHPort() (retval int, exists bool) {
 			if err != nil {
 				log.Warnf("invalid proxy SSH port: '%v': %v", ports, err)
 			}
+			return retval, true
 		}
-		return retval, true
 	}
 	return retval, false
 }
@@ -1517,6 +1517,8 @@ func (tc *TeleportClient) applyProxySettings(proxySettings ProxySettings) error 
 				proxySettings.Kube.PublicAddr)
 		}
 		tc.KubeProxyAddr = proxySettings.Kube.PublicAddr
+	} else if proxySettings.Kube.Enabled && tc.KubeProxyAddr == "" {
+		tc.KubeProxyAddr = fmt.Sprintf("%s:%d", tc.ProxyHost(), defaults.KubeProxyListenPort)
 	}
 	if proxySettings.SSH.ListenAddr != "" {
 		addr, err := utils.ParseAddr(proxySettings.SSH.ListenAddr)

@@ -356,8 +356,10 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Proxy.TLSCert = fc.Proxy.CertFile
 	}
 
-	// apply kubernetes proxy config
-	cfg.Proxy.Kube.Enabled = fc.Proxy.Kube.Enabled()
+	// apply kubernetes proxy config, by default kube proxy is disabled
+	if fc.Proxy.Kube.Configured() {
+		cfg.Proxy.Kube.Enabled = fc.Proxy.Kube.Enabled()
+	}
 	if fc.Proxy.Kube.ListenAddress != "" {
 		addr, err := utils.ParseHostPortAddr(fc.Proxy.Kube.ListenAddress, int(defaults.KubeProxyListenPort))
 		if err != nil {
