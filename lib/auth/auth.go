@@ -410,9 +410,10 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 		return nil, trace.Wrap(err)
 	}
 	identity := tlsca.Identity{
-		Username: req.user.GetName(),
-		Groups:   req.roles.RoleNames(),
-		Usage:    req.usage,
+		Username:   req.user.GetName(),
+		Groups:     req.roles.RoleNames(),
+		Principals: allowedLogins,
+		Usage:      req.usage,
 	}
 	certRequest := tlsca.CertificateRequest{
 		Clock:     s.clock,

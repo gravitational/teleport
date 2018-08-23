@@ -227,6 +227,7 @@ func (a *AuthMiddleware) GetUser(r *http.Request) (interface{}, error) {
 		return RemoteUser{
 			ClusterName: certClusterName,
 			Username:    identity.Username,
+			Principals:  identity.Principals,
 			RemoteRoles: identity.Groups,
 		}, nil
 	}

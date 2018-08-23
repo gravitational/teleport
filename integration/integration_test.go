@@ -1286,6 +1286,13 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 		}
 	}
 
+	// Make sure that GetNodes returns nodes in the remote site. This makes
+	// sure identity aware GetNodes works for remote clusters. Testing of the
+	// correct nodes that identity aware GetNodes is done in TestList.
+	nodes, err := aux.Process.GetAuthServer().GetNodes(defaults.Namespace, services.SkipValidation())
+	c.Assert(err, check.IsNil)
+	c.Assert(nodes, check.HasLen, 2)
+
 	cmd := []string{"echo", "hello world"}
 	tc, err := main.NewClient(ClientConfig{Login: username, Cluster: clusterAux, Host: "127.0.0.1", Port: sshPort})
 	c.Assert(err, check.IsNil)
