@@ -196,6 +196,11 @@ func (r RoleMap) Map(remoteRoles []string) ([]string, error) {
 	for _, mapping := range r {
 		expression := mapping.Remote
 		for _, remoteRole := range remoteRoles {
+			// never map default implicit role, it is always
+			// added by default
+			if remoteRole == teleport.DefaultImplicitRole {
+				continue
+			}
 			for _, replacementRole := range mapping.Local {
 				replacement, err := utils.ReplaceRegexp(expression, replacementRole, remoteRole)
 				switch {
