@@ -19,6 +19,7 @@ package services
 import (
 	"fmt"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -145,6 +146,14 @@ func (s *RoleMapSuite) TestRoleMap(c *check.C) {
 			},
 		},
 		{
+			name:   "passthrough match ignores implicit role",
+			remote: []string{"remote-devs", teleport.DefaultImplicitRole},
+			local:  []string{"remote-devs"},
+			roleMap: RoleMap{
+				{Remote: "^(.*)$", Local: []string{"$1"}},
+			},
+		},
+		{
 			name:   "partial match",
 			remote: []string{"remote-devs", "something-else"},
 			local:  []string{"remote-devs"},
@@ -161,7 +170,7 @@ func (s *RoleMapSuite) TestRoleMap(c *check.C) {
 			},
 		},
 		{
-			name:   "multiple matches yuield different results",
+			name:   "multiple matches yield different results",
 			remote: []string{"remote-devs"},
 			local:  []string{"remote-devs", "test"},
 			roleMap: RoleMap{
