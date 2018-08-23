@@ -334,10 +334,12 @@ func (a *AuthWithRoles) UpsertNode(s services.Server) error {
 
 // filterNodes filters nodes based off the role of the logged in user.
 func (a *AuthWithRoles) filterNodes(nodes []services.Server) ([]services.Server, error) {
-	// For certain built-in roles, continue to allow access and return the full
-	// set of nodes to not break existing clusters during migration. This is
-	// also used by the proxy to cache a list of all nodes for it's smart
-	// resolution.
+	// For certain built-in roles, continue to allow full access and return
+	// the full set of nodes to not break existing clusters during migration.
+	//
+	// In addition, allow proxy (and remote proxy) to access all nodes for it's
+	// smart resolution address resolution. Once the smart resolution logic is
+	// moved to the auth server, this logic can be removed.
 	if a.hasBuiltinRole(string(teleport.RoleAdmin)) ||
 		a.hasBuiltinRole(string(teleport.RoleProxy)) ||
 		a.hasRemoteBuiltinRole(string(teleport.RoleRemoteProxy)) {

@@ -149,6 +149,18 @@ func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*AuthContext, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Set "logins" trait for the remote user. This allows Teleport to work by
+	// passing exact logins to the remote cluster. Note that claims (OIDC/SAML)
+	// are not passed, but rather the exact logins.
+	traits := map[string][]string{
+		teleport.TraitLogins: u.Principals,
+	}
+	user.SetTraits(traits)
+
+	// Set the list of roles this user has in the remote cluster.
+	user.SetRoles(roleNames)
+
 	return &AuthContext{
 		User:    user,
 		Checker: checker,
@@ -503,6 +515,9 @@ type RemoteUser struct {
 
 	// RemoteRoles is optional list of remote roles
 	RemoteRoles []string `json:"remote_roles"`
+
+	// Principals is a list of Unix logins.
+	Principals []string `json:"principals"`
 }
 
 // GetClusterConfigFunc returns a cached services.ClusterConfig.
