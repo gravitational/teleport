@@ -283,10 +283,19 @@ func (s *AuthServer) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginR
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	hostCertAuthorities, err := s.GetCertAuthorities(services.HostCA, false)
+
+	// Return the host CA for this cluster only.
+	authority, err := s.GetCertAuthority(services.CertAuthID{
+		Type:       services.HostCA,
+		DomainName: s.clusterName.GetClusterName(),
+	}, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	hostCertAuthorities := []services.CertAuthority{
+		authority,
+	}
+
 	certs, err := s.generateUserCert(certRequest{
 		user:          user,
 		roles:         roles,
