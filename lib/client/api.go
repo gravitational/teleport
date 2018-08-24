@@ -1502,7 +1502,43 @@ func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, er
 			return nil, trace.Wrap(err)
 		}
 	}
+
 	return key, nil
+}
+
+// UpdateKnownHosts connects to the Auth Server and fetches all host
+// certificates and updated ~/.tsh/known_hosts.
+func (tc *TeleportClient) UpdateKnownHosts(ctx context.Context) error {
+	// Connect to the proxy.
+	if !tc.Config.ProxySpecified() {
+		return trace.BadParameter("proxy server is not specified")
+	}
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	// Get a client to the Auth Server.
+	clt, err := proxyClient.ClusterAccessPoint(ctx, true)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Get the list of host certificates that this cluster knows about.
+	hostCerts, err := clt.GetCertAuthorities(services.HostCA, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Write them to the ~/.tsh/known_hosts.
+	trustedCerts := auth.AuthoritiesToTrustedCerts(hostCerts)
+	err = tc.localAgent.AddHostSignersToCache(trustedCerts)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // applyProxySettings updates configuration changes based on the advertised

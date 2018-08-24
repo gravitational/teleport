@@ -410,6 +410,17 @@ func onLogin(cf *CLIConf) {
 	// regular login (without -i flag)
 	tc.SaveProfile("")
 
+	// Make the client again (this way it will pick up the updated profile) and
+	// then update the known hosts file.
+	tc, err = makeClient(cf, true)
+	if err != nil {
+		utils.FatalError(err)
+	}
+	err = tc.UpdateKnownHosts(cf.Context)
+	if err != nil {
+		utils.FatalError(err)
+	}
+
 	onStatus(cf)
 }
 
