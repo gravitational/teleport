@@ -260,13 +260,15 @@ func (a *AuthServer) validateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 		response.Cert = certs.ssh
 		response.TLSCert = certs.tls
 
-		authorities, err := a.GetCertAuthorities(services.HostCA, false)
+		// Return the host CA for this cluster only.
+		authority, err := a.GetCertAuthority(services.CertAuthID{
+			Type:       services.HostCA,
+			DomainName: a.clusterName.GetClusterName(),
+		}, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		for _, authority := range authorities {
-			response.HostSigners = append(response.HostSigners, authority)
-		}
+		response.HostSigners = append(response.HostSigners, authority)
 	}
 	return response, nil
 }

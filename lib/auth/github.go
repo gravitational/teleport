@@ -200,13 +200,15 @@ func (s *AuthServer) validateGithubAuthCallback(q url.Values) (*GithubAuthRespon
 		response.Cert = certs.ssh
 		response.TLSCert = certs.tls
 
-		authorities, err := s.GetCertAuthorities(services.HostCA, false)
+		// Return the host CA for this cluster only.
+		authority, err := s.GetCertAuthority(services.CertAuthID{
+			Type:       services.HostCA,
+			DomainName: s.clusterName.GetClusterName(),
+		}, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		for _, authority := range authorities {
-			response.HostSigners = append(response.HostSigners, authority)
-		}
+		response.HostSigners = append(response.HostSigners, authority)
 	}
 	return response, nil
 }
