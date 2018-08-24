@@ -18,6 +18,7 @@ import (
 func main() {
 	web.InitPlugin()
 	auth.InitPlugin()
+
 	executedCommand, config := common.Run(common.Options{
 		Args:     os.Args[1:],
 		InitOnly: true,

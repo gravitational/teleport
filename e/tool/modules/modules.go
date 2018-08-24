@@ -9,6 +9,11 @@ import (
 	"github.com/gravitational/trace"
 )
 
+func init() {
+	// Set the modules to Enterprise but with no feature flag.
+	modules.SetModules(&enterpriseModules{})
+}
+
 // SetModules installs modules that provide custom behavior for the
 // enterprise compared to the open-source version
 func SetModules(flags featureflags.Flags) {
