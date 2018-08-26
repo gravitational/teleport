@@ -1,6 +1,15 @@
 # etcd OpenSSL configuration file.
-SAN = "IP:127.0.0.1"
 dir = .
+
+[ alt_names ]
+DNS.1 = etcd0
+DNS.2 = etcd1
+DNS.3 = etcd2
+DNS.4 = localhost
+IP.1 = 172.11.1.1
+IP.2 = 172.11.1.2
+IP.3 = 172.11.1.3
+IP.4 = 127.0.0.1
 
 [ ca ]
 default_ca = etcd_ca
@@ -63,10 +72,10 @@ keyUsage               = digitalSignature, keyEncipherment
 basicConstraints       = CA:FALSE
 extendedKeyUsage       = clientAuth, serverAuth
 keyUsage               = digitalSignature, keyEncipherment
-subjectAltName         = ${ENV::SAN}
+subjectAltName         = @alt_names
 
 [ etcd_server ]
 basicConstraints       = CA:FALSE
 extendedKeyUsage       = clientAuth, serverAuth
 keyUsage               = digitalSignature, keyEncipherment
-subjectAltName         = ${ENV::SAN} 
+subjectAltName         = @alt_names
