@@ -18,14 +18,14 @@ package main
 
 import (
 	"crypto/tls"
-	"crypto/x509"
-	"io/ioutil"
 	"log"
+	"path/filepath"
 	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 func main() {
@@ -62,24 +62,16 @@ func main() {
 // assuming program runs alongside auth server, but it can be ran
 // on a remote location, assuming client has all the client certificates.
 func setupClientTLS() (*tls.Config, error) {
-	// read auth server TLS certificate, used to verify auth server identity
-	authServerCert, err := ioutil.ReadFile("/var/lib/teleport/ca.cert")
+	storage, err := auth.NewProcessStorage(filepath.Join("/var/lib/teleport", teleport.ComponentProcess))
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
+	}
+	defer storage.Close()
+
+	identity, err := storage.ReadIdentity(auth.IdentityCurrent, teleport.RoleAdmin)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	// client TLS key pair, used to authenticate with auth server
-	tlsCert, err := tls.LoadX509KeyPair("/var/lib/teleport/admin.tlscert", "/var/lib/teleport/admin.key")
-	if err != nil {
-		return nil, err
-	}
-
-	// set up TLS config for HTTPS client
-	tlsConfig := utils.TLSConfig()
-	certPool := x509.NewCertPool()
-	certPool.AppendCertsFromPEM(authServerCert)
-	tlsConfig.Certificates = []tls.Certificate{tlsCert}
-	tlsConfig.RootCAs = certPool
-	tlsConfig.ClientCAs = certPool
-	return tlsConfig, nil
+	return identity.TLSConfig(nil)
 }
