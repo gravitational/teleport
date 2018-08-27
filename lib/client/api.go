@@ -457,6 +457,7 @@ func (c *Config) SaveProfile(profileDir string, profileOptions ...ProfileOptions
 	if c.ProxyHostPort == "" {
 		return nil
 	}
+
 	profileDir = FullProfilePath(profileDir)
 	profilePath := path.Join(profileDir, c.ProxyHost()) + ".yaml"
 
@@ -1502,7 +1503,6 @@ func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, er
 			return nil, trace.Wrap(err)
 		}
 	}
-
 	return key, nil
 }
 
@@ -1567,6 +1567,12 @@ func (tc *TeleportClient) applyProxySettings(proxySettings ProxySettings) error 
 		if !exists {
 			tc.ProxyHostPort = fmt.Sprintf("%s:%d,%d", tc.ProxyHost(), tc.ProxyWebPort(), addr.Port(defaults.SSHProxyListenPort))
 		}
+	}
+	// If the proxy settings contain a SSH public address, overwrite the value
+	// passed in by the user with the value the proxy advertises.
+	if proxySettings.SSH.PublicAddr != "" {
+		tc.SetProxy(ProxyHost(proxySettings.SSH.PublicAddr), tc.ProxyWebPort(), tc.ProxySSHPort())
+		tc.localAgent.SetProxyHost(ProxyHost(proxySettings.SSH.PublicAddr))
 	}
 	return nil
 }

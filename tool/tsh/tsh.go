@@ -396,31 +396,33 @@ func onLogin(cf *CLIConf) {
 	if key, err = tc.Login(cf.Context, activateKey); err != nil {
 		utils.FatalError(err)
 	}
+
+	// Update the command line flag for proxy. This is to make sure that status
+	// is printed correctly (which only works with command line flags). This
+	// makes sure if the proxy has a public address set, it will get set here.
+	cf.Proxy = tc.ProxyHost()
+
 	if makeIdentityFile {
 		client.MakeIdentityFile(cf.IdentityFileOut, key, cf.IdentityFormat)
 		fmt.Printf("\nThe certificate has been written to %s\n", cf.IdentityFileOut)
 		return
 	}
 
-	// update kubernetes config file
+	// Update kubernetes config file.
 	if err := kubeclient.UpdateKubeconfig(tc); err != nil {
 		utils.FatalError(err)
 	}
 
-	// regular login (without -i flag)
+	// Regular login without -i flag.
 	tc.SaveProfile("")
 
-	// Make the client again (this way it will pick up the updated profile) and
-	// then update the known hosts file.
-	tc, err = makeClient(cf, true)
-	if err != nil {
-		utils.FatalError(err)
-	}
+	// Connect to the Auth Server and fetch the known hosts for this cluster.
 	err = tc.UpdateKnownHosts(cf.Context)
 	if err != nil {
 		utils.FatalError(err)
 	}
 
+	// Print status to show information of the logged in user.
 	onStatus(cf)
 }
 
