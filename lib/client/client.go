@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 // ProxyClient implements ssh client to a teleport proxy
@@ -97,7 +96,7 @@ func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 		return nil, trace.ConnectionProblem(nil, "timeout")
 	}
 
-	log.Debugf("[CLIENT] found clusters: %v", stdout.String())
+	log.Debugf("Found clusters: %v.", stdout.String())
 
 	var sites []services.Site
 	if err := json.Unmarshal(stdout.Bytes(), &sites); err != nil {
@@ -332,7 +331,7 @@ func (proxy *ProxyClient) dialAuthServer(ctx context.Context, clusterName string
 // ConnectToNode connects to the ssh server via Proxy.
 // It returns connected and authenticated NodeClient
 func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress string, user string, quiet bool) (*NodeClient, error) {
-	log.Infof("[CLIENT] client=%v connecting to node=%s", proxy.clientAddr, nodeAddress)
+	log.Infof("Client %v connecting to node %s.", proxy.clientAddr, nodeAddress)
 
 	// parse destination first:
 	localAddr, err := utils.ParseAddr("tcp://" + proxy.proxyAddress)
