@@ -57,11 +57,15 @@ import (
 	"github.com/docker/docker/pkg/term"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 	"golang.org/x/crypto/ssh/terminal"
 )
+
+var log = logrus.WithFields(logrus.Fields{
+	trace.Component: teleport.ComponentClient,
+})
 
 const (
 	// Directory location where tsh profiles (and session keys) are stored
@@ -457,6 +461,7 @@ func (c *Config) SaveProfile(profileDir string, profileOptions ...ProfileOptions
 	if c.ProxyHostPort == "" {
 		return nil
 	}
+
 	profileDir = FullProfilePath(profileDir)
 	profilePath := path.Join(profileDir, c.ProxyHost()) + ".yaml"
 
@@ -1318,10 +1323,10 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 			clientAddr:      tc.ClientAddr,
 		}
 	}
-	successMsg := fmt.Sprintf("[CLIENT] successful auth with proxy %v", proxyAddr)
+	successMsg := fmt.Sprintf("Successful auth with proxy %v.", proxyAddr)
 	// try to authenticate using every non interactive auth method we have:
 	for i, m := range tc.authMethods() {
-		log.Infof("[CLIENT] connecting proxy=%v login='%v' method=%d", proxyAddr, sshConfig.User, i)
+		log.Infof("Connecting to proxy %v with login %v and method %d.", proxyAddr, sshConfig.User, i)
 		var sshClient *ssh.Client
 
 		sshConfig.Auth = []ssh.AuthMethod{m}
@@ -1505,6 +1510,41 @@ func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, er
 	return key, nil
 }
 
+// UpdateKnownHosts connects to the Auth Server and fetches all host
+// certificates and updated ~/.tsh/known_hosts.
+func (tc *TeleportClient) UpdateKnownHosts(ctx context.Context) error {
+	// Connect to the proxy.
+	if !tc.Config.ProxySpecified() {
+		return trace.BadParameter("proxy server is not specified")
+	}
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	// Get a client to the Auth Server.
+	clt, err := proxyClient.ClusterAccessPoint(ctx, true)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Get the list of host certificates that this cluster knows about.
+	hostCerts, err := clt.GetCertAuthorities(services.HostCA, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Write them to the ~/.tsh/known_hosts.
+	trustedCerts := auth.AuthoritiesToTrustedCerts(hostCerts)
+	err = tc.localAgent.AddHostSignersToCache(trustedCerts)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 // applyProxySettings updates configuration changes based on the advertised
 // proxy settings, user supplied values take precendence - will be preserved
 // if set
@@ -1531,6 +1571,12 @@ func (tc *TeleportClient) applyProxySettings(proxySettings ProxySettings) error 
 		if !exists {
 			tc.ProxyHostPort = fmt.Sprintf("%s:%d,%d", tc.ProxyHost(), tc.ProxyWebPort(), addr.Port(defaults.SSHProxyListenPort))
 		}
+	}
+	// If the proxy settings contain a SSH public address, overwrite the value
+	// passed in by the user with the value the proxy advertises.
+	if proxySettings.SSH.PublicAddr != "" {
+		tc.SetProxy(ProxyHost(proxySettings.SSH.PublicAddr), tc.ProxyWebPort(), tc.ProxySSHPort())
+		tc.localAgent.SetProxyHost(ProxyHost(proxySettings.SSH.PublicAddr))
 	}
 	return nil
 }
@@ -1722,11 +1768,11 @@ func connectToSSHAgent() agent.Agent {
 	socketPath := os.Getenv(teleport.SSHAuthSock)
 	conn, err := agentconn.Dial(socketPath)
 	if err != nil {
-		log.Errorf("[KEY AGENT] Unable to connect to SSH agent on socket: %q.", socketPath)
+		log.Errorf("Unable to connect to SSH agent on socket: %q.", socketPath)
 		return nil
 	}
 
-	log.Infof("[KEY AGENT] Conneced to System Agent: %q", socketPath)
+	log.Infof("Conneced to System Agent: %q.", socketPath)
 	return agent.NewClient(conn)
 }
 

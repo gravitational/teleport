@@ -40,8 +40,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
-
-	log "github.com/sirupsen/logrus"
 )
 
 type NodeSession struct {

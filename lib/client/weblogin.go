@@ -38,7 +38,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/mailgun/lemma/secret"
-	log "github.com/sirupsen/logrus"
 	"github.com/tstranex/u2f"
 )
 
@@ -308,10 +307,14 @@ type KubeProxySettings struct {
 	PublicAddr string `json:"public_addr,omitempty"`
 }
 
-// SSHProxySettings is SSH specific proxy settings
+// SSHProxySettings is SSH specific proxy settings.
 type SSHProxySettings struct {
-	// ListenAddr is SSH listen address
+	// ListenAddr is the address that the SSH proxy is listening for
+	// connections on.
 	ListenAddr string `json:"listen_addr,omitempty"`
+
+	// PublicAddr is the public address the SSH proxy is accessible at.
+	PublicAddr string `json:"public_addr,omitempty"`
 }
 
 // PingResponse contains the form of authentication the auth server supports.

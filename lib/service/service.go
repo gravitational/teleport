@@ -1757,6 +1757,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				ListenAddr: cfg.Proxy.SSHAddr.String(),
 			},
 		}
+		if len(cfg.Proxy.PublicAddrs) > 0 {
+			proxySettings.SSH.PublicAddr = cfg.Proxy.PublicAddrs[0].String()
+		}
 		if len(cfg.Proxy.Kube.PublicAddrs) > 0 {
 			proxySettings.Kube.PublicAddr = cfg.Proxy.Kube.PublicAddrs[0].String()
 		}
