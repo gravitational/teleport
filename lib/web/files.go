@@ -162,7 +162,7 @@ func (f *fileTransfer) createClient(req fileTransferRequest) (*client.TeleportCl
 	cfg.HostLogin = req.login
 	cfg.SiteName = req.cluster
 	cfg.Namespace = req.namespace
-	cfg.ProxyHostPort = f.proxyHostPort
+	cfg.ParseProxyHost(f.proxyHostPort)
 	cfg.Host = hostName
 	cfg.HostPort = hostPort
 

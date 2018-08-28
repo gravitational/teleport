@@ -34,19 +34,22 @@ const CurrentProfileSymlink = "profile"
 // type fewer CLI args.
 //
 type ClientProfile struct {
-	//
-	// proxy configuration
-	//
-	ProxyHost    string `yaml:"proxy_host,omitempty"`
-	ProxySSHPort int    `yaml:"proxy_port,omitempty"`
-	ProxyWebPort int    `yaml:"proxy_web_port,omitempty"`
+	// ProxyWebHost is the address of the web proxy can be accessed at.
+	ProxyWebHost string `yaml:"proxy_host,omitempty"`
+
+	// ProxyWebPort is port the web proxy can be accessed at.
+	ProxyWebPort int `yaml:"proxy_port,omitempty"`
+
+	// ProxySSHHost is the host the SSH proxy can be accessed at.
+	ProxySSHHost string `yaml:"proxy_ssh_host,omitempty"`
+
+	// ProxySSHPort is the port the SSH proxy can be accessed at.
+	ProxySSHPort int `yaml:"proxy_ssh_port,omitempty"`
 
 	// KubeProxyAddr is a kubernetes address in host:port format
 	KubeProxyAddr string `yaml:"kube_proxy_addr,omitempty"`
 
-	//
-	// auth/identity
-	//
+	// Username is the Teleport username for the client.
 	Username string `yaml:"user,omitempty"`
 
 	// AuthType (like "google")
@@ -55,9 +58,7 @@ type ClientProfile struct {
 	// SiteName is equivalient to --cluster argument
 	SiteName string `yaml:"cluster,omitempty"`
 
-	//
-	// other stuff
-	//
+	// ForwardedPorts is the list of ports to forward to the target node.
 	ForwardedPorts []string `yaml:"forward_ports,omitempty"`
 }
 
