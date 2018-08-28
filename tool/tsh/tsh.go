@@ -396,20 +396,28 @@ func onLogin(cf *CLIConf) {
 	if key, err = tc.Login(cf.Context, activateKey); err != nil {
 		utils.FatalError(err)
 	}
+
 	if makeIdentityFile {
 		client.MakeIdentityFile(cf.IdentityFileOut, key, cf.IdentityFormat)
 		fmt.Printf("\nThe certificate has been written to %s\n", cf.IdentityFileOut)
 		return
 	}
 
-	// update kubernetes config file
+	// Update kubernetes config file.
 	if err := kubeclient.UpdateKubeconfig(tc); err != nil {
 		utils.FatalError(err)
 	}
 
-	// regular login (without -i flag)
+	// Regular login without -i flag.
 	tc.SaveProfile("")
 
+	// Connect to the Auth Server and fetch the known hosts for this cluster.
+	err = tc.UpdateKnownHosts(cf.Context)
+	if err != nil {
+		utils.FatalError(err)
+	}
+
+	// Print status to show information of the logged in user.
 	onStatus(cf)
 }
 
@@ -680,7 +688,10 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 		c.Username = cf.Username
 	}
 	if cf.Proxy != "" {
-		c.ProxyHostPort = cf.Proxy
+		err = c.ParseProxyHost(cf.Proxy)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	if len(fPorts) > 0 {
 		c.LocalForwardPorts = fPorts
