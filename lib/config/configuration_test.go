@@ -397,6 +397,25 @@ func (s *ConfigTestSuite) TestApplyConfig(c *check.C) {
 	c.Assert(cfg.Proxy.ReverseTunnelListenAddr.FullAddress(), check.Equals, "tcp://tunnelhost:1001")
 }
 
+// TestApplyConfigNoneEnabled makes sure that if a section is not enabled,
+// it's fields are not read in.
+func (s *ConfigTestSuite) TestApplyConfigNoneEnabled(c *check.C) {
+	conf, err := ReadConfig(bytes.NewBufferString(NoServicesConfigString))
+	c.Assert(err, check.IsNil)
+	c.Assert(conf, check.NotNil)
+
+	cfg := service.MakeDefaultConfig()
+	err = ApplyFileConfig(conf, cfg)
+	c.Assert(err, check.IsNil)
+
+	c.Assert(cfg.Auth.Enabled, check.Equals, false)
+	c.Assert(cfg.Auth.PublicAddrs, check.HasLen, 0)
+	c.Assert(cfg.Proxy.Enabled, check.Equals, false)
+	c.Assert(cfg.Proxy.PublicAddrs, check.HasLen, 0)
+	c.Assert(cfg.SSH.Enabled, check.Equals, false)
+	c.Assert(cfg.SSH.PublicAddrs, check.HasLen, 0)
+}
+
 func (s *ConfigTestSuite) TestBackendDefaults(c *check.C) {
 	read := func(val string) *service.Config {
 		// default value is dir backend
