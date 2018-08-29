@@ -110,6 +110,11 @@ func NewLocalAgent(keyDir string, proxyHost string, username string) (a *LocalKe
 	return a, nil
 }
 
+// UpdateProxyHost changes the proxy host that the local agent operates on.
+func (a *LocalKeyAgent) UpdateProxyHost(proxyHost string) {
+	a.proxyHost = proxyHost
+}
+
 // LoadKey adds a key into the Teleport ssh agent as well as the system ssh
 // agent.
 func (a *LocalKeyAgent) LoadKey(key Key) (*agent.AddedKey, error) {

@@ -314,8 +314,11 @@ type SSHProxySettings struct {
 	// connections on.
 	ListenAddr string `json:"listen_addr,omitempty"`
 
-	// PublicAddr is the public address the SSH proxy is accessible at.
+	// PublicAddr is the public address of the HTTP proxy.
 	PublicAddr string `json:"public_addr,omitempty"`
+
+	// SSHPublicAddr is the public address of the SSH proxy.
+	SSHPublicAddr string `json:"ssh_public_addr,omitempty"`
 }
 
 // PingResponse contains the form of authentication the auth server supports.
@@ -516,7 +519,7 @@ func SSHAgentU2FLogin(proxyAddr, user, password string, pubKey []byte, ttl time.
 // initClient creates and initializes HTTPS client for talking to teleport proxy HTTPS
 // endpoint.
 func initClient(proxyAddr string, insecure bool, pool *x509.CertPool) (*WebClient, *url.URL, error) {
-	log.Debugf("HTTPS client init(insecure=%v)", insecure)
+	log.Debugf("HTTPS client init(proxyAddr=%v, insecure=%v)", proxyAddr, insecure)
 
 	// validate proxyAddr:
 	host, port, err := net.SplitHostPort(proxyAddr)

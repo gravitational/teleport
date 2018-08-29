@@ -315,6 +315,13 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		cfg.Proxy.PublicAddrs = addrs
 	}
+	if len(fc.Proxy.SSHPublicAddr) != 0 {
+		addrs, err := fc.Proxy.SSHPublicAddr.Addrs(defaults.SSHProxyListenPort)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.SSHPublicAddrs = addrs
+	}
 	if fc.Proxy.KeyFile != "" {
 		if !fileExists(fc.Proxy.KeyFile) {
 			return trace.Errorf("https key does not exist: %s", fc.Proxy.KeyFile)
