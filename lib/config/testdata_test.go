@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package config
 
 const StaticConfigString = `
@@ -134,6 +135,26 @@ proxy_service:
   web_listen_addr: webhost
   tunnel_listen_addr: tunnelhost:1001
   public_addr: web3:443
+`
+
+// NoServicesConfigString is a configuration file with no services enabled
+// but with values for all services set.
+const NoServicesConfigString = `
+teleport:
+  nodename: node.example.com
+
+auth_service:
+  enabled: no
+  cluster_name: "example.com"
+  public_addr: "auth.example.com"
+
+ssh_service:
+  enabled: no
+  public_addr: "ssh.example.com"
+
+proxy_service:
+  enabled: no
+  public_addr: "proxy.example.com"
 `
 
 // LegacyAuthenticationSection is the deprecated format for authentication method. We still
