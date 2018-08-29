@@ -40,39 +40,45 @@ func (s *APITestSuite) SetUpSuite(c *check.C) {
 func (s *APITestSuite) TestConfig(c *check.C) {
 	var conf Config
 	c.Assert(conf.ProxySpecified(), check.Equals, false)
-	conf.ProxyHostPort = "example.org"
+	err := conf.ParseProxyHost("example.org")
+	c.Assert(err, check.IsNil)
 	c.Assert(conf.ProxySpecified(), check.Equals, true)
-	c.Assert(conf.ProxySSHHostPort(), check.Equals, "example.org:3023")
-	c.Assert(conf.ProxyWebHostPort(), check.Equals, "example.org:3080")
+	c.Assert(conf.SSHProxyAddr, check.Equals, "example.org:3023")
+	c.Assert(conf.WebProxyAddr, check.Equals, "example.org:3080")
 
-	conf.SetProxy("example.org", 100, 200)
-	c.Assert(conf.ProxyWebHostPort(), check.Equals, "example.org:100")
-	c.Assert(conf.ProxySSHHostPort(), check.Equals, "example.org:200")
+	conf.WebProxyAddr = "example.org:100"
+	conf.SSHProxyAddr = "example.org:200"
+	c.Assert(conf.WebProxyAddr, check.Equals, "example.org:100")
+	c.Assert(conf.SSHProxyAddr, check.Equals, "example.org:200")
 
-	conf.ProxyHostPort = "example.org:200"
-	c.Assert(conf.ProxyWebHostPort(), check.Equals, "example.org:200")
-	c.Assert(conf.ProxySSHHostPort(), check.Equals, "example.org:3023")
+	err = conf.ParseProxyHost("example.org:200")
+	c.Assert(err, check.IsNil)
+	c.Assert(conf.WebProxyAddr, check.Equals, "example.org:200")
+	c.Assert(conf.SSHProxyAddr, check.Equals, "example.org:3023")
 
-	conf.ProxyHostPort = "example.org:,200"
-	c.Assert(conf.ProxySSHHostPort(), check.Equals, "example.org:200")
-	c.Assert(conf.ProxyWebHostPort(), check.Equals, "example.org:3080")
+	err = conf.ParseProxyHost("example.org:,200")
+	c.Assert(err, check.IsNil)
+	c.Assert(conf.SSHProxyAddr, check.Equals, "example.org:200")
+	c.Assert(conf.WebProxyAddr, check.Equals, "example.org:3080")
 
-	conf.SetProxy("example.org", 100, 200)
-	c.Assert(conf.ProxyWebHostPort(), check.Equals, "example.org:100")
-	c.Assert(conf.ProxySSHHostPort(), check.Equals, "example.org:200")
-
+	conf.WebProxyAddr = "example.org:100"
+	conf.SSHProxyAddr = "example.org:200"
+	c.Assert(conf.WebProxyAddr, check.Equals, "example.org:100")
+	c.Assert(conf.SSHProxyAddr, check.Equals, "example.org:200")
 }
 
 func (s *APITestSuite) TestNew(c *check.C) {
 	conf := Config{
-		Host:          "localhost",
-		HostLogin:     "vincent",
-		HostPort:      22,
-		KeysDir:       "/tmp",
-		Username:      "localuser",
-		ProxyHostPort: "proxy",
-		SiteName:      "site",
+		Host:      "localhost",
+		HostLogin: "vincent",
+		HostPort:  22,
+		KeysDir:   "/tmp",
+		Username:  "localuser",
+		SiteName:  "site",
 	}
+	err := conf.ParseProxyHost("proxy")
+	c.Assert(err, check.IsNil)
+
 	tc, err := NewClient(&conf)
 	c.Assert(err, check.IsNil)
 	c.Assert(tc, check.NotNil)

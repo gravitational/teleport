@@ -847,31 +847,23 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		return nil, err
 	}
 
-	// break down proxy address into host, ssh_port and web_port:
 	proxyConf := &i.Config.Proxy
-	proxyHost, sp, err := net.SplitHostPort(proxyConf.SSHAddr.Addr)
+	proxyHost, _, err := net.SplitHostPort(proxyConf.SSHAddr.Addr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// use alternative proxy if necessary
-	var proxySSHPort, proxyWebPort int
+	var webProxyAddr string
+	var sshProxyAddr string
+
 	if cfg.Proxy == nil {
-		proxySSHPort, err = strconv.Atoi(sp)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		_, sp, err = net.SplitHostPort(proxyConf.WebAddr.Addr)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		proxyWebPort, err = strconv.Atoi(sp)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		webProxyAddr = proxyConf.WebAddr.Addr
+		sshProxyAddr = proxyConf.SSHAddr.Addr
 	} else {
-		proxySSHPort, proxyWebPort = cfg.Proxy.SSHPort, cfg.Proxy.WebPort
+		webProxyAddr = net.JoinHostPort(proxyHost, strconv.Itoa(cfg.Proxy.WebPort))
+		sshProxyAddr = net.JoinHostPort(proxyHost, strconv.Itoa(cfg.Proxy.SSHPort))
 	}
+
 	cconf := &client.Config{
 		Username:           cfg.Login,
 		Host:               cfg.Host,
@@ -881,8 +873,9 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		KeysDir:            keyDir,
 		SiteName:           cfg.Cluster,
 		ForwardAgent:       cfg.ForwardAgent,
+		WebProxyAddr:       webProxyAddr,
+		SSHProxyAddr:       sshProxyAddr,
 	}
-	cconf.SetProxy(proxyHost, proxyWebPort, proxySSHPort)
 
 	return client.NewClient(cconf)
 }

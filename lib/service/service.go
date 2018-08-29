@@ -1483,6 +1483,7 @@ func (process *TeleportProcess) getAdditionalPrincipals(role teleport.Role) ([]s
 	switch role {
 	case teleport.RoleProxy:
 		addrs = append(process.Config.Proxy.PublicAddrs, utils.NetAddr{Addr: reversetunnel.RemoteKubeProxy})
+		addrs = append(addrs, process.Config.Proxy.SSHPublicAddrs...)
 		addrs = append(addrs, process.Config.Proxy.Kube.PublicAddrs...)
 	case teleport.RoleAuth, teleport.RoleAdmin:
 		addrs = process.Config.Auth.PublicAddrs
@@ -1759,6 +1760,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 		if len(cfg.Proxy.PublicAddrs) > 0 {
 			proxySettings.SSH.PublicAddr = cfg.Proxy.PublicAddrs[0].String()
+		}
+		if len(cfg.Proxy.SSHPublicAddrs) > 0 {
+			proxySettings.SSH.SSHPublicAddr = cfg.Proxy.SSHPublicAddrs[0].String()
 		}
 		if len(cfg.Proxy.Kube.PublicAddrs) > 0 {
 			proxySettings.Kube.PublicAddr = cfg.Proxy.Kube.PublicAddrs[0].String()

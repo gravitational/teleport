@@ -417,7 +417,11 @@ func onLogin(cf *CLIConf) {
 		utils.FatalError(err)
 	}
 
-	// Print status to show information of the logged in user.
+	// Print status to show information of the logged in user. Update the
+	// command line flag (used to print status) for the proxy to make sure any
+	// advertised settings are picked up.
+	webProxyHost, _ := tc.WebProxyHostPort()
+	cf.Proxy = webProxyHost
 	onStatus(cf)
 }
 

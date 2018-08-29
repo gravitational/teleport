@@ -116,22 +116,13 @@ type Config struct {
 	// port setting via -p flag, otherwise '0' is passed which means "use server default"
 	HostPort int
 
-	// ProxySSHHost is host or IP of the SSH proxy. It is derived from either
-	// the --proxy flag or from the value the proxy advertises in public_addr.
-	ProxySSHHost string
+	// WebProxyAddr is the host:port the web proxy can be accessed at.
+	WebProxyAddr string
 
-	// ProxySSHPort is the port to use to connect to the SSH proxy. It is
-	// derived from either the --proxy flag or from the value the proxy
-	// advertises in listen_addr.
-	ProxySSHPort int
+	// SSHProxyAddr is the host:port the SSH proxy can be accessed at.
+	SSHProxyAddr string
 
-	// ProxyWebHost is host or IP of the web proxy.
-	ProxyWebHost string
-
-	// ProxyWebPort is the port to use to connect to the web proxy.
-	ProxyWebPort int
-
-	// KubeProxyAddr is a kubernetes proxy address in host:port format
+	// KubeProxyAddr is the host:port the Kubernetes proxy can be accessed at.
 	KubeProxyAddr string
 
 	// KeyTTL is a time to live for the temporary SSH keypair to remain valid:
@@ -278,7 +269,7 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keys, err := store.GetKey(profile.ProxyWebHost, profile.Username)
+	keys, err := store.GetKey(profile.Name(), profile.Username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -320,7 +311,7 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 	return &ProfileStatus{
 		ProxyURL: url.URL{
 			Scheme: "https",
-			Host:   net.JoinHostPort(profile.ProxyWebHost, strconv.Itoa(profile.ProxyWebPort)),
+			Host:   profile.WebProxyAddr,
 		},
 		Username:   profile.Username,
 		Logins:     cert.ValidPrincipals,
@@ -451,26 +442,33 @@ func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 		return trace.Wrap(err)
 	}
 
+	// DELETE IN: 3.1.0
+	// The "proxy_host" field (and associated ports) have been deprecated and
+	// replaced with "proxy_web_addr" and "proxy_ssh_addr".
+	if cp.ProxyHost != "" {
+		if cp.ProxyWebPort == 0 {
+			cp.ProxyWebPort = defaults.HTTPListenPort
+		}
+		if cp.ProxySSHPort == 0 {
+			cp.ProxySSHPort = defaults.SSHProxyListenPort
+		}
+		c.WebProxyAddr = net.JoinHostPort(cp.ProxyHost, strconv.Itoa(cp.ProxyWebPort))
+		c.SSHProxyAddr = net.JoinHostPort(cp.ProxyHost, strconv.Itoa(cp.ProxySSHPort))
+	}
+
 	c.Username = cp.Username
 	c.SiteName = cp.SiteName
 	c.KubeProxyAddr = cp.KubeProxyAddr
 
-	// Read in the value for the web proxy (obtained by parsing --proxy). If
-	// the value of the SSH proxy is not available, fallback to the to the
-	// value of the web proxy.
-	c.ProxyWebHost = cp.ProxyWebHost
-	if cp.ProxySSHHost != "" {
-		c.ProxySSHHost = cp.ProxySSHHost
-	} else {
-		c.ProxySSHHost = cp.ProxyWebHost
+	// UPDATE IN: 3.1.0
+	// Remove the above DELETE IN block and below if statements and always set
+	// WebProxyAddr and SSHProxyAddr. This needs to be done right now to support
+	// backward compatibility with Teleport 2.0.
+	if cp.WebProxyAddr != "" {
+		c.WebProxyAddr = cp.WebProxyAddr
 	}
-
-	// Same logic as above but apply it to the web and SSH port values as well.
-	c.ProxyWebPort = cp.ProxyWebPort
-	if cp.ProxySSHPort != 0 {
-		c.ProxySSHPort = cp.ProxySSHPort
-	} else {
-		c.ProxySSHPort = cp.ProxyWebPort
+	if cp.SSHProxyAddr != "" {
+		c.SSHProxyAddr = cp.SSHProxyAddr
 	}
 
 	c.LocalForwardPorts, err = ParsePortForwardSpec(cp.ForwardedPorts)
@@ -484,18 +482,19 @@ func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 // SaveProfile updates the given profiles directory with the current configuration
 // If profileDir is an empty string, the default ~/.tsh is used
 func (c *Config) SaveProfile(profileDir string, profileOptions ...ProfileOptions) error {
-	if c.ProxyWebHost == "" {
+	if c.WebProxyAddr == "" {
 		return nil
 	}
+
+	// The profile is saved to a directory with the name of the proxy web endpoint.
+	webProxyHost, _ := c.WebProxyHostPort()
 	profileDir = FullProfilePath(profileDir)
-	profilePath := path.Join(profileDir, c.ProxyWebHost) + ".yaml"
+	profilePath := path.Join(profileDir, webProxyHost) + ".yaml"
 
 	var cp ClientProfile
 	cp.Username = c.Username
-	cp.ProxyWebHost = c.ProxyWebHost
-	cp.ProxySSHHost = c.ProxySSHHost
-	cp.ProxyWebPort = c.ProxyWebPort
-	cp.ProxySSHPort = c.ProxySSHPort
+	cp.WebProxyAddr = c.WebProxyAddr
+	cp.SSHProxyAddr = c.SSHProxyAddr
 	cp.KubeProxyAddr = c.KubeProxyAddr
 	cp.ForwardedPorts = c.LocalForwardPorts.ToStringSpec()
 	cp.SiteName = c.SiteName
@@ -519,7 +518,7 @@ func (c *Config) SaveProfile(profileDir string, profileOptions ...ProfileOptions
 // ParseProxyHost parses the proxyHost string and updates the config.
 //
 // Format of proxyHost string:
-//   proxy_host:<https_proxy_port>,<ssh_proxy_port>
+//   proxy_web_addr:<proxy_web_port>,<proxy_ssh_portt>
 func (c *Config) ParseProxyHost(proxyHost string) error {
 	host, port, err := net.SplitHostPort(proxyHost)
 	if err != nil {
@@ -527,36 +526,34 @@ func (c *Config) ParseProxyHost(proxyHost string) error {
 		port = ""
 	}
 
-	// The command line flag specifies both the Web and SSH proxy host.
-	c.ProxyWebHost = host
-	c.ProxySSHHost = host
-
+	// Split on comma.
 	parts := strings.Split(port, ",")
+
 	switch {
 	// Default ports for both the SSH and Web proxy.
 	case len(parts) == 0:
-		c.ProxyWebPort = defaults.HTTPListenPort
-		c.ProxySSHPort = defaults.SSHProxyListenPort
+		c.WebProxyAddr = net.JoinHostPort(host, strconv.Itoa(defaults.HTTPListenPort))
+		c.SSHProxyAddr = net.JoinHostPort(host, strconv.Itoa(defaults.SSHProxyListenPort))
 	// User defined HTTP proxy port, default SSH proxy port.
 	case len(parts) == 1:
-		webPort, err := strconv.Atoi(parts[0])
-		if err != nil {
-			webPort = defaults.HTTPListenPort
+		webPort := parts[0]
+		if webPort == "" {
+			webPort = strconv.Itoa(defaults.HTTPListenPort)
 		}
-		c.ProxyWebPort = webPort
-		c.ProxySSHPort = defaults.SSHProxyListenPort
+		c.WebProxyAddr = net.JoinHostPort(host, webPort)
+		c.SSHProxyAddr = net.JoinHostPort(host, strconv.Itoa(defaults.SSHProxyListenPort))
 	// User defined HTTP and SSH proxy ports.
 	case len(parts) == 2:
-		webPort, err := strconv.Atoi(parts[0])
-		if err != nil {
-			webPort = defaults.HTTPListenPort
+		webPort := parts[0]
+		if webPort == "" {
+			webPort = strconv.Itoa(defaults.HTTPListenPort)
 		}
-		sshPort, err := strconv.Atoi(parts[1])
-		if err != nil {
-			sshPort = defaults.SSHProxyListenPort
+		sshPort := parts[1]
+		if sshPort == "" {
+			sshPort = strconv.Itoa(defaults.SSHProxyListenPort)
 		}
-		c.ProxyWebPort = webPort
-		c.ProxySSHPort = sshPort
+		c.WebProxyAddr = net.JoinHostPort(host, webPort)
+		c.SSHProxyAddr = net.JoinHostPort(host, sshPort)
 	default:
 		return trace.BadParameter("unable to parse port: %v", port)
 	}
@@ -564,7 +561,7 @@ func (c *Config) ParseProxyHost(proxyHost string) error {
 	return nil
 }
 
-// KubeProxyHostPort returns kubernetes proxy host and port
+// KubeProxyHostPort returns the host and port of the Kubernetes proxy.
 func (c *Config) KubeProxyHostPort() (string, int) {
 	if c.KubeProxyAddr != "" {
 		addr, err := utils.ParseAddr(c.KubeProxyAddr)
@@ -572,7 +569,35 @@ func (c *Config) KubeProxyHostPort() (string, int) {
 			return addr.Host(), addr.Port(defaults.KubeProxyListenPort)
 		}
 	}
-	return c.ProxyWebHost, defaults.KubeProxyListenPort
+
+	webProxyHost, _ := c.WebProxyHostPort()
+	return webProxyHost, defaults.KubeProxyListenPort
+}
+
+// WebProxyHostPort returns the host and port of the web proxy.
+func (c *Config) WebProxyHostPort() (string, int) {
+	if c.WebProxyAddr != "" {
+		addr, err := utils.ParseAddr(c.WebProxyAddr)
+		if err == nil {
+			return addr.Host(), addr.Port(defaults.HTTPListenPort)
+		}
+	}
+
+	webProxyHost, _ := c.WebProxyHostPort()
+	return webProxyHost, defaults.HTTPListenPort
+}
+
+// SSHProxyHostPort returns the host and port of the SSH proxy.
+func (c *Config) SSHProxyHostPort() (string, int) {
+	if c.SSHProxyAddr != "" {
+		addr, err := utils.ParseAddr(c.SSHProxyAddr)
+		if err == nil {
+			return addr.Host(), addr.Port(defaults.SSHProxyListenPort)
+		}
+	}
+
+	webProxyHost, _ := c.WebProxyHostPort()
+	return webProxyHost, defaults.SSHProxyListenPort
 }
 
 // ProxyHost returns the hostname of the proxy server (without any port numbers)
@@ -584,17 +609,9 @@ func ProxyHost(proxyHost string) string {
 	return host
 }
 
-func (c *Config) ProxyWebHostPort() string {
-	return net.JoinHostPort(c.ProxyWebHost, strconv.Itoa(c.ProxyWebPort))
-}
-
-func (c *Config) ProxySSHHostPort() string {
-	return net.JoinHostPort(c.ProxySSHHost, strconv.Itoa(c.ProxySSHPort))
-}
-
-// ProxySpecified returns true if proxy has been specified
+// ProxySpecified returns true if proxy has been specified.
 func (c *Config) ProxySpecified() bool {
-	return len(c.ProxyWebHost) > 0
+	return c.WebProxyAddr != ""
 }
 
 // TeleportClient is a wrapper around SSH client with teleport specific
@@ -629,7 +646,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		}
 		log.Infof("No teleport login given. defaulting to %s", c.Username)
 	}
-	if c.ProxyWebHost == "" {
+	if c.WebProxyAddr == "" {
 		return nil, trace.BadParameter("No proxy address specified, missed --proxy flag?")
 	}
 	if c.HostLogin == "" {
@@ -678,7 +695,8 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		}
 	} else {
 		// initialize the local agent (auth agent which uses local SSH keys signed by the CA):
-		tc.localAgent, err = NewLocalAgent(c.KeysDir, tc.ProxyWebHost, c.Username)
+		webProxyHost, _ := tc.WebProxyHostPort()
+		tc.localAgent, err = NewLocalAgent(c.KeysDir, webProxyHost, c.Username)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1326,7 +1344,7 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 	var err error
 
 	proxyPrincipal := tc.getProxySSHPrincipal()
-	proxyAddr := tc.Config.ProxySSHHostPort()
+	proxyAddr := tc.Config.SSHProxyAddr
 	sshConfig := &ssh.ClientConfig{
 		User:            proxyPrincipal,
 		HostKeyCallback: tc.HostKeyCallback,
@@ -1438,11 +1456,10 @@ func (tc *TeleportClient) LogoutAll() error {
 // keystore (and into the ssh-agent) for future use.
 //
 func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, error) {
-	httpsProxyHostPort := tc.Config.ProxyWebHostPort()
-	certPool := loopbackPool(httpsProxyHostPort)
+	certPool := loopbackPool(tc.Config.WebProxyAddr)
 
 	// ping the endpoint to see if it's up and find the type of authentication supported
-	pr, err := Ping(httpsProxyHostPort, tc.InsecureSkipVerify, certPool, tc.AuthConnector)
+	pr, err := Ping(tc.Config.WebProxyAddr, tc.InsecureSkipVerify, certPool, tc.AuthConnector)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1578,10 +1595,11 @@ func (tc *TeleportClient) applyProxySettings(proxySettings ProxySettings) error 
 		}
 		tc.KubeProxyAddr = proxySettings.Kube.PublicAddr
 	} else if proxySettings.Kube.Enabled && tc.KubeProxyAddr == "" {
-		tc.KubeProxyAddr = fmt.Sprintf("%s:%d", tc.ProxyWebHost, defaults.KubeProxyListenPort)
+		webProxyHost, _ := tc.WebProxyHostPort()
+		tc.KubeProxyAddr = fmt.Sprintf("%s:%d", webProxyHost, defaults.KubeProxyListenPort)
 	}
 
-	// The hostname of the SSH proxy comes from public_addr.
+	// Read in settings for HTTP endpoint of the proxy.
 	if proxySettings.SSH.PublicAddr != "" {
 		addr, err := utils.ParseAddr(proxySettings.SSH.PublicAddr)
 		if err != nil {
@@ -1589,9 +1607,18 @@ func (tc *TeleportClient) applyProxySettings(proxySettings ProxySettings) error 
 				"failed to parse value received from the server: %q, contact your administrator for help",
 				proxySettings.SSH.PublicAddr)
 		}
-		tc.ProxySSHHost = addr.Host()
+		tc.WebProxyAddr = net.JoinHostPort(addr.Host(), strconv.Itoa(addr.Port(defaults.HTTPListenPort)))
+
+		// Update local agent (that reads/writes to ~/.tsh) with the new address
+		// of the web proxy. This will control where the keys are stored on disk
+		// after login.
+		tc.localAgent.UpdateProxyHost(addr.Host())
 	}
-	// The port of the SSH proxy comes from listen_addr.
+	// Read in settings for the SSH endpoint of the proxy.
+	//
+	// If listen_addr is set, take host from ProxyWebHost and port from what
+	// was set. This is to maintain backward compatibility when Teleport only
+	// supported public_addr.
 	if proxySettings.SSH.ListenAddr != "" {
 		addr, err := utils.ParseAddr(proxySettings.SSH.ListenAddr)
 		if err != nil {
@@ -1599,7 +1626,18 @@ func (tc *TeleportClient) applyProxySettings(proxySettings ProxySettings) error 
 				"failed to parse value received from the server: %q, contact your administrator for help",
 				proxySettings.SSH.ListenAddr)
 		}
-		tc.ProxySSHPort = addr.Port(defaults.SSHProxyListenPort)
+		webProxyHost, _ := tc.WebProxyHostPort()
+		tc.SSHProxyAddr = net.JoinHostPort(webProxyHost, strconv.Itoa(addr.Port(defaults.SSHProxyListenPort)))
+	}
+	// If ssh_public_addr is set, override settings from listen_addr.
+	if proxySettings.SSH.SSHPublicAddr != "" {
+		addr, err := utils.ParseAddr(proxySettings.SSH.SSHPublicAddr)
+		if err != nil {
+			return trace.BadParameter(
+				"failed to parse value received from the server: %q, contact your administrator for help",
+				proxySettings.SSH.ListenAddr)
+		}
+		tc.SSHProxyAddr = net.JoinHostPort(addr.Host(), strconv.Itoa(addr.Port(defaults.SSHProxyListenPort)))
 	}
 
 	return nil
@@ -1654,8 +1692,7 @@ func (tc *TeleportClient) AddKey(host string, key *Key) (*agent.AddedKey, error)
 func (tc *TeleportClient) directLogin(secondFactorType string, pub []byte) (*auth.SSHLoginResponse, error) {
 	var err error
 
-	httpsProxyHostPort := tc.Config.ProxyWebHostPort()
-	certPool := loopbackPool(httpsProxyHostPort)
+	certPool := loopbackPool(tc.Config.WebProxyAddr)
 
 	var password string
 	var otpToken string
@@ -1675,7 +1712,7 @@ func (tc *TeleportClient) directLogin(secondFactorType string, pub []byte) (*aut
 
 	// ask the CA (via proxy) to sign our public key:
 	response, err := SSHAgentLogin(
-		httpsProxyHostPort,
+		tc.Config.WebProxyAddr,
 		tc.Config.Username,
 		password,
 		otpToken,
@@ -1692,15 +1729,14 @@ func (tc *TeleportClient) directLogin(secondFactorType string, pub []byte) (*aut
 func (tc *TeleportClient) ssoLogin(ctx context.Context, connectorID string, pub []byte, protocol string) (*auth.SSHLoginResponse, error) {
 	log.Debugf("samlLogin start")
 	// ask the CA (via proxy) to sign our public key:
-	webProxyAddr := tc.Config.ProxyWebHostPort()
 	response, err := SSHAgentSSOLogin(
 		ctx,
-		webProxyAddr,
+		tc.Config.WebProxyAddr,
 		connectorID,
 		pub,
 		tc.KeyTTL,
 		tc.InsecureSkipVerify,
-		loopbackPool(webProxyAddr),
+		loopbackPool(tc.Config.WebProxyAddr),
 		protocol,
 		tc.CertificateFormat)
 	return response, trace.Wrap(err)
@@ -1714,8 +1750,7 @@ func (tc *TeleportClient) u2fLogin(pub []byte) (*auth.SSHLoginResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	httpsProxyHostPort := tc.Config.ProxyWebHostPort()
-	certPool := loopbackPool(httpsProxyHostPort)
+	certPool := loopbackPool(tc.Config.WebProxyAddr)
 
 	password, err := tc.AskPassword()
 	if err != nil {
@@ -1723,7 +1758,7 @@ func (tc *TeleportClient) u2fLogin(pub []byte) (*auth.SSHLoginResponse, error) {
 	}
 
 	response, err := SSHAgentU2FLogin(
-		httpsProxyHostPort,
+		tc.Config.WebProxyAddr,
 		tc.Config.Username,
 		password,
 		pub,

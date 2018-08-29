@@ -278,9 +278,15 @@ type ProxyConfig struct {
 
 	Limiter limiter.LimiterConfig
 
-	// PublicAddrs is a list of the public addresses the Teleport UI can be accessed at,
-	// it also affects the SSH host principals and DNS names added to the SSH and TLS certs.
+	// PublicAddrs is a list of the public addresses the proxy advertises
+	// for the HTTP endpoint. The hosts in in PublicAddr are included in the
+	// list of host principals on the TLS and SSH certificate.
 	PublicAddrs []utils.NetAddr
+
+	// SSHPublicAddrs is a list of the public addresses the proxy advertises
+	// for the SSH endpoint. The hosts in in PublicAddr are included in the
+	// list of host principals on the TLS and SSH certificate.
+	SSHPublicAddrs []utils.NetAddr
 
 	// Kube specifies kubernetes proxy configuration
 	Kube KubeProxyConfig

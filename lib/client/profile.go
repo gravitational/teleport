@@ -2,6 +2,7 @@ package client
 
 import (
 	"io/ioutil"
+	"net"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -34,19 +35,13 @@ const CurrentProfileSymlink = "profile"
 // type fewer CLI args.
 //
 type ClientProfile struct {
-	// ProxyWebHost is the address of the web proxy can be accessed at.
-	ProxyWebHost string `yaml:"proxy_host,omitempty"`
+	// WebProxyAddr is the host:port the web proxy can be accessed at.
+	WebProxyAddr string `yaml:"web_proxy_addr,omitempty"`
 
-	// ProxyWebPort is port the web proxy can be accessed at.
-	ProxyWebPort int `yaml:"proxy_port,omitempty"`
+	// SSHProxyAddr is the host:port the SSH proxy can be accessed at.
+	SSHProxyAddr string `yaml:"ssh_proxy_addr,omitempty"`
 
-	// ProxySSHHost is the host the SSH proxy can be accessed at.
-	ProxySSHHost string `yaml:"proxy_ssh_host,omitempty"`
-
-	// ProxySSHPort is the port the SSH proxy can be accessed at.
-	ProxySSHPort int `yaml:"proxy_ssh_port,omitempty"`
-
-	// KubeProxyAddr is a kubernetes address in host:port format
+	// KubeProxyAddr is the host:port the Kubernetes proxy can be accessed at.
 	KubeProxyAddr string `yaml:"kube_proxy_addr,omitempty"`
 
 	// Username is the Teleport username for the client.
@@ -60,6 +55,27 @@ type ClientProfile struct {
 
 	// ForwardedPorts is the list of ports to forward to the target node.
 	ForwardedPorts []string `yaml:"forward_ports,omitempty"`
+
+	// DELETE IN: 3.1.0
+	// The following fields have been deprecated and replaced with
+	// "proxy_web_addr" and "proxy_ssh_addr".
+	ProxyHost    string `yaml:"proxy_host,omitempty"`
+	ProxySSHPort int    `yaml:"proxy_port,omitempty"`
+	ProxyWebPort int    `yaml:"proxy_web_port,omitempty"`
+}
+
+// Name returns the name of the profile.
+func (c *ClientProfile) Name() string {
+	if c.ProxyHost != "" {
+		return c.ProxyHost
+	}
+
+	addr, _, err := net.SplitHostPort(c.WebProxyAddr)
+	if err != nil {
+		return c.WebProxyAddr
+	}
+
+	return addr
 }
 
 // FullProfilePath returns the full path to the user profile directory.

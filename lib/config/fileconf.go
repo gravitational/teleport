@@ -125,6 +125,7 @@ var (
 		"dynamic_config":          false,
 		"seed_config":             false,
 		"public_addr":             false,
+		"ssh_public_addr":         false,
 		"cache":                   true,
 		"ttl":                     false,
 		"issuer":                  false,
@@ -722,8 +723,6 @@ type Proxy struct {
 	KeyFile string `yaml:"https_key_file,omitempty"`
 	// CertFile is a TLS Certificate file
 	CertFile string `yaml:"https_cert_file,omitempty"`
-	// PublicAddr is a publicly advertised address of the proxy
-	PublicAddr utils.Strings `yaml:"public_addr,omitempty"`
 	// ProxyProtocol turns on support for HAProxy proxy protocol
 	// this is the option that has be turned on only by administrator,
 	// as only admin knows whether service is in front of trusted load balancer
@@ -731,6 +730,16 @@ type Proxy struct {
 	ProxyProtocol string `yaml:"proxy_protocol,omitempty"`
 	// Kube configures kubernetes protocol support of the proxy
 	Kube Kube `yaml:"kubernetes,omitempty"`
+
+	// PublicAddr sets the hostport the proxy advertises for the HTTP endpoint.
+	// The hosts in PublicAddr are included in the list of host principals
+	// on the SSH certificate.
+	PublicAddr utils.Strings `yaml:"public_addr,omitempty"`
+
+	// SSHPublicAddr sets the hostport the proxy advertises for the SSH endpoint.
+	// The hosts in PublicAddr are included in the list of host principals
+	// on the SSH certificate.
+	SSHPublicAddr utils.Strings `yaml:"ssh_public_addr,omitempty"`
 }
 
 // Kube is a `kubernetes_service`
