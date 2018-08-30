@@ -85,32 +85,14 @@ func (c *NodeCommand) TryRun(cmd string, client auth.ClientI) (match bool, err e
 	return true, trace.Wrap(err)
 }
 
-const trustedClusterTemplate = `kind: trusted_cluster
-version: v2
-metadata:
-   name: %v
-spec:
-   enabled: true
-   token: %v
-   web_proxy_addr: proxy.example.com:3080
-   role_map:
-   - remote: admin
-     local: [admin]`
+const trustedClusterMessage = `The cluster invite token: %v
+This token will expire in %d minutes
 
-const trustedClusterMessage = `Trusted cluster token: %v
-
-Use this cluster in trusted cluster resource, for example:
-
-%v
-
-Please note:
-
-  - This token will expire in %d minutes.
-  - Replace address proxy.example.com:3080 with externally accessible teleport proxy address.
-  - Set proper local and remote role_map property.
+Use this token when defining a trusted cluster resource on a remote cluster.
 `
 
 const nodeMessage = `The invite token: %v
+This token will expire in %d minutes
 
 Run this on the new node to join the cluster:
 
@@ -119,7 +101,7 @@ Run this on the new node to join the cluster:
 Please note:
 
   - This invitation token will expire in %d minutes
-  - %v must be reachable from the new node, see --advertise-ip server flag
+  - %v must be reachable from the new node
 `
 
 // Invite generates a token which can be used to add another SSH node
@@ -143,19 +125,20 @@ func (c *NodeCommand) Invite(client auth.ClientI) error {
 		return trace.Errorf("This cluster does not have any auth servers running.")
 	}
 
-	clusterName, err := client.GetClusterName()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	// output format swtich:
 	if c.format == "text" {
-		if roles.Include(teleport.RoleTrustedCluster) {
-			trustedCluster := fmt.Sprintf(trustedClusterTemplate, clusterName.GetClusterName(), token)
-			fmt.Printf(trustedClusterMessage, token, trustedCluster, int(c.ttl.Minutes()))
+		if roles.Include(teleport.RoleTrustedCluster) || roles.Include(teleport.LegacyClusterTokenType) {
+			fmt.Printf(trustedClusterMessage, token, int(c.ttl.Minutes()))
 		} else {
 			fmt.Printf(nodeMessage,
-				token, strings.ToLower(roles.String()), token, authServers[0].GetAddr(), int(c.ttl.Minutes()), authServers[0].GetAddr())
+				token,
+				int(c.ttl.Minutes()),
+				strings.ToLower(roles.String()),
+				token,
+				authServers[0].GetAddr(),
+				int(c.ttl.Minutes()),
+				authServers[0].GetAddr(),
+			)
 		}
 	} else {
 		// Always return a list, otherwise we'll break users tooling. See #1846 for

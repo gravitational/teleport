@@ -12,23 +12,23 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-package asciitable
-
 */
+
 package asciitable
 
 import (
+	"fmt"
 	"testing"
 
 	"gopkg.in/check.v1"
 )
 
-// bootstrap check
 func TestAsciiTable(t *testing.T) { check.TestingT(t) }
 
 type TableTestSuite struct {
 }
 
+var _ = fmt.Printf
 var _ = check.Suite(&TableTestSuite{})
 
 const fullTable = `Name          Motto                            Age  
@@ -37,8 +37,8 @@ Joe Forrester Trains are much better than cars 40
 Jesus         Read the bible                   2018 
 `
 
-const headlessTable = `one two 
-1   2   
+const headlessTable = `one  two  
+1    2    
 `
 
 func (s *TableTestSuite) TestFullTable(c *check.C) {
@@ -54,6 +54,6 @@ func (s *TableTestSuite) TestHeadlessTable(c *check.C) {
 	t.AddRow([]string{"one", "two", "three"})
 	t.AddRow([]string{"1", "2", "3"})
 
-	// the table shall have no header and also the 3rd column must be chopped off
+	// The table shall have no header and also the 3rd column must be chopped off.
 	c.Assert(t.AsBuffer().String(), check.Equals, headlessTable)
 }
