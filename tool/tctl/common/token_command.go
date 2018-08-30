@@ -18,24 +18,44 @@ package common
 
 import (
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
-	"github.com/gravitational/kingpin"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
+
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/kingpin"
 )
 
 // TokenCommand implements `tctl token` group of commands
 type TokenCommand struct {
 	config *service.Config
-	// token argument to 'tokens del' command
-	token string
 
-	// CLI clauses (subcommands)
+	// tokenType is the type of token. For example, "trusted_cluster".
+	tokenType string
+
+	// Value is the value of the token. Can be used to either act on a
+	// token (for example, delete a token) or used to create a token with a
+	// specific value.
+	value string
+
+	// ttl is how long the token will live for.
+	ttl time.Duration
+
+	// tokenAdd is used to add a token.
+	tokenAdd *kingpin.CmdClause
+
+	// tokenDel is used to delete a token.
+	tokenDel *kingpin.CmdClause
+
+	// tokenList is used to view all tokens that Teleport knows about.
 	tokenList *kingpin.CmdClause
-	tokenDel  *kingpin.CmdClause
 }
 
 // Initialize allows TokenCommand to plug itself into the CLI parser
@@ -43,38 +63,98 @@ func (c *TokenCommand) Initialize(app *kingpin.Application, config *service.Conf
 	c.config = config
 
 	tokens := app.Command("tokens", "List or revoke invitation tokens")
-	c.tokenList = tokens.Command("ls", "List node and user invitation tokens")
+
+	// tctl tokens add ..."
+	c.tokenAdd = tokens.Command("add", "Create a invitation token")
+	c.tokenAdd.Flag("type", "Type of token to add").Required().StringVar(&c.tokenType)
+	c.tokenAdd.Flag("value", "Value of token to add").StringVar(&c.value)
+	c.tokenAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v hour, maximum is %v hours",
+		int(defaults.SignupTokenTTL/time.Hour), int(defaults.MaxSignupTokenTTL/time.Hour))).
+		Default(fmt.Sprintf("%v", defaults.SignupTokenTTL)).DurationVar(&c.ttl)
+
+	// "tctl tokens rm ..."
 	c.tokenDel = tokens.Command("rm", "Delete/revoke an invitation token").Alias("del")
-	c.tokenDel.Arg("token", "Token to delete").StringVar(&c.token)
+	c.tokenDel.Arg("token", "Token to delete").StringVar(&c.value)
+
+	// "tctl tokens ls"
+	c.tokenList = tokens.Command("ls", "List node and user invitation tokens")
 }
 
 // TryRun takes the CLI command as an argument (like "nodes ls") and executes it.
 func (c *TokenCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
-	case c.tokenList.FullCommand():
-		err = c.List(client)
+	case c.tokenAdd.FullCommand():
+		err = c.Add(client)
 	case c.tokenDel.FullCommand():
 		err = c.Del(client)
-
+	case c.tokenList.FullCommand():
+		err = c.List(client)
 	default:
 		return false, nil
 	}
 	return true, trace.Wrap(err)
 }
 
-// onTokenList is called to execute "tokens del" command
-func (c *TokenCommand) Del(client auth.ClientI) error {
-	if c.token == "" {
-		return trace.Errorf("Need an argument: token")
-	}
-	if err := client.DeleteToken(c.token); err != nil {
+// Add is called to execute "tokens add ..." command.
+func (c *TokenCommand) Add(client auth.ClientI) error {
+	// Parse string to see if it's a type of role that Teleport supports.
+	roles, err := teleport.ParseRoles(c.tokenType)
+	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("Token %s has been deleted\n", c.token)
+
+	// Generate token.
+	token, err := client.GenerateToken(auth.GenerateTokenRequest{
+		Roles: roles,
+		TTL:   c.ttl,
+		Token: c.value,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Get list of auth servers. Used to print friendly signup message.
+	authServers, err := client.GetAuthServers()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(authServers) == 0 {
+		return trace.Errorf("this cluster has no auth servers")
+	}
+
+	// Print signup message.
+	switch {
+	case roles.Include(teleport.RoleTrustedCluster), roles.Include(teleport.LegacyClusterTokenType):
+		fmt.Printf(trustedClusterMessage,
+			token,
+			int(c.ttl.Minutes()))
+	default:
+		fmt.Printf(nodeMessage,
+			token,
+			int(c.ttl.Minutes()),
+			strings.ToLower(roles.String()),
+			token,
+			authServers[0].GetAddr(),
+			int(c.ttl.Minutes()),
+			authServers[0].GetAddr())
+	}
+
 	return nil
 }
 
-// onTokenList is called to execute "tokens ls" command
+// Del is called to execute "tokens del ..." command.
+func (c *TokenCommand) Del(client auth.ClientI) error {
+	if c.value == "" {
+		return trace.Errorf("Need an argument: token")
+	}
+	if err := client.DeleteToken(c.value); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("Token %s has been deleted\n", c.value)
+	return nil
+}
+
+// List is called to execute "tokens ls" command.
 func (c *TokenCommand) List(client auth.ClientI) error {
 	tokens, err := client.GetTokens()
 	if err != nil {
@@ -84,8 +164,12 @@ func (c *TokenCommand) List(client auth.ClientI) error {
 		fmt.Println("No active tokens found.")
 		return nil
 	}
+
+	// Sort by expire time.
+	sort.Slice(tokens, func(i, j int) bool { return tokens[i].Expires.Unix() < tokens[j].Expires.Unix() })
+
 	tokensView := func() string {
-		table := asciitable.MakeTable([]string{"Token", "Role", "Expiry Time (UTC)"})
+		table := asciitable.MakeTable([]string{"Token", "Type", "Expiry Time (UTC)"})
 		for _, t := range tokens {
 			expiry := "never"
 			if t.Expires.Unix() > 0 {
