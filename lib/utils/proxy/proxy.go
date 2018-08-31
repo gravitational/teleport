@@ -67,6 +67,9 @@ func DialWithDeadline(network string, addr string, config *ssh.ClientConfig) (*s
 type Dialer interface {
 	// Dial establishes a client connection to a SSH server.
 	Dial(network string, addr string, config *ssh.ClientConfig) (*ssh.Client, error)
+
+	// DialTimeout acts like Dial but takes a timeout.
+	DialTimeout(network, address string, timeout time.Duration) (net.Conn, error)
 }
 
 type directDial struct{}
@@ -76,15 +79,32 @@ func (d directDial) Dial(network string, addr string, config *ssh.ClientConfig) 
 	return DialWithDeadline(network, addr, config)
 }
 
+// DialTimeout acts like Dial but takes a timeout.
+func (d directDial) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
+	return net.DialTimeout(network, address, timeout)
+}
+
 type proxyDial struct {
 	proxyHost string
+}
+
+// DialTimeout acts like Dial but takes a timeout.
+func (d proxyDial) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
+	// Build a proxy connection first.
+	ctx := context.Background()
+	if timeout > 0 {
+		timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
+		ctx = timeoutCtx
+	}
+	return dialProxy(ctx, d.proxyHost, address)
 }
 
 // Dial first connects to a proxy, then uses the connection to establish a new
 // SSH connection.
 func (d proxyDial) Dial(network string, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
 	// Build a proxy connection first.
-	pconn, err := dialProxy(d.proxyHost, addr)
+	pconn, err := dialProxy(context.Background(), d.proxyHost, addr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -120,8 +140,7 @@ func DialerFromEnvironment(addr string) Dialer {
 	return proxyDial{proxyHost: proxyAddr}
 }
 
-func dialProxy(proxyAddr string, addr string) (net.Conn, error) {
-	ctx := context.Background()
+func dialProxy(ctx context.Context, proxyAddr string, addr string) (net.Conn, error) {
 
 	var d net.Dialer
 	conn, err := d.DialContext(ctx, "tcp", proxyAddr)

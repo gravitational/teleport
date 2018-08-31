@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/forward"
+	"github.com/gravitational/teleport/lib/utils/proxy"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -158,7 +159,8 @@ func (s *localSite) Dial(from net.Addr, to net.Addr, userAgent agent.Agent) (net
 func (s *localSite) DialTCP(from net.Addr, to net.Addr) (net.Conn, error) {
 	s.log.Debugf("Dialing from %v to %v", from, to)
 
-	return net.DialTimeout(to.Network(), to.String(), defaults.DefaultDialTimeout)
+	dialer := proxy.DialerFromEnvironment(to.String())
+	return dialer.DialTimeout(to.Network(), to.String(), defaults.DefaultDialTimeout)
 }
 
 func (s *localSite) dialWithAgent(from net.Addr, to net.Addr, userAgent agent.Agent) (net.Conn, error) {
