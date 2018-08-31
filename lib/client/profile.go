@@ -58,7 +58,8 @@ type ClientProfile struct {
 	//
 	// other stuff
 	//
-	ForwardedPorts []string `yaml:"forward_ports,omitempty"`
+	ForwardedPorts        []string `yaml:"forward_ports,omitempty"`
+	DynamicForwardedPorts []string `yaml:"dynamic_forward_ports,omitempty"`
 }
 
 // FullProfilePath returns the full path to the user profile directory.

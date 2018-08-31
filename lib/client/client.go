@@ -20,7 +20,9 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"io"
 	"io/ioutil"
 	"net"
@@ -577,49 +579,50 @@ func (client *NodeClient) ExecuteSCP(cmd scp.Command) error {
 	return trace.Wrap(err)
 }
 
+func proxyConnection(client *NodeClient, incoming net.Conn, remoteAddr string) {
+	defer incoming.Close()
+	var (
+		conn net.Conn
+		err  error
+	)
+	log.Debugf("nodeClient.proxyConnection(%v -> %v) started", incoming.RemoteAddr(), remoteAddr)
+	for attempt := 1; attempt <= 5; attempt++ {
+		conn, err = client.Client.Dial("tcp", remoteAddr)
+		if err != nil {
+			log.Errorf("Connection attempt %v: %v", attempt, err)
+			// failed to establish an outbound connection? try again:
+			time.Sleep(time.Millisecond * time.Duration(100*attempt))
+			continue
+		}
+		// connection established: continue:
+		break
+	}
+	// permanent failure establishing connection
+	if err != nil {
+		log.Errorf("Failed to connect to node %v", remoteAddr)
+		return
+	}
+	defer conn.Close()
+	// start proxying:
+	doneC := make(chan interface{}, 2)
+	go func() {
+		io.Copy(incoming, conn)
+		doneC <- true
+	}()
+	go func() {
+		io.Copy(conn, incoming)
+		doneC <- true
+	}()
+	<-doneC
+	<-doneC
+	log.Debugf("nodeClient.proxyConnection(%v -> %v) exited", incoming.RemoteAddr(), remoteAddr)
+}
+
 // listenAndForward listens on a given socket and forwards all incoming connections
 // to the given remote address via
 func (client *NodeClient) listenAndForward(socket net.Listener, remoteAddr string) {
 	defer socket.Close()
 	defer client.Close()
-	proxyConnection := func(incoming net.Conn) {
-		defer incoming.Close()
-		var (
-			conn net.Conn
-			err  error
-		)
-		log.Debugf("nodeClient.listenAndForward(%v -> %v) started", incoming.RemoteAddr(), remoteAddr)
-		for attempt := 1; attempt <= 5; attempt++ {
-			conn, err = client.Client.Dial("tcp", remoteAddr)
-			if err != nil {
-				log.Errorf("Connection attempt %v: %v", attempt, err)
-				// failed to establish an outbound connection? try again:
-				time.Sleep(time.Millisecond * time.Duration(100*attempt))
-				continue
-			}
-			// connection established: continue:
-			break
-		}
-		// permanent failure establishing connection
-		if err != nil {
-			log.Errorf("Failed to connect to node %v", remoteAddr)
-			return
-		}
-		defer conn.Close()
-		// start proxying:
-		doneC := make(chan interface{}, 2)
-		go func() {
-			io.Copy(incoming, conn)
-			doneC <- true
-		}()
-		go func() {
-			io.Copy(conn, incoming)
-			doneC <- true
-		}()
-		<-doneC
-		<-doneC
-		log.Debugf("nodeClient.listenAndForward(%v -> %v) exited", incoming.RemoteAddr(), remoteAddr)
-	}
 	// request processing loop: accept incoming requests to be connected to nodes
 	// and proxy them to 'remoteAddr'
 	for {
@@ -628,7 +631,169 @@ func (client *NodeClient) listenAndForward(socket net.Listener, remoteAddr strin
 			log.Error(err)
 			break
 		}
-		go proxyConnection(incoming)
+		go proxyConnection(client, incoming, remoteAddr)
+	}
+}
+
+func readByte(reader io.Reader) (byte, error) {
+	buf := []byte{0}
+	_, err := io.ReadFull(reader, buf)
+	return buf[0], err
+}
+
+const (
+	socks4Version                 byte = 0x04
+	socks5Version                 byte = 0x05
+	socks5Reserved                byte = 0x00
+	socks5AuthNotRequired         byte = 0x00
+	socks5AuthNoAcceptableMethods byte = 0xFF
+	socks5CommandConnect          byte = 0x01
+	socks5AddressTypeIPv4         byte = 0x01
+	socks5AddressTypeDomainName   byte = 0x03
+	socks5AddressTypeIPv6         byte = 0x04
+	socks5Succeeded               byte = 0x00
+)
+
+func socks5ProxyAuthenticate(incoming net.Conn) error {
+	nmethods, err := readByte(incoming)
+	if err != nil {
+		return err
+	}
+
+	chosenMethod := socks5AuthNoAcceptableMethods
+	for i := byte(0); i < nmethods; i++ {
+		method, err := readByte(incoming)
+		if err != nil {
+			return err
+		}
+		if method == socks5AuthNotRequired {
+			chosenMethod = socks5AuthNotRequired
+		}
+	}
+
+	_, err = incoming.Write([]byte{socks5Version, chosenMethod})
+	if err != nil {
+		return err
+	}
+
+	if chosenMethod == socks5AuthNoAcceptableMethods {
+		return errors.New("Unable to find suitable authentication method")
+	}
+
+	return nil
+}
+
+func socks5ProxyConnectRequest(incoming net.Conn) (remoteAddr string, err error) {
+	header := make([]byte, 4)
+	_, err = io.ReadFull(incoming, header)
+	if err != nil {
+		return
+	}
+	if !bytes.Equal(header[0:3], []byte{socks5Version, socks5CommandConnect, socks5Reserved}) {
+		err = errors.New("only connect command is supported for SOCKS5")
+		return
+	}
+
+	var ip net.IP
+	var remoteHost string
+	switch header[3] {
+	case socks5AddressTypeIPv4:
+		ip = make([]byte, net.IPv4len)
+	case socks5AddressTypeIPv6:
+		ip = make([]byte, net.IPv6len)
+	case socks5AddressTypeDomainName:
+		var domainNameLen byte
+		domainNameLen, err = readByte(incoming)
+		if err != nil {
+			return
+		}
+		remoteAddrBuf := make([]byte, domainNameLen)
+		_, err = io.ReadFull(incoming, remoteAddrBuf)
+		if err != nil {
+			return
+		}
+		remoteHost = string(remoteAddrBuf)
+	default:
+		err = errors.New("Unsupported address type for SOCKS5 connect request")
+		return
+	}
+
+	if ip != nil {
+		// Still need to read the ip address
+		_, err = io.ReadFull(incoming, ip)
+		if err != nil {
+			return
+		}
+		remoteHost = ip.String()
+	}
+
+	var remotePort uint16
+	err = binary.Read(incoming, binary.BigEndian, &remotePort)
+	if err != nil {
+		return
+	}
+
+	// Send the same minimal response as openSSH does
+	response := make([]byte, 4+net.IPv4len+2)
+	copy(response, []byte{socks5Version, socks5Succeeded, socks5Reserved, socks5AddressTypeIPv4})
+	_, err = incoming.Write(response)
+	if err != nil {
+		return
+	}
+
+	return net.JoinHostPort(remoteHost, strconv.Itoa(int(remotePort))), nil
+}
+
+func socks5ProxyConnection(client *NodeClient, incoming net.Conn) {
+	err := socks5ProxyAuthenticate(incoming)
+	if nil != err {
+		log.Errorf("socks5ProxyConnection unable to authenticate (%v) [%v]", incoming, err)
+		return
+	}
+
+	remoteAddr, err := socks5ProxyConnectRequest(incoming)
+	if nil != err {
+		log.Errorf("socks5ProxyConnection did not receive connect (%v) [%v]", incoming, err)
+		return
+	}
+
+	proxyConnection(client, incoming, remoteAddr)
+}
+
+func dynamicProxyConnection(client *NodeClient, incoming net.Conn) {
+	defer incoming.Close()
+	log.Debugf("nodeClient.dynamicProxyConnection(%v) started", incoming.RemoteAddr())
+
+	version := []byte{0}
+	_, err := incoming.Read(version)
+	if err != nil {
+		log.Errorf("Failed to read first byte of %v", incoming)
+		return
+	}
+	switch version[0] {
+	case socks5Version:
+		socks5ProxyConnection(client, incoming)
+	case socks4Version:
+		log.Errorf("SOCKS4 dynamic port forwarding is no yet supported (%v)", incoming)
+	default:
+		log.Errorf("Unknown dynamic port forwarding protocol requested by (%v)", incoming)
+	}
+}
+
+// listenForDynamicForward listens on a given socket and forwards all incoming connections
+// to the remote address they specify
+func (client *NodeClient) listenForDynamicForward(socket net.Listener) {
+	defer socket.Close()
+	defer client.Close()
+	// request processing loop: accept incoming requests to be connected to nodes
+	// and proxy them
+	for {
+		incoming, err := socket.Accept()
+		if err != nil {
+			log.Error(err)
+			break
+		}
+		go dynamicProxyConnection(client, incoming)
 	}
 }
 
