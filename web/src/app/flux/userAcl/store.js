@@ -19,17 +19,6 @@ import { Store, toImmutable } from 'nuclear-js';
 import { Record, List } from 'immutable';
 import { RECEIVE_USERACL } from './actionTypes';
 
-// sort logins by making 'root' as the first in the list
-const sortLogins = loginList => {
-  let index = loginList.indexOf('root');
-  if (index !== -1) {
-    loginList = loginList.remove(index);
-    return loginList.sort().unshift('root')
-  }
-
-  return loginList;
-}
-
 const Access = new Record({
   list: false,
   read: false,
@@ -49,7 +38,7 @@ class AccessListRec extends Record({
     const map = toImmutable(json);    
     const sshLogins = new List(map.get('sshLogins'));            
     const params = {
-      sshLogins: sortLogins(sshLogins),
+      sshLogins: sshLogins,
       authConnectors: new Access(map.get('authConnectors')),
       trustedClusters: new Access(map.get('trustedClusters')),
       roles: new Access(map.get('roles')),
