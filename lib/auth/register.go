@@ -46,23 +46,48 @@ func LocalRegister(id IdentityID, authServer *AuthServer, additionalPrincipals [
 	return ReadIdentityFromKeyPair(keys.Key, keys.Cert, keys.TLSCert, keys.TLSCACerts)
 }
 
+// RegisterParams specifies parameters
+// for first time register operation with auth server
+type RegisterParams struct {
+	// DataDir is the data directory
+	// storing CA certificate
+	DataDir string
+	// Token is a secure token to join the cluster
+	Token string
+	// ID is identity ID
+	ID IdentityID
+	// Servers is a list of auth servers to dial
+	Servers []utils.NetAddr
+	// AdditionalPrincipals is a list of additional principals to dial
+	AdditionalPrincipals []string
+	// PrivateKey is a PEM encoded private key (not passed to auth servers)
+	PrivateKey []byte
+	// PublicTLSKey is a server's public key to sign
+	PublicTLSKey []byte
+	// PublicSSHKey is a server's public SSH key to sign
+	PublicSSHKey []byte
+	// CipherSuites is a list of cipher suites to use for TLS client connection
+	CipherSuites []uint16
+}
+
 // Register is used to generate host keys when a node or proxy are running on different hosts
 // than the auth server. This method requires provisioning tokens to prove a valid auth server
 // was used to issue the joining request.
-func Register(dataDir, token string, id IdentityID, servers []utils.NetAddr, additionalPrincipals []string, cipherSuites []uint16) (*Identity, error) {
-	tok, err := readToken(token)
+func Register(params RegisterParams) (*Identity, error) {
+	tok, err := readToken(params.Token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsConfig := utils.TLSConfig(cipherSuites)
-	certPath := filepath.Join(dataDir, defaults.CACertFile)
+	tlsConfig := utils.TLSConfig(params.CipherSuites)
+	certPath := filepath.Join(params.DataDir, defaults.CACertFile)
 	certBytes, err := utils.ReadPath(certPath)
 	if err != nil {
 		// Only support secure cluster joins in the next releases
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
-		message := fmt.Sprintf(`Your configuration is insecure! Registering without TLS certificate authority, to fix this warning add ca.cert to %v, you can get ca.cert using 'tctl auth export --type=tls > ca.cert'`, dataDir)
+		message := fmt.Sprintf(`Your configuration is insecure! Registering without TLS certificate authority, to fix this warning add ca.cert to %v, you can get ca.cert using 'tctl auth export --type=tls > ca.cert'`,
+			params.DataDir)
 		log.Warning(message)
 		tlsConfig.InsecureSkipVerify = true
 	} else {
@@ -75,43 +100,63 @@ func Register(dataDir, token string, id IdentityID, servers []utils.NetAddr, add
 		certPool.AddCert(cert)
 		tlsConfig.RootCAs = certPool
 	}
-	client, err := NewTLSClient(servers, tlsConfig)
+	client, err := NewTLSClient(params.Servers, tlsConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer client.Close()
 
-	// get the host certificate and keys
+	// Get the SSH and X509 certificates
 	keys, err := client.RegisterUsingToken(RegisterUsingTokenRequest{
 		Token:                tok,
-		HostID:               id.HostUUID,
-		NodeName:             id.NodeName,
-		Role:                 id.Role,
-		AdditionalPrincipals: additionalPrincipals,
+		HostID:               params.ID.HostUUID,
+		NodeName:             params.ID.NodeName,
+		Role:                 params.ID.Role,
+		AdditionalPrincipals: params.AdditionalPrincipals,
+		PublicTLSKey:         params.PublicTLSKey,
+		PublicSSHKey:         params.PublicSSHKey,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return ReadIdentityFromKeyPair(keys.Key, keys.Cert, keys.TLSCert, keys.TLSCACerts)
+	return ReadIdentityFromKeyPair(
+		params.PrivateKey, keys.Cert, keys.TLSCert, keys.TLSCACerts)
+}
+
+// ReRegisterParams specifies parameters for re-registering
+// in the cluster (rotating certificates for existing members)
+type ReRegisterParams struct {
+	// Client is an authenticated client using old credentials
+	Client ClientI
+	// ID is identity ID
+	ID IdentityID
+	// AdditionalPrincipals is a list of additional principals to dial
+	AdditionalPrincipals []string
+	// PrivateKey is a PEM encoded private key (not passed to auth servers)
+	PrivateKey []byte
+	// PublicTLSKey is a server's public key to sign
+	PublicTLSKey []byte
+	// PublicSSHKey is a server's public SSH key to sign
+	PublicSSHKey []byte
 }
 
 // ReRegister renews the certificates and private keys based on the client's existing identity.
-func ReRegister(clt ClientI, id IdentityID, additionalPrincipals []string) (*Identity, error) {
-	hostID, err := id.HostID()
+func ReRegister(params ReRegisterParams) (*Identity, error) {
+	hostID, err := params.ID.HostID()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keys, err := clt.GenerateServerKeys(GenerateServerKeysRequest{
+	keys, err := params.Client.GenerateServerKeys(GenerateServerKeysRequest{
 		HostID:               hostID,
-		NodeName:             id.NodeName,
-		Roles:                teleport.Roles{id.Role},
-		AdditionalPrincipals: additionalPrincipals,
+		NodeName:             params.ID.NodeName,
+		Roles:                teleport.Roles{params.ID.Role},
+		AdditionalPrincipals: params.AdditionalPrincipals,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return ReadIdentityFromKeyPair(keys.Key, keys.Cert, keys.TLSCert, keys.TLSCACerts)
+	return ReadIdentityFromKeyPair(params.PrivateKey, keys.Cert, keys.TLSCert, keys.TLSCACerts)
 }
 
 func readToken(token string) (string, error) {

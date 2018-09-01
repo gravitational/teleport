@@ -152,30 +152,6 @@ type Connector struct {
 	ServerIdentity *auth.Identity
 	// Client is authenticated client with credentials from ClientIdenity.
 	Client *auth.Client
-	// AuthServer is auth server, used in connectors created for auth
-	// service components.
-	AuthServer *auth.AuthServer
-}
-
-// ReRegister receives new identity credentials for proxy, node and auth.
-// In case if auth servers, the role is 'TeleportAdmin' and instead of using
-// TLS client this method uses the local auth server.
-func (c *Connector) ReRegister(additionalPrincipals []string) (*auth.Identity, error) {
-	if c.ClientIdentity.ID.Role == teleport.RoleAdmin || c.ClientIdentity.ID.Role == teleport.RoleAuth {
-		return auth.GenerateIdentity(c.AuthServer, c.ClientIdentity.ID, additionalPrincipals)
-	}
-	return auth.ReRegister(c.Client, c.ClientIdentity.ID, additionalPrincipals)
-}
-
-// GetCertAuthority returns cert authority by ID.
-// In case if auth servers, the role is 'TeleportAdmin' and instead of using
-// TLS client this method uses the local auth server.
-func (c *Connector) GetCertAuthority(id services.CertAuthID, loadPrivateKeys bool) (services.CertAuthority, error) {
-	if c.ClientIdentity.ID.Role == teleport.RoleAdmin || c.ClientIdentity.ID.Role == teleport.RoleAuth {
-		return c.AuthServer.GetCertAuthority(id, loadPrivateKeys)
-	} else {
-		return c.Client.GetCertAuthority(id, loadPrivateKeys)
-	}
 }
 
 // TeleportProcess structure holds the state of the Teleport daemon, controlling
@@ -220,6 +196,17 @@ type TeleportProcess struct {
 
 	// Entry is a process-local log entry.
 	*logrus.Entry
+
+	// keyPairs holds private/public key pairs used
+	// to get signed host certificates from auth server
+	keyPairs map[keyPairKey]KeyPair
+	// keyMutex is a mutex to serialize key generation
+	keyMutex sync.Mutex
+}
+
+type keyPairKey struct {
+	role   teleport.Role
+	reason string
 }
 
 // processIndex is an internal process index
@@ -547,6 +534,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		importedDescriptors: cfg.FileDescriptors,
 		storage:             storage,
 		id:                  processID,
+		keyPairs:            make(map[keyPairKey]KeyPair),
 	}
 
 	process.Entry = logrus.WithFields(logrus.Fields{
