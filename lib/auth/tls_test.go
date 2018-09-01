@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/jonboulle/clockwork"
@@ -1104,8 +1105,12 @@ func (s *TLSSuite) TestGenerateCerts(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// make sure we can parse the private and public key
-	_, err = ssh.ParsePrivateKey(priv)
+	privateKey, err := ssh.ParseRawPrivateKey(priv)
 	c.Assert(err, check.IsNil)
+
+	pubTLS, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(privateKey)
+	c.Assert(err, check.IsNil)
+
 	_, _, _, _, err = ssh.ParseAuthorizedKey(pub)
 	c.Assert(err, check.IsNil)
 
@@ -1127,6 +1132,28 @@ func (s *TLSSuite) TestGenerateCerts(c *check.C) {
 	c.Assert(err, check.IsNil)
 	hostCert := key.(*ssh.Certificate)
 	comment := check.Commentf("can't find example.com in %v", hostCert.ValidPrincipals)
+	c.Assert(utils.SliceContainsStr(hostCert.ValidPrincipals, "example.com"), check.Equals, true, comment)
+
+	// sign server public keys for node
+	hostID = "00000000-0000-0000-0000-000000000000"
+	hostClient, err = s.server.NewClient(TestIdentity{I: BuiltinRole{Username: hostID, Role: teleport.RoleNode}})
+	c.Assert(err, check.IsNil)
+
+	certs, err = hostClient.GenerateServerKeys(
+		GenerateServerKeysRequest{
+			HostID:               hostID,
+			NodeName:             s.server.AuthServer.ClusterName,
+			Roles:                teleport.Roles{teleport.RoleNode},
+			AdditionalPrincipals: []string{"example.com"},
+			PublicSSHKey:         pub,
+			PublicTLSKey:         pubTLS,
+		})
+	c.Assert(err, check.IsNil)
+
+	key, _, _, _, err = ssh.ParseAuthorizedKey(certs.Cert)
+	c.Assert(err, check.IsNil)
+	hostCert = key.(*ssh.Certificate)
+	comment = check.Commentf("can't find example.com in %v", hostCert.ValidPrincipals)
 	c.Assert(utils.SliceContainsStr(hostCert.ValidPrincipals, "example.com"), check.Equals, true, comment)
 
 	// attempt to elevate privileges by getting admin role in the certificate

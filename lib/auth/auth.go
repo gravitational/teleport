@@ -25,8 +25,10 @@ package auth
 
 import (
 	"context"
+	"crypto"
 	"crypto/x509"
 	"fmt"
+	"golang.org/x/crypto/ssh"
 	"math/rand"
 	"net/url"
 	"sync"
@@ -709,6 +711,13 @@ type GenerateServerKeysRequest struct {
 	// AdditionalPrincipals is a list of additional principals
 	// to include in OpenSSH and X509 certificates
 	AdditionalPrincipals []string `json:"additional_principals"`
+	// PublicTLSKey is a PEM encoded public key
+	// used for TLS setup
+	PublicTLSKey []byte `json:"public_tls_key"`
+	// PublicSSHKey is a SSH encoded public key,
+	// if present will be signed as a return value
+	// otherwise, new public/private key pair will be generated
+	PublicSSHKey []byte `json:"public_ssh_key"`
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -728,16 +737,33 @@ func (s *AuthServer) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedK
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// generate private key
-	privateKeyPEM, pubSSHKey, err := s.GenerateKeyPair("")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	// reuse the same RSA keys for SSH and TLS keys
-	cryptoPubKey, err := sshutils.CryptoPublicKey(pubSSHKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var cryptoPubKey crypto.PublicKey
+	var privateKeyPEM, pubSSHKey []byte
+	var err error
+	if req.PublicSSHKey != nil || req.PublicTLSKey != nil {
+		_, _, _, _, err := ssh.ParseAuthorizedKey(req.PublicSSHKey)
+		if err != nil {
+			return nil, trace.BadParameter("failed to parse SSH public key")
+		}
+		pubSSHKey = req.PublicSSHKey
+		cryptoPubKey, err = tlsca.ParsePublicKeyPEM(req.PublicTLSKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		// generate private key
+		privateKeyPEM, pubSSHKey, err = s.GenerateKeyPair("")
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// reuse the same RSA keys for SSH and TLS keys
+		cryptoPubKey, err = sshutils.CryptoPublicKey(pubSSHKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 	}
 
 	// get the certificate authority that will be signing the public key of the host
@@ -862,6 +888,13 @@ type RegisterUsingTokenRequest struct {
 	Token string `json:"token"`
 	// AdditionalPrincipals is a list of additional principals
 	AdditionalPrincipals []string `json:"additional_principals"`
+	// PublicTLSKey is a PEM encoded public key
+	// used for TLS setup
+	PublicTLSKey []byte `json:"public_tls_key"`
+	// PublicSSHKey is a SSH encoded public key,
+	// if present will be signed as a return value
+	// otherwise, new public/private key pair will be generated
+	PublicSSHKey []byte `json:"public_ssh_key"`
 }
 
 // CheckAndSetDefaults checks for errors and sets defaults
@@ -912,6 +945,8 @@ func (s *AuthServer) RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedK
 		NodeName:             req.NodeName,
 		Roles:                teleport.Roles{req.Role},
 		AdditionalPrincipals: req.AdditionalPrincipals,
+		PublicTLSKey:         req.PublicTLSKey,
+		PublicSSHKey:         req.PublicSSHKey,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

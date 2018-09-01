@@ -154,3 +154,36 @@ func ParsePrivateKeyDER(der []byte) (crypto.Signer, error) {
 
 	return nil, trace.BadParameter("unsupported private key type")
 }
+
+// ParsePublicKeyPEM parses public key PEM
+func ParsePublicKeyPEM(bytes []byte) (interface{}, error) {
+	block, _ := pem.Decode(bytes)
+	if block == nil {
+		return nil, trace.BadParameter("expected PEM-encoded block")
+	}
+	return ParsePublicKeyDER(block.Bytes)
+}
+
+// ParsePublicKeyDER parses unencrypted DER-encoded publice key
+func ParsePublicKeyDER(der []byte) (crypto.PublicKey, error) {
+	generalKey, err := x509.ParsePKIXPublicKey(der)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return generalKey, nil
+}
+
+// MarshalPublicKeyFromPrivateKeyPEM extracts public key from private key
+// and returns PEM marshalled key
+func MarshalPublicKeyFromPrivateKeyPEM(privateKey crypto.PrivateKey) ([]byte, error) {
+	rsaPrivateKey, ok := privateKey.(*rsa.PrivateKey)
+	if !ok {
+		return nil, trace.BadParameter("expected RSA key")
+	}
+	rsaPublicKey := rsaPrivateKey.Public()
+	derBytes, err := x509.MarshalPKIXPublicKey(rsaPublicKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return pem.EncodeToMemory(&pem.Block{Type: "RSA PUBLIC KEY", Bytes: derBytes}), nil
+}
