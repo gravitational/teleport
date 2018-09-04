@@ -112,12 +112,6 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) (*AuthServer, erro
 	if as.clock == nil {
 		as.clock = clockwork.NewRealClock()
 	}
-	if !cfg.SkipPeriodicOperations {
-		log.Infof("Auth server is running periodic operations.")
-		go as.runPeriodicOperations()
-	} else {
-		log.Infof("Auth server is skipping periodic operations.")
-	}
 
 	return &as, nil
 }

@@ -252,3 +252,47 @@ func (s *AuthInitSuite) TestClusterID(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(cc.GetClusterID(), Equals, clusterID)
 }
+
+// TestClusterName ensures that a cluster can not be renamed.
+func (s *AuthInitSuite) TestClusterName(c *C) {
+	bk, err := boltbk.New(backend.Params{"path": c.MkDir()})
+	c.Assert(err, IsNil)
+
+	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
+		ClusterName: "me.localhost",
+	})
+	c.Assert(err, IsNil)
+
+	_, err = Init(InitConfig{
+		DataDir:       c.MkDir(),
+		HostUUID:      "00000000-0000-0000-0000-000000000000",
+		NodeName:      "foo",
+		Backend:       bk,
+		Authority:     testauthority.New(),
+		ClusterConfig: services.DefaultClusterConfig(),
+		ClusterName:   clusterName,
+	})
+	c.Assert(err, IsNil)
+
+	// Start the auth server with a different cluster name. The auth server
+	// should start, but with the original name.
+	clusterName, err = services.NewClusterName(services.ClusterNameSpecV2{
+		ClusterName: "dev.localhost",
+	})
+	c.Assert(err, IsNil)
+
+	authServer, err := Init(InitConfig{
+		DataDir:       c.MkDir(),
+		HostUUID:      "00000000-0000-0000-0000-000000000000",
+		NodeName:      "foo",
+		Backend:       bk,
+		Authority:     testauthority.New(),
+		ClusterConfig: services.DefaultClusterConfig(),
+		ClusterName:   clusterName,
+	})
+	c.Assert(err, IsNil)
+
+	cn, err := authServer.GetClusterName()
+	c.Assert(err, IsNil)
+	c.Assert(cn.GetClusterName(), Equals, "me.localhost")
+}
