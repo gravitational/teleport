@@ -206,19 +206,32 @@ func Init(cfg InitConfig, opts ...AuthServerOption) (*AuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// cluster name can only be set once. if it has already been set and we are
-	// trying to update it to something else, hard fail.
+	// The first Auth Server that starts gets to set the name of the cluster.
 	err = asrv.SetClusterName(cfg.ClusterName)
 	if err != nil && !trace.IsAlreadyExists(err) {
 		return nil, trace.Wrap(err)
 	}
+	// If the cluster name has already been set, log a warning if the user
+	// is trying to change the name.
 	if trace.IsAlreadyExists(err) {
-		cn, err := asrv.GetClusterName()
+		// Get current name of cluster from the backend.
+		cn, err := asrv.ClusterConfiguration.GetClusterName()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		if cn.GetClusterName() != cfg.ClusterName.GetClusterName() {
-			return nil, trace.BadParameter("cannot rename cluster %q to %q: clusters cannot be renamed", cn.GetClusterName(), cfg.ClusterName.GetClusterName())
+			warnMessage := "Cannot rename cluster to %q: continuing with %q. Teleport " +
+				"clusters can not be renamed once they are created. You are seeing this " +
+				"warning for one of two reasons. Either you have not set \"cluster_name\" in " +
+				"Teleport configuration and changed the hostname of the auth server or you " +
+				"are trying to change the value of \"cluster_name\"."
+			log.Warnf(warnMessage,
+				cfg.ClusterName.GetClusterName(),
+				cn.GetClusterName())
+
+			// Override user passed in cluster name with what is in the backend.
+			cfg.ClusterName = cn
+			asrv.clusterName = cn
 		}
 	}
 	log.Debugf("Cluster configuration: %v.", cfg.ClusterName)
@@ -379,6 +392,13 @@ func Init(cfg InitConfig, opts ...AuthServerOption) (*AuthServer, error) {
 	err = migrateLegacyResources(cfg, asrv)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if !cfg.SkipPeriodicOperations {
+		log.Infof("Auth server is running periodic operations.")
+		go asrv.runPeriodicOperations()
+	} else {
+		log.Infof("Auth server is skipping periodic operations.")
 	}
 
 	return asrv, nil
