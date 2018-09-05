@@ -859,7 +859,7 @@ func (cs *CachingAuthClient) try(f func() error) error {
 	accessPointLatencies.Observe(mdiff(start))
 	if trace.IsConnectionProblem(err) {
 		cs.setLastErrorTime(time.Now())
-		cs.Warningf("Connection problem: failed connect to the auth servers, using local cache.")
+		cs.Warningf("Connection problem (%v) failed connect to the auth servers, using local cache.", err)
 	}
 	return err
 }
