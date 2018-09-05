@@ -81,6 +81,23 @@ type Item struct {
 	TTL time.Duration
 }
 
+type Items []Item
+
+// Len is part of sort.Interface.
+func (it Items) Len() int {
+	return len(it)
+}
+
+// Swap is part of sort.Interface.
+func (it Items) Swap(i, j int) {
+	it[i], it[j] = it[j], it[i]
+}
+
+// Less is part of sort.Interface.
+func (it Items) Less(i, j int) bool {
+	return it[i].Key < it[j].Key
+}
+
 // backend.Params type defines a flexible unified back-end configuration API.
 // It is just a map of key/value pairs which gets populated by `storage` section
 // in Teleport YAML config.

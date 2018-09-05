@@ -58,7 +58,7 @@ ignored = ["github.com/Sirupsen/logrus"]
 
 [[constraint]]
   name = "github.com/coreos/etcd"
-  version = "3.2.4"
+  version = "3.3.9"
 
 [[constraint]]
   name = "github.com/davecgh/go-spew"
@@ -67,6 +67,10 @@ ignored = ["github.com/Sirupsen/logrus"]
 [[constraint]]
   branch = "master"
   name = "github.com/gokyle/hotp"
+
+[[constraint]]
+  branch = "master"
+  name = "golang.org/x/net"
 
 [[constraint]]
   name = "github.com/google/gops"
@@ -87,10 +91,6 @@ ignored = ["github.com/Sirupsen/logrus"]
 [[constraint]]
   version = "0.0.1"
   name = "github.com/gravitational/ttlmap"
-
-[[constraint]]
-  name = "github.com/grpc-ecosystem/grpc-gateway"
-  version = "1.1.0"
 
 [[constraint]]
   name = "github.com/julienschmidt/httprouter"
@@ -126,7 +126,7 @@ ignored = ["github.com/Sirupsen/logrus"]
 
 [[constraint]]
   name = "google.golang.org/grpc"
-  version = ">=1.0.0, <=183.0.0-g231b4cf"
+  version = ">=1.14.0"
 
 [[constraint]]
   name = "github.com/gravitational/trace"
@@ -148,7 +148,7 @@ ignored = ["github.com/Sirupsen/logrus"]
 
 [[constraint]]
   name = "github.com/gravitational/reporting"
-  version = "0.0.5"
+  version = "0.0.6"
 
 [[constraint]]
   name = "github.com/gravitational/license"
