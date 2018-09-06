@@ -473,6 +473,13 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 			Labels:    map[string]string{"role": "db", "status": "follower"},
 		},
 	}
+	serverC2 := &ServerV2{
+		Metadata: Metadata{
+			Name:      "c2",
+			Namespace: namespaceC,
+			Labels:    map[string]string{"role": "db01", "status": "follower01"},
+		},
+	}
 	testCases := []struct {
 		name   string
 		roles  []RoleV3
@@ -646,6 +653,37 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 				{server: serverB, login: "admin", hasAccess: true},
 				{server: serverC, login: "root", hasAccess: true},
 				{server: serverC, login: "admin", hasAccess: true},
+			},
+		},
+		{
+			name: "one role needs to access servers sharing the partially same label value",
+			roles: []RoleV3{
+				RoleV3{
+					Metadata: Metadata{
+						Name:      "name1",
+						Namespace: namespaceC,
+					},
+					Spec: RoleSpecV3{
+						Options: RoleOptions{
+							MaxSessionTTL: Duration{20 * time.Hour},
+						},
+						Allow: RoleConditions{
+							Logins:     []string{"admin"},
+							NodeLabels: Labels{"role": []string{"^db(.*)$"}, "status": []string{"follow*"}},
+							Namespaces: []string{namespaceC},
+						},
+					},
+				},
+			},
+			checks: []check{
+				{server: serverA, login: "root", hasAccess: false},
+				{server: serverA, login: "admin", hasAccess: false},
+				{server: serverB, login: "root", hasAccess: false},
+				{server: serverB, login: "admin", hasAccess: false},
+				{server: serverC, login: "root", hasAccess: false},
+				{server: serverC, login: "admin", hasAccess: true},
+				{server: serverC2, login: "root", hasAccess: false},
+				{server: serverC2, login: "admin", hasAccess: true},
 			},
 		},
 	}
