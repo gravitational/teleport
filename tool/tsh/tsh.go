@@ -412,7 +412,7 @@ func onLogin(cf *CLIConf) {
 	tc.SaveProfile("")
 
 	// Connect to the Auth Server and fetch the known hosts for this cluster.
-	err = tc.UpdateKnownHosts(cf.Context)
+	err = tc.UpdateKnownCA(cf.Context)
 	if err != nil {
 		utils.FatalError(err)
 	}
