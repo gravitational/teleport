@@ -46,5 +46,26 @@ func ReplaceRegexp(expression string, replaceWith string, input string) (string,
 	return expr.ReplaceAllString(input, replaceWith), nil
 }
 
+func SliceContainsRegexStr(input string, expressions []string) (bool, error) {
+	for _, expression := range expressions {
+		if !strings.HasPrefix(expression, "^") || !strings.HasSuffix(expression, "$") {
+			// replace glob-style wildcards with regexp wildcards
+			// for plain strings, and quote all characters that could
+			// be interpreted in regular expression
+			expression = "^" + GlobToRegexp(expression) + "$"
+		}
+
+		expr, err := regexp.Compile(expression)
+		if err != nil {
+			return false, trace.BadParameter(err.Error())
+		}
+		if expr.MatchString(input) {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 var replaceWildcard = regexp.MustCompile(`(\\\*)`)
 var reExpansion = regexp.MustCompile(`\$[^\$]+`)
