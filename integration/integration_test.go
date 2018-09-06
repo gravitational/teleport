@@ -19,6 +19,7 @@ package integration
 import (
 	"bytes"
 	"context"
+	"crypto/x509"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -1000,6 +1001,25 @@ func (s *IntSuite) TestTwoClusters(c *check.C) {
 		err = tc.SSH(context.TODO(), cmd, false)
 		c.Assert(err, check.IsNil)
 		c.Assert(outputA.String(), check.Equals, "hello world\n")
+
+		// Update known CAs.
+		err = tc.UpdateKnownCA(context.TODO())
+		c.Assert(err, check.IsNil)
+
+		// The known_hosts file should have two certificates, the way bytes.Split
+		// works that means the output will be 3 (2 certs + 1 empty).
+		buffer, err := ioutil.ReadFile(filepath.Join(tc.KeysDir, "known_hosts"))
+		c.Assert(err, check.IsNil)
+		parts := bytes.Split(buffer, []byte("\n"))
+		c.Assert(parts, check.HasLen, 3)
+
+		// The certs.pem file should have 2 certificates.
+		buffer, err = ioutil.ReadFile(filepath.Join(tc.KeysDir, "keys", Host, "certs.pem"))
+		c.Assert(err, check.IsNil)
+		roots := x509.NewCertPool()
+		ok := roots.AppendCertsFromPEM(buffer)
+		c.Assert(ok, check.Equals, true)
+		c.Assert(roots.Subjects(), check.HasLen, 2)
 
 		// via tunnel b->a:
 		tc, err = b.NewClient(ClientConfig{
