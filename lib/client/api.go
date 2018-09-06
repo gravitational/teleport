@@ -1202,8 +1202,8 @@ func (tc *TeleportClient) ListNodes(ctx context.Context) ([]services.Server, err
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	defer proxyClient.Close()
+
 	return proxyClient.FindServersByLabels(ctx, tc.Namespace, tc.Labels)
 }
 
@@ -1550,9 +1550,9 @@ func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, er
 	return key, nil
 }
 
-// UpdateKnownHosts connects to the Auth Server and fetches all host
-// certificates and updated ~/.tsh/known_hosts.
-func (tc *TeleportClient) UpdateKnownHosts(ctx context.Context) error {
+// UpdateKnownCA connects to the Auth Server and fetches all host certificates
+// and updates ~/.tsh/keys/proxy/certs.pem and ~/.tsh/known_hosts.
+func (tc *TeleportClient) UpdateKnownCA(ctx context.Context) error {
 	// Connect to the proxy.
 	if !tc.Config.ProxySpecified() {
 		return trace.BadParameter("proxy server is not specified")
@@ -1562,22 +1562,33 @@ func (tc *TeleportClient) UpdateKnownHosts(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	defer proxyClient.Close()
+
 	// Get a client to the Auth Server.
 	clt, err := proxyClient.ClusterAccessPoint(ctx, true)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	// Get the list of host certificates that this cluster knows about.
 	hostCerts, err := clt.GetCertAuthorities(services.HostCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Write them to the ~/.tsh/known_hosts.
 	trustedCerts := auth.AuthoritiesToTrustedCerts(hostCerts)
+
+	// Update the ~/.tsh/known_hosts file to include all the CA the cluster
+	// knows about.
 	err = tc.localAgent.AddHostSignersToCache(trustedCerts)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Update the CA pool with all the CA the cluster knows about.
+	err = tc.localAgent.SaveCerts(trustedCerts)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
