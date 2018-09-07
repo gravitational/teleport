@@ -254,6 +254,9 @@ func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector
 		// procedure.
 		process.Debugf("This server has local Auth server started, using it to add role to the cluster.")
 		identity, err = auth.LocalRegister(id, process.getLocalAuth(), additionalPrincipals)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	} else {
 		// Auth server is remote, so we need a provisioning token.
 		if process.Config.Token == "" {
@@ -276,12 +279,10 @@ func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector
 			PublicSSHKey:         keyPair.PublicSSHKey,
 			CipherSuites:         process.Config.CipherSuites,
 		})
-		if err == nil {
-			process.deleteKeyPair(role, reason)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
-	}
-	if err != nil {
-		return nil, trace.Wrap(err)
+		process.deleteKeyPair(role, reason)
 	}
 
 	log.Infof("%v has successfully registered with the cluster.", role)
