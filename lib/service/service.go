@@ -129,6 +129,10 @@ const (
 	// TeleportReadyEvent is generated to signal that all teleport
 	// internal components have started successfully.
 	TeleportReadyEvent = "TeleportReady"
+
+	// ServiceExitedWithErrorEvent is emitted whenever a service
+	// has exited with an error, the payload includes the error
+	ServiceExitedWithErrorEvent = "ServiceExitedWithError"
 )
 
 // RoleConfig is a configuration for a server role (either proxy or node)
@@ -983,7 +987,7 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 	go mux.Serve()
-	process.RegisterFunc("auth.tls", func() error {
+	process.RegisterCriticalFunc("auth.tls", func() error {
 		utils.Consolef(cfg.Console, teleport.ComponentAuth, "Auth service is starting on %v.", cfg.Auth.SSHAddr.Addr)
 
 		// since tlsServer.Serve is a blocking call, we emit this even right before
@@ -1176,7 +1180,7 @@ func (process *TeleportProcess) initSSH() error {
 		trace.Component: teleport.Component(teleport.ComponentNode, process.id),
 	})
 
-	process.RegisterFunc("ssh.node", func() error {
+	process.RegisterCriticalFunc("ssh.node", func() error {
 		var event Event
 		select {
 		case event = <-eventsC:
@@ -1289,7 +1293,7 @@ func (process *TeleportProcess) initSSH() error {
 // certificate authority
 func (process *TeleportProcess) registerWithAuthServer(role teleport.Role, eventName string) {
 	var authClient *auth.Client
-	process.RegisterFunc(fmt.Sprintf("register.%v", strings.ToLower(role.String())), func() error {
+	process.RegisterCriticalFunc(fmt.Sprintf("register.%v", strings.ToLower(role.String())), func() error {
 		retryTime := defaults.ServerHeartbeatTTL / 3
 		for {
 			connector, err := process.connectToAuthService(role)
@@ -1305,14 +1309,12 @@ func (process *TeleportProcess) registerWithAuthServer(role teleport.Role, event
 				return ErrTeleportExited
 			default:
 			}
-			if trace.IsConnectionProblem(err) {
+			if trace.IsConnectionProblem(err) || trace.IsAccessDenied(err) || trace.IsNotFound(err) {
 				process.Infof("%v failed attempt connecting to auth server: %v.", role, err)
 				time.Sleep(retryTime)
 				continue
 			}
-			if !trace.IsNotFound(err) {
-				return trace.Wrap(err)
-			}
+			return trace.Wrap(err)
 		}
 	})
 
@@ -1502,7 +1504,7 @@ func (process *TeleportProcess) initProxy() error {
 		}
 	}
 	process.registerWithAuthServer(teleport.RoleProxy, ProxyIdentityEvent)
-	process.RegisterFunc("proxy.init", func() error {
+	process.RegisterCriticalFunc("proxy.init", func() error {
 		eventsC := make(chan Event)
 		process.WaitForEvent(process.ExitContext(), ProxyIdentityEvent, eventsC)
 
@@ -1719,7 +1721,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		process.RegisterFunc("proxy.reveresetunnel.server", func() error {
+		process.RegisterCriticalFunc("proxy.reveresetunnel.server", func() error {
 			utils.Consolef(cfg.Console, teleport.ComponentProxy, "Reverse tunnel service is starting on %v.", cfg.Proxy.ReverseTunnelListenAddr.Addr)
 			log.Infof("Starting on %v using %v", cfg.Proxy.ReverseTunnelListenAddr.Addr, process.Config.CachePolicy)
 			if err := tsrv.Start(); err != nil {
@@ -1782,7 +1784,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		webServer = &http.Server{
 			Handler: proxyLimiter,
 		}
-		process.RegisterFunc("proxy.web", func() error {
+		process.RegisterCriticalFunc("proxy.web", func() error {
 			utils.Consolef(cfg.Console, teleport.ComponentProxy, "Web proxy service is starting on %v.", cfg.Proxy.WebAddr.Addr)
 			log.Infof("Web proxy service is starting on %v.", cfg.Proxy.WebAddr.Addr)
 			defer webHandler.Close()
@@ -1823,7 +1825,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
-	process.RegisterFunc("proxy.ssh", func() error {
+	process.RegisterCriticalFunc("proxy.ssh", func() error {
 		utils.Consolef(cfg.Console, teleport.ComponentProxy, "SSH proxy service is starting on %v.", cfg.Proxy.SSHAddr.Addr)
 		log.Infof("SSH proxy service is starting on %v", cfg.Proxy.SSHAddr.Addr)
 		go sshProxy.Serve(listener)
@@ -1832,7 +1834,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return nil
 	})
 
-	process.RegisterFunc("proxy.reversetunnel.agent", func() error {
+	process.RegisterCriticalFunc("proxy.reversetunnel.agent", func() error {
 		log := logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.Component(teleport.ComponentReverseTunnelAgent, process.id),
 		})
@@ -1880,7 +1882,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		process.RegisterFunc("proxy.kube", func() error {
+		process.RegisterCriticalFunc("proxy.kube", func() error {
 			log := logrus.WithFields(logrus.Fields{
 				trace.Component: teleport.Component(teleport.ComponentKube),
 			})

@@ -39,6 +39,11 @@ type Supervisor interface {
 	// it within the system
 	RegisterFunc(name string, fn ServiceFunc)
 
+	// RegisterCriticalFunc creates a critical service from function spec and registers
+	// it within the system, if this service exits with error,
+	// the process shuts down.
+	RegisterCriticalFunc(name string, fn ServiceFunc)
+
 	// ServiceCount returns the number of registered and actively running
 	// services
 	ServiceCount() int
@@ -195,6 +200,13 @@ func (s *LocalSupervisor) RegisterFunc(name string, fn ServiceFunc) {
 	s.Register(&LocalService{Function: fn, ServiceName: name})
 }
 
+// RegisterCriticalFunc creates a critical service from function spec and registers
+// it within the system, if this service exits with error,
+// the process shuts down.
+func (s *LocalSupervisor) RegisterCriticalFunc(name string, fn ServiceFunc) {
+	s.Register(&LocalService{Function: fn, ServiceName: name, Critical: true})
+}
+
 // RemoveService removes service from supervisor tracking list
 func (s *LocalSupervisor) RemoveService(srv Service) error {
 	l := logrus.WithFields(logrus.Fields{"service": srv.Name(), trace.Component: teleport.Component(teleport.ComponentProcess, s.id)})
@@ -211,6 +223,15 @@ func (s *LocalSupervisor) RemoveService(srv Service) error {
 	return trace.NotFound("service %v is not found", srv)
 }
 
+// ServiceExit contains information about service
+// name, and service error if it exited with error
+type ServiceExit struct {
+	// Service is the service that exited
+	Service Service
+	// Error is the error of the service exit
+	Error error
+}
+
 func (s *LocalSupervisor) serve(srv Service) {
 	s.wg.Add(1)
 	go func() {
@@ -224,6 +245,10 @@ func (s *LocalSupervisor) serve(srv Service) {
 				l.Infof("Teleport process has shut down.")
 			} else {
 				l.Warningf("Teleport process has exited with error: %v", err)
+				s.BroadcastEvent(Event{
+					Name:    ServiceExitedWithErrorEvent,
+					Payload: ServiceExit{Service: srv, Error: err},
+				})
 			}
 		}
 	}()
@@ -394,6 +419,9 @@ type Service interface {
 	String() string
 	// Name returns service name
 	Name() string
+	// IsCritical returns true if the service is critical
+	// and program can't continue without it
+	IsCritical() bool
 }
 
 // LocalService is a locally defined service
@@ -402,6 +430,16 @@ type LocalService struct {
 	Function ServiceFunc
 	// ServiceName is a service name
 	ServiceName string
+	// Critical is set to true
+	// when the service is critical and program can't continue
+	// without it
+	Critical bool
+}
+
+// IsCritical returns true if the service is critical
+// and program can't continue without it
+func (l *LocalService) IsCritical() bool {
+	return l.Critical
 }
 
 // Serve starts the function

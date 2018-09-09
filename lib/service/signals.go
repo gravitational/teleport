@@ -65,6 +65,9 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 	doneContext, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	serviceErrorsC := make(chan Event, 10)
+	process.WaitForEvent(ctx, ServiceExitedWithErrorEvent, serviceErrorsC)
+
 	// Block until a signal is received or handler got an error.
 	// Notice how this handler is serialized - it will only receive
 	// signals in sequence and will not run in parallel.
@@ -135,6 +138,21 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 			process.Wait()
 			process.Info("Got request to shutdown, context is closing")
 			return nil
+		case event := <-serviceErrorsC:
+			se, ok := event.Payload.(ServiceExit)
+			if !ok {
+				process.Warningf("Failed to decode service exit event, %T", event.Payload)
+				continue
+			}
+			if se.Service.IsCritical() {
+				process.Errorf("Critical service %v has exited with error %v, aborting.", se.Service, se.Error)
+				if err := process.Close(); err != nil {
+					process.Errorf("Error when shutting down teleport %v.", err)
+				}
+				return trace.Wrap(se.Error)
+			} else {
+				process.Warningf("Non-critical service %v has exited with error %v, continuing to operate.", se.Service, se.Error)
+			}
 		}
 	}
 }
