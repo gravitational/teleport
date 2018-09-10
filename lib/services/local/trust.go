@@ -196,7 +196,7 @@ func setSigningKeys(ca services.CertAuthority, loadSigningKeys bool) {
 
 // GetCertAuthorities returns a list of authorities of a given type
 // loadSigningKeys controls whether signing keys should be loaded or not
-func (s *CA) GetCertAuthorities(caType services.CertAuthType, loadSigningKeys bool) ([]services.CertAuthority, error) {
+func (s *CA) GetCertAuthorities(caType services.CertAuthType, loadSigningKeys bool, opts ...services.MarshalOption) ([]services.CertAuthority, error) {
 	if err := caType.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -211,7 +211,7 @@ func (s *CA) GetCertAuthorities(caType services.CertAuthType, loadSigningKeys bo
 	// Marshal values into a []services.CertAuthority slice.
 	cas := make([]services.CertAuthority, len(items))
 	for i, item := range items {
-		ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(item.Value)
+		ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(item.Value, opts...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

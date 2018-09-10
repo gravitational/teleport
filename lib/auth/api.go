@@ -56,7 +56,7 @@ type AccessPoint interface {
 	GetCertAuthority(id services.CertAuthID, loadKeys bool) (services.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(caType services.CertAuthType, loadKeys bool) ([]services.CertAuthority, error)
+	GetCertAuthorities(caType services.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]services.CertAuthority, error)
 
 	// GetUser returns a services.User for this cluster.
 	GetUser(string) (services.User, error)

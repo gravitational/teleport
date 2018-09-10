@@ -152,6 +152,8 @@ func ReRegister(params ReRegisterParams) (*Identity, error) {
 		NodeName:             params.ID.NodeName,
 		Roles:                teleport.Roles{params.ID.Role},
 		AdditionalPrincipals: params.AdditionalPrincipals,
+		PublicTLSKey:         params.PublicTLSKey,
+		PublicSSHKey:         params.PublicSSHKey,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

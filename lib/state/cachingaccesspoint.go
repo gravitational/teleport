@@ -192,9 +192,9 @@ func (cs *CachingAuthClient) fetchAll() error {
 	errors = append(errors, err)
 	_, err = cs.GetReverseTunnels()
 	errors = append(errors, err)
-	_, err = cs.GetCertAuthorities(services.UserCA, false)
+	_, err = cs.GetCertAuthorities(services.UserCA, false, services.SkipValidation())
 	errors = append(errors, err)
-	_, err = cs.GetCertAuthorities(services.HostCA, false)
+	_, err = cs.GetCertAuthorities(services.HostCA, false, services.SkipValidation())
 	errors = append(errors, err)
 	_, err = cs.GetUsers()
 	errors = append(errors, err)
@@ -540,15 +540,15 @@ func certKey(id services.CertAuthID, loadKeys bool) string {
 }
 
 // GetCertAuthorities is a part of auth.AccessPoint implementation
-func (cs *CachingAuthClient) GetCertAuthorities(ct services.CertAuthType, loadKeys bool) (cas []services.CertAuthority, err error) {
+func (cs *CachingAuthClient) GetCertAuthorities(ct services.CertAuthType, loadKeys bool, opts ...services.MarshalOption) (cas []services.CertAuthority, err error) {
 	cs.fetch(params{
 		key: certsKey(ct, loadKeys),
 		fetch: func() error {
-			cas, err = cs.ap.GetCertAuthorities(ct, loadKeys)
+			cas, err = cs.ap.GetCertAuthorities(ct, loadKeys, services.SkipValidation())
 			return err
 		},
 		useCache: func() error {
-			cas, err = cs.trust.GetCertAuthorities(ct, loadKeys)
+			cas, err = cs.trust.GetCertAuthorities(ct, loadKeys, services.SkipValidation())
 			return err
 		},
 		updateCache: func() (keys []string, cerr error) {

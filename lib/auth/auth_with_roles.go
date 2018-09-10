@@ -210,7 +210,7 @@ func (a *AuthWithRoles) CompareAndSwapCertAuthority(new, existing services.CertA
 	return a.authServer.CompareAndSwapCertAuthority(new, existing)
 }
 
-func (a *AuthWithRoles) GetCertAuthorities(caType services.CertAuthType, loadKeys bool) ([]services.CertAuthority, error) {
+func (a *AuthWithRoles) GetCertAuthorities(caType services.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]services.CertAuthority, error) {
 	if err := a.action(defaults.Namespace, services.KindCertAuthority, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -222,7 +222,7 @@ func (a *AuthWithRoles) GetCertAuthorities(caType services.CertAuthType, loadKey
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.GetCertAuthorities(caType, loadKeys)
+	return a.authServer.GetCertAuthorities(caType, loadKeys, opts...)
 }
 
 func (a *AuthWithRoles) GetCertAuthority(id services.CertAuthID, loadKeys bool) (services.CertAuthority, error) {

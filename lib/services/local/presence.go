@@ -82,7 +82,7 @@ func (s *PresenceService) GetNamespaces() ([]services.Namespace, error) {
 
 // UpsertNamespace upserts namespace
 func (s *PresenceService) UpsertNamespace(n services.Namespace) error {
-	data, err := json.Marshal(n)
+	data, err := services.MarshalNamespace(n)
 	if err != nil {
 		return trace.Wrap(err)
 	}
