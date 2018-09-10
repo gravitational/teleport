@@ -932,7 +932,7 @@ func GetCertAuthorityMarshaler() CertAuthorityMarshaler {
 // mostly adds support for extended versions
 type CertAuthorityMarshaler interface {
 	// UnmarshalCertAuthority unmarhsals cert authority from binary representation
-	UnmarshalCertAuthority(bytes []byte) (CertAuthority, error)
+	UnmarshalCertAuthority(bytes []byte, opts ...MarshalOption) (CertAuthority, error)
 	// MarshalCertAuthority to binary representation
 	MarshalCertAuthority(c CertAuthority, opts ...MarshalOption) ([]byte, error)
 	// GenerateCertAuthority is used to generate new cert authority
@@ -956,9 +956,13 @@ func (*TeleportCertAuthorityMarshaler) GenerateCertAuthority(ca CertAuthority) (
 }
 
 // UnmarshalUser unmarshals user from JSON
-func (*TeleportCertAuthorityMarshaler) UnmarshalCertAuthority(bytes []byte) (CertAuthority, error) {
+func (*TeleportCertAuthorityMarshaler) UnmarshalCertAuthority(bytes []byte, opts ...MarshalOption) (CertAuthority, error) {
+	cfg, err := collectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	var h ResourceHeader
-	err := json.Unmarshal(bytes, &h)
+	err = utils.FastUnmarshal(bytes, &h)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -972,8 +976,14 @@ func (*TeleportCertAuthorityMarshaler) UnmarshalCertAuthority(bytes []byte) (Cer
 		return ca.V2(), nil
 	case V2:
 		var ca CertAuthorityV2
-		if err := utils.UnmarshalWithSchema(GetCertAuthoritySchema(), &ca, bytes); err != nil {
-			return nil, trace.BadParameter(err.Error())
+		if cfg.SkipValidation {
+			if err := utils.FastUnmarshal(bytes, &ca); err != nil {
+				return nil, trace.BadParameter(err.Error())
+			}
+		} else {
+			if err := utils.UnmarshalWithSchema(GetCertAuthoritySchema(), &ca, bytes); err != nil {
+				return nil, trace.BadParameter(err.Error())
+			}
 		}
 
 		if err := ca.CheckAndSetDefaults(); err != nil {
@@ -1006,13 +1016,13 @@ func (*TeleportCertAuthorityMarshaler) MarshalCertAuthority(ca CertAuthority, op
 		if !ok {
 			return nil, trace.BadParameter("don't know how to marshal %v", V1)
 		}
-		return json.Marshal(v.V1())
+		return utils.FastMarshal(v.V1())
 	case V2:
 		v, ok := ca.(cav2)
 		if !ok {
 			return nil, trace.BadParameter("don't know how to marshal %v", V2)
 		}
-		return json.Marshal(v.V2())
+		return utils.FastMarshal(v.V2())
 	default:
 		return nil, trace.BadParameter("version %v is not supported", version)
 	}
