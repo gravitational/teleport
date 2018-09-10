@@ -672,11 +672,11 @@ func (s *AuthServer) GenerateToken(req GenerateTokenRequest) (string, error) {
 func (s *AuthServer) ClientCertPool() (*x509.CertPool, error) {
 	pool := x509.NewCertPool()
 	var authorities []services.CertAuthority
-	hostCAs, err := s.GetCertAuthorities(services.HostCA, false)
+	hostCAs, err := s.GetCertAuthorities(services.HostCA, false, services.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	userCAs, err := s.GetCertAuthorities(services.UserCA, false)
+	userCAs, err := s.GetCertAuthorities(services.UserCA, false, services.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

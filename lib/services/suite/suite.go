@@ -225,6 +225,10 @@ func (s *ServicesTestSuite) CertAuthCRUD(c *C) {
 	c.Assert(err, IsNil)
 	fixtures.DeepCompare(c, cas[0], ca)
 
+	cas, err = s.CAS.GetCertAuthorities(services.UserCA, true, services.SkipValidation())
+	c.Assert(err, IsNil)
+	fixtures.DeepCompare(c, cas[0], ca)
+
 	err = s.CAS.DeleteCertAuthority(*ca.ID())
 	c.Assert(err, IsNil)
 

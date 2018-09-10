@@ -78,14 +78,22 @@ func GetNamespaceSchema() string {
 	return fmt.Sprintf(NamespaceSchemaTemplate, MetadataSchema, NamespaceSpecSchema)
 }
 
+// MarshalNamespace marshals namespace to JSON
+func MarshalNamespace(ns Namespace) ([]byte, error) {
+	return utils.FastMarshal(ns)
+}
+
 // UnmarshalNamespace unmarshals role from JSON or YAML,
 // sets defaults and checks the schema
 func UnmarshalNamespace(data []byte) (*Namespace, error) {
 	if len(data) == 0 {
 		return nil, trace.BadParameter("missing namespace data")
 	}
+
+	// always skip schema validation on namespaces unmarshal
+	// the namespace is always created by teleport now
 	var namespace Namespace
-	if err := utils.UnmarshalWithSchema(GetNamespaceSchema(), &namespace, data); err != nil {
+	if err := utils.FastUnmarshal(data, &namespace); err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
 
