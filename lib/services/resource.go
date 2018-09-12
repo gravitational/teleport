@@ -56,6 +56,9 @@ const (
 	// KindHostCert is a host certificate
 	KindHostCert = "host_cert"
 
+	// KindLicense is a license resource
+	KindLicense = "license"
+
 	// KindRole is a role resource
 	KindRole = "role"
 
