@@ -18,12 +18,16 @@ package client
 
 import (
 	"bytes"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"runtime"
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 
@@ -45,6 +49,46 @@ type Key struct {
 	// ProxyHost (optionally) contains the hostname of the proxy server
 	// which issued this key
 	ProxyHost string
+
+	// TrustedCA is a list of trusted certificate authorities
+	TrustedCA []auth.TrustedCerts
+}
+
+// TLSConfig returns client TLS configuration used
+// to authenticate against API servers
+func (k *Key) ClientTLSConfig() (*tls.Config, error) {
+	// Because Teleport clients can't be configured (yet), they take the default
+	// list of cipher suites from Go.
+	tlsConfig := utils.TLSConfig(nil)
+
+	pool := x509.NewCertPool()
+	for _, ca := range k.TrustedCA {
+		for _, certPEM := range ca.TLSCertificates {
+			if !pool.AppendCertsFromPEM(certPEM) {
+				return nil, trace.BadParameter("failed to parse certificate received from the proxy")
+			}
+		}
+	}
+	tlsConfig.RootCAs = pool
+	tlsCert, err := tls.X509KeyPair(k.TLSCert, k.Priv)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse TLS cert and key")
+	}
+	tlsConfig.Certificates = append(tlsConfig.Certificates, tlsCert)
+	return tlsConfig, nil
+}
+
+// CertUsername returns the name of the teleport user encoded in the certificate
+func (k *Key) CertUsername() (string, error) {
+	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(k.Cert)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	cert, ok := pubKey.(*ssh.Certificate)
+	if !ok {
+		return "", trace.BadParameter("expected SSH certificate, got public key")
+	}
+	return cert.KeyId, nil
 }
 
 // AsAgentKeys converts client.Key struct to a []*agent.AddedKey. All elements

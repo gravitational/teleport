@@ -685,9 +685,6 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		if len(c.AuthMethods) == 0 {
 			return nil, trace.BadParameter("SkipLocalAuth is true but no AuthMethods provided")
 		}
-		if c.TLS == nil {
-			return nil, trace.BadParameter("SkipLocalAuth is true but no TLS config is provided")
-		}
 		// if the client was passed an agent in the configuration and skip local auth, use
 		// the passed in agent.
 		if c.Agent != nil {
@@ -1550,27 +1547,34 @@ func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, er
 	return key, nil
 }
 
-// UpdateKnownCA connects to the Auth Server and fetches all host certificates
-// and updates ~/.tsh/keys/proxy/certs.pem and ~/.tsh/known_hosts.
-func (tc *TeleportClient) UpdateKnownCA(ctx context.Context) error {
+// GetTrustedCA returns a list of host certificate authorities
+// trusted by the cluster client is authenticated with.
+func (tc *TeleportClient) GetTrustedCA(ctx context.Context) ([]services.CertAuthority, error) {
 	// Connect to the proxy.
 	if !tc.Config.ProxySpecified() {
-		return trace.BadParameter("proxy server is not specified")
+		return nil, trace.BadParameter("proxy server is not specified")
 	}
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	defer proxyClient.Close()
 
 	// Get a client to the Auth Server.
 	clt, err := proxyClient.ClusterAccessPoint(ctx, true)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Get the list of host certificates that this cluster knows about.
-	hostCerts, err := clt.GetCertAuthorities(services.HostCA, false)
+	return clt.GetCertAuthorities(services.HostCA, false)
+}
+
+// UpdateTrustedCA connects to the Auth Server and fetches all host certificates
+// and updates ~/.tsh/keys/proxy/certs.pem and ~/.tsh/known_hosts.
+func (tc *TeleportClient) UpdateTrustedCA(ctx context.Context) error {
+	// Get the list of host certificates that this cluster knows about.
+	hostCerts, err := tc.GetTrustedCA(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1842,7 +1846,7 @@ func connectToSSHAgent() agent.Agent {
 		return nil
 	}
 
-	log.Infof("[KEY AGENT] Conneced to System Agent: %q", socketPath)
+	log.Infof("[KEY AGENT] Connected to the system agent: %q", socketPath)
 	return agent.NewClient(conn)
 }
 
