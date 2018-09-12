@@ -3,7 +3,6 @@ package common
 import (
 	"fmt"
 	"io/ioutil"
-	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -310,7 +309,7 @@ func (a *AuthCommand) generateHostKeys(clusterApi auth.ClientI) error {
 		filePath = principals[0]
 	}
 
-	err = client.MakeIdentityFile(filePath, key, a.outputFormat)
+	err = client.MakeIdentityFile(filePath, key, a.outputFormat, nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -339,8 +338,16 @@ func (a *AuthCommand) generateUserKeys(clusterApi auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
+	var certAuthorities []services.CertAuthority
+	if a.outputFormat == client.IdentityFormatFile {
+		certAuthorities, err = clusterApi.GetCertAuthorities(services.HostCA, false)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	// write the cert+private key to the output:
-	err = client.MakeIdentityFile(a.output, key, a.outputFormat)
+	err = client.MakeIdentityFile(a.output, key, a.outputFormat, certAuthorities)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -360,12 +367,7 @@ func (a *AuthCommand) generateUserKeys(clusterApi auth.ClientI) error {
 //
 // URL encoding is used to pass the CA type and cluster name into the comment field.
 func userCAFormat(ca services.CertAuthority, keyBytes []byte) (string, error) {
-	comment := url.Values{
-		"type":        []string{string(services.UserCA)},
-		"clustername": []string{ca.GetClusterName()},
-	}
-
-	return fmt.Sprintf("cert-authority %s %s", strings.TrimSpace(string(keyBytes)), comment.Encode()), nil
+	return sshutils.MarshalAuthorizedKeysFormat(ca.GetClusterName(), keyBytes)
 }
 
 // hostCAFormat returns the certificate authority public key exported as a single line
@@ -377,19 +379,10 @@ func userCAFormat(ca services.CertAuthority, keyBytes []byte) (string, error) {
 //
 // URL encoding is used to pass the CA type and allowed logins into the comment field.
 func hostCAFormat(ca services.CertAuthority, keyBytes []byte, client auth.ClientI) (string, error) {
-	comment := url.Values{
-		"type": []string{string(ca.GetType())},
-	}
-
 	roles, err := services.FetchRoles(ca.GetRoles(), client, nil)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 	allowedLogins, _ := roles.CheckLoginDuration(defaults.MinCertDuration + time.Second)
-	if len(allowedLogins) > 0 {
-		comment["logins"] = allowedLogins
-	}
-
-	return fmt.Sprintf("@cert-authority *.%s %s %s",
-		ca.GetClusterName(), strings.TrimSpace(string(keyBytes)), comment.Encode()), nil
+	return sshutils.MarshalAuthorizedHostsFormat(ca.GetClusterName(), keyBytes, allowedLogins)
 }
