@@ -2,15 +2,15 @@
 package fixtures
 
 import (
-	"github.com/gravitational/license"
+	liblicense "github.com/gravitational/license"
 	check "gopkg.in/check.v1"
 )
 
-// TestLicense returns license used in tests
-func TestLicense(c *check.C) *license.License {
-	parsed, err := license.ParseString(TestLicenseData)
+// TestLicenseKeyPair returns license key pair used in tests
+func TestLicenseKeyPair(c *check.C) *liblicense.License {
+	licenseKeyPair, err := liblicense.ParseLicensePEM([]byte(TestLicenseData))
 	c.Assert(err, check.IsNil)
-	return parsed
+	return licenseKeyPair
 }
 
 // TestLicenseData contains test license data

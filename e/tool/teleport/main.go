@@ -36,7 +36,7 @@ func run(config *service.Config) error {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		modules.SetModules(teleport.Flags)
+		modules.SetModules(teleport.License)
 		auth.SetEnforcer(teleport.Enforcer)
 		return teleport, nil
 	}

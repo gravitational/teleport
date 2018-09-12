@@ -11,7 +11,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 
-	"github.com/gravitational/license"
+	liblicense "github.com/gravitational/license"
 	"github.com/gravitational/reporting/types"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
@@ -34,8 +34,8 @@ type Enforcer struct {
 type EnforcerConfig struct {
 	// Backend is the configured backend
 	Backend backend.Backend
-	// License is the parsed license
-	License *license.License
+	// LicenseKeyPair is the license key pair
+	LicenseKeyPair *liblicense.License
 	// Insecure is whether to skip cert verification
 	// when talking to the control plane
 	Insecure bool
@@ -48,7 +48,7 @@ func (c *EnforcerConfig) Check() error {
 	if c.Backend == nil {
 		return trace.BadParameter("enforcer config is missing backend")
 	}
-	if c.License == nil {
+	if c.LicenseKeyPair == nil {
 		return trace.BadParameter("enforcer config is missing license")
 	}
 	return nil
@@ -59,7 +59,7 @@ func NewEnforcer(ctx context.Context, config EnforcerConfig) (*Enforcer, error) 
 	if err := config.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsConfig, err := license.MakeTLSConfig(*config.License)
+	tlsConfig, err := liblicense.MakeTLSConfig(*config.LicenseKeyPair)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

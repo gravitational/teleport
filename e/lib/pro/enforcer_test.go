@@ -29,9 +29,9 @@ func (s *EnforcerSuite) SetUpSuite(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	s.enforcer, err = NewEnforcer(context.Background(), EnforcerConfig{
-		Backend: backend,
-		License: fixtures.TestLicense(c),
-		NoStart: true,
+		Backend:        backend,
+		LicenseKeyPair: fixtures.TestLicenseKeyPair(c),
+		NoStart:        true,
 	})
 	c.Assert(err, check.IsNil)
 }

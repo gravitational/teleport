@@ -9,16 +9,16 @@ import (
 
 	"github.com/gravitational/teleport/e/lib/aws"
 	"github.com/gravitational/teleport/e/lib/constants"
-	"github.com/gravitational/teleport/e/lib/featureflags"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/license"
+	liblicense "github.com/gravitational/license"
 	reporting "github.com/gravitational/reporting/client"
 	"github.com/gravitational/trace"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -30,10 +30,10 @@ type TeleportProcess struct {
 	*log.Entry
 	// Enforcer is the teleport pro enforcer
 	Enforcer *Enforcer
+	// LicenseKeyPair is the license key pair
+	LicenseKeyPair *liblicense.License
 	// License is the teleport license
-	License *license.License
-	// Flags is a set of feature flags
-	Flags featureflags.Flags
+	License services.License
 }
 
 // NewTeleport instantiates a new pro/enterprise teleport process
@@ -52,10 +52,11 @@ func NewTeleport(config *service.Config) (*TeleportProcess, error) {
 	if !config.Auth.Enabled {
 		return process, nil
 	}
-	process.License, process.Flags, err = checkLicense(process, config)
+	process.LicenseKeyPair, process.License, err = checkLicense(process, config)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	// when reporting usage, teleport runs some additional services that phone
 	// home once in a while to report usage metrics and verify license
 	if process.ReportsUsage() {
@@ -72,7 +73,7 @@ func NewTeleport(config *service.Config) (*TeleportProcess, error) {
 
 // ReportsUsage returns true if the process has to report usage
 func (p *TeleportProcess) ReportsUsage() bool {
-	return p.Flags.GetReportsUsage().Value()
+	return p.License.GetReportsUsage().Value()
 }
 
 // proConfig combines pro mode configuration parameters
@@ -85,7 +86,7 @@ type proConfig struct {
 
 // initServices initializes services for teleport pro mode
 func initServices(ctx context.Context, config *proConfig) (*Enforcer, error) {
-	certificate, err := license.MakeTLSCert(*config.Teleport.License)
+	certificate, err := liblicense.MakeTLSCert(*config.Teleport.LicenseKeyPair)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -117,9 +118,9 @@ func initServices(ctx context.Context, config *proConfig) (*Enforcer, error) {
 	}
 	config.Teleport.GetAuthServer().SetAuditLog(auditLog)
 	enforcer, err := NewEnforcer(ctx, EnforcerConfig{
-		Backend:  config.Teleport.GetBackend(),
-		License:  config.Teleport.License,
-		Insecure: config.Insecure,
+		Backend:        config.Teleport.GetBackend(),
+		LicenseKeyPair: config.Teleport.LicenseKeyPair,
+		Insecure:       config.Insecure,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -127,57 +128,32 @@ func initServices(ctx context.Context, config *proConfig) (*Enforcer, error) {
 	return enforcer, nil
 }
 
-// parseLicense parses license and returns parsed feature flags
-func parseLicense(licenseBytes []byte) (*license.License, featureflags.Flags, error) {
-	parsed, err := license.ParseLicensePEM(licenseBytes, license.ParseOptions{})
+// parseLicense returns license key pair and payload
+func parseLicense(licenseBytes []byte) (*liblicense.License, services.License, error) {
+	licenseKeyPair, err := liblicense.ParseLicensePEM(licenseBytes)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 	// check if it's a legacy license
-	var payload license.Payload
-	if err := json.Unmarshal(parsed.RawPayload, &payload); err == nil {
-		// if it's a legacy license, implement migration
-		// to featureflags
-		flags, err := featureflags.New(payload.ProductName, featureflags.SpecV3{})
+	var legacyLicense LegacyLicense
+	if err := json.Unmarshal(licenseKeyPair.RawPayload, &legacyLicense); err == nil {
+		teleportLicense, err := legacyLicense.ToV3()
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		flags.SetExpiry(payload.Expiration)
-		switch payload.ProductName {
-		// Pro and Business plans are the same in the way
-		// that they only turn on tracking
-		case constants.ProPlan, constants.BusinessPlan:
-			flags.SetReportsUsage(services.NewBool(true))
-			return parsed, flags, nil
-		case constants.EnterprisePlan:
-			// old enterprise plan allows everything except
-			// kubernetes
-			return parsed, flags, nil
-		case constants.EnterpriseAWSPlan:
-			flags.SetAWSAccountID(payload.AccountID)
-			flags.SetAWSProductID(payload.Metadata)
-			return parsed, flags, nil
-		case "":
-			// plan is empty, assume that it's a new style
-			// feature flags license resource
-		default:
-			// unrecognized plan, return error
-			return nil, nil, trace.BadParameter("unrecognized legacy product name %q", payload.ProductName)
-		}
+
+		return licenseKeyPair, teleportLicense, nil
 	}
 
-	// assume that this is a new style feature flags
-	// license. for this license, product name does not matter,
-	// all properties are encoded in the special feature flags
-	flags, err := featureflags.Unmarshal(parsed.RawPayload)
+	teleportLicense, err := services.UnmarshalLicense(licenseKeyPair.RawPayload)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	return parsed, flags, nil
+	return licenseKeyPair, teleportLicense, nil
 }
 
 // checkLicense verified the presence of license and runs basic checks on it
-func checkLicense(process *TeleportProcess, config *service.Config) (*license.License, featureflags.Flags, error) {
+func checkLicense(process *TeleportProcess, config *service.Config) (*liblicense.License, services.License, error) {
 	if config.Auth.LicenseFile == "" {
 		return nil, nil, trace.AccessDenied(
 			fmt.Sprintf(errLicensePath, filepath.Join(config.DataDir, defaults.LicenseFile)))
@@ -188,22 +164,20 @@ func checkLicense(process *TeleportProcess, config *service.Config) (*license.Li
 		return nil, nil, trace.AccessDenied(
 			fmt.Sprintf(errLicensePath, filepath.Join(config.DataDir, defaults.LicenseFile)))
 	}
-	parsedLicense, flags, err := parseLicense(bytes)
+	licenseKeyPair, license, err := parseLicense(bytes)
 	if err != nil {
 		process.Debug(trace.DebugReport(err))
 		// unrecognized plan, return error
 		return nil, nil, trace.AccessDenied(
 			fmt.Sprintf(errLicenseParse, config.Auth.LicenseFile))
 	}
-	if flags.GetAWSProductID() != "" || flags.GetAWSAccountID() != "" {
-		if err := aws.Verify(*parsedLicense, flags); err != nil {
+	if license.GetAWSProductID() != "" || license.GetAWSAccountID() != "" {
+		if err := aws.Verify(*licenseKeyPair, license); err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 	}
-	process.Infof("Using %v license from %v %v.",
-		flags.GetName(), config.Auth.LicenseFile, flags)
-
-	return parsedLicense, flags, nil
+	process.Infof("Using license from %v %v.", config.Auth.LicenseFile, license)
+	return licenseKeyPair, license, nil
 }
 
 const (
