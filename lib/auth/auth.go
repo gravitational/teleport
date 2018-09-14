@@ -112,12 +112,6 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) (*AuthServer, erro
 	if as.clock == nil {
 		as.clock = clockwork.NewRealClock()
 	}
-	if !cfg.SkipPeriodicOperations {
-		log.Infof("Auth server is running periodic operations.")
-		go as.runPeriodicOperations()
-	} else {
-		log.Infof("Auth server is skipping periodic operations.")
-	}
 
 	return &as, nil
 }
@@ -672,11 +666,11 @@ func (s *AuthServer) GenerateToken(req GenerateTokenRequest) (string, error) {
 func (s *AuthServer) ClientCertPool() (*x509.CertPool, error) {
 	pool := x509.NewCertPool()
 	var authorities []services.CertAuthority
-	hostCAs, err := s.GetCertAuthorities(services.HostCA, false)
+	hostCAs, err := s.GetCertAuthorities(services.HostCA, false, services.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	userCAs, err := s.GetCertAuthorities(services.UserCA, false)
+	userCAs, err := s.GetCertAuthorities(services.UserCA, false, services.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

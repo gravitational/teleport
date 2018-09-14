@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2015-2018 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/coreos/etcd/client"
+	"github.com/coreos/etcd/clientv3"
 	"github.com/gravitational/trace"
 	"golang.org/x/net/context"
 	. "gopkg.in/check.v1"
@@ -36,7 +36,7 @@ func TestEtcd(t *testing.T) { TestingT(t) }
 type EtcdSuite struct {
 	bk       *bk
 	suite    test.BackendSuite
-	api      client.KeysAPI
+	client   *clientv3.Client
 	changesC chan interface{}
 	key      string
 	stopC    chan bool
@@ -57,6 +57,13 @@ func (s *EtcdSuite) SetUpSuite(c *C) {
 		"tls_cert_file": "../../../examples/etcd/certs/client-cert.pem",
 		"tls_ca_file":   "../../../examples/etcd/certs/ca-cert.pem",
 	}
+}
+
+func (s *EtcdSuite) SetUpTest(c *C) {
+	if s.skip {
+		fmt.Println("WARNING: etcd cluster is not available. Start examples/etcd/start-etcd.sh")
+		c.Skip("Etcd is not avialable")
+	}
 	// Initiate a backend with a registry
 	raw, err := New(s.config)
 	c.Assert(err, IsNil)
@@ -66,24 +73,14 @@ func (s *EtcdSuite) SetUpSuite(c *C) {
 
 	s.bk = sb.Backend().(*bk)
 	s.suite.B = raw
-}
-
-func (s *EtcdSuite) SetUpTest(c *C) {
-	if s.skip {
-		c.Skip("etcd is not available")
-	}
-	s.api = client.NewKeysAPI(s.bk.client)
-
+	s.client = s.bk.client
 	s.changesC = make(chan interface{})
 	s.stopC = make(chan bool)
 
 	// Delete all values under the given prefix
-	_, err := s.api.Delete(context.Background(),
+	_, err = s.client.Delete(context.Background(),
 		s.bk.cfg.Key,
-		&client.DeleteOptions{
-			Recursive: true,
-			Dir:       true,
-		})
+		clientv3.WithPrefix())
 	err = convertErr(err)
 	if err != nil && !trace.IsNotFound(err) {
 		if strings.Contains(err.Error(), "connection refused") {

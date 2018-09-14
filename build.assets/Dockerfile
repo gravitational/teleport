@@ -16,8 +16,8 @@ RUN (groupadd jenkins --gid=$GID -o && useradd jenkins --uid=$UID --gid=$GID --c
      mkdir -p /var/lib/teleport && chown -R jenkins /var/lib/teleport)
 
 # get etcd
-RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.0.16/etcd-v3.0.16-linux-amd64.tar.gz | tar -xz ;\
-     cp etcd-v3.0.16-linux-amd64/etcd* /bin/ ;\
+RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz | tar -xz ;\
+     cp etcd-v3.3.9-linux-amd64/etcd* /bin/ ;\
      apt-get install -y net-tools tree)
 
 # Install Golang:

@@ -183,10 +183,16 @@ func (s *BackendSuite) Expiration(c *C) {
 	c.Assert(s.B.UpsertVal(bucket, "bkey", []byte("val1"), time.Second), IsNil)
 	c.Assert(s.B.UpsertVal(bucket, "akey", []byte("val2"), 0), IsNil)
 
-	time.Sleep(2 * time.Second)
-
-	keys, err := s.B.GetKeys(bucket)
-	c.Assert(err, IsNil)
+	var keys []string
+	var err error
+	for i := 0; i < 4; i++ {
+		time.Sleep(time.Second)
+		keys, err = s.B.GetKeys(bucket)
+		c.Assert(err, IsNil)
+		if len(keys) == 1 {
+			break
+		}
+	}
 	c.Assert(keys, DeepEquals, []string{"akey"})
 }
 

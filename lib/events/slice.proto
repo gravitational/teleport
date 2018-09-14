@@ -1,7 +1,6 @@
 syntax = "proto3";
 package events;
 
-import "github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis/google/api/annotations.proto";
 import "google/protobuf/empty.proto";
 
 // SessionSlice is a slice of submitted chunks

@@ -27,7 +27,6 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
-	"net/http/httputil"
 	"net/url"
 	"strings"
 
@@ -109,85 +108,9 @@ func (s *SpdyRoundTripper) Dial(req *http.Request) (net.Conn, error) {
 	return conn, nil
 }
 
-// dial dials the host specified by req, using TLS if appropriate, optionally
-// using a proxy server if one is configured via environment variables.
+// dial dials the host specified by req
 func (s *SpdyRoundTripper) dial(req *http.Request) (net.Conn, error) {
-	proxier := s.proxier
-	if proxier == nil {
-		proxier = utilnet.NewProxierWithNoProxyCIDR(http.ProxyFromEnvironment)
-	}
-	proxyURL, err := proxier(req)
-	if err != nil {
-		return nil, err
-	}
-
-	if proxyURL == nil {
-		return s.dialWithoutProxy(req.URL)
-	}
-
-	// ensure we use a canonical host with proxyReq
-	targetHost := netutil.CanonicalAddr(req.URL)
-
-	// proxying logic adapted from http://blog.h6t.eu/post/74098062923/golang-websocket-with-http-proxy-support
-	proxyReq := http.Request{
-		Method: "CONNECT",
-		URL:    &url.URL{},
-		Host:   targetHost,
-	}
-
-	if pa := s.proxyAuth(proxyURL); pa != "" {
-		proxyReq.Header = http.Header{}
-		proxyReq.Header.Set("Proxy-Authorization", pa)
-	}
-
-	proxyDialConn, err := s.dialWithoutProxy(proxyURL)
-	if err != nil {
-		return nil, err
-	}
-
-	proxyClientConn := httputil.NewProxyClientConn(proxyDialConn, nil)
-	_, err = proxyClientConn.Do(&proxyReq)
-	if err != nil && err != httputil.ErrPersistEOF {
-		return nil, err
-	}
-
-	rwc, _ := proxyClientConn.Hijack()
-
-	if req.URL.Scheme != "https" {
-		return rwc, nil
-	}
-
-	host, _, err := net.SplitHostPort(targetHost)
-	if err != nil {
-		return nil, err
-	}
-
-	tlsConfig := s.tlsConfig
-	switch {
-	case tlsConfig == nil:
-		tlsConfig = &tls.Config{ServerName: host}
-	case len(tlsConfig.ServerName) == 0:
-		tlsConfig = tlsConfig.Clone()
-		tlsConfig.ServerName = host
-	}
-
-	tlsConn := tls.Client(rwc, tlsConfig)
-
-	// need to manually call Handshake() so we can call VerifyHostname() below
-	if err := tlsConn.Handshake(); err != nil {
-		return nil, err
-	}
-
-	// Return if we were configured to skip validation
-	if tlsConfig.InsecureSkipVerify {
-		return tlsConn, nil
-	}
-
-	if err := tlsConn.VerifyHostname(tlsConfig.ServerName); err != nil {
-		return nil, err
-	}
-
-	return tlsConn, nil
+	return s.dialWithoutProxy(req.URL)
 }
 
 // dialWithoutProxy dials the host specified by url, using TLS if appropriate.

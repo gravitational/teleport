@@ -398,7 +398,14 @@ func onLogin(cf *CLIConf) {
 	}
 
 	if makeIdentityFile {
-		client.MakeIdentityFile(cf.IdentityFileOut, key, cf.IdentityFormat)
+		if err := setupNoninteractiveClient(tc, key); err != nil {
+			utils.FatalError(err)
+		}
+		authorities, err := tc.GetTrustedCA(cf.Context)
+		if err != nil {
+			utils.FatalError(err)
+		}
+		client.MakeIdentityFile(cf.IdentityFileOut, key, cf.IdentityFormat, authorities)
 		fmt.Printf("\nThe certificate has been written to %s\n", cf.IdentityFileOut)
 		return
 	}
@@ -412,7 +419,7 @@ func onLogin(cf *CLIConf) {
 	tc.SaveProfile("")
 
 	// Connect to the Auth Server and fetch the known hosts for this cluster.
-	err = tc.UpdateKnownCA(cf.Context)
+	err = tc.UpdateTrustedCA(cf.Context)
 	if err != nil {
 		utils.FatalError(err)
 	}
@@ -423,6 +430,28 @@ func onLogin(cf *CLIConf) {
 	webProxyHost, _ := tc.WebProxyHostPort()
 	cf.Proxy = webProxyHost
 	onStatus(cf)
+}
+
+// setupNoninteractiveClient sets up existing client to use
+// non-interactive authentication methods
+func setupNoninteractiveClient(tc *client.TeleportClient, key *client.Key) error {
+	certUsername, err := key.CertUsername()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	tc.Username = certUsername
+	identityAuth, err := authFromIdentity(key)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	tc.TLS, err = key.ClientTLSConfig()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	tc.AuthMethods = []ssh.AuthMethod{identityAuth}
+	tc.Interactive = false
+	tc.SkipLocalAuth = true
+	return nil
 }
 
 // onLogout deletes a "session certificate" from ~/.tsh for a given proxy
@@ -650,6 +679,8 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 
 	// Look if a user identity was given via -i flag
 	if cf.IdentityFileIn != "" {
+		// Ignore local authentication methods when identity file is provided
+		c.SkipLocalAuth = true
 		var (
 			key          *client.Key
 			identityAuth ssh.AuthMethod
@@ -661,14 +692,23 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		if hostAuthFunc != nil {
+			c.HostKeyCallback = hostAuthFunc
+		} else {
+			return nil, trace.BadParameter("missing trusted certificate authorities in the identity, upgrade to newer version of tctl, export identity and try again")
+		}
+		certUsername, err := key.CertUsername()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		logrus.Debugf("Extracted username %q from the identity file %v.", certUsername, cf.IdentityFileIn)
+		c.Username = certUsername
+
 		identityAuth, err = authFromIdentity(key)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		c.AuthMethods = []ssh.AuthMethod{identityAuth}
-		if hostAuthFunc != nil {
-			c.HostKeyCallback = hostAuthFunc
-		}
 
 		// check the expiration date
 		expiryDate, _ = key.CertValidBefore()
@@ -731,7 +771,9 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 	c.CertificateFormat = certificateFormat
 
 	// copy the authentication connector over
-	c.AuthConnector = cf.AuthConnector
+	if cf.AuthConnector != "" {
+		c.AuthConnector = cf.AuthConnector
+	}
 
 	// copy over if we want agent forwarding or not
 	c.ForwardAgent = cf.ForwardAgent
@@ -778,7 +820,7 @@ func refuseArgs(command string, args []string) {
 // If the "host auth callback" is not returned, user will be prompted to
 // trust the proxy server.
 func loadIdentity(idFn string) (*client.Key, ssh.HostKeyCallback, error) {
-	logrus.Infof("Reading identity file: ", idFn)
+	logrus.Infof("Reading identity file: %v", idFn)
 
 	f, err := os.Open(idFn)
 	if err != nil {
@@ -786,10 +828,10 @@ func loadIdentity(idFn string) (*client.Key, ssh.HostKeyCallback, error) {
 	}
 	defer f.Close()
 	var (
-		keyBuf bytes.Buffer
-		state  int // 0: not found, 1: found beginning, 2: found ending
-		cert   []byte
-		caCert []byte
+		keyBuf  bytes.Buffer
+		state   int // 0: not found, 1: found beginning, 2: found ending
+		cert    []byte
+		caCerts [][]byte
 	)
 	// read the identity file line by line:
 	scanner := bufio.NewScanner(f)
@@ -801,7 +843,7 @@ func loadIdentity(idFn string) (*client.Key, ssh.HostKeyCallback, error) {
 				continue
 			}
 			if strings.HasPrefix(line, "@cert-authority") {
-				caCert = []byte(line)
+				caCerts = append(caCerts, []byte(line))
 				continue
 			}
 		}
@@ -841,12 +883,17 @@ func loadIdentity(idFn string) (*client.Key, ssh.HostKeyCallback, error) {
 	}
 	var hostAuthFunc ssh.HostKeyCallback = nil
 	// validate CA (cluster) cert
-	if len(caCert) > 0 {
-		_, _, pkey, _, _, err := ssh.ParseKnownHosts(caCert)
-		if err != nil {
-			return nil, nil, trace.BadParameter("CA cert parsing error: %v. cert line :%v",
-				err.Error(), string(caCert))
+	if len(caCerts) > 0 {
+		var trustedKeys []ssh.PublicKey
+		for _, caCert := range caCerts {
+			_, _, publicKey, _, _, err := ssh.ParseKnownHosts(caCert)
+			if err != nil {
+				return nil, nil, trace.BadParameter("CA cert parsing error: %v. cert line :%v",
+					err.Error(), string(caCert))
+			}
+			trustedKeys = append(trustedKeys, publicKey)
 		}
+
 		// found CA cert in the indentity file? construct the host key checking function
 		// and return it:
 		hostAuthFunc = func(host string, a net.Addr, hostKey ssh.PublicKey) error {
@@ -854,12 +901,14 @@ func loadIdentity(idFn string) (*client.Key, ssh.HostKeyCallback, error) {
 			if ok {
 				hostKey = clusterCert.SignatureKey
 			}
-			if !sshutils.KeysEqual(pkey, hostKey) {
-				err = trace.AccessDenied("host %v is untrusted", host)
-				logrus.Error(err)
-				return err
+			for _, trustedKey := range trustedKeys {
+				if sshutils.KeysEqual(trustedKey, hostKey) {
+					return nil
+				}
 			}
-			return nil
+			err = trace.AccessDenied("host %v is untrusted", host)
+			logrus.Error(err)
+			return err
 		}
 	}
 	return &client.Key{
