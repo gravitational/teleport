@@ -414,8 +414,6 @@ func (s *remoteSite) periodicUpdateCertAuthorities() {
 				default:
 					s.Warningf("Could not perform cert authorities updated: %v.", trace.DebugReport(err))
 				}
-			} else {
-				s.Debugf("Certificate authorities updated.")
 			}
 		}
 	}
