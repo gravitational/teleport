@@ -289,7 +289,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 		NodeName: "node-name",
 		Role:     teleport.RoleProxy,
 	})
-	c.Assert(err, ErrorMatches, `"node-name" \[late.bird\] can not join the cluster with role Proxy, token error: token expired`)
+	c.Assert(err, ErrorMatches, `"node-name" \[late.bird\] can not join the cluster with role Proxy, the token is not valid`)
 
 	// expired token should be gone now
 	err = s.a.DeleteToken(multiUseToken)

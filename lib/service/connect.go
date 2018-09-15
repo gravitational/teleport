@@ -262,7 +262,7 @@ func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector
 		if process.Config.Token == "" {
 			return nil, trace.BadParameter("%v must join a cluster and needs a provisioning token", role)
 		}
-		process.Infof("Joining the cluster with a token %v.", process.Config.Token)
+		process.Infof("Joining the cluster with a secure token.")
 		const reason = "first-time-connect"
 		keyPair, err := process.generateKeyPair(role, reason)
 		if err != nil {
