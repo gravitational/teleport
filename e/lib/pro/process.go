@@ -183,7 +183,7 @@ func checkLicense(process *TeleportProcess, config *service.Config) (*liblicense
 const (
 	// errLicensePath is displayed when auth server is started w/o valid license
 	errLicensePath = "auth server requires a valid license file to start, " +
-		"please set the correct license_file path under auth_server section " +
+		"please set the correct license_file path under auth_service section " +
 		"in your teleport config or put the license into the default search " +
 		"location at %v"
 	// errLicenseParse is displayed on license parsing error
