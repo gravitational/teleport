@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dir"
@@ -155,4 +156,52 @@ audit_events_uri: 'dynamodb://audit_table_name'
 		AuditSessionsURI: "file:///home/log",
 		AuditEventsURI:   []string{"dynamodb://audit_table_name"},
 	})
+}
+
+func (s *ClusterConfigurationSuite) TestClusterConfigMarshal(c *check.C) {
+	// signle audit_events uri value
+	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+		ClientIdleTimeout:     services.NewDuration(17 * time.Second),
+		DisconnectExpiredCert: services.NewBool(true),
+		ClusterID:             "27",
+		SessionRecording:      services.RecordAtProxy,
+		Audit: services.AuditConfig{
+			Region:           "us-west-1",
+			Type:             "dynamodb",
+			AuditSessionsURI: "file:///home/log",
+			AuditTableName:   "audit_table_name",
+			AuditEventsURI:   []string{"dynamodb://audit_table_name"},
+		},
+	})
+	c.Assert(err, check.IsNil)
+
+	data, err := services.GetClusterConfigMarshaler().Marshal(clusterConfig)
+	c.Assert(err, check.IsNil)
+
+	out, err := services.GetClusterConfigMarshaler().Unmarshal(data)
+	c.Assert(err, check.IsNil)
+	fixtures.DeepCompare(c, clusterConfig, out)
+
+	// multiple events uri values
+	clusterConfig, err = services.NewClusterConfig(services.ClusterConfigSpecV3{
+		ClientIdleTimeout:     services.NewDuration(17 * time.Second),
+		DisconnectExpiredCert: services.NewBool(true),
+		ClusterID:             "27",
+		SessionRecording:      services.RecordAtProxy,
+		Audit: services.AuditConfig{
+			Region:           "us-west-1",
+			Type:             "dynamodb",
+			AuditSessionsURI: "file:///home/log",
+			AuditTableName:   "audit_table_name",
+			AuditEventsURI:   []string{"dynamodb://audit_table_name", "file:///home/test/log"},
+		},
+	})
+	c.Assert(err, check.IsNil)
+
+	data, err = services.GetClusterConfigMarshaler().Marshal(clusterConfig)
+	c.Assert(err, check.IsNil)
+
+	out, err = services.GetClusterConfigMarshaler().Unmarshal(data)
+	c.Assert(err, check.IsNil)
+	fixtures.DeepCompare(c, clusterConfig, out)
 }
