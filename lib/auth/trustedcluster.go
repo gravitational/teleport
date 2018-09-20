@@ -418,7 +418,7 @@ func (a *AuthServer) validateTrustedCluster(validateRequest *ValidateTrustedClus
 		CAs: []services.CertAuthority{},
 	}
 	for _, caType := range []services.CertAuthType{services.HostCA, services.UserCA} {
-		certAuthorities, err := a.GetCertAuthorities(caType, false)
+		certAuthorities, err := a.GetCertAuthorities(caType, false, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
