@@ -1,21 +1,28 @@
 # Gravitational Teleport
 
-Gravitational Teleport is a modern SSH server for remotely accessing clusters
-of Linux servers via SSH or HTTPS. It is intended to be used instead of `sshd`
-for organizations who need:
+Gravitational Teleport is a modern security gateway for remotely accessing:
+* Clusters of Linux servers via SSH or SSH-over-HTTPS in a browser.
+* Kubernetes clusters.
+
+It is intended to be used instead or together with `sshd` for organizations who
+need:
 
 * SSH audit with session recording/replay.
-* Easily manage SSH trust between teams, organizations and data centers.
-* SSH into behind-firewall clusters without any open ports.
+* Kubernetes API Access with audit and `kubectl exec` recording/replay.
+* Easily manage trust between teams, organizations and data centers.
+* Have SSH or Kubernetes access to behind-firewall clusters without any open ports.
 * Role-based access control (RBAC) for SSH protocol.
+* Unified RBAC for SSH and Kubernetes.
 
 In addition to its hallmark features, Teleport is interesting for smaller teams
-because it facilitates easy adoption of the best SSH practices like:
+because it facilitates easy adoption of the best infrastructure security
+practices like:
 
 - No need to distribute keys: Teleport uses certificate-based access with automatic certificate expiration time.
-- 2nd factor authentication (2FA) for SSH.
+- 2nd factor authentication (2FA) for SSH and Kubernetes.
 - Collaboratively troubleshoot issues through session sharing.
-- Single sign-on (SSO) for SSH and your organization identities via OpenID Connect or SAML with endpoints like Okta or Active Directory.
+- Single sign-on (SSO) for SSH/Kubernetes and your organization identities via 
+  Github Auth, OpenID Connect or SAML with endpoints like Okta or Active Directory.
 - Cluster introspection: every SSH node and its status can be queried via CLI and Web UI.
 
 Teleport is built on top of the high-quality [Golang SSH](https://godoc.org/golang.org/x/crypto/ssh) 
@@ -97,12 +104,23 @@ $ DEBUG=1 ./build/teleport start -d
 Keep the server running in this mode, and make your UI changes in `/dist` directory.
 Refer to [web/README.md](web/README.md) for instructions on how to update the Web UI.
 
+### Updating Documentation
+
+TL;DR version:
+
+```
+make docs
+make run-docs
+```
+
+For more details, take a look at [docs/README](docs/README.md)
+
 ## Why did We Build Teleport?
 
-Mature tech companies with significant infrastructure footprints tend to implement most
-of these patterns internally. Teleport allows smaller companies without 
-significant in-house SSH expertise to easily adopt them, as well. Teleport comes with an 
-accessible Web UI and a very permissive [Apache 2.0](https://github.com/gravitational/teleport/blob/master/LICENSE)
+Mature tech companies with significant infrastructure footprints tend to
+implement most of these patterns internally. Teleport allows smaller companies
+without significant in-house SSH expertise to easily adopt them, as well.
+Teleport comes with an accessible Web UI and a very permissive [Apache 2.0](https://github.com/gravitational/teleport/blob/master/LICENSE)
 license to facilitate adoption and use.
 
 Being a complete standalone tool, Teleport can be used as a software library
