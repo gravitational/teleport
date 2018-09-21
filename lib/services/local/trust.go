@@ -163,7 +163,7 @@ func (s *CA) DeactivateCertAuthority(id services.CertAuthID) error {
 
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 // controls if signing keys are loaded
-func (s *CA) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool) (services.CertAuthority, error) {
+func (s *CA) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (services.CertAuthority, error) {
 	if err := id.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -171,7 +171,7 @@ func (s *CA) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool) (ser
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(data)
+	ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(data, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
