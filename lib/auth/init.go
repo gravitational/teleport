@@ -570,6 +570,7 @@ func (i *Identity) TLSConfig() (*tls.Config, error) {
 	tlsConfig.Certificates = []tls.Certificate{tlsCert}
 	tlsConfig.RootCAs = certPool
 	tlsConfig.ClientCAs = certPool
+	tlsConfig.ServerName = EncodeClusterName(i.ClusterName)
 	return tlsConfig, nil
 }
 
