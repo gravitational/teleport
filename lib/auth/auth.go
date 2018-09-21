@@ -660,19 +660,36 @@ func (s *AuthServer) GenerateToken(req GenerateTokenRequest) (string, error) {
 }
 
 // ClientCertPool returns trusted x509 cerificate authority pool
-func (s *AuthServer) ClientCertPool() (*x509.CertPool, error) {
+func (s *AuthServer) ClientCertPool(clusterName string) (*x509.CertPool, error) {
 	pool := x509.NewCertPool()
 	var authorities []services.CertAuthority
-	hostCAs, err := s.GetCertAuthorities(services.HostCA, false, services.SkipValidation())
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if clusterName == "" {
+		hostCAs, err := s.GetCertAuthorities(services.HostCA, false, services.SkipValidation())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		userCAs, err := s.GetCertAuthorities(services.UserCA, false, services.SkipValidation())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		authorities = append(authorities, hostCAs...)
+		authorities = append(authorities, userCAs...)
+	} else {
+		hostCA, err := s.GetCertAuthority(
+			services.CertAuthID{Type: services.HostCA, DomainName: clusterName},
+			false, services.SkipValidation())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		userCA, err := s.GetCertAuthority(
+			services.CertAuthID{Type: services.UserCA, DomainName: clusterName},
+			false, services.SkipValidation())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		authorities = append(authorities, hostCA)
+		authorities = append(authorities, userCA)
 	}
-	userCAs, err := s.GetCertAuthorities(services.UserCA, false, services.SkipValidation())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	authorities = append(authorities, hostCAs...)
-	authorities = append(authorities, userCAs...)
 
 	for _, auth := range authorities {
 		for _, keyPair := range auth.GetTLSKeyPairs() {
@@ -805,7 +822,7 @@ func (s *AuthServer) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedK
 	// certificate as one of the DNS Names. It is not known in advance,
 	// that is why there is a default one for all certificates
 	if req.Roles.Include(teleport.RoleAuth) || req.Roles.Include(teleport.RoleAdmin) {
-		certRequest.DNSNames = append(certRequest.DNSNames, teleport.APIDomain)
+		certRequest.DNSNames = append(certRequest.DNSNames, "*."+teleport.APIDomain, teleport.APIDomain)
 	}
 	hostTLSCert, err := tlsAuthority.GenerateCertificate(certRequest)
 	if err != nil {

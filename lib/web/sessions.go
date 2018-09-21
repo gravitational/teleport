@@ -220,6 +220,7 @@ func (c *SessionContext) ClientTLSConfig(clusterName ...string) (*tls.Config, er
 	}
 	tlsConfig.Certificates = []tls.Certificate{tlsCert}
 	tlsConfig.RootCAs = certPool
+	tlsConfig.ServerName = auth.EncodeClusterName(c.parent.clusterName)
 	return tlsConfig, nil
 }
 
@@ -625,6 +626,7 @@ func (s *sessionCache) ValidateSession(user, sid string) (*SessionContext, error
 	}
 	tlsConfig.Certificates = []tls.Certificate{tlsCert}
 	tlsConfig.RootCAs = certPool
+	tlsConfig.ServerName = auth.EncodeClusterName(s.clusterName)
 
 	userClient, err := auth.NewTLSClient(s.authServers, tlsConfig)
 	if err != nil {

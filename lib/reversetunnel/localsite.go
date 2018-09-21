@@ -77,7 +77,6 @@ type localSite struct {
 	domainName  string
 	connections []*remoteConn
 	lastUsed    int
-	lastActive  time.Time
 	srv         *server
 
 	// client provides access to the Auth Server API of the local cluster.
