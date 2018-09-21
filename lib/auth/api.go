@@ -53,7 +53,7 @@ type AccessPoint interface {
 	GetProxies() ([]services.Server, error)
 
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(id services.CertAuthID, loadKeys bool) (services.CertAuthority, error)
+	GetCertAuthority(id services.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (services.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
 	GetCertAuthorities(caType services.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]services.CertAuthority, error)
