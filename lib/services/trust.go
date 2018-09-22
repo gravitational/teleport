@@ -52,7 +52,7 @@ type Trust interface {
 
 	// GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 	// controls if signing keys are loaded
-	GetCertAuthority(id CertAuthID, loadSigningKeys bool) (CertAuthority, error)
+	GetCertAuthority(id CertAuthID, loadSigningKeys bool, opts ...MarshalOption) (CertAuthority, error)
 
 	// GetCertAuthorities returns a list of authorities of a given type
 	// loadSigningKeys controls whether signing keys should be loaded or not

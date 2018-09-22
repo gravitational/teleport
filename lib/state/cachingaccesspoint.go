@@ -497,15 +497,15 @@ func (cs *CachingAuthClient) GetProxies() (proxies []services.Server, err error)
 }
 
 // GetCertAuthority is a part of auth.AccessPoint implementation
-func (cs *CachingAuthClient) GetCertAuthority(id services.CertAuthID, loadKeys bool) (ca services.CertAuthority, err error) {
+func (cs *CachingAuthClient) GetCertAuthority(id services.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (ca services.CertAuthority, err error) {
 	cs.fetch(params{
 		key: certKey(id, loadKeys),
 		fetch: func() error {
-			ca, err = cs.ap.GetCertAuthority(id, loadKeys)
+			ca, err = cs.ap.GetCertAuthority(id, loadKeys, opts...)
 			return err
 		},
 		useCache: func() error {
-			ca, err = cs.trust.GetCertAuthority(id, loadKeys)
+			ca, err = cs.trust.GetCertAuthority(id, loadKeys, opts...)
 			return err
 		},
 		updateCache: func() (keys []string, cerr error) {

@@ -39,13 +39,22 @@ func (process *TeleportProcess) connect(role teleport.Role) (*Connector, error) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// TODO(klizhentas): REMOVE IN 3.1
+	// this is a migration clutch, used to re-register
+	// in case if identity of the auth server does not have the wildcard cert
+	if role == teleport.RoleAdmin || role == teleport.RoleAuth {
+		if !identity.HasPrincipals([]string{"*." + teleport.APIDomain}) {
+			process.Debugf("Detected Auth server certificate without wildcard, regenerating.")
+			return process.firstTimeConnect(role)
+		}
+	}
 
 	rotation := state.Spec.Rotation
 
 	switch rotation.State {
 	// rotation is on standby, so just use whatever is current
 	case "", services.RotationStateStandby:
-		// The roles of admin and auth are treaded in a special way, as in this case
+		// The roles of admin and auth are treated in a special way, as in this case
 		// the process does not need TLS clients and can use local auth directly.
 		if role == teleport.RoleAdmin || role == teleport.RoleAuth {
 			return &Connector{

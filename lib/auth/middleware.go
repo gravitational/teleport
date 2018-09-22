@@ -111,13 +111,25 @@ func (t *TLSServer) Serve(listener net.Listener) error {
 // and server's GetConfigForClient reloads the list of trusted
 // local and remote certificate authorities
 func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, error) {
+	var clusterName string
+	var err error
+	if info.ServerName != "" {
+		clusterName, err = DecodeClusterName(info.ServerName)
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				log.Warningf("Client sent unsupported cluster name %q, what resulted in error %v.", info.ServerName, err)
+				return nil, trace.AccessDenied("access is denied")
+			}
+		}
+	}
+
 	// update client certificate pool based on currently trusted TLS
 	// certificate authorities.
 	// TODO(klizhentas) drop connections of the TLS cert authorities
 	// that are not trusted
 	// TODO(klizhentas) what are performance implications of returning new config
 	// per connections? E.g. what happens to session tickets. Benchmark this.
-	pool, err := t.AuthServer.ClientCertPool()
+	pool, err := t.AuthServer.ClientCertPool(clusterName)
 	if err != nil {
 		log.Errorf("failed to retrieve client pool: %v", trace.DebugReport(err))
 		// this falls back to the default config
