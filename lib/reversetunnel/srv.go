@@ -560,7 +560,7 @@ func (s *server) isUserAuthority(auth ssh.PublicKey) bool {
 }
 
 func (s *server) getTrustedCAKeys(CertType services.CertAuthType) ([]ssh.PublicKey, error) {
-	cas, err := s.localAccessPoint.GetCertAuthorities(CertType, false)
+	cas, err := s.localAccessPoint.GetCertAuthorities(CertType, false, services.SkipValidation())
 	if err != nil {
 		return nil, err
 	}
@@ -576,7 +576,7 @@ func (s *server) getTrustedCAKeys(CertType services.CertAuthType) ([]ssh.PublicK
 }
 
 func (s *server) checkTrustedKey(CertType services.CertAuthType, domainName string, key ssh.PublicKey) error {
-	cas, err := s.localAccessPoint.GetCertAuthorities(CertType, false)
+	cas, err := s.localAccessPoint.GetCertAuthorities(CertType, false, services.SkipValidation())
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -400,7 +400,7 @@ func (s *PresenceService) UpsertTunnelConnection(conn services.TunnelConnection)
 }
 
 // GetTunnelConnection returns connection by cluster name and connection name
-func (s *PresenceService) GetTunnelConnection(clusterName, connectionName string) (services.TunnelConnection, error) {
+func (s *PresenceService) GetTunnelConnection(clusterName, connectionName string, opts ...services.MarshalOption) (services.TunnelConnection, error) {
 	data, err := s.GetVal([]string{tunnelConnectionsPrefix, clusterName}, connectionName)
 	if err != nil {
 		if trace.IsNotFound(err) {
@@ -408,56 +408,53 @@ func (s *PresenceService) GetTunnelConnection(clusterName, connectionName string
 		}
 		return nil, trace.Wrap(err)
 	}
-	conn, err := services.UnmarshalTunnelConnection(data)
+	conn, err := services.UnmarshalTunnelConnection(data, opts...)
 	if err != nil {
-		s.log.Debugf("got some problem with data: %q", string(data))
+		return nil, trace.Wrap(err)
 	}
-	return conn, err
+	return conn, nil
 }
 
 // GetTunnelConnections returns connections for a trusted cluster
-func (s *PresenceService) GetTunnelConnections(clusterName string) ([]services.TunnelConnection, error) {
+func (s *PresenceService) GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]services.TunnelConnection, error) {
 	if clusterName == "" {
 		return nil, trace.BadParameter("missing cluster name")
 	}
-	var conns []services.TunnelConnection
-	keys, err := s.GetKeys([]string{tunnelConnectionsPrefix, clusterName})
+	bucket := []string{tunnelConnectionsPrefix, clusterName}
+	items, err := s.GetItems(bucket, backend.WithRecursive())
 	if err != nil {
-		if trace.IsNotFound(err) {
-			return nil, nil
-		}
 		return nil, trace.Wrap(err)
 	}
-	for _, key := range keys {
-		conn, err := s.GetTunnelConnection(clusterName, key)
+
+	conns := make([]services.TunnelConnection, len(items))
+	for i, item := range items {
+		conn, err := services.UnmarshalTunnelConnection(item.Value, opts...)
 		if err != nil {
-			if !trace.IsNotFound(err) {
-				return nil, trace.Wrap(err)
-			}
-			continue
+			return nil, trace.Wrap(err)
 		}
-		conns = append(conns, conn)
+		conns[i] = conn
 	}
+
 	return conns, nil
 }
 
 // GetAllTunnelConnections returns all tunnel connections
-func (s *PresenceService) GetAllTunnelConnections() ([]services.TunnelConnection, error) {
-	var conns []services.TunnelConnection
-	clusters, err := s.GetKeys([]string{tunnelConnectionsPrefix})
+func (s *PresenceService) GetAllTunnelConnections(opts ...services.MarshalOption) ([]services.TunnelConnection, error) {
+	bucket := []string{tunnelConnectionsPrefix}
+	items, err := s.GetItems(bucket, backend.WithRecursive())
 	if err != nil {
-		if trace.IsNotFound(err) {
-			return nil, nil
-		}
 		return nil, trace.Wrap(err)
 	}
-	for _, clusterName := range clusters {
-		clusterConns, err := s.GetTunnelConnections(clusterName)
+
+	conns := make([]services.TunnelConnection, len(items))
+	for i, item := range items {
+		conn, err := services.UnmarshalTunnelConnection(item.Value, opts...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		conns = append(conns, clusterConns...)
+		conns[i] = conn
 	}
+
 	return conns, nil
 }
 
@@ -499,25 +496,20 @@ func (s *PresenceService) CreateRemoteCluster(rc services.RemoteCluster) error {
 }
 
 // GetRemoteClusters returns a list of remote clusters
-func (s *PresenceService) GetRemoteClusters() ([]services.RemoteCluster, error) {
-	keys, err := s.GetKeys([]string{remoteClustersPrefix})
+func (s *PresenceService) GetRemoteClusters(opts ...services.MarshalOption) ([]services.RemoteCluster, error) {
+	bucket := []string{remoteClustersPrefix}
+	items, err := s.GetItems(bucket)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clusters := make([]services.RemoteCluster, 0, len(keys))
-	for _, key := range keys {
-		data, err := s.GetVal([]string{remoteClustersPrefix}, key)
-		if err != nil {
-			if trace.IsNotFound(err) {
-				continue
-			}
-			return nil, trace.Wrap(err)
-		}
-		cluster, err := services.UnmarshalRemoteCluster(data)
+
+	clusters := make([]services.RemoteCluster, len(items))
+	for i, item := range items {
+		cluster, err := services.UnmarshalRemoteCluster(item.Value, opts...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		clusters = append(clusters, cluster)
+		clusters[i] = cluster
 	}
 	return clusters, nil
 }

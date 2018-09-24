@@ -106,10 +106,10 @@ type Presence interface {
 	UpsertTunnelConnection(TunnelConnection) error
 
 	// GetTunnelConnections returns tunnel connections for a given cluster
-	GetTunnelConnections(clusterName string) ([]TunnelConnection, error)
+	GetTunnelConnections(clusterName string, opts ...MarshalOption) ([]TunnelConnection, error)
 
 	// GetAllTunnelConnections returns all tunnel connections
-	GetAllTunnelConnections() ([]TunnelConnection, error)
+	GetAllTunnelConnections(opts ...MarshalOption) ([]TunnelConnection, error)
 
 	// DeleteTunnelConnection deletes tunnel connection by name
 	DeleteTunnelConnection(clusterName string, connName string) error
@@ -124,7 +124,7 @@ type Presence interface {
 	CreateRemoteCluster(RemoteCluster) error
 
 	// GetRemoteClusters returns a list of remote clusters
-	GetRemoteClusters() ([]RemoteCluster, error)
+	GetRemoteClusters(opts ...MarshalOption) ([]RemoteCluster, error)
 
 	// GetRemoteCluster returns a remote cluster by name
 	GetRemoteCluster(clusterName string) (RemoteCluster, error)
