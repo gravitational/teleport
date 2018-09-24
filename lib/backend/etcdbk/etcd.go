@@ -254,8 +254,13 @@ func (b *bk) reconnect() error {
 }
 
 // GetItems fetches keys and values and returns them to the caller.
-func (b *bk) GetItems(path []string) ([]backend.Item, error) {
-	items, err := b.getItems(b.key(path...), false, clientv3.WithSerializable(), clientv3.WithPrefix())
+func (b *bk) GetItems(path []string, opts ...backend.OpOption) ([]backend.Item, error) {
+	cfg, err := backend.CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	items, err := b.getItems(b.key(path...), *cfg, clientv3.WithSerializable(), clientv3.WithPrefix())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -265,7 +270,7 @@ func (b *bk) GetItems(path []string) ([]backend.Item, error) {
 
 // GetKeys fetches keys (and values) but only returns keys to the caller.
 func (b *bk) GetKeys(path []string) ([]string, error) {
-	items, err := b.getItems(b.key(path...), true, clientv3.WithSerializable(), clientv3.WithKeysOnly(), clientv3.WithPrefix())
+	items, err := b.getItems(b.key(path...), backend.OpConfig{KeysOnly: true}, clientv3.WithSerializable(), clientv3.WithKeysOnly(), clientv3.WithPrefix())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -481,7 +486,7 @@ func unmarshal(value []byte) ([]byte, error) {
 }
 
 // getItems fetches keys and values and returns them to the caller.
-func (b *bk) getItems(path string, keysOnly bool, opts ...clientv3.OpOption) ([]backend.Item, error) {
+func (b *bk) getItems(path string, cfg backend.OpConfig, opts ...clientv3.OpOption) ([]backend.Item, error) {
 	var vals []backend.Item
 
 	start := time.Now()
@@ -501,7 +506,7 @@ func (b *bk) getItems(path string, keysOnly bool, opts ...clientv3.OpOption) ([]
 			item := backend.Item{
 				Key: suffix(string(kv.Key[len(path)+1:])),
 			}
-			if !keysOnly {
+			if !cfg.KeysOnly {
 				value, err := unmarshal(kv.Value)
 				if err != nil {
 					return nil, trace.Wrap(err)

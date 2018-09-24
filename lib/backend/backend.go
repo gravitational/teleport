@@ -40,7 +40,7 @@ type Backend interface {
 	// GetKeys returns a list of keys for a given path
 	GetKeys(bucket []string) ([]string, error)
 	// GetItems returns a list of items (key value pairs) for a bucket.
-	GetItems(bucket []string) ([]Item, error)
+	GetItems(bucket []string, opts ...OpOption) ([]Item, error)
 	// CreateVal creates value with a given TTL and key in the bucket
 	// if the value already exists, it must return trace.AlreadyExistsError
 	CreateVal(bucket []string, key string, val []byte, ttl time.Duration) error
@@ -71,8 +71,41 @@ type Backend interface {
 	Clock() clockwork.Clock
 }
 
+// OpConfig contains operation config
+type OpConfig struct {
+	// Recursive triggers recursive get
+	Recursive bool
+	// KeysOnly fetches only keys
+	KeysOnly bool
+}
+
+// OpOption is operation functional argument
+type OpOption func(*OpConfig) error
+
+// WithRecursive sets get operation to be recursive
+func WithRecursive() OpOption {
+	return func(o *OpConfig) error {
+		o.Recursive = true
+		return nil
+	}
+}
+
+// CollectOptions collects all options from functional
+// arg and returns config
+func CollectOptions(opts []OpOption) (*OpConfig, error) {
+	cfg := OpConfig{}
+	for _, o := range opts {
+		if err := o(&cfg); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return &cfg, nil
+}
+
 // Item is a pair of key and value.
 type Item struct {
+	// FullPath is set to full path
+	FullPath string
 	// Key is an item key.
 	Key string
 	// Value is an item value.

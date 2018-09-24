@@ -22,6 +22,7 @@ package dynamo
 import (
 	"testing"
 
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -47,7 +48,8 @@ func (s *DynamoDBSuite) SetUpSuite(c *C) {
 		"table_name": s.tableName,
 	})
 	c.Assert(err, IsNil)
-	s.bk = bk.(*DynamoDBBackend)
+	sanitizer := bk.(*backend.Sanitizer)
+	s.bk = sanitizer.Backend().(*DynamoDBBackend)
 	c.Assert(err, IsNil)
 	s.suite.B = s.bk
 }

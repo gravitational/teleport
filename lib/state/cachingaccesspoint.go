@@ -640,9 +640,9 @@ func (cs *CachingAuthClient) GetUsers() (users []services.User, err error) {
 // GetTunnelConnections is a part of auth.AccessPoint implementation
 // GetTunnelConnections are not using recent cache as they are designed
 // to be called periodically and always return fresh data
-func (cs *CachingAuthClient) GetTunnelConnections(clusterName string) (conns []services.TunnelConnection, err error) {
+func (cs *CachingAuthClient) GetTunnelConnections(clusterName string, opts ...services.MarshalOption) (conns []services.TunnelConnection, err error) {
 	err = cs.try(func() error {
-		conns, err = cs.ap.GetTunnelConnections(clusterName)
+		conns, err = cs.ap.GetTunnelConnections(clusterName, opts...)
 		return err
 	})
 	if err != nil {
@@ -668,9 +668,9 @@ func (cs *CachingAuthClient) GetTunnelConnections(clusterName string) (conns []s
 // GetAllTunnelConnections is a part of auth.AccessPoint implementation
 // GetAllTunnelConnections are not using recent cache, as they are designed
 // to be called periodically and always return fresh data
-func (cs *CachingAuthClient) GetAllTunnelConnections() (conns []services.TunnelConnection, err error) {
+func (cs *CachingAuthClient) GetAllTunnelConnections(opts ...services.MarshalOption) (conns []services.TunnelConnection, err error) {
 	err = cs.try(func() error {
-		conns, err = cs.ap.GetAllTunnelConnections()
+		conns, err = cs.ap.GetAllTunnelConnections(opts...)
 		return err
 	})
 	if err != nil {

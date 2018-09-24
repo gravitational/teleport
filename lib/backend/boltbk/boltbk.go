@@ -125,8 +125,100 @@ func (b *BoltBackend) Close() error {
 	return b.db.Close()
 }
 
+type path struct {
+	bucket  []string
+	key     string
+	realKey string
+}
+
+type fetcher struct {
+	bucket []string
+	paths  []path
+}
+
+func (f *fetcher) fetchBucket(tx *bolt.Tx, bucket []string) error {
+	bkt, err := GetBucket(tx, bucket)
+	if err != nil {
+		berr := boltErr(err)
+		if !trace.IsNotFound(berr) {
+			return trace.Wrap(berr)
+		}
+		return nil
+	}
+	c := bkt.Cursor()
+	for k, val := c.First(); k != nil; k, val = c.Next() {
+		if val != nil {
+			// If bucket path on disk and the requested bucket were an exact match,
+			// return the key as-is.
+			//
+			// However, if this was a partial match, for example pathToBucket is
+			// "/roles/admin/params" but the bucketPrefix is "/roles" then extract
+			// the first suffix (in this case "admin") and use this as the key. This
+			// is consistent with our DynamoDB implementation.
+			var p path
+			if len(f.bucket) == len(bucket) {
+				p.realKey = string(k)
+			} else {
+				p.realKey = bucket[len(f.bucket)]
+			}
+			p.bucket = bucket
+			p.key = string(k)
+			f.paths = append(f.paths, p)
+		} else {
+			// this is a bucket
+			b := append([]string{}, bucket...)
+			b = append(b, string(k))
+			err := f.fetchBucket(tx, b)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	}
+	return nil
+}
+
+func (f *fetcher) fetch(tx *bolt.Tx) error {
+	return f.fetchBucket(tx, f.bucket)
+}
+
+func (b *BoltBackend) getItemsRecursive(bucket []string) ([]backend.Item, error) {
+	f := &fetcher{
+		bucket: bucket,
+	}
+
+	err := b.db.View(f.fetch)
+	if err != nil {
+		return nil, trace.Wrap(boltErr(err))
+	}
+
+	// This is a very inefficient approach. It's here to satisfy the
+	// backend.Backend interface since the Bolt backend is slated for removal
+	// in 2.7.0 anyway.
+	items := make([]backend.Item, 0, len(f.paths))
+	for _, p := range f.paths {
+		val, err := b.GetVal(p.bucket, p.key)
+		if err != nil {
+			continue
+		}
+		items = append(items, backend.Item{
+			Key:   p.realKey,
+			Value: val,
+		})
+
+	}
+	return items, nil
+}
+
 // GetItems fetches keys and values and returns them to the caller.
-func (b *BoltBackend) GetItems(path []string) ([]backend.Item, error) {
+func (b *BoltBackend) GetItems(path []string, opts ...backend.OpOption) ([]backend.Item, error) {
+	cfg, err := backend.CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if cfg.Recursive {
+		return b.getItemsRecursive(path)
+	}
+
 	keys, err := b.GetKeys(path)
 	if err != nil {
 		return nil, trace.Wrap(err)
