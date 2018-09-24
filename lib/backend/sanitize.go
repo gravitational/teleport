@@ -70,12 +70,12 @@ func (s *Sanitizer) GetKeys(bucket []string) ([]string, error) {
 }
 
 // GetItems returns a list of items (key value pairs) for a bucket.
-func (s *Sanitizer) GetItems(bucket []string) ([]Item, error) {
+func (s *Sanitizer) GetItems(bucket []string, opts ...OpOption) ([]Item, error) {
 	if !isSliceSafe(bucket) {
 		return nil, trace.BadParameter(errorMessage)
 	}
 
-	return s.backend.GetItems(bucket)
+	return s.backend.GetItems(bucket, opts...)
 }
 
 // CreateVal creates value with a given TTL and key in the bucket. If the

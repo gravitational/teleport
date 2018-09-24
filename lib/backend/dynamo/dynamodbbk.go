@@ -359,7 +359,6 @@ func (b *DynamoDBBackend) getRecords(path string) ([]record, error) {
 	for _, item := range out.Items {
 		var r record
 		dynamodbattribute.UnmarshalMap(item, &r)
-
 		if strings.Compare(path, r.FullPath[:len(path)]) == 0 && len(path) < len(r.FullPath) {
 			if r.isExpired() {
 				b.deleteKey(r.FullPath)
@@ -397,11 +396,11 @@ func removeDuplicates(elements []record) []record {
 	result := []record{}
 
 	for v := range elements {
-		if encountered[elements[v].key] == true {
+		if encountered[elements[v].FullPath] == true {
 			// Do not add duplicate.
 		} else {
 			// Record this element as an encountered element.
-			encountered[elements[v].key] = true
+			encountered[elements[v].FullPath] = true
 			// Append to result slice.
 			result = append(result, elements[v])
 		}
@@ -411,7 +410,7 @@ func removeDuplicates(elements []record) []record {
 }
 
 // GetItems is a function that retuns keys in batch
-func (b *DynamoDBBackend) GetItems(path []string) ([]backend.Item, error) {
+func (b *DynamoDBBackend) GetItems(path []string, opts ...backend.OpOption) ([]backend.Item, error) {
 	fullPath := b.fullPath(path...)
 	records, err := b.getRecords(fullPath)
 	if err != nil {
@@ -584,6 +583,10 @@ func (b *DynamoDBBackend) DeleteBucket(path []string, key string) error {
 	out, err := b.svc.Query(&input)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if len(out.Items) == 0 {
+		return trace.NotFound("bucket %v %v is not found", path, key)
 	}
 
 	// TODO: manage paginated result

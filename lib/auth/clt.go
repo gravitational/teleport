@@ -713,7 +713,7 @@ func (c *Client) UpsertTunnelConnection(conn services.TunnelConnection) error {
 }
 
 // GetTunnelConnections returns tunnel connections for a given cluster
-func (c *Client) GetTunnelConnections(clusterName string) ([]services.TunnelConnection, error) {
+func (c *Client) GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]services.TunnelConnection, error) {
 	if clusterName == "" {
 		return nil, trace.BadParameter("missing cluster name parameter")
 	}
@@ -737,7 +737,7 @@ func (c *Client) GetTunnelConnections(clusterName string) ([]services.TunnelConn
 }
 
 // GetAllTunnelConnections returns all tunnel connections
-func (c *Client) GetAllTunnelConnections() ([]services.TunnelConnection, error) {
+func (c *Client) GetAllTunnelConnections(opts ...services.MarshalOption) ([]services.TunnelConnection, error) {
 	out, err := c.Get(c.Endpoint("tunnelconnections"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -795,7 +795,7 @@ func (c *Client) GetUserLoginAttempts(user string) ([]services.LoginAttempt, err
 }
 
 // GetRemoteClusters returns a list of remote clusters
-func (c *Client) GetRemoteClusters() ([]services.RemoteCluster, error) {
+func (c *Client) GetRemoteClusters(opts ...services.MarshalOption) ([]services.RemoteCluster, error) {
 	out, err := c.Get(c.Endpoint("remoteclusters"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -103,7 +103,7 @@ func (n *nopBackend) GetKeys(bucket []string) ([]string, error) {
 	return []string{"foo"}, nil
 }
 
-func (n *nopBackend) GetItems(bucket []string) ([]Item, error) {
+func (n *nopBackend) GetItems(bucket []string, opts ...OpOption) ([]Item, error) {
 	return []Item{Item{Key: "foo", Value: []byte("bar")}}, nil
 }
 
