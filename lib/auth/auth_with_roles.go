@@ -1213,18 +1213,18 @@ func (a *AuthWithRoles) UpsertTunnelConnection(conn services.TunnelConnection) e
 	return a.authServer.UpsertTunnelConnection(conn)
 }
 
-func (a *AuthWithRoles) GetTunnelConnections(clusterName string) ([]services.TunnelConnection, error) {
+func (a *AuthWithRoles) GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]services.TunnelConnection, error) {
 	if err := a.action(defaults.Namespace, services.KindTunnelConnection, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetTunnelConnections(clusterName)
+	return a.authServer.GetTunnelConnections(clusterName, opts...)
 }
 
-func (a *AuthWithRoles) GetAllTunnelConnections() ([]services.TunnelConnection, error) {
+func (a *AuthWithRoles) GetAllTunnelConnections(opts ...services.MarshalOption) ([]services.TunnelConnection, error) {
 	if err := a.action(defaults.Namespace, services.KindTunnelConnection, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetAllTunnelConnections()
+	return a.authServer.GetAllTunnelConnections(opts...)
 }
 
 func (a *AuthWithRoles) DeleteTunnelConnection(clusterName string, connName string) error {
@@ -1268,11 +1268,11 @@ func (a *AuthWithRoles) GetRemoteCluster(clusterName string) (services.RemoteClu
 	return a.authServer.GetRemoteCluster(clusterName)
 }
 
-func (a *AuthWithRoles) GetRemoteClusters() ([]services.RemoteCluster, error) {
+func (a *AuthWithRoles) GetRemoteClusters(opts ...services.MarshalOption) ([]services.RemoteCluster, error) {
 	if err := a.action(defaults.Namespace, services.KindRemoteCluster, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetRemoteClusters()
+	return a.authServer.GetRemoteClusters(opts...)
 }
 
 func (a *AuthWithRoles) DeleteRemoteCluster(clusterName string) error {

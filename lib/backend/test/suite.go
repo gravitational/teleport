@@ -162,6 +162,26 @@ func (s *BackendSuite) BatchCRUD(c *C) {
 	c.Assert(items[0].Key, Equals, "akey")
 	c.Assert(string(items[1].Value), Equals, "val1")
 	c.Assert(items[1].Key, Equals, "bkey")
+
+	c.Assert(s.B.UpsertVal([]string{"a", "b", "sub1"}, "subkey11", []byte("val11"), 0), IsNil)
+	c.Assert(s.B.UpsertVal([]string{"a", "b", "sub1"}, "subkey12", []byte("val12"), 0), IsNil)
+	c.Assert(s.B.UpsertVal([]string{"a", "b", "sub2", "sub3"}, "subkey31", []byte("val31"), 0), IsNil)
+
+	items, err = s.B.GetItems([]string{"a", "b"}, backend.WithRecursive())
+	c.Assert(err, IsNil)
+	c.Assert(len(items), Equals, 5)
+
+	c.Assert(string(items[0].Value), Equals, "val2")
+	c.Assert(items[0].Key, Equals, "akey")
+	c.Assert(string(items[1].Value), Equals, "val1")
+	c.Assert(items[1].Key, Equals, "bkey")
+	c.Assert(string(items[2].Value), Equals, "val11")
+	c.Assert(items[2].Key, Equals, "sub1")
+	c.Assert(string(items[3].Value), Equals, "val12")
+	c.Assert(items[3].Key, Equals, "sub1")
+	c.Assert(string(items[4].Value), Equals, "val31")
+	c.Assert(items[4].Key, Equals, "sub2")
+
 }
 
 // Directories checks directories access

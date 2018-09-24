@@ -77,8 +77,8 @@ type AccessPoint interface {
 	DeleteTunnelConnection(clusterName, connName string) error
 
 	// GetTunnelConnections returns tunnel connections for a given cluster
-	GetTunnelConnections(clusterName string) ([]services.TunnelConnection, error)
+	GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]services.TunnelConnection, error)
 
 	// GetAllTunnelConnections returns all tunnel connections
-	GetAllTunnelConnections() ([]services.TunnelConnection, error)
+	GetAllTunnelConnections(opts ...services.MarshalOption) ([]services.TunnelConnection, error)
 }
