@@ -251,10 +251,10 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	// apply connection throttling:
-	limiters := []limiter.LimiterConfig{
-		cfg.SSH.Limiter,
-		cfg.Auth.Limiter,
-		cfg.Proxy.Limiter,
+	limiters := []*limiter.LimiterConfig{
+		&cfg.SSH.Limiter,
+		&cfg.Auth.Limiter,
+		&cfg.Proxy.Limiter,
 	}
 	for _, l := range limiters {
 		if fc.Limits.MaxConnections > 0 {
@@ -271,7 +271,6 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 			})
 		}
 	}
-
 	// add static signed keypairs supplied from configs
 	for i := range fc.Global.Keys {
 		identity, err := fc.Global.Keys[i].Identity()

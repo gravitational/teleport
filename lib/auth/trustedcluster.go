@@ -354,10 +354,10 @@ func (a *AuthServer) updateRemoteClusterStatus(remoteCluster services.RemoteClus
 }
 
 // GetRemoteClusters returns remote clusters with udpated statuses
-func (a *AuthServer) GetRemoteClusters() ([]services.RemoteCluster, error) {
+func (a *AuthServer) GetRemoteClusters(opts ...services.MarshalOption) ([]services.RemoteCluster, error) {
 	// To make sure remote cluster exists - to protect against random
 	// clusterName requests (e.g. when clusterName is set to local cluster name)
-	remoteClusters, err := a.Presence.GetRemoteClusters()
+	remoteClusters, err := a.Presence.GetRemoteClusters(opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
