@@ -49,7 +49,8 @@ func (cmd *UserCommandE) Initialize(app *kingpin.Application, cfg *service.Confi
 	cmd.userAdd = users.Command("add", "Generate a user invitation token "+helpPrefix)
 	cmd.userAdd.Arg("account", "Teleport user account name").Required().StringVar(&cmd.username)
 	cmd.userAdd.Flag("roles", "List of roles for the new user to assume").Required().StringsVar(&cmd.roles)
-	cmd.userAdd.Flag("logins", "List of allowed logins for the new user").StringsVar(&cmd.allowedLogins)
+	// --logins flag needs to be removed from the enterprise Teleport. rjones?
+	cmd.userAdd.Flag("logins", "List of allowed logins for the new user").Hidden().StringsVar(&cmd.allowedLogins)
 	cmd.userAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v hour, maximum is %v hours",
 		int(defaults.SignupTokenTTL/time.Hour), int(defaults.MaxSignupTokenTTL/time.Hour))).
 		Default(fmt.Sprintf("%v", defaults.SignupTokenTTL)).DurationVar(&cmd.ttl)
