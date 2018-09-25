@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.7.5
+
+This release of Teleport focuses on bugfixes.
+
+* Fixed the issue that caused Teleport auth servers to fill up disk with `/tmp/multipart-` files [#2250](https://github.com/gravitational/teleport/issues/2250)
+
 ## 2.7.4
 
 This release of Teleport focuses on bugfixes.
