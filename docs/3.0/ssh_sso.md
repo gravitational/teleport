@@ -1,4 +1,4 @@
-# Single Sign-On (SSO) for SSH
+<h1>Single Sign-On (SSO) for SSH</h1>
 
 ## Introduction
 
@@ -25,7 +25,7 @@ $ tsh login
 
 Teleport can be configured with a certificate TTL to determine how often a user needs to log in.
 
-`tsh login` will print a URL into the console, which will open an SSO login
+`tsh login` will print a URL into the console which, when opened with a web browser, will open an SSO login
 prompt, along with the 2FA, as enforced by the SSO provider. If user supplies
 valid credentials, Teleport will issue an SSH certificate.
 
@@ -38,7 +38,7 @@ a user logs in and which group he or she belongs to.
 The following connectors are supported:
 
 * `local` connector type uses the built-in user database. This database can be
-  manipulated by `tctl users` command.
+  manipulated by the `tctl users` command.
 * `saml` connector type uses the [SAML protocol](https://en.wikipedia.org/wiki/Security_Assertion_Markup_Language)
   to authenticate users and query their group membership.
 * `oidc` connector type uses the [OpenID Connect protocol](https://en.wikipedia.org/wiki/OpenID_Connect) 
@@ -77,19 +77,27 @@ spec:
   attributes_to_roles:
     - {name: "groups", value: "okta-admin", roles: ["admin"]}
     - {name: "groups", value: "okta-dev", roles: ["dev"]}
+
+     # note that wildcards can also be used. the next line instructs Teleport
+     # to assign "admin" role to any user who has the SAML attribute that begins with "admin":
+     - { name: "group", value: "admin*", roles: ["admin"] }
+     # regular expressions with capture are also supported. the next line instructs Teleport
+     # to assign users to roles `admin-1` if his SAML "group" attribute equals 'ssh_admin_1':
+     - { name: "group", value: "^ssh_admin_(.*)$", roles: ["admin-$1"] }
+
   entity_descriptor: |
     <paste SAML XML contents here>
 ```
 
 * See [examples/resources](https://github.com/gravitational/teleport/tree/master/examples/resources) 
-  directory in Teleport github repository for examples of possible connectors.
+  directory in the Teleport Github repository for examples of possible connectors.
 
 ### User Logins
 
 Often it is required to restrict SSO users to their unique UNIX logins when they
 connect to Teleport nodes. To support this:
 
-* Use the SSO provider to create a field called _"unix_login"_ (you can use other name). 
+* Use the SSO provider to create a field called _"unix_login"_ (you can use another name). 
 * Make sure it's exposed as a claim via SAML/OIDC.
 * Update a Teleport SSH role to include `{{external.unix_login}}` variable into the list of allowed logins:
 

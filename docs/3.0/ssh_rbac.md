@@ -1,4 +1,4 @@
-# Role Based Access Control for SSH
+<h1>Role Based Access Control for SSH</h1>
 
 ## Introduction
 
@@ -18,8 +18,8 @@ them into groups. A typical deployment of Teleport in this scenario
 would look like this:
 
 1. Configure Teleport to use existing user identities stored in Okta.
-2. Okta would have users placed in certain grops, perhaps "developers", "admins", "contractors", etc.
-3. Teleport would have certain _Teleport roles_ defined, for simplicity sake let them be "developers" and "admins".
+2. Okta would have users placed in certain groups, perhaps "developers", "admins", "contractors", etc.
+3. Teleport would have certain _Teleport roles_ defined. For example: "developers" and "admins".
 4. Mappings would connect the Okta groups (SAML assertions) to the Teleport roles. 
    Every Teleport user will be assigned a _Teleport role_ based on their Okta
    group membership.
@@ -28,7 +28,7 @@ would look like this:
 
 Every user in Teleport is **always** assigned a set of roles. One can think of
 them as "SSH Roles". The open source edition of Teleport automatically assigns
-every user to the built-in `admin` role, but the Teleport Enterprise allows
+every user to the built-in `admin` role but the Teleport Enterprise allows
 administrators to define their own roles with far greater control over the
 user permissions.
 
@@ -83,18 +83,14 @@ spec:
     # max_session_ttl defines the TTL (time to live) of SSH certificates 
     # issued to the users with this role.
     max_session_ttl: 8h
-
     # forward_agent controls whether SSH agent forwarding is allowed
     forward_agent: true
-
     # port_forwarding controls whether TCP port forwarding is allowed
     port_forwarding: true
-
     # determines if SSH sessions to cluster nodes are forcefully terminated 
     # after no activity from a client (idle client). it overrides the global 
     # cluster setting. examples: "30m", "1h" or "1h30m"
     client_idle_timeout: never
-
     # determines if the clients will be forcefully disconnected when their
     # certificates expire in the middle of an active SSH session. 
     # it overrides the global cluster setting.
@@ -103,15 +99,20 @@ spec:
   # allow section declares a list of resource/verb combinations that are
   # allowed for the users of this role. by default nothing is allowed.
   allow:
-    # logins array defines the OS logins a user is allowed to use.
+    # logins array defines the OS/UNIX logins a user is allowed to use.
     # a few special variables are supported here (see below)
     logins: [root, '{{internal.logins}}']
+    # if kubernetes integration is enabled, this setting configures which 
+    # kubernetes groups the users of this role will be assigned to.
+    # note that you can refer to a SAML/OIDC trait via the "external" property bag,
+    # this allows you to specify Kubernetes group membership in an identity manager:
+    kubernetes_groups: ["system:masters", "{{external.trait_name}}"]]
 
     # node labels that a user can connect to. The wildcard ('*') means "any node"
     node_labels:
       '*': '*'
 
-    # see below.
+    # list of allow-rules. see below for more information.
     rules:
     - resources: [role]
       verbs: [list, create, read, update, delete]
@@ -134,7 +135,7 @@ Variable                | Description
 `{{ internal.logins }}` | Substituted with "allowed logins" parameter used in `tctl users add [user] <allowed logins>` command. This applies only to users stored in Teleport's own local database.
 `{{ external.xyz }}`    | Substituted with a value from an external [SSO provider](https://en.wikipedia.org/wiki/Single_sign-on). If using SAML, this will be expanded with "xyz" assertion value. For OIDC, this will be expanded a value of "xyz" claim.
 
-Both variables above are there to deliver the same benefit: it allows Teleport
+Both variables above are there to deliver the same benefit: they allow Teleport
 administrators to define allowed OS logins via the user database, be it the
 local DB, or an identity manager behind a SAML or OIDC endpoint.
 
@@ -184,14 +185,16 @@ spec:
 
   deny:
     node_labels:
-      'workload': 'database'
+      # multiple labels are interpreted as an "or" operation.  in this case
+      # Teleport will deny access to any node labeled as 'database' or 'backup'
+      'workload': ['database', 'backup']
 ```
 
 !!! tip "Dynamic RBAC":
-    Remember that node labels can be dynamic, i.e. determined at runtime by an output
-    of an executable. In this case you can implement "permissions follow workload"
-    policy, i.e. any server where PostgreSQL is running becomes _automatically_
-    accessible only by the members of the "DBA" group and nobody else.
+    Node labels can be dynamic, i.e. determined at runtime by an output
+    of an executable. In this case, you can implement "permissions follow workload"
+    policies (eg., any server where PostgreSQL is running becomes _automatically_
+    accessible only by the members of the "DBA" group and nobody else).
 
 ## RBAC for Sessions
 
@@ -207,16 +210,16 @@ rules:
 * "list" determines if a user is allowed to see the list of past sessions.
 * "read" determines if a user is allowed to replay a session.
 
-It's possible to restrict "list" but to allow "read" (in this case a user will
+It is possible to restrict "list" but to allow "read" (in this case a user will
 be able to replay a session using `tsh play` if they know the session ID)
 
 
 
 ## FAQ
 
-**Q:** But what if a node has multiple labels?
+**Q:** What if a node has multiple labels?
 
-**A:** In this case the access will be granted only if **all of the labels**
+**A:** In this case, the access will be granted only if **all of the labels**
 defined in the role are present. This effectively means Teleport uses an "AND"
 operator when evaluating node-level access using labels. 
 
