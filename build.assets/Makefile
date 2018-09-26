@@ -132,12 +132,12 @@ enter: bbox
 .PHONY:release
 release: bbox
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BBOX) \
-		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)"
+		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=linux
 
 #
 # Create a Windows Teleport package using the build container.
 #
 .PHONY:release-windows
-release-windows:
+release-windows: bbox
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BBOX) \
 		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=windows
