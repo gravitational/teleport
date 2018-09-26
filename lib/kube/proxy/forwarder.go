@@ -143,7 +143,6 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 
 	fwd.NotFound = fwd.withAuthStd(fwd.catchAll)
 
-	fwd.Debugf("Forwarder started, going to forward kubernetes requests to https://%v", cfg.TargetAddr)
 	if cfg.ClusterOverride != "" {
 		fwd.Debugf("Cluster override is set, forwarder will send all requests to remote cluster %v.", cfg.ClusterOverride)
 	}
@@ -202,6 +201,7 @@ type cluster struct {
 	remoteAddr utils.NetAddr
 	reversetunnel.RemoteSite
 	targetAddr string
+	isRemote   bool
 }
 
 func (c *cluster) Dial(_, _ string) (net.Conn, error) {
@@ -326,10 +326,8 @@ func (f *Forwarder) setupContext(ctx auth.AuthContext, req *http.Request, isRemo
 			remoteAddr: utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
 			RemoteSite: targetCluster,
 			targetAddr: f.TargetAddr,
+			isRemote:   isRemoteCluster,
 		},
-	}
-	if isRemoteCluster {
-		authCtx.cluster.targetAddr = reversetunnel.RemoteKubeProxy
 	}
 	return authCtx, nil
 }
@@ -646,10 +644,25 @@ func (f *Forwarder) newClusterSession(ctx authContext) (*clusterSession, error) 
 	}
 	tlsConfig.BuildNameToCertificate()
 
+	cluster := ctx.cluster
+	// remote clusters use special hardcoded URL,
+	// and use a special dialer
+	if cluster.isRemote {
+		cluster.targetAddr = reversetunnel.RemoteKubeProxy
+	} else {
+		// auth server supplied target API address to dial,
+		// use it for dialing
+		if response.targetAddr != "" {
+			cluster.targetAddr = response.targetAddr
+		} else { // otherwise, use supplied defaults
+			cluster.targetAddr = f.TargetAddr
+		}
+	}
+
 	fwd, err := forward.New(
 		forward.FlushInterval(100*time.Millisecond),
-		forward.RoundTripper(f.newTransport(ctx.cluster.Dial, tlsConfig)),
-		forward.WebsocketDial(ctx.cluster.Dial),
+		forward.RoundTripper(f.newTransport(cluster.Dial, tlsConfig)),
+		forward.WebsocketDial(cluster.Dial),
 		forward.Logger(logrus.StandardLogger()),
 	)
 	if err != nil {
@@ -663,11 +676,13 @@ func (f *Forwarder) newClusterSession(ctx authContext) (*clusterSession, error) 
 	if ok {
 		return sessI.(*clusterSession), nil
 	}
+
 	sess := &clusterSession{
-		cluster:   ctx.cluster,
+		cluster:   cluster,
 		tlsConfig: tlsConfig,
 		forwarder: fwd,
 	}
+
 	f.clusterSessions.Set(ctx.key(), sess, ctx.sessionTTL)
 	f.Debugf("Created new session for %v.", ctx)
 	return sess, nil
@@ -695,6 +710,7 @@ type bundle struct {
 	cert            []byte
 	key             []byte
 	certAuthorities [][]byte
+	targetAddr      string
 }
 
 // getOrCreateRequestContext creates a new certificate request for a given context,
@@ -755,6 +771,7 @@ func (f *Forwarder) requestCertificate(ctx authContext) (*bundle, error) {
 	return &bundle{
 		cert:            response.Cert,
 		certAuthorities: response.CertAuthorities,
+		targetAddr:      response.TargetAddr,
 		key:             keyPEM,
 	}, nil
 }
