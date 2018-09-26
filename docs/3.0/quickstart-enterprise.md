@@ -6,7 +6,7 @@ The goal of this document is to show off the basic capabilities of Teleport.
 There are three types of services Teleport nodes can run: `nodes`, `proxies`
 and `auth servers`.
 
-- **Auth servers** are the core of a cluster. Auth servers store user accounts and
+- **Auth servers** store user accounts and
   provide authentication and authorization services for every node and every
   user in a cluster.
 - **Proxy servers** route client connection requests to the appropriate node and serve a
@@ -291,8 +291,7 @@ $ tsh logout
 ## Configuring SSO
 
 The local account is good for administrative purposes but regular users of
-Teleport Enterprise should be using a Single Sign-On (SSO) mechanism commonly
-availalbe by SSO providers that commonly implement SAML or OIDC protocols.
+Teleport Enterprise should be using a Single Sign-On (SSO) mechanism that use SAML or OIDC protocols.
 
 
 Take a look at the [SSH via Single Sign-on](ssh_sso/) chapter learn the basics of integrating
