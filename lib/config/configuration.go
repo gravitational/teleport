@@ -310,8 +310,8 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 	var err error
 
 	// passhtrough custom certificate authority file
-	if fc.Auth.KubeCACertFile != "" {
-		cfg.Auth.KubeCACertPath = fc.Auth.KubeCACertFile
+	if fc.Auth.KubeconfigFile != "" {
+		cfg.Auth.KubeconfigPath = fc.Auth.KubeconfigFile
 	}
 	cfg.Auth.EnableProxyProtocol, err = utils.ParseOnOff("proxy_protocol", fc.Auth.ProxyProtocol, true)
 	if err != nil {
@@ -513,13 +513,6 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.Kube.ListenAddr = *addr
-	}
-	if fc.Proxy.Kube.APIAddr != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.Kube.APIAddr, 443)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		cfg.Proxy.Kube.APIAddr = *addr
 	}
 	if len(fc.Proxy.Kube.PublicAddr) != 0 {
 		addrs, err := fc.Proxy.Kube.PublicAddr.Addrs(defaults.KubeProxyListenPort)

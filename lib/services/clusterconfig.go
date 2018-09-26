@@ -374,10 +374,14 @@ const ClusterConfigSpecSchemaTemplate = `{
           "type": "string"
         },
         "audit_events_uri": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+          "anyOf": [
+            {"type": "string"}, 
+            {"type": "array",
+             "items": {
+               "type": "string"
+             }
+            }
+          ]
         },
         "audit_sessions_uri": {
           "type": "string"

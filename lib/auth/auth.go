@@ -82,9 +82,6 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) (*AuthServer, erro
 	if cfg.AuditLog == nil {
 		cfg.AuditLog = events.NewDiscardAuditLog()
 	}
-	if cfg.KubeCACertPath == "" {
-		cfg.KubeCACertPath = teleport.KubeCAPath
-	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	as := AuthServer{
@@ -104,7 +101,7 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) (*AuthServer, erro
 		githubClients:        make(map[string]*githubClient),
 		cancelFunc:           cancelFunc,
 		closeCtx:             closeCtx,
-		kubeCACertPath:       cfg.KubeCACertPath,
+		kubeconfigPath:       cfg.KubeconfigPath,
 	}
 	for _, o := range opts {
 		o(&as)
@@ -157,8 +154,8 @@ type AuthServer struct {
 	// cipherSuites is a list of ciphersuites that the auth server supports.
 	cipherSuites []uint16
 
-	// kubeCACertPath is a path to PEM encoded kubernetes CA certificate
-	kubeCACertPath string
+	// kubeconfigPath is a path to PEM encoded kubernetes CA certificate
+	kubeconfigPath string
 }
 
 // runPeriodicOperations runs some periodic bookkeeping operations

@@ -67,7 +67,7 @@ var (
 		"proxy_service":           true,
 		"auth_service":            true,
 		"kubernetes":              true,
-		"kubernetes_ca_cert_file": true,
+		"kubeconfig_file":         true,
 		"auth_token":              true,
 		"auth_servers":            true,
 		"domain_name":             true,
@@ -91,7 +91,6 @@ var (
 		"tunnel_listen_addr":      true,
 		"ssh_listen_addr":         true,
 		"listen_addr":             true,
-		"api_addr":                false,
 		"ca_cert_file":            false,
 		"https_key_file":          true,
 		"https_cert_file":         true,
@@ -541,10 +540,10 @@ type Auth struct {
 	// if true, connections with expired client certificates will get disconnected
 	DisconnectExpiredCert services.Bool `yaml:"disconnect_expired_cert"`
 
-	// KubeCACertFile is a path to kubernetes certificate authority certificate file,
-	// used in cases when auth server is deployed outside of the kubernetes
-	// cluster.
-	KubeCACertFile string `yaml:"kubernetes_ca_cert_file,omitempty"`
+	// KubeconfigFile is an optional path to kubeconfig file,
+	// if specified, teleport will use API server address and
+	// trusted certificate authority information from it
+	KubeconfigFile string `yaml:"kubeconfig_file,omitempty"`
 }
 
 // TrustedCluster struct holds configuration values under "trusted_clusters" key
@@ -746,8 +745,6 @@ type Proxy struct {
 type Kube struct {
 	// Service is a generic service configuration section
 	Service `yaml:",inline"`
-	// KubeAPIAddr is an address of a target kubernetes API server
-	APIAddr string `yaml:"api_addr,omitempty"`
 	// PublicAddr is a publicly advertised address of the kubernetes proxy
 	PublicAddr utils.Strings `yaml:"public_addr,omitempty"`
 }

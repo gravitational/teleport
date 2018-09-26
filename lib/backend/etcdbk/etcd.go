@@ -158,6 +158,10 @@ func New(params backend.Params) (backend.Backend, error) {
 	if err = cfg.Validate(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if len(cfg.Key) == 0 || cfg.Key[0] != '/' {
+		cfg.Key = "/" + cfg.Key
+	}
+
 	b := &bk{
 		cfg:     cfg,
 		nodes:   cfg.Nodes,
