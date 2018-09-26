@@ -905,7 +905,7 @@ func (process *TeleportProcess) initAuthService() error {
 		OIDCConnectors:       cfg.OIDCConnectors,
 		AuditLog:             process.auditLog,
 		CipherSuites:         cfg.CipherSuites,
-		KubeCACertPath:       cfg.Auth.KubeCACertPath,
+		KubeconfigPath:       cfg.Auth.KubeconfigPath,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1871,7 +1871,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				AccessPoint:     accessPoint,
 				AuditLog:        conn.Client,
 				ServerID:        cfg.HostUUID,
-				TargetAddr:      cfg.Proxy.Kube.APIAddr.Addr,
 				ClusterOverride: cfg.Proxy.Kube.ClusterOverride,
 			},
 			TLS:           tlsConfig,
