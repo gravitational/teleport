@@ -3,9 +3,8 @@
 ### Can I use Teleport in production today?
 
 Teleport has completed several security audits from nationally recognized
-technology security companies.  So we are comfortable with the use of Teleport
-from a security perspective. However, Teleport is still a relatively young
-product so you may experience usability issues. We are actively
+technology security companies, so we are comfortable with the use of Teleport
+from a security perspective. We are actively
 supporting Teleport and addressing any issues that are submitted to
 the [github repo](https://github.com/gravitational/teleport).
 
@@ -30,7 +29,7 @@ and [Using OpenSSH servers](admin-guide.md) in the Admin Manual.
 
 ### What TCP ports does Teleport use?
 
-[Ports](admin-guide.md#ports) section of the Admin Manual covers it.
+Please refer to the [Ports](admin-guide.md#ports) section of the Admin Manual.
 
 ### Does Teleport support authentication via OAuth, SAML or Active Directory?
 
@@ -38,35 +37,24 @@ Gravitational offers this feature for the [commercial versions of Teleport](ente
 
 ## Commercial Teleport Editions
 
-### What is a commercial edition of Teleport?
+### What is included in the commercial version, Teleport Enterprise?
 
-In addition to the [numerous advanced features](enterprise.md), the commercial Teleport license
-also gives users the following:
+The Teleport Enterprise offering gives users the following additional features:
 
-* Role-based access control, also known as [RBAC](enterprise#rbac)
-* Authentication via SAML and OpenID with providers like Okta, Active Directory, Auth0, etc.
+* Role-based access control, also known as [RBAC](enterprise#rbac).
+* Authentication via SAML and OpenID with providers like Okta, Active Directory, Auth0, etc. (aka, [SSO](http://localhost:6600/ssh_sso/)).
 * Premium support.
-
-There are two commercial editions of Teleport:
-
-* **Teleport Pro** is for start-ups and smaller companies with up to 500 servers.
-  Users can sign up for a subscription [on our web site](https://gravitational.com/teleport/#trial).
-  These editions send anonymized usage data to Gravitational (see below).
-  Users can cancel Teleport Pro or Business subscription any time.
-
-* **Teleport Enterprise** works best for larger companies with 500+ servers and
-  comes with substantial volume discounts. Teleport Enterprise does not send
-  any usage data to Gravitaitonal and requires an annual contract.
 
 We also offer implementation services, to help you integrate
 Teleport with your existing systems and processes.
 
+You can read more in the [Teleport Enterprise section of the docs](enterprise.md)
+
 ### Does Teleport send any data to Gravitational?
 
-The open source edition of Teleport and Teleport Enterprise do not send any information
-to Gravitational and can be used on servers without internet access. _Teleport Pro and Business_, our
-entry level commercial editions, sends the following anonymized information to
-Gravitational on every login event, which contains:
+The open source edition of Teleport does not send any information
+to Gravitational and can be used on servers without internet access. The commercial versions of Teleport may or may not be configured to send anonymized information to
+Gravitational, depending on the license purchased. This information contains the following:
 
 * Anonymized user ID: SHA256 hash of a username with a randomly generated prefix.
 * Anonymized server ID: SHA256 hash of a server IP with a randomly generated prefix.
@@ -74,11 +62,4 @@ Gravitational on every login event, which contains:
 This allows Teleport Pro to print a warning if users are exceeding the usage limits
 of their license. The reporting library code is [on Github](https://github.com/gravitational/reporting).
 
-### Will Teleport stop working if my license expires or is exceeded?
-
-No. Teleport never stops working even if you exceed usage limits as set in the
-license.  Teleport will print a warning and will continue to work as usual but we will likely
-reach out to you to upgrade your license.
-
-Reach out to `sales@gravitational.com` if you have questions about commercial
-edition of Teleport.
+Reach out to `sales@gravitational.com` if you have questions about commercial edition of Teleport.

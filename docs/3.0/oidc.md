@@ -72,18 +72,22 @@ spec:
   client_id: "xxxxxxxx.example.com"
   client_secret: "zzzzzzzzzzzzzzzzzzzzzzzz"
   redirect_url: "https://teleport-proxy.example.com:3080/v1/webapi/oidc/callback"
+
   # scope instructs Teleport to query for 'group' scope to retreive
   # user's group membership
   scope: ["group"]
+
   # once Teleport retreives the user's groups, this section configures
   # the mapping from groups to Teleport roles
   claims_to_roles:
-     - claim: "group"
-       value: "admin"
-       roles: ["admin"]
-     - claim: "group"
-       value: "user"
-       roles: ["user"]
+     - { claim: "group", value: "admin", roles: ["admin"] }
+     - { claim: "group", value: "user", roles: ["user"] }
+     # note that wildcards can also be used. the next line instructs Teleport
+     # to assign "admin" role to any user who has the OIDC claim that begins with "admin":
+     - { claim: "group", value: "admin*", roles: ["admin"] }
+     # regular expressions with capture are also supported. the next line instructs Teleport
+     # to assign users to roles `admin-1` if his OIDC "group" claim equals 'ssh_admin_1':
+     - { claim: "group", value: "^ssh_admin_(.*)$", roles: ["admin-$1"] }
 ```
 
 Create the connector:
