@@ -439,7 +439,7 @@ func (s *remoteSite) isOnline(conn services.TunnelConnection) bool {
 // connections
 func (s *remoteSite) findDisconnectedProxies() ([]services.Server, error) {
 	connInfo := s.copyConnInfo()
-	conns, err := s.localAccessPoint.GetTunnelConnections(s.domainName)
+	conns, err := s.localAccessPoint.GetTunnelConnections(s.domainName, services.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -209,7 +209,7 @@ func (cs *CachingAuthClient) fetchAll() error {
 			continue
 		}
 		clusters[clusterName] = true
-		_, err = cs.GetTunnelConnections(clusterName)
+		_, err = cs.GetTunnelConnections(clusterName, services.SkipValidation())
 		errors = append(errors, err)
 	}
 	return trace.NewAggregate(errors...)
@@ -647,7 +647,7 @@ func (cs *CachingAuthClient) GetTunnelConnections(clusterName string, opts ...se
 	})
 	if err != nil {
 		if trace.IsConnectionProblem(err) {
-			return cs.presence.GetTunnelConnections(clusterName)
+			return cs.presence.GetTunnelConnections(clusterName, opts...)
 		}
 		return conns, err
 	}

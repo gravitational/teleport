@@ -175,10 +175,14 @@ func (s *BackendSuite) BatchCRUD(c *C) {
 	c.Assert(items[0].Key, Equals, "akey")
 	c.Assert(string(items[1].Value), Equals, "val1")
 	c.Assert(items[1].Key, Equals, "bkey")
-	c.Assert(string(items[2].Value), Equals, "val11")
-	c.Assert(items[2].Key, Equals, "sub1")
-	c.Assert(string(items[3].Value), Equals, "val12")
-	c.Assert(items[3].Key, Equals, "sub1")
+
+	// both keys are equal, so order is not strictly defined,
+	// compare it as a map
+	v := map[string]string{}
+	v[string(items[2].Value)] = items[2].Key
+	v[string(items[3].Value)] = items[3].Key
+	c.Assert(v, DeepEquals, map[string]string{"val11": "sub1", "val12": "sub1"})
+
 	c.Assert(string(items[4].Value), Equals, "val31")
 	c.Assert(items[4].Key, Equals, "sub2")
 
