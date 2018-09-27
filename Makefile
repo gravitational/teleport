@@ -27,22 +27,22 @@ OS ?= `go env GOOS`
 ARCH ?= `go env GOARCH`
 RELEASE=teleport-$(GITTAG)-$(OS)-$(ARCH)-bin
 
+# PAM support will only be built into Teleport if headers exist at build time.
+PAM_MESSAGE := "without PAM support"
+ifneq ("$(wildcard /usr/include/security/pam_appl.h)","")
+PAMFLAGS := -tags pam
+PAM_MESSAGE := "with PAM support"
+endif
+
 # On Windows only build tsh. On all other platforms build teleport, tctl,
 # and tsh.
 BINARIES=$(BUILDDIR)/teleport $(BUILDDIR)/tctl $(BUILDDIR)/tsh
-OS_MESSAGE = "Building Teleport binaries with GOOS=$(OS) GOARCH=$(ARCH)."
+RELEASE_MESSAGE := "Building with GOOS=$(OS) GOARCH=$(ARCH) and $(PAM_MESSAGE)."
 ifeq ("$(OS)","windows")
 BINARIES=$(BUILDDIR)/tsh
 endif
 
 VERSRC = version.go gitref.go
-
-# PAM support will only be built into Teleport if headers exist at build time.
-PAM_MESSAGE = "Building Teleport binaries without PAM support."
-ifneq ("$(wildcard /usr/include/security/pam_appl.h)","")
-PAMFLAGS = -tags pam
-PAM_MESSAGE = "Building Teleport binaries with PAM support."
-endif
 
 KUBECONFIG ?=
 TEST_KUBE ?=
@@ -57,8 +57,7 @@ export
 #            a web UI.
 .PHONY: all
 all: $(VERSRC)
-	@echo $(OS_MESSAGE)
-	@echo $(PAM_MESSAGE)
+	@echo "---> Building OSS binaries."
 	$(MAKE) $(BINARIES)
 
 # By making these 3 targets below (tsh, tctl and teleport) PHONY we are solving
@@ -86,10 +85,10 @@ $(BUILDDIR)/tsh:
 .PHONY:full
 full: all $(BUILDDIR)/webassets.zip
 ifneq ("$(OS)", "windows")
+	@echo "---> Attaching OSS web assets."
 	cat $(BUILDDIR)/webassets.zip >> $(BUILDDIR)/teleport
 	rm -fr $(BUILDDIR)/webassets.zip
 	zip -q -A $(BUILDDIR)/teleport
-	if [ -f e/Makefile ]; then $(MAKE) -C e full; fi
 endif
 
 #
@@ -97,6 +96,7 @@ endif
 #
 .PHONY: clean
 clean:
+	@echo "---> Cleaning up OSS build artifacts."
 	rm -rf $(BUILDDIR)
 	rm -rf $(GOCACHEDIR)
 	rm -rf teleport
@@ -104,7 +104,6 @@ clean:
 	rm -rf *.zip
 	rm -f gitref.go
 	rm -rf `go env GOPATH`/pkg/`go env GOHOSTOS`_`go env GOARCH`/github.com/gravitational/teleport*
-	@if [ -f e/Makefile ]; then $(MAKE) -C e clean; fi
 
 #
 # make release - Produces a binary release tarball.
@@ -112,6 +111,7 @@ clean:
 .PHONY:
 export
 release:
+	@echo "---> $(RELEASE_MESSAGE)"
 ifeq ("$(OS)", "windows")
 	$(MAKE) --no-print-directory release-windows
 else
@@ -124,6 +124,7 @@ endif
 #
 .PHONY:
 release-unix: clean full
+	@echo "---> Creating OSS release archive."
 	mkdir teleport
 	cp -rf $(BUILDDIR)/* \
 		examples \
@@ -134,7 +135,7 @@ release-unix: clean full
 	echo $(GITTAG) > teleport/VERSION
 	tar -czf $(RELEASE).tar.gz teleport
 	rm -rf teleport
-	@echo "\nCREATED: $(RELEASE).tar.gz"
+	@echo "---> Created $(RELEASE).tar.gz."
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
 #
@@ -143,6 +144,7 @@ release-unix: clean full
 #
 .PHONY:
 release-windows: clean all
+	@echo "---> Creating OSS release archive."
 	mkdir teleport
 	cp -rf $(BUILDDIR)/* \
 		README.md \
@@ -152,7 +154,7 @@ release-windows: clean all
 	echo $(GITTAG) > teleport/VERSION
 	zip -9 -y -r -q $(RELEASE).zip teleport/
 	rm -rf teleport/
-	@echo "\nCREATED: $(RELEASE).zip"
+	@echo "---> Created $(RELEASE).zip."
 
 #
 # Builds docs using containerized mkdocs
@@ -208,6 +210,7 @@ tag:
 # appended to teleport binary
 $(BUILDDIR)/webassets.zip:
 ifneq ("$(OS)", "windows")
+	@echo "---> Building OSS web assets."
 	cd web/dist ; zip -qr ../../$(BUILDDIR)/webassets.zip .
 endif
 
