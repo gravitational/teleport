@@ -2,19 +2,19 @@
 # But running regular 'make' and 'make clean' works.
 BUILDDIR ?= build
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s $(LDFLAGS)'
-RELEASE=teleport-ent-$(GITTAG)-$(OS)-$(ARCH)-bin
-
+RELEASE := teleport-ent-$(GITTAG)-$(OS)-$(ARCH)-bin
 
 # PAM support will only be built into Teleport if headers exist at build time.
 ifneq ("$(wildcard /usr/include/security/pam_appl.h)","")
 PAMFLAGS = -tags pam
 endif
 
-# All builds all binaries
+# All build Enterprise version of "teleport" and "tctl" binaries and copy
+# over tsh from OSS.
 .PHONY: all
 all:
-	$(MAKE) -C ..
-	$(MAKE) $(BUILDDIR)/teleport $(BUILDDIR)/tctl
+	@echo "---> Building Enterprise binaries."
+	$(MAKE) $(BINARIES)
 
 # By making these 3 targets below (tsh, tctl and teleport) PHONY we are solving
 # several problems:
@@ -29,16 +29,32 @@ $(BUILDDIR)/tctl:
 $(BUILDDIR)/teleport:
 	go build $(PAMFLAGS) -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
+# The tsh target does not actually build an Enterprise version of tsh, it just
+# copies it over from OSS.
+.PHONY: $(BUILDDIR)/tsh
+$(BUILDDIR)/tsh:
+	cp ../build/tsh $(BUILDDIR)/
+
 # make clean: cleans the build
 .PHONY: clean
 clean:
+	@echo "---> Cleaning up Enterprise build artifacts."
 	rm -rf $(BUILDDIR)
 	rm -rf *gz
 
-# make release - produces a binary release tarball
-# (must be run as a sub-make)
+# make release - Produces a binary release tarball.
 .PHONY:
-release: clean full
+export
+release:
+	@echo
+	@echo "---> $(RELEASE_MESSAGE)"
+	$(MAKE) --no-print-directory release-unix
+
+# make release-unix - Produces a binary release tarball containing teleport,
+# tctl, and tsh.
+.PHONY:
+release-unix: clean full
+	@echo "---> Creating Enterprise release archive."
 	cp ../README.md $(BUILDDIR)/
 	cp ../CHANGELOG.md $(BUILDDIR)/
 	cp ../build.assets/install $(BUILDDIR)/
@@ -48,11 +64,12 @@ release: clean full
 	cp ../build/tsh teleport-ent/
 	tar -czf $(RELEASE).tar.gz teleport-ent
 	rm -rf teleport-ent
-	@echo "\nCREATED: $(RELEASE).tar.gz"
+	@echo "---> Created $(RELEASE).tar.gz."
 
 # make full - produces a teleport binary with the web assets built-in
 .PHONY:full
 full: check-build-vars all $(BUILDDIR)/webassets.zip
+	@echo "---> Attaching Enterprise web assets."
 	cat $(BUILDDIR)/webassets.zip >> $(BUILDDIR)/teleport
 	rm -fr $(BUILDDIR)/webassets.zip
 	zip -q -A $(BUILDDIR)/teleport
@@ -60,8 +77,8 @@ full: check-build-vars all $(BUILDDIR)/webassets.zip
 # build/webassets.zip archive contains the web assets (UI) which gets
 # appended to teleport binary
 $(BUILDDIR)/webassets.zip:
+	@echo "---> Building Enterprise web assets."
 	cd web/dist ; zip -qr ../../$(BUILDDIR)/webassets.zip .
-
 
 .PHONY: check-build-vars
 check-build-vars:
@@ -86,7 +103,7 @@ test:
 .PHONY: image
 image:
 	cp ../build.assets/charts/Dockerfile $(BUILDDIR)/
-	cd $(BUILDDIR) && docker build . -t quay.io/gravitational/teleport-ent:$(VERSION)	
+	cd $(BUILDDIR) && docker build . -t quay.io/gravitational/teleport-ent:$(VERSION)
 
 .PHONY: publish
 publish:
