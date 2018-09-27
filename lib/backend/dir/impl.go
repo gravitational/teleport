@@ -559,7 +559,7 @@ func readBucket(f *os.File) (map[string]bucketItem, error) {
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
-	err = json.Unmarshal(bytes, &items)
+	err = utils.FastUnmarshal(bytes, &items)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
