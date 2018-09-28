@@ -794,12 +794,12 @@ func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, identityContext
 			Stdout:      ioutil.Discard,
 		})
 		if err != nil {
-			ctx.Errorf("Unable to open PAM context for session: %v: %v", ctx.SessionID(), err)
+			ctx.Errorf("Unable to open PAM context for direct-tcpip request: %v.", err)
 			ch.Stderr().Write([]byte(err.Error()))
 			return
 		}
 
-		ctx.Debugf("Opening PAM context for session %v", ctx.SessionID())
+		ctx.Debugf("Opening PAM context for direct-tcpip request.")
 	}
 
 	conn, err := net.Dial("tcp", dstAddr)
@@ -837,10 +837,10 @@ func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, identityContext
 	if s.pamConfig.Enabled {
 		err = pamContext.Close()
 		if err != nil {
-			ctx.Errorf("Unable to close PAM context for session %v: %v.", ctx.SessionID(), err)
+			ctx.Errorf("Unable to close PAM context for direct-tcpip request: %v.", err)
 			return
 		}
-		ctx.Debugf("Closing PAM context for session %v.", ctx.SessionID())
+		ctx.Debugf("Closing PAM context for direct-tcpip request.")
 	}
 }
 

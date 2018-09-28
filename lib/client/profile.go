@@ -56,6 +56,8 @@ type ClientProfile struct {
 	// ForwardedPorts is the list of ports to forward to the target node.
 	ForwardedPorts []string `yaml:"forward_ports,omitempty"`
 
+	// DynamicForwardedPorts is a list of ports to use for dynamic port
+	// forwarding (SOCKS5).
 	DynamicForwardedPorts []string `yaml:"dynamic_forward_ports,omitempty"`
 
 	// DELETE IN: 3.1.0

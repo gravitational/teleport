@@ -76,7 +76,7 @@ func (s *MainTestSuite) TestMakeClient(c *check.C) {
 	conf.UserHost = "root@localhost"
 	conf.NodePort = 46528
 	conf.LocalForwardPorts = []string{"80:remote:180"}
-	conf.DynamicForwardedPorts = []string{"8080"}
+	conf.DynamicForwardedPorts = []string{":8080"}
 	tc, err = makeClient(&conf, true)
 	c.Assert(tc.Config.KeyTTL, check.Equals, time.Minute*time.Duration(conf.MinsToLive))
 	c.Assert(tc.Config.HostLogin, check.Equals, "root")

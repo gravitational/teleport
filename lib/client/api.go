@@ -40,6 +40,10 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
+	"golang.org/x/crypto/ssh/terminal"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
@@ -54,14 +58,16 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/agentconn"
 
-	"github.com/docker/docker/pkg/term"
 	"github.com/gravitational/trace"
+
+	"github.com/docker/docker/pkg/term"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
-	"golang.org/x/crypto/ssh/terminal"
+	"github.com/sirupsen/logrus"
 )
+
+var log = logrus.WithFields(logrus.Fields{
+	trace.Component: teleport.ComponentClient,
+})
 
 const (
 	// Directory location where tsh profiles (and session keys) are stored
@@ -80,8 +86,8 @@ type ForwardedPort struct {
 
 type ForwardedPorts []ForwardedPort
 
-// ToString() returns a string representation of a forwarded port spec, compatible
-// with OpenSSH's -L  flag, i.e. "src_host:src_port:dest_host:dest_port"
+// ToString returns a string representation of a forwarded port spec, compatible
+// with OpenSSH's -L  flag, i.e. "src_host:src_port:dest_host:dest_port".
 func (p *ForwardedPort) ToString() string {
 	sport := strconv.Itoa(p.SrcPort)
 	dport := strconv.Itoa(p.DestPort)
@@ -91,19 +97,23 @@ func (p *ForwardedPort) ToString() string {
 	return net.JoinHostPort(p.SrcIP, sport) + ":" + net.JoinHostPort(p.DestHost, dport)
 }
 
-// DynamicForwardedPort local port for dynamic application-level port forwarding.
-// Whenever a connection is made to this port, SOCKS5 protocol is used
-// to determine where to connect to from the remote machine.
-// More or less equivalent to OpenSSH's -D flag
+// DynamicForwardedPort local port for dynamic application-level port
+// forwarding. Whenever a connection is made to this port, SOCKS5 protocol
+// is used to determine the address of the remote host. More or less
+// equivalent to OpenSSH's -D flag.
 type DynamicForwardedPort struct {
-	SrcIP   string
+	// SrcIP is the IP address to listen on locally.
+	SrcIP string
+
+	// SrcPort is the port to listen on locally.
 	SrcPort int
 }
 
+// DynamicForwardedPorts is a slice of locally forwarded dynamic ports (SOCKS5).
 type DynamicForwardedPorts []DynamicForwardedPort
 
-// ToString() returns a string representation of a dynamic port spec, compatible
-// with OpenSSH's -D  flag, i.e. "src_host:src_port"
+// ToString returns a string representation of a dynamic port spec, compatible
+// with OpenSSH's -D flag, i.e. "src_host:src_port".
 func (p *DynamicForwardedPort) ToString() string {
 	sport := strconv.Itoa(p.SrcPort)
 	if utils.IsLocalhost(p.SrcIP) {
@@ -188,10 +198,12 @@ type Config struct {
 	// if omitted, first available site will be selected
 	SiteName string
 
-	// Locally forwarded ports (parameters to -L ssh flag)
+	// LocalForwardPorts are the local ports tsh listens on for port forwarding
+	// (parameters to -L ssh flag).
 	LocalForwardPorts ForwardedPorts
 
-	// Locally forwarded dynamic ports (parameters to -D ssh flag)
+	// DynamicForwardedPorts are the list of ports tsh listens on for dynamic
+	// port forwarding (parameters to -D ssh flag).
 	DynamicForwardedPorts DynamicForwardedPorts
 
 	// HostKeyCallback will be called to check host keys of the remote
@@ -497,12 +509,12 @@ func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 
 	c.LocalForwardPorts, err = ParsePortForwardSpec(cp.ForwardedPorts)
 	if err != nil {
-		log.Warnf("Error parsing user profile: %v", err)
+		log.Warnf("Unable to parse port forwarding in user profile: %v.", err)
 	}
 
 	c.DynamicForwardedPorts, err = ParseDynamicPortForwardSpec(cp.DynamicForwardedPorts)
 	if err != nil {
-		log.Warnf("Error parsing user profile: %v", err)
+		log.Warnf("Unable to parse dynamic port forwarding in user profile: %v.", err)
 	}
 
 	return nil
@@ -525,7 +537,7 @@ func (c *Config) SaveProfile(profileDir string, profileOptions ...ProfileOptions
 	cp.WebProxyAddr = c.WebProxyAddr
 	cp.SSHProxyAddr = c.SSHProxyAddr
 	cp.KubeProxyAddr = c.KubeProxyAddr
-	cp.ForwardedPorts = c.LocalForwardPorts.ToStringSpec()
+	cp.ForwardedPorts = c.LocalForwardPorts.String()
 	cp.SiteName = c.SiteName
 
 	// create a profile file and set it current base on the option
@@ -828,7 +840,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 		return trace.Wrap(err)
 	}
 	// proxy local ports (forward incoming connections to remote host ports)
-	tc.startPortForwarding(nodeClient)
+	tc.startPortForwarding(ctx, nodeClient)
 
 	// local execution?
 	if runLocally {
@@ -853,23 +865,27 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	return tc.runShell(nodeClient, nil)
 }
 
-func (tc *TeleportClient) startPortForwarding(nodeClient *NodeClient) error {
+func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) error {
 	if len(tc.Config.LocalForwardPorts) > 0 {
 		for _, fp := range tc.Config.LocalForwardPorts {
-			socket, err := net.Listen("tcp", net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort)))
+			addr := net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort))
+			socket, err := net.Listen("tcp", addr)
 			if err != nil {
-				return trace.Wrap(err)
+				log.Errorf("Failed to bind to %v: %v.", addr, err)
+				continue
 			}
-			go nodeClient.listenAndForward(socket, net.JoinHostPort(fp.DestHost, strconv.Itoa(fp.DestPort)))
+			go nodeClient.listenAndForward(ctx, socket, net.JoinHostPort(fp.DestHost, strconv.Itoa(fp.DestPort)))
 		}
 	}
 	if len(tc.Config.DynamicForwardedPorts) > 0 {
 		for _, fp := range tc.Config.DynamicForwardedPorts {
-			socket, err := net.Listen("tcp", net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort)))
+			addr := net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort))
+			socket, err := net.Listen("tcp", addr)
 			if err != nil {
-				return trace.Wrap(err)
+				log.Errorf("Failed to bind to %v: %v.", addr, err)
+				continue
 			}
-			go nodeClient.listenForDynamicForward(socket)
+			go nodeClient.dynamicListenAndForward(ctx, socket)
 		}
 	}
 	return nil
@@ -948,8 +964,8 @@ func (tc *TeleportClient) Join(ctx context.Context, namespace string, sessionID 
 	}
 	defer nc.Close()
 
-	// start forwarding ports, if configured:
-	tc.startPortForwarding(nc)
+	// Start forwarding ports if configured.
+	tc.startPortForwarding(ctx, nc)
 
 	// running shell with a given session means "join" it:
 	return tc.runShell(nc, session)
@@ -1399,10 +1415,10 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 			clientAddr:      tc.ClientAddr,
 		}
 	}
-	successMsg := fmt.Sprintf("[CLIENT] successful auth with proxy %v", proxyAddr)
+	successMsg := fmt.Sprintf("Successful auth with proxy %v", proxyAddr)
 	// try to authenticate using every non interactive auth method we have:
 	for i, m := range tc.authMethods() {
-		log.Infof("[CLIENT] connecting proxy=%v login='%v' method=%d", proxyAddr, sshConfig.User, i)
+		log.Infof("Connecting proxy=%v login='%v' method=%d", proxyAddr, sshConfig.User, i)
 		var sshClient *ssh.Client
 
 		sshConfig.Auth = []ssh.AuthMethod{m}
@@ -2022,8 +2038,8 @@ func runLocalCommand(command []string) error {
 	return cmd.Run()
 }
 
-// ToStringSpec() returns the same string spec which can be parsed by ParsePortForwardSpec
-func (fp ForwardedPorts) ToStringSpec() (retval []string) {
+// String returns the same string spec which can be parsed by ParsePortForwardSpec.
+func (fp ForwardedPorts) String() (retval []string) {
 	for _, p := range fp {
 		retval = append(retval, p.ToString())
 	}
@@ -2031,7 +2047,7 @@ func (fp ForwardedPorts) ToStringSpec() (retval []string) {
 }
 
 // ParsePortForwardSpec parses parameter to -L flag, i.e. strings like "[ip]:80:remote.host:3000"
-// The opposite of this function (spec generation) is ForwardedPorts.ToStringSpec()
+// The opposite of this function (spec generation) is ForwardedPorts.String()
 func ParsePortForwardSpec(spec []string) (ports ForwardedPorts, err error) {
 	if len(spec) == 0 {
 		return ports, nil
@@ -2062,37 +2078,42 @@ func ParsePortForwardSpec(spec []string) (ports ForwardedPorts, err error) {
 	return ports, nil
 }
 
-// ToStringSpec() returns the same string spec which can be parsed by ParseDynamicPortForwardSpec
-func (fp DynamicForwardedPorts) ToStringSpec() (retval []string) {
+// String returns the same string spec which can be parsed by
+// ParseDynamicPortForwardSpec.
+func (fp DynamicForwardedPorts) String() (retval []string) {
 	for _, p := range fp {
 		retval = append(retval, p.ToString())
 	}
 	return retval
 }
 
-// ParseDynamicPortForwardSpec parses parameter to -L flag, i.e. strings like "[ip]:80:remote.host:3000"
-// The opposite of this function (spec generation) is DynamicForwardPorts.ToStringSpec()
-func ParseDynamicPortForwardSpec(spec []string) (ports DynamicForwardedPorts, err error) {
-	if len(spec) == 0 {
-		return ports, nil
-	}
-	const errTemplate = "Invalid dynamic port forwarding spec: '%s'. Could be like `local.host:8080`"
-	ports = make(DynamicForwardedPorts, len(spec), len(spec))
+// ParseDynamicPortForwardSpec parses the dynamic port forwarding spec
+// passed in the -D flag. The format of the dynamic port forwarding spec
+// is [bind_address:]port.
+func ParseDynamicPortForwardSpec(spec []string) (DynamicForwardedPorts, error) {
+	result := make(DynamicForwardedPorts, 0, len(spec))
 
-	for i, str := range spec {
-		parts := strings.Split(str, ":")
-		if len(parts) > 2 {
-			return nil, fmt.Errorf(errTemplate, str)
-		}
-		if len(parts) == 1 {
-			parts = append([]string{"127.0.0.1"}, parts...)
-		}
-		p := &ports[i]
-		p.SrcIP = parts[0]
-		p.SrcPort, err = strconv.Atoi(parts[1])
+	for _, str := range spec {
+		host, port, err := net.SplitHostPort(str)
 		if err != nil {
-			return nil, fmt.Errorf(errTemplate, str)
+			return nil, trace.Wrap(err)
 		}
+
+		// If no host is provided, bind to localhost.
+		if host == "" {
+			host = defaults.Localhost
+		}
+
+		srcPort, err := strconv.Atoi(port)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		result = append(result, DynamicForwardedPort{
+			SrcIP:   host,
+			SrcPort: srcPort,
+		})
 	}
-	return ports, nil
+
+	return result, nil
 }
