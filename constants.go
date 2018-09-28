@@ -125,6 +125,9 @@ const (
 	// ComponentConnectProxy is the HTTP CONNECT proxy used to tunnel connection.
 	ComponentConnectProxy = "http:proxy"
 
+	// ComponentSOCKS is a SOCKS5 proxy.
+	ComponentSOCKS = "socks"
+
 	// ComponentKeyGen is the public/private keypair generator.
 	ComponentKeyGen = "keygen"
 

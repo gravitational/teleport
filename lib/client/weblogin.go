@@ -39,7 +39,6 @@ import (
 
 	"github.com/mailgun/lemma/secret"
 	"github.com/pborman/uuid"
-	log "github.com/sirupsen/logrus"
 	"github.com/tstranex/u2f"
 )
 

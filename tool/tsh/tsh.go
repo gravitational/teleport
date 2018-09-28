@@ -79,7 +79,8 @@ type CLIConf struct {
 	RecursiveCopy bool
 	// -L flag for ssh. Local port forwarding like 'ssh -L 80:remote.host:80 -L 443:remote.host:443'
 	LocalForwardPorts []string
-	// -D flag for ssh. Dynamic port forwarding like 'ssh -D 8080'
+	// DynamicForwardedPorts is port forwarding using SOCKS5. It is similar to
+	// "ssh -D 8080 example.com".
 	DynamicForwardedPorts []string
 	// ForwardAgent agent to target node. Equivalent of -A for OpenSSH.
 	ForwardAgent bool
@@ -189,7 +190,7 @@ func Run(args []string, underTest bool) {
 	ssh.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
 	ssh.Flag("forward-agent", "Forward agent to target node").Short('A').BoolVar(&cf.ForwardAgent)
 	ssh.Flag("forward", "Forward localhost connections to remote server").Short('L').StringsVar(&cf.LocalForwardPorts)
-	ssh.Flag("dynamic-forward", "Forward localhost connections to remote server").Short('D').StringsVar(&cf.DynamicForwardedPorts)
+	ssh.Flag("dynamic-forward", "Forward localhost connections to remote server using SOCKS5").Short('D').StringsVar(&cf.DynamicForwardedPorts)
 	ssh.Flag("local", "Execute command on localhost after connecting to SSH node").Default("false").BoolVar(&cf.LocalExec)
 	ssh.Flag("tty", "Allocate TTY").Short('t').BoolVar(&cf.Interactive)
 	ssh.Flag("cluster", clusterHelp).Envar(clusterEnvVar).StringVar(&cf.SiteName)
