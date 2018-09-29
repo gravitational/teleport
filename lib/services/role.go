@@ -1401,7 +1401,6 @@ func MatchLabels(selector Labels, target map[string]string) (bool, string, error
 		return false, "no match, empty selector", nil
 	}
 
-	// matchLabels, labelsMessage := MatchLabels(role.GetNodeLabels(Deny), s.GetAllLabels())
 	// *: * matches everything even empty target set.
 	selectorValues := selector[Wildcard]
 	if len(selectorValues) == 1 && selectorValues[0] == Wildcard {
@@ -1417,9 +1416,9 @@ func MatchLabels(selector Labels, target map[string]string) (bool, string, error
 		}
 
 		if !utils.SliceContainsStr(selectorValues, Wildcard) {
-			result, err := utils.SliceContainsRegexStr(targetVal, selectorValues)
+			result, err := utils.SliceMatchesRegex(targetVal, selectorValues)
 			if err != nil {
-				return false, "", trace.BadParameter(err.Error())
+				return false, "", trace.Wrap(err)
 			} else if !result {
 				return false, fmt.Sprintf("no value match: got '%v' want: '%v'", targetVal, selectorValues), nil
 			}
@@ -1568,7 +1567,7 @@ func (set RoleSet) CheckAccessToServer(login string, s Server) error {
 		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Deny), s.GetNamespace())
 		matchLabels, labelsMessage, err := MatchLabels(role.GetNodeLabels(Deny), s.GetAllLabels())
 		if err != nil {
-			return trace.CompareFailed(err.Error())
+			return trace.Wrap(err)
 		}
 		matchLogin, loginMessage := MatchLogin(role.GetLogins(Deny), login)
 		if matchNamespace && (matchLabels || matchLogin) {
@@ -1588,7 +1587,7 @@ func (set RoleSet) CheckAccessToServer(login string, s Server) error {
 		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Allow), s.GetNamespace())
 		matchLabels, labelsMessage, err := MatchLabels(role.GetNodeLabels(Allow), s.GetAllLabels())
 		if err != nil {
-			return trace.CompareFailed(err.Error())
+			return trace.Wrap(err)
 		}
 		matchLogin, loginMessage := MatchLogin(role.GetLogins(Allow), login)
 		if matchNamespace && matchLabels && matchLogin {
