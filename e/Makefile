@@ -3,6 +3,7 @@
 BUILDDIR ?= build
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s $(LDFLAGS)'
 RELEASE := teleport-ent-$(GITTAG)-$(OS)-$(ARCH)-bin
+BINARIES ?= $(BUILDDIR)/tctl $(BUILDDIR)/teleport
 
 # PAM support will only be built into Teleport if headers exist at build time.
 ifneq ("$(wildcard /usr/include/security/pam_appl.h)","")
