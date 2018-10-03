@@ -146,6 +146,7 @@ var (
 		"client_idle_timeout":     false,
 		"disconnect_expired_cert": false,
 		"ciphersuites":            false,
+		"ca_pin":                  false,
 	}
 )
 
@@ -385,6 +386,9 @@ type Global struct {
 	// MACAlgorithms is a list of SSH message authentication codes (MAC) that
 	// the server supports. If omitted the defaults will be used.
 	MACAlgorithms []string `yaml:"mac_algos,omitempty"`
+
+	// CAPin is the SKPI hash of the CA used to verify the Auth Server.
+	CAPin string `yaml:"ca_pin"`
 }
 
 // CachePolicy is used to control  local cache

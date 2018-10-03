@@ -225,6 +225,38 @@ func (a *AuthServer) GetDomainName() (string, error) {
 	return a.clusterName.GetClusterName(), nil
 }
 
+// LocalCAResponse contains PEM-encoded local CAs.
+type LocalCAResponse struct {
+	// TLSCA is the PEM-encoded TLS certificate authority.
+	TLSCA []byte `json:"tls_ca"`
+}
+
+// GetClusterCACert returns the CAs for the local cluster without signing keys.
+func (a *AuthServer) GetClusterCACert() (*LocalCAResponse, error) {
+	// Extract the TLS CA for this cluster.
+	hostCA, err := a.Trust.GetCertAuthority(services.CertAuthID{
+		Type:       services.HostCA,
+		DomainName: a.clusterName.GetClusterName(),
+	}, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsCA, err := hostCA.TLSCA()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Marshal to PEM bytes to send the CA over the wire.
+	pemBytes, err := tlsca.MarshalCertificatePEM(tlsCA.Cert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &LocalCAResponse{
+		TLSCA: pemBytes,
+	}, nil
+}
+
 // GenerateHostCert uses the private key of the CA to sign the public key of the host
 // (along with meta data like host ID, node name, roles, and ttl) to generate a host certificate.
 func (s *AuthServer) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string, principals []string, clusterName string, roles teleport.Roles, ttl time.Duration) ([]byte, error) {

@@ -158,6 +158,9 @@ type Config struct {
 
 	// ShutdownTimeout is set to override default shutdown timeout.
 	ShutdownTimeout time.Duration
+
+	// CAPin is the SKPI hash of the CA used to verify the Auth Server.
+	CAPin string
 }
 
 // ApplyToken assigns a given token to all internal services but only if token
