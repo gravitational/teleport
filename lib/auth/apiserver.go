@@ -67,6 +67,7 @@ func NewAPIServer(config *APIConfig) http.Handler {
 
 	// Operations on certificate authorities
 	srv.GET("/:version/domain", srv.withAuth(srv.getDomainName))
+	srv.GET("/:version/cacert", srv.withAuth(srv.getClusterCACert))
 
 	srv.POST("/:version/authorities/:type", srv.withAuth(srv.upsertCertAuthority))
 	srv.POST("/:version/authorities/:type/rotate", srv.withAuth(srv.rotateCertAuthority))
@@ -990,6 +991,16 @@ func (s *APIServer) getDomainName(auth ClientI, w http.ResponseWriter, r *http.R
 		return nil, trace.Wrap(err)
 	}
 	return domain, nil
+}
+
+// getClusterCACert returns the CAs for the local cluster without signing keys.
+func (s *APIServer) getClusterCACert(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	localCA, err := auth.GetClusterCACert()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return localCA, nil
 }
 
 // getU2FAppID returns the U2F AppID in the auth configuration

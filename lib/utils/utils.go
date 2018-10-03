@@ -153,6 +153,9 @@ func SplitHostPort(hostname string) (string, string, error) {
 }
 
 func ReadPath(path string) ([]byte, error) {
+	if path == "" {
+		return nil, trace.NotFound("empty path")
+	}
 	s, err := filepath.Abs(path)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
