@@ -1981,7 +1981,7 @@ teleport:
 Teleport is always a critical component of the infrastructure it runs on. This is why upgrading to a new version must be performed with caution. 
 
 Teleport is a much more capable system than a bare bones SSH server.
-It offers significant benefits on a cluster level and they add some complexity to to cluster upgrades. To ensure robust operation Teleport administrators must follow the upgrade rules listed below.
+While it offers significant benefits on a cluster level, it also adds some complexity to cluster upgrades. To ensure robust operation Teleport administrators must follow the upgrade rules listed below.
 
 ### Production Releases
 
