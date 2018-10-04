@@ -1989,7 +1989,7 @@ First of all, avoid running pre-releases (release candidates) in production
 environments. Teleport development team uses [Semantic Versioning](https://semver.org/) 
 which makes it easy to tell if a specific version is recommended for production use.
 
-### Component Compatibilitiy
+### Component Compatibility
 
 When running multiple binaries of Teleport within a cluster (nodes, proxies,
 clients, etc), the following rules apply:
