@@ -209,7 +209,7 @@ func (cs *CachingAuthClient) fetchAll() error {
 			continue
 		}
 		clusters[clusterName] = true
-		_, err = cs.GetTunnelConnections(clusterName)
+		_, err = cs.GetTunnelConnections(clusterName, services.SkipValidation())
 		errors = append(errors, err)
 	}
 	return trace.NewAggregate(errors...)
@@ -497,15 +497,15 @@ func (cs *CachingAuthClient) GetProxies() (proxies []services.Server, err error)
 }
 
 // GetCertAuthority is a part of auth.AccessPoint implementation
-func (cs *CachingAuthClient) GetCertAuthority(id services.CertAuthID, loadKeys bool) (ca services.CertAuthority, err error) {
+func (cs *CachingAuthClient) GetCertAuthority(id services.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (ca services.CertAuthority, err error) {
 	cs.fetch(params{
 		key: certKey(id, loadKeys),
 		fetch: func() error {
-			ca, err = cs.ap.GetCertAuthority(id, loadKeys)
+			ca, err = cs.ap.GetCertAuthority(id, loadKeys, opts...)
 			return err
 		},
 		useCache: func() error {
-			ca, err = cs.trust.GetCertAuthority(id, loadKeys)
+			ca, err = cs.trust.GetCertAuthority(id, loadKeys, opts...)
 			return err
 		},
 		updateCache: func() (keys []string, cerr error) {
@@ -640,14 +640,14 @@ func (cs *CachingAuthClient) GetUsers() (users []services.User, err error) {
 // GetTunnelConnections is a part of auth.AccessPoint implementation
 // GetTunnelConnections are not using recent cache as they are designed
 // to be called periodically and always return fresh data
-func (cs *CachingAuthClient) GetTunnelConnections(clusterName string) (conns []services.TunnelConnection, err error) {
+func (cs *CachingAuthClient) GetTunnelConnections(clusterName string, opts ...services.MarshalOption) (conns []services.TunnelConnection, err error) {
 	err = cs.try(func() error {
-		conns, err = cs.ap.GetTunnelConnections(clusterName)
+		conns, err = cs.ap.GetTunnelConnections(clusterName, opts...)
 		return err
 	})
 	if err != nil {
 		if trace.IsConnectionProblem(err) {
-			return cs.presence.GetTunnelConnections(clusterName)
+			return cs.presence.GetTunnelConnections(clusterName, opts...)
 		}
 		return conns, err
 	}
@@ -668,9 +668,9 @@ func (cs *CachingAuthClient) GetTunnelConnections(clusterName string) (conns []s
 // GetAllTunnelConnections is a part of auth.AccessPoint implementation
 // GetAllTunnelConnections are not using recent cache, as they are designed
 // to be called periodically and always return fresh data
-func (cs *CachingAuthClient) GetAllTunnelConnections() (conns []services.TunnelConnection, err error) {
+func (cs *CachingAuthClient) GetAllTunnelConnections(opts ...services.MarshalOption) (conns []services.TunnelConnection, err error) {
 	err = cs.try(func() error {
-		conns, err = cs.ap.GetAllTunnelConnections()
+		conns, err = cs.ap.GetAllTunnelConnections(opts...)
 		return err
 	})
 	if err != nil {

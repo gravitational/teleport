@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -83,7 +82,6 @@ type server struct {
 	// Server API.
 	localAccessPoint auth.AccessPoint
 
-	hostCertChecker ssh.CertChecker
 	userCertChecker ssh.CertChecker
 
 	// srv is the "base class" i.e. the underlying SSH server
@@ -264,7 +262,6 @@ func NewServer(cfg Config) (Server, error) {
 		return nil, err
 	}
 	srv.userCertChecker = ssh.CertChecker{IsUserAuthority: srv.isUserAuthority}
-	srv.hostCertChecker = ssh.CertChecker{IsHostAuthority: srv.isHostAuthority}
 	srv.srv = s
 	go srv.periodicFunctions()
 	return srv, nil
@@ -559,8 +556,16 @@ func (s *server) isUserAuthority(auth ssh.PublicKey) bool {
 	return false
 }
 
-func (s *server) getTrustedCAKeys(CertType services.CertAuthType) ([]ssh.PublicKey, error) {
-	cas, err := s.localAccessPoint.GetCertAuthorities(CertType, false)
+func (s *server) getTrustedCAKeysByID(id services.CertAuthID) ([]ssh.PublicKey, error) {
+	ca, err := s.localAccessPoint.GetCertAuthority(id, false, services.SkipValidation())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ca.Checkers()
+}
+
+func (s *server) getTrustedCAKeys(certType services.CertAuthType) ([]ssh.PublicKey, error) {
+	cas, err := s.localAccessPoint.GetCertAuthorities(certType, false, services.SkipValidation())
 	if err != nil {
 		return nil, err
 	}
@@ -573,28 +578,6 @@ func (s *server) getTrustedCAKeys(CertType services.CertAuthType) ([]ssh.PublicK
 		out = append(out, checkers...)
 	}
 	return out, nil
-}
-
-func (s *server) checkTrustedKey(CertType services.CertAuthType, domainName string, key ssh.PublicKey) error {
-	cas, err := s.localAccessPoint.GetCertAuthorities(CertType, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	for _, ca := range cas {
-		if ca.GetClusterName() != domainName {
-			continue
-		}
-		checkers, err := ca.Checkers()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		for _, checker := range checkers {
-			if sshutils.KeysEqual(key, checker) {
-				return nil
-			}
-		}
-	}
-	return trace.NotFound("authority domain %v not found or has no mathching keys", domainName)
 }
 
 func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
@@ -617,31 +600,9 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 			logger.Warningf("Failed to authenticate host, err: %v.", err)
 			return nil, err
 		}
-		// CheckHostKey expects the addr that is passed in to be in the format
-		// host:port. This is because this function is usually used by a client to
-		// check if the host it attempted to connect to presented a certificate for
-		// the host requested (this prevents man-in-the-middle attacks).
-		//
-		// In this situation however, it's a server essentially performing user
-		// authentication, but since it's machine-to-machine communication, the
-		// "user" is presenting a host certificate. To make CheckHostKey behave
-		// like Authenticate we pass in a addr in the host:port format it expects.
-		addr := formatAddr(conn.User())
-		err := s.hostCertChecker.CheckHostKey(addr, conn.RemoteAddr(), key)
+		err := s.checkHostCert(logger, conn.User(), authDomain, cert)
 		if err != nil {
 			logger.Warningf("Failed to authenticate host, err: %v.", err)
-			return nil, trace.Wrap(err)
-		}
-		if err := s.hostCertChecker.CheckCert(conn.User(), cert); err != nil {
-			logger.Warningf("Failed to authenticate host err: %v.", err)
-			return nil, trace.Wrap(err)
-		}
-		// this fixes possible injection attack
-		// when we have 2 trusted remote sites, and one can simply
-		// pose as another. so we have to check that authority
-		// matches by some other way (in absence of x509 chains)
-		if err := s.checkTrustedKey(services.HostCA, authDomain, cert.SignatureKey); err != nil {
-			logger.Warningf("This client claims to be signed as cluster %q, but no matching signing keys found", authDomain)
 			return nil, trace.Wrap(err)
 		}
 		return &ssh.Permissions{
@@ -672,6 +633,43 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 	default:
 		return nil, trace.BadParameter("unsupported cert type: %v", cert.CertType)
 	}
+}
+
+// checkHostCert verifies that host certificate is signed
+// by the recognized certificate authority
+func (s *server) checkHostCert(logger *log.Entry, user string, clusterName string, cert *ssh.Certificate) error {
+	if cert.CertType != ssh.HostCert {
+		return trace.BadParameter("expected host cert, got wrong cert type: %d", cert.CertType)
+	}
+
+	// fetch keys of the certificate authority to check
+	// if there is a match
+	keys, err := s.getTrustedCAKeysByID(services.CertAuthID{
+		Type:       services.HostCA,
+		DomainName: clusterName,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// match key of the certificate authority with the signature key
+	var match bool
+	for _, k := range keys {
+		if sshutils.KeysEqual(k, cert.SignatureKey) {
+			match = true
+			break
+		}
+	}
+	if !match {
+		return trace.NotFound("cluster %v has no matching CA keys", clusterName)
+	}
+
+	checker := ssh.CertChecker{}
+	if err := checker.CheckCert(user, cert); err != nil {
+		return trace.BadParameter(err.Error())
+	}
+
+	return nil
 }
 
 func (s *server) upsertSite(conn net.Conn, sshConn *ssh.ServerConn) (*remoteSite, *remoteConn, error) {
@@ -910,29 +908,6 @@ func newRemoteSite(srv *server, domainName string) (*remoteSite, error) {
 	go remoteSite.periodicUpdateCertAuthorities()
 
 	return remoteSite, nil
-}
-
-// formatAddr adds :port to the passed in string if it's not in
-// host:port format.
-func formatAddr(s string) string {
-	i := strings.Index(s, ":")
-	if i == -1 {
-		return s + ":0"
-	}
-	if i == len(s)-1 {
-		return s[:len(s)-1] + ":0"
-	}
-
-	port, err := strconv.Atoi(s[i+1:])
-	if err != nil {
-		return s[:i] + ":0"
-	}
-
-	if port < 0 || port > 65535 {
-		return s[:i] + ":0"
-	}
-
-	return s
 }
 
 const (

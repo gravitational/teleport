@@ -39,3 +39,4 @@ pages:
         - One Login: ssh_one_login.md
         - OIDC: oidc.md
         - Trusted Clusters: trustedclusters.md
+        - Kubernetes Guide: kubernetes_ssh.md

@@ -98,13 +98,22 @@ To create a token using the CLI tool, execute this command on the _auth server_
 of cluster "main":
 
 ```bash
-$ tctl nodes add --ttl=5m --roles=trustedcluster --token=join-token
+# generates a new token to allow an inbound from a trusting cluster:
+$ tctl tokens add --type=trusted_cluster --ttl=5m
+
+The cluster invite token: ba4825847f0378bcdfe18113c4998498
+This token will expire in 5 minutes
+
+# you can also list the outstanding non-expired tokens:
+$ tctl tokens ls
+
+# ... or delete/revoke an invitation:
+$ tctl tokens rm ba4825847f0378bcdfe18113c4998498
 ``` 
 
-Users of Teleport will recognize that this is the same way you would add any node to a cluster.
-
-* The token created above can be used multiple times and has an expiration time of 5 minutes.
-* If you omit the `--token` flag `tctl` will generate one for you.
+Users of Teleport will recognize that this is the same way you would add any
+node to a cluster.  The token created above can be used multiple times and has
+an expiration time of 5 minutes.
 
 ### Security Implications
 
@@ -149,7 +158,7 @@ First, we need to create a special role for main users on "east":
 - kind: role
   version: v3
   metadata:
-    name: mainuser
+    name: local-admin
   spec:
     allow:
       node_labels:
@@ -159,7 +168,7 @@ First, we need to create a special role for main users on "east":
         "environment": "production"
 ```
 
-Now, we need to establish trust between roles "main:admin" and "east:mainuser". This is 
+Now, we need to establish trust between roles "main:admin" and "east:local-admin". This is 
 done by creating a trusted cluster [resource](admin-guide/#resources) on "east"
 which looks like this:
 
@@ -174,7 +183,7 @@ spec:
   enabled: true
   role_map:
     - remote: "admin"
-      local: [mainuser]
+      local: [local-admin]
   token: "join-token"
   tunnel_addr: main.example.com:3024
   web_proxy_addr: main.example.com:3080
@@ -186,8 +195,22 @@ nodes on "east"? In this case we can use a wildcard `*` in the `role_map` like t
 ```bash
 role_map:
   - remote: "*"
-    local: [mainuser]
+    local: [admin]
 ```
+
+You can even use [regular expressions](https://github.com/google/re2/wiki/Syntax) to
+map user roles from one cluster to another, you can even capture parts of the remote 
+role name and use reference it to name the local role:
+
+```bash
+  # in this example, remote users with remote role called 'remote-one' will be
+  # mapped to a local role called 'local-one', and `remote-two` becomes `local-two`, etc:
+  - remote: "^remote-(.*)$"
+    local: [local-$1]
+```
+
+**NOTE:** The regexp matching is activated only when the expression starts
+with `^` and ends with `$`
 
 ## Using Trusted Clusters
 

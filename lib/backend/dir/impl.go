@@ -133,7 +133,7 @@ func (bk *Backend) GetKeys(bucket []string) ([]string, error) {
 }
 
 // GetItems returns all items (key/value pairs) in a given bucket.
-func (bk *Backend) GetItems(bucket []string) ([]backend.Item, error) {
+func (bk *Backend) GetItems(bucket []string, opts ...backend.OpOption) ([]backend.Item, error) {
 	var out []backend.Item
 
 	// Get a list of all buckets in the backend.
@@ -186,10 +186,13 @@ func (bk *Backend) GetItems(bucket []string) ([]backend.Item, error) {
 				continue
 			}
 
+			fullPath := filepath.Join(filepath.Base(pathToBucket), k)
 			out = append(out, backend.Item{
-				Key:   key,
-				Value: v.Value,
+				FullPath: fullPath,
+				Key:      key,
+				Value:    v.Value,
 			})
+
 		}
 	}
 
@@ -556,7 +559,7 @@ func readBucket(f *os.File) (map[string]bucketItem, error) {
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
-	err = json.Unmarshal(bytes, &items)
+	err = utils.FastUnmarshal(bytes, &items)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -639,10 +642,10 @@ func removeDuplicates(items []backend.Item) []backend.Item {
 
 	// Loop over all items, if it has not been seen before, append to result.
 	for _, e := range items {
-		_, ok := encountered[e.Key]
+		_, ok := encountered[e.FullPath]
 		if !ok {
 			// Record this element as an encountered element.
-			encountered[e.Key] = true
+			encountered[e.FullPath] = true
 
 			// Append to result slice.
 			result = append(result, e)

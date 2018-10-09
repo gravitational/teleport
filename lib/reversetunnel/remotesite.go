@@ -53,13 +53,14 @@ type remoteSite struct {
 	domainName  string
 	connections []*remoteConn
 	lastUsed    int
-	lastActive  time.Time
 	srv         *server
 	transport   *http.Transport
 	connInfo    services.TunnelConnection
-	ctx         context.Context
-	cancel      context.CancelFunc
-	clock       clockwork.Clock
+	// lastConnInfo is the last conn
+	lastConnInfo services.TunnelConnection
+	ctx          context.Context
+	cancel       context.CancelFunc
+	clock        clockwork.Clock
 
 	// certificateCache caches host certificates for the forwarding server.
 	certificateCache *certificateCache
@@ -100,6 +101,10 @@ func (s *remoteSite) getRemoteClient() (auth.ClientI, bool, error) {
 		}
 		tlsConfig := s.srv.ClientTLS.Clone()
 		tlsConfig.RootCAs = pool
+		// encode the name of this cluster to identify this cluster,
+		// connecting to the remote one (it is used to find the right certificate
+		// authority to verify)
+		tlsConfig.ServerName = auth.EncodeClusterName(s.srv.ClusterName)
 		clt, err := auth.NewTLSClientWithDialer(s.authServerContextDialer, tlsConfig)
 		if err != nil {
 			return nil, false, trace.Wrap(err)
@@ -204,17 +209,8 @@ func (s *remoteSite) addConn(conn net.Conn, sshConn ssh.Conn) (*remoteConn, erro
 	return rc, nil
 }
 
-func (s *remoteSite) getLatestTunnelConnection() (services.TunnelConnection, error) {
-	conns, err := s.localAccessPoint.GetTunnelConnections(s.domainName)
-	if err != nil {
-		s.Warningf("failed to fetch tunnel statuses: %v", err)
-		return nil, trace.Wrap(err)
-	}
-	return services.LatestTunnelConnection(conns)
-}
-
 func (s *remoteSite) GetStatus() string {
-	connInfo, err := s.getLatestTunnelConnection()
+	connInfo, err := s.getLastConnInfo()
 	if err != nil {
 		return teleport.RemoteClusterStatusOffline
 	}
@@ -227,10 +223,26 @@ func (s *remoteSite) copyConnInfo() services.TunnelConnection {
 	return s.connInfo.Clone()
 }
 
+func (s *remoteSite) setLastConnInfo(connInfo services.TunnelConnection) {
+	s.Lock()
+	defer s.Unlock()
+	s.lastConnInfo = connInfo.Clone()
+}
+
+func (s *remoteSite) getLastConnInfo() (services.TunnelConnection, error) {
+	s.RLock()
+	defer s.RUnlock()
+	if s.lastConnInfo == nil {
+		return nil, trace.NotFound("no last connection found")
+	}
+	return s.lastConnInfo.Clone(), nil
+}
+
 func (s *remoteSite) registerHeartbeat(t time.Time) {
 	connInfo := s.copyConnInfo()
 	connInfo.SetLastHeartbeat(t)
 	connInfo.SetExpiry(s.clock.Now().Add(defaults.ReverseTunnelOfflineThreshold))
+	s.setLastConnInfo(connInfo)
 	err := s.localAccessPoint.UpsertTunnelConnection(connInfo)
 	if err != nil {
 		s.Warningf("failed to register heartbeat: %v", err)
@@ -291,7 +303,7 @@ func (s *remoteSite) GetName() string {
 }
 
 func (s *remoteSite) GetLastConnected() time.Time {
-	connInfo, err := s.getLatestTunnelConnection()
+	connInfo, err := s.getLastConnInfo()
 	if err != nil {
 		return time.Time{}
 	}
@@ -427,7 +439,7 @@ func (s *remoteSite) isOnline(conn services.TunnelConnection) bool {
 // connections
 func (s *remoteSite) findDisconnectedProxies() ([]services.Server, error) {
 	connInfo := s.copyConnInfo()
-	conns, err := s.localAccessPoint.GetTunnelConnections(s.domainName)
+	conns, err := s.localAccessPoint.GetTunnelConnections(s.domainName, services.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

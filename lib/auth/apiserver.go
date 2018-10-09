@@ -1821,6 +1821,9 @@ func (s *APIServer) uploadSessionRecording(auth ClientI, w http.ResponseWriter, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if r.MultipartForm != nil {
+		defer r.MultipartForm.RemoveAll()
+	}
 	if !services.IsValidNamespace(namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
 	}

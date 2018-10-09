@@ -2,12 +2,10 @@ package authority
 
 import (
 	"context"
-	"os"
 	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
-	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
@@ -16,23 +14,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	watch "k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/kubernetes"
 )
-
-// Cert is a certificate
-type Cert struct {
-	// Cert is a signed certificate PEM block
-	Cert []byte
-	// CA is a PEM block with trusted CA
-	CA []byte
-}
 
 // ProcessCSR processes CSR request with local k8s certificate authority
 // and returns certificate PEM signed by CA
-func ProcessCSR(csrPEM []byte, caPEM []byte) (*Cert, error) {
-	clt, _, err := kubeutils.GetKubeClient(os.Getenv(teleport.EnvKubeConfig))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+func ProcessCSR(clt *kubernetes.Clientset, csrPEM []byte) ([]byte, error) {
 	id := "teleport-" + uuid.New()
 	requests := clt.CertificatesV1beta1().CertificateSigningRequests()
 	csr, err := requests.Create(&certificates.CertificateSigningRequest{
@@ -69,7 +56,7 @@ func ProcessCSR(csrPEM []byte, caPEM []byte) (*Cert, error) {
 	}
 	if result.Status.Certificate != nil {
 		log.Debugf("Received certificate right after approval, returning.")
-		return &Cert{Cert: result.Status.Certificate, CA: caPEM}, nil
+		return result.Status.Certificate, nil
 	}
 
 	ctx, cancel := context.WithTimeout(context.TODO(), defaults.CSRSignTimeout)
@@ -98,7 +85,7 @@ func ProcessCSR(csrPEM []byte, caPEM []byte) (*Cert, error) {
 	for i := 0; i < int(defaults.CSRSignTimeout/time.Second); i++ {
 		cert, err := watchForCert()
 		if err == nil {
-			return &Cert{Cert: cert, CA: caPEM}, nil
+			return cert, nil
 		}
 		if !trace.IsRetryError(err) {
 			return nil, trace.Wrap(err)

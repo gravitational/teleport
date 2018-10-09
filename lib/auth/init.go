@@ -127,8 +127,8 @@ type InitConfig struct {
 	// CipherSuites is a list of ciphersuites that the auth server supports.
 	CipherSuites []uint16
 
-	// KubeCACertPath is an optional path to kubernetes CA certificate authority
-	KubeCACertPath string
+	// KubeconfigPath is an optional path to kubernetes config file
+	KubeconfigPath string
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -617,6 +617,7 @@ func (i *Identity) TLSConfig(cipherSuites []uint16) (*tls.Config, error) {
 	tlsConfig.Certificates = []tls.Certificate{tlsCert}
 	tlsConfig.RootCAs = certPool
 	tlsConfig.ClientCAs = certPool
+	tlsConfig.ServerName = EncodeClusterName(i.ClusterName)
 	return tlsConfig, nil
 }
 

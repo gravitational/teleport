@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -75,6 +76,33 @@ func (c *Client) TLSConfig() *tls.Config {
 // DialContext is a function that dials to the specified address
 type DialContext func(in context.Context, network, addr string) (net.Conn, error)
 
+// EncodeClusterName encodes cluster name in the SNI hostname
+func EncodeClusterName(clusterName string) string {
+	// hex is used to hide "." that will prevent wildcard *. entry to match
+	return fmt.Sprintf("%v.%v", hex.EncodeToString([]byte(clusterName)), teleport.APIDomain)
+}
+
+// DecodeClusterName decodes cluster name, returns NotFound
+// if no cluster name is encoded (empty subdomain),
+// so servers can detect cases when no server name passed
+// returns BadParameter if encoding does not match
+func DecodeClusterName(serverName string) (string, error) {
+	if serverName == teleport.APIDomain {
+		return "", trace.NotFound("no cluster name is encoded")
+	}
+	const suffix = "." + teleport.APIDomain
+	if !strings.HasSuffix(serverName, suffix) {
+		return "", trace.BadParameter("unrecognized name, expected suffix %v, got %q", teleport.APIDomain, serverName)
+	}
+	clusterName := strings.TrimSuffix(serverName, suffix)
+
+	decoded, err := hex.DecodeString(clusterName)
+	if err != nil {
+		return "", trace.BadParameter("failed to decode cluster name: %v", err)
+	}
+	return string(decoded), nil
+}
+
 // NewAddrDialer returns new dialer from a list of addresses
 func NewAddrDialer(addrs []utils.NetAddr) DialContext {
 	dialer := net.Dialer{
@@ -113,7 +141,9 @@ func ClientTimeout(timeout time.Duration) roundtrip.ClientParam {
 // NewTLSClientWithDialer returns new TLS client that uses mutual TLS authenticate
 // and dials the remote server using dialer
 func NewTLSClientWithDialer(dialContext DialContext, cfg *tls.Config, params ...roundtrip.ClientParam) (*Client, error) {
-	cfg.ServerName = teleport.APIDomain
+	if cfg.ServerName == "" {
+		cfg.ServerName = teleport.APIDomain
+	}
 	transport := &http.Transport{
 		// notice that below roundtrip.Client is passed
 		// teleport.APIEndpoint as an address for the API server, this is
@@ -417,7 +447,7 @@ func (c *Client) GetCertAuthorities(caType services.CertAuthType, loadKeys bool,
 
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 // controls if signing keys are loaded
-func (c *Client) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool) (services.CertAuthority, error) {
+func (c *Client) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (services.CertAuthority, error) {
 	if err := id.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -683,7 +713,7 @@ func (c *Client) UpsertTunnelConnection(conn services.TunnelConnection) error {
 }
 
 // GetTunnelConnections returns tunnel connections for a given cluster
-func (c *Client) GetTunnelConnections(clusterName string) ([]services.TunnelConnection, error) {
+func (c *Client) GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]services.TunnelConnection, error) {
 	if clusterName == "" {
 		return nil, trace.BadParameter("missing cluster name parameter")
 	}
@@ -707,7 +737,7 @@ func (c *Client) GetTunnelConnections(clusterName string) ([]services.TunnelConn
 }
 
 // GetAllTunnelConnections returns all tunnel connections
-func (c *Client) GetAllTunnelConnections() ([]services.TunnelConnection, error) {
+func (c *Client) GetAllTunnelConnections(opts ...services.MarshalOption) ([]services.TunnelConnection, error) {
 	out, err := c.Get(c.Endpoint("tunnelconnections"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -765,7 +795,7 @@ func (c *Client) GetUserLoginAttempts(user string) ([]services.LoginAttempt, err
 }
 
 // GetRemoteClusters returns a list of remote clusters
-func (c *Client) GetRemoteClusters() ([]services.RemoteCluster, error) {
+func (c *Client) GetRemoteClusters(opts ...services.MarshalOption) ([]services.RemoteCluster, error) {
 	out, err := c.Get(c.Endpoint("remoteclusters"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)

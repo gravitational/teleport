@@ -1,5 +1,59 @@
 # Changelog
 
+## 3.0
+
+This is a major Teleport release which introduces support for Kubernetes
+clusters. In addition to this new feature this release includes several
+usability and performance improvements listed below.
+
+#### Kubernetes Support
+
+* `tsh login` can retreive and install certificates for both Kubernetes and SSH
+  at the same time. 
+* Full audit log support for `kubectl` commands, including recording of the sessions
+  if `kubectl exec` command was interactive.
+* Unified (AKA "single pane of glass") RBAC for both SSH and Kubernetes permissions. 
+
+For more information about Kubernetes support, take a look at 
+the [Kubernetes and SSH Integration Guide](https://gravitational.com/teleport/docs/kubernetes_ssh/)
+
+#### Improvements
+
+* Teleport administrators can now fine-tune the enabled ciphersuites [#1999](https://github.com/gravitational/teleport/issues/1999)
+* Improved user experience linking trusted clusters together [#1971](https://github.com/gravitational/teleport/issues/1971)
+* All Teleport components (proxy, auth and nodes) now support `public_addr`
+  setting which allows them to be hosted behind NAT/Load Balancers. [#1793](https://github.com/gravitational/teleport/issues/1793)
+* We have documented the previously undocumented monitoring endpoints [#2103](https://github.com/gravitational/teleport/issues/2103)
+* The `etcd` back-end has been updated to implement 3.3+ protocol. See the upgrading notes below.
+* Listing nodes via `tsh ls` or the web UI no longer shows nodes that the currently logged in user has no access to. [#1954](https://github.com/gravitational/teleport/issues/1954)
+* It is now possible to build `tsh` client on Windows. Note: only `tsh login` command is implemented. [#1996](https://github.com/gravitational/teleport/pull/1996).
+* `-i` flag to `tsh login` is now guarantees to be non-interactive. [#2221](https://github.com/gravitational/teleport/issues/2221)
+
+#### Bugfixes
+
+* Removed the bogus error message "access denied to perform action create on user" [#2132](https://github.com/gravitational/teleport/issues/2132)
+* `scp` implementation in "recording proxy" mode did not work correctly. [#2176](https://github.com/gravitational/teleport/issues/2176)
+* Removed the limit of 8 trusted clusters with SSO. [#2192](https://github.com/gravitational/teleport/issues/2192)
+* `tsh ls` now works correctly when executed on a remote/trusted cluster [#2204](https://github.com/gravitational/teleport/milestone/24?closed=1)
+
+The lists of improvements and bug fixes above mention only the significant
+changes, please take a look at [the complete list](https://github.com/gravitational/teleport/milestone/24?closed=1)
+on Github for more.
+
+#### Upgrading to 3.0
+
+Follow the [recommended upgrade procedure](https://gravitational.com/teleport/docs/admin-guide/#upgrading-teleport) 
+to upgrade to this version.
+
+**WARNING:** if you are using Teleport with the etcd back-end, make sure your
+`etcd` version is 3.3 or newer prior to upgrading to Teleport 3.0.
+
+## 2.7.5
+
+This release of Teleport contains the following bug fix:
+
+* Teleport auth servers do not delete temporary files named `/tmp/multipart-` [#2250](https://github.com/gravitational/teleport/issues/2250)
+
 ## 2.7.4
 
 This release of Teleport focuses on bugfixes.

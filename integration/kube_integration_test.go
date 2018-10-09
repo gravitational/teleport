@@ -29,7 +29,6 @@ import (
 	"net/url"
 	"os"
 	"os/user"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -66,19 +65,18 @@ var _ = check.Suite(&KubeSuite{})
 
 type KubeSuite struct {
 	*kubernetes.Clientset
-	kubeConfig *rest.Config
-	ports      utils.PortList
-	me         *user.User
+
+	ports utils.PortList
+	me    *user.User
 	// priv/pub pair to avoid re-generating it
 	priv []byte
 	pub  []byte
 
-	// kubeCACert is a certificate of a kubernetes certificate authority
-	kubeCACert []byte
-	// kubeCACertPath is a temp file to hold CA certificate authority contents
-	kubeCACertPath string
-	// kubeAPIHost is a host:port with kubernetes API server
-	kubeAPIHost string
+	// kubeconfigPath is a path to valid kubeconfig
+	kubeConfigPath string
+
+	// kubeConfig is a kubernetes config struct
+	kubeConfig *rest.Config
 }
 
 func (s *KubeSuite) SetUpSuite(c *check.C) {
@@ -108,16 +106,12 @@ func (s *KubeSuite) SetUpSuite(c *check.C) {
 		c.Skip("Skipping Kubernetes test suite.")
 	}
 
-	kubeConfigPath := os.Getenv("KUBECONFIG")
-	s.Clientset, s.kubeConfig, err = kubeutils.GetKubeClient(kubeConfigPath)
-	c.Assert(err, check.IsNil)
-
-	u, err := url.Parse(s.kubeConfig.Host)
-	c.Assert(err, check.IsNil)
-	s.kubeAPIHost = u.Host
-	if _, _, err := net.SplitHostPort(u.Host); err != nil {
-		s.kubeAPIHost = fmt.Sprintf("%v:443", u.Host)
+	s.kubeConfigPath = os.Getenv(teleport.EnvKubeConfig)
+	if s.kubeConfigPath == "" {
+		c.Fatal("This test requires path to valid kubeconfig")
 	}
+	s.Clientset, s.kubeConfig, err = kubeutils.GetKubeClient(s.kubeConfigPath)
+	c.Assert(err, check.IsNil)
 
 	ns := newNamespace(testNamespace)
 	_, err = s.Core().Namespaces().Create(ns)
@@ -126,32 +120,6 @@ func (s *KubeSuite) SetUpSuite(c *check.C) {
 			c.Fatalf("Failed to create namespace: %v.", err)
 		}
 	}
-
-	// fetch certificate authority cert, by grabbing it
-	// from the DNS app pod that is always running
-	pods, err := s.Core().Pods(kubeSystemNamespace).List(metav1.ListOptions{
-		LabelSelector: kubeDNSLabels.AsSelector().String(),
-	})
-	c.Assert(err, check.IsNil)
-	if len(pods.Items) == 0 {
-		c.Fatalf("Failed to find kube-dns pods.")
-	}
-	log.Infof("Found %v pods", len(pods.Items))
-	pod := pods.Items[0]
-
-	out := &bytes.Buffer{}
-	err = kubeExec(s.kubeConfig, kubeExecArgs{
-		podName:      pod.Name,
-		podNamespace: pod.Namespace,
-		container:    kubeDNSContainer,
-		command:      []string{"/bin/cat", teleport.KubeCAPath},
-		stdout:       out,
-	})
-	c.Assert(err, check.IsNil)
-	s.kubeCACert = out.Bytes()
-	s.kubeCACertPath = filepath.Join(c.MkDir(), "ca.pem")
-	err = ioutil.WriteFile(s.kubeCACertPath, s.kubeCACert, 0444)
-	c.Assert(err, check.IsNil)
 }
 
 const (
@@ -216,14 +184,13 @@ func (s *KubeSuite) TestKubeExec(c *check.C) {
 		podName:      pod.Name,
 		podNamespace: pod.Namespace,
 		container:    kubeDNSContainer,
-		command:      []string{"/bin/cat", teleport.KubeCAPath},
+		command:      []string{"/bin/cat", "/var/run/secrets/kubernetes.io/serviceaccount/namespace"},
 		stdout:       out,
 	})
 	c.Assert(err, check.IsNil)
-	// this is the same certificate authority file fetched
-	// during suite setup process, so the output should be identical)
+
 	data := out.Bytes()
-	c.Assert(string(data), check.Equals, string(s.kubeCACert))
+	c.Assert(string(data), check.Equals, pod.Namespace)
 
 	// interactive command, allocate pty
 	term := NewTerminal(250)
@@ -467,14 +434,13 @@ func (s *KubeSuite) TestKubeTrustedClusters(c *check.C) {
 		podName:      pod.Name,
 		podNamespace: pod.Namespace,
 		container:    kubeDNSContainer,
-		command:      []string{"/bin/cat", teleport.KubeCAPath},
+		command:      []string{"/bin/cat", "/var/run/secrets/kubernetes.io/serviceaccount/namespace"},
 		stdout:       out,
 	})
 	c.Assert(err, check.IsNil)
-	// this is the same certificate authority file fetched
-	// during suite setup process, so the output should be identical)
+
 	data := out.Bytes()
-	c.Assert(string(data), check.Equals, string(s.kubeCACert))
+	c.Assert(string(data), check.Equals, string(pod.Namespace))
 
 	// interactive command, allocate pty
 	term := NewTerminal(250)
@@ -566,8 +532,7 @@ func (s *KubeSuite) teleKubeConfig(hostname string) *service.Config {
 	// set kubernetes specific parameters
 	tconf.Proxy.Kube.Enabled = true
 	tconf.Proxy.Kube.ListenAddr.Addr = net.JoinHostPort(hostname, s.ports.Pop())
-	tconf.Proxy.Kube.APIAddr.Addr = s.kubeAPIHost
-	tconf.Auth.KubeCACertPath = s.kubeCACertPath
+	tconf.Auth.KubeconfigPath = s.kubeConfigPath
 
 	return tconf
 }

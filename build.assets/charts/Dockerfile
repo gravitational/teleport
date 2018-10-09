@@ -1,4 +1,8 @@
-FROM quay.io/gravitational/debian-grande:0.0.1
+FROM ubuntu:18.10
+
+RUN apt-get update && apt-get install -y \
+    dumb-init \
+ && rm -rf /var/lib/apt/lists/*
 
 # Bundle teleport and control binary
 ADD teleport /usr/local/bin/teleport

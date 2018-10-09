@@ -6,12 +6,12 @@ The goal of this document is to show off the basic capabilities of Teleport.
 There are three types of services Teleport nodes can run: `nodes`, `proxies`
 and `auth servers`.
 
-- **Auth servers** are the core of a cluster. Auth servers store user accounts
+- **Auth servers** store user accounts
   and provide authentication and authorization services for every node and
   every user in a cluster.
 - **Proxy servers** route client connection requests to the appropriate node
   and serve a Web UI which can also be used to log into SSH nodes. Every
-  client-to-node connection in Teleport must be routed via a proxy.
+  client-to-node connection in Teleport must be routed through the proxy.
 - **Nodes** are regular SSH nodes, similar to the `sshd` daemon you may be
   familiar with. When a node receives a connection request, the request is
   authenticated through the cluster's auth server.
@@ -28,7 +28,7 @@ using Teleport's client-side tools:
 
 ## Installing and Starting
 
-Teleport natively runs on most Linux distributions. You can
+Teleport runs on Linux, MacOS and Teleport 3.0 now supports Windows for running `tsh`. You can
 download pre-built binaries from [here](https://gravitational.com/teleport/download/)
 or you can [build it from source](https://github.com/gravitational/teleport).
 
@@ -64,7 +64,7 @@ If you wish to deploy Teleport inside a Docker container:
 
 ```
 # This command will pull the Teleport container image for version 2.7.3
-# Replace 2.7.3 with the version you need:
+# Replace 2.7.3 with the version you want to run:
 $ docker pull quay.io/gravitational/teleport:2.7.3
 ```
 
@@ -93,8 +93,7 @@ Authenticator (or another 2FA client), you will have to install it on your
 smart phone. Then you can scan the bar code on the Teleport login web page,
 pick a password and enter in the two factor token.
  
-The default TTL for a login is 12 hours but this can be configured to a maximum
-of 30 hours and a minimum of 1 minute.
+The default TTL for a login is 12 hours but this can be configured to be another value.
 
 Having done that, you will be presented with a Web UI where you will see your
 machine and will be able to log in to it using web-based terminal.
@@ -110,7 +109,7 @@ $ tsh --proxy=localhost --insecure login
 ```
 
 Notice that `tsh` client always needs `--proxy` flag because all client connections
-in Teleport always must to go via an SSH proxy, sometimes called an "SSH bastion".
+in Teleport must to go through a proxy, sometimes called a "bastion".
 
 !!! warning "Warning":
     For the purposes of this quickstart we are using the `--insecure` flag which allows
@@ -126,8 +125,8 @@ With a certificate in place, a user can SSH into any host behind the proxy:
 $ tsh ssh localhost
 ```
 
-To avoid typing "tsh ssh" a user may rename `tsh` binary to `ssh` and use the familiar
-syntax as in `ssh localhost`. 
+!!! tip "Tip":
+    To avoid typing "tsh ssh" a user may rename `tsh` binary to `ssh` and use the familiar syntax as in `ssh localhost`. 
 
 ## Adding Nodes to Cluster
 

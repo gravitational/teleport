@@ -1,12 +1,12 @@
-# Admin Manual
+# Teleport Admin Manual 
 
-This manual covers installation and configuration of Teleport and the ongoing
+This manual covers the installation and configuration of Teleport and the ongoing
 management of a Teleport cluster. It assumes that the reader has good understanding
 of Linux administration.
 
 ## Installing
 
-To install Teleport using the official binaries from [Teleport Downloads](https://gravitational.com/teleport/download/)
+To install, download the official binaries from the [Teleport Downloads](https://gravitational.com/teleport/download/)
 section on our web site and run:
 
 ```
@@ -34,12 +34,12 @@ $ sudo mkdir -p /var/lib/teleport
 ## Definitions
 
 Before diving into configuring and running Teleport, it helps to take a look at the [Teleport Architecture](/architecture)
-and go over the key concepts this document will be referring to:
+and review the key concepts this document will be referring to:
 
 |Concept   | Description
 |----------|------------
-|Node      | Synonym to "server" or "computer", something one can "SSH to". A node must be running `teleport` daemon running with "node" role/service turned on.
-|Certificate Authority (CA) | A pair of public/private keys Teleport uses to manage access. A CA can sign a public key of a user or node establishing their cluster membership.
+|Node      | Synonym to "server" or "computer", something one can "SSH to". A node must be running the `teleport` daemon with "node" role/service turned on.
+|Certificate Authority (CA) | A pair of public/private keys Teleport uses to manage access. A CA can sign a public key of a user or node, establishing their cluster membership.
 |Teleport Cluster | A Teleport Auth Service contains two CAs. One is used to sign user keys and the other signs node keys. A collection of nodes connected to the same CA is called a "cluster".
 |Cluster Name | Every Teleport cluster must have a name. If a name is not supplied via `teleport.yaml` configuration file, a GUID will be generated. **IMPORTANT:** renaming a cluster invalidates its keys and all certificates it had created.
 |Trusted Cluster | Teleport Auth Service can allow 3rd party users or nodes to connect if their public keys are signed by a trusted CA. A "trusted cluster" is a pair of public keys of the trusted CA. It can be configured via `teleport.yaml` file.
@@ -56,7 +56,7 @@ The Teleport daemon is called `teleport` and it supports the following commands:
 |status      | Shows the status of a Teleport connection. This command is only available from inside of an active SSH session.
 |help        | Shows help.
 
-When experimenting you can quickly start `teleport` with verbose logging by typing
+When experimenting, you can quickly start `teleport` with verbose logging by typing
 `teleport start -d`.
 
 !!! danger "WARNING":
@@ -93,9 +93,9 @@ until existing clients disconnect.
 
 !!! warning "Version warning":
     Graceful restarts only work if Teleport is deployed using network-based storage
-    like DynamoDB or etcd. Future versions of Teleport will not have this limitation.
+    like DynamoDB or etcd 3.3+. Future versions of Teleport will not have this limitation.
 
-You can also perform a less automatic restarts/upgrades by sending `kill` signals
+You can also perform restarts/upgrades by sending `kill` signals
 to a Teleport daemon manually. 
 
 | Signal                  | Teleport Daemon Behavior
@@ -116,25 +116,24 @@ Teleport services listen on several ports. This table shows the default port num
 |3024      | Proxy      | SSH port used to create "reverse SSH tunnels" from behind-firewall environments into a trusted proxy server.
 |3025      | Auth       | SSH port used by the Auth Service to serve its API to other nodes in a cluster.
 |3080      | Proxy      | HTTPS connection to authenticate `tsh` users and web users into the cluster. The same connection is used to serve a Web UI.
+|3026      | Kubernetes Proxy      | HTTPS Kubernetes proxy (if enabled) 
 
 ### Filesystem Layout
 
-By default, a Teleport node has the following files present:
+By default, a Teleport node has the following files present. The location of all of them is configurable.
 
 Full path                    | Purpose
 -----------------------------|---------------------------
 `/etc/teleport.yaml`         | Teleport configuration file (optional).
 `/usr/local/bin/teleport`    | Teleport daemon binary.
 `/usr/local/bin/tctl`        | Teleport admin tool. It is only needed for auth servers.
-`/var/lib/teleport`          | Teleport data directory. Nodes keep their keys and certificates there. Auth servers store the audit log and the cluster keys there, but the audit log storage can be further confnigured via `auth_service` section in the config file.
-
-The location of all of them is configurable.
+`/var/lib/teleport`          | Teleport data directory. Nodes keep their keys and certificates there. Auth servers store the audit log and the cluster keys there, but the audit log storage can be further configured via `auth_service` section in the config file.
 
 ## Configuration
 
 You should use a [configuration file](#configuration-file) to configure the `teleport` daemon. 
-But for simpler experimentation you can use command line flags to `teleport start`
-command. To see the list of flags:
+For simple experimentation, you can use command line flags with the `teleport start`
+command:
 
 ```
 $ teleport start --help
@@ -176,14 +175,14 @@ Let's cover some of these flags in more detail:
   tell Teleport proxy to use that IP when someone tries to connect
   to "foo". This is also useful when connecting to Teleport nodes using their labels.
 
-* `--nodename` flag lets you assign an alternative name the node which can be used
+* `--nodename` flag lets you assign an alternative name for the node which can be used
   by clients to login. By default it's equal to the value returned by `hostname`
   command.
 
 * `--listen-ip` should be used to tell `teleport` daemon to bind to a specific network
   interface. By default it listens on all.
 
-* `--labels` flag allows to assign a set of labels to a node. See the explanation
+* `--labels` flag assigns a set of labels to a node. See the explanation
   of labeling mechanism in the [Labeling Nodes](#labeling-nodes) section below.
 
 * `--pid-file` flag creates a PID file if a path is given.
@@ -193,8 +192,7 @@ Let's cover some of these flags in more detail:
 
 ### Configuration File
 
-Teleport uses the YAML file format for configuration. A sample configuration file is shown
-below. By default, it is stored in `/etc/teleport.yaml`
+Teleport uses the YAML file format for configuration. A sample configuration file is shown below. By default, it is stored in `/etc/teleport.yaml`
 
 !!! note "IMPORTANT":
     When editing YAML configuration, please pay attention to how your editor
@@ -218,8 +216,10 @@ teleport:
     # subsequent starts
     auth_token: xxxx-token-xxxx
 
-    # when running in multi-homed or NATed environments Teleport nodes need
+    # When running in multi-homed or NATed environments Teleport nodes need
     # to know which IP it will be reachable at by other nodes
+    # 
+    # This value can be specified as FQDN e.g. host.example.com
     advertise_ip: 10.1.0.5
 
     # list of auth servers in a cluster. you will have more than one auth server
@@ -282,6 +282,28 @@ teleport:
       - hmac-sha1
       - hmac-sha1-96
 
+    # List of the supported ciphersuites. If this section is not specified, 
+    # only the default ciphersuites are enabled.
+    ciphersuites:
+       - tls-rsa-with-aes-128-cbc-sha # default
+       - tls-rsa-with-aes-256-cbc-sha # default
+       - tls-rsa-with-aes-128-cbc-sha256
+       - tls-rsa-with-aes-128-gcm-sha256
+       - tls-rsa-with-aes-256-gcm-sha384
+       - tls-ecdhe-ecdsa-with-aes-128-cbc-sha
+       - tls-ecdhe-ecdsa-with-aes-256-cbc-sha
+       - tls-ecdhe-rsa-with-aes-128-cbc-sha
+       - tls-ecdhe-rsa-with-aes-256-cbc-sha
+       - tls-ecdhe-ecdsa-with-aes-128-cbc-sha256
+       - tls-ecdhe-rsa-with-aes-128-cbc-sha256
+       - tls-ecdhe-rsa-with-aes-128-gcm-sha256
+       - tls-ecdhe-ecdsa-with-aes-128-gcm-sha256
+       - tls-ecdhe-rsa-with-aes-256-gcm-sha384
+       - tls-ecdhe-ecdsa-with-aes-256-gcm-sha384
+       - tls-ecdhe-rsa-with-chacha20-poly1305
+       - tls-ecdhe-ecdsa-with-chacha20-poly1305
+
+
 # This section configures the 'auth service':
 auth_service:
     # Turns 'auth' role on. Default is 'yes'
@@ -319,6 +341,10 @@ auth_service:
     # this port (AKA "Auth API" or "Cluster API") to validate client
     # certificates
     listen_addr: 0.0.0.0:3025
+
+    # The optional DNS name the auth server if locataed behind a load balancer.
+    # (see public_addr section below)
+    public_addr: auth.example.com:3025
 
     # Pre-defined tokens for adding new nodes to a cluster. Each token specifies
     # the role a new node will be allowed to assume. The more secure way to
@@ -361,6 +387,10 @@ auth_service:
     # the configured `data_dir`.
     license_file: /var/lib/teleport/license.pem
 
+    # If the auth service is deployed outside Kubernetes, but Kubernetes integration
+    # is required, you have to specify a valid kubeconfig credentials:
+    kubeconfig_file: /path/to/kubeconfig
+
 # This section configures the 'node service':
 ssh_service:
     # Turns 'ssh' role on. Default is 'yes'
@@ -368,6 +398,12 @@ ssh_service:
 
     # IP and the port for SSH service to bind to.
     listen_addr: 0.0.0.0:3022
+
+    # The optional public address the SSH service. This is useful if administrators
+    # want to allow users to connect to nodes directly, bypassing a Teleport proxy
+    # (see public_addr section below)
+    public_addr: node.example.com:3022
+
     # See explanation of labels in "Labeling Nodes" section below
     labels:
         role: master
@@ -409,15 +445,32 @@ proxy_service:
     web_listen_addr: 0.0.0.0:3080
 
     # The DNS name the proxy server is accessible by cluster users. Defaults to 
-    # the proxy's hostname if not specified. It is highly recommended to set it
-    # to something meaningful when running multiple proxies behind a load balancer.
-    public_addr: teleport-proxy.example.com:3080
+    # the proxy's hostname if not specified. If running multiple proxies behind 
+    # a load balancer, this name must point to the load balancer
+    # (see public_addr section below)
+    public_addr: proxy.example.com:3080
 
     # TLS certificate for the HTTPS connection. Configuring these properly is
     # critical for Teleport security.
     https_key_file: /var/lib/teleport/webproxy_key.pem
     https_cert_file: /var/lib/teleport/webproxy_cert.pem
 ```
+
+#### Public Addr
+
+Notice that all three Teleport sevices (proxy, auth, node) have an optional 
+`public_addr` property. The public address can take an IP or a DNS name. 
+It can also be a list of values:
+
+```yaml
+public_addr: ["proxy-one.example.com", "proxy-two.example.com"]
+```
+
+Specifying a public address for a Teleport service may be useful in the following use cases:
+
+* You have multiple identical services, like proxies, behind a load balancer.
+* You want Teleport to issue SSH certificate for the service with the 
+  additional principals, e.g. host names.
 
 ## Authentication
 
@@ -493,17 +546,14 @@ auth_service:
 ### FIDO U2F
 
 Teleport supports [FIDO U2F](https://www.yubico.com/about/background/fido/)
-hardware keys as a second authentication factor. To start using U2F:
+hardware keys as a second authentication factor. By default U2F is disabled. To start using U2F:
 
-* Purchase a U2F hardware key. Teleport developers like [these.](https://www.yubico.com/products/yubikey-hardware)
 * Enable U2F in Teleport configuration `teleport.yaml`.
 * For CLI-based logins you have to install [u2f-host](https://developers.yubico.com/libu2f-host/) utility.
-* For web-based logins you have to use Google Chrome, as it is the only browser supporting U2F at this moment.
+* For web-based logins you have to use Google Chrome, as it is the only browser supporting U2F at this time.
 
-By default U2F is disabled. To enable U2F, configure the Teleport configuration file
-to contain `u2f` section as shown above.
 
-For single-proxy setups the `app_id` setting can be equal to the domain name of the
+For single-proxy setups, the `app_id` setting can be equal to the domain name of the
 proxy, but this will prevent you from adding more proxies without changing the
 `app_id`. For multi-proxy setups, the `app_id` should be an HTTPS URL pointing to
 a JSON file that mirrors `facets` in the auth config.
@@ -544,12 +594,10 @@ This section covers internal user identities, i.e. user accounts created and
 stored in Teleport's internal storage. Most production users of Teleport use
 _external_ users via [Github](#github-oauth-20) or [Okta](ssh_okta) or any
 other SSO provider (Teleport Enterprise supports any SAML or OIDC compliant
-identity provider)
+identity provider).
 
 A user identity in Teleport exists in the scope of a cluster. The member nodes
-of a cluster have multiple OS users on them. A Teleport administrator assigns
-allowed logins to every Teleport account, allowing it to login as one of the
-specified OS users.
+of a cluster have multiple OS users on them. A Teleport administrator creates Teleport user accounts and maps them to the allowed OS user logins they can use.
 
 Let's look at this table:
 
@@ -559,7 +607,7 @@ Let's look at this table:
 |bob    | bob      | Teleport user 'bob' can login into member nodes only as OS user 'bob'
 |ross   |          | If no OS login is specified, it defaults to the same name as the Teleport user.
 
-To add a new user to Teleport you have to use `tctl` tool on the same node where
+To add a new user to Teleport, you have to use the `tctl` tool on the same node where
 the auth server is running, i.e. `teleport` was started with `--roles=auth`.
 
 ```bash
@@ -576,12 +624,11 @@ https://<proxy>:3080/web/newuser/xxxxxxxxxxxx
 NOTE: make sure the <proxy> host is accessible.
 ```
 
-The user will complete registration by visiting this URL, picking a password and
+The user completes registration by visiting this URL in their web browser, picking a password and
 configuring the 2nd factor authentication. If the credentials are correct, the auth
 server generates and signs a new certificate and the client stores this key and will use
-it for subsequent logins. The key will automatically expire after 23 hours by default after which
-the user will need to log back in with her credentials. This TTL can be configured to a maximum
-of 30 hours and a minimum of 1 minute. Once authenticated, the account will become visible via `tctl`:
+it for subsequent logins. The key will automatically expire after 12 hours by default after which
+the user will need to log back in with her credentials. This TTL can be configured to a different value. Once authenticated, the account will become visible via `tctl`:
 
 ```bash
 $ tctl users ls
@@ -593,7 +640,7 @@ ross           ross
 joe            joe,root
 ```
 
-Joe would need to use the `tsh` client tool to log in to member node "luna" via
+Joe would then use the `tsh` client tool to log in to member node "luna" via
 bastion "work" _as root_:
 
 ```bash
@@ -609,7 +656,7 @@ $ tctl users rm joe
 ## Editing Users
 
 Users entries can be manipulated using the generic [resource commands](#resources)
-via `tctl`. For example to see the full list of user records, an administrator
+via `tctl`. For example, to see the full list of user records, an administrator
 can execute:
 
 ```bash
@@ -627,18 +674,18 @@ $ tctl get user/joe > joe.yaml
 $ tctl create -f joe.yaml
 ```
 
-Some fields in the user record are reserved for the internal use. Some of them
-will be finalized and documented in the future versions. But fields like
+Some fields in the user record are reserved for internal use. Some of them
+will be finalized and documented in the future versions. Fields like
 `is_locked` or `traits/logins` can be used starting in version 2.3
 
 ## Adding Nodes to the Cluster
 
-Gravitational Teleport is a "clustered" SSH system, meaning it only allows SSH
+Teleport is a "clustered" system, meaning it only allows
 access to nodes (servers) that had been previously granted cluster membership.
 
 A cluster membership means that a node receives its own host certificate signed 
 by the cluster's auth server. To receive a host certificate upon joining a cluster,
-a new Teleoprt host must present an "invite token". An invite token also defines 
+a new Teleport host must present an "invite token". An invite token also defines 
 which role a new host can assume within a cluster: `auth`, `proxy` or `node`.
 
 There are two ways to create invitation tokens:
@@ -663,23 +710,13 @@ auth_service:
     - "auth:/path/to/tokenfile"
 ```
 
-Now, on a new host:
-
-```bash
-# adding a new regular SSH node to the cluster:
-$ teleport start --roles=node --token=secret-token-value --auth-server=10.0.10.5
-
-# adding a new proxy service on the cluster:
-$ teleport start --roles=proxy --token=secret-token-value --auth-server=10.0.10.5
-```
-
 ### Short-lived Tokens
 
 A more secure way to add nodes to a cluster is to generate tokens as they are
 needed. Such token can be used multiple times until its time to live (TTL)
 expires.
 
-Use `tctl` tool to register a new invitation token, or it can also generate a new token
+Use the `tctl` tool to register a new invitation token (or it can also generate a new token
 for you). In the following example a new token is created with a TTL of 5 minutes:
 
 ```bash
@@ -690,12 +727,35 @@ The invite token: secret-value
 If `--token` is not provided, `tctl` will generate one:
 
 ```bash
+# generate a short-lived invitation token for a new node:
 $ tctl nodes add --ttl=5m --roles=node,proxy
-The invite token: 24be3e582c3805621658225f8c841d2002
+The invite token: e94d68a8a1e5821dbd79d03a960644f0
+
+# you can also list all generated non-expired tokens:
+$ tctl tokens ls
+Token                            Type            Expiry Time
+---------------                  -----------     ---------------
+e94d68a8a1e5821dbd79d03a960644f0 Node            25 Sep 18 00:21 UTC 
+
+# ... or revoke an invitation before it's used:
+$ tctl tokens rm e94d68a8a1e5821dbd79d03a960644f0
+```
+
+### Using Node Invitation Tokens
+
+Both static and short-lived tokens are used the same way. Execute the
+following command on a new node to add it to a cluster:
+
+```bash
+# adding a new regular SSH node to the cluster:
+$ teleport start --roles=node --token=secret-token-value --auth-server=10.0.10.5
+
+# adding a new proxy service on the cluster:
+$ teleport start --roles=proxy --token=secret-token-value --auth-server=10.0.10.5
 ```
 
 As new nodes come online, they start sending ping requests every few seconds
-to the CA of the cluster. This allows everyone to explore cluster membership
+to the CA of the cluster. This allows users to explore cluster membership
 and size:
 
 ```bash
@@ -705,6 +765,23 @@ Node Name     Node ID                                  Address            Labels
 ---------     -------                                  -------            ------
 turing        d52527f9-b260-41d0-bb5a-e23b0cfe0f8f     10.1.0.5:3022      distro:ubuntu
 dijkstra      c9s93fd9-3333-91d3-9999-c9s93fd98f43     10.1.0.6:3022      distro:debian
+```
+
+### Untrusted Auth Servers 
+
+Teleport nodes use the HTTPS protocol to offer the join tokens to the auth server
+running on `10.0.10.5` in the example above. In a zero-trust environment, you
+must assume that an attacker can highjack the IP address of the auth server
+e.g. `10.0.10.5`. To prevent this from happening, you need to distribute the CA
+certificate of the auth server to the node prior to adding it:
+
+```bash
+# on the auth server:
+$ tctl auth export --type=tls > ca.cert
+
+# on the new node, prior to calling 'teleport start'
+$ mkdir -p /var/lib/teleport
+$ cp ca.cert /var/lib/teleport/ca.cert
 ```
 
 ## Revoking Invitations
@@ -725,8 +802,7 @@ eoKoh0caiw6weoGupahgh6Wuo7jaTee2     Proxy      never
 6fc5545ab78c2ea978caabef9dbd08a5     Signup     17 May 16 04:24 UTC
 ```
 
-In this example, the first token with "never" expiry date because it is a static token configured via
-a config file.
+In this example, the first token has a "never" expiry date because it is a static token configured via a config file.
 
 The 2nd token with "Node" role was generated to invite a new node to this cluster. And the
 3rd token was generated to invite a new user.
@@ -741,23 +817,23 @@ Token 696c0471453e75882ff70a761c1a8bfa has been deleted
 ## Labeling Nodes
 
 In addition to specifying a custom nodename, Teleport also allows for the application of arbitrary
-key:value pairs to each node. They are called labels. There are two kinds of labels:
+key:value pairs to each node, called labels. There are two kinds of labels:
 
 1. `static labels` never change while the `teleport` process is running. You may want
    to label nodes with their physical location, the Linux distribution, etc.
 
-2. `label commands` or "dynamic labels". Label commands allow you to execute an external
+2. `label commands` or "dynamic labels" allow you to execute an external
    command on a node at a configurable frequency. The output of that command becomes
    the value of such label. Examples include reporting a kernel version, load averages,
    time after reboot, etc.
 
-Labels can be configured in a configuration file or via `--labels` flag as shown below:
+Labels can be configured in a configuration file or the `--labels` flag as shown below:
 
 ```bash
 $ teleport start --labels uptime=[1m:"uptime -p"],kernel=[1h:"uname -r"]
 ```
 
-Obviously the kernel version is not going to change often, so this example runs
+Obviously, the kernel version is not going to change often, so this example runs
 `uname` once an hour. When this node starts and reports its labels into the cluster,
 users will see:
 
@@ -776,10 +852,10 @@ Teleport logs every SSH event into its audit log. There are two components of th
 1. **SSH Events:** Teleport logs events like successful user logins along with
    the metadata like remote IP address, time and the sesion ID.
 2. **Recorded Sessions:** Every SSH shell session is recorded and can be replayed
-   later. The recording by default is done by the nodes themselves, but can be configured
+   later. The recording is done by the nodes themselves, by default, but can be configured
    to be done by the proxy.
 
-Refer to the "Audit Log" chapter in the [Teleport Architecture](architecture#audit-log) 
+Refer to the ["Audit Log" chapter in the Teleport Architecture](architecture#audit-log) 
 to learn more about how the audit Log and session recording are designed.
 
 ### SSH Events
@@ -790,8 +866,8 @@ auth server using the configurable `data_dir` directory.
 
 For highly available (HA) configuration users can refer to [DynamoDB](#using-dynamodb) or [etcd](#using-etcd) 
 chapters on how to configure the SSH events and recorded sessions to be stored
-on a network storage. It is even possible to store the audit log in multiple places at the same time, 
-see `audit_events_uri` setting for how to do that.
+on network storage. It is even possible to store the audit log in multiple places at the same time, 
+see `audit_events_uri` setting in the sample configuration file above for how to do that.
 
 Let's examing the Teleport audit log using the `dir` backend. The event log is
 stored in `data_dir` under `log` directory, usually `/var/lib/teleport/log`. 
@@ -879,11 +955,11 @@ $ tsh --proxy=proxy play 4c146ec8-eab6-11e6-b1b3-40167e68e931
 ### Recording Proxy Mode
 
 See [Audit Log Architecture](architecture/#audit-log) to understand how the session
-recording works. The important detail is that by default the recording is not
-available if a cluster runs `sshd`, the OpenSSH server, on the nodes.
+recording works. By default, the recording is not
+available if a cluster runs `sshd` (the OpenSSH daemon) on the nodes.
 
 To enable session recording for `sshd` nodes, the cluster must be switched to
-"recording proxy" mode, in this mode the recording will be done on the proxy level:
+"recording proxy" mode. In this mode, the recording will be done on the proxy level:
 
 ```bash
 # snippet from /etc/teleport.yaml
@@ -898,8 +974,7 @@ Teleport User CA. Start by exporting the Teleport CA public key:
 $ tctl auth export --type=user
 ```
 
-To allow access to a single user, copy the above output to `~/.ssh/authorized_keys`, but
-to apply this for all users, remove "cert-authority" from the start of `tctl` output and
+To allow access to a single user, copy the above output to `~/.ssh/authorized_keys`. To apply this for all users, remove "cert-authority" from the start of `tctl` output and
 copy it to `/etc/ssh/teleport_user_ca.pub`. 
 
 Add the following line to `/etc/ssh/sshd_config`: 
@@ -908,16 +983,16 @@ Add the following line to `/etc/ssh/sshd_config`:
 TrustedUserCAKeys /etc/ssh/teleport_user_ca.pub
 ```
 
-Now `sshd` will trust users who present a Teleport-issued certificate. Next step 
+Now `sshd` will trust users who present a Teleport-issued certificate. The next step 
 is to configure host authentication.
 
 When in recording mode, Teleport will check that the host certificate of the
 node a user connects to is signed by a Teleport CA. By default this is a strict
-check, if the node presents just a key, or a certificate signed by a different
+check. If the node presents just a key, or a certificate signed by a different
 CA, Teleport will reject this connection with the error message saying 
 _"ssh: handshake failed: remote host presented a public key, expected a host certificate"_
 
-You can disable strict host checks as shown below. Note: this opens the possibility for 
+You can disable strict host checks as shown below. However, this opens the possibility for 
 Man-in-the-Middle (MITM) attacks and is not recommended.
 
 ```bash
@@ -926,7 +1001,7 @@ auth_service:
   proxy_checks_host_keys: no
 ```
 
-The best solution is to ask Teleport to issue valid host certificates for all OpenSSH 
+The recommended solution is to ask Teleport to issue valid host certificates for all OpenSSH 
 nodes. To generate a host certificate run this on your auth server:
 
 ```bash
@@ -943,10 +1018,10 @@ HostCertificate /etc/ssh/teleport_host_key-cert.pub
 ```
 
 Now you can use `tsh ssh user@host.example.com` to login into any `sshd` node in the cluster
-and the session will be recorded. But if you want to use OpenSSH `ssh` client for logging
+and the session will be recorded. If you want to use OpenSSH `ssh` client for logging
 into `sshd` servers behind a proxy in "recording mode", you have to tell the `ssh` client
-to use the jump host and enable the agent forwarding (otherwise a recording proxy will not 
-be able to terminate the SSH connection to record it):
+to use the jump host and enable the agent forwarding, otherwise a recording proxy will not 
+be able to terminate the SSH connection to record it:
 
 ```bash
 # Note that agent forwarding is enabled twice: one from a client to a proxy
@@ -958,7 +1033,7 @@ ssh -o "ForwardAgent yes" \
 ```
 
 !!! tip "Tip":
-    To avoid typing all this and enjoy the usual `ssh user@host.example.com` the users can update their
+    To avoid typing all this and use the usual `ssh user@host.example.com`, users can update their
     `~/.ssh/config` file. See "Using Teleport with OpenSSH" chapter for more examples.
 
 **IMPORTANT**
@@ -980,9 +1055,8 @@ $ ssh-add -L
 
 ### OpenSSH Rate Limiting
 
-When using configuring a Teleport proxy in "recording mode" be aware of
-OpenSSH built-in rate limiting. On large number of proxy connections you
-may encounter errors like:
+When using a Teleport proxy in "recording mode", be aware of
+OpenSSH built-in rate limiting. On large number of proxy connections you may encounter errors like:
 
 ```bash
 channel 0: open failed: connect failed: ssh: handshake failed: EOF
@@ -999,18 +1073,19 @@ MaxStartups 50:30:100. This allows 50 concurrent connections and a max of 100.
 
 ## Resources
 
-A Teleport administrator has two tools to configure a Teleport cluster: the
-[configuration file](#configuration) is used for static configuration like the
-cluster name, and the `tctl` admin tool is used for manipulating dynamic records
+A Teleport administrator has two tools to configure a Teleport cluster: 
+
+- The [configuration file](#configuration) is used for static configuration like the cluster name.
+- The `tctl` admin tool is used for manipulating dynamic records
 like Teleport users.
 
-`tctl` has convenient subcommands for this, like `tctl users` or `tctl nodes`.
-However, for dealing with more advanced topics, like connecting clusters together, or
-when troubleshooting trust, `tctl` offers the more powerful, although lower-level
+`tctl` has convenient subcommands for dynamic configuration, like `tctl users` or `tctl nodes`.
+However, for dealing with more advanced topics, like connecting clusters together or
+troubleshooting trust, `tctl` offers the more powerful, although lower-level
 CLI interface called `resources`.
 
-The basic idea is borrowed from REST programming pattern: a cluster is composed
-of different objects (AKA resources) and there are just four common operations
+The concept is borrowed from the REST programming pattern. A cluster is composed
+of different objects (aka, resources) and there are just four common operations
 that can be performed on them: `get`, `create`, `remove`.
 
 A resource is defined as a [YAML](https://en.wikipedia.org/wiki/YAML) file. Every resource in Teleport has three required fields:
@@ -1047,12 +1122,13 @@ spec:
   - admin
   status:
     # users can be temporarily locked in a Teleport system, but this
-    # functionality is reserved for the internal use for now.
+    # functionality is reserved for internal use for now.
     is_locked: false
     lock_expires: 0001-01-01T00:00:00Z
     locked_time: 0001-01-01T00:00:00Z
   traits:
-    # these are "allowed logins" which are usually specified as the last argument to `tctl users add`
+    # these are "allowed logins" which are usually specified as the
+    # last argument to `tctl users add`
     logins:
     - joe
     - root
@@ -1066,7 +1142,7 @@ spec:
 ```
 
 !!! tip "Note":
-    Many of the fields you will see when printing resources are used only
+    Some of the fields you will see when printing resources are used only
     internally and are not meant to be changed.  Others are reserved for future
     use.
 
@@ -1083,7 +1159,7 @@ oidc            | An OIDC auth connector. ([Teleport Enterprise](ssh_sso/) only)
 github          | A Github auth connector. See [here](#github-auth-connector) for details on configuring it.
 
 
-### Examples:
+**Examples:**
 
 ```bash
 # list all SAML connectors:
@@ -1103,19 +1179,19 @@ $ tctl rm users/admin
 
 As explained in the [architecture document](architecture/#core-concepts),
 Teleport can partition compute infrastructure into multiple clusters.
-A cluster is a group of SSH nodes connected to the cluster's _auth server_
+A cluster is a group of nodes connected to the cluster's auth server,
 acting as a certificate authority (CA) for all users and nodes.
 
 To retrieve an SSH certificate, users must authenticate with a cluster through a
-_proxy server_. So, if users want to connect to nodes belonging to different
-clusters, they would normally have to use different `--proxy` flag for each
+proxy server. So, if users want to connect to nodes belonging to different
+clusters, they would normally have to use a different `--proxy` flag for each
 cluster. This is not always convenient.
 
-The concept of _trusted clusters_ allows Teleport administrators to connect
+The concept of trusted clusters allows Teleport administrators to connect
 multiple clusters together and establish trust between them. Trusted clusters
 allow users of one cluster to seamlessly SSH into the nodes of another cluster
 without having to "hop" between proxy servers. Moreover, users don't even need
-to have a direct connection to other clusters' proxy servers. The user
+to have a direct connection to other clusters' proxy servers. Trusted clusters also have their own restrictions on user access. The user
 experience looks like this:
 
 ```bash
@@ -1133,8 +1209,16 @@ $ tsh --cluster=east ssh host
 $ tsh clusters
 ```
 
-Trusted clusters also have their own restrictions on user access, i.e.  the
-_permissions mapping_ takes place. 
+### Selecting the Default Cluster 
+
+To avoid using `--cluster` switch with `tsh` commands, you can also specify
+which trusted cluster you want to become the default from the start:
+
+```bash
+# login into "main" but request "east" to be the default for subsequent
+# tsh commands:
+$ tsh login --proxy=main.example.com east
+```
 
 ### Connectivity
 
@@ -1147,18 +1231,15 @@ world usage examples of this capability include:
   deployed on premises.
 * Large cloud software vendors manage multiple data centers using a common proxy.
 
-Let's take a look at how a connection is established between "main" trusted cluster 
-and its _trusting_ cluster called "east":
+Let's take a look at how a connection is established between the "main" cluster and the "east" cluster:
 
 ![Tunnels](img/tunnel.svg)
 
 This setup works as follows:
 
-1. "East" creates an outbound reverse SSH tunnel to "main" and keeps this connection open.
-2. From east's perspective, "main" is the _trusted cluster_ because "east" must
-   allow users from "main" to access its nodes.
-3. When a user tries to connect to a node inside "east" using _main.example.com_ 
-   the reverse tunnel from step 1 is used to establish this connection (green line).
+1. The "east" creates an outbound reverse SSH tunnel to "main" and keeps the tunnel open.
+2. **Accessibility only works in one direction.** The "east" cluster allows users from "main" to access its nodes but users in the "east" cluster can not access the "main" cluster.
+3. When a user tries to connect to a node inside "east" using main's proxy, the reverse tunnel from step 1 is used to establish this connection shown as the green line above.
 
 !!! tip "Load Balancers":
     The scheme above also works even if the "main" cluster uses multiple
@@ -1169,16 +1250,17 @@ This setup works as follows:
 
 ### Example Configuration
 
-Connecting two clusters together is similar to [adding a node](#adding-nodes-to-the-cluster) 
-to a cluster:
+Connecting two clusters together is similar to [adding nodes](#adding-nodes-to-the-cluster):
 
-1. The _trusted_ cluster "main" needs to have a cluster join token. A token can
-   be statically defined via `/etc/teleport.yaml` configuration file or dynamically
-   created with the `tctl` CLI tool.
-2. The administrator of the _trusting_ cluster "east" must create a trusted
-   cluster [resource](#resources) with a `tctl` CLI tool.
+1. Generate an invitation token on "main" cluster, or use a pre-defined static token.
+2. On the "east" side, create a trusted cluster [resource](#resources).
 
-Lets define a static cluster join token using the configuration file:
+**Creating a Cluster Join Token**
+
+Just like with adding nodes, you can use either a static cluster token defined
+in `/etc/teleport.yaml` or you can generate an auto-expiring token:
+
+To define a static cluster join token using the configuration file on "main":
 
 ```bash
 # fragment of /etc/teleport.yaml:
@@ -1188,13 +1270,15 @@ auth_service:
   - trusted_cluster:secret-token-to-add-new-clusters
 ```
 
-The snippet above states that another Teleport cluster can establish a reverse
-tunnel to "main" if it knows the secret token.
+If you wish to use auto-expiring cluster tokens, execute this CLI command on 
+the "main" side:
 
-!!! tip "Tip":
-    The permission to establish a reverse tunnel is the only action "east" is
-    permitted to perform. Trusted clusters work only one way: users from "east" cannot
-    connect to the nodes in "main".
+```bash
+$ tctl tokens add --type=trusted_cluster
+The cluster invite token: generated-token-to-add-new-clusters
+```
+
+**Using a Cluster Join Token**
 
 Now, the administrator of "east" must create the following resource file:
 
@@ -1212,11 +1296,16 @@ spec:
   # the token expected by the "main" cluster:
   token: secret-token-to-add-new-clusters
   # the address in 'host:port' form of the reverse tunnel listening port on the
-  # "master" proxy server:
+  # "main" proxy server:
   tunnel_addr: main.example.com:3024
   # the address in 'host:port' form of the web listening port on the
-  # "master" proxy server:
+  # "main" proxy server:
   web_proxy_addr: main.example.com:3080
+  # the role mapping allows to map user roles from one cluster to another
+  # (enterprise editions of Teleport only)
+  role_map:
+    - remote: "admin"    # users who have "admin" role on "main"
+      local: ["auditor"] # will be assigned "auditor" role when logging into "east"
 ```
 
 Then, use `tctl create` to add the file:
@@ -1238,9 +1327,7 @@ list of available clusters.
 
 ### Using Trusted Clusters
 
-It's worth repeating: the users of "east" cannot see or connect to the main
-cluster. The relationship works the other way around: any user from the main
-cluster can now use nodes in "east":
+As mentioned above, accessibility is only granted in one direction. So, only users from the "main" (trusted cluster) can now access nodes in the "east" (trusting cluster). Users in the "east" cluster will not be able to access the "main" cluster.
 
 ```bash
 # login into the main cluster:
@@ -1274,7 +1361,28 @@ and set `enabled` to "false", then update it:
 
 ```bash
 $ tctl create --force cluster.yaml
+```
 
+If you want to _permanently_ disconnect one cluster from the other:
+
+```bash
+# execute this command on "main" side to disconnect "east":
+$ tctl rm tc/east
+```
+
+While accessibility is only granted in one direction, trust is granted in both directions. If you remote "east" from "main", the following will happen:
+
+* Two clusters will be disconnected, becase "main" will drop the inbound SSH tunnel connection from "east" and will not allow a new one.
+* "main" will stop trusting certificates issued by "east".
+* "east" will continue to trust certificates issued by "main".
+
+If you wish to permanently remove all trust relationships and the connections between both clusters:
+
+```bash
+# execute on "main":
+$ tctl rm tc/east
+# execute on "east":
+$ tctl rm tc/main
 ```
 
 ### Advanced Configuration
@@ -1324,14 +1432,18 @@ spec:
       # allowed logins for users in this org/team
       logins:
         - root
+
+      # List of Kubernetes groups this Github team is allowed to connect to
+      # (see Kubernetes integration for more information)
+      kubernetes_groups: ["system:masters"]
 ```
 
 !!! note
-    For open-source Teleport the `logins` field contains a list of allowed
-    OS logins. For paid Teleport plans such as Enterprise, Pro or Business
-    that support role-based access control, the same field is treated as a
-    list of _roles_ that users from matching org/team assume after going
-    through the authorization flow.
+    For open-source Teleport the `logins` field contains a list of allowed OS
+    logins. For the commercial Teleport Enterprise offering, which supports
+    role-based access control, the same field is treated as a list of _roles_
+    that users from the matching org/team assume after going through the
+    authorization flow.
 
 To obtain client ID and client secret, please follow Github documentation
 on how to [create and register an OAuth app](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/).
@@ -1353,7 +1465,7 @@ $ tctl create github.yaml
 ## HTTP CONNECT Proxies
 
 Some networks funnel all connections through a proxy server where they can be
-audited and access control rules applied. For these scenarios Teleport supports
+audited and access control rules are applied. For these scenarios Teleport supports
 HTTP CONNECT tunneling.
 
 To use HTTP CONNECT tunneling, simply set either the `HTTPS_PROXY` or
@@ -1374,7 +1486,7 @@ value is `host:port`, Teleport will prepend `http`.
 
 ## PAM Integration
 
-Teleport SSH daemon can be configured to integrate with [PAM](https://en.wikipedia.org/wiki/Linux_PAM)
+Teleport SSH daemon can be configured to integrate with [PAM](https://en.wikipedia.org/wiki/Linux_PAM).
 This allows Teleport to create user sessions using PAM session profiles.
 
 To enable PAM on a given Linux machine, update `/etc/teleport.yaml` with:
@@ -1535,7 +1647,7 @@ become invalid immediately.
     The grace period needs to be long enough for all nodes in a cluster to
     request a new certificate. If some nodes go offline during the rotation and
     come back only after the grace period has ended, they will be forced to
-    leave the cluster, i.e. no users will no longer be allowed to SSH into
+    leave the cluster, i.e. users will no longer be allowed to SSH into
     them. 
 
 To check the status of certificate rotation:
@@ -1544,14 +1656,14 @@ To check the status of certificate rotation:
 $ tctl status
 ```
 
-!!! danger "Danger":
+!!! danger "Version Warning":
     Certificate rotation can only be used with clusters running version 2.6 of
     Teleport or newer. If trusted clusters are used, make sure _all_ connected 
     clusters are running version 2.6+. If one of the trusted clusters is running
     an older version of Teleport the trust/connection to that cluster will be
     lost.
 
-## Integrating with Ansible
+## Ansible Integration
 
 Ansible uses the OpenSSH client by default. This makes it compatible with Teleport without any extra work, except configuring OpenSSH client to work with Teleport Proxy:
 
@@ -1562,42 +1674,150 @@ Ansible uses the OpenSSH client by default. This makes it compatible with Telepo
 scp_if_ssh = True
 ```
 
+## Kubernetes Integration
+
+Teleport 3.0+ can be configured as a compliance gateway for Kubernetes
+clusters.  This allows users to authenticate against a Teleport proxy using
+`tsh login` command to retreive credentials for both SSH and Kubernetes API.
+
+Below is a high-level diagram of how Teleport can be deployed in front of 
+a Kubernetes cluster:
+
+![teleport-kubernetes-integration](img/teleport-kube.png)
+
+For more detailed information, please take a look at [Kubernetes Integration with SSH](architecture.md#kubernetes-integration) 
+section in the Architecture chapter.
+
+In the scenario illustrated above a user would execute the following commands:
+
+```bash
+# Authentication step to retreive the certificates. tsh login places the SSH 
+# certificate into `~/.tsh` as usual and updates kubeconfig with Kubernetes
+# credentials:
+$ tsh --proxy=teleport.example.com login
+
+# Execute SSH commands to access SSH nodes:
+$ tsh ssh login@ssh-node
+
+# Execute any kubectl commands to access the Kubernetes cluster:
+$ kubectl get pods
+```
+
+### Kubernetes/Teleport Configuration
+
+To enable the the Kubernetes integration, first configure the Teleport proxy service as follows:
+
+```bash
+# snippet from /etc/teleport.yaml on the Teleport proxy service:
+proxy_service:
+    # create the 'kubernetes' section and set enabled to "yes" (it's "no" by default):
+    kubernetes:
+        enabled: yes
+        # public_addr can be a scalar or list. this is the address seen as
+        # "Kubernetes API endpoint" from the outside. if you are using a load-balancer
+        # in front of several proxies, you have to use LB's address here:
+        public_addr: [teleport-k8s-proxy.example.com:3026]
+        # the listen address is what Teleport/Kubernetes proxy will listen on:
+        listen_addr: localhost:3026
+```
+
+Next, you have to configure the Teleport Auth service.
+
+The Teleport auth service uses [Kubernetes certificate API](https://kubernetes.io/docs/tasks/tls/managing-tls-in-a-cluster/)
+to issue Kubernetes certificates automatically every time a user requests
+access to Kubernetes API.
+
+To make this work, the auth server must be configured with access to a Kubernetes API endpoint.
+This can be done either by:
+
+* Deploying the auth server inside a Kubernetes pod.
+* Deploying the auth server outside Kubernetes but supplying a valid `kubeconfig` file:
+
+```bash
+# snippet from /etc/teleport.yaml on the auth service deployed outside k8s:
+auth_service:
+    kubeconfig_file: /path/to/kubeconfig
+```
+
+When adding new local users you have to specify which Kubernetes groups they belong to:
+
+```bash
+$ tctl users add joe --k8s-groups="system:masters"
+```
+
+If using Teleport Community SSO with Github, Kubernetes groups can be assigned to Github teams with a
+Teleport connector. See example above in [Github OAuth 2.0 Example](#github-oauth-20) for more
+information on how to setup Github SSO with Teleport.
+
+If using Teleport Enterprise SSO with enterprise-grade identity providers (using SAML, OIDC and Active Directory),
+`kubernetes_groups` are assigned to Teleport Roles as shown in the Teleport Enterprise [RBAC](ssh_rbac.md#roles) 
+section.
+
+### Multiple Kubernetes Clusters
+
+You can take advantage of the [Trusted Clusters](#trusted-clusters) feature
+of Teleport to federate trust across multiple Kubernetes clusters.
+
+When multiple trusted clusters are present behind a Teleport proxy, the
+`kubeconfig` generated by `tsh login` will contain the Kubernetes API endpoint
+determined by the `<cluster>` argument to `tsh login`.
+
+* There are three Teleport/Kubernetes clusters: "main", "east" and "west".
+  These are the names set in `cluster_name` setting in their configuration
+  files.
+* The clusters "east" and "west" are trusted clusters for "main".
+* Users always authenticate against "main" but use their certificates to
+  access SSH nodes and Kubernetes API in all three clusters.
+* The DNS name of the main proxy server is "main.example.com"
+
+In this scenario, users usually login using this command:
+
+```bash
+# Using login without arguments
+$ tsh --proxy=main.example.com login
+
+# user's `kubeconfig` now contains one entry for the main Kubernetes
+# endpoint, i.e. `proxy.example.com`.
+
+# Receive a certificate for "east":
+$ tsh --proxy=main.example.com login east
+
+# user's `kubeconfig` now contains the entry for the "east" Kubernetes
+# endpoint, i.e. `east.proxy.example.com`.
+```
+
 ## High Availability
 
 !!! tip "Tip":
-    Before continuing, please make sure to take a look at the [cluster state chapter](architecture/#cluster-state)
-    in Teleport Architecture document.
+    Before continuing, please make sure to take a look at the [Cluster State section](architecture/#cluster-state)
+    in the Teleport Architecture documentation.
 
 Usually there are two ways to achieve high availability. You can "outsource"
-this function to the infrastructure, for example by using a highly available
+this function to the infrastructure. For example, using a highly available
 network-based disk volumes (similar to AWS EBS) and by migrating a failed VM to
-a new host. In this scenario there's nothing Teleport-specific to be done.
+a new host. In this scenario, there's nothing Teleport-specific to be done.
 
-But if high availability cannot be provided by the infrastructure (perhaps
-you're running Teleport on a bare metal cluster), you can configure Teleport
+If high availability cannot be provided by the infrastructure (perhaps
+you're running Teleport on a bare metal cluster), you can still configure Teleport
 to run in a highly available fashion.
 
 ### Auth Server HA
 
-Run multiple instances of Teleport Auth Server.
+In order to run multiple instances of Teleport Auth Server, you must switch to a highly available secrets back-end first.
+Also, you must tell each node in a cluster that there is
+more than one auth server available. There are two ways to do this:
 
-For this to work you must switch to a highly available secrets back-end first.
-Also, you must tell each node in a cluster that there are
-more than one auth server available. The are two ways to do this:
-
-  * Use a load balancer to create a single auth API access point (AP) and
+  * Use a load balancer to create a single the auth API access point (AP) and
     specify this AP in `auth_servers` section of Teleport configuration for
     all nodes in a cluster.
   * If a load balancer is not an option, you must specify each instance of an
     auth server in `auth_servers` section of Teleport configuration.
 
 **IMPORTANT:** with multiple instances of the auth servers running, special
-attention needs to be paid to keep their configuration identical. Settings
+attention needs to be paid to keeping their configuration identical. Settings
 like `cluster_name`, `tokens`, `storage`, etc must be the same.
 
 ### Teleport Proxy HA
-
-Run multiple instances of Teleport Proxy.
 
 The Teleport Proxy is stateless which makes running multiple instances trivial.
 If using the [default configuration](#ports), configure your load balancer to
@@ -1611,26 +1831,24 @@ If your load balancer supports health checks, configure it to hit the
 proxy is running without problems.
 
 !!! tip "NOTE":
-    As the new auth servers get added to the cluster and the old servers get
-    decommissioned, nodes and proxies will refresh the list of available auth
-    servers and store it in their local cache `/var/lib/teleport/authservers.json`.
-    The values from the cache file will take precedence over the configuration
+    As the new auth servers get added to the cluster and the old servers get decommissioned, nodes and proxies will refresh the list of available auth servers and store it in their local cache `/var/lib/teleport/authservers.json`. The values from the cache file will take precedence over the configuration
     file.
 
-We'll cover how to use `etcd` and `DynamoDB` storage back-ends to make Teleport highly available below.
+We'll cover how to use `etcd` and `DynamoDB` storage back-ends to make Teleport
+highly available below.
 
 ### Using etcd
 
 Teleport can use [etcd](https://coreos.com/etcd/) as a storage backend to
-achieve highly available deployments.  Obviously, you must take steps to
-protect access to `etcd` in this configuration because that is where Teleport
-secrets like keys and user records will be stored.
+achieve highly available deployments. You must take steps to protect access 
+to `etcd` in this configuration because that is where Teleport secrets like 
+keys and user records will be stored.
 
 To configure Teleport for using etcd as a storage back-end:
 
-* Install etcd and configure peer and client TLS authentication using
-   [etcd security guide](https://coreos.com/etcd/docs/latest/security.html).
-
+* Make sure you are using **etcd version 3.3** or newer.
+* Install etcd and configure peer and client TLS authentication using the
+  [etcd security guide](https://coreos.com/etcd/docs/latest/security.html).
 * Configure all Teleport Auth servers to use etcd in the "storage" section of
   the config file as shown below.
 * Deploy several auth servers connected to etcd back-end.
@@ -1640,6 +1858,7 @@ To configure Teleport for using etcd as a storage back-end:
 teleport:
   storage:
      type: etcd
+
      # list of etcd peers to connect to:
      peers: ["https://172.17.0.1:4001", "https://172.17.0.2:4001"]
 
@@ -1662,13 +1881,10 @@ teleport:
 ### Using Amazon S3
 
 !!! tip "Tip":
-    Before continuing, please make sure to take a look at the [cluster state chapter](architecture/#cluster-state)
-    in Teleport Architecture document.
+    Before continuing, please make sure to take a look at the [cluster state section](architecture/#cluster-state)
+    in Teleport Architecture documentation.
 
-S3 buckets can be used as a storage for the recorded sessions. S3 cannot
-store the audit log or the cluster state. Below is an example of how to
-configure a Teleport auth server to store the recorded sessions in an S3
-bucket:
+S3 buckets can be used as a storage for the recorded sessions. S3 cannot store the audit log or the cluster state. Below is an example of how to configure a Teleport auth server to store the recorded sessions in an S3 bucket:
 
 ```bash
 teleport:
@@ -1689,8 +1905,8 @@ running on an EC2 instance with an IAM role.
 ### Using DynamoDB
 
 !!! tip "Tip":
-    Before continuing, please make sure to take a look at the [cluster state chapter](architecture/#cluster-state)
-    in Teleport Architecture document.
+    Before continuing, please make sure to take a look at the [cluster state section](architecture/#cluster-state)
+    in Teleport Architecture documentation.
 
 If you are running Teleport on AWS, you can use [DynamoDB](https://aws.amazon.com/dynamodb/)
 as a storage back-end to achieve high availability. DynamoDB back-end supports two types
@@ -1742,7 +1958,7 @@ teleport:
 
 !!! warning "Access to DynamoDB":
     Make sure that the IAM role assigned to Teleport is configured with the
-    sufficient access to MongoDB. Below is the example of the IAM policy you
+    sufficient access to DynamoDB. Below is the example of the IAM policy you
     can use:
 
 
@@ -1762,15 +1978,10 @@ teleport:
 
 ## Upgrading Teleport
 
-Teleport is always a critical component of the infrastructure it runs on. This
-is why upgrading to a new version must be performed with caution. Teleport
-developers are committed to providing ease of upgrades, stability and standards
-compliance.
+Teleport is always a critical component of the infrastructure it runs on. This is why upgrading to a new version must be performed with caution. 
 
-However, Teleport is a much more capable system than a bare bones SSH server.
-It offers significant benefits on a cluster level and they add some complexity
-to to cluster upgrades. To ensure robust operation Teleport administrators must 
-follow the upgrade rules listed below.
+Teleport is a much more capable system than a bare bones SSH server.
+It offers significant benefits on a cluster level and they add some complexity to to cluster upgrades. To ensure robust operation Teleport administrators must follow the upgrade rules listed below.
 
 ### Production Releases
 
@@ -1788,9 +1999,7 @@ clients, etc), the following rules apply:
 * Other versions are always compatible with their **previous** release. This
   means you must not attempt to upgrade from 2.3 straight to 2.5. You must
   upgrade to 2.4 first.
-* Teleport clients (`tsh` for users and `tctl` for admins) sometimes cannot be
-  older than the auth or the proxy server. They will print an error if there's
-  incompatibility.
+* Teleport clients (`tsh` for users and `tctl` for admins) may not be compatible if older than the auth or the proxy server. They will print an error if there is an incompatibility.
 
 ### Upgrade Sequence
 
@@ -1798,34 +2007,23 @@ When upgrading a single Teleport cluster:
 
 1. **Upgrade the auth server first**. The auth server keeps the cluster state and
     if there are data format changes introduced in the new version this will
-    perform necessary migrations. 
-
-    !!! important "Important":
-        If several auth servers are running in HA configuration, for example in AWS
-        auto-scaling group, you have to shrink the group to **just one auth server** 
-        prior to performing an upgrade.
-
-    !!! important "Important":
-        While Teleport will attempt to perform any necessary migrations, as a
-        precaution we recommend users create a backup of their backend before
-        upgrading the Auth Server. This allows safe rollback in-case the
-        migration itself fails.    
-
+    perform necessary migrations.   
 2. Then, upgrade the proxy servers. The proxy servers are stateless and can be upgraded
    in any sequence or at the same time.
-
 3. Finally, upgrade the SSH nodes in any sequence or at the same time.
+
+!!! warning "Warning":
+        If several auth servers are running in HA configuration (for example, in AWS auto-scaling group) you have to shrink the group to **just one auth server** prior to performing an upgrade. While Teleport will attempt to perform any necessary migrations, we recommend users create a backup of their backend before upgrading the Auth Server, as a precaution. This allows for a safe rollback in case the migration itself fails. 
 
 When upgrading multiple clusters:
 
-1. First, upgrade the main cluster i.e. the one whom other clusters trust.
+1. First, upgrade the main cluster, i.e. the one whom other clusters trust.
 2. Upgrade trusted clutsers.
 
 ### Daemon Restarts
 
-As covered in the [Teleport Daemon](#graceful-restarts) section, Teleport supports
-graceful restarts, i.e. to upgrade a host to a newer Teleport version, an administrator 
-must:
+As covered in the [Graceful Restarts](#graceful-restarts) section, Teleport supports
+graceful restarts. To upgrade a host to a newer Teleport version, an administrator must:
 
 1. Replace the Teleport binaries, usually `teleport` and `tctl`
 2. Execute `systemctl restart teleport`
@@ -1836,10 +2034,9 @@ until existing clients disconnect.
 
 ## License File
 
-Paid Teleport subscription plans such as Pro, Business and Enterprise require
-a valid license. The license file can be downloaded from the [Teleport Download
-Portal](https://dashboard.gravitational.com) dashboard which you signed up for
-when purchasing your subscription plan.
+Commercial Teleport subscriptions require
+a valid license. The license file can be downloaded from the [Teleport Customer
+Portal](https://dashboard.gravitational.com).
 
 The Teleport license file contains a X.509 certificate and the corresponding
 private key in PEM format. Place the downloaded file on Auth servers and set
@@ -1857,7 +2054,7 @@ The `license_file` path can be either absolute or relative to the configured
 
 !!! tip "NOTE":
     Only Auth servers require the license. Proxies and Nodes that do not also
-    have Auth role enabled don't need the license.
+    have Auth role enabled do not need the license.
 
 ## Troubleshooting
 
@@ -1866,11 +2063,29 @@ by passing it `-d` flag.
 
 !!! tip "NOTE":
     It is not recommended to run Teleport in production with verbose logging
-    as it generates substantial amount of data.
+    as it generates a substantial amount of data.
 
 Sometimes you may want to reset `teleport` to a clean state. This can be accomplished
 by erasing everything under `"data_dir"` directory. Assuming the default location,
 `rm -rf /var/lib/teleport/*` will do.
+
+Teleport also supports HTTP endpoints for monitoring purposes. They are disabled
+by default, but you can enable them:
+
+```bash
+$ teleport start --diag-addr=127.0.0.1:3000
+```
+
+Now you can see the monitoring information by visiting several endpoints:
+
+* `http://127.0.0.1:3000/metrics` is the list of internal metrics Teleport is tracking. 
+   It is compatible with [Prometheus](https://prometheus.io/) collectors.
+* `http://127.0.0.1:3000/healthz` returns "OK" if the process is healthy or `503` otherwise.
+* `http://127.0.0.1:3000/readyz` is similar to `/healthz`, but it returns "OK"
+  _only after_ the node successfully joined the cluster, i.e. it draws the
+  difference between "healthy" and "ready".
+* `http://127.0.0.1:3000/debug/pprof/` is Golang's standard profiler. It's only
+  available when `-d` flag is given in addition to `--diag-addr`
 
 ## Getting Help
 
