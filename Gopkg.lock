@@ -417,11 +417,12 @@
   version = "0.0.6"
 
 [[projects]]
-  digest = "1:4c786beee51db5f821486d5afec0b6b325baf536662ed75b39ba4a7559253363"
+  digest = "1:1920655c8439bf875819f7d8db882b089f3ca6cb9b3c9ca6413bc2ec2217ea82"
   name = "github.com/gravitational/roundtrip"
   packages = ["."]
   pruneopts = "NUT"
-  revision = "6a87d116a90b9c4e73bedc19ebc9c17f1b43d826"
+  revision = "e1e0cd6b05a6bb1791b262e63160038828fd7b3a"
+  version = "v1.0.0"
 
 [[projects]]
   digest = "1:d92cabdc7cfe96302f98b2fac7b0f1107ef9ab066708d45d6feaca39aeb4f6f3"
