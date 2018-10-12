@@ -86,7 +86,7 @@ ignored = ["github.com/Sirupsen/logrus"]
 
 [[constraint]]
   name = "github.com/gravitational/roundtrip"
-  revision = "6a87d116a90b9c4e73bedc19ebc9c17f1b43d826"
+  version = "1.0.0"
 
 [[constraint]]
   version = "0.0.1"
