@@ -3131,11 +3131,11 @@ func (s *IntSuite) TestMultipleSignup(c *check.C) {
 		c.Assert(err, check.IsNil)
 
 		// Render the signup page.
-		_, err = clt.Get(clt.Endpoint("webapi", "users", "invites", token), url.Values{})
+		_, err = clt.Get(context.Background(), clt.Endpoint("webapi", "users", "invites", token), url.Values{})
 		c.Assert(err, check.IsNil)
 
 		// Make sure signup is successful.
-		_, err = clt.PostJSON(clt.Endpoint("webapi", "users"), createNewUserReq{
+		_, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "users"), createNewUserReq{
 			InviteToken: token,
 			Pass:        "fake-password-123",
 		})

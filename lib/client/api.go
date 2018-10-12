@@ -1456,7 +1456,7 @@ func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, er
 	certPool := loopbackPool(tc.Config.WebProxyAddr)
 
 	// ping the endpoint to see if it's up and find the type of authentication supported
-	pr, err := Ping(tc.Config.WebProxyAddr, tc.InsecureSkipVerify, certPool, tc.AuthConnector)
+	pr, err := Ping(ctx, tc.Config.WebProxyAddr, tc.InsecureSkipVerify, certPool, tc.AuthConnector)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1482,7 +1482,7 @@ func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, er
 
 	switch pr.Auth.Type {
 	case teleport.Local:
-		response, err = tc.localLogin(pr.Auth.SecondFactor, key.Pub)
+		response, err = tc.localLogin(ctx, pr.Auth.SecondFactor, key.Pub)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1658,18 +1658,18 @@ func (tc *TeleportClient) applyProxySettings(proxySettings ProxySettings) error 
 	return nil
 }
 
-func (tc *TeleportClient) localLogin(secondFactor string, pub []byte) (*auth.SSHLoginResponse, error) {
+func (tc *TeleportClient) localLogin(ctx context.Context, secondFactor string, pub []byte) (*auth.SSHLoginResponse, error) {
 	var err error
 	var response *auth.SSHLoginResponse
 
 	switch secondFactor {
 	case teleport.OFF, teleport.OTP, teleport.TOTP, teleport.HOTP:
-		response, err = tc.directLogin(secondFactor, pub)
+		response, err = tc.directLogin(ctx, secondFactor, pub)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case teleport.U2F:
-		response, err = tc.u2fLogin(pub)
+		response, err = tc.u2fLogin(ctx, pub)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1704,7 +1704,7 @@ func (tc *TeleportClient) AddKey(host string, key *Key) (*agent.AddedKey, error)
 }
 
 // directLogin asks for a password + HOTP token, makes a request to CA via proxy
-func (tc *TeleportClient) directLogin(secondFactorType string, pub []byte) (*auth.SSHLoginResponse, error) {
+func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType string, pub []byte) (*auth.SSHLoginResponse, error) {
 	var err error
 
 	certPool := loopbackPool(tc.Config.WebProxyAddr)
@@ -1727,6 +1727,7 @@ func (tc *TeleportClient) directLogin(secondFactorType string, pub []byte) (*aut
 
 	// ask the CA (via proxy) to sign our public key:
 	response, err := SSHAgentLogin(
+		ctx,
 		tc.Config.WebProxyAddr,
 		tc.Config.Username,
 		password,
@@ -1758,7 +1759,7 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, connectorID string, pub 
 }
 
 // directLogin asks for a password and performs the challenge-response authentication
-func (tc *TeleportClient) u2fLogin(pub []byte) (*auth.SSHLoginResponse, error) {
+func (tc *TeleportClient) u2fLogin(ctx context.Context, pub []byte) (*auth.SSHLoginResponse, error) {
 	// U2F login requires the official u2f-host executable
 	_, err := exec.LookPath("u2f-host")
 	if err != nil {
@@ -1773,6 +1774,7 @@ func (tc *TeleportClient) u2fLogin(pub []byte) (*auth.SSHLoginResponse, error) {
 	}
 
 	response, err := SSHAgentU2FLogin(
+		ctx,
 		tc.Config.WebProxyAddr,
 		tc.Config.Username,
 		password,
