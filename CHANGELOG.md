@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.7.6
+
+This release of Teleport contains the following bug fix:
+
+* Fix regression that marked ADFS claims as invalid. [#2293](https://github.com/gravitational/teleport/pull/2293)
+
 ## 2.7.5
 
 This release of Teleport focuses on bugfixes.
