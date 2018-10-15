@@ -17,25 +17,65 @@ limitations under the License.
 package services
 
 import (
+	"encoding/json"
 	"fmt"
+
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/russellhaering/gosaml2/types"
 
 	"github.com/coreos/go-oidc/jose"
 	saml2 "github.com/russellhaering/gosaml2"
-	. "gopkg.in/check.v1"
+	"github.com/russellhaering/gosaml2/types"
+	"gopkg.in/check.v1"
 )
 
 type UserSuite struct {
 }
 
-var _ = Suite(&UserSuite{})
+var _ = check.Suite(&UserSuite{})
 
-func (s *UserSuite) SetUpSuite(c *C) {
+func (s *UserSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests()
 }
 
-func (s *UserSuite) TestOIDCMapping(c *C) {
+func (s *UserSuite) TestTraits(c *check.C) {
+	var tests = []struct {
+		traitName string
+	}{
+		// Windows trait names are URLs.
+		{
+			traitName: "http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname",
+		},
+		// Simple strings are the most common trait names.
+		{
+			traitName: "groups",
+		},
+	}
+
+	for _, tt := range tests {
+		user := &UserV2{
+			Kind:    KindUser,
+			Version: V2,
+			Metadata: Metadata{
+				Name:      "foo",
+				Namespace: defaults.Namespace,
+			},
+			Spec: UserSpecV2{
+				Traits: map[string][]string{
+					tt.traitName: []string{"foo"},
+				},
+			},
+		}
+
+		data, err := json.Marshal(user)
+		c.Assert(err, check.IsNil)
+
+		_, err = GetUserMarshaler().UnmarshalUser(data)
+		c.Assert(err, check.IsNil)
+	}
+}
+
+func (s *UserSuite) TestOIDCMapping(c *check.C) {
 	type input struct {
 		comment string
 		claims  jose.Claims
@@ -162,9 +202,9 @@ func (s *UserSuite) TestOIDCMapping(c *C) {
 			},
 		}
 		for _, input := range testCase.inputs {
-			comment := Commentf("OIDC Test case %v %v, input %#v", i, testCase.comment, input)
+			comment := check.Commentf("OIDC Test case %v %v, input %#v", i, testCase.comment, input)
 			outRoles := conn.MapClaims(input.claims)
-			c.Assert(outRoles, DeepEquals, input.roles, comment)
+			c.Assert(outRoles, check.DeepEquals, input.roles, comment)
 		}
 
 		samlConn := SAMLConnectorV2{
@@ -173,9 +213,9 @@ func (s *UserSuite) TestOIDCMapping(c *C) {
 			},
 		}
 		for _, input := range testCase.inputs {
-			comment := Commentf("SAML Test case %v %v, input %#v", i, testCase.comment, input)
+			comment := check.Commentf("SAML Test case %v %v, input %#v", i, testCase.comment, input)
 			outRoles := samlConn.MapAttributes(claimsToAttributes(input.claims))
-			c.Assert(outRoles, DeepEquals, input.roles, comment)
+			c.Assert(outRoles, check.DeepEquals, input.roles, comment)
 		}
 	}
 }
