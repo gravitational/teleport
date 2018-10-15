@@ -247,6 +247,12 @@ func (a *AuthWithRoles) GetLocalClusterName() (string, error) {
 	return a.authServer.GetLocalClusterName()
 }
 
+// GetClusterCACert returns the CAs for the local cluster without signing keys.
+func (a *AuthWithRoles) GetClusterCACert() (*LocalCAResponse, error) {
+	// Allow all roles to get the local CA.
+	return a.authServer.GetClusterCACert()
+}
+
 func (a *AuthWithRoles) UpsertLocalClusterName(clusterName string) error {
 	if err := a.action(defaults.Namespace, services.KindAuthServer, services.VerbCreate); err != nil {
 		return trace.Wrap(err)

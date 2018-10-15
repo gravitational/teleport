@@ -22,6 +22,7 @@ import (
 	"encoding/base32"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -46,7 +47,8 @@ import (
 )
 
 type TLSSuite struct {
-	server *TestTLSServer
+	dataDir string
+	server  *TestTLSServer
 }
 
 var _ = check.Suite(&TLSSuite{})
@@ -56,8 +58,10 @@ func (s *TLSSuite) SetUpSuite(c *check.C) {
 }
 
 func (s *TLSSuite) SetUpTest(c *check.C) {
+	s.dataDir = c.MkDir()
+
 	testAuthServer, err := NewTestAuthServer(TestAuthServerConfig{
-		Dir: c.MkDir(),
+		Dir: s.dataDir,
 	})
 	c.Assert(err, check.IsNil)
 	s.server, err = testAuthServer.NewTestTLSServer()
@@ -1592,4 +1596,137 @@ func (s *TLSSuite) TestTLSFailover(c *check.C) {
 		_, err = client.GetDomainName()
 		c.Assert(err, check.IsNil)
 	}
+}
+
+// TestRegisterCAPin makes sure that registration only works with a valid
+// CA pin.
+func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
+	// Generate a token to use.
+	token, err := s.server.AuthServer.AuthServer.GenerateToken(GenerateTokenRequest{
+		Roles: teleport.Roles{
+			teleport.RoleProxy,
+		},
+		TTL: time.Hour,
+	})
+	c.Assert(err, check.IsNil)
+
+	// Generate public and private keys for node.
+	priv, pub, err := s.server.Auth().GenerateKeyPair("")
+	c.Assert(err, check.IsNil)
+	privateKey, err := ssh.ParseRawPrivateKey(priv)
+	c.Assert(err, check.IsNil)
+	pubTLS, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(privateKey)
+	c.Assert(err, check.IsNil)
+
+	// Calculate what CA pin should be.
+	hostCA, err := s.server.AuthServer.AuthServer.GetCertAuthority(services.CertAuthID{
+		DomainName: s.server.AuthServer.ClusterName,
+		Type:       services.HostCA,
+	}, false)
+	c.Assert(err, check.IsNil)
+	tlsCA, err := hostCA.TLSCA()
+	c.Assert(err, check.IsNil)
+	caPin := utils.CalculateSKPI(tlsCA.Cert)
+
+	// Attempt to register with valid CA pin, should work.
+	_, err = Register(RegisterParams{
+		Servers: []utils.NetAddr{utils.FromAddr(s.server.Addr())},
+		Token:   token,
+		ID: IdentityID{
+			HostUUID: "once",
+			NodeName: "node-name",
+			Role:     teleport.RoleProxy,
+		},
+		AdditionalPrincipals: []string{"example.com"},
+		PrivateKey:           priv,
+		PublicSSHKey:         pub,
+		PublicTLSKey:         pubTLS,
+		CAPin:                caPin,
+	})
+	c.Assert(err, check.IsNil)
+
+	// Attempt to register with invalid CA pin, should fail.
+	_, err = Register(RegisterParams{
+		Servers: []utils.NetAddr{utils.FromAddr(s.server.Addr())},
+		Token:   token,
+		ID: IdentityID{
+			HostUUID: "once",
+			NodeName: "node-name",
+			Role:     teleport.RoleProxy,
+		},
+		AdditionalPrincipals: []string{"example.com"},
+		PrivateKey:           priv,
+		PublicSSHKey:         pub,
+		PublicTLSKey:         pubTLS,
+		CAPin:                "sha256:123",
+	})
+	c.Assert(err, check.NotNil)
+}
+
+// TestRegisterCAPath makes sure registration only works with a valid CA
+// file on disk.
+func (s *TLSSuite) TestRegisterCAPath(c *check.C) {
+	// Generate a token to use.
+	token, err := s.server.AuthServer.AuthServer.GenerateToken(GenerateTokenRequest{
+		Roles: teleport.Roles{
+			teleport.RoleProxy,
+		},
+		TTL: time.Hour,
+	})
+	c.Assert(err, check.IsNil)
+
+	// Generate public and private keys for node.
+	priv, pub, err := s.server.Auth().GenerateKeyPair("")
+	c.Assert(err, check.IsNil)
+	privateKey, err := ssh.ParseRawPrivateKey(priv)
+	c.Assert(err, check.IsNil)
+	pubTLS, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(privateKey)
+	c.Assert(err, check.IsNil)
+
+	// Attempt to register with nothing at the CA path, should work.
+	_, err = Register(RegisterParams{
+		Servers: []utils.NetAddr{utils.FromAddr(s.server.Addr())},
+		Token:   token,
+		ID: IdentityID{
+			HostUUID: "once",
+			NodeName: "node-name",
+			Role:     teleport.RoleProxy,
+		},
+		AdditionalPrincipals: []string{"example.com"},
+		PrivateKey:           priv,
+		PublicSSHKey:         pub,
+		PublicTLSKey:         pubTLS,
+	})
+	c.Assert(err, check.IsNil)
+
+	// Extract the root CA public key and write it out to the data dir.
+	hostCA, err := s.server.AuthServer.AuthServer.GetCertAuthority(services.CertAuthID{
+		DomainName: s.server.AuthServer.ClusterName,
+		Type:       services.HostCA,
+	}, false)
+	c.Assert(err, check.IsNil)
+	tlsCA, err := hostCA.TLSCA()
+	c.Assert(err, check.IsNil)
+	tlsBytes, err := tlsca.MarshalCertificatePEM(tlsCA.Cert)
+	c.Assert(err, check.IsNil)
+	caPath := filepath.Join(s.dataDir, defaults.CACertFile)
+	err = ioutil.WriteFile(caPath, tlsBytes, teleport.FileMaskOwnerOnly)
+	c.Assert(err, check.IsNil)
+
+	// Attempt to register with valid CA path, should work.
+	_, err = Register(RegisterParams{
+		Servers: []utils.NetAddr{utils.FromAddr(s.server.Addr())},
+		Token:   token,
+		ID: IdentityID{
+			HostUUID: "once",
+			NodeName: "node-name",
+			Role:     teleport.RoleProxy,
+		},
+		AdditionalPrincipals: []string{"example.com"},
+		PrivateKey:           priv,
+		PublicSSHKey:         pub,
+		PublicTLSKey:         pubTLS,
+		CAPath:               caPath,
+	})
+	c.Assert(err, check.IsNil)
 }
