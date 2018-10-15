@@ -39,9 +39,9 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/socks"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 // ProxyClient implements ssh client to a teleport proxy
@@ -97,7 +97,7 @@ func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 		return nil, trace.ConnectionProblem(nil, "timeout")
 	}
 
-	log.Debugf("[CLIENT] found clusters: %v", stdout.String())
+	log.Debugf("Found clusters: %v", stdout.String())
 
 	var sites []services.Site
 	if err := json.Unmarshal(stdout.Bytes(), &sites); err != nil {
@@ -332,7 +332,7 @@ func (proxy *ProxyClient) dialAuthServer(ctx context.Context, clusterName string
 // ConnectToNode connects to the ssh server via Proxy.
 // It returns connected and authenticated NodeClient
 func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress string, user string, quiet bool) (*NodeClient, error) {
-	log.Infof("[CLIENT] client=%v connecting to node=%s", proxy.clientAddr, nodeAddress)
+	log.Infof("Client=%v connecting to node=%s", proxy.clientAddr, nodeAddress)
 
 	// parse destination first:
 	localAddr, err := utils.ParseAddr("tcp://" + proxy.proxyAddress)
@@ -577,58 +577,125 @@ func (client *NodeClient) ExecuteSCP(cmd scp.Command) error {
 	return trace.Wrap(err)
 }
 
-// listenAndForward listens on a given socket and forwards all incoming connections
-// to the given remote address via
-func (client *NodeClient) listenAndForward(socket net.Listener, remoteAddr string) {
-	defer socket.Close()
-	defer client.Close()
-	proxyConnection := func(incoming net.Conn) {
-		defer incoming.Close()
-		var (
-			conn net.Conn
-			err  error
-		)
-		log.Debugf("nodeClient.listenAndForward(%v -> %v) started", incoming.RemoteAddr(), remoteAddr)
-		for attempt := 1; attempt <= 5; attempt++ {
-			conn, err = client.Client.Dial("tcp", remoteAddr)
-			if err != nil {
-				log.Errorf("Connection attempt %v: %v", attempt, err)
-				// failed to establish an outbound connection? try again:
-				time.Sleep(time.Millisecond * time.Duration(100*attempt))
+func (client *NodeClient) proxyConnection(ctx context.Context, conn net.Conn, remoteAddr string) error {
+	defer conn.Close()
+	defer log.Debugf("Finished proxy from %v to %v.", conn.RemoteAddr(), remoteAddr)
+
+	var (
+		remoteConn net.Conn
+		err        error
+	)
+
+	log.Debugf("Attempting to connect proxy from %v to %v.", conn.RemoteAddr(), remoteAddr)
+	for attempt := 1; attempt <= 5; attempt++ {
+		remoteConn, err = client.Client.Dial("tcp", remoteAddr)
+		if err != nil {
+			log.Debugf("Proxy connection attempt %v: %v.", attempt, err)
+
+			timer := time.NewTimer(time.Duration(100*attempt) * time.Millisecond)
+			defer timer.Stop()
+
+			// Wait and attempt to connect again, if the context has closed, exit
+			// right away.
+			select {
+			case <-ctx.Done():
+				return trace.Wrap(ctx.Err())
+			case <-timer.C:
 				continue
 			}
-			// connection established: continue:
-			break
 		}
-		// permanent failure establishing connection
-		if err != nil {
-			log.Errorf("Failed to connect to node %v", remoteAddr)
-			return
-		}
-		defer conn.Close()
-		// start proxying:
-		doneC := make(chan interface{}, 2)
-		go func() {
-			io.Copy(incoming, conn)
-			doneC <- true
-		}()
-		go func() {
-			io.Copy(conn, incoming)
-			doneC <- true
-		}()
-		<-doneC
-		<-doneC
-		log.Debugf("nodeClient.listenAndForward(%v -> %v) exited", incoming.RemoteAddr(), remoteAddr)
+		// Connection established, break out of the loop.
+		break
 	}
-	// request processing loop: accept incoming requests to be connected to nodes
-	// and proxy them to 'remoteAddr'
+	if err != nil {
+		return trace.BadParameter("failed to connect to node: %v", remoteAddr)
+	}
+	defer remoteConn.Close()
+
+	// Start proxying, close the connection if a problem occurs on either leg.
+	errCh := make(chan error, 2)
+	go func() {
+		defer conn.Close()
+		_, err := io.Copy(conn, remoteConn)
+		errCh <- err
+	}()
+	go func() {
+		defer conn.Close()
+		_, err := io.Copy(remoteConn, conn)
+		errCh <- err
+	}()
+
+	var lastErr error
+	for i := 0; i < 2; i++ {
+		select {
+		case err := <-errCh:
+			if err != nil && err != io.EOF {
+				log.Warnf("Failed to proxy connection: %v.", err)
+				lastErr = err
+			}
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		}
+	}
+
+	return lastErr
+}
+
+// listenAndForward listens on a given socket and forwards all incoming
+// commands to the remote address through the SSH tunnel.
+func (c *NodeClient) listenAndForward(ctx context.Context, ln net.Listener, remoteAddr string) {
+	defer ln.Close()
+	defer c.Close()
+
 	for {
-		incoming, err := socket.Accept()
+		// Accept connections from the client.
+		conn, err := ln.Accept()
 		if err != nil {
-			log.Error(err)
+			log.Errorf("Port forwarding failed: %v.", err)
 			break
 		}
-		go proxyConnection(incoming)
+
+		// Proxy the connection to the remote address.
+		go func() {
+			err := c.proxyConnection(ctx, conn, remoteAddr)
+			if err != nil {
+				log.Warnf("Failed to proxy connection: %v.", err)
+			}
+		}()
+	}
+}
+
+// dynamicListenAndForward listens for connections, performs a SOCKS5
+// handshake, and then proxies the connection to the requested address.
+func (c *NodeClient) dynamicListenAndForward(ctx context.Context, ln net.Listener) {
+	defer ln.Close()
+	defer c.Close()
+
+	for {
+		// Accept connection from the client. Here the client is typically
+		// something like a web browser or other SOCKS5 aware application.
+		conn, err := ln.Accept()
+		if err != nil {
+			log.Errorf("Dynamic port forwarding (SOCKS5) failed: %v.", err)
+			break
+		}
+
+		// Perform the SOCKS5 handshake with the client to find out the remote
+		// address to proxy.
+		remoteAddr, err := socks.Handshake(conn)
+		if err != nil {
+			log.Errorf("SOCKS5 handshake failed: %v.", err)
+			break
+		}
+		log.Debugf("SOCKS5 proxy forwarding requests to %v.", remoteAddr)
+
+		// Proxy the connection to the remote address.
+		go func() {
+			err := c.proxyConnection(ctx, conn, remoteAddr)
+			if err != nil {
+				log.Warnf("Failed to proxy connection: %v.", err)
+			}
+		}()
 	}
 }
 

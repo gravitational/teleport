@@ -40,6 +40,10 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
+	"golang.org/x/crypto/ssh/terminal"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
@@ -54,14 +58,16 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/agentconn"
 
-	"github.com/docker/docker/pkg/term"
 	"github.com/gravitational/trace"
+
+	"github.com/docker/docker/pkg/term"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
-	"golang.org/x/crypto/ssh/terminal"
+	"github.com/sirupsen/logrus"
 )
+
+var log = logrus.WithFields(logrus.Fields{
+	trace.Component: teleport.ComponentClient,
+})
 
 const (
 	// Directory location where tsh profiles (and session keys) are stored
@@ -80,8 +86,8 @@ type ForwardedPort struct {
 
 type ForwardedPorts []ForwardedPort
 
-// ToString() returns a string representation of a forwarded port spec, compatible
-// with OpenSSH's -L  flag, i.e. "src_host:src_port:dest_host:dest_port"
+// ToString returns a string representation of a forwarded port spec, compatible
+// with OpenSSH's -L  flag, i.e. "src_host:src_port:dest_host:dest_port".
 func (p *ForwardedPort) ToString() string {
 	sport := strconv.Itoa(p.SrcPort)
 	dport := strconv.Itoa(p.DestPort)
@@ -89,6 +95,31 @@ func (p *ForwardedPort) ToString() string {
 		return sport + ":" + net.JoinHostPort(p.DestHost, dport)
 	}
 	return net.JoinHostPort(p.SrcIP, sport) + ":" + net.JoinHostPort(p.DestHost, dport)
+}
+
+// DynamicForwardedPort local port for dynamic application-level port
+// forwarding. Whenever a connection is made to this port, SOCKS5 protocol
+// is used to determine the address of the remote host. More or less
+// equivalent to OpenSSH's -D flag.
+type DynamicForwardedPort struct {
+	// SrcIP is the IP address to listen on locally.
+	SrcIP string
+
+	// SrcPort is the port to listen on locally.
+	SrcPort int
+}
+
+// DynamicForwardedPorts is a slice of locally forwarded dynamic ports (SOCKS5).
+type DynamicForwardedPorts []DynamicForwardedPort
+
+// ToString returns a string representation of a dynamic port spec, compatible
+// with OpenSSH's -D flag, i.e. "src_host:src_port".
+func (p *DynamicForwardedPort) ToString() string {
+	sport := strconv.Itoa(p.SrcPort)
+	if utils.IsLocalhost(p.SrcIP) {
+		return sport
+	}
+	return net.JoinHostPort(p.SrcIP, sport)
 }
 
 // HostKeyCallback is called by SSH client when it needs to check
@@ -167,8 +198,13 @@ type Config struct {
 	// if omitted, first available site will be selected
 	SiteName string
 
-	// Locally forwarded ports (parameters to -L ssh flag)
+	// LocalForwardPorts are the local ports tsh listens on for port forwarding
+	// (parameters to -L ssh flag).
 	LocalForwardPorts ForwardedPorts
+
+	// DynamicForwardedPorts are the list of ports tsh listens on for dynamic
+	// port forwarding (parameters to -D ssh flag).
+	DynamicForwardedPorts DynamicForwardedPorts
 
 	// HostKeyCallback will be called to check host keys of the remote
 	// node, if not specified will be using CheckHostSignature function
@@ -473,7 +509,12 @@ func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 
 	c.LocalForwardPorts, err = ParsePortForwardSpec(cp.ForwardedPorts)
 	if err != nil {
-		log.Warnf("Error parsing user profile: %v", err)
+		log.Warnf("Unable to parse port forwarding in user profile: %v.", err)
+	}
+
+	c.DynamicForwardedPorts, err = ParseDynamicPortForwardSpec(cp.DynamicForwardedPorts)
+	if err != nil {
+		log.Warnf("Unable to parse dynamic port forwarding in user profile: %v.", err)
 	}
 
 	return nil
@@ -496,7 +537,7 @@ func (c *Config) SaveProfile(profileDir string, profileOptions ...ProfileOptions
 	cp.WebProxyAddr = c.WebProxyAddr
 	cp.SSHProxyAddr = c.SSHProxyAddr
 	cp.KubeProxyAddr = c.KubeProxyAddr
-	cp.ForwardedPorts = c.LocalForwardPorts.ToStringSpec()
+	cp.ForwardedPorts = c.LocalForwardPorts.String()
 	cp.SiteName = c.SiteName
 
 	// create a profile file and set it current base on the option
@@ -799,7 +840,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 		return trace.Wrap(err)
 	}
 	// proxy local ports (forward incoming connections to remote host ports)
-	tc.startPortForwarding(nodeClient)
+	tc.startPortForwarding(ctx, nodeClient)
 
 	// local execution?
 	if runLocally {
@@ -824,14 +865,27 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	return tc.runShell(nodeClient, nil)
 }
 
-func (tc *TeleportClient) startPortForwarding(nodeClient *NodeClient) error {
+func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) error {
 	if len(tc.Config.LocalForwardPorts) > 0 {
 		for _, fp := range tc.Config.LocalForwardPorts {
-			socket, err := net.Listen("tcp", net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort)))
+			addr := net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort))
+			socket, err := net.Listen("tcp", addr)
 			if err != nil {
-				return trace.Wrap(err)
+				log.Errorf("Failed to bind to %v: %v.", addr, err)
+				continue
 			}
-			go nodeClient.listenAndForward(socket, net.JoinHostPort(fp.DestHost, strconv.Itoa(fp.DestPort)))
+			go nodeClient.listenAndForward(ctx, socket, net.JoinHostPort(fp.DestHost, strconv.Itoa(fp.DestPort)))
+		}
+	}
+	if len(tc.Config.DynamicForwardedPorts) > 0 {
+		for _, fp := range tc.Config.DynamicForwardedPorts {
+			addr := net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort))
+			socket, err := net.Listen("tcp", addr)
+			if err != nil {
+				log.Errorf("Failed to bind to %v: %v.", addr, err)
+				continue
+			}
+			go nodeClient.dynamicListenAndForward(ctx, socket)
 		}
 	}
 	return nil
@@ -910,8 +964,8 @@ func (tc *TeleportClient) Join(ctx context.Context, namespace string, sessionID 
 	}
 	defer nc.Close()
 
-	// start forwarding ports, if configured:
-	tc.startPortForwarding(nc)
+	// Start forwarding ports if configured.
+	tc.startPortForwarding(ctx, nc)
 
 	// running shell with a given session means "join" it:
 	return tc.runShell(nc, session)
@@ -1361,10 +1415,10 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 			clientAddr:      tc.ClientAddr,
 		}
 	}
-	successMsg := fmt.Sprintf("[CLIENT] successful auth with proxy %v", proxyAddr)
+	successMsg := fmt.Sprintf("Successful auth with proxy %v", proxyAddr)
 	// try to authenticate using every non interactive auth method we have:
 	for i, m := range tc.authMethods() {
-		log.Infof("[CLIENT] connecting proxy=%v login='%v' method=%d", proxyAddr, sshConfig.User, i)
+		log.Infof("Connecting proxy=%v login='%v' method=%d", proxyAddr, sshConfig.User, i)
 		var sshClient *ssh.Client
 
 		sshConfig.Auth = []ssh.AuthMethod{m}
@@ -1456,7 +1510,7 @@ func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, er
 	certPool := loopbackPool(tc.Config.WebProxyAddr)
 
 	// ping the endpoint to see if it's up and find the type of authentication supported
-	pr, err := Ping(tc.Config.WebProxyAddr, tc.InsecureSkipVerify, certPool, tc.AuthConnector)
+	pr, err := Ping(ctx, tc.Config.WebProxyAddr, tc.InsecureSkipVerify, certPool, tc.AuthConnector)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1482,7 +1536,7 @@ func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, er
 
 	switch pr.Auth.Type {
 	case teleport.Local:
-		response, err = tc.localLogin(pr.Auth.SecondFactor, key.Pub)
+		response, err = tc.localLogin(ctx, pr.Auth.SecondFactor, key.Pub)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1658,18 +1712,18 @@ func (tc *TeleportClient) applyProxySettings(proxySettings ProxySettings) error 
 	return nil
 }
 
-func (tc *TeleportClient) localLogin(secondFactor string, pub []byte) (*auth.SSHLoginResponse, error) {
+func (tc *TeleportClient) localLogin(ctx context.Context, secondFactor string, pub []byte) (*auth.SSHLoginResponse, error) {
 	var err error
 	var response *auth.SSHLoginResponse
 
 	switch secondFactor {
 	case teleport.OFF, teleport.OTP, teleport.TOTP, teleport.HOTP:
-		response, err = tc.directLogin(secondFactor, pub)
+		response, err = tc.directLogin(ctx, secondFactor, pub)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case teleport.U2F:
-		response, err = tc.u2fLogin(pub)
+		response, err = tc.u2fLogin(ctx, pub)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1704,7 +1758,7 @@ func (tc *TeleportClient) AddKey(host string, key *Key) (*agent.AddedKey, error)
 }
 
 // directLogin asks for a password + HOTP token, makes a request to CA via proxy
-func (tc *TeleportClient) directLogin(secondFactorType string, pub []byte) (*auth.SSHLoginResponse, error) {
+func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType string, pub []byte) (*auth.SSHLoginResponse, error) {
 	var err error
 
 	certPool := loopbackPool(tc.Config.WebProxyAddr)
@@ -1727,6 +1781,7 @@ func (tc *TeleportClient) directLogin(secondFactorType string, pub []byte) (*aut
 
 	// ask the CA (via proxy) to sign our public key:
 	response, err := SSHAgentLogin(
+		ctx,
 		tc.Config.WebProxyAddr,
 		tc.Config.Username,
 		password,
@@ -1758,7 +1813,7 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, connectorID string, pub 
 }
 
 // directLogin asks for a password and performs the challenge-response authentication
-func (tc *TeleportClient) u2fLogin(pub []byte) (*auth.SSHLoginResponse, error) {
+func (tc *TeleportClient) u2fLogin(ctx context.Context, pub []byte) (*auth.SSHLoginResponse, error) {
 	// U2F login requires the official u2f-host executable
 	_, err := exec.LookPath("u2f-host")
 	if err != nil {
@@ -1773,6 +1828,7 @@ func (tc *TeleportClient) u2fLogin(pub []byte) (*auth.SSHLoginResponse, error) {
 	}
 
 	response, err := SSHAgentU2FLogin(
+		ctx,
 		tc.Config.WebProxyAddr,
 		tc.Config.Username,
 		password,
@@ -1982,8 +2038,8 @@ func runLocalCommand(command []string) error {
 	return cmd.Run()
 }
 
-// ToString() returns the same string spec which can be parsed by ParsePortForwardSpec
-func (fp ForwardedPorts) ToStringSpec() (retval []string) {
+// String returns the same string spec which can be parsed by ParsePortForwardSpec.
+func (fp ForwardedPorts) String() (retval []string) {
 	for _, p := range fp {
 		retval = append(retval, p.ToString())
 	}
@@ -1991,7 +2047,7 @@ func (fp ForwardedPorts) ToStringSpec() (retval []string) {
 }
 
 // ParsePortForwardSpec parses parameter to -L flag, i.e. strings like "[ip]:80:remote.host:3000"
-// The opposite of this function (spec generation) is ForwardedPorts.ToString()
+// The opposite of this function (spec generation) is ForwardedPorts.String()
 func ParsePortForwardSpec(spec []string) (ports ForwardedPorts, err error) {
 	if len(spec) == 0 {
 		return ports, nil
@@ -2020,4 +2076,44 @@ func ParsePortForwardSpec(spec []string) (ports ForwardedPorts, err error) {
 		}
 	}
 	return ports, nil
+}
+
+// String returns the same string spec which can be parsed by
+// ParseDynamicPortForwardSpec.
+func (fp DynamicForwardedPorts) String() (retval []string) {
+	for _, p := range fp {
+		retval = append(retval, p.ToString())
+	}
+	return retval
+}
+
+// ParseDynamicPortForwardSpec parses the dynamic port forwarding spec
+// passed in the -D flag. The format of the dynamic port forwarding spec
+// is [bind_address:]port.
+func ParseDynamicPortForwardSpec(spec []string) (DynamicForwardedPorts, error) {
+	result := make(DynamicForwardedPorts, 0, len(spec))
+
+	for _, str := range spec {
+		host, port, err := net.SplitHostPort(str)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// If no host is provided, bind to localhost.
+		if host == "" {
+			host = defaults.Localhost
+		}
+
+		srcPort, err := strconv.Atoi(port)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		result = append(result, DynamicForwardedPort{
+			SrcIP:   host,
+			SrcPort: srcPort,
+		})
+	}
+
+	return result, nil
 }

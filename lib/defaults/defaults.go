@@ -212,6 +212,10 @@ const (
 
 	// CSRSignTimeout is a default timeout for CSR request to be processed by K8s
 	CSRSignTimeout = 30 * time.Second
+
+	// Localhost is the address of localhost. Used for the default binding
+	// address for port forwarding.
+	Localhost = "127.0.0.1"
 )
 
 var (

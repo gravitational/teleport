@@ -366,7 +366,7 @@ func (s *WebSuite) TestNewUser(c *C) {
 	c.Assert(tokens[0].Token, Equals, token)
 
 	clt := s.client()
-	re, err := clt.Get(clt.Endpoint("webapi", "users", "invites", token), url.Values{})
+	re, err := clt.Get(context.Background(), clt.Endpoint("webapi", "users", "invites", token), url.Values{})
 	c.Assert(err, IsNil)
 
 	var out *renderUserInviteResponse
@@ -386,7 +386,7 @@ func (s *WebSuite) TestNewUser(c *C) {
 
 	tempPass := "abc123"
 
-	re, err = clt.PostJSON(clt.Endpoint("webapi", "users"), createNewUserReq{
+	re, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "users"), createNewUserReq{
 		InviteToken:       token,
 		Pass:              tempPass,
 		SecondFactorToken: validToken,
@@ -407,7 +407,7 @@ func (s *WebSuite) TestNewUser(c *C) {
 	clt = s.client(roundtrip.BearerAuth(rawSess.Token), roundtrip.CookieJar(jar))
 	jar.SetCookies(s.url(), re.Cookies())
 
-	re, err = clt.Get(clt.Endpoint("webapi", "sites"), url.Values{})
+	re, err = clt.Get(context.Background(), clt.Endpoint("webapi", "sites"), url.Values{})
 	c.Assert(err, IsNil)
 
 	var sites *getSitesResponse
@@ -417,13 +417,13 @@ func (s *WebSuite) TestNewUser(c *C) {
 
 	// no session cookie:
 	clt = s.client(roundtrip.BearerAuth(rawSess.Token))
-	re, err = clt.Get(clt.Endpoint("webapi", "sites"), url.Values{})
+	re, err = clt.Get(context.Background(), clt.Endpoint("webapi", "sites"), url.Values{})
 	c.Assert(err, NotNil)
 	c.Assert(trace.IsAccessDenied(err), Equals, true)
 
 	// no bearer token:
 	clt = s.client(roundtrip.CookieJar(jar))
-	re, err = clt.Get(clt.Endpoint("webapi", "sites"), url.Values{})
+	re, err = clt.Get(context.Background(), clt.Endpoint("webapi", "sites"), url.Values{})
 	c.Assert(err, NotNil)
 	c.Assert(trace.IsAccessDenied(err), Equals, true)
 }
@@ -531,7 +531,7 @@ func (s *WebSuite) TestWebSessionsCRUD(c *C) {
 	pack := s.authPack(c, "foo")
 
 	// make sure we can use client to make authenticated requests
-	re, err := pack.clt.Get(pack.clt.Endpoint("webapi", "sites"), url.Values{})
+	re, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites"), url.Values{})
 	c.Assert(err, IsNil)
 
 	var sites *getSitesResponse
@@ -539,11 +539,12 @@ func (s *WebSuite) TestWebSessionsCRUD(c *C) {
 
 	// now delete session
 	_, err = pack.clt.Delete(
+		context.Background(),
 		pack.clt.Endpoint("webapi", "sessions"))
 	c.Assert(err, IsNil)
 
 	// subsequent requests trying to use this session will fail
-	re, err = pack.clt.Get(pack.clt.Endpoint("webapi", "sites"), url.Values{})
+	re, err = pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites"), url.Values{})
 	c.Assert(err, NotNil)
 	c.Assert(trace.IsAccessDenied(err), Equals, true)
 }
@@ -551,10 +552,10 @@ func (s *WebSuite) TestWebSessionsCRUD(c *C) {
 func (s *WebSuite) TestNamespace(c *C) {
 	pack := s.authPack(c, "foo")
 
-	_, err := pack.clt.Get(pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "namespaces", "..%252fevents%3f", "nodes"), url.Values{})
+	_, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "namespaces", "..%252fevents%3f", "nodes"), url.Values{})
 	c.Assert(err, NotNil)
 
-	_, err = pack.clt.Get(pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "namespaces", "default", "nodes"), url.Values{})
+	_, err = pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "namespaces", "default", "nodes"), url.Values{})
 	c.Assert(err, IsNil)
 }
 
@@ -616,7 +617,7 @@ func (s *WebSuite) TestPasswordChange(c *C) {
 		SecondFactorToken: validToken,
 	}
 
-	_, err = pack.clt.PutJSON(pack.clt.Endpoint("webapi", "users", "password"), req)
+	_, err = pack.clt.PutJSON(context.Background(), pack.clt.Endpoint("webapi", "users", "password"), req)
 	c.Assert(err, IsNil)
 }
 
@@ -628,13 +629,13 @@ func (s *WebSuite) TestWebSessionsRenew(c *C) {
 	//
 	prevSessionCookie := *pack.cookies[0]
 	prevBearerToken := pack.session.Token
-	re, err := pack.clt.PostJSON(pack.clt.Endpoint("webapi", "sessions", "renew"), nil)
+	re, err := pack.clt.PostJSON(context.Background(), pack.clt.Endpoint("webapi", "sessions", "renew"), nil)
 	c.Assert(err, IsNil)
 
 	newPack := s.authPackFromResponse(c, re)
 
 	// new session is functioning
-	re, err = newPack.clt.Get(pack.clt.Endpoint("webapi", "sites"), url.Values{})
+	re, err = newPack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites"), url.Values{})
 	c.Assert(err, IsNil)
 
 	// old session is stil valid too (until it expires)
@@ -642,16 +643,17 @@ func (s *WebSuite) TestWebSessionsRenew(c *C) {
 	c.Assert(err, IsNil)
 	oldClt := s.client(roundtrip.BearerAuth(prevBearerToken), roundtrip.CookieJar(jar))
 	jar.SetCookies(s.url(), []*http.Cookie{&prevSessionCookie})
-	re, err = oldClt.Get(pack.clt.Endpoint("webapi", "sites"), url.Values{})
+	re, err = oldClt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites"), url.Values{})
 	c.Assert(err, IsNil)
 
 	// now delete session
 	_, err = newPack.clt.Delete(
+		context.Background(),
 		pack.clt.Endpoint("webapi", "sessions"))
 	c.Assert(err, IsNil)
 
 	// subsequent requests trying to use this session will fail
-	re, err = newPack.clt.Get(pack.clt.Endpoint("webapi", "sites"), url.Values{})
+	re, err = newPack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites"), url.Values{})
 	c.Assert(err, NotNil)
 	c.Assert(trace.IsAccessDenied(err), Equals, true)
 }
@@ -706,7 +708,7 @@ func (s *WebSuite) TestWebSessionsBadInput(c *C) {
 		},
 	}
 	for i, req := range reqs {
-		_, err = clt.PostJSON(clt.Endpoint("webapi", "sessions"), req)
+		_, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "sessions"), req)
 		c.Assert(err, NotNil, Commentf("tc %v", i))
 		c.Assert(trace.IsAccessDenied(err), Equals, true, Commentf("tc %v %T is not access denied", i, err))
 	}
@@ -720,7 +722,7 @@ func (s *WebSuite) TestGetSiteNodes(c *C) {
 	pack := s.authPack(c, "foo")
 
 	// get site nodes
-	re, err := pack.clt.Get(pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "nodes"), url.Values{})
+	re, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "nodes"), url.Values{})
 	c.Assert(err, IsNil)
 
 	nodes := getSiteNodeResponse{}
@@ -728,7 +730,7 @@ func (s *WebSuite) TestGetSiteNodes(c *C) {
 	c.Assert(len(nodes.Items), Equals, 1)
 
 	// get site nodes using shortcut
-	re, err = pack.clt.Get(pack.clt.Endpoint("webapi", "sites", currentSiteShortcut, "nodes"), url.Values{})
+	re, err = pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", currentSiteShortcut, "nodes"), url.Values{})
 	c.Assert(err, IsNil)
 
 	nodes2 := getSiteNodeResponse{}
@@ -1038,7 +1040,7 @@ func (s *WebSuite) TestActiveSessions(c *C) {
 	var sessResp *siteSessionsGetResponse
 	for i := 0; i < 10; i++ {
 		// Get site nodes and make sure the node has our active party.
-		re, err := pack.clt.Get(pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "sessions"), url.Values{})
+		re, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "sessions"), url.Values{})
 		c.Assert(err, IsNil)
 
 		c.Assert(json.Unmarshal(re.Bytes(), &sessResp), IsNil)
@@ -1074,6 +1076,7 @@ func (s *WebSuite) TestCloseConnectionsOnLogout(c *C) {
 	stream.Read(out)
 
 	_, err = pack.clt.Delete(
+		context.Background(),
 		pack.clt.Endpoint("webapi", "sessions"))
 	c.Assert(err, IsNil)
 
@@ -1106,6 +1109,7 @@ func (s *WebSuite) TestCreateSession(c *C) {
 	}
 
 	re, err := pack.clt.PostJSON(
+		context.Background(),
 		pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "sessions"),
 		siteSessionGenerateReq{Session: sess},
 	)
@@ -1142,7 +1146,7 @@ func (s *WebSuite) TestNewU2FUser(c *C) {
 	c.Assert(err, IsNil)
 
 	clt := s.client()
-	re, err := clt.Get(clt.Endpoint("webapi", "u2f", "signuptokens", token), url.Values{})
+	re, err := clt.Get(context.Background(), clt.Endpoint("webapi", "u2f", "signuptokens", token), url.Values{})
 	c.Assert(err, IsNil)
 
 	var u2fRegReq u2f.RegisterRequest
@@ -1153,7 +1157,7 @@ func (s *WebSuite) TestNewU2FUser(c *C) {
 
 	tempPass := "abc123"
 
-	re, err = clt.PostJSON(clt.Endpoint("webapi", "u2f", "users"), createNewU2FUserReq{
+	re, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "users"), createNewU2FUserReq{
 		InviteToken:         token,
 		Pass:                tempPass,
 		U2FRegisterResponse: *u2fRegResp,
@@ -1174,7 +1178,7 @@ func (s *WebSuite) TestNewU2FUser(c *C) {
 	clt = s.client(roundtrip.BearerAuth(rawSess.Token), roundtrip.CookieJar(jar))
 	jar.SetCookies(s.url(), re.Cookies())
 
-	re, err = clt.Get(clt.Endpoint("webapi", "sites"), url.Values{})
+	re, err = clt.Get(context.Background(), clt.Endpoint("webapi", "sites"), url.Values{})
 	c.Assert(err, IsNil)
 
 	var sites *getSitesResponse
@@ -1184,13 +1188,13 @@ func (s *WebSuite) TestNewU2FUser(c *C) {
 
 	// no session cookie:
 	clt = s.client(roundtrip.BearerAuth(rawSess.Token))
-	re, err = clt.Get(clt.Endpoint("webapi", "sites"), url.Values{})
+	re, err = clt.Get(context.Background(), clt.Endpoint("webapi", "sites"), url.Values{})
 	c.Assert(err, NotNil)
 	c.Assert(trace.IsAccessDenied(err), Equals, true)
 
 	// no bearer token:
 	clt = s.client(roundtrip.CookieJar(jar))
-	re, err = clt.Get(clt.Endpoint("webapi", "sites"), url.Values{})
+	re, err = clt.Get(context.Background(), clt.Endpoint("webapi", "sites"), url.Values{})
 	c.Assert(err, NotNil)
 	c.Assert(trace.IsAccessDenied(err), Equals, true)
 }
@@ -1225,7 +1229,7 @@ func (s *WebSuite) TestU2FLogin(c *C) {
 
 	// normal login
 	clt := s.client()
-	re, err := clt.PostJSON(clt.Endpoint("webapi", "u2f", "signrequest"), client.U2fSignRequestReq{
+	re, err := clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "signrequest"), client.U2fSignRequestReq{
 		User: "bob",
 		Pass: tempPass,
 	})
@@ -1236,7 +1240,7 @@ func (s *WebSuite) TestU2FLogin(c *C) {
 	u2fSignResp, err := s.mockU2F.SignResponse(&u2fSignReq)
 	c.Assert(err, IsNil)
 
-	_, err = clt.PostJSON(clt.Endpoint("webapi", "u2f", "sessions"), u2fSignResponseReq{
+	_, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "sessions"), u2fSignResponseReq{
 		User:            "bob",
 		U2FSignResponse: *u2fSignResp,
 	})
@@ -1244,7 +1248,7 @@ func (s *WebSuite) TestU2FLogin(c *C) {
 
 	// bad login: corrupted sign responses, should fail
 
-	re, err = clt.PostJSON(clt.Endpoint("webapi", "u2f", "signrequest"), client.U2fSignRequestReq{
+	re, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "signrequest"), client.U2fSignRequestReq{
 		User: "bob",
 		Pass: tempPass,
 	})
@@ -1258,7 +1262,7 @@ func (s *WebSuite) TestU2FLogin(c *C) {
 	u2fSignRespCopy := u2fSignResp
 	u2fSignRespCopy.KeyHandle = u2fSignRespCopy.KeyHandle + u2fSignRespCopy.KeyHandle
 
-	_, err = clt.PostJSON(clt.Endpoint("webapi", "u2f", "sessions"), u2fSignResponseReq{
+	_, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "sessions"), u2fSignResponseReq{
 		User:            "bob",
 		U2FSignResponse: *u2fSignRespCopy,
 	})
@@ -1268,7 +1272,7 @@ func (s *WebSuite) TestU2FLogin(c *C) {
 	u2fSignRespCopy = u2fSignResp
 	u2fSignRespCopy.SignatureData = u2fSignRespCopy.SignatureData[:10] + u2fSignRespCopy.SignatureData[20:]
 
-	_, err = clt.PostJSON(clt.Endpoint("webapi", "u2f", "sessions"), u2fSignResponseReq{
+	_, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "sessions"), u2fSignResponseReq{
 		User:            "bob",
 		U2FSignResponse: *u2fSignRespCopy,
 	})
@@ -1278,7 +1282,7 @@ func (s *WebSuite) TestU2FLogin(c *C) {
 	u2fSignRespCopy = u2fSignResp
 	u2fSignRespCopy.ClientData = u2fSignRespCopy.ClientData[:10] + u2fSignRespCopy.ClientData[20:]
 
-	_, err = clt.PostJSON(clt.Endpoint("webapi", "u2f", "sessions"), u2fSignResponseReq{
+	_, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "sessions"), u2fSignResponseReq{
 		User:            "bob",
 		U2FSignResponse: *u2fSignRespCopy,
 	})
@@ -1288,7 +1292,7 @@ func (s *WebSuite) TestU2FLogin(c *C) {
 
 	s.mockU2F.SetCounter(0)
 
-	re, err = clt.PostJSON(clt.Endpoint("webapi", "u2f", "signrequest"), client.U2fSignRequestReq{
+	re, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "signrequest"), client.U2fSignRequestReq{
 		User: "bob",
 		Pass: tempPass,
 	})
@@ -1298,7 +1302,7 @@ func (s *WebSuite) TestU2FLogin(c *C) {
 	u2fSignResp, err = s.mockU2F.SignResponse(&u2fSignReq)
 	c.Assert(err, IsNil)
 
-	_, err = clt.PostJSON(clt.Endpoint("webapi", "u2f", "sessions"), u2fSignResponseReq{
+	_, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "sessions"), u2fSignResponseReq{
 		User:            "bob",
 		U2FSignResponse: *u2fSignResp,
 	})
@@ -1310,7 +1314,7 @@ func (s *WebSuite) TestU2FLogin(c *C) {
 func (s *WebSuite) TestPing(c *C) {
 	wc := s.client()
 
-	re, err := wc.Get(wc.Endpoint("webapi", "ping"), url.Values{})
+	re, err := wc.Get(context.Background(), wc.Endpoint("webapi", "ping"), url.Values{})
 	c.Assert(err, IsNil)
 
 	var out *client.PingResponse
@@ -1356,7 +1360,7 @@ func (s *WebSuite) TestMultipleConnectors(c *C) {
 	c.Assert(err, IsNil)
 
 	// hit the ping endpoint to get the auth type and connector name
-	re, err := wc.Get(wc.Endpoint("webapi", "ping"), url.Values{})
+	re, err := wc.Get(context.Background(), wc.Endpoint("webapi", "ping"), url.Values{})
 	c.Assert(err, IsNil)
 	var out *client.PingResponse
 	c.Assert(json.Unmarshal(re.Bytes(), &out), IsNil)
@@ -1377,7 +1381,7 @@ func (s *WebSuite) TestMultipleConnectors(c *C) {
 	c.Assert(err, IsNil)
 
 	// hit the ping endpoing to get the auth type and connector name
-	re, err = wc.Get(wc.Endpoint("webapi", "ping"), url.Values{})
+	re, err = wc.Get(context.Background(), wc.Endpoint("webapi", "ping"), url.Values{})
 	c.Assert(err, IsNil)
 	c.Assert(json.Unmarshal(re.Bytes(), &out), IsNil)
 

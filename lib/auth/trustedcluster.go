@@ -12,12 +12,12 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
 */
 
 package auth
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/url"
@@ -487,7 +487,7 @@ func (s *AuthServer) sendValidateRequestToProxy(host string, validateRequest *Va
 		return nil, trace.Wrap(err)
 	}
 
-	out, err := httplib.ConvertResponse(clt.PostJSON(clt.Endpoint("webapi", "trustedclusters", "validate"), validateRequestRaw))
+	out, err := httplib.ConvertResponse(clt.PostJSON(context.TODO(), clt.Endpoint("webapi", "trustedclusters", "validate"), validateRequestRaw))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
