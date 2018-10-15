@@ -115,7 +115,7 @@ func (e *Enforcer) periodicHeartbeat(ctx context.Context) {
 	for {
 		select {
 		case <-ticker.C:
-			err := e.heartbeat()
+			err := e.heartbeat(ctx)
 			if err != nil {
 				log.Debug(trace.DebugReport(err))
 			}
@@ -126,8 +126,8 @@ func (e *Enforcer) periodicHeartbeat(ctx context.Context) {
 	}
 }
 
-func (e *Enforcer) heartbeat() error {
-	out, err := e.Get(e.Endpoint("heartbeat"), url.Values{})
+func (e *Enforcer) heartbeat(ctx context.Context) error {
+	out, err := e.Get(ctx, e.Endpoint("heartbeat"), url.Values{})
 	if err != nil {
 		return trace.Wrap(err)
 	}
