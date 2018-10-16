@@ -19,7 +19,9 @@ limitations under the License.
 package modules
 
 import (
+	"bytes"
 	"fmt"
+	"runtime"
 	"sync"
 
 	"github.com/gravitational/teleport"
@@ -79,13 +81,15 @@ func (p *defaultModules) DefaultAllowedLogins() []string {
 	return []string{teleport.TraitInternalLoginsVariable}
 }
 
-// PrintVersion prints teleport version
+// PrintVersion prints the Teleport version.
 func (p *defaultModules) PrintVersion() {
-	ver := fmt.Sprintf("Teleport v%s", teleport.Version)
-	if teleport.Gitref != "" {
-		ver = fmt.Sprintf("%s git:%s", ver, teleport.Gitref)
-	}
-	fmt.Println(ver)
+	var buf bytes.Buffer
+
+	buf.WriteString(fmt.Sprintf("Teleport v%s ", teleport.Version))
+	buf.WriteString(fmt.Sprintf("git:%s ", teleport.Gitref))
+	buf.WriteString(runtime.Version())
+
+	fmt.Println(buf.String())
 }
 
 // RolesFromLogins returns roles for external user based on the logins
