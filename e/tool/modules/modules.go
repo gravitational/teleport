@@ -47,14 +47,16 @@ func (p *enterpriseModules) DefaultAllowedLogins() []string {
 	return []string{teleport.TraitInternalLoginsVariable, teleport.Root}
 }
 
-// PrintVersion prints teleport version, for enterprise it includes
-// "Enterprise" in the output
-func (p *enterpriseModules) PrintVersion() {
-	ver := fmt.Sprintf("Teleport Enterprise v%s", teleport.Version)
-	if teleport.Gitref != "" {
-		ver = fmt.Sprintf("%s git:%s", ver, teleport.Gitref)
-	}
-	fmt.Println(ver)
+// PrintVersion prints the Teleport version. For enterprise it includes
+// "Enterprise" in the output.
+func (p *defaultModules) PrintVersion() {
+	var buf bytes.Buffer
+
+	buf.WriteString(fmt.Sprintf("Teleport Enterprise v%s", teleport.Version))
+	buf.WriteString(fmt.Sprintf("git:%s ", teleport.Gitref))
+	buf.WriteString(runtime.Version())
+
+	fmt.Println(buf.String())
 }
 
 // RolesFromLogins returns roles for external user based on the logins
