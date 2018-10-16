@@ -7,6 +7,7 @@ darwin
 
 # usually release tarballs get in the way
 *.gz
+*.zip
 
 # built web assets
 web/dist/app/app
@@ -51,7 +52,7 @@ docs/latest.yaml
 .terraform
 terraform.tfstate
 
-# OSX 
+# macOS
 **/.DS_Store
 
 # ansible stuff
