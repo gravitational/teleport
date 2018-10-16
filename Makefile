@@ -19,12 +19,13 @@ DATADIR ?= /usr/local/share/teleport
 ADDFLAGS ?=
 PWD ?= `pwd`
 GOCACHEDIR ?= `go env GOCACHE`
+GOPKGDIR ?= `go env GOPATH`/pkg/`go env GOHOSTOS`_`go env GOARCH`/github.com/gravitational/teleport*
 TELEPORT_DEBUG ?= no
 GITTAG=v$(VERSION)
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s'
 
-OS ?= `go env GOOS`
-ARCH ?= `go env GOARCH`
+OS ?= $(shell go env GOOS)
+ARCH ?= $(shell go env GOARCH)
 RELEASE=teleport-$(GITTAG)-$(OS)-$(ARCH)-bin
 
 # PAM support will only be built into Teleport if headers exist at build time.
@@ -67,15 +68,15 @@ all: $(VERSRC)
 # If you are considering changing this behavior, please consult with dev team first
 .PHONY: $(BUILDDIR)/tctl
 $(BUILDDIR)/tctl:
-	go build $(PAMFLAGS) -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
+	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=1 go build $(PAMFLAGS) -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
 $(BUILDDIR)/teleport:
-	go build $(PAMFLAGS) -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
+	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=1 go build $(PAMFLAGS) -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
 .PHONY: $(BUILDDIR)/tsh
 $(BUILDDIR)/tsh:
-	GOOS=$(OS) go build $(PAMFLAGS) -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
+	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=1 go build $(PAMFLAGS) -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
 
 #
 # make full - Builds Teleport binaries with the built-in web assets and
@@ -99,11 +100,11 @@ clean:
 	@echo "---> Cleaning up OSS build artifacts."
 	rm -rf $(BUILDDIR)
 	rm -rf $(GOCACHEDIR)
+	rm -rf $(GOPKGDIR)
 	rm -rf teleport
 	rm -rf *.gz
 	rm -rf *.zip
 	rm -f gitref.go
-	rm -rf `go env GOPATH`/pkg/`go env GOHOSTOS`_`go env GOARCH`/github.com/gravitational/teleport*
 
 #
 # make release - Produces a binary release tarball.

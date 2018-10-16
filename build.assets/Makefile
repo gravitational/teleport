@@ -15,6 +15,9 @@ NOROOT=-u $$(id -u):$$(id -g)
 KUBECONFIG ?=
 TEST_KUBE ?=
 
+GORUNTIME ?= go1.11.1
+GOARCH ?= amd64
+
 ifneq ("$(KUBECONFIG)","")
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(KUBECONFIG):/mnt/kube/config -e KUBECONFIG=/mnt/kube/config -e TEST_KUBE=$(TEST_KUBE)
 endif
@@ -43,7 +46,11 @@ build-binaries: bbox
 #
 .PHONY:bbox
 bbox:
-	docker build --build-arg UID=$$(id -u) --build-arg GID=$$(id -g) --tag $(BBOX) .
+	docker build \
+		--build-arg UID=$$(id -u) \
+		--build-arg GID=$$(id -g) \
+		--build-arg GORUNTIME=$(GORUNTIME) \
+		--tag $(BBOX) .
 
 #
 # Builds a Docker container for building mkdocs documentation
@@ -127,12 +134,12 @@ enter: bbox
 		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BBOX) /bin/bash
 
 #
-# Create a teleport package using the build container
+# Create a Teleport package using the build container.
 #
 .PHONY:release
 release: bbox
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BBOX) \
-		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=linux
+		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=linux ARCH=$(GOARCH)
 
 #
 # Create a Windows Teleport package using the build container.
