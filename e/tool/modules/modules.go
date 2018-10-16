@@ -1,7 +1,9 @@
 package modules
 
 import (
+	"bytes"
 	"fmt"
+	"runtime"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/modules"
@@ -49,7 +51,7 @@ func (p *enterpriseModules) DefaultAllowedLogins() []string {
 
 // PrintVersion prints the Teleport version. For enterprise it includes
 // "Enterprise" in the output.
-func (p *defaultModules) PrintVersion() {
+func (p *enterpriseModules) PrintVersion() {
 	var buf bytes.Buffer
 
 	buf.WriteString(fmt.Sprintf("Teleport Enterprise v%s", teleport.Version))
