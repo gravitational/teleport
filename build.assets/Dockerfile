@@ -23,8 +23,8 @@ RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9
      cp etcd-v3.3.9-linux-amd64/etcd* /bin/)
 
 # Install Go.
-ARG GORUNTIME=go1.11.1
-RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$GORUNTIME.linux-amd64.tar.gz | tar xz;\
+ARG RUNTIME
+RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$RUNTIME.linux-amd64.tar.gz | tar xz;\
     mkdir -p /gopath/src/github.com/gravitational/teleport;\
     chmod a+w /gopath;\
     chmod a+w /var/lib;\

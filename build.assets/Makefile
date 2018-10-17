@@ -15,8 +15,9 @@ NOROOT=-u $$(id -u):$$(id -g)
 KUBECONFIG ?=
 TEST_KUBE ?=
 
-GORUNTIME ?= go1.11.1
-GOARCH ?= amd64
+OS ?= linux
+ARCH ?= amd64
+RUNTIME ?= go1.11.1
 
 ifneq ("$(KUBECONFIG)","")
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(KUBECONFIG):/mnt/kube/config -e KUBECONFIG=/mnt/kube/config -e TEST_KUBE=$(TEST_KUBE)
@@ -49,7 +50,7 @@ bbox:
 	docker build \
 		--build-arg UID=$$(id -u) \
 		--build-arg GID=$$(id -g) \
-		--build-arg GORUNTIME=$(GORUNTIME) \
+		--build-arg RUNTIME=$(RUNTIME) \
 		--tag $(BBOX) .
 
 #
@@ -139,7 +140,7 @@ enter: bbox
 .PHONY:release
 release: bbox
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BBOX) \
-		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=linux ARCH=$(GOARCH)
+		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME)
 
 #
 # Create a Windows Teleport package using the build container.
