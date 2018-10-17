@@ -35,7 +35,7 @@ $color-bkg-13: #2980B9;
 $color-bkg-14: #e91e63;
 $color-bkg-15: #f1f1f1;
 
-$color-border-2: #b7bacb;    
+$color-border-2: #b7bacb;
 $color-border-3: #404040;
 $color-border-4: #e5e5ee;
 $color-border-5: #E1E4E5;
@@ -45,8 +45,8 @@ $gray-base: #222;
 $headings-color:  $color-font-4;
 $font-size-base: 16px;
 $font-size-h1: 32px;
-$font-size-h2: 24px; 
-$font-size-h3: 20px; 
+$font-size-h2: 24px;
+$font-size-h3: 20px;
 $font-size-h4: 16px;
 $font-size-h5: 14px !default;
 $font-size-h6: ceil((14px * 0.85)) !default; // ~12px
@@ -61,7 +61,59 @@ $color-admonition-warning-header-bkg: #EF7C5C;
 $color-admonition-danger-bkg: #FAE1E4;
 $color-admonition-danger-title-bkg: #E05869;
 
-$document-max-width: 850px;  
+$document-max-width: 850px;
+
+/*
+* Breakpoints
+*
+*/
+
+$phone-breakpoint: 480px !default;
+$mobile-breakpoint: 800px !default;
+$tablet-breakpoint: 1200px !default;
+$desktop-breakpoint: 1400px !default;
+
+/*
+* Brand Colors
+*
+*/
+
+$color-light: #FFF;
+$color-dark: #000;
+
+$color-subtle: #EDF0F2;
+$color-tint: #FCFCFD;
+$color-space: #0C1D31;
+
+$color-primary: #233591;
+$color-primary-light: #6F81CC;
+$color-primary-dark: #233591;
+
+$color-accent: #00BFA5;
+$color-accent-light: #E6F4F4;
+$color-accent-dark: #008A7E;
+
+
+/*
+* Secondary Colors
+*
+*/
+
+$color-terminal: #28FE14;
+$color-plum: #1e3c72;
+$color-steel: #455A64;
+
+/*
+* Highlight Colors
+*
+*/
+
+$color-warning: #FF9100;
+$color-error: #F50057;
+$color-success: #00E676;
+$color-link: #039BE5;
+
+
 
 /*
 * Z Indexes
@@ -73,3 +125,10 @@ $z-2: 2;
 $z-3: 3;
 $z-4: 4;
 $z-5: 5;
+
+$z-max-1: 1000;
+$z-max-2: 2000;
+$z-max-3: 3000;
+$z-max-4: 4000;
+$z-max-5: 5000;
+

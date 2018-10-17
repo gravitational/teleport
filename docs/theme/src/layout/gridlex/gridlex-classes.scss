@@ -1,0 +1,180 @@
+//************************
+//    CLASSES
+//************************
+// GRID
+[#{$gl-attributeName}~="#{$gl-gridName}"],
+[#{$gl-attributeName}*="#{$gl-gridName}-"],
+[#{$gl-attributeName}*="#{$gl-gridName}_"]{
+  box-sizing: border-box;
+  display: flex;
+  flex-flow: row wrap;
+  margin: 0;
+}
+// COLS
+[#{$gl-attributeName}~="#{$gl-colName}"],
+[#{$gl-attributeName}*="#{$gl-colName}-"],
+[#{$gl-attributeName}*="#{$gl-colName}_"]{
+  box-sizing: border-box;
+  padding: 0 ($gl-gutter/2) $gl-gutter-vertical;
+  max-width: 100%;
+}
+// JUST "COL" & "COL_"
+[#{$gl-attributeName}~="#{$gl-colName}"],
+[#{$gl-attributeName}*="#{$gl-colName}_"]{
+  flex: 1 1 0%;
+}
+// JUST "COL-"
+[#{$gl-attributeName}*="#{$gl-colName}-"]{
+  flex: none;
+}
+
+// COL & GRID
+[#{$gl-attributeName}~="#{$gl-gridName}"][#{$gl-attributeName}~="#{$gl-colName}"],
+[#{$gl-attributeName}~="#{$gl-gridName}"][#{$gl-attributeName}*="#{$gl-colName}-"],
+[#{$gl-attributeName}~="#{$gl-gridName}"][#{$gl-attributeName}*="#{$gl-colName}_"],
+[#{$gl-attributeName}*="#{$gl-gridName}-"][#{$gl-attributeName}~="#{$gl-colName}"],
+[#{$gl-attributeName}*="#{$gl-gridName}-"][#{$gl-attributeName}*="#{$gl-colName}-"],
+[#{$gl-attributeName}*="#{$gl-gridName}-"][#{$gl-attributeName}*="#{$gl-colName}_"],
+[#{$gl-attributeName}*="#{$gl-gridName}_"][#{$gl-attributeName}~="#{$gl-colName}"],
+[#{$gl-attributeName}*="#{$gl-gridName}_"][#{$gl-attributeName}*="#{$gl-colName}-"],
+[#{$gl-attributeName}*="#{$gl-gridName}_"][#{$gl-attributeName}*="#{$gl-colName}_"]{
+  margin: 0;
+  padding: 0;
+}
+
+/************************
+    HELPERS SUFFIXES
+*************************/
+// FOR GRID
+[#{$gl-attributeName}*="#{$gl-gridName}-"]{
+// No spacing between cols : noGutter
+  &[#{$gl-attributeName}*="-noGutter"]{
+    margin: 0;
+    > [#{$gl-attributeName}~="#{$gl-colName}"],
+    > [#{$gl-attributeName}*="#{$gl-colName}-"]{
+      padding: 0;
+    }
+  }
+
+// No Wrapping
+  &[#{$gl-attributeName}*="-noWrap"]{
+    flex-wrap: nowrap;
+  }
+// Horizontal alignment on center
+  &[#{$gl-attributeName}*="-center"]{
+    justify-content: center;
+  }
+// Horizontal alignment on right
+  &[#{$gl-attributeName}*="-right"]{
+    justify-content: flex-end;
+    align-self: flex-end;
+    margin-left: auto;
+  }
+// Vertical alignment on top
+  &[#{$gl-attributeName}*="-top"]{
+    align-items: flex-start;
+  }
+// Vertical alignment on middle
+  &[#{$gl-attributeName}*="-middle"]{
+    align-items: center;
+  }
+// Vertical alignment on bottom
+  &[#{$gl-attributeName}*="-bottom"]{
+    align-items: flex-end;
+  }
+
+// Orders
+  &[#{$gl-attributeName}*="-reverse"]{
+    flex-direction: row-reverse;
+  }
+  &[#{$gl-attributeName}*="-column"] {
+    flex-direction: column;
+    > [#{$gl-attributeName}*="#{$gl-colName}-"] {
+      flex-basis: auto;
+    }
+  }
+  &[#{$gl-attributeName}*="-column-reverse"]{
+    flex-direction: column-reverse;
+  }
+
+// Spaces between and around cols
+  &[#{$gl-attributeName}*="-spaceBetween"]{
+    justify-content: space-between;
+  }
+  &[#{$gl-attributeName}*="-spaceAround"]{
+    justify-content: space-around;
+  }
+
+// Equal heights columns
+  &[#{$gl-attributeName}*="-equalHeight"] > [#{$gl-attributeName}~="#{$gl-colName}"],
+  &[#{$gl-attributeName}*="-equalHeight"] > [#{$gl-attributeName}*="#{$gl-colName}-"],
+  &[#{$gl-attributeName}*="-equalHeight"] > [#{$gl-attributeName}*="#{$gl-colName}_"]{
+    align-self: stretch;
+    > *{
+      height: 100%;
+    }
+  }
+// Removes the padding-bottom
+  &[#{$gl-attributeName}*="-noBottom"] > [#{$gl-attributeName}~="#{$gl-colName}"],
+  &[#{$gl-attributeName}*="-noBottom"] > [#{$gl-attributeName}*="#{$gl-colName}-"],
+  &[#{$gl-attributeName}*="-noBottom"] > [#{$gl-attributeName}*="#{$gl-colName}_"]{
+    padding-bottom: 0;
+  }
+}
+
+// FOR COL
+[#{$gl-attributeName}*="#{$gl-colName}-"]{
+  &[#{$gl-attributeName}*="-top"]{
+    align-self: flex-start;
+  }
+  &[#{$gl-attributeName}*="-middle"]{
+    align-self: center;
+  }
+  &[#{$gl-attributeName}*="-bottom"]{
+    align-self: flex-end;
+  }
+  &[#{$gl-attributeName}*="-first"]{
+    order: -1;
+  }
+  &[#{$gl-attributeName}*="-last"]{
+    order: 1;
+  }
+}
+/************************
+    GRID BY NUMBER
+*************************/
+@include makeGridByNumber(#{$gl-gridName});
+@each $mq-key, $mq-value in $gl-mq-list {
+  @include bp(#{$mq-key}) {
+  //@media #{$mq-value} {
+    @include makeGridByNumber(_#{$mq-key});
+  }
+}
+
+/************************
+    COLS SIZES
+*************************/
+@include makeCol(#{$gl-colName});
+@include makeOff(off);
+
+
+@each $mq-key, $mq-value in $gl-mq-list {
+  @include bp(#{$mq-key}) {
+    @include makeCol(_#{$mq-key});
+    @include makeOff(_#{$mq-key});
+    @include makeFirstLast(_#{$mq-key});
+  }
+}
+
+
+
+/************************
+    HIDING COLS
+*************************/
+@each $mq-key, $mq-value in $gl-mq-list {
+  @include bp(#{$mq-key}) {
+    [#{$gl-attributeName}*="#{$mq-key}-hidden"] {
+      display: none;
+    }
+  }
+}

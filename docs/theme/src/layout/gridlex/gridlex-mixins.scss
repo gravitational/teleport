@@ -1,0 +1,72 @@
+// Make the breakpoints
+@mixin bp($breakpoint) {
+  $query: map-get($gl-mq-list, $breakpoint);
+  @if $query != null {
+    @media ($gl-mq-width: #{nth($query, 1)}) {
+      @content;
+    }
+  }
+}
+
+// Function to generate the grid by number
+@mixin makeGridByNumber($grid)
+{
+  @for $i from 1 through $gl-colCount {
+      [#{$gl-attributeName}*="#{$grid}-#{$i}"] > [#{$gl-attributeName}~="#{$gl-colName}"],
+      [#{$gl-attributeName}*="#{$grid}-#{$i}"] > [#{$gl-attributeName}*="#{$gl-colName}-"],
+      [#{$gl-attributeName}*="#{$grid}-#{$i}"] > [#{$gl-attributeName}*="#{$gl-colName}_"] {
+        $fraction: 1 / $i;
+
+        flex-basis: map-get($gl-colFractions, $fraction);
+        max-width: map-get($gl-colFractions, $fraction);
+      }
+  }
+}
+
+// Function to generate the grid by columns
+@mixin makeCol($col)
+{
+  [#{$gl-attributeName}~="#{$gl-gridName}"],
+  [#{$gl-attributeName}*="#{$gl-gridName}-"],
+  [#{$gl-attributeName}*="#{$gl-gridName}_"] {
+    
+    @for $i from 1 through $gl-colCount {
+      > [#{$gl-attributeName}*="#{$col}-#{$i}"]{ flex-basis: map-get($gl-colPortions, $i); max-width: map-get($gl-colPortions, $i); }
+    }
+  }
+}
+
+// Function to generate the -first & -last base on mq keys (as _lg-first)
+@mixin makeFirstLast($mq)
+{
+  [#{$gl-attributeName}~="#{$gl-gridName}"],
+  [#{$gl-attributeName}*="#{$gl-gridName}-"],
+  [#{$gl-attributeName}*="#{$gl-gridName}_"] {
+    [#{$gl-attributeName}*="#{$mq}-first"]{
+      order: -1;
+    }
+    [#{$gl-attributeName}*="#{$mq}-last"]{
+      order: 1;
+    }
+  }
+}
+
+// Function to generate the offset
+@mixin makeOff($off)
+{
+  [#{$gl-attributeName}~="#{$gl-gridName}"],
+  [#{$gl-attributeName}*="#{$gl-gridName}-"],
+  [#{$gl-attributeName}*="#{$gl-gridName}_"] {
+    @for $i from 0 through $gl-colCount - 1 {
+      > [data-push-left*="#{$off}-#{$i}"]{ margin-left: map-get($gl-colPortions, $i); }
+    }
+  }
+
+  [#{$gl-attributeName}~="#{$gl-gridName}"],
+  [#{$gl-attributeName}*="#{$gl-gridName}-"],
+  [#{$gl-attributeName}*="#{$gl-gridName}_"] {
+    @for $i from 0 through $gl-colCount - 1 {
+      > [data-push-right*="#{$off}-#{$i}"]{ margin-right: map-get($gl-colPortions, $i); }
+    }
+  }
+}

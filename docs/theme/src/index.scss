@@ -1,28 +1,57 @@
+/*
+* BASE
+*
+*/
+
 @import "defaults";
 @import "mixins";
+
+
+/*
+* OLD
+*
+*/
+
 @import "bootstrap/index";
 @import "md/index";
-
 @import "overrides";
 @import "admonition";
-@import "nav";
 @import "ver-selector";
 @import "nav-left";
 @import "utils";
-@import "footer";
+
+
+/*
+* LAYOUT
+*
+*/
+
+@import "layout/gridlex/gridlex";
+
+
+/*
+* MODULES
+*
+*/
+
+@import "module/buttons";
+@import "module/footer";
+@import "module/secondary-nav";
+@import "module/top-nav";
+
 
 $content-padding-left: 320px;
 
 p {
   line-height: 24px;
 }
-  
+
 h4 {
   color: $color-font-1;
   font-weight: bold;
   letter-spacing: 1px;
   margin-bottom: 10px;
-  text-transform: uppercase;  
+  text-transform: uppercase;
   margin-top: 20px;
 }
 
@@ -32,13 +61,13 @@ h1,h2,h3 {
 
 h1,
 h2 {
-  &:not(:first-child) { 
+  &:not(:first-child) {
     margin-top: 50px;
   }
   margin-bottom: 20px;
 }
 
-h3 {  
+h3 {
   margin-top: 30px;
   margin-bottom: 15px;
 }
@@ -48,7 +77,7 @@ html{
   width: 100%;
 }
 
-body {  
+body {
 //  position: fixed;
   height: 100%;
   width: 100%;
@@ -60,51 +89,51 @@ body {
   color: $color-font-8;
 }
 
-.grv-docs {    
+.grv-docs {
   display: flex;
   position: relative;
   height: 100%;
   flex-direction: column;
   background-image: none;
-  background: left repeat-y #fcfcfc; 
+  background: left repeat-y #fcfcfc;
   background-size: 300px 1px
 }
 
 .grv-content {
   width: 100%;
-  height: 100%;   
+  height: 100%;
 }
 
-.grv-content-body {  
+.grv-content-body {
   background: #fcfcfc;
-  //min-height: 100%;  
-  padding-left: calc((100% - #{$max-width})/2 + #{$content-padding-left} );    
+  //min-height: 100%;
+  padding-left: calc((100% - #{$max-width})/2 + #{$content-padding-left} );
   .wy-nav-top a:visited {
     color: $color-bkg-5;
   }
 }
 
 .grv-content-page {
-  position: relative;    
+  position: relative;
   height: 100%;
   max-width: 800px;
   margin: auto;
-  max-width: $document-max-width;  
-  padding: 10px 20px 20px 20px;  
+  max-width: $document-max-width;
+  padding: 10px 20px 20px 20px;
   margin: 0 !important;
   background-color: $color-bkg-5 !important;
 }
 
-.grv-content-nav {  
+.grv-content-nav {
   position: absolute;
   height: calc(100% - #{$top-menu-height});
   overflow-y: auto;
   overflow-x: auto;
-  background-color: $color-bkg-10;           
+  background-color: $color-bkg-10;
   display: flex;
-  flex-direction: column;  
+  flex-direction: column;
   left: calc((100% - #{$max-width})/2 + 20px);
-  
+
   .grv-content-nav-body{
     overflow: auto;
     width: 280px;
@@ -115,7 +144,7 @@ body {
   .grv-content-nav {
     position: fixed;
     top: 0;
-    height: calc(100% - 0px);    
+    height: calc(100% - 0px);
   }
 }
 
@@ -136,11 +165,11 @@ body {
   margin-top: 0px;
 
   > p {
-    margin: 20px 0; 
+    margin: 20px 0;
     text-align: center;
   }
 
-  article h3{    
+  article h3{
     border-top: 1px solid $color-border-5;
     padding-top: 24px;
   }
@@ -157,17 +186,17 @@ body {
 
   .grv-content-body{
     padding-left: $content-padding-left;
-  }  
+  }
 }
 
 @media screen and (max-width: 768px) {
   .grv-content-nav{
-    display: none;    
-  }  
+    display: none;
+  }
 
   .grv-content-body{
     padding-left: 0;
-  }  
+  }
 }
 
 @media print {
@@ -175,10 +204,10 @@ body {
   .grv-content-body{
     padding: 0;
   }
-  
+
   footer,
-  #grv-docs-top-menu,  
+  #grv-docs-top-menu,
   .grv-content-nav  {
       display: none
-  }  
+  }
 }

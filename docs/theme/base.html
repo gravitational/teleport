@@ -13,11 +13,12 @@
 
   <link rel="shortcut icon" href="https://gravitational.com/favicon.ico" type="image/x-icon" />
 
-  {# CSS #}  
-  <link rel="stylesheet" href="{{ base_url }}/css/font-awesome.css">  
-  <link rel="stylesheet" href="{{ base_url }}/css/highlight.css">  
+  {# CSS #}
+  <link rel="stylesheet" href="{{ base_url }}/css/font-awesome.css">
+  <link rel="stylesheet" href="{{ base_url }}/css/highlight.css">
   <link rel="stylesheet" href="{{ base_url }}/css/teleport-bundle.css">
-  
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons"  />
+
 
   {%- for path in extra_css %}
   <link href="{{ path }}" rel="stylesheet">
@@ -28,18 +29,18 @@
   <script type="text/javascript" src="{{ base_url }}/js/highlight.pack.js"></script>
   <script src="{{ base_url }}/js/base.js"></script>
   <script src="{{ base_url }}/js/theme.js"></script>
-  {% if page %}      
+  {% if page %}
     <script>
       // current page data
       var mkdocs_page_name = "{{ page.title }}";
       var mkdocs_page_input_path = "{{ page.input_path }}";
-      var mkdocs_page_url = "{{ page.abs_url }}";        
-      
+      var mkdocs_page_url = "{{ page.abs_url }}";
+
       // configure UI components
       window.grvConfig = window.grvConfig || {
         docVersions:  ["1.3", "2.0", "2.3", "2.4", "2.5", "2.7", "3.0"],
         docCurrentVer:  "{{ config.extra.version }}"
-      }    
+      }
     </script>
 
     <style type="text/css">
@@ -65,40 +66,42 @@
       ga('send', 'pageview');
   </script>
   {% endif %}
-</head>  
-<body role="document">  
-  <div class="grv-docs">        
-    {% include "topnav.html" %}                                              
-    <div class="grv-content">      
+</head>
+<body role="document" class="has-secondary-nav">
+  <div class="grv-docs">
+    {% include "topnav.html" %}
+    <div class="grv-content">
       {# SIDE NAV, TOGGLES ON MOBILE #}
       <nav class="grv-content-nav">
-        <div class="grv-nav-search m-t-sm">        
+        <div class="grv-nav-search m-t-sm">
           {% include "searchbox.html" %}
         </div>
         <div class="grv-content-nav-body" data-spy="affix" role="na$color-font-7vigation">
-          {% include "toc.html" %}                                
+          {% include "toc.html" %}
         </div>
         &nbsp;
-      </nav>            
-      <section class="grv-content-body">                    
-        {# PAGE CONTENT #}              
-        <div class="grv-content-page">                          
-          <div class="rst-content">            
-            <div role="main">                            
+      </nav>
+      <section class="grv-content-body">
+        {# PAGE CONTENT #}
+        <div class="grv-content-page clearfix">
+          <div class="rst-content">
+            <div role="main">
                 <div class="section grv-markdown">
-                  {% block content %}      
-                    {{ page.content }}                   
+                  {% block content %}
+                    {{ page.content }}
                   {% endblock %}
-                </div>            
-            </div>          
+                </div>
+            </div>
             {%- block footer %}
               {% include "pagination.html" %}
             {% endblock %}
-          </div>        
-        </div>      
+          </div>
+        </div>
+
+
         {%- block grvfooter %}
-          {% include "footer.html" %}    
-        {% endblock %}      
+          {% include "footer.html" %}
+        {% endblock %}
       </section>
     </div>
   </div>

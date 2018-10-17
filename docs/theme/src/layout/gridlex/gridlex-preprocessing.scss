@@ -1,0 +1,19 @@
+// calculate width of one col in %
+$gl-colUnit: (100%/$gl-colCount);
+
+// calculate and store nth portions for grid by columns
+$gl-colPortions: (
+  0: 0
+);
+@for $i from 1 through $gl-colCount {
+  $gl-colPortions: map-merge($gl-colPortions, ($i: ($gl-colUnit*$i)));
+}
+
+// calculate and store nth fractions for grid by number
+$gl-colFractions: (
+  0: 0 // Avoid division by zero if $i would start at 0
+);
+@for $i from 1 through $gl-colCount {
+  $fraction: 1 / $i;
+  $gl-colFractions: map-merge($gl-colFractions, ($fraction: $fraction * 100%));
+}

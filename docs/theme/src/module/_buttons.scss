@@ -1,0 +1,273 @@
+/*
+* Buttons
+*
+*/
+
+
+/*
+* Defaults
+*
+*/
+
+$button: '.button' !default;
+$button-colors: ('primary' $color-accent $color-light) ('secondary' $color-plum $color-light) ('inverse' $color-light transparent) !default;
+
+
+/*
+* Base Style Definition
+*
+*/
+
+#{$button} {
+  appearance: none;
+  background: $color-subtle;
+  border: none;
+  border-radius: 4px;
+  box-sizing: border-box;
+  color: $color-dark;
+  cursor: pointer;
+  display: inline-block;
+  font-weight: 600;
+  font-size: 14px;
+  height: $unit * 6;
+  line-height: $unit * 6;
+  overflow: hidden;
+  padding: 0 ($unit * 6);
+  position: relative;
+  text-decoration: none;
+  text-align: center;
+  text-transform: uppercase;
+  transition-property: all;
+  transition-duration:.3s;
+
+  @include respond-to('mobile') {
+    font-size: 12px;
+    padding: 0;
+    display: block;
+    height: auto;
+    margin: $unit 0;
+    width: 100%;
+  }
+
+  &.has-icon {
+    padding: 0 ($unit * 6) 0 ($unit * 7);
+  }
+
+  #{$button}-icon {
+    left: $unit * 3;
+    position: absolute;
+    top: 0;
+    z-index: $z-1;
+  }
+
+  .material-icons {
+    line-height: $unit * 5;
+  }
+
+  &:hover,
+  &:focus {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, .24);
+    outline: none;
+    opacity: 1;
+    text-decoration: none;
+    transform: translateY(-2px);
+  }
+
+  &:active,
+  &.active,
+  &.is-active {
+    box-shadow: none;
+    text-decoration: none;
+    transition-duration: 0s;
+    opacity: .56;
+  }
+
+  /*
+  * Sizes
+  *
+  */
+
+  &.is-small {
+    font-size: 12px;
+    height: $unit * 3;
+    line-height: $unit * 3;
+    padding: 0 ($unit * 2);
+  }
+
+  &.is-medium {
+    font-size: 12px;
+    height: $unit * 5;
+    line-height: $unit * 5;
+    padding: 0 ($unit * 4);
+  }
+
+  &.is-large {
+    height: $unit * 6;
+    line-height: $unit * 6;
+
+    @include respond-to('mobile') {
+      height: auto;
+    }
+  }
+
+  &.is-jumbo {
+    height: $unit * 8;
+    line-height: $unit * 8;
+
+    @include respond-to('mobile') {
+      height: auto;
+    }
+  }
+
+  &.is-wide {
+    padding: 0 ($unit * 10);
+  }
+
+  /*
+  * Block Level State
+  *
+  */
+
+  &.is-block {
+    display: block;
+  }
+
+  /*
+  * Disabled State
+  *
+  */
+
+  &.disabled,
+  &.is-disabled,
+  &:disabled {
+    appearance: none !important;
+    background: #EEE !important;
+    border: 1px solid #DDD !important;
+    box-shadow: none !important;
+    color: #CCC !important;
+    cursor: default !important;
+    opacity:.8 !important;
+    top: 0 !important;
+  }
+}
+
+
+/*
+* Base Colors
+*
+* Create colors for buttons
+* (.button-primary, .button-secondary, etc.)
+*/
+
+@each $button-color in $button-colors {
+  $button-name: nth($button-color, 1);
+  $button-background: nth($button-color, 2);
+  $button-color: nth($button-color, 3);
+
+  #{$button}-#{$button-name} {
+    background-color: $button-background;
+    border-color: $button-background;
+    color: $button-color;
+
+    &:visited {
+      color: $button-color;
+    }
+
+    &:hover,
+    &:focus {
+      color: $button-color;
+    }
+
+    &:active,
+    &.active,
+    &.is-active {
+      color: rgba($button-color, .24);
+    }
+  }
+}
+
+
+/*
+* Button Pill
+*
+* Pill shape button
+*/
+
+#{$button}-pill {
+  border-radius: 200px;
+}
+
+
+/*
+* Border Buttons
+*
+* These buttons have no fill they only have a
+* border to define their hit target.
+*/
+
+#{$button}-border {
+  background: none;
+  border-width: 1px;
+  border-style: solid;
+  opacity: .87;
+
+  &:hover,
+  &:focus {
+    background: none;
+    opacity: 1;
+  }
+
+  &:active,
+  &.active,
+  &.is-active {
+    box-shadow: none;
+    transition: none;
+  }
+
+  @each $button-color in $button-colors {
+    $button-name: nth($button-color, 1);
+    $button-background: nth($button-color, 2);
+    $button-color-namespace: $button + '-' + $button-name;
+
+    &#{$button-color-namespace} {
+      color: $button-background;
+
+      &:active,
+      &.active,
+      &.is-active {
+        color: rgba($button-background, .24);
+        border-color: rgba($button-background, .24);
+      }
+    }
+  }
+}
+
+
+/*
+* Button Ripple
+*
+* Material Design like button ripple effect
+*/
+
+#{$button}-ripple {
+  animation: ripple-animation 2s;
+  background: white;
+  border-radius: 50%;
+  height: 50px;
+  position: absolute;
+  width: 50px;
+  z-index: $z-1;
+}
+
+@keyframes ripple-animation {
+  from {
+    transform: scale(1);
+    opacity: 0.4;
+  }
+  to {
+    transform: scale(100);
+    opacity: 0;
+  }
+}
+
+

@@ -1,23 +1,25 @@
-$phone-breakpoint: 480px !default;
-$tablet-breakpoint: 800px !default;
-
-
 @mixin respond-to($media) {
-  @if $media == mobile {
-    @media handheld and (max-width: $phone-breakpoint),
-    screen and (max-device-width: $phone-breakpoint),
-    screen and (max-width: $tablet-breakpoint) {
-      @content;
-    }
-  }
-  @else if $media == phones {
-    @media handheld and (max-width: $phone-breakpoint),
+
+  @if $media == phone {
+    @media screen and (max-width: $phone-breakpoint),
     screen and (max-device-width: $phone-breakpoint) {
       @content;
     }
   }
-  @else if $media == tablets {
+  @else if $media == mobile {
+    @media screen and (max-width: $mobile-breakpoint),
+    screen and (max-device-width: $mobile-breakpoint),
+    screen and (max-width: $mobile-breakpoint) {
+      @content;
+    }
+  }
+  @else if $media == tablet {
     @media screen and (max-width: $tablet-breakpoint) {
+      @content;
+    }
+  }
+  @else if $media == desktop {
+    @media screen and (min-width: $desktop-breakpoint) {
       @content;
     }
   }

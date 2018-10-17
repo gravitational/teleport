@@ -1,3 +1,11 @@
+// dependancies
+import $ from 'jquery';
+
+// modules
+import TopNav from './modules/top-nav';
+import SecondaryNav from './modules/secondary-nav';
+
+
 function getSearchTerm()
 {
     var sPageURL = window.location.search.substring(1);
@@ -12,7 +20,11 @@ function getSearchTerm()
     }
 }
 
-$(document).ready(function() {    
+$(document).ready(function() {
+  // site navigation
+  new TopNav();
+  new SecondaryNav();
+
     // Highlight.js
     hljs.initHighlightingOnLoad();
     $('table').addClass('table table-striped table-hover');
