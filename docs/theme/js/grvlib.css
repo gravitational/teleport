@@ -9188,6 +9188,14 @@ ol.linenums {
     .side-nav header img {
       max-height: 32px;
       margin: 0 auto; }
+  .side-nav .side-nav-section-header {
+    background: #455A64;
+    color: #FFF;
+    font-size: 10px;
+    line-height: 24px;
+    margin: 0;
+    padding: 0 16px;
+    text-transform: uppercase; }
   @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
     .side-nav .side-nav-menu {
       background: #FFF;
@@ -9273,11 +9281,11 @@ ol.linenums {
     list-style-type: none;
     margin: 0;
     padding: 0; }
-    .side-nav .side-nav-buttons li {
+    .side-nav .side-nav-buttons > li {
       border-bottom: 1px solid #EDF0F2;
       font-size: 16;
       margin: 0; }
-      .side-nav .side-nav-buttons li a {
+      .side-nav .side-nav-buttons > li a {
         background: rgba(255, 255, 255, 0);
         color: rgba(69, 90, 100, 0.87);
         display: block;
@@ -9290,19 +9298,60 @@ ol.linenums {
         text-transform: uppercase;
         transition: all .3s;
         white-space: nowrap; }
-        .side-nav .side-nav-buttons li a:hover, .side-nav .side-nav-buttons li a:focus {
+        .side-nav .side-nav-buttons > li a:hover, .side-nav .side-nav-buttons > li a:focus {
           background: rgba(255, 255, 255, 0.24);
           color: #00bfa5;
           z-index: 1; }
-          .side-nav .side-nav-buttons li a:hover i, .side-nav .side-nav-buttons li a:focus i {
+          .side-nav .side-nav-buttons > li a:hover i, .side-nav .side-nav-buttons > li a:focus i {
             color: #00bfa5; }
-        .side-nav .side-nav-buttons li a.is-active {
+        .side-nav .side-nav-buttons > li a.is-active {
           background: white;
           color: #00BFA5;
           transition: none; }
-          .side-nav .side-nav-buttons li a.is-active i {
+          .side-nav .side-nav-buttons > li a.is-active i {
             color: #00BFA5; }
-        .side-nav .side-nav-buttons li a i {
+        .side-nav .side-nav-buttons > li a i {
+          color: rgba(69, 90, 100, 0.4);
+          font-size: 18px;
+          left: 16px;
+          position: absolute;
+          top: 14px;
+          transition: all .3s;
+          z-index: 1; }
+  .side-nav .side-nav-secondary-buttons {
+    background: #FFF;
+    list-style-type: none;
+    margin: 0;
+    padding: 0; }
+    .side-nav .side-nav-secondary-buttons li {
+      font-size: 11;
+      margin: 0; }
+      .side-nav .side-nav-secondary-buttons li a {
+        background: rgba(255, 255, 255, 0);
+        color: rgba(69, 90, 100, 0.87);
+        display: block;
+        font-size: 11px;
+        font-weight: 500;
+        line-height: 32px;
+        padding: 0 16px 0 64px;
+        position: relative;
+        text-decoration: none;
+        text-transform: uppercase;
+        transition: all .3s;
+        white-space: nowrap; }
+        .side-nav .side-nav-secondary-buttons li a:hover, .side-nav .side-nav-secondary-buttons li a:focus {
+          background: rgba(255, 255, 255, 0.24);
+          color: #00bfa5;
+          z-index: 1; }
+          .side-nav .side-nav-secondary-buttons li a:hover i, .side-nav .side-nav-secondary-buttons li a:focus i {
+            color: #00bfa5; }
+        .side-nav .side-nav-secondary-buttons li a.is-active {
+          background: white;
+          color: #00BFA5;
+          transition: none; }
+          .side-nav .side-nav-secondary-buttons li a.is-active i {
+            color: #00BFA5; }
+        .side-nav .side-nav-secondary-buttons li a i {
           color: rgba(69, 90, 100, 0.4);
           font-size: 18px;
           left: 16px;

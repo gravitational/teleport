@@ -17,6 +17,8 @@ $(document).ready(function() {
   if (window.grvlib) {
     new grvlib.TopNav();
     new grvlib.SecondaryNav();
+    grvlib.buttonSmoothScroll();
+    grvlib.buttonRipple();
   }
 
   // activate code prettifier
