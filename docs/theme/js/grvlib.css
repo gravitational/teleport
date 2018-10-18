@@ -9212,6 +9212,8 @@ ol.linenums {
     right: 0;
     top: 0;
     z-index: 3; }
+    .side-nav .side-nav-search.is-activated {
+      display: block; }
     @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
       .side-nav .side-nav-search {
         background: none;
