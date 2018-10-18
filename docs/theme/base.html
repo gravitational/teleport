@@ -14,11 +14,10 @@
   <link rel="shortcut icon" href="https://gravitational.com/favicon.ico" type="image/x-icon" />
 
   {# CSS #}
-  <link rel="stylesheet" href="{{ base_url }}/css/font-awesome.css">
   <link rel="stylesheet" href="{{ base_url }}/css/highlight.css">
-  <link rel="stylesheet" href="{{ base_url }}/css/teleport-bundle.css">
+  <link rel="stylesheet" href="{{ base_url }}/js/grvlib.css">
   <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons"  />
-
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Raleway:400,500,600,700,800,900" />
 
   {%- for path in extra_css %}
   <link href="{{ path }}" rel="stylesheet">
@@ -33,7 +32,7 @@
   {% include "toc.html" %}
 
   <article class="l-section">
-    <section class="l-section-content">
+    <section class="l-section-content text-article">
       {% block content %}
         {{ page.content }}
       {% endblock %}
@@ -50,6 +49,8 @@
   <!-- external JS -->
   <script src="{{ base_url }}/js/jquery-2.1.1.min.js"></script>
   <script type="text/javascript" src="{{ base_url }}/js/highlight.pack.js"></script>
+  <script src="{{ base_url }}/js/prettify.js"></script>
+  <script src="{{ base_url }}/js/grvlib.js"></script>
   <script src="{{ base_url }}/js/base.js"></script>
 
   {% if page %}
