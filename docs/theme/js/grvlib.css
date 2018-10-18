@@ -54,7 +54,6 @@ ul, dl {
   letter-spacing: 1px;
   margin: 0 0 16px 0;
   outline: none;
-  opacity: .87;
   padding: 0; }
   .text-article h1.is-italic,
   .text-article h2.is-italic,
@@ -507,7 +506,6 @@ ul, dl {
 .text-article ol,
 .text-article ul,
 .text-list {
-  color: rgba(69, 90, 100, 0.77);
   font-size: 18px;
   line-height: 32px;
   margin: 0 0 16px 24px; }
