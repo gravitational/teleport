@@ -592,16 +592,19 @@ ul.has-icons, dl.has-icons {
     ul.has-icons i svg, ul.has-icons i path, ul.has-icons i polyline, ul.has-icons i g, dl.has-icons i svg, dl.has-icons i path, dl.has-icons i polyline, dl.has-icons i g {
       fill: #00BFA5; }
 
-.text-table {
+.text-table,
+.text-article .table {
   border-collapse: collapse;
   box-shadow: 0 0 2px rgba(0, 0, 0, 0.12), 0 2px 2px rgba(0, 0, 0, 0.24);
   margin: 0 0 32px 0;
   text-align: left;
   width: 100%; }
   @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
-    .text-table {
+    .text-table,
+    .text-article .table {
       max-width: 100%; } }
-  .text-table thead th {
+  .text-table thead th,
+  .text-article .table thead th {
     background: rgba(237, 240, 242, 0.56);
     border-bottom: 1px solid #EDF0F2;
     color: #233591;
@@ -611,21 +614,29 @@ ul.has-icons, dl.has-icons {
     margin: 0;
     text-transform: uppercase;
     text-wrap: nowrap; }
-    .text-table thead th.is-center {
+    .text-table thead th.is-center,
+    .text-article .table thead th.is-center {
       text-align: center; }
-  .text-table tbody tr:last-child th, .text-table tbody tr:last-child td {
+  .text-table tbody tr:last-child th, .text-table tbody tr:last-child td,
+  .text-article .table tbody tr:last-child th,
+  .text-article .table tbody tr:last-child td {
     border-bottom: none; }
-  .text-table tbody th, .text-table tbody td {
+  .text-table tbody th, .text-table tbody td,
+  .text-article .table tbody th,
+  .text-article .table tbody td {
     border-bottom: 1px solid #EDF0F2;
     font-size: 16px;
     padding: 16px; }
-  .text-table tbody th {
+  .text-table tbody th,
+  .text-article .table tbody th {
     background: rgba(237, 240, 242, 0.56);
     color: #233591;
     line-height: 32px; }
-    .text-table tbody th:first-child {
+    .text-table tbody th:first-child,
+    .text-article .table tbody th:first-child {
       border-right: 1px solid #EDF0F2; }
-  .text-table tbody td {
+  .text-table tbody td,
+  .text-article .table tbody td {
     color: rgba(69, 90, 100, 0.87); }
 
 .text-article h3 {
@@ -8339,7 +8350,7 @@ pre.prettyprint, code.prettyprint {
   border: none;
   font-size: 16px;
   line-height: 22px;
-  margin: 0 auto;
+  margin: 0 auto 16px auto;
   padding: 16px;
   white-space: pre-wrap;
   z-index: 1; }
@@ -8597,50 +8608,133 @@ ol.linenums {
 * SETTINGS
 *
 */
-.notice {
+.notice,
+.admonition {
   background: #FFF;
   border-radius: 2px;
   display: block;
   margin: 0 0 16px 0;
   padding: 0; }
-  .notice.is-hidden {
+  .notice.is-hidden,
+  .admonition.is-hidden {
     display: none; }
-  .notice header {
+  .notice header,
+  .notice .admonition-title,
+  .admonition header,
+  .admonition .admonition-title {
     color: #FFF;
     font-size: 14px;
     font-weight: 600;
     line-height: 32px;
     text-transform: uppercase;
     padding: 0 16px; }
-  .notice .notice-content {
-    color: #455A64;
-    font-size: 18px;
-    font-weight: 400;
-    padding: 16px; }
-    .notice .notice-content p {
-      margin-bottom: 16px; }
-      .notice .notice-content p:last-child {
-        margin: 0; }
-  .notice.is-standard {
+  .notice.is-standard, .notice.note, .notice.abstract, .notice.info,
+  .admonition.is-standard,
+  .admonition.note,
+  .admonition.abstract,
+  .admonition.info {
     background: rgba(3, 155, 229, 0.12);
     border: 2px solid #039BE5; }
-    .notice.is-standard header {
+    .notice.is-standard header,
+    .notice.is-standard .admonition-title, .notice.note header,
+    .notice.note .admonition-title, .notice.abstract header,
+    .notice.abstract .admonition-title, .notice.info header,
+    .notice.info .admonition-title,
+    .admonition.is-standard header,
+    .admonition.is-standard .admonition-title,
+    .admonition.note header,
+    .admonition.note .admonition-title,
+    .admonition.abstract header,
+    .admonition.abstract .admonition-title,
+    .admonition.info header,
+    .admonition.info .admonition-title {
       background: #039BE5; }
-  .notice.is-success {
+  .notice.is-success, .notice.tip, .notice.success, .notice.question,
+  .admonition.is-success,
+  .admonition.tip,
+  .admonition.success,
+  .admonition.question {
     background: rgba(0, 191, 165, 0.12);
     border: 2px solid #00BFA5; }
-    .notice.is-success header {
+    .notice.is-success header,
+    .notice.is-success .admonition-title, .notice.tip header,
+    .notice.tip .admonition-title, .notice.success header,
+    .notice.success .admonition-title, .notice.question header,
+    .notice.question .admonition-title,
+    .admonition.is-success header,
+    .admonition.is-success .admonition-title,
+    .admonition.tip header,
+    .admonition.tip .admonition-title,
+    .admonition.success header,
+    .admonition.success .admonition-title,
+    .admonition.question header,
+    .admonition.question .admonition-title {
       background: #00BFA5; }
-  .notice.is-warning {
+  .notice.is-question, .notice.question, .notice.quote,
+  .admonition.is-question,
+  .admonition.question,
+  .admonition.quote {
+    background: rgba(30, 60, 114, 0.12);
+    border: 2px solid #1e3c72; }
+    .notice.is-question header,
+    .notice.is-question .admonition-title, .notice.question header,
+    .notice.question .admonition-title, .notice.quote header,
+    .notice.quote .admonition-title,
+    .admonition.is-question header,
+    .admonition.is-question .admonition-title,
+    .admonition.question header,
+    .admonition.question .admonition-title,
+    .admonition.quote header,
+    .admonition.quote .admonition-title {
+      background: #1e3c72; }
+  .notice.is-warning, .notice.warning,
+  .admonition.is-warning,
+  .admonition.warning {
     background: rgba(255, 145, 0, 0.12);
     border: 2px solid #FF9100; }
-    .notice.is-warning header {
+    .notice.is-warning header,
+    .notice.is-warning .admonition-title, .notice.warning header,
+    .notice.warning .admonition-title,
+    .admonition.is-warning header,
+    .admonition.is-warning .admonition-title,
+    .admonition.warning header,
+    .admonition.warning .admonition-title {
       background: #FF9100; }
-  .notice.is-error {
+  .notice.is-error, .notice.bug, .notice.failure, .notice.danger,
+  .admonition.is-error,
+  .admonition.bug,
+  .admonition.failure,
+  .admonition.danger {
     background: rgba(245, 0, 87, 0.12);
     border: 2px solid #F50057; }
-    .notice.is-error header {
+    .notice.is-error header,
+    .notice.is-error .admonition-title, .notice.bug header,
+    .notice.bug .admonition-title, .notice.failure header,
+    .notice.failure .admonition-title, .notice.danger header,
+    .notice.danger .admonition-title,
+    .admonition.is-error header,
+    .admonition.is-error .admonition-title,
+    .admonition.bug header,
+    .admonition.bug .admonition-title,
+    .admonition.failure header,
+    .admonition.failure .admonition-title,
+    .admonition.danger header,
+    .admonition.danger .admonition-title {
       background: #F50057; }
+
+.notice .notice-content,
+.admonition p {
+  color: #455A64;
+  font-size: 18px;
+  font-weight: 400;
+  margin: 0;
+  padding: 16px; }
+  .notice .notice-content p,
+  .admonition p p {
+    margin-bottom: 16px; }
+    .notice .notice-content p:last-child,
+    .admonition p p:last-child {
+      margin: 0; }
 
 /*
 * paper
