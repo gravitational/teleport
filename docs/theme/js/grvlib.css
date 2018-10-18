@@ -9160,7 +9160,7 @@ ol.linenums {
   left: 0;
   overflow: hidden;
   overflow-y: auto;
-  position: fixed;
+  position: absolute;
   top: 0;
   width: 296px;
   z-index: 1000; }
@@ -9177,6 +9177,9 @@ ol.linenums {
       z-index: 1000; }
       .side-nav.is-active {
         bottom: 0; } }
+  .side-nav.is-fixed {
+    position: fixed;
+    top: 0 !important; }
   .side-nav.is-thin {
     width: 216px; }
   .side-nav header {

@@ -96,20 +96,23 @@ var _secondaryNav = __webpack_require__(4);
 
 var _secondaryNav2 = _interopRequireDefault(_secondaryNav);
 
+var _sideNav = __webpack_require__(7);
+
+var _sideNav2 = _interopRequireDefault(_sideNav);
+
 var _buttons = __webpack_require__(6);
 
 __webpack_require__(5);
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-// modules
 var lib = {
   TopNav: _topNav2.default,
   SecondaryNav: _secondaryNav2.default,
+  SideNav: _sideNav2.default,
   buttonRipple: _buttons.buttonRipple,
   buttonSmoothScroll: _buttons.buttonSmoothScroll
-};
-
+}; // modules
 exports.default = lib;
 
 /***/ }),
@@ -458,6 +461,112 @@ var buttonSmoothScroll = function buttonSmoothScroll() {
 
 exports.buttonRipple = buttonRipple;
 exports.buttonSmoothScroll = buttonSmoothScroll;
+
+/***/ }),
+/* 7 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+var _jquery = __webpack_require__(0);
+
+var _jquery2 = _interopRequireDefault(_jquery);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+var SideNav = function () {
+  function SideNav(id) {
+    _classCallCheck(this, SideNav);
+
+    var elementId = id || '#side-nav';
+
+    this.$window = (0, _jquery2.default)(window);
+    this.$nav = (0, _jquery2.default)(elementId);
+    this.$trigger = (0, _jquery2.default)('#side-nav-trigger');
+    this.$close = (0, _jquery2.default)('#side-nav-close');
+    this.$menu = (0, _jquery2.default)('#side-nav-menu');
+    this.$buttons = (0, _jquery2.default)('.side-nav-buttons a');
+    this.currentPath = window.location.pathname;
+
+    if (this.$nav.length) {
+      this.activateMenuHighlights();
+      this.activateMobileMenu();
+      this.pinSideNav();
+    }
+  }
+
+  _createClass(SideNav, [{
+    key: 'activateMenuHighlights',
+    value: function activateMenuHighlights() {
+      var that = this;
+
+      this.$buttons.each(function (index, el) {
+        var $button = (0, _jquery2.default)(el);
+        var href = $button.attr('href');
+        var path = href.replace(/\.\.\//g, '');
+
+        if (that.currentPath === '/resources/' && path === 'resources/') {
+          $button.addClass('is-active');
+        } else if (that.currentPath.includes(path) && path !== 'resources/') {
+          $button.addClass('is-active');
+        }
+      });
+    }
+  }, {
+    key: 'pinSideNav',
+    value: function pinSideNav() {
+      var _this = this;
+
+      if (this.$window[0].pageYOffset > 2) {
+        this.$nav.addClass("is-fixed");
+      }
+
+      this.$window.on("scroll", function () {
+        if (_this.$window[0].pageYOffset > 132) {
+          _this.$nav.addClass("is-fixed");
+        } else {
+          _this.$nav.removeClass("is-fixed");
+        }
+      });
+    }
+  }, {
+    key: 'activateMobileMenu',
+    value: function activateMobileMenu() {
+      var _this2 = this;
+
+      this.$trigger.on('click', function (e) {
+        e.preventDefault();
+
+        _this2.$nav.addClass('is-active');
+        _this2.$trigger.addClass('is-hidden');
+        _this2.$close.addClass('is-visible');
+        _this2.$menu.addClass('is-visible');
+      });
+
+      this.$close.on('click', function (e) {
+        e.preventDefault();
+
+        _this2.$nav.removeClass('is-active');
+        _this2.$trigger.removeClass('is-hidden');
+        _this2.$close.removeClass('is-visible');
+        _this2.$menu.removeClass('is-visible');
+      });
+    }
+  }]);
+
+  return SideNav;
+}();
+
+exports.default = SideNav;
 
 /***/ })
 /******/ ])["default"];
