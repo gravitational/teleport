@@ -1,4 +1,3 @@
-// dependancies
 function getSearchTerm() {
   const sPageURL = window.location.search.substring(1);
   const sURLVariables = sPageURL.split('&');

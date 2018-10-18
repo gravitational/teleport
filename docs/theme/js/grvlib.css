@@ -9336,7 +9336,6 @@ ol.linenums {
         padding: 0 16px 0 64px;
         position: relative;
         text-decoration: none;
-        text-transform: uppercase;
         transition: all .3s;
         white-space: nowrap; }
         .side-nav .side-nav-secondary-buttons li a:hover, .side-nav .side-nav-secondary-buttons li a:focus {

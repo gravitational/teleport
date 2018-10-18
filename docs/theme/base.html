@@ -83,6 +83,8 @@
       ga('send', 'pageview');
   </script>
   {% endif %}
+
+  {%- block extrascripts %} {% endblock %}
 </body>
 </html>
 {% if page and page.is_homepage %}
