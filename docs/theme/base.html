@@ -24,11 +24,34 @@
   <link href="{{ path }}" rel="stylesheet">
   {%- endfor %}
 
+
+  {%- block extrahead %} {% endblock %}
+</head>
+
+<body role="document" class="has-secondary-nav has-side-nav">
+  {% include "topnav.html" %}
+  {% include "toc.html" %}
+
+  <article class="l-section">
+    <section class="l-section-content">
+      {% block content %}
+        {{ page.content }}
+      {% endblock %}
+
+      {%- block footer %}
+        {% include "pagination.html" %}
+      {% endblock %}
+    </section>
+  </article>
+
+  {% include "footer.html" %}
+
+
   <!-- external JS -->
   <script src="{{ base_url }}/js/jquery-2.1.1.min.js"></script>
   <script type="text/javascript" src="{{ base_url }}/js/highlight.pack.js"></script>
   <script src="{{ base_url }}/js/base.js"></script>
-  <script src="{{ base_url }}/js/theme.js"></script>
+
   {% if page %}
     <script>
       // current page data
@@ -42,14 +65,7 @@
         docCurrentVer:  "{{ config.extra.version }}"
       }
     </script>
-
-    <style type="text/css">
-        h2[id] a, h3[id] a { border-bottom: none; text-decoration: none; color: #2980b9; }
-        h2[id]:hover a:before, h3[id]:hover a:before { content: " \00B6"; }
-    </style>
   {% endif %}
-
-  {%- block extrahead %} {% endblock %}
 
   {%- for path in extra_javascript %}
   <script src="{{ path }}"></script>
@@ -66,45 +82,6 @@
       ga('send', 'pageview');
   </script>
   {% endif %}
-</head>
-<body role="document" class="has-secondary-nav">
-  <div class="grv-docs">
-    {% include "topnav.html" %}
-    <div class="grv-content">
-      {# SIDE NAV, TOGGLES ON MOBILE #}
-      <nav class="grv-content-nav">
-        <div class="grv-nav-search m-t-sm">
-          {% include "searchbox.html" %}
-        </div>
-        <div class="grv-content-nav-body" data-spy="affix" role="na$color-font-7vigation">
-          {% include "toc.html" %}
-        </div>
-        &nbsp;
-      </nav>
-      <section class="grv-content-body">
-        {# PAGE CONTENT #}
-        <div class="grv-content-page clearfix">
-          <div class="rst-content">
-            <div role="main">
-                <div class="section grv-markdown">
-                  {% block content %}
-                    {{ page.content }}
-                  {% endblock %}
-                </div>
-            </div>
-            {%- block footer %}
-              {% include "pagination.html" %}
-            {% endblock %}
-          </div>
-        </div>
-
-
-        {%- block grvfooter %}
-          {% include "footer.html" %}
-        {% endblock %}
-      </section>
-    </div>
-  </div>
 </body>
 </html>
 {% if page and page.is_homepage %}

@@ -1,0 +1,309 @@
+/*
+* Side Navigation Bar
+*
+*/
+
+
+/*
+* SETTINGS
+*
+*/
+
+$unit: 8px !default;
+$side-nav: '.side-nav';
+$side-nav-width: 296px;
+
+.has-side-nav {
+  padding-left: $side-nav-width;
+
+  &.has-top-nav {
+    padding-top: ($unit * 9);
+
+    #{$side-nav} {
+      padding-top: ($unit * 9);
+    }
+  }
+
+
+  @include respond-to('mobile') {
+    padding-left: 0;
+    padding-top: $unit * 6;
+
+    &.has-top-nav {
+      padding-top: ($unit * 6) + ($unit * 9);
+
+      #{$side-nav} {
+        padding-top: ($unit * 6);
+      }
+    }
+  }
+}
+
+.has-thin-side-nav {
+  padding-left: $side-nav-width - 80;
+
+  @include respond-to('mobile') {
+    padding-left: 0;
+    padding-top: $unit * 6;
+
+    &.has-top-nav {
+      padding-top: ($unit * 6) + ($unit * 9);
+
+      #{$side-nav} {
+        padding-top: ($unit * 6);
+      }
+    }
+  }
+}
+
+
+/*
+* Class
+*
+*/
+
+#{$side-nav} {
+  background: rgba($color-subtle, .24);
+  border-right: 1px solid $color-subtle;
+  bottom: 0;
+  left: 0;
+  overflow: hidden;
+  overflow-y: auto;
+  position: fixed;
+  top: 0;
+  width: $side-nav-width;
+  z-index: $z-max-1;
+
+  @include respond-to('mobile') {
+    background: $color-plum;
+    box-shadow: 0 4px 4px rgba(0, 0, 0, .24);
+    bottom: auto;
+    left: 0;
+    position: fixed;
+    right: 0;
+    top: $unit * 9;
+    width: auto;
+    z-index: $z-max-1;
+
+    &.is-active {
+      bottom: 0;
+    }
+  }
+
+  &.is-thin {
+    width: $side-nav-width - 80;
+  }
+
+  header {
+    background: $color-light;
+    padding: $unit * 3;
+    text-align: center;
+
+    img {
+      max-height: $unit * 4;
+      margin: 0 auto;
+    }
+  }
+
+  #{$side-nav}-menu {
+    @include respond-to('mobile') {
+      background: $color-light;
+      bottom: 0;
+      display: none;
+      left: 0;
+      margin: 0;
+      overflow: auto;
+      padding: 0;
+      position: fixed;
+      right: 0;
+      top: ($unit * 6) + ($unit * 9);
+      z-index: $z-2;
+    }
+  }
+
+  #{$side-nav}-search {
+    background: $color-subtle;
+    box-shadow: 0 0 2px rgba(0, 0, 0, .12), 0 2px 2px rgba(0, 0, 0, .24);
+    display: none;
+    padding: $unit;
+    left: 0;
+    padding: $unit;
+    position: absolute;
+    right: 0;
+    top: 0;
+    z-index: $z-3;
+
+    @include respond-to('mobile') {
+      background: none;
+      display: block;
+      padding: $unit ($unit * 7) $unit $unit;
+    }
+
+    h3 {
+      color: $color-light;
+      font-size: 16px;
+      font-weight: 400;
+      line-height: $unit * 4;
+      margin: 0 0 0 $unit;
+      text-transform: uppercase;
+    }
+
+    // MOBILE TRIGGER AND CLOSE BUTTON
+    #{$side-nav}-mobile-trigger,
+    #{$side-nav}-mobile-close {
+      background: none;
+      border: none;
+      box-sizing: border-box;
+      color: $color-light;
+      display: none;
+      height: $unit * 5;
+      outline: none;
+      padding: ($unit + 4) ($unit * 2);
+      position: absolute;
+      right: 0;
+      text-align: center;
+      top: 0;
+
+      &.is-hidden {
+        display: none;
+      }
+    }
+
+    #{$side-nav}-mobile-trigger {
+      @include respond-to('mobile') {
+        display: block;
+      }
+    }
+
+    input {
+      border: 1px solid $color-light;
+      border-radius: 300px;
+      box-sizing: border-box;
+      color: $color-link;
+      font-size: 12px;
+      height: $unit * 4;
+      margin: 0;
+      outline: none;
+      padding: 0 $unit;
+      width: 100%;
+
+      // PLACEHOLDER TEXT
+      &::-webkit-input-placeholder { /* Chrome/Opera/Safari */
+        color: darken($color-subtle, 10%);
+      }
+      &::-moz-placeholder { /* Firefox 19+ */
+        color: darken($color-subtle, 10%);
+      }
+      &:-ms-input-placeholder { /* IE 10+ */
+        color: darken($color-subtle, 10%);
+      }
+      &:-moz-placeholder { /* Firefox 18- */
+        color: darken($color-subtle, 10%);
+      }
+    }
+  }
+
+  #{$side-nav}-buttons {
+    list-style-type: none;
+    margin: 0;
+    padding: 0;
+
+    li {
+      border-bottom: 1px solid $color-subtle;
+      font-size: 16;
+      margin: 0;
+
+      a {
+        background: rgba($color-light, .0);
+        color: rgba($color-steel, .87);
+        display: block;
+        font-size: 12px;
+        font-weight: 500;
+        line-height: $unit * 6;
+        padding: 0 ($unit * 2) 0 ($unit * 5 + 4);
+        position: relative;
+        text-decoration: none;
+        text-transform: uppercase;
+        transition: all .3s;
+        white-space: nowrap;
+
+        &:hover, &:focus {
+          background: rgba($color-light, .24);
+          color: rgba($color-accent, 1);
+          z-index: $z-1;
+
+          i {
+            color: rgba($color-accent, 1);
+          }
+        }
+
+        &.is-active {
+          background: rgba($color-light, 1);
+          color: $color-accent;
+          transition: none;
+
+          i {
+            color: $color-accent;
+          }
+        }
+
+        i {
+          color: rgba($color-steel, .40);
+          font-size: 18px;
+          left: $unit * 2;
+          position: absolute;
+          top: $unit + 6;
+          transition: all .3s;
+          z-index: $z-1;
+        }
+      }
+    }
+  }
+
+  #{$side-nav}-tags {
+    padding: ($unit * 3) ($unit * 2);
+
+    h3 {
+      color: rgba($color-steel, .56);
+      font-size: 12px;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+
+    ul {
+      list-style-type: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    li {
+      color: rgba($color-steel, .56);
+      font-size: 12px;
+
+      a {
+        color: rgba($color-steel, .56);
+        display: block;
+        font-weight: 500;
+        line-height: $unit * 3;
+        padding-left: $unit * 3;
+        position: relative;
+        text-decoration: none;
+        transition: all .3s;
+
+        &:hover, &:focus {
+          background: $color-light;
+          color: $color-accent;
+        }
+
+        i {
+          color: rgba($color-steel, .24);
+          font-size: 16px;
+          left: 0;
+          position: absolute;
+          top: 4px;
+          z-index: $z-1;
+        }
+      }
+    }
+  }
+}

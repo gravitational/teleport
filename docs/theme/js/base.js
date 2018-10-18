@@ -1,11 +1,4 @@
 // dependancies
-import $ from 'jquery';
-
-// modules
-import TopNav from './modules/top-nav';
-import SecondaryNav from './modules/secondary-nav';
-
-
 function getSearchTerm()
 {
     var sPageURL = window.location.search.substring(1);
