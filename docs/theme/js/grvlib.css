@@ -360,6 +360,24 @@ ul, dl {
   ul.is-error,
   ul.has-error, dl.is-error, dl.has-error {
     color: #F50057; }
+  .text-article h1 code,
+  .text-article h2 code,
+  .text-article h3 code,
+  .text-article p code,
+  .text-article ul code,
+  .text-article ol code,
+  .text-jumbo code,
+  .text-headline code,
+  .text-title code,
+  .text-body code,
+  .text-quote code,
+  .text-small code,
+  .text-list code,
+  ul code, dl code {
+    background: rgba(237, 240, 242, 0.56);
+    border-radius: 2px;
+    color: #233591;
+    padding: 0 8px; }
 
 .text-article h1,
 .text-jumbo {
@@ -427,13 +445,6 @@ ul, dl {
   .text-article p a,
   .text-body a {
     color: #039BE5; }
-  .text-article h4 code,
-  .text-article p code,
-  .text-body code {
-    background: rgba(237, 240, 242, 0.56);
-    border-radius: 2px;
-    color: #233591;
-    padding: 0 8px; }
 
 .text-small {
   font-size: 14px;
@@ -591,7 +602,7 @@ ul.has-icons, dl.has-icons {
       fill: #00BFA5; }
 
 .text-table,
-.text-article .table {
+.text-article table {
   border-collapse: collapse;
   box-shadow: 0 0 2px rgba(0, 0, 0, 0.12), 0 2px 2px rgba(0, 0, 0, 0.24);
   margin: 0 0 32px 0;
@@ -599,10 +610,10 @@ ul.has-icons, dl.has-icons {
   width: 100%; }
   @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
     .text-table,
-    .text-article .table {
+    .text-article table {
       max-width: 100%; } }
   .text-table thead th,
-  .text-article .table thead th {
+  .text-article table thead th {
     background: rgba(237, 240, 242, 0.56);
     border-bottom: 1px solid #EDF0F2;
     color: #233591;
@@ -613,28 +624,35 @@ ul.has-icons, dl.has-icons {
     text-transform: uppercase;
     text-wrap: nowrap; }
     .text-table thead th.is-center,
-    .text-article .table thead th.is-center {
+    .text-article table thead th.is-center {
       text-align: center; }
   .text-table tbody tr:last-child th, .text-table tbody tr:last-child td,
-  .text-article .table tbody tr:last-child th,
-  .text-article .table tbody tr:last-child td {
+  .text-article table tbody tr:last-child th,
+  .text-article table tbody tr:last-child td {
     border-bottom: none; }
   .text-table tbody th, .text-table tbody td,
-  .text-article .table tbody th,
-  .text-article .table tbody td {
+  .text-article table tbody th,
+  .text-article table tbody td {
     border-bottom: 1px solid #EDF0F2;
     font-size: 16px;
+    line-height: 32px;
     padding: 16px; }
+    .text-table tbody th code, .text-table tbody td code,
+    .text-article table tbody th code,
+    .text-article table tbody td code {
+      background: rgba(237, 240, 242, 0.56);
+      border-radius: 2px;
+      color: #233591;
+      padding: 0 8px; }
   .text-table tbody th,
-  .text-article .table tbody th {
+  .text-article table tbody th {
     background: rgba(237, 240, 242, 0.56);
-    color: #233591;
-    line-height: 32px; }
+    color: #233591; }
     .text-table tbody th:first-child,
-    .text-article .table tbody th:first-child {
+    .text-article table tbody th:first-child {
       border-right: 1px solid #EDF0F2; }
   .text-table tbody td,
-  .text-article .table tbody td {
+  .text-article table tbody td {
     color: rgba(69, 90, 100, 0.87); }
 
 .text-article h3 {
@@ -9344,7 +9362,7 @@ ol.linenums {
         overflow: hidden;
         text-overflow: ellipsis; }
         .side-nav .side-nav-secondary-buttons li a:hover, .side-nav .side-nav-secondary-buttons li a:focus {
-          background: rgba(255, 255, 255, 0.24);
+          background: rgba(237, 240, 242, 0.56);
           color: #00bfa5;
           z-index: 1; }
           .side-nav .side-nav-secondary-buttons li a:hover i, .side-nav .side-nav-secondary-buttons li a:focus i {
@@ -9355,14 +9373,6 @@ ol.linenums {
           transition: none; }
           .side-nav .side-nav-secondary-buttons li a.is-active i {
             color: #00BFA5; }
-        .side-nav .side-nav-secondary-buttons li a i {
-          color: rgba(69, 90, 100, 0.4);
-          font-size: 18px;
-          left: 16px;
-          position: absolute;
-          top: 14px;
-          transition: all .3s;
-          z-index: 1; }
   .side-nav .side-nav-tags {
     padding: 24px 16px; }
     .side-nav .side-nav-tags h3 {
