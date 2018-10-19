@@ -21,7 +21,7 @@ $(document).ready(function() {
     grvlib.buttonRipple();
   }
 
-
+  // SIDE NAV HIGHLIGHTING
   const $sideNavSecondaryMenu = $(".side-nav-secondary-buttons");
   const $sideNavSecondaryButtons = $sideNavSecondaryMenu.find('a');
 
@@ -36,7 +36,6 @@ $(document).ready(function() {
       }
     }, 50);
   });
-
 
   // ACTIVATE CODE FORMATTING
   if(window.PR && window.PR.prettyPrint) {

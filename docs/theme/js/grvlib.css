@@ -8535,15 +8535,13 @@ ol.linenums {
   width: 100%; }
 
 .form-select {
-  appearance: none !important;
-  -webkit-appearance: none !important;
   background: #FFF;
   border: none;
   border-radius: 0;
   box-shadow: 0 0 2px rgba(0, 0, 0, 0.12), 0 2px 2px rgba(0, 0, 0, 0.24);
   box-sizing: border-box;
   color: rgba(12, 29, 49, 0.56);
-  font-size: 12px;
+  font-size: 18px;
   height: 40px;
   outline: none;
   padding: 8px 16px;

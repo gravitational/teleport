@@ -14,7 +14,7 @@
   <link rel="shortcut icon" href="https://gravitational.com/favicon.ico" type="image/x-icon" />
 
   {# CSS #}
-  <link rel="stylesheet" href="{{ base_url }}/css/highlight.css">
+  <link rel="stylesheet" href="{{ base_url }}/css/teleport-bundle.css">
   <link rel="stylesheet" href="{{ base_url }}/js/grvlib.css">
   <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons"  />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Raleway:400,500,600,700,800,900" />
@@ -23,7 +23,6 @@
   <link href="{{ path }}" rel="stylesheet">
   {%- endfor %}
 
-
   {%- block extrahead %} {% endblock %}
 </head>
 
@@ -31,8 +30,8 @@
   {% include "topnav.html" %}
   {% include "toc.html" %}
 
-  <article id="docs-content" class="l-section">
-    <section class="l-section-content text-article">
+  <article class="l-section">
+    <section id="docs-content" class="l-section-content text-article">
       {% block content %}
         {{ page.content }}
       {% endblock %}
