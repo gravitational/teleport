@@ -31,7 +31,7 @@
   {% include "topnav.html" %}
   {% include "toc.html" %}
 
-  <article class="l-section">
+  <article id="docs-content" class="l-section">
     <section class="l-section-content text-article">
       {% block content %}
         {{ page.content }}
@@ -52,6 +52,7 @@
   <script src="{{ base_url }}/js/prettify.js"></script>
   <script src="{{ base_url }}/js/grvlib.js"></script>
   <script src="{{ base_url }}/js/base.js"></script>
+  <script src="{{ base_url }}/js/theme.js"></script>
 
   {% if page %}
     <script>

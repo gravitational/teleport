@@ -9200,6 +9200,8 @@ ol.linenums {
     top: 0 !important; }
   .side-nav.is-thin {
     width: 216px; }
+  .side-nav.is-condensed .side-nav-buttons li a {
+    line-height: 40px; }
   .side-nav header {
     background: #FFF;
     padding: 24px;

@@ -21,7 +21,24 @@ $(document).ready(function() {
     grvlib.buttonRipple();
   }
 
-  // activate code prettifier
+
+  const $sideNavSecondaryMenu = $(".side-nav-secondary-buttons");
+  const $sideNavSecondaryButtons = $sideNavSecondaryMenu.find('a');
+
+  $sideNavSecondaryMenu.on("click", "a", (e) => {
+    const $button = $(e.currentTarget);
+    const isActive = $button.hasClass('is-active');
+
+    setTimeout(() => {
+      if(!isActive) {
+        $sideNavSecondaryButtons.removeClass('is-active');
+        $button.addClass("is-active");
+      }
+    }, 50);
+  });
+
+
+  // ACTIVATE CODE FORMATTING
   if(window.PR && window.PR.prettyPrint) {
     let $preTags = $('pre');
 
@@ -35,9 +52,6 @@ $(document).ready(function() {
 
     window.PR.prettyPrint();
   }
-
-  $('table').addClass('table table-striped table-hover');
-
 
   /* Prevent disabled links from causing a page reload */
   $("li.disabled a").click((e) => {

@@ -86,11 +86,11 @@
 })(jQuery);
 
 // checks if element is fully visible
-function checkVisible(elm, container) {  
+function checkVisible(elm, container) {
   return $(elm).visible( true, false, 'vertical', container );
 }
 
-// debounce 
+// debounce
 function debounce(func, wait, immediate) {
 	var timeout;
 	return function() {
@@ -106,51 +106,36 @@ function debounce(func, wait, immediate) {
 	};
 };
 
-// highlights code sections
-function handleHighlighting() {
-  hljs.initHighlightingOnLoad();
-  $("table").addClass("docutils");  
-}
-
-// sets default focus on window load
-function handleDefaultFocus() {
-  var $searchResultInput = $('#mkdocs-search-query');
-  if ($searchResultInput.length > 0) {
-    $searchResultInput.focus();
-  } else {
-    $('.grv-nav-search input').focus();
-  }      
-}
 
 // finds currently visible header and highlights corresponding menu item
-function handleNavScroll() {  
+function handleNavScroll() {
   var $container = $(window);
-  var $menus = $(".grv-nav-left .current:first");  
-  var $targets = $(".section.grv-markdown").find('[id]');
-  var activeClass = '--active';
+  var $menus = $(".side-nav .side-nav-secondary-buttons");
+  var $targets = $("#docs-content").find('[id]');
+  var activeClass = 'is-active';
   var linkMap = {};
-    
+
   $menus.find("a").each(function (i, value) {
     var $value = $(value);
     var href = $value.attr('href').replace('#', '');
     linkMap[href] = $value;
   })
-          
+
   function hasMenuItem(id) {
-    return !!linkMap[id];        
+    return !!linkMap[id];
   }
-  
-  function selectMenuItem(id) {    
+
+  function selectMenuItem(id) {
     if (!hasMenuItem(id)) {
       return;
     }
 
-    var $link = $(linkMap[id]);        
+    var $link = $(linkMap[id]);
     $menus.find('.'+activeClass).removeClass(activeClass);
-    $link.addClass(activeClass)            
+    $link.addClass(activeClass)
   }
-      
-  function findAndActivateClosest() {    
+
+  function findAndActivateClosest() {
     for (var i = $targets.length-1; i > 0; i--){
       var a = window.scrollY;
       var b = $targets.eq(i).position().top;
@@ -162,49 +147,32 @@ function handleNavScroll() {
       if (hasMenuItem(id)) {
         selectMenuItem(id);
         return;
-      }      
+      }
     }
   }
-  
-  function updateMenu() {        
-    for (var i = 0; i < $targets.length; i++) {            
+
+  function updateMenu() {
+    for (var i = 0; i < $targets.length; i++) {
       var id = $targets.eq(i).attr('id');
-      if (checkVisible($targets.eq(i)) && hasMenuItem(id) ) {              
+      if (checkVisible($targets.eq(i)) && hasMenuItem(id) ) {
         selectMenuItem(id);
         return;
-      }             
+      }
     }
 
-    findAndActivateClosest();        
+    findAndActivateClosest();
   }
-  
+
   var hash = window.document.location.hash;
   if (!hash) {
-    updateMenu();  
+    updateMenu();
   } else {
     selectMenuItem(hash.replace('#', ''));
-  } 
-  
-  $container.scroll(debounce(updateMenu, 50));          
-}
-
-// make left menu fixed when scrolling the content
-function handleStickyNav() {    
-  var $content = $(".grv-content");
-  function onScroll(e) {              
-    if ($(".grv-mobile-nav-active").length > 0) {
-      return;
-    }
-
-    if (window.scrollY > 90) {
-      $content.addClass("--fixed-left-nav");
-    } else {
-      $content.removeClass("--fixed-left-nav");
-    }              
   }
-  
-  $(window).scroll(debounce(onScroll, 10));
+
+  $container.scroll(debounce(updateMenu, 50));
 }
+
 
 // creates version selector
 function handleVerSelector() {
@@ -214,74 +182,67 @@ function handleVerSelector() {
 
   var docVersions = window.grvConfig.docVersions || [];
   var docCurrentVer = window.grvConfig.docCurrentVer;
-    
+  const viewingLatest = docVersions.length === 0 || docCurrentVer === docVersions[docVersions.length - 1];
+
   function getVerUrl(ver, isLatest) {
     // looks for version number and replaces it with new value
     // ex: http://host/docs/ver/1.2/review -> http://host/docs/ver/4.0
     var reg = new RegExp("\/ver\/([0-9|\.]+(?=\/.))");
-    var url = window.location.href.replace(reg, '');    
+    var url = window.location.href.replace(reg, '');
     var newPrefix = isLatest ? "" : "/ver/" + ver +"/";
-    return url.replace(mkdocs_page_url, newPrefix);    
+    return url.replace(mkdocs_page_url, newPrefix);
   }
-    
-  var $options = [];  
+
+  var $options = [];
   // show links to other versions
   for (var i = 0; i < docVersions.length; i++) {
     var ver = docVersions[i];
-    var $li = null;    
+    var $li = null;
     var isCurrent = docCurrentVer === ver;
-    if (isCurrent) {      
+    if (isCurrent) {
       curValue = ver;
-      $options.push('<option selected value="' + ver + '" >v' + ver + "</option>"  );        
+      $options.push('<option selected value="' + ver + '" >v' + ver + "</option>"  );
       continue;
     }
-        
+
     var isLatest = docVersions.indexOf(ver) === (docVersions.length - 1);
     var baseUrl = getVerUrl(ver, isLatest);
     $options.push(' <option value="' + baseUrl + '" >v' + ver + "</option>");
   }
-      
-  var $container = $(".rst-content");  
-  var $versionList = $(
-    '<form name="grv-ver-selector" class="grv-ver-selector">' +
-      '<select name="menu" onChange="window.document.location.href=this.options[this.selectedIndex].value;" value="' + curValue + '">' 
-        + $options.reverse().join('') +
-      '</select>' +
-    '</form>'
-  );
-  
-  // show warning if older version
-  var isLatest =
-    docVersions.length === 0 ||
-    docCurrentVer === docVersions[docVersions.length - 1];
-  if (!isLatest) {
-    var latestVerUrl = getVerUrl(docVersions[docVersions.length - 1], true);
-    $container.prepend(
-      '<div class="admonition warning" style="margin: 40px 0 15px 0;"> ' +
-      '   <p class="admonition-title">Version Warning</p> ' +
-      '   <p>This chapter covers Teleport ' + docCurrentVer +'. We highly recommend evaluating ' +
-      '   the <a href="' + latestVerUrl + '">latest</a> version instead.</p> ' +
-      '</div>'
-    );
+
+  var $container = $("#docs-content");
+  var $versionList = $(`
+    <form class="l-right">
+      <label class="form-label" for="menu">Teleport Version</label>
+      <select class="form-select" name="menu" onChange="window.document.location.href=this.options[this.selectedIndex].value;" value="' + curValue + '">
+        ${$options.reverse().join('')}
+      </select>
+    </form>
+  `);
+
+  if (viewingLatest) {
+    let latestVerUrl = getVerUrl(docVersions[docVersions.length - 1], true);
+    $container.prepend(`
+      <div class="notice is-error">
+        <header>Version Warning</header>
+        <div class="notice-content">
+          <p>
+          This chapter covers Teleport ${docCurrentVer}. We highly recommend evaluating
+          the <a href="${latestVerUrl}">latest</a> version instead.
+          </p>
+        </div>
+      </div>
+    `);
   }
 
   $container.prepend($versionList);
 }
 
-// append sub-anchors to the H2 and H3 elements for one-click linking:  
-function handleHeaderLinks(){  
-  $("h2, h3").each(function () {      
+// append sub-anchors to the H2 and H3 elements for one-click linking:
+function handleHeaderLinks(){
+  $('#docs-content').find("h2, h3").each(function () {
     var $e = $(this);
     $e.append("<a href='#" + $e.attr("id") + "'></a>");
-  });
-}
-
-function handleTeleportMenu(){  
-  $('.grv-nav-top-secondary-item.--docs').addClass('--active');        
-  $(".grv-nav-left a").click(function (e) {
-    if ($(".grv-mobile-nav-active").length > 0 && e.target.href ) {
-      $(".grv-nav-top-primary-mobile-trigger").click();
-    }
   });
 }
 
@@ -293,12 +254,8 @@ function init(fn, description) {
   }
 }
 
-$(document).ready(function () {  
-  init(handleTeleportMenu, "handleTeleportMenu");  
-  init(handleHeaderLinks, "handleHeaderLinks");  
+$(document).ready(function () {
+  init(handleHeaderLinks, "handleHeaderLinks");
   init(handleVerSelector, "handleVerSelector");
-  init(handleStickyNav, "handleStickyNav");
-  init(handleHighlighting, "handleHighlighting");    
-  init(handleNavScroll, "handleNavScroll");  
-  //init(handleDefaultFocus, "handleDefaultFocus");
+  init(handleNavScroll, "handleNavScroll");
 });
