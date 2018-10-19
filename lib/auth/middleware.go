@@ -185,7 +185,7 @@ func (a *AuthMiddleware) GetUser(r *http.Request) (interface{}, error) {
 	clientCert := peers[0]
 	certClusterName, err := tlsca.ClusterName(clientCert.Issuer)
 	if err != nil {
-		log.Warning("Failed to parse client certificate %v.", err)
+		log.Warnf("Failed to parse client certificate %v.", err)
 		return nil, trace.AccessDenied("access denied: invalid client certificate")
 	}
 

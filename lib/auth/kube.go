@@ -185,7 +185,7 @@ set kubeconfig_path if auth server is running outside of the cluster`, teleport.
 		clt, cfg, err := kubeutils.GetKubeClient(os.Getenv(teleport.EnvKubeConfig))
 		if err != nil {
 			return nil, trace.BadParameter(`auth server assumed that it is 
-running in a kubernetes cluster, but could not init in-cluster kubernetes client`, err)
+running in a kubernetes cluster, but could not init in-cluster kubernetes client: %v`, err)
 		}
 
 		targetAddr, err := parseKubeHost(cfg.Host)

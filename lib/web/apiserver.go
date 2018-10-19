@@ -655,7 +655,7 @@ func (h *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprou
 
 	csrfToken, err := csrf.ExtractTokenFromCookie(r)
 	if err != nil {
-		log.Warningf("unable to extract CSRF token from cookie", err)
+		log.Warningf("unable to extract CSRF token from cookie: %v", err)
 		return nil, trace.AccessDenied("access denied")
 	}
 
@@ -827,7 +827,7 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 	if response.Req.CreateWebSession {
 		err = csrf.VerifyToken(response.Req.CSRFToken, r)
 		if err != nil {
-			log.Warningf("[OIDC] unable to verify CSRF token", err)
+			log.Warningf("[OIDC] unable to verify CSRF token: %v", err)
 			return nil, trace.AccessDenied("access denied")
 		}
 

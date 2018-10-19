@@ -354,7 +354,7 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 			time.Sleep(time.Millisecond * 250)
 			if i >= 5 {
 				// session stream keeps coming back short
-				c.Fatal("stream is not getting data: %q", string(sessionStream))
+				c.Fatalf("Stream is not getting data: %q.", string(sessionStream))
 			}
 		}
 

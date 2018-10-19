@@ -153,7 +153,7 @@ func New(params backend.Params) (backend.Backend, error) {
 	// convert generic backend parameters structure to etcd config:
 	var cfg *Config
 	if err = utils.ObjectToStruct(params, &cfg); err != nil {
-		return nil, trace.BadParameter("invalid etcd configuration", err)
+		return nil, trace.BadParameter("invalid etcd configuration: %v", err)
 	}
 	if err = cfg.Validate(); err != nil {
 		return nil, trace.Wrap(err)

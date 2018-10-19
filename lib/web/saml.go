@@ -117,7 +117,7 @@ func (m *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.P
 		log.Debugf("redirecting to web browser")
 		err = csrf.VerifyToken(response.Req.CSRFToken, r)
 		if err != nil {
-			l.Warningf("unable to verify CSRF token", err)
+			l.Warningf("unable to verify CSRF token: %v", err)
 			return nil, trace.AccessDenied("access denied")
 		}
 
