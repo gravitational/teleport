@@ -137,9 +137,22 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { de
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
+/**
+ * Top Navigation
+ * @class
+ * @param {String} id - The id of the navigation element
+ * @param {Boolean} pinned - pin the navigation on scroll
+ * @returns {Object}
+ */
+
 var TopNav = function () {
-  function TopNav(id) {
+  function TopNav() {
+    var settings = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : { id: '', pinned: false };
+
     _classCallCheck(this, TopNav);
+
+    var id = settings.id,
+        pinned = settings.pinned;
 
     var elementId = id || '#top-nav';
 
@@ -157,8 +170,12 @@ var TopNav = function () {
     // activate event listeners
     this.activateDropdownMenus();
     this.activateMobileMenu();
-    this.pinTopNav();
     this.updateCta();
+
+    // pin top nav
+    if (pinned) {
+      this.pinTopNav();
+    }
   }
 
   _createClass(TopNav, [{
@@ -271,8 +288,13 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { de
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
 var SecondaryNav = function () {
-  function SecondaryNav(id) {
+  function SecondaryNav() {
+    var settings = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : { id: '', pinned: false };
+
     _classCallCheck(this, SecondaryNav);
+
+    var id = settings.id,
+        pinned = settings.pinned;
 
     var elementId = id || '#secondary-nav';
 
@@ -289,7 +311,11 @@ var SecondaryNav = function () {
     // activate navigation
     this.activateMenuHighlights();
     this.activateMobileMenu();
-    this.pinSecondaryNav();
+
+    // pin nav
+    if (pinned) {
+      this.pinSecondaryNav();
+    }
   }
 
   _createClass(SecondaryNav, [{
@@ -425,7 +451,8 @@ var buttonRipple = function buttonRipple(buttonClass) {
   });
 };
 
-var buttonSmoothScroll = function buttonSmoothScroll() {
+var buttonSmoothScroll = function buttonSmoothScroll(offset) {
+  offset = offset || 132;
   // Select all links with hashes
   (0, _jquery2.default)('a[href*="#"]')
   // Remove links that don't actually link to anything
@@ -440,7 +467,7 @@ var buttonSmoothScroll = function buttonSmoothScroll() {
         // Only prevent default if animation is actually gonna happen
         event.preventDefault();
         (0, _jquery2.default)('html, body').animate({
-          scrollTop: target.offset().top - 132
+          scrollTop: target.offset().top - offset
         }, 1000, function () {
           // Callback after animation
           // Must change focus!
@@ -544,7 +571,7 @@ var SideNav = function () {
       var _this2 = this;
 
       this.$trigger.on('click', function (e) {
-        e.preventDefault();
+        e.stopPropagation();
 
         _this2.$nav.addClass('is-active');
         _this2.$trigger.addClass('is-hidden');
@@ -553,7 +580,7 @@ var SideNav = function () {
       });
 
       this.$close.on('click', function (e) {
-        e.preventDefault();
+        e.stopPropagation();
 
         _this2.$nav.removeClass('is-active');
         _this2.$trigger.removeClass('is-hidden');

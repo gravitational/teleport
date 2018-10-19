@@ -14,10 +14,10 @@ function getSearchTerm() {
 $(document).ready(function() {
   // ACTIVATE NAVIGATION
   if (window.grvlib) {
-    // new grvlib.TopNav();
-    // new grvlib.SecondaryNav();
+    new grvlib.TopNav();
+    new grvlib.SecondaryNav();
     new grvlib.SideNav();
-    grvlib.buttonSmoothScroll();
+    grvlib.buttonSmoothScroll(16);
     grvlib.buttonRipple();
   }
 
