@@ -633,7 +633,7 @@ ul.has-icons, dl.has-icons {
       line-height: 32px;
       margin: 0;
       text-transform: uppercase;
-      text-wrap: nowrap; }
+      white-space: nowrap; }
       .text-article table thead th.is-center {
         text-align: center; }
     .text-article table tbody tr:last-child th, .text-article table tbody tr:last-child td {
