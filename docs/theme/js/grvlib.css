@@ -8732,6 +8732,9 @@ ol.linenums {
   line-height: 24px;
   margin: 0;
   padding: 16px; }
+  .notice .notice-content code,
+  .admonition p code {
+    background: rgba(255, 255, 255, 0.87); }
   .notice .notice-content p,
   .admonition p p {
     line-height: 24px;
