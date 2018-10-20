@@ -268,6 +268,9 @@ var (
 
 	// HighResPollingPeriod is a default high resolution polling period
 	HighResPollingPeriod = 10 * time.Second
+
+	// LowResPollingPeriod is a default low resolution polling period
+	LowResPollingPeriod = 90 * time.Second
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport
