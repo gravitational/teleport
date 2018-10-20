@@ -8625,9 +8625,9 @@ ol.linenums {
   .admonition header,
   .admonition .admonition-title {
     color: #FFF;
-    font-size: 14px;
+    font-size: 12px;
     font-weight: 600;
-    line-height: 32px;
+    line-height: 24px;
     text-transform: uppercase;
     padding: 0 16px; }
   .notice.is-standard, .notice.note, .notice.abstract, .notice.info,
@@ -8727,12 +8727,14 @@ ol.linenums {
 .notice .notice-content,
 .admonition p {
   color: #455A64;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 400;
+  line-height: 24px;
   margin: 0;
   padding: 16px; }
   .notice .notice-content p,
   .admonition p p {
+    line-height: 24px;
     margin-bottom: 16px; }
     .notice .notice-content p:last-child,
     .admonition p p:last-child {
