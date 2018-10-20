@@ -34,12 +34,6 @@
 * SETTINGS
 *
 */
-.text-article h1,
-.text-article h2,
-.text-article h3,
-.text-article p,
-.text-article ul,
-.text-article ol,
 .text-jumbo,
 .text-headline,
 .text-title,
@@ -55,12 +49,6 @@ ul, dl {
   margin: 0 0 16px 0;
   outline: none;
   padding: 0; }
-  .text-article h1.is-italic,
-  .text-article h2.is-italic,
-  .text-article h3.is-italic,
-  .text-article p.is-italic,
-  .text-article ul.is-italic,
-  .text-article ol.is-italic,
   .text-jumbo.is-italic,
   .text-headline.is-italic,
   .text-title.is-italic,
@@ -70,12 +58,6 @@ ul, dl {
   .text-list.is-italic,
   ul.is-italic, dl.is-italic {
     font-style: italic; }
-  .text-article h1.is-semi-bold,
-  .text-article h2.is-semi-bold,
-  .text-article h3.is-semi-bold,
-  .text-article p.is-semi-bold,
-  .text-article ul.is-semi-bold,
-  .text-article ol.is-semi-bold,
   .text-jumbo.is-semi-bold,
   .text-headline.is-semi-bold,
   .text-title.is-semi-bold,
@@ -85,12 +67,6 @@ ul, dl {
   .text-list.is-semi-bold,
   ul.is-semi-bold, dl.is-semi-bold {
     font-weight: 500; }
-  .text-article h1.is-bold,
-  .text-article h2.is-bold,
-  .text-article h3.is-bold,
-  .text-article p.is-bold,
-  .text-article ul.is-bold,
-  .text-article ol.is-bold,
   .text-jumbo.is-bold,
   .text-headline.is-bold,
   .text-title.is-bold,
@@ -100,12 +76,6 @@ ul, dl {
   .text-list.is-bold,
   ul.is-bold, dl.is-bold {
     font-weight: 600; }
-  .text-article h1.is-extra-bold,
-  .text-article h2.is-extra-bold,
-  .text-article h3.is-extra-bold,
-  .text-article p.is-extra-bold,
-  .text-article ul.is-extra-bold,
-  .text-article ol.is-extra-bold,
   .text-jumbo.is-extra-bold,
   .text-headline.is-extra-bold,
   .text-title.is-extra-bold,
@@ -115,12 +85,6 @@ ul, dl {
   .text-list.is-extra-bold,
   ul.is-extra-bold, dl.is-extra-bold {
     font-weight: 800; }
-  .text-article h1.is-black,
-  .text-article h2.is-black,
-  .text-article h3.is-black,
-  .text-article p.is-black,
-  .text-article ul.is-black,
-  .text-article ol.is-black,
   .text-jumbo.is-black,
   .text-headline.is-black,
   .text-title.is-black,
@@ -130,12 +94,6 @@ ul, dl {
   .text-list.is-black,
   ul.is-black, dl.is-black {
     font-weight: 900; }
-  .text-article h1.is-uppercase,
-  .text-article h2.is-uppercase,
-  .text-article h3.is-uppercase,
-  .text-article p.is-uppercase,
-  .text-article ul.is-uppercase,
-  .text-article ol.is-uppercase,
   .text-jumbo.is-uppercase,
   .text-headline.is-uppercase,
   .text-title.is-uppercase,
@@ -145,12 +103,6 @@ ul, dl {
   .text-list.is-uppercase,
   ul.is-uppercase, dl.is-uppercase {
     text-transform: uppercase; }
-  .text-article h1.no-margin,
-  .text-article h2.no-margin,
-  .text-article h3.no-margin,
-  .text-article p.no-margin,
-  .text-article ul.no-margin,
-  .text-article ol.no-margin,
   .text-jumbo.no-margin,
   .text-headline.no-margin,
   .text-title.no-margin,
@@ -160,12 +112,6 @@ ul, dl {
   .text-list.no-margin,
   ul.no-margin, dl.no-margin {
     margin: 0 !important; }
-  .text-article h1.is-center,
-  .text-article h2.is-center,
-  .text-article h3.is-center,
-  .text-article p.is-center,
-  .text-article ul.is-center,
-  .text-article ol.is-center,
   .text-jumbo.is-center,
   .text-headline.is-center,
   .text-title.is-center,
@@ -175,12 +121,6 @@ ul, dl {
   .text-list.is-center,
   ul.is-center, dl.is-center {
     text-align: center; }
-  .text-article h1.is-secondary,
-  .text-article h2.is-secondary,
-  .text-article h3.is-secondary,
-  .text-article p.is-secondary,
-  .text-article ul.is-secondary,
-  .text-article ol.is-secondary,
   .text-jumbo.is-secondary,
   .text-headline.is-secondary,
   .text-title.is-secondary,
@@ -190,19 +130,7 @@ ul, dl {
   .text-list.is-secondary,
   ul.is-secondary, dl.is-secondary {
     color: rgba(69, 90, 100, 0.56); }
-  .text-article h1.is-accent, .text-article h1.has-accent,
-  .text-article h2.is-accent,
-  .text-article h2.has-accent,
-  .text-article h3.is-accent,
-  .text-article h3.has-accent,
-  .text-article p.is-accent,
-  .text-article p.has-accent,
-  .text-article ul.is-accent,
-  .text-article ul.has-accent,
-  .text-article ol.is-accent,
-  .text-article ol.has-accent,
-  .text-jumbo.is-accent,
-  .text-jumbo.has-accent,
+  .text-jumbo.is-accent, .text-jumbo.has-accent,
   .text-headline.is-accent,
   .text-headline.has-accent,
   .text-title.is-accent,
@@ -218,19 +146,7 @@ ul, dl {
   ul.is-accent,
   ul.has-accent, dl.is-accent, dl.has-accent {
     color: #00BFA5; }
-    .text-article h1.is-accent a, .text-article h1.has-accent a,
-    .text-article h2.is-accent a,
-    .text-article h2.has-accent a,
-    .text-article h3.is-accent a,
-    .text-article h3.has-accent a,
-    .text-article p.is-accent a,
-    .text-article p.has-accent a,
-    .text-article ul.is-accent a,
-    .text-article ul.has-accent a,
-    .text-article ol.is-accent a,
-    .text-article ol.has-accent a,
-    .text-jumbo.is-accent a,
-    .text-jumbo.has-accent a,
+    .text-jumbo.is-accent a, .text-jumbo.has-accent a,
     .text-headline.is-accent a,
     .text-headline.has-accent a,
     .text-title.is-accent a,
@@ -246,12 +162,6 @@ ul, dl {
     ul.is-accent a,
     ul.has-accent a, dl.is-accent a, dl.has-accent a {
       color: #00BFA5; }
-  .text-article h1.is-disabled,
-  .text-article h2.is-disabled,
-  .text-article h3.is-disabled,
-  .text-article p.is-disabled,
-  .text-article ul.is-disabled,
-  .text-article ol.is-disabled,
   .text-jumbo.is-disabled,
   .text-headline.is-disabled,
   .text-title.is-disabled,
@@ -261,19 +171,7 @@ ul, dl {
   .text-list.is-disabled,
   ul.is-disabled, dl.is-disabled {
     opacity: .24; }
-  .text-article h1.is-inverse, .text-article h1.is-inverted,
-  .text-article h2.is-inverse,
-  .text-article h2.is-inverted,
-  .text-article h3.is-inverse,
-  .text-article h3.is-inverted,
-  .text-article p.is-inverse,
-  .text-article p.is-inverted,
-  .text-article ul.is-inverse,
-  .text-article ul.is-inverted,
-  .text-article ol.is-inverse,
-  .text-article ol.is-inverted,
-  .text-jumbo.is-inverse,
-  .text-jumbo.is-inverted,
+  .text-jumbo.is-inverse, .text-jumbo.is-inverted,
   .text-headline.is-inverse,
   .text-headline.is-inverted,
   .text-title.is-inverse,
@@ -289,19 +187,7 @@ ul, dl {
   ul.is-inverse,
   ul.is-inverted, dl.is-inverse, dl.is-inverted {
     color: #FFF; }
-    .text-article h1.is-inverse a, .text-article h1.is-inverted a,
-    .text-article h2.is-inverse a,
-    .text-article h2.is-inverted a,
-    .text-article h3.is-inverse a,
-    .text-article h3.is-inverted a,
-    .text-article p.is-inverse a,
-    .text-article p.is-inverted a,
-    .text-article ul.is-inverse a,
-    .text-article ul.is-inverted a,
-    .text-article ol.is-inverse a,
-    .text-article ol.is-inverted a,
-    .text-jumbo.is-inverse a,
-    .text-jumbo.is-inverted a,
+    .text-jumbo.is-inverse a, .text-jumbo.is-inverted a,
     .text-headline.is-inverse a,
     .text-headline.is-inverted a,
     .text-title.is-inverse a,
@@ -317,12 +203,6 @@ ul, dl {
     ul.is-inverse a,
     ul.is-inverted a, dl.is-inverse a, dl.is-inverted a {
       color: #FFF; }
-  .text-article h1.is-plum,
-  .text-article h2.is-plum,
-  .text-article h3.is-plum,
-  .text-article p.is-plum,
-  .text-article ul.is-plum,
-  .text-article ol.is-plum,
   .text-jumbo.is-plum,
   .text-headline.is-plum,
   .text-title.is-plum,
@@ -332,19 +212,7 @@ ul, dl {
   .text-list.is-plum,
   ul.is-plum, dl.is-plum {
     color: #1e3c72; }
-  .text-article h1.is-error, .text-article h1.has-error,
-  .text-article h2.is-error,
-  .text-article h2.has-error,
-  .text-article h3.is-error,
-  .text-article h3.has-error,
-  .text-article p.is-error,
-  .text-article p.has-error,
-  .text-article ul.is-error,
-  .text-article ul.has-error,
-  .text-article ol.is-error,
-  .text-article ol.has-error,
-  .text-jumbo.is-error,
-  .text-jumbo.has-error,
+  .text-jumbo.is-error, .text-jumbo.has-error,
   .text-headline.is-error,
   .text-headline.has-error,
   .text-title.is-error,
@@ -360,12 +228,6 @@ ul, dl {
   ul.is-error,
   ul.has-error, dl.is-error, dl.has-error {
     color: #F50057; }
-  .text-article h1 code,
-  .text-article h2 code,
-  .text-article h3 code,
-  .text-article p code,
-  .text-article ul code,
-  .text-article ol code,
   .text-jumbo code,
   .text-headline code,
   .text-title code,
@@ -379,70 +241,53 @@ ul, dl {
     color: #233591;
     padding: 0 8px; }
 
-.text-article h1,
 .text-jumbo {
   font-size: 48px;
   line-height: 64px;
   word-wrap: break-word; }
   @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
-    .text-article h1,
     .text-jumbo {
       font-size: 32px;
       line-height: 48px; } }
 
-.text-article h2,
 .text-headline {
   font-size: 32px;
   line-height: 48px;
   word-wrap: break-word; }
   @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
-    .text-article h2,
     .text-headline {
       font-size: 24px;
       line-height: 40px; } }
 
-.text-article h3,
 .text-title {
   font-size: 24px;
   line-height: 32px; }
   @media screen and (max-width: 1200px) {
-    .text-article h3,
     .text-title {
       font-size: 20px;
       line-height: 32px;
       margin: 0 0 8px 0; } }
   @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
-    .text-article h3,
     .text-title {
       font-size: 18px;
       line-height: 24px;
       margin: 0 0 8px 0; } }
 
-.text-article h4,
-.text-article p,
 .text-body {
   font-size: 18px;
   line-height: 32px;
   word-wrap: break-word; }
   @media screen and (max-width: 1200px) {
-    .text-article h4,
-    .text-article p,
     .text-body {
       font-size: 15px;
       margin-bottom: 16px; } }
   @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
-    .text-article h4,
-    .text-article p,
     .text-body {
       font-size: 14px;
       line-height: 24px;
       margin-bottom: 8px; } }
-  .text-article h4 strong,
-  .text-article p strong,
   .text-body strong {
     font-weight: 600; }
-  .text-article h4 a,
-  .text-article p a,
   .text-body a {
     color: #039BE5; }
 
@@ -514,20 +359,14 @@ ul, dl {
     line-height: 40px;
     text-decoration: none; }
 
-.text-article ol,
-.text-article ul,
 .text-list {
   font-size: 18px;
   line-height: 32px;
   margin: 0 0 16px 24px; }
   @media screen and (max-width: 1200px) {
-    .text-article ol,
-    .text-article ul,
     .text-list {
       font-size: 14px;
       line-height: 24px; } }
-  .text-article ol li,
-  .text-article ul li,
   .text-list li {
     margin: 0 0 8px 0; }
 
@@ -601,19 +440,16 @@ ul.has-icons, dl.has-icons {
     ul.has-icons i svg, ul.has-icons i path, ul.has-icons i polyline, ul.has-icons i g, dl.has-icons i svg, dl.has-icons i path, dl.has-icons i polyline, dl.has-icons i g {
       fill: #00BFA5; }
 
-.text-table,
-.text-article table {
+.text-table {
   border-collapse: collapse;
   box-shadow: 0 0 2px rgba(0, 0, 0, 0.12), 0 2px 2px rgba(0, 0, 0, 0.24);
   margin: 0 0 32px 0;
   text-align: left;
   width: 100%; }
   @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
-    .text-table,
-    .text-article table {
+    .text-table {
       max-width: 100%; } }
-  .text-table thead th,
-  .text-article table thead th {
+  .text-table thead th {
     background: rgba(237, 240, 242, 0.56);
     border-bottom: 1px solid #EDF0F2;
     color: #233591;
@@ -623,42 +459,36 @@ ul.has-icons, dl.has-icons {
     margin: 0;
     text-transform: uppercase;
     text-wrap: nowrap; }
-    .text-table thead th.is-center,
-    .text-article table thead th.is-center {
+    .text-table thead th.is-center {
       text-align: center; }
-  .text-table tbody tr:last-child th, .text-table tbody tr:last-child td,
-  .text-article table tbody tr:last-child th,
-  .text-article table tbody tr:last-child td {
+  .text-table tbody tr:last-child th, .text-table tbody tr:last-child td {
     border-bottom: none; }
-  .text-table tbody th, .text-table tbody td,
-  .text-article table tbody th,
-  .text-article table tbody td {
+  .text-table tbody th, .text-table tbody td {
     border-bottom: 1px solid #EDF0F2;
     font-size: 16px;
     line-height: 32px;
     padding: 16px; }
-    .text-table tbody th code, .text-table tbody td code,
-    .text-article table tbody th code,
-    .text-article table tbody td code {
+    .text-table tbody th code, .text-table tbody td code {
       background: rgba(237, 240, 242, 0.56);
       border-radius: 2px;
       color: #233591;
       padding: 0 8px; }
-  .text-table tbody th,
-  .text-article table tbody th {
+  .text-table tbody th {
     background: rgba(237, 240, 242, 0.56);
     color: #233591; }
-    .text-table tbody th:first-child,
-    .text-article table tbody th:first-child {
+    .text-table tbody th:first-child {
       border-right: 1px solid #EDF0F2; }
-  .text-table tbody td,
-  .text-article table tbody td {
+  .text-table tbody td {
     color: rgba(69, 90, 100, 0.87); }
 
-.text-article h3 {
-  font-weight: 600;
-  margin-top: 32px; }
-
+/*
+* Typography
+*
+*/
+/*
+* SETTINGS
+*
+*/
 .text-article-banner {
   background-repeat: no-repeat;
   background-position: center center;
@@ -669,26 +499,184 @@ ul.has-icons, dl.has-icons {
     .text-article-banner {
       height: 200px; } }
 
-.text-article blockquote {
-  background: #EDF0F2;
-  border-radius: 4px;
-  display: inline-block;
-  color: rgba(69, 90, 100, 0.77);
-  font-size: 24px;
-  line-height: 32px;
-  margin: 0 0 16px 0;
-  padding: 24px;
-  word-wrap: break-word; }
-  .text-article blockquote p {
+.text-article {
+  /* SHARED STYLES */ }
+  .text-article pre.prettyprint {
+    margin-bottom: 24px; }
+  .text-article h1, .text-article h2, .text-article h3, .text-article p, .text-article ul, .text-article ol, .text-article dl {
+    color: #455A64;
+    font-family: "Raleway", Helvetica, Arial, "Lucida Grande", sans-serif;
+    font-weight: 400;
+    letter-spacing: 1px;
+    line-height: 24px;
+    margin: 0 0 16px 0;
+    outline: none;
+    padding: 0; }
+    .text-article h1.is-italic, .text-article h2.is-italic, .text-article h3.is-italic, .text-article p.is-italic, .text-article ul.is-italic, .text-article ol.is-italic, .text-article dl.is-italic {
+      font-style: italic; }
+    .text-article h1.is-semi-bold, .text-article h2.is-semi-bold, .text-article h3.is-semi-bold, .text-article p.is-semi-bold, .text-article ul.is-semi-bold, .text-article ol.is-semi-bold, .text-article dl.is-semi-bold {
+      font-weight: 500; }
+    .text-article h1.is-bold, .text-article h2.is-bold, .text-article h3.is-bold, .text-article p.is-bold, .text-article ul.is-bold, .text-article ol.is-bold, .text-article dl.is-bold {
+      font-weight: 600; }
+    .text-article h1.is-extra-bold, .text-article h2.is-extra-bold, .text-article h3.is-extra-bold, .text-article p.is-extra-bold, .text-article ul.is-extra-bold, .text-article ol.is-extra-bold, .text-article dl.is-extra-bold {
+      font-weight: 800; }
+    .text-article h1.is-black, .text-article h2.is-black, .text-article h3.is-black, .text-article p.is-black, .text-article ul.is-black, .text-article ol.is-black, .text-article dl.is-black {
+      font-weight: 900; }
+    .text-article h1.is-uppercase, .text-article h2.is-uppercase, .text-article h3.is-uppercase, .text-article p.is-uppercase, .text-article ul.is-uppercase, .text-article ol.is-uppercase, .text-article dl.is-uppercase {
+      text-transform: uppercase; }
+    .text-article h1.no-margin, .text-article h2.no-margin, .text-article h3.no-margin, .text-article p.no-margin, .text-article ul.no-margin, .text-article ol.no-margin, .text-article dl.no-margin {
+      margin: 0 !important; }
+    .text-article h1.is-center, .text-article h2.is-center, .text-article h3.is-center, .text-article p.is-center, .text-article ul.is-center, .text-article ol.is-center, .text-article dl.is-center {
+      text-align: center; }
+    .text-article h1.is-secondary, .text-article h2.is-secondary, .text-article h3.is-secondary, .text-article p.is-secondary, .text-article ul.is-secondary, .text-article ol.is-secondary, .text-article dl.is-secondary {
+      color: rgba(69, 90, 100, 0.56); }
+    .text-article h1.is-accent, .text-article h1.has-accent, .text-article h2.is-accent, .text-article h2.has-accent, .text-article h3.is-accent, .text-article h3.has-accent, .text-article p.is-accent, .text-article p.has-accent, .text-article ul.is-accent, .text-article ul.has-accent, .text-article ol.is-accent, .text-article ol.has-accent, .text-article dl.is-accent, .text-article dl.has-accent {
+      color: #00BFA5; }
+      .text-article h1.is-accent a, .text-article h1.has-accent a, .text-article h2.is-accent a, .text-article h2.has-accent a, .text-article h3.is-accent a, .text-article h3.has-accent a, .text-article p.is-accent a, .text-article p.has-accent a, .text-article ul.is-accent a, .text-article ul.has-accent a, .text-article ol.is-accent a, .text-article ol.has-accent a, .text-article dl.is-accent a, .text-article dl.has-accent a {
+        color: #00BFA5; }
+    .text-article h1.is-disabled, .text-article h2.is-disabled, .text-article h3.is-disabled, .text-article p.is-disabled, .text-article ul.is-disabled, .text-article ol.is-disabled, .text-article dl.is-disabled {
+      opacity: .24; }
+    .text-article h1.is-inverse, .text-article h1.is-inverted, .text-article h2.is-inverse, .text-article h2.is-inverted, .text-article h3.is-inverse, .text-article h3.is-inverted, .text-article p.is-inverse, .text-article p.is-inverted, .text-article ul.is-inverse, .text-article ul.is-inverted, .text-article ol.is-inverse, .text-article ol.is-inverted, .text-article dl.is-inverse, .text-article dl.is-inverted {
+      color: #FFF; }
+      .text-article h1.is-inverse a, .text-article h1.is-inverted a, .text-article h2.is-inverse a, .text-article h2.is-inverted a, .text-article h3.is-inverse a, .text-article h3.is-inverted a, .text-article p.is-inverse a, .text-article p.is-inverted a, .text-article ul.is-inverse a, .text-article ul.is-inverted a, .text-article ol.is-inverse a, .text-article ol.is-inverted a, .text-article dl.is-inverse a, .text-article dl.is-inverted a {
+        color: #FFF; }
+    .text-article h1.is-plum, .text-article h2.is-plum, .text-article h3.is-plum, .text-article p.is-plum, .text-article ul.is-plum, .text-article ol.is-plum, .text-article dl.is-plum {
+      color: #1e3c72; }
+    .text-article h1.is-error, .text-article h1.has-error, .text-article h2.is-error, .text-article h2.has-error, .text-article h3.is-error, .text-article h3.has-error, .text-article p.is-error, .text-article p.has-error, .text-article ul.is-error, .text-article ul.has-error, .text-article ol.is-error, .text-article ol.has-error, .text-article dl.is-error, .text-article dl.has-error {
+      color: #F50057; }
+    .text-article h1 code, .text-article h2 code, .text-article h3 code, .text-article p code, .text-article ul code, .text-article ol code, .text-article dl code {
+      background: rgba(237, 240, 242, 0.56);
+      border-radius: 2px;
+      color: #F50057;
+      padding: 0 8px; }
+  .text-article h1 {
+    font-size: 38px;
+    line-height: 48px;
+    word-wrap: break-word; }
+    @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
+      .text-article h1 {
+        font-size: 32px;
+        line-height: 48px; } }
+  .text-article h2 {
+    font-size: 32px;
+    line-height: 48px;
+    margin-top: 48px;
+    word-wrap: break-word; }
+    @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
+      .text-article h2 {
+        font-size: 24px;
+        line-height: 40px; } }
+  .text-article h3 {
+    font-size: 20px;
+    line-height: 32px;
+    font-weight: 600;
+    margin-top: 40px;
+    text-transform: uppercase; }
+    @media screen and (max-width: 1200px) {
+      .text-article h3 {
+        font-size: 20px;
+        line-height: 32px;
+        margin: 0 0 8px 0; } }
+    @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
+      .text-article h3 {
+        font-size: 18px;
+        line-height: 24px;
+        margin: 0 0 8px 0; } }
+  .text-article h4, .text-article p {
+    font-size: 16px;
+    line-height: 24px;
+    margin-bottom: 24px;
+    word-wrap: break-word; }
+    @media screen and (max-width: 1200px) {
+      .text-article h4, .text-article p {
+        font-size: 15px;
+        margin-bottom: 16px; } }
+    @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
+      .text-article h4, .text-article p {
+        font-size: 14px;
+        line-height: 24px;
+        margin-bottom: 8px; } }
+    .text-article h4 strong, .text-article p strong {
+      font-weight: 600; }
+    .text-article h4 a, .text-article p a {
+      color: #039BE5; }
+  .text-article small {
+    font-size: 14px;
+    line-height: 24px; }
+    .text-article small a {
+      color: #039BE5; }
+  .text-article ol, .text-article ul, .text-article dl {
+    font-size: 16px;
+    line-height: 24px;
+    margin: 24px 0 24px 40px; }
+    @media screen and (max-width: 1200px) {
+      .text-article ol, .text-article ul, .text-article dl {
+        font-size: 14px;
+        line-height: 24px; } }
+    .text-article ol li, .text-article ul li, .text-article dl li {
+      margin: 0 0 8px 0; }
+  .text-article table {
+    border-collapse: collapse;
+    box-shadow: 0 0 2px rgba(0, 0, 0, 0.12), 0 2px 2px rgba(0, 0, 0, 0.24);
+    margin: 0 0 24px 0;
+    text-align: left;
+    width: 100%; }
+    @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
+      .text-article table {
+        max-width: 100%; } }
+    .text-article table thead th {
+      background: #edf0f2;
+      border-bottom: 1px solid #EDF0F2;
+      color: #233591;
+      padding: 0 16px;
+      font-size: 14px;
+      line-height: 32px;
+      margin: 0;
+      text-transform: uppercase;
+      text-wrap: nowrap; }
+      .text-article table thead th.is-center {
+        text-align: center; }
+    .text-article table tbody tr:last-child th, .text-article table tbody tr:last-child td {
+      border-bottom: none; }
+    .text-article table tbody tr:nth-child(even) {
+      background: rgba(237, 240, 242, 0.56); }
+    .text-article table tbody th, .text-article table tbody td {
+      border-bottom: 1px solid #EDF0F2;
+      font-size: 16px;
+      line-height: 24px;
+      min-width: 100px;
+      padding: 16px; }
+      .text-article table tbody th code, .text-article table tbody td code {
+        background: rgba(237, 240, 242, 0.56);
+        border-radius: 2px;
+        color: #233591;
+        padding: 0 8px; }
+    .text-article table tbody th {
+      background: rgba(237, 240, 242, 0.56);
+      color: #233591; }
+      .text-article table tbody th:first-child {
+        border-right: 1px solid #EDF0F2; }
+    .text-article table tbody td {
+      color: rgba(69, 90, 100, 0.87); }
+  .text-article blockquote {
+    background: #EDF0F2;
+    border-radius: 4px;
+    display: inline-block;
+    color: rgba(69, 90, 100, 0.77);
     font-size: 24px;
-    line-height: 40px;
-    margin: 0; }
-
-.text-article aside p {
-  font-size: 16px;
-  line-height: 24px;
-  margin: 0 0 16px 0;
-  word-wrap: break-word; }
+    line-height: 32px;
+    margin: 0 0 16px 0;
+    padding: 24px;
+    word-wrap: break-word; }
+    .text-article blockquote p {
+      font-size: 24px;
+      line-height: 40px;
+      margin: 0; }
+  .text-article aside p {
+    font-size: 16px;
+    line-height: 24px;
+    margin: 0 0 16px 0;
+    word-wrap: break-word; }
 
 /*! normalize.css v4.1.1 | MIT License | github.com/necolas/normalize.css */
 /**

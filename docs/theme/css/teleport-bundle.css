@@ -1,4 +1,8 @@
 /*
+* Docs custom styles
+*
+*/
+/*
 * Basic Defaults
 *
 */
@@ -36,3 +40,10 @@ h1 {
     margin-top: 8px;
     position: absolute;
     text-transform: none; }
+
+img[src$=grv-image-center-md] {
+  border-radius: 4px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
+  display: block;
+  margin: 0 auto;
+  width: auto; }

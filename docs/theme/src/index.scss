@@ -1,10 +1,10 @@
-// /*
-// * BASE
-// *
-// */
+/*
+* Docs custom styles
+*
+*/
 
 @import "defaults";
-// @import "mixins"
+@import "mixins";
 
 h1 {
   position: relative;
@@ -25,3 +25,10 @@ h1 {
   }
 }
 
+img[src$=grv-image-center-md] {
+  border-radius: 4px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .24);
+  display: block;
+  margin: 0 auto;
+  width: auto;
+}
