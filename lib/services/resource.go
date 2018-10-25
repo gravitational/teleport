@@ -119,6 +119,9 @@ const (
 	// KindGithubConnector is Github OAuth2 connector resource
 	KindGithubConnector = "github"
 
+	// KindConnectors is a shortcut for all authentication connector types.
+	KindConnectors = "connectors"
+
 	// KindAuthPreference is the type of authentication for this cluster.
 	KindClusterAuthPreference = "cluster_auth_preference"
 
@@ -431,6 +434,8 @@ func ParseShortcut(in string) (string, error) {
 		return KindSAMLConnector, nil
 	case "github":
 		return KindGithubConnector, nil
+	case "connectors":
+		return KindConnectors, nil
 	case "user", "users":
 		return KindUser, nil
 	case "cert_authorities", "cas":

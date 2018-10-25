@@ -129,11 +129,11 @@ func (g *ResourceCommand) Get(client auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
+	// Note that only YAML is officially supported. Support for text and JSON
+	// is experimental.
 	switch g.format {
 	case formatYAML:
 		return collection.writeYAML(os.Stdout)
-
-		// NOTE: only YAML is officially supported. Text and JSON are for experimentation only!
 	case formatText:
 		return collection.writeText(os.Stdout)
 	case formatJSON:
@@ -238,14 +238,14 @@ func (u *ResourceCommand) createGithubConnector(client auth.ClientI, raw service
 	}
 	exists := (err == nil)
 	if u.force == false && exists {
-		return trace.AlreadyExists("github connector %q already exists",
+		return trace.AlreadyExists("authentication connector %q already exists",
 			connector.GetName())
 	}
 	err = client.UpsertGithubConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("github connector %q has been %s\n",
+	fmt.Printf("authentication connector %q has been %s\n",
 		connector.GetName(), UpsertVerb(exists, u.force))
 	return nil
 }
@@ -340,6 +340,24 @@ func (g *ResourceCommand) getCollection(client auth.ClientI) (c ResourceCollecti
 			}
 		}
 		return &userCollection{users: users}, nil
+	case services.KindConnectors:
+		sc, err := client.GetSAMLConnectors(g.withSecrets)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		oc, err := client.GetOIDCConnectors(g.withSecrets)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		gc, err := client.GetGithubConnectors(g.withSecrets)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &connectorsCollection{
+			saml:   sc,
+			oidc:   oc,
+			github: gc,
+		}, nil
 	case services.KindSAMLConnector:
 		connectors, err := client.GetSAMLConnectors(g.withSecrets)
 		if err != nil {
