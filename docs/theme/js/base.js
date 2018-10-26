@@ -11,9 +11,16 @@ function getSearchTerm() {
   }
 }
 
+function isMobile() {
+  if(window.innerWidth <= 800) {
+    return true;
+  }
+  else {
+    return false;
+  }
+}
+
 $(document).ready(function() {
-
-
   // SIDE NAV HIGHLIGHTING
   const $sideNavSecondaryMenu = $(".side-nav-secondary-buttons");
   const $sideNavSecondaryButtons = $sideNavSecondaryMenu.find('a');
@@ -52,10 +59,12 @@ $(document).ready(function() {
 
     // ACTIVATE NAVIGATION
   if (window.grvlib) {
+    let topPadding = isMobile() ? 156 : 16;
+
     new grvlib.TopNav();
     new grvlib.SecondaryNav();
     new grvlib.SideNav();
-    grvlib.buttonSmoothScroll(16);
+    grvlib.buttonSmoothScroll(topPadding);
     grvlib.buttonRipple();
   }
 });

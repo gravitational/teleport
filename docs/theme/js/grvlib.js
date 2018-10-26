@@ -521,7 +521,12 @@ var SideNav = function () {
     this.$close = (0, _jquery2.default)('#side-nav-close');
     this.$menu = (0, _jquery2.default)('#side-nav-menu');
     this.$buttons = (0, _jquery2.default)('.side-nav-buttons a');
+    this.$secondaryButtons = (0, _jquery2.default)('.side-nav-secondary-buttons a');
     this.currentPath = window.location.pathname;
+
+    // BIND METHODS
+    this.closeMenu = this.closeMenu.bind(this);
+    this.openMenu = this.openMenu.bind(this);
 
     if (this.$nav.length) {
       this.activateMenuHighlights();
@@ -565,27 +570,35 @@ var SideNav = function () {
       });
     }
   }, {
+    key: 'closeMenu',
+    value: function closeMenu(e) {
+      if (e) {
+        e.stopPropagation();
+      }
+
+      this.$nav.removeClass('is-active');
+      this.$trigger.removeClass('is-hidden');
+      this.$close.removeClass('is-visible');
+      this.$menu.removeClass('is-visible');
+    }
+  }, {
+    key: 'openMenu',
+    value: function openMenu(e) {
+      if (e) {
+        e.stopPropagation();
+      }
+
+      this.$nav.addClass('is-active');
+      this.$trigger.addClass('is-hidden');
+      this.$close.addClass('is-visible');
+      this.$menu.addClass('is-visible');
+    }
+  }, {
     key: 'activateMobileMenu',
     value: function activateMobileMenu() {
-      var _this2 = this;
-
-      this.$trigger.on('click', function (e) {
-        e.stopPropagation();
-
-        _this2.$nav.addClass('is-active');
-        _this2.$trigger.addClass('is-hidden');
-        _this2.$close.addClass('is-visible');
-        _this2.$menu.addClass('is-visible');
-      });
-
-      this.$close.on('click', function (e) {
-        e.stopPropagation();
-
-        _this2.$nav.removeClass('is-active');
-        _this2.$trigger.removeClass('is-hidden');
-        _this2.$close.removeClass('is-visible');
-        _this2.$menu.removeClass('is-visible');
-      });
+      this.$trigger.on('click', this.openMenu);
+      this.$close.on('click', this.closeMenu);
+      this.$secondaryButtons.on('click', this.closeMenu);
     }
   }]);
 
