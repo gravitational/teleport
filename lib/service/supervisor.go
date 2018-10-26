@@ -322,7 +322,12 @@ func (s *LocalSupervisor) BroadcastEvent(event Event) {
 	}
 
 	s.events[event.Name] = event
-	log.WithFields(logrus.Fields{"event": event.String(), trace.Component: teleport.Component(teleport.ComponentProcess, s.id)}).Debugf("Broadcasting event.")
+
+	// Log all events other than recovered events to prevent the logs from
+	// being flooded.
+	if event.String() != TeleportOKEvent {
+		log.WithFields(logrus.Fields{"event": event.String(), trace.Component: teleport.Component(teleport.ComponentProcess, s.id)}).Debugf("Broadcasting event.")
+	}
 
 	go func() {
 		select {
