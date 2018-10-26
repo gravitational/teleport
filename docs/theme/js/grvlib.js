@@ -151,7 +151,8 @@ var TopNav = function () {
 
     _classCallCheck(this, TopNav);
 
-    var id = settings.id;
+    var id = settings.id,
+        pinned = settings.pinned;
 
     var elementId = id || '#top-nav';
 
@@ -171,10 +172,10 @@ var TopNav = function () {
     this.activateMobileMenu();
     this.updateCta();
 
-    // // pin top nav
-    // if(pinned) {
-    //   this.pinTopNav();
-    // }
+    // pin top nav
+    if (pinned) {
+      this.pinTopNav();
+    }
   }
 
   _createClass(TopNav, [{
@@ -292,7 +293,8 @@ var SecondaryNav = function () {
 
     _classCallCheck(this, SecondaryNav);
 
-    var id = settings.id;
+    var id = settings.id,
+        pinned = settings.pinned;
 
     var elementId = id || '#secondary-nav';
 
@@ -311,9 +313,9 @@ var SecondaryNav = function () {
     this.activateMobileMenu();
 
     // pin nav
-    // if(pinned) {
-    //   this.pinSecondaryNav();
-    // }
+    if (pinned) {
+      this.pinSecondaryNav();
+    }
   }
 
   _createClass(SecondaryNav, [{
@@ -401,8 +403,13 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { de
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
 var SideNav = function () {
-  function SideNav(id) {
+  function SideNav() {
+    var settings = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : { id: '', pinned: false };
+
     _classCallCheck(this, SideNav);
+
+    var id = settings.id,
+        pinned = settings.pinned;
 
     var elementId = id || '#side-nav';
 
@@ -422,7 +429,10 @@ var SideNav = function () {
     if (this.$nav.length) {
       this.activateMenuHighlights();
       this.activateMobileMenu();
-      this.pinSideNav();
+
+      if (pinned) {
+        this.pinSideNav();
+      }
     }
   }
 
@@ -453,7 +463,7 @@ var SideNav = function () {
       }
 
       this.$window.on("scroll", function () {
-        if (_this.$window[0].pageYOffset > 132) {
+        if (_this.$window[0].pageYOffset > 80) {
           _this.$nav.addClass("is-fixed");
         } else {
           _this.$nav.removeClass("is-fixed");

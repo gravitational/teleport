@@ -63,7 +63,7 @@ $(document).ready(function() {
 
     new grvlib.TopNav();
     new grvlib.SecondaryNav();
-    new grvlib.SideNav();
+    new grvlib.SideNav({pinned: true});
     grvlib.buttonSmoothScroll(topPadding);
     grvlib.buttonRipple();
   }

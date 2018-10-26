@@ -8993,6 +8993,9 @@ ol.linenums {
 
 .has-secondary-nav.no-hero {
   padding-top: 119px; }
+  @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
+    .has-secondary-nav.no-hero {
+      padding-top: 95px; } }
 
 .has-secondary-nav .top-nav {
   box-shadow: none !important; }
@@ -9218,7 +9221,7 @@ ol.linenums {
   left: 0;
   overflow: hidden;
   overflow-y: auto;
-  position: absolute;
+  position: fixed;
   top: 0;
   width: 296px;
   z-index: 1000; }
@@ -9237,8 +9240,8 @@ ol.linenums {
         bottom: 0; } }
   .side-nav.is-fixed {
     padding-top: 0 !important;
-    position: fixed;
-    top: 0 !important; }
+    top: 0 !important;
+    transition: all .3s; }
     @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
       .side-nav.is-fixed {
         top: 96px !important; } }
