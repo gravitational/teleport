@@ -9798,10 +9798,10 @@ ol.linenums {
         .top-nav .top-nav-dropdown a:hover strong, .top-nav .top-nav-dropdown a:hover em, .top-nav .top-nav-dropdown a:focus strong, .top-nav .top-nav-dropdown a:focus em {
           color: #039BE5; }
       .top-nav .top-nav-dropdown a.has-logo-gravity {
-        background: url("/gravitational/images/logos/logo-gravity.svg") 16px 24px no-repeat;
+        background: url("/images/logo-gravity.svg") 16px 24px no-repeat;
         padding-left: 104px; }
         .top-nav .top-nav-dropdown a.has-logo-gravity:hover, .top-nav .top-nav-dropdown a.has-logo-gravity:focus {
-          background: rgba(3, 155, 229, 0.06) url("/gravitational/images/logos/logo-gravity.svg") 16px 24px no-repeat; }
+          background: rgba(3, 155, 229, 0.06) url("/images/logo-gravity.svg") 16px 24px no-repeat; }
           @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
             .top-nav .top-nav-dropdown a.has-logo-gravity:hover, .top-nav .top-nav-dropdown a.has-logo-gravity:focus {
               background: none;
@@ -9811,10 +9811,10 @@ ol.linenums {
             background: none;
             padding: 16px 0; } }
       .top-nav .top-nav-dropdown a.has-logo-teleport {
-        background: url("/gravitational/images/logos/logo-teleport.svg") 16px 24px no-repeat;
+        background: url("/images/logo-teleport.svg") 16px 24px no-repeat;
         padding-left: 104px; }
         .top-nav .top-nav-dropdown a.has-logo-teleport:hover, .top-nav .top-nav-dropdown a.has-logo-teleport:focus {
-          background: rgba(3, 155, 229, 0.06) url("/gravitational/images/logos/logo-teleport.svg") 16px 24px no-repeat; }
+          background: rgba(3, 155, 229, 0.06) url("/images/logo-teleport.svg") 16px 24px no-repeat; }
           @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
             .top-nav .top-nav-dropdown a.has-logo-teleport:hover, .top-nav .top-nav-dropdown a.has-logo-teleport:focus {
               background: none;
