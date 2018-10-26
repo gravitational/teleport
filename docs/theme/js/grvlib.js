@@ -151,8 +151,7 @@ var TopNav = function () {
 
     _classCallCheck(this, TopNav);
 
-    var id = settings.id,
-        pinned = settings.pinned;
+    var id = settings.id;
 
     var elementId = id || '#top-nav';
 
@@ -293,8 +292,7 @@ var SecondaryNav = function () {
 
     _classCallCheck(this, SecondaryNav);
 
-    var id = settings.id,
-        pinned = settings.pinned;
+    var id = settings.id;
 
     var elementId = id || '#secondary-nav';
 

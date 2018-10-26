@@ -512,6 +512,11 @@ ul.has-icons, dl.has-icons {
     margin: 0 0 16px 0;
     outline: none;
     padding: 0; }
+    .text-article h1[id]:hover a, .text-article h2[id]:hover a, .text-article h3[id]:hover a, .text-article p[id]:hover a, .text-article ul[id]:hover a, .text-article ol[id]:hover a, .text-article dl[id]:hover a {
+      text-decoration: none;
+      color: #039BE5; }
+      .text-article h1[id]:hover a:before, .text-article h2[id]:hover a:before, .text-article h3[id]:hover a:before, .text-article p[id]:hover a:before, .text-article ul[id]:hover a:before, .text-article ol[id]:hover a:before, .text-article dl[id]:hover a:before {
+        content: " \B6"; }
     .text-article h1.is-italic, .text-article h2.is-italic, .text-article h3.is-italic, .text-article p.is-italic, .text-article ul.is-italic, .text-article ol.is-italic, .text-article dl.is-italic {
       font-style: italic; }
     .text-article h1.is-semi-bold, .text-article h2.is-semi-bold, .text-article h3.is-semi-bold, .text-article p.is-semi-bold, .text-article ul.is-semi-bold, .text-article ol.is-semi-bold, .text-article dl.is-semi-bold {
