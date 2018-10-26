@@ -12,14 +12,7 @@ function getSearchTerm() {
 }
 
 $(document).ready(function() {
-  // ACTIVATE NAVIGATION
-  if (window.grvlib) {
-    new grvlib.TopNav();
-    new grvlib.SecondaryNav();
-    new grvlib.SideNav();
-    grvlib.buttonSmoothScroll(16);
-    grvlib.buttonRipple();
-  }
+
 
   // SIDE NAV HIGHLIGHTING
   const $sideNavSecondaryMenu = $(".side-nav-secondary-buttons");
@@ -56,5 +49,14 @@ $(document).ready(function() {
   $("li.disabled a").click((e) => {
     e.preventDefault();
   });
+
+    // ACTIVATE NAVIGATION
+  if (window.grvlib) {
+    new grvlib.TopNav();
+    new grvlib.SecondaryNav();
+    new grvlib.SideNav();
+    grvlib.buttonSmoothScroll(16);
+    grvlib.buttonRipple();
+  }
 });
 
