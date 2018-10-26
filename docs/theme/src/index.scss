@@ -6,6 +6,12 @@
 @import "defaults";
 @import "mixins";
 
+
+/*
+* Version Selector
+*
+*/
+
 h1 {
   position: relative;
 }
@@ -18,17 +24,41 @@ h1 {
   width: 150px;
   z-index: 1;
 
+  @include respond-to('mobile') {
+    margin-bottom: $unit * 3;
+    position: relative;
+    width: auto;
+  }
+
   select {
     margin-top: $unit;
     position: absolute;
     text-transform: none;
+
+    @include respond-to('mobile') {
+      margin: 0;
+      position: relative;
+    }
   }
 }
 
-img[src$=grv-image-center-md] {
+
+/*
+* Diagrams / Images
+*
+*/
+
+p img {
+  display: block;
+  margin: 0 auto ($unit * 3) auto;
+  width: auto;
+}
+
+img[src$=grv-image-center-md],
+img[src$='raw=true'] {
   border-radius: 4px;
+  border: 1px solid $color-dark;
   box-shadow: 0 4px 16px rgba(0, 0, 0, .24);
   display: block;
-  margin: 0 auto;
   width: auto;
 }

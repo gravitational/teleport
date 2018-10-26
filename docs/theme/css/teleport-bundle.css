@@ -26,6 +26,10 @@
 * Z Indexes
 *
 */
+/*
+* Version Selector
+*
+*/
 h1 {
   position: relative; }
 
@@ -36,14 +40,33 @@ h1 {
   right: 0;
   width: 150px;
   z-index: 1; }
+  @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
+    .version-selector {
+      margin-bottom: 24px;
+      position: relative;
+      width: auto; } }
   .version-selector select {
     margin-top: 8px;
     position: absolute;
     text-transform: none; }
+    @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
+      .version-selector select {
+        margin: 0;
+        position: relative; } }
 
-img[src$=grv-image-center-md] {
+/*
+* Diagrams / Images
+*
+*/
+p img {
+  display: block;
+  margin: 0 auto 24px auto;
+  width: auto; }
+
+img[src$=grv-image-center-md],
+img[src$='raw=true'] {
   border-radius: 4px;
+  border: 1px solid #000;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
   display: block;
-  margin: 0 auto;
   width: auto; }
