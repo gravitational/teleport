@@ -9192,7 +9192,11 @@ ol.linenums {
       .has-side-nav.has-top-nav {
         padding-top: 96px; }
         .has-side-nav.has-top-nav .side-nav {
+          background: #1e3c72;
+          top: 48px;
           padding-top: 48px; }
+        .has-side-nav.has-top-nav .side-nav-menu {
+          top: 96px; }
       .has-side-nav.has-secondary-nav {
         padding-top: 144px; }
         .has-side-nav.has-secondary-nav .side-nav {
