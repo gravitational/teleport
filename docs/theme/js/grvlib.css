@@ -42,7 +42,7 @@
 .text-small,
 .text-list,
 ul, dl {
-  color: #455A64;
+  color: #263238;
   font-family: "Raleway", Helvetica, Arial, "Lucida Grande", sans-serif;
   font-weight: 400;
   letter-spacing: 1px;
@@ -129,7 +129,7 @@ ul, dl {
   .text-small.is-secondary,
   .text-list.is-secondary,
   ul.is-secondary, dl.is-secondary {
-    color: rgba(69, 90, 100, 0.56); }
+    color: rgba(38, 50, 56, 0.56); }
   .text-jumbo.is-accent, .text-jumbo.has-accent,
   .text-headline.is-accent,
   .text-headline.has-accent,
@@ -303,7 +303,7 @@ ul, dl {
   margin-bottom: 16px;
   padding: 0; }
   .text-quote p {
-    color: rgba(69, 90, 100, 0.56);
+    color: rgba(38, 50, 56, 0.56);
     font-size: 20px;
     font-weight: 300;
     line-height: 36px;
@@ -315,10 +315,10 @@ ul, dl {
         font-size: 16px;
         padding: 0 48px; } }
   .text-quote strong {
-    color: rgba(69, 90, 100, 0.64);
+    color: rgba(38, 50, 56, 0.64);
     font-weight: 600; }
   .text-quote small {
-    color: rgba(69, 90, 100, 0.56);
+    color: rgba(38, 50, 56, 0.56);
     display: block;
     font-size: 13px;
     letter-spacing: .5px;
@@ -345,7 +345,7 @@ ul, dl {
 
 .text-list-header {
   border-bottom: 1px solid #EDF0F2;
-  color: rgba(69, 90, 100, 0.87);
+  color: rgba(38, 50, 56, 0.87);
   font-size: 16px;
   font-weight: 500;
   line-height: 40px;
@@ -479,7 +479,7 @@ ul.has-icons, dl.has-icons {
     .text-table tbody th:first-child {
       border-right: 1px solid #EDF0F2; }
   .text-table tbody td {
-    color: rgba(69, 90, 100, 0.87); }
+    color: rgba(38, 50, 56, 0.87); }
 
 /*
 * Typography
@@ -504,7 +504,7 @@ ul.has-icons, dl.has-icons {
   .text-article pre.prettyprint {
     margin-bottom: 24px; }
   .text-article h1, .text-article h2, .text-article h3, .text-article p, .text-article ul, .text-article ol, .text-article dl {
-    color: #455A64;
+    color: #263238;
     font-family: "Raleway", Helvetica, Arial, "Lucida Grande", sans-serif;
     font-weight: 400;
     letter-spacing: 1px;
@@ -529,7 +529,7 @@ ul.has-icons, dl.has-icons {
     .text-article h1.is-center, .text-article h2.is-center, .text-article h3.is-center, .text-article p.is-center, .text-article ul.is-center, .text-article ol.is-center, .text-article dl.is-center {
       text-align: center; }
     .text-article h1.is-secondary, .text-article h2.is-secondary, .text-article h3.is-secondary, .text-article p.is-secondary, .text-article ul.is-secondary, .text-article ol.is-secondary, .text-article dl.is-secondary {
-      color: rgba(69, 90, 100, 0.56); }
+      color: rgba(38, 50, 56, 0.56); }
     .text-article h1.is-accent, .text-article h1.has-accent, .text-article h2.is-accent, .text-article h2.has-accent, .text-article h3.is-accent, .text-article h3.has-accent, .text-article p.is-accent, .text-article p.has-accent, .text-article ul.is-accent, .text-article ul.has-accent, .text-article ol.is-accent, .text-article ol.has-accent, .text-article dl.is-accent, .text-article dl.has-accent {
       color: #00BFA5; }
       .text-article h1.is-accent a, .text-article h1.has-accent a, .text-article h2.is-accent a, .text-article h2.has-accent a, .text-article h3.is-accent a, .text-article h3.has-accent a, .text-article p.is-accent a, .text-article p.has-accent a, .text-article ul.is-accent a, .text-article ul.has-accent a, .text-article ol.is-accent a, .text-article ol.has-accent a, .text-article dl.is-accent a, .text-article dl.has-accent a {
@@ -678,12 +678,12 @@ ul.has-icons, dl.has-icons {
       .text-article table tbody th:first-child {
         border-right: 1px solid #EDF0F2; }
     .text-article table tbody td {
-      color: rgba(69, 90, 100, 0.87); }
+      color: rgba(38, 50, 56, 0.87); }
   .text-article blockquote {
     background: #EDF0F2;
     border-radius: 4px;
     display: inline-block;
-    color: #455A64;
+    color: #263238;
     font-size: 24px;
     line-height: 32px;
     margin: 0 0 16px 0;
@@ -7919,7 +7919,7 @@ textarea {
 *
 */
 .badge {
-  background: #455A64;
+  background: #263238;
   border-radius: 2px;
   color: #FFF;
   display: inline-block;
@@ -8256,7 +8256,7 @@ textarea {
         height: 96px;
         width: 96px; } }
   .card-bio h2 {
-    color: #455A64;
+    color: #263238;
     font-size: 16px;
     font-weight: 600;
     line-height: 24px;
@@ -8269,7 +8269,7 @@ textarea {
       .card-bio h2 {
         font-size: 16px; } }
   .card-bio h3 {
-    color: rgba(69, 90, 100, 0.56);
+    color: rgba(38, 50, 56, 0.56);
     font-size: 14px;
     font-weight: 300;
     line-height: 24px;
@@ -8594,7 +8594,7 @@ ol.linenums {
   appearance: none;
   -webkit-appearance: none;
   background: rgba(255, 255, 255, 0.56);
-  border: 2px solid rgba(69, 90, 100, 0.56);
+  border: 2px solid rgba(38, 50, 56, 0.56);
   border-radius: 2px;
   box-sizing: border-box;
   cursor: pointer;
@@ -8759,7 +8759,7 @@ ol.linenums {
 
 .notice .notice-content,
 .admonition p {
-  color: #455A64;
+  color: #263238;
   font-size: 16px;
   font-weight: 400;
   line-height: 24px;
@@ -9250,7 +9250,7 @@ ol.linenums {
       max-height: 32px;
       margin: 0 auto; }
   .side-nav .side-nav-section-header {
-    background: #455A64;
+    background: #263238;
     color: #FFF;
     font-size: 10px;
     line-height: 24px;
@@ -9328,19 +9328,19 @@ ol.linenums {
       width: 100%; }
       .side-nav .side-nav-search input::-webkit-input-placeholder {
         /* Chrome/Opera/Safari */
-        color: rgba(69, 90, 100, 0.64);
+        color: rgba(38, 50, 56, 0.64);
         text-transform: uppercase; }
       .side-nav .side-nav-search input::-moz-placeholder {
         /* Firefox 19+ */
-        color: rgba(69, 90, 100, 0.64);
+        color: rgba(38, 50, 56, 0.64);
         text-transform: uppercase; }
       .side-nav .side-nav-search input:-ms-input-placeholder {
         /* IE 10+ */
-        color: rgba(69, 90, 100, 0.64);
+        color: rgba(38, 50, 56, 0.64);
         text-transform: uppercase; }
       .side-nav .side-nav-search input:-moz-placeholder {
         /* Firefox 18- */
-        color: rgba(69, 90, 100, 0.64);
+        color: rgba(38, 50, 56, 0.64);
         text-transform: uppercase; }
   .side-nav .side-nav-buttons {
     list-style-type: none;
@@ -9352,7 +9352,7 @@ ol.linenums {
       margin: 0; }
       .side-nav .side-nav-buttons li a {
         background: rgba(255, 255, 255, 0);
-        color: rgba(69, 90, 100, 0.87);
+        color: rgba(38, 50, 56, 0.87);
         display: block;
         font-size: 12px;
         font-weight: 500;
@@ -9378,7 +9378,7 @@ ol.linenums {
           .side-nav .side-nav-buttons li a.is-active i {
             color: #00BFA5; }
         .side-nav .side-nav-buttons li a i {
-          color: rgba(69, 90, 100, 0.4);
+          color: rgba(38, 50, 56, 0.4);
           font-size: 18px;
           left: 16px;
           position: absolute;
@@ -9395,7 +9395,7 @@ ol.linenums {
       margin: 0; }
       .side-nav .side-nav-secondary-buttons li a {
         background: rgba(255, 255, 255, 0);
-        color: rgba(69, 90, 100, 0.87);
+        color: rgba(38, 50, 56, 0.87);
         display: block;
         font-size: 11px;
         font-weight: 500;
@@ -9422,7 +9422,7 @@ ol.linenums {
   .side-nav .side-nav-tags {
     padding: 24px 16px; }
     .side-nav .side-nav-tags h3 {
-      color: rgba(69, 90, 100, 0.56);
+      color: rgba(38, 50, 56, 0.56);
       font-size: 12px;
       font-weight: bold;
       text-transform: uppercase; }
@@ -9431,10 +9431,10 @@ ol.linenums {
       margin: 0;
       padding: 0; }
     .side-nav .side-nav-tags li {
-      color: rgba(69, 90, 100, 0.56);
+      color: rgba(38, 50, 56, 0.56);
       font-size: 12px; }
       .side-nav .side-nav-tags li a {
-        color: rgba(69, 90, 100, 0.56);
+        color: rgba(38, 50, 56, 0.56);
         display: block;
         font-weight: 500;
         line-height: 24px;
@@ -9446,7 +9446,7 @@ ol.linenums {
           background: #FFF;
           color: #00BFA5; }
         .side-nav .side-nav-tags li a i {
-          color: rgba(69, 90, 100, 0.24);
+          color: rgba(38, 50, 56, 0.24);
           font-size: 16px;
           left: 0;
           position: absolute;
