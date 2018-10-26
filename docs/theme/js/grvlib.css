@@ -8384,6 +8384,7 @@ pre.prettyprint, code.prettyprint {
   font-size: 16px;
   line-height: 22px;
   margin: 0 auto 16px auto;
+  overflow: auto;
   padding: 16px;
   white-space: pre-wrap;
   z-index: 1; }
@@ -9218,7 +9219,7 @@ ol.linenums {
   z-index: 1000; }
   @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
     .side-nav {
-      background: #000;
+      background: #263238;
       box-shadow: 0 4px 4px rgba(0, 0, 0, 0.24);
       border: none;
       bottom: auto;
@@ -9230,6 +9231,7 @@ ol.linenums {
       .side-nav.is-active {
         bottom: 0; } }
   .side-nav.is-fixed {
+    padding-top: 0 !important;
     position: fixed;
     top: 0 !important; }
     @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {

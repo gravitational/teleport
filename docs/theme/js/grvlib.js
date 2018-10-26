@@ -172,10 +172,10 @@ var TopNav = function () {
     this.activateMobileMenu();
     this.updateCta();
 
-    // pin top nav
-    if (pinned) {
-      this.pinTopNav();
-    }
+    // // pin top nav
+    // if(pinned) {
+    //   this.pinTopNav();
+    // }
   }
 
   _createClass(TopNav, [{
@@ -313,9 +313,9 @@ var SecondaryNav = function () {
     this.activateMobileMenu();
 
     // pin nav
-    if (pinned) {
-      this.pinSecondaryNav();
-    }
+    // if(pinned) {
+    //   this.pinSecondaryNav();
+    // }
   }
 
   _createClass(SecondaryNav, [{
