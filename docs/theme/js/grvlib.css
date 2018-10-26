@@ -555,7 +555,7 @@ ul.has-icons, dl.has-icons {
     word-wrap: break-word; }
     @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
       .text-article h1 {
-        font-size: 32px;
+        font-size: 28px;
         line-height: 48px; } }
   .text-article h2 {
     font-size: 32px;
@@ -565,7 +565,7 @@ ul.has-icons, dl.has-icons {
     @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
       .text-article h2 {
         font-size: 24px;
-        line-height: 40px; } }
+        line-height: 32px; } }
   .text-article h3 {
     font-size: 20px;
     line-height: 32px;
@@ -576,12 +576,12 @@ ul.has-icons, dl.has-icons {
       .text-article h3 {
         font-size: 20px;
         line-height: 32px;
-        margin: 0 0 8px 0; } }
+        margin: 32px 0 8px 0; } }
     @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
       .text-article h3 {
         font-size: 18px;
         line-height: 24px;
-        margin: 0 0 8px 0; } }
+        margin: 32px 0 8px 0; } }
   .text-article h4, .text-article p {
     font-size: 16px;
     line-height: 24px;
@@ -612,7 +612,15 @@ ul.has-icons, dl.has-icons {
     @media screen and (max-width: 1200px) {
       .text-article ol, .text-article ul, .text-article dl {
         font-size: 14px;
-        line-height: 24px; } }
+        line-height: 24px;
+        margin: 24px 0 24px 32px; } }
+    @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
+      .text-article ol, .text-article ul, .text-article dl {
+        font-size: 14px;
+        line-height: 24px;
+        margin: 24px 0 24px 32px; }
+        .text-article ol ul, .text-article ol ol, .text-article ol dl, .text-article ul ul, .text-article ul ol, .text-article ul dl, .text-article dl ul, .text-article dl ol, .text-article dl dl {
+          margin: 16px 0 16px 24px; } }
     .text-article ol li, .text-article ul li, .text-article dl li {
       margin: 0 0 8px 0; }
   .text-article table {
@@ -634,6 +642,13 @@ ul.has-icons, dl.has-icons {
       margin: 0;
       text-transform: uppercase;
       white-space: nowrap; }
+      @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
+        .text-article table thead th {
+          font-size: 12px;
+          line-height: 24px;
+          min-width: auto;
+          padding: 0 8px;
+          white-space: normal; } }
       .text-article table thead th.is-center {
         text-align: center; }
     .text-article table tbody tr:last-child th, .text-article table tbody tr:last-child td {
@@ -646,6 +661,11 @@ ul.has-icons, dl.has-icons {
       line-height: 24px;
       min-width: 100px;
       padding: 16px; }
+      @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
+        .text-article table tbody th, .text-article table tbody td {
+          font-size: 14px;
+          min-width: auto;
+          padding: 8px; } }
       .text-article table tbody th code, .text-article table tbody td code {
         background: rgba(237, 240, 242, 0.56);
         border-radius: 2px;
@@ -8358,6 +8378,10 @@ pre.prettyprint, code.prettyprint {
   padding: 16px;
   white-space: pre-wrap;
   z-index: 1; }
+  @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
+    pre.prettyprint, code.prettyprint {
+      font-size: 14px;
+      line-height: 24px; } }
 
 /* Specify class=linenums on a pre to get line numbering */
 ol.linenums {
@@ -8732,6 +8756,12 @@ ol.linenums {
   line-height: 24px;
   margin: 0;
   padding: 16px; }
+  @media screen and (max-width: 1200px) {
+    .notice .notice-content,
+    .admonition p {
+      font-size: 14px;
+      margin-bottom: 8px;
+      padding: 0 16px; } }
   .notice .notice-content code,
   .admonition p code {
     background: rgba(255, 255, 255, 0.87); }
