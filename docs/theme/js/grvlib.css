@@ -565,7 +565,8 @@ ul.has-icons, dl.has-icons {
     @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
       .text-article h2 {
         font-size: 24px;
-        line-height: 32px; } }
+        line-height: 32px;
+        margin-top: 32px; } }
   .text-article h3 {
     font-size: 20px;
     line-height: 32px;
@@ -682,15 +683,23 @@ ul.has-icons, dl.has-icons {
     background: #EDF0F2;
     border-radius: 4px;
     display: inline-block;
-    color: rgba(69, 90, 100, 0.77);
+    color: #455A64;
     font-size: 24px;
     line-height: 32px;
     margin: 0 0 16px 0;
     padding: 24px;
     word-wrap: break-word; }
+    @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
+      .text-article blockquote {
+        display: block;
+        font-size: 16px;
+        line-height: 24px;
+        padding: 8px; } }
+    .text-article blockquote pre {
+      margin: 0; }
     .text-article blockquote p {
       font-size: 24px;
-      line-height: 40px;
+      line-height: 32px;
       margin: 0; }
   .text-article aside p {
     font-size: 16px;
@@ -9527,6 +9536,7 @@ ol.linenums {
     position: fixed; }
     @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
       .top-nav.is-fixed {
+        height: 48px;
         opacity: 1;
         position: fixed;
         z-index: 2000; } }

@@ -96,13 +96,13 @@ var _secondaryNav = __webpack_require__(4);
 
 var _secondaryNav2 = _interopRequireDefault(_secondaryNav);
 
-var _sideNav = __webpack_require__(7);
+var _sideNav = __webpack_require__(5);
 
 var _sideNav2 = _interopRequireDefault(_sideNav);
 
 var _buttons = __webpack_require__(6);
 
-__webpack_require__(5);
+__webpack_require__(7);
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -383,113 +383,6 @@ exports.default = SecondaryNav;
 
 /***/ }),
 /* 5 */
-/***/ (function(module, exports) {
-
-// removed by extract-text-webpack-plugin
-
-/***/ }),
-/* 6 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-exports.buttonSmoothScroll = exports.buttonRipple = undefined;
-
-var _jquery = __webpack_require__(0);
-
-var _jquery2 = _interopRequireDefault(_jquery);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-/**
- * Button Ripple
- * @function
- * @param {String} buttonClass - The class name for button '.button'
- * @description - you can add a "data-ripple-color" attribute to the
- *                button to manually set the ripple color.
- */
-
-var buttonRipple = function buttonRipple(buttonClass) {
-  var buttonClassName = buttonClass || '.button';
-  var $buttons = (0, _jquery2.default)(buttonClassName);
-
-  $buttons.on('click', function (e) {
-    (0, _jquery2.default)('.button-ripple').remove();
-
-    // BUTTON
-    var button = (0, _jquery2.default)(this);
-    var buttonHeight = button.height();
-
-    // FIND POSITION
-    var btnOffset = button.offset();
-    var xPos = e.pageX - btnOffset.left;
-    var yPos = e.pageY - btnOffset.top;
-
-    // CREATE RIPPLE CONTAINER
-    var $ripple = (0, _jquery2.default)('<div/>');
-    $ripple.addClass('button-ripple');
-
-    // SET SIZE FOR RIPPLE CONTAINER
-    $ripple.css('height', buttonHeight);
-    $ripple.css('width', buttonHeight);
-
-    // SET POSITION FOR RIPPLE CONTAINER
-    $ripple.css({
-      top: yPos - $ripple.height() / 2,
-      left: xPos - $ripple.width() / 2,
-      background: button.data('ripple-color')
-    }).appendTo(button);
-
-    // REMOVE ELEMENT AFTER 2 SECS
-    setTimeout(function () {
-      $ripple.remove();
-    }, 2000);
-  });
-};
-
-var buttonSmoothScroll = function buttonSmoothScroll(offset) {
-  offset = offset || 132;
-  // Select all links with hashes
-  (0, _jquery2.default)('a[href*="#"]')
-  // Remove links that don't actually link to anything
-  .not('[href="#"]').not('[href="#0"]').click(function () {
-    // On-page links
-    if (location.pathname.replace(/^\//, '') == this.pathname.replace(/^\//, '') && location.hostname == this.hostname) {
-      // Figure out element to scroll to
-      var target = (0, _jquery2.default)(this.hash);
-      target = target.length ? target : (0, _jquery2.default)('[name=' + this.hash.slice(1) + ']');
-      // Does a scroll target exist?
-      if (target.length) {
-        // Only prevent default if animation is actually gonna happen
-        (0, _jquery2.default)('html, body').animate({
-          scrollTop: target.offset().top - offset
-        }, 1000, function () {
-          // Callback after animation
-          // Must change focus!
-          var $target = (0, _jquery2.default)(target);
-          $target.focus();
-          if ($target.is(":focus")) {
-            // Checking if the target was focused
-            return false;
-          } else {
-            $target.attr('tabindex', '-1'); // Adding tabindex for elements not focusable
-            $target.focus(); // Set focus again
-          }
-        });
-      }
-    }
-  });
-};
-
-exports.buttonRipple = buttonRipple;
-exports.buttonSmoothScroll = buttonSmoothScroll;
-
-/***/ }),
-/* 7 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -606,6 +499,113 @@ var SideNav = function () {
 }();
 
 exports.default = SideNav;
+
+/***/ }),
+/* 6 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.buttonSmoothScroll = exports.buttonRipple = undefined;
+
+var _jquery = __webpack_require__(0);
+
+var _jquery2 = _interopRequireDefault(_jquery);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/**
+ * Button Ripple
+ * @function
+ * @param {String} buttonClass - The class name for button '.button'
+ * @description - you can add a "data-ripple-color" attribute to the
+ *                button to manually set the ripple color.
+ */
+
+var buttonRipple = function buttonRipple(buttonClass) {
+  var buttonClassName = buttonClass || '.button';
+  var $buttons = (0, _jquery2.default)(buttonClassName);
+
+  $buttons.on('click', function (e) {
+    (0, _jquery2.default)('.button-ripple').remove();
+
+    // BUTTON
+    var button = (0, _jquery2.default)(this);
+    var buttonHeight = button.height();
+
+    // FIND POSITION
+    var btnOffset = button.offset();
+    var xPos = e.pageX - btnOffset.left;
+    var yPos = e.pageY - btnOffset.top;
+
+    // CREATE RIPPLE CONTAINER
+    var $ripple = (0, _jquery2.default)('<div/>');
+    $ripple.addClass('button-ripple');
+
+    // SET SIZE FOR RIPPLE CONTAINER
+    $ripple.css('height', buttonHeight);
+    $ripple.css('width', buttonHeight);
+
+    // SET POSITION FOR RIPPLE CONTAINER
+    $ripple.css({
+      top: yPos - $ripple.height() / 2,
+      left: xPos - $ripple.width() / 2,
+      background: button.data('ripple-color')
+    }).appendTo(button);
+
+    // REMOVE ELEMENT AFTER 2 SECS
+    setTimeout(function () {
+      $ripple.remove();
+    }, 2000);
+  });
+};
+
+var buttonSmoothScroll = function buttonSmoothScroll(offset) {
+  offset = offset || 132;
+  // Select all links with hashes
+  (0, _jquery2.default)('a[href*="#"]')
+  // Remove links that don't actually link to anything
+  .not('[href="#"]').not('[href="#0"]').click(function () {
+    // On-page links
+    if (location.pathname.replace(/^\//, '') == this.pathname.replace(/^\//, '') && location.hostname == this.hostname) {
+      // Figure out element to scroll to
+      var target = (0, _jquery2.default)(this.hash);
+      target = target.length ? target : (0, _jquery2.default)('[name=' + this.hash.slice(1) + ']');
+      // Does a scroll target exist?
+      if (target.length) {
+        // Only prevent default if animation is actually gonna happen
+        (0, _jquery2.default)('html, body').animate({
+          scrollTop: target.offset().top - offset
+        }, 1000, function () {
+          // Callback after animation
+          // Must change focus!
+          var $target = (0, _jquery2.default)(target);
+          $target.focus();
+          if ($target.is(":focus")) {
+            // Checking if the target was focused
+            return false;
+          } else {
+            $target.attr('tabindex', '-1'); // Adding tabindex for elements not focusable
+            $target.focus(); // Set focus again
+          }
+        });
+      }
+    }
+  });
+};
+
+exports.buttonRipple = buttonRipple;
+exports.buttonSmoothScroll = buttonSmoothScroll;
+
+/***/ }),
+/* 7 */
+/***/ (function(module, exports) {
+
+// removed by extract-text-webpack-plugin
 
 /***/ })
 /******/ ])["default"];
