@@ -64,9 +64,21 @@ class Tty extends EventEmitter {
   }
 
   send(data) {
-    var msg = this._proto.encodeRawMessage(data);
-    var bytearray = new Uint8Array(msg);
-    this.socket.send(bytearray.buffer);
+    // split string to char array for multibyte
+    const arr = data.match(/[\uD800-\uDBFF][\uDC00-\uDFFF]|[^\uD800-\uDFFF]/g) || [];
+    for (let i=0; i < arr.length; ){
+      let sendData = ""
+      // utf-8 char is max 4byte
+      // 128/4=32, size of arr is max 2
+      // 30 + 2 = 32
+      while(sendData.length <= 30 && i < arr.length){
+        sendData += arr[i]
+        i++
+      }
+      var msg = this._proto.encodeRawMessage(sendData);
+      var bytearray = new Uint8Array(msg);
+      this.socket.send(bytearray.buffer);
+    }
   }
 
   requestResize(w, h){
