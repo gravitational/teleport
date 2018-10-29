@@ -8386,7 +8386,8 @@ pre.prettyprint, code.prettyprint {
   background-color: #000;
   border-radius: 4px;
   border: none;
-  font-size: 16px;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 14px;
   line-height: 22px;
   margin: 0 auto 16px auto;
   overflow: auto;
