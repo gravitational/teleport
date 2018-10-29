@@ -8334,6 +8334,23 @@ textarea {
       .card-advisor p {
         height: auto; } }
 
+pre.prettyprint, code.prettyprint {
+  background-color: #000;
+  border-radius: 4px;
+  border: none;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 14px;
+  line-height: 22px;
+  margin: 0 auto 16px auto;
+  overflow: auto;
+  padding: 16px;
+  white-space: pre-wrap;
+  z-index: 1; }
+  @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
+    pre.prettyprint, code.prettyprint {
+      font-size: 14px;
+      line-height: 24px; } }
+
 /* Pretty printing styles. Used with prettify.js. */
 /* Vim sunburst theme by David Leibovic */
 pre .str, code .str {
@@ -8341,7 +8358,7 @@ pre .str, code .str {
 
 /* string  - yellow */
 pre .kwd, code .kwd {
-  color: #F50057;
+  color: #E91E63;
   font-weight: 500; }
 
 /* keyword - dark pink */
@@ -8382,22 +8399,16 @@ pre .dec, code .dec {
   color: #40C4FF; }
 
 /* decimal - blue */
-pre.prettyprint, code.prettyprint {
-  background-color: #000;
-  border-radius: 4px;
-  border: none;
-  font-family: "Courier New", Courier, monospace;
-  font-size: 14px;
-  line-height: 22px;
-  margin: 0 auto 16px auto;
-  overflow: auto;
-  padding: 16px;
-  white-space: pre-wrap;
-  z-index: 1; }
-  @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
-    pre.prettyprint, code.prettyprint {
-      font-size: 14px;
-      line-height: 24px; } }
+.lang-bsh {
+  /* literal */
+  /* type */
+  /* keyword */ }
+  .lang-bsh pre .lit, .lang-bsh code .lit {
+    color: #FFFFFF; }
+  .lang-bsh pre .typ, .lang-bsh code .typ {
+    color: #FFFFFF; }
+  .lang-bsh pre .kwd, .lang-bsh code .kwd {
+    color: #FFFFFF; }
 
 /* Specify class=linenums on a pre to get line numbering */
 ol.linenums {

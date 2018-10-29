@@ -44,7 +44,12 @@ $(document).ready(function() {
     $preTags.each((index, el) => {
       const $pre = $(el);
       const $code = $pre.find('code');
-      const lang = $code.attr('class');
+      let lang = $code.attr('class');
+      $code.removeAttr('class');
+
+      if(!lang) {
+        lang = 'yaml';
+      }
 
       $pre.addClass(`prettyprint lang-${lang}`);
     });
