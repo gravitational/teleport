@@ -610,14 +610,14 @@ Let's look at this table:
 To add a new user to Teleport, you have to use the `tctl` tool on the same node where
 the auth server is running, i.e. `teleport` was started with `--roles=auth`.
 
-```yaml
+```bsh
 $ tctl users add joe joe,root
 ```
 
 Teleport generates an auto-expiring token (with a TTL of 1 hour) and prints the token
 URL which must be used before the TTL expires.
 
-```
+```bsh
 Signup token has been created. Share this URL with the user:
 https://<proxy>:3080/web/newuser/xxxxxxxxxxxx
 
@@ -630,7 +630,7 @@ server generates and signs a new certificate and the client stores this key and 
 it for subsequent logins. The key will automatically expire after 12 hours by default after which
 the user will need to log back in with her credentials. This TTL can be configured to a different value. Once authenticated, the account will become visible via `tctl`:
 
-```bash
+```bsh
 $ tctl users ls
 
 User           Allowed Logins

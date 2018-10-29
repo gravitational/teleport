@@ -47,8 +47,8 @@ $(document).ready(function() {
       let lang = $code.attr('class');
       $code.removeAttr('class');
 
-      if(!lang) {
-        lang = 'yaml';
+      if(!lang || lang === 'bash') {
+        lang = 'bsh';
       }
 
       $pre.addClass(`prettyprint lang-${lang}`);

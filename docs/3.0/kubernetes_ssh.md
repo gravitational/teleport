@@ -20,13 +20,13 @@ work as a unified gateway for both SSH and Kubernetes. We will cover both the op
 source and enterprise editions of Teleport.
 
 For this guide, we'll be using an instance of Kubernetes running on [Google's GKE](https://cloud.google.com/kubernetes-engine/)
-but this guide should apply with any upstream Kubernetes instance. 
+but this guide should apply with any upstream Kubernetes instance.
 
 ## Teleport Proxy Service
 
 By default, the Kubernetes integration is turned off in Teleport. The configuration setting to enable the integration is the `proxy_service/kubernetes/enabled` setting which can be found in the proxy service section in the `/etc/teleport.yaml` file, as shown below:
 
-```bash
+```yaml
 # snippet from /etc/teleport.yaml on the Teleport proxy service:
 proxy_service:
     # create the 'kubernetes' section and set 'enabled' to 'yes':
@@ -64,7 +64,7 @@ There are two ways this can be done:
 2. Deploy the Teleport auth service outside of Kubernetes and update the Teleport Auth configuration with Kubernetes credentials. In this case, we need to update `/etc/teleport.yaml` of the auth service as
    shown below:
 
-```bash
+```yaml
 # snippet from /etc/teleport.yaml on the auth service deployed outside k8s:
 auth_service:
     kubeconfig_file: /path/to/kubeconfig
@@ -75,14 +75,14 @@ to authenticate against your Kubernetes cluster directly then copy the file to
 `/path/to/kubeconfig` on the Teleport auth server.
 
 Unfortunately for GKE users, GKE requires its own client-side extensions to
-authenticate, so we've created a [simple script](https://github.com/gravitational/ops/blob/master/get-kubeconfig.sh) 
+authenticate, so we've created a [simple script](https://github.com/gravitational/ops/blob/master/get-kubeconfig.sh)
 you can run to generate `kubeconfig` for the Teleport auth service.
 
 ## Kubernetes RBAC
 
 Once you perform the steps above, your Teleport instance should become a fully functional Kubernetes API
 proxy. The next step is to configure Teleport to assign the correct Kubernetes
-groups to Teleport users. 
+groups to Teleport users.
 
 Mapping Kubernetes groups to Teleport users depends on how Teleport is
 configured. In this guide we'll look at two common configurations:
@@ -90,7 +90,7 @@ configured. In this guide we'll look at two common configurations:
 * **Open source, Teleport Community edition** configured to authenticate users via [Github](admin-guide.md#github-oauth-20).
   In this case, we'll need to map Github teams to Kubernetes groups.
 
-* **Commercial, Teleport Enterprise edition** configured to authenticate users via [Okta SSO](ssh_okta.md). 
+* **Commercial, Teleport Enterprise edition** configured to authenticate users via [Okta SSO](ssh_okta.md).
   In this case, we'll need to map users' groups that come from Okta to Kubernetes
   groups.
 
@@ -100,7 +100,7 @@ When configuring Teleport to authenticate against Github, you have to create a
 Teleport connector for Github, like the one shown below. Notice the `kubernetes_groups`
 setting which assigns Kubernetes groups to a given Github team:
 
-```
+```yaml
 kind: github
 version: v3
 metadata:
@@ -129,7 +129,7 @@ To obtain client ID and client secret from Github, please follow [Github documen
 
 Finally, create the Github connector with the command: `tctl create -f github.yaml`. Now, when Teleport users execute the Teleport's `tsh login` command, they will be prompted to login through the Github SSO and upon successful authentication, they have access to Kubernetes.
 
-```bash
+```bsh
 # Login via Github SSO and retrieve SSH+Kubernetes certificates:
 $ tsh login --proxy=teleport.example.com --auth=github login
 
@@ -146,12 +146,12 @@ Teleport will log the audit record and record the session.
 ### Okta Auth
 
 With Okta (or any other SAML/OIDC/Active Directory provider), you must update
-Teleport's roles to include the mapping to Kubernetes groups. 
+Teleport's roles to include the mapping to Kubernetes groups.
 
 Let's assume you have the Teleport role called "admin". Add `kubernetes_groups`
 setting to it as shown below:
 
-```bash
+```yaml
 # NOTE: the role definition is edited to remove the unnecessary fields
 kind: role
 version: v3
@@ -159,7 +159,7 @@ metadata:
   name: admin
 spec:
   allow:
-    # if kubernetes integration is enabled, this setting configures which 
+    # if kubernetes integration is enabled, this setting configures which
     # kubernetes groups the users of this role will be assigned to.
     # note that you can refer to a SAML/OIDC trait via the "external" property bag,
     # this allows you to specify Kubernetes group membership in an identity manager:
@@ -169,7 +169,7 @@ spec:
 To add `kubernetes_groups` setting to an existing Teleport role, you can either
 use the Web UI or `tctl`:
 
-```bash
+```bsh
 # Dump the "admin" role into a file:
 $ tctl get roles/admin > admin.yaml
 # Edit the file, add kubernetes_groups setting

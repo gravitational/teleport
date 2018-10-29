@@ -19,7 +19,7 @@ First, configure Teleport auth server to use SAML authentication instead of the 
 user database. Update `/etc/teleport.yaml` as shown below and restart the
 teleport daemon.
 
-```bash
+```yaml
 auth_service:
     authentication:
         type: saml
@@ -50,8 +50,8 @@ statements (special signed metadata exposed via a SAML XML response).
 ![Configure APP](img/okta-saml-3.png)
 
 !!! tip "Important":
-    Notice that we have set "NameID" to the email format and mappped the groups with 
-    a wildcard regex in the Group Attribute statements. We have also set the "Audience" 
+    Notice that we have set "NameID" to the email format and mappped the groups with
+    a wildcard regex in the Group Attribute statements. We have also set the "Audience"
     and SSO URL to the same value.
 
 ### Assign Groups
@@ -60,7 +60,7 @@ Assign groups and people to your SAML app:
 
 ![Configure APP](img/okta-saml-3.1.png)
 
-Make sure to download the metadata in the form of an XML document. It will be used it to 
+Make sure to download the metadata in the form of an XML document. It will be used it to
 configure a Teleport connector:
 
 ![Download metadata](img/okta-saml-4.png?raw=true)
@@ -70,7 +70,7 @@ configure a Teleport connector:
 
 Now, create a SAML connector [resource](admin-guide#resources):
 
-```bash
+```yaml
 # okta-connector.yaml
 kind: saml
 version: v2
@@ -91,7 +91,7 @@ spec:
 
 Create the connector using `tctl` tool:
 
-```bash
+```bsh
 $ tctl create okta-connector.yaml
 ```
 
@@ -100,7 +100,7 @@ $ tctl create okta-connector.yaml
 We are going to create 2 roles, privileged role admin who is able to login as
 root and is capable of administrating the cluster and non-privileged dev.
 
-```bash
+```yaml
 kind: "role"
 version: "v3"
 metadata:
@@ -119,7 +119,7 @@ spec:
 
 The developer role:
 
-```bash
+```yaml
 kind: "role"
 version: "v3"
 metadata:
@@ -133,7 +133,7 @@ spec:
       access: relaxed
 ```
 
-* Devs are only allowed to login to nodes labelled with `access: relaxed` label. 
+* Devs are only allowed to login to nodes labelled with `access: relaxed` label.
 * Developers can log in as `ubuntu` user
 * Notice `{{external.username}}` login. It configures Teleport to look at
   _"username"_ Okta claim and use that field as an allowed login for each user.
@@ -142,17 +142,17 @@ spec:
 
 Now, create both roles on the auth server:
 
-```bash
+```bsh
 $ tctl create admin.yaml
 $ tctl create dev.yaml
 ```
 
 ## Testing
 
-The Web UI will now contain a new button: "Login with Okta". The CLI is 
+The Web UI will now contain a new button: "Login with Okta". The CLI is
 the same as before:
 
-```bash
+```bsh
 $ tsh --proxy=proxy.example.com login
 ```
 
@@ -177,7 +177,7 @@ default and it will contain the detailed reason why a user's login was denied.
 Some errors (like filesystem permissions or misconfigured network) can be
 diagnosed using Teleport's `stderr` log, which is usually available via:
 
-```bash
+```bsh
 $ sudo journalctl -fu teleport
 ```
 

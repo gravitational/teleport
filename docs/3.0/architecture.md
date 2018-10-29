@@ -14,7 +14,7 @@ Teleport was designed in accordance with the following principles:
   with existing and open standards and other software, including OpenSSH.
 
 * **Cluster-Oriented Design**: Teleport is built for managing clusters, not individual
-  servers. In practice this means that hosts and users have cluster memberships. Identity 
+  servers. In practice this means that hosts and users have cluster memberships. Identity
   management and authorization happen on a cluster level.
 
 * **Built for Teams**: Teleport was created under the assumption of multiple teams operating
@@ -33,53 +33,53 @@ The following core concepts are integral to understanding the Teleport architect
        sometimes called an "SSH bastion".
 
 * **User Account**. Unlike traditional SSH, Teleport introduces the concept of a User Account.
-   A User Account is not the same as SSH login. For example, there can be a Teleport user "johndoe" 
+   A User Account is not the same as SSH login. For example, there can be a Teleport user "johndoe"
    who can be given permission to login as "root" to a specific subset of nodes.
 
-* **Teleport Services**. A Teleport cluster consists of three separate services, also called 
+* **Teleport Services**. A Teleport cluster consists of three separate services, also called
    "node roles": `proxy`, `auth` and `node`. Each Teleport node can run any combination of them
    by passing `--role` flag to the `teleport` daemon.
 
 * **User Roles**. Unlike traditional SSH, each Teleport user account is assigned a `role`.
-   Having roles allows Teleport to implement role-based access control (RBAC), i.e. assign 
+   Having roles allows Teleport to implement role-based access control (RBAC), i.e. assign
    users to groups (roles) and restrict each role to a subset of actions on a subset of
    nodes in a cluster.
 
-* **Certificates**. Teleport uses SSH certificates to authenticate nodes and users within 
+* **Certificates**. Teleport uses SSH certificates to authenticate nodes and users within
    a cluster. Teleport does not allow public key or password-based SSH authentication.
 
-* **Dynamic Configuration**. Nearly everything in Teleport can be configured via the 
+* **Dynamic Configuration**. Nearly everything in Teleport can be configured via the
    configuration file, `/etc/teleport.yaml` by default. But some settings can be changed
    at runtime, by modifying the cluster state (eg., creating user roles or
    connecting to trusted clusters). These operations are called 'dynamic configuration'.
 
 ## User Accounts
 
-Teleport supports two types of user accounts: 
+Teleport supports two types of user accounts:
 
 * **Local users** are created and stored in Teleport's own identitiy storage. A cluster
-  administrator has to create account entries for every Teleport user. 
-  Teleport supports second factor authentication (2FA) and it is enforced by default. 
+  administrator has to create account entries for every Teleport user.
+  Teleport supports second factor authentication (2FA) and it is enforced by default.
   There are two types of 2FA supported:
     * [TOTP](https://en.wikipedia.org/wiki/Time-based_One-time_Password_Algorithm)
-      is the default. You can use [Google Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator) or 
+      is the default. You can use [Google Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator) or
       [Authy](https://www.authy.com/) or any other TOTP client.
     * [U2F](https://en.wikipedia.org/wiki/Universal_2nd_Factor).
 * **External users** are users stored elsewhere within an organization. Examples include
   Github, Active Directory (AD) or any identity store with an OpenID/OAuth2 or SAML endpoint.
 
 
-!!! tip "Version Warning": 
+!!! tip "Version Warning":
     SAML, OIDC and Active Directory are only supported in Teleport Enterprise. Please
     take a look at the [Teleport Enterprise](enterprise.md) chapter for more information.
 
-It is possible to have multiple identity sources configured for a Teleport cluster. In this 
-case, an identity source (called a "connector") will have to be passed to `tsh --auth=connector_name login`. 
+It is possible to have multiple identity sources configured for a Teleport cluster. In this
+case, an identity source (called a "connector") will have to be passed to `tsh --auth=connector_name login`.
 Local (aka, internal) users connector can be specified via `tsh --auth=local login`.
 
 ## Teleport Cluster
 
-Let's explore how these services come together and interact with Teleport clients and with each other. 
+Let's explore how these services come together and interact with Teleport clients and with each other.
 
 **High Level Diagram of a Teleport cluster**
 
@@ -90,28 +90,28 @@ Teleport auth is running. Adding new nodes or inviting new users to the cluster 
 possible using this tool.
 
 Once nodes and users (clients) have been invited to the cluster, here is the sequence
-of network calls performed by Teleport components when the client tries to connect to the 
+of network calls performed by Teleport components when the client tries to connect to the
 node:
 
-1) The client tries to establish an SSH connection to a proxy using either the CLI interface or a 
+1) The client tries to establish an SSH connection to a proxy using either the CLI interface or a
    web browser (via HTTPS). When establishing a connection, the client offers its public key. Clients must always connect through a proxy for two reasons:
 
 * Individual nodes may not always be reachable from "the outside".
 * Proxies always record SSH sessions and keep track of active user sessions. This makes it possible for an SSH user to see if someone else is connected to a node she is about to work on.
 
-2) The proxy checks if the submitted certificate has been previously signed by the auth server. 
-   If there was no key previously offered (first time login) or if the certificate has expired, the 
-   proxy denies the connection and asks the client to login interactively using a password and a 
+2) The proxy checks if the submitted certificate has been previously signed by the auth server.
+   If there was no key previously offered (first time login) or if the certificate has expired, the
+   proxy denies the connection and asks the client to login interactively using a password and a
    2nd factor.
-   
- Teleport uses [Google Authenticator](https://support.google.com/accounts/answer/1066447?hl=en) 
+
+ Teleport uses [Google Authenticator](https://support.google.com/accounts/answer/1066447?hl=en)
     for the two-step authentication. The password + 2nd factor are submitted to a proxy via HTTPS, therefore it is critical for a secure configuration of Teleport to install a proper HTTPS certificate on a proxy.
- 
-!!! warning "Warning": 
+
+!!! warning "Warning":
 	Do not use a self-signed certificate in production!
-    
+
 If the credentials are correct, the auth server generates and signs a new certificate and returns
-it to a client via the proxy. The client stores this key and will use it for subsequent 
+it to a client via the proxy. The client stores this key and will use it for subsequent
 logins. The key will automatically expire after 12 hours by default. This TTL can be configured to another value by the cluster administrator.
 
 3) At this step, the proxy tries to locate the requested node in a cluster. There are three
@@ -122,21 +122,21 @@ logins. The key will automatically expire after 12 hours by default. This TTL ca
 * Asks the auth server to find a node (or nodes) with a label that matches the requested name.
 
 If the node is located, the proxy establishes the connection between the client and the
-requested node. The destination node then begins recording the session, sending the session history to the auth server to be stored. 
+requested node. The destination node then begins recording the session, sending the session history to the auth server to be stored.
 
 !!! note "Note":
     Teleport may also be configured to have the session recording occur on the proxy, see [Session Recording](architecture/#session-recording) for more information.
 
-4) When the node receives a connection request, it also checks with the auth server to validate 
+4) When the node receives a connection request, it also checks with the auth server to validate
    the submitted client certificate. The node requests the auth server to provide a list
-   of OS users (user mappings) for the connecting client, to make sure the client is authorized 
+   of OS users (user mappings) for the connecting client, to make sure the client is authorized
    to use the requested OS login.
-   
+
    In other words, every connection is authenticated twice before being authorized to log in:
 
 * User's cluster membership is validated when connecting a proxy.
 * User's cluster membership is validated again when connecting to a node.
-* User's node-level permissions are validated before authorizing her to interact with SSH 
+* User's node-level permissions are validated before authorizing her to interact with SSH
       subsystems.
 
 **Detailed Diagram of a Teleport cluster**
@@ -146,7 +146,7 @@ requested node. The destination node then begins recording the session, sending 
 
 ## Cluster State
 
-Each cluster node is completely stateless and holds no secrets such as keys, passwords, etc. 
+Each cluster node is completely stateless and holds no secrets such as keys, passwords, etc.
 The persistent state of a Teleport cluster is kept by the auth server. There are three types
 of data stored by the auth server:
 
@@ -161,12 +161,12 @@ of data stored by the auth server:
     * Other dynamic configuration.
 
 * **Audit Log**. When users log into a Teleport cluster, execute remote commands and logout,
-  that activity is recorded in the audit log. See [Audit Log](admin-guide.md#audit-log) 
+  that activity is recorded in the audit log. See [Audit Log](admin-guide.md#audit-log)
   for more details.
-  
-* **Recorded Sessions**. When Teleport users launch remote shells via `tsh ssh` command, their 
-  interactive sessions are recorded and stored by the auth server. Each recorded 
-  session is a file which is saved in `/var/lib/teleport` by default, but can also be 
+
+* **Recorded Sessions**. When Teleport users launch remote shells via `tsh ssh` command, their
+  interactive sessions are recorded and stored by the auth server. Each recorded
+  session is a file which is saved in `/var/lib/teleport` by default, but can also be
   saved in external storage, like an AWS S3 bucket.
 
 ### Storage Back-Ends
@@ -189,12 +189,12 @@ Recorded Sessions| `dir`, `s3`               | `s3` is mandatory if `dynamodb` i
     perfect for uploading session blobs, while DynamoDB or `etcd` are better
     suited to store the cluster state.
 
-The combination of DynamoDB + S3 is especially popular among AWS users because it allows them to 
+The combination of DynamoDB + S3 is especially popular among AWS users because it allows them to
 run Teleport clusters completely devoid of local state.
 
 ## Teleport Services
 
-There are three types of services (roles) in a Teleport cluster. 
+There are three types of services (roles) in a Teleport cluster.
 
 | Service (Node Role)  | Description
 |----------------|------------------------------------------------------------------------
@@ -202,7 +202,7 @@ There are three types of services (roles) in a Teleport cluster.
 | proxy  | The proxy accepts inbound connections from the clients and routes them to the appropriate nodes. The proxy also serves the Web UI.
 | auth   | This service provides authentication and authorization service to proxies and nodes. It is the certificate authority (CA) of a cluster and the storage for audit logs. It is the only stateful component of a Teleport cluster.
 
-Although `teleport` daemon is a single binary, it can provide any combination of these services 
+Although `teleport` daemon is a single binary, it can provide any combination of these services
 via `--roles` command line flag or via the configuration file.
 
 In addition to `teleport` daemon, there are three client tools:
@@ -217,7 +217,7 @@ Let's explore each of the Teleport services in detail.
 
 ### The Auth Service
 
-The auth server acts as a certificate authority (CA) for the cluster. Teleport security is 
+The auth server acts as a certificate authority (CA) for the cluster. Teleport security is
 based on SSH certificates and every certificate must be signed by the cluster auth server.
 
 There are two types of [certificates](#certificates) the auth server can sign:
@@ -225,47 +225,47 @@ There are two types of [certificates](#certificates) the auth server can sign:
 * **Host certificates** are used to add new nodes to a cluster.
 * **User certificates** are used to authenticate users when they try to log into a cluster node.
 
-Upon initialization, the auth server generates a public / private keypair and stores it in the 
+Upon initialization, the auth server generates a public / private keypair and stores it in the
 configurable key storage. The auth server also keeps the records of what has been happening
 inside the cluster, including the audit log and session recordings.
 
 ![Teleport Auth](img/auth-server.svg?style=grv-image-center-lg)
 
-When a new node joins the cluster, the auth server generates a new public / private keypair for 
+When a new node joins the cluster, the auth server generates a new public / private keypair for
 the node and signs its certificate.
 
 To join a cluster for the first time, a node must present a "join token" to the auth server.
 The token can be static (configured via a config file) or a dynamic, single-use token.
 
-!!! tip "NOTE": 
-    When using dynamic tokens, their default time to live (TTL) is 15 minutes, but it can be 
+!!! tip "NOTE":
+    When using dynamic tokens, their default time to live (TTL) is 15 minutes, but it can be
     reduced (not increased) via `tctl` flag.
 
-Nodes that are members of a Teleport cluster can interact with the auth server using the auth API. 
-The API is implemented as an HTTP REST service running over the SSH tunnel, authenticated using host 
+Nodes that are members of a Teleport cluster can interact with the auth server using the auth API.
+The API is implemented as an HTTP REST service running over the SSH tunnel, authenticated using host
 or user certificates previously signed by the auth server.
 
 All nodes of the cluster send periodic ping messages to the auth server, reporting their
 IP addresses and values of their assigned labels. The list of connected cluster nodes is accessible
 to all members of the cluster via the API.
 
-Clients can also connect to the auth API through the Teleport proxy to use a limited subset of the API to 
+Clients can also connect to the auth API through the Teleport proxy to use a limited subset of the API to
 discover the member nodes of the cluster.
 
 Cluster administration is performed using `tctl` command line tool.
 
-!!! tip "NOTE": 
-    For high availability in production, a Teleport cluster can be serviced by multiple auth servers 
-    running in sync. Check [HA configuration](admin-guide.md#high-availability) in the 
+!!! tip "NOTE":
+    For high availability in production, a Teleport cluster can be serviced by multiple auth servers
+    running in sync. Check [HA configuration](admin-guide.md#high-availability) in the
     Admin Guide.
 
 
 ### The Proxy Service
 
-The proxy is a stateless service which performs two functions in a Teleport cluster: 
+The proxy is a stateless service which performs two functions in a Teleport cluster:
 
-1. It serves a Web UI which is used by cluster users to sign up and configure their accounts, 
-   explore nodes in a cluster, log into remote nodes, join existing SSH sessions or replay 
+1. It serves a Web UI which is used by cluster users to sign up and configure their accounts,
+   explore nodes in a cluster, log into remote nodes, join existing SSH sessions or replay
    recorded sessions.
 
 2. It serves as an authentication gateway, asking for user credentials and forwarding them
@@ -276,10 +276,10 @@ The proxy is a stateless service which performs two functions in a Teleport clus
 All user interactions with the Teleport cluster are done though a proxy service. It is
 recommended to have several of them running.
 
-When you launch the Teleport Proxy for the first time, it will generate a self-signed HTTPS 
+When you launch the Teleport Proxy for the first time, it will generate a self-signed HTTPS
 certificate to make it easier to explore Teleport.
 
-!!! warning "Warning": 
+!!! warning "Warning":
 	It is absolutely crucial to properly configure TLS for HTTPS when you use Teleport Proxy in production.
 
 
@@ -298,7 +298,7 @@ In this mode, Teleport Proxy implements WSS (secure web sockets) to SSH proxy:
 4. From the SSH node's perspective, it's a regular SSH client connection that is authenticated using an
    OpenSSH certificate, so no special logic is needed.
 
-!!! tip "NOTE": 
+!!! tip "NOTE":
     When using the web UI, Teleport Proxy terminates the traffic and re-encodes for SSH client connection.
 
 ### SSH Proxy
@@ -324,13 +324,13 @@ Once the client has obtained a short lived certificate, it can use it to authent
 2. Proxy dials to the target TCP address and starts forwarding the traffic to the client.
 3. SSH client uses established SSH tunnel to open a new SSH connection and authenticate with the target node using its client certificate.
 
-!!! tip "NOTE": 
+!!! tip "NOTE":
     Teleport's proxy command makes it compatible with [SSH jump hosts](https://wiki.gentoo.org/wiki/SSH_jump_host) implemented using OpenSSH's `ProxyCommand`
 
 
 ## Certificates
 
-Teleport uses standard SSH certificates for client and host authentication. 
+Teleport uses standard SSH certificates for client and host authentication.
 
 One can think of an SSH certificate as a "permit" issued and time-stamped by a
 certificate authority. A certificate contains four important pieces of data:
@@ -368,7 +368,7 @@ user's identity, user certificates also contain user roles and SSH options,
 like "permit-agent-forwarding".
 
 This additional data is stored as certificate extensions and is protected by the CA
-signature. 
+signature.
 
 ### Certificate Rotation
 
@@ -397,7 +397,7 @@ use certificate rotation in practice.
 
 The Teleport auth server keeps the audit log of SSH-related events that take
 place on any node with a Teleport cluster. It is important to understand that
-the SSH nodes emit audit events and submit them to the auth server. 
+the SSH nodes emit audit events and submit them to the auth server.
 
 !!! warning "Compatibility Warning":
     Because all SSH events like `exec` or `session_start` are reported by the
@@ -420,7 +420,7 @@ storage.
 ### Session Recording
 
 By default, destination nodes submit SSH session traffic to the auth server
-for storage. These recorded sessions can be replayed later via `tsh play` 
+for storage. These recorded sessions can be replayed later via `tsh play`
 command or in a web browser.
 
 Some Teleport users mistakenly believe that audit and session recording happen by default
@@ -446,17 +446,17 @@ helpful when gradually transitioning large server fleets to Teleport.
 
 We consider the "recording proxy mode" to be less secure for two reasons:
 
-1. It grants additional privileges to the Teleport proxy. In the default mode, the 
-   proxy stores no secrets and cannot "see" the decrypted data. This makes a proxy 
-   less critical to the security of the overall cluster. But if an attacker gains 
-   physical access to a proxy node running in the "recording" mode, they will be 
+1. It grants additional privileges to the Teleport proxy. In the default mode, the
+   proxy stores no secrets and cannot "see" the decrypted data. This makes a proxy
+   less critical to the security of the overall cluster. But if an attacker gains
+   physical access to a proxy node running in the "recording" mode, they will be
    able to see the decrypted traffic and client keys stored in proxy's process memory.
 2. Recording proxy mode requires the SSH agent forwarding. Agent forwarding is required
    because without it, a proxy will not be able to establish the 2nd connection to the
    destination node.
 
-However, there are advantages of proxy-based session recording too. When sessions are recorded 
-at the nodes, a root user can add iptables rules to prevent sessions logs from reaching 
+However, there are advantages of proxy-based session recording too. When sessions are recorded
+at the nodes, a root user can add iptables rules to prevent sessions logs from reaching
 the Auth Server. With sessions recorded at the proxy, users with root privileges on nodes
 have no way of disabling the audit.
 
@@ -495,12 +495,12 @@ As shown in the diagram above:
 * Before processing the Kubernetes request, the proxy needs a valid certificate
   recognized by the Kubernetes cluster. The proxy delegates this task to the auth
   server and passes the list of kubernetes groups derived from the user's roles.
-* The Teleport auth server uses [Kubernetes native CSR API](https://kubernetes.io/docs/tasks/tls/managing-tls-in-a-cluster/) 
+* The Teleport auth server uses [Kubernetes native CSR API](https://kubernetes.io/docs/tasks/tls/managing-tls-in-a-cluster/)
   to send and approve the request. The Teleport auth server acts both as a requester and approver.
-* The Teleport proxy can now use the certificates issued by the Kubernetes CA to TSL-terminate the 
+* The Teleport proxy can now use the certificates issued by the Kubernetes CA to TSL-terminate the
   request and log it to the auth server, capturing the session traffic for audit purposes.
 
-See [configuring Kubernetes integration](admin-guide.md#kubernetesteleport-configuration) section 
+See [configuring Kubernetes integration](admin-guide.md#kubernetesteleport-configuration) section
 in the admin manual for the detailed configuration instructions.
 
 ## Teleport CLI Tools
@@ -513,13 +513,13 @@ Teleport offers two command line tools. `tsh` is a client tool used by the end u
 `tsh` is similar in nature to OpenSSH `ssh` or `scp`. In fact, it has subcommands named after
 them so you can call:
 
-```
+```bsh
 $ tsh --proxy=p ssh -p 1522 user@host
 $ tsh --proxy=p scp -P example.txt user@host/destination/dir
 ```
 
 Unlike `ssh`, `tsh` is very opinionated about authentication: it always uses auto-expiring
-keys and it always connects to Teleport nodes via a proxy. 
+keys and it always connects to Teleport nodes via a proxy.
 
 When `tsh` logs in, the auto-expiring key is stored in `~/.tsh` and is valid for 12 hours by
 default, unless you specify another interval via `--ttl` flag (capped by the server-side configuration).
@@ -531,7 +531,7 @@ You can learn more about `tsh` in the [User Manual](user-manual.md).
 `tctl` is used to administer a Teleport cluster. It connects to the `auth server` listening
 on `127.0.0.1` and allows a cluster administrator to manage nodes and users in the cluster.
 
-`tctl` is also a tool which can be used to modify the dynamic configuration of the 
+`tctl` is also a tool which can be used to modify the dynamic configuration of the
 cluster, like creating new user roles or connecting trusted clusters.
 
 You can learn more about `tctl` in the [Admin Manual](admin-guide.md).
