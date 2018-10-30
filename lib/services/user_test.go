@@ -48,7 +48,7 @@ func (s *UserSuite) TestTraits(c *check.C) {
 		},
 		// Simple strings are the most common trait names.
 		{
-			traitName: "groups",
+			traitName: "user-groups",
 		},
 	}
 
