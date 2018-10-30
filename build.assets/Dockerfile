@@ -1,5 +1,5 @@
-# This Dockerfile makes the "build box": the container used to build
-# official releases of Teleport and its documentation
+# This Dockerfile makes the "build box": the container used to build official
+# releases of Teleport and its documentation.
 FROM quay.io/gravitational/buildbox-base:1.0
 
 ARG UID
@@ -11,17 +11,20 @@ COPY pam/teleport-session-failure /etc/pam.d
 COPY pam/teleport-success /etc/pam.d
 
 RUN apt-get install -q -y libpam-dev
+RUN apt-get install -q -y libc6-dev-i386
+RUN apt-get install -q -y net-tools
+RUN apt-get install -q -y tree
 
 RUN (groupadd jenkins --gid=$GID -o && useradd jenkins --uid=$UID --gid=$GID --create-home --shell=/bin/sh ;\
      mkdir -p /var/lib/teleport && chown -R jenkins /var/lib/teleport)
 
-# get etcd
+# Install etcd.
 RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz | tar -xz ;\
-     cp etcd-v3.3.9-linux-amd64/etcd* /bin/ ;\
-     apt-get install -y net-tools tree)
+     cp etcd-v3.3.9-linux-amd64/etcd* /bin/)
 
-# Install Golang:
-RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/go1.9.7.linux-amd64.tar.gz | tar xz;\
+# Install Go.
+ARG RUNTIME
+RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$RUNTIME.linux-amd64.tar.gz | tar xz;\
     mkdir -p /gopath/src/github.com/gravitational/teleport;\
     chmod a+w /gopath;\
     chmod a+w /var/lib;\
