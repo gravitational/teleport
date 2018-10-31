@@ -248,7 +248,7 @@ teleport:
 
         # Array of locations where the audit log events will be stored. by
         # default they are stored in `/var/lib/teleport/log`
-        audit_events_uri: [file:///var/lib/teleport/log, dynamo://events_table_name]
+        audit_events_uri: [file:///var/lib/teleport/log, dynamodb://events_table_name]
 
         # Use this setting to configure teleport to store the recorded sessions in
         # an AWS S3 bucket. see "Using Amazon S3" chapter for more information.
@@ -1939,7 +1939,7 @@ teleport:
 
     # This setting configures Teleport to send the audit events in two places: in a DynamoDB table
     # and also keep a copy on a local filesystem.
-    audit_events_uri:  [file:///var/lib/teleport/audit/events, dynamo://table_name]
+    audit_events_uri:  [file:///var/lib/teleport/audit/events, dynamodb://table_name]
     # This setting configures Teleport to save the recorded sessions in an S3 bucket:
     audit_sessions_uri: s3://example.com/teleport.events
 ```
