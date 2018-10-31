@@ -93,7 +93,6 @@ p img {
 img[src$=grv-image-center-md],
 img[src$='raw=true'] {
   border-radius: 4px;
-  border: 1px solid $color-dark;
   box-shadow: 0 4px 16px rgba(0, 0, 0, .24);
   display: block;
   width: auto;
