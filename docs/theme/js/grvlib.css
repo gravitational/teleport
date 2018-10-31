@@ -506,7 +506,7 @@ ul.has-icons, dl.has-icons {
   .text-article h1, .text-article h2, .text-article h3, .text-article p, .text-article ul, .text-article ol, .text-article dl {
     color: #263238;
     font-family: "Raleway", Helvetica, Arial, "Lucida Grande", sans-serif;
-    font-weight: 400;
+    font-weight: normal;
     letter-spacing: 1px;
     line-height: 24px;
     margin: 0 0 16px 0;
@@ -590,6 +590,7 @@ ul.has-icons, dl.has-icons {
         margin: 32px 0 8px 0; } }
   .text-article h4, .text-article p {
     font-size: 16px;
+    font-weight: 500;
     line-height: 24px;
     margin-bottom: 24px;
     word-wrap: break-word; }
@@ -8410,6 +8411,12 @@ pre .dec, code .dec {
   .lang-bsh pre .kwd, .lang-bsh code .kwd {
     color: #FFFFFF; }
 
+.lang-yaml {
+  /* keyword */ }
+  .lang-yaml pre .kwd, .lang-yaml code .kwd {
+    color: #8C9EFF;
+    font-weight: 500; }
+
 /* Specify class=linenums on a pre to get line numbering */
 ol.linenums {
   margin-top: 0;
@@ -8574,16 +8581,20 @@ ol.linenums {
   width: 100%; }
 
 .form-select {
-  background: #FFF;
+  -moz-appearance: none;
+  -webkit-appearance: none;
+  appearance: none;
+  background: #FFF url("/images/icon-arrow.svg") 90% center no-repeat;
   border: none;
   border-radius: 0;
   box-shadow: 0 0 2px rgba(0, 0, 0, 0.12), 0 2px 2px rgba(0, 0, 0, 0.24);
   box-sizing: border-box;
   color: rgba(12, 29, 49, 0.56);
   font-size: 18px;
+  line-height: 40px;
   height: 40px;
   outline: none;
-  padding: 8px 16px;
+  padding: 0 16px;
   text-transform: uppercase;
   width: 100%; }
 

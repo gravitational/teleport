@@ -3,9 +3,45 @@
 *
 */
 
-@import "defaults";
-@import "mixins";
+$unit: 8px;
 
+/*
+* Breakpoints
+*
+*/
+
+$phone-breakpoint: 480px !default;
+$mobile-breakpoint: 800px !default;
+$tablet-breakpoint: 1200px !default;
+$desktop-breakpoint: 1400px !default;
+
+
+@mixin respond-to($media) {
+
+  @if $media == phone {
+    @media screen and (max-width: $phone-breakpoint),
+    screen and (max-device-width: $phone-breakpoint) {
+      @content;
+    }
+  }
+  @else if $media == mobile {
+    @media screen and (max-width: $mobile-breakpoint),
+    screen and (max-device-width: $mobile-breakpoint),
+    screen and (max-width: $mobile-breakpoint) {
+      @content;
+    }
+  }
+  @else if $media == tablet {
+    @media screen and (max-width: $tablet-breakpoint) {
+      @content;
+    }
+  }
+  @else if $media == desktop {
+    @media screen and (min-width: $desktop-breakpoint) {
+      @content;
+    }
+  }
+}
 
 /*
 * Version Selector

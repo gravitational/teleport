@@ -4,19 +4,16 @@
 {% if config.site_description %}<meta name="description" content="{{ config.site_description }}">{% endif %}
 {% if config.site_author %}<meta name="author" content="{{ config.site_author }}">{% endif %}
 
-{# CSS #}
 <link rel="stylesheet" href="{{ base_url }}/css/teleport-bundle.css">
 <link rel="stylesheet" href="{{ base_url }}/js/grvlib.css">
 <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons"  />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Raleway:400,500,600,700,800,900" />
-
 
 {%- for path in extra_css %}
 <link href="{{ path }}" rel="stylesheet">
 {%- endfor %}
 
 <link rel="shortcut icon" href="https://gravitational.com/favicon.ico" type="image/x-icon" />
-
 
 {%- block extrahead %}{% endblock %}
 

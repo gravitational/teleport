@@ -180,27 +180,27 @@ function handleVerSelector() {
     return;
   }
 
-  const docVersions = window.grvConfig.docVersions || [];
-  const docCurrentVer = window.grvConfig.docCurrentVer;
-  const viewingLatest = docVersions.length === 0 || docCurrentVer === docVersions[docVersions.length - 1];
-  const $content = $("#docs-content");
-  const $versionContainer = $content.find('h1').first();
+  var docVersions = window.grvConfig.docVersions || [];
+  var docCurrentVer = window.grvConfig.docCurrentVer;
+  var viewingLatest = docVersions.length === 0 || docCurrentVer === docVersions[docVersions.length - 1];
+  var $content = $("#docs-content");
+  var $versionContainer = $content.find('h1').first();
 
   function getVerUrl(ver, isLatest) {
     // looks for version number and replaces it with new value
     // ex: http://host/docs/ver/1.2/review -> http://host/docs/ver/4.0
-    const reg = new RegExp("\/ver\/([0-9|\.]+(?=\/.))");
-    const url = window.location.href.replace(reg, '');
-    const newPrefix = isLatest ? "" : "/ver/" + ver +"/";
+    var reg = new RegExp("\/ver\/([0-9|\.]+(?=\/.))");
+    var url = window.location.href.replace(reg, '');
+    var newPrefix = isLatest ? "" : "/ver/" + ver +"/";
     return url.replace(mkdocs_page_url, newPrefix);
   }
 
   // Generate options
-  const $options = [];
-  for (let i = 0; i < docVersions.length; i++) {
-    let ver = docVersions[i];
-    let $li = null;
-    let isCurrent = docCurrentVer === ver;
+  var $options = [];
+  for (var i = 0; i < docVersions.length; i++) {
+    var ver = docVersions[i];
+    var $li = null;
+    var isCurrent = docCurrentVer === ver;
 
     if (isCurrent) {
       curValue = ver;
@@ -208,13 +208,13 @@ function handleVerSelector() {
       continue;
     }
 
-    let isLatest = docVersions.indexOf(ver) === (docVersions.length - 1);
-    let baseUrl = getVerUrl(ver, isLatest);
+    var isLatest = docVersions.indexOf(ver) === (docVersions.length - 1);
+    var baseUrl = getVerUrl(ver, isLatest);
     $options.push(' <option value="' + baseUrl + '" >Version ' + ver + "</option>");
   }
 
-  // SHOW VERSION LIST
-  const $versionList = $(`
+  // show version list
+  var $versionList = $(`
     <form class="version-selector">
       <select class="form-select" name="menu" onChange="window.document.location.href=this.options[this.selectedIndex].value;" value="' + curValue + '">
         ${$options.reverse().join('')}
@@ -223,9 +223,9 @@ function handleVerSelector() {
   `);
   $versionContainer.prepend($versionList);
 
-  // SHOW WARNING FOR OLD VERSIONS
+  // show warning for old versions
   if (!viewingLatest) {
-    let latestVerUrl = getVerUrl(docVersions[docVersions.length - 1], true);
+    var latestVerUrl = getVerUrl(docVersions[docVersions.length - 1], true);
     $content.prepend(`
       <div class="notice is-error">
         <header>Version Warning</header>

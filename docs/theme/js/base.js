@@ -1,9 +1,9 @@
 function getSearchTerm() {
-  const sPageURL = window.location.search.substring(1);
-  const sURLVariables = sPageURL.split('&');
+  var sPageURL = window.location.search.substring(1);
+  var sURLVariables = sPageURL.split('&');
 
-  for (let i = 0; i < sURLVariables.length; i++) {
-    let sParameterName = sURLVariables[i].split('=');
+  for (var i = 0; i < sURLVariables.length; i++) {
+    var sParameterName = sURLVariables[i].split('=');
 
     if (sParameterName[0] == 'q') {
       return sParameterName[1];
@@ -21,13 +21,13 @@ function isMobile() {
 }
 
 $(document).ready(function() {
-  // SIDE NAV HIGHLIGHTING
-  const $sideNavSecondaryMenu = $(".side-nav-secondary-buttons");
-  const $sideNavSecondaryButtons = $sideNavSecondaryMenu.find('a');
+  // side nav highlighting
+  var $sideNavSecondaryMenu = $(".side-nav-secondary-buttons");
+  var $sideNavSecondaryButtons = $sideNavSecondaryMenu.find('a');
 
   $sideNavSecondaryMenu.on("click", "a", (e) => {
-    const $button = $(e.currentTarget);
-    const isActive = $button.hasClass('is-active');
+    var $button = $(e.currentTarget);
+    var isActive = $button.hasClass('is-active');
 
     setTimeout(() => {
       if(!isActive) {
@@ -37,14 +37,14 @@ $(document).ready(function() {
     }, 50);
   });
 
-  // ACTIVATE CODE FORMATTING
+  // activate code formatting
   if(window.PR && window.PR.prettyPrint) {
-    let $preTags = $('pre');
+    var $preTags = $('pre');
 
     $preTags.each((index, el) => {
-      const $pre = $(el);
-      const $code = $pre.find('code');
-      let lang = $code.attr('class');
+      var $pre = $(el);
+      var $code = $pre.find('code');
+      var lang = $code.attr('class');
       $code.removeAttr('class');
 
       if(!lang || lang === 'bash') {
@@ -62,9 +62,9 @@ $(document).ready(function() {
     e.preventDefault();
   });
 
-    // ACTIVATE NAVIGATION
+    // activate nav
   if (window.grvlib) {
-    let topPadding = isMobile() ? 156 : 16;
+    var topPadding = isMobile() ? 156 : 16;
 
     new grvlib.TopNav();
     new grvlib.SecondaryNav();
