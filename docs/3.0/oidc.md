@@ -1,6 +1,6 @@
 # OAuth2 / OpenID Connect (OIDC) Authentication for SSH
 
-This guide will cover how to configure an SSO provider using [OpenID Connect](http://openid.net/connect/) 
+This guide will cover how to configure an SSO provider using [OpenID Connect](http://openid.net/connect/)
 (also known as OIDC) to issue SSH credentials to a specific groups of users.
 When used in combination with role based access control (RBAC) it allows SSH
 administrators to define policies like:
@@ -20,7 +20,7 @@ First, configure Teleport auth server to use OIDC authentication instead of the 
 user database. Update `/etc/teleport.yaml` as show below and restart the
 teleport daemon.
 
-```bash
+```yaml
 auth_service:
     authentication:
         type: oidc
@@ -45,7 +45,7 @@ OIDC relies on HTTP re-directs to return control back to Teleport after
 authentication is complete. The redirect URL must be selected by a Teleport
 administrator in advance.
 
-If the Teleport web proxy is running on `proxy.example.com` host, the redirect URL 
+If the Teleport web proxy is running on `proxy.example.com` host, the redirect URL
 should be `https://proxy.example.com:3080/v1/webapi/oidc/callback`
 
 ## OIDC connector configuration
@@ -58,7 +58,7 @@ The file contents are shown below. This connector requests the scope `group`
 from the identity provider then mapping the value to either to `admin` role or
 the `user` role depending on the value returned for `group` within the claims.
 
-```bash
+```yaml
 # oidc-connector.yaml
 kind: oidc
 version: v2
@@ -92,13 +92,13 @@ spec:
 
 Create the connector:
 
-```bash
+```bsh
 $ tctl create oidc-connector.yaml
 ```
 
 ## Create Teleport Roles
 
-The next step is to define Teleport roles. They are created using the same 
+The next step is to define Teleport roles. They are created using the same
 `tctl` [resource commands](admin-guide#resources) as we used for the auth
 connector.
 
@@ -106,7 +106,7 @@ Below are two example roles that are mentioned above, the first is an admin
 with full access to the system while the second is a developer with limited
 access.
 
-```bash
+```yaml
 # role-admin.yaml
 kind: "role"
 version: "v3"
@@ -129,7 +129,7 @@ teleport label. Developers can log in as either `ubuntu` to a username that
 arrives in their assertions. Developers also do not have any rules needed to
 obtain admin access.
 
-```bash
+```yaml
 # role-dev.yaml
 kind: "role"
 version: "v3"
@@ -146,7 +146,7 @@ spec:
 
 Create both roles:
 
-```bash
+```bsh
 $ tctl create role-admin.yaml
 $ tctl create role-dev.yaml
 ```
@@ -165,7 +165,7 @@ the moment, the only build-in support is for NetIQ.
 
 A example of using ACR values and provider specific processing is below:
 
-```bash
+```yaml
 # example connector which uses ACR values
 kind: oidc
 version: v2
@@ -210,7 +210,7 @@ default and it will contain the detailed reason why a user's login was denied.
 Some errors (like filesystem permissions or misconfigured network) can be
 diagnosed using Teleport's `stderr` log, which is usually available via:
 
-```bash
+```bsh
 $ sudo journalctl -fu teleport
 ```
 

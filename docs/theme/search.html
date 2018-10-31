@@ -1,19 +1,17 @@
 {% extends "base.html" %}
 
-{% block extrahead %}
-  <script>var base_url = '{{ base_url }}';</script>
-  <script data-main="{{ base_url }}/mkdocs/js/search.js" src="{{ base_url }}/mkdocs/js/require.js"></script>
-{% endblock %}
-
 {% block content %}
-  <h1 class="m-t-sm" id="search">Search Results</h1>
+  <h1 id="search">Search Results</h1>
+
   <form id="content_search" action="search.html">
     <span role="status" aria-live="polite" class="ui-helper-hidden-accessible"></span>
-    <input name="q" id="mkdocs-search-query" type="text" class="search_input search-query ui-autocomplete-input" placeholder="Search the Docs" autocomplete="off" autofocus>
+    <input name="q" id="mkdocs-search-query" type="text" class="form-field search_input search-query ui-autocomplete-input" placeholder="Search the Docs" autocomplete="off" autofocus>
   </form>
-  <div id="mkdocs-search-results">    
-  </div>
+
+  <div id="mkdocs-search-results" class="paper l-space-top-6"><p class="text-body is-center">One Moment...</p></div>
 {% endblock %}
 
-{%- block grvfooter %}
+{% block extrascripts %}
+  <script>var base_url = '{{ base_url }}';</script>
+  <script data-main="{{ base_url }}/mkdocs/js/search.js" src="{{ base_url }}/mkdocs/js/require.js"></script>
 {% endblock %}

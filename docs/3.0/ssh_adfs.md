@@ -1,7 +1,7 @@
 # SSH Authentication with ADFS
 
-This guide will cover how to configure Active Directory Federation Services 
-[ADFS](https://en.wikipedia.org/wiki/Active_Directory_Federation_Services) to issue 
+This guide will cover how to configure Active Directory Federation Services
+[ADFS](https://en.wikipedia.org/wiki/Active_Directory_Federation_Services) to issue
 SSH credentials to specific groups of users. When used in combination with role
 based access control (RBAC) it allows SSH administrators to define policies
 like:
@@ -21,7 +21,7 @@ First, configure Teleport auth server to use ADFS authentication instead of the 
 user database. Update `/etc/teleport.yaml` as shown below and restart the
 teleport daemon.
 
-```bash
+```yaml
 auth_service:
     authentication:
         type: saml
@@ -80,7 +80,7 @@ Lets create two Teleport roles: one for administrators and the other is for
 normal users. You can create them using `tctl create {file name}` CLI command
 or via the Web UI.
 
-```bash
+```yaml
 # admin-role.yaml
 kind: "role"
 version: "v3"
@@ -98,7 +98,7 @@ spec:
         verbs: ["*"]
 ```
 
-```bash
+```yaml
 # user-role.yaml
 kind: "role"
 version: "v3"
@@ -115,7 +115,7 @@ spec:
 
 This role declares:
 
-* Devs are only allowed to login to nodes labelled with `access: relaxed` label. 
+* Devs are only allowed to login to nodes labelled with `access: relaxed` label.
 * Developers can log in as `ubuntu` user
 * Notice `{{external.username}}` login. It configures Teleport to look at
   _"username"_ ADFS claim and use that field as an allowed login for each user.
@@ -124,7 +124,7 @@ This role declares:
 
 Next, create a SAML connector [resource](admin-guide#resources):
 
-```bash
+```yaml
 kind: saml
 version: v2
 metadata:
@@ -155,7 +155,7 @@ _"users"_ role.
 
 For the last step, you'll need to export the signing key:
 
-```bash
+```bsh
 $ tctl saml export adfs
 ```
 
@@ -165,10 +165,10 @@ certificates.
 
 ## Testing
 
-The Web UI will now contain a new button: "Login with OneLogin". The CLI is 
+The Web UI will now contain a new button: "Login with OneLogin". The CLI is
 the same as before:
 
-```bash
+```bsh
 $ tsh --proxy=proxy.example.com login
 ```
 
@@ -193,7 +193,7 @@ default and it will contain the detailed reason why a user's login was denied.
 Some errors (like filesystem permissions or misconfigured network) can be
 diagnosed using Teleport's `stderr` log, which is usually available via:
 
-```bash
+```bsh
 $ sudo journalctl -fu teleport
 ```
 
