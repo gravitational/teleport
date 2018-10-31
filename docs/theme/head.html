@@ -4,10 +4,9 @@
 {% if config.site_description %}<meta name="description" content="{{ config.site_description }}">{% endif %}
 {% if config.site_author %}<meta name="author" content="{{ config.site_author }}">{% endif %}
 
-<link rel="stylesheet" href="{{ base_url }}/css/teleport-bundle.css">
-<link rel="stylesheet" href="{{ base_url }}/js/grvlib.css">
 <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons"  />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Raleway:400,500,600,700,800,900" />
+<link rel="stylesheet" href="{{ base_url }}/assets/docs.css">
 
 {%- for path in extra_css %}
 <link href="{{ path }}" rel="stylesheet">

@@ -557,6 +557,7 @@ ul.has-icons, dl.has-icons {
   .text-article h1 {
     font-size: 38px;
     line-height: 48px;
+    position: relative;
     word-wrap: break-word; }
     @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
       .text-article h1 {
@@ -607,6 +608,10 @@ ul.has-icons, dl.has-icons {
       font-weight: 600; }
     .text-article h4 a, .text-article p a {
       color: #039BE5; }
+    .text-article h4 img, .text-article p img {
+      display: block;
+      margin: 0 auto 24px auto;
+      width: auto; }
   .text-article small {
     font-size: 14px;
     line-height: 24px; }
@@ -8914,6 +8919,27 @@ ol.linenums {
     fill: #FFF;
     height: 8vw;
     /* set height to pixels if you want angle to change with screen width */ }
+
+.version-selector {
+  bottom: 0;
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 150px;
+  z-index: 1; }
+  @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
+    .version-selector {
+      margin-bottom: 24px;
+      position: relative;
+      width: auto; } }
+  .version-selector select {
+    margin-top: 8px;
+    position: absolute;
+    text-transform: none; }
+    @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
+      .version-selector select {
+        margin: 0;
+        position: relative; } }
 
 /*
 * Launch Pad Footer
