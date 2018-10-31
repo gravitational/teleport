@@ -595,6 +595,21 @@ func (i *Identity) HasPrincipals(additionalPrincipals []string) bool {
 	return true
 }
 
+// HasDNSNames returns true if TLS certificate has required DNS names
+func (i *Identity) HasDNSNames(dnsNames []string) (bool, error) {
+	cert, err := tlsca.ParseCertificatePEM(i.TLSCertBytes)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	set := utils.StringsSet(cert.DNSNames)
+	for _, dnsName := range dnsNames {
+		if _, ok := set[dnsName]; !ok {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
 // TLSConfig returns TLS config for mutual TLS authentication
 // can return NotFound error if there are no TLS credentials setup for identity
 func (i *Identity) TLSConfig(cipherSuites []uint16) (*tls.Config, error) {

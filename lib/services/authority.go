@@ -649,6 +649,8 @@ func (r *Rotation) LastRotatedDescription() string {
 // PhaseDescription returns human friendly description of a current rotation phase.
 func (r *Rotation) PhaseDescription() string {
 	switch r.Phase {
+	case RotationPhaseInit:
+		return "initialized"
 	case RotationPhaseStandby, "":
 		return "on standby"
 	case RotationPhaseUpdateClients:
