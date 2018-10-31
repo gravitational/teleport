@@ -49,8 +49,12 @@ func (process *TeleportProcess) connect(role teleport.Role) (conn *Connector, er
 	// this is a migration clutch, used to re-register
 	// in case if identity of the auth server does not have the wildcard cert
 	if role == teleport.RoleAdmin || role == teleport.RoleAuth {
-		if !identity.HasPrincipals([]string{"*." + teleport.APIDomain}) {
-			process.Debugf("Detected Auth server certificate without wildcard, regenerating.")
+		hasNames, err := identity.HasDNSNames([]string{"*." + teleport.APIDomain})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !hasNames {
+			process.Debugf("Detected Auth server certificate without wildcard principals: %v, regenerating.", identity.Cert.ValidPrincipals)
 			return process.firstTimeConnect(role)
 		}
 	}

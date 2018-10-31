@@ -2078,7 +2078,7 @@ func validateConfig(cfg *Config) error {
 	}
 
 	if cfg.PollingPeriod == 0 {
-		cfg.PollingPeriod = defaults.HighResPollingPeriod
+		cfg.PollingPeriod = defaults.LowResPollingPeriod
 	}
 
 	cfg.SSH.Namespace = services.ProcessNamespace(cfg.SSH.Namespace)
