@@ -2117,3 +2117,9 @@ func ParseDynamicPortForwardSpec(spec []string) (DynamicForwardedPorts, error) {
 
 	return result, nil
 }
+
+// InsecureSkipHostKeyChecking is used when the user passes in
+// "StrictHostKeyChecking yes".
+func InsecureSkipHostKeyChecking(host string, remote net.Addr, key ssh.PublicKey) error {
+	return nil
+}
