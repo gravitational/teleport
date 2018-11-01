@@ -132,6 +132,10 @@ type CLIConf struct {
 
 	// SkipVersionCheck skips version checking for client and server
 	SkipVersionCheck bool
+
+	// Options is a list of OpenSSH options in the format used in the
+	// configuration file.
+	Options []string
 }
 
 func main() {
@@ -194,6 +198,7 @@ func Run(args []string, underTest bool) {
 	ssh.Flag("local", "Execute command on localhost after connecting to SSH node").Default("false").BoolVar(&cf.LocalExec)
 	ssh.Flag("tty", "Allocate TTY").Short('t').BoolVar(&cf.Interactive)
 	ssh.Flag("cluster", clusterHelp).Envar(clusterEnvVar).StringVar(&cf.SiteName)
+	ssh.Flag("option", "OpenSSH options in the format used in the configuration file").Short('o').StringsVar(&cf.Options)
 
 	// join
 	join := app.Command("join", "Join the active SSH session")
@@ -651,6 +656,12 @@ func onSCP(cf *CLIConf) {
 // makeClient takes the command-line configuration and constructs & returns
 // a fully configured TeleportClient object
 func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, err error) {
+	// Parse OpenSSH style options.
+	options, err := parseOptions(cf.Options)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// apply defaults
 	if cf.MinsToLive == 0 {
 		cf.MinsToLive = int32(defaults.CertDuration / time.Minute)
@@ -767,7 +778,13 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 	c.Labels = labels
 	c.KeyTTL = time.Minute * time.Duration(cf.MinsToLive)
 	c.InsecureSkipVerify = cf.InsecureSkipVerify
-	c.Interactive = cf.Interactive
+
+	// If a TTY was requested, make sure to allocate it. Note this applies to
+	// "exec" command because a shell always has a TTY allocated.
+	if cf.Interactive || options.RequestTTY {
+		c.Interactive = true
+	}
+
 	if !cf.NoCache {
 		c.CachePolicy = &client.CachePolicy{}
 	}
@@ -787,8 +804,16 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 		c.AuthConnector = cf.AuthConnector
 	}
 
-	// copy over if we want agent forwarding or not
-	c.ForwardAgent = cf.ForwardAgent
+	// If agent forwarding was specified on the command line enable it.
+	if cf.ForwardAgent || options.ForwardAgent {
+		c.ForwardAgent = true
+	}
+
+	// If the caller does not want to check host keys, pass in a insecure host
+	// key checker.
+	if options.StrictHostKeyChecking == false {
+		c.HostKeyCallback = client.InsecureSkipHostKeyChecking
+	}
 
 	return client.NewClient(c)
 }
