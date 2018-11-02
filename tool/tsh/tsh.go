@@ -28,6 +28,7 @@ import (
 	"os/signal"
 	"path"
 	"runtime"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -136,6 +137,9 @@ type CLIConf struct {
 	// Options is a list of OpenSSH options in the format used in the
 	// configuration file.
 	Options []string
+
+	// Verbose is used to print extra output.
+	Verbose bool
 }
 
 func main() {
@@ -219,6 +223,7 @@ func Run(args []string, underTest bool) {
 	ls := app.Command("ls", "List remote SSH nodes")
 	ls.Flag("cluster", clusterHelp).Envar(clusterEnvVar).StringVar(&cf.SiteName)
 	ls.Arg("labels", "List of labels to filter node list").StringVar(&cf.UserHost)
+	ls.Flag("verbose", clusterHelp).Short('v').BoolVar(&cf.Verbose)
 	// clusters
 	clusters := app.Command("clusters", "List available Teleport clusters")
 	clusters.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
@@ -519,7 +524,7 @@ func onLogout(cf *CLIConf) {
 	}
 }
 
-// onListNodes executes 'tsh ls' command
+// onListNodes executes 'tsh ls' command.
 func onListNodes(cf *CLIConf) {
 	tc, err := makeClient(cf, true)
 	if err != nil {
@@ -529,13 +534,56 @@ func onListNodes(cf *CLIConf) {
 	if err != nil {
 		utils.FatalError(err)
 	}
-	t := asciitable.MakeTable([]string{"Node Name", "Node ID", "Address", "Labels"})
-	for _, n := range nodes {
-		t.AddRow([]string{
-			n.GetHostname(), n.GetName(), n.GetAddr(), n.LabelsString(),
-		})
+
+	switch cf.Verbose {
+	// In verbose mode, print everything on a single line and include the Node
+	// ID (UUID). Useful for machines that need to parse the output of "tsh ls".
+	case true:
+		t := asciitable.MakeTable([]string{"Node Name", "Node ID", "Address", "Labels"})
+		for _, n := range nodes {
+			t.AddRow([]string{
+				n.GetHostname(), n.GetName(), n.GetAddr(), n.LabelsString(),
+			})
+		}
+		fmt.Println(t.AsBuffer().String())
+	// In normal mode chunk the labels and print two per line and allow multiple
+	// lines per node.
+	case false:
+		t := asciitable.MakeTable([]string{"Node Name", "Address", "Labels"})
+		for _, n := range nodes {
+			labelChunks := chunkLabels(n.GetAllLabels(), 2)
+			for i, v := range labelChunks {
+				var hostname string
+				var addr string
+				if i == 0 {
+					hostname = n.GetHostname()
+					addr = n.GetAddr()
+				}
+				t.AddRow([]string{hostname, addr, strings.Join(v, ", ")})
+			}
+		}
+		fmt.Println(t.AsBuffer().String())
 	}
-	fmt.Println(t.AsBuffer().String())
+}
+
+// chunkLabels breaks labels into sized chunks. Used to improve readability
+// of "tsh ls".
+func chunkLabels(labels map[string]string, chunkSize int) [][]string {
+	// First sort labels so they always occur in the same order.
+	sorted := make([]string, 0, len(labels))
+	for k, v := range labels {
+		sorted = append(sorted, fmt.Sprintf("%v=%v", k, v))
+	}
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i] < sorted[j] })
+
+	// Then chunk labels into sized chunks.
+	var chunks [][]string
+	for chunkSize < len(sorted) {
+		sorted, chunks = sorted[chunkSize:], append(chunks, sorted[0:chunkSize:chunkSize])
+	}
+	chunks = append(chunks, sorted)
+
+	return chunks
 }
 
 // onListSites executes 'tsh sites' command
