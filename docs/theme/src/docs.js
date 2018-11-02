@@ -10357,7 +10357,7 @@ var _buttons = __webpack_require__(6);
 
 var _code = __webpack_require__(7);
 
-var _docs = __webpack_require__(8);
+var _mkdocs = __webpack_require__(8);
 
 __webpack_require__(9);
 
@@ -10365,15 +10365,15 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { de
 
 // register global vars
 // modules
-window.getSearchTerm = _docs.getSearchTerm;
+window.getSearchTerm = _mkdocs.getSearchTerm;
 window.jQuery = _jquery2.default;
 
 (0, _jquery2.default)(document).ready(function () {
   new _topNav2.default();
   new _secondaryNav2.default();
   new _sideNav2.default({ pinned: true });
-  (0, _docs.handleVerSelector)();
-  (0, _docs.handleNavScroll)();
+  (0, _mkdocs.handleVerSelector)();
+  (0, _mkdocs.handleNavScroll)();
   (0, _code.formatCodeBlocks)();
   (0, _buttons.buttonRipple)();
   (0, _buttons.stopDisabledButtons)();
