@@ -1623,7 +1623,7 @@ _auth server_:
 $ tctl auth rotate
 ```
 
-This will trigger a rotation process for both hosts and users whith a _grace
+This will trigger a rotation process for both hosts and users with a _grace
 period_ of 48 hours.
 
 This can be customized, i.e.
@@ -1638,9 +1638,7 @@ $ tctl auth rotate --type=host --grace-period=8h
 
 The rotation takes time, especially for hosts, because each node in a cluster
 needs to be notified that a rotation is taking place and request a new
-certificate for itself before the grace period ends. If the grace period is
-set to "0h" (zero hours) it means that all previously issued certificates
-become invalid immediately.
+certificate for itself before the grace period ends.
 
 !!! warning "Warning":
     Be careful when choosing a grace period when rotating host certificates.
