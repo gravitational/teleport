@@ -1623,7 +1623,7 @@ _auth server_:
 $ tctl auth rotate
 ```
 
-This will trigger a rotation process for both hosts and users whith a _grace
+This will trigger a rotation process for both hosts and users with a _grace
 period_ of 48 hours.
 
 This can be customized, i.e.
@@ -1638,9 +1638,7 @@ $ tctl auth rotate --type=host --grace-period=8h
 
 The rotation takes time, especially for hosts, because each node in a cluster
 needs to be notified that a rotation is taking place and request a new
-certificate for itself before the grace period ends. If the grace period is
-set to "0h" (zero hours) it means that all previously issued certificates
-become invalid immediately.
+certificate for itself before the grace period ends.
 
 !!! warning "Warning":
     Be careful when choosing a grace period when rotating host certificates.
@@ -1981,7 +1979,7 @@ teleport:
 Teleport is always a critical component of the infrastructure it runs on. This is why upgrading to a new version must be performed with caution.
 
 Teleport is a much more capable system than a bare bones SSH server.
-It offers significant benefits on a cluster level and they add some complexity to to cluster upgrades. To ensure robust operation Teleport administrators must follow the upgrade rules listed below.
+While it offers significant benefits on a cluster level, it also adds some complexity to cluster upgrades. To ensure robust operation Teleport administrators must follow the upgrade rules listed below.
 
 ### Production Releases
 
@@ -1989,7 +1987,7 @@ First of all, avoid running pre-releases (release candidates) in production
 environments. Teleport development team uses [Semantic Versioning](https://semver.org/)
 which makes it easy to tell if a specific version is recommended for production use.
 
-### Component Compatibilitiy
+### Component Compatibility
 
 When running multiple binaries of Teleport within a cluster (nodes, proxies,
 clients, etc), the following rules apply:
@@ -2017,8 +2015,8 @@ When upgrading a single Teleport cluster:
 
 When upgrading multiple clusters:
 
-1. First, upgrade the main cluster, i.e. the one whom other clusters trust.
-2. Upgrade trusted clutsers.
+1. First, upgrade the main cluster, i.e. the one which other clusters trust.
+2. Upgrade the trusted clusters.
 
 ### Daemon Restarts
 
