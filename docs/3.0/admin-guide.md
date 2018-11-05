@@ -2018,7 +2018,7 @@ When upgrading a single Teleport cluster:
 When upgrading multiple clusters:
 
 1. First, upgrade the main cluster, i.e. the one which other clusters trust.
-2. Upgrade the clusters which trust the main "trusted" cluster.
+2. Upgrade the clusters which trust the main trusted cluster.
 
 ### Daemon Restarts
 
