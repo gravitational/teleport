@@ -62,7 +62,7 @@ Add users to the application:
 Now, create a SAML connector [resource](admin-guide#resources).
 Write down this template as `onelogin-connector.yaml`:
 
-```bash
+```yaml
 kind: saml
 version: v2
 metadata:
@@ -99,7 +99,7 @@ To fill in the fields, open `SSO` tab:
 
 Create the connector using `tctl` tool:
 
-```bash
+```bsh
 $ tctl create onelogin-connector.yaml
 ```
 
@@ -108,7 +108,7 @@ $ tctl create onelogin-connector.yaml
 We are going to create 2 roles, privileged role admin who is able to login as
 root and is capable of administrating the cluster and non-privileged dev.
 
-```bash
+```yaml
 kind: "role"
 version: "v3"
 metadata:
@@ -130,7 +130,7 @@ teleport label. Developers can log in as either `ubuntu` to a username that
 arrives in their assertions. Developers also do not have any rules needed to
 obtain admin access.
 
-```bash
+```yaml
 kind: "role"
 version: "v3"
 metadata:
@@ -143,20 +143,20 @@ spec:
     node_labels:
       access: relaxed
 ```
-    
+
 **Notice:** Replace `ubuntu` with linux login available on your servers!
 
-```bash
+```bsh
 $ tctl create admin.yaml
 $ tctl create dev.yaml
 ```
 
 ## Testing
 
-The Web UI will now contain a new button: "Login with OneLogin". The CLI is 
+The Web UI will now contain a new button: "Login with OneLogin". The CLI is
 the same as before:
 
-```bash
+```bsh
 $ tsh --proxy=proxy.example.com login
 ```
 
@@ -181,7 +181,7 @@ default and it will contain the detailed reason why a user's login was denied.
 Some errors (like filesystem permissions or misconfigured network) can be
 diagnosed using Teleport's `stderr` log, which is usually available via:
 
-```bash
+```bsh
 $ sudo journalctl -fu teleport
 ```
 

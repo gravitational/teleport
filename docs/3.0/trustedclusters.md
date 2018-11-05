@@ -1,6 +1,6 @@
 # Trusted Clusters
 
-If you haven't already looked at the introduction to [Trusted Clusters](admin-guide.md#trusted-clusters) 
+If you haven't already looked at the introduction to [Trusted Clusters](admin-guide.md#trusted-clusters)
 in the Admin Guide we recommend you review that for an overview before continuing with this guide.
 
 The Trusted Clusters chapter in the Admin Guide
@@ -15,7 +15,7 @@ This guide's focus is on more in-depth coverage of trusted clusters features and
 * Enable/disable trust between clusters.
 * Establish permissions mapping between clusters using Teleport roles.
 
-## Introduction 
+## Introduction
 
 As explained in the [architecture document](architecture/#core-concepts),
 Teleport can partition compute infrastructure into multiple clusters.
@@ -34,7 +34,7 @@ without having to "hop" between proxy servers. Moreover, users don't even need
 to have a direct connection to other clusters' proxy servers. The user
 experience looks like this:
 
-```bash
+```bsh
 # login using the "main" cluster credentials:
 $ tsh login --proxy=main.example.com
 
@@ -49,8 +49,8 @@ $ tsh ssh --cluster=east host
 $ tsh clusters
 ```
 
-Trusted clusters also have their own restrictions on user access, i.e. 
-_permissions mapping_ takes place. 
+Trusted clusters also have their own restrictions on user access, i.e.
+_permissions mapping_ takes place.
 
 ## Join Tokens
 
@@ -62,7 +62,7 @@ The first step in establishing a secure tunnel between two clusters is for the
 _trusting_ cluster "east" to connect to the _trusted_ cluster "main". When this
 happens for _the first time_, clusters know nothing about each other, thus a
 shared secret needs to exist in order for "main" to accept the connection from
-"east". 
+"east".
 
 This shared secret is called a "join token". There are two ways to create join
 tokens: to statically define them in a configuration file, or to create them on
@@ -75,10 +75,10 @@ the fly using `tctl` tool.
 
 ### Static Tokens
 
-To create a static join token, update the configuration file on "main" cluster 
+To create a static join token, update the configuration file on "main" cluster
 to look like this:
 
-```bash
+```yaml
 # fragment of /etc/teleport.yaml:
 auth_service:
   enabled: true
@@ -86,7 +86,7 @@ auth_service:
   - trusted_cluster:join-token
 ```
 
-This token can be used unlimited number of times. 
+This token can be used unlimited number of times.
 
 ### Dynamic Tokens
 
@@ -97,7 +97,7 @@ token after a specified period of time.
 To create a token using the CLI tool, execute this command on the _auth server_
 of cluster "main":
 
-```bash
+```bsh
 # generates a new token to allow an inbound from a trusting cluster:
 $ tctl tokens add --type=trusted_cluster --ttl=5m
 
@@ -109,7 +109,7 @@ $ tctl tokens ls
 
 # ... or delete/revoke an invitation:
 $ tctl tokens rm ba4825847f0378bcdfe18113c4998498
-``` 
+```
 
 Users of Teleport will recognize that this is the same way you would add any
 node to a cluster.  The token created above can be used multiple times and has
@@ -119,7 +119,7 @@ an expiration time of 5 minutes.
 
 Consider the security implications when deciding which token method to use.
 Short lived tokens decrease the window for attack but make automation a bit
-more complicated. 
+more complicated.
 
 ## RBAC
 
@@ -135,11 +135,11 @@ Enterprise uses _role mapping_ to achieve this.
 Consider the following:
 
 * Both clusters "main" and "east" have their own locally defined roles.
-* Every user in Teleport Enterprise is assigned a role. 
+* Every user in Teleport Enterprise is assigned a role.
 * When creating a _trusted cluster_ resource, the administrator of "east" must
   define how roles from "main" map to roles on "east".
 
-### Example 
+### Example
 
 Lets make a few assumptions for this example:
 
@@ -152,7 +152,7 @@ Lets make a few assumptions for this example:
 
 First, we need to create a special role for main users on "east":
 
-```bash
+```yaml
 # save this into main-user-role.yaml on the east cluster and execute:
 # tctl create main-user-role.yaml
 - kind: role
@@ -168,11 +168,11 @@ First, we need to create a special role for main users on "east":
         "environment": "production"
 ```
 
-Now, we need to establish trust between roles "main:admin" and "east:local-admin". This is 
+Now, we need to establish trust between roles "main:admin" and "east:local-admin". This is
 done by creating a trusted cluster [resource](admin-guide/#resources) on "east"
 which looks like this:
 
-```bash
+```yaml
 # save this as main-cluster.yaml on the auth server of "east" and then execute:
 # tctl create main-cluster.yaml
 kind: trusted_cluster
@@ -192,17 +192,17 @@ spec:
 What if we wanted to let _any_ user from "main" to be allowed to connect to
 nodes on "east"? In this case we can use a wildcard `*` in the `role_map` like this:
 
-```bash
+```yaml
 role_map:
   - remote: "*"
     local: [admin]
 ```
 
 You can even use [regular expressions](https://github.com/google/re2/wiki/Syntax) to
-map user roles from one cluster to another, you can even capture parts of the remote 
+map user roles from one cluster to another, you can even capture parts of the remote
 role name and use reference it to name the local role:
 
-```bash
+```yaml
   # in this example, remote users with remote role called 'remote-one' will be
   # mapped to a local role called 'local-one', and `remote-two` becomes `local-two`, etc:
   - remote: "^remote-(.*)$"
@@ -216,12 +216,12 @@ with `^` and ends with `$`
 
 Now an admin from the main cluster can now see and access the "east" cluster:
 
-```bash
+```bsh
 # login into the main cluster:
 $ tsh --proxy=proxy.main login admin
 ```
 
-```bash
+```bsh
 # see the list of available clusters
 $ tsh clusters
 
@@ -231,7 +231,7 @@ main           online
 east           online
 ```
 
-```bash
+```bsh
 # see the list of machines (nodes) behind the eastern cluster:
 $ tsh ls --cluster=east
 
@@ -241,14 +241,14 @@ db1.east  cf7cc5cd-935e-46f1 10.0.5.2:3022  role=db-master
 db2.east  3879d133-fe81-3212 10.0.5.3:3022  role=db-slave
 ```
 
-```bash
+```bsh
 # SSH into any node in "east":
 $ tsh ssh --cluster=east root@db1.east
 ```
 
 
 !!! tip "Note":
-    Trusted clusters work only one way. So, in the example above users from "east" 
+    Trusted clusters work only one way. So, in the example above users from "east"
 	cannot see or connect to the nodes in "main".
 
 ### Disabling Trust
@@ -257,7 +257,7 @@ To temporarily disable trust between clusters, i.e. to disconnect the "east"
 cluster from "main", edit the YAML definition of the trusted cluster resource
 and set `enabled` to "false", then update it:
 
-```bash
+```bsh
 $ tctl create --force cluster.yaml
 ```
 
@@ -265,7 +265,7 @@ $ tctl create --force cluster.yaml
 ## How does it work?
 
 At a first glance, Trusted Clusters in combination with RBAC may seem
-complicated. However, it is based on certificate-based SSH authentication 
+complicated. However, it is based on certificate-based SSH authentication
 which is fairly easy to reason about:
 
 One can think of an SSH certificate as a "permit" issued and time-stamped by a
@@ -293,7 +293,7 @@ following checks:
 
 ## Troubleshooting
 
-There are three common types of problems Teleport administrators can run into when configuring 
+There are three common types of problems Teleport administrators can run into when configuring
 trust between two clusters:
 
 * **HTTPS configuration**: when the main cluster uses a self-sgined or invalid HTTPS certificate.
@@ -306,9 +306,9 @@ trust between two clusters:
 
 ### HTTPS configuration
 
-If the `web_proxy_addr` endpoint of the main cluster uses a self-signed or invalid HTTPS certificate, 
-you will get an error: "the trusted cluster uses misconfigured HTTP/TLS certificate". For ease of 
-testing the teleport daemon of "east" can be started with  `--insecure` CLI flag to accept 
+If the `web_proxy_addr` endpoint of the main cluster uses a self-signed or invalid HTTPS certificate,
+you will get an error: "the trusted cluster uses misconfigured HTTP/TLS certificate". For ease of
+testing the teleport daemon of "east" can be started with  `--insecure` CLI flag to accept
 self-signed certificates. Make sure to configure HTTPS properly and remove the insecure flag for production use.
 
 ### Connectivity Problems
@@ -318,7 +318,7 @@ servers on both clusters. Usually this can be done by adding `--debug` flag to
 `teleport start --debug`. You can also do this by updating the configuration
 file for both auth servers:
 
-```bash
+```yaml
 # snippet from /etc/teleport.yaml
 teleport:
   log:
@@ -328,7 +328,7 @@ teleport:
 
 On systemd-based distributions you can watch the log output via:
 
-```bash
+```bsh
 $ sudo journalctl -fu teleport
 ```
 
