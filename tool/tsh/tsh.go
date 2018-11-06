@@ -380,13 +380,13 @@ func onLogin(cf *CLIConf) {
 		case cf.Proxy == "" && cf.SiteName == "":
 			printProfiles(profile, profiles)
 			return
-			// in case if parameters match, print current status
+		// in case if parameters match, print current status
 		case host(cf.Proxy) == host(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster:
 			printProfiles(profile, profiles)
 			return
-			// proxy is unspecified or the same as the currently provided proxy,
-			// but cluster is specified, treat this as selecting a new cluster
-			// for the same proxy
+		// proxy is unspecified or the same as the currently provided proxy,
+		// but cluster is specified, treat this as selecting a new cluster
+		// for the same proxy
 		case (cf.Proxy == "" || host(cf.Proxy) == host(profile.ProxyURL.Host)) && cf.SiteName != "":
 			tc.SaveProfile("")
 			if err := kubeclient.UpdateKubeconfig(tc); err != nil {
@@ -394,7 +394,7 @@ func onLogin(cf *CLIConf) {
 			}
 			onStatus(cf)
 			return
-			// otherwise just passthrough to standard login
+		// otherwise just passthrough to standard login
 		default:
 		}
 	}
@@ -454,6 +454,19 @@ func setupNoninteractiveClient(tc *client.TeleportClient, key *client.Key) error
 		return trace.Wrap(err)
 	}
 	tc.Username = certUsername
+
+	// Extract and set the HostLogin to be the first principal. It doesn't
+	// matter what the value is, but some valid principal has to be set
+	// otherwise the certificate won't be validated.
+	certPrincipals, err := key.CertPrincipals()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(certPrincipals) == 0 {
+		return trace.BadParameter("no principals found")
+	}
+	tc.HostLogin = certPrincipals[0]
+
 	identityAuth, err := authFromIdentity(key)
 	if err != nil {
 		return trace.Wrap(err)
