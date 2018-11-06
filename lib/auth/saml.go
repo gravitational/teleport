@@ -113,7 +113,7 @@ func (a *AuthServer) createSAMLUser(connector services.SAMLConnector, assertionI
 
 	traits := assertionsToTraitMap(assertionInfo)
 
-	log.Debugf("[SAML] Generating dynamic identity %v/%v with roles: %v", connector.GetName(), assertionInfo.NameID, roles)
+	log.Debugf("Generating dynamic SAML identity %v/%v with roles: %v.", connector.GetName(), assertionInfo.NameID, roles)
 	user, err := services.GetUserMarshaler().GenerateUser(&services.UserV2{
 		Kind:    services.KindUser,
 		Version: services.V2,
@@ -141,7 +141,7 @@ func (a *AuthServer) createSAMLUser(connector services.SAMLConnector, assertionI
 		return trace.Wrap(err)
 	}
 
-	// check if a user exists already
+	// Get the user to check if it already exists or not.
 	existingUser, err := a.GetUser(assertionInfo.NameID)
 	if err != nil {
 		if !trace.IsNotFound(err) {
@@ -149,16 +149,21 @@ func (a *AuthServer) createSAMLUser(connector services.SAMLConnector, assertionI
 		}
 	}
 
-	// check if exisiting user is a non-saml user, if so, return an error
+	// Overwrite exisiting user if it was created from an external identity provider.
 	if existingUser != nil {
 		connectorRef := existingUser.GetCreatedBy().Connector
-		if connectorRef == nil || connectorRef.Type != teleport.ConnectorSAML || connectorRef.ID != connector.GetName() {
-			return trace.AlreadyExists("user %q already exists and is not SAML user, remove local user and try again.",
-				existingUser.GetName())
+
+		// If the exisiting user is a local user, fail and advise how to fix the problem.
+		if connectorRef == nil {
+			return trace.AlreadyExists("local user with name '%v' already exists. Either change "+
+				"NameID in assertion or remove local user and try again.", existingUser.GetName())
 		}
+
+		log.Debugf("Overwriting exisiting user '%v' created with %v connector %v.",
+			existingUser.GetName(), connectorRef.Type, connectorRef.ID)
 	}
 
-	// no non-saml user exists, create or update the exisiting saml user
+	// Upsert the new user creating or updating whatever is in the database.
 	err = a.UpsertUser(user)
 	if err != nil {
 		return trace.Wrap(err)
@@ -197,7 +202,7 @@ func parseSAMLInResponseTo(response string) (string, error) {
 	el := doc.Root()
 	responseTo := el.SelectAttr("InResponseTo")
 	if responseTo == nil {
-		log.Errorf("[SAML] Teleport does not support initiating login from an identity provider, login must be initiated from either the Teleport Web UI or CLI.")
+		log.Errorf("Teleport does not support initiating login from an SAML identity provider, login must be initiated from either the Teleport Web UI or CLI.")
 		return "", trace.BadParameter("identity provider initiated flows are not supported")
 	}
 	if responseTo.Value == "" {
@@ -264,31 +269,31 @@ func (a *AuthServer) validateSAMLResponse(samlResponse string) (*SAMLAuthRespons
 	}
 	assertionInfo, err := provider.RetrieveAssertionInfo(samlResponse)
 	if err != nil {
-		log.Warningf("SAML error: %v", err)
+		log.Warnf("Failed to retrieve SAML AssertionInfo from response: %v.", err)
 		return nil, trace.AccessDenied("bad SAML response")
 	}
 
 	if assertionInfo.WarningInfo.InvalidTime {
-		log.Warningf("SAML error, invalid time")
+		log.Warnf("Invalid time in SAML AssertionInfo.")
 		return nil, trace.AccessDenied("bad SAML response")
 	}
 
 	if assertionInfo.WarningInfo.NotInAudience {
-		log.Warningf("SAML error, not in audience")
+		log.Warnf("No audience in SAML AssertionInfo.")
 		return nil, trace.AccessDenied("bad SAML response")
 	}
 
-	log.Debugf("[SAML] Obtained Assertions for %q", assertionInfo.NameID)
+	log.Debugf("Obtained SAML assertions for %q.", assertionInfo.NameID)
 	for key, val := range assertionInfo.Values {
 		var vals []string
 		for _, vv := range val.Values {
 			vals = append(vals, vv.Value)
 		}
-		log.Debugf("[SAML]   Assertion: %q: %q", key, vals)
+		log.Debugf("SAML assertion: %q: %q.", key, vals)
 	}
-	log.Debugf("[SAML] Assertion Warnings: %+v", assertionInfo.WarningInfo)
+	log.Debugf("SAML assertion warnings: %+v.", assertionInfo.WarningInfo)
 
-	log.Debugf("[SAML] Applying %v claims to roles mappings", len(connector.GetAttributesToRoles()))
+	log.Debugf("Applying %v SAML attribute to roles mappings.", len(connector.GetAttributesToRoles()))
 	if len(connector.GetAttributesToRoles()) == 0 {
 		return nil, trace.BadParameter("SAML does not support binding to local users")
 	}
