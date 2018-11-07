@@ -235,6 +235,16 @@ type ClusterConfigSpecV3 struct {
 	KeepAliveCountMax int `json:"keep_alive_count_max"`
 }
 
+// GetResourceID returns resource ID
+func (c *ClusterConfigV3) GetResourceID() int64 {
+	return c.Metadata.ID
+}
+
+// SetResourceID sets resource ID
+func (c *ClusterConfigV3) SetResourceID(id int64) {
+	c.Metadata.ID = id
+}
+
 // GetName returns the name of the cluster.
 func (c *ClusterConfigV3) GetName() string {
 	return c.Metadata.Name
@@ -307,12 +317,12 @@ func (c *ClusterConfigV3) SetAuditConfig(cfg AuditConfig) {
 
 // GetClientIdleTimeout returns client idle timeout setting
 func (c *ClusterConfigV3) GetClientIdleTimeout() time.Duration {
-	return c.Spec.ClientIdleTimeout.Duration
+	return c.Spec.ClientIdleTimeout.Duration()
 }
 
 // SetClientIdleTimeout sets client idle timeout setting
 func (c *ClusterConfigV3) SetClientIdleTimeout(d time.Duration) {
-	c.Spec.ClientIdleTimeout.Duration = d
+	c.Spec.ClientIdleTimeout = Duration(d)
 }
 
 // GetDisconnectExpiredCert returns disconnect expired certificate setting
@@ -327,12 +337,12 @@ func (c *ClusterConfigV3) SetDisconnectExpiredCert(b bool) {
 
 // GetKeepAliveInterval gets the keep-alive interval.
 func (c *ClusterConfigV3) GetKeepAliveInterval() time.Duration {
-	return c.Spec.KeepAliveInterval.Duration
+	return c.Spec.KeepAliveInterval.Duration()
 }
 
 // SetKeepAliveInterval sets the keep-alive interval.
 func (c *ClusterConfigV3) SetKeepAliveInterval(t time.Duration) {
-	c.Spec.KeepAliveInterval.Duration = t
+	c.Spec.KeepAliveInterval = Duration(t)
 }
 
 // GetKeepAliveCountMax gets the number of missed keep-alive messages before
@@ -378,7 +388,7 @@ func (c *ClusterConfigV3) CheckAndSetDefaults() error {
 
 	// Set the keep-alive interval and max missed keep-alives before the
 	// client is disconnected.
-	if c.Spec.KeepAliveInterval.Duration == 0 {
+	if c.Spec.KeepAliveInterval.Duration() == 0 {
 		c.Spec.KeepAliveInterval = NewDuration(defaults.KeepAliveInterval)
 	}
 	if c.Spec.KeepAliveCountMax == 0 {

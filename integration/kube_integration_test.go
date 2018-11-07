@@ -370,7 +370,7 @@ func (s *KubeSuite) TestKubeTrustedClusters(c *check.C) {
 		},
 	})
 	c.Assert(err, check.IsNil)
-	err = aux.Process.GetAuthServer().UpsertRole(auxRole, backend.Forever)
+	err = aux.Process.GetAuthServer().UpsertRole(auxRole)
 	c.Assert(err, check.IsNil)
 	trustedClusterToken := "trusted-clsuter-token"
 	err = main.Process.GetAuthServer().UpsertToken(trustedClusterToken, []teleport.Role{teleport.RoleTrustedCluster}, backend.Forever)

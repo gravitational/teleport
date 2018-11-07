@@ -1,4 +1,4 @@
 #!/bin/bash
 
-etcdctl --ca-file=./certs/ca-cert.pem --cert-file=./certs/client-cert.pem  --key-file=./certs/client-key.pem  --endpoints=https://172.11.1.1:2379 $@
+ETCDCTL_API=3 etcdctl --cacert=./certs/ca-cert.pem --cert=./certs/client-cert.pem  --key=./certs/client-key.pem  --endpoints=https://127.0.0.1:2379 $@
 

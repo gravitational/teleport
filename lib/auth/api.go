@@ -17,11 +17,34 @@ limitations under the License.
 package auth
 
 import (
+	"context"
+
 	"github.com/gravitational/teleport/lib/services"
 )
 
+// Announcer specifies interface responsible for announcing presence
+type Announcer interface {
+	// UpsertNode registers node presence, permanently if ttl is 0 or
+	// for the specified duration with second resolution if it's >= 1 second
+	UpsertNode(s services.Server) (*services.KeepAlive, error)
+
+	// UpsertProxy registers proxy presence, permanently if ttl is 0 or
+	// for the specified duration with second resolution if it's >= 1 second
+	UpsertProxy(s services.Server) error
+
+	// UpsertAuthServer registers auth server presence, permanently if ttl is 0 or
+	// for the specified duration with second resolution if it's >= 1 second
+	UpsertAuthServer(s services.Server) error
+
+	// NewKeepAliver returns a new instance of keep aliver
+	NewKeepAliver(ctx context.Context) (services.KeepAliver, error)
+}
+
 // AccessPoint is an API interface implemented by a certificate authority (CA)
 type AccessPoint interface {
+	// Announcer adds methods used to announce presence
+	Announcer
+
 	// GetReverseTunnels returns  a list of reverse tunnels
 	GetReverseTunnels() ([]services.ReverseTunnel, error)
 
@@ -40,14 +63,6 @@ type AccessPoint interface {
 
 	// GetServers returns a list of registered servers
 	GetNodes(namespace string, opts ...services.MarshalOption) ([]services.Server, error)
-
-	// UpsertServer registers server presence, permanently if ttl is 0 or
-	// for the specified duration with second resolution if it's >= 1 second
-	UpsertNode(s services.Server) error
-
-	// UpsertProxy registers server presence, permanently if ttl is 0 or
-	// for the specified duration with second resolution if it's >= 1 second
-	UpsertProxy(s services.Server) error
 
 	// GetProxies returns a list of proxy servers registered in the cluster
 	GetProxies() ([]services.Server, error)

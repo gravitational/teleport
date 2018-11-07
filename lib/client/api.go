@@ -47,7 +47,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/dir"
+	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -762,7 +762,7 @@ func (tc *TeleportClient) accessPoint(clt auth.AccessPoint, proxyHostPort string
 	path := filepath.Join(dirPath, "cache", proxyHostPort, clusterName)
 
 	log.Debugf("using caching access point %v", path)
-	cacheBackend, err := dir.New(backend.Params{"path": path})
+	cacheBackend, err := lite.New(context.TODO(), backend.Params{"path": path})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

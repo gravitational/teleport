@@ -36,7 +36,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/pam"
@@ -85,7 +84,7 @@ var _ = Suite(&SrvSuite{})
 func (s *SrvSuite) SetUpSuite(c *C) {
 	var err error
 
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 
 	s.freePorts, err = utils.GetFreeTCPPorts(100)
 	c.Assert(err, IsNil)
@@ -164,9 +163,8 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	s.srv = srv
 	s.srv.isTestStub = true
 	c.Assert(auth.CreateUploaderDir(nodeDir), IsNil)
-
 	c.Assert(s.srv.Start(), IsNil)
-	c.Assert(s.srv.registerServer(), IsNil)
+	c.Assert(s.srv.heartbeat.ForceSend(time.Second), IsNil)
 
 	// set up an agent server and a client that uses agent for forwarding
 	keyring := agent.NewKeyring()
@@ -218,7 +216,7 @@ func (s *SrvSuite) TestAgentForwardPermission(c *C) {
 	roleOptions := role.GetOptions()
 	roleOptions.ForwardAgent = services.NewBool(false)
 	role.SetOptions(roleOptions)
-	err = s.server.Auth().UpsertRole(role, backend.Forever)
+	err = s.server.Auth().UpsertRole(role)
 	c.Assert(err, IsNil)
 
 	se, err := s.clt.NewSession()
@@ -244,7 +242,7 @@ func (s *SrvSuite) TestAgentForward(c *C) {
 	roleOptions := role.GetOptions()
 	roleOptions.ForwardAgent = services.NewBool(true)
 	role.SetOptions(roleOptions)
-	err = s.server.Auth().UpsertRole(role, backend.Forever)
+	err = s.server.Auth().UpsertRole(role)
 	c.Assert(err, IsNil)
 
 	se, err := s.clt.NewSession()
@@ -643,16 +641,13 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		SetAuditLog(s.nodeClient),
 		SetNamespace(defaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
+		SetUUID(bobAddr),
 	)
 	c.Assert(err, IsNil)
-	srv2.uuid = bobAddr
 	c.Assert(err, IsNil)
 	c.Assert(srv2.Start(), IsNil)
-	c.Assert(srv2.registerServer(), IsNil)
+	c.Assert(srv2.heartbeat.ForceSend(time.Second), IsNil)
 	defer srv2.Close()
-
-	srv2.registerServer()
-
 	// test proxysites
 	client, err := ssh.Dial("tcp", proxy.Addr(), sshConfig)
 	c.Assert(err, IsNil)
@@ -672,9 +667,8 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	// to make sure  labels have the right output
 	s.srv.syncUpdateLabels()
 	srv2.syncUpdateLabels()
-	s.srv.registerServer()
-	srv2.registerServer()
-
+	s.srv.heartbeat.ForceSend(time.Second)
+	s.srv.heartbeat.ForceSend(time.Second)
 	// request "list of sites":
 	c.Assert(se3.RequestSubsystem("proxysites"), IsNil)
 	<-done
@@ -1098,7 +1092,7 @@ func (s *SrvSuite) newUpack(username string, allowedLogins []string, allowedLabe
 	role.SetRules(services.Allow, rules)
 	role.SetLogins(services.Allow, allowedLogins)
 	role.SetNodeLabels(services.Allow, allowedLabels)
-	err = auth.UpsertRole(role, backend.Forever)
+	err = auth.UpsertRole(role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

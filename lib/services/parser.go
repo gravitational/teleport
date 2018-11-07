@@ -243,6 +243,16 @@ type EmptyResource struct {
 	Metadata Metadata `json:"metadata"`
 }
 
+// GetResourceID returns resource ID
+func (r *EmptyResource) GetResourceID() int64 {
+	return r.Metadata.ID
+}
+
+// SetResourceID sets resource ID
+func (r *EmptyResource) SetResourceID(id int64) {
+	r.Metadata.ID = id
+}
+
 // SetExpiry sets expiry time for the object.
 func (r *EmptyResource) SetExpiry(expires time.Time) {
 	r.Metadata.SetExpiry(expires)

@@ -161,8 +161,6 @@ type CertAuthority interface {
 	// FirstSigningKey returns first signing key or returns error if it's not here
 	// The first key is returned because multiple keys can exist during key rotation.
 	FirstSigningKey() ([]byte, error)
-	// GetRawObject returns raw object data, used for migrations
-	GetRawObject() interface{}
 	// Check checks object for errors
 	Check() error
 	// CheckAndSetDefaults checks and set default values for any missing fields.
@@ -246,14 +244,6 @@ func TLSCerts(ca CertAuthority) [][]byte {
 	return out
 }
 
-// TLSKeyPair is a TLS key pair
-type TLSKeyPair struct {
-	// Cert is a PEM encoded TLS cert
-	Cert []byte `json:"cert,omitempty"`
-	// Key is a PEM encoded TLS key
-	Key []byte `json:"key,omitempty"`
-}
-
 // NewCertAuthority returns new cert authority
 func NewCertAuthority(caType CertAuthType, clusterName string, signingKeys, checkingKeys [][]byte, roles []string) CertAuthority {
 	return &CertAuthorityV2{
@@ -289,25 +279,9 @@ func CertAuthoritiesToV1(in []CertAuthority) ([]CertAuthorityV1, error) {
 	return out, nil
 }
 
-// CertAuthorityV2 is version 2 resource spec for Cert Authority
-type CertAuthorityV2 struct {
-	// Kind is a resource kind
-	Kind string `json:"kind"`
-	// Version is version
-	Version string `json:"version"`
-	// Metadata is connector metadata
-	Metadata Metadata `json:"metadata"`
-	// Spec contains cert authority specification
-	Spec CertAuthoritySpecV2 `json:"spec"`
-	// rawObject is object that is raw object stored in DB
-	// without any conversions applied, used in migrations
-	rawObject interface{}
-}
-
 // Clone returns a copy of the cert authority object.
 func (c *CertAuthorityV2) Clone() CertAuthority {
 	out := *c
-	out.rawObject = nil
 	out.Spec.CheckingKeys = utils.CopyByteSlices(c.Spec.CheckingKeys)
 	out.Spec.SigningKeys = utils.CopyByteSlices(c.Spec.SigningKeys)
 	for i, kp := range c.Spec.TLSKeyPairs {
@@ -369,6 +343,16 @@ func (c *CertAuthorityV2) Expiry() time.Time {
 // SetTTL sets Expires header using realtime clock
 func (c *CertAuthorityV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
 	c.Metadata.SetTTL(clock, ttl)
+}
+
+// GetResourceID returns resource ID
+func (c *CertAuthorityV2) GetResourceID() int64 {
+	return c.Metadata.ID
+}
+
+// SetResourceID sets resource ID
+func (c *CertAuthorityV2) SetResourceID(id int64) {
+	c.Metadata.ID = id
 }
 
 // V2 returns V2 version of the resouirce - itself
@@ -464,24 +448,19 @@ func (ca *CertAuthorityV2) SetRoles(roles []string) {
 // and new property RoleMap
 func (ca *CertAuthorityV2) CombinedMapping() RoleMap {
 	if len(ca.Spec.Roles) != 0 {
-		return []RoleMapping{{Remote: Wildcard, Local: ca.Spec.Roles}}
+		return RoleMap([]RoleMapping{{Remote: Wildcard, Local: ca.Spec.Roles}})
 	}
-	return ca.Spec.RoleMap
+	return RoleMap(ca.Spec.RoleMap)
 }
 
 // GetRoleMap returns role map property
 func (ca *CertAuthorityV2) GetRoleMap() RoleMap {
-	return ca.Spec.RoleMap
+	return RoleMap(ca.Spec.RoleMap)
 }
 
 // SetRoleMap sets role map
 func (c *CertAuthorityV2) SetRoleMap(m RoleMap) {
-	c.Spec.RoleMap = m
-}
-
-// GetRawObject returns raw object data, used for migrations
-func (ca *CertAuthorityV2) GetRawObject() interface{} {
-	return ca.rawObject
+	c.Spec.RoleMap = []RoleMapping(m)
 }
 
 // FirstSigningKey returns first signing key or returns error if it's not here
@@ -542,7 +521,7 @@ func (ca *CertAuthorityV2) Check() error {
 	if len(ca.Spec.Roles) != 0 && len(ca.Spec.RoleMap) != 0 {
 		return trace.BadParameter("should set either 'roles' or 'role_map', not both")
 	}
-	if err := ca.Spec.RoleMap.Check(); err != nil {
+	if err := RoleMap(ca.Spec.RoleMap).Check(); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -606,30 +585,6 @@ var RotatePhases = []string{
 	RotationPhaseRollback,
 }
 
-// Rotation is a status of the rotation of the certificate authority
-type Rotation struct {
-	// State could be one of "init" or "in_progress".
-	State string `json:"state,omitempty"`
-	// Phase is the current rotation phase.
-	Phase string `json:"phase,omitempty"`
-	// Mode sets manual or automatic rotation mode.
-	Mode string `json:"mode,omitempty"`
-	// CurrentID is the ID of the rotation operation
-	// to differentiate between rotation attempts.
-	CurrentID string `json:"current_id"`
-	// Started is set to the time when rotation has been started
-	// in case if the state of the rotation is "in_progress".
-	Started time.Time `json:"started,omitempty"`
-	// GracePeriod is a period during which old and new CA
-	// are valid for checking purposes, but only new CA is issuing certificates.
-	GracePeriod Duration `json:"grace_period,omitempty"`
-	// LastRotated specifies the last time of the completed rotation.
-	LastRotated time.Time `json:"last_rotated,omitempty"`
-	// Schedule is a rotation schedule - used in
-	// automatic mode to switch beetween phases.
-	Schedule RotationSchedule `json:"schedule,omitempty"`
-}
-
 // Matches returns true if this state rotation matches
 // external rotation state, phase and rotation ID should match,
 // notice that matches does not behave like Equals because it does not require
@@ -677,7 +632,7 @@ func (r *Rotation) String() string {
 			r.PhaseDescription(),
 			r.Mode,
 			r.Started.Format(teleport.HumanDateFormatSeconds),
-			r.Started.Add(r.GracePeriod.Duration).Format(teleport.HumanDateFormatSeconds),
+			r.Started.Add(r.GracePeriod.Duration()).Format(teleport.HumanDateFormatSeconds),
 		)
 	default:
 		return "unknown"
@@ -728,17 +683,6 @@ func GenerateSchedule(clock clockwork.Clock, gracePeriod time.Duration) (*Rotati
 	}, nil
 }
 
-// RotationSchedule is a rotation schedule setting time switches
-// for different phases.
-type RotationSchedule struct {
-	// UpdateClients specifies time to switch to the "Update clients" phase
-	UpdateClients time.Time `json:"update_clients,omitempty"`
-	// UpdateServers specifies time to switch to the "Update servers" phase.
-	UpdateServers time.Time `json:"update_servers,omitempty"`
-	// Standby specifies time to switch to the "Standby" phase.
-	Standby time.Time `json:"standby,omitempty"`
-}
-
 // CheckAndSetDefaults checks and sets default values of the rotation schedule.
 func (s *RotationSchedule) CheckAndSetDefaults(clock clockwork.Clock) error {
 	if s.UpdateServers.IsZero() {
@@ -757,33 +701,6 @@ func (s *RotationSchedule) CheckAndSetDefaults(clock clockwork.Clock) error {
 		return trace.BadParameter("phase %q can not be scheduled in the past", RotationPhaseStandby)
 	}
 	return nil
-}
-
-// CertAuthoritySpecV2 is a host or user certificate authority that
-// can check and if it has private key stored as well, sign it too
-type CertAuthoritySpecV2 struct {
-	// Type is either user or host certificate authority
-	Type CertAuthType `json:"type"`
-	// DELETE IN(2.7.0) this field is deprecated,
-	// as resource name matches cluster name after migrations.
-	// and this property is enforced by the auth server code.
-	// ClusterName identifies cluster name this authority serves,
-	// for host authorities that means base hostname of all servers,
-	// for user authorities that means organization name
-	ClusterName string `json:"cluster_name"`
-	// Checkers is a list of SSH public keys that can be used to check
-	// certificate signatures
-	CheckingKeys [][]byte `json:"checking_keys"`
-	// SigningKeys is a list of private keys used for signing
-	SigningKeys [][]byte `json:"signing_keys,omitempty"`
-	// Roles is a list of roles assumed by users signed by this CA
-	Roles []string `json:"roles,omitempty"`
-	// RoleMap specifies role mappings to remote roles
-	RoleMap RoleMap `json:"role_map,omitempty"`
-	// TLS is a list of TLS key pairs
-	TLSKeyPairs []TLSKeyPair `json:"tls_key_pairs,omitempty"`
-	// Rotation is a status of the certificate authority rotation
-	Rotation *Rotation `json:"rotation,omitempty"`
 }
 
 // CertAuthoritySpecV2Schema is JSON schema for cert authority V2
@@ -905,7 +822,6 @@ func (c *CertAuthorityV1) V2() *CertAuthorityV2 {
 			CheckingKeys: c.CheckingKeys,
 			SigningKeys:  c.SigningKeys,
 		},
-		rawObject: *c,
 	}
 }
 
@@ -987,11 +903,10 @@ func (*TeleportCertAuthorityMarshaler) UnmarshalCertAuthority(bytes []byte, opts
 				return nil, trace.BadParameter(err.Error())
 			}
 		}
-
 		if err := ca.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
-
+		ca.SetResourceID(cfg.ID)
 		return &ca, nil
 	}
 

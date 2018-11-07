@@ -82,6 +82,16 @@ type RemoteClusterStatusV3 struct {
 	LastHeartbeat time.Time `json:"last_heartbeat"`
 }
 
+// GetResourceID returns resource ID
+func (c *RemoteClusterV3) GetResourceID() int64 {
+	return c.Metadata.ID
+}
+
+// SetResourceID sets resource ID
+func (c *RemoteClusterV3) SetResourceID(id int64) {
+	c.Metadata.ID = id
+}
+
 // CheckAndSetDefaults checks and sets default values
 func (c *RemoteClusterV3) CheckAndSetDefaults() error {
 	return c.Metadata.CheckAndSetDefaults()

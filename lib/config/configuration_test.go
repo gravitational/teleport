@@ -28,9 +28,9 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/boltbk"
-	"github.com/gravitational/teleport/lib/backend/dir"
+	"github.com/gravitational/teleport/lib/backend/legacy"
+	"github.com/gravitational/teleport/lib/backend/legacy/boltbk"
+	"github.com/gravitational/teleport/lib/backend/legacy/dir"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/service"
@@ -460,7 +460,7 @@ func (s *ConfigTestSuite) TestBackendDefaults(c *check.C) {
 
 	// if there was a prior usage of bolt, bolt is picked as a default value
 	tempDir := c.MkDir()
-	_, err := boltbk.New(backend.Params{defaults.BackendPath: tempDir})
+	_, err := boltbk.New(legacy.Params{defaults.BackendPath: tempDir})
 	c.Assert(err, check.IsNil)
 
 	cfg = read(fmt.Sprintf(`teleport:

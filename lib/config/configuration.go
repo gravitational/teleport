@@ -36,8 +36,9 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/boltbk"
-	"github.com/gravitational/teleport/lib/backend/dir"
+	"github.com/gravitational/teleport/lib/backend/legacy/boltbk"
+	"github.com/gravitational/teleport/lib/backend/legacy/dir"
+	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -173,7 +174,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Auth.StorageConfig = fc.Storage
 		// backend is specified, but no path is set, set a reasonable default
 		_, pathSet := cfg.Auth.StorageConfig.Params[defaults.BackendPath]
-		if cfg.Auth.StorageConfig.Type == dir.GetName() && !pathSet {
+		if (cfg.Auth.StorageConfig.Type == dir.GetName() || cfg.Auth.StorageConfig.Type == lite.GetName()) && !pathSet {
 			if cfg.Auth.StorageConfig.Params == nil {
 				cfg.Auth.StorageConfig.Params = make(backend.Params)
 			}
