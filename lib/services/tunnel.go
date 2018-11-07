@@ -59,6 +59,16 @@ type ReverseTunnelV2 struct {
 	Spec ReverseTunnelSpecV2 `json:"spec"`
 }
 
+// GetResourceID returns resource ID
+func (r *ReverseTunnelV2) GetResourceID() int64 {
+	return r.Metadata.ID
+}
+
+// SetResourceID sets resource ID
+func (r *ReverseTunnelV2) SetResourceID(id int64) {
+	r.Metadata.ID = id
+}
+
 // GetMetadata returns object metadata
 func (r *ReverseTunnelV2) GetMetadata() Metadata {
 	return r.Metadata

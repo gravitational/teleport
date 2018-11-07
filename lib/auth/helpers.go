@@ -17,6 +17,7 @@ limitations under the License.
 package auth
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"net"
@@ -27,7 +28,7 @@ import (
 	"github.com/gravitational/teleport"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/boltbk"
+	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -101,7 +102,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		TestAuthServerConfig: cfg,
 	}
 	var err error
-	srv.Backend, err = boltbk.New(backend.Params{"path": cfg.Dir})
+	srv.Backend, err = lite.NewWithConfig(context.TODO(), lite.Config{Path: cfg.Dir, PollStreamPeriod: 100 * time.Millisecond})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -184,7 +185,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 
 	// create the default role
-	err = srv.AuthServer.UpsertRole(services.NewAdminRole(), backend.Forever)
+	err = srv.AuthServer.UpsertRole(services.NewAdminRole())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -612,7 +613,7 @@ func NewServerIdentity(clt *AuthServer, hostID string, role teleport.Role) (*Ide
 // clt limits required interface to the necessary methods
 // used to pass different clients in tests
 type clt interface {
-	UpsertRole(services.Role, time.Duration) error
+	UpsertRole(services.Role) error
 	UpsertUser(services.User) error
 }
 
@@ -624,7 +625,7 @@ func CreateUserAndRole(clt clt, username string, allowedLogins []string) (servic
 	}
 	role := services.RoleForUser(user)
 	role.SetLogins(services.Allow, []string{user.GetName()})
-	err = clt.UpsertRole(role, backend.Forever)
+	err = clt.UpsertRole(role)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -648,7 +649,7 @@ func CreateUserAndRoleWithoutRoles(clt clt, username string, allowedLogins []str
 	delete(set, services.KindRole)
 	role.SetRules(services.Allow, set.Slice())
 	role.SetLogins(services.Allow, []string{user.GetName()})
-	err = clt.UpsertRole(role, backend.Forever)
+	err = clt.UpsertRole(role)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

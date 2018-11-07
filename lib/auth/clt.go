@@ -29,9 +29,13 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
+	"golang.org/x/net/http2"
+
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/auth/proto"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -39,9 +43,13 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
+	empty "github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
 	"github.com/tstranex/u2f"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 const (
@@ -61,10 +69,13 @@ type Dialer func(network, addr string) (net.Conn, error)
 // tunnel first, and then do HTTP-over-SSH. This client is wrapped by auth.TunClient
 // in lib/auth/tun.go
 type Client struct {
+	sync.Mutex
 	tlsConfig   *tls.Config
 	dialContext DialContext
 	roundtrip.Client
-	transport *http.Transport
+	transport  *http.Transport
+	conn       *grpc.ClientConn
+	grpcClient proto.AuthServiceClient
 }
 
 // TLSConfig returns TLS config used by the client, could return nil
@@ -231,6 +242,36 @@ func NewClient(addr string, dialer Dialer, params ...roundtrip.ClientParam) (*Cl
 	}, nil
 }
 
+// grpc returns grpc client
+func (c *Client) grpc() (proto.AuthServiceClient, error) {
+	// it's ok to lock here, because Dial below is not locking
+	c.Lock()
+	defer c.Unlock()
+
+	if c.grpcClient != nil {
+		return c.grpcClient, nil
+	}
+	dialer := grpc.WithDialer(func(addr string, timeout time.Duration) (net.Conn, error) {
+		c, err := c.dialContext(context.TODO(), "tcp", addr)
+		if err != nil {
+			log.Debugf("Dial error: %v", err)
+		}
+		return c, err
+	})
+	tlsConfig := c.tlsConfig.Clone()
+	tlsConfig.NextProtos = []string{http2.NextProtoTLS}
+	conn, err := grpc.Dial(teleport.APIDomain,
+		dialer,
+		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	c.conn = conn
+	c.grpcClient = proto.NewAuthServiceClient(c.conn)
+
+	return c.grpcClient, nil
+}
+
 func (c *Client) GetTransport() *http.Transport {
 	return c.transport
 }
@@ -374,6 +415,13 @@ func (c *Client) GetClusterCACert() (*LocalCAResponse, error) {
 }
 
 func (c *Client) Close() error {
+	c.Lock()
+	defer c.Unlock()
+	if c.conn != nil {
+		err := c.conn.Close()
+		c.conn = nil
+		return err
+	}
 	return nil
 }
 
@@ -383,7 +431,7 @@ func (c *Client) WaitForDelivery(context.Context) error {
 
 // CreateCertAuthority inserts new cert authority
 func (c *Client) CreateCertAuthority(ca services.CertAuthority) error {
-	return trace.BadParameter("not implemented")
+	return trace.NotImplemented("not implemented")
 }
 
 // RotateCertAuthority starts or restarts certificate authority rotation process.
@@ -485,13 +533,13 @@ func (c *Client) DeleteCertAuthority(id services.CertAuthID) error {
 // ActivateCertAuthority moves a CertAuthority from the deactivated list to
 // the normal list.
 func (c *Client) ActivateCertAuthority(id services.CertAuthID) error {
-	return trace.BadParameter("not implemented")
+	return trace.NotImplemented("not implemented")
 }
 
 // DeactivateCertAuthority moves a CertAuthority from the normal list to
 // the deactivated list.
 func (c *Client) DeactivateCertAuthority(id services.CertAuthID) error {
-	return trace.BadParameter("not implemented")
+	return trace.NotImplemented("not implemented")
 }
 
 // GenerateToken creates a special provisioning token for a new SSH server
@@ -591,19 +639,186 @@ func (c *Client) RegisterNewAuthServer(token string) error {
 
 // UpsertNode is used by SSH servers to reprt their presence
 // to the auth servers in form of hearbeat expiring after ttl period.
-func (c *Client) UpsertNode(s services.Server) error {
+func (c *Client) UpsertNode(s services.Server) (*services.KeepAlive, error) {
 	if s.GetNamespace() == "" {
-		return trace.BadParameter("missing node namespace")
+		return nil, trace.BadParameter("missing node namespace")
 	}
-	data, err := services.GetServerMarshaler().MarshalServer(s)
+	protoServer, ok := s.(*services.ServerV2)
+	if !ok {
+		return nil, trace.BadParameter("unsupported client")
+	}
+	clt, err := c.grpc()
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	args := &upsertServerRawReq{
-		Server: data,
+	keepAlive, err := clt.UpsertNode(context.TODO(), protoServer)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
 	}
-	_, err = c.PostJSON(c.Endpoint("namespaces", s.GetNamespace(), "nodes"), args)
-	return trace.Wrap(err)
+	return keepAlive, nil
+}
+
+// KeepAliveNode updates node keep alive information
+func (c *Client) KeepAliveNode(ctx context.Context, keepAlive services.KeepAlive) error {
+	return trace.BadParameter("not implemented, use StreamKeepAlives instead")
+}
+
+// NewKeepAliver returns a new instance of keep aliver
+func (c *Client) NewKeepAliver(ctx context.Context) (services.KeepAliver, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cancelCtx, cancel := context.WithCancel(ctx)
+	stream, err := clt.SendKeepAlives(cancelCtx)
+	if err != nil {
+		cancel()
+		return nil, trail.FromGRPC(err)
+	}
+	k := &streamKeepAliver{
+		stream:      stream,
+		ctx:         cancelCtx,
+		cancel:      cancel,
+		keepAlivesC: make(chan services.KeepAlive),
+	}
+	go k.forwardKeepAlives()
+	go k.recv()
+	return k, nil
+}
+
+type streamKeepAliver struct {
+	sync.RWMutex
+	stream      proto.AuthService_SendKeepAlivesClient
+	ctx         context.Context
+	cancel      context.CancelFunc
+	keepAlivesC chan services.KeepAlive
+	err         error
+}
+
+func (k *streamKeepAliver) KeepAlives() chan<- services.KeepAlive {
+	return k.keepAlivesC
+}
+
+func (k *streamKeepAliver) forwardKeepAlives() {
+	for {
+		select {
+		case <-k.ctx.Done():
+			return
+		case keepAlive := <-k.keepAlivesC:
+			err := k.stream.Send(&keepAlive)
+			if err != nil {
+				k.closeWithError(trail.FromGRPC(err))
+				return
+			}
+		}
+	}
+}
+
+func (k *streamKeepAliver) Error() error {
+	k.RLock()
+	defer k.RUnlock()
+	return k.err
+}
+
+func (k *streamKeepAliver) Done() <-chan struct{} {
+	return k.ctx.Done()
+}
+
+// recv is necessary to receive errors from the
+// server, otherwise no errors will be propagated
+func (k *streamKeepAliver) recv() {
+	err := k.stream.RecvMsg(&empty.Empty{})
+	k.closeWithError(trail.FromGRPC(err))
+}
+
+func (k *streamKeepAliver) closeWithError(err error) {
+	k.Close()
+	k.Lock()
+	defer k.Unlock()
+	k.err = err
+}
+
+func (k *streamKeepAliver) Close() error {
+	k.cancel()
+	return nil
+}
+
+// NewWatcher returns a new event watcher
+func (c *Client) NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cancelCtx, cancel := context.WithCancel(ctx)
+	stream, err := clt.WatchEvents(cancelCtx, &proto.Watch{Kinds: watch.Kinds})
+	if err != nil {
+		cancel()
+		return nil, trail.FromGRPC(err)
+	}
+	w := &streamWatcher{
+		stream:  stream,
+		ctx:     cancelCtx,
+		cancel:  cancel,
+		eventsC: make(chan services.Event),
+	}
+	go w.receiveEvents()
+	return w, nil
+}
+
+type streamWatcher struct {
+	sync.RWMutex
+	stream  proto.AuthService_WatchEventsClient
+	ctx     context.Context
+	cancel  context.CancelFunc
+	eventsC chan services.Event
+	err     error
+}
+
+func (w *streamWatcher) Error() error {
+	w.RLock()
+	defer w.RUnlock()
+	return w.err
+}
+
+func (w *streamWatcher) closeWithError(err error) {
+	w.Close()
+	w.Lock()
+	defer w.Unlock()
+	w.err = err
+}
+
+func (w *streamWatcher) Events() <-chan services.Event {
+	return w.eventsC
+}
+
+func (w *streamWatcher) receiveEvents() {
+	for {
+		event, err := w.stream.Recv()
+		if err != nil {
+			w.closeWithError(trail.FromGRPC(err))
+			return
+		}
+		out, err := eventFromGRPC(*event)
+		if err != nil {
+			log.Warningf("Failed to convert from GRPC: %v", err)
+			w.Close()
+			return
+		}
+		select {
+		case w.eventsC <- *out:
+		case <-w.Done():
+			return
+		}
+	}
+}
+
+func (w *streamWatcher) Done() <-chan struct{} {
+	return w.ctx.Done()
+}
+
+func (w *streamWatcher) Close() error {
+	w.cancel()
+	return nil
 }
 
 // UpsertNodes bulk inserts nodes.
@@ -676,7 +891,7 @@ func (c *Client) UpsertReverseTunnel(tunnel services.ReverseTunnel) error {
 
 // GetReverseTunnel returns reverse tunnel by name
 func (c *Client) GetReverseTunnel(name string) (services.ReverseTunnel, error) {
-	return nil, trace.BadParameter("not implemented")
+	return nil, trace.NotImplemented("not implemented")
 }
 
 // GetReverseTunnels returns the list of created reverse tunnels
@@ -1850,12 +2065,12 @@ func (c *Client) GetRoles() ([]services.Role, error) {
 }
 
 // CreateRole creates a role.
-func (c *Client) CreateRole(role services.Role, ttl time.Duration) error {
-	return trace.BadParameter("not implemented")
+func (c *Client) CreateRole(role services.Role) error {
+	return trace.NotImplemented("not implemented")
 }
 
 // UpsertRole creates or updates role
-func (c *Client) UpsertRole(role services.Role, ttl time.Duration) error {
+func (c *Client) UpsertRole(role services.Role) error {
 	data, err := services.GetRoleMarshaler().MarshalRole(role)
 	if err != nil {
 		return trace.Wrap(err)
@@ -2007,42 +2222,42 @@ func (c *Client) GetLocalClusterName() (string, error) {
 
 // UpsertLocalClusterName upserts local cluster name
 func (c *Client) UpsertLocalClusterName(string) error {
-	return trace.BadParameter("not implemented")
+	return trace.NotImplemented("not implemented")
 }
 
 // DeleteAllCertAuthorities deletes all certificate authorities of a certain type
 func (c *Client) DeleteAllCertAuthorities(caType services.CertAuthType) error {
-	return trace.BadParameter("not implemented")
+	return trace.NotImplemented("not implemented")
 }
 
 // DeleteAllReverseTunnels deletes all reverse tunnels
 func (c *Client) DeleteAllReverseTunnels() error {
-	return trace.BadParameter("not implemented")
+	return trace.NotImplemented("not implemented")
 }
 
 // DeleteAllCertNamespaces deletes all namespaces
 func (c *Client) DeleteAllNamespaces() error {
-	return trace.BadParameter("not implemented")
+	return trace.NotImplemented("not implemented")
 }
 
 // DeleteAllProxies deletes all proxies
 func (c *Client) DeleteAllProxies() error {
-	return trace.BadParameter("not implemented")
+	return trace.NotImplemented("not implemented")
 }
 
 // DeleteAllNodes deletes all nodes in a given namespace
 func (c *Client) DeleteAllNodes(namespace string) error {
-	return trace.BadParameter("not implemented")
+	return trace.NotImplemented("not implemented")
 }
 
 // DeleteAllRoles deletes all roles
 func (c *Client) DeleteAllRoles() error {
-	return trace.BadParameter("not implemented")
+	return trace.NotImplemented("not implemented")
 }
 
 // DeleteAllUsers deletes all users
 func (c *Client) DeleteAllUsers() error {
-	return trace.BadParameter("not implemented")
+	return trace.NotImplemented("not implemented")
 }
 
 func (c *Client) GetTrustedCluster(name string) (services.TrustedCluster, error) {
@@ -2299,6 +2514,10 @@ type ClientI interface {
 	WebService
 	session.Service
 	services.ClusterConfiguration
+	services.Events
+
+	// NewKeepAliver returns a new instance of keep aliver
+	NewKeepAliver(ctx context.Context) (services.KeepAliver, error)
 
 	// RotateCertAuthority starts or restarts certificate authority rotation process.
 	RotateCertAuthority(req RotateRequest) error

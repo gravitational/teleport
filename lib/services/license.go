@@ -98,6 +98,16 @@ type LicenseV3 struct {
 	Spec LicenseSpecV3 `json:"spec"`
 }
 
+// GetResourceID returns resource ID
+func (c *LicenseV3) GetResourceID() int64 {
+	return c.Metadata.ID
+}
+
+// SetResourceID sets resource ID
+func (c *LicenseV3) SetResourceID(id int64) {
+	c.Metadata.ID = id
+}
+
 // GetName returns the name of the resource
 func (c *LicenseV3) GetName() string {
 	return c.Metadata.Name

@@ -101,7 +101,7 @@ var _ = Suite(&WebSuite{})
 func (s *WebSuite) SetUpSuite(c *C) {
 	var err error
 	os.Unsetenv(teleport.DebugEnvVar)
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 
 	// configure tests to use static assets from web/dist:
 	debugAssetsPath = "../../web/dist"
@@ -337,7 +337,7 @@ func (s *WebSuite) createUser(c *C, user string, login string, pass string, otpS
 	options := role.GetOptions()
 	options.ForwardAgent = services.NewBool(true)
 	role.SetOptions(options)
-	err = s.server.Auth().UpsertRole(role, backend.Forever)
+	err = s.server.Auth().UpsertRole(role)
 	c.Assert(err, IsNil)
 	teleUser.AddRole(role.GetName())
 
@@ -454,7 +454,7 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 	})
 	c.Assert(err, IsNil)
 	role.SetLogins(services.Allow, []string{s.user})
-	err = s.server.Auth().UpsertRole(role, backend.Forever)
+	err = s.server.Auth().UpsertRole(role)
 	c.Assert(err, IsNil)
 
 	err = s.server.Auth().CreateSAMLConnector(connector)

@@ -17,6 +17,7 @@ limitations under the License.
 package state
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"strings"
@@ -278,7 +279,7 @@ func (cs *CachingAuthClient) GetRoles() (roles []services.Role, err error) {
 			}
 			for _, role := range roles {
 				cs.setTTL(role)
-				if err := cs.access.UpsertRole(role, backend.Forever); err != nil {
+				if err := cs.access.UpsertRole(role); err != nil {
 					return nil, trace.Wrap(err)
 				}
 				keys = append(keys, roleKey(role.GetName()))
@@ -308,7 +309,7 @@ func (cs *CachingAuthClient) GetRole(name string) (role services.Role, err error
 				}
 			}
 			cs.setTTL(role)
-			if err := cs.access.UpsertRole(role, backend.Forever); err != nil {
+			if err := cs.access.UpsertRole(role); err != nil {
 				return nil, trace.Wrap(err)
 			}
 			return
@@ -694,9 +695,20 @@ func (cs *CachingAuthClient) GetAllTunnelConnections(opts ...services.MarshalOpt
 }
 
 // UpsertNode is part of auth.AccessPoint implementation
-func (cs *CachingAuthClient) UpsertNode(s services.Server) error {
+func (cs *CachingAuthClient) UpsertNode(s services.Server) (*services.KeepAlive, error) {
 	cs.setTTL(s)
 	return cs.ap.UpsertNode(s)
+}
+
+// UpsertAuthServer is part of auth.AccessPoint implementation
+func (cs *CachingAuthClient) UpsertAuthServer(s services.Server) error {
+	cs.setTTL(s)
+	return cs.ap.UpsertAuthServer(s)
+}
+
+// NewKeepAliver returns a new instance of keep aliver
+func (cs *CachingAuthClient) NewKeepAliver(ctx context.Context) (services.KeepAliver, error) {
+	return cs.ap.NewKeepAliver(ctx)
 }
 
 // UpsertProxy is part of auth.AccessPoint implementation
@@ -808,7 +820,7 @@ func (cs *CachingAuthClient) fetch(p params) {
 	err := cs.try(p.fetch)
 	if err == nil {
 		if err := cs.updateCache(p); err != nil {
-			log.Warningf("Failed to update cache: %v.", trace.DebugReport(err))
+			log.Warningf("Failed to update cache: %v.", err)
 		}
 	}
 	// use cache on connection problems

@@ -226,11 +226,15 @@ var (
 	// after which we are going to declare the reverse tunnel offline
 	ReverseTunnelOfflineThreshold = 5 * ReverseTunnelAgentHeartbeatPeriod
 
-	// ServerHeartbeatTTL is a period between heartbeats
+	// ServerAnnounceTTL is a period between heartbeats
 	// Median sleep time between node pings is this value / 2 + random
 	// deviation added to this time to avoid lots of simultaneous
 	// heartbeats coming to auth server
-	ServerHeartbeatTTL = 90 * time.Second
+	ServerAnnounceTTL = 600 * time.Second
+
+	// ServerKeepAliveTTL is a period between server keep alives,
+	// when servers announce only presence withough sending full data
+	ServerKeepAliveTTL = 60 * time.Second
 
 	// AuthServersRefreshPeriod is a period for clients to refresh their
 	// their stored list of auth servers
@@ -269,8 +273,11 @@ var (
 	// HighResPollingPeriod is a default high resolution polling period
 	HighResPollingPeriod = 10 * time.Second
 
+	// HeartbeatCheckPeriod is a period between heartbeat status checks
+	HeartbeatCheckPeriod = 5 * time.Second
+
 	// LowResPollingPeriod is a default low resolution polling period
-	LowResPollingPeriod = 90 * time.Second
+	LowResPollingPeriod = 600 * time.Second
 
 	// KeepAliveInterval is interval at which Teleport will send keep-alive
 	// messages to the client. The interval of 15 minutes mirrors

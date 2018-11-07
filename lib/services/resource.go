@@ -227,6 +227,9 @@ type MarshalConfig struct {
 
 	// SkipValidation is used to skip schema validation.
 	SkipValidation bool
+
+	// ID is a record ID to assign
+	ID int64
 }
 
 // GetVersion returns explicitly provided version or sets latest as default
@@ -235,6 +238,21 @@ func (m *MarshalConfig) GetVersion() string {
 		return V2
 	}
 	return m.Version
+}
+
+// AddOptions adds marshal options and returns a new copy
+func AddOptions(opts []MarshalOption, add ...MarshalOption) []MarshalOption {
+	out := make([]MarshalOption, len(opts), len(opts)+len(add))
+	copy(out, opts)
+	return append(opts, add...)
+}
+
+// WithResourceID assigns ID to the resource
+func WithResourceID(id int64) MarshalOption {
+	return func(c *MarshalConfig) error {
+		c.ID = id
+		return nil
+	}
 }
 
 // MarshalOption sets marshalling option
@@ -288,6 +306,7 @@ const MetadataSchema = `{
     "namespace": {"type": "string", "default": "default"},
     "description": {"type": "string"},
     "expires": {"type": "string"},
+    "id": {"type": "integer"},
     "labels": {
       "type": "object",
       "additionalProperties": false,
@@ -308,14 +327,44 @@ type UnknownResource struct {
 	Raw []byte
 }
 
-// ResorceHeader is a shared resource header
-type ResourceHeader struct {
-	// Kind is a resource kind - always resource
-	Kind string `json:"kind"`
-	// Version is a resource version
-	Version string `json:"version"`
-	// Metadata is Role metadata
-	Metadata Metadata `json:"metadata"`
+// GetResourceID returns resource ID
+func (h *ResourceHeader) GetResourceID() int64 {
+	return h.Metadata.ID
+}
+
+// SetResourceID sets resource ID
+func (h *ResourceHeader) SetResourceID(id int64) {
+	h.Metadata.ID = id
+}
+
+// GetName returns the name of the resource
+func (h *ResourceHeader) GetName() string {
+	return h.Metadata.Name
+}
+
+// SetName sets the name of the resource
+func (h *ResourceHeader) SetName(v string) {
+	h.Metadata.SetName(v)
+}
+
+// Expiry returns object expiry setting
+func (h *ResourceHeader) Expiry() time.Time {
+	return h.Metadata.Expiry()
+}
+
+// SetExpiry sets object expiry
+func (h *ResourceHeader) SetExpiry(t time.Time) {
+	h.Metadata.SetExpiry(t)
+}
+
+// SetTTL sets Expires header using current clock
+func (h *ResourceHeader) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+	h.Metadata.SetTTL(clock, ttl)
+}
+
+// GetMetadata returns object metadata
+func (h *ResourceHeader) GetMetadata() Metadata {
+	return h.Metadata
 }
 
 // UnmarshalJSON unmarshals header and captures raw state
@@ -328,21 +377,6 @@ func (u *UnknownResource) UnmarshalJSON(raw []byte) error {
 	u.ResourceHeader = h
 	copy(u.Raw, raw)
 	return nil
-}
-
-// Metadata is resource metadata
-type Metadata struct {
-	// Name is an object name
-	Name string `json:"name"`
-	// Namespace is object namespace. The field should be called "namespace"
-	// when it returns in Teleport 2.4.
-	Namespace string `json:"-"`
-	// Description is object description
-	Description string `json:"description,omitempty"`
-	// Labels is a set of labels
-	Labels map[string]string `json:"labels,omitempty"`
-	// Expires is a global expiry time header can be set on any resource in the system.
-	Expires *time.Time `json:"expires,omitempty"`
 }
 
 // Resource represents common properties for resources
@@ -359,6 +393,20 @@ type Resource interface {
 	SetTTL(clock clockwork.Clock, ttl time.Duration)
 	// GetMetadata returns object metadata
 	GetMetadata() Metadata
+	// GetResourceID returns resource ID
+	GetResourceID() int64
+	// SetResourceID sets resource ID
+	SetResourceID(int64)
+}
+
+// GetResourceID returns resource ID
+func (m *Metadata) GetID() int64 {
+	return m.ID
+}
+
+// SetID sets resource ID
+func (m *Metadata) SetID(id int64) {
+	m.ID = id
 }
 
 // GetMetadata returns object metadata

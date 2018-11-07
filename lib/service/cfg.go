@@ -27,7 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/dir"
+	"github.com/gravitational/teleport/lib/backend/legacy/dir"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -105,6 +105,9 @@ type Config struct {
 
 	// Presence service is a discovery and hearbeat tracker
 	Presence services.Presence
+
+	// Events is events service
+	Events services.Events
 
 	// Provisioner is a service that keeps track of provisioning tokens
 	Provisioner services.Provisioner

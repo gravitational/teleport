@@ -17,16 +17,17 @@ limitations under the License.
 package session
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/dir"
+	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	. "gopkg.in/check.v1"
 )
 
@@ -42,7 +43,7 @@ type SessionSuite struct {
 var _ = Suite(&SessionSuite{})
 
 func (s *SessionSuite) SetUpSuite(c *C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 }
 
 func (s *SessionSuite) SetUpTest(c *C) {
@@ -51,15 +52,13 @@ func (s *SessionSuite) SetUpTest(c *C) {
 	s.clock = clockwork.NewFakeClockAt(time.Date(2016, 9, 8, 7, 6, 5, 0, time.UTC))
 	s.dir = c.MkDir()
 
-	s.bk, err = dir.New(backend.Params{"path": s.dir})
+	s.bk, err = lite.New(context.TODO(), backend.Params{"path": s.dir})
 	c.Assert(err, IsNil)
 
-	sb, ok := s.bk.(*backend.Sanitizer)
-	c.Assert(ok, Equals, true)
-
-	sb.Backend().(*dir.Backend).InternalClock = s.clock
+	(s.bk.(*lite.LiteBackend)).SetClock(s.clock)
 
 	srv, err := New(s.bk)
+	srv.(*server).clock = s.clock
 	s.srv = srv.(*server)
 	c.Assert(err, IsNil)
 }

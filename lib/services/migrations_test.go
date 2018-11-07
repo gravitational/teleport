@@ -227,7 +227,6 @@ func (s *MigrationsSuite) TestMigrateCertAuthorities(c *C) {
 			CheckingKeys: in.CheckingKeys,
 			SigningKeys:  in.SigningKeys,
 		},
-		rawObject: *in,
 	}
 	c.Assert(out, DeepEquals, expected)
 
