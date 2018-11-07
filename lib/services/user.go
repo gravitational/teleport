@@ -196,6 +196,16 @@ type UserV2 struct {
 	rawObject interface{}
 }
 
+// GetResourceID returns resource ID
+func (u *UserV2) GetResourceID() int64 {
+	return u.Metadata.ID
+}
+
+// SetResourceID sets resource ID
+func (u *UserV2) SetResourceID(id int64) {
+	u.Metadata.ID = id
+}
+
 // GetMetadata returns object metadata
 func (u *UserV2) GetMetadata() Metadata {
 	return u.Metadata

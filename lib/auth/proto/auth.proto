@@ -1,0 +1,49 @@
+syntax = "proto3";
+package proto;
+
+import "gogoproto/gogo.proto";
+import "google/protobuf/empty.proto";
+import "github.com/gravitational/teleport/lib/services/types.proto";
+
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+option (gogoproto.goproto_getters_all) = false;
+
+// Operation identifies type of operation
+enum Operation {
+    // PUT identifies created or updated object
+    PUT    = 0;
+    // DELETE identifies deleted object
+    DELETE = 1;
+}
+
+// Event returns cluster event
+message Event {
+    // Operation identifies operation
+    Operation Type = 1 [(gogoproto.jsontag) = "type,omitempty"];
+    // Resource contains the updated resource
+    oneof Resource {
+        // ResourceHeader is specified in delete events,
+        // the full object is not available, so resource
+        // header is used to provide information about object type
+        services.ResourceHeader ResourceHeader = 2 [(gogoproto.jsontag) = "resource,omitempty"];
+        // CertAuthority is filled in certificate-authority related events
+        services.CertAuthorityV2 CertAuthority = 3 [(gogoproto.jsontag) = "cert_authority,omitempty"];
+    }
+}
+
+// Watch specifies watch parameters
+message Watch {
+    // Kinds specifies object kinds to watch
+    repeated string Kinds = 1 [(gogoproto.jsontag) = "kinds,omitempty"];
+}
+
+// AuthService is authentication/authorization service implementation
+service AuthService {
+    // SendKeepAlives allows node to send a stream of keep alive requests
+    rpc SendKeepAlives(stream services.KeepAlive) returns (google.protobuf.Empty);
+    // WatchEvents returns a new stream of cluster events
+    rpc WatchEvents(Watch) returns (stream Event);
+    // UpsertNode upserts node
+    rpc UpsertNode(services.ServerV2) returns (services.KeepAlive);
+}

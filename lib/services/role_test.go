@@ -34,8 +34,6 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-func TestRoleParsing(t *testing.T) { TestingT(t) }
-
 type RoleSuite struct {
 }
 
@@ -505,7 +503,7 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 					},
 					Spec: RoleSpecV3{
 						Options: RoleOptions{
-							MaxSessionTTL: Duration{20 * time.Hour},
+							MaxSessionTTL: Duration(20 * time.Hour),
 						},
 						Allow: RoleConditions{
 							Namespaces: []string{defaults.Namespace},
@@ -534,7 +532,7 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 					},
 					Spec: RoleSpecV3{
 						Options: RoleOptions{
-							MaxSessionTTL: Duration{20 * time.Hour},
+							MaxSessionTTL: Duration(20 * time.Hour),
 						},
 						Allow: RoleConditions{
 							Logins:     []string{"admin"},
@@ -563,7 +561,7 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 					},
 					Spec: RoleSpecV3{
 						Options: RoleOptions{
-							MaxSessionTTL: Duration{20 * time.Hour},
+							MaxSessionTTL: Duration(20 * time.Hour),
 						},
 						Allow: RoleConditions{
 							Logins:     []string{"admin"},
@@ -592,7 +590,7 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 					},
 					Spec: RoleSpecV3{
 						Options: RoleOptions{
-							MaxSessionTTL: Duration{20 * time.Hour},
+							MaxSessionTTL: Duration(20 * time.Hour),
 						},
 						Allow: RoleConditions{
 							Logins:     []string{"admin"},
@@ -621,7 +619,7 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 					},
 					Spec: RoleSpecV3{
 						Options: RoleOptions{
-							MaxSessionTTL: Duration{20 * time.Hour},
+							MaxSessionTTL: Duration(20 * time.Hour),
 						},
 						Allow: RoleConditions{
 							Logins:     []string{"admin"},
@@ -637,7 +635,7 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 					},
 					Spec: RoleSpecV3{
 						Options: RoleOptions{
-							MaxSessionTTL: Duration{20 * time.Hour},
+							MaxSessionTTL: Duration(20 * time.Hour),
 						},
 						Allow: RoleConditions{
 							Logins:     []string{"root", "admin"},
@@ -666,7 +664,7 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 					},
 					Spec: RoleSpecV3{
 						Options: RoleOptions{
-							MaxSessionTTL: Duration{20 * time.Hour},
+							MaxSessionTTL: Duration(20 * time.Hour),
 						},
 						Allow: RoleConditions{
 							Logins:     []string{"admin"},

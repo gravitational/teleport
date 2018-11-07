@@ -72,9 +72,8 @@ func PrecomputeKeys(count int) KeygenOption {
 }
 
 // New returns a new key generator.
-func New(opts ...KeygenOption) (*Keygen, error) {
-	ctx, cancel := context.WithCancel(context.Background())
-
+func New(ctx context.Context, opts ...KeygenOption) (*Keygen, error) {
+	ctx, cancel := context.WithCancel(ctx)
 	k := &Keygen{
 		ctx:             ctx,
 		cancel:          cancel,

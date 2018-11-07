@@ -17,6 +17,7 @@ limitations under the License.
 package state
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -26,8 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/boltbk"
-	"github.com/gravitational/teleport/lib/backend/dir"
+	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
@@ -115,7 +115,7 @@ var _ = check.Suite(&ClusterSnapshotSuite{})
 func TestState(t *testing.T) { check.TestingT(t) }
 
 func (s *ClusterSnapshotSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 	s.clock = clockwork.NewRealClock()
 }
 
@@ -123,7 +123,7 @@ func (s *ClusterSnapshotSuite) SetUpTest(c *check.C) {
 	// create a new auth server:
 	s.dataDir = c.MkDir()
 	var err error
-	s.backend, err = boltbk.New(backend.Params{"path": s.dataDir})
+	s.backend, err = lite.NewWithConfig(context.TODO(), lite.Config{Path: s.dataDir, EventsOff: true})
 	c.Assert(err, check.IsNil)
 
 	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
@@ -147,14 +147,14 @@ func (s *ClusterSnapshotSuite) SetUpTest(c *check.C) {
 	// add some nodes to it:
 	for _, n := range Nodes {
 		v2 := n.V2()
-		v2.SetTTL(s.clock, defaults.ServerHeartbeatTTL)
-		err = s.authServer.UpsertNode(v2)
+		v2.SetTTL(s.clock, defaults.ServerAnnounceTTL)
+		_, err = s.authServer.UpsertNode(v2)
 		c.Assert(err, check.IsNil)
 	}
 	// add some proxies to it:
 	for _, p := range Proxies {
 		v2 := p.V2()
-		v2.SetTTL(s.clock, defaults.ServerHeartbeatTTL)
+		v2.SetTTL(s.clock, defaults.ServerAnnounceTTL)
 		err = s.authServer.UpsertProxy(v2)
 		c.Assert(err, check.IsNil)
 	}
@@ -166,7 +166,7 @@ func (s *ClusterSnapshotSuite) SetUpTest(c *check.C) {
 	}
 	// add tunnel connections
 	for _, c := range TunnelConnections {
-		c.SetTTL(s.clock, defaults.ServerHeartbeatTTL)
+		c.SetTTL(s.clock, defaults.ServerAnnounceTTL)
 		err = s.authServer.UpsertTunnelConnection(c)
 	}
 }
@@ -180,7 +180,7 @@ func (s *ClusterSnapshotSuite) TearDownTest(c *check.C) {
 func (s *ClusterSnapshotSuite) TestEverything(c *check.C) {
 	tempDir, err := ioutil.TempDir("", "everything-test-")
 	c.Assert(err, check.IsNil)
-	cacheBackend, err := dir.New(backend.Params{"path": tempDir})
+	cacheBackend, err := lite.NewWithConfig(context.TODO(), lite.Config{Path: tempDir, EventsOff: true, Clock: s.clock})
 	c.Assert(err, check.IsNil)
 	defer os.RemoveAll(tempDir)
 
@@ -221,7 +221,7 @@ func (s *ClusterSnapshotSuite) TestTry(c *check.C) {
 	success := func() error { successfullCalls++; return nil }
 	failure := func() error { failedCalls++; return trace.ConnectionProblem(nil, "lost uplink") }
 
-	cacheBackend, err := boltbk.New(backend.Params{"path": c.MkDir()})
+	cacheBackend, err := lite.NewWithConfig(context.TODO(), lite.Config{Path: c.MkDir(), EventsOff: true, Clock: s.clock})
 	c.Assert(err, check.IsNil)
 	ap, err := NewCachingAuthClient(Config{
 		AccessPoint: s.authServer,
@@ -255,10 +255,12 @@ func (s *ClusterSnapshotSuite) TestTry(c *check.C) {
 
 // TestRecentSingleValue tests recent cache for single value
 func (s *ClusterSnapshotSuite) TestRecentSingleValue(c *check.C) {
-	cacheBackend, err := boltbk.New(backend.Params{"path": c.MkDir()})
+	clock := clockwork.NewFakeClock()
+
+	cacheBackend, err := lite.NewWithConfig(context.TODO(),
+		lite.Config{Path: c.MkDir(), EventsOff: true, Clock: clock})
 	c.Assert(err, check.IsNil)
 
-	clock := clockwork.NewFakeClock()
 	recentTTL := time.Second
 	ap, err := NewCachingAuthClient(Config{
 		AccessPoint:    s.authServer,
@@ -275,7 +277,7 @@ func (s *ClusterSnapshotSuite) TestRecentSingleValue(c *check.C) {
 	fixtures.ExpectNotFound(c, err)
 
 	// update role on the backend
-	err = s.authServer.UpsertRole(role, 0)
+	err = s.authServer.UpsertRole(role)
 	c.Assert(err, check.IsNil)
 
 	// role is not found because recent cache is not expired yet
@@ -291,7 +293,7 @@ func (s *ClusterSnapshotSuite) TestRecentSingleValue(c *check.C) {
 
 	// Update role on the backend and hit it once more
 	role.SetLogins(services.Allow, []string{"test"})
-	err = s.authServer.UpsertRole(role, 0)
+	err = s.authServer.UpsertRole(role)
 	c.Assert(err, check.IsNil)
 
 	// old value
@@ -316,10 +318,11 @@ func (s *ClusterSnapshotSuite) TestRecentSingleValue(c *check.C) {
 }
 
 func (s *ClusterSnapshotSuite) TestRecentCollection(c *check.C) {
-	cacheBackend, err := boltbk.New(backend.Params{"path": c.MkDir()})
+	clock := clockwork.NewFakeClock()
+
+	cacheBackend, err := lite.NewWithConfig(context.TODO(), lite.Config{Path: c.MkDir(), EventsOff: true, Clock: clock})
 	c.Assert(err, check.IsNil)
 
-	clock := clockwork.NewFakeClock()
 	recentTTL := time.Second
 	ap, err := NewCachingAuthClient(Config{
 		AccessPoint:    s.authServer,
@@ -337,7 +340,7 @@ func (s *ClusterSnapshotSuite) TestRecentCollection(c *check.C) {
 	c.Assert(roles, check.HasLen, 0)
 
 	// update role on the backend
-	err = s.authServer.UpsertRole(role, 0)
+	err = s.authServer.UpsertRole(role)
 	c.Assert(err, check.IsNil)
 
 	// role is not found because recent cache is not expired yet
@@ -358,7 +361,7 @@ func (s *ClusterSnapshotSuite) TestRecentCollection(c *check.C) {
 
 	// Update role on the backend and hit it once more
 	role.SetLogins(services.Allow, []string{"test"})
-	err = s.authServer.UpsertRole(role, 0)
+	err = s.authServer.UpsertRole(role)
 	c.Assert(err, check.IsNil)
 
 	// advance the clock, both list and single
@@ -374,7 +377,7 @@ func (s *ClusterSnapshotSuite) TestRecentCollection(c *check.C) {
 
 // TestRecentConcurrency
 func (s *ClusterSnapshotSuite) TestRecentConcurrency(c *check.C) {
-	cacheBackend, err := boltbk.New(backend.Params{"path": c.MkDir()})
+	cacheBackend, err := lite.NewWithConfig(context.TODO(), lite.Config{Path: c.MkDir(), EventsOff: true})
 	c.Assert(err, check.IsNil)
 
 	recentTTL := time.Second
@@ -387,7 +390,7 @@ func (s *ClusterSnapshotSuite) TestRecentConcurrency(c *check.C) {
 
 	role, err := services.NewRole("test", services.RoleSpecV3{})
 	c.Assert(err, check.IsNil)
-	err = s.authServer.UpsertRole(role, 0)
+	err = s.authServer.UpsertRole(role)
 	c.Assert(err, check.IsNil)
 
 	count := 100

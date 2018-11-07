@@ -210,6 +210,16 @@ type SAMLConnectorV2 struct {
 	Spec SAMLConnectorSpecV2 `json:"spec"`
 }
 
+// GetResourceID returns resource ID
+func (o *SAMLConnectorV2) GetResourceID() int64 {
+	return o.Metadata.ID
+}
+
+// SetResourceID sets resource ID
+func (o *SAMLConnectorV2) SetResourceID(id int64) {
+	o.Metadata.ID = id
+}
+
 // GetServiceProviderIssuer returns service provider issuer
 func (o *SAMLConnectorV2) GetServiceProviderIssuer() string {
 	return o.Spec.ServiceProviderIssuer

@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Gravitational, Inc.
+Copyright 2017-2018 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -13,9 +13,11 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package native
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -41,7 +43,7 @@ var _ = fmt.Printf
 
 func (s *NativeSuite) SetUpSuite(c *C) {
 	utils.InitLoggerForTests()
-	a, err := New(PrecomputeKeys(1))
+	a, err := New(context.TODO(), PrecomputeKeys(1))
 	c.Assert(err, IsNil)
 	s.suite = &test.AuthSuite{A: a}
 }
@@ -65,7 +67,7 @@ func (s *NativeSuite) TestGenerateUserCert(c *C) {
 // TestDisablePrecompute makes sure that keygen works
 // when no keys are precomputed
 func (s *NativeSuite) TestDisablePrecompute(c *C) {
-	a, err := New(PrecomputeKeys(0))
+	a, err := New(context.TODO(), PrecomputeKeys(0))
 	c.Assert(err, IsNil)
 
 	caPrivateKey, _, err := a.GenerateKeyPair("")

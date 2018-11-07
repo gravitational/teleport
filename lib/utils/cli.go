@@ -41,7 +41,7 @@ const (
 )
 
 // InitLogger configures the global logger for a given purpose / verbosity level
-func InitLogger(purpose LoggingPurpose, level log.Level) {
+func InitLogger(purpose LoggingPurpose, level log.Level, verbose ...bool) {
 	log.StandardLogger().SetHooks(make(log.LevelHooks))
 	formatter := &trace.TextFormatter{DisableTimestamp: true}
 	log.SetFormatter(formatter)
@@ -60,6 +60,9 @@ func InitLogger(purpose LoggingPurpose, level log.Level) {
 		log.SetOutput(os.Stderr)
 	case LoggingForTests:
 		log.SetLevel(level)
+		if len(verbose) != 0 && verbose[0] {
+			return
+		}
 		val, _ := strconv.ParseBool(os.Getenv(teleport.VerboseLogsEnvVar))
 		if val {
 			return
@@ -73,8 +76,8 @@ func InitLogger(purpose LoggingPurpose, level log.Level) {
 	}
 }
 
-func InitLoggerForTests() {
-	InitLogger(LoggingForTests, log.DebugLevel)
+func InitLoggerForTests(verbose ...bool) {
+	InitLogger(LoggingForTests, log.DebugLevel, verbose...)
 }
 
 // FatalError is for CLI front-ends: it detects gravitational/trace debugging

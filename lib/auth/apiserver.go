@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
@@ -104,6 +103,7 @@ func NewAPIServer(config *APIConfig) http.Handler {
 
 	// Servers and presence heartbeat
 	srv.POST("/:version/namespaces/:namespace/nodes", srv.withAuth(srv.upsertNode))
+	srv.POST("/:version/namespaces/:namespace/nodes/keepalive", srv.withAuth(srv.keepAliveNode))
 	srv.PUT("/:version/namespaces/:namespace/nodes", srv.withAuth(srv.upsertNodes))
 	srv.GET("/:version/namespaces/:namespace/nodes", srv.withAuth(srv.getNodes))
 	srv.POST("/:version/authservers", srv.withAuth(srv.upsertAuthServer))
@@ -302,9 +302,11 @@ func (s *APIServer) upsertServer(auth ClientI, role teleport.Role, w http.Respon
 			return nil, trace.BadParameter("invalid namespace %q", namespace)
 		}
 		server.SetNamespace(namespace)
-		if err := auth.UpsertNode(server); err != nil {
+		handle, err := auth.UpsertNode(server)
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		return handle, nil
 	case teleport.RoleAuth:
 		if err := auth.UpsertAuthServer(server); err != nil {
 			return nil, trace.Wrap(err)
@@ -313,6 +315,18 @@ func (s *APIServer) upsertServer(auth ClientI, role teleport.Role, w http.Respon
 		if err := auth.UpsertProxy(server); err != nil {
 			return nil, trace.Wrap(err)
 		}
+	}
+	return message("ok"), nil
+}
+
+// keepAliveNode updates node TTL in the backend
+func (s *APIServer) keepAliveNode(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	var handle services.KeepAlive
+	if err := httplib.ReadJSON(r, &handle); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.KeepAliveNode(r.Context(), handle); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
 }
@@ -1976,7 +1990,7 @@ func (s *APIServer) upsertRole(auth ClientI, w http.ResponseWriter, r *http.Requ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = auth.UpsertRole(role, backend.Forever)
+	err = auth.UpsertRole(role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
