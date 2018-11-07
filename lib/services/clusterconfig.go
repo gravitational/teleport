@@ -74,6 +74,22 @@ type ClusterConfig interface {
 	// SetDisconnectExpiredCert sets disconnect client with expired certificate setting
 	SetDisconnectExpiredCert(bool)
 
+	// GetKeepAliveInterval gets the keep-alive interval for server to client
+	// connections.
+	GetKeepAliveInterval() time.Duration
+
+	// SetKeepAliveInterval sets the keep-alive interval for server to client
+	// connections.
+	SetKeepAliveInterval(t time.Duration)
+
+	// GetKeepAliveCountMax gets the number of missed keep-alive messages before
+	// the server disconnects the client.
+	GetKeepAliveCountMax() int
+
+	// SetKeepAliveCountMax sets the number of missed keep-alive messages before
+	// the server disconnects the client.
+	SetKeepAliveCountMax(c int)
+
 	// Copy creates a copy of the resource and returns it.
 	Copy() ClusterConfig
 }
@@ -109,6 +125,8 @@ func DefaultClusterConfig() ClusterConfig {
 		Spec: ClusterConfigSpecV3{
 			SessionRecording:    RecordAtNode,
 			ProxyChecksHostKeys: HostKeyCheckYes,
+			KeepAliveInterval:   NewDuration(defaults.KeepAliveInterval),
+			KeepAliveCountMax:   defaults.KeepAliveCountMax,
 		},
 	}
 }
@@ -207,6 +225,14 @@ type ClusterConfigSpecV3 struct {
 	// DisconnectExpiredCert provides disconnect expired certificate setting -
 	// if true, connections with expired client certificates will get disconnected
 	DisconnectExpiredCert Bool `json:"disconnect_expired_cert"`
+
+	// KeepAliveInterval is the interval the server sends keep-alive messsages
+	// to the client at.
+	KeepAliveInterval Duration `json:"keep_alive_interval"`
+
+	// KeepAliveCountMax is the number of keep-alive messages that can be missed before
+	// the server disconnects the connection to the client.
+	KeepAliveCountMax int `json:"keep_alive_count_max"`
 }
 
 // GetName returns the name of the cluster.
@@ -299,6 +325,28 @@ func (c *ClusterConfigV3) SetDisconnectExpiredCert(b bool) {
 	c.Spec.DisconnectExpiredCert.bool = b
 }
 
+// GetKeepAliveInterval gets the keep-alive interval.
+func (c *ClusterConfigV3) GetKeepAliveInterval() time.Duration {
+	return c.Spec.KeepAliveInterval.Duration
+}
+
+// SetKeepAliveInterval sets the keep-alive interval.
+func (c *ClusterConfigV3) SetKeepAliveInterval(t time.Duration) {
+	c.Spec.KeepAliveInterval.Duration = t
+}
+
+// GetKeepAliveCountMax gets the number of missed keep-alive messages before
+// the server disconnects the client.
+func (c *ClusterConfigV3) GetKeepAliveCountMax() int {
+	return c.Spec.KeepAliveCountMax
+}
+
+// SetKeepAliveCountMax sets the number of missed keep-alive messages before
+// the server disconnects the client.
+func (c *ClusterConfigV3) SetKeepAliveCountMax(m int) {
+	c.Spec.KeepAliveCountMax = m
+}
+
 // CheckAndSetDefaults checks validity of all parameters and sets defaults.
 func (c *ClusterConfigV3) CheckAndSetDefaults() error {
 	// make sure we have defaults for all metadata fields
@@ -326,6 +374,15 @@ func (c *ClusterConfigV3) CheckAndSetDefaults() error {
 	ok = utils.SliceContainsStr(all, c.Spec.ProxyChecksHostKeys)
 	if !ok {
 		return trace.BadParameter("proxy_checks_host_keys must be one of: %v", strings.Join(all, ","))
+	}
+
+	// Set the keep-alive interval and max missed keep-alives before the
+	// client is disconnected.
+	if c.Spec.KeepAliveInterval.Duration == 0 {
+		c.Spec.KeepAliveInterval = NewDuration(defaults.KeepAliveInterval)
+	}
+	if c.Spec.KeepAliveCountMax == 0 {
+		c.Spec.KeepAliveCountMax = defaults.KeepAliveCountMax
 	}
 
 	return nil
@@ -363,6 +420,12 @@ const ClusterConfigSpecSchemaTemplate = `{
     "disconnect_expired_cert": {
       "anyOf": [{"type": "string"}, { "type": "boolean"}]
     },
+    "keep_alive_interval": {
+      "type": "string"
+    },
+    "keep_alive_count_max": {
+      "type": "number"
+    },
     "audit": {
       "type": "object",
       "additionalProperties": false,
@@ -375,7 +438,7 @@ const ClusterConfigSpecSchemaTemplate = `{
         },
         "audit_events_uri": {
           "anyOf": [
-            {"type": "string"}, 
+            {"type": "string"},
             {"type": "array",
              "items": {
                "type": "string"

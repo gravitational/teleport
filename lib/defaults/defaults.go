@@ -271,6 +271,16 @@ var (
 
 	// LowResPollingPeriod is a default low resolution polling period
 	LowResPollingPeriod = 90 * time.Second
+
+	// KeepAliveInterval is interval at which Teleport will send keep-alive
+	// messages to the client. The interval of 15 minutes mirrors
+	// ClientAliveInterval of sshd.
+	KeepAliveInterval = 15 * time.Minute
+
+	// KeepAliveCountMax is the number of keep-alive messages that can be sent
+	// without receiving a response from the client before the client is
+	// disconnected. The max count mirrors ClientAliveCountMax of sshd.
+	KeepAliveCountMax = 3
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport
