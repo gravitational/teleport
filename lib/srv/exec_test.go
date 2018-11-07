@@ -30,9 +30,14 @@ import (
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/services"
+	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/jonboulle/clockwork"
 	"gopkg.in/check.v1"
 )
 
@@ -48,33 +53,29 @@ var _ = check.Suite(&ExecSuite{})
 var _ = fmt.Printf
 
 func (s *ExecSuite) SetUpSuite(c *check.C) {
+	utils.InitLoggerForTests()
+
 	bk, err := boltbk.New(backend.Params{"path": c.MkDir()})
 	c.Assert(err, check.IsNil)
 
-	c.Assert(err, check.IsNil)
-	a, err := auth.NewAuthServer(&auth.InitConfig{
-		Backend:   bk,
-		Authority: authority.New(),
-	})
-	c.Assert(err, check.IsNil)
-
-	// set cluster name
 	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
 		ClusterName: "localhost",
 	})
 	c.Assert(err, check.IsNil)
-	err = a.SetClusterName(clusterName)
-	c.Assert(err, check.IsNil)
 
-	// set static tokens
 	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
 		StaticTokens: []services.ProvisionToken{},
 	})
 	c.Assert(err, check.IsNil)
-	err = a.SetStaticTokens(staticTokens)
+
+	authServer, err := auth.NewAuthServer(&auth.InitConfig{
+		ClusterName:  clusterName,
+		StaticTokens: staticTokens,
+		Backend:      bk,
+		Authority:    authority.New(),
+	})
 	c.Assert(err, check.IsNil)
 
-	utils.InitLoggerForTests()
 	s.usr, _ = user.Current()
 	s.ctx = &ServerContext{IsTestStub: true}
 	s.ctx.Identity.Login = s.usr.Username
@@ -82,6 +83,13 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 	s.ctx.Identity.TeleportUser = "galt"
 	s.ctx.Conn = &ssh.ServerConn{Conn: s}
 	s.ctx.ExecRequest = &localExec{Ctx: s.ctx}
+	s.ctx.srv = &testServer{auth: authServer}
+
+	term, err := newLocalTerminal(s.ctx)
+	c.Assert(err, check.IsNil)
+	term.SetTermType("xterm")
+	s.ctx.session.term = term
+
 	s.localAddr, _ = utils.ParseAddr("127.0.0.1:3022")
 	s.remoteAddr, _ = utils.ParseAddr("10.0.0.5:4817")
 }
@@ -100,6 +108,7 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 		"TERM=xterm",
 		"SSH_CLIENT=10.0.0.5 4817 3022",
 		"SSH_CONNECTION=10.0.0.5 4817 127.0.0.1 3022",
+		fmt.Sprintf("SSH_TTY=%v", s.ctx.session.term.TTY().Name()),
 		"SSH_SESSION_ID=xxx",
 	}
 
@@ -164,4 +173,47 @@ func findExecutable(execName string) string {
 		}
 	}
 	return "not found in $PATH: " + execName
+}
+
+type testServer struct {
+	auth *auth.AuthServer
+}
+
+func (s *testServer) ID() string {
+	return "00000000-0000-0000-0000-000000000000"
+}
+func (s *testServer) GetNamespace() string {
+	return defaults.Namespace
+}
+func (s *testServer) AdvertiseAddr() string {
+	return ""
+}
+func (s *testServer) Component() string {
+	return "testNode"
+}
+func (s *testServer) PermitUserEnvironment() bool {
+	return false
+}
+func (s *testServer) EmitAuditEvent(string, events.EventFields) {
+}
+func (s *testServer) GetAuditLog() events.IAuditLog {
+	return s.auth
+}
+func (s *testServer) GetAccessPoint() auth.AccessPoint {
+	return s.auth
+}
+func (s *testServer) GetSessionServer() rsession.Service {
+	return nil
+}
+func (s *testServer) GetDataDir() string {
+	return ""
+}
+func (n *testServer) GetPAM() (*pam.Config, error) {
+	return nil, nil
+}
+func (n *testServer) GetClock() clockwork.Clock {
+	return clockwork.NewFakeClock()
+}
+func (n *testServer) GetInfo() services.Server {
+	return nil
 }
