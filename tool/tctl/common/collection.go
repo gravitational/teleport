@@ -147,7 +147,7 @@ type serverCollection struct {
 }
 
 func (s *serverCollection) writeText(w io.Writer) error {
-	t := asciitable.MakeTable([]string{"Hostname", "UUID", "Address", "Labels"})
+	t := asciitable.MakeTable([]string{"Nodename", "UUID", "Address", "Labels"})
 	for _, s := range s.servers {
 		t.AddRow([]string{
 			s.GetHostname(), s.GetName(), s.GetAddr(), s.LabelsString(),
