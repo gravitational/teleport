@@ -1790,7 +1790,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		webHandler, err = web.NewHandler(
 			web.Config{
 				Proxy:         tsrv,
-				AuthServers:   cfg.AuthServers[0],
+				AuthServers:   cfg.AuthServers,
 				DomainName:    cfg.Hostname,
 				ProxyClient:   conn.Client,
 				DisableUI:     process.Config.Proxy.DisableWebInterface,

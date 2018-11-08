@@ -90,7 +90,7 @@ type Config struct {
 	// to various sites
 	Proxy reversetunnel.Server
 	// AuthServers is a list of auth servers this proxy talks to
-	AuthServers utils.NetAddr
+	AuthServers []utils.NetAddr
 	// DomainName is a domain name served by web handler
 	DomainName string
 	// ProxyClient is a client that authenticated as proxy
@@ -125,7 +125,7 @@ func (r *RewritingHandler) Close() error {
 // NewHandler returns a new instance of web proxy handler
 func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	const apiPrefix = "/" + teleport.WebAPIVersion
-	lauth, err := newSessionCache(cfg.ProxyClient, []utils.NetAddr{cfg.AuthServers}, cfg.CipherSuites)
+	lauth, err := newSessionCache(cfg.ProxyClient, cfg.AuthServers, cfg.CipherSuites)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
