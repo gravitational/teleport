@@ -506,8 +506,7 @@ ul.has-icons, dl.has-icons {
   .text-article h1, .text-article h2, .text-article h3, .text-article p, .text-article ul, .text-article ol, .text-article dl {
     color: #263238;
     font-family: "Raleway", Helvetica, Arial, "Lucida Grande", sans-serif;
-    font-weight: normal;
-    letter-spacing: 1px;
+    font-weight: 500;
     line-height: 24px;
     margin: 0 0 16px 0;
     outline: none;
@@ -552,7 +551,7 @@ ul.has-icons, dl.has-icons {
     .text-article h1 code, .text-article h2 code, .text-article h3 code, .text-article p code, .text-article ul code, .text-article ol code, .text-article dl code {
       background: rgba(237, 240, 242, 0.56);
       border-radius: 2px;
-      color: #F50057;
+      color: #6200EA;
       padding: 0 8px; }
   .text-article h1 {
     font-size: 38px;
@@ -670,6 +669,7 @@ ul.has-icons, dl.has-icons {
     .text-article table tbody th, .text-article table tbody td {
       border-bottom: 1px solid #EDF0F2;
       font-size: 16px;
+      font-weight: 500;
       line-height: 24px;
       min-width: 100px;
       padding: 16px; }
@@ -681,7 +681,7 @@ ul.has-icons, dl.has-icons {
       .text-article table tbody th code, .text-article table tbody td code {
         background: rgba(237, 240, 242, 0.56);
         border-radius: 2px;
-        color: #233591;
+        color: #6200EA;
         padding: 0 8px; }
     .text-article table tbody th {
       background: rgba(237, 240, 242, 0.56);
@@ -9999,12 +9999,12 @@ ol.linenums {
 
 .background-primary-fade {
   background-color: #233591;
-  background: linear-gradient(90deg, #233591, #6F81CC);
+  background: linear-gradient(90deg, #233591, #6200EA);
   outline: none; }
   .background-primary-fade .hero-stripe {
-    background-color: #6F81CC; }
+    background-color: #6200EA; }
   .background-primary-fade .top-stripe {
-    fill: #6F81CC; }
+    fill: #6200EA; }
 
 /*
 * Image backgrounds
