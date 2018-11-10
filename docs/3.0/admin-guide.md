@@ -219,7 +219,8 @@ teleport:
     # When running in multi-homed or NATed environments Teleport nodes need
     # to know which IP it will be reachable at by other nodes
     #
-    # This value can be specified as FQDN e.g. host.example.com
+    # This value can be specified as FQDN e.g. host.example.com. IPv6 addresses
+    # should be specified without brackets.
     advertise_ip: 10.1.0.5
 
     # list of auth servers in a cluster. you will have more than one auth server

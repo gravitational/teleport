@@ -781,7 +781,7 @@ func (tc *TeleportClient) LocalAgent() *LocalKeyAgent {
 }
 
 // getTargetNodes returns a list of node addresses this SSH command needs to
-// operate on.
+// operate on. If no nodes match, the host:port is returned precent encoded.
 func (tc *TeleportClient) getTargetNodes(ctx context.Context, proxy *ProxyClient) ([]string, error) {
 	var (
 		err    error
@@ -798,7 +798,12 @@ func (tc *TeleportClient) getTargetNodes(ctx context.Context, proxy *ProxyClient
 		}
 	}
 	if len(nodes) == 0 {
-		retval = append(retval, net.JoinHostPort(tc.Host, strconv.Itoa(tc.HostPort)))
+		// Precent code the host:port. This is done so the returned address can be
+		// passed to url.Parse where the host:port is placed within the userinfo
+		// part of the URL which only allows alpha numberic plus some punctuation.
+		// See the following for details: https://github.com/golang/go/issues/23392.
+		escaped := url.QueryEscape(net.JoinHostPort(tc.Host, strconv.Itoa(tc.HostPort)))
+		retval = append(retval, escaped)
 	}
 	return retval, nil
 }

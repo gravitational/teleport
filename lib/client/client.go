@@ -24,6 +24,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -329,8 +330,8 @@ func (proxy *ProxyClient) dialAuthServer(ctx context.Context, clusterName string
 	), nil
 }
 
-// ConnectToNode connects to the ssh server via Proxy.
-// It returns connected and authenticated NodeClient
+// ConnectToNode connects to the SSH server via Proxy. It returns a connected
+// and authenticated NodeClient.
 func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress string, user string, quiet bool) (*NodeClient, error) {
 	log.Infof("Client=%v connecting to node=%s", proxy.clientAddr, nodeAddress)
 
@@ -340,6 +341,15 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress string,
 		return nil, trace.Wrap(err)
 	}
 	fakeAddr, err := utils.ParseAddr("tcp://" + nodeAddress)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Unescape the node address in-case it is a percent encoded address (IPv6).
+	// This is because the host:port is placed within the userinfo
+	// part of the URL which only allows alpha numberic plus some punctuation.
+	// See the following for details: https://github.com/golang/go/issues/23392.
+	nodeAddress, err = url.QueryUnescape(nodeAddress)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
