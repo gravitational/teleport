@@ -11,7 +11,6 @@ import (
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/tool/tctl/common"
@@ -72,7 +71,7 @@ func (cmd *ResourceCommandE) createRole(client auth.ClientI, raw services.Unknow
 	if roleExists && !cmd.base.IsForced() {
 		return trace.AlreadyExists("role '%s' already exists", roleName)
 	}
-	if err := client.UpsertRole(role, backend.Forever); err != nil {
+	if err := client.UpsertRole(role); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("role '%s' has been %s\n", roleName, common.UpsertVerb(roleExists, cmd.base.IsForced()))

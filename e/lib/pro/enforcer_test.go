@@ -7,8 +7,7 @@ import (
 
 	"github.com/gravitational/teleport/e/lib/constants"
 	"github.com/gravitational/teleport/e/lib/fixtures"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/dir"
+	"github.com/gravitational/teleport/lib/backend/lite"
 
 	"github.com/gravitational/reporting/types"
 	check "gopkg.in/check.v1"
@@ -25,7 +24,7 @@ var _ = check.Suite(&EnforcerSuite{})
 func (s *EnforcerSuite) SetUpSuite(c *check.C) {
 	directory := c.MkDir()
 
-	backend, err := dir.New(backend.Params{"path": directory})
+	backend, err := lite.NewWithConfig(context.TODO(), lite.Config{Path: directory})
 	c.Assert(err, check.IsNil)
 
 	s.enforcer, err = NewEnforcer(context.Background(), EnforcerConfig{

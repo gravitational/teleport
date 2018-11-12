@@ -127,7 +127,7 @@ func (e *Enforcer) periodicHeartbeat(ctx context.Context) {
 }
 
 func (e *Enforcer) heartbeat(ctx context.Context) error {
-	out, err := e.Get(ctx, e.Endpoint("heartbeat"), url.Values{})
+	out, err := e.WebClient.Get(ctx, e.Endpoint("heartbeat"), url.Values{})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -142,13 +142,22 @@ func (e *Enforcer) heartbeat(ctx context.Context) error {
 	return nil
 }
 
+const (
+	heartbeatPrefix = "heartbeat"
+	valPrefix       = "val"
+)
+
 // SetLicenseCheckHeartbeat saves the license check heartbeat into the database
 func (e *Enforcer) SetLicenseCheckHeartbeat(heartbeat types.Heartbeat) error {
-	bytes, err := types.MarshalHeartbeat(heartbeat)
+	value, err := types.MarshalHeartbeat(heartbeat)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = e.UpsertVal([]string{"heartbeat"}, "val", bytes, backend.Forever)
+	item := backend.Item{
+		Key:   backend.Key(heartbeatPrefix, valPrefix),
+		Value: value,
+	}
+	_, err = e.Put(context.TODO(), item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -157,11 +166,11 @@ func (e *Enforcer) SetLicenseCheckHeartbeat(heartbeat types.Heartbeat) error {
 
 // getLicenseCheckHeartbeat returns the latest license check heartbeat
 func (e *Enforcer) getLicenseCheckHeartbeat() (*types.Heartbeat, error) {
-	out, err := e.GetVal([]string{"heartbeat"}, "val")
+	item, err := e.Backend.Get(context.TODO(), backend.Key(heartbeatPrefix, valPrefix))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	heartbeat, err := types.UnmarshalHeartbeat(out)
+	heartbeat, err := types.UnmarshalHeartbeat(item.Value)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

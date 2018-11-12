@@ -2,7 +2,7 @@ package pro
 
 import (
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/dir"
+	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -34,12 +34,13 @@ func (s *ProcessSuite) TestAuthNoLicense(c *check.C) {
 		Auth: service.AuthConfig{
 			Enabled: true,
 			StorageConfig: backend.Config{
-				Type: dir.GetName(),
+				Type: lite.GetName(),
 				Params: backend.Params{
 					"path": c.MkDir(),
 				},
 			},
 			ClusterConfig: services.DefaultClusterConfig(),
+			StaticTokens:  services.DefaultStaticTokens(),
 			NoAudit:       true,
 		},
 		Hostname: "localhost",

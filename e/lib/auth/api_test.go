@@ -9,8 +9,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/fixtures"
 	"github.com/gravitational/teleport/e/lib/pro"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/dir"
+	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/reporting/types"
@@ -29,7 +28,7 @@ var _ = check.Suite(&APISuite{})
 func (s *APISuite) SetUpSuite(c *check.C) {
 	directory := c.MkDir()
 
-	backend, err := dir.New(backend.Params{"path": directory})
+	backend, err := lite.NewWithConfig(context.TODO(), lite.Config{Path: directory})
 	c.Assert(err, check.IsNil)
 
 	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{

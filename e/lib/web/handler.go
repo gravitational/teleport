@@ -9,7 +9,6 @@ import (
 	"github.com/gravitational/teleport/e/lib/web/ui"
 
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web"
@@ -290,7 +289,7 @@ func upsertResource(unknownRes services.UnknownResource, client auth.ClientI) (i
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := client.UpsertRole(role, backend.Forever); err != nil {
+		if err := client.UpsertRole(role); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		items, err := ui.ConvertRoles([]services.Role{role})
