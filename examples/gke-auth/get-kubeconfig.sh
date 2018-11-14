@@ -26,6 +26,23 @@
 # https://gravitational.com/blog/kubectl-gke/
 #
 # Produce CSR request first
+
+set -eu -o pipefail
+
+# Set OS specific values.
+if [[ "$OSTYPE" == "linux-gnu" ]]; then
+    REQUEST_ID=$(uuid)
+    BASE64_DECODE_FLAG="-d"
+    BASE64_WRAP_FLAG="-w 0"
+elif [[ "$OSTYPE" == "darwin"* ]]; then
+    REQUEST_ID=$(uuidgen)
+    BASE64_DECODE_FLAG="-D"
+    BASE64_WRAP_FLAG=""
+else
+    echo "Unknown OS $(OSTYPE)"
+    exit 1
+fi
+
 mkdir -p build
 pushd build
 cat > csr <<EOF
@@ -45,7 +62,6 @@ EOF
 
 cat csr | cfssl genkey - | cfssljson -bare server
 
-REQUEST_ID=$(uuid)
 
 # Create Kubernetes CSR
 cat <<EOF | kubectl create -f -
@@ -65,7 +81,7 @@ EOF
 kubectl certificate approve ${REQUEST_ID}
 
 kubectl get csr ${REQUEST_ID} -o jsonpath='{.status.certificate}' \
-    | base64 -d > server.crt
+    | base64 ${BASE64_DECODE_FLAG} > server.crt
 
 kubectl -n kube-system exec $(kubectl get pods -n kube-system -l k8s-app=kube-dns  -o jsonpath='{.items[0].metadata.name}') -c kubedns -- /bin/cat /var/run/secrets/kubernetes.io/serviceaccount/ca.crt > ca.crt
 
@@ -78,7 +94,7 @@ cat > kubeconfig <<EOF
 apiVersion: v1
 clusters:
 - cluster:
-    certificate-authority-data: $(cat ca.crt | base64 -w 0)
+    certificate-authority-data: $(cat ca.crt | base64 ${BASE64_WRAP_FLAG})
     server: ${CURRENT_CLUSTER_ADDR}
   name: k8s
 contexts:
@@ -92,8 +108,8 @@ preferences: {}
 users:
 - name: jenkins
   user:
-    client-certificate-data: $(cat server.crt | base64 -w 0)
-    client-key-data: $(cat server-key.pem | base64 -w 0)
+    client-certificate-data: $(cat server.crt | base64 ${BASE64_WRAP_FLAG})
+    client-key-data: $(cat server-key.pem | base64 ${BASE64_WRAP_FLAG})
 EOF
 
 popd
