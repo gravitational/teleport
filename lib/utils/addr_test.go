@@ -180,51 +180,65 @@ func (s *AddrTestSuite) TestGuessesIPAddress(c *C) {
 		{
 			addrs: []net.Addr{
 				&net.IPAddr{IP: net.ParseIP("10.0.100.80")},
-				&net.IPAddr{IP: net.ParseIP("192.13.1.80")},
-				&net.IPAddr{IP: net.ParseIP("172.192.12.1")},
+				&net.IPAddr{IP: net.ParseIP("192.168.1.80")},
+				&net.IPAddr{IP: net.ParseIP("172.16.0.0")},
+				&net.IPAddr{IP: net.ParseIP("172.31.255.255")},
 			},
 			expected: net.ParseIP("10.0.100.80"),
-			comment:  "prefers 10.x.y.z",
+			comment:  "prefers 10.0.0.0/8",
 		},
 		{
 			addrs: []net.Addr{
-				&net.IPAddr{IP: net.ParseIP("192.13.1.80")},
-				&net.IPAddr{IP: net.ParseIP("172.192.12.1")},
+				&net.IPAddr{IP: net.ParseIP("192.168.1.80")},
+				&net.IPAddr{IP: net.ParseIP("172.31.12.1")},
 			},
-			expected: net.ParseIP("192.13.1.80"),
-			comment:  "prefers 192.x.y.z",
+			expected: net.ParseIP("192.168.1.80"),
+			comment:  "prefers 192.168.0.0/16",
 		},
 		{
 			addrs: []net.Addr{
-				&net.IPAddr{IP: net.ParseIP("172.192.12.1")},
+				&net.IPAddr{IP: net.ParseIP("192.167.255.255")},
+				&net.IPAddr{IP: net.ParseIP("172.15.0.0")},
+				&net.IPAddr{IP: net.ParseIP("172.32.1.1")},
+				&net.IPAddr{IP: net.ParseIP("172.30.1.1")},
+		},
+			expected: net.ParseIP("172.30.1.1"),
+			comment:  "identifies private IP by netmask",
+		},
+		{
+			addrs: []net.Addr{
+				&net.IPAddr{IP: net.ParseIP("172.1.1.1")},
+				&net.IPAddr{IP: net.ParseIP("172.30.0.1")},
 				&net.IPAddr{IP: net.ParseIP("52.35.21.180")},
 			},
-			expected: net.ParseIP("172.192.12.1"),
-			comment:  "prefers 172.x.y.z",
+			expected: net.ParseIP("172.30.0.1"),
+			comment:  "prefers 172.16.0.0/12",
 		},
 		{
 			addrs: []net.Addr{
-				&net.IPAddr{IP: net.ParseIP("192.192.12.1")},
-				&net.IPAddr{IP: net.ParseIP("192.192.12.2")},
+				&net.IPAddr{IP: net.ParseIP("192.168.12.1")},
+				&net.IPAddr{IP: net.ParseIP("192.168.12.2")},
 				&net.IPAddr{IP: net.ParseIP("52.35.21.180")},
 			},
-			expected: net.ParseIP("192.192.12.2"),
+			expected: net.ParseIP("192.168.12.2"),
 			comment:  "prefers last",
 		},
 		{
 			addrs: []net.Addr{
-				&net.IPAddr{IP: net.ParseIP("52.35.21.180")},
+				&net.IPAddr{IP: net.ParseIP("::1")},
 				&net.IPAddr{IP: net.ParseIP("fe80::af:6dff:fefd:150f")},
+				&net.IPAddr{IP: net.ParseIP("52.35.21.180")},
 			},
 			expected: net.ParseIP("52.35.21.180"),
 			comment:  "ignores IPv6",
 		},
 		{
 			addrs: []net.Addr{
+				&net.IPAddr{IP: net.ParseIP("::1")},
 				&net.IPAddr{IP: net.ParseIP("fe80::af:6dff:fefd:150f")},
 			},
 			expected: net.ParseIP("127.0.0.1"),
-			comment:  "falls back to loopback",
+			comment:  "falls back to ipv4 loopback",
 		},
 	}
 	for _, testCase := range testCases {
