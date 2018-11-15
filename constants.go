@@ -172,6 +172,9 @@ const (
 	// and vice versa.
 	ComponentKeepAlive = "keepalive"
 
+	// ComponentTSH is the "tsh" binary.
+	ComponentTSH = "tsh"
+
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
 
