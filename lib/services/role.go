@@ -1973,7 +1973,7 @@ const RoleSpecV3SchemaDefinitions = `
         "type": "object",
         "additionalProperties": false,
         "patternProperties": {
-          "^[a-zA-Z/.0-9_*]+$": { "anyOf": [{"type": "string"}, { "type": "array", "items": {"type": "string"}}]}
+          "^[a-zA-Z/.0-9_*-]+$": { "anyOf": [{"type": "string"}, { "type": "array", "items": {"type": "string"}}]}
         }
       },
       "logins": {
@@ -2021,7 +2021,7 @@ const RoleSpecV2SchemaTemplate = `{
     "node_labels": {
       "type": "object",
       "patternProperties": {
-         "^[a-zA-Z/.0-9_]$":  { "type": "string" }
+         "^[a-zA-Z/.0-9_-]$":  { "type": "string" }
       }
     },
     "namespaces": {
