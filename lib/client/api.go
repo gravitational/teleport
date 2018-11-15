@@ -666,7 +666,7 @@ type TeleportClient struct {
 	OnShellCreated ShellCreatedCallback
 
 	// eventsCh is a channel used to inform clients about events have that
-	// occured during the session.
+	// occurred during the session.
 	eventsCh chan events.EventFields
 }
 
@@ -714,7 +714,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		tc.Stdin = os.Stdin
 	}
 
-	// Create a buffered channel to hold events that occured during this session.
+	// Create a buffered channel to hold events that occurred during this session.
 	// This channel must be buffered because the SSH connection directly feeds
 	// into it. Delays in pulling messages off the global SSH request channel
 	// could lead to the connection hanging.
@@ -1651,7 +1651,7 @@ func (tc *TeleportClient) UpdateTrustedCA(ctx context.Context) error {
 }
 
 // applyProxySettings updates configuration changes based on the advertised
-// proxy settings, user supplied values take precendence - will be preserved
+// proxy settings, user supplied values take precedence - will be preserved
 // if set
 func (tc *TeleportClient) applyProxySettings(proxySettings ProxySettings) error {
 	// Kubernetes proxy settings.

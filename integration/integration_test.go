@@ -2093,7 +2093,7 @@ func (s *IntSuite) TestAuditOff(c *check.C) {
 	case <-endCh:
 	}
 
-	// audit log should have the fact that the session occured recorded in it
+	// audit log should have the fact that the session occurred recorded in it
 	sessions, err = site.GetSessions(defaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(sessions), check.Equals, 1)
@@ -2563,7 +2563,7 @@ func (s *IntSuite) rotateTrustedClusters(c *check.C) {
 	err = SetupUser(svc, s.me.Username, []services.Role{role})
 	c.Assert(err, check.IsNil)
 
-	// create auxillary cluster and setup trust
+	// create auxiliary cluster and setup trust
 	c.Assert(aux.CreateEx(nil, rotationConfig(false)), check.IsNil)
 
 	// auxiliary cluster has a role aux-devs
@@ -2907,7 +2907,7 @@ func (s *IntSuite) TestWindowChange(c *check.C) {
 	}
 
 	// waitForOutput checks the output of the passed in terminal of a string until
-	// some timeout has occured.
+	// some timeout has occurred.
 	waitForOutput := func(t Terminal, s string) error {
 		tickerCh := time.Tick(500 * time.Millisecond)
 		timeoutCh := time.After(30 * time.Second)

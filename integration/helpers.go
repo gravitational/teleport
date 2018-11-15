@@ -788,7 +788,7 @@ func (i *TeleInstance) Start() error {
 	}
 
 	// Extract and set reversetunnel.Server and reversetunnel.AgentPool upon
-	// receipt of a ProxyReverseTunnelReady and ProxyAgentPoolReady respectivly.
+	// receipt of a ProxyReverseTunnelReady and ProxyAgentPoolReady respectively.
 	for _, re := range receivedEvents {
 		switch re.Name {
 		case service.ProxyReverseTunnelReady:
