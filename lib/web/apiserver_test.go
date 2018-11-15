@@ -410,8 +410,8 @@ func (s *WebSuite) TestNewUser(c *C) {
 	re, err = clt.Get(context.Background(), clt.Endpoint("webapi", "sites"), url.Values{})
 	c.Assert(err, IsNil)
 
-	var sites *getSitesResponse
-	c.Assert(json.Unmarshal(re.Bytes(), &sites), IsNil)
+	var clusters *ui.AvailableClusters
+	c.Assert(json.Unmarshal(re.Bytes(), &clusters), IsNil)
 
 	// in absence of session cookie or bearer auth the same request fill fail
 
@@ -534,8 +534,8 @@ func (s *WebSuite) TestWebSessionsCRUD(c *C) {
 	re, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites"), url.Values{})
 	c.Assert(err, IsNil)
 
-	var sites *getSitesResponse
-	c.Assert(json.Unmarshal(re.Bytes(), &sites), IsNil)
+	var clusters *ui.AvailableClusters
+	c.Assert(json.Unmarshal(re.Bytes(), &clusters), IsNil)
 
 	// now delete session
 	_, err = pack.clt.Delete(
@@ -1181,8 +1181,8 @@ func (s *WebSuite) TestNewU2FUser(c *C) {
 	re, err = clt.Get(context.Background(), clt.Endpoint("webapi", "sites"), url.Values{})
 	c.Assert(err, IsNil)
 
-	var sites *getSitesResponse
-	c.Assert(json.Unmarshal(re.Bytes(), &sites), IsNil)
+	var clusters *ui.AvailableClusters
+	c.Assert(json.Unmarshal(re.Bytes(), &clusters), IsNil)
 
 	// in absence of session cookie or bearer auth the same request fill fail
 
