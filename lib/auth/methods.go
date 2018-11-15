@@ -159,7 +159,7 @@ func (s *AuthServer) authenticateUser(req AuthenticateUserRequest) error {
 }
 
 // AuthenticateWebUser authenticates web user, creates and  returns web session
-// in case if authentication is successfull. In case if existing session id
+// in case if authentication is successful. In case if existing session id
 // is used to authenticate, returns session associated with the existing session id
 // instead of creating the new one
 func (s *AuthServer) AuthenticateWebUser(req AuthenticateUserRequest) (services.WebSession, error) {

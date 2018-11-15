@@ -97,7 +97,7 @@ func makeFileInfo(filePath string) (FileInfo, error) {
 		fileInfo: f}, nil
 }
 
-// localFileInfo is implementaion of FileInfo for local files
+// localFileInfo is implementation of FileInfo for local files
 type localFileInfo struct {
 	isRecursive bool
 	filePath    string

@@ -30,7 +30,7 @@ const (
 	// stateRecovering means Teleport has begun recovering from a degraded state.
 	stateRecovering = 1
 
-	// stateDegraded means some kind of connection error has occured to put
+	// stateDegraded means some kind of connection error has occurred to put
 	// Teleport into a degraded state.
 	stateDegraded = 2
 )

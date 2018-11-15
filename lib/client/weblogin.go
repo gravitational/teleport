@@ -252,7 +252,7 @@ func SSHAgentSSOLogin(ctx context.Context, proxyAddr, connectorID string, pubKey
 		if err == nil {
 			execCmd = exec.Command(path, "url.dll,FileProtocolHandler", redirURL)
 		}
-	// Linux or any other operating sytem.
+	// Linux or any other operating system.
 	default:
 		path, err := exec.LookPath(teleport.OpenBrowserLinux)
 		if err == nil {

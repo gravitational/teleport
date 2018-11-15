@@ -49,7 +49,7 @@ type Flags struct {
 	Sink bool
 	//  Verbose sets a logging mode
 	Verbose bool
-	// Target sets targeted files to be transfered
+	// Target sets targeted files to be transferred
 	Target []string
 	// Recursive indicates recursive file transfer
 	Recursive bool

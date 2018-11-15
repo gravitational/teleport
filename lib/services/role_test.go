@@ -582,7 +582,7 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 			},
 		},
 		{
-			name: "node_labels with emtpy list value matches nothing",
+			name: "node_labels with empty list value matches nothing",
 			roles: []RoleV3{
 				RoleV3{
 					Metadata: Metadata{

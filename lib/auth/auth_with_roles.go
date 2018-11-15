@@ -101,7 +101,7 @@ func (a *AuthWithRoles) hasRemoteBuiltinRole(name string) bool {
 }
 
 // AuthenticateWebUser authenticates web user, creates and  returns web session
-// in case if authentication is successfull
+// in case if authentication is successful
 func (a *AuthWithRoles) AuthenticateWebUser(req AuthenticateUserRequest) (services.WebSession, error) {
 	// authentication request has it's own authentication, however this limits the requests
 	// types to proxies to make it harder to break
@@ -1299,7 +1299,7 @@ func (a *AuthWithRoles) DeleteAllRemoteClusters() error {
 }
 
 // ProcessKubeCSR processes CSR request against Kubernetes CA, returns
-// signed certificate if sucessfull.
+// signed certificate if sucessful.
 func (a *AuthWithRoles) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 	// limits the requests types to proxies to make it harder to break
 	if !a.hasBuiltinRole(string(teleport.RoleProxy)) {

@@ -146,7 +146,7 @@ type AuditLogConfig struct {
 	// ExternalLog is a pluggable external log service
 	ExternalLog IAuditLog
 
-	// EventC is evnets channel for testing purposes, not used if emtpy
+	// EventC is evnets channel for testing purposes, not used if empty
 	EventsC chan *AuditLogEvent
 }
 

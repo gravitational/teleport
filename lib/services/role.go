@@ -1269,7 +1269,7 @@ type AccessChecker interface {
 	AdjustSessionTTL(ttl time.Duration) time.Duration
 
 	// AdjustClientIdleTimeout adjusts requested idle timeout
-	// to the lowest max allowed timeout, the most restricive
+	// to the lowest max allowed timeout, the most restrictive
 	// option will be picked
 	AdjustClientIdleTimeout(ttl time.Duration) time.Duration
 
