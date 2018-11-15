@@ -15,7 +15,7 @@ limitations under the License.
 */
 import XTerm from 'xterm/dist/xterm';
 import Tty from './tty';
-import {debounce, isNumber} from 'lodash';
+import {debounce, isInteger} from 'lodash';
 import Logger from 'app/lib/logger';
 import { TermEventEnum } from './enums';
 
@@ -102,7 +102,7 @@ class TtyTerminal {
   resize(cols, rows) {
     try {
       // if not defined, use the size of the container
-      if(!isNumber(cols) || !isNumber(rows)){
+      if(!isInteger(cols) || !isInteger(rows)){
         const dim = this._getDimensions();
         cols = dim.cols;
         rows = dim.rows;
@@ -149,6 +149,11 @@ class TtyTerminal {
 
   _requestResize(){
     const { cols, rows } = this._getDimensions();
+    if (!isInteger(cols) || !isInteger(rows)) {
+      logger.info(`unable to calculate terminal dimensions (container might be hidden) ${cols}:${rows}`);
+      return;
+    }
+
     // ensure min size
     const w = cols < 5 ? 5 : cols;
     const h = rows < 5 ? 5 : rows;
