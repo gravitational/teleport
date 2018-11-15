@@ -424,9 +424,11 @@ func onLogin(cf *CLIConf) {
 		return
 	}
 
-	// Update kubernetes config file.
-	if err := kubeclient.UpdateKubeconfig(tc); err != nil {
-		utils.FatalError(err)
+	// If the proxy is advertising that it supports Kubernetes, update kubeconfig.
+	if tc.KubeProxyAddr != "" {
+		if err := kubeclient.UpdateKubeconfig(tc); err != nil {
+			utils.FatalError(err)
+		}
 	}
 
 	// Regular login without -i flag.

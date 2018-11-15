@@ -493,6 +493,7 @@ ul.has-icons, dl.has-icons {
   background-repeat: no-repeat;
   background-position: center center;
   border-radius: 4px;
+  color: rgba(38, 50, 56, 0.87);
   height: 340px;
   margin: 0 0 32px 0; }
   @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
@@ -504,10 +505,10 @@ ul.has-icons, dl.has-icons {
   .text-article pre.prettyprint {
     margin-bottom: 24px; }
   .text-article h1, .text-article h2, .text-article h3, .text-article p, .text-article ul, .text-article ol, .text-article dl {
-    color: #263238;
-    font-family: "Raleway", Helvetica, Arial, "Lucida Grande", sans-serif;
-    font-weight: normal;
-    letter-spacing: 1px;
+    color: rgba(38, 50, 56, 0.87);
+    font-family: "Lato", Helvetica, Arial, "Lucida Grande", sans-serif;
+    font-weight: 400;
+    letter-spacing: 0;
     line-height: 24px;
     margin: 0 0 16px 0;
     outline: none;
@@ -552,7 +553,7 @@ ul.has-icons, dl.has-icons {
     .text-article h1 code, .text-article h2 code, .text-article h3 code, .text-article p code, .text-article ul code, .text-article ol code, .text-article dl code {
       background: rgba(237, 240, 242, 0.56);
       border-radius: 2px;
-      color: #F50057;
+      color: #6200EA;
       padding: 0 8px; }
   .text-article h1 {
     font-size: 38px;
@@ -590,18 +591,18 @@ ul.has-icons, dl.has-icons {
         line-height: 24px;
         margin: 32px 0 8px 0; } }
   .text-article h4, .text-article p {
-    font-size: 16px;
-    font-weight: 500;
-    line-height: 24px;
+    font-size: 18px;
+    line-height: 32px;
     margin-bottom: 24px;
     word-wrap: break-word; }
     @media screen and (max-width: 1200px) {
       .text-article h4, .text-article p {
-        font-size: 15px;
-        margin-bottom: 16px; } }
+        font-size: 16px;
+        margin-bottom: 16px;
+        line-height: 28px; } }
     @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
       .text-article h4, .text-article p {
-        font-size: 14px;
+        font-size: 15px;
         line-height: 24px;
         margin-bottom: 8px; } }
     .text-article h4 strong, .text-article p strong {
@@ -618,17 +619,17 @@ ul.has-icons, dl.has-icons {
     .text-article small a {
       color: #039BE5; }
   .text-article ol, .text-article ul, .text-article dl {
-    font-size: 16px;
-    line-height: 24px;
+    font-size: 18px;
+    line-height: 32px;
     margin: 24px 0 24px 40px; }
     @media screen and (max-width: 1200px) {
       .text-article ol, .text-article ul, .text-article dl {
-        font-size: 14px;
-        line-height: 24px;
+        font-size: 16px;
+        line-height: 28px;
         margin: 24px 0 24px 32px; } }
     @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
       .text-article ol, .text-article ul, .text-article dl {
-        font-size: 14px;
+        font-size: 15px;
         line-height: 24px;
         margin: 24px 0 24px 32px; }
         .text-article ol ul, .text-article ol ol, .text-article ol dl, .text-article ul ul, .text-article ul ol, .text-article ul dl, .text-article dl ul, .text-article dl ol, .text-article dl dl {
@@ -670,18 +671,26 @@ ul.has-icons, dl.has-icons {
     .text-article table tbody th, .text-article table tbody td {
       border-bottom: 1px solid #EDF0F2;
       font-size: 16px;
-      line-height: 24px;
+      font-weight: 500;
+      line-height: 28px;
       min-width: 100px;
       padding: 16px; }
+      @media screen and (max-width: 1200px) {
+        .text-article table tbody th, .text-article table tbody td {
+          font-size: 16px;
+          line-height: 30px;
+          min-width: auto;
+          padding: 8px; } }
       @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
         .text-article table tbody th, .text-article table tbody td {
-          font-size: 14px;
+          font-size: 15px;
+          line-height: 24px;
           min-width: auto;
           padding: 8px; } }
       .text-article table tbody th code, .text-article table tbody td code {
         background: rgba(237, 240, 242, 0.56);
         border-radius: 2px;
-        color: #233591;
+        color: #6200EA;
         padding: 0 8px; }
     .text-article table tbody th {
       background: rgba(237, 240, 242, 0.56);
@@ -695,7 +704,7 @@ ul.has-icons, dl.has-icons {
     border-radius: 4px;
     display: inline-block;
     color: #263238;
-    font-size: 24px;
+    font-size: 18px;
     line-height: 32px;
     margin: 0 0 16px 0;
     padding: 24px;
@@ -703,7 +712,7 @@ ul.has-icons, dl.has-icons {
     @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
       .text-article blockquote {
         display: block;
-        font-size: 16px;
+        font-size: 15px;
         line-height: 24px;
         padding: 8px; } }
     .text-article blockquote pre {
@@ -8680,9 +8689,9 @@ ol.linenums {
 .notice,
 .admonition {
   background: #FFF;
-  border-radius: 2px;
+  border-radius: 4px;
   display: block;
-  margin: 0 0 16px 0;
+  margin: 0 0 24px 0;
   padding: 0; }
   .notice.is-hidden,
   .admonition.is-hidden {
@@ -9999,12 +10008,12 @@ ol.linenums {
 
 .background-primary-fade {
   background-color: #233591;
-  background: linear-gradient(90deg, #233591, #6F81CC);
+  background: linear-gradient(90deg, #233591, #6200EA);
   outline: none; }
   .background-primary-fade .hero-stripe {
-    background-color: #6F81CC; }
+    background-color: #6200EA; }
   .background-primary-fade .top-stripe {
-    fill: #6F81CC; }
+    fill: #6200EA; }
 
 /*
 * Image backgrounds
