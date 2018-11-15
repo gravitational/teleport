@@ -354,7 +354,7 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 		ValidUntil: validUntil,
 		Extensions: extensions,
 		Roles:      roles,
-		Cluster:    profile.SiteName,
+		Cluster:    profile.Name(),
 	}, nil
 }
 

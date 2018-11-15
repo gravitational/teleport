@@ -14,7 +14,7 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
-// UpdateKubeconfig updates kubernetes kube config
+// UpdateKubeconfig adds Teleport configuration to kubeconfig.
 func UpdateKubeconfig(tc *client.TeleportClient) error {
 	config, err := LoadKubeConfig()
 	if err != nil {
@@ -41,7 +41,7 @@ func UpdateKubeconfig(tc *client.TeleportClient) error {
 		ClientKeyData:         creds.Priv,
 	}
 	config.Clusters[clusterName] = &clientcmdapi.Cluster{
-		Server: clusterAddr,
+		Server:                   clusterAddr,
 		CertificateAuthorityData: certAuthorities,
 	}
 
@@ -57,6 +57,33 @@ func UpdateKubeconfig(tc *client.TeleportClient) error {
 	config.Contexts[clusterName] = newContext
 
 	config.CurrentContext = clusterName
+	return SaveKubeConfig(*config)
+}
+
+// RemoveKubeconifg removes Teleport configuration from kubeconfig.
+func RemoveKubeconifg(tc *client.TeleportClient, clusterName string) error {
+	// Load existing kubeconfig from disk.
+	config, err := LoadKubeConfig()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Remove Teleport related AuthInfos, Clusters, and Contexts from kubeconfig.
+	delete(config.AuthInfos, clusterName)
+	delete(config.Clusters, clusterName)
+	delete(config.Contexts, clusterName)
+
+	// Take an element from the list of contexts and make it the current context.
+	if len(config.Contexts) > 0 {
+		var currentContext *clientcmdapi.Context
+		for _, cc := range config.Contexts {
+			currentContext = cc
+			break
+		}
+		config.CurrentContext = currentContext.Cluster
+	}
+
+	// Update kubeconfig on disk.
 	return SaveKubeConfig(*config)
 }
 
