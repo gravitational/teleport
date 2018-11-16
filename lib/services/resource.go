@@ -292,7 +292,7 @@ const MetadataSchema = `{
       "type": "object",
       "additionalProperties": false,
       "patternProperties": {
-         "^[a-zA-Z/.0-9_*]+$":  { "type": "string" }
+         "^[a-zA-Z/.0-9_*-]+$":  { "type": "string" }
       }
     }
   }
