@@ -8359,7 +8359,6 @@ pre.prettyprint, code.prettyprint {
   margin: 0 auto 16px auto;
   overflow: auto;
   padding: 16px;
-  white-space: pre-wrap;
   z-index: 1; }
   @media screen and (max-width: 800px), screen and (max-device-width: 800px), screen and (max-width: 800px) {
     pre.prettyprint, code.prettyprint {
