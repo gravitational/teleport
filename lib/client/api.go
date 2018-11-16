@@ -1461,8 +1461,9 @@ func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, er
 		return nil, trace.Wrap(err)
 	}
 
-	if tc.CheckVersions {
-		if err := utils.CheckVersions(teleport.Version, pr.ServerVersion); err != nil {
+	// If version checking was requested and the server advertises a minimum version.
+	if tc.CheckVersions && pr.MinClientVersion != "" {
+		if err := utils.CheckVersions(teleport.Version, pr.MinClientVersion); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

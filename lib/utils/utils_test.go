@@ -101,23 +101,20 @@ func (s *UtilsSuite) TestMiscFunctions(c *check.C) {
 // TestVersions tests versions compatibility checking
 func (s *UtilsSuite) TestVersions(c *check.C) {
 	testCases := []struct {
-		info   string
-		client string
-		server string
-		err    error
+		info      string
+		client    string
+		minClient string
+		err       error
 	}{
-		{info: "same versions are ok", client: "1.0.0", server: "1.0.0"},
-		{info: "minor diff is ok if server is newer", client: "1.0.0", server: "1.1.0"},
-		{info: "minor diff is ok if server is newer even after one version", client: "1.0.0", server: "1.3.0"},
-		{info: "minor diff is not ok if server is older", client: "1.1.0", server: "1.0.0", err: trace.BadParameter("")},
-		{info: "major diff is not ok", client: "5.1.0", server: "1.0.0", err: trace.BadParameter("")},
-		{info: "major diff is not ok", client: "1.1.0", server: "5.0.0", err: trace.BadParameter("")},
-		{info: "minor diff is ok if server is newer", client: "1.0.0-beta.1", server: "1.1.0-alpha.1"},
-		{info: "older pre-release client is ok", client: "1.0.0-beta.1", server: "1.0.0-beta.12"},
+		{info: "client older than min version", client: "1.0.0", minClient: "1.1.0", err: trace.BadParameter("")},
+		{info: "client same as min version", client: "1.0.0", minClient: "1.0.0"},
+		{info: "client newer than min version", client: "1.1.0", minClient: "1.0.0"},
+		{info: "pre-releases clients are ok", client: "1.1.0-alpha.1", minClient: "1.0.0"},
+		{info: "older pre-releases are no ok", client: "1.1.0-alpha.1", minClient: "1.1.0", err: trace.BadParameter("")},
 	}
 	for i, testCase := range testCases {
 		comment := check.Commentf("test case %v %q", i, testCase.info)
-		err := CheckVersions(testCase.client, testCase.server)
+		err := CheckVersions(testCase.client, testCase.minClient)
 		if testCase.err == nil {
 			c.Assert(err, check.IsNil, comment)
 		} else {
