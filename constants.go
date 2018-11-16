@@ -175,6 +175,9 @@ const (
 	// ComponentTSH is the "tsh" binary.
 	ComponentTSH = "tsh"
 
+	// ComponentKubeClient is the Kubernetes client.
+	ComponentKubeClient = "client:kube"
+
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
 

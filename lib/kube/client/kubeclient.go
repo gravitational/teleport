@@ -3,6 +3,8 @@ package client
 import (
 	"fmt"
 	"os"
+	"runtime"
+	"strings"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/client"
@@ -10,9 +12,14 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
+
+var log = logrus.WithFields(logrus.Fields{
+	trace.Component: teleport.ComponentKubeClient,
+})
 
 // UpdateKubeconfig adds Teleport configuration to kubeconfig.
 func UpdateKubeconfig(tc *client.TeleportClient) error {
@@ -41,7 +48,7 @@ func UpdateKubeconfig(tc *client.TeleportClient) error {
 		ClientKeyData:         creds.Priv,
 	}
 	config.Clusters[clusterName] = &clientcmdapi.Cluster{
-		Server:                   clusterAddr,
+		Server: clusterAddr,
 		CertificateAuthorityData: certAuthorities,
 	}
 
@@ -91,7 +98,9 @@ func RemoveKubeconifg(tc *client.TeleportClient, clusterName string) error {
 // One exception, missing files result in empty configs, not an error.
 func LoadKubeConfig() (*clientcmdapi.Config, error) {
 	filename, err := utils.EnsureLocalPath(
-		os.Getenv(teleport.EnvKubeConfig), teleport.KubeConfigDir, teleport.KubeConfigFile)
+		kubeconfigFromEnv(),
+		teleport.KubeConfigDir,
+		teleport.KubeConfigFile)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -102,6 +111,7 @@ func LoadKubeConfig() (*clientcmdapi.Config, error) {
 	if config == nil {
 		config = clientcmdapi.NewConfig()
 	}
+
 	return config, nil
 }
 
@@ -109,13 +119,40 @@ func LoadKubeConfig() (*clientcmdapi.Config, error) {
 // default location
 func SaveKubeConfig(config clientcmdapi.Config) error {
 	filename, err := utils.EnsureLocalPath(
-		os.Getenv(teleport.EnvKubeConfig), teleport.KubeConfigDir, teleport.KubeConfigFile)
+		kubeconfigFromEnv(),
+		teleport.KubeConfigDir,
+		teleport.KubeConfigFile)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	err = clientcmd.WriteToFile(config, filename)
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
 	return nil
+}
+
+// kubeconfigFromEnv extracts location of kubeconfig from the environment.
+func kubeconfigFromEnv() string {
+	kubeconfig := os.Getenv(teleport.EnvKubeConfig)
+
+	// The KUBECONFIG environment variable is a list. On Windows it's
+	// semicolon-delimited. On Linux and macOS it's colon-delimited.
+	var parts []string
+	switch runtime.GOOS {
+	case teleport.WindowsOS:
+		parts = strings.Split(kubeconfig, ";")
+	default:
+		parts = strings.Split(kubeconfig, ":")
+	}
+
+	// Default behavior of kubectl is to return the first file from list.
+	var configpath string
+	if len(parts) > 0 {
+		configpath = parts[0]
+	}
+	log.Debugf("Found kubeconfig in environment at '%v'.", configpath)
+
+	return configpath
 }
