@@ -81,7 +81,7 @@ spec:
   # in the Web interface
   display: "Login with Okta SSO"
 
-  acs: https://teleprot-proxy.example.com:3080/v1/webapi/saml/acs
+  acs: https://teleport-proxy.example.com:3080/v1/webapi/saml/acs
   attributes_to_roles:
     - {name: "groups", value: "okta-admin", roles: ["admin"]}
     - {name: "groups", value: "okta-dev", roles: ["dev"]}
