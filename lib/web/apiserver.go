@@ -501,9 +501,10 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	}
 
 	return client.PingResponse{
-		Auth:          defaultSettings,
-		Proxy:         h.cfg.ProxySettings,
-		ServerVersion: teleport.Version,
+		Auth:             defaultSettings,
+		Proxy:            h.cfg.ProxySettings,
+		ServerVersion:    teleport.Version,
+		MinClientVersion: teleport.MinClientVersion,
 	}, nil
 }
 
