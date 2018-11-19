@@ -110,6 +110,19 @@ Both variables above are there to deliver the same benefit: it allows Teleport
 administrators to define allowed OS logins via the user database, be it the
 local DB, or an identity manager behind a SAML or OIDC endpoint.
 
+SAML assertion attribute example:
+When you have the following SAML assertion attribute in your response:
+```
+<Attribute Name="http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname">
+        <AttributeValue>firstname.lastname</AttributeValue>
+      </Attribute>
+```
+you can use the following format in your role:
+```
+logins:
+   - '{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}'
+```
+
 #### Node Labels
 
 A user will only be granted access to a node if all of the labels defined in
