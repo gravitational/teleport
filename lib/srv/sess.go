@@ -445,8 +445,10 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		rsess.TerminalParams.W = int(winsize.Width)
-		rsess.TerminalParams.H = int(winsize.Height)
+
+		// ssh.Unmarshal does not support uint16
+		rsess.TerminalParams.W = uint32(winsize.Width)
+		rsess.TerminalParams.H = uint32(winsize.Height)
 	}
 
 	// get the session server where session information lives. if the recording

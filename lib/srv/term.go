@@ -369,7 +369,7 @@ func (t *remoteTerminal) Run() error {
 		t.termType = defaultTerm
 	}
 
-	if err := t.session.RequestPty(t.termType, t.params.H, t.params.W, t.termModes); err != nil {
+	if err := t.session.RequestPty(t.termType, int(t.params.H), int(t.params.W), t.termModes); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -487,7 +487,7 @@ func (t *remoteTerminal) SetTerminalModes(termModes ssh.TerminalModes) {
 	t.termModes = termModes
 }
 
-func (t *remoteTerminal) windowChange(w int, h int) error {
+func (t *remoteTerminal) windowChange(w uint32, h uint32) error {
 	type windowChangeRequest struct {
 		W   uint32
 		H   uint32
@@ -495,10 +495,10 @@ func (t *remoteTerminal) windowChange(w int, h int) error {
 		Hpx uint32
 	}
 	req := windowChangeRequest{
-		W:   uint32(w),
-		H:   uint32(h),
-		Wpx: uint32(w * 8),
-		Hpx: uint32(h * 8),
+		W:   w,
+		H:   h,
+		Wpx: w * 8,
+		Hpx: h * 8,
 	}
 	_, err := t.session.SendRequest(sshutils.WindowChangeRequest, false, ssh.Marshal(&req))
 	return err

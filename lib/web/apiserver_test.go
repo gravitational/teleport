@@ -890,7 +890,7 @@ func (s *WebSuite) TestNewTerminalHandler(c *C) {
 				Login:     validLogin,
 				Server:    validServer,
 				Term: session.TerminalParams{
-					H: -1,
+					H: 0,
 					W: 0,
 				},
 			},
@@ -958,7 +958,7 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 
 	// Resize the second terminal. This should be reflected on the first terminal
 	// because resize events are not sent back to the originator.
-	params, err := session.NewTerminalParamsFromInt(300, 120)
+	params, err := session.NewTerminalParams(300, 120)
 	c.Assert(err, IsNil)
 	data, err := json.Marshal(events.EventFields{
 		events.EventType:      events.ResizeEvent,

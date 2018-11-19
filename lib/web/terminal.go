@@ -376,8 +376,8 @@ func (t *TerminalHandler) windowChange(params *session.TerminalParams) error {
 		sshutils.WindowChangeRequest,
 		false,
 		ssh.Marshal(sshutils.WinChangeReqParams{
-			W: uint32(params.W),
-			H: uint32(params.H),
+			W: params.W,
+			H: params.H,
 		}))
 	if err != nil {
 		t.log.Error(err)

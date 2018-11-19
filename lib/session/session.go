@@ -156,10 +156,12 @@ func (p *Party) String() string {
 	)
 }
 
-// TerminalParams holds the terminal size in a session.
+// TerminalParams holds the terminal size in a session
 type TerminalParams struct {
-	W int `json:"w"`
-	H int `json:"h"`
+	// W is terminal width
+	W uint32 `json:"w"`
+	// H is terminal hight
+	H uint32 `json:"h"`
 }
 
 // UnmarshalTerminalParams takes a serialized string that contains the
@@ -170,18 +172,18 @@ func UnmarshalTerminalParams(s string) (*TerminalParams, error) {
 		return nil, trace.BadParameter("failed to unmarshal: too many parts")
 	}
 
-	w, err := strconv.Atoi(parts[0])
+	w, err := strconv.ParseUint(parts[0], 10, 32)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "invalid width: %v", parts[0])
 	}
-	h, err := strconv.Atoi(parts[1])
+	h, err := strconv.ParseUint(parts[1], 10, 32)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "invalid height: %v", parts[1])
 	}
 
 	return &TerminalParams{
-		W: w,
-		H: h,
+		W: uint32(w),
+		H: uint32(h),
 	}, nil
 }
 
@@ -233,7 +235,7 @@ func (u *UpdateRequest) Check() error {
 		return trace.BadParameter("missing parameter Namespace")
 	}
 	if u.TerminalParams != nil {
-		_, err := NewTerminalParamsFromInt(u.TerminalParams.W, u.TerminalParams.H)
+		_, err := NewTerminalParams(u.TerminalParams.W, u.TerminalParams.H)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -372,7 +374,7 @@ func (s *server) CreateSession(sess Session) error {
 	if sess.LastActive.IsZero() {
 		return trace.BadParameter("last_active can not be empty")
 	}
-	_, err := NewTerminalParamsFromInt(sess.TerminalParams.W, sess.TerminalParams.H)
+	_, err := NewTerminalParams(sess.TerminalParams.W, sess.TerminalParams.H)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -444,26 +446,15 @@ func (d *discardSessionServer) UpdateSession(req UpdateRequest) error {
 	return nil
 }
 
-// NewTerminalParamsFromUint32 returns new terminal parameters from uint32 width and height
-func NewTerminalParamsFromUint32(w uint32, h uint32) (*TerminalParams, error) {
+// NewTerminalParams returns new terminal parameters from int width and height
+func NewTerminalParams(w uint32, h uint32) (*TerminalParams, error) {
 	if w > maxSize || w < minSize {
 		return nil, trace.BadParameter("bad width")
 	}
 	if h > maxSize || h < minSize {
 		return nil, trace.BadParameter("bad height")
 	}
-	return &TerminalParams{W: int(w), H: int(h)}, nil
-}
-
-// NewTerminalParamsFromInt returns new terminal parameters from int width and height
-func NewTerminalParamsFromInt(w int, h int) (*TerminalParams, error) {
-	if w > maxSize || w < minSize {
-		return nil, trace.BadParameter("bad witdth")
-	}
-	if h > maxSize || h < minSize {
-		return nil, trace.BadParameter("bad height")
-	}
-	return &TerminalParams{W: int(w), H: int(h)}, nil
+	return &TerminalParams{W: w, H: h}, nil
 }
 
 const (

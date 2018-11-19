@@ -17,8 +17,9 @@ limitations under the License.
 package srv
 
 import (
-	"golang.org/x/crypto/ssh"
 	"io/ioutil"
+
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/pam"
@@ -133,7 +134,7 @@ func (t *TermHandlers) HandlePTYReq(ch ssh.Channel, req *ssh.Request, ctx *Serve
 		return trace.Wrap(err)
 	}
 
-	params, err := rsession.NewTerminalParamsFromUint32(ptyRequest.W, ptyRequest.H)
+	params, err := rsession.NewTerminalParams(ptyRequest.W, ptyRequest.H)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -235,7 +236,7 @@ func parseWinChange(req *ssh.Request) (*rsession.TerminalParams, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	params, err := rsession.NewTerminalParamsFromUint32(r.W, r.H)
+	params, err := rsession.NewTerminalParams(r.W, r.H)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

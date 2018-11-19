@@ -377,8 +377,8 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		defer recorder.Close()
 		request.onResize = func(resize remotecommand.TerminalSize) {
 			params := session.TerminalParams{
-				W: int(resize.Width),
-				H: int(resize.Height),
+				W: uint32(resize.Width),
+				H: uint32(resize.Height),
 			}
 			// Build the resize event.
 			resizeEvent := events.EventFields{
