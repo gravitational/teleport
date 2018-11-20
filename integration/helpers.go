@@ -1,3 +1,19 @@
+/*
+Copyright 2018 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package integration
 
 import (
@@ -460,11 +476,33 @@ func (i *TeleInstance) GenerateConfig(trustedSecrets []*InstanceSecrets, tconf *
 	tconf.Proxy.ReverseTunnelListenAddr.Addr = i.Secrets.ListenAddr
 	tconf.HostUUID = i.Secrets.GetIdentity().ID.HostUUID
 	tconf.SSH.Addr.Addr = net.JoinHostPort(i.Hostname, i.GetPortSSH())
+	tconf.SSH.PublicAddrs = []utils.NetAddr{
+		utils.NetAddr{
+			AddrNetwork: "tcp",
+			Addr:        Loopback,
+		},
+		utils.NetAddr{
+			AddrNetwork: "tcp",
+			Addr:        Host,
+		},
+	}
 	tconf.Auth.SSHAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortAuth())
 	tconf.Proxy.SSHAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortProxy())
 	tconf.Proxy.WebAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortWeb())
-	tconf.Proxy.PublicAddrs = []utils.NetAddr{{Addr: i.Hostname}}
-
+	tconf.Proxy.PublicAddrs = []utils.NetAddr{
+		utils.NetAddr{
+			AddrNetwork: "tcp",
+			Addr:        i.Hostname,
+		},
+		utils.NetAddr{
+			AddrNetwork: "tcp",
+			Addr:        Loopback,
+		},
+		utils.NetAddr{
+			AddrNetwork: "tcp",
+			Addr:        Host,
+		},
+	}
 	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.SSHAddr)
 	tconf.Auth.StorageConfig = backend.Config{
 		Type:   lite.GetName(),
@@ -572,6 +610,16 @@ func (i *TeleInstance) StartNode(tconf *service.Config) (*service.TeleportProces
 		Enabled:   true,
 		RecentTTL: &ttl,
 	}
+	tconf.SSH.PublicAddrs = []utils.NetAddr{
+		utils.NetAddr{
+			AddrNetwork: "tcp",
+			Addr:        Loopback,
+		},
+		utils.NetAddr{
+			AddrNetwork: "tcp",
+			Addr:        Host,
+		},
+	}
 	tconf.Auth.Enabled = false
 	tconf.Proxy.Enabled = false
 
@@ -633,6 +681,16 @@ func (i *TeleInstance) StartNodeAndProxy(name string, sshPort, proxyWebPort, pro
 
 	tconf.SSH.Enabled = true
 	tconf.SSH.Addr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", sshPort))
+	tconf.SSH.PublicAddrs = []utils.NetAddr{
+		utils.NetAddr{
+			AddrNetwork: "tcp",
+			Addr:        Loopback,
+		},
+		utils.NetAddr{
+			AddrNetwork: "tcp",
+			Addr:        Host,
+		},
+	}
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
@@ -696,6 +754,16 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) error {
 
 	tconf.Proxy.Enabled = true
 	tconf.Proxy.SSHAddr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", cfg.SSHPort))
+	tconf.Proxy.PublicAddrs = []utils.NetAddr{
+		utils.NetAddr{
+			AddrNetwork: "tcp",
+			Addr:        Loopback,
+		},
+		utils.NetAddr{
+			AddrNetwork: "tcp",
+			Addr:        Host,
+		},
+	}
 	tconf.Proxy.ReverseTunnelListenAddr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", cfg.ReverseTunnelPort))
 	tconf.Proxy.WebAddr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", cfg.WebPort))
 	tconf.Proxy.DisableReverseTunnel = false

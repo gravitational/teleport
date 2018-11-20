@@ -284,6 +284,8 @@ func (t *proxySubsys) proxyToHost(
 		}
 	}
 
+	// Resolve the IP address to dial to because the hostname may not be
+	// DNS resolvable.
 	var serverAddr string
 	if server != nil {
 		serverAddr = server.GetAddr()
@@ -295,13 +297,20 @@ func (t *proxySubsys) proxyToHost(
 		t.log.Warnf("server lookup failed: using default=%v", serverAddr)
 	}
 
-	// dial by IP address because the hostname may not be DNS resolvable
-	// pass the agent along to the site (if the proxy is in recording mode, this
-	// agent will be used for user auth)
-	conn, err := site.Dial(
-		remoteAddr,
-		&utils.NetAddr{Addr: serverAddr, AddrNetwork: "tcp"},
-		t.agent)
+	// Pass the agent along to the site. If the proxy is in recording mode, this
+	// agent is used to perform user authentication. Pass the DNS name to the
+	// dialer as well so the forwarding proxy can generate a host certificate
+	// with the correct hostname).
+	toAddr := &utils.NetAddr{
+		AddrNetwork: "tcp",
+		Addr:        serverAddr,
+	}
+	conn, err := site.Dial(reversetunnel.DialParams{
+		From:      remoteAddr,
+		To:        toAddr,
+		UserAgent: t.agent,
+		Address:   t.host,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}

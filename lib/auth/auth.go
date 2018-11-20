@@ -771,6 +771,10 @@ type GenerateServerKeysRequest struct {
 	// if present will be signed as a return value
 	// otherwise, new public/private key pair will be generated
 	PublicSSHKey []byte `json:"public_ssh_key"`
+	// RemoteAddr is the IP address of the remote host requesting a host
+	// certificate. RemoteAddr is used to replace 0.0.0.0 in the list of
+	// additional principals.
+	RemoteAddr string `json:"remote_addr"`
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -790,6 +794,14 @@ func (s *AuthServer) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedK
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// If the request contains 0.0.0.0, this implies an advertise IP was not
+	// specified on the node. Try and guess what the address by replacing 0.0.0.0
+	// with the RemoteAddr as known to the Auth Server.
+	req.AdditionalPrincipals = utils.ReplaceInSlice(
+		req.AdditionalPrincipals,
+		defaults.AnyAddress,
+		req.RemoteAddr)
 
 	var cryptoPubKey crypto.PublicKey
 	var privateKeyPEM, pubSSHKey []byte
@@ -846,7 +858,7 @@ func (s *AuthServer) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedK
 		NodeName:            req.NodeName,
 		ClusterName:         s.clusterName.GetClusterName(),
 		Roles:               req.Roles,
-		Principals:          append([]string{}, req.AdditionalPrincipals...),
+		Principals:          req.AdditionalPrincipals,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -948,6 +960,9 @@ type RegisterUsingTokenRequest struct {
 	// if present will be signed as a return value
 	// otherwise, new public/private key pair will be generated
 	PublicSSHKey []byte `json:"public_ssh_key"`
+	// RemoteAddr is the remote address of the host requesting a host certificate.
+	// It is used to replace 0.0.0.0 in the list of additional principals.
+	RemoteAddr string `json:"remote_addr"`
 }
 
 // CheckAndSetDefaults checks for errors and sets defaults
@@ -999,6 +1014,7 @@ func (s *AuthServer) RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedK
 		AdditionalPrincipals: req.AdditionalPrincipals,
 		PublicTLSKey:         req.PublicTLSKey,
 		PublicSSHKey:         req.PublicSSHKey,
+		RemoteAddr:           req.RemoteAddr,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

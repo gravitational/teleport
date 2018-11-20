@@ -294,7 +294,7 @@ func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector
 		// Auth service is on the same host, no need to go though the invitation
 		// procedure.
 		process.Debugf("This server has local Auth server started, using it to add role to the cluster.")
-		identity, err = auth.LocalRegister(id, process.getLocalAuth(), additionalPrincipals)
+		identity, err = auth.LocalRegister(id, process.getLocalAuth(), additionalPrincipals, process.Config.AdvertiseIP)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -562,6 +562,12 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	additionalPrincipals = utils.ReplaceInSlice(
+		additionalPrincipals,
+		defaults.AnyAddress,
+		defaults.Localhost,
+	)
+
 	principalsChanged := len(additionalPrincipals) != 0 && !conn.ServerIdentity.HasPrincipals(additionalPrincipals)
 
 	if local.Matches(remote) && !principalsChanged {

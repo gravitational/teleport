@@ -1517,6 +1517,18 @@ func (process *TeleportProcess) getAdditionalPrincipals(role teleport.Role) ([]s
 		addrs = process.Config.Auth.PublicAddrs
 	case teleport.RoleNode:
 		addrs = process.Config.SSH.PublicAddrs
+		// If advertise IP is set, add it to the list of principals. Otherwise
+		// add in the default (0.0.0.0) which will be replaced by the Auth Server
+		// when a host certificate is issued.
+		if process.Config.AdvertiseIP != "" {
+			advertiseIP, err := utils.ParseAddr(process.Config.AdvertiseIP)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			addrs = append(addrs, *advertiseIP)
+		} else {
+			addrs = append(addrs, process.Config.SSH.Addr)
+		}
 	}
 	for _, addr := range addrs {
 		host, err := utils.Host(addr.Addr)

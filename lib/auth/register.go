@@ -22,25 +22,40 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 )
 
-// LocalRegister is used to generate host keys when a node or proxy is running within the same process
-// as the auth server. This method does not need to use provisioning tokens.
-func LocalRegister(id IdentityID, authServer *AuthServer, additionalPrincipals []string) (*Identity, error) {
+// LocalRegister is used to generate host keys when a node or proxy is running
+// within the same process as the Auth Server and as such, does not need to
+// use provisioning tokens.
+func LocalRegister(id IdentityID, authServer *AuthServer, additionalPrincipals []string, remoteAddr string) (*Identity, error) {
+	// If local registration is happening and no remote address was passed in
+	// (which means no advertise IP was set), use localhost.
+	if remoteAddr == "" {
+		remoteAddr = defaults.Localhost
+	}
+
 	keys, err := authServer.GenerateServerKeys(GenerateServerKeysRequest{
 		HostID:               id.HostUUID,
 		NodeName:             id.NodeName,
 		Roles:                teleport.Roles{id.Role},
 		AdditionalPrincipals: additionalPrincipals,
+		RemoteAddr:           remoteAddr,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return ReadIdentityFromKeyPair(keys.Key, keys.Cert, keys.TLSCert, keys.TLSCACerts)
+
+	identity, err := ReadIdentityFromKeyPair(keys.Key, keys.Cert, keys.TLSCert, keys.TLSCACerts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return identity, nil
 }
 
 // RegisterParams specifies parameters

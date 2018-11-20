@@ -180,7 +180,7 @@ func (k *Keygen) GenerateHostCert(c services.HostCertParams) ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// build a valid list of principals from the HostID and NodeName and then
+	// Build a valid list of principals from the HostID and NodeName and then
 	// add in any additional principals passed in.
 	principals := BuildPrincipals(c.HostID, c.NodeName, c.ClusterName, c.Roles)
 	principals = append(principals, c.Principals...)
@@ -188,6 +188,7 @@ func (k *Keygen) GenerateHostCert(c services.HostCertParams) ([]byte, error) {
 		return nil, trace.BadParameter("no principals provided: %v, %v, %v",
 			c.HostID, c.NodeName, c.Principals)
 	}
+	principals = utils.Deduplicate(principals)
 
 	// create certificate
 	validBefore := uint64(ssh.CertTimeInfinity)
@@ -210,6 +211,8 @@ func (k *Keygen) GenerateHostCert(c services.HostCertParams) ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	log.Debugf("Generated SSH host certificate for role %v with principals: %v.",
+		c.Roles, principals)
 	return ssh.MarshalAuthorizedKey(cert), nil
 }
 

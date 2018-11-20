@@ -126,7 +126,7 @@ func (a *NetAddr) UnmarshalYAML(unmarshal func(interface{}) error) error {
 func (a *NetAddr) Set(s string) error {
 	v, err := ParseAddr(s)
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 	a.Addr = v.Addr
 	a.AddrNetwork = v.AddrNetwork
