@@ -267,7 +267,7 @@ func (c *Client) Delete(u string) (*roundtrip.Response, error) {
 }
 
 // ProcessKubeCSR processes CSR request against Kubernetes CA, returns
-// signed certificate if sucessfull.
+// signed certificate if sucessful.
 func (c *Client) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -1038,7 +1038,7 @@ func (c *Client) CreateWebSession(user string) (services.WebSession, error) {
 }
 
 // AuthenticateWebUser authenticates web user, creates and  returns web session
-// in case if authentication is successfull
+// in case if authentication is successful
 func (c *Client) AuthenticateWebUser(req AuthenticateUserRequest) (services.WebSession, error) {
 	out, err := c.PostJSON(
 		c.Endpoint("users", req.Username, "web", "authenticate"),
@@ -2309,7 +2309,7 @@ type ClientI interface {
 	RotateExternalCertAuthority(ca services.CertAuthority) error
 
 	// ValidateTrustedCluster validates trusted cluster token with
-	// main cluster, in case if validation is successfull, main cluster
+	// main cluster, in case if validation is successful, main cluster
 	// adds remote cluster
 	ValidateTrustedCluster(*ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error)
 
@@ -2323,13 +2323,13 @@ type ClientI interface {
 	// by the host certificate authority) for a node
 	GenerateServerKeys(GenerateServerKeysRequest) (*PackedKeys, error)
 	// AuthenticateWebUser authenticates web user, creates and  returns web session
-	// in case if authentication is successfull
+	// in case if authentication is successful
 	AuthenticateWebUser(req AuthenticateUserRequest) (services.WebSession, error)
 	// AuthenticateSSHUser authenticates SSH console user, creates and  returns a pair of signed TLS and SSH
 	// short lived certificates as a result
 	AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginResponse, error)
 
 	// ProcessKubeCSR processes CSR request against Kubernetes CA, returns
-	// signed certificate if sucessfull.
+	// signed certificate if sucessful.
 	ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error)
 }

@@ -187,7 +187,7 @@ func Run(args []string, underTest bool) {
 	app.Flag("namespace", "Namespace of the cluster").Default(defaults.Namespace).Hidden().StringVar(&cf.Namespace)
 	app.Flag("gops", "Start gops endpoint on a given address").Hidden().BoolVar(&cf.Gops)
 	app.Flag("gops-addr", "Specify gops addr to listen on").Hidden().StringVar(&cf.GopsAddr)
-	app.Flag("skip-version-check", "Skip version checking between server and client.").Hidden().BoolVar(&cf.SkipVersionCheck)
+	app.Flag("skip-version-check", "Skip version checking between server and client.").BoolVar(&cf.SkipVersionCheck)
 	debugMode := app.Flag("debug", "Verbose logging to stdout").Short('d').Bool()
 	app.HelpFlag.Short('h')
 	ver := app.Command("version", "Print the version")
@@ -424,9 +424,11 @@ func onLogin(cf *CLIConf) {
 		return
 	}
 
-	// Update kubernetes config file.
-	if err := kubeclient.UpdateKubeconfig(tc); err != nil {
-		utils.FatalError(err)
+	// If the proxy is advertising that it supports Kubernetes, update kubeconfig.
+	if tc.KubeProxyAddr != "" {
+		if err := kubeclient.UpdateKubeconfig(tc); err != nil {
+			utils.FatalError(err)
+		}
 	}
 
 	// Regular login without -i flag.

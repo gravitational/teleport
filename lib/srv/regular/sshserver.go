@@ -705,7 +705,7 @@ func (s *Server) HandleNewChan(nc net.Conn, sconn *ssh.ServerConn, nch ssh.NewCh
 
 	channelType := nch.ChannelType()
 	if s.proxyMode {
-		// Channels of type "session" handle requests that are invovled in running
+		// Channels of type "session" handle requests that are involved in running
 		// commands on a server. In the case of proxy mode subsystem and agent
 		// forwarding requests occur over the "session" channel.
 		if channelType == "session" {
@@ -723,7 +723,7 @@ func (s *Server) HandleNewChan(nc net.Conn, sconn *ssh.ServerConn, nch ssh.NewCh
 	}
 
 	switch channelType {
-	// Channels of type "session" handle requests that are invovled in running
+	// Channels of type "session" handle requests that are involved in running
 	// commands on a server, subsystem requests, and agent forwarding.
 	case "session":
 		ch, requests, err := nch.Accept()

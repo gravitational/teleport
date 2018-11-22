@@ -57,7 +57,7 @@ Print event specifies session output - PTY io recorded by Teleport node or Proxy
 based on the configuration.
 
 * "offset" is an offset in bytes from a start of a session
-* "ms" is a delay in milliseconds from the last event occured
+* "ms" is a delay in milliseconds from the last event occurred
 * "ci" is a chunk index ordering only print events
 * "ei" is an event index ordering events from the first one
 
@@ -70,7 +70,7 @@ Client streaming session logs
 Session related logs are delivered in order defined by clients.
 Every event is ordered and has a session-local index, every next event has index incremented.
 
-Client deliveres session events in batches, where every event in the batch
+Client delivers session events in batches, where every event in the batch
 is guaranteed to be in continuous order (e.g. no cases with events
 delivered in a single batch to have missing event or chunk index).
 

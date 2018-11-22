@@ -62,7 +62,7 @@ func (s *SOCKSSuite) TestHandshake(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Read in what was written on the connection. With the debug server it's
-	// always the addres requested.
+	// always the address requested.
 	buf := make([]byte, len(remoteAddr))
 	_, err = io.ReadFull(conn, buf)
 	c.Assert(err, check.IsNil)

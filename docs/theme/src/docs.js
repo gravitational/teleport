@@ -11074,6 +11074,13 @@ var handleNavScroll = function handleNavScroll() {
     linkMap[href] = $value;
   });
 
+  $targets.each(function (i, heading) {
+    var $heading = (0, _jquery2.default)(heading);
+    var id = $heading.attr('id');
+
+    $heading.append("<a href=\"#" + id + "\"></a>");
+  });
+
   function hasMenuItem(id) {
     return !!linkMap[id];
   }

@@ -236,7 +236,7 @@ type proxyResponse struct {
 }
 
 // isRecordingProxy returns true if the proxy is in recording mode. Note, this
-// function can only be called after authentication has occured and should be
+// function can only be called after authentication has occurred and should be
 // called before the first session is created.
 func (proxy *ProxyClient) isRecordingProxy() (bool, error) {
 	responseCh := make(chan proxyResponse)

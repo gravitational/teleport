@@ -353,7 +353,7 @@ func (a *AuthServer) updateRemoteClusterStatus(remoteCluster services.RemoteClus
 	return nil
 }
 
-// GetRemoteClusters returns remote clusters with udpated statuses
+// GetRemoteClusters returns remote clusters with updated statuses
 func (a *AuthServer) GetRemoteClusters(opts ...services.MarshalOption) ([]services.RemoteCluster, error) {
 	// To make sure remote cluster exists - to protect against random
 	// clusterName requests (e.g. when clusterName is set to local cluster name)

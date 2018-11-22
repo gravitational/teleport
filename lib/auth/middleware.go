@@ -89,7 +89,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	// authMiddleware authenticates request assuming TLS client authentication
-	// adds authentication infromation to the context
+	// adds authentication information to the context
 	// and passes it to the API server
 	authMiddleware := &AuthMiddleware{
 		AccessPoint:   cfg.AccessPoint,
@@ -245,7 +245,7 @@ func (a *AuthMiddleware) GetUser(r *http.Request) (interface{}, error) {
 	}
 	// code below expects user or service from local cluster, to distinguish between
 	// interactive users and services (e.g. proxies), the code below
-	// checks for presense of system roles issued in certificate identity
+	// checks for presence of system roles issued in certificate identity
 	systemRole := findSystemRole(identity.Groups)
 	// in case if the system role is present, assume this is a service
 	// agent, e.g. Proxy, connecting to the cluster

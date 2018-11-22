@@ -774,7 +774,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:278800b0840633806bd96f9546a7930b25752e9367ab4f4745194db1ed21984f"
+  digest = "1:d53159fbd36af90d2d9a48a68342e09e944a6171a6389be69fd4277d02781994"
   name = "golang.org/x/crypto"
   packages = [
     "bcrypt",
@@ -783,6 +783,7 @@
     "ed25519",
     "ed25519/internal/edwards25519",
     "internal/chacha20",
+    "internal/subtle",
     "nacl/secretbox",
     "poly1305",
     "salsa20/salsa",
@@ -791,7 +792,7 @@
     "ssh/terminal",
   ]
   pruneopts = "NUT"
-  revision = "b2aa35443fbc700ab74c586ae79b81c171851023"
+  revision = "3d3f9f413869b949e48070b5bc593aa22cc2b8f2"
 
 [[projects]]
   branch = "master"

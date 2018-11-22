@@ -494,10 +494,6 @@ func (t *TerminalHandler) read(out []byte, ws *websocket.Conn) (n int, err error
 		return 0, trace.Wrap(err)
 	}
 
-	if len(data) < 1 {
-		return 0, trace.BadParameter("frame must have length of at least 1")
-	}
-
 	switch string(envelope.GetType()) {
 	case defaults.WebsocketRaw:
 		n := copy(out, data)
