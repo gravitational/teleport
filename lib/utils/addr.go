@@ -350,19 +350,22 @@ func guessHostIP(addrs []net.Addr) (ip net.IP) {
 		}
 		ips = append(ips, ipAddr)
 	}
+
 	for i := range ips {
-		switch ips[i][12] {
-		// our first pick would be "10.x.x.x" IPs:
-		case 10:
-			return ips[i]
-			// our 2nd pick would be "192.x.x.x"
-		case 192:
+		first := &net.IPNet{IP: net.IPv4(10, 0, 0, 0), Mask: net.CIDRMask(8, 32)}
+		second := &net.IPNet{IP: net.IPv4(192, 168, 0, 0), Mask: net.CIDRMask(16, 32)}
+		third := &net.IPNet{IP: net.IPv4(172, 16, 0, 0), Mask: net.CIDRMask(12, 32)}
+
+		// our first pick would be "10.0.0.0/8"
+		if first.Contains(ips[i]) {
 			ip = ips[i]
-			// our 3rd pick would be "172.x.x.x"
-		case 172:
-			if ip == nil {
-				ip = ips[i]
-			}
+			break
+			// our 2nd pick would be "192.168.0.0/16"
+		} else if second.Contains(ips[i]) {
+			ip = ips[i]
+			// our 3rd pick would be "172.16.0.0/12"
+		} else if third.Contains(ips[i]) && !second.Contains(ip) {
+			ip = ips[i]
 		}
 	}
 	if ip == nil {

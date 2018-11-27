@@ -215,7 +215,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 			in: `{
 		      "kind": "role",
 		      "version": "v3",
-		      "metadata": {"name": "name1"},
+		      "metadata": {"name": "name1", "labels": {"a-b": "c"}},
 		      "spec": {
                  "options": {
                    "cert_format": "standard",
@@ -225,7 +225,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
                    "disconnect_expired_cert": "yes"
                  },
                  "allow": {
-                   "node_labels": {"a": "b"},
+                   "node_labels": {"a": "b", "c-d": "e"},
                    "namespaces": ["default"],
                    "rules": [
                      {
@@ -249,6 +249,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 				Metadata: Metadata{
 					Name:      "name1",
 					Namespace: defaults.Namespace,
+					Labels:    map[string]string{"a-b": "c"},
 				},
 				Spec: RoleSpecV3{
 					Options: RoleOptions{
@@ -259,7 +260,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 						DisconnectExpiredCert: NewBool(true),
 					},
 					Allow: RoleConditions{
-						NodeLabels: Labels{"a": []string{"b"}},
+						NodeLabels: Labels{"a": []string{"b"}, "c-d": []string{"e"}},
 						Namespaces: []string{"default"},
 						Rules: []Rule{
 							Rule{
@@ -582,7 +583,7 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 			},
 		},
 		{
-			name: "node_labels with emtpy list value matches nothing",
+			name: "node_labels with empty list value matches nothing",
 			roles: []RoleV3{
 				RoleV3{
 					Metadata: Metadata{

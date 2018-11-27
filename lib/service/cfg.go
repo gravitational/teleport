@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/ghodss/yaml"
+	"github.com/jonboulle/clockwork"
 )
 
 // Config structure is used to initialize _all_ services Teleporot can run.
@@ -161,6 +162,9 @@ type Config struct {
 
 	// CAPin is the SKPI hash of the CA used to verify the Auth Server.
 	CAPin string
+
+	// Clock is used to control time in tests.
+	Clock clockwork.Clock
 }
 
 // ApplyToken assigns a given token to all internal services but only if token

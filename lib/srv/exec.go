@@ -472,7 +472,7 @@ func (r *remoteExec) collectRemoteStatus(err error) (*ExecResult, error) {
 		}, err
 	}
 
-	// if we don't know what type of error occured, return a generic 255 command
+	// if we don't know what type of error occurred, return a generic 255 command
 	// failed code
 	return &ExecResult{
 		Code:    teleport.RemoteCommandFailure,
@@ -588,7 +588,7 @@ func parseSecureCopy(path string) (string, string, bool, error) {
 		return "", "", false, trace.BadParameter("no executable found")
 	}
 
-	// Look for the -t flag, it indicates that an upload occured. The other
+	// Look for the -t flag, it indicates that an upload occurred. The other
 	// flags do no matter for now.
 	action := events.SCPDownload
 	if utils.SliceContainsStr(parts, "-t") {

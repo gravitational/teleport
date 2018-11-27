@@ -69,6 +69,10 @@ ignored = ["github.com/Sirupsen/logrus"]
   name = "github.com/gokyle/hotp"
 
 [[constraint]]
+  name = "golang.org/x/crypto"
+  branch = "master"
+
+[[constraint]]
   branch = "master"
   name = "golang.org/x/net"
 

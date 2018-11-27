@@ -8,9 +8,6 @@
 cd $(dirname $0)
 rm -f latest.yaml
 
-# build css files
-sass -C --precision 9 --sourcemap=none theme/src/index.scss:theme/css/teleport-bundle.css
-
 # will be set to the latest version after the loop below
 doc_ver=""
 
@@ -29,7 +26,7 @@ ln -fs $conf_file latest.yaml
 # visitors to the latest verion of QuickStart
 cp index.html ../build/docs/index.html
 
-# create a symlink to the latest 
+# create a symlink to the latest
 cd ../build/docs
 rm -f latest
 ln -s $doc_ver latest

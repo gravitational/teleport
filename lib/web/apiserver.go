@@ -166,7 +166,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.POST("/webapi/ssh/certs", httplib.MakeHandler(h.createSSHCert))
 
 	// list available sites
-	h.GET("/webapi/sites", h.WithAuth(h.getSites))
+	h.GET("/webapi/sites", h.WithAuth(h.getClusters))
 
 	// Site specific API
 
@@ -501,9 +501,10 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	}
 
 	return client.PingResponse{
-		Auth:          defaultSettings,
-		Proxy:         h.cfg.ProxySettings,
-		ServerVersion: teleport.Version,
+		Auth:             defaultSettings,
+		Proxy:            h.cfg.ProxySettings,
+		ServerVersion:    teleport.Version,
+		MinClientVersion: teleport.MinClientVersion,
 	}, nil
 }
 
@@ -1266,29 +1267,7 @@ func (h *Handler) createNewU2FUser(w http.ResponseWriter, r *http.Request, p htt
 	return NewSessionResponse(ctx)
 }
 
-type getSitesResponse struct {
-	Sites []site `json:"sites"`
-}
-
-type site struct {
-	Name          string    `json:"name"`
-	LastConnected time.Time `json:"last_connected"`
-	Status        string    `json:"status"`
-}
-
-func convertSites(rs []reversetunnel.RemoteSite) []site {
-	out := make([]site, len(rs))
-	for i := range rs {
-		out[i] = site{
-			Name:          rs[i].GetName(),
-			LastConnected: rs[i].GetLastConnected(),
-			Status:        rs[i].GetStatus(),
-		}
-	}
-	return out
-}
-
-// getSites returns a list of sites
+// getClusters returns a list of clusters
 //
 // GET /v1/webapi/sites
 //
@@ -1296,10 +1275,16 @@ func convertSites(rs []reversetunnel.RemoteSite) []site {
 //
 // {"sites": {"name": "localhost", "last_connected": "RFC3339 time", "status": "active"}}
 //
-func (m *Handler) getSites(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext) (interface{}, error) {
-	return getSitesResponse{
-		Sites: convertSites(m.cfg.Proxy.GetSites()),
-	}, nil
+func (h *Handler) getClusters(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext) (interface{}, error) {
+	resource, err := h.cfg.ProxyClient.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response := ui.NewAvailableClusters(resource.GetClusterName(),
+		h.cfg.Proxy.GetSites())
+
+	return response, nil
 }
 
 type getSiteNamespacesResponse struct {
@@ -1866,11 +1851,13 @@ func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 		}
 		siteName := p.ByName("site")
 		if siteName == currentSiteShortcut {
-			sites := h.cfg.Proxy.GetSites()
-			if len(sites) < 1 {
-				return nil, trace.NotFound("no active sites")
+			res, err := h.cfg.ProxyClient.GetClusterName()
+			if err != nil {
+				log.Warn(err)
+				return nil, trace.Wrap(err)
 			}
-			siteName = sites[0].GetName()
+
+			siteName = res.GetClusterName()
 		}
 		site, err := h.cfg.Proxy.GetSite(siteName)
 		if err != nil {

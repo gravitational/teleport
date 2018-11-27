@@ -409,7 +409,7 @@ func removeDuplicates(elements []record) []record {
 	return result
 }
 
-// GetItems is a function that retuns keys in batch
+// GetItems is a function that returns keys in batch
 func (b *DynamoDBBackend) GetItems(path []string, opts ...backend.OpOption) ([]backend.Item, error) {
 	fullPath := b.fullPath(path...)
 	records, err := b.getRecords(fullPath)

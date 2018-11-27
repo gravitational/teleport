@@ -1030,7 +1030,7 @@ func (s *SrvSuite) TestGlobalRequestRecordingProxy(c *C) {
 	c.Assert(err, IsNil)
 
 	// send the request again, we have cluster config and when we parse the
-	// response, it should be false because recording is occuring at the node.
+	// response, it should be false because recording is occurring at the node.
 	ok, responseBytes, err := s.clt.SendRequest(teleport.RecordingProxyReqType, true, nil)
 	c.Assert(err, IsNil)
 	c.Assert(ok, Equals, true)

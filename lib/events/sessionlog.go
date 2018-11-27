@@ -300,7 +300,7 @@ func (sl *DiskSessionLogger) PostSessionSlice(slice SessionSlice) error {
 	return sl.flush()
 }
 
-// EventFromChunk retuns event converted from session chunk
+// EventFromChunk returns event converted from session chunk
 func EventFromChunk(sessionID string, chunk *SessionChunk) (EventFields, error) {
 	var fields EventFields
 	eventStart := time.Unix(0, chunk.Time).In(time.UTC).Round(time.Millisecond)

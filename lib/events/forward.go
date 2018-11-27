@@ -128,7 +128,7 @@ func (l *Forwarder) EmitAuditEvent(eventType string, fields EventFields) error {
 
 // PostSessionSlice sends chunks of recorded session to the event log
 func (l *Forwarder) PostSessionSlice(slice SessionSlice) error {
-	// setup slice sets slice verison, properly numerates
+	// setup slice sets slice version, properly numerates
 	// all chunks and
 	chunksWithoutPrintEvents, err := l.setupSlice(&slice)
 	if err != nil {

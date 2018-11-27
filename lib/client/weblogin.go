@@ -252,7 +252,7 @@ func SSHAgentSSOLogin(ctx context.Context, proxyAddr, connectorID string, pubKey
 		if err == nil {
 			execCmd = exec.Command(path, "url.dll,FileProtocolHandler", redirURL)
 		}
-	// Linux or any other operating sytem.
+	// Linux or any other operating system.
 	default:
 		path, err := exec.LookPath(teleport.OpenBrowserLinux)
 		if err == nil {
@@ -285,8 +285,8 @@ func SSHAgentSSOLogin(ctx context.Context, proxyAddr, connectorID string, pubKey
 	}
 }
 
-// PingResponse contains data about the Teleport server like supported authentication
-// types, server version, etc.
+// PingResponse contains data about the Teleport server like supported
+// authentication types, server version, etc.
 type PingResponse struct {
 	// Auth contains the forms of authentication the auth server supports.
 	Auth AuthenticationSettings `json:"auth"`
@@ -294,6 +294,8 @@ type PingResponse struct {
 	Proxy ProxySettings `json:"proxy"`
 	// ServerVersion is the version of Teleport that is running.
 	ServerVersion string `json:"server_version"`
+	// MinClientVersion is the minimum client version required by the server.
+	MinClientVersion string `json:"min_client_version"`
 }
 
 // ProxySettings contains basic information about proxy settings

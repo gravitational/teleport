@@ -12028,15 +12028,10 @@ webpackJsonp([0],[
 
 	function fetchSites() {
 	  return _api2.default.get(_config2.default.api.sitesBasePath).then(function (json) {
-	    var masterSiteId = null;
-	    var sites = json.sites;
-	    if (sites) {
-	      masterSiteId = sites[0].name;
-	    }
-
-	    _reactor2.default.dispatch(_actionTypes2.RECEIVE_CLUSTERS, sites);
-
-	    return masterSiteId;
+	    var trusted = json.trusted || [];
+	    var allClusters = [json.current].concat(trusted);
+	    _reactor2.default.dispatch(_actionTypes2.RECEIVE_CLUSTERS, allClusters);
+	    return json.current.name;
 	  }).fail(function (err) {
 	    logger.error('fetchSites', err);
 	  });
@@ -15011,7 +15006,7 @@ webpackJsonp([0],[
 	  TtyTerminal.prototype.resize = function resize(cols, rows) {
 	    try {
 	      // if not defined, use the size of the container
-	      if (!(0, _lodash.isNumber)(cols) || !(0, _lodash.isNumber)(rows)) {
+	      if (!(0, _lodash.isInteger)(cols) || !(0, _lodash.isInteger)(rows)) {
 	        var dim = this._getDimensions();
 	        cols = dim.cols;
 	        rows = dim.rows;
@@ -15061,9 +15056,13 @@ webpackJsonp([0],[
 	    var _getDimensions2 = this._getDimensions(),
 	        cols = _getDimensions2.cols,
 	        rows = _getDimensions2.rows;
+
+	    if (!(0, _lodash.isInteger)(cols) || !(0, _lodash.isInteger)(rows)) {
+	      logger.info('unable to calculate terminal dimensions (container might be hidden) ' + cols + ':' + rows);
+	      return;
+	    }
+
 	    // ensure min size
-
-
 	    var w = cols < 5 ? 5 : cols;
 	    var h = rows < 5 ? 5 : rows;
 
@@ -15072,30 +15071,20 @@ webpackJsonp([0],[
 	  };
 
 	  TtyTerminal.prototype._getDimensions = function _getDimensions() {
-	    var parentElementStyle = window.getComputedStyle(this.term.element.parentElement);
-	    var parentElementHeight = parseInt(parentElementStyle.getPropertyValue('height'));
-	    var parentElementWidth = Math.max(0, parseInt(parentElementStyle.getPropertyValue('width')) /*- 17*/);
-	    var elementStyle = window.getComputedStyle(this.term.element);
-	    var elementPaddingVer = parseInt(elementStyle.getPropertyValue('padding-top')) + parseInt(elementStyle.getPropertyValue('padding-bottom'));
-	    var elementPaddingHor = parseInt(elementStyle.getPropertyValue('padding-right')) + parseInt(elementStyle.getPropertyValue('padding-left'));
-	    var availableHeight = parentElementHeight - elementPaddingVer;
-	    var availableWidth = parentElementWidth - elementPaddingHor;
-	    var subjectRow = this.term.rowContainer.firstElementChild;
-	    var contentBuffer = subjectRow.innerHTML;
+	    var $terminal = this._el.querySelector('.terminal');
+	    var $fakeRow = document.createElement('div');
+	    $fakeRow.innerHTML = '<span>&nbsp;</span>';
 
-	    subjectRow.style.display = 'inline';
-	    // common character for measuring width, although on monospace
-	    subjectRow.innerHTML = 'W';
+	    $terminal.appendChild($fakeRow);
 
-	    var characterWidth = subjectRow.getBoundingClientRect().width;
-	    // revert style before calculating height, since they differ.
-	    subjectRow.style.display = '';
+	    var fakeColHeight = $fakeRow.getBoundingClientRect().height;
+	    var fakeColWidth = $fakeRow.firstElementChild.getBoundingClientRect().width;
+	    var width = this._el.clientWidth;
+	    var height = this._el.clientHeight;
+	    var cols = Math.floor(width / fakeColWidth);
+	    var rows = Math.floor(height / fakeColHeight);
 
-	    var characterHeight = parseInt(subjectRow.offsetHeight);
-	    subjectRow.innerHTML = contentBuffer;
-
-	    var rows = parseInt(availableHeight / characterHeight);
-	    var cols = parseInt(availableWidth / characterWidth);
+	    $terminal.removeChild($fakeRow);
 	    return { cols: cols, rows: rows };
 	  };
 
