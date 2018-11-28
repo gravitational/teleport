@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2018 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,5 +14,24 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-module.exports.getters = require('./getters');
-module.exports.actions = require('./actions');
+import React from 'react';
+import ReactDOM from 'react-dom';
+import { AppContainer } from 'react-hot-loader'
+import Root from  './app/index';
+
+const render = Component => {
+  ReactDOM.render((
+    <AppContainer>
+      <Component />
+    </AppContainer>
+  ), document.getElementById('app'));
+};
+
+render(Root)
+
+if (module.hot) {
+  module.hot.accept('./app/index', () => {
+    render(Root)
+  })
+}
+

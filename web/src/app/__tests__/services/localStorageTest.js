@@ -20,7 +20,7 @@ import { expect, spyOn } from 'app/__tests__/';
 import * as apiData from 'app/__tests__/apiData';
 
 describe('services/localStorage', () => {
-  
+
   afterEach(() => {
     expect.restoreSpies();
   })
@@ -30,14 +30,14 @@ describe('services/localStorage', () => {
     const serializedToken = JSON.stringify(bearerToken);
 
     it('should put and retrieve bearer token from browser localStorage', () => {
-      spyOn(window.localStorage, 'setItem'); 
-      spyOn(window.localStorage, 'getItem').andReturn(serializedToken);      
-      
-      localStorage.setBearerToken(bearerToken);      
+      spyOn(window.localStorage, 'setItem');
+      spyOn(window.localStorage, 'getItem').andReturn(serializedToken);
+
+      localStorage.setBearerToken(bearerToken);
       const actual = localStorage.getBearerToken();
 
       expect(window.localStorage.setItem).toHaveBeenCalledWith(KeysEnum.TOKEN, serializedToken);
-      expect(actual.accessToken).toEqual(bearerToken.accessToken);      
+      expect(actual.accessToken).toEqual(bearerToken.accessToken);
     });
-  });    
+  });
 })

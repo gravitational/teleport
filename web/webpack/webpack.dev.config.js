@@ -22,28 +22,39 @@ const output = Object.assign({}, baseCfg.output, {
   chunkFilename: '[name].js'
 });
 
+const optimization = Object.assign({}, baseCfg.optimization, {
+  namedModules: true
+})
+
 var cfg = {
 
-  mode: 'development',
-
+  entry: baseCfg.entry,
   output: output,
+  resolve: baseCfg.resolve,
 
   devtool: false,
 
-  resolve: baseCfg.resolve,
+  mode: 'development',
+
+  optimization: optimization,
 
   module: {
     noParse: baseCfg.noParse,
+    strictExportPresence: true,
     rules: [
-      baseCfg.rules.inlineStyle,
+      baseCfg.rules.fonts,
       baseCfg.rules.svg,
-      baseCfg.rules.jsx({test: true}),
+      baseCfg.rules.images,
+      baseCfg.rules.jsx({ withHot: true}),
+      baseCfg.rules.css(),
+      baseCfg.rules.scss({ dev: true }),
     ]
   },
 
-  plugins:  [
-    baseCfg.plugins.extractAppCss,
-    new webpack.DefinePlugin({ 'process.env.NODE_ENV_TYPE': JSON.stringify('test') }),
+  plugins: [
+    new webpack.DefinePlugin({ 'process.env.NODE_ENV_TYPE': JSON.stringify('development') }),
+    new webpack.HotModuleReplacementPlugin(),
+    baseCfg.plugins.createIndexHtml(),
  ]
 };
 

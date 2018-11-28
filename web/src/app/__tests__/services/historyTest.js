@@ -24,14 +24,14 @@ const spyOn = expect.spyOn;
 history.init( new createMemoryHistory());
 
 describe('services/history', () => {
-  
-  const fallbackRoute = cfg.routes.app;  
+
+  const fallbackRoute = cfg.routes.app;
   const browserHistory = history.original(/* be default returns inMemory history*/);
 
-  beforeEach( () => {    
+  beforeEach( () => {
     spyOn(browserHistory, 'push');
-    spyOn(history, 'getRoutes');  
-    spyOn(history, '_pageRefresh');          
+    spyOn(history, 'getRoutes');
+    spyOn(history, '_pageRefresh');
   });
 
   afterEach( () => {
@@ -39,43 +39,43 @@ describe('services/history', () => {
   });
 
   describe('canPush', () => {
-        
+
     const push = actual => ({
       andExpect(expected){
         history.push(actual)
         expect(browserHistory.push).toHaveBeenCalledWith(expected);
       }
     })
-    
-    it('should push if allowed else fallback to default route', () => {      
-      history.getRoutes.andReturn(['/valid', '/']);      
+
+    it('should push if allowed else fallback to default route', () => {
+      history.getRoutes.andReturn(['/valid', '/']);
       push('invalid').andExpect(fallbackRoute);
       push('.').andExpect(fallbackRoute);
       push('/valid/test').andExpect(fallbackRoute);
       push('@#4').andExpect(fallbackRoute);
-      push('/valid').andExpect('/valid');      
-      push('').andExpect('');      
-      push('/').andExpect('/');      
+      push('/valid').andExpect('/valid');
+      push('').andExpect('');
+      push('/').andExpect('/');
     })
 
-    it('should refresh a page if called withRefresh=true', () => {      
+    it('should refresh a page if called withRefresh=true', () => {
       let route = '/';
-      history.getRoutes.andReturn([route]);            
+      history.getRoutes.andReturn([route]);
       history.push(route, true)
       expect(history._pageRefresh).toHaveBeenCalledWith(route);
     })
   })
 
-  describe('goToLogin()', () => {          
-    it('should navigate to login with URL that has redirect parameter with current location', () => {      
-      history.getRoutes.andReturn(['/web/login', '/current-location']);      
+  describe('goToLogin()', () => {
+    it('should navigate to login with URL that has redirect parameter with current location', () => {
+      history.getRoutes.andReturn(['/web/login', '/current-location']);
       spyOn(browserHistory, 'getCurrentLocation').andReturn({
         pathname: '/current-location'
       });
-      
-      history.goToLogin(true);      
-      const expected = '/web/login?redirect_uri=localhost/current-location';      
-      expect(history._pageRefresh).toHaveBeenCalledWith(expected);      
-    });    
-  });    
+
+      history.goToLogin(true);
+      const expected = '/web/login?redirect_uri=localhost/current-location';
+      expect(history._pageRefresh).toHaveBeenCalledWith(expected);
+    });
+  });
 })
