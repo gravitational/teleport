@@ -15,11 +15,10 @@ limitations under the License.
 */
 
 import React from 'react';
-import { render } from 'react-dom';
 import { Router } from 'react-router';
 import { Provider } from 'nuclear-js-react-addons';
-import history from './services/history';
 import cfg from './config';
+import history from './services/history';
 import reactor from './reactor';
 import { addRoutes } from './routes';
 import * as Features from './features';
@@ -27,8 +26,10 @@ import { createSettings } from './features/settings';
 import FeatureActivator from './featureActivator';
 import { initApp } from './flux/app/actions';
 import App from './components/app.jsx';
-import { ensureUser } from './flux/user/actions';
+import userActions from './flux/user/actions';
+import './../styles/grv.scss';
 import './flux';
+import './vendor';
 
 cfg.init(window.GRV_CONFIG);
 history.init();
@@ -40,14 +41,14 @@ featureActivator.register(new Features.Ssh(featureRoutes));
 featureActivator.register(new Features.Audit(featureRoutes));
 featureActivator.register(createSettings(featureRoutes))
 
-const onEnterApp = nextState => {  
-  const { siteId } = nextState.params; 
+const onEnterApp = nextState => {
+  const { siteId } = nextState.params;
   initApp(siteId, featureActivator)
 }
 
 const routes = [{
   path: cfg.routes.app,
-  onEnter: ensureUser,
+  onEnter: userActions.ensureUser,
   component: App,
   childRoutes: [{
     onEnter: onEnterApp,
@@ -55,8 +56,10 @@ const routes = [{
   }]
 }];
 
-render((  
-  <Provider reactor={reactor}>        
-    <Router history={history.original()} routes={addRoutes(routes)}/>            
-  </Provider>  
-), document.getElementById("app"));
+const Root = () => (
+  <Provider reactor={reactor}>
+    <Router history={history.original()} routes={addRoutes(routes)} />
+  </Provider>
+)
+
+export default Root;

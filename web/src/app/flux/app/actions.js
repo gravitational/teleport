@@ -23,8 +23,8 @@ import { RECEIVE_USERACL } from './../userAcl/actionTypes';
 import api from 'app/services/api';
 import cfg from 'app/config';
 import { initAppStatus } from 'app/flux/status/actions';
-import { fetchNodes } from './../nodes/actions';
-import { fetchActiveSessions } from 'app/flux/sessions/actions';
+import nodeActions from './../nodes/actions';
+import * as sessionActions from 'app/flux/sessions/actions';
 import Logger from 'app/lib/logger';
 
 const logger = Logger.create('flux/app');
@@ -53,8 +53,8 @@ export function initApp(siteId, featureActivator) {
 
 export function refresh() {
   return $.when(
-    fetchActiveSessions(),
-    fetchNodes()
+    sessionActions.fetchActiveSessions(),
+    nodeActions.fetchNodes()
   )
 }
 
@@ -63,7 +63,7 @@ export function fetchInitData(siteId) {
     .then(masterSiteId => {
       const selectedCluster = siteId || masterSiteId;
       setSiteId(selectedCluster);
-      return $.when(fetchNodes(), fetchActiveSessions());
+      return $.when(nodeActions.fetchNodes(), sessionActions.fetchActiveSessions());
     });
 }
 

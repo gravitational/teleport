@@ -13,15 +13,27 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-module.exports.React = require('react');
-module.exports.ReactDOM = require('react-dom');
-module.exports.ReactTestUtils = require('react-addons-test-utils');
-module.exports.expect = require('expect');
-module.exports.$ = require('jQuery');
-module.exports.Dfd = module.exports.$.Deferred;
-module.exports.spyOn = module.exports.expect.spyOn;
-module.exports.reactor = require('app/reactor');
-module.exports.session = require('app/services/session');
-module.exports.api = require('app/services/api');
-module.exports.cfg = require('app/config');
-require('app/flux');
+
+import $ from 'jquery'
+import expect from 'expect';
+import ReactTestUtils from 'react-addons-test-utils';
+import reactor from 'app/reactor';
+import session from 'app/services/session';
+import api from 'app/services/api';
+import cfg from 'app/config';
+import 'app/flux';
+
+const spyOn = expect.spyOn;
+const Dfd = $.Deferred;
+
+export {
+  cfg,
+  reactor,
+  session,
+  expect,
+  $,
+  ReactTestUtils,
+  spyOn,
+  Dfd,
+  api
+}

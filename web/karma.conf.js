@@ -18,10 +18,10 @@ var webpackCfg = require('./webpack/webpack.config.test');
 
 module.exports = function (config) {
   config.set({
-    browsers: [],
+    browsers: ['Chrome'],
     frameworks: [ 'mocha' ],
-    reporters: [ 'spec' ],
-    files: [      
+    reporters: [ 'mocha' ],
+    files: [
       'karma.test.files.js'
     ],
 
