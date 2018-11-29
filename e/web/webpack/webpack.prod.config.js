@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2018 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,36 +14,43 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var baseCfg = require('./webpack.base');
+const webpack = require('webpack');
+const baseCfg = require('./webpack.base');
+
+//const BundleAnalyzerPlugin = require('webpack-bundle-analyzer').BundleAnalyzerPlugin;
 
 var cfg = {
 
   entry: baseCfg.entry,
   output: baseCfg.output,
   resolve: baseCfg.resolve,
-  externals: baseCfg.externals,
+
+  mode: 'production',
+
+  optimization: {
+    ...baseCfg.optimization,
+    minimize: true
+  },
 
   module: {
     noParse: baseCfg.noParse,
-    loaders: [
-      baseCfg.loaders.fonts,
-      baseCfg.loaders.svg,
-      baseCfg.loaders.examples,
-      baseCfg.loaders.images,
-      baseCfg.loaders.js(),
-      baseCfg.loaders.css
+    strictExportPresence: true,
+    rules: [
+      baseCfg.rules.fonts,
+      baseCfg.rules.svg,
+      baseCfg.rules.images,
+      baseCfg.rules.jsx(),
+      baseCfg.rules.css(),
+      baseCfg.rules.scss()
     ]
   },
 
   plugins:  [
-    baseCfg.plugins.handleTelebaseImports,
-    baseCfg.plugins.releaseBuild,
-    baseCfg.plugins.extractCss,
-    baseCfg.plugins.createIndexHtml,
-    baseCfg.plugins.vendorBundle,
-    baseCfg.plugins.uglify()
+    //new BundleAnalyzerPlugin(),
+    new webpack.HashedModuleIdsPlugin(),
+    baseCfg.plugins.createIndexHtml(),
+    baseCfg.plugins.extractAppCss(),
  ]
-
 };
 
 module.exports = cfg;

@@ -1,4 +1,4 @@
-import reactor from 'app/reactor';
+import reactor from '../../reactor';
 import { Store } from 'nuclear-js';
 import * as AT from './actionTypes';
 
@@ -14,11 +14,11 @@ export default Store({
     return new StoreRec()
   },
 
-  initialize() {      
-    this.on(AT.UPSERT_ROLES, (state, items) => state.upsertItems(items) );            
-    this.on(AT.RECEIVE_ROLES, (state, items) => state.setItems(items) );                
+  initialize() {
+    this.on(AT.UPSERT_ROLES, (state, items) => state.upsertItems(items) );
+    this.on(AT.RECEIVE_ROLES, (state, items) => state.setItems(items) );
     this.on(AT.SET_CURRENT, (state, item) => state.setCurItem(item))
-    this.on(AT.DELETE_ROLE, (state, id) => state.remove(id))    
+    this.on(AT.DELETE_ROLE, (state, id) => state.remove(id))
   }
 })
 

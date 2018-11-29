@@ -1,18 +1,18 @@
 import React, { PropTypes } from 'react';
 import * as Alerts from 'telebase-app/components/alerts';
-import { ResourceEnum } from 'app/services/enums'
+import { ResourceEnum } from '../../services/enums'
 import Button from './../common/button';
 
 import {
   GrvDialogHeader,
-  GrvDialogFooter,  
-  GrvDialog } from 'app/components/common/dialog';
+  GrvDialogFooter,
+  GrvDialog } from '../common/dialog';
 
 import { connect } from 'nuclear-js-react-addons';
-import getters from 'app/flux/settingsDialogs/getters';
-import { closeDeleteDialog } from 'app/flux/settingsDialogs/actions';
+import getters from '../../flux/settingsDialogs/getters';
+import { closeDeleteDialog } from '../../flux/settingsDialogs/actions';
 
-const getResourceKind = kind => {  
+const getResourceKind = kind => {
   if(kind === ResourceEnum.OIDC || kind === ResourceEnum.SAML){
     return 'auth.connector'
   }
@@ -28,16 +28,16 @@ const getResourceKind = kind => {
   return 'resource';
 }
 
-const ConfigDeleteDialog = props => {    
+const ConfigDeleteDialog = props => {
   const { store, attempt, onContinue } = props;
   const { isProcessing, isFailed, message } = attempt;
-  const resItem = store.getResourceToDelete();  
+  const resItem = store.getResourceToDelete();
 
   if( !resItem ){
     return null;
-  }    
-        
-  const name = resItem.getName();    
+  }
+
+  const name = resItem.getName();
   const kind = getResourceKind(resItem.getKind());
   const messagePrefix = `You are about to delete ${kind} `;
 
@@ -55,10 +55,10 @@ const ConfigDeleteDialog = props => {
                 {messagePrefix} <strong>{name}</strong>.
               </small>
             </div>
-          </div>          
+          </div>
         </div>
         { isFailed && <Alerts.Danger>{message} </Alerts.Danger> }
-      </GrvDialogHeader>      
+      </GrvDialogHeader>
       <GrvDialogFooter>
         <Button
           className="btn-danger"
@@ -80,13 +80,13 @@ const ConfigDeleteDialog = props => {
 }
 
 ConfigDeleteDialog.propTypes = {
-  store: PropTypes.object.isRequired,  
+  store: PropTypes.object.isRequired,
   attempt: PropTypes.object.isRequired
 };
 
 
 function mapStateToProps() {
-  return {    
+  return {
     store: getters.dialogsStore,
     attempt: getters.deleteAttempt
   }

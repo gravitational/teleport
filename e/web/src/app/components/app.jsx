@@ -16,7 +16,7 @@ limitations under the License.
 
 import React from 'react';
 
-// telebase 
+// telebase
 import App from 'telebase-app/components/app.jsx';
 import appGetters from 'telebase-app/flux/app/getters';
 import connect from 'telebase-app/components/connect';
@@ -25,10 +25,10 @@ import Indicator from 'telebase-app/components/indicator.jsx';
 
 // local
 import LicenseStatus from './licenseStatusDialog';
-import * as licenseGetters from 'app/flux/license/getters';
-    
+import * as licenseGetters from './../flux/license/getters';
+
 class TeleportE extends React.Component {
-      
+
   state = {
     hasSeenLicenseMessage: false
   }
@@ -36,30 +36,30 @@ class TeleportE extends React.Component {
   onClose = () => {
     this.setState({hasSeenLicenseMessage: true});
   }
-        
-  render() {          
+
+  render() {
     const props = this.props;
-    const { initAttempt, licenseStatus } = props;              
-    const { isProcessing, isSuccess, isFailed, message } = initAttempt;          
-        
-    if (isProcessing) {      
+    const { initAttempt, licenseStatus } = props;
+    const { isProcessing, isSuccess, isFailed, message } = initAttempt;
+
+    if (isProcessing) {
       return <Indicator type={'bounce'} />
     }
 
     if (isFailed) {
       return <Failed message={message}/>
     }
-    
+
     if(licenseStatus && !this.state.hasSeenLicenseMessage){
       return (
         <LicenseStatus status={licenseStatus} onOk={this.onClose}/>
       )
     }
-        
-    if (isSuccess) {      
+
+    if (isSuccess) {
       return React.createElement(App, {
-        ...props        
-      });  
+        ...props
+      });
     }
 
     return null;
@@ -67,11 +67,11 @@ class TeleportE extends React.Component {
 }
 
 function mapFluxToProps() {
-  return {    
+  return {
     initAttempt: appGetters.initAttempt,
     licenseStatus: licenseGetters.store
   }
 }
 
-export default connect(mapFluxToProps)(TeleportE);  
+export default connect(mapFluxToProps)(TeleportE);
 

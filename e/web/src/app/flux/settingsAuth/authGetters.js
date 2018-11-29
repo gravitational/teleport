@@ -1,6 +1,6 @@
-import { saveAuthProviderAttempt } from 'app/flux/status/getters';
+import { saveAuthProviderAttempt } from '../../flux/status/getters';
 
-export default {  
+export default {
   saveAttempt: saveAuthProviderAttempt,
-  store: ['tlp_settings_auth']  
+  store: ['tlp_settings_auth']
 }

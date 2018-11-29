@@ -1,6 +1,6 @@
-import { deleteResourceAttempt } from 'app/flux/status/getters';
+import { deleteResourceAttempt } from '../../flux/status/getters';
 
-export default {    
-  dialogsStore: ['tlp_settings_dialogs'],  
+export default {
+  dialogsStore: ['tlp_settings_dialogs'],
   deleteAttempt: deleteResourceAttempt
 }

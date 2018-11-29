@@ -1,6 +1,6 @@
-import { saveRoleAttempt } from 'app/flux/status/getters';
+import { saveRoleAttempt } from '../../flux/status/getters';
 
-export default {  
+export default {
   saveAttempt: saveRoleAttempt,
-  store: ['tlp_settings_role']  
+  store: ['tlp_settings_role']
 }

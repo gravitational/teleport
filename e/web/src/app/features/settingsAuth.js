@@ -2,7 +2,7 @@ import { SettingsFeatureBase } from 'telebase-app/features/settings/featureSetti
 import { addNavItem } from 'telebase-app/flux/settings/actions';
 import { withDocTitle } from 'telebase-app/components/documentTitle';
 
-import cfg from 'app/config'
+import cfg from '../config'
 import { fetchAuthProviders } from './../flux/settingsAuth/actions';
 import SettingsAuth from '../components/settings/tabAuth'
 import * as flags from './featureFlags';

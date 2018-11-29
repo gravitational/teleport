@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import reactor from 'app/reactor';
+import reactor from '../reactor';
 import dialogsStore from './settingsDialogs/storeDialogs';
 import authStore from './settingsAuth/store';
 import rolesStore from './settingsRoles/store';
@@ -22,8 +22,8 @@ import clustersStore from './settingsClusters/store';
 import licenseStatusStore from './license/store';
 
 reactor.registerStores({
-  'tlp_settings_dialogs': dialogsStore,  
-  'tlp_settings_auth': authStore,  
+  'tlp_settings_dialogs': dialogsStore,
+  'tlp_settings_auth': authStore,
   'tlp_settings_role': rolesStore,
   'tlp_settings_cluster': clustersStore,
   'tlp_license_status': licenseStatusStore

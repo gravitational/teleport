@@ -1,14 +1,14 @@
 import React, { PropTypes } from 'react';
 import classnames from 'classnames';
 import * as Alerts from 'telebase-app/components/alerts';
-import Layout from 'app/components/common/layout';
-import Button from 'app/components/common/button';
+import Layout from '../common/layout';
+import Button from '../common/button';
 import YamlEditor from './yamlEditor';
 import withChangeTracker from './../withChangeTracker';
 
 class AddEditConfig extends React.Component {
-  
-  static propTypes = {  
+
+  static propTypes = {
     changeTracker: PropTypes.object.isRequired,
     saveAttempt: PropTypes.object.isRequired,
     access: PropTypes.object.isRequired,
@@ -18,13 +18,13 @@ class AddEditConfig extends React.Component {
   state = {
     isDirty: false
   }
-      
-  onSave = () => {    
-    const item = this.props.item.setContent(this.current);    
+
+  onSave = () => {
+    const item = this.props.item.setContent(this.current);
     this.props.onSave(item)
   }
-    
-  onItemContentChange = yaml => {      
+
+  onItemContentChange = yaml => {
     const isDirty = yaml !== this.original;
     this.current = yaml;
     this.setState({ isDirty });
@@ -32,13 +32,13 @@ class AddEditConfig extends React.Component {
 
   constructor(props){
     super(props);
-    this.init(props);    
+    this.init(props);
   }
-  
+
   init(props){
     this.isNew = props.item.isNew;
-    this.original = props.item.getContent();   
-    this.current = this.original;    
+    this.original = props.item.getContent();
+    this.current = this.original;
     this.state.isDirty = false;
   }
 
@@ -46,13 +46,13 @@ class AddEditConfig extends React.Component {
     this.props.changeTracker.unregister(this);
   }
 
-  componentDidMount() {    
+  componentDidMount() {
     this.props.changeTracker.register(this);
   }
 
-  componentWillReceiveProps(nextProps) {    
+  componentWillReceiveProps(nextProps) {
     if(nextProps.item !== this.props.item){
-      this.init(nextProps)      
+      this.init(nextProps)
     }
   }
 
@@ -60,9 +60,9 @@ class AddEditConfig extends React.Component {
     return this.state.isDirty;
   }
 
-  renderFooter() {                
-    const { saveAttempt, access } = this.props;                                
-    const { isProcessing } = saveAttempt;                    
+  renderFooter() {
+    const { saveAttempt, access } = this.props;
+    const { isProcessing } = saveAttempt;
     const isSecondaryBtnEnabled = this.isNew || access.remove || isProcessing;
     const secondaryBtnCb = this.isNew ? this.props.onCancel : this.props.onDelete;
     const secondaryBtnText = this.isNew ? 'Cancel' : 'Delete';
@@ -71,57 +71,57 @@ class AddEditConfig extends React.Component {
       'btn-default': this.isNew
     });
 
-    let isPrimaryBtnEnabled = true;    
+    let isPrimaryBtnEnabled = true;
     if(this.isNew){
       isPrimaryBtnEnabled = access.create;
-    }else{      
+    }else{
       isPrimaryBtnEnabled = this.state.isDirty;
-    }    
-              
+    }
+
     return (
       <div className="m-t">
-        <Button size="sm"                   
+        <Button size="sm"
           onClick={this.onSave}
           isProcessing={isProcessing}
           isDisabled={!isPrimaryBtnEnabled}
           className="btn-primary m-r-sm">
           Save
         </Button>
-        <Button size="sm"      
-          isDisabled={!isSecondaryBtnEnabled}   
+        <Button size="sm"
+          isDisabled={!isSecondaryBtnEnabled}
           className={secondaryBtnClassName}
-          onClick={secondaryBtnCb}>            
+          onClick={secondaryBtnCb}>
           {secondaryBtnText}
         </Button>
-      </div>     
+      </div>
     )
   }
-  
+
   render(){
-    const { item, saveAttempt, access } = this.props;                            
+    const { item, saveAttempt, access } = this.props;
     if(!item){
       return null;
     }
-    
+
     const id = item.getId();
     const readOnly = !this.isNew && !access.edit;
     const { isFailed, message } = saveAttempt;
-    const $footer = this.renderFooter();        
+    const $footer = this.renderFooter();
     return (
-      <Layout.Flex style={{flex: "1"}} className="grv-settings-res-editor">     
-        <div className="full-width">          
+      <Layout.Flex style={{flex: "1"}} className="grv-settings-res-editor">
+        <div className="full-width">
           { isFailed && <Alerts.Danger className="m-b-sm"> {message} </Alerts.Danger> }
           { readOnly && <Alerts.Info className="m-b-sm"> You do not have permissions to edit this resource </Alerts.Info> }
-        </div>                               
+        </div>
         <YamlEditor
           key={id}
-          readOnly={readOnly}          
+          readOnly={readOnly}
           data={item.content}
           onChange={this.onItemContentChange}
           name="rolemappings" required
           type="text"
-        />                                   
-        {$footer}             
+        />
+        {$footer}
       </Layout.Flex>
     )
   }

@@ -1,11 +1,11 @@
 import React from 'react';
 import connect from 'telebase-app/components/connect';
-import getters from 'app/flux/settingsClusters/getters';
+import getters from '../../flux/settingsClusters/getters';
 import userAclGetters from 'telebase-app/flux/userAcl/getters';
-import * as actions from 'app/flux/settingsClusters/actions';
-import Button from 'app/components/common/button';
+import * as actions from '../../flux/settingsClusters/actions';
+import Button from '../common/button';
 import ConfigItemList from './configItemList';
-import {openDeleteDialog} from 'app/flux/settingsDialogs/actions';
+import {openDeleteDialog} from '../../flux/settingsDialogs/actions';
 import ConfigDeleteDialog from './configDeleteDialog';
 import * as Links from './links';
 import ConfidAddEdit from './configAddEdit';
@@ -17,105 +17,105 @@ class TrustedClusters extends React.Component {
 
   state = {}
 
-  onNewItem = () => { 
+  onNewItem = () => {
     this.refTracker.checkIfUnsafedData(()=> {
       let newItem = this.props.store.createItem();
-      newItem = newItem.setContent(trustedClusterTemplate);      
-      actions.setCurCluster(newItem); 
+      newItem = newItem.setContent(trustedClusterTemplate);
+      actions.setCurCluster(newItem);
     })
   }
 
   onItemClick = item => {
     this.refTracker.checkIfUnsafedData(()=> {
-      actions.setCurCluster(item);    
-    })     
+      actions.setCurCluster(item);
+    })
   }
-  
+
   onItemDelete = () => {
     openDeleteDialog(this.props.store.curItem);
   }
 
-  onCancelNewItem = () => {    
+  onCancelNewItem = () => {
     actions.setCurCluster();
   }
 
-  onItemSave = item => {    
+  onItemSave = item => {
     actions.saveCluster(item);
   }
-      
-  componentDidMount(){    
+
+  componentDidMount(){
     actions.setCurCluster();
   }
-  
-  render() {    
-    const { store, saveAttempt, userAclStore } = this.props;                
+
+  render() {
+    const { store, saveAttempt, userAclStore } = this.props;
     const curItem = store.getCurItem();
     const items = store.getItems();
     const access = userAclStore.getClusterAccess();
     const canCreate = access.create
-    
+
     const props = {
       ref: e => this.refTracker = e,
       className: "grv-settings-tab",
       route: this.props.route
     }
-    
+
     if(!curItem){
       return (
-        <ChangeTracker {...props}>                   
-          <EmptyBox>             
-            <p>                              
-              This tab is used to establish trust with other Teleport clusters. 
-              Click "Connect" to connect to another trusted cluster. This will 
-              allow users of the trusted cluster to access this cluster. 
-              To learn more about trusted clusters 
-              <Links.DocsTrustedCluster> click here.</Links.DocsTrustedCluster>                
-            </p>      
+        <ChangeTracker {...props}>
+          <EmptyBox>
+            <p>
+              This tab is used to establish trust with other Teleport clusters.
+              Click "Connect" to connect to another trusted cluster. This will
+              allow users of the trusted cluster to access this cluster.
+              To learn more about trusted clusters
+              <Links.DocsTrustedCluster> click here.</Links.DocsTrustedCluster>
+            </p>
             <div className="text-center">
               <Button
-                size="sm"        
-                isDisabled={!canCreate}        
+                size="sm"
+                isDisabled={!canCreate}
                 onClick={this.onNewItem}
                 className="text-center grv-settings-res-new m-t btn-default">
                 <i className="fa fa-plug m-r-xs"/>Connect
-              </Button>             
-            </div>                
-          </EmptyBox>  
+              </Button>
+            </div>
+          </EmptyBox>
         </ChangeTracker>
       )
     }
-                
-    return (      
-      <ChangeTracker {...props}> 
+
+    return (
+      <ChangeTracker {...props}>
         { !curItem.isNew &&
-        <ConfigItemList          
+        <ConfigItemList
           canCreate={canCreate}
           btnText="New Trusted Cluster"
           curItem={curItem}
-          items={items}          
+          items={items}
           onNew={this.onNewItem}
-          onItemClick={this.onItemClick}                        
-        />      
+          onItemClick={this.onItemClick}
+        />
         }
-        <ConfidAddEdit           
+        <ConfidAddEdit
           onCancel={this.onCancelNewItem}
           onDelete={this.onItemDelete}
           onSave={this.onItemSave}
           access={access}
-          item={curItem} 
-          saveAttempt={saveAttempt}/>        
-        <ConfigDeleteDialog onContinue={actions.deleteCluster} />                          
-      </ChangeTracker>              
+          item={curItem}
+          saveAttempt={saveAttempt}/>
+        <ConfigDeleteDialog onContinue={actions.deleteCluster} />
+      </ChangeTracker>
     );
-  }    
+  }
 }
 
 function mapStateToProps() {
-  return {    
+  return {
     userAclStore: userAclGetters.userAcl,
     saveAttempt: getters.saveAttempt,
     store: getters.store
-  }  
+  }
 }
 
 export default connect(mapStateToProps)(TrustedClusters);

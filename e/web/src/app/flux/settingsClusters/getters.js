@@ -1,6 +1,6 @@
-import { saveClusterAttempt } from 'app/flux/status/getters';
+import { saveClusterAttempt } from '../../flux/status/getters';
 
-export default {  
+export default {
   saveAttempt: saveClusterAttempt,
-  store: ['tlp_settings_cluster']  
+  store: ['tlp_settings_cluster']
 }

@@ -1,4 +1,4 @@
-import reactor from 'app/reactor';
+import reactor from '../../reactor';
 import * as AT from './actionTypes';
 import { deleteResourceStatus } from './../status/actions';
 
@@ -7,6 +7,6 @@ export function openDeleteDialog(item){
 }
 
 export function closeDeleteDialog(){
-  deleteResourceStatus.clear();  
+  deleteResourceStatus.clear();
   reactor.dispatch(AT.SET_RES_TO_DELETE, null);
 }

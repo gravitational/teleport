@@ -15,7 +15,6 @@ limitations under the License.
 */
 
 import React from 'react';
-import { render } from 'react-dom';
 import { Router } from 'react-router';
 import { Provider } from 'nuclear-js-react-addons';
 
@@ -26,14 +25,16 @@ import { addRoutes } from 'telebase-app/routes';
 import * as Features from 'telebase-app/features';
 import userActions from 'telebase-app/flux/user/actions';
 import 'telebase-app/flux';
+import 'telebase-app/vendor';
 
 // app imports
 import { initApp } from './flux/actions';
 import { createSettings } from './features';
-import reactor from 'app/reactor';
-import cfg from 'app/config';
+import reactor from './reactor';
+import cfg from './config';
 import TeleportE from './components/app';
 import './flux';
+import './../styles/grv.scss';
 
 cfg.init(window.GRV_CONFIG);
 history.init();
@@ -45,23 +46,26 @@ featureActivator.register(new Features.Ssh(childRoutes));
 featureActivator.register(new Features.Audit(childRoutes));
 featureActivator.register(createSettings(childRoutes));
 
-const onEnterApp = nextState => {  
-  let { siteId } = nextState.params; 
+const onEnterApp = nextState => {
+  let { siteId } = nextState.params;
   initApp(siteId, featureActivator)
 }
 
-const appRoutes = [{               
+const appRoutes = [{
   path: cfg.routes.app,
   onEnter: userActions.ensureUser,
-  component: TeleportE,        
+  component: TeleportE,
   childRoutes:  [{
     onEnter: onEnterApp,
     childRoutes
    }]
 }];
 
-render((  
-  <Provider reactor={reactor}>        
-    <Router history={history.original()} routes={addRoutes(appRoutes)}/>            
-  </Provider>  
-), document.getElementById("app"));
+const Root = () => (
+  <Provider reactor={reactor}>
+    <Router history={history.original()} routes={addRoutes(appRoutes)} />
+  </Provider>
+)
+
+export default Root;
+

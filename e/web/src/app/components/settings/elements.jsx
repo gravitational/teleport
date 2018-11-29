@@ -1,6 +1,6 @@
 import React from 'react';
-import Box from 'app/components/common/boxes/box';
-import Button from 'app/components/common/button';
+import Box from '../common/boxes/box';
+import Button from '../common/button';
 
 export const NewButton = props => (
   <Button
@@ -13,14 +13,14 @@ export const NewButton = props => (
 )
 
 export const EmptyList = ({canCreate=true, onClick}) => (
-  <EmptyBox> 
+  <EmptyBox>
     <div className="text-center">
       <p>
         You do not have anything here
-      </p>      
-      <NewButton enabled={canCreate}text="Create" onClick={onClick}/>                  
-    </div>    
-  </EmptyBox>  
+      </p>
+      <NewButton enabled={canCreate}text="Create" onClick={onClick}/>
+    </div>
+  </EmptyBox>
 );
 
 export const EmptyBox = props => (

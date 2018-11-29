@@ -1,4 +1,4 @@
-import reactor from 'app/reactor';
+import reactor from '../../reactor';
 import { Store } from 'nuclear-js';
 import * as AT from './actionTypes';
 
@@ -14,9 +14,9 @@ export default Store({
     return new StoreRec()
   },
 
-  initialize() {    
-    this.on(AT.UPDATE_CLUSTERS, (state, items) => state.upsertItems(items) );            
-    this.on(AT.RECEIVE_CLUSTERS, (state, items) => state.setItems(items) );                
+  initialize() {
+    this.on(AT.UPDATE_CLUSTERS, (state, items) => state.upsertItems(items) );
+    this.on(AT.RECEIVE_CLUSTERS, (state, items) => state.setItems(items) );
     this.on(AT.SET_CURRENT, (state, item) => state.setCurItem(item));
     this.on(AT.DELETE_CLUSTER, (state, id) => state.remove(id));
   }

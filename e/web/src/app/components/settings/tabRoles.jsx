@@ -1,9 +1,9 @@
 import React from 'react';
 import connect from 'telebase-app/components/connect';
-import getters from 'app/flux/settingsRoles/getters';
 import userAclGetters from 'telebase-app/flux/userAcl/getters';
-import {openDeleteDialog} from 'app/flux/settingsDialogs/actions';
-import * as actions from 'app/flux/settingsRoles/actions';
+import getters from '../../flux/settingsRoles/getters';
+import {openDeleteDialog} from '../../flux/settingsDialogs/actions';
+import * as actions from '../../flux/settingsRoles/actions';
 import ConfigItemList from './configItemList';
 import ConfigDeleteDialog from './configDeleteDialog';
 import { EmptyList } from './elements';
@@ -15,43 +15,43 @@ class Roles extends React.Component {
 
   state = {}
 
-  onNewItem = () => {        
+  onNewItem = () => {
     this.refTracker.checkIfUnsafedData(()=> {
       let newItem = this.props.store.createItem();
-      newItem = newItem.setContent(roleTemplate);      
-      actions.setCurRole(newItem);    
+      newItem = newItem.setContent(roleTemplate);
+      actions.setCurRole(newItem);
     });
   }
-  
-  onCancelNewItem = () => {    
+
+  onCancelNewItem = () => {
     actions.setCurRole();
   }
 
-  onItemSave = item => {    
+  onItemSave = item => {
     actions.saveRole(item);
   }
 
-  onItemClick = item => {            
+  onItemClick = item => {
     this.refTracker.checkIfUnsafedData(()=> {
-      actions.setCurRole(item);   
-    })    
+      actions.setCurRole(item);
+    })
   }
 
   onItemDelete = () => {
     openDeleteDialog(this.props.store.curItem);
   }
-    
-  componentDidMount(){    
+
+  componentDidMount(){
     actions.setCurRole();
   }
-    
-  render() {    
-    const { store, saveAttempt, userAclStore } = this.props;                        
+
+  render() {
+    const { store, saveAttempt, userAclStore } = this.props;
     const curItem = store.getCurItem();
     const items = store.getItems();
     const access = userAclStore.getRoleAccess();
     const canCreate = access.create;
-    
+
     const props = {
       ref: e => this.refTracker = e,
       className: "grv-settings-tab",
@@ -60,43 +60,43 @@ class Roles extends React.Component {
 
     if(!curItem){
       return (
-        <ChangeTracker {...props}>         
+        <ChangeTracker {...props}>
           <EmptyList canCreate={canCreate} onClick={this.onNewItem}/>
         </ChangeTracker>
       )
     }
-                        
-    return (      
-      <ChangeTracker {...props}>   
+
+    return (
+      <ChangeTracker {...props}>
         { !curItem.isNew &&
-        <ConfigItemList        
+        <ConfigItemList
           canCreate={canCreate}
-          btnText="New Role"                        
+          btnText="New Role"
           curItem={curItem}
-          items={items}          
+          items={items}
           onNew={this.onNewItem}
-          onItemClick={this.onItemClick}                        
-        />      
+          onItemClick={this.onItemClick}
+        />
         }
-        <ConfidAddEdit               
+        <ConfidAddEdit
           access={access}
           onCancel={this.onCancelNewItem}
           onDelete={this.onItemDelete}
           onSave={this.onItemSave}
-          item={curItem} 
-          saveAttempt={saveAttempt}/>        
-        <ConfigDeleteDialog onContinue={actions.deleteRole} />                          
-      </ChangeTracker>              
+          item={curItem}
+          saveAttempt={saveAttempt}/>
+        <ConfigDeleteDialog onContinue={actions.deleteRole} />
+      </ChangeTracker>
     );
-  }    
+  }
 }
 
 function mapStateToProps() {
-  return {    
+  return {
     userAclStore: userAclGetters.userAcl,
     saveAttempt: getters.saveAttempt,
     store: getters.store
-  }  
+  }
 }
 
 export default connect(mapStateToProps)(Roles)
