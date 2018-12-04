@@ -9,7 +9,7 @@ pipeline {
     stages {
         stage('Run Packer') {
             steps {
-                dir('assets/marketplace') {
+                dir('assets/marketplace/single-ami') {
                     sh 'make oss'
                 }
             }
