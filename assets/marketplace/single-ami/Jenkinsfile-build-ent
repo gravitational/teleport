@@ -13,7 +13,7 @@ pipeline {
     stages {
         stage('Run Packer to build specified version') {
             steps {
-                dir('assets/marketplace') {
+                dir('assets/marketplace/single-ami') {
                     sh "BUILD_AMI_NAME=gravitational-teleport-ami-ent-${params.version} TELEPORT_VERSION=${params.version} TELEPORT_LICENSE_URI=${params.teleport_license_uri} make ent-name-build"
                 }
             }

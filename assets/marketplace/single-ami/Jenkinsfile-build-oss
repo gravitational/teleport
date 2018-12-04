@@ -12,7 +12,7 @@ pipeline {
     stages {
         stage('Run Packer to build specified version') {
             steps {
-                dir('assets/marketplace') {
+                dir('assets/marketplace/single-ami') {
                     sh "BUILD_AMI_NAME=gravitational-teleport-ami-oss-${params.version} TELEPORT_VERSION=${params.version} make oss-name-build"
                 }
             }
