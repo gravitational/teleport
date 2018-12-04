@@ -1,0 +1,49 @@
+#!/bin/bash
+
+# Set up Teleport config file if it doesn't exist
+if [ ! -f /etc/teleport.yaml ]; then
+    LOCAL_IP=$(curl http://169.254.169.254/latest/meta-data/local-ipv4)
+    LOCAL_HOSTNAME=$(curl http://169.254.169.254/latest/meta-data/local-hostname)
+    LOCAL_HOSTNAME=${LOCAL_HOSTNAME//./-}
+
+    # Source variables set up by user-data
+    . /etc/teleport.d/conf
+
+    # Use local hostname as UUID
+    echo ${LOCAL_HOSTNAME} > /var/lib/teleport/host_uuid
+    chown -R teleport:adm /var/lib/teleport
+
+    # Write Teleport config
+    cat >/etc/teleport.yaml <<EOF
+    teleport:
+      nodename: ${LOCAL_HOSTNAME}
+      advertise_ip: ${LOCAL_IP}
+      log:
+        output: syslog
+        severity: INFO
+
+      data_dir: /var/lib/teleport
+      storage:
+        type: dir
+        path: /var/lib/teleport/backend
+
+    auth_service:
+      enabled: yes
+      listen_addr: 0.0.0.0:3025
+
+      authentication:
+        second_factor: otp
+        type: saml
+
+    ssh_service:
+      enabled: yes
+      listen_addr: 0.0.0.0:3022
+
+    proxy_service:
+      enabled: yes
+      listen_addr: 0.0.0.0:3023
+      tunnel_listen_addr: 0.0.0.0:3080
+      web_listen_addr: 0.0.0.0:3080
+      public_addr: ${TELEPORT_EXTERNAL_HOSTNAME:-$LOCAL_HOSTNAME}:${TELEPORT_EXTERNAL_PORT:-3025}
+EOF
+fi
