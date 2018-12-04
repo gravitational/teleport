@@ -8,9 +8,6 @@
     "teleport_version": "{{env `TELEPORT_VERSION`}}",
     "teleport_uid": "{{env `TELEPORT_UID`}}",
     "teleport_type": "{{env `TELEPORT_TYPE`}}",
-    "telegraf_version": "{{env `TELEGRAF_VERSION`}}",
-    "influxdb_version": "{{env `INFLUXDB_VERSION`}}",
-    "grafana_version": "{{env `GRAFANA_VERSION`}}",
     "ami_name": "gravitational-teleport-ami-{{env `TELEPORT_TYPE`}}-{{env `TELEPORT_VERSION`}}"
   },
   "builders": [{
@@ -75,10 +72,7 @@
     "environment_vars": [
       "TELEPORT_UID={{user `teleport_uid`}}",
       "TELEPORT_VERSION={{user `teleport_version`}}",
-      "TELEPORT_TYPE={{user `teleport_type`}}",
-      "TELEGRAF_VERSION={{user `telegraf_version`}}",
-      "INFLUXDB_VERSION={{user `influxdb_version`}}",
-      "GRAFANA_VERSION={{user `grafana_version`}}"
+      "TELEPORT_TYPE={{user `teleport_type`}}"
     ]
   }]
 }
