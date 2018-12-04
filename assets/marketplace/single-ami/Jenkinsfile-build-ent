@@ -7,7 +7,7 @@ pipeline {
         timestamps()
     }
     parameters {
-        string(name: 'version', defaultValue: '3.0.1, description: 'Teleport version to build')
+        string(name: 'version', defaultValue: '3.0.1', description: 'Teleport version to build')
         string(name: 'teleport_license_uri', defaultValue: 's3://', description: 'Path to load license file from')
     }
     stages {
