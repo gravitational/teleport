@@ -34,6 +34,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 )
 
@@ -57,10 +58,21 @@ type Keygen struct {
 	ctx             context.Context
 	cancel          context.CancelFunc
 	precomputeCount int
+
+	// clock is used to control time.
+	clock clockwork.Clock
 }
 
 // KeygenOption is a functional optional argument for key generator
 type KeygenOption func(k *Keygen) error
+
+// SetClock sets the clock to use for key generation.
+func SetClock(clock clockwork.Clock) KeygenOption {
+	return func(k *Keygen) error {
+		k.clock = clock
+		return nil
+	}
+}
 
 // PrecomputeKeys sets up a number of private keys to pre-compute
 // in background, 0 disables the process
@@ -78,6 +90,7 @@ func New(ctx context.Context, opts ...KeygenOption) (*Keygen, error) {
 		ctx:             ctx,
 		cancel:          cancel,
 		precomputeCount: PrecomputedNum,
+		clock:           clockwork.NewRealClock(),
 	}
 	for _, opt := range opts {
 		if err := opt(k); err != nil {
@@ -193,12 +206,13 @@ func (k *Keygen) GenerateHostCert(c services.HostCertParams) ([]byte, error) {
 	// create certificate
 	validBefore := uint64(ssh.CertTimeInfinity)
 	if c.TTL != 0 {
-		b := time.Now().Add(c.TTL)
+		b := k.clock.Now().UTC().Add(c.TTL)
 		validBefore = uint64(b.Unix())
 	}
 	cert := &ssh.Certificate{
 		ValidPrincipals: principals,
 		Key:             pubKey,
+		ValidAfter:      uint64(k.clock.Now().UTC().Add(-1 * time.Minute).Unix()),
 		ValidBefore:     validBefore,
 		CertType:        ssh.HostCert,
 	}
@@ -231,7 +245,7 @@ func (k *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
 	}
 	validBefore := uint64(ssh.CertTimeInfinity)
 	if c.TTL != 0 {
-		b := time.Now().Add(c.TTL)
+		b := k.clock.Now().UTC().Add(c.TTL)
 		validBefore = uint64(b.Unix())
 		log.Debugf("generated user key for %v with expiry on (%v) %v", c.AllowedLogins, validBefore, b)
 	}
@@ -240,6 +254,7 @@ func (k *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
 		KeyId:           c.Username,
 		ValidPrincipals: c.AllowedLogins,
 		Key:             pubKey,
+		ValidAfter:      uint64(k.clock.Now().UTC().Add(-1 * time.Minute).Unix()),
 		ValidBefore:     validBefore,
 		CertType:        ssh.UserCert,
 	}
