@@ -21,6 +21,13 @@ import appStore from './app/appStore';
 import nodeStore from './nodes/nodeStore';
 import settingsStore from './settings/store';
 import StatusStore from './status/statusStore';
+import userStore from './user/userStore';
+import userInviteStore from './user/userInviteStore';
+import siteStore from './sites/siteStore';
+import eventStore from './sessions/eventStore';
+import archivedSessionStore from './sessions/archivedSessionStore';
+import activeSessionStore from './sessions/activeSessionStore';
+import storedSessionFilterStore from './storedSessionsFilter/storedSessionFilterStore';
 import { register as registerSshHistory } from './sshHistory/store';
 import { register as registerMisc } from './misc/store';
 import { register as registerFileTransfer } from './fileTransfer';
@@ -34,13 +41,13 @@ reactor.registerStores({
   'tlpt': appStore,
   'tlpt_terminal': termStore,
   'tlpt_nodes': nodeStore,
-  'tlpt_user': require('./user/userStore'),
-  'tlpt_user_invite': require('./user/userInviteStore'),
+  'tlpt_user': userStore,
+  'tlpt_user_invite': userInviteStore,
   'tlpt_user_acl': userAcl,
-  'tlpt_sites': require('./sites/siteStore'),
+  'tlpt_sites': siteStore,
   'tlpt_status': StatusStore,
-  'tlpt_sessions_events': require('./sessions/eventStore'),
-  'tlpt_sessions_archived': require('./sessions/archivedSessionStore'),
-  'tlpt_sessions_active': require('./sessions/activeSessionStore'),
-  'tlpt_sessions_filter': require('./storedSessionsFilter/storedSessionFilterStore')
+  'tlpt_sessions_events': eventStore,
+  'tlpt_sessions_archived': archivedSessionStore,
+  'tlpt_sessions_active': activeSessionStore,
+  'tlpt_sessions_filter': storedSessionFilterStore,
 });

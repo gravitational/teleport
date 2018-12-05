@@ -1,13 +1,7 @@
 import * as enums from 'app/services/enums';
 import { InviteInputForm } from 'app/components/user/invite';
-import {
-  ReactTestUtils,
-  React,
-  ReactDOM,  
-  $,
-  expect,  
-  reactor
-} from 'app/__tests__/';
+import { React, ReactDOM, ReactTestUtils } from 'app/__tests__/domUtils';
+import { $, expect, reactor } from 'app/__tests__/';
 
 let $node = $('<div>').appendTo("body");
 
@@ -18,54 +12,54 @@ describe('components/user/invite', () => {
     expect.restoreSpies();
     reactor.reset();
   })
-  
-  it('should sign-up with username and password', () => {        
-    let props = getProps({      
+
+  it('should sign-up with username and password', () => {
+    let props = getProps({
       auth2faType: enums.Auth2faTypeEnum.DISABLED
     });
-        
-    render(props);        
+
+    render(props);
     let expected = ['psw1234', ''];
-        
-    setValues(...expected);    
-    clickLogin();    
+
+    setValues(...expected);
+    clickLogin();
     expectNInputs(4);
-    expect(props.onSubmit).toHaveBeenCalledWith(props.invite.user, ...expected);    
-  });    
+    expect(props.onSubmit).toHaveBeenCalledWith(props.invite.user, ...expected);
+  });
 
-  it('should sign-up with Auth2faTypeEnum.UTF', () => {                            
-    let props = getProps({      
-      auth2faType: enums.Auth2faTypeEnum.UTF      
+  it('should sign-up with Auth2faTypeEnum.UTF', () => {
+    let props = getProps({
+      auth2faType: enums.Auth2faTypeEnum.UTF
     });
-    
-    render(props);    
+
+    render(props);
 
     let expected = ['psw1234', ''];
 
-    setValues(...expected);        
+    setValues(...expected);
     clickLogin();
-    expectNInputs(4);            
-    expect(props.onSubmitWithU2f).toHaveBeenCalledWith(props.invite.user, expected[0]);    
-  });    
+    expectNInputs(4);
+    expect(props.onSubmitWithU2f).toHaveBeenCalledWith(props.invite.user, expected[0]);
+  });
 
-  it('should sign-up with Auth2faTypeEnum.OTP', () => {                    
-    let props = getProps({      
-      auth2faType: enums.Auth2faTypeEnum.OTP      
+  it('should sign-up with Auth2faTypeEnum.OTP', () => {
+    let props = getProps({
+      auth2faType: enums.Auth2faTypeEnum.OTP
     });
-    
-    render(props);    
-    
-    let expected = ['psw1234', 'token'];        
 
-    setValues(...expected);        
+    render(props);
+
+    let expected = ['psw1234', 'token'];
+
+    setValues(...expected);
     clickLogin();
-    expectNInputs(5);            
-    expect(props.onSubmit).toHaveBeenCalledWith(props.invite.user, ...expected);    
-  });    
-        
+    expectNInputs(5);
+    expect(props.onSubmit).toHaveBeenCalledWith(props.invite.user, ...expected);
+  });
+
 });
 
-const setValues = (password, token) => {  
+const setValues = (password, token) => {
   if (password) {
     setText($node.find('input[name="password"]')[0], password);
     setText($node.find('input[name="passwordConfirmed"]')[0], password);
@@ -75,7 +69,7 @@ const setValues = (password, token) => {
     setText($node.find('input[name="token"]')[0], token);
   }
 }
-  
+
 const clickLogin = () => {
   $node.find(".btn-primary").click();
 }
@@ -85,25 +79,25 @@ const expectNInputs = n => {
 }
 
 const getProps = customProps => {
-  let props = {    
-    auth2faType: '',    
-    authType: '',        
+  let props = {
+    auth2faType: '',
+    authType: '',
     onSubmitWithU2f(/*username, password*/) { },
-    onSubmit(/*username, password, token*/) { },    
+    onSubmit(/*username, password, token*/) { },
     invite: {
       user: 'test_user'
     },
     attemp: { },
     ...customProps
   };
-  
+
   expect.spyOn(props, 'onSubmitWithU2f');
   expect.spyOn(props, 'onSubmit');
 
   return props;
 }
 
- 
+
 function render(props){
   return ReactDOM.render(<InviteInputForm {...props }/>, $node[0]);
 }

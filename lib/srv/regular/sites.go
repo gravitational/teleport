@@ -19,12 +19,12 @@ package regular
 import (
 	"encoding/json"
 
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 )
 
 // proxySubsys is an SSH subsystem for easy proxyneling through proxy server

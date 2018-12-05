@@ -38,13 +38,13 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 // proxySubsys implements an SSH subsystem for proxying listening sockets from
 // remote hosts to a proxy client (AKA port mapping)
 type proxySubsys struct {
-	log          *log.Entry
+	log          *logrus.Entry
 	srv          *Server
 	host         string
 	port         string
@@ -117,7 +117,7 @@ func parseProxySubsys(request string, srv *Server, ctx *srv.ServerContext) (*pro
 	}
 
 	return &proxySubsys{
-		log: log.WithFields(log.Fields{
+		log: logrus.WithFields(logrus.Fields{
 			trace.Component:       teleport.ComponentSubsystemProxy,
 			trace.ComponentFields: map[string]string{},
 		}),
@@ -141,7 +141,7 @@ func (t *proxySubsys) String() string {
 // a mapping connection between a client & remote node we're proxying to)
 func (t *proxySubsys) Start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) error {
 	// once we start the connection, update logger to include component fields
-	t.log = log.WithFields(log.Fields{
+	t.log = logrus.WithFields(logrus.Fields{
 		trace.Component: teleport.ComponentSubsystemProxy,
 		trace.ComponentFields: map[string]string{
 			"src": sconn.RemoteAddr().String(),
