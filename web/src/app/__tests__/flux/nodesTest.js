@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import { reactor, expect, Dfd, spyOn, api } from './../';
-import actions from 'app/flux/nodes/actions';
+import { fetchNodes } from 'app/flux/nodes/actions';
 import getters from 'app/flux/nodes/getters';
 import { getNodeStore } from 'app/flux/nodes/nodeStore';
 import { setSiteId } from 'app/flux/app/actions';
@@ -24,9 +24,9 @@ import { nodes } from 'app/__tests__/apiData'
 describe('flux/nodes', () => {
   const siteid = 'siteid123';
   const serverId = 'ad2109a6-42ac-44e4-a570-5ce1b470f9b6';
-  
+
   beforeEach(() => {
-    setSiteId(siteid);  
+    setSiteId(siteid);
     spyOn(api, 'get');
   });
 
@@ -38,14 +38,14 @@ describe('flux/nodes', () => {
   describe('getters and actions', () => {
     beforeEach(() => {
       api.get.andReturn(Dfd().resolve(nodes));
-      actions.fetchNodes();
+      fetchNodes();
     });
 
-    it('should get cluster nodes"', () => {                           
+    it('should get cluster nodes"', () => {
       expect(reactor.evaluateToJS(getters.siteNodes)).toEqual(nodes.items);
     });
 
-    it('should findServer', () => {            
+    it('should findServer', () => {
       const server = getNodeStore().findServer(serverId);
       expect(server.hostname).toEqual('x220');
     });

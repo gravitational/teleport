@@ -4,15 +4,12 @@ import api from 'app/services/api';
 import cfg from 'app/config';
 import appGetters from 'app/flux/app/getters';
 import Logger from 'app/lib/logger';
-
 const logger = Logger.create('Modules/Nodes');
 
-export default {
-  fetchNodes() {
-    const siteId = reactor.evaluate(appGetters.siteId);
-    return api.get(cfg.api.getSiteNodesUrl(siteId))
-      .then(res => res.items || [])
-      .done(items => reactor.dispatch(TLPT_NODES_RECEIVE, items))
-      .fail(err => logger.error('fetchNodes', err));    
-  }
+export function fetchNodes() {
+  const siteId = reactor.evaluate(appGetters.siteId);
+  return api.get(cfg.api.getSiteNodesUrl(siteId))
+    .then(res => res.items || [])
+    .done(items => reactor.dispatch(TLPT_NODES_RECEIVE, items))
+    .fail(err => logger.error('fetchNodes', err));
 }

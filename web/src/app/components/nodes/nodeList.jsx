@@ -60,7 +60,9 @@ class LoginCell extends React.Component {
     }
   }
 
-  onShowLoginsClick = () => {
+  onShowLoginsClick = e => {
+    e.stopPropagation();
+    e.nativeEvent.stopImmediatePropagation();
     this.refs.customLogin.focus()
   }
 
@@ -110,7 +112,7 @@ class LoginCell extends React.Component {
               <ul className="dropdown-menu pull-right">
                 <li>
                   <div className="input-group-sm grv-nodes-custom-login">
-                    <input className="form-control" ref="customLogin"
+                  <input className="form-control" ref="customLogin"
                       placeholder="Enter login name..."
                       onKeyPress={this.onKeyPress}
                       autoFocus
