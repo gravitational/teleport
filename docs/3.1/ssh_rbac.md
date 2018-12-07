@@ -114,6 +114,11 @@ spec:
       'environment': 'test'
       # the wildcard ('*') means "any node"
       '*': '*'
+      # labels can be specified as a list:
+      'environment': ['test', 'staging']
+      # regular expressions are also supported, for example the equivalent
+      # of the list example above can be expressed as: 
+      'environment': '^test|staging$'
 
     # list of allow-rules. see below for more information.
     rules:
