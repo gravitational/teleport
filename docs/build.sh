@@ -3,7 +3,7 @@
 # IMPORTANT! To add a new version, say 8.1
 #     * copy 2.3.yaml to 8.1.yaml
 #     * edit 8.1.yaml
-#     * edit theme/base.html and update docVersions variable
+#     * edit theme/scripts.html and update docVersions variable
 
 cd $(dirname $0)
 rm -f latest.yaml
