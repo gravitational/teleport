@@ -108,9 +108,17 @@ spec:
     # this allows you to specify Kubernetes group membership in an identity manager:
     kubernetes_groups: ["system:masters", "{{external.trait_name}}"]]
 
-    # node labels that a user can connect to. The wildcard ('*') means "any node"
+    # list of node labels a user will be allowed to connect to:
     node_labels:
+      # a user can only connect to a node marked with 'test' label:
+      'environment': 'test'
+      # the wildcard ('*') means "any node"
       '*': '*'
+      # [version 3.1+] labels can be specified as a list:
+      'environment': ['test', 'staging']
+      # [version 3.1+] regular expressions are also supported, for example the equivalent
+      # of the list example above can be expressed as: 
+      'environment': '^test|staging$'
 
     # list of allow-rules. see below for more information.
     rules:
