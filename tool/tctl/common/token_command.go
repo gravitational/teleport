@@ -80,6 +80,7 @@ func (c *TokenCommand) Initialize(app *kingpin.Application, config *service.Conf
 
 	// "tctl tokens ls"
 	c.tokenList = tokens.Command("ls", "List node and user invitation tokens")
+	c.tokenList.Flag("type", "Type of tokens to list").StringVar(&c.tokenType)
 }
 
 // TryRun takes the CLI command as an argument (like "nodes ls") and executes it.
@@ -166,6 +167,13 @@ func (c *TokenCommand) Del(client auth.ClientI) error {
 
 // List is called to execute "tokens ls" command.
 func (c *TokenCommand) List(client auth.ClientI) error {
+	if c.tokenType == strings.ToLower(string(teleport.RoleSignup)) {
+		return listSignupTokens(client)
+	}
+	return listAllTokens(client)
+}
+
+func listAllTokens(client auth.ClientI) error {
 	tokens, err := client.GetTokens()
 	if err != nil {
 		return trace.Wrap(err)
@@ -190,6 +198,35 @@ func (c *TokenCommand) List(client auth.ClientI) error {
 		return table.AsBuffer().String()
 	}
 	fmt.Printf(tokensView())
+	return nil
+}
+
+func listSignupTokens(client auth.ClientI) error {
+	tokens, err := client.GetSignupTokens()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(tokens) == 0 {
+		fmt.Println("No active tokens found.")
+		return nil
+	}
+
+	// Sort by expire time.
+	sort.Slice(tokens, func(i, j int) bool {
+		return tokens[i].Expires.Unix() < tokens[j].Expires.Unix()
+	})
+
+	// Build table to include username, signup token, and expiry time.
+	table := asciitable.MakeTable([]string{"User", "Token", "Expiry Time (UTC)"})
+	for _, t := range tokens {
+		expiry := "never"
+		if t.Expires.Unix() > 0 {
+			expiry = t.Expires.Format(time.RFC822)
+		}
+		table.AddRow([]string{t.User.V2().GetName(), t.Token, expiry})
+	}
+
+	fmt.Printf(table.AsBuffer().String())
 	return nil
 }
 

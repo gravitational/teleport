@@ -237,6 +237,12 @@ type SignupToken struct {
 	Expires   time.Time `json:"expires"`
 }
 
+// String returns a human readable version of the user signup token.
+func (s SignupToken) String() string {
+	return fmt.Sprintf("SignupToken(User=%v, expires=%v)",
+		s.User.V2().GetName(), s.Expires)
+}
+
 // OIDCIdentity is OpenID Connect identity that is linked
 // to particular user and connector and lets user to log in using external
 // credentials, e.g. google

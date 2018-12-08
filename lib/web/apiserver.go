@@ -162,6 +162,11 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.POST("/webapi/users", httplib.MakeHandler(h.createNewUser))
 	h.PUT("/webapi/users/password", h.WithAuth(h.changePassword))
 
+	// User signup tokens.
+	h.POST("/webapi/sites/:site/namespaces/:namespace/signuptokens", h.WithClusterAuth(h.createSignupToken))
+	h.GET("/webapi/sites/:site/namespaces/:namespace/signuptokens", h.WithClusterAuth(h.getSignupTokens))
+	h.DELETE("/webapi/sites/:site/namespaces/:namespace/signuptokens/:token", h.WithClusterAuth(h.deleteSignupToken))
+
 	// Issues SSH temp certificates based on 2FA access creds
 	h.POST("/webapi/ssh/certs", httplib.MakeHandler(h.createSSHCert))
 

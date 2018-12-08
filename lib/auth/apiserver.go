@@ -97,6 +97,9 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	srv.POST("/:version/users/:user/ssh/authenticate", srv.withAuth(srv.authenticateSSHUser))
 	srv.GET("/:version/users/:user/web/sessions/:sid", srv.withAuth(srv.getWebSession))
 	srv.DELETE("/:version/users/:user/web/sessions/:sid", srv.withAuth(srv.deleteWebSession))
+
+	// User signup tokens.
+	srv.GET("/:version/signuptokens", srv.withAuth(srv.getSignupTokens))
 	srv.GET("/:version/signuptokens/:token", srv.withAuth(srv.getSignupTokenData))
 	srv.POST("/:version/signuptokens/users", srv.withAuth(srv.createUserWithToken))
 	srv.POST("/:version/signuptokens", srv.withAuth(srv.createSignupToken))
@@ -1110,6 +1113,15 @@ func (s *APIServer) getSession(auth ClientI, w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 	return se, nil
+}
+
+func (s *APIServer) getSignupTokens(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	tokens, err := auth.GetSignupTokens()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return tokens, nil
 }
 
 type getSignupTokenDataResponse struct {

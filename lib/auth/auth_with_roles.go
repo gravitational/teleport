@@ -730,6 +730,17 @@ func (a *AuthWithRoles) CreateSignupToken(user services.UserV1, ttl time.Duratio
 	return a.authServer.CreateSignupToken(user, ttl)
 }
 
+// GetSignupTokens returns all the user signup tokens in the cluster.
+func (a *AuthWithRoles) GetSignupTokens() ([]services.SignupToken, error) {
+	if err := a.action(defaults.Namespace, services.KindToken, services.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindToken, services.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetSignupTokens()
+}
+
 func (a *AuthWithRoles) GetSignupTokenData(token string) (user string, otpQRCode []byte, err error) {
 	// signup token are their own authz resource
 	return a.authServer.GetSignupTokenData(token)
