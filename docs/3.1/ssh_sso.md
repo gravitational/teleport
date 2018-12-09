@@ -116,8 +116,20 @@ spec:
 
 ## Multiple SSO Providers
 
-Teleport can also support multiple connectors. This works by supplying
-a connector name to `tsh login` via `--auth` argument:
+Teleport can also support multiple connectors, i.e. a Teleport administrator
+can define and create multiple connector resoruces using `tctl create` as shown above. 
+
+To see all configured connectors, execute this on the auth server:
+
+```bash
+$ tctl get connectors
+```
+
+To delete/update connectors, use the usual `tctl rm` and `tctl create` commands
+as described in the [Resources section](admin-guide/#resources) in the Admin Manual.
+
+If multiple authentication connectors exist, the clients must supply a
+connector name to `tsh login` via `--auth` argument:
 
 ```bsh
 # use "okta" SAML connector:
@@ -126,6 +138,7 @@ $ tsh --proxy=proxy.example.com login --auth=okta
 # use local Teleport user DB:
 $ tsh --proxy=proxy.example.com login --auth=local --user=admin
 ```
+
 
 Refer to the following guides to configure authentication connectors of both
 SAML and OIDC types:
