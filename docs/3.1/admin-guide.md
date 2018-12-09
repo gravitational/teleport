@@ -827,22 +827,45 @@ key:value pairs to each node, called labels. There are two kinds of labels:
    the value of such label. Examples include reporting a kernel version, load averages,
    time after reboot, etc.
 
-Labels can be configured in a configuration file or the `--labels` flag as shown below:
+There are two ways to configure node labels. 
+
+1. Via command line, by using `--labels` flag to `teleport start` command.
+2. Using `/etc/teleport.yaml` configuration file on the nodes.
+
+
+### CLI Example
 
 ```yaml
 $ teleport start --labels uptime=[1m:"uptime -p"],kernel=[1h:"uname -r"]
 ```
 
-Obviously, the kernel version is not going to change often, so this example runs
-`uname` once an hour. When this node starts and reports its labels into the cluster,
-users will see:
+### Configuration File Example
 
 ```yaml
-$ tctl nodes ls
+ssh_service:
+  enabled: "yes"
+  # Static labels are simple key/value pairs:
+  labels:
+    environment: test
 
-Node Name     Node ID          Address         Labels
----------     -------          -------         ------
-turing        d52527f9-b260    10.1.0.5:3022   kernel=3.19.0-56,uptime=up 1 hour, 15 minutes
+  # Dynamic labels AKA "commands":
+  commands:
+  - name: arch
+    command: [/bin/uname, -m]
+    # this setting tells teleport to execute the command above
+    # once an hour. this value cannot be less than one minute.
+    period: 1h0m0s 
+```
+
+When a node starts, it usually takes up to a minute for the labels to become 
+visible to users within a cluster, but when they do, you should see:
+
+```bash
+$ tsh ls
+
+Node Name     Address         Labels
+---------     -------         -----------------------------
+turing        10.1.0.5:3022   arch=x86_64, environment=test
 ```
 
 ## Audit Log
