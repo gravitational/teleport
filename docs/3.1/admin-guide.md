@@ -216,6 +216,10 @@ teleport:
     # subsequent starts
     auth_token: xxxx-token-xxxx
 
+    # Optional CA pin of the auth server. This enables more secure way of adding new
+    # nodes to a cluster. See "Adding Nodes" section above.
+    ca_pin: "sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1"
+
     # When running in multi-homed or NATed environments Teleport nodes need
     # to know which IP it will be reachable at by other nodes
     #
@@ -785,20 +789,56 @@ dijkstra      c9s93fd9-3333-91d3-9999-c9s93fd98f43     10.1.0.6:3022      distro
 
 ### Untrusted Auth Servers
 
-Teleport nodes use the HTTPS protocol to offer the join tokens to the auth server
-running on `10.0.10.5` in the example above. In a zero-trust environment, you
-must assume that an attacker can highjack the IP address of the auth server
-e.g. `10.0.10.5`. To prevent this from happening, you need to distribute the CA
-certificate of the auth server to the node prior to adding it:
+Teleport nodes use the HTTPS protocol to offer the join tokens to the auth
+server running on `10.0.10.5` in the example above. In a zero-trust
+environment, you must assume that an attacker can highjack the IP address of
+the auth server e.g. `10.0.10.5`. 
 
-```bsh
-# on the auth server:
-$ tctl auth export --type=tls > ca.cert
+To prevent this from happening, you need to supply every new node with an
+additional bit of information about the auth server. This technique is called
+"CA Pinning". It works by asking the auth server to produce a "CA Pin", which
+is a hashed value of it's private key, i.e. it cannot be forged by an attacker.
 
-# on the new node, prior to calling 'teleport start'
-$ mkdir -p /var/lib/teleport
-$ cp ca.cert /var/lib/teleport/ca.cert
+On the auth server:
+
+```bash
+$ tctl status
+Cluster  staging.example.com           
+User CA  never updated 
+Host CA  never updated 
+CA pin   sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1
 ```
+
+The "CA pin" at the bottom needs to be passed to the new nodes when they're starting
+for the first time, i.e. when they join a cluster:
+
+Via CLI:
+
+```bash
+$ teleport start \
+   --roles=node \
+   --token=1ac590d36493acdaa2387bc1c492db1a \
+   --ca-pin=sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1 \
+   --auth-server=10.12.0.6:3025
+```
+
+or via `/etc/teleport.yaml` on a node:
+
+```yaml
+teleport:
+  auth_token: "1ac590d36493acdaa2387bc1c492db1a"
+  ca_pin: "sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1"
+  auth_servers:
+    - "10.12.0.6:3025"
+```
+
+!!! warning "Warning":
+    If a CA pin not provided, Teleport node will join a cluster but it will print
+    a `WARN` message (warning) into it's standard error output.
+
+!!! warning "Warning":
+    The CA pin becomes invalid if a Teleport administrator performs the CA
+    rotation by executing `tctl auth rotate`.
 
 ## Revoking Invitations
 
@@ -1697,6 +1737,10 @@ $ tctl status
     clusters are running version 2.6+. If one of the trusted clusters is running
     an older version of Teleport the trust/connection to that cluster will be
     lost.
+
+!!! warning "CA Pinning Warning"
+    If you are using [CA Pinning](#untrusted-auth-servers) when adding new nodes,
+    the CA pin will changes after the rotation.
 
 ## Ansible Integration
 
