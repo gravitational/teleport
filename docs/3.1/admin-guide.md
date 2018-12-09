@@ -496,7 +496,7 @@ Here is an example of this setting in the `teleport.yaml`:
 auth_service:
   authentication:
     type: local
-    second_factor: u2f
+    second_factor: off
 ```
 
 ### Github OAuth 2.0 Connector
@@ -548,10 +548,25 @@ auth_service:
 Teleport supports [FIDO U2F](https://www.yubico.com/about/background/fido/)
 hardware keys as a second authentication factor. By default U2F is disabled. To start using U2F:
 
-* Enable U2F in Teleport configuration `teleport.yaml`.
+* Enable U2F in Teleport configuration `/etc/teleport.yaml`.
 * For CLI-based logins you have to install [u2f-host](https://developers.yubico.com/libu2f-host/) utility.
 * For web-based logins you have to use Google Chrome, as it is the only browser supporting U2F at this time.
 
+```yaml
+# snippet from /etc/teleport.yaml to show an examlpe configuration of U2F:
+auth_service:
+  authentication:
+    type: local
+    second_factor: u2f
+    # this section is needed only if second_factor is set to 'u2f'
+    u2f:
+       # app_id must point to the URL of the Teleport Web UI (proxy) accessible
+       # by the end users
+       app_id: https://localhost:3080
+       # facets must list all proxy servers if there are more than one deployed
+       facets:
+       - https://localhost:3080
+```
 
 For single-proxy setups, the `app_id` setting can be equal to the domain name of the
 proxy, but this will prevent you from adding more proxies without changing the
@@ -565,6 +580,7 @@ a JSON file that mirrors `facets` in the auth config.
 	When adding a new proxy server, make sure to add it to the list of "facets"
 	in the configuration file, but also to the JSON file referenced by `app_id`
 
+ 
 **Logging in with U2F**
 
 For logging in via the CLI, you must first install [u2f-host](https://developers.yubico.com/libu2f-host/).
