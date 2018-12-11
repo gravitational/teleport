@@ -94,6 +94,8 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 		select {
 		case <-stream.Context().Done():
 			return nil
+		case <-watcher.Done():
+			return trail.ToGRPC(watcher.Error())
 		case event := <-watcher.Events():
 			out, err := eventToGRPC(event)
 			if err != nil {
