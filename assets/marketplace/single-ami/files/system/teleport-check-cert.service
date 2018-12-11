@@ -1,0 +1,9 @@
+[Unit]
+Description=Service checking if teleport cert has been updated
+ConditionPathExists=/etc/teleport.d/role.proxy
+
+[Service]
+Type=oneshot
+User=root
+Group=adm
+ExecStart=/usr/bin/teleport-check-cert

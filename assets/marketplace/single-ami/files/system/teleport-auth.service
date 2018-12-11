@@ -1,7 +1,7 @@
 [Unit]
-Description=Teleport Service
+Description=Teleport Auth Service
 After=network.target cloud-final.service teleport-generate-config.service
-ConditionPathExists=/etc/teleport.d/role.all
+ConditionPathExists=/etc/teleport.d/role.auth
 
 [Service]
 User=teleport
