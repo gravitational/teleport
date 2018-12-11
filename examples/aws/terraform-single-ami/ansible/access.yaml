@@ -1,0 +1,24 @@
+# This is an example of how to set up
+# resources
+# export teleport_resources=~/scripts/autoscale/resources.yaml
+# ansible-playbook -v -i ec2.py --private-key=/key.pem access.yaml
+- hosts: "auth[0]"
+  name: Install resources
+  become: yes
+  remote_user: admin
+  become_method: sudo
+  tasks:
+    - name: Set ansible variables from current environment
+      set_fact:
+        teleport_resources: "{{ lookup('env', 'teleport_resources') | mandatory }}"
+    - name: Check if teleport_resources are specified
+      fail:
+        msg: "No teleport_resources are specified"
+      when: teleport_resources == ""
+    - name: Copy resources
+      copy:
+        src: "{{teleport_resources}}"
+        dest: /tmp/resources.yaml
+    - name: Setup resources
+      shell: "sudo -u teleport tctl create -f /tmp/resources.yaml"
+
