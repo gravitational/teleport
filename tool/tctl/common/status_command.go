@@ -72,6 +72,13 @@ func (c *StatusCommand) Status(client auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
+	// Calculate the CA pin for this cluster. The CA pin is used by the client
+	// to verify the identity of the Auth Server.
+	caPin, err := calculateCAPin(client)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	authorities := append(userCAs, hostCAs...)
 	view := func() string {
 		table := asciitable.MakeHeadlessTable(2)
@@ -94,6 +101,7 @@ func (c *StatusCommand) Status(client auth.ClientI) error {
 			}
 
 		}
+		table.AddRow([]string{"CA pin", caPin})
 		return table.AsBuffer().String()
 	}
 	fmt.Printf(view())
