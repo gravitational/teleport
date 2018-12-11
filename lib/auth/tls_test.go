@@ -26,6 +26,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"testing"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -54,7 +55,7 @@ type TLSSuite struct {
 var _ = check.Suite(&TLSSuite{})
 
 func (s *TLSSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 }
 
 func (s *TLSSuite) SetUpTest(c *check.C) {
@@ -1223,7 +1224,7 @@ func (s *TLSSuite) TestGenerateCerts(c *check.C) {
 	roleOptions := userRole.GetOptions()
 	roleOptions.ForwardAgent = services.NewBool(true)
 	userRole.SetOptions(roleOptions)
-	err = s.server.Auth().UpsertRole(userRole, backend.Forever)
+	err = s.server.Auth().UpsertRole(userRole)
 	c.Assert(err, check.IsNil)
 
 	cert, err = adminClient.GenerateUserCert(pub, user1.GetName(), 1*time.Hour, teleport.CertificateFormatStandard)
@@ -1287,7 +1288,7 @@ func (s *TLSSuite) TestCertificateFormat(c *check.C) {
 		roleOptions := userRole.GetOptions()
 		roleOptions.CertificateFormat = tt.inRoleCertificateFormat
 		userRole.SetOptions(roleOptions)
-		err := s.server.Auth().UpsertRole(userRole, backend.Forever)
+		err := s.server.Auth().UpsertRole(userRole)
 		c.Assert(err, check.IsNil)
 
 		proxyClient, err := s.server.NewClient(TestBuiltin(teleport.RoleProxy))
@@ -1729,4 +1730,147 @@ func (s *TLSSuite) TestRegisterCAPath(c *check.C) {
 		CAPath:               caPath,
 	})
 	c.Assert(err, check.IsNil)
+}
+
+// TestStreamNodePresence tests streaming node presence API -
+// announcing node and keeping node alive
+func (s *TLSSuite) TestStreamNodePresence(c *check.C) {
+	node := &services.ServerV2{
+		Kind:    services.KindNode,
+		Version: services.V2,
+		Metadata: services.Metadata{
+			Name:      "node1",
+			Namespace: defaults.Namespace,
+		},
+		Spec: services.ServerSpecV2{
+			Addr: "localhost:3022",
+		},
+	}
+	node.SetExpiry(time.Now().Add(2 * time.Second))
+	clt, err := s.server.NewClient(TestIdentity{
+		I: BuiltinRole{
+			Role:     teleport.RoleNode,
+			Username: fmt.Sprintf("%v.%v", node.Metadata.Name, s.server.ClusterName()),
+		},
+	})
+	c.Assert(err, check.IsNil)
+	defer clt.Close()
+
+	keepAlive, err := clt.UpsertNode(node)
+	c.Assert(err, check.IsNil)
+	c.Assert(keepAlive, check.NotNil)
+
+	ctx := context.TODO()
+	keepAliver, err := clt.NewKeepAliver(ctx)
+	c.Assert(err, check.IsNil)
+	defer keepAliver.Close()
+
+	keepAlive.Expires = time.Now().Add(2 * time.Second)
+	select {
+	case keepAliver.KeepAlives() <- *keepAlive:
+		// ok
+	case <-time.After(time.Second):
+		c.Fatalf("time out sending keep ailve")
+	case <-keepAliver.Done():
+		c.Fatalf("unknown problem sending keep ailve")
+	}
+
+	// upsert node and keep alives will fail for users with no privileges
+	nopClt, err := s.server.NewClient(TestBuiltin(teleport.RoleNop))
+	c.Assert(err, check.IsNil)
+	defer nopClt.Close()
+
+	_, err = nopClt.UpsertNode(node)
+	fixtures.ExpectAccessDenied(c, err)
+
+	k2, err := nopClt.NewKeepAliver(ctx)
+	c.Assert(err, check.IsNil)
+
+	keepAlive.Expires = time.Now().Add(2 * time.Second)
+	go func() {
+		select {
+		case k2.KeepAlives() <- *keepAlive:
+		case <-k2.Done():
+		}
+	}()
+
+	select {
+	case <-time.After(time.Second):
+		c.Fatalf("time out expecting error")
+	case <-k2.Done():
+	}
+
+	fixtures.ExpectAccessDenied(c, k2.Error())
+}
+
+// TestStreamEvents tests streaming of events
+func (s *TLSSuite) TestStreamEvents(c *check.C) {
+	clt, err := s.server.NewClient(TestBuiltin(teleport.RoleNode))
+	c.Assert(err, check.IsNil)
+	defer clt.Close()
+
+	ctx := context.TODO()
+	w, err := clt.NewWatcher(ctx, services.Watch{Kinds: []string{services.KindCertAuthority}})
+	c.Assert(err, check.IsNil)
+	defer w.Close()
+
+	// start rotation
+	gracePeriod := time.Hour
+	err = s.server.Auth().RotateCertAuthority(RotateRequest{
+		Type:        services.HostCA,
+		GracePeriod: &gracePeriod,
+		TargetPhase: services.RotationPhaseInit,
+		Mode:        services.RotationModeManual,
+	})
+	c.Assert(err, check.IsNil)
+
+	ca, err := s.server.Auth().GetCertAuthority(services.CertAuthID{
+		DomainName: s.server.ClusterName(),
+		Type:       services.HostCA,
+	}, false)
+	c.Assert(err, check.IsNil)
+
+	timeoutC := time.After(3 * time.Second)
+waitLoop:
+	for {
+		select {
+		case <-timeoutC:
+			c.Fatalf("Timeout waiting for event")
+		case event := <-w.Events():
+			if event.Type != backend.OpPut {
+				log.Debugf("Skipping stale event %v", event)
+				continue waitLoop
+			}
+			if ca.GetResourceID() > event.Resource.GetResourceID() {
+				log.Debugf("Skipping stale event %v, latest object version is %v", event.Resource.GetResourceID(), ca.GetResourceID())
+				continue waitLoop
+			}
+			fixtures.DeepCompare(c, ca, event.Resource)
+			break waitLoop
+		}
+	}
+
+	// nop roles user is not authorized to watch events
+	nopClt, err := s.server.NewClient(TestBuiltin(teleport.RoleNop))
+	c.Assert(err, check.IsNil)
+	defer nopClt.Close()
+
+	w2, err := nopClt.NewWatcher(ctx, services.Watch{Kinds: []string{services.KindCertAuthority}})
+	c.Assert(err, check.IsNil)
+	defer w2.Close()
+
+	go func() {
+		select {
+		case <-w2.Events():
+		case <-w2.Done():
+		}
+	}()
+
+	select {
+	case <-time.After(time.Second):
+		c.Fatalf("time out expecting error")
+	case <-w2.Done():
+	}
+
+	fixtures.ExpectAccessDenied(c, w2.Error())
 }

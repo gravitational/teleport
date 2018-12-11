@@ -17,13 +17,13 @@ limitations under the License.
 package local
 
 import (
+	"context"
 	"fmt"
-	"io/ioutil"
-	"os"
+	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/dir"
+	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
@@ -34,15 +34,14 @@ import (
 )
 
 type ClusterConfigurationSuite struct {
-	bk      backend.Backend
-	tempDir string
+	bk backend.Backend
 }
 
 var _ = check.Suite(&ClusterConfigurationSuite{})
 var _ = fmt.Printf
 
 func (s *ClusterConfigurationSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 }
 
 func (s *ClusterConfigurationSuite) TearDownSuite(c *check.C) {
@@ -50,21 +49,12 @@ func (s *ClusterConfigurationSuite) TearDownSuite(c *check.C) {
 
 func (s *ClusterConfigurationSuite) SetUpTest(c *check.C) {
 	var err error
-
-	s.tempDir, err = ioutil.TempDir("", "preference-test-")
-	c.Assert(err, check.IsNil)
-
-	s.bk, err = dir.New(backend.Params{"path": s.tempDir})
+	s.bk, err = lite.New(context.TODO(), backend.Params{"path": c.MkDir()})
 	c.Assert(err, check.IsNil)
 }
 
 func (s *ClusterConfigurationSuite) TearDownTest(c *check.C) {
-	var err error
-
 	c.Assert(s.bk.Close(), check.IsNil)
-
-	err = os.RemoveAll(s.tempDir)
-	c.Assert(err, check.IsNil)
 }
 
 func (s *ClusterConfigurationSuite) TestAuthPreference(c *check.C) {

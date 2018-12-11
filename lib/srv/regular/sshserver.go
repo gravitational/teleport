@@ -65,6 +65,8 @@ var log = logrus.WithFields(logrus.Fields{
 type Server struct {
 	sync.Mutex
 
+	*logrus.Entry
+
 	namespace string
 	addr      utils.NetAddr
 	hostname  string
@@ -95,8 +97,10 @@ type Server struct {
 	// this gets set to true for unit testing
 	isTestStub bool
 
-	// sets to true when the server needs to be stopped
-	closer *utils.CloseBroadcaster
+	// cancel cancels all operations
+	cancel context.CancelFunc
+	// ctx is broadcasting context closure
+	ctx context.Context
 
 	// alog points to the AuditLog this server uses to report
 	// auditable events
@@ -132,6 +136,10 @@ type Server struct {
 
 	// dataDir is a server local data directory
 	dataDir string
+
+	// heartbeat sends updates about this server
+	// back to auth server
+	heartbeat *srv.Heartbeat
 }
 
 // GetClock returns server clock implementation
@@ -194,8 +202,14 @@ type ServerOption func(s *Server) error
 
 // Close closes listening socket and stops accepting connections
 func (s *Server) Close() error {
-	s.closer.Close()
+	s.cancel()
 	s.reg.Close()
+	if s.heartbeat != nil {
+		if err := s.heartbeat.Close(); err != nil {
+			s.Warningf("Failed to close heartbeat: %v", err)
+		}
+		s.heartbeat = nil
+	}
 	return s.srv.Close()
 }
 
@@ -203,8 +217,14 @@ func (s *Server) Close() error {
 func (s *Server) Shutdown(ctx context.Context) error {
 	// wait until connections drain off
 	err := s.srv.Shutdown(ctx)
-	s.closer.Close()
+	s.cancel()
 	s.reg.Close()
+	if s.heartbeat != nil {
+		if err := s.heartbeat.Close(); err != nil {
+			s.Warningf("Failed to close heartbeat: %v", err)
+		}
+		s.heartbeat = nil
+	}
 	return err
 }
 
@@ -213,7 +233,7 @@ func (s *Server) Start() error {
 	if len(s.getCommandLabels()) > 0 {
 		s.updateLabels()
 	}
-	go s.heartbeatPresence()
+	go s.heartbeat.Run()
 	return s.srv.Start()
 }
 
@@ -222,7 +242,7 @@ func (s *Server) Serve(l net.Listener) error {
 	if len(s.getCommandLabels()) > 0 {
 		s.updateLabels()
 	}
-	go s.heartbeatPresence()
+	go s.heartbeat.Run()
 	return s.srv.Serve(l)
 }
 
@@ -276,6 +296,9 @@ func SetProxyMode(tsrv reversetunnel.Server) ServerOption {
 func SetLabels(labels map[string]string,
 	cmdLabels services.CommandLabels) ServerOption {
 	return func(s *Server) error {
+		// make sure to clone labels to avoid
+		// concurrent writes to the map during reloads
+		cmdLabels = cmdLabels.Clone()
 		for name, label := range cmdLabels {
 			if label.GetPeriod() < time.Second {
 				label.SetPeriod(time.Second)
@@ -283,7 +306,6 @@ func SetLabels(labels map[string]string,
 				log.Warningf("label period can't be less that 1 second. Period for label '%v' was set to 1 second", name)
 			}
 		}
-
 		s.labels = labels
 		s.cmdLabels = cmdLabels
 		return nil
@@ -302,6 +324,14 @@ func SetLimiter(limiter *limiter.Limiter) ServerOption {
 func SetAuditLog(alog events.IAuditLog) ServerOption {
 	return func(s *Server) error {
 		s.alog = alog
+		return nil
+	}
+}
+
+// SetUUID sets server unique ID
+func SetUUID(uuid string) ServerOption {
+	return func(s *Server) error {
+		s.uuid = uuid
 		return nil
 	}
 }
@@ -365,6 +395,7 @@ func New(addr utils.NetAddr,
 		return nil, trace.Wrap(err)
 	}
 
+	ctx, cancel := context.WithCancel(context.TODO())
 	s := &Server{
 		addr:            addr,
 		authService:     authService,
@@ -373,7 +404,8 @@ func New(addr utils.NetAddr,
 		advertiseIP:     advertiseIP,
 		proxyPublicAddr: proxyPublicAddr,
 		uuid:            uuid,
-		closer:          utils.NewCloseBroadcaster(),
+		cancel:          cancel,
+		ctx:             ctx,
 		clock:           clockwork.NewRealClock(),
 		dataDir:         dataDir,
 	}
@@ -403,6 +435,11 @@ func New(addr utils.NetAddr,
 	} else {
 		component = teleport.ComponentNode
 	}
+
+	s.Entry = logrus.WithFields(logrus.Fields{
+		trace.Component:       component,
+		trace.ComponentFields: logrus.Fields{},
+	})
 
 	s.reg, err = srv.NewSessionRegistry(s)
 	if err != nil {
@@ -439,6 +476,30 @@ func New(addr utils.NetAddr,
 		return nil, trace.Wrap(err)
 	}
 	s.srv = server
+
+	var heartbeatMode srv.HeartbeatMode
+	if s.proxyMode {
+		heartbeatMode = srv.HeartbeatModeProxy
+	} else {
+		heartbeatMode = srv.HeartbeatModeNode
+	}
+	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
+		Mode:            heartbeatMode,
+		Context:         ctx,
+		Component:       component,
+		Announcer:       s.authService,
+		GetServerInfo:   s.getServerInfo,
+		KeepAlivePeriod: defaults.ServerKeepAliveTTL,
+		AnnouncePeriod:  defaults.ServerAnnounceTTL/2 + utils.RandomDuration(defaults.ServerAnnounceTTL/10),
+		ServerTTL:       defaults.ServerAnnounceTTL,
+		CheckPeriod:     defaults.HeartbeatCheckPeriod,
+		Clock:           s.clock,
+	})
+	if err != nil {
+		s.srv.Close()
+		return nil, trace.Wrap(err)
+	}
+	s.heartbeat = heartbeat
 	return s, nil
 }
 
@@ -526,8 +587,7 @@ func (s *Server) GetInfo() services.Server {
 	}
 }
 
-// registerServer attempts to register server in the cluster
-func (s *Server) registerServer() error {
+func (s *Server) getServerInfo() (services.Server, error) {
 	server := s.GetInfo()
 	if s.getRotation != nil {
 		rotation, err := s.getRotation(s.getRole())
@@ -539,35 +599,8 @@ func (s *Server) registerServer() error {
 			server.SetRotation(*rotation)
 		}
 	}
-	server.SetTTL(s.clock, defaults.ServerHeartbeatTTL)
-	if !s.proxyMode {
-		return trace.Wrap(s.authService.UpsertNode(server))
-	}
-	server.SetPublicAddr(s.proxyPublicAddr.String())
-	return trace.Wrap(s.authService.UpsertProxy(server))
-}
-
-// heartbeatPresence periodically calls into the auth server to let everyone
-// know we're up & alive
-func (s *Server) heartbeatPresence() {
-	sleepTime := defaults.ServerHeartbeatTTL/2 + utils.RandomDuration(defaults.ServerHeartbeatTTL/10)
-	ticker := time.NewTicker(sleepTime)
-	defer ticker.Stop()
-
-	for {
-		if err := s.registerServer(); err != nil {
-			log.Warningf("failed to announce %v presence: %v", s.ID(), err)
-		}
-		select {
-		case <-ticker.C:
-			continue
-		case <-s.closer.C:
-			{
-				log.Debugf("server.heartbeatPresence() exited")
-				return
-			}
-		}
-	}
+	server.SetTTL(s.clock, defaults.ServerAnnounceTTL)
+	return server, nil
 }
 
 func (s *Server) updateLabels() {
@@ -594,9 +627,15 @@ func (s *Server) updateLabel(name string, label services.CommandLabel) {
 }
 
 func (s *Server) periodicUpdateLabel(name string, label services.CommandLabel) {
+	t := time.NewTicker(label.GetPeriod())
+	defer t.Stop()
 	for {
-		s.updateLabel(name, label)
-		time.Sleep(label.GetPeriod())
+		s.updateLabel(name, label.Clone())
+		select {
+		case <-t.C:
+		case <-s.ctx.Done():
+			return
+		}
 	}
 }
 

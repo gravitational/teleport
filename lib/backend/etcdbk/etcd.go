@@ -18,12 +18,13 @@ limitations under the License.
 package etcdbk
 
 import (
+	"bytes"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
 	"io/ioutil"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
@@ -33,10 +34,11 @@ import (
 
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/etcdserver/api/v3rpc/rpctypes"
+	"github.com/coreos/etcd/mvcc/mvccpb"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
-	"golang.org/x/net/context"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -116,15 +118,26 @@ func init() {
 	prometheus.MustRegister(readRequests)
 }
 
-type bk struct {
-	nodes []string
+const (
+	// keyPrefix is a prefix that is added to every etcd key
+	// for backwards compatibility
+	keyPrefix = "/teleport"
+)
 
-	cfg     *Config
-	etcdKey string
-	client  *clientv3.Client
-	cancelC chan bool
-	stopC   chan bool
-	clock   clockwork.Clock
+type EtcdBackend struct {
+	nodes []string
+	*log.Entry
+	cfg              *Config
+	etcdKey          string
+	client           *clientv3.Client
+	cancelC          chan bool
+	stopC            chan bool
+	clock            clockwork.Clock
+	buf              *backend.CircularBuffer
+	ctx              context.Context
+	cancel           context.CancelFunc
+	watchStarted     context.Context
+	signalWatchStart context.CancelFunc
 }
 
 // Config represents JSON config for etcd backend
@@ -135,6 +148,11 @@ type Config struct {
 	TLSCertFile string   `json:"tls_cert_file,omitempty"`
 	TLSCAFile   string   `json:"tls_ca_file,omitempty"`
 	Insecure    bool     `json:"insecure,omitempty"`
+	// BufferSize is a default buffer size
+	// used to pull events
+	BufferSize int `json:"buffer_size,omitempty"`
+	// DialTimeout specifies dial timeout
+	DialTimeout time.Duration `json:"dial_timeout,omitempty"`
 }
 
 // GetName returns the name of etcd backend as it appears in 'storage/type' section
@@ -143,8 +161,11 @@ func GetName() string {
 	return "etcd"
 }
 
+// keep this here to test interface conformance
+var _ backend.Backend = &EtcdBackend{}
+
 // New returns new instance of Etcd-powered backend
-func New(params backend.Params) (backend.Backend, error) {
+func New(ctx context.Context, params backend.Params) (*EtcdBackend, error) {
 	var err error
 	if params == nil {
 		return nil, trace.BadParameter("missing etcd configuration")
@@ -158,24 +179,31 @@ func New(params backend.Params) (backend.Backend, error) {
 	if err = cfg.Validate(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if len(cfg.Key) == 0 || cfg.Key[0] != '/' {
-		cfg.Key = "/" + cfg.Key
-	}
 
-	b := &bk{
-		cfg:     cfg,
-		nodes:   cfg.Nodes,
-		etcdKey: cfg.Key,
-		cancelC: make(chan bool, 1),
-		stopC:   make(chan bool, 1),
-		clock:   clockwork.NewRealClock(),
+	buf, err := backend.NewCircularBuffer(ctx, cfg.BufferSize)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	closeCtx, cancel := context.WithCancel(ctx)
+	watchStarted, signalWatchStart := context.WithCancel(ctx)
+	b := &EtcdBackend{
+		Entry:            log.WithFields(log.Fields{trace.Component: GetName()}),
+		cfg:              cfg,
+		nodes:            cfg.Nodes,
+		cancelC:          make(chan bool, 1),
+		stopC:            make(chan bool, 1),
+		clock:            clockwork.NewRealClock(),
+		cancel:           cancel,
+		ctx:              closeCtx,
+		watchStarted:     watchStarted,
+		signalWatchStart: signalWatchStart,
+		buf:              buf,
 	}
 	if err = b.reconnect(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	// Wrap backend in a input sanitizer and return it.
-	return backend.NewSanitizer(b), nil
+	return b, nil
 }
 
 // Validate checks if all the parameters are present/valid
@@ -197,22 +225,26 @@ func (cfg *Config) Validate() error {
 			return trace.BadParameter(`etcd: missing "tls_ca_file" setting`)
 		}
 	}
+	if cfg.BufferSize == 0 {
+		cfg.BufferSize = backend.DefaultBufferSize
+	}
+	if cfg.DialTimeout == 0 {
+		cfg.DialTimeout = defaults.DefaultDialTimeout
+	}
 	return nil
 }
 
-func (b *bk) Clock() clockwork.Clock {
+func (b *EtcdBackend) Clock() clockwork.Clock {
 	return b.clock
 }
 
-func (b *bk) Close() error {
+func (b *EtcdBackend) Close() error {
+	b.cancel()
+	b.buf.Close()
 	return b.client.Close()
 }
 
-func (b *bk) key(keys ...string) string {
-	return strings.Join(append([]string{b.etcdKey}, keys...), "/")
-}
-
-func (b *bk) reconnect() error {
+func (b *EtcdBackend) reconnect() error {
 	clientCertPEM, err := ioutil.ReadFile(b.cfg.TLSCertFile)
 	if err != nil {
 		return trace.ConvertSystemError(err)
@@ -244,178 +276,244 @@ func (b *bk) reconnect() error {
 	clt, err := clientv3.New(clientv3.Config{
 		Endpoints:   b.nodes,
 		TLS:         tlsConfig,
-		DialTimeout: defaults.DefaultDialTimeout,
+		DialTimeout: b.cfg.DialTimeout,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	b.client = clt
+	go b.asyncWatch()
 	return nil
 }
 
-// GetItems fetches keys and values and returns them to the caller.
-func (b *bk) GetItems(path []string, opts ...backend.OpOption) ([]backend.Item, error) {
-	cfg, err := backend.CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	items, err := b.getItems(b.key(path...), *cfg, clientv3.WithSerializable(), clientv3.WithPrefix())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return items, nil
+func (b *EtcdBackend) asyncWatch() {
+	err := b.watchEvents()
+	b.Debugf("Watch exited: %v.", err)
 }
 
-// GetKeys fetches keys (and values) but only returns keys to the caller.
-func (b *bk) GetKeys(path []string) ([]string, error) {
-	items, err := b.getItems(b.key(path...), backend.OpConfig{KeysOnly: true}, clientv3.WithSerializable(), clientv3.WithKeysOnly(), clientv3.WithPrefix())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Convert from []backend.Item to []string and return keys.
-	keys := make([]string, len(items))
-	for i, e := range items {
-		keys[i] = e.Key
-	}
-
-	return keys, nil
-}
-
-func (b *bk) CreateVal(path []string, key string, val []byte, ttl time.Duration) error {
-	var opts []clientv3.OpOption
-	if ttl > 0 {
-		if ttl/time.Second <= 0 {
-			return trace.BadParameter("TTL should be in seconds, got %v instead", ttl)
+func (b *EtcdBackend) watchEvents() error {
+start:
+	eventsC := b.client.Watch(b.ctx, keyPrefix, clientv3.WithPrefix())
+	b.signalWatchStart()
+	for {
+		select {
+		case e, ok := <-eventsC:
+			if e.Canceled || !ok {
+				b.Debugf("Watch channel has closed.")
+				goto start
+			}
+			out := make([]backend.Event, 0, len(e.Events))
+			for i := range e.Events {
+				event, err := fromEvent(*e.Events[i])
+				if err != nil {
+					b.Errorf("Failed to unmarshal event: %v %v.", err, *e.Events[i])
+				} else {
+					out = append(out, *event)
+				}
+			}
+			b.buf.PushBatch(out)
+		case <-b.ctx.Done():
+			return trace.ConnectionProblem(b.ctx.Err(), "context is closing")
 		}
-		lease, err := b.client.Grant(context.Background(), int64(ttl/time.Second))
+	}
+}
+
+// NewWatcher returns a new event watcher
+func (b *EtcdBackend) NewWatcher(ctx context.Context, watch backend.Watch) (backend.Watcher, error) {
+	select {
+	case <-b.watchStarted.Done():
+	case <-ctx.Done():
+		return nil, trace.ConnectionProblem(ctx.Err(), "context is closing")
+	}
+	return b.buf.NewWatcher(ctx, watch)
+}
+
+// GetRange returns query range
+func (b *EtcdBackend) GetRange(ctx context.Context, startKey, endKey []byte, limit int) (*backend.GetResult, error) {
+	if len(startKey) == 0 {
+		return nil, trace.BadParameter("missing parameter startKey")
+	}
+	if len(endKey) == 0 {
+		return nil, trace.BadParameter("missing parameter endKey")
+	}
+	opts := []clientv3.OpOption{clientv3.WithSerializable(), clientv3.WithRange(prependPrefix(endKey))}
+	if limit > 0 {
+		opts = append(opts, clientv3.WithLimit(int64(limit)))
+	}
+	start := b.clock.Now()
+	re, err := b.client.Get(ctx, prependPrefix(startKey), opts...)
+	batchReadLatencies.Observe(time.Since(start).Seconds())
+	batchReadRequests.Inc()
+	if err := convertErr(err); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	items := make([]backend.Item, 0, len(re.Kvs))
+	for _, kv := range re.Kvs {
+		value, err := unmarshal(kv.Value)
 		if err != nil {
-			return convertErr(err)
+			return nil, trace.Wrap(err)
 		}
-		opts = []clientv3.OpOption{clientv3.WithLease(lease.ID)}
+		items = append(items, backend.Item{
+			Key:     trimPrefix(kv.Key),
+			Value:   value,
+			ID:      kv.ModRevision,
+			LeaseID: kv.Lease,
+		})
 	}
-	keyPath := b.key(append(path, key)...)
-	start := time.Now()
-	re, err := b.client.Txn(context.Background()).
-		If(clientv3.Compare(clientv3.CreateRevision(keyPath), "=", 0)).
-		Then(clientv3.OpPut(keyPath, base64.StdEncoding.EncodeToString(val), opts...)).
+	sort.Sort(backend.Items(items))
+	return &backend.GetResult{Items: items}, nil
+}
+
+// Create creates item if it does not exist
+func (b *EtcdBackend) Create(ctx context.Context, item backend.Item) (*backend.Lease, error) {
+	var opts []clientv3.OpOption
+	var lease backend.Lease
+	if !item.Expires.IsZero() {
+		if err := b.setupLease(ctx, item, &lease, &opts); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	start := b.clock.Now()
+	re, err := b.client.Txn(ctx).
+		If(clientv3.Compare(clientv3.CreateRevision(prependPrefix(item.Key)), "=", 0)).
+		Then(clientv3.OpPut(prependPrefix(item.Key), base64.StdEncoding.EncodeToString(item.Value), opts...)).
 		Commit()
 	txLatencies.Observe(time.Since(start).Seconds())
 	txRequests.Inc()
 	if err != nil {
-		return trace.Wrap(convertErr(err))
+		return nil, trace.Wrap(convertErr(err))
 	}
 	if !re.Succeeded {
-		return trace.AlreadyExists("%q already exists", key)
+		return nil, trace.AlreadyExists("%q already exists", string(item.Key))
 	}
-	return nil
+	return &lease, nil
 }
 
-// CompareAndSwapVal compares and swap values in atomic operation,
-// succeeds if prevVal matches the value stored in the databases,
-// requires prevVal as a non-empty value. Returns trace.CompareFailed
-// in case if value did not match
-func (b *bk) CompareAndSwapVal(path []string, key string, val []byte, prevVal []byte, ttl time.Duration) error {
-	if len(prevVal) == 0 {
-		return trace.BadParameter("missing prevVal parameter, to atomically create item, use CreateVal method")
+// Update updates value in the backend
+func (b *EtcdBackend) Update(ctx context.Context, item backend.Item) (*backend.Lease, error) {
+	var opts []clientv3.OpOption
+	var lease backend.Lease
+	if !item.Expires.IsZero() {
+		if err := b.setupLease(ctx, item, &lease, &opts); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	start := b.clock.Now()
+	re, err := b.client.Txn(ctx).
+		If(clientv3.Compare(clientv3.CreateRevision(prependPrefix(item.Key)), "!=", 0)).
+		Then(clientv3.OpPut(prependPrefix(item.Key), base64.StdEncoding.EncodeToString(item.Value), opts...)).
+		Commit()
+	txLatencies.Observe(time.Since(start).Seconds())
+	txRequests.Inc()
+	if err != nil {
+		return nil, trace.Wrap(convertErr(err))
+	}
+	if !re.Succeeded {
+		return nil, trace.NotFound("%q is not found", string(item.Key))
+	}
+	return &lease, nil
+}
+
+// CompareAndSwap compares item with existing item
+// and replaces is with replaceWith item
+func (b *EtcdBackend) CompareAndSwap(ctx context.Context, expected backend.Item, replaceWith backend.Item) (*backend.Lease, error) {
+	if len(expected.Key) == 0 {
+		return nil, trace.BadParameter("missing parameter Key")
+	}
+	if len(replaceWith.Key) == 0 {
+		return nil, trace.BadParameter("missing parameter Key")
+	}
+	if bytes.Compare(expected.Key, replaceWith.Key) != 0 {
+		return nil, trace.BadParameter("expected and replaceWith keys should match")
 	}
 	var opts []clientv3.OpOption
-	if ttl > 0 {
-		if ttl/time.Second <= 0 {
-			return trace.BadParameter("TTL should be in seconds, got %v instead", ttl)
+	var lease backend.Lease
+	if !replaceWith.Expires.IsZero() {
+		if err := b.setupLease(ctx, replaceWith, &lease, &opts); err != nil {
+			return nil, trace.Wrap(err)
 		}
-		lease, err := b.client.Grant(context.Background(), int64(ttl/time.Second))
-		if err != nil {
-			return convertErr(err)
-		}
-		opts = []clientv3.OpOption{clientv3.WithLease(lease.ID)}
 	}
-	keyPath := b.key(append(path, key)...)
-	encodedPrev := base64.StdEncoding.EncodeToString(prevVal)
-	start := time.Now()
-	re, err := b.client.Txn(context.Background()).
-		If(clientv3.Compare(clientv3.Value(keyPath), "=", encodedPrev)).
-		Then(clientv3.OpPut(keyPath, base64.StdEncoding.EncodeToString(val), opts...)).
+	encodedPrev := base64.StdEncoding.EncodeToString(expected.Value)
+	start := b.clock.Now()
+	re, err := b.client.Txn(ctx).
+		If(clientv3.Compare(clientv3.Value(prependPrefix(expected.Key)), "=", encodedPrev)).
+		Then(clientv3.OpPut(prependPrefix(expected.Key), base64.StdEncoding.EncodeToString(replaceWith.Value), opts...)).
 		Commit()
 	txLatencies.Observe(time.Since(start).Seconds())
 	txRequests.Inc()
 	if err != nil {
 		err = convertErr(err)
 		if trace.IsNotFound(err) {
-			return trace.CompareFailed(err.Error())
+			return nil, trace.CompareFailed(err.Error())
 		}
 	}
 	if !re.Succeeded {
-		return trace.CompareFailed("key %q did not match expected value", key)
+		return nil, trace.CompareFailed("key %q did not match expected value", string(expected.Key))
 	}
-	return nil
+	return &lease, nil
 }
 
-// maxOptimisticAttempts is the number of attempts optimistic locking
-const maxOptimisticAttempts = 5
-
-func (bk *bk) UpsertItems(bucket []string, items []backend.Item) error {
-	return trace.BadParameter("not implemented")
-}
-
-func (b *bk) UpsertVal(path []string, key string, val []byte, ttl time.Duration) error {
+// Put puts value into backend (creates if it does not
+// exists, updates it otherwise)
+func (b *EtcdBackend) Put(ctx context.Context, item backend.Item) (*backend.Lease, error) {
 	var opts []clientv3.OpOption
-	if ttl > 0 {
-		if ttl/time.Second <= 0 {
-			return trace.BadParameter("TTL should be in seconds, got %v instead", ttl)
+	var lease backend.Lease
+	if !item.Expires.IsZero() {
+		if err := b.setupLease(ctx, item, &lease, &opts); err != nil {
+			return nil, trace.Wrap(err)
 		}
-		lease, err := b.client.Grant(context.Background(), int64(ttl/time.Second))
-		if err != nil {
-			return convertErr(err)
-		}
-		opts = []clientv3.OpOption{clientv3.WithLease(lease.ID)}
 	}
-	start := time.Now()
+	start := b.clock.Now()
 	_, err := b.client.Put(
-		context.Background(),
-		b.key(append(path, key)...),
-		base64.StdEncoding.EncodeToString(val),
+		ctx,
+		prependPrefix(item.Key),
+		base64.StdEncoding.EncodeToString(item.Value),
 		opts...)
 	writeLatencies.Observe(time.Since(start).Seconds())
 	writeRequests.Inc()
+	if err != nil {
+		return nil, convertErr(err)
+	}
+	return &lease, nil
+}
+
+// KeepAlive updates TTL on the lease ID
+func (b *EtcdBackend) KeepAlive(ctx context.Context, lease backend.Lease, expires time.Time) error {
+	if lease.ID == 0 {
+		return trace.BadParameter("lease is not specified")
+	}
+	re, err := b.client.Get(ctx, prependPrefix(lease.Key), clientv3.WithSerializable(), clientv3.WithKeysOnly())
+	if err != nil {
+		return convertErr(err)
+	}
+	if len(re.Kvs) == 0 {
+		return trace.NotFound("item %q is not found", string(lease.Key))
+	}
+	_, err = b.client.KeepAliveOnce(ctx, clientv3.LeaseID(lease.ID))
 	return convertErr(err)
 }
 
-func (b *bk) GetVal(path []string, key string) ([]byte, error) {
-	re, err := b.client.Get(context.Background(), b.key(append(path, key)...), clientv3.WithSerializable())
-	if err == nil && len(re.Kvs) != 0 {
-		bytes, err := unmarshal(re.Kvs[0].Value)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return bytes, nil
-	} else if err != nil {
-		err = convertErr(err)
-		if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
+// Get returns a single item or not found error
+func (b *EtcdBackend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
+	re, err := b.client.Get(ctx, prependPrefix(key), clientv3.WithSerializable())
+	if err != nil {
+		return nil, convertErr(err)
 	}
-
-	// now, check that it's a directory (this is a temp workaround)
-	// before we refactor the backend interface
-	start := time.Now()
-	re, err = b.client.Get(context.Background(), b.key(append(path, key)...), clientv3.WithPrefix(), clientv3.WithSerializable(), clientv3.WithCountOnly())
-	readLatencies.Observe(time.Since(start).Seconds())
-	readRequests.Inc()
-	if err := convertErr(err); err != nil {
+	if len(re.Kvs) == 0 {
+		return nil, trace.NotFound("item %q is not found", string(key))
+	}
+	kv := re.Kvs[0]
+	bytes, err := unmarshal(kv.Value)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if re.Count != 0 {
-		return nil, trace.BadParameter("%q: trying to get value of bucket", key)
-	}
-	return nil, trace.NotFound("%q is not found", key)
+	return &backend.Item{Key: key, Value: bytes, ID: kv.ModRevision, LeaseID: kv.Lease}, nil
 }
 
-func (b *bk) DeleteKey(path []string, key string) error {
-	start := time.Now()
-	re, err := b.client.Delete(context.Background(), b.key(append(path, key)...))
+// Delete deletes item by key
+func (b *EtcdBackend) Delete(ctx context.Context, key []byte) error {
+	start := b.clock.Now()
+	re, err := b.client.Delete(ctx, prependPrefix(key))
 	writeLatencies.Observe(time.Since(start).Seconds())
 	writeRequests.Inc()
 	if err != nil {
@@ -427,53 +525,47 @@ func (b *bk) DeleteKey(path []string, key string) error {
 	return nil
 }
 
-func (b *bk) DeleteBucket(path []string, key string) error {
-	start := time.Now()
-	re, err := b.client.Delete(context.Background(), b.key(append(path, key)...), clientv3.WithPrefix())
+// DeleteRange deletes range of items with keys between startKey and endKey
+func (b *EtcdBackend) DeleteRange(ctx context.Context, startKey, endKey []byte) error {
+	if len(startKey) == 0 {
+		return trace.BadParameter("missing parameter startKey")
+	}
+	if len(endKey) == 0 {
+		return trace.BadParameter("missing parameter endKey")
+	}
+	start := b.clock.Now()
+	_, err := b.client.Delete(ctx, prependPrefix(startKey), clientv3.WithRange(prependPrefix(endKey)))
 	writeLatencies.Observe(time.Since(start).Seconds())
 	writeRequests.Inc()
 	if err != nil {
 		return trace.Wrap(convertErr(err))
 	}
-	if re.Deleted == 0 {
-		return trace.NotFound("%q is not found", key)
-	}
 	return nil
 }
 
-const delayBetweenLockAttempts = 100 * time.Millisecond
-
-func (b *bk) AcquireLock(token string, ttl time.Duration) error {
-	for {
-		start := time.Now()
-		err := b.CreateVal([]string{"locks"}, token, []byte("lock"), ttl)
-		writeLatencies.Observe(time.Since(start).Seconds())
-		writeRequests.Inc()
-		err = convertErr(err)
-		if err == nil {
-			return nil
-		}
-		if err != nil {
-			if !trace.IsCompareFailed(err) && !trace.IsAlreadyExists(err) {
-				return trace.Wrap(err)
-			}
-			time.Sleep(delayBetweenLockAttempts)
-		}
-	}
-}
-
-func (b *bk) ReleaseLock(token string) error {
-	start := time.Now()
-	re, err := b.client.Delete(context.Background(), b.key("locks", token))
-	writeLatencies.Observe(time.Since(start).Seconds())
-	writeRequests.Inc()
+func (b *EtcdBackend) setupLease(ctx context.Context, item backend.Item, lease *backend.Lease, opts *[]clientv3.OpOption) error {
+	ttl := b.ttl(item.Expires)
+	elease, err := b.client.Grant(ctx, seconds(ttl))
 	if err != nil {
-		return trace.Wrap(convertErr(err))
+		return convertErr(err)
 	}
-	if re.Deleted == 0 {
-		return trace.NotFound("%q is not found", token)
-	}
+	*opts = []clientv3.OpOption{clientv3.WithLease(elease.ID)}
+	lease.ID = int64(elease.ID)
+	lease.Key = item.Key
 	return nil
+}
+
+func (b *EtcdBackend) ttl(expires time.Time) time.Duration {
+	return backend.TTL(b.clock, expires)
+}
+
+// seconds converts duration to seconds, rounds up to 1 second
+func seconds(ttl time.Duration) int64 {
+	i := int64(ttl / time.Second)
+	if i <= 0 {
+		i = 1
+	}
+	return i
 }
 
 func unmarshal(value []byte) ([]byte, error) {
@@ -483,41 +575,6 @@ func unmarshal(value []byte) ([]byte, error) {
 	dbuf := make([]byte, base64.StdEncoding.DecodedLen(len(value)))
 	n, err := base64.StdEncoding.Decode(dbuf, value)
 	return dbuf[:n], err
-}
-
-// getItems fetches keys and values and returns them to the caller.
-func (b *bk) getItems(path string, cfg backend.OpConfig, opts ...clientv3.OpOption) ([]backend.Item, error) {
-	var vals []backend.Item
-
-	start := time.Now()
-	re, err := b.client.Get(context.Background(), path, opts...)
-	batchReadLatencies.Observe(time.Since(start).Seconds())
-	batchReadRequests.Inc()
-	if err := convertErr(err); err != nil {
-		if trace.IsNotFound(err) {
-			return vals, nil
-		}
-		return nil, trace.Wrap(err)
-	}
-
-	items := make([]backend.Item, 0, len(re.Kvs))
-	for _, kv := range re.Kvs {
-		if strings.Compare(path, string(kv.Key[:len(path)])) == 0 && len(path) < len(kv.Key) {
-			item := backend.Item{
-				Key: suffix(string(kv.Key[len(path)+1:])),
-			}
-			if !cfg.KeysOnly {
-				value, err := unmarshal(kv.Value)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				item.Value = value
-			}
-			items = append(items, item)
-		}
-	}
-	sort.Sort(backend.Items(items))
-	return items, nil
 }
 
 func convertErr(err error) error {
@@ -550,7 +607,38 @@ func convertErr(err error) error {
 	return trace.ConnectionProblem(err, "bad cluster endpoints")
 }
 
-func suffix(key string) string {
-	vals := strings.Split(key, "/")
-	return vals[0]
+func fromType(eventType mvccpb.Event_EventType) backend.OpType {
+	switch eventType {
+	case mvccpb.PUT:
+		return backend.OpPut
+	default:
+		return backend.OpDelete
+	}
+}
+
+func trimPrefix(in []byte) []byte {
+	return bytes.TrimPrefix(in, []byte(keyPrefix))
+}
+
+func prependPrefix(in []byte) string {
+	return keyPrefix + string(in)
+}
+
+func fromEvent(e clientv3.Event) (*backend.Event, error) {
+	event := &backend.Event{
+		Type: fromType(e.Type),
+		Item: backend.Item{
+			Key: trimPrefix(e.Kv.Key),
+			ID:  e.Kv.ModRevision,
+		},
+	}
+	if event.Type == backend.OpDelete {
+		return event, nil
+	}
+	value, err := unmarshal(e.Kv.Value)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	event.Item.Value = value
+	return event, nil
 }

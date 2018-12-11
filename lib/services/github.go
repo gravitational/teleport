@@ -118,6 +118,16 @@ type GithubClaims struct {
 	OrganizationToTeams map[string][]string
 }
 
+// GetResourceID returns resource ID
+func (c *GithubConnectorV3) GetResourceID() int64 {
+	return c.Metadata.ID
+}
+
+// SetResourceID sets resource ID
+func (c *GithubConnectorV3) SetResourceID(id int64) {
+	c.Metadata.ID = id
+}
+
 // GetName returns the name of the connector
 func (c *GithubConnectorV3) GetName() string {
 	return c.Metadata.GetName()

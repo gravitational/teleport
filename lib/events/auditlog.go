@@ -148,6 +148,9 @@ type AuditLogConfig struct {
 
 	// EventC is evnets channel for testing purposes, not used if empty
 	EventsC chan *AuditLogEvent
+
+	// Context is audit log context
+	Context context.Context
 }
 
 // AuditLogEvent is an internal audit log event
@@ -185,6 +188,9 @@ func (a *AuditLogConfig) CheckAndSetDefaults() error {
 	if a.PlaybackRecycleTTL == 0 {
 		a.PlaybackRecycleTTL = defaults.PlaybackRecycleTTL
 	}
+	if a.Context == nil {
+		a.Context = context.Background()
+	}
 	return nil
 }
 
@@ -195,7 +201,7 @@ func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ctx, cancel := context.WithCancel(context.TODO())
+	ctx, cancel := context.WithCancel(cfg.Context)
 	al := &AuditLog{
 		playbackDir:    filepath.Join(cfg.DataDir, PlaybackDir, SessionLogsDir, defaults.Namespace),
 		AuditLogConfig: cfg,
@@ -917,6 +923,8 @@ func (l *AuditLog) periodicCleanupPlaybacks() {
 
 	for {
 		select {
+		case <-l.ctx.Done():
+			return
 		case <-ticker.C:
 			if err := l.cleanupOldPlaybacks(); err != nil {
 				l.Warningf("Error while cleaning up playback files: %v.", err)

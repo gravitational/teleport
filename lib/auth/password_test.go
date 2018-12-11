@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Gravitational, Inc.
+Copyright 2017-2018 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -13,9 +13,11 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package auth
 
 import (
+	"context"
 	"encoding/base32"
 	"fmt"
 	"time"
@@ -23,7 +25,7 @@ import (
 	"github.com/gravitational/teleport"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/boltbk"
+	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
@@ -54,7 +56,7 @@ func (s *PasswordSuite) TearDownSuite(c *C) {
 func (s *PasswordSuite) SetUpTest(c *C) {
 	var err error
 	c.Assert(err, IsNil)
-	s.bk, err = boltbk.New(backend.Params{"path": c.MkDir()})
+	s.bk, err = lite.New(context.TODO(), backend.Params{"path": c.MkDir()})
 	c.Assert(err, IsNil)
 
 	// set cluster name
