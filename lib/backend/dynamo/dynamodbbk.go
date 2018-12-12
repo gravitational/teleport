@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2018 Gravitational, Inc.
+Copyright 2015-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -147,7 +147,7 @@ const (
 	keyPrefix = "teleport"
 )
 
-// GetName() is a part of backend API and it returns DynamoDB backend type
+// GetName is a part of backend API and it returns DynamoDB backend type
 // as it appears in `storage/type` section of Teleport YAML
 func GetName() string {
 	return BackendName
@@ -298,10 +298,11 @@ func (b *DynamoDBBackend) GetRange(ctx context.Context, startKey []byte, endKey 
 	if len(endKey) == 0 {
 		return nil, trace.BadParameter("missing parameter endKey")
 	}
-	result, err := b.getRecords(ctx, prependPrefix(startKey), prependPrefix(endKey), limit)
+	result, err := b.getAllRecords(ctx, startKey, endKey, limit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	sort.Sort(records(result.records))
 	values := make([]backend.Item, len(result.records))
 	for i, r := range result.records {
 		values[i] = backend.Item{
@@ -313,6 +314,25 @@ func (b *DynamoDBBackend) GetRange(ctx context.Context, startKey []byte, endKey 
 		}
 	}
 	return &backend.GetResult{Items: values}, nil
+}
+
+func (b *DynamoDBBackend) getAllRecords(ctx context.Context, startKey []byte, endKey []byte, limit int) (*getResult, error) {
+	var result getResult
+	// this code is being extra careful here not to introduce endless loop
+	// by some unfortunate series of events
+	for i := 0; i < backend.DefaultLargeLimit/100; i++ {
+		re, err := b.getRecords(ctx, prependPrefix(startKey), prependPrefix(endKey), limit, result.lastEvaluatedKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		result.records = append(result.records, re.records...)
+		if len(result.records) >= limit || len(result.lastEvaluatedKey) == 0 {
+			result.lastEvaluatedKey = nil
+			return &result, nil
+		}
+		result.lastEvaluatedKey = re.lastEvaluatedKey
+	}
+	return nil, trace.BadParameter("backend entered endless loop")
 }
 
 // DeleteRange deletes range of items with keys between startKey and endKey
@@ -327,7 +347,7 @@ func (b *DynamoDBBackend) DeleteRange(ctx context.Context, startKey, endKey []by
 	// keep the very large limit, just in case if someone else
 	// keeps adding records
 	for i := 0; i < backend.DefaultLargeLimit/100; i++ {
-		result, err := b.getRecords(ctx, prependPrefix(startKey), prependPrefix(endKey), 100)
+		result, err := b.getRecords(ctx, prependPrefix(startKey), prependPrefix(endKey), 100, nil)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -606,10 +626,14 @@ func (b *DynamoDBBackend) deleteTable(ctx context.Context, tableName string, wai
 
 type getResult struct {
 	records []record
+	// lastEvaluatedKey is the primary key of the item where the operation stopped, inclusive of the
+	// previous result set. Use this value to start a new operation, excluding this
+	// value in the new request.
+	lastEvaluatedKey map[string]*dynamodb.AttributeValue
 }
 
 // getRecords retrieves all keys by path
-func (b *DynamoDBBackend) getRecords(ctx context.Context, startKey, endKey string, limit int) (*getResult, error) {
+func (b *DynamoDBBackend) getRecords(ctx context.Context, startKey, endKey string, limit int, lastEvaluatedKey map[string]*dynamodb.AttributeValue) (*getResult, error) {
 	query := "HashKey = :hashKey AND FullPath BETWEEN :fullPath AND :rangeEnd"
 	attrV := map[string]interface{}{
 		":fullPath":  startKey,
@@ -631,6 +655,7 @@ func (b *DynamoDBBackend) getRecords(ctx context.Context, startKey, endKey strin
 		ExpressionAttributeValues: av,
 		FilterExpression:          aws.String(filter),
 		ConsistentRead:            aws.Bool(true),
+		ExclusiveStartKey:         lastEvaluatedKey,
 	}
 	if limit > 0 {
 		input.Limit = aws.Int64(int64(limit))
@@ -647,6 +672,7 @@ func (b *DynamoDBBackend) getRecords(ctx context.Context, startKey, endKey strin
 	}
 	sort.Sort(records(result.records))
 	result.records = removeDuplicates(result.records)
+	result.lastEvaluatedKey = out.LastEvaluatedKey
 	return &result, nil
 }
 

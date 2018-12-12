@@ -47,6 +47,8 @@ import (
 	"github.com/gravitational/teleport/lib/backend/legacy/boltbk"
 	"github.com/gravitational/teleport/lib/backend/legacy/dir"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -61,7 +63,6 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/regular"
-	"github.com/gravitational/teleport/lib/state"
 	"github.com/gravitational/teleport/lib/system"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
@@ -112,7 +113,7 @@ const (
 	// and is ready to start accepting connections.
 	ProxySSHReady = "ProxySSHReady"
 
-	// NodeReady is generated when the Teleport node has initialized a SSH server
+	// NodeSSHReady is generated when the Teleport node has initialized a SSH server
 	// and is ready to start accepting SSH connections.
 	NodeSSHReady = "NodeReady"
 
@@ -224,6 +225,9 @@ type TeleportProcess struct {
 	keyPairs map[keyPairKey]KeyPair
 	// keyMutex is a mutex to serialize key generation
 	keyMutex sync.Mutex
+
+	// reporter is used to report some in memory stats
+	reporter *backend.Reporter
 }
 
 type keyPairKey struct {
@@ -386,7 +390,7 @@ func Run(ctx context.Context, cfg Config, newTeleport NewProcess) error {
 		srv, err = waitAndReload(ctx, cfg, srv, newTeleport)
 		if err != nil {
 			// This error means that was a clean shutdown
-			// an no reload is necessary.
+			// and no reload is necessary.
 			if err == ErrTeleportExited {
 				return nil
 			}
@@ -439,7 +443,7 @@ func waitAndReload(ctx context.Context, cfg Config, srv Process, newTeleport New
 	if shutdownTimeout == 0 {
 		// The default shutdown timeout is very generous to avoid disrupting
 		// longer running connections.
-		shutdownTimeout = defaults.DefaultIdleConnectionDuration
+		shutdownTimeout = defaults.DefaultGracefulShutdownTimeout
 	}
 	log.Infof("Shutting down the old service with timeout %v.", shutdownTimeout)
 	// After the new process has started, initiate the graceful shutdown of the old process
@@ -955,16 +959,23 @@ func (process *TeleportProcess) initAuthService() error {
 		AuditLog:       process.auditLog,
 	}
 
-	// admin access point is a caching access point used for frequently
-	// accessed data by auth server, e.g. cert authorities, users and roles
-	adminAuthServer, err := auth.NewAdminAuthServer(authServer, sessionService, process.auditLog)
-	if err != nil {
-		return trace.Wrap(err)
+	var authCache auth.AuthCache
+	if process.Config.CachePolicy.Enabled {
+		cache, err := process.newAccessCache(accessCacheConfig{
+			services:  authServer.AuthServices,
+			setup:     cache.ForAuth,
+			cacheName: []string{teleport.ComponentAuth},
+			inMemory:  true,
+			events:    true,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		authCache = cache
+	} else {
+		authCache = authServer.AuthServices
 	}
-	adminAccessPoint, err := process.newLocalCache(adminAuthServer, []string{"auth"})
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	authServer.SetCache(authCache)
 
 	log := logrus.WithFields(logrus.Fields{
 		trace.Component: teleport.Component(teleport.ComponentAuth, process.id),
@@ -979,7 +990,7 @@ func (process *TeleportProcess) initAuthService() error {
 		TLS:           tlsConfig,
 		APIConfig:     *apiConf,
 		LimiterConfig: cfg.Auth.Limiter,
-		AccessPoint:   adminAccessPoint,
+		AccessPoint:   authCache,
 		Component:     teleport.Component(teleport.ComponentAuth, process.id),
 	})
 	if err != nil {
@@ -1152,27 +1163,133 @@ func (process *TeleportProcess) onExit(serviceName string, callback func(interfa
 	})
 }
 
-// newLocalCache returns new local cache access point
-func (process *TeleportProcess) newLocalCache(clt auth.ClientI, cacheName []string) (auth.AccessPoint, error) {
+// accessCacheConfig contains
+// configuration for access cache
+type accessCacheConfig struct {
+	// services is a collection
+	// of services to use as a cache base
+	services services.Services
+	// setup is a function that takes
+	// cache configuration and modifies it
+	setup cache.SetupConfigFn
+	// cacheName is a cache name
+	cacheName []string
+	// inMemory is true if cache
+	// should use memory
+	inMemory bool
+	// events is true if cache should turn on events
+	events bool
+	// pollPeriod contains period for polling
+	pollPeriod time.Duration
+}
+
+func (c *accessCacheConfig) CheckAndSetDefaults() error {
+	if c.services == nil {
+		return trace.BadParameter("missing parameter services")
+	}
+	if c.setup == nil {
+		return trace.BadParameter("missing parameter setup")
+	}
+	if len(c.cacheName) == 0 {
+		return trace.BadParameter("missing parameter cacheName")
+	}
+	if c.pollPeriod == 0 {
+		c.pollPeriod = defaults.CachePollPeriod
+	}
+	return nil
+}
+
+// newAccessCache returns new local cache access point
+func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Cache, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var cacheBackend backend.Backend
+	if cfg.inMemory {
+		mem, err := memory.New(memory.Config{
+			Context:   process.ExitContext(),
+			EventsOff: !cfg.events,
+			Mirror:    true,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cacheBackend = mem
+	} else {
+		path := filepath.Join(append([]string{process.Config.DataDir, "cache"}, cfg.cacheName...)...)
+		if err := os.MkdirAll(path, teleport.SharedDirMode); err != nil {
+			return nil, trace.ConvertSystemError(err)
+		}
+		liteBackend, err := lite.NewWithConfig(process.ExitContext(),
+			lite.Config{
+				Path:             path,
+				EventsOff:        !cfg.events,
+				Memory:           false,
+				Mirror:           true,
+				PollStreamPeriod: 100 * time.Millisecond,
+			})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cacheBackend = liteBackend
+	}
+	reporter, err := backend.NewReporter(backend.ReporterConfig{
+		Component:        teleport.ComponentCache,
+		Backend:          cacheBackend,
+		TrackTopRequests: process.Config.Debug,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return cache.New(cfg.setup(cache.Config{
+		Context:       process.ExitContext(),
+		Backend:       reporter,
+		Events:        cfg.services,
+		ClusterConfig: cfg.services,
+		Provisioner:   cfg.services,
+		Trust:         cfg.services,
+		Users:         cfg.services,
+		Access:        cfg.services,
+		Presence:      cfg.services,
+		Component:     teleport.Component(append(cfg.cacheName, process.id, teleport.ComponentCache)...),
+	}))
+}
+
+// setupCachePolicy sets up cache policy based on teleport configuration,
+// it is a wrapper function, that sets up configuration
+func (process *TeleportProcess) setupCachePolicy(in cache.SetupConfigFn) cache.SetupConfigFn {
+	return func(c cache.Config) cache.Config {
+		config := in(c)
+		config.PreferRecent = cache.PreferRecent{
+			Enabled:      process.Config.CachePolicy.Enabled,
+			NeverExpires: process.Config.CachePolicy.NeverExpires,
+			MaxTTL:       process.Config.CachePolicy.TTL,
+		}
+		return config
+	}
+}
+
+// newAccessPointCache returns new instance of access point configured for proxy
+func (process *TeleportProcess) newLocalCacheForProxy(clt auth.ClientI, cacheName []string) (auth.AccessPoint, error) {
+	return process.newLocalCache(clt, cache.ForProxy, cacheName)
+}
+
+// newAccessPointCache returns new instance of access point
+func (process *TeleportProcess) newLocalCache(clt auth.ClientI, setupConfig cache.SetupConfigFn, cacheName []string) (auth.AccessPoint, error) {
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {
 		return clt, nil
 	}
-	path := filepath.Join(append([]string{process.Config.DataDir, "cache"}, cacheName...)...)
-	if err := os.MkdirAll(path, teleport.SharedDirMode); err != nil {
-		return nil, trace.ConvertSystemError(err)
-	}
-	cacheBackend, err := lite.NewWithConfig(process.ExitContext(), lite.Config{Path: path, EventsOff: true})
+	cache, err := process.newAccessCache(accessCacheConfig{
+		services:  clt,
+		setup:     process.setupCachePolicy(setupConfig),
+		cacheName: cacheName,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return state.NewCachingAuthClient(state.Config{
-		AccessPoint:    clt,
-		Backend:        cacheBackend,
-		NeverExpires:   process.Config.CachePolicy.NeverExpires,
-		RecentCacheTTL: process.Config.CachePolicy.GetRecentTTL(),
-		CacheMaxTTL:    process.Config.CachePolicy.TTL,
-	})
+	return auth.NewWrapper(clt, cache), nil
 }
 
 func (process *TeleportProcess) getRotation(role teleport.Role) (*services.Rotation, error) {
@@ -1224,7 +1341,7 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 
-		authClient, err := process.newLocalCache(conn.Client, []string{"node"})
+		authClient, err := process.newLocalCache(conn.Client, cache.ForNode, []string{teleport.ComponentNode})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1314,36 +1431,21 @@ func (process *TeleportProcess) initSSH() error {
 // from the server to get a pair of SSH keys signed by Auth server host
 // certificate authority
 func (process *TeleportProcess) registerWithAuthServer(role teleport.Role, eventName string) {
-	var authClient *auth.Client
-	process.RegisterCriticalFunc(fmt.Sprintf("register.%v", strings.ToLower(role.String())), func() error {
-		retryTime := defaults.HighResPollingPeriod
-		for {
-			connector, err := process.connectToAuthService(role)
-			if err == nil {
-				process.BroadcastEvent(Event{Name: eventName, Payload: connector})
-				authClient = connector.Client
-				return nil
-			}
-			// in between attempts, check if teleport is shutting down
-			select {
-			case <-process.ExitContext().Done():
-				process.Infof("%v stopping connection attempts, teleport is shutting down.", role)
-				return ErrTeleportExited
-			default:
-			}
-			if trace.IsConnectionProblem(err) || trace.IsAccessDenied(err) || trace.IsNotFound(err) {
-				process.Infof("%v failed attempt connecting to auth server: %v.", role, err)
-				time.Sleep(retryTime)
-				continue
-			}
+	serviceName := strings.ToLower(role.String())
+	process.RegisterCriticalFunc(fmt.Sprintf("register.%v", serviceName), func() error {
+		connector, err := process.reconnectToAuthService(role)
+		if err != nil {
 			return trace.Wrap(err)
 		}
-	})
-
-	process.onExit("auth.client", func(interface{}) {
-		if authClient != nil {
-			authClient.Close()
-		}
+		process.onExit(fmt.Sprintf("auth.client.%v", serviceName), func(interface{}) {
+			process.Debugf("Closed client for %v.", role)
+			err := connector.Client.Close()
+			if err != nil {
+				process.Debugf("Failed to close client: %v", err)
+			}
+		})
+		process.BroadcastEvent(Event{Name: eventName, Payload: connector})
+		return nil
 	})
 }
 
@@ -1724,7 +1826,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	// make a caching auth client for the auth server:
-	accessPoint, err := process.newLocalCache(conn.Client, []string{"proxy"})
+	accessPoint, err := process.newLocalCacheForProxy(conn.Client, []string{teleport.ComponentProxy})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1762,6 +1864,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if !process.Config.Proxy.DisableReverseTunnel {
 		tsrv, err = reversetunnel.NewServer(
 			reversetunnel.Config{
+				Component:             teleport.Component(teleport.ComponentProxy, process.id),
 				ID:                    process.Config.HostUUID,
 				ClusterName:           conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
 				ClientTLS:             clientTLSConfig,
@@ -1769,7 +1872,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				HostSigners:           []ssh.Signer{conn.ServerIdentity.KeySigner},
 				LocalAuthClient:       conn.Client,
 				LocalAccessPoint:      accessPoint,
-				NewCachingAccessPoint: process.newLocalCache,
+				NewCachingAccessPoint: process.newLocalCacheForProxy,
 				Limiter:               reverseTunnelLimiter,
 				DirectClusters: []reversetunnel.DirectCluster{
 					{
@@ -2071,7 +2174,28 @@ func (process *TeleportProcess) initAuthStorage() (bk backend.Backend, err error
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return backend.NewSanitizer(bk), nil
+	reporter, err := backend.NewReporter(backend.ReporterConfig{
+		Component:        teleport.ComponentBackend,
+		Backend:          backend.NewSanitizer(bk),
+		TrackTopRequests: process.Config.Debug,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	process.setReporter(reporter)
+	return reporter, nil
+}
+
+func (process *TeleportProcess) setReporter(reporter *backend.Reporter) {
+	process.Lock()
+	defer process.Unlock()
+	process.reporter = reporter
+}
+
+func (process *TeleportProcess) getReporter() *backend.Reporter {
+	process.Lock()
+	defer process.Unlock()
+	return process.reporter
 }
 
 // WaitWithContext waits until all internal services stop.
@@ -2103,6 +2227,7 @@ func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Conte
 			}
 		}
 	}()
+	go process.printShutdownStatus(localCtx)
 	return localCtx
 }
 

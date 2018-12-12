@@ -130,6 +130,14 @@
   revision = "fe0f26ff6d26693948ee8189aa064ee8c54141fa"
 
 [[projects]]
+  digest = "1:bfbb9ddded724156c395627e921ee69c58e836eb41a6524337c64d02dd8260dd"
+  name = "github.com/cjbassi/drawille-go"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "27dc511fe6fd820bf8537298e1d447b450210b28"
+  version = "v0.1.0"
+
+[[projects]]
   digest = "1:1ad3a5c6625bf6352179f2a566391acf0bdac826de46983474d48e9cc8c12c40"
   name = "github.com/codahale/hdrhistogram"
   packages = ["."]
@@ -215,6 +223,14 @@
   revision = "bc6354cbbc295e925e4c611ffe90c1f287ee54db"
 
 [[projects]]
+  digest = "1:b7ffca49e9cfd3dfb04a8e0a59347708c6f78f68476a32c5e0a0edca5d1b258c"
+  name = "github.com/dustin/go-humanize"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "9f541cc9db5d55bce703bd99987c9d5cb8eea45e"
+  version = "v1.0.0"
+
+[[projects]]
   digest = "1:f8e6f07329067bc182633dcb19a3df53ce5d454b551e1b5a1cac2163748648d9"
   name = "github.com/emicklei/go-restful"
   packages = [
@@ -231,6 +247,17 @@
   packages = ["."]
   pruneopts = "NUT"
   revision = "73d445a93680fa1a78ae23a5839bad48f32ba1ee"
+
+[[projects]]
+  branch = "master"
+  digest = "1:3a0d429731db7c304ce29cb9de32fbb16c250034b7892c98824e359b86ecf02f"
+  name = "github.com/gizak/termui"
+  packages = [
+    ".",
+    "widgets",
+  ]
+  pruneopts = "NUT"
+  revision = "63c2a0d70943e942c829edd2d74dc2e6bb20112c"
 
 [[projects]]
   digest = "1:a06a87e65f18e295737fc4b7090dfa5a176947aa8bc0932ceddeb41f04f86bd6"
@@ -426,15 +453,15 @@
   version = "v1.0.0"
 
 [[projects]]
-  digest = "1:7fe2f0540c93189eb5c82b9dbd118d7f4f8ab9993101c3198ed6870bfadbf2e0"
+  digest = "1:a43816dbfa9fa218af700e9d230d1adbcef12ffc495efe46046a57fe5490aad0"
   name = "github.com/gravitational/trace"
   packages = [
     ".",
     "trail",
   ]
   pruneopts = "NUT"
-  revision = "3318e711adee0b3f48d3399ebf5aaddf329a2b4f"
-  version = "1.1.5"
+  revision = "5d6afe38af2b50a51fdf5c49714a628efbbb3161"
+  version = "1.1.6"
 
 [[projects]]
   digest = "1:869f0a997dcde348e34e5e11c619054fd29351a71fef4781c86cd2b82fbdd646"
@@ -584,6 +611,14 @@
   revision = "8b799c424f57fa123fc63a99d6383bc6e4c02578"
 
 [[projects]]
+  digest = "1:70ef8268170621826f8c111ac1674afe75136f526f449453b4a6631c6dba1946"
+  name = "github.com/mattn/go-runewidth"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "3ee7d812e62a0804a7d0a324e0249ca2db3476d3"
+  version = "v0.0.4"
+
+[[projects]]
   digest = "1:c9724c929d27a14475a45b17a267dbc60671c0bc2c5c05ed21f011f7b5bc9fb5"
   name = "github.com/mattn/go-sqlite3"
   packages = ["."]
@@ -611,6 +646,14 @@
   revision = "90f07065088deccf50b28eb37c93dad3078c0f3c"
 
 [[projects]]
+  digest = "1:9f63926f52745d1f9d6053f8fbbb3bd3983c2c97c0565957e682b8d2f7aad3af"
+  name = "github.com/mitchellh/go-wordwrap"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "9e67c67572bc5dd02aef930e2b0ae3c02a4b5a5c"
+  version = "v1.0.0"
+
+[[projects]]
   digest = "1:2f42fa12d6911c7b7659738758631bec870b7e9b4c6be5444f963cdcfccc191f"
   name = "github.com/modern-go/concurrent"
   packages = ["."]
@@ -625,6 +668,14 @@
   pruneopts = "NUT"
   revision = "1df9eeb2bb81f327b96228865c5687bc2194af3f"
   version = "1.0.0"
+
+[[projects]]
+  branch = "master"
+  digest = "1:6022d8987643a603f69616699ba517019b353c0f6fd521372d465f3acbf081d5"
+  name = "github.com/nsf/termbox-go"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "02980233997d87bbda048393d47b4d453f7a398d"
 
 [[projects]]
   digest = "1:cce3a18fb0b96b5015cd8ca03a57d20a662679de03c4dc4b6ff5f17ea2050fa6"
@@ -662,23 +713,26 @@
   revision = "54653902c20e47f3417541d35435cb6d6162e28a"
 
 [[projects]]
-  digest = "1:3e5fd795ebf6a9e13e67d644da76130af7a6003286531f9573f8074c228b66a3"
+  digest = "1:00e5485f002096d8284d57ce59acb8e08121a5accdf92777ca7368bf9e5e18e8"
   name = "github.com/prometheus/client_golang"
-  packages = ["prometheus"]
+  packages = [
+    "prometheus",
+    "prometheus/internal",
+  ]
   pruneopts = "NUT"
-  revision = "c5b7fccd204277076155f10851dad72b76a49317"
-  version = "v0.8.0"
+  revision = "505eaef017263e299324067d40ca2c48f6a2cf50"
+  version = "v0.9.2"
 
 [[projects]]
   branch = "master"
-  digest = "1:32d10bdfa8f09ecf13598324dba86ab891f11db3c538b6a34d1c3b5b99d7c36b"
+  digest = "1:2d5cd61daa5565187e1d96bae64dbbc6080dacf741448e9629c64fd93203b0d4"
   name = "github.com/prometheus/client_model"
   packages = ["go"]
   pruneopts = "NUT"
-  revision = "6f3806018612930941127f2a7c6c453ba2c527d2"
+  revision = "fd36f4220a901265f90734c3183c5f0c91daa0b8"
 
 [[projects]]
-  digest = "1:8fcf11509894e854b6a197e99bf7aa50a43d853c461507d1c5597366737bfee7"
+  digest = "1:4e776079b966091d3e6e12ed2aaf728bea5cd1175ef88bb654e03adbf5d4f5d3"
   name = "github.com/prometheus/common"
   packages = [
     "expfmt",
@@ -686,14 +740,22 @@
     "model",
   ]
   pruneopts = "NUT"
-  revision = "50022896a67062a54a54f268fb6fe4bf90b34859"
+  revision = "cfeb6f9992ffa54aaa4f2170ade4067ee478b250"
+  version = "v0.2.0"
 
 [[projects]]
-  digest = "1:8828f36144cc87c0204378bc73f36dbdda8188e17cae5adaed263d22d0ac06ec"
+  branch = "master"
+  digest = "1:0a2e604afa3cbf53a1ddade2f240ee8472eded98856dd8c7cfbfea392ddbbfc7"
   name = "github.com/prometheus/procfs"
-  packages = ["."]
+  packages = [
+    ".",
+    "internal/util",
+    "iostats",
+    "nfs",
+    "xfs",
+  ]
   pruneopts = "NUT"
-  revision = "406e5b7bfd8201a36e2bb5f7bdae0b03380c2ce8"
+  revision = "e4d4a2206da023361ed100d85c5f2cf9c8364e9f"
 
 [[projects]]
   digest = "1:ebd11dba223a1ad42de8d1dd567c44016257aa642af4552c64d7db98cbb2d989"
@@ -1105,13 +1167,18 @@
     "github.com/coreos/go-semver/semver",
     "github.com/davecgh/go-spew/spew",
     "github.com/docker/docker/pkg/term",
+    "github.com/dustin/go-humanize",
     "github.com/ghodss/yaml",
+    "github.com/gizak/termui",
+    "github.com/gizak/termui/widgets",
     "github.com/gogo/protobuf/gogoproto",
+    "github.com/gogo/protobuf/proto",
     "github.com/gogo/protobuf/types",
     "github.com/gokyle/hotp",
     "github.com/golang/protobuf/proto",
     "github.com/golang/protobuf/ptypes/empty",
     "github.com/golang/protobuf/ptypes/timestamp",
+    "github.com/google/btree",
     "github.com/google/gops/agent",
     "github.com/gravitational/configure/cstrings",
     "github.com/gravitational/configure/jsonschema",
@@ -1142,6 +1209,8 @@
     "github.com/pquerna/otp",
     "github.com/pquerna/otp/totp",
     "github.com/prometheus/client_golang/prometheus",
+    "github.com/prometheus/client_model/go",
+    "github.com/prometheus/common/expfmt",
     "github.com/russellhaering/gosaml2",
     "github.com/russellhaering/gosaml2/types",
     "github.com/russellhaering/goxmldsig",
@@ -1188,6 +1257,7 @@
     "k8s.io/client-go/tools/clientcmd/api",
     "k8s.io/client-go/tools/portforward",
     "k8s.io/client-go/tools/remotecommand",
+    "k8s.io/client-go/transport",
     "k8s.io/client-go/transport/spdy",
     "k8s.io/client-go/util/exec",
   ]

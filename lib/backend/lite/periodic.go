@@ -40,7 +40,14 @@ func (l *LiteBackend) runPeriodicOperations() {
 		case <-t.C:
 			err := l.removeExpiredKeys()
 			if err != nil {
-				l.Warningf("Failed to run remove expired keys: %v", err)
+				// connection problem means that database is closed
+				// or is closing, downgrade the log to debug
+				// to avoid polluting logs in production
+				if trace.IsConnectionProblem(err) {
+					l.Debugf("Failed to run remove expired keys: %v", err)
+				} else {
+					l.Warningf("Failed to run remove expired keys: %v", err)
+				}
 			}
 			if !l.EventsOff {
 				err = l.removeOldEvents()
@@ -134,7 +141,7 @@ func (l *LiteBackend) pollEvents(rowid int64) (int64, error) {
 	var lastID int64
 	err := l.inTransaction(l.ctx, func(tx *sql.Tx) error {
 		q, err := tx.PrepareContext(l.ctx,
-			"SELECT id, type, kv_key, kv_value, kv_modified FROM events WHERE id > ? ORDER BY id LIMIT ?")
+			"SELECT id, type, kv_key, kv_value, kv_modified, kv_expires FROM events WHERE id > ? ORDER BY id LIMIT ?")
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -149,8 +156,12 @@ func (l *LiteBackend) pollEvents(rowid int64) (int64, error) {
 		defer rows.Close()
 		for rows.Next() {
 			var event backend.Event
-			if err := rows.Scan(&lastID, &event.Type, &event.Item.Key, &event.Item.Value, &event.Item.ID); err != nil {
+			var expires NullTime
+			if err := rows.Scan(&lastID, &event.Type, &event.Item.Key, &event.Item.Value, &event.Item.ID, &expires); err != nil {
 				return trace.Wrap(err)
+			}
+			if expires.Valid {
+				event.Item.Expires = expires.Time
 			}
 			events = append(events, event)
 		}

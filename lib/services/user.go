@@ -60,8 +60,6 @@ type User interface {
 	SetCreatedBy(CreatedBy)
 	// Check checks basic user parameters for errors
 	Check() error
-	// GetRawObject returns raw object data, used for migrations
-	GetRawObject() interface{}
 	// WebSessionInfo returns web session information about user
 	WebSessionInfo(allowedLogins []string) interface{}
 	// GetTraits gets the trait map for this user used to populate role variables.
@@ -88,36 +86,10 @@ func NewUser(name string) (User, error) {
 	return u, nil
 }
 
-// ConnectorRef holds information about OIDC connector
-type ConnectorRef struct {
-	// Type is connector type
-	Type string `json:"type"`
-	// ID is connector ID
-	ID string `json:"id"`
-	// Identity is external identity of the user
-	Identity string `json:"identity"`
-}
-
 // IsSameProvider returns true if the provided connector has the
 // same ID/type as this one
 func (r *ConnectorRef) IsSameProvider(other *ConnectorRef) bool {
 	return other != nil && other.Type == r.Type && other.ID == r.ID
-}
-
-// UserRef holds references to user
-type UserRef struct {
-	// Name is name of the user
-	Name string `json:"name"`
-}
-
-// CreatedBy holds information about the person or agent who created the user
-type CreatedBy struct {
-	// Identity if present means that user was automatically created by identity
-	Connector *ConnectorRef `json:"connector,omitempty"`
-	// Time specifies when user was created
-	Time time.Time `json:"time"`
-	// User holds information about user
-	User UserRef `json:"user"`
 }
 
 const CreatedBySchema = `{
@@ -159,18 +131,6 @@ func (c CreatedBy) String() string {
 	return fmt.Sprintf("%v at %v", c.User.Name, c.Time)
 }
 
-// LoginStatus is a login status of the user
-type LoginStatus struct {
-	// IsLocked tells us if user is locked
-	IsLocked bool `json:"is_locked"`
-	// LockedMessage contains the message in case if user is locked
-	LockedMessage string `json:"locked_message,omitempty"`
-	// LockedTime contains time when user was locked
-	LockedTime time.Time `json:"locked_time,omitempty"`
-	// LockExpires contains time when this lock will expire
-	LockExpires time.Time `json:"lock_expires,omitempty"`
-}
-
 const LoginStatusSchema = `{
   "type": "object",
   "additionalProperties": false,
@@ -198,18 +158,24 @@ func (la *LoginAttempt) Check() error {
 	return nil
 }
 
-// UserV2 is version1 resource spec of the user
-type UserV2 struct {
-	// Kind is a resource kind
-	Kind string `json:"kind"`
-	// Version is version
-	Version string `json:"version"`
-	// Metadata is User metadata
-	Metadata Metadata `json:"metadata"`
-	// Spec contains user specification
-	Spec UserSpecV2 `json:"spec"`
-	// rawObject contains raw object representation
-	rawObject interface{}
+// GetVersion returns resource version
+func (u *UserV2) GetVersion() string {
+	return u.Version
+}
+
+// GetKind returns resource kind
+func (u *UserV2) GetKind() string {
+	return u.Kind
+}
+
+// GetSubKind returns resource sub kind
+func (u *UserV2) GetSubKind() string {
+	return u.SubKind
+}
+
+// SetSubKind sets resource subkind
+func (u *UserV2) SetSubKind(s string) {
+	u.SubKind = s
 }
 
 // GetResourceID returns resource ID
@@ -279,38 +245,6 @@ func (u *UserV2) CheckAndSetDefaults() error {
 	return nil
 }
 
-// UserSpecV2 is a specification for V2 user
-type UserSpecV2 struct {
-	// OIDCIdentities lists associated OpenID Connect identities
-	// that let user log in using externally verified identity
-	OIDCIdentities []ExternalIdentity `json:"oidc_identities,omitempty"`
-
-	// SAMLIdentities lists associated SAML identities
-	// that let user log in using externally verified identity
-	SAMLIdentities []ExternalIdentity `json:"saml_identities,omitempty"`
-
-	// GithubIdentities list associated Github OAuth2 identities
-	// that let user log in using externally verified identity
-	GithubIdentities []ExternalIdentity `json:"github_identities,omitempty"`
-
-	// Roles is a list of roles assigned to user
-	Roles []string `json:"roles,omitempty"`
-
-	// Traits are key/value pairs received from an identity provider (through
-	// OIDC claims or SAML assertions) or from a system administrator for local
-	// accounts. Traits are used to populate role variables.
-	Traits map[string][]string `json:"traits,omitempty"`
-
-	// Status is a login status of the user
-	Status LoginStatus `json:"status"`
-
-	// Expires if set sets TTL on the user
-	Expires time.Time `json:"expires"`
-
-	// CreatedBy holds information about agent or person created this usre
-	CreatedBy CreatedBy `json:"created_by"`
-}
-
 // V1 converts UserV2 to UserV1 format
 func (u *UserV2) V1() *UserV1 {
 	return &UserV1{
@@ -367,11 +301,6 @@ const UserSpecV2SchemaTemplate = `{
     "created_by": %v%v
   }
 }`
-
-// GetObject returns raw object data, used for migrations
-func (u *UserV2) GetRawObject() interface{} {
-	return u.rawObject
-}
 
 // SetCreatedBy sets created by information
 func (u *UserV2) SetCreatedBy(b CreatedBy) {
@@ -570,7 +499,6 @@ func (u *UserV1) V2() *UserV2 {
 				teleport.TraitKubeGroups: u.KubeGroups,
 			},
 		},
-		rawObject: *u,
 	}
 }
 
@@ -594,7 +522,7 @@ func GetUserMarshaler() UserMarshaler {
 // mostly adds support for extended versions
 type UserMarshaler interface {
 	// UnmarshalUser from binary representation
-	UnmarshalUser(bytes []byte) (User, error)
+	UnmarshalUser(bytes []byte, opts ...MarshalOption) (User, error)
 	// MarshalUser to binary representation
 	MarshalUser(u User, opts ...MarshalOption) ([]byte, error)
 	// GenerateUser generates new user based on standard teleport user
@@ -618,12 +546,18 @@ func GetUserSchema(extensionSchema string) string {
 type TeleportUserMarshaler struct{}
 
 // UnmarshalUser unmarshals user from JSON
-func (*TeleportUserMarshaler) UnmarshalUser(bytes []byte) (User, error) {
+func (*TeleportUserMarshaler) UnmarshalUser(bytes []byte, opts ...MarshalOption) (User, error) {
 	var h ResourceHeader
 	err := json.Unmarshal(bytes, &h)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	cfg, err := collectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	switch h.Version {
 	case "":
 		var u UserV1
@@ -634,13 +568,24 @@ func (*TeleportUserMarshaler) UnmarshalUser(bytes []byte) (User, error) {
 		return u.V2(), nil
 	case V2:
 		var u UserV2
-		if err := utils.UnmarshalWithSchema(GetUserSchema(""), &u, bytes); err != nil {
-			return nil, trace.BadParameter(err.Error())
+		if cfg.SkipValidation {
+			if err := utils.FastUnmarshal(bytes, &u); err != nil {
+				return nil, trace.BadParameter(err.Error())
+			}
+		} else {
+			if err := utils.UnmarshalWithSchema(GetUserSchema(""), &u, bytes); err != nil {
+				return nil, trace.BadParameter(err.Error())
+			}
 		}
-		u.rawObject = u
 
 		if err := u.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
+		}
+		if cfg.ID != 0 {
+			u.SetResourceID(cfg.ID)
+		}
+		if !cfg.Expires.IsZero() {
+			u.SetExpiry(cfg.Expires)
 		}
 
 		return &u, nil
@@ -680,7 +625,15 @@ func (*TeleportUserMarshaler) MarshalUser(u User, opts ...MarshalOption) ([]byte
 		if !ok {
 			return nil, trace.BadParameter("don't know how to marshal %v", V2)
 		}
-		return json.Marshal(v.V2())
+		v2 := v.V2()
+		if !cfg.PreserveResourceID {
+			// avoid modifying the original object
+			// to prevent unexpected data races
+			copy := *v2
+			copy.SetResourceID(0)
+			v2 = &copy
+		}
+		return utils.FastMarshal(v2)
 	default:
 		return nil, trace.BadParameter("version %v is not supported", version)
 	}

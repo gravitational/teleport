@@ -39,24 +39,26 @@ type UserGetter interface {
 	GetUser(user string) (User, error)
 }
 
-// Identity is responsible for managing user entries and external identities
-type Identity interface {
-	// GetUsers returns a list of users registered with the local auth server
-	GetUsers() ([]User, error)
-
-	// DeleteAllUsers deletes all users
-	DeleteAllUsers() error
-
-	// CreateUser creates user if it does not exist
-	CreateUser(user User) error
-
+// UserService is reponsible for basic user management
+type UsersService interface {
+	UserGetter
 	// UpsertUser updates parameters about user
 	UpsertUser(user User) error
-
-	UserGetter
-
 	// DeleteUser deletes a user with all the keys from the backend
 	DeleteUser(user string) error
+	// GetUsers returns a list of users registered with the local auth server
+	GetUsers() ([]User, error)
+	// DeleteAllUsers deletes all users
+	DeleteAllUsers() error
+}
+
+// Identity is responsible for managing user entries and external identities
+type Identity interface {
+	// CreateUser creates user, only if the user entry does not exist
+	CreateUser(user User) error
+
+	// UsersService implements most methods
+	UsersService
 
 	// AddUserLoginAttempt logs user login attempt
 	AddUserLoginAttempt(user string, attempt LoginAttempt, ttl time.Duration) error
@@ -235,17 +237,6 @@ type SignupToken struct {
 	OTPKey    string    `json:"otp_key"`
 	OTPQRCode []byte    `json:"otp_qr_code"`
 	Expires   time.Time `json:"expires"`
-}
-
-// OIDCIdentity is OpenID Connect identity that is linked
-// to particular user and connector and lets user to log in using external
-// credentials, e.g. google
-type ExternalIdentity struct {
-	// ConnectorID is id of registered OIDC connector, e.g. 'google-example.com'
-	ConnectorID string `json:"connector_id"`
-
-	// Username is username supplied by external identity provider
-	Username string `json:"username"`
 }
 
 const ExternalIdentitySchema = `{

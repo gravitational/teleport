@@ -298,7 +298,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 				lastReport = time.Now()
 			}
 		case <-ctx.Done():
-			s.Infof("Context cancelled wait, returning")
+			s.Infof("Context cancelled wait, returning.")
 			return trace.ConnectionProblem(err, "context cancelled")
 		}
 	}
@@ -400,12 +400,12 @@ func (s *Server) handleConnection(conn net.Conn) {
 		return
 	}
 	// Connection successfully initiated
-	s.Debugf("incoming connection %v -> %v vesion: %v",
+	s.Debugf("Incoming connection %v -> %v vesion: %v.",
 		sconn.RemoteAddr(), sconn.LocalAddr(), string(sconn.ClientVersion()))
 
 	// will be called when the connection is closed
 	connClosed := func() {
-		s.Debugf("closed connection %v", sconn.RemoteAddr())
+		s.Debugf("Closed connection %v.", sconn.RemoteAddr())
 	}
 
 	// The keepalive ticket will ensure that SSH keepalive requests are being sent
@@ -422,7 +422,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 				connClosed()
 				return
 			}
-			s.Debugf("received out-of-band request: %+v", req)
+			s.Debugf("Received out-of-band request: %+v.", req)
 			if s.reqHandler != nil {
 				go s.reqHandler.HandleRequest(req)
 			}

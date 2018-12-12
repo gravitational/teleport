@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2015-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -186,7 +186,7 @@ func (a *Agent) setStateAndPrincipals(state string, principals []string) {
 	a.Lock()
 	defer a.Unlock()
 	prev := a.state
-	a.Debugf("changing state %v -> %v", prev, state)
+	a.Debugf("Changing state %v -> %v.", prev, state)
 	a.state = state
 	a.stateChange = a.Clock.Now().UTC()
 	a.principals = principals
@@ -195,7 +195,7 @@ func (a *Agent) setState(state string) {
 	a.Lock()
 	defer a.Unlock()
 	prev := a.state
-	a.Debugf("changing state %v -> %v", prev, state)
+	a.Debugf("Changing state %v -> %v.", prev, state)
 	a.state = state
 	a.stateChange = a.Clock.Now().UTC()
 }
@@ -520,7 +520,7 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 				a.Error(err)
 				return trace.Wrap(err)
 			}
-			a.Debugf("ping -> %v", conn.RemoteAddr())
+			a.Debugf("Ping -> %v.", conn.RemoteAddr())
 		// ssh channel closed:
 		case req := <-reqC:
 			if req == nil {
@@ -531,10 +531,10 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 			if nch == nil {
 				continue
 			}
-			a.Debugf("transport request: %v", nch.ChannelType())
+			a.Debugf("Transport request: %v.", nch.ChannelType())
 			ch, req, err := nch.Accept()
 			if err != nil {
-				a.Warningf("failed to accept request: %v", err)
+				a.Warningf("Failed to accept request: %v.", err)
 				continue
 			}
 			go a.proxyTransport(ch, req)

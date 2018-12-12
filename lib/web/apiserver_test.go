@@ -59,7 +59,6 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/state"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/ui"
 
@@ -195,7 +194,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		HostSigners:           []ssh.Signer{signer},
 		LocalAuthClient:       s.proxyClient,
 		LocalAccessPoint:      s.proxyClient,
-		NewCachingAccessPoint: state.NoCache,
+		NewCachingAccessPoint: auth.NoCache,
 		DirectClusters:        []reversetunnel.DirectCluster{{Name: s.server.ClusterName(), Client: s.proxyClient}},
 		DataDir:               c.MkDir(),
 	})
@@ -370,7 +369,7 @@ func (s *WebSuite) TestNewUser(c *C) {
 	tokens, err := s.server.Auth().GetTokens()
 	c.Assert(err, IsNil)
 	c.Assert(len(tokens), Equals, 1)
-	c.Assert(tokens[0].Token, Equals, token)
+	c.Assert(tokens[0].GetName(), Equals, token)
 
 	clt := s.client()
 	re, err := clt.Get(context.Background(), clt.Endpoint("webapi", "users", "invites", token), url.Values{})

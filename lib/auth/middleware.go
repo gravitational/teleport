@@ -29,9 +29,9 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"golang.org/x/net/http2"
-
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/net/http2"
 )
 
 // TLSServerConfig is a configuration for TLS server
@@ -42,8 +42,8 @@ type TLSServerConfig struct {
 	APIConfig
 	// LimiterConfig is limiter config
 	LimiterConfig limiter.LimiterConfig
-	// AccessPoint is caching access point
-	AccessPoint AccessPoint
+	// AccessPoint is a caching access point
+	AccessPoint AccessCache
 	// Component is used for debugging purposes
 	Component string
 	// AcceptedUsage restricts authentication
@@ -69,6 +69,9 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	if c.AccessPoint == nil {
 		return trace.BadParameter("missing parameter AccessPoint")
 	}
+	if c.Component == "" {
+		c.Component = teleport.ComponentAuth
+	}
 	return nil
 }
 
@@ -77,6 +80,8 @@ type TLSServer struct {
 	*http.Server
 	// TLSServerConfig is TLS server configuration used for auth server
 	TLSServerConfig
+	// Entry is TLS server logging entry
+	*logrus.Entry
 }
 
 // NewTLSServer returns new unstarted TLS server
@@ -109,6 +114,9 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		Server: &http.Server{
 			Handler: limiter,
 		},
+		Entry: logrus.WithFields(logrus.Fields{
+			trace.Component: cfg.Component,
+		}),
 	}
 	server.TLS.GetConfigForClient = server.GetConfigForClient
 	return server, nil
@@ -129,7 +137,7 @@ func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, 
 		clusterName, err = DecodeClusterName(info.ServerName)
 		if err != nil {
 			if !trace.IsNotFound(err) {
-				log.Warningf("Client sent unsupported cluster name %q, what resulted in error %v.", info.ServerName, err)
+				t.Warningf("Client sent unsupported cluster name %q, what resulted in error %v.", info.ServerName, err)
 				return nil, trace.AccessDenied("access is denied")
 			}
 		}
@@ -139,23 +147,28 @@ func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, 
 	// certificate authorities.
 	// TODO(klizhentas) drop connections of the TLS cert authorities
 	// that are not trusted
-	// TODO(klizhentas) what are performance implications of returning new config
-	// per connections? E.g. what happens to session tickets. Benchmark this.
-	pool, err := t.AuthServer.ClientCertPool(clusterName)
+	pool, err := ClientCertPool(t.AccessPoint, clusterName)
 	if err != nil {
-		log.Errorf("failed to retrieve client pool: %v", trace.DebugReport(err))
+		var ourClusterName string
+		if clusterName, err := t.AccessPoint.GetClusterName(); err == nil {
+			ourClusterName = clusterName.GetClusterName()
+		}
+		t.Errorf("Failed to retrieve client pool. Client cluster %v, target cluster %v, error:  %v.", clusterName, ourClusterName, trace.DebugReport(err))
 		// this falls back to the default config
 		return nil, nil
 	}
 	tlsCopy := t.TLS.Clone()
 	tlsCopy.ClientCAs = pool
+	for _, cert := range tlsCopy.Certificates {
+		t.Debugf("Server certificate %v.", TLSCertInfo(&cert))
+	}
 	return tlsCopy, nil
 }
 
 // AuthMiddleware is authentication middleware checking every request
 type AuthMiddleware struct {
 	// AccessPoint is a caching access point for auth server
-	AccessPoint AccessPoint
+	AccessPoint AccessCache
 	// Handler is HTTP handler called after the middleware checks requests
 	Handler http.Handler
 	// AcceptedUsage restricts authentication
@@ -180,7 +193,7 @@ func (a *AuthMiddleware) GetUser(r *http.Request) (interface{}, error) {
 		// https://github.com/kubernetes/kubernetes/pull/34524/files#diff-2b283dde198c92424df5355f39544aa4R59
 		return nil, trace.AccessDenied("access denied: intermediaries are not supported")
 	}
-	localClusterName, err := a.AccessPoint.GetDomainName()
+	localClusterName, err := a.AccessPoint.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -194,7 +207,7 @@ func (a *AuthMiddleware) GetUser(r *http.Request) (interface{}, error) {
 			GetClusterConfig: a.AccessPoint.GetClusterConfig,
 			Role:             teleport.RoleNop,
 			Username:         string(teleport.RoleNop),
-			ClusterName:      localClusterName,
+			ClusterName:      localClusterName.GetClusterName(),
 		}, nil
 	}
 	clientCert := peers[0]
@@ -226,7 +239,7 @@ func (a *AuthMiddleware) GetUser(r *http.Request) (interface{}, error) {
 	// by creating a cert pool constructed of trusted certificate authorities
 	// 2. Remote CAs are not allowed to have the same cluster name
 	// as the local certificate authority
-	if certClusterName != localClusterName {
+	if certClusterName != localClusterName.GetClusterName() {
 		// make sure that this user does not have system role
 		// the local auth server can not truste remote servers
 		// to issue certificates with system roles (e.g. Admin),
@@ -258,7 +271,7 @@ func (a *AuthMiddleware) GetUser(r *http.Request) (interface{}, error) {
 			GetClusterConfig: a.AccessPoint.GetClusterConfig,
 			Role:             *systemRole,
 			Username:         identity.Username,
-			ClusterName:      localClusterName,
+			ClusterName:      localClusterName.GetClusterName(),
 		}, nil
 	}
 	// otherwise assume that is a local role, no need to pass the roles
@@ -297,19 +310,36 @@ func (a *AuthMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // ClientCertPool returns trusted x509 cerificate authority pool
-func ClientCertPool(client AccessPoint) (*x509.CertPool, error) {
+func ClientCertPool(client AccessCache, clusterName string) (*x509.CertPool, error) {
 	pool := x509.NewCertPool()
 	var authorities []services.CertAuthority
-	hostCAs, err := client.GetCertAuthorities(services.HostCA, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if clusterName == "" {
+		hostCAs, err := client.GetCertAuthorities(services.HostCA, false, services.SkipValidation())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		userCAs, err := client.GetCertAuthorities(services.UserCA, false, services.SkipValidation())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		authorities = append(authorities, hostCAs...)
+		authorities = append(authorities, userCAs...)
+	} else {
+		hostCA, err := client.GetCertAuthority(
+			services.CertAuthID{Type: services.HostCA, DomainName: clusterName},
+			false, services.SkipValidation())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		userCA, err := client.GetCertAuthority(
+			services.CertAuthID{Type: services.UserCA, DomainName: clusterName},
+			false, services.SkipValidation())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		authorities = append(authorities, hostCA)
+		authorities = append(authorities, userCA)
 	}
-	userCAs, err := client.GetCertAuthorities(services.UserCA, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	authorities = append(authorities, hostCAs...)
-	authorities = append(authorities, userCAs...)
 
 	for _, auth := range authorities {
 		for _, keyPair := range auth.GetTLSKeyPairs() {
@@ -317,6 +347,7 @@ func ClientCertPool(client AccessPoint) (*x509.CertPool, error) {
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
+			log.Debugf("ClientCertPool -> %v", CertInfo(cert))
 			pool.AddCert(cert)
 		}
 	}

@@ -20,6 +20,8 @@ package trace
 import (
 	"bytes"
 	"fmt"
+	"io"
+	"os"
 	"regexp"
 	rundebug "runtime/debug"
 	"sort"
@@ -28,7 +30,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-
+	"golang.org/x/crypto/ssh/terminal"
 	"runtime"
 )
 
@@ -50,6 +52,16 @@ const (
 	DefaultLevelPadding = 4
 )
 
+// IsTerminal checks whether writer is a terminal
+func IsTerminal(w io.Writer) bool {
+	switch v := w.(type) {
+	case *os.File:
+		return terminal.IsTerminal(int(v.Fd()))
+	default:
+		return false
+	}
+}
+
 // TextFormatter is logrus-compatible formatter and adds
 // file and line details to every logged entry.
 type TextFormatter struct {
@@ -59,6 +71,8 @@ type TextFormatter struct {
 	// ComponentPadding is a padding to pick when displaying
 	// and formatting component field, defaults to DefaultComponentPadding
 	ComponentPadding int
+	// EnableColors enables colored output
+	EnableColors bool
 }
 
 // Format implements logrus.Formatter interface and adds file and line
@@ -79,11 +93,24 @@ func (tf *TextFormatter) Format(e *log.Entry) (data []byte, err error) {
 
 	// time
 	if !tf.DisableTimestamp {
-		w.writeField(e.Time.Format(time.RFC3339))
+		w.writeField(e.Time.Format(time.RFC3339), noColor)
 	}
 
 	// level
-	w.writeField(strings.ToUpper(padMax(e.Level.String(), DefaultLevelPadding)))
+	color := noColor
+	if tf.EnableColors {
+		switch e.Level {
+		case log.DebugLevel:
+			color = gray
+		case log.WarnLevel:
+			color = yellow
+		case log.ErrorLevel, log.FatalLevel, log.PanicLevel:
+			color = red
+		default:
+			color = blue
+		}
+	}
+	w.writeField(strings.ToUpper(padMax(e.Level.String(), DefaultLevelPadding)), color)
 
 	// component, always output
 	componentI, ok := e.Data[Component]
@@ -112,7 +139,7 @@ func (tf *TextFormatter) Format(e *log.Entry) (data []byte, err error) {
 
 	// message
 	if e.Message != "" {
-		w.writeField(e.Message)
+		w.writeField(e.Message, noColor)
 	}
 
 	// rest of the fields
@@ -122,7 +149,7 @@ func (tf *TextFormatter) Format(e *log.Entry) (data []byte, err error) {
 
 	// file, if present, always last
 	if file != "" {
-		w.writeField(file)
+		w.writeField(file, noColor)
 	}
 
 	w.WriteByte('\n')
@@ -167,21 +194,34 @@ func findFrame() int {
 	return -1
 }
 
+const (
+	noColor = -1
+	red     = 31
+	yellow  = 33
+	blue    = 36
+	gray    = 37
+)
+
 type writer struct {
 	bytes.Buffer
 }
 
-func (w *writer) writeField(value interface{}) {
+func (w *writer) writeField(value interface{}, color int) {
 	if w.Len() > 0 {
 		w.WriteByte(' ')
 	}
-	w.writeValue(value)
+	w.writeValue(value, color)
 }
 
-func (w *writer) writeValue(value interface{}) {
+func (w *writer) writeValue(value interface{}, color int) {
 	stringVal, ok := value.(string)
 	if !ok {
 		stringVal = fmt.Sprint(value)
+	}
+	if color != noColor {
+		stringVal = fmt.Sprintf("\x1b[%dm%s\x1b[0m", color, stringVal)
+		w.WriteString(stringVal)
+		return
 	}
 	if !needsQuoting(stringVal) {
 		w.WriteString(stringVal)
@@ -196,7 +236,7 @@ func (w *writer) writeKeyValue(key string, value interface{}) {
 	}
 	w.WriteString(key)
 	w.WriteByte(':')
-	w.writeValue(value)
+	w.writeValue(value, noColor)
 }
 
 func (w *writer) writeMap(m map[string]interface{}) {
