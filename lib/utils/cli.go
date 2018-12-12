@@ -1,5 +1,5 @@
 /*
-Copyright 2016 Gravitational, Inc.
+Copyright 2016-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -43,8 +43,6 @@ const (
 // InitLogger configures the global logger for a given purpose / verbosity level
 func InitLogger(purpose LoggingPurpose, level log.Level, verbose ...bool) {
 	log.StandardLogger().SetHooks(make(log.LevelHooks))
-	formatter := &trace.TextFormatter{DisableTimestamp: true}
-	log.SetFormatter(formatter)
 	log.SetLevel(level)
 
 	switch purpose {
@@ -52,14 +50,27 @@ func InitLogger(purpose LoggingPurpose, level log.Level, verbose ...bool) {
 		// If debug logging was asked for on the CLI, then write logs to stderr.
 		// Otherwise discard all logs.
 		if level == log.DebugLevel {
+			log.SetFormatter(&trace.TextFormatter{
+				DisableTimestamp: true,
+				EnableColors:     trace.IsTerminal(os.Stderr),
+			})
 			log.SetOutput(os.Stderr)
 		} else {
 			log.SetOutput(ioutil.Discard)
 		}
 	case LoggingForDaemon:
+		log.SetFormatter(&trace.TextFormatter{
+			DisableTimestamp: true,
+			EnableColors:     trace.IsTerminal(os.Stderr),
+		})
 		log.SetOutput(os.Stderr)
 	case LoggingForTests:
+		log.SetFormatter(&trace.TextFormatter{
+			DisableTimestamp: true,
+			EnableColors:     true,
+		})
 		log.SetLevel(level)
+		log.SetOutput(os.Stderr)
 		if len(verbose) != 0 && verbose[0] {
 			return
 		}
@@ -85,6 +96,21 @@ func InitLoggerForTests(verbose ...bool) {
 func FatalError(err error) {
 	fmt.Fprintln(os.Stderr, UserMessageFromError(err))
 	os.Exit(1)
+}
+
+// GetIterations provides a simple way to add iterations to the test
+// by setting environment variable "ITERATIONS", by default it returns 1
+func GetIterations() int {
+	out := os.Getenv(teleport.IterationsEnvVar)
+	if out == "" {
+		return 1
+	}
+	iter, err := strconv.Atoi(out)
+	if err != nil {
+		panic(err)
+	}
+	log.Debugf("Starting tests with %v iterations.", iter)
+	return iter
 }
 
 // UserMessageFromError returns user friendly error message from error

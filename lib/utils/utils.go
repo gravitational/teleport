@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2018 Gravitational, Inc.
+Copyright 2015-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -31,7 +32,40 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
+	log "github.com/sirupsen/logrus"
 )
+
+// Tracer helps to trace execution of functions
+type Tracer struct {
+	// Started records starting time of the call
+	Started time.Time
+	// Description is arbitrary description
+	Description string
+}
+
+// NewTracer returns a new tracer
+func NewTracer(description string) *Tracer {
+	return &Tracer{Started: time.Now().UTC(), Description: description}
+}
+
+// Start logs start of the trace
+func (t *Tracer) Start() *Tracer {
+	log.Debugf("Tracer started %v.", t.Description)
+	return t
+}
+
+// Stop logs stop of the trace
+func (t *Tracer) Stop() *Tracer {
+	log.Debugf("Tracer completed %v in %v.", t.Description, time.Now().Sub(t.Started))
+	return t
+}
+
+// ThisFunction returns calling function name
+func ThisFunction() string {
+	var pc [32]uintptr
+	runtime.Callers(2, pc[:])
+	return runtime.FuncForPC(pc[0]).Name()
+}
 
 // AsBool converts string to bool, in case of the value is empty
 // or unknown, defaults to false
@@ -56,7 +90,7 @@ func ParseBool(value string) (bool, error) {
 	}
 }
 
-// ParseAdvertiseAddress validates advertise address,
+// ParseAdvertiseAddr validates advertise address,
 // makes sure it's not an unreachable or multicast address
 // returns address split into host and port, port could be empty
 // if not specified
@@ -152,6 +186,7 @@ func SplitHostPort(hostname string) (string, string, error) {
 	return host, port, nil
 }
 
+// ReadPath reads file contents
 func ReadPath(path string) ([]byte, error) {
 	if path == "" {
 		return nil, trace.NotFound("empty path")

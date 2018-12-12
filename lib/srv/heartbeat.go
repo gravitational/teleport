@@ -267,9 +267,6 @@ func (h *Heartbeat) Close() error {
 // setState is used to debug state transitions
 // as it logs in addition to setting state
 func (h *Heartbeat) setState(state KeepAliveState) {
-	if state != h.state {
-		h.WithFields(log.Fields{"from": h.state, "to": state.String()}).Debugf("Transition.")
-	}
 	h.state = state
 }
 

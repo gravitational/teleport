@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Gravitational, Inc.
+Copyright 2017-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -755,10 +755,10 @@ func (s *TLSSuite) TestClusterConfig(c *check.C) {
 	clt, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)
 
-	suite := &suite.ServicesTestSuite{
+	testSuite := &suite.ServicesTestSuite{
 		ConfigS: clt,
 	}
-	suite.ClusterConfig(c)
+	testSuite.ClusterConfig(c, suite.SkipDelete())
 }
 
 func (s *TLSSuite) TestTunnelConnectionsCRUD(c *check.C) {
@@ -1818,9 +1818,9 @@ func (s *TLSSuite) TestRegisterCAPath(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
-// TestStreamNodePresence tests streaming node presence API -
+// TestEventsNodePresence tests streaming node presence API -
 // announcing node and keeping node alive
-func (s *TLSSuite) TestStreamNodePresence(c *check.C) {
+func (s *TLSSuite) TestEventsNodePresence(c *check.C) {
 	node := &services.ServerV2{
 		Kind:    services.KindNode,
 		Version: services.V2,
@@ -1889,16 +1889,24 @@ func (s *TLSSuite) TestStreamNodePresence(c *check.C) {
 	fixtures.ExpectAccessDenied(c, k2.Error())
 }
 
-// TestStreamEvents tests streaming of events
-func (s *TLSSuite) TestStreamEvents(c *check.C) {
+// TestEventsPermissions tests events with regards
+// to certificate authority rotation
+func (s *TLSSuite) TestEventsPermissions(c *check.C) {
 	clt, err := s.server.NewClient(TestBuiltin(teleport.RoleNode))
 	c.Assert(err, check.IsNil)
 	defer clt.Close()
 
 	ctx := context.TODO()
-	w, err := clt.NewWatcher(ctx, services.Watch{Kinds: []string{services.KindCertAuthority}})
+	w, err := clt.NewWatcher(ctx, services.Watch{Kinds: []services.WatchKind{{Kind: services.KindCertAuthority}}})
 	c.Assert(err, check.IsNil)
 	defer w.Close()
+
+	select {
+	case <-time.After(2 * time.Second):
+		c.Fatalf("Timeout waiting for init event")
+	case event := <-w.Events():
+		c.Assert(event.Type, check.Equals, backend.OpInit)
+	}
 
 	// start rotation
 	gracePeriod := time.Hour
@@ -1916,58 +1924,226 @@ func (s *TLSSuite) TestStreamEvents(c *check.C) {
 	}, false)
 	c.Assert(err, check.IsNil)
 
-	timeoutC := time.After(3 * time.Second)
-waitLoop:
-	for {
-		select {
-		case <-timeoutC:
-			c.Fatalf("Timeout waiting for event")
-		case event := <-w.Events():
-			if event.Type != backend.OpPut {
-				log.Debugf("Skipping stale event %v", event)
-				continue waitLoop
-			}
-			if ca.GetResourceID() > event.Resource.GetResourceID() {
-				log.Debugf("Skipping stale event %v, latest object version is %v", event.Resource.GetResourceID(), ca.GetResourceID())
-				continue waitLoop
-			}
+	suite.ExpectResource(c, w, 3*time.Second, ca)
 
-			eca, ok := event.Resource.(*services.CertAuthorityV2)
-			if !ok {
-				log.Debugf("Wrong resource type, expected *services.CertAuthorityV2 got %T.", event.Resource)
-				continue waitLoop
-			}
-			if eca.GetRotation().State != services.RotationStateInProgress {
-				log.Debugf("Skipping CA, wrong rotation state: %v.", eca.GetRotation().State)
-				continue waitLoop
-			}
-
-			fixtures.DeepCompare(c, ca, event.Resource)
-			break waitLoop
-		}
+	type testCase struct {
+		name     string
+		identity TestIdentity
+		watches  []services.WatchKind
 	}
 
-	// nop roles user is not authorized to watch events
-	nopClt, err := s.server.NewClient(TestBuiltin(teleport.RoleNop))
-	c.Assert(err, check.IsNil)
-	defer nopClt.Close()
+	testCases := []testCase{
+		{
+			name:     "node role is not authorized to get certificate authority with secret data loaded",
+			identity: TestBuiltin(teleport.RoleNode),
+			watches:  []services.WatchKind{{Kind: services.KindCertAuthority, LoadSecrets: true}},
+		},
+		{
+			name:     "node role is not authorized to watch static tokens",
+			identity: TestBuiltin(teleport.RoleNode),
+			watches:  []services.WatchKind{{Kind: services.KindStaticTokens}},
+		},
+		{
+			name:     "node role is not authorized to watch provisioning tokens",
+			identity: TestBuiltin(teleport.RoleNode),
+			watches:  []services.WatchKind{{Kind: services.KindToken}},
+		},
+		{
+			name:     "nop role is not authorized to watch users and roles",
+			identity: TestBuiltin(teleport.RoleNop),
+			watches: []services.WatchKind{
+				{Kind: services.KindUser},
+				{Kind: services.KindRole},
+			},
+		},
+		{
+			name:     "nop role is not authorized to watch cert authorities",
+			identity: TestBuiltin(teleport.RoleNop),
+			watches:  []services.WatchKind{{Kind: services.KindCertAuthority, LoadSecrets: false}},
+		},
+		{
+			name:     "nop role is not authorized to watch cluster config",
+			identity: TestBuiltin(teleport.RoleNop),
+			watches:  []services.WatchKind{{Kind: services.KindClusterConfig, LoadSecrets: false}},
+		},
+	}
 
-	w2, err := nopClt.NewWatcher(ctx, services.Watch{Kinds: []string{services.KindCertAuthority}})
-	c.Assert(err, check.IsNil)
-	defer w2.Close()
+	tryWatch := func(tc testCase) {
+		client, err := s.server.NewClient(tc.identity)
+		c.Assert(err, check.IsNil)
+		defer client.Close()
 
-	go func() {
+		watcher, err := client.NewWatcher(ctx, services.Watch{
+			Kinds: tc.watches,
+		})
+		c.Assert(err, check.IsNil)
+		defer watcher.Close()
+
+		go func() {
+			select {
+			case <-watcher.Events():
+			case <-watcher.Done():
+			}
+		}()
+
 		select {
-		case <-w2.Events():
-		case <-w2.Done():
+		case <-time.After(time.Second):
+			c.Fatalf("time out expecting error in test %q", tc.name)
+		case <-watcher.Done():
 		}
-	}()
+
+		fixtures.ExpectAccessDenied(c, watcher.Error())
+	}
+
+	for _, tc := range testCases {
+		tryWatch(tc)
+	}
+}
+
+// TestEvents tests events suite
+func (s *TLSSuite) TestEvents(c *check.C) {
+	clt, err := s.server.NewClient(TestAdmin())
+	c.Assert(err, check.IsNil)
+
+	suite := &suite.ServicesTestSuite{
+		ConfigS:       clt,
+		EventsS:       clt,
+		PresenceS:     clt,
+		CAS:           clt,
+		ProvisioningS: clt,
+		Access:        clt,
+		UsersS:        clt,
+	}
+	suite.Events(c)
+}
+
+// TestEventsClusterConifg test cluster configuration
+func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
+	clt, err := s.server.NewClient(TestBuiltin(teleport.RoleAdmin))
+	c.Assert(err, check.IsNil)
+	defer clt.Close()
+
+	ctx := context.TODO()
+	w, err := clt.NewWatcher(ctx, services.Watch{Kinds: []services.WatchKind{
+		{Kind: services.KindCertAuthority, LoadSecrets: true},
+		{Kind: services.KindStaticTokens},
+		{Kind: services.KindToken},
+		{Kind: services.KindClusterConfig},
+		{Kind: services.KindClusterName},
+	}})
+	c.Assert(err, check.IsNil)
+	defer w.Close()
 
 	select {
-	case <-time.After(time.Second):
-		c.Fatalf("time out expecting error")
-	case <-w2.Done():
+	case <-time.After(2 * time.Second):
+		c.Fatalf("Timeout waiting for init event")
+	case event := <-w.Events():
+		c.Assert(event.Type, check.Equals, backend.OpInit)
 	}
 
-	fixtures.ExpectAccessDenied(c, w2.Error())
+	// start rotation
+	gracePeriod := time.Hour
+	err = s.server.Auth().RotateCertAuthority(RotateRequest{
+		Type:        services.HostCA,
+		GracePeriod: &gracePeriod,
+		TargetPhase: services.RotationPhaseInit,
+		Mode:        services.RotationModeManual,
+	})
+	c.Assert(err, check.IsNil)
+
+	ca, err := s.server.Auth().GetCertAuthority(services.CertAuthID{
+		DomainName: s.server.ClusterName(),
+		Type:       services.HostCA,
+	}, true)
+	c.Assert(err, check.IsNil)
+
+	suite.ExpectResource(c, w, 3*time.Second, ca)
+
+	// set static tokens
+	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
+		StaticTokens: []services.ProvisionTokenV1{
+			{
+				Token:   "tok1",
+				Roles:   teleport.Roles{teleport.RoleNode},
+				Expires: time.Now().UTC().Add(time.Hour),
+			},
+		},
+	})
+	c.Assert(err, check.IsNil)
+
+	err = s.server.Auth().SetStaticTokens(staticTokens)
+	c.Assert(err, check.IsNil)
+
+	staticTokens, err = s.server.Auth().GetStaticTokens()
+	c.Assert(err, check.IsNil)
+	suite.ExpectResource(c, w, 3*time.Second, staticTokens)
+
+	// create provision token and expect the update event
+	token, err := services.NewProvisionToken(
+		"tok2", teleport.Roles{teleport.RoleProxy}, time.Now().UTC().Add(3*time.Hour))
+	c.Assert(err, check.IsNil)
+
+	err = s.server.Auth().UpsertToken(token)
+	c.Assert(err, check.IsNil)
+
+	token, err = s.server.Auth().GetToken(token.GetName())
+	c.Assert(err, check.IsNil)
+
+	suite.ExpectResource(c, w, 3*time.Second, token)
+
+	// delete token and expect delete event
+	err = s.server.Auth().DeleteToken(token.GetName())
+	c.Assert(err, check.IsNil)
+	suite.ExpectDeleteResource(c, w, 3*time.Second, &services.ResourceHeader{
+		Kind:    services.KindToken,
+		Version: services.V2,
+		Metadata: services.Metadata{
+			Namespace: defaults.Namespace,
+			Name:      token.GetName(),
+		},
+	})
+
+	// update cluster config to record at the proxy
+	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+		SessionRecording: services.RecordAtProxy,
+		Audit: services.AuditConfig{
+			AuditEventsURI: []string{"dynamodb://audit_table_name", "file:///home/log"},
+		},
+	})
+	c.Assert(err, check.IsNil)
+	err = s.server.Auth().SetClusterConfig(clusterConfig)
+	c.Assert(err, check.IsNil)
+
+	clusterConfig, err = s.server.Auth().GetClusterConfig()
+	c.Assert(err, check.IsNil)
+	suite.ExpectResource(c, w, 3*time.Second, clusterConfig)
+
+	// update cluster name resource metadata
+	clusterNameResource, err := s.server.Auth().GetClusterName()
+	c.Assert(err, check.IsNil)
+
+	// update the resource with different labels to test the change
+	clusterName := &services.ClusterNameV2{
+		Kind:    services.KindClusterName,
+		Version: services.V2,
+		Metadata: services.Metadata{
+			Name:      services.MetaNameClusterName,
+			Namespace: defaults.Namespace,
+			Labels: map[string]string{
+				"key": "val",
+			},
+		},
+		Spec: services.ClusterNameSpecV2{
+			ClusterName: clusterNameResource.GetClusterName(),
+		},
+	}
+
+	err = s.server.Auth().DeleteClusterName()
+	c.Assert(err, check.IsNil)
+	err = s.server.Auth().SetClusterName(clusterName)
+	c.Assert(err, check.IsNil)
+
+	clusterNameResource, err = s.server.Auth().ClusterConfiguration.GetClusterName()
+	c.Assert(err, check.IsNil)
+	suite.ExpectResource(c, w, 3*time.Second, clusterNameResource)
 }

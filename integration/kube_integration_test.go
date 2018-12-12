@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
@@ -423,7 +422,8 @@ func (s *KubeSuite) TestKubeTrustedClusters(c *check.C) {
 	err = aux.Process.GetAuthServer().UpsertRole(auxRole)
 	c.Assert(err, check.IsNil)
 	trustedClusterToken := "trusted-clsuter-token"
-	err = main.Process.GetAuthServer().UpsertToken(trustedClusterToken, []teleport.Role{teleport.RoleTrustedCluster}, backend.Forever)
+	err = main.Process.GetAuthServer().UpsertToken(
+		services.MustCreateProvisionToken(trustedClusterToken, []teleport.Role{teleport.RoleTrustedCluster}, time.Time{}))
 	c.Assert(err, check.IsNil)
 	trustedCluster := main.Secrets.AsTrustedCluster(trustedClusterToken, services.RoleMap{
 		{Remote: mainRole.GetName(), Local: []string{auxRole.GetName()}},
@@ -628,7 +628,7 @@ func (s *KubeSuite) TestKubeDisconnect(c *check.C) {
 			disconnectTimeout: 6 * time.Second,
 		},
 	}
-	for i := 0; i < getIterations(); i++ {
+	for i := 0; i < utils.GetIterations(); i++ {
 		for _, tc := range testCases {
 			s.runKubeDisconnectTest(c, tc)
 		}

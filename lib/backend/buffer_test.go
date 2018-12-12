@@ -86,6 +86,13 @@ func (s *BufferSuite) TestWatcherSimple(c *check.C) {
 	c.Assert(err, check.IsNil)
 	defer w.Close()
 
+	select {
+	case e := <-w.Events():
+		c.Assert(e.Type, check.Equals, OpInit)
+	case <-time.After(100 * time.Millisecond):
+		c.Fatalf("timeout waiting for event")
+	}
+
 	b.Push(Event{Item: Item{ID: 1}})
 
 	select {

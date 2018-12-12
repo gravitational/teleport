@@ -1,5 +1,5 @@
 /*
-Copyright 2018 Gravitational, Inc.
+Copyright 2018-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,10 +22,29 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 )
 
-// Watch sets up watch on the evnet
+// Watch sets up watch on the event
 type Watch struct {
+	// Name is used for debugging purposes
+	Name string
+
 	// Kinds specifies kinds of objects to watch
-	Kinds []string
+	// and whether to load secret data for them
+	Kinds []WatchKind
+
+	// QueueSize is an optional queue size
+	QueueSize int
+}
+
+// WatchKind specifies resource kind to watch
+type WatchKind struct {
+	// Kind is a resource kind to watch
+	Kind string
+	// Name is an optional specific resource type to watch,
+	// if specified only the events with a specific resource
+	// name will be sent
+	Name string
+	// LoadSecrets specifies whether to load secrets
+	LoadSecrets bool
 }
 
 // Event represents an event that happened in the backend

@@ -1,5 +1,5 @@
 /*
-Copyright 2018 Gravitational, Inc.
+Copyright 2018-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -72,21 +72,30 @@ const (
 )
 
 const (
+	// ComponentMemory is a memory backend
+	ComponentMemory = "memory"
+
 	// ComponentAuthority is a TLS and an SSH certificate authority
 	ComponentAuthority = "ca"
 
 	// ComponentProcess is a main control process
 	ComponentProcess = "proc"
 
+	// ComponentServer is a server subcomponent of some services
+	ComponentServer = "server"
+
 	// ComponentReverseTunnelServer is reverse tunnel server
 	// that together with agent establish a bi-directional SSH revers tunnel
 	// to bypass firewall restrictions
 	ComponentReverseTunnelServer = "proxy:server"
 
-	// ComponentReverseTunnel is reverse tunnel agent
+	// ComponentReverseTunnelAgent is reverse tunnel agent
 	// that together with server establish a bi-directional SSH revers tunnel
 	// to bypass firewall restrictions
 	ComponentReverseTunnelAgent = "proxy:agent"
+
+	// ComponentLabel is a component label name used in reporting
+	ComponentLabel = "component"
 
 	// ComponentKube is a kubernetes proxy
 	ComponentKube = "proxy:kube"
@@ -103,7 +112,7 @@ const (
 	// ComponentNode is SSH node (SSH server serving requests)
 	ComponentNode = "node"
 
-	// ComponentNode is SSH node (SSH server serving requests)
+	// ComponentForwardingNode is SSH node (SSH server serving requests)
 	ComponentForwardingNode = "node:forward"
 
 	// ComponentProxy is SSH proxy (SSH server forwarding connections)
@@ -117,6 +126,12 @@ const (
 
 	// ComponentTunClient is a tunnel client
 	ComponentTunClient = "client:tunnel"
+
+	// ComponentCache is a cache component
+	ComponentCache = "cache"
+
+	// ComponentBackend is a backend component
+	ComponentBackend = "backend"
 
 	// ComponentCachingClient is a caching auth client
 	ComponentCachingClient = "client:cache"
@@ -193,6 +208,9 @@ const (
 
 	// VerboseLogEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"
+
+	// IterationsEnvVar sets tests iterations to run
+	IterationsEnvVar = "ITERATIONS"
 
 	// DefaultTerminalWidth defines the default width of a server-side allocated
 	// pseudo TTY

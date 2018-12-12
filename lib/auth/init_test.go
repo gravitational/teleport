@@ -184,7 +184,7 @@ func (s *AuthInitSuite) TestAuthPreference(c *C) {
 	})
 	c.Assert(err, IsNil)
 	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
-		StaticTokens: []services.ProvisionToken{},
+		StaticTokens: []services.ProvisionTokenV1{},
 	})
 	c.Assert(err, IsNil)
 
@@ -221,15 +221,21 @@ func (s *AuthInitSuite) TestClusterID(c *C) {
 	})
 	c.Assert(err, IsNil)
 
+	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+		Type: "local",
+	})
+	c.Assert(err, IsNil)
+
 	authServer, err := Init(InitConfig{
-		DataDir:       c.MkDir(),
-		HostUUID:      "00000000-0000-0000-0000-000000000000",
-		NodeName:      "foo",
-		Backend:       bk,
-		Authority:     testauthority.New(),
-		ClusterConfig: services.DefaultClusterConfig(),
-		ClusterName:   clusterName,
-		StaticTokens:  services.DefaultStaticTokens(),
+		DataDir:        c.MkDir(),
+		HostUUID:       "00000000-0000-0000-0000-000000000000",
+		NodeName:       "foo",
+		Backend:        bk,
+		Authority:      testauthority.New(),
+		ClusterConfig:  services.DefaultClusterConfig(),
+		ClusterName:    clusterName,
+		StaticTokens:   services.DefaultStaticTokens(),
+		AuthPreference: authPreference,
 	})
 	c.Assert(err, IsNil)
 
@@ -240,14 +246,15 @@ func (s *AuthInitSuite) TestClusterID(c *C) {
 
 	// do it again and make sure cluster ID hasn't changed
 	authServer, err = Init(InitConfig{
-		DataDir:       c.MkDir(),
-		HostUUID:      "00000000-0000-0000-0000-000000000000",
-		NodeName:      "foo",
-		Backend:       bk,
-		Authority:     testauthority.New(),
-		ClusterConfig: services.DefaultClusterConfig(),
-		ClusterName:   clusterName,
-		StaticTokens:  services.DefaultStaticTokens(),
+		DataDir:        c.MkDir(),
+		HostUUID:       "00000000-0000-0000-0000-000000000000",
+		NodeName:       "foo",
+		Backend:        bk,
+		Authority:      testauthority.New(),
+		ClusterConfig:  services.DefaultClusterConfig(),
+		ClusterName:    clusterName,
+		StaticTokens:   services.DefaultStaticTokens(),
+		AuthPreference: authPreference,
 	})
 	c.Assert(err, IsNil)
 
@@ -266,15 +273,21 @@ func (s *AuthInitSuite) TestClusterName(c *C) {
 	})
 	c.Assert(err, IsNil)
 
+	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+		Type: "local",
+	})
+	c.Assert(err, IsNil)
+
 	_, err = Init(InitConfig{
-		DataDir:       c.MkDir(),
-		HostUUID:      "00000000-0000-0000-0000-000000000000",
-		NodeName:      "foo",
-		Backend:       bk,
-		Authority:     testauthority.New(),
-		ClusterConfig: services.DefaultClusterConfig(),
-		ClusterName:   clusterName,
-		StaticTokens:  services.DefaultStaticTokens(),
+		DataDir:        c.MkDir(),
+		HostUUID:       "00000000-0000-0000-0000-000000000000",
+		NodeName:       "foo",
+		Backend:        bk,
+		Authority:      testauthority.New(),
+		ClusterConfig:  services.DefaultClusterConfig(),
+		ClusterName:    clusterName,
+		StaticTokens:   services.DefaultStaticTokens(),
+		AuthPreference: authPreference,
 	})
 	c.Assert(err, IsNil)
 
@@ -286,14 +299,15 @@ func (s *AuthInitSuite) TestClusterName(c *C) {
 	c.Assert(err, IsNil)
 
 	authServer, err := Init(InitConfig{
-		DataDir:       c.MkDir(),
-		HostUUID:      "00000000-0000-0000-0000-000000000000",
-		NodeName:      "foo",
-		Backend:       bk,
-		Authority:     testauthority.New(),
-		ClusterConfig: services.DefaultClusterConfig(),
-		ClusterName:   clusterName,
-		StaticTokens:  services.DefaultStaticTokens(),
+		DataDir:        c.MkDir(),
+		HostUUID:       "00000000-0000-0000-0000-000000000000",
+		NodeName:       "foo",
+		Backend:        bk,
+		Authority:      testauthority.New(),
+		ClusterConfig:  services.DefaultClusterConfig(),
+		ClusterName:    clusterName,
+		StaticTokens:   services.DefaultStaticTokens(),
+		AuthPreference: authPreference,
 	})
 	c.Assert(err, IsNil)
 

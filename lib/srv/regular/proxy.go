@@ -240,10 +240,10 @@ func (t *proxySubsys) proxyToHost(
 		servers []services.Server
 		err     error
 	)
-	localDomain, _ := t.srv.authService.GetDomainName()
+	localCluster, _ := t.srv.authService.GetClusterName()
 	// going to "local" CA? lets use the caching 'auth service' directly and avoid
 	// hitting the reverse tunnel link (it can be offline if the CA is down)
-	if site.GetName() == localDomain {
+	if site.GetName() == localCluster.GetName() {
 		servers, err = t.srv.authService.GetNodes(t.namespace, services.SkipValidation())
 		if err != nil {
 			t.log.Warn(err)

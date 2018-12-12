@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2015-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -43,7 +43,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	sess "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/state"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -555,7 +554,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		HostSigners:           []ssh.Signer{s.signer},
 		LocalAuthClient:       s.proxyClient,
 		LocalAccessPoint:      s.proxyClient,
-		NewCachingAccessPoint: state.NoCache,
+		NewCachingAccessPoint: auth.NoCache,
 		DirectClusters:        []reversetunnel.DirectCluster{{Name: s.server.ClusterName(), Client: s.proxyClient}},
 		DataDir:               c.MkDir(),
 	})
@@ -724,7 +723,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		HostSigners:           []ssh.Signer{s.signer},
 		LocalAuthClient:       s.proxyClient,
 		LocalAccessPoint:      s.proxyClient,
-		NewCachingAccessPoint: state.NoCache,
+		NewCachingAccessPoint: auth.NoCache,
 		DirectClusters:        []reversetunnel.DirectCluster{{Name: s.server.ClusterName(), Client: s.proxyClient}},
 		DataDir:               c.MkDir(),
 	})
@@ -827,7 +826,7 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 		HostSigners:           []ssh.Signer{s.signer},
 		LocalAuthClient:       s.proxyClient,
 		LocalAccessPoint:      s.proxyClient,
-		NewCachingAccessPoint: state.NoCache,
+		NewCachingAccessPoint: auth.NoCache,
 		DirectClusters:        []reversetunnel.DirectCluster{{Name: s.server.ClusterName(), Client: s.proxyClient}},
 		DataDir:               c.MkDir(),
 	})

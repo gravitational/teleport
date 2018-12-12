@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2018 Gravitational, Inc.
+Copyright 2015-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ package backend
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -102,14 +103,27 @@ type Lease struct {
 	ID int64
 }
 
+// IsEmpty returns true if the lease is empty value
 func (l *Lease) IsEmpty() bool {
 	return l.ID == 0 && len(l.Key) == 0
 }
 
 // Watch specifies watcher parameters
 type Watch struct {
-	// Prefix specifies prefix to watch
-	Prefix []byte
+	// Name is a watch name set for debugging
+	// purposes
+	Name string
+	// Prefixes specifies prefixes to watch,
+	// passed to the backend implementation
+	Prefixes [][]byte
+	// QueueSize is an optional queue size
+	QueueSize int
+}
+
+// String returns a user-friendly description
+// of the watcher
+func (w *Watch) String() string {
+	return fmt.Sprintf("Watcher(name=%v, prefixes=%v)", w.Name, string(bytes.Join(w.Prefixes, []byte(", "))))
 }
 
 // Watcher returns watcher
@@ -135,17 +149,30 @@ type GetResult struct {
 type OpType int
 
 const (
-	OpPut    OpType = iota
+	// OpInit is returned by the system whenever the system
+	// is initialized, init operation is always sent
+	// as a first event over the channel, so the client
+	// can verify that watch has been established.
+	OpInit OpType = iota
+	// OpPut is returned for Put events
+	OpPut OpType = iota
+	// OpDelete is returned for Delete events
 	OpDelete OpType = iota
+	// OpGet is used for tracking, not present in the event stream
+	OpGet OpType = iota
 )
 
 // String returns user-friendly description of the operation
 func (o OpType) String() string {
 	switch o {
+	case OpInit:
+		return "Init"
 	case OpPut:
 		return "Put"
 	case OpDelete:
 		return "Delete"
+	case OpGet:
+		return "Get"
 	default:
 		return "unknown"
 	}

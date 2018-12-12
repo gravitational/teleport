@@ -40,6 +40,10 @@ func (s *Suite) TestSanitizeBucket(c *check.C) {
 			outError: false,
 		},
 		{
+			inKey:    []byte("/namespaces//params"),
+			outError: true,
+		},
+		{
 			inKey:    RangeEnd([]byte("a-b/c:d/.e_f/01")),
 			outError: false,
 		},

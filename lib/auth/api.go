@@ -40,20 +40,16 @@ type Announcer interface {
 	NewKeepAliver(ctx context.Context) (services.KeepAliver, error)
 }
 
-// AccessPoint is an API interface implemented by a certificate authority (CA)
-type AccessPoint interface {
-	// Announcer adds methods used to announce presence
-	Announcer
-
+// ReadAccessPoint is an API interface implemented by a certificate authority (CA)
+type ReadAccessPoint interface {
 	// GetReverseTunnels returns  a list of reverse tunnels
 	GetReverseTunnels() ([]services.ReverseTunnel, error)
 
-	// GetDomainName returns domain name AKA ("cluster name") of the auth
-	// server / certificate authority (CA)
-	GetDomainName() (string, error)
+	// GetClusterName returns cluster name
+	GetClusterName(opts ...services.MarshalOption) (services.ClusterName, error)
 
 	// GetClusterConfig returns cluster level configuration.
-	GetClusterConfig() (services.ClusterConfig, error)
+	GetClusterConfig(opts ...services.MarshalOption) (services.ClusterConfig, error)
 
 	// GetNamespaces returns a list of namespaces
 	GetNamespaces() ([]services.Namespace, error)
@@ -85,15 +81,111 @@ type AccessPoint interface {
 	// GetRoles returns a list of roles
 	GetRoles() ([]services.Role, error)
 
+	// GetAllTunnelConnections returns all tunnel connections
+	GetAllTunnelConnections(opts ...services.MarshalOption) ([]services.TunnelConnection, error)
+
+	// GetTunnelConnections returns tunnel connections for a given cluster
+	GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]services.TunnelConnection, error)
+}
+
+// AccessPoint is an API interface implemented by a certificate authority (CA)
+type AccessPoint interface {
+	// ReadAccessPoint provides methods to read data
+	ReadAccessPoint
+	// Announcer adds methods used to announce presence
+	Announcer
+
 	// UpsertTunnelConnection upserts tunnel connection
 	UpsertTunnelConnection(conn services.TunnelConnection) error
 
 	// DeleteTunnelConnection deletes tunnel connection
 	DeleteTunnelConnection(clusterName, connName string) error
+}
 
-	// GetTunnelConnections returns tunnel connections for a given cluster
-	GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]services.TunnelConnection, error)
+// AccessCache is a subset of the interface working on the certificate authorities
+type AccessCache interface {
+	// GetCertAuthority returns cert authority by id
+	GetCertAuthority(id services.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (services.CertAuthority, error)
 
-	// GetAllTunnelConnections returns all tunnel connections
-	GetAllTunnelConnections(opts ...services.MarshalOption) ([]services.TunnelConnection, error)
+	// GetCertAuthorities returns a list of cert authorities
+	GetCertAuthorities(caType services.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]services.CertAuthority, error)
+
+	// GetClusterConfig returns cluster level configuration.
+	GetClusterConfig(opts ...services.MarshalOption) (services.ClusterConfig, error)
+
+	// GetClusterName gets the name of the cluster from the backend.
+	GetClusterName(opts ...services.MarshalOption) (services.ClusterName, error)
+}
+
+// AuthCache is a subset of the auth interface hanlding
+// access to the discovery API and static tokens
+type AuthCache interface {
+	ReadAccessPoint
+
+	// GetStaticTokens gets the list of static tokens used to provision nodes.
+	GetStaticTokens() (services.StaticTokens, error)
+
+	// GetTokens returns all active (non-expired) provisioning tokens
+	GetTokens(opts ...services.MarshalOption) ([]services.ProvisionToken, error)
+
+	// GetToken finds and returns token by ID
+	GetToken(token string) (services.ProvisionToken, error)
+
+	// NewWatcher returns a new event watcher
+	NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error)
+}
+
+// NewWrapper returns new access point wrapper
+func NewWrapper(writer AccessPoint, cache ReadAccessPoint) AccessPoint {
+	return &Wrapper{
+		Write:           writer,
+		ReadAccessPoint: cache,
+	}
+}
+
+// Wrapper wraps access point and auth cache in one client
+// so that update operations are going through access point
+// and read operations are going though cache
+type Wrapper struct {
+	ReadAccessPoint
+	Write AccessPoint
+}
+
+// UpsertNode is part of auth.AccessPoint implementation
+func (w *Wrapper) UpsertNode(s services.Server) (*services.KeepAlive, error) {
+	return w.Write.UpsertNode(s)
+}
+
+// UpsertAuthServer is part of auth.AccessPoint implementation
+func (w *Wrapper) UpsertAuthServer(s services.Server) error {
+	return w.Write.UpsertAuthServer(s)
+}
+
+// NewKeepAliver returns a new instance of keep aliver
+func (w *Wrapper) NewKeepAliver(ctx context.Context) (services.KeepAliver, error) {
+	return w.Write.NewKeepAliver(ctx)
+}
+
+// UpsertProxy is part of auth.AccessPoint implementation
+func (w *Wrapper) UpsertProxy(s services.Server) error {
+	return w.Write.UpsertProxy(s)
+}
+
+// UpsertTunnelConnection is a part of auth.AccessPoint implementation
+func (w *Wrapper) UpsertTunnelConnection(conn services.TunnelConnection) error {
+	return w.Write.UpsertTunnelConnection(conn)
+}
+
+// DeleteTunnelConnection is a part of auth.AccessPoint implementation
+func (w *Wrapper) DeleteTunnelConnection(clusterName, connName string) error {
+	return w.Write.DeleteTunnelConnection(clusterName, connName)
+}
+
+// NewCachingAcessPoint returns new caching access point using
+// access point policy
+type NewCachingAccessPoint func(clt ClientI, cacheName []string) (AccessPoint, error)
+
+// NoCache is a no cache used for access point
+func NoCache(clt ClientI, cacheName []string) (AccessPoint, error) {
+	return clt, nil
 }

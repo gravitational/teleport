@@ -1,5 +1,5 @@
 /*
-Copyright 2018 Gravitational, Inc.
+Copyright 2018-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@ limitations under the License.
 package services
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -88,6 +87,9 @@ type LicenseV3 struct {
 	// Kind is a resource kind - always resource.
 	Kind string `json:"kind"`
 
+	// SubKind is a resource sub kind
+	SubKind string `json:"sub_kind,omitempty"`
+
 	// Version is a resource version.
 	Version string `json:"version"`
 
@@ -96,6 +98,26 @@ type LicenseV3 struct {
 
 	// Spec is the specification of the resource.
 	Spec LicenseSpecV3 `json:"spec"`
+}
+
+// GetVersion returns resource version
+func (c *LicenseV3) GetVersion() string {
+	return c.Version
+}
+
+// GetSubKind returns resource sub kind
+func (c *LicenseV3) GetSubKind() string {
+	return c.SubKind
+}
+
+// SetSubKind sets resource subkind
+func (c *LicenseV3) SetSubKind(s string) {
+	c.SubKind = s
+}
+
+// GetKind returns resource kind
+func (c *LicenseV3) GetKind() string {
+	return c.Kind
 }
 
 // GetResourceID returns resource ID
@@ -293,5 +315,21 @@ func UnmarshalLicense(bytes []byte) (License, error) {
 
 // MarshalLicense marshals role to JSON or YAML.
 func MarshalLicense(license License, opts ...MarshalOption) ([]byte, error) {
-	return json.Marshal(license)
+	cfg, err := collectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	switch resource := license.(type) {
+	case *LicenseV3:
+		if !cfg.PreserveResourceID {
+			// avoid modifying the original object
+			// to prevent unexpected data races
+			copy := *resource
+			copy.SetResourceID(0)
+			resource = &copy
+		}
+		return utils.FastMarshal(resource)
+	default:
+		return nil, trace.BadParameter("unrecognized resource version %T", license)
+	}
 }
