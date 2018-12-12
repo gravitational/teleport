@@ -252,11 +252,11 @@ teleport:
 
         # Array of locations where the audit log events will be stored. by
         # default they are stored in `/var/lib/teleport/log`
-        audit_events_uri: [file:///var/lib/teleport/log, dynamodb://events_table_name]
+        audit_events_uri: ['file:///var/lib/teleport/log', 'dynamodb://events_table_name']
 
         # Use this setting to configure teleport to store the recorded sessions in
         # an AWS S3 bucket. see "Using Amazon S3" chapter for more information.
-        audit_sessions_uri: s3://name-of-s3-bucket
+        audit_sessions_uri: 's3://name-of-s3-bucket'
 
     # Cipher algorithms that the server supports. This section only needs to be
     # set if you want to override the defaults.
