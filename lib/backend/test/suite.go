@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/fixtures"
 
-	//	"github.com/gravitational/trace"
+	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
 	"gopkg.in/check.v1"
 )
@@ -38,7 +38,10 @@ var _ = fmt.Printf
 func TestBackend(t *testing.T) { check.TestingT(t) }
 
 type BackendSuite struct {
-	B          backend.Backend
+	B backend.Backend
+	// B2 is a backend opened to the same database,
+	// used for concurrent operations tests
+	B2         backend.Backend
 	NewBackend func() (backend.Backend, error)
 }
 
@@ -306,6 +309,10 @@ func (s *BackendSuite) KeepAlive(c *check.C) {
 	prefix := MakePrefix()
 	ctx := context.Background()
 
+	watcher, err := s.B.NewWatcher(ctx, backend.Watch{Prefixes: [][]byte{prefix("")}})
+	c.Assert(err, check.IsNil)
+	defer watcher.Close()
+
 	item := backend.Item{Key: prefix("key"), Value: []byte("val1"), Expires: addSeconds(time.Now(), 2)}
 	lease, err := s.B.Put(ctx, item)
 	c.Assert(err, check.IsNil)
@@ -330,6 +337,19 @@ func (s *BackendSuite) KeepAlive(c *check.C) {
 	c.Assert(string(out.Value), check.Equals, string(item.Value))
 	c.Assert(string(out.Key), check.Equals, string(item.Key))
 
+	events := collectEvents(c, watcher, 3)
+	c.Assert(events[1].Type, check.Equals, backend.OpPut)
+	c.Assert(string(events[1].Item.Key), check.Equals, string(item.Key))
+	c.Assert(events[2].Type, check.Equals, backend.OpPut)
+	c.Assert(string(events[2].Item.Key), check.Equals, string(item.Key))
+
+	c.Assert(string(events[1].Item.Value), check.Equals, string(item.Value))
+	c.Assert(string(events[2].Item.Value), check.Equals, string(item.Value))
+
+	c.Assert(events[1].Item.Expires.IsZero(), check.Not(check.Equals), true, check.Commentf("expected non zero expiration time"))
+	c.Assert(events[2].Item.Expires.IsZero(), check.Not(check.Equals), true, check.Commentf("expected non zero expiration time"))
+	c.Assert(events[2].Item.Expires.After(events[1].Item.Expires), check.Equals, true, check.Commentf("expected %v after %v", events[2].Item.Expires, events[1].Item.Expires))
+
 	err = s.B.Delete(ctx, item.Key)
 	c.Assert(err, check.IsNil)
 
@@ -341,15 +361,39 @@ func (s *BackendSuite) KeepAlive(c *check.C) {
 	fixtures.ExpectNotFound(c, err)
 }
 
+func collectEvents(c *check.C, watcher backend.Watcher, count int) []backend.Event {
+	var events []backend.Event
+	for i := 0; i < count; i++ {
+		select {
+		case e := <-watcher.Events():
+			events = append(events, e)
+		case <-watcher.Done():
+			c.Fatalf("Watcher has unexpectedly closed.")
+		case <-time.After(2 * time.Second):
+			c.Fatalf("Timeout waiting for event.")
+		}
+	}
+	return events
+}
+
 // Events tests scenarios with event watches
 func (s *BackendSuite) Events(c *check.C) {
 	prefix := MakePrefix()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	watcher, err := s.B.NewWatcher(ctx, backend.Watch{Prefix: prefix("")})
+	watcher, err := s.B.NewWatcher(ctx, backend.Watch{Prefixes: [][]byte{prefix("")}})
 	c.Assert(err, check.IsNil)
 	defer watcher.Close()
+
+	select {
+	case e := <-watcher.Events():
+		c.Assert(string(e.Type), check.Equals, string(backend.OpInit))
+	case <-watcher.Done():
+		c.Fatalf("Watcher has unexpectedly closed.")
+	case <-time.After(2 * time.Second):
+		c.Fatalf("Timeout waiting for event.")
+	}
 
 	item := &backend.Item{Key: prefix("b"), Value: []byte("val")}
 	_, err = s.B.Put(ctx, *item)
@@ -360,8 +404,22 @@ func (s *BackendSuite) Events(c *check.C) {
 
 	select {
 	case e := <-watcher.Events():
+		c.Assert(e.Type, check.Equals, backend.OpPut)
 		c.Assert(string(e.Item.Key), check.Equals, string(item.Key))
 		c.Assert(string(e.Item.Value), check.Equals, string(item.Value))
+	case <-watcher.Done():
+		c.Fatalf("Watcher has unexpectedly closed.")
+	case <-time.After(2 * time.Second):
+		c.Fatalf("Timeout waiting for event.")
+	}
+
+	err = s.B.Delete(ctx, item.Key)
+	c.Assert(err, check.IsNil)
+
+	select {
+	case e := <-watcher.Events():
+		c.Assert(e.Type, check.Equals, backend.OpDelete)
+		c.Assert(string(e.Item.Key), check.Equals, string(item.Key))
 	case <-watcher.Done():
 		c.Fatalf("Watcher has unexpectedly closed.")
 	case <-time.After(2 * time.Second):
@@ -378,7 +436,7 @@ func (s *BackendSuite) WatchersClose(c *check.C) {
 	b, err := s.NewBackend()
 	c.Assert(err, check.IsNil)
 
-	watcher, err := b.NewWatcher(ctx, backend.Watch{Prefix: prefix("")})
+	watcher, err := b.NewWatcher(ctx, backend.Watch{Prefixes: [][]byte{prefix("")}})
 	c.Assert(err, check.IsNil)
 
 	// cancel context -> get watcher to close
@@ -391,7 +449,7 @@ func (s *BackendSuite) WatchersClose(c *check.C) {
 	}
 
 	// closing backend should close associated watcher too
-	watcher, err = b.NewWatcher(context.Background(), backend.Watch{Prefix: prefix("")})
+	watcher, err = b.NewWatcher(context.Background(), backend.Watch{Prefixes: [][]byte{prefix("")}})
 	c.Assert(err, check.IsNil)
 
 	b.Close()
@@ -453,6 +511,78 @@ func (s *BackendSuite) Locking(c *check.C) {
 	c.Assert(backend.ReleaseLock(ctx, s.B, tok1), check.IsNil)
 	err = backend.ReleaseLock(ctx, s.B, tok1)
 	fixtures.ExpectNotFound(c, err)
+}
+
+// ConcurrentOperations tests concurrent operations on the same
+// shared backend
+func (s *BackendSuite) ConcurrentOperations(c *check.C) {
+	l := s.B
+	c.Assert(l, check.NotNil)
+	l2 := s.B2
+	c.Assert(l2, check.NotNil)
+
+	prefix := MakePrefix()
+	ctx := context.TODO()
+	value1 := "this first value should not be corrupted by concurrent ops"
+	value2 := "this second value should not be corrupted too"
+	const attempts = 50
+	resultsC := make(chan struct{}, attempts*4)
+	for i := 0; i < attempts; i++ {
+		go func(cnt int) {
+			_, err := l.Put(ctx, backend.Item{Key: prefix("key"), Value: []byte(value1)})
+			resultsC <- struct{}{}
+			c.Assert(err, check.IsNil)
+		}(i)
+
+		go func(cnt int) {
+			_, err := l2.CompareAndSwap(ctx,
+				backend.Item{Key: prefix("key"), Value: []byte(value2)},
+				backend.Item{Key: prefix("key"), Value: []byte(value1)})
+			resultsC <- struct{}{}
+			if err != nil && !trace.IsCompareFailed(err) {
+				c.Assert(err, check.IsNil)
+			}
+		}(i)
+
+		go func(cnt int) {
+			_, err := l2.Create(ctx, backend.Item{Key: prefix("key"), Value: []byte(value2)})
+			resultsC <- struct{}{}
+			if err != nil && !trace.IsAlreadyExists(err) {
+				c.Assert(err, check.IsNil)
+			}
+		}(i)
+
+		go func(cnt int) {
+			item, err := l.Get(ctx, prefix("key"))
+			resultsC <- struct{}{}
+			if err != nil && !trace.IsNotFound(err) {
+				c.Assert(err, check.IsNil)
+			}
+			// make sure data is not corrupted along the way
+			if err == nil {
+				val := string(item.Value)
+				if val != value1 && val != value2 {
+					c.Fatalf("expected one of %q or %q and got %q", value1, value2, val)
+				}
+			}
+		}(i)
+
+		go func(cnt int) {
+			err := l2.Delete(ctx, prefix("key"))
+			if err != nil && !trace.IsNotFound(err) {
+				c.Assert(err, check.IsNil)
+			}
+			resultsC <- struct{}{}
+		}(i)
+	}
+	timeoutC := time.After(3 * time.Second)
+	for i := 0; i < attempts*5; i++ {
+		select {
+		case <-resultsC:
+		case <-timeoutC:
+			c.Fatalf("timeout waiting for goroutines to finish")
+		}
+	}
 }
 
 // MakePrefix returns function that appends unique prefix

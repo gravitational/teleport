@@ -76,6 +76,8 @@ func NewGithubConnector(name string, spec GithubConnectorSpecV3) GithubConnector
 type GithubConnectorV3 struct {
 	// Kind is a resource kind, for Github connector it is "github"
 	Kind string `json:"kind"`
+	// SubKind is a resource sub kind
+	SubKind string `json:"sub_kind,omitempty"`
 	// Version is resource version
 	Version string `json:"version"`
 	// Metadata is resource metadata
@@ -116,6 +118,26 @@ type GithubClaims struct {
 	Username string
 	// OrganizationToTeams is the user's organization and team membership
 	OrganizationToTeams map[string][]string
+}
+
+// GetVersion returns resource version
+func (c *GithubConnectorV3) GetVersion() string {
+	return c.Version
+}
+
+// GetKind returns resource kind
+func (c *GithubConnectorV3) GetKind() string {
+	return c.Kind
+}
+
+// GetSubKind returns resource sub kind
+func (c *GithubConnectorV3) GetSubKind() string {
+	return c.SubKind
+}
+
+// SetSubKind sets resource subkind
+func (c *GithubConnectorV3) SetSubKind(s string) {
+	c.SubKind = s
 }
 
 // GetResourceID returns resource ID
@@ -292,7 +314,23 @@ func (*TeleportGithubConnectorMarshaler) Unmarshal(bytes []byte) (GithubConnecto
 
 // MarshalGithubConnector marshals Github connector to JSON
 func (*TeleportGithubConnectorMarshaler) Marshal(c GithubConnector, opts ...MarshalOption) ([]byte, error) {
-	return json.Marshal(c)
+	cfg, err := collectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	switch resource := c.(type) {
+	case *GithubConnectorV3:
+		if !cfg.PreserveResourceID {
+			// avoid modifying the original object
+			// to prevent unexpected data races
+			copy := *resource
+			copy.SetResourceID(0)
+			resource = &copy
+		}
+		return utils.FastMarshal(resource)
+	default:
+		return nil, trace.BadParameter("unrecognized resource version %T", c)
+	}
 }
 
 // GithubConnectorV3SchemaTemplate is the JSON schema for a Github connector

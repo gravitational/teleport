@@ -71,6 +71,13 @@ func (s *ClusterConfigurationSuite) TestClusterConfig(c *check.C) {
 	suite.ClusterConfig(c)
 }
 
+func (s *ClusterConfigurationSuite) TestStaticTokens(c *check.C) {
+	suite := &suite.ServicesTestSuite{
+		ConfigS: NewClusterConfigurationService(s.bk),
+	}
+	suite.StaticTokens(c)
+}
+
 func (s *ClusterConfigurationSuite) TestSessionRecording(c *check.C) {
 	// don't allow invalid session recording values
 	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{

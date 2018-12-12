@@ -221,7 +221,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	s.reg.Close()
 	if s.heartbeat != nil {
 		if err := s.heartbeat.Close(); err != nil {
-			s.Warningf("Failed to close heartbeat: %v", err)
+			s.Warningf("Failed to close heartbeat: %v.", err)
 		}
 		s.heartbeat = nil
 	}

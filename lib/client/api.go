@@ -1,5 +1,5 @@
 /*
-Copyright 2016 Gravitational, Inc.
+Copyright 2016-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -46,15 +46,12 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/shell"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
-	"github.com/gravitational/teleport/lib/state"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/agentconn"
 
@@ -755,25 +752,7 @@ func (tc *TeleportClient) accessPoint(clt auth.AccessPoint, proxyHostPort string
 		log.Debugf("not using caching access point")
 		return clt, nil
 	}
-	dirPath, err := initKeysDir(tc.KeysDir)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	path := filepath.Join(dirPath, "cache", proxyHostPort, clusterName)
-
-	log.Debugf("using caching access point %v", path)
-	cacheBackend, err := lite.New(context.TODO(), backend.Params{"path": path})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// make a caching auth client for the auth server:
-	return state.NewCachingAuthClient(state.Config{
-		SkipPreload:  true,
-		AccessPoint:  clt,
-		Backend:      cacheBackend,
-		CacheMaxTTL:  tc.CachePolicy.CacheTTL,
-		NeverExpires: tc.CachePolicy.NeverExpires,
-	})
+	return clt, nil
 }
 
 func (tc *TeleportClient) LocalAgent() *LocalKeyAgent {

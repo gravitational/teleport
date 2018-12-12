@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2018 Gravitational, Inc.
+Copyright 2015-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -202,23 +202,39 @@ func toEvent(rec *dynamodbstreams.Record) (*backend.Event, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var r record
-	if err := dynamodbattribute.UnmarshalMap(rec.Dynamodb.NewImage, &r); err != nil {
-		return nil, trace.Wrap(err)
+	switch op {
+	case backend.OpPut:
+		var r record
+		if err := dynamodbattribute.UnmarshalMap(rec.Dynamodb.NewImage, &r); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		var expires time.Time
+		if r.Expires != nil {
+			expires = time.Unix(*r.Expires, 0)
+		}
+		return &backend.Event{
+			Type: op,
+			Item: backend.Item{
+				Key:     trimPrefix(r.FullPath),
+				Value:   r.Value,
+				Expires: expires,
+				ID:      r.ID,
+			},
+		}, nil
+	case backend.OpDelete:
+		var r record
+		if err := dynamodbattribute.UnmarshalMap(rec.Dynamodb.Keys, &r); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &backend.Event{
+			Type: op,
+			Item: backend.Item{
+				Key: trimPrefix(r.FullPath),
+			},
+		}, nil
+	default:
+		return nil, trace.BadParameter("unsupported operation type: %v", op)
 	}
-	var expires time.Time
-	if r.Expires != nil {
-		expires = time.Unix(*r.Expires, 0)
-	}
-	return &backend.Event{
-		Type: op,
-		Item: backend.Item{
-			Key:     trimPrefix(r.FullPath),
-			Value:   r.Value,
-			Expires: expires,
-			ID:      r.ID,
-		},
-	}, nil
 }
 
 func (b *DynamoDBBackend) asyncPollShard(ctx context.Context, streamArn *string, shard *dynamodbstreams.Shard, eventsC chan shardEvent) {

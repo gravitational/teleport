@@ -78,7 +78,7 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 
 	// set static tokens
 	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
-		StaticTokens: []services.ProvisionToken{},
+		StaticTokens: []services.ProvisionTokenV1{},
 	})
 	c.Assert(err, check.IsNil)
 	err = a.SetStaticTokens(staticTokens)

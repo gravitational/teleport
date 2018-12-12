@@ -185,7 +185,7 @@ func (a *AuthServer) createSAMLUser(p *createUserParams) (services.User, error) 
 	}
 
 	// Get the user to check if it already exists or not.
-	existingUser, err := a.GetUser(p.username)
+	existingUser, err := a.Identity.GetUser(p.username)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
@@ -378,14 +378,17 @@ func (a *AuthServer) validateSAMLResponse(samlResponse string) (*SAMLAuthRespons
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
+		clusterName, err := a.GetClusterName()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		response.Cert = sshCert
 		response.TLSCert = tlsCert
 
 		// Return the host CA for this cluster only.
 		authority, err := a.GetCertAuthority(services.CertAuthID{
 			Type:       services.HostCA,
-			DomainName: a.clusterName.GetClusterName(),
+			DomainName: clusterName.GetClusterName(),
 		}, false)
 		if err != nil {
 			return nil, trace.Wrap(err)

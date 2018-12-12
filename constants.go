@@ -78,6 +78,9 @@ const (
 	// ComponentProcess is a main control process
 	ComponentProcess = "proc"
 
+	// ComponentServer is a server subcomponent of some services
+	ComponentServer = "server"
+
 	// ComponentReverseTunnelServer is reverse tunnel server
 	// that together with agent establish a bi-directional SSH revers tunnel
 	// to bypass firewall restrictions
@@ -117,6 +120,9 @@ const (
 
 	// ComponentTunClient is a tunnel client
 	ComponentTunClient = "client:tunnel"
+
+	// ComponentCache is a cache component
+	ComponentCache = "cache"
 
 	// ComponentCachingClient is a caching auth client
 	ComponentCachingClient = "client:cache"
@@ -193,6 +199,9 @@ const (
 
 	// VerboseLogEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"
+
+	// IterationsEnvVar sets tests iterations to run
+	IterationsEnvVar = "ITERATIONS"
 
 	// DefaultTerminalWidth defines the default width of a server-side allocated
 	// pseudo TTY

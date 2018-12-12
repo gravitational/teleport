@@ -17,6 +17,7 @@ limitations under the License.
 package local
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"sort"
@@ -77,13 +78,17 @@ func (s *PresenceService) GetNamespaces() ([]services.Namespace, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	out := make([]services.Namespace, len(result.Items))
-	for i, item := range result.Items {
-		ns, err := services.UnmarshalNamespace(item.Value)
+	out := make([]services.Namespace, 0, len(result.Items))
+	for _, item := range result.Items {
+		if !bytes.HasSuffix(item.Key, []byte(paramsPrefix)) {
+			continue
+		}
+		ns, err := services.UnmarshalNamespace(
+			item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		out[i] = *ns
+		out = append(out, *ns)
 	}
 	sort.Sort(services.SortedNamespaces(out))
 	return out, nil
@@ -91,6 +96,9 @@ func (s *PresenceService) GetNamespaces() ([]services.Namespace, error) {
 
 // UpsertNamespace upserts namespace
 func (s *PresenceService) UpsertNamespace(n services.Namespace) error {
+	if err := n.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
 	value, err := services.MarshalNamespace(n)
 	if err != nil {
 		return trace.Wrap(err)
@@ -99,6 +107,7 @@ func (s *PresenceService) UpsertNamespace(n services.Namespace) error {
 		Key:     backend.Key(namespacesPrefix, n.Metadata.Name, paramsPrefix),
 		Value:   value,
 		Expires: n.Metadata.Expiry(),
+		ID:      n.Metadata.ID,
 	}
 
 	_, err = s.Put(context.TODO(), item)
@@ -120,7 +129,8 @@ func (s *PresenceService) GetNamespace(name string) (*services.Namespace, error)
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalNamespace(item.Value)
+	return services.UnmarshalNamespace(
+		item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 }
 
 // DeleteNamespace deletes a namespace with all the keys from the backend
@@ -144,7 +154,12 @@ func (s *PresenceService) getServers(kind, prefix string) ([]services.Server, er
 	}
 	servers := make([]services.Server, len(result.Items))
 	for i, item := range result.Items {
-		server, err := services.GetServerMarshaler().UnmarshalServer(item.Value, kind, services.SkipValidation())
+		server, err := services.GetServerMarshaler().UnmarshalServer(
+			item.Value, kind,
+			services.SkipValidation(),
+			services.WithResourceID(item.ID),
+			services.WithExpires(item.Expires),
+		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -164,6 +179,7 @@ func (s *PresenceService) upsertServer(prefix string, server services.Server) er
 		Key:     backend.Key(prefix, server.GetName()),
 		Value:   value,
 		Expires: server.Expiry(),
+		ID:      server.GetResourceID(),
 	})
 	return trace.Wrap(err)
 }
@@ -172,6 +188,12 @@ func (s *PresenceService) upsertServer(prefix string, server services.Server) er
 func (s *PresenceService) DeleteAllNodes(namespace string) error {
 	startKey := backend.Key(namespacesPrefix, namespace, nodesPrefix)
 	return s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
+}
+
+// DeleteNode deletes node
+func (s *PresenceService) DeleteNode(namespace string, name string) error {
+	key := backend.Key(namespacesPrefix, namespace, nodesPrefix, name)
+	return s.Delete(context.TODO(), key)
 }
 
 // GetNodes returns a list of registered servers
@@ -192,7 +214,9 @@ func (s *PresenceService) GetNodes(namespace string, opts ...services.MarshalOpt
 		server, err := services.GetServerMarshaler().UnmarshalServer(
 			item.Value,
 			services.KindNode,
-			opts...)
+			services.AddOptions(opts,
+				services.WithResourceID(item.ID),
+				services.WithExpires(item.Expires))...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -216,7 +240,11 @@ func (s *PresenceService) UpsertNode(server services.Server) (*services.KeepAliv
 		Key:     backend.Key(namespacesPrefix, server.GetNamespace(), nodesPrefix, server.GetName()),
 		Value:   value,
 		Expires: server.Expiry(),
+		ID:      server.GetResourceID(),
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if server.Expiry().IsZero() {
 		return &services.KeepAlive{}, nil
 	}
@@ -259,6 +287,7 @@ func (s *PresenceService) UpsertNodes(namespace string, servers []services.Serve
 			Key:     backend.Key(namespacesPrefix, server.GetNamespace(), nodesPrefix, server.GetName()),
 			Value:   value,
 			Expires: server.Expiry(),
+			ID:      server.GetResourceID(),
 		}
 	}
 
@@ -300,6 +329,12 @@ func (s *PresenceService) DeleteAllProxies() error {
 	return s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
 }
 
+// DeleteProxy deletes proxy
+func (s *PresenceService) DeleteProxy(name string) error {
+	key := backend.Key(proxiesPrefix, name)
+	return s.Delete(context.TODO(), key)
+}
+
 // DeleteAllReverseTunnels deletes all reverse tunnels
 func (s *PresenceService) DeleteAllReverseTunnels() error {
 	startKey := backend.Key(reverseTunnelsPrefix)
@@ -319,6 +354,7 @@ func (s *PresenceService) UpsertReverseTunnel(tunnel services.ReverseTunnel) err
 		Key:     backend.Key(reverseTunnelsPrefix, tunnel.GetName()),
 		Value:   value,
 		Expires: tunnel.Expiry(),
+		ID:      tunnel.GetResourceID(),
 	})
 	return trace.Wrap(err)
 }
@@ -329,7 +365,8 @@ func (s *PresenceService) GetReverseTunnel(name string) (services.ReverseTunnel,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.GetReverseTunnelMarshaler().UnmarshalReverseTunnel(item.Value)
+	return services.GetReverseTunnelMarshaler().UnmarshalReverseTunnel(item.Value,
+		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 }
 
 // GetReverseTunnels returns a list of registered servers
@@ -341,7 +378,8 @@ func (s *PresenceService) GetReverseTunnels() ([]services.ReverseTunnel, error) 
 	}
 	tunnels := make([]services.ReverseTunnel, len(result.Items))
 	for i, item := range result.Items {
-		tunnel, err := services.GetReverseTunnelMarshaler().UnmarshalReverseTunnel(item.Value)
+		tunnel, err := services.GetReverseTunnelMarshaler().UnmarshalReverseTunnel(
+			item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -371,6 +409,7 @@ func (s *PresenceService) UpsertTrustedCluster(trustedCluster services.TrustedCl
 		Key:     backend.Key(trustedClustersPrefix, trustedCluster.GetName()),
 		Value:   value,
 		Expires: trustedCluster.Expiry(),
+		ID:      trustedCluster.GetResourceID(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -387,7 +426,7 @@ func (s *PresenceService) GetTrustedCluster(name string) (services.TrustedCluste
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.GetTrustedClusterMarshaler().Unmarshal(item.Value)
+	return services.GetTrustedClusterMarshaler().Unmarshal(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 }
 
 // GetTrustedClusters returns all TrustedClusters in the backend.
@@ -399,7 +438,8 @@ func (s *PresenceService) GetTrustedClusters() ([]services.TrustedCluster, error
 	}
 	out := make([]services.TrustedCluster, len(result.Items))
 	for i, item := range result.Items {
-		tc, err := services.GetTrustedClusterMarshaler().Unmarshal(item.Value)
+		tc, err := services.GetTrustedClusterMarshaler().Unmarshal(item.Value,
+			services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -437,6 +477,7 @@ func (s *PresenceService) UpsertTunnelConnection(conn services.TunnelConnection)
 		Key:     backend.Key(tunnelConnectionsPrefix, conn.GetClusterName(), conn.GetName()),
 		Value:   value,
 		Expires: conn.Expiry(),
+		ID:      conn.GetResourceID(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -453,7 +494,8 @@ func (s *PresenceService) GetTunnelConnection(clusterName, connectionName string
 		}
 		return nil, trace.Wrap(err)
 	}
-	conn, err := services.UnmarshalTunnelConnection(item.Value, opts...)
+	conn, err := services.UnmarshalTunnelConnection(item.Value,
+		services.AddOptions(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires))...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -472,7 +514,8 @@ func (s *PresenceService) GetTunnelConnections(clusterName string, opts ...servi
 	}
 	conns := make([]services.TunnelConnection, len(result.Items))
 	for i, item := range result.Items {
-		conn, err := services.UnmarshalTunnelConnection(item.Value, opts...)
+		conn, err := services.UnmarshalTunnelConnection(item.Value,
+			services.AddOptions(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires))...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -492,7 +535,10 @@ func (s *PresenceService) GetAllTunnelConnections(opts ...services.MarshalOption
 
 	conns := make([]services.TunnelConnection, len(result.Items))
 	for i, item := range result.Items {
-		conn, err := services.UnmarshalTunnelConnection(item.Value, opts...)
+		conn, err := services.UnmarshalTunnelConnection(item.Value,
+			services.AddOptions(opts,
+				services.WithResourceID(item.ID),
+				services.WithExpires(item.Expires))...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -558,7 +604,8 @@ func (s *PresenceService) GetRemoteClusters(opts ...services.MarshalOption) ([]s
 
 	clusters := make([]services.RemoteCluster, len(result.Items))
 	for i, item := range result.Items {
-		cluster, err := services.UnmarshalRemoteCluster(item.Value, opts...)
+		cluster, err := services.UnmarshalRemoteCluster(item.Value,
+			services.AddOptions(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires))...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -579,7 +626,8 @@ func (s *PresenceService) GetRemoteCluster(clusterName string) (services.RemoteC
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalRemoteCluster(item.Value)
+	return services.UnmarshalRemoteCluster(item.Value,
+		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 }
 
 // DeleteRemoteCluster deletes remote cluster by name

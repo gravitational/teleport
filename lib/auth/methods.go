@@ -272,6 +272,11 @@ func AuthoritiesToTrustedCerts(authorities []services.CertAuthority) []TrustedCe
 // AuthenticateSSHUser authenticates web user, creates and  returns web session
 // in case if authentication is successful
 func (s *AuthServer) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginResponse, error) {
+	clusterName, err := s.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := s.AuthenticateUser(req.AuthenticateUserRequest); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -287,7 +292,7 @@ func (s *AuthServer) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginR
 	// Return the host CA for this cluster only.
 	authority, err := s.GetCertAuthority(services.CertAuthID{
 		Type:       services.HostCA,
-		DomainName: s.clusterName.GetClusterName(),
+		DomainName: clusterName.GetClusterName(),
 	}, false)
 	if err != nil {
 		return nil, trace.Wrap(err)

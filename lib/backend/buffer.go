@@ -134,16 +134,21 @@ func (c *CircularBuffer) push(r Event) {
 	c.fanOutEvent(r)
 }
 
-func matchPrefix(prefix []byte, e Event) bool {
-	if prefix == nil {
+func matchPrefix(prefixes [][]byte, e Event) bool {
+	if len(prefixes) == 0 {
 		return true
 	}
-	return bytes.HasPrefix(e.Item.Key, prefix)
+	for _, prefix := range prefixes {
+		if bytes.HasPrefix(e.Item.Key, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *CircularBuffer) fanOutEvent(r Event) {
 	for i, watcher := range c.watchers {
-		if !matchPrefix(watcher.prefix, r) {
+		if !matchPrefix(watcher.prefixes, r) {
 			continue
 		}
 		select {
@@ -170,10 +175,19 @@ func (c *CircularBuffer) NewWatcher(ctx context.Context, watch Watch) (Watcher, 
 
 	closeCtx, cancel := context.WithCancel(ctx)
 	w := &BufferWatcher{
-		prefix:  watch.Prefix,
-		eventsC: make(chan Event, len(c.events)),
-		ctx:     closeCtx,
-		cancel:  cancel,
+		prefixes: watch.Prefixes,
+		eventsC:  make(chan Event, len(c.events)),
+		ctx:      closeCtx,
+		cancel:   cancel,
+	}
+	select {
+	case w.eventsC <- Event{Type: OpInit}:
+	case <-c.ctx.Done():
+		return nil, trace.BadParameter("buffer is closed")
+	default:
+		c.Warningf("Closing watcher, buffer overflow.")
+		w.Close()
+		return nil, trace.BadParameter("buffer overflow")
 	}
 	c.watchers = append(c.watchers, w)
 	return w, nil
@@ -187,10 +201,10 @@ func max(a, b int) int {
 }
 
 type BufferWatcher struct {
-	prefix  []byte
-	eventsC chan Event
-	ctx     context.Context
-	cancel  context.CancelFunc
+	prefixes [][]byte
+	eventsC  chan Event
+	ctx      context.Context
+	cancel   context.CancelFunc
 }
 
 func (w *BufferWatcher) Events() <-chan Event {

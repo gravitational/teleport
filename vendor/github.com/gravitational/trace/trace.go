@@ -280,6 +280,12 @@ func (e *TraceErr) OrigError() error {
 	return err
 }
 
+// GoString formats this trace object for use with
+// with the "%#v" format string
+func (e *TraceErr) GoString() string {
+	return e.DebugReport()
+}
+
 // maxHops is a max supported nested depth for errors
 const maxHops = 50
 

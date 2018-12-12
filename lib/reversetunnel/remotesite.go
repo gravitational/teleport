@@ -172,23 +172,57 @@ func (s *remoteSite) Close() error {
 	return nil
 }
 
+// nextConn returns next connection that is ready
+// and has not been marked as invalid
+// it will close connections marked as invalid
 func (s *remoteSite) nextConn() (*remoteConn, error) {
 	s.Lock()
 	defer s.Unlock()
 
-	for {
-		if len(s.connections) == 0 {
-			return nil, trace.NotFound("no active tunnels to cluster %v", s.GetName())
-		}
+	s.removeInvalidConns()
+
+	for i := 0; i < len(s.connections); i++ {
 		s.lastUsed = (s.lastUsed + 1) % len(s.connections)
 		remoteConn := s.connections[s.lastUsed]
-		if !remoteConn.isInvalid() {
+		// connection could have been initated, but agent
+		// on the other side is not ready yet.
+		// Proxy assumes that connection is ready to serve when
+		// it has received a first heartbeat, otherwise
+		// it could attempt to use it before the agent
+		// had a chance to start handling connection requests,
+		// what could lead to proxy marking the connection
+		// as invalid without a good reason.
+		if remoteConn.isReady() {
 			return remoteConn, nil
 		}
-		s.connections = append(s.connections[:s.lastUsed], s.connections[s.lastUsed+1:]...)
-		s.lastUsed = 0
-		go remoteConn.Close()
 	}
+
+	return nil, trace.NotFound("%v is offline: no active tunnels to %v found", s.GetName(), s.srv.ClusterName)
+}
+
+// removeInvalidConns removes connections marked as invalid,
+// it should be called only under write lock
+func (s *remoteSite) removeInvalidConns() {
+	// for first pass, do nothing if no connections are marked
+	count := 0
+	for _, conn := range s.connections {
+		if conn.isInvalid() {
+			count++
+		}
+	}
+	if count == 0 {
+		return
+	}
+	s.lastUsed = 0
+	conns := make([]*remoteConn, 0, len(s.connections)-count)
+	for i := range s.connections {
+		if !s.connections[i].isInvalid() {
+			conns = append(conns, s.connections[i])
+		} else {
+			go s.connections[i].Close()
+		}
+	}
+	s.connections = conns
 }
 
 // addConn helper adds a new active remote cluster connection to the list
@@ -244,7 +278,7 @@ func (s *remoteSite) registerHeartbeat(t time.Time) {
 	s.setLastConnInfo(connInfo)
 	err := s.localAccessPoint.UpsertTunnelConnection(connInfo)
 	if err != nil {
-		s.Warningf("failed to register heartbeat: %v", err)
+		s.Warningf("Failed to register heartbeat: %v.", err)
 	}
 }
 
@@ -259,7 +293,7 @@ func (s *remoteSite) deleteConnectionRecord() {
 // the connection as invalid.
 func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-chan *ssh.Request) {
 	defer func() {
-		s.Infof("cluster connection closed")
+		s.Infof("Cluster connection closed.")
 		conn.Close()
 	}()
 	for {
@@ -269,10 +303,10 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 			return
 		case req := <-reqC:
 			if req == nil {
-				s.Infof("cluster agent disconnected")
+				s.Infof("Cluster agent disconnected.")
 				conn.markInvalid(trace.ConnectionProblem(nil, "agent disconnected"))
 				if !s.hasValidConnections() {
-					s.Debugf("deleting connection record")
+					s.Debugf("Deleting connection record.")
 					s.deleteConnectionRecord()
 				}
 				return
@@ -287,9 +321,11 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 			if roundtrip != 0 {
 				s.WithFields(log.Fields{"latency": roundtrip}).Debugf("ping <- %v", conn.conn.RemoteAddr())
 			} else {
-				s.Debugf("ping <- %v", conn.conn.RemoteAddr())
+				s.Debugf("Ping <- %v.", conn.conn.RemoteAddr())
 			}
-			go s.registerHeartbeat(time.Now())
+			tm := time.Now().UTC()
+			conn.setLastHeartbeat(tm)
+			go s.registerHeartbeat(tm)
 		// since we block on select, time.After is re-created everytime we process a request.
 		case <-time.After(defaults.ReverseTunnelOfflineThreshold):
 			conn.markInvalid(trace.ConnectionProblem(nil, "no heartbeats for %v", defaults.ReverseTunnelOfflineThreshold))
@@ -331,7 +367,7 @@ func (s *remoteSite) periodicSendDiscoveryRequests() {
 	ticker := time.NewTicker(defaults.ReverseTunnelAgentHeartbeatPeriod)
 	defer ticker.Stop()
 	if err := s.sendDiscoveryRequest(); err != nil {
-		s.Warningf("failed to send discovery: %v", err)
+		s.Warningf("Failed to send discovery: %v.", err)
 	}
 	for {
 		select {
@@ -478,14 +514,14 @@ func (s *remoteSite) sendDiscoveryRequest() error {
 	if len(disconnectedProxies) == 0 {
 		return nil
 	}
-	clusterName, err := s.localAccessPoint.GetDomainName()
+	clusterName, err := s.localAccessPoint.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	connInfo := s.copyConnInfo()
-	s.Debugf("proxy %q is going to request discovery for: %q", connInfo.GetProxyName(), Proxies(disconnectedProxies))
+	s.Debugf("Proxy %q is going to request discovery for: %q.", connInfo.GetProxyName(), Proxies(disconnectedProxies))
 	req := discoveryRequest{
-		ClusterName: clusterName,
+		ClusterName: clusterName.GetClusterName(),
 		Proxies:     disconnectedProxies,
 	}
 	payload, err := marshalDiscoveryRequest(req)

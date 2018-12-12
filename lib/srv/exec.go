@@ -292,7 +292,7 @@ func prepareCommand(ctx *ServerContext) (*exec.Cmd, error) {
 	// https://github.com/openssh/openssh-portable/blob/master/session.c
 	c := exec.Command(shell, "-c", ctx.ExecRequest.GetCommand())
 
-	clusterName, err := ctx.srv.GetAccessPoint().GetDomainName()
+	clusterName, err := ctx.srv.GetAccessPoint().GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -306,7 +306,7 @@ func prepareCommand(ctx *ServerContext) (*exec.Cmd, error) {
 		teleport.SSHTeleportUser + "=" + ctx.Identity.TeleportUser,
 		teleport.SSHSessionWebproxyAddr + "=" + ctx.ProxyPublicAddress(),
 		teleport.SSHTeleportHostUUID + "=" + ctx.srv.ID(),
-		teleport.SSHTeleportClusterName + "=" + clusterName,
+		teleport.SSHTeleportClusterName + "=" + clusterName.GetClusterName(),
 	}
 	c.Dir = osUser.HomeDir
 	c.SysProcAttr = &syscall.SysProcAttr{}

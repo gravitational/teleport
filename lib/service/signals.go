@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Gravitational, Inc.
+Copyright 2017-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,14 +27,16 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 )
 
 // printShutdownStatus prints running services until shut down
 func (process *TeleportProcess) printShutdownStatus(ctx context.Context) {
-	t := time.NewTicker(5 * time.Second)
+	t := time.NewTicker(defaults.HighResReportingPeriod)
 	defer t.Stop()
 	for {
 		select {

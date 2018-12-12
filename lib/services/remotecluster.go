@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Gravitational, Inc.
+Copyright 2017-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@ limitations under the License.
 package services
 
 import (
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -64,6 +63,9 @@ type RemoteClusterV3 struct {
 	// Kind is a resource kind - always resource.
 	Kind string `json:"kind"`
 
+	// SubKind is a resource sub kind
+	SubKind string `json:"sub_kind,omitempty"`
+
 	// Version is a resource version.
 	Version string `json:"version"`
 
@@ -80,6 +82,26 @@ type RemoteClusterStatusV3 struct {
 	Connection string `json:"connection"`
 	// LastHeartbeat records last heartbeat of the cluster
 	LastHeartbeat time.Time `json:"last_heartbeat"`
+}
+
+// GetVersion returns resource version
+func (c *RemoteClusterV3) GetVersion() string {
+	return c.Version
+}
+
+// GetKind returns resource kind
+func (c *RemoteClusterV3) GetKind() string {
+	return c.Kind
+}
+
+// GetSubKind returns resource sub kind
+func (c *RemoteClusterV3) GetSubKind() string {
+	return c.SubKind
+}
+
+// SetSubKind sets resource subkind
+func (c *RemoteClusterV3) SetSubKind(s string) {
+	c.SubKind = s
 }
 
 // GetResourceID returns resource ID
@@ -216,5 +238,21 @@ func UnmarshalRemoteCluster(bytes []byte, opts ...MarshalOption) (RemoteCluster,
 
 // MarshalRemoteCluster marshals remote cluster to JSON.
 func MarshalRemoteCluster(c RemoteCluster, opts ...MarshalOption) ([]byte, error) {
-	return json.Marshal(c)
+	cfg, err := collectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	switch resource := c.(type) {
+	case *RemoteClusterV3:
+		if !cfg.PreserveResourceID {
+			// avoid modifying the original object
+			// to prevent unexpected data races
+			copy := *resource
+			copy.SetResourceID(0)
+			resource = &copy
+		}
+		return utils.FastMarshal(resource)
+	default:
+		return nil, trace.BadParameter("unrecognized resource version %T", c)
+	}
 }
